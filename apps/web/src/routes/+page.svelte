@@ -8,9 +8,9 @@
       class="border-neutral-300 bg-white/75 px-4 py-1 text-sm text-neutral-600"
       variant="outline"
     >
-      Mono
+      Coming Soon
     </Badge>
-    <h1 class="font-garamond -mt-2 text-9xl font-medium">SveltePlex</h1>
-    <h2 class="font-garamond mt-5 text-lg">Monorepo for Everything Svelte</h2>
+    <h1 class="font-garamond -mt-2 text-9xl font-medium">Pandoks</h1>
+    <h2 class="font-garamond mt-5 text-lg">Fool</h2>
   </div>
 </div>
