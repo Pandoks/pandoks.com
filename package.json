@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "packageManager": "pnpm@10.8.1",
   "scripts": {
+    "dev": "sst dev",
     "setup": "docker compose -f ./setup.yaml -p setup up",
+    "sso": "aws sso login --sso-session=Pandoks_",
     "format": "prettier --write .",
     "lint": "prettier --check .",
     "shadcn": "pnpm dlx shadcn-svelte@next add $@ -c packages/svelte"
@@ -13,6 +15,9 @@
     "prettier-plugin-svelte": "^3.3.3",
     "prettier-plugin-tailwindcss": "^0.6.11",
     "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "sst": "^3.17.4"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
