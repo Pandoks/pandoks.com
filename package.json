@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "packageManager": "pnpm@10.8.1",
   "scripts": {
-    "dev": "sst dev",
+    "dev": "source .env && sst dev",
     "setup": "docker compose -f ./setup.yaml -p setup up",
     "sso": "aws sso login --sso-session=Pandoks_",
     "format": "prettier --write .",
