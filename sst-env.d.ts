@@ -5,6 +5,10 @@
 
 declare module "sst" {
   export interface Resource {
+    "NotionApiKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "StaticWebsite": {
       "type": "sst.cloudflare.StaticSite"
       "url": string
