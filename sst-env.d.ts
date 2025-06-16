@@ -3,27 +3,27 @@
 /* eslint-disable */
 /* deno-fmt-ignore-file */
 
-declare module 'sst' {
+declare module "sst" {
   export interface Resource {
-    NotionApiKey: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    NotionBlogDeployAuth: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    StaticWebsite: {
-      type: 'sst.cloudflare.StaticSite';
-      url: string;
-    };
-    blogApi: {
-      type: 'sst.cloudflare.Worker';
-      url: string;
-    };
+    "NotionApiKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "NotionBlogDeployAuth": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "StaticWebsite": {
+      "type": "sst.cloudflare.StaticSite"
+      "url": string
+    }
+    "blogApi": {
+      "type": "sst.cloudflare.Worker"
+      "url": string
+    }
   }
 }
 /// <reference path="sst-env.d.ts" />
 
-import 'sst';
-export {};
+import "sst"
+export {}
