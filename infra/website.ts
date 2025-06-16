@@ -1,4 +1,5 @@
 import { secrets } from './secrets';
+import { domain } from './dns';
 
 export const staticWebsite = new sst.cloudflare.StaticSite('StaticWebsite', {
   path: 'apps/web',
@@ -6,9 +7,9 @@ export const staticWebsite = new sst.cloudflare.StaticSite('StaticWebsite', {
     command: 'pnpm run build',
     output: 'build'
   },
-  domain: 'pandoks.com',
+  domain: domain,
   environment: {
-    NOTION_API_KEY: secrets.NotionApiKey.value,
+    NOTION_API_KEY: secrets.notion.ApiKey.value,
     NOTION_DATABASE_ID: '20f1bb259e4b804ba24be1ceebf4c761'
   }
 });

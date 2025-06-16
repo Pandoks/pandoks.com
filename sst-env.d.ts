@@ -9,8 +9,16 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "NotionBlogDeployAuth": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "StaticWebsite": {
       "type": "sst.cloudflare.StaticSite"
+      "url": string
+    }
+    "blogApi": {
+      "type": "sst.cloudflare.Worker"
       "url": string
     }
   }

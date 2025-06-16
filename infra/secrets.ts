@@ -1,3 +1,6 @@
 export const secrets = {
-  NotionApiKey: new sst.Secret('NotionApiKey')
+  notion: {
+    ApiKey: new sst.Secret('NotionApiKey'),
+    BlogDeployAuth: new sst.Secret('NotionBlogDeployAuth')
+  }
 };
