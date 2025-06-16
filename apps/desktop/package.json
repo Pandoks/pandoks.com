@@ -1,6 +1,6 @@
 {
-  "name": "@svelteplex/desktop",
-  "productName": "SveltePlex",
+  "name": "@pandoks.com/desktop",
+  "productName": "Pandoks",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -51,6 +51,6 @@
   },
   "dependencies": {
     "electron-squirrel-startup": "^1.0.1",
-    "@svelteplex/svelte": "workspace:*"
+    "@pandoks.com/svelte": "workspace:*"
   }
 }

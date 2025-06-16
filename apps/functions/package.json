@@ -1,0 +1,10 @@
+{
+  "name": "@pandoks.com/functions",
+  "version": "1.0.0",
+  "type": "module",
+  "packageManager": "pnpm@10.8.1",
+  "devDependencies": {},
+  "dependencies": {
+    "sst": "^3.17.4"
+  }
+}

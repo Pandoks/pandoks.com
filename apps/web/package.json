@@ -1,5 +1,5 @@
 {
-  "name": "@svelteplex/web",
+  "name": "@pandoks.com/web",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@notionhq/client": "^3.1.3",
-    "@svelteplex/svelte": "workspace:*"
+    "@pandoks.com/svelte": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.1",

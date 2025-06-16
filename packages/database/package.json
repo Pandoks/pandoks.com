@@ -1,5 +1,5 @@
 {
-  "name": "@svelteplex/database",
+  "name": "@package.json/database",
   "version": "0.0.0",
   "type": "module",
   "scripts": {

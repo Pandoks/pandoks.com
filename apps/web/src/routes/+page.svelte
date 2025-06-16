@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Badge } from '@svelteplex/svelte/shadcn/badge';
+  import { Badge } from '@pandoks.com/svelte/shadcn/badge';
 </script>
 
 <div class="flex h-screen w-screen flex-col items-center justify-center">

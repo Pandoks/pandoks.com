@@ -2,5 +2,5 @@
 @plugin '@tailwindcss/forms';
 @plugin '@tailwindcss/typography';
 @source '../../../packages/svelte/src/**/*.{html,js,svelte,ts}';
-@import '@svelteplex/svelte/shadcn/css';
-@import '@svelteplex/svelte/styles/fonts';
+@import '@pandoks.com/svelte/shadcn/css';
+@import '@pandoks.com/svelte/styles/fonts';
