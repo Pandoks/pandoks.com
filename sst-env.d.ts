@@ -5,6 +5,14 @@
 
 declare module "sst" {
   export interface Resource {
+    "CloudflareAccountId": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "CloudflareApiKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "NotionApiKey": {
       "type": "sst.sst.Secret"
       "value": string
