@@ -6,12 +6,12 @@ export const deployHandler = async (request: Request) => {
   }
 
   const authHeader = request.headers.get('auth');
-  if (!authHeader || authHeader !== Resource.BlogDeployAuth.value) {
+  if (!authHeader || authHeader !== Resource.NotionBlogDeployAuth.value) {
     return new Response('Unauthorized', { status: 401 });
   }
 
   const stage = request.headers.get('stage');
-  if (!stage || ['production', 'pandoks'].includes(stage)) {
+  if (!stage || !['production', 'pandoks'].includes(stage)) {
     return new Response('Bad Request', { status: 400 });
   }
 

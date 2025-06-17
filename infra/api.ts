@@ -5,7 +5,7 @@ export const blogApi = new sst.cloudflare.Worker('blogApi', {
   handler: 'apps/functions/src/api/index.ts',
   domain: `api.${domain}`,
   url: true,
-  link: [secrets.notion.BlogDeployAuth]
+  link: [secrets.notion.BlogDeployAuth, secrets.github.PersonalAccessToken]
 });
 
 export const outputs = {
