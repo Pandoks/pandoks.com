@@ -31,7 +31,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile --filter web
+        run: pnpm install --frozen-lockfile --filter web --filter svelte
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
