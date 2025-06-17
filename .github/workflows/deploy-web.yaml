@@ -34,4 +34,6 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_DEFAULT_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
-        run: pnpx sst deploy --stage production --target StaticWebsite
+        run: |
+          pnpx sst install
+          pnpx sst deploy --stage production --target StaticWebsite
