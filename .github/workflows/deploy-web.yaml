@@ -27,7 +27,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::226981968347:role/PandoksGithubActions
+          role-to-assume: arn:aws:iam::343487555569:role/PersonalGithubActions
           aws-region: us-west-1
 
       - name: Deploy pandoks.com
