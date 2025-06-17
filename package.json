@@ -19,15 +19,5 @@
   },
   "dependencies": {
     "sst": "^3.17.4"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "electron",
-      "electron-winstaller"
-    ],
-    "patchedDependencies": {
-      "@sveltejs/kit": "patches/@sveltejs__kit.patch"
-    }
   }
 }
