@@ -1,5 +1,14 @@
 name: Deploy pandoks.com
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: 'SST stage'
+        required: true
+        type: choice
+        options:
+          - production
+          - pandoks
 
 permissions:
   id-token: write
@@ -34,4 +43,4 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_DEFAULT_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
-        run: pnpx sst deploy --stage production --target StaticWebsite
+        run: pnpx sst deploy --stage ${{ github.event.inputs.stage }} --target StaticWebsite
