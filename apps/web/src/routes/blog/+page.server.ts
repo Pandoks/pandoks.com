@@ -37,15 +37,15 @@ const getBlogPosts = async (databaseId: string) => {
       )
       .map((block) =>
         block.type === 'paragraph'
-          ? { type: block.type, text: block.paragraph.rich_text[0].plain_text }
-          : { type: block.type, url: block.image.file.url }
+          ? { type: 'paragraph', text: block.paragraph.rich_text[0].plain_text as string }
+          : { type: 'image', url: block.image.file.url as string }
       );
 
     const post = {
-      title: page.properties.Title.title[0].plain_text,
-      summary: page.properties.Summary.rich_text[0].plain_text,
-      createdTime: page.created_time,
-      lastEditedTime: page.last_edited_time,
+      title: page.properties.Title.title[0].plain_text as string,
+      summary: page.properties.Summary.rich_text[0].plain_text as string,
+      createdTime: new Date(page.created_time),
+      lastEditedTime: new Date(page.last_edited_time),
       blocks
     };
     console.log(post);
