@@ -51,3 +51,6 @@ expo-env.d.ts
 
 # AI
 .claude
+
+# Processed images (generated during build)
+apps/web/static/blog
