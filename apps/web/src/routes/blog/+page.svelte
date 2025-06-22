@@ -3,7 +3,6 @@
   import type { PageProps } from './$types';
 
   const { data }: PageProps = $props();
-  console.log(data.posts[0].blocks);
 </script>
 
 {#each data.posts as post}

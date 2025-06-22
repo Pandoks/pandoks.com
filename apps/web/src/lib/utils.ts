@@ -40,7 +40,7 @@ export const downloadSignedUrlImage = async ({
 
         file.on('finish', () => {
           file.close();
-          console.log(`Downloaded image: ${url}`);
+          console.log(`Downloaded image: ${url} to ${outputPath}`);
           resolve(`${dir}/${name}${extension}`);
         });
 
