@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "sst dev vite dev",
     "build": "vite build",
-    "prebuild": "rm -rf ./static/blog && sst shell -- vite-node --options.transformMode.ssr='/.*' ./src/lib/prebuild.ts",
+    "prebuild": "sst shell -- vite-node --options.transformMode.ssr='/.*' ./src/lib/prebuild.ts",
+    "clean": "rm -rf ./static/blog",
     "preview": "vite preview",
     "prepare": "svelte-kit sync || echo ''",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
