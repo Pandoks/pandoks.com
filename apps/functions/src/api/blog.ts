@@ -1,16 +1,18 @@
+import { APIGatewayProxyEventV2 } from 'aws-lambda';
 import { Resource } from 'sst';
 
-export const deployHandler = async (request: Request) => {
-  if (request.method !== 'POST') {
+export const deployHandler = async (event: APIGatewayProxyEventV2) => {
+  if (event.requestContext.http.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405 });
   }
 
-  const authHeader = request.headers.get('auth');
-  if (authHeader !== Resource.NotionBlogDeployAuth.value) {
+  const headers = event.headers;
+  console.log(headers);
+  if (event.headers.auth !== Resource.NotionBlogDeployAuth.value) {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  const stage = request.headers.get('stage');
+  const stage = event.headers.stage || '';
   if (!['production', 'pandoks'].includes(stage)) {
     return new Response('Bad Request', { status: 400 });
   }
