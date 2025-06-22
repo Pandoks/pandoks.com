@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { dev } from '$app/environment';
+  import { building } from '$app/environment';
   import type { PageProps } from './$types';
 
   const { data }: PageProps = $props();
@@ -38,10 +38,10 @@
   {:else if block.type === 'bulleted_list_item'}
     <li>{block.text}</li>
   {:else if block.type === 'image'}
-    {#if dev}
-      <img src={block.url} alt={block.text} />
-    {:else}
+    {#if building}
       <enhanced:img src={block.url} alt={block.text} />
+    {:else}
+      <img src={block.url} alt={block.text} />
     {/if}
   {/if}
 {/snippet}

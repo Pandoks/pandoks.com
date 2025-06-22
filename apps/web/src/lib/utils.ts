@@ -1,10 +1,9 @@
-import { dev } from '$app/environment';
 import http from 'http';
 import https from 'https';
 import fs from 'fs';
 import path from 'path';
 
-export const processSignedUrlImage = async ({
+export const downloadSignedUrlImage = async ({
   url,
   dir,
   name
@@ -13,12 +12,6 @@ export const processSignedUrlImage = async ({
   dir: string;
   name: string;
 }): Promise<string> => {
-  if (dev) {
-    return new Promise((resolve) => {
-      resolve(url);
-    });
-  }
-
   if (!dir.startsWith('/')) {
     dir = `/${dir}`;
   }
@@ -47,6 +40,7 @@ export const processSignedUrlImage = async ({
 
         file.on('finish', () => {
           file.close();
+          console.log(`Downloaded image: ${url}`);
           resolve(`${dir}/${name}${extension}`);
         });
 

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "sst dev vite dev",
     "build": "vite build",
-    "clean": "rm -rf ./static/blog",
+    "prebuild": "rm -rf ./static/blog && sst shell -- vite-node --options.transformMode.ssr='/.*' ./src/lib/prebuild.ts",
     "preview": "vite preview",
     "prepare": "svelte-kit sync || echo ''",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
@@ -38,6 +38,7 @@
     "tailwindcss": "^4.0.0",
     "typescript": "^5.0.0",
     "vite": "^6.2.6",
+    "vite-node": "^3.2.4",
     "vite-plugin-static-copy": "^3.0.0",
     "vitest": "^3.0.0"
   }
