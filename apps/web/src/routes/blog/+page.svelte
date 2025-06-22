@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { building } from '$app/environment';
+  import { dev } from '$app/environment';
   import type { PageProps } from './$types';
 
   const { data }: PageProps = $props();
+  console.log(data.posts[0].blocks);
 </script>
 
 {#each data.posts as post}
@@ -38,10 +39,10 @@
   {:else if block.type === 'bulleted_list_item'}
     <li>{block.text}</li>
   {:else if block.type === 'image'}
-    {#if building}
-      <enhanced:img src={block.url} alt={block.text} />
-    {:else}
+    {#if dev}
       <img src={block.url} alt={block.text} />
+    {:else}
+      <enhanced:img src={block.url} alt={block.text} />
     {/if}
   {/if}
 {/snippet}
