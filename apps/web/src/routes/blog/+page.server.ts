@@ -52,9 +52,9 @@ const getBlogPosts = async (databaseId: string) => {
     for (const post of posts) {
       for (const block of post.blocks) {
         if (block.type === 'image') {
-          console.log('staticBlogImages', staticBlogImages);
           block.url = staticBlogImages[`/static/blog/${block.id}.png`].default;
         }
+        delete block.id;
       }
     }
   }
