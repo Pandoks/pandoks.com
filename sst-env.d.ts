@@ -17,11 +17,23 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "KwokPhoneNumber": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "MichellePhoneNumber": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "NotionApiKey": {
       "type": "sst.sst.Secret"
       "value": string
     }
     "NotionBlogDeployAuth": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "NotionTodoRemindAuth": {
       "type": "sst.sst.Secret"
       "value": string
     }

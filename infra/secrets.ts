@@ -1,7 +1,8 @@
 export const secrets = {
   notion: {
     ApiKey: new sst.Secret('NotionApiKey'),
-    BlogDeployAuth: new sst.Secret('NotionBlogDeployAuth')
+    BlogDeployAuth: new sst.Secret('NotionBlogDeployAuth'),
+    TodoRemindAuth: new sst.Secret('NotionTodoRemindAuth')
   },
   cloudflare: {
     ApiKey: new sst.Secret('CloudflareApiKey'),
@@ -9,5 +10,9 @@ export const secrets = {
   },
   github: {
     PersonalAccessToken: new sst.Secret('GithubPersonalAccessToken')
+  },
+  personal: {
+    KwokPhoneNumber: new sst.Secret('KwokPhoneNumber'),
+    MichellePhoneNumber: new sst.Secret('MichellePhoneNumber')
   }
 };
