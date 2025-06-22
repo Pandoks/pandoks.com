@@ -1,5 +1,6 @@
 import { NOTION_DATABASE_ID } from '$env/static/private';
 import { notion } from '$lib/notion';
+import { processSignedUrlImage } from '$lib/utils';
 
 export const load = async () => {
   const posts = getBlogPosts(NOTION_DATABASE_ID);
@@ -9,6 +10,15 @@ export const load = async () => {
   };
 };
 
+const staticBlogImages = import.meta.glob(
+  '/static/blog/*.{avif,gif,heif,jpeg,jpg,png,tiff,webp,svg}',
+  {
+    eager: true,
+    query: {
+      enhanced: true
+    }
+  }
+);
 // NOTE: no need to try catch because it should throw an error during build time if it can't get the data
 const getBlogPosts = async (databaseId: string) => {
   const pagesResponse = await notion.databases.query({
@@ -28,18 +38,26 @@ const getBlogPosts = async (databaseId: string) => {
     const blockResponse = await notion.blocks.children.list({
       block_id: page.id
     });
-    const blocks = blockResponse.results
-      .filter(
-        (block) =>
-          !block.archived &&
-          !block.in_trash &&
-          (block.type === 'paragraph' || block.type === 'image')
-      )
-      .map((block) =>
-        block.type === 'paragraph'
-          ? { type: 'paragraph', text: block.paragraph.rich_text[0].plain_text as string }
-          : { type: 'image', url: block.image.file.url as string }
-      );
+
+    const blocks = await Promise.all(
+      blockResponse.results
+        .filter((block) => !block.archived && !block.in_trash && block.type !== 'bookmark')
+        .map(async (block) => {
+          const type = block.type;
+
+          if (type === 'image') {
+            const baseUrl = await processSignedUrlImage({
+              url: block[type].file.url,
+              dir: '/blog',
+              name: block.id
+            });
+            const url = staticBlogImages[`/static${baseUrl}`].default;
+            return { type, url };
+          }
+
+          return { type, text: block[type].rich_text[0].plain_text as string };
+        })
+    );
 
     const post = {
       title: page.properties.Title.title[0].plain_text as string,
@@ -48,7 +66,6 @@ const getBlogPosts = async (databaseId: string) => {
       lastEditedTime: new Date(page.last_edited_time),
       blocks
     };
-    console.log(post);
     posts.push(post);
   }
 
