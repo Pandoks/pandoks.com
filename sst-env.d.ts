@@ -5,6 +5,15 @@
 
 declare module "sst" {
   export interface Resource {
+    "ApiRouter": {
+      "type": "sst.aws.Router"
+      "url": string
+    }
+    "BlogApi": {
+      "name": string
+      "type": "sst.aws.Function"
+      "url": string
+    }
     "CloudflareAccountId": {
       "type": "sst.sst.Secret"
       "value": string
@@ -41,8 +50,9 @@ declare module "sst" {
       "type": "sst.cloudflare.StaticSite"
       "url": string
     }
-    "blogApi": {
-      "type": "sst.cloudflare.Worker"
+    "TodoRemindApi": {
+      "name": string
+      "type": "sst.aws.Function"
       "url": string
     }
   }

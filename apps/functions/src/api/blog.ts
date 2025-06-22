@@ -6,8 +6,6 @@ export const deployHandler = async (event: APIGatewayProxyEventV2) => {
     return new Response('Method Not Allowed', { status: 405 });
   }
 
-  const headers = event.headers;
-  console.log(headers);
   if (event.headers.auth !== Resource.NotionBlogDeployAuth.value) {
     return new Response('Unauthorized', { status: 401 });
   }
