@@ -22,7 +22,7 @@
 
 {#snippet navLink(href: string, text: string)}
   <a
-    data-sveltekit-preload-code
+    data-sveltekit-preload-code="eager"
     {href}
     class={page.route.id === href ? 'underline' : 'hover:underline'}>{text}</a
   >
