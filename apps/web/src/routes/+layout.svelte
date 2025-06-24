@@ -6,7 +6,7 @@
 </script>
 
 <nav
-  class="font-inter fixed top-1/2 flex -translate-y-9/12 flex-col space-y-3 pl-[clamp(0rem,2vw,10rem)] text-sm"
+  class="font-inter fixed top-1/2 flex -translate-y-9/12 flex-col space-y-3 pl-[clamp(0rem,1.5vw,4rem)] text-sm"
 >
   {@render navLink('/', 'Jason Kwok')}
   {@render navLink('/socials', 'Socials')}
@@ -15,7 +15,7 @@
 </nav>
 
 <div
-  class="flex min-h-screen items-center pr-[clamp(1rem,1vw,5rem)] pl-[clamp(6rem,20vw,13rem)] lg:justify-center lg:px-0"
+  class="flex min-h-screen items-center pr-4 pl-[clamp(0rem,17.8vw,11.4rem)] lg:justify-center lg:px-0"
 >
   {@render children()}
 </div>
