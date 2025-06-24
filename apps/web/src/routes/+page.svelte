@@ -3,7 +3,7 @@
 </div>
 
 <svelte:head>
-  <title>Jason Kwok</title>
+  <title>Pandoks</title>
   <meta name="description" content="Home page talking about who Jason Kwok is" />
   <meta property="og:title" content="Jason Kwok (Pandoks_)" />
   <meta property="og:description" content="Home page talking about who Jason Kwok or Pandoks_ is" />
