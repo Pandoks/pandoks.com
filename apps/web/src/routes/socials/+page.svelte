@@ -26,4 +26,34 @@
     property="og:description"
     content="Jason Kwok's social links which are mostly under the username Pandoks"
   />
+
+  <link
+    rel="preload"
+    as="image"
+    type="image/svg+xml"
+    crossorigin="anonymous"
+    href="/icons/instagram.svg"
+  />
+  <link
+    rel="preload"
+    as="image"
+    type="image/svg+xml"
+    crossorigin="anonymous"
+    href="/icons/tiktok.svg"
+  />
+  <link rel="preload" as="image" type="image/svg+xml" crossorigin="anonymous" href="/icons/x.svg" />
+  <link
+    rel="preload"
+    as="image"
+    type="image/svg+xml"
+    crossorigin="anonymous"
+    href="/icons/github.svg"
+  />
+  <link
+    rel="preload"
+    as="image"
+    type="image/svg+xml"
+    crossorigin="anonymous"
+    href="/icons/linkedin.svg"
+  />
 </svelte:head>
