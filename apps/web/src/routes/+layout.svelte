@@ -6,7 +6,7 @@
 </script>
 
 <nav
-  class="font-inter fixed top-1/2 flex -translate-y-9/12 flex-col space-y-3 text-sm sm:pl-3 md:pl-7"
+  class="font-inter fixed top-1/2 flex -translate-y-9/12 flex-col space-y-3 pl-[clamp(0rem,2vw,10rem)] text-sm"
 >
   {@render navLink('/', 'Jason Kwok')}
   {@render navLink('/socials', 'Socials')}
