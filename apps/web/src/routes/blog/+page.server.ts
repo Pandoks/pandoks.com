@@ -54,6 +54,7 @@ const getBlogPosts = async (databaseId: string) => {
         if (block.type === 'image') {
           block.url = staticBlogImages[`/static/blog/${block.id}.png`].default;
         }
+        // NOTE: this is so that block ids aren't bundled in the static build
         delete block.id;
       }
     }
