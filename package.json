@@ -9,7 +9,7 @@
     "format": "prettier --write .",
     "lint": "prettier --check .",
     "shadcn": "pnpm dlx shadcn-svelte@next add $@ -c packages/svelte",
-    "deploy": "source .env && sst deploy && pnpm run clean",
+    "deploy": "source .env && sst deploy",
     "clean": "pnpm -r run clean"
   },
   "devDependencies": {
