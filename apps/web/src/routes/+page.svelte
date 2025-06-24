@@ -1,16 +1,10 @@
-<script lang="ts">
-  import { Badge } from '@pandoks.com/svelte/shadcn/badge';
-</script>
-
-<div class="flex h-screen w-screen flex-col items-center justify-center">
-  <div class="-mt-20 flex flex-col items-center">
-    <Badge
-      class="border-neutral-300 bg-white/75 px-4 py-1 text-sm text-neutral-600"
-      variant="outline"
-    >
-      Coming Soon
-    </Badge>
-    <h1 class="font-garamond -mt-2 text-9xl font-medium">Pandoks</h1>
-    <h2 class="font-garamond mt-5 text-lg">Fool</h2>
-  </div>
+<div class="font-garamond text-md -mt-14">
+  <p>Hi. I'm me and this is my journey to becoming a fool. I'm also known online as Pandoks_.</p>
 </div>
+
+<svelte:head>
+  <title>Jason Kwok</title>
+  <meta name="description" content="Home page talking about who Jason Kwok is" />
+  <meta property="og:title" content="Jason Kwok (Pandoks_)" />
+  <meta property="og:description" content="Home page talking about who Jason Kwok or Pandoks_ is" />
+</svelte:head>
