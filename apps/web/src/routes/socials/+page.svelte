@@ -1,14 +1,12 @@
 <script lang="ts">
 </script>
 
-<div class="-mt-14 pl-[clamp(0rem,1.2vw,1rem)] md:mx-auto md:pl-0">
-  <div class="grid grid-cols-4 gap-4 md:grid-cols-5">
-    {@render socialLink('https://instagram.com/pandoks_', '/icons/instagram.svg', 'Instagram')}
-    {@render socialLink('https://tiktok.com/@pandoks_', '/icons/tiktok.svg', 'TikTok')}
-    {@render socialLink('https://x.com/pandoks_', '/icons/x.svg', 'X')}
-    {@render socialLink('https://github.com/pandoks', '/icons/github.svg', 'GitHub')}
-    {@render socialLink('https://linkedin.com/in/pandoks', '/icons/linkedin.svg', 'LinkedIn')}
-  </div>
+<div class="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-5">
+  {@render socialLink('https://instagram.com/pandoks_', '/icons/instagram.svg', 'Instagram')}
+  {@render socialLink('https://tiktok.com/@pandoks_', '/icons/tiktok.svg', 'TikTok')}
+  {@render socialLink('https://github.com/pandoks', '/icons/github.svg', 'GitHub')}
+  {@render socialLink('https://x.com/pandoks_', '/icons/x.svg', 'X')}
+  {@render socialLink('https://linkedin.com/in/pandoks', '/icons/linkedin.svg', 'LinkedIn')}
 </div>
 
 {#snippet socialLink(href: string, icon: string, text: string)}

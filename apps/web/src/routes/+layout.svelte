@@ -5,18 +5,20 @@
   let { children } = $props();
 </script>
 
-<nav
-  class="font-inter fixed top-1/2 flex -translate-y-9/12 flex-col space-y-3 pl-[clamp(0rem,1.5vw,4rem)] text-sm"
->
+<nav class="font-inter fixed bottom-40 left-1/2 flex -translate-x-1/2 flex-row gap-2 text-sm">
   {@render navLink('/', 'Jason Kwok')}
   {@render navLink('/socials', 'Socials')}
   {@render navLink('/work', 'Work')}
-  {@render navLink('/blog', 'Blog')}
+  <a
+    data-sveltekit-preload-code="eager"
+    href="/blog"
+    class={page.route.id === '/blog'
+      ? 'underline decoration-dashed'
+      : 'hover:underline hover:decoration-dashed'}>Blog</a
+  >
 </nav>
 
-<div
-  class="flex min-h-screen items-center pr-4 pl-[clamp(0rem,18.5vw,15rem)] md:justify-center md:px-0"
->
+<div class="flex h-dvh items-center justify-center">
   {@render children()}
 </div>
 

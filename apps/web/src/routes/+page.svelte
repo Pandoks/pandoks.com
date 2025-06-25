@@ -1,4 +1,4 @@
-<div class="font-garamond text-md -mt-14">
+<div class="font-garamond text-md text-center">
   <p>Hi. I'm me and this is my journey to becoming a fool. I'm also known online as Pandoks_.</p>
 </div>
 

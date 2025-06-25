@@ -4,7 +4,3 @@
 @source '../../../packages/svelte/src/**/*.{html,js,svelte,ts}';
 @import '@pandoks.com/svelte/shadcn/css';
 @import '@pandoks.com/svelte/styles/fonts';
-
-@theme {
-  --breakpoint-md: 54rem;
-}
