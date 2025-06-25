@@ -15,7 +15,7 @@
 </nav>
 
 <div
-  class="flex min-h-screen items-center pr-4 pl-[clamp(0rem,17.8vw,11.4rem)] lg:justify-center lg:px-0"
+  class="flex min-h-screen items-center pr-4 pl-[clamp(0rem,18.5vw,15rem)] min-[54rem]:justify-center min-[54rem]:px-0"
 >
   {@render children()}
 </div>
