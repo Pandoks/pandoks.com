@@ -5,7 +5,9 @@
   let { children } = $props();
 </script>
 
-<nav class="font-inter fixed bottom-40 left-1/2 flex -translate-x-1/2 flex-row gap-2 text-sm">
+<nav
+  class="font-inter fixed bottom-40 left-1/2 flex w-full -translate-x-1/2 flex-row justify-center gap-2 text-sm"
+>
   {@render navLink('/', 'Jason Kwok')}
   {@render navLink('/socials', 'Socials')}
   {@render navLink('/work', 'Work')}
