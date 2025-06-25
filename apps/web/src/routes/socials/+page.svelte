@@ -1,7 +1,7 @@
 <script lang="ts">
 </script>
 
-<div class="-mt-14 pl-[clamp(0rem,1.2vw,1rem)] lg:mx-auto lg:pl-0">
+<div class="-mt-14 pl-[clamp(0rem,1.2vw,1rem)] md:mx-auto md:pl-0">
   <div class="grid grid-cols-4 gap-4 md:grid-cols-5">
     {@render socialLink('https://instagram.com/pandoks_', '/icons/instagram.svg', 'Instagram')}
     {@render socialLink('https://tiktok.com/@pandoks_', '/icons/tiktok.svg', 'TikTok')}
