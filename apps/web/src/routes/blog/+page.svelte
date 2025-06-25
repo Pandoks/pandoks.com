@@ -4,7 +4,7 @@
 
 <div class="flex flex-col items-center gap-4">
   <Badge
-    class="border-neutral-300 bg-white/75 px-4 py-1 text-sm text-neutral-600"
+    class="border-dashed border-neutral-300 bg-white/75 px-4 py-1 text-sm text-neutral-600"
     variant="outline"
   >
     Under Construction
