@@ -28,9 +28,8 @@ const getAllBlogPages = async () => {
 
     for (const page of pageResponse.results) {
       pages.push({
-        id: page.id,
-        title: page.properties.Title.title[0].plain_text,
-        summary: page.properties.Summary.rich_text[0].plain_text,
+        title: page.properties.Title.title[0].plain_text as string,
+        summary: page.properties.Summary.rich_text[0].plain_text as string,
         createdTime: new Date(page.created_time),
         lastEditedTime: new Date(page.last_edited_time)
       });
