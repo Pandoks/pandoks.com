@@ -2,15 +2,15 @@ import { NOTION_DATABASE_ID } from '$env/static/private';
 import { notion } from '$lib/notion';
 
 export const load = async () => {
-  const posts = getAllBlogPages();
+  const titles = getAllBlogTitles();
   return {
-    posts: await posts
+    titles: await titles
   };
 };
 
 // NOTE: no need to try catch because it should throw an error during build time if it can't get the data
-const getAllBlogPages = async () => {
-  let pages = [];
+const getAllBlogTitles = async () => {
+  let titles = [];
   let cursor;
 
   do {
@@ -27,17 +27,12 @@ const getAllBlogPages = async () => {
     });
 
     for (const page of pageResponse.results) {
-      pages.push({
-        title: page.properties.Title.title[0].plain_text as string,
-        summary: page.properties.Summary.rich_text[0].plain_text as string,
-        createdTime: new Date(page.created_time),
-        lastEditedTime: new Date(page.last_edited_time)
-      });
+      titles.push(page.properties.Title.title[0].plain_text as string);
     }
 
     // will be null if there are no more pages
     cursor = pageResponse.next_cursor;
   } while (cursor);
 
-  return pages;
+  return titles;
 };
