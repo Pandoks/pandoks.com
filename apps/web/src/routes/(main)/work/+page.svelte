@@ -10,9 +10,12 @@
     More to Come
   </Badge>
 
-  <p class="font-garamond">
-    I currently strain solids and liquids at
-    <a href="https://www.sievedata.com" target="_blank" class="font-medium hover:underline">Sieve</a
-    >.
-  </p>
+  <ul class="list-disc">
+    <li class="font-garamond">
+      I currently strain solids and liquids at
+      <a href="https://www.sievedata.com" target="_blank" class="font-medium hover:underline"
+        >Sieve</a
+      >.
+    </li>
+  </ul>
 </div>
