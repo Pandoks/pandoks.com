@@ -1,7 +1,8 @@
 import { NOTION_DATABASE_ID } from '$env/static/private';
 import { notion } from '$lib/notion';
+import type { PageServerLoad } from './$types';
 
-export const load = async () => {
+export const load: PageServerLoad = async () => {
   const titles = getAllBlogTitles();
   return {
     titles: await titles
