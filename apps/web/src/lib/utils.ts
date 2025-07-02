@@ -56,7 +56,17 @@ export const downloadSignedUrlImage = async ({
   });
 };
 
-export const getImageExtensionFromMime = (mime: string | undefined): string => {
+export const getImageExtensionFromSignedUrlImage = async (url: string) => {
+  const response = await fetch(url, { method: 'HEAD' });
+  if (response.ok) {
+    throw new Error(`HTTP error: ${response.status} - ${response.statusText}`);
+  }
+
+  const contentType = response.headers.get('Content-Type');
+  return getImageExtensionFromMime(contentType);
+};
+
+export const getImageExtensionFromMime = (mime: string | undefined | null): string => {
   if (!mime) {
     throw new Error('No mime type provided');
   }
