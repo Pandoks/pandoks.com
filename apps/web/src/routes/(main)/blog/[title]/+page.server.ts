@@ -1,5 +1,5 @@
 import { NOTION_DATABASE_ID } from '$env/static/private';
-import { notion } from '$lib/notion';
+import { minimizeNotionBlockData, notion } from '$lib/notion';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params }) => {
@@ -25,7 +25,7 @@ const getPageBlocks = async (title: string) => {
     throw new Error(`Could not find page with title ${title}`);
   }
 
-  let blocks = [];
+  let processingBlocks = [];
   let cursor;
   do {
     const blockResponse = await notion.blocks.children.list({
@@ -36,14 +36,14 @@ const getPageBlocks = async (title: string) => {
 
     for (const block of blockResponse.results) {
       if (!block.archived && !block.in_trash && block.type !== 'bookmark') {
-        blocks.push(block);
+        processingBlocks.push(minimizeNotionBlockData(block));
       }
     }
 
     cursor = blockResponse.next_cursor;
   } while (cursor);
 
-  console.log(blocks);
+  const blocks = await Promise.all(processingBlocks);
   return blocks;
 };
 

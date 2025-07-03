@@ -39,7 +39,7 @@ export const downloadBlogImages = async () => {
         imageDownloads.push(
           downloadSignedUrlImage({
             url: block[block.type].file.url,
-            dir: '/blog',
+            dir: '/blog-images',
             name: block.id
           })
         );

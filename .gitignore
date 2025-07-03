@@ -53,4 +53,4 @@ expo-env.d.ts
 .claude
 
 # Processed images (generated during build)
-apps/web/static/blog
+apps/web/static/blog-images
