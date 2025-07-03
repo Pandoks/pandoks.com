@@ -18,14 +18,11 @@ export const minimizeNotionBlockData = async (block: any) => {
         text: block[block.type].rich_text[0].plain_text
       };
     case 'image':
+      const imageUrl = block[block.type].file.url;
       if (dev) {
-        return {
-          type: block.type,
-          url: block[block.type].file.url
-        };
+        return { type: block.type, url: imageUrl };
       }
-
-      const extension = await getImageExtensionFromSignedUrlImage(block[block.type].file.url);
+      const extension = await getImageExtensionFromSignedUrlImage(imageUrl);
       return {
         type: block.type,
         url: `${block.id}${extension}`

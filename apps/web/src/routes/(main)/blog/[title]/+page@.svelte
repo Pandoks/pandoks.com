@@ -2,7 +2,6 @@
   import { dev } from '$app/environment';
 
   const { data } = $props();
-  console.log(data.blocks);
 </script>
 
 <nav class="font-inter fixed bottom-[20vh] flex justify-center gap-2 text-sm">
@@ -27,6 +26,10 @@
   {:else if block.type === 'link'}
     <a href={block.href} target="_blank">{block.text}</a>
   {:else if block.type === 'image'}
-    <enhanced:img src={dev ? block.url : `/blog-images/${block.url}`} alt="hi" />
+    {#if dev}
+      <img src={block.url} alt="hi" />
+    {:else}
+      <enhanced:img src={block.url} alt="hi" />
+    {/if}
   {/if}
 {/snippet}

@@ -1,6 +1,12 @@
+import { dev } from '$app/environment';
 import { NOTION_DATABASE_ID } from '$env/static/private';
 import { minimizeNotionBlockData, notion } from '$lib/notion';
 import type { PageServerLoad } from './$types';
+
+const staticBlogImages = import.meta.glob(
+  '/static/blog-images/*.{avif,gif,heif,jpeg,jpg,png,tiff,webp,svg}',
+  { eager: true, query: { enhanced: true } }
+);
 
 export const load: PageServerLoad = async ({ params }) => {
   const blocks = getPageBlocks(params.title.replaceAll('-', ' '));
@@ -36,7 +42,13 @@ const getPageBlocks = async (title: string) => {
 
     for (const block of blockResponse.results) {
       if (!block.archived && !block.in_trash && block.type !== 'bookmark') {
-        processingBlocks.push(minimizeNotionBlockData(block));
+        const processedBlock = minimizeNotionBlockData(block).then((block) => {
+          if (!dev && block.type === 'image') {
+            block.url = staticBlogImages[`/static/blog-images/${block.url}`].default;
+          }
+          return block;
+        });
+        processingBlocks.push(processedBlock);
       }
     }
 
