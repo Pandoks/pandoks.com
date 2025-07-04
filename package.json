@@ -3,13 +3,13 @@
   "version": "1.0.0",
   "packageManager": "pnpm@10.8.1",
   "scripts": {
-    "dev": "source .env && sst dev",
+    "dev": "sst dev",
     "setup": "docker compose -f ./setup.yaml -p setup up",
     "sso": "aws sso login --sso-session=Pandoks_",
     "format": "prettier --write .",
     "lint": "prettier --check .",
     "shadcn": "pnpm dlx shadcn-svelte@next add $@ -c packages/svelte",
-    "deploy": "source .env && sst deploy",
+    "deploy": "sst deploy",
     "clean": "pnpm -r run clean"
   },
   "devDependencies": {
