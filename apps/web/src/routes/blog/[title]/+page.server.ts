@@ -9,28 +9,16 @@ const staticBlogImages = import.meta.glob(
 );
 
 export const load: PageServerLoad = async ({ params }) => {
-  const blocks = getPageBlocks(params.title.replaceAll('-', ' '));
+  const page = await getPageByTitle(params.title.replaceAll('-', ' '));
 
   return {
-    blocks: await blocks
+    title: params.title.replaceAll('-', ' '),
+    createdTime: page.createdTime,
+    blocks: await getPageBlocks(page.pageId)
   };
 };
 
-const getPageBlocks = async (title: string) => {
-  const pages = await getAllPages();
-
-  let pageId;
-  for (const page of pages) {
-    if (page.title === title) {
-      pageId = page.id;
-      break;
-    }
-  }
-  if (!pageId) {
-    // NOTE: we want to crash because this is during build time
-    throw new Error(`Could not find page with title ${title}`);
-  }
-
+const getPageBlocks = async (pageId: string) => {
   let processingBlocks = [];
   let cursor;
   do {
@@ -59,10 +47,8 @@ const getPageBlocks = async (title: string) => {
   return blocks;
 };
 
-const getAllPages = async () => {
-  let pages = [];
+const getPageByTitle = async (title: string) => {
   let cursor;
-
   do {
     const pageResponse = await notion.databases.query({
       database_id: NOTION_DATABASE_ID,
@@ -77,12 +63,15 @@ const getAllPages = async () => {
     });
 
     for (const page of pageResponse.results) {
-      pages.push({ id: page.id, title: page.properties.Title.title[0].plain_text as string });
+      if (page.properties.Title.title[0].plain_text === title) {
+        return { pageId: page.id, createdTime: new Date(page.created_time) };
+      }
     }
 
     // will be null if there are no more pages
     cursor = pageResponse.next_cursor;
   } while (cursor);
 
-  return pages;
+  // NOTE: we want to crash because this is during build time
+  throw new Error(`Could not find page with title ${title}`);
 };
