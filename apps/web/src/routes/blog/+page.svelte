@@ -15,6 +15,6 @@
     class="font-garamond flex flex-col hover:cursor-pointer hover:underline"
     href="/blog/{title.replaceAll(' ', '-')}"
   >
-    <h1>{title}</h1>
+    {title}
   </a>
 {/snippet}
