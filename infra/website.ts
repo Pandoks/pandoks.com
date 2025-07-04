@@ -10,6 +10,6 @@ export const staticWebsite = new sst.cloudflare.StaticSite('StaticWebsite', {
   domain,
   environment: {
     NOTION_API_KEY: secrets.notion.ApiKey.value,
-    NOTION_DATABASE_ID: '20f1bb259e4b804ba24be1ceebf4c761'
+    BLOG_NOTION_DATABASE_ID: '20f1bb259e4b804ba24be1ceebf4c761'
   }
 });

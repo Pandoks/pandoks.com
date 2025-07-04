@@ -1,5 +1,5 @@
 import { dev } from '$app/environment';
-import { NOTION_API_KEY } from '$env/static/private';
+import { NOTION_API_KEY, BLOG_NOTION_DATABASE_ID } from '$env/static/private';
 import { Client } from '@notionhq/client';
 import { getImageExtensionFromSignedUrlImage } from './utils';
 
@@ -30,4 +30,32 @@ export const minimizeNotionBlockData = async (block: any) => {
     default:
       throw new Error(`Unsupported block type: ${block.type}`);
   }
+};
+
+export const getAllBlogTitles = async () => {
+  let titles = [];
+  let cursor;
+
+  do {
+    const pageResponse = await notion.databases.query({
+      database_id: BLOG_NOTION_DATABASE_ID,
+      filter: {
+        property: 'Publish',
+        checkbox: {
+          equals: true
+        }
+      },
+      sorts: [{ timestamp: 'created_time', direction: 'descending' }],
+      start_cursor: cursor
+    });
+
+    for (const page of pageResponse.results) {
+      titles.push(page.properties.Title.title[0].plain_text as string);
+    }
+
+    // will be null if there are no more pages
+    cursor = pageResponse.next_cursor;
+  } while (cursor);
+
+  return titles;
 };
