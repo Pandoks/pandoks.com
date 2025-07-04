@@ -1,13 +1,20 @@
-import { NOTION_DATABASE_ID } from '$env/static/private';
-import { notion } from './notion';
+import { BLOG_NOTION_DATABASE_ID } from '$env/static/private';
+import { getAllBlogTitles, notion } from './notion';
 import { downloadSignedUrlImage } from './utils';
+import { mkdirSync } from 'fs';
+import { join } from 'path';
+import { execSync } from 'child_process';
+
+const WEB_DIR = process.cwd();
+const TEMP_DIR = join(WEB_DIR, '.temp');
+mkdirSync(TEMP_DIR, { recursive: true });
 
 export const downloadBlogImages = async () => {
   let allPublishedPages = [];
   let pageCursor;
   do {
     const pagesResponse = await notion.databases.query({
-      database_id: NOTION_DATABASE_ID,
+      database_id: BLOG_NOTION_DATABASE_ID,
       filter: {
         property: 'Publish',
         checkbox: {
@@ -52,4 +59,17 @@ export const downloadBlogImages = async () => {
   await Promise.all(imageDownloads);
 };
 
-await Promise.all([downloadBlogImages()]);
+export const processBlogRoutes = async () => {
+  const titles = await getAllBlogTitles();
+  console.log(`proccessBlogRoutes: Found ${titles.length} blog titles`);
+  if (titles.length) return;
+
+  const blogTitleDir = join(WEB_DIR, 'src', 'routes', 'blog', '[title]');
+  const tempBlogDir = join(TEMP_DIR, 'src', 'routes', 'blog');
+
+  mkdirSync(tempBlogDir, { recursive: true });
+  execSync(`mv "${blogTitleDir}" "${join(tempBlogDir, '[title]')}"`, { stdio: 'inherit' });
+  console.log('processBlogRoutes: Moved blog routes to .temp directory');
+};
+
+await Promise.all([downloadBlogImages(), processBlogRoutes()]);
