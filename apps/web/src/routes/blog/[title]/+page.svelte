@@ -4,33 +4,33 @@
   const { data } = $props();
 </script>
 
-<div
-  class="scrollbar-thin font-garamond max-w-[clamp(50vw,50vw,100vw)] list-inside list-disc overflow-y-auto pb-[50vh]"
->
+<div class="font-garamond mx-3 sm:max-w-[75vw] xl:max-w-[60vw] 2xl:max-w-[clamp(0rem,60vw,75rem)]">
+  <h1 class="text-xl font-black">{data.title}</h1>
+  <p class="mb-3 text-sm">{data.createdTime}</p>
+
   {#each data.blocks as block}
-    {@render blockRender(block)}
     {@render blockRender(block)}
   {/each}
 </div>
 
 {#snippet blockRender(block: any)}
   {#if block.type === 'heading_1'}
-    <h1 class="text-2xl font-bold">{block.text}</h1>
+    <h2 class="font-extrabold">{block.text}</h2>
   {:else if block.type === 'heading_2'}
-    <h2 class="text-xl font-bold">{block.text}</h2>
+    <h3 class="font-bold">{block.text}</h3>
   {:else if block.type === 'heading_3'}
-    <h3 class="text-lg font-bold">{block.text}</h3>
+    <h4 class="font-semibold">{block.text}</h4>
   {:else if block.type === 'paragraph'}
-    <p>{block.text}</p>
+    <p class="mb-3">{block.text}</p>
   {:else if block.type === 'link'}
-    <div class="font-medium hover:cursor-pointer hover:underline">
+    <div class="underline decoration-dashed hover:cursor-pointer hover:decoration-solid">
       <a href={block.href} target="_blank">{block.text}</a>
     </div>
   {:else if block.type === 'image'}
     {#if dev}
-      <img class="mx-auto" src={block.url} alt="blog description" />
+      <img class="mx-auto mb-3 rounded-xs" src={block.url} alt="blog description" />
     {:else}
-      <enhanced:img class="mx-auto" src={block.url} alt="blog description" />
+      <enhanced:img class="mx-auto mb-3 rounded-xs" src={block.url} alt="blog description" />
     {/if}
   {/if}
 {/snippet}

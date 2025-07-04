@@ -8,12 +8,27 @@ const staticBlogImages = import.meta.glob(
   { eager: true, query: { enhanced: true } }
 );
 
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December'
+];
+
 export const load: PageServerLoad = async ({ params }) => {
   const page = await getPageByTitle(params.title.replaceAll('-', ' '));
 
   return {
     title: params.title.replaceAll('-', ' '),
-    createdTime: page.createdTime,
+    createdTime: `${MONTHS[page.createdTime.getMonth() - 0]} ${page.createdTime.getFullYear()}`,
     blocks: await getPageBlocks(page.pageId)
   };
 };

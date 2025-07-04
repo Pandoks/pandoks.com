@@ -6,7 +6,7 @@
   const pageSlug = $derived(new URL(page.url).pathname);
 </script>
 
-<nav class="font-inter bg-background fixed flex gap-2 rounded-br-xs p-2 text-sm">
+<nav class="font-inter bg-background fixed flex w-full gap-2 rounded-br-xs p-2 text-sm xl:w-auto">
   {@render navLink('/', 'Jason Kwok')}
   {@render navLink('/socials', 'Socials')}
   {@render navLink('/work', 'Work')}
