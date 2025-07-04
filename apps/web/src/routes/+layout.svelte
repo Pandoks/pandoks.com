@@ -14,7 +14,9 @@
 </nav>
 
 <div class="flex min-h-dvh items-center justify-center">
-  {@render children()}
+  <div class="pt-9 pb-12">
+    {@render children()}
+  </div>
 </div>
 
 {#snippet navLink(href: string, text: string)}
