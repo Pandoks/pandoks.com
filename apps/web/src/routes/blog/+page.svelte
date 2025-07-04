@@ -2,7 +2,7 @@
   const { data } = $props();
 </script>
 
-<ul class="scrollbar-thin ml-7 max-h-[40vh] list-inside list-disc overflow-y-auto pr-10">
+<ul class="list-disc">
   {#each data.titles as title}
     <li>
       {@render blogTitle(title)}
