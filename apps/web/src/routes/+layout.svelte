@@ -15,7 +15,7 @@
   ];
 
   let activeNavIndex: number | undefined = $state();
-  const vimState = setVimState()
+  setVimState()
     .setNavHandler((e) => {
       switch (e.key) {
         case 'h':
