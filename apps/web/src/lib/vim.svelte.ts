@@ -2,12 +2,15 @@ import { getContext, onMount, setContext } from 'svelte';
 
 interface Vim {
   active: 'nav' | 'body' | 'none';
+
   setNavHandler: (navHandler: (e: KeyboardEvent) => void) => Vim;
   setInitNavState: (initNavState: () => void) => Vim;
   setResetNavState: (resetNavState: () => void) => Vim;
+
   setBodyHandler: (bodyHandler: (e: KeyboardEvent) => void) => Vim;
   setInitBodyState: (initBodyState: () => void) => Vim;
   setResetBodyState: (resetBodyState: () => void) => Vim;
+
   clearBody: () => void;
 }
 
