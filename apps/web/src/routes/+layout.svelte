@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { page } from '$app/state';
-  import { onMount } from 'svelte';
   import '../app.css';
+  import { page } from '$app/state';
   import { goto } from '$app/navigation';
+  import { setVimState } from '$lib/vim.svelte';
 
   let { children } = $props();
   const pageSlug = $derived(new URL(page.url).pathname);
@@ -15,8 +15,8 @@
   ];
 
   let activeNavIndex: number | undefined = $state();
-  onMount(() => {
-    document.addEventListener('keypress', (e) => {
+  const vimState = setVimState()
+    .setNavHandler((e) => {
       switch (e.key) {
         case 'h':
           if (activeNavIndex) {
@@ -34,20 +34,19 @@
 
           activeNavIndex++;
           return;
-        case 'y':
-          navigator.clipboard.writeText(page.url.toString());
-          return;
         case 'Enter':
           if (activeNavIndex !== undefined) {
             goto(navLinks[activeNavIndex].href);
           }
           return;
       }
-    });
-    document.addEventListener('mousemove', () => {
+    })
+    .setInitNavState(() => {
+      activeNavIndex = 0;
+    })
+    .setResetNavState(() => {
       activeNavIndex = undefined;
     });
-  });
 </script>
 
 <nav class="font-inter bg-background fixed flex w-full gap-2 rounded-br-xs p-2 text-sm xl:w-auto">
@@ -66,7 +65,7 @@
   <a
     data-sveltekit-preload-code="eager"
     {href}
-    class={`${pageSlug === href ? 'underline' : 'hover:underline'} ${activeNavIndex === index ? 'bg-highlight' : ''}`}
+    class={`${pageSlug === href ? 'underline' : 'hover:underline'} ${activeNavIndex === index && vimState.active === 'nav' ? 'bg-highlight' : ''}`}
   >
     {text}
   </a>
