@@ -10,7 +10,6 @@
   ];
 
   let activeSocialIndex: number | undefined = $state();
-
   const vimState = getVimState()
     .setBodyHandler((e) => {
       switch (e.key) {
