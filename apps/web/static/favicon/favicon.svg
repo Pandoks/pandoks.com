@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="100" height="100"><svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="100" height="100" rx="7" fill="white"></rect>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M90 68H63V62H90V68Z" fill="black"></path>
+<path d="M38.512 68V34.4H52.48C54.4 34.4 56.128 34.864 57.664 35.792C59.232 36.72 60.48 37.984 61.408 39.584C62.336 41.184 62.8 42.976 62.8 44.96C62.8 46.976 62.336 48.8 61.408 50.432C60.48 52.032 59.232 53.312 57.664 54.272C56.128 55.232 54.4 55.712 52.48 55.712H44.752V68H38.512ZM44.752 49.952H52.048C52.848 49.952 53.568 49.728 54.208 49.28C54.88 48.832 55.408 48.24 55.792 47.504C56.208 46.768 56.416 45.936 56.416 45.008C56.416 44.08 56.208 43.264 55.792 42.56C55.408 41.824 54.88 41.248 54.208 40.832C53.568 40.384 52.848 40.16 52.048 40.16H44.752V49.952Z" fill="black"></path>
+<path d="M81 19H18V82H81V19Z" stroke="black" stroke-width="7"></path>
+</svg><style>@media (prefers-color-scheme: light) { :root { filter: none; } }
+@media (prefers-color-scheme: dark) { :root { filter: none; } }
+</style></svg>
