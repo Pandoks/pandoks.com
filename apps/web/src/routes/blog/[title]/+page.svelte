@@ -28,9 +28,9 @@
     </div>
   {:else if block.type === 'image'}
     {#if dev}
-      <img class="mx-auto mb-3 rounded-xs" src={block.url} alt="blog description" />
+      <img class="mx-auto mb-3 rounded-xs" src={block.url} alt="A thousand words" />
     {:else}
-      <enhanced:img class="mx-auto mb-3 rounded-xs" src={block.url} alt="blog description" />
+      <enhanced:img class="mx-auto mb-3 rounded-xs" src={block.url} alt="A thousand words" />
     {/if}
   {/if}
 {/snippet}
