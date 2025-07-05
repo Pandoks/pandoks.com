@@ -4,24 +4,7 @@
 @source '../../../packages/svelte/src/**/*.{html,js,svelte,ts}';
 @import '@pandoks.com/svelte/shadcn/css';
 @import '@pandoks.com/svelte/styles/fonts';
-
-@utility scrollbar-thin {
-  &::-webkit-scrollbar {
-    width: 2px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: #f1f1f1;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: #888;
-  }
-
-  &::-webkit-scrollbar-thumb:hover {
-    background: #555;
-  }
-}
+@import 'highlight.js/styles/github.css';
 
 @theme {
   --color-highlight: #eaeaea;

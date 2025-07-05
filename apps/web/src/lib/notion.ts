@@ -7,25 +7,54 @@ export const notion = new Client({
   auth: NOTION_API_KEY
 });
 
+const SUPPORTED_LANGUAGES = [
+  'typescript',
+  'javascript',
+  'json',
+  'go',
+  'bash',
+  'yaml',
+  'dockerfile',
+  'css',
+  'html',
+  'xml',
+  'python',
+  'shell'
+];
+
 export const minimizeNotionBlockData = async (block: any) => {
+  const blockType = block.type;
+  const blockData = block[blockType];
   switch (block.type) {
     case 'heading_1':
     case 'heading_2':
     case 'heading_3':
     case 'paragraph':
+      if (!blockData.rich_text.length) {
+        return { type: 'break' };
+      }
       return {
-        type: block[block.type].rich_text[0].href ? 'link' : block.type,
-        text: block[block.type].rich_text[0].plain_text
+        type: blockData.rich_text[0].href ? 'link' : block.type,
+        text: blockData.rich_text[0].plain_text
       };
     case 'image':
-      const imageUrl = block[block.type].file.url;
+      const imageUrl = blockData.file.url;
       if (dev) {
-        return { type: block.type, url: imageUrl };
+        return { type: blockType, url: imageUrl };
       }
       const extension = await getImageExtensionFromSignedUrlImage(imageUrl);
       return {
-        type: block.type,
+        type: blockType,
         url: `${block.id}${extension}`
+      };
+    case 'code':
+      if (!SUPPORTED_LANGUAGES.includes(blockData.language)) {
+        throw new Error(`Unsupported language: ${blockData.language}`);
+      }
+      return {
+        type: blockType,
+        code: blockData.rich_text[0].plain_text,
+        language: blockData.language
       };
     default:
       throw new Error(`Unsupported block type: ${block.type}`);

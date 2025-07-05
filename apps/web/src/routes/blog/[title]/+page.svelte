@@ -1,5 +1,6 @@
 <script lang="ts">
   import { dev } from '$app/environment';
+  import { hljs } from '$lib/highlight';
 
   const { data } = $props();
 </script>
@@ -26,11 +27,20 @@
     <div class="underline decoration-dashed hover:cursor-pointer hover:decoration-solid">
       <a href={block.href} target="_blank">{block.text}</a>
     </div>
+  {:else if block.type === 'break'}
+    <br />
   {:else if block.type === 'image'}
     {#if dev}
       <img class="mx-auto mb-3 rounded-xs" src={block.url} alt="A thousand words" />
     {:else}
       <enhanced:img class="mx-auto mb-3 rounded-xs" src={block.url} alt="A thousand words" />
     {/if}
+  {:else if block.type === 'code'}
+    <!-- NOTE: this NEEDS to be formatted weirdly because of the pre tag -->
+    <pre
+      class="bg-highlight scrollbar-thin mb-3 overflow-x-auto rounded-xs p-4"
+      style="scrollbar-width: thin;"><code class="font-mono text-sm"
+        >{@html hljs.highlight(block.code, { language: block.language }).value}</code
+      ></pre>
   {/if}
 {/snippet}
