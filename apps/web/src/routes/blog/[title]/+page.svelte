@@ -39,7 +39,7 @@
     <!-- NOTE: this NEEDS to be formatted weirdly because of the pre tag -->
     <pre
       class="bg-highlight scrollbar-thin mb-5 overflow-x-auto rounded-xs p-4"
-      style="scrollbar-width: thin;"><code class="font-mono text-sm"
+      style="scrollbar-width: thin;"><code class="font-mono text-xs lg:text-sm"
         >{@html hljs.highlight(block.code, { language: block.language }).value}</code
       ></pre>
   {/if}
