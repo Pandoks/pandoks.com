@@ -2,9 +2,13 @@ import { getContext, onMount, setContext } from 'svelte';
 
 interface Vim {
   active: 'nav' | 'body' | 'none';
+  setNavHandler: (navHandler: (e: KeyboardEvent) => void) => Vim;
+  setInitNavState: (initNavState: () => void) => Vim;
+  setResetNavState: (resetNavState: () => void) => Vim;
   setBodyHandler: (bodyHandler: (e: KeyboardEvent) => void) => Vim;
   setInitBodyState: (initBodyState: () => void) => Vim;
   setResetBodyState: (resetBodyState: () => void) => Vim;
+  clearBody: () => void;
 }
 
 class VimClass implements Vim {
@@ -18,15 +22,7 @@ class VimClass implements Vim {
 
   active: 'nav' | 'body' | 'none' = $state('none');
 
-  constructor(
-    navHandler: (e: KeyboardEvent) => void,
-    initNavState: () => void,
-    resetNavState: () => void
-  ) {
-    this.navHandler = navHandler;
-    this.initNavState = initNavState;
-    this.resetNavState = resetNavState;
-
+  constructor() {
     onMount(() => {
       document.addEventListener('keypress', this.masterEventListener);
       document.addEventListener('mousemove', () => {
@@ -93,6 +89,27 @@ class VimClass implements Vim {
     }
   };
 
+  clearBody: () => void = () => {
+    this.bodyHandler = undefined;
+    this.initBodyState = undefined;
+    this.resetBodyState = undefined;
+  };
+
+  setNavHandler(navHandler: (e: KeyboardEvent) => void) {
+    this.navHandler = navHandler;
+    return this;
+  }
+
+  setInitNavState(initNavState: () => void) {
+    this.initNavState = initNavState;
+    return this;
+  }
+
+  setResetNavState(resetNavState: () => void) {
+    this.resetNavState = resetNavState;
+    return this;
+  }
+
   setBodyHandler(bodyHandler: (e: KeyboardEvent) => void) {
     this.bodyHandler = bodyHandler;
     return this;
@@ -115,12 +132,7 @@ export const getVimState = (key = DEFAULT_KEY) => {
   return getContext<Vim>(key);
 };
 
-export const setVimState = (
-  navHandler: (e: KeyboardEvent) => void,
-  initNavState: () => void,
-  resetNavState: () => void,
-  key = DEFAULT_KEY
-) => {
-  const vimState = new VimClass(navHandler, initNavState, resetNavState);
+export const setVimState = (key = DEFAULT_KEY) => {
+  const vimState = new VimClass();
   return setContext(key, vimState);
 };

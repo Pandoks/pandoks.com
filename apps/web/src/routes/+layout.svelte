@@ -15,7 +15,14 @@
   ];
 
   let activeNavIndex: number | undefined = $state();
-  const navHandler = (e: KeyboardEvent) => {
+  const vimState = setVimState()
+    .setInitNavState(() => {
+      activeNavIndex = activeNavIndex === undefined ? 0 : activeNavIndex;
+    })
+    .setResetNavState(() => {
+      activeNavIndex = undefined;
+    });
+  vimState.setNavHandler((e: KeyboardEvent) => {
     switch (e.key) {
       case 'h':
         if (activeNavIndex) {
@@ -35,18 +42,12 @@
         return;
       case 'Enter':
         if (activeNavIndex !== undefined) {
+          vimState.clearBody();
           goto(navLinks[activeNavIndex].href);
         }
         return;
     }
-  };
-  const initNavState = () => {
-    activeNavIndex = activeNavIndex === undefined ? 0 : activeNavIndex;
-  };
-  const resetNavState = () => {
-    activeNavIndex = undefined;
-  };
-  const vimState = setVimState(navHandler, initNavState, resetNavState);
+  });
 </script>
 
 <nav class="font-inter bg-background fixed flex w-full gap-2 rounded-br-xs p-2 text-sm xl:w-auto">
