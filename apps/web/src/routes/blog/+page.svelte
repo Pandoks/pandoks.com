@@ -1,13 +1,64 @@
 <script lang="ts">
+  import { getVimState } from '$lib/vim.svelte.js';
   import { Badge } from '@pandoks.com/svelte/shadcn/badge';
   const { data } = $props();
+
+  const titles = data.titles;
+
+  let activeBlogIndex: number | undefined = $state();
+  const vimState = getVimState()
+    .setBodyHandler((e) => {
+      switch (e.key) {
+        case 'j':
+          if (activeBlogIndex === titles.length - 2) {
+            // NOTE: You want to set bottom to true on the second to last item because once you've
+            // reached the last item, you want the vim state to take over
+            vimState.bodyBottom = true;
+          }
+          activeBlogIndex!++;
+          if (titles.length > 1) {
+            vimState.bodyTop = false;
+          }
+          return;
+        case 'k':
+          if (activeBlogIndex === 1) {
+            // NOTE: same note as above but now you're going up
+            vimState.bodyTop = true;
+          }
+
+          activeBlogIndex!--;
+          if (titles.length > 1) {
+            vimState.bodyBottom = false;
+          }
+          return;
+        case 'Enter':
+      }
+    })
+    .setInitBodyState((e: KeyboardEvent) => {
+      if (e.key === 'j') {
+        activeBlogIndex = 0;
+        if (titles.length > 1) {
+          vimState.bodyBottom = false;
+        }
+      }
+      if (e.key === 'k') {
+        activeBlogIndex = titles.length - 1;
+        vimState.bodyBottom = true;
+        if (titles.length > 1) {
+          vimState.bodyTop = false;
+        }
+      }
+    })
+    .setResetBodyState(() => {
+      activeBlogIndex = undefined;
+    });
 </script>
 
-{#if data.titles.length}
+{#if titles.length}
   <ul class="list-disc">
-    {#each data.titles as title}
+    {#each titles as title, index}
       <li>
-        {@render blogTitle(title)}
+        {@render blogTitle(title, index)}
       </li>
     {/each}
   </ul>
@@ -20,9 +71,9 @@
   </Badge>
 {/if}
 
-{#snippet blogTitle(title: string)}
+{#snippet blogTitle(title: string, index: number)}
   <a
-    class="font-garamond flex flex-col hover:cursor-pointer hover:underline"
+    class={`${activeBlogIndex === index && vimState.active === 'body' ? 'bg-highlight' : ''} font-garamond flex flex-col hover:cursor-pointer hover:underline`}
     href="/blog/{title.replaceAll(' ', '-')}"
   >
     {title}

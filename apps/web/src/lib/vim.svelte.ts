@@ -1,29 +1,36 @@
 import { getContext, onMount, setContext } from 'svelte';
 
+type NoArgFunction = () => void;
+type KeyEventFunction = (e: KeyboardEvent) => void;
+
 interface Vim {
   active: 'nav' | 'body' | 'none';
+  bodyTop: boolean;
+  bodyBottom: boolean;
 
-  setNavHandler: (navHandler: (e: KeyboardEvent) => void) => Vim;
-  setInitNavState: (initNavState: () => void) => Vim;
-  setResetNavState: (resetNavState: () => void) => Vim;
+  setNavHandler: (navHandler: KeyEventFunction) => Vim;
+  setInitNavState: (initNavState: NoArgFunction | KeyEventFunction) => Vim;
+  setResetNavState: (resetNavState: NoArgFunction) => Vim;
 
-  setBodyHandler: (bodyHandler: (e: KeyboardEvent) => void) => Vim;
-  setInitBodyState: (initBodyState: () => void) => Vim;
-  setResetBodyState: (resetBodyState: () => void) => Vim;
+  setBodyHandler: (bodyHandler: KeyEventFunction) => Vim;
+  setInitBodyState: (initBodyState: NoArgFunction | KeyEventFunction) => Vim;
+  setResetBodyState: (resetBodyState: NoArgFunction) => Vim;
 
-  clearBody: () => void;
+  clearBody: NoArgFunction;
 }
 
 class VimClass implements Vim {
-  private navHandler: (e: KeyboardEvent) => void = () => {};
-  private initNavState: () => void = () => {};
-  private resetNavState: () => void = () => {};
+  private navHandler: KeyEventFunction = () => {};
+  private initNavState: NoArgFunction | KeyEventFunction = () => {};
+  private resetNavState: NoArgFunction = () => {};
 
-  private bodyHandler: ((e: KeyboardEvent) => void) | undefined = undefined;
-  private initBodyState: (() => void) | undefined = undefined;
-  private resetBodyState: (() => void) | undefined = undefined;
+  private bodyHandler: KeyEventFunction | undefined = undefined;
+  private initBodyState: NoArgFunction | KeyEventFunction | undefined = undefined;
+  private resetBodyState: NoArgFunction | undefined = undefined;
 
   active: 'nav' | 'body' | 'none' = $state('none');
+  bodyTop = true;
+  bodyBottom = true;
 
   constructor() {
     onMount(() => {
@@ -51,6 +58,8 @@ class VimClass implements Vim {
             }
             this.resetNavState();
             this.resetBodyState?.();
+            this.bodyTop = true;
+            this.bodyBottom = true;
         }
       });
     });
@@ -64,21 +73,28 @@ class VimClass implements Vim {
       case 'j':
         if (this.active === 'nav') {
           if (!(this.initBodyState && this.bodyHandler)) return;
-          this.initBodyState();
+          this.initBodyState(e);
           this.active = 'body';
           return;
         }
-        this.initNavState();
+        if (!this.bodyBottom) return;
+        this.initNavState(e);
         this.active = 'nav';
         return;
       case 'k':
-        if (this.active === 'body' || !(this.initBodyState && this.bodyHandler)) {
+        if (!this.initBodyState || !this.bodyHandler) {
           if (this.active === 'nav') return;
-          this.initNavState();
+          this.initNavState(e);
           this.active = 'nav';
           return;
         }
-        this.initBodyState();
+        if (this.active === 'body') {
+          if (!this.bodyTop) return;
+          this.initNavState(e);
+          this.active = 'nav';
+          return;
+        }
+        this.initBodyState(e);
         this.active = 'body';
         return;
       case 'Escape':
@@ -92,38 +108,40 @@ class VimClass implements Vim {
     }
   };
 
-  clearBody: () => void = () => {
+  clearBody: NoArgFunction = () => {
     this.bodyHandler = undefined;
     this.initBodyState = undefined;
     this.resetBodyState = undefined;
+    this.bodyTop = true;
+    this.bodyBottom = true;
   };
 
-  setNavHandler(navHandler: (e: KeyboardEvent) => void) {
+  setNavHandler(navHandler: KeyEventFunction) {
     this.navHandler = navHandler;
     return this;
   }
 
-  setInitNavState(initNavState: () => void) {
+  setInitNavState(initNavState: NoArgFunction | KeyEventFunction) {
     this.initNavState = initNavState;
     return this;
   }
 
-  setResetNavState(resetNavState: () => void) {
+  setResetNavState(resetNavState: NoArgFunction) {
     this.resetNavState = resetNavState;
     return this;
   }
 
-  setBodyHandler(bodyHandler: (e: KeyboardEvent) => void) {
+  setBodyHandler(bodyHandler: KeyEventFunction) {
     this.bodyHandler = bodyHandler;
     return this;
   }
 
-  setInitBodyState(initBodyState: () => void) {
+  setInitBodyState(initBodyState: NoArgFunction | KeyEventFunction) {
     this.initBodyState = initBodyState;
     return this;
   }
 
-  setResetBodyState(resetBodyState: () => void) {
+  setResetBodyState(resetBodyState: NoArgFunction) {
     this.resetBodyState = resetBodyState;
     return this;
   }
