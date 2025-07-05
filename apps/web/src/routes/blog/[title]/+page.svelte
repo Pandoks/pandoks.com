@@ -5,7 +5,9 @@
   const { data } = $props();
 </script>
 
-<div class="font-garamond mx-3 sm:max-w-[75vw] xl:max-w-[60vw] 2xl:max-w-[clamp(0rem,60vw,75rem)]">
+<div
+  class="font-garamond max-w-screen px-3 sm:max-w-[75vw] sm:px-0 xl:max-w-[60vw] 2xl:max-w-[clamp(0rem,60vw,75rem)]"
+>
   <h1 class="text-xl font-black">{data.title}</h1>
   <p class="mb-5 text-sm">{data.createdTime}</p>
 
