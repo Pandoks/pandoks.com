@@ -11,7 +11,7 @@
 
   let activeSocialIndex: number | undefined = $state();
 
-  getVimState()
+  const vimState = getVimState()
     .setBodyHandler((e) => {
       switch (e.key) {
         case 'h':
@@ -38,7 +38,7 @@
       }
     })
     .setInitBodyState(() => {
-      activeSocialIndex = 0;
+      activeSocialIndex = activeSocialIndex === undefined ? 0 : activeSocialIndex;
     })
     .setResetBodyState(() => {
       activeSocialIndex = undefined;
@@ -55,7 +55,7 @@
   <a
     {href}
     target="_blank"
-    class={`${activeSocialIndex === index ? 'bg-highlight' : 'hover:bg-highlight'} flex flex-row items-center gap-1 px-2`}
+    class={`${activeSocialIndex === index && vimState.active === 'body' ? 'bg-highlight' : 'hover:bg-highlight'} flex flex-row items-center gap-1 px-2`}
   >
     <img src={icon} alt={text} class="h-5 w-5" />
     {text}

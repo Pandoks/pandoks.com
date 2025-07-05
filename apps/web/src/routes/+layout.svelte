@@ -15,38 +15,38 @@
   ];
 
   let activeNavIndex: number | undefined = $state();
-  setVimState()
-    .setNavHandler((e) => {
-      switch (e.key) {
-        case 'h':
-          if (activeNavIndex) {
-            activeNavIndex--;
-            return;
-          }
+  const navHandler = (e: KeyboardEvent) => {
+    switch (e.key) {
+      case 'h':
+        if (activeNavIndex) {
+          activeNavIndex--;
+          return;
+        }
 
-          activeNavIndex = navLinks.length - 1;
+        activeNavIndex = navLinks.length - 1;
+        return;
+      case 'l':
+        if (activeNavIndex === navLinks.length - 1 || activeNavIndex === undefined) {
+          activeNavIndex = 0;
           return;
-        case 'l':
-          if (activeNavIndex === navLinks.length - 1 || activeNavIndex === undefined) {
-            activeNavIndex = 0;
-            return;
-          }
+        }
 
-          activeNavIndex++;
-          return;
-        case 'Enter':
-          if (activeNavIndex !== undefined) {
-            goto(navLinks[activeNavIndex].href);
-          }
-          return;
-      }
-    })
-    .setInitNavState(() => {
-      activeNavIndex = 0;
-    })
-    .setResetNavState(() => {
-      activeNavIndex = undefined;
-    });
+        activeNavIndex++;
+        return;
+      case 'Enter':
+        if (activeNavIndex !== undefined) {
+          goto(navLinks[activeNavIndex].href);
+        }
+        return;
+    }
+  };
+  const initNavState = () => {
+    activeNavIndex = activeNavIndex === undefined ? 0 : activeNavIndex;
+  };
+  const resetNavState = () => {
+    activeNavIndex = undefined;
+  };
+  const vimState = setVimState(navHandler, initNavState, resetNavState);
 </script>
 
 <nav class="font-inter bg-background fixed flex w-full gap-2 rounded-br-xs p-2 text-sm xl:w-auto">
@@ -65,7 +65,7 @@
   <a
     data-sveltekit-preload-code="eager"
     {href}
-    class={`${pageSlug === href ? 'underline' : 'hover:underline'} ${activeNavIndex === index ? 'bg-highlight' : ''}`}
+    class={`${pageSlug === href ? 'underline' : 'hover:underline'} ${activeNavIndex === index && vimState.active === 'nav' ? 'bg-highlight' : ''}`}
   >
     {text}
   </a>
