@@ -65,7 +65,7 @@
   <a
     data-sveltekit-preload-code="eager"
     {href}
-    class={`${pageSlug === href ? 'underline' : 'hover:underline'} ${activeNavIndex === index && vimState.active === 'nav' ? 'bg-highlight' : ''}`}
+    class={`${pageSlug === href ? 'underline' : 'hover:underline'} ${activeNavIndex === index ? 'bg-highlight' : ''}`}
   >
     {text}
   </a>
