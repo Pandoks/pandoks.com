@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { goto } from '$app/navigation';
   import { getVimState } from '$lib/vim.svelte.js';
   import { Badge } from '@pandoks.com/svelte/shadcn/badge';
   const { data } = $props();
@@ -32,6 +33,11 @@
           }
           return;
         case 'Enter':
+          if (activeBlogIndex !== undefined) {
+            vimState.active = 'none';
+            goto(`/blog/${titles[activeBlogIndex].replaceAll(' ', '-')}`);
+          }
+          return;
       }
     })
     .setInitBodyState((e: KeyboardEvent) => {
