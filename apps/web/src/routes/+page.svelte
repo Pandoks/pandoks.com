@@ -1,5 +1,5 @@
-<div class="font-garamond text-center">
-  <p>Hi. I'm me and this is my journey to becoming a fool. I'm also known online as Pandoks_.</p>
+<div class="font-garamond text-center text-lg">
+  <p>Obssessed with the <span class="italic">Human Experience</span>.</p>
 </div>
 
 <svelte:head>
