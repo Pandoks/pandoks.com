@@ -61,7 +61,7 @@
 </script>
 
 {#if titles.length}
-  <ul class="list-disc">
+  <ul class="list-disc text-lg">
     {#each titles as title, index}
       <li>
         {@render blogTitle(title, index)}

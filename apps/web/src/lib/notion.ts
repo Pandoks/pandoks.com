@@ -34,8 +34,12 @@ export const minimizeNotionBlockData = async (block: any) => {
         return { type: 'break' };
       }
       return {
-        type: blockData.rich_text[0].href ? 'link' : block.type,
-        text: blockData.rich_text[0].plain_text
+        type: blockType,
+        texts: blockData.rich_text.map((text) => ({
+          plain_text: text.plain_text,
+          annotations: text.annotations,
+          href: text.href
+        }))
       };
     case 'image':
       const imageUrl = blockData.file.url;

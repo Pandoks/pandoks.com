@@ -1,5 +1,9 @@
 <div class="font-garamond text-center text-lg">
-  <p>Obssessed with the <span class="italic">Human Experience</span>.</p>
+  <p>
+    Obssessed with the
+    <a href="/blog/The-Human-Experience" class="italic hover:underline">Human Experience</a>
+    .
+  </p>
 </div>
 
 <svelte:head>

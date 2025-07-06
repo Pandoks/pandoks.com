@@ -10,8 +10,8 @@
     More to Come
   </Badge>
 
-  <ul class="list-inside list-disc">
-    <li class="font-garamond">
+  <ul class="font-garamond list-inside list-disc text-lg">
+    <li>
       I currently strain solids and liquids at
       <a href="https://www.sievedata.com" target="_blank" class="font-medium hover:underline">
         Sieve
