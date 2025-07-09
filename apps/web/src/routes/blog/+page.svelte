@@ -85,3 +85,13 @@
     {title}
   </a>
 {/snippet}
+
+<svelte:head>
+  <title>Pandoks Blog</title>
+  <meta name="description" content="Jason Kwok's blog" />
+  <meta property="og:title" content="Jason Kwok's Blog (Pandoks_'s Blog)" />
+  <meta
+    property="og:description"
+    content="Jason Kwok's blog which includes articles about his experiences and thoughts"
+  />
+</svelte:head>

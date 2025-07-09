@@ -70,3 +70,10 @@
     {/if}
   {/each}
 {/snippet}
+
+<svelte:head>
+  <title>{data.title}</title>
+  <meta name="description" content={`${data.title} by Jason Kwok`} />
+  <meta property="og:title" content={`${data.title} by Jason Kwok (Pandoks_)`} />
+  <meta property="og:description" content={`${data.title} by Jason Kwok`} />
+</svelte:head>
