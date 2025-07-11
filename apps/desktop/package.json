@@ -1,6 +1,6 @@
 {
-  "name": "@pandoks.com/browser",
-  "productName": "Pandoks Browser",
+  "name": "@pandoks.com/desktop",
+  "productName": "Pandoks Desktop",
   "private": true,
   "version": "0.0.1",
   "type": "module",
