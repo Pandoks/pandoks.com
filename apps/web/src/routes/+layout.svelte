@@ -64,7 +64,7 @@
 
 {#snippet navLink(href: string, text: string, index: number)}
   <a
-    data-sveltekit-preload-code="eager"
+    data-sveltekit-preload-data="hover"
     {href}
     class={`${pageSlug === href ? 'underline' : 'hover:underline'} ${activeNavIndex === index && vimState.active === 'nav' ? 'bg-highlight' : ''}`}
   >

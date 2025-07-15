@@ -69,4 +69,10 @@
     property="og:description"
     content="Jason Kwok's social links which are mostly under the username Pandoks"
   />
+
+  <link rel="preload" href="/icons/instagram.svg" as="image" type="image/svg+xml" />
+  <link rel="preload" href="/icons/tiktok.svg" as="image" type="image/svg+xml" />
+  <link rel="preload" href="/icons/github.svg" as="image" type="image/svg+xml" />
+  <link rel="preload" href="/icons/x.svg" as="image" type="image/svg+xml" />
+  <link rel="preload" href="/icons/linkedin.svg" as="image" type="image/svg+xml" />
 </svelte:head>
