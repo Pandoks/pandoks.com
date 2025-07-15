@@ -15,6 +15,9 @@ const config = {
     alias: {
       '@lib': '../../packages/svelte/src/lib',
       '@lib/*': '../../packages/svelte/src/lib/*'
+    },
+    paths: {
+      relative: false
     }
   }
 };
