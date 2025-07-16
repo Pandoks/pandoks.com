@@ -1,5 +1,5 @@
 import { app } from 'electron';
-import { createWindow } from './window';
+import { createWindow } from './browser';
 
 export const MENU = [
   ...(process.platform === 'darwin'

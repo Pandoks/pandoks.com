@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron';
+import { WebContentsView, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 
 export const createWindow = () => {
@@ -23,3 +23,16 @@ export const createWindow = () => {
     );
   }
 };
+
+const windowWebContentsViews = new Map<number, WebContentsView>();
+
+export function registerBrowserHandlers() {
+  ipcMain.handle('navigate', async (event, url) => {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    const webContentsView = windowWebContentsViews.get(senderWindow?.id || 0);
+
+    if (webContentsView) {
+      await webContentsView.webContents.loadURL(url);
+    }
+  });
+}
