@@ -1,7 +1,7 @@
 import { WebContentsView, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 
-export const createWindow = () => {
+export const createBrowserWindow = () => {
   const mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
