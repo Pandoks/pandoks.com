@@ -16,7 +16,7 @@
     "test:unit": "vitest",
     "test": "npm run test:unit -- --run && npm run test:e2e",
     "test:e2e": "playwright test",
-    "shadcn": "pnpm dlx shadcn-svelte@next add $@ -c ../../packages/svelte"
+    "shadcn": "pnpm dlx shadcn-svelte@latest add $@ -c ../../packages/svelte"
   },
   "dependencies": {
     "@pandoks.com/svelte": "workspace:*",

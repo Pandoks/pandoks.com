@@ -10,7 +10,7 @@
     "test:unit": "vitest",
     "test": "npm run test:unit -- --run && npm run test:e2e",
     "test:e2e": "playwright test",
-    "shadcn": "pnpm dlx shadcn-svelte@next add"
+    "shadcn": "pnpm dlx shadcn-svelte@latest add"
   },
   "sideEffects": [
     "**/*.css"
@@ -24,7 +24,8 @@
     "svelte": "^5.0.0"
   },
   "devDependencies": {
-    "@lucide/svelte": "^0.511.0",
+    "@internationalized/date": "^3.8.1",
+    "@lucide/svelte": "^0.515.0",
     "@playwright/test": "^1.49.1",
     "@sveltejs/adapter-auto": "^6.0.0",
     "@sveltejs/kit": "^2.16.0",
@@ -35,6 +36,7 @@
     "@tailwindcss/vite": "^4.0.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/svelte": "^5.2.4",
+    "bits-ui": "^2.8.6",
     "clsx": "^2.1.1",
     "jsdom": "^26.0.0",
     "svelte": "^5.0.0",
