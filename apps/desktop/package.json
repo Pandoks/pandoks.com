@@ -42,7 +42,7 @@
     "@types/electron-squirrel-startup": "^1.0.2",
     "electron": "^36.3.1",
     "jsdom": "^26.0.0",
-    "svelte": "^5.0.0",
+    "svelte": "^5.36.5",
     "svelte-check": "^4.0.0",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.0.0",
@@ -51,7 +51,7 @@
     "vitest": "^3.0.0"
   },
   "dependencies": {
-    "electron-squirrel-startup": "^1.0.1",
-    "@pandoks.com/svelte": "workspace:*"
+    "@pandoks.com/svelte": "workspace:*",
+    "electron-squirrel-startup": "^1.0.1"
   }
 }

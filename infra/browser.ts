@@ -10,6 +10,6 @@ export const desktopWebDev = new sst.x.DevCommand('DesktopWebDev', {
   dev: {
     autostart: false,
     command: 'pnpm run dev',
-    directory: 'apps/web'
+    directory: 'apps/desktop'
   }
 });
