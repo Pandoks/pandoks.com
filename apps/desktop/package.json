@@ -7,6 +7,7 @@
   "main": ".vite/build/main.js",
   "scripts": {
     "start": "electron-forge start",
+    "dev": "vite dev",
     "package": "vite build && electron-forge package",
     "make": "vite build && electron-forge make",
     "publish": "electron-forge publish",
