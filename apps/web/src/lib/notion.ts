@@ -2,25 +2,11 @@ import { dev } from '$app/environment';
 import { NOTION_API_KEY, BLOG_NOTION_DATABASE_ID } from '$env/static/private';
 import { Client } from '@notionhq/client';
 import { getImageExtensionFromSignedUrlImage } from './utils';
+import { SUPPORTED_LANGUAGES } from './highlight';
 
 export const notion = new Client({
   auth: NOTION_API_KEY
 });
-
-const SUPPORTED_LANGUAGES = [
-  'typescript',
-  'javascript',
-  'json',
-  'go',
-  'bash',
-  'yaml',
-  'dockerfile',
-  'css',
-  'html',
-  'xml',
-  'python',
-  'shell'
-];
 
 export const minimizeNotionBlockData = async (block: any) => {
   const blockType = block.type;

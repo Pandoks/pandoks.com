@@ -24,4 +24,19 @@ hljs.registerLanguage('xml', html);
 hljs.registerLanguage('python', python);
 hljs.registerLanguage('shell', shell);
 
+export const SUPPORTED_LANGUAGES = [
+  'typescript',
+  'javascript',
+  'json',
+  'go',
+  'bash',
+  'yaml',
+  'dockerfile',
+  'css',
+  'html',
+  'xml',
+  'python',
+  'shell'
+];
+
 export { hljs };
