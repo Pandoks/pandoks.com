@@ -5,7 +5,6 @@
   import { setVimState } from '$lib/vim.svelte';
 
   let { children } = $props();
-  const pageSlug = $derived(new URL(page.url).pathname);
 
   const navLinks = [
     { href: '/', text: 'Jason Kwok' },
@@ -66,7 +65,7 @@
   <a
     data-sveltekit-preload-data="hover"
     {href}
-    class={`${pageSlug === href ? 'underline' : 'hover:underline'} ${activeNavIndex === index && vimState.active === 'nav' ? 'bg-highlight' : ''}`}
+    class={`${page.url.pathname === href ? 'underline' : 'hover:underline'} ${activeNavIndex === index && vimState.active === 'nav' ? 'bg-highlight' : ''}`}
   >
     {text}
   </a>
