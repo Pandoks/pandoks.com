@@ -1,6 +1,6 @@
 {
-  "name": "@pandoks.com/desktop",
-  "productName": "Pandoks Desktop",
+  "name": "@pandoks.com/desktop-template",
+  "productName": "Pandoks Desktop Template",
   "private": true,
   "version": "0.0.1",
   "type": "module",
