@@ -30,7 +30,7 @@ importers:
         specifier: ^5.8.3
         version: 5.8.3
 
-  apps/desktop:
+  apps/desktop-template:
     dependencies:
       '@pandoks.com/svelte':
         specifier: workspace:*
@@ -7376,7 +7376,7 @@ snapshots:
 
   magic-string@0.30.17:
     dependencies:
-      '@jridgewell/sourcemap-codec': 1.5.0
+      '@jridgewell/sourcemap-codec': 1.5.4
 
   make-fetch-happen@10.2.1:
     dependencies:
