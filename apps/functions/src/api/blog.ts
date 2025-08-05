@@ -16,24 +16,21 @@ export const deployHandler = async (event: APIGatewayProxyEventV2) => {
   }
 
   try {
-    const githubResponse = await fetch(
-      'https://api.github.com/repos/pandoks/pandoks.com/actions/workflows/deploy-web.yaml/dispatches',
-      {
-        method: 'POST',
-        headers: {
-          Accept: 'application/vnd.github.v3+json',
-          Authorization: `token ${Resource.GithubPersonalAccessToken.value}`,
-          'Content-Type': 'application/json',
-          'User-Agent': 'api.pandoks.com'
-        },
-        body: JSON.stringify({
-          ref: 'main',
-          inputs: {
-            stage: stage
-          }
-        })
-      }
-    );
+    const githubResponse = await fetch(process.env.GITHUB_DEPLOY_URL!, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/vnd.github.v3+json',
+        Authorization: `token ${Resource.GithubPersonalAccessToken.value}`,
+        'Content-Type': 'application/json',
+        'User-Agent': process.env.DOMAIN!
+      },
+      body: JSON.stringify({
+        ref: 'main',
+        inputs: {
+          stage: stage
+        }
+      })
+    });
 
     if (!githubResponse.ok) {
       return new Response('Internal Server Error', { status: 500 });

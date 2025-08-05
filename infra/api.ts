@@ -1,9 +1,11 @@
 import { secrets } from './secrets';
 import { domain } from './dns';
 
+const apiDomain = `api.${domain}`;
+
 export const apiRouter = new sst.aws.Router('ApiRouter', {
   domain: {
-    name: `api.${domain}`,
+    name: apiDomain,
     dns: sst.cloudflare.dns()
   }
 });
@@ -16,7 +18,12 @@ export const blogApi = new sst.aws.Function('BlogApi', {
       path: '/blog/deploy'
     }
   },
-  link: [secrets.notion.BlogDeployAuth, secrets.github.PersonalAccessToken]
+  link: [secrets.notion.BlogDeployAuth, secrets.github.PersonalAccessToken],
+  environment: {
+    DOMAIN: apiDomain,
+    GITHUB_DEPLOY_URL:
+      'https://api.github.com/repos/pandoks/pandoks.com/actions/workflows/deploy-web.yaml/dispatches'
+  }
 });
 
 export const todoRemindApi = new sst.aws.Function('TodoRemindApi', {
