@@ -14,5 +14,10 @@ export const secrets = {
   personal: {
     KwokPhoneNumber: new sst.Secret('KwokPhoneNumber'),
     MichellePhoneNumber: new sst.Secret('MichellePhoneNumber')
+  },
+  twilio: {
+    PhoneNumber: new sst.Secret('TwilioPhoneNumber'),
+    AccountSid: new sst.Secret('TwilioAccountSid'),
+    AuthToken: new sst.Secret('TwilioAuthToken')
   }
 };
