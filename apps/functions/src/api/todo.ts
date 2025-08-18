@@ -21,6 +21,13 @@ const twilioClient = twilio(Resource.TwilioAccountSid.value, Resource.TwilioAuth
  *    - auth: NOTION_TODO_REMIND_AUTH
  *    - people?: person1,person2,person3
  *    - message?: message
+ *  - Body:
+ *    - data?:
+ *      - properties?:
+ *        - Assigned To?: person1,person2,person3
+ *        - Person?: person1,person2,person3
+ *        - Buyer?: person1,person2,person3
+ *        - Assignee?: person1,person2,person3
  */
 export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
   if (event.requestContext.http.method !== 'POST') {
