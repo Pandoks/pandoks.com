@@ -1,12 +1,17 @@
 <script lang="ts">
   import { getVimState } from '$lib/vim.svelte';
+  import instagram from '$lib/icons/instagram.svg?raw';
+  import tiktok from '$lib/icons/tiktok.svg?raw';
+  import github from '$lib/icons/github.svg?raw';
+  import x from '$lib/icons/x.svg?raw';
+  import linkedin from '$lib/icons/linkedin.svg?raw';
 
   const socialLinks = [
-    { href: 'https://instagram.com/pandoks_', icon: '/icons/instagram.svg', text: 'Instagram' },
-    { href: 'https://tiktok.com/@pandoks_', icon: '/icons/tiktok.svg', text: 'TikTok' },
-    { href: 'https://github.com/pandoks', icon: '/icons/github.svg', text: 'GitHub' },
-    { href: 'https://x.com/pandoks_', icon: '/icons/x.svg', text: 'X' },
-    { href: 'https://linkedin.com/in/pandoks', icon: '/icons/linkedin.svg', text: 'LinkedIn' }
+    { href: 'https://instagram.com/pandoks_', icon: instagram, text: 'Instagram' },
+    { href: 'https://tiktok.com/@pandoks_', icon: tiktok, text: 'TikTok' },
+    { href: 'https://github.com/pandoks', icon: github, text: 'GitHub' },
+    { href: 'https://x.com/pandoks_', icon: x, text: 'X' },
+    { href: 'https://linkedin.com/in/pandoks', icon: linkedin, text: 'LinkedIn' }
   ];
 
   let activeSocialIndex: number | undefined = $state();
@@ -56,7 +61,7 @@
     target="_blank"
     class={`${activeSocialIndex === index && vimState.active === 'body' ? 'bg-highlight' : 'hover:bg-highlight'} flex flex-row items-center gap-1 px-2`}
   >
-    <img src={icon} alt={text} class="h-5 w-5" />
+    <span class="h-5 w-5">{@html icon}</span>
     {text}
   </a>
 {/snippet}
@@ -69,10 +74,4 @@
     property="og:description"
     content="Jason Kwok's social links which are mostly under the username Pandoks"
   />
-
-  <link rel="preload" href="/icons/instagram.svg" as="image" type="image/svg+xml" />
-  <link rel="preload" href="/icons/tiktok.svg" as="image" type="image/svg+xml" />
-  <link rel="preload" href="/icons/github.svg" as="image" type="image/svg+xml" />
-  <link rel="preload" href="/icons/x.svg" as="image" type="image/svg+xml" />
-  <link rel="preload" href="/icons/linkedin.svg" as="image" type="image/svg+xml" />
 </svelte:head>
