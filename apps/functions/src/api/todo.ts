@@ -21,6 +21,12 @@ const twilioClient = twilio(Resource.TwilioAccountSid.value, Resource.TwilioAuth
  *    - auth: NOTION_TODO_REMIND_AUTH
  *    - people?: person1,person2,person3
  *    - message?: message
+ *    - notification-time?: ISO 8601 date
+ *        NOTE:
+ *          Format: YYYY-MM-DDTHH:mm:ss.SSSZ or YYYY-MM-DDTHH:mm:ss.SSS+-HH:MM
+ *          Example: 2022-01-01T00:00:00.000-08:00
+ *          YYYY: year, MM: month, DD: day, HH: hour, mm: minute, ss: second, SSS: millisecond, +-/Z: offset
+ *          PST: -08:00, EST: -05:00, UTC: Z
  *  - Body:
  *    - data?:
  *      - properties?:
@@ -28,8 +34,10 @@ const twilioClient = twilio(Resource.TwilioAccountSid.value, Resource.TwilioAuth
  *        - Person?: person1,person2,person3
  *        - Buyer?: person1,person2,person3
  *        - Assignee?: person1,person2,person3
+ *        - Notification Time?: ISO 8601 date
  */
 export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
+  console.log(event);
   if (event.requestContext.http.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405 });
   }
@@ -70,12 +78,24 @@ export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
     return new Response('OK', { status: 200 });
   }
 
+  const notificationTime =
+    event.headers['notification-time'] ||
+    (properties['Notification Time'] as NotionDate | undefined)?.date.start;
+
+  if (notificationTime) {
+    return;
+  }
+
+  return await sendText(phoneNumbers, event.headers.message || '📝 Todo Reminder');
+};
+
+const sendText = async (phoneNumbers: string[], message: string) => {
   try {
     let texts: Promise<MessageInstance>[] = [];
     for (const phoneNumber of phoneNumbers) {
       texts.push(
         twilioClient.messages.create({
-          body: event.headers.message || '📝 Todo Reminder',
+          body: message,
           from: Resource.TwilioPhoneNumber.value,
           to: phoneNumber,
           messagingServiceSid: Resource.TwilioNotionMessagingServiceSid.value
@@ -126,5 +146,15 @@ type Person = {
   type: 'person';
   person: {
     email: string;
+  };
+};
+
+type NotionDate = {
+  id: string;
+  type: string;
+  date: {
+    start: string;
+    end: string | null;
+    time_zone: string | null;
   };
 };
