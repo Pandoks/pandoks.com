@@ -139,6 +139,9 @@ importers:
         specifier: ^5.8.0
         version: 5.8.0
     devDependencies:
+      '@notionhq/client':
+        specifier: ^4.0.1
+        version: 4.0.1
       '@types/aws-lambda':
         specifier: ^8.10.150
         version: 8.10.150

@@ -9,6 +9,7 @@
     "twilio": "^5.8.0"
   },
   "devDependencies": {
+    "@notionhq/client": "^4.0.1",
     "@types/aws-lambda": "^8.10.150"
   }
 }
