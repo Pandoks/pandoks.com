@@ -55,6 +55,18 @@ declare module "sst" {
       "type": "sst.aws.Function"
       "url": string
     }
+    "TwilioAccountSid": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "TwilioAuthToken": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "TwilioPhoneNumber": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
   }
 }
 /// <reference path="sst-env.d.ts" />
