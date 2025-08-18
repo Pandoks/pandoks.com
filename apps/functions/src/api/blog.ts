@@ -1,6 +1,13 @@
 import { APIGatewayProxyEventV2 } from 'aws-lambda';
 import { Resource } from 'sst';
 
+/**
+ * Request Requirements:
+ *  - Method: POST
+ *  - Headers:
+ *    - auth: NOTION_BLOG_DEPLOY_AUTH
+ *    - stage: production | pandoks
+ */
 export const deployHandler = async (event: APIGatewayProxyEventV2) => {
   if (event.requestContext.http.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405 });
