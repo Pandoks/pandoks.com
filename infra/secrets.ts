@@ -18,6 +18,7 @@ export const secrets = {
   twilio: {
     PhoneNumber: new sst.Secret('TwilioPhoneNumber'),
     AccountSid: new sst.Secret('TwilioAccountSid'),
-    AuthToken: new sst.Secret('TwilioAuthToken')
+    AuthToken: new sst.Secret('TwilioAuthToken'),
+    NotionMessagingServiceSid: new sst.Secret('TwilioNotionMessagingServiceSid')
   }
 };

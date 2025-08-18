@@ -46,7 +46,8 @@ export const todoRemindApi = new sst.aws.Function('TodoRemindApi', {
     secrets.personal.MichellePhoneNumber,
     secrets.twilio.PhoneNumber,
     secrets.twilio.AccountSid,
-    secrets.twilio.AuthToken
+    secrets.twilio.AuthToken,
+    secrets.twilio.NotionMessagingServiceSid
   ]
 });
 

@@ -70,7 +70,8 @@ export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
         twilioClient.messages.create({
           body: event.headers.message || '📝 Todo Reminder',
           from: Resource.TwilioPhoneNumber.value,
-          to: phoneNumber
+          to: phoneNumber,
+          messagingServiceSid: Resource.TwilioNotionMessagingServiceSid.value
         })
       );
     }

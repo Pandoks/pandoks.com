@@ -63,6 +63,10 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "TwilioNotionMessagingServiceSid": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "TwilioPhoneNumber": {
       "type": "sst.sst.Secret"
       "value": string
