@@ -10,7 +10,7 @@ import {
 } from '@aws-sdk/client-scheduler';
 
 const NAME_PROPERTY_KEYS = ['Assigned To', 'Person', 'Buyer', 'Assignee'];
-const TITLE_PROPERTY_KEYS = ['Title', 'Name', 'Task'];
+const TITLE_PROPERTY_KEYS = ['Title', 'Name', 'Task', 'Reminder'];
 const DESCRIPTION_PROPERTY_KEYS = ['Description', 'Note'];
 const DUE_DATE_PROPERTY_KEYS = ['Due Date', 'Deadline'];
 const DELETE_EVENT = 'delete';
