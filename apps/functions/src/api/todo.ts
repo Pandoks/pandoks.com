@@ -59,12 +59,16 @@ export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
   const responseBody: NotionWebhookBody = JSON.parse(event.body!);
   const name = `schedule-todo-reminder-${responseBody.data.id}`;
   if (event.headers.event === DELETE_EVENT) {
-    await schedulerClient.send(
-      new DeleteScheduleCommand({
-        Name: name,
-        GroupName: process.env.SCHEDULER_GROUP_NAME!
-      })
-    );
+    try {
+      await schedulerClient.send(
+        new DeleteScheduleCommand({
+          Name: name,
+          GroupName: process.env.SCHEDULER_GROUP_NAME!
+        })
+      );
+    } catch (e) {
+      console.error('ERROR:', e);
+    }
     return new Response('OK', { status: 200 });
   }
 
