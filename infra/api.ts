@@ -61,7 +61,8 @@ export const todoRemindApi = new sst.aws.Function('TodoRemindApi', {
     }
   ],
   environment: {
-    SCHEDULER_INVOKE_ROLE_ARN: todoInvokeRole.arn
+    SCHEDULER_INVOKE_ROLE_ARN: todoInvokeRole.arn,
+    SCHEDULER_GROUP_NAME: 'todo-reminders'
   },
   link: [
     secrets.notion.TodoRemindAuth,

@@ -90,8 +90,8 @@ export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
   if (notificationTime) {
     delete event.headers['notification-time'];
     delete properties['Notification Time'];
-    const scheduleTime = new Date(notificationTime).toISOString().replace(/.\d{3}Z$/, 'Z');
-    const name = `schedule-text-reminder-${scheduleTime}-${crypto.randomUUID()}`;
+    const scheduleTime = new Date(notificationTime).toISOString().split('.')[0];
+    const name = `schedule-todo-${crypto.randomUUID()}`;
 
     await schedulerClient.send(
       new CreateScheduleCommand({
@@ -99,6 +99,7 @@ export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
         FlexibleTimeWindow: { Mode: 'OFF' },
         ScheduleExpression: `at(${scheduleTime})`,
         State: 'ENABLED',
+        GroupName: process.env.SCHEDULER_GROUP_NAME!,
         Target: {
           Arn: process.env.WORKER_ARN!,
           RoleArn: process.env.SCHEDULER_INVOKE_ROLE_ARN!,
