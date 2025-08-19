@@ -88,14 +88,18 @@ export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
     (properties['Notification Time'] as NotionDate | undefined)?.date.start;
 
   if (notificationTime) {
+    const notificationDate = new Date(notificationTime);
+    if (notificationDate.getTime() < Date.now()) {
+      return new Response('Cannot schedule in the past', { status: 400 });
+    }
+    const scheduleTime = notificationDate.toISOString().split('.')[0];
+
     delete event.headers['notification-time'];
     delete properties['Notification Time'];
-    const scheduleTime = new Date(notificationTime).toISOString().split('.')[0];
-    const name = `schedule-todo-${crypto.randomUUID()}`;
 
     await schedulerClient.send(
       new CreateScheduleCommand({
-        Name: name,
+        Name: `schedule-todo-${crypto.randomUUID()}`,
         FlexibleTimeWindow: { Mode: 'OFF' },
         ScheduleExpression: `at(${scheduleTime})`,
         State: 'ENABLED',
