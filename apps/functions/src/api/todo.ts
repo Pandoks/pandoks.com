@@ -15,12 +15,16 @@ const PHONE_NUMBERS = {
 const twilioClient = twilio(Resource.TwilioAccountSid.value, Resource.TwilioAuthToken.value);
 
 /**
+ * TODO:
+ *  - handle editing
+ *  - handle deleting
  * Request Requirements:
  *  - Method: POST
  *  - Headers:
  *    - auth: NOTION_TODO_REMIND_AUTH
  *    - people?: person1,person2,person3
  *    - message?: message
+ *    - TODO: event?: created | edited | deleted = created
  *    - notification-time?: ISO 8601 date
  *        NOTE:
  *          Format: YYYY-MM-DDTHH:mm:ss.SSSZ or YYYY-MM-DDTHH:mm:ss.SSS+-HH:MM
@@ -83,6 +87,7 @@ export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
     (properties['Notification Time'] as NotionDate | undefined)?.date.start;
 
   if (notificationTime) {
+    console.log('notificationTime:', notificationTime);
     return;
   }
 
