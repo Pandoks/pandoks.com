@@ -28,7 +28,7 @@ const schedulerClient = new SchedulerClient({});
  *    - message?: message
  *    - TODO: event?: created | edited | deleted = created
  *    - notification-time?: ISO 8601 date
- *        NOTE: Doesn't include milliseconds
+ *        NOTE: DO NOT include milliseconds
  *          Format: YYYY-MM-DDTHH:mm:ssZ or YYYY-MM-DDTHH:mm:ss+-HH:MM
  *          Example: 2022-01-01T00:00:00-08:00
  *          YYYY: year, MM: month, DD: day, HH: hour, mm: minute, ss: second, +-/Z: offset
