@@ -3,6 +3,7 @@ import type { PageObjectResponse } from '@notionhq/client';
 import { Resource } from 'sst';
 import twilio from 'twilio';
 import { MessageInstance } from 'twilio/lib/rest/api/v2010/account/message';
+import { CreateScheduleCommand, SchedulerClient } from '@aws-sdk/client-scheduler';
 
 const NAME_PROPERTY_KEYS = ['Assigned To', 'Person', 'Buyer', 'Assignee'];
 
@@ -13,6 +14,7 @@ const PHONE_NUMBERS = {
 };
 
 const twilioClient = twilio(Resource.TwilioAccountSid.value, Resource.TwilioAuthToken.value);
+const schedulerClient = new SchedulerClient({});
 
 /**
  * TODO:
@@ -26,10 +28,10 @@ const twilioClient = twilio(Resource.TwilioAccountSid.value, Resource.TwilioAuth
  *    - message?: message
  *    - TODO: event?: created | edited | deleted = created
  *    - notification-time?: ISO 8601 date
- *        NOTE:
- *          Format: YYYY-MM-DDTHH:mm:ss.SSSZ or YYYY-MM-DDTHH:mm:ss.SSS+-HH:MM
- *          Example: 2022-01-01T00:00:00.000-08:00
- *          YYYY: year, MM: month, DD: day, HH: hour, mm: minute, ss: second, SSS: millisecond, +-/Z: offset
+ *        NOTE: Doesn't include milliseconds
+ *          Format: YYYY-MM-DDTHH:mm:ssZ or YYYY-MM-DDTHH:mm:ss+-HH:MM
+ *          Example: 2022-01-01T00:00:00-08:00
+ *          YYYY: year, MM: month, DD: day, HH: hour, mm: minute, ss: second, +-/Z: offset
  *          PST: -08:00, EST: -05:00, UTC: Z
  *  - Body:
  *    - data?:
@@ -41,7 +43,6 @@ const twilioClient = twilio(Resource.TwilioAccountSid.value, Resource.TwilioAuth
  *        - Notification Time?: ISO 8601 date
  */
 export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
-  console.log(event);
   if (event.requestContext.http.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405 });
   }
@@ -87,8 +88,25 @@ export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
     (properties['Notification Time'] as NotionDate | undefined)?.date.start;
 
   if (notificationTime) {
-    console.log('notificationTime:', notificationTime);
-    return;
+    delete event.headers['notification-time'];
+    delete properties['Notification Time'];
+    const scheduleTime = new Date(notificationTime).toISOString().replace(/.\d{3}Z$/, 'Z');
+    const name = `schedule-text-reminder-${scheduleTime}-${crypto.randomUUID()}`;
+
+    await schedulerClient.send(
+      new CreateScheduleCommand({
+        Name: name,
+        FlexibleTimeWindow: { Mode: 'OFF' },
+        ScheduleExpression: `at(${scheduleTime})`,
+        State: 'ENABLED',
+        Target: {
+          Arn: process.env.WORKER_ARN!,
+          RoleArn: process.env.SCHEDULER_INVOKE_ROLE_ARN!,
+          Input: JSON.stringify(event)
+        }
+      })
+    );
+    return new Response('OK', { status: 200 });
   }
 
   return await sendText(phoneNumbers, event.headers.message || '📝 Todo Reminder');
