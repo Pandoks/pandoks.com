@@ -74,6 +74,7 @@ export const todoRemindApi = new sst.aws.Function('TodoRemindApi', {
     secrets.twilio.NotionMessagingServiceSid
   ]
 });
+// NOTE: Sometimes you need to remove and the add this again if it's not showing up in the envs
 todoRemindApi.addEnvironment({ WORKER_ARN: todoRemindApi.arn });
 new aws.iam.RolePolicy('TodoInvokePolicy', {
   role: todoInvokeRole.id,
