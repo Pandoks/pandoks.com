@@ -100,6 +100,7 @@ export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
         ScheduleExpression: `at(${scheduleTime})`,
         State: 'ENABLED',
         GroupName: process.env.SCHEDULER_GROUP_NAME!,
+        ActionAfterCompletion: 'DELETE',
         Target: {
           Arn: process.env.WORKER_ARN!,
           RoleArn: process.env.SCHEDULER_INVOKE_ROLE_ARN!,
