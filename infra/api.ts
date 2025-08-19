@@ -37,6 +37,9 @@ const todoInvokeRole = new aws.iam.Role('TodoInvokeRole', {
     ]
   }).json
 });
+const todoSchedulerGroup = new aws.scheduler.ScheduleGroup('TodoReminderGroup', {
+  name: 'todo-reminders'
+});
 export const todoRemindApi = new sst.aws.Function('TodoRemindApi', {
   handler: 'apps/functions/src/api/todo.textTodoHandler',
   url: {
@@ -62,7 +65,7 @@ export const todoRemindApi = new sst.aws.Function('TodoRemindApi', {
   ],
   environment: {
     SCHEDULER_INVOKE_ROLE_ARN: todoInvokeRole.arn,
-    SCHEDULER_GROUP_NAME: 'todo-reminders'
+    SCHEDULER_GROUP_NAME: todoSchedulerGroup.name
   },
   link: [
     secrets.notion.TodoRemindAuth,
