@@ -58,11 +58,11 @@ export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
   }
 
   const responseBody: NotionWebhookBody = JSON.parse(event.body!);
-  const id = responseBody.data.id;
+  const name = `schedule-todo-reminder-${responseBody.data.id}`;
   if (event.headers.event === DELETE_EVENT) {
     await schedulerClient.send(
       new DeleteScheduleCommand({
-        Name: `schedule-todo-reminder-${id}`,
+        Name: name,
         GroupName: process.env.SCHEDULER_GROUP_NAME!
       })
     );
@@ -105,27 +105,24 @@ export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
 
   if (notificationTime) {
     const notificationDate = new Date(notificationTime);
-    if (notificationDate.getTime() < Date.now()) {
-      try {
-        await schedulerClient.send(
-          new DeleteScheduleCommand({
-            Name: `schedule-todo-reminder-${id}`,
-            GroupName: process.env.SCHEDULER_GROUP_NAME!
-          })
-        );
-      } catch (e) {
-        console.error('ERROR:', e);
-      }
-      return new Response('Cannot schedule in the past', { status: 400 });
-    }
     const scheduleTime = notificationDate.toISOString().split('.')[0];
 
     delete event.headers['notification-time'];
     delete properties['Notification Time'];
 
+    try {
+      await schedulerClient.send(
+        new DeleteScheduleCommand({
+          Name: name,
+          GroupName: process.env.SCHEDULER_GROUP_NAME!
+        })
+      );
+    } catch (e) {
+      console.error('ERROR:', e);
+    }
     await schedulerClient.send(
       new CreateScheduleCommand({
-        Name: `schedule-todo-reminder-${id}`,
+        Name: name,
         FlexibleTimeWindow: { Mode: 'OFF' },
         ScheduleExpression: `at(${scheduleTime})`,
         State: 'ENABLED',
@@ -141,7 +138,9 @@ export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
     return new Response('OK', { status: 200 });
   }
 
-  return await sendText(phoneNumbers, event.headers.message);
+  const message = event.headers.message || constructMessage(responseBody);
+  console.log('message:', message);
+  return await sendText(phoneNumbers, message);
 };
 
 /** ========== HELPERS ========== */
@@ -165,26 +164,23 @@ const constructMessage = (body: NotionWebhookBody) => {
     }
   }
 
-  let startDate: Date | undefined;
-  let endDate: Date | undefined;
   for (const key of DUE_DATE_PROPERTY_KEYS) {
     if (properties.hasOwnProperty(key)) {
       const date = properties[key].date;
-      if (date.start) {
-        startDate = new Date(date.start);
-      }
+      const startDate = new Date(date.start.split('.')[0]).toString();
       if (date.end) {
-        endDate = new Date(date.end);
+        const endDate = new Date(date.end.split('.')[0]).toString();
+        message.push(`📅 Due: ${startDate} ~ ${endDate}`);
+      } else {
+        message.push(`📅 Due: ${startDate}`);
       }
       break;
     }
   }
 
-  const url = body.data.url;
+  message.push(body.data.url);
 
-  return `
-
-`;
+  return message.join('\n\n');
 };
 
 const sendText = async (phoneNumbers: string[], message?: string) => {
