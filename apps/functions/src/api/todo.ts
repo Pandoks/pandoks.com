@@ -3,9 +3,17 @@ import type { PageObjectResponse } from '@notionhq/client';
 import { Resource } from 'sst';
 import twilio from 'twilio';
 import { MessageInstance } from 'twilio/lib/rest/api/v2010/account/message';
-import { CreateScheduleCommand, SchedulerClient } from '@aws-sdk/client-scheduler';
+import {
+  CreateScheduleCommand,
+  DeleteScheduleCommand,
+  SchedulerClient
+} from '@aws-sdk/client-scheduler';
 
 const NAME_PROPERTY_KEYS = ['Assigned To', 'Person', 'Buyer', 'Assignee'];
+const TITLE_PROPERTY_KEYS = ['Title', 'Name', 'Task'];
+const DESCRIPTION_PROPERTY_KEYS = ['Description', 'Note'];
+const DUE_DATE_PROPERTY_KEYS = ['Due Date', 'Deadline'];
+const DELETE_EVENT = 'delete';
 
 const PHONE_NUMBERS = {
   'Manda Wong': Resource.MichellePhoneNumber.value,
@@ -17,16 +25,13 @@ const twilioClient = twilio(Resource.TwilioAccountSid.value, Resource.TwilioAuth
 const schedulerClient = new SchedulerClient({});
 
 /**
- * TODO:
- *  - handle editing
- *  - handle deleting
  * Request Requirements:
  *  - Method: POST
  *  - Headers:
  *    - auth: NOTION_TODO_REMIND_AUTH
  *    - people?: person1,person2,person3
  *    - message?: message
- *    - TODO: event?: created | edited | deleted = created
+ *    - event?: DELETE_EVENT
  *    - notification-time?: ISO 8601 date
  *        NOTE: DO NOT include milliseconds
  *          Format: YYYY-MM-DDTHH:mm:ssZ or YYYY-MM-DDTHH:mm:ss+-HH:MM
@@ -36,13 +41,14 @@ const schedulerClient = new SchedulerClient({});
  *  - Body:
  *    - data?:
  *      - properties?:
- *        - Assigned To?: person1,person2,person3
- *        - Person?: person1,person2,person3
- *        - Buyer?: person1,person2,person3
- *        - Assignee?: person1,person2,person3
+ *        - Assigned To | Person | Buyer | Assignee?: person1,person2,person3
  *        - Notification Time?: ISO 8601 date
+ *        - Title | Name | Task?: title
+ *        - Description | Note?: description
+ *        - Due Date | Deadline?: ISO 8601 date
  */
 export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
+  console.log(event);
   if (event.requestContext.http.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405 });
   }
@@ -51,8 +57,19 @@ export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  let phoneNumbers: string[] = [];
+  const responseBody: NotionWebhookBody = JSON.parse(event.body!);
+  const id = responseBody.data.id;
+  if (event.headers.event === DELETE_EVENT) {
+    await schedulerClient.send(
+      new DeleteScheduleCommand({
+        Name: `schedule-todo-reminder-${id}`,
+        GroupName: process.env.SCHEDULER_GROUP_NAME!
+      })
+    );
+    return new Response('OK', { status: 200 });
+  }
 
+  let phoneNumbers: string[] = [];
   if (event.headers.people) {
     const people = event.headers.people.split(',');
     for (const person of people) {
@@ -62,7 +79,6 @@ export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
     }
   }
 
-  const responseBody: NotionWebhookBody = JSON.parse(event.body!);
   const properties = responseBody.data.properties;
   let people: Person[] = [];
   for (const key of NAME_PROPERTY_KEYS) {
@@ -90,6 +106,16 @@ export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
   if (notificationTime) {
     const notificationDate = new Date(notificationTime);
     if (notificationDate.getTime() < Date.now()) {
+      try {
+        await schedulerClient.send(
+          new DeleteScheduleCommand({
+            Name: `schedule-todo-reminder-${id}`,
+            GroupName: process.env.SCHEDULER_GROUP_NAME!
+          })
+        );
+      } catch (e) {
+        console.error('ERROR:', e);
+      }
       return new Response('Cannot schedule in the past', { status: 400 });
     }
     const scheduleTime = notificationDate.toISOString().split('.')[0];
@@ -99,7 +125,7 @@ export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
 
     await schedulerClient.send(
       new CreateScheduleCommand({
-        Name: `schedule-todo-${crypto.randomUUID()}`,
+        Name: `schedule-todo-reminder-${id}`,
         FlexibleTimeWindow: { Mode: 'OFF' },
         ScheduleExpression: `at(${scheduleTime})`,
         State: 'ENABLED',
@@ -115,10 +141,53 @@ export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
     return new Response('OK', { status: 200 });
   }
 
-  return await sendText(phoneNumbers, event.headers.message || '📝 Todo Reminder');
+  return await sendText(phoneNumbers, event.headers.message);
 };
 
-const sendText = async (phoneNumbers: string[], message: string) => {
+/** ========== HELPERS ========== */
+const constructMessage = (body: NotionWebhookBody) => {
+  const properties = body.data.properties;
+  let message: string[] = [];
+
+  for (const key of TITLE_PROPERTY_KEYS) {
+    if (properties.hasOwnProperty(key)) {
+      // @ts-ignore
+      message.push(properties[key].title[0].plain_text);
+      break;
+    }
+  }
+
+  for (const key of DESCRIPTION_PROPERTY_KEYS) {
+    if (properties.hasOwnProperty(key)) {
+      // @ts-ignore
+      message.push(properties[key].rich_text[0].plain_text);
+      break;
+    }
+  }
+
+  let startDate: Date | undefined;
+  let endDate: Date | undefined;
+  for (const key of DUE_DATE_PROPERTY_KEYS) {
+    if (properties.hasOwnProperty(key)) {
+      const date = properties[key].date;
+      if (date.start) {
+        startDate = new Date(date.start);
+      }
+      if (date.end) {
+        endDate = new Date(date.end);
+      }
+      break;
+    }
+  }
+
+  const url = body.data.url;
+
+  return `
+
+`;
+};
+
+const sendText = async (phoneNumbers: string[], message?: string) => {
   try {
     let texts: Promise<MessageInstance>[] = [];
     for (const phoneNumber of phoneNumbers) {
