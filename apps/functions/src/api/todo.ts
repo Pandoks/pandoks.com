@@ -48,7 +48,6 @@ const schedulerClient = new SchedulerClient({});
  *        - Due Date | Deadline?: ISO 8601 date
  */
 export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
-  console.log(event);
   if (event.requestContext.http.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405 });
   }
@@ -109,6 +108,7 @@ export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
 
     delete event.headers['notification-time'];
     delete properties['Notification Time'];
+    event.body = JSON.stringify(responseBody);
 
     try {
       await schedulerClient.send(
@@ -151,7 +151,7 @@ const constructMessage = (body: NotionWebhookBody) => {
   for (const key of TITLE_PROPERTY_KEYS) {
     if (properties.hasOwnProperty(key)) {
       // @ts-ignore
-      message.push(properties[key].title[0].plain_text);
+      message.push(`REMINDER:\n${properties[key].title[0].plain_text.toUpperCase()}`);
       break;
     }
   }
@@ -167,12 +167,12 @@ const constructMessage = (body: NotionWebhookBody) => {
   for (const key of DUE_DATE_PROPERTY_KEYS) {
     if (properties.hasOwnProperty(key)) {
       const date = properties[key].date;
-      const startDate = new Date(date.start.split('.')[0]).toString();
+      const startDate = new Date(date.start).toString();
       if (date.end) {
         const endDate = new Date(date.end.split('.')[0]).toString();
-        message.push(`📅 Due: ${startDate} ~ ${endDate}`);
+        message.push(`Due: ${startDate} ~ ${endDate}`);
       } else {
-        message.push(`📅 Due: ${startDate}`);
+        message.push(`Due: ${startDate}`);
       }
       break;
     }
