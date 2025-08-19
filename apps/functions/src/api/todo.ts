@@ -139,19 +139,18 @@ export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
   }
 
   const message = event.headers.message || constructMessage(responseBody);
-  console.log('message:', message);
   return await sendText(phoneNumbers, message);
 };
 
 /** ========== HELPERS ========== */
 const constructMessage = (body: NotionWebhookBody) => {
   const properties = body.data.properties;
-  let message: string[] = [];
+  let message = ['🚨 Reminder:'];
 
   for (const key of TITLE_PROPERTY_KEYS) {
     if (properties.hasOwnProperty(key)) {
       // @ts-ignore
-      message.push(`REMINDER:\n${properties[key].title[0].plain_text.toUpperCase()}`);
+      message.push(`${properties[key].title[0].plain_text}`);
       break;
     }
   }
@@ -167,9 +166,9 @@ const constructMessage = (body: NotionWebhookBody) => {
   for (const key of DUE_DATE_PROPERTY_KEYS) {
     if (properties.hasOwnProperty(key)) {
       const date = properties[key].date;
-      const startDate = new Date(date.start).toString();
+      const startDate = formatIsoDate(date.start);
       if (date.end) {
-        const endDate = new Date(date.end.split('.')[0]).toString();
+        const endDate = formatIsoDate(date.end);
         message.push(`Due: ${startDate} ~ ${endDate}`);
       } else {
         message.push(`Due: ${startDate}`);
@@ -180,7 +179,7 @@ const constructMessage = (body: NotionWebhookBody) => {
 
   message.push(body.data.url);
 
-  return message.join('\n\n');
+  return message.join('\n');
 };
 
 const sendText = async (phoneNumbers: string[], message?: string) => {
@@ -208,6 +207,50 @@ const sendText = async (phoneNumbers: string[], message?: string) => {
     console.error('ERROR:', e);
     return new Response('Internal Server Error', { status: 500 });
   }
+};
+
+const formatIsoDate = (isoDate: string) => {
+  const date = new Date(isoDate);
+  const baseOptions: Intl.DateTimeFormatOptions = {
+    weekday: 'short',
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric'
+  };
+  if (!isoDate.includes('T')) {
+    return new Intl.DateTimeFormat('en-US', baseOptions).format(date);
+  }
+
+  const ianaTimeZone: string = IANA_MAPPING[isoDate.slice(-6)] ?? 'UTC';
+  const withTimeOptions: Intl.DateTimeFormatOptions = {
+    ...baseOptions,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZone: ianaTimeZone,
+    timeZoneName: 'short'
+  };
+  const formatted = new Intl.DateTimeFormat('en-US', withTimeOptions).format(date);
+  return ianaTimeZone === 'UTC'
+    ? formatted.replace(/\s([A-Z]{2,5}|GMT(?:[+-]\d{1,2}(?::\d{2})?)?|UTC)$/, ' (UTC)')
+    : formatted;
+};
+
+const IANA_MAPPING = {
+  Z: 'UTC',
+  '+00:00': 'UTC',
+  '-08:00': 'America/Los_Angeles',
+  '-07:00': 'America/Los_Angeles',
+  '-06:00': 'America/Chicago',
+  '-05:00': 'America/New_York',
+  '-04:00': 'America/New_York',
+  '+01:00': 'Europe/Berlin',
+  '+02:00': 'Europe/Paris',
+  '+03:00': 'Asia/Qatar',
+  '+04:00': 'Asia/Dubai',
+  '+08:00': 'Asia/Shanghai',
+  '+09:00': 'Asia/Tokyo',
+  '+10:00': 'Australia/Sydney'
 };
 
 /** ========== TYPES ========== */
