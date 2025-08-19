@@ -38,7 +38,7 @@ const todoInvokeRole = new aws.iam.Role('TodoInvokeRole', {
   }).json
 });
 const todoSchedulerGroup = new aws.scheduler.ScheduleGroup('TodoReminderGroup', {
-  name: 'todo-reminders'
+  name: $app.stage === 'production' ? 'todo-reminders' : 'todo-reminders-dev'
 });
 export const todoRemindApi = new sst.aws.Function('TodoRemindApi', {
   handler: 'apps/functions/src/api/todo.textTodoHandler',
