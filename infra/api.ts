@@ -26,6 +26,17 @@ export const blogApi = new sst.aws.Function('BlogApi', {
   }
 });
 
+const todoInvokeRole = new aws.iam.Role('TodoInvokeRole', {
+  assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
+    statements: [
+      {
+        effect: 'Allow',
+        principals: [{ type: 'Service', identifiers: ['scheduler.amazonaws.com'] }],
+        actions: ['sts:AssumeRole']
+      }
+    ]
+  }).json
+});
 export const todoRemindApi = new sst.aws.Function('TodoRemindApi', {
   handler: 'apps/functions/src/api/todo.textTodoHandler',
   url: {
@@ -36,10 +47,22 @@ export const todoRemindApi = new sst.aws.Function('TodoRemindApi', {
   },
   permissions: [
     {
-      actions: ['sns:Publish', 'sns:SetSMSAttribute'],
+      actions: [
+        'scheduler:CreateSchedule',
+        'scheduler:UpdateSchedule',
+        'scheduler:DeleteSchedule',
+        'scheduler:GetSchedule'
+      ],
       resources: ['*']
+    },
+    {
+      actions: ['iam:PassRole'],
+      resources: [todoInvokeRole.arn]
     }
   ],
+  environment: {
+    SCHEDULER_INVOKE_ROLE_ARN: todoInvokeRole.arn
+  },
   link: [
     secrets.notion.TodoRemindAuth,
     secrets.personal.KwokPhoneNumber,
@@ -49,6 +72,15 @@ export const todoRemindApi = new sst.aws.Function('TodoRemindApi', {
     secrets.twilio.AuthToken,
     secrets.twilio.NotionMessagingServiceSid
   ]
+});
+todoRemindApi.addEnvironment({ WORKER_ARN: todoRemindApi.arn });
+new aws.iam.RolePolicy('TodoInvokePolicy', {
+  role: todoInvokeRole.id,
+  policy: aws.iam.getPolicyDocumentOutput({
+    statements: [
+      { effect: 'Allow', actions: ['lambda:InvokeFunction'], resources: [todoRemindApi.arn] }
+    ]
+  }).json
 });
 
 export const outputs = {
