@@ -1,10 +1,10 @@
 <script lang="ts">
   import { getVimState } from '$lib/vim.svelte';
-  import instagram from '$lib/icons/instagram.svg?raw';
-  import tiktok from '$lib/icons/tiktok.svg?raw';
-  import github from '$lib/icons/github.svg?raw';
-  import x from '$lib/icons/x.svg?raw';
-  import linkedin from '$lib/icons/linkedin.svg?raw';
+  import instagram from '@pandoks.com/svelte/svg/instagram.svg?raw';
+  import tiktok from '@pandoks.com/svelte/svg/tiktok.svg?raw';
+  import github from '@pandoks.com/svelte/svg/github.svg?raw';
+  import x from '@pandoks.com/svelte/svg/x.svg?raw';
+  import linkedin from '@pandoks.com/svelte/svg/linkedin.svg?raw';
 
   const socialLinks = [
     { href: 'https://instagram.com/pandoks_', icon: instagram, text: 'Instagram' },
