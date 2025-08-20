@@ -18,7 +18,8 @@
   "exports": {
     "./shadcn/*": "./src/lib/components/ui/*/index.js",
     "./shadcn/css": "./src/app.css",
-    "./styles/*": "./src/lib/styles/*.css"
+    "./styles/*": "./src/lib/styles/*.css",
+    "./svg/*": "./src/lib/svg/*"
   },
   "peerDependencies": {
     "svelte": "^5.0.0"
