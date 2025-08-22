@@ -17,6 +17,7 @@
     "cluster:init": "pnpm run cluster:create && pnpm run cluster:setup"
   },
   "devDependencies": {
+    "glob": "^11.0.3",
     "prettier": "^3.4.2",
     "prettier-plugin-svelte": "^3.3.3",
     "prettier-plugin-tailwindcss": "^0.6.11",
