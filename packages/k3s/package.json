@@ -2,7 +2,9 @@
   "name": "@pandoks.com/k3s",
   "version": "0.0.1",
   "scripts": {
-    "create": "./scripts/cluster.sh create",
-    "delete": "./scripts/cluster.sh delete"
+    "create": "./cluster.sh create",
+    "delete": "./cluster.sh delete",
+    "setup": "./cluster.sh setup",
+    "init": "pnpm run create && pnpm run setup"
   }
 }
