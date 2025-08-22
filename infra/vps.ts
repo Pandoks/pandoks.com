@@ -2,7 +2,7 @@ const privateNetwork = new hcloud.Network('HetznerK3sPrivateNetwork', {
   name: `k3s-private-${$app.stage === 'production' ? 'prod' : 'dev'}-network`,
   ipRange: '10.0.0.0/8'
 });
-const k3sSubnet = new hcloud.NetworkSubnet('HetznerK3sSubnet', {
+new hcloud.NetworkSubnet('HetznerK3sSubnet', {
   networkId: privateNetwork.id.apply((id) => parseInt(id)),
   type: 'cloud',
   ipRange: '10.0.1.0/24',
