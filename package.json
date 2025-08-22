@@ -10,7 +10,11 @@
     "lint": "prettier --check .",
     "shadcn": "pnpm dlx shadcn-svelte@latest add $@ -c packages/svelte",
     "deploy": "sst deploy",
-    "clean": "pnpm -r run clean"
+    "clean": "pnpm -r run clean",
+    "cluster:create": "./k3s/cluster.sh create",
+    "cluster:delete": "./k3s/cluster.sh delete",
+    "cluster:setup": "./k3s/cluster.sh setup",
+    "cluster:init": "pnpm run cluster:create && pnpm run cluster:setup"
   },
   "devDependencies": {
     "prettier": "^3.4.2",
