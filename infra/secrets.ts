@@ -20,5 +20,8 @@ export const secrets = {
     AccountSid: new sst.Secret('TwilioAccountSid'),
     AuthToken: new sst.Secret('TwilioAuthToken'),
     NotionMessagingServiceSid: new sst.Secret('TwilioNotionMessagingServiceSid')
+  },
+  hetzner: {
+    ApiKey: new sst.Secret('HetznerApiKey')
   }
 };

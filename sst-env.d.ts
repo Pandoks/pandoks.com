@@ -26,6 +26,10 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "HetznerApiKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "KwokPhoneNumber": {
       "type": "sst.sst.Secret"
       "value": string
