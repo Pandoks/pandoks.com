@@ -1,8 +1,8 @@
 {
   "name": "@pandoks.com/k3s",
   "version": "0.0.1",
-  "type": "module",
   "scripts": {
-    "dev": "vite dev"
+    "create": "./scripts/cluster.sh create",
+    "delete": "./scripts/cluster.sh delete"
   }
 }
