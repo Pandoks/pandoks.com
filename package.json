@@ -4,7 +4,7 @@
   "packageManager": "pnpm@10.8.1",
   "scripts": {
     "dev": "sst dev",
-    "setup": "docker compose -f ./setup.yaml -p setup up",
+    "setup": "docker compose -f ./setup.yaml -p setup up && pnpm run cluster:init",
     "sso": "aws sso login --sso-session=Pandoks_",
     "format": "prettier --write .",
     "lint": "prettier --check .",
