@@ -1,4 +1,9 @@
 #cloud-config
+# env variables:
+# SSH_HOSTNAME
+# ACCOUNT_ID
+# TUNNEL_SECRET
+# TUNNEL_ID
 package_update: true
 package_upgrade: true
 ssh_pwauth: false
@@ -11,7 +16,7 @@ users:
     sudo: 'ALL=(ALL) NOPASSWD:ALL'
     shell: /bin/bash
     ssh_authorized_keys:
-      - '${SSH_PUBLIC_KEY}'
+      - 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIE4hEZkhSO2AZfIkjVrsR9nveSclN5sO9a5RW5vDUfPJ pandoks'
 
 packages:
   - curl
