@@ -17,14 +17,14 @@ export default $config({
     };
   },
   async run() {
-    let outputs = {};
-    const { readdirSync } = await import('fs');
-    for (const sst of readdirSync('./infra/')) {
-      const result = await import('./infra/' + sst);
-      if (result.output) {
-        Object.assign(outputs, result.output);
-      }
-    }
-    return outputs;
+    // NOTE: for some reason, dynamic imports don't work well so just manually import
+    await Promise.all([
+      import('./infra/api'),
+      import('./infra/dns'),
+      import('./infra/github'),
+      import('./infra/secrets'),
+      import('./infra/website'),
+      import('./infra/vps/vps')
+    ]);
   }
 });
