@@ -1,3 +1,5 @@
+import { secrets } from '../secrets';
+
 const privateNetwork = new hcloud.Network('HetznerK3sPrivateNetwork', {
   name: `k3s-private-${$app.stage === 'production' ? 'prod' : 'dev'}-network`,
   ipRange: '10.0.0.0/8'
@@ -81,6 +83,22 @@ servers.forEach((server, index) => {
     type: 'server',
     serverId: server.id.apply((id) => parseInt(id)),
     usePrivateIp: true
+  });
+
+  const tunnel = new cloudflare.ZeroTrustTunnelCloudflared(`HetznerK3sNodeTunnel${index}`, {
+    name: `${$app.stage == 'production' ? 'prod' : 'dev'}-hetzner-k3s-tunnel-${index}`,
+    accountId: secrets.cloudflare.AccountId.value,
+    configSrc: 'local',
+    tunnelSecret: secrets.hetzner.TunnelSecret.value
+  });
+  new cloudflare.DnsRecord(`HetznerK3sNodeSshHost${index}`, {
+    zoneId: secrets.cloudflare.ZoneId.value,
+    name: `k3s-node-${index}-${$app.stage === 'production' ? 'prod' : 'dev'}`,
+    type: 'CNAME',
+    content: tunnel.id,
+    proxied: true,
+    ttl: 1,
+    comment: 'hetzner tunnel k3s'
   });
 });
 

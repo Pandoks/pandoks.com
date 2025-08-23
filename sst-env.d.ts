@@ -22,11 +22,19 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "CloudflareZoneId": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "GithubPersonalAccessToken": {
       "type": "sst.sst.Secret"
       "value": string
     }
     "HetznerApiKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "HetznerTunnelSecret": {
       "type": "sst.sst.Secret"
       "value": string
     }

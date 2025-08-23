@@ -6,7 +6,8 @@ export const secrets = {
   },
   cloudflare: {
     ApiKey: new sst.Secret('CloudflareApiKey'),
-    AccountId: new sst.Secret('CloudflareAccountId')
+    AccountId: new sst.Secret('CloudflareAccountId'),
+    ZoneId: new sst.Secret('CloudflareZoneId')
   },
   github: {
     PersonalAccessToken: new sst.Secret('GithubPersonalAccessToken')
@@ -22,6 +23,7 @@ export const secrets = {
     NotionMessagingServiceSid: new sst.Secret('TwilioNotionMessagingServiceSid')
   },
   hetzner: {
-    ApiKey: new sst.Secret('HetznerApiKey')
+    ApiKey: new sst.Secret('HetznerApiKey'),
+    TunnelSecret: new sst.Secret('HetznerTunnelSecret')
   }
 };
