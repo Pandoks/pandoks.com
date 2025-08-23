@@ -11,7 +11,7 @@ users:
     sudo: 'ALL=(ALL) NOPASSWD:ALL'
     shell: /bin/bash
     ssh_authorized_keys:
-      - '{{SSH_PUBLIC_KEY}}'
+      - '${SSH_PUBLIC_KEY}'
 
 packages:
   - curl
@@ -24,15 +24,15 @@ write_files:
     owner: root:root
     permissions: '0600'
     content: |
-      { "AccountTag": "{{ACCOUNT_ID}}", "TunnelSecret": "{{TUNNEL_SECRET}}", "TunnelID": "{{TUNNEL_ID}}" }
+      { "AccountTag": "${ACCOUNT_ID}", "TunnelSecret": "${TUNNEL_SECRET}", "TunnelID": "${TUNNEL_ID}" }
   - path: /etc/cloudflared/config.yml
     owner: root:root
     permissions: '0644'
     content: |
-      tunnel: {{TUNNEL_NAME}}
+      tunnel: ${TUNNEL_NAME}
       credentials-file: /etc/cloudflared/CREDS.json
       ingress:
-        - hostname: {{SSH_HOSTNAME}}
+        - hostname: ${SSH_HOSTNAME}
           service: ssh://localhost:22
         - service: http_status:404
   - path: /etc/ssh/sshd_config.d/99-hardening.conf
