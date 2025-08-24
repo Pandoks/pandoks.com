@@ -54,7 +54,7 @@ new hcloud.LoadBalancerService('HetznerK3sLoadBalancerPort443', {
 new cloudflare.ZeroTrustAccessApplication('HetznerK3sSshWildcard', {
   accountId: secrets.cloudflare.AccountId.value,
   name: 'hetzner-k3s-ssh-access',
-  domain: `k3s-node-*-${$app.stage === 'production' ? '' : 'dev'}.pandoks.com`,
+  domain: `k3s-node-*${$app.stage === 'production' ? '' : '-dev'}.pandoks.com`,
   type: 'ssh',
   sessionDuration: '24h',
   autoRedirectToIdentity: true,
@@ -92,7 +92,7 @@ for (let i = 0; i < NODES; i++) {
     configSrc: 'local',
     tunnelSecret: secrets.hetzner.TunnelSecret.value
   });
-  const sshHostname = `k3s-node-${i}-${$app.stage === 'production' ? '' : 'dev'}.pandoks.com`;
+  const sshHostname = `k3s-node-${i}${$app.stage === 'production' ? '' : '-dev'}.pandoks.com`;
   new cloudflare.DnsRecord(`HetznerK3sNodeSshHost${i}`, {
     zoneId: secrets.cloudflare.ZoneId.value,
     name: sshHostname,
@@ -116,30 +116,26 @@ for (let i = 0; i < NODES; i++) {
   const userData = envs.apply((envs) => renderUserData(envs));
 
   servers.push(
-    new hcloud.Server(
-      `HetznerServer${i}`,
-      {
-        name: `${$app.stage == 'production' ? 'prod' : 'dev'}-server-${i}`,
-        serverType: SERVER_TYPE,
-        image: 'ubuntu-24.04',
-        location: 'hil',
-        deleteProtection: $app.stage === 'production',
-        rebuildProtection: $app.stage === 'production',
-        networks: [
-          { networkId: privateNetwork.id.apply((id) => parseInt(id)), ip: `10.0.1.${10 + i}` }
-        ],
-        publicNets: [
-          {
-            ipv4: 0,
-            ipv4Enabled: false,
-            ipv6: 0,
-            ipv6Enabled: false
-          }
-        ],
-        userData
-      },
-      { ignoreChanges: ['userData'] }
-    )
+    new hcloud.Server(`HetznerServer${i}`, {
+      name: `${$app.stage == 'production' ? 'prod' : 'dev'}-server-${i}`,
+      serverType: SERVER_TYPE,
+      image: 'ubuntu-24.04',
+      location: 'hil',
+      deleteProtection: $app.stage === 'production',
+      rebuildProtection: $app.stage === 'production',
+      networks: [
+        { networkId: privateNetwork.id.apply((id) => parseInt(id)), ip: `10.0.1.${10 + i}` }
+      ],
+      publicNets: [
+        {
+          ipv4: 0,
+          ipv4Enabled: false,
+          ipv6: 0,
+          ipv6Enabled: false
+        }
+      ],
+      userData
+    })
   );
 }
 servers.forEach((server, index) => {
