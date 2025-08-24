@@ -58,9 +58,7 @@ runcmd:
   - echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/ $(. /etc/os-release && echo $VERSION_CODENAME) main" | tee /etc/apt/sources.list.d/cloudflare-main.list
   - apt-get update
   - apt-get install -y cloudflared
-
   - mkdir -p /etc/cloudflared && chown root:root /etc/cloudflared && chmod 0755 /etc/cloudflared
-
   - systemctl restart ssh || true
   - cloudflared --config /etc/cloudflared/config.yml service install || true
   - systemctl enable cloudflared && systemctl restart cloudflared
