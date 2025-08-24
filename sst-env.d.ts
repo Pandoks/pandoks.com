@@ -22,6 +22,10 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "CloudflareEmail": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "CloudflareZoneId": {
       "type": "sst.sst.Secret"
       "value": string

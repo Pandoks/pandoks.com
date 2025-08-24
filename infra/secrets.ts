@@ -7,7 +7,8 @@ export const secrets = {
   cloudflare: {
     ApiKey: new sst.Secret('CloudflareApiKey'),
     AccountId: new sst.Secret('CloudflareAccountId'),
-    ZoneId: new sst.Secret('CloudflareZoneId')
+    ZoneId: new sst.Secret('CloudflareZoneId'),
+    Email: new sst.Secret('CloudflareEmail')
   },
   github: {
     PersonalAccessToken: new sst.Secret('GithubPersonalAccessToken')
