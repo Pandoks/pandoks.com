@@ -20,7 +20,6 @@ bootcmd:
   - iptables -A INPUT -s ${IP_RANGE} -j ACCEPT
   - iptables -A INPUT -p tcp -s 127.0.0.1 --dport 22 -j ACCEPT
   - iptables-save > /etc/iptables.rules
-  -
 
 users:
   - name: pandoks
