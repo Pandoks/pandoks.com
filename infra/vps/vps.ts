@@ -5,7 +5,7 @@ const privateNetwork = new hcloud.Network('HetznerK3sPrivateNetwork', {
   name: `k3s-private-${$app.stage === 'production' ? 'prod' : 'dev'}-network`,
   ipRange: '10.0.0.0/8'
 });
-new hcloud.NetworkSubnet('HetznerK3sSubnet', {
+const subnet = new hcloud.NetworkSubnet('HetznerK3sSubnet', {
   networkId: privateNetwork.id.apply((id) => parseInt(id)),
   type: 'cloud',
   ipRange: '10.0.1.0/24',
@@ -106,12 +106,14 @@ for (let i = 0; i < NODES; i++) {
   const envs = $resolve([
     secrets.cloudflare.AccountId.value,
     secrets.hetzner.TunnelSecret.value,
-    tunnel.id
-  ]).apply(([accountId, tunnelSecret, tunnelId]) => ({
+    tunnel.id,
+    subnet.ipRange
+  ]).apply(([ACCOUNT_ID, TUNNEL_SECRET, TUNNEL_ID, IP_RANGE]) => ({
     SSH_HOSTNAME: sshHostname,
-    ACCOUNT_ID: accountId,
-    TUNNEL_SECRET: tunnelSecret,
-    TUNNEL_ID: tunnelId
+    ACCOUNT_ID,
+    TUNNEL_SECRET,
+    TUNNEL_ID,
+    IP_RANGE
   }));
   const userData = envs.apply((envs) => renderUserData(envs));
 

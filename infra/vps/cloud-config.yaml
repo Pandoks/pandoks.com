@@ -4,10 +4,23 @@
 # ACCOUNT_ID
 # TUNNEL_SECRET
 # TUNNEL_ID
+# IP_RANGE
 package_update: true
 package_upgrade: true
 ssh_pwauth: false
 disable_root: true
+
+bootcmd:
+  - iptables -F
+  - iptables -P INPUT DROP
+  - iptables -P FORWARD DROP
+  - iptables -P OUTPUT ACCEPT
+  - iptables -A INPUT -i lo -j ACCEPT
+  - iptables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+  - iptables -A INPUT -s ${IP_RANGE} -j ACCEPT
+  - iptables -A INPUT -p tcp -s 127.0.0.1 --dport 22 -j ACCEPT
+  - iptables-save > /etc/iptables.rules
+  -
 
 users:
   - name: pandoks
@@ -20,11 +33,14 @@ users:
 
 packages:
   - curl
-  - ca-certificates
-  - jq
-  - unzip
 
 write_files:
+  - path: /etc/network/if-pre-up.d/iptables
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/bin/sh
+      iptables-restore < /etc/iptables.rules
   - path: /etc/cloudflared/CREDS.json
     owner: root:root
     permissions: '0600'
