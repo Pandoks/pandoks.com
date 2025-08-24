@@ -128,10 +128,8 @@ for (let i = 0; i < NODES; i++) {
       ],
       publicNets: [
         {
-          ipv4: 0,
-          ipv4Enabled: false,
-          ipv6: 0,
-          ipv6Enabled: false
+          ipv4Enabled: true,
+          ipv6Enabled: true
         }
       ],
       userData
