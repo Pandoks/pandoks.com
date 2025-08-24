@@ -97,7 +97,7 @@ for (let i = 0; i < NODES; i++) {
     zoneId: secrets.cloudflare.ZoneId.value,
     name: sshHostname,
     type: 'CNAME',
-    content: tunnel.id,
+    content: $interpolate`${tunnel.id}.cfargotunnel.com`,
     proxied: true,
     ttl: 1,
     comment: 'hetzner tunnel k3s'
