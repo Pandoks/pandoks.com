@@ -1,4 +1,5 @@
 import { secrets } from '../secrets';
+import { readFileSync } from 'node:fs';
 
 const privateNetwork = new hcloud.Network('HetznerK3sPrivateNetwork', {
   name: `k3s-private-${$app.stage === 'production' ? 'prod' : 'dev'}-network`,
@@ -50,31 +51,95 @@ new hcloud.LoadBalancerService('HetznerK3sLoadBalancerPort443', {
   }
 });
 
+new cloudflare.ZeroTrustAccessApplication('HetznerK3sSshWildcard', {
+  accountId: secrets.cloudflare.AccountId.value,
+  name: 'hetzner-k3s-ssh-access',
+  domain: `k3s-node-*-${$app.stage === 'production' ? '' : 'dev'}.pandoks.com`,
+  type: 'ssh',
+  sessionDuration: '24h',
+  autoRedirectToIdentity: true,
+  policies: [
+    {
+      name: 'allow-admin',
+      decision: 'allow',
+      precedence: 1,
+      includes: [{ email: { email: secrets.cloudflare.Email.value } }]
+    },
+    {
+      name: 'deny-all',
+      decision: 'deny',
+      precedence: 2,
+      includes: [{ everyone: {} }]
+    }
+  ]
+});
+
+const cloudInitConfig = readFileSync(`${process.cwd()}/infra/vps/cloud-config.yaml`, 'utf8');
+const renderUserData = (envs: Record<string, string>) => {
+  return cloudInitConfig.replace(/\$\{([A-Z0-9_]+)\}/g, (match, capture) =>
+    capture in envs ? envs[capture] : ''
+  );
+};
+
 const NODES = $app.stage === 'production' ? 3 : 1;
 const SERVER_TYPE = $app.stage === 'production' ? 'ccx13' : 'cpx11';
 
 let servers: hcloud.Server[] = [];
 for (let i = 0; i < NODES; i++) {
+  const tunnel = new cloudflare.ZeroTrustTunnelCloudflared(`HetznerK3sNodeTunnel${i}`, {
+    name: `${$app.stage == 'production' ? 'prod' : 'dev'}-hetzner-k3s-tunnel-${i}`,
+    accountId: secrets.cloudflare.AccountId.value,
+    configSrc: 'local',
+    tunnelSecret: secrets.hetzner.TunnelSecret.value
+  });
+  const sshHostname = `k3s-node-${i}-${$app.stage === 'production' ? '' : 'dev'}.pandoks.com`;
+  new cloudflare.DnsRecord(`HetznerK3sNodeSshHost${i}`, {
+    zoneId: secrets.cloudflare.ZoneId.value,
+    name: sshHostname,
+    type: 'CNAME',
+    content: tunnel.id,
+    proxied: true,
+    ttl: 1,
+    comment: 'hetzner tunnel k3s'
+  });
+
+  const envs = $resolve([
+    secrets.cloudflare.AccountId.value,
+    secrets.hetzner.TunnelSecret.value,
+    tunnel.id
+  ]).apply(([accountId, tunnelSecret, tunnelId]) => ({
+    SSH_HOSTNAME: sshHostname,
+    ACCOUNT_ID: accountId,
+    TUNNEL_SECRET: tunnelSecret,
+    TUNNEL_ID: tunnelId
+  }));
+  const userData = envs.apply((envs) => renderUserData(envs));
+
   servers.push(
-    new hcloud.Server(`HetznerServer${i}`, {
-      name: `${$app.stage == 'production' ? 'prod' : 'dev'}-server-${i}`,
-      serverType: SERVER_TYPE,
-      image: 'ubuntu-24.04',
-      location: 'hil',
-      deleteProtection: $app.stage === 'production',
-      rebuildProtection: $app.stage === 'production',
-      networks: [
-        { networkId: privateNetwork.id.apply((id) => parseInt(id)), ip: `10.0.1.${10 + i}` }
-      ],
-      publicNets: [
-        {
-          ipv4: 0,
-          ipv4Enabled: false,
-          ipv6: 0,
-          ipv6Enabled: false
-        }
-      ]
-    })
+    new hcloud.Server(
+      `HetznerServer${i}`,
+      {
+        name: `${$app.stage == 'production' ? 'prod' : 'dev'}-server-${i}`,
+        serverType: SERVER_TYPE,
+        image: 'ubuntu-24.04',
+        location: 'hil',
+        deleteProtection: $app.stage === 'production',
+        rebuildProtection: $app.stage === 'production',
+        networks: [
+          { networkId: privateNetwork.id.apply((id) => parseInt(id)), ip: `10.0.1.${10 + i}` }
+        ],
+        publicNets: [
+          {
+            ipv4: 0,
+            ipv4Enabled: false,
+            ipv6: 0,
+            ipv6Enabled: false
+          }
+        ],
+        userData
+      },
+      { ignoreChanges: ['userData'] }
+    )
   );
 }
 servers.forEach((server, index) => {
@@ -83,22 +148,6 @@ servers.forEach((server, index) => {
     type: 'server',
     serverId: server.id.apply((id) => parseInt(id)),
     usePrivateIp: true
-  });
-
-  const tunnel = new cloudflare.ZeroTrustTunnelCloudflared(`HetznerK3sNodeTunnel${index}`, {
-    name: `${$app.stage == 'production' ? 'prod' : 'dev'}-hetzner-k3s-tunnel-${index}`,
-    accountId: secrets.cloudflare.AccountId.value,
-    configSrc: 'local',
-    tunnelSecret: secrets.hetzner.TunnelSecret.value
-  });
-  new cloudflare.DnsRecord(`HetznerK3sNodeSshHost${index}`, {
-    zoneId: secrets.cloudflare.ZoneId.value,
-    name: `k3s-node-${index}-${$app.stage === 'production' ? 'prod' : 'dev'}`,
-    type: 'CNAME',
-    content: tunnel.id,
-    proxied: true,
-    ttl: 1,
-    comment: 'hetzner tunnel k3s'
   });
 });
 

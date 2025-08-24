@@ -34,7 +34,7 @@ write_files:
     owner: root:root
     permissions: '0644'
     content: |
-      tunnel: ${TUNNEL_NAME}
+      tunnel: ${TUNNEL_ID}
       credentials-file: /etc/cloudflared/CREDS.json
       ingress:
         - hostname: ${SSH_HOSTNAME}
