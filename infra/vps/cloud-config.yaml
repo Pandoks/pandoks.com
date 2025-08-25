@@ -71,16 +71,9 @@ write_files:
       PermitRootLogin no
       UsePAM yes
       AllowUsers pandoks
-
-      # Restrict allowed principals for user pandoks
       Match User pandoks
         AuthorizedPrincipalsCommand /bin/echo 'cloudflar.sank246'
         AuthorizedPrincipalsCommandUser nobody
-
-      # Apply options when that principal is used
-      Match User pandoks, Certificate principal "cloudflar.sank246"
-        AllowTcpForwarding no
-        X11Forwarding no
 
 runcmd:
   - mkdir -p --mode=0755 /usr/share/keyrings
