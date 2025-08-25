@@ -55,20 +55,28 @@ new hcloud.LoadBalancerService('HetznerK3sLoadBalancerPort443', {
   }
 });
 
-const warpPolicy = new cloudflare.ZeroTrustAccessPolicy('HetznerK3sCloudflareWarpDevicePolicy', {
-  accountId: secrets.cloudflare.AccountId.value,
-  name: 'allow-pandoks-warp',
-  decision: 'allow',
-  includes: [{ email: { email: secrets.cloudflare.Email.value } }]
-});
-
 new cloudflare.ZeroTrustAccessApplication('HetznerK3sSshWildcard', {
   accountId: secrets.cloudflare.AccountId.value,
   name: 'hetzner-k3s-ssh-access',
-  type: 'warp',
+  domain: `k3s-node-*${$app.stage === 'production' ? '' : '-dev'}.pandoks.com`,
+  type: 'ssh',
+  sessionDuration: '24h',
   autoRedirectToIdentity: true,
-  appLauncherVisible: false,
-  policies: [{ id: warpPolicy.id, precedence: 1 }]
+  policies: [
+    {
+      name: 'allow-admin',
+      decision: 'allow',
+      precedence: 1,
+      includes: [{ email: { email: secrets.cloudflare.Email.value } }],
+      connectionRules: { ssh: { usernames: ['pandoks'] } }
+    },
+    {
+      name: 'deny-all',
+      decision: 'deny',
+      precedence: 2,
+      includes: [{ everyone: {} }]
+    }
+  ]
 });
 
 const cloudInitConfig = readFileSync(`${process.cwd()}/infra/vps/cloud-config.yaml`, 'utf8');
@@ -83,21 +91,25 @@ const SERVER_TYPE = $app.stage === 'production' ? 'ccx13' : 'cpx11';
 
 let servers: hcloud.Server[] = [];
 for (let i = 0; i < NODES; i++) {
+  const sshHostname = `k3s-node-${i}${$app.stage === 'production' ? '' : '-dev'}.pandoks.com`;
+
   const tunnel = new cloudflare.ZeroTrustTunnelCloudflared(`HetznerK3sNodeTunnel${i}`, {
     name: `${$app.stage == 'production' ? 'prod' : 'dev'}-hetzner-k3s-tunnel-${i}`,
     accountId: secrets.cloudflare.AccountId.value,
     configSrc: 'local',
     tunnelSecret: secrets.hetzner.TunnelSecret.value
   });
-  new cloudflare.ZeroTrustTunnelCloudflaredConfig(`HetznerK3sNodeTunnelWarp${i}`, {
+  new cloudflare.ZeroTrustTunnelCloudflaredConfig(`HetznerK3sNodeTunnelConfig${i}`, {
     accountId: secrets.cloudflare.AccountId.value,
     tunnelId: tunnel.id,
     config: {
-      warpRouting: { enabled: true },
-      ingresses: [{ service: 'http_status:404' }]
+      ingresses: [
+        { hostname: sshHostname, service: 'ssh://localhost:22' },
+        { service: 'http_status:404' }
+      ]
     }
   });
-  new cloudflare.ZeroTrustTunnelCloudflaredRoute(`HetznerK3sWarpRoute${i}`, {
+  new cloudflare.ZeroTrustTunnelCloudflaredRoute(`HetznerK3sRoute${i}`, {
     accountId: secrets.cloudflare.AccountId.value,
     tunnelId: tunnel.id,
     network: `10.0.1.${10 + i}/32`
@@ -105,13 +117,8 @@ for (let i = 0; i < NODES; i++) {
   new cloudflare.ZeroTrustAccessInfrastructureTarget(`HetznerK3sTarget${i}`, {
     accountId: secrets.cloudflare.AccountId.value,
     hostname: `k3s-node-${i}${$app.stage === 'production' ? '' : '-dev'}`,
-    ip: {
-      ipv4: {
-        ipAddr: `10.0.1.${10 + i}`
-      }
-    }
+    ip: { ipv4: { ipAddr: `10.0.1.${10 + i}` } }
   });
-  const sshHostname = `k3s-node-${i}${$app.stage === 'production' ? '' : '-dev'}.pandoks.com`;
   new cloudflare.DnsRecord(`HetznerK3sNodeSshHost${i}`, {
     zoneId: secrets.cloudflare.ZoneId.value,
     name: sshHostname,
@@ -128,6 +135,7 @@ for (let i = 0; i < NODES; i++) {
     tunnel.id,
     subnet.ipRange
   ]).apply(([ACCOUNT_ID, TUNNEL_SECRET, TUNNEL_ID, PRIVATE_IP_RANGE]) => ({
+    SSH_HOSTNAME: sshHostname,
     ACCOUNT_ID,
     TUNNEL_SECRET,
     TUNNEL_ID,
