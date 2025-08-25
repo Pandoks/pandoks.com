@@ -78,10 +78,13 @@ const app = new cloudflare.ZeroTrustAccessApplication('HetznerK3sSshWildcard', {
     }
   ]
 });
-new cloudflare.ZeroTrustAccessShortLivedCertificate('HetznerSshShortLivedCertificate', {
-  accountId: secrets.cloudflare.AccountId.value,
-  appId: app.id
-});
+const sshShortLivedToken = new cloudflare.ZeroTrustAccessShortLivedCertificate(
+  'HetznerSshShortLivedCertificate',
+  {
+    accountId: secrets.cloudflare.AccountId.value,
+    appId: app.id
+  }
+);
 
 const cloudInitConfig = readFileSync(`${process.cwd()}/infra/vps/cloud-config.yaml`, 'utf8');
 const renderUserData = (envs: Record<string, string>) => {
@@ -137,15 +140,18 @@ for (let i = 0; i < NODES; i++) {
     secrets.cloudflare.AccountId.value,
     secrets.hetzner.TunnelSecret.value,
     tunnel.id,
-    subnet.ipRange
-  ]).apply(([ACCOUNT_ID, TUNNEL_SECRET, TUNNEL_ID, PRIVATE_IP_RANGE]) => ({
+    subnet.ipRange,
+    sshShortLivedToken.publicKey
+  ]).apply(([ACCOUNT_ID, TUNNEL_SECRET, TUNNEL_ID, PRIVATE_IP_RANGE, SSH_CA_PUB]) => ({
     SSH_HOSTNAME: sshHostname,
     ACCOUNT_ID,
     TUNNEL_SECRET,
     TUNNEL_ID,
-    PRIVATE_IP_RANGE
+    PRIVATE_IP_RANGE,
+    SSH_CA_PUB
   }));
   const userData = envs.apply((envs) => renderUserData(envs));
+  userData.apply((userData) => console.log(userData));
 
   servers.push(
     new hcloud.Server(`HetznerServer${i}`, {

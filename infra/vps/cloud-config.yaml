@@ -5,6 +5,7 @@
 # TUNNEL_SECRET
 # TUNNEL_ID
 # PRIVATE_IP_RANGE
+# SSH_CA_PUB
 package_update: true
 package_upgrade: true
 ssh_pwauth: false
@@ -57,7 +58,7 @@ write_files:
     owner: root:root
     permissions: '0600'
     content: |
-      ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLofw/UrSy4B8O4kEV9Rt/gTZF0/07zm+1B13i0rEioBcDtZzUZKWu2Vgabd3ETUP7SdQZfMMoRq7jryGnbvcFM= open-ssh-ca@cloudflareaccess.org
+      ${SSH_CA_PUB}
   - path: /etc/ssh/sshd_config
     owner: root:root
     permissions: '0644'
@@ -71,11 +72,21 @@ write_files:
       UsePAM yes
       AllowUsers pandoks
 
+      # Restrict allowed principals for user pandoks
+      Match User pandoks
+        AuthorizedPrincipalsCommand /bin/echo 'cloudflar.sank246'
+        AuthorizedPrincipalsCommandUser nobody
+
+      # Apply options when that principal is used
+      Match User pandoks, Certificate principal "cloudflar.sank246"
+        AllowTcpForwarding no
+        X11Forwarding no
+
 runcmd:
   - mkdir -p --mode=0755 /usr/share/keyrings
   - curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
   - echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared noble main' | tee /etc/apt/sources.list.d/cloudflared.list
   - apt-get update && apt-get install cloudflared
-  - systemctl enable cloudflared || true
-  - systemctl restart cloudflared || true
   - systemctl restart ssh || true
+  - cloudflared --config /etc/cloudflared/config.yml service install || true
+  - systemctl enable cloudflared && systemctl restart cloudflared
