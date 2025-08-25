@@ -55,28 +55,20 @@ new hcloud.LoadBalancerService('HetznerK3sLoadBalancerPort443', {
   }
 });
 
+const warpPolicy = new cloudflare.ZeroTrustAccessPolicy('HetznerK3sCloudflareWarpDevicePolicy', {
+  accountId: secrets.cloudflare.AccountId.value,
+  name: 'allow-pandoks-warp',
+  decision: 'allow',
+  includes: [{ email: { email: secrets.cloudflare.Email.value } }]
+});
+
 new cloudflare.ZeroTrustAccessApplication('HetznerK3sSshWildcard', {
   accountId: secrets.cloudflare.AccountId.value,
   name: 'hetzner-k3s-ssh-access',
-  domain: `k3s-node-*${$app.stage === 'production' ? '' : '-dev'}.pandoks.com`,
-  type: 'ssh',
-  sessionDuration: '24h',
+  type: 'warp',
   autoRedirectToIdentity: true,
-  policies: [
-    {
-      name: 'allow-admin',
-      decision: 'allow',
-      precedence: 1,
-      includes: [{ email: { email: secrets.cloudflare.Email.value } }],
-      connectionRules: { ssh: { usernames: ['pandoks'] } }
-    },
-    {
-      name: 'deny-all',
-      decision: 'deny',
-      precedence: 2,
-      includes: [{ everyone: {} }]
-    }
-  ]
+  appLauncherVisible: false,
+  policies: [{ id: warpPolicy.id, precedence: 1 }]
 });
 
 const cloudInitConfig = readFileSync(`${process.cwd()}/infra/vps/cloud-config.yaml`, 'utf8');
@@ -135,12 +127,11 @@ for (let i = 0; i < NODES; i++) {
     secrets.hetzner.TunnelSecret.value,
     tunnel.id,
     subnet.ipRange
-  ]).apply(([ACCOUNT_ID, TUNNEL_SECRET, TUNNEL_ID, IP_RANGE]) => ({
-    SSH_HOSTNAME: sshHostname,
+  ]).apply(([ACCOUNT_ID, TUNNEL_SECRET, TUNNEL_ID, PRIVATE_IP_RANGE]) => ({
     ACCOUNT_ID,
     TUNNEL_SECRET,
     TUNNEL_ID,
-    IP_RANGE
+    PRIVATE_IP_RANGE
   }));
   const userData = envs.apply((envs) => renderUserData(envs));
 
