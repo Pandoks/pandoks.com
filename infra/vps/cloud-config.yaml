@@ -4,7 +4,7 @@
 # ACCOUNT_ID
 # TUNNEL_SECRET
 # TUNNEL_ID
-# IP_RANGE
+# PRIVATE_IP_RANGE
 package_update: true
 package_upgrade: true
 ssh_pwauth: false
@@ -17,9 +17,9 @@ bootcmd:
   - iptables -P OUTPUT ACCEPT
   - iptables -A INPUT -i lo -j ACCEPT
   - iptables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-  - iptables -A INPUT -s ${IP_RANGE} -j ACCEPT
-  - iptables -A INPUT -p tcp -s 127.0.0.1 --dport 22 -j ACCEPT
+  - iptables -A INPUT -s ${PRIVATE_IP_RANGE} -j ACCEPT
   - iptables-save > /etc/iptables.rules
+  - mkdir -p /etc/cloudflared
 
 users:
   - name: pandoks
@@ -27,8 +27,6 @@ users:
     groups: [sudo]
     sudo: 'ALL=(ALL) NOPASSWD:ALL'
     shell: /bin/bash
-    ssh_authorized_keys:
-      - 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIE4hEZkhSO2AZfIkjVrsR9nveSclN5sO9a5RW5vDUfPJ pandoks'
 
 packages:
   - curl
@@ -40,7 +38,7 @@ write_files:
     content: |
       #!/bin/sh
       iptables-restore < /etc/iptables.rules
-  - path: /etc/cloudflared/CREDS.json
+  - path: /etc/cloudflared/credentials.json
     owner: root:root
     permissions: '0600'
     content: |
@@ -50,30 +48,34 @@ write_files:
     permissions: '0644'
     content: |
       tunnel: ${TUNNEL_ID}
-      credentials-file: /etc/cloudflared/CREDS.json
+      credentials-file: /etc/cloudflared/credentials.json
       ingress:
         - hostname: ${SSH_HOSTNAME}
           service: ssh://localhost:22
         - service: http_status:404
-  - path: /etc/ssh/sshd_config.d/99-hardening.conf
+  - path: /etc/ssh/ca.pub
+    owner: root:root
+    permissions: '0600'
+    content: |
+      ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLofw/UrSy4B8O4kEV9Rt/gTZF0/07zm+1B13i0rEioBcDtZzUZKWu2Vgabd3ETUP7SdQZfMMoRq7jryGnbvcFM= open-ssh-ca@cloudflareaccess.org
+  - path: /etc/ssh/sshd_config
     owner: root:root
     permissions: '0644'
     content: |
-      PasswordAuthentication no
       PubkeyAuthentication yes
+      TrustedUserCAKeys /etc/ssh/ca.pub
+      PasswordAuthentication no
       KbdInteractiveAuthentication no
-      PermitRootLogin no
       ChallengeResponseAuthentication no
+      PermitRootLogin no
       UsePAM yes
       AllowUsers pandoks
 
 runcmd:
-  - install -m 0755 -d /usr/share/keyrings
+  - mkdir -p --mode=0755 /usr/share/keyrings
   - curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
-  - echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/ $(. /etc/os-release && echo $VERSION_CODENAME) main" | tee /etc/apt/sources.list.d/cloudflare-main.list
-  - apt-get update
-  - apt-get install -y cloudflared
-  - mkdir -p /etc/cloudflared && chown root:root /etc/cloudflared && chmod 0755 /etc/cloudflared
+  - echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared noble main' | tee /etc/apt/sources.list.d/cloudflared.list
+  - apt-get update && apt-get install cloudflared
+  - systemctl enable cloudflared || true
+  - systemctl restart cloudflared || true
   - systemctl restart ssh || true
-  - cloudflared --config /etc/cloudflared/config.yml service install || true
-  - systemctl enable cloudflared && systemctl restart cloudflared
