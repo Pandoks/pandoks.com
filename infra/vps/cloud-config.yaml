@@ -72,7 +72,7 @@ write_files:
       UsePAM yes
       AllowUsers pandoks
       Match User pandoks
-        AuthorizedPrincipalsCommand /bin/echo 'cloudflar.sank246'
+        AuthorizedPrincipalsCommand /bin/echo 'cloudflare.sank246'
         AuthorizedPrincipalsCommandUser nobody
 
 runcmd:
