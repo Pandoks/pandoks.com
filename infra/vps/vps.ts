@@ -152,7 +152,7 @@ const BASE_ENV = $resolve([
 
 /**
  * In order to access the ssh tunnel, you need to:
- * 1. Create authenitcate  yourself: `cloudflared access login https://<full ssh domain>`
+ * 1. Create authenitcate  yourself: `cloudflared access login https://<full-ssh-domain>`
  * 2. Update ssh to use short lived token (~/.ssh/config):
  *    ```
  *    Match host k3s-worker-*-dev.pandoks.com (as an example) exec "/opt/homebrew/bin/cloudflared access ssh-gen --hostname %h"
