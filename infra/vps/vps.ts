@@ -55,34 +55,74 @@ new hcloud.LoadBalancerService('HetznerK3sLoadBalancerPort443', {
   }
 });
 
-const app = new cloudflare.ZeroTrustAccessApplication('HetznerK3sSshWildcard', {
-  accountId: secrets.cloudflare.AccountId.value,
-  name: 'hetzner-k3s-ssh-access',
-  domain: `k3s-node-*${$app.stage === 'production' ? '' : '-dev'}.pandoks.com`,
-  type: 'ssh',
-  sessionDuration: '24h',
-  autoRedirectToIdentity: true,
-  policies: [
-    {
-      name: 'allow-admin',
-      decision: 'allow',
-      precedence: 1,
-      includes: [{ email: { email: secrets.cloudflare.Email.value } }],
-      connectionRules: { ssh: { usernames: ['pandoks'] } }
-    },
-    {
-      name: 'deny-all',
-      decision: 'deny',
-      precedence: 2,
-      includes: [{ everyone: {} }]
-    }
-  ]
-});
-const sshShortLivedToken = new cloudflare.ZeroTrustAccessShortLivedCertificate(
-  'HetznerSshShortLivedCertificate',
+const NODE_NAMING = {
+  worker: { resourceName: 'Worker', name: 'worker' },
+  controlplane: { resourceName: 'ControlPlane', name: 'control-plane' }
+};
+const controlPlaneAccessApp = new cloudflare.ZeroTrustAccessApplication(
+  `HetznerK3s${NODE_NAMING.controlplane.resourceName}SshWildcard`,
   {
     accountId: secrets.cloudflare.AccountId.value,
-    appId: app.id
+    name: `hetzner-k3s-${NODE_NAMING.controlplane.name}-ssh-access`,
+    domain: `k3s-${NODE_NAMING.controlplane.name}-*${$app.stage === 'production' ? '' : '-dev'}.pandoks.com`,
+    type: 'ssh',
+    sessionDuration: '24h',
+    autoRedirectToIdentity: true,
+    policies: [
+      {
+        name: 'allow-admin',
+        decision: 'allow',
+        precedence: 1,
+        includes: [{ email: { email: secrets.cloudflare.Email.value } }],
+        connectionRules: { ssh: { usernames: ['pandoks'] } }
+      },
+      {
+        name: 'deny-all',
+        decision: 'deny',
+        precedence: 2,
+        includes: [{ everyone: {} }]
+      }
+    ]
+  }
+);
+const controlPlaneSshShortLivedToken = new cloudflare.ZeroTrustAccessShortLivedCertificate(
+  `Hetzner${NODE_NAMING.controlplane.resourceName}SshShortLivedCertificate`,
+  {
+    accountId: secrets.cloudflare.AccountId.value,
+    appId: controlPlaneAccessApp.id
+  }
+);
+const workerAccessApp = new cloudflare.ZeroTrustAccessApplication(
+  `HetznerK3s${NODE_NAMING.worker.resourceName}SshWildcard`,
+  {
+    accountId: secrets.cloudflare.AccountId.value,
+    name: `hetzner-k3s-${NODE_NAMING.worker.name}-ssh-access`,
+    domain: `k3s-${NODE_NAMING.worker.name}-*${$app.stage === 'production' ? '' : '-dev'}.pandoks.com`,
+    type: 'ssh',
+    sessionDuration: '24h',
+    autoRedirectToIdentity: true,
+    policies: [
+      {
+        name: 'allow-admin',
+        decision: 'allow',
+        precedence: 1,
+        includes: [{ email: { email: secrets.cloudflare.Email.value } }],
+        connectionRules: { ssh: { usernames: ['pandoks'] } }
+      },
+      {
+        name: 'deny-all',
+        decision: 'deny',
+        precedence: 2,
+        includes: [{ everyone: {} }]
+      }
+    ]
+  }
+);
+const workerSshShortLivedToken = new cloudflare.ZeroTrustAccessShortLivedCertificate(
+  `Hetzner${NODE_NAMING.worker.resourceName}SshShortLivedCertificate`,
+  {
+    accountId: secrets.cloudflare.AccountId.value,
+    appId: workerAccessApp.id
   }
 );
 
@@ -93,94 +133,188 @@ const renderUserData = (envs: Record<string, string>) => {
   );
 };
 
-const NODES = $app.stage === 'production' ? 3 : 1;
+const CONTROL_PLANE_NODE_COUNT = $app.stage === 'production' ? 3 : 1;
+const CONTROL_PLANE_HOST_START_OCTET = 10;
+const WORKER_NODE_COUNT = $app.stage === 'production' ? 1 : 0;
+const WORKER_HOST_START_OCTET = 20;
 const SERVER_TYPE = $app.stage === 'production' ? 'ccx13' : 'cpx11';
+const BASE_ENV = $resolve([
+  secrets.cloudflare.AccountId.value,
+  secrets.hetzner.TunnelSecret.value,
+  subnet.ipRange,
+  controlPlaneSshShortLivedToken.publicKey
+]).apply(([ACCOUNT_ID, TUNNEL_SECRET, PRIVATE_IP_RANGE, SSH_CA_PUB]) => ({
+  ACCOUNT_ID,
+  TUNNEL_SECRET,
+  PRIVATE_IP_RANGE,
+  SSH_CA_PUB
+}));
 
-let servers: hcloud.Server[] = [];
-for (let i = 0; i < NODES; i++) {
-  const sshHostname = `k3s-node-${i}${$app.stage === 'production' ? '' : '-dev'}.pandoks.com`;
+const setupTunnelSsh = (index: number, options: { isWorker?: boolean; hostname: string }) => {
+  const nodeType = options.isWorker ? NODE_NAMING.worker : NODE_NAMING.controlplane;
 
-  const tunnel = new cloudflare.ZeroTrustTunnelCloudflared(`HetznerK3sNodeTunnel${i}`, {
-    name: `${$app.stage == 'production' ? 'prod' : 'dev'}-hetzner-k3s-tunnel-${i}`,
-    accountId: secrets.cloudflare.AccountId.value,
-    configSrc: 'local',
-    tunnelSecret: secrets.hetzner.TunnelSecret.value
-  });
-  new cloudflare.ZeroTrustTunnelCloudflaredConfig(`HetznerK3sNodeTunnelConfig${i}`, {
-    accountId: secrets.cloudflare.AccountId.value,
-    tunnelId: tunnel.id,
-    config: {
-      ingresses: [
-        { hostname: sshHostname, service: 'ssh://localhost:22' },
-        { service: 'http_status:404' }
-      ]
+  const tunnel = new cloudflare.ZeroTrustTunnelCloudflared(
+    `HetznerK3s${nodeType.resourceName}Tunnel${index}`,
+    {
+      name: `${$app.stage == 'production' ? 'prod' : 'dev'}-hetzner-k3s-${nodeType.name}-tunnel-${index}`,
+      accountId: secrets.cloudflare.AccountId.value,
+      configSrc: 'local',
+      tunnelSecret: secrets.hetzner.TunnelSecret.value
     }
-  });
-  new cloudflare.ZeroTrustTunnelCloudflaredRoute(`HetznerK3sRoute${i}`, {
-    accountId: secrets.cloudflare.AccountId.value,
-    tunnelId: tunnel.id,
-    network: `10.0.1.${10 + i}/32`
-  });
-  new cloudflare.ZeroTrustAccessInfrastructureTarget(`HetznerK3sTarget${i}`, {
-    accountId: secrets.cloudflare.AccountId.value,
-    hostname: `k3s-node-${i}${$app.stage === 'production' ? '' : '-dev'}`,
-    ip: { ipv4: { ipAddr: `10.0.1.${10 + i}` } }
-  });
-  new cloudflare.DnsRecord(`HetznerK3sNodeSshHost${i}`, {
+  );
+  new cloudflare.ZeroTrustTunnelCloudflaredConfig(
+    `HetznerK3s${nodeType.resourceName}TunnelConfig${index}`,
+    {
+      accountId: secrets.cloudflare.AccountId.value,
+      tunnelId: tunnel.id,
+      config: {
+        ingresses: [
+          { hostname: options.hostname, service: 'ssh://localhost:22' },
+          { service: 'http_status:404' }
+        ]
+      }
+    }
+  );
+  new cloudflare.ZeroTrustTunnelCloudflaredRoute(
+    `HetznerK3s${nodeType.resourceName}Route${index}`,
+    {
+      accountId: secrets.cloudflare.AccountId.value,
+      tunnelId: tunnel.id,
+      network: subnet.ipRange
+    }
+  );
+  const ipAddr = subnet.ipRange.apply(
+    (ipRange) =>
+      `${ipRange.split('.').slice(0, 3).join('.')}.${options.isWorker ? WORKER_HOST_START_OCTET + index : CONTROL_PLANE_HOST_START_OCTET + index}`
+  );
+  new cloudflare.ZeroTrustAccessInfrastructureTarget(
+    `HetznerK3s${nodeType.resourceName}Target${index}`,
+    {
+      accountId: secrets.cloudflare.AccountId.value,
+      hostname: options.hostname.split('.')[0],
+      ip: { ipv4: { ipAddr } }
+    }
+  );
+  new cloudflare.DnsRecord(`HetznerK3s${nodeType.resourceName}SshHost${index}`, {
     zoneId: secrets.cloudflare.ZoneId.value,
-    name: sshHostname,
+    name: options.hostname,
     type: 'CNAME',
     content: $interpolate`${tunnel.id}.cfargotunnel.com`,
     proxied: true,
     ttl: 1,
     comment: 'hetzner tunnel k3s'
   });
+  return tunnel;
+};
+
+const createServer = (
+  index: number,
+  userData: $util.Input<string>,
+  options: { isWorker?: boolean; hostname: string; location: string }
+) => {
+  const nodeType = options.isWorker ? NODE_NAMING.worker : NODE_NAMING.controlplane;
+  const ip = subnet.ipRange.apply(
+    (ipRange) =>
+      `${ipRange.split('.').slice(0, 3).join('.')}.${options.isWorker ? WORKER_HOST_START_OCTET + index : CONTROL_PLANE_HOST_START_OCTET + index}`
+  );
+
+  return new hcloud.Server(`Hetzner${nodeType.resourceName}Server${index}`, {
+    name: `${$app.stage == 'production' ? 'prod' : 'dev'}-${nodeType.name}-server-${index}`,
+    serverType: SERVER_TYPE,
+    image: 'ubuntu-24.04',
+    location: index & 1 ? 'ash' : 'hil',
+    deleteProtection: $app.stage === 'production',
+    rebuildProtection: $app.stage === 'production',
+    firewallIds: [firewall.id.apply((id) => parseInt(id))],
+    networks: [{ networkId: privateNetwork.id.apply((id) => parseInt(id)), ip }],
+    publicNets: [
+      {
+        ipv4Enabled: true,
+        ipv6Enabled: true
+      }
+    ],
+    userData
+  });
+};
+
+let controlPlaneServers: hcloud.Server[] = [];
+for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
+  const sshHostname = `k3s-${NODE_NAMING.controlplane.name}-${i}${$app.stage === 'production' ? '' : '-dev'}.pandoks.com`;
+
+  const tunnel = setupTunnelSsh(i, { hostname: sshHostname });
 
   const envs = $resolve([
-    secrets.cloudflare.AccountId.value,
-    secrets.hetzner.TunnelSecret.value,
     tunnel.id,
-    subnet.ipRange,
-    sshShortLivedToken.publicKey
-  ]).apply(([ACCOUNT_ID, TUNNEL_SECRET, TUNNEL_ID, PRIVATE_IP_RANGE, SSH_CA_PUB]) => ({
-    SSH_HOSTNAME: sshHostname,
-    ACCOUNT_ID,
-    TUNNEL_SECRET,
-    TUNNEL_ID,
-    PRIVATE_IP_RANGE,
-    SSH_CA_PUB
-  }));
-  const userData = envs.apply((envs) => renderUserData(envs));
-
-  servers.push(
-    new hcloud.Server(`HetznerServer${i}`, {
-      name: `${$app.stage == 'production' ? 'prod' : 'dev'}-server-${i}`,
-      serverType: SERVER_TYPE,
-      image: 'ubuntu-24.04',
-      location: 'hil',
-      deleteProtection: $app.stage === 'production',
-      rebuildProtection: $app.stage === 'production',
-      firewallIds: [firewall.id.apply((id) => parseInt(id))],
-      networks: [
-        { networkId: privateNetwork.id.apply((id) => parseInt(id)), ip: `10.0.1.${10 + i}` }
-      ],
-      publicNets: [
-        {
-          ipv4Enabled: true,
-          ipv6Enabled: true
-        }
-      ],
-      userData
-    })
-  );
-}
-servers.forEach((server, index) => {
-  new hcloud.LoadBalancerTarget(`HetznerK3sLoadBalancerTarget${index}`, {
-    loadBalancerId: publicLoadBalancer.id.apply((id) => parseInt(id)),
-    type: 'server',
-    serverId: server.id.apply((id) => parseInt(id)),
-    usePrivateIp: true
+    BASE_ENV.ACCOUNT_ID,
+    BASE_ENV.TUNNEL_SECRET,
+    BASE_ENV.SSH_CA_PUB,
+    BASE_ENV.PRIVATE_IP_RANGE
+  ]).apply(([TUNNEL_ID, ACCOUNT_ID, TUNNEL_SECRET, SSH_CA_PUB, PRIVATE_IP_RANGE]) => {
+    return {
+      SSH_HOSTNAME: sshHostname,
+      TUNNEL_ID,
+      ACCOUNT_ID,
+      TUNNEL_SECRET,
+      SSH_CA_PUB,
+      PRIVATE_IP_RANGE
+    };
   });
+  const userData = envs.apply((envs) => renderUserData(envs));
+  const server = createServer(i, userData, { hostname: sshHostname, location: 'hil' });
+  controlPlaneServers.push(server);
+}
+controlPlaneServers.forEach((server, index) => {
+  new hcloud.LoadBalancerTarget(
+    `HetznerK3s${NODE_NAMING.controlplane.resourceName}LoadBalancerTarget${index}`,
+    {
+      loadBalancerId: publicLoadBalancer.id.apply((id) => parseInt(id)),
+      type: 'server',
+      serverId: server.id.apply((id) => parseInt(id)),
+      usePrivateIp: true
+    }
+  );
+});
+
+let workerServers: hcloud.Server[] = [];
+for (let i = 0; i < WORKER_NODE_COUNT; i++) {
+  const sshHostname = `k3s-${NODE_NAMING.worker.name}-${i}${$app.stage === 'production' ? '' : '-dev'}.pandoks.com`;
+
+  const tunnel = setupTunnelSsh(i, { hostname: sshHostname, isWorker: true });
+
+  const envs = $resolve([
+    tunnel.id,
+    BASE_ENV.ACCOUNT_ID,
+    BASE_ENV.TUNNEL_SECRET,
+    BASE_ENV.SSH_CA_PUB,
+    BASE_ENV.PRIVATE_IP_RANGE
+  ]).apply(([TUNNEL_ID, ACCOUNT_ID, TUNNEL_SECRET, SSH_CA_PUB, PRIVATE_IP_RANGE]) => {
+    return {
+      SSH_HOSTNAME: sshHostname,
+      TUNNEL_ID,
+      ACCOUNT_ID,
+      TUNNEL_SECRET,
+      SSH_CA_PUB,
+      PRIVATE_IP_RANGE
+    };
+  });
+  const userData = envs.apply((envs) => renderUserData(envs));
+  const server = createServer(i, userData, {
+    hostname: sshHostname,
+    location: 'hil',
+    isWorker: true
+  });
+  workerServers.push(server);
+}
+workerServers.forEach((server, index) => {
+  new hcloud.LoadBalancerTarget(
+    `HetznerK3s${NODE_NAMING.worker.resourceName}LoadBalancerTarget${index}`,
+    {
+      loadBalancerId: publicLoadBalancer.id.apply((id) => parseInt(id)),
+      type: 'server',
+      serverId: server.id.apply((id) => parseInt(id)),
+      usePrivateIp: true
+    }
+  );
 });
 
 export const loadBalancerIPv4 = publicLoadBalancer.ipv4;
