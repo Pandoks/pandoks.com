@@ -141,13 +141,11 @@ const SERVER_TYPE = $app.stage === 'production' ? 'ccx13' : 'cpx11';
 const BASE_ENV = $resolve([
   secrets.cloudflare.AccountId.value,
   secrets.hetzner.TunnelSecret.value,
-  subnet.ipRange,
-  controlPlaneSshShortLivedToken.publicKey
-]).apply(([ACCOUNT_ID, TUNNEL_SECRET, PRIVATE_IP_RANGE, SSH_CA_PUB]) => ({
+  subnet.ipRange
+]).apply(([ACCOUNT_ID, TUNNEL_SECRET, PRIVATE_IP_RANGE]) => ({
   ACCOUNT_ID,
   TUNNEL_SECRET,
-  PRIVATE_IP_RANGE,
-  SSH_CA_PUB
+  PRIVATE_IP_RANGE
 }));
 
 /**
@@ -259,9 +257,9 @@ for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
     tunnel.id,
     BASE_ENV.ACCOUNT_ID,
     BASE_ENV.TUNNEL_SECRET,
-    BASE_ENV.SSH_CA_PUB,
-    BASE_ENV.PRIVATE_IP_RANGE
-  ]).apply(([TUNNEL_ID, ACCOUNT_ID, TUNNEL_SECRET, SSH_CA_PUB, PRIVATE_IP_RANGE]) => {
+    BASE_ENV.PRIVATE_IP_RANGE,
+    controlPlaneSshShortLivedToken.publicKey
+  ]).apply(([TUNNEL_ID, ACCOUNT_ID, TUNNEL_SECRET, PRIVATE_IP_RANGE, SSH_CA_PUB]) => {
     return {
       SSH_HOSTNAME: sshHostname,
       TUNNEL_ID,
@@ -297,9 +295,9 @@ for (let i = 0; i < WORKER_NODE_COUNT; i++) {
     tunnel.id,
     BASE_ENV.ACCOUNT_ID,
     BASE_ENV.TUNNEL_SECRET,
-    BASE_ENV.SSH_CA_PUB,
-    BASE_ENV.PRIVATE_IP_RANGE
-  ]).apply(([TUNNEL_ID, ACCOUNT_ID, TUNNEL_SECRET, SSH_CA_PUB, PRIVATE_IP_RANGE]) => {
+    BASE_ENV.PRIVATE_IP_RANGE,
+    workerSshShortLivedToken.publicKey
+  ]).apply(([TUNNEL_ID, ACCOUNT_ID, TUNNEL_SECRET, PRIVATE_IP_RANGE, SSH_CA_PUB]) => {
     return {
       SSH_HOSTNAME: sshHostname,
       TUNNEL_ID,
