@@ -151,7 +151,6 @@ for (let i = 0; i < NODES; i++) {
     SSH_CA_PUB
   }));
   const userData = envs.apply((envs) => renderUserData(envs));
-  userData.apply((userData) => console.log(userData));
 
   servers.push(
     new hcloud.Server(`HetznerServer${i}`, {
