@@ -150,6 +150,18 @@ const BASE_ENV = $resolve([
   SSH_CA_PUB
 }));
 
+/**
+ * In order to access the ssh tunnel, you need to:
+ * 1. Create authenitcate  yourself: `cloudflared access login https://<full ssh domain>`
+ * 2. Update ssh to use short lived token (~/.ssh/config):
+ *    ```
+ *    Match host k3s-worker-*-dev.pandoks.com (as an example) exec "/opt/homebrew/bin/cloudflared access ssh-gen --hostname %h"
+ *      ProxyCommand /opt/homebrew/bin/cloudflared access ssh --hostname %h
+ *      IdentityFile ~/.cloudflared/%h-cf_key
+ *      CertificateFile ~/.cloudflared/%h-cf_key-cert.pub
+ *    ```
+ * 3. Access ssh via normal ssh client
+ */
 const setupTunnelSsh = (index: number, options: { isWorker?: boolean; hostname: string }) => {
   const nodeType = options.isWorker ? NODE_NAMING.worker : NODE_NAMING.controlplane;
 
