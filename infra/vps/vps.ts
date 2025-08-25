@@ -55,7 +55,7 @@ new hcloud.LoadBalancerService('HetznerK3sLoadBalancerPort443', {
   }
 });
 
-new cloudflare.ZeroTrustAccessApplication('HetznerK3sSshWildcard', {
+const app = new cloudflare.ZeroTrustAccessApplication('HetznerK3sSshWildcard', {
   accountId: secrets.cloudflare.AccountId.value,
   name: 'hetzner-k3s-ssh-access',
   domain: `k3s-node-*${$app.stage === 'production' ? '' : '-dev'}.pandoks.com`,
@@ -77,6 +77,10 @@ new cloudflare.ZeroTrustAccessApplication('HetznerK3sSshWildcard', {
       includes: [{ everyone: {} }]
     }
   ]
+});
+new cloudflare.ZeroTrustAccessShortLivedCertificate('HetznerSshShortLivedCertificate', {
+  accountId: secrets.cloudflare.AccountId.value,
+  appId: app.id
 });
 
 const cloudInitConfig = readFileSync(`${process.cwd()}/infra/vps/cloud-config.yaml`, 'utf8');
