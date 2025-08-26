@@ -137,6 +137,7 @@ const CONTROL_PLANE_NODE_COUNT = $app.stage === 'production' ? 3 : 3;
 const CONTROL_PLANE_HOST_START_OCTET = 10;
 const WORKER_NODE_COUNT = $app.stage === 'production' ? 1 : 3;
 const WORKER_HOST_START_OCTET = 20;
+// NOTE: servers can only be upgraded, not downgraded because disk size needs to be >= than the previous type
 const SERVER_TYPE = $app.stage === 'production' ? 'ccx13' : 'cpx11';
 const SERVER_IMAGE = 'ubuntu-24.04';
 const BASE_ENV = $resolve([
