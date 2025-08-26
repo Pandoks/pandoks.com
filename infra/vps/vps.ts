@@ -138,6 +138,7 @@ const CONTROL_PLANE_HOST_START_OCTET = 10;
 const WORKER_NODE_COUNT = $app.stage === 'production' ? 1 : 3;
 const WORKER_HOST_START_OCTET = 20;
 const SERVER_TYPE = $app.stage === 'production' ? 'ccx13' : 'cpx11';
+const SERVER_IMAGE = 'ubuntu-24.04';
 const BASE_ENV = $resolve([
   secrets.cloudflare.AccountId.value,
   secrets.hetzner.TunnelSecret.value,
@@ -217,52 +218,16 @@ const setupTunnelSsh = (index: number, options: { isWorker?: boolean; hostname: 
   return tunnel;
 };
 
-let bootstrapServer: hcloud.Server;
-const createServer = (
-  index: number,
-  userData: $util.Input<string>,
-  options: { isWorker?: boolean; hostname: string; location: string; network?: boolean }
-) => {
-  const nodeType = options.isWorker ? NODE_NAMING.worker : NODE_NAMING.controlplane;
-  const ip = subnet.ipRange.apply(
-    (ipRange) =>
-      `${ipRange.split('.').slice(0, 3).join('.')}.${options.isWorker ? WORKER_HOST_START_OCTET + index : CONTROL_PLANE_HOST_START_OCTET + index}`
-  );
-
-  let publicNets: hcloud.types.input.ServerPublicNet[];
-  if (options.network === false) {
-    publicNets = [{ ipv4Enabled: false, ipv6Enabled: false, ipv4: 0, ipv6: 0 }];
-  } else {
-    publicNets = [{ ipv4Enabled: true, ipv6Enabled: true }];
-  }
-
-  return new hcloud.Server(
-    `Hetzner${nodeType.resourceName}Server${index}`,
-    {
-      name: `${$app.stage == 'production' ? 'prod' : 'dev'}-${nodeType.name}-server-${index}`,
-      serverType: SERVER_TYPE,
-      image: 'ubuntu-24.04',
-      location: index & 1 ? 'ash' : 'hil',
-      deleteProtection: $app.stage === 'production',
-      rebuildProtection: $app.stage === 'production',
-      firewallIds: [firewall.id.apply((id) => parseInt(id))],
-      networks: [{ networkId: privateNetwork.id.apply((id) => parseInt(id)), ip }],
-      publicNets,
-      userData
-    },
-    { dependsOn: [bootstrapServer!] }
-  );
-};
-
+let bootstrapServer: hcloud.Server | undefined;
 let bootstrapServerIp: $util.Output<string>;
 let controlPlaneServers: hcloud.Server[] = [];
 for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
   const role = i == 0 ? 'bootstrap' : 'server';
+  const ip = subnet.ipRange.apply(
+    (ipRange) => `${ipRange.split('.').slice(0, 3).join('.')}.${CONTROL_PLANE_HOST_START_OCTET + i}`
+  );
   if (role === 'bootstrap') {
-    bootstrapServerIp = subnet.ipRange.apply(
-      (ipRange) =>
-        `${ipRange.split('.').slice(0, 3).join('.')}.${CONTROL_PLANE_HOST_START_OCTET + i}`
-    );
+    bootstrapServerIp = ip;
   }
   const sshHostname = `k3s-${NODE_NAMING.controlplane.name}-${i}${$app.stage === 'production' ? '' : '-dev'}.pandoks.com`;
 
@@ -300,8 +265,28 @@ for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
     }
   );
   const userData = envs.apply((envs) => renderUserData(envs));
-  const server = createServer(i, userData, { hostname: sshHostname, location: 'hil' });
-
+  const nodeType = NODE_NAMING.controlplane;
+  const dependencies = [bootstrapServer, controlPlaneServers.at(-1)].filter(
+    (resource) => resource !== undefined
+  );
+  const server = new hcloud.Server(
+    `Hetzner${nodeType.resourceName}Server${i}`,
+    {
+      name: `${$app.stage == 'production' ? 'prod' : 'dev'}-${nodeType.name}-server-${i}`,
+      serverType: SERVER_TYPE,
+      image: SERVER_IMAGE,
+      location: i & 1 ? 'ash' : 'hil',
+      deleteProtection: $app.stage === 'production',
+      rebuildProtection: $app.stage === 'production',
+      firewallIds: [firewall.id.apply((id) => parseInt(id))],
+      networks: [{ networkId: privateNetwork.id.apply((id) => parseInt(id)), ip }],
+      publicNets: [{ ipv4Enabled: true, ipv6Enabled: true }],
+      shutdownBeforeDeletion: true,
+      userData
+    },
+    { dependsOn: dependencies }
+  );
+  bootstrapServer = bootstrapServer ?? server;
   controlPlaneServers.push(server);
 }
 controlPlaneServers.forEach((server, index) => {
@@ -318,6 +303,9 @@ controlPlaneServers.forEach((server, index) => {
 
 let workerServers: hcloud.Server[] = [];
 for (let i = 0; i < WORKER_NODE_COUNT; i++) {
+  const ip = subnet.ipRange.apply(
+    (ipRange) => `${ipRange.split('.').slice(0, 3).join('.')}.${WORKER_HOST_START_OCTET + i}`
+  );
   const sshHostname = `k3s-${NODE_NAMING.worker.name}-${i}${$app.stage === 'production' ? '' : '-dev'}.pandoks.com`;
 
   const tunnel = setupTunnelSsh(i, { hostname: sshHostname, isWorker: true });
@@ -354,12 +342,27 @@ for (let i = 0; i < WORKER_NODE_COUNT; i++) {
     }
   );
   const userData = envs.apply((envs) => renderUserData(envs));
-  const server = createServer(i, userData, {
-    hostname: sshHostname,
-    location: 'hil',
-    isWorker: true,
-    network: false
-  });
+  const nodeType = NODE_NAMING.worker;
+  const dependencies = [bootstrapServer, workerServers.at(-1)].filter(
+    (resource) => resource !== undefined
+  );
+  const server = new hcloud.Server(
+    `Hetzner${nodeType.resourceName}Server${i}`,
+    {
+      name: `${$app.stage == 'production' ? 'prod' : 'dev'}-${nodeType.name}-server-${i}`,
+      serverType: SERVER_TYPE,
+      image: SERVER_IMAGE,
+      location: i & 1 ? 'ash' : 'hil',
+      deleteProtection: $app.stage === 'production',
+      rebuildProtection: $app.stage === 'production',
+      firewallIds: [firewall.id.apply((id) => parseInt(id))],
+      networks: [{ networkId: privateNetwork.id.apply((id) => parseInt(id)), ip }],
+      publicNets: [{ ipv4Enabled: true, ipv6Enabled: true }],
+      shutdownBeforeDeletion: true,
+      userData
+    },
+    { dependsOn: dependencies }
+  );
   workerServers.push(server);
 }
 workerServers.forEach((server, index) => {
