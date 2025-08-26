@@ -1,6 +1,16 @@
 import { secrets } from '../secrets';
 import { readFileSync } from 'node:fs';
 
+/**
+ * NOTE: Hetzner doesn't allow you to connect servers from different regions in the same network.
+ * Networks are only created in a single region. If you want to have multiple reigions to reduce latency,
+ * you need to create multiple clusters and networks in different regions. You don't need to connect them
+ * via a VPN or through the public internet.
+ *
+ * To have multiple regions work, look into Cloudflare DNS load balancers. You can steer traffic based
+ * off of "geo steering" or "proximity/latency". This costs extra, so stay in one region until latency
+ * is an issue.
+ */
 const privateNetwork = new hcloud.Network('HetznerK3sPrivateNetwork', {
   name: `k3s-private-${$app.stage === 'production' ? 'prod' : 'dev'}-network`,
   ipRange: '10.0.0.0/8'
@@ -265,6 +275,7 @@ for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
       };
     }
   );
+  envs.apply((env) => console.log(env));
   const userData = envs.apply((envs) => renderUserData(envs));
   const nodeType = NODE_NAMING.controlplane;
   const dependencies = [bootstrapServer, controlPlaneServers.at(-1)].filter(
