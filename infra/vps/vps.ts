@@ -10,7 +10,10 @@ import { readFileSync } from 'node:fs';
  * To have multiple regions work, look into Cloudflare DNS load balancers. You can steer traffic based
  * off of "geo steering" or "proximity/latency". This costs extra, so stay in one region until latency
  * is an issue.
+ *
+ * You'll probably want to rename a bunch of the resources and variable names when you do.
  */
+const LOCATION = 'hil';
 const privateNetwork = new hcloud.Network('HetznerK3sPrivateNetwork', {
   name: `k3s-private-${$app.stage === 'production' ? 'prod' : 'dev'}-network`,
   ipRange: '10.0.0.0/8'
@@ -29,7 +32,7 @@ const firewall = new hcloud.Firewall('HetznerDenyIn', {
 const publicLoadBalancer = new hcloud.LoadBalancer('HetznerK3sPublicLoadBalancer', {
   name: `k3s-public-${$app.stage === 'production' ? 'prod' : 'dev'}-load-balancer`,
   loadBalancerType: 'lb11',
-  location: 'hil'
+  location: LOCATION
 });
 new hcloud.LoadBalancerNetwork('HetznerK3sPublicLoadBalancerNetwork', {
   loadBalancerId: publicLoadBalancer.id.apply((id) => parseInt(id)),
@@ -233,7 +236,7 @@ let bootstrapServer: hcloud.Server | undefined;
 let bootstrapServerIp: $util.Output<string>;
 let controlPlaneServers: hcloud.Server[] = [];
 for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
-  const role = i == 0 ? 'bootstrap' : 'server';
+  const role = i === 0 ? 'bootstrap' : 'server';
   const ip = subnet.ipRange.apply(
     (ipRange) => `${ipRange.split('.').slice(0, 3).join('.')}.${CONTROL_PLANE_HOST_START_OCTET + i}`
   );
@@ -275,7 +278,6 @@ for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
       };
     }
   );
-  envs.apply((env) => console.log(env));
   const userData = envs.apply((envs) => renderUserData(envs));
   const nodeType = NODE_NAMING.controlplane;
   const dependencies = [bootstrapServer, controlPlaneServers.at(-1)].filter(
@@ -287,7 +289,7 @@ for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
       name: `${$app.stage == 'production' ? 'prod' : 'dev'}-${nodeType.name}-server-${i}`,
       serverType: SERVER_TYPE,
       image: SERVER_IMAGE,
-      location: i & 1 ? 'ash' : 'hil',
+      location: LOCATION,
       deleteProtection: $app.stage === 'production',
       rebuildProtection: $app.stage === 'production',
       firewallIds: [firewall.id.apply((id) => parseInt(id))],
@@ -364,7 +366,7 @@ for (let i = 0; i < WORKER_NODE_COUNT; i++) {
       name: `${$app.stage == 'production' ? 'prod' : 'dev'}-${nodeType.name}-server-${i}`,
       serverType: SERVER_TYPE,
       image: SERVER_IMAGE,
-      location: i & 1 ? 'ash' : 'hil',
+      location: LOCATION,
       deleteProtection: $app.stage === 'production',
       rebuildProtection: $app.stage === 'production',
       firewallIds: [firewall.id.apply((id) => parseInt(id))],
