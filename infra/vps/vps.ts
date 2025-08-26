@@ -135,7 +135,7 @@ const renderUserData = (envs: Record<string, string>) => {
 
 const CONTROL_PLANE_NODE_COUNT = $app.stage === 'production' ? 3 : 3;
 const CONTROL_PLANE_HOST_START_OCTET = 10;
-const WORKER_NODE_COUNT = $app.stage === 'production' ? 1 : 2;
+const WORKER_NODE_COUNT = $app.stage === 'production' ? 1 : 3;
 const WORKER_HOST_START_OCTET = 20;
 const SERVER_TYPE = $app.stage === 'production' ? 'ccx13' : 'cpx11';
 const BASE_ENV = $resolve([
@@ -228,7 +228,6 @@ const createServer = (
     (ipRange) =>
       `${ipRange.split('.').slice(0, 3).join('.')}.${options.isWorker ? WORKER_HOST_START_OCTET + index : CONTROL_PLANE_HOST_START_OCTET + index}`
   );
-  ip.apply((ip) => console.log(ip));
 
   let publicNets: hcloud.types.input.ServerPublicNet[];
   if (options.network === false) {
