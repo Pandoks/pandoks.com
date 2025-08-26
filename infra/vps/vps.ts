@@ -133,9 +133,9 @@ const renderUserData = (envs: Record<string, string>) => {
   );
 };
 
-const CONTROL_PLANE_NODE_COUNT = $app.stage === 'production' ? 3 : 1;
+const CONTROL_PLANE_NODE_COUNT = $app.stage === 'production' ? 3 : 3;
 const CONTROL_PLANE_HOST_START_OCTET = 10;
-const WORKER_NODE_COUNT = $app.stage === 'production' ? 1 : 0;
+const WORKER_NODE_COUNT = $app.stage === 'production' ? 1 : 2;
 const WORKER_HOST_START_OCTET = 20;
 const SERVER_TYPE = $app.stage === 'production' ? 'ccx13' : 'cpx11';
 const BASE_ENV = $resolve([
@@ -162,6 +162,10 @@ const BASE_ENV = $resolve([
  */
 const setupTunnelSsh = (index: number, options: { isWorker?: boolean; hostname: string }) => {
   const nodeType = options.isWorker ? NODE_NAMING.worker : NODE_NAMING.controlplane;
+  const ipAddr = subnet.ipRange.apply(
+    (ipRange) =>
+      `${ipRange.split('.').slice(0, 3).join('.')}.${options.isWorker ? WORKER_HOST_START_OCTET + index : CONTROL_PLANE_HOST_START_OCTET + index}`
+  );
 
   const tunnel = new cloudflare.ZeroTrustTunnelCloudflared(
     `HetznerK3s${nodeType.resourceName}Tunnel${index}`,
@@ -190,12 +194,8 @@ const setupTunnelSsh = (index: number, options: { isWorker?: boolean; hostname: 
     {
       accountId: secrets.cloudflare.AccountId.value,
       tunnelId: tunnel.id,
-      network: subnet.ipRange
+      network: $interpolate`${ipAddr}/32`
     }
-  );
-  const ipAddr = subnet.ipRange.apply(
-    (ipRange) =>
-      `${ipRange.split('.').slice(0, 3).join('.')}.${options.isWorker ? WORKER_HOST_START_OCTET + index : CONTROL_PLANE_HOST_START_OCTET + index}`
   );
   new cloudflare.ZeroTrustAccessInfrastructureTarget(
     `HetznerK3s${nodeType.resourceName}Target${index}`,
@@ -217,34 +217,42 @@ const setupTunnelSsh = (index: number, options: { isWorker?: boolean; hostname: 
   return tunnel;
 };
 
+let bootstrapServer: hcloud.Server;
 const createServer = (
   index: number,
   userData: $util.Input<string>,
-  options: { isWorker?: boolean; hostname: string; location: string }
+  options: { isWorker?: boolean; hostname: string; location: string; network?: boolean }
 ) => {
   const nodeType = options.isWorker ? NODE_NAMING.worker : NODE_NAMING.controlplane;
   const ip = subnet.ipRange.apply(
     (ipRange) =>
       `${ipRange.split('.').slice(0, 3).join('.')}.${options.isWorker ? WORKER_HOST_START_OCTET + index : CONTROL_PLANE_HOST_START_OCTET + index}`
   );
+  ip.apply((ip) => console.log(ip));
 
-  return new hcloud.Server(`Hetzner${nodeType.resourceName}Server${index}`, {
-    name: `${$app.stage == 'production' ? 'prod' : 'dev'}-${nodeType.name}-server-${index}`,
-    serverType: SERVER_TYPE,
-    image: 'ubuntu-24.04',
-    location: index & 1 ? 'ash' : 'hil',
-    deleteProtection: $app.stage === 'production',
-    rebuildProtection: $app.stage === 'production',
-    firewallIds: [firewall.id.apply((id) => parseInt(id))],
-    networks: [{ networkId: privateNetwork.id.apply((id) => parseInt(id)), ip }],
-    publicNets: [
-      {
-        ipv4Enabled: true,
-        ipv6Enabled: true
-      }
-    ],
-    userData
-  });
+  let publicNets: hcloud.types.input.ServerPublicNet[];
+  if (options.network === false) {
+    publicNets = [{ ipv4Enabled: false, ipv6Enabled: false, ipv4: 0, ipv6: 0 }];
+  } else {
+    publicNets = [{ ipv4Enabled: true, ipv6Enabled: true }];
+  }
+
+  return new hcloud.Server(
+    `Hetzner${nodeType.resourceName}Server${index}`,
+    {
+      name: `${$app.stage == 'production' ? 'prod' : 'dev'}-${nodeType.name}-server-${index}`,
+      serverType: SERVER_TYPE,
+      image: 'ubuntu-24.04',
+      location: index & 1 ? 'ash' : 'hil',
+      deleteProtection: $app.stage === 'production',
+      rebuildProtection: $app.stage === 'production',
+      firewallIds: [firewall.id.apply((id) => parseInt(id))],
+      networks: [{ networkId: privateNetwork.id.apply((id) => parseInt(id)), ip }],
+      publicNets,
+      userData
+    },
+    { dependsOn: [bootstrapServer!] }
+  );
 };
 
 let bootstrapServerIp: $util.Output<string>;
@@ -350,7 +358,8 @@ for (let i = 0; i < WORKER_NODE_COUNT; i++) {
   const server = createServer(i, userData, {
     hostname: sshHostname,
     location: 'hil',
-    isWorker: true
+    isWorker: true,
+    network: false
   });
   workerServers.push(server);
 }
