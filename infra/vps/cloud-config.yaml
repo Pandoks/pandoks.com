@@ -6,6 +6,9 @@
 # TUNNEL_ID
 # PRIVATE_IP_RANGE
 # SSH_CA_PUB
+# ROLE
+# K3S_TOKEN
+# SERVER_API
 package_update: true
 package_upgrade: true
 ssh_pwauth: false
@@ -83,3 +86,11 @@ runcmd:
   - systemctl restart ssh || true
   - cloudflared --config /etc/cloudflared/config.yml service install || true
   - systemctl enable cloudflared && systemctl restart cloudflared
+  - |
+    if [ "${ROLE}" = "bootstrap" ]; then
+      curl -fL https://get.k3s.io | K3S_TOKEN=${K3S_TOKEN} sh -s - server --cluster-init --disable=traefik --disable=servicelb
+    elif [ "${ROLE}" = "server" ]; then
+      curl -fL https://get.k3s.io | K3S_TOKEN=${K3S_TOKEN} sh -s - server --server=${SERVER_API} --disable=traefik --disable=servicelb
+    else
+      curl -fL https://get.k3s.io | K3S_TOKEN=${K3S_TOKEN} sh -s - agent --server=${SERVER_API}
+    fi

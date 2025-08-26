@@ -247,8 +247,16 @@ const createServer = (
   });
 };
 
+let bootstrapServerIp: $util.Output<string>;
 let controlPlaneServers: hcloud.Server[] = [];
 for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
+  const role = i == 0 ? 'bootstrap' : 'server';
+  if (role === 'bootstrap') {
+    bootstrapServerIp = subnet.ipRange.apply(
+      (ipRange) =>
+        `${ipRange.split('.').slice(0, 3).join('.')}.${CONTROL_PLANE_HOST_START_OCTET + i}`
+    );
+  }
   const sshHostname = `k3s-${NODE_NAMING.controlplane.name}-${i}${$app.stage === 'production' ? '' : '-dev'}.pandoks.com`;
 
   const tunnel = setupTunnelSsh(i, { hostname: sshHostname });
@@ -258,19 +266,35 @@ for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
     BASE_ENV.ACCOUNT_ID,
     BASE_ENV.TUNNEL_SECRET,
     BASE_ENV.PRIVATE_IP_RANGE,
-    controlPlaneSshShortLivedToken.publicKey
-  ]).apply(([TUNNEL_ID, ACCOUNT_ID, TUNNEL_SECRET, PRIVATE_IP_RANGE, SSH_CA_PUB]) => {
-    return {
-      SSH_HOSTNAME: sshHostname,
+    controlPlaneSshShortLivedToken.publicKey,
+    secrets.hetzner.K3sToken.value,
+    bootstrapServerIp!
+  ]).apply(
+    ([
       TUNNEL_ID,
       ACCOUNT_ID,
       TUNNEL_SECRET,
+      PRIVATE_IP_RANGE,
       SSH_CA_PUB,
-      PRIVATE_IP_RANGE
-    };
-  });
+      K3S_TOKEN,
+      SERVER_IP
+    ]) => {
+      return {
+        SSH_HOSTNAME: sshHostname,
+        TUNNEL_ID,
+        ACCOUNT_ID,
+        TUNNEL_SECRET,
+        SSH_CA_PUB,
+        PRIVATE_IP_RANGE,
+        K3S_TOKEN,
+        SERVER_API: `https://${SERVER_IP}:6443`,
+        ROLE: role
+      };
+    }
+  );
   const userData = envs.apply((envs) => renderUserData(envs));
   const server = createServer(i, userData, { hostname: sshHostname, location: 'hil' });
+
   controlPlaneServers.push(server);
 }
 controlPlaneServers.forEach((server, index) => {
@@ -296,17 +320,32 @@ for (let i = 0; i < WORKER_NODE_COUNT; i++) {
     BASE_ENV.ACCOUNT_ID,
     BASE_ENV.TUNNEL_SECRET,
     BASE_ENV.PRIVATE_IP_RANGE,
-    workerSshShortLivedToken.publicKey
-  ]).apply(([TUNNEL_ID, ACCOUNT_ID, TUNNEL_SECRET, PRIVATE_IP_RANGE, SSH_CA_PUB]) => {
-    return {
-      SSH_HOSTNAME: sshHostname,
+    workerSshShortLivedToken.publicKey,
+    secrets.hetzner.K3sToken.value,
+    bootstrapServerIp!
+  ]).apply(
+    ([
       TUNNEL_ID,
       ACCOUNT_ID,
       TUNNEL_SECRET,
+      PRIVATE_IP_RANGE,
       SSH_CA_PUB,
-      PRIVATE_IP_RANGE
-    };
-  });
+      K3S_TOKEN,
+      SERVER_IP
+    ]) => {
+      return {
+        SSH_HOSTNAME: sshHostname,
+        TUNNEL_ID,
+        ACCOUNT_ID,
+        TUNNEL_SECRET,
+        SSH_CA_PUB,
+        PRIVATE_IP_RANGE,
+        K3S_TOKEN,
+        SERVER_API: `https://${SERVER_IP}:6443`,
+        ROLE: 'worker'
+      };
+    }
+  );
   const userData = envs.apply((envs) => renderUserData(envs));
   const server = createServer(i, userData, {
     hostname: sshHostname,
