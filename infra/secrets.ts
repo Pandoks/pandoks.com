@@ -25,6 +25,7 @@ export const secrets = {
   },
   hetzner: {
     ApiKey: new sst.Secret('HetznerApiKey'),
-    TunnelSecret: new sst.Secret('HetznerTunnelSecret')
+    TunnelSecret: new sst.Secret('HetznerTunnelSecret'),
+    K3sToken: new sst.Secret('HetznerK3sToken')
   }
 };

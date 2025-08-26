@@ -38,6 +38,10 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "HetznerK3sToken": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "HetznerTunnelSecret": {
       "type": "sst.sst.Secret"
       "value": string
