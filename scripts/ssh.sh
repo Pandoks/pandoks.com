@@ -24,21 +24,47 @@ shift
 
 case "$CMD" in
   copy)
-    [ $# -ge 1 ] || usage
-    TARGET="$1"
-    shift
+    # Parse target and flags in any order after subcommand
+    TARGET=""
     REMOTE_FILE=""
     OUT_FILE=""
+    SEEN_REMOTE_FILE=0
+    SEEN_OUT=0
     while [ $# -gt 0 ]; do
       case "${1:-}" in
-        --remote-file) REMOTE_FILE="${2:-}"; shift 2 ;;
-        --out) OUT_FILE="${2:-}"; shift 2 ;;
-        *) echo "Unknown option: $1" >&2; usage ;;
+
+        --remote-file)
+          [ $SEEN_REMOTE_FILE -eq 0 ] || { echo "--remote-file specified multiple times" >&2; exit 1; }
+          SEEN_REMOTE_FILE=1
+          shift
+          [ $# -ge 1 ] || { echo "Missing value for --remote-file" >&2; exit 1; }
+          REMOTE_FILE="$1"
+          ;;
+        --out)
+          [ $SEEN_OUT -eq 0 ] || { echo "--out specified multiple times" >&2; exit 1; }
+          SEEN_OUT=1
+          shift
+          [ $# -ge 1 ] || { echo "Missing value for --out" >&2; exit 1; }
+          OUT_FILE="$1"
+          ;;
+        --*)
+          echo "Unknown option: $1" >&2
+          usage
+          ;;
+        *)
+          if [ -z "$TARGET" ]; then
+            TARGET="$1"
+          else
+            echo "Only one ssh target allowed" >&2
+            exit 1
+          fi
+          ;;
       esac
+      shift
     done
+    [ -n "$TARGET" ] || usage
     [ -n "$REMOTE_FILE" ] || { echo "--remote-file is required" >&2; exit 1; }
     if [ -z "$OUT_FILE" ]; then
-      # derive basename of remote file
       OUT_FILE="./$(basename "$REMOTE_FILE")"
     fi
     tmp="$(mktemp)"
@@ -52,27 +78,48 @@ case "$CMD" in
     echo "Wrote $OUT_FILE"
     ;;
   tunnel)
-    [ $# -ge 1 ] || usage
-    TARGET="$1"
-    shift
+    # Parse target and flags in any order after subcommand
+    TARGET=""
     LOCAL_PORT=6443
     REMOTE_PORT=6443
-  while [ $# -gt 0 ]; do
-    case "${1:-}" in
-    --local-port)
-      LOCAL_PORT="${2:-}"
-      shift 2
-      ;;
-    --remote-port)
-      REMOTE_PORT="${2:-}"
-      shift 2
-      ;;
-    *)
-      echo "Unknown option: $1" >&2
-      usage
-      ;;
-    esac
-  done
+    SEEN_LP=0
+    SEEN_RP=0
+    while [ $# -gt 0 ]; do
+      case "${1:-}" in
+
+        --local-port)
+          [ $SEEN_LP -eq 0 ] || { echo "--local-port specified multiple times" >&2; exit 1; }
+          SEEN_LP=1
+          shift
+          [ $# -ge 1 ] || { echo "Missing value for --local-port" >&2; exit 1; }
+          LOCAL_PORT="$1"
+          echo "$LOCAL_PORT" | awk 'BEGIN{ok=1} { if ($0 !~ /^[0-9]+$/) ok=0; else { n=$0+0; if (n<1 || n>65535) ok=0 } } END{ exit ok?0:1 }' || { echo "--local-port must be an integer between 1 and 65535" >&2; exit 1; }
+          ;;
+        --remote-port)
+          [ $SEEN_RP -eq 0 ] || { echo "--remote-port specified multiple times" >&2; exit 1; }
+          SEEN_RP=1
+          shift
+          [ $# -ge 1 ] || { echo "Missing value for --remote-port" >&2; exit 1; }
+          REMOTE_PORT="$1"
+          echo "$REMOTE_PORT" | awk 'BEGIN{ok=1} { if ($0 !~ /^[0-9]+$/) ok=0; else { n=$0+0; if (n<1 || n>65535) ok=0 } } END{ exit ok?0:1 }' || { echo "--remote-port must be an integer between 1 and 65535" >&2; exit 1; }
+          ;;
+        --*)
+          echo "Unknown option: $1" >&2
+          usage
+          ;;
+        *)
+          if [ -z "$TARGET" ]; then
+            TARGET="$1"
+          else
+            echo "Only one ssh target allowed" >&2
+            exit 1
+          fi
+          ;;
+      esac
+      shift
+    done
+    [ -n "$TARGET" ] || usage
+
     # Acquire per-port lock to avoid races on rapid invocations
     LOCKDIR="/tmp/k3s-ssh.${LOCAL_PORT}.lock"
     LOCK_TRIES=50

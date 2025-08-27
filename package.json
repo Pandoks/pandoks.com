@@ -14,7 +14,12 @@
     "cluster:create": "./scripts/cluster.sh create",
     "cluster:delete": "./scripts/cluster.sh delete",
     "cluster:setup": "./scripts/cluster.sh setup",
-    "cluster:init": "pnpm run cluster:create && pnpm run cluster:setup"
+    "cluster:init": "pnpm run cluster:create && pnpm run cluster:setup",
+    "k3s:remote-config": "pnpm run ssh:copy --remote-file /etc/rancher/k3s/k3s.yaml",
+    "ssh:copy": "./scripts/ssh.sh copy",
+    "ssh:tunnel": "./scripts/ssh.sh tunnel",
+    "ssh:stop-tunnel": "./scripts/ssh.sh stop-tunnel",
+    "ssh:status": "./scripts/ssh.sh status"
   },
   "devDependencies": {
     "glob": "^11.0.3",
