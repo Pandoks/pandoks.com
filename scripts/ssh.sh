@@ -2,16 +2,18 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: $0 {tunnel|stop-tunnel|status} <ssh-target> [options]" >&2
+  echo "Usage: $0 {tunnel|stop-tunnel|status|copy} <ssh-target> [options]" >&2
   echo "  ssh-target example: pandoks@k3s-control-plane-0-dev.pandoks.com" >&2
   echo "" >&2
   echo "Commands:" >&2
   echo "  tunnel <ssh-target> [--local-port 6443] [--remote-port 6443]" >&2
   echo "      Start SSH local port-forward in background; prints PID." >&2
   echo "  stop-tunnel" >&2
-  echo "      Pick and stop tunnels via fzf." >&2
+  echo "      Pick and stop tunnels via fzf (persistent)." >&2
   echo "  status" >&2
   echo "      Show matching ssh port-forward processes (aligned)." >&2
+  echo "  copy <ssh-target> --remote-file <path> [--out <local path>]" >&2
+  echo "      Copy remote file via SSH (no scp). If --out omitted, uses ./basename(remote)." >&2
   exit 1
 }
 
@@ -21,6 +23,34 @@ CMD="$1"
 shift
 
 case "$CMD" in
+  copy)
+    [ $# -ge 1 ] || usage
+    TARGET="$1"
+    shift
+    REMOTE_FILE=""
+    OUT_FILE=""
+    while [ $# -gt 0 ]; do
+      case "${1:-}" in
+        --remote-file) REMOTE_FILE="${2:-}"; shift 2 ;;
+        --out) OUT_FILE="${2:-}"; shift 2 ;;
+        *) echo "Unknown option: $1" >&2; usage ;;
+      esac
+    done
+    [ -n "$REMOTE_FILE" ] || { echo "--remote-file is required" >&2; exit 1; }
+    if [ -z "$OUT_FILE" ]; then
+      # derive basename of remote file
+      OUT_FILE="./$(basename "$REMOTE_FILE")"
+    fi
+    tmp="$(mktemp)"
+    trap 'rm -f "$tmp"' EXIT
+    if ! ssh -o StrictHostKeyChecking=accept-new "$TARGET" "sudo cat \"$REMOTE_FILE\"" > "$tmp"; then
+      echo "Failed to copy $REMOTE_FILE from $TARGET" >&2
+      exit 1
+    fi
+    mv "$tmp" "$OUT_FILE"
+    chmod 600 "$OUT_FILE"
+    echo "Wrote $OUT_FILE"
+    ;;
   tunnel)
     [ $# -ge 1 ] || usage
     TARGET="$1"
