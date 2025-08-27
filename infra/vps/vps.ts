@@ -399,4 +399,7 @@ workerServers.forEach((server, index) => {
   );
 });
 
-export const loadBalancerIPv4 = publicLoadBalancer.ipv4;
+export const outputs = {
+  K3sLoadBalancerIPv4: publicLoadBalancer.ipv4,
+  K3sSubnet: subnet.ipRange
+};

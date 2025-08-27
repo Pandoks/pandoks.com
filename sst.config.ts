@@ -19,7 +19,7 @@ export default $config({
   },
   async run() {
     // NOTE: for some reason, dynamic imports don't work well so just manually import
-    await Promise.all([
+    const imports = await Promise.all([
       import('./infra/api'),
       import('./infra/dns'),
       import('./infra/github'),
@@ -27,5 +27,11 @@ export default $config({
       import('./infra/website'),
       import('./infra/vps/vps')
     ]);
+    return imports.reduce((acculumator, importResult: any) => {
+      if (importResult.outputs) {
+        return { ...acculumator, ...importResult.outputs };
+      }
+      return acculumator;
+    }, {});
   }
 });

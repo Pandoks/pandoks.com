@@ -87,8 +87,3 @@ new aws.iam.RolePolicy('TodoInvokePolicy', {
     ]
   }).json
 });
-
-export const outputs = {
-  blogApi: blogApi.url,
-  todoRemindApi: todoRemindApi.url
-};
