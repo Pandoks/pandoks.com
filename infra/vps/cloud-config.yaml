@@ -9,6 +9,7 @@
 # ROLE
 # K3S_TOKEN
 # SERVER_API
+# NODE_IP
 package_update: true
 package_upgrade: true
 ssh_pwauth: false
@@ -82,15 +83,29 @@ runcmd:
   - mkdir -p --mode=0755 /usr/share/keyrings
   - curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
   - echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared noble main' | tee /etc/apt/sources.list.d/cloudflared.list
-  - apt-get update && apt-get install cloudflared
+  - apt-get update && apt-get install -y cloudflared
   - systemctl restart ssh || true
   - cloudflared --config /etc/cloudflared/config.yml service install || true
   - systemctl enable cloudflared && systemctl restart cloudflared
   - |
     if [ "${ROLE}" = "bootstrap" ]; then
-      curl -fL https://get.k3s.io | K3S_TOKEN=${K3S_TOKEN} sh -s - server --cluster-init --disable=traefik --disable=servicelb
+      curl -sfL https://get.k3s.io | \
+        K3S_TOKEN=${K3S_TOKEN} sh -s - server \
+          --cluster-init \
+          --disable=traefik \
+          --disable=servicelb \
+          --node-ip=${NODE_IP} \
+          --advertise-address=${NODE_IP} \
+          --tls-san=${NODE_IP}
     elif [ "${ROLE}" = "server" ]; then
-      curl -fL https://get.k3s.io | K3S_TOKEN=${K3S_TOKEN} sh -s - server --server=${SERVER_API} --disable=traefik --disable=servicelb
+      curl -sfL https://get.k3s.io | \
+        K3S_TOKEN=${K3S_TOKEN} sh -s - server \
+          --server=${SERVER_API} \
+          --disable=traefik \
+          --disable=servicelb \
+          --node-ip=${NODE_IP} \
+          --advertise-address=${NODE_IP} \
+          --tls-san=${NODE_IP}
     else
-      curl -fL https://get.k3s.io | K3S_TOKEN=${K3S_TOKEN} sh -s - agent --server=${SERVER_API}
+      curl -sfL https://get.k3s.io | K3S_TOKEN=${K3S_TOKEN} sh -s - agent --server=${SERVER_API}
     fi

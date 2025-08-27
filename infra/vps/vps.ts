@@ -254,6 +254,7 @@ for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
     BASE_ENV.PRIVATE_IP_RANGE,
     controlPlaneSshShortLivedToken.publicKey,
     secrets.hetzner.K3sToken.value,
+    ip,
     bootstrapServerIp!
   ]).apply(
     ([
@@ -263,6 +264,7 @@ for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
       PRIVATE_IP_RANGE,
       SSH_CA_PUB,
       K3S_TOKEN,
+      NODE_IP,
       SERVER_IP
     ]) => {
       return {
@@ -274,12 +276,14 @@ for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
         PRIVATE_IP_RANGE,
         K3S_TOKEN,
         SERVER_API: `https://${SERVER_IP}:6443`,
+        NODE_IP,
         ROLE: role
       };
     }
   );
   const userData = envs.apply((envs) => renderUserData(envs));
   const nodeType = NODE_NAMING.controlplane;
+  // NOTE: needed to create servers sequentially
   const dependencies = [bootstrapServer, controlPlaneServers.at(-1)].filter(
     (resource) => resource !== undefined
   );
@@ -295,7 +299,7 @@ for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
       firewallIds: [firewall.id.apply((id) => parseInt(id))],
       networks: [{ networkId: privateNetwork.id.apply((id) => parseInt(id)), ip }],
       publicNets: [{ ipv4Enabled: true, ipv6Enabled: true }],
-      shutdownBeforeDeletion: true,
+      shutdownBeforeDeletion: true, // NOTE: needed to close tunnel so tunnel can be deleted without error
       userData
     },
     { dependsOn: dependencies }
@@ -331,6 +335,7 @@ for (let i = 0; i < WORKER_NODE_COUNT; i++) {
     BASE_ENV.PRIVATE_IP_RANGE,
     workerSshShortLivedToken.publicKey,
     secrets.hetzner.K3sToken.value,
+    ip,
     bootstrapServerIp!
   ]).apply(
     ([
@@ -340,6 +345,7 @@ for (let i = 0; i < WORKER_NODE_COUNT; i++) {
       PRIVATE_IP_RANGE,
       SSH_CA_PUB,
       K3S_TOKEN,
+      NODE_IP,
       SERVER_IP
     ]) => {
       return {
@@ -351,12 +357,14 @@ for (let i = 0; i < WORKER_NODE_COUNT; i++) {
         PRIVATE_IP_RANGE,
         K3S_TOKEN,
         SERVER_API: `https://${SERVER_IP}:6443`,
+        NODE_IP,
         ROLE: 'worker'
       };
     }
   );
   const userData = envs.apply((envs) => renderUserData(envs));
   const nodeType = NODE_NAMING.worker;
+  // NOTE: needed to create servers sequentially
   const dependencies = [bootstrapServer, workerServers.at(-1)].filter(
     (resource) => resource !== undefined
   );
@@ -372,7 +380,7 @@ for (let i = 0; i < WORKER_NODE_COUNT; i++) {
       firewallIds: [firewall.id.apply((id) => parseInt(id))],
       networks: [{ networkId: privateNetwork.id.apply((id) => parseInt(id)), ip }],
       publicNets: [{ ipv4Enabled: true, ipv6Enabled: true }],
-      shutdownBeforeDeletion: true,
+      shutdownBeforeDeletion: true, // NOTE: needed to close tunnel so tunnel can be deleted without error
       userData
     },
     { dependsOn: dependencies }
