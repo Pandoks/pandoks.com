@@ -55,3 +55,6 @@ expo-env.d.ts
 
 # Processed images (generated during build)
 apps/web/static/blog-images
+
+# ssh kube config for k3s
+./k3s.yaml
