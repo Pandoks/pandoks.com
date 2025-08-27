@@ -57,4 +57,4 @@ expo-env.d.ts
 apps/web/static/blog-images
 
 # ssh kube config for k3s
-./k3s.yaml
+/k3s.yaml
