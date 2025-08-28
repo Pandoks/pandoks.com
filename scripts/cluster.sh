@@ -18,8 +18,8 @@ usage() {
 CMD="$1"
 shift
 case "$CMD" in
-  k3d-up|setup|k3d-down) ;;
-  *) usage ;;
+k3d-up | setup | k3d-down) ;;
+*) usage ;;
 esac
 
 KUBECONFIG_FLAG=""
@@ -27,18 +27,37 @@ FORCE_K3D="false"
 EXPLICIT_IP_POOL=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --kubeconfig)
-      [ $# -ge 2 ] || { echo "--kubeconfig requires a path" >&2; exit 1; }
-      KUBECONFIG_FLAG="$2"; shift 2; continue ;;
-    --k3d)
-      FORCE_K3D="true"; shift; continue ;;
-    --ip-pool)
-      [ $# -ge 2 ] || { echo "--ip-pool requires a range (e.g., 10.0.1.100-10.0.1.200 or 10.0.1.0/24)" >&2; exit 1; }
-      EXPLICIT_IP_POOL="$2"; shift 2; continue ;;
-    --*)
-      echo "Unknown option: $1" >&2; usage ;;
-    *)
-      echo "Unexpected argument: $1" >&2; usage ;;
+  --kubeconfig)
+    [ $# -ge 2 ] || {
+      echo "--kubeconfig requires a path" >&2
+      exit 1
+    }
+    KUBECONFIG_FLAG="$2"
+    shift 2
+    continue
+    ;;
+  --k3d)
+    FORCE_K3D="true"
+    shift
+    continue
+    ;;
+  --ip-pool)
+    [ $# -ge 2 ] || {
+      echo "--ip-pool requires a range (e.g., 10.0.1.100-10.0.1.200 or 10.0.1.0/24)" >&2
+      exit 1
+    }
+    EXPLICIT_IP_POOL="$2"
+    shift 2
+    continue
+    ;;
+  --*)
+    echo "Unknown option: $1" >&2
+    usage
+    ;;
+  *)
+    echo "Unexpected argument: $1" >&2
+    usage
+    ;;
   esac
 done
 
@@ -63,7 +82,7 @@ k3d-up)
   k3d cluster create local-cluster \
     --agents 3 \
     --registry-create local-registry:12345 \
-    --api-port 6443 \
+    --api-port 6444 \
     --k3s-arg "--disable=traefik@server:*" \
     --k3s-arg "--disable=servicelb@server:*" \
     -p "3000:30001@loadbalancer"
@@ -116,29 +135,31 @@ EOF
   validate_range() {
     RANGE="$1"
     case "$RANGE" in
-      */*)
-        # CIDR form
-        base="${RANGE%/*}"; mask="${RANGE##*/}"
-        is_ipv4 "$base" || return 1
-        echo "$mask" | awk 'BEGIN{ok=1} { if ($0 !~ /^[0-9]+$/) ok=0; else { n=$0+0; if (n<0 || n>32) ok=0 } } END{ exit ok?0:1 }' || return 1
-        return 0
-        ;;
-      *-*)
-        # start-end form
-        start="${RANGE%-*}"; end="${RANGE#*-}"
-        is_ipv4 "$start" || return 1
-        is_ipv4 "$end" || return 1
-        # ensure start <= end lexicographically numeric
-        awk -v s="$start" -v e="$end" 'BEGIN{
+    */*)
+      # CIDR form
+      base="${RANGE%/*}"
+      mask="${RANGE##*/}"
+      is_ipv4 "$base" || return 1
+      echo "$mask" | awk 'BEGIN{ok=1} { if ($0 !~ /^[0-9]+$/) ok=0; else { n=$0+0; if (n<0 || n>32) ok=0 } } END{ exit ok?0:1 }' || return 1
+      return 0
+      ;;
+    *-*)
+      # start-end form
+      start="${RANGE%-*}"
+      end="${RANGE#*-}"
+      is_ipv4 "$start" || return 1
+      is_ipv4 "$end" || return 1
+      # ensure start <= end lexicographically numeric
+      awk -v s="$start" -v e="$end" 'BEGIN{
           split(s,sa,"."); split(e,ea,".");
           for(i=1;i<=4;i++){ if (sa[i]+0<ea[i]+0) { exit 0 } else if (sa[i]+0>ea[i]+0) { exit 1 } }
           exit 0
         }' || return 1
-        return 0
-        ;;
-      *)
-        return 1
-        ;;
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
     esac
   }
 
@@ -170,8 +191,7 @@ EOF
     TIMEOUT=$((TIMEOUT - 2))
   done
 
-  kubectl -n metallb-system rollout status deploy/controller --timeout=120s ||
-    kubectl -n metallb-system rollout status deploy/metallb-controller --timeout=120s || true
+  kubectl -n metallb-system rollout status deploy/metallb-controller --timeout=300s
 
   echo "Applying core kustomization with IP pool range: ${IP_POOL_RANGE}"
   TMP_DIR="$(mktemp -d)"
