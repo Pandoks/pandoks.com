@@ -117,17 +117,19 @@ setup)
   K3S_DIR="$REPO_ROOT/k3s"
   # Resolve IP pool range according to flags/env
   if [ "$FORCE_K3D" = "true" ]; then
-    if ! docker network inspect k3d-local-cluster >/dev/null 2>&1; then
-      echo "--k3d specified but k3d-local-cluster network not found" >&2
+    NET_TO_USE="${NETWORK_NAME:-k3d-local-cluster}"
+    if ! docker network inspect "$NET_TO_USE" >/dev/null 2>&1; then
+      echo "--k3d specified but docker network not found: $NET_TO_USE" >&2
+      echo "Provide an existing network with --network NAME or create the k3d cluster first." >&2
       exit 1
     fi
-    SUBNET=$(docker network inspect k3d-local-cluster | jq -r '.[0].IPAM.Config[0].Subnet')
+    SUBNET=$(docker network inspect "$NET_TO_USE" | jq -r '.[0].IPAM.Config[0].Subnet')
     if [ -z "$SUBNET" ] || [ "$SUBNET" = "null" ]; then
-      echo "Failed to detect k3d network subnet. Is the cluster running?" >&2
+      echo "Failed to detect subnet from network '$NET_TO_USE'. Is the cluster/network running?" >&2
       exit 1
     fi
     IP_POOL_RANGE="$SUBNET"
-    echo "k3d mode: using IP pool $IP_POOL_RANGE"
+    echo "k3d mode: using network '$NET_TO_USE' with IP pool $IP_POOL_RANGE"
   elif [ -n "$EXPLICIT_IP_POOL" ]; then
     IP_POOL_RANGE="$EXPLICIT_IP_POOL"
     echo "Using IP pool from --ip-pool: $IP_POOL_RANGE"
