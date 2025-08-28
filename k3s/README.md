@@ -35,7 +35,7 @@ pnpm run setup
 ## Production/SSH Vps
 
 Once you are happy with your local k3d cluster, you can deploy it to a vps either for production or
-for most development/testing.
+for most development/testing. _Remember to wait for all the nodes to be ready before deploying_.
 
 ```sh
 pnpm run k3s:remote <username>@<ssh-hostname>
