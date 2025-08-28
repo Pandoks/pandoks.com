@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: $0 {k3d-up|setup|k3d-down} [--kubeconfig PATH] [--k3d] [--ip-pool RANGE]" >&2
+  echo "Usage: $0 {k3d-up|setup|k3d-down} [--kubeconfig PATH] [--k3d] [--ip-pool RANGE] [--network NAME]" >&2
   echo "  k3d-up   : create local k3d cluster (only for k3d)" >&2
   echo "  k3d-down : delete local k3d cluster (only for k3d)" >&2
   echo "  setup    : install addons and apply /k3s manifests on current kubecontext" >&2
@@ -11,6 +11,7 @@ usage() {
   echo "  --kubeconfig PATH  Use the specified kubeconfig for kubectl operations" >&2
   echo "  --k3d              Force k3d mode (auto IP pool from k3d docker network)" >&2
   echo "  --ip-pool RANGE    Explicit MetalLB pool (e.g., 10.0.1.100-10.0.1.200 or 10.0.1.0/24)" >&2
+  echo "  --network NAME  Attach k3d loadbalancer to an existing docker network" >&2
 }
 
 # Require subcommand first, then parse flags/options in any order
@@ -25,6 +26,7 @@ esac
 KUBECONFIG_FLAG=""
 FORCE_K3D="false"
 EXPLICIT_IP_POOL=""
+NETWORK_NAME=""
 while [ $# -gt 0 ]; do
   case "$1" in
   --kubeconfig)
@@ -47,6 +49,15 @@ while [ $# -gt 0 ]; do
       exit 1
     }
     EXPLICIT_IP_POOL="$2"
+    shift 2
+    continue
+    ;;
+  --network)
+    [ $# -ge 2 ] || {
+      echo "--network requires a network name" >&2
+      exit 1
+    }
+    NETWORK_NAME="$2"
     shift 2
     continue
     ;;
@@ -79,13 +90,24 @@ k3d-up)
     exit 0
   fi
   echo "Creating k3d cluster 'local-cluster'..."
+  NET_ARGS=""
+  if [ -n "$NETWORK_NAME" ]; then
+    # ensure network exists
+    if ! docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then
+      echo "Docker network not found: $NETWORK_NAME" >&2
+      exit 1
+    fi
+    NET_ARGS="--network $NETWORK_NAME"
+    echo "Attaching loadbalancer to docker network: $NETWORK_NAME"
+  fi
   k3d cluster create local-cluster \
     --agents 3 \
     --registry-create local-registry:12345 \
     --api-port 6444 \
     --k3s-arg "--disable=traefik@server:*" \
     --k3s-arg "--disable=servicelb@server:*" \
-    -p "3000:30001@loadbalancer"
+    -p "3000:30001@loadbalancer" \
+    ${NET_ARGS}
   echo "Cluster created."
   ;;
 
