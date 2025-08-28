@@ -69,9 +69,20 @@ case "$CMD" in
     fi
     tmp="$(mktemp)"
     trap 'rm -f "$tmp"' EXIT
-    if ! ssh -o StrictHostKeyChecking=accept-new "$TARGET" "sudo cat \"$REMOTE_FILE\"" > "$tmp"; then
-      echo "Failed to copy $REMOTE_FILE from $TARGET" >&2
-      exit 1
+    if ! ssh -o StrictHostKeyChecking=accept-new "$TARGET" "sudo cat \"$REMOTE_FILE\"" > "$tmp" 2>"$tmp.err"; then
+      if grep -q "REMOTE HOST IDENTIFICATION HAS CHANGED" "$tmp.err"; then
+        HOST_ONLY=$(printf "%s" "$TARGET" | sed 's/^[^@]*@//')
+        echo "Host key changed for $HOST_ONLY, removing old key and retrying..." >&2
+        ssh-keygen -R "$HOST_ONLY" >/dev/null 2>&1 || true
+        if ! ssh -o StrictHostKeyChecking=accept-new "$TARGET" "sudo cat \"$REMOTE_FILE\"" > "$tmp"; then
+          echo "Failed to copy $REMOTE_FILE from $TARGET" >&2
+          exit 1
+        fi
+      else
+        cat "$tmp.err" >&2 || true
+        echo "Failed to copy $REMOTE_FILE from $TARGET" >&2
+        exit 1
+      fi
     fi
     mv "$tmp" "$OUT_FILE"
     chmod 600 "$OUT_FILE"
@@ -148,8 +159,20 @@ case "$CMD" in
     fi
 
     echo "Starting tunnel in background: localhost:${LOCAL_PORT} -> $TARGET 127.0.0.1:${REMOTE_PORT}"
-    ssh -N -L "${LOCAL_PORT}:127.0.0.1:${REMOTE_PORT}" "$TARGET" >/dev/null 2>&1 &
+    # Start once; if host key changed, remove and retry once
+    ssh -N -L "${LOCAL_PORT}:127.0.0.1:${REMOTE_PORT}" "$TARGET" >/dev/null 2>"/tmp/k3s-ssh.${LOCAL_PORT}.err" &
     PID=$!
+    sleep 0.15
+    if ! kill -0 "$PID" 2>/dev/null; then
+      if grep -q "REMOTE HOST IDENTIFICATION HAS CHANGED" "/tmp/k3s-ssh.${LOCAL_PORT}.err" 2>/dev/null; then
+        HOST_ONLY=$(printf "%s" "$TARGET" | sed 's/^[^@]*@//')
+        echo "Host key changed for $HOST_ONLY, removing old key and retrying..." >&2
+        ssh-keygen -R "$HOST_ONLY" >/dev/null 2>&1 || true
+        ssh -N -L "${LOCAL_PORT}:127.0.0.1:${REMOTE_PORT}" "$TARGET" >/dev/null 2>&1 &
+        PID=$!
+        sleep 0.15
+      fi
+    fi
     # Verify ssh actually started
     sleep 0.15
     if ! kill -0 "$PID" 2>/dev/null; then
