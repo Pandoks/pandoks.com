@@ -12,10 +12,24 @@ metadata:
 spec:
   repo: https://haproxy-ingress.github.io/charts
   chart: haproxy-ingress
-  version: 0.14.7
+  version: 0.14.9
   targetNamespace: ingress-controller
   createNamespace: true
+  # NOTE: if you want to change the ports, look into dual service cutover for zero downtime
+  # we want to let the helm chart manage the service so we don't have to worry about updates
+  # only when we're changing the ports (which should be once in a blue moon) will we then manually
+  # manage the service so that we can do the dual service cutover, but then we'll change it back
   valuesContent: |-
     controller:
       ingressClassResource:
         enabled: true
+      service:
+        type: NodePort
+        ports:
+          http:
+            nodePort: 30080
+          https:
+            nodePort: 30443
+      config:
+        use-forwarded-headers: "true"
+        forwarded-for-header: "X-Forwarded-For"
