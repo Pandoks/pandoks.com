@@ -82,3 +82,58 @@ You can also normally use `kubectl` to access the cluster:
 ```sh
 kubectl --kubeconfig ./k3s.yaml get pods
 ```
+
+## Public Exposure
+
+To expose the cluster's services to the public internet, you need to use ingress controllers. Load
+balancers should only be used for external services that are in the same private network as the
+cluster. Basically, services that are not in the cluster but they're in the same private network as
+the VPS's.
+
+### HAProxy Ingress Controller
+
+`helm-charts/haproxy-ingress.yaml` is a helm chart that installs the HAProxy ingress controller and
+also configures `NodePort` services to expose to the Hetzner load balancer. Ports `30000-32767` are
+reserved ports just for `nodePort` services. The cluster is entirely in a private network so we only
+expose services via the load balancer which is exposed to the public internet but is also connected
+to the private network.
+
+Example `Ingress` resource:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: <ingress-name>
+  namespace: <namespace>
+  annotations:
+    kubernetes.io/ingress.class: 'haproxy'
+spec:
+  rules:
+    - host: <hostname>
+      http:
+        paths:
+          - path: /
+            pathType: Prefix | Exact
+            backend:
+              service:
+                name: <service-name>
+                port:
+                  number: <service-port>
+          - path: /<path>
+            pathType: Prefix | Exact
+            backend:
+              service:
+                name: <service-name>
+                port:
+                  number: <service-port>
+```
+
+| Path Type | Description                                                |
+| --------- | ---------------------------------------------------------- |
+| Prefix    | The path prefix matches the beginning of the request path. |
+| Exact     | The path must match the request path exactly.              |
+
+**NOTE:** The `Prefix` path type use longest path wins. This means that if specify path `/` and
+`/foo`, `/foo`, `/foo/bar`, etc will all match the path `/foo`. Everything else will match to `/`.
+`/` is usually used as a catch-all path.
