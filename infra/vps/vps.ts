@@ -146,6 +146,7 @@ const renderUserData = (envs: Record<string, string>) => {
   );
 };
 
+// NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
 const CONTROL_PLANE_NODE_COUNT = $app.stage === 'production' ? 3 : 3;
 const CONTROL_PLANE_HOST_START_OCTET = 10;
 const WORKER_NODE_COUNT = $app.stage === 'production' ? 1 : 3;
@@ -401,5 +402,5 @@ workerServers.forEach((server, index) => {
 
 export const outputs = {
   K3sLoadBalancerIPv4: publicLoadBalancer.ipv4,
-  K3sSubnet: subnet.ipRange
+  K3sPrivateSubnet: subnet.ipRange
 };
