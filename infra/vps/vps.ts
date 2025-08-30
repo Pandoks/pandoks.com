@@ -29,44 +29,65 @@ const firewall = new hcloud.Firewall('HetznerDenyIn', {
   rules: []
 });
 
-export const publicLoadBalancer = new hcloud.LoadBalancer('HetznerK3sPublicLoadBalancer', {
-  name: `k3s-public-${$app.stage === 'production' ? 'prod' : 'dev'}-load-balancer`,
-  loadBalancerType: 'lb11',
-  location: LOCATION
-});
-new hcloud.LoadBalancerNetwork('HetznerK3sPublicLoadBalancerNetwork', {
-  loadBalancerId: publicLoadBalancer.id.apply((id) => parseInt(id)),
-  networkId: privateNetwork.id.apply((id) => parseInt(id))
-});
-new hcloud.LoadBalancerService('HetznerK3sLoadBalancerPort80', {
-  loadBalancerId: publicLoadBalancer.id.apply((id) => id),
-  protocol: 'tcp',
-  listenPort: 80,
-  destinationPort: 80,
-  proxyprotocol: false,
-  healthCheck: {
-    protocol: 'http',
-    port: 80,
-    interval: 10,
-    timeout: 3,
-    retries: 3,
-    http: { path: '/', statusCodes: ['2??', '3??'] }
-  }
-});
-new hcloud.LoadBalancerService('HetznerK3sLoadBalancerPort443', {
-  loadBalancerId: publicLoadBalancer.id.apply((id) => id),
-  protocol: 'tcp',
-  listenPort: 443,
-  destinationPort: 443,
-  proxyprotocol: false,
-  healthCheck: {
+// NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
+const CONTROL_PLANE_NODE_COUNT = $app.stage === 'production' ? 3 : 3;
+const CONTROL_PLANE_HOST_START_OCTET = 10;
+const WORKER_NODE_COUNT = $app.stage === 'production' ? 1 : 3;
+const WORKER_HOST_START_OCTET = 20;
+// NOTE: servers can only be upgraded, not downgraded because disk size needs to be >= than the previous type
+const SERVER_TYPE = $app.stage === 'production' ? 'ccx13' : 'cpx11';
+const LOAD_BALANCER_TYPE = $app.stage === 'production' ? 'lb11' : 'lb11';
+const SERVER_IMAGE = 'ubuntu-24.04';
+const BASE_ENV = $resolve([
+  secrets.cloudflare.AccountId.value,
+  secrets.hetzner.TunnelSecret.value,
+  subnet.ipRange
+]).apply(([ACCOUNT_ID, TUNNEL_SECRET, PRIVATE_IP_RANGE]) => ({
+  ACCOUNT_ID,
+  TUNNEL_SECRET,
+  PRIVATE_IP_RANGE
+}));
+
+if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT) {
+  var publicLoadBalancer = new hcloud.LoadBalancer('HetznerK3sPublicLoadBalancer', {
+    name: `k3s-public-${$app.stage === 'production' ? 'prod' : 'dev'}-load-balancer`,
+    loadBalancerType: LOAD_BALANCER_TYPE,
+    location: LOCATION
+  });
+  new hcloud.LoadBalancerNetwork('HetznerK3sPublicLoadBalancerNetwork', {
+    loadBalancerId: publicLoadBalancer.id.apply((id) => parseInt(id)),
+    networkId: privateNetwork.id.apply((id) => parseInt(id))
+  });
+  new hcloud.LoadBalancerService('HetznerK3sLoadBalancerPort80', {
+    loadBalancerId: publicLoadBalancer.id.apply((id) => id),
     protocol: 'tcp',
-    port: 443,
-    interval: 10,
-    timeout: 3,
-    retries: 3
-  }
-});
+    listenPort: 80,
+    destinationPort: 80,
+    proxyprotocol: false,
+    healthCheck: {
+      protocol: 'http',
+      port: 80,
+      interval: 10,
+      timeout: 3,
+      retries: 3,
+      http: { path: '/', statusCodes: ['2??', '3??'] }
+    }
+  });
+  new hcloud.LoadBalancerService('HetznerK3sLoadBalancerPort443', {
+    loadBalancerId: publicLoadBalancer.id.apply((id) => id),
+    protocol: 'tcp',
+    listenPort: 443,
+    destinationPort: 443,
+    proxyprotocol: false,
+    healthCheck: {
+      protocol: 'tcp',
+      port: 443,
+      interval: 10,
+      timeout: 3,
+      retries: 3
+    }
+  });
+}
 
 const NODE_NAMING = {
   worker: { resourceName: 'Worker', name: 'worker' },
@@ -145,24 +166,6 @@ const renderUserData = (envs: Record<string, string>) => {
     capture in envs ? envs[capture] : ''
   );
 };
-
-// NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
-const CONTROL_PLANE_NODE_COUNT = $app.stage === 'production' ? 3 : 3;
-const CONTROL_PLANE_HOST_START_OCTET = 10;
-const WORKER_NODE_COUNT = $app.stage === 'production' ? 1 : 3;
-const WORKER_HOST_START_OCTET = 20;
-// NOTE: servers can only be upgraded, not downgraded because disk size needs to be >= than the previous type
-const SERVER_TYPE = $app.stage === 'production' ? 'ccx13' : 'cpx11';
-const SERVER_IMAGE = 'ubuntu-24.04';
-const BASE_ENV = $resolve([
-  secrets.cloudflare.AccountId.value,
-  secrets.hetzner.TunnelSecret.value,
-  subnet.ipRange
-]).apply(([ACCOUNT_ID, TUNNEL_SECRET, PRIVATE_IP_RANGE]) => ({
-  ACCOUNT_ID,
-  TUNNEL_SECRET,
-  PRIVATE_IP_RANGE
-}));
 
 /**
  * In order to access the ssh tunnel, you need to:
@@ -401,6 +404,8 @@ workerServers.forEach((server, index) => {
 });
 
 export const outputs = {
-  K3sLoadBalancerIPv4: publicLoadBalancer.ipv4,
+  K3sLoadBalancerIPv4: publicLoadBalancer!.ipv4,
   K3sPrivateSubnet: subnet.ipRange
 };
+
+export { publicLoadBalancer };
