@@ -101,12 +101,13 @@ k3d-up)
     echo "Attaching loadbalancer to docker network: $NETWORK_NAME"
   fi
   k3d cluster create local-cluster \
+    --servers 3 \
     --agents 3 \
     --registry-create local-registry:12345 \
     --api-port 6444 \
     --k3s-arg "--disable=traefik@server:*" \
     --k3s-arg "--disable=servicelb@server:*" \
-    -p "3000:30001@loadbalancer" \
+    -p "8080:30080@loadbalancer" \
     ${NET_ARGS}
   echo "Cluster created."
   ;;
