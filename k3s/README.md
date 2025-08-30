@@ -62,7 +62,9 @@ with the remote k3s through ssh tunneling.
 
 You'll also see in `scripts/cluster.sh` that we forward port 30080 in _docker_ to port 8080 on the
 machine (`localhost`). This is because `k3d` runs k3s inside of docker and we need to expose the
-ports that we're exposing from `NodePort` to the host machine.
+ports that we're exposing from `NodePort` to the host machine. This also mimics the behavior of
+production clusters because the cluster is inside a private networks and the only thing that is
+exposed is through a load balancer that points into the private network at the forwarded port.
 
 ### Production/SSH Vps
 
