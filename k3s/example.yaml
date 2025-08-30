@@ -107,12 +107,15 @@ spec:
           volumeMounts:
             - name: web
               mountPath: /usr/share/nginx/html
+            - name: conf
+              mountPath: /etc/nginx/conf.d
         - name: config
           image: busybox:1.36
           command: ['/bin/sh', '-c']
           args:
             - |
               set -eu
+              # Write HTML
               cat << 'EOF' > /web/index.html
               <!doctype html>
               <html>
@@ -133,12 +136,27 @@ spec:
               </body>
               </html>
               EOF
+              # Write nginx conf with catch-all
+              cat << 'NGINX' > /conf/default.conf
+              server {
+                listen 8080;
+                server_name _;
+                root /usr/share/nginx/html;
+                location / {
+                  try_files $uri /index.html;
+                }
+              }
+              NGINX
               sleep 3600000
           volumeMounts:
             - name: web
               mountPath: /web
+            - name: conf
+              mountPath: /conf
       volumes:
         - name: web
+          emptyDir: {}
+        - name: conf
           emptyDir: {}
 
 ---
@@ -179,12 +197,15 @@ spec:
           volumeMounts:
             - name: web
               mountPath: /usr/share/nginx/html
+            - name: conf
+              mountPath: /etc/nginx/conf.d
         - name: config
           image: busybox:1.36
           command: ['/bin/sh', '-c']
           args:
             - |
               set -eu
+              # Write HTML
               cat << 'EOF' > /web/index.html
               <!doctype html>
               <html>
@@ -205,10 +226,25 @@ spec:
               </body>
               </html>
               EOF
+              # Write nginx conf with catch-all
+              cat << 'NGINX' > /conf/default.conf
+              server {
+                listen 8080;
+                server_name _;
+                root /usr/share/nginx/html;
+                location / {
+                  try_files $uri /index.html;
+                }
+              }
+              NGINX
               sleep 3600000
           volumeMounts:
             - name: web
               mountPath: /web
+            - name: conf
+              mountPath: /conf
       volumes:
         - name: web
+          emptyDir: {}
+        - name: conf
           emptyDir: {}
