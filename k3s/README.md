@@ -57,8 +57,12 @@ kubectl config get-contexts
 kubectl config use-context <context-name>
 ```
 
-**NOTE:** `k3d` is setup to use port 6444 for the local k3s cluster so that it doesn't conflict with
-the remote k3s through ssh tunneling.
+**NOTE:** `k3d` is setup to use port 6444 for the local k3s cluster api so that it doesn't conflict
+with the remote k3s through ssh tunneling.
+
+You'll also see in `scripts/cluster.sh` that we forward port 30080 in _docker_ to port 8080 on the
+machine (`localhost`). This is because `k3d` runs k3s inside of docker and we need to expose the
+ports that we're exposing from `NodePort` to the host machine.
 
 ### Production/SSH Vps
 
