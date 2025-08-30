@@ -29,7 +29,7 @@ const firewall = new hcloud.Firewall('HetznerDenyIn', {
   rules: []
 });
 
-const publicLoadBalancer = new hcloud.LoadBalancer('HetznerK3sPublicLoadBalancer', {
+export const publicLoadBalancer = new hcloud.LoadBalancer('HetznerK3sPublicLoadBalancer', {
   name: `k3s-public-${$app.stage === 'production' ? 'prod' : 'dev'}-load-balancer`,
   loadBalancerType: 'lb11',
   location: LOCATION
