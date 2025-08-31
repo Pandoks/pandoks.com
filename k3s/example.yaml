@@ -7,12 +7,8 @@ metadata:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: example
+  name: base-example
   namespace: example
-  annotations:
-    # https://haproxy-ingress.github.io/docs/configuration/keys
-    # haproxy-ingress.github.io/path-type: regex # only for pathType: ImplementationSpecific
-    haproxy-ingress.github.io/rewrite-target: /
 spec:
   ingressClassName: haproxy
   rules:
@@ -25,6 +21,28 @@ spec:
                 name: root-example
                 port:
                   number: 80
+
+---
+# NOTE: you can split ingress resources and haproxy will automatically merge them. this is called "fragmentation"
+# https://haproxy-ingress.github.io/docs/configuration/keys/#fragmentation
+# you should do this when you need to add distinct configs to distinct routes
+# in this case, we want all requests to the /slug path to be re written to / and setnt to the slug-example service
+# this allows slug-example to treat the request as a root request
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: slug-example
+  namespace: example
+  annotations:
+    # there are more options you can look at: https://haproxy-ingress.github.io/docs/configuration/keys
+    # for example, you can support regex path matching with haproxy-ingress.github.io/path-type: regex
+    # which is then used when you set pathType: ImplementationSpecific
+    haproxy-ingress.github.io/rewrite-target: /
+spec:
+  ingressClassName: haproxy
+  rules:
+    - http:
+        paths:
           - path: /slug
             pathType: Prefix
             backend:
