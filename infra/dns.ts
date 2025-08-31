@@ -9,7 +9,7 @@ export const cloudflareIps: {
   success: boolean;
 } = await cloudflareIpRequest.json();
 
-if (publicLoadBalancer) {
+if (publicLoadBalancer && $app.stage !== 'production') {
   const EXAMPLE_DOMAIN = 'example.pandoks.com';
   new cloudflare.DnsRecord('ExampleDomainIpv4', {
     name: EXAMPLE_DOMAIN,
