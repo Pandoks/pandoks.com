@@ -12,7 +12,18 @@ metadata:
 spec:
   ingressClassName: haproxy
   rules:
-    - http:
+    - host: example.pandoks.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: root-example
+                port:
+                  number: 80
+    - host: localhost
+      http:
         paths:
           - path: /
             pathType: Prefix
@@ -41,7 +52,18 @@ metadata:
 spec:
   ingressClassName: haproxy
   rules:
-    - http:
+    - host: example.pandoks.com
+      http:
+        paths:
+          - path: /slug
+            pathType: Prefix
+            backend:
+              service:
+                name: slug-example
+                port:
+                  number: 80
+    - host: localhost
+      http:
         paths:
           - path: /slug
             pathType: Prefix
