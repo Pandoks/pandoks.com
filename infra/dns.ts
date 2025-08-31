@@ -11,7 +11,7 @@ export const cloudflareIps: {
 
 if (publicLoadBalancer) {
   const EXAMPLE_DOMAIN = 'example.pandoks.com';
-  new cloudflare.DnsRecord('TestDomainIpv4', {
+  new cloudflare.DnsRecord('ExampleDomainIpv4', {
     name: EXAMPLE_DOMAIN,
     zoneId: secrets.cloudflare.ZoneId.value,
     type: 'A',
@@ -20,7 +20,7 @@ if (publicLoadBalancer) {
     comment: 'hetzner k3s',
     content: publicLoadBalancer.ipv4
   });
-  new cloudflare.DnsRecord('TestDomainIpv6', {
+  new cloudflare.DnsRecord('ExampleDomainIpv6', {
     name: EXAMPLE_DOMAIN,
     zoneId: secrets.cloudflare.ZoneId.value,
     type: 'AAAA',
