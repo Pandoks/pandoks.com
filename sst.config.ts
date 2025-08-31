@@ -22,6 +22,7 @@ export default $config({
     const imports = await Promise.all([
       import('./infra/api'),
       import('./infra/dns'),
+      import('./infra/cloudflare'),
       import('./infra/github'),
       import('./infra/secrets'),
       import('./infra/website'),

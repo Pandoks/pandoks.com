@@ -1,3 +1,4 @@
+import { EXAMPLE_DOMAIN } from '../dns';
 import { secrets } from '../secrets';
 import { readFileSync } from 'node:fs';
 
@@ -73,7 +74,7 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT) {
       interval: 10,
       timeout: 3,
       retries: 3,
-      http: { path: '/', statusCodes: ['2??', '3??'] }
+      http: { path: '/', domain: EXAMPLE_DOMAIN, statusCodes: ['2??', '3??'] }
     }
   });
   new hcloud.LoadBalancerService('HetznerK3sLoadBalancerPort443', {
@@ -81,14 +82,14 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT) {
     protocol: 'tcp',
     listenPort: 443,
     destinationPort: INGRESS_NODE_PORT.https,
-    proxyprotocol: false,
-    healthCheck: {
-      protocol: 'tcp',
-      port: INGRESS_NODE_PORT.https,
-      interval: 10,
-      timeout: 3,
-      retries: 3
-    }
+    proxyprotocol: false
+    // healthCheck: {
+    //   protocol: 'tcp',
+    //   port: INGRESS_NODE_PORT.https,
+    //   interval: 10,
+    //   timeout: 3,
+    //   retries: 3
+    // }
   });
 }
 
