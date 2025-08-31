@@ -25,6 +25,7 @@ spec:
     controller:
       ingressClassResource:
         enabled: true
+      kind: DaemonSet
       service:
         httpPorts:
           - port: 80
