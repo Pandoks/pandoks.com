@@ -110,6 +110,42 @@ spec:
       protocol: TCP
 
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: https-root-example
+  namespace: example
+  labels:
+    app: &app https-root
+spec:
+  type: ClusterIP
+  selector:
+    app: *app
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: https-slug-example
+  namespace: example
+  labels:
+    app: &app https-slug
+spec:
+  type: ClusterIP
+  selector:
+    app: *app
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -159,20 +195,8 @@ spec:
               cat << 'EOF' > /web/index.html
               <!doctype html>
               <html>
-              <head><meta charset="utf-8"/><title>Hello</title></head>
               <body style="font-family: system-ui; padding: 2rem">
-                <h1>Path: <span id="path"></span></h1>
-                <h2>Slug: <span id="slug"></span></h2>
-                <p>Deployment: root-example</p>
-                <script>
-                  const path = window.location.pathname;
-                  const parts = path.split('/').filter(Boolean);
-                  const slug = parts.length ? parts[parts.length - 1] : '';
-                  document.addEventListener('DOMContentLoaded', () => {
-                    document.getElementById('path').textContent = path;
-                    document.getElementById('slug').textContent = slug || '(none)';
-                  });
-                </script>
+                <p>Deployment: http-root-example</p>
               </body>
               </html>
               EOF
@@ -249,20 +273,164 @@ spec:
               cat << 'EOF' > /web/index.html
               <!doctype html>
               <html>
-              <head><meta charset="utf-8"/><title>Hello</title></head>
               <body style="font-family: system-ui; padding: 2rem">
-                <h1>Path: <span id="path"></span></h1>
-                <h2>Slug: <span id="slug"></span></h2>
-                <p>Deployment: slug-example</p>
-                <script>
-                  const path = window.location.pathname;
-                  const parts = path.split('/').filter(Boolean);
-                  const slug = parts.length ? parts[parts.length - 1] : '';
-                  document.addEventListener('DOMContentLoaded', () => {
-                    document.getElementById('path').textContent = path;
-                    document.getElementById('slug').textContent = slug || '(none)';
-                  });
-                </script>
+                <p>Deployment: http-slug-example</p>
+              </body>
+              </html>
+              EOF
+              # Write nginx conf with catch-all
+              cat << 'NGINX' > /conf/default.conf
+              server {
+                listen 8080;
+                server_name _;
+                root /usr/share/nginx/html;
+                location / {
+                  try_files $uri /index.html;
+                }
+              }
+              NGINX
+              sleep 3600000
+          volumeMounts:
+            - name: web
+              mountPath: /web
+            - name: conf
+              mountPath: /conf
+      volumes:
+        - name: web
+          emptyDir: {}
+        - name: conf
+          emptyDir: {}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: https-root-example
+  namespace: example
+  labels:
+    app: &app https-root
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: *app
+  template:
+    metadata:
+      labels:
+        app: *app
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/nginxinc/nginx-unprivileged:1.27-alpine
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: web
+              mountPath: /usr/share/nginx/html
+            - name: conf
+              mountPath: /etc/nginx/conf.d
+        - name: config
+          image: busybox:1.36
+          command: ['/bin/sh', '-c']
+          args:
+            - |
+              set -eu
+              # Write HTML
+              cat << 'EOF' > /web/index.html
+              <!doctype html>
+              <html>
+              <body style="font-family: system-ui; padding: 2rem">
+                <p>Deployment: https-root-example</p>
+              </body>
+              </html>
+              EOF
+              # Write nginx conf with catch-all
+              cat << 'NGINX' > /conf/default.conf
+              server {
+                listen 8080;
+                server_name _;
+                root /usr/share/nginx/html;
+                location / {
+                  try_files $uri /index.html;
+                }
+              }
+              NGINX
+              sleep 3600000
+          volumeMounts:
+            - name: web
+              mountPath: /web
+            - name: conf
+              mountPath: /conf
+      volumes:
+        - name: web
+          emptyDir: {}
+        - name: conf
+          emptyDir: {}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: https-slug-example
+  namespace: example
+  labels:
+    app: &app https-slug
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: *app
+  template:
+    metadata:
+      labels:
+        app: *app
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/nginxinc/nginx-unprivileged:1.27-alpine
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: web
+              mountPath: /usr/share/nginx/html
+            - name: conf
+              mountPath: /etc/nginx/conf.d
+        - name: config
+          image: busybox:1.36
+          command: ['/bin/sh', '-c']
+          args:
+            - |
+              set -eu
+              # Write HTML
+              cat << 'EOF' > /web/index.html
+              <!doctype html>
+              <html>
+              <body style="font-family: system-ui; padding: 2rem">
+                <p>Deployment: https-slug-example</p>
               </body>
               </html>
               EOF
