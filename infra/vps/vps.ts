@@ -30,9 +30,9 @@ const firewall = new hcloud.Firewall('HetznerDenyIn', {
 });
 
 // NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
-const CONTROL_PLANE_NODE_COUNT = $app.stage === 'production' ? 3 : 3;
+const CONTROL_PLANE_NODE_COUNT = $app.stage === 'production' ? 0 : 3;
 const CONTROL_PLANE_HOST_START_OCTET = 10;
-const WORKER_NODE_COUNT = $app.stage === 'production' ? 1 : 3;
+const WORKER_NODE_COUNT = $app.stage === 'production' ? 0 : 3;
 const WORKER_HOST_START_OCTET = 20;
 // NOTE: servers can only be upgraded, not downgraded because disk size needs to be >= than the previous type
 const SERVER_TYPE = $app.stage === 'production' ? 'ccx13' : 'cpx11';
