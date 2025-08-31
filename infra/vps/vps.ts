@@ -39,6 +39,7 @@ const SERVER_TYPE = $app.stage === 'production' ? 'ccx13' : 'cpx11';
 const LOAD_BALANCER_TYPE = $app.stage === 'production' ? 'lb11' : 'lb11';
 const LOAD_BALANCER_ALGORITHM = 'least_connections'; // round_robin, least_connections
 const SERVER_IMAGE = 'ubuntu-24.04';
+const INGRESS_NODE_PORT = { http: 30080, https: 30443 };
 const BASE_ENV = $resolve([
   secrets.cloudflare.AccountId.value,
   secrets.hetzner.TunnelSecret.value,
@@ -64,11 +65,11 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT) {
     loadBalancerId: publicLoadBalancer.id.apply((id) => id),
     protocol: 'tcp',
     listenPort: 80,
-    destinationPort: 80,
+    destinationPort: INGRESS_NODE_PORT.http,
     proxyprotocol: false,
     healthCheck: {
       protocol: 'http',
-      port: 80,
+      port: INGRESS_NODE_PORT.http,
       interval: 10,
       timeout: 3,
       retries: 3,
@@ -79,11 +80,11 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT) {
     loadBalancerId: publicLoadBalancer.id.apply((id) => id),
     protocol: 'tcp',
     listenPort: 443,
-    destinationPort: 443,
+    destinationPort: INGRESS_NODE_PORT.https,
     proxyprotocol: false,
     healthCheck: {
       protocol: 'tcp',
-      port: 443,
+      port: INGRESS_NODE_PORT.https,
       interval: 10,
       timeout: 3,
       retries: 3
@@ -406,7 +407,7 @@ workerServers.forEach((server, index) => {
 });
 
 export const outputs = {
-  K3sLoadBalancerIPv4: publicLoadBalancer!.ipv4,
+  K3sLoadBalancerIPv4: publicLoadBalancer! ? publicLoadBalancer.ipv4 : 'None',
   K3sPrivateSubnet: subnet.ipRange
 };
 
