@@ -19,7 +19,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: root-example
+                name: http-root-example
                 port:
                   number: 80
     - host: localhost
@@ -29,7 +29,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: root-example
+                name: http-root-example
                 port:
                   number: 80
 
@@ -59,7 +59,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: slug-example
+                name: http-slug-example
                 port:
                   number: 80
     - host: localhost
@@ -69,7 +69,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: slug-example
+                name: http-slug-example
                 port:
                   number: 80
 
@@ -77,14 +77,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: root-example
+  name: http-root-example
   namespace: example
   labels:
-    app: root
+    app: &app http-root
 spec:
   type: ClusterIP
   selector:
-    app: root
+    app: *app
   ports:
     - name: http
       port: 80
@@ -95,14 +95,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: slug-example
+  name: http-slug-example
   namespace: example
   labels:
-    app: slug
+    app: &app http-slug
 spec:
   type: ClusterIP
   selector:
-    app: slug
+    app: *app
   ports:
     - name: http
       port: 80
@@ -113,19 +113,19 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: root-example
+  name: http-root-example
   namespace: example
   labels:
-    app: root
+    app: &app http-root
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: root
+      app: *app
   template:
     metadata:
       labels:
-        app: root
+        app: *app
     spec:
       containers:
         - name: app
@@ -203,19 +203,19 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: slug-example
+  name: http-slug-example
   namespace: example
   labels:
-    app: slug
+    app: &app http-slug
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: slug
+      app: *app
   template:
     metadata:
       labels:
-        app: slug
+        app: *app
     spec:
       containers:
         - name: app
