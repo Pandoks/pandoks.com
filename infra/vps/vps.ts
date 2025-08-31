@@ -1,6 +1,8 @@
+import { resolve } from 'node:path';
 import { EXAMPLE_DOMAIN } from '../dns';
 import { secrets } from '../secrets';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 
 /**
  * NOTE: Hetzner doesn't allow you to connect servers from different regions in the same network.
@@ -29,6 +31,36 @@ const firewall = new hcloud.Firewall('HetznerDenyIn', {
   name: 'deny-in',
   rules: []
 });
+
+const openSslConfigPath = resolve('infra/vps/san-example.cnf');
+const certificateSigningRequestPath = resolve('infra/vps/example.origin.csr');
+if (!existsSync(certificateSigningRequestPath)) {
+  execFileSync(
+    'openssl',
+    [
+      'req',
+      '-new',
+      '-newkey',
+      'rsa:2048',
+      '-nodes',
+      '-out',
+      certificateSigningRequestPath,
+      '-config',
+      openSslConfigPath
+    ],
+    { stdio: 'inherit' }
+  );
+}
+const certificateSigningRequest = readFileSync(certificateSigningRequestPath);
+const hetznerOriginCert = new cloudflare.OriginCaCertificate(
+  'HetznerOriginCloudflareCaCertificate',
+  {
+    hostnames: [EXAMPLE_DOMAIN],
+    requestType: 'origin-rsa',
+    csr: certificateSigningRequest.toString(),
+    requestedValidity: 5475 // 15 years
+  }
+);
 
 // NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
 const CONTROL_PLANE_NODE_COUNT = $app.stage === 'production' ? 0 : 3;
