@@ -37,6 +37,7 @@ const WORKER_HOST_START_OCTET = 20;
 // NOTE: servers can only be upgraded, not downgraded because disk size needs to be >= than the previous type
 const SERVER_TYPE = $app.stage === 'production' ? 'ccx13' : 'cpx11';
 const LOAD_BALANCER_TYPE = $app.stage === 'production' ? 'lb11' : 'lb11';
+const LOAD_BALANCER_ALGORITHM = 'least_connections'; // round_robin, least_connections
 const SERVER_IMAGE = 'ubuntu-24.04';
 const BASE_ENV = $resolve([
   secrets.cloudflare.AccountId.value,
@@ -52,7 +53,8 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT) {
   var publicLoadBalancer = new hcloud.LoadBalancer('HetznerK3sPublicLoadBalancer', {
     name: `k3s-public-${$app.stage === 'production' ? 'prod' : 'dev'}-load-balancer`,
     loadBalancerType: LOAD_BALANCER_TYPE,
-    location: LOCATION
+    location: LOCATION,
+    algorithm: { type: LOAD_BALANCER_ALGORITHM }
   });
   new hcloud.LoadBalancerNetwork('HetznerK3sPublicLoadBalancerNetwork', {
     loadBalancerId: publicLoadBalancer.id.apply((id) => parseInt(id)),
