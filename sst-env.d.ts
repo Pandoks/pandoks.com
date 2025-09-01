@@ -42,6 +42,10 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "HetznerOriginCloudflareCaCertificateSecret": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "HetznerTunnelSecret": {
       "type": "sst.sst.Secret"
       "value": string

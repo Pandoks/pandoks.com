@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { EXAMPLE_DOMAIN } from '../dns';
 import { secrets } from '../secrets';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 /**
@@ -32,8 +32,9 @@ const firewall = new hcloud.Firewall('HetznerDenyIn', {
   rules: []
 });
 
-const openSslConfigPath = resolve('infra/vps/vps.cnf');
+const openSslConfigPath = resolve('infra/vps/vps.openssl.conf');
 const certificateSigningRequestPath = resolve('infra/vps/vps.origin.csr');
+const certificateKeyPath = resolve('infra/vps/vps.origin.key');
 if (!existsSync(certificateSigningRequestPath)) {
   execFileSync(
     'openssl',
@@ -43,6 +44,8 @@ if (!existsSync(certificateSigningRequestPath)) {
       '-newkey',
       'rsa:2048',
       '-nodes',
+      '-keyout',
+      certificateKeyPath,
       '-out',
       certificateSigningRequestPath,
       '-config',
@@ -50,6 +53,13 @@ if (!existsSync(certificateSigningRequestPath)) {
     ],
     { stdio: 'inherit' }
   );
+  secrets.cloudflare.HetznerOriginCert.name.apply((secretName) => {
+    execFileSync(
+      '/bin/sh',
+      ['-lc', `sst secret set ${secretName} --stage ${$app.stage} < ${certificateKeyPath}`],
+      { stdio: 'inherit' }
+    );
+  });
 }
 const certificateSigningRequest = readFileSync(certificateSigningRequestPath);
 const hetznerOriginCert = new cloudflare.OriginCaCertificate(
