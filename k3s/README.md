@@ -113,8 +113,14 @@ metadata:
   name: <ingress-name>
   namespace: <namespace>
   annotations:
-    kubernetes.io/ingress.class: 'haproxy'
+    haproxy-ingress.github.io/rewrite-target: <rewrite-target>
+    haproxy-ingress.github.io/ssl-redirect: true | false
 spec:
+  ingressClassName: haproxy
+  tls:
+    - hosts:
+        - <hostname>
+      secretName: <secret-name>
   rules:
     - host: <hostname>
       http:
