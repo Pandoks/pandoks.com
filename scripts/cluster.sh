@@ -270,25 +270,41 @@ secrets)
   trap 'rm -f "$TMP_FILE"' EXIT
   cp "$SECRETS_YAML" "$TMP_FILE"
 
+  # Extract all unique ${sst.Key} patterns from the secrets.yaml file
+  SST_KEYS=$(grep -o '\${sst\.[^}]*}' "$SECRETS_YAML" | sed 's/\${sst\.//g' | sed 's/}//g' | sort -u)
+  
+  if [ -z "$SST_KEYS" ]; then
+    echo "No \${sst.Key} patterns found in $SECRETS_YAML" >&2
+    exit 1
+  fi
+  
+  echo "Found SST keys: $(echo "$SST_KEYS" | tr '\n' ' ')" >&2
+
   # Replace placeholders with proper indentation
-  for key in HetznerOriginTlsCrt HetznerOriginTlsKey; do
+  for key in $SST_KEYS; do
     VALUE=$(printf '%s' "$SECRETS_JSON" | jq -r --arg key "$key" '.[$key].value // empty')
     
     if [ -z "$VALUE" ]; then
       echo "Warning: No value found for key: $key" >&2
       sed -i.bak "s/\${sst\.$key}/MISSING_KEY_$key/g" "$TMP_FILE" && rm -f "$TMP_FILE.bak"
     else
-      # Create a temporary file with the value, adding 4-space indentation to each line
-      VALUE_TEMP=$(mktemp)
-      printf '%s\n' "$VALUE" | sed 's/^/    /' > "$VALUE_TEMP"
-      
-      # Replace the placeholder line with the indented content 
-      sed -i.bak "/^[[:space:]]*\${sst\.$key}[[:space:]]*$/{
-        r $VALUE_TEMP
-        d
-      }" "$TMP_FILE" && rm -f "$TMP_FILE.bak"
-      
-      rm -f "$VALUE_TEMP"
+      # Check if the placeholder is on its own line (for multi-line values like certificates)
+      if grep -q "^[[:space:]]*\${sst\.$key}[[:space:]]*$" "$TMP_FILE"; then
+        # Create a temporary file with the value, adding 4-space indentation to each line
+        VALUE_TEMP=$(mktemp)
+        printf '%s\n' "$VALUE" | sed 's/^/    /' > "$VALUE_TEMP"
+        
+        # Replace the placeholder line with the indented content 
+        sed -i.bak "/^[[:space:]]*\${sst\.$key}[[:space:]]*$/{
+          r $VALUE_TEMP
+          d
+        }" "$TMP_FILE" && rm -f "$TMP_FILE.bak"
+        
+        rm -f "$VALUE_TEMP"
+      else
+        # For inline placeholders (like in JSON), do simple string replacement
+        sed -i.bak "s/\${sst\.$key}/$VALUE/g" "$TMP_FILE" && rm -f "$TMP_FILE.bak"
+      fi
     fi
   done
 
