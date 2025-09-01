@@ -32,8 +32,8 @@ const firewall = new hcloud.Firewall('HetznerDenyIn', {
   rules: []
 });
 
-const openSslConfigPath = resolve('infra/vps/san-example.cnf');
-const certificateSigningRequestPath = resolve('infra/vps/example.origin.csr');
+const openSslConfigPath = resolve('infra/vps/vps.cnf');
+const certificateSigningRequestPath = resolve('infra/vps/vps.origin.csr');
 if (!existsSync(certificateSigningRequestPath)) {
   execFileSync(
     'openssl',
