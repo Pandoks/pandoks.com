@@ -14,10 +14,12 @@ spec:
   # NOTE: setting tls will automatically make the ingress controller redirect HTTP to HTTPS, unless
   # you specify ssl-redirect: "false" in the annotations. Look at slug-example Ingress for an example
   # e.g., if someone makes a request using http, it will return a 301 redirect to https
+  # this tls is used to terminate the TLS request from cloudflare to k3s. this is needed because cloudflare
+  # is set to Full (strict) mode, meaning that all requests that pass through cloudflare must be terminated (TLS)
   tls:
     - hosts:
         - example.pandoks.com
-      secretName: example-tls
+      secretName: cloudflare-origin-tls
   rules:
     - host: example.pandoks.com
       http:
@@ -69,7 +71,7 @@ spec:
   tls:
     - hosts:
         - example.pandoks.com
-      secretName: example-tls
+      secretName: cloudflare-origin-tls
   rules:
     - host: example.pandoks.com
       http:
