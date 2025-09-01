@@ -3,15 +3,17 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: $0 {k3d-up|setup|k3d-down} [--kubeconfig PATH] [--k3d] [--ip-pool RANGE] [--network NAME]" >&2
+  echo "Usage: $0 {k3d-up|setup|k3d-down|secrets} [--kubeconfig PATH] [--k3d] [--ip-pool RANGE] [--network NAME] [--dry-run]" >&2
   echo "  k3d-up   : create local k3d cluster (only for k3d)" >&2
   echo "  k3d-down : delete local k3d cluster (only for k3d)" >&2
   echo "  setup    : install addons and apply /k3s manifests on current kubecontext" >&2
+  echo "  secrets  : render k3s manifests by replacing ${sst.<VAR>} with SST secrets" >&2
   echo "Options:" >&2
   echo "  --kubeconfig PATH  Use the specified kubeconfig for kubectl operations" >&2
   echo "  --k3d              Force k3d mode (auto IP pool from k3d docker network)" >&2
   echo "  --ip-pool RANGE    Explicit MetalLB pool (e.g., 10.0.1.100-10.0.1.200 or 10.0.1.0/24)" >&2
   echo "  --network NAME  Attach k3d loadbalancer to an existing docker network" >&2
+  echo "  --dry-run         Render and print YAML without applying to the cluster" >&2
 }
 
 # Require subcommand first, then parse flags/options in any order
@@ -19,7 +21,7 @@ usage() {
 CMD="$1"
 shift
 case "$CMD" in
-k3d-up | setup | k3d-down) ;;
+k3d-up | setup | k3d-down | secrets) ;;
 *) usage ;;
 esac
 
@@ -27,6 +29,7 @@ KUBECONFIG_FLAG=""
 FORCE_K3D="false"
 EXPLICIT_IP_POOL=""
 NETWORK_NAME=""
+DRY_RUN="false"
 while [ $# -gt 0 ]; do
   case "$1" in
   --kubeconfig)
@@ -59,6 +62,11 @@ while [ $# -gt 0 ]; do
     }
     NETWORK_NAME="$2"
     shift 2
+    continue
+    ;;
+  --dry-run)
+    DRY_RUN="true"
+    shift
     continue
     ;;
   --*)
@@ -243,8 +251,59 @@ k3d-down)
   fi
   ;;
 
+secrets)
+  SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
+  REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+  K3S_DIR="$REPO_ROOT/k3s"
+  SECRETS_YAML="$K3S_DIR/secrets.yaml"
+  [ -f "$SECRETS_YAML" ] || { echo "Missing $SECRETS_YAML" >&2; exit 1; }
+
+  echo "Fetching SST secrets..." >&2
+  if ! SECRETS_JSON=$(cd "$REPO_ROOT" && pnpm sst shell node scripts/secrets.js 2>/dev/null); then
+    echo "Error: Failed to fetch SST secrets. Make sure you're authenticated with SST." >&2
+    echo "Try running: pnpm sst shell" >&2
+    exit 1
+  fi
+
+  # Create temp file to work with
+  TMP_FILE=$(mktemp)
+  trap 'rm -f "$TMP_FILE"' EXIT
+  cp "$SECRETS_YAML" "$TMP_FILE"
+
+  # Replace placeholders with proper indentation
+  for key in HetznerOriginTlsCrt HetznerOriginTlsKey; do
+    VALUE=$(printf '%s' "$SECRETS_JSON" | jq -r --arg key "$key" '.[$key].value // empty')
+    
+    if [ -z "$VALUE" ]; then
+      echo "Warning: No value found for key: $key" >&2
+      sed -i.bak "s/\${sst\.$key}/MISSING_KEY_$key/g" "$TMP_FILE" && rm -f "$TMP_FILE.bak"
+    else
+      # Create a temporary file with the value, adding 4-space indentation to each line
+      VALUE_TEMP=$(mktemp)
+      printf '%s\n' "$VALUE" | sed 's/^/    /' > "$VALUE_TEMP"
+      
+      # Replace the placeholder line with the indented content 
+      sed -i.bak "/^[[:space:]]*\${sst\.$key}[[:space:]]*$/{
+        r $VALUE_TEMP
+        d
+      }" "$TMP_FILE" && rm -f "$TMP_FILE.bak"
+      
+      rm -f "$VALUE_TEMP"
+    fi
+  done
+
+  if [ "$DRY_RUN" = "true" ]; then
+    cat "$TMP_FILE"
+    exit 0
+  else
+    kubectl apply -f "$TMP_FILE"
+  fi
+  ;;
+
+ 
 *)
   usage
   exit 1
   ;;
-esac
+ esac
+
