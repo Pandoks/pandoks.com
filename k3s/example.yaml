@@ -11,6 +11,10 @@ metadata:
   namespace: example
 spec:
   ingressClassName: haproxy
+  tls:
+    - hosts:
+        - example.pandoks.com
+      secretName: example-tls
   rules:
     - host: example.pandoks.com
       http:
@@ -19,7 +23,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: http-root-example
+                name: root-example
                 port:
                   number: 80
     - host: localhost
@@ -29,7 +33,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: http-root-example
+                name: root-example
                 port:
                   number: 80
 
@@ -51,6 +55,10 @@ metadata:
     haproxy-ingress.github.io/rewrite-target: /
 spec:
   ingressClassName: haproxy
+  tls:
+    - hosts:
+        - example.pandoks.com
+      secretName: example-tls
   rules:
     - host: example.pandoks.com
       http:
@@ -59,7 +67,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: http-slug-example
+                name: slug-example
                 port:
                   number: 80
     - host: localhost
@@ -69,7 +77,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: http-slug-example
+                name: slug-example
                 port:
                   number: 80
 
@@ -77,10 +85,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: http-root-example
+  name: root-example
   namespace: example
   labels:
-    app: &app http-root
+    app: &app root
 spec:
   type: ClusterIP
   selector:
@@ -95,46 +103,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: http-slug-example
+  name: slug-example
   namespace: example
   labels:
-    app: &app http-slug
-spec:
-  type: ClusterIP
-  selector:
-    app: *app
-  ports:
-    - name: http
-      port: 80
-      targetPort: 8080
-      protocol: TCP
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: https-root-example
-  namespace: example
-  labels:
-    app: &app https-root
-spec:
-  type: ClusterIP
-  selector:
-    app: *app
-  ports:
-    - name: http
-      port: 80
-      targetPort: 8080
-      protocol: TCP
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: https-slug-example
-  namespace: example
-  labels:
-    app: &app https-slug
+    app: &app slug
 spec:
   type: ClusterIP
   selector:
@@ -149,10 +121,10 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: http-root-example
+  name: root-example
   namespace: example
   labels:
-    app: &app http-root
+    app: &app root
 spec:
   replicas: 3
   selector:
@@ -227,10 +199,10 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: http-slug-example
+  name: slug-example
   namespace: example
   labels:
-    app: &app http-slug
+    app: &app slug
 spec:
   replicas: 3
   selector:
@@ -275,162 +247,6 @@ spec:
               <html>
               <body style="font-family: system-ui; padding: 2rem">
                 <p>Deployment: http-slug-example</p>
-              </body>
-              </html>
-              EOF
-              # Write nginx conf with catch-all
-              cat << 'NGINX' > /conf/default.conf
-              server {
-                listen 8080;
-                server_name _;
-                root /usr/share/nginx/html;
-                location / {
-                  try_files $uri /index.html;
-                }
-              }
-              NGINX
-              sleep 3600000
-          volumeMounts:
-            - name: web
-              mountPath: /web
-            - name: conf
-              mountPath: /conf
-      volumes:
-        - name: web
-          emptyDir: {}
-        - name: conf
-          emptyDir: {}
-
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: https-root-example
-  namespace: example
-  labels:
-    app: &app https-root
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: *app
-  template:
-    metadata:
-      labels:
-        app: *app
-    spec:
-      containers:
-        - name: app
-          image: ghcr.io/nginxinc/nginx-unprivileged:1.27-alpine
-          ports:
-            - containerPort: 8080
-          readinessProbe:
-            httpGet:
-              path: /
-              port: 8080
-            initialDelaySeconds: 2
-            periodSeconds: 5
-          livenessProbe:
-            httpGet:
-              path: /
-              port: 8080
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          volumeMounts:
-            - name: web
-              mountPath: /usr/share/nginx/html
-            - name: conf
-              mountPath: /etc/nginx/conf.d
-        - name: config
-          image: busybox:1.36
-          command: ['/bin/sh', '-c']
-          args:
-            - |
-              set -eu
-              # Write HTML
-              cat << 'EOF' > /web/index.html
-              <!doctype html>
-              <html>
-              <body style="font-family: system-ui; padding: 2rem">
-                <p>Deployment: https-root-example</p>
-              </body>
-              </html>
-              EOF
-              # Write nginx conf with catch-all
-              cat << 'NGINX' > /conf/default.conf
-              server {
-                listen 8080;
-                server_name _;
-                root /usr/share/nginx/html;
-                location / {
-                  try_files $uri /index.html;
-                }
-              }
-              NGINX
-              sleep 3600000
-          volumeMounts:
-            - name: web
-              mountPath: /web
-            - name: conf
-              mountPath: /conf
-      volumes:
-        - name: web
-          emptyDir: {}
-        - name: conf
-          emptyDir: {}
-
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: https-slug-example
-  namespace: example
-  labels:
-    app: &app https-slug
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: *app
-  template:
-    metadata:
-      labels:
-        app: *app
-    spec:
-      containers:
-        - name: app
-          image: ghcr.io/nginxinc/nginx-unprivileged:1.27-alpine
-          ports:
-            - containerPort: 8080
-          readinessProbe:
-            httpGet:
-              path: /
-              port: 8080
-            initialDelaySeconds: 2
-            periodSeconds: 5
-          livenessProbe:
-            httpGet:
-              path: /
-              port: 8080
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          volumeMounts:
-            - name: web
-              mountPath: /usr/share/nginx/html
-            - name: conf
-              mountPath: /etc/nginx/conf.d
-        - name: config
-          image: busybox:1.36
-          command: ['/bin/sh', '-c']
-          args:
-            - |
-              set -eu
-              # Write HTML
-              cat << 'EOF' > /web/index.html
-              <!doctype html>
-              <html>
-              <body style="font-family: system-ui; padding: 2rem">
-                <p>Deployment: https-slug-example</p>
               </body>
               </html>
               EOF
