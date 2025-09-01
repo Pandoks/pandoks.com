@@ -2,6 +2,7 @@
   "name": "pandoks.com",
   "version": "1.0.0",
   "packageManager": "pnpm@10.8.1",
+  "type": "module",
   "scripts": {
     "dev": "sst dev",
     "deps:up": "docker compose -f ./docker-compose.yaml -p deps up -d",
