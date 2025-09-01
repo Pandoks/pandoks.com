@@ -137,14 +137,14 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT) {
     protocol: 'tcp',
     listenPort: 443,
     destinationPort: INGRESS_NODE_PORT.https,
-    proxyprotocol: false
-    // healthCheck: {
-    //   protocol: 'tcp',
-    //   port: INGRESS_NODE_PORT.https,
-    //   interval: 10,
-    //   timeout: 3,
-    //   retries: 3
-    // }
+    proxyprotocol: false,
+    healthCheck: {
+      protocol: 'tcp',
+      port: INGRESS_NODE_PORT.https,
+      interval: 10,
+      timeout: 3,
+      retries: 3
+    }
   });
 }
 
