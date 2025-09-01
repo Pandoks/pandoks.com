@@ -8,11 +8,7 @@ export const secrets = {
     ApiKey: new sst.Secret('CloudflareApiKey'),
     AccountId: new sst.Secret('CloudflareAccountId'),
     ZoneId: new sst.Secret('CloudflareZoneId'),
-    Email: new sst.Secret('CloudflareEmail'),
-    HetznerOriginCert: new sst.Secret(
-      'HetznerOriginCloudflareCaCertificateSecret',
-      'No Origin Ca Cert Set'
-    )
+    Email: new sst.Secret('CloudflareEmail')
   },
   github: {
     PersonalAccessToken: new sst.Secret('GithubPersonalAccessToken')
@@ -31,5 +27,9 @@ export const secrets = {
     ApiKey: new sst.Secret('HetznerApiKey'),
     TunnelSecret: new sst.Secret('HetznerTunnelSecret'),
     K3sToken: new sst.Secret('HetznerK3sToken')
+  },
+  k8s: {
+    HetznerOriginTlsKey: new sst.Secret('HetznerOriginTlsKey', 'No Origin Tls Key Set'),
+    HetznerOriginTlsCrt: new sst.Secret('HetznerOriginTlsCrt', 'No Origin Tls Cert Set')
   }
 };

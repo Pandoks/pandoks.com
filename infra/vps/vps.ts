@@ -35,6 +35,7 @@ const firewall = new hcloud.Firewall('HetznerDenyIn', {
 const openSslConfigPath = resolve('infra/vps/vps.openssl.conf');
 const certificateSigningRequestPath = resolve('infra/vps/vps.origin.csr');
 const certificateKeyPath = resolve('infra/vps/vps.origin.key');
+let needToSetCertificateSecret = false;
 if (!existsSync(certificateSigningRequestPath)) {
   execFileSync(
     'openssl',
@@ -53,13 +54,14 @@ if (!existsSync(certificateSigningRequestPath)) {
     ],
     { stdio: 'inherit' }
   );
-  secrets.cloudflare.HetznerOriginCert.name.apply((secretName) => {
+  secrets.k8s.HetznerOriginTlsKey.name.apply((secretName) => {
     execFileSync(
       '/bin/sh',
       ['-lc', `sst secret set ${secretName} --stage ${$app.stage} < ${certificateKeyPath}`],
       { stdio: 'inherit' }
     );
   });
+  needToSetCertificateSecret = true;
 }
 const certificateSigningRequest = readFileSync(certificateSigningRequestPath);
 const hetznerOriginCert = new cloudflare.OriginCaCertificate(
@@ -71,6 +73,17 @@ const hetznerOriginCert = new cloudflare.OriginCaCertificate(
     requestedValidity: 5475 // 15 years
   }
 );
+if (needToSetCertificateSecret) {
+  $resolve([hetznerOriginCert.certificate, secrets.k8s.HetznerOriginTlsCrt.name]).apply(
+    ([certificate, secretName]) => {
+      execFileSync(
+        '/bin/sh',
+        ['-lc', `sst secret set ${secretName} --stage ${$app.stage} <<'EOF'\n${certificate}EOF`],
+        { stdio: 'inherit' }
+      );
+    }
+  );
+}
 
 // NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
 const CONTROL_PLANE_NODE_COUNT = $app.stage === 'production' ? 0 : 3;
