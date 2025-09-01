@@ -11,6 +11,9 @@ metadata:
   namespace: example
 spec:
   ingressClassName: haproxy
+  # NOTE: setting tls will automatically make the ingress controller redirect HTTP to HTTPS, unless
+  # you specify ssl-redirect: "false" in the annotations. Look at slug-example Ingress for an example
+  # e.g., if someone makes a request using http, it will return a 301 redirect to https
   tls:
     - hosts:
         - example.pandoks.com
@@ -52,7 +55,15 @@ metadata:
     # there are more options you can look at: https://haproxy-ingress.github.io/docs/configuration/keys
     # for example, you can support regex path matching with haproxy-ingress.github.io/path-type: regex
     # which is then used when you set pathType: ImplementationSpecific
+    # haproxy-ingress.github.io/rewrite-target: / basically rewrites the request path to / if it matches
+    # e.g. if someone makes a request to /slug, it will be rewritten to /, if someone makes a request to
+    # /slug/foo, it will be rewritten to /foo
     haproxy-ingress.github.io/rewrite-target: /
+    # by default if you set tls in spec.tls, haproxy-ingress will automatically redirect HTTP to HTTPS
+    # if you want to disable this behavior, you can set ssl-redirect: "false" in the annotations
+    # this means that if someone makes a request using http, it will remain http and not redirect to https
+    # if someone makes a request using https, it will still be able to handle it
+    haproxy-ingress.github.io/ssl-redirect: 'false'
 spec:
   ingressClassName: haproxy
   tls:
@@ -168,7 +179,7 @@ spec:
               <!doctype html>
               <html>
               <body style="font-family: system-ui; padding: 2rem">
-                <p>Deployment: http-root-example</p>
+                <p>Deployment: root-example</p>
               </body>
               </html>
               EOF
@@ -246,7 +257,7 @@ spec:
               <!doctype html>
               <html>
               <body style="font-family: system-ui; padding: 2rem">
-                <p>Deployment: http-slug-example</p>
+                <p>Deployment: slug-example</p>
               </body>
               </html>
               EOF
