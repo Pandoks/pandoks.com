@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { EXAMPLE_DOMAIN } from '../dns';
 import { secrets } from '../secrets';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 /**
