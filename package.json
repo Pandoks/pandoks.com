@@ -19,7 +19,7 @@
     "cluster:delete": "./scripts/cluster.sh k3d-down",
     "cluster:setup": "./scripts/cluster.sh setup --k3d && kubectl apply -f k3s/example.yaml && ./scripts/cluster.sh secrets",
     "k3s:remote": "pnpm run ssh:copy --remote-file /etc/rancher/k3s/k3s.yaml",
-    "k3s:setup": "./scripts/cluster.sh setup --kubeconfig ./k3s.yaml && ./scripts/cluster.sh secrets --kubeconfig ./k3s.yaml",
+    "k3s:setup": "./scripts/cluster.sh setup --kubeconfig ./k3s.yaml && kubectl --kubeconfig ./k3s.yaml apply -f k3s/example.yaml && ./scripts/cluster.sh secrets --kubeconfig ./k3s.yaml",
     "ssh:copy": "./scripts/ssh.sh copy",
     "ssh:tunnel": "./scripts/ssh.sh tunnel",
     "ssh:stop": "./scripts/ssh.sh stop-tunnel",
