@@ -14,6 +14,10 @@ declare module "sst" {
       "type": "sst.aws.Function"
       "url": string
     }
+    "BlogDeployAuth": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "CloudflareAccountId": {
       "type": "sst.sst.Secret"
       "value": string
@@ -66,10 +70,6 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
-    "NotionBlogDeployAuth": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
     "NotionTodoRemindAuth": {
       "type": "sst.sst.Secret"
       "value": string
@@ -82,14 +82,18 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "ScheduleTextReminderApi": {
+      "name": string
+      "type": "sst.aws.Function"
+      "url": string
+    }
     "StaticWebsite": {
       "type": "sst.cloudflare.StaticSite"
       "url": string
     }
-    "TodoRemindApi": {
+    "TextSmsFunction": {
       "name": string
       "type": "sst.aws.Function"
-      "url": string
     }
     "TwilioAccountSid": {
       "type": "sst.sst.Secret"

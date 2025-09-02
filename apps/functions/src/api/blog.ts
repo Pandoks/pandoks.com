@@ -5,7 +5,7 @@ import { Resource } from 'sst';
  * Request Requirements:
  *  - Method: POST
  *  - Headers:
- *    - auth: NOTION_BLOG_DEPLOY_AUTH
+ *    - auth: BLOG_DEPLOY_AUTH
  *    - stage: production | pandoks
  */
 export const deployHandler = async (event: APIGatewayProxyEventV2) => {
@@ -13,7 +13,7 @@ export const deployHandler = async (event: APIGatewayProxyEventV2) => {
     return new Response('Method Not Allowed', { status: 405 });
   }
 
-  if (event.headers.auth !== Resource.NotionBlogDeployAuth.value) {
+  if (event.headers.auth !== Resource.BlogDeployAuth.value) {
     return new Response('Unauthorized', { status: 401 });
   }
 
