@@ -4,6 +4,8 @@ import { secrets } from '../secrets';
 import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
+const STAGE_NAME = $app.stage === 'production' ? 'prod' : 'dev';
+
 /**
  * NOTE: Hetzner doesn't allow you to connect servers from different regions in the same network.
  * Networks are only created in a single region. If you want to have multiple reigions to reduce latency,
@@ -18,7 +20,7 @@ import { execFileSync } from 'node:child_process';
  */
 const LOCATION = 'hil';
 const privateNetwork = new hcloud.Network('HetznerK3sPrivateNetwork', {
-  name: `k3s-private-${$app.stage === 'production' ? 'prod' : 'dev'}-network`,
+  name: `k3s-private-${STAGE_NAME}-network`,
   ipRange: '10.0.0.0/8'
 });
 const subnet = new hcloud.NetworkSubnet('HetznerK3sSubnet', {
@@ -28,13 +30,13 @@ const subnet = new hcloud.NetworkSubnet('HetznerK3sSubnet', {
   networkZone: 'us-west'
 });
 const firewall = new hcloud.Firewall('HetznerDenyIn', {
-  name: 'deny-in',
+  name: `deny-in`,
   rules: []
 });
 
 const openSslConfigPath = resolve('infra/vps/vps.openssl.conf');
-const certificateSigningRequestPath = resolve('infra/vps/vps.origin.csr');
-const certificateKeyPath = resolve('infra/vps/vps.origin.key');
+const certificateSigningRequestPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.csr`);
+const certificateKeyPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.key`);
 let needToSetCertificateSecret = false;
 if (!existsSync(certificateSigningRequestPath)) {
   execFileSync(
@@ -86,9 +88,9 @@ if (needToSetCertificateSecret) {
 }
 
 // NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
-const CONTROL_PLANE_NODE_COUNT = $app.stage === 'production' ? 0 : 0;
+const CONTROL_PLANE_NODE_COUNT = $app.stage === 'production' ? 2 : 2;
 const CONTROL_PLANE_HOST_START_OCTET = 10;
-const WORKER_NODE_COUNT = $app.stage === 'production' ? 0 : 0;
+const WORKER_NODE_COUNT = $app.stage === 'production' ? 1 : 1;
 const WORKER_HOST_START_OCTET = 20;
 // NOTE: servers can only be upgraded, not downgraded because disk size needs to be >= than the previous type
 const SERVER_TYPE = $app.stage === 'production' ? 'ccx13' : 'cpx11';
@@ -107,8 +109,16 @@ const BASE_ENV = $resolve([
 }));
 
 if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT) {
+  var virtualNetwork = new cloudflare.ZeroTrustTunnelCloudflaredVirtualNetwork(
+    'HetznerVirtualNetwork',
+    {
+      accountId: secrets.cloudflare.AccountId.value,
+      name: `hetzner-k3s-${STAGE_NAME}`,
+      comment: 'hetzner tunnel k3s'
+    }
+  );
   var publicLoadBalancer = new hcloud.LoadBalancer('HetznerK3sPublicLoadBalancer', {
-    name: `k3s-public-${$app.stage === 'production' ? 'prod' : 'dev'}-load-balancer`,
+    name: `k3s-public-${STAGE_NAME}-load-balancer`,
     loadBalancerType: LOAD_BALANCER_TYPE,
     location: LOCATION,
     algorithm: { type: LOAD_BALANCER_ALGORITHM }
@@ -272,7 +282,8 @@ const setupTunnelSsh = (index: number, options: { isWorker?: boolean; hostname: 
     {
       accountId: secrets.cloudflare.AccountId.value,
       tunnelId: tunnel.id,
-      network: $interpolate`${ipAddr}/32`
+      network: $interpolate`${ipAddr}/32`,
+      virtualNetworkId: virtualNetwork.id
     }
   );
   new cloudflare.ZeroTrustAccessInfrastructureTarget(
@@ -280,7 +291,7 @@ const setupTunnelSsh = (index: number, options: { isWorker?: boolean; hostname: 
     {
       accountId: secrets.cloudflare.AccountId.value,
       hostname: options.hostname.split('.')[0],
-      ip: { ipv4: { ipAddr } }
+      ip: { ipv4: { ipAddr, virtualNetworkId: virtualNetwork.id } }
     }
   );
   new cloudflare.DnsRecord(`HetznerK3s${nodeType.resourceName}SshHost${index}`, {
