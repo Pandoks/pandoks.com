@@ -1,8 +1,6 @@
 import { APIGatewayProxyEventV2 } from 'aws-lambda';
 import type { PageObjectResponse } from '@notionhq/client';
 import { Resource } from 'sst';
-import twilio from 'twilio';
-import { MessageInstance } from 'twilio/lib/rest/api/v2010/account/message';
 import {
   CreateScheduleCommand,
   DeleteScheduleCommand,
@@ -21,7 +19,6 @@ const PHONE_NUMBERS = {
   Pandoks: Resource.KwokPhoneNumber.value
 };
 
-const twilioClient = twilio(Resource.TwilioAccountSid.value, Resource.TwilioAuthToken.value);
 const schedulerClient = new SchedulerClient({});
 
 /**
@@ -29,15 +26,7 @@ const schedulerClient = new SchedulerClient({});
  *  - Method: POST
  *  - Headers:
  *    - auth: NOTION_TODO_REMIND_AUTH
- *    - people?: person1,person2,person3
- *    - message?: message
  *    - event?: DELETE_EVENT
- *    - notification-time?: ISO 8601 date
- *        NOTE: DO NOT include milliseconds
- *          Format: YYYY-MM-DDTHH:mm:ssZ or YYYY-MM-DDTHH:mm:ss+-HH:MM
- *          Example: 2022-01-01T00:00:00-08:00
- *          YYYY: year, MM: month, DD: day, HH: hour, mm: minute, ss: second, +-/Z: offset
- *          PST: -08:00, EST: -05:00, UTC: Z
  *  - Body:
  *    - data?:
  *      - properties?:
@@ -47,7 +36,7 @@ const schedulerClient = new SchedulerClient({});
  *        - Description | Note?: description
  *        - Due Date | Deadline?: ISO 8601 date
  */
-export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
+export const scheduleTextHandler = async (event: APIGatewayProxyEventV2) => {
   if (event.requestContext.http.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405 });
   }
@@ -71,40 +60,14 @@ export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
     }
     return new Response('OK', { status: 200 });
   }
-
-  let phoneNumbers: string[] = [];
-  if (event.headers.people) {
-    const people = event.headers.people.split(',');
-    for (const person of people) {
-      if (PHONE_NUMBERS.hasOwnProperty(person)) {
-        phoneNumbers.push(PHONE_NUMBERS[person]);
-      }
-    }
-  }
+  console.log(constructMessage(responseBody));
 
   const properties = responseBody.data.properties;
-  let people: Person[] = [];
-  for (const key of NAME_PROPERTY_KEYS) {
-    if (properties.hasOwnProperty(key)) {
-      people.push(...(properties[key] as PersonProperty).people);
-    }
-  }
-  for (const person of people) {
-    if (
-      PHONE_NUMBERS.hasOwnProperty(person.name) &&
-      !phoneNumbers.includes(PHONE_NUMBERS[person.name])
-    ) {
-      phoneNumbers.push(PHONE_NUMBERS[person.name]);
-    }
-  }
-
-  if (!phoneNumbers.length) {
-    return new Response('OK', { status: 200 });
-  }
-
+  console.log(properties);
   const notificationTime =
     event.headers['notification-time'] ||
     (properties['Notification Time'] as NotionDate | undefined)?.date.start;
+  console.log(notificationTime);
 
   if (notificationTime) {
     const notificationDate = new Date(notificationTime);
@@ -141,9 +104,6 @@ export const textTodoHandler = async (event: APIGatewayProxyEventV2) => {
     );
     return new Response('OK', { status: 200 });
   }
-
-  const message = event.headers.message || constructMessage(responseBody);
-  return await sendText(phoneNumbers, message);
 };
 
 /** ========== HELPERS ========== */
@@ -184,33 +144,6 @@ const constructMessage = (body: NotionWebhookBody) => {
   message.push(body.data.url);
 
   return message.join('\n');
-};
-
-const sendText = async (phoneNumbers: string[], message?: string) => {
-  try {
-    let texts: Promise<MessageInstance>[] = [];
-    for (const phoneNumber of phoneNumbers) {
-      texts.push(
-        twilioClient.messages.create({
-          body: message,
-          from: Resource.TwilioPhoneNumber.value,
-          to: phoneNumber,
-          messagingServiceSid: Resource.TwilioNotionMessagingServiceSid.value
-        })
-      );
-    }
-    const settled = await Promise.allSettled(texts);
-    for (const settledText of settled) {
-      if (settledText.status === 'rejected') {
-        console.error('ERROR:', settledText.reason);
-      }
-    }
-
-    return new Response('OK', { status: 200 });
-  } catch (e) {
-    console.error('ERROR:', e);
-    return new Response('Internal Server Error', { status: 500 });
-  }
 };
 
 const formatIsoDate = (isoDate: string) => {
