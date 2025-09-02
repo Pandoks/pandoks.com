@@ -17,7 +17,6 @@ export type NotionWebhookBody = {
 export type PersonProperty = {
   id: string;
   type: string;
-  number: number | null;
   people: Person[];
 };
 
