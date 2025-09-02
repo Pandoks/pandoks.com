@@ -34,63 +34,10 @@ const firewall = new hcloud.Firewall('HetznerDenyIn', {
   rules: []
 });
 
-const openSslConfigPath = resolve('infra/vps/vps.openssl.conf');
-const certificateSigningRequestPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.csr`);
-const certificateKeyPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.key`);
-let needToSetCertificateSecret = false;
-if (!existsSync(certificateSigningRequestPath)) {
-  execFileSync(
-    'openssl',
-    [
-      'req',
-      '-new',
-      '-newkey',
-      'rsa:2048',
-      '-nodes',
-      '-keyout',
-      certificateKeyPath,
-      '-out',
-      certificateSigningRequestPath,
-      '-config',
-      openSslConfigPath
-    ],
-    { stdio: 'inherit' }
-  );
-  secrets.k8s.HetznerOriginTlsKey.name.apply((secretName) => {
-    execFileSync(
-      '/bin/sh',
-      ['-lc', `sst secret set ${secretName} --stage ${$app.stage} < ${certificateKeyPath}`],
-      { stdio: 'inherit' }
-    );
-  });
-  needToSetCertificateSecret = true;
-}
-const certificateSigningRequest = readFileSync(certificateSigningRequestPath);
-const hetznerOriginCert = new cloudflare.OriginCaCertificate(
-  'HetznerOriginCloudflareCaCertificate',
-  {
-    hostnames: [EXAMPLE_DOMAIN],
-    requestType: 'origin-rsa',
-    csr: certificateSigningRequest.toString(),
-    requestedValidity: 5475 // 15 years
-  }
-);
-if (needToSetCertificateSecret) {
-  $resolve([hetznerOriginCert.certificate, secrets.k8s.HetznerOriginTlsCrt.name]).apply(
-    ([certificate, secretName]) => {
-      execFileSync(
-        '/bin/sh',
-        ['-lc', `sst secret set ${secretName} --stage ${$app.stage} <<'EOF'\n${certificate}EOF`],
-        { stdio: 'inherit' }
-      );
-    }
-  );
-}
-
 // NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
-const CONTROL_PLANE_NODE_COUNT = $app.stage === 'production' ? 2 : 2;
+const CONTROL_PLANE_NODE_COUNT = $app.stage === 'production' ? 0 : 0;
 const CONTROL_PLANE_HOST_START_OCTET = 10;
-const WORKER_NODE_COUNT = $app.stage === 'production' ? 1 : 1;
+const WORKER_NODE_COUNT = $app.stage === 'production' ? 0 : 0;
 const WORKER_HOST_START_OCTET = 20;
 // NOTE: servers can only be upgraded, not downgraded because disk size needs to be >= than the previous type
 const SERVER_TYPE = $app.stage === 'production' ? 'ccx13' : 'cpx11';
@@ -109,6 +56,59 @@ const BASE_ENV = $resolve([
 }));
 
 if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT) {
+  const openSslConfigPath = resolve('infra/vps/vps.openssl.conf');
+  const certificateSigningRequestPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.csr`);
+  const certificateKeyPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.key`);
+  let needToSetCertificateSecret = false;
+  if (!existsSync(certificateSigningRequestPath)) {
+    execFileSync(
+      'openssl',
+      [
+        'req',
+        '-new',
+        '-newkey',
+        'rsa:2048',
+        '-nodes',
+        '-keyout',
+        certificateKeyPath,
+        '-out',
+        certificateSigningRequestPath,
+        '-config',
+        openSslConfigPath
+      ],
+      { stdio: 'inherit' }
+    );
+    secrets.k8s.HetznerOriginTlsKey.name.apply((secretName) => {
+      execFileSync(
+        '/bin/sh',
+        ['-lc', `sst secret set ${secretName} --stage ${$app.stage} < ${certificateKeyPath}`],
+        { stdio: 'inherit' }
+      );
+    });
+    needToSetCertificateSecret = true;
+  }
+  const certificateSigningRequest = readFileSync(certificateSigningRequestPath);
+  const hetznerOriginCert = new cloudflare.OriginCaCertificate(
+    'HetznerOriginCloudflareCaCertificate',
+    {
+      hostnames: [EXAMPLE_DOMAIN],
+      requestType: 'origin-rsa',
+      csr: certificateSigningRequest.toString(),
+      requestedValidity: 5475 // 15 years
+    }
+  );
+  if (needToSetCertificateSecret) {
+    $resolve([hetznerOriginCert.certificate, secrets.k8s.HetznerOriginTlsCrt.name]).apply(
+      ([certificate, secretName]) => {
+        execFileSync(
+          '/bin/sh',
+          ['-lc', `sst secret set ${secretName} --stage ${$app.stage} <<'EOF'\n${certificate}EOF`],
+          { stdio: 'inherit' }
+        );
+      }
+    );
+  }
+
   var virtualNetwork = new cloudflare.ZeroTrustTunnelCloudflaredVirtualNetwork(
     'HetznerVirtualNetwork',
     {
