@@ -30,7 +30,7 @@ const subnet = new hcloud.NetworkSubnet('HetznerK3sSubnet', {
   networkZone: 'us-west'
 });
 const firewall = new hcloud.Firewall('HetznerDenyIn', {
-  name: `deny-in`,
+  name: 'deny-in',
   rules: []
 });
 
