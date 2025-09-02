@@ -1,23 +1,17 @@
 import { APIGatewayProxyEventV2 } from 'aws-lambda';
-import type { PageObjectResponse } from '@notionhq/client';
 import { Resource } from 'sst';
 import {
   CreateScheduleCommand,
   DeleteScheduleCommand,
   SchedulerClient
 } from '@aws-sdk/client-scheduler';
+import { NotionDate, NotionWebhookBody, PersonProperty } from './notion';
 
 const NAME_PROPERTY_KEYS = ['Assigned To', 'Person', 'Buyer', 'Assignee'];
 const TITLE_PROPERTY_KEYS = ['Title', 'Name', 'Task', 'Reminder'];
 const DESCRIPTION_PROPERTY_KEYS = ['Description', 'Note'];
 const DUE_DATE_PROPERTY_KEYS = ['Due Date', 'Deadline'];
 const DELETE_EVENT = 'delete';
-
-const PHONE_NUMBERS = {
-  'Manda Wong': Resource.MichellePhoneNumber.value,
-  'BLAINE Manda Wong': Resource.MichellePhoneNumber.value,
-  Pandoks: Resource.KwokPhoneNumber.value
-};
 
 const schedulerClient = new SchedulerClient({});
 
@@ -30,8 +24,8 @@ const schedulerClient = new SchedulerClient({});
  *  - Body:
  *    - data?:
  *      - properties?:
- *        - Assigned To | Person | Buyer | Assignee?: person1,person2,person3
- *        - Notification Time?: ISO 8601 date
+ *        - Notification Time?: ISO 8601 date <
+ *        - Assigned To | Person | Buyer | Assignee?: person1,person2,person3 <
  *        - Title | Name | Task?: title
  *        - Description | Note?: description
  *        - Due Date | Deadline?: ISO 8601 date
@@ -60,50 +54,58 @@ export const scheduleTextHandler = async (event: APIGatewayProxyEventV2) => {
     }
     return new Response('OK', { status: 200 });
   }
-  console.log(constructMessage(responseBody));
 
   const properties = responseBody.data.properties;
-  console.log(properties);
-  const notificationTime =
-    event.headers['notification-time'] ||
-    (properties['Notification Time'] as NotionDate | undefined)?.date.start;
-  console.log(notificationTime);
+  const notificationTime = (properties['Notification Time'] as NotionDate | undefined)?.date.start;
+  if (!notificationTime) {
+    console.log('Notification Time Not Found');
+    return new Response('Notification Time Not Found', { status: 200 });
+  }
+  const notificationDate = new Date(notificationTime);
+  const scheduleTime = notificationDate.toISOString().split('.')[0];
 
-  if (notificationTime) {
-    const notificationDate = new Date(notificationTime);
-    const scheduleTime = notificationDate.toISOString().split('.')[0];
-
-    delete event.headers['notification-time'];
-    delete properties['Notification Time'];
-    event.body = JSON.stringify(responseBody);
-
-    try {
-      await schedulerClient.send(
-        new DeleteScheduleCommand({
-          Name: name,
-          GroupName: process.env.SCHEDULER_GROUP_NAME!
-        })
+  let users: string[] = [];
+  for (const nameKey of NAME_PROPERTY_KEYS) {
+    if (properties.hasOwnProperty(nameKey)) {
+      users = (properties[nameKey] as PersonProperty & { number: number | null }).people.map(
+        (person) => person.name
       );
-    } catch (e) {
-      console.error('ERROR:', e);
+      break;
     }
+  }
+  if (!users.length) {
+    console.log('People Not Found');
+    return new Response('People Not Found', { status: 200 });
+  }
+
+  const message = constructMessage(responseBody);
+
+  try {
     await schedulerClient.send(
-      new CreateScheduleCommand({
+      new DeleteScheduleCommand({
         Name: name,
-        FlexibleTimeWindow: { Mode: 'OFF' },
-        ScheduleExpression: `at(${scheduleTime})`,
-        State: 'ENABLED',
-        GroupName: process.env.SCHEDULER_GROUP_NAME!,
-        ActionAfterCompletion: 'DELETE',
-        Target: {
-          Arn: process.env.WORKER_ARN!,
-          RoleArn: process.env.SCHEDULER_INVOKE_ROLE_ARN!,
-          Input: JSON.stringify(event)
-        }
+        GroupName: process.env.SCHEDULER_GROUP_NAME!
       })
     );
-    return new Response('OK', { status: 200 });
+  } catch (e) {
+    console.log('New schedule creating');
   }
+  await schedulerClient.send(
+    new CreateScheduleCommand({
+      Name: name,
+      FlexibleTimeWindow: { Mode: 'OFF' },
+      ScheduleExpression: `at(${scheduleTime})`,
+      State: 'ENABLED',
+      GroupName: process.env.SCHEDULER_GROUP_NAME!,
+      ActionAfterCompletion: 'DELETE',
+      Target: {
+        Arn: process.env.TEXT_FUNCTION_ARN!,
+        RoleArn: process.env.SCHEDULER_INVOKE_ROLE_ARN!,
+        Input: JSON.stringify({ users, message })
+      }
+    })
+  );
+  return new Response('OK', { status: 200 });
 };
 
 /** ========== HELPERS ========== */
@@ -129,6 +131,7 @@ const constructMessage = (body: NotionWebhookBody) => {
 
   for (const key of DUE_DATE_PROPERTY_KEYS) {
     if (properties.hasOwnProperty(key)) {
+      // @ts-ignore
       const date = properties[key].date;
       const startDate = formatIsoDate(date.start);
       if (date.end) {
@@ -188,47 +191,4 @@ const IANA_MAPPING = {
   '+08:00': 'Asia/Shanghai',
   '+09:00': 'Asia/Tokyo',
   '+10:00': 'Australia/Sydney'
-};
-
-/** ========== TYPES ========== */
-type NotionAutomationSource = {
-  type: 'automation';
-  automation_id: string;
-  action_id: string;
-  event_id: string;
-  user_id: string;
-  attempt: number;
-};
-
-type NotionWebhookBody = {
-  source: NotionAutomationSource;
-  data: PageObjectResponse;
-};
-
-type PersonProperty = {
-  id: string;
-  type: string;
-  number: number | null;
-  people: Person[];
-};
-
-type Person = {
-  object: 'string';
-  id: string;
-  name: string;
-  avatar_url: string;
-  type: 'person';
-  person: {
-    email: string;
-  };
-};
-
-type NotionDate = {
-  id: string;
-  type: string;
-  date: {
-    start: string;
-    end: string | null;
-    time_zone: string | null;
-  };
 };

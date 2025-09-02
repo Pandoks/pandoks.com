@@ -18,7 +18,7 @@ export const blogApi = new sst.aws.Function('BlogApi', {
       path: '/blog/deploy'
     }
   },
-  link: [secrets.notion.BlogDeployAuth, secrets.github.PersonalAccessToken],
+  link: [secrets.github.BlogDeployAuth, secrets.github.PersonalAccessToken],
   environment: {
     DOMAIN: apiDomain,
     GITHUB_DEPLOY_URL:
@@ -26,7 +26,20 @@ export const blogApi = new sst.aws.Function('BlogApi', {
   }
 });
 
-const todoInvokeRole = new aws.iam.Role('TodoInvokeRole', {
+export const textFunction = new sst.aws.Function('TextSmsFunction', {
+  handler: 'apps/functions/src/text.sendTextHandler',
+  url: false,
+  link: [
+    secrets.personal.KwokPhoneNumber,
+    secrets.personal.MichellePhoneNumber,
+    secrets.twilio.PhoneNumber,
+    secrets.twilio.AccountSid,
+    secrets.twilio.AuthToken,
+    secrets.twilio.NotionMessagingServiceSid
+  ]
+});
+
+const scheduleInvokeTextRole = new aws.iam.Role('ScheduleInvokeTextRole', {
   assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
     statements: [
       {
@@ -37,11 +50,19 @@ const todoInvokeRole = new aws.iam.Role('TodoInvokeRole', {
     ]
   }).json
 });
-const todoSchedulerGroup = new aws.scheduler.ScheduleGroup('TodoReminderGroup', {
-  name: $app.stage === 'production' ? 'todo-reminders' : 'todo-reminders-dev'
+const scheduleTextGroup = new aws.scheduler.ScheduleGroup('ScheduleTextGroup', {
+  name: $app.stage === 'production' ? 'text-scheduler' : 'text-scheduler-dev'
 });
-export const todoRemindApi = new sst.aws.Function('TodoRemindApi', {
-  handler: 'apps/functions/src/api/todo.textTodoHandler',
+new aws.iam.RolePolicy('ScheduleInvokeTextPolicy', {
+  role: scheduleInvokeTextRole.id,
+  policy: aws.iam.getPolicyDocumentOutput({
+    statements: [
+      { effect: 'Allow', actions: ['lambda:InvokeFunction'], resources: [textFunction.arn] }
+    ]
+  }).json
+});
+export const scheduleTextReminderApi = new sst.aws.Function('ScheduleTextReminderApi', {
+  handler: 'apps/functions/src/api/notion/schedule-text.scheduleTextHandler',
   url: {
     router: {
       instance: apiRouter,
@@ -60,30 +81,13 @@ export const todoRemindApi = new sst.aws.Function('TodoRemindApi', {
     },
     {
       actions: ['iam:PassRole'],
-      resources: [todoInvokeRole.arn]
+      resources: [scheduleInvokeTextRole.arn]
     }
   ],
   environment: {
-    SCHEDULER_INVOKE_ROLE_ARN: todoInvokeRole.arn,
-    SCHEDULER_GROUP_NAME: todoSchedulerGroup.name
+    SCHEDULER_INVOKE_ROLE_ARN: scheduleInvokeTextRole.arn,
+    SCHEDULER_GROUP_NAME: scheduleTextGroup.name,
+    TEXT_FUNCTION_ARN: textFunction.arn
   },
-  link: [
-    secrets.notion.TodoRemindAuth,
-    secrets.personal.KwokPhoneNumber,
-    secrets.personal.MichellePhoneNumber,
-    secrets.twilio.PhoneNumber,
-    secrets.twilio.AccountSid,
-    secrets.twilio.AuthToken,
-    secrets.twilio.NotionMessagingServiceSid
-  ]
-});
-// NOTE: Sometimes you need to remove and the add this again if it's not showing up in the envs
-todoRemindApi.addEnvironment({ WORKER_ARN: todoRemindApi.arn });
-new aws.iam.RolePolicy('TodoInvokePolicy', {
-  role: todoInvokeRole.id,
-  policy: aws.iam.getPolicyDocumentOutput({
-    statements: [
-      { effect: 'Allow', actions: ['lambda:InvokeFunction'], resources: [todoRemindApi.arn] }
-    ]
-  }).json
+  link: [secrets.notion.TodoRemindAuth]
 });
