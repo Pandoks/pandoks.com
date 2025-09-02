@@ -31,5 +31,9 @@ export const secrets = {
   k8s: {
     HetznerOriginTlsKey: new sst.Secret('HetznerOriginTlsKey', 'No Origin Tls Key Set'),
     HetznerOriginTlsCrt: new sst.Secret('HetznerOriginTlsCrt', 'No Origin Tls Cert Set')
+  },
+  planetscale: {
+    ApiKey: new sst.Secret('PlanetscaleApiKey'),
+    AccountId: new sst.Secret('PlanetscaleAccountId')
   }
 };
