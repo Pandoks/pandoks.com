@@ -35,7 +35,7 @@ export const scheduleTextHandler = async (event: APIGatewayProxyEventV2) => {
     return new Response('Method Not Allowed', { status: 405 });
   }
 
-  if (event.headers.auth !== Resource.NotionTodoRemindAuth.value) {
+  if (event.headers.auth !== Resource.NotionAuthToken.value) {
     return new Response('Unauthorized', { status: 401 });
   }
 

@@ -89,5 +89,5 @@ export const scheduleTextReminderApi = new sst.aws.Function('ScheduleTextReminde
     SCHEDULER_GROUP_NAME: scheduleTextGroup.name,
     TEXT_FUNCTION_ARN: textFunction.arn
   },
-  link: [secrets.notion.TodoRemindAuth]
+  link: [secrets.notion.AuthToken]
 });

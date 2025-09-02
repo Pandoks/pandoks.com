@@ -70,7 +70,7 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
-    "NotionTodoRemindAuth": {
+    "NotionAuthToken": {
       "type": "sst.sst.Secret"
       "value": string
     }

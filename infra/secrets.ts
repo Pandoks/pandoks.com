@@ -1,7 +1,7 @@
 export const secrets = {
   notion: {
     ApiKey: new sst.Secret('NotionApiKey'),
-    TodoRemindAuth: new sst.Secret('NotionTodoRemindAuth')
+    AuthToken: new sst.Secret('NotionAuthToken')
   },
   cloudflare: {
     ApiKey: new sst.Secret('CloudflareApiKey'),
