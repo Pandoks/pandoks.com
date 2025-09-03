@@ -22,6 +22,7 @@
     "k3s:remote": "pnpm run ssh:copy --remote-file /etc/rancher/k3s/k3s.yaml",
     "k3s:setup": "./scripts/cluster.sh setup --kubeconfig ./k3s.yaml",
     "k3s:example": "kubectl --kubeconfig ./k3s.yaml apply -f ./k3s/example.yaml && ./scripts/cluster.sh secrets --kubeconfig ./k3s.yaml",
+    "k3s:deploy": "kubectl --kubeconfig ./k3s.yaml apply -k ./k3s --load-restrictor LoadRestrictionsNone",
     "ssh:copy": "./scripts/ssh.sh copy",
     "ssh:tunnel": "./scripts/ssh.sh tunnel",
     "ssh:stop": "./scripts/ssh.sh stop-tunnel",
