@@ -3,5 +3,9 @@
   "version": "0.0.1",
   "type": "module",
   "sideEffects": false,
-  "scripts": { }
+  "scripts": {
+    "build": "pnpm run build:pgcat && pnpm run build:patroni",
+    "build:pgcat": "docker build -f ./pgcat/Dockerfile ../../",
+    "build:patroni": "docker build -f ./patroni/Dockerfile ../../"
+  }
 }
