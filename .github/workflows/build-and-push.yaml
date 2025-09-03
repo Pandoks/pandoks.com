@@ -3,6 +3,9 @@ on:
   push:
     paths:
       - 'apps/seedbox/Dockerfile'
+      - 'packages/postgres/patroni/**'
+      - 'packages/postgres/pgcat/**'
+      # NOTE: you can exclude files/directories/subdirectories using `!` prefix (!packages/**)
 
 jobs:
   build:
@@ -13,7 +16,12 @@ jobs:
     strategy:
       matrix:
         image:
-          - seedbox
+          - name: seedbox
+            path: ./apps/seedbox/Dockerfile
+          - name: patroni
+            path: ./packages/postgres/patroni/Dockerfile
+          - name: pgcat
+            path: ./packages/postgres/pgcat/Dockerfile
 
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +36,7 @@ jobs:
         id: meta
         with:
           # NOTE: github.repository includes the owner/org (ghcr.io/<owner/org>/repo-name)
-          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image.name }}
           tags: |
             type=ref,event=branch
             type=raw,value=latest,enable={{is_default_branch}}
@@ -38,7 +46,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./apps/${{ matrix.image }}/Dockerfile
+          file: ${{ matrix.image.path }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -48,6 +56,6 @@ jobs:
       - name: Generate Attestation
         uses: actions/attest-build-provenance@v3
         with:
-          subject-name: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+          subject-name: ghcr.io/${{ github.repository_owner }}/${{ matrix.image.name }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
