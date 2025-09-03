@@ -45,7 +45,7 @@ jobs:
         id: push
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: . # WARN: all dockerfiles should have a context of the root of the repo
           file: ${{ matrix.image.path }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
