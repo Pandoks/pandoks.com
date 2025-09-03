@@ -35,7 +35,7 @@ const firewall = new hcloud.Firewall('HetznerDenyIn', {
 });
 
 // NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
-const CONTROL_PLANE_NODE_COUNT = $app.stage === 'production' ? 0 : 0;
+const CONTROL_PLANE_NODE_COUNT = $app.stage === 'production' ? 1 : 0;
 const CONTROL_PLANE_HOST_START_OCTET = 10;
 const WORKER_NODE_COUNT = $app.stage === 'production' ? 0 : 0;
 const WORKER_HOST_START_OCTET = 20;
@@ -134,12 +134,11 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT) {
     destinationPort: INGRESS_NODE_PORT.http,
     proxyprotocol: false,
     healthCheck: {
-      protocol: 'http',
+      protocol: 'tcp',
       port: INGRESS_NODE_PORT.http,
       interval: 10,
       timeout: 3,
-      retries: 3,
-      http: { path: '/', domain: EXAMPLE_DOMAIN, statusCodes: ['2??', '3??'] }
+      retries: 3
     }
   });
   new hcloud.LoadBalancerService('HetznerK3sLoadBalancerPort443', {
