@@ -42,23 +42,15 @@ export const scheduleTextHandler = async (event: APIGatewayProxyEventV2) => {
   const responseBody: NotionWebhookBody = JSON.parse(event.body!);
   const name = `schedule-todo-reminder-${responseBody.data.id}`;
   if (event.headers.event === DELETE_EVENT) {
-    try {
-      await schedulerClient.send(
-        new DeleteScheduleCommand({
-          Name: name,
-          GroupName: process.env.SCHEDULER_GROUP_NAME!
-        })
-      );
-    } catch (e) {
-      console.error('ERROR:', e);
-    }
+    await deleteSchedule(name);
     return new Response('OK', { status: 200 });
   }
 
   const properties = responseBody.data.properties;
   const notificationTime = (properties['Notification Time'] as NotionDate | undefined)?.date.start;
   if (!notificationTime) {
-    console.log('Notification Time Not Found');
+    console.log('notification time not found');
+    await deleteSchedule(name);
     return new Response('Notification Time Not Found', { status: 200 });
   }
   const notificationDate = new Date(notificationTime);
@@ -74,22 +66,14 @@ export const scheduleTextHandler = async (event: APIGatewayProxyEventV2) => {
     }
   }
   if (!users.length) {
-    console.log('People Not Found');
-    return new Response('People Not Found', { status: 200 });
+    console.log('users not found');
+    await deleteSchedule(name);
+    return new Response('Users Not Found', { status: 200 });
   }
 
   const message = constructMessage(responseBody);
 
-  try {
-    await schedulerClient.send(
-      new DeleteScheduleCommand({
-        Name: name,
-        GroupName: process.env.SCHEDULER_GROUP_NAME!
-      })
-    );
-  } catch (e) {
-    console.log('New schedule creating');
-  }
+  await deleteSchedule(name);
   await schedulerClient.send(
     new CreateScheduleCommand({
       Name: name,
@@ -105,10 +89,25 @@ export const scheduleTextHandler = async (event: APIGatewayProxyEventV2) => {
       }
     })
   );
+  console.log('new schedule created');
   return new Response('OK', { status: 200 });
 };
 
 /** ========== HELPERS ========== */
+const deleteSchedule = async (name: string) => {
+  try {
+    await schedulerClient.send(
+      new DeleteScheduleCommand({
+        Name: name,
+        GroupName: process.env.SCHEDULER_GROUP_NAME!
+      })
+    );
+    console.log(`schedule ${name} deleted`);
+  } catch (e) {
+    console.log('nothing to delete');
+  }
+};
+
 const constructMessage = (body: NotionWebhookBody) => {
   const properties = body.data.properties;
   let message = ['🚨 Reminder:'];
@@ -116,7 +115,7 @@ const constructMessage = (body: NotionWebhookBody) => {
   for (const key of TITLE_PROPERTY_KEYS) {
     if (properties.hasOwnProperty(key)) {
       // @ts-ignore
-      message.push(`${properties[key].title[0].plain_text}`);
+      message.push(`${properties[key].title[0]?.plain_text}`);
       break;
     }
   }
@@ -124,7 +123,7 @@ const constructMessage = (body: NotionWebhookBody) => {
   for (const key of DESCRIPTION_PROPERTY_KEYS) {
     if (properties.hasOwnProperty(key)) {
       // @ts-ignore
-      message.push(properties[key].rich_text[0].plain_text);
+      message.push(properties[key].rich_text[0]?.plain_text);
       break;
     }
   }
@@ -133,12 +132,14 @@ const constructMessage = (body: NotionWebhookBody) => {
     if (properties.hasOwnProperty(key)) {
       // @ts-ignore
       const date = properties[key].date;
-      const startDate = formatIsoDate(date.start);
-      if (date.end) {
-        const endDate = formatIsoDate(date.end);
-        message.push(`Due: ${startDate} ~ ${endDate}`);
-      } else {
-        message.push(`Due: ${startDate}`);
+      if (date) {
+        const startDate = formatIsoDate(date.start);
+        if (date.end) {
+          const endDate = formatIsoDate(date.end);
+          message.push(`Due: ${startDate} ~ ${endDate}`);
+        } else {
+          message.push(`Due: ${startDate}`);
+        }
       }
       break;
     }
