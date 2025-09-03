@@ -6,7 +6,7 @@ usage() {
   echo "  ssh-target example: pandoks@k3s-control-plane-0-dev.pandoks.com" >&2
   echo "" >&2
   echo "Commands:" >&2
-  echo "  tunnel <ssh-target> [--local-port 6443] [--remote-port 6443]" >&2
+  echo "  tunnel <ssh-target> --local-port <port> --remote-port <port>" >&2
   echo "      Start SSH local port-forward in background; prints PID." >&2
   echo "  stop-tunnel [--all]" >&2
   echo "      Stop all tunnels with --all, or pick via fzf." >&2
@@ -106,8 +106,8 @@ copy)
 tunnel)
   # Parse target and flags in any order after subcommand
   TARGET=""
-  LOCAL_PORT=6443
-  REMOTE_PORT=6443
+  LOCAL_PORT=""
+  REMOTE_PORT=""
   SEEN_LP=0
   SEEN_RP=0
   while [ $# -gt 0 ]; do
@@ -163,6 +163,14 @@ tunnel)
     shift
   done
   [ -n "$TARGET" ] || usage
+  [ -n "$LOCAL_PORT" ] || {
+    echo "--local-port is required" >&2
+    exit 1
+  }
+  [ -n "$REMOTE_PORT" ] || {
+    echo "--remote-port is required" >&2
+    exit 1
+  }
 
   # Acquire per-port lock to avoid races on rapid invocations
   LOCKDIR="/tmp/k3s-ssh.${LOCAL_PORT}.lock"
