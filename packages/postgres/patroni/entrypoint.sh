@@ -15,4 +15,8 @@ done
 
 envsubst </tmp/conf_templates/patroni.yaml >/etc/patroni/patroni.yaml
 
+# NOTE: needed here because the volume is mounted after the container is created.
+# otherwise you can just do it in the Dockerfile
+chmod 700 /var/lib/postgresql/data
+
 exec $@
