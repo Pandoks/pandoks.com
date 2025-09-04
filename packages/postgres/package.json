@@ -4,8 +4,11 @@
   "type": "module",
   "sideEffects": false,
   "scripts": {
-    "build": "pnpm run build:pgcat && pnpm run build:patroni",
-    "build:pgcat": "docker build -f ./pgcat/Dockerfile ../../",
-    "build:patroni": "docker build -f ./patroni/Dockerfile ../../"
+    "build": "pnpm run build:pgcat & pnpm run build:patroni",
+    "build:pgcat": "docker build -f ./pgcat/Dockerfile ../../ -t localhost:12345/pgcat:latest",
+    "build:patroni": "docker build -f ./patroni/Dockerfile ../../ -t localhost:12345/patroni:latest",
+    "push": "pnpm run push:pgcat & pnpm run push:patroni",
+    "push:pgcat": "docker push localhost:12345/pgcat:latest",
+    "push:patroni": "docker push localhost:12345/patroni:latest"
   }
 }
