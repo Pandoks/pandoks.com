@@ -1,0 +1,220 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: &app patroni
+  namespace: main
+  labels:
+    app: *app
+    cluster-name: &cluster-name main
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: *app
+      cluster-name: *cluster-name
+  template:
+    metadata:
+      labels:
+        app: *app
+        cluster-name: *cluster-name
+    spec:
+      serviceAccountName: *app
+      securityContext:
+        fsGroup: 999
+      # if you are trying to restore an existing backup to patroni, make sure to delete the PVC bound to it
+      containers:
+        - name: *app
+          image: ghcr.io/pandoks/patroni:latest
+          readinessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /readiness
+              port: 8008
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          ports:
+            - containerPort: 8008
+              protocol: TCP
+            - containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_DB
+              value: main
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: db-creds
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-creds
+                  key: PGPASSWORD
+            - name: PGREPPASS
+              valueFrom:
+                secretKeyRef:
+                  name: db-creds
+                  key: PGREPPASS
+            - name: PATRONI_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-creds
+                  key: PATRONI_PASSWORD
+          volumeMounts:
+            - name: patroni-config
+              mountPath: /tmp/conf_templates/patroni.yaml
+              subPath: patroni.yaml
+            - name: patroni-data
+              mountPath: /var/lib/postgresql
+      volumes:
+        - name: patroni-config
+          configMap:
+            name: patroni-config
+  volumeClaimTemplates:
+    - metadata:
+        name: patroni-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 1Gi
+
+---
+# provides a stable ip for the primary
+apiVersion: v1
+kind: Service
+metadata:
+  name: patroni-primary
+  namespace: main
+  labels:
+    app: &app patroni
+    cluster-name: &cluster-name main
+    role: &role primary
+spec:
+  type: ClusterIP
+  selector:
+    app: *app
+    cluster-name: *cluster-name
+    role: *role
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+    - name: pgbackrest
+      port: 8432
+      targetPort: 8432
+
+---
+# provides a stable ip for all replicas
+apiVersion: v1
+kind: Service
+metadata:
+  name: patroni-replicas
+  namespace: main
+  labels:
+    app: &app patroni
+    cluster-name: &cluster-name main
+    role: &role replica
+spec:
+  type: ClusterIP
+  selector:
+    app: *app
+    cluster-name: *cluster-name
+    role: *role
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+    - name: pgbackrest
+      port: 8432
+      targetPort: 8432
+
+---
+# ---- below are permissions that patroni needs to get access to k8s API ----
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: patroni
+  namespace: main
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: patroni
+  namespace: main
+rules:
+  - apiGroups:
+      - ''
+    resources:
+      - configmaps
+    verbs:
+      - create
+      - get
+      - list
+      - patch
+      - update
+      - watch
+      - delete
+      - deletecollection
+  - apiGroups:
+      - ''
+    resources:
+      - endpoints
+    verbs:
+      - get
+      - patch
+      - update
+      - create
+      - list
+      - watch
+      - delete
+      - deletecollection
+  - apiGroups:
+      - ''
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - ''
+    resources:
+      - services
+    verbs:
+      - create
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: patroni
+  namespace: main
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: patroni
+subjects:
+  - kind: ServiceAccount
+    name: patroni
+    namespace: main
