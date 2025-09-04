@@ -18,6 +18,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   gettext-base \
   && rm -rf /var/lib/apt/lists/*
 
+RUN mkdir -p /etc/patroni \
+  && chown -R postgres:postgres /var/lib/postgresql \
+  && chown -R postgres:postgres /etc/patroni
+
 COPY ./packages/postgres/patroni/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
