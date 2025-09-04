@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: &app pgcat
+  namespace: main
+spec:
+  template:
+    spec:
+      containers:
+        - name: *app
+          image: local-registry:12345/pgcat:latest
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: &app patroni
+  namespace: main
+spec:
+  template:
+    spec:
+      containers:
+        - name: *app
+          image: local-registry:12345/patroni:latest
