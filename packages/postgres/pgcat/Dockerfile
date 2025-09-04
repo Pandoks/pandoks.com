@@ -3,9 +3,9 @@ FROM ghcr.io/postgresml/pgcat:latest
 ENV POSTGRES_USER=
 ENV POSTGRES_PASSWORD=
 ENV POSTGRES_DB=
-ENV PGPOOLPASS=
+ENV PGCATPASS=
 ENV MASTER_HOST_1=
-ENV SLAVE_HOST1_1=
+ENV SLAVE_HOST_1=
 
 RUN apt update
 RUN apt install -y --no-install-recommends gettext-base

@@ -6,6 +6,9 @@ host = "0.0.0.0"
 # Port to run on, same as PgBouncer used in this example.
 port = 6432
 
+# Interval in milliseconds at which Pgcat config is checked and if changed, reloaded.
+autoreload = 60000
+
 # Whether to enable prometheus exporter or not.
 enable_prometheus_exporter = false
 
@@ -88,8 +91,8 @@ sharding_function = "pg_bigint_hash"
 # User configs are structured as pool.<pool_name>.users.<user_index>
 # Credentials for users that may connect to this cluster
 [pools.${POSTGRES_DB}.users.0]
-username = "pooler"
-password = "${PGPOOLPASS}"
+username = "pgcat"
+password = "${PGCATPASS}"
 # Maximum number of server connections that can be established for this user
 # The maximum number of connection from a single Pgcat process to any database in the cluster
 # is the sum of pool_size across all users.
@@ -102,5 +105,5 @@ statement_timeout = 0
 database = "${POSTGRES_DB}"
 servers = [
   ["${MASTER_HOST_1}", 5432, "Primary"],
-  ["${SLAVE_HOST1_1}", 5432, "Replica"]
+  ["${SLAVE_HOST_1}", 5432, "Replica"]
 ]

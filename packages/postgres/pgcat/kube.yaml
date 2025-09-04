@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: &app pgcat
+  namespace: main
+  labels:
+    app: *app
+spec:
+  ports:
+    - port: 6432
+      targetPort: 6432
+  selector:
+    app: *app
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: &app pgcat
+  namespace: main
+  labels:
+    app: *app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: *app
+  template:
+    metadata:
+      labels:
+        app: *app
+    spec:
+      containers:
+        - name: *app
+          image: ghcr.io/pandoks/pgcat:latest
+          env:
+            - name: POSTGRES_DB
+              value: main
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: db-creds
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-creds
+                  key: POSTGRES_PASSWORD
+            - name: PGCATPASS
+              valueFrom:
+                secretKeyRef:
+                  name: db-creds
+                  key: PGCATPASS
+            - name: MASTER_HOST_1
+              value: patroni-primary.main.svc.cluster.local
+            - name: SLAVE_HOST_1
+              value: patroni-replica.main.svc.cluster.local
+          volumeMounts:
+            - name: &app-conf pgcat-conf
+              mountPath: /tmp/conf_templates/pgcat.toml
+              subPath: pgcat.toml
+              readOnly: true
+      volumes:
+        - name: *app-conf
+          configMap:
+            name: pgcat-config
