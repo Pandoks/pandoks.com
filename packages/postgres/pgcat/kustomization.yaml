@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: main
+resources:
+  - kube.yaml
+configMapGenerator:
+  - name: pgcat-config
+    files:
+      - ./pgcat.toml
+generatorOptions:
+  disableNameSuffixHash: false # changes the suffix hash of names so services automatically reload
