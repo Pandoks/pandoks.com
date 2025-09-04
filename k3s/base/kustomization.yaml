@@ -6,3 +6,4 @@ resources:
   - namespaces.yaml
   # - ../apps/seedbox/kube.yaml
   - ../../packages/postgres/pgcat
+  - ../../packages/postgres/patroni
