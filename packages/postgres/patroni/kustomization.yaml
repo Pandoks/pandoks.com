@@ -7,5 +7,8 @@ configMapGenerator:
   - name: patroni-config
     files:
       - ./patroni.yaml
+  - name: pgbackrest-config
+    files:
+      - ./pgbackrest.conf
 generatorOptions:
   disableNameSuffixHash: false # changes the suffix hash of names so services automatically reload
