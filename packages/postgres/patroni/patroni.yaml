@@ -46,7 +46,8 @@ bootstrap: # how new clusters are created or replicas are initialized
 postgresql: # postgresql settings here don't need to restart the entire cluster
   listen: 0.0.0.0:5432
   connect_address: ${POD_IP}:5432
-  data_dir: /var/lib/postgresql/data
+  # TODO: change back to /var/lib/postgresql/data after you can UNVOLUME https://github.com/moby/moby/issues/3465
+  data_dir: /var/lib/postgresql/pgdata
   authentication:
     superuser:
       username: ${PGUSER}
