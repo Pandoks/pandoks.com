@@ -302,8 +302,9 @@ secrets)
         
         rm -f "$VALUE_TEMP"
       else
-        # For inline placeholders (like in JSON), do simple string replacement
-        sed -i.bak "s/\${sst\.$key}/$VALUE/g" "$TMP_FILE" && rm -f "$TMP_FILE.bak"
+        # For inline placeholders (like in JSON), do safe string replacement (escape &, | and \ in value)
+        SAFE_VALUE=$(printf '%s' "$VALUE" | sed -e 's/[\\&|]/\\&/g')
+        sed -i.bak "s|\${sst\.$key}|$SAFE_VALUE|g" "$TMP_FILE" && rm -f "$TMP_FILE.bak"
       fi
     fi
   done
