@@ -27,8 +27,7 @@
     "ssh:copy": "./scripts/ssh.sh copy",
     "ssh:tunnel": "./scripts/ssh.sh tunnel --local-port 6443 --remote-port 6443",
     "ssh:stop": "./scripts/ssh.sh stop-tunnel",
-    "ssh:status": "./scripts/ssh.sh status",
-    "gen:secrets": "sst secret list $@ > .env.secrets"
+    "ssh:status": "./scripts/ssh.sh status"
   },
   "devDependencies": {
     "glob": "^11.0.3",
