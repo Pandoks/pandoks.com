@@ -82,6 +82,18 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "PostgresPassword": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "PostgresS3Key": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "PostgresS3KeySecret": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "ScheduleTextReminderApi": {
       "name": string
       "type": "sst.aws.Function"

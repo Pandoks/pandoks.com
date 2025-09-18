@@ -1,10 +1,8 @@
 import { resolve } from 'node:path';
-import { EXAMPLE_DOMAIN } from '../dns';
+import { EXAMPLE_DOMAIN, STAGE_NAME } from '../dns';
 import { secrets } from '../secrets';
 import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-
-const STAGE_NAME = $app.stage === 'production' ? 'prod' : 'dev';
 
 /**
  * NOTE: Hetzner doesn't allow you to connect servers from different regions in the same network.

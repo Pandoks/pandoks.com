@@ -30,7 +30,10 @@ export const secrets = {
   },
   k8s: {
     HetznerOriginTlsKey: new sst.Secret('HetznerOriginTlsKey', 'No Origin Tls Key Set'),
-    HetznerOriginTlsCrt: new sst.Secret('HetznerOriginTlsCrt', 'No Origin Tls Cert Set')
+    HetznerOriginTlsCrt: new sst.Secret('HetznerOriginTlsCrt', 'No Origin Tls Cert Set'),
+    PostgresPassword: new sst.Secret('PostgresPassword'),
+    PostgresS3Key: new sst.Secret('PostgresS3Key', 'test'),
+    PostgresS3KeySecret: new sst.Secret('PostgresS3KeySecret', 'testsecret')
   },
   planetscale: {
     ApiKey: new sst.Secret('PlanetscaleApiKey'),

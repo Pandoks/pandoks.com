@@ -1,0 +1,38 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: &name patroni-{{ .Values.db }}
+  namespace: '{{ .Values.namespace }}'
+spec:
+  commonName: *name
+  secretName: patroni-{{ .Values.db }}-tls
+  dnsNames:
+    - patroni-{{ .Values.db }}-primary.{{ .Values.namespace }}.svc.cluster.local
+    - patroni-{{ .Values.db }}-replicas.{{ .Values.namespace }}.svc.cluster.local
+  usages:
+    - client auth
+    - server auth
+  issuerRef:
+    name: internal-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: &name '{{ .Values.db }}-pgbackrest-backup'
+  namespace: '{{ .Values.namespace }}'
+spec:
+  commonName: *name
+  secretName: '{{ .Values.db }}-pgbackrest-backup-tls'
+  dnsNames:
+    - patroni-{{ .Values.db }}-primary.{{ .Values.namespace }}.svc.cluster.local
+    - patroni-{{ .Values.db }}-replicas.{{ .Values.namespace }}.svc.cluster.local
+  usages:
+    - client auth
+    - server auth
+  issuerRef:
+    name: internal-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io

@@ -1,0 +1,97 @@
+# https://patroni.readthedocs.io/en/latest/yaml_configuration.html#yaml-configuration
+# some of the defaults are verbosely set here just so that you don't have to reference docs every time
+scope: ${POSTGRES_DB} # Name for pg cluster
+namespace: ${NAMESPACE}
+name: ${POD_NAME}
+
+# postgresql defaults to async replication
+bootstrap: # how new clusters are created or replicas are initialized
+  dcs: # global dynamic configuration stored into dcs (k8s)
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    maximum_lag_on_failover: 16777216 # (16mb)
+    primary_start_timeout: 300 # time (in seconds) allowed to recovery before failover to standby
+    failsafe_mode: true # when dcs is down, let there be a primary
+    postgresql: # postgresql dcs settings need to restart the entire cluster to take into effect
+      parameters:
+        max_connections: 100
+        max_locks_per_transaction: 64
+        max_worker_processes: 20
+        wal_level: logical # minimal, replica, or logical (logical is needed for zero sync)
+        max_wal_senders: 20
+        max_replication_slots: 20
+        wal_keep_size: 4096MB
+        max_slot_wal_keep_size: 4096MB
+        wal_log_hints: on
+        max_wal_size: 4GB
+        min_wal_size: 1GB
+        archive_timeout: 300
+        wal_compression: on
+        hot_standby: on
+        archive_mode: on
+        archive_command: 'pgbackrest --stanza=${POSTGRES_DB} archive-push %p'
+        # placeholders: %p = path of file to archive
+        #               %f = file name only
+        # e.g. 'test ! -f /mnt/server/archivedir/%f && cp %p /mnt/server/archivedir/%f'
+      recovery_conf:
+        recovery_target_timeline: latest
+        restore_command: 'pgbackrest --stanza=${POSTGRES_DB} archive-get %f %p'
+      pg_hba:
+        - 'local all all trust'
+        - 'host all all 127.0.0.1/32 trust'
+        - 'host all all ::1/128 trust'
+        - 'local replication all trust'
+        - 'host replication all 127.0.0.1/32 trust'
+        - 'host replication all ::1/128 trust'
+        - 'host replication replicator 10.42.0.0/16 scram-sha-256'
+        - 'host ${POSTGRES_DB} pgcat 10.42.0.0/16 scram-sha-256'
+  post_bootstrap: /usr/local/bin/cluster-init.sh
+
+postgresql: # postgresql settings here don't need to restart the entire cluster
+  listen: 0.0.0.0:5432
+  connect_address: ${POD_IP}:5432
+  # TODO: change back to /var/lib/postgresql/data after you can UNVOLUME https://github.com/moby/moby/issues/3465
+  data_dir: /var/lib/postgresql/pgdata
+  authentication:
+    superuser:
+      username: ${PGUSER}
+      password: ${PGPASSWORD}
+    replication:
+      username: replicator
+      password: ${PGREPPASS}
+  create_replica_methods:
+    - pgbackrest
+    - basebackup
+  pgbackrest:
+    command: 'pgbackrest --stanza=${POSTGRES_DB} --delta restore'
+    keep_data: true
+    no_params: true
+  basebackup:
+    checkpoint: fast
+  parameters:
+    shared_preload_libraries: 'pg_cron,vector'
+    cron.database_name: ${POSTGRES_DB}
+    cron.timezone: GMT
+    cron.use_background_workers: on
+
+restapi:
+  listen: 0.0.0.0:8008
+  connect_address: ${POD_IP}:8008
+  authentication:
+    username: patroni
+    password: ${PATRONI_PASSWORD}
+
+kubernetes:
+  namespace: ${NAMESPACE}
+  use_endpoints: true
+  pod_ip: ${POD_IP}
+  labels: # these labels need to match the ones in your kube.yaml
+    app: patroni-${POSTGRES_DB}
+    cluster-name: ${POSTGRES_DB}
+
+tags:
+  nofailover: false
+  noloadbalance: false
+  clonefrom: false
+  nosync: false

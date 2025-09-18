@@ -1,0 +1,15 @@
+db: main
+namespace: main
+
+backup:
+  bucket: database
+  path: /
+  encryptionKey: openssl-rand-hex-32
+  schedule: '0 2 * * 1,2,4,5' # Run at 2 AM on Monday, Tuesday, Thursday, and Friday
+  type: incr
+
+s3:
+  region: us-west-1
+  endpoint: host.k3d.internal:4566
+  tls: 'n'
+  uriStyle: path

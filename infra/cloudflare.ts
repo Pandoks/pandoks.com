@@ -1,4 +1,4 @@
-import { EXAMPLE_DOMAIN } from './dns';
+import { EXAMPLE_DOMAIN, STAGE_NAME } from './dns';
 import { secrets } from './secrets';
 import { publicLoadBalancer } from './vps/vps';
 
@@ -28,3 +28,11 @@ if (publicLoadBalancer && $app.stage !== 'production') {
     content: publicLoadBalancer.ipv6
   });
 }
+
+export const backupBucket = new cloudflare.R2Bucket('BackupBucket', {
+  name: `${STAGE_NAME}-backups`,
+  accountId: secrets.cloudflare.AccountId.value,
+  jurisdiction: 'default',
+  location: 'wnam',
+  storageClass: 'Standard'
+});
