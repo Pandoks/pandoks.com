@@ -1,0 +1,23 @@
+db: main
+namespace: main
+
+backup:
+  bucket: database
+  path: /
+  encryptionKey: openssl-rand-hex-32
+
+s3:
+  region: us-west-1
+  endpoint: host.k3d.internal:4566
+  tls: 'n'
+  uriStyle: path
+
+storage:
+  className: local-path
+  size: 1Gi
+
+patroni:
+  replicas: 3
+
+pgcat:
+  replicas: 3

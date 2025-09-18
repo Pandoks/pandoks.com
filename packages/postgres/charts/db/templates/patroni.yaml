@@ -1,0 +1,267 @@
+# provides a stable ip for the primary
+apiVersion: v1
+kind: Service
+metadata:
+  name: patroni-{{ .Values.db }}-primary
+  namespace: '{{ .Values.namespace }}'
+  labels:
+    app: &app patroni-{{ .Values.db }}
+    cluster-name: &cluster-name '{{ .Values.db }}'
+    role: &role primary
+spec:
+  type: ClusterIP
+  selector:
+    app: *app
+    cluster-name: *cluster-name
+    role: *role
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+    - name: pgbackrest
+      port: 8432
+      targetPort: 8432
+
+---
+# provides a stable ip for all replicas
+apiVersion: v1
+kind: Service
+metadata:
+  name: patroni-{{ .Values.db }}-replicas
+  namespace: '{{ .Values.namespace }}'
+  labels:
+    app: &app patroni-{{ .Values.db }}
+    cluster-name: &cluster-name '{{ .Values.db }}'
+    role: &role replica
+spec:
+  type: ClusterIP
+  selector:
+    app: *app
+    cluster-name: *cluster-name
+    role: *role
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+    - name: pgbackrest
+      port: 8432
+      targetPort: 8432
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: &app patroni-{{ .Values.db }}
+  namespace: '{{ .Values.namespace }}'
+  labels:
+    app: *app
+    cluster-name: &cluster-name '{{ .Values.db }}'
+spec:
+  replicas: {{ .Values.patroni.replicas }}
+  selector:
+    matchLabels:
+      app: *app
+      cluster-name: *cluster-name
+  template:
+    metadata:
+      labels:
+        app: *app
+        cluster-name: *cluster-name
+    spec:
+      serviceAccountName: patroni
+      securityContext:
+        fsGroup: 999
+      containers:
+        - name: patroni
+          image: ghcr.io/pandoks/patroni:latest
+          readinessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /readiness
+              port: 8008
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          ports:
+            - containerPort: 8008
+              protocol: TCP
+            - containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_DB
+              value: &db '{{ .Values.db }}'
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: &db_creds '{{ .Values.db }}-db-creds'
+                  key: &pguser PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: *db_creds
+                  key: &pgpassword PGPASSWORD
+            - name: PGREPPASS
+              valueFrom:
+                secretKeyRef:
+                  name: *db_creds
+                  key: PGREPPASS
+            - name: PATRONI_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: *db_creds
+                  key: PATRONI_PASSWORD
+            - name: PGCATPASS
+              valueFrom:
+                secretKeyRef:
+                  name: *db_creds
+                  key: PGCATPASS
+            - name: BACKUP_BUCKET
+              value: &backup_bucket '{{ .Values.backup.bucket }}'
+            - name: BACKUP_PATH
+              value: &backup_path '{{ .Values.backup.path }}'
+            - name: S3_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: &backup_creds '{{ .Values.db }}-db-backup-creds'
+                  key: &key S3_KEY
+            - name: S3_KEY_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: *backup_creds
+                  key: &key_secret S3_KEY_SECRET
+            - name: S3_REGION
+              value: &s3_region '{{ .Values.s3.region }}'
+            - name: S3_ENDPOINT
+              value: &s3_endpoint '{{ .Values.s3.endpoint }}'
+            - name: S3_TLS
+              value: &s3_tls '{{ .Values.s3.tls }}'
+            - name: S3_URI_STYLE
+              value: &s3_uri_style '{{ .Values.s3.uriStyle }}'
+            - name: ENCRYPTION_KEY
+              value: &encryption_key '{{ .Values.backup.encryptionKey }}'
+            - name: BACKUP_HOST_COMMON_NAME
+              value: &backup_host_common_name '{{ .Values.db }}-pgbackrest-backup'
+            - name: STANZA
+              value: *db
+          volumeMounts:
+            - name: &patroni_config patroni-config
+              mountPath: /tmp/conf_templates/patroni.yaml
+              subPath: patroni.yaml
+            - name: &pgbackrest_config pgbackrest-config
+              mountPath: &pgbackrest_mount /tmp/conf_templates/pgbackrest.conf
+              subPath: pgbackrest.conf
+            - name: &data patroni-data
+              mountPath: &data_mount /var/lib/postgresql
+            - name: &socket postgres-socket
+              mountPath: &socket_mount /var/run/postgresql
+        - name: pgbackrest
+          image: ghcr.io/pandoks/pgbackrest:latest
+          args: ['pgbackrest', 'server', '--config=/etc/pgbackrest.conf']
+          ports:
+            - name: pgbackrest
+              containerPort: 8432
+          env:
+            - name: POSTGRES_DB
+              value: *db
+            - name: BACKUP_BUCKET
+              value: *backup_bucket
+            - name: BACKUP_PATH
+              value: *backup_path
+            - name: S3_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: *backup_creds
+                  key: *key
+            - name: S3_KEY_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: *backup_creds
+                  key: *key_secret
+            - name: S3_REGION
+              value: *s3_region
+            - name: S3_ENDPOINT
+              value: *s3_endpoint
+            - name: S3_TLS
+              value: *s3_tls
+            - name: S3_URI_STYLE
+              value: *s3_uri_style
+            - name: ENCRYPTION_KEY
+              value: *encryption_key
+            - name: BACKUP_HOST_COMMON_NAME
+              value: *backup_host_common_name
+            - name: STANZA
+              value: *db
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: *db_creds
+                  key: *pguser
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: *db_creds
+                  key: *pgpassword
+          volumeMounts:
+            - name: *pgbackrest_config
+              mountPath: *pgbackrest_mount
+              subPath: pgbackrest.conf
+            - name: &tls tls
+              mountPath: /etc/pgbackrest
+              readOnly: true
+            - name: *data
+              mountPath: *data_mount
+            - name: *socket
+              mountPath: *socket_mount
+      volumes:
+        - name: *patroni_config
+          configMap:
+            name: patroni-config
+        - name: *pgbackrest_config
+          configMap:
+            name: patroni-pgbackrest-config
+        - name: *tls
+          projected:
+            defaultMode: 0600
+            sources:
+              - secret:
+                  name: patroni-{{ .Values.db }}-tls
+                  items:
+                    - key: tls.crt
+                      path: client.crt
+                    - key: tls.key
+                      path: client.key
+                    - key: ca.crt
+                      path: ca.crt
+              - secret:
+                  name: '{{ .Values.db }}-pgbackrest-backup-tls'
+                  items:
+                    - key: tls.crt
+                      path: server.crt
+                    - key: tls.key
+                      path: server.key
+        - name: *socket
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: *data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: '{{ .Values.storage.className }}'
+        resources:
+          requests:
+            storage: '{{ .Values.storage.size }}'

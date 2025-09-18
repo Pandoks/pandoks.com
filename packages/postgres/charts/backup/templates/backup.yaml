@@ -1,0 +1,91 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: '{{ .Values.db }}-pgbackrest-backup-{{ .Values.backup.type }}'
+  namespace: '{{ .Values.namespace }}'
+spec:
+  schedule: '{{ .Values.backup.schedule }}'
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          securityContext:
+            fsGroup: 999
+          containers:
+            - name: pgbackrest
+              image: ghcr.io/pandoks/pgbackrest:latest
+              args:
+                [
+                  'pgbackrest',
+                  '--stanza={{ .Values.db }}',
+                  '--type={{ .Values.backup.type }}',
+                  '--config=/etc/pgbackrest.conf',
+                  'backup'
+                ]
+              env:
+                - name: MASTER_HOST
+                  value: patroni-{{ .Values.db }}-primary.{{ .Values.namespace }}.svc.cluster.local
+                - name: SLAVE_HOST
+                  value: patroni-{{ .Values.db }}-replicas.{{ .Values.namespace }}.svc.cluster.local
+                - name: CLIENT_COMMON_NAME
+                  value: patroni-{{ .Values.db }}
+                - name: BACKUP_BUCKET
+                  value: '{{ .Values.backup.bucket }}'
+                - name: BACKUP_PATH
+                  value: '{{ .Values.backup.path }}'
+                - name: S3_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: &backup_creds '{{ .Values.db }}-db-backup-creds'
+                      key: S3_KEY
+                - name: S3_KEY_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: *backup_creds
+                      key: S3_KEY_SECRET
+                - name: S3_REGION
+                  value: '{{ .Values.s3.region }}'
+                - name: S3_ENDPOINT
+                  value: '{{ .Values.s3.endpoint }}'
+                - name: S3_TLS
+                  value: '{{ .Values.s3.tls }}'
+                - name: S3_URI_STYLE
+                  value: '{{ .Values.s3.uriStyle }}'
+                - name: ENCRYPTION_KEY
+                  value: '{{ .Values.backup.encryptionKey }}'
+                - name: STANZA
+                  value: '{{ .Values.db }}'
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: &db_creds '{{ .Values.db }}-db-creds'
+                      key: PGUSER
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: *db_creds
+                      key: PGPASSWORD
+              volumeMounts:
+                - name: &config pgbackrest-config
+                  mountPath: /tmp/conf_templates/pgbackrest.conf
+                  subPath: pgbackrest.conf
+                - name: &tls pgbackrest-tls
+                  mountPath: /etc/pgbackrest
+                  readOnly: true
+          volumes:
+            - name: *config
+              configMap:
+                name: pgbackrest-server-config
+            - name: *tls
+              secret:
+                secretName: '{{ .Values.db }}-pgbackrest-backup-tls'
+                defaultMode: 0600
+                items:
+                  - key: tls.crt
+                    path: server.crt
+                  - key: tls.key
+                    path: server.key
+                  - key: ca.crt
+                    path: ca.crt
+          restartPolicy: OnFailure
+      backoffLimit: 4

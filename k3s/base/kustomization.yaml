@@ -3,4 +3,5 @@ kind: Kustomization
 resources:
   # k8s yamls are in the project roots (e.g., "../apps/<project>/kube.yaml")
   # NOTE: use --load-restrictor LoadRestrictionsNone when kubectl apply
-  - ../apps/seedbox/kube.yaml
+  - namespaces.yaml
+  - ../../packages/postgres/kube

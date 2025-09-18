@@ -1,0 +1,15 @@
+apiVersion: v2
+name: postgres
+description: A Helm chart for PostgreSQL clusters with Patroni, PgCat, and PgBackRest
+type: application
+version: 0.1.0
+appVersion: 'latest'
+keywords:
+  - postgresql
+  - patroni
+  - pgcat
+  - pgbackrest
+  - database
+maintainers:
+  - name: pandoks
+dependencies: []

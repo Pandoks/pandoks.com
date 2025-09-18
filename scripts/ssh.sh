@@ -1,4 +1,5 @@
 #!/bin/sh
+# TODO: use scp for copy
 set -euo pipefail
 
 usage() {

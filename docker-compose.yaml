@@ -1,21 +1,31 @@
 networks:
-  pandoks-net:
+  local-network:
+    name: pandoks-net
     driver: bridge
 
 services:
-  db:
-    image: postgres
+  s3:
+    image: localstack/localstack
+    container_name: s3
     restart: always
     ports:
-      - 5432:5432
+      - 4566:4566
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: main
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+      - SERVICES=s3
+      - AWS_DEFAULT_REGION=us-west-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=testsecret
+      - BACKUP_BUCKET=database
     networks:
-      - pandoks-net
-
-volumes:
-  pgdata:
+      - local-network
+    entrypoint:
+      - sh
+      - -c
+      - |
+        mkdir -p /etc/localstack/init/ready.d
+        cat > /etc/localstack/init/ready.d/s3.sh << 'EOF'
+        #!/bin/sh
+        awslocal s3 mb s3://$$BACKUP_BUCKET
+        EOF
+        chmod +x /etc/localstack/init/ready.d/s3.sh
+        exec docker-entrypoint.sh

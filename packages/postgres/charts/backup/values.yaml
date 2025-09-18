@@ -1,0 +1,17 @@
+# Default values for pgbackrest chart
+
+db: example
+namespace: example
+
+backup:
+  bucket: database
+  path: /
+  encryptionKey: openssl-rand-hex-32
+  schedule: '0 2 * * *' # Run daily at 2 AM
+  type: full # full, diff, incr
+
+s3:
+  region: us-west-1
+  endpoint: host.k3d.internal:4566
+  tls: 'n'
+  uriStyle: path

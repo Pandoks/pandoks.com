@@ -255,7 +255,7 @@ secrets)
   SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
   REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
   K3S_DIR="$REPO_ROOT/k3s"
-  SECRETS_YAML="$K3S_DIR/secrets.yaml"
+  SECRETS_YAML="$K3S_DIR/base/secrets.yaml"
   [ -f "$SECRETS_YAML" ] || { echo "Missing $SECRETS_YAML" >&2; exit 1; }
 
   echo "Fetching SST secrets..." >&2
@@ -302,8 +302,9 @@ secrets)
         
         rm -f "$VALUE_TEMP"
       else
-        # For inline placeholders (like in JSON), do simple string replacement
-        sed -i.bak "s/\${sst\.$key}/$VALUE/g" "$TMP_FILE" && rm -f "$TMP_FILE.bak"
+        # For inline placeholders (like in JSON), do safe string replacement (escape &, | and \ in value)
+        SAFE_VALUE=$(printf '%s' "$VALUE" | sed -e 's/[\\&|]/\\&/g')
+        sed -i.bak "s|\${sst\.$key}|$SAFE_VALUE|g" "$TMP_FILE" && rm -f "$TMP_FILE.bak"
       fi
     fi
   done
