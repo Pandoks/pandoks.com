@@ -10,11 +10,11 @@ helmCharts:
   - name: db
     releaseName: main-postgres
     namespace: main
-    valuesFile: ./main/postgres.yaml
+    valuesFile: ./main.yaml
   - name: backup
     releaseName: main-pgbackrest-backup-full
     namespace: main
-    valuesFile: ./main/backup.yaml
+    valuesFile: ./main.yaml
 
 configMapGenerator:
   - name: pgcat-config
