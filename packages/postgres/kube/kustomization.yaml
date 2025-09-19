@@ -14,15 +14,7 @@ helmCharts:
   - name: backup
     releaseName: main-pgbackrest-backup-full
     namespace: main
-    valuesFile: ./main/full-backup.yaml
-  - name: backup
-    releaseName: main-pgbackrest-backup-diff
-    namespace: main
-    valuesFile: ./main/diff-backup.yaml
-  - name: backup
-    releaseName: main-pgbackrest-backup-incr
-    namespace: main
-    valuesFile: ./main/incr-backup.yaml
+    valuesFile: ./main/backup.yaml
 
 configMapGenerator:
   - name: pgcat-config
