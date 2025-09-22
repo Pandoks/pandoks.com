@@ -17,7 +17,7 @@ type ValkeyClusterStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=valkeyclusters,scope=Namespaced,shortName=vkc
 // +kubebuilder:printcolumn:name="Masters",type=integer,JSONPath=`.spec.masters`
-// +kubebuilder:printcolumn:name="Replicas",type=integer,JSONPath=`.spec.replicasPerMaster`
+// +kubebuilder:printcolumn:name="Replicas Per Master",type=integer,JSONPath=`.spec.replicasPerMaster`
 // +kubebuilder:printcolumn:name="Ready",type=boolean,JSONPath=`.status.ready`
 type ValkeyCluster struct {
 	metav1.TypeMeta   `json:",inline"`
