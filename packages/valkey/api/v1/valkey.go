@@ -21,16 +21,16 @@ type ValkeyClusterStatus struct {
 // +kubebuilder:printcolumn:name="Ready",type=boolean,JSONPath=`.status.ready`
 type ValkeyCluster struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   ValkeyClusterSpec   `json:"spec,omitempty"`
-	Status ValkeyClusterStatus `json:"status,omitempty"`
+	Spec   ValkeyClusterSpec    `json:"spec"`
+	Status *ValkeyClusterStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 type ValkeyClusterList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []ValkeyCluster `json:"items"`
 }
 
