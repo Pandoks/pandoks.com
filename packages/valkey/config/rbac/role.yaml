@@ -1,0 +1,23 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: valkey-operator
+rules:
+  - apiGroups: ['']
+    resources: ['pods']
+    verbs: ['get', 'list', 'watch']
+  - apiGroups: ['']
+    resources: ['events']
+    verbs: ['create', 'patch']
+  - apiGroups: ['batch']
+    resources: ['jobs']
+    verbs: ['create', 'get', 'list', 'watch', 'delete']
+  - apiGroups: ['coordination.k8s.io']
+    resources: ['leases']
+    verbs: ['get', 'list', 'watch', 'create', 'update', 'patch']
+  - apiGroups: ['apps']
+    resources: ['statefulsets']
+    verbs: ['get', 'list', 'watch']
+  - apiGroups: ['valkey.pandoks.dev']
+    resources: ['valkeyclusters', 'valkeyclusters/status']
+    verbs: ['get', 'list', 'watch', 'update', 'patch']
