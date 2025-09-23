@@ -1,0 +1,11 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: valkey-operator
+  namespace: valkey-system
+spec:
+  template:
+    spec:
+      containers:
+        - name: manager
+          image: local-registry:12345/valkey-operator:latest

@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: valkey-operator
+  namespace: valkey-system
+  labels:
+    app: valkey-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: valkey-operator
+  template:
+    metadata:
+      labels:
+        app: valkey-operator
+    spec:
+      serviceAccountName: valkey-operator
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: manager
+          image: ghcr.io/pandoks/valkey-operator:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - --leader-elect
+            - --metrics-bind-address=:8080
+            - --health-probe-bind-address=:8081
+          ports:
+            - name: metrics
+              containerPort: 8080
+            - name: health
+              containerPort: 8081
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
