@@ -6,6 +6,10 @@
   "scripts": {
     "gen": "pnpm run gen:deepcopy",
     "controller-gen": "go run sigs.k8s.io/controller-tools/cmd/controller-gen@latest",
-    "gen:deepcopy": "pnpm run controller-gen object paths=./api/..."
+    "gen:deepcopy": "pnpm run controller-gen object paths=./api/...",
+    "build": "pnpm run build:valkey",
+    "build:valkey": "docker build -f ./image/Dockerfile ../.. -t localhost:12345/valkey:latest",
+    "push": "pnpm run push:valkey",
+    "push:valkey": "docker push localhost:12345/valkey:latest"
   }
 }
