@@ -1,12 +1,16 @@
 package v1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type ValkeyClusterSpec struct {
-	Masters           int32 `json:"masters"`
-	ReplicasPerMaster int32 `json:"replicasPerMaster"`
+	Masters              int32                          `json:"masters"`
+	ReplicasPerMaster    int32                          `json:"replicasPerMaster"`
+	Volumes              []corev1.Volume                `json:"volumes,omitempty"`
+	VolumeMounts         []corev1.VolumeMount           `json:"volumeMounts,omitempty"`
+	VolumeClaimTemplates []corev1.PersistentVolumeClaim `json:"volumeClaimTemplates,omitempty"`
 }
 
 type ValkeyClusterStatus struct {
