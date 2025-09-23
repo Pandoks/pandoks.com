@@ -18,6 +18,8 @@
     "cluster:create": "./scripts/cluster.sh k3d-up",
     "cluster:delete": "./scripts/cluster.sh k3d-down",
     "cluster:setup": "./scripts/cluster.sh setup --k3d",
+    "cluster:build": "pnpm -r run cluster:build",
+    "cluster:push": "pnpm -r run cluster:push",
     "cluster:example": "kubectl apply -f ./k3s/base/example.yaml & ./scripts/cluster.sh secrets",
     "cluster:deploy": "kubectl kustomize ./k3s/dev --load-restrictor LoadRestrictionsNone --enable-helm | kubectl apply -f - & ./scripts/cluster.sh secrets",
     "k3s:remote": "pnpm run ssh:copy --remote-file /etc/rancher/k3s/k3s.yaml",
