@@ -1,0 +1,7 @@
+apiVersion: valkey.pandoks.com/v1
+kind: ValkeyCluster
+metadata:
+  name: main
+spec:
+  masters: 1
+  replicasPerMaster: 1
