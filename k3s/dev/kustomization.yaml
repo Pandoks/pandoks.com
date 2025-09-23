@@ -3,4 +3,4 @@ kind: Kustomization
 resources:
   - ../base
 patches:
-  - path: ../../packages/postgres/kube/dev-patch.yaml
+  - path: ../../packages/postgres/kube/main/dev-patch.yaml
