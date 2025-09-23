@@ -5,3 +5,12 @@ resources:
   - role.yaml
   - service-accounts.yaml
   - operator.yaml
+  - main
+
+configMapGenerator:
+  - name: valkey-config
+    files:
+      - ../image/valkey.conf
+
+generatorOptions:
+  disableNameSuffixHash: true
