@@ -1,5 +1,5 @@
 // +kubebuilder:object:generate=true
-// +groupName=valkey
+// +groupName=valkey.pandoks.com
 package v1
 
 import (
@@ -7,7 +7,7 @@ import (
 	ctrlscheme "sigs.k8s.io/controller-runtime/pkg/scheme"
 )
 
-var GroupVersion = schema.GroupVersion{Group: "valkey", Version: "v1"}
+var GroupVersion = schema.GroupVersion{Group: "valkey.pandoks.com", Version: "v1"}
 
 var SchemeBuilder = &ctrlscheme.Builder{GroupVersion: GroupVersion}
 

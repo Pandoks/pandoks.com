@@ -18,10 +18,12 @@ type ValkeyClusterReconciler struct {
 
 func (reconciler *ValkeyClusterReconciler) Reconcile(context context.Context, request ctrlruntime.Request) (ctrlruntime.Result, error) {
 	logger := log.FromContext(context)
+
 	var valkeyCluster valkeyv1.ValkeyCluster
 	if err := reconciler.Get(context, request.NamespacedName, &valkeyCluster); err != nil {
 		return ctrlruntime.Result{}, client.IgnoreNotFound(err)
 	}
+
 	logger.Info("reconciled ValkeyCluster", "name", request.NamespacedName)
 	return ctrlruntime.Result{}, nil
 }
