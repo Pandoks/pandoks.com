@@ -3,21 +3,93 @@ kind: ClusterRole
 metadata:
   name: valkey-operator
 rules:
-  - apiGroups: ['']
-    resources: ['pods']
-    verbs: ['get', 'list', 'watch']
-  - apiGroups: ['']
-    resources: ['events']
-    verbs: ['create', 'patch']
-  - apiGroups: ['batch']
-    resources: ['jobs']
-    verbs: ['create', 'get', 'list', 'watch', 'delete']
-  - apiGroups: ['coordination.k8s.io']
-    resources: ['leases']
-    verbs: ['get', 'list', 'watch', 'create', 'update', 'patch']
-  - apiGroups: ['apps']
-    resources: ['statefulsets']
-    verbs: ['get', 'list', 'watch']
-  - apiGroups: ['valkey.pandoks.dev']
-    resources: ['valkeyclusters', 'valkeyclusters/status']
-    verbs: ['get', 'list', 'watch', 'update', 'patch']
+  - apiGroups:
+      - ''
+    resources:
+      - pods
+      - services
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - ''
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+  - apiGroups:
+      - batch
+    resources:
+      - jobs
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+      - delete
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+  - apiGroups:
+      - apps
+    resources:
+      - statefulsets
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - ''
+    resources:
+      - persistentvolumeclaims
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - valkey
+    resources:
+      - valkeyclusters
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+      - patch
+  - apiGroups:
+      - valkey
+    resources:
+      - valkeyclusters/status
+    verbs:
+      - get
+      - update
+      - patch
+  - apiGroups:
+      - valkey
+    resources:
+      - valkeyclusters/finalizers
+    verbs:
+      - update
