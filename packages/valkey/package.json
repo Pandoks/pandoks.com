@@ -7,7 +7,7 @@
     "gen": "pnpm run gen:deepcopy && pnpm run gen:crd",
     "controller-gen": "go run sigs.k8s.io/controller-tools/cmd/controller-gen@latest",
     "gen:deepcopy": "pnpm run controller-gen object paths=./api/...",
-    "gen:crd": "pnpm run controller-gen crd:crdVersions=v1 paths=./api/... output:crd:artifacts:config=./kube",
+    "gen:crd": "pnpm run controller-gen crd:crdVersions=v1 paths=./api/... output:crd:artifacts:config=../../k3s/core",
     "build": "pnpm run build:valkey && pnpm run build:operator",
     "cluster:build": "pnpm run build",
     "build:valkey": "docker build -f ./image/Dockerfile ../.. -t localhost:12345/valkey:latest",
