@@ -14,12 +14,6 @@ helmCharts:
   - name: backup
     namespace: main
     valuesFile: ./main.yaml
-  - name: db
-    namespace: main
-    valuesFile: ./test.yaml
-  - name: backup
-    namespace: main
-    valuesFile: ./test.yaml
 
 configMapGenerator:
   - name: pgcat-config
