@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"k8s.io/apimachinery/pkg/runtime"
-	ctrl "sigs.k8s.io/controller-runtime"
+	ctrlruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -16,18 +16,18 @@ type ValkeyClusterReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx)
-	var vkc valkeyv1.ValkeyCluster
-	if err := r.Get(ctx, req.NamespacedName, &vkc); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+func (reconciler *ValkeyClusterReconciler) Reconcile(context context.Context, request ctrlruntime.Request) (ctrlruntime.Result, error) {
+	logger := log.FromContext(context)
+	var valkeyCluster valkeyv1.ValkeyCluster
+	if err := reconciler.Get(context, request.NamespacedName, &valkeyCluster); err != nil {
+		return ctrlruntime.Result{}, client.IgnoreNotFound(err)
 	}
-	logger.Info("reconciled ValkeyCluster", "name", req.NamespacedName)
-	return ctrl.Result{}, nil
+	logger.Info("reconciled ValkeyCluster", "name", request.NamespacedName)
+	return ctrlruntime.Result{}, nil
 }
 
-func (r *ValkeyClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+func (reconciler *ValkeyClusterReconciler) SetupWithManager(manager ctrlruntime.Manager) error {
+	return ctrlruntime.NewControllerManagedBy(manager).
 		For(&valkeyv1.ValkeyCluster{}).
-		Complete(r)
+		Complete(reconciler)
 }
