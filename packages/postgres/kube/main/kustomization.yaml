@@ -5,16 +5,21 @@ resources:
   - service-accounts.yaml
 
 helmGlobals:
-  chartHome: ../charts
+  chartHome: ../../charts
 helmCharts:
+  # name: $chartHome/dir
   - name: db
-    releaseName: main-postgres
     namespace: main
     valuesFile: ./main.yaml
   - name: backup
-    releaseName: main-pgbackrest-backup-full
     namespace: main
     valuesFile: ./main.yaml
+  - name: db
+    namespace: main
+    valuesFile: ./test.yaml
+  - name: backup
+    namespace: main
+    valuesFile: ./test.yaml
 
 configMapGenerator:
   - name: pgcat-config

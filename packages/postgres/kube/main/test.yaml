@@ -1,9 +1,9 @@
-db: main
+db: test
 namespace: main
 
 backup:
   bucket: database
-  path: /main
+  path: /test
   encryptionKey: openssl-rand-hex-32
   schedules:
     full: '0 2 * * 0'
