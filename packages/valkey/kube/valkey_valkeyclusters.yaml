@@ -1,0 +1,74 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: valkeyclusters.valkey
+spec:
+  group: valkey
+  names:
+    kind: ValkeyCluster
+    listKind: ValkeyClusterList
+    plural: valkeyclusters
+    shortNames:
+    - vkc
+    singular: valkeycluster
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.masters
+      name: Masters
+      type: integer
+    - jsonPath: .spec.replicasPerMaster
+      name: Replicas Per Master
+      type: integer
+    - jsonPath: .status.ready
+      name: Ready
+      type: boolean
+    name: v1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              masters:
+                format: int32
+                type: integer
+              replicasPerMaster:
+                format: int32
+                type: integer
+            required:
+            - masters
+            - replicasPerMaster
+            type: object
+          status:
+            properties:
+              ready:
+                type: boolean
+            type: object
+        required:
+        - metadata
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

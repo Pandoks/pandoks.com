@@ -1,3 +1,5 @@
+// +kubebuilder:object:generate=true
+// +groupName=valkey
 package v1
 
 import (
