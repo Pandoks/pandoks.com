@@ -8,9 +8,11 @@
     "controller-gen": "go run sigs.k8s.io/controller-tools/cmd/controller-gen@latest",
     "gen:deepcopy": "pnpm run controller-gen object paths=./api/...",
     "gen:crd": "pnpm run controller-gen crd:crdVersions=v1 paths=./api/... output:crd:artifacts:config=./kube",
-    "build": "pnpm run build:valkey",
+    "build": "pnpm run build:valkey && pnpm run build:operator",
     "build:valkey": "docker build -f ./image/Dockerfile ../.. -t localhost:12345/valkey:latest",
-    "push": "pnpm run push:valkey",
-    "push:valkey": "docker push localhost:12345/valkey:latest"
+    "build:operator": "docker build -f Dockerfile ../.. -t localhost:12345/valkey-operator:latest",
+    "push": "pnpm run push:valkey && pnpm run push:operator",
+    "push:valkey": "docker push localhost:12345/valkey:latest",
+    "push:operator": "docker push localhost:12345/valkey-operator:latest"
   }
 }
