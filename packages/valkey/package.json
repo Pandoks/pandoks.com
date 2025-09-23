@@ -4,9 +4,8 @@
   "type": "module",
   "sideEffects": false,
   "scripts": {
-    "gen": "pnpm run gen:deepcopy && pnpm run gen:rbac",
+    "gen": "pnpm run gen:deepcopy",
     "controller-gen": "go run sigs.k8s.io/controller-tools/cmd/controller-gen@latest",
-    "gen:deepcopy": "pnpm run controller-gen object paths=./api/...",
-    "gen:rbac": "pnpm run controller-gen rbac:roleName=valkey-operator paths=./... output:rbac:artifacts:config=./config/rbac"
+    "gen:deepcopy": "pnpm run controller-gen object paths=./api/..."
   }
 }
