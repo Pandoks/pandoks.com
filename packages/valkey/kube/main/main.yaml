@@ -2,6 +2,18 @@ apiVersion: valkey.pandoks.com/v1
 kind: ValkeyCluster
 metadata:
   name: main
+  namespace: main
 spec:
   masters: 1
   replicasPerMaster: 1
+  persistence:
+    - rdb
+    - aof
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ['ReadWriteOnce']
+        resources:
+          requests:
+            storage: 10Gi
