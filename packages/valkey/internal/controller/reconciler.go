@@ -41,8 +41,8 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		return ctrlruntime.Result{}, nil
 	}
 
-	if err := r.reconcileConfigMap(ctx, &cluster); err != nil {
-		logger.Error(err, "failed to reconcile configmap")
+	if err := r.validateConfigMap(ctx, &cluster); err != nil {
+		logger.Error(err, "invalid configmap")
 		return ctrlruntime.Result{}, err
 	}
 
