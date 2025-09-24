@@ -1,7 +1,6 @@
 package v1
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -11,10 +10,10 @@ const PersistenceRDB ValkeyPersistenceMode = "rdb"
 const PersistenceAOF ValkeyPersistenceMode = "aof"
 
 type ValkeyClusterSpec struct {
-	Masters              int32                          `json:"masters"`
-	ReplicasPerMaster    int32                          `json:"replicasPerMaster"`
-	Persistence          []ValkeyPersistenceMode        `json:"persistence,omitempty"`
-	VolumeClaimTemplates []corev1.PersistentVolumeClaim `json:"volumeClaimTemplates,omitempty"`
+	Masters           int32                   `json:"masters"`
+	ReplicasPerMaster int32                   `json:"replicasPerMaster"`
+	StoragePerNode    string                  `json:"storagePerNode,omitempty"`
+	Persistence       []ValkeyPersistenceMode `json:"persistence,omitempty"`
 }
 
 type ValkeyClusterStatus struct {
