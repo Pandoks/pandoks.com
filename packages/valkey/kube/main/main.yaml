@@ -6,7 +6,7 @@ metadata:
 spec:
   masters: 1
   replicasPerMaster: 1
-  storagePerNode: '10Gi'
+  storagePerNode: '1Gi'
   persistence:
     - rdb
     - aof
