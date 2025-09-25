@@ -273,7 +273,7 @@ secrets)
   SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
   REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
   K3S_DIR="$REPO_ROOT/k3s"
-  SECRETS_YAML="$K3S_DIR/base/secrets.yaml"
+  SECRETS_YAML="$K3S_DIR/apps/secrets.yaml"
   [ -f "$SECRETS_YAML" ] || { echo "Missing $SECRETS_YAML" >&2; exit 1; }
 
   echo "Fetching SST secrets..." >&2

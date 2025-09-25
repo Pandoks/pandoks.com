@@ -3,3 +3,11 @@ kind: Kustomization
 namespace: main
 resources:
   - main.yaml
+
+configMapGenerator:
+  - name: valkey-config
+    files:
+      - ../../image/valkey.conf
+
+generatorOptions:
+  disableNameSuffixHash: true
