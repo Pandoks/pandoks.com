@@ -51,11 +51,6 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		return ctrlruntime.Result{}, err
 	}
 
-	if err := r.reconcileMasterStatefulSets(ctx, &cluster); err != nil {
-		logger.Error(err, "failed to reconcile master statefulsets")
-		return ctrlruntime.Result{}, err
-	}
-
 	logger.Info("reconciled ValkeyCluster", "name", req.NamespacedName)
 	return ctrlruntime.Result{}, nil
 }
