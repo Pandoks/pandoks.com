@@ -5,6 +5,8 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrlruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -12,6 +14,8 @@ import (
 
 	valkeyv1 "valkey/operator/api/v1"
 )
+
+const typeAvailable = "Available"
 
 type ValkeyClusterReconciler struct {
 	client.Client
@@ -21,9 +25,31 @@ type ValkeyClusterReconciler struct {
 func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime.Request) (ctrlruntime.Result, error) {
 	logger := log.FromContext(ctx)
 
-	var cluster valkeyv1.ValkeyCluster
-	if err := r.Get(ctx, req.NamespacedName, &cluster); err != nil {
-		return ctrlruntime.Result{}, client.IgnoreNotFound(err)
+	valkeyCluster := &valkeyv1.ValkeyCluster{}
+	err := r.Get(ctx, req.NamespacedName, valkeyCluster)
+	if err != nil {
+		err = client.IgnoreNotFound(err)
+		if err == nil {
+			logger.Info("Valkey cluster not found. Ignoring since object must be deleted")
+		} else {
+			logger.Error(err, "Failed to get valkey cluster")
+		}
+		return ctrlruntime.Result{}, err
+	}
+
+	if len(valkeyCluster.Status.Conditions) == 0 {
+		meta.SetStatusCondition(
+			&valkeyCluster.Status.Conditions,
+			metav1.Condition{
+				Type:    typeAvailable,
+				Status:  metav1.ConditionUnknown,
+				Reason:  "Reconciling",
+				Message: "Starting reconciliation"},
+		)
+		if err = r.Status().Update(ctx, valkeyCluster); err != nil {
+			logger.Error(err, "Failed to update valkey cluster status")
+			return ctrlruntime.Result{}, err
+		}
 	}
 
 	if cluster.Status == nil {
