@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrlruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -61,7 +62,14 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 	masterService := &corev1.Service{}
 	slaveService := &corev1.Service{}
 
-	err = r.Get(ctx, req.NamespacedName, headlessService)
+	err = r.Get(
+		ctx,
+		types.NamespacedName{
+			Name:      fmt.Sprintf("%s-headless-valkey", valkeyCluster.Name),
+			Namespace: valkeyCluster.Namespace,
+		},
+		headlessService,
+	)
 	if err != nil {
 		err = client.IgnoreNotFound(err)
 		if err != nil {
@@ -97,7 +105,14 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		needsRequeue = true
 	}
 
-	err = r.Get(ctx, req.NamespacedName, statefulSet)
+	err = r.Get(
+		ctx,
+		types.NamespacedName{
+			Name:      fmt.Sprintf("%s-valkey", valkeyCluster.Name),
+			Namespace: valkeyCluster.Namespace,
+		},
+		statefulSet,
+	)
 	if err != nil {
 		err = client.IgnoreNotFound(err)
 		if err != nil {
@@ -133,7 +148,14 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		needsRequeue = true
 	}
 
-	err = r.Get(ctx, req.NamespacedName, masterService)
+	err = r.Get(
+		ctx,
+		types.NamespacedName{
+			Name:      fmt.Sprintf("%s-master-valkey", valkeyCluster.Name),
+			Namespace: valkeyCluster.Namespace,
+		},
+		masterService,
+	)
 	if err != nil {
 		err = client.IgnoreNotFound(err)
 		if err != nil {
@@ -169,7 +191,14 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		needsRequeue = true
 	}
 
-	err = r.Get(ctx, req.NamespacedName, slaveService)
+	err = r.Get(
+		ctx,
+		types.NamespacedName{
+			Name:      fmt.Sprintf("%s-slave-valkey", valkeyCluster.Name),
+			Namespace: valkeyCluster.Namespace,
+		},
+		slaveService,
+	)
 	if err != nil {
 		err = client.IgnoreNotFound(err)
 		if err != nil {
