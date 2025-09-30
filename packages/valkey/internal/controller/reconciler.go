@@ -2,6 +2,8 @@ package controller
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -52,32 +54,43 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		}
 	}
 
-	if cluster.Status == nil {
-		cluster.Status = &valkeyv1.ValkeyClusterStatus{}
-	}
+	headlessService := &corev1.Service{}
+	err = r.Get(ctx, req.NamespacedName, headlessService)
+	if err != nil {
+		err = client.IgnoreNotFound(err)
+		if err == nil {
+			newHeadlessService, err := r.headlessService(valkeyCluster)
+			if err != nil {
+				logger.Error(err, "Failed to define new headless service for valkey cluster")
+				meta.SetStatusCondition(
+					&valkeyCluster.Status.Conditions,
+					metav1.Condition{
+						Type:    typeAvailable,
+						Status:  metav1.ConditionFalse,
+						Reason:  "Reconciling",
+						Message: fmt.Sprintf("Failed to create headlessService for the custom resource (%s): (%s)", valkeyCluster.Name, err),
+					},
+				)
+				if err = r.Status().Update(ctx, valkeyCluster); err != nil {
+					logger.Error(err, "Failed to update valkey cluster status")
+				}
+				return ctrlruntime.Result{}, err
+			}
 
-	if err := validateValkeyClusterSpec(&cluster.Spec); err != nil {
-		logger.Error(err, "invalid ValkeyCluster spec", "name", req.NamespacedName)
-
-		if err := r.patchReadyStatus(ctx, &cluster, false); err != nil {
-			logger.Error(err, "unable to update ValkeyCluster status")
-			return ctrlruntime.Result{}, err
+			logger.Info("Creating new headless service",
+				"HeadlessService.Namespace", newHeadlessService.Namespace, "HeadlessService.Name", newHeadlessService.Name)
+			if err = r.Create(ctx, newHeadlessService); err != nil {
+				logger.Error(err, "Failed to create new headless service",
+					"HeadlessService.Namespace", newHeadlessService.Namespace, "HeadlessService.Name", newHeadlessService.Name)
+				return ctrlruntime.Result{}, err
+			}
+			return ctrlruntime.Result{RequeueAfter: time.Minute}, nil
+		} else {
+			logger.Error(err, "Failed to get headless service")
 		}
-
-		return ctrlruntime.Result{}, nil
-	}
-
-	if err := r.validateConfigMap(ctx, &cluster); err != nil {
-		logger.Error(err, "invalid configmap")
 		return ctrlruntime.Result{}, err
 	}
 
-	if err := r.reconcileHeadlessService(ctx, &cluster); err != nil {
-		logger.Error(err, "failed to reconcile headless service")
-		return ctrlruntime.Result{}, err
-	}
-
-	logger.Info("reconciled ValkeyCluster", "name", req.NamespacedName)
 	return ctrlruntime.Result{}, nil
 }
 
@@ -88,19 +101,4 @@ func (r *ValkeyClusterReconciler) SetupWithManager(mgr ctrlruntime.Manager) erro
 		Owns(&corev1.Service{}).
 		Owns(&corev1.ConfigMap{}).
 		Complete(r)
-}
-
-func (r *ValkeyClusterReconciler) patchReadyStatus(ctx context.Context, cluster *valkeyv1.ValkeyCluster, ready bool) error {
-	if cluster.Status == nil {
-		cluster.Status = &valkeyv1.ValkeyClusterStatus{}
-	}
-
-	if cluster.Status.Ready == ready {
-		return nil
-	}
-
-	original := cluster.DeepCopy()
-	cluster.Status.Ready = ready
-
-	return r.Status().Patch(ctx, cluster, client.MergeFrom(original))
 }
