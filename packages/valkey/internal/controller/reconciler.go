@@ -54,6 +54,7 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		}
 	}
 
+	needsRequeue := false
 	headlessService := &corev1.Service{}
 	err = r.Get(ctx, req.NamespacedName, headlessService)
 	if err != nil {
@@ -88,9 +89,12 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 				"HeadlessService.Namespace", newHeadlessService.Namespace, "HeadlessService.Name", newHeadlessService.Name)
 			return ctrlruntime.Result{}, err
 		}
-		return ctrlruntime.Result{RequeueAfter: time.Minute}, nil
+		needsRequeue = true
 	}
 
+	if needsRequeue {
+		return ctrlruntime.Result{RequeueAfter: time.Minute}, nil
+	}
 	return ctrlruntime.Result{}, nil
 }
 
