@@ -25,6 +25,32 @@ func init() {
 
 func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyCluster) (*appsv1.StatefulSet, error) {
 	replicas := valkeyCluster.Spec.Masters + valkeyCluster.Spec.Masters*valkeyCluster.Spec.ReplicasPerMaster
+
+	persistentVolumeClaims := []corev1.PersistentVolumeClaim{}
+	volumeMounts := []corev1.VolumeMount{}
+	if len(valkeyCluster.Spec.Persistence) > 0 {
+		dataName := "valkey-data"
+		volumeMounts = []corev1.VolumeMount{{
+			Name:      dataName,
+			MountPath: "/data",
+		}}
+		persistentVolumeClaims = []corev1.PersistentVolumeClaim{{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: dataName,
+			},
+			Spec: corev1.PersistentVolumeClaimSpec{
+				AccessModes: []corev1.PersistentVolumeAccessMode{
+					corev1.ReadWriteOnce,
+				},
+				Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: valkeyCluster.Spec.StoragePerNode,
+					},
+				},
+			},
+		}}
+	}
+
 	statefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      statefulSetName(valkeyCluster),
@@ -40,9 +66,11 @@ func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyClus
 						Ports: []corev1.ContainerPort{{
 							ContainerPort: 6379,
 						}},
+						VolumeMounts: volumeMounts,
 					}},
 				},
 			},
+			VolumeClaimTemplates: persistentVolumeClaims,
 		},
 	}
 

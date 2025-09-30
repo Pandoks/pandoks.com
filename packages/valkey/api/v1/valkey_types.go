@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -16,7 +17,7 @@ type ValkeyClusterSpec struct {
 	// +required
 	Masters           int32                   `json:"masters"`
 	ReplicasPerMaster int32                   `json:"replicasPerMaster"`
-	StoragePerNode    string                  `json:"storagePerNode,omitempty"`
+	StoragePerNode    resource.Quantity       `json:"storagePerNode"`
 	Persistence       []ValkeyPersistenceMode `json:"persistence,omitempty"`
 }
 
