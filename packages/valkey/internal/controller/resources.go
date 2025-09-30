@@ -15,7 +15,7 @@ func init() {
 	dev = os.Getenv("DEV") == "true"
 }
 
-func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyCluster, mode valkeyv1.ValkeyPersistenceMode) (*appsv1.StatefulSet, error) {
+func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyCluster) (*appsv1.StatefulSet, error) {
 	statefulSet := &appsv1.StatefulSet{}
 
 	if err := ctrlruntime.SetControllerReference(valkeyCluster, statefulSet, r.Scheme); err != nil {
