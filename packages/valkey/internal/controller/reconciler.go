@@ -54,8 +54,13 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		}
 	}
 
+	// Check for underlying resources and if they don't exist, create them & requeue reconciliation
 	needsRequeue := false
 	headlessService := &corev1.Service{}
+	statefulSet := &appsv1.StatefulSet{}
+	masterService := &corev1.Service{}
+	slaveService := &corev1.Service{}
+
 	err = r.Get(ctx, req.NamespacedName, headlessService)
 	if err != nil {
 		err = client.IgnoreNotFound(err)
@@ -87,6 +92,114 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		if err = r.Create(ctx, newHeadlessService); err != nil {
 			logger.Error(err, "Failed to create new headless service",
 				"HeadlessService.Namespace", newHeadlessService.Namespace, "HeadlessService.Name", newHeadlessService.Name)
+			return ctrlruntime.Result{}, err
+		}
+		needsRequeue = true
+	}
+
+	err = r.Get(ctx, req.NamespacedName, statefulSet)
+	if err != nil {
+		err = client.IgnoreNotFound(err)
+		if err != nil {
+			logger.Error(err, "Failed to get statefulset")
+			return ctrlruntime.Result{}, err
+		}
+
+		newStatefulSet, err := r.statefulSet(valkeyCluster)
+		if err != nil {
+			logger.Error(err, "Failed to define a new statefulset for valkey cluster")
+			meta.SetStatusCondition(
+				&valkeyCluster.Status.Conditions,
+				metav1.Condition{
+					Type:    typeAvailable,
+					Status:  metav1.ConditionFalse,
+					Reason:  "Reconciling",
+					Message: fmt.Sprintf("Failed to create statefulset for the custom resource (%s): (%s)", valkeyCluster.Name, err),
+				},
+			)
+			if err = r.Status().Update(ctx, valkeyCluster); err != nil {
+				logger.Error(err, "Failed to update valkey cluster status")
+			}
+			return ctrlruntime.Result{}, err
+		}
+
+		logger.Info("Creating new statefulset",
+			"StatefulSet.Namespace", newStatefulSet.Namespace, "StatefulSet.Name", newStatefulSet.Name)
+		if err = r.Create(ctx, newStatefulSet); err != nil {
+			logger.Error(err, "Failed to create new statefulset",
+				"StatefulSet.Namespace", newStatefulSet.Namespace, "StatefulSet.Name", newStatefulSet.Name)
+			return ctrlruntime.Result{}, err
+		}
+		needsRequeue = true
+	}
+
+	err = r.Get(ctx, req.NamespacedName, masterService)
+	if err != nil {
+		err = client.IgnoreNotFound(err)
+		if err != nil {
+			logger.Error(err, "Failed to get master service")
+			return ctrlruntime.Result{}, err
+		}
+
+		newMasterService, err := r.masterService(valkeyCluster)
+		if err != nil {
+			logger.Error(err, "Failed to define new master service for valkey cluster")
+			meta.SetStatusCondition(
+				&valkeyCluster.Status.Conditions,
+				metav1.Condition{
+					Type:    typeAvailable,
+					Status:  metav1.ConditionFalse,
+					Reason:  "Reconciling",
+					Message: fmt.Sprintf("Failed to create master service for the custom resource (%s): (%s)", valkeyCluster.Name, err),
+				},
+			)
+			if err = r.Status().Update(ctx, valkeyCluster); err != nil {
+				logger.Error(err, "Failed to update valkey cluster status")
+			}
+			return ctrlruntime.Result{}, err
+		}
+
+		logger.Info("Creating new master service",
+			"MasterService.Namespace", newMasterService.Namespace, "MasterService.Name", newMasterService.Name)
+		if err = r.Create(ctx, newMasterService); err != nil {
+			logger.Error(err, "Failed to create new master service",
+				"MasterService.Namespace", newMasterService.Namespace, "MasterService.Name", newMasterService.Name)
+			return ctrlruntime.Result{}, err
+		}
+		needsRequeue = true
+	}
+
+	err = r.Get(ctx, req.NamespacedName, slaveService)
+	if err != nil {
+		err = client.IgnoreNotFound(err)
+		if err != nil {
+			logger.Error(err, "Failed to get slave service")
+			return ctrlruntime.Result{}, err
+		}
+
+		newSlaveService, err := r.slaveService(valkeyCluster)
+		if err != nil {
+			logger.Error(err, "Failed to define new slave service for valkey cluster")
+			meta.SetStatusCondition(
+				&valkeyCluster.Status.Conditions,
+				metav1.Condition{
+					Type:    typeAvailable,
+					Status:  metav1.ConditionFalse,
+					Reason:  "Reconciling",
+					Message: fmt.Sprintf("Failed to create slave service for the custom resource (%s): (%s)", valkeyCluster.Name, err),
+				},
+			)
+			if err = r.Status().Update(ctx, valkeyCluster); err != nil {
+				logger.Error(err, "Failed to update valkey cluster status")
+			}
+			return ctrlruntime.Result{}, err
+		}
+
+		logger.Info("Creating new slave service",
+			"SlaveService.Namespace", newSlaveService.Namespace, "SlaveService.Name", newSlaveService.Name)
+		if err = r.Create(ctx, newSlaveService); err != nil {
+			logger.Error(err, "Failed to create new slave service",
+				"SlaveService.Namespace", newSlaveService.Namespace, "SlaveService.Name", newSlaveService.Name)
 			return ctrlruntime.Result{}, err
 		}
 		needsRequeue = true
