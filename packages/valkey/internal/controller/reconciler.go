@@ -65,7 +65,7 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 	err = r.Get(
 		ctx,
 		types.NamespacedName{
-			Name:      fmt.Sprintf("%s-headless-valkey", valkeyCluster.Name),
+			Name:      headlessServiceName(valkeyCluster),
 			Namespace: valkeyCluster.Namespace,
 		},
 		headlessService,
@@ -108,7 +108,7 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 	err = r.Get(
 		ctx,
 		types.NamespacedName{
-			Name:      fmt.Sprintf("%s-valkey", valkeyCluster.Name),
+			Name:      statefulSetName(valkeyCluster),
 			Namespace: valkeyCluster.Namespace,
 		},
 		statefulSet,
@@ -151,7 +151,7 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 	err = r.Get(
 		ctx,
 		types.NamespacedName{
-			Name:      fmt.Sprintf("%s-master-valkey", valkeyCluster.Name),
+			Name:      masterServiceName(valkeyCluster),
 			Namespace: valkeyCluster.Namespace,
 		},
 		masterService,
@@ -194,7 +194,7 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 	err = r.Get(
 		ctx,
 		types.NamespacedName{
-			Name:      fmt.Sprintf("%s-slave-valkey", valkeyCluster.Name),
+			Name:      slaveServiceName(valkeyCluster),
 			Namespace: valkeyCluster.Namespace,
 		},
 		slaveService,

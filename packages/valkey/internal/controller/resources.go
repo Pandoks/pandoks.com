@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"os"
 	valkeyv1 "valkey/operator/api/v1"
 
@@ -10,9 +11,15 @@ import (
 )
 
 var dev bool
+var valkeyImage string
 
 func init() {
 	dev = os.Getenv("DEV") == "true"
+	if dev {
+		valkeyImage = "local-registry:12345/valkey:latest"
+	} else {
+		valkeyImage = "ghcr.io/pandoks/valkey:latest"
+	}
 }
 
 func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyCluster) (*appsv1.StatefulSet, error) {
@@ -23,6 +30,9 @@ func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyClus
 	}
 	return statefulSet, nil
 }
+func statefulSetName(valkeyCluster *valkeyv1.ValkeyCluster) string {
+	return fmt.Sprintf("%s-valkey", valkeyCluster.Name)
+}
 
 func (r *ValkeyClusterReconciler) headlessService(valkeyCluster *valkeyv1.ValkeyCluster) (*corev1.Service, error) {
 	headlessService := &corev1.Service{}
@@ -31,6 +41,9 @@ func (r *ValkeyClusterReconciler) headlessService(valkeyCluster *valkeyv1.Valkey
 		return nil, err
 	}
 	return headlessService, nil
+}
+func headlessServiceName(valkeyCluster *valkeyv1.ValkeyCluster) string {
+	return fmt.Sprintf("%s-headless-valkey", valkeyCluster.Name)
 }
 
 func (r *ValkeyClusterReconciler) masterService(valkeyCluster *valkeyv1.ValkeyCluster) (*corev1.Service, error) {
@@ -41,6 +54,9 @@ func (r *ValkeyClusterReconciler) masterService(valkeyCluster *valkeyv1.ValkeyCl
 	}
 	return masterService, nil
 }
+func masterServiceName(valkeyCluster *valkeyv1.ValkeyCluster) string {
+	return fmt.Sprintf("%s-master-valkey", valkeyCluster.Name)
+}
 
 func (r *ValkeyClusterReconciler) slaveService(valkeyCluster *valkeyv1.ValkeyCluster) (*corev1.Service, error) {
 	slaveService := &corev1.Service{}
@@ -49,4 +65,7 @@ func (r *ValkeyClusterReconciler) slaveService(valkeyCluster *valkeyv1.ValkeyClu
 		return nil, err
 	}
 	return slaveService, nil
+}
+func slaveServiceName(valkeyCluster *valkeyv1.ValkeyCluster) string {
+	return fmt.Sprintf("%s-slave-valkey", valkeyCluster.Name)
 }
