@@ -14,7 +14,7 @@ ARG TARGETOS=linux
 ARG TARGETARCH=amd64
 ENV GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0
 
-RUN go build -trimpath -buildvcs=false -ldflags="-s -w" -o /out/valkey-operator ./cmd/operator
+RUN go build -trimpath -buildvcs=false -ldflags="-s -w" -o /out/valkey-operator ./cmd/main.go
 
 FROM gcr.io/distroless/static:nonroot
 COPY --from=builder /out/valkey-operator /manager
