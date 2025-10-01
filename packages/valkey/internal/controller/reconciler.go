@@ -62,14 +62,8 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 	masterService := &corev1.Service{}
 	slaveService := &corev1.Service{}
 
-	err = r.Get(
-		ctx,
-		types.NamespacedName{
-			Name:      headlessServiceName(valkeyCluster),
-			Namespace: valkeyCluster.Namespace,
-		},
-		headlessService,
-	)
+	namespacedName := types.NamespacedName{Name: headlessServiceName(valkeyCluster), Namespace: valkeyCluster.Namespace}
+	err = r.Get(ctx, namespacedName, headlessService)
 	if err != nil {
 		err = client.IgnoreNotFound(err)
 		if err != nil {
@@ -105,14 +99,8 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		needsRequeue = true
 	}
 
-	err = r.Get(
-		ctx,
-		types.NamespacedName{
-			Name:      statefulSetName(valkeyCluster),
-			Namespace: valkeyCluster.Namespace,
-		},
-		statefulSet,
-	)
+	namespacedName = types.NamespacedName{Name: statefulSetName(valkeyCluster), Namespace: valkeyCluster.Namespace}
+	err = r.Get(ctx, namespacedName, statefulSet)
 	if err != nil {
 		err = client.IgnoreNotFound(err)
 		if err != nil {
@@ -148,14 +136,8 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		needsRequeue = true
 	}
 
-	err = r.Get(
-		ctx,
-		types.NamespacedName{
-			Name:      masterServiceName(valkeyCluster),
-			Namespace: valkeyCluster.Namespace,
-		},
-		masterService,
-	)
+	namespacedName = types.NamespacedName{Name: masterServiceName(valkeyCluster), Namespace: valkeyCluster.Namespace}
+	err = r.Get(ctx, namespacedName, masterService)
 	if err != nil {
 		err = client.IgnoreNotFound(err)
 		if err != nil {
@@ -191,14 +173,8 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		needsRequeue = true
 	}
 
-	err = r.Get(
-		ctx,
-		types.NamespacedName{
-			Name:      slaveServiceName(valkeyCluster),
-			Namespace: valkeyCluster.Namespace,
-		},
-		slaveService,
-	)
+	namespacedName = types.NamespacedName{Name: slaveServiceName(valkeyCluster), Namespace: valkeyCluster.Namespace}
+	err = r.Get(ctx, namespacedName, slaveService)
 	if err != nil {
 		err = client.IgnoreNotFound(err)
 		if err != nil {
