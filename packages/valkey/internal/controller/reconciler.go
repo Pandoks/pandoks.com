@@ -210,9 +210,15 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		needsRequeue = true
 	}
 
-	if needsRequeue {
-		return ctrlruntime.Result{RequeueAfter: time.Minute}, nil
+	if statefulSet.Status.ReadyReplicas != *statefulSet.Spec.Replicas {
+		logger.Info("Waiting for all pods to be ready", "ready", statefulSet.Status.ReadyReplicas, "desired", *statefulSet.Spec.Replicas)
+		needsRequeue = true
 	}
+
+	if needsRequeue {
+		return ctrlruntime.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+
 	return ctrlruntime.Result{}, nil
 }
 
