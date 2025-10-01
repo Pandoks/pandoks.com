@@ -51,21 +51,40 @@ func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyClus
 		}}
 	}
 
+	labels := map[string]string{
+		"app":     "valkey",
+		"cluster": valkeyCluster.Name,
+	}
 	statefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      statefulSetName(valkeyCluster),
 			Namespace: valkeyCluster.Namespace,
+			Labels:    labels,
 		},
 		Spec: appsv1.StatefulSetSpec{
-			Replicas: &replicas,
+			ServiceName: headlessServiceName(valkeyCluster),
+			Replicas:    &replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: labels,
+			},
 			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: labels,
+				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Image: valkeyImage,
 						Name:  "valkey",
-						Ports: []corev1.ContainerPort{{
-							ContainerPort: 6379,
-						}},
+						Ports: []corev1.ContainerPort{
+							{
+								Name:          "client",
+								ContainerPort: 6379,
+							},
+							{
+								Name:          "gossip",
+								ContainerPort: 16379,
+							},
+						},
 						VolumeMounts: volumeMounts,
 					}},
 				},
