@@ -33,6 +33,7 @@ func (r *ValkeyClusterReconciler) reconcileClusterStatefulSet(ctx context.Contex
 			for _, c := range clients {
 				c.Close()
 			}
+			logger.Error(err, "failed to create client")
 			return err
 		}
 
@@ -41,6 +42,7 @@ func (r *ValkeyClusterReconciler) reconcileClusterStatefulSet(ctx context.Contex
 			for _, c := range clients {
 				c.Close()
 			}
+			logger.Error(err, "failed to ping client")
 			return err
 		}
 		clients = append(clients, client)
