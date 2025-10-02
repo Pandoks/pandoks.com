@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"fmt"
 	"os"
 	valkeyv1 "valkey/operator/api/v1"
 
@@ -51,25 +50,21 @@ func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyClus
 		}}
 	}
 
-	labels := map[string]string{
-		"app":     "valkey",
-		"cluster": valkeyCluster.Name,
-	}
 	statefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      statefulSetName(valkeyCluster),
+			Name:      valkeyCluster.StatefulSetName(),
 			Namespace: valkeyCluster.Namespace,
-			Labels:    labels,
+			Labels:    valkeyCluster.Labels(),
 		},
 		Spec: appsv1.StatefulSetSpec{
-			ServiceName: headlessServiceName(valkeyCluster),
+			ServiceName: valkeyCluster.HeadlessServiceName(),
 			Replicas:    &replicas,
 			Selector: &metav1.LabelSelector{
-				MatchLabels: labels,
+				MatchLabels: valkeyCluster.Labels(),
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: labels,
+					Labels: valkeyCluster.Labels(),
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
@@ -98,20 +93,19 @@ func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyClus
 	}
 	return statefulSet, nil
 }
-func statefulSetName(valkeyCluster *valkeyv1.ValkeyCluster) string {
-	return fmt.Sprintf("%s-valkey", valkeyCluster.Name)
-}
 
 func (r *ValkeyClusterReconciler) headlessService(valkeyCluster *valkeyv1.ValkeyCluster) (*corev1.Service, error) {
-	headlessService := &corev1.Service{}
+	headlessService := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      valkeyCluster.HeadlessServiceName(),
+			Namespace: valkeyCluster.Namespace,
+		},
+	}
 
 	if err := ctrlruntime.SetControllerReference(valkeyCluster, headlessService, r.Scheme); err != nil {
 		return nil, err
 	}
 	return headlessService, nil
-}
-func headlessServiceName(valkeyCluster *valkeyv1.ValkeyCluster) string {
-	return fmt.Sprintf("%s-headless-valkey", valkeyCluster.Name)
 }
 
 func (r *ValkeyClusterReconciler) masterService(valkeyCluster *valkeyv1.ValkeyCluster) (*corev1.Service, error) {
@@ -122,9 +116,6 @@ func (r *ValkeyClusterReconciler) masterService(valkeyCluster *valkeyv1.ValkeyCl
 	}
 	return masterService, nil
 }
-func masterServiceName(valkeyCluster *valkeyv1.ValkeyCluster) string {
-	return fmt.Sprintf("%s-master-valkey", valkeyCluster.Name)
-}
 
 func (r *ValkeyClusterReconciler) slaveService(valkeyCluster *valkeyv1.ValkeyCluster) (*corev1.Service, error) {
 	slaveService := &corev1.Service{}
@@ -133,7 +124,4 @@ func (r *ValkeyClusterReconciler) slaveService(valkeyCluster *valkeyv1.ValkeyClu
 		return nil, err
 	}
 	return slaveService, nil
-}
-func slaveServiceName(valkeyCluster *valkeyv1.ValkeyCluster) string {
-	return fmt.Sprintf("%s-slave-valkey", valkeyCluster.Name)
 }
