@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"os"
 	valkeyv1 "valkey/operator/api/v1"
 
@@ -28,7 +29,7 @@ const (
 )
 
 func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyCluster) (*appsv1.StatefulSet, error) {
-	replicas := valkeyCluster.Spec.Masters + valkeyCluster.Spec.Masters*valkeyCluster.Spec.ReplicasPerMaster
+	replicas := r.calculateReplicas(valkeyCluster)
 
 	persistentVolumeClaims := []corev1.PersistentVolumeClaim{}
 	volumeMounts := []corev1.VolumeMount{}
@@ -91,6 +92,10 @@ func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyClus
 		return nil, err
 	}
 	return statefulSet, nil
+}
+
+func (r *ValkeyClusterReconciler) calculateReplicas(valkeyCluster *valkeyv1.ValkeyCluster) int32 {
+	return valkeyCluster.Spec.Masters + valkeyCluster.Spec.Masters*valkeyCluster.Spec.ReplicasPerMaster
 }
 
 func (r *ValkeyClusterReconciler) headlessService(valkeyCluster *valkeyv1.ValkeyCluster) (*corev1.Service, error) {
@@ -162,4 +167,22 @@ func (r *ValkeyClusterReconciler) slaveService(valkeyCluster *valkeyv1.ValkeyClu
 		return nil, err
 	}
 	return slaveService, nil
+}
+
+// fqdn: fully qualified domain name
+func (r *ValkeyClusterReconciler) podFQDNs(valkeyCluster *valkeyv1.ValkeyCluster) []string {
+	replicas := r.calculateReplicas(valkeyCluster)
+
+	var podFQDNs []string
+	for index := range replicas {
+		fqdn := fmt.Sprintf("%s-%d.%s.%s.svc.cluster.local:%d",
+			valkeyCluster.StatefulSetName(),
+			index,
+			valkeyCluster.HeadlessServiceName(),
+			valkeyCluster.Namespace,
+			ValkeyClientPort,
+		)
+		podFQDNs = append(podFQDNs, fqdn)
+	}
+	return podFQDNs
 }

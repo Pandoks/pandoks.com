@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	valkeyv1 "valkey/operator/api/v1"
 
 	"github.com/valkey-io/valkey-go"
@@ -10,23 +9,40 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+type NodeRole string
+
+const (
+	NodeRoleMaster NodeRole = "master"
+	NodeRoleSlave  NodeRole = "slave"
+)
+
+type ClusterNode struct {
+	ID        string
+	FQDN      string
+	Host      string
+	Port      int
+	Role      NodeRole
+	MasterID  string
+	Slots     []int
+	Connected bool
+}
+
+type ClusterTopology struct {
+	Nodes          map[string]*ClusterNode // node id -> node
+	Masters        map[string]*ClusterNode
+	Slaves         map[string]*ClusterNode
+	SlotMap        map[int]string // slot -> node id
+	IsBootstrapped bool
+	TotalSlots     int
+}
+
 func (r *ValkeyClusterReconciler) reconcileClusterStatefulSet(ctx context.Context, valkeyCluster *valkeyv1.ValkeyCluster, statefulSet *appsv1.StatefulSet) error {
 	logger := log.FromContext(ctx)
 
 	// fqdn: fully qualified domain name
-	var podFQDNs []string
-	for i := range *statefulSet.Spec.Replicas {
-		fqdn := fmt.Sprintf("%s-%d.%s.%s.svc.cluster.local:%d",
-			statefulSet.Name,
-			i,
-			valkeyCluster.HeadlessServiceName(),
-			valkeyCluster.Namespace,
-			ValkeyClientPort,
-		)
-		podFQDNs = append(podFQDNs, fqdn)
-	}
+	podFQDNs := r.podFQDNs(valkeyCluster)
 
-	var clients []valkey.Client
+	clients := map[string]valkey.Client{}
 	for _, fqdn := range podFQDNs {
 		client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{fqdn}})
 		if err != nil {
@@ -45,7 +61,7 @@ func (r *ValkeyClusterReconciler) reconcileClusterStatefulSet(ctx context.Contex
 			logger.Error(err, "failed to ping client")
 			return err
 		}
-		clients = append(clients, client)
+		clients[fqdn] = client
 	}
 
 	return nil
