@@ -22,6 +22,11 @@ func init() {
 	}
 }
 
+const (
+	ValkeyClientPort = 6379
+	ValkeyGossipPort = 16379
+)
+
 func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyCluster) (*appsv1.StatefulSet, error) {
 	replicas := valkeyCluster.Spec.Masters + valkeyCluster.Spec.Masters*valkeyCluster.Spec.ReplicasPerMaster
 
@@ -71,14 +76,8 @@ func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyClus
 						Image: valkeyImage,
 						Name:  "valkey",
 						Ports: []corev1.ContainerPort{
-							{
-								Name:          "client",
-								ContainerPort: 6379,
-							},
-							{
-								Name:          "gossip",
-								ContainerPort: 16379,
-							},
+							{Name: "client", ContainerPort: ValkeyClientPort},
+							{Name: "gossip", ContainerPort: ValkeyGossipPort},
 						},
 						VolumeMounts: volumeMounts,
 					}},
@@ -99,6 +98,15 @@ func (r *ValkeyClusterReconciler) headlessService(valkeyCluster *valkeyv1.Valkey
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      valkeyCluster.HeadlessServiceName(),
 			Namespace: valkeyCluster.Namespace,
+			Labels:    valkeyCluster.Labels(),
+		},
+		Spec: corev1.ServiceSpec{
+			ClusterIP: "None",
+			Selector:  valkeyCluster.Labels(),
+			Ports: []corev1.ServicePort{
+				{Name: "client", Port: ValkeyClientPort, Protocol: corev1.ProtocolTCP},
+				{Name: "gossip", Port: ValkeyGossipPort, Protocol: corev1.ProtocolTCP},
+			},
 		},
 	}
 
