@@ -219,6 +219,36 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		return ctrlruntime.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
+	if err = r.reconcileClusterStatefulSet(ctx, valkeyCluster, statefulSet); err != nil {
+		logger.Error(err, "Failed to reconcile cluster's statefulset")
+		meta.SetStatusCondition(
+			&valkeyCluster.Status.Conditions,
+			metav1.Condition{
+				Type:    typeAvailable,
+				Status:  metav1.ConditionFalse,
+				Reason:  "ReconcileFailed",
+				Message: fmt.Sprintf("Failed to reconcile cluster's statefulset: %s", err),
+			},
+		)
+		if err = r.Status().Update(ctx, valkeyCluster); err != nil {
+			logger.Error(err, "Failed to update valkey cluster status")
+		}
+		return ctrlruntime.Result{}, err
+	}
+
+	meta.SetStatusCondition(
+		&valkeyCluster.Status.Conditions,
+		metav1.Condition{
+			Type:    typeAvailable,
+			Status:  metav1.ConditionTrue,
+			Reason:  "ClusterReady",
+			Message: "Cluster is ready",
+		},
+	)
+	if err = r.Status().Update(ctx, valkeyCluster); err != nil {
+		logger.Error(err, "Failed to update valkey cluster status")
+	}
+
 	return ctrlruntime.Result{}, nil
 }
 
