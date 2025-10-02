@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"fmt"
+
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -51,4 +53,27 @@ type ValkeyClusterList struct {
 
 func init() {
 	SchemeBuilder.Register(&ValkeyCluster{}, &ValkeyClusterList{})
+}
+
+func (v *ValkeyCluster) StatefulSetName() string {
+	return fmt.Sprintf("%s-valkey", v.Name)
+}
+
+func (v *ValkeyCluster) HeadlessServiceName() string {
+	return fmt.Sprintf("%s-headless-valkey", v.Name)
+}
+
+func (v *ValkeyCluster) MasterServiceName() string {
+	return fmt.Sprintf("%s-master-valkey", v.Name)
+}
+
+func (v *ValkeyCluster) SlaveServiceName() string {
+	return fmt.Sprintf("%s-slave-valkey", v.Name)
+}
+
+func (v *ValkeyCluster) Labels() map[string]string {
+	return map[string]string{
+		"app":     "valkey",
+		"cluster": v.Name,
+	}
 }
