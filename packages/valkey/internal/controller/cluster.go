@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	valkeyv1 "valkey/operator/api/v1"
 
 	"github.com/valkey-io/valkey-go"
@@ -44,25 +45,30 @@ func (r *ValkeyClusterReconciler) reconcileClusterStatefulSet(ctx context.Contex
 
 	clients := map[string]valkey.Client{}
 	for _, fqdn := range podFQDNs {
-		client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{fqdn}})
+		client, err := r.connectToValkeyNode(ctx, fqdn)
 		if err != nil {
-			for _, c := range clients {
-				c.Close()
+			for _, client := range clients {
+				client.Close()
 			}
-			logger.Error(err, "failed to create client")
-			return err
-		}
-
-		if err = client.Do(ctx, client.B().Ping().Build()).Error(); err != nil {
-			client.Close()
-			for _, c := range clients {
-				c.Close()
-			}
-			logger.Error(err, "failed to ping client")
+			logger.Error(err, "Failed to connect to valkey node", "FQDN", fqdn)
 			return err
 		}
 		clients[fqdn] = client
 	}
 
 	return nil
+}
+
+func (r *ValkeyClusterReconciler) connectToValkeyNode(ctx context.Context, fqdn string) (valkey.Client, error) {
+	client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{fqdn}})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create client for %s: %w", fqdn, err)
+	}
+
+	if err := client.Do(ctx, client.B().Ping().Build()).Error(); err != nil {
+		client.Close()
+		return nil, fmt.Errorf("failed to ping client for %s: %w", fqdn, err)
+	}
+
+	return client, nil
 }
