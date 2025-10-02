@@ -62,7 +62,7 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 	masterService := &corev1.Service{}
 	slaveService := &corev1.Service{}
 
-	namespacedName := types.NamespacedName{Name: headlessServiceName(valkeyCluster), Namespace: valkeyCluster.Namespace}
+	namespacedName := types.NamespacedName{Name: valkeyCluster.HeadlessServiceName(), Namespace: valkeyCluster.Namespace}
 	err = r.Get(ctx, namespacedName, headlessService)
 	if err != nil {
 		err = client.IgnoreNotFound(err)
@@ -99,7 +99,7 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		needsRequeue = true
 	}
 
-	namespacedName = types.NamespacedName{Name: statefulSetName(valkeyCluster), Namespace: valkeyCluster.Namespace}
+	namespacedName = types.NamespacedName{Name: valkeyCluster.StatefulSetName(), Namespace: valkeyCluster.Namespace}
 	err = r.Get(ctx, namespacedName, statefulSet)
 	if err != nil {
 		err = client.IgnoreNotFound(err)
@@ -136,7 +136,7 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		needsRequeue = true
 	}
 
-	namespacedName = types.NamespacedName{Name: masterServiceName(valkeyCluster), Namespace: valkeyCluster.Namespace}
+	namespacedName = types.NamespacedName{Name: valkeyCluster.MasterServiceName(), Namespace: valkeyCluster.Namespace}
 	err = r.Get(ctx, namespacedName, masterService)
 	if err != nil {
 		err = client.IgnoreNotFound(err)
@@ -173,7 +173,7 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		needsRequeue = true
 	}
 
-	namespacedName = types.NamespacedName{Name: slaveServiceName(valkeyCluster), Namespace: valkeyCluster.Namespace}
+	namespacedName = types.NamespacedName{Name: valkeyCluster.SlaveServiceName(), Namespace: valkeyCluster.Namespace}
 	err = r.Get(ctx, namespacedName, slaveService)
 	if err != nil {
 		err = client.IgnoreNotFound(err)
