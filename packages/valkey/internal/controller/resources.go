@@ -117,7 +117,22 @@ func (r *ValkeyClusterReconciler) headlessService(valkeyCluster *valkeyv1.Valkey
 }
 
 func (r *ValkeyClusterReconciler) masterService(valkeyCluster *valkeyv1.ValkeyCluster) (*corev1.Service, error) {
-	masterService := &corev1.Service{}
+	selectorLabels := valkeyCluster.Labels()
+	selectorLabels["role"] = "master"
+
+	masterService := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      valkeyCluster.MasterServiceName(),
+			Namespace: valkeyCluster.Namespace,
+			Labels:    valkeyCluster.Labels(),
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: selectorLabels,
+			Ports: []corev1.ServicePort{
+				{Name: "client", Port: ValkeyClientPort, Protocol: corev1.ProtocolTCP},
+			},
+		},
+	}
 
 	if err := ctrlruntime.SetControllerReference(valkeyCluster, masterService, r.Scheme); err != nil {
 		return nil, err
@@ -126,7 +141,22 @@ func (r *ValkeyClusterReconciler) masterService(valkeyCluster *valkeyv1.ValkeyCl
 }
 
 func (r *ValkeyClusterReconciler) slaveService(valkeyCluster *valkeyv1.ValkeyCluster) (*corev1.Service, error) {
-	slaveService := &corev1.Service{}
+	selectorLabels := valkeyCluster.Labels()
+	selectorLabels["role"] = "slave"
+
+	slaveService := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      valkeyCluster.SlaveServiceName(),
+			Namespace: valkeyCluster.Namespace,
+			Labels:    valkeyCluster.Labels(),
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: selectorLabels,
+			Ports: []corev1.ServicePort{
+				{Name: "client", Port: ValkeyClientPort, Protocol: corev1.ProtocolTCP},
+			},
+		},
+	}
 
 	if err := ctrlruntime.SetControllerReference(valkeyCluster, slaveService, r.Scheme); err != nil {
 		return nil, err
