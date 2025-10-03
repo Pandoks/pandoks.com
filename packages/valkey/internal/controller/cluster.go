@@ -78,3 +78,18 @@ func (r *ValkeyClusterReconciler) connectToValkeyNode(ctx context.Context, fqdn 
 
 	return client, nil
 }
+
+// returns the string output of the CLUSTER NODES command
+func (r *ValkeyClusterReconciler) queryClusterNodes(ctx context.Context, client valkey.Client) (string, error) {
+	resp := client.Do(ctx, client.B().ClusterNodes().Build())
+	if resp.Error() != nil {
+		return "", resp.Error()
+	}
+
+	output, err := resp.ToString()
+	if err != nil {
+		return "", err
+	}
+
+	return output, nil
+}
