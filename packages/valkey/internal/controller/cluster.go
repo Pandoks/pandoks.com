@@ -22,9 +22,8 @@ type NodeRole string
 // Redis uses "master" and "slave" for roles
 // Valkey uses "master" and "replica" for roles
 const (
-	NodeRoleMaster  NodeRole = "master"
-	NodeRoleSlave   NodeRole = "slave"
-	NodeRoleReplica NodeRole = "replica"
+	NodeRoleMaster NodeRole = "master"
+	NodeRoleSlave  NodeRole = "slave"
 )
 
 type ClusterNode struct {
