@@ -27,14 +27,14 @@ const (
 )
 
 type ClusterNode struct {
-	ID        string
-	FQDN      string
-	Host      string
-	Port      int
-	Role      NodeRole // master | slave (we do not use inclusive language here)
-	MasterID  string
-	Slots     []int
-	Connected bool
+	ID         string
+	FQDN       string
+	Host       string
+	Port       int
+	Role       NodeRole // master | slave (we do not use inclusive language here)
+	MasterID   string
+	SlotRanges []SlotRange // [start, end] both inclusive
+	Connected  bool
 }
 
 type ClusterTopology struct {
@@ -46,7 +46,12 @@ type ClusterTopology struct {
 	TotalSlots     int
 }
 
-func (r *ValkeyClusterReconciler) reconcileClusterStatefulSet(ctx context.Context, valkeyCluster *valkeyv1.ValkeyCluster, statefulSet *appsv1.StatefulSet) error {
+type SlotRange struct {
+	Start int
+	End   int
+}
+
+func (r *ValkeyClusterReconciler) reconcileClusterStatefulSet(ctx context.Context, valkeyCluster *valkeyv1.ValkeyCluster) error {
 	logger := log.FromContext(ctx)
 
 	// fqdn: fully qualified domain name
