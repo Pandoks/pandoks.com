@@ -3,18 +3,24 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	valkeyv1 "valkey/operator/api/v1"
 
 	"github.com/valkey-io/valkey-go"
-	appsv1 "k8s.io/api/apps/v1"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+)
+
+const (
+	totalSlots = 16384
 )
 
 type NodeRole string
 
 const (
-	NodeRoleMaster NodeRole = "master"
-	NodeRoleSlave  NodeRole = "slave"
+	NodeRoleMaster  NodeRole = "master"
+	NodeRoleSlave   NodeRole = "slave"
+	NodeRoleReplica NodeRole = "replica"
 )
 
 type ClusterNode struct {
@@ -29,10 +35,10 @@ type ClusterNode struct {
 }
 
 type ClusterTopology struct {
-	Nodes          map[string]*ClusterNode // node id -> node
-	Masters        map[string]*ClusterNode
-	Slaves         map[string]*ClusterNode
-	SlotMap        map[int]string // slot -> node id
+	Nodes          map[string]*ClusterNode // nodeID -> node
+	Masters        []*ClusterNode
+	Replicas       []*ClusterNode
+	SlotMap        map[int]string // slot -> nodeID
 	IsBootstrapped bool
 	TotalSlots     int
 }
