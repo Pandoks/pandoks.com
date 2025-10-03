@@ -3,9 +3,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"slices"
-	"strconv"
-	"strings"
 
 	"github.com/valkey-io/valkey-go"
 )
