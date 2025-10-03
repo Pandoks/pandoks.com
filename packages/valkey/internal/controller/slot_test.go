@@ -165,3 +165,64 @@ func TestSlotRangeTracker_Add(t *testing.T) {
 		})
 	}
 }
+
+func TestSlotRangeTracker_IsFullyCovered(t *testing.T) {
+	tests := []struct {
+		name   string
+		ranges []SlotRange
+		want   bool
+	}{
+		{
+			name: "full coverage - single range",
+			ranges: []SlotRange{
+				{Start: 0, End: 16383},
+			},
+			want: true,
+		},
+		{
+			name: "full coverage - three adjacent ranges",
+			ranges: []SlotRange{
+				{Start: 0, End: 5460},
+				{Start: 5461, End: 10922},
+				{Start: 10923, End: 16383},
+			},
+			want: true,
+		},
+		{
+			name: "partial coverage",
+			ranges: []SlotRange{
+				{Start: 0, End: 5000},
+			},
+			want: false,
+		},
+		{
+			name: "full coverage with gap",
+			ranges: []SlotRange{
+				{Start: 0, End: 5000},
+				{Start: 6000, End: 16383},
+			},
+			want: false,
+		},
+		{
+			name:   "empty tracker",
+			ranges: []SlotRange{},
+			want:   false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tracker := &SlotRangeTracker{}
+
+			for _, slotRange := range test.ranges {
+				if err := tracker.Add(slotRange); err != nil {
+					t.Fatalf("Add() unexpected error = %v", err)
+				}
+			}
+
+			if isFullyCovered := tracker.IsFullyCovered(); isFullyCovered != test.want {
+				t.Errorf("IsFullyCovered() = %v, want %v. Ranges: %v", isFullyCovered, test.want, tracker.ranges)
+			}
+		})
+	}
+}
