@@ -18,6 +18,9 @@ const (
 
 type NodeRole string
 
+// NOTE: unfortunately, valkey uses inclusive language for the role names
+// Redis uses "master" and "slave" for roles
+// Valkey uses "master" and "replica" for roles
 const (
 	NodeRoleMaster  NodeRole = "master"
 	NodeRoleSlave   NodeRole = "slave"
@@ -29,7 +32,7 @@ type ClusterNode struct {
 	FQDN      string
 	Host      string
 	Port      int
-	Role      NodeRole
+	Role      NodeRole // master | slave (we do not use inclusive language here)
 	MasterID  string
 	Slots     []int
 	Connected bool
