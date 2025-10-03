@@ -101,8 +101,7 @@ func (r *ValkeyClusterReconciler) reconcileClusterStatefulSet(ctx context.Contex
 //	a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0 10.1.0.7:6379@16379 slave 292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f 0 1538428698000 6 connected
 func (r *ValkeyClusterReconciler) parseClusterNodes(clusterNodeOutput string, fqdnMap map[string]string) (*ClusterTopology, error) {
 	topology := &ClusterTopology{
-		Nodes:   map[string]*ClusterNode{},
-		SlotMap: map[int]string{},
+		Nodes: map[string]*ClusterNode{},
 	}
 
 	lines := slices.Collect(strings.SplitSeq(strings.TrimSpace(clusterNodeOutput), "\n"))
