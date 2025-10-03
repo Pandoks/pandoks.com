@@ -12,10 +12,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-const (
-	totalSlots = 16384
-)
-
 type NodeRole string
 
 // NOTE: unfortunately, valkey uses inclusive language for the role names
@@ -41,14 +37,7 @@ type ClusterTopology struct {
 	Nodes          map[string]*ClusterNode // nodeID -> node
 	Masters        []*ClusterNode
 	Replicas       []*ClusterNode
-	SlotMap        map[int]string // slot -> nodeID
 	IsBootstrapped bool
-	TotalSlots     int
-}
-
-type SlotRange struct {
-	Start int
-	End   int
 }
 
 func (r *ValkeyClusterReconciler) reconcileClusterStatefulSet(ctx context.Context, valkeyCluster *valkeyv1.ValkeyCluster) error {
