@@ -135,7 +135,7 @@ func (r *ValkeyClusterReconciler) parseClusterNodes(clusterNodeOutput string, fq
 			continue
 		}
 
-		node := &ClusterNode{
+		clusterNode := &ClusterNode{
 			ID:        fields[0],
 			Connected: fields[7] == "connected",
 		}
@@ -146,11 +146,21 @@ func (r *ValkeyClusterReconciler) parseClusterNodes(clusterNodeOutput string, fq
 			host := parts[0]
 			port, _ := strconv.Atoi(parts[1])
 
-			node.Host = host
-			node.Port = port
-			node.FQDN = fqdnMap[node.Host]
+			clusterNode.Host = host
+			clusterNode.Port = port
+			clusterNode.FQDN = fqdnMap[host]
 		}
 
+		flags := slices.Collect(strings.SplitSeq(fields[2], ","))
+		for _, flag := range flags {
+			switch flag {
+			case "master":
+				clusterNode.Role = NodeRoleMaster
+			case "slave", "replica":
+				clusterNode.Role = NodeRoleSlave
+				clusterNode.MasterID = fields[3]
+			}
+		}
 
 
 		topology.Nodes[node.ID] = node
