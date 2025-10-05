@@ -74,7 +74,10 @@ func (r *ValkeyClusterReconciler) parseClusterNodes(clusterNodeOutput string, fq
 		parts := strings.Split(hostPort, ":")
 		if len(parts) == 2 {
 			host := parts[0]
-			port, _ := strconv.Atoi(parts[1])
+			port, err := strconv.Atoi(parts[1])
+			if err != nil {
+				continue
+			}
 
 			clusterNode.Host = host
 			clusterNode.Port = port
@@ -103,11 +106,29 @@ func (r *ValkeyClusterReconciler) parseClusterNodes(clusterNodeOutput string, fq
 				var slotRange SlotRange
 				if strings.Contains(stringSlotRange, "-") {
 					slots := strings.Split(stringSlotRange, "-")
-					start, _ := strconv.Atoi(slots[0])
-					end, _ := strconv.Atoi(slots[1])
+					if len(slots) != 2 {
+						continue
+					}
+					start, err := strconv.Atoi(slots[0])
+					if err != nil {
+						continue
+					}
+					end, err := strconv.Atoi(slots[1])
+					if err != nil {
+						continue
+					}
+					if start < 0 || end >= totalSlots || start > end {
+						continue
+					}
 					slotRange = SlotRange{Start: start, End: end}
 				} else {
-					slot, _ := strconv.Atoi(stringSlotRange)
+					slot, err := strconv.Atoi(stringSlotRange)
+					if err != nil {
+						continue
+					}
+					if slot < 0 || slot >= totalSlots {
+						continue
+					}
 					slotRange = SlotRange{Start: slot, End: slot}
 				}
 				clusterNode.SlotRanges = append(clusterNode.SlotRanges, slotRange)
