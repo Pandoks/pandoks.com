@@ -36,7 +36,27 @@ type ClusterTopology struct {
 	Replicas []*ClusterNode
 }
 
-func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCluster *valkeyv1.ValkeyCluster) error {
+func (r *ValkeyClusterReconciler) slotRanges(numMasters int32) []SlotRange {
+	slotsPerMaster := int(totalSlots / numMasters)
+	remainder := totalSlots % numMasters
+
+	ranges := make([]SlotRange, numMasters)
+	currentSlot := 0
+
+	for i := range numMasters {
+		ranges[i].Start = currentSlot
+
+		slots := slotsPerMaster
+		if i < remainder {
+			slots++
+		}
+
+		ranges[i].End = currentSlot + slots - 1
+		currentSlot += slots
+	}
+
+	return ranges
+}
 	logger := log.FromContext(ctx)
 
 	// fqdn: fully qualified domain name
