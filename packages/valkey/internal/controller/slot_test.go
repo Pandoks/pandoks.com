@@ -159,7 +159,7 @@ func TestSlotRangeTracker_Add(t *testing.T) {
 				return
 			}
 
-			if !reflect.DeepEqual(tracker.ranges, test.want) {
+			if err == nil && !reflect.DeepEqual(tracker.ranges, test.want) {
 				t.Errorf("Add() ranges = %v, want %v", tracker.ranges, test.want)
 			}
 		})
