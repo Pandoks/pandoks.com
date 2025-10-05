@@ -36,7 +36,7 @@ type ClusterTopology struct {
 	Replicas []*ClusterNode
 }
 
-func (r *ValkeyClusterReconciler) reconcileClusterStatefulSet(ctx context.Context, valkeyCluster *valkeyv1.ValkeyCluster) error {
+func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCluster *valkeyv1.ValkeyCluster) error {
 	logger := log.FromContext(ctx)
 
 	// fqdn: fully qualified domain name
