@@ -36,6 +36,7 @@ type ClusterTopology struct {
 	Replicas []*ClusterNode
 }
 
+// calculates the slot ranges for a given amount of masters
 func (r *ValkeyClusterReconciler) slotRanges(numMasters int32) []SlotRange {
 	slotsPerMaster := int(totalSlots / numMasters)
 	remainder := totalSlots % numMasters
