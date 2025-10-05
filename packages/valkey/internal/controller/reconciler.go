@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -259,4 +260,62 @@ func (r *ValkeyClusterReconciler) SetupWithManager(mgr ctrlruntime.Manager) erro
 		Owns(&corev1.Service{}).
 		Owns(&corev1.ConfigMap{}).
 		Complete(r)
+}
+
+func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCluster *valkeyv1.ValkeyCluster) error {
+	logger := log.FromContext(ctx)
+
+	// fqdn: fully qualified domain name
+	podFQDNs := r.podFQDNs(valkeyCluster)
+	if len(podFQDNs) == 0 {
+		return fmt.Errorf("no pod FQDNs provided")
+	}
+
+	client, err := r.connectToValkeyNode(ctx, podFQDNs[0])
+	if err != nil {
+		return fmt.Errorf("failed to connect to seed node: %w", err)
+	}
+	defer client.Close()
+
+	output, err := r.queryClusterNodes(ctx, client)
+	currentTopology := &ClusterTopology{
+		Nodes: map[string]*ClusterNode{},
+	}
+	if err == nil {
+		fqdnMap := make(map[string]string)
+		for _, fqdn := range podFQDNs {
+			host := strings.Split(fqdn, ".")[0]
+			fqdnMap[host] = fqdn
+		}
+
+		currentTopology, err = r.parseClusterNodes(output, fqdnMap)
+		if err != nil {
+			return fmt.Errorf("failed to parse cluster nodes: %w", err)
+		}
+	}
+
+	desiredTopology := r.desiredTopology(valkeyCluster)
+
+	if err := r.ensureNodesJoined(ctx, podFQDNs); err != nil {
+		return fmt.Errorf("failed to ensure nodes joined: %w", err)
+	}
+
+	if err := r.ensureSlotsAssigned(ctx, currentTopology, desiredTopology, podFQDNs); err != nil {
+		return fmt.Errorf("failed to ensure slots assigned: %w", err)
+	}
+
+	if err := r.ensureReplicas(ctx, currentTopology, desiredTopology, podFQDNs); err != nil {
+		return fmt.Errorf("failed to ensure replicas: %w", err)
+	}
+
+	if err := r.ensureSlotDistribution(ctx, currentTopology, desiredTopology, podFQDNs); err != nil {
+		return fmt.Errorf("failed to ensure slot distribution: %w", err)
+	}
+
+	if err := r.ensureNoExcessNodes(ctx, currentTopology, desiredTopology, podFQDNs); err != nil {
+		return fmt.Errorf("failed to ensure no excess nodes: %w", err)
+	}
+
+	logger.Info("Cluster is in desired state")
+	return nil
 }
