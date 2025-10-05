@@ -3,12 +3,9 @@ package controller
 import (
 	"context"
 	"fmt"
-	"slices"
-	"strconv"
 	"strings"
 	valkeyv1 "valkey/operator/api/v1"
 
-	"github.com/valkey-io/valkey-go"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -34,10 +31,9 @@ type ClusterNode struct {
 }
 
 type ClusterTopology struct {
-	Nodes          map[string]*ClusterNode // nodeID -> node
-	Masters        []*ClusterNode
-	Replicas       []*ClusterNode
-	IsBootstrapped bool
+	Nodes    map[string]*ClusterNode // nodeID -> node
+	Masters  []*ClusterNode
+	Replicas []*ClusterNode
 }
 
 func (r *ValkeyClusterReconciler) reconcileClusterStatefulSet(ctx context.Context, valkeyCluster *valkeyv1.ValkeyCluster) error {
@@ -45,18 +41,31 @@ func (r *ValkeyClusterReconciler) reconcileClusterStatefulSet(ctx context.Contex
 
 	// fqdn: fully qualified domain name
 	podFQDNs := r.podFQDNs(valkeyCluster)
+	if len(podFQDNs) == 0 {
+		return fmt.Errorf("no pod FQDNs provided")
+	}
 
-	clients := map[string]valkey.Client{}
-	for _, fqdn := range podFQDNs {
-		client, err := r.connectToValkeyNode(ctx, fqdn)
-		if err != nil {
-			for _, client := range clients {
-				client.Close()
-			}
-			logger.Error(err, "Failed to connect to valkey node", "FQDN", fqdn)
-			return err
+	client, err := r.connectToValkeyNode(ctx, podFQDNs[0])
+	if err != nil {
+		return fmt.Errorf("failed to connect to seed node: %w", err)
+	}
+	defer client.Close()
+
+	output, err := r.queryClusterNodes(ctx, client)
+	currentTopology := &ClusterTopology{
+		Nodes: map[string]*ClusterNode{},
+	}
+	if err == nil {
+		fqdnMap := make(map[string]string)
+		for _, fqdn := range podFQDNs {
+			host := strings.Split(fqdn, ".")[0]
+			fqdnMap[host] = fqdn
 		}
-		clients[fqdn] = client
+
+		currentTopology, err = r.parseClusterNodes(output, fqdnMap)
+		if err != nil {
+			return fmt.Errorf("failed to parse cluster nodes: %w", err)
+		}
 	}
 
 	return nil
