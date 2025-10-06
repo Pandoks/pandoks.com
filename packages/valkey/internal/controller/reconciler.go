@@ -288,7 +288,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 			fqdnMap[host] = fqdn
 		}
 
-		currentTopology, err = r.parseClusterNodes(output, fqdnMap)
+		currentTopology, err = r.parseClusterTopology(output, fqdnMap)
 		if err != nil {
 			return fmt.Errorf("failed to parse cluster nodes: %w", err)
 		}

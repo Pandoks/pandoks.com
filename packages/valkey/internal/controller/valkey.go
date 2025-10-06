@@ -48,7 +48,7 @@ func (r *ValkeyClusterReconciler) queryClusterNodes(ctx context.Context, client 
 	return output, nil
 }
 
-func (r *ValkeyClusterReconciler) parseClusterNodes(clusterNodeOutput string, fqdnMap map[string]string) (*ClusterTopology, error) {
+func (r *ValkeyClusterReconciler) parseClusterTopology(clusterNodeOutput string, fqdnMap map[string]string) (*ClusterTopology, error) {
 	topology := &ClusterTopology{
 		Nodes: map[string]*ClusterNode{},
 	}
