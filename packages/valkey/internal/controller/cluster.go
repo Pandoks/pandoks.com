@@ -36,6 +36,41 @@ type ClusterTopology struct {
 	Replicas []*ClusterNode
 }
 
+// desiredTopology calculates the desired cluster topology based on the spec. Note that the ids are not supposed to match
+// the actual cluster state because it doesn't have access to the actual cluster. The master ids are named 'master-i' and
+// the replica ids are named 'replica-i-j' where i is the master index and j is the replica index.
+func (r *ValkeyClusterReconciler) desiredTopology(valkeyCluster *valkeyv1.ValkeyCluster) *ClusterTopology {
+	topology := &ClusterTopology{
+		Nodes: map[string]*ClusterNode{},
+	}
+
+	numMasters := valkeyCluster.Spec.Masters
+	desiredSlotRanges := r.slotRanges(numMasters)
+
+	for i := range numMasters {
+		masterId := fmt.Sprintf("master-%d", i)
+		masterNode := &ClusterNode{
+			ID:         masterId,
+			Role:       NodeRoleMaster,
+			SlotRanges: []SlotRange{desiredSlotRanges[i]},
+		}
+		topology.Masters = append(topology.Masters, masterNode)
+		topology.Nodes[masterNode.ID] = masterNode
+
+		for j := range valkeyCluster.Spec.ReplicasPerMaster {
+			slaveNode := &ClusterNode{
+				ID:       fmt.Sprintf("replica-%d-%d", i, j),
+				Role:     NodeRoleSlave,
+				MasterID: masterId,
+			}
+			topology.Replicas = append(topology.Replicas, slaveNode)
+			topology.Nodes[slaveNode.ID] = slaveNode
+		}
+	}
+
+	return topology
+}
+
 // calculates the slot ranges for a given amount of masters
 func (r *ValkeyClusterReconciler) slotRanges(numMasters int32) []SlotRange {
 	slotsPerMaster := int(totalSlots / numMasters)
