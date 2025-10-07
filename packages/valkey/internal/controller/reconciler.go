@@ -270,13 +270,13 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		return fmt.Errorf("no pod FQDNs provided")
 	}
 
-	client, err := r.connectToValkeyNode(ctx, podFQDNs[0])
+	seedClient, err := r.connectToValkeyNode(ctx, podFQDNs[0])
 	if err != nil {
 		return fmt.Errorf("failed to connect to seed node: %w", err)
 	}
-	defer client.Close()
+	defer seedClient.Close()
 
-	output, err := r.queryClusterNodes(ctx, client)
+	output, err := r.queryClusterNodes(ctx, seedClient)
 	var currentTopology *ClusterTopology
 	if err == nil {
 		currentTopology, err = r.parseClusterTopology(output)
