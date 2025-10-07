@@ -291,8 +291,20 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 
 	desiredTopology := r.desiredTopology(valkeyCluster)
 
-	if err := r.ensureNodesJoined(ctx, podFQDNs); err != nil {
-		return fmt.Errorf("failed to ensure nodes joined: %w", err)
+	// join nodes that are not part of the current cluster topology
+	// seed node (client) is alone a cluster that births everything so we need to add nodes to it
+	currentFQDNs := currentTopology.fqdns()
+	currentFQDNsSet := make(map[string]struct{}, len(currentFQDNs))
+	for _, fqdn := range currentFQDNs {
+		currentFQDNsSet[fqdn] = struct{}{}
+	}
+	for _, fqdn := range podFQDNs {
+		if _, exists := currentFQDNsSet[fqdn]; !exists {
+			meetCmd := seedClient.B().ClusterMeet().Ip(fqdn).Port(ValkeyClientPort).Build()
+			if err := seedClient.Do(ctx, meetCmd).Error(); err != nil {
+				return fmt.Errorf("failed to meet node %s: %w", fqdn, err)
+			}
+		}
 	}
 
 	if err := r.ensureSlotsAssigned(ctx, currentTopology, desiredTopology, podFQDNs); err != nil {
