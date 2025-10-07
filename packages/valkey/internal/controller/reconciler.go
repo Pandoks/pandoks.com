@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -278,19 +277,15 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 	defer client.Close()
 
 	output, err := r.queryClusterNodes(ctx, client)
-	currentTopology := &ClusterTopology{
-		Nodes: map[string]*ClusterNode{},
-	}
+	var currentTopology *ClusterTopology
 	if err == nil {
-		fqdnMap := make(map[string]string)
-		for _, fqdn := range podFQDNs {
-			host := strings.Split(fqdn, ".")[0]
-			fqdnMap[host] = fqdn
-		}
-
-		currentTopology, err = r.parseClusterTopology(output, fqdnMap)
+		currentTopology, err = r.parseClusterTopology(output)
 		if err != nil {
 			return fmt.Errorf("failed to parse cluster nodes: %w", err)
+		}
+	} else {
+		currentTopology = &ClusterTopology{
+			Nodes: map[string]*ClusterNode{},
 		}
 	}
 
