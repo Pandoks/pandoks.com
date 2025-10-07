@@ -246,5 +246,10 @@ func (r *ValkeyClusterReconciler) parseClusterNodes(clusterNodeOutput string, fq
 	}
 
 
-	return topology, nil
+func (t *ClusterTopology) fqdns() []string {
+	fqdns := make([]string, 0, len(t.Nodes))
+	for _, node := range t.Nodes {
+		fqdns = append(fqdns, node.FQDN)
+	}
+	return fqdns
 }
