@@ -39,7 +39,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 
 	desiredTopology := cluster.DesiredTopology(valkeyCluster)
 
-	// join nodes that are not part of the current cluster topology
+	// join nodes that are not part of the current cluster topology through CLUSTER MEET
 	// seed node (client) is alone a cluster that births everything so we need to add nodes to it
 	currentFQDNs := currentTopology.FQDNs()
 	currentFQDNsSet := make(map[string]struct{}, len(currentFQDNs))
@@ -55,8 +55,23 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		}
 	}
 
-	if err := r.ensureSlots(ctx, currentTopology, desiredTopology); err != nil {
-		return fmt.Errorf("failed to ensure slots: %w", err)
+	// ensure slots are assigned properly/rebalanced
+	currentSlotRangeTracker, err := currentTopology.SlotRangeTracker()
+	if err != nil {
+		return fmt.Errorf("failed to calculate current slot range: %w", err)
+	}
+	if len(currentSlotRangeTracker.SlotRanges()) == 0 { // needs boostrapping
+		if err = cluster.BootstrapSlots(ctx, valkeyCluster.Spec.Masters, podFQDNs, logger); err != nil {
+			return fmt.Errorf("failed to bootstrap slots: %w", err)
+		}
+	} else if !currentSlotRangeTracker.IsFullyCovered() { // partial assigned slots
+		if err = cluster.RecoverMissingSlots(ctx, currentTopology.Masters, valkeyCluster.Spec.Masters, podFQDNs, logger); err != nil {
+			return fmt.Errorf("failed to recover missing slots: %w", err)
+		}
+	} else { // all slots assigned - check for rebalancing
+		if err = cluster.RebalanceSlots(ctx, currentTopology.Masters, currentTopology.Replicas, podFQDNs, logger); err != nil {
+			return fmt.Errorf("failed to rebalance slots: %w", err)
+		}
 	}
 
 	if err := r.ensureReplicas(ctx, currentTopology, desiredTopology, podFQDNs); err != nil {
