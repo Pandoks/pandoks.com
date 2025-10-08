@@ -100,7 +100,7 @@ func (r *ValkeyClusterReconciler) ensureSlots(ctx context.Context, current, desi
 	}
 
 	// Case 2: Partial assignment (recovery)
-	if numAssignedSlots < totalSlots {
+	if numAssignedSlots < slot.TotalSlots {
 		return r.recoverMissingSlots(ctx, slotOwner, numDesiredMasters, podFQDNs, logger)
 	}
 
@@ -148,7 +148,7 @@ func (r *ValkeyClusterReconciler) recoverMissingSlots(ctx context.Context, slotO
 	}
 	log := logger.(loggerInterface)
 
-	log.Info("Partial slot assignment detected, assigning missing slots", "assigned", len(slotOwner), "total", totalSlots)
+	log.Info("Partial slot assignment detected, assigning missing slots", "assigned", len(slotOwner), "total", slot.TotalSlots)
 
 	desiredRanges := slot.DesiredSlotRanges(int32(numMasters))
 
@@ -190,7 +190,7 @@ func (r *ValkeyClusterReconciler) rebalanceSlots(ctx context.Context, slotOwner 
 	log := logger.(loggerInterface)
 
 	numDesiredMasters := len(desiredMasterFQDNs)
-	desiredSlotsPerMaster := totalSlots / numDesiredMasters
+	desiredSlotsPerMaster := slot.TotalSlots / numDesiredMasters
 
 	desiredMasterSet := make(map[string]bool)
 	for _, fqdn := range desiredMasterFQDNs {
