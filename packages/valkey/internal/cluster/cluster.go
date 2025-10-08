@@ -73,7 +73,7 @@ func DesiredTopology(valkeyCluster *valkeyv1.ValkeyCluster) *ClusterTopology {
 
 func (r *ValkeyClusterReconciler) ensureSlots(ctx context.Context, current, desired *ClusterTopology) error {
 	logger := log.FromContext(ctx)
-	podFQDNs := current.fqdns()
+	podFQDNs := current.FQDNs()
 
 	numDesiredMasters := len(desired.Masters)
 	if numDesiredMasters == 0 {
@@ -495,7 +495,7 @@ func (r *ValkeyClusterReconciler) ensureNoExcessNodes(ctx context.Context, curre
 	return nil
 }
 
-func (t *ClusterTopology) fqdns() []string {
+func (t *ClusterTopology) FQDNs() []string {
 	fqdns := make([]string, 0, len(t.Nodes))
 	for _, node := range t.Nodes {
 		fqdns = append(fqdns, node.FQDN)
