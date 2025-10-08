@@ -1,9 +1,10 @@
-package controller
+package cluster
 
 import (
 	"fmt"
 	"testing"
 	valkeyv1 "valkey/operator/api/v1"
+	"valkey/operator/internal/slot"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -12,19 +13,19 @@ func TestSlotRanges(t *testing.T) {
 	tests := []struct {
 		name       string
 		numMasters int32
-		want       []SlotRange
+		want       []slot.SlotRange
 	}{
 		{
 			name:       "1 master",
 			numMasters: 1,
-			want: []SlotRange{
+			want: []slot.SlotRange{
 				{Start: 0, End: 16383},
 			},
 		},
 		{
 			name:       "2 masters",
 			numMasters: 2,
-			want: []SlotRange{
+			want: []slot.SlotRange{
 				{Start: 0, End: 8191},
 				{Start: 8192, End: 16383},
 			},
@@ -32,7 +33,7 @@ func TestSlotRanges(t *testing.T) {
 		{
 			name:       "3 masters",
 			numMasters: 3,
-			want: []SlotRange{
+			want: []slot.SlotRange{
 				{Start: 0, End: 5461},
 				{Start: 5462, End: 10922},
 				{Start: 10923, End: 16383},
@@ -41,7 +42,7 @@ func TestSlotRanges(t *testing.T) {
 		{
 			name:       "4 masters",
 			numMasters: 4,
-			want: []SlotRange{
+			want: []slot.SlotRange{
 				{Start: 0, End: 4095},
 				{Start: 4096, End: 8191},
 				{Start: 8192, End: 12287},
@@ -51,7 +52,7 @@ func TestSlotRanges(t *testing.T) {
 		{
 			name:       "5 masters (uneven distribution)",
 			numMasters: 5,
-			want: []SlotRange{
+			want: []slot.SlotRange{
 				{Start: 0, End: 3276},
 				{Start: 3277, End: 6553},
 				{Start: 6554, End: 9830},
@@ -62,7 +63,7 @@ func TestSlotRanges(t *testing.T) {
 		{
 			name:       "6 masters",
 			numMasters: 6,
-			want: []SlotRange{
+			want: []slot.SlotRange{
 				{Start: 0, End: 2730},
 				{Start: 2731, End: 5461},
 				{Start: 5462, End: 8192},
@@ -74,7 +75,7 @@ func TestSlotRanges(t *testing.T) {
 		{
 			name:       "10 masters",
 			numMasters: 10,
-			want: []SlotRange{
+			want: []slot.SlotRange{
 				{Start: 0, End: 1638},
 				{Start: 1639, End: 3277},
 				{Start: 3278, End: 4916},
@@ -90,7 +91,7 @@ func TestSlotRanges(t *testing.T) {
 		{
 			name:       "16 masters (evenly divisible)",
 			numMasters: 16,
-			want: []SlotRange{
+			want: []slot.SlotRange{
 				{Start: 0, End: 1023},
 				{Start: 1024, End: 2047},
 				{Start: 2048, End: 3071},
@@ -375,7 +376,7 @@ func TestDesiredTopology(t *testing.T) {
 			masters:           6,
 			replicasPerMaster: 0,
 			checkTopology: func(t *testing.T, topology *ClusterTopology) {
-				expectedRanges := []SlotRange{
+				expectedRanges := []slot.SlotRange{
 					{Start: 0, End: 2730},
 					{Start: 2731, End: 5461},
 					{Start: 5462, End: 8192},
