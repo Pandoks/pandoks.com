@@ -57,3 +57,11 @@ func (t *SlotRangeTracker) Add(slotRange SlotRange) error {
 func (t *SlotRangeTracker) IsFullyCovered() bool {
 	return len(t.ranges) == 1 && t.ranges[0].Start == 0 && t.ranges[0].End == totalSlots-1
 }
+
+func (s *SlotRange) Array() []int {
+	slice := make([]int, 0, s.End-s.Start+1)
+	for slot := s.Start; slot <= s.End; slot++ {
+		slice = append(slice, slot)
+	}
+	return slice
+}

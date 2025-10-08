@@ -226,3 +226,49 @@ func TestSlotRangeTracker_IsFullyCovered(t *testing.T) {
 		})
 	}
 }
+
+func TestSlotRange_Array(t *testing.T) {
+	tests := []struct {
+		name      string
+		slotRange SlotRange
+		want      []int
+	}{
+		{
+			name:      "single slot",
+			slotRange: SlotRange{Start: 5, End: 5},
+			want:      []int{5},
+		},
+		{
+			name:      "range of slots",
+			slotRange: SlotRange{Start: 0, End: 4},
+			want:      []int{0, 1, 2, 3, 4},
+		},
+		{
+			name:      "larger range",
+			slotRange: SlotRange{Start: 10, End: 15},
+			want:      []int{10, 11, 12, 13, 14, 15},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := test.slotRange.Array()
+			if !reflect.DeepEqual(got, test.want) {
+				t.Errorf("Slice() = %v, want %v", got, test.want)
+			}
+		})
+	}
+
+	t.Run("full range", func(t *testing.T) {
+		slotRange := SlotRange{Start: 0, End: 16383}
+		got := slotRange.Array()
+		if len(got) != 16384 {
+			t.Errorf("Slice() length = %d, want 16384", len(got))
+		}
+		for i := range 16384 {
+			if got[i] != i {
+				t.Errorf("Slice()[%d] = %d, want %d", i, got[i], i)
+			}
+		}
+	})
+}
