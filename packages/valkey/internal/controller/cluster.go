@@ -45,7 +45,7 @@ func (r *ValkeyClusterReconciler) desiredTopology(valkeyCluster *valkeyv1.Valkey
 	}
 
 	numMasters := valkeyCluster.Spec.Masters
-	desiredSlotRanges := r.slotRanges(numMasters)
+	desiredSlotRanges := r.desiredSlotRanges(numMasters)
 
 	for i := range numMasters {
 		masterId := fmt.Sprintf("master-%d", i)
@@ -72,7 +72,7 @@ func (r *ValkeyClusterReconciler) desiredTopology(valkeyCluster *valkeyv1.Valkey
 }
 
 // calculates the slot ranges for a given amount of masters
-func (r *ValkeyClusterReconciler) slotRanges(numMasters int32) []SlotRange {
+func (r *ValkeyClusterReconciler) desiredSlotRanges(numMasters int32) []SlotRange {
 	slotsPerMaster := int(totalSlots / numMasters)
 	remainder := totalSlots % numMasters
 
@@ -123,6 +123,7 @@ func (r *ValkeyClusterReconciler) slotRanges(numMasters int32) []SlotRange {
 			return fmt.Errorf("failed to parse cluster nodes: %w", err)
 		}
 	}
+	desiredRanges := r.desiredSlotRanges(int32(numMasters))
 
 	return nil
 }

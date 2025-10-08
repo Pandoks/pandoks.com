@@ -114,7 +114,7 @@ func TestSlotRanges(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			r := &ValkeyClusterReconciler{}
-			slotRanges := r.slotRanges(test.numMasters)
+			slotRanges := r.desiredSlotRanges(test.numMasters)
 
 			if len(slotRanges) != len(test.want) {
 				t.Fatalf("slotRanges() returned %d ranges, want %d", len(slotRanges), len(test.want))
