@@ -76,7 +76,7 @@ func (t *ClusterTopology) FQDNs() []string {
 	return fqdns
 }
 
-func (t *ClusterTopology) SlotRanges() (slot.SlotRangeTracker, error) {
+func (t *ClusterTopology) SlotRangeTracker() (slot.SlotRangeTracker, error) {
 	slotRangeTracker := slot.SlotRangeTracker{}
 	for _, node := range t.Masters {
 		if err := slotRangeTracker.Add(node.SlotRanges...); err != nil {
