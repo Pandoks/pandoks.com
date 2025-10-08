@@ -409,7 +409,7 @@ func TestDesiredSlotRanges(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := DesiredSlotRanges(test.numMasters)
+			got := DesiredSlotRangesFromMasterCount(test.numMasters)
 			if !reflect.DeepEqual(got, test.want) {
 				t.Errorf("DesiredSlotRanges(%d) = %v, want %v", test.numMasters, got, test.want)
 			}
