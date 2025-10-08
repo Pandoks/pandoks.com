@@ -114,8 +114,7 @@ func TestSlotRanges(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			r := &ValkeyClusterReconciler{}
-			slotRanges := r.desiredSlotRanges(test.numMasters)
+			slotRanges := slot.DesiredSlotRangesFromMasterCount(test.numMasters)
 
 			if len(slotRanges) != len(test.want) {
 				t.Fatalf("slotRanges() returned %d ranges, want %d", len(slotRanges), len(test.want))
@@ -402,7 +401,6 @@ func TestDesiredTopology(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			r := &ValkeyClusterReconciler{}
 			valkeyCluster := &valkeyv1.ValkeyCluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-cluster",
@@ -414,7 +412,7 @@ func TestDesiredTopology(t *testing.T) {
 				},
 			}
 
-			topology := r.desiredTopology(valkeyCluster)
+			topology := DesiredTopology(valkeyCluster)
 
 			if topology == nil {
 				t.Fatal("desiredTopology() returned nil")

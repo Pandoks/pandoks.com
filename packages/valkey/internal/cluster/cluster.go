@@ -42,7 +42,7 @@ func DesiredTopology(valkeyCluster *valkeyv1.ValkeyCluster) *ClusterTopology {
 	}
 
 	numMasters := valkeyCluster.Spec.Masters
-	desiredSlotRanges := slot.DesiredSlotRanges(numMasters)
+	desiredSlotRanges := slot.DesiredSlotRangesFromMasterCount(numMasters)
 
 	for i := range numMasters {
 		masterId := fmt.Sprintf("master-%d", i)
