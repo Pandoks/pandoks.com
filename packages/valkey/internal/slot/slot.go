@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	totalSlots = 16384 // 16384 slots starting at 0 [0, 16383]
+	TotalSlots = 16384 // 16384 slots starting at 0 [0, 16383]
 )
 
 type SlotRange struct {
@@ -21,7 +21,7 @@ type SlotRangeTracker struct {
 // Adds a slot range to the tracker. The slots are always ordered by start and there should be no overlaps.
 func (t *SlotRangeTracker) Add(slotRange SlotRange) error {
 	start, end := slotRange.Start, slotRange.End
-	if start < 0 || end >= totalSlots || start > end {
+	if start < 0 || end >= TotalSlots || start > end {
 		return fmt.Errorf("invalid slot range: [%d-%d]", start, end)
 	}
 
@@ -55,7 +55,7 @@ func (t *SlotRangeTracker) Add(slotRange SlotRange) error {
 }
 
 func (t *SlotRangeTracker) IsFullyCovered() bool {
-	return len(t.ranges) == 1 && t.ranges[0].Start == 0 && t.ranges[0].End == totalSlots-1
+	return len(t.ranges) == 1 && t.ranges[0].Start == 0 && t.ranges[0].End == TotalSlots-1
 }
 
 func (t *SlotRangeTracker) SlotRanges() []SlotRange {
