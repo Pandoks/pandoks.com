@@ -69,3 +69,26 @@ func (s *SlotRange) Array() []int {
 	}
 	return slice
 }
+
+// calculates the slot ranges for a given amount of masters
+func DesiredSlotRanges(numMasters int32) []SlotRange {
+	slotsPerMaster := int(TotalSlots / numMasters)
+	remainder := TotalSlots % numMasters
+
+	ranges := make([]SlotRange, numMasters)
+	currentSlot := 0
+
+	for i := range numMasters {
+		ranges[i].Start = currentSlot
+
+		slots := slotsPerMaster
+		if i < remainder {
+			slots++
+		}
+
+		ranges[i].End = currentSlot + slots - 1
+		currentSlot += slots
+	}
+
+	return ranges
+}
