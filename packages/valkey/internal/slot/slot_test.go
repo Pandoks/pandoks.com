@@ -1,4 +1,4 @@
-package controller
+package slot
 
 import (
 	"reflect"

@@ -1,4 +1,4 @@
-package controller
+package slot
 
 import (
 	"fmt"
@@ -56,6 +56,10 @@ func (t *SlotRangeTracker) Add(slotRange SlotRange) error {
 
 func (t *SlotRangeTracker) IsFullyCovered() bool {
 	return len(t.ranges) == 1 && t.ranges[0].Start == 0 && t.ranges[0].End == totalSlots-1
+}
+
+func (t *SlotRangeTracker) SlotRanges() []SlotRange {
+	return t.ranges
 }
 
 func (s *SlotRange) Array() []int {
