@@ -77,7 +77,7 @@ func (s *SlotRange) Array() []int {
 }
 
 // calculates the slot ranges for a given amount of masters
-func DesiredSlotRanges(numMasters int32) []SlotRange {
+func DesiredSlotRangesFromMasterCount(numMasters int32) []SlotRange {
 	slotsPerMaster := int(TotalSlots / numMasters)
 	remainder := TotalSlots % numMasters
 
