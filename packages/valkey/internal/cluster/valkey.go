@@ -1,4 +1,4 @@
-package controller
+package cluster
 
 import (
 	"context"
@@ -6,11 +6,12 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"valkey/operator/internal/slot"
 
 	"github.com/valkey-io/valkey-go"
 )
 
-func (r *ValkeyClusterReconciler) connectToValkeyNode(ctx context.Context, fqdn string) (valkey.Client, error) {
+func ConnectToValkeyNode(ctx context.Context, fqdn string) (valkey.Client, error) {
 	client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{fqdn}})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client for %s: %w", fqdn, err)
@@ -34,7 +35,7 @@ func (r *ValkeyClusterReconciler) connectToValkeyNode(ctx context.Context, fqdn 
 //	e7d1eecce10fd6bb5eb35b9f99a514335d9ba9ca fqdn:6379@16379 slave 07c37dfeb235213a872192d05877c5d02d9a7e1f 0 1538428699000 4 connected
 //	c8e7e5c5e6a7c5e6b7e8d9e0f1a2b3c4d5e6f7a8 fqdn:6379@16379 slave 67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 0 1538428698000 5 connected
 //	a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0 fqdn:6379@16379 slave 292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f 0 1538428698000 6 connected
-func (r *ValkeyClusterReconciler) queryClusterNodes(ctx context.Context, client valkey.Client) (string, error) {
+func QueryClusterNodes(ctx context.Context, client valkey.Client) (string, error) {
 	resp := client.Do(ctx, client.B().ClusterNodes().Build())
 	if resp.Error() != nil {
 		return "", resp.Error()
@@ -48,7 +49,7 @@ func (r *ValkeyClusterReconciler) queryClusterNodes(ctx context.Context, client 
 	return output, nil
 }
 
-func (r *ValkeyClusterReconciler) parseClusterTopology(clusterNodeOutput string) (*ClusterTopology, error) {
+func ParseClusterTopology(clusterNodeOutput string) (*ClusterTopology, error) {
 	topology := &ClusterTopology{
 		Nodes: map[string]*ClusterNode{},
 	}
@@ -103,7 +104,7 @@ func (r *ValkeyClusterReconciler) parseClusterTopology(clusterNodeOutput string)
 					continue
 				}
 
-				var slotRange SlotRange
+				var slotRange slot.SlotRange
 				if strings.Contains(stringSlotRange, "-") {
 					slots := strings.Split(stringSlotRange, "-")
 					if len(slots) != 2 {
@@ -117,19 +118,19 @@ func (r *ValkeyClusterReconciler) parseClusterTopology(clusterNodeOutput string)
 					if err != nil {
 						continue
 					}
-					if start < 0 || end >= totalSlots || start > end {
+					if start < 0 || end >= slot.TotalSlots || start > end {
 						continue
 					}
-					slotRange = SlotRange{Start: start, End: end}
+					slotRange = slot.SlotRange{Start: start, End: end}
 				} else {
-					slot, err := strconv.Atoi(stringSlotRange)
+					slotNumber, err := strconv.Atoi(stringSlotRange)
 					if err != nil {
 						continue
 					}
-					if slot < 0 || slot >= totalSlots {
+					if slotNumber < 0 || slotNumber >= slot.TotalSlots {
 						continue
 					}
-					slotRange = SlotRange{Start: slot, End: slot}
+					slotRange = slot.SlotRange{Start: slotNumber, End: slotNumber}
 				}
 				clusterNode.SlotRanges = append(clusterNode.SlotRanges, slotRange)
 			}
