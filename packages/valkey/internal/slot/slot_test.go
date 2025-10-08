@@ -136,6 +136,30 @@ func TestSlotRangeTracker_Add(t *testing.T) {
 				{Start: 10, End: 10},
 			},
 		},
+
+		{
+			name: "multiple ranges in single Add call",
+			ranges: []SlotRange{
+				{Start: 0, End: 100},
+				{Start: 101, End: 200},
+				{Start: 300, End: 400},
+			},
+			want: []SlotRange{
+				{Start: 0, End: 200},
+				{Start: 300, End: 400},
+			},
+		},
+		{
+			name: "multiple ranges variadic merge all",
+			ranges: []SlotRange{
+				{Start: 0, End: 5460},
+				{Start: 5461, End: 10922},
+				{Start: 10923, End: 16383},
+			},
+			want: []SlotRange{
+				{Start: 0, End: 16383},
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -164,6 +188,47 @@ func TestSlotRangeTracker_Add(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("variadic multiple ranges in single call", func(t *testing.T) {
+		tracker := &SlotRangeTracker{}
+		err := tracker.Add(
+			SlotRange{Start: 0, End: 100},
+			SlotRange{Start: 101, End: 200},
+			SlotRange{Start: 300, End: 400},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		want := []SlotRange{
+			{Start: 0, End: 200},
+			{Start: 300, End: 400},
+		}
+		if !reflect.DeepEqual(tracker.ranges, want) {
+			t.Errorf("Add() ranges = %v, want %v", tracker.ranges, want)
+		}
+	})
+
+	t.Run("variadic error on invalid range", func(t *testing.T) {
+		tracker := &SlotRangeTracker{}
+		err := tracker.Add(
+			SlotRange{Start: 0, End: 100},
+			SlotRange{Start: 200, End: 50},
+		)
+		if err == nil {
+			t.Errorf("expected error but got none")
+		}
+	})
+
+	t.Run("variadic error on overlap", func(t *testing.T) {
+		tracker := &SlotRangeTracker{}
+		err := tracker.Add(
+			SlotRange{Start: 0, End: 100},
+			SlotRange{Start: 50, End: 150},
+		)
+		if err == nil {
+			t.Errorf("expected error but got none")
+		}
+	})
 }
 
 func TestSlotRangeTracker_IsFullyCovered(t *testing.T) {
@@ -298,8 +363,8 @@ func TestDesiredSlotRanges(t *testing.T) {
 			name:       "three masters",
 			numMasters: 3,
 			want: []SlotRange{
-				{Start: 0, End: 5460},
-				{Start: 5461, End: 10922},
+				{Start: 0, End: 5461},
+				{Start: 5462, End: 10922},
 				{Start: 10923, End: 16383},
 			},
 		},
@@ -320,24 +385,24 @@ func TestDesiredSlotRanges(t *testing.T) {
 				{Start: 0, End: 3276},
 				{Start: 3277, End: 6553},
 				{Start: 6554, End: 9830},
-				{Start: 9831, End: 13106},
-				{Start: 13107, End: 16383},
+				{Start: 9831, End: 13107},
+				{Start: 13108, End: 16383},
 			},
 		},
 		{
 			name:       "ten masters",
 			numMasters: 10,
 			want: []SlotRange{
-				{Start: 0, End: 1637},
-				{Start: 1638, End: 3275},
-				{Start: 3276, End: 4913},
-				{Start: 4914, End: 6551},
-				{Start: 6552, End: 8189},
-				{Start: 8190, End: 9827},
-				{Start: 9828, End: 11465},
-				{Start: 11466, End: 13103},
-				{Start: 13104, End: 14741},
-				{Start: 14742, End: 16383},
+				{Start: 0, End: 1638},
+				{Start: 1639, End: 3277},
+				{Start: 3278, End: 4916},
+				{Start: 4917, End: 6555},
+				{Start: 6556, End: 8193},
+				{Start: 8194, End: 9831},
+				{Start: 9832, End: 11469},
+				{Start: 11470, End: 13107},
+				{Start: 13108, End: 14745},
+				{Start: 14746, End: 16383},
 			},
 		},
 	}

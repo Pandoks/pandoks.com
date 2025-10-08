@@ -19,37 +19,43 @@ type SlotRangeTracker struct {
 }
 
 // Adds a slot range to the tracker. The slots are always ordered by start and there should be no overlaps.
-func (t *SlotRangeTracker) Add(slotRange SlotRange) error {
-	start, end := slotRange.Start, slotRange.End
-	if start < 0 || end >= TotalSlots || start > end {
-		return fmt.Errorf("invalid slot range: [%d-%d]", start, end)
+func (t *SlotRangeTracker) Add(slotRanges ...SlotRange) error {
+	if len(slotRanges) == 0 {
+		return nil
 	}
 
-	for _, slotRange := range t.ranges {
-		if start <= slotRange.End && end >= slotRange.Start {
-			return fmt.Errorf("slot overlap detected: [%d-%d] overlaps with existing [%d-%d]", start, end, slotRange.Start, slotRange.End)
+	for _, slotRange := range slotRanges {
+		start, end := slotRange.Start, slotRange.End
+		if start < 0 || end >= TotalSlots || start > end {
+			return fmt.Errorf("invalid slot range: [%d-%d]", start, end)
 		}
-	}
 
-	t.ranges = append(t.ranges, slotRange)
-
-	sort.Slice(t.ranges, func(i, j int) bool {
-		return t.ranges[i].Start < t.ranges[j].Start
-	})
-
-	mergedRanges := make([]SlotRange, 0, len(t.ranges))
-	current := t.ranges[0]
-	for i := 1; i < len(t.ranges); i++ {
-		next := t.ranges[i]
-		if current.End+1 == next.Start {
-			current.End = next.End
-		} else {
-			mergedRanges = append(mergedRanges, current)
-			current = next
+		for _, slotRange := range t.ranges {
+			if start <= slotRange.End && end >= slotRange.Start {
+				return fmt.Errorf("slot overlap detected: [%d-%d] overlaps with existing [%d-%d]", start, end, slotRange.Start, slotRange.End)
+			}
 		}
+
+		t.ranges = append(t.ranges, slotRange)
+
+		sort.Slice(t.ranges, func(i, j int) bool {
+			return t.ranges[i].Start < t.ranges[j].Start
+		})
+
+		mergedRanges := make([]SlotRange, 0, len(t.ranges))
+		current := t.ranges[0]
+		for i := 1; i < len(t.ranges); i++ {
+			next := t.ranges[i]
+			if current.End+1 == next.Start {
+				current.End = next.End
+			} else {
+				mergedRanges = append(mergedRanges, current)
+				current = next
+			}
+		}
+		mergedRanges = append(mergedRanges, current)
+		t.ranges = mergedRanges
 	}
-	mergedRanges = append(mergedRanges, current)
-	t.ranges = mergedRanges
 
 	return nil
 }
