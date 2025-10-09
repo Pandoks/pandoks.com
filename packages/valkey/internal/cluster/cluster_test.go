@@ -160,6 +160,279 @@ func TestSlotRanges(t *testing.T) {
 	}
 }
 
+func TestIsSameTopologyShape(t *testing.T) {
+	tests := []struct {
+		name     string
+		topoA    *ClusterTopology
+		topoB    *ClusterTopology
+		expected bool
+	}{
+		{
+			name: "identical topologies",
+			topoA: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 5461}}},
+					{ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 5462, End: 10922}}},
+					{ID: "m3", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 10923, End: 16383}}},
+				},
+				Replicas: []*ClusterNode{
+					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r2", Role: NodeRoleSlave, MasterID: "m2"},
+					{ID: "r3", Role: NodeRoleSlave, MasterID: "m3"},
+				},
+				Nodes: map[string]*ClusterNode{
+					"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 5461}}},
+					"m2": {ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 5462, End: 10922}}},
+					"m3": {ID: "m3", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 10923, End: 16383}}},
+				},
+			},
+			topoB: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 5461}}},
+					{ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 5462, End: 10922}}},
+					{ID: "m3", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 10923, End: 16383}}},
+				},
+				Replicas: []*ClusterNode{
+					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r2", Role: NodeRoleSlave, MasterID: "m2"},
+					{ID: "r3", Role: NodeRoleSlave, MasterID: "m3"},
+				},
+				Nodes: map[string]*ClusterNode{
+					"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 5461}}},
+					"m2": {ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 5462, End: 10922}}},
+					"m3": {ID: "m3", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 10923, End: 16383}}},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "different master count",
+			topoA: &ClusterTopology{
+				Masters:  []*ClusterNode{{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 16383}}}},
+				Replicas: []*ClusterNode{},
+				Nodes:    map[string]*ClusterNode{},
+			},
+			topoB: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+				Replicas: []*ClusterNode{},
+				Nodes:    map[string]*ClusterNode{},
+			},
+			expected: false,
+		},
+		{
+			name: "different replica count",
+			topoA: &ClusterTopology{
+				Masters: []*ClusterNode{{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 16383}}}},
+				Replicas: []*ClusterNode{
+					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
+				},
+				Nodes: map[string]*ClusterNode{"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 16383}}}},
+			},
+			topoB: &ClusterTopology{
+				Masters: []*ClusterNode{{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 16383}}}},
+				Replicas: []*ClusterNode{
+					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r2", Role: NodeRoleSlave, MasterID: "m1"},
+				},
+				Nodes: map[string]*ClusterNode{"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 16383}}}},
+			},
+			expected: false,
+		},
+		{
+			name: "same shape with different node IDs and FQDNs",
+			topoA: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "old-m1", FQDN: "old1.example.com", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "old-m2", FQDN: "old2.example.com", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+				Replicas: []*ClusterNode{
+					{ID: "old-r1", FQDN: "old-r1.example.com", Role: NodeRoleSlave, MasterID: "old-m1"},
+					{ID: "old-r2", FQDN: "old-r2.example.com", Role: NodeRoleSlave, MasterID: "old-m2"},
+				},
+				Nodes: map[string]*ClusterNode{
+					"old-m1": {ID: "old-m1", FQDN: "old1.example.com", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					"old-m2": {ID: "old-m2", FQDN: "old2.example.com", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+			},
+			topoB: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "new-m1", FQDN: "new1.example.com", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "new-m2", FQDN: "new2.example.com", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+				Replicas: []*ClusterNode{
+					{ID: "new-r1", FQDN: "new-r1.example.com", Role: NodeRoleSlave, MasterID: "new-m1"},
+					{ID: "new-r2", FQDN: "new-r2.example.com", Role: NodeRoleSlave, MasterID: "new-m2"},
+				},
+				Nodes: map[string]*ClusterNode{
+					"new-m1": {ID: "new-m1", FQDN: "new1.example.com", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					"new-m2": {ID: "new-m2", FQDN: "new2.example.com", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "replicas in different order but same distribution",
+			topoA: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+				Replicas: []*ClusterNode{
+					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r2", Role: NodeRoleSlave, MasterID: "m2"},
+					{ID: "r3", Role: NodeRoleSlave, MasterID: "m1"},
+				},
+				Nodes: map[string]*ClusterNode{
+					"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					"m2": {ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+			},
+			topoB: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+				Replicas: []*ClusterNode{
+					{ID: "r2", Role: NodeRoleSlave, MasterID: "m2"},
+					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r3", Role: NodeRoleSlave, MasterID: "m1"},
+				},
+				Nodes: map[string]*ClusterNode{
+					"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					"m2": {ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "different replica distribution",
+			topoA: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+				Replicas: []*ClusterNode{
+					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r2", Role: NodeRoleSlave, MasterID: "m1"},
+				},
+				Nodes: map[string]*ClusterNode{
+					"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					"m2": {ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+			},
+			topoB: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+				Replicas: []*ClusterNode{
+					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r2", Role: NodeRoleSlave, MasterID: "m2"},
+				},
+				Nodes: map[string]*ClusterNode{
+					"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					"m2": {ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "no replicas",
+			topoA: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 16383}}},
+				},
+				Replicas: []*ClusterNode{},
+				Nodes:    map[string]*ClusterNode{},
+			},
+			topoB: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 16383}}},
+				},
+				Replicas: []*ClusterNode{},
+				Nodes:    map[string]*ClusterNode{},
+			},
+			expected: true,
+		},
+		{
+			name: "different slot ranges",
+			topoA: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 5000}}},
+					{ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 5001, End: 16383}}},
+				},
+				Replicas: []*ClusterNode{
+					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r2", Role: NodeRoleSlave, MasterID: "m2"},
+				},
+				Nodes: map[string]*ClusterNode{
+					"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 5000}}},
+					"m2": {ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 5001, End: 16383}}},
+				},
+			},
+			topoB: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+				Replicas: []*ClusterNode{
+					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r2", Role: NodeRoleSlave, MasterID: "m2"},
+				},
+				Nodes: map[string]*ClusterNode{
+					"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					"m2": {ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "multiple slot ranges per master",
+			topoA: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 1000}, {Start: 5000, End: 6000}}},
+					{ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 1001, End: 4999}, {Start: 6001, End: 16383}}},
+				},
+				Replicas: []*ClusterNode{
+					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r2", Role: NodeRoleSlave, MasterID: "m2"},
+				},
+				Nodes: map[string]*ClusterNode{
+					"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 1000}, {Start: 5000, End: 6000}}},
+					"m2": {ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 1001, End: 4999}, {Start: 6001, End: 16383}}},
+				},
+			},
+			topoB: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 1000}, {Start: 5000, End: 6000}}},
+					{ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 1001, End: 4999}, {Start: 6001, End: 16383}}},
+				},
+				Replicas: []*ClusterNode{
+					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r2", Role: NodeRoleSlave, MasterID: "m2"},
+				},
+				Nodes: map[string]*ClusterNode{
+					"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 1000}, {Start: 5000, End: 6000}}},
+					"m2": {ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 1001, End: 4999}, {Start: 6001, End: 16383}}},
+				},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := IsSameTopologyShape(tt.topoA, tt.topoB)
+			if result != tt.expected {
+				t.Errorf("IsSameTopologyShape() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
 func TestDesiredTopology(t *testing.T) {
 	tests := []struct {
 		name              string
