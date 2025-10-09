@@ -21,8 +21,8 @@ type ClusterNode struct {
 	FQDN       string
 	Host       string
 	Port       int
-	Role       NodeRole // master | slave (we do not use inclusive language here)
-	MasterID   string
+	Role       NodeRole         // master | slave (we do not use inclusive language here)
+	MasterID   string           // nil for masters, otherwise the ID of the master
 	SlotRanges []slot.SlotRange // [start, end] both inclusive
 	Connected  bool
 }
