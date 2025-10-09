@@ -16,6 +16,8 @@
     "cluster:push": "pnpm run push",
     "push:valkey": "docker push localhost:12345/valkey:latest",
     "push:operator": "docker push localhost:12345/valkey-operator:latest",
-    "test:unit": "go test ./internal/controller/... -v"
+    "test": "go test ./... -v",
+    "test:slot": "go test ./internal/slot -v",
+    "test:cluster": "go test ./internal/cluster -v"
   }
 }
