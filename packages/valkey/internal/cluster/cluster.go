@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"fmt"
+	"reflect"
 	valkeyv1 "valkey/operator/api/v1"
 	"valkey/operator/internal/slot"
 )
@@ -85,4 +86,38 @@ func (t *ClusterTopology) SlotRangeTracker() (slot.SlotRangeTracker, error) {
 	}
 
 	return slotRangeTracker, nil
+}
+
+// WARNING: this does not look at the IDs, FQDNs, and host/port of the nodes, it only looks at the topology shape
+func IsSameTopologyShape(topologyA, topologyB *ClusterTopology) bool {
+	if len(topologyA.Masters) != len(topologyB.Masters) || len(topologyA.Replicas) != len(topologyB.Replicas) {
+		return false
+	}
+
+	hashSlotRanges := func(slotRanges []slot.SlotRange) string {
+		var hash string
+		for _, slotRange := range slotRanges {
+			hash += fmt.Sprintf("%d-%d", slotRange.Start, slotRange.End)
+		}
+		return hash
+	}
+
+	slotRangesReplicaCountA := map[string]int{}
+	slotRangesReplicaCountB := map[string]int{}
+	for i := range topologyA.Replicas {
+		// NOTE: you can't compare the nodes here becuase they are not guaranteed to be in the same order
+		replicaA := topologyA.Replicas[i]
+		replicaB := topologyB.Replicas[i]
+
+		masterNodeA := topologyA.Nodes[replicaA.MasterID]
+		masterNodeB := topologyB.Nodes[replicaB.MasterID]
+
+		slotRangeHashA := hashSlotRanges(masterNodeA.SlotRanges)
+		slotRangeHashB := hashSlotRanges(masterNodeB.SlotRanges)
+
+		slotRangesReplicaCountA[slotRangeHashA]++
+		slotRangesReplicaCountB[slotRangeHashB]++
+	}
+
+	return reflect.DeepEqual(slotRangesReplicaCountA, slotRangesReplicaCountB)
 }
