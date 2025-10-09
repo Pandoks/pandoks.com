@@ -54,6 +54,14 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 			}
 		}
 	}
+	output, err = cluster.QueryClusterNodes(ctx, seedClient)
+	if err != nil {
+		return fmt.Errorf("failed to query cluster nodes: %w", err)
+	}
+	currentTopology, err = cluster.ParseClusterTopology(output)
+	if err != nil {
+		return fmt.Errorf("failed to parse cluster nodes: %w", err)
+	}
 
 	// ensure slots are assigned properly/rebalanced
 	currentSlotRangeTracker, err := currentTopology.SlotRangeTracker()
