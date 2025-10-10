@@ -33,11 +33,11 @@ func TestParseClusterTopology(t *testing.T) {
 				if master0.ID != "07c37dfeb235213a872192d05877c5d02d9a7e1f" {
 					t.Errorf("Master[0].ID = %s, want 07c37dfeb235213a872192d05877c5d02d9a7e1f", master0.ID)
 				}
-				if master0.Host != "node1.example.com" {
-					t.Errorf("Master[0].Host = %s, want node1.example.com", master0.Host)
+				if master0.Address.Host != "node1.example.com" {
+					t.Errorf("Master[0].Address.Host = %s, want node1.example.com", master0.Address.Host)
 				}
-				if master0.Port != 6379 {
-					t.Errorf("Master[0].Port = %d, want 6379", master0.Port)
+				if master0.Address.Port != 6379 {
+					t.Errorf("Master[0].Address.Port = %d, want 6379", master0.Address.Port)
 				}
 				if master0.Role != NodeRoleMaster {
 					t.Errorf("Master[0].Role = %s, want master", master0.Role)
@@ -92,11 +92,11 @@ func TestParseClusterTopology(t *testing.T) {
 					}
 				}
 
-				if topology.Masters[0].Host != "192.168.1.2" {
-					t.Errorf("Master[0].Host = %s, want 192.168.1.2", topology.Masters[0].Host)
+				if topology.Masters[0].Address.Host != "192.168.1.2" {
+					t.Errorf("Master[0].Address.Host = %s, want 192.168.1.2", topology.Masters[0].Address.Host)
 				}
-				if topology.Masters[0].Port != 7000 {
-					t.Errorf("Master[0].Port = %d, want 7000", topology.Masters[0].Port)
+				if topology.Masters[0].Address.Port != 7000 {
+					t.Errorf("Master[0].Address.Port = %d, want 7000", topology.Masters[0].Address.Port)
 				}
 			},
 		},

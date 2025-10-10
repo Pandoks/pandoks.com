@@ -242,33 +242,33 @@ func TestIsSameTopologyShape(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "same shape with different node IDs and FQDNs",
+			name: "same shape with different node IDs and addresses",
 			topoA: &ClusterTopology{
 				Masters: []*ClusterNode{
-					{ID: "old-m1", FQDN: "old1.example.com", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
-					{ID: "old-m2", FQDN: "old2.example.com", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+					{ID: "old-m1", Address: Address{Host: "old1.example.com", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "old-m2", Address: Address{Host: "old2.example.com", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
 				},
 				Replicas: []*ClusterNode{
-					{ID: "old-r1", FQDN: "old-r1.example.com", Role: NodeRoleSlave, MasterID: "old-m1"},
-					{ID: "old-r2", FQDN: "old-r2.example.com", Role: NodeRoleSlave, MasterID: "old-m2"},
+					{ID: "old-r1", Address: Address{Host: "old-r1.example.com", Port: 6379}, Role: NodeRoleSlave, MasterID: "old-m1"},
+					{ID: "old-r2", Address: Address{Host: "old-r2.example.com", Port: 6379}, Role: NodeRoleSlave, MasterID: "old-m2"},
 				},
 				Nodes: map[string]*ClusterNode{
-					"old-m1": {ID: "old-m1", FQDN: "old1.example.com", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
-					"old-m2": {ID: "old-m2", FQDN: "old2.example.com", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+					"old-m1": {ID: "old-m1", Address: Address{Host: "old1.example.com", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					"old-m2": {ID: "old-m2", Address: Address{Host: "old2.example.com", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
 				},
 			},
 			topoB: &ClusterTopology{
 				Masters: []*ClusterNode{
-					{ID: "new-m1", FQDN: "new1.example.com", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
-					{ID: "new-m2", FQDN: "new2.example.com", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+					{ID: "new-m1", Address: Address{Host: "new1.example.com", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "new-m2", Address: Address{Host: "new2.example.com", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
 				},
 				Replicas: []*ClusterNode{
-					{ID: "new-r1", FQDN: "new-r1.example.com", Role: NodeRoleSlave, MasterID: "new-m1"},
-					{ID: "new-r2", FQDN: "new-r2.example.com", Role: NodeRoleSlave, MasterID: "new-m2"},
+					{ID: "new-r1", Address: Address{Host: "new-r1.example.com", Port: 6379}, Role: NodeRoleSlave, MasterID: "new-m1"},
+					{ID: "new-r2", Address: Address{Host: "new-r2.example.com", Port: 6379}, Role: NodeRoleSlave, MasterID: "new-m2"},
 				},
 				Nodes: map[string]*ClusterNode{
-					"new-m1": {ID: "new-m1", FQDN: "new1.example.com", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
-					"new-m2": {ID: "new-m2", FQDN: "new2.example.com", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+					"new-m1": {ID: "new-m1", Address: Address{Host: "new1.example.com", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					"new-m2": {ID: "new-m2", Address: Address{Host: "new2.example.com", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
 				},
 			},
 			expected: true,
