@@ -8,66 +8,22 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-func ensureSlots(ctx context.Context, current, desired *ClusterTopology) error {
+func BootstrapSlots(ctx context.Context, masters []*ClusterNode) error {
 	logger := log.FromContext(ctx)
-	podFQDNs := current.FQDNs()
 
-	numDesiredMasters := len(desired.Masters)
-	if numDesiredMasters == 0 {
-		return fmt.Errorf("no masters available to assign slots")
-	}
+	logger.Info("No slots assigned, bootstrapping cluster")
+	slotRanges := slot.DesiredSlotRangesFromMasterCount(int32(len(masters)))
 
-	slotOwner := make(map[int]string)
-	currentSlotsByMaster := make(map[string][]int)
-
-	for _, master := range current.Masters {
-		for _, slotRange := range master.SlotRanges {
-			for slot := slotRange.Start; slot <= slotRange.End; slot++ {
-				slotOwner[slot] = master.FQDN
-				currentSlotsByMaster[master.FQDN] = append(currentSlotsByMaster[master.FQDN], slot)
-			}
-		}
-	}
-
-	numAssignedSlots := len(slotOwner)
-
-	// Case 1: No slots assigned (bootstrap)
-	if numAssignedSlots == 0 {
-		return bootstrapSlots(ctx, numDesiredMasters, podFQDNs, logger)
-	}
-
-	// Case 2: Partial assignment (recovery)
-	if numAssignedSlots < slot.TotalSlots {
-		return recoverMissingSlots(ctx, slotOwner, numDesiredMasters, podFQDNs, logger)
-	}
-
-	// Case 3: All slots assigned - check if rebalancing needed
-	desiredMasterFQDNs := podFQDNs[:numDesiredMasters]
-	return rebalanceSlots(ctx, slotOwner, currentSlotsByMaster, desiredMasterFQDNs, logger)
-}
-
-func bootstrapSlots(ctx context.Context, numMasters int, podFQDNs []string, logger any) error {
-	type loggerInterface interface {
-		Info(msg string, keysAndValues ...any)
-	}
-	log := logger.(loggerInterface)
-
-	log.Info("No slots assigned, bootstrapping cluster")
-	slotRanges := slot.DesiredSlotRanges(int32(numMasters))
-
-	for i := 0; i < numMasters; i++ {
-		client, err := ConnectToValkeyNode(ctx, podFQDNs[i])
+	for i, masterNode := range masters {
+		client, err := ConnectToValkeyNode(ctx, masterNode.FQDN)
 		if err != nil {
-			return fmt.Errorf("failed to connect to master %d: %w", i, err)
+			return fmt.Errorf("failed to connect to master %s: %w", masterNode.FQDN, err)
 		}
 
 		slotRange := slotRanges[i]
-		slots := make([]int64, 0, slotRange.End-slotRange.Start+1)
-		for slot := slotRange.Start; slot <= slotRange.End; slot++ {
-			slots = append(slots, int64(slot))
-		}
+		slots := slotRange.Array()
 
-		log.Info("Assigning slots to master", "masterIndex", i, "slots", fmt.Sprintf("%d-%d", slotRange.Start, slotRange.End))
+		logger.Info("Assigning slots to master", "masterIndex", i, "slots", fmt.Sprintf("%d-%d", slotRange.Start, slotRange.End))
 		cmd := client.B().ClusterAddslots().Slot(slots...).Build()
 		if err := client.Do(ctx, cmd).Error(); err != nil {
 			client.Close()
