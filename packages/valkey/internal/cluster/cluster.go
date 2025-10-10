@@ -17,11 +17,18 @@ const (
 	NodeRoleSlave  NodeRole = "slave"
 )
 
+type Address struct {
+	Host string
+	Port int64
+}
+
+func (a *Address) String() string {
+	return fmt.Sprintf("%s:%d", a.Host, a.Port)
+}
+
 type ClusterNode struct {
 	ID         string
-	FQDN       string
-	Host       string
-	Port       int
+	Address    Address
 	Role       NodeRole         // master | slave (we do not use inclusive language here)
 	MasterID   string           // nil for masters, otherwise the ID of the master
 	SlotRanges []slot.SlotRange // [start, end] both inclusive, nil if slave node
@@ -69,12 +76,12 @@ func DesiredTopology(valkeyCluster *valkeyv1.ValkeyCluster) *ClusterTopology {
 	return topology
 }
 
-func (t *ClusterTopology) FQDNs() []string {
-	fqdns := make([]string, 0, len(t.Nodes))
+func (t *ClusterTopology) Addresses() []Address {
+	addresses := make([]Address, 0, len(t.Nodes))
 	for _, node := range t.Nodes {
-		fqdns = append(fqdns, node.FQDN)
+		addresses = append(addresses, node.Address)
 	}
-	return fqdns
+	return addresses
 }
 
 func (t *ClusterTopology) SlotRangeTracker() (slot.SlotRangeTracker, error) {
