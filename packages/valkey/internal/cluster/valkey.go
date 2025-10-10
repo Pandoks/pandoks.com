@@ -13,6 +13,10 @@ import (
 
 func ConnectToValkeyNode(ctx context.Context, fqdn string) (valkey.Client, error) {
 	client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{fqdn}})
+const (
+	ValkeyClientPort = 6379
+	ValkeyGossipPort = 16379
+)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client for %s: %w", fqdn, err)
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	valkeyv1 "valkey/operator/api/v1"
+	"valkey/operator/internal/cluster"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -22,11 +23,6 @@ func init() {
 		valkeyImage = "ghcr.io/pandoks/valkey:latest"
 	}
 }
-
-const (
-	ValkeyClientPort = 6379
-	ValkeyGossipPort = 16379
-)
 
 func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyCluster) (*appsv1.StatefulSet, error) {
 	replicas := r.calculateReplicas(valkeyCluster)
@@ -77,8 +73,8 @@ func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyClus
 						Image: valkeyImage,
 						Name:  "valkey",
 						Ports: []corev1.ContainerPort{
-							{Name: "client", ContainerPort: ValkeyClientPort},
-							{Name: "gossip", ContainerPort: ValkeyGossipPort},
+							{Name: "client", ContainerPort: cluster.ValkeyClientPort},
+							{Name: "gossip", ContainerPort: cluster.ValkeyGossipPort},
 						},
 						VolumeMounts: volumeMounts,
 					}},
@@ -109,8 +105,8 @@ func (r *ValkeyClusterReconciler) headlessService(valkeyCluster *valkeyv1.Valkey
 			ClusterIP: "None",
 			Selector:  valkeyCluster.Labels(),
 			Ports: []corev1.ServicePort{
-				{Name: "client", Port: ValkeyClientPort, Protocol: corev1.ProtocolTCP},
-				{Name: "gossip", Port: ValkeyGossipPort, Protocol: corev1.ProtocolTCP},
+				{Name: "client", Port: cluster.ValkeyClientPort, Protocol: corev1.ProtocolTCP},
+				{Name: "gossip", Port: cluster.ValkeyGossipPort, Protocol: corev1.ProtocolTCP},
 			},
 		},
 	}
@@ -134,7 +130,7 @@ func (r *ValkeyClusterReconciler) masterService(valkeyCluster *valkeyv1.ValkeyCl
 		Spec: corev1.ServiceSpec{
 			Selector: selectorLabels,
 			Ports: []corev1.ServicePort{
-				{Name: "client", Port: ValkeyClientPort, Protocol: corev1.ProtocolTCP},
+				{Name: "client", Port: cluster.ValkeyClientPort, Protocol: corev1.ProtocolTCP},
 			},
 		},
 	}
@@ -158,7 +154,7 @@ func (r *ValkeyClusterReconciler) slaveService(valkeyCluster *valkeyv1.ValkeyClu
 		Spec: corev1.ServiceSpec{
 			Selector: selectorLabels,
 			Ports: []corev1.ServicePort{
-				{Name: "client", Port: ValkeyClientPort, Protocol: corev1.ProtocolTCP},
+				{Name: "client", Port: cluster.ValkeyClientPort, Protocol: corev1.ProtocolTCP},
 			},
 		},
 	}
@@ -180,7 +176,7 @@ func (r *ValkeyClusterReconciler) podFQDNs(valkeyCluster *valkeyv1.ValkeyCluster
 			index,
 			valkeyCluster.HeadlessServiceName(),
 			valkeyCluster.Namespace,
-			ValkeyClientPort,
+			cluster.ValkeyClientPort,
 		)
 		podFQDNs = append(podFQDNs, fqdn)
 	}
