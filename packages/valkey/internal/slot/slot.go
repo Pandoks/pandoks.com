@@ -68,6 +68,7 @@ func (t *SlotRangeTracker) SlotRanges() []SlotRange {
 	return t.ranges
 }
 
+// returns int64 slice because valkey-go uses int64... for Slot()
 func (s *SlotRange) Array() []int64 {
 	slice := make([]int64, 0, s.End-s.Start+1)
 	for slot := s.Start; slot <= s.End; slot++ {
