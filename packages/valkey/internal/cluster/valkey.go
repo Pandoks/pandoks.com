@@ -11,19 +11,20 @@ import (
 	"github.com/valkey-io/valkey-go"
 )
 
-func ConnectToValkeyNode(ctx context.Context, fqdn string) (valkey.Client, error) {
-	client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{fqdn}})
 const (
 	ValkeyClientPort = 6379
 	ValkeyGossipPort = 16379
 )
+
+func ConnectToValkeyNode(ctx context.Context, address string) (valkey.Client, error) {
+	client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{address}})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create client for %s: %w", fqdn, err)
+		return nil, fmt.Errorf("failed to create client for %s: %w", address, err)
 	}
 
 	if err := client.Do(ctx, client.B().Ping().Build()).Error(); err != nil {
 		client.Close()
-		return nil, fmt.Errorf("failed to ping client for %s: %w", fqdn, err)
+		return nil, fmt.Errorf("failed to ping client for %s: %w", address, err)
 	}
 
 	return client, nil
