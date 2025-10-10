@@ -54,6 +54,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 			}
 		}
 	}
+	// need to requery the cluster topology
 	output, err = cluster.QueryClusterNodes(ctx, seedClient)
 	if err != nil {
 		return fmt.Errorf("failed to query cluster nodes: %w", err)
@@ -69,7 +70,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		return fmt.Errorf("failed to calculate current slot range: %w", err)
 	}
 	if len(currentSlotRangeTracker.SlotRanges()) == 0 { // needs boostrapping
-		if err = cluster.BootstrapSlots(ctx, valkeyCluster.Spec.Masters, podFQDNs, logger); err != nil {
+		if err = cluster.BootstrapSlots(ctx, currentTopology.Masters); err != nil {
 			return fmt.Errorf("failed to bootstrap slots: %w", err)
 		}
 	} else if !currentSlotRangeTracker.IsFullyCovered() { // partial assigned slots
