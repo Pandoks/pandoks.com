@@ -48,7 +48,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 	}
 	for _, fqdn := range podFQDNs {
 		if _, exists := currentFQDNsSet[fqdn]; !exists {
-			meetCmd := seedClient.B().ClusterMeet().Ip(fqdn).Port(ValkeyClientPort).Build()
+			meetCmd := seedClient.B().ClusterMeet().Ip(fqdn).Port(cluster.ValkeyClientPort).Build()
 			if err := seedClient.Do(ctx, meetCmd).Error(); err != nil {
 				return fmt.Errorf("failed to meet node %s: %w", fqdn, err)
 			}
