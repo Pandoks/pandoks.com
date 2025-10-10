@@ -32,7 +32,7 @@ func ConnectToValkeyNode(ctx context.Context, address string) (valkey.Client, er
 
 // returns the string output of the CLUSTER NODES command
 //
-// example output (fqdn in this case because we're in cluster but sometimes it'll be ipv4/6):
+// example output (fqdn in this case because we're in cluster but sometimes it'll be ipv4/6 if you're not in k8s):
 //
 //	07c37dfeb235213a872192d05877c5d02d9a7e1f fqdn:6379@16379 master - 0 1538428698000 1 connected 0-5460
 //	67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 fqdn:6379@16379 master - 0 1538428699000 2 connected 5461-10922
