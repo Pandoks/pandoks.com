@@ -68,10 +68,10 @@ func (t *SlotRangeTracker) SlotRanges() []SlotRange {
 	return t.ranges
 }
 
-func (s *SlotRange) Array() []int {
-	slice := make([]int, 0, s.End-s.Start+1)
+func (s *SlotRange) Array() []int64 {
+	slice := make([]int64, 0, s.End-s.Start+1)
 	for slot := s.Start; slot <= s.End; slot++ {
-		slice = append(slice, slot)
+		slice = append(slice, int64(slot))
 	}
 	return slice
 }
