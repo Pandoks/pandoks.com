@@ -169,16 +169,16 @@ func (r *ValkeyClusterReconciler) slaveService(valkeyCluster *valkeyv1.ValkeyClu
 func (r *ValkeyClusterReconciler) podFQDNs(valkeyCluster *valkeyv1.ValkeyCluster) []string {
 	replicas := r.calculateReplicas(valkeyCluster)
 
-	var podFQDNs []string
+	var addresses []cluster.Address
 	for index := range replicas {
-		fqdn := fmt.Sprintf("%s-%d.%s.%s.svc.cluster.local:%d",
+		host := fmt.Sprintf("%s-%d.%s.%s.svc.cluster.local",
 			valkeyCluster.StatefulSetName(),
 			index,
 			valkeyCluster.HeadlessServiceName(),
 			valkeyCluster.Namespace,
-			cluster.ValkeyClientPort,
 		)
-		podFQDNs = append(podFQDNs, fqdn)
+		port := int64(cluster.ValkeyClientPort)
+		addresses = append(addresses, cluster.Address{Host: host, Port: port})
 	}
-	return podFQDNs
+	return addresses
 }

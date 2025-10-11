@@ -15,9 +15,10 @@ func BootstrapSlots(ctx context.Context, masters []*ClusterNode) error {
 	slotRanges := slot.DesiredSlotRangesFromMasterCount(int32(len(masters)))
 
 	for i, masterNode := range masters {
-		client, err := ConnectToValkeyNode(ctx, masterNode.FQDN)
+		address := masterNode.Address.String()
+		client, err := ConnectToValkeyNode(ctx, address)
 		if err != nil {
-			return fmt.Errorf("failed to connect to master %s: %w", masterNode.FQDN, err)
+			return fmt.Errorf("failed to connect to master %s: %w", address, err)
 		}
 
 		slotRange := slotRanges[i]
@@ -45,7 +46,7 @@ func recoverMissingSlots(ctx context.Context, slotOwner map[int]string, numMaste
 
 	desiredRanges := slot.DesiredSlotRanges(int32(numMasters))
 
-	for i := 0; i < numMasters; i++ {
+	for i, masterNode := range masters {
 		slotRange := desiredRanges[i]
 		slotsToAssign := make([]int64, 0)
 
@@ -59,7 +60,7 @@ func recoverMissingSlots(ctx context.Context, slotOwner map[int]string, numMaste
 			continue
 		}
 
-		client, err := ConnectToValkeyNode(ctx, podFQDNs[i])
+		client, err := ConnectToValkeyNode(ctx, masterNode.Address.String())
 		if err != nil {
 			return fmt.Errorf("failed to connect to master %d: %w", i, err)
 		}
@@ -303,7 +304,7 @@ func ensureReplicas(ctx context.Context, current, desired *ClusterTopology, podF
 
 	currentReplicasByFQDN := make(map[string]*ClusterNode)
 	for _, replica := range current.Replicas {
-		currentReplicasByFQDN[replica.FQDN] = replica
+		currentReplicasByFQDN[replica.Address.String()] = replica
 	}
 
 	for i := 0; i < numMasters; i++ {

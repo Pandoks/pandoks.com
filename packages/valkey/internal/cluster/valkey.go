@@ -85,9 +85,7 @@ func ParseClusterTopology(clusterNodeOutput string) (*ClusterTopology, error) {
 				continue
 			}
 
-			clusterNode.Host = host
-			clusterNode.Port = port
-			clusterNode.FQDN = hostPort
+			clusterNode.Address = Address{Host: host, Port: int64(port)}
 		}
 
 		flags := slices.Collect(strings.SplitSeq(fields[2], ","))

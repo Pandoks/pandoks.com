@@ -18,7 +18,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		return fmt.Errorf("no pod FQDNs provided")
 	}
 
-	seedClient, err := cluster.ConnectToValkeyNode(ctx, podFQDNs[0])
+	seedClient, err := cluster.ConnectToValkeyNode(ctx, clientAddresses[0].String())
 	if err != nil {
 		return fmt.Errorf("failed to connect to seed node: %w", err)
 	}
@@ -41,16 +41,17 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 
 	// join nodes that are not part of the current cluster topology through CLUSTER MEET
 	// seed node (client) is alone a cluster that births everything so we need to add nodes to it
-	currentFQDNs := currentTopology.FQDNs()
-	currentFQDNsSet := make(map[string]struct{}, len(currentFQDNs))
-	for _, fqdn := range currentFQDNs {
-		currentFQDNsSet[fqdn] = struct{}{}
+	currentAddresses := currentTopology.Addresses()
+	currentAddressSet := make(map[string]struct{}, len(currentAddresses))
+	for _, address := range currentAddresses {
+		currentAddressSet[address.String()] = struct{}{}
 	}
-	for _, fqdn := range podFQDNs {
-		if _, exists := currentFQDNsSet[fqdn]; !exists {
-			meetCmd := seedClient.B().ClusterMeet().Ip(fqdn).Port(cluster.ValkeyClientPort).Build()
+	for _, address := range clientAddresses {
+		addressString := address.String()
+		if _, exists := currentAddressSet[addressString]; !exists {
+			meetCmd := seedClient.B().ClusterMeet().Ip(addressString).Port(cluster.ValkeyClientPort).Build()
 			if err := seedClient.Do(ctx, meetCmd).Error(); err != nil {
-				return fmt.Errorf("failed to meet node %s: %w", fqdn, err)
+				return fmt.Errorf("failed to meet node %s: %w", address, err)
 			}
 		}
 	}
