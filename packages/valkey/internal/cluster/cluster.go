@@ -17,6 +17,11 @@ const (
 	NodeRoleSlave  NodeRole = "slave"
 )
 
+// Host is the FQDN of the headless service of the node for the stateful set pod
+// Example:
+//
+//	<statefulset-name>-<index>.<headless-service-name>.<namespace>.svc.cluster.local
+//	valkey-0.valkey-headless-example.default.svc.cluster.local
 type Address struct {
 	Host string
 	Port int64
