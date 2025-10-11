@@ -166,7 +166,7 @@ func (r *ValkeyClusterReconciler) slaveService(valkeyCluster *valkeyv1.ValkeyClu
 }
 
 // fqdn: fully qualified domain name
-func (r *ValkeyClusterReconciler) podFQDNs(valkeyCluster *valkeyv1.ValkeyCluster) []string {
+func (r *ValkeyClusterReconciler) valkeyClientAddresses(valkeyCluster *valkeyv1.ValkeyCluster) []cluster.Address {
 	replicas := r.calculateReplicas(valkeyCluster)
 
 	var addresses []cluster.Address
