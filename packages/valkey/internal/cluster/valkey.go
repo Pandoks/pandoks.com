@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"valkey/operator/internal/slot"
@@ -144,6 +145,19 @@ func ParseClusterTopology(clusterNodeOutput string) (*ClusterTopology, error) {
 		}
 
 		topology.Nodes[clusterNode.ID] = clusterNode
+	}
+
+	if len(topology.Masters) > 0 {
+		for _, master := range topology.Masters {
+			if _, err := master.Address.Index(); err != nil {
+				return nil, fmt.Errorf("failed to parse master %s: %w", master.Address.Host, err)
+			}
+		}
+		sort.Slice(topology.Masters, func(i, j int) bool {
+			iIndex, _ := topology.Masters[i].Address.Index()
+			jIndex, _ := topology.Masters[j].Address.Index()
+			return iIndex < jIndex
+		})
 	}
 
 	return topology, nil
