@@ -3,6 +3,8 @@ package cluster
 import (
 	"fmt"
 	"reflect"
+	"strconv"
+	"strings"
 	valkeyv1 "valkey/operator/api/v1"
 	"valkey/operator/internal/slot"
 )
@@ -29,6 +31,20 @@ type Address struct {
 
 func (a *Address) String() string {
 	return fmt.Sprintf("%s:%d", a.Host, a.Port)
+}
+
+// statefulset index
+func (a *Address) Index() (int, error) {
+	statefulSetname := strings.Split(a.Host, ".")
+	parts := strings.Split(statefulSetname[0], "-")
+	if len(parts) == 0 {
+		return -1, fmt.Errorf("failed to parse stateful set name: %s", a.Host)
+	}
+	index, err := strconv.Atoi(parts[len(parts)-1])
+	if err != nil {
+		return -1, fmt.Errorf("failed to parse stateful set index: %s", a.Host)
+	}
+	return index, nil
 }
 
 type ClusterNode struct {
