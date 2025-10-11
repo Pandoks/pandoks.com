@@ -78,9 +78,9 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		return fmt.Errorf("failed to parse cluster nodes: %w", err)
 	}
 
-	if err := r.ensureNoExcessNodes(ctx, currentTopology, desiredTopology, podFQDNs); err != nil {
-		return fmt.Errorf("failed to ensure no excess nodes: %w", err)
-	}
+	// TODO: ensure replicas are assigned properly to masters with the proper count
+
+	// TODO: cleanup excess nodes (scale down)
 
 	logger.Info("Cluster is in desired state")
 	return nil
