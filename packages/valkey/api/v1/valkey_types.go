@@ -15,8 +15,11 @@ const PersistenceNA ValkeyPersistenceMode = ""
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 type ValkeyClusterSpec struct {
+	// Maximum of 255 masters becuase index is uint8.
+	// 0..254 are reserved for master indeces and 255 is reserved for unassigned during reconciliation.
 	// +kubebuilder:validation:Minimum=1
-	// +required
+	// +kubebuilder:validation:Maximum=255
+	// +kubebuilder:validation:Required
 	Masters           int32                   `json:"masters"`
 	ReplicasPerMaster int32                   `json:"replicasPerMaster"`
 	StoragePerNode    resource.Quantity       `json:"storagePerNode"`
