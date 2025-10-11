@@ -13,8 +13,8 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 	logger := log.FromContext(ctx)
 
 	// fqdn: fully qualified domain name
-	podFQDNs := r.podFQDNs(valkeyCluster)
-	if len(podFQDNs) == 0 {
+	clientAddresses := r.valkeyClientAddresses(valkeyCluster)
+	if len(clientAddresses) == 0 {
 		return fmt.Errorf("no pod FQDNs provided")
 	}
 
