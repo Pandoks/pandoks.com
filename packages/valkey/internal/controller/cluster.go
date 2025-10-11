@@ -9,6 +9,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+// Steps to reconcile cluster:
+//
+//  1. Connects to the seed node (statefulset pod 0) and query the cluster topology (CLUSTER NODE)
+//  2. Joins the nodes in valkeyCluster (statefulsets that aren't part of the valkey cluster yet) that are not part of the current cluster topology (CLUSTER MEET)
+//  3. Ensures all slots are properly uniformly distributed amongst the masters
 func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCluster *valkeyv1.ValkeyCluster) error {
 	logger := log.FromContext(ctx)
 
