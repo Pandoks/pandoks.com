@@ -695,3 +695,154 @@ func TestDesiredTopology(t *testing.T) {
 		})
 	}
 }
+
+func TestAddress_Index(t *testing.T) {
+	tests := []struct {
+		name    string
+		address Address
+		want    int
+	}{
+		{
+			name: "valid statefulset FQDN with index 0",
+			address: Address{
+				Host: "valkey-0.valkey-headless-example.default.svc.cluster.local",
+				Port: 6379,
+			},
+			want: 0,
+		},
+		{
+			name: "valid statefulset FQDN with index 5",
+			address: Address{
+				Host: "valkey-5.valkey-headless-example.default.svc.cluster.local",
+				Port: 6379,
+			},
+			want: 5,
+		},
+		{
+			name: "valid statefulset FQDN with index 42",
+			address: Address{
+				Host: "my-cluster-valkey-42.my-valkey-headless.namespace.svc.cluster.local",
+				Port: 6379,
+			},
+			want: 42,
+		},
+		{
+			name: "valid statefulset FQDN with index 100",
+			address: Address{
+				Host: "redis-cluster-100.redis-headless.prod.svc.cluster.local",
+				Port: 6379,
+			},
+			want: 100,
+		},
+		{
+			name: "short hostname with index",
+			address: Address{
+				Host: "valkey-3",
+				Port: 6379,
+			},
+			want: 3,
+		},
+		{
+			name: "hostname with only pod name",
+			address: Address{
+				Host: "pod-7",
+				Port: 6379,
+			},
+			want: 7,
+		},
+		{
+			name: "invalid hostname - no index",
+			address: Address{
+				Host: "valkey-abc.service.namespace.svc.cluster.local",
+				Port: 6379,
+			},
+			want: -1,
+		},
+		{
+			name: "invalid hostname - empty",
+			address: Address{
+				Host: "",
+				Port: 6379,
+			},
+			want: -1,
+		},
+		{
+			name: "invalid hostname - no hyphen",
+			address: Address{
+				Host: "valkey0.service.namespace.svc.cluster.local",
+				Port: 6379,
+			},
+			want: -1,
+		},
+		{
+			name: "hostname with multiple hyphens in pod name",
+			address: Address{
+				Host: "my-valkey-cluster-15.service.namespace.svc.cluster.local",
+				Port: 6379,
+			},
+			want: 15,
+		},
+		{
+			name: "single character hostname",
+			address: Address{
+				Host: "a",
+				Port: 6379,
+			},
+			want: -1,
+		},
+		{
+			name: "double hyphen in statefulset name",
+			address: Address{
+				Host: "valkey--cluster-5.service.namespace.svc.cluster.local",
+				Port: 6379,
+			},
+			want: 5,
+		},
+		{
+			name: "double period in FQDN",
+			address: Address{
+				Host: "valkey-3..service.namespace.svc.cluster.local",
+				Port: 6379,
+			},
+			want: 3,
+		},
+		{
+			name: "trailing period in FQDN",
+			address: Address{
+				Host: "valkey-8.service.namespace.svc.cluster.local.",
+				Port: 6379,
+			},
+			want: 8,
+		},
+		{
+			name: "only statefulset pod name with trailing hyphen and number",
+			address: Address{
+				Host: "valkey--5",
+				Port: 6379,
+			},
+			want: 5,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := test.address.Index()
+
+			if test.want == -1 {
+				if err == nil {
+					t.Errorf("Index() error = nil, want error")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Index() error = %v, want nil", err)
+				return
+			}
+
+			if got != test.want {
+				t.Errorf("Index() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
