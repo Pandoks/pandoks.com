@@ -51,11 +51,11 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		if _, exists := currentAddressSet[addressString]; !exists {
 			meetCmd := seedClient.B().ClusterMeet().Ip(addressString).Port(cluster.ValkeyClientPort).Build()
 			if err := seedClient.Do(ctx, meetCmd).Error(); err != nil {
-				return fmt.Errorf("failed to meet node %s: %w", address, err)
+				return fmt.Errorf("failed to meet node %s: %w", address.String(), err)
 			}
 		}
 	}
-	// need to requery the cluster topology
+	// need to requery the cluster topology after each cluter mutation
 	output, err = cluster.QueryClusterNodes(ctx, seedClient)
 	if err != nil {
 		return fmt.Errorf("failed to query cluster nodes: %w", err)
