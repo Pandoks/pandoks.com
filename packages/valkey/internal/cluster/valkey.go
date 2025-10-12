@@ -17,6 +17,7 @@ const (
 	ValkeyGossipPort = 16379
 )
 
+// NOTE: need to manually close the client view valkey.Client.Close()
 func ConnectToValkeyNode(ctx context.Context, address string) (valkey.Client, error) {
 	client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{address}})
 	if err != nil {
