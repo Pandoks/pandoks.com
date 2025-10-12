@@ -77,17 +77,22 @@ func DesiredTopology(valkeyCluster *valkeyv1.ValkeyCluster) *ClusterTopology {
 		masterId := fmt.Sprintf("master-%d", i)
 		masterNode := &ClusterNode{
 			ID:         masterId,
+			Address:    Address{Host: masterId, Port: ValkeyClientPort},
 			Role:       NodeRoleMaster,
 			SlotRanges: []slot.SlotRange{desiredSlotRanges[i]},
+			Connected:  true,
 		}
 		topology.Masters = append(topology.Masters, masterNode)
 		topology.Nodes[masterNode.ID] = masterNode
 
 		for j := range valkeyCluster.Spec.ReplicasPerMaster {
+			slaveId := fmt.Sprintf("replica-%d-%d", i, j)
 			slaveNode := &ClusterNode{
-				ID:       fmt.Sprintf("replica-%d-%d", i, j),
-				Role:     NodeRoleSlave,
-				MasterID: masterId,
+				ID:        slaveId,
+				Address:   Address{Host: slaveId, Port: ValkeyClientPort},
+				Role:      NodeRoleSlave,
+				MasterID:  masterId,
+				Connected: true,
 			}
 			topology.Replicas = append(topology.Replicas, slaveNode)
 			topology.Nodes[slaveNode.ID] = slaveNode
