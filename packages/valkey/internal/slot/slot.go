@@ -68,13 +68,21 @@ func (t *SlotRangeTracker) SlotRanges() []SlotRange {
 	return t.ranges
 }
 
+func (t *SlotRangeTracker) Array() []int64 {
+	slots := []int64{}
+	for _, slotRange := range t.ranges {
+		slots = append(slots, slotRange.Array()...)
+	}
+	return slots
+}
+
 // returns int64 slice because valkey-go uses int64... for Slot()
 func (s *SlotRange) Array() []int64 {
-	slice := make([]int64, 0, s.End-s.Start+1)
+	slots := make([]int64, 0, s.End-s.Start+1)
 	for slot := s.Start; slot <= s.End; slot++ {
-		slice = append(slice, int64(slot))
+		slots = append(slots, int64(slot))
 	}
-	return slice
+	return slots
 }
 
 // calculates the slot ranges for a given amount of masters
