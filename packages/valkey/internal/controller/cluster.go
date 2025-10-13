@@ -7,10 +7,13 @@ import (
 	"valkey/operator/internal/cluster"
 
 	"github.com/valkey-io/valkey-go"
+	"golang.org/x/sync/errgroup"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+const slotMigrationConcurrency = 10
 
 // Steps to reconcile cluster:
 //
@@ -152,6 +155,25 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 			}
 		}
 		if needToMigrateSlots {
+			group, ctx := errgroup.WithContext(ctx)
+			semaphore := make(chan struct{}, slotMigrationConcurrency)
+
+			for migrationRoute, slotRangeTracker := range slotsToMigrate {
+				for _, slotRange := range slotRangeTracker.SlotRanges() {
+					for slot := slotRange.Start; slot <= slotRange.End; slot++ {
+						slot := slot
+
+						semaphore <- struct{}{}
+						group.Go(func() error {
+							defer func() { <-semaphore }()
+							return cluster.MigrateSlot(ctx, int64(slot), migrationRoute, masterClients, currentTopology)
+						})
+					}
+				}
+			}
+			if err := group.Wait(); err != nil {
+				return fmt.Errorf("failed to migrate slots: %w", err)
+			}
 		}
 
 		meta.SetStatusCondition(
