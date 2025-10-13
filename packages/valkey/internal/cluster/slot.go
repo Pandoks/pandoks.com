@@ -1,7 +1,6 @@
 package cluster
 
 import (
-	"context"
 	"fmt"
 	"math"
 	internalslot "valkey/operator/internal/slot"
@@ -71,6 +70,4 @@ func CalculateSlotsToReconcile(currentTopology, desiredTopology *ClusterTopology
 	}
 
 	return masterAddSlotRanges, migrationRoutes, nil
-}
-	return nil
 }
