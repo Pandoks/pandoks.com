@@ -6,6 +6,8 @@ import (
 	valkeyv1 "valkey/operator/api/v1"
 	"valkey/operator/internal/cluster"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -45,19 +47,52 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 	// join nodes that are not part of the current cluster topology through CLUSTER MEET
 	// seed node (client) is alone a cluster that births everything so we need to add nodes to it
 	currentAddresses := currentTopology.Addresses()
-	currentAddressSet := make(map[string]struct{}, len(currentAddresses))
+	currentAddressSet := make(map[cluster.Address]struct{}, len(currentAddresses))
 	for _, address := range currentAddresses {
-		currentAddressSet[address.String()] = struct{}{}
+		currentAddressSet[address] = struct{}{}
 	}
+
+	nodesToMeet := []cluster.Address{}
 	for _, address := range clientAddresses {
-		addressString := address.String()
-		if _, exists := currentAddressSet[addressString]; !exists {
-			meetCmd := seedClient.B().ClusterMeet().Ip(addressString).Port(cluster.ValkeyClientPort).Build()
+		if _, exists := currentAddressSet[address]; !exists {
+			nodesToMeet = append(nodesToMeet, address)
+		}
+	}
+	if len(nodesToMeet) > 0 {
+		meta.SetStatusCondition(
+			&valkeyCluster.Status.Conditions,
+			metav1.Condition{
+				Type:    typeMeetingStandaloneNodes,
+				Status:  metav1.ConditionTrue,
+				Reason:  "MeetingStandaloneNodesInProgress",
+				Message: fmt.Sprintf("Meeting standalone valkey nodes that aren't part of the current cluster in progress"),
+			},
+		)
+		if err := r.Status().Update(ctx, valkeyCluster); err != nil {
+			logger.Error(err, "Failed to update valkey cluster status")
+		}
+
+		for _, address := range nodesToMeet {
+			meetCmd := seedClient.B().ClusterMeet().Ip(address.Host).Port(cluster.ValkeyClientPort).Build()
 			if err := seedClient.Do(ctx, meetCmd).Error(); err != nil {
 				return fmt.Errorf("failed to meet node %s: %w", address.String(), err)
 			}
 		}
+
+		meta.SetStatusCondition(
+			&valkeyCluster.Status.Conditions,
+			metav1.Condition{
+				Type:    typeMeetingStandaloneNodes,
+				Status:  metav1.ConditionFalse,
+				Reason:  "MeetingStandaloneNodesSucceeded",
+				Message: fmt.Sprintf("Meeting standalone valkey nodes that aren't part of the current cluster succeeded"),
+			},
+		)
+		if err := r.Status().Update(ctx, valkeyCluster); err != nil {
+			logger.Error(err, "Failed to update valkey cluster status")
+		}
 	}
+
 	// need to requery the cluster topology after each cluter mutation
 	output, err = cluster.QueryClusterNodes(ctx, seedClient)
 	if err != nil {

@@ -18,7 +18,12 @@ import (
 	valkeyv1 "valkey/operator/api/v1"
 )
 
-const typeAvailable = "Available"
+const (
+	typeAvailable              = "Available"
+	typeMeetingStandaloneNodes = "MeetingStandaloneNodes"
+	typeMigratingSlots         = "MigratingSlots"
+	typeEnsuringReplicas       = "EnsuringReplicas"
+)
 
 type ValkeyClusterReconciler struct {
 	client.Client
