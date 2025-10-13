@@ -118,6 +118,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		}
 	}()
 
+	// ensure slots are uniformly distributed amongst the masters
 	slotsToAdd, slotsToMigrate, err := cluster.CalculateSlotsToReconcile(currentTopology, cluster.DesiredTopology(valkeyCluster))
 	if err != nil {
 		return fmt.Errorf("failed to calculate slots to reconcile: %w", err)
