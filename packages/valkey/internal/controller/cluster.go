@@ -134,7 +134,16 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		}
 
 		if needToAddSlots {
-
+			for i := range len(currentTopology.Masters) {
+				client := masterClients[i]
+				slotsRangeTracker := slotsToAdd[i]
+				for _, slotRange := range slotsRangeTracker.SlotRanges() {
+					cmd := client.B().ClusterAddslotsrange().StartSlotEndSlot().StartSlotEndSlot(int64(slotRange.Start), int64(slotRange.End)).Build()
+					if err := client.Do(ctx, cmd).Error(); err != nil {
+						return fmt.Errorf("failed to add slot range %d-%d to master %d: %w", slotRange.Start, slotRange.End, i, err)
+					}
+				}
+			}
 		}
 		if needToMigrateSlots {
 		}
