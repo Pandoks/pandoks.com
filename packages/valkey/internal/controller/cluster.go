@@ -65,7 +65,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 				Type:    typeMeetingStandaloneNodes,
 				Status:  metav1.ConditionTrue,
 				Reason:  "MeetingStandaloneNodesInProgress",
-				Message: fmt.Sprintf("Meeting standalone valkey nodes that aren't part of the current cluster in progress"),
+				Message: "Meeting standalone valkey nodes that aren't part of the current cluster in progress",
 			},
 		)
 		if err := r.Status().Update(ctx, valkeyCluster); err != nil {
@@ -85,7 +85,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 				Type:    typeMeetingStandaloneNodes,
 				Status:  metav1.ConditionFalse,
 				Reason:  "MeetingStandaloneNodesSucceeded",
-				Message: fmt.Sprintf("Meeting standalone valkey nodes that aren't part of the current cluster succeeded"),
+				Message: "Meeting standalone valkey nodes that aren't part of the current cluster succeeded",
 			},
 		)
 		if err := r.Status().Update(ctx, valkeyCluster); err != nil {
