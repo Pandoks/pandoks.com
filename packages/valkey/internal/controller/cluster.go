@@ -161,8 +161,6 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 			for migrationRoute, slotRangeTracker := range slotsToMigrate {
 				for _, slotRange := range slotRangeTracker.SlotRanges() {
 					for slot := slotRange.Start; slot <= slotRange.End; slot++ {
-						slot := slot
-
 						semaphore <- struct{}{}
 						group.Go(func() error {
 							defer func() { <-semaphore }()
