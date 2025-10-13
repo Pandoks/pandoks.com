@@ -6,6 +6,7 @@ import (
 	valkeyv1 "valkey/operator/api/v1"
 	"valkey/operator/internal/cluster"
 
+	"github.com/valkey-io/valkey-go"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -103,8 +104,14 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		return fmt.Errorf("failed to parse cluster nodes: %w", err)
 	}
 
-	err = cluster.ReconcileSlots(currentTopology, cluster.DesiredTopology(valkeyCluster))
-	output, err = cluster.QueryClusterNodes(ctx, seedClient)
+	masterClients := []valkey.Client{}
+	for _, master := range currentTopology.Masters {
+		client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{master.Address.String()}})
+		if err != nil {
+			return fmt.Errorf("failed to create client for %s: %w", master.Address.String(), err)
+		}
+		masterClients = append(masterClients, client)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to query cluster nodes: %w", err)
 	}
