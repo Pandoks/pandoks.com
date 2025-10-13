@@ -165,10 +165,16 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		if err := r.Status().Update(ctx, valkeyCluster); err != nil {
 			logger.Error(err, "Failed to update valkey cluster status")
 		}
-	}
-	currentTopology, err = cluster.ParseClusterTopology(output)
-	if err != nil {
-		return fmt.Errorf("failed to parse cluster nodes: %w", err)
+
+		// Re-query cluster topology after slot reconciliation
+		output, err = cluster.QueryClusterNodes(ctx, seedClient)
+		if err != nil {
+			return fmt.Errorf("failed to query cluster nodes: %w", err)
+		}
+		currentTopology, err = cluster.ParseClusterTopology(output)
+		if err != nil {
+			return fmt.Errorf("failed to parse cluster nodes: %w", err)
+		}
 	}
 
 	// TODO: ensure replicas are assigned properly to masters with the proper count
