@@ -112,6 +112,11 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		}
 		masterClients = append(masterClients, client)
 	}
+	defer func() {
+		for _, client := range masterClients {
+			client.Close()
+		}
+	}()
 
 	slotsToAdd, slotsToMigrate, err := cluster.CalculateSlotsToReconcile(currentTopology, cluster.DesiredTopology(valkeyCluster))
 	if err != nil {
