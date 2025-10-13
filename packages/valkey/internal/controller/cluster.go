@@ -112,8 +112,45 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		}
 		masterClients = append(masterClients, client)
 	}
+
+	slotsToAdd, slotsToMigrate, err := cluster.CalculateSlotsToReconcile(currentTopology, cluster.DesiredTopology(valkeyCluster))
 	if err != nil {
-		return fmt.Errorf("failed to query cluster nodes: %w", err)
+		return fmt.Errorf("failed to calculate slots to reconcile: %w", err)
+	}
+	needToAddSlots := len(slotsToAdd) > 0
+	needToMigrateSlots := len(slotsToMigrate) > 0
+	if needToAddSlots || needToMigrateSlots {
+		meta.SetStatusCondition(
+			&valkeyCluster.Status.Conditions,
+			metav1.Condition{
+				Type:    typeMigratingSlots,
+				Status:  metav1.ConditionTrue,
+				Reason:  "ReconcilingSlotsInProgress",
+				Message: "Reconciling slots in progress",
+			},
+		)
+		if err := r.Status().Update(ctx, valkeyCluster); err != nil {
+			logger.Error(err, "Failed to update valkey cluster status")
+		}
+
+		if needToAddSlots {
+
+		}
+		if needToMigrateSlots {
+		}
+
+		meta.SetStatusCondition(
+			&valkeyCluster.Status.Conditions,
+			metav1.Condition{
+				Type:    typeMigratingSlots,
+				Status:  metav1.ConditionFalse,
+				Reason:  "ReconcilingSlotsSucceeded",
+				Message: "Reconciling slots succeeded",
+			},
+		)
+		if err := r.Status().Update(ctx, valkeyCluster); err != nil {
+			logger.Error(err, "Failed to update valkey cluster status")
+		}
 	}
 	currentTopology, err = cluster.ParseClusterTopology(output)
 	if err != nil {
