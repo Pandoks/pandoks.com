@@ -16,6 +16,7 @@ type MigrationRoute struct {
 }
 
 // masterAddSlotRanges: array of slot ranges to add to each master. It is ordered by master index so index 0 is master 0, index 1 is master 1, etc.
+//
 // migrationRoutes: map of migration routes. Key is the {source, destination} pair. Value is a slot range tracker.
 func CalculateSlotsToReconcile(currentTopology, desiredTopology *ClusterTopology) ([]*internalslot.SlotRangeTracker, map[MigrationRoute]*internalslot.SlotRangeTracker, error) {
 	if len(currentTopology.Masters) != len(desiredTopology.Masters) {
