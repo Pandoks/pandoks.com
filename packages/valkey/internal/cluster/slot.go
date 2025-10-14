@@ -23,10 +23,6 @@ type MigrationRoute struct {
 //
 // migrationRoutes: map of migration routes. Key is the {source, destination} pair. Value is a slot range tracker.
 func CalculateSlotsToReconcile(currentTopology, desiredTopology *ClusterTopology) ([]*internalslot.SlotRangeTracker, map[MigrationRoute]*internalslot.SlotRangeTracker, error) {
-	if len(currentTopology.Masters) != len(desiredTopology.Masters) {
-		return nil, nil, fmt.Errorf("current and desired master count mismatch: %d vs %d", len(currentTopology.Masters), len(desiredTopology.Masters))
-	}
-
 	currentSlotOwner := make([]uint8, internalslot.TotalSlots)
 	desiredSlotOwner := make([]uint8, internalslot.TotalSlots)
 	for i := range currentSlotOwner {
@@ -56,7 +52,7 @@ func CalculateSlotsToReconcile(currentTopology, desiredTopology *ClusterTopology
 		}
 	}
 
-	masterAddSlotRanges := make([]*internalslot.SlotRangeTracker, len(currentTopology.Masters))
+	masterAddSlotRanges := make([]*internalslot.SlotRangeTracker, len(desiredTopology.Masters))
 	migrationRoutes := map[MigrationRoute]*internalslot.SlotRangeTracker{}
 	for slot := range internalslot.TotalSlots {
 		currentOwnerIndex := currentSlotOwner[slot]

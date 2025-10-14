@@ -317,7 +317,7 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 			wantErr:             false,
 		},
 		{
-			name: "error - master count mismatch",
+			name: "scale up - 1 to 2 masters",
 			currentTopology: &ClusterTopology{
 				Masters: []*ClusterNode{
 					{
@@ -344,10 +344,17 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 					},
 				},
 			},
-			wantMasterAddSlots:  nil,
-			wantMigrationRoutes: nil,
-			wantErr:             true,
-			errMsg:              "current and desired master count mismatch: 1 vs 2",
+			wantMasterAddSlots: []*internalslot.SlotRangeTracker{nil, nil},
+			wantMigrationRoutes: map[MigrationRoute]*internalslot.SlotRangeTracker{
+				{SourceIndex: 0, DestinationIndex: 1}: func() *internalslot.SlotRangeTracker {
+					tracker := &internalslot.SlotRangeTracker{}
+					for i := 8192; i <= 16383; i++ {
+						tracker.Add(internalslot.SlotRange{Start: i, End: i})
+					}
+					return tracker
+				}(),
+			},
+			wantErr: false,
 		},
 		{
 			name: "single master - all slots assigned",
@@ -476,6 +483,65 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				{SourceIndex: 0, DestinationIndex: 1}: func() *internalslot.SlotRangeTracker {
 					tracker := &internalslot.SlotRangeTracker{}
 					for i := 8192; i <= 10000; i++ {
+						tracker.Add(internalslot.SlotRange{Start: i, End: i})
+					}
+					return tracker
+				}(),
+			},
+			wantErr: false,
+		},
+		{
+			name: "scale down - 3 to 2 masters",
+			currentTopology: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{
+						ID:         "m1",
+						Address:    Address{Host: "valkey-0.svc", Port: 6379},
+						Role:       NodeRoleMaster,
+						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 5461}},
+					},
+					{
+						ID:         "m2",
+						Address:    Address{Host: "valkey-1.svc", Port: 6379},
+						Role:       NodeRoleMaster,
+						SlotRanges: []internalslot.SlotRange{{Start: 5462, End: 10922}},
+					},
+					{
+						ID:         "m3",
+						Address:    Address{Host: "valkey-2.svc", Port: 6379},
+						Role:       NodeRoleMaster,
+						SlotRanges: []internalslot.SlotRange{{Start: 10923, End: 16383}},
+					},
+				},
+			},
+			desiredTopology: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{
+						ID:         "m1",
+						Address:    Address{Host: "valkey-0.svc", Port: 6379},
+						Role:       NodeRoleMaster,
+						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 8191}},
+					},
+					{
+						ID:         "m2",
+						Address:    Address{Host: "valkey-1.svc", Port: 6379},
+						Role:       NodeRoleMaster,
+						SlotRanges: []internalslot.SlotRange{{Start: 8192, End: 16383}},
+					},
+				},
+			},
+			wantMasterAddSlots: []*internalslot.SlotRangeTracker{nil, nil},
+			wantMigrationRoutes: map[MigrationRoute]*internalslot.SlotRangeTracker{
+				{SourceIndex: 1, DestinationIndex: 0}: func() *internalslot.SlotRangeTracker {
+					tracker := &internalslot.SlotRangeTracker{}
+					for i := 5462; i <= 8191; i++ {
+						tracker.Add(internalslot.SlotRange{Start: i, End: i})
+					}
+					return tracker
+				}(),
+				{SourceIndex: 2, DestinationIndex: 1}: func() *internalslot.SlotRangeTracker {
+					tracker := &internalslot.SlotRangeTracker{}
+					for i := 10923; i <= 16383; i++ {
 						tracker.Add(internalslot.SlotRange{Start: i, End: i})
 					}
 					return tracker
