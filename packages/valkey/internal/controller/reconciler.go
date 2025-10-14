@@ -147,7 +147,7 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		needsScaleDown = true
 	}
 
-	if err = r.reconcileCluster(ctx, valkeyCluster, statefulSet); err != nil {
+	if err = r.reconcileCluster(ctx, valkeyCluster); err != nil {
 		logger.Error(err, "Failed to reconcile cluster's statefulset")
 		meta.SetStatusCondition(
 			&valkeyCluster.Status.Conditions,
