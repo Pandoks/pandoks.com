@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"os"
 	valkeyv1 "valkey/operator/api/v1"
@@ -8,8 +9,10 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrlruntime "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 var dev bool
@@ -115,6 +118,36 @@ func (r *ValkeyClusterReconciler) headlessService(valkeyCluster *valkeyv1.Valkey
 		return nil, err
 	}
 	return headlessService, nil
+}
+func (r *ValkeyClusterReconciler) createHeadlessService(ctx context.Context, valkeyCluster *valkeyv1.ValkeyCluster) error {
+	logger := log.FromContext(ctx)
+
+	newHeadlessService, err := r.headlessService(valkeyCluster)
+	if err != nil {
+		logger.Error(err, "Failed to define new headless service for valkey cluster")
+		meta.SetStatusCondition(
+			&valkeyCluster.Status.Conditions,
+			metav1.Condition{
+				Type:    typeAvailable,
+				Status:  metav1.ConditionFalse,
+				Reason:  "Reconciling",
+				Message: fmt.Sprintf("Failed to create headlessService for the custom resource (%s): (%s)", valkeyCluster.Name, err),
+			},
+		)
+		if err = r.Status().Update(ctx, valkeyCluster); err != nil {
+			logger.Error(err, "Failed to update valkey cluster status")
+		}
+		return err
+	}
+
+	logger.Info("Creating new headless service",
+		"HeadlessService.Namespace", newHeadlessService.Namespace, "HeadlessService.Name", newHeadlessService.Name)
+	if err = r.Create(ctx, newHeadlessService); err != nil {
+		logger.Error(err, "Failed to create new headless service",
+			"HeadlessService.Namespace", newHeadlessService.Namespace, "HeadlessService.Name", newHeadlessService.Name)
+		return err
+	}
+	return nil
 }
 
 func (r *ValkeyClusterReconciler) masterService(valkeyCluster *valkeyv1.ValkeyCluster) (*corev1.Service, error) {
