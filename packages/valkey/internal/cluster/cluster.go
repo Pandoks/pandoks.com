@@ -59,7 +59,7 @@ type ClusterNode struct {
 type ClusterTopology struct {
 	Nodes    map[string]*ClusterNode // nodeID -> node
 	Masters  []*ClusterNode          // sorted by statefulset index (corresponds to node index for slots)
-	Replicas []*ClusterNode          // not sorted
+	Replicas []*ClusterNode          // sorted by statefulset index too. the starting index is the max index of masters + 1
 }
 
 // desiredTopology calculates the desired cluster topology based on the spec. Note that the ids are not supposed to match

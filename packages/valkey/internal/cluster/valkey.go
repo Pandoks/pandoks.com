@@ -160,6 +160,18 @@ func ParseClusterTopology(clusterNodeOutput string) (*ClusterTopology, error) {
 			return iIndex < jIndex
 		})
 	}
+	if len(topology.Replicas) > 0 {
+		for _, slave := range topology.Replicas {
+			if _, err := slave.Address.Index(); err != nil {
+				return nil, fmt.Errorf("failed to parse slave %s: %w", slave.Address.Host, err)
+			}
+		}
+		sort.Slice(topology.Replicas, func(i, j int) bool {
+			iIndex, _ := topology.Replicas[i].Address.Index()
+			jIndex, _ := topology.Replicas[j].Address.Index()
+			return iIndex < jIndex
+		})
+	}
 
 	return topology, nil
 }
