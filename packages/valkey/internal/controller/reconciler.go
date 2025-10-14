@@ -132,7 +132,19 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		return ctrlruntime.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
-	// underlying resources exist
+	// underlying resources exist (but they may not be fully updated)
+	currentReplicas := *statefulSet.Spec.Replicas
+	desiredReplicas := r.calculateReplicas(valkeyCluster)
+	if currentReplicas > desiredReplicas { // needs slot migration
+
+	} else if currentReplicas < desiredReplicas { // simple scale up
+		logger.Info("Scaling up statefulset replicas", "current", currentReplicas, "desired", desiredReplicas)
+		statefulSet.Spec.Replicas = &desiredReplicas
+		if err := r.Update(ctx, statefulSet); err != nil {
+			logger.Error(err, "Failed to scale up statefulset replicas")
+		}
+	}
+
 	if err = r.reconcileCluster(ctx, valkeyCluster, statefulSet); err != nil {
 		logger.Error(err, "Failed to reconcile cluster's statefulset")
 		meta.SetStatusCondition(
