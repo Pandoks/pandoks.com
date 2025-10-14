@@ -132,6 +132,7 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		return ctrlruntime.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
+	// underlying resources exist
 	if err = r.reconcileCluster(ctx, valkeyCluster, statefulSet); err != nil {
 		logger.Error(err, "Failed to reconcile cluster's statefulset")
 		meta.SetStatusCondition(
