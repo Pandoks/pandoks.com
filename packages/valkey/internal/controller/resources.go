@@ -92,6 +92,35 @@ func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyClus
 	}
 	return statefulSet, nil
 }
+func (r *ValkeyClusterReconciler) createStatefulSet(ctx context.Context, valkeyCluster *valkeyv1.ValkeyCluster) error {
+	logger := log.FromContext(ctx)
+	newStatefulSet, err := r.statefulSet(valkeyCluster)
+	if err != nil {
+		logger.Error(err, "Failed to define a new statefulset for valkey cluster")
+		meta.SetStatusCondition(
+			&valkeyCluster.Status.Conditions,
+			metav1.Condition{
+				Type:    typeAvailable,
+				Status:  metav1.ConditionFalse,
+				Reason:  "Reconciling",
+				Message: fmt.Sprintf("Failed to create statefulset for the custom resource (%s): (%s)", valkeyCluster.Name, err),
+			},
+		)
+		if err = r.Status().Update(ctx, valkeyCluster); err != nil {
+			logger.Error(err, "Failed to update valkey cluster status")
+		}
+		return err
+	}
+
+	logger.Info("Creating new statefulset",
+		"StatefulSet.Namespace", newStatefulSet.Namespace, "StatefulSet.Name", newStatefulSet.Name)
+	if err = r.Create(ctx, newStatefulSet); err != nil {
+		logger.Error(err, "Failed to create new statefulset",
+			"StatefulSet.Namespace", newStatefulSet.Namespace, "StatefulSet.Name", newStatefulSet.Name)
+		return err
+	}
+	return nil
+}
 
 func (r *ValkeyClusterReconciler) calculateReplicas(valkeyCluster *valkeyv1.ValkeyCluster) int32 {
 	return valkeyCluster.Spec.Masters + valkeyCluster.Spec.Masters*valkeyCluster.Spec.ReplicasPerMaster

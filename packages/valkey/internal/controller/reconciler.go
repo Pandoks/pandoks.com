@@ -89,30 +89,7 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 			logger.Error(err, "Failed to get statefulset")
 			return ctrlruntime.Result{}, err
 		}
-
-		newStatefulSet, err := r.statefulSet(valkeyCluster)
-		if err != nil {
-			logger.Error(err, "Failed to define a new statefulset for valkey cluster")
-			meta.SetStatusCondition(
-				&valkeyCluster.Status.Conditions,
-				metav1.Condition{
-					Type:    typeAvailable,
-					Status:  metav1.ConditionFalse,
-					Reason:  "Reconciling",
-					Message: fmt.Sprintf("Failed to create statefulset for the custom resource (%s): (%s)", valkeyCluster.Name, err),
-				},
-			)
-			if err = r.Status().Update(ctx, valkeyCluster); err != nil {
-				logger.Error(err, "Failed to update valkey cluster status")
-			}
-			return ctrlruntime.Result{}, err
-		}
-
-		logger.Info("Creating new statefulset",
-			"StatefulSet.Namespace", newStatefulSet.Namespace, "StatefulSet.Name", newStatefulSet.Name)
-		if err = r.Create(ctx, newStatefulSet); err != nil {
-			logger.Error(err, "Failed to create new statefulset",
-				"StatefulSet.Namespace", newStatefulSet.Namespace, "StatefulSet.Name", newStatefulSet.Name)
+		if err = r.createStatefulSet(ctx, valkeyCluster); err != nil {
 			return ctrlruntime.Result{}, err
 		}
 		needsRequeue = true
