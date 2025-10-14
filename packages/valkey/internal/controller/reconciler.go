@@ -143,7 +143,7 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 			logger.Error(err, "Failed to scale up statefulset replicas")
 		}
 		return ctrlruntime.Result{RequeueAfter: 30 * time.Second}, nil
-	} else if desiredReplicas < valkeyCluster.Spec.Masters { // need to slot migrate before scaling down
+	} else if currentReplicas > desiredReplicas { // need to slot migrate before scaling down
 		needsScaleDown = true
 	}
 
