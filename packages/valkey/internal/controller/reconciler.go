@@ -135,6 +135,7 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 	// underlying resources exist (but they may not be fully updated)
 	currentReplicas := *statefulSet.Spec.Replicas
 	desiredReplicas := r.calculateReplicas(valkeyCluster)
+	needsScaleDown := false
 	if currentReplicas < desiredReplicas { // simple scale up
 		logger.Info("Scaling up statefulset replicas", "current", currentReplicas, "desired", desiredReplicas)
 		statefulSet.Spec.Replicas = &desiredReplicas
@@ -143,13 +144,7 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		}
 		return ctrlruntime.Result{RequeueAfter: 30 * time.Second}, nil
 	} else if desiredReplicas < valkeyCluster.Spec.Masters { // need to slot migrate before scaling down
-		// TODO: implement slot migration
-		logger.Info("Scaling down statefulset replicas", "current", currentReplicas, "desired", desiredReplicas)
-		statefulSet.Spec.Replicas = &desiredReplicas
-		if err := r.Update(ctx, statefulSet); err != nil {
-			logger.Error(err, "Failed to scale down statefulset replicas")
-		}
-		return ctrlruntime.Result{RequeueAfter: 30 * time.Second}, nil
+		needsScaleDown = true
 	}
 
 	if err = r.reconcileCluster(ctx, valkeyCluster, statefulSet); err != nil {
@@ -167,6 +162,15 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 			logger.Error(err, "Failed to update valkey cluster status")
 		}
 		return ctrlruntime.Result{}, err
+	}
+
+	if needsScaleDown {
+		logger.Info("Scaling down statefulset replicas", "current", currentReplicas, "desired", desiredReplicas)
+		statefulSet.Spec.Replicas = &desiredReplicas
+		if err := r.Update(ctx, statefulSet); err != nil {
+			logger.Error(err, "Failed to scale down statefulset replicas")
+		}
+		return ctrlruntime.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
 	meta.SetStatusCondition(
