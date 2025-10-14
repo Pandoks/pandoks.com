@@ -255,6 +255,35 @@ func (r *ValkeyClusterReconciler) slaveService(valkeyCluster *valkeyv1.ValkeyClu
 	}
 	return slaveService, nil
 }
+func (r *ValkeyClusterReconciler) createSlaveService(ctx context.Context, valkeyCluster *valkeyv1.ValkeyCluster) error {
+	logger := log.FromContext(ctx)
+	newSlaveService, err := r.slaveService(valkeyCluster)
+	if err != nil {
+		logger.Error(err, "Failed to define new slave service for valkey cluster")
+		meta.SetStatusCondition(
+			&valkeyCluster.Status.Conditions,
+			metav1.Condition{
+				Type:    typeAvailable,
+				Status:  metav1.ConditionFalse,
+				Reason:  "Reconciling",
+				Message: fmt.Sprintf("Failed to create slave service for the custom resource (%s): (%s)", valkeyCluster.Name, err),
+			},
+		)
+		if err = r.Status().Update(ctx, valkeyCluster); err != nil {
+			logger.Error(err, "Failed to update valkey cluster status")
+		}
+		return err
+	}
+
+	logger.Info("Creating new slave service",
+		"SlaveService.Namespace", newSlaveService.Namespace, "SlaveService.Name", newSlaveService.Name)
+	if err = r.Create(ctx, newSlaveService); err != nil {
+		logger.Error(err, "Failed to create new slave service",
+			"SlaveService.Namespace", newSlaveService.Namespace, "SlaveService.Name", newSlaveService.Name)
+		return err
+	}
+	return nil
+}
 
 // fqdn: fully qualified domain name
 func (r *ValkeyClusterReconciler) valkeyClientAddresses(valkeyCluster *valkeyv1.ValkeyCluster) []cluster.Address {

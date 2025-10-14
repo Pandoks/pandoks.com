@@ -117,30 +117,7 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 			logger.Error(err, "Failed to get slave service")
 			return ctrlruntime.Result{}, err
 		}
-
-		newSlaveService, err := r.slaveService(valkeyCluster)
-		if err != nil {
-			logger.Error(err, "Failed to define new slave service for valkey cluster")
-			meta.SetStatusCondition(
-				&valkeyCluster.Status.Conditions,
-				metav1.Condition{
-					Type:    typeAvailable,
-					Status:  metav1.ConditionFalse,
-					Reason:  "Reconciling",
-					Message: fmt.Sprintf("Failed to create slave service for the custom resource (%s): (%s)", valkeyCluster.Name, err),
-				},
-			)
-			if err = r.Status().Update(ctx, valkeyCluster); err != nil {
-				logger.Error(err, "Failed to update valkey cluster status")
-			}
-			return ctrlruntime.Result{}, err
-		}
-
-		logger.Info("Creating new slave service",
-			"SlaveService.Namespace", newSlaveService.Namespace, "SlaveService.Name", newSlaveService.Name)
-		if err = r.Create(ctx, newSlaveService); err != nil {
-			logger.Error(err, "Failed to create new slave service",
-				"SlaveService.Namespace", newSlaveService.Namespace, "SlaveService.Name", newSlaveService.Name)
+		if err = r.createSlaveService(ctx, valkeyCluster); err != nil {
 			return ctrlruntime.Result{}, err
 		}
 		needsRequeue = true
