@@ -107,13 +107,21 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		return fmt.Errorf("failed to parse cluster nodes: %w", err)
 	}
 
-	for _, master := range currentTopology.Masters {
-		client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{master.Address.String()}})
+	// ensure slots are uniformly distributed amongst the correct masters
+	desiredTopology := cluster.DesiredTopology(valkeyCluster)
+	currentNodes, desiredNodes := currentTopology.Nodes.Array(), desiredTopology.Nodes.Array()
+	if len(currentNodes) != len(desiredNodes) {
+		return fmt.Errorf("current topology and desired topology have different number of nodes")
+	}
+
 	clients := make([]valkey.Client, len(currentNodes))
+	for i, node := range currentNodes {
+		address := node.Address.String()
+		client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{address}})
 		if err != nil {
-			return fmt.Errorf("failed to create client for %s: %w", master.Address.String(), err)
+			return fmt.Errorf("failed to create client for %s: %w", address, err)
 		}
-		clients = append(clients, client)
+		clients[i] = client
 	}
 	defer func() {
 		for _, client := range clients {
@@ -121,11 +129,26 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		}
 	}()
 
-	// ensure slots are uniformly distributed amongst the masters
-	slotsToAdd, slotsToMigrate, err := cluster.CalculateSlotsToReconcile(currentTopology, cluster.DesiredTopology(valkeyCluster))
+	enslavementMigration := map[uint8]string{}
+	for i := range len(desiredNodes) {
+		if currentNodes[i].Role == cluster.NodeRoleSlave && desiredNodes[i].Role == cluster.NodeRoleMaster { // do promotions now
+			// NOTE: we need to migrate slaves to masters so slot migratiosn can be performed to the right masters if needed or else there will be no proper masters to migrate to
+			client := clients[i]
+			promoteCmd := client.B().Arbitrary("REPLICAOF", "NO", "ONE").Build()
+			if err := client.Do(ctx, promoteCmd).Error(); err != nil {
+				return fmt.Errorf("failed to promote slave %s to master: %w", currentNodes[i].Address.String(), err)
+			}
+		} else if currentNodes[i].Role != desiredNodes[i].Role || currentNodes[i].MasterID != desiredNodes[i].MasterID { // downgrade later
+			// NOTE: we don't need to migrate masters to slaves or assign a slave to another master until after slot migrations
+			enslavementMigration[uint8(i)] = desiredNodes[i].MasterID
+		}
+	}
+
+	slotsToAdd, slotsToMigrate, err := cluster.CalculateSlotsToReconcile(currentTopology, desiredTopology)
 	if err != nil {
 		return fmt.Errorf("failed to calculate slots to reconcile: %w", err)
 	}
+
 	needToAddSlots := len(slotsToAdd) > 0
 	needToMigrateSlots := len(slotsToMigrate) > 0
 	if needToAddSlots || needToMigrateSlots {
@@ -198,9 +221,13 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		}
 	}
 
-	// TODO: ensure replicas are assigned properly to masters with the proper count
-
-	// TODO: cleanup excess nodes (scale down)
+	for i, masterId := range enslavementMigration {
+		client := clients[i]
+		enslavementCmd := client.B().ClusterReplicate().NodeId(masterId).Build()
+		if err := client.Do(ctx, enslavementCmd).Error(); err != nil {
+			return fmt.Errorf("failed to enslave node %s: %w", currentNodes[i].ID, err)
+		}
+	}
 
 	logger.Info("Cluster is in desired state")
 	return nil
