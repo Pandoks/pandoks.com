@@ -103,30 +103,7 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 			logger.Error(err, "Failed to get master service")
 			return ctrlruntime.Result{}, err
 		}
-
-		newMasterService, err := r.masterService(valkeyCluster)
-		if err != nil {
-			logger.Error(err, "Failed to define new master service for valkey cluster")
-			meta.SetStatusCondition(
-				&valkeyCluster.Status.Conditions,
-				metav1.Condition{
-					Type:    typeAvailable,
-					Status:  metav1.ConditionFalse,
-					Reason:  "Reconciling",
-					Message: fmt.Sprintf("Failed to create master service for the custom resource (%s): (%s)", valkeyCluster.Name, err),
-				},
-			)
-			if err = r.Status().Update(ctx, valkeyCluster); err != nil {
-				logger.Error(err, "Failed to update valkey cluster status")
-			}
-			return ctrlruntime.Result{}, err
-		}
-
-		logger.Info("Creating new master service",
-			"MasterService.Namespace", newMasterService.Namespace, "MasterService.Name", newMasterService.Name)
-		if err = r.Create(ctx, newMasterService); err != nil {
-			logger.Error(err, "Failed to create new master service",
-				"MasterService.Namespace", newMasterService.Namespace, "MasterService.Name", newMasterService.Name)
+		if err = r.createMasterService(ctx, valkeyCluster); err != nil {
 			return ctrlruntime.Result{}, err
 		}
 		needsRequeue = true

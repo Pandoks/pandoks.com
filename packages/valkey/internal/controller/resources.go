@@ -202,6 +202,35 @@ func (r *ValkeyClusterReconciler) masterService(valkeyCluster *valkeyv1.ValkeyCl
 	}
 	return masterService, nil
 }
+func (r *ValkeyClusterReconciler) createMasterService(ctx context.Context, valkeyCluster *valkeyv1.ValkeyCluster) error {
+	logger := log.FromContext(ctx)
+	newMasterService, err := r.masterService(valkeyCluster)
+	if err != nil {
+		logger.Error(err, "Failed to define new master service for valkey cluster")
+		meta.SetStatusCondition(
+			&valkeyCluster.Status.Conditions,
+			metav1.Condition{
+				Type:    typeAvailable,
+				Status:  metav1.ConditionFalse,
+				Reason:  "Reconciling",
+				Message: fmt.Sprintf("Failed to create master service for the custom resource (%s): (%s)", valkeyCluster.Name, err),
+			},
+		)
+		if err = r.Status().Update(ctx, valkeyCluster); err != nil {
+			logger.Error(err, "Failed to update valkey cluster status")
+		}
+		return err
+	}
+
+	logger.Info("Creating new master service",
+		"MasterService.Namespace", newMasterService.Namespace, "MasterService.Name", newMasterService.Name)
+	if err = r.Create(ctx, newMasterService); err != nil {
+		logger.Error(err, "Failed to create new master service",
+			"MasterService.Namespace", newMasterService.Namespace, "MasterService.Name", newMasterService.Name)
+		return err
+	}
+	return nil
+}
 
 func (r *ValkeyClusterReconciler) slaveService(valkeyCluster *valkeyv1.ValkeyCluster) (*corev1.Service, error) {
 	selectorLabels := valkeyCluster.Labels()
