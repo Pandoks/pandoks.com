@@ -80,7 +80,7 @@ type ClusterTopology struct {
 
 // desiredTopology calculates the desired cluster topology based on the spec. Note that the ids are not supposed to match
 // the actual cluster state because it doesn't have access to the actual cluster. The master ids are named 'master-i' and
-// the replica ids are named 'replica-i-j' where i is the master index and j is the replica index.
+// the replica ids are named 'replica-i-j-k' where i is the master index, j is the replica index for that master, and k is the statefulset index
 func DesiredTopology(valkeyCluster *valkeyv1.ValkeyCluster) *ClusterTopology {
 	topology := &ClusterTopology{
 		Nodes: map[string]*ClusterNode{},
@@ -102,7 +102,8 @@ func DesiredTopology(valkeyCluster *valkeyv1.ValkeyCluster) *ClusterTopology {
 		topology.Nodes[masterNode.ID] = masterNode
 
 		for j := range valkeyCluster.Spec.ReplicasPerMaster {
-			slaveId := fmt.Sprintf("replica-%d-%d", i, j)
+			statefulsetIndex := numMasters + (i * valkeyCluster.Spec.ReplicasPerMaster) + j
+			slaveId := fmt.Sprintf("replica-%d-%d-%d", i, j, statefulsetIndex)
 			slaveNode := &ClusterNode{
 				ID:        slaveId,
 				Address:   Address{Host: slaveId, Port: ValkeyClientPort},

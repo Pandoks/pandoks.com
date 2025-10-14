@@ -487,13 +487,13 @@ func TestDesiredTopology(t *testing.T) {
 					var expectedID, expectedMasterID string
 					switch i {
 					case 0:
-						expectedID = "replica-0-0"
+						expectedID = "replica-0-0-3"
 						expectedMasterID = "master-0"
 					case 1:
-						expectedID = "replica-1-0"
+						expectedID = "replica-1-0-4"
 						expectedMasterID = "master-1"
 					case 2:
-						expectedID = "replica-2-0"
+						expectedID = "replica-2-0-5"
 						expectedMasterID = "master-2"
 					}
 					if replica.ID != expectedID {
@@ -552,9 +552,9 @@ func TestDesiredTopology(t *testing.T) {
 				}
 
 				replicaIDs := []string{
-					"replica-0-0", "replica-0-1",
-					"replica-1-0", "replica-1-1",
-					"replica-2-0", "replica-2-1",
+					"replica-0-0-3", "replica-0-1-4",
+					"replica-1-0-5", "replica-1-1-6",
+					"replica-2-0-7", "replica-2-1-8",
 				}
 				masterIDs := []string{
 					"master-0", "master-0",
@@ -596,7 +596,8 @@ func TestDesiredTopology(t *testing.T) {
 					for j := range int32(3) {
 						replicaIndex := 3*i + j
 						replica := topology.Replicas[replicaIndex]
-						expectedReplicaID := fmt.Sprintf("replica-%d-%d", i, j)
+						statefulsetIndex := 5 + (i * 3) + j
+						expectedReplicaID := fmt.Sprintf("replica-%d-%d-%d", i, j, statefulsetIndex)
 
 						if replica.ID != expectedReplicaID {
 							t.Errorf("Replica[%d].ID = %s, want %s", replicaIndex, replica.ID, expectedReplicaID)
@@ -619,11 +620,11 @@ func TestDesiredTopology(t *testing.T) {
 				if topology.Nodes["master-1"] != topology.Masters[1] {
 					t.Error("Nodes map doesn't contain master-1")
 				}
-				if topology.Nodes["replica-0-0"] != topology.Replicas[0] {
-					t.Error("Nodes map doesn't contain replica-0-0")
+				if topology.Nodes["replica-0-0-2"] != topology.Replicas[0] {
+					t.Error("Nodes map doesn't contain replica-0-0-2")
 				}
-				if topology.Nodes["replica-1-0"] != topology.Replicas[1] {
-					t.Error("Nodes map doesn't contain replica-1-0")
+				if topology.Nodes["replica-1-0-3"] != topology.Replicas[1] {
+					t.Error("Nodes map doesn't contain replica-1-0-3")
 				}
 
 				for _, master := range topology.Masters {
