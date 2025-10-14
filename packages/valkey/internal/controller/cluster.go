@@ -229,6 +229,17 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		}
 	}
 
+	currentNodes = currentTopology.Nodes.Array()
+	if len(currentNodes) > len(desiredNodes) {
+		needToBeForgotten := currentNodes[len(desiredNodes):]
+		for _, node := range needToBeForgotten {
+			forgetCmd := seedClient.B().ClusterForget().NodeId(node.ID).Build()
+			if err := seedClient.Do(ctx, forgetCmd).Error(); err != nil {
+				return fmt.Errorf("failed to forget node %s: %w", node.ID, err)
+			}
+		}
+	}
+
 	logger.Info("Cluster is in desired state")
 	return nil
 }
