@@ -107,16 +107,16 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		return fmt.Errorf("failed to parse cluster nodes: %w", err)
 	}
 
-	masterClients := []valkey.Client{}
 	for _, master := range currentTopology.Masters {
 		client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{master.Address.String()}})
+	clients := make([]valkey.Client, len(currentNodes))
 		if err != nil {
 			return fmt.Errorf("failed to create client for %s: %w", master.Address.String(), err)
 		}
-		masterClients = append(masterClients, client)
+		clients = append(clients, client)
 	}
 	defer func() {
-		for _, client := range masterClients {
+		for _, client := range clients {
 			client.Close()
 		}
 	}()
@@ -144,7 +144,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 
 		if needToAddSlots {
 			for i := range len(currentTopology.Masters) {
-				client := masterClients[i]
+				client := clients[i]
 				slotsRangeTracker := slotsToAdd[i]
 				for _, slotRange := range slotsRangeTracker.SlotRanges() {
 					cmd := client.B().ClusterAddslotsrange().StartSlotEndSlot().StartSlotEndSlot(int64(slotRange.Start), int64(slotRange.End)).Build()
@@ -164,7 +164,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 						semaphore <- struct{}{}
 						group.Go(func() error {
 							defer func() { <-semaphore }()
-							return cluster.MigrateSlot(ctx, int64(slot), migrationRoute, masterClients, currentTopology)
+							return cluster.MigrateSlot(ctx, int64(slot), migrationRoute, clients, currentTopology)
 						})
 					}
 				}
