@@ -3,6 +3,7 @@ package cluster
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	valkeyv1 "valkey/operator/api/v1"
@@ -45,6 +46,21 @@ func (a *Address) Index() (int, error) {
 		return -1, fmt.Errorf("failed to parse stateful set index: %s", a.Host)
 	}
 	return index, nil
+}
+
+type ClusterNodeMap map[string]*ClusterNode
+
+func (m ClusterNodeMap) Array() []*ClusterNode {
+	nodes := make([]*ClusterNode, 0, len(m))
+	for _, node := range m {
+		nodes = append(nodes, node)
+	}
+	sort.Slice(nodes, func(i, j int) bool {
+		iIndex, _ := nodes[i].Address.Index()
+		jIndex, _ := nodes[j].Address.Index()
+		return iIndex < jIndex
+	})
+	return nodes
 }
 
 type ClusterNode struct {
