@@ -43,8 +43,8 @@ type ValkeyCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   ValkeyClusterSpec    `json:"spec"`
-	Status *ValkeyClusterStatus `json:"status,omitempty"`
+	Spec   ValkeyClusterSpec   `json:"spec"`
+	Status ValkeyClusterStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
