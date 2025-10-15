@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	valkeyv1 "valkey/operator/api/v1"
 	"valkey/operator/internal/cluster"
 
@@ -27,18 +28,31 @@ func init() {
 	}
 }
 
+const (
+	valkeyConfigMapName = "valkey-config"
+	valkeyMountPath     = "/tmp/conf_templates/valkey.conf"
+	valkeyMountSubPath  = "valkey.conf"
+)
+
 func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyCluster) (*appsv1.StatefulSet, error) {
 	replicas := r.calculateReplicas(valkeyCluster)
 
 	persistentVolumeClaims := []corev1.PersistentVolumeClaim{}
-	volumeMounts := []corev1.VolumeMount{}
+	volumeMounts := []corev1.VolumeMount{
+		{
+			Name:      valkeyConfigMapName,
+			MountPath: valkeyMountPath,
+			SubPath:   valkeyMountSubPath,
+		},
+	}
+
 	if len(valkeyCluster.Spec.Persistence) > 0 {
 		dataName := "valkey-data"
-		volumeMounts = []corev1.VolumeMount{{
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      dataName,
 			MountPath: "/data",
-		}}
-		persistentVolumeClaims = []corev1.PersistentVolumeClaim{{
+		})
+		persistentVolumeClaims = append(persistentVolumeClaims, corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: dataName,
 			},
@@ -52,7 +66,7 @@ func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyClus
 					},
 				},
 			},
-		}}
+		})
 	}
 
 	statefulSet := &appsv1.StatefulSet{
@@ -79,8 +93,20 @@ func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyClus
 							{Name: "client", ContainerPort: cluster.ValkeyClientPort},
 							{Name: "gossip", ContainerPort: cluster.ValkeyGossipPort},
 						},
+						Env:          []corev1.EnvVar{{Name: "PORT", Value: strconv.Itoa(cluster.ValkeyClientPort)}},
 						VolumeMounts: volumeMounts,
 					}},
+					Volumes: []corev1.Volume{
+						{
+							Name: valkeyConfigMapName,
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{Name: valkeyConfigMapName},
+									Items:                []corev1.KeyToPath{{Key: valkeyConfigMapName}},
+								},
+							},
+						},
+					},
 				},
 			},
 			VolumeClaimTemplates: persistentVolumeClaims,
