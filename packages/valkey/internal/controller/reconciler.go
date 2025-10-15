@@ -30,6 +30,9 @@ type ValkeyClusterReconciler struct {
 	Scheme *runtime.Scheme
 }
 
+// The reconciler only creates the resources and makes sure the replicas for the statefulset are correct on top of slot migrations.
+// Everything else can be manually mutated directly through the cluster meaning that the operator won't overwrite your operations.
+// After creation, the ONLY thing that you won't be able to change is the replica number for the statefulset.
 func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime.Request) (ctrlruntime.Result, error) {
 	logger := log.FromContext(ctx)
 
