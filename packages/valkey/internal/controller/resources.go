@@ -100,10 +100,7 @@ func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyClus
 						{
 							Name: valkeyConfigMapName,
 							VolumeSource: corev1.VolumeSource{
-								ConfigMap: &corev1.ConfigMapVolumeSource{
-									LocalObjectReference: corev1.LocalObjectReference{Name: valkeyConfigMapName},
-									Items:                []corev1.KeyToPath{{Key: valkeyConfigMapName}},
-								},
+								ConfigMap: &corev1.ConfigMapVolumeSource{LocalObjectReference: corev1.LocalObjectReference{Name: valkeyConfigMapName}},
 							},
 						},
 					},
