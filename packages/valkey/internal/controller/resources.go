@@ -32,6 +32,8 @@ const (
 	valkeyConfigMapName = "valkey-config"
 	valkeyMountPath     = "/tmp/conf_templates/valkey.conf"
 	valkeyMountSubPath  = "valkey.conf"
+	valkeyDataMountName = "valkey-data"
+	valkeyDataMountPath = "/data"
 )
 
 func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyCluster) (*appsv1.StatefulSet, error) {
@@ -47,14 +49,14 @@ func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyClus
 	}
 
 	if len(valkeyCluster.Spec.Persistence) > 0 {
-		dataName := "valkey-data"
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      dataName,
-			MountPath: "/data",
+			Name:      valkeyDataMountName,
+			MountPath: valkeyDataMountPath,
 		})
+
 		persistentVolumeClaims = append(persistentVolumeClaims, corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: dataName,
+				Name: valkeyDataMountName,
 			},
 			Spec: corev1.PersistentVolumeClaimSpec{
 				AccessModes: []corev1.PersistentVolumeAccessMode{
@@ -67,6 +69,30 @@ func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyClus
 				},
 			},
 		})
+	}
+
+	envs := []corev1.EnvVar{
+		{Name: "PORT", Value: strconv.Itoa(cluster.ValkeyClientPort)},
+		// POD_NAME and NAMESPACE is used to create ANNOUNCE_IP in the pods
+		{
+			Name: "POD_NAME",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "metadata.name",
+				},
+			},
+		},
+		{
+			Name: "NAMESPACE",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "metadata.namespace",
+				},
+			},
+		},
+		{Name: "HEADLESS_SERVICE", Value: valkeyCluster.HeadlessServiceName()},
+		{Name: "ANNOUNCE_PORT", Value: strconv.Itoa(cluster.ValkeyClientPort)},
+		{Name: "ANNOUNCE_BUS_PORT", Value: strconv.Itoa(cluster.ValkeyGossipPort)},
 	}
 
 	statefulSet := &appsv1.StatefulSet{
@@ -93,7 +119,7 @@ func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyClus
 							{Name: "client", ContainerPort: cluster.ValkeyClientPort},
 							{Name: "gossip", ContainerPort: cluster.ValkeyGossipPort},
 						},
-						Env:          []corev1.EnvVar{{Name: "PORT", Value: strconv.Itoa(cluster.ValkeyClientPort)}},
+						Env:          envs,
 						VolumeMounts: volumeMounts,
 					}},
 					Volumes: []corev1.Volume{

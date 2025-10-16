@@ -126,7 +126,7 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		needsRequeue = true
 	}
 
-	if statefulSet.Status.ReadyReplicas != *statefulSet.Spec.Replicas {
+	if statefulSet.Spec.Replicas != nil && statefulSet.Status.ReadyReplicas != *statefulSet.Spec.Replicas {
 		logger.Info(
 			"Waiting for all statefulset pods to be ready",
 			"ready", statefulSet.Status.ReadyReplicas,
