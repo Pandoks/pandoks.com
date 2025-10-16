@@ -33,8 +33,8 @@ func TestParseClusterTopology(t *testing.T) {
 				if master0.ID != "07c37dfeb235213a872192d05877c5d02d9a7e1f" {
 					t.Errorf("Master[0].ID = %s, want 07c37dfeb235213a872192d05877c5d02d9a7e1f", master0.ID)
 				}
-				if master0.Address.Host != "valkey-0.example.com" {
-					t.Errorf("Master[0].Address.Host = %s, want valkey-0.example.com", master0.Address.Host)
+				if master0.Address.Host != "valkey-0.example.default.svc.cluster.local" {
+					t.Errorf("Master[0].Address.Host = %s, want valkey-0.example.default.svc.cluster.local", master0.Address.Host)
 				}
 				if master0.Address.Port != 6379 {
 					t.Errorf("Master[0].Address.Port = %d, want 6379", master0.Address.Port)
@@ -92,8 +92,8 @@ func TestParseClusterTopology(t *testing.T) {
 					}
 				}
 
-				if topology.Masters[0].Address.Host != "192.168.1.2" {
-					t.Errorf("Master[0].Address.Host = %s, want 192.168.1.2", topology.Masters[0].Address.Host)
+				if topology.Masters[0].Address.Host != "192.example.default.svc.cluster.local" {
+					t.Errorf("Master[0].Address.Host = %s, want 192.example.default.svc.cluster.local", topology.Masters[0].Address.Host)
 				}
 				if topology.Masters[0].Address.Port != 7000 {
 					t.Errorf("Master[0].Address.Port = %d, want 7000", topology.Masters[0].Address.Port)
@@ -394,7 +394,7 @@ e7d1eecce10fd6bb5eb35b9f99a514335d9ba9ca valkey-1.example.com:6379@16379 replica
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			topology, err := ParseClusterTopology(test.input)
+			topology, err := ParseClusterTopology(test.input, "example", "default")
 
 			if test.expectError && err == nil {
 				t.Error("Expected error but got none")

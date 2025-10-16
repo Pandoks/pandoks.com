@@ -34,7 +34,7 @@ func ConnectToValkeyNode(ctx context.Context, address string) (valkey.Client, er
 
 // returns the string output of the CLUSTER NODES command
 //
-// example output (ip is whatever is set in the cluster-announce-ip config for the valkey cluster node):
+// example output (ip is whatever is set in the cluster-announce-ip config for the valkey cluster node. this SHOULD be the pod fqdn):
 //
 //	07c37dfeb235213a872192d05877c5d02d9a7e1f ip:6379@16379 master - 0 1538428698000 1 connected 0-5460
 //	67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 ip:6379@16379 master - 0 1538428699000 2 connected 5461-10922
@@ -56,7 +56,9 @@ func QueryClusterNodes(ctx context.Context, client valkey.Client) (string, error
 	return output, nil
 }
 
-func ParseClusterTopology(clusterNodeOutput string) (*ClusterTopology, error) {
+// NOTE: ip is limited to 40 characters so many times, the fqdn will be cut off. To get around this we'll extract the first element
+// which is the pod name and then derive the rest.
+func ParseClusterTopology(clusterNodeOutput, headlessService, namespace string) (*ClusterTopology, error) {
 	topology := &ClusterTopology{
 		Nodes: map[string]*ClusterNode{},
 	}
@@ -81,7 +83,9 @@ func ParseClusterTopology(clusterNodeOutput string) (*ClusterTopology, error) {
 		hostPort := strings.Split(fields[1], "@")[0]
 		parts := strings.Split(hostPort, ":")
 		if len(parts) == 2 {
-			host := parts[0]
+			fqdn := parts[0]
+			podName := strings.Split(fqdn, ".")[0]
+			host := fmt.Sprintf("%s.%s.%s.svc.cluster.local", podName, headlessService, namespace)
 			port, err := strconv.Atoi(parts[1])
 			if err != nil {
 				continue
