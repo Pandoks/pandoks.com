@@ -78,18 +78,15 @@ func ParseClusterTopology(clusterNodeOutput, headlessService, namespace string) 
 			Connected: fields[7] == "connected",
 		}
 
-		hostPort := strings.Split(fields[1], "@")[0]
-		parts := strings.Split(hostPort, ":")
-		if len(parts) == 2 {
-			fqdn := parts[0]
-			podName := strings.Split(fqdn, ".")[0]
-			host := fmt.Sprintf("%s.%s.%s.svc.cluster.local", podName, headlessService, namespace)
-			port, err := strconv.Atoi(parts[1])
-			if err != nil {
-				continue
-			}
-
-			clusterNode.Address = Address{Host: host, Port: int64(port)}
+		connectionInfo := fields[1]
+		if strings.Contains(connectionInfo, "@") && strings.Contains(connectionInfo, ",") {
+			connectionInfoParts := strings.Split(connectionInfo, ",")
+			ipv4AddressParts := strings.Split(strings.Split(connectionInfoParts[0], "@")[0], ":")
+			clientPort, _ := strconv.ParseInt(ipv4AddressParts[1], 10, 64)
+			hostname := connectionInfoParts[1]
+			clusterNode.Address = Address{Host: hostname, Port: clientPort}
+		} else {
+			return nil, fmt.Errorf("failed to parse cluster node %s: invalid connection info %s", clusterNode.ID, connectionInfo)
 		}
 
 		flags := slices.Collect(strings.SplitSeq(fields[2], ","))

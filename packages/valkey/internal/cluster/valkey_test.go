@@ -14,9 +14,9 @@ func TestParseClusterTopology(t *testing.T) {
 	}{
 		{
 			name: "3 masters with slots assigned",
-			input: `07c37dfeb235213a872192d05877c5d02d9a7e1f valkey-0.example.com:6379@16379 master - 0 1538428698000 1 connected 0-5460
-67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 valkey-1.example.com:6379@16379 master - 0 1538428699000 2 connected 5461-10922
-292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f valkey-2.example.com:6379@16379 master - 0 1538428697000 3 connected 10923-16383`,
+			input: `07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.default.svc.cluster.local master - 0 1538428698000 1 connected 0-5460
+67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 192.168.1.2:6379@16379,valkey-1.example.default.svc.cluster.local master - 0 1538428699000 2 connected 5461-10922
+292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f 192.168.1.3:6379@16379,valkey-2.example.default.svc.cluster.local master - 0 1538428697000 3 connected 10923-16383`,
 			expectError: false,
 			checkTopology: func(t *testing.T, topology *ClusterTopology) {
 				if len(topology.Masters) != 3 {
@@ -65,9 +65,9 @@ func TestParseClusterTopology(t *testing.T) {
 		},
 		{
 			name: "masters with no slots assigned (after CLUSTER MEET)",
-			input: `07c37dfeb235213a872192d90877d0cd55635b91 192.168.1.2:7000@17000 master - 0 1507999953498 1 connected
-67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 192.168.1.2:7001@17001 master - 0 1507999952495 2 connected
-292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f 192.168.1.2:7002@17002 master - 0 1507999954504 3 connected`,
+			input: `07c37dfeb235213a872192d90877d0cd55635b91 192.168.1.2:7000@17000,valkey-0.example.default.svc.cluster.local master - 0 1507999953498 1 connected
+67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 192.168.1.3:7001@17001,valkey-1.example.default.svc.cluster.local master - 0 1507999952495 2 connected
+292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f 192.168.1.4:7002@17002,valkey-2.example.default.svc.cluster.local master - 0 1507999954504 3 connected`,
 			expectError: false,
 			checkTopology: func(t *testing.T, topology *ClusterTopology) {
 				if len(topology.Masters) != 3 {
@@ -92,8 +92,8 @@ func TestParseClusterTopology(t *testing.T) {
 					}
 				}
 
-				if topology.Masters[0].Address.Host != "192.example.default.svc.cluster.local" {
-					t.Errorf("Master[0].Address.Host = %s, want 192.example.default.svc.cluster.local", topology.Masters[0].Address.Host)
+				if topology.Masters[0].Address.Host != "valkey-0.example.default.svc.cluster.local" {
+					t.Errorf("Master[0].Address.Host = %s, want valkey-0.example.default.svc.cluster.local", topology.Masters[0].Address.Host)
 				}
 				if topology.Masters[0].Address.Port != 7000 {
 					t.Errorf("Master[0].Address.Port = %d, want 7000", topology.Masters[0].Address.Port)
@@ -102,12 +102,12 @@ func TestParseClusterTopology(t *testing.T) {
 		},
 		{
 			name: "masters with replicas using 'slave' keyword (Redis)",
-			input: `07c37dfeb235213a872192d05877c5d02d9a7e1f valkey-0.example.com:6379@16379 master - 0 1538428698000 1 connected 0-5460
-67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 valkey-1.example.com:6379@16379 master - 0 1538428699000 2 connected 5461-10922
-292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f valkey-2.example.com:6379@16379 master - 0 1538428697000 3 connected 10923-16383
-e7d1eecce10fd6bb5eb35b9f99a514335d9ba9ca valkey-3.example.com:6379@16379 slave 07c37dfeb235213a872192d05877c5d02d9a7e1f 0 1538428699000 4 connected
-c8e7e5c5e6a7c5e6b7e8d9e0f1a2b3c4d5e6f7a8 valkey-4.example.com:6379@16379 slave 67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 0 1538428698000 5 connected
-a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0 valkey-5.example.com:6379@16379 slave 292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f 0 1538428698000 6 connected`,
+			input: `07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.default.svc.cluster.local master - 0 1538428698000 1 connected 0-5460
+67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 192.168.1.2:6379@16379,valkey-1.example.default.svc.cluster.local master - 0 1538428699000 2 connected 5461-10922
+292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f 192.168.1.3:6379@16379,valkey-2.example.default.svc.cluster.local master - 0 1538428697000 3 connected 10923-16383
+e7d1eecce10fd6bb5eb35b9f99a514335d9ba9ca 192.168.1.4:6379@16379,valkey-3.example.default.svc.cluster.local slave 07c37dfeb235213a872192d05877c5d02d9a7e1f 0 1538428699000 4 connected
+c8e7e5c5e6a7c5e6b7e8d9e0f1a2b3c4d5e6f7a8 192.168.1.5:6379@16379,valkey-4.example.default.svc.cluster.local slave 67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 0 1538428698000 5 connected
+a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0 192.168.1.6:6379@16379,valkey-5.example.default.svc.cluster.local slave 292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f 0 1538428698000 6 connected`,
 			expectError: false,
 			checkTopology: func(t *testing.T, topology *ClusterTopology) {
 				if len(topology.Masters) != 3 {
@@ -139,10 +139,10 @@ a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0 valkey-5.example.com:6379@16379 slave 2
 		},
 		{
 			name: "masters with replicas using 'replica' keyword (Valkey)",
-			input: `07c37dfeb235213a872192d05877c5d02d9a7e1f valkey-0.example.com:6379@16379 master - 0 1538428698000 1 connected 0-5460
-67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 valkey-1.example.com:6379@16379 master - 0 1538428699000 2 connected 5461-10922
-e7d1eecce10fd6bb5eb35b9f99a514335d9ba9ca valkey-2.example.com:6379@16379 replica 07c37dfeb235213a872192d05877c5d02d9a7e1f 0 1538428699000 4 connected
-c8e7e5c5e6a7c5e6b7e8d9e0f1a2b3c4d5e6f7a8 valkey-3.example.com:6379@16379 replica 67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 0 1538428698000 5 connected`,
+			input: `07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.default.svc.cluster.local master - 0 1538428698000 1 connected 0-5460
+67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 192.168.1.2:6379@16379,valkey-1.example.default.svc.cluster.local master - 0 1538428699000 2 connected 5461-10922
+e7d1eecce10fd6bb5eb35b9f99a514335d9ba9ca 192.168.1.3:6379@16379,valkey-2.example.default.svc.cluster.local replica 07c37dfeb235213a872192d05877c5d02d9a7e1f 0 1538428699000 4 connected
+c8e7e5c5e6a7c5e6b7e8d9e0f1a2b3c4d5e6f7a8 192.168.1.4:6379@16379,valkey-3.example.default.svc.cluster.local replica 67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 0 1538428698000 5 connected`,
 			expectError: false,
 			checkTopology: func(t *testing.T, topology *ClusterTopology) {
 				if len(topology.Masters) != 2 {
@@ -171,7 +171,7 @@ c8e7e5c5e6a7c5e6b7e8d9e0f1a2b3c4d5e6f7a8 valkey-3.example.com:6379@16379 replica
 		},
 		{
 			name:        "master with multiple slot ranges",
-			input:       `07c37dfeb235213a872192d05877c5d02d9a7e1f valkey-0.example.com:6379@16379 master - 0 1538428698000 1 connected 0-100 200-300 500-600`,
+			input:       `07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.default.svc.cluster.local master - 0 1538428698000 1 connected 0-100 200-300 500-600`,
 			expectError: false,
 			checkTopology: func(t *testing.T, topology *ClusterTopology) {
 				if len(topology.Masters) != 1 {
@@ -200,7 +200,7 @@ c8e7e5c5e6a7c5e6b7e8d9e0f1a2b3c4d5e6f7a8 valkey-3.example.com:6379@16379 replica
 		},
 		{
 			name:        "master with single slot numbers",
-			input:       `07c37dfeb235213a872192d05877c5d02d9a7e1f valkey-0.example.com:6379@16379 master - 0 1538428698000 1 connected 0 100 200`,
+			input:       `07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.default.svc.cluster.local master - 0 1538428698000 1 connected 0 100 200`,
 			expectError: false,
 			checkTopology: func(t *testing.T, topology *ClusterTopology) {
 				if len(topology.Masters) != 1 {
@@ -229,7 +229,7 @@ c8e7e5c5e6a7c5e6b7e8d9e0f1a2b3c4d5e6f7a8 valkey-3.example.com:6379@16379 replica
 		},
 		{
 			name:        "master with mixed slot ranges and single slots",
-			input:       `07c37dfeb235213a872192d05877c5d02d9a7e1f valkey-0.example.com:6379@16379 master - 0 1538428698000 1 connected 0-100 150 200-300`,
+			input:       `07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.default.svc.cluster.local master - 0 1538428698000 1 connected 0-100 150 200-300`,
 			expectError: false,
 			checkTopology: func(t *testing.T, topology *ClusterTopology) {
 				if len(topology.Masters) != 1 {
@@ -258,7 +258,7 @@ c8e7e5c5e6a7c5e6b7e8d9e0f1a2b3c4d5e6f7a8 valkey-3.example.com:6379@16379 replica
 		},
 		{
 			name:        "node with importing/migrating slots (should be skipped)",
-			input:       `07c37dfeb235213a872192d05877c5d02d9a7e1f valkey-0.example.com:6379@16379 master - 0 1538428698000 1 connected 0-100 [200->-67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1] [300-<-292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f] 400-500`,
+			input:       `07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.default.svc.cluster.local master - 0 1538428698000 1 connected 0-100 [200->-67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1] [300-<-292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f] 400-500`,
 			expectError: false,
 			checkTopology: func(t *testing.T, topology *ClusterTopology) {
 				if len(topology.Masters) != 1 {
@@ -286,7 +286,7 @@ c8e7e5c5e6a7c5e6b7e8d9e0f1a2b3c4d5e6f7a8 valkey-3.example.com:6379@16379 replica
 		},
 		{
 			name:        "myself flag in node",
-			input:       `6ec23923021cf3ffec47632106199cb7f496ce01 192.168.1.3:7000@17000 myself,master - 0 1507999952 0 connected 0-5460`,
+			input:       `6ec23923021cf3ffec47632106199cb7f496ce01 192.168.1.3:7000@17000,valkey-0.example.default.svc.cluster.local myself,master - 0 1507999952 0 connected 0-5460`,
 			expectError: false,
 			checkTopology: func(t *testing.T, topology *ClusterTopology) {
 				if len(topology.Masters) != 1 {
@@ -324,9 +324,9 @@ c8e7e5c5e6a7c5e6b7e8d9e0f1a2b3c4d5e6f7a8 valkey-3.example.com:6379@16379 replica
 		},
 		{
 			name: "malformed lines are skipped",
-			input: `07c37dfeb235213a872192d05877c5d02d9a7e1f valkey-0.example.com:6379@16379 master - 0 1538428698000 1 connected 0-5460
+			input: `07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.default.svc.cluster.local master - 0 1538428698000 1 connected 0-5460
 invalid line with not enough fields
-67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 valkey-1.example.com:6379@16379 master - 0 1538428699000 2 connected 5461-10922`,
+67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 192.168.1.2:6379@16379,valkey-1.example.default.svc.cluster.local master - 0 1538428699000 2 connected 5461-10922`,
 			expectError: false,
 			checkTopology: func(t *testing.T, topology *ClusterTopology) {
 				if len(topology.Masters) != 2 {
@@ -336,7 +336,7 @@ invalid line with not enough fields
 		},
 		{
 			name:        "invalid slot ranges are skipped",
-			input:       `07c37dfeb235213a872192d05877c5d02d9a7e1f valkey-0.example.com:6379@16379 master - 0 1538428698000 1 connected 0-100 invalid 200-300 999999 300-400`,
+			input:       `07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.default.svc.cluster.local master - 0 1538428698000 1 connected 0-100 invalid 200-300 999999 300-400`,
 			expectError: false,
 			checkTopology: func(t *testing.T, topology *ClusterTopology) {
 				if len(topology.Masters) != 1 {
@@ -365,8 +365,8 @@ invalid line with not enough fields
 		},
 		{
 			name: "nodes map contains all nodes",
-			input: `07c37dfeb235213a872192d05877c5d02d9a7e1f valkey-0.example.com:6379@16379 master - 0 1538428698000 1 connected 0-5460
-e7d1eecce10fd6bb5eb35b9f99a514335d9ba9ca valkey-1.example.com:6379@16379 replica 07c37dfeb235213a872192d05877c5d02d9a7e1f 0 1538428699000 4 connected`,
+			input: `07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.default.svc.cluster.local master - 0 1538428698000 1 connected 0-5460
+e7d1eecce10fd6bb5eb35b9f99a514335d9ba9ca 192.168.1.2:6379@16379,valkey-1.example.default.svc.cluster.local replica 07c37dfeb235213a872192d05877c5d02d9a7e1f 0 1538428699000 4 connected`,
 			expectError: false,
 			checkTopology: func(t *testing.T, topology *ClusterTopology) {
 				if len(topology.Nodes) != 2 {
@@ -389,6 +389,16 @@ e7d1eecce10fd6bb5eb35b9f99a514335d9ba9ca valkey-1.example.com:6379@16379 replica
 					t.Errorf("Replica role = %s, want slave", replica.Role)
 				}
 			},
+		},
+		{
+			name:        "invalid connection info format (missing comma)",
+			input:       `07c37dfeb235213a872192d05877c5d02d9a7e1f valkey-0.example.com:6379@16379 master - 0 1538428698000 1 connected 0-5460`,
+			expectError: true,
+		},
+		{
+			name:        "invalid connection info format (missing @ symbol)",
+			input:       `07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379,valkey-0.example.default.svc.cluster.local master - 0 1538428698000 1 connected 0-5460`,
+			expectError: true,
 		},
 	}
 
