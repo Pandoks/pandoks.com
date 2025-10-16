@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"net"
 	valkeyv1 "valkey/operator/api/v1"
 	"valkey/operator/internal/cluster"
 
@@ -27,6 +28,19 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 	clientAddresses := r.valkeyClientAddresses(valkeyCluster)
 	if len(clientAddresses) == 0 {
 		return fmt.Errorf("no pod FQDNs provided")
+	}
+
+	resolver := &net.Resolver{}
+	addressToIP := make(map[cluster.Address]net.IP, len(clientAddresses))
+	for _, address := range clientAddresses {
+		ips, err := resolver.LookupIP(ctx, "ip4", address.Host)
+		if err != nil {
+			return fmt.Errorf("failed to resolve IP for %s: %w", address.String(), err)
+		}
+		if len(ips) == 0 {
+			return fmt.Errorf("failed to resolve IP for %s: no IPs found", address.String())
+		}
+		addressToIP[address] = ips[0]
 	}
 
 	seedClient, err := cluster.ConnectToValkeyNode(ctx, clientAddresses[0].String())
@@ -79,7 +93,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		}
 
 		for _, address := range nodesToMeet {
-			meetCmd := seedClient.B().ClusterMeet().Ip(address.Host).Port(cluster.ValkeyClientPort).Build()
+			meetCmd := seedClient.B().ClusterMeet().Ip(addressToIP[address].String()).Port(cluster.ValkeyClientPort).Build()
 			if err := seedClient.Do(ctx, meetCmd).Error(); err != nil {
 				return fmt.Errorf("failed to meet node %s: %w", address.String(), err)
 			}
