@@ -73,7 +73,6 @@ func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyClus
 
 	envs := []corev1.EnvVar{
 		{Name: "PORT", Value: strconv.Itoa(cluster.ValkeyClientPort)},
-		// POD_NAME and NAMESPACE is used to create ANNOUNCE_IP in the pods
 		{
 			Name: "POD_NAME",
 			ValueFrom: &corev1.EnvVarSource{

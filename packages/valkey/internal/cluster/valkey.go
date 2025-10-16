@@ -34,14 +34,14 @@ func ConnectToValkeyNode(ctx context.Context, address string) (valkey.Client, er
 
 // returns the string output of the CLUSTER NODES command
 //
-// example output (ip is whatever is set in the cluster-announce-ip config for the valkey cluster node. this SHOULD be the pod fqdn):
+// example output:
 //
-//	07c37dfeb235213a872192d05877c5d02d9a7e1f ip:6379@16379 master - 0 1538428698000 1 connected 0-5460
-//	67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 ip:6379@16379 master - 0 1538428699000 2 connected 5461-10922
-//	292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f ip:6379@16379 master - 0 1538428697000 3 connected 10923-16383
-//	e7d1eecce10fd6bb5eb35b9f99a514335d9ba9ca ip:6379@16379 slave 07c37dfeb235213a872192d05877c5d02d9a7e1f 0 1538428699000 4 connected
-//	c8e7e5c5e6a7c5e6b7e8d9e0f1a2b3c4d5e6f7a8 ip:6379@16379 slave 67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 0 1538428698000 5 connected
-//	a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0 ip:6379@16379 slave 292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f 0 1538428698000 6 connected
+//	07c37dfeb235213a872192d05877c5d02d9a7e1f ipv4:6379@16379,hostname master - 0 1538428698000 1 connected 0-5460
+//	67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 ipv4:6379@16379,hostname master - 0 1538428699000 2 connected 5461-10922
+//	292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f ipv4:6379@16379,hostname master - 0 1538428697000 3 connected 10923-16383
+//	e7d1eecce10fd6bb5eb35b9f99a514335d9ba9ca ipv4:6379@16379,hostname slave 07c37dfeb235213a872192d05877c5d02d9a7e1f 0 1538428699000 4 connected
+//	c8e7e5c5e6a7c5e6b7e8d9e0f1a2b3c4d5e6f7a8 ipv4:6379@16379,hostname slave 67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 0 1538428698000 5 connected
+//	a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0 ipv4:6379@16379,hostname slave 292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f 0 1538428698000 6 connected
 func QueryClusterNodes(ctx context.Context, client valkey.Client) (string, error) {
 	resp := client.Do(ctx, client.B().ClusterNodes().Build())
 	if resp.Error() != nil {
@@ -56,8 +56,6 @@ func QueryClusterNodes(ctx context.Context, client valkey.Client) (string, error
 	return output, nil
 }
 
-// NOTE: ip is limited to 40 characters so many times, the fqdn will be cut off. To get around this we'll extract the first element
-// which is the pod name and then derive the rest.
 func ParseClusterTopology(clusterNodeOutput, headlessService, namespace string) (*ClusterTopology, error) {
 	topology := &ClusterTopology{
 		Nodes: map[string]*ClusterNode{},
