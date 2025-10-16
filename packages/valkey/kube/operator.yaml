@@ -26,7 +26,6 @@ spec:
       containers:
         - name: manager
           image: ghcr.io/pandoks/valkey-operator:latest
-          imagePullPolicy: IfNotPresent
           args:
             - --leader-elect
             - --metrics-bind-address=:8080
@@ -59,4 +58,4 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
-              drop: ["ALL"]
+              drop: ['ALL']
