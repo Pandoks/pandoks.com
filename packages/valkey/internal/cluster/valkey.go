@@ -14,7 +14,7 @@ import (
 
 const (
 	ValkeyClientPort = 6379
-	ValkeyGossipPort = 16379
+	ValkeyGossipPort = 16379 // same thing as bus port
 )
 
 // NOTE: need to manually close the client view valkey.Client.Close()
