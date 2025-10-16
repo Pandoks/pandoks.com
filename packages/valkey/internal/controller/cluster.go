@@ -35,10 +35,12 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 	}
 	defer seedClient.Close()
 
+	headlessServiceName := valkeyCluster.HeadlessServiceName()
+	namespace := valkeyCluster.Namespace
 	output, err := cluster.QueryClusterNodes(ctx, seedClient)
 	var currentTopology *cluster.ClusterTopology
 	if err == nil {
-		currentTopology, err = cluster.ParseClusterTopology(output)
+		currentTopology, err = cluster.ParseClusterTopology(output, headlessServiceName, namespace)
 		if err != nil {
 			return fmt.Errorf("failed to parse cluster nodes: %w", err)
 		}
@@ -102,7 +104,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 	if err != nil {
 		return fmt.Errorf("failed to query cluster nodes: %w", err)
 	}
-	currentTopology, err = cluster.ParseClusterTopology(output)
+	currentTopology, err = cluster.ParseClusterTopology(output, headlessServiceName, namespace)
 	if err != nil {
 		return fmt.Errorf("failed to parse cluster nodes: %w", err)
 	}
@@ -215,7 +217,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		if err != nil {
 			return fmt.Errorf("failed to query cluster nodes: %w", err)
 		}
-		currentTopology, err = cluster.ParseClusterTopology(output)
+		currentTopology, err = cluster.ParseClusterTopology(output, headlessServiceName, namespace)
 		if err != nil {
 			return fmt.Errorf("failed to parse cluster nodes: %w", err)
 		}
