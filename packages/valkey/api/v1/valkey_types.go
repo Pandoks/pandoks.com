@@ -44,7 +44,7 @@ type ValkeyCluster struct {
 	metav1.ObjectMeta `json:"metadata"`
 
 	Spec   ValkeyClusterSpec   `json:"spec"`
-	Status ValkeyClusterStatus `json:"status"`
+	Status ValkeyClusterStatus `json:"status,omitempty"` // ignore lsp, omitempty is needed
 }
 
 // +kubebuilder:object:root=true
