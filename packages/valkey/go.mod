@@ -3,7 +3,7 @@ module valkey/operator
 go 1.25.1
 
 require (
-	github.com/valkey-io/valkey-go v1.0.66
+	github.com/valkey-io/valkey-go v1.0.67
 	golang.org/x/sync v0.12.0
 	k8s.io/api v0.34.1
 	k8s.io/apimachinery v0.34.1
