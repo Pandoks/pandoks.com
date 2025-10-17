@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"strconv"
 	internalslot "valkey/operator/internal/slot"
 
 	"github.com/valkey-io/valkey-go"
@@ -82,25 +81,29 @@ func MigrateSlot(ctx context.Context, slot int64, migrationRoute MigrationRoute,
 	sourceNode := currentTopology.Masters[migrationRoute.SourceIndex]
 	destNode := currentTopology.Masters[migrationRoute.DestinationIndex]
 
-	slotStr := strconv.Itoa(int(slot))
-
 	markSourceSlotMigratingCmd := sourceClient.B().
-		Arbitrary("CLUSTER", "SETSLOT").
-		Args(slotStr, "MIGRATING", destNode.ID).Build()
+		ClusterSetslot().
+		Slot(slot).
+		Migrating().
+		NodeId(destNode.ID).
+		Build()
 	if err := sourceClient.Do(ctx, markSourceSlotMigratingCmd).Error(); err != nil {
 		return fmt.Errorf("failed to mark source slot %d migrating to destination %s: %w", slot, destNode.ID, err)
 	}
 
 	markDestSlotMigratingCmd := destClient.B().
-		Arbitrary("CLUSTER", "SETSLOT").
-		Args(slotStr, "IMPORTING", sourceNode.ID).Build()
+		ClusterSetslot().
+		Slot(slot).
+		Importing().
+		NodeId(sourceNode.ID).
+		Build()
 	if err := destClient.Do(ctx, markDestSlotMigratingCmd).Error(); err != nil {
 		return fmt.Errorf("failed to mark destination slot %d migrating to source %s: %w", slot, sourceNode.ID, err)
 	}
 
 	for {
 		// NOTE: migrates 100 keys at a time
-		keysInSlotCmd := sourceClient.B().Arbitrary("CLUSTER", "GETKEYSINSLOT").Args(slotStr, "100").Build()
+		keysInSlotCmd := sourceClient.B().ClusterGetkeysinslot().Slot(slot).Count(100).Build()
 		keys, err := sourceClient.Do(ctx, keysInSlotCmd).AsStrSlice()
 		if err != nil {
 			return fmt.Errorf("failed to get keys in slot %d: %w", slot, err)
@@ -111,31 +114,36 @@ func MigrateSlot(ctx context.Context, slot int64, migrationRoute MigrationRoute,
 
 		// valkey-cli equivalent:
 		// MIGRATE <host> <port> <key ("" is all keys)> <db (cluster only uses 0)> <timeout> KEYS <keys...>
-		migrationArgs := []string{
-			destNode.Address.Host,
-			strconv.Itoa(int(destNode.Address.Port)),
-			"",
-			"0",
-			"5000",
-			"KEYS",
-		}
-		migrationArgs = append(migrationArgs, keys...)
-		migrateKeysCmd := sourceClient.B().Arbitrary("MIGRATE").Args(migrationArgs...).Build()
+		migrateKeysCmd := sourceClient.B().
+			Migrate().
+			Host(destNode.Address.Host).
+			Port(destNode.Address.Port).
+			Key("").
+			DestinationDb(0).
+			Timeout(5000).
+			Keys(keys...).
+			Build()
 		if err := sourceClient.Do(ctx, migrateKeysCmd).Error(); err != nil {
 			return fmt.Errorf("failed to migrate keys in slot %d: %w", slot, err)
 		}
 	}
 
 	finalizeSourceMigrationCmd := sourceClient.B().
-		Arbitrary("CLUSTER", "SETSLOT").
-		Args(slotStr, "NODE", destNode.ID).Build()
+		ClusterSetslot().
+		Slot(slot).
+		Node().
+		NodeId(destNode.ID).
+		Build()
 	if err := sourceClient.Do(ctx, finalizeSourceMigrationCmd).Error(); err != nil {
 		return fmt.Errorf("failed to finalize source slot %d migration to destination %s: %w", slot, destNode.ID, err)
 	}
 
 	finalizeDestMigrationCmd := destClient.B().
-		Arbitrary("CLUSTER", "SETSLOT").
-		Args(slotStr, "NODE", destNode.ID).Build()
+		ClusterSetslot().
+		Slot(slot).
+		Node().
+		NodeId(destNode.ID).
+		Build()
 	if err := destClient.Do(ctx, finalizeDestMigrationCmd).Error(); err != nil {
 		return fmt.Errorf("failed to finalize destination slot %d migration to source %s: %w", slot, sourceNode.ID, err)
 	}
