@@ -59,7 +59,9 @@ func QueryClusterNodes(ctx context.Context, client valkey.Client) (string, error
 
 func ParseClusterTopology(clusterNodeOutput, headlessService, namespace string) (*ClusterTopology, error) {
 	topology := &ClusterTopology{
-		Nodes: map[string]*ClusterNode{},
+		Nodes:    map[string]*ClusterNode{},
+		Masters:  []*ClusterNode{},
+		Replicas: []*ClusterNode{},
 	}
 
 	lines := slices.Collect(strings.SplitSeq(strings.TrimSpace(clusterNodeOutput), "\n"))
