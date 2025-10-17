@@ -79,6 +79,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		}
 	}
 	if len(nodesToMeet) > 0 {
+		logger.Info("Meeting standalone valkey nodes that aren't part of the current cluster")
 		meta.SetStatusCondition(
 			&valkeyCluster.Status.Conditions,
 			metav1.Condition{
