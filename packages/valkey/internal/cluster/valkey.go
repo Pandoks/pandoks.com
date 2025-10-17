@@ -53,7 +53,8 @@ func QueryClusterNodes(ctx context.Context, client valkey.Client) (string, error
 		return "", err
 	}
 
-	return output, nil
+	cleansedOutput := strings.TrimPrefix(output, "txt:")
+	return cleansedOutput, nil
 }
 
 func ParseClusterTopology(clusterNodeOutput, headlessService, namespace string) (*ClusterTopology, error) {
