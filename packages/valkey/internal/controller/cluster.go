@@ -147,16 +147,38 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 
 	enslavementMigration := map[uint8]string{}
 	for i := range len(desiredNodes) {
-		if currentNodes[i].Role == cluster.NodeRoleSlave && desiredNodes[i].Role == cluster.NodeRoleMaster { // do promotions now
-			// NOTE: we need to migrate slaves to masters so slot migratiosn can be performed to the right masters if needed or else there will be no proper masters to migrate to
-			client := clients[i]
-			promoteCmd := client.B().Arbitrary("REPLICAOF", "NO", "ONE").Build()
-			if err := client.Do(ctx, promoteCmd).Error(); err != nil {
-				return fmt.Errorf("failed to promote slave %s to master: %w", currentNodes[i].Address.String(), err)
+		currentNode := currentNodes[i]
+		desiredNode := desiredNodes[i]
+		if currentNode.Role != desiredNode.Role {
+			if currentNode.Role == cluster.NodeRoleSlave { // do promotions now
+				// NOTE: we need to migrate slaves to masters so slot migratiosn can be performed to the right masters if needed or else there will be no proper masters to migrate to
+				client := clients[i]
+				promoteCmd := client.B().Replicaof().No().One().Build()
+				if err := client.Do(ctx, promoteCmd).Error(); err != nil {
+					return fmt.Errorf("failed to promote slave %s to master: %w", currentNode.Address.String(), err)
+				}
+			} else { // downgrade later
+				// NOTE: we don't need to migrate masters to slaves or assign a slave to another master until after slot migrations
+				enslavementMigration[uint8(i)] = currentNodes[i].ID
 			}
-		} else if currentNodes[i].Role != desiredNodes[i].Role || currentNodes[i].MasterID != desiredNodes[i].MasterID { // downgrade later
-			// NOTE: we don't need to migrate masters to slaves or assign a slave to another master until after slot migrations
-			enslavementMigration[uint8(i)] = desiredNodes[i].MasterID
+			continue
+		}
+
+		if currentNode.Role == cluster.NodeRoleSlave {
+			currentNodeMasterId, desiredNodeMasterId := currentNode.MasterID, desiredNode.MasterID
+			currentNodeMasterNode, desiredNodeMasterNode := currentTopology.Nodes[currentNodeMasterId], desiredTopology.Nodes[desiredNodeMasterId]
+			currentNodeMasterIndex, err := currentNodeMasterNode.Address.Index()
+			if err != nil {
+				return fmt.Errorf("failed to get index of master %s: %w", currentNodeMasterId, err)
+			}
+			desiredNodeMasterIndex, err := desiredNodeMasterNode.Address.Index()
+			if err != nil {
+				return fmt.Errorf("failed to get index of master %s: %w", desiredNodeMasterId, err)
+			}
+			if currentNodeMasterIndex != desiredNodeMasterIndex {
+				properMasterNode := currentNodes[desiredNodeMasterIndex]
+				enslavementMigration[uint8(i)] = properMasterNode.ID
+			}
 		}
 	}
 
@@ -165,7 +187,13 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		return fmt.Errorf("failed to calculate slots to reconcile: %w", err)
 	}
 
-	needToAddSlots := len(slotsToAdd) > 0
+	needToAddSlots := false
+	for _, slotRange := range slotsToAdd {
+		if slotRange != nil {
+			needToAddSlots = true
+			break
+		}
+	}
 	needToMigrateSlots := len(slotsToMigrate) > 0
 	if needToAddSlots || needToMigrateSlots {
 		meta.SetStatusCondition(
@@ -183,8 +211,11 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 
 		if needToAddSlots {
 			for i := range len(currentTopology.Masters) {
-				client := clients[i]
 				slotsRangeTracker := slotsToAdd[i]
+				if slotsRangeTracker == nil {
+					continue
+				}
+				client := clients[i]
 				for _, slotRange := range slotsRangeTracker.SlotRanges() {
 					cmd := client.B().ClusterAddslotsrange().StartSlotEndSlot().StartSlotEndSlot(int64(slotRange.Start), int64(slotRange.End)).Build()
 					if err := client.Do(ctx, cmd).Error(); err != nil {
@@ -239,6 +270,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 
 	for i, masterId := range enslavementMigration {
 		client := clients[i]
+		logger.Info("Enslaving node", "node", currentNodes[i].ID, "master", masterId)
 		enslavementCmd := client.B().ClusterReplicate().NodeId(masterId).Build()
 		if err := client.Do(ctx, enslavementCmd).Error(); err != nil {
 			return fmt.Errorf("failed to enslave node %s: %w", currentNodes[i].ID, err)
