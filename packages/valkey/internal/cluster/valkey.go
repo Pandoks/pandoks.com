@@ -177,3 +177,15 @@ func ParseClusterTopology(clusterNodeOutput, headlessService, namespace string) 
 
 	return topology, nil
 }
+
+func GetTopology(ctx context.Context, client valkey.Client, headlessService, namespace string) (*ClusterTopology, error) {
+	clusterNodeOutput, err := QueryClusterNodes(ctx, client)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query cluster nodes: %w", err)
+	}
+	topology, err := ParseClusterTopology(clusterNodeOutput, headlessService, namespace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse cluster nodes: %w", err)
+	}
+	return topology, nil
+}

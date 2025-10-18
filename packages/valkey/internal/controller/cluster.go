@@ -51,12 +51,11 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 
 	headlessServiceName := valkeyCluster.HeadlessServiceName()
 	namespace := valkeyCluster.Namespace
-	output, err := cluster.QueryClusterNodes(ctx, seedClient)
 	var currentTopology *cluster.ClusterTopology
 	if err == nil {
-		currentTopology, err = cluster.ParseClusterTopology(output, headlessServiceName, namespace)
+		currentTopology, err = cluster.GetTopology(ctx, seedClient, headlessServiceName, namespace)
 		if err != nil {
-			return fmt.Errorf("failed to parse cluster nodes: %w", err)
+			return fmt.Errorf("failed to get cluster topology: %w", err)
 		}
 	} else {
 		currentTopology = &cluster.ClusterTopology{
@@ -114,14 +113,9 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		}
 	}
 
-	// need to requery the cluster topology after each cluter mutation
-	output, err = cluster.QueryClusterNodes(ctx, seedClient)
+	currentTopology, err = cluster.GetTopology(ctx, seedClient, headlessServiceName, namespace)
 	if err != nil {
-		return fmt.Errorf("failed to query cluster nodes: %w", err)
-	}
-	currentTopology, err = cluster.ParseClusterTopology(output, headlessServiceName, namespace)
-	if err != nil {
-		return fmt.Errorf("failed to parse cluster nodes: %w", err)
+		return fmt.Errorf("failed to get cluster topology: %w", err)
 	}
 
 	// ensure slots are uniformly distributed amongst the correct masters
@@ -270,14 +264,9 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 			logger.Error(err, "Failed to update valkey cluster status")
 		}
 
-		// Re-query cluster topology after slot reconciliation
-		output, err = cluster.QueryClusterNodes(ctx, seedClient)
+		currentTopology, err = cluster.GetTopology(ctx, seedClient, headlessServiceName, namespace)
 		if err != nil {
-			return fmt.Errorf("failed to query cluster nodes: %w", err)
-		}
-		currentTopology, err = cluster.ParseClusterTopology(output, headlessServiceName, namespace)
-		if err != nil {
-			return fmt.Errorf("failed to parse cluster nodes: %w", err)
+			return fmt.Errorf("failed to get cluster topology: %w", err)
 		}
 	}
 
