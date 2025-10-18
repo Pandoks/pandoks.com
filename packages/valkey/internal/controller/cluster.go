@@ -106,11 +106,11 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		if err := r.Status().Update(ctx, valkeyCluster); err != nil {
 			logger.Error(err, "Failed to update valkey cluster status")
 		}
-	}
 
-	currentTopology, err = cluster.GetTopology(ctx, seedClient, headlessServiceName, namespace)
-	if err != nil {
-		return fmt.Errorf("failed to get cluster topology: %w", err)
+		currentTopology, err = cluster.GetTopology(ctx, seedClient, headlessServiceName, namespace)
+		if err != nil {
+			return fmt.Errorf("failed to get cluster topology: %w", err)
+		}
 	}
 
 	// ensure slots are uniformly distributed amongst the correct masters
