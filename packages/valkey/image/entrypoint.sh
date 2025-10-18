@@ -3,7 +3,11 @@ set -eu
 
 for v in \
   PORT \
-  CLUSTER_NODE_TIMEOUT; do
+  POD_NAME \
+  NAMESPACE \
+  HEADLESS_SERVICE \
+  ANNOUNCE_PORT \
+  ANNOUNCE_BUS_PORT; do
   eval ": \${$v:?Missing $v}"
 done
 
