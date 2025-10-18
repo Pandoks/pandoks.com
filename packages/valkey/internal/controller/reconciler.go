@@ -22,7 +22,6 @@ const (
 	typeAvailable              = "Available"
 	typeMeetingStandaloneNodes = "MeetingStandaloneNodes"
 	typeMigratingSlots         = "MigratingSlots"
-	typeEnsuringReplicas       = "EnsuringReplicas"
 )
 
 type ValkeyClusterReconciler struct {
