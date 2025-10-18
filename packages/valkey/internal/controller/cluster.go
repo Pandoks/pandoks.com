@@ -173,16 +173,16 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 			}
 
 			currentNodeMasterId := currentNode.MasterID
-			var currentMasterNode *cluster.ClusterNode
+			var currentNodeMasterIndex int
 			if currentNodeMasterId != "" {
-				currentMasterNode = currentTopology.Nodes[currentNodeMasterId]
+				currentMasterNode := currentTopology.Nodes[currentNodeMasterId]
 				if currentMasterNode == nil {
 					return fmt.Errorf("failed to get master node from current topology %s", currentNodeMasterId)
 				}
-			}
-			currentNodeMasterIndex, err := currentMasterNode.Address.Index()
-			if err != nil {
-				return fmt.Errorf("failed to get index of master %s: %w", currentNodeMasterId, err)
+				currentNodeMasterIndex, err = currentMasterNode.Address.Index()
+				if err != nil {
+					return fmt.Errorf("failed to get index of master %s: %w", currentNodeMasterId, err)
+				}
 			}
 
 			if masterNeedsEnslavement, misMatchingMasters := currentNodeMasterId == "", currentNodeMasterIndex != desiredNodeMasterIndex; masterNeedsEnslavement || misMatchingMasters {
