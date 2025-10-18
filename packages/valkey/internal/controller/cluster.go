@@ -150,7 +150,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 	for i := range len(desiredNodes) {
 		currentNode := currentNodes[i]
 		desiredNode := desiredNodes[i]
-		if currentNode.Role != cluster.NodeRoleSlave && desiredNode.Role == cluster.NodeRoleMaster { // do promotions now
+		if currentNode.Role == cluster.NodeRoleSlave && desiredNode.Role == cluster.NodeRoleMaster { // do promotions now
 			// NOTE: we need to migrate slaves to masters so slot migrations can be performed to the right masters if needed or else there will be no proper masters to migrate to
 			client := clients[i]
 			promoteCmd := client.B().ClusterReset().Soft().Build()
@@ -221,6 +221,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		}
 
 		if needToAddSlots {
+			logger.Info("Adding slots to masters", "slotsToAdd", slotsToAdd)
 			for i := range len(currentTopology.Masters) {
 				slotsRangeTracker := slotsToAdd[i]
 				if slotsRangeTracker == nil {
@@ -236,6 +237,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 			}
 		}
 		if needToMigrateSlots {
+			logger.Info("Migrating slots", "slotsToMigrate", slotsToMigrate)
 			group, ctx := errgroup.WithContext(ctx)
 			semaphore := make(chan struct{}, slotMigrationConcurrency)
 
