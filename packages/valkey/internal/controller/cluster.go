@@ -51,13 +51,8 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 
 	headlessServiceName := valkeyCluster.HeadlessServiceName()
 	namespace := valkeyCluster.Namespace
-	var currentTopology *cluster.ClusterTopology
-	if err == nil {
-		currentTopology, err = cluster.GetTopology(ctx, seedClient, headlessServiceName, namespace)
-		if err != nil {
-			return fmt.Errorf("failed to get cluster topology: %w", err)
-		}
-	} else {
+	currentTopology, err := cluster.GetTopology(ctx, seedClient, headlessServiceName, namespace)
+	if err != nil {
 		currentTopology = &cluster.ClusterTopology{
 			Nodes: map[string]*cluster.ClusterNode{},
 		}
