@@ -150,33 +150,42 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 	for i := range len(desiredNodes) {
 		currentNode := currentNodes[i]
 		desiredNode := desiredNodes[i]
-		if currentNode.Role != desiredNode.Role {
-			if currentNode.Role == cluster.NodeRoleSlave { // do promotions now
-				// NOTE: we need to migrate slaves to masters so slot migratiosn can be performed to the right masters if needed or else there will be no proper masters to migrate to
-				client := clients[i]
-				promoteCmd := client.B().Replicaof().No().One().Build()
-				if err := client.Do(ctx, promoteCmd).Error(); err != nil {
-					return fmt.Errorf("failed to promote slave %s to master: %w", currentNode.Address.String(), err)
-				}
-			} else { // downgrade later
-				// NOTE: we don't need to migrate masters to slaves or assign a slave to another master until after slot migrations
-				enslavementMigration[uint8(i)] = currentNodes[i].ID
+		if currentNode.Role != cluster.NodeRoleSlave && desiredNode.Role == cluster.NodeRoleMaster { // do promotions now
+			// NOTE: we need to migrate slaves to masters so slot migrations can be performed to the right masters if needed or else there will be no proper masters to migrate to
+			client := clients[i]
+			promoteCmd := client.B().ClusterReset().Soft().Build()
+			if err := client.Do(ctx, promoteCmd).Error(); err != nil {
+				return fmt.Errorf("failed to promote slave %s to master: %w", currentNode.Address.String(), err)
 			}
-			continue
-		}
-
-		if currentNode.Role == cluster.NodeRoleSlave {
-			currentNodeMasterId, desiredNodeMasterId := currentNode.MasterID, desiredNode.MasterID
-			currentNodeMasterNode, desiredNodeMasterNode := currentTopology.Nodes[currentNodeMasterId], desiredTopology.Nodes[desiredNodeMasterId]
-			currentNodeMasterIndex, err := currentNodeMasterNode.Address.Index()
-			if err != nil {
-				return fmt.Errorf("failed to get index of master %s: %w", currentNodeMasterId, err)
+		} else if desiredNode.Role == cluster.NodeRoleSlave { // downgrade later
+			// NOTE: we don't need to migrate masters to slaves or assign a slave to another master until after slot migrations
+			desiredNodeMasterId := desiredNode.MasterID
+			if desiredNodeMasterId == "" {
+				return fmt.Errorf("desired slave node %s has no master id", desiredNode.ID)
 			}
-			desiredNodeMasterIndex, err := desiredNodeMasterNode.Address.Index()
+			desiredMasterNode := desiredTopology.Nodes[desiredNode.MasterID]
+			if desiredMasterNode == nil {
+				return fmt.Errorf("failed to get master node from desired topology %s", desiredNodeMasterId)
+			}
+			desiredNodeMasterIndex, err := desiredMasterNode.Address.Index()
 			if err != nil {
 				return fmt.Errorf("failed to get index of master %s: %w", desiredNodeMasterId, err)
 			}
-			if currentNodeMasterIndex != desiredNodeMasterIndex {
+
+			currentNodeMasterId := currentNode.MasterID
+			var currentMasterNode *cluster.ClusterNode
+			if currentNodeMasterId != "" {
+				currentMasterNode = currentTopology.Nodes[currentNodeMasterId]
+				if currentMasterNode == nil {
+					return fmt.Errorf("failed to get master node from current topology %s", currentNodeMasterId)
+				}
+			}
+			currentNodeMasterIndex, err := currentMasterNode.Address.Index()
+			if err != nil {
+				return fmt.Errorf("failed to get index of master %s: %w", currentNodeMasterId, err)
+			}
+
+			if masterNeedsEnslavement, misMatchingMasters := currentNodeMasterId == "", currentNodeMasterIndex != desiredNodeMasterIndex; masterNeedsEnslavement || misMatchingMasters {
 				properMasterNode := currentNodes[desiredNodeMasterIndex]
 				enslavementMigration[uint8(i)] = properMasterNode.ID
 			}
