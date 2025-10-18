@@ -67,7 +67,7 @@ type ClusterNode struct {
 	ID         string
 	Address    Address
 	Role       NodeRole         // master | slave (we do not use inclusive language here)
-	MasterID   string           // nil for masters, otherwise the ID of the master
+	MasterID   string           // "" for masters, otherwise the ID of the master
 	SlotRanges []slot.SlotRange // [start, end] both inclusive, nil if slave node
 	Connected  bool
 }

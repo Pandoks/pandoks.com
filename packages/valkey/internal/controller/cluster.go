@@ -182,6 +182,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 			}
 		}
 	}
+	logger.Info("Enslavement plan created", "migration", enslavementMigration)
 
 	slotsToAdd, slotsToMigrate, err := cluster.CalculateSlotsToReconcile(currentTopology, desiredTopology)
 	if err != nil {
