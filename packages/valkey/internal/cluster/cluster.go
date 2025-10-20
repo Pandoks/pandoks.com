@@ -2,7 +2,6 @@ package cluster
 
 import (
 	"fmt"
-	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -73,9 +72,10 @@ type ClusterNode struct {
 }
 
 type ClusterTopology struct {
-	Nodes    ClusterNodeMap // nodeID -> node
-	Masters  []*ClusterNode // sorted by statefulset index (corresponds to node index for slots)
-	Replicas []*ClusterNode // sorted by statefulset index too. the starting index is the max index of masters + 1
+	Nodes      ClusterNodeMap                            // nodeID -> node
+	Masters    []*ClusterNode                            // sorted by statefulset index (corresponds to node index for slots)
+	Replicas   []*ClusterNode                            // sorted by statefulset index too. the starting index is the max index of masters + 1
+	Migrations map[MigrationRoute]*slot.SlotRangeTracker // {source index, destination index} -> slot ranges NOTE: migrations are always from master to master so the index is the index for Masters
 }
 
 // desiredTopology calculates the desired cluster topology based on the spec. Note that the ids are not supposed to match
@@ -83,7 +83,8 @@ type ClusterTopology struct {
 // the replica ids are named 'replica-i-j-k' where i is the master index, j is the replica index for that master, and k is the statefulset index
 func DesiredTopology(valkeyCluster *valkeyv1.ValkeyCluster) *ClusterTopology {
 	topology := &ClusterTopology{
-		Nodes: map[string]*ClusterNode{},
+		Nodes:      map[string]*ClusterNode{},
+		Migrations: map[MigrationRoute]*slot.SlotRangeTracker{},
 	}
 
 	numMasters := valkeyCluster.Spec.Masters
@@ -138,36 +139,91 @@ func (t *ClusterTopology) SlotRangeTracker() (slot.SlotRangeTracker, error) {
 	return slotRangeTracker, nil
 }
 
-// WARNING: this does not look at the IDs, FQDNs, and host/port of the nodes, it only looks at the topology shape
 func IsSameTopologyShape(topologyA, topologyB *ClusterTopology) bool {
-	if len(topologyA.Masters) != len(topologyB.Masters) || len(topologyA.Replicas) != len(topologyB.Replicas) {
+	if len(topologyA.Masters) != len(topologyB.Masters) ||
+		len(topologyA.Replicas) != len(topologyB.Replicas) ||
+		len(topologyA.Migrations) != len(topologyB.Migrations) {
 		return false
 	}
 
-	hashSlotRanges := func(slotRanges []slot.SlotRange) string {
-		var hash string
-		for _, slotRange := range slotRanges {
-			hash += fmt.Sprintf("%d-%d", slotRange.Start, slotRange.End)
+	mastersLength := len(topologyA.Masters)
+	replicaLength := len(topologyA.Replicas)
+
+	for i := range mastersLength {
+		masterA := topologyA.Masters[i]
+		masterB := topologyB.Masters[i]
+		if match, _ := matchNodes(masterA, masterB, topologyA.Nodes, topologyB.Nodes); !match {
+			return false
 		}
-		return hash
 	}
 
-	slotRangesReplicaCountA := map[string]int{}
-	slotRangesReplicaCountB := map[string]int{}
-	for i := range topologyA.Replicas {
-		// NOTE: you can't compare the nodes here becuase they are not guaranteed to be in the same order
+	for i := range replicaLength {
 		replicaA := topologyA.Replicas[i]
 		replicaB := topologyB.Replicas[i]
-
-		masterNodeA := topologyA.Nodes[replicaA.MasterID]
-		masterNodeB := topologyB.Nodes[replicaB.MasterID]
-
-		slotRangeHashA := hashSlotRanges(masterNodeA.SlotRanges)
-		slotRangeHashB := hashSlotRanges(masterNodeB.SlotRanges)
-
-		slotRangesReplicaCountA[slotRangeHashA]++
-		slotRangesReplicaCountB[slotRangeHashB]++
+		if match, _ := matchNodes(replicaA, replicaB, topologyA.Nodes, topologyB.Nodes); !match {
+			return false
+		}
 	}
 
-	return reflect.DeepEqual(slotRangesReplicaCountA, slotRangesReplicaCountB)
+	for route, migrationA := range topologyA.Migrations {
+		migrationB, exists := topologyB.Migrations[route]
+		if !exists {
+			return false
+		}
+		slotRangesA, slotRangesB := migrationA.SlotRanges(), migrationB.SlotRanges()
+		if len(slotRangesA) != len(slotRangesB) {
+			return false
+		}
+		for i := range len(slotRangesA) {
+			slotRangeA := slotRangesA[i]
+			slotRangeB := slotRangesB[i]
+			if slotRangeA.Start != slotRangeB.Start || slotRangeA.End != slotRangeB.End {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+func matchNodes(nodeA, nodeB *ClusterNode, clusterNodeMapA, clusterNodeMapB ClusterNodeMap) (bool, error) {
+	nodeAIndex, err := nodeA.Address.Index()
+	if err != nil {
+		return false, err
+	}
+	nodeBIndex, err := nodeB.Address.Index()
+	if err != nil {
+		return false, err
+	}
+	if nodeAIndex != nodeBIndex || nodeA.Role != nodeB.Role {
+		return false, nil
+	}
+
+	if nodeA.Role == NodeRoleSlave {
+		masterNodeA := clusterNodeMapA[nodeA.MasterID]
+		masterNodeB := clusterNodeMapB[nodeB.MasterID]
+		masterNodeAIndex, err := masterNodeA.Address.Index()
+		if err != nil {
+			return false, err
+		}
+		masterNodeBIndex, err := masterNodeB.Address.Index()
+		if err != nil {
+			return false, err
+		}
+		if masterNodeAIndex != masterNodeBIndex {
+			return false, nil
+		}
+	}
+
+	if len(nodeA.SlotRanges) != len(nodeB.SlotRanges) {
+		return false, nil
+	}
+	for i := range len(nodeA.SlotRanges) {
+		nodeASlotRange := nodeA.SlotRanges[i]
+		nodeBSlotRange := nodeB.SlotRanges[i]
+		if nodeASlotRange.Start != nodeBSlotRange.Start || nodeASlotRange.End != nodeBSlotRange.End {
+			return false, nil
+		}
+	}
+	return true, nil
 }

@@ -171,73 +171,92 @@ func TestIsSameTopologyShape(t *testing.T) {
 			name: "identical topologies",
 			topoA: &ClusterTopology{
 				Masters: []*ClusterNode{
-					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 5461}}},
-					{ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 5462, End: 10922}}},
-					{ID: "m3", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 10923, End: 16383}}},
+					{ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 5461}}},
+					{ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 5462, End: 10922}}},
+					{ID: "m3", Address: Address{Host: "valkey-2.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 10923, End: 16383}}},
 				},
 				Replicas: []*ClusterNode{
-					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
-					{ID: "r2", Role: NodeRoleSlave, MasterID: "m2"},
-					{ID: "r3", Role: NodeRoleSlave, MasterID: "m3"},
+					{ID: "r1", Address: Address{Host: "valkey-3.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r2", Address: Address{Host: "valkey-4.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m2"},
+					{ID: "r3", Address: Address{Host: "valkey-5.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m3"},
 				},
 				Nodes: map[string]*ClusterNode{
-					"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 5461}}},
-					"m2": {ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 5462, End: 10922}}},
-					"m3": {ID: "m3", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 10923, End: 16383}}},
+					"m1": {ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 5461}}},
+					"m2": {ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 5462, End: 10922}}},
+					"m3": {ID: "m3", Address: Address{Host: "valkey-2.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 10923, End: 16383}}},
+					"r1": {ID: "r1", Address: Address{Host: "valkey-3.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m1"},
+					"r2": {ID: "r2", Address: Address{Host: "valkey-4.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m2"},
+					"r3": {ID: "r3", Address: Address{Host: "valkey-5.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m3"},
 				},
+				Migrations: map[MigrationRoute]*slot.SlotRangeTracker{},
 			},
 			topoB: &ClusterTopology{
 				Masters: []*ClusterNode{
-					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 5461}}},
-					{ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 5462, End: 10922}}},
-					{ID: "m3", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 10923, End: 16383}}},
+					{ID: "different-m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 5461}}},
+					{ID: "different-m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 5462, End: 10922}}},
+					{ID: "different-m3", Address: Address{Host: "valkey-2.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 10923, End: 16383}}},
 				},
 				Replicas: []*ClusterNode{
-					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
-					{ID: "r2", Role: NodeRoleSlave, MasterID: "m2"},
-					{ID: "r3", Role: NodeRoleSlave, MasterID: "m3"},
+					{ID: "different-r1", Address: Address{Host: "valkey-3.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "different-m1"},
+					{ID: "different-r2", Address: Address{Host: "valkey-4.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "different-m2"},
+					{ID: "different-r3", Address: Address{Host: "valkey-5.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "different-m3"},
 				},
 				Nodes: map[string]*ClusterNode{
-					"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 5461}}},
-					"m2": {ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 5462, End: 10922}}},
-					"m3": {ID: "m3", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 10923, End: 16383}}},
+					"different-m1": {ID: "different-m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 5461}}},
+					"different-m2": {ID: "different-m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 5462, End: 10922}}},
+					"different-m3": {ID: "different-m3", Address: Address{Host: "valkey-2.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 10923, End: 16383}}},
+					"different-r1": {ID: "different-r1", Address: Address{Host: "valkey-3.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "different-m1"},
+					"different-r2": {ID: "different-r2", Address: Address{Host: "valkey-4.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "different-m2"},
+					"different-r3": {ID: "different-r3", Address: Address{Host: "valkey-5.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "different-m3"},
 				},
+				Migrations: map[MigrationRoute]*slot.SlotRangeTracker{},
 			},
 			expected: true,
 		},
 		{
 			name: "different master count",
 			topoA: &ClusterTopology{
-				Masters:  []*ClusterNode{{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 16383}}}},
-				Replicas: []*ClusterNode{},
-				Nodes:    map[string]*ClusterNode{},
+				Masters:    []*ClusterNode{{ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 16383}}}},
+				Replicas:   []*ClusterNode{},
+				Nodes:      map[string]*ClusterNode{},
+				Migrations: map[MigrationRoute]*slot.SlotRangeTracker{},
 			},
 			topoB: &ClusterTopology{
 				Masters: []*ClusterNode{
-					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
-					{ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+					{ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
 				},
-				Replicas: []*ClusterNode{},
-				Nodes:    map[string]*ClusterNode{},
+				Replicas:   []*ClusterNode{},
+				Nodes:      map[string]*ClusterNode{},
+				Migrations: map[MigrationRoute]*slot.SlotRangeTracker{},
 			},
 			expected: false,
 		},
 		{
 			name: "different replica count",
 			topoA: &ClusterTopology{
-				Masters: []*ClusterNode{{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 16383}}}},
+				Masters: []*ClusterNode{{ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 16383}}}},
 				Replicas: []*ClusterNode{
-					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r1", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m1"},
 				},
-				Nodes: map[string]*ClusterNode{"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 16383}}}},
+				Nodes: map[string]*ClusterNode{
+					"m1": {ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 16383}}},
+					"r1": {ID: "r1", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m1"},
+				},
+				Migrations: map[MigrationRoute]*slot.SlotRangeTracker{},
 			},
 			topoB: &ClusterTopology{
-				Masters: []*ClusterNode{{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 16383}}}},
+				Masters: []*ClusterNode{{ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 16383}}}},
 				Replicas: []*ClusterNode{
-					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
-					{ID: "r2", Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r1", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r2", Address: Address{Host: "valkey-2.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m1"},
 				},
-				Nodes: map[string]*ClusterNode{"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 16383}}}},
+				Nodes: map[string]*ClusterNode{
+					"m1": {ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 16383}}},
+					"r1": {ID: "r1", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m1"},
+					"r2": {ID: "r2", Address: Address{Host: "valkey-2.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m1"},
+				},
+				Migrations: map[MigrationRoute]*slot.SlotRangeTracker{},
 			},
 			expected: false,
 		},
@@ -245,97 +264,75 @@ func TestIsSameTopologyShape(t *testing.T) {
 			name: "same shape with different node IDs and addresses",
 			topoA: &ClusterTopology{
 				Masters: []*ClusterNode{
-					{ID: "old-m1", Address: Address{Host: "old1.example.com", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
-					{ID: "old-m2", Address: Address{Host: "old2.example.com", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+					{ID: "old-m1", Address: Address{Host: "valkey-0.old.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "old-m2", Address: Address{Host: "valkey-1.old.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
 				},
 				Replicas: []*ClusterNode{
-					{ID: "old-r1", Address: Address{Host: "old-r1.example.com", Port: 6379}, Role: NodeRoleSlave, MasterID: "old-m1"},
-					{ID: "old-r2", Address: Address{Host: "old-r2.example.com", Port: 6379}, Role: NodeRoleSlave, MasterID: "old-m2"},
+					{ID: "old-r1", Address: Address{Host: "valkey-2.old.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "old-m1"},
+					{ID: "old-r2", Address: Address{Host: "valkey-3.old.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "old-m2"},
 				},
 				Nodes: map[string]*ClusterNode{
-					"old-m1": {ID: "old-m1", Address: Address{Host: "old1.example.com", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
-					"old-m2": {ID: "old-m2", Address: Address{Host: "old2.example.com", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+					"old-m1": {ID: "old-m1", Address: Address{Host: "valkey-0.old.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					"old-m2": {ID: "old-m2", Address: Address{Host: "valkey-1.old.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+					"old-r1": {ID: "old-r1", Address: Address{Host: "valkey-2.old.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "old-m1"},
+					"old-r2": {ID: "old-r2", Address: Address{Host: "valkey-3.old.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "old-m2"},
 				},
+				Migrations: map[MigrationRoute]*slot.SlotRangeTracker{},
 			},
 			topoB: &ClusterTopology{
 				Masters: []*ClusterNode{
-					{ID: "new-m1", Address: Address{Host: "new1.example.com", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
-					{ID: "new-m2", Address: Address{Host: "new2.example.com", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+					{ID: "new-m1", Address: Address{Host: "valkey-0.new.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "new-m2", Address: Address{Host: "valkey-1.new.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
 				},
 				Replicas: []*ClusterNode{
-					{ID: "new-r1", Address: Address{Host: "new-r1.example.com", Port: 6379}, Role: NodeRoleSlave, MasterID: "new-m1"},
-					{ID: "new-r2", Address: Address{Host: "new-r2.example.com", Port: 6379}, Role: NodeRoleSlave, MasterID: "new-m2"},
+					{ID: "new-r1", Address: Address{Host: "valkey-2.new.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "new-m1"},
+					{ID: "new-r2", Address: Address{Host: "valkey-3.new.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "new-m2"},
 				},
 				Nodes: map[string]*ClusterNode{
-					"new-m1": {ID: "new-m1", Address: Address{Host: "new1.example.com", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
-					"new-m2": {ID: "new-m2", Address: Address{Host: "new2.example.com", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+					"new-m1": {ID: "new-m1", Address: Address{Host: "valkey-0.new.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					"new-m2": {ID: "new-m2", Address: Address{Host: "valkey-1.new.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+					"new-r1": {ID: "new-r1", Address: Address{Host: "valkey-2.new.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "new-m1"},
+					"new-r2": {ID: "new-r2", Address: Address{Host: "valkey-3.new.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "new-m2"},
 				},
+				Migrations: map[MigrationRoute]*slot.SlotRangeTracker{},
 			},
 			expected: true,
 		},
 		{
-			name: "replicas in different order but same distribution",
+			name: "same replica count but different master assignment",
 			topoA: &ClusterTopology{
 				Masters: []*ClusterNode{
-					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
-					{ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+					{ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
 				},
 				Replicas: []*ClusterNode{
-					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
-					{ID: "r2", Role: NodeRoleSlave, MasterID: "m2"},
-					{ID: "r3", Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r1", Address: Address{Host: "valkey-2.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r2", Address: Address{Host: "valkey-3.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m1"},
 				},
 				Nodes: map[string]*ClusterNode{
-					"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
-					"m2": {ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+					"m1": {ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					"m2": {ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+					"r1": {ID: "r1", Address: Address{Host: "valkey-2.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m1"},
+					"r2": {ID: "r2", Address: Address{Host: "valkey-3.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m1"},
 				},
+				Migrations: map[MigrationRoute]*slot.SlotRangeTracker{},
 			},
 			topoB: &ClusterTopology{
 				Masters: []*ClusterNode{
-					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
-					{ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+					{ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
 				},
 				Replicas: []*ClusterNode{
-					{ID: "r2", Role: NodeRoleSlave, MasterID: "m2"},
-					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
-					{ID: "r3", Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r1", Address: Address{Host: "valkey-2.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r2", Address: Address{Host: "valkey-3.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m2"},
 				},
 				Nodes: map[string]*ClusterNode{
-					"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
-					"m2": {ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+					"m1": {ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					"m2": {ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+					"r1": {ID: "r1", Address: Address{Host: "valkey-2.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m1"},
+					"r2": {ID: "r2", Address: Address{Host: "valkey-3.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m2"},
 				},
-			},
-			expected: true,
-		},
-		{
-			name: "different replica distribution",
-			topoA: &ClusterTopology{
-				Masters: []*ClusterNode{
-					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
-					{ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
-				},
-				Replicas: []*ClusterNode{
-					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
-					{ID: "r2", Role: NodeRoleSlave, MasterID: "m1"},
-				},
-				Nodes: map[string]*ClusterNode{
-					"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
-					"m2": {ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
-				},
-			},
-			topoB: &ClusterTopology{
-				Masters: []*ClusterNode{
-					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
-					{ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
-				},
-				Replicas: []*ClusterNode{
-					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
-					{ID: "r2", Role: NodeRoleSlave, MasterID: "m2"},
-				},
-				Nodes: map[string]*ClusterNode{
-					"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
-					"m2": {ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
-				},
+				Migrations: map[MigrationRoute]*slot.SlotRangeTracker{},
 			},
 			expected: false,
 		},
@@ -343,17 +340,19 @@ func TestIsSameTopologyShape(t *testing.T) {
 			name: "no replicas",
 			topoA: &ClusterTopology{
 				Masters: []*ClusterNode{
-					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 16383}}},
+					{ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 16383}}},
 				},
-				Replicas: []*ClusterNode{},
-				Nodes:    map[string]*ClusterNode{},
+				Replicas:   []*ClusterNode{},
+				Nodes:      map[string]*ClusterNode{},
+				Migrations: map[MigrationRoute]*slot.SlotRangeTracker{},
 			},
 			topoB: &ClusterTopology{
 				Masters: []*ClusterNode{
-					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 16383}}},
+					{ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 16383}}},
 				},
-				Replicas: []*ClusterNode{},
-				Nodes:    map[string]*ClusterNode{},
+				Replicas:   []*ClusterNode{},
+				Nodes:      map[string]*ClusterNode{},
+				Migrations: map[MigrationRoute]*slot.SlotRangeTracker{},
 			},
 			expected: true,
 		},
@@ -361,31 +360,37 @@ func TestIsSameTopologyShape(t *testing.T) {
 			name: "different slot ranges",
 			topoA: &ClusterTopology{
 				Masters: []*ClusterNode{
-					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 5000}}},
-					{ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 5001, End: 16383}}},
+					{ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 5000}}},
+					{ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 5001, End: 16383}}},
 				},
 				Replicas: []*ClusterNode{
-					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
-					{ID: "r2", Role: NodeRoleSlave, MasterID: "m2"},
+					{ID: "r1", Address: Address{Host: "valkey-2.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r2", Address: Address{Host: "valkey-3.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m2"},
 				},
 				Nodes: map[string]*ClusterNode{
-					"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 5000}}},
-					"m2": {ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 5001, End: 16383}}},
+					"m1": {ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 5000}}},
+					"m2": {ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 5001, End: 16383}}},
+					"r1": {ID: "r1", Address: Address{Host: "valkey-2.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m1"},
+					"r2": {ID: "r2", Address: Address{Host: "valkey-3.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m2"},
 				},
+				Migrations: map[MigrationRoute]*slot.SlotRangeTracker{},
 			},
 			topoB: &ClusterTopology{
 				Masters: []*ClusterNode{
-					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
-					{ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+					{ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
 				},
 				Replicas: []*ClusterNode{
-					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
-					{ID: "r2", Role: NodeRoleSlave, MasterID: "m2"},
+					{ID: "r1", Address: Address{Host: "valkey-2.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r2", Address: Address{Host: "valkey-3.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m2"},
 				},
 				Nodes: map[string]*ClusterNode{
-					"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
-					"m2": {ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+					"m1": {ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					"m2": {ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+					"r1": {ID: "r1", Address: Address{Host: "valkey-2.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m1"},
+					"r2": {ID: "r2", Address: Address{Host: "valkey-3.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m2"},
 				},
+				Migrations: map[MigrationRoute]*slot.SlotRangeTracker{},
 			},
 			expected: false,
 		},
@@ -393,41 +398,177 @@ func TestIsSameTopologyShape(t *testing.T) {
 			name: "multiple slot ranges per master",
 			topoA: &ClusterTopology{
 				Masters: []*ClusterNode{
-					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 1000}, {Start: 5000, End: 6000}}},
-					{ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 1001, End: 4999}, {Start: 6001, End: 16383}}},
+					{ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 1000}, {Start: 5000, End: 6000}}},
+					{ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 1001, End: 4999}, {Start: 6001, End: 16383}}},
 				},
 				Replicas: []*ClusterNode{
-					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
-					{ID: "r2", Role: NodeRoleSlave, MasterID: "m2"},
+					{ID: "r1", Address: Address{Host: "valkey-2.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r2", Address: Address{Host: "valkey-3.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m2"},
 				},
 				Nodes: map[string]*ClusterNode{
-					"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 1000}, {Start: 5000, End: 6000}}},
-					"m2": {ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 1001, End: 4999}, {Start: 6001, End: 16383}}},
+					"m1": {ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 1000}, {Start: 5000, End: 6000}}},
+					"m2": {ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 1001, End: 4999}, {Start: 6001, End: 16383}}},
+					"r1": {ID: "r1", Address: Address{Host: "valkey-2.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m1"},
+					"r2": {ID: "r2", Address: Address{Host: "valkey-3.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m2"},
 				},
+				Migrations: map[MigrationRoute]*slot.SlotRangeTracker{},
 			},
 			topoB: &ClusterTopology{
 				Masters: []*ClusterNode{
-					{ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 1000}, {Start: 5000, End: 6000}}},
-					{ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 1001, End: 4999}, {Start: 6001, End: 16383}}},
+					{ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 1000}, {Start: 5000, End: 6000}}},
+					{ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 1001, End: 4999}, {Start: 6001, End: 16383}}},
 				},
 				Replicas: []*ClusterNode{
-					{ID: "r1", Role: NodeRoleSlave, MasterID: "m1"},
-					{ID: "r2", Role: NodeRoleSlave, MasterID: "m2"},
+					{ID: "r1", Address: Address{Host: "valkey-2.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m1"},
+					{ID: "r2", Address: Address{Host: "valkey-3.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m2"},
 				},
 				Nodes: map[string]*ClusterNode{
-					"m1": {ID: "m1", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 1000}, {Start: 5000, End: 6000}}},
-					"m2": {ID: "m2", Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 1001, End: 4999}, {Start: 6001, End: 16383}}},
+					"m1": {ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 1000}, {Start: 5000, End: 6000}}},
+					"m2": {ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 1001, End: 4999}, {Start: 6001, End: 16383}}},
+					"r1": {ID: "r1", Address: Address{Host: "valkey-2.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m1"},
+					"r2": {ID: "r2", Address: Address{Host: "valkey-3.svc", Port: 6379}, Role: NodeRoleSlave, MasterID: "m2"},
 				},
+				Migrations: map[MigrationRoute]*slot.SlotRangeTracker{},
 			},
 			expected: true,
 		},
+		{
+			name: "topologies with migrations - same migrations",
+			topoA: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+				Replicas: []*ClusterNode{},
+				Nodes:    map[string]*ClusterNode{},
+				Migrations: func() map[MigrationRoute]*slot.SlotRangeTracker {
+					m := map[MigrationRoute]*slot.SlotRangeTracker{}
+					tracker := &slot.SlotRangeTracker{}
+					tracker.Add(slot.SlotRange{Start: 100, End: 200})
+					m[MigrationRoute{SourceIndex: 0, DestinationIndex: 1}] = tracker
+					return m
+				}(),
+			},
+			topoB: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+				Replicas: []*ClusterNode{},
+				Nodes:    map[string]*ClusterNode{},
+				Migrations: func() map[MigrationRoute]*slot.SlotRangeTracker {
+					m := map[MigrationRoute]*slot.SlotRangeTracker{}
+					tracker := &slot.SlotRangeTracker{}
+					tracker.Add(slot.SlotRange{Start: 100, End: 200})
+					m[MigrationRoute{SourceIndex: 0, DestinationIndex: 1}] = tracker
+					return m
+				}(),
+			},
+			expected: true,
+		},
+		{
+			name: "topologies with migrations - different migration routes",
+			topoA: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+				Replicas: []*ClusterNode{},
+				Nodes:    map[string]*ClusterNode{},
+				Migrations: func() map[MigrationRoute]*slot.SlotRangeTracker {
+					m := map[MigrationRoute]*slot.SlotRangeTracker{}
+					tracker := &slot.SlotRangeTracker{}
+					tracker.Add(slot.SlotRange{Start: 100, End: 200})
+					m[MigrationRoute{SourceIndex: 0, DestinationIndex: 1}] = tracker
+					return m
+				}(),
+			},
+			topoB: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+				Replicas: []*ClusterNode{},
+				Nodes:    map[string]*ClusterNode{},
+				Migrations: func() map[MigrationRoute]*slot.SlotRangeTracker {
+					m := map[MigrationRoute]*slot.SlotRangeTracker{}
+					tracker := &slot.SlotRangeTracker{}
+					tracker.Add(slot.SlotRange{Start: 100, End: 200})
+					m[MigrationRoute{SourceIndex: 1, DestinationIndex: 0}] = tracker
+					return m
+				}(),
+			},
+			expected: false,
+		},
+		{
+			name: "topologies with migrations - different slot ranges",
+			topoA: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+				Replicas: []*ClusterNode{},
+				Nodes:    map[string]*ClusterNode{},
+				Migrations: func() map[MigrationRoute]*slot.SlotRangeTracker {
+					m := map[MigrationRoute]*slot.SlotRangeTracker{}
+					tracker := &slot.SlotRangeTracker{}
+					tracker.Add(slot.SlotRange{Start: 100, End: 200})
+					m[MigrationRoute{SourceIndex: 0, DestinationIndex: 1}] = tracker
+					return m
+				}(),
+			},
+			topoB: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+				Replicas: []*ClusterNode{},
+				Nodes:    map[string]*ClusterNode{},
+				Migrations: func() map[MigrationRoute]*slot.SlotRangeTracker {
+					m := map[MigrationRoute]*slot.SlotRangeTracker{}
+					tracker := &slot.SlotRangeTracker{}
+					tracker.Add(slot.SlotRange{Start: 100, End: 300})
+					m[MigrationRoute{SourceIndex: 0, DestinationIndex: 1}] = tracker
+					return m
+				}(),
+			},
+			expected: false,
+		},
+		{
+			name: "different migration count",
+			topoA: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+				Replicas:   []*ClusterNode{},
+				Nodes:      map[string]*ClusterNode{},
+				Migrations: map[MigrationRoute]*slot.SlotRangeTracker{},
+			},
+			topoB: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{ID: "m1", Address: Address{Host: "valkey-0.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}}},
+					{ID: "m2", Address: Address{Host: "valkey-1.svc", Port: 6379}, Role: NodeRoleMaster, SlotRanges: []slot.SlotRange{{Start: 8192, End: 16383}}},
+				},
+				Replicas: []*ClusterNode{},
+				Nodes:    map[string]*ClusterNode{},
+				Migrations: func() map[MigrationRoute]*slot.SlotRangeTracker {
+					m := map[MigrationRoute]*slot.SlotRangeTracker{}
+					tracker := &slot.SlotRangeTracker{}
+					tracker.Add(slot.SlotRange{Start: 100, End: 200})
+					m[MigrationRoute{SourceIndex: 0, DestinationIndex: 1}] = tracker
+					return m
+				}(),
+			},
+			expected: false,
+		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := IsSameTopologyShape(tt.topoA, tt.topoB)
-			if result != tt.expected {
-				t.Errorf("IsSameTopologyShape() = %v, want %v", result, tt.expected)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := IsSameTopologyShape(test.topoA, test.topoB)
+			if result != test.expected {
+				t.Errorf("IsSameTopologyShape() = %v, want %v", result, test.expected)
 			}
 		})
 	}
@@ -843,6 +984,253 @@ func TestAddress_Index(t *testing.T) {
 
 			if got != test.want {
 				t.Errorf("Index() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestMatchNodes(t *testing.T) {
+	tests := []struct {
+		name            string
+		nodeA           *ClusterNode
+		nodeB           *ClusterNode
+		clusterNodeMapA ClusterNodeMap
+		clusterNodeMapB ClusterNodeMap
+		expectedMatch   bool
+		expectError     bool
+	}{
+		{
+			name: "matching master nodes with same index and slots",
+			nodeA: &ClusterNode{
+				ID:         "master-0",
+				Address:    Address{Host: "valkey-0.svc", Port: 6379},
+				Role:       NodeRoleMaster,
+				SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}},
+			},
+			nodeB: &ClusterNode{
+				ID:         "different-master-0",
+				Address:    Address{Host: "valkey-0.svc", Port: 6379},
+				Role:       NodeRoleMaster,
+				SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}},
+			},
+			clusterNodeMapA: ClusterNodeMap{},
+			clusterNodeMapB: ClusterNodeMap{},
+			expectedMatch:   true,
+			expectError:     false,
+		},
+		{
+			name: "master nodes with different indices",
+			nodeA: &ClusterNode{
+				ID:         "master-0",
+				Address:    Address{Host: "valkey-0.svc", Port: 6379},
+				Role:       NodeRoleMaster,
+				SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}},
+			},
+			nodeB: &ClusterNode{
+				ID:         "master-1",
+				Address:    Address{Host: "valkey-1.svc", Port: 6379},
+				Role:       NodeRoleMaster,
+				SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}},
+			},
+			clusterNodeMapA: ClusterNodeMap{},
+			clusterNodeMapB: ClusterNodeMap{},
+			expectedMatch:   false,
+			expectError:     false,
+		},
+		{
+			name: "master nodes with different slot ranges",
+			nodeA: &ClusterNode{
+				ID:         "master-0",
+				Address:    Address{Host: "valkey-0.svc", Port: 6379},
+				Role:       NodeRoleMaster,
+				SlotRanges: []slot.SlotRange{{Start: 0, End: 5000}},
+			},
+			nodeB: &ClusterNode{
+				ID:         "master-0",
+				Address:    Address{Host: "valkey-0.svc", Port: 6379},
+				Role:       NodeRoleMaster,
+				SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}},
+			},
+			clusterNodeMapA: ClusterNodeMap{},
+			clusterNodeMapB: ClusterNodeMap{},
+			expectedMatch:   false,
+			expectError:     false,
+		},
+		{
+			name: "master nodes with different role",
+			nodeA: &ClusterNode{
+				ID:         "master-0",
+				Address:    Address{Host: "valkey-0.svc", Port: 6379},
+				Role:       NodeRoleMaster,
+				SlotRanges: []slot.SlotRange{{Start: 0, End: 8191}},
+			},
+			nodeB: &ClusterNode{
+				ID:       "replica-0",
+				Address:  Address{Host: "valkey-0.svc", Port: 6379},
+				Role:     NodeRoleSlave,
+				MasterID: "master-0",
+			},
+			clusterNodeMapA: ClusterNodeMap{},
+			clusterNodeMapB: ClusterNodeMap{},
+			expectedMatch:   false,
+			expectError:     false,
+		},
+		{
+			name: "matching replica nodes pointing to same master index",
+			nodeA: &ClusterNode{
+				ID:       "replica-0",
+				Address:  Address{Host: "valkey-2.svc", Port: 6379},
+				Role:     NodeRoleSlave,
+				MasterID: "master-0",
+			},
+			nodeB: &ClusterNode{
+				ID:       "different-replica-0",
+				Address:  Address{Host: "valkey-2.svc", Port: 6379},
+				Role:     NodeRoleSlave,
+				MasterID: "different-master-0",
+			},
+			clusterNodeMapA: ClusterNodeMap{
+				"master-0": {
+					ID:      "master-0",
+					Address: Address{Host: "valkey-0.svc", Port: 6379},
+					Role:    NodeRoleMaster,
+				},
+			},
+			clusterNodeMapB: ClusterNodeMap{
+				"different-master-0": {
+					ID:      "different-master-0",
+					Address: Address{Host: "valkey-0.svc", Port: 6379},
+					Role:    NodeRoleMaster,
+				},
+			},
+			expectedMatch: true,
+			expectError:   false,
+		},
+		{
+			name: "replica nodes pointing to different master indices",
+			nodeA: &ClusterNode{
+				ID:       "replica-0",
+				Address:  Address{Host: "valkey-2.svc", Port: 6379},
+				Role:     NodeRoleSlave,
+				MasterID: "master-0",
+			},
+			nodeB: &ClusterNode{
+				ID:       "replica-1",
+				Address:  Address{Host: "valkey-2.svc", Port: 6379},
+				Role:     NodeRoleSlave,
+				MasterID: "master-1",
+			},
+			clusterNodeMapA: ClusterNodeMap{
+				"master-0": {
+					ID:      "master-0",
+					Address: Address{Host: "valkey-0.svc", Port: 6379},
+					Role:    NodeRoleMaster,
+				},
+			},
+			clusterNodeMapB: ClusterNodeMap{
+				"master-1": {
+					ID:      "master-1",
+					Address: Address{Host: "valkey-1.svc", Port: 6379},
+					Role:    NodeRoleMaster,
+				},
+			},
+			expectedMatch: false,
+			expectError:   false,
+		},
+		{
+			name: "replica nodes with different statefulset indices",
+			nodeA: &ClusterNode{
+				ID:       "replica-0",
+				Address:  Address{Host: "valkey-2.svc", Port: 6379},
+				Role:     NodeRoleSlave,
+				MasterID: "master-0",
+			},
+			nodeB: &ClusterNode{
+				ID:       "replica-1",
+				Address:  Address{Host: "valkey-3.svc", Port: 6379},
+				Role:     NodeRoleSlave,
+				MasterID: "master-0",
+			},
+			clusterNodeMapA: ClusterNodeMap{
+				"master-0": {
+					ID:      "master-0",
+					Address: Address{Host: "valkey-0.svc", Port: 6379},
+					Role:    NodeRoleMaster,
+				},
+			},
+			clusterNodeMapB: ClusterNodeMap{
+				"master-0": {
+					ID:      "master-0",
+					Address: Address{Host: "valkey-0.svc", Port: 6379},
+					Role:    NodeRoleMaster,
+				},
+			},
+			expectedMatch: false,
+			expectError:   false,
+		},
+		{
+			name: "master nodes with multiple slot ranges",
+			nodeA: &ClusterNode{
+				ID:      "master-0",
+				Address: Address{Host: "valkey-0.svc", Port: 6379},
+				Role:    NodeRoleMaster,
+				SlotRanges: []slot.SlotRange{
+					{Start: 0, End: 1000},
+					{Start: 5000, End: 6000},
+				},
+			},
+			nodeB: &ClusterNode{
+				ID:      "master-0",
+				Address: Address{Host: "valkey-0.svc", Port: 6379},
+				Role:    NodeRoleMaster,
+				SlotRanges: []slot.SlotRange{
+					{Start: 0, End: 1000},
+					{Start: 5000, End: 6000},
+				},
+			},
+			clusterNodeMapA: ClusterNodeMap{},
+			clusterNodeMapB: ClusterNodeMap{},
+			expectedMatch:   true,
+			expectError:     false,
+		},
+		{
+			name: "master nodes with different number of slot ranges",
+			nodeA: &ClusterNode{
+				ID:      "master-0",
+				Address: Address{Host: "valkey-0.svc", Port: 6379},
+				Role:    NodeRoleMaster,
+				SlotRanges: []slot.SlotRange{
+					{Start: 0, End: 1000},
+				},
+			},
+			nodeB: &ClusterNode{
+				ID:      "master-0",
+				Address: Address{Host: "valkey-0.svc", Port: 6379},
+				Role:    NodeRoleMaster,
+				SlotRanges: []slot.SlotRange{
+					{Start: 0, End: 1000},
+					{Start: 5000, End: 6000},
+				},
+			},
+			clusterNodeMapA: ClusterNodeMap{},
+			clusterNodeMapB: ClusterNodeMap{},
+			expectedMatch:   false,
+			expectError:     false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			match, err := matchNodes(test.nodeA, test.nodeB, test.clusterNodeMapA, test.clusterNodeMapB)
+
+			if test.expectError && err == nil {
+				t.Errorf("matchNodes() expected error but got nil")
+			}
+			if !test.expectError && err != nil {
+				t.Errorf("matchNodes() unexpected error: %v", err)
+			}
+			if match != test.expectedMatch {
+				t.Errorf("matchNodes() = %v, want %v", match, test.expectedMatch)
 			}
 		})
 	}
