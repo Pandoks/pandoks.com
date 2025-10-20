@@ -29,25 +29,17 @@ func CalculateSlotsToReconcile(currentTopology, desiredTopology *ClusterTopology
 	}
 
 	for _, currentMaster := range currentTopology.Masters {
-		currentMasterIndex, err := currentMaster.Address.Index()
-		if err != nil {
-			return nil, nil, err
-		}
 		for _, slotRange := range currentMaster.SlotRanges {
 			for slot := slotRange.Start; slot <= slotRange.End; slot++ {
-				currentSlotOwner[slot] = uint8(currentMasterIndex)
+				currentSlotOwner[slot] = uint8(currentMaster.Index)
 			}
 		}
 	}
 
 	for _, desiredMaster := range desiredTopology.Masters {
-		desiredMasterIndex, err := desiredMaster.Address.Index()
-		if err != nil {
-			return nil, nil, err
-		}
 		for _, slotRange := range desiredMaster.SlotRanges {
 			for slot := slotRange.Start; slot <= slotRange.End; slot++ {
-				desiredSlotOwner[slot] = uint8(desiredMasterIndex)
+				desiredSlotOwner[slot] = uint8(desiredMaster.Index)
 			}
 		}
 	}

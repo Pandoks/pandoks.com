@@ -55,15 +55,14 @@ func (m ClusterNodeMap) Array() []*ClusterNode {
 		nodes = append(nodes, node)
 	}
 	sort.Slice(nodes, func(i, j int) bool {
-		iIndex, _ := nodes[i].Address.Index()
-		jIndex, _ := nodes[j].Address.Index()
-		return iIndex < jIndex
+		return nodes[i].Index < nodes[j].Index
 	})
 	return nodes
 }
 
 type ClusterNode struct {
 	ID         string
+	Index      int
 	Address    Address
 	Role       NodeRole         // master | slave (we do not use inclusive language here)
 	MasterID   string           // "" for masters, otherwise the ID of the master
@@ -94,6 +93,7 @@ func DesiredTopology(valkeyCluster *valkeyv1.ValkeyCluster) *ClusterTopology {
 		masterId := fmt.Sprintf("master-%d", i)
 		masterNode := &ClusterNode{
 			ID:         masterId,
+			Index:      int(i),
 			Address:    Address{Host: masterId, Port: ValkeyClientPort},
 			Role:       NodeRoleMaster,
 			SlotRanges: []slot.SlotRange{desiredSlotRanges[i]},
@@ -107,6 +107,7 @@ func DesiredTopology(valkeyCluster *valkeyv1.ValkeyCluster) *ClusterTopology {
 			slaveId := fmt.Sprintf("replica-%d-%d-%d", i, j, statefulsetIndex)
 			slaveNode := &ClusterNode{
 				ID:        slaveId,
+				Index:     int(statefulsetIndex),
 				Address:   Address{Host: slaveId, Port: ValkeyClientPort},
 				Role:      NodeRoleSlave,
 				MasterID:  masterId,
@@ -187,30 +188,14 @@ func IsSameTopologyShape(topologyA, topologyB *ClusterTopology) bool {
 }
 
 func matchNodes(nodeA, nodeB *ClusterNode, clusterNodeMapA, clusterNodeMapB ClusterNodeMap) (bool, error) {
-	nodeAIndex, err := nodeA.Address.Index()
-	if err != nil {
-		return false, err
-	}
-	nodeBIndex, err := nodeB.Address.Index()
-	if err != nil {
-		return false, err
-	}
-	if nodeAIndex != nodeBIndex || nodeA.Role != nodeB.Role {
+	if nodeA.Index != nodeB.Index || nodeA.Role != nodeB.Role {
 		return false, nil
 	}
 
 	if nodeA.Role == NodeRoleSlave {
 		masterNodeA := clusterNodeMapA[nodeA.MasterID]
 		masterNodeB := clusterNodeMapB[nodeB.MasterID]
-		masterNodeAIndex, err := masterNodeA.Address.Index()
-		if err != nil {
-			return false, err
-		}
-		masterNodeBIndex, err := masterNodeB.Address.Index()
-		if err != nil {
-			return false, err
-		}
-		if masterNodeAIndex != masterNodeBIndex {
+		if masterNodeA.Index != masterNodeB.Index {
 			return false, nil
 		}
 	}

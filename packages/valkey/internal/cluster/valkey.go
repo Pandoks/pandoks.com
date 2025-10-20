@@ -39,7 +39,7 @@ func ConnectToValkeyNode(ctx context.Context, address string) (valkey.Client, er
 //	07c37dfeb235213a872192d05877c5d02d9a7e1f ipv4:6379@16379,hostname master - 0 1538428698000 1 connected 0-5460
 //	67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 ipv4:6379@16379,hostname master - 0 1538428699000 2 connected 5461-10922
 //	292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f ipv4:6379@16379,hostname master - 0 1538428697000 3 connected 10923-16383
-//	e7d1eecce10fd6bb5eb35b9f99a514335d9ba9ca ipv4:6379@16379,hostname slave 07c37dfeb235213a872192d05877c5d02d9a7e1f 0 1538428699000 4 connected
+//	e7d1eecce10fd6bb5eb35b9f99a514335d9ba9ca ipv4:6379@16379,hostname slave 07c37dfeb235213a872192d05877c5d02d9a7e1f (master id) 0 1538428699000 4 connected
 //	c8e7e5c5e6a7c5e6b7e8d9e0f1a2b3c4d5e6f7a8 ipv4:6379@16379,hostname slave 67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 0 1538428698000 5 connected
 //	a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0 ipv4:6379@16379,hostname slave 292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f 0 1538428698000 6 connected
 func QueryClusterNodes(ctx context.Context, client valkey.Client) (string, error) {
@@ -59,9 +59,10 @@ func QueryClusterNodes(ctx context.Context, client valkey.Client) (string, error
 
 func ParseClusterTopology(clusterNodeOutput, headlessService, namespace string) (*ClusterTopology, error) {
 	topology := &ClusterTopology{
-		Nodes:    map[string]*ClusterNode{},
-		Masters:  []*ClusterNode{},
-		Replicas: []*ClusterNode{},
+		Nodes:      map[string]*ClusterNode{},
+		Masters:    []*ClusterNode{},
+		Replicas:   []*ClusterNode{},
+		Migrations: map[MigrationRoute]*slot.SlotRangeTracker{},
 	}
 
 	lines := slices.Collect(strings.SplitSeq(strings.TrimSpace(clusterNodeOutput), "\n"))
@@ -87,7 +88,13 @@ func ParseClusterTopology(clusterNodeOutput, headlessService, namespace string) 
 			ipv4AddressParts := strings.Split(strings.Split(connectionInfoParts[0], "@")[0], ":")
 			clientPort, _ := strconv.ParseInt(ipv4AddressParts[1], 10, 64)
 			hostname := connectionInfoParts[1]
-			clusterNode.Address = Address{Host: hostname, Port: clientPort}
+			address := Address{Host: hostname, Port: clientPort}
+			clusterNode.Address = address
+			clusterNodeIndex, err := address.Index()
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse cluster node %s: %w", clusterNode.ID, err)
+			}
+			clusterNode.Index = clusterNodeIndex
 		} else {
 			return nil, fmt.Errorf("failed to parse cluster node %s: invalid connection info %s", clusterNode.ID, connectionInfo)
 		}
@@ -151,27 +158,14 @@ func ParseClusterTopology(clusterNodeOutput, headlessService, namespace string) 
 	}
 
 	if len(topology.Masters) > 0 {
-		for _, master := range topology.Masters {
-			if _, err := master.Address.Index(); err != nil {
-				return nil, fmt.Errorf("failed to parse master %s: %w", master.Address.Host, err)
-			}
-		}
+		// TODO: do the migration parsing here
 		sort.Slice(topology.Masters, func(i, j int) bool {
-			iIndex, _ := topology.Masters[i].Address.Index()
-			jIndex, _ := topology.Masters[j].Address.Index()
-			return iIndex < jIndex
+			return topology.Masters[i].Index < topology.Masters[j].Index
 		})
 	}
 	if len(topology.Replicas) > 0 {
-		for _, slave := range topology.Replicas {
-			if _, err := slave.Address.Index(); err != nil {
-				return nil, fmt.Errorf("failed to parse slave %s: %w", slave.Address.Host, err)
-			}
-		}
 		sort.Slice(topology.Replicas, func(i, j int) bool {
-			iIndex, _ := topology.Replicas[i].Address.Index()
-			jIndex, _ := topology.Replicas[j].Address.Index()
-			return iIndex < jIndex
+			return topology.Replicas[i].Index < topology.Replicas[j].Index
 		})
 	}
 
