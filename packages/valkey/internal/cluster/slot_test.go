@@ -21,12 +21,14 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				Masters: []*ClusterNode{
 					{
 						ID:         "m1",
+						Index:      0,
 						Address:    Address{Host: "valkey-0.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 8191}},
 					},
 					{
 						ID:         "m2",
+						Index:      1,
 						Address:    Address{Host: "valkey-1.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 8192, End: 16383}},
@@ -37,12 +39,14 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				Masters: []*ClusterNode{
 					{
 						ID:         "m1",
+						Index:      0,
 						Address:    Address{Host: "valkey-0.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 8191}},
 					},
 					{
 						ID:         "m2",
+						Index:      1,
 						Address:    Address{Host: "valkey-1.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 8192, End: 16383}},
@@ -59,12 +63,14 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				Masters: []*ClusterNode{
 					{
 						ID:         "m1",
+						Index:      0,
 						Address:    Address{Host: "valkey-0.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{},
 					},
 					{
 						ID:         "m2",
+						Index:      1,
 						Address:    Address{Host: "valkey-1.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{},
@@ -75,12 +81,14 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				Masters: []*ClusterNode{
 					{
 						ID:         "m1",
+						Index:      0,
 						Address:    Address{Host: "valkey-0.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 8191}},
 					},
 					{
 						ID:         "m2",
+						Index:      1,
 						Address:    Address{Host: "valkey-1.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 8192, End: 16383}},
@@ -112,12 +120,14 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				Masters: []*ClusterNode{
 					{
 						ID:         "m1",
+						Index:      0,
 						Address:    Address{Host: "valkey-0.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 12287}},
 					},
 					{
 						ID:         "m2",
+						Index:      1,
 						Address:    Address{Host: "valkey-1.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 12288, End: 16383}},
@@ -128,12 +138,14 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				Masters: []*ClusterNode{
 					{
 						ID:         "m1",
+						Index:      0,
 						Address:    Address{Host: "valkey-0.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 8191}},
 					},
 					{
 						ID:         "m2",
+						Index:      1,
 						Address:    Address{Host: "valkey-1.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 8192, End: 16383}},
@@ -158,12 +170,14 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				Masters: []*ClusterNode{
 					{
 						ID:         "m1",
+						Index:      0,
 						Address:    Address{Host: "valkey-0.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 4095}},
 					},
 					{
 						ID:         "m2",
+						Index:      1,
 						Address:    Address{Host: "valkey-1.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 4096, End: 16383}},
@@ -174,12 +188,14 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				Masters: []*ClusterNode{
 					{
 						ID:         "m1",
+						Index:      0,
 						Address:    Address{Host: "valkey-0.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 8191}},
 					},
 					{
 						ID:         "m2",
+						Index:      1,
 						Address:    Address{Host: "valkey-1.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 8192, End: 16383}},
@@ -204,18 +220,21 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				Masters: []*ClusterNode{
 					{
 						ID:         "m1",
+						Index:      0,
 						Address:    Address{Host: "valkey-0.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 10922}},
 					},
 					{
 						ID:         "m2",
+						Index:      1,
 						Address:    Address{Host: "valkey-1.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 10923, End: 13107}},
 					},
 					{
 						ID:         "m3",
+						Index:      2,
 						Address:    Address{Host: "valkey-2.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 13108, End: 16383}},
@@ -226,18 +245,21 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				Masters: []*ClusterNode{
 					{
 						ID:         "m1",
+						Index:      0,
 						Address:    Address{Host: "valkey-0.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 5461}},
 					},
 					{
 						ID:         "m2",
+						Index:      1,
 						Address:    Address{Host: "valkey-1.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 5462, End: 10922}},
 					},
 					{
 						ID:         "m3",
+						Index:      2,
 						Address:    Address{Host: "valkey-2.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 10923, End: 16383}},
@@ -269,12 +291,14 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				Masters: []*ClusterNode{
 					{
 						ID:         "m1",
+						Index:      0,
 						Address:    Address{Host: "valkey-0.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 5000}},
 					},
 					{
 						ID:         "m2",
+						Index:      1,
 						Address:    Address{Host: "valkey-1.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{},
@@ -285,12 +309,14 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				Masters: []*ClusterNode{
 					{
 						ID:         "m1",
+						Index:      0,
 						Address:    Address{Host: "valkey-0.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 8191}},
 					},
 					{
 						ID:         "m2",
+						Index:      1,
 						Address:    Address{Host: "valkey-1.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 8192, End: 16383}},
@@ -322,6 +348,7 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				Masters: []*ClusterNode{
 					{
 						ID:         "m1",
+						Index:      0,
 						Address:    Address{Host: "valkey-0.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 16383}},
@@ -332,12 +359,14 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				Masters: []*ClusterNode{
 					{
 						ID:         "m1",
+						Index:      0,
 						Address:    Address{Host: "valkey-0.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 8191}},
 					},
 					{
 						ID:         "m2",
+						Index:      1,
 						Address:    Address{Host: "valkey-1.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 8192, End: 16383}},
@@ -362,6 +391,7 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				Masters: []*ClusterNode{
 					{
 						ID:         "m1",
+						Index:      0,
 						Address:    Address{Host: "valkey-0.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 16383}},
@@ -372,6 +402,7 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				Masters: []*ClusterNode{
 					{
 						ID:         "m1",
+						Index:      0,
 						Address:    Address{Host: "valkey-0.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 16383}},
@@ -388,12 +419,14 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				Masters: []*ClusterNode{
 					{
 						ID:         "m1",
+						Index:      0,
 						Address:    Address{Host: "valkey-0.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 5000}, {Start: 12000, End: 16383}},
 					},
 					{
 						ID:         "m2",
+						Index:      1,
 						Address:    Address{Host: "valkey-1.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 5001, End: 11999}},
@@ -404,12 +437,14 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				Masters: []*ClusterNode{
 					{
 						ID:         "m1",
+						Index:      0,
 						Address:    Address{Host: "valkey-0.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 8191}},
 					},
 					{
 						ID:         "m2",
+						Index:      1,
 						Address:    Address{Host: "valkey-1.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 8192, End: 16383}},
@@ -441,12 +476,14 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				Masters: []*ClusterNode{
 					{
 						ID:         "m1",
+						Index:      0,
 						Address:    Address{Host: "valkey-0.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 10000}},
 					},
 					{
 						ID:         "m2",
+						Index:      1,
 						Address:    Address{Host: "valkey-1.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{},
@@ -457,12 +494,14 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				Masters: []*ClusterNode{
 					{
 						ID:         "m1",
+						Index:      0,
 						Address:    Address{Host: "valkey-0.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 8191}},
 					},
 					{
 						ID:         "m2",
+						Index:      1,
 						Address:    Address{Host: "valkey-1.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 8192, End: 16383}},
@@ -496,18 +535,21 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				Masters: []*ClusterNode{
 					{
 						ID:         "m1",
+						Index:      0,
 						Address:    Address{Host: "valkey-0.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 5461}},
 					},
 					{
 						ID:         "m2",
+						Index:      1,
 						Address:    Address{Host: "valkey-1.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 5462, End: 10922}},
 					},
 					{
 						ID:         "m3",
+						Index:      2,
 						Address:    Address{Host: "valkey-2.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 10923, End: 16383}},
@@ -518,12 +560,14 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 				Masters: []*ClusterNode{
 					{
 						ID:         "m1",
+						Index:      0,
 						Address:    Address{Host: "valkey-0.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 8191}},
 					},
 					{
 						ID:         "m2",
+						Index:      1,
 						Address:    Address{Host: "valkey-1.svc", Port: 6379},
 						Role:       NodeRoleMaster,
 						SlotRanges: []internalslot.SlotRange{{Start: 8192, End: 16383}},
