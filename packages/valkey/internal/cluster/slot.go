@@ -44,9 +44,23 @@ func CalculateSlotsToReconcile(currentTopology, desiredTopology *ClusterTopology
 		}
 	}
 
+	slotsBeingMigrated := make([]bool, internalslot.TotalSlots)
+	for _, tracker := range currentTopology.Migrations {
+		for _, slotRange := range tracker.SlotRanges() {
+			for slot := slotRange.Start; slot <= slotRange.End; slot++ {
+				slotsBeingMigrated[slot] = true
+			}
+		}
+	}
+
 	masterAddSlotRanges := make([]*internalslot.SlotRangeTracker, len(desiredTopology.Masters))
 	migrationRoutes := map[MigrationRoute]*internalslot.SlotRangeTracker{}
+
 	for slot := range internalslot.TotalSlots {
+		if slotsBeingMigrated[slot] == true {
+			continue
+		}
+
 		currentOwnerIndex := currentSlotOwner[slot]
 		desiredOwnerIndex := desiredSlotOwner[slot]
 

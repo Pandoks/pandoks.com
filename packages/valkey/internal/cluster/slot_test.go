@@ -593,6 +593,129 @@ func TestCalculateSlotsToReconcile(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "skip slots already in migration - importing",
+			currentTopology: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{
+						ID:         "m1",
+						Index:      0,
+						Address:    Address{Host: "valkey-0.svc", Port: 6379},
+						Role:       NodeRoleMaster,
+						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 5000}},
+					},
+					{
+						ID:         "m2",
+						Index:      1,
+						Address:    Address{Host: "valkey-1.svc", Port: 6379},
+						Role:       NodeRoleMaster,
+						SlotRanges: []internalslot.SlotRange{{Start: 5001, End: 16383}},
+					},
+				},
+				Migrations: map[MigrationRoute]*internalslot.SlotRangeTracker{
+					{SourceIndex: 1, DestinationIndex: 0}: func() *internalslot.SlotRangeTracker {
+						tracker := &internalslot.SlotRangeTracker{}
+						// Slots 5001-6000 are already being migrated
+						for i := 5001; i <= 6000; i++ {
+							tracker.Add(internalslot.SlotRange{Start: i, End: i})
+						}
+						return tracker
+					}(),
+				},
+			},
+			desiredTopology: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{
+						ID:         "m1",
+						Index:      0,
+						Address:    Address{Host: "valkey-0.svc", Port: 6379},
+						Role:       NodeRoleMaster,
+						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 8191}},
+					},
+					{
+						ID:         "m2",
+						Index:      1,
+						Address:    Address{Host: "valkey-1.svc", Port: 6379},
+						Role:       NodeRoleMaster,
+						SlotRanges: []internalslot.SlotRange{{Start: 8192, End: 16383}},
+					},
+				},
+			},
+			wantMasterAddSlots: []*internalslot.SlotRangeTracker{nil, nil},
+			wantMigrationRoutes: map[MigrationRoute]*internalslot.SlotRangeTracker{
+				{SourceIndex: 1, DestinationIndex: 0}: func() *internalslot.SlotRangeTracker {
+					tracker := &internalslot.SlotRangeTracker{}
+					// Should only include 6001-8191, skipping 5001-6000 that are already migrating
+					for i := 6001; i <= 8191; i++ {
+						tracker.Add(internalslot.SlotRange{Start: i, End: i})
+					}
+					return tracker
+				}(),
+			},
+			wantErr: false,
+		},
+		{
+			name: "skip unassigned slots already in migration",
+			currentTopology: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{
+						ID:         "m1",
+						Index:      0,
+						Address:    Address{Host: "valkey-0.svc", Port: 6379},
+						Role:       NodeRoleMaster,
+						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 8191}},
+					},
+					{
+						ID:         "m2",
+						Index:      1,
+						Address:    Address{Host: "valkey-1.svc", Port: 6379},
+						Role:       NodeRoleMaster,
+						SlotRanges: []internalslot.SlotRange{},
+					},
+				},
+				Migrations: map[MigrationRoute]*internalslot.SlotRangeTracker{
+					{SourceIndex: 0, DestinationIndex: 1}: func() *internalslot.SlotRangeTracker {
+						tracker := &internalslot.SlotRangeTracker{}
+						// Slots 0-100 are already being migrated from master 0 to master 1
+						for i := 0; i <= 100; i++ {
+							tracker.Add(internalslot.SlotRange{Start: i, End: i})
+						}
+						return tracker
+					}(),
+				},
+			},
+			desiredTopology: &ClusterTopology{
+				Masters: []*ClusterNode{
+					{
+						ID:         "m1",
+						Index:      0,
+						Address:    Address{Host: "valkey-0.svc", Port: 6379},
+						Role:       NodeRoleMaster,
+						SlotRanges: []internalslot.SlotRange{{Start: 0, End: 8191}},
+					},
+					{
+						ID:         "m2",
+						Index:      1,
+						Address:    Address{Host: "valkey-1.svc", Port: 6379},
+						Role:       NodeRoleMaster,
+						SlotRanges: []internalslot.SlotRange{{Start: 8192, End: 16383}},
+					},
+				},
+			},
+			wantMasterAddSlots: []*internalslot.SlotRangeTracker{
+				nil,
+				func() *internalslot.SlotRangeTracker {
+					tracker := &internalslot.SlotRangeTracker{}
+					// Add 8192-16383 for master 1
+					for i := 8192; i <= 16383; i++ {
+						tracker.Add(internalslot.SlotRange{Start: i, End: i})
+					}
+					return tracker
+				}(),
+			},
+			wantMigrationRoutes: map[MigrationRoute]*internalslot.SlotRangeTracker{},
+			wantErr:             false,
+		},
 	}
 
 	for _, test := range tests {
