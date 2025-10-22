@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -154,20 +155,26 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 	}
 
 	if err = r.reconcileCluster(ctx, valkeyCluster); err != nil {
-		logger.Error(err, "Failed to reconcile cluster's statefulset")
-		meta.SetStatusCondition(
-			&valkeyCluster.Status.Conditions,
-			metav1.Condition{
-				Type:    typeAvailable,
-				Status:  metav1.ConditionFalse,
-				Reason:  "ReconcileFailed",
-				Message: fmt.Sprintf("Failed to reconcile cluster's statefulset: %s", err),
-			},
-		)
-		if err = r.Status().Update(ctx, valkeyCluster); err != nil {
-			logger.Error(err, "Failed to update valkey cluster status")
+		switch {
+		case errors.Is(err, ErrNodesMeeting):
+			logger.Info("Nodes meeting, waiting for them to join the cluster")
+			return ctrlruntime.Result{RequeueAfter: 5 * time.Second}, nil
+		default:
+			logger.Error(err, "Failed to reconcile cluster's statefulset")
+			meta.SetStatusCondition(
+				&valkeyCluster.Status.Conditions,
+				metav1.Condition{
+					Type:    typeAvailable,
+					Status:  metav1.ConditionFalse,
+					Reason:  "ReconcileFailed",
+					Message: fmt.Sprintf("Failed to reconcile cluster's statefulset: %s", err),
+				},
+			)
+			if err = r.Status().Update(ctx, valkeyCluster); err != nil {
+				logger.Error(err, "Failed to update valkey cluster status")
+			}
+			return ctrlruntime.Result{}, err
 		}
-		return ctrlruntime.Result{}, err
 	}
 
 	if needsScaleDown {
