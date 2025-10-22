@@ -103,7 +103,6 @@ func ParseClusterTopology(clusterNodeOutput, headlessService, namespace string) 
 	}
 
 	if len(topology.Masters) > 0 {
-		// TODO: do the migration parsing here
 		sort.Slice(topology.Masters, func(i, j int) bool {
 			return topology.Masters[i].Index < topology.Masters[j].Index
 		})
@@ -112,6 +111,30 @@ func ParseClusterTopology(clusterNodeOutput, headlessService, namespace string) 
 		sort.Slice(topology.Replicas, func(i, j int) bool {
 			return topology.Replicas[i].Index < topology.Replicas[j].Index
 		})
+	}
+
+	for _, field := range fieldsPerLine {
+		// only need to parse imports or exports (we're choosing imports)
+		node := topology.Nodes[field.ID]
+		for sourceId, slotRangeTracker := range field.Imports {
+			if slotRangeTracker == nil {
+				continue
+			}
+
+			sourceNode := topology.Nodes[sourceId]
+			if sourceNode == nil {
+				return nil, fmt.Errorf("migration source %s not found in topology", sourceId)
+			}
+			sourceIndex := sourceNode.Index
+
+			for _, slotRange := range slotRangeTracker.SlotRanges() {
+				migrationRoute := MigrationRoute{SourceIndex: uint8(sourceIndex), DestinationIndex: uint8(node.Index)}
+				if topology.Migrations[migrationRoute] == nil {
+					topology.Migrations[migrationRoute] = &slot.SlotRangeTracker{}
+				}
+				topology.Migrations[migrationRoute].Add(slot.SlotRange{Start: slotRange.Start, End: slotRange.End})
+			}
+		}
 	}
 
 	return topology, nil

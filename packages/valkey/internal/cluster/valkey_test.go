@@ -257,30 +257,58 @@ c8e7e5c5e6a7c5e6b7e8d9e0f1a2b3c4d5e6f7a8 192.168.1.4:6379@16379,valkey-3.example
 			},
 		},
 		{
-			name:        "node with importing/migrating slots (should be skipped)",
-			input:       `07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.default.svc.cluster.local master - 0 1538428698000 1 connected 0-100 [200->-67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1] [300-<-292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f] 400-500`,
+			name: "node with importing/migrating slots with all nodes present",
+			input: `07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.default.svc.cluster.local master - 0 1538428698000 0 connected 0-100 [200->-67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1] [300-<-292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f] 400-500
+67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 192.168.1.2:6379@16379,valkey-1.example.default.svc.cluster.local master - 0 1538428699000 1 connected 5461-10922 [200-<-07c37dfeb235213a872192d05877c5d02d9a7e1f]
+292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f 192.168.1.3:6379@16379,valkey-2.example.default.svc.cluster.local master - 0 1538428697000 2 connected 10923-16383 [300->-07c37dfeb235213a872192d05877c5d02d9a7e1f]`,
 			expectError: false,
 			checkTopology: func(t *testing.T, topology *ClusterTopology) {
-				if len(topology.Masters) != 1 {
-					t.Fatalf("Masters count = %d, want 1", len(topology.Masters))
+				if len(topology.Masters) != 3 {
+					t.Fatalf("Masters count = %d, want 3", len(topology.Masters))
 				}
 
-				master := topology.Masters[0]
-				if len(master.SlotRanges) != 2 {
-					t.Fatalf("Master has %d slot ranges, want 2 (importing/migrating should be skipped)", len(master.SlotRanges))
+				// Check master 0 slot ranges (regular slots only, not migrations)
+				master0 := topology.Masters[0]
+				if len(master0.SlotRanges) != 2 {
+					t.Fatalf("Master[0] has %d slot ranges, want 2", len(master0.SlotRanges))
 				}
-
-				expectedRanges := []slot.SlotRange{
+				expectedRanges0 := []slot.SlotRange{
 					{Start: 0, End: 100},
 					{Start: 400, End: 500},
 				}
-
-				for i, slotRange := range master.SlotRanges {
-					if slotRange != expectedRanges[i] {
-						t.Errorf("SlotRange[%d] = [%d-%d], want [%d-%d]",
+				for i, slotRange := range master0.SlotRanges {
+					if slotRange != expectedRanges0[i] {
+						t.Errorf("Master[0] SlotRange[%d] = [%d-%d], want [%d-%d]",
 							i, slotRange.Start, slotRange.End,
-							expectedRanges[i].Start, expectedRanges[i].End)
+							expectedRanges0[i].Start, expectedRanges0[i].End)
 					}
+				}
+
+				// Check migrations
+				if len(topology.Migrations) != 2 {
+					t.Fatalf("Migrations count = %d, want 2", len(topology.Migrations))
+				}
+
+				// Migration from master 2 to master 0 (slot 300)
+				migrationRoute1 := MigrationRoute{SourceIndex: 2, DestinationIndex: 0}
+				migration1 := topology.Migrations[migrationRoute1]
+				if migration1 == nil {
+					t.Fatal("Migration from master 2 to master 0 not found")
+				}
+				migration1Ranges := migration1.SlotRanges()
+				if len(migration1Ranges) != 1 || migration1Ranges[0].Start != 300 || migration1Ranges[0].End != 300 {
+					t.Errorf("Migration from master 2 to master 0 = %v, want [300-300]", migration1Ranges)
+				}
+
+				// Migration from master 0 to master 1 (slot 200)
+				migrationRoute2 := MigrationRoute{SourceIndex: 0, DestinationIndex: 1}
+				migration2 := topology.Migrations[migrationRoute2]
+				if migration2 == nil {
+					t.Fatal("Migration from master 0 to master 1 not found")
+				}
+				migration2Ranges := migration2.SlotRanges()
+				if len(migration2Ranges) != 1 || migration2Ranges[0].Start != 200 || migration2Ranges[0].End != 200 {
+					t.Errorf("Migration from master 0 to master 1 = %v, want [200-200]", migration2Ranges)
 				}
 			},
 		},
@@ -336,7 +364,7 @@ invalid line with not enough fields
 		},
 		{
 			name:        "invalid slot ranges are skipped",
-			input:       `07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.default.svc.cluster.local master - 0 1538428698000 1 connected 0-100 invalid 200-300 999999 300-400`,
+			input:       `07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.default.svc.cluster.local master - 0 1538428698000 1 connected 0-100 invalid 200-300 999999 301-400`,
 			expectError: false,
 			checkTopology: func(t *testing.T, topology *ClusterTopology) {
 				if len(topology.Masters) != 1 {
@@ -344,14 +372,15 @@ invalid line with not enough fields
 				}
 
 				master := topology.Masters[0]
-				if len(master.SlotRanges) != 3 {
-					t.Fatalf("Master has %d slot ranges, want 3 (invalid ranges should be skipped)", len(master.SlotRanges))
+				// SlotRangeTracker merges adjacent ranges: 200-300 and 301-400 become 200-400
+				// Invalid ranges (invalid, 999999) are skipped
+				if len(master.SlotRanges) != 2 {
+					t.Fatalf("Master has %d slot ranges, want 2 (invalid ranges should be skipped, adjacent merged)", len(master.SlotRanges))
 				}
 
 				expectedRanges := []slot.SlotRange{
 					{Start: 0, End: 100},
-					{Start: 200, End: 300},
-					{Start: 300, End: 400},
+					{Start: 200, End: 400}, // merged from 200-300 and 301-400
 				}
 
 				for i, slotRange := range master.SlotRanges {
@@ -391,14 +420,175 @@ e7d1eecce10fd6bb5eb35b9f99a514335d9ba9ca 192.168.1.2:6379@16379,valkey-1.example
 			},
 		},
 		{
-			name:        "invalid connection info format (missing comma)",
-			input:       `07c37dfeb235213a872192d05877c5d02d9a7e1f valkey-0.example.com:6379@16379 master - 0 1538428698000 1 connected 0-5460`,
-			expectError: true,
+			name: "complex migration scenario - multiple migrations between multiple node pairs",
+			input: `07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.default.svc.cluster.local master - 0 1538428698000 0 connected 0-100 [500-<-67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1] [501-<-67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1]
+67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 192.168.1.2:6379@16379,valkey-1.example.default.svc.cluster.local master - 0 1538428699000 1 connected 200-300 [500->-07c37dfeb235213a872192d05877c5d02d9a7e1f] [501->-07c37dfeb235213a872192d05877c5d02d9a7e1f] [1000-<-292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f]
+292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f 192.168.1.3:6379@16379,valkey-2.example.default.svc.cluster.local master - 0 1538428697000 2 connected 400-600 [1000->-67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1]`,
+			expectError: false,
+			checkTopology: func(t *testing.T, topology *ClusterTopology) {
+				if len(topology.Masters) != 3 {
+					t.Fatalf("Masters count = %d, want 3", len(topology.Masters))
+				}
+
+				// Should have 2 migration routes
+				if len(topology.Migrations) != 2 {
+					t.Fatalf("Migrations count = %d, want 2", len(topology.Migrations))
+				}
+
+				// Migration from master 1 to master 0 (slots 500-501, merged)
+				migrationRoute1 := MigrationRoute{SourceIndex: 1, DestinationIndex: 0}
+				migration1 := topology.Migrations[migrationRoute1]
+				if migration1 == nil {
+					t.Fatal("Migration from master 1 to master 0 not found")
+				}
+				migration1Ranges := migration1.SlotRanges()
+				if len(migration1Ranges) != 1 || migration1Ranges[0].Start != 500 || migration1Ranges[0].End != 501 {
+					t.Errorf("Migration from master 1 to master 0 = %v, want [500-501]", migration1Ranges)
+				}
+
+				// Migration from master 2 to master 1 (slot 1000)
+				migrationRoute2 := MigrationRoute{SourceIndex: 2, DestinationIndex: 1}
+				migration2 := topology.Migrations[migrationRoute2]
+				if migration2 == nil {
+					t.Fatal("Migration from master 2 to master 1 not found")
+				}
+				migration2Ranges := migration2.SlotRanges()
+				if len(migration2Ranges) != 1 || migration2Ranges[0].Start != 1000 || migration2Ranges[0].End != 1000 {
+					t.Errorf("Migration from master 2 to master 1 = %v, want [1000-1000]", migration2Ranges)
+				}
+			},
 		},
 		{
-			name:        "invalid connection info format (missing @ symbol)",
+			name: "partial migration - some slots stable, others migrating",
+			input: `07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.default.svc.cluster.local master - 0 1538428698000 0 connected 0-5000 5100-5460 [5001-<-67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1]
+67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 192.168.1.2:6379@16379,valkey-1.example.default.svc.cluster.local master - 0 1538428699000 1 connected 5461-10922 [5001->-07c37dfeb235213a872192d05877c5d02d9a7e1f]
+292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f 192.168.1.3:6379@16379,valkey-2.example.default.svc.cluster.local master - 0 1538428697000 2 connected 10923-16383`,
+			expectError: false,
+			checkTopology: func(t *testing.T, topology *ClusterTopology) {
+				if len(topology.Masters) != 3 {
+					t.Fatalf("Masters count = %d, want 3", len(topology.Masters))
+				}
+
+				// Master 0 should have 2 slot ranges (stable slots, migration not counted)
+				master0 := topology.Masters[0]
+				if len(master0.SlotRanges) != 2 {
+					t.Fatalf("Master[0] has %d slot ranges, want 2", len(master0.SlotRanges))
+				}
+				if master0.SlotRanges[0].Start != 0 || master0.SlotRanges[0].End != 5000 {
+					t.Errorf("Master[0] range[0] = [%d-%d], want [0-5000]", master0.SlotRanges[0].Start, master0.SlotRanges[0].End)
+				}
+				if master0.SlotRanges[1].Start != 5100 || master0.SlotRanges[1].End != 5460 {
+					t.Errorf("Master[0] range[1] = [%d-%d], want [5100-5460]", master0.SlotRanges[1].Start, master0.SlotRanges[1].End)
+				}
+
+				// Should have 1 migration
+				if len(topology.Migrations) != 1 {
+					t.Fatalf("Migrations count = %d, want 1", len(topology.Migrations))
+				}
+
+				// Migration from master 1 to master 0 (slot 5001)
+				migrationRoute := MigrationRoute{SourceIndex: 1, DestinationIndex: 0}
+				migration := topology.Migrations[migrationRoute]
+				if migration == nil {
+					t.Fatal("Migration from master 1 to master 0 not found")
+				}
+				migrationRanges := migration.SlotRanges()
+				if len(migrationRanges) != 1 || migrationRanges[0].Start != 5001 || migrationRanges[0].End != 5001 {
+					t.Errorf("Migration = %v, want [5001-5001]", migrationRanges)
+				}
+
+				// Master 2 should have all stable slots
+				master2 := topology.Masters[2]
+				if len(master2.SlotRanges) != 1 {
+					t.Fatalf("Master[2] has %d slot ranges, want 1", len(master2.SlotRanges))
+				}
+			},
+		},
+		{
+			name: "invalid migration reference - migration references non-existent node",
+			input: `07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.default.svc.cluster.local master - 0 1538428698000 0 connected 0-100 [200-<-nonexistentnode1234567890abcdef12345678]
+67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 192.168.1.2:6379@16379,valkey-1.example.default.svc.cluster.local master - 0 1538428699000 1 connected 5461-10922`,
+			expectError: true, // Should error because source node doesn't exist
+		},
+		{
+			name: "disconnected nodes",
+			input: `07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.default.svc.cluster.local master - 0 1538428698000 1 connected 0-5460
+67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 192.168.1.2:6379@16379,valkey-1.example.default.svc.cluster.local master - 0 1538428699000 2 disconnected 5461-10922
+292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f 192.168.1.3:6379@16379,valkey-2.example.default.svc.cluster.local master - 0 1538428697000 3 connected 10923-16383`,
+			expectError: false,
+			checkTopology: func(t *testing.T, topology *ClusterTopology) {
+				if len(topology.Masters) != 3 {
+					t.Fatalf("Masters count = %d, want 3", len(topology.Masters))
+				}
+
+				// Master at index 1 should be disconnected
+				master1 := topology.Masters[1]
+				if master1.Connected {
+					t.Error("Master[1] Connected = true, want false (disconnected)")
+				}
+
+				// Other masters should be connected
+				if !topology.Masters[0].Connected {
+					t.Error("Master[0] Connected = false, want true")
+				}
+				if !topology.Masters[2].Connected {
+					t.Error("Master[2] Connected = false, want true")
+				}
+			},
+		},
+		{
+			name: "nodes with fail and noaddr flags",
+			input: `07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.default.svc.cluster.local master - 0 1538428698000 1 connected 0-5460
+67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 192.168.1.2:6379@16379,valkey-1.example.default.svc.cluster.local master,fail - 0 1538428699000 2 connected 5461-10922
+292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f :0@0,valkey-2.example.default.svc.cluster.local master,noaddr - 0 1538428697000 3 disconnected`,
+			expectError: false,
+			checkTopology: func(t *testing.T, topology *ClusterTopology) {
+				if len(topology.Masters) != 3 {
+					t.Fatalf("Masters count = %d, want 3", len(topology.Masters))
+				}
+
+				// Master 0 should be healthy
+				if !topology.Masters[0].Connected {
+					t.Error("Master[0] should be connected")
+				}
+
+				// Master 1 has fail flag but still connected status
+				if !topology.Masters[1].Connected {
+					t.Error("Master[1] should have connected status")
+				}
+
+				// Master 2 has noaddr and disconnected
+				master2 := topology.Masters[2]
+				if master2.Connected {
+					t.Error("Master[2] Connected = true, want false")
+				}
+				// noaddr means no IP/port info, just hostname
+				if master2.Address.Host != "valkey-2.example.default.svc.cluster.local" {
+					t.Errorf("Master[2] host = %s, want valkey-2.example.default.svc.cluster.local", master2.Address.Host)
+				}
+			},
+		},
+		{
+			name:        "invalid connection info format (missing comma) - line skipped",
+			input:       `07c37dfeb235213a872192d05877c5d02d9a7e1f valkey-0.example.com:6379@16379 master - 0 1538428698000 1 connected 0-5460`,
+			expectError: false,
+			checkTopology: func(t *testing.T, topology *ClusterTopology) {
+				// Invalid lines are skipped, so topology should be empty
+				if len(topology.Masters) != 0 {
+					t.Errorf("Masters count = %d, want 0 (invalid line should be skipped)", len(topology.Masters))
+				}
+			},
+		},
+		{
+			name:        "invalid connection info format (missing @ symbol) - line skipped",
 			input:       `07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379,valkey-0.example.default.svc.cluster.local master - 0 1538428698000 1 connected 0-5460`,
-			expectError: true,
+			expectError: false,
+			checkTopology: func(t *testing.T, topology *ClusterTopology) {
+				// Invalid lines are skipped, so topology should be empty
+				if len(topology.Masters) != 0 {
+					t.Errorf("Masters count = %d, want 0 (invalid line should be skipped)", len(topology.Masters))
+				}
+			},
 		},
 	}
 
