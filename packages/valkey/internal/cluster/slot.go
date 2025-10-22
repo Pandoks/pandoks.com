@@ -18,6 +18,16 @@ type MigrationRoute struct {
 	DestinationIndex uint8
 }
 
+type SlotBitset [256]uint64 // 16384 slots / 64 bits per uint64 = 256 uint64s
+
+func (b *SlotBitset) Set(slot int) {
+	b[slot/64] |= 1 << (slot % 64)
+}
+
+func (b *SlotBitset) IsSet(slot int) bool {
+	return b[slot/64]&(1<<(slot%64)) != 0
+}
+
 // masterAddSlotRanges: array of slot ranges to add to each master. It is ordered by master index so index 0 is master 0, index 1 is master 1, etc.
 //
 // migrationRoutes: map of migration routes. Key is the {source, destination} pair. Value is a slot range tracker.
