@@ -20,10 +20,12 @@ type ValkeyClusterSpec struct {
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=255
 	// +kubebuilder:validation:Required
-	Masters           int32                   `json:"masters"`
-	ReplicasPerMaster int32                   `json:"replicasPerMaster"`
-	StoragePerNode    resource.Quantity       `json:"storagePerNode"`
-	Persistence       []ValkeyPersistenceMode `json:"persistence,omitempty"`
+	Masters           int32 `json:"masters"`
+	ReplicasPerMaster int32 `json:"replicasPerMaster"`
+	// +optional
+	StoragePerNode resource.Quantity `json:"storagePerNode"`
+	// +optional
+	Persistence []ValkeyPersistenceMode `json:"persistence"`
 }
 
 type ValkeyClusterStatus struct {
@@ -43,8 +45,9 @@ type ValkeyCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   ValkeyClusterSpec   `json:"spec"`
-	Status ValkeyClusterStatus `json:"status,omitempty"` // ignore lsp, omitempty is needed
+	Spec ValkeyClusterSpec `json:"spec"`
+	// +optional
+	Status ValkeyClusterStatus `json:"status"`
 }
 
 // +kubebuilder:object:root=true
