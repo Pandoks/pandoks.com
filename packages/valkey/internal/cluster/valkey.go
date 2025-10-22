@@ -127,7 +127,9 @@ func getFieldsFromLine(line string) (fieldLine, error) {
 	}
 
 	fields := fieldLine{
-		Slots: &slot.SlotRangeTracker{},
+		Slots:   &slot.SlotRangeTracker{},
+		Imports: make(map[string]*slot.SlotRangeTracker),
+		Exports: make(map[string]*slot.SlotRangeTracker),
 	}
 	lineFields := strings.Fields(line)
 	if len(lineFields) < 8 {
@@ -150,7 +152,7 @@ func getFieldsFromLine(line string) (fieldLine, error) {
 		return fields, fmt.Errorf("failed to parse cluster node %s: invalid connection info %s", fields.ID, connectionInfo)
 	}
 
-	flags := slices.Collect(strings.SplitSeq(lineFields[2], "2"))
+	flags := slices.Collect(strings.SplitSeq(lineFields[2], ","))
 	for _, flag := range flags {
 		switch flag {
 		case "master", "primary":

@@ -422,3 +422,384 @@ e7d1eecce10fd6bb5eb35b9f99a514335d9ba9ca 192.168.1.2:6379@16379,valkey-1.example
 		})
 	}
 }
+
+func TestGetFieldsFromLine(t *testing.T) {
+	tests := []struct {
+		name        string
+		line        string
+		expectError bool
+		checkFields func(*testing.T, fieldLine)
+	}{
+		{
+			name:        "basic master node with slot range",
+			line:        "07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.com master - 0 1538428698000 1 connected 0-5460",
+			expectError: false,
+			checkFields: func(t *testing.T, f fieldLine) {
+				if f.ID != "07c37dfeb235213a872192d05877c5d02d9a7e1f" {
+					t.Errorf("ID = %s, want 07c37dfeb235213a872192d05877c5d02d9a7e1f", f.ID)
+				}
+				if f.Hostname != "valkey-0.example.com" {
+					t.Errorf("Hostname = %s, want valkey-0.example.com", f.Hostname)
+				}
+				if f.ClientPort != 6379 {
+					t.Errorf("ClientPort = %d, want 6379", f.ClientPort)
+				}
+				if f.BusPort != 16379 {
+					t.Errorf("BusPort = %d, want 16379", f.BusPort)
+				}
+				if f.Ipv4 != "192.168.1.1" {
+					t.Errorf("Ipv4 = %s, want 192.168.1.1", f.Ipv4)
+				}
+				if f.Role != NodeRoleMaster {
+					t.Errorf("Role = %s, want master", f.Role)
+				}
+				if !f.Connected {
+					t.Error("Connected = false, want true")
+				}
+				if f.Slots == nil {
+					t.Fatal("Slots is nil")
+				}
+				slotRanges := f.Slots.SlotRanges()
+				if len(slotRanges) != 1 {
+					t.Fatalf("Slots has %d ranges, want 1", len(slotRanges))
+				}
+				if slotRanges[0].Start != 0 || slotRanges[0].End != 5460 {
+					t.Errorf("Slot range = [%d-%d], want [0-5460]", slotRanges[0].Start, slotRanges[0].End)
+				}
+			},
+		},
+		{
+			name:        "replica node with slave keyword",
+			line:        "e7d1eecce10fd6bb5eb35b9f99a514335d9ba9ca 192.168.1.4:6379@16379,valkey-3.example.com slave 07c37dfeb235213a872192d05877c5d02d9a7e1f 0 1538428699000 4 connected",
+			expectError: false,
+			checkFields: func(t *testing.T, f fieldLine) {
+				if f.ID != "e7d1eecce10fd6bb5eb35b9f99a514335d9ba9ca" {
+					t.Errorf("ID = %s, want e7d1eecce10fd6bb5eb35b9f99a514335d9ba9ca", f.ID)
+				}
+				if f.Role != NodeRoleSlave {
+					t.Errorf("Role = %s, want slave", f.Role)
+				}
+				if f.MasterID != "07c37dfeb235213a872192d05877c5d02d9a7e1f" {
+					t.Errorf("MasterID = %s, want 07c37dfeb235213a872192d05877c5d02d9a7e1f", f.MasterID)
+				}
+				if !f.Connected {
+					t.Error("Connected = false, want true")
+				}
+			},
+		},
+		{
+			name:        "replica node with replica keyword",
+			line:        "e7d1eecce10fd6bb5eb35b9f99a514335d9ba9ca 192.168.1.4:6379@16379,valkey-3.example.com replica 07c37dfeb235213a872192d05877c5d02d9a7e1f 0 1538428699000 4 connected",
+			expectError: false,
+			checkFields: func(t *testing.T, f fieldLine) {
+				if f.Role != NodeRoleSlave {
+					t.Errorf("Role = %s, want slave", f.Role)
+				}
+				if f.MasterID != "07c37dfeb235213a872192d05877c5d02d9a7e1f" {
+					t.Errorf("MasterID = %s, want 07c37dfeb235213a872192d05877c5d02d9a7e1f", f.MasterID)
+				}
+			},
+		},
+		{
+			name:        "master with multiple slot ranges",
+			line:        "07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.com master - 0 1538428698000 1 connected 0-100 200-300 500-600",
+			expectError: false,
+			checkFields: func(t *testing.T, f fieldLine) {
+				slotRanges := f.Slots.SlotRanges()
+				if len(slotRanges) != 3 {
+					t.Fatalf("Slots has %d ranges, want 3", len(slotRanges))
+				}
+				expected := []slot.SlotRange{
+					{Start: 0, End: 100},
+					{Start: 200, End: 300},
+					{Start: 500, End: 600},
+				}
+				for i, r := range slotRanges {
+					if r != expected[i] {
+						t.Errorf("Range[%d] = [%d-%d], want [%d-%d]", i, r.Start, r.End, expected[i].Start, expected[i].End)
+					}
+				}
+			},
+		},
+		{
+			name:        "master with single slot numbers",
+			line:        "07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.com master - 0 1538428698000 1 connected 0 100 200",
+			expectError: false,
+			checkFields: func(t *testing.T, f fieldLine) {
+				slotRanges := f.Slots.SlotRanges()
+				if len(slotRanges) != 3 {
+					t.Fatalf("Slots has %d ranges, want 3", len(slotRanges))
+				}
+				expected := []slot.SlotRange{
+					{Start: 0, End: 0},
+					{Start: 100, End: 100},
+					{Start: 200, End: 200},
+				}
+				for i, r := range slotRanges {
+					if r != expected[i] {
+						t.Errorf("Range[%d] = [%d-%d], want [%d-%d]", i, r.Start, r.End, expected[i].Start, expected[i].End)
+					}
+				}
+			},
+		},
+		{
+			name:        "master with mixed slot ranges and single slots",
+			line:        "07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.com master - 0 1538428698000 1 connected 0-100 150 200-300",
+			expectError: false,
+			checkFields: func(t *testing.T, f fieldLine) {
+				slotRanges := f.Slots.SlotRanges()
+				if len(slotRanges) != 3 {
+					t.Fatalf("Slots has %d ranges, want 3", len(slotRanges))
+				}
+				expected := []slot.SlotRange{
+					{Start: 0, End: 100},
+					{Start: 150, End: 150},
+					{Start: 200, End: 300},
+				}
+				for i, r := range slotRanges {
+					if r != expected[i] {
+						t.Errorf("Range[%d] = [%d-%d], want [%d-%d]", i, r.Start, r.End, expected[i].Start, expected[i].End)
+					}
+				}
+			},
+		},
+		{
+			name:        "master with importing slot",
+			line:        "07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.com master - 0 1538428698000 1 connected 0-100 [300-<-292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f] 400-500",
+			expectError: false,
+			checkFields: func(t *testing.T, f fieldLine) {
+				// Check regular slots
+				slotRanges := f.Slots.SlotRanges()
+				if len(slotRanges) != 2 {
+					t.Fatalf("Slots has %d ranges, want 2", len(slotRanges))
+				}
+				expected := []slot.SlotRange{
+					{Start: 0, End: 100},
+					{Start: 400, End: 500},
+				}
+				for i, r := range slotRanges {
+					if r != expected[i] {
+						t.Errorf("Range[%d] = [%d-%d], want [%d-%d]", i, r.Start, r.End, expected[i].Start, expected[i].End)
+					}
+				}
+
+				// Check imports
+				if f.Imports == nil {
+					t.Fatal("Imports is nil")
+				}
+				importTracker := f.Imports["292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f"]
+				if importTracker == nil {
+					t.Fatal("Import tracker for master ID 292f8b365bb7edb5e285caf0b7e6ddc7265d2f4f is nil")
+				}
+				importRanges := importTracker.SlotRanges()
+				if len(importRanges) != 1 {
+					t.Fatalf("Import has %d ranges, want 1", len(importRanges))
+				}
+				if importRanges[0].Start != 300 || importRanges[0].End != 300 {
+					t.Errorf("Import range = [%d-%d], want [300-300]", importRanges[0].Start, importRanges[0].End)
+				}
+			},
+		},
+		{
+			name:        "master with exporting slot",
+			line:        "07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.com master - 0 1538428698000 1 connected 0-100 [200->-67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1] 400-500",
+			expectError: false,
+			checkFields: func(t *testing.T, f fieldLine) {
+				// Check regular slots
+				slotRanges := f.Slots.SlotRanges()
+				if len(slotRanges) != 2 {
+					t.Fatalf("Slots has %d ranges, want 2", len(slotRanges))
+				}
+
+				// Check exports
+				if f.Exports == nil {
+					t.Fatal("Exports is nil")
+				}
+				exportTracker := f.Exports["67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1"]
+				if exportTracker == nil {
+					t.Fatal("Export tracker for master ID 67ed2db8d677e59ec4a4cefb06858cf2a1a89fa1 is nil")
+				}
+				exportRanges := exportTracker.SlotRanges()
+				if len(exportRanges) != 1 {
+					t.Fatalf("Export has %d ranges, want 1", len(exportRanges))
+				}
+				if exportRanges[0].Start != 200 || exportRanges[0].End != 200 {
+					t.Errorf("Export range = [%d-%d], want [200-200]", exportRanges[0].Start, exportRanges[0].End)
+				}
+			},
+		},
+		{
+			name:        "master with multiple imports and exports",
+			line:        "07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.com master - 0 1538428698000 1 connected [100-<-aaa] [101-<-aaa] [200->-bbb] [201->-bbb] [300->-ccc]",
+			expectError: false,
+			checkFields: func(t *testing.T, f fieldLine) {
+				// Check imports from "aaa"
+				if f.Imports == nil {
+					t.Fatal("Imports is nil")
+				}
+				importTracker := f.Imports["aaa"]
+				if importTracker == nil {
+					t.Fatal("Import tracker for 'aaa' is nil")
+				}
+				importRanges := importTracker.SlotRanges()
+				if len(importRanges) != 1 {
+					t.Fatalf("Import has %d ranges, want 1 (should be merged)", len(importRanges))
+				}
+				if importRanges[0].Start != 100 || importRanges[0].End != 101 {
+					t.Errorf("Import range = [%d-%d], want [100-101]", importRanges[0].Start, importRanges[0].End)
+				}
+
+				// Check exports to "bbb"
+				if f.Exports == nil {
+					t.Fatal("Exports is nil")
+				}
+				exportTrackerBbb := f.Exports["bbb"]
+				if exportTrackerBbb == nil {
+					t.Fatal("Export tracker for 'bbb' is nil")
+				}
+				exportRangesBbb := exportTrackerBbb.SlotRanges()
+				if len(exportRangesBbb) != 1 {
+					t.Fatalf("Export to bbb has %d ranges, want 1 (should be merged)", len(exportRangesBbb))
+				}
+				if exportRangesBbb[0].Start != 200 || exportRangesBbb[0].End != 201 {
+					t.Errorf("Export range to bbb = [%d-%d], want [200-201]", exportRangesBbb[0].Start, exportRangesBbb[0].End)
+				}
+
+				// Check exports to "ccc"
+				exportTrackerCcc := f.Exports["ccc"]
+				if exportTrackerCcc == nil {
+					t.Fatal("Export tracker for 'ccc' is nil")
+				}
+				exportRangesCcc := exportTrackerCcc.SlotRanges()
+				if len(exportRangesCcc) != 1 {
+					t.Fatalf("Export to ccc has %d ranges, want 1", len(exportRangesCcc))
+				}
+				if exportRangesCcc[0].Start != 300 || exportRangesCcc[0].End != 300 {
+					t.Errorf("Export range to ccc = [%d-%d], want [300-300]", exportRangesCcc[0].Start, exportRangesCcc[0].End)
+				}
+			},
+		},
+		{
+			name:        "myself flag in master",
+			line:        "6ec23923021cf3ffec47632106199cb7f496ce01 192.168.1.3:7000@17000,valkey-0.example.com myself,master - 0 1507999952 0 connected 0-5460",
+			expectError: false,
+			checkFields: func(t *testing.T, f fieldLine) {
+				if f.Role != NodeRoleMaster {
+					t.Errorf("Role = %s, want master", f.Role)
+				}
+				if f.ClientPort != 7000 {
+					t.Errorf("ClientPort = %d, want 7000", f.ClientPort)
+				}
+			},
+		},
+		{
+			name:        "master with no slots",
+			line:        "07c37dfeb235213a872192d90877d0cd55635b91 192.168.1.2:7000@17000,valkey-0.example.com master - 0 1507999953498 1 connected",
+			expectError: false,
+			checkFields: func(t *testing.T, f fieldLine) {
+				if f.Role != NodeRoleMaster {
+					t.Errorf("Role = %s, want master", f.Role)
+				}
+				slotRanges := f.Slots.SlotRanges()
+				if len(slotRanges) != 0 {
+					t.Errorf("Slots has %d ranges, want 0", len(slotRanges))
+				}
+			},
+		},
+		{
+			name:        "empty line",
+			line:        "",
+			expectError: true,
+		},
+		{
+			name:        "line with less than 8 fields",
+			line:        "07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.com master - 0 1538428698000",
+			expectError: true,
+		},
+		{
+			name:        "invalid connection info - missing comma",
+			line:        "07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379 master - 0 1538428698000 1 connected 0-5460",
+			expectError: true,
+		},
+		{
+			name:        "invalid connection info - missing @ symbol",
+			line:        "07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379,valkey-0.example.com master - 0 1538428698000 1 connected 0-5460",
+			expectError: true,
+		},
+		{
+			name:        "invalid slot range - negative start",
+			line:        "07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.com master - 0 1538428698000 1 connected -1-100",
+			expectError: false,
+			checkFields: func(t *testing.T, f fieldLine) {
+				slotRanges := f.Slots.SlotRanges()
+				if len(slotRanges) != 0 {
+					t.Errorf("Slots has %d ranges, want 0 (invalid range should be skipped)", len(slotRanges))
+				}
+			},
+		},
+		{
+			name:        "invalid slot range - end >= TotalSlots",
+			line:        "07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.com master - 0 1538428698000 1 connected 0-16384",
+			expectError: false,
+			checkFields: func(t *testing.T, f fieldLine) {
+				slotRanges := f.Slots.SlotRanges()
+				if len(slotRanges) != 0 {
+					t.Errorf("Slots has %d ranges, want 0 (invalid range should be skipped)", len(slotRanges))
+				}
+			},
+		},
+		{
+			name:        "invalid slot range - start > end",
+			line:        "07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.com master - 0 1538428698000 1 connected 100-50",
+			expectError: false,
+			checkFields: func(t *testing.T, f fieldLine) {
+				slotRanges := f.Slots.SlotRanges()
+				if len(slotRanges) != 0 {
+					t.Errorf("Slots has %d ranges, want 0 (invalid range should be skipped)", len(slotRanges))
+				}
+			},
+		},
+		{
+			name:        "invalid single slot - too large",
+			line:        "07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.com master - 0 1538428698000 1 connected 999999",
+			expectError: false,
+			checkFields: func(t *testing.T, f fieldLine) {
+				slotRanges := f.Slots.SlotRanges()
+				if len(slotRanges) != 0 {
+					t.Errorf("Slots has %d ranges, want 0 (invalid slot should be skipped)", len(slotRanges))
+				}
+			},
+		},
+		{
+			name:        "non-numeric slot value",
+			line:        "07c37dfeb235213a872192d05877c5d02d9a7e1f 192.168.1.1:6379@16379,valkey-0.example.com master - 0 1538428698000 1 connected abc",
+			expectError: false,
+			checkFields: func(t *testing.T, f fieldLine) {
+				slotRanges := f.Slots.SlotRanges()
+				if len(slotRanges) != 0 {
+					t.Errorf("Slots has %d ranges, want 0 (invalid slot should be skipped)", len(slotRanges))
+				}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fields, err := getFieldsFromLine(test.line)
+
+			if test.expectError && err == nil {
+				t.Error("Expected error but got none")
+				return
+			}
+
+			if !test.expectError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+
+			if test.checkFields != nil {
+				test.checkFields(t, fields)
+			}
+		})
+	}
+}
