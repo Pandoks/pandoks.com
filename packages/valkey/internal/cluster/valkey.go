@@ -98,6 +98,19 @@ func ParseClusterTopology(clusterNodeOutput, headlessService, namespace string) 
 		} else {
 			return nil, fmt.Errorf("failed to parse cluster node %s: invalid connection info %s", clusterNode.ID, connectionInfo)
 		}
+type fieldLine struct {
+	ID         string
+	Hostname   string
+	ClientPort int
+	BusPort    int
+	Ipv4       string
+	Role       NodeRole
+	MasterID   string
+	Connected  bool
+	Slots      *slot.SlotRangeTracker
+	Imports    map[string]*slot.SlotRangeTracker // source ID -> slot ranges
+	Exports    map[string]*slot.SlotRangeTracker // destination ID -> slot ranges
+}
 
 		flags := slices.Collect(strings.SplitSeq(fields[2], ","))
 		for _, flag := range flags {
@@ -108,68 +121,111 @@ func ParseClusterTopology(clusterNodeOutput, headlessService, namespace string) 
 				clusterNode.Role = NodeRoleSlave
 				clusterNode.MasterID = fields[3]
 			}
+func getFieldsFromLine(line string) (fieldLine, error) {
+	if line == "" {
+		return fieldLine{}, fmt.Errorf("empty line")
+	}
+
+	fields := fieldLine{
+		Slots: &slot.SlotRangeTracker{},
+	}
+	lineFields := strings.Fields(line)
+	if len(lineFields) < 8 {
+		return fieldLine{}, fmt.Errorf("invalid line with less than 8 fields: %s", line)
+	}
+	fields.ID = lineFields[0]
+	fields.Connected = lineFields[7] == "connected"
+
+	connectionInfo := lineFields[1]
+	if strings.Contains(connectionInfo, "@") && strings.Contains(connectionInfo, ",") {
+		ipv4ClientBusHostname := strings.Split(connectionInfo, ",")
+		ipv4ClientBus, hostname := strings.Split(ipv4ClientBusHostname[0], "@"), ipv4ClientBusHostname[1]
+		ipv4Client, busPort := strings.Split(ipv4ClientBus[0], ":"), ipv4ClientBus[1]
+		ipv4, clientPort := ipv4Client[0], ipv4Client[1]
+		fields.Hostname = hostname
+		fields.ClientPort, _ = strconv.Atoi(clientPort)
+		fields.BusPort, _ = strconv.Atoi(busPort)
+		fields.Ipv4 = ipv4
+	} else {
+		return fields, fmt.Errorf("failed to parse cluster node %s: invalid connection info %s", fields.ID, connectionInfo)
+	}
+
+	flags := slices.Collect(strings.SplitSeq(lineFields[2], "2"))
+	for _, flag := range flags {
+		switch flag {
+		case "master", "primary":
+			fields.Role = NodeRoleMaster
+		case "slave", "replica":
+			fields.Role = NodeRoleSlave
+			fields.MasterID = lineFields[3]
 		}
+	}
 
-		if clusterNode.Role == NodeRoleMaster {
-			const slotRangeStartIndex = 8
-			for i := slotRangeStartIndex; i < len(fields); i++ {
-				stringSlotRange := fields[i]
-				if strings.HasPrefix(stringSlotRange, "[") && strings.HasSuffix(stringSlotRange, "]") {
-					continue
+	if fields.Role == NodeRoleMaster {
+		const slotRangeStartIndex = 8
+		for i := slotRangeStartIndex; i < len(lineFields); i++ {
+			stringSlotRange := lineFields[i]
+			if strings.HasPrefix(stringSlotRange, "[") && strings.HasSuffix(stringSlotRange, "]") {
+				migrationStrings := strings.Split(stringSlotRange[1:len(stringSlotRange)-1], "-")
+				slotNumber, importOrExport, masterId := migrationStrings[0], migrationStrings[1], migrationStrings[2]
+				switch importOrExport {
+				case "<":
+					if fields.Imports[masterId] == nil {
+						fields.Imports[masterId] = &slot.SlotRangeTracker{}
+					}
+					slotInt, err := strconv.Atoi(slotNumber)
+					if err != nil {
+						continue
+					}
+					fields.Imports[masterId].Add(slot.SlotRange{Start: slotInt, End: slotInt})
+				case ">":
+					if fields.Exports[masterId] == nil {
+						fields.Exports[masterId] = &slot.SlotRangeTracker{}
+					}
+					slotInt, err := strconv.Atoi(slotNumber)
+					if err != nil {
+						continue
+					}
+					fields.Exports[masterId].Add(slot.SlotRange{Start: slotInt, End: slotInt})
 				}
 
-				var slotRange slot.SlotRange
-				if strings.Contains(stringSlotRange, "-") {
-					slots := strings.Split(stringSlotRange, "-")
-					if len(slots) != 2 {
-						continue
-					}
-					start, err := strconv.Atoi(slots[0])
-					if err != nil {
-						continue
-					}
-					end, err := strconv.Atoi(slots[1])
-					if err != nil {
-						continue
-					}
-					if start < 0 || end >= slot.TotalSlots || start > end {
-						continue
-					}
-					slotRange = slot.SlotRange{Start: start, End: end}
-				} else {
-					slotNumber, err := strconv.Atoi(stringSlotRange)
-					if err != nil {
-						continue
-					}
-					if slotNumber < 0 || slotNumber >= slot.TotalSlots {
-						continue
-					}
-					slotRange = slot.SlotRange{Start: slotNumber, End: slotNumber}
-				}
-				clusterNode.SlotRanges = append(clusterNode.SlotRanges, slotRange)
+				continue
 			}
 
-			topology.Masters = append(topology.Masters, clusterNode)
-		} else if clusterNode.Role == NodeRoleSlave {
-			topology.Replicas = append(topology.Replicas, clusterNode)
+			var slotRange slot.SlotRange
+			if strings.Contains(stringSlotRange, "-") {
+				slots := strings.Split(stringSlotRange, "-")
+				if len(slots) != 2 {
+					continue
+				}
+				start, err := strconv.Atoi(slots[0])
+				if err != nil {
+					continue
+				}
+				end, err := strconv.Atoi(slots[1])
+				if err != nil {
+					continue
+				}
+				if start < 0 || end >= slot.TotalSlots || start > end {
+					continue
+				}
+				slotRange = slot.SlotRange{Start: start, End: end}
+			} else {
+				slotNumber, err := strconv.Atoi(stringSlotRange)
+				if err != nil {
+					continue
+				}
+				if slotNumber < 0 || slotNumber >= slot.TotalSlots {
+					continue
+				}
+				slotRange = slot.SlotRange{Start: slotNumber, End: slotNumber}
+			}
+
+			fields.Slots.Add(slotRange)
 		}
-
-		topology.Nodes[clusterNode.ID] = clusterNode
 	}
 
-	if len(topology.Masters) > 0 {
-		// TODO: do the migration parsing here
-		sort.Slice(topology.Masters, func(i, j int) bool {
-			return topology.Masters[i].Index < topology.Masters[j].Index
-		})
-	}
-	if len(topology.Replicas) > 0 {
-		sort.Slice(topology.Replicas, func(i, j int) bool {
-			return topology.Replicas[i].Index < topology.Replicas[j].Index
-		})
-	}
-
-	return topology, nil
+	return fields, nil
 }
 
 func GetTopology(ctx context.Context, client valkey.Client, headlessService, namespace string) (*ClusterTopology, error) {
