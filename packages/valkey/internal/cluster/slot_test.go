@@ -5,6 +5,182 @@ import (
 	internalslot "valkey/operator/internal/slot"
 )
 
+func TestSlotBitset(t *testing.T) {
+	tests := []struct {
+		name          string
+		slotsToSet    []int
+		slotsToCheck  []int
+		expectedIsSet []bool
+	}{
+		{
+			name:          "empty bitset - all slots unset",
+			slotsToSet:    []int{},
+			slotsToCheck:  []int{0, 100, 8191, 16383},
+			expectedIsSet: []bool{false, false, false, false},
+		},
+		{
+			name:          "set single slot - slot 0",
+			slotsToSet:    []int{0},
+			slotsToCheck:  []int{0, 1, 100},
+			expectedIsSet: []bool{true, false, false},
+		},
+		{
+			name:          "set single slot - slot 16383 (last slot)",
+			slotsToSet:    []int{16383},
+			slotsToCheck:  []int{16382, 16383, 0},
+			expectedIsSet: []bool{false, true, false},
+		},
+		{
+			name:          "set multiple slots in same uint64 bucket",
+			slotsToSet:    []int{0, 1, 2, 63},
+			slotsToCheck:  []int{0, 1, 2, 3, 63, 64},
+			expectedIsSet: []bool{true, true, true, false, true, false},
+		},
+		{
+			name:          "set slots across different uint64 buckets",
+			slotsToSet:    []int{0, 64, 128, 8192, 16383},
+			slotsToCheck:  []int{0, 63, 64, 127, 128, 8192, 16383},
+			expectedIsSet: []bool{true, false, true, false, true, true, true},
+		},
+		{
+			name:          "set boundary slots - 63, 64, 65",
+			slotsToSet:    []int{63, 64, 65},
+			slotsToCheck:  []int{62, 63, 64, 65, 66},
+			expectedIsSet: []bool{false, true, true, true, false},
+		},
+		{
+			name: "set all slots in first bucket (0-63)",
+			slotsToSet: func() []int {
+				slots := make([]int, 64)
+				for i := range slots {
+					slots[i] = i
+				}
+				return slots
+			}(),
+			slotsToCheck:  []int{0, 31, 63, 64},
+			expectedIsSet: []bool{true, true, true, false},
+		},
+		{
+			name: "set all slots in last bucket (16320-16383)",
+			slotsToSet: func() []int {
+				slots := make([]int, 64)
+				for i := range slots {
+					slots[i] = 16320 + i
+				}
+				return slots
+			}(),
+			slotsToCheck:  []int{16319, 16320, 16350, 16383},
+			expectedIsSet: []bool{false, true, true, true},
+		},
+		{
+			name:          "set random pattern of slots",
+			slotsToSet:    []int{10, 100, 1000, 5000, 8192, 10000, 15000},
+			slotsToCheck:  []int{10, 11, 100, 999, 1000, 5000, 8192, 10000, 15000, 16383},
+			expectedIsSet: []bool{true, false, true, false, true, true, true, true, true, false},
+		},
+		{
+			name:          "set same slot multiple times",
+			slotsToSet:    []int{42, 42, 42},
+			slotsToCheck:  []int{41, 42, 43},
+			expectedIsSet: []bool{false, true, false},
+		},
+		{
+			name:          "set consecutive range",
+			slotsToSet:    []int{100, 101, 102, 103, 104, 105},
+			slotsToCheck:  []int{99, 100, 103, 105, 106},
+			expectedIsSet: []bool{false, true, true, true, false},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var bitset SlotBitset
+
+			// Set the slots
+			for _, slot := range tt.slotsToSet {
+				bitset.Set(slot)
+			}
+
+			// Check the slots
+			for i, slot := range tt.slotsToCheck {
+				got := bitset.IsSet(slot)
+				want := tt.expectedIsSet[i]
+				if got != want {
+					t.Errorf("IsSet(%d) = %v, want %v", slot, got, want)
+				}
+			}
+		})
+	}
+}
+
+func TestSlotBitset_AllSlots(t *testing.T) {
+	var bitset SlotBitset
+
+	// Set all 16384 slots
+	for i := 0; i < 16384; i++ {
+		bitset.Set(i)
+	}
+
+	// Verify all slots are set
+	for i := 0; i < 16384; i++ {
+		if !bitset.IsSet(i) {
+			t.Errorf("Slot %d should be set but isn't", i)
+		}
+	}
+}
+
+func TestSlotBitset_EdgeCases(t *testing.T) {
+	t.Run("slot 0", func(t *testing.T) {
+		var bitset SlotBitset
+		if bitset.IsSet(0) {
+			t.Error("Slot 0 should be unset initially")
+		}
+		bitset.Set(0)
+		if !bitset.IsSet(0) {
+			t.Error("Slot 0 should be set after Set(0)")
+		}
+	})
+
+	t.Run("slot 16383", func(t *testing.T) {
+		var bitset SlotBitset
+		if bitset.IsSet(16383) {
+			t.Error("Slot 16383 should be unset initially")
+		}
+		bitset.Set(16383)
+		if !bitset.IsSet(16383) {
+			t.Error("Slot 16383 should be set after Set(16383)")
+		}
+	})
+
+	t.Run("bucket boundaries", func(t *testing.T) {
+		// Test boundaries of each uint64 bucket (every 64 slots)
+		for bucket := 0; bucket < 256; bucket++ {
+			var bitset SlotBitset // Create a fresh bitset for each bucket
+
+			slotStart := bucket * 64
+			slotEnd := slotStart + 63
+
+			bitset.Set(slotStart)
+			bitset.Set(slotEnd)
+
+			if !bitset.IsSet(slotStart) {
+				t.Errorf("Slot %d (bucket %d start) should be set", slotStart, bucket)
+			}
+			if !bitset.IsSet(slotEnd) {
+				t.Errorf("Slot %d (bucket %d end) should be set", slotEnd, bucket)
+			}
+
+			// Check that adjacent slots aren't accidentally set
+			if slotStart > 0 && bitset.IsSet(slotStart-1) {
+				t.Errorf("Slot %d should not be set", slotStart-1)
+			}
+			if slotEnd < 16383 && bitset.IsSet(slotEnd+1) {
+				t.Errorf("Slot %d should not be set", slotEnd+1)
+			}
+		}
+	})
+}
+
 func TestCalculateSlotsToReconcile(t *testing.T) {
 	tests := []struct {
 		name                string
