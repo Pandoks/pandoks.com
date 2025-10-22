@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	valkeyv1 "valkey/operator/api/v1"
@@ -15,6 +16,8 @@ import (
 )
 
 const slotMigrationConcurrency = 10
+
+var ErrNodesMeeting = errors.New("nodes meeting")
 
 // Steps to reconcile cluster:
 //
@@ -92,6 +95,9 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 			if err := seedClient.Do(ctx, meetCmd).Error(); err != nil {
 				return fmt.Errorf("failed to meet node %s: %w", address.String(), err)
 			}
+		}
+		if len(nodesToMeet) > 0 {
+			return ErrNodesMeeting
 		}
 
 		meta.SetStatusCondition(
@@ -205,7 +211,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 
 		if needToAddSlots {
 			logger.Info("Adding slots to masters", "slotsToAdd", slotsToAdd)
-			for i := range len(currentTopology.Masters) {
+			for i := range len(desiredTopology.Masters) {
 				slotsRangeTracker := slotsToAdd[i]
 				if slotsRangeTracker == nil {
 					continue
