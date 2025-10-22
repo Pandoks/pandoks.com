@@ -67,37 +67,56 @@ func ParseClusterTopology(clusterNodeOutput, headlessService, namespace string) 
 
 	lines := slices.Collect(strings.SplitSeq(strings.TrimSpace(clusterNodeOutput), "\n"))
 
+	fieldsPerLine := []fieldLine{}
 	for _, line := range lines {
-		if line == "" {
+		fields, err := getFieldsFromLine(line)
+		if err != nil {
+			continue
+		}
+		fieldsPerLine = append(fieldsPerLine, fields)
+
+		address := Address{
+			Host: fields.Hostname,
+			Port: int64(fields.ClientPort),
+		}
+		index, err := address.Index()
+		if err != nil {
 			continue
 		}
 
-		fields := strings.Fields(line)
-		if len(fields) < 8 {
-			continue
+		node := &ClusterNode{
+			ID:         fields.ID,
+			Index:      index,
+			Address:    address,
+			Role:       fields.Role,
+			MasterID:   fields.MasterID,
+			SlotRanges: fields.Slots.SlotRanges(),
+			Connected:  fields.Connected,
 		}
+		topology.Nodes[node.ID] = node
+		switch node.Role {
+		case NodeRoleMaster:
+			topology.Masters = append(topology.Masters, node)
+		case NodeRoleSlave:
+			topology.Replicas = append(topology.Replicas, node)
+		}
+	}
 
-		clusterNode := &ClusterNode{
-			ID:        fields[0],
-			Connected: fields[7] == "connected",
-		}
+	if len(topology.Masters) > 0 {
+		// TODO: do the migration parsing here
+		sort.Slice(topology.Masters, func(i, j int) bool {
+			return topology.Masters[i].Index < topology.Masters[j].Index
+		})
+	}
+	if len(topology.Replicas) > 0 {
+		sort.Slice(topology.Replicas, func(i, j int) bool {
+			return topology.Replicas[i].Index < topology.Replicas[j].Index
+		})
+	}
 
-		connectionInfo := fields[1]
-		if strings.Contains(connectionInfo, "@") && strings.Contains(connectionInfo, ",") {
-			connectionInfoParts := strings.Split(connectionInfo, ",")
-			ipv4AddressParts := strings.Split(strings.Split(connectionInfoParts[0], "@")[0], ":")
-			clientPort, _ := strconv.ParseInt(ipv4AddressParts[1], 10, 64)
-			hostname := connectionInfoParts[1]
-			address := Address{Host: hostname, Port: clientPort}
-			clusterNode.Address = address
-			clusterNodeIndex, err := address.Index()
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse cluster node %s: %w", clusterNode.ID, err)
-			}
-			clusterNode.Index = clusterNodeIndex
-		} else {
-			return nil, fmt.Errorf("failed to parse cluster node %s: invalid connection info %s", clusterNode.ID, connectionInfo)
-		}
+	return topology, nil
+}
+
 type fieldLine struct {
 	ID         string
 	Hostname   string
@@ -112,15 +131,6 @@ type fieldLine struct {
 	Exports    map[string]*slot.SlotRangeTracker // destination ID -> slot ranges
 }
 
-		flags := slices.Collect(strings.SplitSeq(fields[2], ","))
-		for _, flag := range flags {
-			switch flag {
-			case "master":
-				clusterNode.Role = NodeRoleMaster
-			case "slave", "replica":
-				clusterNode.Role = NodeRoleSlave
-				clusterNode.MasterID = fields[3]
-			}
 func getFieldsFromLine(line string) (fieldLine, error) {
 	if line == "" {
 		return fieldLine{}, fmt.Errorf("empty line")
@@ -128,8 +138,8 @@ func getFieldsFromLine(line string) (fieldLine, error) {
 
 	fields := fieldLine{
 		Slots:   &slot.SlotRangeTracker{},
-		Imports: make(map[string]*slot.SlotRangeTracker),
-		Exports: make(map[string]*slot.SlotRangeTracker),
+		Imports: map[string]*slot.SlotRangeTracker{},
+		Exports: map[string]*slot.SlotRangeTracker{},
 	}
 	lineFields := strings.Fields(line)
 	if len(lineFields) < 8 {
