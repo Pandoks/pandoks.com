@@ -30,14 +30,11 @@ type ValkeyClusterReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// The reconciler only creates the resources and makes sure the replicas for the statefulset are correct on top of slot migrations.
-// Everything else can be manually mutated directly through the cluster meaning that the operator won't overwrite your operations.
-// After creation, the ONLY thing that you won't be able to change is the replica number for the statefulset.
-func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime.Request) (ctrlruntime.Result, error) {
+func (r *ValkeyClusterReconciler) getValkeyClusterCrd(ctx context.Context, namespacedName types.NamespacedName) (*valkeyv1.ValkeyCluster, error) {
 	logger := log.FromContext(ctx)
 
 	valkeyCluster := &valkeyv1.ValkeyCluster{}
-	err := r.Get(ctx, req.NamespacedName, valkeyCluster)
+	err := r.Get(ctx, namespacedName, valkeyCluster)
 	if err != nil {
 		err = client.IgnoreNotFound(err)
 		if err == nil {
@@ -45,6 +42,19 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		} else {
 			logger.Error(err, "Failed to get valkey cluster")
 		}
+		return nil, err
+	}
+	return valkeyCluster, nil
+}
+
+// The reconciler only creates the resources and makes sure the replicas for the statefulset are correct on top of slot migrations.
+// Everything else can be manually mutated directly through the cluster meaning that the operator won't overwrite your operations.
+// After creation, the ONLY thing that you won't be able to change is the replica number for the statefulset.
+func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime.Request) (ctrlruntime.Result, error) {
+	logger := log.FromContext(ctx)
+
+	valkeyCluster, err := r.getValkeyClusterCrd(ctx, req.NamespacedName)
+	if err != nil {
 		return ctrlruntime.Result{}, err
 	}
 
