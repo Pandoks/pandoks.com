@@ -17,21 +17,6 @@ const (
 	ValkeyGossipPort = 16379 // same thing as bus port
 )
 
-// NOTE: need to manually close the client view valkey.Client.Close()
-func ConnectToValkeyNode(ctx context.Context, address string) (valkey.Client, error) {
-	client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{address}})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create client for %s: %w", address, err)
-	}
-
-	if err := client.Do(ctx, client.B().Ping().Build()).Error(); err != nil {
-		client.Close()
-		return nil, fmt.Errorf("failed to ping client for %s: %w", address, err)
-	}
-
-	return client, nil
-}
-
 // returns the string output of the CLUSTER NODES command
 //
 // example output:
