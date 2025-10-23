@@ -91,12 +91,35 @@ func CalculateSlotsToReconcile(currentTopology, desiredTopology *ClusterTopology
 	return masterAddSlotRanges, migrationRoutes, nil
 }
 
-func MigrateSlot(ctx context.Context, slot int64, migrationRoute MigrationRoute, clients []valkey.Client, currentTopology *ClusterTopology) error {
-	sourceClient := clients[migrationRoute.SourceIndex]
-	destClient := clients[migrationRoute.DestinationIndex]
+type MigrationInfo struct {
+	Clients struct {
+		Source      valkey.Client
+		Destination valkey.Client
+	}
+	Nodes struct {
+		Source      *ClusterNode
+		Destination *ClusterNode
+	}
+}
+type MigrationClients struct {
+	Source      valkey.Client
+	Destination valkey.Client
+}
+type MigrationNodes struct {
+	Source      *ClusterNode
+	Destination *ClusterNode
+}
 
-	sourceNode := currentTopology.Masters[migrationRoute.SourceIndex]
-	destNode := currentTopology.Masters[migrationRoute.DestinationIndex]
+func MigrateSlot(
+	ctx context.Context,
+	slot int64,
+	migrationInfo MigrationInfo,
+) error {
+	sourceClient := migrationInfo.Clients.Source
+	destClient := migrationInfo.Clients.Destination
+
+	sourceNode := migrationInfo.Nodes.Source
+	destNode := migrationInfo.Nodes.Destination
 
 	markSourceSlotMigratingCmd := sourceClient.B().
 		ClusterSetslot().
