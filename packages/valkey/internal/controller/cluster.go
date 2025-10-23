@@ -253,12 +253,19 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		}
 	}
 
-	for i, masterId := range enslavementMigration {
-		client := clients[i]
-		logger.Info("Enslaving node", "node", currentNodes[i].ID, "master", masterId)
+	currentNodes = currentTopology.Nodes.Array()
+	// NOTE: this is a map for loop dumb ass, nodeIndex is not the for loop index, it is the key
+	for nodeIndex, masterId := range enslavementMigration {
+		node := currentNodes[nodeIndex]
+		client := clients[addresses[nodeIndex]]
+
+		if node.ID == masterId {
+			return fmt.Errorf("BUG: trying to make node %s replicate itself (masterIdToReplicate=%s)", node.ID, masterId)
+		}
+
 		enslavementCmd := client.B().ClusterReplicate().NodeId(masterId).Build()
 		if err := client.Do(ctx, enslavementCmd).Error(); err != nil {
-			return fmt.Errorf("failed to enslave node %s: %w", currentNodes[i].ID, err)
+			return fmt.Errorf("failed to enslave node %s: %w", node.ID, err)
 		}
 	}
 
