@@ -59,6 +59,7 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 	}
 
 	if len(valkeyCluster.Status.Conditions) == 0 {
+		valkeyClusterCopy := valkeyCluster.DeepCopy()
 		meta.SetStatusCondition(
 			&valkeyCluster.Status.Conditions,
 			metav1.Condition{
@@ -67,8 +68,8 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 				Reason:  "Reconciling",
 				Message: "Starting reconciliation"},
 		)
-		if err = r.Status().Update(ctx, valkeyCluster); err != nil {
-			logger.Error(err, "Failed to update valkey cluster status")
+		if err = r.Status().Patch(ctx, valkeyCluster, client.MergeFrom(valkeyClusterCopy)); err != nil {
+			logger.Error(err, "Failed to patch valkey cluster status")
 			return ctrlruntime.Result{}, err
 		}
 	}
@@ -171,6 +172,7 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 			return ctrlruntime.Result{RequeueAfter: 5 * time.Second}, nil
 		default:
 			logger.Error(err, "Failed to reconcile cluster's statefulset")
+			valkeyClusterCopy := valkeyCluster.DeepCopy()
 			meta.SetStatusCondition(
 				&valkeyCluster.Status.Conditions,
 				metav1.Condition{
@@ -180,8 +182,8 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 					Message: fmt.Sprintf("Failed to reconcile cluster's statefulset: %s", err),
 				},
 			)
-			if err = r.Status().Update(ctx, valkeyCluster); err != nil {
-				logger.Error(err, "Failed to update valkey cluster status")
+			if err = r.Status().Patch(ctx, valkeyCluster, client.MergeFrom(valkeyClusterCopy)); err != nil {
+				logger.Error(err, "Failed to patch valkey cluster status")
 			}
 			return ctrlruntime.Result{}, err
 		}
@@ -196,6 +198,7 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		return ctrlruntime.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
+	valkeyClusterCopy := valkeyCluster.DeepCopy()
 	meta.SetStatusCondition(
 		&valkeyCluster.Status.Conditions,
 		metav1.Condition{
@@ -205,8 +208,8 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 			Message: "Cluster is ready",
 		},
 	)
-	if err = r.Status().Update(ctx, valkeyCluster); err != nil {
-		logger.Error(err, "Failed to update valkey cluster status")
+	if err = r.Status().Patch(ctx, valkeyCluster, client.MergeFrom(valkeyClusterCopy)); err != nil {
+		logger.Error(err, "Failed to patch valkey cluster status")
 	}
 
 	return ctrlruntime.Result{}, nil

@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrlruntime "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -145,6 +146,7 @@ func (r *ValkeyClusterReconciler) createStatefulSet(ctx context.Context, valkeyC
 	newStatefulSet, err := r.statefulSet(valkeyCluster)
 	if err != nil {
 		logger.Error(err, "Failed to define a new statefulset for valkey cluster")
+		valkeyClusterCopy := valkeyCluster.DeepCopy()
 		meta.SetStatusCondition(
 			&valkeyCluster.Status.Conditions,
 			metav1.Condition{
@@ -154,8 +156,8 @@ func (r *ValkeyClusterReconciler) createStatefulSet(ctx context.Context, valkeyC
 				Message: fmt.Sprintf("Failed to create statefulset for the custom resource (%s): (%s)", valkeyCluster.Name, err),
 			},
 		)
-		if err = r.Status().Update(ctx, valkeyCluster); err != nil {
-			logger.Error(err, "Failed to update valkey cluster status")
+		if err = r.Status().Patch(ctx, valkeyCluster, client.MergeFrom(valkeyClusterCopy)); err != nil {
+			logger.Error(err, "Failed to patch valkey cluster status")
 		}
 		return err
 	}
@@ -202,6 +204,7 @@ func (r *ValkeyClusterReconciler) createHeadlessService(ctx context.Context, val
 	newHeadlessService, err := r.headlessService(valkeyCluster)
 	if err != nil {
 		logger.Error(err, "Failed to define new headless service for valkey cluster")
+		valkeyClusterCopy := valkeyCluster.DeepCopy()
 		meta.SetStatusCondition(
 			&valkeyCluster.Status.Conditions,
 			metav1.Condition{
@@ -211,8 +214,8 @@ func (r *ValkeyClusterReconciler) createHeadlessService(ctx context.Context, val
 				Message: fmt.Sprintf("Failed to create headlessService for the custom resource (%s): (%s)", valkeyCluster.Name, err),
 			},
 		)
-		if err = r.Status().Update(ctx, valkeyCluster); err != nil {
-			logger.Error(err, "Failed to update valkey cluster status")
+		if err := r.Status().Patch(ctx, valkeyCluster, client.MergeFrom(valkeyClusterCopy)); err != nil {
+			logger.Error(err, "Failed to patch valkey cluster status")
 		}
 		return err
 	}
@@ -255,6 +258,7 @@ func (r *ValkeyClusterReconciler) createMasterService(ctx context.Context, valke
 	newMasterService, err := r.masterService(valkeyCluster)
 	if err != nil {
 		logger.Error(err, "Failed to define new master service for valkey cluster")
+		valkeyClusterCopy := valkeyCluster.DeepCopy()
 		meta.SetStatusCondition(
 			&valkeyCluster.Status.Conditions,
 			metav1.Condition{
@@ -264,8 +268,8 @@ func (r *ValkeyClusterReconciler) createMasterService(ctx context.Context, valke
 				Message: fmt.Sprintf("Failed to create master service for the custom resource (%s): (%s)", valkeyCluster.Name, err),
 			},
 		)
-		if err = r.Status().Update(ctx, valkeyCluster); err != nil {
-			logger.Error(err, "Failed to update valkey cluster status")
+		if err := r.Status().Patch(ctx, valkeyCluster, client.MergeFrom(valkeyClusterCopy)); err != nil {
+			logger.Error(err, "Failed to patch valkey cluster status")
 		}
 		return err
 	}
@@ -308,6 +312,7 @@ func (r *ValkeyClusterReconciler) createSlaveService(ctx context.Context, valkey
 	newSlaveService, err := r.slaveService(valkeyCluster)
 	if err != nil {
 		logger.Error(err, "Failed to define new slave service for valkey cluster")
+		valkeyClusterCopy := valkeyCluster.DeepCopy()
 		meta.SetStatusCondition(
 			&valkeyCluster.Status.Conditions,
 			metav1.Condition{
@@ -317,8 +322,8 @@ func (r *ValkeyClusterReconciler) createSlaveService(ctx context.Context, valkey
 				Message: fmt.Sprintf("Failed to create slave service for the custom resource (%s): (%s)", valkeyCluster.Name, err),
 			},
 		)
-		if err = r.Status().Update(ctx, valkeyCluster); err != nil {
-			logger.Error(err, "Failed to update valkey cluster status")
+		if err = r.Status().Patch(ctx, valkeyCluster, client.MergeFrom(valkeyClusterCopy)); err != nil {
+			logger.Error(err, "Failed to patch valkey cluster status")
 		}
 		return err
 	}

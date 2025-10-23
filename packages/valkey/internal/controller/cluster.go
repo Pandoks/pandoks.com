@@ -13,6 +13,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -81,6 +82,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		}
 
 		logger.Info("Meeting standalone valkey nodes that aren't part of the current cluster")
+		valkeyClusterCopy := valkeyCluster.DeepCopy()
 		meta.SetStatusCondition(
 			&valkeyCluster.Status.Conditions,
 			metav1.Condition{
@@ -90,8 +92,8 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 				Message: "Meeting standalone valkey nodes that aren't part of the current cluster in progress",
 			},
 		)
-		if err := r.Status().Update(ctx, valkeyCluster); err != nil {
-			logger.Error(err, "Failed to update valkey cluster status")
+		if err = r.Status().Patch(ctx, valkeyCluster, client.MergeFrom(valkeyClusterCopy)); err != nil {
+			logger.Error(err, "Failed to patch valkey cluster status")
 		}
 
 		for _, address := range nodesToMeet {
@@ -167,6 +169,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 	}
 	needToMigrateSlots := len(slotsToMigrate) > 0
 	if needToAddSlots || needToMigrateSlots {
+		valkeyClusterCopy := valkeyCluster.DeepCopy()
 		meta.SetStatusCondition(
 			&valkeyCluster.Status.Conditions,
 			metav1.Condition{
@@ -176,8 +179,8 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 				Message: "Reconciling slots in progress",
 			},
 		)
-		if err := r.Status().Update(ctx, valkeyCluster); err != nil {
-			logger.Error(err, "Failed to update valkey cluster status")
+		if err = r.Status().Patch(ctx, valkeyCluster, client.MergeFrom(valkeyClusterCopy)); err != nil {
+			logger.Error(err, "Failed to patch valkey cluster status")
 		}
 
 		if needToAddSlots {
@@ -234,6 +237,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 			}
 		}
 
+		valkeyClusterCopy = valkeyCluster.DeepCopy()
 		meta.SetStatusCondition(
 			&valkeyCluster.Status.Conditions,
 			metav1.Condition{
@@ -243,8 +247,8 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 				Message: "Reconciling slots succeeded",
 			},
 		)
-		if err := r.Status().Update(ctx, valkeyCluster); err != nil {
-			logger.Error(err, "Failed to update valkey cluster status")
+		if err = r.Status().Patch(ctx, valkeyCluster, client.MergeFrom(valkeyClusterCopy)); err != nil {
+			logger.Error(err, "Failed to patch valkey cluster status")
 		}
 
 		currentTopology, err = cluster.GetTopology(ctx, seedClient, headlessServiceName, namespace)
