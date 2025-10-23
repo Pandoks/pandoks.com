@@ -333,7 +333,7 @@ func (r *ValkeyClusterReconciler) createSlaveService(ctx context.Context, valkey
 	return nil
 }
 
-// fqdn: fully qualified domain name
+// fqdn: fully qualified domain name. Ordered by statefulset index
 func (r *ValkeyClusterReconciler) valkeyClientAddresses(valkeyCluster *valkeyv1.ValkeyCluster) []cluster.Address {
 	replicas := r.calculateReplicas(valkeyCluster)
 
@@ -349,4 +349,12 @@ func (r *ValkeyClusterReconciler) valkeyClientAddresses(valkeyCluster *valkeyv1.
 		addresses = append(addresses, cluster.Address{Host: host, Port: port})
 	}
 	return addresses
+}
+
+func stringifyAddresses(addresses []cluster.Address) []string {
+	var stringifiedAddresses []string
+	for _, address := range addresses {
+		stringifiedAddresses = append(stringifiedAddresses, address.String())
+	}
+	return stringifiedAddresses
 }
