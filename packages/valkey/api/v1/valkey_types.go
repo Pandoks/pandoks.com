@@ -13,6 +13,11 @@ const PersistenceRDB ValkeyPersistenceMode = "rdb"
 const PersistenceAOF ValkeyPersistenceMode = "aof"
 const PersistenceNA ValkeyPersistenceMode = ""
 
+type PersistenceSpec struct {
+	Modes          []ValkeyPersistenceMode `json:"modes"`
+	StoragePerNode resource.Quantity       `json:"storagePerNode"`
+}
+
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 type ValkeyClusterSpec struct {
 	// Maximum of 255 masters becuase index is uint8.
@@ -23,9 +28,7 @@ type ValkeyClusterSpec struct {
 	Masters           int32 `json:"masters"`
 	ReplicasPerMaster int32 `json:"replicasPerMaster"`
 	// +optional
-	StoragePerNode resource.Quantity `json:"storagePerNode"`
-	// +optional
-	Persistence []ValkeyPersistenceMode `json:"persistence"`
+	Persistence PersistenceSpec `json:"persistence,omitempty"`
 }
 
 type ValkeyClusterStatus struct {

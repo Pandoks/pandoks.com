@@ -48,7 +48,7 @@ func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyClus
 		},
 	}
 
-	if len(valkeyCluster.Spec.Persistence) > 0 {
+	if len(valkeyCluster.Spec.Persistence.Modes) > 0 {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      valkeyDataMountName,
 			MountPath: valkeyDataMountPath,
@@ -64,7 +64,7 @@ func (r *ValkeyClusterReconciler) statefulSet(valkeyCluster *valkeyv1.ValkeyClus
 				},
 				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
-						corev1.ResourceStorage: valkeyCluster.Spec.StoragePerNode,
+						corev1.ResourceStorage: valkeyCluster.Spec.Persistence.StoragePerNode,
 					},
 				},
 			},
