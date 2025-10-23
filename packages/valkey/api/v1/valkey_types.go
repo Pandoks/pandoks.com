@@ -28,7 +28,7 @@ type ValkeyClusterSpec struct {
 	Masters           int32 `json:"masters"`
 	ReplicasPerMaster int32 `json:"replicasPerMaster"`
 	// +optional
-	Persistence PersistenceSpec `json:"persistence,omitempty"`
+	Persistence PersistenceSpec `json:"persistence"`
 }
 
 type ValkeyClusterStatus struct {
