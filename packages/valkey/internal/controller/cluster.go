@@ -7,6 +7,7 @@ import (
 	"net"
 	valkeyv1 "valkey/operator/api/v1"
 	"valkey/operator/internal/cluster"
+	"valkey/operator/internal/slot"
 
 	"github.com/valkey-io/valkey-go"
 	"golang.org/x/sync/errgroup"
@@ -32,21 +33,11 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 	if len(clientAddresses) == 0 {
 		return fmt.Errorf("no pod FQDNs provided")
 	}
+	addresses := stringifyAddresses(clientAddresses)
 
-	resolver := &net.Resolver{}
-	addressToIP := make(map[cluster.Address]net.IP, len(clientAddresses))
-	for _, address := range clientAddresses {
-		ips, err := resolver.LookupIP(ctx, "ip4", address.Host)
-		if err != nil {
-			return fmt.Errorf("failed to resolve IP for %s: %w", address.String(), err)
-		}
-		if len(ips) == 0 {
-			return fmt.Errorf("failed to resolve IP for %s: no IPs found", address.String())
-		}
-		addressToIP[address] = ips[0]
-	}
-
-	seedClient, err := cluster.ConnectToValkeyNode(ctx, clientAddresses[0].String())
+	seedClient, err := valkey.NewClient(valkey.ClientOption{
+		InitAddress: []string{addresses[0]},
+	})
 	if err != nil {
 		return fmt.Errorf("failed to connect to seed node: %w", err)
 	}
@@ -76,6 +67,19 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		}
 	}
 	if len(nodesToMeet) > 0 {
+		resolver := &net.Resolver{}
+		addressToIP := make(map[cluster.Address]net.IP, len(clientAddresses))
+		for _, address := range clientAddresses {
+			ips, err := resolver.LookupIP(ctx, "ip4", address.Host)
+			if err != nil {
+				return fmt.Errorf("failed to resolve IP for %s: %w", address.String(), err)
+			}
+			if len(ips) == 0 {
+				return fmt.Errorf("failed to resolve IP for %s: no IPs found", address.String())
+			}
+			addressToIP[address] = ips[0]
+		}
+
 		logger.Info("Meeting standalone valkey nodes that aren't part of the current cluster")
 		meta.SetStatusCondition(
 			&valkeyCluster.Status.Conditions,
@@ -96,27 +100,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 				return fmt.Errorf("failed to meet node %s: %w", address.String(), err)
 			}
 		}
-		if len(nodesToMeet) > 0 {
-			return ErrNodesMeeting
-		}
-
-		meta.SetStatusCondition(
-			&valkeyCluster.Status.Conditions,
-			metav1.Condition{
-				Type:    typeMeetingStandaloneNodes,
-				Status:  metav1.ConditionFalse,
-				Reason:  "MeetingStandaloneNodesSucceeded",
-				Message: "Meeting standalone valkey nodes that aren't part of the current cluster succeeded",
-			},
-		)
-		if err := r.Status().Update(ctx, valkeyCluster); err != nil {
-			logger.Error(err, "Failed to update valkey cluster status")
-		}
-
-		currentTopology, err = cluster.GetTopology(ctx, seedClient, headlessServiceName, namespace)
-		if err != nil {
-			return fmt.Errorf("failed to get cluster topology: %w", err)
-		}
+		return ErrNodesMeeting
 	}
 
 	// ensure slots are uniformly distributed amongst the correct masters
@@ -126,20 +110,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		return fmt.Errorf("current topology and desired topology have different number of nodes")
 	}
 
-	clients := make([]valkey.Client, len(currentNodes))
-	for i, node := range currentNodes {
-		address := node.Address.String()
-		client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{address}})
-		if err != nil {
-			return fmt.Errorf("failed to create client for %s: %w", address, err)
-		}
-		clients[i] = client
-	}
-	defer func() {
-		for _, client := range clients {
-			client.Close()
-		}
-	}()
+	clients := seedClient.Nodes()
 
 	enslavementMigration := map[uint8]string{}
 	for i := range len(desiredNodes) {
@@ -147,7 +118,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		desiredNode := desiredNodes[i]
 		if currentNode.Role == cluster.NodeRoleSlave && desiredNode.Role == cluster.NodeRoleMaster { // do promotions now
 			// NOTE: we need to migrate slaves to masters so slot migrations can be performed to the right masters if needed or else there will be no proper masters to migrate to
-			client := clients[i]
+			client := clients[addresses[i]]
 			promoteCmd := client.B().ClusterReset().Soft().Build()
 			if err := client.Do(ctx, promoteCmd).Error(); err != nil {
 				return fmt.Errorf("failed to promote slave %s to master: %w", currentNode.Address.String(), err)
@@ -216,7 +187,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 				if slotsRangeTracker == nil {
 					continue
 				}
-				client := clients[i]
+				client := clients[addresses[i]]
 				for _, slotRange := range slotsRangeTracker.SlotRanges() {
 					cmd := client.B().ClusterAddslotsrange().StartSlotEndSlot().StartSlotEndSlot(int64(slotRange.Start), int64(slotRange.End)).Build()
 					if err := client.Do(ctx, cmd).Error(); err != nil {
@@ -226,7 +197,12 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 			}
 		}
 		if needToMigrateSlots {
-			logger.Info("Migrating slots", "slotsToMigrate", slotsToMigrate)
+			slotsToMigrateLog := make(map[string][]slot.SlotRange, len(slotsToMigrate))
+			for migrationRoute, slotRangeTracker := range slotsToMigrate {
+				slotsToMigrateLog[fmt.Sprintf("source %d, destination %d", migrationRoute.SourceIndex, migrationRoute.DestinationIndex)] = slotRangeTracker.SlotRanges()
+			}
+			logger.Info("Migrating slots", "slotsToMigrate", slotsToMigrateLog)
+
 			group, ctx := errgroup.WithContext(ctx)
 			semaphore := make(chan struct{}, slotMigrationConcurrency)
 
@@ -236,7 +212,19 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 						semaphore <- struct{}{}
 						group.Go(func() error {
 							defer func() { <-semaphore }()
-							return cluster.MigrateSlot(ctx, int64(slot), migrationRoute, clients, currentTopology)
+							return cluster.MigrateSlot(
+								ctx,
+								int64(slot),
+								cluster.MigrationInfo{
+									Clients: cluster.MigrationClients{
+										Source:      clients[addresses[migrationRoute.SourceIndex]],
+										Destination: clients[addresses[migrationRoute.DestinationIndex]],
+									},
+									Nodes: cluster.MigrationNodes{
+										Source:      currentTopology.Masters[migrationRoute.SourceIndex],
+										Destination: currentTopology.Masters[migrationRoute.DestinationIndex],
+									},
+								})
 						})
 					}
 				}
