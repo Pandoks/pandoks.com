@@ -9,6 +9,7 @@ spec:
       containers:
         - name: manager
           image: local-registry:12345/valkey-operator:latest
+          imagePullPolicy: Always
           env:
             - name: DEV
               value: 'true'
