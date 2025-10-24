@@ -5,13 +5,10 @@ resources:
   - service-accounts.yaml
 
 helmGlobals:
-  chartHome: ../../charts
+  chartHome: ../../chart
 helmCharts:
   # name: $chartHome/dir
-  - name: db
-    namespace: main
-    valuesFile: ./main.yaml
-  - name: backup
+  - name: .
     namespace: main
     valuesFile: ./main.yaml
 

@@ -7,6 +7,10 @@ backup:
   bucket: database
   encryptionKey: openssl-rand-hex-32
   path: /
+  schedules:
+    full: '0 2 * * 0'
+    diff: '0 2 * * 3,6'
+    incr: '0 2 * * 1,2,4,5'
 
 s3:
   region: us-west-1
