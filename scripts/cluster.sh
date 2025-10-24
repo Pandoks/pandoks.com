@@ -204,6 +204,20 @@ EOF
   echo "Installing Helm-based addons (MetalLB, ingress, etc.)..."
   kubectl apply -k "$K3S_DIR/helm-charts"
 
+  echo "Waiting for cert-manager CRDs to be established..."
+  for crd in certificates.cert-manager.io issuers.cert-manager.io clusterissuers.cert-manager.io; do
+    TIMEOUT=180
+    while ! kubectl get crd "$crd" >/dev/null 2>&1; do
+      [ $TIMEOUT -le 0 ] && { echo "Timed out waiting for $crd" >&2; exit 1; }
+      sleep 2
+      TIMEOUT=$((TIMEOUT - 2))
+    done
+  done
+  echo "Waiting for cert-manager deployments to roll out..."
+  kubectl -n cert-manager rollout status deploy/cert-manager --timeout=300s || true
+  kubectl -n cert-manager rollout status deploy/cert-manager-webhook --timeout=300s || true
+  kubectl -n cert-manager rollout status deploy/cert-manager-cainjector --timeout=300s || true
+
   echo "Waiting for MetalLB CRDs to be established..."
   TIMEOUT=120
   while ! kubectl get crd ipaddresspools.metallb.io >/dev/null 2>&1; do
@@ -227,17 +241,9 @@ EOF
   kubectl -n metallb-system rollout status deploy/metallb-controller --timeout=300s
 
   echo "Applying core kustomization with IP pool range: ${IP_POOL_RANGE}"
-  TMP_DIR="$(mktemp -d)"
-  trap 'rm -rf "$TMP_DIR"' EXIT
-  mkdir -p "$TMP_DIR"
-  cp -R "$K3S_DIR/core/." "$TMP_DIR/"
   export IP_POOL_RANGE="${IP_POOL_RANGE}"
-  for f in "$TMP_DIR"/*.yaml; do
-    [ -f "$f" ] || continue
-    [ "$(basename "$f")" = "kustomization.yaml" ] && continue
-    envsubst <"$f" >"$f.tmp" && mv "$f.tmp" "$f"
-  done
-  kubectl apply -k "$TMP_DIR"
+  kubectl kustomize "$K3S_DIR/core" --load-restrictor LoadRestrictionsNone | envsubst | kubectl apply -f -
+
   echo "Setup complete."
   ;;
 
@@ -255,7 +261,7 @@ secrets)
   SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
   REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
   K3S_DIR="$REPO_ROOT/k3s"
-  SECRETS_YAML="$K3S_DIR/base/secrets.yaml"
+  SECRETS_YAML="$K3S_DIR/apps/secrets.yaml"
   [ -f "$SECRETS_YAML" ] || { echo "Missing $SECRETS_YAML" >&2; exit 1; }
 
   echo "Fetching SST secrets..." >&2

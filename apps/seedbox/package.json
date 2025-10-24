@@ -1,7 +1,0 @@
-{
-  "name": "@pandoks.com/seedbox",
-  "version": "0.0.1",
-  "scripts": {
-    "dev": "sst dev vite dev"
-  }
-}

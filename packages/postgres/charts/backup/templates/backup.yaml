@@ -1,10 +1,20 @@
+{{- $first := true -}}
+{{- range $type, $schedule := .Values.backup.schedules }}
+  {{- if not $first }}
+---
+  {{- end }}
+  {{- include "pgbackrest.cronjob" (dict "context" $ "type" $type "schedule" $schedule) }}
+  {{- $first = false -}}
+{{- end }}
+
+{{- define "pgbackrest.cronjob" -}}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: '{{ .Values.db }}-pgbackrest-backup-{{ .Values.backup.type }}'
-  namespace: '{{ .Values.namespace }}'
+  name: '{{ .context.Values.db }}-pgbackrest-backup-{{ .type }}'
+  namespace: '{{ .context.Values.namespace }}'
 spec:
-  schedule: '{{ .Values.backup.schedule }}'
+  schedule: '{{ .schedule }}'
   jobTemplate:
     spec:
       template:
@@ -17,26 +27,26 @@ spec:
               args:
                 [
                   'pgbackrest',
-                  '--stanza={{ .Values.db }}',
-                  '--type={{ .Values.backup.type }}',
+                  '--stanza={{ .context.Values.db }}',
+                  '--type={{ .type }}',
                   '--config=/etc/pgbackrest.conf',
                   'backup'
                 ]
               env:
                 - name: MASTER_HOST
-                  value: patroni-{{ .Values.db }}-primary.{{ .Values.namespace }}.svc.cluster.local
+                  value: patroni-{{ .context.Values.db }}-primary.{{ .context.Values.namespace }}.svc.cluster.local
                 - name: SLAVE_HOST
-                  value: patroni-{{ .Values.db }}-replicas.{{ .Values.namespace }}.svc.cluster.local
+                  value: patroni-{{ .context.Values.db }}-replicas.{{ .context.Values.namespace }}.svc.cluster.local
                 - name: CLIENT_COMMON_NAME
-                  value: patroni-{{ .Values.db }}
+                  value: patroni-{{ .context.Values.db }}
                 - name: BACKUP_BUCKET
-                  value: '{{ .Values.backup.bucket }}'
+                  value: '{{ .context.Values.backup.bucket }}'
                 - name: BACKUP_PATH
-                  value: '{{ .Values.backup.path }}'
+                  value: '{{ .context.Values.backup.path }}'
                 - name: S3_KEY
                   valueFrom:
                     secretKeyRef:
-                      name: &backup_creds '{{ .Values.db }}-db-backup-creds'
+                      name: &backup_creds '{{ .context.Values.db }}-db-backup-creds'
                       key: S3_KEY
                 - name: S3_KEY_SECRET
                   valueFrom:
@@ -44,21 +54,21 @@ spec:
                       name: *backup_creds
                       key: S3_KEY_SECRET
                 - name: S3_REGION
-                  value: '{{ .Values.s3.region }}'
+                  value: '{{ .context.Values.s3.region }}'
                 - name: S3_ENDPOINT
-                  value: '{{ .Values.s3.endpoint }}'
+                  value: '{{ .context.Values.s3.endpoint }}'
                 - name: S3_TLS
-                  value: '{{ .Values.s3.tls }}'
+                  value: '{{ .context.Values.s3.tls }}'
                 - name: S3_URI_STYLE
-                  value: '{{ .Values.s3.uriStyle }}'
+                  value: '{{ .context.Values.s3.uriStyle }}'
                 - name: ENCRYPTION_KEY
-                  value: '{{ .Values.backup.encryptionKey }}'
+                  value: '{{ .context.Values.backup.encryptionKey }}'
                 - name: STANZA
-                  value: '{{ .Values.db }}'
+                  value: '{{ .context.Values.db }}'
                 - name: PGUSER
                   valueFrom:
                     secretKeyRef:
-                      name: &db_creds '{{ .Values.db }}-db-creds'
+                      name: &db_creds '{{ .context.Values.db }}-db-creds'
                       key: PGUSER
                 - name: PGPASSWORD
                   valueFrom:
@@ -78,7 +88,7 @@ spec:
                 name: pgbackrest-server-config
             - name: *tls
               secret:
-                secretName: '{{ .Values.db }}-pgbackrest-backup-tls'
+                secretName: '{{ .context.Values.db }}-pgbackrest-backup-tls'
                 defaultMode: 0600
                 items:
                   - key: tls.crt
@@ -89,3 +99,4 @@ spec:
                     path: ca.crt
           restartPolicy: OnFailure
       backoffLimit: 4
+{{- end }}

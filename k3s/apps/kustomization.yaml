@@ -5,3 +5,4 @@ resources:
   # NOTE: use --load-restrictor LoadRestrictionsNone when kubectl apply
   - namespaces.yaml
   - ../../packages/postgres/kube
+  - ../../packages/valkey/kube

@@ -1,3 +1,4 @@
+# WARNING: Don't upgrade to 18 until all extensions are compatible
 FROM postgres:17-trixie
 
 RUN apt-get update && apt-get install -y --no-install-recommends \

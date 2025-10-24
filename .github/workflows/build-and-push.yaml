@@ -3,10 +3,10 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - 'apps/seedbox/Dockerfile'
       - 'packages/postgres/patroni/**'
       - 'packages/postgres/pgcat/**'
       - 'packages/postgres/pgbackrest/**'
+      - 'packages/valkey/**'
       # NOTE: you can exclude files/directories/subdirectories using `!` prefix (!packages/**)
 
 jobs:
@@ -26,6 +26,10 @@ jobs:
             path: ./packages/postgres/pgcat/Dockerfile
           - name: pgbackrest
             path: ./packages/postgres/pgbackrest/Dockerfile
+          - name: valkey
+            path: ./packages/valkey/image/Dockerfile
+          - name: valkey-operator
+            path: ./packages/valkey/Dockerfile
 
     steps:
       - uses: actions/checkout@v4
