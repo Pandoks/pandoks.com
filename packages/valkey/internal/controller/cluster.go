@@ -39,17 +39,19 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 	}
 	addresses := stringifyAddresses(clientAddresses)
 
-	seedClient, err := valkey.NewClient(valkey.ClientOption{
+	clusterClient, err := valkey.NewClient(valkey.ClientOption{
 		InitAddress: []string{addresses[0]},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to connect to seed node: %w", err)
 	}
-	defer seedClient.Close()
+	defer clusterClient.Close()
+	clients := clusterClient.Nodes()
+	seedClient := clients[addresses[0]]
 
 	headlessServiceName := valkeyCluster.HeadlessServiceName()
 	namespace := valkeyCluster.Namespace
-	currentTopology, err := cluster.GetTopology(ctx, seedClient, headlessServiceName, namespace)
+	currentTopology, err := cluster.GetTopology(ctx, clusterClient, headlessServiceName, namespace)
 	if err != nil {
 		currentTopology = &cluster.ClusterTopology{
 			Nodes: map[string]*cluster.ClusterNode{},
@@ -101,8 +103,8 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 		}
 
 		for _, address := range nodesToMeet {
-			meetCmd := seedClient.B().ClusterMeet().Ip(addressToIP[address].String()).Port(cluster.ValkeyClientPort).Build()
-			if err := seedClient.Do(ctx, meetCmd).Error(); err != nil {
+			meetCmd := clusterClient.B().ClusterMeet().Ip(addressToIP[address].String()).Port(cluster.ValkeyClientPort).Build()
+			if err := clusterClient.Do(ctx, meetCmd).Error(); err != nil {
 				return fmt.Errorf("failed to meet node %s: %w", address.String(), err)
 			}
 		}
@@ -115,8 +117,6 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 	if len(currentNodes) != len(desiredNodes) {
 		return fmt.Errorf("current topology and desired topology have different number of nodes")
 	}
-
-	clients := seedClient.Nodes()
 
 	enslavementMigration := map[uint8]string{}
 	needsRejoin := false
@@ -266,7 +266,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 			logger.Error(err, "Failed to patch valkey cluster status")
 		}
 
-		currentTopology, err = cluster.GetTopology(ctx, seedClient, headlessServiceName, namespace)
+		currentTopology, err = cluster.GetTopology(ctx, clusterClient, headlessServiceName, namespace)
 		if err != nil {
 			return fmt.Errorf("failed to get cluster topology: %w", err)
 		}
