@@ -170,6 +170,9 @@ func (r *ValkeyClusterReconciler) Reconcile(ctx context.Context, req ctrlruntime
 		case errors.Is(err, ErrNodesMeeting):
 			logger.Info("Nodes meeting, waiting for them to join the cluster")
 			return ctrlruntime.Result{RequeueAfter: 5 * time.Second}, nil
+		case errors.Is(err, ErrPromoteSlave):
+			logger.Info("Promoting slaves to masters, need to rejoin the cluster after leaving")
+			return ctrlruntime.Result{RequeueAfter: 5 * time.Second}, nil
 		default:
 			logger.Error(err, "Failed to reconcile cluster's statefulset")
 			valkeyClusterCopy := valkeyCluster.DeepCopy()

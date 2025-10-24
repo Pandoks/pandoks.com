@@ -19,7 +19,10 @@ import (
 
 const slotMigrationConcurrency = 10
 
-var ErrNodesMeeting = errors.New("nodes meeting")
+var (
+	ErrNodesMeeting = errors.New("nodes meeting")
+	ErrPromoteSlave = errors.New("promote slave")
+)
 
 // Steps to reconcile cluster:
 //
@@ -67,6 +70,7 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 			nodesToMeet = append(nodesToMeet, address)
 		}
 	}
+
 	if len(nodesToMeet) > 0 {
 		resolver := &net.Resolver{}
 		addressToIP := make(map[cluster.Address]net.IP, len(clientAddresses))
@@ -115,16 +119,24 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 	clients := seedClient.Nodes()
 
 	enslavementMigration := map[uint8]string{}
+	needsRejoin := false
 	for i := range len(desiredNodes) {
 		currentNode := currentNodes[i]
 		desiredNode := desiredNodes[i]
 		if currentNode.Role == cluster.NodeRoleSlave && desiredNode.Role == cluster.NodeRoleMaster { // do promotions now
 			// NOTE: we need to migrate slaves to masters so slot migrations can be performed to the right masters if needed or else there will be no proper masters to migrate to
+			forgetCmd := seedClient.B().ClusterForget().NodeId(currentNode.ID).Build()
+			if err = seedClient.Do(ctx, forgetCmd).Error(); err != nil {
+				return fmt.Errorf("failed to forget slave %s: %w", currentNode.Address.String(), err)
+			}
+
 			client := clients[addresses[i]]
-			promoteCmd := client.B().ClusterReset().Soft().Build()
+			promoteCmd := client.B().ClusterReset().Hard().Build()
 			if err := client.Do(ctx, promoteCmd).Error(); err != nil {
 				return fmt.Errorf("failed to promote slave %s to master: %w", currentNode.Address.String(), err)
 			}
+
+			needsRejoin = true
 		} else if desiredNode.Role == cluster.NodeRoleSlave { // downgrade later
 			// NOTE: we don't need to migrate masters to slaves or assign a slave to another master until after slot migrations
 			desiredNodeMasterId := desiredNode.MasterID
@@ -152,6 +164,9 @@ func (r *ValkeyClusterReconciler) reconcileCluster(ctx context.Context, valkeyCl
 				enslavementMigration[uint8(i)] = properMasterNode.ID
 			}
 		}
+	}
+	if needsRejoin {
+		return ErrPromoteSlave
 	}
 	logger.Info("Enslavement plan created", "migration", enslavementMigration)
 
