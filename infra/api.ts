@@ -57,7 +57,11 @@ new aws.iam.RolePolicy('ScheduleInvokeTextPolicy', {
   role: scheduleInvokeTextRole.id,
   policy: aws.iam.getPolicyDocumentOutput({
     statements: [
-      { effect: 'Allow', actions: ['lambda:InvokeFunction'], resources: [textFunction.arn] }
+      {
+        effect: 'Allow',
+        actions: ['lambda:InvokeFunction', 'lambda:InvokeFunctionUrl'],
+        resources: [textFunction.arn]
+      }
     ]
   }).json
 });
