@@ -35,3 +35,12 @@ spec:
     metadata:
       labels:
         app: *app
+    spec:
+      containers:
+        - name: valkey
+          image: ghcr.io/pandoks/valkey:latest
+          ports:
+            - name: client
+              containerPort: 6379
+            - name: bus
+              containerPort: 16379
