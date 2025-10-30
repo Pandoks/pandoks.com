@@ -15,3 +15,12 @@ spec:
     - name: bus
       port: 16379
       targetPort: 16379
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: &app valkey-{{ .Values.name }}
+  namespace: '{{ .Values.namespace }}'
+  labels:
+    app: *app
