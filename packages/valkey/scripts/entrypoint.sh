@@ -6,7 +6,8 @@ for v in \
   NAMESPACE \
   HEADLESS_SERVICE \
   ANNOUNCE_PORT \
-  ANNOUNCE_BUS_PORT; do
+  ANNOUNCE_BUS_PORT \
+  PASSWORD; do
   eval ": \${$v:?Missing $v}"
 done
 

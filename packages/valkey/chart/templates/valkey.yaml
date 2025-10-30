@@ -61,5 +61,10 @@ spec:
               value: *busPort
             - name: PERSISTENCE
               value: {{ .Values.persistence.modes | join "," | quote }}
+            - name: PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: 'valkey-{{ .Values.name }}-creds'
+                  key: password
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
