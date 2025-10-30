@@ -61,3 +61,5 @@ spec:
               value: *busPort
             - name: PERSISTENCE
               value: {{ .Values.persistence.modes | join "," | quote }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

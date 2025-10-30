@@ -1,0 +1,20 @@
+# Default values for valkey chart
+
+name: example
+namespace: example
+
+cluster:
+  masters: 1
+  replicasPerMaster: 0
+
+persistence:
+  modes:
+    - rdb
+    - aof
+  storageClass: local-path
+  size: 1Gi
+  
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
