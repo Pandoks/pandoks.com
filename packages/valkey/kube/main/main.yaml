@@ -1,0 +1,14 @@
+name: main
+namespace: main
+
+cluster:
+  masters: 1
+  replicasPerMaster: 0
+
+persistence: ~
+  
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
