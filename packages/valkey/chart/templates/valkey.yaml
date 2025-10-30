@@ -24,3 +24,10 @@ metadata:
   namespace: '{{ .Values.namespace }}'
   labels:
     app: *app
+spec:
+  serviceName: valkey-{{ .Values.name }}-headless
+  podManagementPolicy: Parallel
+  replicas: {{ add .Values.cluster.masters (mul .Values.cluster.masters .Values.cluster.replicasPerMaster) }}
+  selector:
+    matchLabels:
+      app: *app
