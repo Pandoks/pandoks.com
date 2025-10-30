@@ -1,0 +1,17 @@
+name: Publish Helm Chart
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'packages/postgres/chart/**'
+      - 'packages/valkey/chart/**'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
