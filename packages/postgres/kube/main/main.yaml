@@ -1,27 +1,14 @@
-db: main
-namespace: main
-
-backup:
-  bucket: database
-  path: /main
-  encryptionKey: openssl-rand-hex-32
-  schedules:
-    full: '0 2 * * 0'
-    diff: '0 2 * * 3,6'
-    incr: '0 2 * * 1,2,4,5'
-
-s3:
-  region: us-west-1
-  endpoint: host.k3d.internal:4566
-  tls: 'n'
-  uriStyle: path
-
-storage:
-  className: local-path
-  size: 1Gi
-
-patroni:
-  replicas: 3
-
-pgcat:
-  replicas: 3
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: &dbname main
+  namespace: kube-system
+spec:
+  repo: oci://ghcr.io/pandoks/charts
+  chart: postgres
+  version: 0.1.0
+  targetNamespace: &namespace main
+  createNamespace: true
+  set:
+    db: *dbname
+    namespace: *namespace
