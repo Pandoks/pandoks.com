@@ -1,9 +1,0 @@
-apiVersion: helm.cattle.io/v1
-kind: HelmChart
-metadata:
-  name: postgres
-  namespace: kube-system
-spec:
-  repo: oci://ghcr.io/pandoks/charts
-  chart: postgres
-  version: 0.1.0
