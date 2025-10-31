@@ -1,14 +1,13 @@
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
 metadata:
-  name: &dbname main
+  name: main-postgres-main-cluster
   namespace: kube-system
 spec:
-  repo: oci://ghcr.io/pandoks/charts
-  chart: postgres
+  chart: oci://ghcr.io/pandoks/charts/postgres
   version: 0.1.0
   targetNamespace: &namespace main
   createNamespace: true
   set:
-    db: *dbname
+    db: main
     namespace: *namespace

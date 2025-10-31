@@ -1,11 +1,12 @@
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
 metadata:
-  name: main
+  name: main-postgres-main-cluster
   namespace: kube-system
 spec:
-  repo: oci://local-registry:12345/charts
+  chart: oci://local-registry:5000/charts/postgres
+  plainHTTP: true
   set:
-    backup.image: local-registry:12345/pgbackrest:latest
-    patroni.image: local-registry:12345/patroni:latest
-    pgcat.image: local-registry:12345/pgcat:latest
+    backup.image: local-registry:5000/pgbackrest:latest
+    patroni.image: local-registry:5000/patroni:latest
+    pgcat.image: local-registry:5000/pgcat:latest
