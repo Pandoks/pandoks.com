@@ -1,0 +1,12 @@
+{
+  "name": "@pandoks.com/valkey",
+  "version": "0.0.1",
+  "type": "module",
+  "sideEffects": false,
+  "scripts": {
+    "build": "docker build -f ./Dockerfile ../../ -t localhost:12345/valkey:latest",
+    "cluster:build": "pnpm run build",
+    "push": "docker push localhost:12345/valkey:latest",
+    "cluster:push": "pnpm run push"
+  }
+}

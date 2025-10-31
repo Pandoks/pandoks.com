@@ -1,0 +1,13 @@
+apiVersion: v2
+name: valkey
+description: Valkey Cluster with scalable masters/replicas, failover, and optional persistence
+type: application
+version: 0.1.0
+appVersion: "latest"
+keywords:
+  - valkey
+  - redis
+  - cache
+maintainers:
+  - name: pandoks
+dependencies: []

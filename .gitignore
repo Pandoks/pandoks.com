@@ -58,3 +58,6 @@ apps/web/static/blog-images
 
 # ssh kube config for k3s
 /k3s.yaml
+
+# helm
+*.tgz

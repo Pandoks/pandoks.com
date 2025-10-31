@@ -202,7 +202,12 @@ EOF
     exit 1
   fi
   echo "Installing Helm-based addons (MetalLB, ingress, etc.)..."
-  kubectl apply -k "$K3S_DIR/helm-charts"
+  if [ "$FORCE_K3D" = "true" ]; then
+    echo "Using dev overlay for k3d..."
+    kubectl apply -k "$K3S_DIR/dev/helm-charts"
+  else
+    kubectl apply -k "$K3S_DIR/helm-charts"
+  fi
 
   echo "Waiting for cert-manager CRDs to be established..."
   for crd in certificates.cert-manager.io issuers.cert-manager.io clusterissuers.cert-manager.io; do
