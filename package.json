@@ -21,7 +21,7 @@
     "cluster:build": "pnpm -r run cluster:build",
     "cluster:push": "pnpm -r run cluster:push",
     "cluster:example": "kubectl apply -f ./k3s/apps/example.yaml & ./scripts/cluster.sh secrets",
-    "cluster:deploy": "kubectl kustomize ./k3s/dev --load-restrictor LoadRestrictionsNone --enable-helm | kubectl apply -f -",
+    "cluster:deploy": "kubectl kustomize ./k3s/dev/apps --load-restrictor LoadRestrictionsNone --enable-helm | kubectl apply -f -",
     "cluster:secrets": "./scripts/cluster.sh secrets",
     "k3s:remote": "pnpm run ssh:copy --remote-file /etc/rancher/k3s/k3s.yaml",
     "k3s:setup": "./scripts/cluster.sh setup --kubeconfig ./k3s.yaml",
