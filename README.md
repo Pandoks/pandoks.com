@@ -15,11 +15,13 @@ pnpm sst install
 
 <details>
   <summary>Dependencies</summary>
-  - [Node.js](https://nodejs.org/en/) >= v22
-  - [pnpm](https://pnpm.io/) >= v10
-  - [Docker](https://docs.docker.com/get-docker/) >= v20
-  - [k3d](https://k3d.io/) >= v5.8
-  - [awscli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) >= v2.13
+  <ul>
+    <li><a href="https://nodejs.org/en/">Node.js</a> >= v22</li>
+    <li><a href="https://pnpm.io/">pnpm</a> >= v10</li>
+    <li><a href="https://docs.docker.com/get-docker/">Docker</a> >= v20</li>
+    <li><a href="https://k3d.io/">k3d</a> >= v5.8</li>
+    <li><a href="https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html">awscli</a> >= v2.13</li>
+  </ul>
 </details>
 
 # Apps
