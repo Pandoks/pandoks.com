@@ -23,7 +23,7 @@ spec:
             fsGroup: 999
           containers:
             - name: pgbackrest
-              image: {{ .context.Values.images.pgbackrest }}
+              image: {{ .context.Values.backup.image }}
               args:
                 [
                   'pgbackrest',

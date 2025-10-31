@@ -73,7 +73,7 @@ spec:
         fsGroup: 999
       containers:
         - name: patroni
-          image: ghcr.io/pandoks/patroni:latest
+          image: {{ .Values.patroni.image }}
           readinessProbe:
             httpGet:
               scheme: HTTP
@@ -169,7 +169,7 @@ spec:
             - name: &socket postgres-socket
               mountPath: &socket_mount /var/run/postgresql
         - name: pgbackrest
-          image: {{ .Values.images.pgbackrest }}
+          image: {{ .Values.backup.image }}
           args: ['pgbackrest', 'server', '--config=/etc/pgbackrest.conf']
           ports:
             - name: pgbackrest
