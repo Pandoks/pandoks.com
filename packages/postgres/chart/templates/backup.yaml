@@ -23,7 +23,7 @@ spec:
             fsGroup: 999
           containers:
             - name: pgbackrest
-              image: ghcr.io/pandoks/pgbackrest:latest
+              image: {{ .context.Values.images.pgbackrest }}
               args:
                 [
                   'pgbackrest',

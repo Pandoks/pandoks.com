@@ -27,3 +27,8 @@ patroni:
 
 pgcat:
   replicas: 3
+
+images:
+  pgcat: ghcr.io/pandoks/pgcat:latest
+  patroni: ghcr.io/pandoks/patroni:latest
+  pgbackrest: ghcr.io/pandoks/pgbackrest:latest

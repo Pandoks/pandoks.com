@@ -169,7 +169,7 @@ spec:
             - name: &socket postgres-socket
               mountPath: &socket_mount /var/run/postgresql
         - name: pgbackrest
-          image: ghcr.io/pandoks/pgbackrest:latest
+          image: {{ .Values.images.pgbackrest }}
           args: ['pgbackrest', 'server', '--config=/etc/pgbackrest.conf']
           ports:
             - name: pgbackrest
