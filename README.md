@@ -53,6 +53,18 @@ pnpm run cluster:build
 pnpm run cluster:push
 pnpm run cluster:deploy
 ```
+
+## Development
+
+For things that are not deployed to Kubernetes, they are managed by `sst`. To run the development
+server, run this from the root of the monorepo:
+
+```sh
+pnpm run dev # assuming that you are still verified via SSO
+```
+
+## Production
+
 # Apps
 
 # Packages
