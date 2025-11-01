@@ -31,6 +31,7 @@ pnpm sst install
     <li><a href="https://docs.docker.com/get-docker/">Docker</a> >= v20</li>
     <li><a href="https://k3d.io/">k3d</a> >= v5.8</li>
     <li><a href="https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html">awscli</a> >= v2.13</li>
+    <li><a href="https://helm.sh/docs/intro/install/">helm</a> >= v3.19</li>
   </ul>
 </details>
 
