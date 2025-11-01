@@ -20,6 +20,9 @@ pnpm run sso
 pnpm sst install
 ```
 
+> [!NOTE] AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm run sso` again once in
+> a while
+
 <details>
   <summary>Dependencies</summary>
   <ul>
@@ -31,6 +34,25 @@ pnpm sst install
   </ul>
 </details>
 
+## Local Kubernetes Cluster
+
+Although not all of the apps are deployed to Kubernetes, majority of the services are running in a
+cluster. To make development easier, we can use a local Kubernetes cluster ([k3d](https://k3d.io/))
+to run a copy of the production cluster. This makes it so that majority of the times, we can work
+offline or test certain features without having to deploy to a full fledged Kubernetes cluster in
+the cloud. _Because we're using k3d, which puts an entire Kubernetes cluster inside of docker
+containers, not everything is one to one with the production cluster. ie. networking, registries,
+etc_
+
+To setup the local cluster, run this from the root of the monorepo:
+
+```sh
+pnpm run setup
+pnpm run cluster:secrets # assuming that you are still verified via SSO
+pnpm run cluster:build
+pnpm run cluster:push
+pnpm run cluster:deploy
+```
 # Apps
 
 # Packages
