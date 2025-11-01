@@ -62,11 +62,3 @@ server, run this from the root of the monorepo:
 ```sh
 pnpm run dev # assuming that you are still verified via SSO
 ```
-
-## Production
-
-# Apps
-
-# Packages
-
-# Infra
