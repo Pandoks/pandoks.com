@@ -20,8 +20,8 @@ pnpm run sso
 pnpm sst install
 ```
 
-> [!NOTE] AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm run sso` again once in
-> a while
+> [!NOTE]
+> AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm run sso` again once in a while
 
 <details>
   <summary>Dependencies</summary>
