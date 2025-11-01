@@ -5,6 +5,7 @@ namespace: example
 
 backup:
   bucket: database
+  image: ghcr.io/pandoks/pgbackrest:latest
   encryptionKey: openssl-rand-hex-32
   path: /
   schedules:
@@ -24,6 +25,8 @@ storage:
 
 patroni:
   replicas: 3
+  image: ghcr.io/pandoks/patroni:latest
 
 pgcat:
   replicas: 3
+  image: ghcr.io/pandoks/pgcat:latest

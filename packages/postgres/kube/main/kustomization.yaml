@@ -3,14 +3,7 @@ kind: Kustomization
 namespace: main
 resources:
   - service-accounts.yaml
-
-helmGlobals:
-  chartHome: ../../chart
-helmCharts:
-  # name: $chartHome/dir
-  - name: .
-    namespace: main
-    valuesFile: ./main.yaml
+  - main.yaml
 
 configMapGenerator:
   - name: pgcat-config
@@ -27,4 +20,4 @@ configMapGenerator:
       - ../../pgbackrest/pgbackrest.conf
 
 generatorOptions:
-  disableNameSuffixHash: false # changes the suffix hash of names so services automatically reload
+  disableNameSuffixHash: true

@@ -1,71 +1,12 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
 metadata:
-  name: main-pgcat
-  namespace: main
+  name: main-postgres-main-cluster
+  namespace: kube-system
 spec:
-  template:
-    spec:
-      containers:
-        - name: pgcat
-          image: local-registry:12345/pgcat:latest
-
----
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: patroni-main
-  namespace: main
-spec:
-  template:
-    spec:
-      containers:
-        - name: patroni
-          image: local-registry:12345/patroni:latest
-        - name: pgbackrest
-          image: local-registry:12345/pgbackrest:latest
-
----
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: main-pgbackrest-backup-full
-  namespace: main
-spec:
-  jobTemplate:
-    spec:
-      template:
-        spec:
-          containers:
-            - name: pgbackrest
-              image: local-registry:12345/pgbackrest:latest
-
----
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: main-pgbackrest-backup-diff
-  namespace: main
-spec:
-  jobTemplate:
-    spec:
-      template:
-        spec:
-          containers:
-            - name: pgbackrest
-              image: local-registry:12345/pgbackrest:latest
-
----
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: main-pgbackrest-backup-incr
-  namespace: main
-spec:
-  jobTemplate:
-    spec:
-      template:
-        spec:
-          containers:
-            - name: pgbackrest
-              image: local-registry:12345/pgbackrest:latest
+  chart: oci://local-registry:5000/charts/postgres
+  plainHTTP: true
+  set:
+    backup.image: local-registry:5000/pgbackrest:latest
+    patroni.image: local-registry:5000/patroni:latest
+    pgcat.image: local-registry:5000/pgcat:latest
