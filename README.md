@@ -5,7 +5,14 @@ off into their own repos, but for now, they are all here.
 
 # Getting Started
 
-## Setup
+Look at [.env.example](/.env.example) and create `.env.<stage>` files. During _development_, you'll
+want to use the `.env.<dev-stage>` file where `<dev-stage>` is your local machine's username.
+[`sst`](https://sst.dev/) will automatically use the `.env.<dev-stage>` file if you don't specify a
+`--stage` flag. During _production_, you'll want to use the `.env.production` file. You'll also have
+to specify a `--stage production` flag.
+
+Once you have created your `.env` files, run this from the root of the monorepo to set it up for
+development:
 
 ```sh
 pnpm install
