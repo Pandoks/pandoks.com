@@ -49,10 +49,10 @@ To setup the local cluster, run this from the root of the monorepo:
 
 ```sh
 pnpm run setup
-pnpm run cluster:secrets # assuming that you are still verified via SSO
 pnpm run cluster:build
 pnpm run cluster:push
 pnpm run cluster:deploy
+pnpm run cluster:secrets # assuming that you are still verified via SSO
 ```
 
 ## Development
