@@ -2,6 +2,7 @@ import { secrets } from './secrets';
 import { domain } from './dns';
 
 const apiDomain = `api.${domain}`;
+const nodeVersion = 'nodejs22.x';
 
 export const apiRouter = new sst.aws.Router('ApiRouter', {
   domain: {
@@ -12,6 +13,7 @@ export const apiRouter = new sst.aws.Router('ApiRouter', {
 
 export const blogApi = new sst.aws.Function('BlogApi', {
   handler: 'apps/functions/src/api/blog.deployHandler',
+  runtime: nodeVersion,
   url: {
     router: {
       instance: apiRouter,
@@ -28,6 +30,7 @@ export const blogApi = new sst.aws.Function('BlogApi', {
 
 export const textFunction = new sst.aws.Function('TextSmsFunction', {
   handler: 'apps/functions/src/text.sendTextHandler',
+  runtime: nodeVersion,
   url: false,
   link: [
     secrets.personal.KwokPhoneNumber,
@@ -67,6 +70,7 @@ new aws.iam.RolePolicy('ScheduleInvokeTextPolicy', {
 });
 export const scheduleTextReminderApi = new sst.aws.Function('ScheduleTextReminderApi', {
   handler: 'apps/functions/src/api/notion/schedule-text.scheduleTextHandler',
+  runtime: nodeVersion,
   url: {
     router: {
       instance: apiRouter,
