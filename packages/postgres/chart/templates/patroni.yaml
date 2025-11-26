@@ -68,7 +68,7 @@ spec:
         app: *app
         cluster-name: *cluster-name
     spec:
-      serviceAccountName: patroni
+      serviceAccountName: patroni-{{ .Values.db }}
       securityContext:
         fsGroup: 999
       containers:
