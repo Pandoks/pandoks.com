@@ -28,6 +28,8 @@ jobs:
             path: ./packages/postgres/pgbackrest/Dockerfile
           - name: valkey
             path: ./packages/valkey/Dockerfile
+          - name: valkey-reconciler
+            path: ./packages/valkey/reconciler/Dockerfile
 
     steps:
       - uses: actions/checkout@v4

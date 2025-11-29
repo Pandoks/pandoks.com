@@ -33,10 +33,8 @@ export const secrets = {
     HetznerOriginTlsCrt: new sst.Secret('HetznerOriginTlsCrt', 'No Origin Tls Cert Set'),
     PostgresPassword: new sst.Secret('PostgresPassword'),
     PostgresS3Key: new sst.Secret('PostgresS3Key', 'test'),
-    PostgresS3KeySecret: new sst.Secret('PostgresS3KeySecret', 'testsecret')
+    PostgresS3KeySecret: new sst.Secret('PostgresS3KeySecret', 'testsecret'),
+    ValkeyAdminPassword: new sst.Secret('ValkeyAdminPassword'),
+    ValkeyClientPassword: new sst.Secret('ValkeyClientPassword')
   },
-  planetscale: {
-    ApiKey: new sst.Secret('PlanetscaleApiKey'),
-    AccountId: new sst.Secret('PlanetscaleAccountId')
-  }
 };

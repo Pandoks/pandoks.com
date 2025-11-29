@@ -4,17 +4,17 @@
   "type": "module",
   "sideEffects": false,
   "scripts": {
-    "build": "pnpm run build:pgcat & pnpm run build:patroni & pnpm run build:pgbackrest",
+    "build": "pnpm run build:pgcat & pnpm run build:patroni & pnpm run build:pgbackrest & pnpm run build:helm & wait",
     "cluster:build": "pnpm run build",
     "build:pgcat": "docker build -f ./pgcat/Dockerfile ../../ -t localhost:12345/pgcat:latest",
     "build:patroni": "docker build -f ./patroni/Dockerfile ../../ -t localhost:12345/patroni:latest",
     "build:pgbackrest": "docker build -f ./pgbackrest/Dockerfile ../../ -t localhost:12345/pgbackrest:latest",
-    "push": "pnpm run push:pgcat & pnpm run push:patroni & pnpm run push:pgbackrest",
+    "build:helm": "helm package ./chart",
+    "push": "pnpm run push:pgcat & pnpm run push:patroni & pnpm run push:pgbackrest & pnpm run push:helm & wait",
     "cluster:push": "pnpm run push",
     "push:pgcat": "docker push localhost:12345/pgcat:latest",
     "push:patroni": "docker push localhost:12345/patroni:latest",
     "push:pgbackrest": "docker push localhost:12345/pgbackrest:latest",
-    "helm:package": "helm package ./chart",
-    "cluster:package": "pnpm run helm:package",
+    "push:helm": "helm push postgres-*.tgz oci://localhost:12345/charts"
   }
 }

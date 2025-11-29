@@ -23,7 +23,7 @@ spec:
             fsGroup: 999
           containers:
             - name: pgbackrest
-              image: ghcr.io/pandoks/pgbackrest:latest
+              image: {{ .context.Values.backup.image }}
               args:
                 [
                   'pgbackrest',
@@ -46,13 +46,13 @@ spec:
                 - name: S3_KEY
                   valueFrom:
                     secretKeyRef:
-                      name: &backup_creds '{{ .context.Values.db }}-db-backup-creds'
-                      key: S3_KEY
+                      name: &backup_creds '{{ .context.Values.s3.credentials.secret }}'
+                      key: '{{ .context.Values.s3.credentials.dataKeys.s3Key }}'
                 - name: S3_KEY_SECRET
                   valueFrom:
                     secretKeyRef:
                       name: *backup_creds
-                      key: S3_KEY_SECRET
+                      key: '{{ .context.Values.s3.credentials.dataKeys.s3KeySecret }}'
                 - name: S3_REGION
                   value: '{{ .context.Values.s3.region }}'
                 - name: S3_ENDPOINT
@@ -68,13 +68,13 @@ spec:
                 - name: PGUSER
                   valueFrom:
                     secretKeyRef:
-                      name: &db_creds '{{ .context.Values.db }}-db-creds'
-                      key: PGUSER
+                      name: &db_creds '{{ .context.Values.credentials.secret }}'
+                      key: '{{ .context.Values.credentials.dataKeys.clientUser }}'
                 - name: PGPASSWORD
                   valueFrom:
                     secretKeyRef:
                       name: *db_creds
-                      key: PGPASSWORD
+                      key: '{{ .context.Values.credentials.dataKeys.clientPassword }}'
               volumeMounts:
                 - name: &config pgbackrest-config
                   mountPath: /tmp/conf_templates/pgbackrest.conf

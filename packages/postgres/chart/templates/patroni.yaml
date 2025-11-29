@@ -73,7 +73,7 @@ spec:
         fsGroup: 999
       containers:
         - name: patroni
-          image: ghcr.io/pandoks/patroni:latest
+          image: {{ .Values.patroni.image }}
           readinessProbe:
             httpGet:
               scheme: HTTP
@@ -107,28 +107,28 @@ spec:
             - name: PGUSER
               valueFrom:
                 secretKeyRef:
-                  name: &db_creds '{{ .Values.db }}-db-creds'
-                  key: &pguser PGUSER
+                  name: &db_creds '{{ .Values.credentials.secret }}'
+                  key: &pguser '{{ .Values.credentials.dataKeys.clientUser }}'
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
-                  key: &pgpassword PGPASSWORD
+                  key: &pgpassword '{{ .Values.credentials.dataKeys.clientPassword }}'
             - name: PGREPPASS
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
-                  key: PGREPPASS
+                  key: '{{ .Values.credentials.dataKeys.replicationPassword }}'
             - name: PATRONI_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
-                  key: PATRONI_PASSWORD
+                  key: '{{ .Values.credentials.dataKeys.patroniPassword }}'
             - name: PGCATPASS
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
-                  key: PGCATPASS
+                  key: '{{ .Values.credentials.dataKeys.pgcatPassword }}'
             - name: BACKUP_BUCKET
               value: &backup_bucket '{{ .Values.backup.bucket }}'
             - name: BACKUP_PATH
@@ -136,13 +136,13 @@ spec:
             - name: S3_KEY
               valueFrom:
                 secretKeyRef:
-                  name: &backup_creds '{{ .Values.db }}-db-backup-creds'
-                  key: &key S3_KEY
+                  name: &backup_creds '{{ .Values.s3.credentials.secret }}'
+                  key: &key '{{ .Values.s3.credentials.dataKeys.s3Key }}'
             - name: S3_KEY_SECRET
               valueFrom:
                 secretKeyRef:
                   name: *backup_creds
-                  key: &key_secret S3_KEY_SECRET
+                  key: &key_secret '{{ .Values.s3.credentials.dataKeys.s3KeySecret }}'
             - name: S3_REGION
               value: &s3_region '{{ .Values.s3.region }}'
             - name: S3_ENDPOINT
@@ -169,7 +169,7 @@ spec:
             - name: &socket postgres-socket
               mountPath: &socket_mount /var/run/postgresql
         - name: pgbackrest
-          image: ghcr.io/pandoks/pgbackrest:latest
+          image: {{ .Values.backup.image }}
           args: ['pgbackrest', 'server', '--config=/etc/pgbackrest.conf']
           ports:
             - name: pgbackrest
@@ -261,7 +261,7 @@ spec:
       spec:
         accessModes:
           - ReadWriteOnce
-        storageClassName: '{{ .Values.storage.className }}'
+        storageClassName: '{{ .Values.storage.storageClass}}'
         resources:
           requests:
             storage: '{{ .Values.storage.size }}'

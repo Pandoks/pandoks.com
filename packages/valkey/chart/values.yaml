@@ -2,19 +2,32 @@
 
 name: example
 namespace: example
+image: ghcr.io/pandoks/valkey:latest
+
+credentials:
+  secret: valkey-example-creds
+  dataKeys:
+    adminPassword: ADMIN_PASSWORD
+    clientPassword: CLIENT_PASSWORD
 
 cluster:
   masters: 1
   replicasPerMaster: 0
+  reconcilerImage: ghcr.io/pandoks/valkey-reconciler:latest
 
+# No persistence by default
 persistence:
-  modes:
-    - rdb
-    - aof
+  # modes: "rdb,aof" | "rdb" | "aof"
   storageClass: local-path
   size: 1Gi
-  
+
 resources:
   limits:
     cpu: 1000m
     memory: 1Gi
+
+hooks:
+  ttlSecondsAfterFinished: ~
+  backoffLimit: ~
+  restartPolicy: OnFailure
+  hookDeletePolicy: before-hook-creation,hook-succeeded

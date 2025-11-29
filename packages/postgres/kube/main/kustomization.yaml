@@ -1,14 +1,9 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: main
-
-helmGlobals:
-  chartHome: ../../chart
-helmCharts:
-  # name: $chartHome/dir
-  - name: .
-    namespace: main
-    valuesFile: ./main.yaml
+resources:
+  - service-accounts.yaml
+  - main.yaml
 
 configMapGenerator:
   - name: pgcat-config
@@ -25,4 +20,4 @@ configMapGenerator:
       - ../../pgbackrest/pgbackrest.conf
 
 generatorOptions:
-  disableNameSuffixHash: false # changes the suffix hash of names so services automatically reload
+  disableNameSuffixHash: true
