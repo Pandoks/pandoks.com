@@ -35,10 +35,6 @@ s3:
       s3Key: S3_KEY
       s3KeySecret: S3_KEY_SECRET
 
-storage:
-  storageClass: local-path
-  size: 1Gi
-
 patroni:
   replicas: 3
   image: ghcr.io/pandoks/patroni:latest

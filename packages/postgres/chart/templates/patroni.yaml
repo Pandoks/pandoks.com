@@ -261,7 +261,7 @@ spec:
       spec:
         accessModes:
           - ReadWriteOnce
-        storageClassName: '{{ .Values.storage.storageClass}}'
+        storageClassName: local-path
         resources:
           requests:
-            storage: '{{ .Values.storage.size }}'
+            storage: 999Pi # local-path does not support storage requests so we use a big number just to show that it's uncapped
