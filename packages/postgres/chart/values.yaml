@@ -23,6 +23,9 @@ backup:
     full: '0 2 * * 0'
     diff: '0 2 * * 3,6'
     incr: '0 2 * * 1,2,4,5'
+  retention:
+    full: 4
+    diff: 2
 
 s3:
   region: us-west-1

@@ -215,6 +215,10 @@ spec:
                 secretKeyRef:
                   name: *db_creds
                   key: *pgpassword
+            - name: FULL_RETENTION
+              value: '{{ .Values.backup.retention.full }}'
+            - name: DIFF_RETENTION
+              value: '{{ .Values.backup.retention.diff }}'
           volumeMounts:
             - name: *pgbackrest_config
               mountPath: *pgbackrest_mount
