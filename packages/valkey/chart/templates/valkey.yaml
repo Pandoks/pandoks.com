@@ -30,25 +30,6 @@ spec:
     - port: 6379
       targetPort: 6379
 
-{{- $replicas := add .Values.cluster.masters (mul .Values.cluster.masters .Values.cluster.replicasPerMaster) }}
-{{- range $i := until (int $replicas) }}
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: data-valkey-{{ $.Values.name }}-{{ $i }}
-  namespace: '{{ $.Values.namespace }}'
-  labels:
-    app: valkey-{{ $.Values.name }}
-spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: '{{ $.Values.persistence.storageClass }}'
-  resources:
-    requests:
-      storage: '{{ $.Values.persistence.size }}'
-{{- end }}
-
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -60,7 +41,7 @@ metadata:
 spec:
   serviceName: &service valkey-{{ .Values.name }}-headless
   podManagementPolicy: Parallel
-  replicas: {{ $replicas }}
+  replicas: {{ add .Values.cluster.masters (mul .Values.cluster.masters .Values.cluster.replicasPerMaster) }}
   selector:
     matchLabels:
       app: *app
@@ -94,7 +75,7 @@ spec:
               value: '16379'
             {{- if .Values.persistence }}
             - name: PERSISTENCE
-              value: '{{ .Values.persistence.modes }}'
+              value: '{{ .Values.persistence }}'
             {{- end }}
             - name: ADMIN_PASSWORD
               valueFrom:
@@ -146,7 +127,7 @@ spec:
       spec:
         accessModes:
           - ReadWriteOnce
-        storageClassName: '{{ .Values.persistence.storageClass }}'
+        storageClassName: local-path
         resources:
           requests:
-            storage: 1Gi # this doesn't matter because we create the PVC beforehand
+            storage: 999Pi # local-path does not support storage requests so we use a big number just to show that it's uncapped

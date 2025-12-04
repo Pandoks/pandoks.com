@@ -215,6 +215,10 @@ spec:
                 secretKeyRef:
                   name: *db_creds
                   key: *pgpassword
+            - name: FULL_RETENTION
+              value: '{{ .Values.backup.retention.full }}'
+            - name: DIFF_RETENTION
+              value: '{{ .Values.backup.retention.diff }}'
           volumeMounts:
             - name: *pgbackrest_config
               mountPath: *pgbackrest_mount
@@ -261,7 +265,7 @@ spec:
       spec:
         accessModes:
           - ReadWriteOnce
-        storageClassName: '{{ .Values.storage.storageClass}}'
+        storageClassName: local-path
         resources:
           requests:
-            storage: '{{ .Values.storage.size }}'
+            storage: 999Pi # local-path does not support storage requests so we use a big number just to show that it's uncapped

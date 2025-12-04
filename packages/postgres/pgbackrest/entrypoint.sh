@@ -11,7 +11,9 @@ for v in \
   S3_ENDPOINT \
   S3_TLS \
   S3_URI_STYLE \
-  ENCRYPTION_KEY; do
+  ENCRYPTION_KEY \
+  FULL_RETENTION \
+  DIFF_RETENTION; do
   eval ": \${$v:?Missing $v}"
 done
 

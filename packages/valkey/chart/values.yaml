@@ -16,10 +16,8 @@ cluster:
   reconcilerImage: ghcr.io/pandoks/valkey-reconciler:latest
 
 # No persistence by default
-persistence:
-  # modes: "rdb,aof" | "rdb" | "aof"
-  storageClass: local-path
-  size: 1Gi
+# options: rdb,aof | rdb | aof | ~
+persistence: ~
 
 resources:
   limits:

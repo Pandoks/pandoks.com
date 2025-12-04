@@ -29,7 +29,7 @@ spec:
   set:
     name: <name>
     namespace: <namespace>
-    persistence: ~ # if you want ephemeral storage
+    persistence: ~ # No persistence by default (options: rdb,aof | rdb | aof | ~)
     cluster.masters: <number of masters>
     cluster.replicasPerMaster: <number of replicas per master>
     credentials.secret: <secret name>
