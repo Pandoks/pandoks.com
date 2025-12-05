@@ -73,3 +73,22 @@ spec:
         - name: *keeper-config
           configMap:
             name: clickhouse-keeper-config
+  volumeClaimTemplates:
+    - metadata:
+        name: *data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 999Pi # local-path does not support storage requests so we use a big number just to show that it's uncapped
+    - metadata:
+        name: *logs
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 999Pi # local-path does not support storage requests so we use a big number just to show that it's uncapped
