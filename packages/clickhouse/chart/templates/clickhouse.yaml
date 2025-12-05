@@ -97,6 +97,10 @@ spec:
                   name: '{{ $.Values.credentials.secret }}'
                   key: '{{ $.Values.credentials.dataKeys.userPassword }}'
           volumeMounts:
+            - name: &data data
+              mountPath: /var/lib/clickhouse
+            - name: &logs logs
+              mountPath: /var/log/clickhouse-server
             - name: &clickhouse-config config
               mountPath: /tmp/conf_templates/config.yaml
               subPath: config.yaml
@@ -124,4 +128,23 @@ spec:
         - name: *clickhouse-users
           configMap:
             name: clickhouse-users
+  volumeClaimTemplates:
+    - metadata:
+        name: *data
+      spec:
+        accessModes: 
+          - ReadWriteOnce
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 999Pi # local-path does not support storage requests so we use a big number just to show that it's uncapped
+    - metadata:
+        name: *logs
+      spec:
+        accessModes: 
+          - ReadWriteOnce
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 999Pi # local-path does not support storage requests so we use a big number just to show that it's uncapped
 {{- end }}
