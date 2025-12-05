@@ -120,7 +120,7 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 5
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml .Values.clickhouse.resources | nindent 12 }}
       volumes:
         - name: *clickhouse-config
           configMap:
