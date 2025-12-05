@@ -7,8 +7,7 @@ logger:
 listen_host: '::'
 
 keeper_server:
-  tcp_port: 9181 # default: 9181
-  server_id: ${POD_NAME} # unique id per keeper pod
+  tcp_port: 9181 # client port default: 9181
 
   log_storage_path: /var/lib/clickhouse/coordination/log # default
   snapshot_storage_path: /var/lib/clickhouse/coordination/snapshots # default
