@@ -36,3 +36,78 @@ spec:
     - name: bus
       port: &interserver-port 9009
       targetPort: *interserver-port
+{{- range $shardIndex := until (int .Values.clickhouse.shards) }}
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: clickhouse-{{ $.Values.name }}-shard-{{ $shardIndex }}
+  namespace: '{{ $.Values.namespace }}'
+spec:
+  serviceName: clickhouse-{{ $.Values.name }}-headless
+  replicas: {{ $.Values.clickhouse.replicasPerShard }}
+  selector:
+    matchLabels:
+      app: &app clickhouse-{{ $.Values.name }}
+      shard: &shard '{{ $shardIndex }}'
+  template:
+    metadata:
+      labels:
+        app: *app
+        shard: *shard
+    spec:
+      containers:
+        - name: clickhouse
+          image: {{ $.Values.clickhouse.image }}
+          ports:
+            - name: http
+              containerPort: &client-port 8123
+            - name: tcp
+              containerPort: 9000
+            - name: bus
+              containerPort: 9009
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: CLUSTER_NAME
+              value: '{{ $.Values.name }}'
+            - name: SHARD_ID
+              value: '{{ $shardIndex }}'
+            - name: REPLICA_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: KEEPER_REPLICAS
+              value: '{{ $.Values.keeper.replicas }}'
+            - name: SHARDS
+              value: '{{ $.Values.clickhouse.shards }}'
+            - name: REPLICAS_PER_SHARD
+              value: '{{ $.Values.clickhouse.replicasPerShard }}'
+            - name: CLICKHOUSE_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: '{{ $.Values.credentials.secret }}'
+                  key: '{{ $.Values.credentials.dataKeys.adminPassword }}'
+            - name: CLICKHOUSE_USER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: '{{ $.Values.credentials.secret }}'
+                  key: '{{ $.Values.credentials.dataKeys.userPassword }}'
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: *client-port
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: *client-port
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+{{- end }}
