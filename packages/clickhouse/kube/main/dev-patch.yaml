@@ -1,0 +1,11 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: main-clickhouse-main-cluster
+  namespace: kube-system
+spec:
+  chart: oci://local-registry:5000/charts/clickhouse
+  plainHTTP: true
+  set:
+    clickhouse.image: local-registry:5000/clickhouse:latest
+    keeper.image: local-registry:5000/clickhouse-keeper:latest

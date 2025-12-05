@@ -1,0 +1,25 @@
+name: example
+namespace: example
+
+credentials:
+  secret: clickhouse-example-creds
+  dataKeys:
+    adminPassword: CLICKHOUSE_ADMIN_PASSWORD
+    userPassword: CLICKHOUSE_USER_PASSWORD
+
+clickhouse:
+  image: ghcr.io/pandoks/clickhouse:latest
+  shards: 1
+  replicasPerShard: 2
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+keeper:
+  image: ghcr.io/pandoks/clickhouse-keeper:latest
+  replicas: 3
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
