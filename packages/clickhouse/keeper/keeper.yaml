@@ -1,0 +1,19 @@
+logger:
+  level: information
+  log: /var/log/clickhouse-keeper/clickhouse-keeper.log
+  errorlog: /var/log/clickhouse-keeper/clickhouse-keeper.err.log
+  console: 1 # logs also go to stdout/stderr (default: 0)
+
+listen_host: '::'
+
+keeper_server:
+  tcp_port: 9181 # default: 9181
+  server_id: ${POD_NAME} # unique id per keeper pod
+
+  log_storage_path: /var/lib/clickhouse/coordination/log # default
+  snapshot_storage_path: /var/lib/clickhouse/coordination/snapshots # default
+
+  coordination_settings:
+    operation_timeout_ms: 10000 # default: 10000
+    session_timeout_ms: 30000 # default: 30000
+    raft_logs_level: information # default: information
