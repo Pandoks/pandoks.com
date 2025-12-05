@@ -1,3 +1,8 @@
+{{- $keeperReplicas := int .Values.keeper.replicas }}
+{{- if or (lt $keeperReplicas 1) (ne (mod $keeperReplicas 2) 1) }}
+  {{- fail "keeper.replicas must be an odd number greater than or equal to 1" }}
+{{- end }}
+
 apiVersion: v1
 kind: Service
 metadata:
