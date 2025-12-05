@@ -96,6 +96,13 @@ spec:
                 secretKeyRef:
                   name: '{{ $.Values.credentials.secret }}'
                   key: '{{ $.Values.credentials.dataKeys.userPassword }}'
+          volumeMounts:
+            - name: &clickhouse-config config
+              mountPath: /tmp/conf_templates/config.yaml
+              subPath: config.yaml
+            - name: &clickhouse-users users
+              mountPath: /tmp/conf_templates/users.yaml
+              subPath: users.yaml
           livenessProbe:
             httpGet:
               path: /ping
@@ -110,4 +117,11 @@ spec:
             periodSeconds: 5
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: *clickhouse-config
+          configMap:
+            name: clickhouse-config
+        - name: *clickhouse-users
+          configMap:
+            name: clickhouse-users
 {{- end }}
