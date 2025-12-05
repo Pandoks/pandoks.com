@@ -67,6 +67,8 @@ spec:
             - name: &keeper-config config
               mountPath: /tmp/conf_templates/keeper.yaml
               subPath: keeper.yaml
+          resources:
+            {{- toYaml .Values.keeper.resources | nindent 12 }}
       volumes:
         - name: *keeper-config
           configMap:
