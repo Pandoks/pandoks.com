@@ -7,8 +7,8 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 
 RUN mkdir -p /etc/clickhouse-keeper \
     && chown -R clickhouse:clickhouse /var/lib/clickhouse \
-    && chown -R /var/log/clickhouse-keeper \
-    && chown -R /etc/clickhouse-keeper
+    && chown -R clickhouse:clickhouse /var/log/clickhouse-keeper \
+    && chown -R clickhouse:clickhouse /etc/clickhouse-keeper
 
 USER clickhouse
 
