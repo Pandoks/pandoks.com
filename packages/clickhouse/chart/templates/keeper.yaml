@@ -20,3 +20,54 @@ spec:
     - name: raft
       port: &raft-port 9234
       targetPort: *raft-port
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: clickhouse-keeper-{{ .Values.name }}
+  namespace: '{{ .Values.namespace }}'
+spec:
+  serviceName: clickhouse-keeper-{{ .Values.name }}-headless
+  replicas: {{ $keeperReplicas }}
+  selector:
+    matchLabels:
+      app: clickhouse-keeper-{{ .Values.name }}
+  template:
+    metadata:
+      labels:
+        app: clickhouse-keeper-{{ .Values.name }}
+    spec:
+      containers:
+        - name: keeper
+          image: {{ .Values.keeper.image }}
+          ports:
+            - name: client
+              containerPort: 9181
+            - name: raft
+              containerPort: 9234
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: CLUSTER_NAME
+              value: "{{ .Values.name }}"
+            - name: KEEPER_REPLICAS
+              value: "{{ $keeperReplicas }}"
+          volumeMounts:
+            - name: &data data
+              mountPath: /var/lib/clickhouse
+            - name: &logs logs
+              mountPath: /var/log/clickhouse-keeper
+            - name: &keeper-config config
+              mountPath: /tmp/conf_templates/keeper.yaml
+              subPath: keeper.yaml
+      volumes:
+        - name: *keeper-config
+          configMap:
+            name: clickhouse-keeper-config
