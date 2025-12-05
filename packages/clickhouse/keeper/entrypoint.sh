@@ -2,6 +2,8 @@
 set -eu
 
 for v in \
+  CLUSTER_NAME \
+  NAMESPACE \
   POD_NAME \
   KEEPER_REPLICAS; do
   eval ": \${$v:?Missing $v}"
