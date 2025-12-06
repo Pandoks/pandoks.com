@@ -17,11 +17,11 @@ if [ "${BACKUP_TYPE}" != "full" ]; then
         --password "${CLICKHOUSE_USER_PASSWORD}" \
         --param_prefix="${S3_PREFIX}/${BASE_BACKUP_TYPE}/" \
         --query "SELECT name
-                 FROM system.backups
-                 WHERE status = 'BACKUP_CREATED'
-                   AND startsWith(name, concat('S3(''', {prefix:String}))
-                 ORDER BY end_time DESC
-                 LIMIT 1" \
+                   FROM system.backups
+                  WHERE status = 'BACKUP_CREATED'
+                    AND startsWith(name, concat('S3(''', {prefix:String}))
+                  ORDER BY end_time DESC
+                  LIMIT 1" \
         --format=TSVRaw 2>/dev/null || true; } |
       tr -d '\r\n'
   )
@@ -34,10 +34,10 @@ if [ "${BACKUP_TYPE}" != "full" ]; then
                 base_backup = S3('${BASE_BACKUP_URL}', '${S3_KEY}', '${S3_KEY_SECRET}'), 
                 use_same_password_for_base_backup = 1"
     else
-      log "Unable to parse ${BASE_BACKUP_TYPE} base backup; running full backup instead"
+      echo "Unable to parse ${BASE_BACKUP_TYPE} base backup; running full backup instead"
     fi
   else
-    log "No ${BASE_BACKUP_TYPE} base backup found; running full backup instead"
+    echo "No ${BASE_BACKUP_TYPE} base backup found; running full backup instead"
   fi
 fi
 
