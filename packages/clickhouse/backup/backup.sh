@@ -3,6 +3,12 @@ set -euo pipefail
 
 HOST="clickhouse-$CLUSTER_NAME.$NAMESPACE.svc.cluster.local"
 SETTINGS="SETTINGS password = '${BACKUP_PASSWORD}'"
+SCHEMA=$([ "${S3_TLS}" = "n" ] && echo http || echo https)
+
+CLEAN_BACKUP_PATH="${BACKUP_PATH#/}"
+CLEAN_BACKUP_PATH="${CLEAN_BACKUP_PATH%/}"
+[ -n "${CLEAN_BACKUP_PATH}" ] && CLEAN_BACKUP_PATH="/${CLEAN_BACKUP_PATH}"
+BASE_URL="${SCHEMA}://${S3_ENDPOINT}/${BACKUP_BUCKET}${CLEAN_BACKUP_PATH}"
 
 if [ "${BACKUP_TYPE}" != "full" ]; then
   BASE_BACKUP_TYPE="full"
@@ -15,7 +21,7 @@ if [ "${BACKUP_TYPE}" != "full" ]; then
         --host "${HOST}" \
         --user user \
         --password "${CLICKHOUSE_USER_PASSWORD}" \
-        --param_prefix="${S3_PREFIX}/${BASE_BACKUP_TYPE}/" \
+        --param_prefix="${BASE_URL}/${BASE_BACKUP_TYPE}/" \
         --query "SELECT name
                    FROM system.backups
                   WHERE status = 'BACKUP_CREATED'
@@ -41,11 +47,12 @@ if [ "${BACKUP_TYPE}" != "full" ]; then
   fi
 fi
 
+TIMESTAMP="$(date -u +"%Y%m%dT%H%M%SZ")"
 clickhouse-client \
   --host "${HOST}" \
   --user user \
   --password "${CLICKHOUSE_USER_PASSWORD}" \
   --query "BACKUP ALL
                ON CLUSTER '$CLUSTER_NAME'
-               TO S3('$BACKUP_URL', '$S3_KEY', '$S3_KEY_SECRET')
+               TO S3('$BASE_URL/${BACKUP_TYPE}/${TIMESTAMP}', '$S3_KEY', '$S3_KEY_SECRET')
            ${SETTINGS}"
