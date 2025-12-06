@@ -47,6 +47,7 @@ if [ "${BACKUP_TYPE}" != "full" ]; then
   fi
 fi
 
+echo "Running ${BACKUP_TYPE} backup..."
 TIMESTAMP="$(date -u +"%Y%m%dT%H%M%SZ")"
 clickhouse-client \
   --host "${HOST}" \
@@ -56,3 +57,4 @@ clickhouse-client \
                ON CLUSTER '$CLUSTER_NAME'
                TO S3('$BASE_URL/${BACKUP_TYPE}/${TIMESTAMP}', '$S3_KEY', '$S3_KEY_SECRET')
            ${SETTINGS}"
+echo "✓ Backup complete"
