@@ -1,7 +1,9 @@
 #!/bin/sh
 set -euo pipefail
 
-BASE_BACKUP_CLAUSE=""
+HOST="clickhouse-$CLUSTER_NAME.$NAMESPACE.svc.cluster.local"
+SETTINGS="SETTINGS password = '${BACKUP_PASSWORD}'"
+
 if [ "${BACKUP_TYPE}" != "full" ]; then
   BASE_BACKUP_TYPE="full"
   if [ "${BACKUP_TYPE}" = "incr" ]; then
@@ -10,7 +12,7 @@ if [ "${BACKUP_TYPE}" != "full" ]; then
 
   BASE_BACKUP=$(
     { clickhouse-client \
-        --host "clickhouse-$CLUSTER_NAME.$NAMESPACE.svc.cluster.local" \
+        --host "${HOST}" \
         --user user \
         --password "${CLICKHOUSE_USER_PASSWORD}" \
         --param_prefix="${S3_PREFIX}/${BASE_BACKUP_TYPE}/" \
@@ -28,7 +30,9 @@ if [ "${BACKUP_TYPE}" != "full" ]; then
     # NOTE: we extract the S3 URL and discard the old s3 credentials so you can change change buckets later on
     BASE_BACKUP_URL=$(printf '%s\n' "${BASE_BACKUP}" | sed -e "s/^S3('\([^']*\)'.*/\1/")
     if [ -n "${BASE_BACKUP_URL}" ]; then
-      BASE_BACKUP_CLAUSE="SETTINGS base_backup = S3('${BASE_BACKUP_URL}', '${S3_KEY}', '${S3_KEY_SECRET}')"
+      SETTINGS="${SETTINGS},
+                base_backup = S3('${BASE_BACKUP_URL}', '${S3_KEY}', '${S3_KEY_SECRET}'), 
+                use_same_password_for_base_backup = 1"
     else
       log "Unable to parse ${BASE_BACKUP_TYPE} base backup; running full backup instead"
     fi
@@ -36,3 +40,12 @@ if [ "${BACKUP_TYPE}" != "full" ]; then
     log "No ${BASE_BACKUP_TYPE} base backup found; running full backup instead"
   fi
 fi
+
+clickhouse-client \
+  --host "${HOST}" \
+  --user user \
+  --password "${CLICKHOUSE_USER_PASSWORD}" \
+  --query "BACKUP ALL
+               ON CLUSTER '$CLUSTER_NAME'
+               TO S3('$BACKUP_URL', '$S3_KEY', '$S3_KEY_SECRET')
+           ${SETTINGS}"
