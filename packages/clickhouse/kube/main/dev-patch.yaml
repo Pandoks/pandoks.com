@@ -8,4 +8,5 @@ spec:
   plainHTTP: true
   set:
     clickhouse.image: local-registry:5000/clickhouse:latest
+    backup.image: local-registry:5000/clickhouse-backup:latest
     keeper.image: local-registry:5000/clickhouse-keeper:latest
