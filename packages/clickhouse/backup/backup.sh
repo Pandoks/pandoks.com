@@ -58,3 +58,17 @@ clickhouse-client \
                TO S3('$BASE_URL/${BACKUP_TYPE}/${TIMESTAMP}', '$S3_KEY', '$S3_KEY_SECRET')
            ${SETTINGS}"
 echo "✓ Backup complete"
+
+echo "Cleaning up old backups..."
+REL_PATH="${CLEAN_BACKUP_PATH#/}"
+PREFIX="${REL_PATH:+${REL_PATH}/}${BACKUP_TYPE}/"
+ENTRIES=$(
+  { aws s3api list-objects-v2 \
+      --endpoint-url "${SCHEMA}://${S3_ENDPOINT}" \
+      --bucket "${BACKUP_BUCKET}" \
+      --prefix "${PREFIX}" \
+      --delimiter '/' \
+      --query 'CommonPrefixes[].Prefix' \
+      --output text } |
+    tr '\t' '\n' | sed 's#/$##' | sort
+)
