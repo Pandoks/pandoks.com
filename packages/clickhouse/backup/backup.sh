@@ -2,9 +2,21 @@
 set -euo pipefail
 
 for v in \
+  CLUSTER_NAME \
+  NAMESPACE \
+  CLICKHOUSE_USER_PASSWORD \
+  BACKUP_BUCKET \
+  BACKUP_PATH \
+  BACKUP_TYPE \
+  BACKUP_PASSWORD \
   AWS_ACCESS_KEY_ID \
   AWS_SECRET_ACCESS_KEY \
-  AWS_DEFAULT_REGION; do
+  AWS_DEFAULT_REGION \
+  S3_TLS \
+  S3_ENDPOINT \
+  S3_KEY \
+  S3_KEY_SECRET \
+  RETENTION; do
   eval ": \${$v:?Missing $v}"
 done
 
