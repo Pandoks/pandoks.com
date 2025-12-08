@@ -11,6 +11,7 @@ CLEAN_BACKUP_PATH="${CLEAN_BACKUP_PATH%/}"
 BASE_URL="${SCHEMA}://${S3_ENDPOINT}/${BACKUP_BUCKET}${CLEAN_BACKUP_PATH}"
 
 if [ "${BACKUP_TYPE}" != "full" ]; then
+  echo "Getting backup base for ${BACKUP_TYPE} backup..."
   BASE_BACKUP_TYPE="full"
   if [ "${BACKUP_TYPE}" = "incr" ]; then
     BASE_BACKUP_TYPE="diff"
@@ -36,6 +37,7 @@ if [ "${BACKUP_TYPE}" != "full" ]; then
     # NOTE: we extract the S3 URL and discard the old s3 credentials so you can change change buckets later on
     BASE_BACKUP_URL=$(printf '%s\n' "${BASE_BACKUP}" | sed -e "s/^S3('\([^']*\)'.*/\1/")
     if [ -n "${BASE_BACKUP_URL}" ]; then
+      echo "Found ${BASE_BACKUP_TYPE} base backup at ${BASE_BACKUP_URL}"
       SETTINGS="${SETTINGS},
                 base_backup = S3('${BASE_BACKUP_URL}', '${S3_KEY}', '${S3_KEY_SECRET}'), 
                 use_same_password_for_base_backup = 1"
@@ -72,3 +74,5 @@ ENTRIES=$(
       --output text } |
     tr '\t' '\n' | sed 's#/$##' | sort
 )
+echo "Entries found:"
+echo "${ENTRIES}"
