@@ -83,3 +83,18 @@ ENTRIES=$(
 )
 echo "Entries found:"
 echo "${ENTRIES}"
+
+COUNT=$(printf '%s\n' "${ENTRIES}" | grep -c '.')
+if [ $COUNT -gt $RETENTION ]; then
+  BACKUPS_TO_DELETE=$(printf '%s\n' "${ENTRIES}" | head -n $((COUNT - RETENTION)))
+  echo "Deleting backups:"
+  echo "${BACKUPS_TO_DELETE}"
+  printf '%s\n' "${BACKUPS_TO_DELETE}" | while read -r victim; do
+    aws s3 rm \
+      --endpoint-url "${SCHEME}://${S3_ENDPOINT}" \
+      --recursive "s3://${BACKUP_BUCKET}/${victim}"
+  done
+  echo "✓ Backup cleanup complete"
+else
+  echo "✓ No backups to cleanup"
+fi
