@@ -1,0 +1,29 @@
+{{- $first := true -}}
+{{- range $type, $schedule := .Values.backup.schedules }}
+  {{- if $schedule }}
+    {{- if not $first }}
+---
+    {{- end }}
+    {{- include "clickhouse.backup.cronjob" (dict "context" $ "type" $type "schedule" $schedule) }}
+    {{- $first = false -}}
+  {{- end }}
+{{- end }}
+
+{{- define "clickhouse.backup.cronjob" -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: clickhouse-{{ .context.Values.name }}-backup-{{ .type }}
+  namespace: '{{ .context.Values.namespace }}'
+spec:
+  schedule: '{{ .schedule }}'
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: clickhouse-backup
+              image: {{ .context.Values.backup.image }}
+      backoffLimit: 4
+{{- end }}
