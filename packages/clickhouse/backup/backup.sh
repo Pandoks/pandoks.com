@@ -20,7 +20,7 @@ for v in \
   eval ": \${$v:?Missing $v}"
 done
 
-HOST="clickhouse-$CLUSTER_NAME.$NAMESPACE.svc.cluster.local"
+CLICKHOUSE_HOST="clickhouse-$CLUSTER_NAME.$NAMESPACE.svc.cluster.local"
 SETTINGS="SETTINGS password = '${BACKUP_PASSWORD}'"
 SCHEME=$([ "${S3_TLS}" = "n" ] && echo http || echo https)
 
@@ -38,7 +38,7 @@ if [ "${BACKUP_TYPE}" != "full" ]; then
 
   BASE_BACKUP=$(
     { clickhouse-client \
-        --host "${HOST}" \
+        --host "${CLICKHOUSE_HOST}" \
         --user user \
         --password "${CLICKHOUSE_USER_PASSWORD}" \
         --param_prefix="${BASE_URL}/${BASE_BACKUP_TYPE}/" \
@@ -71,7 +71,7 @@ fi
 echo "Running ${BACKUP_TYPE} backup..."
 TIMESTAMP="$(date -u +"%Y%m%dT%H%M%SZ")"
 clickhouse-client \
-  --host "${HOST}" \
+  --host "${CLICKHOUSE_HOST}" \
   --user user \
   --password "${CLICKHOUSE_USER_PASSWORD}" \
   --query "BACKUP ALL
