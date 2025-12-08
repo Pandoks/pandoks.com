@@ -9,6 +9,7 @@ on:
       - 'packages/valkey/**'
       - 'packages/clickhouse/clickhouse/**'
       - 'packages/clickhouse/keeper/**'
+      - 'packages/clickhouse/backup/**'
       # NOTE: you can exclude files/directories/subdirectories using `!` prefix (!packages/**)
 
 jobs:
@@ -36,6 +37,8 @@ jobs:
             path: ./packages/clickhouse/clickhouse/Dockerfile
           - name: clickhouse-keeper
             path: ./packages/clickhouse/keeper/Dockerfile
+          - name: clickhouse-backup
+            path: ./packages/clickhouse/backup/Dockerfile
 
     steps:
       - uses: actions/checkout@v4
