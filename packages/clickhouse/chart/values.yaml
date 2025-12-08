@@ -1,3 +1,5 @@
+# Default values for clickhouse chart
+
 name: example
 namespace: example
 
@@ -23,3 +25,30 @@ keeper:
     limits:
       cpu: 2000m
       memory: 4Gi
+
+backup:
+  image: ghcr.io/pandoks/clickhouse-backup:latest
+  bucket: clickhouse
+  path: /
+  schedules:
+    full: '0 2 * * 0'
+    diff: '0 2 * * 3,6'
+    incr: '0 2 * * 1,2,4,5'
+  retention:
+    full: 3
+    diff: 6
+    incr: 24
+  credentials:
+    secret: clickhouse-backup-creds
+    dataKeys:
+      backupPasswordKey: BACKUP_PASSWORD
+
+s3:
+  region: us-west-1
+  endpoint: host.k3d.internal:4566
+  tls: 'n'
+  credentials:
+    secret: clickhouse-backup-creds
+    dataKeys:
+      s3Key: S3_KEY
+      s3KeySecret: S3_KEY_SECRET
