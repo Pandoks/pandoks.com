@@ -92,9 +92,8 @@ if [ $COUNT -gt $RETENTION ]; then
   echo "Deleting backups:"
   echo "${BACKUPS_TO_DELETE}"
   printf '%s\n' "${BACKUPS_TO_DELETE}" | while read -r victim; do
-    aws s3 rm \
-      --endpoint-url "${SCHEME}://${S3_ENDPOINT}" \
-      --recursive "s3://${BACKUP_BUCKET}/${victim}"
+    rclone purge "${S3_REMOTE}:${BACKUP_BUCKET}/${victim}" >/dev/null 2>&1 || \
+      rclone delete "${S3_REMOTE}:${BACKUP_BUCKET}/${victim}" --rmdirs
   done
   echo "✓ Backup cleanup complete"
 else
