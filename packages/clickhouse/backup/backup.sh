@@ -9,9 +9,7 @@ for v in \
   BACKUP_PATH \
   BACKUP_TYPE \
   BACKUP_PASSWORD \
-  AWS_ACCESS_KEY_ID \
-  AWS_SECRET_ACCESS_KEY \
-  AWS_DEFAULT_REGION \
+  S3_REGION \
   S3_TLS \
   S3_ENDPOINT \
   S3_KEY \
@@ -81,6 +79,7 @@ clickhouse-client \
 echo "✓ Backup complete"
 
 echo "Cleaning up old backups..."
+S3_REMOTE=":s3,provider=Other,env_auth=false,access_key_id=${S3_KEY},secret_access_key=${S3_KEY_SECRET},endpoint=${SCHEME}://${S3_ENDPOINT},region=${S3_REGION},force_path_style=true"
 REL_PATH="${CLEAN_BACKUP_PATH#/}"
 PREFIX="${REL_PATH:+${REL_PATH}/}${BACKUP_TYPE}/"
 ENTRIES=$(
