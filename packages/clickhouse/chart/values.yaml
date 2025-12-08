@@ -39,16 +39,16 @@ backup:
     diff: 6
     incr: 24
   credentials:
-    secret: clickhouse-backup-creds
+    secret: example-clickhouse-backup-creds
     dataKeys:
-      backupPasswordKey: BACKUP_PASSWORD
+      backupPassword: BACKUP_PASSWORD
 
 s3:
   region: us-west-1
   endpoint: host.k3d.internal:4566
   tls: 'n'
   credentials:
-    secret: clickhouse-backup-creds
+    secret: example-clickhouse-backup-creds
     dataKeys:
       s3Key: S3_KEY
       s3KeySecret: S3_KEY_SECRET
