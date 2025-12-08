@@ -10,12 +10,12 @@ done
 
 HOST="clickhouse-$CLUSTER_NAME.$NAMESPACE.svc.cluster.local"
 SETTINGS="SETTINGS password = '${BACKUP_PASSWORD}'"
-SCHEMA=$([ "${S3_TLS}" = "n" ] && echo http || echo https)
+SCHEME=$([ "${S3_TLS}" = "n" ] && echo http || echo https)
 
 CLEAN_BACKUP_PATH="${BACKUP_PATH#/}"
 CLEAN_BACKUP_PATH="${CLEAN_BACKUP_PATH%/}"
 [ -n "${CLEAN_BACKUP_PATH}" ] && CLEAN_BACKUP_PATH="/${CLEAN_BACKUP_PATH}"
-BASE_URL="${SCHEMA}://${S3_ENDPOINT}/${BACKUP_BUCKET}${CLEAN_BACKUP_PATH}"
+BASE_URL="${SCHEME}://${S3_ENDPOINT}/${BACKUP_BUCKET}${CLEAN_BACKUP_PATH}"
 
 if [ "${BACKUP_TYPE}" != "full" ]; then
   echo "Getting backup base for ${BACKUP_TYPE} backup..."
@@ -73,7 +73,7 @@ REL_PATH="${CLEAN_BACKUP_PATH#/}"
 PREFIX="${REL_PATH:+${REL_PATH}/}${BACKUP_TYPE}/"
 ENTRIES=$(
   { aws s3api list-objects-v2 \
-      --endpoint-url "${SCHEMA}://${S3_ENDPOINT}" \
+      --endpoint-url "${SCHEME}://${S3_ENDPOINT}" \
       --bucket "${BACKUP_BUCKET}" \
       --prefix "${PREFIX}" \
       --delimiter '/' \
