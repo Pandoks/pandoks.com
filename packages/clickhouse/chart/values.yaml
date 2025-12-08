@@ -6,8 +6,8 @@ namespace: example
 credentials:
   secret: clickhouse-example-creds
   dataKeys:
-    adminPassword: CLICKHOUSE_ADMIN_PASSWORD
-    userPassword: CLICKHOUSE_USER_PASSWORD
+    adminPassword: ADMIN_PASSWORD
+    userPassword: USER_PASSWORD
 
 clickhouse:
   image: ghcr.io/pandoks/clickhouse:latest
