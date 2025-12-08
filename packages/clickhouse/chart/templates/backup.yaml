@@ -52,6 +52,8 @@ spec:
                   value: '{{ .Values.s3.tls }}'
                 - name: S3_ENDPOINT
                   value: '{{ .Values.s3.endpoint }}'
+                - name: S3_REGION
+                  value: '{{ .Values.s3.region }}'
                 - name: S3_KEY
                   valueFrom:
                     secretKeyRef:
