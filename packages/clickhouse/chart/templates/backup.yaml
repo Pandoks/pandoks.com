@@ -35,36 +35,36 @@ spec:
                 - name: CLICKHOUSE_USER_PASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: '{{ .Values.credentials.secret }}'
-                      key: '{{ .Values.credentials.dataKeys.userPassword }}'
+                      name: '{{ .context.Values.credentials.secret }}'
+                      key: '{{ .context.Values.credentials.dataKeys.userPassword }}'
                 - name: BACKUP_BUCKET
-                  value: '{{ .Values.backup.bucket }}'
+                  value: '{{ .context.Values.backup.bucket }}'
                 - name: BACKUP_PATH
-                  value: '{{ .Values.backup.path }}'
+                  value: '{{ .context.Values.backup.path }}'
                 - name: BACKUP_TYPE
                   value: '{{ .type }}'
                 - name: BACKUP_PASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: '{{ .Values.backup.credentials.secret }}'
-                      key: '{{ .Values.backup.credentials.dataKeys.backupPassword }}'
+                      name: '{{ .context.Values.backup.credentials.secret }}'
+                      key: '{{ .context.Values.backup.credentials.dataKeys.backupPassword }}'
                 - name: S3_TLS
-                  value: '{{ .Values.s3.tls }}'
+                  value: '{{ .context.Values.s3.tls }}'
                 - name: S3_ENDPOINT
-                  value: '{{ .Values.s3.endpoint }}'
+                  value: '{{ .context.Values.s3.endpoint }}'
                 - name: S3_REGION
-                  value: '{{ .Values.s3.region }}'
+                  value: '{{ .context.Values.s3.region }}'
                 - name: S3_KEY
                   valueFrom:
                     secretKeyRef:
-                      name: '{{ .Values.s3.credentials.secret }}'
-                      key: '{{ .Values.s3.credentials.dataKeys.s3Key }}'
+                      name: '{{ .context.Values.s3.credentials.secret }}'
+                      key: '{{ .context.Values.s3.credentials.dataKeys.s3Key }}'
                 - name: S3_KEY_SECRET
                   valueFrom:
                     secretKeyRef:
-                      name: '{{ .Values.s3.credentials.secret }}'
-                      key: '{{ .Values.s3.credentials.dataKeys.s3KeySecret }}'
+                      name: '{{ .context.Values.s3.credentials.secret }}'
+                      key: '{{ .context.Values.s3.credentials.dataKeys.s3KeySecret }}'
                 - name: RETENTION
-                  value: '{{ index .Values.backup.retention .type }}'
+                  value: '{{ index .context.Values.backup.retention .type }}'
       backoffLimit: 4
 {{- end }}
