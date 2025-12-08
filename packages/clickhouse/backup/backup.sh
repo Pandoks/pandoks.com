@@ -1,6 +1,13 @@
 #!/bin/sh
 set -euo pipefail
 
+for v in \
+  AWS_ACCESS_KEY_ID \
+  AWS_SECRET_ACCESS_KEY \
+  AWS_DEFAULT_REGION; do
+  eval ": \${$v:?Missing $v}"
+done
+
 HOST="clickhouse-$CLUSTER_NAME.$NAMESPACE.svc.cluster.local"
 SETTINGS="SETTINGS password = '${BACKUP_PASSWORD}'"
 SCHEMA=$([ "${S3_TLS}" = "n" ] && echo http || echo https)
