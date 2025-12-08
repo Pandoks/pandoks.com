@@ -65,6 +65,6 @@ spec:
                       name: '{{ .Values.s3.credentials.secret }}'
                       key: '{{ .Values.s3.credentials.dataKeys.s3KeySecret }}'
                 - name: RETENTION
-                  value: '{{ index .Values.backup.retnetion .type}}'
+                  value: '{{ index .Values.backup.retnetion .type }}'
       backoffLimit: 4
 {{- end }}
