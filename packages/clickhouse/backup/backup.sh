@@ -81,17 +81,8 @@ echo "✓ Backup complete"
 echo "Cleaning up old backups..."
 S3_REMOTE=":s3,provider=Other,env_auth=false,access_key_id=${S3_KEY},secret_access_key=${S3_KEY_SECRET},endpoint=${SCHEME}://${S3_ENDPOINT},region=${S3_REGION},force_path_style=true"
 REL_PATH="${CLEAN_BACKUP_PATH#/}"
-PREFIX="${REL_PATH:+${REL_PATH}/}${BACKUP_TYPE}/"
-ENTRIES=$(
-  { aws s3api list-objects-v2 \
-      --endpoint-url "${SCHEME}://${S3_ENDPOINT}" \
-      --bucket "${BACKUP_BUCKET}" \
-      --prefix "${PREFIX}" \
-      --delimiter '/' \
-      --query 'CommonPrefixes[].Prefix' \
-      --output text } |
-    tr '\t' '\n' | sed 's#/$##' | sort
-)
+TARGET_PATH="${REL_PATH:+${REL_PATH}/}${BACKUP_TYPE}/"
+ENTRIES=$(rclone lsf --dirs-only --format=p --max-depth 1 "${S3_REMOTE}:${BACKUP_BUCKET}/${TARGET_PATH}" | sed 's#/$##' | sed "/^$/d" | sed "s#^#${TARGET_PATH}#" | sort)
 echo "Entries found:"
 echo "${ENTRIES}"
 
