@@ -8,7 +8,6 @@ for v in \
   BACKUP_BUCKET \
   BACKUP_PATH \
   BACKUP_TYPE \
-  BACKUP_PASSWORD \
   S3_REGION \
   S3_TLS \
   S3_ENDPOINT \
@@ -19,7 +18,6 @@ for v in \
 done
 
 CLICKHOUSE_HOST="clickhouse-$CLUSTER_NAME.$NAMESPACE.svc.cluster.local"
-SETTINGS="SETTINGS password = '${BACKUP_PASSWORD}'"
 SCHEME=$([ "${S3_TLS}" = "n" ] && echo http || echo https)
 
 CLEAN_BACKUP_PATH="${BACKUP_PATH#/}"
@@ -27,6 +25,7 @@ CLEAN_BACKUP_PATH="${CLEAN_BACKUP_PATH%/}"
 [ -n "${CLEAN_BACKUP_PATH}" ] && CLEAN_BACKUP_PATH="/${CLEAN_BACKUP_PATH}"
 BASE_URL="${SCHEME}://${S3_ENDPOINT}/${BACKUP_BUCKET}${CLEAN_BACKUP_PATH}"
 
+SETTINGS=""
 if [ "${BACKUP_TYPE}" != "full" ]; then
   echo "Getting backup base for ${BACKUP_TYPE} backup..."
   BASE_BACKUP_TYPE="full"
@@ -55,8 +54,7 @@ if [ "${BACKUP_TYPE}" != "full" ]; then
     BASE_BACKUP_URL=$(printf '%s\n' "${BASE_BACKUP}" | sed -e "s/^S3('\([^']*\)'.*/\1/")
     if [ -n "${BASE_BACKUP_URL}" ]; then
       echo "Found ${BASE_BACKUP_TYPE} base backup at ${BASE_BACKUP_URL}"
-      SETTINGS="${SETTINGS},
-                base_backup = S3('${BASE_BACKUP_URL}', '${S3_KEY}', '${S3_KEY_SECRET}'), 
+      SETTINGS="SETTINGS base_backup = S3('${BASE_BACKUP_URL}', '${S3_KEY}', '${S3_KEY_SECRET}'), 
                 use_same_password_for_base_backup = 1"
     else
       echo "Unable to parse ${BASE_BACKUP_TYPE} base backup; running full backup instead"

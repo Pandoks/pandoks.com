@@ -38,10 +38,6 @@ backup:
     full: 3
     diff: 6
     incr: 24
-  credentials:
-    secret: example-clickhouse-backup-creds
-    dataKeys:
-      backupPassword: BACKUP_PASSWORD
 
 s3:
   region: us-west-1
