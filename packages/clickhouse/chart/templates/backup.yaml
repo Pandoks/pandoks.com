@@ -43,11 +43,6 @@ spec:
                   value: '{{ .context.Values.backup.path }}'
                 - name: BACKUP_TYPE
                   value: '{{ .type }}'
-                - name: BACKUP_PASSWORD
-                  valueFrom:
-                    secretKeyRef:
-                      name: '{{ .context.Values.backup.credentials.secret }}'
-                      key: '{{ .context.Values.backup.credentials.dataKeys.backupPassword }}'
                 - name: S3_TLS
                   value: '{{ .context.Values.s3.tls }}'
                 - name: S3_ENDPOINT
