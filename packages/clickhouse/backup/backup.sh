@@ -70,7 +70,7 @@ clickhouse-client \
   --host "${CLICKHOUSE_HOST}" \
   --user user \
   --password "${CLICKHOUSE_USER_PASSWORD}" \
-  --query "BACKUP ALL
+  --query "BACKUP ALL EXCEPT DATABASES system, INFORMATION_SCHEMA, information_schema
                ON CLUSTER '$CLUSTER_NAME'
                TO S3('$BASE_URL/${BACKUP_TYPE}/${TIMESTAMP}', '$S3_KEY', '$S3_KEY_SECRET')
            ${SETTINGS}"
