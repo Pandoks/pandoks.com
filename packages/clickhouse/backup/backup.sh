@@ -86,10 +86,12 @@ clickhouse-client \
 echo "✓ Backup complete"
 
 echo "Cleaning up old backups..."
-S3_REMOTE=":s3,provider=Other,env_auth=false,access_key_id=${S3_KEY},secret_access_key=${S3_KEY_SECRET},endpoint=${SCHEME}://${S3_ENDPOINT},region=${S3_REGION},force_path_style=true"
 REL_PATH="${CLEAN_BACKUP_PATH#/}"
 TARGET_PATH="${REL_PATH:+${REL_PATH}/}${BACKUP_TYPE}/"
-ENTRIES=$(rclone lsf --dirs-only --format=p --max-depth 1 "${S3_REMOTE}:${BACKUP_BUCKET}/${TARGET_PATH}" | sed 's#/$##' | sed "/^$/d" | sed "s#^#${TARGET_PATH}#" | sort)
+if ! ENTRIES=$(rclone_cmd lsf --dirs-only --format=p --max-depth 1 ":s3:${BACKUP_BUCKET}/${TARGET_PATH}" | sed 's#/$##' | sed "/^$/d" | sed "s#^#${TARGET_PATH}#" | sort); then
+  echo "⚠️  Failed to enumerate existing backups; skipping retention cleanup"
+  exit 0
+fi
 echo "Entries found:"
 echo "${ENTRIES}"
 
@@ -99,8 +101,8 @@ if [ $COUNT -gt $RETENTION ]; then
   echo "Deleting backups:"
   echo "${BACKUPS_TO_DELETE}"
   printf '%s\n' "${BACKUPS_TO_DELETE}" | while read -r victim; do
-    rclone purge "${S3_REMOTE}:${BACKUP_BUCKET}/${victim}" >/dev/null 2>&1 || \
-      rclone delete "${S3_REMOTE}:${BACKUP_BUCKET}/${victim}" --rmdirs
+    rclone_cmd purge ":s3:${BACKUP_BUCKET}/${victim}" >/dev/null 2>&1 || \
+      rclone_cmd delete --rmdirs ":s3:${BACKUP_BUCKET}/${victim}"
   done
   echo "✓ Backup cleanup complete"
 else
