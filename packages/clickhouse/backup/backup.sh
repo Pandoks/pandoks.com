@@ -23,6 +23,17 @@ CLEAN_BACKUP_PATH="${CLEAN_BACKUP_PATH%/}"
 [ -n "${CLEAN_BACKUP_PATH}" ] && CLEAN_BACKUP_PATH="/${CLEAN_BACKUP_PATH}"
 BASE_URL="${S3_ENDPOINT}/${BACKUP_BUCKET}${CLEAN_BACKUP_PATH}"
 
+rclone_cmd() {
+  rclone \
+    --s3-provider Other \
+    --s3-region "${S3_REGION}" \
+    --s3-endpoint "${S3_ENDPOINT}" \
+    --s3-access-key-id "${S3_KEY}" \
+    --s3-secret-access-key "${S3_KEY_SECRET}" \
+    --s3-force-path-style=true \
+    "$@"
+}
+
 SETTINGS=""
 if [ "${BACKUP_TYPE}" != "full" ]; then
   echo "Getting backup base for ${BACKUP_TYPE} backup..."
