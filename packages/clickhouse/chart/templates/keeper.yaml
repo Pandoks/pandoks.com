@@ -67,6 +67,11 @@ spec:
             - name: &keeper-config config
               mountPath: /tmp/conf_templates/keeper.yaml
               subPath: keeper.yaml
+          readinessProbe:
+            tcpSocket:
+              port: 9234
+            initialDelaySeconds: 10
+            periodSeconds: 5
           resources:
             {{- toYaml .Values.keeper.resources | nindent 12 }}
       volumes:
