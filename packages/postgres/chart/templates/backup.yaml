@@ -77,6 +77,10 @@ spec:
                     secretKeyRef:
                       name: *db_creds
                       key: '{{ .context.Values.credentials.dataKeys.clientPassword }}'
+                - name: FULL_RETENTION
+                  value: '{{ .context.Values.backup.retention.full }}'
+                - name: DIFF_RETENTION
+                  value: '{{ .context.Values.backup.retention.diff }}'
               volumeMounts:
                 - name: &config pgbackrest-config
                   mountPath: /tmp/conf_templates/pgbackrest.conf
