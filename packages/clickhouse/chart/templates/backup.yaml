@@ -43,8 +43,6 @@ spec:
                   value: '{{ .context.Values.backup.path }}'
                 - name: BACKUP_TYPE
                   value: '{{ .type }}'
-                - name: S3_TLS
-                  value: '{{ .context.Values.s3.tls }}'
                 - name: S3_ENDPOINT
                   value: '{{ .context.Values.s3.endpoint }}'
                 - name: S3_REGION

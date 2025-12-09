@@ -9,7 +9,6 @@ for v in \
   BACKUP_PATH \
   BACKUP_TYPE \
   S3_REGION \
-  S3_TLS \
   S3_ENDPOINT \
   S3_KEY \
   S3_KEY_SECRET \
@@ -18,12 +17,11 @@ for v in \
 done
 
 CLICKHOUSE_HOST="clickhouse-$CLUSTER_NAME.$NAMESPACE.svc.cluster.local"
-SCHEME=$([ "${S3_TLS}" = "n" ] && echo http || echo https)
 
 CLEAN_BACKUP_PATH="${BACKUP_PATH#/}"
 CLEAN_BACKUP_PATH="${CLEAN_BACKUP_PATH%/}"
 [ -n "${CLEAN_BACKUP_PATH}" ] && CLEAN_BACKUP_PATH="/${CLEAN_BACKUP_PATH}"
-BASE_URL="${SCHEME}://${S3_ENDPOINT}/${BACKUP_BUCKET}${CLEAN_BACKUP_PATH}"
+BASE_URL="${S3_ENDPOINT}/${BACKUP_BUCKET}${CLEAN_BACKUP_PATH}"
 
 SETTINGS=""
 if [ "${BACKUP_TYPE}" != "full" ]; then
