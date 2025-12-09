@@ -16,11 +16,11 @@ cat >> /etc/clickhouse-keeper/keeper.yaml <<EOF
 
   server_id: $SERVER_ID
   raft_configuration:
+    servers:
 EOF
 for i in $(seq 0 $((KEEPER_REPLICAS - 1))); do
   cat >> /etc/clickhouse-keeper/keeper.yaml <<EOF
-    - server:
-        id: $((i + 1))
+      - id: $((i + 1))
         hostname: clickhouse-keeper-$CLUSTER_NAME-$i.clickhouse-keeper-$CLUSTER_NAME-headless.$NAMESPACE.svc.cluster.local
         port: 9234
 EOF
