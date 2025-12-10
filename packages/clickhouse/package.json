@@ -1,0 +1,20 @@
+{
+  "name": "@pandoks.com/clickhouse",
+  "version": "0.0.1",
+  "type": "module",
+  "sideEffects": false,
+  "scripts": {
+    "build": "pnpm run build:clickhouse & pnpm run build:keeper & pnpm run build:helm & wait",
+    "cluster:build": "pnpm run build",
+    "build:clickhouse": "docker build -f ./clickhouse/Dockerfile ../../ -t localhost:12345/clickhouse:latest",
+    "build:keeper": "docker build -f ./keeper/Dockerfile ../../ -t localhost:12345/clickhouse-keeper:latest",
+    "build:backup": "docker build -f ./backup/Dockerfile ../../ -t localhost:12345/clickhouse-backup:latest",
+    "build:helm": "helm package ./chart",
+    "push": "pnpm run push:clickhouse & pnpm run push:keeper & pnpm run push:helm & wait",
+    "cluster:push": "pnpm run push",
+    "push:clickhouse": "docker push localhost:12345/clickhouse:latest",
+    "push:keeper": "docker push localhost:12345/clickhouse-keeper:latest",
+    "push:backup": "docker push localhost:12345/clickhouse-backup:latest",
+    "push:helm": "helm push clickhouse-*.tgz oci://localhost:12345/charts"
+  }
+}
