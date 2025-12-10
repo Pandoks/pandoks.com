@@ -74,6 +74,8 @@ postgresql: # postgresql settings here don't need to restart the entire cluster
     cron.database_name: ${POSTGRES_DB}
     cron.timezone: GMT
     cron.use_background_workers: on
+  remove_data_directory_on_rewind_failure: true
+  remove_data_directory_on_diverged_timelines: true
 
 restapi:
   listen: 0.0.0.0:8008
