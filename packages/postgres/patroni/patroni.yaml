@@ -45,6 +45,8 @@ bootstrap: # how new clusters are created or replicas are initialized
         - 'host replication all 127.0.0.1/32 trust'
         - 'host replication all ::1/128 trust'
         - 'host replication replicator 10.42.0.0/16 scram-sha-256'
+        - 'host postgres replicator 10.42.0.0/16 scram-sha-256'
+        - 'host postgres ${PGUSER} 10.42.0.0/16 scram-sha-256'
         - 'host ${POSTGRES_DB} pgcat 10.42.0.0/16 scram-sha-256'
   post_bootstrap: /usr/local/bin/cluster-init.sh
 
