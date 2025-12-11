@@ -5,7 +5,7 @@ BOLD='\e[1m'
 NORMAL='\e[0m'
 
 usage() {
-  printf "Usage: %s <command> [options]\n\n" "$0" >&2
+  printf "%bUsage:%b %s <command> [options]\n\n" "$BOLD" "$NORMAL" "$0" >&2
   printf "%bCommands:%b\n" "$BOLD" "$NORMAL" >&2
   printf "  k3d-up   : Create local k3d cluster (only for k3d)\n" >&2
   printf "  k3d-down : Delete local k3d cluster (only for k3d)\n" >&2
