@@ -21,8 +21,8 @@ bootstrap: # how new clusters are created or replicas are initialized
         wal_level: logical # minimal, replica, or logical (logical is needed for zero sync)
         max_wal_senders: 20
         max_replication_slots: 20
-        wal_keep_size: 4096MB
-        max_slot_wal_keep_size: 4096MB
+        wal_keep_size: 16384MB
+        max_slot_wal_keep_size: 16384MB
         wal_log_hints: on
         max_wal_size: 4GB
         min_wal_size: 1GB
