@@ -30,6 +30,7 @@ k3d-up | setup | k3d-down | secrets) ;;
 *) 
   printf "%bError:%b Unknown command '%s'\n" "$RED" "$NORMAL" "$CMD" >&2
   usage 
+  exit 1
   ;;
 esac
 
