@@ -331,11 +331,5 @@ secrets)
     kubectl apply -f "$TMP_FILE"
   fi
   ;;
-
- 
-*)
-  usage
-  exit 1
-  ;;
- esac
+esac
 
