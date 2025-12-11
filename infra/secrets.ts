@@ -35,6 +35,11 @@ export const secrets = {
     PostgresS3Key: new sst.Secret('PostgresS3Key', 'test'),
     PostgresS3KeySecret: new sst.Secret('PostgresS3KeySecret', 'testsecret'),
     ValkeyAdminPassword: new sst.Secret('ValkeyAdminPassword'),
-    ValkeyClientPassword: new sst.Secret('ValkeyClientPassword')
-  },
+    ValkeyClientPassword: new sst.Secret('ValkeyClientPassword'),
+    ClickhouseAdminPassword: new sst.Secret('ClickhouseAdminPassword'),
+    ClickhouseUserPassword: new sst.Secret('ClickhouseUserPassword'),
+    ClickhouseBackupPassword: new sst.Secret('ClickhouseBackupPassword'),
+    ClickhouseS3Key: new sst.Secret('ClickhouseS3Key', 'test'),
+    ClickhouseS3KeySecret: new sst.Secret('ClickhouseS3KeySecret', 'testsecret')
+  }
 };

@@ -1,0 +1,13 @@
+apiVersion: v2
+name: clickhouse
+description: ClickHouse database with Keeper for replication
+type: application
+version: 0.1.0
+appVersion: 25.11
+keywords:
+  - clickhouse
+  - database
+  - keeper
+maintainers:
+  - name: pandoks
+dependencies: []

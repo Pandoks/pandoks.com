@@ -1,0 +1,28 @@
+logger:
+  level: information
+  log: /var/log/clickhouse-server/clickhouse-server.log
+  errorlog: /var/log/clickhouse-server/clickhouse-server.err.log
+  console: 1 # logs also go to stdout/stderr (default: 0)
+
+http_port: 8123 # clickhouse web ui, http client api, prometheus (default: 8123)
+tcp_port: 9000 # binary protocol for drivers/clients. faster, but less safe (default: 9000)
+interserver_http_port: 9009 # bus protocol for internal cluster communication (default: 9009)
+
+listen_host: '::'
+
+max_connections: 4096 # default: 4096
+keep_alive_timeout: 3 # how long idle tcp/http connections are kept alive seconds (default: 3)
+
+max_concurrent_queries: 100 # default: 100
+max_server_memory_usage_to_ram_ratio: 0.9 # default: 0.9
+max_thread_pool_size: 10000 # default: 10000
+
+users_config: /etc/clickhouse-server/users.yaml
+
+distributed_ddl:
+  path: /clickhouse/task_queue/ddl # default
+
+# Unique identifier of this pod in the cluster
+macros:
+  shard: ${SHARD_ID}
+  replica: ${REPLICA_ID}

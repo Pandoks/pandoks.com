@@ -1,0 +1,16 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: main-clickhouse-main-cluster
+  namespace: kube-system
+spec:
+  chart: oci://local-registry:5000/charts/clickhouse
+  plainHTTP: true
+  set:
+    clickhouse.image: local-registry:5000/clickhouse:latest
+    backup.image: local-registry:5000/clickhouse-backup:latest
+    keeper.image: local-registry:5000/clickhouse-keeper:latest
+    keeper.resources.limits.cpu: 500m
+    keeper.resources.limits.memory: 1Gi
+    clickhouse.resources.limits.cpu: 1000m
+    clickhouse.resources.limits.memory: 2Gi

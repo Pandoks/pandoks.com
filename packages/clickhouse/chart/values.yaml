@@ -1,0 +1,49 @@
+# Default values for clickhouse chart
+
+name: example
+namespace: example
+
+credentials:
+  secret: clickhouse-example-creds
+  dataKeys:
+    adminPassword: ADMIN_PASSWORD
+    userPassword: USER_PASSWORD
+
+clickhouse:
+  image: ghcr.io/pandoks/clickhouse:latest
+  shards: 1
+  replicasPerShard: 2
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+keeper:
+  image: ghcr.io/pandoks/clickhouse-keeper:latest
+  replicas: 3
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+backup:
+  image: ghcr.io/pandoks/clickhouse-backup:latest
+  bucket: clickhouse
+  path: /
+  schedules:
+    full: '0 2 * * 0'
+    diff: '0 2 * * 3,6'
+    incr: '0 2 * * 1,2,4,5'
+  retention:
+    full: 3
+    diff: 6
+    incr: 24
+
+s3:
+  region: us-west-1
+  endpoint: http://host.k3d.internal:4566
+  credentials:
+    secret: example-clickhouse-backup-creds
+    dataKeys:
+      s3Key: S3_KEY
+      s3KeySecret: S3_KEY_SECRET
