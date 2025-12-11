@@ -166,6 +166,8 @@ spec:
               subPath: pgbackrest.conf
             - name: &data patroni-data
               mountPath: &data_mount /var/lib/postgresql
+            - name: &wal_archives patroni-wal-archives
+              mountPath: &wal_archives_mount /var/spool/pgbackrest
             - name: &socket postgres-socket
               mountPath: &socket_mount /var/run/postgresql
         - name: pgbackrest
@@ -228,6 +230,8 @@ spec:
               readOnly: true
             - name: *data
               mountPath: *data_mount
+            - name: *wal_archives
+              mountPath: *wal_archives_mount
             - name: *socket
               mountPath: *socket_mount
       volumes:
@@ -262,6 +266,15 @@ spec:
   volumeClaimTemplates:
     - metadata:
         name: *data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 999Pi # local-path does not support storage requests so we use a big number just to show that it's uncapped
+    - metadata:
+        name: *wal_archives
       spec:
         accessModes:
           - ReadWriteOnce
