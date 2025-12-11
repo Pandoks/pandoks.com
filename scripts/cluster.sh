@@ -3,6 +3,7 @@ set -euo pipefail
 
 BOLD='\e[1m'
 NORMAL='\e[0m'
+RED='\e[31m'
 
 usage() {
   printf "%bUsage:%b %s <command> [options]\n\n" "$BOLD" "$NORMAL" "$0" >&2
@@ -26,7 +27,10 @@ CMD="$1"
 shift
 case "$CMD" in
 k3d-up | setup | k3d-down | secrets) ;;
-*) usage ;;
+*) 
+  printf "%bError:%b Unknown command '%s'\n" "$RED" "$NORMAL" "$CMD" >&2
+  usage 
+  ;;
 esac
 
 KUBECONFIG_FLAG=""
