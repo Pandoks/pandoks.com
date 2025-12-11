@@ -4,4 +4,5 @@ resources:
   - ../apps
 patches:
   - path: ../../packages/postgres/kube/main/dev-patch.yaml
-  - path: ../../packages/valkey/kube/dev-patch.yaml
+  - path: ../../packages/valkey/kube/main/dev-patch.yaml
+  - path: ../../packages/clickhouse/kube/main/dev-patch.yaml

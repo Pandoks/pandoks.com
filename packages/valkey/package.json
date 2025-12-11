@@ -4,9 +4,17 @@
   "type": "module",
   "sideEffects": false,
   "scripts": {
-    "build": "docker build -f ./Dockerfile ../../ -t localhost:12345/valkey:latest",
+    "build": "pnpm run build:image & pnpm run build:helm & pnpm run build:reconciler & wait",
     "cluster:build": "pnpm run build",
-    "push": "docker push localhost:12345/valkey:latest",
-    "cluster:push": "pnpm run push"
+    "build:image": "docker build -f ./Dockerfile ../../ -t localhost:12345/valkey:latest",
+    "build:reconciler": "docker build -f ./reconciler/Dockerfile ../../ -t localhost:12345/valkey-reconciler:latest",
+    "build:helm": "helm package ./chart",
+    "push": "pnpm run push:image & pnpm run push:helm & pnpm run push:reconciler & wait",
+    "cluster:push": "pnpm run push",
+    "push:image": "docker push localhost:12345/valkey:latest",
+    "push:helm": "helm push valkey-*.tgz oci://localhost:12345/charts",
+    "push:reconciler": "docker push localhost:12345/valkey-reconciler:latest",
+    "test": "pnpm run test:reconciler",
+    "test:reconciler": "go test -C ./reconciler -v ./..."
   }
 }

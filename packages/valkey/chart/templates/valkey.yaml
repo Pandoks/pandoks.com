@@ -17,6 +17,20 @@ spec:
       targetPort: 16379
 
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: valkey-{{ .Values.name }}-cluster
+  namespace: '{{ .Values.namespace }}'
+spec:
+  type: ClusterIP
+  selector:
+    app: valkey-{{ .Values.name }}
+  ports:
+    - port: 6379
+      targetPort: 6379
+
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -38,12 +52,12 @@ spec:
     spec:
       containers:
         - name: valkey
-          image: ghcr.io/pandoks/valkey:latest
+          image: {{ .Values.image }}
           ports:
             - name: client
-              containerPort: &clientPort 6379
+              containerPort: 6379
             - name: bus
-              containerPort: &busPort 16379
+              containerPort: 16379
           env:
             - name: POD_NAME
               valueFrom:
@@ -56,15 +70,64 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: ANNOUNCE_PORT
-              value: *clientPort
+              value: '6379'
             - name: ANNOUNCE_BUS_PORT
-              value: *busPort
+              value: '16379'
+            {{- if .Values.persistence }}
             - name: PERSISTENCE
-              value: {{ .Values.persistence.modes | join "," | quote }}
-            - name: PASSWORD
+              value: '{{ .Values.persistence }}'
+            {{- end }}
+            - name: ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: 'valkey-{{ .Values.name }}-creds'
-                  key: password
+                  name: '{{ .Values.credentials.secret }}'
+                  key: '{{ .Values.credentials.dataKeys.adminPassword }}'
+            - name: CLIENT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: '{{ .Values.credentials.secret }}'
+                  key: '{{ .Values.credentials.dataKeys.clientPassword }}'
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: &data data
+              mountPath: /data
+            - name: &config config
+              mountPath: /tmp/conf_templates/valkey.conf
+              subPath: valkey.conf
+            - name: &acl acl
+              mountPath: /tmp/conf_templates/users.acl
+              subPath: users.acl
+          livenessProbe:
+            tcpSocket:
+              port: 6379
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - valkey-cli --user admin -a "$CLIENT_PASSWORD" ping | grep -q PONG
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 3
+      volumes:
+        - name: *config
+          configMap:
+            name: valkey-config
+        - name: *acl
+          configMap:
+            name: valkey-acl
+  volumeClaimTemplates:
+    - metadata:
+        name: *data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 999Pi # local-path does not support storage requests so we use a big number just to show that it's uncapped

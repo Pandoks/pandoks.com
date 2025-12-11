@@ -21,8 +21,8 @@ bootstrap: # how new clusters are created or replicas are initialized
         wal_level: logical # minimal, replica, or logical (logical is needed for zero sync)
         max_wal_senders: 20
         max_replication_slots: 20
-        wal_keep_size: 4096MB
-        max_slot_wal_keep_size: 4096MB
+        wal_keep_size: 16384MB
+        max_slot_wal_keep_size: 16384MB
         wal_log_hints: on
         max_wal_size: 4GB
         min_wal_size: 1GB
@@ -45,6 +45,8 @@ bootstrap: # how new clusters are created or replicas are initialized
         - 'host replication all 127.0.0.1/32 trust'
         - 'host replication all ::1/128 trust'
         - 'host replication replicator 10.42.0.0/16 scram-sha-256'
+        - 'host postgres replicator 10.42.0.0/16 scram-sha-256'
+        - 'host postgres ${PGUSER} 10.42.0.0/16 scram-sha-256'
         - 'host ${POSTGRES_DB} pgcat 10.42.0.0/16 scram-sha-256'
   post_bootstrap: /usr/local/bin/cluster-init.sh
 
@@ -74,6 +76,8 @@ postgresql: # postgresql settings here don't need to restart the entire cluster
     cron.database_name: ${POSTGRES_DB}
     cron.timezone: GMT
     cron.use_background_workers: on
+  remove_data_directory_on_rewind_failure: true
+  remove_data_directory_on_diverged_timelines: true
 
 restapi:
   listen: 0.0.0.0:8008

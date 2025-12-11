@@ -5,6 +5,7 @@ on:
     paths:
       - 'packages/postgres/chart/**'
       - 'packages/valkey/chart/**'
+      - 'packages/clickhouse/chart/**'
 
 jobs:
   publish:
@@ -19,10 +20,12 @@ jobs:
             path: ./packages/postgres/chart
           - name: valkey
             path: ./packages/valkey/chart
+          - name: clickhouse
+            path: ./packages/clickhouse/chart
 
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Helm
         uses: azure/setup-helm@v4
         with:

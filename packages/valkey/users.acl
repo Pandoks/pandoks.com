@@ -1,0 +1,3 @@
+user admin on >${ADMIN_PASSWORD} ~* &* +@all
+user client on >${CLIENT_PASSWORD} ~* &* +@read +@write +@string +@hash +@list +@set +@sortedset -@dangerous
+user default off

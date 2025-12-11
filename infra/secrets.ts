@@ -33,10 +33,13 @@ export const secrets = {
     HetznerOriginTlsCrt: new sst.Secret('HetznerOriginTlsCrt', 'No Origin Tls Cert Set'),
     PostgresPassword: new sst.Secret('PostgresPassword'),
     PostgresS3Key: new sst.Secret('PostgresS3Key', 'test'),
-    PostgresS3KeySecret: new sst.Secret('PostgresS3KeySecret', 'testsecret')
-  },
-  planetscale: {
-    ApiKey: new sst.Secret('PlanetscaleApiKey'),
-    AccountId: new sst.Secret('PlanetscaleAccountId')
+    PostgresS3KeySecret: new sst.Secret('PostgresS3KeySecret', 'testsecret'),
+    ValkeyAdminPassword: new sst.Secret('ValkeyAdminPassword'),
+    ValkeyClientPassword: new sst.Secret('ValkeyClientPassword'),
+    ClickhouseAdminPassword: new sst.Secret('ClickhouseAdminPassword'),
+    ClickhouseUserPassword: new sst.Secret('ClickhouseUserPassword'),
+    ClickhouseBackupPassword: new sst.Secret('ClickhouseBackupPassword'),
+    ClickhouseS3Key: new sst.Secret('ClickhouseS3Key', 'test'),
+    ClickhouseS3KeySecret: new sst.Secret('ClickhouseS3KeySecret', 'testsecret')
   }
 };

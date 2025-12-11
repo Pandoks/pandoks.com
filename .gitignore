@@ -29,8 +29,9 @@ playwright*/
 # sst
 .sst
 
-# No npm
+# Only pnpm
 package-lock.json
+yarn.lock
 
 # Expo
 .expo/
@@ -61,3 +62,6 @@ apps/web/static/blog-images
 
 # helm
 *.tgz
+
+# Local development
+/data

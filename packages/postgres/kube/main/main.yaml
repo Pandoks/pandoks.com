@@ -8,6 +8,9 @@ spec:
   version: 0.1.0
   targetNamespace: &namespace main
   createNamespace: true
+  failurePolicy: abort
   set:
     db: main
     namespace: *namespace
+    credentials.secret: main-db-creds
+    s3.credentials.secret: main-db-backup-creds

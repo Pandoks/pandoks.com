@@ -74,14 +74,6 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
-    "PlanetscaleAccountId": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "PlanetscaleApiKey": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
     "PostgresPassword": {
       "type": "sst.sst.Secret"
       "value": string
@@ -120,6 +112,14 @@ declare module "sst" {
       "value": string
     }
     "TwilioPhoneNumber": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "ValkeyAdminPassword": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "ValkeyClientPassword": {
       "type": "sst.sst.Secret"
       "value": string
     }

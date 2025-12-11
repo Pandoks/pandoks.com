@@ -68,7 +68,7 @@ spec:
         app: *app
         cluster-name: *cluster-name
     spec:
-      serviceAccountName: patroni
+      serviceAccountName: patroni-{{ .Values.db }}
       securityContext:
         fsGroup: 999
       containers:
@@ -107,28 +107,28 @@ spec:
             - name: PGUSER
               valueFrom:
                 secretKeyRef:
-                  name: &db_creds '{{ .Values.db }}-db-creds'
-                  key: &pguser PGUSER
+                  name: &db_creds '{{ .Values.credentials.secret }}'
+                  key: &pguser '{{ .Values.credentials.dataKeys.clientUser }}'
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
-                  key: &pgpassword PGPASSWORD
+                  key: &pgpassword '{{ .Values.credentials.dataKeys.clientPassword }}'
             - name: PGREPPASS
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
-                  key: PGREPPASS
+                  key: '{{ .Values.credentials.dataKeys.replicationPassword }}'
             - name: PATRONI_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
-                  key: PATRONI_PASSWORD
+                  key: '{{ .Values.credentials.dataKeys.patroniPassword }}'
             - name: PGCATPASS
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
-                  key: PGCATPASS
+                  key: '{{ .Values.credentials.dataKeys.pgcatPassword }}'
             - name: BACKUP_BUCKET
               value: &backup_bucket '{{ .Values.backup.bucket }}'
             - name: BACKUP_PATH
@@ -136,13 +136,13 @@ spec:
             - name: S3_KEY
               valueFrom:
                 secretKeyRef:
-                  name: &backup_creds '{{ .Values.db }}-db-backup-creds'
-                  key: &key S3_KEY
+                  name: &backup_creds '{{ .Values.s3.credentials.secret }}'
+                  key: &key '{{ .Values.s3.credentials.dataKeys.s3Key }}'
             - name: S3_KEY_SECRET
               valueFrom:
                 secretKeyRef:
                   name: *backup_creds
-                  key: &key_secret S3_KEY_SECRET
+                  key: &key_secret '{{ .Values.s3.credentials.dataKeys.s3KeySecret }}'
             - name: S3_REGION
               value: &s3_region '{{ .Values.s3.region }}'
             - name: S3_ENDPOINT
@@ -166,6 +166,8 @@ spec:
               subPath: pgbackrest.conf
             - name: &data patroni-data
               mountPath: &data_mount /var/lib/postgresql
+            - name: &wal_archives patroni-wal-archives
+              mountPath: &wal_archives_mount /var/spool/pgbackrest
             - name: &socket postgres-socket
               mountPath: &socket_mount /var/run/postgresql
         - name: pgbackrest
@@ -215,6 +217,10 @@ spec:
                 secretKeyRef:
                   name: *db_creds
                   key: *pgpassword
+            - name: FULL_RETENTION
+              value: '{{ .Values.backup.retention.full }}'
+            - name: DIFF_RETENTION
+              value: '{{ .Values.backup.retention.diff }}'
           volumeMounts:
             - name: *pgbackrest_config
               mountPath: *pgbackrest_mount
@@ -224,6 +230,8 @@ spec:
               readOnly: true
             - name: *data
               mountPath: *data_mount
+            - name: *wal_archives
+              mountPath: *wal_archives_mount
             - name: *socket
               mountPath: *socket_mount
       volumes:
@@ -261,7 +269,16 @@ spec:
       spec:
         accessModes:
           - ReadWriteOnce
-        storageClassName: '{{ .Values.storage.className }}'
+        storageClassName: local-path
         resources:
           requests:
-            storage: '{{ .Values.storage.size }}'
+            storage: 999Pi # local-path does not support storage requests so we use a big number just to show that it's uncapped
+    - metadata:
+        name: *wal_archives
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 999Pi # local-path does not support storage requests so we use a big number just to show that it's uncapped

@@ -6,3 +6,4 @@ resources:
   - namespaces.yaml
   - ../../packages/postgres/kube
   - ../../packages/valkey/kube
+  - ../../packages/clickhouse/kube

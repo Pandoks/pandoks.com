@@ -26,7 +26,9 @@ pnpm sst install
 <details>
   <summary>Dependencies</summary>
   <ul>
-    <li><a href="https://nodejs.org/en/">Node.js</a> >= v22</li>
+    <li>
+      <a href="https://nodejs.org/en/">Node.js</a> >= v22 (<a href="https://github.com/nvm-sh/nvm">nvm</a> is recommended)
+    </li>
     <li><a href="https://pnpm.io/">pnpm</a> >= v10</li>
     <li><a href="https://docs.docker.com/get-docker/">Docker</a> >= v20</li>
     <li><a href="https://k3d.io/">k3d</a> >= v5.8</li>

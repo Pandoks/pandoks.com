@@ -3,6 +3,17 @@
 db: example
 namespace: example
 
+credentials:
+  secret: example-db-creds
+  dataKeys:
+    adminUser: POSTGRES_USER
+    clientUser: PGUSER
+    adminPassword: POSTGRES_PASSWORD
+    pgcatPassword: PGCATPASS
+    clientPassword: PGPASSWORD
+    replicationPassword: PGREPPASS
+    patroniPassword: PATRONI_PASSWORD
+
 backup:
   bucket: database
   image: ghcr.io/pandoks/pgbackrest:latest
@@ -12,16 +23,20 @@ backup:
     full: '0 2 * * 0'
     diff: '0 2 * * 3,6'
     incr: '0 2 * * 1,2,4,5'
+  retention:
+    full: 4
+    diff: 2
 
 s3:
   region: us-west-1
   endpoint: host.k3d.internal:4566
   tls: 'n'
   uriStyle: path
-
-storage:
-  className: local-path
-  size: 1Gi
+  credentials:
+    secret: example-db-backup-creds
+    dataKeys:
+      s3Key: S3_KEY
+      s3KeySecret: S3_KEY_SECRET
 
 patroni:
   replicas: 3

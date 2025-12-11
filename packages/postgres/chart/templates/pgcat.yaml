@@ -39,18 +39,18 @@ spec:
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: &db_creds '{{ .Values.db }}-db-creds'
-                  key: POSTGRES_USER
+                  name: &db_creds '{{ .Values.credentials.secret }}'
+                  key: '{{ .Values.credentials.dataKeys.adminUser }}'
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
-                  key: POSTGRES_PASSWORD
+                  key: '{{ .Values.credentials.dataKeys.adminPassword }}'
             - name: PGCATPASS
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
-                  key: PGCATPASS
+                  key: '{{ .Values.credentials.dataKeys.pgcatPassword }}'
             - name: MASTER_HOST
               value: patroni-{{ .Values.db }}-primary.{{ .Values.namespace }}.svc.cluster.local
             - name: SLAVE_HOST
