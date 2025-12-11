@@ -1,19 +1,23 @@
 #!/bin/sh
-
 set -euo pipefail
 
+BOLD='\e[1m'
+NORMAL='\e[0m'
+
 usage() {
-  echo "Usage: $0 {k3d-up|setup|k3d-down|secrets} [--kubeconfig PATH] [--k3d] [--ip-pool RANGE] [--network NAME] [--dry-run]" >&2
-  echo "  k3d-up   : create local k3d cluster (only for k3d)" >&2
-  echo "  k3d-down : delete local k3d cluster (only for k3d)" >&2
-  echo "  setup    : install addons and apply /k3s manifests on current kubecontext" >&2
-  echo "  secrets  : render k3s manifests by replacing ${sst.<VAR>} with SST secrets" >&2
-  echo "Options:" >&2
-  echo "  --kubeconfig PATH  Use the specified kubeconfig for kubectl operations" >&2
-  echo "  --k3d              Force k3d mode (auto IP pool from k3d docker network)" >&2
-  echo "  --ip-pool RANGE    Explicit MetalLB pool (e.g., 10.0.1.100-10.0.1.200 or 10.0.1.0/24)" >&2
-  echo "  --network NAME  Attach k3d loadbalancer to an existing docker network" >&2
-  echo "  --dry-run         Render and print YAML without applying to the cluster" >&2
+  printf "Usage: %s <command> [options]\n\n" "$0" >&2
+  printf "%bCommands:%b\n" "$BOLD" "$NORMAL" >&2
+  printf "  k3d-up   : Create local k3d cluster (only for k3d)\n" >&2
+  printf "  k3d-down : Delete local k3d cluster (only for k3d)\n" >&2
+  printf "  setup    : Install addons and apply /k3s manifests on current kubecontext\n" >&2
+  printf "  secrets  : Render k3s manifests by replacing \${sst.<VAR>} with SST secrets\n\n" >&2
+  printf "%bOptions:%b\n" "$BOLD" "$NORMAL" >&2
+  printf "  --kubeconfig <PATH>  Use the specified kubeconfig for kubectl operations\n" >&2
+  printf "  --k3d                Force k3d mode (auto IP pool from k3d docker network)\n" >&2
+  printf "  --ip-pool <RANGE>    Explicit MetalLB pool (e.g., 10.0.1.100-10.0.1.200 or 10.0.1.0/24)\n" >&2
+  printf "  --network <NAME>     Attach k3d loadbalancer to an existing docker network\n" >&2
+  printf "  --dry-run            Render and print YAML without applying to the cluster\n" >&2
+  exit 1
 }
 
 # Require subcommand first, then parse flags/options in any order
