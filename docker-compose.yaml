@@ -16,8 +16,12 @@ services:
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=testsecret
       - BACKUP_BUCKET=database
+      - PERSISTENCE=1
+      - DATA_DIR=/var/lib/localstack/data
     networks:
       - local-network
+    volumes:
+      - ./data/localstack:/var/lib/localstack
     entrypoint:
       - sh
       - -c
@@ -25,7 +29,7 @@ services:
         mkdir -p /etc/localstack/init/ready.d
         cat > /etc/localstack/init/ready.d/s3.sh << 'EOF'
         #!/bin/sh
-        awslocal s3 mb s3://$$BACKUP_BUCKET
+        awslocal s3 mb s3://$$BACKUP_BUCKET || true
         EOF
         chmod +x /etc/localstack/init/ready.d/s3.sh
         exec docker-entrypoint.sh
