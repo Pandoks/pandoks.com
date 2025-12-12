@@ -21,6 +21,15 @@ usage() {
   exit 1
 }
 
+validate_ip_segment() {
+  echo "$1" | awk '{
+    # All digits
+    if ($0 !~ /^[0-9]+$/) exit 1
+    # 0-255
+    if ($0 < 0 || $0 > 255) exit 1
+    exit 0
+  }'
+}
 # Require subcommand first, then parse flags/options in any order
 [ $# -ge 1 ] || usage
 CMD="$1"
@@ -153,13 +162,6 @@ setup)
     echo "Example: --ip-pool 10.0.1.100-10.0.1.200" >&2
     exit 1
   fi
-
-  # Validate IP pool (supports start-end or CIDR)
-  validate_ip_segment() {
-    echo "$1" | awk 'BEGIN{ok=1} {
-      if ($0 !~ /^[0-9]+$/) ok=0; else { n=$0+0; if (n<0 || n>255) ok=0 }
-    } END{ exit ok?0:1 }'
-  }
 
   is_ipv4() {
     IFS='.' read -r a b c d <<EOF
