@@ -34,7 +34,7 @@ k3d-up | setup | k3d-down | secrets) ;;
   ;;
 esac
 
-FORCE_K3D="false"
+K3D_FLAG="false"
 EXPLICIT_IP_POOL=""
 NETWORK_NAME=""
 DRY_RUN="false"
@@ -58,7 +58,7 @@ while [ $# -gt 0 ]; do
     continue
     ;;
   --k3d)
-    FORCE_K3D="true"
+    K3D_FLAG="true"
     shift
     continue
     ;;
@@ -130,7 +130,7 @@ setup)
   REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
   K3S_DIR="$REPO_ROOT/k3s"
   # Resolve IP pool range according to flags/env
-  if [ "$FORCE_K3D" = "true" ]; then
+  if [ "$K3D_FLAG" = "true" ]; then
     NET_TO_USE="${NETWORK_NAME:-k3d-local-cluster}"
     if ! docker network inspect "$NET_TO_USE" >/dev/null 2>&1; then
       echo "--k3d specified but docker network not found: $NET_TO_USE" >&2
