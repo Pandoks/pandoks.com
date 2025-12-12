@@ -3,7 +3,7 @@
 /* eslint-disable */
 /* deno-fmt-ignore-file */
 /// <reference path="./.sst/platform/config.d.ts" />
-declare module "sst" {
+declare module 'sst' {
   export interface Resource {}
 }
-export {}
+export {};

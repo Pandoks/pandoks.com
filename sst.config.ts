@@ -12,7 +12,7 @@ export default $config({
         },
         cloudflare: '6.10.0',
         github: '6.7.2',
-        hcloud: { token: process.env.HCLOUD_TOKEN, version: '1.24.0' },
+        hcloud: { token: process.env.HCLOUD_TOKEN, version: '1.24.0' }
       }
     };
   },
