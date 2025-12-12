@@ -34,7 +34,6 @@ k3d-up | setup | k3d-down | secrets) ;;
   ;;
 esac
 
-KUBECONFIG_FLAG=""
 FORCE_K3D="false"
 EXPLICIT_IP_POOL=""
 NETWORK_NAME=""
@@ -43,10 +42,18 @@ while [ $# -gt 0 ]; do
   case "$1" in
   --kubeconfig)
     [ $# -ge 2 ] || {
-      echo "--kubeconfig requires a path" >&2
+      printf "%bError:%b Missing value for --kubeconfig\n" "$RED" "$NORMAL" >&2
       exit 1
     }
-    KUBECONFIG_FLAG="$2"
+    KUBECONFIG_FILE="$2"
+    if [ ! -f "$KUBECONFIG_FILE" ]; then
+      printf "%bError:%b kubeconfig not found: $KUBECONFIG_FILE\n" "$RED" "$NORMAL" >&2
+      exit 1
+    fi
+    ABSOLUTE_KUBECONFIG_DIR="$(cd "$(dirname "$KUBECONFIG_FILE")" && pwd)"
+    BASE_KUBECONFIG_NAME="$(basename "$KUBECONFIG_FILE")"
+    export KUBECONFIG=$ABSOLUTE_KUBECONFIG_DIR/$BASE_KUBECONFIG_NAME
+    printf "%bUsing kubeconfig: %s\n" "$BOLD" "$KUBECONFIG" >&2
     shift 2
     continue
     ;;
@@ -88,17 +95,6 @@ while [ $# -gt 0 ]; do
     ;;
   esac
 done
-
-# Export kubeconfig if provided
-if [ -n "$KUBECONFIG_FLAG" ]; then
-  if [ ! -f "$KUBECONFIG_FLAG" ]; then
-    echo "kubeconfig not found: $KUBECONFIG_FLAG" >&2
-    exit 1
-  fi
-  KUBECONFIG=$(cd "$(dirname "$KUBECONFIG_FLAG")" && pwd)/"$(basename "$KUBECONFIG_FLAG")"
-  export KUBECONFIG
-  echo "Using kubeconfig: $KUBECONFIG"
-fi
 
 case "$CMD" in
 k3d-up)
