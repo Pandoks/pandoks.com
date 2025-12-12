@@ -64,7 +64,7 @@ while [ $# -gt 0 ]; do
     ;;
   --ip-pool)
     [ $# -ge 2 ] || {
-      echo "--ip-pool requires a range (e.g., 10.0.1.100-10.0.1.200 or 10.0.1.0/24)" >&2
+      printf "%bError:%b --ip-pool requires a range (e.g., 10.0.1.100-10.0.1.200 or 10.0.1.0/24)" "$RED" "$NORMAL" >&2
       exit 1
     }
     EXPLICIT_IP_POOL="$2"
@@ -73,7 +73,7 @@ while [ $# -gt 0 ]; do
     ;;
   --network)
     [ $# -ge 2 ] || {
-      echo "--network requires a network name" >&2
+      printf "%bError:%b --network requires a network name" "$RED" "$NORMAL" >&2
       exit 1
     }
     NETWORK_NAME="$2"
@@ -86,11 +86,11 @@ while [ $# -gt 0 ]; do
     continue
     ;;
   --*)
-    echo "Unknown option: $1" >&2
+    printf "%bError:%b Unknown option: %s\n" "$RED" "$NORMAL" "$1" >&2
     usage
     ;;
   *)
-    echo "Unexpected argument: $1" >&2
+    printf "%bError:%b Unexpected argument: %s\n" "$RED" "$NORMAL" "$1" >&2
     usage
     ;;
   esac
