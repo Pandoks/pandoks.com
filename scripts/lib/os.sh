@@ -1,6 +1,8 @@
-#!/bin/sh
-set -eu
-
+#######################################
+# Determine normalized operating system name.
+# Outputs:
+#   macos, debian, fedora, rhel, arch, alpine, linux, windows, or unknown
+#######################################
 get_os() {
   os="$(uname -s 2>/dev/null || echo unknown)"
 
@@ -32,6 +34,11 @@ get_os() {
   esac
 }
 
+#######################################
+# Determine available package manager for current system.
+# Outputs:
+#   brew, apt-get, dnf, yum, pacman, apk, winget, scoop, choco, or none
+#######################################
 get_package_manager() {
   case "$(get_os)" in
   macos)
