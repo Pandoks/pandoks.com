@@ -16,6 +16,7 @@ get_os() {
       fedora) echo "fedora" ;;
       centos | rhel) echo "rhel" ;;
       arch) echo "arch" ;;
+      alpine) echo "alpine" ;;
       *) echo "linux" ;;
       esac
     else
