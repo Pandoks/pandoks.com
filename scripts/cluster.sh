@@ -1,32 +1,48 @@
 #!/bin/sh
-
 set -euo pipefail
 
+BOLD='\e[1m'
+NORMAL='\e[0m'
+RED='\e[31m'
+
 usage() {
-  echo "Usage: $0 {k3d-up|setup|k3d-down|secrets} [--kubeconfig PATH] [--k3d] [--ip-pool RANGE] [--network NAME] [--dry-run]" >&2
-  echo "  k3d-up   : create local k3d cluster (only for k3d)" >&2
-  echo "  k3d-down : delete local k3d cluster (only for k3d)" >&2
-  echo "  setup    : install addons and apply /k3s manifests on current kubecontext" >&2
-  echo "  secrets  : render k3s manifests by replacing ${sst.<VAR>} with SST secrets" >&2
-  echo "Options:" >&2
-  echo "  --kubeconfig PATH  Use the specified kubeconfig for kubectl operations" >&2
-  echo "  --k3d              Force k3d mode (auto IP pool from k3d docker network)" >&2
-  echo "  --ip-pool RANGE    Explicit MetalLB pool (e.g., 10.0.1.100-10.0.1.200 or 10.0.1.0/24)" >&2
-  echo "  --network NAME  Attach k3d loadbalancer to an existing docker network" >&2
-  echo "  --dry-run         Render and print YAML without applying to the cluster" >&2
+  printf "%bUsage:%b %s <command> [options]\n\n" "$BOLD" "$NORMAL" "$0" >&2
+  printf "%bCommands:%b\n" "$BOLD" "$NORMAL" >&2
+  printf "  k3d-up   : Create local k3d cluster (only for k3d)\n" >&2
+  printf "  k3d-down : Delete local k3d cluster (only for k3d)\n" >&2
+  printf "  setup    : Install addons and apply /k3s manifests on current kubecontext\n" >&2
+  printf "  secrets  : Render k3s manifests by replacing \${sst.<VAR>} with SST secrets\n\n" >&2
+  printf "%bOptions:%b\n" "$BOLD" "$NORMAL" >&2
+  printf "  --kubeconfig <PATH>  Use the specified kubeconfig for kubectl operations\n" >&2
+  printf "  --k3d                Force k3d mode (auto IP pool from k3d docker network)\n" >&2
+  printf "  --ip-pool <RANGE>    Explicit MetalLB pool (e.g., 10.0.1.100-10.0.1.200 or 10.0.1.0/24)\n" >&2
+  printf "  --network <NAME>     Attach k3d loadbalancer to an existing docker network\n" >&2
+  printf "  --dry-run            Render and print YAML without applying to the cluster\n" >&2
+  exit 1
 }
 
+validate_ip_segment() {
+  echo "$1" | awk '{
+    # All digits
+    if ($0 !~ /^[0-9]+$/) exit 1
+    # 0-255
+    if ($0 < 0 || $0 > 255) exit 1
+    exit 0
+  }'
+}
 # Require subcommand first, then parse flags/options in any order
 [ $# -ge 1 ] || usage
 CMD="$1"
 shift
 case "$CMD" in
 k3d-up | setup | k3d-down | secrets) ;;
-*) usage ;;
+*) 
+  printf "%bError:%b Unknown command '%s'\n" "$RED" "$NORMAL" "$CMD" >&2
+  usage 
+  exit 1
+  ;;
 esac
 
-KUBECONFIG_FLAG=""
-FORCE_K3D="false"
 EXPLICIT_IP_POOL=""
 NETWORK_NAME=""
 DRY_RUN="false"
@@ -34,21 +50,29 @@ while [ $# -gt 0 ]; do
   case "$1" in
   --kubeconfig)
     [ $# -ge 2 ] || {
-      echo "--kubeconfig requires a path" >&2
+      printf "%bError:%b Missing value for --kubeconfig\n" "$RED" "$NORMAL" >&2
       exit 1
     }
-    KUBECONFIG_FLAG="$2"
+    KUBECONFIG_FILE="$2"
+    if [ ! -f "$KUBECONFIG_FILE" ]; then
+      printf "%bError:%b kubeconfig not found: $KUBECONFIG_FILE\n" "$RED" "$NORMAL" >&2
+      exit 1
+    fi
+    ABSOLUTE_KUBECONFIG_DIR="$(cd "$(dirname "$KUBECONFIG_FILE")" && pwd)"
+    BASE_KUBECONFIG_NAME="$(basename "$KUBECONFIG_FILE")"
+    export KUBECONFIG=$ABSOLUTE_KUBECONFIG_DIR/$BASE_KUBECONFIG_NAME
+    printf "%bUsing kubeconfig: %s\n" "$BOLD" "$KUBECONFIG" >&2
     shift 2
     continue
     ;;
   --k3d)
-    FORCE_K3D="true"
+    K3D_FLAG="true"
     shift
     continue
     ;;
   --ip-pool)
     [ $# -ge 2 ] || {
-      echo "--ip-pool requires a range (e.g., 10.0.1.100-10.0.1.200 or 10.0.1.0/24)" >&2
+      printf "%bError:%b --ip-pool requires a range (e.g., 10.0.1.100-10.0.1.200 or 10.0.1.0/24)" "$RED" "$NORMAL" >&2
       exit 1
     }
     EXPLICIT_IP_POOL="$2"
@@ -57,7 +81,7 @@ while [ $# -gt 0 ]; do
     ;;
   --network)
     [ $# -ge 2 ] || {
-      echo "--network requires a network name" >&2
+      printf "%bError:%b --network requires a network name" "$RED" "$NORMAL" >&2
       exit 1
     }
     NETWORK_NAME="$2"
@@ -70,26 +94,15 @@ while [ $# -gt 0 ]; do
     continue
     ;;
   --*)
-    echo "Unknown option: $1" >&2
+    printf "%bError:%b Unknown option: %s\n" "$RED" "$NORMAL" "$1" >&2
     usage
     ;;
   *)
-    echo "Unexpected argument: $1" >&2
+    printf "%bError:%b Unexpected argument: %s\n" "$RED" "$NORMAL" "$1" >&2
     usage
     ;;
   esac
 done
-
-# Export kubeconfig if provided
-if [ -n "$KUBECONFIG_FLAG" ]; then
-  if [ ! -f "$KUBECONFIG_FLAG" ]; then
-    echo "kubeconfig not found: $KUBECONFIG_FLAG" >&2
-    exit 1
-  fi
-  KUBECONFIG=$(cd "$(dirname "$KUBECONFIG_FLAG")" && pwd)/"$(basename "$KUBECONFIG_FLAG")"
-  export KUBECONFIG
-  echo "Using kubeconfig: $KUBECONFIG"
-fi
 
 case "$CMD" in
 k3d-up)
@@ -125,7 +138,7 @@ setup)
   REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
   K3S_DIR="$REPO_ROOT/k3s"
   # Resolve IP pool range according to flags/env
-  if [ "$FORCE_K3D" = "true" ]; then
+  if [ "${K3D_FLAG:-false}" = "true" ]; then
     NET_TO_USE="${NETWORK_NAME:-k3d-local-cluster}"
     if ! docker network inspect "$NET_TO_USE" >/dev/null 2>&1; then
       echo "--k3d specified but docker network not found: $NET_TO_USE" >&2
@@ -149,13 +162,6 @@ setup)
     echo "Example: --ip-pool 10.0.1.100-10.0.1.200" >&2
     exit 1
   fi
-
-  # Validate IP pool (supports start-end or CIDR)
-  validate_ip_segment() {
-    echo "$1" | awk 'BEGIN{ok=1} {
-      if ($0 !~ /^[0-9]+$/) ok=0; else { n=$0+0; if (n<0 || n>255) ok=0 }
-    } END{ exit ok?0:1 }'
-  }
 
   is_ipv4() {
     IFS='.' read -r a b c d <<EOF
@@ -322,11 +328,5 @@ secrets)
     kubectl apply -f "$TMP_FILE"
   fi
   ;;
-
- 
-*)
-  usage
-  exit 1
-  ;;
- esac
+esac
 
