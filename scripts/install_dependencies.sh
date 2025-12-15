@@ -151,6 +151,72 @@ install_pnpm() {
   esac
 }
 
+#######################################
+# Install docker via package manager or curl installer.
+# Arguments:
+#   OS
+#   Package manager
+# Returns:
+#   0 on success, 1 on failure
+#######################################
+install_docker() {
+  install_docker_os="$1"
+  install_docker_package_manager="$2"
+
+  case "${install_docker_package_manager}" in
+    brew)
+      brew install --cask docker-desktop
+      ;;
+    apt-get)
+      sudo apt-get update
+      sudo apt-get install -y docker.io
+      sudo systemctl enable docker
+      sudo systemctl start docker
+      ;;
+    dnf | yum)
+      sudo "${install_docker_package_manager}" install -y moby-engine
+      sudo systemctl enable docker
+      sudo systemctl start docker
+      ;;
+    pacman)
+      if [ "${install_docker_os}" = "windows-posix" ]; then
+        pacman -S --noconfirm docker
+        systemctl enable docker
+        systemctl start docker
+      else
+        sudo pacman -S --noconfirm docker
+        sudo systemctl enable docker
+        sudo systemctl start docker
+      fi
+      ;;
+    apk)
+      if [ "${install_docker_os}" = "windows-posix" ]; then
+        "${install_docker_package_manager}" add --no-cache docker
+        rc-update add docker boot
+        rc-service docker start
+      else
+        sudo "${install_docker_package_manager}" add --no-cache docker
+        sudo rc-update add docker boot
+        sudo rc-service docker start
+      fi
+      ;;
+    apt-cyg)
+      if command -v curl > /dev/null 2>&1; then
+        curl -fsSL https://get.docker.com | sh
+      elif command -v wget > /dev/null 2>&1; then
+        wget -qO- https://get.docker.com | sh
+      else
+        printf "%bError:%b curl or wget is required to install docker\n" "${RED}" "${NORMAL}" >&2
+        return 1
+      fi
+      ;;
+    *)
+      printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${install_docker_package_manager}" >&2
+      return 1
+      ;;
+  esac
+}
+
 main() {
   os="$(get_os)"
   is_supported_os "${os}" || return 1
@@ -188,6 +254,12 @@ main() {
     printf "%b✓ pnpm is already installed%b\n" "${GREEN}" "${NORMAL}"
   else
     install_pnpm "${os}" "${package_manager}" || return 1
+  fi
+
+  if command -v docker > /dev/null 2>&1; then
+    printf "%b✓ docker is already installed%b\n" "${GREEN}" "${NORMAL}"
+  else
+    install_docker "${os}" "${package_manager}" || return 1
   fi
 }
 
