@@ -272,7 +272,7 @@ is_supported_shell() {
 is_supported_package_manager() {
   is_supported_package_manager_package_manager="$1"
   case "${is_supported_package_manager_package_manager}" in
-    brew | apt-get | dnf | yum | pacman | apk)
+    brew | apt-get | apt-cyg | dnf | yum | pacman | apk)
       return 0
       ;;
     winget | scoop | choco)
