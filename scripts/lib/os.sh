@@ -208,11 +208,19 @@ is_supported_os() {
       return 0
       ;;
     windows-native)
-      printf "%bError:%b Windows is not supported. Use WSL instead." "${RED}" "${NORMAL}" >&2
+      if [ -n "${RED:-}" ]; then
+        printf "%bError:%b Windows is not supported. Use WSL instead.\n" "${RED}" "${NORMAL}" >&2
+      else
+        echo "Error: Windows is not supported. Use WSL instead." >&2
+      fi
       return 1
       ;;
     *)
-      printf "%bError:%b Unsupported OS: %s\n" "${RED}" "${NORMAL}" "${is_supported_os_os}" >&2
+      if [ -n "${RED:-}" ]; then
+        printf "%bError:%b Unsupported OS: %s\n" "${RED}" "${NORMAL}" "${is_supported_os_os}" >&2
+      else
+        echo "Error: Unsupported OS: ${is_supported_os_os}" >&2
+      fi
       return 1
       ;;
   esac
@@ -234,11 +242,19 @@ is_supported_shell() {
       return 0
       ;;
     fish)
-      printf "%bError:%b Fish is not supported. Use a POSIX shell instead." "${RED}" "${NORMAL}" >&2
+      if [ -n "${RED:-}" ]; then
+        printf "%bError:%b Fish is not supported. Use a POSIX shell instead.\n" "${RED}" "${NORMAL}" >&2
+      else
+        echo "Error: Fish is not supported. Use a POSIX shell instead." >&2
+      fi
       return 1
       ;;
     *)
-      printf "%bError:%b Unsupported shell: %s\n" "${RED}" "${NORMAL}" "${is_supported_shell_shell}" >&2
+      if [ -n "${RED:-}" ]; then
+        printf "%bError:%b Unsupported shell: %s\n" "${RED}" "${NORMAL}" "${is_supported_shell_shell}" >&2
+      else
+        echo "Error: Unsupported shell: ${is_supported_shell_shell}" >&2
+      fi
       return 1
       ;;
   esac
@@ -260,11 +276,19 @@ is_supported_package_manager() {
       return 0
       ;;
     winget | scoop | choco)
-      printf "%bError:%b %s is not supported. Use a POSIX shell instead." "${RED}" "${NORMAL}" "${is_supported_package_manager_package_manager}" >&2
+      if [ -n "${RED:-}" ]; then
+        printf "%bError:%b %s is not supported. Use WSL or a POSIX environment.\n" "${RED}" "${NORMAL}" "${is_supported_package_manager_package_manager}" >&2
+      else
+        echo "Error: ${is_supported_package_manager_package_manager} is not supported. Use WSL or a POSIX environment." >&2
+      fi
       return 1
       ;;
     *)
-      printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${is_supported_package_manager_package_manager}" >&2
+      if [ -n "${RED:-}" ]; then
+        printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${is_supported_package_manager_package_manager}" >&2
+      else
+        echo "Error: Unsupported package manager: ${is_supported_package_manager_package_manager}" >&2
+      fi
       return 1
       ;;
   esac
