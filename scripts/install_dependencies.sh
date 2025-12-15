@@ -97,6 +97,60 @@ EOF
   esac
 }
 
+#######################################
+# Install pnpm via package manager or curl installer.
+# Arguments:
+#   OS
+#   Package manager
+# Returns:
+#   0 on success, 1 on failure
+#######################################
+install_pnpm() {
+  install_pnpm_os="$1"
+  install_pnpm_package_manager="$2"
+
+  case "${install_pnpm_package_manager}" in
+    brew)
+      brew install pnpm
+      ;;
+    pacman)
+      if [ "${install_pnpm_os}" = "windows-posix" ]; then
+        pacman -S --noconfirm pnpm
+      else
+        sudo pacman -S --noconfirm pnpm
+      fi
+      ;;
+    apt-get | apt-cyg)
+      if command -v curl > /dev/null 2>&1; then
+        curl -fsSL https://get.pnpm.io/install.sh | sh -
+      elif command -v wget > /dev/null 2>&1; then
+        wget -qO- https://get.pnpm.io/install.sh | sh -
+      else
+        printf "%bError:%b curl or wget is required to install pnpm\n" "${RED}" "${NORMAL}" >&2
+        return 1
+      fi
+      ;;
+    dnf | yum)
+      if [ "${install_pnpm_os}" = "windows-posix" ]; then
+        "${install_pnpm_package_manager}" install -y pnpm
+      else
+        sudo "${install_pnpm_package_manager}" install -y pnpm
+      fi
+      ;;
+    apk)
+      if [ "${install_pnpm_os}" = "windows-posix" ]; then
+        "${install_pnpm_package_manager}" add --no-cache pnpm
+      else
+        sudo "${install_pnpm_package_manager}" add --no-cache pnpm
+      fi
+      ;;
+    *)
+      printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${install_pnpm_package_manager}" >&2
+      return 1
+      ;;
+  esac
+}
+
 main() {
   os="$(get_os)"
   is_supported_os "${os}" || return 1
@@ -129,6 +183,12 @@ main() {
     return 1
   fi
   nvm install
+
+  if command -v pnpm > /dev/null 2>&1; then
+    printf "%b✓ pnpm is already installed%b\n" "${GREEN}" "${NORMAL}"
+  else
+    install_pnpm "${os}" "${package_manager}" || return 1
+  fi
 }
 
 main
