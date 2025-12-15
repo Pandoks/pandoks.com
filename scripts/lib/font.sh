@@ -7,3 +7,4 @@ readonly NORMAL='\e[0m'
 
 # Colors
 readonly RED='\e[31m'
+readonly GREEN='\e[32m'
