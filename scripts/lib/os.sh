@@ -243,3 +243,29 @@ is_supported_shell() {
       ;;
   esac
 }
+
+#######################################
+# Check if the package manager is supported.
+# Arguments:
+#   Package Manager: brew | apt-get | dnf | yum | pacman | apk | winget | scoop | choco
+# Outputs:
+#   Unsupported package manager message to STDERR
+# Returns:
+#   0 if supported, 1 if not
+#######################################
+is_supported_package_manager() {
+  is_supported_package_manager_package_manager="$1"
+  case "${is_supported_package_manager_package_manager}" in
+    brew | apt-get | dnf | yum | pacman | apk)
+      return 0
+      ;;
+    winget | scoop | choco)
+      printf "%bError:%b %s is not supported. Use a POSIX shell instead." "${RED}" "${NORMAL}" "${is_supported_package_manager_package_manager}" >&2
+      return 1
+      ;;
+    *)
+      printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${is_supported_package_manager_package_manager}" >&2
+      return 1
+      ;;
+  esac
+}
