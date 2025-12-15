@@ -170,6 +170,7 @@ set -eu
 
 ```sh
 # shellcheck shell=sh
+# shellcheck disable=SC2034
 #
 # Library for hot backups of Oracle databases.
 ```
