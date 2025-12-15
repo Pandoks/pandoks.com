@@ -42,7 +42,7 @@ get_os() {
 #######################################
 # Determine available package manager for current system.
 # Outputs:
-#   Package Manager: brew | apt-get | dnf | yum | pacman | apk | winget | scoop | choco | unknown
+#   Package Manager: brew | apt-get | dnf | yum | pacman | apk | apt-cyg | winget | scoop | choco | unknown
 #######################################
 get_package_manager() {
   case "$(get_os)" in
@@ -263,7 +263,7 @@ is_supported_shell() {
 #######################################
 # Check if the package manager is supported.
 # Arguments:
-#   Package Manager: brew | apt-get | dnf | yum | pacman | apk | winget | scoop | choco
+#   Package Manager: brew | apt-get | dnf | yum | pacman | apk | apt-cyg | winget | scoop | choco | unknown
 # Outputs:
 #   Unsupported package manager message to STDERR
 # Returns:
