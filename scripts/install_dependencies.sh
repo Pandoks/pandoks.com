@@ -217,6 +217,34 @@ install_docker() {
   esac
 }
 
+install_k3d() {
+  install_k3d_package_manager="$1"
+
+  case "${install_k3d_package_manager}" in
+    brew)
+      brew install k3d
+      ;;
+    pacman | apt-get | dnf | yum | apk | apt-cyg)
+      if ! command -v bash > /dev/null 2>&1; then
+        printf "%bError:%b bash is required to install k3d\n" "${RED}" "${NORMAL}" >&2
+        return 1
+      fi
+      if command -v curl > /dev/null 2>&1; then
+        curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+      elif command -v wget > /dev/null 2>&1; then
+        wget -q -O - https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+      else
+        printf "%bError:%b curl or wget is required to install k3d\n" "${RED}" "${NORMAL}" >&2
+        return 1
+      fi
+      ;;
+    *)
+      printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${install_k3d_package_manager}" >&2
+      return 1
+      ;;
+  esac
+}
+
 main() {
   os="$(get_os)"
   is_supported_os "${os}" || return 1
@@ -260,6 +288,12 @@ main() {
     printf "%b✓ docker is already installed%b\n" "${GREEN}" "${NORMAL}"
   else
     install_docker "${os}" "${package_manager}" || return 1
+  fi
+
+  if command -v k3d > /dev/null 2>&1; then
+    printf "%b✓ k3d is already installed%b\n" "${GREEN}" "${NORMAL}"
+  else
+    install_k3d "${package_manager}" || return 1
   fi
 }
 
