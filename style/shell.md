@@ -1,34 +1,74 @@
 # Shell Style Guide
 
-This style guide is heavily inspired by the [Google Shell Style Guide](https://google.github.io/styleguide/shellguide.html) but adapted for **POSIX sh** compatibility. We use sh exclusively to ensure maximum portability across different systems.
+This style guide is heavily inspired by the
+[Google Shell Style Guide](https://google.github.io/styleguide/shellguide.html) but adapted for
+**`POSIX sh`** compatibility. We use `sh` exclusively to ensure maximum portability across different
+systems and for simplicity.
 
 ## Table of Contents
 
-- [Which Shell to Use](#which-shell-to-use)
-- [When to Use Shell](#when-to-use-shell)
+- [Tools](#tools)
+- [Introduction](#introduction)
+  - [Which Shell to Use](#which-shell-to-use)
+  - [When to Use Shell](#when-to-use-shell)
 - [Shell Files and Interpreter Invocation](#shell-files-and-interpreter-invocation)
+  - [File Extensions](#file-extensions)
+  - [Shebang](#shebang)
+  - [Set Options](#set-options)
 - [Comments](#comments)
+  - [File Header](#file-header)
+  - [Function Comments](#function-comments)
+  - [Implementation Comments](#implementation-comments)
 - [Formatting](#formatting)
+  - [Indentation](#indentation)
+  - [Line Length](#line-length)
+  - [Pipelines](#pipelines)
+  - [Control Flow](#control-flow)
+  - [Case Statements](#case-statements)
+  - [Variable Expansion](#variable-expansion)
+  - [Quoting](#quoting)
 - [Features and Limitations](#features-and-limitations)
+  - [What Works in POSIX sh](#what-works-in-posix-sh)
+  - [What Does NOT Work in POSIX sh](#what-does-not-work-in-posix-sh)
+  - [Test Operators](#test-operators)
+  - [Command Substitution](#command-substitution)
+  - [Arithmetic](#arithmetic)
 - [Naming Conventions](#naming-conventions)
 - [Best Practices](#best-practices)
 
----
+## Tools
 
-## Which Shell to Use
+These are the tools that help maintain the style of this codebase:
 
-**POSIX sh is the only shell scripting language permitted for executables.**
+- [shfmt](https://github.com/mvdan/sh)
+- [shellcheck](https://github.com/koalaman/shellcheck)
+- [bash-language-server](https://github.com/mads-hartmann/bash-language-server) (supports
+  integration with `shfmt` and `shellcheck`)
 
-All executable shell scripts must start with `#!/bin/sh` and use only POSIX-compliant features.
+You should install these tools in your editor of choice and your OS' package manager.
 
-### Why sh instead of bash?
+> [!TIP]
+> The repo already sets up most of the config files (`.editorconfig`, `.shellcheckrc`) to follow
+> these best practices, but you should still read through the guide as things like sentimental style
+> can't be enforced by these.
+
+## Introduction
+
+### Which Shell to Use
+
+**`POSIX sh` is the only shell scripting language permitted.**
+
+All _executable_ shell scripts must start with `#!/bin/sh` and use only POSIX-compliant features.
+
+#### Why sh instead of bash?
 
 - **Maximum portability** - Works on all UNIX-like systems (Linux, BSD, macOS, Alpine, busybox, etc.)
 - **Minimal dependencies** - sh is guaranteed to be present on every POSIX system
 - **Lightweight** - Smaller footprint, faster startup
 - **Constraint-driven quality** - Forces simpler, more maintainable code
+- **Simiplicity** - If you need `bash` features, use a full fledged language (e.g., `go`, `python`, etc)
 
-### What this means
+#### What this means
 
 - ❌ No bash-specific features (`[[`, `local`, arrays, `(( ))`, etc.)
 - ✅ Only POSIX sh features (`[ ]`, `case`, `$(( ))`, functions, etc.)
@@ -36,25 +76,20 @@ All executable shell scripts must start with `#!/bin/sh` and use only POSIX-comp
 
 ---
 
-## When to Use Shell
+### When to Use Shell
 
 Shell should only be used for small utilities or simple wrapper scripts.
 
-### Use shell when:
+#### Use Shell When
 
 - You're mostly calling other utilities and doing relatively little data manipulation
-- The script is under 100 lines
 - Performance is not critical
 - The logic is straightforward
 
-### Don't use shell when:
+#### Don't use shell when:
 
-- You need complex data structures (use Python, Go, etc.)
+- You need complex data structures and features (use `go`, `python`, etc.)
 - Performance matters
-- The script is growing beyond 100 lines
-- You need advanced string manipulation or regex
-
----
 
 ## Shell Files and Interpreter Invocation
 
@@ -65,10 +100,16 @@ Shell should only be used for small utilities or simple wrapper scripts.
 
 ### Shebang
 
-All scripts must start with:
+All _executable_ scripts must start with:
 
 ```sh
 #!/bin/sh
+```
+
+All _library_ scripts must start with:
+
+```sh
+# shellcheck shell=sh
 ```
 
 ### Set Options
@@ -77,6 +118,7 @@ Use `set` to configure shell behavior at the top of your script:
 
 ```sh
 #!/bin/sh
+
 set -eu
 ```
 
@@ -87,24 +129,26 @@ Options:
 - `-e` - Exit immediately if a command exits with a non-zero status
 - `-u` - Treat unset variables as an error
 
----
-
 ## Comments
 
 ### File Header
 
-Every file must have a top-level comment describing its contents:
+Default to not having a top-level comment with a description of its contents. Only if the file isn't
+obviously clear on what it does should you add a comment.
+
+Example:
 
 ```sh
 #!/bin/sh
 #
 # Perform hot backups of Oracle databases.
-# This script connects to the database and creates incremental backups.
+set -eu
 ```
 
 ### Function Comments
 
-Any function that is not both obvious and short must have a header comment:
+Any function that is not obvious or isn't easily parsable for inputs and outputs must have a header
+comment:
 
 ```sh
 #######################################
@@ -116,11 +160,12 @@ Any function that is not both obvious and short must have a header comment:
 #   None
 # Outputs:
 #   Writes status messages to stdout
+#   Writes error messages to stderr
 # Returns:
 #   0 on success, 1 on failure
 #######################################
 cleanup() {
-  …
+  ...
 }
 ```
 
@@ -133,15 +178,7 @@ Comment tricky, non-obvious, or important parts of your code:
 subnet=$(docker network inspect "${network}" | jq -r '.[0].IPAM.Config[0].Subnet')
 ```
 
-### TODO Comments
-
-Use TODO comments for temporary or imperfect code:
-
-```sh
-# TODO(username): Handle the unlikely edge cases (bug #1234)
-```
-
----
+**Note:** Code should generally be easily followable by a human, so add comments sparingly.
 
 ## Formatting
 
@@ -150,16 +187,9 @@ Use TODO comments for temporary or imperfect code:
 - **2 spaces** for indentation
 - **No tabs** (except in heredoc bodies with `<<-`)
 
-```sh
-if [ -f "${file}" ]; then
-  echo "File exists"
-  process_file "${file}"
-fi
-```
-
 ### Line Length
 
-Maximum line length is **80 characters**.
+Maximum line length is **100 characters**.
 
 For long strings, use here documents or embedded newlines:
 
@@ -235,14 +265,20 @@ esac
 
 ### Variable Expansion
 
-Always use `"${var}"` for variable expansion:
+Always use `"${var}"` for normal variable expansion:
 
 ```sh
 # Preferred
 echo "PATH=${PATH}, PWD=${PWD}, mine=${some_var}"
 
-# Acceptable for positional parameters
-echo "Positional: $1 $2 $3"
+echo "many parameters: ${10}"
+```
+
+Don't brace single character shell specials or positional parameters:
+
+```sh
+echo "Positional: $1" "$5" "$3"
+echo "Specials: !=$!, -=$-, _=$_, #=$#, *=$*, @=$@, \$=$$ ..."
 ```
 
 ### Quoting
@@ -331,6 +367,17 @@ my_func() {
 }
 ```
 
+❌ **`declare` keyword**
+
+```sh
+# Does NOT work in sh
+declare var="value"
+
+# Workaround: export in different line
+readonly var="value"
+export var
+```
+
 ❌ **`[[ ]]` tests**
 
 ```sh
@@ -388,36 +435,44 @@ my_func() {  # OK
 
 Use `[ ]` for all tests. Common operators:
 
-**File tests:**
+#### File Tests
 
-- `-f file` - File exists and is a regular file
-- `-d dir` - Directory exists
-- `-e path` - Path exists (file or directory)
-- `-r file` - File is readable
-- `-w file` - File is writable
-- `-x file` - File is executable
+| Operator                | Description                       |
+| ----------------------- | --------------------------------- |
+| `[ -f "${file_path}" ]` | File exists and is a regular file |
+| `[ -d "${dir_path}" ]`  | Directory exists                  |
+| `[ -e "${path}" ]`      | Path exists (file or directory)   |
+| `[ -r "${file_path}" ]` | File is readable                  |
+| `[ -w "${file_path}" ]` | File is writable                  |
+| `[ -x "${file_path}" ]` | File is executable                |
 
-**String tests:**
+#### String Tests
 
-- `-z string` - String is empty
-- `-n string` - String is not empty
-- `string1 = string2` - Strings are equal (note: single `=`)
-- `string1 != string2` - Strings are not equal
+| Operator                           | Description                                                                |
+| ---------------------------------- | -------------------------------------------------------------------------- |
+| `[ -z "${string}" ]`               | String is empty                                                            |
+| `[ -n "${string}" ]`               | String is not empty                                                        |
+| `[ "${string1}" = "${string2}" ]`  | Strings are equal (**Note:** single `=`, `==` isn't supported in POSIX sh) |
+| `[ "${string1}" != "${string2}" ]` | Strings are not equal                                                      |
 
-**Numeric tests:**
+#### Numeric Tests
 
-- `n1 -eq n2` - Equal
-- `n1 -ne n2` - Not equal
-- `n1 -lt n2` - Less than
-- `n1 -le n2` - Less than or equal
-- `n1 -gt n2` - Greater than
-- `n1 -ge n2` - Greater than or equal
+| Operator              | Description           |
+| --------------------- | --------------------- |
+| `[ ${n1} -eq ${n2} ]` | Equal                 |
+| `[ ${n1} -ne ${n2} ]` | Not equal             |
+| `[ ${n1} -lt ${n2} ]` | Less than             |
+| `[ ${n1} -le ${n2} ]` | Less than or equal    |
+| `[ ${n1} -gt ${n2} ]` | Greater than          |
+| `[ ${n1} -ge ${n2} ]` | Greater than or equal |
 
-**Logical operators:**
+#### Logical Operators
 
-- `! expr` - Logical NOT
-- `expr1 -a expr2` - Logical AND
-- `expr1 -o expr2` - Logical OR
+| Operator         | Description |
+| ---------------- | ----------- |
+| `! expr`         | Logical NOT |
+| `expr1 -a expr2` | Logical AND |
+| `expr1 -o expr2` | Logical OR  |
 
 ### Command Substitution
 
@@ -499,6 +554,20 @@ readonly DATABASE_URL="postgres://localhost/mydb"
 export DATABASE_URL
 ```
 
+It's ok to set a constant at runtime or in a conditional, but it should be made readonly immediately
+after it's set.
+
+```sh
+ZIP_VERSION="$(dpkg --status zip | sed -n 's/^Version: //p')"
+if [[ -z "${ZIP_VERSION}" ]]; then
+  ZIP_VERSION="$(pacman -Q --info zip | sed -n 's/^Version *: //p')"
+fi
+if [[ -z "${ZIP_VERSION}" ]]; then
+  handle_error_and_quit
+fi
+readonly ZIP_VERSION
+```
+
 ### Source Filenames
 
 Lowercase with underscores:
@@ -518,6 +587,7 @@ Declare constants at the top of the file with `readonly`:
 
 ```sh
 #!/bin/sh
+
 set -eu
 
 readonly SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -552,6 +622,21 @@ echo "Error: File not found: ${file}" >&2
 printf "Error: Invalid argument: %s\n" "${arg}" >&2
 ```
 
+### Wildcard Expansion of Filenames
+
+Use an explicit path when doing wildcard expansion of filenames.
+
+As filenames can begin with a `-` and the shell expands the command before execution meaning that
+it'll interpret the file as an option, it's a lot safer to expand wildcards with `./*` instead of
+`*`.
+
+### Eval
+
+`eval` should be avoided.
+
+Eval munges the input when used for assignment to variables and can set variables without making it
+possible to check what those variables were.
+
 ### Use Functions for Reusable Code
 
 Break complex scripts into functions:
@@ -576,6 +661,22 @@ else
   echo "Invalid IP" >&2
   exit 1
 fi
+```
+
+### `main` Function
+
+All _executable_ scripts must have a `main` function that handles the script's logic.
+
+```sh
+#!/bin/sh
+
+set -eu
+
+main() {
+  echo "Hello, world!"
+}
+
+main "$@"
 ```
 
 ### Avoid Global Variable Pollution
@@ -605,6 +706,7 @@ Always use at the top of your script:
 
 ```sh
 #!/bin/sh
+
 set -eu
 ```
 
@@ -649,6 +751,7 @@ Check arguments and preconditions at the start:
 
 ```sh
 #!/bin/sh
+
 set -eu
 
 if [ $# -lt 1 ]; then
@@ -699,13 +802,6 @@ readonly BACKUP_DIR="/var/backups/db"
 readonly MAX_BACKUPS=7
 readonly TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 
-#######################################
-# Display usage information and exit.
-# Arguments:
-#   None
-# Outputs:
-#   Writes usage to stderr
-#######################################
 usage() {
   echo "Usage: $0 <database_name>" >&2
   echo "" >&2
@@ -735,11 +831,6 @@ create_backup() {
   return 0
 }
 
-#######################################
-# Remove old backups beyond retention limit.
-# Arguments:
-#   Database name
-#######################################
 cleanup_old_backups() {
   db_name="$1"
 
@@ -755,9 +846,6 @@ cleanup_old_backups() {
   fi
 }
 
-#######################################
-# Main function
-#######################################
 main() {
   if [ $# -lt 1 ]; then
     usage
@@ -809,13 +897,6 @@ Run [ShellCheck](https://www.shellcheck.net/) on all scripts:
 
 ```sh
 shellcheck your_script.sh
-```
-
-Configure ShellCheck for POSIX sh by adding to the top of your script:
-
-```sh
-#!/bin/sh
-# shellcheck shell=sh
 ```
 
 ---
