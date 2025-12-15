@@ -42,15 +42,15 @@ get_os() {
 #######################################
 # Determine available package manager for current system.
 # Outputs:
-#   Package Manager: brew | apt-get | dnf | yum | pacman | apk | winget | scoop | choco | none
+#   Package Manager: brew | apt-get | dnf | yum | pacman | apk | winget | scoop | choco | unknown
 #######################################
 get_package_manager() {
   case "$(get_os)" in
     macos)
-      command -v brew > /dev/null 2>&1 && echo "brew" || echo "none"
+      command -v brew > /dev/null 2>&1 && echo "brew" || echo "unknown"
       ;;
     debian)
-      command -v apt-get > /dev/null 2>&1 && echo "apt-get" || echo "none"
+      command -v apt-get > /dev/null 2>&1 && echo "apt-get" || echo "unknown"
       ;;
     fedora | rhel)
       if command -v dnf > /dev/null 2>&1; then
@@ -58,14 +58,14 @@ get_package_manager() {
       elif command -v yum > /dev/null 2>&1; then
         echo "yum"
       else
-        echo "none"
+        echo "unknown"
       fi
       ;;
     arch)
-      command -v pacman > /dev/null 2>&1 && echo "pacman" || echo "none"
+      command -v pacman > /dev/null 2>&1 && echo "pacman" || echo "unknown"
       ;;
     alpine)
-      command -v apk > /dev/null 2>&1 && echo "apk" || echo "none"
+      command -v apk > /dev/null 2>&1 && echo "apk" || echo "unknown"
       ;;
     windows-posix)
       if command -v pacman > /dev/null 2>&1; then
@@ -73,7 +73,7 @@ get_package_manager() {
       elif command -v apt-cyg > /dev/null 2>&1; then
         echo "apt-cyg"
       else
-        echo "none"
+        echo "unknown"
       fi
       ;;
     windows-native)
@@ -84,7 +84,7 @@ get_package_manager() {
       elif command -v choco > /dev/null 2>&1; then
         echo "choco"
       else
-        echo "none"
+        echo "unknown"
       fi
       ;;
     linux)
@@ -101,11 +101,11 @@ get_package_manager() {
       elif command -v brew > /dev/null 2>&1; then
         echo "brew"
       else
-        echo "none"
+        echo "unknown"
       fi
       ;;
     *)
-      echo "none"
+      echo "unknown"
       ;;
   esac
 }
