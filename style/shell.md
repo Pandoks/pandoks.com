@@ -168,6 +168,12 @@ Example:
 set -eu
 ```
 
+```sh
+# shellcheck shell=sh
+#
+# Library for hot backups of Oracle databases.
+```
+
 ### Function Comments
 
 Any function that is not obvious or isn't easily parsable for inputs and outputs must have a header
