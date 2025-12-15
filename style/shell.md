@@ -34,7 +34,30 @@ systems and for simplicity.
   - [Command Substitution](#command-substitution)
   - [Arithmetic](#arithmetic)
 - [Naming Conventions](#naming-conventions)
+  - [Function Names](#function-names)
+  - [Variable Names](#variable-names)
+  - [Constants and Environment Variables](#constants-and-environment-variables)
+  - [Source Filenames](#source-filenames)
 - [Best Practices](#best-practices)
+  - [Use Readonly for Constants](#use-readonly-for-constants)
+  - [Check Return Values](#check-return-values)
+  - [Error Messages to STDERR](#error-messages-to-stderr)
+  - [Wildcard Expansion of Filenames](#wildcard-expansion-of-filenames)
+  - [Eval](#eval)
+  - [Use Functions for Reusable Code](#use-functions-for-reusable-code)
+  - [`main` Function](#main-function)
+  - [Avoid Global Variable Pollution](#avoid-global-variable-pollution)
+  - [Use `set -eu` for Safety](#use-set--eu-for-safety)
+  - [Prefer Builtins Over External Commands](#prefer-builtins-over-external-commands)
+  - [Use Meaningful Exit Codes](#use-meaningful-exit-codes)
+  - [Validate Input Early](#validate-input-early)
+  - [Use Trap for Cleanup](#use-trap-for-cleanup)
+- [Example Script](#example-script)
+- [Testing Your Scripts](#testing-your-scripts)
+  - [Test with Different Shells](#test-with-different-shells)
+  - [Use ShellCheck](#use-shellcheck)
+- [When in Doubt](#when-in-doubt)
+- [References](#references)
 
 ## Tools
 
@@ -73,8 +96,6 @@ All _executable_ shell scripts must start with `#!/bin/sh` and use only POSIX-co
 - ❌ No bash-specific features (`[[`, `local`, arrays, `(( ))`, etc.)
 - ✅ Only POSIX sh features (`[ ]`, `case`, `$(( ))`, functions, etc.)
 - ✅ Test scripts with `/bin/sh` or `dash` to ensure compatibility
-
----
 
 ### When to Use Shell
 
@@ -302,8 +323,6 @@ value=32
 result=$((value + 10))
 ```
 
----
-
 ## Features and Limitations
 
 ### What Works in POSIX sh
@@ -504,8 +523,6 @@ if [ ${count} -gt 10 ]; then
 fi
 ```
 
----
-
 ## Naming Conventions
 
 ### Function Names
@@ -576,8 +593,6 @@ Lowercase with underscores:
 my_library.sh
 database_utils.sh
 ```
-
----
 
 ## Best Practices
 
@@ -784,8 +799,6 @@ echo "data" > "${tmp_file}"
 # Cleanup happens automatically on exit
 ```
 
----
-
 ## Example Script
 
 Here's a complete example following this style guide:
@@ -873,8 +886,6 @@ main "$@" # If arguments are needed
 main # If no arguments are needed
 ```
 
----
-
 ## Testing Your Scripts
 
 ### Test with Different Shells
@@ -900,16 +911,12 @@ Run [ShellCheck](https://www.shellcheck.net/) on all scripts:
 shellcheck your_script.sh
 ```
 
----
-
 ## When in Doubt
 
 1. **Be consistent** with existing code
 2. **Prefer simplicity** over cleverness
 3. **Test with `/bin/sh`** or `dash` to ensure POSIX compliance
 4. **Ask yourself:** "Would this work on Alpine Linux?" (uses busybox sh)
-
----
 
 ## References
 
