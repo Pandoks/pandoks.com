@@ -135,7 +135,7 @@ All _library_ scripts must start with:
 
 ### Set Options
 
-Use `set` to configure shell behavior at the top of your script:
+Use `set` to configure shell behavior at the top of your _executable_ script:
 
 ```sh
 #!/bin/sh
@@ -149,6 +149,8 @@ Options:
 
 - `-e` - Exit immediately if a command exits with a non-zero status
 - `-u` - Treat unset variables as an error
+
+You do **NOT** need to `set` for `lib` scripts.
 
 ## Comments
 
