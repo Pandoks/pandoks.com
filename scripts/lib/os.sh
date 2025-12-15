@@ -191,3 +191,55 @@ get_shell_rc_file() {
       ;;
   esac
 }
+
+#######################################
+# Check if the OS is supported.
+# Arguments:
+#   Shell:  macos | debian | fedora | rhel | arch | alpine | linux | windows-posix | windows-native
+# Outputs:
+#   Unsupported OS message to STDERR
+# Returns:
+#   0 if supported, 1 if not
+#######################################
+is_supported_os() {
+  is_supported_os_os="$1"
+  case "${is_supported_os_os}" in
+    macos | debian | fedora | rhel | arch | alpine | linux | windows-posix)
+      return 0
+      ;;
+    windows-native)
+      printf "%bError:%b Windows is not supported. Use WSL instead." "${RED}" "${NORMAL}" >&2
+      return 1
+      ;;
+    *)
+      printf "%bError:%b Unsupported OS: %s\n" "${RED}" "${NORMAL}" "${is_supported_os_os}" >&2
+      return 1
+      ;;
+  esac
+}
+
+#######################################
+# Check if the shell is supported.
+# Arguments:
+#   Shell: zsh | bash | ksh | fish | ash | dash | sh
+# Outputs:
+#   Unsupported shell message to STDERR
+# Returns:
+#   0 if supported, 1 if not
+#######################################
+is_supported_shell() {
+  is_supported_shell_shell=$1
+  case "${is_supported_shell_shell}" in
+    zsh | bash | ksh | ash | dash | sh)
+      return 0
+      ;;
+    fish)
+      printf "%bError:%b Fish is not supported. Use a POSIX shell instead." "${RED}" "${NORMAL}" >&2
+      return 1
+      ;;
+    *)
+      printf "%bError:%b Unsupported shell: %s\n" "${RED}" "${NORMAL}" "${is_supported_shell_shell}" >&2
+      return 1
+      ;;
+  esac
+}
