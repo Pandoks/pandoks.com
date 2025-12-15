@@ -109,3 +109,33 @@ get_package_manager() {
       ;;
   esac
 }
+
+#######################################
+# Determine the user's current shell.
+# Outputs:
+#   zsh, bash, ksh, fish, ash, dash, sh, or unknown
+# Returns:
+#   0 on success, 1 if SHELL is unset or empty
+#######################################
+get_shell() {
+  get_shell_path="${SHELL:-}"
+
+  if [ -z "${get_shell_path}" ]; then
+    if [ -n "${RED:-}" ]; then
+      printf "%bError:%b SHELL environment variable not set\n" "${RED}" "${NORMAL}" >&2
+    else
+      echo "Error: SHELL environment variable not set" >&2
+    fi
+    return 1
+  fi
+
+  get_shell_name="${get_shell_path##*/}"
+  case "${get_shell_name}" in
+    zsh | bash | ksh | fish | ash | dash | sh)
+      echo "${get_shell_name}"
+      ;;
+    *)
+      echo "unknown"
+      ;;
+  esac
+}
