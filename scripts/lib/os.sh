@@ -263,7 +263,7 @@ is_supported_shell() {
 #######################################
 # Check if the package manager is supported.
 # Arguments:
-#   Package Manager: brew | apt-get | dnf | yum | pacman | apk | apt-cyg | winget | scoop | choco | unknown
+#   Package Manager: brew | apt-get | dnf | yum | pacman | apk | apt-cyg | winget | scoop | choco
 # Outputs:
 #   Unsupported package manager message to STDERR
 # Returns:
@@ -272,8 +272,16 @@ is_supported_shell() {
 is_supported_package_manager() {
   is_supported_package_manager_package_manager="$1"
   case "${is_supported_package_manager_package_manager}" in
-    brew | apt-get | apt-cyg | dnf | yum | pacman | apk)
+    brew | apt-get | dnf | yum | pacman | apk)
       return 0
+      ;;
+    apt-cyg)
+      if [ -n "${RED:-}" ]; then
+        printf "%bError:%b %s is not supported. Use WSL...\n" "${RED}" "${NORMAL}" "${is_supported_package_manager_package_manager}" >&2
+      else
+        echo "Error: ${is_supported_package_manager_package_manager} is not supported. Use WSL or a POSIX environment." >&2
+      fi
+      return 1
       ;;
     winget | scoop | choco)
       if [ -n "${RED:-}" ]; then

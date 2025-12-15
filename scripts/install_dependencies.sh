@@ -75,7 +75,7 @@ EOF
       fi
       echo ". /usr/share/nvm/init-nvm.sh" >> "${install_nvm_shell_rc_file}"
       ;;
-    apt-get | dnf | yum | apk | apt-cyg)
+    apt-get | dnf | yum | apk)
       if ! command -v bash > /dev/null 2>&1; then
         printf "%bError:%b bash is required to install nvm\n" "${RED}" "${NORMAL}" >&2
         return 1
@@ -120,7 +120,7 @@ install_pnpm() {
         sudo pacman -S --noconfirm pnpm
       fi
       ;;
-    apt-get | apt-cyg)
+    apt-get)
       if command -v curl > /dev/null 2>&1; then
         curl -fsSL https://get.pnpm.io/install.sh | sh -
       elif command -v wget > /dev/null 2>&1; then
@@ -200,16 +200,6 @@ install_docker() {
         sudo rc-service docker start
       fi
       ;;
-    apt-cyg)
-      if command -v curl > /dev/null 2>&1; then
-        curl -fsSL https://get.docker.com | sh
-      elif command -v wget > /dev/null 2>&1; then
-        wget -qO- https://get.docker.com | sh
-      else
-        printf "%bError:%b curl or wget is required to install docker\n" "${RED}" "${NORMAL}" >&2
-        return 1
-      fi
-      ;;
     *)
       printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${install_docker_package_manager}" >&2
       return 1
@@ -281,42 +271,6 @@ install_awscli() {
       else
         sudo apk add --no-cache aws-cli
       fi
-      ;;
-    apt-cyg)
-      if ! command -v bash > /dev/null 2>&1; then
-        printf "%bError:%b bash is required to install awscli\n" "${RED}" "${NORMAL}" >&2
-        return 1
-      elif ! command -v unzip > /dev/null 2>&1; then
-        printf "%bError:%b unzip is required to install awscli\n" "${RED}" "${NORMAL}" >&2
-        return 1
-      fi
-
-      install_awscli_arch="$(uname -m)"
-      if command -v curl > /dev/null 2>&1; then
-        case "${install_awscli_arch}" in
-          x86_64 | amd64) curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" ;;
-          aarch64 | arm64) curl "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o "awscliv2.zip" ;;
-          *)
-            printf "%bError:%b Unsupported architecture: %s\n" "${RED}" "${NORMAL}" "${install_awscli_arch}" >&2
-            return 1
-            ;;
-        esac
-      elif command -v wget > /dev/null 2>&1; then
-        case "${install_awscli_arch}" in
-          x86_64 | amd64) wget "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -O "awscliv2.zip" ;;
-          aarch64 | arm64) wget "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -O "awscliv2.zip" ;;
-          *)
-            printf "%bError:%b Unsupported architecture: %s\n" "${RED}" "${NORMAL}" "${install_awscli_arch}" >&2
-            return 1
-            ;;
-        esac
-      else
-        printf "%bError:%b curl or wget is required to install awscli\n" "${RED}" "${NORMAL}" >&2
-        return 1
-      fi
-      unzip awscliv2.zip
-      sudo ./aws/install
-      rm -rf aws awscliv2.zip
       ;;
     *)
       printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${install_awscli_package_manager}" >&2
