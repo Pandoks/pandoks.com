@@ -139,9 +139,9 @@ install_pnpm() {
       ;;
     apk)
       if [ "${install_pnpm_os}" = "windows-posix" ]; then
-        "${install_pnpm_package_manager}" add --no-cache pnpm
+        apk add --no-cache pnpm
       else
-        sudo "${install_pnpm_package_manager}" add --no-cache pnpm
+        sudo apk add --no-cache pnpm
       fi
       ;;
     *)
@@ -191,11 +191,11 @@ install_docker() {
       ;;
     apk)
       if [ "${install_docker_os}" = "windows-posix" ]; then
-        "${install_docker_package_manager}" add --no-cache docker
+        apk add --no-cache docker
         rc-update add docker boot
         rc-service docker start
       else
-        sudo "${install_docker_package_manager}" add --no-cache docker
+        sudo apk add --no-cache docker
         sudo rc-update add docker boot
         sudo rc-service docker start
       fi
@@ -240,6 +240,86 @@ install_k3d() {
       ;;
     *)
       printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${install_k3d_package_manager}" >&2
+      return 1
+      ;;
+  esac
+}
+
+#######################################
+# Install awscli via package manager or curl installer.
+# Arguments:
+#   OS
+#   Package manager
+# Returns:
+#   0 on success, 1 on failure
+#######################################
+install_awscli() {
+  install_awscli_os="$1"
+  install_awscli_package_manager="$2"
+
+  case "${install_awscli_package_manager}" in
+    brew)
+      brew install awscli
+      ;;
+    apt-get)
+      sudo apt-get update
+      sudo apt-get install -y awscli
+      ;;
+    dnf | yum)
+      sudo "${install_awscli_package_manager}" install -y awscli
+      ;;
+    pacman)
+      if [ "${install_awscli_os}" = "windows-posix" ]; then
+        pacman -S --noconfirm aws-cli-v2
+      else
+        sudo pacman -S --noconfirm aws-cli-v2
+      fi
+      ;;
+    apk)
+      if [ "${install_awscli_os}" = "windows-posix" ]; then
+        apk add --no-cache aws-cli
+      else
+        sudo apk add --no-cache aws-cli
+      fi
+      ;;
+    apt-cyg)
+      if ! command -v bash > /dev/null 2>&1; then
+        printf "%bError:%b bash is required to install awscli\n" "${RED}" "${NORMAL}" >&2
+        return 1
+      elif ! command -v unzip > /dev/null 2>&1; then
+        printf "%bError:%b unzip is required to install awscli\n" "${RED}" "${NORMAL}" >&2
+        return 1
+      fi
+
+      install_awscli_arch="$(uname -m)"
+      if command -v curl > /dev/null 2>&1; then
+        case "${install_awscli_arch}" in
+          x86_64 | amd64) curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" ;;
+          aarch64 | arm64) curl "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o "awscliv2.zip" ;;
+          *)
+            printf "%bError:%b Unsupported architecture: %s\n" "${RED}" "${NORMAL}" "${install_awscli_arch}" >&2
+            return 1
+            ;;
+        esac
+      elif command -v wget > /dev/null 2>&1; then
+        case "${install_awscli_arch}" in
+          x86_64 | amd64) wget "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -O "awscliv2.zip" ;;
+          aarch64 | arm64) wget "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -O "awscliv2.zip" ;;
+          *)
+            printf "%bError:%b Unsupported architecture: %s\n" "${RED}" "${NORMAL}" "${install_awscli_arch}" >&2
+            return 1
+            ;;
+        esac
+      else
+        printf "%bError:%b curl or wget is required to install awscli\n" "${RED}" "${NORMAL}" >&2
+        return 1
+      fi
+      unzip awscliv2.zip
+      sudo ./aws/install
+      rm -rf aws awscliv2.zip
+      ;;
+    *)
+      printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${install_awscli_package_manager}" >&2
       return 1
       ;;
   esac
@@ -294,6 +374,12 @@ main() {
     printf "%b✓ k3d is already installed%b\n" "${GREEN}" "${NORMAL}"
   else
     install_k3d "${package_manager}" || return 1
+  fi
+
+  if command -v aws > /dev/null 2>&1; then
+    printf "%b✓ aws is already installed%b\n" "${GREEN}" "${NORMAL}"
+  else
+    install_awscli "${os}" "${package_manager}" || return 1
   fi
 }
 
