@@ -139,3 +139,55 @@ get_shell() {
       ;;
   esac
 }
+
+#######################################
+# Get the RC file path for a given shell.
+# Arguments:
+#   Shell: zsh | bash | ksh | fish | ash | dash | sh
+# Outputs:
+#   Path to RC file (e.g., ~/.zshrc)
+# Returns:
+#   0 on success, 1 if unknown shell or if HOME is unset
+#######################################
+get_shell_rc_file() {
+  get_shell_rc_file_shell="$1"
+
+  if [ -z "${HOME:-}" ]; then
+    if [ -n "${RED:-}" ]; then
+      printf "%bError:%b HOME environment variable not set\n" "${RED}" "${NORMAL}" >&2
+    else
+      echo "Error: HOME environment variable not set" >&2
+    fi
+    return 1
+  fi
+
+  case "${get_shell_rc_file_shell}" in
+    zsh)
+      echo "${ZDOTDIR:-${HOME}}/.zshrc"
+      ;;
+    bash)
+      if [ -f "${HOME}/.bashrc" ] || [ ! -f "${HOME}/.bash_profile" ]; then
+        echo "${HOME}/.bashrc"
+      else
+        echo "${HOME}/.bash_profile"
+      fi
+      ;;
+    ksh)
+      echo "${ENV:-${HOME}/.kshrc}"
+      ;;
+    fish)
+      echo "${XDG_CONFIG_HOME:-${HOME}/.config}/fish/config.fish"
+      ;;
+    ash | dash | sh)
+      echo "${HOME}/.profile"
+      ;;
+    *)
+      if [ -n "${RED:-}" ]; then
+        printf "%bError:%b Unknown shell: %s\n" "${RED}" "${NORMAL}" "${get_shell_rc_file_shell}" >&2
+      else
+        echo "Error: Unknown shell: ${get_shell_rc_file_shell}" >&2
+      fi
+      return 1
+      ;;
+  esac
+}
