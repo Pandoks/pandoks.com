@@ -1,0 +1,134 @@
+#!/bin/sh
+set -eu
+
+SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname "$0")" && pwd)"
+readonly SCRIPT_DIR
+
+. "${SCRIPT_DIR}/lib/font.sh"
+. "${SCRIPT_DIR}/lib/os.sh"
+
+is_nvm_installed() {
+  if [ -n "${NVM_DIR:-}" ] && [ -s "${NVM_DIR}/nvm.sh" ]; then
+    return 0
+  fi
+
+  if [ -s "${HOME}/.nvm/nvm.sh" ]; then
+    return 0
+  fi
+
+  if command -v brew > /dev/null 2>&1; then
+    is_nvm_installed_brew_prefix="$(brew --prefix nvm 2> /dev/null || echo '')"
+    if [ -n "${is_nvm_installed_brew_prefix}" ] && [ -s "${is_nvm_installed_brew_prefix}/nvm.sh" ]; then
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
+#######################################
+# Install nvm via package manager or curl installer.
+# Arguments:
+#   OS
+#   Shell
+#   Package manager
+# Returns:
+#   0 on success, 1 on failure
+#######################################
+install_nvm() {
+  install_nvm_os="$1"
+  install_nvm_shell="$2"
+  install_nvm_package_manager="$3"
+
+  case "${install_nvm_package_manager}" in
+    brew)
+      brew install nvm
+      if ! install_nvm_shell_rc_file=$(get_shell_rc_file "${install_nvm_shell}"); then
+        return 1
+      fi
+      if [ ! -d "${HOME}/.nvm" ]; then
+        mkdir -p "${HOME}/.nvm"
+      fi
+      if grep -q 'NVM_DIR' "${install_nvm_shell_rc_file}" 2> /dev/null; then
+        echo "NVM_DIR already set in ${install_nvm_shell_rc_file}"
+        return 0
+      fi
+      cat >> "${install_nvm_shell_rc_file}" << 'EOF'
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$(brew --prefix)/opt/nvm/nvm.sh" ] && . "$(brew --prefix)/opt/nvm/nvm.sh"
+[ -s "$(brew --prefix)/opt/nvm/etc/bash_completion.d/nvm" ] && . "$(brew --prefix)/opt/nvm/etc/bash_completion.d/nvm"
+EOF
+      ;;
+    pacman)
+      if [ "${install_nvm_os}" = "windows-posix" ]; then
+        pacman -S --noconfirm nvm
+      else
+        sudo pacman -S --noconfirm nvm
+      fi
+      if ! install_nvm_shell_rc_file=$(get_shell_rc_file "${install_nvm_shell}"); then
+        return 1
+      fi
+      if grep -q 'init-nvm.sh' "${install_nvm_shell_rc_file}" 2> /dev/null; then
+        echo "init-nvm.sh already set in ${install_nvm_shell_rc_file}"
+        return 0
+      fi
+      echo ". /usr/share/nvm/init-nvm.sh" >> "${install_nvm_shell_rc_file}"
+      ;;
+    apt-get | dnf | yum | apk | apt-cyg)
+      if ! command -v bash > /dev/null 2>&1; then
+        printf "%bError:%b bash is required to install nvm\n" "${RED}" "${NORMAL}" >&2
+        return 1
+      fi
+
+      if command -v curl > /dev/null 2>&1; then
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+      elif command -v wget > /dev/null 2>&1; then
+        wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+      else
+        printf "%bError:%b curl or wget is required to install nvm\n" "${RED}" "${NORMAL}" >&2
+        return 1
+      fi
+      ;;
+    *)
+      printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${install_nvm_package_manager}" >&2
+      return 1
+      ;;
+  esac
+}
+
+main() {
+  os="$(get_os)"
+  is_supported_os "${os}" || return 1
+  printf "Detected OS: %b${os}%b\n" "${BOLD}" "${NORMAL}"
+
+  shell="$(get_shell)"
+  is_supported_shell "${shell}" || return 1
+  printf "Detected shell: %b${shell}%b\n" "${BOLD}" "${NORMAL}"
+
+  package_manager="$(get_package_manager)"
+  is_supported_package_manager "${package_manager}" || return 1
+  printf "Detected package manager: %b${package_manager}%b\n" "${BOLD}" "${NORMAL}"
+
+  if is_nvm_installed; then
+    printf "%b✓ nvm is already installed%b\n" "${GREEN}" "${NORMAL}"
+  else
+    install_nvm "${os}" "${shell}" "${package_manager}" || return 1
+  fi
+  nvm_dir="${NVM_DIR:-${HOME}/.nvm}"
+  if [ -s "${nvm_dir}/nvm.sh" ]; then
+    export NVM_DIR="${nvm_dir}"
+    . "${nvm_dir}/nvm.sh"
+  elif [ -s "/usr/share/nvm/init-nvm.sh" ]; then
+    . "/usr/share/nvm/init-nvm.sh"
+  elif command -v brew > /dev/null 2>&1 && [ -s "$(brew --prefix nvm 2> /dev/null)/nvm.sh" ]; then
+    export NVM_DIR="${nvm_dir}"
+    . "$(brew --prefix nvm)/nvm.sh"
+  else
+    printf "%bError:%b Could not find nvm to source\n" "${RED}" "${NORMAL}" >&2
+    return 1
+  fi
+  nvm install
+}
+
+main
