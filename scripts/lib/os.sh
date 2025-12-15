@@ -3,7 +3,7 @@
 #######################################
 # Determine normalized operating system name.
 # Outputs:
-#   macos, debian, fedora, rhel, arch, alpine, linux, windows, or unknown
+#   macos, debian, fedora, rhel, arch, alpine, linux, windows-posix, windows-native, or unknown
 #######################################
 get_os() {
   get_os_uname="$(uname -s 2> /dev/null || echo unknown)"
@@ -27,8 +27,11 @@ get_os() {
         echo "linux"
       fi
       ;;
-    CYGWIN* | MINGW* | MSYS* | Windows_NT)
-      echo "windows"
+    CYGWIN* | MINGW* | MSYS*)
+      echo "windows-posix"
+      ;;
+    Windows_NT)
+      echo "windows-native"
       ;;
     *)
       echo "unknown"
@@ -64,7 +67,16 @@ get_package_manager() {
     alpine)
       command -v apk > /dev/null 2>&1 && echo "apk" || echo "none"
       ;;
-    windows)
+    windows-posix)
+      if command -v pacman > /dev/null 2>&1; then
+        echo "pacman"
+      elif command -v apt-cyg > /dev/null 2>&1; then
+        echo "apt-cyg"
+      else
+        echo "none"
+      fi
+      ;;
+    windows-native)
       if command -v winget > /dev/null 2>&1; then
         echo "winget"
       elif command -v scoop > /dev/null 2>&1; then
