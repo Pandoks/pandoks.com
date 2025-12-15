@@ -110,9 +110,7 @@ install_pnpm() {
   install_pnpm_package_manager="$2"
 
   case "${install_pnpm_package_manager}" in
-    brew)
-      brew install pnpm
-      ;;
+    brew) brew install pnpm ;;
     pacman)
       if [ "${install_pnpm_os}" = "windows-posix" ]; then
         pacman -S --noconfirm pnpm
@@ -164,9 +162,7 @@ install_docker() {
   install_docker_package_manager="$2"
 
   case "${install_docker_package_manager}" in
-    brew)
-      brew install --cask docker-desktop
-      ;;
+    brew) brew install --cask docker-desktop ;;
     apt-get)
       sudo apt-get update
       sudo apt-get install -y docker.io
@@ -211,10 +207,8 @@ install_k3d() {
   install_k3d_package_manager="$1"
 
   case "${install_k3d_package_manager}" in
-    brew)
-      brew install k3d
-      ;;
-    pacman | apt-get | dnf | yum | apk | apt-cyg)
+    brew) brew install k3d ;;
+    pacman | apt-get | dnf | yum | apk)
       if ! command -v bash > /dev/null 2>&1; then
         printf "%bError:%b bash is required to install k3d\n" "${RED}" "${NORMAL}" >&2
         return 1
@@ -248,16 +242,12 @@ install_awscli() {
   install_awscli_package_manager="$2"
 
   case "${install_awscli_package_manager}" in
-    brew)
-      brew install awscli
-      ;;
+    brew) brew install awscli ;;
     apt-get)
       sudo apt-get update
       sudo apt-get install -y awscli
       ;;
-    dnf | yum)
-      sudo "${install_awscli_package_manager}" install -y awscli
-      ;;
+    dnf | yum) sudo "${install_awscli_package_manager}" install -y awscli ;;
     pacman)
       if [ "${install_awscli_os}" = "windows-posix" ]; then
         pacman -S --noconfirm aws-cli-v2
