@@ -869,7 +869,8 @@ main() {
   echo "Backup complete"
 }
 
-main "$@"
+main "$@" # If arguments are needed
+main # If no arguments are needed
 ```
 
 ---
