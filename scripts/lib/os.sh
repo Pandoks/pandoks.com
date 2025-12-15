@@ -3,7 +3,7 @@
 #######################################
 # Determine normalized operating system name.
 # Outputs:
-#   macos, debian, fedora, rhel, arch, alpine, linux, windows-posix, windows-native, or unknown
+#   OS: macos | debian | fedora | rhel | arch | alpine | linux | windows-posix | windows-native | unknown
 #######################################
 get_os() {
   get_os_uname="$(uname -s 2> /dev/null || echo unknown)"
@@ -42,7 +42,7 @@ get_os() {
 #######################################
 # Determine available package manager for current system.
 # Outputs:
-#   brew, apt-get, dnf, yum, pacman, apk, winget, scoop, choco, or none
+#   Package Manager: brew | apt-get | dnf | yum | pacman | apk | winget | scoop | choco | none
 #######################################
 get_package_manager() {
   case "$(get_os)" in
@@ -113,7 +113,7 @@ get_package_manager() {
 #######################################
 # Determine the user's current shell.
 # Outputs:
-#   zsh, bash, ksh, fish, ash, dash, sh, or unknown
+#   Shell: zsh | bash | ksh | fish | ash | dash | sh | unknown
 # Returns:
 #   0 on success, 1 if SHELL is unset or empty
 #######################################
