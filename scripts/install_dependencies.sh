@@ -150,6 +150,46 @@ install_pnpm() {
 }
 
 #######################################
+# Install golang via package manager or curl installer.
+# Arguments:
+#   OS
+#   Package manager
+# Returns:
+#   0 on success, 1 on failure
+#######################################
+install_golang() {
+  install_golang_os="$1"
+  install_golang_package_manager="$2"
+
+  case "${install_golang_package_manager}" in
+    brew) brew install go ;;
+    apt-get)
+      sudo apt-get update
+      sudo apt-get install -y golang-go
+      ;;
+    dnf | yum) sudo "${install_golang_package_manager}" install -y golang ;;
+    pacman)
+      if [ "${install_golang_os}" = "windows-posix" ]; then
+        pacman -S --noconfirm go
+      else
+        sudo pacman -S --noconfirm go
+      fi
+      ;;
+    apk)
+      if [ "${install_golang_os}" = "windows-posix" ]; then
+        apk add --no-cache go
+      else
+        sudo apk add --no-cache go
+      fi
+      ;;
+    *)
+      printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${install_golang_package_manager}" >&2
+      return 1
+      ;;
+  esac
+}
+
+#######################################
 # Install docker via package manager or curl installer.
 # Arguments:
 #   OS
@@ -306,6 +346,12 @@ main() {
     printf "%b✓ pnpm is already installed%b\n" "${GREEN}" "${NORMAL}"
   else
     install_pnpm "${os}" "${package_manager}" || return 1
+  fi
+
+  if command -v go > /dev/null 2>&1; then
+    printf "%b✓ go is already installed%b\n" "${GREEN}" "${NORMAL}"
+  else
+    install_golang "${os}" "${package_manager}" || return 1
   fi
 
   if command -v docker > /dev/null 2>&1; then
