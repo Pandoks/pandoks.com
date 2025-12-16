@@ -227,14 +227,6 @@ install_k3d() {
   esac
 }
 
-#######################################
-# Install awscli via package manager or curl installer.
-# Arguments:
-#   OS
-#   Package manager
-# Returns:
-#   0 on success, 1 on failure
-#######################################
 install_awscli() {
   install_awscli_package_manager="$1"
 
