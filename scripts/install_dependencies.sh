@@ -42,19 +42,9 @@ is_nvm_installed() {
   return 1
 }
 
-#######################################
-# Install nvm via package manager or curl installer.
-# Arguments:
-#   OS
-#   Shell
-#   Package manager
-# Returns:
-#   0 on success, 1 on failure
-#######################################
 install_nvm() {
-  install_nvm_os="$1"
-  install_nvm_shell="$2"
-  install_nvm_package_manager="$3"
+  install_nvm_shell="$1"
+  install_nvm_package_manager="$2"
 
   case "${install_nvm_package_manager}" in
     brew)
@@ -77,11 +67,7 @@ export NVM_DIR="$HOME/.nvm"
 EOF
       ;;
     pacman)
-      if [ "${install_nvm_os}" = "windows-posix" ]; then
-        pacman -S --noconfirm nvm
-      else
-        sudo pacman -S --noconfirm nvm
-      fi
+      sudo pacman -S --noconfirm nvm
       if ! install_nvm_shell_rc_file=$(get_shell_rc_file "${install_nvm_shell}"); then
         return 1
       fi
@@ -113,51 +99,24 @@ EOF
   esac
 }
 
-#######################################
-# Install pnpm via package manager or curl installer.
-# Arguments:
-#   OS
-#   Package manager
-# Returns:
-#   0 on success, 1 on failure
-#######################################
 install_pnpm() {
-  install_pnpm_os="$1"
-  install_pnpm_package_manager="$2"
+  install_pnpm_package_manager="$1"
 
   case "${install_pnpm_package_manager}" in
     brew) brew install pnpm ;;
-    pacman)
-      if [ "${install_pnpm_os}" = "windows-posix" ]; then
-        pacman -S --noconfirm pnpm
-      else
-        sudo pacman -S --noconfirm pnpm
-      fi
-      ;;
+    pacman) sudo pacman -S --noconfirm pnpm ;;
     apt-get)
       if command -v curl > /dev/null 2>&1; then
         curl -fsSL https://get.pnpm.io/install.sh | sh -
       elif command -v wget > /dev/null 2>&1; then
         wget -qO- https://get.pnpm.io/install.sh | sh -
       else
-        printf "%bError:%b curl or wget is required to install pnpm\n" "${RED}" "${NORMAL}" >&2
-        return 1
+        install_curl "${install_pnpm_package_manager}" || return 1
+        curl -fsSL https://get.pnpm.io/install.sh | sh -
       fi
       ;;
-    dnf | yum)
-      if [ "${install_pnpm_os}" = "windows-posix" ]; then
-        "${install_pnpm_package_manager}" install -y pnpm
-      else
-        sudo "${install_pnpm_package_manager}" install -y pnpm
-      fi
-      ;;
-    apk)
-      if [ "${install_pnpm_os}" = "windows-posix" ]; then
-        apk add --no-cache pnpm
-      else
-        sudo apk add --no-cache pnpm
-      fi
-      ;;
+    dnf | yum) sudo "${install_pnpm_package_manager}" install -y pnpm ;;
+    apk) sudo apk add --no-cache pnpm ;;
     *)
       printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${install_pnpm_package_manager}" >&2
       return 1
@@ -165,39 +124,15 @@ install_pnpm() {
   esac
 }
 
-#######################################
-# Install golang via package manager or curl installer.
-# Arguments:
-#   OS
-#   Package manager
-# Returns:
-#   0 on success, 1 on failure
-#######################################
 install_golang() {
-  install_golang_os="$1"
-  install_golang_package_manager="$2"
+  install_golang_package_manager="$1"
 
   case "${install_golang_package_manager}" in
     brew) brew install go ;;
-    apt-get)
-      sudo apt-get update
-      sudo apt-get install -y golang-go
-      ;;
+    apt-get) sudo apt-get update && sudo apt-get install -y golang-go ;;
     dnf | yum) sudo "${install_golang_package_manager}" install -y golang ;;
-    pacman)
-      if [ "${install_golang_os}" = "windows-posix" ]; then
-        pacman -S --noconfirm go
-      else
-        sudo pacman -S --noconfirm go
-      fi
-      ;;
-    apk)
-      if [ "${install_golang_os}" = "windows-posix" ]; then
-        apk add --no-cache go
-      else
-        sudo apk add --no-cache go
-      fi
-      ;;
+    pacman) sudo pacman -S --noconfirm go ;;
+    apk) sudo apk add --no-cache go ;;
     *)
       printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${install_golang_package_manager}" >&2
       return 1
@@ -205,17 +140,8 @@ install_golang() {
   esac
 }
 
-#######################################
-# Install docker via package manager or curl installer.
-# Arguments:
-#   OS
-#   Package manager
-# Returns:
-#   0 on success, 1 on failure
-#######################################
 install_docker() {
-  install_docker_os="$1"
-  install_docker_package_manager="$2"
+  install_docker_package_manager="$1"
 
   case "${install_docker_package_manager}" in
     brew) brew install --cask docker-desktop ;;
@@ -231,26 +157,14 @@ install_docker() {
       sudo systemctl start docker
       ;;
     pacman)
-      if [ "${install_docker_os}" = "windows-posix" ]; then
-        pacman -S --noconfirm docker
-        systemctl enable docker
-        systemctl start docker
-      else
-        sudo pacman -S --noconfirm docker
-        sudo systemctl enable docker
-        sudo systemctl start docker
-      fi
+      sudo pacman -S --noconfirm docker
+      sudo systemctl enable docker
+      sudo systemctl start docker
       ;;
     apk)
-      if [ "${install_docker_os}" = "windows-posix" ]; then
-        apk add --no-cache docker
-        rc-update add docker boot
-        rc-service docker start
-      else
-        sudo apk add --no-cache docker
-        sudo rc-update add docker boot
-        sudo rc-service docker start
-      fi
+      sudo apk add --no-cache docker
+      sudo rc-update add docker boot
+      sudo rc-service docker start
       ;;
     *)
       printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${install_docker_package_manager}" >&2
@@ -294,30 +208,14 @@ install_k3d() {
 #   0 on success, 1 on failure
 #######################################
 install_awscli() {
-  install_awscli_os="$1"
-  install_awscli_package_manager="$2"
+  install_awscli_package_manager="$1"
 
   case "${install_awscli_package_manager}" in
     brew) brew install awscli ;;
-    apt-get)
-      sudo apt-get update
-      sudo apt-get install -y awscli
-      ;;
+    apt-get) sudo apt-get update && sudo apt-get install -y awscli ;;
     dnf | yum) sudo "${install_awscli_package_manager}" install -y awscli ;;
-    pacman)
-      if [ "${install_awscli_os}" = "windows-posix" ]; then
-        pacman -S --noconfirm aws-cli-v2
-      else
-        sudo pacman -S --noconfirm aws-cli-v2
-      fi
-      ;;
-    apk)
-      if [ "${install_awscli_os}" = "windows-posix" ]; then
-        apk add --no-cache aws-cli
-      else
-        sudo apk add --no-cache aws-cli
-      fi
-      ;;
+    pacman) sudo pacman -S --noconfirm aws-cli-v2 ;;
+    apk) sudo apk add --no-cache aws-cli ;;
     *)
       printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${install_awscli_package_manager}" >&2
       return 1
@@ -341,7 +239,7 @@ main() {
   if is_nvm_installed; then
     printf "%b✓ nvm is already installed%b\n" "${GREEN}" "${NORMAL}"
   else
-    install_nvm "${os}" "${shell}" "${package_manager}" || return 1
+    install_nvm "${shell}" "${package_manager}" || return 1
   fi
   nvm_dir="${NVM_DIR:-${HOME}/.nvm}"
   if [ -s "${nvm_dir}/nvm.sh" ]; then
@@ -361,19 +259,19 @@ main() {
   if command -v pnpm > /dev/null 2>&1; then
     printf "%b✓ pnpm is already installed%b\n" "${GREEN}" "${NORMAL}"
   else
-    install_pnpm "${os}" "${package_manager}" || return 1
+    install_pnpm "${package_manager}" || return 1
   fi
 
   if command -v go > /dev/null 2>&1; then
     printf "%b✓ go is already installed%b\n" "${GREEN}" "${NORMAL}"
   else
-    install_golang "${os}" "${package_manager}" || return 1
+    install_golang "${package_manager}" || return 1
   fi
 
   if command -v docker > /dev/null 2>&1; then
     printf "%b✓ docker is already installed%b\n" "${GREEN}" "${NORMAL}"
   else
-    install_docker "${os}" "${package_manager}" || return 1
+    install_docker "${package_manager}" || return 1
   fi
 
   if command -v k3d > /dev/null 2>&1; then
@@ -385,7 +283,7 @@ main() {
   if command -v aws > /dev/null 2>&1; then
     printf "%b✓ aws is already installed%b\n" "${GREEN}" "${NORMAL}"
   else
-    install_awscli "${os}" "${package_manager}" || return 1
+    install_awscli "${package_manager}" || return 1
   fi
 }
 
