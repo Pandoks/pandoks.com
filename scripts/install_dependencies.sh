@@ -205,6 +205,34 @@ EOF
   esac
 }
 
+install_helm() {
+  install_helm_package_manager="$1"
+
+  case "${install_helm_package_manager}" in
+    brew) brew install helm ;;
+    apt-get)
+      sudo apt-get update
+      sudo apt-get install -y gpg apt-transport-https
+
+      if ! command -v curl > /dev/null 2>&1; then
+        install_curl "${install_helm_package_manager}" || return 1
+      fi
+      curl -fsSL https://packages.buildkite.com/helm-linux/helm-debian/gpgkey | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+      echo "deb [signed-by=/usr/share/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+
+      sudo apt-get update
+      sudo apt-get install -y helm
+      ;;
+    dnf | yum) sudo "${install_helm_package_manager}" install -y helm ;;
+    pacman) sudo pacman -S --noconfirm helm ;;
+    apk) sudo apk add --no-cache helm ;;
+    *)
+      printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${install_helm_package_manager}" >&2
+      return 1
+      ;;
+  esac
+}
+
 install_k3d() {
   install_k3d_package_manager="$1"
 
@@ -299,6 +327,13 @@ main() {
   else
     install_kubectl "${package_manager}" || return 1
   fi
+
+  if command -v helm > /dev/null 2>&1; then
+    printf "%b✓ helm is already installed%b\n" "${GREEN}" "${NORMAL}"
+  else
+    install_helm "${package_manager}" || return 1
+  fi
+
   if command -v k3d > /dev/null 2>&1; then
     printf "%b✓ k3d is already installed%b\n" "${GREEN}" "${NORMAL}"
   else
