@@ -165,6 +165,25 @@ install_docker() {
   esac
 }
 
+install_docker_compose() {
+  install_docker_compose_package_manager="$1"
+
+  case "${install_docker_compose_package_manager}" in
+    brew)
+      printf "%bError:%b %bInstalling docker-desktop should have already installed docker-compose.%b\n" "${RED}" "${NORMAL}" "${YELLOW}" "${NORMAL}" >&2
+      return 1
+      ;;
+    apt-get) sudo apt-get update && sudo apt-get install -y docker-compose-v2 ;;
+    dnf | yum) sudo "${install_docker_compose_package_manager}" install -y docker-compose ;;
+    pacman) sudo pacman -S --noconfirm docker-compose ;;
+    apk) sudo apk add --no-cache docker-cli-compose ;;
+    *)
+      printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${install_docker_compose_package_manager}" >&2
+      return 1
+      ;;
+  esac
+}
+
 install_kubectl() {
   install_kubectl_package_manager="$1"
 
@@ -320,6 +339,12 @@ main() {
     printf "%b✓ docker is already installed%b\n" "${GREEN}" "${NORMAL}"
   else
     install_docker "${package_manager}" || return 1
+  fi
+
+  if docker compose version > /dev/null 2>&1; then
+    printf "%b✓ docker compose is already installed%b\n" "${GREEN}" "${NORMAL}"
+  else
+    install_docker_compose "${package_manager}" || return 1
   fi
 
   if command -v kubectl > /dev/null 2>&1; then
