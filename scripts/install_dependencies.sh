@@ -83,13 +83,13 @@ EOF
         return 1
       fi
 
-      if command -v curl > /dev/null 2>&1; then
-        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
-      elif command -v wget > /dev/null 2>&1; then
+      if command -v wget > /dev/null 2>&1; then
         wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+      elif command -v curl > /dev/null 2>&1; then
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
       else
-        printf "%bError:%b curl or wget is required to install nvm\n" "${RED}" "${NORMAL}" >&2
-        return 1
+        install_curl "${install_nvm_package_manager}" || return 1
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
       fi
       ;;
     *)
@@ -106,10 +106,10 @@ install_pnpm() {
     brew) brew install pnpm ;;
     pacman) sudo pacman -S --noconfirm pnpm ;;
     apt-get)
-      if command -v curl > /dev/null 2>&1; then
-        curl -fsSL https://get.pnpm.io/install.sh | sh -
-      elif command -v wget > /dev/null 2>&1; then
+      if command -v wget > /dev/null 2>&1; then
         wget -qO- https://get.pnpm.io/install.sh | sh -
+      elif command -v curl > /dev/null 2>&1; then
+        curl -fsSL https://get.pnpm.io/install.sh | sh -
       else
         install_curl "${install_pnpm_package_manager}" || return 1
         curl -fsSL https://get.pnpm.io/install.sh | sh -
@@ -183,13 +183,13 @@ install_k3d() {
         printf "%bError:%b bash is required to install k3d\n" "${RED}" "${NORMAL}" >&2
         return 1
       fi
-      if command -v curl > /dev/null 2>&1; then
-        curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
-      elif command -v wget > /dev/null 2>&1; then
+      if command -v wget > /dev/null 2>&1; then
         wget -q -O - https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+      elif command -v curl > /dev/null 2>&1; then
+        curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
       else
-        printf "%bError:%b curl or wget is required to install k3d\n" "${RED}" "${NORMAL}" >&2
-        return 1
+        install_curl "${install_k3d_package_manager}" || return 1
+        curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
       fi
       ;;
     *)
