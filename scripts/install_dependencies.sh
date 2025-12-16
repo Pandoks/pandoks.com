@@ -261,7 +261,7 @@ install_awscli() {
   case "${install_awscli_package_manager}" in
     brew) brew install awscli ;;
     apt-get) sudo apt-get update && sudo apt-get install -y awscli ;;
-    dnf | yum) sudo "${install_awscli_package_manager}" install -y awscli ;;
+    dnf | yum) sudo "${install_awscli_package_manager}" install -y awscli2 ;;
     pacman) sudo pacman -S --noconfirm aws-cli-v2 ;;
     apk) sudo apk add --no-cache aws-cli ;;
     *)
