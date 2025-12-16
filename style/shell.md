@@ -227,7 +227,7 @@ For long strings, use here documents or embedded newlines:
 # Use here documents for long strings
 cat <<EOF
 This is a very long string that would
-exceed 80 characters on a single line.
+exceed 100 characters on a single line.
 EOF
 
 # Or embedded newlines
@@ -277,19 +277,8 @@ case "${expression}" in
     variable="value"
     some_command "${variable}"
     ;;
-  b)
-    other_command
-    ;;
-  *)
-    error "Unexpected expression '${expression}'"
-    ;;
-esac
-
-# Simple cases can be one line
-case "${flag}" in
-  -v) verbose='true' ;;
-  -q) quiet='true' ;;
-  *) error "Unknown flag ${flag}" ;;
+  b) other_command ;;
+  *) error "Unexpected expression '${expression}'" ;;
 esac
 ```
 
