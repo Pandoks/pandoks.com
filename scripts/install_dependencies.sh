@@ -83,14 +83,10 @@ EOF
         return 1
       fi
 
-      if command -v wget > /dev/null 2>&1; then
-        wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
-      elif command -v curl > /dev/null 2>&1; then
-        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
-      else
+      if ! command -v curl > /dev/null 2>&1; then
         install_curl "${install_nvm_package_manager}" || return 1
-        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
       fi
+      curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
       ;;
     *)
       printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${install_nvm_package_manager}" >&2
@@ -106,14 +102,10 @@ install_pnpm() {
     brew) brew install pnpm ;;
     pacman) sudo pacman -S --noconfirm pnpm ;;
     apt-get)
-      if command -v wget > /dev/null 2>&1; then
-        wget -qO- https://get.pnpm.io/install.sh | sh -
-      elif command -v curl > /dev/null 2>&1; then
-        curl -fsSL https://get.pnpm.io/install.sh | sh -
-      else
+      if ! command -v curl > /dev/null 2>&1; then
         install_curl "${install_pnpm_package_manager}" || return 1
-        curl -fsSL https://get.pnpm.io/install.sh | sh -
       fi
+      curl -fsSL https://get.pnpm.io/install.sh | sh -
       ;;
     dnf | yum) sudo "${install_pnpm_package_manager}" install -y pnpm ;;
     apk) sudo apk add --no-cache pnpm ;;
@@ -182,14 +174,10 @@ install_kubectl() {
       sudo apt-get update
       sudo apt-get install -y apt-transport-https ca-certificates gnupg
 
-      if command -v wget > /dev/null 2>&1; then
-        wget -q -O- https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-      elif command -v curl > /dev/null 2>&1; then
-        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-      else
+      if ! command -v curl > /dev/null 2>&1; then
         install_curl "${install_kubectl_package_manager}" || return 1
-        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
       fi
+      curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
       sudo chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg
       echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
       sudo chmod 644 /etc/apt/sources.list.d/kubernetes.list
@@ -227,14 +215,10 @@ install_k3d() {
         printf "%bError:%b bash is required to install k3d\n" "${RED}" "${NORMAL}" >&2
         return 1
       fi
-      if command -v wget > /dev/null 2>&1; then
-        wget -q -O - https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
-      elif command -v curl > /dev/null 2>&1; then
-        curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
-      else
+      if ! command -v curl > /dev/null 2>&1; then
         install_curl "${install_k3d_package_manager}" || return 1
-        curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
       fi
+      curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
       ;;
     *)
       printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${install_k3d_package_manager}" >&2
