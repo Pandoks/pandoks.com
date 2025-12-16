@@ -173,6 +173,50 @@ install_docker() {
   esac
 }
 
+install_kubectl() {
+  install_kubectl_package_manager="$1"
+
+  case "${install_kubectl_package_manager}" in
+    brew) brew install kubectl ;;
+    apt-get)
+      sudo apt-get update
+      sudo apt-get install -y apt-transport-https ca-certificates gnupg
+
+      if command -v wget > /dev/null 2>&1; then
+        wget -q -O- https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      elif command -v curl > /dev/null 2>&1; then
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      else
+        install_curl "${install_kubectl_package_manager}" || return 1
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      fi
+      sudo chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+      sudo chmod 644 /etc/apt/sources.list.d/kubernetes.list
+
+      sudo apt-get update
+      sudo apt-get install -y kubectl
+      ;;
+    dnf | yum)
+      cat << EOF | sudo tee /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=https://pkgs.k8s.io/core:/stable:/v1.34/rpm/
+enabled=1
+gpgcheck=1
+gpgkey=https://pkgs.k8s.io/core:/stable:/v1.34/rpm/repodata/repomd.xml.key
+EOF
+      sudo "${install_kubectl_package_manager}" install -y kubectl
+      ;;
+    pacman) sudo pacman -S --noconfirm kubectl ;;
+    apk) sudo apk add --no-cache kubectl ;;
+    *)
+      printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${install_kubectl_package_manager}" >&2
+      return 1
+      ;;
+  esac
+}
+
 install_k3d() {
   install_k3d_package_manager="$1"
 
@@ -274,6 +318,11 @@ main() {
     install_docker "${package_manager}" || return 1
   fi
 
+  if command -v kubectl > /dev/null 2>&1; then
+    printf "%b✓ kubectl is already installed%b\n" "${GREEN}" "${NORMAL}"
+  else
+    install_kubectl "${package_manager}" || return 1
+  fi
   if command -v k3d > /dev/null 2>&1; then
     printf "%b✓ k3d is already installed%b\n" "${GREEN}" "${NORMAL}"
   else
