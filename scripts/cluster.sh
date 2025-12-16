@@ -1,18 +1,21 @@
 #!/bin/sh
-set -euo pipefail
 
-BOLD='\e[1m'
-NORMAL='\e[0m'
-RED='\e[31m'
+set -eu
+
+SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname "$0")" && pwd)"
+readonly SCRIPT_DIR
+
+. "${SCRIPT_DIR}/lib/font.sh"
+. "${SCRIPT_DIR}/lib/ip.sh"
 
 usage() {
-  printf "%bUsage:%b %s <command> [options]\n\n" "$BOLD" "$NORMAL" "$0" >&2
-  printf "%bCommands:%b\n" "$BOLD" "$NORMAL" >&2
+  printf "%bUsage:%b %s <command> [options]\n\n" "${BOLD}" "${NORMAL}" "$0" >&2
+  printf "%bCommands:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  k3d-up   : Create local k3d cluster (only for k3d)\n" >&2
   printf "  k3d-down : Delete local k3d cluster (only for k3d)\n" >&2
   printf "  setup    : Install addons and apply /k3s manifests on current kubecontext\n" >&2
   printf "  secrets  : Render k3s manifests by replacing \${sst.<VAR>} with SST secrets\n\n" >&2
-  printf "%bOptions:%b\n" "$BOLD" "$NORMAL" >&2
+  printf "%bOptions:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  --kubeconfig <PATH>  Use the specified kubeconfig for kubectl operations\n" >&2
   printf "  --k3d                Force k3d mode (auto IP pool from k3d docker network)\n" >&2
   printf "  --ip-pool <RANGE>    Explicit MetalLB pool (e.g., 10.0.1.100-10.0.1.200 or 10.0.1.0/24)\n" >&2
