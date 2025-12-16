@@ -7,6 +7,22 @@ readonly SCRIPT_DIR
 . "${SCRIPT_DIR}/lib/font.sh"
 . "${SCRIPT_DIR}/lib/os.sh"
 
+install_curl() {
+  install_curl_package_manager="$1"
+
+  case "${install_curl_package_manager}" in
+    brew) brew install curl ;;
+    apt-get) sudo apt-get update && sudo apt-get install -y curl ;;
+    dnf | yum) sudo "${install_curl_package_manager}" install -y curl ;;
+    pacman) sudo pacman -S --noconfirm curl ;;
+    apk) sudo apk add --no-cache curl ;;
+    *)
+      printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${install_curl_package_manager}" >&2
+      return 1
+      ;;
+  esac
+}
+
 is_nvm_installed() {
   if [ -n "${NVM_DIR:-}" ] && [ -s "${NVM_DIR}/nvm.sh" ]; then
     return 0
