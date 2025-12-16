@@ -3,7 +3,7 @@
 #######################################
 # Determine normalized operating system name.
 # Outputs:
-#   OS: macos | debian | fedora | rhel | arch | alpine | linux | windows-posix | windows-native | unknown
+#   OS: macos | debian | fedora | rhel | arch | alpine | linux
 #######################################
 get_os() {
   get_os_uname="$(uname -s 2> /dev/null || echo unknown)"
@@ -27,12 +27,6 @@ get_os() {
         echo "linux"
       fi
       ;;
-    CYGWIN* | MINGW* | MSYS*)
-      echo "windows-posix"
-      ;;
-    Windows_NT)
-      echo "windows-native"
-      ;;
     *)
       echo "unknown"
       ;;
@@ -42,7 +36,7 @@ get_os() {
 #######################################
 # Determine available package manager for current system.
 # Outputs:
-#   Package Manager: brew | apt-get | dnf | yum | pacman | apk | apt-cyg | winget | scoop | choco | unknown
+#   Package Manager: brew | apt-get | dnf | yum | pacman | apk | unknown
 #######################################
 get_package_manager() {
   case "$(get_os)" in
@@ -66,26 +60,6 @@ get_package_manager() {
       ;;
     alpine)
       command -v apk > /dev/null 2>&1 && echo "apk" || echo "unknown"
-      ;;
-    windows-posix)
-      if command -v pacman > /dev/null 2>&1; then
-        echo "pacman"
-      elif command -v apt-cyg > /dev/null 2>&1; then
-        echo "apt-cyg"
-      else
-        echo "unknown"
-      fi
-      ;;
-    windows-native)
-      if command -v winget > /dev/null 2>&1; then
-        echo "winget"
-      elif command -v scoop > /dev/null 2>&1; then
-        echo "scoop"
-      elif command -v choco > /dev/null 2>&1; then
-        echo "choco"
-      else
-        echo "unknown"
-      fi
       ;;
     linux)
       if command -v apt-get > /dev/null 2>&1; then
@@ -195,7 +169,7 @@ get_shell_rc_file() {
 #######################################
 # Check if the OS is supported.
 # Arguments:
-#   Shell:  macos | debian | fedora | rhel | arch | alpine | linux | windows-posix | windows-native
+#   Shell:  macos | debian | fedora | rhel | arch | alpine | linux
 # Outputs:
 #   Unsupported OS message to STDERR
 # Returns:
@@ -204,16 +178,8 @@ get_shell_rc_file() {
 is_supported_os() {
   is_supported_os_os="$1"
   case "${is_supported_os_os}" in
-    macos | debian | fedora | rhel | arch | alpine | linux | windows-posix)
+    macos | debian | fedora | rhel | arch | alpine | linux)
       return 0
-      ;;
-    windows-native)
-      if [ -n "${RED:-}" ]; then
-        printf "%bError:%b Windows is not supported. Use WSL instead.\n" "${RED}" "${NORMAL}" >&2
-      else
-        echo "Error: Windows is not supported. Use WSL instead." >&2
-      fi
-      return 1
       ;;
     *)
       if [ -n "${RED:-}" ]; then
@@ -263,7 +229,7 @@ is_supported_shell() {
 #######################################
 # Check if the package manager is supported.
 # Arguments:
-#   Package Manager: brew | apt-get | dnf | yum | pacman | apk | apt-cyg | winget | scoop | choco
+#   Package Manager: brew | apt-get | dnf | yum | pacman | apk
 # Outputs:
 #   Unsupported package manager message to STDERR
 # Returns:
@@ -274,22 +240,6 @@ is_supported_package_manager() {
   case "${is_supported_package_manager_package_manager}" in
     brew | apt-get | dnf | yum | pacman | apk)
       return 0
-      ;;
-    apt-cyg)
-      if [ -n "${RED:-}" ]; then
-        printf "%bError:%b %s is not supported. Use WSL...\n" "${RED}" "${NORMAL}" "${is_supported_package_manager_package_manager}" >&2
-      else
-        echo "Error: ${is_supported_package_manager_package_manager} is not supported. Use WSL or a POSIX environment." >&2
-      fi
-      return 1
-      ;;
-    winget | scoop | choco)
-      if [ -n "${RED:-}" ]; then
-        printf "%bError:%b %s is not supported. Use WSL or a POSIX environment.\n" "${RED}" "${NORMAL}" "${is_supported_package_manager_package_manager}" >&2
-      else
-        echo "Error: ${is_supported_package_manager_package_manager} is not supported. Use WSL or a POSIX environment." >&2
-      fi
-      return 1
       ;;
     *)
       if [ -n "${RED:-}" ]; then
