@@ -52,6 +52,7 @@ systems and for simplicity.
   - [Use Meaningful Exit Codes](#use-meaningful-exit-codes)
   - [Validate Input Early](#validate-input-early)
   - [Use Trap for Cleanup](#use-trap-for-cleanup)
+  - [Awk](#awk)
 - [Example Script](#example-script)
 - [Testing Your Scripts](#testing-your-scripts)
   - [Test with Different Shells](#test-with-different-shells)
@@ -796,6 +797,10 @@ echo "data" > "${tmp_file}"
 
 # Cleanup happens automatically on exit
 ```
+
+### Awk
+
+Try not to use `awk` as it makes scripts harder to read and maintain.
 
 ## Example Script
 
