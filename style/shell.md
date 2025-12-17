@@ -53,6 +53,7 @@ systems and for simplicity.
   - [Validate Input Early](#validate-input-early)
   - [Use Trap for Cleanup](#use-trap-for-cleanup)
   - [Awk](#awk)
+  - [Function Arguments](#function-arguments)
 - [Example Script](#example-script)
 - [Testing Your Scripts](#testing-your-scripts)
   - [Test with Different Shells](#test-with-different-shells)
@@ -801,6 +802,18 @@ echo "data" > "${tmp_file}"
 ### Awk
 
 Try not to use `awk` as it makes scripts harder to read and maintain.
+
+### Function Arguments
+
+Function arguments should be parsed at the top of the function for easy readability:
+
+```sh
+cleanup() {
+  cleanup_arg_1="$1"
+
+  ...
+}
+```
 
 ## Example Script
 
