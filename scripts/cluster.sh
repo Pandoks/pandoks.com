@@ -54,6 +54,17 @@ k3d_up() {
   printf "%b✓ k3d cluster created%b\n" "${GREEN}" "${NORMAL}"
 }
 
+k3d_down() {
+  if ! k3d cluster list 2> /dev/null | grep -q "^local-cluster"; then
+    echo "k3d cluster 'local-cluster' not found. Nothing to delete."
+    return 0
+  fi
+
+  echo "Deleting k3d cluster 'local-cluster'..."
+  k3d cluster delete local-cluster
+  printf "%b✓ k3d cluster deleted%b\n" "${GREEN}" "${NORMAL}"
+}
+
 main() {
   [ $# -ge 1 ] || usage
   cmd="$1"
@@ -225,17 +236,7 @@ main() {
       echo "Setup complete."
       ;;
 
-    k3d-down)
-      echo "Deleting k3d cluster 'local-cluster'..."
-      if k3d cluster list 2> /dev/null \
-        | awk 'NR>1 {print $1}' \
-        | grep -qx "local-cluster"; then
-        k3d cluster delete local-cluster
-        echo "Cluster deleted."
-      else
-        echo "k3d cluster 'local-cluster' not found. Nothing to delete."
-      fi
-      ;;
+    k3d-down) k3d_down ;;
 
     secrets)
       script_dir="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
