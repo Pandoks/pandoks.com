@@ -24,6 +24,10 @@ usage() {
   exit 1
 }
 
+k3d_up() {
+  if k3d cluster list 2> /dev/null | grep -q "^local-cluster"; then
+    echo "k3d cluster 'local-cluster' already exists. Skipping creation."
+    return 0
   fi
 
   echo "Creating k3d cluster 'local-cluster'..."
