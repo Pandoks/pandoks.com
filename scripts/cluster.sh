@@ -130,38 +130,7 @@ main() {
   done
 
   case "${cmd}" in
-    k3d-up)
-      if k3d cluster list 2> /dev/null \
-        | awk 'NR>1 {print $1}' \
-        | grep -qx "local-cluster"; then
-        echo "k3d cluster 'local-cluster' already exists. Skipping create."
-        exit 0
-      fi
-
-      echo "Creating k3d cluster 'local-cluster'..."
-      net_args=""
-      if [ -n "${network_name}" ]; then
-        # Ensure network exists
-        if ! docker network inspect "${network_name}" > /dev/null 2>&1; then
-          echo "Docker network not found: ${network_name}" >&2
-          exit 1
-        fi
-        net_args="--network ${network_name}"
-        echo "Attaching loadbalancer to docker network: ${network_name}"
-      fi
-
-      k3d cluster create local-cluster \
-        --servers 3 \
-        --agents 3 \
-        --registry-create local-registry:12345 \
-        --api-port 6444 \
-        --k3s-arg "--disable=traefik@server:*" \
-        --k3s-arg "--disable=servicelb@server:*" \
-        -p "8080:30080@loadbalancer" \
-        ${net_args}
-      echo "Cluster created."
-      ;;
-
+    k3d-up) k3d_up "${network_name}" ;;
     setup)
       script_dir="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
       repo_root="$(cd "${script_dir}/.." && pwd)"
