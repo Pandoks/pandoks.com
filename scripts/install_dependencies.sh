@@ -291,6 +291,31 @@ install_awscli() {
   esac
 }
 
+check_and_install_utils() {
+  check_and_install_utils_package_manager="$1"
+
+  check_and_install_utils_core_utils="jq gettext"
+  for check_and_install_utils_package in ${check_and_install_utils_core_utils}; do
+    if command -v "${check_and_install_utils_package}" > /dev/null 2>&1; then
+      printf "%b✓ %s is already installed%b\n" "${GREEN}" "${check_and_install_utils_package}" "${NORMAL}"
+      continue
+    fi
+
+    case "${check_and_install_utils_package_manager}" in
+      brew) brew install "${check_and_install_utils_package}" ;;
+      apt-get) sudo apt-get update && sudo apt-get install -y "${check_and_install_utils_package}" ;;
+      dnf | yum) sudo "${check_and_install_utils_package_manager}" install -y "${check_and_install_utils_package}" ;;
+      pacman) sudo pacman -S --noconfirm "${check_and_install_utils_package}" ;;
+      apk) sudo apk add --no-cache "${check_and_install_utils_package}" ;;
+      *)
+        printf "%bError:%b Unsupported package manager: %s\n" "${RED}" "${NORMAL}" "${check_and_install_utils_package_manager}" >&2
+        return 1
+        ;;
+    esac
+  done
+
+}
+
 main() {
   os="$(get_os)"
   is_supported_os "${os}" || return 1
@@ -371,6 +396,8 @@ main() {
   else
     install_awscli "${package_manager}" || return 1
   fi
+
+  check_and_install_utils "${package_manager}" || return 1
 }
 
 main
