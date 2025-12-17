@@ -237,6 +237,9 @@ long_string="This is a very long string
 that spans multiple lines."
 ```
 
+> [!NOTE]
+> Generally, it is ok to go over the 100 character limit if it's one a couple of words longer.
+
 ### Pipelines
 
 Split pipelines one per line if they don't fit:
