@@ -25,13 +25,14 @@ usage() {
 }
 
 k3d_up() {
+  k3d_up_network_name="$1"
+
   if k3d cluster list 2> /dev/null | grep -q "^local-cluster"; then
     echo "k3d cluster 'local-cluster' already exists. Skipping creation."
     return 0
   fi
 
   echo "Creating k3d cluster 'local-cluster'..."
-  k3d_up_network_name="$1"
   if [ -n "${k3d_up_network_name}" ]; then
     if ! docker network inspect "${k3d_up_network_name}" > /dev/null 2>&1; then
       printf "%bError:%b docker network not found: %s\n" "${RED}" "${NORMAL}" "${k3d_up_network_name}" >&2
