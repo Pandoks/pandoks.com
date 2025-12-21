@@ -353,6 +353,7 @@ main() {
     printf "%b✓ pnpm is already installed%b\n" "${GREEN}" "${NORMAL}"
   else
     install_pnpm "${package_manager}" || return 1
+    pnpm i
   fi
 
   if command -v go > /dev/null 2>&1; then
