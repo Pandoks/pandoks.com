@@ -3,10 +3,12 @@
 set -eu
 
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname "$0")" && pwd)"
+REPO_ROOT="${SCRIPT_DIR}/.."
 readonly SCRIPT_DIR
 
 . "${SCRIPT_DIR}/lib/font.sh"
 . "${SCRIPT_DIR}/lib/ip.sh"
+. "${SCRIPT_DIR}/lib/secrets.sh"
 
 usage() {
   printf "%bUsage:%b %s <command> [options]\n\n" "${BOLD}" "${NORMAL}" "$0" >&2
@@ -63,6 +65,57 @@ k3d_down() {
   echo "Deleting k3d cluster 'local-cluster'..."
   k3d cluster delete local-cluster
   printf "%b✓ k3d cluster deleted%b\n" "${GREEN}" "${NORMAL}"
+}
+
+push_secrets() {
+  push_secrets_current_kube_context=$(kubectl config current-context)
+  printf "%bApplying secrets to Kubernetes cluster: %s%b [y/n] " "${BOLD}" "${push_secrets_current_kube_context}" "${NORMAL}"
+  read -r push_secrets_confirm
+  if [ "${push_secrets_confirm}" != "y" ]; then
+    echo "Skipping secrets push"
+    return 0
+  fi
+
+  push_secrets_secrets_yaml_template="${REPO_ROOT}/k3s/apps/secrets.yaml"
+  if [ ! -f "${push_secrets_secrets_yaml_template}" ]; then
+    printf "%bError:%b Missing secrets.yaml template: %s\n" "${RED}" "${NORMAL}" "${push_secrets_secrets_yaml_template}" >&2
+    return 1
+  fi
+
+  echo "Fetching SST secrets..."
+  push_secrets_secrets_json=$(get_sst_secrets)
+  if [ -z "${push_secrets_secrets_json}" ]; then
+    printf "%bError:%b Failed to fetch SST secrets. Make sure you're authenticated with SST.\n" "${RED}" "${NORMAL}" >&2
+    printf "Try running: %bpnpm run sso%b.\n" "${BOLD}" "${NORMAL}" >&2
+    return 1
+  fi
+  echo "SST secrets fetched"
+
+  echo "Generating secrets.yaml..."
+  while IFS= read -r push_secrets_entry; do
+    push_secrets_secret_key="$(printf "%s" "${push_secrets_entry}" | jq -r '.key')"
+    push_secrets_secret_value="$(printf "%s" "${push_secrets_entry}" | jq -r '.value')"
+
+    if [ "$(printf "%s" "${push_secrets_secret_value}" | wc -l)" -gt 1 ]; then
+      push_secrets_indent="$(grep "\${${push_secrets_secret_key}}" "${push_secrets_secrets_yaml_template}" \
+        | sed 's/\${.*//')"
+      push_secrets_secret_value="$(printf "%s" "${push_secrets_secret_value}" \
+        | sed "2,\$ s/^/${push_secrets_indent}/")"
+    fi
+
+    export "${push_secrets_secret_key}"="${push_secrets_secret_value}"
+  done << EOF
+$(printf "%s" "${push_secrets_secrets_json}" | jq -c 'to_entries[]')
+EOF
+
+  push_secrets_tmp_dir="$(mktemp -d)"
+  trap 'rm -rf "${push_secrets_tmp_dir}"' EXIT
+  envsubst < "${REPO_ROOT}/k3s/apps/secrets.yaml" > "${push_secrets_tmp_dir}/secrets.yaml"
+  echo "Generated secrets.yaml at ${push_secrets_tmp_dir}/secrets.yaml"
+
+  echo "Pushing secrets to Kubernetes cluster..."
+  kubectl apply -f "${push_secrets_tmp_dir}/secrets.yaml"
+  printf "%b✓ secrets pushed to Kubernetes cluster%b\n" "${GREEN}" "${NORMAL}"
 }
 
 main() {
@@ -238,82 +291,7 @@ main() {
 
     k3d-down) k3d_down ;;
 
-    secrets)
-      script_dir="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
-      repo_root="$(cd "${script_dir}/.." && pwd)"
-      k3s_dir="${repo_root}/k3s"
-      secrets_yaml="${k3s_dir}/apps/secrets.yaml"
-
-      if [ ! -f "${secrets_yaml}" ]; then
-        echo "Missing ${secrets_yaml}" >&2
-        exit 1
-      fi
-
-      echo "Fetching SST secrets..." >&2
-      if ! secrets_json=$(cd "${repo_root}" \
-        && pnpm sst shell node scripts/secrets.js 2> /dev/null); then
-        echo "Error: Failed to fetch SST secrets. Make sure you're authenticated with SST." >&2
-        echo "Try running: pnpm sst shell" >&2
-        exit 1
-      fi
-
-      # Create temp file to work with
-      tmp_file=$(mktemp)
-      trap 'rm -f "${tmp_file}"' EXIT
-      cp "${secrets_yaml}" "${tmp_file}"
-
-      # Extract all unique ${sst.Key} patterns from the secrets.yaml file
-      sst_keys=$(grep -o '\${sst\.[^}]*}' "${secrets_yaml}" \
-        | sed 's/\${sst\.//g' \
-        | sed 's/}//g' \
-        | sort -u)
-
-      if [ -z "${sst_keys}" ]; then
-        echo "No \${sst.Key} patterns found in ${secrets_yaml}" >&2
-        exit 1
-      fi
-
-      echo "Found SST keys: $(echo "${sst_keys}" | tr '\n' ' ')" >&2
-
-      # Replace placeholders with proper indentation
-      for key in ${sst_keys}; do
-        value=$(printf '%s' "${secrets_json}" \
-          | jq -r --arg key "${key}" '.[$key].value // empty')
-
-        if [ -z "${value}" ]; then
-          echo "Warning: No value found for key: ${key}" >&2
-          sed -i.bak "s/\${sst\.${key}}/MISSING_KEY_${key}/g" "${tmp_file}" \
-            && rm -f "${tmp_file}.bak"
-        else
-          # Check if the placeholder is on its own line (for multi-line values like certificates)
-          if grep -q "^[[:space:]]*\${sst\.${key}}[[:space:]]*$" "${tmp_file}"; then
-            # Create a temporary file with the value, adding 4-space indentation to each line
-            value_temp=$(mktemp)
-            printf '%s\n' "${value}" | sed 's/^/    /' > "${value_temp}"
-
-            # Replace the placeholder line with the indented content
-            sed -i.bak "/^[[:space:]]*\${sst\.${key}}[[:space:]]*$/{
-            r ${value_temp}
-            d
-          }" "${tmp_file}" && rm -f "${tmp_file}.bak"
-
-            rm -f "${value_temp}"
-          else
-            # For inline placeholders (like in JSON), do safe string replacement
-            safe_value=$(printf '%s' "${value}" | sed -e 's/[\\&|]/\\&/g')
-            sed -i.bak "s|\${sst\.${key}}|${safe_value}|g" "${tmp_file}" \
-              && rm -f "${tmp_file}.bak"
-          fi
-        fi
-      done
-
-      if [ "${dry_run}" = "true" ]; then
-        cat "${tmp_file}"
-        exit 0
-      else
-        kubectl apply -f "${tmp_file}"
-      fi
-      ;;
+    secrets) push_secrets ;;
   esac
 }
 
