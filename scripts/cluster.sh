@@ -259,6 +259,15 @@ setup_cluster() {
   wait_for_crd "l2advertisements.metallb.io" 120
   kubectl -n metallb-system rollout status deploy/metallb-controller --timeout=300s
   printf "%b✓ MetalLB CRDs established%b\n" "${GREEN}" "${NORMAL}"
+
+  echo "Applying core kustomization with IP pool range: ${setup_cluster_ip_pool_range}"
+  kubectl kustomize "${setup_cluster_k3s_dir}/core" --load-restrictor LoadRestrictionsNone \
+    | envsubst \
+    | kubectl apply -f -
+
+  printf "%b✓ Setup complete%b\n" "${GREEN}" "${NORMAL}"
+}
+
 main() {
   [ $# -ge 1 ] || usage
   cmd="$1"
