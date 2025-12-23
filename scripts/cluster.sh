@@ -236,19 +236,29 @@ setup_cluster() {
   fi
   export IP_POOL_RANGE="${setup_cluster_ip_pool_range}"
 
-      kubectl -n metallb-system rollout status deploy/metallb-controller --timeout=300s
+  echo "Installing Helm-based addons (MetalLB, ingress, etc.)..."
+  kubectl apply -k "${setup_cluster_k3s_dir}/helm-charts"
 
-      echo "Applying core kustomization with IP pool range: ${ip_pool_range}"
-      export IP_POOL_RANGE="${ip_pool_range}"
-      kubectl kustomize "${k3s_dir}/core" --load-restrictor LoadRestrictionsNone \
-        | envsubst \
-        | kubectl apply -f -
+  echo "Waiting for cert-manager CRDs to be established..."
+  for setup_cluster_crd in \
+    certificates.cert-manager.io \
+    issuers.cert-manager.io \
+    clusterissuers.cert-manager.io; do
+    wait_for_crd "${setup_cluster_crd}" 180
+  done
+  printf "%b✓ cert-manager CRDs established%b\n" "${GREEN}" "${NORMAL}"
 
-      echo "Setup complete."
-      ;;
+  echo "Waiting for cert-manager deployments to roll out..."
+  kubectl -n cert-manager rollout status deploy/cert-manager --timeout=300s || true
+  kubectl -n cert-manager rollout status deploy/cert-manager-webhook --timeout=300s || true
+  kubectl -n cert-manager rollout status deploy/cert-manager-cainjector --timeout=300s || true
+  printf "%b✓ cert-manager deployments established%b\n" "${GREEN}" "${NORMAL}"
 
-    k3d-down) k3d_down ;;
-
+  echo "Waiting for MetalLB CRDs to be established..."
+  wait_for_crd "ipaddresspools.metallb.io" 120
+  wait_for_crd "l2advertisements.metallb.io" 120
+  kubectl -n metallb-system rollout status deploy/metallb-controller --timeout=300s
+  printf "%b✓ MetalLB CRDs established%b\n" "${GREEN}" "${NORMAL}"
 main() {
   [ $# -ge 1 ] || usage
   cmd="$1"
