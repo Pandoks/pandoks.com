@@ -23,6 +23,15 @@ usage() {
   printf "  %bk3d-down%b\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Delete local k3d cluster\n\n" >&2
 
+  printf "  %bk3d-start%b\n" "${GREEN}" "${NORMAL}" >&2
+  printf "      Start stopped k3d cluster\n\n" >&2
+
+  printf "  %bk3d-stop%b\n" "${GREEN}" "${NORMAL}" >&2
+  printf "      Stop running k3d cluster\n\n" >&2
+
+  printf "  %bk3d-restart%b\n" "${GREEN}" "${NORMAL}" >&2
+  printf "      Restart k3d cluster\n\n" >&2
+
   printf "  %bsetup-cluster%b [--kubeconfig <PATH>] [--k3d] [--ip-pool <RANGE>] [--network <NAME>]\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Install addons (MetalLB, cert-manager) and apply k3s manifests\n" >&2
   printf "      %b--kubeconfig%b <PATH>  Kubeconfig file for kubectl operations\n" "${YELLOW}" "${NORMAL}" >&2
@@ -104,6 +113,55 @@ k3d_down() {
   echo "Deleting k3d cluster 'local-cluster'..."
   k3d cluster delete local-cluster
   printf "%b✓ k3d cluster deleted%b\n" "${GREEN}" "${NORMAL}"
+}
+
+k3d_start() {
+  if [ $# -gt 0 ]; then
+    printf "%bError:%b Unexpected argument for k3d-start: %s\n" "${RED}" "${NORMAL}" "$1" >&2
+    exit 1
+  fi
+
+  if ! k3d cluster list 2> /dev/null | grep -q "^local-cluster"; then
+    echo "k3d cluster 'local-cluster' not found. Nothing to start."
+    return 0
+  fi
+
+  echo "Starting k3d cluster 'local-cluster'..."
+  k3d cluster start local-cluster
+  printf "%b✓ k3d cluster started%b\n" "${GREEN}" "${NORMAL}"
+}
+
+k3d_stop() {
+  if [ $# -gt 0 ]; then
+    printf "%bError:%b Unexpected argument for k3d-stop: %s\n" "${RED}" "${NORMAL}" "$1" >&2
+    exit 1
+  fi
+
+  if ! k3d cluster list 2> /dev/null | grep -q "^local-cluster"; then
+    echo "k3d cluster 'local-cluster' not found. Nothing to stop."
+    return 0
+  fi
+
+  echo "Stopping k3d cluster 'local-cluster'..."
+  k3d cluster stop local-cluster
+  printf "%b✓ k3d cluster stopped%b\n" "${GREEN}" "${NORMAL}"
+}
+
+k3d_restart() {
+  if [ $# -gt 0 ]; then
+    printf "%bError:%b Unexpected argument for k3d-restart: %s\n" "${RED}" "${NORMAL}" "$1" >&2
+    exit 1
+  fi
+
+  if ! k3d cluster list 2> /dev/null | grep -q "^local-cluster"; then
+    echo "k3d cluster 'local-cluster' not found. Nothing to restart."
+    return 0
+  fi
+
+  echo "Restarting k3d cluster 'local-cluster'..."
+  k3d_stop
+  k3d_start
+  printf "%b✓ k3d cluster restarted%b\n" "${GREEN}" "${NORMAL}"
 }
 
 push_secrets() {
@@ -275,8 +333,11 @@ main() {
 
   case "${cmd}" in
     k3d-up) k3d_up "$@" ;;
-    setup-cluster) setup_cluster "$@" ;;
     k3d-down) k3d_down "$@" ;;
+    k3d-start) k3d_start "$@" ;;
+    k3d-stop) k3d_stop "$@" ;;
+    k3d-restart) k3d_restart "$@" ;;
+    setup-cluster) setup_cluster "$@" ;;
     push-secrets) push_secrets "$@" ;;
     *)
       printf "%bError:%b Unknown command '%s'\n" "${RED}" "${NORMAL}" "${cmd}" >&2
