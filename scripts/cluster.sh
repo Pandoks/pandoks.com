@@ -31,7 +31,7 @@ usage() {
   printf "      %b--ip-pool%b <RANGE>   Explicit IP pool (10.0.1.0/24 or 10.0.1.100-10.0.1.200)\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      %b--network%b <NAME>    Docker network (default: k3d-local-cluster)\n\n" "${YELLOW}" "${NORMAL}" >&2
 
-  printf "  %bsecrets%b\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bpush-secrets%b\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Fetch SST secrets and apply to cluster\n\n" >&2
 
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
@@ -106,6 +106,11 @@ k3d_down() {
 }
 
 push_secrets() {
+  if [ $# -gt 0 ]; then
+    printf "%bError:%b Unexpected argument for push-secrets: %s\n" "${RED}" "${NORMAL}" "$1" >&2
+    exit 1
+  fi
+
   push_secrets_current_kube_context=$(kubectl config current-context)
   printf "%bApplying secrets to Kubernetes cluster: %s%b [y/n] " "${BOLD}" "${push_secrets_current_kube_context}" "${NORMAL}"
   read -r push_secrets_confirm
