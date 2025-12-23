@@ -105,10 +105,24 @@ k3d_down() {
 }
 
 push_secrets() {
-  if [ $# -gt 0 ]; then
-    printf "%bError:%b Unexpected argument for push-secrets: %s\n" "${RED}" "${NORMAL}" "$1" >&2
-    exit 1
-  fi
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --kubeconfig)
+        if [ $# -lt 2 ]; then
+          printf "%bError:%b Missing value for --kubeconfig\n" "${RED}" "${NORMAL}" >&2
+          exit 1
+        fi
+        KUBECONFIG="$(validate_and_get_absolute_kubeconfig_path "$2")"
+        export KUBECONFIG
+        printf "%bUsing kubeconfig:%b %s\n" "${BOLD}" "${NORMAL}" "${KUBECONFIG}" >&2
+        shift 2
+        ;;
+      *)
+        printf "%bError:%b Unexpected argument for push-secrets: %s\n" "${RED}" "${NORMAL}" "$1" >&2
+        exit 1
+        ;;
+    esac
+  done
 
   push_secrets_current_kube_context=$(kubectl config current-context)
   printf "%bApplying secrets to Kubernetes cluster: %s%b [y/n] " "${BOLD}" "${push_secrets_current_kube_context}" "${NORMAL}"
