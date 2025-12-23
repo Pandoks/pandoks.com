@@ -229,6 +229,11 @@ setup_cluster() {
     printf "%bError:%b No IP pool specified. Provide an IP pool via --ip-pool or use --k3d to auto-detect.\n" "${RED}" "${NORMAL}" >&2
   fi
 
+  if ! validate_ip_pool_range "${setup_cluster_ip_pool_range}"; then
+    echo "Invalid IP pool range: ${setup_cluster_ip_pool_range}" >&2
+    echo "Acceptable formats: A.B.C.D/NN or A.B.C.D-E.F.G.H" >&2
+    exit 1
+  fi
 
       kubectl -n metallb-system rollout status deploy/metallb-controller --timeout=300s
 
