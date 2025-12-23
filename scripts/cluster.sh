@@ -43,7 +43,24 @@ usage() {
 }
 
 k3d_up() {
-  k3d_up_network_name="$1"
+  k3d_up_network_name=""
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --network)
+        if [ $# -lt 2 ]; then
+          printf "%bError:%b --network requires a network name\n" "${RED}" "${NORMAL}" >&2
+          exit 1
+        fi
+        k3d_up_network_name="$2"
+        shift 2
+        ;;
+      *)
+        printf "%bError:%b Unexpected argument for k3d-up: %s\n" "${RED}" "${NORMAL}" "$1" >&2
+        exit 1
+        ;;
+    esac
+  done
 
   if k3d cluster list 2> /dev/null | grep -q "^local-cluster"; then
     echo "k3d cluster 'local-cluster' already exists. Skipping creation."
