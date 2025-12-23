@@ -174,18 +174,6 @@ EOF
   printf "%b✓ secrets pushed to Kubernetes cluster%b\n" "${GREEN}" "${NORMAL}"
 }
 
-main() {
-  [ $# -ge 1 ] || usage
-  cmd="$1"
-  shift
-
-  case "${cmd}" in
-    k3d-up | setup | k3d-down | secrets) ;;
-    *)
-      printf "%bError:%b Unknown command '%s'\n" "${RED}" "${NORMAL}" "${cmd}" >&2
-      usage
-      ;;
-  esac
 
   explicit_ip_pool=""
   network_name=""
