@@ -90,6 +90,11 @@ k3d_up() {
 }
 
 k3d_down() {
+  if [ $# -gt 0 ]; then
+    printf "%bError:%b Unexpected argument for k3d-down: %s\n" "${RED}" "${NORMAL}" "$1" >&2
+    exit 1
+  fi
+
   if ! k3d cluster list 2> /dev/null | grep -q "^local-cluster"; then
     echo "k3d cluster 'local-cluster' not found. Nothing to delete."
     return 0
