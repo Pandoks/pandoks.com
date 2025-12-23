@@ -38,7 +38,7 @@ usage() {
   printf "  %s setup --ip-pool 10.0.1.100-10.0.1.200\n" "$0" >&2
   printf "  %s push-secrets --kubeconfig ~/.kube/config\n\n" "$0" >&2
 
-  exit 1
+  exit 0
 }
 
 k3d_up() {
