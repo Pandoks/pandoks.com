@@ -234,6 +234,7 @@ setup_cluster() {
     echo "Acceptable formats: A.B.C.D/NN or A.B.C.D-E.F.G.H" >&2
     exit 1
   fi
+  export IP_POOL_RANGE="${setup_cluster_ip_pool_range}"
 
       kubectl -n metallb-system rollout status deploy/metallb-controller --timeout=300s
 
