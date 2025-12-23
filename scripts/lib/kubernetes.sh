@@ -14,7 +14,11 @@ wait_for_crd() {
 
   while ! kubectl get crd "${wait_for_crd_name}" > /dev/null 2>&1; do
     if [ "${wait_for_crd_timeout}" -le 0 ]; then
-      echo "Timed out waiting for ${wait_for_crd_name}" >&2
+      if [ -n "${RED:-}" ]; then
+        printf "%bError:%b Timed out waiting for %s\n" "${RED}" "${NORMAL}" "${wait_for_crd_name}" >&2
+      else
+        echo "Error: Timed out waiting for ${wait_for_crd_name}" >&2
+      fi
       exit 1
     fi
     sleep 2
