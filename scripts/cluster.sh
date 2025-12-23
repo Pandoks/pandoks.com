@@ -77,6 +77,7 @@ k3d_up() {
     echo "Attaching loadbalancer to docker network: ${k3d_up_network_name}"
   fi
 
+  # shellcheck disable=SC2086
   k3d cluster create local-cluster \
     --servers 3 \
     --agents 3 \
@@ -85,7 +86,7 @@ k3d_up() {
     --k3s-arg "--disable=traefik@server:*" \
     --k3s-arg "--disable=servicelb@server:*" \
     -p "8080:30080@loadbalancer" \
-    "${k3d_up_network_args}"
+    ${k3d_up_network_args:-}
   printf "%b✓ k3d cluster created%b\n" "${GREEN}" "${NORMAL}"
 }
 
