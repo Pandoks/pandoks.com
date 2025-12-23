@@ -13,32 +13,32 @@ readonly SCRIPT_DIR
 usage() {
   printf "%bUsage:%b %s [--kubeconfig <PATH>] <command> [options]\n\n" "${BOLD}" "${NORMAL}" "$0" >&2
   printf "Manage k3d clusters and deploy k3s applications.\n\n" >&2
-  
+
   printf "%bGlobal Options:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %b--kubeconfig%b <PATH>  Kubeconfig file for kubectl operations\n\n" "${YELLOW}" "${NORMAL}" >&2
-  
+
   printf "%bCommands:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %bk3d-up%b [--network <NAME>]\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Create local k3d cluster with 3 servers and 3 agents\n" >&2
   printf "      %b--network%b <NAME>  Attach to existing docker network\n\n" "${YELLOW}" "${NORMAL}" >&2
-  
+
   printf "  %bk3d-down%b\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Delete local k3d cluster\n\n" >&2
-  
+
   printf "  %bsetup%b [--k3d] [--ip-pool <RANGE>] [--network <NAME>]\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Install addons (MetalLB, cert-manager) and apply k3s manifests\n" >&2
   printf "      %b--k3d%b               Auto-detect IP pool from k3d network\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      %b--ip-pool%b <RANGE>   Explicit IP pool (10.0.1.0/24 or 10.0.1.100-10.0.1.200)\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      %b--network%b <NAME>    Docker network (default: k3d-local-cluster)\n\n" "${YELLOW}" "${NORMAL}" >&2
-  
+
   printf "  %bsecrets%b\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Fetch SST secrets and apply to cluster\n\n" >&2
-  
+
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %s k3d-up && %s setup --k3d\n" "$0" "$0" >&2
   printf "  %s setup --ip-pool 10.0.1.100-10.0.1.200\n" "$0" >&2
   printf "  %s --kubeconfig ~/.kube/config secrets\n\n" "$0" >&2
-  
+
   exit 1
 }
 
