@@ -172,7 +172,7 @@ EOF
   echo "Generated secrets.yaml at ${push_secrets_tmp_dir}/secrets.yaml"
 
   echo "Pushing secrets to Kubernetes cluster..."
-  kubectl apply -f "${push_secrets_tmp_dir}/secrets.yaml"
+  kubectl apply --server-side -f "${push_secrets_tmp_dir}/secrets.yaml"
   printf "%b✓ secrets pushed to Kubernetes cluster%b\n" "${GREEN}" "${NORMAL}"
 }
 
@@ -237,7 +237,7 @@ setup_cluster() {
   export IP_POOL_RANGE="${setup_cluster_ip_pool_range}"
 
   echo "Installing Helm-based addons (MetalLB, ingress, etc.)..."
-  kubectl apply -k "${setup_cluster_k3s_dir}/helm-charts"
+  kubectl apply --server-side -k "${REPO_ROOT}/k3s/helm-charts"
 
   echo "Waiting for cert-manager CRDs to be established..."
   for setup_cluster_crd in \
@@ -263,7 +263,7 @@ setup_cluster() {
   echo "Applying core kustomization with IP pool range: ${setup_cluster_ip_pool_range}"
   kubectl kustomize "${REPO_ROOT}/k3s/core" --load-restrictor LoadRestrictionsNone \
     | envsubst \
-    | kubectl apply -f -
+    | kubectl apply --server-side -f -
 
   printf "%b✓ Setup complete%b\n" "${GREEN}" "${NORMAL}"
 }
