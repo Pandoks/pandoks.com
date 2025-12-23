@@ -177,7 +177,6 @@ EOF
 }
 
 setup_cluster() {
-  setup_cluster_k3s_dir="${REPO_ROOT}/k3s"
   setup_cluster_network_name=""
   setup_cluster_k3d_flag="false"
   setup_cluster_ip_pool_range=""
@@ -262,7 +261,7 @@ setup_cluster() {
   printf "%b✓ MetalLB CRDs established%b\n" "${GREEN}" "${NORMAL}"
 
   echo "Applying core kustomization with IP pool range: ${setup_cluster_ip_pool_range}"
-  kubectl kustomize "${setup_cluster_k3s_dir}/core" --load-restrictor LoadRestrictionsNone \
+  kubectl kustomize "${REPO_ROOT}/k3s/core" --load-restrictor LoadRestrictionsNone \
     | envsubst \
     | kubectl apply -f -
 
