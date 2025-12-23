@@ -1,13 +1,5 @@
 # shellcheck shell=sh
 
-#######################################
-# Wait for a CRD to be established.
-# Arguments:
-#   CRD name
-#   Timeout in seconds (default: 120)
-# Returns:
-#   0 on success, exits with 1 on timeout
-#######################################
 wait_for_crd() {
   wait_for_crd_name="$1"
   wait_for_crd_timeout="${2:-120}"
@@ -26,15 +18,6 @@ wait_for_crd() {
   done
 }
 
-#######################################
-# Validate kubeconfig file and return absolute path.
-# Arguments:
-#   Path to kubeconfig file
-# Outputs:
-#   Absolute path to kubeconfig file to stdout
-# Returns:
-#   0 on success, exits with 1 on failure
-#######################################
 validate_and_get_absolute_kubeconfig_path() {
   validate_and_get_absolute_kubeconfig_path_file="$1"
 
