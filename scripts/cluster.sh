@@ -23,7 +23,7 @@ usage() {
   printf "  %bk3d-down%b\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Delete local k3d cluster\n\n" >&2
 
-  printf "  %bsetup%b [--kubeconfig <PATH>] [--k3d] [--ip-pool <RANGE>] [--network <NAME>]\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bsetup-cluster%b [--kubeconfig <PATH>] [--k3d] [--ip-pool <RANGE>] [--network <NAME>]\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Install addons (MetalLB, cert-manager) and apply k3s manifests\n" >&2
   printf "      %b--kubeconfig%b <PATH>  Kubeconfig file for kubectl operations\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      %b--k3d%b                Auto-detect IP pool from k3d network\n" "${YELLOW}" "${NORMAL}" >&2
@@ -35,8 +35,8 @@ usage() {
   printf "      %b--kubeconfig%b <PATH>  Kubeconfig file for kubectl operations\n\n" "${YELLOW}" "${NORMAL}" >&2
 
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
-  printf "  %s k3d-up && %s setup --k3d\n" "$0" "$0" >&2
-  printf "  %s setup --ip-pool 10.0.1.100-10.0.1.200\n" "$0" >&2
+  printf "  %s k3d-up && %s setup-cluster --k3d\n" "$0" "$0" >&2
+  printf "  %s setup-cluster --ip-pool 10.0.1.100-10.0.1.200\n" "$0" >&2
   printf "  %s push-secrets --kubeconfig ~/.kube/config\n\n" "$0" >&2
 
   exit 0
@@ -256,7 +256,7 @@ main() {
 
   case "${cmd}" in
     k3d-up) k3d_up "$@" ;;
-    setup) setup_cluster "$@" ;;
+    setup-cluster) setup_cluster "$@" ;;
     k3d-down) k3d_down "$@" ;;
     push-secrets) push_secrets "$@" ;;
     *)
