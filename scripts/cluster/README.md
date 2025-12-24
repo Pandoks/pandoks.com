@@ -18,8 +18,7 @@ options. Package scripts in `package.json` are wired directly to
 
 | Command         | Description                                                     |
 | --------------- | --------------------------------------------------------------- |
-| `k3d`           | Manage the local k3d cluster (create, delete, start...).        |
-| `deps`          | Start/stop the Docker Compose dependency stack.                 |
+| `k3d`           | Manage the local k3d cluster and dependencies.                  |
 | `setup-cluster` | Install addons (MetalLB, cert-manager) and apply k3s manifests. |
 | `push-secrets`  | Fetch SST secrets and push them into the active cluster.        |
 
@@ -36,6 +35,7 @@ options. Package scripts in `package.json` are wired directly to
 | `start`    | Start an existing cluster.                            |
 | `stop`     | Stop the running cluster.                             |
 | `restart`  | Stop and start the cluster sequentially.              |
+| `deps`     | Manage Docker Compose dependencies (up/down/restart). |
 
 ## setup-cluster Options
 
@@ -62,17 +62,19 @@ applied.
 ## Examples
 
 ```sh
-# Create the k3d cluster and install addons with the auto-detected IP pool
-./scripts/cluster/main.sh k3d up
+# Start dependencies and create the k3d cluster
+./scripts/cluster/main.sh k3d deps up
+./scripts/cluster/main.sh k3d up --network pandoks-net
+
+# Install addons with auto-detected IP pool
 ./scripts/cluster/main.sh setup-cluster --k3d
 
-# Start dependencies, rebuild services, then push secrets
-./scripts/cluster/main.sh deps up
+# Push secrets to a remote cluster
 ./scripts/cluster/main.sh push-secrets --kubeconfig ./k3s.yaml
 
 # Tear down everything
 ./scripts/cluster/main.sh k3d down
-./scripts/cluster/main.sh deps down
+./scripts/cluster/main.sh k3d deps down
 ```
 
 ---

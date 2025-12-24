@@ -13,7 +13,6 @@ readonly REPO_ROOT
 . "${REPO_ROOT}/scripts/lib/kubernetes.sh"
 . "${SCRIPT_DIR}/usage.sh"
 . "${SCRIPT_DIR}/k3d.sh"
-. "${SCRIPT_DIR}/deps.sh"
 
 cmd_push_secrets() {
   while [ $# -gt 0 ]; do
@@ -187,7 +186,6 @@ main() {
 
   case "${cmd}" in
     k3d) cmd_k3d "$@" ;;
-    deps) cmd_deps "$@" ;;
     setup-cluster) cmd_setup_cluster "$@" ;;
     push-secrets) cmd_push_secrets "$@" ;;
     help | --help | -h) usage ;;

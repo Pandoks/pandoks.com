@@ -1,5 +1,7 @@
 # shellcheck shell=sh
 
+. "$(dirname "$0")/deps.sh"
+
 cmd_k3d_up() {
   cmd_k3d_up_network_name=""
 
@@ -124,7 +126,8 @@ cmd_k3d() {
     start) cmd_k3d_start "$@" ;;
     stop) cmd_k3d_stop "$@" ;;
     restart) cmd_k3d_restart "$@" ;;
-    help|--help|-h) usage_k3d ;;
+    deps) cmd_deps "$@" ;;
+    help | --help | -h) usage_k3d ;;
     *)
       printf "%bError:%b Unknown k3d subcommand '%s'\n" "${RED}" "${NORMAL}" "${subcmd}" >&2
       usage_k3d 1

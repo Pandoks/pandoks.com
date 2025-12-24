@@ -5,10 +5,8 @@ usage() {
   printf "Manage k3d clusters and deploy k3s applications.\n\n" >&2
 
   printf "%bCommands:%b\n" "${BOLD}" "${NORMAL}" >&2
-  printf "  %bk3d%b        Manage local k3d cluster\n" "${GREEN}" "${NORMAL}" >&2
-  printf "      Options: up [--network <NAME>]\n\n" >&2
-
-  printf "  %bdeps%b       Manage docker compose dependencies\n\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bk3d%b             Manage local k3d cluster and dependencies\n" "${GREEN}" "${NORMAL}" >&2
+  printf "      Subcommands: up [--network <NAME>], down, start, stop, restart, deps\n\n" >&2
 
   printf "  %bsetup-cluster%b  Setup cluster with addons and manifests\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Options: --kubeconfig <PATH>, --k3d, --ip-pool <RANGE>, --network <NAME>\n\n" >&2
@@ -23,7 +21,7 @@ usage() {
 
 usage_k3d() {
   printf "%bUsage:%b %s k3d <subcommand> [options]\n\n" "${BOLD}" "${NORMAL}" "$0" >&2
-  printf "Manage local k3d cluster.\n\n" >&2
+  printf "Manage local k3d cluster and dependencies.\n\n" >&2
 
   printf "%bSubcommands:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %bup%b [--network <NAME>]\n" "${GREEN}" "${NORMAL}" >&2
@@ -42,9 +40,13 @@ usage_k3d() {
   printf "  %brestart%b\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Restart k3d cluster\n\n" >&2
 
+  printf "  %bdeps%b <up|down|restart>\n" "${GREEN}" "${NORMAL}" >&2
+  printf "      Manage docker compose dependencies\n\n" >&2
+
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %s k3d up\n" "$0" >&2
   printf "  %s k3d up --network pandoks-net\n" "$0" >&2
+  printf "  %s k3d deps up\n" "$0" >&2
   printf "  %s k3d stop && %s k3d start\n\n" "$0" "$0" >&2
 
   exit "${1:-0}"
