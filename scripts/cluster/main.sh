@@ -85,7 +85,7 @@ EOF
   printf "%b✓ secrets pushed to Kubernetes cluster%b\n" "${GREEN}" "${NORMAL}"
 }
 
-cmd_setup_cluster() {
+cmd_setup() {
   cmd_setup_network_name=""
   cmd_setup_k3d_flag="false"
   cmd_setup_ip_pool_range=""
@@ -95,7 +95,7 @@ cmd_setup_cluster() {
       --kubeconfig)
         if [ $# -lt 2 ]; then
           printf "%bError:%b Missing value for --kubeconfig\n" "${RED}" "${NORMAL}" >&2
-          usage_setup_cluster 1
+          usage_setup 1
         fi
         KUBECONFIG="$(validate_and_get_absolute_kubeconfig_path "$2")"
         export KUBECONFIG
@@ -110,7 +110,7 @@ cmd_setup_cluster() {
         if [ $# -lt 2 ]; then
           printf "%bError:%b --ip-pool requires a range (e.g., 10.0.1.100-10.0.1.200 or 10.0.1.0/24)\n" \
             "${RED}" "${NORMAL}" >&2
-          usage_setup_cluster 1
+          usage_setup 1
         fi
         cmd_setup_ip_pool_range="$2"
         shift 2
@@ -118,14 +118,14 @@ cmd_setup_cluster() {
       --network)
         if [ $# -lt 2 ]; then
           printf "%bError:%b --network requires a network name\n" "${RED}" "${NORMAL}" >&2
-          usage_setup_cluster 1
+          usage_setup 1
         fi
         cmd_setup_network_name="$2"
         shift 2
         ;;
-      help | --help | -h) usage_setup_cluster ;;
+      help | --help | -h) usage_setup ;;
       *)
-        printf "%bError:%b Unexpected argument for setup-cluster: %s\n" "${RED}" "${NORMAL}" "$1" >&2
+        printf "%bError:%b Unexpected argument for setup: %s\n" "${RED}" "${NORMAL}" "$1" >&2
         usage_setup_cluster 1
         ;;
     esac
@@ -186,7 +186,7 @@ main() {
 
   case "${cmd}" in
     k3d) cmd_k3d "$@" ;;
-    setup-cluster) cmd_setup_cluster "$@" ;;
+    setup) cmd_setup "$@" ;;
     push-secrets) cmd_push_secrets "$@" ;;
     help | --help | -h) usage ;;
     *)

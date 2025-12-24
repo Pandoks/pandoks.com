@@ -36,16 +36,16 @@ cmd_deps_restart() {
 
 cmd_deps() {
   [ $# -ge 1 ] || usage_deps 1
-  subcmd="$1"
+  cmd_deps_subcmd="$1"
   shift
 
-  case "${subcmd}" in
+  case "${cmd_deps_subcmd}" in
     up) cmd_deps_up "$@" ;;
     down) cmd_deps_down "$@" ;;
     restart) cmd_deps_restart "$@" ;;
     help|--help|-h) usage_deps ;;
     *)
-      printf "%bError:%b Unknown deps subcommand '%s'\n" "${RED}" "${NORMAL}" "${subcmd}" >&2
+      printf "%bError:%b Unknown deps subcommand '%s'\n" "${RED}" "${NORMAL}" "${cmd_deps_subcmd}" >&2
       usage_deps 1
       ;;
   esac

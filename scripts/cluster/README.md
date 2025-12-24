@@ -16,11 +16,11 @@ options. Package scripts in `package.json` are wired directly to
 
 ## Top-Level Commands
 
-| Command         | Description                                                     |
-| --------------- | --------------------------------------------------------------- |
-| `k3d`           | Manage the local k3d cluster and dependencies.                  |
-| `setup-cluster` | Install addons (MetalLB, cert-manager) and apply k3s manifests. |
-| `push-secrets`  | Fetch SST secrets and push them into the active cluster.        |
+| Command        | Description                                                     |
+| -------------- | --------------------------------------------------------------- |
+| `k3d`          | Manage the local k3d cluster and dependencies.                  |
+| `setup`        | Install addons (MetalLB, cert-manager) and apply k3s manifests. |
+| `push-secrets` | Fetch SST secrets and push them into the active cluster.        |
 
 ## k3d Subcommands
 
@@ -37,9 +37,9 @@ options. Package scripts in `package.json` are wired directly to
 | `restart`  | Stop and start the cluster sequentially.              |
 | `deps`     | Manage Docker Compose dependencies (up/down/restart). |
 
-## setup-cluster Options
+## setup Options
 
-`setup-cluster` accepts several flags to control how networking is configured:
+`setup` accepts several flags to control how networking is configured:
 
 - `--kubeconfig <path>` – operate against a specific kubeconfig file.
 - `--k3d` – auto-detect the IP pool from the local k3d network.
@@ -67,7 +67,7 @@ applied.
 ./scripts/cluster/main.sh k3d up --network pandoks-net
 
 # Install addons with auto-detected IP pool
-./scripts/cluster/main.sh setup-cluster --k3d
+./scripts/cluster/main.sh setup --k3d
 
 # Push secrets to a remote cluster
 ./scripts/cluster/main.sh push-secrets --kubeconfig ./k3s.yaml

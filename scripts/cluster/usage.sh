@@ -8,7 +8,7 @@ usage() {
   printf "  %bk3d%b             Manage local k3d cluster and dependencies\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Subcommands: up [--network <NAME>], down, start, stop, restart, deps\n\n" >&2
 
-  printf "  %bsetup-cluster%b  Setup cluster with addons and manifests\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bsetup%b         Setup cluster with addons and manifests\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Options: --kubeconfig <PATH>, --k3d, --ip-pool <RANGE>, --network <NAME>\n\n" >&2
 
   printf "  %bpush-secrets%b   Push SST secrets to cluster\n" "${GREEN}" "${NORMAL}" >&2
@@ -68,8 +68,8 @@ usage_deps() {
   exit "${1:-0}"
 }
 
-usage_setup_cluster() {
-  printf "%bUsage:%b %s setup-cluster [options]\n\n" "${BOLD}" "${NORMAL}" "$0" >&2
+usage_setup() {
+  printf "%bUsage:%b %s setup [options]\n\n" "${BOLD}" "${NORMAL}" "$0" >&2
   printf "Install addons (MetalLB, cert-manager) and apply k3s manifests.\n\n" >&2
 
   printf "%bOptions:%b\n" "${BOLD}" "${NORMAL}" >&2
@@ -86,9 +86,9 @@ usage_setup_cluster() {
   printf "      Docker network (default: k3d-local-cluster)\n\n" >&2
 
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
-  printf "  %s setup-cluster --k3d\n" "$0" >&2
-  printf "  %s setup-cluster --ip-pool 10.0.1.100-10.0.1.200\n" "$0" >&2
-  printf "  %s setup-cluster --kubeconfig ./k3s.yaml --ip-pool 10.0.1.0/24\n\n" "$0" >&2
+  printf "  %s setup --k3d\n" "$0" >&2
+  printf "  %s setup --ip-pool 10.0.1.100-10.0.1.200\n" "$0" >&2
+  printf "  %s setup --kubeconfig ./k3s.yaml --ip-pool 10.0.1.0/24\n\n" "$0" >&2
 
   exit "${1:-0}"
 }

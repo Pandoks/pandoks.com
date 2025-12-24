@@ -117,10 +117,10 @@ cmd_k3d_restart() {
 
 cmd_k3d() {
   [ $# -ge 1 ] || usage_k3d 1
-  subcmd="$1"
+  cmd_k3d_subcmd="$1"
   shift
 
-  case "${subcmd}" in
+  case "${cmd_k3d_subcmd}" in
     up) cmd_k3d_up "$@" ;;
     down) cmd_k3d_down "$@" ;;
     start) cmd_k3d_start "$@" ;;
@@ -129,7 +129,7 @@ cmd_k3d() {
     deps) cmd_deps "$@" ;;
     help | --help | -h) usage_k3d ;;
     *)
-      printf "%bError:%b Unknown k3d subcommand '%s'\n" "${RED}" "${NORMAL}" "${subcmd}" >&2
+      printf "%bError:%b Unknown k3d subcommand '%s'\n" "${RED}" "${NORMAL}" "${cmd_k3d_subcmd}" >&2
       usage_k3d 1
       ;;
   esac
