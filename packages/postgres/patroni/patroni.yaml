@@ -46,8 +46,9 @@ bootstrap: # how new clusters are created or replicas are initialized
         - 'host replication all ::1/128 trust'
         - 'host replication replicator 10.42.0.0/16 scram-sha-256'
         - 'host postgres replicator 10.42.0.0/16 scram-sha-256'
-        - 'host postgres ${PGUSER} 10.42.0.0/16 scram-sha-256'
-        - 'host ${POSTGRES_DB} pgcat 10.42.0.0/16 scram-sha-256'
+        - 'host postgres postgres 10.42.0.0/16 scram-sha-256'
+        - 'host ${POSTGRES_DB} client 10.42.0.0/16 scram-sha-256'
+        - 'host ${POSTGRES_DB} admin 10.42.0.0/16 scram-sha-256'
   post_bootstrap: /usr/local/bin/cluster-init.sh
 
 postgresql: # postgresql settings here don't need to restart the entire cluster
@@ -57,11 +58,11 @@ postgresql: # postgresql settings here don't need to restart the entire cluster
   data_dir: /var/lib/postgresql/pgdata
   authentication:
     superuser:
-      username: ${PGUSER}
-      password: ${PGPASSWORD}
+      username: postgres
+      password: ${SUPERUSER_PASSWORD}
     replication:
       username: replicator
-      password: ${PGREPPASS}
+      password: ${REPLICATION_PASSWORD}
   create_replica_methods:
     - pgbackrest
     - basebackup
