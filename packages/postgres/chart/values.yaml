@@ -1,17 +1,13 @@
-# Default values for postgres chart
-
 db: example
 namespace: example
 
 credentials:
   secret: example-db-creds
   dataKeys:
-    adminUser: POSTGRES_USER
-    clientUser: PGUSER
-    adminPassword: POSTGRES_PASSWORD
-    pgcatPassword: PGCATPASS
-    clientPassword: PGPASSWORD
-    replicationPassword: PGREPPASS
+    superuserPassword: SUPERUSER_PASSWORD
+    adminPassword: ADMIN_PASSWORD
+    clientPassword: CLIENT_PASSWORD
+    replicationPassword: REPLICATION_PASSWORD
     patroniPassword: PATRONI_PASSWORD
 
 backup:
@@ -42,6 +38,4 @@ patroni:
   replicas: 3
   image: ghcr.io/pandoks/patroni:latest
 
-pgcat:
-  replicas: 3
-  image: ghcr.io/pandoks/pgcat:latest
+pgdog:
