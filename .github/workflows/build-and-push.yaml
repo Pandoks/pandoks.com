@@ -4,7 +4,6 @@ on:
   push:
     paths:
       - 'packages/postgres/patroni/**'
-      - 'packages/postgres/pgcat/**'
       - 'packages/postgres/pgbackrest/**'
       - 'packages/valkey/**'
       - 'packages/clickhouse/clickhouse/**'
@@ -25,8 +24,6 @@ jobs:
         image:
           - name: patroni
             path: ./packages/postgres/patroni/Dockerfile
-          - name: pgcat
-            path: ./packages/postgres/pgcat/Dockerfile
           - name: pgbackrest
             path: ./packages/postgres/pgbackrest/Dockerfile
           - name: valkey
@@ -49,8 +46,6 @@ jobs:
           filters: |
             patroni:
               - 'packages/postgres/patroni/**'
-            pgcat:
-              - 'packages/postgres/pgcat/**'
             pgbackrest:
               - 'packages/postgres/pgbackrest/**'
             valkey:

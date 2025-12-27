@@ -6,9 +6,6 @@ resources:
   - main.yaml
 
 configMapGenerator:
-  - name: pgcat-config
-    files:
-      - ../../pgcat/pgcat.toml
   - name: patroni-config
     files:
       - ../../patroni/patroni.yaml
