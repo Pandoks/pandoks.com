@@ -683,7 +683,8 @@ fi
 
 ### `main` Function
 
-All _executable_ scripts must have a `main` function that handles the script's logic.
+All _executable_ scripts must have a `main` function that handles the script's logic unless the
+script is used as a library or is used by an application or entrypoint.
 
 ```sh
 #!/bin/sh
