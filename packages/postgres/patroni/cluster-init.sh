@@ -1,13 +1,11 @@
 #!/bin/sh
+
 set -eu
 
-PGDATABASE=${PGDATABASE:-postgres}
-
-if pgbackrest --stanza=${POSTGRES_DB} info | grep "missing stanza path"; then
+if pgbackrest --stanza="${POSTGRES_DB}" info | grep "missing stanza path"; then
   echo "Stanza '${POSTGRES_DB}' does not exist. Creating..."
-  pgbackrest --stanza="${POSTGRES_DB}" stanza-create
-  if [ $? -eq 0 ]; then
-    echo "Stanza '${POSTGRES_DB}' created successfully."
+  if pgbackrest --stanza="${POSTGRES_DB}" stanza-create; then
+    echo "✓ Stanza '${POSTGRES_DB}' created successfully."
   else
     echo "Failed to create stanza '${POSTGRES_DB}'."
     exit 1
@@ -17,21 +15,19 @@ else
 fi
 
 echo "Checking for existing backup..."
-set +e
+set +e # TODO: test if this is needed
 if pgbackrest --stanza="${POSTGRES_DB}" info | grep -q "full backup"; then
   echo "Full backup already exists. Restoring..."
   pg_ctl stop -w -D /var/lib/postgresql/pgdata -m fast
-  pgbackrest --stanza="${POSTGRES_DB}" restore
-  if [ $? -eq 0 ]; then
-    echo "Full backup restored successfully."
+  if pgbackrest --stanza="${POSTGRES_DB}" restore; then
+    echo "✓ Full backup restored successfully."
   else
     echo "Failed to restore full backup."
     exit 1
   fi
   echo "Patching stanza..."
-  pgbackrest --stanza="${POSTGRES_DB}" --no-online stanza-upgrade
-  if [ $? -eq 0 ]; then
-    echo "Stanza upgraded successfully."
+  if pgbackrest --stanza="${POSTGRES_DB}" --no-online stanza-upgrade; then
+    echo "✓ Stanza upgraded successfully."
   else
     echo "Failed to upgrade stanza."
     exit 1
@@ -43,21 +39,20 @@ if pgbackrest --stanza="${POSTGRES_DB}" info | grep -q "full backup"; then
 fi
 set -e
 
-if psql -Atq -d ${PGDATABASE} -c "SELECT 1 FROM pg_database WHERE datname='${POSTGRES_DB}'" | grep -q 1; then
+if psql -Atq -d postgres -c "SELECT 1 FROM pg_database WHERE datname='${POSTGRES_DB}'" | grep -q 1; then
   echo "Database '${POSTGRES_DB}' already exists. Skipping creation."
 else
   echo "Database '${POSTGRES_DB}' does not exist. Creating..."
-  psql -d ${PGDATABASE} -c "CREATE DATABASE ${POSTGRES_DB};"
-  if [ $? -eq 0 ]; then
-    echo "Database '${POSTGRES_DB}' created successfully."
+  if psql -d postgres -c "CREATE DATABASE ${POSTGRES_DB};"; then
+    echo "✓ Database '${POSTGRES_DB}' created successfully."
   else
     echo "Failed to create database '${POSTGRES_DB}'."
     exit 1
   fi
 fi
 
-if psql -Atq -d ${PGDATABASE} -c "SELECT 1 FROM pg_roles WHERE rolname='pgcat'" | grep -q 1; then
-  echo "Role 'pgcat' already exists. Skipping creation."
+if psql -Atq -d postgres -c "SELECT 1 FROM pg_roles WHERE rolname='admin'" | grep -q 1; then
+  echo "Role 'admin' already exists. Skipping creation."
 else
   echo "Role 'pgcat' does not exist. Creating..."
   psql -d ${PGDATABASE} -c "
@@ -74,7 +69,7 @@ else
   if [ $? -eq 0 ]; then
     echo "Role 'pgcat' created successfully."
   else
-    echo "Failed to create role 'pgcat'."
+    echo "Failed to create role 'admin'."
     exit 1
   fi
 fi
