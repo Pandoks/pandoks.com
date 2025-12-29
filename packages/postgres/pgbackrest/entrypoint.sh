@@ -1,4 +1,5 @@
 #!/bin/sh
+
 set -eu
 
 for v in \
@@ -11,12 +12,24 @@ for v in \
   S3_ENDPOINT \
   S3_TLS \
   S3_URI_STYLE \
-  ENCRYPTION_KEY \
-  FULL_RETENTION \
-  DIFF_RETENTION; do
+  ENCRYPTION_KEY; do
   eval ": \${$v:?Missing $v}"
 done
 
-envsubst </tmp/conf_templates/pgbackrest.conf >/etc/pgbackrest.conf
+if echo "$@" | grep -q "server"; then
+  echo "Running as server..."
+else
+  echo "Running as client..."
+  for v in \
+    FULL_RETENTION \
+    DIFF_RETENTION \
+    CLIENT_COMMON_NAME \
+    MASTER_HOST \
+    SLAVE_HOST; do
+    eval ": \${$v:?Missing $v}"
+  done
+fi
+
+envsubst < /tmp/conf_templates/pgbackrest.conf > /etc/pgbackrest.conf
 
 exec "$@"
