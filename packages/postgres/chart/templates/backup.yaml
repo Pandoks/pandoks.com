@@ -67,16 +67,11 @@ spec:
                   value: '{{ .context.Values.backup.encryptionKey }}'
                 - name: STANZA
                   value: '{{ .context.Values.db }}'
-                - name: PGUSER
-                  valueFrom:
-                    secretKeyRef:
-                      name: &db_creds '{{ .context.Values.credentials.secret }}'
-                      key: '{{ .context.Values.credentials.dataKeys.clientUser }}'
                 - name: PGPASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: *db_creds
-                      key: '{{ .context.Values.credentials.dataKeys.clientPassword }}'
+                      name: '{{ .context.Values.credentials.secret }}'
+                      key: '{{ .context.Values.credentials.dataKeys.superuserPassword }}'
                 - name: FULL_RETENTION
                   value: '{{ .context.Values.backup.retention.full }}'
                 - name: DIFF_RETENTION
