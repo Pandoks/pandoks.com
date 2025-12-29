@@ -3,6 +3,7 @@
 set -eu
 
 for v in \
+  PGPASSWORD \
   STANZA \
   BACKUP_BUCKET \
   BACKUP_PATH \
