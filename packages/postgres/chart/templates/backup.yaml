@@ -1,11 +1,7 @@
-{{- $first := true -}}
 {{- range $type, $schedule := .Values.backup.schedules }}
   {{- if $schedule }}
-    {{- if not $first }}
 ---
-    {{- end }}
     {{- include "pgbackrest.cronjob" (dict "context" $ "type" $type "schedule" $schedule) }}
-    {{- $first = false -}}
   {{- end }}
 {{- end }}
 
