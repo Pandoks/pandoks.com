@@ -104,31 +104,31 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
-            - name: PGUSER
+            - name: SUPERUSER_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: &db_creds '{{ .Values.credentials.secret }}'
-                  key: &pguser '{{ .Values.credentials.dataKeys.clientUser }}'
-            - name: PGPASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: *db_creds
-                  key: &pgpassword '{{ .Values.credentials.dataKeys.clientPassword }}'
-            - name: PGREPPASS
+                  key: &superuser_password '{{ .Values.credentials.dataKeys.superuserPassword }}'
+            - name: REPLICATION_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
                   key: '{{ .Values.credentials.dataKeys.replicationPassword }}'
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: *db_creds
+                  key: '{{ .Values.credentials.dataKeys.adminPassword }}'
+            - name: CLIENT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: *db_creds
+                  key: '{{ .Values.credentials.dataKeys.clientPassword }}'
             - name: PATRONI_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
                   key: '{{ .Values.credentials.dataKeys.patroniPassword }}'
-            - name: PGCATPASS
-              valueFrom:
-                secretKeyRef:
-                  name: *db_creds
-                  key: '{{ .Values.credentials.dataKeys.pgcatPassword }}'
             - name: BACKUP_BUCKET
               value: &backup_bucket '{{ .Values.backup.bucket }}'
             - name: BACKUP_PATH
@@ -207,16 +207,11 @@ spec:
               value: *backup_host_common_name
             - name: STANZA
               value: *db
-            - name: PGUSER
-              valueFrom:
-                secretKeyRef:
-                  name: *db_creds
-                  key: *pguser
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
-                  key: *pgpassword
+                  key: *superuser_password
             - name: FULL_RETENTION
               value: '{{ .Values.backup.retention.full }}'
             - name: DIFF_RETENTION
