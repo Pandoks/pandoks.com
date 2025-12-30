@@ -1,12 +1,13 @@
+{{- range $shardIndex := until (int $.Values.patroni.shards) }}
 # provides a stable ip for the primary
 apiVersion: v1
 kind: Service
 metadata:
-  name: patroni-{{ .Values.db }}-primary
-  namespace: '{{ .Values.namespace }}'
+  name: patroni-{{ $.Values.db }}-primary-shard-{{ $shardIndex }}
+  namespace: {{ $.Values.namespace }}
   labels:
-    app: &app patroni-{{ .Values.db }}
-    cluster-name: &cluster-name '{{ .Values.db }}'
+    app: &app patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+    cluster-name: &cluster-name {{ $.Values.db }}-shard-{{ $shardIndex }}
     role: &role primary
 spec:
   type: ClusterIP
@@ -27,11 +28,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: patroni-{{ .Values.db }}-replicas
-  namespace: '{{ .Values.namespace }}'
+  name: patroni-{{ $.Values.db }}-replicas-shard-{{ $shardIndex }}
+  namespace: {{ $.Values.namespace }}
   labels:
-    app: &app patroni-{{ .Values.db }}
-    cluster-name: &cluster-name '{{ .Values.db }}'
+    app: &app patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+    cluster-name: &cluster-name {{ $.Values.db }}-shard-{{ $shardIndex }}
     role: &role replica
 spec:
   type: ClusterIP
@@ -48,16 +49,33 @@ spec:
       targetPort: 8432
 
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+  namespace: {{ $.Values.namespace }}
+spec:
+  clusterIP: None
+  selector:
+    app: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+    cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: &app patroni-{{ .Values.db }}
-  namespace: '{{ .Values.namespace }}'
+  name: &app patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+  namespace: {{ $.Values.namespace }}
   labels:
     app: *app
-    cluster-name: &cluster-name '{{ .Values.db }}'
+    cluster-name: &cluster-name {{ $.Values.db }}-shard-{{ $shardIndex }}
 spec:
-  replicas: {{ .Values.patroni.replicas }}
+  replicas: {{ $.Values.patroni.replicasPerShard }}
+  serviceName: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
   selector:
     matchLabels:
       app: *app
@@ -68,12 +86,12 @@ spec:
         app: *app
         cluster-name: *cluster-name
     spec:
-      serviceAccountName: patroni-{{ .Values.db }}
+      serviceAccountName: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
       securityContext:
         fsGroup: 999
       containers:
         - name: patroni
-          image: {{ .Values.patroni.image }}
+          image: {{ $.Values.patroni.image }}
           readinessProbe:
             httpGet:
               scheme: HTTP
@@ -91,7 +109,7 @@ spec:
               protocol: TCP
           env:
             - name: POSTGRES_DB
-              value: &db '{{ .Values.db }}'
+              value: *cluster_name
             - name: NAMESPACE
               valueFrom:
                 fieldRef:
@@ -107,56 +125,56 @@ spec:
             - name: SUPERUSER_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: &db_creds '{{ .Values.credentials.secret }}'
-                  key: &superuser_password '{{ .Values.credentials.dataKeys.superuserPassword }}'
+                  name: &db_creds '{{ $.Values.credentials.secret }}'
+                  key: &superuser_password '{{ $.Values.credentials.dataKeys.superuserPassword }}'
             - name: REPLICATION_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
-                  key: '{{ .Values.credentials.dataKeys.replicationPassword }}'
+                  key: '{{ $.Values.credentials.dataKeys.replicationPassword }}'
             - name: ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
-                  key: '{{ .Values.credentials.dataKeys.adminPassword }}'
+                  key: '{{ $.Values.credentials.dataKeys.adminPassword }}'
             - name: CLIENT_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
-                  key: '{{ .Values.credentials.dataKeys.clientPassword }}'
+                  key: '{{ $.Values.credentials.dataKeys.clientPassword }}'
             - name: PATRONI_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
-                  key: '{{ .Values.credentials.dataKeys.patroniPassword }}'
+                  key: '{{ $.Values.credentials.dataKeys.patroniPassword }}'
             - name: BACKUP_BUCKET
-              value: &backup_bucket '{{ .Values.backup.bucket }}'
+              value: &backup_bucket '{{ $.Values.backup.bucket }}'
             - name: BACKUP_PATH
-              value: &backup_path '{{ .Values.backup.path }}'
+              value: &backup_path '{{ $.Values.backup.path }}'
             - name: S3_KEY
               valueFrom:
                 secretKeyRef:
-                  name: &backup_creds '{{ .Values.s3.credentials.secret }}'
-                  key: &key '{{ .Values.s3.credentials.dataKeys.s3Key }}'
+                  name: &backup_creds '{{ $.Values.s3.credentials.secret }}'
+                  key: &key '{{ $.Values.s3.credentials.dataKeys.s3Key }}'
             - name: S3_KEY_SECRET
               valueFrom:
                 secretKeyRef:
                   name: *backup_creds
-                  key: &key_secret '{{ .Values.s3.credentials.dataKeys.s3KeySecret }}'
+                  key: &key_secret '{{ $.Values.s3.credentials.dataKeys.s3KeySecret }}'
             - name: S3_REGION
-              value: &s3_region '{{ .Values.s3.region }}'
+              value: &s3_region '{{ $.Values.s3.region }}'
             - name: S3_ENDPOINT
-              value: &s3_endpoint '{{ .Values.s3.endpoint }}'
+              value: &s3_endpoint '{{ $.Values.s3.endpoint }}'
             - name: S3_TLS
-              value: &s3_tls '{{ .Values.s3.tls }}'
+              value: &s3_tls '{{ $.Values.s3.tls }}'
             - name: S3_URI_STYLE
-              value: &s3_uri_style '{{ .Values.s3.uriStyle }}'
+              value: &s3_uri_style '{{ $.Values.s3.uriStyle }}'
             - name: ENCRYPTION_KEY
-              value: &encryption_key '{{ .Values.backup.encryptionKey }}'
+              value: &encryption_key '{{ $.Values.backup.encryptionKey }}'
             - name: BACKUP_HOST_COMMON_NAME
-              value: &backup_host_common_name '{{ .Values.db }}-pgbackrest-backup'
+              value: &backup_host_common_name '{{ $.Values.db }}-pgbackrest-backup'
             - name: STANZA
-              value: *db
+              value: *cluster_name
           volumeMounts:
             - name: &patroni_config patroni-config
               mountPath: /tmp/conf_templates/patroni.yaml
@@ -171,14 +189,14 @@ spec:
             - name: &socket postgres-socket
               mountPath: &socket_mount /var/run/postgresql
         - name: pgbackrest
-          image: {{ .Values.backup.image }}
+          image: {{ $.Values.backup.image }}
           args: ['pgbackrest', 'server', '--config=/etc/pgbackrest.conf']
           ports:
             - name: pgbackrest
               containerPort: 8432
           env:
             - name: POSTGRES_DB
-              value: *db
+              value: *cluster_name
             - name: BACKUP_BUCKET
               value: *backup_bucket
             - name: BACKUP_PATH
@@ -206,16 +224,16 @@ spec:
             - name: BACKUP_HOST_COMMON_NAME
               value: *backup_host_common_name
             - name: STANZA
-              value: *db
+              value: *cluster_name
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
                   key: *superuser_password
             - name: FULL_RETENTION
-              value: '{{ .Values.backup.retention.full }}'
+              value: '{{ $.Values.backup.retention.full }}'
             - name: DIFF_RETENTION
-              value: '{{ .Values.backup.retention.diff }}'
+              value: '{{ $.Values.backup.retention.diff }}'
           volumeMounts:
             - name: *pgbackrest_config
               mountPath: *pgbackrest_mount
@@ -241,7 +259,7 @@ spec:
             defaultMode: 0600
             sources:
               - secret:
-                  name: patroni-{{ .Values.db }}-tls
+                  name: patroni-{{ $.Values.db }}-tls
                   items:
                     - key: tls.crt
                       path: client.crt
@@ -250,7 +268,7 @@ spec:
                     - key: ca.crt
                       path: ca.crt
               - secret:
-                  name: '{{ .Values.db }}-pgbackrest-backup-tls'
+                  name: '{{ $.Values.db }}-pgbackrest-backup-tls'
                   items:
                     - key: tls.crt
                       path: server.crt
@@ -277,3 +295,4 @@ spec:
         resources:
           requests:
             storage: 999Pi # local-path does not support storage requests so we use a big number just to show that it's uncapped
+{{- end }}

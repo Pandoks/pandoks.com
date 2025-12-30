@@ -9,6 +9,7 @@ credentials:
     clientPassword: CLIENT_PASSWORD
     replicationPassword: REPLICATION_PASSWORD
     patroniPassword: PATRONI_PASSWORD
+    pgdogPassword: PGDOG_PASSWORD
 
 backup:
   bucket: database
@@ -35,7 +36,8 @@ s3:
       s3KeySecret: S3_KEY_SECRET
 
 patroni:
-  replicas: 3
+  shards: 1
+  replicasPerShard: 3
   image: ghcr.io/pandoks/patroni:latest
 
 pgdog:
