@@ -1,14 +1,16 @@
+{{- range $shardIndex := until (int $.Values.patroni.shards) }}
+---
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: &name patroni-{{ .Values.db }}
-  namespace: '{{ .Values.namespace }}'
+  name: &name patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+  namespace: {{ $.Values.namespace }}
 spec:
   commonName: *name
-  secretName: patroni-{{ .Values.db }}-tls
+  secretName: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}-tls
   dnsNames:
-    - patroni-{{ .Values.db }}-primary.{{ .Values.namespace }}.svc.cluster.local
-    - patroni-{{ .Values.db }}-replicas.{{ .Values.namespace }}.svc.cluster.local
+    - patroni-{{ $.Values.db }}-primary.{{ $.Values.namespace }}.svc.cluster.local
+    - patroni-{{ $.Values.db }}-replicas.{{ $.Values.namespace }}.svc.cluster.local
   usages:
     - client auth
     - server auth
@@ -21,14 +23,14 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: &name '{{ .Values.db }}-pgbackrest-backup'
-  namespace: '{{ .Values.namespace }}'
+  name: &name {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup
+  namespace: {{ $.Values.namespace }}
 spec:
   commonName: *name
-  secretName: '{{ .Values.db }}-pgbackrest-backup-tls'
+  secretName: {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup-tls
   dnsNames:
-    - patroni-{{ .Values.db }}-primary.{{ .Values.namespace }}.svc.cluster.local
-    - patroni-{{ .Values.db }}-replicas.{{ .Values.namespace }}.svc.cluster.local
+    - patroni-{{ $.Values.db }}-primary.{{ $.Values.namespace }}.svc.cluster.local
+    - patroni-{{ $.Values.db }}-replicas.{{ $.Values.namespace }}.svc.cluster.local
   usages:
     - client auth
     - server auth
@@ -36,3 +38,4 @@ spec:
     name: internal-ca-issuer
     kind: ClusterIssuer
     group: cert-manager.io
+{{- end }}

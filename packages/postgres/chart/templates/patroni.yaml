@@ -1,4 +1,5 @@
 {{- range $shardIndex := until (int $.Values.patroni.shards) }}
+---
 # provides a stable ip for the primary
 apiVersion: v1
 kind: Service
@@ -54,6 +55,9 @@ kind: Service
 metadata:
   name: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
   namespace: {{ $.Values.namespace }}
+  labels:
+    app: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+    cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
 spec:
   clusterIP: None
   selector:
@@ -125,54 +129,54 @@ spec:
             - name: SUPERUSER_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: &db_creds '{{ $.Values.credentials.secret }}'
-                  key: &superuser_password '{{ $.Values.credentials.dataKeys.superuserPassword }}'
+                  name: &db_creds {{ $.Values.credentials.secret }}
+                  key: &superuser_password {{ $.Values.credentials.dataKeys.superuserPassword }}
             - name: REPLICATION_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
-                  key: '{{ $.Values.credentials.dataKeys.replicationPassword }}'
+                  key: {{ $.Values.credentials.dataKeys.replicationPassword }}
             - name: ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
-                  key: '{{ $.Values.credentials.dataKeys.adminPassword }}'
+                  key: {{ $.Values.credentials.dataKeys.adminPassword }}
             - name: CLIENT_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
-                  key: '{{ $.Values.credentials.dataKeys.clientPassword }}'
+                  key: {{ $.Values.credentials.dataKeys.clientPassword }}
             - name: PATRONI_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
-                  key: '{{ $.Values.credentials.dataKeys.patroniPassword }}'
+                  key: {{ $.Values.credentials.dataKeys.patroniPassword }}
             - name: BACKUP_BUCKET
-              value: &backup_bucket '{{ $.Values.backup.bucket }}'
+              value: &backup_bucket {{ $.Values.backup.bucket }}
             - name: BACKUP_PATH
-              value: &backup_path '{{ $.Values.backup.path }}'
+              value: &backup_path {{ $.Values.backup.path }}
             - name: S3_KEY
               valueFrom:
                 secretKeyRef:
-                  name: &backup_creds '{{ $.Values.s3.credentials.secret }}'
-                  key: &key '{{ $.Values.s3.credentials.dataKeys.s3Key }}'
+                  name: &backup_creds {{ $.Values.s3.credentials.secret }}
+                  key: &key {{ $.Values.s3.credentials.dataKeys.s3Key }}
             - name: S3_KEY_SECRET
               valueFrom:
                 secretKeyRef:
                   name: *backup_creds
-                  key: &key_secret '{{ $.Values.s3.credentials.dataKeys.s3KeySecret }}'
+                  key: &key_secret {{ $.Values.s3.credentials.dataKeys.s3KeySecret }}
             - name: S3_REGION
-              value: &s3_region '{{ $.Values.s3.region }}'
+              value: &s3_region {{ $.Values.s3.region }}
             - name: S3_ENDPOINT
-              value: &s3_endpoint '{{ $.Values.s3.endpoint }}'
+              value: &s3_endpoint {{ $.Values.s3.endpoint }}
             - name: S3_TLS
-              value: &s3_tls '{{ $.Values.s3.tls }}'
+              value: &s3_tls {{ $.Values.s3.tls }}
             - name: S3_URI_STYLE
-              value: &s3_uri_style '{{ $.Values.s3.uriStyle }}'
+              value: &s3_uri_style {{ $.Values.s3.uriStyle }}
             - name: ENCRYPTION_KEY
-              value: &encryption_key '{{ $.Values.backup.encryptionKey }}'
+              value: &encryption_key {{ $.Values.backup.encryptionKey }}
             - name: BACKUP_HOST_COMMON_NAME
-              value: &backup_host_common_name '{{ $.Values.db }}-pgbackrest-backup'
+              value: &backup_host_common_name {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup
             - name: STANZA
               value: *cluster_name
           volumeMounts:
@@ -190,7 +194,7 @@ spec:
               mountPath: &socket_mount /var/run/postgresql
         - name: pgbackrest
           image: {{ $.Values.backup.image }}
-          args: ['pgbackrest', 'server', '--config=/etc/pgbackrest.conf']
+          args: [pgbackrest, server, --config=/etc/pgbackrest.conf]
           ports:
             - name: pgbackrest
               containerPort: 8432
@@ -231,9 +235,9 @@ spec:
                   name: *db_creds
                   key: *superuser_password
             - name: FULL_RETENTION
-              value: '{{ $.Values.backup.retention.full }}'
+              value: {{ $.Values.backup.retention.full }}
             - name: DIFF_RETENTION
-              value: '{{ $.Values.backup.retention.diff }}'
+              value: {{ $.Values.backup.retention.diff }}
           volumeMounts:
             - name: *pgbackrest_config
               mountPath: *pgbackrest_mount
@@ -268,7 +272,7 @@ spec:
                     - key: ca.crt
                       path: ca.crt
               - secret:
-                  name: '{{ $.Values.db }}-pgbackrest-backup-tls'
+                  name: {{ $.Values.db }}-pgbackrest-backup-tls
                   items:
                     - key: tls.crt
                       path: server.crt
