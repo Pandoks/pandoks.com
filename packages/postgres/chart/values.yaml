@@ -9,7 +9,8 @@ credentials:
     clientPassword: CLIENT_PASSWORD
     replicationPassword: REPLICATION_PASSWORD
     patroniPassword: PATRONI_PASSWORD
-    pgdogPassword: PGDOG_PASSWORD
+    backupS3Key: BACKUP_S3_KEY
+    backupS3KeySecret: BACKUP_S3_KEY_SECRET
 
 backup:
   bucket: database
@@ -29,11 +30,6 @@ s3:
   endpoint: host.k3d.internal:4566
   tls: 'n'
   uriStyle: path
-  credentials:
-    secret: example-db-backup-creds
-    dataKeys:
-      s3Key: S3_KEY
-      s3KeySecret: S3_KEY_SECRET
 
 patroni:
   shards: 1
