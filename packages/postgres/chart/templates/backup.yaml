@@ -58,7 +58,7 @@ spec:
                 - name: S3_ENDPOINT
                   value: {{ .context.Values.s3.endpoint }}
                 - name: S3_TLS
-                  value: {{ .context.Values.s3.tls }}
+                  value: {{ .context.Values.s3.tls | quote }}
                 - name: S3_URI_STYLE
                   value: {{ .context.Values.s3.uriStyle }}
                 - name: ENCRYPTION_KEY
@@ -71,9 +71,9 @@ spec:
                       name: *secret
                       key: {{ .context.Values.credentials.dataKeys.superuserPassword }}
                 - name: FULL_RETENTION
-                  value: {{ .context.Values.backup.retention.full }}
+                  value: {{ .context.Values.backup.retention.full | quote }}
                 - name: DIFF_RETENTION
-                  value: {{ .context.Values.backup.retention.diff }}
+                  value: {{ .context.Values.backup.retention.diff | quote }}
               volumeMounts:
                 - name: &config pgbackrest-config
                   mountPath: /tmp/conf_templates/pgbackrest.conf

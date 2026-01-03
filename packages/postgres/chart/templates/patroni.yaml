@@ -175,7 +175,7 @@ spec:
             - name: S3_ENDPOINT
               value: &s3_endpoint {{ $.Values.s3.endpoint }}
             - name: S3_TLS
-              value: &s3_tls {{ $.Values.s3.tls }}
+              value: &s3_tls {{ $.Values.s3.tls | quote }}
             - name: S3_URI_STYLE
               value: &s3_uri_style {{ $.Values.s3.uriStyle }}
             - name: ENCRYPTION_KEY
@@ -248,10 +248,6 @@ spec:
                 secretKeyRef:
                   name: *db_creds
                   key: {{ $.Values.credentials.dataKeys.superuserPassword }}
-            - name: FULL_RETENTION
-              value: {{ $.Values.backup.retention.full  }}
-            - name: DIFF_RETENTION
-              value: {{ $.Values.backup.retention.diff  }}
           volumeMounts:
             - name: *pgbackrest_config
               mountPath: *pgbackrest_mount
