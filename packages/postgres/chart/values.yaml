@@ -13,6 +13,7 @@ credentials:
     backupS3KeySecret: BACKUP_S3_KEY_SECRET
 
 backup:
+  enabled: true
   bucket: database
   image: ghcr.io/pandoks/pgbackrest:latest
   encryptionKey: openssl-rand-hex-32

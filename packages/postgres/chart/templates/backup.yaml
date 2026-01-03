@@ -1,8 +1,10 @@
-{{- range $shardIndex := until (int $.Values.patroni.shards) }}
-  {{- range $type, $schedule := $.Values.backup.schedules }}
-    {{- if $schedule }}
+{{- if $.Values.backup.enabled }}
+  {{- range $shardIndex := until (int $.Values.patroni.shards) }}
+    {{- range $type, $schedule := $.Values.backup.schedules }}
+      {{- if $schedule }}
 ---
 {{ include "pgbackrest.cronjob" (dict "context" $ "type" $type "schedule" $schedule "shardIndex" $shardIndex) }}
+      {{- end }}
     {{- end }}
   {{- end }}
 {{- end }}
@@ -44,13 +46,13 @@ spec:
                 - name: S3_KEY
                   valueFrom:
                     secretKeyRef:
-                      name: &secret {{ .context.Values.s3.credentials.secret }}
-                      key: {{ .context.Values.s3.credentials.dataKeys.s3Key }}
+                      name: &secret {{ .context.Values.credentials.secret }}
+                      key: {{ .context.Values.credentials.dataKeys.backupS3Key }}
                 - name: S3_KEY_SECRET
                   valueFrom:
                     secretKeyRef:
                       name: *secret
-                      key: {{ .context.Values.s3.credentials.dataKeys.s3KeySecret }}
+                      key: {{ .context.Values.credentials.dataKeys.backupS3KeySecret }}
                 - name: S3_REGION
                   value: {{ .context.Values.s3.region }}
                 - name: S3_ENDPOINT

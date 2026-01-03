@@ -20,9 +20,11 @@ spec:
     - name: postgres
       port: 5432
       targetPort: 5432
+  {{- if $.Values.backup.enabled }}
     - name: pgbackrest
       port: 8432
       targetPort: 8432
+  {{- end }}
 
 ---
 # provides a stable ip for all replicas
@@ -45,9 +47,11 @@ spec:
     - name: postgres
       port: 5432
       targetPort: 5432
+  {{- if $.Values.backup.enabled }}
     - name: pgbackrest
       port: 8432
       targetPort: 8432
+  {{- end }}
 
 ---
 apiVersion: v1
@@ -113,7 +117,7 @@ spec:
               protocol: TCP
           env:
             - name: POSTGRES_DB
-              value: *cluster_name
+              value: *cluster-name
             - name: NAMESPACE
               valueFrom:
                 fieldRef:
@@ -130,7 +134,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: &db_creds {{ $.Values.credentials.secret }}
-                  key: &superuser_password {{ $.Values.credentials.dataKeys.superuserPassword }}
+                  key: {{ $.Values.credentials.dataKeys.superuserPassword }}
             - name: REPLICATION_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -151,6 +155,7 @@ spec:
                 secretKeyRef:
                   name: *db_creds
                   key: {{ $.Values.credentials.dataKeys.patroniPassword }}
+          {{- if $.Values.backup.enabled }}
             - name: BACKUP_BUCKET
               value: &backup_bucket {{ $.Values.backup.bucket }}
             - name: BACKUP_PATH
@@ -158,13 +163,13 @@ spec:
             - name: S3_KEY
               valueFrom:
                 secretKeyRef:
-                  name: &backup_creds {{ $.Values.s3.credentials.secret }}
-                  key: &key {{ $.Values.s3.credentials.dataKeys.s3Key }}
+                  name: *db_creds
+                  key: &s3_key {{ $.Values.credentials.dataKeys.backupS3Key }}
             - name: S3_KEY_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: *backup_creds
-                  key: &key_secret {{ $.Values.s3.credentials.dataKeys.s3KeySecret }}
+                  name: *db_creds
+                  key: &s3_key_secret {{ $.Values.credentials.dataKeys.backupS3KeySecret }}
             - name: S3_REGION
               value: &s3_region {{ $.Values.s3.region }}
             - name: S3_ENDPOINT
@@ -178,29 +183,38 @@ spec:
             - name: BACKUP_HOST_COMMON_NAME
               value: &backup_host_common_name {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup
             - name: STANZA
-              value: *cluster_name
+              value: *cluster-name
+          {{- end }}
           volumeMounts:
             - name: &patroni_config patroni-config
               mountPath: /tmp/conf_templates/patroni.yaml
               subPath: patroni.yaml
+          {{- if $.Values.backup.enabled }}
             - name: &pgbackrest_config pgbackrest-config
               mountPath: &pgbackrest_mount /tmp/conf_templates/pgbackrest.conf
               subPath: pgbackrest.conf
+          {{- end }}
             - name: &data patroni-data
               mountPath: &data_mount /var/lib/postgresql
+          {{- if $.Values.backup.enabled }}
             - name: &wal_archives patroni-wal-archives
               mountPath: &wal_archives_mount /var/spool/pgbackrest
+          {{- end }}
             - name: &socket postgres-socket
               mountPath: &socket_mount /var/run/postgresql
+      {{- if $.Values.backup.enabled }}
         - name: pgbackrest
           image: {{ $.Values.backup.image }}
-          args: [pgbackrest, server, --config=/etc/pgbackrest.conf]
+          args:
+            - pgbackrest
+            - server
+            - --config=/etc/pgbackrest.conf
           ports:
             - name: pgbackrest
               containerPort: 8432
           env:
             - name: POSTGRES_DB
-              value: *cluster_name
+              value: *cluster-name
             - name: BACKUP_BUCKET
               value: *backup_bucket
             - name: BACKUP_PATH
@@ -208,13 +222,13 @@ spec:
             - name: S3_KEY
               valueFrom:
                 secretKeyRef:
-                  name: *backup_creds
-                  key: *key
+                  name: *db_creds
+                  key: *s3_key
             - name: S3_KEY_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: *backup_creds
-                  key: *key_secret
+                  name: *db_creds
+                  key: *s3_key_secret
             - name: S3_REGION
               value: *s3_region
             - name: S3_ENDPOINT
@@ -228,16 +242,16 @@ spec:
             - name: BACKUP_HOST_COMMON_NAME
               value: *backup_host_common_name
             - name: STANZA
-              value: *cluster_name
+              value: *cluster-name
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
                   name: *db_creds
-                  key: *superuser_password
+                  key: {{ $.Values.credentials.dataKeys.superuserPassword }}
             - name: FULL_RETENTION
-              value: {{ $.Values.backup.retention.full }}
+              value: {{ $.Values.backup.retention.full  }}
             - name: DIFF_RETENTION
-              value: {{ $.Values.backup.retention.diff }}
+              value: {{ $.Values.backup.retention.diff  }}
           volumeMounts:
             - name: *pgbackrest_config
               mountPath: *pgbackrest_mount
@@ -251,10 +265,12 @@ spec:
               mountPath: *wal_archives_mount
             - name: *socket
               mountPath: *socket_mount
+      {{- end }}
       volumes:
         - name: *patroni_config
           configMap:
             name: patroni-config
+      {{- if $.Values.backup.enabled }}
         - name: *pgbackrest_config
           configMap:
             name: patroni-pgbackrest-config
@@ -263,7 +279,7 @@ spec:
             defaultMode: 0600
             sources:
               - secret:
-                  name: patroni-{{ $.Values.db }}-tls
+                  name: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}-tls
                   items:
                     - key: tls.crt
                       path: client.crt
@@ -272,12 +288,13 @@ spec:
                     - key: ca.crt
                       path: ca.crt
               - secret:
-                  name: {{ $.Values.db }}-pgbackrest-backup-tls
+                  name: {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup-tls
                   items:
                     - key: tls.crt
                       path: server.crt
                     - key: tls.key
                       path: server.key
+      {{- end }}
         - name: *socket
           emptyDir: {}
   volumeClaimTemplates:
@@ -290,6 +307,7 @@ spec:
         resources:
           requests:
             storage: 999Pi # local-path does not support storage requests so we use a big number just to show that it's uncapped
+  {{- if $.Values.backup.enabled }}
     - metadata:
         name: *wal_archives
       spec:
@@ -299,4 +317,5 @@ spec:
         resources:
           requests:
             storage: 999Pi # local-path does not support storage requests so we use a big number just to show that it's uncapped
+  {{- end }}
 {{- end }}
