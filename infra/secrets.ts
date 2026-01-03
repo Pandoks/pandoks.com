@@ -33,15 +33,16 @@ export const secrets = {
     HetznerOriginTlsCrt: new sst.Secret('HetznerOriginTlsCrt', 'No Origin Tls Cert Set'),
     main: {
       // namespace
-      // NOTE: sst Secret names are named '<namespace>name' (ie. MainMainPostgresSuperuserPassword)
+      // NOTE: sst Secret names are named '<namespace><db-name>Postgres<var>' (ie. MainMainPostgresSuperuserPassword)
       mainPostgres: {
         SuperuserPassword: new sst.Secret('MainMainPostgresSuperuserPassword'),
         AdminPassword: new sst.Secret('MainMainPostgresAdminPassword'),
         ClientPassword: new sst.Secret('MainMainPostgresClientPassword'),
         ReplicationPassword: new sst.Secret('MainMainPostgresReplicationPassword'),
         PatroniPassword: new sst.Secret('MainMainPostgresPatroniPassword'),
-        S3Key: new sst.Secret('MainMainPostgresS3Key', 'test'),
-        S3KeySecret: new sst.Secret('MainMainPostgresS3KeySecret', 'testsecret')
+        PgdogAdminPassword: new sst.Secret('MainMainPostgresPgdogAdminPassword'),
+        BackupS3Key: new sst.Secret('MainMainPostgresBackupS3Key', 'test'),
+        BackupS3KeySecret: new sst.Secret('MainMainPostgresBackupS3KeySecret', 'testsecret')
       },
       mainValkey: {
         ValkeyAdminPassword: new sst.Secret('ValkeyAdminPassword'),
