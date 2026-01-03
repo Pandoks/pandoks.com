@@ -31,15 +31,29 @@ export const secrets = {
   k8s: {
     HetznerOriginTlsKey: new sst.Secret('HetznerOriginTlsKey', 'No Origin Tls Key Set'),
     HetznerOriginTlsCrt: new sst.Secret('HetznerOriginTlsCrt', 'No Origin Tls Cert Set'),
-    PostgresPassword: new sst.Secret('PostgresPassword'),
-    PostgresS3Key: new sst.Secret('PostgresS3Key', 'test'),
-    PostgresS3KeySecret: new sst.Secret('PostgresS3KeySecret', 'testsecret'),
-    ValkeyAdminPassword: new sst.Secret('ValkeyAdminPassword'),
-    ValkeyClientPassword: new sst.Secret('ValkeyClientPassword'),
-    ClickhouseAdminPassword: new sst.Secret('ClickhouseAdminPassword'),
-    ClickhouseUserPassword: new sst.Secret('ClickhouseUserPassword'),
-    ClickhouseBackupPassword: new sst.Secret('ClickhouseBackupPassword'),
-    ClickhouseS3Key: new sst.Secret('ClickhouseS3Key', 'test'),
-    ClickhouseS3KeySecret: new sst.Secret('ClickhouseS3KeySecret', 'testsecret')
+    main: {
+      // namespace
+      // NOTE: sst Secret names are named '<namespace>name' (ie. MainMainPostgresSuperuserPassword)
+      mainPostgres: {
+        SuperuserPassword: new sst.Secret('MainMainPostgresSuperuserPassword'),
+        AdminPassword: new sst.Secret('MainMainPostgresAdminPassword'),
+        ClientPassword: new sst.Secret('MainMainPostgresClientPassword'),
+        ReplicationPassword: new sst.Secret('MainMainPostgresReplicationPassword'),
+        PatroniPassword: new sst.Secret('MainMainPostgresPatroniPassword'),
+        S3Key: new sst.Secret('MainMainPostgresS3Key', 'test'),
+        S3KeySecret: new sst.Secret('MainMainPostgresS3KeySecret', 'testsecret')
+      },
+      mainValkey: {
+        ValkeyAdminPassword: new sst.Secret('ValkeyAdminPassword'),
+        ValkeyClientPassword: new sst.Secret('ValkeyClientPassword')
+      },
+      mainClickhouse: {
+        ClickhouseAdminPassword: new sst.Secret('ClickhouseAdminPassword'),
+        ClickhouseUserPassword: new sst.Secret('ClickhouseUserPassword'),
+        ClickhouseBackupPassword: new sst.Secret('ClickhouseBackupPassword'),
+        ClickhouseS3Key: new sst.Secret('ClickhouseS3Key', 'test'),
+        ClickhouseS3KeySecret: new sst.Secret('ClickhouseS3KeySecret', 'testsecret')
+      }
+    }
   }
 };
