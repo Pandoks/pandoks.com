@@ -12,7 +12,7 @@ usage() {
   printf "      Options: --kubeconfig <PATH>, --k3d, --ip-pool <RANGE>, --network <NAME>\n\n" >&2
 
   printf "  %bpush-secrets%b   Push SST secrets to cluster\n" "${GREEN}" "${NORMAL}" >&2
-  printf "      Options: --kubeconfig <PATH>\n\n" >&2
+  printf "      Options: --kubeconfig <PATH>, --file <PATH>\n\n" >&2
 
   printf "Run '%s <command> --help' for more information on a command.\n\n" "$0" >&2
 
@@ -101,9 +101,13 @@ usage_push_secrets() {
   printf "  %b--kubeconfig%b <PATH>\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      Kubeconfig file for kubectl operations\n\n" >&2
 
+  printf "  %b--file%b, %b-f%b <PATH>\n" "${YELLOW}" "${NORMAL}" "${YELLOW}" "${NORMAL}" >&2
+  printf "      Secrets YAML template file (default: k3s/apps/secrets.yaml)\n\n" >&2
+
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %s push-secrets\n" "$0" >&2
-  printf "  %s push-secrets --kubeconfig ~/.kube/config\n\n" "$0" >&2
+  printf "  %s push-secrets --kubeconfig ~/.kube/config\n" "$0" >&2
+  printf "  %s push-secrets --file ./my-secrets.yaml\n\n" "$0" >&2
 
   exit "${1:-0}"
 }

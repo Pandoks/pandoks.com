@@ -15,6 +15,8 @@ readonly REPO_ROOT
 . "${SCRIPT_DIR}/k3d.sh"
 
 cmd_push_secrets() {
+  cmd_push_secrets_secrets_yaml_template="${REPO_ROOT}/k3s/apps/secrets.yaml"
+
   while [ $# -gt 0 ]; do
     case "$1" in
       --kubeconfig)
@@ -25,6 +27,14 @@ cmd_push_secrets() {
         KUBECONFIG="$(validate_and_get_absolute_kubeconfig_path "$2")"
         export KUBECONFIG
         printf "%bUsing kubeconfig:%b %s\n" "${BOLD}" "${NORMAL}" "${KUBECONFIG}" >&2
+        shift 2
+        ;;
+      --file | -f)
+        if [ $# -lt 2 ]; then
+          printf "%bError:%b Missing value for --file\n" "${RED}" "${NORMAL}" >&2
+          exit 1
+        fi
+        cmd_push_secrets_secrets_yaml_template="$2"
         shift 2
         ;;
       help | --help | -h) usage_push_secrets ;;
@@ -43,7 +53,6 @@ cmd_push_secrets() {
     return 0
   fi
 
-  cmd_push_secrets_secrets_yaml_template="${REPO_ROOT}/k3s/apps/secrets.yaml"
   if [ ! -f "${cmd_push_secrets_secrets_yaml_template}" ]; then
     printf "%bError:%b Missing secrets.yaml template: %s\n" "${RED}" "${NORMAL}" "${cmd_push_secrets_secrets_yaml_template}" >&2
     return 1
@@ -77,7 +86,7 @@ EOF
 
   cmd_push_secrets_tmp_dir="$(mktemp -d)"
   trap 'rm -rf "${cmd_push_secrets_tmp_dir}"' EXIT
-  envsubst < "${REPO_ROOT}/k3s/apps/secrets.yaml" > "${cmd_push_secrets_tmp_dir}/secrets.yaml"
+  envsubst < "${cmd_push_secrets_secrets_yaml_template}" > "${cmd_push_secrets_tmp_dir}/secrets.yaml"
   echo "Generated secrets.yaml at ${cmd_push_secrets_tmp_dir}/secrets.yaml"
 
   echo "Pushing secrets to Kubernetes cluster..."
