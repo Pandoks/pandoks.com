@@ -1,0 +1,27 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: {{ .Values.db }}-pgdog
+  namespace: kube-system
+spec:
+  repo: https://helm.pgdog.dev
+  chart: pgdog
+  version: v0.27
+  targetNamespace: {{ .Values.namespace }}
+  valuesContent: |-
+    {{- .Values.pgdog | toYaml | nindent 4 }}
+    externalSecrets:
+      enabled: true
+      create: false
+      secretName: {{ .Values.credentials.secret }}
+    databases:
+    {{- range $shardIndex := until (int $.Values.patroni.shards) }}
+      {{- range $podIndex := until (int $.Values.patroni.replicasPerShard) }}
+      - name: {{ $.Values.db }}
+        host: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}-{{ $podIndex }}.patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}.{{ $.Values.namespace }}.svc.cluster.local
+        port: 5432
+        role: auto
+        database_name: {{ $.Values.db }}
+        shard: {{ $shardIndex }}
+      {{- end }}
+    {{- end }}
