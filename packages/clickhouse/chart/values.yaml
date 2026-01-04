@@ -7,7 +7,9 @@ credentials:
   secret: clickhouse-example-creds
   dataKeys:
     adminPassword: ADMIN_PASSWORD
-    userPassword: USER_PASSWORD
+    clientPassword: CLIENT_PASSWORD
+    backupS3Key: BACKUP_S3_KEY
+    backupS3KeySecret: BACKUP_S3_KEY_SECRET
 
 clickhouse:
   image: ghcr.io/pandoks/clickhouse:latest
@@ -42,8 +44,3 @@ backup:
 s3:
   region: us-west-1
   endpoint: http://host.k3d.internal:4566
-  credentials:
-    secret: example-clickhouse-backup-creds
-    dataKeys:
-      s3Key: S3_KEY
-      s3KeySecret: S3_KEY_SECRET

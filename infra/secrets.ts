@@ -33,7 +33,7 @@ export const secrets = {
     HetznerOriginTlsCrt: new sst.Secret('HetznerOriginTlsCrt', 'No Origin Tls Cert Set'),
     main: {
       // namespace
-      // NOTE: sst Secret names are named '<namespace><db-name>Postgres<var>' (ie. MainMainPostgresSuperuserPassword)
+      // NOTE: sst Secret names are named '<namespace><db-name><resource><var>' (ie. MainMainPostgresSuperuserPassword)
       mainPostgres: {
         SuperuserPassword: new sst.Secret('MainMainPostgresSuperuserPassword'),
         AdminPassword: new sst.Secret('MainMainPostgresAdminPassword'),
@@ -49,11 +49,10 @@ export const secrets = {
         ValkeyClientPassword: new sst.Secret('ValkeyClientPassword')
       },
       mainClickhouse: {
-        ClickhouseAdminPassword: new sst.Secret('ClickhouseAdminPassword'),
-        ClickhouseUserPassword: new sst.Secret('ClickhouseUserPassword'),
-        ClickhouseBackupPassword: new sst.Secret('ClickhouseBackupPassword'),
-        ClickhouseS3Key: new sst.Secret('ClickhouseS3Key', 'test'),
-        ClickhouseS3KeySecret: new sst.Secret('ClickhouseS3KeySecret', 'testsecret')
+        AdminPassword: new sst.Secret('MainMainClickhouseAdminPassword'),
+        ClientPassword: new sst.Secret('MainMainClickhouseClientPassword'),
+        BackupS3Key: new sst.Secret('MainMainClickhouseBackupS3Key', 'test'),
+        BackupS3KeySecret: new sst.Secret('MainMainClickhouseBackupS3KeySecret', 'testsecret')
       }
     }
   }
