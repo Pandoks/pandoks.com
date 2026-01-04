@@ -9,8 +9,8 @@ spec:
   commonName: *name
   secretName: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}-tls
   dnsNames:
-    - patroni-{{ $.Values.db }}-primary.{{ $.Values.namespace }}.svc.cluster.local
-    - patroni-{{ $.Values.db }}-replicas.{{ $.Values.namespace }}.svc.cluster.local
+    - patroni-{{ $.Values.db }}-primary-shard-{{ $shardIndex }}.{{ $.Values.namespace }}.svc.cluster.local
+    - patroni-{{ $.Values.db }}-replicas-shard-{{ $shardIndex }}.{{ $.Values.namespace }}.svc.cluster.local
   usages:
     - client auth
     - server auth
@@ -29,8 +29,8 @@ spec:
   commonName: *name
   secretName: {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup-tls
   dnsNames:
-    - patroni-{{ $.Values.db }}-primary.{{ $.Values.namespace }}.svc.cluster.local
-    - patroni-{{ $.Values.db }}-replicas.{{ $.Values.namespace }}.svc.cluster.local
+    - patroni-{{ $.Values.db }}-primary-shard-{{ $shardIndex }}.{{ $.Values.namespace }}.svc.cluster.local
+    - patroni-{{ $.Values.db }}-replicas-shard-{{ $shardIndex }}.{{ $.Values.namespace }}.svc.cluster.local
   usages:
     - client auth
     - server auth
