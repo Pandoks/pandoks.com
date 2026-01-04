@@ -20,11 +20,9 @@ spec:
     - name: postgres
       port: 5432
       targetPort: 5432
-  {{- if $.Values.backup.enabled }}
     - name: pgbackrest
       port: 8432
       targetPort: 8432
-  {{- end }}
 
 ---
 # provides a stable ip for all replicas
@@ -47,11 +45,9 @@ spec:
     - name: postgres
       port: 5432
       targetPort: 5432
-  {{- if $.Values.backup.enabled }}
     - name: pgbackrest
       port: 8432
       targetPort: 8432
-  {{- end }}
 
 ---
 apiVersion: v1
@@ -159,7 +155,6 @@ spec:
                 secretKeyRef:
                   name: *db_creds
                   key: {{ $.Values.credentials.dataKeys.patroniPassword }}
-          {{- if $.Values.backup.enabled }}
             - name: BACKUP_BUCKET
               value: &backup_bucket {{ $.Values.backup.bucket }}
             - name: BACKUP_PATH
@@ -187,26 +182,20 @@ spec:
             - name: BACKUP_HOST_COMMON_NAME
               value: &backup_host_common_name {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup
             - name: STANZA
-              value: *db_name
-          {{- end }}
+              value: *cluster-name
           volumeMounts:
             - name: &patroni_config patroni-config
               mountPath: /tmp/conf_templates/patroni.yaml
               subPath: patroni.yaml
-          {{- if $.Values.backup.enabled }}
             - name: &pgbackrest_config pgbackrest-config
               mountPath: &pgbackrest_mount /tmp/conf_templates/pgbackrest.conf
               subPath: pgbackrest.conf
-          {{- end }}
             - name: &data patroni-data
               mountPath: &data_mount /var/lib/postgresql
-          {{- if $.Values.backup.enabled }}
             - name: &wal_archives patroni-wal-archives
               mountPath: &wal_archives_mount /var/spool/pgbackrest
-          {{- end }}
             - name: &socket postgres-socket
               mountPath: &socket_mount /var/run/postgresql
-      {{- if $.Values.backup.enabled }}
         - name: pgbackrest
           image: {{ $.Values.backup.image }}
           args:
@@ -246,7 +235,7 @@ spec:
             - name: BACKUP_HOST_COMMON_NAME
               value: *backup_host_common_name
             - name: STANZA
-              value: *db_name
+              value: *cluster-name
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
@@ -265,12 +254,10 @@ spec:
               mountPath: *wal_archives_mount
             - name: *socket
               mountPath: *socket_mount
-      {{- end }}
       volumes:
         - name: *patroni_config
           configMap:
             name: patroni-config
-      {{- if $.Values.backup.enabled }}
         - name: *pgbackrest_config
           configMap:
             name: patroni-pgbackrest-config
@@ -294,7 +281,6 @@ spec:
                       path: server.crt
                     - key: tls.key
                       path: server.key
-      {{- end }}
         - name: *socket
           emptyDir: {}
   volumeClaimTemplates:
@@ -307,7 +293,6 @@ spec:
         resources:
           requests:
             storage: 999Pi # local-path does not support storage requests so we use a big number just to show that it's uncapped
-  {{- if $.Values.backup.enabled }}
     - metadata:
         name: *wal_archives
       spec:
@@ -317,5 +302,4 @@ spec:
         resources:
           requests:
             storage: 999Pi # local-path does not support storage requests so we use a big number just to show that it's uncapped
-  {{- end }}
 {{- end }}
