@@ -1,11 +1,7 @@
-{{- $first := true -}}
 {{- range $type, $schedule := .Values.backup.schedules }}
   {{- if $schedule }}
-    {{- if not $first }}
 ---
-    {{- end }}
-    {{- include "clickhouse.backup.cronjob" (dict "context" $ "type" $type "schedule" $schedule) }}
-    {{- $first = false -}}
+{{- include "clickhouse.backup.cronjob" (dict "context" $ "type" $type "schedule" $schedule) }}
   {{- end }}
 {{- end }}
 
