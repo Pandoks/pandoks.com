@@ -57,16 +57,16 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+  name: &name patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
   namespace: {{ $.Values.namespace }}
   labels:
-    app: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
-    cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
+    app: *name
+    cluster-name: &cluster-name {{ $.Values.db }}-shard-{{ $shardIndex }}
 spec:
   clusterIP: None
   selector:
-    app: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
-    cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
+    app: *name
+    cluster-name: *cluster-name
   ports:
     - name: postgres
       port: 5432
@@ -117,6 +117,10 @@ spec:
               protocol: TCP
           env:
             - name: POSTGRES_DB
+              value: &db_name {{ $.Values.db }}
+            - name: APP_NAME
+              value: *app
+            - name: CLUSTER_NAME
               value: *cluster-name
             - name: NAMESPACE
               valueFrom:
@@ -183,7 +187,7 @@ spec:
             - name: BACKUP_HOST_COMMON_NAME
               value: &backup_host_common_name {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup
             - name: STANZA
-              value: *cluster-name
+              value: *db_name
           {{- end }}
           volumeMounts:
             - name: &patroni_config patroni-config
@@ -214,7 +218,7 @@ spec:
               containerPort: 8432
           env:
             - name: POSTGRES_DB
-              value: *cluster-name
+              value: *db_name
             - name: BACKUP_BUCKET
               value: *backup_bucket
             - name: BACKUP_PATH
@@ -242,7 +246,7 @@ spec:
             - name: BACKUP_HOST_COMMON_NAME
               value: *backup_host_common_name
             - name: STANZA
-              value: *cluster-name
+              value: *db_name
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:

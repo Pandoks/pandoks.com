@@ -1,6 +1,6 @@
 # https://patroni.readthedocs.io/en/latest/yaml_configuration.html#yaml-configuration
 # some of the defaults are verbosely set here just so that you don't have to reference docs every time
-scope: ${POSTGRES_DB} # Name for pg cluster
+scope: ${CLUSTER_NAME} # Name for pg cluster
 namespace: ${NAMESPACE}
 name: ${POD_NAME}
 
@@ -92,8 +92,8 @@ kubernetes:
   use_endpoints: true
   pod_ip: ${POD_IP}
   labels: # these labels need to match the ones in your kube.yaml
-    app: patroni-${POSTGRES_DB}
-    cluster-name: ${POSTGRES_DB}
+    app: ${APP_NAME}
+    cluster-name: ${CLUSTER_NAME}
 
 tags:
   nofailover: false
