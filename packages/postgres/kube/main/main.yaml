@@ -13,4 +13,3 @@ spec:
     db: main
     namespace: *namespace
     credentials.secret: main-db-creds
-    s3.credentials.secret: main-db-backup-creds
