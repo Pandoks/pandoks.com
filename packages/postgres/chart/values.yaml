@@ -37,4 +37,12 @@ patroni:
   replicasPerShard: 3
   image: ghcr.io/pandoks/patroni:latest
 
+# https://github.com/pgdogdev/helm/blob/main/values.yaml
 pgdog:
+  replicas: 2
+  workers: 2
+  defaultPoolSize: 15
+  lsnCheckDelay: 0
+  lsnCheckInterval: 1000
+  loadBalancingStrategy: least_active_connections
+  readWriteSplit: include_primary_if_replica_banned
