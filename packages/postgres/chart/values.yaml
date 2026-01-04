@@ -33,7 +33,7 @@ s3:
 
 patroni:
   shards: 1
-  replicasPerShard: 3
+  replicasPerShard: 3 # NOTE: replicasPerShard = primary (1) + replicas (n - 1)
   image: ghcr.io/pandoks/patroni:latest
 
 # https://github.com/pgdogdev/helm/blob/main/values.yaml
