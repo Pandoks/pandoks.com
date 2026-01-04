@@ -53,8 +53,8 @@ spec:
                       key: {{ .context.Values.credentials.dataKeys.backupS3KeySecret }}
                 - name: S3_REGION
                   value: {{ .context.Values.s3.region }}
-                - name: S3_ENDPOINT
-                  value: {{ .context.Values.s3.endpoint }}
+                - name: S3_HOST
+                  value: {{ .context.Values.s3.host }}
                 - name: S3_TLS
                   value: {{ .context.Values.s3.tls | quote }}
                 - name: S3_URI_STYLE

@@ -10,7 +10,7 @@ for v in \
   S3_KEY \
   S3_KEY_SECRET \
   S3_REGION \
-  S3_ENDPOINT \
+  S3_HOST \
   S3_TLS \
   S3_URI_STYLE \
   ENCRYPTION_KEY; do

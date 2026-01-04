@@ -171,8 +171,8 @@ spec:
                   key: &s3_key_secret {{ $.Values.credentials.dataKeys.backupS3KeySecret }}
             - name: S3_REGION
               value: &s3_region {{ $.Values.s3.region }}
-            - name: S3_ENDPOINT
-              value: &s3_endpoint {{ $.Values.s3.endpoint }}
+            - name: S3_HOST
+              value: &s3_host {{ $.Values.s3.host }}
             - name: S3_TLS
               value: &s3_tls {{ $.Values.s3.tls | quote }}
             - name: S3_URI_STYLE
@@ -224,8 +224,8 @@ spec:
                   key: *s3_key_secret
             - name: S3_REGION
               value: *s3_region
-            - name: S3_ENDPOINT
-              value: *s3_endpoint
+            - name: S3_HOST
+              value: *s3_host
             - name: S3_TLS
               value: *s3_tls
             - name: S3_URI_STYLE
