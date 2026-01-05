@@ -12,4 +12,4 @@ spec:
   set:
     db: main
     namespace: *namespace
-    credentials.secret: main-db-creds
+    credentials.secret: postgres-main-creds

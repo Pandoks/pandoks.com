@@ -2,7 +2,7 @@ db: example
 namespace: example
 
 credentials:
-  secret: example-db-creds
+  secret: postgres-example-creds
   dataKeys:
     superuserPassword: SUPERUSER_PASSWORD
     adminPassword: ADMIN_PASSWORD
