@@ -38,6 +38,7 @@ backup:
     full: 3
     diff: 6
     incr: 24
+  resources: {}
 
 s3:
   region: us-west-1
