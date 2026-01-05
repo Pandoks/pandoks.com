@@ -5,7 +5,7 @@ set -eu
 for v in \
   CLUSTER_NAME \
   NAMESPACE \
-  CLICKHOUSE_USER_PASSWORD \
+  CLICKHOUSE_CLIENT_PASSWORD \
   BACKUP_BUCKET \
   BACKUP_PATH \
   BACKUP_TYPE \
@@ -47,7 +47,7 @@ if [ "${BACKUP_TYPE}" != "full" ]; then
     { clickhouse-client \
       --host "${clickhouse_host}" \
       --user user \
-      --password "${CLICKHOUSE_USER_PASSWORD}" \
+      --password "${CLICKHOUSE_CLIENT_PASSWORD}" \
       --param_prefix="${base_url}/${base_backup_type}/" \
       --query "SELECT name
                    FROM system.backups
@@ -79,7 +79,7 @@ timestamp="$(date -u +"%Y%m%dT%H%M%SZ")"
 clickhouse-client \
   --host "${clickhouse_host}" \
   --user user \
-  --password "${CLICKHOUSE_USER_PASSWORD}" \
+  --password "${CLICKHOUSE_CLIENT_PASSWORD}" \
   --query "BACKUP ALL EXCEPT DATABASES system, INFORMATION_SCHEMA, information_schema
                ON CLUSTER '${CLUSTER_NAME}'
                TO S3('${base_url}/${BACKUP_TYPE}/${timestamp}', '${S3_KEY}', '${S3_KEY_SECRET}')

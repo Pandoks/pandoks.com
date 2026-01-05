@@ -89,13 +89,13 @@ spec:
             - name: CLICKHOUSE_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: '{{ $.Values.credentials.secret }}'
-                  key: '{{ $.Values.credentials.dataKeys.adminPassword }}'
-            - name: CLICKHOUSE_USER_PASSWORD
+                  name: {{ $.Values.credentials.secret }}
+                  key: {{ $.Values.credentials.dataKeys.adminPassword }}
+            - name: CLICKHOUSE_CLIENT_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: '{{ $.Values.credentials.secret }}'
-                  key: '{{ $.Values.credentials.dataKeys.userPassword }}'
+                  name: {{ $.Values.credentials.secret }}
+                  key: {{ $.Values.credentials.dataKeys.clientPassword }}
           volumeMounts:
             - name: &data data
               mountPath: /var/lib/clickhouse

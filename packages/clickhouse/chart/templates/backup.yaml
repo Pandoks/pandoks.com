@@ -28,11 +28,11 @@ spec:
                   valueFrom:
                     fieldRef:
                       fieldPath: metadata.namespace
-                - name: CLICKHOUSE_USER_PASSWORD
+                - name: CLICKHOUSE_CLIENT_PASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: '{{ .context.Values.credentials.secret }}'
-                      key: '{{ .context.Values.credentials.dataKeys.userPassword }}'
+                      name: {{ .context.Values.credentials.secret }}
+                      key: {{ .context.Values.credentials.dataKeys.clientPassword }}
                 - name: BACKUP_BUCKET
                   value: '{{ .context.Values.backup.bucket }}'
                 - name: BACKUP_PATH
@@ -46,13 +46,13 @@ spec:
                 - name: S3_KEY
                   valueFrom:
                     secretKeyRef:
-                      name: '{{ .context.Values.s3.credentials.secret }}'
-                      key: '{{ .context.Values.s3.credentials.dataKeys.s3Key }}'
+                      name: {{ .context.Values.credentials.secret }}
+                      key: {{ .context.Values.credentials.dataKeys.backupS3Key }}
                 - name: S3_KEY_SECRET
                   valueFrom:
                     secretKeyRef:
-                      name: '{{ .context.Values.s3.credentials.secret }}'
-                      key: '{{ .context.Values.s3.credentials.dataKeys.s3KeySecret }}'
+                      name: {{ .context.Values.credentials.secret }}
+                      key: {{ .context.Values.credentials.dataKeys.backupS3KeySecret }}
                 - name: RETENTION
                   value: '{{ index .context.Values.backup.retention .type }}'
       backoffLimit: 4
