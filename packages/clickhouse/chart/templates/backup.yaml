@@ -10,9 +10,9 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: clickhouse-{{ .context.Values.name }}-backup-{{ .type }}
-  namespace: '{{ .context.Values.namespace }}'
+  namespace: {{ .context.Values.namespace }}
 spec:
-  schedule: '{{ .schedule }}'
+  schedule: {{ .schedule }}
   jobTemplate:
     spec:
       template:
@@ -23,7 +23,7 @@ spec:
               image: {{ .context.Values.backup.image }}
               env:
                 - name: CLUSTER_NAME
-                  value: '{{ .context.Values.name }}'
+                  value: {{ .context.Values.name }}
                 - name: NAMESPACE
                   valueFrom:
                     fieldRef:
@@ -34,15 +34,15 @@ spec:
                       name: {{ .context.Values.credentials.secret }}
                       key: {{ .context.Values.credentials.dataKeys.clientPassword }}
                 - name: BACKUP_BUCKET
-                  value: '{{ .context.Values.backup.bucket }}'
+                  value: {{ .context.Values.backup.bucket }}
                 - name: BACKUP_PATH
-                  value: '{{ .context.Values.backup.path }}'
+                  value: {{ .context.Values.backup.path }}
                 - name: BACKUP_TYPE
-                  value: '{{ .type }}'
+                  value: {{ .type }}
                 - name: S3_ENDPOINT
-                  value: '{{ .context.Values.s3.endpoint }}'
+                  value: {{ .context.Values.s3.endpoint }}
                 - name: S3_REGION
-                  value: '{{ .context.Values.s3.region }}'
+                  value: {{ .context.Values.s3.region }}
                 - name: S3_KEY
                   valueFrom:
                     secretKeyRef:
@@ -54,6 +54,6 @@ spec:
                       name: {{ .context.Values.credentials.secret }}
                       key: {{ .context.Values.credentials.dataKeys.backupS3KeySecret }}
                 - name: RETENTION
-                  value: '{{ index .context.Values.backup.retention .type }}'
+                  value: {{ index .context.Values.backup.retention .type }}
       backoffLimit: 4
 {{- end }}
