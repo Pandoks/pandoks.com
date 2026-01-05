@@ -119,8 +119,10 @@ spec:
               port: *client-port
             initialDelaySeconds: 10
             periodSeconds: 5
+          {{- with $.Values.clickhouse.resources }}
           resources:
-            {{- toYaml $.Values.clickhouse.resources | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
       volumes:
         - name: *clickhouse-config
           configMap:

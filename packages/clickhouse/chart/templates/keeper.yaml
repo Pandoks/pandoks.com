@@ -72,8 +72,10 @@ spec:
               port: 9234
             initialDelaySeconds: 10
             periodSeconds: 5
+          {{- with .Values.keeper.resources }}
           resources:
-            {{- toYaml .Values.keeper.resources | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
       volumes:
         - name: *keeper-config
           configMap:
