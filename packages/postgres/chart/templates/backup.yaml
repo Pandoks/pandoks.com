@@ -72,6 +72,10 @@ spec:
                   value: {{ .context.Values.backup.retention.full | quote }}
                 - name: DIFF_RETENTION
                   value: {{ .context.Values.backup.retention.diff | quote }}
+              {{- with .context.Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
               volumeMounts:
                 - name: &config pgbackrest-config
                   mountPath: /tmp/conf_templates/pgbackrest.conf

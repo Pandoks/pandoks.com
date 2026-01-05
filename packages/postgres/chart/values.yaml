@@ -24,6 +24,7 @@ backup:
   retention:
     full: 4
     diff: 2
+  resources: {}
 
 s3:
   region: us-west-1
@@ -35,6 +36,9 @@ patroni:
   shards: 1
   replicasPerShard: 3 # NOTE: replicasPerShard = primary (1) + replicas (n - 1)
   image: ghcr.io/pandoks/patroni:latest
+  resources:
+    patroni: {}
+    pgbackrest: {}
 
 # https://github.com/pgdogdev/helm/blob/main/values.yaml
 pgdog:

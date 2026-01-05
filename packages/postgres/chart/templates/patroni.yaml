@@ -183,6 +183,10 @@ spec:
               value: &backup_host_common_name {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup
             - name: STANZA
               value: *cluster-name
+          {{- with $.Values.patroni.resources.patroni }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           volumeMounts:
             - name: &patroni_config patroni-config
               mountPath: /tmp/conf_templates/patroni.yaml
@@ -241,6 +245,10 @@ spec:
                 secretKeyRef:
                   name: *db_creds
                   key: {{ $.Values.credentials.dataKeys.superuserPassword }}
+          {{- with $.Values.patroni.resources.pgbackrest }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           volumeMounts:
             - name: *pgbackrest_config
               mountPath: *pgbackrest_mount
