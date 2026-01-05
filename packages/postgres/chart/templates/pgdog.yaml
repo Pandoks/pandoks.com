@@ -10,7 +10,7 @@ spec:
   targetNamespace: {{ .Values.namespace }}
   valuesContent: |-
     {{- with .Values.pgdog }}
-    {{- .Values.pgdog | toYaml | nindent 4 }}
+    {{- toYaml . | nindent 4 }}
     {{- end }}
     externalSecrets:
       enabled: true
