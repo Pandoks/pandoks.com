@@ -1,5 +1,3 @@
-# Default values for clickhouse chart
-
 name: example
 namespace: example
 
