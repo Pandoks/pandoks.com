@@ -6,8 +6,6 @@ for v in \
   POD_NAME \
   NAMESPACE \
   HEADLESS_SERVICE \
-  ANNOUNCE_PORT \
-  ANNOUNCE_BUS_PORT \
   ADMIN_PASSWORD \
   CLIENT_PASSWORD; do
   eval ": \${$v:?Missing $v}"
