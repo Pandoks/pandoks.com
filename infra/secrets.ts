@@ -45,8 +45,8 @@ export const secrets = {
         BackupS3KeySecret: new sst.Secret('MainMainPostgresBackupS3KeySecret', 'testsecret')
       },
       mainValkey: {
-        ValkeyAdminPassword: new sst.Secret('ValkeyAdminPassword'),
-        ValkeyClientPassword: new sst.Secret('ValkeyClientPassword')
+        AdminPassword: new sst.Secret('MainMainValkeyAdminPassword'),
+        ClientPassword: new sst.Secret('MainMainValkeyClientPassword')
       },
       mainClickhouse: {
         AdminPassword: new sst.Secret('MainMainClickhouseAdminPassword'),
