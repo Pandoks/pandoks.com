@@ -29,6 +29,10 @@ export const secrets = {
     K3sToken: new sst.Secret('HetznerK3sToken')
   },
   k8s: {
+    tailscale: {
+      OauthClientId: new sst.Secret('KubernetesTailscaleOauthClientId'),
+      OauthClientSecret: new sst.Secret('KubernetesTailscaleOauthClientSecret')
+    },
     HetznerOriginTlsKey: new sst.Secret('HetznerOriginTlsKey', 'No Origin Tls Key Set'),
     HetznerOriginTlsCrt: new sst.Secret('HetznerOriginTlsCrt', 'No Origin Tls Cert Set'),
     PostgresPassword: new sst.Secret('PostgresPassword'),
