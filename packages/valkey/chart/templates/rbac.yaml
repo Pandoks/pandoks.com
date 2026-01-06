@@ -2,14 +2,14 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: valkey-{{ .Values.name }}-reconciler
-  namespace: '{{ .Values.namespace }}'
+  namespace: {{ .Values.namespace }}
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: valkey-{{ .Values.name }}-reconciler
-  namespace: '{{ .Values.namespace }}'
+  namespace: {{ .Values.namespace }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -17,4 +17,4 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: valkey-{{ .Values.name }}-reconciler
-    namespace: '{{ .Values.namespace }}'
+    namespace: {{ .Values.namespace }}
