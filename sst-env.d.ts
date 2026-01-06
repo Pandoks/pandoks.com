@@ -62,6 +62,62 @@ declare module 'sst' {
       type: 'sst.sst.Secret';
       value: string;
     };
+    MainMainClickhouseAdminPassword: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainClickhouseBackupS3Key: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainClickhouseBackupS3KeySecret: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainClickhouseClientPassword: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainPostgresAdminPassword: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainPostgresBackupS3Key: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainPostgresBackupS3KeySecret: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainPostgresClientPassword: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainPostgresPatroniPassword: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainPostgresPgdogAdminPassword: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainPostgresReplicationPassword: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainPostgresSuperuserPassword: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainValkeyAdminPassword: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainValkeyClientPassword: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
     MichellePhoneNumber: {
       type: 'sst.sst.Secret';
       value: string;
@@ -71,18 +127,6 @@ declare module 'sst' {
       value: string;
     };
     NotionAuthToken: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    PostgresPassword: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    PostgresS3Key: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    PostgresS3KeySecret: {
       type: 'sst.sst.Secret';
       value: string;
     };
@@ -112,14 +156,6 @@ declare module 'sst' {
       value: string;
     };
     TwilioPhoneNumber: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    ValkeyAdminPassword: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    ValkeyClientPassword: {
       type: 'sst.sst.Secret';
       value: string;
     };
