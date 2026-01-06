@@ -83,8 +83,10 @@ spec:
                 secretKeyRef:
                   name: '{{ .Values.credentials.secret }}'
                   key: '{{ .Values.credentials.dataKeys.clientPassword }}'
+          {{- with .Values.resources }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           volumeMounts:
             - name: &data data
               mountPath: /data
