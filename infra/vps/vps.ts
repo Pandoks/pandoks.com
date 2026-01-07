@@ -6,9 +6,9 @@ import { execFileSync } from 'node:child_process';
 
 // NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
 const CONTROL_PLANE_NODE_COUNT = $app.stage === 'production' ? 1 : 0;
-const CONTROL_PLANE_HOST_START_OCTET = 10;
+const CONTROL_PLANE_HOST_START_OCTET = 10; // starts at 10.0.1.<CONTROL_PLANE_HOST_START_OCTET>
 const WORKER_NODE_COUNT = $app.stage === 'production' ? 0 : 0;
-const WORKER_HOST_START_OCTET = 20;
+const WORKER_HOST_START_OCTET = 20; // starts at 10.0.1.<WORKER_HOST_START_OCTET> 20 allows for 10 control plane nodes
 // NOTE: servers can only be upgraded, not downgraded because disk size needs to be >= than the previous type
 const SERVER_TYPE = $app.stage === 'production' ? 'ccx13' : 'cpx11';
 const LOAD_BALANCER_TYPE = $app.stage === 'production' ? 'lb11' : 'lb11';
@@ -16,6 +16,10 @@ const LOAD_BALANCER_ALGORITHM = 'least_connections'; // round_robin, least_conne
 const SERVER_IMAGE = 'ubuntu-24.04';
 const INGRESS_HTTPS_NODE_PORT = 30443;
 const LOCATION = 'hil';
+const NODE_NAMING = {
+  worker: { resourceName: 'Worker', name: 'worker' },
+  controlplane: { resourceName: 'ControlPlane', name: 'control-plane' }
+};
 
 /**
  * NOTE: Hetzner doesn't allow you to connect servers from different regions in the same network.
@@ -133,11 +137,6 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT) {
   });
 }
 
-const NODE_NAMING = {
-  worker: { resourceName: 'Worker', name: 'worker' },
-  controlplane: { resourceName: 'ControlPlane', name: 'control-plane' }
-};
-
 const cloudInitConfig = readFileSync(`${process.cwd()}/infra/vps/cloud-config.yaml`, 'utf8');
 function renderUserData(envs: Record<string, string>) {
   return cloudInitConfig.replace(/\$\{([A-Z0-9_]+)\}/g, (match, capture) =>
@@ -188,8 +187,8 @@ for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
       rebuildProtection: $app.stage === 'production',
       firewallIds: [firewall.id.apply((id) => parseInt(id))],
       networks: [{ networkId: privateNetwork.id.apply((id) => parseInt(id)), ip }],
-      publicNets: [{ ipv4Enabled: true, ipv6Enabled: true }],
-      shutdownBeforeDeletion: true, // NOTE: needed to close tunnel so tunnel can be deleted without error
+      publicNets: [{ ipv4Enabled: false, ipv6Enabled: true }],
+      shutdownBeforeDeletion: true,
       userData
     },
     { dependsOn: dependencies }
@@ -246,8 +245,8 @@ for (let i = 0; i < WORKER_NODE_COUNT; i++) {
       rebuildProtection: $app.stage === 'production',
       firewallIds: [firewall.id.apply((id) => parseInt(id))],
       networks: [{ networkId: privateNetwork.id.apply((id) => parseInt(id)), ip }],
-      publicNets: [{ ipv4Enabled: true, ipv6Enabled: true }],
-      shutdownBeforeDeletion: true, // NOTE: needed to close tunnel so tunnel can be deleted without error
+      publicNets: [{ ipv4Enabled: false, ipv6Enabled: true }],
+      shutdownBeforeDeletion: true,
       userData
     },
     { dependsOn: dependencies }
