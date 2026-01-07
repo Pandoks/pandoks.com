@@ -126,7 +126,8 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT) {
     protocol: 'tcp',
     listenPort: 443,
     destinationPort: INGRESS_HTTPS_NODE_PORT,
-    proxyprotocol: false,
+    // NOTE: needed to validate all requests are coming from Cloudflare (false will only show load balancer's private network ip)
+    proxyprotocol: true,
     healthCheck: {
       protocol: 'tcp',
       port: INGRESS_HTTPS_NODE_PORT,
