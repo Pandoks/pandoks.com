@@ -13,16 +13,34 @@ ssh_pwauth: false
 disable_root: true
 
 bootcmd:
-  - iptables -F
-  - iptables -P INPUT DROP
-  - iptables -P FORWARD DROP
-  - iptables -P OUTPUT ACCEPT
-  - iptables -A INPUT -i lo -j ACCEPT
-  - iptables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-  - iptables -A INPUT -s ${PRIVATE_IP_RANGE} -j ACCEPT # hetzner private network
-  - iptables -A INPUT -p udp --dport 41641 -j ACCEPT # tailscale
-  - iptables -A INPUT -i tailscale0 -j ACCEPT
-  - iptables-save > /etc/iptables.rules
+  - |
+    cat > /etc/nftables.conf << 'EOF'
+    table inet filter {
+      chain input {
+        type filter hook input priority 0;
+        policy drop;
+
+        iif "lo" accept;
+        ct state established,related accept;
+        ip saddr ${PRIVATE_IP_RANGE} accept;
+        udp dport 41641 accept;
+        iif "tailscale0" accept;
+      }
+
+      chain forward {
+        type filter hook forward priority 0;
+        policy drop;
+      }
+
+      chain output {
+        type filter hook output priority 0;
+        policy accept;
+      }
+    }
+    EOF
+  - nft -f /etc/nftables.conf
+  - systemctl enable nftables
+  - systemctl start nftables
 
 users:
   - name: pandoks
@@ -35,12 +53,6 @@ packages:
   - curl
 
 write_files:
-  - path: /etc/network/if-pre-up.d/iptables
-    owner: root:root
-    permissions: '0755'
-    content: |
-      #!/bin/sh
-      iptables-restore < /etc/iptables.rules
   - path: /etc/ssh/sshd_config
     owner: root:root
     permissions: '0644'
