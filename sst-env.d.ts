@@ -54,7 +54,11 @@ declare module 'sst' {
       type: 'sst.sst.Secret';
       value: string;
     };
-    HetznerTunnelSecret: {
+    KubernetesTailscaleOauthClientId: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    KubernetesTailscaleOauthClientSecret: {
       type: 'sst.sst.Secret';
       value: string;
     };
@@ -138,6 +142,10 @@ declare module 'sst' {
     StaticWebsite: {
       type: 'sst.cloudflare.StaticSite';
       url: string;
+    };
+    TailscaleApiKey: {
+      type: 'sst.sst.Secret';
+      value: string;
     };
     TextSmsFunction: {
       name: string;
