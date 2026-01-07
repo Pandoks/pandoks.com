@@ -39,9 +39,11 @@ const subnet = new hcloud.NetworkSubnet('HetznerK3sSubnet', {
   ipRange: '10.0.1.0/24',
   networkZone: 'us-west'
 });
-const firewall = new hcloud.Firewall('HetznerDenyIn', {
-  name: 'deny-in',
-  rules: []
+const firewall = new hcloud.Firewall('HetznerInboundFirewall', {
+  name: 'inbound',
+  rules: [
+    { direction: 'in', protocol: 'udp', port: '41641' } // tailscale
+  ]
 });
 
 const BASE_ENV = $resolve([subnet.ipRange]).apply(([PRIVATE_IP_RANGE]) => ({
