@@ -3,6 +3,7 @@ import { EXAMPLE_DOMAIN, STAGE_NAME } from '../dns';
 import { secrets } from '../secrets';
 import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { tailscaleAcl } from '../tailscale';
 
 const isProduction = $app.stage === 'production';
 const stageName = isProduction ? 'prod' : 'dev';
@@ -23,6 +24,7 @@ const NODE_NAMING = {
   worker: { resourceName: 'Worker', name: 'worker' },
   controlplane: { resourceName: 'ControlPlane', name: 'control-plane' }
 };
+const BASE_TAILSCALE_TAGS = ['tag:hetzner', 'tag:k3s', `tag:${stageName}`];
 
 /**
  * NOTE: Hetzner doesn't allow you to connect servers from different regions in the same network.
@@ -58,10 +60,6 @@ const firewall = new hcloud.Firewall('HetznerInboundFirewall', {
     }
   ]
 });
-
-const BASE_ENV = $resolve([subnet.ipRange]).apply(([PRIVATE_IP_RANGE]) => ({
-  PRIVATE_IP_RANGE
-}));
 
 if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT) {
   const openSslConfigPath = resolve('infra/vps/vps.openssl.conf');
@@ -157,6 +155,7 @@ function renderUserData(envs: Record<string, string>) {
 let bootstrapServer: hcloud.Server | undefined;
 let bootstrapServerIp: $util.Output<string>;
 let controlPlaneServers: hcloud.Server[] = [];
+let controlPlaneTailscaleHostnames: string[] = [];
 for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
   const role = i === 0 ? 'bootstrap' : 'server';
   const ip = subnet.ipRange.apply(
@@ -174,12 +173,18 @@ for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
       reusable: false,
       expiry: 1800, // 30 minutes
       preauthorized: true,
-      tags: ['tag:hetzner', 'tag:k3s', 'tag:control-plane']
+      tags: ['tag:control-plane', ...BASE_TAILSCALE_TAGS]
+    },
+    {
+      dependsOn: [tailscaleAcl]
     }
   );
 
+  const tailscaleHostname = `${stageName}-hetzner-${nodeType.name}-server-${i}`;
+  controlPlaneTailscaleHostnames.push(tailscaleHostname);
+
   const envs = $resolve([
-    BASE_ENV.PRIVATE_IP_RANGE,
+    subnet.ipRange,
     secrets.hetzner.K3sToken.value,
     ip,
     bootstrapServerIp!,
@@ -191,7 +196,7 @@ for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
       SERVER_API: `https://${SERVER_IP}:6443`,
       NODE_IP,
       ROLE: role,
-      TAILSCALE_HOSTNAME: `${stageName}-hetzner-${nodeType.name}-server-${i}`,
+      TAILSCALE_HOSTNAME: tailscaleHostname,
       REGISTRATION_TAILNET_AUTH_KEY
     };
   });
@@ -233,6 +238,7 @@ controlPlaneServers.forEach((server, index) => {
 });
 
 let workerServers: hcloud.Server[] = [];
+let workerTailscaleHostnames: string[] = [];
 for (let i = 0; i < WORKER_NODE_COUNT; i++) {
   const ip = subnet.ipRange.apply(
     (ipRange) => `${ipRange.split('.').slice(0, 3).join('.')}.${WORKER_HOST_START_OCTET + i}`
@@ -246,12 +252,16 @@ for (let i = 0; i < WORKER_NODE_COUNT; i++) {
       reusable: false,
       expiry: 1800, // 30 minutes
       preauthorized: true,
-      tags: ['tag:hetzner', 'tag:k3s', 'tag:worker']
-    }
+      tags: ['tag:worker', ...BASE_TAILSCALE_TAGS]
+    },
+    { dependsOn: [tailscaleAcl] }
   );
 
+  const tailscaleHostname = `${stageName}-hetzner-${nodeType.name}-server-${i}`;
+  workerTailscaleHostnames.push(tailscaleHostname);
+
   const envs = $resolve([
-    BASE_ENV.PRIVATE_IP_RANGE,
+    subnet.ipRange,
     secrets.hetzner.K3sToken.value,
     ip,
     bootstrapServerIp!,
@@ -263,7 +273,7 @@ for (let i = 0; i < WORKER_NODE_COUNT; i++) {
       SERVER_API: `https://${SERVER_IP}:6443`,
       NODE_IP,
       ROLE: 'worker',
-      TAILSCALE_HOSTNAME: `${stageName}-hetzner-${nodeType.name}-server-${i}`,
+      TAILSCALE_HOSTNAME: tailscaleHostname,
       REGISTRATION_TAILNET_AUTH_KEY
     };
   });
