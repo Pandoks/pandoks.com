@@ -1,11 +1,12 @@
 #cloud-config
 # env variables:
 # PRIVATE_IP_RANGE
-# SSH_CA_PUB
 # ROLE
 # K3S_TOKEN
 # SERVER_API
 # NODE_IP
+# TAILSCALE_HOSTNAME
+# REGISTRATION_TAILNET_AUTH_KEY
 package_update: true
 package_upgrade: true
 ssh_pwauth: false
@@ -54,6 +55,12 @@ write_files:
       UsePAM yes
 
 runcmd:
+  - curl -fsSL https://tailscale.com/install.sh | sh
+  - |
+    tailscale up --ssh \
+      --authkey ${REGISTRATION_TAILNET_AUTH_KEY} \
+      --hostname ${TAILSCALE_HOSTNAME} \
+      --accept-dns=false
   - |
     if [ "${ROLE}" = "bootstrap" ]; then
       curl -sfL https://get.k3s.io | \
