@@ -46,7 +46,13 @@ const subnet = new hcloud.NetworkSubnet('HetznerK3sSubnet', {
 const firewall = new hcloud.Firewall('HetznerInboundFirewall', {
   name: 'inbound',
   rules: [
-    { direction: 'in', protocol: 'udp', port: '41641' } // tailscale
+    {
+      direction: 'in',
+      protocol: 'udp',
+      port: '41641',
+      description: 'tailscale',
+      sourceIps: ['0.0.0.0/0', '::/0']
+    }
   ]
 });
 
