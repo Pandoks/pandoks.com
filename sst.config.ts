@@ -10,10 +10,10 @@ export default $config({
         aws: {
           profile: process.env.GITHUB_ACTIONS ? undefined : 'Personal'
         },
-        cloudflare: '6.10.0',
+        cloudflare: '6.12.0',
         github: '6.7.2',
         hcloud: { token: process.env.HCLOUD_TOKEN, version: '1.24.0' },
-        tailscale: '0.24.0'
+        tailscale: { apiKey: process.env.TAILSCALE_API_KEY, version: '0.24.0' }
       }
     };
   },
