@@ -156,22 +156,36 @@ for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
     bootstrapServerIp = ip;
   }
 
+  const nodeType = NODE_NAMING.controlplane;
+  const registrationTailnetAuthKey = new tailscale.TailnetKey(
+    `Hetzner${nodeType.resourceName}Server${i}TailnetRegistrationAuthKey`,
+    {
+      description: `hetzner ${nodeType.name} server ${i} tailnet registration auth key`,
+      reusable: false,
+      expiry: 1800, // 30 minutes
+      preauthorized: true,
+      tags: ['tag:hetzner', 'tag:k3s', 'tag:control-plane']
+    }
+  );
+
   const envs = $resolve([
     BASE_ENV.PRIVATE_IP_RANGE,
     secrets.hetzner.K3sToken.value,
     ip,
-    bootstrapServerIp!
-  ]).apply(([PRIVATE_IP_RANGE, K3S_TOKEN, NODE_IP, SERVER_IP]) => {
+    bootstrapServerIp!,
+    registrationTailnetAuthKey.key
+  ]).apply(([PRIVATE_IP_RANGE, K3S_TOKEN, NODE_IP, SERVER_IP, REGISTRATION_TAILNET_AUTH_KEY]) => {
     return {
       PRIVATE_IP_RANGE,
       K3S_TOKEN,
       SERVER_API: `https://${SERVER_IP}:6443`,
       NODE_IP,
-      ROLE: role
+      ROLE: role,
+      TAILSCALE_HOSTNAME: `${$app.stage === 'production' ? 'prod' : 'dev'}-hetzner-${nodeType.name}-server-${i}`,
+      REGISTRATION_TAILNET_AUTH_KEY
     };
   });
   const userData = envs.apply((envs) => renderUserData(envs));
-  const nodeType = NODE_NAMING.controlplane;
   // NOTE: needed to create servers sequentially
   const dependencies = [bootstrapServer, controlPlaneServers.at(-1)].filter(
     (resource) => resource !== undefined
@@ -214,22 +228,36 @@ for (let i = 0; i < WORKER_NODE_COUNT; i++) {
     (ipRange) => `${ipRange.split('.').slice(0, 3).join('.')}.${WORKER_HOST_START_OCTET + i}`
   );
 
+  const nodeType = NODE_NAMING.worker;
+  const registrationTailnetAuthKey = new tailscale.TailnetKey(
+    `Hetzner${nodeType.resourceName}Server${i}TailnetRegistrationAuthKey`,
+    {
+      description: `hetzner ${nodeType.name} server ${i} tailnet registration auth key`,
+      reusable: false,
+      expiry: 1800, // 30 minutes
+      preauthorized: true,
+      tags: ['tag:hetzner', 'tag:k3s', 'tag:worker']
+    }
+  );
+
   const envs = $resolve([
     BASE_ENV.PRIVATE_IP_RANGE,
     secrets.hetzner.K3sToken.value,
     ip,
-    bootstrapServerIp!
-  ]).apply(([PRIVATE_IP_RANGE, K3S_TOKEN, NODE_IP, SERVER_IP]) => {
+    bootstrapServerIp!,
+    registrationTailnetAuthKey.key
+  ]).apply(([PRIVATE_IP_RANGE, K3S_TOKEN, NODE_IP, SERVER_IP, REGISTRATION_TAILNET_AUTH_KEY]) => {
     return {
       PRIVATE_IP_RANGE,
       K3S_TOKEN,
       SERVER_API: `https://${SERVER_IP}:6443`,
       NODE_IP,
-      ROLE: 'worker'
+      ROLE: 'worker',
+      TAILSCALE_HOSTNAME: `${$app.stage === 'production' ? 'prod' : 'dev'}-hetzner-${nodeType.name}-server-${i}`,
+      REGISTRATION_TAILNET_AUTH_KEY
     };
   });
   const userData = envs.apply((envs) => renderUserData(envs));
-  const nodeType = NODE_NAMING.worker;
   // NOTE: needed to create servers sequentially
   const dependencies = [bootstrapServer, workerServers.at(-1)].filter(
     (resource) => resource !== undefined
