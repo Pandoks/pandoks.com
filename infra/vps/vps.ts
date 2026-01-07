@@ -167,7 +167,7 @@ for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
   const registrationTailnetAuthKey = new tailscale.TailnetKey(
     `Hetzner${nodeType.resourceName}Server${i}TailnetRegistrationAuthKey`,
     {
-      description: `hetzner ${nodeType.name} server ${i} tailnet registration auth key`,
+      description: `hcloud ${nodeType.name} ${i} node reg`,
       reusable: false,
       expiry: 1800, // 30 minutes
       preauthorized: true,
@@ -239,7 +239,7 @@ for (let i = 0; i < WORKER_NODE_COUNT; i++) {
   const registrationTailnetAuthKey = new tailscale.TailnetKey(
     `Hetzner${nodeType.resourceName}Server${i}TailnetRegistrationAuthKey`,
     {
-      description: `hetzner ${nodeType.name} server ${i} tailnet registration auth key`,
+      description: `hcloud ${nodeType.name} ${i} node reg`,
       reusable: false,
       expiry: 1800, // 30 minutes
       preauthorized: true,
