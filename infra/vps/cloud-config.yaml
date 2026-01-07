@@ -18,7 +18,9 @@ bootcmd:
   - iptables -P OUTPUT ACCEPT
   - iptables -A INPUT -i lo -j ACCEPT
   - iptables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-  - iptables -A INPUT -s ${PRIVATE_IP_RANGE} -j ACCEPT
+  - iptables -A INPUT -s ${PRIVATE_IP_RANGE} -j ACCEPT # hetzner private network
+  - iptables -A INPUT -p udp --dport 41641 -j ACCEPT # tailscale
+  - iptables -A INPUT -i tailscale0 -j ACCEPT
   - iptables-save > /etc/iptables.rules
 
 users:
@@ -38,25 +40,18 @@ write_files:
     content: |
       #!/bin/sh
       iptables-restore < /etc/iptables.rules
-  - path: /etc/ssh/ca.pub
-    owner: root:root
-    permissions: '0600'
-    content: |
-      ${SSH_CA_PUB}
   - path: /etc/ssh/sshd_config
     owner: root:root
     permissions: '0644'
     content: |
       PubkeyAuthentication yes
-      TrustedUserCAKeys /etc/ssh/ca.pub
       PasswordAuthentication no
       KbdInteractiveAuthentication no
       ChallengeResponseAuthentication no
-      Subsystem sftp internal-sftp
       PermitRootLogin no
-      UsePAM yes
       AllowUsers pandoks
-      Match User pandoks
+      Subsystem sftp internal-sftp
+      UsePAM yes
 
 runcmd:
   - |
