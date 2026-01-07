@@ -27,6 +27,9 @@ export const secrets = {
     ApiKey: new sst.Secret('HetznerApiKey'),
     K3sToken: new sst.Secret('HetznerK3sToken')
   },
+  tailscale: {
+    ApiKey: new sst.Secret('TailscaleApiKey')
+  },
   k8s: {
     tailscale: {
       OauthClientId: new sst.Secret('KubernetesTailscaleOauthClientId'),
