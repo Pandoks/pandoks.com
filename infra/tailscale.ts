@@ -11,7 +11,7 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         {
           action: 'check',
           src: ['autogroup:member'],
-          dst: ['autogroup:self'],
+          dst: ['autogroup:self', 'tag:hetzner'],
           users: ['autogroup:nonroot', 'root']
         }
       ],
