@@ -151,11 +151,11 @@ const NODE_NAMING = {
 };
 
 const cloudInitConfig = readFileSync(`${process.cwd()}/infra/vps/cloud-config.yaml`, 'utf8');
-const renderUserData = (envs: Record<string, string>) => {
+function renderUserData(envs: Record<string, string>) {
   return cloudInitConfig.replace(/\$\{([A-Z0-9_]+)\}/g, (match, capture) =>
     capture in envs ? envs[capture] : ''
   );
-};
+}
 
 let bootstrapServer: hcloud.Server | undefined;
 let bootstrapServerIp: $util.Output<string>;
