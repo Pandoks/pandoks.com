@@ -2,7 +2,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: valkey-{{ .Values.name }}-init
-  namespace: '{{ .Values.namespace }}'
+  namespace: {{ .Values.namespace }}
   annotations:
     "helm.sh/hook": post-install
     "helm.sh/hook-weight": "0"
@@ -21,27 +21,27 @@ spec:
             - init
           env:
             - name: CLUSTER_NAME
-              value: '{{ .Values.name }}'
+              value: {{ .Values.name }}
             - name: NAMESPACE
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: MASTERS
-              value: '{{ .Values.cluster.masters }}'
+              value: {{ .Values.cluster.masters }}
             - name: REPLICAS_PER_MASTER
-              value: '{{ .Values.cluster.replicasPerMaster }}'
+              value: {{ .Values.cluster.replicasPerMaster }}
             - name: ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: '{{ .Values.credentials.secret }}'
-                  key: '{{ .Values.credentials.dataKeys.adminPassword }}'
+                  name: {{ .Values.credentials.secret }}
+                  key: {{ .Values.credentials.dataKeys.adminPassword }}
 
 ---
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: valkey-{{ .Values.name }}-scale-up
-  namespace: '{{ .Values.namespace }}'
+  namespace: {{ .Values.namespace }}
   annotations:
     "helm.sh/hook": post-upgrade
     "helm.sh/hook-weight": "0"
@@ -60,27 +60,27 @@ spec:
             - scale-up
           env:
             - name: CLUSTER_NAME
-              value: '{{ .Values.name }}'
+              value: {{ .Values.name }}
             - name: NAMESPACE
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: MASTERS
-              value: '{{ .Values.cluster.masters }}'
+              value: {{ .Values.cluster.masters }}
             - name: REPLICAS_PER_MASTER
-              value: '{{ .Values.cluster.replicasPerMaster }}'
+              value: {{ .Values.cluster.replicasPerMaster }}
             - name: ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: '{{ .Values.credentials.secret }}'
-                  key: '{{ .Values.credentials.dataKeys.adminPassword }}'
+                  name: {{ .Values.credentials.secret }}
+                  key: {{ .Values.credentials.dataKeys.adminPassword }}
 
 ---
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: valkey-{{ .Values.name }}-scale-down
-  namespace: '{{ .Values.namespace }}'
+  namespace: {{ .Values.namespace }}
   annotations:
     "helm.sh/hook": pre-upgrade
     "helm.sh/hook-weight": "0"
@@ -99,17 +99,17 @@ spec:
             - scale-down
           env:
             - name: CLUSTER_NAME
-              value: '{{ .Values.name }}'
+              value: {{ .Values.name }}
             - name: NAMESPACE
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: MASTERS
-              value: '{{ .Values.cluster.masters }}'
+              value: {{ .Values.cluster.masters }}
             - name: REPLICAS_PER_MASTER
-              value: '{{ .Values.cluster.replicasPerMaster }}'
+              value: {{ .Values.cluster.replicasPerMaster }}
             - name: ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: '{{ .Values.credentials.secret }}'
-                  key: '{{ .Values.credentials.dataKeys.adminPassword }}'
+                  name: {{ .Values.credentials.secret }}
+                  key: {{ .Values.credentials.dataKeys.adminPassword }}

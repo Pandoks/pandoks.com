@@ -1,6 +1,6 @@
 users:
   default:
-    password: ''
+    password: ~
     networks:
       - ip: 127.0.0.1
       - ip: ::1
@@ -8,7 +8,7 @@ users:
     quota: default
 
   admin:
-    password: '${CLICKHOUSE_ADMIN_PASSWORD}'
+    password: ${CLICKHOUSE_ADMIN_PASSWORD}
     networks:
       - ip: '::/0'
     profile: default
@@ -16,7 +16,7 @@ users:
     access_management: 1
 
   user:
-    password: '${CLICKHOUSE_USER_PASSWORD}'
+    password: ${CLICKHOUSE_CLIENT_PASSWORD}
     networks:
       - ip: '::/0'
     profile: default

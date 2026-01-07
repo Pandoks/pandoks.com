@@ -1,0 +1,8 @@
+# https://github.com/koalaman/shellcheck/wiki/Directive
+
+shell=sh
+source-path=SCRIPTDIR
+external-sources=true
+
+# ignores can't find files warnings as we're writing scripts that may not run on the local system
+disable=SC1091

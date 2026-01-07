@@ -26,7 +26,8 @@ export default $config({
       import('./infra/github'),
       import('./infra/secrets'),
       import('./infra/website'),
-      import('./infra/vps/vps')
+      import('./infra/vps/vps'),
+      import('./infra/sst')
     ]);
     return imports.reduce((acculumator, importResult: any) => {
       if (importResult.outputs) {

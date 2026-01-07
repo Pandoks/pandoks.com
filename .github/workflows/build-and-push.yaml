@@ -4,7 +4,6 @@ on:
   push:
     paths:
       - 'packages/postgres/patroni/**'
-      - 'packages/postgres/pgcat/**'
       - 'packages/postgres/pgbackrest/**'
       - 'packages/valkey/**'
       - 'packages/clickhouse/clickhouse/**'
@@ -25,23 +24,41 @@ jobs:
         image:
           - name: patroni
             path: ./packages/postgres/patroni/Dockerfile
-          - name: pgcat
-            path: ./packages/postgres/pgcat/Dockerfile
           - name: pgbackrest
             path: ./packages/postgres/pgbackrest/Dockerfile
           - name: valkey
             path: ./packages/valkey/Dockerfile
-          - name: valkey-reconciler
+          - name: valkey_reconciler
             path: ./packages/valkey/reconciler/Dockerfile
           - name: clickhouse
             path: ./packages/clickhouse/clickhouse/Dockerfile
-          - name: clickhouse-keeper
+          - name: clickhouse_keeper
             path: ./packages/clickhouse/keeper/Dockerfile
-          - name: clickhouse-backup
+          - name: clickhouse_backup
             path: ./packages/clickhouse/backup/Dockerfile
 
     steps:
       - uses: actions/checkout@v4
+
+      - id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            patroni:
+              - 'packages/postgres/patroni/**'
+            pgbackrest:
+              - 'packages/postgres/pgbackrest/**'
+            valkey:
+              - 'packages/valkey/**'
+            valkey_reconciler:
+              - 'packages/valkey/reconciler/**'
+            clickhouse:
+              - 'packages/clickhouse/clickhouse/**'
+            clickhouse_keeper:
+              - 'packages/clickhouse/keeper/**'
+            clickhouse_backup:
+              - 'packages/clickhouse/backup/**'
+
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -59,6 +76,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and Push
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs[matrix.image.name] == 'true'
         id: push
         uses: docker/build-push-action@v6
         with:
@@ -71,6 +89,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Generate Attestation
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs[matrix.image.name] == 'true'
         uses: actions/attest-build-provenance@v3
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/${{ matrix.image.name }}

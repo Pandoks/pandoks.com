@@ -3,129 +3,165 @@
 /* eslint-disable */
 /* deno-fmt-ignore-file */
 
-declare module "sst" {
+declare module 'sst' {
   export interface Resource {
-    "ApiRouter": {
-      "type": "sst.aws.Router"
-      "url": string
-    }
-    "BlogApi": {
-      "name": string
-      "type": "sst.aws.Function"
-      "url": string
-    }
-    "BlogDeployAuth": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "CloudflareAccountId": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "CloudflareApiKey": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "CloudflareEmail": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "CloudflareZoneId": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "GithubPersonalAccessToken": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "HetznerApiKey": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "HetznerK3sToken": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "HetznerOriginTlsCrt": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "HetznerOriginTlsKey": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "HetznerTunnelSecret": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "KwokPhoneNumber": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "MichellePhoneNumber": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "NotionApiKey": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "NotionAuthToken": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "PostgresPassword": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "PostgresS3Key": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "PostgresS3KeySecret": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "ScheduleTextReminderApi": {
-      "name": string
-      "type": "sst.aws.Function"
-      "url": string
-    }
-    "StaticWebsite": {
-      "type": "sst.cloudflare.StaticSite"
-      "url": string
-    }
-    "TextSmsFunction": {
-      "name": string
-      "type": "sst.aws.Function"
-    }
-    "TwilioAccountSid": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "TwilioAuthToken": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "TwilioNotionMessagingServiceSid": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "TwilioPhoneNumber": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "ValkeyAdminPassword": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
-    "ValkeyClientPassword": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
+    ApiRouter: {
+      type: 'sst.aws.Router';
+      url: string;
+    };
+    BlogApi: {
+      name: string;
+      type: 'sst.aws.Function';
+      url: string;
+    };
+    BlogDeployAuth: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    CloudflareAccountId: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    CloudflareApiKey: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    CloudflareEmail: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    CloudflareZoneId: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    GithubPersonalAccessToken: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    HetznerApiKey: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    HetznerK3sToken: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    HetznerOriginTlsCrt: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    HetznerOriginTlsKey: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    HetznerTunnelSecret: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    KwokPhoneNumber: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainClickhouseAdminPassword: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainClickhouseBackupS3Key: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainClickhouseBackupS3KeySecret: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainClickhouseClientPassword: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainPostgresAdminPassword: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainPostgresBackupS3Key: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainPostgresBackupS3KeySecret: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainPostgresClientPassword: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainPostgresPatroniPassword: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainPostgresPgdogAdminPassword: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainPostgresReplicationPassword: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainPostgresSuperuserPassword: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainValkeyAdminPassword: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MainMainValkeyClientPassword: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    MichellePhoneNumber: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    NotionApiKey: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    NotionAuthToken: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    ScheduleTextReminderApi: {
+      name: string;
+      type: 'sst.aws.Function';
+      url: string;
+    };
+    StaticWebsite: {
+      type: 'sst.cloudflare.StaticSite';
+      url: string;
+    };
+    TextSmsFunction: {
+      name: string;
+      type: 'sst.aws.Function';
+    };
+    TwilioAccountSid: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    TwilioAuthToken: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    TwilioNotionMessagingServiceSid: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    TwilioPhoneNumber: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
   }
 }
 /// <reference path="sst-env.d.ts" />
 
-import "sst"
-export {}
+import 'sst';
+export {};

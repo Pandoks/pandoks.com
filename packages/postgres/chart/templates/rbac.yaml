@@ -1,20 +1,23 @@
+{{- range $shardIndex := until (int .Values.patroni.shards) }}
+---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: patroni-{{ .Values.db }}
-  namespace: '{{ .Values.namespace }}'
+  name: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+  namespace: {{ $.Values.namespace }}
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: patroni-{{ .Values.db }}
-  namespace: '{{ .Values.namespace }}'
+  name: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+  namespace: {{ $.Values.namespace }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: patroni
 subjects:
   - kind: ServiceAccount
-    name: patroni-{{ .Values.db }}
-    namespace: '{{ .Values.namespace }}'
+    name: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+    namespace: {{ $.Values.namespace }}
+{{- end}}
