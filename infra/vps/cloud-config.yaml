@@ -1,9 +1,5 @@
 #cloud-config
 # env variables:
-# SSH_HOSTNAME
-# ACCOUNT_ID
-# TUNNEL_SECRET
-# TUNNEL_ID
 # PRIVATE_IP_RANGE
 # SSH_CA_PUB
 # ROLE
@@ -24,7 +20,6 @@ bootcmd:
   - iptables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
   - iptables -A INPUT -s ${PRIVATE_IP_RANGE} -j ACCEPT
   - iptables-save > /etc/iptables.rules
-  - mkdir -p /etc/cloudflared
 
 users:
   - name: pandoks
@@ -43,21 +38,6 @@ write_files:
     content: |
       #!/bin/sh
       iptables-restore < /etc/iptables.rules
-  - path: /etc/cloudflared/credentials.json
-    owner: root:root
-    permissions: '0600'
-    content: |
-      { "AccountTag": "${ACCOUNT_ID}", "TunnelSecret": "${TUNNEL_SECRET}", "TunnelID": "${TUNNEL_ID}" }
-  - path: /etc/cloudflared/config.yml
-    owner: root:root
-    permissions: '0644'
-    content: |
-      tunnel: ${TUNNEL_ID}
-      credentials-file: /etc/cloudflared/credentials.json
-      ingress:
-        - hostname: ${SSH_HOSTNAME}
-          service: ssh://localhost:22
-        - service: http_status:404
   - path: /etc/ssh/ca.pub
     owner: root:root
     permissions: '0600'
@@ -77,17 +57,8 @@ write_files:
       UsePAM yes
       AllowUsers pandoks
       Match User pandoks
-        AuthorizedPrincipalsCommand /bin/echo 'cloudflare.sank246'
-        AuthorizedPrincipalsCommandUser nobody
 
 runcmd:
-  - mkdir -p --mode=0755 /usr/share/keyrings
-  - curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
-  - echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared noble main' | tee /etc/apt/sources.list.d/cloudflared.list
-  - apt-get update && apt-get install -y cloudflared
-  - systemctl restart ssh || true
-  - cloudflared --config /etc/cloudflared/config.yml service install || true
-  - systemctl enable cloudflared && systemctl restart cloudflared
   - |
     if [ "${ROLE}" = "bootstrap" ]; then
       curl -sfL https://get.k3s.io | \
