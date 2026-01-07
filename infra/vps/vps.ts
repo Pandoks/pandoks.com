@@ -14,7 +14,7 @@ const SERVER_TYPE = $app.stage === 'production' ? 'ccx13' : 'cpx11';
 const LOAD_BALANCER_TYPE = $app.stage === 'production' ? 'lb11' : 'lb11';
 const LOAD_BALANCER_ALGORITHM = 'least_connections'; // round_robin, least_connections
 const SERVER_IMAGE = 'ubuntu-24.04';
-const INGRESS_NODE_PORT = { http: 30080, https: 30443 };
+const INGRESS_HTTPS_NODE_PORT = 30443;
 const LOCATION = 'hil';
 
 /**
@@ -117,29 +117,15 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT) {
     loadBalancerId: publicLoadBalancer.id.apply((id) => parseInt(id)),
     networkId: privateNetwork.id.apply((id) => parseInt(id))
   });
-  new hcloud.LoadBalancerService('HetznerK3sLoadBalancerPort80', {
-    loadBalancerId: publicLoadBalancer.id.apply((id) => id),
-    protocol: 'tcp',
-    listenPort: 80,
-    destinationPort: INGRESS_NODE_PORT.http,
-    proxyprotocol: false,
-    healthCheck: {
-      protocol: 'tcp',
-      port: INGRESS_NODE_PORT.http,
-      interval: 10,
-      timeout: 3,
-      retries: 3
-    }
-  });
   new hcloud.LoadBalancerService('HetznerK3sLoadBalancerPort443', {
     loadBalancerId: publicLoadBalancer.id.apply((id) => id),
     protocol: 'tcp',
     listenPort: 443,
-    destinationPort: INGRESS_NODE_PORT.https,
+    destinationPort: INGRESS_HTTPS_NODE_PORT,
     proxyprotocol: false,
     healthCheck: {
       protocol: 'tcp',
-      port: INGRESS_NODE_PORT.https,
+      port: INGRESS_HTTPS_NODE_PORT,
       interval: 10,
       timeout: 3,
       retries: 3
