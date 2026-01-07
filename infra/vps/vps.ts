@@ -4,14 +4,17 @@ import { secrets } from '../secrets';
 import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
+const isProduction = $app.stage === 'production';
+const stageName = isProduction ? 'prod' : 'dev';
+
 // NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
-const CONTROL_PLANE_NODE_COUNT = $app.stage === 'production' ? 1 : 0;
+const CONTROL_PLANE_NODE_COUNT = isProduction ? 1 : 1;
 const CONTROL_PLANE_HOST_START_OCTET = 10; // starts at 10.0.1.<CONTROL_PLANE_HOST_START_OCTET>
-const WORKER_NODE_COUNT = $app.stage === 'production' ? 0 : 0;
+const WORKER_NODE_COUNT = isProduction ? 0 : 0;
 const WORKER_HOST_START_OCTET = 20; // starts at 10.0.1.<WORKER_HOST_START_OCTET> 20 allows for 10 control plane nodes
 // NOTE: servers can only be upgraded, not downgraded because disk size needs to be >= than the previous type
-const SERVER_TYPE = $app.stage === 'production' ? 'ccx13' : 'cpx11';
-const LOAD_BALANCER_TYPE = $app.stage === 'production' ? 'lb11' : 'lb11';
+const SERVER_TYPE = isProduction ? 'ccx13' : 'cpx11';
+const LOAD_BALANCER_TYPE = isProduction ? 'lb11' : 'lb11';
 const LOAD_BALANCER_ALGORITHM = 'least_connections'; // round_robin, least_connections
 const SERVER_IMAGE = 'ubuntu-24.04';
 const INGRESS_HTTPS_NODE_PORT = 30443;
@@ -188,7 +191,7 @@ for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
       SERVER_API: `https://${SERVER_IP}:6443`,
       NODE_IP,
       ROLE: role,
-      TAILSCALE_HOSTNAME: `${$app.stage === 'production' ? 'prod' : 'dev'}-hetzner-${nodeType.name}-server-${i}`,
+      TAILSCALE_HOSTNAME: `${stageName}-hetzner-${nodeType.name}-server-${i}`,
       REGISTRATION_TAILNET_AUTH_KEY
     };
   });
@@ -204,8 +207,8 @@ for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
       serverType: SERVER_TYPE,
       image: SERVER_IMAGE,
       location: LOCATION,
-      deleteProtection: $app.stage === 'production',
-      rebuildProtection: $app.stage === 'production',
+      deleteProtection: isProduction,
+      rebuildProtection: isProduction,
       firewallIds: [firewall.id.apply((id) => parseInt(id))],
       networks: [{ networkId: privateNetwork.id.apply((id) => parseInt(id)), ip }],
       publicNets: [{ ipv4Enabled: false, ipv6Enabled: true }],
@@ -260,7 +263,7 @@ for (let i = 0; i < WORKER_NODE_COUNT; i++) {
       SERVER_API: `https://${SERVER_IP}:6443`,
       NODE_IP,
       ROLE: 'worker',
-      TAILSCALE_HOSTNAME: `${$app.stage === 'production' ? 'prod' : 'dev'}-hetzner-${nodeType.name}-server-${i}`,
+      TAILSCALE_HOSTNAME: `${stageName}-hetzner-${nodeType.name}-server-${i}`,
       REGISTRATION_TAILNET_AUTH_KEY
     };
   });
@@ -276,8 +279,8 @@ for (let i = 0; i < WORKER_NODE_COUNT; i++) {
       serverType: SERVER_TYPE,
       image: SERVER_IMAGE,
       location: LOCATION,
-      deleteProtection: $app.stage === 'production',
-      rebuildProtection: $app.stage === 'production',
+      deleteProtection: isProduction,
+      rebuildProtection: isProduction,
       firewallIds: [firewall.id.apply((id) => parseInt(id))],
       networks: [{ networkId: privateNetwork.id.apply((id) => parseInt(id)), ip }],
       publicNets: [{ ipv4Enabled: false, ipv6Enabled: true }],
