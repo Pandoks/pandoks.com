@@ -25,7 +25,7 @@ const NODE_NAMING = {
   worker: { resourceName: 'Worker', name: 'worker' },
   controlplane: { resourceName: 'ControlPlane', name: 'control-plane' }
 };
-const BASE_TAILSCALE_TAGS = ['tag:hetzner', 'tag:k3s', `tag:${stageName}`];
+const BASE_TAILSCALE_TAGS = ['tag:hetzner', `tag:${stageName}`];
 
 /**
  * NOTE: Hetzner doesn't allow you to connect servers from different regions in the same network.
