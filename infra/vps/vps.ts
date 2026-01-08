@@ -221,7 +221,7 @@ for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
       rebuildProtection: isProduction,
       firewallIds: [firewall.id.apply((id) => parseInt(id))],
       networks: [{ networkId: privateNetwork.id.apply((id) => parseInt(id)), ip }],
-      publicNets: [{ ipv4Enabled: false, ipv6Enabled: true }],
+      publicNets: [{ ipv4Enabled: true, ipv6Enabled: true }],
       shutdownBeforeDeletion: true,
       userData
     },
@@ -300,7 +300,7 @@ for (let i = 0; i < WORKER_NODE_COUNT; i++) {
       rebuildProtection: isProduction,
       firewallIds: [firewall.id.apply((id) => parseInt(id))],
       networks: [{ networkId: privateNetwork.id.apply((id) => parseInt(id)), ip }],
-      publicNets: [{ ipv4Enabled: false, ipv6Enabled: true }],
+      publicNets: [{ ipv4Enabled: true, ipv6Enabled: true }],
       shutdownBeforeDeletion: true,
       userData
     },
