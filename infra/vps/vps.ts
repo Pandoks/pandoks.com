@@ -15,6 +15,7 @@ const WORKER_NODE_COUNT = isProduction ? 0 : 0;
 const WORKER_HOST_START_OCTET = 20; // starts at 10.0.1.<WORKER_HOST_START_OCTET> 20 allows for 10 control plane nodes
 // NOTE: servers can only be upgraded, not downgraded because disk size needs to be >= than the previous type
 const SERVER_TYPE = isProduction ? 'ccx13' : 'cpx11';
+const LOAD_BALANCER_COUNT = isProduction ? 1 : 0;
 const LOAD_BALANCER_TYPE = isProduction ? 'lb11' : 'lb11';
 const LOAD_BALANCER_ALGORITHM = 'least_connections'; // round_robin, least_connections
 const SERVER_IMAGE = 'ubuntu-24.04';
@@ -61,6 +62,7 @@ const firewall = new hcloud.Firewall('HetznerInboundFirewall', {
   ]
 });
 
+let publicLoadBalancers: hcloud.LoadBalancer[] = [];
 if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT) {
   const openSslConfigPath = resolve('infra/vps/vps.openssl.conf');
   const certificateSigningRequestPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.csr`);
@@ -118,31 +120,34 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT) {
     );
   }
 
-  var publicLoadBalancer = new hcloud.LoadBalancer('HetznerK3sPublicLoadBalancer', {
-    name: `k3s-public-${STAGE_NAME}-load-balancer`,
-    loadBalancerType: LOAD_BALANCER_TYPE,
-    location: LOCATION,
-    algorithm: { type: LOAD_BALANCER_ALGORITHM }
-  });
-  new hcloud.LoadBalancerNetwork('HetznerK3sPublicLoadBalancerNetwork', {
-    loadBalancerId: publicLoadBalancer.id.apply((id) => parseInt(id)),
-    networkId: privateNetwork.id.apply((id) => parseInt(id))
-  });
-  new hcloud.LoadBalancerService('HetznerK3sLoadBalancerPort443', {
-    loadBalancerId: publicLoadBalancer.id.apply((id) => id),
-    protocol: 'tcp',
-    listenPort: 443,
-    destinationPort: INGRESS_HTTPS_NODE_PORT,
-    // NOTE: needed to validate all requests are coming from Cloudflare (false will only show load balancer's private network ip)
-    proxyprotocol: true,
-    healthCheck: {
+  for (let i = 0; i < LOAD_BALANCER_COUNT; i++) {
+    const publicLoadBalancer = new hcloud.LoadBalancer(`HetznerK3sPublicLoadBalancer${i}`, {
+      name: `k3s-public-${STAGE_NAME}-load-balancer-${i}`,
+      loadBalancerType: LOAD_BALANCER_TYPE,
+      location: LOCATION,
+      algorithm: { type: LOAD_BALANCER_ALGORITHM }
+    });
+    new hcloud.LoadBalancerNetwork(`HetznerK3sPublicLoadBalancer${i}Network`, {
+      loadBalancerId: publicLoadBalancer.id.apply((id) => parseInt(id)),
+      networkId: privateNetwork.id.apply((id) => parseInt(id))
+    });
+    new hcloud.LoadBalancerService(`HetznerK3sLoadBalancer${i}Port443`, {
+      loadBalancerId: publicLoadBalancer.id.apply((id) => id),
       protocol: 'tcp',
-      port: INGRESS_HTTPS_NODE_PORT,
-      interval: 10,
-      timeout: 3,
-      retries: 3
-    }
-  });
+      listenPort: 443,
+      destinationPort: INGRESS_HTTPS_NODE_PORT,
+      // NOTE: needed to validate all requests are coming from Cloudflare (false will only show load balancer's private network ip)
+      proxyprotocol: true,
+      healthCheck: {
+        protocol: 'tcp',
+        port: INGRESS_HTTPS_NODE_PORT,
+        interval: 10,
+        timeout: 3,
+        retries: 3
+      }
+    });
+    publicLoadBalancers.push(publicLoadBalancer);
+  }
 }
 
 const cloudInitConfig = readFileSync(`${process.cwd()}/infra/vps/cloud-config.yaml`, 'utf8');
@@ -226,15 +231,17 @@ for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
   controlPlaneServers.push(server);
 }
 controlPlaneServers.forEach((server, index) => {
-  new hcloud.LoadBalancerTarget(
-    `HetznerK3s${NODE_NAMING.controlplane.resourceName}LoadBalancerTarget${index}`,
-    {
-      loadBalancerId: publicLoadBalancer.id.apply((id) => parseInt(id)),
-      type: 'server',
-      serverId: server.id.apply((id) => parseInt(id)),
-      usePrivateIp: true
-    }
-  );
+  for (const [i, loadBalancer] of publicLoadBalancers.entries()) {
+    new hcloud.LoadBalancerTarget(
+      `HetznerK3s${NODE_NAMING.controlplane.resourceName}LoadBalancer${i}Target${index}`,
+      {
+        loadBalancerId: loadBalancer.id.apply((id) => parseInt(id)),
+        type: 'server',
+        serverId: server.id.apply((id) => parseInt(id)),
+        usePrivateIp: true
+      }
+    );
+  }
 });
 
 let workerServers: hcloud.Server[] = [];
@@ -302,15 +309,17 @@ for (let i = 0; i < WORKER_NODE_COUNT; i++) {
   workerServers.push(server);
 }
 workerServers.forEach((server, index) => {
-  new hcloud.LoadBalancerTarget(
-    `HetznerK3s${NODE_NAMING.worker.resourceName}LoadBalancerTarget${index}`,
-    {
-      loadBalancerId: publicLoadBalancer.id.apply((id) => parseInt(id)),
-      type: 'server',
-      serverId: server.id.apply((id) => parseInt(id)),
-      usePrivateIp: true
-    }
-  );
+  for (const [i, loadBalancer] of publicLoadBalancers.entries()) {
+    new hcloud.LoadBalancerTarget(
+      `HetznerK3s${NODE_NAMING.worker.resourceName}LoadBalancer${i}Target${index}`,
+      {
+        loadBalancerId: loadBalancer.id.apply((id) => parseInt(id)),
+        type: 'server',
+        serverId: server.id.apply((id) => parseInt(id)),
+        usePrivateIp: true
+      }
+    );
+  }
 });
 
 const tailscaleApiUrl = 'https://api.tailscale.com/api/v2';
@@ -354,9 +363,15 @@ $resolve([secrets.tailscale.ApiKey.value, tailscaleDeviceJson.stdout]).apply(
   }
 );
 
+const publicLoadBalancerOutputs = Object.fromEntries(
+  publicLoadBalancers.map((loadBalancer, index) => [
+    `K3sLoadBalancer${index}Ipv4`,
+    loadBalancer.ipv4 ?? 'None'
+  ])
+);
+
 export const outputs = {
-  K3sLoadBalancerIPv4: publicLoadBalancer! ? publicLoadBalancer.ipv4 : 'None',
-  K3sPrivateSubnet: subnet.ipRange
+  ...publicLoadBalancerOutputs
 };
 
-export { publicLoadBalancer };
+export { publicLoadBalancers };
