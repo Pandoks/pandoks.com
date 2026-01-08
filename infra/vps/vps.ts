@@ -9,7 +9,7 @@ const isProduction = $app.stage === 'production';
 const stageName = isProduction ? 'prod' : 'dev';
 
 // NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
-const CONTROL_PLANE_NODE_COUNT = isProduction ? 1 : 1;
+const CONTROL_PLANE_NODE_COUNT = isProduction ? 1 : 0;
 const CONTROL_PLANE_HOST_START_OCTET = 10; // starts at 10.0.1.<CONTROL_PLANE_HOST_START_OCTET>
 const WORKER_NODE_COUNT = isProduction ? 0 : 0;
 const WORKER_HOST_START_OCTET = 20; // starts at 10.0.1.<WORKER_HOST_START_OCTET> 20 allows for 10 control plane nodes
@@ -312,6 +312,47 @@ workerServers.forEach((server, index) => {
     }
   );
 });
+
+const tailscaleApiUrl = 'https://api.tailscale.com/api/v2';
+const tailscaleDeviceJson = new command.local.Command('CleanupHetznerTailscale', {
+  create: `curl -sS -u "$TAILSCALE_API_KEY:" '${tailscaleApiUrl}/tailnet/pandoks.github/devices?${BASE_TAILSCALE_TAGS.map((tag) => `tags=${tag}`).join('&')}'`,
+  environment: { TAILSCALE_API_KEY: secrets.tailscale.ApiKey.value },
+  interpreter: ['/bin/sh', '-c'],
+  logging: command.local.Logging.None,
+  triggers: [
+    ...controlPlaneServers.map((server) => server.id),
+    ...workerServers.map((server) => server.id)
+  ]
+});
+$resolve([secrets.tailscale.ApiKey.value, tailscaleDeviceJson.stdout]).apply(
+  async ([apiKey, tailscaleDeviceListStdOut]) => {
+    const tailscaleDeviceList: {
+      devices: {
+        id: string;
+        name: string;
+        hostname: string;
+        tags: string[];
+        [key: string]: string[] | string | boolean;
+      }[];
+    } = JSON.parse(tailscaleDeviceListStdOut);
+    const devices = tailscaleDeviceList.devices;
+    for (const device of devices) {
+      const tags = device.tags;
+      const validHostnames = tags.includes('tag:control-plane')
+        ? controlPlaneTailscaleHostnames
+        : workerTailscaleHostnames;
+
+      const hostname = device.hostname;
+      if (validHostnames.includes(hostname)) continue;
+
+      const deviceId = device.id;
+      await fetch(`${tailscaleApiUrl}/device/${deviceId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Basic ${Buffer.from(`${apiKey}:`).toString('base64')}` }
+      });
+    }
+  }
+);
 
 export const outputs = {
   K3sLoadBalancerIPv4: publicLoadBalancer! ? publicLoadBalancer.ipv4 : 'None',
