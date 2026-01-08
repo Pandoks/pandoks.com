@@ -40,17 +40,32 @@ const kubernetesOperatorOauthClient = new tailscale.OauthClient(
   },
   { dependsOn: [tailscaleAcl] }
 );
-$resolve([secrets.k8s.tailscale.OauthClientId.name, kubernetesOperatorOauthClient.id]).apply(
-  ([secretName, oauthClientId]) => {
-    execSync(`sst secret set ${secretName} --stage ${$app.stage} ${oauthClientId}`, {
-      stdio: 'inherit'
-    });
-  }
-);
-$resolve([secrets.k8s.tailscale.OauthClientSecret.name, kubernetesOperatorOauthClient.key]).apply(
-  ([secretName, oauthClientSecret]) => {
-    execSync(`sst secret set ${secretName} --stage ${$app.stage} ${oauthClientSecret}`, {
-      stdio: 'inherit'
-    });
+$resolve([
+  secrets.k8s.tailscale.OauthClientId.name,
+  secrets.k8s.tailscale.OauthClientId.value,
+  kubernetesOperatorOauthClient.id,
+  secrets.k8s.tailscale.OauthClientSecret.name,
+  secrets.k8s.tailscale.OauthClientSecret.value,
+  kubernetesOperatorOauthClient.key
+]).apply(
+  ([
+    oauthClientIdSecretName,
+    oauthClientIdSecretValue,
+    oauthClientId,
+    oauthClientSecretSecretName,
+    oauthClientSecretSecretValue,
+    oauthClientSecret
+  ]) => {
+    if (oauthClientIdSecretValue != oauthClientId) {
+      execSync(`sst secret set ${oauthClientIdSecretName} --stage ${$app.stage} ${oauthClientId}`, {
+        stdio: 'inherit'
+      });
+    }
+    if (oauthClientSecretSecretValue != oauthClientSecret) {
+      execSync(
+        `sst secret set ${oauthClientSecretSecretName} --stage ${$app.stage} ${oauthClientSecret}`,
+        { stdio: 'inherit' }
+      );
+    }
   }
 );
