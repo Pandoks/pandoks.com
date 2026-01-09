@@ -131,6 +131,7 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT) {
       loadBalancerId: publicLoadBalancer.id.apply((id) => parseInt(id)),
       networkId: privateNetwork.id.apply((id) => parseInt(id))
     });
+    // Only enable https on the load balancer because we're using Cloudflare Strict
     new hcloud.LoadBalancerService(`HetznerK3sLoadBalancer${i}Port443`, {
       loadBalancerId: publicLoadBalancer.id.apply((id) => id),
       protocol: 'tcp',
