@@ -54,7 +54,7 @@ spec:
                       name: {{ .context.Values.credentials.secret }}
                       key: {{ .context.Values.credentials.dataKeys.backupS3KeySecret }}
                 - name: RETENTION
-                  value: {{ index .context.Values.backup.retention .type }}
+                  value: {{ index .context.Values.backup.retention .type | quote }}
               {{- with .context.Values.backup.resources }}
               resources:
                 {{- toYaml . | nindent 16 }}

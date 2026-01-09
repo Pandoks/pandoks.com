@@ -106,7 +106,7 @@ spec:
               command:
                 - sh
                 - -c
-                - valkey-cli --user admin -a "$CLIENT_PASSWORD" ping | grep -q PONG
+                - valkey-cli --user admin -a "$ADMIN_PASSWORD" ping | grep -q PONG
             initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 3

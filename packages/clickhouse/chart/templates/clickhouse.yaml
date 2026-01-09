@@ -50,7 +50,7 @@ spec:
   selector:
     matchLabels:
       app: &app clickhouse-{{ $.Values.name }}
-      shard: &shard {{ $shardIndex }}
+      shard: &shard {{ $shardIndex | quote }}
   template:
     metadata:
       labels:
@@ -75,17 +75,17 @@ spec:
             - name: CLUSTER_NAME
               value: {{ $.Values.name }}
             - name: SHARD_ID
-              value: {{ $shardIndex }}
+              value: {{ $shardIndex | quote }}
             - name: REPLICA_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
             - name: KEEPER_REPLICAS
-              value: {{ $.Values.keeper.replicas }}
+              value: {{ $.Values.keeper.replicas | quote }}
             - name: SHARDS
-              value: {{ $.Values.clickhouse.shards }}
+              value: {{ $.Values.clickhouse.shards | quote }}
             - name: REPLICAS_PER_SHARD
-              value: {{ $.Values.clickhouse.replicasPerShard }}
+              value: {{ $.Values.clickhouse.replicasPerShard | quote }}
             - name: CLICKHOUSE_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:

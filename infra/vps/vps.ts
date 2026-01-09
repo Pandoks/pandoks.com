@@ -9,7 +9,7 @@ const isProduction = $app.stage === 'production';
 const stageName = isProduction ? 'prod' : 'dev';
 
 // NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
-const CONTROL_PLANE_NODE_COUNT = isProduction ? 1 : 0;
+const CONTROL_PLANE_NODE_COUNT = isProduction ? 1 : 1;
 const CONTROL_PLANE_HOST_START_OCTET = 10; // starts at 10.0.1.<CONTROL_PLANE_HOST_START_OCTET>
 const WORKER_NODE_COUNT = isProduction ? 0 : 0;
 const WORKER_HOST_START_OCTET = 20; // starts at 10.0.1.<WORKER_HOST_START_OCTET> 20 allows for 10 control plane nodes
