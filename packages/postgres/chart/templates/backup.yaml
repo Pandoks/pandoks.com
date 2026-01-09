@@ -1,11 +1,9 @@
-{{- $first := true -}}
-{{- range $type, $schedule := .Values.backup.schedules }}
-  {{- if $schedule }}
-    {{- if not $first }}
+{{- range $shardIndex := until (int $.Values.patroni.shards) }}
+  {{- range $type, $schedule := $.Values.backup.schedules }}
+    {{- if $schedule }}
 ---
+{{ include "pgbackrest.cronjob" (dict "context" $ "type" $type "schedule" $schedule "shardIndex" $shardIndex) }}
     {{- end }}
-    {{- include "pgbackrest.cronjob" (dict "context" $ "type" $type "schedule" $schedule) }}
-    {{- $first = false -}}
   {{- end }}
 {{- end }}
 
@@ -13,10 +11,10 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: '{{ .context.Values.db }}-pgbackrest-backup-{{ .type }}'
-  namespace: '{{ .context.Values.namespace }}'
+  name: {{ .context.Values.db }}-shard-{{ .shardIndex }}-pgbackrest-backup-{{ .type }}
+  namespace: {{ .context.Values.namespace }}
 spec:
-  schedule: '{{ .schedule }}'
+  schedule: {{ .schedule }}
   jobTemplate:
     spec:
       template:
@@ -27,60 +25,57 @@ spec:
             - name: pgbackrest
               image: {{ .context.Values.backup.image }}
               args:
-                [
-                  'pgbackrest',
-                  '--stanza={{ .context.Values.db }}',
-                  '--type={{ .type }}',
-                  '--config=/etc/pgbackrest.conf',
-                  'backup'
-                ]
+                - pgbackrest
+                - --stanza={{ .context.Values.db }}-shard-{{ .shardIndex }}
+                - --type={{ .type }}
+                - --config=/etc/pgbackrest.conf
+                - backup
               env:
                 - name: MASTER_HOST
-                  value: patroni-{{ .context.Values.db }}-primary.{{ .context.Values.namespace }}.svc.cluster.local
+                  value: patroni-{{ .context.Values.db }}-primary-shard-{{ .shardIndex }}.{{ .context.Values.namespace }}.svc.cluster.local
                 - name: SLAVE_HOST
-                  value: patroni-{{ .context.Values.db }}-replicas.{{ .context.Values.namespace }}.svc.cluster.local
+                  value: patroni-{{ .context.Values.db }}-replicas-shard-{{ .shardIndex }}.{{ .context.Values.namespace }}.svc.cluster.local
                 - name: CLIENT_COMMON_NAME
-                  value: patroni-{{ .context.Values.db }}
+                  value: patroni-{{ .context.Values.db }}-shard-{{ .shardIndex }}
                 - name: BACKUP_BUCKET
-                  value: '{{ .context.Values.backup.bucket }}'
+                  value: {{ .context.Values.backup.bucket }}
                 - name: BACKUP_PATH
-                  value: '{{ .context.Values.backup.path }}'
+                  value: {{ .context.Values.backup.path }}
                 - name: S3_KEY
                   valueFrom:
                     secretKeyRef:
-                      name: &backup_creds '{{ .context.Values.s3.credentials.secret }}'
-                      key: '{{ .context.Values.s3.credentials.dataKeys.s3Key }}'
+                      name: &secret {{ .context.Values.credentials.secret }}
+                      key: {{ .context.Values.credentials.dataKeys.backupS3Key }}
                 - name: S3_KEY_SECRET
                   valueFrom:
                     secretKeyRef:
-                      name: *backup_creds
-                      key: '{{ .context.Values.s3.credentials.dataKeys.s3KeySecret }}'
+                      name: *secret
+                      key: {{ .context.Values.credentials.dataKeys.backupS3KeySecret }}
                 - name: S3_REGION
-                  value: '{{ .context.Values.s3.region }}'
-                - name: S3_ENDPOINT
-                  value: '{{ .context.Values.s3.endpoint }}'
+                  value: {{ .context.Values.s3.region }}
+                - name: S3_HOST
+                  value: {{ .context.Values.s3.host }}
                 - name: S3_TLS
-                  value: '{{ .context.Values.s3.tls }}'
+                  value: {{ .context.Values.s3.tls | quote }}
                 - name: S3_URI_STYLE
-                  value: '{{ .context.Values.s3.uriStyle }}'
+                  value: {{ .context.Values.s3.uriStyle }}
                 - name: ENCRYPTION_KEY
-                  value: '{{ .context.Values.backup.encryptionKey }}'
+                  value: {{ .context.Values.backup.encryptionKey }}
                 - name: STANZA
-                  value: '{{ .context.Values.db }}'
-                - name: PGUSER
-                  valueFrom:
-                    secretKeyRef:
-                      name: &db_creds '{{ .context.Values.credentials.secret }}'
-                      key: '{{ .context.Values.credentials.dataKeys.clientUser }}'
+                  value: {{ .context.Values.db }}-shard-{{ .shardIndex }}
                 - name: PGPASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: *db_creds
-                      key: '{{ .context.Values.credentials.dataKeys.clientPassword }}'
+                      name: *secret
+                      key: {{ .context.Values.credentials.dataKeys.superuserPassword }}
                 - name: FULL_RETENTION
-                  value: '{{ .context.Values.backup.retention.full }}'
+                  value: {{ .context.Values.backup.retention.full | quote }}
                 - name: DIFF_RETENTION
-                  value: '{{ .context.Values.backup.retention.diff }}'
+                  value: {{ .context.Values.backup.retention.diff | quote }}
+              {{- with .context.Values.backup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
               volumeMounts:
                 - name: &config pgbackrest-config
                   mountPath: /tmp/conf_templates/pgbackrest.conf
@@ -94,7 +89,7 @@ spec:
                 name: pgbackrest-server-config
             - name: *tls
               secret:
-                secretName: '{{ .context.Values.db }}-pgbackrest-backup-tls'
+                secretName: {{ .context.Values.db }}-shard-{{ .shardIndex }}-pgbackrest-backup-tls
                 defaultMode: 0600
                 items:
                   - key: tls.crt

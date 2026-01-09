@@ -10,9 +10,9 @@ export default $config({
         aws: {
           profile: process.env.GITHUB_ACTIONS ? undefined : 'Personal'
         },
-        cloudflare: '6.10.0',
+        cloudflare: '6.12.0',
         github: '6.7.2',
-        hcloud: { token: process.env.HCLOUD_TOKEN, version: '1.24.0' },
+        hcloud: { token: process.env.HCLOUD_TOKEN, version: '1.24.0' }
       }
     };
   },
@@ -25,7 +25,8 @@ export default $config({
       import('./infra/github'),
       import('./infra/secrets'),
       import('./infra/website'),
-      import('./infra/vps/vps')
+      import('./infra/vps/vps'),
+      import('./infra/sst')
     ]);
     return imports.reduce((acculumator, importResult: any) => {
       if (importResult.outputs) {

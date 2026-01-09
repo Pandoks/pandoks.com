@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: valkey-{{ .Values.name }}-headless
-  namespace: '{{ .Values.namespace }}'
+  namespace: {{ .Values.namespace }}
 spec:
   clusterIP: None
   publishNotReadyAddresses: true
@@ -21,7 +21,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: valkey-{{ .Values.name }}-cluster
-  namespace: '{{ .Values.namespace }}'
+  namespace: {{ .Values.namespace }}
 spec:
   type: ClusterIP
   selector:
@@ -35,7 +35,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: &app valkey-{{ .Values.name }}
-  namespace: '{{ .Values.namespace }}'
+  namespace: {{ .Values.namespace }}
   labels:
     app: *app
 spec:
@@ -69,26 +69,24 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-            - name: ANNOUNCE_PORT
-              value: '6379'
-            - name: ANNOUNCE_BUS_PORT
-              value: '16379'
             {{- if .Values.persistence }}
             - name: PERSISTENCE
-              value: '{{ .Values.persistence }}'
+              value: {{ .Values.persistence }}
             {{- end }}
             - name: ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: '{{ .Values.credentials.secret }}'
-                  key: '{{ .Values.credentials.dataKeys.adminPassword }}'
+                  name: {{ .Values.credentials.secret }}
+                  key: {{ .Values.credentials.dataKeys.adminPassword }}
             - name: CLIENT_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: '{{ .Values.credentials.secret }}'
-                  key: '{{ .Values.credentials.dataKeys.clientPassword }}'
+                  name: {{ .Values.credentials.secret }}
+                  key: {{ .Values.credentials.dataKeys.clientPassword }}
+          {{- with .Values.resources }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           volumeMounts:
             - name: &data data
               mountPath: /data
@@ -108,7 +106,7 @@ spec:
               command:
                 - sh
                 - -c
-                - valkey-cli --user admin -a "$CLIENT_PASSWORD" ping | grep -q PONG
+                - valkey-cli --user admin -a "$ADMIN_PASSWORD" ping | grep -q PONG
             initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 3

@@ -1,6 +1,6 @@
 # https://patroni.readthedocs.io/en/latest/yaml_configuration.html#yaml-configuration
 # some of the defaults are verbosely set here just so that you don't have to reference docs every time
-scope: ${POSTGRES_DB} # Name for pg cluster
+scope: ${CLUSTER_NAME} # Name for pg cluster
 namespace: ${NAMESPACE}
 name: ${POD_NAME}
 
@@ -30,13 +30,13 @@ bootstrap: # how new clusters are created or replicas are initialized
         wal_compression: on
         hot_standby: on
         archive_mode: on
-        archive_command: 'pgbackrest --stanza=${POSTGRES_DB} archive-push %p'
+        archive_command: 'pgbackrest --stanza=${STANZA} archive-push %p'
         # placeholders: %p = path of file to archive
         #               %f = file name only
         # e.g. 'test ! -f /mnt/server/archivedir/%f && cp %p /mnt/server/archivedir/%f'
       recovery_conf:
         recovery_target_timeline: latest
-        restore_command: 'pgbackrest --stanza=${POSTGRES_DB} archive-get %f %p'
+        restore_command: 'pgbackrest --stanza=${STANZA} archive-get %f %p'
       pg_hba:
         - 'local all all trust'
         - 'host all all 127.0.0.1/32 trust'
@@ -46,8 +46,9 @@ bootstrap: # how new clusters are created or replicas are initialized
         - 'host replication all ::1/128 trust'
         - 'host replication replicator 10.42.0.0/16 scram-sha-256'
         - 'host postgres replicator 10.42.0.0/16 scram-sha-256'
-        - 'host postgres ${PGUSER} 10.42.0.0/16 scram-sha-256'
-        - 'host ${POSTGRES_DB} pgcat 10.42.0.0/16 scram-sha-256'
+        - 'host postgres postgres 10.42.0.0/16 scram-sha-256'
+        - 'host ${POSTGRES_DB} client 10.42.0.0/16 scram-sha-256'
+        - 'host ${POSTGRES_DB} admin 10.42.0.0/16 scram-sha-256'
   post_bootstrap: /usr/local/bin/cluster-init.sh
 
 postgresql: # postgresql settings here don't need to restart the entire cluster
@@ -57,16 +58,16 @@ postgresql: # postgresql settings here don't need to restart the entire cluster
   data_dir: /var/lib/postgresql/pgdata
   authentication:
     superuser:
-      username: ${PGUSER}
-      password: ${PGPASSWORD}
+      username: postgres
+      password: ${SUPERUSER_PASSWORD}
     replication:
       username: replicator
-      password: ${PGREPPASS}
+      password: ${REPLICATION_PASSWORD}
   create_replica_methods:
     - pgbackrest
     - basebackup
   pgbackrest:
-    command: 'pgbackrest --stanza=${POSTGRES_DB} --delta restore'
+    command: 'pgbackrest --stanza=${STANZA} --delta restore'
     keep_data: true
     no_params: true
   basebackup:
@@ -91,8 +92,8 @@ kubernetes:
   use_endpoints: true
   pod_ip: ${POD_IP}
   labels: # these labels need to match the ones in your kube.yaml
-    app: patroni-${POSTGRES_DB}
-    cluster-name: ${POSTGRES_DB}
+    app: ${APP_NAME}
+    cluster-name: ${CLUSTER_NAME}
 
 tags:
   nofailover: false

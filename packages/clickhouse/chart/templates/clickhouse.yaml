@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: clickhouse-{{ .Values.name }}
-  namespace: '{{ .Values.namespace }}'
+  namespace: {{ .Values.namespace }}
 spec:
   type: ClusterIP
   selector:
@@ -20,7 +20,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: clickhouse-{{ .Values.name }}-headless
-  namespace: '{{ .Values.namespace }}'
+  namespace: {{ .Values.namespace }}
 spec:
   clusterIP: None
   publishNotReadyAddresses: true
@@ -43,14 +43,14 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: clickhouse-{{ $.Values.name }}-shard-{{ $shardIndex }}
-  namespace: '{{ $.Values.namespace }}'
+  namespace: {{ $.Values.namespace }}
 spec:
   serviceName: clickhouse-{{ $.Values.name }}-headless
   replicas: {{ $.Values.clickhouse.replicasPerShard }}
   selector:
     matchLabels:
       app: &app clickhouse-{{ $.Values.name }}
-      shard: &shard '{{ $shardIndex }}'
+      shard: &shard {{ $shardIndex | quote }}
   template:
     metadata:
       labels:
@@ -73,29 +73,29 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: CLUSTER_NAME
-              value: '{{ $.Values.name }}'
+              value: {{ $.Values.name }}
             - name: SHARD_ID
-              value: '{{ $shardIndex }}'
+              value: {{ $shardIndex | quote }}
             - name: REPLICA_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
             - name: KEEPER_REPLICAS
-              value: '{{ $.Values.keeper.replicas }}'
+              value: {{ $.Values.keeper.replicas | quote }}
             - name: SHARDS
-              value: '{{ $.Values.clickhouse.shards }}'
+              value: {{ $.Values.clickhouse.shards | quote }}
             - name: REPLICAS_PER_SHARD
-              value: '{{ $.Values.clickhouse.replicasPerShard }}'
+              value: {{ $.Values.clickhouse.replicasPerShard | quote }}
             - name: CLICKHOUSE_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: '{{ $.Values.credentials.secret }}'
-                  key: '{{ $.Values.credentials.dataKeys.adminPassword }}'
-            - name: CLICKHOUSE_USER_PASSWORD
+                  name: {{ $.Values.credentials.secret }}
+                  key: {{ $.Values.credentials.dataKeys.adminPassword }}
+            - name: CLICKHOUSE_CLIENT_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: '{{ $.Values.credentials.secret }}'
-                  key: '{{ $.Values.credentials.dataKeys.userPassword }}'
+                  name: {{ $.Values.credentials.secret }}
+                  key: {{ $.Values.credentials.dataKeys.clientPassword }}
           volumeMounts:
             - name: &data data
               mountPath: /var/lib/clickhouse
@@ -119,8 +119,10 @@ spec:
               port: *client-port
             initialDelaySeconds: 10
             periodSeconds: 5
+          {{- with $.Values.clickhouse.resources }}
           resources:
-            {{- toYaml $.Values.clickhouse.resources | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
       volumes:
         - name: *clickhouse-config
           configMap:
@@ -132,7 +134,7 @@ spec:
     - metadata:
         name: *data
       spec:
-        accessModes: 
+        accessModes:
           - ReadWriteOnce
         storageClassName: local-path
         resources:
@@ -141,7 +143,7 @@ spec:
     - metadata:
         name: *logs
       spec:
-        accessModes: 
+        accessModes:
           - ReadWriteOnce
         storageClassName: local-path
         resources:

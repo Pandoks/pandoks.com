@@ -6,7 +6,7 @@
   "dependencies": {
     "@aws-sdk/client-scheduler": "^3.864.0",
     "@aws-sdk/client-sns": "^3.830.0",
-    "sst": "^3.17.12",
+    "sst": "^3.17.25",
     "twilio": "^5.8.0"
   },
   "devDependencies": {

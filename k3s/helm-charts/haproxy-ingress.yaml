@@ -19,7 +19,6 @@ spec:
   # we want to let the helm chart manage the service so we don't have to worry about updates and breaking changes.
   # only when we're changing the ports (which should be once in a blue moon) will we then manually
   # manage the service so that we can do the dual service cutover, but then we'll change it back
-  controller:
   # https://github.com/haproxy-ingress/charts/blob/release-0.14/haproxy-ingress/values.yaml
   valuesContent: |-
     controller:

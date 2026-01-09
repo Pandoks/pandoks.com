@@ -5,16 +5,15 @@
   "sideEffects": false,
   "scripts": {
     "build": "pnpm run build:clickhouse & pnpm run build:keeper & pnpm run build:helm & wait",
-    "cluster:build": "pnpm run build",
+    "docker:build": "pnpm run build",
     "build:clickhouse": "docker build -f ./clickhouse/Dockerfile ../../ -t localhost:12345/clickhouse:latest",
     "build:keeper": "docker build -f ./keeper/Dockerfile ../../ -t localhost:12345/clickhouse-keeper:latest",
     "build:backup": "docker build -f ./backup/Dockerfile ../../ -t localhost:12345/clickhouse-backup:latest",
-    "build:helm": "helm package ./chart",
-    "push": "pnpm run push:clickhouse & pnpm run push:keeper & pnpm run push:helm & wait",
-    "cluster:push": "pnpm run push",
-    "push:clickhouse": "docker push localhost:12345/clickhouse:latest",
-    "push:keeper": "docker push localhost:12345/clickhouse-keeper:latest",
-    "push:backup": "docker push localhost:12345/clickhouse-backup:latest",
-    "push:helm": "helm push clickhouse-*.tgz oci://localhost:12345/charts"
+    "build:helm": "rm ./clickhouse-*.tgz && helm package ./chart",
+    "dev:push": "pnpm run dev:push:clickhouse & pnpm run dev:push:keeper & pnpm run dev:push:helm & wait",
+    "dev:push:clickhouse": "docker push localhost:12345/clickhouse:latest",
+    "dev:push:keeper": "docker push localhost:12345/clickhouse-keeper:latest",
+    "dev:push:backup": "docker push localhost:12345/clickhouse-backup:latest",
+    "dev:push:helm": "helm push clickhouse-*.tgz oci://localhost:12345/charts"
   }
 }

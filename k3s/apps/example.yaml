@@ -171,7 +171,7 @@ spec:
             - |
               set -eu
               # Write HTML
-              cat << 'EOF' > /web/index.html
+              cat > /web/index.html << 'EOF'
               <!doctype html>
               <html>
               <body style="font-family: system-ui; padding: 2rem">
@@ -180,7 +180,7 @@ spec:
               </html>
               EOF
               # Write nginx conf with catch-all
-              cat << 'NGINX' > /conf/default.conf
+              cat > /conf/default.conf << 'NGINX'
               server {
                 listen 8080;
                 server_name _;
@@ -249,7 +249,7 @@ spec:
             - |
               set -eu
               # Write HTML
-              cat << 'EOF' > /web/index.html
+              cat > /web/index.html << 'EOF'
               <!doctype html>
               <html>
               <body style="font-family: system-ui; padding: 2rem">
@@ -258,7 +258,7 @@ spec:
               </html>
               EOF
               # Write nginx conf with catch-all
-              cat << 'NGINX' > /conf/default.conf
+              cat > /conf/default.conf << 'NGINX'
               server {
                 listen 8080;
                 server_name _;
