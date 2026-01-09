@@ -58,7 +58,7 @@ spec:
             - name: CLUSTER_NAME
               value: {{ .Values.name }}
             - name: KEEPER_REPLICAS
-              value: {{ $keeperReplicas }}
+              value: {{ $keeperReplicas | quote }}
           volumeMounts:
             - name: &data data
               mountPath: /var/lib/clickhouse
