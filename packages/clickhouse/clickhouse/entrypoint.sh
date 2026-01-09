@@ -35,11 +35,16 @@ remote_servers:
     shards:
 EOF
 for i in $(seq 0 $((SHARDS - 1))); do
-  echo "      replicas:" >> /etc/clickhouse-server/config.yaml
+  cat >> /etc/clickhouse-server/config.yaml << EOF
+      - internal_replication: true
+        replicas:
+EOF
   for j in $(seq 0 $((REPLICAS_PER_SHARD - 1))); do
     cat >> /etc/clickhouse-server/config.yaml << EOF
           - host: clickhouse-${CLUSTER_NAME}-shard-$i-$j.clickhouse-${CLUSTER_NAME}-headless.${NAMESPACE}.svc.cluster.local
             port: 9000
+            user: admin
+            password: ${CLICKHOUSE_ADMIN_PASSWORD}
 EOF
   done
 done
