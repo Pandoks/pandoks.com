@@ -1,3 +1,5 @@
+// WARNING: resources that hold data like servers, volumes, etc. should be protected by the
+// `protect` option in production. This is to prevent accidental deletion of resources.
 import { resolve } from 'node:path';
 import { EXAMPLE_DOMAIN, STAGE_NAME } from '../dns';
 import { secrets } from '../secrets';
@@ -229,7 +231,7 @@ for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
       shutdownBeforeDeletion: true,
       userData
     },
-    { dependsOn: dependencies }
+    { dependsOn: dependencies, protect: isProduction }
   );
   bootstrapServer = bootstrapServer ?? server;
   controlPlaneServers.push(server);
@@ -309,7 +311,7 @@ for (let i = 0; i < WORKER_NODE_COUNT; i++) {
       shutdownBeforeDeletion: true,
       userData
     },
-    { dependsOn: dependencies }
+    { dependsOn: dependencies, protect: isProduction }
   );
   workerServers.push(server);
 }
