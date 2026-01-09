@@ -227,7 +227,7 @@ For long strings, use here documents or embedded newlines:
 
 ```sh
 # Use here documents for long strings
-cat <<EOF
+cat << EOF
 This is a very long string that would
 exceed 100 characters on a single line.
 EOF
