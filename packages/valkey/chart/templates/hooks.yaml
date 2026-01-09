@@ -27,9 +27,9 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: MASTERS
-              value: {{ .Values.cluster.masters }}
+              value: {{ .Values.cluster.masters | quote }}
             - name: REPLICAS_PER_MASTER
-              value: {{ .Values.cluster.replicasPerMaster }}
+              value: {{ .Values.cluster.replicasPerMaster | quote }}
             - name: ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -66,9 +66,9 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: MASTERS
-              value: {{ .Values.cluster.masters }}
+              value: {{ .Values.cluster.masters | quote }}
             - name: REPLICAS_PER_MASTER
-              value: {{ .Values.cluster.replicasPerMaster }}
+              value: {{ .Values.cluster.replicasPerMaster | quote }}
             - name: ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -105,9 +105,9 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: MASTERS
-              value: {{ .Values.cluster.masters }}
+              value: {{ .Values.cluster.masters | quote }}
             - name: REPLICAS_PER_MASTER
-              value: {{ .Values.cluster.replicasPerMaster }}
+              value: {{ .Values.cluster.replicasPerMaster | quote }}
             - name: ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
