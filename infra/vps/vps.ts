@@ -1,14 +1,9 @@
 // WARNING: resources that hold data like servers, volumes, etc. should be protected by the
 // `protect` option in production. This is to prevent accidental deletion of resources.
-import { resolve } from 'node:path';
-import { EXAMPLE_DOMAIN, STAGE_NAME } from '../dns';
+import { isProduction, STAGE_NAME } from '../dns';
 import { secrets } from '../secrets';
-import { existsSync, readFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import { createServers } from './servers';
-
-const isProduction = $app.stage === 'production';
-const stageName = isProduction ? 'prod' : 'dev';
+import { createLoadBalancers } from './load-balancers';
 
 // NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
 const CONTROL_PLANE_NODE_COUNT = isProduction ? 1 : 1;
@@ -21,10 +16,8 @@ const LOAD_BALANCER_COUNT = isProduction ? 1 : 0;
 const LOAD_BALANCER_TYPE = isProduction ? 'lb11' : 'lb11';
 const LOAD_BALANCER_ALGORITHM = 'least_connections'; // round_robin, least_connections
 const SERVER_IMAGE = 'ubuntu-24.04';
-const INGRESS_HTTPS_NODE_PORT = 30443;
 const LOCATION = isProduction ? 'hil' : 'fsn1';
 const NETWORK_ZONE = isProduction ? 'us-west' : 'eu-central';
-const BASE_TAILSCALE_TAGS = ['tag:hetzner', `tag:${stageName}`];
 
 /**
  * NOTE: Hetzner doesn't allow you to connect servers from different regions in the same network.
@@ -61,103 +54,19 @@ const firewall = new hcloud.Firewall('HetznerInboundFirewall', {
   ]
 });
 
-let publicLoadBalancers: {
-  loadbalancer: hcloud.LoadBalancer;
-  network: hcloud.LoadBalancerNetwork;
-}[] = [];
-if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT) {
-  const openSslConfigPath = resolve('infra/vps/vps.openssl.conf');
-  const certificateSigningRequestPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.csr`);
-  const certificateKeyPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.key`);
-
-  let needToSetCertificateSecret = false;
-  if (!existsSync(certificateSigningRequestPath)) {
-    execFileSync(
-      'openssl',
-      [
-        'req',
-        '-new',
-        '-newkey',
-        'rsa:2048',
-        '-nodes',
-        '-keyout',
-        certificateKeyPath,
-        '-out',
-        certificateSigningRequestPath,
-        '-config',
-        openSslConfigPath
-      ],
-      { stdio: 'inherit' }
-    );
-    secrets.k8s.HetznerOriginTlsKey.name.apply((secretName) => {
-      execFileSync(
-        '/bin/sh',
-        ['-lc', `sst secret set ${secretName} --stage ${$app.stage} < ${certificateKeyPath}`],
-        { stdio: 'inherit' }
-      );
-    });
-    needToSetCertificateSecret = true;
+const publicLoadBalancers = createLoadBalancers(
+  {
+    controlPlaneCount: CONTROL_PLANE_NODE_COUNT,
+    workerNodeCount: WORKER_NODE_COUNT,
+    loadBalancerCount: LOAD_BALANCER_COUNT,
+    network: privateNetwork
+  },
+  {
+    type: LOAD_BALANCER_TYPE,
+    location: LOCATION,
+    alogrithm: LOAD_BALANCER_ALGORITHM
   }
-
-  const certificateSigningRequest = readFileSync(certificateSigningRequestPath);
-  const hetznerOriginCert = new cloudflare.OriginCaCertificate(
-    'HetznerOriginCloudflareCaCertificate',
-    {
-      hostnames: [EXAMPLE_DOMAIN],
-      requestType: 'origin-rsa',
-      csr: certificateSigningRequest.toString(),
-      requestedValidity: 5475 // 15 years
-    }
-  );
-
-  if (needToSetCertificateSecret) {
-    $resolve([hetznerOriginCert.certificate, secrets.k8s.HetznerOriginTlsCrt.name]).apply(
-      ([certificate, secretName]) => {
-        execFileSync(
-          '/bin/sh',
-          ['-lc', `sst secret set ${secretName} --stage ${$app.stage} <<'EOF'\n${certificate}EOF`],
-          { stdio: 'inherit' }
-        );
-      }
-    );
-  }
-
-  for (let i = 0; i < LOAD_BALANCER_COUNT; i++) {
-    const publicLoadBalancer = new hcloud.LoadBalancer(`HetznerK3sPublicLoadBalancer${i}`, {
-      name: `k3s-public-${STAGE_NAME}-load-balancer-${i}`,
-      loadBalancerType: LOAD_BALANCER_TYPE,
-      location: LOCATION,
-      algorithm: { type: LOAD_BALANCER_ALGORITHM }
-    });
-    const publicLoadBalancerNetwork = new hcloud.LoadBalancerNetwork(
-      `HetznerK3sPublicLoadBalancer${i}Network`,
-      {
-        loadBalancerId: publicLoadBalancer.id.apply((id) => parseInt(id)),
-        networkId: privateNetwork.id.apply((id) => parseInt(id))
-      }
-    );
-    // Only enable https on the load balancer because we're using Cloudflare Strict
-    new hcloud.LoadBalancerService(`HetznerK3sLoadBalancer${i}Port443`, {
-      loadBalancerId: publicLoadBalancer.id.apply((id) => id),
-      protocol: 'tcp',
-      listenPort: 443,
-      destinationPort: INGRESS_HTTPS_NODE_PORT,
-      // NOTE: needed to validate all requests are coming from Cloudflare (false will only show load balancer's private network ip)
-      proxyprotocol: true,
-      healthCheck: {
-        protocol: 'tcp',
-        port: INGRESS_HTTPS_NODE_PORT,
-        interval: 10,
-        timeout: 3,
-        retries: 3
-      }
-    });
-    publicLoadBalancers.push({
-      loadbalancer: publicLoadBalancer,
-      network: publicLoadBalancerNetwork
-    });
-  }
-}
+);
 
 let bootstrapServer: { ip: $util.Output<string> | undefined; server: hcloud.Server | undefined } = {
   ip: undefined,
