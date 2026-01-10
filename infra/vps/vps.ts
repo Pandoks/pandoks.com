@@ -16,13 +16,14 @@ const CONTROL_PLANE_HOST_START_OCTET = 10; // starts at 10.0.1.<CONTROL_PLANE_HO
 const WORKER_NODE_COUNT = isProduction ? 0 : 0;
 const WORKER_HOST_START_OCTET = 20; // starts at 10.0.1.<WORKER_HOST_START_OCTET> 20 allows for 10 control plane nodes
 // NOTE: servers can only be upgraded, not downgraded because disk size needs to be >= than the previous type
-const SERVER_TYPE = isProduction ? 'ccx13' : 'cpx11';
+const SERVER_TYPE = isProduction ? 'ccx13' : 'cx23';
 const LOAD_BALANCER_COUNT = isProduction ? 1 : 0;
 const LOAD_BALANCER_TYPE = isProduction ? 'lb11' : 'lb11';
 const LOAD_BALANCER_ALGORITHM = 'least_connections'; // round_robin, least_connections
 const SERVER_IMAGE = 'ubuntu-24.04';
 const INGRESS_HTTPS_NODE_PORT = 30443;
-const LOCATION = 'hil';
+const LOCATION = isProduction ? 'hil' : 'fsn1';
+const NETWORK_ZONE = isProduction ? 'us-west' : 'eu-central';
 const NODE_NAMING = {
   worker: { resourceName: 'Worker', name: 'worker' },
   controlplane: { resourceName: 'ControlPlane', name: 'control-plane' }
@@ -49,7 +50,7 @@ const subnet = new hcloud.NetworkSubnet('HetznerK3sSubnet', {
   networkId: privateNetwork.id.apply((id) => parseInt(id)),
   type: 'cloud',
   ipRange: '10.0.1.0/24',
-  networkZone: 'us-west'
+  networkZone: NETWORK_ZONE
 });
 const firewall = new hcloud.Firewall('HetznerInboundFirewall', {
   name: 'inbound',
