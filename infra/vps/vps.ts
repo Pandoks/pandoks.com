@@ -5,7 +5,7 @@ import { EXAMPLE_DOMAIN, STAGE_NAME } from '../dns';
 import { secrets } from '../secrets';
 import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { tailscaleAcl } from '../tailscale';
+import { createServers } from './utils';
 
 const isProduction = $app.stage === 'production';
 const stageName = isProduction ? 'prod' : 'dev';
@@ -24,10 +24,6 @@ const SERVER_IMAGE = 'ubuntu-24.04';
 const INGRESS_HTTPS_NODE_PORT = 30443;
 const LOCATION = isProduction ? 'hil' : 'fsn1';
 const NETWORK_ZONE = isProduction ? 'us-west' : 'eu-central';
-const NODE_NAMING = {
-  worker: { resourceName: 'Worker', name: 'worker' },
-  controlplane: { resourceName: 'ControlPlane', name: 'control-plane' }
-};
 const BASE_TAILSCALE_TAGS = ['tag:hetzner', `tag:${stageName}`];
 
 /**
@@ -65,7 +61,10 @@ const firewall = new hcloud.Firewall('HetznerInboundFirewall', {
   ]
 });
 
-let publicLoadBalancers: [hcloud.LoadBalancer, hcloud.LoadBalancerNetwork][] = [];
+let publicLoadBalancers: {
+  loadbalancer: hcloud.LoadBalancer;
+  network: hcloud.LoadBalancerNetwork;
+}[] = [];
 if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT) {
   const openSslConfigPath = resolve('infra/vps/vps.openssl.conf');
   const certificateSigningRequestPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.csr`);
@@ -153,203 +152,56 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT) {
         retries: 3
       }
     });
-    publicLoadBalancers.push([publicLoadBalancer, publicLoadBalancerNetwork]);
+    publicLoadBalancers.push({
+      loadbalancer: publicLoadBalancer,
+      network: publicLoadBalancerNetwork
+    });
   }
 }
 
-const cloudInitConfig = readFileSync(`${process.cwd()}/infra/vps/cloud-config.yaml`, 'utf8');
-function renderUserData(envs: Record<string, string>) {
-  return cloudInitConfig.replace(/\$\{([A-Z0-9_]+)\}/g, (_, capture) =>
-    capture in envs ? envs[capture] : ''
-  );
-}
+let bootstrapServer: { ip: $util.Output<string> | undefined; server: hcloud.Server | undefined } = {
+  ip: undefined,
+  server: undefined
+};
 
-let controlPlanePlacementGroup: hcloud.PlacementGroup;
-if (CONTROL_PLANE_NODE_COUNT) {
-  controlPlanePlacementGroup = new hcloud.PlacementGroup('HetznerControlPlanePlacementGroup', {
-    name: 'control-plane',
-    type: 'spread'
-  });
-}
-
-let bootstrapServer: hcloud.Server | undefined;
-let bootstrapServerIp: $util.Output<string>;
-let controlPlaneServers: hcloud.Server[] = [];
-let controlPlaneTailscaleHostnames: string[] = [];
-for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
-  const role = i === 0 ? 'bootstrap' : 'server';
-  const ip = subnet.ipRange.apply(
-    (ipRange) => `${ipRange.split('.').slice(0, 3).join('.')}.${CONTROL_PLANE_HOST_START_OCTET + i}`
-  );
-  if (role === 'bootstrap') {
-    bootstrapServerIp = ip;
-  }
-
-  const nodeType = NODE_NAMING.controlplane;
-  const registrationTailnetAuthKey = new tailscale.TailnetKey(
-    `Hetzner${nodeType.resourceName}Server${i}TailnetRegistrationAuthKey`,
+const { tailscaleHostnames: controlPlaneTailscaleHostnames, servers: controlPlaneServers } =
+  createServers(
     {
-      description: `hcloud ${nodeType.name} ${i} node reg`,
-      reusable: false,
-      expiry: 1800, // 30 minutes
-      preauthorized: true,
-      tags: ['tag:control-plane', ...BASE_TAILSCALE_TAGS]
+      type: 'control-plane',
+      serverCount: CONTROL_PLANE_NODE_COUNT,
+      network: { network: privateNetwork, subnet },
+      startingOctet: CONTROL_PLANE_HOST_START_OCTET,
+      loadBalancers: publicLoadBalancers
     },
     {
-      dependsOn: [tailscaleAcl]
-    }
-  );
-
-  const tailscaleHostname = `${stageName}-hetzner-${nodeType.name}-server-${i}`;
-  controlPlaneTailscaleHostnames.push(tailscaleHostname);
-
-  const envs = $resolve([
-    subnet.ipRange,
-    secrets.hetzner.K3sToken.value,
-    ip,
-    bootstrapServerIp!,
-    registrationTailnetAuthKey.key
-  ]).apply(([PRIVATE_IP_RANGE, K3S_TOKEN, NODE_IP, SERVER_IP, REGISTRATION_TAILNET_AUTH_KEY]) => {
-    return {
-      PRIVATE_IP_RANGE,
-      K3S_TOKEN,
-      SERVER_API: `https://${SERVER_IP}:6443`,
-      NODE_IP,
-      ROLE: role,
-      TAILSCALE_HOSTNAME: tailscaleHostname,
-      REGISTRATION_TAILNET_AUTH_KEY
-    };
-  });
-  const userData = envs.apply((envs) => renderUserData(envs));
-  // NOTE: needed to create servers sequentially
-  const dependencies = [bootstrapServer, controlPlaneServers.at(-1)].filter(
-    (resource) => resource !== undefined
-  );
-  const server = new hcloud.Server(
-    `Hetzner${nodeType.resourceName}Server${i}`,
-    {
-      name: `${$app.stage == 'production' ? 'prod' : 'dev'}-${nodeType.name}-server-${i}`,
-      serverType: SERVER_TYPE,
+      type: SERVER_TYPE,
       image: SERVER_IMAGE,
       location: LOCATION,
-      placementGroupId: controlPlanePlacementGroup!.id.apply((id) => parseInt(id)),
-      deleteProtection: isProduction,
-      rebuildProtection: isProduction,
-      firewallIds: [firewall.id.apply((id) => parseInt(id))],
-      networks: [{ networkId: privateNetwork.id.apply((id) => parseInt(id)), ip }],
-      publicNets: [{ ipv4Enabled: true, ipv6Enabled: true }],
-      shutdownBeforeDeletion: true,
-      userData
+      firewalls: [firewall]
     },
-    { dependsOn: dependencies, ignoreChanges: ['userData'], protect: isProduction }
+    bootstrapServer
   );
-  bootstrapServer = bootstrapServer ?? server;
-  controlPlaneServers.push(server);
-}
-controlPlaneServers.forEach((server, index) => {
-  for (const [i, [loadBalancer, loadBalancerNetwork]] of publicLoadBalancers.entries()) {
-    new hcloud.LoadBalancerTarget(
-      `HetznerK3s${NODE_NAMING.controlplane.resourceName}LoadBalancer${i}Target${index}`,
-      {
-        loadBalancerId: loadBalancer.id.apply((id) => parseInt(id)),
-        type: 'server',
-        serverId: server.id.apply((id) => parseInt(id)),
-        usePrivateIp: true
-      },
-      { dependsOn: [loadBalancerNetwork] }
-    );
-  }
-});
+const { tailscaleHostnames: workerTailscaleHostnames, servers: workerServers } = createServers(
+  {
+    type: 'worker',
+    serverCount: WORKER_NODE_COUNT,
+    network: { network: privateNetwork, subnet },
+    startingOctet: WORKER_HOST_START_OCTET,
+    loadBalancers: publicLoadBalancers
+  },
+  {
+    type: SERVER_TYPE,
+    image: SERVER_IMAGE,
+    location: LOCATION,
+    firewalls: [firewall]
+  },
+  bootstrapServer
+);
 
-let workerPlacementGroups: hcloud.PlacementGroup[] = [];
-for (let i = 0; i < Math.floor(WORKER_NODE_COUNT / 10); i++) {
-  workerPlacementGroups.push(
-    new hcloud.PlacementGroup(`HetznerWorkerPlacementGroup${i}`, {
-      name: `workers-${i}`,
-      type: 'spread'
-    })
-  );
-}
-
-let workerServers: hcloud.Server[] = [];
-let workerTailscaleHostnames: string[] = [];
-for (let i = 0; i < WORKER_NODE_COUNT; i++) {
-  const ip = subnet.ipRange.apply(
-    (ipRange) => `${ipRange.split('.').slice(0, 3).join('.')}.${WORKER_HOST_START_OCTET + i}`
-  );
-
-  const nodeType = NODE_NAMING.worker;
-  const registrationTailnetAuthKey = new tailscale.TailnetKey(
-    `Hetzner${nodeType.resourceName}Server${i}TailnetRegistrationAuthKey`,
-    {
-      description: `hcloud ${nodeType.name} ${i} node reg`,
-      reusable: false,
-      expiry: 1800, // 30 minutes
-      preauthorized: true,
-      tags: ['tag:worker', ...BASE_TAILSCALE_TAGS]
-    },
-    { dependsOn: [tailscaleAcl] }
-  );
-
-  const tailscaleHostname = `${stageName}-hetzner-${nodeType.name}-server-${i}`;
-  workerTailscaleHostnames.push(tailscaleHostname);
-
-  const envs = $resolve([
-    subnet.ipRange,
-    secrets.hetzner.K3sToken.value,
-    ip,
-    bootstrapServerIp!,
-    registrationTailnetAuthKey.key
-  ]).apply(([PRIVATE_IP_RANGE, K3S_TOKEN, NODE_IP, SERVER_IP, REGISTRATION_TAILNET_AUTH_KEY]) => {
-    return {
-      PRIVATE_IP_RANGE,
-      K3S_TOKEN,
-      SERVER_API: `https://${SERVER_IP}:6443`,
-      NODE_IP,
-      ROLE: 'worker',
-      TAILSCALE_HOSTNAME: tailscaleHostname,
-      REGISTRATION_TAILNET_AUTH_KEY
-    };
-  });
-  const userData = envs.apply((envs) => renderUserData(envs));
-  // NOTE: needed to create servers sequentially
-  const dependencies = [bootstrapServer, workerServers.at(-1)].filter(
-    (resource) => resource !== undefined
-  );
-  const server = new hcloud.Server(
-    `Hetzner${nodeType.resourceName}Server${i}`,
-    {
-      name: `${$app.stage == 'production' ? 'prod' : 'dev'}-${nodeType.name}-server-${i}`,
-      serverType: SERVER_TYPE,
-      image: SERVER_IMAGE,
-      location: LOCATION,
-      placementGroupId: workerPlacementGroups[Math.floor(i / 10)].id.apply((id) => parseInt(id)),
-      deleteProtection: isProduction,
-      rebuildProtection: isProduction,
-      firewallIds: [firewall.id.apply((id) => parseInt(id))],
-      networks: [{ networkId: privateNetwork.id.apply((id) => parseInt(id)), ip }],
-      publicNets: [{ ipv4Enabled: true, ipv6Enabled: true }],
-      shutdownBeforeDeletion: true,
-      userData
-    },
-    { dependsOn: dependencies, ignoreChanges: ['userData'], protect: isProduction }
-  );
-  workerServers.push(server);
-}
-workerServers.forEach((server, index) => {
-  for (const [i, [loadBalancer, loadBalancerNetwork]] of publicLoadBalancers.entries()) {
-    new hcloud.LoadBalancerTarget(
-      `HetznerK3s${NODE_NAMING.worker.resourceName}LoadBalancer${i}Target${index}`,
-      {
-        loadBalancerId: loadBalancer.id.apply((id) => parseInt(id)),
-        type: 'server',
-        serverId: server.id.apply((id) => parseInt(id)),
-        usePrivateIp: true
-      },
-      { dependsOn: [loadBalancerNetwork] }
-    );
-  }
-});
+const controlPlaneServerIds = controlPlaneServers.map((server) =>
+  server.id.apply((id) => parseInt(id))
+);
+const workerServerIds = workerServers.map((server) => server.id.apply((id) => parseInt(id)));
 
 const tailscaleApiUrl = 'https://api.tailscale.com/api/v2';
 const tailscaleDeviceJson = new command.local.Command('CleanupHetznerTailscale', {
