@@ -5,7 +5,7 @@ import { EXAMPLE_DOMAIN, STAGE_NAME } from '../dns';
 import { secrets } from '../secrets';
 import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { createServers } from './utils';
+import { createServers } from './servers';
 
 const isProduction = $app.stage === 'production';
 const stageName = isProduction ? 'prod' : 'dev';
