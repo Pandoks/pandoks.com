@@ -1,30 +1,46 @@
 #cloud-config
 # env variables:
-# SSH_HOSTNAME
-# ACCOUNT_ID
-# TUNNEL_SECRET
-# TUNNEL_ID
 # PRIVATE_IP_RANGE
-# SSH_CA_PUB
 # ROLE
 # K3S_TOKEN
 # SERVER_API
 # NODE_IP
+# TAILSCALE_HOSTNAME
+# REGISTRATION_TAILNET_AUTH_KEY
 package_update: true
 package_upgrade: true
 ssh_pwauth: false
 disable_root: true
 
 bootcmd:
-  - iptables -F
-  - iptables -P INPUT DROP
-  - iptables -P FORWARD DROP
-  - iptables -P OUTPUT ACCEPT
-  - iptables -A INPUT -i lo -j ACCEPT
-  - iptables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-  - iptables -A INPUT -s ${PRIVATE_IP_RANGE} -j ACCEPT
-  - iptables-save > /etc/iptables.rules
-  - mkdir -p /etc/cloudflared
+  - |
+    cat > /etc/nftables.conf << 'EOF'
+    table inet filter {
+      chain input {
+        type filter hook input priority 0;
+        policy drop;
+
+        iif "lo" accept;
+        ct state established,related accept;
+        ip saddr ${PRIVATE_IP_RANGE} accept;
+        udp dport 41641 accept;
+        iif "tailscale0" accept;
+      }
+
+      chain forward {
+        type filter hook forward priority 0;
+        policy drop;
+      }
+
+      chain output {
+        type filter hook output priority 0;
+        policy accept;
+      }
+    }
+    EOF
+  - nft -f /etc/nftables.conf
+  - systemctl enable nftables
+  - systemctl start nftables
 
 users:
   - name: pandoks
@@ -37,57 +53,26 @@ packages:
   - curl
 
 write_files:
-  - path: /etc/network/if-pre-up.d/iptables
-    owner: root:root
-    permissions: '0755'
-    content: |
-      #!/bin/sh
-      iptables-restore < /etc/iptables.rules
-  - path: /etc/cloudflared/credentials.json
-    owner: root:root
-    permissions: '0600'
-    content: |
-      { "AccountTag": "${ACCOUNT_ID}", "TunnelSecret": "${TUNNEL_SECRET}", "TunnelID": "${TUNNEL_ID}" }
-  - path: /etc/cloudflared/config.yml
-    owner: root:root
-    permissions: '0644'
-    content: |
-      tunnel: ${TUNNEL_ID}
-      credentials-file: /etc/cloudflared/credentials.json
-      ingress:
-        - hostname: ${SSH_HOSTNAME}
-          service: ssh://localhost:22
-        - service: http_status:404
-  - path: /etc/ssh/ca.pub
-    owner: root:root
-    permissions: '0600'
-    content: |
-      ${SSH_CA_PUB}
   - path: /etc/ssh/sshd_config
     owner: root:root
     permissions: '0644'
     content: |
       PubkeyAuthentication yes
-      TrustedUserCAKeys /etc/ssh/ca.pub
       PasswordAuthentication no
       KbdInteractiveAuthentication no
       ChallengeResponseAuthentication no
-      Subsystem sftp internal-sftp
       PermitRootLogin no
-      UsePAM yes
       AllowUsers pandoks
-      Match User pandoks
-        AuthorizedPrincipalsCommand /bin/echo 'cloudflare.sank246'
-        AuthorizedPrincipalsCommandUser nobody
+      Subsystem sftp internal-sftp
+      UsePAM yes
 
 runcmd:
-  - mkdir -p --mode=0755 /usr/share/keyrings
-  - curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
-  - echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared noble main' | tee /etc/apt/sources.list.d/cloudflared.list
-  - apt-get update && apt-get install -y cloudflared
-  - systemctl restart ssh || true
-  - cloudflared --config /etc/cloudflared/config.yml service install || true
-  - systemctl enable cloudflared && systemctl restart cloudflared
+  - curl -fsSL https://tailscale.com/install.sh | sh
+  - |
+    tailscale up --ssh \
+      --authkey ${REGISTRATION_TAILNET_AUTH_KEY} \
+      --hostname ${TAILSCALE_HOSTNAME} \
+      --accept-dns=false
   - |
     if [ "${ROLE}" = "bootstrap" ]; then
       curl -sfL https://get.k3s.io | \
