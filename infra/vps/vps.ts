@@ -163,6 +163,14 @@ function renderUserData(envs: Record<string, string>) {
   );
 }
 
+let controlPlanePlacementGroup: hcloud.PlacementGroup;
+if (CONTROL_PLANE_NODE_COUNT) {
+  controlPlanePlacementGroup = new hcloud.PlacementGroup('HetznerControlPlanePlacementGroup', {
+    name: 'control-plane',
+    type: 'spread'
+  });
+}
+
 let bootstrapServer: hcloud.Server | undefined;
 let bootstrapServerIp: $util.Output<string>;
 let controlPlaneServers: hcloud.Server[] = [];
@@ -223,6 +231,7 @@ for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
       serverType: SERVER_TYPE,
       image: SERVER_IMAGE,
       location: LOCATION,
+      placementGroupId: controlPlanePlacementGroup!.id.apply((id) => parseInt(id)),
       deleteProtection: isProduction,
       rebuildProtection: isProduction,
       firewallIds: [firewall.id.apply((id) => parseInt(id))],
@@ -250,6 +259,16 @@ controlPlaneServers.forEach((server, index) => {
     );
   }
 });
+
+let workerPlacementGroups: hcloud.PlacementGroup[] = [];
+for (let i = 0; i < Math.floor(WORKER_NODE_COUNT / 10); i++) {
+  workerPlacementGroups.push(
+    new hcloud.PlacementGroup(`HetznerWorkerPlacementGroup${i}`, {
+      name: `workers-${i}`,
+      type: 'spread'
+    })
+  );
+}
 
 let workerServers: hcloud.Server[] = [];
 let workerTailscaleHostnames: string[] = [];
@@ -303,6 +322,7 @@ for (let i = 0; i < WORKER_NODE_COUNT; i++) {
       serverType: SERVER_TYPE,
       image: SERVER_IMAGE,
       location: LOCATION,
+      placementGroupId: workerPlacementGroups[Math.floor(i / 10)].id.apply((id) => parseInt(id)),
       deleteProtection: isProduction,
       rebuildProtection: isProduction,
       firewallIds: [firewall.id.apply((id) => parseInt(id))],
