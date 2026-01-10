@@ -240,7 +240,7 @@ for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
       shutdownBeforeDeletion: true,
       userData
     },
-    { dependsOn: dependencies, protect: isProduction }
+    { dependsOn: dependencies, ignoreChanges: ['userData'], protect: isProduction }
   );
   bootstrapServer = bootstrapServer ?? server;
   controlPlaneServers.push(server);
@@ -331,7 +331,7 @@ for (let i = 0; i < WORKER_NODE_COUNT; i++) {
       shutdownBeforeDeletion: true,
       userData
     },
-    { dependsOn: dependencies, protect: isProduction }
+    { dependsOn: dependencies, ignoreChanges: ['userData'], protect: isProduction }
   );
   workerServers.push(server);
 }
