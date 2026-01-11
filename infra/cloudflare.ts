@@ -17,7 +17,7 @@ if (publicLoadBalancers.length && $app.stage !== 'production') {
       proxied: true,
       ttl: 1,
       comment: 'hetzner k3s',
-      content: loadBalancer.ipv4
+      content: loadBalancer.loadbalancer.ipv4
     });
     new cloudflare.DnsRecord(`ExampleDomainLoadBalancer${i}Ipv6`, {
       name: EXAMPLE_DOMAIN,
@@ -26,7 +26,7 @@ if (publicLoadBalancers.length && $app.stage !== 'production') {
       proxied: true,
       ttl: 1,
       comment: 'hetzner k3s',
-      content: loadBalancer.ipv6
+      content: loadBalancer.loadbalancer.ipv6
     });
   }
 }
