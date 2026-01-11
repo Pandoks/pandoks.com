@@ -136,6 +136,8 @@ export function createServers(
         dependsOn: dependencies,
         ignoreChanges: isProduction ? ['userData'] : [],
         protect: isProduction
+        // TODO: once sst upgrades to use the newer version of pulumi, use resource hooks to delete
+        // the server from the tailnet https://www.pulumi.com/docs/iac/concepts/resources/options/hooks/
       }
     );
     bootstrap.server = bootstrap.server ?? server;
