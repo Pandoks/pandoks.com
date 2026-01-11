@@ -105,3 +105,14 @@ const { tailscaleHostnames: workerTailscaleHostnames, servers: workerServers } =
   },
   bootstrapServer
 );
+
+const publicLoadBalancerOutputs = Object.fromEntries(
+  publicLoadBalancers.map((loadbalancer) => [
+    loadbalancer.loadbalancer.name,
+    loadbalancer.loadbalancer.ipv4
+  ])
+);
+
+export const outputs = { ...publicLoadBalancerOutputs };
+
+export { publicLoadBalancers };
