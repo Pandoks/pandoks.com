@@ -1,7 +1,6 @@
 // WARNING: resources that hold data like servers, volumes, etc. should be protected by the
 // `protect` option in production. This is to prevent accidental deletion of resources.
 import { isProduction, STAGE_NAME } from '../dns';
-import { secrets } from '../secrets';
 import { createServers } from './servers';
 import { createLoadBalancers } from './load-balancers';
 
@@ -106,62 +105,3 @@ const { tailscaleHostnames: workerTailscaleHostnames, servers: workerServers } =
   },
   bootstrapServer
 );
-
-const controlPlaneServerIds = controlPlaneServers.map((server) =>
-  server.id.apply((id) => parseInt(id))
-);
-const workerServerIds = workerServers.map((server) => server.id.apply((id) => parseInt(id)));
-
-const tailscaleApiUrl = 'https://api.tailscale.com/api/v2';
-const tailscaleDeviceJson = new command.local.Command('CleanupHetznerTailscale', {
-  create: `curl -sS -u "$TAILSCALE_API_KEY:" '${tailscaleApiUrl}/tailnet/pandoks.github/devices?${BASE_TAILSCALE_TAGS.map((tag) => `tags=${tag}`).join('&')}'`,
-  environment: { TAILSCALE_API_KEY: secrets.tailscale.ApiKey.value },
-  interpreter: ['/bin/sh', '-c'],
-  logging: command.local.Logging.None,
-  triggers: [
-    ...controlPlaneServers.map((server) => server.id),
-    ...workerServers.map((server) => server.id)
-  ]
-});
-$resolve([secrets.tailscale.ApiKey.value, tailscaleDeviceJson.stdout]).apply(
-  async ([apiKey, tailscaleDeviceListStdOut]) => {
-    const tailscaleDeviceList: {
-      devices: {
-        id: string;
-        name: string;
-        hostname: string;
-        tags: string[];
-        [key: string]: string[] | string | boolean;
-      }[];
-    } = JSON.parse(tailscaleDeviceListStdOut);
-    const devices = tailscaleDeviceList.devices;
-    for (const device of devices) {
-      const tags = device.tags;
-      const validHostnames = tags.includes('tag:control-plane')
-        ? controlPlaneTailscaleHostnames
-        : workerTailscaleHostnames;
-
-      const hostname = device.hostname;
-      if (validHostnames.includes(hostname)) continue;
-
-      const deviceId = device.id;
-      await fetch(`${tailscaleApiUrl}/device/${deviceId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Basic ${Buffer.from(`${apiKey}:`).toString('base64')}` }
-      });
-    }
-  }
-);
-
-const publicLoadBalancerOutputs = Object.fromEntries(
-  publicLoadBalancers.map(([loadBalancer, _], index) => [
-    `K3sLoadBalancer${index}Ipv4`,
-    loadBalancer.ipv4 ?? 'None'
-  ])
-);
-
-export const outputs = {
-  ...publicLoadBalancerOutputs
-};
-
-export { publicLoadBalancers };
