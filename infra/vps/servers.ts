@@ -72,7 +72,7 @@ export function createServers(
       { dependsOn: [tailscaleAcl] }
     );
 
-    const tailscaleHostname = `${STAGE_NAME}-hetzner-${nodeResourceName}-server-${i}`;
+    const tailscaleHostname = `${STAGE_NAME}-hetzner-${serverArgs.type}-server-${i}`;
     tailscaleHostnames.push(tailscaleHostname);
 
     const userData = $resolve([
