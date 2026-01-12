@@ -12,6 +12,7 @@ export function createServers(
     network: { network: hcloud.Network; subnet: hcloud.NetworkSubnet };
     startingOctet: number;
     loadBalancers: { loadbalancer: hcloud.LoadBalancer; network: hcloud.LoadBalancerNetwork }[];
+    k3sVersion: string;
   },
   hcloudServerArgs: {
     type: string;
@@ -96,6 +97,7 @@ export function createServers(
         const envs = {
           PRIVATE_IP_RANGE,
           K3S_TOKEN,
+          K3S_VERSION: serverArgs.k3sVersion,
           SERVER_API: `https://${bootstrapIp}:6443`,
           NODE_IP,
           ROLE: serverRole,

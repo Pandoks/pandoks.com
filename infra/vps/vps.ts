@@ -17,6 +17,7 @@ const LOAD_BALANCER_ALGORITHM = 'least_connections'; // round_robin, least_conne
 const SERVER_IMAGE = 'ubuntu-24.04';
 const LOCATION = isProduction ? 'hil' : 'fsn1';
 const NETWORK_ZONE = isProduction ? 'us-west' : 'eu-central';
+const K3S_VERSION = isProduction ? 'v1.34.3+k3s1' : 'v1.34.3+k3s1';
 
 /**
  * NOTE: Hetzner doesn't allow you to connect servers from different regions in the same network.
@@ -79,7 +80,8 @@ const { tailscaleHostnames: controlPlaneTailscaleHostnames, servers: controlPlan
       serverCount: CONTROL_PLANE_NODE_COUNT,
       network: { network: privateNetwork, subnet },
       startingOctet: CONTROL_PLANE_HOST_START_OCTET,
-      loadBalancers: publicLoadBalancers
+      loadBalancers: publicLoadBalancers,
+      k3sVersion: K3S_VERSION
     },
     {
       type: SERVER_TYPE,
@@ -95,7 +97,8 @@ const { tailscaleHostnames: workerTailscaleHostnames, servers: workerServers } =
     serverCount: WORKER_NODE_COUNT,
     network: { network: privateNetwork, subnet },
     startingOctet: WORKER_HOST_START_OCTET,
-    loadBalancers: publicLoadBalancers
+    loadBalancers: publicLoadBalancers,
+    k3sVersion: K3S_VERSION
   },
   {
     type: SERVER_TYPE,

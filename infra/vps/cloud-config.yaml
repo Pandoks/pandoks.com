@@ -7,6 +7,7 @@
 # NODE_IP
 # TAILSCALE_HOSTNAME
 # REGISTRATION_TAILNET_AUTH_KEY
+# K3S_VERSION
 package_update: true
 package_upgrade: true
 ssh_pwauth: false
@@ -76,6 +77,7 @@ runcmd:
   - |
     if [ "${ROLE}" = "bootstrap" ]; then
       curl -sfL https://get.k3s.io | \
+        INSTALL_K3S_VERSION=${K3S_VERSION} \
         K3S_TOKEN=${K3S_TOKEN} sh -s - server \
           --cluster-init \
           --disable=traefik \
@@ -86,6 +88,7 @@ runcmd:
           --flannel-iface=enp7s0
     elif [ "${ROLE}" = "server" ]; then
       curl -sfL https://get.k3s.io | \
+        INSTALL_K3S_VERSION=${K3S_VERSION} \
         K3S_TOKEN=${K3S_TOKEN} sh -s - server \
           --server=${SERVER_API} \
           --disable=traefik \
@@ -96,6 +99,7 @@ runcmd:
           --flannel-iface=enp7s0
     else
       curl -sfL https://get.k3s.io | \
+        INSTALL_K3S_VERSION=${K3S_VERSION} \
         K3S_TOKEN=${K3S_TOKEN} sh -s - agent \
           --server=${SERVER_API} \
           --node-ip=${NODE_IP} \
