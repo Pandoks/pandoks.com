@@ -3,6 +3,10 @@ import { execSync } from 'node:child_process';
 import { secrets } from './secrets';
 import { STAGE_NAME } from './dns';
 
+new tailscale.TailnetSettings('TailscaleSettings', {
+  httpsEnabled: true
+});
+
 export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
   resetAclOnDestroy: true,
   // NOTE: turn this on to bootstrap the ACL state into pulumi then turn it off to prevent the ACL from being overwritten
