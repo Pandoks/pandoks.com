@@ -1,6 +1,7 @@
 import stringify from 'json-stringify-pretty-compact';
 import { execSync } from 'node:child_process';
 import { secrets } from './secrets';
+import { STAGE_NAME } from './dns';
 
 export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
   resetAclOnDestroy: true,
@@ -34,7 +35,7 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
 const kubernetesOperatorOauthClient = new tailscale.OauthClient(
   'TailscaleKubernetesOperatorOauthClient',
   {
-    description: `${$app.stage === 'production' ? 'prod' : 'dev'} k8s operator`,
+    description: `${STAGE_NAME} k8s operator`,
     scopes: ['devices:core', 'auth_keys', 'services'],
     tags: ['tag:k8s-operator']
   },
