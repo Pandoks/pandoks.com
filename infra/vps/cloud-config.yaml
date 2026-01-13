@@ -8,6 +8,8 @@
 # TAILSCALE_HOSTNAME
 # REGISTRATION_TAILNET_AUTH_KEY
 # K3S_VERSION
+# KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID (for bootstrap)
+# KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET (for bootstrap)
 package_update: true
 package_upgrade: true
 ssh_pwauth: false
@@ -86,6 +88,26 @@ runcmd:
           --advertise-address=${NODE_IP} \
           --tls-san=${NODE_IP} \
           --flannel-iface=enp7s0
+
+      export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+      echo "Waiting for k3s to be ready..."
+      for i in $(seq 1 60); do
+        if kubectl --request-timeout=5s get --raw=/readyz >/dev/null 2>&1; then
+          echo "k3s is ready"
+          break
+        fi
+        echo "k3s is not ready..."
+      done
+
+      kubectl create secret generic tailscale-oauth \
+        --namespace kube-system \
+        --from-literal=tailscale-oauth-yaml="$(cat << EOF
+    oauth:
+      clientId: ${KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID}
+      clientSecret: ${KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET}
+    EOF
+    )" \
+        --dry-run=client -o yaml | kubectl apply -f -
     elif [ "${ROLE}" = "server" ]; then
       curl -sfL https://get.k3s.io | \
         INSTALL_K3S_VERSION=${K3S_VERSION} \
