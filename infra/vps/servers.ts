@@ -83,6 +83,7 @@ export function createServers(
     tailscaleHostnames.push(tailscaleHostname);
 
     const userData = $resolve([
+      secrets.Stage.value,
       serverArgs.network.subnet.ipRange,
       secrets.hetzner.K3sToken.value,
       ip,
@@ -92,6 +93,7 @@ export function createServers(
       secrets.k8s.tailscale.OauthClientSecret.value
     ]).apply(
       ([
+        STAGE_NAME,
         PRIVATE_IP_RANGE,
         K3S_TOKEN,
         NODE_IP,
@@ -101,6 +103,7 @@ export function createServers(
         KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET
       ]) => {
         const envs = {
+          STAGE_NAME,
           PRIVATE_IP_RANGE,
           K3S_TOKEN,
           K3S_VERSION: serverArgs.k3sVersion,

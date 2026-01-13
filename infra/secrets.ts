@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process';
 
 export const secrets = {
-  Stage: new sst.Secret('StageName'),
+  Stage: new sst.Secret('StageName', 'dev'),
   notion: {
     ApiKey: new sst.Secret('NotionApiKey'),
     AuthToken: new sst.Secret('NotionAuthToken')

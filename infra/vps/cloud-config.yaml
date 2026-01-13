@@ -1,6 +1,7 @@
 #cloud-config
 # env variables:
 # PRIVATE_IP_RANGE
+# STAGE_NAME
 # ROLE
 # K3S_TOKEN
 # SERVER_API
@@ -10,6 +11,7 @@
 # K3S_VERSION
 # KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID (for bootstrap)
 # KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET (for bootstrap)
+# KUBERNETES_TAILSCALE_HOSTNAME (for bootstrap)
 package_update: true
 package_upgrade: true
 ssh_pwauth: false
@@ -99,17 +101,50 @@ runcmd:
         echo "k3s is not ready..."
       done
 
-      kubectl create secret generic tailscale-oauth \
+      kubectl create secret generic tailscale \
         --namespace kube-system \
-        --from-literal=tailscale-oauth-yaml="$(cat << EOF
+        --from-literal=tailscale-oauth="$(cat << EOF
     oauth:
       clientId: ${KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID}
       clientSecret: ${KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET}
     EOF
     )" \
-        --dry-run=client -o yaml | kubectl apply -f -
+        --from-literal=operator-config="$(cat << EOF
+    operatorConfig:
+      hostname: ${KUBERNETES_TAILSCALE_HOSTNAME}
+      defaultTags:
+        - tag:k8s-operator
+        - tag:${STAGE_NAME}
+    EOF
+    )" \
+        --dry-run=client -o yaml | kubectl apply --server-side -f -
 
-      kubectl create namespace tailscale --dry-run=client -o yaml | kubectl apply -f -
+      kubectl create namespace tailscale --dry-run=client -o yaml | kubectl apply --server-side -f -
+
+      kubectl apply --server-side -f - << EOF
+    apiVersion: helm.cattle.io/v1
+    kind: HelmChart
+    metadata:
+      name: tailscale-operator
+      namespace: kube-system
+    spec:
+      repo: https://pkgs.tailscale.com/helmcharts
+      chart: tailscale-operator
+      version: 1.92.5
+      targetNamespace: tailscale
+      valuesContent: |-
+        apiServerProxyConfig:
+          mode: "true"
+      valuesSecrets:
+        - name: tailscale
+          keys:
+            - tailscale-oauth
+            - operator-config
+    EOF
+      kubectl create clusterrolebinding pandoks \
+        --user='Pandoks@github' \
+        --clusterrole=cluster-admin \
+        --dry-run=client -o yaml | kubectl apply --server-side -f -
     elif [ "${ROLE}" = "server" ]; then
       curl -sfL https://get.k3s.io | \
         INSTALL_K3S_VERSION=${K3S_VERSION} \
