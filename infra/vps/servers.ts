@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { tailscaleAcl } from '../tailscale';
 import { isProduction, STAGE_NAME } from '../dns';
-import { secrets } from '../secrets';
+import { secrets, setSecret } from '../secrets';
 
 const cloudInitConfig = readFileSync(`${process.cwd()}/infra/vps/cloud-config.yaml`, 'utf8');
 
@@ -20,7 +20,7 @@ export function createServers(
     location: string;
     firewalls: hcloud.Firewall[];
   },
-  bootstrap: { ip: $util.Output<string> | undefined; server: hcloud.Server | undefined }
+  bootstrap: { ip: $util.Input<string> | undefined; server: hcloud.Server | undefined }
 ): { tailscaleHostnames: string[]; servers: hcloud.Server[] } {
   if (serverArgs.serverCount < 1) {
     return { tailscaleHostnames: [], servers: [] };
@@ -57,8 +57,10 @@ export function createServers(
     const ip = serverArgs.network.subnet.ipRange.apply(
       (ipRange) => `${ipRange.split('.').slice(0, 3).join('.')}.${serverArgs.startingOctet + i}`
     );
+    const clusterTailscaleHostname = `${STAGE_NAME}-cluster`;
     if (serverRole === 'bootstrap') {
       bootstrap.ip = ip;
+      setSecret(secrets.k8s.tailscale.Hostname.value, clusterTailscaleHostname);
     }
 
     const registrationTailnetAuthKey = new tailscale.TailnetKey(
@@ -104,7 +106,8 @@ export function createServers(
           TAILSCALE_HOSTNAME: tailscaleHostname,
           REGISTRATION_TAILNET_AUTH_KEY,
           KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID,
-          KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET
+          KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET,
+          KUBERNETES_TAILSCALE_HOSTNAME: clusterTailscaleHostname
         };
         return cloudInitConfig.replace(/\$\{([A-Z0-9_]+)\}/g, (_, capture) =>
           capture in envs ? envs[capture] : ''

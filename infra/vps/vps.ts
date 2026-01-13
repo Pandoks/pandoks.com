@@ -70,7 +70,7 @@ const publicLoadBalancers = createLoadBalancers(
   }
 );
 
-let bootstrapServer: { ip: $util.Output<string> | undefined; server: hcloud.Server | undefined } = {
+let bootstrapServer: { ip: string | undefined; server: hcloud.Server | undefined } = {
   ip: undefined,
   server: undefined
 };
