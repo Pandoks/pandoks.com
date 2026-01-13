@@ -1,6 +1,5 @@
 import stringify from 'json-stringify-pretty-compact';
-import { execSync } from 'node:child_process';
-import { secrets } from './secrets';
+import { secrets, setSecret } from './secrets';
 import { STAGE_NAME } from './dns';
 
 new tailscale.TailnetSettings('TailscaleSettings', {
@@ -62,15 +61,10 @@ $resolve([
     oauthClientSecret
   ]) => {
     if (oauthClientIdSecretValue != oauthClientId) {
-      execSync(`sst secret set ${oauthClientIdSecretName} --stage ${$app.stage} ${oauthClientId}`, {
-        stdio: 'inherit'
-      });
+      setSecret(oauthClientIdSecretName, oauthClientId);
     }
     if (oauthClientSecretSecretValue != oauthClientSecret) {
-      execSync(
-        `sst secret set ${oauthClientSecretSecretName} --stage ${$app.stage} ${oauthClientSecret}`,
-        { stdio: 'inherit' }
-      );
+      setSecret(oauthClientSecretSecretName, oauthClientSecret);
     }
   }
 );

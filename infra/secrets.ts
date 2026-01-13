@@ -1,4 +1,7 @@
+import { execSync } from 'node:child_process';
+
 export const secrets = {
+  Stage: new sst.Secret('StageName'),
   notion: {
     ApiKey: new sst.Secret('NotionApiKey'),
     AuthToken: new sst.Secret('NotionAuthToken')
@@ -33,7 +36,8 @@ export const secrets = {
   k8s: {
     tailscale: {
       OauthClientId: new sst.Secret('KubernetesTailscaleOauthClientId'),
-      OauthClientSecret: new sst.Secret('KubernetesTailscaleOauthClientSecret')
+      OauthClientSecret: new sst.Secret('KubernetesTailscaleOauthClientSecret'),
+      Hostname: new sst.Secret('KubernetesTailscaleHostname')
     },
     HetznerOriginTlsKey: new sst.Secret('HetznerOriginTlsKey', 'No Origin Tls Key Set'),
     HetznerOriginTlsCrt: new sst.Secret('HetznerOriginTlsCrt', 'No Origin Tls Cert Set'),
@@ -63,3 +67,9 @@ export const secrets = {
     }
   }
 };
+
+export function setSecret(secretName: $util.Input<string>, secretValue: $util.Input<string>) {
+  execSync(`sst secret set ${secretName} --stage ${$app.stage} ${secretValue}`, {
+    stdio: 'inherit'
+  });
+}
