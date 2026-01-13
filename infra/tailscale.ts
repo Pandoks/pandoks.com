@@ -74,3 +74,30 @@ $resolve([
     }
   }
 );
+
+export async function deleteTailscaleDevices(deviceIds: string | string[]) {
+  const ids = Array.isArray(deviceIds) ? deviceIds : [deviceIds];
+
+  return secrets.tailscale.ApiKey.value.apply(async (apiKey) => {
+    return await Promise.all(
+      ids.map(async (deviceId) => {
+        try {
+          const response = await fetch(`https://api.tailscale.com/api/v2/device/${deviceId}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Basic ${Buffer.from(`${apiKey}:`).toString('base64')}` }
+          });
+          if (!response.ok) {
+            throw new Error(`${response.status} ${response.statusText}`);
+          }
+          return { deviceId, success: true };
+        } catch (error) {
+          return {
+            deviceId,
+            success: false,
+            error: error instanceof Error ? error.message : String(error)
+          };
+        }
+      })
+    );
+  });
+}
