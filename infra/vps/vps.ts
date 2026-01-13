@@ -132,9 +132,20 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
         const failedToDeleteDeviceIds = deletedDevices
           .filter((device) => !device.success)
           .map((device) => device.deviceId);
-        if (deletedDeviceIds.length) console.log(`Deleted Tailscale devices: ${deletedDeviceIds}`);
+        if (deletedDeviceIds.length)
+          console.log(
+            `Deleted Tailscale devices:\n${devicesToDelete
+              .filter((device) => deletedDeviceIds.includes(device.nodeId))
+              .map((device) => device.name)
+              .join('\n')}`
+          );
         if (failedToDeleteDeviceIds.length)
-          console.log(`Failed to delete Tailscale devices: ${failedToDeleteDeviceIds}`);
+          console.log(
+            `Failed to delete Tailscale devices:\n${devicesToDelete
+              .filter((device) => failedToDeleteDeviceIds.includes(device.nodeId))
+              .map((device) => device.name)
+              .join('\n')}`
+          );
       });
     }
   });
