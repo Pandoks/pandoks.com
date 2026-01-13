@@ -3,6 +3,8 @@
 import { isProduction, STAGE_NAME } from '../dns';
 import { createServers } from './servers';
 import { createLoadBalancers } from './load-balancers';
+import { secrets } from '../secrets';
+import { deleteTailscaleDevices } from '../tailscale';
 
 // NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
 const CONTROL_PLANE_NODE_COUNT = isProduction ? 1 : 1;
@@ -108,6 +110,18 @@ const { tailscaleHostnames: workerTailscaleHostnames, servers: workerServers } =
   },
   bootstrapServer
 );
+
+if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
+  secrets.k8s.tailscale.Hostname.value.apply(async (hostname) => {
+    const devices = await tailscale.getDevices({ namePrefix: hostname });
+    const device = devices.devices.find(
+      (device) => device.hostname === hostname && device.tags.includes('tags:k8s-operator')
+    );
+    if (device) {
+      await deleteTailscaleDevices(device.id);
+    }
+  });
+}
 
 const publicLoadBalancerOutputs = Object.fromEntries(
   publicLoadBalancers.map((loadbalancer) => [
