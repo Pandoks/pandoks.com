@@ -69,7 +69,9 @@ export const secrets = {
 };
 
 export function setSecret(secretName: $util.Input<string>, secretValue: $util.Input<string>) {
-  execSync(`sst secret set ${secretName} --stage ${$app.stage} ${secretValue}`, {
-    stdio: 'inherit'
+  $resolve([secretName, secretValue]).apply(([name, value]) => {
+    execSync(`sst secret set ${name} --stage ${$app.stage} ${value}`, {
+      stdio: 'inherit'
+    });
   });
 }
