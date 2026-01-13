@@ -114,6 +114,7 @@ runcmd:
       hostname: ${KUBERNETES_TAILSCALE_HOSTNAME}
       defaultTags:
         - tag:k8s-operator
+        - tag:k8s
         - tag:${STAGE_NAME}
     EOF
     )" \

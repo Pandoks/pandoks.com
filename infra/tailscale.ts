@@ -23,12 +23,12 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
       ],
       tagOwners: {
         'tag:hetzner': ['pandoks@github'],
-        'tag:k8s-operator': [],
+        'tag:k8s-operator': ['tag:k8s-operator'],
         'tag:k8s': ['tag:k8s-operator'],
         'tag:control-plane': ['pandoks@github'],
         'tag:worker': ['pandoks@github'],
-        'tag:dev': ['pandoks@github'],
-        'tag:prod': ['pandoks@github']
+        'tag:dev': ['pandoks@github', 'tag:k8s-operator'],
+        'tag:prod': ['pandoks@github', 'tag:k8s-operator']
       }
     },
     { maxLength: 80, indent: 2 }
@@ -36,11 +36,11 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
 });
 
 const kubernetesOperatorOauthClient = new tailscale.OauthClient(
-  'TailscaleKubernetesOperatorOauthClient',
+  `${STAGE_NAME}TailscaleKubernetesOperatorOauthClient`.replace(/^./, (char) => char.toUpperCase()),
   {
     description: `${STAGE_NAME} k8s operator`,
     scopes: ['devices:core', 'auth_keys', 'services'],
-    tags: ['tag:k8s-operator']
+    tags: ['tag:k8s-operator', `tag:${STAGE_NAME}`]
   },
   { dependsOn: [tailscaleAcl] }
 );
