@@ -114,11 +114,28 @@ const { tailscaleHostnames: workerTailscaleHostnames, servers: workerServers } =
 if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
   secrets.k8s.tailscale.Hostname.value.apply(async (hostname) => {
     const devices = await tailscale.getDevices({ namePrefix: hostname });
-    const device = devices.devices.find(
-      (device) => device.hostname === hostname && device.tags.includes('tags:k8s-operator')
+
+    const devicesToDelete = devices.devices.filter(
+      (device) =>
+        device.hostname === hostname &&
+        device.tags.includes('tag:k8s-operator') &&
+        device.tags.includes(`tag:${STAGE_NAME}`)
     );
-    if (device) {
-      await deleteTailscaleDevices(device.id);
+    if (devicesToDelete.length > 0) {
+      const deletedDevices = await deleteTailscaleDevices(
+        devicesToDelete.map((device) => device.nodeId)
+      );
+      deletedDevices.apply((deletedDevices) => {
+        const deletedDeviceIds = deletedDevices
+          .filter((device) => device.success)
+          .map((device) => device.deviceId);
+        const failedToDeleteDeviceIds = deletedDevices
+          .filter((device) => !device.success)
+          .map((device) => device.deviceId);
+        if (deletedDeviceIds.length) console.log(`Deleted Tailscale devices: ${deletedDeviceIds}`);
+        if (failedToDeleteDeviceIds.length)
+          console.log(`Failed to delete Tailscale devices: ${failedToDeleteDeviceIds}`);
+      });
     }
   });
 }
