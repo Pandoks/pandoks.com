@@ -60,7 +60,11 @@ export function createServers(
     const clusterTailscaleHostname = `${STAGE_NAME}-cluster`;
     if (serverRole === 'bootstrap') {
       bootstrap.ip = ip;
-      setSecret(secrets.k8s.tailscale.Hostname.value, clusterTailscaleHostname);
+      secrets.k8s.tailscale.Hostname.value.apply((hostname) => {
+        if (hostname !== clusterTailscaleHostname) {
+          setSecret(secrets.k8s.tailscale.Hostname.name, clusterTailscaleHostname);
+        }
+      });
     }
 
     const registrationTailnetAuthKey = new tailscale.TailnetKey(
