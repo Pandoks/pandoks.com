@@ -2,7 +2,7 @@ new sst.x.DevCommand('DevInit', {
   dev: {
     title: 'InitDev',
     command: 'pnpm run dev:init',
-    autostart: true
+    autostart: false
   }
 });
 
