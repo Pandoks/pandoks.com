@@ -8,4 +8,8 @@ export const EXAMPLE_DOMAIN = 'example.pandoks.com';
 
 export const STAGE_NAME = isProduction ? 'prod' : 'dev';
 
-setSecret(secrets.Stage.name, STAGE_NAME);
+secrets.Stage.value.apply((stageName) => {
+  if (stageName !== STAGE_NAME) {
+    setSecret(secrets.Stage.name, STAGE_NAME);
+  }
+});
