@@ -70,6 +70,24 @@ write_files:
       AllowUsers pandoks
       Subsystem sftp internal-sftp
       UsePAM yes
+  - path: /etc/nftables.conf
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/usr/sbin/nft -f
+
+      flush ruleset
+
+      table inet filter {
+
+        chain forward {
+          type filter hook forward priority filter; policy accept;
+        }
+
+        chain output {
+          type filter hook output priority filter; policy accept;
+        }
+      }
 
 runcmd:
   - systemctl enable nftables
