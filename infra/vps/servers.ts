@@ -90,7 +90,11 @@ export function createServers(
       bootstrap.ip,
       registrationTailnetAuthKey.key,
       secrets.k8s.tailscale.OauthClientId.value,
-      secrets.k8s.tailscale.OauthClientSecret.value
+      secrets.k8s.tailscale.OauthClientSecret.value,
+      secrets.k8s.etcd.S3Endpoint.value,
+      secrets.k8s.etcd.S3Bucket.value,
+      secrets.k8s.etcd.S3AccessKey.value,
+      secrets.k8s.etcd.S3SecretKey.value
     ]).apply(
       ([
         STAGE_NAME,
@@ -100,7 +104,11 @@ export function createServers(
         bootstrapIp,
         REGISTRATION_TAILNET_AUTH_KEY,
         KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID,
-        KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET
+        KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET,
+        KUBERNETES_ETCD_S3_ENDPOINT,
+        KUBERNETES_ETCD_S3_BUCKET,
+        KUBERNETES_ETCD_S3_ACCESS_KEY,
+        KUBERNETES_ETCD_S3_SECRET_KEY
       ]) => {
         const envs = {
           STAGE_NAME,
@@ -114,7 +122,11 @@ export function createServers(
           REGISTRATION_TAILNET_AUTH_KEY,
           KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID,
           KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET,
-          KUBERNETES_TAILSCALE_HOSTNAME: clusterTailscaleHostname
+          KUBERNETES_TAILSCALE_HOSTNAME: clusterTailscaleHostname,
+          KUBERNETES_ETCD_S3_ENDPOINT,
+          KUBERNETES_ETCD_S3_BUCKET,
+          KUBERNETES_ETCD_S3_ACCESS_KEY,
+          KUBERNETES_ETCD_S3_SECRET_KEY
         };
         return cloudInitConfig.replace(/\$\{([A-Z0-9_]+)\}/g, (_, capture) =>
           capture in envs ? envs[capture] : ''

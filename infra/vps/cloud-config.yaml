@@ -12,6 +12,10 @@
 # KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID (for bootstrap)
 # KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET (for bootstrap)
 # KUBERNETES_TAILSCALE_HOSTNAME (for bootstrap)
+# KUBERNETES_ETCD_S3_ENDPOINT (for bootstrap)
+# KUBERNETES_ETCD_S3_BUCKET (for bootstrap)
+# KUBERNETES_ETCD_S3_ACCESS_KEY (for bootstrap)
+# KUBERNETES_ETCD_S3_SECRET_KEY (for bootstrap)
 package_update: true
 package_upgrade: true
 ssh_pwauth: false
@@ -100,7 +104,15 @@ runcmd:
           --node-ip=${NODE_IP} \
           --advertise-address=${NODE_IP} \
           --tls-san=${NODE_IP} \
-          --flannel-iface=enp7s0
+          --flannel-iface=enp7s0 \
+          --etcd-expose-metrics \
+          --etcd-s3 \
+          --etcd-s3-endpoint=${KUBERNETES_ETCD_S3_ENDPOINT} \
+          --etcd-s3-bucket=${KUBERNETES_ETCD_S3_BUCKET} \
+          --etcd-s3-access-key=${KUBERNETES_ETCD_S3_ACCESS_KEY} \
+          --etcd-s3-secret-key=${KUBERNETES_ETCD_S3_SECRET_KEY} \
+          --etcd-snapshot-schedule-cron="0 */6 * * *" \
+          --etcd-snapshot-retention=5
 
       export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
       echo "Waiting for k3s to be ready..."
@@ -167,7 +179,15 @@ runcmd:
           --node-ip=${NODE_IP} \
           --advertise-address=${NODE_IP} \
           --tls-san=${NODE_IP} \
-          --flannel-iface=enp7s0
+          --flannel-iface=enp7s0 \
+          --etcd-expose-metrics \
+          --etcd-s3 \
+          --etcd-s3-endpoint=${KUBERNETES_ETCD_S3_ENDPOINT} \
+          --etcd-s3-bucket=${KUBERNETES_ETCD_S3_BUCKET} \
+          --etcd-s3-access-key=${KUBERNETES_ETCD_S3_ACCESS_KEY} \
+          --etcd-s3-secret-key=${KUBERNETES_ETCD_S3_SECRET_KEY} \
+          --etcd-snapshot-schedule-cron="0 */6 * * *" \
+          --etcd-snapshot-retention=5
     else
       curl -sfL https://get.k3s.io | \
         INSTALL_K3S_VERSION=${K3S_VERSION} \

@@ -39,6 +39,12 @@ export const secrets = {
       OauthClientSecret: new sst.Secret('KubernetesTailscaleOauthClientSecret'),
       Hostname: new sst.Secret('KubernetesTailscaleHostname')
     },
+    etcd: {
+      S3Endpoint: new sst.Secret('KubernetesEtcdS3Endpoint'),
+      S3Bucket: new sst.Secret('KubernetesEtcdS3Bucket'),
+      S3AccessKey: new sst.Secret('KubernetesEtcdS3AccessKey'),
+      S3SecretKey: new sst.Secret('KubernetesEtcdS3SecretKey')
+    },
     HetznerOriginTlsKey: new sst.Secret('HetznerOriginTlsKey', 'No Origin Tls Key Set'),
     HetznerOriginTlsCrt: new sst.Secret('HetznerOriginTlsCrt', 'No Origin Tls Cert Set'),
     main: {
