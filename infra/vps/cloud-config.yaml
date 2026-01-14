@@ -72,6 +72,8 @@ write_files:
       UsePAM yes
 
 runcmd:
+  - systemctl enable nftables
+  - nft -f /etc/nftables.conf
   - curl -fsSL https://tailscale.com/install.sh | sh
   - |
     tailscale up --ssh \
