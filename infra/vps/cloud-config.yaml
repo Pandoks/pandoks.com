@@ -17,35 +17,7 @@ package_upgrade: true
 ssh_pwauth: false
 disable_root: true
 
-bootcmd:
-  - |
-    cat > /etc/nftables.conf << 'EOF'
-    table inet filter {
-      chain input {
-        type filter hook input priority 0;
-        policy drop;
-
-        iif "lo" accept;
-        ct state established,related accept;
-        ip saddr ${PRIVATE_IP_RANGE} accept;
-        udp dport 41641 accept;
-        iif "tailscale0" accept;
-      }
-
-      chain forward {
-        type filter hook forward priority 0;
-        policy drop;
-      }
-
-      chain output {
-        type filter hook output priority 0;
-        policy accept;
-      }
-    }
-    EOF
-  - nft -f /etc/nftables.conf
-  - systemctl enable nftables
-  - systemctl start nftables
+bootcmd: []
 
 users:
   - name: pandoks
@@ -79,6 +51,25 @@ write_files:
       flush ruleset
 
       table inet filter {
+        chain input {
+          type filter hook input priority dstnat; policy drop;
+
+          ct state established,related accept comment "Return traffic"
+          ct state invalid drop comment "Invalid packets"
+
+          iif "lo" accept comment "Loopback"
+          iifname "tailscale0" accept comment "Tailscale interface"
+          iifname "cni0" accept comment "K3s CNI bridge"
+          iifname "flannel.1" accept comment "K3s Flannel"
+          iifname "enp7s0" ip saddr ${PRIVATE_IP_RANGE} accept comment "Private network"
+
+          udp dport 41641 accept comment "Tailscale"
+
+          ip6 nexthdr ipv6-icmp accept comment "ICMPv6 (required for IPv6)"
+
+          limit rate 5/minute counter log prefix "nft-drop: "
+          counter drop
+        }
 
         chain forward {
           type filter hook forward priority filter; policy accept;
