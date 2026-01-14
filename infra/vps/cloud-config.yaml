@@ -1,30 +1,23 @@
 #cloud-config
 # env variables:
-# SSH_HOSTNAME
-# ACCOUNT_ID
-# TUNNEL_SECRET
-# TUNNEL_ID
 # PRIVATE_IP_RANGE
-# SSH_CA_PUB
+# STAGE_NAME
 # ROLE
 # K3S_TOKEN
 # SERVER_API
 # NODE_IP
+# TAILSCALE_HOSTNAME
+# REGISTRATION_TAILNET_AUTH_KEY
+# K3S_VERSION
+# KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID (for bootstrap)
+# KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET (for bootstrap)
+# KUBERNETES_TAILSCALE_HOSTNAME (for bootstrap)
 package_update: true
 package_upgrade: true
 ssh_pwauth: false
 disable_root: true
 
-bootcmd:
-  - iptables -F
-  - iptables -P INPUT DROP
-  - iptables -P FORWARD DROP
-  - iptables -P OUTPUT ACCEPT
-  - iptables -A INPUT -i lo -j ACCEPT
-  - iptables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-  - iptables -A INPUT -s ${PRIVATE_IP_RANGE} -j ACCEPT
-  - iptables-save > /etc/iptables.rules
-  - mkdir -p /etc/cloudflared
+bootcmd: []
 
 users:
   - name: pandoks
@@ -37,60 +30,69 @@ packages:
   - curl
 
 write_files:
-  - path: /etc/network/if-pre-up.d/iptables
-    owner: root:root
-    permissions: '0755'
-    content: |
-      #!/bin/sh
-      iptables-restore < /etc/iptables.rules
-  - path: /etc/cloudflared/credentials.json
-    owner: root:root
-    permissions: '0600'
-    content: |
-      { "AccountTag": "${ACCOUNT_ID}", "TunnelSecret": "${TUNNEL_SECRET}", "TunnelID": "${TUNNEL_ID}" }
-  - path: /etc/cloudflared/config.yml
-    owner: root:root
-    permissions: '0644'
-    content: |
-      tunnel: ${TUNNEL_ID}
-      credentials-file: /etc/cloudflared/credentials.json
-      ingress:
-        - hostname: ${SSH_HOSTNAME}
-          service: ssh://localhost:22
-        - service: http_status:404
-  - path: /etc/ssh/ca.pub
-    owner: root:root
-    permissions: '0600'
-    content: |
-      ${SSH_CA_PUB}
   - path: /etc/ssh/sshd_config
     owner: root:root
     permissions: '0644'
     content: |
       PubkeyAuthentication yes
-      TrustedUserCAKeys /etc/ssh/ca.pub
       PasswordAuthentication no
       KbdInteractiveAuthentication no
       ChallengeResponseAuthentication no
-      Subsystem sftp internal-sftp
       PermitRootLogin no
-      UsePAM yes
       AllowUsers pandoks
-      Match User pandoks
-        AuthorizedPrincipalsCommand /bin/echo 'cloudflare.sank246'
-        AuthorizedPrincipalsCommandUser nobody
+      Subsystem sftp internal-sftp
+      UsePAM yes
+  - path: /etc/nftables.conf
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/usr/sbin/nft -f
+
+      flush ruleset
+
+      table inet filter {
+        chain input {
+          type filter hook input priority -100; policy drop;
+
+          ct state established,related accept comment "Return traffic"
+          ct state invalid drop comment "Invalid packets"
+
+          iif "lo" accept comment "Loopback"
+          iifname "tailscale0" accept comment "Tailscale interface"
+          iifname "cni0" accept comment "K3s CNI bridge"
+          iifname "flannel.1" accept comment "K3s Flannel"
+          iifname "enp7s0" ip saddr ${PRIVATE_IP_RANGE} accept comment "Private network"
+
+          udp dport 41641 accept comment "Tailscale"
+
+          ip6 nexthdr ipv6-icmp accept comment "ICMPv6 (required for IPv6)"
+
+          limit rate 5/minute counter log prefix "nft-drop: "
+          counter drop
+        }
+
+        chain forward {
+          type filter hook forward priority filter; policy accept;
+        }
+
+        chain output {
+          type filter hook output priority filter; policy accept;
+        }
+      }
 
 runcmd:
-  - mkdir -p --mode=0755 /usr/share/keyrings
-  - curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
-  - echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared noble main' | tee /etc/apt/sources.list.d/cloudflared.list
-  - apt-get update && apt-get install -y cloudflared
-  - systemctl restart ssh || true
-  - cloudflared --config /etc/cloudflared/config.yml service install || true
-  - systemctl enable cloudflared && systemctl restart cloudflared
+  - systemctl enable nftables
+  - nft -f /etc/nftables.conf
+  - curl -fsSL https://tailscale.com/install.sh | sh
+  - |
+    tailscale up --ssh \
+      --authkey ${REGISTRATION_TAILNET_AUTH_KEY} \
+      --hostname ${TAILSCALE_HOSTNAME} \
+      --accept-dns=false
   - |
     if [ "${ROLE}" = "bootstrap" ]; then
       curl -sfL https://get.k3s.io | \
+        INSTALL_K3S_VERSION=${K3S_VERSION} \
         K3S_TOKEN=${K3S_TOKEN} sh -s - server \
           --cluster-init \
           --disable=traefik \
@@ -99,8 +101,65 @@ runcmd:
           --advertise-address=${NODE_IP} \
           --tls-san=${NODE_IP} \
           --flannel-iface=enp7s0
+
+      export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+      echo "Waiting for k3s to be ready..."
+      for i in $(seq 1 60); do
+        if kubectl --request-timeout=5s get --raw=/readyz >/dev/null 2>&1; then
+          echo "k3s is ready"
+          break
+        fi
+        echo "k3s is not ready..."
+      done
+
+      kubectl create secret generic tailscale \
+        --namespace kube-system \
+        --from-literal=tailscale-oauth="$(cat << EOF
+    oauth:
+      clientId: ${KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID}
+      clientSecret: ${KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET}
+    EOF
+    )" \
+        --from-literal=operator-config="$(cat << EOF
+    operatorConfig:
+      hostname: ${KUBERNETES_TAILSCALE_HOSTNAME}
+      defaultTags:
+        - tag:k8s-operator
+        - tag:k8s
+        - tag:${STAGE_NAME}
+    EOF
+    )" \
+        --dry-run=client -o yaml | kubectl apply --server-side -f -
+
+      kubectl create namespace tailscale --dry-run=client -o yaml | kubectl apply --server-side -f -
+
+      kubectl apply --server-side -f - << EOF
+    apiVersion: helm.cattle.io/v1
+    kind: HelmChart
+    metadata:
+      name: tailscale-operator
+      namespace: kube-system
+    spec:
+      repo: https://pkgs.tailscale.com/helmcharts
+      chart: tailscale-operator
+      version: 1.92.5
+      targetNamespace: tailscale
+      valuesContent: |-
+        apiServerProxyConfig:
+          mode: "true"
+      valuesSecrets:
+        - name: tailscale
+          keys:
+            - tailscale-oauth
+            - operator-config
+    EOF
+      kubectl create clusterrolebinding pandoks \
+        --user='Pandoks@github' \
+        --clusterrole=cluster-admin \
+        --dry-run=client -o yaml | kubectl apply --server-side -f -
     elif [ "${ROLE}" = "server" ]; then
       curl -sfL https://get.k3s.io | \
+        INSTALL_K3S_VERSION=${K3S_VERSION} \
         K3S_TOKEN=${K3S_TOKEN} sh -s - server \
           --server=${SERVER_API} \
           --disable=traefik \
@@ -111,6 +170,7 @@ runcmd:
           --flannel-iface=enp7s0
     else
       curl -sfL https://get.k3s.io | \
+        INSTALL_K3S_VERSION=${K3S_VERSION} \
         K3S_TOKEN=${K3S_TOKEN} sh -s - agent \
           --server=${SERVER_API} \
           --node-ip=${NODE_IP} \

@@ -1,8 +1,25 @@
-import { resolve } from 'node:path';
-import { EXAMPLE_DOMAIN, STAGE_NAME } from '../dns';
+// WARNING: resources that hold data like servers, volumes, etc. should be protected by the
+// `protect` option in production. This is to prevent accidental deletion of resources.
+import { isProduction, STAGE_NAME } from '../dns';
+import { createServers } from './servers';
+import { createLoadBalancers } from './load-balancers';
 import { secrets } from '../secrets';
-import { existsSync, readFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { deleteTailscaleDevices } from '../tailscale';
+
+// NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
+const CONTROL_PLANE_NODE_COUNT = isProduction ? 1 : 1;
+const CONTROL_PLANE_HOST_START_OCTET = 10; // starts at 10.0.1.<CONTROL_PLANE_HOST_START_OCTET>
+const WORKER_NODE_COUNT = isProduction ? 0 : 0;
+const WORKER_HOST_START_OCTET = 20; // starts at 10.0.1.<WORKER_HOST_START_OCTET> 20 allows for 10 control plane nodes
+// NOTE: servers can only be upgraded, not downgraded because disk size needs to be >= than the previous type
+const SERVER_TYPE = isProduction ? 'ccx13' : 'cx23';
+const LOAD_BALANCER_COUNT = isProduction ? 1 : 0;
+const LOAD_BALANCER_TYPE = isProduction ? 'lb11' : 'lb11';
+const LOAD_BALANCER_ALGORITHM = 'least_connections'; // round_robin, least_connections
+const SERVER_IMAGE = 'ubuntu-24.04';
+const LOCATION = isProduction ? 'hil' : 'fsn1';
+const NETWORK_ZONE = isProduction ? 'us-west' : 'eu-central';
+const K3S_VERSION = isProduction ? 'v1.34.3+k3s1' : 'v1.34.3+k3s1';
 
 /**
  * NOTE: Hetzner doesn't allow you to connect servers from different regions in the same network.
@@ -16,7 +33,6 @@ import { execFileSync } from 'node:child_process';
  *
  * You'll probably want to rename a bunch of the resources and variable names when you do.
  */
-const LOCATION = 'hil';
 const privateNetwork = new hcloud.Network('HetznerK3sPrivateNetwork', {
   name: `k3s-private-${STAGE_NAME}-network`,
   ipRange: '10.0.0.0/8'
@@ -25,454 +41,123 @@ const subnet = new hcloud.NetworkSubnet('HetznerK3sSubnet', {
   networkId: privateNetwork.id.apply((id) => parseInt(id)),
   type: 'cloud',
   ipRange: '10.0.1.0/24',
-  networkZone: 'us-west'
+  networkZone: NETWORK_ZONE
 });
-const firewall = new hcloud.Firewall('HetznerDenyIn', {
-  name: 'deny-in',
-  rules: []
+const firewall = new hcloud.Firewall('HetznerInboundFirewall', {
+  name: 'inbound',
+  rules: [
+    {
+      direction: 'in',
+      protocol: 'udp',
+      port: '41641',
+      description: 'tailscale',
+      sourceIps: ['0.0.0.0/0', '::/0']
+    }
+  ]
 });
 
-// NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
-const CONTROL_PLANE_NODE_COUNT = $app.stage === 'production' ? 1 : 0;
-const CONTROL_PLANE_HOST_START_OCTET = 10;
-const WORKER_NODE_COUNT = $app.stage === 'production' ? 0 : 0;
-const WORKER_HOST_START_OCTET = 20;
-// NOTE: servers can only be upgraded, not downgraded because disk size needs to be >= than the previous type
-const SERVER_TYPE = $app.stage === 'production' ? 'ccx13' : 'cpx11';
-const LOAD_BALANCER_TYPE = $app.stage === 'production' ? 'lb11' : 'lb11';
-const LOAD_BALANCER_ALGORITHM = 'least_connections'; // round_robin, least_connections
-const SERVER_IMAGE = 'ubuntu-24.04';
-const INGRESS_NODE_PORT = { http: 30080, https: 30443 };
-const BASE_ENV = $resolve([
-  secrets.cloudflare.AccountId.value,
-  secrets.hetzner.TunnelSecret.value,
-  subnet.ipRange
-]).apply(([ACCOUNT_ID, TUNNEL_SECRET, PRIVATE_IP_RANGE]) => ({
-  ACCOUNT_ID,
-  TUNNEL_SECRET,
-  PRIVATE_IP_RANGE
-}));
-
-if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT) {
-  const openSslConfigPath = resolve('infra/vps/vps.openssl.conf');
-  const certificateSigningRequestPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.csr`);
-  const certificateKeyPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.key`);
-  let needToSetCertificateSecret = false;
-  if (!existsSync(certificateSigningRequestPath)) {
-    execFileSync(
-      'openssl',
-      [
-        'req',
-        '-new',
-        '-newkey',
-        'rsa:2048',
-        '-nodes',
-        '-keyout',
-        certificateKeyPath,
-        '-out',
-        certificateSigningRequestPath,
-        '-config',
-        openSslConfigPath
-      ],
-      { stdio: 'inherit' }
-    );
-    secrets.k8s.HetznerOriginTlsKey.name.apply((secretName) => {
-      execFileSync(
-        '/bin/sh',
-        ['-lc', `sst secret set ${secretName} --stage ${$app.stage} < ${certificateKeyPath}`],
-        { stdio: 'inherit' }
-      );
-    });
-    needToSetCertificateSecret = true;
-  }
-  const certificateSigningRequest = readFileSync(certificateSigningRequestPath);
-  const hetznerOriginCert = new cloudflare.OriginCaCertificate(
-    'HetznerOriginCloudflareCaCertificate',
-    {
-      hostnames: [EXAMPLE_DOMAIN],
-      requestType: 'origin-rsa',
-      csr: certificateSigningRequest.toString(),
-      requestedValidity: 5475 // 15 years
-    }
-  );
-  if (needToSetCertificateSecret) {
-    $resolve([hetznerOriginCert.certificate, secrets.k8s.HetznerOriginTlsCrt.name]).apply(
-      ([certificate, secretName]) => {
-        execFileSync(
-          '/bin/sh',
-          ['-lc', `sst secret set ${secretName} --stage ${$app.stage} <<'EOF'\n${certificate}EOF`],
-          { stdio: 'inherit' }
-        );
-      }
-    );
-  }
-
-  var virtualNetwork = new cloudflare.ZeroTrustTunnelCloudflaredVirtualNetwork(
-    'HetznerVirtualNetwork',
-    {
-      accountId: secrets.cloudflare.AccountId.value,
-      name: `hetzner-k3s-${STAGE_NAME}`,
-      comment: 'hetzner tunnel k3s'
-    }
-  );
-  var publicLoadBalancer = new hcloud.LoadBalancer('HetznerK3sPublicLoadBalancer', {
-    name: `k3s-public-${STAGE_NAME}-load-balancer`,
-    loadBalancerType: LOAD_BALANCER_TYPE,
+const publicLoadBalancers = createLoadBalancers(
+  {
+    controlPlaneCount: CONTROL_PLANE_NODE_COUNT,
+    workerNodeCount: WORKER_NODE_COUNT,
+    loadBalancerCount: LOAD_BALANCER_COUNT,
+    network: privateNetwork
+  },
+  {
+    type: LOAD_BALANCER_TYPE,
     location: LOCATION,
-    algorithm: { type: LOAD_BALANCER_ALGORITHM }
-  });
-  new hcloud.LoadBalancerNetwork('HetznerK3sPublicLoadBalancerNetwork', {
-    loadBalancerId: publicLoadBalancer.id.apply((id) => parseInt(id)),
-    networkId: privateNetwork.id.apply((id) => parseInt(id))
-  });
-  new hcloud.LoadBalancerService('HetznerK3sLoadBalancerPort80', {
-    loadBalancerId: publicLoadBalancer.id.apply((id) => id),
-    protocol: 'tcp',
-    listenPort: 80,
-    destinationPort: INGRESS_NODE_PORT.http,
-    proxyprotocol: false,
-    healthCheck: {
-      protocol: 'tcp',
-      port: INGRESS_NODE_PORT.http,
-      interval: 10,
-      timeout: 3,
-      retries: 3
-    }
-  });
-  new hcloud.LoadBalancerService('HetznerK3sLoadBalancerPort443', {
-    loadBalancerId: publicLoadBalancer.id.apply((id) => id),
-    protocol: 'tcp',
-    listenPort: 443,
-    destinationPort: INGRESS_NODE_PORT.https,
-    proxyprotocol: false,
-    healthCheck: {
-      protocol: 'tcp',
-      port: INGRESS_NODE_PORT.https,
-      interval: 10,
-      timeout: 3,
-      retries: 3
-    }
-  });
-}
-
-const NODE_NAMING = {
-  worker: { resourceName: 'Worker', name: 'worker' },
-  controlplane: { resourceName: 'ControlPlane', name: 'control-plane' }
-};
-const controlPlaneAccessApp = new cloudflare.ZeroTrustAccessApplication(
-  `HetznerK3s${NODE_NAMING.controlplane.resourceName}SshWildcard`,
-  {
-    accountId: secrets.cloudflare.AccountId.value,
-    name: `hetzner-k3s-${NODE_NAMING.controlplane.name}-ssh-access`,
-    domain: `k3s-${NODE_NAMING.controlplane.name}-*${$app.stage === 'production' ? '' : '-dev'}.pandoks.com`,
-    type: 'ssh',
-    sessionDuration: '24h',
-    autoRedirectToIdentity: true,
-    policies: [
-      {
-        name: 'allow-admin',
-        decision: 'allow',
-        precedence: 1,
-        includes: [{ email: { email: secrets.cloudflare.Email.value } }],
-        connectionRules: { ssh: { usernames: ['pandoks'] } }
-      },
-      {
-        name: 'deny-all',
-        decision: 'deny',
-        precedence: 2,
-        includes: [{ everyone: {} }]
-      }
-    ]
-  }
-);
-const controlPlaneSshShortLivedToken = new cloudflare.ZeroTrustAccessShortLivedCertificate(
-  `Hetzner${NODE_NAMING.controlplane.resourceName}SshShortLivedCertificate`,
-  {
-    accountId: secrets.cloudflare.AccountId.value,
-    appId: controlPlaneAccessApp.id
-  }
-);
-const workerAccessApp = new cloudflare.ZeroTrustAccessApplication(
-  `HetznerK3s${NODE_NAMING.worker.resourceName}SshWildcard`,
-  {
-    accountId: secrets.cloudflare.AccountId.value,
-    name: `hetzner-k3s-${NODE_NAMING.worker.name}-ssh-access`,
-    domain: `k3s-${NODE_NAMING.worker.name}-*${$app.stage === 'production' ? '' : '-dev'}.pandoks.com`,
-    type: 'ssh',
-    sessionDuration: '24h',
-    autoRedirectToIdentity: true,
-    policies: [
-      {
-        name: 'allow-admin',
-        decision: 'allow',
-        precedence: 1,
-        includes: [{ email: { email: secrets.cloudflare.Email.value } }],
-        connectionRules: { ssh: { usernames: ['pandoks'] } }
-      },
-      {
-        name: 'deny-all',
-        decision: 'deny',
-        precedence: 2,
-        includes: [{ everyone: {} }]
-      }
-    ]
-  }
-);
-const workerSshShortLivedToken = new cloudflare.ZeroTrustAccessShortLivedCertificate(
-  `Hetzner${NODE_NAMING.worker.resourceName}SshShortLivedCertificate`,
-  {
-    accountId: secrets.cloudflare.AccountId.value,
-    appId: workerAccessApp.id
+    alogrithm: LOAD_BALANCER_ALGORITHM
   }
 );
 
-const cloudInitConfig = readFileSync(`${process.cwd()}/infra/vps/cloud-config.yaml`, 'utf8');
-const renderUserData = (envs: Record<string, string>) => {
-  return cloudInitConfig.replace(/\$\{([A-Z0-9_]+)\}/g, (match, capture) =>
-    capture in envs ? envs[capture] : ''
-  );
+let bootstrapServer: { ip: string | undefined; server: hcloud.Server | undefined } = {
+  ip: undefined,
+  server: undefined
 };
 
-/**
- * In order to access the ssh tunnel, you need to:
- * 1. Create authenitcate  yourself: `cloudflared access login https://<full-ssh-domain>`
- * 2. Update ssh to use short lived token (~/.ssh/config):
- *    ```
- *    Match host k3s-worker-*-dev.pandoks.com (as an example) exec "/opt/homebrew/bin/cloudflared access ssh-gen --hostname %h"
- *      ProxyCommand /opt/homebrew/bin/cloudflared access ssh --hostname %h
- *      IdentityFile ~/.cloudflared/%h-cf_key
- *      CertificateFile ~/.cloudflared/%h-cf_key-cert.pub
- *    ```
- * 3. Access ssh via normal ssh client
- */
-const setupTunnelSsh = (index: number, options: { isWorker?: boolean; hostname: string }) => {
-  const nodeType = options.isWorker ? NODE_NAMING.worker : NODE_NAMING.controlplane;
-  const ipAddr = subnet.ipRange.apply(
-    (ipRange) =>
-      `${ipRange.split('.').slice(0, 3).join('.')}.${options.isWorker ? WORKER_HOST_START_OCTET + index : CONTROL_PLANE_HOST_START_OCTET + index}`
-  );
-
-  const tunnel = new cloudflare.ZeroTrustTunnelCloudflared(
-    `HetznerK3s${nodeType.resourceName}Tunnel${index}`,
+const { tailscaleHostnames: controlPlaneTailscaleHostnames, servers: controlPlaneServers } =
+  createServers(
     {
-      name: `${$app.stage == 'production' ? 'prod' : 'dev'}-hetzner-k3s-${nodeType.name}-tunnel-${index}`,
-      accountId: secrets.cloudflare.AccountId.value,
-      configSrc: 'local',
-      tunnelSecret: secrets.hetzner.TunnelSecret.value
-    }
-  );
-  new cloudflare.ZeroTrustTunnelCloudflaredConfig(
-    `HetznerK3s${nodeType.resourceName}TunnelConfig${index}`,
+      type: 'control-plane',
+      serverCount: CONTROL_PLANE_NODE_COUNT,
+      network: { network: privateNetwork, subnet },
+      startingOctet: CONTROL_PLANE_HOST_START_OCTET,
+      loadBalancers: publicLoadBalancers,
+      k3sVersion: K3S_VERSION
+    },
     {
-      accountId: secrets.cloudflare.AccountId.value,
-      tunnelId: tunnel.id,
-      config: {
-        ingresses: [
-          { hostname: options.hostname, service: 'ssh://localhost:22' },
-          { service: 'http_status:404' }
-        ]
-      }
-    }
-  );
-  new cloudflare.ZeroTrustTunnelCloudflaredRoute(
-    `HetznerK3s${nodeType.resourceName}Route${index}`,
-    {
-      accountId: secrets.cloudflare.AccountId.value,
-      tunnelId: tunnel.id,
-      network: $interpolate`${ipAddr}/32`,
-      virtualNetworkId: virtualNetwork.id
-    }
-  );
-  new cloudflare.ZeroTrustAccessInfrastructureTarget(
-    `HetznerK3s${nodeType.resourceName}Target${index}`,
-    {
-      accountId: secrets.cloudflare.AccountId.value,
-      hostname: options.hostname.split('.')[0],
-      ip: { ipv4: { ipAddr, virtualNetworkId: virtualNetwork.id } }
-    }
-  );
-  new cloudflare.DnsRecord(`HetznerK3s${nodeType.resourceName}SshHost${index}`, {
-    zoneId: secrets.cloudflare.ZoneId.value,
-    name: options.hostname,
-    type: 'CNAME',
-    content: $interpolate`${tunnel.id}.cfargotunnel.com`,
-    proxied: true,
-    ttl: 1,
-    comment: 'hetzner tunnel k3s'
-  });
-  return tunnel;
-};
-
-let bootstrapServer: hcloud.Server | undefined;
-let bootstrapServerIp: $util.Output<string>;
-let controlPlaneServers: hcloud.Server[] = [];
-for (let i = 0; i < CONTROL_PLANE_NODE_COUNT; i++) {
-  const role = i === 0 ? 'bootstrap' : 'server';
-  const ip = subnet.ipRange.apply(
-    (ipRange) => `${ipRange.split('.').slice(0, 3).join('.')}.${CONTROL_PLANE_HOST_START_OCTET + i}`
-  );
-  if (role === 'bootstrap') {
-    bootstrapServerIp = ip;
-  }
-  const sshHostname = `k3s-${NODE_NAMING.controlplane.name}-${i}${$app.stage === 'production' ? '' : '-dev'}.pandoks.com`;
-
-  const tunnel = setupTunnelSsh(i, { hostname: sshHostname });
-
-  const envs = $resolve([
-    tunnel.id,
-    BASE_ENV.ACCOUNT_ID,
-    BASE_ENV.TUNNEL_SECRET,
-    BASE_ENV.PRIVATE_IP_RANGE,
-    controlPlaneSshShortLivedToken.publicKey,
-    secrets.hetzner.K3sToken.value,
-    ip,
-    bootstrapServerIp!
-  ]).apply(
-    ([
-      TUNNEL_ID,
-      ACCOUNT_ID,
-      TUNNEL_SECRET,
-      PRIVATE_IP_RANGE,
-      SSH_CA_PUB,
-      K3S_TOKEN,
-      NODE_IP,
-      SERVER_IP
-    ]) => {
-      return {
-        SSH_HOSTNAME: sshHostname,
-        TUNNEL_ID,
-        ACCOUNT_ID,
-        TUNNEL_SECRET,
-        SSH_CA_PUB,
-        PRIVATE_IP_RANGE,
-        K3S_TOKEN,
-        SERVER_API: `https://${SERVER_IP}:6443`,
-        NODE_IP,
-        ROLE: role
-      };
-    }
-  );
-  const userData = envs.apply((envs) => renderUserData(envs));
-  const nodeType = NODE_NAMING.controlplane;
-  // NOTE: needed to create servers sequentially
-  const dependencies = [bootstrapServer, controlPlaneServers.at(-1)].filter(
-    (resource) => resource !== undefined
-  );
-  const server = new hcloud.Server(
-    `Hetzner${nodeType.resourceName}Server${i}`,
-    {
-      name: `${$app.stage == 'production' ? 'prod' : 'dev'}-${nodeType.name}-server-${i}`,
-      serverType: SERVER_TYPE,
+      type: SERVER_TYPE,
       image: SERVER_IMAGE,
       location: LOCATION,
-      deleteProtection: $app.stage === 'production',
-      rebuildProtection: $app.stage === 'production',
-      firewallIds: [firewall.id.apply((id) => parseInt(id))],
-      networks: [{ networkId: privateNetwork.id.apply((id) => parseInt(id)), ip }],
-      publicNets: [{ ipv4Enabled: true, ipv6Enabled: true }],
-      shutdownBeforeDeletion: true, // NOTE: needed to close tunnel so tunnel can be deleted without error
-      userData
+      firewalls: [firewall]
     },
-    { dependsOn: dependencies }
+    bootstrapServer
   );
-  bootstrapServer = bootstrapServer ?? server;
-  controlPlaneServers.push(server);
+const { tailscaleHostnames: workerTailscaleHostnames, servers: workerServers } = createServers(
+  {
+    type: 'worker',
+    serverCount: WORKER_NODE_COUNT,
+    network: { network: privateNetwork, subnet },
+    startingOctet: WORKER_HOST_START_OCTET,
+    loadBalancers: publicLoadBalancers,
+    k3sVersion: K3S_VERSION
+  },
+  {
+    type: SERVER_TYPE,
+    image: SERVER_IMAGE,
+    location: LOCATION,
+    firewalls: [firewall]
+  },
+  bootstrapServer
+);
+
+if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
+  secrets.k8s.tailscale.Hostname.value.apply(async (hostname) => {
+    const devices = await tailscale.getDevices({ namePrefix: hostname });
+
+    const devicesToDelete = devices.devices.filter(
+      (device) =>
+        device.hostname === hostname &&
+        device.tags.includes('tag:k8s-operator') &&
+        device.tags.includes(`tag:${STAGE_NAME}`)
+    );
+    if (devicesToDelete.length > 0) {
+      const deletedDevices = await deleteTailscaleDevices(
+        devicesToDelete.map((device) => device.nodeId)
+      );
+      deletedDevices.apply((deletedDevices) => {
+        const deletedDeviceIds = deletedDevices
+          .filter((device) => device.success)
+          .map((device) => device.deviceId);
+        const failedToDeleteDeviceIds = deletedDevices
+          .filter((device) => !device.success)
+          .map((device) => device.deviceId);
+        if (deletedDeviceIds.length)
+          console.log(
+            `Deleted Tailscale devices:\n${devicesToDelete
+              .filter((device) => deletedDeviceIds.includes(device.nodeId))
+              .map((device) => device.name)
+              .join('\n')}`
+          );
+        if (failedToDeleteDeviceIds.length)
+          console.log(
+            `Failed to delete Tailscale devices:\n${devicesToDelete
+              .filter((device) => failedToDeleteDeviceIds.includes(device.nodeId))
+              .map((device) => device.name)
+              .join('\n')}`
+          );
+      });
+    }
+  });
 }
-controlPlaneServers.forEach((server, index) => {
-  new hcloud.LoadBalancerTarget(
-    `HetznerK3s${NODE_NAMING.controlplane.resourceName}LoadBalancerTarget${index}`,
-    {
-      loadBalancerId: publicLoadBalancer.id.apply((id) => parseInt(id)),
-      type: 'server',
-      serverId: server.id.apply((id) => parseInt(id)),
-      usePrivateIp: true
-    }
-  );
-});
 
-let workerServers: hcloud.Server[] = [];
-for (let i = 0; i < WORKER_NODE_COUNT; i++) {
-  const ip = subnet.ipRange.apply(
-    (ipRange) => `${ipRange.split('.').slice(0, 3).join('.')}.${WORKER_HOST_START_OCTET + i}`
-  );
-  const sshHostname = `k3s-${NODE_NAMING.worker.name}-${i}${$app.stage === 'production' ? '' : '-dev'}.pandoks.com`;
+const publicLoadBalancerOutputs = Object.fromEntries(
+  publicLoadBalancers.map((loadbalancer) => [
+    loadbalancer.loadbalancer.name,
+    loadbalancer.loadbalancer.ipv4
+  ])
+);
 
-  const tunnel = setupTunnelSsh(i, { hostname: sshHostname, isWorker: true });
+export const outputs = { ...publicLoadBalancerOutputs };
 
-  const envs = $resolve([
-    tunnel.id,
-    BASE_ENV.ACCOUNT_ID,
-    BASE_ENV.TUNNEL_SECRET,
-    BASE_ENV.PRIVATE_IP_RANGE,
-    workerSshShortLivedToken.publicKey,
-    secrets.hetzner.K3sToken.value,
-    ip,
-    bootstrapServerIp!
-  ]).apply(
-    ([
-      TUNNEL_ID,
-      ACCOUNT_ID,
-      TUNNEL_SECRET,
-      PRIVATE_IP_RANGE,
-      SSH_CA_PUB,
-      K3S_TOKEN,
-      NODE_IP,
-      SERVER_IP
-    ]) => {
-      return {
-        SSH_HOSTNAME: sshHostname,
-        TUNNEL_ID,
-        ACCOUNT_ID,
-        TUNNEL_SECRET,
-        SSH_CA_PUB,
-        PRIVATE_IP_RANGE,
-        K3S_TOKEN,
-        SERVER_API: `https://${SERVER_IP}:6443`,
-        NODE_IP,
-        ROLE: 'worker'
-      };
-    }
-  );
-  const userData = envs.apply((envs) => renderUserData(envs));
-  const nodeType = NODE_NAMING.worker;
-  // NOTE: needed to create servers sequentially
-  const dependencies = [bootstrapServer, workerServers.at(-1)].filter(
-    (resource) => resource !== undefined
-  );
-  const server = new hcloud.Server(
-    `Hetzner${nodeType.resourceName}Server${i}`,
-    {
-      name: `${$app.stage == 'production' ? 'prod' : 'dev'}-${nodeType.name}-server-${i}`,
-      serverType: SERVER_TYPE,
-      image: SERVER_IMAGE,
-      location: LOCATION,
-      deleteProtection: $app.stage === 'production',
-      rebuildProtection: $app.stage === 'production',
-      firewallIds: [firewall.id.apply((id) => parseInt(id))],
-      networks: [{ networkId: privateNetwork.id.apply((id) => parseInt(id)), ip }],
-      publicNets: [{ ipv4Enabled: true, ipv6Enabled: true }],
-      shutdownBeforeDeletion: true, // NOTE: needed to close tunnel so tunnel can be deleted without error
-      userData
-    },
-    { dependsOn: dependencies }
-  );
-  workerServers.push(server);
-}
-workerServers.forEach((server, index) => {
-  new hcloud.LoadBalancerTarget(
-    `HetznerK3s${NODE_NAMING.worker.resourceName}LoadBalancerTarget${index}`,
-    {
-      loadBalancerId: publicLoadBalancer.id.apply((id) => parseInt(id)),
-      type: 'server',
-      serverId: server.id.apply((id) => parseInt(id)),
-      usePrivateIp: true
-    }
-  );
-});
-
-export const outputs = {
-  K3sLoadBalancerIPv4: publicLoadBalancer! ? publicLoadBalancer.ipv4 : 'None',
-  K3sPrivateSubnet: subnet.ipRange
-};
-
-export { publicLoadBalancer };
+export { publicLoadBalancers };

@@ -4,3 +4,4 @@ resources:
   - metallb.yaml
   - haproxy-ingress.yaml
   - cert-manager.yaml
+  - tailscale.yaml
