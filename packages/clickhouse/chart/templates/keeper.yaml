@@ -36,8 +36,15 @@ spec:
   template:
     metadata:
       labels:
-        app: clickhouse-keeper-{{ .Values.name }}
+        app: &app clickhouse-keeper-{{ .Values.name }}
     spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: *app
+              topologyKey: kubernetes.io/hostname
       containers:
         - name: keeper
           image: {{ .Values.keeper.image }}
