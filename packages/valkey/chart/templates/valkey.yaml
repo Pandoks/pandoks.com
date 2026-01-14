@@ -50,6 +50,13 @@ spec:
       labels:
         app: *app
     spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: *app
+              topologyKey: kubernetes.io/hostname
       containers:
         - name: valkey
           image: {{ .Values.image }}
