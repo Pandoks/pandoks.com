@@ -52,7 +52,7 @@ write_files:
 
       table inet filter {
         chain input {
-          type filter hook input priority dstnat; policy drop;
+          type filter hook input priority -100; policy drop;
 
           ct state established,related accept comment "Return traffic"
           ct state invalid drop comment "Invalid packets"
