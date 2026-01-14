@@ -54,6 +54,10 @@ declare module 'sst' {
       type: 'sst.sst.Secret';
       value: string;
     };
+    KubernetesTailscaleHostname: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
     KubernetesTailscaleOauthClientId: {
       type: 'sst.sst.Secret';
       value: string;
@@ -138,6 +142,10 @@ declare module 'sst' {
       name: string;
       type: 'sst.aws.Function';
       url: string;
+    };
+    StageName: {
+      type: 'sst.sst.Secret';
+      value: string;
     };
     StaticWebsite: {
       type: 'sst.cloudflare.StaticSite';
