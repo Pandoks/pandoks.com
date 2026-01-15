@@ -115,15 +115,15 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
   secrets.k8s.tailscale.Hostname.value.apply(async (hostname) => {
     const devices = await tailscale.getDevices({ namePrefix: hostname });
 
-    const devicesToDelete = devices.devices.filter(
+    const tailscaleOperatorToDelete = devices.devices.filter(
       (device) =>
         device.hostname === hostname &&
         device.tags.includes('tag:k8s-operator') &&
         device.tags.includes(`tag:${STAGE_NAME}`)
     );
-    if (devicesToDelete.length > 0) {
+    if (tailscaleOperatorToDelete.length > 0) {
       const deletedDevices = await deleteTailscaleDevices(
-        devicesToDelete.map((device) => device.nodeId)
+        tailscaleOperatorToDelete.map((device) => device.nodeId)
       );
       deletedDevices.apply((deletedDevices) => {
         const deletedDeviceIds = deletedDevices
@@ -134,14 +134,14 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
           .map((device) => device.deviceId);
         if (deletedDeviceIds.length)
           console.log(
-            `Deleted Tailscale devices:\n${devicesToDelete
+            `Deleted Tailscale devices:\n${tailscaleOperatorToDelete
               .filter((device) => deletedDeviceIds.includes(device.nodeId))
               .map((device) => device.name)
               .join('\n')}`
           );
         if (failedToDeleteDeviceIds.length)
           console.log(
-            `Failed to delete Tailscale devices:\n${devicesToDelete
+            `Failed to delete Tailscale devices:\n${tailscaleOperatorToDelete
               .filter((device) => failedToDeleteDeviceIds.includes(device.nodeId))
               .map((device) => device.name)
               .join('\n')}`
