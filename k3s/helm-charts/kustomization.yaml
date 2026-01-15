@@ -5,3 +5,4 @@ resources:
   - haproxy-ingress.yaml
   - cert-manager.yaml
   - tailscale.yaml
+  - prom-grafana.yaml

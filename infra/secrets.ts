@@ -45,6 +45,9 @@ export const secrets = {
       S3AccessKey: new sst.Secret('KubernetesEtcdS3AccessKey'),
       S3SecretKey: new sst.Secret('KubernetesEtcdS3SecretKey')
     },
+    grafana: {
+      AdminPassword: new sst.Secret('KubernetesGrafanaAdminPassword')
+    },
     HetznerOriginTlsKey: new sst.Secret('HetznerOriginTlsKey', 'No Origin Tls Key Set'),
     HetznerOriginTlsCrt: new sst.Secret('HetznerOriginTlsCrt', 'No Origin Tls Cert Set'),
     main: {
