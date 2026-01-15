@@ -112,14 +112,11 @@ const { tailscaleHostnames: workerTailscaleHostnames, servers: workerServers } =
 );
 
 if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
-  secrets.k8s.tailscale.Hostname.value.apply(async (hostname) => {
-    const devices = await tailscale.getDevices({ namePrefix: hostname });
+  secrets.k8s.tailscale.Hostname.value.apply(async () => {
+    const devices = await tailscale.getDevices({ namePrefix: `${STAGE_NAME}` });
 
     const kubernetesDevices = devices.devices.filter(
-      (device) =>
-        device.hostname === hostname &&
-        device.tags.includes('tag:k8s') &&
-        device.tags.includes(`tag:${STAGE_NAME}`)
+      (device) => device.tags.includes('tag:k8s') && device.tags.includes(`tag:${STAGE_NAME}`)
     );
     if (kubernetesDevices.length > 0) {
       const deletedDevices = await deleteTailscaleDevices(
