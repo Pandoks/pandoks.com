@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { tailscaleAcl } from '../tailscale';
 import { isProduction, STAGE_NAME } from '../dns';
-import { secrets, setSecret } from '../secrets';
+import { secrets } from '../secrets';
+import { backupBucket, s3Endpoint } from '../storage';
 
 const cloudInitConfig = readFileSync(`${process.cwd()}/infra/vps/cloud-config.yaml`, 'utf8');
 
@@ -60,11 +61,6 @@ export function createServers(
     const clusterTailscaleHostname = `${STAGE_NAME}-cluster`;
     if (serverRole === 'bootstrap') {
       bootstrap.ip = ip;
-      secrets.k8s.tailscale.Hostname.value.apply((hostname) => {
-        if (hostname !== clusterTailscaleHostname) {
-          setSecret(secrets.k8s.tailscale.Hostname.name, clusterTailscaleHostname);
-        }
-      });
     }
 
     const registrationTailnetAuthKey = new tailscale.TailnetKey(
@@ -91,10 +87,10 @@ export function createServers(
       registrationTailnetAuthKey.key,
       secrets.k8s.tailscale.OauthClientId.value,
       secrets.k8s.tailscale.OauthClientSecret.value,
-      secrets.k8s.etcd.S3Endpoint.value,
-      secrets.k8s.etcd.S3Bucket.value,
-      secrets.k8s.etcd.S3AccessKey.value,
-      secrets.k8s.etcd.S3SecretKey.value
+      s3Endpoint,
+      backupBucket.name,
+      secrets.cloudflare.BackupAccessKey.value,
+      secrets.cloudflare.BackupSecretKey.value
     ]).apply(
       ([
         STAGE_NAME,
@@ -105,10 +101,10 @@ export function createServers(
         REGISTRATION_TAILNET_AUTH_KEY,
         KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID,
         KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET,
-        KUBERNETES_ETCD_S3_ENDPOINT,
-        KUBERNETES_ETCD_S3_BUCKET,
-        KUBERNETES_ETCD_S3_ACCESS_KEY,
-        KUBERNETES_ETCD_S3_SECRET_KEY
+        S3_HOST,
+        BACKUP_BUCKET,
+        S3_ACCESS_KEY,
+        S3_SECRET_KEY
       ]) => {
         const envs = {
           STAGE_NAME,
@@ -123,10 +119,10 @@ export function createServers(
           KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID,
           KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET,
           KUBERNETES_TAILSCALE_HOSTNAME: clusterTailscaleHostname,
-          KUBERNETES_ETCD_S3_ENDPOINT,
-          KUBERNETES_ETCD_S3_BUCKET,
-          KUBERNETES_ETCD_S3_ACCESS_KEY,
-          KUBERNETES_ETCD_S3_SECRET_KEY
+          S3_HOST,
+          BACKUP_BUCKET,
+          S3_ACCESS_KEY,
+          S3_SECRET_KEY
         };
         return cloudInitConfig.replace(/\$\{([A-Z0-9_]+)\}/g, (_, capture) =>
           capture in envs ? envs[capture] : ''
