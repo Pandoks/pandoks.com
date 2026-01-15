@@ -12,7 +12,7 @@ stringData:
       clientSecret: ${KubernetesTailscaleOauthClientSecret}
   operator-config: |
     operatorConfig:
-      hostname: ${KubernetesTailscaleHostname}
+      hostname: ${StageName}-cluster
       defaultTags:
         - tag:k8s-operator
         - tag:k8s
