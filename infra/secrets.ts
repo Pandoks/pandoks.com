@@ -38,7 +38,7 @@ export const secrets = {
       OauthClientSecret: new sst.Secret('KubernetesTailscaleOauthClientSecret')
     },
     grafana: {
-      AdminPassword: new sst.Secret('KubernetesGrafanaAdminPassword')
+      AdminPassword: new sst.Secret('KubernetesGrafanaAdminPassword', 'password')
     },
     HetznerOriginTlsKey: new sst.Secret('HetznerOriginTlsKey', 'No Origin Tls Key Set'),
     HetznerOriginTlsCrt: new sst.Secret('HetznerOriginTlsCrt', 'No Origin Tls Cert Set'),
