@@ -1,4 +1,4 @@
-import { EXAMPLE_DOMAIN, STAGE_NAME } from './dns';
+import { EXAMPLE_DOMAIN } from './dns';
 import { secrets } from './secrets';
 import { publicLoadBalancers } from './vps/vps';
 
@@ -30,11 +30,3 @@ if (publicLoadBalancers.length && $app.stage !== 'production') {
     });
   }
 }
-
-export const backupBucket = new cloudflare.R2Bucket('BackupBucket', {
-  name: `${STAGE_NAME}-backups`,
-  accountId: secrets.cloudflare.AccountId.value,
-  jurisdiction: 'default',
-  location: 'wnam',
-  storageClass: 'Standard'
-});
