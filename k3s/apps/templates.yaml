@@ -75,6 +75,17 @@ imagePullSecrets:
 apiVersion: v1
 kind: Secret
 metadata:
+  name: backup-bucket-creds
+  namespace: main
+type: Opaque
+stringData:
+  S3_ACCESS_KEY: ${CloudflareBackupAccessKey}
+  S3_SECRET_KEY: ${CloudflareBackupSecretKey}
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
   name: postgres-main-creds
   namespace: main
 type: Opaque
@@ -84,8 +95,6 @@ stringData:
   CLIENT_PASSWORD: ${MainMainPostgresClientPassword}
   REPLICATION_PASSWORD: ${MainMainPostgresReplicationPassword}
   PATRONI_PASSWORD: ${MainMainPostgresPatroniPassword}
-  BACKUP_S3_KEY: ${MainMainPostgresBackupS3Key}
-  BACKUP_S3_KEY_SECRET: ${MainMainPostgresBackupS3KeySecret}
   users.toml: |
     [admin]
     password = "${MainMainPostgresPgdogAdminPassword}"
@@ -117,5 +126,3 @@ type: Opaque
 stringData:
   ADMIN_PASSWORD: ${MainMainClickhouseAdminPassword}
   CLIENT_PASSWORD: ${MainMainClickhouseClientPassword}
-  BACKUP_S3_KEY: ${MainMainClickhouseBackupS3Key}
-  BACKUP_S3_KEY_SECRET: ${MainMainClickhouseBackupS3KeySecret}
