@@ -40,7 +40,7 @@ spec:
     grafana:
       persistence:
         enabled: false
-      adminUser: admin
       admin:
         existingSecret: grafana
+        userKey: username
         passwordKey: password
