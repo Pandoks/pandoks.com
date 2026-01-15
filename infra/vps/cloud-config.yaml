@@ -111,6 +111,7 @@ runcmd:
           --etcd-s3-bucket=${KUBERNETES_ETCD_S3_BUCKET} \
           --etcd-s3-access-key=${KUBERNETES_ETCD_S3_ACCESS_KEY} \
           --etcd-s3-secret-key=${KUBERNETES_ETCD_S3_SECRET_KEY} \
+          --etcd-s3-folder=etcd \
           --etcd-snapshot-schedule-cron="0 */6 * * *" \
           --etcd-snapshot-retention=5
 
@@ -186,6 +187,7 @@ runcmd:
           --etcd-s3-bucket=${KUBERNETES_ETCD_S3_BUCKET} \
           --etcd-s3-access-key=${KUBERNETES_ETCD_S3_ACCESS_KEY} \
           --etcd-s3-secret-key=${KUBERNETES_ETCD_S3_SECRET_KEY} \
+          --etcd-s3-folder=etcd \
           --etcd-snapshot-schedule-cron="0 */6 * * *" \
           --etcd-snapshot-retention=5
     else
