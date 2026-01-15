@@ -8,9 +8,6 @@ export const secrets = {
   },
   cloudflare: {
     ApiKey: new sst.Secret('CloudflareApiKey'),
-    AccountId: new sst.Secret('CloudflareAccountId'),
-    ZoneId: new sst.Secret('CloudflareZoneId'),
-    Email: new sst.Secret('CloudflareEmail'),
     BackupAccessKey: new sst.Secret('CloudflareBackupAccessKey'),
     BackupSecretKey: new sst.Secret('CloudflareBackupSecretKey')
   },
@@ -38,8 +35,7 @@ export const secrets = {
   k8s: {
     tailscale: {
       OauthClientId: new sst.Secret('KubernetesTailscaleOauthClientId'),
-      OauthClientSecret: new sst.Secret('KubernetesTailscaleOauthClientSecret'),
-      Hostname: new sst.Secret('KubernetesTailscaleHostname')
+      OauthClientSecret: new sst.Secret('KubernetesTailscaleOauthClientSecret')
     },
     grafana: {
       AdminPassword: new sst.Secret('KubernetesGrafanaAdminPassword')
