@@ -11,8 +11,8 @@ usage() {
   printf "  %bsetup%b         Setup cluster with addons and manifests\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Options: --kubeconfig <PATH>, --k3d, --ip-pool <RANGE>, --network <NAME>\n\n" >&2
 
-  printf "  %bpush-secrets%b   Push SST secrets to cluster\n" "${GREEN}" "${NORMAL}" >&2
-  printf "      Options: --kubeconfig <PATH>, --file <PATH>\n\n" >&2
+  printf "  %bsst-apply%b      Render SST templates and apply to cluster\n" "${GREEN}" "${NORMAL}" >&2
+  printf "      Usage: sst-apply <FILE> [--kubeconfig <PATH>]\n\n" >&2
 
   printf "Run '%s <command> --help' for more information on a command.\n\n" "$0" >&2
 
@@ -93,21 +93,21 @@ usage_setup() {
   exit "${1:-0}"
 }
 
-usage_push_secrets() {
-  printf "%bUsage:%b %s push-secrets [options]\n\n" "${BOLD}" "${NORMAL}" "$0" >&2
-  printf "Fetch SST secrets and apply to cluster.\n\n" >&2
+usage_sst_apply() {
+  printf "%bUsage:%b %s sst-apply <FILE> [options]\n\n" "${BOLD}" "${NORMAL}" "$0" >&2
+  printf "Render SST templates (envsubst) and apply to cluster.\n\n" >&2
+
+  printf "%bArguments:%b\n" "${BOLD}" "${NORMAL}" >&2
+  printf "  %b<FILE>%b\n" "${GREEN}" "${NORMAL}" >&2
+  printf "      Template file with \${VAR} placeholders (required)\n\n" >&2
 
   printf "%bOptions:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %b--kubeconfig%b <PATH>\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      Kubeconfig file for kubectl operations\n\n" >&2
 
-  printf "  %b--file%b, %b-f%b <PATH>\n" "${YELLOW}" "${NORMAL}" "${YELLOW}" "${NORMAL}" >&2
-  printf "      Secrets YAML template file (default: k3s/apps/secrets.yaml)\n\n" >&2
-
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
-  printf "  %s push-secrets\n" "$0" >&2
-  printf "  %s push-secrets --kubeconfig ~/.kube/config\n" "$0" >&2
-  printf "  %s push-secrets --file ./my-secrets.yaml\n\n" "$0" >&2
+  printf "  %s sst-apply k3s/apps/templates.yaml\n" "$0" >&2
+  printf "  %s sst-apply k3s/apps/templates.yaml --kubeconfig ./k3s.yaml\n\n" "$0" >&2
 
   exit "${1:-0}"
 }

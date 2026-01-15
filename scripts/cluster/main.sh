@@ -14,8 +14,13 @@ readonly REPO_ROOT
 . "${SCRIPT_DIR}/usage.sh"
 . "${SCRIPT_DIR}/k3d.sh"
 
-cmd_push_secrets() {
-  cmd_push_secrets_secrets_yaml_template="${REPO_ROOT}/k3s/apps/secrets.yaml"
+cmd_sst_apply() {
+  [ $# -ge 1 ] || usage_sst_apply 1
+  case "$1" in
+    help | --help | -h) usage_sst_apply ;;
+  esac
+  cmd_sst_apply_template="$1"
+  shift
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -29,69 +34,61 @@ cmd_push_secrets() {
         printf "%bUsing kubeconfig:%b %s\n" "${BOLD}" "${NORMAL}" "${KUBECONFIG}" >&2
         shift 2
         ;;
-      --file | -f)
-        if [ $# -lt 2 ]; then
-          printf "%bError:%b Missing value for --file\n" "${RED}" "${NORMAL}" >&2
-          exit 1
-        fi
-        cmd_push_secrets_secrets_yaml_template="$2"
-        shift 2
-        ;;
-      help | --help | -h) usage_push_secrets ;;
+      help | --help | -h) usage_sst_apply ;;
       *)
-        printf "%bError:%b Unexpected argument for push-secrets: %s\n" "${RED}" "${NORMAL}" "$1" >&2
-        usage_push_secrets 1
+        printf "%bError:%b Unexpected argument for sst-apply: %s\n" "${RED}" "${NORMAL}" "$1" >&2
+        usage_sst_apply 1
         ;;
     esac
   done
 
-  cmd_push_secrets_current_kube_context=$(kubectl config current-context)
-  printf "%bApplying secrets to Kubernetes cluster: %s%b [y/n] " "${BOLD}" "${cmd_push_secrets_current_kube_context}" "${NORMAL}"
-  read -r cmd_push_secrets_confirm
-  if [ "${cmd_push_secrets_confirm}" != "y" ]; then
-    echo "Skipping secrets push"
+  cmd_sst_apply_current_kube_context=$(kubectl config current-context)
+  printf "%bApplying SST templates to Kubernetes cluster: %s%b [y/n] " "${BOLD}" "${cmd_sst_apply_current_kube_context}" "${NORMAL}"
+  read -r cmd_sst_apply_confirm
+  if [ "${cmd_sst_apply_confirm}" != "y" ]; then
+    echo "Skipping sst-apply"
     return 0
   fi
 
-  if [ ! -f "${cmd_push_secrets_secrets_yaml_template}" ]; then
-    printf "%bError:%b Missing secrets.yaml template: %s\n" "${RED}" "${NORMAL}" "${cmd_push_secrets_secrets_yaml_template}" >&2
+  if [ ! -f "${cmd_sst_apply_template}" ]; then
+    printf "%bError:%b Missing template file: %s\n" "${RED}" "${NORMAL}" "${cmd_sst_apply_template}" >&2
     return 1
   fi
 
   echo "Fetching SST secrets..."
-  cmd_push_secrets_secrets_json=$(get_sst_secrets)
-  if [ -z "${cmd_push_secrets_secrets_json}" ]; then
+  cmd_sst_apply_secrets_json=$(get_sst_secrets)
+  if [ -z "${cmd_sst_apply_secrets_json}" ]; then
     printf "%bError:%b Failed to fetch SST secrets. Make sure you're authenticated with SST.\n" "${RED}" "${NORMAL}" >&2
     printf "Try running: %bpnpm run sso%b.\n" "${BOLD}" "${NORMAL}" >&2
     return 1
   fi
   echo "SST secrets fetched"
 
-  echo "Generating secrets.yaml..."
-  while IFS= read -r cmd_push_secrets_entry; do
-    cmd_push_secrets_secret_key="$(printf "%s" "${cmd_push_secrets_entry}" | jq -r '.key')"
-    cmd_push_secrets_secret_value="$(printf "%s" "${cmd_push_secrets_entry}" | jq -r '.value')"
+  echo "Rendering template..."
+  while IFS= read -r cmd_sst_apply_entry; do
+    cmd_sst_apply_key="$(printf "%s" "${cmd_sst_apply_entry}" | jq -r '.key')"
+    cmd_sst_apply_value="$(printf "%s" "${cmd_sst_apply_entry}" | jq -r '.value')"
 
-    if [ "$(printf "%s" "${cmd_push_secrets_secret_value}" | wc -l)" -gt 1 ]; then
-      cmd_push_secrets_indent="$(grep "\${${cmd_push_secrets_secret_key}}" "${cmd_push_secrets_secrets_yaml_template}" \
+    if [ "$(printf "%s" "${cmd_sst_apply_value}" | wc -l)" -gt 1 ]; then
+      cmd_sst_apply_indent="$(grep "\${${cmd_sst_apply_key}}" "${cmd_sst_apply_template}" \
         | sed 's/\${.*//')"
-      cmd_push_secrets_secret_value="$(printf "%s" "${cmd_push_secrets_secret_value}" \
-        | sed "2,\$ s/^/${cmd_push_secrets_indent}/")"
+      cmd_sst_apply_value="$(printf "%s" "${cmd_sst_apply_value}" \
+        | sed "2,\$ s/^/${cmd_sst_apply_indent}/")"
     fi
 
-    export "${cmd_push_secrets_secret_key}"="${cmd_push_secrets_secret_value}"
+    export "${cmd_sst_apply_key}"="${cmd_sst_apply_value}"
   done << EOF
-$(printf "%s" "${cmd_push_secrets_secrets_json}" | jq -c 'to_entries[]')
+$(printf "%s" "${cmd_sst_apply_secrets_json}" | jq -c 'to_entries[]')
 EOF
 
-  cmd_push_secrets_tmp_dir="$(mktemp -d)"
-  trap 'rm -rf "${cmd_push_secrets_tmp_dir}"' EXIT
-  envsubst < "${cmd_push_secrets_secrets_yaml_template}" > "${cmd_push_secrets_tmp_dir}/secrets.yaml"
-  echo "Generated secrets.yaml at ${cmd_push_secrets_tmp_dir}/secrets.yaml"
+  cmd_sst_apply_tmp_dir="$(mktemp -d)"
+  trap 'rm -rf "${cmd_sst_apply_tmp_dir}"' EXIT
+  envsubst < "${cmd_sst_apply_template}" > "${cmd_sst_apply_tmp_dir}/rendered.yaml"
+  echo "Rendered template at ${cmd_sst_apply_tmp_dir}/rendered.yaml"
 
-  echo "Pushing secrets to Kubernetes cluster..."
-  kubectl apply --server-side -f "${cmd_push_secrets_tmp_dir}/secrets.yaml"
-  printf "%b✓ secrets pushed to Kubernetes cluster%b\n" "${GREEN}" "${NORMAL}"
+  echo "Applying to Kubernetes cluster..."
+  kubectl apply --server-side -f "${cmd_sst_apply_tmp_dir}/rendered.yaml"
+  printf "%b✓ SST templates applied to Kubernetes cluster%b\n" "${GREEN}" "${NORMAL}"
 }
 
 cmd_setup() {
@@ -196,7 +193,7 @@ main() {
   case "${cmd}" in
     k3d) cmd_k3d "$@" ;;
     setup) cmd_setup "$@" ;;
-    push-secrets) cmd_push_secrets "$@" ;;
+    sst-apply) cmd_sst_apply "$@" ;;
     help | --help | -h) usage ;;
     *)
       printf "%bError:%b Unknown command '%s'\n" "${RED}" "${NORMAL}" "${cmd}" >&2

@@ -16,11 +16,11 @@ options. Package scripts in `package.json` are wired directly to
 
 ## Top-Level Commands
 
-| Command        | Description                                                     |
-| -------------- | --------------------------------------------------------------- |
-| `k3d`          | Manage the local k3d cluster and dependencies.                  |
-| `setup`        | Install addons (MetalLB, cert-manager) and apply k3s manifests. |
-| `push-secrets` | Fetch SST secrets and push them into the active cluster.        |
+| Command     | Description                                                     |
+| ----------- | --------------------------------------------------------------- |
+| `k3d`       | Manage the local k3d cluster and dependencies.                  |
+| `setup`     | Install addons (MetalLB, cert-manager) and apply k3s manifests. |
+| `sst-apply` | Render SST templates and apply to cluster.                      |
 
 ## k3d Subcommands
 
@@ -49,11 +49,16 @@ options. Package scripts in `package.json` are wired directly to
 Either `--k3d`, `--ip-pool`, or the `IP_POOL_RANGE` environment variable must be
 provided; otherwise the command prints usage instructions and exits.
 
-## push-secrets Options
+## sst-apply Usage
 
-`push-secrets` pulls secrets from SST and applies them to the cluster through
-`kubectl`:
+`sst-apply` renders templates with SST secrets (via `envsubst`) and applies them to
+the cluster via `kubectl apply --server-side`:
 
+```sh
+./scripts/cluster/main.sh sst-apply <FILE> [--kubeconfig <path>]
+```
+
+- `<FILE>` – template file with `${VAR}` placeholders (required).
 - `--kubeconfig <path>` – target a custom kubeconfig (falls back to current context).
 
 You will always be prompted to confirm the destination context before anything is
@@ -69,8 +74,8 @@ applied.
 # Install addons with auto-detected IP pool
 ./scripts/cluster/main.sh setup --k3d
 
-# Push secrets to a remote cluster
-./scripts/cluster/main.sh push-secrets --kubeconfig ./k3s.yaml
+# Render and apply SST templates to a remote cluster
+./scripts/cluster/main.sh sst-apply k3s/apps/templates.yaml --kubeconfig ./k3s.yaml
 
 # Tear down everything
 ./scripts/cluster/main.sh k3d down
