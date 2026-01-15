@@ -6,8 +6,6 @@ credentials:
   dataKeys:
     adminPassword: ADMIN_PASSWORD
     clientPassword: CLIENT_PASSWORD
-    backupS3Key: BACKUP_S3_KEY
-    backupS3KeySecret: BACKUP_S3_KEY_SECRET
 
 clickhouse:
   image: ghcr.io/pandoks/clickhouse:latest
@@ -27,9 +25,14 @@ keeper:
       memory: 4Gi
 
 backup:
+  credentials:
+    secret: backup-bucket-creds
+    dataKeys:
+      accessKey: S3_ACCESS_KEY
+      secretKey: S3_SECRET_KEY
   image: ghcr.io/pandoks/clickhouse-backup:latest
-  bucket: clickhouse
-  path: /
+  bucket: backups
+  path: /example/clickhouse
   schedules:
     full: '0 2 * * 0'
     diff: '0 2 * * 3,6'

@@ -13,4 +13,5 @@ spec:
     name: main
     namespace: *namespace
     credentials.secret: clickhouse-main-creds
-    s3.credentials.secret: clickhouse-main-backup-creds
+    backup.bucket: dev-backups
+    backup.path: /main/clickhouse
