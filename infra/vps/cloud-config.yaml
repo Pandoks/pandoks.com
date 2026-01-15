@@ -12,10 +12,10 @@
 # KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID (for bootstrap)
 # KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET (for bootstrap)
 # KUBERNETES_TAILSCALE_HOSTNAME (for bootstrap)
-# KUBERNETES_ETCD_S3_ENDPOINT (for bootstrap)
-# KUBERNETES_ETCD_S3_BUCKET (for bootstrap)
-# KUBERNETES_ETCD_S3_ACCESS_KEY (for bootstrap)
-# KUBERNETES_ETCD_S3_SECRET_KEY (for bootstrap)
+# S3_HOST (for control-plane)
+# BACKUP_BUCKET (for control-plane)
+# S3_ACCESS_KEY (for control-plane)
+# S3_SECRET_KEY (for control-plane)
 package_update: true
 package_upgrade: true
 ssh_pwauth: false
@@ -107,10 +107,10 @@ runcmd:
           --flannel-iface=enp7s0 \
           --etcd-expose-metrics \
           --etcd-s3 \
-          --etcd-s3-endpoint=${KUBERNETES_ETCD_S3_ENDPOINT} \
-          --etcd-s3-bucket=${KUBERNETES_ETCD_S3_BUCKET} \
-          --etcd-s3-access-key=${KUBERNETES_ETCD_S3_ACCESS_KEY} \
-          --etcd-s3-secret-key=${KUBERNETES_ETCD_S3_SECRET_KEY} \
+          --etcd-s3-endpoint=${S3_HOST} \
+          --etcd-s3-bucket=${BACKUP_BUCKET} \
+          --etcd-s3-access-key=${S3_ACCESS_KEY} \
+          --etcd-s3-secret-key=${S3_SECRET_KEY} \
           --etcd-s3-folder=etcd \
           --etcd-snapshot-schedule-cron="0 */6 * * *" \
           --etcd-snapshot-retention=5
@@ -183,10 +183,10 @@ runcmd:
           --flannel-iface=enp7s0 \
           --etcd-expose-metrics \
           --etcd-s3 \
-          --etcd-s3-endpoint=${KUBERNETES_ETCD_S3_ENDPOINT} \
-          --etcd-s3-bucket=${KUBERNETES_ETCD_S3_BUCKET} \
-          --etcd-s3-access-key=${KUBERNETES_ETCD_S3_ACCESS_KEY} \
-          --etcd-s3-secret-key=${KUBERNETES_ETCD_S3_SECRET_KEY} \
+          --etcd-s3-endpoint=${S3_HOST} \
+          --etcd-s3-bucket=${BACKUP_BUCKET} \
+          --etcd-s3-access-key=${S3_ACCESS_KEY} \
+          --etcd-s3-secret-key=${S3_SECRET_KEY} \
           --etcd-s3-folder=etcd \
           --etcd-snapshot-schedule-cron="0 */6 * * *" \
           --etcd-snapshot-retention=5
