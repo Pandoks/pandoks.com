@@ -112,40 +112,38 @@ const { tailscaleHostnames: workerTailscaleHostnames, servers: workerServers } =
 );
 
 if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
-  secrets.k8s.tailscale.Hostname.value.apply(async () => {
-    const devices = await tailscale.getDevices({ namePrefix: `${STAGE_NAME}` });
+  const devices = await tailscale.getDevices({ namePrefix: `${STAGE_NAME}` });
 
-    const kubernetesDevices = devices.devices.filter(
-      (device) => device.tags.includes('tag:k8s') && device.tags.includes(`tag:${STAGE_NAME}`)
+  const kubernetesDevices = devices.devices.filter(
+    (device) => device.tags.includes('tag:k8s') && device.tags.includes(`tag:${STAGE_NAME}`)
+  );
+  if (kubernetesDevices.length > 0) {
+    const deletedDevices = await deleteTailscaleDevices(
+      kubernetesDevices.map((device) => device.nodeId)
     );
-    if (kubernetesDevices.length > 0) {
-      const deletedDevices = await deleteTailscaleDevices(
-        kubernetesDevices.map((device) => device.nodeId)
-      );
-      deletedDevices.apply((deletedDevices) => {
-        const deletedDeviceIds = deletedDevices
-          .filter((device) => device.success)
-          .map((device) => device.deviceId);
-        const failedToDeleteDeviceIds = deletedDevices
-          .filter((device) => !device.success)
-          .map((device) => device.deviceId);
-        if (deletedDeviceIds.length)
-          console.log(
-            `Deleted Tailscale devices:\n${kubernetesDevices
-              .filter((device) => deletedDeviceIds.includes(device.nodeId))
-              .map((device) => device.name)
-              .join('\n')}`
-          );
-        if (failedToDeleteDeviceIds.length)
-          console.log(
-            `Failed to delete Tailscale devices:\n${kubernetesDevices
-              .filter((device) => failedToDeleteDeviceIds.includes(device.nodeId))
-              .map((device) => device.name)
-              .join('\n')}`
-          );
-      });
-    }
-  });
+    deletedDevices.apply((deletedDevices) => {
+      const deletedDeviceIds = deletedDevices
+        .filter((device) => device.success)
+        .map((device) => device.deviceId);
+      const failedToDeleteDeviceIds = deletedDevices
+        .filter((device) => !device.success)
+        .map((device) => device.deviceId);
+      if (deletedDeviceIds.length)
+        console.log(
+          `Deleted Tailscale devices:\n${kubernetesDevices
+            .filter((device) => deletedDeviceIds.includes(device.nodeId))
+            .map((device) => device.name)
+            .join('\n')}`
+        );
+      if (failedToDeleteDeviceIds.length)
+        console.log(
+          `Failed to delete Tailscale devices:\n${kubernetesDevices
+            .filter((device) => failedToDeleteDeviceIds.includes(device.nodeId))
+            .map((device) => device.name)
+            .join('\n')}`
+        );
+    });
+  }
 }
 
 const publicLoadBalancerOutputs = Object.fromEntries(
