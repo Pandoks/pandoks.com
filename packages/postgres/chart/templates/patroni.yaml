@@ -159,16 +159,16 @@ spec:
               value: &backup_bucket {{ $.Values.backup.bucket }}
             - name: BACKUP_PATH
               value: &backup_path {{ $.Values.backup.path }}
-            - name: S3_KEY
+            - name: S3_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: *db_creds
-                  key: &s3_key {{ $.Values.credentials.dataKeys.backupS3Key }}
-            - name: S3_KEY_SECRET
+                  name: &backup_creds {{ $.Values.backup.credentials.secret }}
+                  key: &s3_key {{ $.Values.backup.credentials.dataKeys.accessKey }}
+            - name: S3_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: *db_creds
-                  key: &s3_key_secret {{ $.Values.credentials.dataKeys.backupS3KeySecret }}
+                  name: *backup_creds
+                  key: &s3_key_secret {{ $.Values.backup.credentials.dataKeys.secretKey }}
             - name: S3_REGION
               value: &s3_region {{ $.Values.s3.region }}
             - name: S3_HOST
@@ -216,15 +216,15 @@ spec:
               value: *backup_bucket
             - name: BACKUP_PATH
               value: *backup_path
-            - name: S3_KEY
+            - name: S3_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: *db_creds
+                  name: *backup_creds
                   key: *s3_key
-            - name: S3_KEY_SECRET
+            - name: S3_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: *db_creds
+                  name: *backup_creds
                   key: *s3_key_secret
             - name: S3_REGION
               value: *s3_region

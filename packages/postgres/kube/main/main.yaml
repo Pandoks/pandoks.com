@@ -13,3 +13,4 @@ spec:
     db: main
     namespace: *namespace
     credentials.secret: postgres-main-creds
+    backup.path: /main/postgres
