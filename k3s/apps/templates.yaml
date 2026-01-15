@@ -140,13 +140,3 @@ stringData:
   CLIENT_PASSWORD: ${MainMainClickhouseClientPassword}
   BACKUP_S3_KEY: ${MainMainClickhouseBackupS3Key}
   BACKUP_S3_KEY_SECRET: ${MainMainClickhouseBackupS3KeySecret}
-
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: grafana
-  namespace: monitoring
-type: Opaque
-stringData:
-  password: ${KubernetesGrafanaAdminPassword}
