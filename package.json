@@ -14,7 +14,7 @@
     "docker:build": "pnpm -r run docker:build",
     "k3s:remote": "pnpm run ssh:copy --remote-file /etc/rancher/k3s/k3s.yaml",
     "k3s:setup": "./scripts/cluster/main.sh setup --kubeconfig ./k3s.yaml",
-    "k3s:secrets": "./scripts/cluster/main.sh push-secrets --kubeconfig ./k3s.yaml",
+    "k3s:sst-apply": "./scripts/cluster/main.sh sst-apply k3s/apps/templates.yaml --kubeconfig ./k3s.yaml",
     "k3s:deploy": "kubectl --kubeconfig ./k3s.yaml apply -k ./k3s/apps --load-restrictor LoadRestrictionsNone",
     "ssh:copy": "./scripts/ssh.sh copy",
     "ssh:tunnel": "./scripts/ssh.sh tunnel --local-port 6443 --remote-port 6443",
