@@ -20,62 +20,99 @@ options. Package scripts in `package.json` are wired directly to
 | ----------- | --------------------------------------------------------------- |
 | `k3d`       | Manage the local k3d cluster and dependencies.                  |
 | `setup`     | Install addons (MetalLB, cert-manager) and apply k3s manifests. |
+| `deploy`    | Deploy environment-specific overlay (dev or prod).              |
 | `sst-apply` | Render SST templates and apply to cluster.                      |
 
 ## k3d Subcommands
 
 ```sh
-./scripts/cluster/main.sh k3d <subcommand> [options]
+./scripts/cluster/main.sh k3d <subcommand>
 ```
 
-| Subcommand | Description                                           |
-| ---------- | ----------------------------------------------------- |
-| `up`       | Create `local-cluster` (supports `--network <name>`). |
-| `down`     | Delete the cluster if it exists.                      |
-| `start`    | Start an existing cluster.                            |
-| `stop`     | Stop the running cluster.                             |
-| `restart`  | Stop and start the cluster sequentially.              |
+| Subcommand | Description                                  |
+| ---------- | -------------------------------------------- |
+| `up`       | Create `local-cluster` on pandoks-net.       |
+| `down`     | Delete the cluster if it exists.             |
+| `start`    | Start an existing cluster.                   |
+| `stop`     | Stop the running cluster.                    |
+| `restart`  | Stop and start the cluster sequentially.     |
 | `deps`     | Manage Docker Compose dependencies (up/down/restart). |
 
-## setup Options
+## setup
 
-`setup` accepts several flags to control how networking is configured:
+`setup` installs the base infrastructure (helm charts + core resources):
+- MetalLB, cert-manager, HAProxy Ingress, Prometheus/Grafana
+- Waits for CRDs to be established
+- Applies core resources (IPAddressPool, cert-manager issuers, namespaces)
 
-- `--kubeconfig <path>` – operate against a specific kubeconfig file.
-- `--k3d` – auto-detect the IP pool from the local k3d network.
-- `--ip-pool <range>` – explicitly set an IP pool (`CIDR` or `start-end`).
-- `--network <name>` – set the Docker network used while auto-detecting pools.
+Prompts for confirmation with current kubectl context.
 
-Either `--k3d`, `--ip-pool`, or the `IP_POOL_RANGE` environment variable must be
-provided; otherwise the command prints usage instructions and exits.
+## deploy
+
+`deploy` applies environment-specific overlays:
+
+```sh
+./scripts/cluster/main.sh deploy <dev|prod>
+```
+
+| Environment | Description |
+| ----------- | ----------- |
+| `dev`       | Applies MetalLB IP patch for docker network (172.30.100.1-172.30.100.200) + app patches |
+| `prod`      | Installs system-upgrade-controller + cluster upgrade plans |
 
 ## sst-apply Usage
 
-`sst-apply` renders templates with SST secrets (via `envsubst`) and applies them to
-the cluster via `kubectl apply --server-side`:
+`sst-apply` renders templates with SST secrets and applies them to the cluster via
+`kubectl apply --server-side`:
 
 ```sh
-./scripts/cluster/main.sh sst-apply <FILE> [--kubeconfig <path>]
+./scripts/cluster/main.sh sst-apply <FILE|all> [--dry-run] [--kubeconfig <path>]
 ```
 
-- `<FILE>` – template file with `${VAR}` placeholders (required).
+- `<FILE>` – template file with `${VAR}` placeholders.
+- `all` – applies all templates (monitoring, apps, tailscale).
+- `--dry-run` – show rendered YAML without applying to cluster.
 - `--kubeconfig <path>` – target a custom kubeconfig (falls back to current context).
 
+### Template Syntax
+
+- `${VAR}` – plain substitution from SST secret value.
+- `${VAR | filter}` – apply a filter to the value before substitution.
+
+Available filters:
+| Filter   | Description                |
+| -------- | -------------------------- |
+| `base64` | Base64 encode the value    |
+
+Example:
+```yaml
+stringData:
+  password: ${MySecret}
+data:
+  tls.crt: ${TlsCert | base64}
+```
+
 You will always be prompted to confirm the destination context before anything is
-applied.
+applied (unless using `--dry-run`).
 
 ## Examples
 
 ```sh
 # Start dependencies and create the k3d cluster
 ./scripts/cluster/main.sh k3d deps up
-./scripts/cluster/main.sh k3d up --network pandoks-net
+./scripts/cluster/main.sh k3d up
 
-# Install addons with auto-detected IP pool
-./scripts/cluster/main.sh setup --k3d
+# Install base infrastructure
+./scripts/cluster/main.sh setup
 
-# Render and apply SST templates to a remote cluster
-./scripts/cluster/main.sh sst-apply k3s/apps/templates.yaml --kubeconfig ./k3s.yaml
+# Preview rendered SST templates (dry-run)
+./scripts/cluster/main.sh sst-apply all --dry-run
+
+# Apply SST templates
+./scripts/cluster/main.sh sst-apply all
+
+# Deploy dev overlay
+./scripts/cluster/main.sh deploy dev
 
 # Tear down everything
 ./scripts/cluster/main.sh k3d down

@@ -129,7 +129,7 @@ usage_sst_apply() {
 
   printf "%bArguments:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %b<FILE>%b\n" "${GREEN}" "${NORMAL}" >&2
-  printf "      Template file with \${VAR} or \${VAR | base64} placeholders\n\n" >&2
+  printf "      Template file with \${VAR} or \${VAR | filter} placeholders\n\n" >&2
   printf "  %ball%b\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Apply all templates (monitoring, apps, tailscale)\n\n" >&2
 
