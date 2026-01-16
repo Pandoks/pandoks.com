@@ -1,33 +1,36 @@
 # shellcheck shell=sh
 
-cmd_setup() {
+cmd_core() {
   while [ $# -gt 0 ]; do
     case "$1" in
-      help | --help | -h) usage_setup ;;
+      help | --help | -h) usage_core ;;
       *)
-        printf "%bError:%b Unexpected argument for setup: %s\n" "${RED}" "${NORMAL}" "$1" >&2
-        usage_setup 1
+        printf "%bError:%b Unexpected argument for core: %s\n" "${RED}" "${NORMAL}" "$1" >&2
+        usage_core 1
         ;;
     esac
   done
 
-  cmd_setup_current_context=$(kubectl config current-context)
-  printf "%bSetup cluster: %s%b [y/n] " "${BOLD}" "${cmd_setup_current_context}" "${NORMAL}"
-  read -r cmd_setup_confirm
-  if [ "${cmd_setup_confirm}" != "y" ]; then
-    echo "Skipping setup"
-    return 0
+  # Skip confirmation if called from sync
+  if [ "${cmd_core_no_confirm:-}" != "true" ]; then
+    cmd_core_current_context=$(kubectl config current-context)
+    printf "%bApply core to cluster: %s%b [y/n] " "${BOLD}" "${cmd_core_current_context}" "${NORMAL}"
+    read -r cmd_core_confirm
+    if [ "${cmd_core_confirm}" != "y" ]; then
+      echo "Skipping core"
+      return 0
+    fi
   fi
 
   echo "Installing Helm-based addons (MetalLB, cert-manager, etc.)..."
   kubectl apply --server-side -k "${REPO_ROOT}/k3s/base/helm-charts"
 
   echo "Waiting for cert-manager CRDs to be established..."
-  for cmd_setup_crd in \
+  for cmd_core_crd in \
     certificates.cert-manager.io \
     issuers.cert-manager.io \
     clusterissuers.cert-manager.io; do
-    wait_for_crd "${cmd_setup_crd}" 180
+    wait_for_crd "${cmd_core_crd}" 180
   done
   printf "%b✓ cert-manager CRDs established%b\n" "${GREEN}" "${NORMAL}"
 
@@ -50,5 +53,5 @@ cmd_setup() {
   wait_for_crd "plans.upgrade.cattle.io" 120
   printf "%b✓ Plans CRD established%b\n" "${GREEN}" "${NORMAL}"
 
-  printf "%b✓ Setup complete%b\n" "${GREEN}" "${NORMAL}"
+  printf "%b✓ Core complete%b\n" "${GREEN}" "${NORMAL}"
 }
