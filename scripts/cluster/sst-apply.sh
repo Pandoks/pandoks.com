@@ -31,7 +31,7 @@ cmd_sst_apply() {
   if [ "${cmd_sst_apply_target}" = "all" ]; then
     cmd_sst_apply_templates="
       ${REPO_ROOT}/k3s/helm-charts/templates.yaml
-      ${REPO_ROOT}/k3s/monitoring/templates.yaml
+      ${REPO_ROOT}/k3s/core/templates.yaml
       ${REPO_ROOT}/k3s/apps/templates.yaml
     "
   else
