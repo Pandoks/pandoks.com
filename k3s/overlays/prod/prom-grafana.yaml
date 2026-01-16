@@ -1,23 +1,23 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: monitoring
-
----
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
 metadata:
-  name: &name kube-prometheus-stack
+  name: kube-prometheus-stack
   namespace: kube-system
 spec:
   repo: https://prometheus-community.github.io/helm-charts
-  chart: *name
+  chart: kube-prometheus-stack
   version: 80.14.0
   targetNamespace: monitoring
   createNamespace: true
   valuesContent: |-
+    # Hetzner control plane nodes on private network 10.0.1.0/24
+    # IPs start at octet 10: control-plane-0=.10, control-plane-1=.11, etc. (/infra/vps/vps.ts)
     kubeEtcd:
       enabled: true
+      endpoints:
+        - 10.0.1.10
+        # - 10.0.1.11  # uncomment when adding control-plane-1
+        # - 10.0.1.12  # uncomment when adding control-plane-2
       service:
         enabled: true
         port: 2381

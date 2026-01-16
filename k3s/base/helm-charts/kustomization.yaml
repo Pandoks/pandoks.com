@@ -4,4 +4,3 @@ resources:
   - metallb.yaml
   - haproxy-ingress.yaml
   - cert-manager.yaml
-  - prom-grafana.yaml
