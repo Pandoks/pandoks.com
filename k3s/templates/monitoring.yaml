@@ -9,10 +9,11 @@ stringData:
   password: ${KubernetesGrafanaAdminPassword}
 
 ---
+# Patch existing Grafana service to add Tailscale annotations
 apiVersion: v1
 kind: Service
 metadata:
-  name: grafana
+  name: kube-prometheus-stack-grafana
   namespace: monitoring
   annotations:
     tailscale.com/expose: 'true'
