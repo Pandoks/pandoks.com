@@ -29,12 +29,16 @@ cmd_sst_apply() {
   done
 
   if [ "${cmd_sst_apply_target}" = "all" ]; then
-    # NOTE: hard coded list because we don't want to accidentally apply on the wrong files if we do glob
-    cmd_sst_apply_templates="
-      ${REPO_ROOT}/k3s/helm-charts/templates.yaml
-      ${REPO_ROOT}/k3s/core/templates.yaml
-      ${REPO_ROOT}/k3s/apps/templates.yaml
-    "
+    cmd_sst_apply_templates_dir="${REPO_ROOT}/k3s/templates"
+    if [ ! -d "${cmd_sst_apply_templates_dir}" ]; then
+      printf "%bError:%b Templates directory not found: %s\n" "${RED}" "${NORMAL}" "${cmd_sst_apply_templates_dir}" >&2
+      return 1
+    fi
+    cmd_sst_apply_templates=$(find "${cmd_sst_apply_templates_dir}" -maxdepth 1 -name '*.yaml' -type f | sort)
+    if [ -z "${cmd_sst_apply_templates}" ]; then
+      printf "%bError:%b No template files found in %s\n" "${RED}" "${NORMAL}" "${cmd_sst_apply_templates_dir}" >&2
+      return 1
+    fi
   else
     if [ ! -f "${cmd_sst_apply_target}" ]; then
       printf "%bError:%b Missing template file: %s\n" "${RED}" "${NORMAL}" "${cmd_sst_apply_target}" >&2
