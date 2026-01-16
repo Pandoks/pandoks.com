@@ -46,5 +46,9 @@ cmd_setup() {
   echo "Applying core kustomization..."
   kubectl apply --server-side -k "${REPO_ROOT}/k3s/base/core"
 
+  echo "Waiting for Plans CRD to be established..."
+  wait_for_crd "plans.upgrade.cattle.io" 120
+  printf "%b✓ Plans CRD established%b\n" "${GREEN}" "${NORMAL}"
+
   printf "%b✓ Setup complete%b\n" "${GREEN}" "${NORMAL}"
 }
