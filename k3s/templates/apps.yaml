@@ -35,11 +35,9 @@ metadata:
   name: cloudflare-origin-tls
   namespace: example
 type: kubernetes.io/tls
-stringData:
-  tls.crt: |
-    ${HetznerOriginTlsCrt}
-  tls.key: |
-    ${HetznerOriginTlsKey}
+data:
+  tls.crt: ${HetznerOriginTlsCrt | base64}
+  tls.key: ${HetznerOriginTlsKey | base64}
 
 ---
 # used to pull private images from ghcr.io
