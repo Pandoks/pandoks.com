@@ -1,5 +1,17 @@
 # shellcheck shell=sh
 
+apply_template_filter() {
+  apply_template_filter_name="$1"
+  apply_template_filter_value="$2"
+
+  case "${apply_template_filter_name}" in
+    base64) printf '%s' "${apply_template_filter_value}" | base64 ;;
+    *)
+      printf "%bError:%b Unknown template filter: %s\n" "${RED}" "${NORMAL}" "${apply_template_filter_name}" >&2
+      return 1
+      ;;
+  esac
+}
 cmd_sst_apply() {
   [ $# -ge 1 ] || usage_sst_apply 1
   case "$1" in
