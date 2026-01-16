@@ -133,19 +133,21 @@ EOF
 
   cmd_sst_apply_tmp_dir="$(mktemp -d)"
   trap 'rm -rf "${cmd_sst_apply_tmp_dir}"' EXIT
+    cmd_sst_apply_tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "${cmd_sst_apply_tmp_dir}"' EXIT
 
-  for cmd_sst_apply_template in ${cmd_sst_apply_templates}; do
-    if [ ! -f "${cmd_sst_apply_template}" ]; then
-      printf "%bWarning:%b Template not found: %s, skipping\n" "${YELLOW}" "${NORMAL}" "${cmd_sst_apply_template}" >&2
-      continue
-    fi
+    for cmd_sst_apply_template in ${cmd_sst_apply_templates}; do
+      if [ ! -f "${cmd_sst_apply_template}" ]; then
+        printf "%bWarning:%b Template not found: %s, skipping\n" "${YELLOW}" "${NORMAL}" "${cmd_sst_apply_template}" >&2
+        continue
+      fi
 
-    echo "Rendering ${cmd_sst_apply_template}..."
-    envsubst < "${cmd_sst_apply_template}" > "${cmd_sst_apply_tmp_dir}/rendered.yaml"
+      echo "Rendering ${cmd_sst_apply_template}..."
+      template_substitute "$(cat "${cmd_sst_apply_template}")" "${cmd_sst_apply_secrets}" > "${cmd_sst_apply_tmp_dir}/rendered.yaml"
 
-    echo "Applying to Kubernetes cluster..."
-    kubectl apply --server-side -f "${cmd_sst_apply_tmp_dir}/rendered.yaml"
-  done
+      echo "Applying to Kubernetes cluster..."
+      kubectl apply --server-side -f "${cmd_sst_apply_tmp_dir}/rendered.yaml"
+    done
 
-  printf "%b✓ SST templates applied to Kubernetes cluster%b\n" "${GREEN}" "${NORMAL}"
+    printf "%b✓ SST templates applied to Kubernetes cluster%b\n" "${GREEN}" "${NORMAL}"
 }
