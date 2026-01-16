@@ -67,8 +67,13 @@ cmd_sst_apply() {
   cmd_sst_apply_target="$1"
   shift
 
+  cmd_sst_apply_dry_run=false
   while [ $# -gt 0 ]; do
     case "$1" in
+      --dry-run)
+        cmd_sst_apply_dry_run=true
+        shift
+        ;;
       --kubeconfig)
         if [ $# -lt 2 ]; then
           printf "%bError:%b Missing value for --kubeconfig\n" "${RED}" "${NORMAL}" >&2
@@ -106,33 +111,36 @@ cmd_sst_apply() {
     cmd_sst_apply_templates="${cmd_sst_apply_target}"
   fi
 
-  cmd_sst_apply_current_kube_context=$(kubectl config current-context)
-  printf "%bApplying SST templates to Kubernetes cluster: %s%b [y/n] " "${BOLD}" "${cmd_sst_apply_current_kube_context}" "${NORMAL}"
-  read -r cmd_sst_apply_confirm
-  if [ "${cmd_sst_apply_confirm}" != "y" ]; then
-    echo "Skipping sst-apply"
-    return 0
+  if [ "${cmd_sst_apply_dry_run}" = "false" ]; then
+    cmd_sst_apply_current_kube_context=$(kubectl config current-context)
+    printf "%bApplying SST templates to Kubernetes cluster: %s%b [y/n] " "${BOLD}" "${cmd_sst_apply_current_kube_context}" "${NORMAL}"
+    read -r cmd_sst_apply_confirm
+    if [ "${cmd_sst_apply_confirm}" != "y" ]; then
+      echo "Skipping sst-apply"
+      return 0
+    fi
   fi
 
   echo "Fetching SST secrets..."
-  cmd_sst_apply_secrets_json=$(get_sst_secrets)
-  if [ -z "${cmd_sst_apply_secrets_json}" ]; then
+  cmd_sst_apply_secrets=$(get_sst_secrets)
+  if [ -z "${cmd_sst_apply_secrets}" ]; then
     printf "%bError:%b Failed to fetch SST secrets. Make sure you're authenticated with SST.\n" "${RED}" "${NORMAL}" >&2
     printf "Try running: %bpnpm run sso%b.\n" "${BOLD}" "${NORMAL}" >&2
     return 1
   fi
   echo "SST secrets fetched"
 
-  while IFS= read -r cmd_sst_apply_entry; do
-    cmd_sst_apply_key="$(printf "%s" "${cmd_sst_apply_entry}" | jq -r '.key')"
-    cmd_sst_apply_value="$(printf "%s" "${cmd_sst_apply_entry}" | jq -r '.value')"
-    export "${cmd_sst_apply_key}"="${cmd_sst_apply_value}"
-  done << EOF
-$(printf "%s" "${cmd_sst_apply_secrets_json}" | jq -c 'to_entries[]')
-EOF
-
-  cmd_sst_apply_tmp_dir="$(mktemp -d)"
-  trap 'rm -rf "${cmd_sst_apply_tmp_dir}"' EXIT
+  if [ "${cmd_sst_apply_dry_run}" = "true" ]; then
+    for cmd_sst_apply_template in ${cmd_sst_apply_templates}; do
+      if [ ! -f "${cmd_sst_apply_template}" ]; then
+        printf "%bWarning:%b Template not found: %s, skipping\n" "${YELLOW}" "${NORMAL}" "${cmd_sst_apply_template}" >&2
+        continue
+      fi
+      printf "%b# Rendered: %s%b\n" "${BOLD}" "${cmd_sst_apply_template}" "${NORMAL}"
+      template_substitute "$(cat "${cmd_sst_apply_template}")" "${cmd_sst_apply_secrets}"
+      printf "\n"
+    done
+  else
     cmd_sst_apply_tmp_dir="$(mktemp -d)"
     trap 'rm -rf "${cmd_sst_apply_tmp_dir}"' EXIT
 
@@ -150,4 +158,5 @@ EOF
     done
 
     printf "%b✓ SST templates applied to Kubernetes cluster%b\n" "${GREEN}" "${NORMAL}"
+  fi
 }
