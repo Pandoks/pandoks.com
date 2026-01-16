@@ -3,41 +3,23 @@
 . "$(dirname "$0")/deps.sh"
 
 cmd_k3d_up() {
-  cmd_k3d_up_network_name=""
-
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --network)
-        if [ $# -lt 2 ]; then
-          printf "%bError:%b --network requires a network name\n" "${RED}" "${NORMAL}" >&2
-          exit 1
-        fi
-        cmd_k3d_up_network_name="$2"
-        shift 2
-        ;;
-      *)
-        printf "%bError:%b Unexpected argument for k3d up: %s\n" "${RED}" "${NORMAL}" "$1" >&2
-        exit 1
-        ;;
-    esac
-  done
+  if [ $# -gt 0 ]; then
+    printf "%bError:%b Unexpected argument for k3d up: %s\n" "${RED}" "${NORMAL}" "$1" >&2
+    exit 1
+  fi
 
   if k3d cluster list 2> /dev/null | grep -q "^local-cluster"; then
     echo "k3d cluster 'local-cluster' already exists. Skipping creation."
     return 0
   fi
 
-  echo "Creating k3d cluster 'local-cluster'..."
-  if [ -n "${cmd_k3d_up_network_name}" ]; then
-    if ! docker network inspect "${cmd_k3d_up_network_name}" > /dev/null 2>&1; then
-      printf "%bError:%b docker network not found: %s\n" "${RED}" "${NORMAL}" "${cmd_k3d_up_network_name}" >&2
-      return 1
-    fi
-    cmd_k3d_up_network_args="--network ${cmd_k3d_up_network_name}"
-    echo "Attaching loadbalancer to docker network: ${cmd_k3d_up_network_name}"
+  if ! docker network inspect pandoks-net > /dev/null 2>&1; then
+    printf "%bError:%b docker network 'pandoks-net' not found.\n" "${RED}" "${NORMAL}" >&2
+    printf "Run 'docker compose up -d' first to create the network.\n" >&2
+    return 1
   fi
 
-  # shellcheck disable=SC2086
+  echo "Creating k3d cluster 'local-cluster' on network 'pandoks-net'..."
   k3d cluster create local-cluster \
     --servers 3 \
     --agents 3 \
@@ -46,7 +28,7 @@ cmd_k3d_up() {
     --k3s-arg "--disable=traefik@server:*" \
     --k3s-arg "--disable=servicelb@server:*" \
     -p "8080:30080@loadbalancer" \
-    ${cmd_k3d_up_network_args:-}
+    --network pandoks-net
   printf "%b✓ k3d cluster created%b\n" "${GREEN}" "${NORMAL}"
 }
 
