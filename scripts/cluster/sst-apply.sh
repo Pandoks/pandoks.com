@@ -12,6 +12,53 @@ apply_template_filter() {
       ;;
   esac
 }
+
+template_substitute() {
+  template_substitute_output="$1"
+  template_substitute_secrets="$2"
+
+  # Find all ${VAR | filter} patterns (e.g., ${Secret | base64})
+  template_substitute_filter_patterns=$(printf '%s' "$1" | grep -oE '\$\{[^}]+\s*\|\s*[a-z0-9]+\s*\}' | sort -u)
+
+  # Process each ${VAR | filter} pattern
+  while IFS= read -r template_substitute_pattern; do
+    [ -z "${template_substitute_pattern}" ] && continue
+    template_substitute_var=$(printf '%s' "${template_substitute_pattern}" | sed 's/\${\([^|]*\)|.*/\1/' | tr -d ' ')
+    template_substitute_filter=$(printf '%s' "${template_substitute_pattern}" | sed 's/.*|\s*\([^}]*\)}/\1/' | tr -d ' ')
+    template_substitute_value=$(printf '%s' "${template_substitute_secrets}" | jq -r --arg k "${template_substitute_var}" '.[$k]')
+    template_substitute_result=$(apply_template_filter "${template_substitute_filter}" "${template_substitute_value}") || return 1
+    template_substitute_output=$(printf '%s' "${template_substitute_output}" | awk -v pat="${template_substitute_pattern}" -v rep="${template_substitute_result}" '{
+      while ((idx = index($0, pat)) > 0) {
+        $0 = substr($0, 1, idx-1) rep substr($0, idx+length(pat))
+      }
+      print
+    }')
+  done << EOF
+${template_substitute_filter_patterns}
+EOF
+
+  # Find all plain ${VAR} patterns (no filter)
+  template_substitute_plain_patterns=$(printf '%s' "${template_substitute_output}" | grep -oE '\$\{[^}|]+\}' | sort -u)
+
+  # Process each ${VAR} pattern
+  while IFS= read -r template_substitute_pattern; do
+    [ -z "${template_substitute_pattern}" ] && continue
+    template_substitute_var=$(printf '%s' "${template_substitute_pattern}" | sed 's/\${\([^}]*\)}/\1/')
+    template_substitute_value=$(printf '%s' "${template_substitute_secrets}" | jq -r --arg k "${template_substitute_var}" '.[$k] // empty')
+    [ -z "${template_substitute_value}" ] && continue
+    template_substitute_output=$(printf '%s' "${template_substitute_output}" | awk -v pat="${template_substitute_pattern}" -v rep="${template_substitute_value}" '{
+      while ((idx = index($0, pat)) > 0) {
+        $0 = substr($0, 1, idx-1) rep substr($0, idx+length(pat))
+      }
+      print
+    }')
+  done << EOF
+${template_substitute_plain_patterns}
+EOF
+
+  printf '%s' "${template_substitute_output}"
+}
+
 cmd_sst_apply() {
   [ $# -ge 1 ] || usage_sst_apply 1
   case "$1" in
