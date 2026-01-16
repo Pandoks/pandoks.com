@@ -29,6 +29,7 @@ cmd_sst_apply() {
   done
 
   if [ "${cmd_sst_apply_target}" = "all" ]; then
+    # NOTE: hard coded list because we don't want to accidentally apply on the wrong files if we do glob
     cmd_sst_apply_templates="
       ${REPO_ROOT}/k3s/helm-charts/templates.yaml
       ${REPO_ROOT}/k3s/core/templates.yaml
