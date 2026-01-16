@@ -8,10 +8,16 @@ usage() {
   printf "  %bk3d%b             Manage local k3d cluster and dependencies\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Subcommands: up, down, start, stop, restart, deps\n\n" >&2
 
-  printf "  %bsetup%b           Setup cluster with addons and manifests\n" "${GREEN}" "${NORMAL}" >&2
-  printf "      (prompts for cluster confirmation)\n\n" >&2
+  printf "  %bcore%b            Apply core infrastructure (helm charts + CRDs)\n" "${GREEN}" "${NORMAL}" >&2
+  printf "      (idempotent, safe to run multiple times)\n\n" >&2
 
-  printf "  %bsst-apply%b      Render SST templates and apply to cluster\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bdeploy%b          Deploy environment overlay (dev or prod)\n" "${GREEN}" "${NORMAL}" >&2
+  printf "      Usage: deploy <dev|prod>\n\n" >&2
+
+  printf "  %bsync%b            Run core + deploy together\n" "${GREEN}" "${NORMAL}" >&2
+  printf "      Usage: sync <dev|prod>\n\n" >&2
+
+  printf "  %bsst-apply%b       Render SST templates and apply to cluster\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Usage: sst-apply <FILE|all> [--kubeconfig <PATH>]\n\n" >&2
 
   printf "Run '%s <command> --help' for more information on a command.\n\n" "$0" >&2
@@ -67,34 +73,76 @@ usage_deps() {
   exit "${1:-0}"
 }
 
-usage_setup() {
-  printf "%bUsage:%b %s setup\n\n" "${BOLD}" "${NORMAL}" "$0" >&2
-  printf "Install addons (MetalLB, cert-manager) and apply k3s core manifests.\n" >&2
-  printf "Prompts for confirmation with current kubectl context.\n\n" >&2
+usage_core() {
+  printf "%bUsage:%b %s core\n\n" "${BOLD}" "${NORMAL}" "$0" >&2
+  printf "Apply core infrastructure (helm charts, CRDs, base resources).\n" >&2
+  printf "Idempotent - safe to run multiple times.\n\n" >&2
+
+  printf "%bWhat it does:%b\n" "${BOLD}" "${NORMAL}" >&2
+  printf "  1. Install helm charts (MetalLB, cert-manager, HAProxy, Prometheus)\n" >&2
+  printf "  2. Wait for CRDs to be established\n" >&2
+  printf "  3. Apply core resources (IPAddressPool, ClusterIssuers, namespaces)\n\n" >&2
 
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
-  printf "  %s setup\n\n" "$0" >&2
+  printf "  %s core\n\n" "$0" >&2
+
+  exit "${1:-0}"
+}
+
+usage_deploy() {
+  printf "%bUsage:%b %s deploy <dev|prod>\n\n" "${BOLD}" "${NORMAL}" "$0" >&2
+  printf "Deploy environment-specific overlay to cluster.\n\n" >&2
+
+  printf "%bEnvironments:%b\n" "${BOLD}" "${NORMAL}" >&2
+  printf "  %bdev%b\n" "${GREEN}" "${NORMAL}" >&2
+  printf "      Apply dev overlay (MetalLB IP patch for docker network)\n\n" >&2
+  printf "  %bprod%b\n" "${GREEN}" "${NORMAL}" >&2
+  printf "      Apply prod overlay (tailscale, system-upgrade controller + plans)\n\n" >&2
+
+  printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
+  printf "  %s deploy dev\n" "$0" >&2
+  printf "  %s deploy prod\n\n" "$0" >&2
+
+  exit "${1:-0}"
+}
+
+usage_sync() {
+  printf "%bUsage:%b %s sync <dev|prod>\n\n" "${BOLD}" "${NORMAL}" "$0" >&2
+  printf "Run core + deploy together. Ideal for CI/CD.\n\n" >&2
+
+  printf "%bEnvironments:%b\n" "${BOLD}" "${NORMAL}" >&2
+  printf "  %bdev%b\n" "${GREEN}" "${NORMAL}" >&2
+  printf "      Apply core infrastructure + dev overlay\n\n" >&2
+  printf "  %bprod%b\n" "${GREEN}" "${NORMAL}" >&2
+  printf "      Apply core infrastructure + prod overlay\n\n" >&2
+
+  printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
+  printf "  %s sync dev\n" "$0" >&2
+  printf "  %s sync prod\n\n" "$0" >&2
 
   exit "${1:-0}"
 }
 
 usage_sst_apply() {
   printf "%bUsage:%b %s sst-apply <FILE|all> [options]\n\n" "${BOLD}" "${NORMAL}" "$0" >&2
-  printf "Render SST templates (envsubst) and apply to cluster.\n\n" >&2
+  printf "Render SST templates and apply to cluster.\n\n" >&2
 
   printf "%bArguments:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %b<FILE>%b\n" "${GREEN}" "${NORMAL}" >&2
-  printf "      Template file with \${VAR} placeholders\n\n" >&2
+  printf "      Template file with \${VAR} or \${VAR | base64} placeholders\n\n" >&2
   printf "  %ball%b\n" "${GREEN}" "${NORMAL}" >&2
-  printf "      Apply all templates (helm-charts, monitoring, apps)\n\n" >&2
+  printf "      Apply all templates (monitoring, apps, tailscale)\n\n" >&2
 
   printf "%bOptions:%b\n" "${BOLD}" "${NORMAL}" >&2
+  printf "  %b--dry-run%b\n" "${YELLOW}" "${NORMAL}" >&2
+  printf "      Show rendered YAML without applying to cluster\n\n" >&2
   printf "  %b--kubeconfig%b <PATH>\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      Kubeconfig file for kubectl operations\n\n" >&2
 
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %s sst-apply all\n" "$0" >&2
-  printf "  %s sst-apply k3s/apps/templates.yaml\n" "$0" >&2
+  printf "  %s sst-apply all --dry-run\n" "$0" >&2
+  printf "  %s sst-apply k3s/templates/apps.yaml --dry-run\n" "$0" >&2
   printf "  %s sst-apply all --kubeconfig ./k3s.yaml\n\n" "$0" >&2
 
   exit "${1:-0}"
