@@ -37,6 +37,7 @@ cmd_k3d_up() {
     --api-port 6444 \
     --k3s-arg "--disable=traefik@server:*" \
     --k3s-arg "--disable=servicelb@server:*" \
+    --k3s-arg "--etcd-expose-metrics@server:*" \
     -p "8080:30080@loadbalancer" \
     --network pandoks-net
   printf "%b✓ k3d cluster created%b\n" "${GREEN}" "${NORMAL}"
