@@ -20,7 +20,7 @@ cmd_setup() {
   fi
 
   echo "Installing Helm-based addons (MetalLB, cert-manager, etc.)..."
-  kubectl apply --server-side -k "${REPO_ROOT}/k3s/helm-charts"
+  kubectl apply --server-side -k "${REPO_ROOT}/k3s/base/helm-charts"
 
   echo "Waiting for cert-manager CRDs to be established..."
   for cmd_setup_crd in \
@@ -44,7 +44,7 @@ cmd_setup() {
   printf "%b✓ MetalLB CRDs established%b\n" "${GREEN}" "${NORMAL}"
 
   echo "Applying core kustomization..."
-  kubectl apply --server-side -k "${REPO_ROOT}/k3s/core"
+  kubectl apply --server-side -k "${REPO_ROOT}/k3s/base/core"
 
   printf "%b✓ Setup complete%b\n" "${GREEN}" "${NORMAL}"
 }
