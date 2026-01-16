@@ -1,4 +1,5 @@
 # WARNING: make sure to match it with /infra/vps/cloud-config.yaml's secret creation
+# NOTE: Only needed in production - the tailscale operator is not installed in dev
 apiVersion: v1
 kind: Secret
 metadata:

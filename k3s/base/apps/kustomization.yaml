@@ -3,6 +3,6 @@ kind: Kustomization
 resources:
   # k8s yamls are in the project roots (e.g., "../apps/<project>/kube.yaml")
   # NOTE: use --load-restrictor LoadRestrictionsNone when kubectl apply
-  - ../../packages/postgres/kube
-  - ../../packages/valkey/kube
-  - ../../packages/clickhouse/kube
+  - ../../../packages/postgres/kube
+  - ../../../packages/valkey/kube
+  - ../../../packages/clickhouse/kube
