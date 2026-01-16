@@ -3,7 +3,6 @@
 import { isProduction, STAGE_NAME } from '../dns';
 import { createServers } from './servers';
 import { createLoadBalancers } from './load-balancers';
-import { secrets } from '../secrets';
 import { deleteTailscaleDevices } from '../tailscale';
 
 // NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
