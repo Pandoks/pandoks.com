@@ -11,3 +11,5 @@
       `pnpm sst shell -- node ./scripts/lib/sst-resources.js` to see the deployed resources.
 - [ ] _If you have created new sst kubectl templated yaml files_, make sure to add it to the
       `/scripts/cluster/sst-apply.sh` script's list of templated files.
+- [ ] _If you have created a new kubernetes node and control plane_, make sure to add the endpoint
+      to the [`prom-grafana.yaml`](/k3s/overlays) overlays.
