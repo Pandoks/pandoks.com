@@ -10,7 +10,7 @@
     "dev:init": "pnpm run cluster k3d deps up && pnpm run cluster k3d up --network pandoks-net && pnpm run cluster setup --k3d",
     "dev:destroy": "pnpm run cluster k3d down && pnpm run cluster k3d deps down",
     "dev:push": "pnpm -r run dev:push",
-    "dev:deploy": "kubectl kustomize ./k3s/dev --load-restrictor LoadRestrictionsNone --enable-helm | kubectl apply -f -",
+    "dev:deploy": "kubectl kustomize ./k3s/dev --load-restrictor LoadRestrictionsNone --enable-helm | kubectl apply --server-side -f -",
     "docker:build": "pnpm -r run docker:build",
     "shadcn": "pnpm dlx shadcn-svelte@latest add $@ -c packages/svelte",
     "clean": "pnpm -r run clean",

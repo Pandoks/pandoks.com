@@ -90,6 +90,14 @@ spec:
         app: *app
         cluster-name: *cluster-name
     spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: *app
+                  cluster-name: *cluster-name
+              topologyKey: kubernetes.io/hostname
       serviceAccountName: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
       securityContext:
         fsGroup: 999

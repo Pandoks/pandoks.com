@@ -57,6 +57,14 @@ spec:
         app: *app
         shard: *shard
     spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: *app
+                  shard: *shard
+              topologyKey: kubernetes.io/hostname
       containers:
         - name: clickhouse
           image: {{ $.Values.clickhouse.image }}

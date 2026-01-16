@@ -8,7 +8,6 @@
 # NODE_IP
 # TAILSCALE_HOSTNAME
 # REGISTRATION_TAILNET_AUTH_KEY
-# K3S_VERSION
 # KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID (for bootstrap)
 # KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET (for bootstrap)
 # KUBERNETES_TAILSCALE_HOSTNAME (for bootstrap)
@@ -96,7 +95,6 @@ runcmd:
   - |
     if [ "${ROLE}" = "bootstrap" ]; then
       curl -sfL https://get.k3s.io | \
-        INSTALL_K3S_VERSION=${K3S_VERSION} \
         K3S_TOKEN=${K3S_TOKEN} sh -s - server \
           --cluster-init \
           --disable=traefik \
@@ -172,7 +170,6 @@ runcmd:
         --dry-run=client -o yaml | kubectl apply --server-side -f -
     elif [ "${ROLE}" = "server" ]; then
       curl -sfL https://get.k3s.io | \
-        INSTALL_K3S_VERSION=${K3S_VERSION} \
         K3S_TOKEN=${K3S_TOKEN} sh -s - server \
           --server=${SERVER_API} \
           --disable=traefik \
@@ -192,7 +189,6 @@ runcmd:
           --etcd-snapshot-retention=5
     else
       curl -sfL https://get.k3s.io | \
-        INSTALL_K3S_VERSION=${K3S_VERSION} \
         K3S_TOKEN=${K3S_TOKEN} sh -s - agent \
           --server=${SERVER_API} \
           --node-ip=${NODE_IP} \
