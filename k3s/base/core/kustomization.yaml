@@ -4,3 +4,4 @@ resources:
   - metallb.yaml
   - cert-manager.yaml
   - namespaces.yaml
+  - https://github.com/rancher/system-upgrade-controller/releases/latest/download/crd.yaml
