@@ -37,3 +37,12 @@ spec:
       config:
         use-forwarded-headers: "true"
         forwarded-for-header: "X-Forwarded-For"
+      stats:
+        enabled: true
+      metrics:
+        enabled: true
+        embedded: true
+        port: 9101
+      serviceMonitor:
+        enabled: true
+        interval: 30s
