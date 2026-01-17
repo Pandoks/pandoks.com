@@ -50,12 +50,23 @@ etc_
 To setup the local cluster, run this from the root of the monorepo:
 
 ```sh
-pnpm run setup
-pnpm run cluster:build
-pnpm run cluster:push
-pnpm run cluster:deploy
-pnpm run cluster:secrets # assuming that you are still verified via SSO
+# Quick setup (all-in-one)
+pnpm run dev:init
+
+# Or step by step:
+pnpm run cluster k3d deps up   # Start docker compose dependencies
+pnpm run cluster k3d up        # Create k3d cluster
+pnpm run cluster sync dev      # Deploy dev overlay (helm charts + apps)
+pnpm run cluster sst-apply all # Apply SST secrets (requires SSO)
 ```
+
+To tear down the cluster:
+
+```sh
+pnpm run dev:destroy
+```
+
+See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI commands and [k3s/README.md](./k3s/README.md) for cluster architecture details.
 
 ## Development
 
