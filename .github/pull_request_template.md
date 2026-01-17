@@ -13,3 +13,5 @@
       `/scripts/cluster/sst-apply.sh` script's list of templated files.
 - [ ] _If you have created a new kubernetes node and control plane_, make sure to add the endpoint
       to the [`prom-grafana.yaml`](/k3s/overlays) overlays.
+- [ ] _If you create a new app deployment_, make sure to add Prometheus metrics to export for
+      observability.
