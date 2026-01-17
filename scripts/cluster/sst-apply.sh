@@ -68,11 +68,20 @@ cmd_sst_apply() {
   shift
 
   cmd_sst_apply_dry_run=false
+  cmd_sst_apply_stage=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --dry-run)
         cmd_sst_apply_dry_run=true
         shift
+        ;;
+      --stage)
+        if [ $# -lt 2 ]; then
+          printf "%bError:%b Missing value for --stage\n" "${RED}" "${NORMAL}" >&2
+          exit 1
+        fi
+        cmd_sst_apply_stage="$2"
+        shift 2
         ;;
       --kubeconfig)
         if [ $# -lt 2 ]; then
@@ -121,8 +130,12 @@ cmd_sst_apply() {
     fi
   fi
 
-  echo "Fetching SST secrets..."
-  cmd_sst_apply_secrets=$(get_sst_secrets)
+  if [ -n "${cmd_sst_apply_stage}" ]; then
+    echo "Fetching SST secrets for stage '${cmd_sst_apply_stage}'..."
+  else
+    echo "Fetching SST secrets..."
+  fi
+  cmd_sst_apply_secrets=$(get_sst_secrets "${cmd_sst_apply_stage}")
   if [ -z "${cmd_sst_apply_secrets}" ]; then
     printf "%bError:%b Failed to fetch SST secrets. Make sure you're authenticated with SST.\n" "${RED}" "${NORMAL}" >&2
     printf "Try running: %bpnpm run sso%b.\n" "${BOLD}" "${NORMAL}" >&2

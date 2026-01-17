@@ -18,7 +18,7 @@ usage() {
   printf "      Usage: sync <dev|prod>\n\n" >&2
 
   printf "  %bsst-apply%b       Render SST templates and apply to cluster\n" "${GREEN}" "${NORMAL}" >&2
-  printf "      Usage: sst-apply <FILE|all> [--kubeconfig <PATH>]\n\n" >&2
+  printf "      Usage: sst-apply <FILE|all> [--stage <STAGE>] [--kubeconfig <PATH>]\n\n" >&2
 
   printf "Run '%s <command> --help' for more information on a command.\n\n" "$0" >&2
 
@@ -134,6 +134,8 @@ usage_sst_apply() {
   printf "      Apply all templates (monitoring, apps, tailscale)\n\n" >&2
 
   printf "%bOptions:%b\n" "${BOLD}" "${NORMAL}" >&2
+  printf "  %b--stage%b <STAGE>\n" "${YELLOW}" "${NORMAL}" >&2
+  printf "      SST stage to fetch secrets from (default: current user stage)\n\n" >&2
   printf "  %b--dry-run%b\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      Show rendered YAML without applying to cluster\n\n" >&2
   printf "  %b--kubeconfig%b <PATH>\n" "${YELLOW}" "${NORMAL}" >&2
@@ -141,9 +143,10 @@ usage_sst_apply() {
 
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %s sst-apply all\n" "$0" >&2
+  printf "  %s sst-apply all --stage dev\n" "$0" >&2
+  printf "  %s sst-apply all --stage production\n" "$0" >&2
   printf "  %s sst-apply all --dry-run\n" "$0" >&2
-  printf "  %s sst-apply k3s/templates/apps.yaml --dry-run\n" "$0" >&2
-  printf "  %s sst-apply all --kubeconfig ./k3s.yaml\n\n" "$0" >&2
+  printf "  %s sst-apply k3s/templates/apps.yaml --dry-run\n\n" "$0" >&2
 
   exit "${1:-0}"
 }
