@@ -41,7 +41,7 @@ const subnet = new hcloud.NetworkSubnet('HetznerK3sSubnet', {
   ipRange: '10.0.1.0/24',
   networkZone: NETWORK_ZONE
 });
-const firewall = new hcloud.Firewall('HetznerInboundFirewall', {
+export const inboundFirewall = new hcloud.Firewall('HetznerInboundFirewall', {
   name: 'inbound',
   rules: [
     {
@@ -84,7 +84,7 @@ const { tailscaleHostnames: controlPlaneTailscaleHostnames, servers: controlPlan
       type: SERVER_TYPE,
       image: SERVER_IMAGE,
       location: LOCATION,
-      firewalls: [firewall]
+      firewalls: [inboundFirewall]
     },
     bootstrapServer
   );
@@ -100,7 +100,7 @@ const { tailscaleHostnames: workerTailscaleHostnames, servers: workerServers } =
     type: SERVER_TYPE,
     image: SERVER_IMAGE,
     location: LOCATION,
-    firewalls: [firewall]
+    firewalls: [inboundFirewall]
   },
   bootstrapServer
 );
