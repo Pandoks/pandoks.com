@@ -16,13 +16,13 @@ options. Package scripts in `package.json` are wired directly to
 
 ## Top-Level Commands
 
-| Command     | Description                                                        |
-| ----------- | ------------------------------------------------------------------ |
-| `k3d`       | Manage the local k3d cluster and dependencies.                     |
-| `core`      | Apply core infrastructure (helm charts, CRDs, base resources).     |
-| `deploy`    | Deploy environment-specific overlay (dev or prod).                 |
-| `sync`      | Run core + deploy together (recommended for most operations).      |
-| `sst-apply` | Render SST templates and apply to cluster.                         |
+| Command     | Description                                                    |
+| ----------- | -------------------------------------------------------------- |
+| `k3d`       | Manage the local k3d cluster and dependencies.                 |
+| `core`      | Apply core infrastructure (helm charts, CRDs, base resources). |
+| `deploy`    | Deploy environment-specific overlay (dev or prod).             |
+| `sync`      | Run core + deploy together (recommended for most operations).  |
+| `sst-apply` | Render SST templates and apply to cluster.                     |
 
 ## k3d Subcommands
 
@@ -67,9 +67,9 @@ It applies all helm charts, waits for CRDs, applies core resources, then deploys
 ./scripts/cluster/main.sh deploy <dev|prod>
 ```
 
-| Environment | Description                                                                             |
-| ----------- | --------------------------------------------------------------------------------------- |
-| `dev`       | For **local k3d clusters**: MetalLB IP patch for docker network (172.30.0.x etcd IPs)   |
+| Environment | Description                                                                                |
+| ----------- | ------------------------------------------------------------------------------------------ |
+| `dev`       | For **local k3d clusters**: MetalLB IP patch for docker network (172.30.0.x etcd IPs)      |
 | `prod`      | For **cloud clusters** (Hetzner): Tailscale, system-upgrade controller (10.0.1.x etcd IPs) |
 
 **Important:** The `dev`/`prod` overlay refers to the **k3s configuration** (etcd IPs, networking),
