@@ -94,8 +94,10 @@ stringData:
   REPLICATION_PASSWORD: ${MainMainPostgresReplicationPassword}
   PATRONI_PASSWORD: ${MainMainPostgresPatroniPassword}
   users.toml: |
-    [admin]
-    password = "${MainMainPostgresPgdogAdminPassword}"
+    [[users]]
+    name = "admin"
+    database = "main"
+    password = "${MainMainPostgresAdminPassword}"
 
     [[users]]
     name = "client"
