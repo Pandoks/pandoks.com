@@ -8,6 +8,9 @@ kind: Service
 metadata:
   name: clickhouse-keeper-{{ .Values.name }}-headless
   namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: clickhouse-keeper
+    database: {{ .Values.name }}
 spec:
   clusterIP: None
   publishNotReadyAddresses: true
