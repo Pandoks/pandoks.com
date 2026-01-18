@@ -22,6 +22,14 @@ users_config: /etc/clickhouse-server/users.yaml
 distributed_ddl:
   path: /clickhouse/task_queue/ddl # default
 
+prometheus:
+  endpoint: /metrics
+  port: 9363
+  metrics: true
+  events: true
+  asynchronous_metrics: true
+  errors: true
+
 # Unique identifier of this pod in the cluster
 macros:
   shard: ${SHARD_ID}
