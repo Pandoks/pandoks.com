@@ -23,6 +23,9 @@ spec:
     - name: raft
       port: &raft-port 9234
       targetPort: *raft-port
+    - name: metrics
+      port: &metrics-port 9363
+      targetPort: *metrics-port
 
 ---
 apiVersion: apps/v1
@@ -56,6 +59,8 @@ spec:
               containerPort: 9181
             - name: raft
               containerPort: 9234
+            - name: metrics
+              containerPort: 9363
           env:
             - name: POD_NAME
               valueFrom:
