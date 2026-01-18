@@ -43,3 +43,14 @@ spec:
       interval: 30s
       scheme: http
 
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-clickhouse-{{ .Values.namespace }}-{{ .Values.name }}
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  clickhouse-{{ .Values.namespace }}-{{ .Values.name }}.json: |
+{{ tpl (.Files.Get "files/grafana-dashboard.json") . | indent 4 }}
