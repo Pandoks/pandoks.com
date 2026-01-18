@@ -6,6 +6,13 @@ logger:
 
 listen_host: '::'
 
+prometheus:
+  endpoint: /metrics
+  port: 9363
+  metrics: true
+  events: true
+  asynchronous_metrics: true
+
 keeper_server:
   tcp_port: 9181 # client port default: 9181
 
