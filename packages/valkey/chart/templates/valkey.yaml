@@ -125,6 +125,41 @@ spec:
             timeoutSeconds: 3
             successThreshold: 1
             failureThreshold: 3
+        - name: prometheus-exporter
+          image: oliver006/redis_exporter:v1.80.1
+          ports:
+            - name: metrics
+              containerPort: 9121
+              protocol: TCP
+          env:
+            - name: REDIS_ADDR
+              value: "redis://localhost:6379"
+            - name: REDIS_USER
+              value: "admin"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.credentials.secret }}
+                  key: {{ .Values.credentials.dataKeys.adminPassword }}
+          resources:
+            limits:
+              cpu: 50m
+              memory: 64Mi
+            requests:
+              cpu: 10m
+              memory: 32Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9121
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9121
+            initialDelaySeconds: 5
+            periodSeconds: 5
       volumes:
         - name: *config
           configMap:
