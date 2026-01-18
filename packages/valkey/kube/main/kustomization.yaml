@@ -3,14 +3,3 @@ kind: Kustomization
 namespace: main
 resources:
   - main.yaml
-
-configMapGenerator:
-  - name: valkey-config
-    files:
-      - ../../valkey.conf
-  - name: valkey-acl
-    files:
-      - ../../users.acl
-
-generatorOptions:
-  disableNameSuffixHash: true
