@@ -44,3 +44,14 @@ spec:
       scheme: http
       scrapeTimeout: 25s
 
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-postgres-{{ .Values.namespace }}-{{ .Values.db }}
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  postgres-{{ .Values.namespace }}-{{ .Values.db }}.json: |
+{{ tpl (.Files.Get "files/grafana-dashboard.json") . | indent 4 }}
