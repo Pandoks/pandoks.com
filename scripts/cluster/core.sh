@@ -46,6 +46,10 @@ cmd_core() {
   kubectl -n metallb-system rollout status deploy/metallb-controller --timeout=300s
   printf "%b✓ MetalLB CRDs established%b\n" "${GREEN}" "${NORMAL}"
 
+  echo "Waiting for Prometheus Operator CRDs to be established..."
+  wait_for_crd "servicemonitors.monitoring.coreos.com" 180
+  printf "%b✓ Prometheus Operator CRDs established%b\n" "${GREEN}" "${NORMAL}"
+
   echo "Applying core kustomization..."
   kubectl apply --server-side -k "${REPO_ROOT}/k3s/base/core"
 

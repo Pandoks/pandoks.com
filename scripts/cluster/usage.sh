@@ -79,8 +79,8 @@ usage_core() {
   printf "Idempotent - safe to run multiple times.\n\n" >&2
 
   printf "%bWhat it does:%b\n" "${BOLD}" "${NORMAL}" >&2
-  printf "  1. Install helm charts (MetalLB, cert-manager, HAProxy, Prometheus)\n" >&2
-  printf "  2. Wait for CRDs to be established\n" >&2
+  printf "  1. Install helm charts (MetalLB, cert-manager, Prometheus, HAProxy)\n" >&2
+  printf "  2. Wait for CRDs to be established (cert-manager, MetalLB, ServiceMonitor)\n" >&2
   printf "  3. Apply core resources (IPAddressPool, ClusterIssuers, namespaces)\n\n" >&2
 
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
