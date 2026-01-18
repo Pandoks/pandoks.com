@@ -1,3 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: patroni-config
+  namespace: {{ .Values.namespace }}
+data:
+  patroni.yaml: |
+{{ .Files.Get "files/patroni.yaml" | indent 4 }}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: patroni-pgbackrest-config
+  namespace: {{ .Values.namespace }}
+data:
+  pgbackrest.conf: |
+{{ .Files.Get "files/pgbackrest.conf" | indent 4 }}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgbackrest-server-config
+  namespace: {{ .Values.namespace }}
+data:
+  pgbackrest.conf: |
+{{ .Files.Get "files/pgbackrest-server.conf" | indent 4 }}
+
 {{- range $shardIndex := until (int $.Values.patroni.shards) }}
 ---
 # provides a stable ip for the primary

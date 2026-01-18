@@ -15,6 +15,7 @@ bootstrap: # how new clusters are created or replicas are initialized
     failsafe_mode: true # when dcs is down, let there be a primary
     postgresql: # postgresql dcs settings need to restart the entire cluster to take into effect
       parameters:
+        shared_preload_libraries: 'pg_cron,vector,pg_stat_statements'
         max_connections: 100
         max_locks_per_transaction: 64
         max_worker_processes: 20
