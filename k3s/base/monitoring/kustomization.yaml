@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+
+configMapGenerator:
+  - name: haproxy-grafana-dashboards
+    files:
+      - ./dashboards/haproxy/haproxy-basic-general-info.json
+      - ./dashboards/haproxy/haproxy-requests-responses.json
+      - ./dashboards/haproxy/haproxy-throughput-connections.json
+      - ./dashboards/haproxy/haproxy-sessions.json
+      - ./dashboards/haproxy/haproxy-times.json
+      - ./dashboards/haproxy/haproxy-health-and-weight.json
+      - ./dashboards/haproxy/haproxy-cache-compressor.json
+      - ./dashboards/haproxy/haproxy-status.json
+      - ./dashboards/haproxy/haproxy-process-traffic.json
+      - ./dashboards/haproxy/haproxy-process-misc.json
+    options:
+      labels:
+        grafana_dashboard: '1'
+      disableNameSuffixHash: true

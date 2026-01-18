@@ -12,6 +12,8 @@ spec:
     {{- with .Values.pgdog }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
+    serviceMonitor:
+      enabled: true
     externalSecrets:
       enabled: true
       create: false

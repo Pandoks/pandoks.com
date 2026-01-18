@@ -103,7 +103,7 @@ graph TB
 ### 1. Create Secrets
 
 ```yaml
-# k3s/apps/secrets.yaml
+# k3s/apps/templates.yaml
 apiVersion: v1
 kind: Secret
 metadata:

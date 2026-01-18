@@ -7,8 +7,8 @@ for v in \
   STANZA \
   BACKUP_BUCKET \
   BACKUP_PATH \
-  S3_KEY \
-  S3_KEY_SECRET \
+  S3_ACCESS_KEY \
+  S3_SECRET_KEY \
   S3_REGION \
   S3_HOST \
   S3_TLS \

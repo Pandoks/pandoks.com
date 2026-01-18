@@ -1,0 +1,128 @@
+# used to pull private images from ghcr.io
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ghcr-auth
+  namespace: example
+type: kubernetes.io/dockerconfigjson
+stringData:
+  .dockerconfigjson: |
+    {
+      "auths": {
+        "ghcr.io": {
+          "username": "Pandoks",
+          "password": "${GithubPersonalAccessToken}"
+        }
+      }
+    }
+
+---
+# allows the default service account for the example namespace to pull private images from ghcr.io by default
+# without needing to specify the imagePullSecrets field in the pod spec
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: example
+imagePullSecrets:
+  - name: ghcr-auth
+
+---
+# used to terminate TLS at the ingress controller for the traffic flow: client -> cloudflare -- here -> k3s
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudflare-origin-tls
+  namespace: example
+type: kubernetes.io/tls
+data:
+  tls.crt: ${HetznerOriginTlsCrt | base64}
+  tls.key: ${HetznerOriginTlsKey | base64}
+
+---
+# used to pull private images from ghcr.io
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ghcr-auth
+  namespace: main
+type: kubernetes.io/dockerconfigjson
+stringData:
+  .dockerconfigjson: |
+    {
+      "auths": {
+        "ghcr.io": {
+          "username": "Pandoks",
+          "password": "${GithubPersonalAccessToken}"
+        }
+      }
+    }
+
+---
+# allows the default service account for the example namespace to pull private images from ghcr.io by default
+# without needing to specify the imagePullSecrets field in the pod spec
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default
+  namespace: main
+imagePullSecrets:
+  - name: ghcr-auth
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backup-bucket-creds
+  namespace: main
+type: Opaque
+stringData:
+  S3_ACCESS_KEY: ${CloudflareBackupAccessKey}
+  S3_SECRET_KEY: ${CloudflareBackupSecretKey}
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-main-creds
+  namespace: main
+type: Opaque
+stringData:
+  SUPERUSER_PASSWORD: ${MainMainPostgresSuperuserPassword}
+  ADMIN_PASSWORD: ${MainMainPostgresAdminPassword}
+  CLIENT_PASSWORD: ${MainMainPostgresClientPassword}
+  REPLICATION_PASSWORD: ${MainMainPostgresReplicationPassword}
+  PATRONI_PASSWORD: ${MainMainPostgresPatroniPassword}
+  users.toml: |
+    [[users]]
+    name = "admin"
+    database = "main"
+    password = "${MainMainPostgresAdminPassword}"
+
+    [[users]]
+    name = "client"
+    database = "main"
+    password = "${MainMainPostgresClientPassword}"
+    pool_size = 20
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: valkey-main-creds
+  namespace: main
+type: Opaque
+stringData:
+  ADMIN_PASSWORD: ${MainMainValkeyAdminPassword}
+  CLIENT_PASSWORD: ${MainMainValkeyClientPassword}
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: clickhouse-main-creds
+  namespace: main
+type: Opaque
+stringData:
+  ADMIN_PASSWORD: ${MainMainClickhouseAdminPassword}
+  CLIENT_PASSWORD: ${MainMainClickhouseClientPassword}

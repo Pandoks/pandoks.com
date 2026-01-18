@@ -12,7 +12,6 @@ spec:
   set:
     name: main
     namespace: *namespace
-    persistence: ~
     cluster.masters: 1
     cluster.replicasPerMaster: 0
     credentials.secret: valkey-main-creds

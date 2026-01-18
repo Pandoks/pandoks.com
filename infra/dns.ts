@@ -13,3 +13,7 @@ secrets.Stage.value.apply((stageName) => {
     setSecret(secrets.Stage.name, STAGE_NAME);
   }
 });
+
+const cloudflareZone = await cloudflare.getZone({ filter: { name: 'pandoks.com' } });
+export const cloudflareAccountId = cloudflareZone.account.id;
+export const cloudflareZoneId = cloudflareZone.id;

@@ -1,3 +1,4 @@
+import { cloudflareAccountId } from './dns';
 import { secrets } from './secrets';
 
 export const githubRepo = github.getRepository({
@@ -14,6 +15,6 @@ if ($app.stage === 'production') {
   new github.ActionsSecret('GithubCloudflareAccountId', {
     repository: githubRepo.then((r) => r.name),
     secretName: 'CLOUDFLARE_DEFAULT_ACCOUNT_ID',
-    plaintextValue: secrets.cloudflare.AccountId.value
+    plaintextValue: cloudflareAccountId
   });
 }

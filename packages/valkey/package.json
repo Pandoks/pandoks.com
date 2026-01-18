@@ -8,7 +8,7 @@
     "docker:build": "pnpm run build",
     "build:image": "docker build -f ./Dockerfile ../../ -t localhost:12345/valkey:latest",
     "build:reconciler": "docker build -f ./reconciler/Dockerfile ../../ -t localhost:12345/valkey-reconciler:latest",
-    "build:helm": "rm ./valkey-*.tgz && helm package ./chart",
+    "build:helm": "rm -f ./valkey-*.tgz && helm package ./chart",
     "dev:push": "pnpm run dev:push:image & pnpm run dev:push:helm & pnpm run dev:push:reconciler & wait",
     "dev:push:image": "docker push localhost:12345/valkey:latest",
     "dev:push:helm": "helm push valkey-*.tgz oci://localhost:12345/charts",

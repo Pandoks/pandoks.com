@@ -1,5 +1,4 @@
-import { EXAMPLE_DOMAIN, STAGE_NAME } from './dns';
-import { secrets } from './secrets';
+import { EXAMPLE_DOMAIN, cloudflareZoneId } from './dns';
 import { publicLoadBalancers } from './vps/vps';
 
 const cloudflareIpRequest = await fetch('https://api.cloudflare.com/client/v4/ips');
@@ -12,7 +11,7 @@ if (publicLoadBalancers.length && $app.stage !== 'production') {
   for (const [i, loadBalancer] of publicLoadBalancers.entries()) {
     new cloudflare.DnsRecord(`ExampleDomainLoadBalancer${i}Ipv4`, {
       name: EXAMPLE_DOMAIN,
-      zoneId: secrets.cloudflare.ZoneId.value,
+      zoneId: cloudflareZoneId,
       type: 'A',
       proxied: true,
       ttl: 1,
@@ -21,7 +20,7 @@ if (publicLoadBalancers.length && $app.stage !== 'production') {
     });
     new cloudflare.DnsRecord(`ExampleDomainLoadBalancer${i}Ipv6`, {
       name: EXAMPLE_DOMAIN,
-      zoneId: secrets.cloudflare.ZoneId.value,
+      zoneId: cloudflareZoneId,
       type: 'AAAA',
       proxied: true,
       ttl: 1,
@@ -30,11 +29,3 @@ if (publicLoadBalancers.length && $app.stage !== 'production') {
     });
   }
 }
-
-export const backupBucket = new cloudflare.R2Bucket('BackupBucket', {
-  name: `${STAGE_NAME}-backups`,
-  accountId: secrets.cloudflare.AccountId.value,
-  jurisdiction: 'default',
-  location: 'wnam',
-  storageClass: 'Standard'
-});

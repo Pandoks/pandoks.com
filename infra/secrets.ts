@@ -8,9 +8,8 @@ export const secrets = {
   },
   cloudflare: {
     ApiKey: new sst.Secret('CloudflareApiKey'),
-    AccountId: new sst.Secret('CloudflareAccountId'),
-    ZoneId: new sst.Secret('CloudflareZoneId'),
-    Email: new sst.Secret('CloudflareEmail')
+    BackupAccessKey: new sst.Secret('CloudflareBackupAccessKey'),
+    BackupSecretKey: new sst.Secret('CloudflareBackupSecretKey')
   },
   github: {
     PersonalAccessToken: new sst.Secret('GithubPersonalAccessToken'),
@@ -36,8 +35,10 @@ export const secrets = {
   k8s: {
     tailscale: {
       OauthClientId: new sst.Secret('KubernetesTailscaleOauthClientId'),
-      OauthClientSecret: new sst.Secret('KubernetesTailscaleOauthClientSecret'),
-      Hostname: new sst.Secret('KubernetesTailscaleHostname')
+      OauthClientSecret: new sst.Secret('KubernetesTailscaleOauthClientSecret')
+    },
+    grafana: {
+      AdminPassword: new sst.Secret('KubernetesGrafanaAdminPassword', 'password')
     },
     HetznerOriginTlsKey: new sst.Secret('HetznerOriginTlsKey', 'No Origin Tls Key Set'),
     HetznerOriginTlsCrt: new sst.Secret('HetznerOriginTlsCrt', 'No Origin Tls Cert Set'),
@@ -50,9 +51,7 @@ export const secrets = {
         ClientPassword: new sst.Secret('MainMainPostgresClientPassword'),
         ReplicationPassword: new sst.Secret('MainMainPostgresReplicationPassword'),
         PatroniPassword: new sst.Secret('MainMainPostgresPatroniPassword'),
-        PgdogAdminPassword: new sst.Secret('MainMainPostgresPgdogAdminPassword'),
-        BackupS3Key: new sst.Secret('MainMainPostgresBackupS3Key', 'test'),
-        BackupS3KeySecret: new sst.Secret('MainMainPostgresBackupS3KeySecret', 'testsecret')
+        PgdogAdminPassword: new sst.Secret('MainMainPostgresPgdogAdminPassword')
       },
       mainValkey: {
         AdminPassword: new sst.Secret('MainMainValkeyAdminPassword'),
@@ -60,9 +59,7 @@ export const secrets = {
       },
       mainClickhouse: {
         AdminPassword: new sst.Secret('MainMainClickhouseAdminPassword'),
-        ClientPassword: new sst.Secret('MainMainClickhouseClientPassword'),
-        BackupS3Key: new sst.Secret('MainMainClickhouseBackupS3Key', 'test'),
-        BackupS3KeySecret: new sst.Secret('MainMainClickhouseBackupS3KeySecret', 'testsecret')
+        ClientPassword: new sst.Secret('MainMainClickhouseClientPassword')
       }
     }
   }

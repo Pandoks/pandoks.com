@@ -51,6 +51,13 @@ else
   fi
 fi
 
+echo "Creating pg_stat_statements extension..."
+if psql -d "${POSTGRES_DB}" -c "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;"; then
+  echo "✓ pg_stat_statements extension created successfully."
+else
+  echo "Warning: Failed to create pg_stat_statements extension."
+fi
+
 if psql -Atq -d postgres -c "SELECT 1 FROM pg_roles WHERE rolname='admin'" | grep -q 1; then
   echo "Role 'admin' already exists. Skipping creation."
 else
