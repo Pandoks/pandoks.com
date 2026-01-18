@@ -3,6 +3,9 @@ kind: Service
 metadata:
   name: valkey-{{ .Values.name }}-headless
   namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: valkey
+    database: {{ .Values.name }}
 spec:
   clusterIP: None
   publishNotReadyAddresses: true
@@ -15,6 +18,9 @@ spec:
     - name: bus
       port: 16379
       targetPort: 16379
+    - name: metrics
+      port: 9121
+      targetPort: 9121
 
 ---
 apiVersion: v1
