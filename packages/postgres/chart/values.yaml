@@ -42,6 +42,7 @@ patroni:
   resources:
     patroni: {}
     pgbackrest: {}
+    postgresExporter: {}
 
 # https://github.com/pgdogdev/helm/blob/main/values.yaml
 pgdog:
