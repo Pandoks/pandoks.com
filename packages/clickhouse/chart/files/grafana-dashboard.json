@@ -297,7 +297,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(ClickHouseProfileEvents_Query{service=~\"clickhouse-{{ .Values.name }}-.*\"}[$__rate_interval])) by (pod) or vector(0)",
+          "expr": "sum(rate(ClickHouseProfileEvents_Query{service=~\"clickhouse-{{ .Values.name }}-.*\"}[$__rate_interval])) by (pod)",
           "legendFormat": "{{`{{pod}}`}}",
           "refId": "A"
         }
@@ -551,7 +551,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(ClickHouseProfileEvents_InsertedRows{service=~\"clickhouse-{{ .Values.name }}-.*\"}[$__rate_interval])) by (pod) or vector(0)",
+          "expr": "sum(rate(ClickHouseProfileEvents_InsertedRows{service=~\"clickhouse-{{ .Values.name }}-.*\"}[$__rate_interval])) by (pod)",
           "legendFormat": "{{`{{pod}}`}}",
           "refId": "A"
         }
@@ -1016,6 +1016,273 @@
     {
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 59 },
+      "id": 108,
+      "panels": [],
+      "title": "Keeper Internals",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 60 },
+      "id": 80,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(ClickHouseAsyncMetrics_KeeperZnodeCount{service=~\"clickhouse-keeper-{{ .Values.name }}-.*\"})",
+          "legendFormat": "Znodes",
+          "refId": "A"
+        }
+      ],
+      "title": "Znodes",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 60 },
+      "id": 81,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(ClickHouseAsyncMetrics_KeeperWatchCount{service=~\"clickhouse-keeper-{{ .Values.name }}-.*\"})",
+          "legendFormat": "Watches",
+          "refId": "A"
+        }
+      ],
+      "title": "Watches",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 60 },
+      "id": 82,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(ClickHouseMetrics_KeeperAliveConnections{service=~\"clickhouse-keeper-{{ .Values.name }}-.*\"})",
+          "legendFormat": "Connections",
+          "refId": "A"
+        }
+      ],
+      "title": "Connections",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 60 },
+      "id": 83,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max(ClickHouseAsyncMetrics_OSUptime{service=~\"clickhouse-keeper-{{ .Values.name }}-.*\"})",
+          "legendFormat": "Uptime",
+          "refId": "A"
+        }
+      ],
+      "title": "Container Uptime",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 64 },
+      "id": 84,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(ClickHouseProfileEvents_KeeperRequestTotal{service=~\"clickhouse-keeper-{{ .Values.name }}-.*\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Total Requests",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(ClickHouseProfileEvents_KeeperReadRequest{service=~\"clickhouse-keeper-{{ .Values.name }}-.*\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Read Requests",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(ClickHouseProfileEvents_KeeperCreateRequest{service=~\"clickhouse-keeper-{{ .Values.name }}-.*\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Create Requests",
+          "refId": "C"
+        }
+      ],
+      "title": "Keeper Requests/sec",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "pps"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Sent" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Received" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 64 },
+      "id": 85,
+      "options": {
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(ClickHouseProfileEvents_KeeperPacketsSent{service=~\"clickhouse-keeper-{{ .Values.name }}-.*\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Sent",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(ClickHouseProfileEvents_KeeperPacketsReceived{service=~\"clickhouse-keeper-{{ .Values.name }}-.*\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Received",
+          "refId": "B"
+        }
+      ],
+      "title": "Keeper Packets/sec",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 72 },
       "id": 107,
       "panels": [],
       "title": "Performance & Health",
@@ -1057,7 +1324,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 60 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 73 },
       "id": 70,
       "options": {
         "legend": {
@@ -1121,7 +1388,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 60 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 73 },
       "id": 71,
       "options": {
         "legend": {
@@ -1173,7 +1440,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 68 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 81 },
       "id": 72,
       "options": {
         "legend": {
@@ -1187,7 +1454,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(ClickHouseProfileEvents_SelectedRows{service=~\"clickhouse-{{ .Values.name }}-.*\"}[$__rate_interval])) by (pod) or vector(0)",
+          "expr": "sum(rate(ClickHouseProfileEvents_SelectedRows{service=~\"clickhouse-{{ .Values.name }}-.*\"}[$__rate_interval])) by (pod)",
           "legendFormat": "{{`{{pod}}`}}",
           "refId": "A"
         }
@@ -1234,7 +1501,7 @@
           }
         ]
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 68 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 81 },
       "id": 73,
       "options": {
         "legend": {
@@ -1292,7 +1559,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 76 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 89 },
       "id": 75,
       "options": {
         "legend": {
@@ -1306,7 +1573,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(ClickHouseMetrics_MemoryTracking{service=~\"clickhouse-{{ .Values.name }}-.*\"}) by (pod) or vector(0)",
+          "expr": "sum(ClickHouseMetrics_MemoryTracking{service=~\"clickhouse-{{ .Values.name }}-.*\"}) by (pod)",
           "legendFormat": "{{`{{pod}}`}}",
           "refId": "A"
         }
