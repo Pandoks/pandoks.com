@@ -86,7 +86,7 @@ spec:
           volumes:
             - name: *config
               configMap:
-                name: pgbackrest-server-config
+                name: pgbackrest-{{ .context.Values.db }}-backup-server-config
             - name: *tls
               secret:
                 secretName: {{ .context.Values.db }}-shard-{{ .shardIndex }}-pgbackrest-backup-tls
