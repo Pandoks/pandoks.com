@@ -1,0 +1,19 @@
+# Hetzner control plane nodes on private network 10.0.1.0/24
+# IPs start at octet 10: control-plane-0=.10, control-plane-1=.11, etc. (/infra/vps/vps.ts)
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: kube-prometheus-stack
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    kubeEtcd:
+      enabled: true
+      endpoints:
+        - 10.0.1.10
+        # - 10.0.1.11  # uncomment when adding control-plane-1
+        # - 10.0.1.12  # uncomment when adding control-plane-2
+      service:
+        enabled: true
+        port: 2381
+        targetPort: 2381

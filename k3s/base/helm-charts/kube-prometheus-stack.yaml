@@ -10,16 +10,9 @@ spec:
   targetNamespace: monitoring
   createNamespace: true
   valuesContent: |-
+    # etcd monitoring disabled by default - enable via HelmChartConfig in overlays
     kubeEtcd:
-      enabled: true
-      endpoints:
-        - 172.30.0.4
-        - 172.30.0.5
-        - 172.30.0.6
-      service:
-        enabled: true
-        port: 2381
-        targetPort: 2381
+      enabled: false
 
     kubeControllerManager:
       enabled: false
