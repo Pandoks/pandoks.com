@@ -73,7 +73,8 @@ postgresql: # postgresql settings here don't need to restart the entire cluster
   basebackup:
     checkpoint: fast
   parameters:
-    shared_preload_libraries: 'pg_cron,vector'
+    shared_preload_libraries: 'pg_cron,vector,pg_stat_statements'
+    pg_stat_statements.track: all
     cron.database_name: ${POSTGRES_DB}
     cron.timezone: GMT
     cron.use_background_workers: on
