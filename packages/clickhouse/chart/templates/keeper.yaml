@@ -4,6 +4,16 @@
 {{- end }}
 
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clickhouse-{{ .Values.name }}-keeper-config
+  namespace: {{ .Values.namespace }}
+data:
+  keeper.yaml: |
+{{ .Files.Get "files/keeper.yaml" | indent 4 }}
+
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: clickhouse-keeper-{{ .Values.name }}-headless
@@ -94,7 +104,7 @@ spec:
       volumes:
         - name: *keeper-config
           configMap:
-            name: clickhouse-keeper-config
+            name: clickhouse-{{ .Values.name }}-keeper-config
   volumeClaimTemplates:
     - metadata:
         name: *data
