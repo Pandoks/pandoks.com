@@ -114,7 +114,7 @@ cmd_deploy() {
   esac
 
   cmd_deploy_dry_run=false
-  cmd_deploy_bootstrap=false
+  cmd_deploy_is_bootstrap=false
   cmd_deploy_stage=""
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -123,7 +123,7 @@ cmd_deploy() {
         shift
         ;;
       --bootstrap)
-        cmd_deploy_bootstrap=true
+        cmd_deploy_is_bootstrap=true
         shift
         ;;
       --stage)
@@ -152,43 +152,52 @@ cmd_deploy() {
     esac
   done
 
-  case "${cmd_deploy_env}" in
-    dev)
-      # Skip confirmation if called from sync
-      if [ "${cmd_deploy_no_confirm:-}" != "true" ]; then
-        cmd_deploy_current_context=$(kubectl config current-context)
-        printf "%bDeploy dev overlay to cluster: %s%b [y/n] " "${BOLD}" "${cmd_deploy_current_context}" "${NORMAL}"
-        read -r cmd_deploy_confirm
-        if [ "${cmd_deploy_confirm}" != "y" ]; then
-          echo "Skipping deploy"
-          return 0
-        fi
-      fi
+  if [ "${cmd_deploy_is_bootstrap}" = "true" ]; then
+    cmd_deploy_kustomize_path="${REPO_ROOT}/k3s/base/helm-charts"
+  else
+    cmd_deploy_kustomize_path="${REPO_ROOT}/k3s/overlays/${cmd_deploy_env}"
+  fi
 
-      echo "Applying dev overlay..."
-      kubectl kustomize "${REPO_ROOT}/k3s/overlays/dev" --load-restrictor LoadRestrictionsNone | kubectl apply --server-side -f -
-      printf "%b✓ Dev overlay applied%b\n" "${GREEN}" "${NORMAL}"
-      ;;
-    prod)
-      # Skip confirmation if called from sync
-      if [ "${cmd_deploy_no_confirm:-}" != "true" ]; then
-        cmd_deploy_current_context=$(kubectl config current-context)
-        printf "%bDeploy prod overlay to cluster: %s%b [y/n] " "${BOLD}" "${cmd_deploy_current_context}" "${NORMAL}"
-        read -r cmd_deploy_confirm
-        if [ "${cmd_deploy_confirm}" != "y" ]; then
-          echo "Skipping deploy"
-          return 0
-        fi
-      fi
+  if [ ! -d "${cmd_deploy_kustomize_path}" ]; then
+    printf "%bError:%b Directory not found: %s\n" "${RED}" "${NORMAL}" "${cmd_deploy_kustomize_path}" >&2
+    return 1
+  fi
 
-      echo "Applying prod overlay..."
-      kubectl kustomize "${REPO_ROOT}/k3s/overlays/prod" --load-restrictor LoadRestrictionsNone | kubectl apply --server-side -f -
-      printf "%b✓ Prod overlay applied%b\n" "${GREEN}" "${NORMAL}"
-      ;;
-    help | --help | -h) usage_deploy ;;
-    *)
-      printf "%bError:%b Unknown environment '%s'. Use 'dev' or 'prod'\n" "${RED}" "${NORMAL}" "${cmd_deploy_env}" >&2
-      usage_deploy 1
-      ;;
-  esac
+  if [ "${cmd_deploy_dry_run}" = "false" ]; then
+    cmd_deploy_context=$(kubectl config current-context)
+    if [ "${cmd_deploy_is_bootstrap}" = "true" ]; then
+      printf "%bBootstrap %s to cluster: %s%b [y/n] " "${BOLD}" "${cmd_deploy_env}" "${cmd_deploy_context}" "${NORMAL}"
+    else
+      printf "%bDeploy %s to cluster: %s%b [y/n] " "${BOLD}" "${cmd_deploy_env}" "${cmd_deploy_context}" "${NORMAL}"
+    fi
+    read -r cmd_deploy_response
+    if [ "${cmd_deploy_response}" != "y" ]; then
+      echo "Skipping deploy"
+      return 0
+    fi
+  fi
+
+  cmd_deploy_template_vars=$(cmd_deploy_get_template_vars "${cmd_deploy_env}" "${cmd_deploy_stage}") || return 1
+
+  cmd_deploy_rendered=$(cmd_deploy_render_templated_yaml "${cmd_deploy_kustomize_path}" "${cmd_deploy_template_vars}" "${cmd_deploy_is_bootstrap}")
+
+  if [ "${cmd_deploy_dry_run}" = "true" ]; then
+    if [ "${cmd_deploy_is_bootstrap}" = "true" ]; then
+      printf "%b# Rendered output for bootstrap%b\n" "${BOLD}" "${NORMAL}"
+    else
+      printf "%b# Rendered output for %s%b\n" "${BOLD}" "${cmd_deploy_env}" "${NORMAL}"
+    fi
+    printf '%s\n' "${cmd_deploy_rendered}"
+    return 0
+  fi
+
+  printf "Applying to cluster...\n"
+  printf '%s' "${cmd_deploy_rendered}" | kubectl apply --server-side -f -
+
+  if [ "${cmd_deploy_is_bootstrap}" = "true" ]; then
+    cmd_deploy_wait_for_crds
+    printf "%b Bootstrap complete%b\n" "${GREEN}" "${NORMAL}"
+  else
+    printf "%b Deploy %s complete%b\n" "${GREEN}" "${cmd_deploy_env}" "${NORMAL}"
+  fi
 }
