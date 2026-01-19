@@ -5,16 +5,16 @@ namespace: monitoring
 configMapGenerator:
   - name: haproxy-grafana-dashboards
     files:
-      - ./dashboards/haproxy/haproxy-basic-general-info.json
-      - ./dashboards/haproxy/haproxy-requests-responses.json
-      - ./dashboards/haproxy/haproxy-throughput-connections.json
-      - ./dashboards/haproxy/haproxy-sessions.json
-      - ./dashboards/haproxy/haproxy-times.json
-      - ./dashboards/haproxy/haproxy-health-and-weight.json
-      - ./dashboards/haproxy/haproxy-cache-compressor.json
-      - ./dashboards/haproxy/haproxy-status.json
-      - ./dashboards/haproxy/haproxy-process-traffic.json
-      - ./dashboards/haproxy/haproxy-process-misc.json
+      - ./dashboards/haproxy-basic-general-info.json
+      - ./dashboards/haproxy-requests-responses.json
+      - ./dashboards/haproxy-throughput-connections.json
+      - ./dashboards/haproxy-sessions.json
+      - ./dashboards/haproxy-times.json
+      - ./dashboards/haproxy-health-and-weight.json
+      - ./dashboards/haproxy-cache-compressor.json
+      - ./dashboards/haproxy-status.json
+      - ./dashboards/haproxy-process-traffic.json
+      - ./dashboards/haproxy-process-misc.json
     options:
       labels:
         grafana_dashboard: '1'

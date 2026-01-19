@@ -5,6 +5,3 @@ resources:
   - prom-etcd-config.yaml
 patches:
   - path: dev-patch.yaml
-  - path: ../../../packages/postgres/kube/main/dev-patch.yaml
-  - path: ../../../packages/valkey/kube/main/dev-patch.yaml
-  - path: ../../../packages/clickhouse/kube/main/dev-patch.yaml

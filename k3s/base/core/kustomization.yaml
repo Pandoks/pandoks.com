@@ -7,4 +7,6 @@ resources:
   - metallb.yaml
   - cert-manager.yaml
   - namespaces.yaml
+  - postgres.yaml
+  - valkey.yaml
   - https://github.com/rancher/system-upgrade-controller/releases/latest/download/crd.yaml
