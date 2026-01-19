@@ -97,6 +97,10 @@ cmd_deploy_wait_for_crds() {
   echo "Waiting for Prometheus Operator CRDs..."
   wait_for_crd "servicemonitors.monitoring.coreos.com" 180
   printf "%b  Prometheus Operator CRDs established%b\n" "${GREEN}" "${NORMAL}"
+
+  echo "Waiting for system-upgrade-controller CRDs..."
+  wait_for_crd "plans.upgrade.cattle.io" 120
+  printf "%b  system-upgrade-controller CRDs established%b\n" "${GREEN}" "${NORMAL}"
 }
 
 cmd_deploy() {

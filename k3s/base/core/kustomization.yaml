@@ -9,4 +9,3 @@ resources:
   - namespaces.yaml
   - postgres.yaml
   - valkey.yaml
-  - https://github.com/rancher/system-upgrade-controller/releases/latest/download/crd.yaml
