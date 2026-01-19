@@ -9,6 +9,10 @@ declare module 'sst' {
       type: 'sst.aws.Router';
       url: string;
     };
+    BackupBucket: {
+      name: string;
+      type: 'sst.cloudflare.Bucket';
+    };
     BlogApi: {
       name: string;
       type: 'sst.aws.Function';
