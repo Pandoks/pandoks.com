@@ -1,5 +1,35 @@
 # shellcheck shell=sh
 
+cmd_deploy_compute_vars() {
+  cmd_deploy_compute_vars_stage="$1"
+
+  case "${cmd_deploy_compute_vars_stage}" in
+    dev)
+      cmd_deploy_compute_vars_is_dev="true"
+      cmd_deploy_compute_vars_image_registry="local-registry:5000"
+      cmd_deploy_compute_vars_image_tag="latest"
+      ;;
+    prod)
+      cmd_deploy_compute_vars_is_dev="false"
+      cmd_deploy_compute_vars_image_registry="ghcr.io/pandoks"
+      cmd_deploy_compute_vars_branch=$(git rev-parse --abbrev-ref HEAD 2> /dev/null || echo "main")
+      case "${cmd_deploy_compute_vars_branch}" in
+        main | master) cmd_deploy_compute_vars_image_tag="latest" ;;
+        *) cmd_deploy_compute_vars_image_tag="${cmd_deploy_compute_vars_branch}" ;;
+      esac
+      ;;
+  esac
+
+  jq -n \
+    --arg IsDev "${cmd_deploy_compute_vars_is_dev}" \
+    --arg ImageRegistry "${cmd_deploy_compute_vars_image_registry}" \
+    --arg ImageTag "${cmd_deploy_compute_vars_image_tag}" \
+    '{
+      IsDev: $IsDev,
+      ImageRegistry: $ImageRegistry,
+      ImageTag: $ImageTag
+    }'
+}
 cmd_deploy() {
   [ $# -ge 1 ] || usage_deploy 1
   cmd_deploy_env="$1"
