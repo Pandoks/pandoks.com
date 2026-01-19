@@ -19,6 +19,7 @@ spec:
   privateKey:
     algorithm: RSA
     size: 2048
+    rotationPolicy: Never
   issuerRef:
     name: internal-issuer
     kind: ClusterIssuer
