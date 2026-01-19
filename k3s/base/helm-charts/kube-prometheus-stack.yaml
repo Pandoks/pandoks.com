@@ -47,7 +47,8 @@ spec:
 
     grafana:
       persistence:
-        enabled: false
+        enabled: true
+        size: 1Gi
       admin:
         existingSecret: grafana
         userKey: username
