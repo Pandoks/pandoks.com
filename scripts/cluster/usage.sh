@@ -97,11 +97,11 @@ usage_deploy() {
   printf "      Kubeconfig file for kubectl operations\n\n" >&2
 
   printf "%bTemplate Variables:%b\n" "${BOLD}" "${NORMAL}" >&2
-  printf "  \${ImageRegistry}    - Container registry (local or GHCR)\n" >&2
-  printf "  \${ImageTag}         - Image tag (latest or branch name)\n" >&2
-  printf "  \${IsDev}            - 'true' or 'false' for conditional logic\n" >&2
-  printf "  \${BackupBucket}     - S3 bucket for backups from SST\n" >&2
-  printf "  \${<SSTSecret>}      - Any SST secret by name\n" >&2
+  printf "  \${ImageRegistry}     - Container registry (local or GHCR)\n" >&2
+  printf "  \${ImageTag}          - Image tag (latest or branch name)\n" >&2
+  printf "  \${IsDev}             - 'true' or 'false' for conditional logic\n" >&2
+  printf "  \${BackupBucket}      - S3 bucket for backups from SST\n" >&2
+  printf "  \${<SST Resource>}    - Any SST resource by name\n" >&2
   printf "  \${<Secret> | base64} - Base64 encode a secret value\n\n" >&2
 
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
