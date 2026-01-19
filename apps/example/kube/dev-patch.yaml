@@ -4,11 +4,7 @@ metadata:
   name: main-valkey-main-cluster
   namespace: kube-system
 spec:
-  chart: oci://local-registry:5000/charts/valkey
-  plainHTTP: true
   set:
-    image: local-registry:5000/valkey:latest
-    cluster.reconcilerImage: local-registry:5000/valkey-reconciler:latest
     hooks.restartPolicy: Never
     hooks.backoffLimit: 0
     hooks.ttlSecondsAfterFinished: 86400 # 24 hours

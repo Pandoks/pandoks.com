@@ -5,3 +5,4 @@ resources:
   - prom-etcd-config.yaml
 patches:
   - path: dev-patch.yaml
+  - path: ../../../apps/example/kube/dev-patch.yaml
