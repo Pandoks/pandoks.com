@@ -353,10 +353,10 @@ spec:
       volumes:
         - name: *patroni_config
           configMap:
-            name: patroni-{{ .Values.db }}-config
+            name: patroni-{{ $.Values.db }}-config
         - name: *pgbackrest_config
           configMap:
-            name: patroni-{{ .Values.db }}-pgbackrest-config
+            name: patroni-{{ $.Values.db }}-pgbackrest-config
         - name: *tls
           projected:
             defaultMode: 0600
