@@ -104,6 +104,15 @@ cmd_deploy() {
   cmd_deploy_env="$1"
   shift
 
+  case "${cmd_deploy_env}" in
+    dev | prod) ;;
+    help | --help | -h) usage_deploy ;;
+    *)
+      printf "%bError:%b Unknown environment '%s'. Use 'dev' or 'prod'\n" "${RED}" "${NORMAL}" "${cmd_deploy_env}" >&2
+      usage_deploy 1
+      ;;
+  esac
+
   cmd_deploy_dry_run=false
   cmd_deploy_bootstrap=false
   cmd_deploy_stage=""
