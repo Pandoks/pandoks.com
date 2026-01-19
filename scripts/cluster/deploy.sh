@@ -104,8 +104,37 @@ cmd_deploy() {
   cmd_deploy_env="$1"
   shift
 
+  cmd_deploy_dry_run=false
+  cmd_deploy_bootstrap=false
+  cmd_deploy_stage=""
   while [ $# -gt 0 ]; do
     case "$1" in
+      --dry-run)
+        cmd_deploy_dry_run=true
+        shift
+        ;;
+      --bootstrap)
+        cmd_deploy_bootstrap=true
+        shift
+        ;;
+      --stage)
+        if [ $# -lt 2 ]; then
+          printf "%bError:%b Missing value for --stage\n" "${RED}" "${NORMAL}" >&2
+          exit 1
+        fi
+        cmd_deploy_stage="$2"
+        shift 2
+        ;;
+      --kubeconfig)
+        if [ $# -lt 2 ]; then
+          printf "%bError:%b Missing value for --kubeconfig\n" "${RED}" "${NORMAL}" >&2
+          exit 1
+        fi
+        KUBECONFIG="$(validate_and_get_absolute_kubeconfig_path "$2")"
+        export KUBECONFIG
+        printf "%bUsing kubeconfig:%b %s\n" "${BOLD}" "${NORMAL}" "${KUBECONFIG}" >&2
+        shift 2
+        ;;
       help | --help | -h) usage_deploy ;;
       *)
         printf "%bError:%b Unexpected argument for deploy: %s\n" "${RED}" "${NORMAL}" "$1" >&2
