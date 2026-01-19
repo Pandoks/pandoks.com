@@ -33,13 +33,13 @@ jobs:
             path: ./packages/postgres/pgbackrest/Dockerfile
           - name: valkey
             path: ./packages/valkey/Dockerfile
-          - name: valkey_reconciler
+          - name: valkey-reconciler
             path: ./packages/valkey/reconciler/Dockerfile
           - name: clickhouse
             path: ./packages/clickhouse/clickhouse/Dockerfile
-          - name: clickhouse_keeper
+          - name: clickhouse-keeper
             path: ./packages/clickhouse/keeper/Dockerfile
-          - name: clickhouse_backup
+          - name: clickhouse-backup
             path: ./packages/clickhouse/backup/Dockerfile
 
     steps:
@@ -55,13 +55,13 @@ jobs:
               - 'packages/postgres/pgbackrest/**'
             valkey:
               - 'packages/valkey/**'
-            valkey_reconciler:
+            valkey-reconciler:
               - 'packages/valkey/reconciler/**'
             clickhouse:
               - 'packages/clickhouse/clickhouse/**'
-            clickhouse_keeper:
+            clickhouse-keeper:
               - 'packages/clickhouse/keeper/**'
-            clickhouse_backup:
+            clickhouse-backup:
               - 'packages/clickhouse/backup/**'
 
       - uses: docker/setup-buildx-action@v3
