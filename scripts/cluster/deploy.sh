@@ -1,9 +1,9 @@
 # shellcheck shell=sh
 
 cmd_deploy_compute_vars() {
-  cmd_deploy_compute_vars_stage="$1"
+  cmd_deploy_compute_vars_env="$1"
 
-  case "${cmd_deploy_compute_vars_stage}" in
+  case "${cmd_deploy_compute_vars_env}" in
     dev)
       cmd_deploy_compute_vars_is_dev="true"
       cmd_deploy_compute_vars_image_registry="local-registry:5000"
