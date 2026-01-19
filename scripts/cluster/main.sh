@@ -9,6 +9,7 @@ readonly REPO_ROOT
 
 . "${REPO_ROOT}/scripts/lib/font.sh"
 . "${REPO_ROOT}/scripts/lib/sst.sh"
+. "${REPO_ROOT}/scripts/lib/template.sh"
 . "${REPO_ROOT}/scripts/lib/kubernetes.sh"
 . "${SCRIPT_DIR}/usage.sh"
 . "${SCRIPT_DIR}/k3d.sh"
