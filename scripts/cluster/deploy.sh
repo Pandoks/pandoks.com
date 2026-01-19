@@ -53,6 +53,22 @@ cmd_deploy_get_template_vars() {
   printf '%s' "${cmd_deploy_get_template_vars_sst}" \
     | jq --argjson computed "${cmd_deploy_get_template_vars_computed}" '. + $computed'
 }
+
+cmd_deploy_render_templated_yaml() {
+  cmd_deploy_render_kustomize_path="$1"
+  cmd_deploy_render_template_vars="$2"
+  cmd_deploy_render_is_bootstrap="$3" # true|false
+
+  if [ "${cmd_deploy_render_is_bootstrap}" = "true" ]; then
+    printf "Running kustomize on helm-charts...\n" >&2
+  else
+    printf "Running kustomize on overlay...\n" >&2
+  fi
+  cmd_deploy_render_kustomize=$(kubectl kustomize "${cmd_deploy_render_kustomize_path}" --load-restrictor LoadRestrictionsNone)
+
+  printf "Substituting template variables...\n" >&2
+  template_substitute "${cmd_deploy_render_kustomize}" "${cmd_deploy_render_template_vars}"
+}
 cmd_deploy() {
   [ $# -ge 1 ] || usage_deploy 1
   cmd_deploy_env="$1"
