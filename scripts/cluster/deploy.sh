@@ -69,6 +69,36 @@ cmd_deploy_render_templated_yaml() {
   printf "Substituting template variables...\n" >&2
   template_substitute "${cmd_deploy_render_kustomize}" "${cmd_deploy_render_template_vars}"
 }
+
+cmd_deploy_wait_for_crds() {
+  printf "Waiting for CRDs to be established...\n"
+
+  echo "Waiting for cert-manager CRDs..."
+  for cmd_deploy_wait_for_crds_crd in \
+    certificates.cert-manager.io \
+    issuers.cert-manager.io \
+    clusterissuers.cert-manager.io; do
+    wait_for_crd "${cmd_deploy_wait_for_crds_crd}" 180
+  done
+  printf "%b  cert-manager CRDs established%b\n" "${GREEN}" "${NORMAL}"
+
+  echo "Waiting for cert-manager deployments..."
+  kubectl -n cert-manager rollout status deploy/cert-manager --timeout=300s || true
+  kubectl -n cert-manager rollout status deploy/cert-manager-webhook --timeout=300s || true
+  kubectl -n cert-manager rollout status deploy/cert-manager-cainjector --timeout=300s || true
+  printf "%b  cert-manager deployments established%b\n" "${GREEN}" "${NORMAL}"
+
+  echo "Waiting for MetalLB CRDs..."
+  wait_for_crd "ipaddresspools.metallb.io" 120
+  wait_for_crd "l2advertisements.metallb.io" 120
+  kubectl -n metallb-system rollout status deploy/metallb-controller --timeout=300s || true
+  printf "%b  MetalLB CRDs established%b\n" "${GREEN}" "${NORMAL}"
+
+  echo "Waiting for Prometheus Operator CRDs..."
+  wait_for_crd "servicemonitors.monitoring.coreos.com" 180
+  printf "%b  Prometheus Operator CRDs established%b\n" "${GREEN}" "${NORMAL}"
+}
+
 cmd_deploy() {
   [ $# -ge 1 ] || usage_deploy 1
   cmd_deploy_env="$1"
