@@ -38,7 +38,7 @@ backup:
       secretKey: S3_SECRET_KEY
   image: ghcr.io/pandoks/clickhouse-backup:latest
   bucket: backups
-  path: /example/clickhouse
+  path: kubernetes/example/clickhouse
   schedules:
     full: '0 2 * * 0'
     diff: '0 2 * * 3,6'

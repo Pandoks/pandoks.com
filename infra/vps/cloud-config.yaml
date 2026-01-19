@@ -109,7 +109,7 @@ runcmd:
           --etcd-s3-bucket=${BACKUP_BUCKET} \
           --etcd-s3-access-key=${S3_ACCESS_KEY} \
           --etcd-s3-secret-key=${S3_SECRET_KEY} \
-          --etcd-s3-folder=etcd \
+          --etcd-s3-folder=kubernetes/etcd \
           --etcd-snapshot-schedule-cron="0 */6 * * *" \
           --etcd-snapshot-retention=5
 
@@ -184,7 +184,7 @@ runcmd:
           --etcd-s3-bucket=${BACKUP_BUCKET} \
           --etcd-s3-access-key=${S3_ACCESS_KEY} \
           --etcd-s3-secret-key=${S3_SECRET_KEY} \
-          --etcd-s3-folder=etcd \
+          --etcd-s3-folder=kubernetes/etcd \
           --etcd-snapshot-schedule-cron="0 */6 * * *" \
           --etcd-snapshot-retention=5
     else

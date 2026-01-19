@@ -19,7 +19,7 @@ backup:
   bucket: backups
   image: ghcr.io/pandoks/pgbackrest:latest
   encryptionKey: openssl-rand-hex-32
-  path: /examples/postgres
+  path: kubernetes/examples/postgres
   schedules:
     full: '0 2 * * 0'
     diff: '0 2 * * 3,6'
