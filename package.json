@@ -7,7 +7,7 @@
     "sso": "aws sso login --sso-session=Pandoks_",
     "cluster": "./scripts/cluster/main.sh",
     "dev": "sst dev",
-    "dev:init": "pnpm run cluster k3d deps up && pnpm run cluster k3d up && pnpm run cluster deploy dev --bootstrap && pnpm run cluster deploy dev",
+    "dev:init": "pnpm run cluster k3d deps up && pnpm run cluster k3d up && pnpm run docker:build && pnpm run dev:push && pnpm run cluster deploy dev --bootstrap && pnpm run cluster deploy dev",
     "dev:destroy": "pnpm run cluster k3d down && pnpm run cluster k3d deps down",
     "dev:push": "pnpm -r run dev:push",
     "docker:build": "pnpm -r run docker:build",
