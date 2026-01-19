@@ -1,6 +1,9 @@
 name: Build Images and Push
 on:
   workflow_dispatch:
+  create:
+    branches:
+      - '**'
   push:
     paths:
       - 'packages/postgres/patroni/**'
@@ -76,7 +79,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and Push
-        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs[matrix.image.name] == 'true'
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'create' || steps.changes.outputs[matrix.image.name] == 'true'
         id: push
         uses: docker/build-push-action@v6
         with:
@@ -89,7 +92,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Generate Attestation
-        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs[matrix.image.name] == 'true'
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'create' || steps.changes.outputs[matrix.image.name] == 'true'
         uses: actions/attest-build-provenance@v3
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/${{ matrix.image.name }}
