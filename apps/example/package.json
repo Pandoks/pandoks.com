@@ -1,0 +1,7 @@
+{
+  "name": "@pandoks.com/example",
+  "description": "Example app",
+  "version": "1.0.0",
+  "type": "module",
+  "packageManager": "pnpm@10.8.1"
+}
