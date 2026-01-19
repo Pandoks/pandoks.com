@@ -30,6 +30,29 @@ cmd_deploy_compute_vars() {
       ImageTag: $ImageTag
     }'
 }
+
+cmd_deploy_get_template_vars() {
+  cmd_deploy_get_template_vars_env="$1"       # dev|prod
+  cmd_deploy_get_template_vars_stage="${2:-}" # --stage <stage> equivalent
+
+  if [ -n "${cmd_deploy_get_template_vars_stage}" ]; then
+    printf "Fetching SST resources for stage '%s'...\n" "${cmd_deploy_get_template_vars_stage}" >&2
+  else
+    printf "Fetching SST resources...\n" >&2
+  fi
+  cmd_deploy_get_template_vars_sst=$(get_sst_resources "${cmd_deploy_get_template_vars_stage}")
+  if [ -z "${cmd_deploy_get_template_vars_sst}" ]; then
+    printf "%bError:%b Failed to fetch SST resources. Make sure you're authenticated with SST.\n" "${RED}" "${NORMAL}" >&2
+    printf "Try running: %bpnpm run sso%b.\n" "${BOLD}" "${NORMAL}" >&2
+    return 1
+  fi
+  printf "SST resources fetched\n" >&2
+
+  cmd_deploy_get_template_vars_computed=$(cmd_deploy_compute_vars "${cmd_deploy_get_template_vars_env}")
+
+  printf '%s' "${cmd_deploy_get_template_vars_sst}" \
+    | jq --argjson computed "${cmd_deploy_get_template_vars_computed}" '. + $computed'
+}
 cmd_deploy() {
   [ $# -ge 1 ] || usage_deploy 1
   cmd_deploy_env="$1"
