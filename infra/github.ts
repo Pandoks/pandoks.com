@@ -17,4 +17,44 @@ if ($app.stage === 'production') {
     secretName: 'CLOUDFLARE_DEFAULT_ACCOUNT_ID',
     plaintextValue: cloudflareAccountId
   });
+
+  const githubOidcProvider = new aws.iam.OpenIdConnectProvider('AWSGithubActionsOidc', {
+    url: 'https://token.actions.githubusercontent.com',
+    clientIdLists: ['sts.amazonaws.com']
+  });
+
+  const githubActionsRole = new aws.iam.Role('AWSGithubActionsRole', {
+    name: 'PersonalGithubActions',
+    assumeRolePolicy: $jsonStringify({
+      Version: '2012-10-17',
+      Statement: [
+        {
+          Effect: 'Allow',
+          Principal: {
+            Federated: githubOidcProvider.arn
+          },
+          Action: 'sts:AssumeRoleWithWebIdentity',
+          Condition: {
+            StringEquals: {
+              'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com'
+            },
+            StringLike: {
+              'token.actions.githubusercontent.com:sub': 'repo:Pandoks/*'
+            }
+          }
+        }
+      ]
+    })
+  });
+
+  new aws.iam.RolePolicyAttachment('AWSGithubActionsPolicy', {
+    role: githubActionsRole.name,
+    policyArn: aws.iam.ManagedPolicy.AdministratorAccess
+  });
+
+  new github.ActionsVariable('GithubAWSRole', {
+    repository: githubRepo.then((r) => r.name),
+    variableName: 'AWS_ROLE_ARN',
+    value: githubActionsRole.arn
+  });
 }
