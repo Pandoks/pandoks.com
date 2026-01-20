@@ -10,16 +10,17 @@ on:
         description: 'Deploy SST infrastructure'
         type: boolean
         default: true
-      stage:
-        description: 'SST stage'
-        type: choice
-        options:
-          - production
-          - pandoks
       kubernetes:
         description: 'Deploy Kubernetes manifests'
         type: boolean
         default: true
+      stage:
+        description: 'SST stage'
+        type: choice
+        default: production
+        options:
+          - production
+          - pandoks
 
 concurrency:
   group: deploy-infrastructure
@@ -28,4 +29,7 @@ concurrency:
 permissions:
   id-token: write
   contents: read
+
+env:
+  SST_STAGE: ${{ github.event.inputs.stage || 'production' }}
 
