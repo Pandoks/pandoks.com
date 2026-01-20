@@ -1,4 +1,4 @@
-import { awsRegion, cloudflareAccountId, isProduction, STAGE_NAME } from './dns';
+import { awsRegion, cloudflareAccountId, isProduction } from './dns';
 import { secrets } from './secrets';
 
 export const githubRepo = github.getRepository({
