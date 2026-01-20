@@ -263,7 +263,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "pg_stat_database_blks_hit{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"} / (pg_stat_database_blks_hit{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"} + pg_stat_database_blks_read{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"})",
+          "expr": "pg_stat_database_blks_hit{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"} / clamp_min(pg_stat_database_blks_hit{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"} + pg_stat_database_blks_read{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"}, 1)",
           "legendFormat": "{{`{{pod}}`}}",
           "range": true,
           "refId": "A"
@@ -1966,7 +1966,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pg_stat_statements_seconds_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])) / sum(rate(pg_stat_statements_calls_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval]))",
+          "expr": "sum(rate(pg_stat_statements_seconds_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])) / clamp_min(sum(rate(pg_stat_statements_calls_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])), 1e-10)",
           "legendFormat": "Avg Query Latency",
           "range": true,
           "refId": "A"
@@ -1974,7 +1974,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum by (pod) (rate(pg_stat_statements_seconds_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])) / sum by (pod) (rate(pg_stat_statements_calls_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval]))",
+          "expr": "sum by (pod) (rate(pg_stat_statements_seconds_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])) / clamp_min(sum by (pod) (rate(pg_stat_statements_calls_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])), 1e-10)",
           "legendFormat": "{{`{{pod}}`}}",
           "range": true,
           "refId": "B"
@@ -2661,7 +2661,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(pgdog_query_cache_hits{service=~\"{{ .Values.db }}-pgdog\"}) / (sum(pgdog_query_cache_hits{service=~\"{{ .Values.db }}-pgdog\"}) + sum(pgdog_query_cache_misses{service=~\"{{ .Values.db }}-pgdog\"}))",
+          "expr": "sum(pgdog_query_cache_hits{service=~\"{{ .Values.db }}-pgdog\"}) / clamp_min(sum(pgdog_query_cache_hits{service=~\"{{ .Values.db }}-pgdog\"}) + sum(pgdog_query_cache_misses{service=~\"{{ .Values.db }}-pgdog\"}), 1)",
           "legendFormat": "Query Cache Hit Ratio",
           "range": true,
           "refId": "A"
