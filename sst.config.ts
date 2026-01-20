@@ -28,7 +28,7 @@ export default $config({
       import('./infra/website'),
       import('./infra/tailscale'),
       import('./infra/vps/vps'),
-      import('./infra/sst')
+      import('./infra/dev')
     ]);
     return imports.reduce((acculumator, importResult: any) => {
       if (importResult.outputs) {

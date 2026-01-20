@@ -6,14 +6,15 @@ credentials:
   dataKeys:
     adminPassword: ADMIN_PASSWORD
     clientPassword: CLIENT_PASSWORD
-    backupS3Key: BACKUP_S3_KEY
-    backupS3KeySecret: BACKUP_S3_KEY_SECRET
 
 clickhouse:
   image: ghcr.io/pandoks/clickhouse:latest
   shards: 1
   replicasPerShard: 2
   resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
     limits:
       cpu: 2000m
       memory: 4Gi
@@ -22,14 +23,22 @@ keeper:
   image: ghcr.io/pandoks/clickhouse-keeper:latest
   replicas: 3
   resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
     limits:
       cpu: 2000m
       memory: 4Gi
 
 backup:
+  credentials:
+    secret: backup-bucket-creds
+    dataKeys:
+      accessKey: S3_ACCESS_KEY
+      secretKey: S3_SECRET_KEY
   image: ghcr.io/pandoks/clickhouse-backup:latest
-  bucket: clickhouse
-  path: /
+  bucket: backups
+  path: kubernetes/example/clickhouse
   schedules:
     full: '0 2 * * 0'
     diff: '0 2 * * 3,6'

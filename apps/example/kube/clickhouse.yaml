@@ -1,0 +1,21 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: main-clickhouse-main-cluster
+  namespace: kube-system
+spec:
+  chart: oci://${ImageRegistry}/charts/clickhouse
+  version: 0.1.0
+  targetNamespace: &namespace main
+  createNamespace: true
+  failurePolicy: abort
+  plainHTTP: ${IsDev}
+  set:
+    name: main
+    namespace: *namespace
+    credentials.secret: clickhouse-main-creds
+    backup.bucket: ${BackupBucket}
+    backup.path: kubernetes/main/clickhouse
+    clickhouse.image: ${ImageRegistry}/clickhouse:${ImageTag}
+    keeper.image: ${ImageRegistry}/clickhouse-keeper:${ImageTag}
+    backup.image: ${ImageRegistry}/clickhouse-backup:${ImageTag}

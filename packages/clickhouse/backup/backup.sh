@@ -11,8 +11,8 @@ for v in \
   BACKUP_TYPE \
   S3_REGION \
   S3_ENDPOINT \
-  S3_KEY \
-  S3_KEY_SECRET \
+  S3_ACCESS_KEY \
+  S3_SECRET_KEY \
   RETENTION; do
   eval ": \${$v:?Missing $v}"
 done
@@ -29,8 +29,8 @@ rclone_cmd() {
     --s3-provider Other \
     --s3-region "${S3_REGION}" \
     --s3-endpoint "${S3_ENDPOINT}" \
-    --s3-access-key-id "${S3_KEY}" \
-    --s3-secret-access-key "${S3_KEY_SECRET}" \
+    --s3-access-key-id "${S3_ACCESS_KEY}" \
+    --s3-secret-access-key "${S3_SECRET_KEY}" \
     --s3-force-path-style=true \
     "$@"
 }
@@ -64,7 +64,7 @@ if [ "${BACKUP_TYPE}" != "full" ]; then
     base_backup_url=$(printf '%s\n' "${base_backup}" | sed -e "s/^S3('\([^']*\)'.*/\1/")
     if [ -n "${base_backup_url}" ]; then
       echo "Found ${base_backup_type} base backup at ${base_backup_url}"
-      settings="SETTINGS base_backup = S3('${base_backup_url}', '${S3_KEY}', '${S3_KEY_SECRET}'),
+      settings="SETTINGS base_backup = S3('${base_backup_url}', '${S3_ACCESS_KEY}', '${S3_SECRET_KEY}'),
                 use_same_password_for_base_backup = 1"
     else
       echo "Unable to parse ${base_backup_type} base backup; running full backup instead"
@@ -82,7 +82,7 @@ clickhouse-client \
   --password "${CLICKHOUSE_CLIENT_PASSWORD}" \
   --query "BACKUP ALL EXCEPT DATABASES system, INFORMATION_SCHEMA, information_schema
                ON CLUSTER '${CLUSTER_NAME}'
-               TO S3('${base_url}/${BACKUP_TYPE}/${timestamp}', '${S3_KEY}', '${S3_KEY_SECRET}')
+               TO S3('${base_url}/${BACKUP_TYPE}/${timestamp}', '${S3_ACCESS_KEY}', '${S3_SECRET_KEY}')
            ${settings}"
 echo "✓ Backup complete"
 

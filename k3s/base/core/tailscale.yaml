@@ -1,0 +1,20 @@
+# WARNING: make sure to match it with /infra/vps/cloud-config.yaml's secret creation
+# NOTE: Only needed in production - the tailscale operator is not installed in dev
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tailscale
+  namespace: kube-system
+type: Opaque
+stringData:
+  tailscale-oauth: |
+    oauth:
+      clientId: ${KubernetesTailscaleOauthClientId}
+      clientSecret: ${KubernetesTailscaleOauthClientSecret}
+  operator-config: |
+    operatorConfig:
+      hostname: ${StageName}-cluster
+      defaultTags:
+        - tag:k8s-operator
+        - tag:k8s
+        - tag:${StageName}

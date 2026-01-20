@@ -9,7 +9,7 @@
     "build:clickhouse": "docker build -f ./clickhouse/Dockerfile ../../ -t localhost:12345/clickhouse:latest",
     "build:keeper": "docker build -f ./keeper/Dockerfile ../../ -t localhost:12345/clickhouse-keeper:latest",
     "build:backup": "docker build -f ./backup/Dockerfile ../../ -t localhost:12345/clickhouse-backup:latest",
-    "build:helm": "rm ./clickhouse-*.tgz && helm package ./chart",
+    "build:helm": "rm -f ./clickhouse-*.tgz && helm package ./chart",
     "dev:push": "pnpm run dev:push:clickhouse & pnpm run dev:push:keeper & pnpm run dev:push:helm & wait",
     "dev:push:clickhouse": "docker push localhost:12345/clickhouse:latest",
     "dev:push:keeper": "docker push localhost:12345/clickhouse-keeper:latest",

@@ -9,6 +9,10 @@ declare module 'sst' {
       type: 'sst.aws.Router';
       url: string;
     };
+    BackupBucket: {
+      name: string;
+      type: 'sst.cloudflare.Bucket';
+    };
     BlogApi: {
       name: string;
       type: 'sst.aws.Function';
@@ -18,19 +22,15 @@ declare module 'sst' {
       type: 'sst.sst.Secret';
       value: string;
     };
-    CloudflareAccountId: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
     CloudflareApiKey: {
       type: 'sst.sst.Secret';
       value: string;
     };
-    CloudflareEmail: {
+    CloudflareBackupAccessKey: {
       type: 'sst.sst.Secret';
       value: string;
     };
-    CloudflareZoneId: {
+    CloudflareBackupSecretKey: {
       type: 'sst.sst.Secret';
       value: string;
     };
@@ -54,7 +54,7 @@ declare module 'sst' {
       type: 'sst.sst.Secret';
       value: string;
     };
-    KubernetesTailscaleHostname: {
+    KubernetesGrafanaAdminPassword: {
       type: 'sst.sst.Secret';
       value: string;
     };
@@ -74,27 +74,11 @@ declare module 'sst' {
       type: 'sst.sst.Secret';
       value: string;
     };
-    MainMainClickhouseBackupS3Key: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    MainMainClickhouseBackupS3KeySecret: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
     MainMainClickhouseClientPassword: {
       type: 'sst.sst.Secret';
       value: string;
     };
     MainMainPostgresAdminPassword: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    MainMainPostgresBackupS3Key: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    MainMainPostgresBackupS3KeySecret: {
       type: 'sst.sst.Secret';
       value: string;
     };

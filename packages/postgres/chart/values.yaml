@@ -9,14 +9,17 @@ credentials:
     clientPassword: CLIENT_PASSWORD
     replicationPassword: REPLICATION_PASSWORD
     patroniPassword: PATRONI_PASSWORD
-    backupS3Key: BACKUP_S3_KEY
-    backupS3KeySecret: BACKUP_S3_KEY_SECRET
 
 backup:
-  bucket: database
+  credentials:
+    secret: backup-bucket-creds
+    dataKeys:
+      accessKey: S3_ACCESS_KEY
+      secretKey: S3_SECRET_KEY
+  bucket: backups
   image: ghcr.io/pandoks/pgbackrest:latest
   encryptionKey: openssl-rand-hex-32
-  path: /
+  path: kubernetes/examples/postgres
   schedules:
     full: '0 2 * * 0'
     diff: '0 2 * * 3,6'
@@ -39,6 +42,7 @@ patroni:
   resources:
     patroni: {}
     pgbackrest: {}
+    postgresExporter: {}
 
 # https://github.com/pgdogdev/helm/blob/main/values.yaml
 pgdog:

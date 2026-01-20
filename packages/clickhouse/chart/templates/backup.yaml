@@ -1,4 +1,4 @@
-{{- range $type, $schedule := .Values.backup.schedules }}
+{{- range $type, $schedule := $.Values.backup.schedules }}
   {{- if $schedule }}
 ---
 {{- include "clickhouse.backup.cronjob" (dict "context" $ "type" $type "schedule" $schedule) }}
@@ -43,16 +43,16 @@ spec:
                   value: {{ .context.Values.s3.endpoint }}
                 - name: S3_REGION
                   value: {{ .context.Values.s3.region }}
-                - name: S3_KEY
+                - name: S3_ACCESS_KEY
                   valueFrom:
                     secretKeyRef:
-                      name: {{ .context.Values.credentials.secret }}
-                      key: {{ .context.Values.credentials.dataKeys.backupS3Key }}
-                - name: S3_KEY_SECRET
+                      name: {{ .context.Values.backup.credentials.secret }}
+                      key: {{ .context.Values.backup.credentials.dataKeys.accessKey }}
+                - name: S3_SECRET_KEY
                   valueFrom:
                     secretKeyRef:
-                      name: {{ .context.Values.credentials.secret }}
-                      key: {{ .context.Values.credentials.dataKeys.backupS3KeySecret }}
+                      name: {{ .context.Values.backup.credentials.secret }}
+                      key: {{ .context.Values.backup.credentials.dataKeys.secretKey }}
                 - name: RETENTION
                   value: {{ index .context.Values.backup.retention .type | quote }}
               {{- with .context.Values.backup.resources }}

@@ -3,11 +3,10 @@
 import { isProduction, STAGE_NAME } from '../dns';
 import { createServers } from './servers';
 import { createLoadBalancers } from './load-balancers';
-import { secrets } from '../secrets';
 import { deleteTailscaleDevices } from '../tailscale';
 
 // NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
-const CONTROL_PLANE_NODE_COUNT = isProduction ? 1 : 1;
+const CONTROL_PLANE_NODE_COUNT = isProduction ? 1 : 0;
 const CONTROL_PLANE_HOST_START_OCTET = 10; // starts at 10.0.1.<CONTROL_PLANE_HOST_START_OCTET>
 const WORKER_NODE_COUNT = isProduction ? 0 : 0;
 const WORKER_HOST_START_OCTET = 20; // starts at 10.0.1.<WORKER_HOST_START_OCTET> 20 allows for 10 control plane nodes
@@ -42,7 +41,7 @@ const subnet = new hcloud.NetworkSubnet('HetznerK3sSubnet', {
   ipRange: '10.0.1.0/24',
   networkZone: NETWORK_ZONE
 });
-const firewall = new hcloud.Firewall('HetznerInboundFirewall', {
+export const inboundFirewall = new hcloud.Firewall('HetznerInboundFirewall', {
   name: 'inbound',
   rules: [
     {
@@ -57,15 +56,13 @@ const firewall = new hcloud.Firewall('HetznerInboundFirewall', {
 
 const publicLoadBalancers = createLoadBalancers(
   {
-    controlPlaneCount: CONTROL_PLANE_NODE_COUNT,
-    workerNodeCount: WORKER_NODE_COUNT,
     loadBalancerCount: LOAD_BALANCER_COUNT,
     network: privateNetwork
   },
   {
     type: LOAD_BALANCER_TYPE,
     location: LOCATION,
-    alogrithm: LOAD_BALANCER_ALGORITHM
+    algorithm: LOAD_BALANCER_ALGORITHM
   }
 );
 
@@ -87,7 +84,7 @@ const { tailscaleHostnames: controlPlaneTailscaleHostnames, servers: controlPlan
       type: SERVER_TYPE,
       image: SERVER_IMAGE,
       location: LOCATION,
-      firewalls: [firewall]
+      firewalls: [inboundFirewall]
     },
     bootstrapServer
   );
@@ -103,49 +100,44 @@ const { tailscaleHostnames: workerTailscaleHostnames, servers: workerServers } =
     type: SERVER_TYPE,
     image: SERVER_IMAGE,
     location: LOCATION,
-    firewalls: [firewall]
+    firewalls: [inboundFirewall]
   },
   bootstrapServer
 );
 
 if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
-  secrets.k8s.tailscale.Hostname.value.apply(async (hostname) => {
-    const devices = await tailscale.getDevices({ namePrefix: hostname });
+  const devices = await tailscale.getDevices({ namePrefix: `${STAGE_NAME}` });
 
-    const devicesToDelete = devices.devices.filter(
-      (device) =>
-        device.hostname === hostname &&
-        device.tags.includes('tag:k8s-operator') &&
-        device.tags.includes(`tag:${STAGE_NAME}`)
+  const kubernetesDevices = devices.devices.filter(
+    (device) => device.tags.includes('tag:k8s') && device.tags.includes(`tag:${STAGE_NAME}`)
+  );
+  if (kubernetesDevices.length > 0) {
+    const deletedDevices = await deleteTailscaleDevices(
+      kubernetesDevices.map((device) => device.nodeId)
     );
-    if (devicesToDelete.length > 0) {
-      const deletedDevices = await deleteTailscaleDevices(
-        devicesToDelete.map((device) => device.nodeId)
-      );
-      deletedDevices.apply((deletedDevices) => {
-        const deletedDeviceIds = deletedDevices
-          .filter((device) => device.success)
-          .map((device) => device.deviceId);
-        const failedToDeleteDeviceIds = deletedDevices
-          .filter((device) => !device.success)
-          .map((device) => device.deviceId);
-        if (deletedDeviceIds.length)
-          console.log(
-            `Deleted Tailscale devices:\n${devicesToDelete
-              .filter((device) => deletedDeviceIds.includes(device.nodeId))
-              .map((device) => device.name)
-              .join('\n')}`
-          );
-        if (failedToDeleteDeviceIds.length)
-          console.log(
-            `Failed to delete Tailscale devices:\n${devicesToDelete
-              .filter((device) => failedToDeleteDeviceIds.includes(device.nodeId))
-              .map((device) => device.name)
-              .join('\n')}`
-          );
-      });
-    }
-  });
+    deletedDevices.apply((deletedDevices) => {
+      const deletedDeviceIds = deletedDevices
+        .filter((device) => device.success)
+        .map((device) => device.deviceId);
+      const failedToDeleteDeviceIds = deletedDevices
+        .filter((device) => !device.success)
+        .map((device) => device.deviceId);
+      if (deletedDeviceIds.length)
+        console.log(
+          `Deleted Tailscale devices:\n${kubernetesDevices
+            .filter((device) => deletedDeviceIds.includes(device.nodeId))
+            .map((device) => device.name)
+            .join('\n')}`
+        );
+      if (failedToDeleteDeviceIds.length)
+        console.log(
+          `Failed to delete Tailscale devices:\n${kubernetesDevices
+            .filter((device) => failedToDeleteDeviceIds.includes(device.nodeId))
+            .map((device) => device.name)
+            .join('\n')}`
+        );
+    });
+  }
 }
 
 const publicLoadBalancerOutputs = Object.fromEntries(

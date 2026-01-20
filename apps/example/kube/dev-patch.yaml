@@ -1,0 +1,11 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: main-valkey-main-cluster
+  namespace: kube-system
+spec:
+  set:
+    hooks.restartPolicy: Never
+    hooks.backoffLimit: 0
+    hooks.ttlSecondsAfterFinished: 86400 # 24 hours
+    hooks.hookDeletePolicy: before-hook-creation

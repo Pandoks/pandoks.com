@@ -1,0 +1,57 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: patroni-{{ .Values.db }}
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: patroni
+    database: {{ .Values.db }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.namespace }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: patroni
+      database: {{ .Values.db }}
+  endpoints:
+    - port: patroni
+      path: /metrics
+      interval: 30s
+      scheme: http
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: postgres-{{ .Values.db }}
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: postgres
+    database: {{ .Values.db }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.namespace }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: patroni
+      database: {{ .Values.db }}
+  endpoints:
+    - port: pg-metrics
+      path: /metrics
+      interval: 30s
+      scheme: http
+      scrapeTimeout: 25s
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-postgres-{{ .Values.namespace }}-{{ .Values.db }}
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  postgres-{{ .Values.namespace }}-{{ .Values.db }}.json: |
+{{ tpl (.Files.Get "files/grafana-dashboard.json") . | indent 4 }}

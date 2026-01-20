@@ -10,21 +10,16 @@ const certificateKeyPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.key`);
 
 export function createLoadBalancers(
   loadBalancerArgs: {
-    controlPlaneCount: number;
-    workerNodeCount: number;
     loadBalancerCount: number;
     network: hcloud.Network;
   },
   hcloudLoadBalancerArgs: {
     type: string;
     location: string;
-    alogrithm: string;
+    algorithm: string;
   }
 ): { loadbalancer: hcloud.LoadBalancer; network: hcloud.LoadBalancerNetwork }[] {
-  if (
-    loadBalancerArgs.loadBalancerCount ||
-    (!loadBalancerArgs.controlPlaneCount && !loadBalancerArgs.workerNodeCount)
-  ) {
+  if (!loadBalancerArgs.loadBalancerCount) {
     return [];
   }
 
@@ -89,7 +84,7 @@ export function createLoadBalancers(
       name: `k3s-public-${STAGE_NAME}-load-balancer-${i}`,
       loadBalancerType: hcloudLoadBalancerArgs.type,
       location: hcloudLoadBalancerArgs.location,
-      algorithm: { type: hcloudLoadBalancerArgs.alogrithm }
+      algorithm: { type: hcloudLoadBalancerArgs.algorithm }
     });
     const publicLoadBalancerNetwork = new hcloud.LoadBalancerNetwork(
       `HetznerK3sPublicLoadBalancer${i}Network`,
