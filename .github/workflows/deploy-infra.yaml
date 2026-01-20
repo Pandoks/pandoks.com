@@ -6,14 +6,6 @@ on:
       - main
   workflow_dispatch:
     inputs:
-      sst:
-        description: 'Deploy SST infrastructure'
-        type: boolean
-        default: true
-      kubernetes:
-        description: 'Deploy Kubernetes manifests'
-        type: boolean
-        default: true
       stage:
         description: 'SST stage'
         type: choice
@@ -52,7 +44,7 @@ jobs:
           node-version: '24'
           cache: 'pnpm'
 
-      - name: Install dependencies
+      - name: Install pnpm dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Configure AWS credentials
@@ -61,8 +53,11 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
+      - name: Install sst dependencies
+        run: pnpm sst install
+
       - name: Deploy SST
-        if: ${{ github.event_name == 'push' || github.event.inputs.sst == 'true' }}
+        if: ${{ github.event_name == 'push' }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_DEFAULT_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
