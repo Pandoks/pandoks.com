@@ -32,3 +32,5 @@ if (isProduction) {
   setSecret(secrets.k8s.argocd.AccessKeyId.name, argocdAccessKey.id);
   setSecret(secrets.k8s.argocd.SecretAccessKey.name, argocdAccessKey.secret);
 }
+
+export {};
