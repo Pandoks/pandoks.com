@@ -29,8 +29,5 @@ spec:
 
     repoServer:
       volumes:
-        - name: cmp-plugin
-          configMap:
-            name: argocd-cmp-plugin
         - name: cmp-tmp
           emptyDir: {}
