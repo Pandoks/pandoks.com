@@ -1,0 +1,22 @@
+name: Deploy Infrastructure
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      sst:
+        description: 'Deploy SST infrastructure'
+        type: boolean
+        default: true
+      stage:
+        description: 'SST stage'
+        type: choice
+        options:
+          - production
+          - pandoks
+      kubernetes:
+        description: 'Deploy Kubernetes manifests'
+        type: boolean
+        default: true
