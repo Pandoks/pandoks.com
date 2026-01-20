@@ -6,6 +6,9 @@ export const secrets = {
     ApiKey: new sst.Secret('NotionApiKey'),
     AuthToken: new sst.Secret('NotionAuthToken')
   },
+  aws: {
+    Region: new sst.Secret('AwsRegion', 'us-west-1')
+  },
   cloudflare: {
     ApiKey: new sst.Secret('CloudflareApiKey'),
     BackupAccessKey: new sst.Secret('CloudflareBackupAccessKey'),
