@@ -20,3 +20,8 @@ on:
         description: 'Deploy Kubernetes manifests'
         type: boolean
         default: true
+
+concurrency:
+  group: deploy-infrastructure
+  cancel-in-progress: false
+
