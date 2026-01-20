@@ -1,0 +1,55 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana
+  namespace: monitoring
+type: Opaque
+stringData:
+  username: admin
+  password: ${KubernetesGrafanaAdminPassword}
+
+---
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: kube-prometheus-stack
+  namespace: kube-system
+spec:
+  repo: https://prometheus-community.github.io/helm-charts
+  chart: kube-prometheus-stack
+  version: 80.14.4
+  targetNamespace: monitoring
+  createNamespace: true
+  valuesContent: |-
+    # etcd monitoring disabled by default - enable via HelmChartConfig in overlays
+    kubeEtcd:
+      enabled: false
+
+    kubeControllerManager:
+      enabled: false
+    kubeScheduler:
+      enabled: false
+    kubeProxy:
+      enabled: false
+
+    prometheus:
+      prometheusSpec:
+        serviceMonitorSelectorNilUsesHelmValues: false
+        podMonitorSelectorNilUsesHelmValues: false
+        ruleSelectorNilUsesHelmValues: false
+        retention: 7d
+
+    grafana:
+      persistence:
+        enabled: true
+        size: 1Gi
+      admin:
+        existingSecret: grafana
+        userKey: username
+        passwordKey: password

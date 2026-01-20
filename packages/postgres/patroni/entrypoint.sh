@@ -1,4 +1,5 @@
 #!/bin/sh
+
 set -eu
 
 for v in \
@@ -6,16 +7,17 @@ for v in \
   NAMESPACE \
   POD_NAME \
   POD_IP \
-  PGUSER \
-  PGPASSWORD \
-  PGREPPASS \
+  SUPERUSER_PASSWORD \
+  REPLICATION_PASSWORD \
   PATRONI_PASSWORD \
+  ADMIN_PASSWORD \
+  CLIENT_PASSWORD \
   BACKUP_BUCKET \
   BACKUP_PATH \
-  S3_KEY \
-  S3_KEY_SECRET \
+  S3_ACCESS_KEY \
+  S3_SECRET_KEY \
   S3_REGION \
-  S3_ENDPOINT \
+  S3_HOST \
   S3_TLS \
   S3_URI_STYLE \
   ENCRYPTION_KEY \
@@ -24,12 +26,12 @@ for v in \
   eval ": \${$v:?Missing $v}"
 done
 
-envsubst </tmp/conf_templates/patroni.yaml >/etc/patroni/patroni.yaml
-envsubst </tmp/conf_templates/pgbackrest.conf >/etc/pgbackrest.conf
+envsubst < /tmp/conf_templates/patroni.yaml > /etc/patroni/patroni.yaml
+envsubst < /tmp/conf_templates/pgbackrest.conf > /etc/pgbackrest.conf
 
 # NOTE: needed here because the volume is mounted after the container is created.
 # otherwise you can just do it in the Dockerfile
 mkdir -p /var/lib/postgresql/pgdata
 chmod 700 /var/lib/postgresql/pgdata
 
-exec $@
+exec "$@"

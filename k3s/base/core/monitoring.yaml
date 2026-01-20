@@ -1,0 +1,12 @@
+# Patch existing Grafana service to add Tailscale annotations
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-prometheus-stack-grafana
+  namespace: monitoring
+  annotations:
+    tailscale.com/expose: 'true'
+    tailscale.com/hostname: ${StageName}-grafana
+    tailscale.com/tags: tag:k8s,tag:${StageName}
+spec:
+  type: ClusterIP

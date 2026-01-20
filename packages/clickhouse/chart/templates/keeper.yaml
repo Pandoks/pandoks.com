@@ -4,10 +4,23 @@
 {{- end }}
 
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clickhouse-{{ .Values.name }}-keeper-config
+  namespace: {{ .Values.namespace }}
+data:
+  keeper.yaml: |
+{{ .Files.Get "files/keeper.yaml" | indent 4 }}
+
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: clickhouse-keeper-{{ .Values.name }}-headless
-  namespace: '{{ .Values.namespace }}'
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: clickhouse-keeper
+    database: {{ .Values.name }}
 spec:
   clusterIP: None
   publishNotReadyAddresses: true
@@ -20,13 +33,16 @@ spec:
     - name: raft
       port: &raft-port 9234
       targetPort: *raft-port
+    - name: metrics
+      port: &metrics-port 9363
+      targetPort: *metrics-port
 
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: clickhouse-keeper-{{ .Values.name }}
-  namespace: '{{ .Values.namespace }}'
+  namespace: {{ .Values.namespace }}
 spec:
   serviceName: clickhouse-keeper-{{ .Values.name }}-headless
   replicas: {{ $keeperReplicas }}
@@ -36,8 +52,15 @@ spec:
   template:
     metadata:
       labels:
-        app: clickhouse-keeper-{{ .Values.name }}
+        app: &app clickhouse-keeper-{{ .Values.name }}
     spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: *app
+              topologyKey: kubernetes.io/hostname
       containers:
         - name: keeper
           image: {{ .Values.keeper.image }}
@@ -46,6 +69,8 @@ spec:
               containerPort: 9181
             - name: raft
               containerPort: 9234
+            - name: metrics
+              containerPort: 9363
           env:
             - name: POD_NAME
               valueFrom:
@@ -56,9 +81,9 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: CLUSTER_NAME
-              value: "{{ .Values.name }}"
+              value: {{ .Values.name }}
             - name: KEEPER_REPLICAS
-              value: "{{ $keeperReplicas }}"
+              value: {{ $keeperReplicas | quote }}
           volumeMounts:
             - name: &data data
               mountPath: /var/lib/clickhouse
@@ -72,12 +97,14 @@ spec:
               port: 9234
             initialDelaySeconds: 10
             periodSeconds: 5
+          {{- with .Values.keeper.resources }}
           resources:
-            {{- toYaml .Values.keeper.resources | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
       volumes:
         - name: *keeper-config
           configMap:
-            name: clickhouse-keeper-config
+            name: clickhouse-{{ .Values.name }}-keeper-config
   volumeClaimTemplates:
     - metadata:
         name: *data

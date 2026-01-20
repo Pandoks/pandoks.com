@@ -1,8 +1,28 @@
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clickhouse-{{ .Values.name }}-config
+  namespace: {{ .Values.namespace }}
+data:
+  config.yaml: |
+{{ .Files.Get "files/config.yaml" | indent 4 }}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clickhouse-{{ .Values.name }}-users
+  namespace: {{ .Values.namespace }}
+data:
+  users.yaml: |
+{{ .Files.Get "files/users.yaml" | indent 4 }}
+
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: clickhouse-{{ .Values.name }}
-  namespace: '{{ .Values.namespace }}'
+  namespace: {{ .Values.namespace }}
 spec:
   type: ClusterIP
   selector:
@@ -20,7 +40,10 @@ apiVersion: v1
 kind: Service
 metadata:
   name: clickhouse-{{ .Values.name }}-headless
-  namespace: '{{ .Values.namespace }}'
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: clickhouse
+    database: {{ .Values.name }}
 spec:
   clusterIP: None
   publishNotReadyAddresses: true
@@ -36,27 +59,38 @@ spec:
     - name: bus
       port: &interserver-port 9009
       targetPort: *interserver-port
-{{- range $shardIndex := until (int .Values.clickhouse.shards) }}
+    - name: metrics
+      port: &metrics-port 9363
+      targetPort: *metrics-port
+{{- range $shardIndex := until (int $.Values.clickhouse.shards) }}
 
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: clickhouse-{{ $.Values.name }}-shard-{{ $shardIndex }}
-  namespace: '{{ $.Values.namespace }}'
+  namespace: {{ $.Values.namespace }}
 spec:
   serviceName: clickhouse-{{ $.Values.name }}-headless
   replicas: {{ $.Values.clickhouse.replicasPerShard }}
   selector:
     matchLabels:
       app: &app clickhouse-{{ $.Values.name }}
-      shard: &shard '{{ $shardIndex }}'
+      shard: &shard {{ $shardIndex | quote }}
   template:
     metadata:
       labels:
         app: *app
         shard: *shard
     spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: *app
+                  shard: *shard
+              topologyKey: kubernetes.io/hostname
       containers:
         - name: clickhouse
           image: {{ $.Values.clickhouse.image }}
@@ -67,44 +101,46 @@ spec:
               containerPort: 9000
             - name: bus
               containerPort: 9009
+            - name: metrics
+              containerPort: 9363
           env:
             - name: NAMESPACE
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
             - name: CLUSTER_NAME
-              value: '{{ $.Values.name }}'
+              value: {{ $.Values.name }}
             - name: SHARD_ID
-              value: '{{ $shardIndex }}'
+              value: {{ $shardIndex | quote }}
             - name: REPLICA_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
             - name: KEEPER_REPLICAS
-              value: '{{ $.Values.keeper.replicas }}'
+              value: {{ $.Values.keeper.replicas | quote }}
             - name: SHARDS
-              value: '{{ $.Values.clickhouse.shards }}'
+              value: {{ $.Values.clickhouse.shards | quote }}
             - name: REPLICAS_PER_SHARD
-              value: '{{ $.Values.clickhouse.replicasPerShard }}'
+              value: {{ $.Values.clickhouse.replicasPerShard | quote }}
             - name: CLICKHOUSE_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: '{{ $.Values.credentials.secret }}'
-                  key: '{{ $.Values.credentials.dataKeys.adminPassword }}'
-            - name: CLICKHOUSE_USER_PASSWORD
+                  name: {{ $.Values.credentials.secret }}
+                  key: {{ $.Values.credentials.dataKeys.adminPassword }}
+            - name: CLICKHOUSE_CLIENT_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: '{{ $.Values.credentials.secret }}'
-                  key: '{{ $.Values.credentials.dataKeys.userPassword }}'
+                  name: {{ $.Values.credentials.secret }}
+                  key: {{ $.Values.credentials.dataKeys.clientPassword }}
           volumeMounts:
             - name: &data data
               mountPath: /var/lib/clickhouse
             - name: &logs logs
               mountPath: /var/log/clickhouse-server
-            - name: &clickhouse-config config
+            - name: &clickhouse-{{ $.Values.name }}-config config
               mountPath: /tmp/conf_templates/config.yaml
               subPath: config.yaml
-            - name: &clickhouse-users users
+            - name: &clickhouse-{{ $.Values.name }}-users users
               mountPath: /tmp/conf_templates/users.yaml
               subPath: users.yaml
           livenessProbe:
@@ -119,20 +155,22 @@ spec:
               port: *client-port
             initialDelaySeconds: 10
             periodSeconds: 5
+          {{- with $.Values.clickhouse.resources }}
           resources:
-            {{- toYaml $.Values.clickhouse.resources | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
       volumes:
-        - name: *clickhouse-config
+        - name: *clickhouse-{{ $.Values.name }}-config
           configMap:
-            name: clickhouse-config
-        - name: *clickhouse-users
+            name: clickhouse-{{ $.Values.name }}-config
+        - name: *clickhouse-{{ $.Values.name }}-users
           configMap:
-            name: clickhouse-users
+            name: clickhouse-{{ $.Values.name }}-users
   volumeClaimTemplates:
     - metadata:
         name: *data
       spec:
-        accessModes: 
+        accessModes:
           - ReadWriteOnce
         storageClassName: local-path
         resources:
@@ -141,7 +179,7 @@ spec:
     - metadata:
         name: *logs
       spec:
-        accessModes: 
+        accessModes:
           - ReadWriteOnce
         storageClassName: local-path
         resources:

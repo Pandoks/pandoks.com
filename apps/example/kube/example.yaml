@@ -1,0 +1,281 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: base-example
+  namespace: example
+spec:
+  ingressClassName: haproxy
+  # NOTE: setting tls will automatically make the ingress controller redirect HTTP to HTTPS, unless
+  # you specify ssl-redirect: "false" in the annotations. Look at slug-example Ingress for an example
+  # e.g., if someone makes a request using http, it will return a 301 redirect to https
+  # this tls is used to terminate the TLS request from cloudflare to k3s. this is needed because cloudflare
+  # is set to Full (strict) mode, meaning that all requests that pass through cloudflare must be terminated (TLS)
+  tls:
+    - hosts:
+        - example.pandoks.com
+      secretName: cloudflare-origin-tls
+  rules:
+    - host: example.pandoks.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: root-example
+                port:
+                  number: 80
+    - host: localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: root-example
+                port:
+                  number: 80
+
+---
+# NOTE: you can split ingress resources and haproxy will automatically merge them. this is called "fragmentation"
+# https://haproxy-ingress.github.io/docs/configuration/keys/#fragmentation
+# you should do this when you need to add distinct configs to distinct routes
+# in this case, we want all requests to the /slug path to be re written to / and setnt to the slug-example service
+# this allows slug-example to treat the request as a root request
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: slug-example
+  namespace: example
+  annotations:
+    # there are more options you can look at: https://haproxy-ingress.github.io/docs/configuration/keys
+    # for example, you can support regex path matching with haproxy-ingress.github.io/path-type: regex
+    # which is then used when you set pathType: ImplementationSpecific
+    # haproxy-ingress.github.io/rewrite-target: / basically rewrites the request path to / if it matches
+    # e.g. if someone makes a request to /slug, it will be rewritten to /, if someone makes a request to
+    # /slug/foo, it will be rewritten to /foo
+    haproxy-ingress.github.io/rewrite-target: /
+    # by default if you set tls in spec.tls, haproxy-ingress will automatically redirect HTTP to HTTPS
+    # if you want to disable this behavior, you can set ssl-redirect: "false" in the annotations
+    # this means that if someone makes a request using http, it will remain http and not redirect to https
+    # if someone makes a request using https, it will still be able to handle it
+    haproxy-ingress.github.io/ssl-redirect: 'false'
+spec:
+  ingressClassName: haproxy
+  tls:
+    - hosts:
+        - example.pandoks.com
+      secretName: cloudflare-origin-tls
+  rules:
+    - host: example.pandoks.com
+      http:
+        paths:
+          - path: /slug
+            pathType: Prefix
+            backend:
+              service:
+                name: slug-example
+                port:
+                  number: 80
+    - host: localhost
+      http:
+        paths:
+          - path: /slug
+            pathType: Prefix
+            backend:
+              service:
+                name: slug-example
+                port:
+                  number: 80
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: root-example
+  namespace: example
+  labels:
+    app: &app root
+spec:
+  type: ClusterIP
+  selector:
+    app: *app
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: slug-example
+  namespace: example
+  labels:
+    app: &app slug
+spec:
+  type: ClusterIP
+  selector:
+    app: *app
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: root-example
+  namespace: example
+  labels:
+    app: &app root
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: *app
+  template:
+    metadata:
+      labels:
+        app: *app
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/nginxinc/nginx-unprivileged:1.27-alpine
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: web
+              mountPath: /usr/share/nginx/html
+            - name: conf
+              mountPath: /etc/nginx/conf.d
+        - name: config
+          image: busybox:1.36
+          command: ['/bin/sh', '-c']
+          args:
+            - |
+              set -eu
+              # Write HTML
+              cat > /web/index.html << 'EOF'
+              <!doctype html>
+              <html>
+              <body style="font-family: system-ui; padding: 2rem">
+                <p>Deployment: root-example</p>
+              </body>
+              </html>
+              EOF
+              # Write nginx conf with catch-all
+              cat > /conf/default.conf << 'NGINX'
+              server {
+                listen 8080;
+                server_name _;
+                root /usr/share/nginx/html;
+                location / {
+                  try_files $uri /index.html;
+                }
+              }
+              NGINX
+              sleep 3600000
+          volumeMounts:
+            - name: web
+              mountPath: /web
+            - name: conf
+              mountPath: /conf
+      volumes:
+        - name: web
+          emptyDir: {}
+        - name: conf
+          emptyDir: {}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: slug-example
+  namespace: example
+  labels:
+    app: &app slug
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: *app
+  template:
+    metadata:
+      labels:
+        app: *app
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/nginxinc/nginx-unprivileged:1.27-alpine
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: web
+              mountPath: /usr/share/nginx/html
+            - name: conf
+              mountPath: /etc/nginx/conf.d
+        - name: config
+          image: busybox:1.36
+          command: ['/bin/sh', '-c']
+          args:
+            - |
+              set -eu
+              # Write HTML
+              cat > /web/index.html << 'EOF'
+              <!doctype html>
+              <html>
+              <body style="font-family: system-ui; padding: 2rem">
+                <p>Deployment: slug-example</p>
+              </body>
+              </html>
+              EOF
+              # Write nginx conf with catch-all
+              cat > /conf/default.conf << 'NGINX'
+              server {
+                listen 8080;
+                server_name _;
+                root /usr/share/nginx/html;
+                location / {
+                  try_files $uri /index.html;
+                }
+              }
+              NGINX
+              sleep 3600000
+          volumeMounts:
+            - name: web
+              mountPath: /web
+            - name: conf
+              mountPath: /conf
+      volumes:
+        - name: web
+          emptyDir: {}
+        - name: conf
+          emptyDir: {}

@@ -1,10 +1,9 @@
-# WARNING: Don't upgrade to 18 until all extensions are compatible
-FROM postgres:17-trixie
+FROM postgres:18-trixie
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  postgresql-17-cron \
-  postgresql-17-postgis-3 \
-  postgresql-17-pgvector \
+  postgresql-18-cron \
+  postgresql-18-postgis-3 \
+  postgresql-18-pgvector \
   patroni \
   pgbackrest \
   gettext-base \

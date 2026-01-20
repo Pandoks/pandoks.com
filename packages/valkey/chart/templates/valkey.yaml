@@ -1,8 +1,31 @@
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: valkey-{{ .Values.name }}-config
+  namespace: {{ .Values.namespace }}
+data:
+  valkey.conf: |
+{{ .Files.Get "files/valkey.conf" | indent 4 }}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: valkey-{{ .Values.name }}-acl
+  namespace: {{ .Values.namespace }}
+data:
+  users.acl: |
+{{ .Files.Get "files/users.acl" | indent 4 }}
+
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: valkey-{{ .Values.name }}-headless
-  namespace: '{{ .Values.namespace }}'
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: valkey
+    database: {{ .Values.name }}
 spec:
   clusterIP: None
   publishNotReadyAddresses: true
@@ -15,13 +38,16 @@ spec:
     - name: bus
       port: 16379
       targetPort: 16379
+    - name: metrics
+      port: 9121
+      targetPort: 9121
 
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: valkey-{{ .Values.name }}-cluster
-  namespace: '{{ .Values.namespace }}'
+  namespace: {{ .Values.namespace }}
 spec:
   type: ClusterIP
   selector:
@@ -35,7 +61,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: &app valkey-{{ .Values.name }}
-  namespace: '{{ .Values.namespace }}'
+  namespace: {{ .Values.namespace }}
   labels:
     app: *app
 spec:
@@ -50,6 +76,13 @@ spec:
       labels:
         app: *app
     spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: *app
+              topologyKey: kubernetes.io/hostname
       containers:
         - name: valkey
           image: {{ .Values.image }}
@@ -69,26 +102,24 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-            - name: ANNOUNCE_PORT
-              value: '6379'
-            - name: ANNOUNCE_BUS_PORT
-              value: '16379'
             {{- if .Values.persistence }}
             - name: PERSISTENCE
-              value: '{{ .Values.persistence }}'
+              value: {{ .Values.persistence }}
             {{- end }}
             - name: ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: '{{ .Values.credentials.secret }}'
-                  key: '{{ .Values.credentials.dataKeys.adminPassword }}'
+                  name: {{ .Values.credentials.secret }}
+                  key: {{ .Values.credentials.dataKeys.adminPassword }}
             - name: CLIENT_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: '{{ .Values.credentials.secret }}'
-                  key: '{{ .Values.credentials.dataKeys.clientPassword }}'
+                  name: {{ .Values.credentials.secret }}
+                  key: {{ .Values.credentials.dataKeys.clientPassword }}
+          {{- with .Values.resources }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           volumeMounts:
             - name: &data data
               mountPath: /data
@@ -108,19 +139,54 @@ spec:
               command:
                 - sh
                 - -c
-                - valkey-cli --user admin -a "$CLIENT_PASSWORD" ping | grep -q PONG
+                - valkey-cli --user admin -a "$ADMIN_PASSWORD" ping | grep -q PONG
             initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 3
             successThreshold: 1
             failureThreshold: 3
+        - name: prometheus-exporter
+          image: oliver006/redis_exporter:v1.80.1
+          ports:
+            - name: metrics
+              containerPort: 9121
+              protocol: TCP
+          env:
+            - name: REDIS_ADDR
+              value: "redis://localhost:6379"
+            - name: REDIS_USER
+              value: "admin"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.credentials.secret }}
+                  key: {{ .Values.credentials.dataKeys.adminPassword }}
+          resources:
+            limits:
+              cpu: 50m
+              memory: 64Mi
+            requests:
+              cpu: 10m
+              memory: 32Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9121
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9121
+            initialDelaySeconds: 5
+            periodSeconds: 5
       volumes:
         - name: *config
           configMap:
-            name: valkey-config
+            name: valkey-{{ .Values.name }}-config
         - name: *acl
           configMap:
-            name: valkey-acl
+            name: valkey-{{ .Values.name }}-acl
   volumeClaimTemplates:
     - metadata:
         name: *data

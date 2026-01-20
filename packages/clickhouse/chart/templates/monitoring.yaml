@@ -1,0 +1,56 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: clickhouse-{{ .Values.name }}
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: clickhouse
+    database: {{ .Values.name }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.namespace }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: clickhouse
+      database: {{ .Values.name }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      scheme: http
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: clickhouse-keeper-{{ .Values.name }}
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: clickhouse-keeper
+    database: {{ .Values.name }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.namespace }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: clickhouse-keeper
+      database: {{ .Values.name }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      scheme: http
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-clickhouse-{{ .Values.namespace }}-{{ .Values.name }}
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  clickhouse-{{ .Values.namespace }}-{{ .Values.name }}.json: |
+{{ tpl (.Files.Get "files/grafana-dashboard.json") . | indent 4 }}
