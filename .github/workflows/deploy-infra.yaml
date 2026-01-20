@@ -25,3 +25,7 @@ concurrency:
   group: deploy-infrastructure
   cancel-in-progress: false
 
+permissions:
+  id-token: write
+  contents: read
+
