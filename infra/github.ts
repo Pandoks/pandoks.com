@@ -1,5 +1,6 @@
-import { cloudflareAccountId } from './dns';
+import { cloudflareAccountId, STAGE_NAME } from './dns';
 import { secrets } from './secrets';
+import { tailscaleAcl } from './tailscale';
 
 export const githubRepo = github.getRepository({
   fullName: 'pandoks/pandoks.com'
@@ -18,12 +19,12 @@ if ($app.stage === 'production') {
     plaintextValue: cloudflareAccountId
   });
 
-  const githubOidcProvider = new aws.iam.OpenIdConnectProvider('AWSGithubActionsOidc', {
+  const githubAWSOidcProvider = new aws.iam.OpenIdConnectProvider('AWSGithubActionsOidc', {
     url: 'https://token.actions.githubusercontent.com',
     clientIdLists: ['sts.amazonaws.com']
   });
 
-  const githubActionsRole = new aws.iam.Role('AWSGithubActionsRole', {
+  const githubActionsAWSRole = new aws.iam.Role('AWSGithubActionsRole', {
     name: 'PersonalGithubActions',
     assumeRolePolicy: $jsonStringify({
       Version: '2012-10-17',
@@ -31,7 +32,7 @@ if ($app.stage === 'production') {
         {
           Effect: 'Allow',
           Principal: {
-            Federated: githubOidcProvider.arn
+            Federated: githubAWSOidcProvider.arn
           },
           Action: 'sts:AssumeRoleWithWebIdentity',
           Condition: {
@@ -48,13 +49,33 @@ if ($app.stage === 'production') {
   });
 
   new aws.iam.RolePolicyAttachment('AWSGithubActionsPolicy', {
-    role: githubActionsRole.name,
+    role: githubActionsAWSRole.name,
     policyArn: aws.iam.ManagedPolicy.AdministratorAccess
   });
 
   new github.ActionsVariable('GithubAWSRole', {
     repository: githubRepo.then((r) => r.name),
     variableName: 'AWS_ROLE_ARN',
-    value: githubActionsRole.arn
+    value: githubActionsAWSRole.arn
+  });
+
+  const githubActionsOauthClient = new tailscale.OauthClient(
+    `${STAGE_NAME}TailscaleGithubActionsOauthClient`,
+    {
+      description: `${STAGE_NAME} github ci`,
+      scopes: ['devices:core', 'auth_keys'],
+      tags: ['tag:ci', `tag:${STAGE_NAME}`]
+    },
+    { dependsOn: [tailscaleAcl] }
+  );
+  new github.ActionsSecret('GithubActionsTailscaleOauthClientId', {
+    repository: githubRepo.then((r) => r.name),
+    secretName: 'TS_OAUTH_CLIENT_ID',
+    plaintextValue: githubActionsOauthClient.id
+  });
+  new github.ActionsSecret('GithubActionsTailscaleOauthSecret', {
+    repository: githubRepo.then((r) => r.name),
+    secretName: 'TS_OAUTH_SECRET',
+    plaintextValue: githubActionsOauthClient.key
   });
 }
