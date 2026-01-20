@@ -22,6 +22,10 @@ spec:
     server:
       service:
         type: ClusterIP
+        annotations:
+          tailscale.com/expose: 'true'
+          tailscale.com/hostname: ${StageName}-argocd
+          tailscale.com/tags: tag:k8s,tag:${StageName}
 
     repoServer:
       volumes:
