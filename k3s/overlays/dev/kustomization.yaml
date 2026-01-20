@@ -1,9 +1,4 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - ../../bootstrap/dev
-  - ../../base
-  - prom-etcd-config.yaml
-patches:
-  - path: dev-patch.yaml
-  - path: ../../../apps/example/kube/dev-patch.yaml
+  - ../core
