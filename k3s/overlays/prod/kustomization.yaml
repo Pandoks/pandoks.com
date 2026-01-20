@@ -3,3 +3,4 @@ kind: Kustomization
 resources:
   - ../cluster
   - ../../bootstrap/prod
+  - argocd.yaml

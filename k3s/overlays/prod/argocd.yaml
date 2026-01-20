@@ -42,3 +42,26 @@ spec:
               mountPath: /home/argocd/cmp-server/plugins
             - name: cmp-tmp
               mountPath: /tmp
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prod-cluster
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Pandoks/pandoks.com
+    targetRevision: main
+    path: k3s/overlays/prod
+    plugin:
+      name: kustomize-sst-render-v1.0
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+    syncOptions:
+      - CreateNamespace=true
