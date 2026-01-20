@@ -8,8 +8,9 @@ new tailscale.TailnetSettings('TailscaleSettings', {
 
 export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
   resetAclOnDestroy: true,
-  // NOTE: turn this on to bootstrap the ACL state into pulumi then turn it off to prevent the ACL from being overwritten
-  // overwriteExistingContent: true,
+  // NOTE: overwriteExistingContent is set to true so it works in all stages.
+  // WARNING: a change to this will overwrite the ACL on all stages.
+  overwriteExistingContent: true,
   acl: stringify(
     {
       grants: [{ src: ['*'], dst: ['*'], ip: ['*'] }],
