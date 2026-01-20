@@ -157,7 +157,7 @@ cmd_deploy() {
   done
 
   if [ "${cmd_deploy_is_bootstrap}" = "true" ]; then
-    cmd_deploy_kustomize_path="${REPO_ROOT}/k3s/base/helm-charts"
+    cmd_deploy_kustomize_path="${REPO_ROOT}/k3s/bootstrap/${cmd_deploy_env}"
   else
     cmd_deploy_kustomize_path="${REPO_ROOT}/k3s/overlays/${cmd_deploy_env}"
   fi
