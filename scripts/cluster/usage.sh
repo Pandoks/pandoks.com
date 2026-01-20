@@ -9,7 +9,7 @@ usage() {
   printf "      Subcommands: up, down, start, stop, restart, deps\n\n" >&2
 
   printf "  %bdeploy%b          Deploy environment overlay to cluster\n" "${GREEN}" "${NORMAL}" >&2
-  printf "      Usage: deploy <dev|prod> [--bootstrap] [--stage <STAGE>] [--dry-run]\n\n" >&2
+  printf "      Usage: deploy <local|dev|prod> [--bootstrap] [--stage <STAGE>] [--dry-run]\n\n" >&2
 
   printf "Run '%s <command> --help' for more information on a command.\n\n" "$0" >&2
 

@@ -4,13 +4,13 @@ cmd_deploy_compute_vars() {
   cmd_deploy_compute_vars_env="$1"
 
   case "${cmd_deploy_compute_vars_env}" in
-    dev)
-      cmd_deploy_compute_vars_is_dev="true"
+    local)
+      cmd_deploy_compute_vars_is_local="true"
       cmd_deploy_compute_vars_image_registry="local-registry:5000"
       cmd_deploy_compute_vars_image_tag="latest"
       ;;
-    prod)
-      cmd_deploy_compute_vars_is_dev="false"
+    prod | dev)
+      cmd_deploy_compute_vars_is_local="false"
       cmd_deploy_compute_vars_image_registry="ghcr.io/pandoks"
       cmd_deploy_compute_vars_branch=$(git rev-parse --abbrev-ref HEAD 2> /dev/null || echo "main")
       case "${cmd_deploy_compute_vars_branch}" in
@@ -21,18 +21,18 @@ cmd_deploy_compute_vars() {
   esac
 
   jq -n \
-    --arg IsDev "${cmd_deploy_compute_vars_is_dev}" \
+    --arg IsLocal "${cmd_deploy_compute_vars_is_local}" \
     --arg ImageRegistry "${cmd_deploy_compute_vars_image_registry}" \
     --arg ImageTag "${cmd_deploy_compute_vars_image_tag}" \
     '{
-      IsDev: $IsDev,
+      IsLocal: $IsLocal,
       ImageRegistry: $ImageRegistry,
       ImageTag: $ImageTag
     }'
 }
 
 cmd_deploy_get_template_vars() {
-  cmd_deploy_get_template_vars_env="$1"       # dev|prod
+  cmd_deploy_get_template_vars_env="$1"       # local|dev|prod
   cmd_deploy_get_template_vars_stage="${2:-}" # --stage <stage> equivalent
 
   if [ -n "${cmd_deploy_get_template_vars_stage}" ]; then
@@ -60,7 +60,7 @@ cmd_deploy_render_templated_yaml() {
   cmd_deploy_render_is_bootstrap="$3" # true|false
 
   if [ "${cmd_deploy_render_is_bootstrap}" = "true" ]; then
-    printf "Running kustomize on helm-charts...\n" >&2
+    printf "Running kustomize on bootstrap...\n" >&2
   else
     printf "Running kustomize on overlay...\n" >&2
   fi
@@ -71,6 +71,8 @@ cmd_deploy_render_templated_yaml() {
 }
 
 cmd_deploy_wait_for_crds() {
+  cmd_deploy_wait_for_crds_env="${1:-}" # local|dev|prod
+
   printf "Waiting for CRDs to be established...\n"
 
   echo "Waiting for cert-manager CRDs..."
@@ -98,6 +100,8 @@ cmd_deploy_wait_for_crds() {
   wait_for_crd "servicemonitors.monitoring.coreos.com" 180
   printf "%b  Prometheus Operator CRDs established%b\n" "${GREEN}" "${NORMAL}"
 
+  [ "${cmd_deploy_wait_for_crds_env}" = "local" ] && return 0
+
   echo "Waiting for system-upgrade-controller CRDs..."
   wait_for_crd "plans.upgrade.cattle.io" 120
   printf "%b  system-upgrade-controller CRDs established%b\n" "${GREEN}" "${NORMAL}"
@@ -109,10 +113,10 @@ cmd_deploy() {
   shift
 
   case "${cmd_deploy_env}" in
-    dev | prod) ;;
+    local | dev | prod) ;;
     help | --help | -h) usage_deploy ;;
     *)
-      printf "%bError:%b Unknown environment '%s'. Use 'dev' or 'prod'\n" "${RED}" "${NORMAL}" "${cmd_deploy_env}" >&2
+      printf "%bError:%b Unknown environment '%s'. Use 'local', 'dev', or 'prod'\n" "${RED}" "${NORMAL}" "${cmd_deploy_env}" >&2
       usage_deploy 1
       ;;
   esac
@@ -199,7 +203,7 @@ cmd_deploy() {
   printf '%s' "${cmd_deploy_rendered}" | kubectl apply --server-side -f -
 
   if [ "${cmd_deploy_is_bootstrap}" = "true" ]; then
-    cmd_deploy_wait_for_crds
+    cmd_deploy_wait_for_crds "${cmd_deploy_env}"
     printf "%b Bootstrap complete%b\n" "${GREEN}" "${NORMAL}"
   else
     printf "%b Deploy %s complete%b\n" "${GREEN}" "${cmd_deploy_env}" "${NORMAL}"
