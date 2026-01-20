@@ -5,4 +5,5 @@ resources:
   - cert-manager.yaml
   - kube-prometheus-stack.yaml
   - haproxy-ingress.yaml
+  - argocd.yaml
   - https://github.com/rancher/system-upgrade-controller/releases/latest/download/crd.yaml
