@@ -34,8 +34,8 @@ export const secrets = {
   },
   k8s: {
     tailscale: {
-      OauthClientId: new sst.Secret('KubernetesTailscaleOauthClientId'),
-      OauthClientSecret: new sst.Secret('KubernetesTailscaleOauthClientSecret')
+      OauthClientId: new sst.Secret('KubernetesTailscaleOauthClientId', 'Placeholder'),
+      OauthClientSecret: new sst.Secret('KubernetesTailscaleOauthClientSecret', 'Placeholder')
     },
     grafana: {
       AdminPassword: new sst.Secret('KubernetesGrafanaAdminPassword', 'password')
