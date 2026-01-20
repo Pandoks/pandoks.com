@@ -14,6 +14,9 @@ secrets.Stage.value.apply((stageName) => {
   }
 });
 
+const awsRegionJson = await aws.getRegion();
+export const awsRegion = awsRegionJson.name;
+
 const cloudflareZone = await cloudflare.getZone({ filter: { name: 'pandoks.com' } });
 export const cloudflareAccountId = cloudflareZone.account.id;
 export const cloudflareZoneId = cloudflareZone.id;

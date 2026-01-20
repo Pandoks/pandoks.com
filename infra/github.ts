@@ -1,9 +1,20 @@
-import { cloudflareAccountId, STAGE_NAME } from './dns';
+import { awsRegion, cloudflareAccountId, isProduction, STAGE_NAME } from './dns';
 import { secrets } from './secrets';
-import { tailscaleAcl } from './tailscale';
 
 export const githubRepo = github.getRepository({
   fullName: 'pandoks/pandoks.com'
+});
+
+const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
+  repository: githubRepo.then((r) => r.name),
+  environment: isProduction ? 'production' : 'dev'
+});
+
+new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
+  repository: githubRepo.then((r) => r.name),
+  environment: githubEnvironment.environment,
+  secretName: 'HCLOUD_TOKEN',
+  plaintextValue: secrets.hetzner.ApiKey.value
 });
 
 if ($app.stage === 'production') {
@@ -58,24 +69,15 @@ if ($app.stage === 'production') {
     variableName: 'AWS_ROLE_ARN',
     value: githubActionsAWSRole.arn
   });
-
-  const githubActionsOauthClient = new tailscale.OauthClient(
-    `${STAGE_NAME}TailscaleGithubActionsOauthClient`,
-    {
-      description: `${STAGE_NAME} github ci`,
-      scopes: ['devices:core', 'auth_keys'],
-      tags: ['tag:ci', `tag:${STAGE_NAME}`]
-    },
-    { dependsOn: [tailscaleAcl] }
-  );
-  new github.ActionsSecret('GithubActionsTailscaleOauthClientId', {
+  new github.ActionsVariable('GithubAWSRegion', {
     repository: githubRepo.then((r) => r.name),
-    secretName: 'TS_OAUTH_CLIENT_ID',
-    plaintextValue: githubActionsOauthClient.id
+    variableName: 'AWS_REGION',
+    value: awsRegion
   });
-  new github.ActionsSecret('GithubActionsTailscaleOauthSecret', {
+
+  new github.ActionsSecret('GithubTailscaleApiKey', {
     repository: githubRepo.then((r) => r.name),
-    secretName: 'TS_OAUTH_SECRET',
-    plaintextValue: githubActionsOauthClient.key
+    secretName: 'TAILSCALE_API_KEY',
+    plaintextValue: secrets.tailscale.ApiKey.value
   });
 }
