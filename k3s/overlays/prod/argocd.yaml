@@ -18,18 +18,23 @@ spec:
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: aws-credentials
+                  name: sst-credentials
                   key: AWS_ACCESS_KEY_ID
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: aws-credentials
+                  name: sst-credentials
                   key: AWS_SECRET_ACCESS_KEY
             - name: AWS_REGION
               valueFrom:
                 secretKeyRef:
-                  name: aws-credentials
+                  name: sst-credentials
                   key: AWS_REGION
+            - name: CLOUDFLARE_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: sst-credentials
+                  key: CLOUDFLARE_API_TOKEN
           volumeMounts:
             - name: var-files
               mountPath: /var/run/argocd
