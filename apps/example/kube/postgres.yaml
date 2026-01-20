@@ -9,7 +9,7 @@ spec:
   targetNamespace: &namespace main
   createNamespace: true
   failurePolicy: abort
-  plainHTTP: ${IsDev}
+  plainHTTP: ${IsLocal}
   set:
     db: main
     namespace: *namespace
