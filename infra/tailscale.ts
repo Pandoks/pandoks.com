@@ -8,7 +8,8 @@ new tailscale.TailnetSettings('TailscaleSettings', {
 
 export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
   resetAclOnDestroy: true,
-  // NOTE: overwriteExistingContent is set to true so it works in all stages.
+  // NOTE: overwriteExistingContent is set to true so it works in all stages. we do this because the
+  // tailnet isn't used for any important networking. it is solely to access the devices.
   // WARNING: a change to this will overwrite the ACL on all stages.
   overwriteExistingContent: true,
   acl: stringify(
