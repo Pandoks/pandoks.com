@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ConfigManagementPlugin
+metadata:
+  name: kustomize-sst-render
+spec:
+  version: v1.0
+  discover:
+    fileName: 'kustomization.yaml'
+  init:
+    command: [sh, -c]
+    args:
+      - |
+        cd "$(git rev-parse --show-toplevel)"
+        pnpm install --frozen-lockfile
+        pnpm sst install
+  generate:
+    command: [sh, -c]
+    args:
+      - |
+        cd "$(git rev-parse --show-toplevel)"
+        ./scripts/cluster/main.sh deploy prod --dry-run --stage production
