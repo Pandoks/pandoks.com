@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'infra/**'
+      - 'apps/**'
+      - '!apps/desktop-template/**'
+      - '!apps/example/**'
+      - 'packages/svelte/**'
   workflow_dispatch:
     inputs:
       stage:
