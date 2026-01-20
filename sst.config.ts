@@ -23,6 +23,7 @@ export default $config({
       import('./infra/api'),
       import('./infra/dns'),
       import('./infra/cloudflare'),
+      import('./infra/storage'),
       import('./infra/github'),
       import('./infra/secrets'),
       import('./infra/website'),
