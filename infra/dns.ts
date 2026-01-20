@@ -16,7 +16,11 @@ secrets.Stage.value.apply((stageName) => {
 
 const awsRegionJson = await aws.getRegion();
 export const awsRegion = awsRegionJson.name;
-setSecret(secrets.aws.Region.name, awsRegion);
+secrets.aws.Region.value.apply((region) => {
+  if (region !== awsRegion) {
+    setSecret(secrets.aws.Region.name, awsRegion);
+  }
+});
 
 const cloudflareZone = await cloudflare.getZone({ filter: { name: 'pandoks.com' } });
 export const cloudflareAccountId = cloudflareZone.account.id;

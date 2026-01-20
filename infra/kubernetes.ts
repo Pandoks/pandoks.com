@@ -29,8 +29,19 @@ if (isProduction) {
     })
   });
 
-  setSecret(secrets.k8s.argocd.AccessKeyId.name, argocdAccessKey.id);
-  setSecret(secrets.k8s.argocd.SecretAccessKey.name, argocdAccessKey.secret);
+  $resolve([
+    secrets.k8s.argocd.AccessKeyId.value,
+    argocdAccessKey.id,
+    secrets.k8s.argocd.SecretAccessKey.value,
+    argocdAccessKey.secret
+  ]).apply(([secretAccessKeyId, argoAccessKeyId, secretAccessKeySecret, argoSecretAccessKey]) => {
+    if (secretAccessKeyId !== argoAccessKeyId) {
+      setSecret(secrets.k8s.argocd.AccessKeyId.name, argocdAccessKey.id);
+    }
+    if (secretAccessKeySecret !== argoSecretAccessKey) {
+      setSecret(secrets.k8s.argocd.SecretAccessKey.name, argocdAccessKey.secret);
+    }
+  });
 }
 
 export {};
