@@ -6,14 +6,10 @@ on:
       - '**'
   push:
     paths:
-      - 'packages/postgres/patroni/**'
-      - 'packages/postgres/pgbackrest/**'
-      - 'packages/postgres/chart/**'
+      - 'packages/postgres/**'
       - 'packages/valkey/**'
-      - 'packages/clickhouse/clickhouse/**'
-      - 'packages/clickhouse/keeper/**'
-      - 'packages/clickhouse/backup/**'
-      - 'packages/clickhouse/chart/**'
+      - 'packages/argocd/**'
+      - 'packages/clickhouse/**'
       # NOTE: you can exclude files/directories/subdirectories using `!` prefix (!packages/**)
 
 jobs:
@@ -35,6 +31,8 @@ jobs:
             path: ./packages/valkey/Dockerfile
           - name: valkey-reconciler
             path: ./packages/valkey/reconciler/Dockerfile
+          - name: argocd-sst-plugin
+            path: ./packages/argocd/Dockerfile
           - name: clickhouse
             path: ./packages/clickhouse/clickhouse/Dockerfile
           - name: clickhouse-keeper
@@ -57,6 +55,8 @@ jobs:
               - 'packages/valkey/**'
             valkey-reconciler:
               - 'packages/valkey/reconciler/**'
+            argocd-sst-plugin:
+              - 'packages/argocd/**'
             clickhouse:
               - 'packages/clickhouse/clickhouse/**'
             clickhouse-keeper:
