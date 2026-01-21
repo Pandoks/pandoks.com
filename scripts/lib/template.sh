@@ -12,6 +12,7 @@ apply_template_filter_to_value() {
 
   case "${apply_template_filter_to_value_filter_name}" in
     base64) printf '%s' "${apply_template_filter_to_value_value}" | base64 ;;
+    quote) yaml_safe_value "${apply_template_filter_to_value_value}" ;;
     *)
       printf "%bError:%b Unknown template filter: %s\n" "${RED}" "${NORMAL}" "${apply_template_filter_to_value_filter_name}" >&2
       return 1
@@ -59,8 +60,6 @@ template_substitute() {
         [ -z "${template_substitute_result}" ] && continue
         ;;
     esac
-
-    template_substitute_result=$(yaml_safe_value "${template_substitute_result}")
 
     template_substitute_output=$(printf '%s' "${template_substitute_output}" | awk -v pat="${template_substitute_pattern}" -v rep="${template_substitute_result}" '{
       while ((idx = index($0, pat)) > 0) {
