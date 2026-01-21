@@ -105,6 +105,12 @@ cmd_deploy_wait_for_crds() {
   wait_for_crd "servicemonitors.monitoring.coreos.com" 180
   printf "%b  Prometheus Operator CRDs established%b\n" "${GREEN}" "${NORMAL}"
 
+  echo "Waiting for ArgoCD..."
+  wait_for_crd "applications.argoproj.io" 180
+  kubectl -n argocd rollout status deploy/argocd-repo-server --timeout=300s || true
+  kubectl -n argocd rollout status deploy/argocd-server --timeout=300s || true
+  printf "%b  ArgoCD established%b\n" "${GREEN}" "${NORMAL}"
+
   [ "${cmd_deploy_wait_for_crds_env}" = "local" ] && return 0
 
   echo "Waiting for system-upgrade-controller CRDs..."
