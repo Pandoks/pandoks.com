@@ -95,7 +95,7 @@ export function createLoadBalancers(
     );
     // Only enable https on the load balancer because we're using Cloudflare Strict
     new hcloud.LoadBalancerService(`HetznerK3sLoadBalancer${i}Port443`, {
-      loadBalancerId: publicLoadBalancer.id.apply((id) => id),
+      loadBalancerId: publicLoadBalancer.id,
       protocol: 'tcp',
       listenPort: 443,
       destinationPort: 30443,

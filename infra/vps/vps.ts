@@ -141,10 +141,8 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
 }
 
 const publicLoadBalancerOutputs = Object.fromEntries(
-  publicLoadBalancers.map((loadbalancer) => [
-    loadbalancer.loadbalancer.name,
-    loadbalancer.loadbalancer.ipv4
-  ])
+  // NOTE: we have to hard code the name because indecies can't be pulumi inputs/outputs
+  publicLoadBalancers.map((lb, i) => [`LoadBalancer${i}`, lb.loadbalancer.ipv4])
 );
 
 export const outputs = { ...publicLoadBalancerOutputs };
