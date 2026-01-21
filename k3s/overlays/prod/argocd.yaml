@@ -13,7 +13,7 @@ spec:
           command: [/var/run/argocd/argocd-cmp-server]
           securityContext:
             runAsNonRoot: true
-            runAsUser: 1001
+            runAsUser: 999
           env:
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
