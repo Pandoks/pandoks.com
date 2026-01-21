@@ -129,6 +129,7 @@ cmd_deploy() {
   cmd_deploy_dry_run=false
   cmd_deploy_is_bootstrap=false
   cmd_deploy_stage=""
+  [ "${cmd_deploy_env}" = "prod" ] && cmd_deploy_stage="production"
   while [ $# -gt 0 ]; do
     case "$1" in
       --dry-run)
