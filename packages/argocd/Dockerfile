@@ -11,11 +11,12 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
     && chmod +x kubectl \
     && mv kubectl /usr/local/bin/
 
-RUN adduser -D -u 999 argocd
+RUN addgroup -g 1001 argocd \
+    && adduser -D -u 1001 -G argocd argocd
 
 RUN mkdir -p /home/argocd/cmp-server/config
 COPY packages/argocd/argocd-plugin.yaml /home/argocd/cmp-server/config/plugin.yaml
 RUN chown -R argocd:argocd /home/argocd
 
-USER 999
+USER argocd
 WORKDIR /home/argocd
