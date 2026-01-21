@@ -8,7 +8,8 @@ export default $config({
       home: 'aws',
       providers: {
         aws: {
-          profile: process.env.GITHUB_ACTIONS ? undefined : 'Personal'
+          profile:
+            process.env.GITHUB_ACTIONS || process.env.AWS_ACCESS_KEY_ID ? undefined : 'Personal'
         },
         cloudflare: '6.12.0',
         github: '6.7.2',
