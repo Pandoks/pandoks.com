@@ -1,5 +1,11 @@
 # shellcheck shell=sh
 
+yaml_safe_value() {
+  yaml_safe_value_input="$1"
+  yaml_safe_value_escaped=$(printf '%s' "${yaml_safe_value_input}" | sed "s/'/''/g")
+  printf "'%s'" "${yaml_safe_value_escaped}"
+}
+
 apply_template_filter_to_value() {
   apply_template_filter_to_value_filter_name="$1"
   apply_template_filter_to_value_value="$2"
@@ -53,6 +59,8 @@ template_substitute() {
         [ -z "${template_substitute_result}" ] && continue
         ;;
     esac
+
+    template_substitute_result=$(yaml_safe_value "${template_substitute_result}")
 
     template_substitute_output=$(printf '%s' "${template_substitute_output}" | awk -v pat="${template_substitute_pattern}" -v rep="${template_substitute_result}" '{
       while ((idx = index($0, pat)) > 0) {
