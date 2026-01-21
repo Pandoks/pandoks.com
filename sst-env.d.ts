@@ -9,6 +9,10 @@ declare module 'sst' {
       type: 'sst.aws.Router';
       url: string;
     };
+    AwsRegion: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
     BackupBucket: {
       name: string;
       type: 'sst.cloudflare.Bucket';
@@ -51,6 +55,14 @@ declare module 'sst' {
       value: string;
     };
     HetznerOriginTlsKey: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    KubernetesArgocdAccessKeyId: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    KubernetesArgocdSecretAccessKey: {
       type: 'sst.sst.Secret';
       value: string;
     };
