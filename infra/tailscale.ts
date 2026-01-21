@@ -72,12 +72,10 @@ $resolve([
   }
 );
 
-export async function deleteTailscaleDevices(deviceIds: string | string[]) {
-  const ids = Array.isArray(deviceIds) ? deviceIds : [deviceIds];
-
+export async function deleteTailscaleDevices(...deviceIds: string[]) {
   return secrets.tailscale.ApiKey.value.apply(async (apiKey) => {
     return await Promise.all(
-      ids.map(async (deviceId) => {
+      deviceIds.map(async (deviceId) => {
         try {
           const response = await fetch(`https://api.tailscale.com/api/v2/device/${deviceId}`, {
             method: 'DELETE',

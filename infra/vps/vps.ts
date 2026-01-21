@@ -113,7 +113,7 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
   );
   if (kubernetesDevices.length > 0) {
     const deletedDevices = await deleteTailscaleDevices(
-      kubernetesDevices.map((device) => device.nodeId)
+      ...kubernetesDevices.map((device) => device.nodeId)
     );
     deletedDevices.apply((deletedDevices) => {
       const deletedDeviceIds = deletedDevices
