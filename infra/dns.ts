@@ -14,6 +14,9 @@ secrets.Stage.value.apply((stageName) => {
   }
 });
 
+const awsAccountIdentityJson = await aws.getCallerIdentity();
+export const awsAccountId = awsAccountIdentityJson.accountId;
+
 const awsRegionJson = await aws.getRegion();
 export const awsRegion = awsRegionJson.name;
 secrets.aws.Region.value.apply((region) => {
