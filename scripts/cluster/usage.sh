@@ -95,6 +95,8 @@ usage_deploy() {
   printf "      Show rendered YAML without applying to cluster\n\n" >&2
   printf "  %b--kubeconfig%b <PATH>\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      Kubeconfig file for kubectl operations\n\n" >&2
+  printf "  %b--quiet%b, %b-q%b\n" "${YELLOW}" "${NORMAL}" "${YELLOW}" "${NORMAL}" >&2
+  printf "      Suppress status messages, output only YAML (for CI/CD)\n\n" >&2
 
   printf "%bTemplate Variables:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  \${ImageRegistry}     - Container registry (local or GHCR)\n" >&2

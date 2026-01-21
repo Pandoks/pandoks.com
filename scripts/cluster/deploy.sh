@@ -1,5 +1,12 @@
 # shellcheck shell=sh
 
+QUIET=false
+
+log_status() {
+  [ "${QUIET}" = "true" ] && return 0
+  printf "%s\n" "$*" >&2
+}
+
 cmd_deploy_compute_vars() {
   cmd_deploy_compute_vars_env="$1"
 
@@ -41,9 +48,9 @@ cmd_deploy_get_template_vars() {
   cmd_deploy_get_template_vars_stage="${2:-}" # --stage <stage> equivalent
 
   if [ -n "${cmd_deploy_get_template_vars_stage}" ]; then
-    printf "Fetching SST resources for stage '%s'...\n" "${cmd_deploy_get_template_vars_stage}" >&2
+    log_status "Fetching SST resources for stage '${cmd_deploy_get_template_vars_stage}'..."
   else
-    printf "Fetching SST resources...\n" >&2
+    log_status "Fetching SST resources..."
   fi
   cmd_deploy_get_template_vars_sst=$(get_sst_resources "${cmd_deploy_get_template_vars_stage}")
   if [ -z "${cmd_deploy_get_template_vars_sst}" ]; then
@@ -51,7 +58,7 @@ cmd_deploy_get_template_vars() {
     printf "Try running: %bpnpm run sso%b.\n" "${BOLD}" "${NORMAL}" >&2
     return 1
   fi
-  printf "SST resources fetched\n" >&2
+  log_status "SST resources fetched"
 
   cmd_deploy_get_template_vars_computed=$(cmd_deploy_compute_vars "${cmd_deploy_get_template_vars_env}")
 
@@ -65,13 +72,13 @@ cmd_deploy_render_templated_yaml() {
   cmd_deploy_render_is_bootstrap="$3" # true|false
 
   if [ "${cmd_deploy_render_is_bootstrap}" = "true" ]; then
-    printf "Running kustomize on bootstrap...\n" >&2
+    log_status "Running kustomize on bootstrap..."
   else
-    printf "Running kustomize on overlay...\n" >&2
+    log_status "Running kustomize on overlay..."
   fi
   cmd_deploy_render_kustomize=$(kubectl kustomize "${cmd_deploy_render_kustomize_path}" --load-restrictor LoadRestrictionsNone)
 
-  printf "Substituting template variables...\n" >&2
+  log_status "Substituting template variables..."
   template_substitute "${cmd_deploy_render_kustomize}" "${cmd_deploy_render_template_vars}"
 }
 
@@ -163,6 +170,10 @@ cmd_deploy() {
         printf "%bUsing kubeconfig:%b %s\n" "${BOLD}" "${NORMAL}" "${KUBECONFIG}" >&2
         shift 2
         ;;
+      --quiet | -q)
+        QUIET=true
+        shift
+        ;;
       help | --help | -h) usage_deploy ;;
       *)
         printf "%bError:%b Unexpected argument for deploy: %s\n" "${RED}" "${NORMAL}" "$1" >&2
@@ -202,10 +213,12 @@ cmd_deploy() {
   cmd_deploy_rendered=$(cmd_deploy_render_templated_yaml "${cmd_deploy_kustomize_path}" "${cmd_deploy_template_vars}" "${cmd_deploy_is_bootstrap}")
 
   if [ "${cmd_deploy_dry_run}" = "true" ]; then
-    if [ "${cmd_deploy_is_bootstrap}" = "true" ]; then
-      printf "%b# Rendered output for bootstrap%b\n" "${BOLD}" "${NORMAL}"
-    else
-      printf "%b# Rendered output for %s%b\n" "${BOLD}" "${cmd_deploy_env}" "${NORMAL}"
+    if [ "${QUIET}" = "false" ]; then
+      if [ "${cmd_deploy_is_bootstrap}" = "true" ]; then
+        printf "%b# Rendered output for bootstrap%b\n" "${BOLD}" "${NORMAL}"
+      else
+        printf "%b# Rendered output for %s%b\n" "${BOLD}" "${cmd_deploy_env}" "${NORMAL}"
+      fi
     fi
     printf '%s\n' "${cmd_deploy_rendered}"
     return 0
