@@ -62,6 +62,9 @@ jobs:
       - name: Install sst dependencies
         run: pnpm sst install
 
+      - name: Refresh sst state
+        run: pnpm sst refresh --stage $SST_STAGE
+
       - name: Deploy SST
         if: ${{ github.event_name == 'push' }}
         env:
