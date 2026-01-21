@@ -12,10 +12,15 @@ cmd_deploy_compute_vars() {
     prod | dev)
       cmd_deploy_compute_vars_is_local="false"
       cmd_deploy_compute_vars_image_registry="ghcr.io/pandoks"
-      cmd_deploy_compute_vars_branch=$(git rev-parse --abbrev-ref HEAD 2> /dev/null || echo "main")
-      case "${cmd_deploy_compute_vars_branch}" in
-        main | master) cmd_deploy_compute_vars_image_tag="latest" ;;
-        *) cmd_deploy_compute_vars_image_tag="${cmd_deploy_compute_vars_branch}" ;;
+      case "${cmd_deploy_compute_vars_env}" in
+        dev)
+          cmd_deploy_compute_vars_branch=$(git rev-parse --abbrev-ref HEAD 2> /dev/null || echo "main")
+          case "${cmd_deploy_compute_vars_branch}" in
+            main | master) cmd_deploy_compute_vars_image_tag="latest" ;;
+            *) cmd_deploy_compute_vars_image_tag="${cmd_deploy_compute_vars_branch}" ;;
+          esac
+          ;;
+        prod) cmd_deploy_compute_vars_image_tag="latest" ;;
       esac
       ;;
   esac
