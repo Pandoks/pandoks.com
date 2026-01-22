@@ -1,4 +1,4 @@
-import { awsRegion, isProduction } from './dns';
+import { awsAccountId, awsRegion, isProduction } from './dns';
 import { secrets, setSecret } from './secrets';
 
 if (isProduction) {
@@ -18,12 +18,18 @@ if (isProduction) {
         {
           Effect: 'Allow',
           Action: ['ssm:GetParameter'],
-          Resource: `arn:aws:ssm:${awsRegion}:*:parameter/sst/passphrase/personal/production`
+          Resource: [
+            `arn:aws:ssm:${awsRegion}:${awsAccountId}:parameter/sst/bootstrap`,
+            `arn:aws:ssm:${awsRegion}:${awsAccountId}:parameter/sst/passphrase/personal/production`
+          ]
         },
         {
           Effect: 'Allow',
           Action: ['s3:GetObject'],
-          Resource: 'arn:aws:s3:::sst-state-*/secret/personal/production.json'
+          Resource: [
+            'arn:aws:s3:::sst-state-*/app/personal/production.json',
+            'arn:aws:s3:::sst-state-*/passphrase/personal/production'
+          ]
         }
       ]
     })
