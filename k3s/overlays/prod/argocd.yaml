@@ -9,7 +9,7 @@ spec:
     spec:
       containers:
         - name: kustomize-sst-render
-          image: ghcr.io/pandoks/argocd-sst-plugin:latest
+          image: ghcr.io/pandoks/argocd-sst-plugin:ci-cd
           command: [/var/run/argocd/argocd-cmp-server]
           securityContext:
             runAsNonRoot: true
