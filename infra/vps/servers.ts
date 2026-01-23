@@ -54,6 +54,7 @@ export function createServers(
     serverCount: number;
     network: { network: hcloud.Network; subnet: hcloud.NetworkSubnet };
     startingOctet: number;
+    loadBalancersPerNode: number;
     loadBalancers: { loadbalancer: hcloud.LoadBalancer; network: hcloud.LoadBalancerNetwork }[];
   },
   hcloudServerArgs: {
@@ -207,9 +208,12 @@ export function createServers(
   }
 
   servers.forEach((server, index) => {
-    for (const [i, { loadbalancer, network }] of serverArgs.loadBalancers.entries()) {
+    const groupIndex = Math.floor(index / 25);
+    for (let j = 0; j < serverArgs.loadBalancersPerNode; j++) {
+      const loadBalancerIndex = groupIndex * serverArgs.loadBalancersPerNode + j;
+      const { loadbalancer, network } = serverArgs.loadBalancers[loadBalancerIndex];
       new hcloud.LoadBalancerTarget(
-        `HetznerK3s${nodeResourceName}LoadBalancer${i}Target${index}`,
+        `HetznerK3s${nodeResourceName}LoadBalancer${loadBalancerIndex}Target${index}`,
         {
           loadBalancerId: loadbalancer.id.apply((id) => parseInt(id)),
           type: 'server',

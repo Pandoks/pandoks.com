@@ -2,6 +2,7 @@ import { STAGE_NAME } from '../dns';
 
 export function createLoadBalancers(
   loadBalancerArgs: {
+    type: 'control-plane' | 'worker';
     loadBalancerCount: number;
     network: hcloud.Network;
   },
@@ -15,27 +16,31 @@ export function createLoadBalancers(
     return [];
   }
 
-  const nodeResourceName = loadBalancerArgs.type === 'control-plane' ? 'ControlPlane' : 'Worker';
+  const loadBalancerResourceName =
+    loadBalancerArgs.type === 'control-plane' ? 'ControlPlane' : 'Worker';
   let publicLoadBalancers: {
     loadbalancer: hcloud.LoadBalancer;
     network: hcloud.LoadBalancerNetwork;
   }[] = [];
   for (let i = 0; i < loadBalancerArgs.loadBalancerCount; i++) {
-    const publicLoadBalancer = new hcloud.LoadBalancer(`HetznerK3sPublicLoadBalancer${i}`, {
-      name: `k3s-public-${STAGE_NAME}-load-balancer-${i}`,
-      loadBalancerType: hcloudLoadBalancerArgs.type,
-      location: hcloudLoadBalancerArgs.location,
-      algorithm: { type: hcloudLoadBalancerArgs.algorithm }
-    });
+    const publicLoadBalancer = new hcloud.LoadBalancer(
+      `HetznerK3sPublic${loadBalancerResourceName}LoadBalancer${i}`,
+      {
+        name: `k3s-public-${STAGE_NAME}-${loadBalancerArgs.type}-load-balancer-${i}`,
+        loadBalancerType: hcloudLoadBalancerArgs.type,
+        location: hcloudLoadBalancerArgs.location,
+        algorithm: { type: hcloudLoadBalancerArgs.algorithm }
+      }
+    );
     const publicLoadBalancerNetwork = new hcloud.LoadBalancerNetwork(
-      `HetznerK3sPublicLoadBalancer${i}Network`,
+      `HetznerK3sPublic${loadBalancerResourceName}LoadBalancer${i}Network`,
       {
         loadBalancerId: publicLoadBalancer.id.apply((id) => parseInt(id)),
         networkId: loadBalancerArgs.network.id.apply((id) => parseInt(id))
       }
     );
     // Only enable https on the load balancer because we're using Cloudflare Strict
-    new hcloud.LoadBalancerService(`HetznerK3sLoadBalancer${i}Port443`, {
+    new hcloud.LoadBalancerService(`HetznerK3s${loadBalancerResourceName}LoadBalancer${i}Port443`, {
       loadBalancerId: publicLoadBalancer.id,
       protocol: 'tcp',
       listenPort: 443,
