@@ -12,12 +12,14 @@ const WORKER_NODE_COUNT = isProduction ? 0 : 0;
 const WORKER_HOST_START_OCTET = 20; // starts at 10.0.1.<WORKER_HOST_START_OCTET> 20 allows for 10 control plane nodes
 // NOTE: servers can only be upgraded, not downgraded because disk size needs to be >= than the previous type
 const SERVER_TYPE = isProduction ? 'ccx13' : 'cx23';
-const LOAD_BALANCER_COUNT = isProduction ? 1 : 0;
+const LOAD_BALANCERS_PER_NODE = isProduction ? 1 : 0;
 const LOAD_BALANCER_TYPE = isProduction ? 'lb11' : 'lb11';
 const LOAD_BALANCER_ALGORITHM = 'least_connections'; // round_robin, least_connections
 const SERVER_IMAGE = 'ubuntu-24.04';
 const LOCATION = isProduction ? 'hil' : 'fsn1';
 const NETWORK_ZONE = isProduction ? 'us-west' : 'eu-central';
+
+const loadBalancerServerCapacity = 25;
 
 /**
  * NOTE: Hetzner doesn't allow you to connect servers from different regions in the same network.
@@ -54,9 +56,28 @@ export const inboundFirewall = new hcloud.Firewall('HetznerInboundFirewall', {
   ]
 });
 
-const publicLoadBalancers = createLoadBalancers(
+const controlPlaneLoadBalancerCount =
+  Math.ceil(CONTROL_PLANE_NODE_COUNT / loadBalancerServerCapacity) * LOAD_BALANCERS_PER_NODE;
+export const controlPlaneLoadBalancers = createLoadBalancers(
   {
-    loadBalancerCount: LOAD_BALANCER_COUNT,
+    type: 'control-plane',
+    loadBalancerCount: controlPlaneLoadBalancerCount,
+    network: privateNetwork
+  },
+  {
+    type: LOAD_BALANCER_TYPE,
+    location: LOCATION,
+    algorithm: LOAD_BALANCER_ALGORITHM
+  }
+);
+
+const workerLoadBalancerCount =
+  Math.ceil(WORKER_NODE_COUNT / loadBalancerServerCapacity) * LOAD_BALANCERS_PER_NODE;
+
+export const workerLoadBalancers = createLoadBalancers(
+  {
+    type: 'worker',
+    loadBalancerCount: workerLoadBalancerCount,
     network: privateNetwork
   },
   {
@@ -78,7 +99,8 @@ const { tailscaleHostnames: controlPlaneTailscaleHostnames, servers: controlPlan
       serverCount: CONTROL_PLANE_NODE_COUNT,
       network: { network: privateNetwork, subnet },
       startingOctet: CONTROL_PLANE_HOST_START_OCTET,
-      loadBalancers: publicLoadBalancers
+      loadBalancersPerNode: LOAD_BALANCERS_PER_NODE,
+      loadBalancers: controlPlaneLoadBalancers
     },
     {
       type: SERVER_TYPE,
@@ -94,7 +116,8 @@ const { tailscaleHostnames: workerTailscaleHostnames, servers: workerServers } =
     serverCount: WORKER_NODE_COUNT,
     network: { network: privateNetwork, subnet },
     startingOctet: WORKER_HOST_START_OCTET,
-    loadBalancers: publicLoadBalancers
+    loadBalancersPerNode: LOAD_BALANCERS_PER_NODE,
+    loadBalancers: workerLoadBalancers
   },
   {
     type: SERVER_TYPE,
@@ -142,9 +165,13 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
 
 const publicLoadBalancerOutputs = Object.fromEntries(
   // NOTE: we have to hard code the name because indecies can't be pulumi inputs/outputs
-  publicLoadBalancers.map((lb, i) => [`LoadBalancer${i}`, lb.loadbalancer.ipv4])
+  [
+    ...controlPlaneLoadBalancers.map((lb, i) => [
+      `ControlPlaneLoadBalancer${i}`,
+      lb.loadbalancer.ipv4
+    ]),
+    ...workerLoadBalancers.map((lb, i) => [`WorkerLoadBalancer${i}`, lb.loadbalancer.ipv4])
+  ]
 );
 
 export const outputs = { ...publicLoadBalancerOutputs };
-
-export { publicLoadBalancers };
