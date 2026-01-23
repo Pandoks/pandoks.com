@@ -13,37 +13,17 @@ on:
       # NOTE: you can exclude files/directories/subdirectories using `!` prefix (!packages/**)
 
 jobs:
-  build-publish-images:
+  detect-changes:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-      attestations: write
-    strategy:
-      matrix:
-        image:
-          - name: patroni
-            path: ./packages/postgres/patroni/Dockerfile
-          - name: pgbackrest
-            path: ./packages/postgres/pgbackrest/Dockerfile
-          - name: valkey
-            path: ./packages/valkey/Dockerfile
-          - name: valkey-reconciler
-            path: ./packages/valkey/reconciler/Dockerfile
-          - name: argocd-sst-plugin
-            path: ./packages/argocd/Dockerfile
-          - name: clickhouse
-            path: ./packages/clickhouse/clickhouse/Dockerfile
-          - name: clickhouse-keeper
-            path: ./packages/clickhouse/keeper/Dockerfile
-          - name: clickhouse-backup
-            path: ./packages/clickhouse/backup/Dockerfile
+    outputs:
+      images: ${{ steps.set-images.outputs.images }}
+      charts: ${{ steps.set-charts.outputs.charts }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - id: changes
+      - id: image-changes
+        if: github.event_name == 'push'
         uses: dorny/paths-filter@v3
         with:
           filters: |
@@ -64,6 +44,79 @@ jobs:
             clickhouse-backup:
               - 'packages/clickhouse/backup/**'
 
+      - id: chart-changes
+        if: github.event_name == 'push'
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            postgres:
+              - 'packages/postgres/chart/**'
+            valkey:
+              - 'packages/valkey/chart/**'
+            clickhouse:
+              - 'packages/clickhouse/chart/**'
+
+      - id: set-images
+        run: |
+          ALL_IMAGES='[
+            {"name":"patroni","path":"./packages/postgres/patroni/Dockerfile"},
+            {"name":"pgbackrest","path":"./packages/postgres/pgbackrest/Dockerfile"},
+            {"name":"valkey","path":"./packages/valkey/Dockerfile"},
+            {"name":"valkey-reconciler","path":"./packages/valkey/reconciler/Dockerfile"},
+            {"name":"argocd-sst-plugin","path":"./packages/argocd/Dockerfile"},
+            {"name":"clickhouse","path":"./packages/clickhouse/clickhouse/Dockerfile"},
+            {"name":"clickhouse-keeper","path":"./packages/clickhouse/keeper/Dockerfile"},
+            {"name":"clickhouse-backup","path":"./packages/clickhouse/backup/Dockerfile"}
+          ]'
+
+          if [[ "${{ github.event_name }}" != "push" ]]; then
+            echo "images=$(echo "${ALL_IMAGES}" | jq -c)" >> "${GITHUB_OUTPUT}"
+          else
+            IMAGES='[]'
+            CHANGES='${{ steps.image-changes.outputs.changes }}'
+            for IMAGE in $(echo "${CHANGES}" | jq -r '.[]'); do
+              IMAGE_PATH=$(echo "${ALL_IMAGES}" | jq -r --arg name "${IMAGE}" '.[] | select(.name == $name) | .path')
+              IMAGES=$(echo "${IMAGES}" | jq -c --arg name "${IMAGE}" --arg path "${IMAGE_PATH}" '. + [{"name": $name, "path": $path}]')
+            done
+            echo "images=${IMAGES}" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - id: set-charts
+        run: |
+          ALL_CHARTS='[
+            {"name":"postgres","path":"./packages/postgres/chart"},
+            {"name":"valkey","path":"./packages/valkey/chart"},
+            {"name":"clickhouse","path":"./packages/clickhouse/chart"}
+          ]'
+
+          if [[ "${{ github.event_name }}" != "push" ]]; then
+            echo "charts=$(echo "${ALL_CHARTS}" | jq -c)" >> "${GITHUB_OUTPUT}"
+          else
+            CHARTS='[]'
+            CHANGES='${{ steps.chart-changes.outputs.changes }}'
+            for CHART in $(echo "${CHANGES}" | jq -r '.[]'); do
+              CHART_PATH=$(echo "${ALL_CHARTS}" | jq -r --arg name "${CHART}" '.[] | select(.name == $name) | .path')
+              CHARTS=$(echo "${CHARTS}" | jq -c --arg name "${CHART}" --arg path "${CHART_PATH}" '. + [{"name": $name, "path": $path}]')
+            done
+            echo "charts=${CHARTS}" >> "${GITHUB_OUTPUT}"
+          fi
+
+  build-publish-images:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.images != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    strategy:
+      matrix:
+        image: ${{ fromJSON(needs.detect-changes.outputs.images) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -81,7 +134,6 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and Push
-        if: github.event_name == 'workflow_dispatch' || github.event_name == 'create' || steps.changes.outputs[matrix.image.name] == 'true'
         id: push
         uses: docker/build-push-action@v6
         with:
@@ -94,7 +146,6 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Generate Attestation
-        if: github.event_name == 'workflow_dispatch' || github.event_name == 'create' || steps.changes.outputs[matrix.image.name] == 'true'
         uses: actions/attest-build-provenance@v3
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/${{ matrix.image.name }}
@@ -102,47 +153,29 @@ jobs:
           push-to-registry: false
 
   publish-charts:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.charts != '[]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     strategy:
       matrix:
-        chart:
-          - name: postgres
-            path: ./packages/postgres/chart
-          - name: valkey
-            path: ./packages/valkey/chart
-          - name: clickhouse
-            path: ./packages/clickhouse/chart
+        chart: ${{ fromJSON(needs.detect-changes.outputs.charts) }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - id: changes
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            postgres:
-              - 'packages/postgres/chart/**'
-            valkey:
-              - 'packages/valkey/chart/**'
-            clickhouse:
-              - 'packages/clickhouse/chart/**'
-
       - name: Install Helm
-        if: github.event_name == 'workflow_dispatch' || github.event_name == 'create' || steps.changes.outputs[matrix.chart.name] == 'true'
         uses: azure/setup-helm@v4
         with:
           version: 'latest'
 
       - name: Login to GHCR
-        if: github.event_name == 'workflow_dispatch' || github.event_name == 'create' || steps.changes.outputs[matrix.chart.name] == 'true'
         run: |
           echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Package and Push Helm Chart
-        if: github.event_name == 'workflow_dispatch' || github.event_name == 'create' || steps.changes.outputs[matrix.chart.name] == 'true'
         run: |
           helm package ${{ matrix.chart.path }}
           LOWERCASE_REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
