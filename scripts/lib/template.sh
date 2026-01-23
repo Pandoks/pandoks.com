@@ -10,8 +10,10 @@ apply_template_filter_to_value() {
   apply_template_filter_to_value_filter_name="$1"
   apply_template_filter_to_value_value="$2"
 
+  # shellcheck disable=SC2016
   case "${apply_template_filter_to_value_filter_name}" in
     base64) printf '%s' "${apply_template_filter_to_value_value}" | base64 -w0 ;;
+    bcrypt) htpasswd -nbBC 10 "" "${apply_template_filter_to_value_value}" | tr -d ':\n' | sed 's/$2y/$2a/' ;;
     quote) yaml_safe_value "${apply_template_filter_to_value_value}" ;;
     *)
       printf "%bError:%b Unknown template filter: %s\n" "${RED}" "${NORMAL}" "${apply_template_filter_to_value_filter_name}" >&2
