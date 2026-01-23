@@ -10,6 +10,8 @@ on:
       - '!apps/desktop-template/**'
       - '!apps/example/**'
       - 'packages/svelte/**'
+      - 'k3s/**'
+      - 'scripts/cluster/**'
   workflow_dispatch:
     inputs:
       stage:
@@ -32,8 +34,30 @@ env:
   SST_STAGE: ${{ github.event.inputs.stage || 'production' }}
 
 jobs:
-  deploy:
-    name: Deploy Infrastructure
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      sst: ${{ steps.filter.outputs.sst }}
+      kubernetes: ${{ steps.filter.outputs.kubernetes }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            sst:
+              - 'infra/**'
+              - 'apps/**'
+              - '!apps/desktop-template/**'
+              - '!apps/example/**'
+              - 'packages/svelte/**'
+            kubernetes:
+              - 'k3s/**'
+              - 'scripts/cluster/**'
+
+  deploy-sst:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.sst == 'true'
     runs-on: ubuntu-latest
     environment: ${{ (github.event.inputs.stage || 'production') == 'production' && 'production' || 'dev' }}
 
@@ -73,3 +97,21 @@ jobs:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
           TAILSCALE_API_KEY: ${{ secrets.TAILSCALE_API_KEY }}
         run: pnpm sst deploy --stage $SST_STAGE
+
+  deploy-kubernetes:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.kubernetes == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci,tag:prod
+
+      - name: Trigger ArgoCD Sync
+        run: |
+          curl -X POST 'https://prod-argocd.tailb2c81d.ts.net/api/v1/applications/prod-cluster?refresh=hard' \
+            -H 'Authorization: Bearer ${{ secrets.ARGOCD_TOKEN }}'
