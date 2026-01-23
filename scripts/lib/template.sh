@@ -46,14 +46,26 @@ template_substitute() {
     case "${template_substitute_pattern_content}" in
       *"|"*)
         template_substitute_var="${template_substitute_pattern_content%%|*}"
-        template_substitute_filter="${template_substitute_pattern_content##*|}"
         template_substitute_var=$(printf '%s' "${template_substitute_var}" | tr -d ' ')
-        template_substitute_filter=$(printf '%s' "${template_substitute_filter}" | tr -d ' ')
 
-        template_substitute_value=$(printf '%s' "${template_substitute_json}" | jq -r --arg k "${template_substitute_var}" '.[$k] // empty')
-        [ -z "${template_substitute_value}" ] && continue
+        template_substitute_result=$(printf '%s' "${template_substitute_json}" | jq -r --arg k "${template_substitute_var}" '.[$k] // empty')
+        [ -z "${template_substitute_result}" ] && continue
 
-        template_substitute_result=$(apply_template_filter_to_value "${template_substitute_filter}" "${template_substitute_value}") || return 1
+        template_substitute_filters="${template_substitute_pattern_content#*|}"
+        while [ -n "${template_substitute_filters}" ]; do
+          case "${template_substitute_filters}" in
+            *"|"*)
+              template_substitute_filter="${template_substitute_filters%%|*}"
+              template_substitute_filters="${template_substitute_filters#*|}"
+              ;;
+            *)
+              template_substitute_filter="${template_substitute_filters}"
+              template_substitute_filters=""
+              ;;
+          esac
+          template_substitute_filter=$(printf '%s' "${template_substitute_filter}" | tr -d ' ')
+          template_substitute_result=$(apply_template_filter_to_value "${template_substitute_filter}" "${template_substitute_result}") || return 1
+        done
         ;;
       *)
         template_substitute_var=$(printf '%s' "${template_substitute_pattern_content}" | tr -d ' ')
