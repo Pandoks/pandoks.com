@@ -2,17 +2,18 @@ import { awsRegion, cloudflareAccountId, isProduction, STAGE_NAME } from './dns'
 import { secrets } from './secrets';
 import { tailscaleAcl } from './tailscale';
 
-export const githubRepo = github.getRepository({
-  fullName: 'pandoks/pandoks.com'
+export const githubRepo = await github.getRepository({
+  fullName: 'Pandoks/pandoks.com'
 });
+const githubRepoName = githubRepo.name;
 
 const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
-  repository: githubRepo.then((r) => r.name),
+  repository: githubRepoName,
   environment: isProduction ? 'production' : 'dev'
 });
 
 new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
-  repository: githubRepo.then((r) => r.name),
+  repository: githubRepoName,
   environment: githubEnvironment.environment,
   secretName: 'HCLOUD_TOKEN',
   plaintextValue: secrets.hetzner.ApiKey.value
@@ -20,13 +21,13 @@ new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
 
 if ($app.stage === 'production') {
   new github.ActionsSecret('GithubCloudflareApiToken', {
-    repository: githubRepo.then((r) => r.name),
+    repository: githubRepoName,
     secretName: 'CLOUDFLARE_API_TOKEN',
     plaintextValue: secrets.cloudflare.ApiKey.value
   });
 
   new github.ActionsSecret('GithubCloudflareAccountId', {
-    repository: githubRepo.then((r) => r.name),
+    repository: githubRepoName,
     secretName: 'CLOUDFLARE_DEFAULT_ACCOUNT_ID',
     plaintextValue: cloudflareAccountId
   });
@@ -66,18 +67,18 @@ if ($app.stage === 'production') {
   });
 
   new github.ActionsVariable('GithubAWSRole', {
-    repository: githubRepo.then((r) => r.name),
+    repository: githubRepoName,
     variableName: 'AWS_ROLE_ARN',
     value: githubActionsAWSRole.arn
   });
   new github.ActionsVariable('GithubAWSRegion', {
-    repository: githubRepo.then((r) => r.name),
+    repository: githubRepoName,
     variableName: 'AWS_REGION',
     value: awsRegion
   });
 
   new github.ActionsSecret('GithubTailscaleApiKey', {
-    repository: githubRepo.then((r) => r.name),
+    repository: githubRepoName,
     secretName: 'TAILSCALE_API_KEY',
     plaintextValue: secrets.tailscale.ApiKey.value
   });
@@ -92,12 +93,12 @@ if ($app.stage === 'production') {
     { dependsOn: [tailscaleAcl] }
   );
   new github.ActionsSecret('GithubActionsTailscaleOauthClientId', {
-    repository: githubRepo.then((r) => r.name),
+    repository: githubRepoName,
     secretName: 'TS_OAUTH_CLIENT_ID',
     plaintextValue: githubActionsOauthClient.id
   });
   new github.ActionsSecret('GithubActionsTailscaleOauthSecret', {
-    repository: githubRepo.then((r) => r.name),
+    repository: githubRepoName,
     secretName: 'TS_OAUTH_SECRET',
     plaintextValue: githubActionsOauthClient.key
   });
