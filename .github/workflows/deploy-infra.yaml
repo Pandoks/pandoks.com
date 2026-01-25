@@ -123,3 +123,21 @@ jobs:
             argocd.argoproj.io/refresh=hard \
             --overwrite \
             --namespace argocd
+
+      - name: Wait for ArgoCD Sync
+        run: |
+          for i in {1..60}; do
+            STATUS=$(sudo kubectl get application prod-cluster -n argocd -o jsonpath='{.status.sync.status}')
+            if [ "${STATUS}" = "Synced" ]; then
+              echo "Sync successful"
+              exit 0
+            fi
+            ERROR=$(sudo kubectl get application prod-cluster -n argocd -o jsonpath='{.status.conditions[?(@.type=="ComparisonError")].message}')
+            if [ -n "$ERROR" ]; then
+              echo "Sync failed: ${ERROR}"
+              exit 1
+            fi
+            sleep 5
+          done
+          echo "Timed out waiting for sync"
+          exit 1
