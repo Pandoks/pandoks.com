@@ -115,7 +115,7 @@ jobs:
           tags: tag:ci,tag:prod
 
       - name: Configure kubeconfig
-        run: tailscale configure kubeconfig prod-cluster
+        run: sudo tailscale configure kubeconfig prod-cluster
 
       - name: Trigger ArgoCD Sync
         run: |
