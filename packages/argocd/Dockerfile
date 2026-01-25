@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     unzip \
     ca-certificates \
+    apache2-utils \
     && rm -rf /var/lib/apt/lists/* \
     && corepack enable
 
