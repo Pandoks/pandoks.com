@@ -22,10 +22,6 @@ on:
           - production
           - pandoks
 
-concurrency:
-  group: deploy-infrastructure
-  cancel-in-progress: false
-
 permissions:
   id-token: write
   contents: read
@@ -56,6 +52,9 @@ jobs:
               - 'scripts/cluster/**'
 
   deploy-sst:
+    concurrency:
+      group: deploy-sst
+      cancel-in-progress: false
     needs: detect-changes
     if: needs.detect-changes.outputs.sst == 'true'
     runs-on: ubuntu-latest
@@ -90,7 +89,6 @@ jobs:
         run: pnpm sst refresh --stage $SST_STAGE
 
       - name: Deploy SST
-        if: ${{ github.event_name == 'push' }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_DEFAULT_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
@@ -99,10 +97,17 @@ jobs:
         run: pnpm sst deploy --stage $SST_STAGE
 
   deploy-kubernetes:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.kubernetes == 'true'
+    concurrency:
+      group: deploy-kubernetes
+      cancel-in-progress: false
+    needs:
+      - detect-changes
+      - deploy-sst
+    if: |
+      always() &&
+      needs.detect-changes.outputs.kubernetes == 'true' &&
+      (needs.deploy-sst.result == 'success' || needs.deploy-sst.result == 'skipped')
     runs-on: ubuntu-latest
-
     steps:
       - name: Setup Tailscale
         uses: tailscale/github-action@v4
@@ -111,7 +116,12 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci,tag:prod
 
+      - name: Configure kubeconfig
+        run: tailscale configure kubeconfig prod-cluster
+
       - name: Trigger ArgoCD Sync
         run: |
-          curl -X POST 'https://prod-argocd.tailb2c81d.ts.net/api/v1/applications/prod-cluster?refresh=hard' \
-            -H 'Authorization: Bearer ${{ secrets.ARGOCD_TOKEN }}'
+          kubectl annotate application prod-cluster \
+            argocd.argoproj.io/refresh=hard \
+            --overwrite \
+            --namespace argocd
