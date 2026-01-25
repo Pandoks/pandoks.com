@@ -225,7 +225,7 @@ cmd_deploy() {
   fi
 
   printf "Applying to cluster...\n"
-  printf '%s' "${cmd_deploy_rendered}" | kubectl apply --server-side -f -
+  printf '%s' "${cmd_deploy_rendered}" | kubectl apply --server-side --force-conflicts -f -
 
   if [ "${cmd_deploy_is_bootstrap}" = "true" ]; then
     cmd_deploy_wait_for_crds "${cmd_deploy_env}"
