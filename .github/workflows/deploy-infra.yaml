@@ -119,7 +119,7 @@ jobs:
 
       - name: Trigger ArgoCD Sync
         run: |
-          kubectl annotate application prod-cluster \
+          sudo kubectl annotate application prod-cluster \
             argocd.argoproj.io/refresh=hard \
             --overwrite \
             --namespace argocd
