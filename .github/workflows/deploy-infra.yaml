@@ -88,9 +88,6 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Install sst dependencies
-        run: pnpm sst install
-
       - name: Refresh sst state
         run: pnpm sst refresh --stage $SST_STAGE
 
