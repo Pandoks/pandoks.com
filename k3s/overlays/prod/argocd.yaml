@@ -1,0 +1,92 @@
+# patches argocd to include a sidecar container plugin to render kustomize with sst
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-repo-server
+  namespace: argocd
+spec:
+  template:
+    spec:
+      containers:
+        - name: kustomize-sst-render
+          image: ghcr.io/pandoks/argocd-sst-plugin:main
+          command: [/var/run/argocd/argocd-cmp-server]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: sst-credentials
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sst-credentials
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: AWS_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: sst-credentials
+                  key: AWS_REGION
+            - name: CLOUDFLARE_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: sst-credentials
+                  key: CLOUDFLARE_API_TOKEN
+          volumeMounts:
+            - name: var-files
+              mountPath: /var/run/argocd
+            - name: plugins
+              mountPath: /home/argocd/cmp-server/plugins
+            - name: cmp-tmp
+              mountPath: /tmp
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prod-cluster
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Pandoks/pandoks.com
+    targetRevision: main
+    path: k3s/overlays/prod
+    plugin:
+      name: kustomize-sst-render-v1.0
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argocd-application-annotator
+rules:
+  - apiGroups: ['argoproj.io']
+    resources: ['applications']
+    verbs: ['get', 'patch', 'update']
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argocd-deployer-binding
+subjects:
+  - kind: Group
+    name: argocd-deployer
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: argocd-application-annotator
+  apiGroup: rbac.authorization.k8s.io

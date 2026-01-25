@@ -1,0 +1,143 @@
+name: Deploy Infrastructure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'infra/**'
+      - 'apps/**'
+      - '!apps/desktop-template/**'
+      - '!apps/example/**'
+      - 'packages/svelte/**'
+      - 'k3s/**'
+      - 'scripts/cluster/**'
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: 'SST stage'
+        type: choice
+        default: production
+        options:
+          - production
+          - pandoks
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  SST_STAGE: ${{ github.event.inputs.stage || 'production' }}
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      sst: ${{ steps.filter.outputs.sst }}
+      kubernetes: ${{ steps.filter.outputs.kubernetes }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            sst:
+              - 'infra/**'
+              - 'apps/**'
+              - '!apps/desktop-template/**'
+              - '!apps/example/**'
+              - 'packages/svelte/**'
+            kubernetes:
+              - 'k3s/**'
+              - 'scripts/cluster/**'
+
+  deploy-sst:
+    concurrency:
+      group: deploy-sst
+      cancel-in-progress: false
+    needs: detect-changes
+    if: needs.detect-changes.outputs.sst == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ (github.event.inputs.stage || 'production') == 'production' && 'production' || 'dev' }}
+    env:
+      GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_DEFAULT_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+      TAILSCALE_API_KEY: ${{ secrets.TAILSCALE_API_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install pnpm dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Refresh sst state
+        run: pnpm sst refresh --stage $SST_STAGE
+
+      - name: Deploy SST
+        run: pnpm sst deploy --stage $SST_STAGE
+
+  deploy-kubernetes:
+    concurrency:
+      group: deploy-kubernetes
+      cancel-in-progress: false
+    needs:
+      - detect-changes
+      - deploy-sst
+    if: |
+      always() &&
+      needs.detect-changes.outputs.kubernetes == 'true' &&
+      (needs.deploy-sst.result == 'success' || needs.deploy-sst.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci,tag:prod
+
+      - name: Configure kubeconfig
+        run: sudo tailscale configure kubeconfig prod-cluster
+
+      - name: Trigger ArgoCD Sync
+        run: |
+          sudo kubectl annotate application prod-cluster \
+            argocd.argoproj.io/refresh=hard \
+            --overwrite \
+            --namespace argocd
+
+      - name: Wait for ArgoCD Sync
+        run: |
+          for i in {1..60}; do
+            STATUS=$(sudo kubectl get application prod-cluster -n argocd -o jsonpath='{.status.sync.status}')
+            if [ "${STATUS}" = "Synced" ]; then
+              echo "Sync successful"
+              exit 0
+            fi
+            ERROR=$(sudo kubectl get application prod-cluster -n argocd -o jsonpath='{.status.conditions[?(@.type=="ComparisonError")].message}')
+            if [ -n "$ERROR" ]; then
+              echo "Sync failed: ${ERROR}"
+              exit 1
+            fi
+            sleep 5
+          done
+          echo "Timed out waiting for sync"
+          exit 1

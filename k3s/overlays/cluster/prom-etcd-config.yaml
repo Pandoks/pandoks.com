@@ -11,8 +11,8 @@ spec:
       enabled: true
       endpoints:
         - 10.0.1.10
-        # - 10.0.1.11  # uncomment when adding control-plane-1
-        # - 10.0.1.12  # uncomment when adding control-plane-2
+        - 10.0.1.11  # uncomment when adding control-plane-1
+        - 10.0.1.12  # uncomment when adding control-plane-2
       service:
         enabled: true
         port: 2381

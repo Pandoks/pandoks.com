@@ -1,10 +1,52 @@
 import { readFileSync } from 'node:fs';
-import { tailscaleAcl } from '../tailscale';
+import { deleteTailscaleDevices, tailscaleAcl } from '../tailscale';
 import { isProduction, STAGE_NAME } from '../dns';
 import { secrets } from '../secrets';
 import { backupBucket, s3Endpoint } from '../storage';
 
 const cloudInitConfig = readFileSync(`${process.cwd()}/infra/vps/cloud-config.yaml`, 'utf8');
+
+const deleteServerFromTailnet = new $util.ResourceHook(
+  'DeleteServerFromTailnet',
+  async (serverOutput) => {
+    const outputs = serverOutput.oldOutputs as hcloud.Server;
+    const serverLabels = outputs.labels ?? {};
+
+    const devices = await tailscale.getDevices({
+      namePrefix: `${serverLabels['tailscale'] ?? ''}`
+    });
+    const serverHetznerDevices = devices.devices.filter(
+      (device) => device.tags.includes('tag:hetzner') && device.tags.includes(`tag:${STAGE_NAME}`)
+    );
+    if (serverHetznerDevices.length > 0) {
+      const deletedDevices = await deleteTailscaleDevices(
+        ...serverHetznerDevices.map((device) => device.nodeId)
+      );
+      deletedDevices.apply((deletedDevices) => {
+        const deletedDeviceIds = deletedDevices
+          .filter((device) => device.success)
+          .map((device) => device.deviceId);
+        const failedToDeleteDeviceIds = deletedDevices
+          .filter((device) => !device.success)
+          .map((device) => device.deviceId);
+        if (deletedDeviceIds.length)
+          console.log(
+            `Deleted Tailscale devices:\n${serverHetznerDevices
+              .filter((device) => deletedDeviceIds.includes(device.nodeId))
+              .map((device) => device.name)
+              .join('\n')}`
+          );
+        if (failedToDeleteDeviceIds.length)
+          console.log(
+            `Failed to delete Tailscale devices:\n${serverHetznerDevices
+              .filter((device) => failedToDeleteDeviceIds.includes(device.nodeId))
+              .map((device) => device.name)
+              .join('\n')}`
+          );
+      });
+    }
+  }
+);
 
 export function createServers(
   serverArgs: {
@@ -12,6 +54,7 @@ export function createServers(
     serverCount: number;
     network: { network: hcloud.Network; subnet: hcloud.NetworkSubnet };
     startingOctet: number;
+    loadBalancersPerNode: number;
     loadBalancers: { loadbalancer: hcloud.LoadBalancer; network: hcloud.LoadBalancerNetwork }[];
   },
   hcloudServerArgs: {
@@ -148,14 +191,16 @@ export function createServers(
         networks: [{ networkId: serverArgs.network.network.id.apply((id) => parseInt(id)), ip }],
         publicNets: [{ ipv4Enabled: true, ipv6Enabled: true }],
         shutdownBeforeDeletion: true,
+        labels: { tailscale: tailscaleHostname },
         userData
       },
       {
         dependsOn: dependencies,
         ignoreChanges: isProduction ? ['userData'] : [],
-        protect: isProduction
-        // TODO: once sst upgrades to use the newer version of pulumi, use resource hooks to delete
-        // the server from the tailnet https://www.pulumi.com/docs/iac/concepts/resources/options/hooks/
+        protect: isProduction,
+        hooks: {
+          afterDelete: [deleteServerFromTailnet]
+        }
       }
     );
     bootstrap.server = bootstrap.server ?? server;
@@ -163,9 +208,12 @@ export function createServers(
   }
 
   servers.forEach((server, index) => {
-    for (const [i, { loadbalancer, network }] of serverArgs.loadBalancers.entries()) {
+    const groupIndex = Math.floor(index / 25);
+    for (let j = 0; j < serverArgs.loadBalancersPerNode; j++) {
+      const loadBalancerIndex = groupIndex * serverArgs.loadBalancersPerNode + j;
+      const { loadbalancer, network } = serverArgs.loadBalancers[loadBalancerIndex];
       new hcloud.LoadBalancerTarget(
-        `HetznerK3s${nodeResourceName}LoadBalancer${i}Target${index}`,
+        `HetznerK3s${nodeResourceName}LoadBalancer${loadBalancerIndex}Target${index}`,
         {
           loadBalancerId: loadbalancer.id.apply((id) => parseInt(id)),
           type: 'server',

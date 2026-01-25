@@ -8,7 +8,8 @@ export default $config({
       home: 'aws',
       providers: {
         aws: {
-          profile: process.env.GITHUB_ACTIONS ? undefined : 'Personal'
+          profile:
+            process.env.GITHUB_ACTIONS || process.env.AWS_ACCESS_KEY_ID ? undefined : 'Personal'
         },
         cloudflare: '6.12.0',
         github: '6.7.2',
@@ -23,11 +24,13 @@ export default $config({
       import('./infra/api'),
       import('./infra/dns'),
       import('./infra/cloudflare'),
+      import('./infra/storage'),
       import('./infra/github'),
       import('./infra/secrets'),
       import('./infra/website'),
       import('./infra/tailscale'),
       import('./infra/vps/vps'),
+      import('./infra/kubernetes'),
       import('./infra/dev')
     ]);
     return imports.reduce((acculumator, importResult: any) => {

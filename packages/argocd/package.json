@@ -1,0 +1,10 @@
+{
+  "name": "@pandoks.com/argocd",
+  "version": "0.0.1",
+  "type": "module",
+  "sideEffects": false,
+  "scripts": {
+    "build": "pnpm run docker:build",
+    "docker:build": "docker build -f ./Dockerfile ../../"
+  }
+}

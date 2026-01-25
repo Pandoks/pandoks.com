@@ -1,10 +1,13 @@
 import { execSync } from 'node:child_process';
 
 export const secrets = {
-  Stage: new sst.Secret('StageName', 'dev'),
+  Stage: new sst.Secret('StageName', 'dev'), // Automatically set during deploy
   notion: {
     ApiKey: new sst.Secret('NotionApiKey'),
     AuthToken: new sst.Secret('NotionAuthToken')
+  },
+  aws: {
+    Region: new sst.Secret('AwsRegion', 'us-west-1')
   },
   cloudflare: {
     ApiKey: new sst.Secret('CloudflareApiKey'),
@@ -34,14 +37,18 @@ export const secrets = {
   },
   k8s: {
     tailscale: {
-      OauthClientId: new sst.Secret('KubernetesTailscaleOauthClientId'),
-      OauthClientSecret: new sst.Secret('KubernetesTailscaleOauthClientSecret')
+      OauthClientId: new sst.Secret('KubernetesTailscaleOauthClientId', 'Placeholder'), // Automatically set during deploy
+      OauthClientSecret: new sst.Secret('KubernetesTailscaleOauthClientSecret', 'Placeholder') // Automatically set during deploy
+    },
+    argocd: {
+      AccessKeyId: new sst.Secret('KubernetesArgocdAccessKeyId', 'Placeholder'), // Automatically set during deploy
+      SecretAccessKey: new sst.Secret('KubernetesArgocdSecretAccessKey', 'Placeholder') // Automatically set during deploy
     },
     grafana: {
       AdminPassword: new sst.Secret('KubernetesGrafanaAdminPassword', 'password')
     },
-    HetznerOriginTlsKey: new sst.Secret('HetznerOriginTlsKey', 'No Origin Tls Key Set'),
-    HetznerOriginTlsCrt: new sst.Secret('HetznerOriginTlsCrt', 'No Origin Tls Cert Set'),
+    HetznerOriginTlsKey: new sst.Secret('HetznerOriginTlsKey', 'No Origin Tls Key Set'), // Automatically set during deploy
+    HetznerOriginTlsCrt: new sst.Secret('HetznerOriginTlsCrt', 'No Origin Tls Cert Set'), // Automatically set during deploy
     main: {
       // namespace
       // NOTE: sst Secret names are named '<namespace><db-name><resource><var>' (ie. MainMainPostgresSuperuserPassword)

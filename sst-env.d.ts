@@ -2,12 +2,17 @@
 /* tslint:disable */
 /* eslint-disable */
 /* deno-fmt-ignore-file */
+/* biome-ignore-all lint: auto-generated */
 
 declare module 'sst' {
   export interface Resource {
     ApiRouter: {
       type: 'sst.aws.Router';
       url: string;
+    };
+    AwsRegion: {
+      type: 'sst.sst.Secret';
+      value: string;
     };
     BackupBucket: {
       name: string;
@@ -51,6 +56,14 @@ declare module 'sst' {
       value: string;
     };
     HetznerOriginTlsKey: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    KubernetesArgocdAccessKeyId: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    KubernetesArgocdSecretAccessKey: {
       type: 'sst.sst.Secret';
       value: string;
     };

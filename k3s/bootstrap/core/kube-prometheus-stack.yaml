@@ -12,7 +12,7 @@ metadata:
 type: Opaque
 stringData:
   username: admin
-  password: ${KubernetesGrafanaAdminPassword}
+  password: ${KubernetesGrafanaAdminPassword | quote}
 
 ---
 apiVersion: helm.cattle.io/v1

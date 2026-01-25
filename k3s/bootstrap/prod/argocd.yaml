@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argocd
+
+---
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: argocd
+  namespace: kube-system
+spec:
+  repo: https://argoproj.github.io/argo-helm
+  chart: argo-cd
+  version: 9.3.4
+  targetNamespace: argocd
+  valuesContent: |-
+    configs:
+      params:
+        server.insecure: true
+
+    server:
+      service:
+        type: ClusterIP
+        annotations:
+          tailscale.com/expose: 'true'
+          tailscale.com/hostname: ${StageName}-argocd
+          tailscale.com/tags: tag:k8s,tag:${StageName}
+
+    repoServer:
+      volumes:
+        - name: cmp-tmp
+          emptyDir: {}
