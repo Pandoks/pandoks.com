@@ -59,6 +59,11 @@ jobs:
     if: needs.detect-changes.outputs.sst == 'true'
     runs-on: ubuntu-latest
     environment: ${{ (github.event.inputs.stage || 'production') == 'production' && 'production' || 'dev' }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_DEFAULT_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
+      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+      TAILSCALE_API_KEY: ${{ secrets.TAILSCALE_API_KEY }}
 
     steps:
       - name: Checkout
@@ -86,19 +91,9 @@ jobs:
         run: pnpm sst install
 
       - name: Refresh sst state
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_DEFAULT_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
-          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
-          TAILSCALE_API_KEY: ${{ secrets.TAILSCALE_API_KEY }}
         run: pnpm sst refresh --stage $SST_STAGE
 
       - name: Deploy SST
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_DEFAULT_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
-          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
-          TAILSCALE_API_KEY: ${{ secrets.TAILSCALE_API_KEY }}
         run: pnpm sst deploy --stage $SST_STAGE
 
   deploy-kubernetes:
