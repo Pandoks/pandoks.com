@@ -20,6 +20,12 @@ new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
 });
 
 if ($app.stage === 'production') {
+  new github.ActionsSecret('GithubGithubAccessToken', {
+    repository: githubRepoName,
+    secretName: 'GH_TOKEN',
+    plaintextValue: secrets.github.PersonalAccessToken.value
+  });
+
   new github.ActionsSecret('GithubCloudflareApiToken', {
     repository: githubRepoName,
     secretName: 'CLOUDFLARE_API_TOKEN',
