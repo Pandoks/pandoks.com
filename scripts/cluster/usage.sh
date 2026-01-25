@@ -9,7 +9,7 @@ usage() {
   printf "      Subcommands: up, down, start, stop, restart, deps\n\n" >&2
 
   printf "  %bdeploy%b          Deploy environment overlay to cluster\n" "${GREEN}" "${NORMAL}" >&2
-  printf "      Usage: deploy <dev|prod> [--bootstrap] [--stage <STAGE>] [--dry-run]\n\n" >&2
+  printf "      Usage: deploy <local|dev|prod> [--bootstrap] [--stage <STAGE>] [--dry-run]\n\n" >&2
 
   printf "Run '%s <command> --help' for more information on a command.\n\n" "$0" >&2
 
@@ -95,6 +95,8 @@ usage_deploy() {
   printf "      Show rendered YAML without applying to cluster\n\n" >&2
   printf "  %b--kubeconfig%b <PATH>\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      Kubeconfig file for kubectl operations\n\n" >&2
+  printf "  %b--quiet%b, %b-q%b\n" "${YELLOW}" "${NORMAL}" "${YELLOW}" "${NORMAL}" >&2
+  printf "      Suppress status messages, output only YAML (for CI/CD)\n\n" >&2
 
   printf "%bTemplate Variables:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  \${ImageRegistry}     - Container registry (local or GHCR)\n" >&2

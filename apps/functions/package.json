@@ -2,11 +2,10 @@
   "name": "@pandoks.com/functions",
   "version": "1.0.0",
   "type": "module",
-  "packageManager": "pnpm@10.8.1",
   "dependencies": {
     "@aws-sdk/client-scheduler": "^3.864.0",
     "@aws-sdk/client-sns": "^3.830.0",
-    "sst": "^3.17.25",
+    "sst": "^3.17.36",
     "twilio": "^5.8.0"
   },
   "devDependencies": {

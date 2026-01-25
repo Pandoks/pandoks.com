@@ -14,6 +14,17 @@ secrets.Stage.value.apply((stageName) => {
   }
 });
 
+const awsAccountIdentityJson = await aws.getCallerIdentity();
+export const awsAccountId = awsAccountIdentityJson.accountId;
+
+const awsRegionJson = await aws.getRegion();
+export const awsRegion = awsRegionJson.name;
+secrets.aws.Region.value.apply((region) => {
+  if (region !== awsRegion) {
+    setSecret(secrets.aws.Region.name, awsRegion);
+  }
+});
+
 const cloudflareZone = await cloudflare.getZone({ filter: { name: 'pandoks.com' } });
 export const cloudflareAccountId = cloudflareZone.account.id;
 export const cloudflareZoneId = cloudflareZone.id;

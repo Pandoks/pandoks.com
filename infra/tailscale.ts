@@ -8,11 +8,26 @@ new tailscale.TailnetSettings('TailscaleSettings', {
 
 export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
   resetAclOnDestroy: true,
-  // NOTE: turn this on to bootstrap the ACL state into pulumi then turn it off to prevent the ACL from being overwritten
-  // overwriteExistingContent: true,
+  // NOTE: overwriteExistingContent is set to true so it works in all stages. we do this because the
+  // tailnet isn't used for any important networking. it is solely to access the devices.
+  // WARNING: a change to this will overwrite the ACL on all stages.
+  overwriteExistingContent: true,
   acl: stringify(
     {
-      grants: [{ src: ['*'], dst: ['*'], ip: ['*'] }],
+      grants: [
+        { src: ['*'], dst: ['*'], ip: ['*'] },
+        {
+          src: ['tag:ci'],
+          dst: ['tag:k8s-operator'],
+          app: {
+            'tailscale.com/cap/kubernetes': [
+              {
+                impersonate: { groups: ['argocd-deployer'] }
+              }
+            ]
+          }
+        }
+      ],
       ssh: [
         {
           action: 'check',
@@ -28,7 +43,8 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         'tag:control-plane': ['pandoks@github'],
         'tag:worker': ['pandoks@github'],
         'tag:dev': ['pandoks@github', 'tag:k8s-operator'],
-        'tag:prod': ['pandoks@github', 'tag:k8s-operator']
+        'tag:prod': ['pandoks@github', 'tag:k8s-operator'],
+        'tag:ci': ['pandoks@github']
       }
     },
     { maxLength: 80, indent: 2 }
@@ -69,12 +85,10 @@ $resolve([
   }
 );
 
-export async function deleteTailscaleDevices(deviceIds: string | string[]) {
-  const ids = Array.isArray(deviceIds) ? deviceIds : [deviceIds];
-
+export async function deleteTailscaleDevices(...deviceIds: string[]) {
   return secrets.tailscale.ApiKey.value.apply(async (apiKey) => {
     return await Promise.all(
-      ids.map(async (deviceId) => {
+      deviceIds.map(async (deviceId) => {
         try {
           const response = await fetch(`https://api.tailscale.com/api/v2/device/${deviceId}`, {
             method: 'DELETE',

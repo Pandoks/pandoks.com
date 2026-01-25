@@ -89,26 +89,26 @@ runcmd:
   - curl -fsSL https://tailscale.com/install.sh | sh
   - |
     tailscale up --ssh \
-      --authkey ${REGISTRATION_TAILNET_AUTH_KEY} \
-      --hostname ${TAILSCALE_HOSTNAME} \
+      --authkey "${REGISTRATION_TAILNET_AUTH_KEY}" \
+      --hostname "${TAILSCALE_HOSTNAME}" \
       --accept-dns=false
   - |
     if [ "${ROLE}" = "bootstrap" ]; then
       curl -sfL https://get.k3s.io | \
-        K3S_TOKEN=${K3S_TOKEN} sh -s - server \
+        K3S_TOKEN="${K3S_TOKEN}" sh -s - server \
           --cluster-init \
           --disable=traefik \
           --disable=servicelb \
-          --node-ip=${NODE_IP} \
-          --advertise-address=${NODE_IP} \
-          --tls-san=${NODE_IP} \
+          --node-ip="${NODE_IP}" \
+          --advertise-address="${NODE_IP}" \
+          --tls-san="${NODE_IP}" \
           --flannel-iface=enp7s0 \
           --etcd-expose-metrics \
           --etcd-s3 \
-          --etcd-s3-endpoint=${S3_HOST} \
-          --etcd-s3-bucket=${BACKUP_BUCKET} \
-          --etcd-s3-access-key=${S3_ACCESS_KEY} \
-          --etcd-s3-secret-key=${S3_SECRET_KEY} \
+          --etcd-s3-endpoint="${S3_HOST}" \
+          --etcd-s3-bucket="${BACKUP_BUCKET}" \
+          --etcd-s3-access-key="${S3_ACCESS_KEY}" \
+          --etcd-s3-secret-key="${S3_SECRET_KEY}" \
           --etcd-s3-folder=kubernetes/etcd \
           --etcd-snapshot-schedule-cron="0 */6 * * *" \
           --etcd-snapshot-retention=5
@@ -127,13 +127,13 @@ runcmd:
         --namespace kube-system \
         --from-literal=tailscale-oauth="$(cat << EOF
     oauth:
-      clientId: ${KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID}
-      clientSecret: ${KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET}
+      clientId: "${KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID}"
+      clientSecret: "${KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET}"
     EOF
     )" \
         --from-literal=operator-config="$(cat << EOF
     operatorConfig:
-      hostname: ${KUBERNETES_TAILSCALE_HOSTNAME}
+      hostname: "${KUBERNETES_TAILSCALE_HOSTNAME}"
       defaultTags:
         - tag:k8s-operator
         - tag:k8s
@@ -170,27 +170,27 @@ runcmd:
         --dry-run=client -o yaml | kubectl apply --server-side -f -
     elif [ "${ROLE}" = "server" ]; then
       curl -sfL https://get.k3s.io | \
-        K3S_TOKEN=${K3S_TOKEN} sh -s - server \
-          --server=${SERVER_API} \
+        K3S_TOKEN="${K3S_TOKEN}" sh -s - server \
+          --server="${SERVER_API}" \
           --disable=traefik \
           --disable=servicelb \
-          --node-ip=${NODE_IP} \
-          --advertise-address=${NODE_IP} \
-          --tls-san=${NODE_IP} \
+          --node-ip="${NODE_IP}" \
+          --advertise-address="${NODE_IP}" \
+          --tls-san="${NODE_IP}" \
           --flannel-iface=enp7s0 \
           --etcd-expose-metrics \
           --etcd-s3 \
-          --etcd-s3-endpoint=${S3_HOST} \
-          --etcd-s3-bucket=${BACKUP_BUCKET} \
-          --etcd-s3-access-key=${S3_ACCESS_KEY} \
-          --etcd-s3-secret-key=${S3_SECRET_KEY} \
+          --etcd-s3-endpoint="${S3_HOST}" \
+          --etcd-s3-bucket="${BACKUP_BUCKET}" \
+          --etcd-s3-access-key="${S3_ACCESS_KEY}" \
+          --etcd-s3-secret-key="${S3_SECRET_KEY}" \
           --etcd-s3-folder=kubernetes/etcd \
           --etcd-snapshot-schedule-cron="0 */6 * * *" \
           --etcd-snapshot-retention=5
     else
       curl -sfL https://get.k3s.io | \
-        K3S_TOKEN=${K3S_TOKEN} sh -s - agent \
-          --server=${SERVER_API} \
-          --node-ip=${NODE_IP} \
+        K3S_TOKEN="${K3S_TOKEN}" sh -s - agent \
+          --server="${SERVER_API}" \
+          --node-ip="${NODE_IP}" \
           --flannel-iface=enp7s0
     fi

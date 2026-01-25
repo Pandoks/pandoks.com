@@ -1,11 +1,20 @@
 # shellcheck shell=sh
 
+yaml_safe_value() {
+  yaml_safe_value_input="$1"
+  yaml_safe_value_escaped=$(printf '%s' "${yaml_safe_value_input}" | sed "s/'/''/g")
+  printf "'%s'" "${yaml_safe_value_escaped}"
+}
+
 apply_template_filter_to_value() {
   apply_template_filter_to_value_filter_name="$1"
   apply_template_filter_to_value_value="$2"
 
+  # shellcheck disable=SC2016
   case "${apply_template_filter_to_value_filter_name}" in
-    base64) printf '%s' "${apply_template_filter_to_value_value}" | base64 ;;
+    base64) printf '%s' "${apply_template_filter_to_value_value}" | base64 -w0 ;;
+    bcrypt) htpasswd -nbBC 10 "" "${apply_template_filter_to_value_value}" | tr -d ':\n' | sed 's/$2y/$2a/' ;;
+    quote) yaml_safe_value "${apply_template_filter_to_value_value}" ;;
     *)
       printf "%bError:%b Unknown template filter: %s\n" "${RED}" "${NORMAL}" "${apply_template_filter_to_value_filter_name}" >&2
       return 1
@@ -37,14 +46,26 @@ template_substitute() {
     case "${template_substitute_pattern_content}" in
       *"|"*)
         template_substitute_var="${template_substitute_pattern_content%%|*}"
-        template_substitute_filter="${template_substitute_pattern_content##*|}"
         template_substitute_var=$(printf '%s' "${template_substitute_var}" | tr -d ' ')
-        template_substitute_filter=$(printf '%s' "${template_substitute_filter}" | tr -d ' ')
 
-        template_substitute_value=$(printf '%s' "${template_substitute_json}" | jq -r --arg k "${template_substitute_var}" '.[$k] // empty')
-        [ -z "${template_substitute_value}" ] && continue
+        template_substitute_result=$(printf '%s' "${template_substitute_json}" | jq -r --arg k "${template_substitute_var}" '.[$k] // empty')
+        [ -z "${template_substitute_result}" ] && continue
 
-        template_substitute_result=$(apply_template_filter_to_value "${template_substitute_filter}" "${template_substitute_value}") || return 1
+        template_substitute_filters="${template_substitute_pattern_content#*|}"
+        while [ -n "${template_substitute_filters}" ]; do
+          case "${template_substitute_filters}" in
+            *"|"*)
+              template_substitute_filter="${template_substitute_filters%%|*}"
+              template_substitute_filters="${template_substitute_filters#*|}"
+              ;;
+            *)
+              template_substitute_filter="${template_substitute_filters}"
+              template_substitute_filters=""
+              ;;
+          esac
+          template_substitute_filter=$(printf '%s' "${template_substitute_filter}" | tr -d ' ')
+          template_substitute_result=$(apply_template_filter_to_value "${template_substitute_filter}" "${template_substitute_result}") || return 1
+        done
         ;;
       *)
         template_substitute_var=$(printf '%s' "${template_substitute_pattern_content}" | tr -d ' ')
