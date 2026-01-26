@@ -43,9 +43,7 @@ jobs:
           filters: |
             sst:
               - 'infra/**'
-              - 'apps/**'
-              - '!apps/desktop-template/**'
-              - '!apps/example/**'
+              - 'apps/!(desktop-template|example)/**'
               - 'packages/svelte/**'
             kubernetes:
               - 'k3s/**'
