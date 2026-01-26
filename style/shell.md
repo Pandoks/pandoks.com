@@ -53,6 +53,7 @@ systems and for simplicity.
   - [Validate Input Early](#validate-input-early)
   - [Use Trap for Cleanup](#use-trap-for-cleanup)
   - [Awk](#awk)
+  - [Function Arguments](#function-arguments)
 - [Example Script](#example-script)
 - [Testing Your Scripts](#testing-your-scripts)
   - [Test with Different Shells](#test-with-different-shells)
@@ -226,7 +227,7 @@ For long strings, use here documents or embedded newlines:
 
 ```sh
 # Use here documents for long strings
-cat <<EOF
+cat << EOF
 This is a very long string that would
 exceed 100 characters on a single line.
 EOF
@@ -235,6 +236,9 @@ EOF
 long_string="This is a very long string
 that spans multiple lines."
 ```
+
+> [!NOTE]
+> Generally, it is ok to go over the 100 character limit if it's one a couple of words longer.
 
 ### Pipelines
 
@@ -679,7 +683,8 @@ fi
 
 ### `main` Function
 
-All _executable_ scripts must have a `main` function that handles the script's logic.
+All _executable_ scripts must have a `main` function that handles the script's logic unless the
+script is used as a library or is used by an application or entrypoint.
 
 ```sh
 #!/bin/sh
@@ -801,6 +806,18 @@ echo "data" > "${tmp_file}"
 ### Awk
 
 Try not to use `awk` as it makes scripts harder to read and maintain.
+
+### Function Arguments
+
+Function arguments should be parsed at the top of the function for easy readability:
+
+```sh
+cleanup() {
+  cleanup_arg_1="$1"
+
+  ...
+}
+```
 
 ## Example Script
 
