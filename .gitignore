@@ -33,13 +33,21 @@ playwright*/
 package-lock.json
 yarn.lock
 
-# Expo
-.expo/
-dist/
-web-build/
-expo-env.d.ts
+# Swift / Xcode
+.build/
+.swiftpm/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.xcodeproj
+*.xcworkspace
 
-# Native
+# Tuist
+Derived/
+Tuist/.build/
+graph.dot
+*.moved-aside
+# Native signing
 .kotlin/
 *.orig.*
 *.jks
@@ -47,9 +55,6 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
-
-# Metro
-.metro-health-check*
 
 # AI
 .claude
