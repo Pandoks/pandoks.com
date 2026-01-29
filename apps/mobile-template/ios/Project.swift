@@ -21,6 +21,8 @@ let project = Project(
             ],
             dependencies: [
                 .external(name: "PandoksSwift"),
+                .external(name: "ComposableArchitecture"),
+                .target(name: "MobileTemplateWidget"),
             ]
         ),
         .target(
