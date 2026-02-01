@@ -54,6 +54,21 @@ expo-env.d.ts
 # AI
 .claude
 
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# typescript
+*.tsbuildinfo
+
+# app-example
+app-example
+
+# generated native folders
+apps/mobile-template/ios
+apps/mobile-template/android
+
 # Processed images (generated during build)
 apps/web/static/blog-images
 
