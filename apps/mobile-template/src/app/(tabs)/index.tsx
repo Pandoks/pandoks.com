@@ -1,13 +1,25 @@
+import { useState } from 'react';
 import { Image } from 'expo-image';
 import { Platform, StyleSheet } from 'react-native';
 import { Link } from 'expo-router';
 import { HelloWave } from '@/components/hello-wave';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { PlatformBadge } from '@/components/platform/platform-badge';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import { PlatformBadge } from '@/components/platform-badge';
+import { ThemedText } from '@pandoks.com/react-native/components/themed-text';
+import { ThemedView } from '@pandoks.com/react-native/components/themed-view';
+import { formatTitle } from '@pandoks.com/typescript/utils/format-title';
+import { AppHeader } from '@/components/app-header';
+import { APP_VERSION } from '@/lib/constants';
+import { useAppState } from '@/lib/hooks/use-app-state';
 
 export default function HomeScreen() {
+  const [appStateLog, setAppStateLog] = useState<string>('App started');
+
+  // Example: useAppState - track when app goes to background/foreground
+  useAppState((state) => {
+    setAppStateLog(`App state: ${state}`);
+  });
+
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
@@ -18,9 +30,15 @@ export default function HomeScreen() {
         />
       }
     >
+      <AppHeader subtitle={formatTitle('welcome to the app')} />
       <ThemedView style={styles.titleContainer}>
         <ThemedText type="title">Welcome!</ThemedText>
         <HelloWave />
+      </ThemedView>
+      <ThemedView style={styles.stepContainer}>
+        <ThemedText>
+          Version {APP_VERSION} | {appStateLog}
+        </ThemedText>
       </ThemedView>
       <ThemedView style={styles.stepContainer}>
         <ThemedText type="subtitle">Step 1: Try it</ThemedText>
