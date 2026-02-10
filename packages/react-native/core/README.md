@@ -1,4 +1,4 @@
-# @pandoks.com/react-native
+# @pandoks.com/react-native-core
 
 Shared React Native components, hooks, and constants for use across mobile apps.
 
@@ -9,7 +9,7 @@ This package is part of the monorepo and is available via workspace:
 ```json
 {
   "dependencies": {
-    "@pandoks.com/react-native": "workspace:*"
+    "@pandoks.com/react-native-core": "workspace:*"
   }
 }
 ```
@@ -20,16 +20,16 @@ Import directly from the file path:
 
 ```ts
 // Components
-import { ThemedText } from '@pandoks.com/react-native/components/themed-text';
-import { ThemedView } from '@pandoks.com/react-native/components/themed-view';
-import { default as ParallaxScrollView } from '@pandoks.com/react-native/components/parallax-scroll-view';
+import { ThemedText } from '@pandoks.com/react-native-core/components/themed-text';
+import { ThemedView } from '@pandoks.com/react-native-core/components/themed-view';
+import { default as ParallaxScrollView } from '@pandoks.com/react-native-core/components/parallax-scroll-view';
 
 // Hooks
-import { useColorScheme } from '@pandoks.com/react-native/lib/hooks/use-color-scheme';
-import { useThemeColor } from '@pandoks.com/react-native/lib/hooks/use-theme-color';
+import { useColorScheme } from '@pandoks.com/react-native-core/lib/hooks/use-color-scheme';
+import { useThemeColor } from '@pandoks.com/react-native-core/lib/hooks/use-theme-color';
 
 // Constants
-import { Colors, Fonts } from '@pandoks.com/react-native/lib/constants/theme';
+import { Colors, Fonts } from '@pandoks.com/react-native-core/lib/constants/theme';
 ```
 
 ## Available Exports
@@ -106,7 +106,7 @@ const config = Platform.select({
 1. Create the component in `src/components/` (use `.tsx` extension)
 2. Use relative imports within the package
 3. For platform differences, use `Platform.select()` instead of separate files
-4. The component is automatically available via `@pandoks.com/react-native/components/your-component`
+4. The component is automatically available via `@pandoks.com/react-native-core/components/your-component`
 
 ## Structure
 
