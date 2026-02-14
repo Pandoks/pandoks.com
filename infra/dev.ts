@@ -35,34 +35,4 @@ new sst.x.DevCommand('K3dDependencyRestart', {
   }
 });
 
-if (!isProduction) {
-  const registrationTailnetAuthKey = new tailscale.TailnetKey(
-    `HetznerDevBoxTailnetRegistrationAuthKey`,
-    {
-      description: `hcloud dev box reg`,
-      reusable: false,
-      expiry: 1800, // 30 minutes
-      preauthorized: true,
-      tags: ['tag:hetzner', `tag:dev`]
-    },
-    { dependsOn: [tailscaleAcl] }
-  );
-
-  const cloudInitConfig = readFileSync(`${process.cwd()}/infra/dev-cloud-config.yaml`, 'utf8');
-
-  const userData = registrationTailnetAuthKey.key.apply((key) => {
-    return cloudInitConfig.replace(/\$\{REGISTRATION_TAILNET_AUTH_KEY\}/g, key);
-  });
-
-  new hcloud.Server('HetznerDevBox', {
-    name: 'dev-box',
-    serverType: 'cpx11',
-    image: 'ubuntu-24.04',
-    location: 'hil',
-    publicNets: [{ ipv4Enabled: true, ipv6Enabled: true }],
-    firewallIds: [inboundFirewall.id.apply((id) => parseInt(id))],
-    userData
-  });
-}
-
 export {};
