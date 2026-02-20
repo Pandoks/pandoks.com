@@ -80,10 +80,10 @@ importers:
         version: 1.52.0
       '@sveltejs/adapter-static':
         specifier: ^3.0.8
-        version: 3.0.8(@sveltejs/kit@2.49.5(patch_hash=0334854e16bbcbf885cfe7e5b64ad53469f91248bd8bd4d27fc6365f6a564f76)(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(svelte@5.36.5)(typescript@5.8.3)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))
+        version: 3.0.8(@sveltejs/kit@2.52.2(patch_hash=0334854e16bbcbf885cfe7e5b64ad53469f91248bd8bd4d27fc6365f6a564f76)(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(svelte@5.36.5)(typescript@5.8.3)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))
       '@sveltejs/kit':
-        specifier: ^2.49.5
-        version: 2.49.5(patch_hash=0334854e16bbcbf885cfe7e5b64ad53469f91248bd8bd4d27fc6365f6a564f76)(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(svelte@5.36.5)(typescript@5.8.3)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2))
+        specifier: ^2.52.2
+        version: 2.52.2(patch_hash=0334854e16bbcbf885cfe7e5b64ad53469f91248bd8bd4d27fc6365f6a564f76)(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(svelte@5.36.5)(typescript@5.8.3)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2))
       '@sveltejs/vite-plugin-svelte':
         specifier: ^5.0.0
         version: 5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2))
@@ -174,13 +174,13 @@ importers:
         version: 1.52.0
       '@sveltejs/adapter-static':
         specifier: ^3.0.8
-        version: 3.0.8(@sveltejs/kit@2.49.5(patch_hash=0334854e16bbcbf885cfe7e5b64ad53469f91248bd8bd4d27fc6365f6a564f76)(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(svelte@5.36.5)(typescript@5.8.3)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))
+        version: 3.0.8(@sveltejs/kit@2.52.2(patch_hash=0334854e16bbcbf885cfe7e5b64ad53469f91248bd8bd4d27fc6365f6a564f76)(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(svelte@5.36.5)(typescript@5.8.3)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))
       '@sveltejs/enhanced-img':
         specifier: ^0.6.0
         version: 0.6.0(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(rollup@4.53.3)(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2))
       '@sveltejs/kit':
-        specifier: ^2.49.5
-        version: 2.49.5(patch_hash=0334854e16bbcbf885cfe7e5b64ad53469f91248bd8bd4d27fc6365f6a564f76)(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(svelte@5.36.5)(typescript@5.8.3)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2))
+        specifier: ^2.52.2
+        version: 2.52.2(patch_hash=0334854e16bbcbf885cfe7e5b64ad53469f91248bd8bd4d27fc6365f6a564f76)(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(svelte@5.36.5)(typescript@5.8.3)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2))
       '@sveltejs/vite-plugin-svelte':
         specifier: ^5.0.0
         version: 5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2))
@@ -249,10 +249,10 @@ importers:
         version: 1.52.0
       '@sveltejs/adapter-auto':
         specifier: ^6.0.0
-        version: 6.0.1(@sveltejs/kit@2.49.5(patch_hash=0334854e16bbcbf885cfe7e5b64ad53469f91248bd8bd4d27fc6365f6a564f76)(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(svelte@5.36.5)(typescript@5.8.3)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))
+        version: 6.0.1(@sveltejs/kit@2.52.2(patch_hash=0334854e16bbcbf885cfe7e5b64ad53469f91248bd8bd4d27fc6365f6a564f76)(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(svelte@5.36.5)(typescript@5.8.3)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))
       '@sveltejs/kit':
-        specifier: ^2.49.5
-        version: 2.49.5(patch_hash=0334854e16bbcbf885cfe7e5b64ad53469f91248bd8bd4d27fc6365f6a564f76)(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(svelte@5.36.5)(typescript@5.8.3)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2))
+        specifier: ^2.52.2
+        version: 2.52.2(patch_hash=0334854e16bbcbf885cfe7e5b64ad53469f91248bd8bd4d27fc6365f6a564f76)(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(svelte@5.36.5)(typescript@5.8.3)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2))
       '@sveltejs/package':
         specifier: ^2.0.0
         version: 2.3.11(svelte@5.36.5)(typescript@5.8.3)
@@ -1505,8 +1505,8 @@ packages:
     peerDependencies:
       acorn: ^8.9.0
 
-  '@sveltejs/acorn-typescript@1.0.8':
-    resolution: {integrity: sha512-esgN+54+q0NjB0Y/4BomT9samII7jGwNy/2a3wNZbT2A2RpmXsXwUt24LvLhx6jUq2gVk4cWEvcRO6MFQbOfNA==}
+  '@sveltejs/acorn-typescript@1.0.9':
+    resolution: {integrity: sha512-lVJX6qEgs/4DOcRTpo56tmKzVPtoWAaVbL4hfO7t7NVwl9AAXzQR6cihesW1BmNMPl+bK6dreu2sOKBP2Q9CIA==}
     peerDependencies:
       acorn: ^8.9.0
 
@@ -1527,8 +1527,8 @@ packages:
       svelte: ^5.0.0
       vite: '>= 5.0.0'
 
-  '@sveltejs/kit@2.49.5':
-    resolution: {integrity: sha512-dCYqelr2RVnWUuxc+Dk/dB/SjV/8JBndp1UovCyCZdIQezd8TRwFLNZctYkzgHxRJtaNvseCSRsuuHPeUgIN/A==}
+  '@sveltejs/kit@2.52.2':
+    resolution: {integrity: sha512-1in76dftrofUt138rVLvYuwiQLkg9K3cG8agXEE6ksf7gCGs8oIr3+pFrVtbRmY9JvW+psW5fvLM/IwVybOLBA==}
     engines: {node: '>=18.13'}
     hasBin: true
     peerDependencies:
@@ -1794,6 +1794,11 @@ packages:
     engines: {node: '>=0.4.0'}
     hasBin: true
 
+  acorn@8.16.0:
+    resolution: {integrity: sha512-UVJyE9MttOsBQIDKw1skb9nAwQuR5wuGD3+82K6JgJlm/Y+KI92oNsMNGZCYdDsVtRHSak0pcV5Dno5+4jh9sw==}
+    engines: {node: '>=0.4.0'}
+    hasBin: true
+
   agent-base@6.0.2:
     resolution: {integrity: sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ==}
     engines: {node: '>= 6.0.0'}
@@ -1883,6 +1888,7 @@ packages:
   aws-sdk@2.1692.0:
     resolution: {integrity: sha512-x511uiJ/57FIsbgUe5csJ13k3uzu25uWQE+XqfBis/sB0SFoiElJWXRkgEAUh0U6n40eT3ay5Ue4oPkRMu1LYw==}
     engines: {node: '>= 10.0.0'}
+    deprecated: The AWS SDK for JavaScript (v2) has reached end-of-support, and no longer receives updates. Please migrate your code to use AWS SDK for JavaScript (v3). More info https://a.co/cUPnyil
 
   aws4fetch@1.0.18:
     resolution: {integrity: sha512-3Cf+YaUl07p24MoQ46rFwulAmiyCwH2+1zw1ZyPAX5OtJ34Hh185DwB8y/qRLb6cYYYtSFJ9pthyLc0MD4e8sQ==}
@@ -2266,8 +2272,8 @@ packages:
   detect-node@2.1.0:
     resolution: {integrity: sha512-T0NIuQpnTvFDATNuHN5roPwSBG83rFsuO+MXXH9/3N1eFbn4wcPjttvjMLEPWJ0RGUYgQE7cGgS3tNxbqCGM7g==}
 
-  devalue@5.6.2:
-    resolution: {integrity: sha512-nPRkjWzzDQlsejL1WVifk5rvcFi/y1onBRxjaFMjZeR9mFpqu2gmAZ9xUB9/IEanEP/vBtGeGganC/GO1fmufg==}
+  devalue@5.6.3:
+    resolution: {integrity: sha512-nc7XjUU/2Lb+SvEFVGcWLiKkzfw8+qHI7zn8WYXKkLMgfGSHbgCEaR6bJpev8Cm6Rmrb19Gfd/tZvGqx9is3wg==}
 
   dir-compare@4.2.0:
     resolution: {integrity: sha512-2xMCmOoMrdQIPHdsTawECdNPwlVFB9zGcz3kuhmBO6U3oU+UQjsue0i8ayLKpgBcm+hcXPMVSGUN9d+pvJ6+VQ==}
@@ -2677,16 +2683,17 @@ packages:
   glob@11.1.0:
     resolution: {integrity: sha512-vuNwKSaKiqm7g0THUBu2x7ckSs3XJLXE+2ssL7/MfTGPLLcrJQ/4Uq1CjPTtO5cCIiRxqvN6Twy1qOwhL0Xjcw==}
     engines: {node: 20 || >=22}
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
     hasBin: true
 
   glob@7.2.3:
     resolution: {integrity: sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q==}
-    deprecated: Glob versions prior to v9 are no longer supported
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
 
   glob@8.1.0:
     resolution: {integrity: sha512-r8hpEjiQEYlF2QU0df3dS+nxxSIreXQS1qRhMJM0Q5NDdR386C7jb7Hwwod8Fgiuex+k0GFjgft18yvxm5XoCQ==}
     engines: {node: '>=12'}
-    deprecated: Glob versions prior to v9 are no longer supported
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
 
   global-agent@3.0.0:
     resolution: {integrity: sha512-PT6XReJ+D07JvGoxQMkT6qji/jVNfX/h364XHZOWeRzy64sSFr+xJ5OX7LI3b4MPQzdL4H8Y8M0xzPpsVMwA8Q==}
@@ -3943,8 +3950,8 @@ packages:
     resolution: {integrity: sha512-61g9pCh0Vnh7IutZjtLGGpTA355+OPn2TyDv/6ivP2h/AdAVX9azsoxmg2/M6nZeQZNYBEwIcsne1mJd9oQItQ==}
     engines: {node: '>= 18'}
 
-  set-cookie-parser@2.7.2:
-    resolution: {integrity: sha512-oeM1lpU/UvhTxw+g3cIfxXHyJRc/uidd3yK1P242gzHds0udQBYzs3y8j4gCCW+ZJ7ad0yctld8RYO+bdurlvw==}
+  set-cookie-parser@3.0.1:
+    resolution: {integrity: sha512-n7Z7dXZhJbwuAHhNzkTti6Aw9QDDjZtm3JTpTGATIdNzdQz5GuFs22w90BcvF4INfnrL5xrX3oGsuqO5Dx3A1Q==}
 
   set-function-length@1.2.2:
     resolution: {integrity: sha512-pgRc4hJ4/sNjWCSS9AmnS40x3bNMDTknHgL5UaMBTMyJnU90EgWh1Rz+MC9eFu4BuN/UwZjKQuY/1v3rM7HMfg==}
@@ -4231,10 +4238,12 @@ packages:
   tar@6.2.1:
     resolution: {integrity: sha512-DZ4yORTwrbTj/7MZYq2w+/ZFdI6OZ/f9SFHR+71gIVUZhOQPHzVCLpvRnPgyaMpfWxxk/4ONva3GQSyNIKRv6A==}
     engines: {node: '>=10'}
+    deprecated: Old versions of tar are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
 
   tar@7.4.3:
     resolution: {integrity: sha512-5S7Va8hKfV7W5U6g3aYxXmlPoZVAwUMy9AOKyF2fVuZa2UD3qZjg578OrLRt8PcNN1PleVaL/5/yYATNL0ICUw==}
     engines: {node: '>=18'}
+    deprecated: Old versions of tar are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
 
   temp@0.9.4:
     resolution: {integrity: sha512-yYrrsWnrXMcdsnu/7YMYAofM1ktpL5By7vZhf15CrXijWWrEYZks5AXBudalfSWJLlnen/QUJUB5aoB0kqZUGA==}
@@ -5712,7 +5721,7 @@ snapshots:
       make-fetch-happen: 10.2.1
       nopt: 6.0.0
       proc-log: 2.0.1
-      semver: 7.7.2
+      semver: 7.7.3
       tar: 6.2.1
       which: 2.0.2
     transitivePeerDependencies:
@@ -6075,7 +6084,7 @@ snapshots:
   '@npmcli/fs@2.1.2':
     dependencies:
       '@gar/promisify': 1.1.3
-      semver: 7.7.2
+      semver: 7.7.3
 
   '@npmcli/move-file@2.0.1':
     dependencies:
@@ -6657,17 +6666,17 @@ snapshots:
     dependencies:
       acorn: 8.15.0
 
-  '@sveltejs/acorn-typescript@1.0.8(acorn@8.15.0)':
+  '@sveltejs/acorn-typescript@1.0.9(acorn@8.16.0)':
     dependencies:
-      acorn: 8.15.0
+      acorn: 8.16.0
 
-  '@sveltejs/adapter-auto@6.0.1(@sveltejs/kit@2.49.5(patch_hash=0334854e16bbcbf885cfe7e5b64ad53469f91248bd8bd4d27fc6365f6a564f76)(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(svelte@5.36.5)(typescript@5.8.3)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))':
+  '@sveltejs/adapter-auto@6.0.1(@sveltejs/kit@2.52.2(patch_hash=0334854e16bbcbf885cfe7e5b64ad53469f91248bd8bd4d27fc6365f6a564f76)(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(svelte@5.36.5)(typescript@5.8.3)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))':
     dependencies:
-      '@sveltejs/kit': 2.49.5(patch_hash=0334854e16bbcbf885cfe7e5b64ad53469f91248bd8bd4d27fc6365f6a564f76)(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(svelte@5.36.5)(typescript@5.8.3)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2))
+      '@sveltejs/kit': 2.52.2(patch_hash=0334854e16bbcbf885cfe7e5b64ad53469f91248bd8bd4d27fc6365f6a564f76)(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(svelte@5.36.5)(typescript@5.8.3)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2))
 
-  '@sveltejs/adapter-static@3.0.8(@sveltejs/kit@2.49.5(patch_hash=0334854e16bbcbf885cfe7e5b64ad53469f91248bd8bd4d27fc6365f6a564f76)(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(svelte@5.36.5)(typescript@5.8.3)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))':
+  '@sveltejs/adapter-static@3.0.8(@sveltejs/kit@2.52.2(patch_hash=0334854e16bbcbf885cfe7e5b64ad53469f91248bd8bd4d27fc6365f6a564f76)(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(svelte@5.36.5)(typescript@5.8.3)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))':
     dependencies:
-      '@sveltejs/kit': 2.49.5(patch_hash=0334854e16bbcbf885cfe7e5b64ad53469f91248bd8bd4d27fc6365f6a564f76)(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(svelte@5.36.5)(typescript@5.8.3)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2))
+      '@sveltejs/kit': 2.52.2(patch_hash=0334854e16bbcbf885cfe7e5b64ad53469f91248bd8bd4d27fc6365f6a564f76)(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(svelte@5.36.5)(typescript@5.8.3)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2))
 
   '@sveltejs/enhanced-img@0.6.0(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(rollup@4.53.3)(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2))':
     dependencies:
@@ -6682,21 +6691,20 @@ snapshots:
     transitivePeerDependencies:
       - rollup
 
-  '@sveltejs/kit@2.49.5(patch_hash=0334854e16bbcbf885cfe7e5b64ad53469f91248bd8bd4d27fc6365f6a564f76)(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(svelte@5.36.5)(typescript@5.8.3)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2))':
+  '@sveltejs/kit@2.52.2(patch_hash=0334854e16bbcbf885cfe7e5b64ad53469f91248bd8bd4d27fc6365f6a564f76)(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)))(svelte@5.36.5)(typescript@5.8.3)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2))':
     dependencies:
       '@standard-schema/spec': 1.1.0
-      '@sveltejs/acorn-typescript': 1.0.8(acorn@8.15.0)
+      '@sveltejs/acorn-typescript': 1.0.9(acorn@8.16.0)
       '@sveltejs/vite-plugin-svelte': 5.0.3(svelte@5.36.5)(vite@6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2))
       '@types/cookie': 0.6.0
-      acorn: 8.15.0
+      acorn: 8.16.0
       cookie: 0.6.0
-      devalue: 5.6.2
+      devalue: 5.6.3
       esm-env: 1.2.2
       kleur: 4.1.5
       magic-string: 0.30.21
       mrmime: 2.0.1
-      sade: 1.8.1
-      set-cookie-parser: 2.7.2
+      set-cookie-parser: 3.0.1
       sirv: 3.0.2
       svelte: 5.36.5
       vite: 6.4.1(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.39.2)
@@ -6968,6 +6976,8 @@ snapshots:
       negotiator: 1.0.0
 
   acorn@8.15.0: {}
+
+  acorn@8.16.0: {}
 
   agent-base@6.0.2:
     dependencies:
@@ -7462,7 +7472,7 @@ snapshots:
   detect-node@2.1.0:
     optional: true
 
-  devalue@5.6.2: {}
+  devalue@5.6.3: {}
 
   dir-compare@4.2.0:
     dependencies:
@@ -8136,7 +8146,7 @@ snapshots:
     dependencies:
       '@tootallnate/once': 2.0.0
       agent-base: 6.0.2
-      debug: 4.4.1
+      debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
 
@@ -9253,7 +9263,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  set-cookie-parser@2.7.2: {}
+  set-cookie-parser@3.0.1: {}
 
   set-function-length@1.2.2:
     dependencies:
@@ -9360,7 +9370,7 @@ snapshots:
   socks-proxy-agent@7.0.0:
     dependencies:
       agent-base: 6.0.2
-      debug: 4.4.1
+      debug: 4.4.3
       socks: 2.8.7
     transitivePeerDependencies:
       - supports-color
@@ -9605,7 +9615,7 @@ snapshots:
   terser@5.39.2:
     dependencies:
       '@jridgewell/source-map': 0.3.11
-      acorn: 8.15.0
+      acorn: 8.16.0
       commander: 2.20.3
       source-map-support: 0.5.21
     optional: true
