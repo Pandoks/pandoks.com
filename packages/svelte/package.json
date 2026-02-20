@@ -40,7 +40,7 @@
     "bits-ui": "^2.8.6",
     "clsx": "^2.1.1",
     "jsdom": "^26.0.0",
-    "svelte": "^5.36.5",
+    "svelte": "^5.51.5",
     "svelte-check": "^4.0.0",
     "tailwind-merge": "^3.0.2",
     "tailwind-variants": "^1.0.0",
