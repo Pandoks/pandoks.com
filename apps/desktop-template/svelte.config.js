@@ -7,10 +7,7 @@ const config = {
     adapter: adapter({
       pages: '.vite/renderer/main_window'
     }),
-    router: {
-      type: 'hash'
-    },
-    alias: {
+alias: {
       '@lib': '../../packages/svelte/src/lib',
       '@lib/*': '../../packages/svelte/src/lib/*'
     }
