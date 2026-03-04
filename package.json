@@ -17,14 +17,14 @@
     "lint": "prettier --check ."
   },
   "devDependencies": {
-    "glob": "^11.1.0",
+    "glob": "^13.0.6",
     "json-stringify-pretty-compact": "^4.0.0",
-    "prettier": "^3.7.4",
-    "prettier-plugin-svelte": "^3.4.1",
+    "prettier": "^3.8.1",
+    "prettier-plugin-svelte": "^3.5.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
-    "typescript": "^5.8.3"
+    "typescript": "^5.9.3"
   },
   "dependencies": {
-    "sst": "^3.17.36"
+    "sst": "^4.1.8"
   }
 }
