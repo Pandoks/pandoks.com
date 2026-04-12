@@ -2,7 +2,7 @@ import { existsSync, readFileSync, writeFileSync, readdirSync, statSync } from '
 import { join, resolve } from 'path';
 import { execSync } from 'child_process';
 import { load as cheerioLoad } from 'cheerio';
-import subsetFont from 'subset-font';
+import { Font, woff2 } from 'fonteditor-core';
 
 const WEB_DIR = process.cwd();
 const BUILD_DIR = join(WEB_DIR, 'build');
@@ -90,15 +90,13 @@ function collectChars(html: string): FontChars {
   return result;
 }
 
-async function subsetToBase64(fontPath: string, chars: Set<string>): Promise<string | null> {
+function subsetToBase64(fontPath: string, chars: Set<string>): string | null {
   if (chars.size === 0) return null;
-  const text = [...chars].join('');
+  const codepoints = [...chars].map((c) => c.codePointAt(0)!);
   const fontBuffer = readFileSync(fontPath);
-  const subset = await subsetFont(fontBuffer, text, {
-    targetFormat: 'woff2',
-    variationAxes: { wght: 400 }
-  });
-  return Buffer.from(subset).toString('base64');
+  const font = Font.create(fontBuffer, { type: 'woff2', subset: codepoints });
+  const output = font.write({ type: 'woff2' });
+  return Buffer.from(output).toString('base64');
 }
 
 function unicodeRangeFromChars(chars: Set<string>): string {
@@ -133,7 +131,7 @@ function buildFontFace(
   return `@font-face{font-family:'${family}';src:url(data:font/woff2;base64,${b64}) format('woff2');font-style:${style};font-display:block;unicode-range:${unicodeRange}}`;
 }
 
-async function injectCriticalFonts(htmlPath: string) {
+function injectCriticalFonts(htmlPath: string) {
   const html = readFileSync(htmlPath, 'utf-8');
   const chars = collectChars(html);
 
@@ -152,7 +150,7 @@ async function injectCriticalFonts(htmlPath: string) {
 
   for (const { chars: charSet, file, family, style } of fonts) {
     if (charSet.size === 0) continue;
-    const b64 = await subsetToBase64(join(FONTS_DIR, file), charSet);
+    const b64 = subsetToBase64(join(FONTS_DIR, file), charSet);
     if (b64) {
       const unicodeRange = unicodeRangeFromChars(charSet);
       fontFaces.push(buildFontFace(family, b64, style, unicodeRange));
@@ -186,9 +184,12 @@ function findHtmlFiles(dir: string): string[] {
 }
 
 if (existsSync(BUILD_DIR)) {
+  await woff2.init();
   const htmlFiles = findHtmlFiles(BUILD_DIR);
   console.log(`criticalFonts: Processing ${htmlFiles.length} HTML files...`);
-  await Promise.all(htmlFiles.map((f) => injectCriticalFonts(f)));
+  for (const f of htmlFiles) {
+    injectCriticalFonts(f);
+  }
   console.log('criticalFonts: Done');
 } else {
   console.log('criticalFonts: No build directory found, skipping');
