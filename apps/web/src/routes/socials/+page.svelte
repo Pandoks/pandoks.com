@@ -68,7 +68,7 @@
 {/snippet}
 
 <svelte:head>
-  {@html `<style>${interSocialsCritical}</style>`}
+  {@html `<style data-critical-font>${interSocialsCritical}</style>`}
   <title>Pandoks Socials</title>
   <meta name="description" content="The socials for Jason Kwok" />
   <meta property="og:title" content="Jason Kwok's Socials (Pandoks_'s Socials)" />

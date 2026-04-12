@@ -73,7 +73,7 @@
 {/snippet}
 
 <svelte:head>
-  {@html `<style>${garamondBlogCritical}${garamondItalicBlogCritical}</style>`}
+  {@html `<style data-critical-font>${garamondBlogCritical}${garamondItalicBlogCritical}</style>`}
   <title>{data.title}</title>
   <meta name="description" content={`${data.title} by Jason Kwok`} />
   <meta property="og:title" content={`${data.title} by Jason Kwok (Pandoks_)`} />

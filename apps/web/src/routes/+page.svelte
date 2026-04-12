@@ -14,7 +14,7 @@
 </div>
 
 <svelte:head>
-  {@html `<style>${garamondHomeCritical}${garamondItalicHomeCritical}</style>`}
+  {@html `<style data-critical-font>${garamondHomeCritical}${garamondItalicHomeCritical}</style>`}
   <title>Pandoks</title>
   <meta name="description" content="Home page talking about who Jason Kwok is" />
   <meta property="og:title" content="Jason Kwok (Pandoks_)" />

@@ -20,7 +20,7 @@
 </div>
 
 <svelte:head>
-  {@html `<style>${garamondWorkCritical}</style>`}
+  {@html `<style data-critical-font>${garamondWorkCritical}</style>`}
   <title>Pandoks Work</title>
   <meta name="description" content="Jason Kwok's work experience" />
   <meta property="og:title" content="Jason Kwok's Work Experience (Pandoks_'s Work)" />

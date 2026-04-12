@@ -2,9 +2,52 @@
   import '../app.css';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
+  import { afterNavigate } from '$app/navigation';
+  import { onMount } from 'svelte';
   import { setVimState } from '$lib/vim.svelte';
 
   let { children } = $props();
+
+  let fullFontsLoaded = false;
+
+  function removeCriticalFonts() {
+    document.querySelectorAll('style[data-critical-font]').forEach((el) => el.remove());
+  }
+
+  onMount(() => {
+    const fontUrls = [
+      '/fonts/Inter.woff2',
+      '/fonts/Inter-Italic.woff2',
+      '/fonts/EBGaramond.woff2',
+      '/fonts/EBGaramond-Italic.woff2'
+    ];
+
+    Promise.all(
+      fontUrls.map(
+        (url) =>
+          new Promise<void>((resolve) => {
+            const link = document.createElement('link');
+            link.rel = 'preload';
+            link.as = 'font';
+            link.type = 'font/woff2';
+            link.crossOrigin = 'anonymous';
+            link.href = url;
+            link.onload = () => resolve();
+            link.onerror = () => resolve();
+            document.head.appendChild(link);
+          })
+      )
+    ).then(() => {
+      fullFontsLoaded = true;
+      removeCriticalFonts();
+    });
+  });
+
+  afterNavigate(() => {
+    if (fullFontsLoaded) {
+      requestAnimationFrame(() => removeCriticalFonts());
+    }
+  });
 
   const navLinks = [
     { href: '/', text: 'Jason Kwok' },
@@ -48,14 +91,6 @@
     }
   });
 </script>
-
-<svelte:head>
-  <!-- Stage 3: prefetch all full fonts at idle priority for future navigation -->
-  <link rel="prefetch" as="font" type="font/woff2" crossorigin="anonymous" href="/fonts/Inter.woff2" />
-  <link rel="prefetch" as="font" type="font/woff2" crossorigin="anonymous" href="/fonts/Inter-Italic.woff2" />
-  <link rel="prefetch" as="font" type="font/woff2" crossorigin="anonymous" href="/fonts/EBGaramond.woff2" />
-  <link rel="prefetch" as="font" type="font/woff2" crossorigin="anonymous" href="/fonts/EBGaramond-Italic.woff2" />
-</svelte:head>
 
 <nav class="font-inter bg-background fixed flex w-full gap-2 rounded-br-xs p-2 text-sm xl:w-auto">
   {#each navLinks as { href, text }, index}
