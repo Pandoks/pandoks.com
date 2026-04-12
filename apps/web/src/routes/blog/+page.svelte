@@ -88,7 +88,6 @@
 {/snippet}
 
 <svelte:head>
-  {@html `<style data-critical-font>${garamondBlogCritical}</style>`}
   <title>Pandoks Blog</title>
   <meta name="description" content="Jason Kwok's blog" />
   <meta property="og:title" content="Jason Kwok's Blog (Pandoks_'s Blog)" />

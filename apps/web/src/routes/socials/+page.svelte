@@ -1,6 +1,5 @@
 <script lang="ts">
   import { getVimState } from '$lib/vim.svelte';
-  import { interSocialsCritical } from '@lib/styles/critical-fonts';
   import instagram from '@pandoks.com/svelte/svg/instagram.svg?raw';
   import tiktok from '@pandoks.com/svelte/svg/tiktok.svg?raw';
   import github from '@pandoks.com/svelte/svg/github.svg?raw';
@@ -68,7 +67,6 @@
 {/snippet}
 
 <svelte:head>
-  {@html `<style data-critical-font>${interSocialsCritical}</style>`}
   <title>Pandoks Socials</title>
   <meta name="description" content="The socials for Jason Kwok" />
   <meta property="og:title" content="Jason Kwok's Socials (Pandoks_'s Socials)" />

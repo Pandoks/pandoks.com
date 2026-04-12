@@ -1,7 +1,3 @@
-<script lang="ts">
-  import { garamondWorkCritical } from '@lib/styles/critical-fonts';
-</script>
-
 <div class="flex flex-col items-center gap-4">
   <ul class="font-garamond list-inside list-disc text-lg">
     <li>
@@ -20,7 +16,6 @@
 </div>
 
 <svelte:head>
-  {@html `<style data-critical-font>${garamondWorkCritical}</style>`}
   <title>Pandoks Work</title>
   <meta name="description" content="Jason Kwok's work experience" />
   <meta property="og:title" content="Jason Kwok's Work Experience (Pandoks_'s Work)" />

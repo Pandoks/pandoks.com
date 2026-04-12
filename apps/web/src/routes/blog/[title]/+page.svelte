@@ -1,7 +1,6 @@
 <script lang="ts">
   import { dev } from '$app/environment';
   import { hljs } from '$lib/highlight';
-  import { garamondBlogCritical, garamondItalicBlogCritical } from '@lib/styles/critical-fonts';
 
   const { data } = $props();
 </script>
@@ -73,7 +72,6 @@
 {/snippet}
 
 <svelte:head>
-  {@html `<style data-critical-font>${garamondBlogCritical}${garamondItalicBlogCritical}</style>`}
   <title>{data.title}</title>
   <meta name="description" content={`${data.title} by Jason Kwok`} />
   <meta property="og:title" content={`${data.title} by Jason Kwok (Pandoks_)`} />

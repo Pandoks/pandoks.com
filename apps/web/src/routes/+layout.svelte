@@ -1,53 +1,11 @@
 <script lang="ts">
   import '../app.css';
   import { page } from '$app/state';
-  import { goto } from '$app/navigation';
-  import { afterNavigate } from '$app/navigation';
+  import { goto, preloadData } from '$app/navigation';
   import { onMount } from 'svelte';
   import { setVimState } from '$lib/vim.svelte';
 
   let { children } = $props();
-
-  let fullFontsLoaded = false;
-
-  function removeCriticalFonts() {
-    document.querySelectorAll('style[data-critical-font]').forEach((el) => el.remove());
-  }
-
-  onMount(() => {
-    const fontUrls = [
-      '/fonts/Inter.woff2',
-      '/fonts/Inter-Italic.woff2',
-      '/fonts/EBGaramond.woff2',
-      '/fonts/EBGaramond-Italic.woff2'
-    ];
-
-    Promise.all(
-      fontUrls.map(
-        (url) =>
-          new Promise<void>((resolve) => {
-            const link = document.createElement('link');
-            link.rel = 'preload';
-            link.as = 'font';
-            link.type = 'font/woff2';
-            link.crossOrigin = 'anonymous';
-            link.href = url;
-            link.onload = () => resolve();
-            link.onerror = () => resolve();
-            document.head.appendChild(link);
-          })
-      )
-    ).then(() => {
-      fullFontsLoaded = true;
-      removeCriticalFonts();
-    });
-  });
-
-  afterNavigate(() => {
-    if (fullFontsLoaded) {
-      requestAnimationFrame(() => removeCriticalFonts());
-    }
-  });
 
   const navLinks = [
     { href: '/', text: 'Jason Kwok' },
@@ -55,6 +13,33 @@
     { href: '/work', text: 'Work' },
     { href: '/blog', text: 'Blog' }
   ];
+
+  onMount(() => {
+    // Preload full variable fonts so they're cached for after critical fonts
+    const fontUrls = [
+      '/fonts/Inter.woff2',
+      '/fonts/Inter-Italic.woff2',
+      '/fonts/EBGaramond.woff2',
+      '/fonts/EBGaramond-Italic.woff2'
+    ];
+    for (const url of fontUrls) {
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'font';
+      link.type = 'font/woff2';
+      link.crossOrigin = 'anonymous';
+      link.href = url;
+      document.head.appendChild(link);
+    }
+
+    // Preload all pages when browser is idle so navigation is instant
+    const idle = 'requestIdleCallback' in window ? requestIdleCallback : (cb: () => void) => setTimeout(cb, 200);
+    idle(() => {
+      for (const { href } of navLinks) {
+        preloadData(href);
+      }
+    });
+  });
 
   let activeNavIndex: number | undefined = $state();
   const vimState = setVimState()
