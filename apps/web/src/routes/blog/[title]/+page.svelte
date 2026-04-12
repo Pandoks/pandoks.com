@@ -72,6 +72,8 @@
 {/snippet}
 
 <svelte:head>
+  <link rel="preload" as="font" type="font/woff2" crossorigin="anonymous" href="/fonts/EBGaramond.woff2" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin="anonymous" href="/fonts/EBGaramond-Italic.woff2" />
   <title>{data.title}</title>
   <meta name="description" content={`${data.title} by Jason Kwok`} />
   <meta property="og:title" content={`${data.title} by Jason Kwok (Pandoks_)`} />

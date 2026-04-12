@@ -16,6 +16,7 @@
 </div>
 
 <svelte:head>
+  <link rel="preload" as="font" type="font/woff2" crossorigin="anonymous" href="/fonts/EBGaramond.woff2" />
   <title>Pandoks Work</title>
   <meta name="description" content="Jason Kwok's work experience" />
   <meta property="og:title" content="Jason Kwok's Work Experience (Pandoks_'s Work)" />

@@ -49,6 +49,12 @@
   });
 </script>
 
+<svelte:head>
+  <link rel="prefetch" as="font" type="font/woff2" crossorigin="anonymous" href="/fonts/EBGaramond.woff2" />
+  <link rel="prefetch" as="font" type="font/woff2" crossorigin="anonymous" href="/fonts/EBGaramond-Italic.woff2" />
+  <link rel="prefetch" as="font" type="font/woff2" crossorigin="anonymous" href="/fonts/Inter-Italic.woff2" />
+</svelte:head>
+
 <nav class="font-inter bg-background fixed flex w-full gap-2 rounded-br-xs p-2 text-sm xl:w-auto">
   {#each navLinks as { href, text }, index}
     {@render navLink(href, text, index)}

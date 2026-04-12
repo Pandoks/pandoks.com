@@ -7,6 +7,8 @@
 </div>
 
 <svelte:head>
+  <link rel="preload" as="font" type="font/woff2" crossorigin="anonymous" href="/fonts/EBGaramond.woff2" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin="anonymous" href="/fonts/EBGaramond-Italic.woff2" />
   <title>Pandoks</title>
   <meta name="description" content="Home page talking about who Jason Kwok is" />
   <meta property="og:title" content="Jason Kwok (Pandoks_)" />
