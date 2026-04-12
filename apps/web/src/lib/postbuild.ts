@@ -1,13 +1,13 @@
 import { existsSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
 import { join, resolve } from 'path';
-import { execSync, execFileSync } from 'child_process';
+import { execSync } from 'child_process';
 import { load as cheerioLoad } from 'cheerio';
+import subsetFont from 'subset-font';
 
 const WEB_DIR = process.cwd();
 const BUILD_DIR = join(WEB_DIR, 'build');
 const TEMP_DIR = join(WEB_DIR, '.temp');
 const FONTS_DIR = resolve(WEB_DIR, '../../packages/svelte/static/fonts');
-const SUBSET_SCRIPT = resolve(WEB_DIR, 'scripts/subset-font.py');
 
 // --- Blog route restoration (existing logic) ---
 
@@ -90,14 +90,15 @@ function collectChars(html: string): FontChars {
   return result;
 }
 
-function subsetToBase64(fontPath: string, chars: Set<string>, weight: number = 400): string | null {
+async function subsetToBase64(fontPath: string, chars: Set<string>): Promise<string | null> {
   if (chars.size === 0) return null;
   const text = [...chars].join('');
-  const b64 = execFileSync('python3', [SUBSET_SCRIPT, fontPath, text, String(weight)], {
-    encoding: 'utf-8',
-    maxBuffer: 1024 * 1024
-  }).trim();
-  return b64 || null;
+  const fontBuffer = readFileSync(fontPath);
+  const subset = await subsetFont(fontBuffer, text, {
+    targetFormat: 'woff2',
+    variationAxes: { wght: 400 }
+  });
+  return Buffer.from(subset).toString('base64');
 }
 
 function unicodeRangeFromChars(chars: Set<string>): string {
@@ -132,7 +133,7 @@ function buildFontFace(
   return `@font-face{font-family:'${family}';src:url(data:font/woff2;base64,${b64}) format('woff2');font-style:${style};font-display:block;unicode-range:${unicodeRange}}`;
 }
 
-function injectCriticalFonts(htmlPath: string) {
+async function injectCriticalFonts(htmlPath: string) {
   const html = readFileSync(htmlPath, 'utf-8');
   const chars = collectChars(html);
 
@@ -151,7 +152,7 @@ function injectCriticalFonts(htmlPath: string) {
 
   for (const { chars: charSet, file, family, style } of fonts) {
     if (charSet.size === 0) continue;
-    const b64 = subsetToBase64(join(FONTS_DIR, file), charSet);
+    const b64 = await subsetToBase64(join(FONTS_DIR, file), charSet);
     if (b64) {
       const unicodeRange = unicodeRangeFromChars(charSet);
       fontFaces.push(buildFontFace(family, b64, style, unicodeRange));
@@ -187,9 +188,7 @@ function findHtmlFiles(dir: string): string[] {
 if (existsSync(BUILD_DIR)) {
   const htmlFiles = findHtmlFiles(BUILD_DIR);
   console.log(`criticalFonts: Processing ${htmlFiles.length} HTML files...`);
-  for (const f of htmlFiles) {
-    injectCriticalFonts(f);
-  }
+  await Promise.all(htmlFiles.map((f) => injectCriticalFonts(f)));
   console.log('criticalFonts: Done');
 } else {
   console.log('criticalFonts: No build directory found, skipping');
