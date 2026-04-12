@@ -1,7 +1,7 @@
 import twilio from 'twilio';
 import { MessageInstance } from 'twilio/lib/rest/api/v2010/account/message';
 import { Resource } from 'sst';
-import { PHONE_NUMBERS, Users } from './lib/pii';
+import { PHONE_NUMBER_MAPPINGS, Users } from './lib/pii';
 
 const twilioClient = twilio(Resource.TwilioAccountSid.value, Resource.TwilioAuthToken.value);
 
@@ -12,7 +12,7 @@ export const sendTextHandler = async (event: { users: Users[]; message: string }
 
   let phoneNumbers: string[] = [];
   for (const user of event.users) {
-    phoneNumbers.push(PHONE_NUMBERS[user]);
+    phoneNumbers.push(PHONE_NUMBER_MAPPINGS[user]);
   }
 
   try {
