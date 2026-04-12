@@ -1,44 +1,52 @@
 <script lang="ts">
   import '../app.css';
   import { page } from '$app/state';
-  import { goto, preloadData } from '$app/navigation';
+  import { goto, preloadData, afterNavigate } from '$app/navigation';
   import { onMount } from 'svelte';
   import { setVimState } from '$lib/vim.svelte';
 
   let { children } = $props();
 
-  const navLinks = [
-    { href: '/', text: 'Jason Kwok' },
-    { href: '/socials', text: 'Socials' },
-    { href: '/work', text: 'Work' },
-    { href: '/blog', text: 'Blog' }
-  ];
+  const preloadedRoutes = new Set<string>();
+
+  function discoverAndPreload() {
+    const idle =
+      'requestIdleCallback' in window ? requestIdleCallback : (cb: () => void) => setTimeout(cb, 200);
+    idle(() => {
+      const links = document.querySelectorAll<HTMLAnchorElement>('a[href]');
+      for (const link of links) {
+        try {
+          const url = new URL(link.href, window.location.origin);
+          if (url.origin !== window.location.origin) continue;
+          if (preloadedRoutes.has(url.pathname)) continue;
+          preloadedRoutes.add(url.pathname);
+          preloadData(url.pathname);
+        } catch {
+          // skip invalid URLs
+        }
+      }
+    });
+  }
 
   onMount(() => {
     // Preload full variable fonts so they're cached for after critical fonts
-    const fontUrls = [
-      '/fonts/Inter.woff2',
-      '/fonts/Inter-Italic.woff2',
-      '/fonts/EBGaramond.woff2',
-      '/fonts/EBGaramond-Italic.woff2'
-    ];
-    for (const url of fontUrls) {
+    for (const file of ['Inter', 'Inter-Italic', 'EBGaramond', 'EBGaramond-Italic']) {
       const link = document.createElement('link');
       link.rel = 'preload';
       link.as = 'font';
       link.type = 'font/woff2';
       link.crossOrigin = 'anonymous';
-      link.href = url;
+      link.href = `/fonts/${file}.woff2`;
       document.head.appendChild(link);
     }
 
-    // Preload all pages when browser is idle so navigation is instant
-    const idle = 'requestIdleCallback' in window ? requestIdleCallback : (cb: () => void) => setTimeout(cb, 200);
-    idle(() => {
-      for (const { href } of navLinks) {
-        preloadData(href);
-      }
-    });
+    // BFS level 1: preload all internal links on the current page
+    discoverAndPreload();
+  });
+
+  // BFS level 2+: after each navigation, preload any new links on the new page
+  afterNavigate(() => {
+    discoverAndPreload();
   });
 
   let activeNavIndex: number | undefined = $state();
