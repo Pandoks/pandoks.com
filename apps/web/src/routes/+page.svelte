@@ -1,3 +1,10 @@
+<script lang="ts">
+  import {
+    garamondHomeCritical,
+    garamondItalicHomeCritical
+  } from '@lib/styles/critical-fonts';
+</script>
+
 <div class="font-garamond text-center text-lg">
   <p>
     Obssessed with the
@@ -7,8 +14,7 @@
 </div>
 
 <svelte:head>
-  <link rel="preload" as="font" type="font/woff2" crossorigin="anonymous" href="/fonts/EBGaramond.woff2" />
-  <link rel="preload" as="font" type="font/woff2" crossorigin="anonymous" href="/fonts/EBGaramond-Italic.woff2" />
+  {@html `<style>${garamondHomeCritical}${garamondItalicHomeCritical}</style>`}
   <title>Pandoks</title>
   <meta name="description" content="Home page talking about who Jason Kwok is" />
   <meta property="og:title" content="Jason Kwok (Pandoks_)" />

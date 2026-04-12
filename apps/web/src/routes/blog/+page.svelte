@@ -88,7 +88,7 @@
 {/snippet}
 
 <svelte:head>
-  <link rel="preload" as="font" type="font/woff2" crossorigin="anonymous" href="/fonts/EBGaramond.woff2" />
+  {@html `<style>${garamondBlogCritical}</style>`}
   <title>Pandoks Blog</title>
   <meta name="description" content="Jason Kwok's blog" />
   <meta property="og:title" content="Jason Kwok's Blog (Pandoks_'s Blog)" />

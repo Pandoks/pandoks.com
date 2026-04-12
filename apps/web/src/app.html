@@ -19,14 +19,17 @@
     />
     <link rel="manifest" href="%sveltekit.assets%/favicon/site.webmanifest" />
 
-    <!-- Fonts: Inter is used on every page (nav). Other fonts are preloaded per-page via svelte:head -->
-    <link
-      rel="preload"
-      as="font"
-      type="font/woff2"
-      crossorigin="anonymous"
-      href="/fonts/Inter.woff2"
-    />
+    <!-- Critical inline font: Inter nav characters for instant rendering. Full fonts load async via CSS. -->
+    <style>
+      @font-face {
+        font-family: 'Inter';
+        src: url(data:font/woff2;base64,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) format('woff2');
+        font-weight: 400;
+        font-style: normal;
+        font-display: block;
+        unicode-range: U+20, U+42, U+4A-4B, U+53, U+57, U+61, U+63, U+67, U+69, U+6B-6C, U+6E-6F, U+72-73, U+77;
+      }
+    </style>
 
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     %sveltekit.head%
