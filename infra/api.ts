@@ -68,23 +68,20 @@ new aws.iam.RolePolicy('ScheduleInvokeTextPolicy', {
     ]
   }).json
 });
-export const scheduleTextReminderApi = new sst.aws.Function('ScheduleTextReminderApi', {
-  handler: 'apps/functions/src/api/notion/schedule-text.scheduleTextHandler',
+
+export const notionWebhookFunction = new sst.aws.Function('NotionWebhookHandler', {
+  handler: 'apps/functions/src/api/notion.webhookHandler',
   runtime: nodeVersion,
+  timeout: '30 seconds',
   url: {
     router: {
       instance: apiRouter,
-      path: '/todo/remind'
+      path: '/notion/webhook'
     }
   },
   permissions: [
     {
-      actions: [
-        'scheduler:CreateSchedule',
-        'scheduler:UpdateSchedule',
-        'scheduler:DeleteSchedule',
-        'scheduler:GetSchedule'
-      ],
+      actions: ['scheduler:CreateSchedule', 'scheduler:UpdateSchedule', 'scheduler:DeleteSchedule'],
       resources: ['*']
     },
     {
@@ -97,5 +94,5 @@ export const scheduleTextReminderApi = new sst.aws.Function('ScheduleTextReminde
     SCHEDULER_GROUP_NAME: scheduleTextGroup.name,
     TEXT_FUNCTION_ARN: textFunction.arn
   },
-  link: [secrets.notion.AuthToken]
+  link: [secrets.notion.ApiKey, secrets.notion.AuthToken]
 });
