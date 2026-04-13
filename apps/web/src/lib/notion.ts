@@ -1,6 +1,11 @@
 import { dev } from '$app/environment';
 import { NOTION_API_KEY, BLOG_NOTION_DATABASE_ID } from '$env/static/private';
-import { Client } from '@notionhq/client';
+import {
+  Client,
+  isFullPage,
+  type BlockObjectResponse,
+  type RichTextItemResponse
+} from '@notionhq/client';
 import { getImageExtensionFromSignedUrlImage } from './utils';
 import { SUPPORTED_LANGUAGES } from './highlight';
 
@@ -21,52 +26,64 @@ export const blogDataSourceIdPromise = notion.databases
     return dataSourceId;
   });
 
-export const minimizeNotionBlockData = async (block: any) => {
-  const blockType = block.type;
-  const blockData = block[blockType];
+function minimizeRichText(text: RichTextItemResponse) {
+  return {
+    plain_text: text.plain_text,
+    annotations: text.annotations,
+    href: text.href
+  };
+}
+
+export const minimizeNotionBlockData = async (block: BlockObjectResponse) => {
   switch (block.type) {
     case 'heading_1':
     case 'heading_2':
     case 'heading_3':
-    case 'paragraph':
-      if (!blockData.rich_text.length) {
-        return { type: 'break' };
-      }
+    case 'paragraph': {
+      const richText =
+        block.type === 'paragraph'
+          ? block.paragraph.rich_text
+          : block.type === 'heading_1'
+            ? block.heading_1.rich_text
+            : block.type === 'heading_2'
+              ? block.heading_2.rich_text
+              : block.heading_3.rich_text;
+      if (!richText.length) return { type: 'break' };
       return {
-        type: blockType,
-        texts: blockData.rich_text.map((text) => ({
-          plain_text: text.plain_text,
-          annotations: text.annotations,
-          href: text.href
-        }))
+        type: block.type,
+        texts: richText.map(minimizeRichText)
       };
-    case 'image':
-      const imageUrl = blockData.file.url;
-      if (dev) {
-        return { type: blockType, url: imageUrl };
-      }
+    }
+    case 'image': {
+      const imageData = block.image;
+      const imageUrl = imageData.type === 'file' ? imageData.file.url : imageData.external.url;
+      if (dev) return { type: block.type, url: imageUrl };
+
       const extension = await getImageExtensionFromSignedUrlImage(imageUrl);
       return {
-        type: blockType,
+        type: block.type,
         url: `${block.id}${extension}`
       };
-    case 'code':
-      if (!SUPPORTED_LANGUAGES.includes(blockData.language)) {
-        throw new Error(`Unsupported language: ${blockData.language}`);
+    }
+    case 'code': {
+      const codeBlock = block.code;
+      if (!SUPPORTED_LANGUAGES.includes(codeBlock.language)) {
+        throw new Error(`Unsupported language: ${codeBlock.language}`);
       }
       return {
-        type: blockType,
-        code: blockData.rich_text[0].plain_text,
-        language: blockData.language
+        type: block.type,
+        code: codeBlock.rich_text[0]?.plain_text ?? '',
+        language: codeBlock.language
       };
+    }
     default:
       throw new Error(`Unsupported block type: ${block.type}`);
   }
 };
 
 export const getAllBlogTitles = async () => {
-  let titles = [];
-  let cursor;
+  const titles: string[] = [];
+  let cursor: string | null = null;
   const dataSourceId = await blogDataSourceIdPromise;
 
   do {
@@ -79,11 +96,17 @@ export const getAllBlogTitles = async () => {
         }
       },
       sorts: [{ timestamp: 'created_time', direction: 'descending' }],
-      start_cursor: cursor
+      start_cursor: cursor ?? undefined
     });
 
     for (const page of pageResponse.results) {
-      titles.push(page.properties.Title.title[0].plain_text as string);
+      if (!isFullPage(page)) continue;
+
+      const titleProperty = page.properties.Title;
+      if (titleProperty?.type !== 'title') continue;
+
+      const title = titleProperty.title[0]?.plain_text;
+      if (title) titles.push(title);
     }
 
     // will be null if there are no more pages
