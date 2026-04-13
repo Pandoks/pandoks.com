@@ -82,7 +82,11 @@ if ($app.stage === 'production') {
     },
     permissions: [
       {
-        actions: ['scheduler:CreateSchedule', 'scheduler:UpdateSchedule', 'scheduler:DeleteSchedule'],
+        actions: [
+          'scheduler:CreateSchedule',
+          'scheduler:UpdateSchedule',
+          'scheduler:DeleteSchedule'
+        ],
         resources: ['*']
       },
       {
