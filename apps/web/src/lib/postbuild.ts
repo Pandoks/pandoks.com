@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync, readdirSync, statSync } from '
 import { join, resolve } from 'path';
 import { execSync } from 'child_process';
 import { Font, woff2 } from 'fonteditor-core';
+import { parse, NodeType } from 'node-html-parser';
 
 const WEB_DIR = process.cwd();
 const BUILD_DIR = join(WEB_DIR, 'build');
@@ -41,7 +42,13 @@ interface FontChars {
   garamondItalic: Set<string>;
 }
 
-/** Walk HTML and collect characters grouped by font-family and style. */
+function addChars(set: Set<string>, text: string) {
+  for (const ch of text) {
+    if (ch === ' ' || ch.trim()) set.add(ch);
+  }
+}
+
+/** Walk the DOM and collect characters grouped by font-family and style. */
 function collectChars(html: string): FontChars {
   const chars: FontChars = {
     inter: new Set(),
@@ -50,50 +57,47 @@ function collectChars(html: string): FontChars {
     garamondItalic: new Set()
   };
 
-  const body = html.match(/<body[^>]*>([\s\S]*)<\/body>/)?.[1] ?? '';
-  const clean = body.replace(/<script[\s\S]*?<\/script>/g, '');
+  const root = parse(html);
+  const body = root.querySelector('body');
+  if (!body) return chars;
 
-  let pos = 0;
-  function walk(font: 'inter' | 'garamond' | 'mono', italic: boolean) {
-    while (pos < clean.length) {
-      if (clean[pos] === '<') {
-        const end = clean.indexOf('>', pos);
-        if (end === -1) break;
-        const tag = clean.substring(pos, end + 1);
-        pos = end + 1;
-
-        if (tag[1] === '/') return;
-        if (tag.endsWith('/>') || tag.startsWith('<!--')) continue;
+  function walk(
+    node: ReturnType<typeof parse>,
+    font: 'inter' | 'garamond' | 'mono',
+    italic: boolean
+  ) {
+    for (const child of node.childNodes) {
+      if (child.nodeType === NodeType.TEXT_NODE) {
+        if (font === 'mono') continue;
+        const key: keyof FontChars =
+          font === 'garamond'
+            ? italic
+              ? 'garamondItalic'
+              : 'garamond'
+            : italic
+              ? 'interItalic'
+              : 'inter';
+        addChars(chars[key], child.text);
+      } else if (child.nodeType === NodeType.ELEMENT_NODE) {
+        const el = child as unknown as ReturnType<typeof parse>;
+        const tag = (el as any).rawTagName;
+        if (tag === 'script' || tag === 'style') continue;
 
         let childFont: typeof font = font;
         let childItalic = italic;
-        const cls = tag.match(/class="([^"]*)"/)?.[1] || '';
-        if (cls.includes('font-inter')) childFont = 'inter';
-        if (cls.includes('font-garamond')) childFont = 'garamond';
-        if (cls.includes('font-mono')) childFont = 'mono';
-        if (/\bitalic\b/.test(cls)) childItalic = true;
-        if (/\bnot-italic\b/.test(cls)) childItalic = false;
+        const classList = (el as any).classList;
+        if (classList.contains('font-inter')) childFont = 'inter';
+        if (classList.contains('font-garamond')) childFont = 'garamond';
+        if (classList.contains('font-mono')) childFont = 'mono';
+        if (classList.contains('italic')) childItalic = true;
+        if (classList.contains('not-italic')) childItalic = false;
 
-        walk(childFont, childItalic);
-      } else {
-        const ch = clean[pos];
-        if (font !== 'mono' && (ch === ' ' || ch.trim())) {
-          const key: keyof FontChars =
-            font === 'garamond'
-              ? italic
-                ? 'garamondItalic'
-                : 'garamond'
-              : italic
-                ? 'interItalic'
-                : 'inter';
-          chars[key].add(ch);
-        }
-        pos++;
+        walk(el, childFont, childItalic);
       }
     }
   }
 
-  walk('inter', false);
+  walk(body, 'inter', false);
   return chars;
 }
 
