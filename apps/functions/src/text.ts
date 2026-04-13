@@ -30,13 +30,13 @@ export const sendTextHandler = async (event: { users: Users[]; message: string }
     const settled = await Promise.allSettled(texts);
     for (const settledText of settled) {
       if (settledText.status === 'rejected') {
-        console.error('ERROR:', settledText.reason);
+        console.error('Failed to send SMS', { error: settledText.reason });
       }
     }
 
     return true;
   } catch (e) {
-    console.error('ERROR:', e);
+    console.error('Unexpected SMS handler failure', { error: e });
     return false;
   }
 };
