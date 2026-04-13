@@ -4,7 +4,7 @@ export const secrets = {
   Stage: new sst.Secret('StageName', 'dev'), // Automatically set during deploy
   notion: {
     ApiKey: new sst.Secret('NotionApiKey'),
-    AuthToken: new sst.Secret('NotionAuthToken')
+    WebhookVerificationToken: new sst.Secret('NotionWebhookVerificationToken')
   },
   aws: {
     Region: new sst.Secret('AwsRegion', 'us-west-1')
