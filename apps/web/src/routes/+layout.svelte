@@ -40,6 +40,13 @@
     discoverAndPreload();
   });
 
+  const navLinks = [
+    { href: '/', text: 'Jason Kwok' },
+    { href: '/socials', text: 'Socials' },
+    { href: '/work', text: 'Work' },
+    { href: '/blog', text: 'Blog' }
+  ];
+
   let activeNavIndex: number | undefined = $state();
   const vimState = setVimState()
     .setInitNavState(() => {
