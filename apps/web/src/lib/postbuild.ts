@@ -64,33 +64,27 @@ function collectChars(html: string): FontChars {
   const body = root.querySelector('body');
   if (!body) return chars;
 
-  // Garamond italic
+  // Garamond — all text inside .font-garamond elements
+  for (const el of body.querySelectorAll('.font-garamond')) {
+    for (const ch of charsFrom(el.textContent)) chars.garamond.add(ch);
+  }
+
+  // Garamond italic — italic text within garamond sections
   for (const el of body.querySelectorAll('.font-garamond .italic')) {
     for (const ch of charsFrom(el.textContent)) chars.garamondItalic.add(ch);
   }
 
-  // Garamond (clone and remove italic children to avoid double-counting)
-  for (const el of body.querySelectorAll('.font-garamond')) {
-    const clone = parse(el.outerHTML);
-    for (const italic of clone.querySelectorAll('.italic')) italic.remove();
-    for (const ch of charsFrom(clone.textContent)) chars.garamond.add(ch);
-  }
-
-  // Inter italic
-  for (const el of body.querySelectorAll('.font-inter .italic')) {
-    for (const ch of charsFrom(el.textContent)) chars.interItalic.add(ch);
-  }
-
-  // Inter (everything not garamond, not script/style)
+  // Inter — everything except garamond, mono, script, style
   const interClone = parse(body.outerHTML);
   for (const el of interClone.querySelectorAll('.font-garamond, .font-mono, script, style')) {
     el.remove();
   }
-  for (const italic of interClone.querySelectorAll('.italic')) {
-    for (const ch of charsFrom(italic.textContent)) chars.interItalic.add(ch);
-    italic.remove();
-  }
   chars.inter = charsFrom(interClone.textContent);
+
+  // Inter italic — italic text within inter sections
+  for (const el of body.querySelectorAll('.font-inter .italic')) {
+    for (const ch of charsFrom(el.textContent)) chars.interItalic.add(ch);
+  }
 
   return chars;
 }
