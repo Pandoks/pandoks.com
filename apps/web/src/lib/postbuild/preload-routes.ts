@@ -8,7 +8,7 @@ export function injectRouteList(htmlFiles: string[]) {
   const allRoutes = htmlFiles.map((f) => {
     const rel = f
       .replace(BUILD_DIR, '')
-      .replace(/\/index\.html$/, '/')
+      .replace(/\/index\.html$/, '')
       .replace(/\.html$/, '');
     return rel || '/';
   });
