@@ -116,7 +116,7 @@ function unicodeRangeFromChars(chars: Set<string>): string {
         ? `U+${start.toString(16).toUpperCase()}`
         : `U+${start.toString(16).toUpperCase()}-${end.toString(16).toUpperCase()}`
     )
-    .join(', ');
+    .join(',');
 }
 
 function injectCriticalFonts(htmlPath: string) {
