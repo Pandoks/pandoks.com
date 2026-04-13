@@ -1,43 +1,24 @@
 <script lang="ts">
   import '../app.css';
   import { page } from '$app/state';
-  import { goto, preloadData, afterNavigate } from '$app/navigation';
+  import { goto, preloadData } from '$app/navigation';
   import { onMount } from 'svelte';
   import { setVimState } from '$lib/vim.svelte';
 
   let { children } = $props();
 
-  const preloadedRoutes = new Set<string>();
-
-  function discoverAndPreload() {
+  onMount(() => {
+    // Preload every page on the site (route list injected by postbuild)
+    const allRoutes: string[] = (window as any).__ALL_ROUTES ?? [];
     const idle =
       'requestIdleCallback' in window
         ? requestIdleCallback
         : (cb: () => void) => setTimeout(cb, 200);
     idle(() => {
-      const links = document.querySelectorAll<HTMLAnchorElement>('a[href]');
-      for (const link of links) {
-        try {
-          const url = new URL(link.href, window.location.origin);
-          if (url.origin !== window.location.origin) continue;
-          if (preloadedRoutes.has(url.pathname)) continue;
-          preloadedRoutes.add(url.pathname);
-          preloadData(url.pathname);
-        } catch {
-          // skip invalid URLs
-        }
+      for (const route of allRoutes) {
+        preloadData(route);
       }
     });
-  }
-
-  onMount(() => {
-    // BFS level 1: preload all internal links on the current page
-    discoverAndPreload();
-  });
-
-  // BFS level 2+: after each navigation, preload any new links on the new page
-  afterNavigate(() => {
-    discoverAndPreload();
   });
 
   const navLinks = [

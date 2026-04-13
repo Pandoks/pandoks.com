@@ -179,11 +179,26 @@ function findHtmlFiles(dir: string): string[] {
 if (existsSync(BUILD_DIR)) {
   await woff2.init();
   const htmlFiles = findHtmlFiles(BUILD_DIR);
+
+  // Generate list of all routes from HTML files
+  const allRoutes = htmlFiles.map((f) => {
+    const rel = f
+      .replace(BUILD_DIR, '')
+      .replace(/\/index\.html$/, '/')
+      .replace(/\.html$/, '');
+    return rel || '/';
+  });
+  const routeScript = `<script>window.__ALL_ROUTES=${JSON.stringify(allRoutes)}</script>`;
+
   console.log(`criticalFonts: Processing ${htmlFiles.length} HTML files...`);
   for (const f of htmlFiles) {
     injectCriticalFonts(f);
+
+    // Inject route list for preloading
+    const html = readFileSync(f, 'utf-8');
+    writeFileSync(f, html.replace('</head>', `${routeScript}</head>`));
   }
-  console.log('criticalFonts: Done');
+  console.log(`criticalFonts: Done. Injected ${allRoutes.length} routes for preloading.`);
 } else {
   console.log('criticalFonts: No build directory found, skipping');
 }
