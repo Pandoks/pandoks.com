@@ -1,6 +1,6 @@
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
-import { Font, woff2 } from 'fonteditor-core';
+import { Font } from 'fonteditor-core';
 import { parse } from 'node-html-parser';
 
 const WEB_DIR = process.cwd();
