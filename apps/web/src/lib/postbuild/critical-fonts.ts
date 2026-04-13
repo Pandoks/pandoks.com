@@ -121,7 +121,3 @@ export async function injectCriticalFonts(htmlPath: string) {
   const relativePath = htmlPath.replace(BUILD_DIR, '');
   console.log(`criticalFonts: ${relativePath} — ${fontFaces.length} font(s), ${totalKB} KB inline`);
 }
-
-export async function initFontSubsetting() {
-  await woff2.init();
-}

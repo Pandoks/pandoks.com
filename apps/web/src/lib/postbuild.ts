@@ -1,7 +1,8 @@
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { woff2 } from 'fonteditor-core';
 import { restoreBlogRoutes } from './postbuild/restore-blog-routes';
-import { initFontSubsetting, injectCriticalFonts } from './postbuild/critical-fonts';
+import { injectCriticalFonts } from './postbuild/critical-fonts';
 import { injectRouteList } from './postbuild/preload-routes';
 import { findHtmlFiles } from './postbuild/utils';
 
@@ -10,7 +11,7 @@ const BUILD_DIR = join(process.cwd(), 'build');
 restoreBlogRoutes();
 
 if (existsSync(BUILD_DIR)) {
-  await initFontSubsetting();
+  await woff2.init();
   const htmlFiles = findHtmlFiles(BUILD_DIR);
 
   console.log(`postbuild: Processing ${htmlFiles.length} HTML files...`);
