@@ -105,3 +105,21 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
     return new Response('Unauthorized', { status: 401 });
   }
 };
+
+const deleteSchedule = async (name: string) => {
+  try {
+    await schedulerClient.send(
+      new DeleteScheduleCommand({
+        Name: name,
+        GroupName: process.env.SCHEDULER_GROUP_NAME!
+      })
+    );
+    console.log(`Deleted Notion reminder schedule: ${name}`);
+  } catch (e) {
+    if (e instanceof Error && e.name === 'ResourceNotFoundException') {
+      return;
+    }
+
+    throw e;
+  }
+};
