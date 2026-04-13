@@ -48,23 +48,23 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
       })
     );
 
+    const parameterUrl = `https://console.aws.amazon.com/systems-manager/parameters/${encodeURIComponent(
+      encodeURIComponent(paramName)
+    )}/description?region=${Resource.AwsRegion.value}`;
     console.log(
       [
-        '✅ Notion verification token captured securely in SSM.',
+        '=== NOTION WEBHOOK VERIFICATION TOKEN CAPTURED ===',
         '',
-        'Run these commands:',
+        '[URL] Open this in AWS Console:',
+        parameterUrl,
         '',
-        '# 1. Get the token and paste it into the Notion integration UI',
-        `aws ssm get-parameter --name "${paramName}" --with-decryption --query "Parameter.Value" --output text`,
+        '[ACTION] Set the SST secret:',
+        'pnpm exec sst secret set NotionWebhookVerificationToken --stage production <paste-token-here>',
         '',
-        '# 2. Store it as the SST secret (NotionWebhookVerificationToken)',
-        `sst secret set NotionWebhookVerificationToken "$(aws ssm get-parameter --name '${paramName}' --with-decryption --query 'Parameter.Value' --output text)"`,
+        '[ACTION] Redeploy:',
+        'pnpm exec sst deploy --stage production',
         '',
-        '# 3. Delete the temporary SSM parameter',
-        `aws ssm delete-parameter --name "${paramName}"`,
-        '',
-        '# 4. Redeploy to pick up the new secret',
-        'sst deploy'
+        '[REMINDER] Delete the temporary SSM parameter after the secret is set.'
       ].join('\n')
     );
 

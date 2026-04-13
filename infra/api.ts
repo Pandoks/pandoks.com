@@ -104,6 +104,7 @@ if ($app.stage === 'production') {
       TEXT_FUNCTION_ARN: textFunction.arn
     },
     link: [
+      secrets.aws.Region,
       secrets.notion.ApiKey,
       secrets.notion.WebhookVerificationToken,
       secrets.personal.KwokPhoneNumber,
