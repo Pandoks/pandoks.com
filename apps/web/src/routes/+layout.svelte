@@ -9,10 +9,14 @@
 
   onMount(() => {
     const allRoutes: string[] = (window as any).__ALL_ROUTES ?? [];
-    requestIdleCallback(() => {
-      for (const route of allRoutes) {
-        preloadData(route);
-      }
+
+    // Wait for all fonts to finish loading, then preload pages when idle
+    document.fonts.ready.then(() => {
+      requestIdleCallback(() => {
+        for (const route of allRoutes) {
+          preloadData(route);
+        }
+      });
     });
   });
 
