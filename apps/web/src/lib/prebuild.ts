@@ -1,4 +1,5 @@
 import { blogDataSourceIdPromise, getAllBlogTitles, notion } from './notion';
+import { isFullBlock, isFullPage } from '@notionhq/client';
 import { downloadSignedUrlImage } from './utils';
 import { mkdirSync } from 'fs';
 import { join } from 'path';
@@ -9,7 +10,7 @@ const TEMP_DIR = join(WEB_DIR, '.temp');
 mkdirSync(TEMP_DIR, { recursive: true });
 
 export const downloadBlogImages = async () => {
-  let allPublishedPages = [];
+  let allPublishedPageIds: string[] = [];
   let pageCursor;
   const dataSourceId = await blogDataSourceIdPromise;
   do {
@@ -25,35 +26,39 @@ export const downloadBlogImages = async () => {
       start_cursor: pageCursor
     });
 
-    allPublishedPages.push(...pagesResponse.results);
-    pageCursor = pagesResponse.next_cursor;
+    for (const page of pagesResponse.results) {
+      if (!isFullPage(page)) continue;
+      allPublishedPageIds.push(page.id);
+    }
+    pageCursor = pagesResponse.next_cursor ?? undefined;
   } while (pageCursor);
 
   let imageDownloads = [];
-  for (const page of allPublishedPages) {
-    let pageCursor;
+  for (const pageId of allPublishedPageIds) {
+    let blockCursor;
     do {
       const blockResponse = await notion.blocks.children.list({
-        block_id: page.id,
-        start_cursor: pageCursor,
+        block_id: pageId,
+        start_cursor: blockCursor,
         page_size: 100
       });
-      const imageBlocks = blockResponse.results.filter(
-        (block) => !block.archived && !block.in_trash && block.type === 'image'
-      );
 
-      for (const block of imageBlocks) {
+      for (const block of blockResponse.results) {
+        if (!isFullBlock(block) || block.in_trash || block.type !== 'image') continue;
+
+        const imageUrl =
+          block.image.type === 'file' ? block.image.file.url : block.image.external.url;
         imageDownloads.push(
           downloadSignedUrlImage({
-            url: block[block.type].file.url,
+            url: imageUrl,
             dir: '/blog-images',
             name: block.id
           })
         );
       }
 
-      pageCursor = blockResponse.next_cursor;
-    } while (pageCursor);
+      blockCursor = blockResponse.next_cursor ?? undefined;
+    } while (blockCursor);
   }
 
   await Promise.all(imageDownloads);

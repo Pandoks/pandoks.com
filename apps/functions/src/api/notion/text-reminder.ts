@@ -11,7 +11,7 @@ import { Resource } from 'sst';
 import { PHONE_NUMBER_MAPPINGS, type Users } from '../../lib/pii';
 import type { NotionWebhookEvent } from './webhook';
 
-const notion = new Client({ auth: Resource.NotionApiKey.value });
+const notion = new Client({ auth: Resource.NotionApiKey.value, notionVersion: '2026-03-11' });
 const schedulerClient = new SchedulerClient({});
 const ALL_USERS = Object.keys(PHONE_NUMBER_MAPPINGS) as Users[];
 const NAME_PROPERTY_KEYS = ['Assigned To', 'Person', 'Assignee'];
