@@ -1,7 +1,6 @@
 import { existsSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
 import { join, resolve } from 'path';
 import { execSync } from 'child_process';
-import { load as cheerioLoad } from 'cheerio';
 import { Font, woff2 } from 'fonteditor-core';
 
 const WEB_DIR = process.cwd();
@@ -39,55 +38,61 @@ interface FontChars {
 }
 
 function collectChars(html: string): FontChars {
-  const $ = cheerioLoad(html);
-  const result: FontChars = {
+  const chars: FontChars = {
     inter: new Set(),
     interItalic: new Set(),
     garamond: new Set(),
     garamondItalic: new Set()
   };
 
-  function addChars(set: Set<string>, text: string) {
-    for (const ch of text) {
-      set.add(ch);
+  const body = html.match(/<body[^>]*>([\s\S]*)<\/body>/)?.[1] ?? '';
+  const clean = body.replace(/<script[\s\S]*?<\/script>/g, '');
+
+  let pos = 0;
+  function walk(font: 'inter' | 'garamond' | 'mono', italic: boolean) {
+    while (pos < clean.length) {
+      if (clean[pos] === '<') {
+        const end = clean.indexOf('>', pos);
+        if (end === -1) break;
+        const tag = clean.substring(pos, end + 1);
+        pos = end + 1;
+
+        // Closing tag — return to parent context
+        if (tag[1] === '/') return;
+        // Self-closing or comment — skip
+        if (tag.endsWith('/>') || tag.startsWith('<!--')) continue;
+
+        // Determine child context from classes
+        let childFont: typeof font = font;
+        let childItalic = italic;
+        const cls = tag.match(/class="([^"]*)"/)?.[1] || '';
+        if (cls.includes('font-inter')) childFont = 'inter';
+        if (cls.includes('font-garamond')) childFont = 'garamond';
+        if (cls.includes('font-mono')) childFont = 'mono';
+        if (/\bitalic\b/.test(cls)) childItalic = true;
+        if (/\bnot-italic\b/.test(cls)) childItalic = false;
+
+        walk(childFont, childItalic);
+      } else {
+        const ch = clean[pos];
+        if (font !== 'mono' && (ch === ' ' || ch.trim())) {
+          const key: keyof FontChars =
+            font === 'garamond'
+              ? italic
+                ? 'garamondItalic'
+                : 'garamond'
+              : italic
+                ? 'interItalic'
+                : 'inter';
+          chars[key].add(ch);
+        }
+        pos++;
+      }
     }
   }
 
-  function walk(el: Parameters<typeof $>[0], font: 'inter' | 'garamond', isItalic: boolean) {
-    const $el = $(el);
-    const classes = ($el.attr('class') || '').split(/\s+/);
-    let currentFont = font;
-    let currentItalic = isItalic;
-
-    if (classes.includes('font-inter')) currentFont = 'inter';
-    if (classes.includes('font-garamond')) currentFont = 'garamond';
-    if (classes.includes('font-mono')) return;
-    if (classes.includes('italic')) currentItalic = true;
-    if (classes.includes('not-italic')) currentItalic = false;
-
-    $el.contents().each((_, child: any) => {
-      if (child.type === 'text' && child.data) {
-        const key =
-          currentFont === 'inter'
-            ? currentItalic
-              ? 'interItalic'
-              : 'inter'
-            : currentItalic
-              ? 'garamondItalic'
-              : 'garamond';
-        addChars(result[key], child.data);
-      } else if (child.type === 'tag') {
-        walk(child, currentFont, currentItalic);
-      }
-    });
-  }
-
-  const body = $('body').get(0);
-  if (body) {
-    walk(body, 'inter', false);
-  }
-
-  return result;
+  walk('inter', false);
+  return chars;
 }
 
 function subsetToBase64(fontPath: string, chars: Set<string>): string | null {
@@ -122,15 +127,6 @@ function unicodeRangeFromChars(chars: Set<string>): string {
   return ranges.join(', ');
 }
 
-function buildFontFace(
-  family: string,
-  b64: string,
-  style: string,
-  unicodeRange: string
-): string {
-  return `@font-face{font-family:'${family}';src:url(data:font/woff2;base64,${b64}) format('woff2');font-style:${style};font-display:block;unicode-range:${unicodeRange}}`;
-}
-
 function injectCriticalFonts(htmlPath: string) {
   const html = readFileSync(htmlPath, 'utf-8');
   const chars = collectChars(html);
@@ -151,10 +147,11 @@ function injectCriticalFonts(htmlPath: string) {
   for (const { chars: charSet, file, family, style } of fonts) {
     if (charSet.size === 0) continue;
     const b64 = subsetToBase64(join(FONTS_DIR, file), charSet);
-    if (b64) {
-      const unicodeRange = unicodeRangeFromChars(charSet);
-      fontFaces.push(buildFontFace(family, b64, style, unicodeRange));
-    }
+    if (!b64) continue;
+    const unicodeRange = unicodeRangeFromChars(charSet);
+    fontFaces.push(
+      `@font-face{font-family:'${family}';src:url(data:font/woff2;base64,${b64}) format('woff2');font-style:${style};font-display:block;unicode-range:${unicodeRange}}`
+    );
   }
 
   if (fontFaces.length === 0) return;
