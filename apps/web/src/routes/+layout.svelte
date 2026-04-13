@@ -8,13 +8,8 @@
   let { children } = $props();
 
   onMount(() => {
-    // Preload every page on the site (route list injected by postbuild)
     const allRoutes: string[] = (window as any).__ALL_ROUTES ?? [];
-    const idle =
-      'requestIdleCallback' in window
-        ? requestIdleCallback
-        : (cb: () => void) => setTimeout(cb, 200);
-    idle(() => {
+    requestIdleCallback(() => {
       for (const route of allRoutes) {
         preloadData(route);
       }
