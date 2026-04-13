@@ -23,7 +23,7 @@
     "highlight.js": "^11.11.1"
   },
   "devDependencies": {
-    "@notionhq/client": "^5.11.1",
+    "@notionhq/client": "^5.17.0",
     "@playwright/test": "^1.58.2",
     "@sveltejs/adapter-static": "^3.0.10",
     "@sveltejs/enhanced-img": "^0.10.3",

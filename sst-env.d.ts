@@ -131,14 +131,14 @@ declare module 'sst' {
       type: 'sst.sst.Secret';
       value: string;
     };
-    NotionAuthToken: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    ScheduleTextReminderApi: {
+    NotionWebhookHandler: {
       name: string;
       type: 'sst.aws.Function';
       url: string;
+    };
+    NotionWebhookVerificationToken: {
+      type: 'sst.sst.Secret';
+      value: string;
     };
     StageName: {
       type: 'sst.sst.Secret';
