@@ -1,8 +1,9 @@
 import { dev } from '$app/environment';
 import { blogDataSourceIdPromise, minimizeNotionBlockData, notion } from '$lib/notion';
+import { isFullBlock, isFullPage } from '@notionhq/client';
 import type { PageServerLoad } from '../[title]/$types';
 
-const staticBlogImages = import.meta.glob(
+const staticBlogImages = import.meta.glob<{ default: string }>(
   '/static/blog-images/*.{avif,gif,heif,jpeg,jpg,png,tiff,webp,svg}',
   { eager: true, query: { enhanced: true } }
 );
@@ -37,28 +38,27 @@ const getPageBlocks = async (pageId: string) => {
   let cursor;
   do {
     const blockResponse = await notion.blocks.children.list({
-      block_id: pageId!,
+      block_id: pageId,
       start_cursor: cursor,
       page_size: 100
     });
 
     for (const block of blockResponse.results) {
-      if (!block.archived && !block.in_trash && block.type !== 'bookmark') {
-        const processedBlock = minimizeNotionBlockData(block).then((block) => {
-          if (!dev && block.type === 'image') {
-            block.url = staticBlogImages[`/static/blog-images/${block.url}`].default;
-          }
-          return block;
-        });
-        processingBlocks.push(processedBlock);
-      }
+      if (!isFullBlock(block) || block.in_trash || block.type === 'bookmark') continue;
+
+      const processedBlock = minimizeNotionBlockData(block).then((block) => {
+        if (!dev && block.type === 'image') {
+          block.url = staticBlogImages[`/static/blog-images/${block.url}`].default;
+        }
+        return block;
+      });
+      processingBlocks.push(processedBlock);
     }
 
     cursor = blockResponse.next_cursor;
   } while (cursor);
 
-  const blocks = await Promise.all(processingBlocks);
-  return blocks;
+  return Promise.all(processingBlocks);
 };
 
 const getPageByTitle = async (title: string) => {
@@ -78,13 +78,17 @@ const getPageByTitle = async (title: string) => {
     });
 
     for (const page of pageResponse.results) {
-      if (page.properties.Title.title[0].plain_text === title) {
+      if (!isFullPage(page)) continue;
+
+      const titleProperty = page.properties['Title'];
+      if (titleProperty?.type !== 'title') continue;
+
+      if (titleProperty.title[0]?.plain_text === title) {
         return { pageId: page.id, createdTime: new Date(page.created_time) };
       }
     }
 
-    // will be null if there are no more pages
-    cursor = pageResponse.next_cursor;
+    cursor = pageResponse.next_cursor ?? undefined;
   } while (cursor);
 
   // NOTE: we want to crash because this is during build time

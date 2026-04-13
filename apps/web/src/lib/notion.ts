@@ -2,6 +2,7 @@ import { dev } from '$app/environment';
 import { NOTION_API_KEY, BLOG_NOTION_DATABASE_ID } from '$env/static/private';
 import {
   Client,
+  isFullDatabase,
   isFullPage,
   type BlockObjectResponse,
   type RichTextItemResponse
@@ -10,16 +11,17 @@ import { getImageExtensionFromSignedUrlImage } from './utils';
 import { SUPPORTED_LANGUAGES } from './highlight';
 
 export const notion = new Client({
-  auth: NOTION_API_KEY
+  auth: NOTION_API_KEY,
+  notionVersion: '2026-03-11'
 });
 
 export const blogDataSourceIdPromise = notion.databases
-  .retrieve({
-    database_id: BLOG_NOTION_DATABASE_ID
-  })
+  .retrieve({ database_id: BLOG_NOTION_DATABASE_ID })
   .then((database) => {
-    const dataSourceId = (database as { data_sources?: Array<{ id?: string }> }).data_sources?.[0]
-      ?.id;
+    if (!isFullDatabase(database)) {
+      throw new Error(`Could not retrieve full database ${BLOG_NOTION_DATABASE_ID}`);
+    }
+    const dataSourceId = database.data_sources[0]?.id;
     if (!dataSourceId) {
       throw new Error(`Could not find a data source for database ${BLOG_NOTION_DATABASE_ID}`);
     }
@@ -83,7 +85,7 @@ export const minimizeNotionBlockData = async (block: BlockObjectResponse) => {
 
 export const getAllBlogTitles = async () => {
   const titles: string[] = [];
-  let cursor: string | null = null;
+  let cursor;
   const dataSourceId = await blogDataSourceIdPromise;
 
   do {
@@ -96,21 +98,20 @@ export const getAllBlogTitles = async () => {
         }
       },
       sorts: [{ timestamp: 'created_time', direction: 'descending' }],
-      start_cursor: cursor ?? undefined
+      start_cursor: cursor
     });
 
     for (const page of pageResponse.results) {
       if (!isFullPage(page)) continue;
 
-      const titleProperty = page.properties.Title;
+      const titleProperty = page.properties['Title'];
       if (titleProperty?.type !== 'title') continue;
 
       const title = titleProperty.title[0]?.plain_text;
       if (title) titles.push(title);
     }
 
-    // will be null if there are no more pages
-    cursor = pageResponse.next_cursor;
+    cursor = pageResponse.next_cursor ?? undefined;
   } while (cursor);
 
   return titles;
