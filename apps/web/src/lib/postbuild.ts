@@ -8,27 +8,31 @@ const BUILD_DIR = join(WEB_DIR, 'build');
 const TEMP_DIR = join(WEB_DIR, '.temp');
 const FONTS_DIR = resolve(WEB_DIR, '../../packages/svelte/static/fonts');
 
-// --- Blog route restoration (existing logic) ---
+// ────────────────────────────────────────────
+// Blog route restoration
+// ────────────────────────────────────────────
 
-export const restoreBlogRoutes = () => {
+function restoreBlogRoutes() {
+  if (!existsSync(TEMP_DIR)) {
+    console.log('postbuild: No .temp directory found');
+    return;
+  }
+
   const tempBlogDir = join(TEMP_DIR, 'src', 'routes', 'blog', '[title]');
   const blogDir = join(WEB_DIR, 'src', 'routes', 'blog');
 
   if (existsSync(tempBlogDir)) {
     execSync(`mv "${tempBlogDir}" "${join(blogDir, '[title]')}"`, { stdio: 'inherit' });
-    console.log('restoreBlogRoutes: Restored blog routes from .temp directory');
+    console.log('postbuild: Restored blog routes from .temp directory');
   }
-};
 
-if (existsSync(TEMP_DIR)) {
-  restoreBlogRoutes();
   execSync(`rm -rf "${TEMP_DIR}"`, { stdio: 'inherit' });
   console.log('postbuild: Removed .temp directory');
-} else {
-  console.log('postbuild: No .temp directory found');
 }
 
-// --- Critical font injection ---
+// ────────────────────────────────────────────
+// Critical font injection
+// ────────────────────────────────────────────
 
 interface FontChars {
   inter: Set<string>;
@@ -37,6 +41,7 @@ interface FontChars {
   garamondItalic: Set<string>;
 }
 
+/** Walk HTML and collect characters grouped by font-family and style. */
 function collectChars(html: string): FontChars {
   const chars: FontChars = {
     inter: new Set(),
@@ -57,12 +62,9 @@ function collectChars(html: string): FontChars {
         const tag = clean.substring(pos, end + 1);
         pos = end + 1;
 
-        // Closing tag — return to parent context
         if (tag[1] === '/') return;
-        // Self-closing or comment — skip
         if (tag.endsWith('/>') || tag.startsWith('<!--')) continue;
 
-        // Determine child context from classes
         let childFont: typeof font = font;
         let childItalic = italic;
         const cls = tag.match(/class="([^"]*)"/)?.[1] || '';
@@ -163,6 +165,33 @@ function injectCriticalFonts(htmlPath: string) {
   console.log(`criticalFonts: ${relativePath} — ${fontFaces.length} font(s), ${totalKB} KB inline`);
 }
 
+// ────────────────────────────────────────────
+// Route list injection (for client-side preloading)
+// ────────────────────────────────────────────
+
+function injectRouteList(htmlFiles: string[]) {
+  const allRoutes = htmlFiles.map((f) => {
+    const rel = f
+      .replace(BUILD_DIR, '')
+      .replace(/\/index\.html$/, '/')
+      .replace(/\.html$/, '');
+    return rel || '/';
+  });
+
+  const script = `<script>window.__ALL_ROUTES=${JSON.stringify(allRoutes)}</script>`;
+
+  for (const f of htmlFiles) {
+    const html = readFileSync(f, 'utf-8');
+    writeFileSync(f, html.replace('</head>', `${script}</head>`));
+  }
+
+  console.log(`postbuild: Injected ${allRoutes.length} routes for preloading`);
+}
+
+// ────────────────────────────────────────────
+// Helpers
+// ────────────────────────────────────────────
+
 function findHtmlFiles(dir: string): string[] {
   const files: string[] = [];
   for (const entry of readdirSync(dir)) {
@@ -176,29 +205,23 @@ function findHtmlFiles(dir: string): string[] {
   return files;
 }
 
+// ────────────────────────────────────────────
+// Main
+// ────────────────────────────────────────────
+
+restoreBlogRoutes();
+
 if (existsSync(BUILD_DIR)) {
   await woff2.init();
   const htmlFiles = findHtmlFiles(BUILD_DIR);
 
-  // Generate list of all routes from HTML files
-  const allRoutes = htmlFiles.map((f) => {
-    const rel = f
-      .replace(BUILD_DIR, '')
-      .replace(/\/index\.html$/, '/')
-      .replace(/\.html$/, '');
-    return rel || '/';
-  });
-  const routeScript = `<script>window.__ALL_ROUTES=${JSON.stringify(allRoutes)}</script>`;
-
-  console.log(`criticalFonts: Processing ${htmlFiles.length} HTML files...`);
+  console.log(`postbuild: Processing ${htmlFiles.length} HTML files...`);
   for (const f of htmlFiles) {
     injectCriticalFonts(f);
-
-    // Inject route list for preloading
-    const html = readFileSync(f, 'utf-8');
-    writeFileSync(f, html.replace('</head>', `${routeScript}</head>`));
   }
-  console.log(`criticalFonts: Done. Injected ${allRoutes.length} routes for preloading.`);
+
+  injectRouteList(htmlFiles);
+  console.log('postbuild: Done');
 } else {
-  console.log('criticalFonts: No build directory found, skipping');
+  console.log('postbuild: No build directory found, skipping');
 }
