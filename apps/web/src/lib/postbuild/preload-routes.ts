@@ -17,7 +17,7 @@ export function injectRouteList(htmlFiles: string[]) {
 
   for (const f of htmlFiles) {
     const html = readFileSync(f, 'utf-8');
-    writeFileSync(f, html.replace('</head>', `${script}</head>`));
+    writeFileSync(f, html.replace('</body>', `${script}</body>`));
   }
 
   console.log(`postbuild: Injected ${allRoutes.length} routes for preloading`);
