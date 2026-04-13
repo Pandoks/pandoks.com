@@ -98,23 +98,25 @@ function subsetToBase64(fontPath: string, chars: Set<string>): string | null {
 
 function unicodeRangeFromChars(chars: Set<string>): string {
   const codepoints = [...chars].map((c) => c.codePointAt(0)!).sort((a, b) => a - b);
-  const ranges: string[] = [];
-  let i = 0;
-  while (i < codepoints.length) {
-    let start = codepoints[i];
-    let end = start;
-    while (i + 1 < codepoints.length && codepoints[i + 1] === end + 1) {
-      i++;
-      end = codepoints[i];
+
+  // Group consecutive codepoints into ranges: [97,98,99,120] → [[97,99],[120,120]]
+  const ranges: [number, number][] = [];
+  for (const cp of codepoints) {
+    const last = ranges.at(-1);
+    if (last && cp === last[1] + 1) {
+      last[1] = cp; // extend current range
+    } else {
+      ranges.push([cp, cp]); // start new range
     }
-    ranges.push(
+  }
+
+  return ranges
+    .map(([start, end]) =>
       start === end
         ? `U+${start.toString(16).toUpperCase()}`
         : `U+${start.toString(16).toUpperCase()}-${end.toString(16).toUpperCase()}`
-    );
-    i++;
-  }
-  return ranges.join(', ');
+    )
+    .join(', ');
 }
 
 function injectCriticalFonts(htmlPath: string) {
