@@ -64,7 +64,7 @@
   });
 </script>
 
-<nav class="font-inter bg-background fixed flex w-full gap-2 rounded-br-xs p-2 text-sm xl:w-auto">
+<nav class="bg-background fixed flex w-full gap-2 rounded-br-xs p-2 text-sm xl:w-auto">
   {#each navLinks as { href, text }, index}
     {@render navLink(href, text, index)}
   {/each}
