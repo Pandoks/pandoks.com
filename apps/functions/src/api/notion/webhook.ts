@@ -1,25 +1,11 @@
-import {
-  ConflictException,
-  CreateScheduleCommand,
-  DeleteScheduleCommand,
-  SchedulerClient,
-  UpdateScheduleCommand
-} from '@aws-sdk/client-scheduler';
 import { SSMClient, PutParameterCommand } from '@aws-sdk/client-ssm';
-import { Client, isFullPage } from '@notionhq/client';
-import type { PageObjectResponse } from '@notionhq/client';
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Resource } from 'sst';
-import { PHONE_NUMBER_MAPPINGS, type Users } from '../lib/pii';
 
-const notion = new Client({ auth: Resource.NotionApiKey.value });
-const schedulerClient = new SchedulerClient({});
 const ssmClient = new SSMClient({});
-const ALL_USERS = Object.keys(PHONE_NUMBER_MAPPINGS) as Users[];
-const NAME_PROPERTY_KEYS = ['Assigned To', 'Person', 'Assignee'];
 
-type NotionWebhookEvent = {
+export type NotionWebhookEvent = {
   id: string;
   type: string;
   timestamp: string;
@@ -40,9 +26,7 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
     return new Response('Method Not Allowed', { status: 405 });
   }
 
-  if (!event.body) {
-    return new Response('Bad Request', { status: 400 });
-  }
+  if (!event.body) return new Response('Bad Request', { status: 400 });
 
   let body: NotionWebhookEvent;
   try {
@@ -72,8 +56,8 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
         '# 1. Get the token and paste it into the Notion integration UI',
         `aws ssm get-parameter --name "${paramName}" --with-decryption --query "Parameter.Value" --output text`,
         '',
-        '# 2. Store it as the SST secret (NotionAuthToken)',
-        `sst secret set NotionAuthToken "$(aws ssm get-parameter --name '${paramName}' --with-decryption --query 'Parameter.Value' --output text)"`,
+        '# 2. Store it as the SST secret (NotionWebhookVerificationToken)',
+        `sst secret set NotionWebhookVerificationToken "$(aws ssm get-parameter --name '${paramName}' --with-decryption --query 'Parameter.Value' --output text)"`,
         '',
         '# 3. Delete the temporary SSM parameter',
         `aws ssm delete-parameter --name "${paramName}"`,
@@ -86,11 +70,9 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
     return new Response('OK', { status: 200 });
   }
 
-  /** AUTHENTICATION / VERIFICATION */
+  /** AUTHENTICATION */
   const signature = event.headers['x-notion-signature'] ?? event.headers['X-Notion-Signature'];
-  if (!signature) {
-    return new Response('Unauthorized', { status: 401 });
-  }
+  if (!signature) return new Response('Unauthorized', { status: 401 });
 
   const provided = signature.replace('sha256=', '');
   const expected = createHmac('sha256', Resource.NotionWebhookVerificationToken.value)
@@ -104,22 +86,24 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
   ) {
     return new Response('Unauthorized', { status: 401 });
   }
-};
 
-const deleteSchedule = async (name: string) => {
-  try {
-    await schedulerClient.send(
-      new DeleteScheduleCommand({
-        Name: name,
-        GroupName: process.env.SCHEDULER_GROUP_NAME!
-      })
-    );
-    console.log(`Deleted Notion reminder schedule: ${name}`);
-  } catch (e) {
-    if (e instanceof Error && e.name === 'ResourceNotFoundException') {
-      return;
+  /** ROUTE TO FEATURE HANDLERS */
+  const results = await Promise.allSettled([
+    // Add new feature handlers here
+  ]);
+
+  const failures = results.filter(
+    (result): result is PromiseRejectedResult => result.status === 'rejected'
+  );
+  if (failures.length) {
+    for (const failure of failures) {
+      console.error('Notion webhook handler failed', {
+        eventType: body.type,
+        pageId: body.entity.id,
+        error: failure.reason
+      });
     }
-
-    throw e;
   }
+
+  return new Response('OK', { status: 200 });
 };
