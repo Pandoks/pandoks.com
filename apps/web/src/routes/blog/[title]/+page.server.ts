@@ -1,6 +1,5 @@
 import { dev } from '$app/environment';
-import { BLOG_NOTION_DATABASE_ID } from '$env/static/private';
-import { minimizeNotionBlockData, notion } from '$lib/notion';
+import { blogDataSourceIdPromise, minimizeNotionBlockData, notion } from '$lib/notion';
 import type { PageServerLoad } from '../[title]/$types';
 
 const staticBlogImages = import.meta.glob(
@@ -64,9 +63,10 @@ const getPageBlocks = async (pageId: string) => {
 
 const getPageByTitle = async (title: string) => {
   let cursor;
+  const dataSourceId = await blogDataSourceIdPromise;
   do {
-    const pageResponse = await notion.databases.query({
-      database_id: BLOG_NOTION_DATABASE_ID,
+    const pageResponse = await notion.dataSources.query({
+      data_source_id: dataSourceId,
       filter: {
         property: 'Publish',
         checkbox: {

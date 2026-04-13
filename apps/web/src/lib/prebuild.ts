@@ -1,5 +1,4 @@
-import { BLOG_NOTION_DATABASE_ID } from '$env/static/private';
-import { getAllBlogTitles, notion } from './notion';
+import { blogDataSourceIdPromise, getAllBlogTitles, notion } from './notion';
 import { downloadSignedUrlImage } from './utils';
 import { mkdirSync } from 'fs';
 import { join } from 'path';
@@ -12,9 +11,10 @@ mkdirSync(TEMP_DIR, { recursive: true });
 export const downloadBlogImages = async () => {
   let allPublishedPages = [];
   let pageCursor;
+  const dataSourceId = await blogDataSourceIdPromise;
   do {
-    const pagesResponse = await notion.databases.query({
-      database_id: BLOG_NOTION_DATABASE_ID,
+    const pagesResponse = await notion.dataSources.query({
+      data_source_id: dataSourceId,
       filter: {
         property: 'Publish',
         checkbox: {

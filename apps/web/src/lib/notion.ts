@@ -8,6 +8,19 @@ export const notion = new Client({
   auth: NOTION_API_KEY
 });
 
+export const blogDataSourceIdPromise = notion.databases
+  .retrieve({
+    database_id: BLOG_NOTION_DATABASE_ID
+  })
+  .then((database) => {
+    const dataSourceId = (database as { data_sources?: Array<{ id?: string }> }).data_sources?.[0]
+      ?.id;
+    if (!dataSourceId) {
+      throw new Error(`Could not find a data source for database ${BLOG_NOTION_DATABASE_ID}`);
+    }
+    return dataSourceId;
+  });
+
 export const minimizeNotionBlockData = async (block: any) => {
   const blockType = block.type;
   const blockData = block[blockType];
@@ -54,10 +67,11 @@ export const minimizeNotionBlockData = async (block: any) => {
 export const getAllBlogTitles = async () => {
   let titles = [];
   let cursor;
+  const dataSourceId = await blogDataSourceIdPromise;
 
   do {
-    const pageResponse = await notion.databases.query({
-      database_id: BLOG_NOTION_DATABASE_ID,
+    const pageResponse = await notion.dataSources.query({
+      data_source_id: dataSourceId,
       filter: {
         property: 'Publish',
         checkbox: {
