@@ -16,7 +16,7 @@ export const staticWebsite = new sst.cloudflare.StaticSite('StaticWebsite', {
     fileOptions: [
       {
         files: 'fonts/**',
-        cacheControl: 'public, max-age=31536000, immutable'
+        cacheControl: 'public, max-age=31536000'
       }
     ]
   }
