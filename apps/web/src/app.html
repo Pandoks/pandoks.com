@@ -19,6 +19,12 @@
     />
     <link rel="manifest" href="%sveltekit.assets%/favicon/site.webmanifest" />
 
+    <!-- Preload full fonts immediately while inline critical fonts handle first render -->
+    <link rel="preload" as="font" type="font/woff2" crossorigin="anonymous" href="/fonts/Inter.woff2" />
+    <link rel="preload" as="font" type="font/woff2" crossorigin="anonymous" href="/fonts/Inter-Italic.woff2" />
+    <link rel="preload" as="font" type="font/woff2" crossorigin="anonymous" href="/fonts/EBGaramond.woff2" />
+    <link rel="preload" as="font" type="font/woff2" crossorigin="anonymous" href="/fonts/EBGaramond-Italic.woff2" />
+
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     %sveltekit.head%
   </head>

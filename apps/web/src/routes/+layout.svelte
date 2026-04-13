@@ -29,17 +29,6 @@
   }
 
   onMount(() => {
-    // Preload full variable fonts so they're cached for after critical fonts
-    for (const file of ['Inter', 'Inter-Italic', 'EBGaramond', 'EBGaramond-Italic']) {
-      const link = document.createElement('link');
-      link.rel = 'preload';
-      link.as = 'font';
-      link.type = 'font/woff2';
-      link.crossOrigin = 'anonymous';
-      link.href = `/fonts/${file}.woff2`;
-      document.head.appendChild(link);
-    }
-
     // BFS level 1: preload all internal links on the current page
     discoverAndPreload();
   });
