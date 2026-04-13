@@ -2,6 +2,7 @@ import { SSMClient, PutParameterCommand } from '@aws-sdk/client-ssm';
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Resource } from 'sst';
+import { handleTextReminder } from './text-reminder';
 
 const ssmClient = new SSMClient({});
 
@@ -89,6 +90,7 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
 
   /** ROUTE TO FEATURE HANDLERS */
   const results = await Promise.allSettled([
+    handleTextReminder(body)
     // Add new feature handlers here
   ]);
 
