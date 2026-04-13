@@ -100,7 +100,7 @@ function subsetToBase64(fontPath: string, chars: Set<string>): string | null {
   const codepoints = [...chars].map((c) => c.codePointAt(0)!);
   const fontBuffer = readFileSync(fontPath);
   const font = Font.create(fontBuffer, { type: 'woff2', subset: codepoints });
-  const output = font.write({ type: 'woff2' });
+  const output = font.write({ type: 'woff2' }) as ArrayBuffer;
   return Buffer.from(new Uint8Array(output)).toString('base64');
 }
 
