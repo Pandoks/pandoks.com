@@ -51,7 +51,7 @@ export async function handleTextReminder(body: NotionWebhookEvent): Promise<void
             ? personOrGroup.name
             : undefined;
         return name && ALL_USERS.includes(name as Users) ? [name as Users] : [];
-      }) || ALL_USERS;
+      }) ?? [];
     if (!users.length) {
       await deleteSchedule(name);
       return;
