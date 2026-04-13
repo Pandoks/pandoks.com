@@ -105,9 +105,7 @@ function subsetToBase64(fontPath: string, chars: Set<string>): string | null {
 }
 
 function unicodeRangeFromChars(chars: Set<string>): string {
-  const codepoints = [...chars]
-    .map((c) => c.codePointAt(0)!)
-    .sort((a, b) => a - b);
+  const codepoints = [...chars].map((c) => c.codePointAt(0)!).sort((a, b) => a - b);
   const ranges: string[] = [];
   let i = 0;
   while (i < codepoints.length) {
@@ -162,9 +160,7 @@ function injectCriticalFonts(htmlPath: string) {
 
   const totalKB = (Buffer.byteLength(styleTag) / 1024).toFixed(1);
   const relativePath = htmlPath.replace(BUILD_DIR, '');
-  console.log(
-    `criticalFonts: ${relativePath} — ${fontFaces.length} font(s), ${totalKB} KB inline`
-  );
+  console.log(`criticalFonts: ${relativePath} — ${fontFaces.length} font(s), ${totalKB} KB inline`);
 }
 
 function findHtmlFiles(dir: string): string[] {

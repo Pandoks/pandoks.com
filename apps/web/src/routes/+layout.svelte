@@ -11,7 +11,9 @@
 
   function discoverAndPreload() {
     const idle =
-      'requestIdleCallback' in window ? requestIdleCallback : (cb: () => void) => setTimeout(cb, 200);
+      'requestIdleCallback' in window
+        ? requestIdleCallback
+        : (cb: () => void) => setTimeout(cb, 200);
     idle(() => {
       const links = document.querySelectorAll<HTMLAnchorElement>('a[href]');
       for (const link of links) {
