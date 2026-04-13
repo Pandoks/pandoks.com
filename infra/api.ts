@@ -69,30 +69,36 @@ new aws.iam.RolePolicy('ScheduleInvokeTextPolicy', {
   }).json
 });
 
-export const notionWebhookFunction = new sst.aws.Function('NotionWebhookHandler', {
-  handler: 'apps/functions/src/api/notion.webhookHandler',
-  runtime: nodeVersion,
-  timeout: '30 seconds',
-  url: {
-    router: {
-      instance: apiRouter,
-      path: '/notion/webhook'
-    }
-  },
-  permissions: [
-    {
-      actions: ['scheduler:CreateSchedule', 'scheduler:UpdateSchedule', 'scheduler:DeleteSchedule'],
-      resources: ['*']
+if ($app.stage === 'production') {
+  new sst.aws.Function('NotionWebhookHandler', {
+    handler: 'apps/functions/src/api/notion/webhook.webhookHandler',
+    runtime: nodeVersion,
+    timeout: '30 seconds',
+    url: {
+      router: {
+        instance: apiRouter,
+        path: '/notion/webhook'
+      }
     },
-    {
-      actions: ['iam:PassRole'],
-      resources: [scheduleInvokeTextRole.arn]
-    }
-  ],
-  environment: {
-    SCHEDULER_INVOKE_ROLE_ARN: scheduleInvokeTextRole.arn,
-    SCHEDULER_GROUP_NAME: scheduleTextGroup.name,
-    TEXT_FUNCTION_ARN: textFunction.arn
-  },
-  link: [secrets.notion.ApiKey, secrets.notion.AuthToken]
-});
+    permissions: [
+      {
+        actions: ['scheduler:CreateSchedule', 'scheduler:UpdateSchedule', 'scheduler:DeleteSchedule'],
+        resources: ['*']
+      },
+      {
+        actions: ['iam:PassRole'],
+        resources: [scheduleInvokeTextRole.arn]
+      },
+      {
+        actions: ['ssm:PutParameter'],
+        resources: ['arn:aws:ssm:*:*:parameter/tmp/notion-verification-token']
+      }
+    ],
+    environment: {
+      SCHEDULER_INVOKE_ROLE_ARN: scheduleInvokeTextRole.arn,
+      SCHEDULER_GROUP_NAME: scheduleTextGroup.name,
+      TEXT_FUNCTION_ARN: textFunction.arn
+    },
+    link: [secrets.notion.ApiKey, secrets.notion.WebhookVerificationToken]
+  });
+}
