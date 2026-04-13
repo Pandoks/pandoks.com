@@ -2,7 +2,7 @@ import { existsSync, readFileSync, writeFileSync, readdirSync, statSync } from '
 import { join, resolve } from 'path';
 import { execSync } from 'child_process';
 import { Font, woff2 } from 'fonteditor-core';
-import { parse, NodeType } from 'node-html-parser';
+import { parse, HTMLElement, NodeType } from 'node-html-parser';
 
 const WEB_DIR = process.cwd();
 const BUILD_DIR = join(WEB_DIR, 'build');
@@ -61,11 +61,7 @@ function collectChars(html: string): FontChars {
   const body = root.querySelector('body');
   if (!body) return chars;
 
-  function walk(
-    node: ReturnType<typeof parse>,
-    font: 'inter' | 'garamond' | 'mono',
-    italic: boolean
-  ) {
+  function walk(node: HTMLElement, font: 'inter' | 'garamond' | 'mono', italic: boolean) {
     for (const child of node.childNodes) {
       if (child.nodeType === NodeType.TEXT_NODE) {
         if (font === 'mono') continue;
@@ -79,18 +75,16 @@ function collectChars(html: string): FontChars {
               : 'inter';
         addChars(chars[key], child.text);
       } else if (child.nodeType === NodeType.ELEMENT_NODE) {
-        const el = child as unknown as ReturnType<typeof parse>;
-        const tag = (el as any).rawTagName;
-        if (tag === 'script' || tag === 'style') continue;
+        const el = child as HTMLElement;
+        if (el.rawTagName === 'script' || el.rawTagName === 'style') continue;
 
         let childFont: typeof font = font;
         let childItalic = italic;
-        const classList = (el as any).classList;
-        if (classList.contains('font-inter')) childFont = 'inter';
-        if (classList.contains('font-garamond')) childFont = 'garamond';
-        if (classList.contains('font-mono')) childFont = 'mono';
-        if (classList.contains('italic')) childItalic = true;
-        if (classList.contains('not-italic')) childItalic = false;
+        if (el.classList.contains('font-inter')) childFont = 'inter';
+        if (el.classList.contains('font-garamond')) childFont = 'garamond';
+        if (el.classList.contains('font-mono')) childFont = 'mono';
+        if (el.classList.contains('italic')) childItalic = true;
+        if (el.classList.contains('not-italic')) childItalic = false;
 
         walk(el, childFont, childItalic);
       }
