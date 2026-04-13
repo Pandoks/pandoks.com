@@ -42,13 +42,11 @@ interface FontChars {
   garamondItalic: Set<string>;
 }
 
-/** Extract visible characters (spaces + non-whitespace) from text into a set. */
-function charsFrom(text: string): Set<string> {
-  const set = new Set<string>();
+/** Add visible characters (spaces + non-whitespace) from text into a set. */
+function addChars(set: Set<string>, text: string) {
   for (const ch of text) {
     if (ch === ' ' || ch.trim()) set.add(ch);
   }
-  return set;
 }
 
 /** Query the DOM and collect characters grouped by font-family and style. */
@@ -66,12 +64,12 @@ function collectChars(html: string): FontChars {
 
   // Garamond — all text inside .font-garamond elements
   for (const el of body.querySelectorAll('.font-garamond')) {
-    for (const ch of charsFrom(el.textContent)) chars.garamond.add(ch);
+    addChars(chars.garamond, el.textContent);
   }
 
   // Garamond italic — italic text within garamond sections
   for (const el of body.querySelectorAll('.font-garamond .italic')) {
-    for (const ch of charsFrom(el.textContent)) chars.garamondItalic.add(ch);
+    addChars(chars.garamondItalic, el.textContent);
   }
 
   // Inter — everything except garamond, mono, script, style
@@ -79,11 +77,11 @@ function collectChars(html: string): FontChars {
   for (const el of interClone.querySelectorAll('.font-garamond, .font-mono, script, style')) {
     el.remove();
   }
-  chars.inter = charsFrom(interClone.textContent);
+  addChars(chars.inter, interClone.textContent);
 
   // Inter italic — italic text within inter sections
   for (const el of body.querySelectorAll('.font-inter .italic')) {
-    for (const ch of charsFrom(el.textContent)) chars.interItalic.add(ch);
+    addChars(chars.interItalic, el.textContent);
   }
 
   return chars;
