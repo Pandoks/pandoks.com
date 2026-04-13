@@ -86,4 +86,22 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
     return new Response('OK', { status: 200 });
   }
 
+  /** AUTHENTICATION / VERIFICATION */
+  const signature = event.headers['x-notion-signature'] ?? event.headers['X-Notion-Signature'];
+  if (!signature) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  const provided = signature.replace('sha256=', '');
+  const expected = createHmac('sha256', Resource.NotionWebhookVerificationToken.value)
+    .update(event.body)
+    .digest('hex');
+  const providedBuffer = Buffer.from(provided, 'hex');
+  const expectedBuffer = Buffer.from(expected, 'hex');
+  if (
+    providedBuffer.length !== expectedBuffer.length ||
+    !timingSafeEqual(providedBuffer, expectedBuffer)
+  ) {
+    return new Response('Unauthorized', { status: 401 });
+  }
 };
