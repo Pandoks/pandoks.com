@@ -2,7 +2,7 @@ import { existsSync, readFileSync, writeFileSync, readdirSync, statSync } from '
 import { join, resolve } from 'path';
 import { execSync } from 'child_process';
 import { Font, woff2 } from 'fonteditor-core';
-import { parse, HTMLElement, NodeType } from 'node-html-parser';
+import { parse } from 'node-html-parser';
 
 const WEB_DIR = process.cwd();
 const BUILD_DIR = join(WEB_DIR, 'build');
@@ -48,7 +48,7 @@ function addChars(set: Set<string>, text: string) {
   }
 }
 
-/** Walk the DOM and collect characters grouped by font-family and style. */
+/** Query the DOM and collect characters grouped by font-family and style. */
 function collectChars(html: string): FontChars {
   const chars: FontChars = {
     inter: new Set(),
@@ -61,37 +61,34 @@ function collectChars(html: string): FontChars {
   const body = root.querySelector('body');
   if (!body) return chars;
 
-  function walk(node: HTMLElement, font: 'inter' | 'garamond' | 'mono', italic: boolean) {
-    for (const child of node.childNodes) {
-      if (child.nodeType === NodeType.TEXT_NODE) {
-        if (font === 'mono') continue;
-        const key: keyof FontChars =
-          font === 'garamond'
-            ? italic
-              ? 'garamondItalic'
-              : 'garamond'
-            : italic
-              ? 'interItalic'
-              : 'inter';
-        addChars(chars[key], child.text);
-      } else if (child.nodeType === NodeType.ELEMENT_NODE) {
-        const el = child as HTMLElement;
-        if (el.rawTagName === 'script' || el.rawTagName === 'style') continue;
-
-        let childFont: typeof font = font;
-        let childItalic = italic;
-        if (el.classList.contains('font-inter')) childFont = 'inter';
-        if (el.classList.contains('font-garamond')) childFont = 'garamond';
-        if (el.classList.contains('font-mono')) childFont = 'mono';
-        if (el.classList.contains('italic')) childItalic = true;
-        if (el.classList.contains('not-italic')) childItalic = false;
-
-        walk(el, childFont, childItalic);
-      }
-    }
+  // Garamond italic
+  for (const el of body.querySelectorAll('.font-garamond .italic')) {
+    addChars(chars.garamondItalic, el.textContent);
   }
 
-  walk(body, 'inter', false);
+  // Garamond (clone and remove italic children to avoid double-counting)
+  for (const el of body.querySelectorAll('.font-garamond')) {
+    const clone = parse(el.outerHTML);
+    for (const italic of clone.querySelectorAll('.italic')) italic.remove();
+    addChars(chars.garamond, clone.textContent);
+  }
+
+  // Inter italic
+  for (const el of body.querySelectorAll('.font-inter .italic')) {
+    addChars(chars.interItalic, el.textContent);
+  }
+
+  // Inter (everything not garamond, not script/style)
+  const interClone = parse(body.outerHTML);
+  for (const el of interClone.querySelectorAll('.font-garamond, .font-mono, script, style')) {
+    el.remove();
+  }
+  for (const italic of interClone.querySelectorAll('.italic')) {
+    addChars(chars.interItalic, italic.textContent);
+    italic.remove();
+  }
+  addChars(chars.inter, interClone.textContent);
+
   return chars;
 }
 
