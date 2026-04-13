@@ -103,6 +103,11 @@ if ($app.stage === 'production') {
       SCHEDULER_GROUP_NAME: scheduleTextGroup.name,
       TEXT_FUNCTION_ARN: textFunction.arn
     },
-    link: [secrets.notion.ApiKey, secrets.notion.WebhookVerificationToken]
+    link: [
+      secrets.notion.ApiKey,
+      secrets.notion.WebhookVerificationToken,
+      secrets.personal.KwokPhoneNumber,
+      secrets.personal.MichellePhoneNumber
+    ]
   });
 }
