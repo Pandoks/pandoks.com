@@ -2,6 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    %sveltekit.head%
+
+    <link rel="preconnect" href="https://static.cloudflareinsights.com" crossorigin />
 
     <!-- Favicons -->
     <link rel="icon" type="image/svg+xml" href="%sveltekit.assets%/favicon/favicon.svg" />
@@ -19,30 +22,30 @@
     />
     <link rel="manifest" href="%sveltekit.assets%/favicon/site.webmanifest" />
 
-    <!-- Preload full fonts immediately while inline critical fonts handle first render -->
+    <!-- Fonts -->
     <link
-      rel="preload"
+      rel="prefetch"
       as="font"
       type="font/woff2"
       crossorigin="anonymous"
       href="/fonts/Inter.woff2"
     />
     <link
-      rel="preload"
+      rel="prefetch"
       as="font"
       type="font/woff2"
       crossorigin="anonymous"
       href="/fonts/Inter-Italic.woff2"
     />
     <link
-      rel="preload"
+      rel="prefetch"
       as="font"
       type="font/woff2"
       crossorigin="anonymous"
       href="/fonts/EBGaramond.woff2"
     />
     <link
-      rel="preload"
+      rel="prefetch"
       as="font"
       type="font/woff2"
       crossorigin="anonymous"
@@ -50,7 +53,6 @@
     />
 
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">
     <main style="display: contents">%sveltekit.body%</main>
