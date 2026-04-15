@@ -16,12 +16,12 @@ development:
 
 ```sh
 pnpm install
-pnpm run sso
+pnpm sso
 pnpm sst install
 ```
 
 > [!NOTE]
-> AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm run sso` again once in a while
+> AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while
 
 <details>
   <summary>Dependencies</summary>
@@ -51,19 +51,19 @@ To setup the local cluster, run this from the root of the monorepo:
 
 ```sh
 # Quick setup (all-in-one)
-pnpm run dev:init
+pnpm dev:init
 
 # Or step by step:
-pnpm run cluster k3d deps up   # Start docker compose dependencies
-pnpm run cluster k3d up        # Create k3d cluster
-pnpm run cluster sync dev      # Deploy dev overlay (helm charts + apps)
-pnpm run cluster sst-apply all # Apply SST secrets (requires SSO)
+pnpm cluster k3d deps up   # Start docker compose dependencies
+pnpm cluster k3d up        # Create k3d cluster
+pnpm cluster sync dev      # Deploy dev overlay (helm charts + apps)
+pnpm cluster sst-apply all # Apply SST secrets (requires SSO)
 ```
 
 To tear down the cluster:
 
 ```sh
-pnpm run dev:destroy
+pnpm dev:destroy
 ```
 
 See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI commands and [k3s/README.md](./k3s/README.md) for cluster architecture details.
@@ -74,5 +74,5 @@ For things that are not deployed to Kubernetes, they are managed by `sst`. To ru
 server, run this from the root of the monorepo:
 
 ```sh
-pnpm run dev # assuming that you are still verified via SSO
+pnpm dev # assuming that you are still verified via SSO
 ```

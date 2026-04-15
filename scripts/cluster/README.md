@@ -12,7 +12,7 @@ POSIX-compliant `sh` scripts—no Bash-specific features are required.
 
 Use `help`, `--help`, or `-h` with any command/subcommand to view detailed
 options. Package scripts in `package.json` are wired directly to
-`./scripts/cluster/main.sh`, so you can invoke everything via `pnpm run` as well.
+`./scripts/cluster/main.sh`, so you can invoke everything via `pnpm` as well.
 
 ## Top-Level Commands
 

@@ -4,7 +4,7 @@ import { domain } from './dns';
 export const staticWebsite = new sst.cloudflare.StaticSite('StaticWebsite', {
   path: 'apps/web',
   build: {
-    command: 'pnpm run build',
+    command: 'pnpm build',
     output: 'build'
   },
   domain,

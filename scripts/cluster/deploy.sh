@@ -55,7 +55,7 @@ cmd_deploy_get_template_vars() {
   cmd_deploy_get_template_vars_sst=$(get_sst_resources "${cmd_deploy_get_template_vars_stage}")
   if [ -z "${cmd_deploy_get_template_vars_sst}" ]; then
     printf "%bError:%b Failed to fetch SST resources. Make sure you're authenticated with SST.\n" "${RED}" "${NORMAL}" >&2
-    printf "Try running: %bpnpm run sso%b.\n" "${BOLD}" "${NORMAL}" >&2
+    printf "Try running: %bpnpm sso%b.\n" "${BOLD}" "${NORMAL}" >&2
     return 1
   fi
   log_status "SST resources fetched"

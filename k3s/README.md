@@ -37,7 +37,7 @@ For local development, we use [k3d](https://k3d.io/) to create a local k3s clust
 To setup the cluster, run the following commands from the root of the project:
 
 ```sh
-pnpm run dev:init
+pnpm dev:init
 ```
 
 Or step by step:
@@ -206,8 +206,8 @@ k3s HelmChart CRD sometimes doesn't trigger upgrades. To force update:
 
 ```bash
 kubectl delete helmchart kube-prometheus-stack -n kube-system
-pnpm run cluster sync dev  # or prod
-pnpm run cluster sst-apply all
+pnpm cluster sync dev  # or prod
+pnpm cluster sst-apply all
 ```
 
 See `MONITORING_SETUP.md` for full documentation.
