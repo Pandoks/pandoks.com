@@ -43,4 +43,4 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_DEFAULT_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
-        run: pnpm deploy --stage ${{ github.event.inputs.stage }} --target StaticWebsite
+        run: pnpm exec sst deploy --stage ${{ github.event.inputs.stage }} --target StaticWebsite
