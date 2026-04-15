@@ -88,7 +88,8 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  /** ROUTE TO FEATURE HANDLERS */
+  // Handlers MUST be idempotent — Notion retries the webhook on non-200 responses,
+  // so any handler that succeeded will re-run on the next attempt.
   const results = await Promise.allSettled([
     handleTextReminder(body)
     // Add new feature handlers here
@@ -105,6 +106,10 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
         error: failure.reason
       });
     }
+  }
+
+  if (failures.length) {
+    return new Response('Internal Server Error', { status: 500 });
   }
 
   return new Response('OK', { status: 200 });

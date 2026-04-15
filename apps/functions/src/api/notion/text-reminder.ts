@@ -7,14 +7,68 @@ import {
 } from '@aws-sdk/client-scheduler';
 import { Client, isFullPage } from '@notionhq/client';
 import type { PageObjectResponse } from '@notionhq/client';
+import { createHash } from 'node:crypto';
 import { Resource } from 'sst';
 import { PHONE_NUMBER_MAPPINGS, type Users } from '../../lib/pii';
 import type { NotionWebhookEvent } from './webhook';
 
 const notion = new Client({ auth: Resource.NotionApiKey.value, notionVersion: '2026-03-11' });
 const schedulerClient = new SchedulerClient({});
-const ALL_USERS = Object.keys(PHONE_NUMBER_MAPPINGS) as Users[];
+const ALL_PHONE_NUMBERS = [...new Set(Object.values(PHONE_NUMBER_MAPPINGS))];
 const NAME_PROPERTY_KEYS = ['Assigned To', 'Person', 'Assignee'];
+
+function scheduleName(pageId: string, phoneNumber: string): string {
+  const phoneHash = createHash('sha256').update(phoneNumber).digest('hex');
+  const prefix = `schedule-notion-text-${pageId}-`;
+  return `${prefix}${phoneHash.slice(0, 64 - prefix.length)}`;
+}
+
+async function upsertSchedule(
+  name: string,
+  scheduleTime: string,
+  input: string,
+  phoneNumber: string
+): Promise<void> {
+  try {
+    await schedulerClient.send(
+      new CreateScheduleCommand({
+        Name: name,
+        FlexibleTimeWindow: { Mode: 'OFF' },
+        ScheduleExpression: `at(${scheduleTime})`,
+        State: 'ENABLED',
+        GroupName: process.env.SCHEDULER_GROUP_NAME!,
+        ActionAfterCompletion: 'DELETE',
+        Target: {
+          Arn: process.env.TEXT_FUNCTION_ARN!,
+          RoleArn: process.env.SCHEDULER_INVOKE_ROLE_ARN!,
+          Input: input
+        }
+      })
+    );
+    console.log(`Created Notion reminder schedule: ${name} (***${phoneNumber.slice(-4)})`);
+  } catch (e) {
+    if (e instanceof ConflictException) {
+      await schedulerClient.send(
+        new UpdateScheduleCommand({
+          Name: name,
+          FlexibleTimeWindow: { Mode: 'OFF' },
+          ScheduleExpression: `at(${scheduleTime})`,
+          State: 'ENABLED',
+          GroupName: process.env.SCHEDULER_GROUP_NAME!,
+          ActionAfterCompletion: 'DELETE',
+          Target: {
+            Arn: process.env.TEXT_FUNCTION_ARN!,
+            RoleArn: process.env.SCHEDULER_INVOKE_ROLE_ARN!,
+            Input: input
+          }
+        })
+      );
+      console.log(`Updated Notion reminder schedule: ${name} (***${phoneNumber.slice(-4)})`);
+    } else {
+      throw e;
+    }
+  }
+}
 
 export async function handleTextReminder(body: NotionWebhookEvent): Promise<void> {
   const pageId = body.entity.id;
@@ -23,13 +77,14 @@ export async function handleTextReminder(body: NotionWebhookEvent): Promise<void
     const response = await notion.pages.retrieve({ page_id: pageId });
     if (!isFullPage(response)) return;
 
-    const name = `schedule-notion-text-${pageId}`;
     const notificationTime =
       response.properties['Notification Time']?.type === 'date'
         ? response.properties['Notification Time'].date?.start
         : undefined;
     if (!notificationTime || new Date(notificationTime).getTime() <= Date.now()) {
-      await deleteSchedule(name);
+      for (const phone of ALL_PHONE_NUMBERS) {
+        await deleteSchedule(scheduleName(pageId, phone));
+      }
       return;
     }
 
@@ -50,10 +105,16 @@ export async function handleTextReminder(body: NotionWebhookEvent): Promise<void
           'name' in personOrGroup && typeof personOrGroup.name === 'string'
             ? personOrGroup.name
             : undefined;
-        return name && ALL_USERS.includes(name as Users) ? [name as Users] : [];
+        return name && (Object.keys(PHONE_NUMBER_MAPPINGS) as Users[]).includes(name as Users)
+          ? [name as Users]
+          : [];
       }) ?? [];
-    if (!users.length) {
-      await deleteSchedule(name);
+
+    const phoneNumbers = [...new Set(users.map((user) => PHONE_NUMBER_MAPPINGS[user]))];
+    if (!phoneNumbers.length) {
+      for (const phone of ALL_PHONE_NUMBERS) {
+        await deleteSchedule(scheduleName(pageId, phone));
+      }
       return;
     }
 
@@ -73,48 +134,23 @@ export async function handleTextReminder(body: NotionWebhookEvent): Promise<void
     message.push(response.url);
 
     const scheduleTime = new Date(notificationTime).toISOString().split('.')[0];
+    const messageText = message.join('\n');
 
-    try {
-      await schedulerClient.send(
-        new CreateScheduleCommand({
-          Name: name,
-          FlexibleTimeWindow: { Mode: 'OFF' },
-          ScheduleExpression: `at(${scheduleTime})`,
-          State: 'ENABLED',
-          GroupName: process.env.SCHEDULER_GROUP_NAME!,
-          ActionAfterCompletion: 'DELETE',
-          Target: {
-            Arn: process.env.TEXT_FUNCTION_ARN!,
-            RoleArn: process.env.SCHEDULER_INVOKE_ROLE_ARN!,
-            Input: JSON.stringify({ users, message: message.join('\n') })
-          }
-        })
-      );
-      console.log(`Created Notion reminder schedule: ${name}`);
-    } catch (e) {
-      if (e instanceof ConflictException) {
-        await schedulerClient.send(
-          new UpdateScheduleCommand({
-            Name: name,
-            FlexibleTimeWindow: { Mode: 'OFF' },
-            ScheduleExpression: `at(${scheduleTime})`,
-            State: 'ENABLED',
-            GroupName: process.env.SCHEDULER_GROUP_NAME!,
-            ActionAfterCompletion: 'DELETE',
-            Target: {
-              Arn: process.env.TEXT_FUNCTION_ARN!,
-              RoleArn: process.env.SCHEDULER_INVOKE_ROLE_ARN!,
-              Input: JSON.stringify({ users, message: message.join('\n') })
-            }
-          })
-        );
-        console.log(`Updated Notion reminder schedule: ${name}`);
-      } else {
-        throw e;
+    for (const phoneNumber of phoneNumbers) {
+      const name = scheduleName(pageId, phoneNumber);
+      const input = JSON.stringify({ phoneNumber, message: messageText });
+      await upsertSchedule(name, scheduleTime, input, phoneNumber);
+    }
+
+    for (const phone of ALL_PHONE_NUMBERS) {
+      if (!phoneNumbers.includes(phone)) {
+        await deleteSchedule(scheduleName(pageId, phone));
       }
     }
   } else if (body.type === 'page.deleted') {
-    await deleteSchedule(`schedule-notion-text-${pageId}`);
+    for (const phone of ALL_PHONE_NUMBERS) {
+      await deleteSchedule(scheduleName(pageId, phone));
+    }
   }
 }
 
