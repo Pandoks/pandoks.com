@@ -132,9 +132,9 @@ export async function handleTextReminder(body: NotionWebhookEvent): Promise<void
     const title = titleProperty?.title[0]?.plain_text;
     if (title) message.push(title);
     message.push(response.url);
+    const messageText = message.join('\n');
 
     const scheduleTime = new Date(notificationTime).toISOString().split('.')[0];
-    const messageText = message.join('\n');
 
     for (const phoneNumber of phoneNumbers) {
       const name = scheduleName(pageId, phoneNumber);

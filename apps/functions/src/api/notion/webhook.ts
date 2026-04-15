@@ -88,8 +88,8 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  // Handlers MUST be idempotent — Notion retries the webhook on non-200 responses,
-  // so any handler that succeeded will re-run on the next attempt.
+  /** ROUTE TO FEATURE HANDLERS */
+  // IMPORTANT: Handlers MUST be idempotent — Notion retries the webhook on non-200 responses, so any handler that succeeded will re-run on the next attempt.
   const results = await Promise.allSettled([
     handleTextReminder(body)
     // Add new feature handlers here
