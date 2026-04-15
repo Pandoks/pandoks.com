@@ -59,10 +59,10 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
         parameterUrl,
         '',
         '[ACTION] Set the SST secret:',
-        'pnpm exec sst secret set NotionWebhookVerificationToken --stage production <paste-token-here>',
+        'pnpm sst secret set NotionWebhookVerificationToken --stage production <paste-token-here>',
         '',
         '[ACTION] Redeploy:',
-        'pnpm exec sst deploy --stage production',
+        'pnpm sst deploy --stage production',
         '',
         '[REMINDER] Delete the temporary SSM parameter after the secret is set.'
       ].join('\n')
