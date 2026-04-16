@@ -7,5 +7,6 @@ onlyBuiltDependencies:
   - electron
   - electron-winstaller
   - sharp
+
 patchedDependencies:
   '@sveltejs/kit': patches/@sveltejs__kit.patch
