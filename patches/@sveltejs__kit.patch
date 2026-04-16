@@ -31,7 +31,7 @@ index fe829e73e240d283f9f7557ffc60ebfe6973b1b6..c047c925df997499d603e846844a2b26
  				} else {
  					new_config.define = {
 diff --git a/src/runtime/client/client.js b/src/runtime/client/client.js
-index c52354928a50f15235d3854242749704997be653..4137965fae7f839d1c704101251905efd9570774 100644
+index c52354928a50f15235d3854242749704997be653..fad368cdcc966de2d162452f1af16504a401c4c5 100644
 --- a/src/runtime/client/client.js
 +++ b/src/runtime/client/client.js
 @@ -222,12 +222,25 @@ const invalidated = [];
@@ -124,22 +124,27 @@ index c52354928a50f15235d3854242749704997be653..4137965fae7f839d1c704101251905ef
  }
  
  /**
-@@ -1104,10 +1115,11 @@ function preload_error({ error, url, route, params }) {
+@@ -1104,10 +1115,15 @@ function preload_error({ error, url, route, params }) {
   * @returns {Promise<import('./types.js').NavigationResult>}
   */
  async function load_route({ id, invalidating, url, params, route, preload }) {
 -	if (load_cache?.id === id) {
-+	if (load_cache.has(id)) {
- 		// the preload becomes the real navigation
+-		// the preload becomes the real navigation
 -		preload_tokens.delete(load_cache.token);
 -		return load_cache.promise;
++	if (load_cache.has(id)) {
 +		const cached = load_cache.get(id);
-+		preload_tokens.delete(cached.token);
-+		return cached.promise;
++		// Consumed entries for non-prerendered routes may be stale — discard and refetch
++		if (cached.consumed && !prerendered_routes.has(route.id)) {
++			discard_load_cache(id);
++		} else {
++			preload_tokens.delete(cached.token);
++			return cached.promise;
++		}
  	}
  
  	const { errors, layouts, leaf } = route;
-@@ -1784,13 +1796,13 @@ async function navigate({
+@@ -1784,13 +1800,13 @@ async function navigate({
  	}
  
  	// also compare ids to avoid using wrong fork (e.g. a new one could've been added while navigating)
