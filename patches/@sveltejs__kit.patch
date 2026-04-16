@@ -1,0 +1,116 @@
+diff --git a/src/runtime/client/client.js b/src/runtime/client/client.js
+index c52354928a50f15235d3854242749704997be653..57f185d583054ff3f1dd6f0a86e06fa77ee96c03 100644
+--- a/src/runtime/client/client.js
++++ b/src/runtime/client/client.js
+@@ -222,12 +222,22 @@ const invalidated = [];
+  */
+ const components = [];
+ 
+-/** @type {{id: string, token: {}, promise: Promise<import('./types.js').NavigationResult>, fork: Promise<import('svelte').Fork | null> | null} | null} */
+-let load_cache = null;
+-
+-function discard_load_cache() {
+-	void load_cache?.fork?.then((f) => f?.discard());
+-	load_cache = null;
++/** @type {Map<string, {id: string, token: {}, promise: Promise<import('./types.js').NavigationResult>, fork: Promise<import('svelte').Fork | null> | null}>} */
++let load_cache = new Map();
++
++function discard_load_cache(id) {
++	if (id) {
++		const entry = load_cache.get(id);
++		if (entry) {
++			void entry.fork?.then((f) => f?.discard());
++			load_cache.delete(id);
++		}
++	} else {
++		for (const entry of load_cache.values()) {
++			void entry.fork?.then((f) => f?.discard());
++		}
++		load_cache.clear();
++	}
+ }
+ 
+ /**
+@@ -544,32 +554,29 @@ async function _preload_data(intent) {
+ 	// Prevents an edge case where same preload is triggered multiple times,
+ 	// then a later one is becoming the real navigation and the preload tokens
+ 	// get out of sync.
+-	if (intent.id !== load_cache?.id) {
+-		discard_load_cache();
+-
++	if (!load_cache.has(intent.id)) {
+ 		const preload = {};
+ 		preload_tokens.add(preload);
+-		load_cache = {
++		const entry = {
+ 			id: intent.id,
+ 			token: preload,
+ 			promise: load_route({ ...intent, preload }).then((result) => {
+ 				preload_tokens.delete(preload);
+ 				if (result.type === 'loaded' && result.state.error) {
+ 					// Don't cache errors, because they might be transient
+-					discard_load_cache();
++					discard_load_cache(intent.id);
+ 				}
+ 				return result;
+ 			}),
+ 			fork: null
+ 		};
++		load_cache.set(intent.id, entry);
+ 
+ 		if (__SVELTEKIT_FORK_PRELOADS__ && svelte.fork) {
+-			const lc = load_cache;
+-
+-			lc.fork = lc.promise.then((result) => {
+-				// if load_cache was discarded before load_cache.promise could
++			entry.fork = entry.promise.then((result) => {
++				// if load_cache was discarded before promise could
+ 				// resolve, bail rather than creating an orphan fork
+-				if (lc === load_cache && result.type === 'loaded') {
++				if (load_cache.get(intent.id) === entry && result.type === 'loaded') {
+ 					try {
+ 						return svelte.fork(() => {
+ 							root.$set(result.props);
+@@ -585,7 +592,7 @@ async function _preload_data(intent) {
+ 		}
+ 	}
+ 
+-	return load_cache.promise;
++	return load_cache.get(intent.id).promise;
+ }
+ 
+ /**
+@@ -1104,10 +1111,11 @@ function preload_error({ error, url, route, params }) {
+  * @returns {Promise<import('./types.js').NavigationResult>}
+  */
+ async function load_route({ id, invalidating, url, params, route, preload }) {
+-	if (load_cache?.id === id) {
++	if (load_cache.has(id)) {
+ 		// the preload becomes the real navigation
+-		preload_tokens.delete(load_cache.token);
+-		return load_cache.promise;
++		const cached = load_cache.get(id);
++		preload_tokens.delete(cached.token);
++		return cached.promise;
+ 	}
+ 
+ 	const { errors, layouts, leaf } = route;
+@@ -1784,13 +1792,12 @@ async function navigate({
+ 	}
+ 
+ 	// also compare ids to avoid using wrong fork (e.g. a new one could've been added while navigating)
+-	const load_cache_fork = intent && load_cache?.id === intent.id ? load_cache.fork : null;
+-	// reset preload synchronously after the history state has been set to avoid race conditions
+-	if (load_cache?.fork && !load_cache_fork) {
+-		// discard fork of different route
+-		discard_load_cache();
++	const cached_entry = intent ? load_cache.get(intent.id) : null;
++	const load_cache_fork = cached_entry?.fork ?? null;
++	// consume the used cache entry, leave others for future navigations
++	if (intent) {
++		load_cache.delete(intent.id);
+ 	}
+-	load_cache = null;
+ 
+ 	navigation_result.props.page.state = state;
+ 
