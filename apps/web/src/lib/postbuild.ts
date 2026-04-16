@@ -12,9 +12,7 @@ if (existsSync(BUILD_DIR)) {
   const htmlFiles = globSync(join(BUILD_DIR, '**/*.html'));
 
   console.log(`postbuild: Processing ${htmlFiles.length} HTML files...`);
-  for (const f of htmlFiles) {
-    await injectCriticalFonts(f);
-  }
+  await Promise.all(htmlFiles.map((htmlFile) => injectCriticalFonts(htmlFile)));
 
   injectRouteList(htmlFiles);
   console.log('postbuild: Done');
