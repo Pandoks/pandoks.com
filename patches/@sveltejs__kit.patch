@@ -1,40 +1,76 @@
+diff --git a/src/core/sync/write_client_manifest.js b/src/core/sync/write_client_manifest.js
+index 7495e3134854f75f960aa46885a0f394d17e8a78..83acba2b186907973ec9dc9e037e60ce3e5493a9 100644
+--- a/src/core/sync/write_client_manifest.js
++++ b/src/core/sync/write_client_manifest.js
+@@ -10,7 +10,7 @@ import colors from 'kleur';
+  * @param {import('types').ValidatedKitConfig} kit
+  * @param {import('types').ManifestData} manifest_data
+  * @param {string} output
+- * @param {import('types').ServerMetadata['nodes']} [metadata] If this is omitted, we have to assume that all routes with a `+layout/page.server.js` file have a server load function
++ * @param {import('types').ServerMetadata} [metadata] If this is omitted, we have to assume that all routes with a `+layout/page.server.js` file have a server load function
+  */
+ export function write_client_manifest(kit, manifest_data, output, metadata) {
+ 	const client_routing = kit.router.resolution === 'client';
+@@ -72,7 +72,7 @@ export function write_client_manifest(kit, manifest_data, output, metadata) {
+ 							if (metadata) {
+ 								const i = /** @type {number} */ (indices.get(route.leaf));
+ 
+-								leaf_has_server_load = metadata[i].has_server_load;
++								leaf_has_server_load = metadata.nodes[i].has_server_load;
+ 							} else if (route.leaf.server) {
+ 								leaf_has_server_load = true;
+ 							}
+@@ -91,7 +91,7 @@ export function write_client_manifest(kit, manifest_data, output, metadata) {
+ 							let layout_has_server_load = false;
+ 
+ 							if (metadata) {
+-								layout_has_server_load = metadata[layout].has_server_load;
++								layout_has_server_load = metadata.nodes[layout].has_server_load;
+ 							} else if (manifest_data.nodes[layout].server) {
+ 								layout_has_server_load = true;
+ 							}
+@@ -120,6 +120,14 @@ export function write_client_manifest(kit, manifest_data, output, metadata) {
+ 		if (root_layout) layouts_with_server_load.add(0);
+ 	}
+ 
++	// Routes that declared `prerender = true` — their __data.json is immutable per build,
++	// so the client can keep preload cache entries for them across navigations
++	const prerendered_routes = metadata
++		? [...metadata.routes.entries()]
++				.filter(([, route_metadata]) => route_metadata.prerender === true)
++				.map(([id]) => id)
++		: [];
++
+ 	const client_hooks_file = resolve_entry(kit.files.hooks.client);
+ 	const universal_hooks_file = resolve_entry(kit.files.hooks.universal);
+ 
+@@ -159,6 +167,8 @@ export function write_client_manifest(kit, manifest_data, output, metadata) {
+ 
+ 			export const server_loads = [${[...layouts_with_server_load].join(',')}];
+ 
++			export const prerendered_routes = new Set(${s(prerendered_routes)});
++
+ 			export const dictionary = ${dictionary};
+ 
+ 			export const hooks = {
 diff --git a/src/exports/vite/index.js b/src/exports/vite/index.js
-index fe829e73e240d283f9f7557ffc60ebfe6973b1b6..c047c925df997499d603e846844a2b265587a7f2 100644
+index fe829e73e240d283f9f7557ffc60ebfe6973b1b6..f4580a6ae09ee8cccd59f31e1266c38a37fca2cb 100644
 --- a/src/exports/vite/index.js
 +++ b/src/exports/vite/index.js
-@@ -395,17 +395,24 @@ async function kit({ svelte_config }) {
- 						// During the initial server build we don't know yet
- 						new_config.define.__SVELTEKIT_HAS_SERVER_LOAD__ = 'true';
- 						new_config.define.__SVELTEKIT_HAS_UNIVERSAL_LOAD__ = 'true';
-+						new_config.define.__SVELTEKIT_PRERENDERED_ROUTES__ = '[]';
- 					} else {
--						const nodes = Object.values(
--							/** @type {import('types').ServerMetadata} */ (build_metadata).nodes
--						);
-+						const metadata = /** @type {import('types').ServerMetadata} */ (build_metadata);
-+						const nodes = Object.values(metadata.nodes);
+@@ -1122,7 +1122,7 @@ async function kit({ svelte_config }) {
+ 					kit,
+ 					manifest_data,
+ 					`${kit.outDir}/generated/client-optimized`,
+-					metadata.nodes
++					metadata
+ 				);
  
- 						// Through the finished analysis we can now check if any node has server or universal load functions
- 						const has_server_load = nodes.some((node) => node.has_server_load);
- 						const has_universal_load = nodes.some((node) => node.has_universal_load);
- 
-+						// Collect routes that declared prerender = true so the client
-+						// can persist their preload cache entries across navigations
-+						const prerendered_routes = [...metadata.routes.entries()]
-+							.filter(([, meta]) => meta.prerender === true)
-+							.map(([id]) => id);
-+
- 						new_config.define.__SVELTEKIT_HAS_SERVER_LOAD__ = s(has_server_load);
- 						new_config.define.__SVELTEKIT_HAS_UNIVERSAL_LOAD__ = s(has_universal_load);
-+						new_config.define.__SVELTEKIT_PRERENDERED_ROUTES__ = JSON.stringify(prerendered_routes);
- 					}
- 				} else {
- 					new_config.define = {
+ 				secondary_build_started = true;
 diff --git a/src/runtime/client/client.js b/src/runtime/client/client.js
-index c52354928a50f15235d3854242749704997be653..fad368cdcc966de2d162452f1af16504a401c4c5 100644
+index c52354928a50f15235d3854242749704997be653..38477a54646a2955c64824a2d05e50e0eb9774bd 100644
 --- a/src/runtime/client/client.js
 +++ b/src/runtime/client/client.js
-@@ -222,12 +222,25 @@ const invalidated = [];
+@@ -222,12 +222,22 @@ const invalidated = [];
   */
  const components = [];
  
@@ -46,9 +82,6 @@ index c52354928a50f15235d3854242749704997be653..fad368cdcc966de2d162452f1af16504
 -	load_cache = null;
 +/** @type {Map<string, {id: string, token: {}, promise: Promise<import('./types.js').NavigationResult>, fork: Promise<import('svelte').Fork | null> | null}>} */
 +let load_cache = new Map();
-+
-+/** @type {Set<string>} route IDs that were prerendered (immutable data, safe to cache indefinitely) */
-+const prerendered_routes = new Set(__SVELTEKIT_PRERENDERED_ROUTES__);
 +
 +function discard_load_cache(id) {
 +	if (id) {
@@ -66,7 +99,7 @@ index c52354928a50f15235d3854242749704997be653..fad368cdcc966de2d162452f1af16504
  }
  
  /**
-@@ -540,36 +553,34 @@ export async function _goto(url, options, redirect_count, nav_token) {
+@@ -540,36 +550,34 @@ export async function _goto(url, options, redirect_count, nav_token) {
  
  /** @param {import('./types.js').NavigationIntent} intent */
  async function _preload_data(intent) {
@@ -80,7 +113,7 @@ index c52354928a50f15235d3854242749704997be653..fad368cdcc966de2d162452f1af16504
 +	// Reuse pending or unconsumed preloads to avoid duplicate fetches.
 +	// Refresh consumed entries only for non-prerendered routes (prerendered data is immutable).
 +	const existing = load_cache.get(intent.id);
-+	const should_refresh = existing?.consumed && !prerendered_routes.has(intent.route.id);
++	const should_refresh = existing?.consumed && !app.prerendered_routes.has(intent.route.id);
 +	if (!existing || should_refresh) {
 +		if (existing) discard_load_cache(intent.id);
  		const preload = {};
@@ -115,7 +148,7 @@ index c52354928a50f15235d3854242749704997be653..fad368cdcc966de2d162452f1af16504
  					try {
  						return svelte.fork(() => {
  							root.$set(result.props);
-@@ -585,7 +596,7 @@ async function _preload_data(intent) {
+@@ -585,7 +593,7 @@ async function _preload_data(intent) {
  		}
  	}
  
@@ -124,7 +157,7 @@ index c52354928a50f15235d3854242749704997be653..fad368cdcc966de2d162452f1af16504
  }
  
  /**
-@@ -1104,10 +1115,15 @@ function preload_error({ error, url, route, params }) {
+@@ -1104,10 +1112,15 @@ function preload_error({ error, url, route, params }) {
   * @returns {Promise<import('./types.js').NavigationResult>}
   */
  async function load_route({ id, invalidating, url, params, route, preload }) {
@@ -135,7 +168,7 @@ index c52354928a50f15235d3854242749704997be653..fad368cdcc966de2d162452f1af16504
 +	if (load_cache.has(id)) {
 +		const cached = load_cache.get(id);
 +		// Consumed entries for non-prerendered routes may be stale — discard and refetch
-+		if (cached.consumed && !prerendered_routes.has(route.id)) {
++		if (cached.consumed && !app.prerendered_routes.has(route.id)) {
 +			discard_load_cache(id);
 +		} else {
 +			preload_tokens.delete(cached.token);
@@ -144,7 +177,7 @@ index c52354928a50f15235d3854242749704997be653..fad368cdcc966de2d162452f1af16504
  	}
  
  	const { errors, layouts, leaf } = route;
-@@ -1784,13 +1800,13 @@ async function navigate({
+@@ -1784,13 +1797,13 @@ async function navigate({
  	}
  
  	// also compare ids to avoid using wrong fork (e.g. a new one could've been added while navigating)
@@ -164,16 +197,21 @@ index c52354928a50f15235d3854242749704997be653..fad368cdcc966de2d162452f1af16504
  
  	navigation_result.props.page.state = state;
  
-diff --git a/src/types/global-private.d.ts b/src/types/global-private.d.ts
-index 4b442f89944ca20521064e4c519b45dee00f07ec..14f2b733a3a7c290113ad163fe1c2363aca1fab7 100644
---- a/src/types/global-private.d.ts
-+++ b/src/types/global-private.d.ts
-@@ -11,6 +11,8 @@ declare global {
- 	const __SVELTEKIT_SERVER_TRACING_ENABLED__: boolean;
- 	/** True if `config.kit.experimental.forkPreloads` is `true` */
- 	const __SVELTEKIT_FORK_PRELOADS__: boolean;
-+	/** Route IDs that declared `prerender = true`. Used to persist preload cache entries for immutable data. */
-+	const __SVELTEKIT_PRERENDERED_ROUTES__: string[];
- 	/** True if `config.kit.router.resolution === 'client'` */
- 	const __SVELTEKIT_CLIENT_ROUTING__: boolean;
- 	/** True if `config.kit.router.type === 'hash'` */
+diff --git a/src/runtime/client/types.d.ts b/src/runtime/client/types.d.ts
+index f91124f962c7937a0d444636d9d4a06de91c95c1..754a6411af690548e3938726705467f21ceb6d7b 100644
+--- a/src/runtime/client/types.d.ts
++++ b/src/runtime/client/types.d.ts
+@@ -28,6 +28,13 @@ export interface SvelteKitApp {
+ 	 */
+ 	server_loads: number[];
+ 
++	/**
++	 * Route IDs that declared `prerender = true`. Their `__data.json` is immutable
++	 * per build, so the client can keep preloaded cache entries for these routes
++	 * across navigations.
++	 */
++	prerendered_routes: Set<string>;
++
+ 	/**
+ 	 * A map of `[routeId: string]: [leaf, layouts, errors]` tuples, which
+ 	 * is parsed into an array of routes on startup. The numbers refer to the indices in `nodes`.
