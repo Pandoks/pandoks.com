@@ -4,9 +4,12 @@ test('preloaded routes do not refetch on repeated navigation', async ({ page }) 
   await page.goto('/');
 
   // Wait for idle preloading to complete
-  await page.waitForFunction(() => {
-    return performance.getEntriesByType('resource').some((e) => e.name.includes('__data.json'));
-  }, { timeout: 10000 });
+  await page.waitForFunction(
+    () => {
+      return performance.getEntriesByType('resource').some((e) => e.name.includes('__data.json'));
+    },
+    { timeout: 10000 }
+  );
 
   // Small buffer for all preloads to settle
   await page.waitForTimeout(1000);
@@ -29,8 +32,9 @@ test('preloaded routes do not refetch on repeated navigation', async ({ page }) 
   // Allow any pending fetches to complete
   await page.waitForTimeout(500);
 
-  const dataFetches = await page.evaluate(() =>
-    performance.getEntriesByType('resource').filter((e) => e.name.includes('__data.json')).length
+  const dataFetches = await page.evaluate(
+    () =>
+      performance.getEntriesByType('resource').filter((e) => e.name.includes('__data.json')).length
   );
 
   expect(dataFetches).toBe(0);
