@@ -1,5 +1,5 @@
 diff --git a/src/core/sync/write_client_manifest.js b/src/core/sync/write_client_manifest.js
-index 7495e3134854f75f960aa46885a0f394d17e8a78..83acba2b186907973ec9dc9e037e60ce3e5493a9 100644
+index 7495e3134854f75f960aa46885a0f394d17e8a78..1ca44cc7fbd1a3d54e459a4b20ce7aecf6722323 100644
 --- a/src/core/sync/write_client_manifest.js
 +++ b/src/core/sync/write_client_manifest.js
 @@ -10,7 +10,7 @@ import colors from 'kleur';
@@ -48,7 +48,7 @@ index 7495e3134854f75f960aa46885a0f394d17e8a78..83acba2b186907973ec9dc9e037e60ce
  
  			export const server_loads = [${[...layouts_with_server_load].join(',')}];
  
-+			export const prerendered_routes = new Set(${s(prerendered_routes)});
++			export const prerendered_routes = ${s(prerendered_routes)};
 +
  			export const dictionary = ${dictionary};
  
@@ -67,10 +67,10 @@ index fe829e73e240d283f9f7557ffc60ebfe6973b1b6..f4580a6ae09ee8cccd59f31e1266c38a
  
  				secondary_build_started = true;
 diff --git a/src/runtime/client/client.js b/src/runtime/client/client.js
-index c52354928a50f15235d3854242749704997be653..38477a54646a2955c64824a2d05e50e0eb9774bd 100644
+index c52354928a50f15235d3854242749704997be653..7adadd814a551b5220ee19e165923e90efab647a 100644
 --- a/src/runtime/client/client.js
 +++ b/src/runtime/client/client.js
-@@ -222,12 +222,22 @@ const invalidated = [];
+@@ -222,12 +222,25 @@ const invalidated = [];
   */
  const components = [];
  
@@ -82,6 +82,9 @@ index c52354928a50f15235d3854242749704997be653..38477a54646a2955c64824a2d05e50e0
 -	load_cache = null;
 +/** @type {Map<string, {id: string, token: {}, promise: Promise<import('./types.js').NavigationResult>, fork: Promise<import('svelte').Fork | null> | null}>} */
 +let load_cache = new Map();
++
++/** @type {Set<string>} Route IDs with `prerender = true`, constructed from `app.prerendered_routes` at startup */
++let prerendered_routes;
 +
 +function discard_load_cache(id) {
 +	if (id) {
@@ -99,7 +102,15 @@ index c52354928a50f15235d3854242749704997be653..38477a54646a2955c64824a2d05e50e0
  }
  
  /**
-@@ -540,36 +550,34 @@ export async function _goto(url, options, redirect_count, nav_token) {
+@@ -331,6 +344,7 @@ export async function start(_app, _target, hydrate) {
+ 	}
+ 
+ 	app = _app;
++	prerendered_routes = new Set(_app.prerendered_routes);
+ 
+ 	await _app.hooks.init?.();
+ 
+@@ -540,36 +554,34 @@ export async function _goto(url, options, redirect_count, nav_token) {
  
  /** @param {import('./types.js').NavigationIntent} intent */
  async function _preload_data(intent) {
@@ -113,7 +124,7 @@ index c52354928a50f15235d3854242749704997be653..38477a54646a2955c64824a2d05e50e0
 +	// Reuse pending or unconsumed preloads to avoid duplicate fetches.
 +	// Refresh consumed entries only for non-prerendered routes (prerendered data is immutable).
 +	const existing = load_cache.get(intent.id);
-+	const should_refresh = existing?.consumed && !app.prerendered_routes.has(intent.route.id);
++	const should_refresh = existing?.consumed && !prerendered_routes.has(intent.route.id);
 +	if (!existing || should_refresh) {
 +		if (existing) discard_load_cache(intent.id);
  		const preload = {};
@@ -148,7 +159,7 @@ index c52354928a50f15235d3854242749704997be653..38477a54646a2955c64824a2d05e50e0
  					try {
  						return svelte.fork(() => {
  							root.$set(result.props);
-@@ -585,7 +593,7 @@ async function _preload_data(intent) {
+@@ -585,7 +597,7 @@ async function _preload_data(intent) {
  		}
  	}
  
@@ -157,7 +168,7 @@ index c52354928a50f15235d3854242749704997be653..38477a54646a2955c64824a2d05e50e0
  }
  
  /**
-@@ -1104,10 +1112,15 @@ function preload_error({ error, url, route, params }) {
+@@ -1104,10 +1116,15 @@ function preload_error({ error, url, route, params }) {
   * @returns {Promise<import('./types.js').NavigationResult>}
   */
  async function load_route({ id, invalidating, url, params, route, preload }) {
@@ -168,7 +179,7 @@ index c52354928a50f15235d3854242749704997be653..38477a54646a2955c64824a2d05e50e0
 +	if (load_cache.has(id)) {
 +		const cached = load_cache.get(id);
 +		// Consumed entries for non-prerendered routes may be stale — discard and refetch
-+		if (cached.consumed && !app.prerendered_routes.has(route.id)) {
++		if (cached.consumed && !prerendered_routes.has(route.id)) {
 +			discard_load_cache(id);
 +		} else {
 +			preload_tokens.delete(cached.token);
@@ -177,7 +188,7 @@ index c52354928a50f15235d3854242749704997be653..38477a54646a2955c64824a2d05e50e0
  	}
  
  	const { errors, layouts, leaf } = route;
-@@ -1784,13 +1797,13 @@ async function navigate({
+@@ -1784,13 +1801,13 @@ async function navigate({
  	}
  
  	// also compare ids to avoid using wrong fork (e.g. a new one could've been added while navigating)
@@ -198,7 +209,7 @@ index c52354928a50f15235d3854242749704997be653..38477a54646a2955c64824a2d05e50e0
  	navigation_result.props.page.state = state;
  
 diff --git a/src/runtime/client/types.d.ts b/src/runtime/client/types.d.ts
-index f91124f962c7937a0d444636d9d4a06de91c95c1..754a6411af690548e3938726705467f21ceb6d7b 100644
+index f91124f962c7937a0d444636d9d4a06de91c95c1..2e7c9912ffd0e601fef5aa1c96e221098933ee75 100644
 --- a/src/runtime/client/types.d.ts
 +++ b/src/runtime/client/types.d.ts
 @@ -28,6 +28,13 @@ export interface SvelteKitApp {
@@ -210,7 +221,7 @@ index f91124f962c7937a0d444636d9d4a06de91c95c1..754a6411af690548e3938726705467f2
 +	 * per build, so the client can keep preloaded cache entries for these routes
 +	 * across navigations.
 +	 */
-+	prerendered_routes: Set<string>;
++	prerendered_routes: string[];
 +
  	/**
  	 * A map of `[routeId: string]: [leaf, layouts, errors]` tuples, which
