@@ -11,9 +11,7 @@ const config = {
     // adapter-auto only supports some environments, see https://svelte.dev/docs/kit/adapter-auto for a list.
     // If your environment is not supported, or you settled on a specific environment, switch out the adapter.
     // See https://svelte.dev/docs/kit/adapters for more information about adapters.
-    // preloadDataPersist: adapter output is immutable at build time, so preloaded
-    // data never goes stale. This keeps preload cache entries across navigations.
-    adapter: Object.assign(adapter(), { preloadDataPersist: true }),
+    adapter: adapter(),
     alias: {
       '@lib': '../../packages/svelte/src/lib',
       '@lib/*': '../../packages/svelte/src/lib/*'

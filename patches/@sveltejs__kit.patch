@@ -1,20 +1,40 @@
 diff --git a/src/exports/vite/index.js b/src/exports/vite/index.js
-index fe829e73e240d283f9f7557ffc60ebfe6973b1b6..99896902259855407ee3dd15d6e1de728378b7aa 100644
+index fe829e73e240d283f9f7557ffc60ebfe6973b1b6..c047c925df997499d603e846844a2b265587a7f2 100644
 --- a/src/exports/vite/index.js
 +++ b/src/exports/vite/index.js
-@@ -385,6 +385,7 @@ async function kit({ svelte_config }) {
- 						__SVELTEKIT_ADAPTER_NAME__: s(kit.adapter?.name),
- 						__SVELTEKIT_APP_VERSION_FILE__: s(`${kit.appDir}/version.json`),
- 						__SVELTEKIT_APP_VERSION_POLL_INTERVAL__: s(kit.version.pollInterval),
-+						__SVELTEKIT_PRELOAD_DATA_PERSIST__: s(!!kit.adapter?.preloadDataPersist),
- 						__SVELTEKIT_PAYLOAD__: new_config.build.ssr
- 							? '{}'
- 							: `globalThis.__sveltekit_${version_hash}`
+@@ -395,17 +395,24 @@ async function kit({ svelte_config }) {
+ 						// During the initial server build we don't know yet
+ 						new_config.define.__SVELTEKIT_HAS_SERVER_LOAD__ = 'true';
+ 						new_config.define.__SVELTEKIT_HAS_UNIVERSAL_LOAD__ = 'true';
++						new_config.define.__SVELTEKIT_PRERENDERED_ROUTES__ = '[]';
+ 					} else {
+-						const nodes = Object.values(
+-							/** @type {import('types').ServerMetadata} */ (build_metadata).nodes
+-						);
++						const metadata = /** @type {import('types').ServerMetadata} */ (build_metadata);
++						const nodes = Object.values(metadata.nodes);
+ 
+ 						// Through the finished analysis we can now check if any node has server or universal load functions
+ 						const has_server_load = nodes.some((node) => node.has_server_load);
+ 						const has_universal_load = nodes.some((node) => node.has_universal_load);
+ 
++						// Collect routes that declared prerender = true so the client
++						// can persist their preload cache entries across navigations
++						const prerendered_routes = [...metadata.routes.entries()]
++							.filter(([, meta]) => meta.prerender === true)
++							.map(([id]) => id);
++
+ 						new_config.define.__SVELTEKIT_HAS_SERVER_LOAD__ = s(has_server_load);
+ 						new_config.define.__SVELTEKIT_HAS_UNIVERSAL_LOAD__ = s(has_universal_load);
++						new_config.define.__SVELTEKIT_PRERENDERED_ROUTES__ = JSON.stringify(prerendered_routes);
+ 					}
+ 				} else {
+ 					new_config.define = {
 diff --git a/src/runtime/client/client.js b/src/runtime/client/client.js
-index c52354928a50f15235d3854242749704997be653..92fb124b5a9469bf0abf448cc066f629b61b9f2f 100644
+index c52354928a50f15235d3854242749704997be653..4137965fae7f839d1c704101251905efd9570774 100644
 --- a/src/runtime/client/client.js
 +++ b/src/runtime/client/client.js
-@@ -222,12 +222,22 @@ const invalidated = [];
+@@ -222,12 +222,25 @@ const invalidated = [];
   */
  const components = [];
  
@@ -26,6 +46,9 @@ index c52354928a50f15235d3854242749704997be653..92fb124b5a9469bf0abf448cc066f629
 -	load_cache = null;
 +/** @type {Map<string, {id: string, token: {}, promise: Promise<import('./types.js').NavigationResult>, fork: Promise<import('svelte').Fork | null> | null}>} */
 +let load_cache = new Map();
++
++/** @type {Set<string>} route IDs that were prerendered (immutable data, safe to cache indefinitely) */
++const prerendered_routes = new Set(__SVELTEKIT_PRERENDERED_ROUTES__);
 +
 +function discard_load_cache(id) {
 +	if (id) {
@@ -43,7 +66,7 @@ index c52354928a50f15235d3854242749704997be653..92fb124b5a9469bf0abf448cc066f629
  }
  
  /**
-@@ -540,36 +550,35 @@ export async function _goto(url, options, redirect_count, nav_token) {
+@@ -540,36 +553,34 @@ export async function _goto(url, options, redirect_count, nav_token) {
  
  /** @param {import('./types.js').NavigationIntent} intent */
  async function _preload_data(intent) {
@@ -55,10 +78,9 @@ index c52354928a50f15235d3854242749704997be653..92fb124b5a9469bf0abf448cc066f629
 -		discard_load_cache();
 -
 +	// Reuse pending or unconsumed preloads to avoid duplicate fetches.
-+	// Adapters that produce immutable output can opt out of consumed-entry refreshing
-+	// by setting `preloadDataPersist: true`, which exposes __SVELTEKIT_PRELOAD_DATA_PERSIST__.
++	// Refresh consumed entries only for non-prerendered routes (prerendered data is immutable).
 +	const existing = load_cache.get(intent.id);
-+	const should_refresh = existing?.consumed && !__SVELTEKIT_PRELOAD_DATA_PERSIST__;
++	const should_refresh = existing?.consumed && !prerendered_routes.has(intent.route.id);
 +	if (!existing || should_refresh) {
 +		if (existing) discard_load_cache(intent.id);
  		const preload = {};
@@ -93,7 +115,7 @@ index c52354928a50f15235d3854242749704997be653..92fb124b5a9469bf0abf448cc066f629
  					try {
  						return svelte.fork(() => {
  							root.$set(result.props);
-@@ -585,7 +594,7 @@ async function _preload_data(intent) {
+@@ -585,7 +596,7 @@ async function _preload_data(intent) {
  		}
  	}
  
@@ -102,7 +124,7 @@ index c52354928a50f15235d3854242749704997be653..92fb124b5a9469bf0abf448cc066f629
  }
  
  /**
-@@ -1104,10 +1113,11 @@ function preload_error({ error, url, route, params }) {
+@@ -1104,10 +1115,11 @@ function preload_error({ error, url, route, params }) {
   * @returns {Promise<import('./types.js').NavigationResult>}
   */
  async function load_route({ id, invalidating, url, params, route, preload }) {
@@ -117,7 +139,7 @@ index c52354928a50f15235d3854242749704997be653..92fb124b5a9469bf0abf448cc066f629
  	}
  
  	const { errors, layouts, leaf } = route;
-@@ -1784,13 +1794,13 @@ async function navigate({
+@@ -1784,13 +1796,13 @@ async function navigate({
  	}
  
  	// also compare ids to avoid using wrong fork (e.g. a new one could've been added while navigating)
@@ -138,15 +160,15 @@ index c52354928a50f15235d3854242749704997be653..92fb124b5a9469bf0abf448cc066f629
  	navigation_result.props.page.state = state;
  
 diff --git a/src/types/global-private.d.ts b/src/types/global-private.d.ts
-index 4b442f89944ca20521064e4c519b45dee00f07ec..2e1ca12ab19b8b5cb38650ee29e4beb4895bfe64 100644
+index 4b442f89944ca20521064e4c519b45dee00f07ec..14f2b733a3a7c290113ad163fe1c2363aca1fab7 100644
 --- a/src/types/global-private.d.ts
 +++ b/src/types/global-private.d.ts
 @@ -11,6 +11,8 @@ declare global {
  	const __SVELTEKIT_SERVER_TRACING_ENABLED__: boolean;
  	/** True if `config.kit.experimental.forkPreloads` is `true` */
  	const __SVELTEKIT_FORK_PRELOADS__: boolean;
-+	/** True if the active adapter sets `preloadDataPersist: true` to keep preload cache entries across navigations */
-+	const __SVELTEKIT_PRELOAD_DATA_PERSIST__: boolean;
++	/** Route IDs that declared `prerender = true`. Used to persist preload cache entries for immutable data. */
++	const __SVELTEKIT_PRERENDERED_ROUTES__: string[];
  	/** True if `config.kit.router.resolution === 'client'` */
  	const __SVELTEKIT_CLIENT_ROUTING__: boolean;
  	/** True if `config.kit.router.type === 'hash'` */
