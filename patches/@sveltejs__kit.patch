@@ -69,19 +69,15 @@ index fe829e73e240d283f9f7557ffc60ebfe6973b1b6..f4580a6ae09ee8cccd59f31e1266c38a
  
  				secondary_build_started = true;
 diff --git a/src/runtime/client/client.js b/src/runtime/client/client.js
-index c52354928a50f15235d3854242749704997be653..45557f182ae6d3e2b5e85acd432df04cad9f452a 100644
+index c52354928a50f15235d3854242749704997be653..0afe15afdf61379fc070666614d80edcba34cf23 100644
 --- a/src/runtime/client/client.js
 +++ b/src/runtime/client/client.js
-@@ -222,12 +222,25 @@ const invalidated = [];
+@@ -222,12 +222,36 @@ const invalidated = [];
   */
  const components = [];
  
 -/** @type {{id: string, token: {}, promise: Promise<import('./types.js').NavigationResult>, fork: Promise<import('svelte').Fork | null> | null} | null} */
 -let load_cache = null;
--
--function discard_load_cache() {
--	void load_cache?.fork?.then((f) => f?.discard());
--	load_cache = null;
 +/** @type {Map<string, {id: string, token: {}, promise: Promise<import('./types.js').NavigationResult>, fork: Promise<import('svelte').Fork | null> | null}>} */
 +let load_cache = new Map();
 +
@@ -101,10 +97,24 @@ index c52354928a50f15235d3854242749704997be653..45557f182ae6d3e2b5e85acd432df04c
 +		}
 +		load_cache.clear();
 +	}
++}
+ 
+-function discard_load_cache() {
+-	void load_cache?.fork?.then((f) => f?.discard());
+-	load_cache = null;
++/**
++ * A consumed cache entry needs to be refreshed only if the route may have changed
++ * server-side. Prerendered routes are immutable per build, so their entries can
++ * be reused indefinitely.
++ * @param {{ consumed?: boolean } | undefined} entry
++ * @param {{ id: string }} route
++ */
++function should_refresh_entry(entry, route) {
++	return entry?.consumed === true && !prerendered_routes.has(route.id);
  }
  
  /**
-@@ -331,6 +344,7 @@ export async function start(_app, _target, hydrate) {
+@@ -331,6 +355,7 @@ export async function start(_app, _target, hydrate) {
  	}
  
  	app = _app;
@@ -112,7 +122,7 @@ index c52354928a50f15235d3854242749704997be653..45557f182ae6d3e2b5e85acd432df04c
  
  	await _app.hooks.init?.();
  
-@@ -540,36 +554,34 @@ export async function _goto(url, options, redirect_count, nav_token) {
+@@ -540,36 +565,33 @@ export async function _goto(url, options, redirect_count, nav_token) {
  
  /** @param {import('./types.js').NavigationIntent} intent */
  async function _preload_data(intent) {
@@ -126,8 +136,7 @@ index c52354928a50f15235d3854242749704997be653..45557f182ae6d3e2b5e85acd432df04c
 +	// Reuse pending or unconsumed preloads to avoid duplicate fetches.
 +	// Refresh consumed entries only for non-prerendered routes (prerendered data is immutable).
 +	const existing = load_cache.get(intent.id);
-+	const should_refresh = existing?.consumed && !prerendered_routes.has(intent.route.id);
-+	if (!existing || should_refresh) {
++	if (!existing || should_refresh_entry(existing, intent.route)) {
 +		if (existing) discard_load_cache(intent.id);
  		const preload = {};
  		preload_tokens.add(preload);
@@ -161,7 +170,7 @@ index c52354928a50f15235d3854242749704997be653..45557f182ae6d3e2b5e85acd432df04c
  					try {
  						return svelte.fork(() => {
  							root.$set(result.props);
-@@ -585,7 +597,7 @@ async function _preload_data(intent) {
+@@ -585,7 +607,7 @@ async function _preload_data(intent) {
  		}
  	}
  
@@ -170,7 +179,7 @@ index c52354928a50f15235d3854242749704997be653..45557f182ae6d3e2b5e85acd432df04c
  }
  
  /**
-@@ -1104,10 +1116,15 @@ function preload_error({ error, url, route, params }) {
+@@ -1104,10 +1126,15 @@ function preload_error({ error, url, route, params }) {
   * @returns {Promise<import('./types.js').NavigationResult>}
   */
  async function load_route({ id, invalidating, url, params, route, preload }) {
@@ -181,7 +190,7 @@ index c52354928a50f15235d3854242749704997be653..45557f182ae6d3e2b5e85acd432df04c
 +	if (load_cache.has(id)) {
 +		const cached = load_cache.get(id);
 +		// Consumed entries for non-prerendered routes may be stale — discard and refetch
-+		if (cached.consumed && !prerendered_routes.has(route.id)) {
++		if (should_refresh_entry(cached, route)) {
 +			discard_load_cache(id);
 +		} else {
 +			preload_tokens.delete(cached.token);
@@ -190,7 +199,7 @@ index c52354928a50f15235d3854242749704997be653..45557f182ae6d3e2b5e85acd432df04c
  	}
  
  	const { errors, layouts, leaf } = route;
-@@ -1784,13 +1801,13 @@ async function navigate({
+@@ -1784,13 +1811,13 @@ async function navigate({
  	}
  
  	// also compare ids to avoid using wrong fork (e.g. a new one could've been added while navigating)
