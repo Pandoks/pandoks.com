@@ -16,11 +16,12 @@ function headers(init: Record<string, string> = {}) {
 let cachedUnblockerAgent: ProxyAgent | undefined;
 function unblockerAgent() {
   if (!cachedUnblockerAgent) {
-    const user = encodeURIComponent(Resource.OxylabsWebUnblockerUsername.value);
-    const pass = encodeURIComponent(Resource.OxylabsWebUnblockerPassword.value);
+    const user = Resource.OxylabsWebUnblockerUsername.value;
+    const pass = Resource.OxylabsWebUnblockerPassword.value;
+    const token = `Basic ${Buffer.from(`${user}:${pass}`).toString('base64')}`;
     cachedUnblockerAgent = new ProxyAgent({
-      uri: `https://${user}:${pass}@unblock.oxylabs.io:60000`,
-      requestTls: { rejectUnauthorized: false }
+      uri: 'https://unblock.oxylabs.io:60000',
+      token
     });
   }
   return cachedUnblockerAgent;

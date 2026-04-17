@@ -28,9 +28,12 @@ async function batchGet(keys: string[]): Promise<Map<string, UnitRecord>> {
     let pending: Record<string, { Keys: Record<string, unknown>[] }> | undefined = {
       [TABLE_NAME]: { Keys: keys.slice(i, i + 100).map((unitKey) => ({ unitKey })) }
     };
-    let attempt = 0;
 
-    while (pending && Object.keys(pending).length && attempt < MAX_RETRIES) {
+    for (
+      let attempt = 0;
+      attempt < MAX_RETRIES && pending && Object.keys(pending).length;
+      attempt++
+    ) {
       const response = await client.send(new BatchGetCommand({ RequestItems: pending }));
 
       for (const item of response.Responses?.[TABLE_NAME] ?? []) {
@@ -38,7 +41,6 @@ async function batchGet(keys: string[]): Promise<Map<string, UnitRecord>> {
       }
 
       pending = response.UnprocessedKeys as typeof pending;
-      attempt++;
     }
   }
 
@@ -56,12 +58,14 @@ async function batchPut(records: UnitRecord[]): Promise<void> {
         PutRequest: { Item: { ...record, ttl } }
       }))
     };
-    let attempt = 0;
 
-    while (pending && Object.keys(pending).length && attempt < MAX_RETRIES) {
+    for (
+      let attempt = 0;
+      attempt < MAX_RETRIES && pending && Object.keys(pending).length;
+      attempt++
+    ) {
       const response = await client.send(new BatchWriteCommand({ RequestItems: pending }));
       pending = response.UnprocessedItems as typeof pending;
-      attempt++;
     }
   }
 }

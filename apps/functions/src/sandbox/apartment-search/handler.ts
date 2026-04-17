@@ -99,14 +99,21 @@ export const notifierHandler = async () => {
       console.log(`SMS sent to ${masked}`);
     } else {
       console.error(`SMS failed to ${masked}`, result.reason);
-      failures.push(`${masked}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
+      failures.push(
+        `${masked}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`
+      );
     }
   }
 
   if (failures.length > 0) {
-    throw new Error(`SMS delivery incomplete (${failures.length}/${sends.length} failed); skipping state persist so next run retries. Failures: ${failures.join('; ')}`);
+    throw new Error(
+      `SMS delivery incomplete (${failures.length}/${sends.length} failed); skipping state persist so next run retries. Failures: ${failures.join('; ')}`
+    );
   }
 
   await persistState(toWrite);
-  return { statusCode: 200, body: `Sent ${sends.length}/${sends.length} alerts` };
+  return {
+    statusCode: 200,
+    body: `Sent ${alerts.length} alerts to ${sends.length} recipients`
+  };
 };
