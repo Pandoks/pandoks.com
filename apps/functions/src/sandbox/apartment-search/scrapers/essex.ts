@@ -56,7 +56,11 @@ function formatSqft(min: number, max: number) {
   return min > 0 ? String(min) : max > 0 ? String(max) : '';
 }
 
-function sortByPrice<T>(items: T[], price: (i: T) => string | undefined, name: (i: T) => string | undefined) {
+function sortByPrice<T>(
+  items: T[],
+  price: (i: T) => string | undefined,
+  name: (i: T) => string | undefined
+) {
   items.sort((a, b) => {
     const diff = priceToCents(price(a)) - priceToCents(price(b));
     return diff !== 0 ? diff : String(name(a) ?? '').localeCompare(String(name(b) ?? ''));
@@ -101,8 +105,16 @@ export async function scrapeEssex(signal: AbortSignal, target: Target): Promise<
     availableDate: u.availability_date?.trim()
   }));
 
-  sortByPrice(floorplans, (f) => f.minPrice, (f) => f.name);
-  sortByPrice(units, (u) => u.price, (u) => u.number);
+  sortByPrice(
+    floorplans,
+    (f) => f.minPrice,
+    (f) => f.name
+  );
+  sortByPrice(
+    units,
+    (u) => u.price,
+    (u) => u.number
+  );
 
   return {
     source: 'essex',

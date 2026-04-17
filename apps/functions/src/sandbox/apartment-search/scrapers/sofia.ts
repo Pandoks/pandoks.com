@@ -133,11 +133,16 @@ export async function scrapeSofia(signal: AbortSignal, target: Target): Promise<
   if (!siteId) throw new Error('could not find Sofia siteId');
 
   const moveInDate = target.moveInDate || extractFirst(widgetScript, moveInDatePattern);
-  const templateBody = await postForm(signal, TEMPLATE_URL, new URLSearchParams({ site_id: siteId }), {
-    accept: '*/*',
-    origin: 'https://www.sofiaaptliving.com',
-    referer: pageUrl
-  });
+  const templateBody = await postForm(
+    signal,
+    TEMPLATE_URL,
+    new URLSearchParams({ site_id: siteId }),
+    {
+      accept: '*/*',
+      origin: 'https://www.sofiaaptliving.com',
+      referer: pageUrl
+    }
+  );
 
   const { floorplans, detailKeys } = parseSofiaFloorplans(templateBody);
   let units: Unit[] = [];
@@ -174,14 +179,26 @@ export async function scrapeSofia(signal: AbortSignal, target: Target): Promise<
     });
   }
 
-  const sortByPrice = <T>(items: T[], price: (i: T) => string | undefined, name: (i: T) => string | undefined) =>
+  const sortByPrice = <T>(
+    items: T[],
+    price: (i: T) => string | undefined,
+    name: (i: T) => string | undefined
+  ) =>
     items.sort((a, b) => {
       const diff = priceToCents(price(a)) - priceToCents(price(b));
       return diff !== 0 ? diff : String(name(a) ?? '').localeCompare(String(name(b) ?? ''));
     });
 
-  sortByPrice(floorplans, (f) => f.minPrice, (f) => f.name);
-  sortByPrice(units, (u) => u.price, (u) => u.number);
+  sortByPrice(
+    floorplans,
+    (f) => f.minPrice,
+    (f) => f.name
+  );
+  sortByPrice(
+    units,
+    (u) => u.price,
+    (u) => u.number
+  );
 
   return {
     source: 'sofia',
