@@ -21,7 +21,8 @@ function unblockerAgent() {
     const token = `Basic ${Buffer.from(`${user}:${pass}`).toString('base64')}`;
     cachedUnblockerAgent = new ProxyAgent({
       uri: 'https://unblock.oxylabs.io:60000',
-      token
+      token,
+      requestTls: { rejectUnauthorized: false }
     });
   }
   return cachedUnblockerAgent;
