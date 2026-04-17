@@ -20,9 +20,9 @@ export default $config({
   },
   async run() {
     // NOTE: for some reason, dynamic imports don't work well so just manually import
-    const imports = await Promise.all([
-      import('./infra/api'),
+    let imports = await Promise.all([
       import('./infra/dns'),
+      import('./infra/api'),
       import('./infra/cloudflare'),
       import('./infra/storage'),
       import('./infra/github'),
@@ -31,9 +31,12 @@ export default $config({
       import('./infra/tailscale'),
       import('./infra/vps/vps'),
       import('./infra/kubernetes'),
-      import('./infra/dev'),
-      import('./infra/sandbox/apartment-search')
+      import('./infra/dev')
     ]);
+    // WARNING: sandboxes should only be imported in the pandoks stage
+    if ($app.stage === 'pandoks') {
+      imports.push(await Promise.all([import('./infra/sandbox/apartment-search')]));
+    }
     return imports.reduce((acculumator, importResult: any) => {
       if (importResult.outputs) {
         return { ...acculumator, ...importResult.outputs };

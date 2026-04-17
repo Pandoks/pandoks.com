@@ -6,7 +6,7 @@
 
 declare module 'sst' {
   export interface Resource {
-    ApartmentScraperFunction: {
+    ApartmentScraper: {
       name: string;
       type: 'sst.aws.Function';
     };
@@ -139,11 +139,6 @@ declare module 'sst' {
       type: 'sst.sst.Secret';
       value: string;
     };
-    NotionWebhookHandler: {
-      name: string;
-      type: 'sst.aws.Function';
-      url: string;
-    };
     NotionWebhookVerificationToken: {
       type: 'sst.sst.Secret';
       value: string;
@@ -168,7 +163,7 @@ declare module 'sst' {
       type: 'sst.sst.Secret';
       value: string;
     };
-    TextSmsFunction: {
+    TextSms: {
       name: string;
       type: 'sst.aws.Function';
     };
