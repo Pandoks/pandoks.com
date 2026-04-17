@@ -116,9 +116,16 @@ jobs:
           tags: tag:ci,tag:prod
 
       - name: Configure kubeconfig
-        run: sudo tailscale configure kubeconfig prod-cluster
+        run: |
+          if ! sudo tailscale status --peers | grep -q prod-cluster; then
+            echo "No cluster found — skipping deployment"
+            echo "SKIP_DEPLOY=true" >> $GITHUB_ENV
+            exit 0
+          fi
+          sudo tailscale configure kubeconfig prod-cluster
 
       - name: Trigger ArgoCD Sync
+        if: env.SKIP_DEPLOY != 'true'
         run: |
           sudo kubectl annotate application prod-cluster \
             argocd.argoproj.io/refresh=hard \
@@ -126,6 +133,7 @@ jobs:
             --namespace argocd
 
       - name: Wait for ArgoCD Sync
+        if: env.SKIP_DEPLOY != 'true'
         run: |
           for i in {1..60}; do
             STATUS=$(sudo kubectl get application prod-cluster -n argocd -o jsonpath='{.status.sync.status}')
