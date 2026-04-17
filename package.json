@@ -25,13 +25,23 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "sst": "^4.7.4"
+    "sst": "^4.7.5"
   },
   "pnpm": {
-    "//TODO": "remove overrides once fonteditor-core, plist, and axios update their deps to non-vulnerable versions",
+    "//TODO": "remove overrides once upstream packages update their deps to non-vulnerable versions",
     "overrides": {
-      "follow-redirects": ">=1.16.0",
-      "@xmldom/xmldom": ">=0.9.9"
+      "follow-redirects": "^1.16.0",
+      "@xmldom/xmldom": "^0.9.9",
+      "undici": "^7.24.0",
+      "fast-xml-parser": "^5.6.0",
+      "devalue": "^5.7.1",
+      "lodash": "^4.18.1",
+      "picomatch": "^4.0.4",
+      "tar": "^7.5.13",
+      "cookie": "~0.7.0",
+      "tmp": "^0.2.5",
+      "@tootallnate/once": "^3.0.1",
+      "axios": "^1.15.0"
     }
   }
 }
