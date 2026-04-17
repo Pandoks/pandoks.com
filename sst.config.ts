@@ -34,6 +34,7 @@ export default $config({
       import('./infra/dev')
     ]);
     // WARNING: sandboxes should only be imported in the pandoks stage
+    // You'll need to manually deploy them (not just push to main there is go gh ci)
     if ($app.stage === 'pandoks') {
       imports.push(await Promise.all([import('./infra/sandbox/apartment-search')]));
     }

@@ -28,9 +28,11 @@ function formatAlertMessage(alerts: AlertMatch[]): string {
 
     for (const alert of propertyAlerts) {
       const unit = alert.unit;
+      const bed = Number.parseFloat(unit.bedrooms ?? '');
+      const bedLabel = Number.isNaN(bed) ? '' : bed === 0 ? 'studio' : `${bed}bd`;
       const unitInfo = [
         `Unit ${unit.number}`,
-        unit.bedrooms ? `${unit.bedrooms}bd` : '',
+        bedLabel,
         unit.sqft ? `${unit.sqft}sqft` : '',
         unit.price
       ]
