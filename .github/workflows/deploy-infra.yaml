@@ -36,8 +36,8 @@ jobs:
       sst: ${{ steps.filter.outputs.sst }}
       kubernetes: ${{ steps.filter.outputs.kubernetes }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
@@ -66,13 +66,13 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: 'pnpm'
@@ -81,12 +81,15 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
+      # TODO: remove continue-on-error after sst fixes refresh exit code bug
+      # https://github.com/anomalyco/sst/issues/6713
       - name: Refresh sst state
+        continue-on-error: true
         run: pnpm sst refresh --stage $SST_STAGE
 
       - name: Deploy SST
