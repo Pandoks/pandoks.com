@@ -1,3 +1,6 @@
+import { ProxyAgent } from 'undici';
+import { Resource } from 'sst';
+
 const USER_AGENT = 'apartment-scraper/1.0';
 
 function withTimeout(signal: AbortSignal, timeoutMs: number) {
@@ -8,6 +11,19 @@ function withTimeout(signal: AbortSignal, timeoutMs: number) {
 
 function headers(init: Record<string, string> = {}) {
   return { 'user-agent': USER_AGENT, ...init };
+}
+
+let cachedUnblockerAgent: ProxyAgent | undefined;
+function unblockerAgent() {
+  if (!cachedUnblockerAgent) {
+    const user = encodeURIComponent(Resource.OxylabsWebUnblockerUsername.value);
+    const pass = encodeURIComponent(Resource.OxylabsWebUnblockerPassword.value);
+    cachedUnblockerAgent = new ProxyAgent({
+      uri: `https://${user}:${pass}@unblock.oxylabs.io:60000`,
+      requestTls: { rejectUnauthorized: false }
+    });
+  }
+  return cachedUnblockerAgent;
 }
 
 async function ensureOk(response: Response, rawUrl: string) {
@@ -27,6 +43,26 @@ export async function getText(
     headers: headers(init),
     signal: withTimeout(signal, timeoutMs)
   });
+  await ensureOk(response, rawUrl);
+  return response.text();
+}
+
+export async function getTextViaUnblocker(
+  signal: AbortSignal,
+  rawUrl: string,
+  init: Record<string, string> = {},
+  timeoutMs = 60_000
+) {
+  const response = await fetch(rawUrl, {
+    method: 'GET',
+    headers: headers({
+      'x-oxylabs-render': 'html',
+      'x-oxylabs-geo-location': 'United States',
+      ...init
+    }),
+    signal: withTimeout(signal, timeoutMs),
+    dispatcher: unblockerAgent()
+  } as RequestInit & { dispatcher: ProxyAgent });
   await ensureOk(response, rawUrl);
   return response.text();
 }
