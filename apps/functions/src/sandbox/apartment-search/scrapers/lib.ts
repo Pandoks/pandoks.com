@@ -54,11 +54,11 @@ export async function postForm(
 function decodeHtml(raw: string) {
   return raw
     .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>');
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
 }
 
 export function stripTags(raw: string) {
@@ -80,14 +80,14 @@ export function normalizeMoney(raw?: string) {
   return value.startsWith('$') ? value : `$${value}`;
 }
 
-export function priceToCents(raw?: string) {
+export function priceToCents(raw?: string): number | null {
   const numeric = Number.parseFloat(
     String(raw ?? '')
       .trim()
       .replace(/^\$/, '')
       .replaceAll(',', '')
   );
-  return Number.isFinite(numeric) ? Math.round(numeric * 100) : 0;
+  return Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric * 100) : null;
 }
 
 export function extractUnitNumberValue(unitNumber?: string) {
