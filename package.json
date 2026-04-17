@@ -25,7 +25,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "sst": "^4.7.4"
+    "sst": "^4.7.5"
   },
   "pnpm": {
     "//TODO": "remove overrides once upstream packages update their deps to non-vulnerable versions",
