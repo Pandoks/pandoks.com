@@ -2,7 +2,7 @@ import { secrets } from './secrets';
 import { domain } from './dns';
 
 const apiDomain = `api.${domain}`;
-const nodeVersion = 'nodejs22.x';
+export const nodeVersion = 'nodejs22.x';
 
 export const apiRouter = new sst.aws.Router('ApiRouter', {
   domain: {
