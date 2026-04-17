@@ -1,5 +1,5 @@
 diff --git a/src/core/sync/write_client_manifest.js b/src/core/sync/write_client_manifest.js
-index 7495e3134854f75f960aa46885a0f394d17e8a78..1ca44cc7fbd1a3d54e459a4b20ce7aecf6722323 100644
+index 7495e3134854f75f960aa46885a0f394d17e8a78..6d46c3999a059583d5f3f93a3d517d76f7e6b96b 100644
 --- a/src/core/sync/write_client_manifest.js
 +++ b/src/core/sync/write_client_manifest.js
 @@ -10,7 +10,7 @@ import colors from 'kleur';
@@ -29,22 +29,24 @@ index 7495e3134854f75f960aa46885a0f394d17e8a78..1ca44cc7fbd1a3d54e459a4b20ce7aec
  							} else if (manifest_data.nodes[layout].server) {
  								layout_has_server_load = true;
  							}
-@@ -120,6 +120,14 @@ export function write_client_manifest(kit, manifest_data, output, metadata) {
+@@ -120,6 +120,16 @@ export function write_client_manifest(kit, manifest_data, output, metadata) {
  		if (root_layout) layouts_with_server_load.add(0);
  	}
  
 +	// Routes that declared `prerender = true` — their __data.json is immutable per build,
-+	// so the client can keep preload cache entries for them across navigations
++	// so the client can keep preload cache entries for them across navigations.
++	// Sorted for deterministic manifest output across builds.
 +	const prerendered_routes = metadata
 +		? [...metadata.routes.entries()]
 +				.filter(([, route_metadata]) => route_metadata.prerender === true)
 +				.map(([id]) => id)
++				.sort()
 +		: [];
 +
  	const client_hooks_file = resolve_entry(kit.files.hooks.client);
  	const universal_hooks_file = resolve_entry(kit.files.hooks.universal);
  
-@@ -159,6 +167,8 @@ export function write_client_manifest(kit, manifest_data, output, metadata) {
+@@ -159,6 +169,8 @@ export function write_client_manifest(kit, manifest_data, output, metadata) {
  
  			export const server_loads = [${[...layouts_with_server_load].join(',')}];
  
@@ -67,7 +69,7 @@ index fe829e73e240d283f9f7557ffc60ebfe6973b1b6..f4580a6ae09ee8cccd59f31e1266c38a
  
  				secondary_build_started = true;
 diff --git a/src/runtime/client/client.js b/src/runtime/client/client.js
-index c52354928a50f15235d3854242749704997be653..7adadd814a551b5220ee19e165923e90efab647a 100644
+index c52354928a50f15235d3854242749704997be653..45557f182ae6d3e2b5e85acd432df04cad9f452a 100644
 --- a/src/runtime/client/client.js
 +++ b/src/runtime/client/client.js
 @@ -222,12 +222,25 @@ const invalidated = [];
@@ -199,10 +201,10 @@ index c52354928a50f15235d3854242749704997be653..7adadd814a551b5220ee19e165923e90
 -		discard_load_cache();
 +	const cached_entry = intent ? load_cache.get(intent.id) : null;
 +	const load_cache_fork = cached_entry?.fork ?? null;
-+	// consume fork and mark entry so subsequent preloads refresh it
++	// Replace the entry rather than mutating it — any pending fork closures
++	// compare against the original reference and will bail gracefully.
 +	if (cached_entry) {
-+		cached_entry.fork = null;
-+		cached_entry.consumed = true;
++		load_cache.set(intent.id, { ...cached_entry, fork: null, consumed: true });
  	}
 -	load_cache = null;
  
