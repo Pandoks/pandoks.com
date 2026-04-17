@@ -28,6 +28,12 @@ export const secrets = {
     AuthToken: new sst.Secret('TwilioAuthToken'),
     NotionMessagingServiceSid: new sst.Secret('TwilioNotionMessagingServiceSid')
   },
+  oxylabs: {
+    webunblocker: {
+      Username: new sst.Secret('OxylabsWebUnblockerUsername'),
+      Password: new sst.Secret('OxylabsWebUnblockerPassword')
+    }
+  },
   hetzner: {
     ApiKey: new sst.Secret('HetznerApiKey'),
     K3sToken: new sst.Secret('HetznerK3sToken')
