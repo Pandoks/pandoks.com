@@ -32,7 +32,7 @@
     "overrides": {
       "follow-redirects": ">=1.16.0",
       "@xmldom/xmldom": ">=0.9.9",
-      "undici": ">=7.24.0",
+      "undici": "^7.24.0",
       "fast-xml-parser": ">=5.6.0",
       "devalue": ">=5.7.1",
       "lodash": ">=4.18.1",
