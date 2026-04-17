@@ -173,6 +173,9 @@ importers:
       twilio:
         specifier: ^5.13.1
         version: 5.13.1
+      undici:
+        specifier: ^7.24.0
+        version: 7.25.0
     devDependencies:
       '@types/aws-lambda':
         specifier: ^8.10.161
