@@ -28,7 +28,7 @@
     "sst": "^4.7.4"
   },
   "pnpm": {
-    "//overrides": "TODO: remove once fonteditor-core, plist, and axios update their deps to non-vulnerable versions",
+    "//TODO": "remove overrides once fonteditor-core, plist, and axios update their deps to non-vulnerable versions",
     "overrides": {
       "follow-redirects": ">=1.16.0",
       "@xmldom/xmldom": ">=0.9.9"
