@@ -8,6 +8,7 @@ import type { TargetResult, Unit } from './scrapers/types';
 const client = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const TABLE_NAME = Resource.ApartmentSearchKV.name;
 const TTL_DAYS = 30;
+const MAX_RETRIES = 3;
 
 interface UnitRecord {
   unitKey: string;
@@ -24,17 +25,18 @@ async function batchGet(keys: string[]): Promise<Map<string, UnitRecord>> {
   if (!keys.length) return result;
 
   for (let i = 0; i < keys.length; i += 100) {
-    const batch = keys.slice(i, i + 100);
-    const response = await client.send(
-      new BatchGetCommand({
-        RequestItems: {
-          [TABLE_NAME]: { Keys: batch.map((unitKey) => ({ unitKey })) }
-        }
-      })
-    );
+    let pending: Record<string, { Keys: Record<string, unknown>[] }> | undefined = {
+      [TABLE_NAME]: { Keys: keys.slice(i, i + 100).map((unitKey) => ({ unitKey })) }
+    };
 
-    for (const item of response.Responses?.[TABLE_NAME] ?? []) {
-      result.set(item.unitKey as string, item as unknown as UnitRecord);
+    for (let attempt = 0; pending && attempt < MAX_RETRIES; attempt++) {
+      const response = await client.send(new BatchGetCommand({ RequestItems: pending }));
+
+      for (const item of response.Responses?.[TABLE_NAME] ?? []) {
+        result.set(item.unitKey as string, item as unknown as UnitRecord);
+      }
+
+      pending = response.UnprocessedKeys as typeof pending;
     }
   }
 
@@ -47,16 +49,16 @@ async function batchPut(records: UnitRecord[]): Promise<void> {
   const ttl = Math.floor(Date.now() / 1000) + TTL_DAYS * 86400;
 
   for (let i = 0; i < records.length; i += 25) {
-    const batch = records.slice(i, i + 25);
-    await client.send(
-      new BatchWriteCommand({
-        RequestItems: {
-          [TABLE_NAME]: batch.map((record) => ({
-            PutRequest: { Item: { ...record, ttl } }
-          }))
-        }
-      })
-    );
+    let pending: Record<string, { PutRequest: { Item: Record<string, unknown> } }[]> | undefined = {
+      [TABLE_NAME]: records.slice(i, i + 25).map((record) => ({
+        PutRequest: { Item: { ...record, ttl } }
+      }))
+    };
+
+    for (let attempt = 0; pending && attempt < MAX_RETRIES; attempt++) {
+      const response = await client.send(new BatchWriteCommand({ RequestItems: pending }));
+      pending = response.UnprocessedItems as typeof pending;
+    }
   }
 }
 
@@ -71,6 +73,7 @@ function matchesRules(unit: Unit, rules?: AlertRules): boolean {
   if (!rules) return true;
 
   const price = priceToCents(unit.price);
+  if (price == null) return false;
   if (rules.minPrice != null && price < Math.round(rules.minPrice * 100)) return false;
   if (rules.maxPrice != null && price > Math.round(rules.maxPrice * 100)) return false;
 
@@ -107,10 +110,15 @@ function matchesRules(unit: Unit, rules?: AlertRules): boolean {
   return true;
 }
 
+export interface ProcessedResults {
+  alerts: AlertMatch[];
+  toWrite: UnitRecord[];
+}
+
 export async function processResults(
   targets: Target[],
   results: TargetResult[]
-): Promise<AlertMatch[]> {
+): Promise<ProcessedResults> {
   const alerts: AlertMatch[] = [];
   const allKeys: string[] = [];
   const keyToContext = new Map<string, { target: Target; result: TargetResult; unit: Unit }>();
@@ -134,6 +142,8 @@ export async function processResults(
   for (const key of allKeys) {
     const ctx = keyToContext.get(key)!;
     const currentPrice = priceToCents(ctx.unit.price);
+    if (currentPrice == null) continue;
+
     const record = existing.get(key);
     const watched = ctx.target.watchUnits?.some(
       (n) => (ctx.unit.number ?? '') === n || (ctx.unit.number ?? '').endsWith(n)
@@ -170,7 +180,9 @@ export async function processResults(
     toWrite.push({ unitKey: key, price: currentPrice });
   }
 
-  await batchPut(toWrite);
+  return { alerts, toWrite };
+}
 
-  return alerts;
+export async function persistState(toWrite: UnitRecord[]): Promise<void> {
+  await batchPut(toWrite);
 }

@@ -1,7 +1,7 @@
 import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
 import { TARGETS, DEFAULT_RULES } from './config';
 import { scrapeAll } from './scrapers';
-import { processResults } from './status';
+import { processResults, persistState } from './status';
 import type { AlertMatch } from './types';
 
 const lambda = new LambdaClient({});
@@ -58,9 +58,10 @@ export const notifierHandler = async () => {
   const totalUnits = results.reduce((sum, r) => sum + r.units.length, 0);
   console.log(`Scraped ${results.length} properties, found ${totalUnits} total units`);
 
-  const alerts = await processResults(targets, results);
+  const { alerts, toWrite } = await processResults(targets, results);
 
   if (!alerts.length) {
+    await persistState(toWrite);
     console.log('No new alerts');
     return { statusCode: 200, body: 'No alerts' };
   }
@@ -81,6 +82,7 @@ export const notifierHandler = async () => {
     })
   );
 
+  await persistState(toWrite);
   console.log('SMS sent successfully');
   return { statusCode: 200, body: `Sent ${alerts.length} alerts` };
 };
