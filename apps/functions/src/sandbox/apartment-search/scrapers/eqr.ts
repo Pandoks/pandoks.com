@@ -1,4 +1,4 @@
-import { getText, normalizeMoney, priceToCents } from './lib';
+import { getTextViaUnblocker, normalizeMoney, priceToCents } from './lib';
 import type { Target } from '../types';
 import type { Floorplan, TargetResult, Unit } from './types';
 
@@ -57,7 +57,7 @@ function extractUnitAvailability(html: string): EqrData {
 export async function scrapeEqr(signal: AbortSignal, target: Target): Promise<TargetResult> {
   if (!target.url) throw new Error(`eqr "${target.name}" missing url`);
 
-  const body = await getText(signal, target.url, {
+  const body = await getTextViaUnblocker(signal, target.url, {
     accept: 'text/html,application/xhtml+xml',
     'accept-language': 'en-US,en;q=0.9'
   });

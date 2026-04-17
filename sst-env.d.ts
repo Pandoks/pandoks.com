@@ -6,6 +6,14 @@
 
 declare module 'sst' {
   export interface Resource {
+    ApartmentScraperFunction: {
+      name: string;
+      type: 'sst.aws.Function';
+    };
+    ApartmentSearchKV: {
+      name: string;
+      type: 'sst.aws.Dynamo';
+    };
     ApiRouter: {
       type: 'sst.aws.Router';
       url: string;
@@ -137,6 +145,14 @@ declare module 'sst' {
       url: string;
     };
     NotionWebhookVerificationToken: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    OxylabsWebUnblockerPassword: {
+      type: 'sst.sst.Secret';
+      value: string;
+    };
+    OxylabsWebUnblockerUsername: {
       type: 'sst.sst.Secret';
       value: string;
     };

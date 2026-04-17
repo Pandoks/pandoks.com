@@ -1,4 +1,5 @@
 import { nodeVersion, textFunction } from '../api';
+import { secrets } from '../secrets';
 
 if ($app.stage === 'production') {
   const apartmentSearchKV = new sst.aws.Dynamo('ApartmentSearchKV', {
@@ -15,7 +16,13 @@ if ($app.stage === 'production') {
     timeout: '120 seconds',
     memory: '256 MB',
     url: false,
-    link: [apartmentSearchKV],
+    link: [
+      apartmentSearchKV,
+      secrets.personal.KwokPhoneNumber,
+      secrets.personal.MichellePhoneNumber,
+      secrets.oxylabs.webunblocker.Username,
+      secrets.oxylabs.webunblocker.Password
+    ],
     permissions: [
       {
         actions: ['lambda:InvokeFunction'],
