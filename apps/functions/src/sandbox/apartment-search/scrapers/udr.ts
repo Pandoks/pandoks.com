@@ -123,7 +123,9 @@ export async function scrapeUdr(signal: AbortSignal, target: Target): Promise<Ta
   );
 
   units.sort((a, b) => {
-    const diff = priceToCents(a.price) - priceToCents(b.price);
+    const pa = priceToCents(a.price) ?? Infinity;
+    const pb = priceToCents(b.price) ?? Infinity;
+    const diff = pa - pb;
     return diff !== 0 ? diff : String(a.number ?? '').localeCompare(String(b.number ?? ''));
   });
 

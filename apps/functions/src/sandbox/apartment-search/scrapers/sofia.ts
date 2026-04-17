@@ -185,7 +185,9 @@ export async function scrapeSofia(signal: AbortSignal, target: Target): Promise<
     name: (i: T) => string | undefined
   ) =>
     items.sort((a, b) => {
-      const diff = priceToCents(price(a)) - priceToCents(price(b));
+      const pa = priceToCents(price(a)) ?? Infinity;
+      const pb = priceToCents(price(b)) ?? Infinity;
+      const diff = pa - pb;
       return diff !== 0 ? diff : String(name(a) ?? '').localeCompare(String(name(b) ?? ''));
     });
 
