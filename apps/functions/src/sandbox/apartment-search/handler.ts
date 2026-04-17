@@ -1,10 +1,16 @@
 import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
+import { Resource } from 'sst';
 import { TARGETS, DEFAULT_RULES } from './config';
 import { scrapeAll } from './scrapers';
 import { processResults, persistState } from './status';
 import type { AlertMatch } from './types';
 
 const lambda = new LambdaClient({});
+
+const RECIPIENT_PHONE_NUMBERS = [
+  Resource.KwokPhoneNumber.value,
+  Resource.MichellePhoneNumber.value
+];
 
 function formatAlertMessage(alerts: AlertMatch[]): string {
   const lines: string[] = ['🏠 Apartment Alert'];
@@ -53,7 +59,7 @@ export const notifierHandler = async () => {
     rules: t.rules ?? DEFAULT_RULES
   }));
 
-  const results = await scrapeAll(targets, 25_000);
+  const results = await scrapeAll(targets, 70_000);
 
   const totalUnits = results.reduce((sum, r) => sum + r.units.length, 0);
   console.log(`Scraped ${results.length} properties, found ${totalUnits} total units`);
@@ -69,20 +75,30 @@ export const notifierHandler = async () => {
   console.log(`Found ${alerts.length} alerts, sending SMS...`);
   const message = formatAlertMessage(alerts);
 
-  await lambda.send(
-    new InvokeCommand({
-      FunctionName: process.env.TEXT_FUNCTION_ARN!,
-      InvocationType: 'RequestResponse',
-      Payload: new TextEncoder().encode(
-        JSON.stringify({
-          users: ['Pandoks', 'Manda Wong'],
-          message
+  const sends = await Promise.allSettled(
+    RECIPIENT_PHONE_NUMBERS.map(async (phoneNumber) => {
+      const response = await lambda.send(
+        new InvokeCommand({
+          FunctionName: process.env.TEXT_FUNCTION_ARN!,
+          InvocationType: 'RequestResponse',
+          Payload: new TextEncoder().encode(JSON.stringify({ phoneNumber, message }))
         })
-      )
+      );
+      if (response.FunctionError) {
+        const body = response.Payload ? new TextDecoder().decode(response.Payload) : '';
+        throw new Error(`text lambda ${response.FunctionError}: ${body}`);
+      }
     })
   );
 
+  for (let i = 0; i < sends.length; i++) {
+    const result = sends[i];
+    const masked = `***${RECIPIENT_PHONE_NUMBERS[i].slice(-4)}`;
+    if (result.status === 'fulfilled') console.log(`SMS sent to ${masked}`);
+    else console.error(`SMS failed to ${masked}`, result.reason);
+  }
+
   await persistState(toWrite);
-  console.log('SMS sent successfully');
-  return { statusCode: 200, body: `Sent ${alerts.length} alerts` };
+  const succeeded = sends.filter((r) => r.status === 'fulfilled').length;
+  return { statusCode: 200, body: `Sent ${succeeded}/${sends.length} alerts` };
 };
