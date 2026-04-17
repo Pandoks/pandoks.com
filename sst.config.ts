@@ -31,7 +31,8 @@ export default $config({
       import('./infra/tailscale'),
       import('./infra/vps/vps'),
       import('./infra/kubernetes'),
-      import('./infra/dev')
+      import('./infra/dev'),
+      import('./infra/sandbox/apartment-search')
     ]);
     return imports.reduce((acculumator, importResult: any) => {
       if (importResult.outputs) {
