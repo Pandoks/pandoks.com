@@ -28,7 +28,7 @@
     "sst": "^4.7.5"
   },
   "pnpm": {
-    "//TODO": "remove overrides once upstream packages update their deps to non-vulnerable versions",
+    "//TODO": "remove override when upstream bumps its pinned dep — follow-redirects: axios; @xmldom/xmldom: fonteditor-core + plist; undici: jsdom; fast-xml-parser: @aws-sdk/xml-builder; devalue: svelte; lodash: @electron-forge; picomatch: anymatch + @rollup/pluginutils; tar: @electron/node-gyp; cookie: @sveltejs/kit; tmp: external-editor; @tootallnate/once: http-proxy-agent; axios: twilio",
     "overrides": {
       "follow-redirects": "^1.16.0",
       "@xmldom/xmldom": "^0.9.9",
