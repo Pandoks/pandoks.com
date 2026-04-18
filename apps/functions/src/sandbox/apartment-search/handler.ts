@@ -30,11 +30,13 @@ function formatAlertMessage(alerts: AlertMatch[]): string {
       const unit = alert.unit;
       const bed = Number.parseFloat(unit.bedrooms ?? '');
       const bedLabel = Number.isNaN(bed) ? '' : bed === 0 ? 'studio' : `${bed}bd`;
+      const dateLabel = unit.priceDate ? `move-in ${unit.priceDate.slice(5)}` : '';
       const unitInfo = [
         `Unit ${unit.number}`,
         bedLabel,
         unit.sqft ? `${unit.sqft}sqft` : '',
-        unit.price
+        unit.price,
+        dateLabel
       ]
         .filter(Boolean)
         .join(' · ');

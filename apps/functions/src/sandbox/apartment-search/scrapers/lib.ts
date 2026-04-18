@@ -2,6 +2,8 @@ import { ProxyAgent } from 'undici';
 import { Resource } from 'sst';
 
 const USER_AGENT = 'apartment-scraper/1.0';
+const BROWSER_UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36';
 
 function withTimeout(signal: AbortSignal, timeoutMs: number) {
   return typeof AbortSignal.any === 'function'
@@ -43,6 +45,25 @@ export async function getText(
   const response = await fetch(rawUrl, {
     method: 'GET',
     headers: headers(init),
+    signal: withTimeout(signal, timeoutMs)
+  });
+  await ensureOk(response, rawUrl);
+  return response.text();
+}
+
+export async function getCompressedText(
+  signal: AbortSignal,
+  rawUrl: string,
+  init: Record<string, string> = {},
+  timeoutMs = 15_000
+) {
+  const response = await fetch(rawUrl, {
+    method: 'GET',
+    headers: {
+      'user-agent': BROWSER_UA,
+      'accept-encoding': 'gzip, deflate, br',
+      ...init
+    },
     signal: withTimeout(signal, timeoutMs)
   });
   await ensureOk(response, rawUrl);
@@ -116,6 +137,13 @@ export function normalizeMoney(raw?: string) {
   const numeric = Number.parseFloat(value.replace(/^\$/, '').replaceAll(',', ''));
   if (Number.isFinite(numeric) && numeric === 0) return '';
   return value.startsWith('$') ? value : `$${value}`;
+}
+
+export function formatCents(cents: number): string {
+  const dollars = (cents / 100).toFixed(2);
+  const [whole, fraction] = dollars.split('.');
+  const withCommas = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `$${withCommas}.${fraction}`;
 }
 
 export function priceToCents(raw?: string): number | null {

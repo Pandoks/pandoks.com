@@ -1,4 +1,10 @@
-import { getText, normalizeMoney, priceToCents } from './lib';
+import { formatCents, getText, normalizeMoney, priceToCents } from './lib';
+import {
+  discoverSightmapContext,
+  getCheapestInWindow,
+  normalizeUnitNumber,
+  type SightmapContext
+} from './sightmap';
 import type { Target } from '../types';
 import type { Floorplan, TargetResult, Unit } from './types';
 
@@ -39,6 +45,12 @@ interface EssexUnit {
   minimum_rent: string;
 }
 
+interface LegacyEssexData {
+  propertyName: string;
+  units: Unit[];
+  floorplans: Floorplan[];
+}
+
 const communityIdPattern = /data-communityid="(\d+)"/;
 
 function buildApiUrl(pageUrl: string, propertyId: string, startDate: string, endDate: string) {
@@ -69,7 +81,7 @@ function sortByPrice<T>(
   });
 }
 
-export async function scrapeEssex(signal: AbortSignal, target: Target): Promise<TargetResult> {
+async function fetchEssexLegacy(signal: AbortSignal, target: Target): Promise<LegacyEssexData> {
   if (!target.url) throw new Error(`essex "${target.name}" missing url`);
   if (!target.startDate) throw new Error(`essex "${target.name}" missing startDate`);
   if (!target.endDate) throw new Error(`essex "${target.name}" missing endDate`);
@@ -107,6 +119,66 @@ export async function scrapeEssex(signal: AbortSignal, target: Target): Promise<
     availableDate: u.availability_date?.trim()
   }));
 
+  return { propertyName: data.property_name, units, floorplans };
+}
+
+async function enrichUnitsWithSightmap(
+  signal: AbortSignal,
+  ctx: SightmapContext,
+  units: Unit[],
+  windowStart: string,
+  windowEnd: string,
+  targetName: string
+): Promise<Unit[]> {
+  const enriched = await Promise.all(
+    units.map(async (u): Promise<Unit | null> => {
+      const sightmapUnitId = ctx.unitIdByNumber.get(normalizeUnitNumber(u.number));
+      if (!sightmapUnitId) {
+        console.warn(`essex "${targetName}" unit ${u.number} not found in sightmap — dropping`);
+        return null;
+      }
+      const best = await getCheapestInWindow(signal, ctx, sightmapUnitId, windowStart, windowEnd);
+      if (!best) return null;
+      return {
+        ...u,
+        price: best.price,
+        availableDate: best.date,
+        priceDate: best.date
+      };
+    })
+  );
+  return enriched.filter((u): u is Unit => u !== null);
+}
+
+function rederiveFloorplans(floorplans: Floorplan[], units: Unit[]): Floorplan[] {
+  const byFloorplanId = new Map<string, Unit[]>();
+  for (const u of units) {
+    const id = u.floorplanId;
+    if (!id) continue;
+    const bucket = byFloorplanId.get(id);
+    if (bucket) bucket.push(u);
+    else byFloorplanId.set(id, [u]);
+  }
+
+  return floorplans.map((fp) => {
+    const fpUnits = fp.id ? byFloorplanId.get(fp.id) : undefined;
+    if (!fpUnits?.length) {
+      return { ...fp, availableUnits: 0 };
+    }
+    const cents = fpUnits
+      .map((u) => priceToCents(u.price))
+      .filter((n): n is number => n != null);
+    if (!cents.length) return { ...fp, availableUnits: fpUnits.length };
+    return {
+      ...fp,
+      minPrice: formatCents(Math.min(...cents)),
+      maxPrice: formatCents(Math.max(...cents)),
+      availableUnits: fpUnits.length
+    };
+  });
+}
+
+function buildResult(target: Target, propertyName: string, units: Unit[], floorplans: Floorplan[]): TargetResult {
   sortByPrice(
     floorplans,
     (f) => f.minPrice,
@@ -120,9 +192,42 @@ export async function scrapeEssex(signal: AbortSignal, target: Target): Promise<
 
   return {
     source: 'essex',
-    name: target.name || data.property_name,
+    name: target.name || propertyName,
     summary: { availableFloorplans: floorplans.length, availableUnits: units.length },
     floorplans,
     units
   };
+}
+
+export async function scrapeEssex(signal: AbortSignal, target: Target): Promise<TargetResult> {
+  if (!target.url) throw new Error(`essex "${target.name}" missing url`);
+  if (!target.startDate) throw new Error(`essex "${target.name}" missing startDate`);
+  if (!target.endDate) throw new Error(`essex "${target.name}" missing endDate`);
+
+  const [legacy, sightmapCtx] = await Promise.all([
+    fetchEssexLegacy(signal, target),
+    discoverSightmapContext(signal, target.url).catch((err: unknown) => {
+      console.warn(
+        `essex "${target.name}" sightmap discovery failed — using legacy prices`,
+        err instanceof Error ? err.message : err
+      );
+      return null;
+    })
+  ]);
+
+  if (!sightmapCtx || !sightmapCtx.leasingToken) {
+    return buildResult(target, legacy.propertyName, legacy.units, legacy.floorplans);
+  }
+
+  const enrichedUnits = await enrichUnitsWithSightmap(
+    signal,
+    sightmapCtx,
+    legacy.units,
+    target.startDate,
+    target.endDate,
+    target.name
+  );
+
+  const enrichedFloorplans = rederiveFloorplans(legacy.floorplans, enrichedUnits);
+  return buildResult(target, legacy.propertyName, enrichedUnits, enrichedFloorplans);
 }
