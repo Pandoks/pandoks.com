@@ -22,7 +22,9 @@ interface SightmapPricingOption {
 }
 
 export function normalizeUnitNumber(raw: string | undefined): string {
-  return String(raw ?? '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  return String(raw ?? '')
+    .replace(/[^A-Za-z0-9]/g, '')
+    .toUpperCase();
 }
 
 export async function discoverSightmapContext(
@@ -30,7 +32,9 @@ export async function discoverSightmapContext(
   propertyUrl: string
 ): Promise<SightmapContext> {
   const pricingPageUrl = `${propertyUrl.replace(/\/$/, '')}/floor-plans-and-pricing`;
-  const pricingHtml = await getText(signal, pricingPageUrl, { accept: 'text/html,application/xhtml+xml' });
+  const pricingHtml = await getText(signal, pricingPageUrl, {
+    accept: 'text/html,application/xhtml+xml'
+  });
 
   let embedToken: string | null = null;
   for (const match of pricingHtml.matchAll(/sightmap\.com\/embed\/([a-z0-9]+)/gi)) {
@@ -44,7 +48,9 @@ export async function discoverSightmapContext(
   }
 
   const embedHtml = await getCompressedText(signal, `${SIGHTMAP_ORIGIN}/embed/${embedToken}`);
-  const boot = embedHtml.replace(/\\\//g, '/').match(/\/app\/api\/v1\/([a-z0-9]+)\/sightmaps\/(\d+)/i);
+  const boot = embedHtml
+    .replace(/\\\//g, '/')
+    .match(/\/app\/api\/v1\/([a-z0-9]+)\/sightmaps\/(\d+)/i);
   if (!boot) {
     throw new Error(`sightmap: could not extract bootstrap URL from embed ${embedToken}`);
   }
@@ -53,7 +59,8 @@ export async function discoverSightmapContext(
   const referer = { referer: `${SIGHTMAP_ORIGIN}/embed/${embedToken}` };
   const bootstrapUrl = `${SIGHTMAP_ORIGIN}/app/api/v1/${embedKey}/sightmaps/${sightmapId}`;
   const bootstrapBody = await getCompressedText(signal, bootstrapUrl, referer);
-  const units = (JSON.parse(bootstrapBody) as { data?: { units?: SightmapBulkUnit[] } }).data?.units ?? [];
+  const units =
+    (JSON.parse(bootstrapBody) as { data?: { units?: SightmapBulkUnit[] } }).data?.units ?? [];
 
   if (!units.length) {
     return { embedToken, embedKey, sightmapId, leasingToken: '', unitIdByNumber: new Map() };
@@ -98,7 +105,8 @@ export async function getCheapestInWindow(
     referer
   );
   const options =
-    (JSON.parse(pricingBody) as { data?: { options?: SightmapPricingOption[] } }).data?.options ?? [];
+    (JSON.parse(pricingBody) as { data?: { options?: SightmapPricingOption[] } }).data?.options ??
+    [];
   const twelveMonth = options.find((o) => o.lease_term === 12);
   if (!twelveMonth?.display_price) return null;
 

@@ -155,9 +155,7 @@ function rederiveFloorplans(floorplans: Floorplan[], units: Unit[]): Floorplan[]
   return floorplans.map((fp) => {
     const fpUnits = fp.id ? byFloorplanId.get(fp.id) : undefined;
     if (!fpUnits?.length) return { ...fp, availableUnits: 0 };
-    const cents = fpUnits
-      .map((u) => priceToCents(u.price))
-      .filter((n): n is number => n != null);
+    const cents = fpUnits.map((u) => priceToCents(u.price)).filter((n): n is number => n != null);
     if (!cents.length) return { ...fp, availableUnits: fpUnits.length };
     return {
       ...fp,
@@ -193,8 +191,16 @@ export async function scrapeEssex(signal: AbortSignal, target: Target): Promise<
   );
   const floorplans = rederiveFloorplans(legacy.floorplans, units);
 
-  sortByPrice(floorplans, (f) => f.minPrice, (f) => f.name);
-  sortByPrice(units, (u) => u.price, (u) => u.number);
+  sortByPrice(
+    floorplans,
+    (f) => f.minPrice,
+    (f) => f.name
+  );
+  sortByPrice(
+    units,
+    (u) => u.price,
+    (u) => u.number
+  );
 
   return {
     source: 'essex',
