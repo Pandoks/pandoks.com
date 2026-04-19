@@ -1,18 +1,12 @@
 import type { Target } from '../types';
 import type { TargetResult } from './types';
 import { scrapeEssex } from './essex';
-import { scrapePrado } from './prado';
-import { scrapeSofia } from './sofia';
-import { scrapeUdr } from './udr';
 import { scrapeEqr } from './eqr';
 
 type Scraper = (signal: AbortSignal, target: Target) => Promise<TargetResult>;
 
-const SCRAPERS: Record<string, Scraper> = {
+const SCRAPERS: Record<Target['source'], Scraper> = {
   essex: scrapeEssex,
-  prado: scrapePrado,
-  sofia: scrapeSofia,
-  udr: scrapeUdr,
   eqr: scrapeEqr
 };
 

@@ -53,21 +53,6 @@ interface LegacyEssexData {
 
 const communityIdPattern = /data-communityid="(\d+)"/;
 
-function buildApiUrl(pageUrl: string, propertyId: string, startDate: string, endDate: string) {
-  const base = new URL(pageUrl).origin;
-  return `${base}/EPT_Feature/PropertyManagement/Service/GetPropertyAvailabiltyByRange/${propertyId}/${startDate}/${endDate}`;
-}
-
-function parseResponse(body: string) {
-  const encoded = JSON.parse(body) as string;
-  return (JSON.parse(encoded) as EssexEnvelope).result;
-}
-
-function formatSqft(min: number, max: number) {
-  if (min > 0 && max > 0 && min !== max) return `${min}-${max}`;
-  return min > 0 ? String(min) : max > 0 ? String(max) : '';
-}
-
 function sortByPrice<T>(
   items: T[],
   price: (i: T) => string | undefined,
@@ -82,30 +67,42 @@ function sortByPrice<T>(
 }
 
 async function fetchEssexLegacy(signal: AbortSignal, target: Target): Promise<LegacyEssexData> {
-  if (!target.url) throw new Error(`essex "${target.name}" missing url`);
-  if (!target.startDate) throw new Error(`essex "${target.name}" missing startDate`);
-  if (!target.endDate) throw new Error(`essex "${target.name}" missing endDate`);
+  const { moveInAfter, moveInBefore } = target.rules;
+  if (!moveInAfter || !moveInBefore) {
+    throw new Error(`essex "${target.name}" requires rules.moveInAfter and rules.moveInBefore`);
+  }
 
   const pageHtml = await getText(signal, target.url, { accept: 'text/html,application/xhtml+xml' });
   const propertyId = pageHtml.match(communityIdPattern)?.[1];
   if (!propertyId) throw new Error(`essex "${target.name}" could not find communityId on page`);
 
-  const apiUrl = buildApiUrl(target.url, propertyId, target.startDate, target.endDate);
+  const origin = new URL(target.url).origin;
+  const apiUrl = `${origin}/EPT_Feature/PropertyManagement/Service/GetPropertyAvailabiltyByRange/${propertyId}/${moveInAfter}/${moveInBefore}`;
   const body = await getText(signal, apiUrl, { accept: 'application/json' });
-  const data = parseResponse(body);
+  const data = (JSON.parse(JSON.parse(body) as string) as EssexEnvelope).result;
 
-  const floorplans: Floorplan[] = data.floorplans.map((fp) => ({
-    id: String(fp.floorplan_id),
-    name: fp.name,
-    bedrooms: fp.beds,
-    bathrooms: fp.baths,
-    sqft: formatSqft(fp.minimum_sqft, fp.maximum_sqft),
-    minPrice: normalizeMoney(fp.minimum_rent),
-    maxPrice: normalizeMoney(fp.maximum_rent),
-    deposit: normalizeMoney(fp.minimum_deposit),
-    availableUnits: fp.available_units_count,
-    imageUrl: fp.image_url
-  }));
+  const floorplans: Floorplan[] = data.floorplans.map((fp) => {
+    const sqft =
+      fp.minimum_sqft > 0 && fp.maximum_sqft > 0 && fp.minimum_sqft !== fp.maximum_sqft
+        ? `${fp.minimum_sqft}-${fp.maximum_sqft}`
+        : fp.minimum_sqft > 0
+          ? String(fp.minimum_sqft)
+          : fp.maximum_sqft > 0
+            ? String(fp.maximum_sqft)
+            : '';
+    return {
+      id: String(fp.floorplan_id),
+      name: fp.name,
+      bedrooms: fp.beds,
+      bathrooms: fp.baths,
+      sqft,
+      minPrice: normalizeMoney(fp.minimum_rent),
+      maxPrice: normalizeMoney(fp.maximum_rent),
+      deposit: normalizeMoney(fp.minimum_deposit),
+      availableUnits: fp.available_units_count,
+      imageUrl: fp.image_url
+    };
+  });
 
   const units: Unit[] = data.units.map((u) => ({
     id: String(u.unit_id),
@@ -139,12 +136,7 @@ async function enrichUnitsWithSightmap(
       }
       const best = await getCheapestInWindow(signal, ctx, sightmapUnitId, windowStart, windowEnd);
       if (!best) return null;
-      return {
-        ...u,
-        price: best.price,
-        availableDate: best.date,
-        priceDate: best.date
-      };
+      return { ...u, price: best.price, availableDate: best.date, priceDate: best.date };
     })
   );
   return enriched.filter((u): u is Unit => u !== null);
@@ -162,9 +154,7 @@ function rederiveFloorplans(floorplans: Floorplan[], units: Unit[]): Floorplan[]
 
   return floorplans.map((fp) => {
     const fpUnits = fp.id ? byFloorplanId.get(fp.id) : undefined;
-    if (!fpUnits?.length) {
-      return { ...fp, availableUnits: 0 };
-    }
+    if (!fpUnits?.length) return { ...fp, availableUnits: 0 };
     const cents = fpUnits
       .map((u) => priceToCents(u.price))
       .filter((n): n is number => n != null);
@@ -178,56 +168,39 @@ function rederiveFloorplans(floorplans: Floorplan[], units: Unit[]): Floorplan[]
   });
 }
 
-function buildResult(target: Target, propertyName: string, units: Unit[], floorplans: Floorplan[]): TargetResult {
-  sortByPrice(
-    floorplans,
-    (f) => f.minPrice,
-    (f) => f.name
+export async function scrapeEssex(signal: AbortSignal, target: Target): Promise<TargetResult> {
+  const { moveInAfter, moveInBefore } = target.rules;
+  if (!moveInAfter || !moveInBefore) {
+    throw new Error(`essex "${target.name}" requires rules.moveInAfter and rules.moveInBefore`);
+  }
+
+  const [legacy, sightmapCtx] = await Promise.all([
+    fetchEssexLegacy(signal, target),
+    discoverSightmapContext(signal, target.url)
+  ]);
+
+  if (!sightmapCtx.leasingToken) {
+    throw new Error(`essex "${target.name}" sightmap context has no leasingToken`);
+  }
+
+  const units = await enrichUnitsWithSightmap(
+    signal,
+    sightmapCtx,
+    legacy.units,
+    moveInAfter,
+    moveInBefore,
+    target.name
   );
-  sortByPrice(
-    units,
-    (u) => u.price,
-    (u) => u.number
-  );
+  const floorplans = rederiveFloorplans(legacy.floorplans, units);
+
+  sortByPrice(floorplans, (f) => f.minPrice, (f) => f.name);
+  sortByPrice(units, (u) => u.price, (u) => u.number);
 
   return {
     source: 'essex',
-    name: target.name || propertyName,
+    name: target.name || legacy.propertyName,
     summary: { availableFloorplans: floorplans.length, availableUnits: units.length },
     floorplans,
     units
   };
-}
-
-export async function scrapeEssex(signal: AbortSignal, target: Target): Promise<TargetResult> {
-  if (!target.url) throw new Error(`essex "${target.name}" missing url`);
-  if (!target.startDate) throw new Error(`essex "${target.name}" missing startDate`);
-  if (!target.endDate) throw new Error(`essex "${target.name}" missing endDate`);
-
-  const [legacy, sightmapCtx] = await Promise.all([
-    fetchEssexLegacy(signal, target),
-    discoverSightmapContext(signal, target.url).catch((err: unknown) => {
-      console.warn(
-        `essex "${target.name}" sightmap discovery failed — using legacy prices`,
-        err instanceof Error ? err.message : err
-      );
-      return null;
-    })
-  ]);
-
-  if (!sightmapCtx || !sightmapCtx.leasingToken) {
-    return buildResult(target, legacy.propertyName, legacy.units, legacy.floorplans);
-  }
-
-  const enrichedUnits = await enrichUnitsWithSightmap(
-    signal,
-    sightmapCtx,
-    legacy.units,
-    target.startDate,
-    target.endDate,
-    target.name
-  );
-
-  const enrichedFloorplans = rederiveFloorplans(legacy.floorplans, enrichedUnits);
-  return buildResult(target, legacy.propertyName, enrichedUnits, enrichedFloorplans);
 }

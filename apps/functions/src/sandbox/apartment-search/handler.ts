@@ -1,6 +1,6 @@
 import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
 import { Resource } from 'sst';
-import { TARGETS, DEFAULT_RULES } from './config';
+import { TARGETS } from './config';
 import { scrapeAll } from './scrapers';
 import { processResults, persistState } from './status';
 import type { AlertMatch } from './types';
@@ -58,17 +58,12 @@ function formatAlertMessage(alerts: AlertMatch[]): string {
 export const notifierHandler = async () => {
   console.log(`Scraping ${TARGETS.length} properties...`);
 
-  const targets = TARGETS.map((t) => ({
-    ...t,
-    rules: t.rules ?? DEFAULT_RULES
-  }));
-
-  const results = await scrapeAll(targets, 70_000);
+  const results = await scrapeAll(TARGETS, 70_000);
 
   const totalUnits = results.reduce((sum, r) => sum + r.units.length, 0);
   console.log(`Scraped ${results.length} properties, found ${totalUnits} total units`);
 
-  const { alerts, toWrite } = await processResults(targets, results);
+  const { alerts, toWrite } = await processResults(TARGETS, results);
 
   if (!alerts.length) {
     await persistState(toWrite);

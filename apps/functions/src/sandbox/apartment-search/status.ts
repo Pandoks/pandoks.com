@@ -15,11 +15,6 @@ interface UnitRecord {
   price: number;
 }
 
-function buildKey(target: Target, unit: Unit): string {
-  const id = target.url ?? target.name;
-  return `${target.source}#${id}#${unit.number ?? unit.id ?? 'unknown'}`;
-}
-
 async function batchGet(keys: string[]): Promise<Map<string, UnitRecord>> {
   const result = new Map<string, UnitRecord>();
   if (!keys.length) return result;
@@ -70,13 +65,6 @@ async function batchPut(records: UnitRecord[]): Promise<void> {
   }
 }
 
-function parseAvailableDate(raw?: string): string | null {
-  if (!raw) return null;
-  const d = new Date(raw);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 10);
-}
-
 function matchesRules(unit: Unit, rules?: AlertRules): boolean {
   if (!rules) return true;
 
@@ -109,8 +97,9 @@ function matchesRules(unit: Unit, rules?: AlertRules): boolean {
   }
 
   if (rules.moveInAfter != null || rules.moveInBefore != null) {
-    const available = parseAvailableDate(unit.availableDate);
-    if (!available) return false;
+    const d = unit.availableDate ? new Date(unit.availableDate) : null;
+    if (!d || Number.isNaN(d.getTime())) return false;
+    const available = d.toISOString().slice(0, 10);
     if (rules.moveInAfter != null && available < rules.moveInAfter) return false;
     if (rules.moveInBefore != null && available > rules.moveInBefore) return false;
   }
@@ -138,7 +127,8 @@ export async function processResults(
 
     for (const unit of result.units) {
       if (!matchesRules(unit, target.rules)) continue;
-      const key = buildKey(target, unit);
+      const id = target.url ?? target.name;
+      const key = `${target.source}#${id}#${unit.number ?? unit.id ?? 'unknown'}`;
       allKeys.push(key);
       keyToContext.set(key, { target, result, unit });
     }

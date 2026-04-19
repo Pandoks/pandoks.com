@@ -14,14 +14,12 @@ export interface AlertRules {
 }
 
 export interface Target {
-  source: string;
+  source: 'essex' | 'eqr';
   name: string;
-  url?: string;
-  startDate?: string;
-  endDate?: string;
-  moveInDate?: string;
-  rules?: AlertRules;
+  url: string;
+  rules: AlertRules;
   watchUnits?: string[];
+  eqrBuildingSlug?: string;
 }
 
 export interface AlertMatch {
