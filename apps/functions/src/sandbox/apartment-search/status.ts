@@ -15,7 +15,7 @@ const MAX_RETRIES = 3;
 interface UnitRecord {
   unitKey: string;
   price: number;
-  change?: 'new' | 'price_up' | 'price_down';
+  change?: 'new' | 'price_up' | 'price_down' | 'out_of_range';
   previousPrice?: number;
   sentTo?: string[];
 }
@@ -70,13 +70,8 @@ async function batchPut(records: UnitRecord[]): Promise<void> {
   }
 }
 
-function matchesRules(unit: Unit, rules?: AlertRules): boolean {
+function matchesStructure(unit: Unit, rules?: AlertRules): boolean {
   if (!rules) return true;
-
-  const price = priceToCents(unit.price);
-  if (price == null) return false;
-  if (rules.minPrice != null && price < Math.round(rules.minPrice * 100)) return false;
-  if (rules.maxPrice != null && price > Math.round(rules.maxPrice * 100)) return false;
 
   if (rules.unitNumbers?.length) {
     const unitStr = (unit.number ?? '').trim();
@@ -112,6 +107,16 @@ function matchesRules(unit: Unit, rules?: AlertRules): boolean {
   return true;
 }
 
+function priceStatus(
+  priceCents: number,
+  rules?: AlertRules
+): 'in_range' | 'above_max' | 'below_min' {
+  if (!rules) return 'in_range';
+  if (rules.minPrice != null && priceCents < Math.round(rules.minPrice * 100)) return 'below_min';
+  if (rules.maxPrice != null && priceCents > Math.round(rules.maxPrice * 100)) return 'above_max';
+  return 'in_range';
+}
+
 export interface ProcessedResults {
   alerts: AlertMatch[];
   toWrite: UnitRecord[];
@@ -138,7 +143,7 @@ export async function processResults(
     if (!target || !result) continue;
 
     for (const unit of result.units) {
-      if (!matchesRules(unit, target.rules)) continue;
+      if (!matchesStructure(unit, target.rules)) continue;
       const id = target.url ?? target.name;
       const key = `${target.source}#${id}#${unit.number ?? unit.id ?? 'unknown'}`;
       allKeys.push(key);
@@ -154,24 +159,66 @@ export async function processResults(
     const currentPrice = priceToCents(ctx.unit.price);
     if (currentPrice == null) continue;
 
+    const status = priceStatus(currentPrice, ctx.target.rules);
+    if (status === 'below_min') continue;
+
     const record = existing.get(key);
     const watched = ctx.target.watchUnits?.some(
       (n) => (ctx.unit.number ?? '') === n || (ctx.unit.number ?? '').endsWith(n)
     );
+    const makeAlert = (
+      change: AlertMatch['change'],
+      previousPrice?: number,
+      alreadySent: string[] = []
+    ): AlertMatch => ({
+      source: ctx.result.source,
+      targetName: ctx.result.name,
+      unit: ctx.unit,
+      change,
+      previousPrice: previousPrice != null ? formatPrice(previousPrice) : undefined,
+      watched,
+      alreadySent
+    });
 
     let next: UnitRecord;
     let alert: AlertMatch | null = null;
 
-    if (!record) {
+    if (status === 'above_max') {
+      if (!record) continue;
+      if (record.change === 'out_of_range') {
+        const sentTo = record.sentTo ?? [];
+        next = {
+          unitKey: key,
+          price: record.price,
+          change: 'out_of_range',
+          previousPrice: record.previousPrice,
+          sentTo
+        };
+        if (sentTo.length < recipientCount) {
+          alert = makeAlert('out_of_range', record.previousPrice, [...sentTo]);
+        }
+      } else {
+        next = {
+          unitKey: key,
+          price: currentPrice,
+          change: 'out_of_range',
+          previousPrice: record.price,
+          sentTo: []
+        };
+        alert = makeAlert('out_of_range', record.price);
+      }
+    } else if (!record) {
       next = { unitKey: key, price: currentPrice, change: 'new', sentTo: [] };
-      alert = {
-        source: ctx.result.source,
-        targetName: ctx.result.name,
-        unit: ctx.unit,
-        change: 'new',
-        watched,
-        alreadySent: []
+      alert = makeAlert('new');
+    } else if (record.change === 'out_of_range') {
+      next = {
+        unitKey: key,
+        price: currentPrice,
+        change: 'price_down',
+        previousPrice: record.price,
+        sentTo: []
       };
+      alert = makeAlert('price_down', record.price);
     } else if (currentPrice !== record.price) {
       const change = currentPrice < record.price ? 'price_down' : 'price_up';
       next = {
@@ -181,15 +228,7 @@ export async function processResults(
         previousPrice: record.price,
         sentTo: []
       };
-      alert = {
-        source: ctx.result.source,
-        targetName: ctx.result.name,
-        unit: ctx.unit,
-        change,
-        previousPrice: formatPrice(record.price),
-        watched,
-        alreadySent: []
-      };
+      alert = makeAlert(change, record.price);
     } else {
       const sentTo = record.sentTo ?? [];
       next = {
@@ -200,16 +239,7 @@ export async function processResults(
         sentTo
       };
       if (sentTo.length < recipientCount) {
-        alert = {
-          source: ctx.result.source,
-          targetName: ctx.result.name,
-          unit: ctx.unit,
-          change: record.change ?? 'new',
-          previousPrice:
-            record.previousPrice != null ? formatPrice(record.previousPrice) : undefined,
-          watched,
-          alreadySent: [...sentTo]
-        };
+        alert = makeAlert(record.change ?? 'new', record.previousPrice, [...sentTo]);
       }
     }
 

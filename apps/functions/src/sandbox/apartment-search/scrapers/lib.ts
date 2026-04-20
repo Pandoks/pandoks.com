@@ -30,7 +30,10 @@ function unblockerAgent() {
   return cachedUnblockerAgent;
 }
 
-async function ensureOk(response: { ok: boolean; status: number; statusText: string; text: () => Promise<string> }, rawUrl: string) {
+async function ensureOk(
+  response: { ok: boolean; status: number; statusText: string; text: () => Promise<string> },
+  rawUrl: string
+) {
   if (response.ok) return;
   const body = (await response.text()).slice(0, 4096).trim();
   throw new Error(`${rawUrl} returned ${response.status} ${response.statusText}: ${body}`);

@@ -46,8 +46,10 @@ function formatAlertMessage(alerts: AlertMatch[]): string {
         lines.push(`  🆕 ${unitInfo}${star}`);
       } else if (alert.change === 'price_down') {
         lines.push(`  📉 ${unitInfo} (was ${alert.previousPrice})${star}`);
-      } else {
+      } else if (alert.change === 'price_up') {
         lines.push(`  📈 ${unitInfo} (was ${alert.previousPrice})${star}`);
+      } else {
+        lines.push(`  🚫 ${unitInfo} (above cap, was ${alert.previousPrice})${star}`);
       }
     }
   }

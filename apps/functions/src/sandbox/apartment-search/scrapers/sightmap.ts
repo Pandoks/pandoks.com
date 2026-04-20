@@ -1,4 +1,4 @@
-import { getCompressedText, getText } from './lib';
+import { getCompressedText, getText, priceToCents } from './lib';
 
 const SIGHTMAP_ORIGIN = 'https://sightmap.com';
 
@@ -96,19 +96,32 @@ export async function getCheapestInWindow(
     referer
   );
   const startDates = (JSON.parse(startDatesBody) as { data?: string[] }).data ?? [];
-  const earliest = startDates.find((d) => d >= windowStart && d <= windowEnd);
-  if (!earliest) return null;
+  const inWindow = startDates.filter((d) => d >= windowStart && d <= windowEnd);
+  if (!inWindow.length) return null;
 
-  const pricingBody = await getCompressedText(
-    signal,
-    `${leasingBase}?sightmap_id=${ctx.sightmapId}&currency_code=USD&date=${earliest}`,
-    referer
+  const quotes = await Promise.all(
+    inWindow.map(async (date) => {
+      const body = await getCompressedText(
+        signal,
+        `${leasingBase}?sightmap_id=${ctx.sightmapId}&currency_code=USD&date=${date}`,
+        referer
+      );
+      const options =
+        (JSON.parse(body) as { data?: { options?: SightmapPricingOption[] } }).data?.options ?? [];
+      const twelve = options.find((o) => o.lease_term === 12);
+      return twelve?.display_price ? { price: twelve.display_price, date } : null;
+    })
   );
-  const options =
-    (JSON.parse(pricingBody) as { data?: { options?: SightmapPricingOption[] } }).data?.options ??
-    [];
-  const twelveMonth = options.find((o) => o.lease_term === 12);
-  if (!twelveMonth?.display_price) return null;
 
-  return { price: twelveMonth.display_price, date: earliest };
+  let best: { price: string; date: string } | null = null;
+  let bestCents = Infinity;
+  for (const q of quotes) {
+    if (!q) continue;
+    const cents = priceToCents(q.price) ?? Infinity;
+    if (cents < bestCents) {
+      best = q;
+      bestCents = cents;
+    }
+  }
+  return best;
 }

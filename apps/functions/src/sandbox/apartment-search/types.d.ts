@@ -26,7 +26,7 @@ export interface AlertMatch {
   source: string;
   targetName: string;
   unit: Unit;
-  change: 'new' | 'price_up' | 'price_down';
+  change: 'new' | 'price_up' | 'price_down' | 'out_of_range';
   previousPrice?: string;
   watched?: boolean;
   alreadySent?: string[];
