@@ -82,7 +82,7 @@ export const notifierHandler = async () => {
   const { alerts, toWrite, alertToRecord } = await processResults(
     TARGETS,
     results,
-    RECIPIENT_PHONE_NUMBERS.length
+    RECIPIENT_PHONE_NUMBERS
   );
 
   if (!alerts.length) {

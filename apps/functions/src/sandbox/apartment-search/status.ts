@@ -130,8 +130,9 @@ function formatPrice(cents: number) {
 export async function processResults(
   targets: Target[],
   results: TargetResult[],
-  recipientCount: number
+  recipients: string[]
 ): Promise<ProcessedResults> {
+  const recipientCount = recipients.length;
   const alerts: AlertMatch[] = [];
   const alertToRecord = new Map<AlertMatch, UnitRecord>();
   const allKeys: string[] = [];
@@ -189,7 +190,7 @@ export async function processResults(
         const sentTo = record.sentTo ?? [];
         next = {
           unitKey: key,
-          price: record.price,
+          price: Math.max(record.price, currentPrice),
           change: 'out_of_range',
           previousPrice: record.previousPrice,
           sentTo
@@ -230,7 +231,8 @@ export async function processResults(
       };
       alert = makeAlert(change, record.price);
     } else {
-      const sentTo = record.sentTo ?? [];
+      const isLegacy = record.change === undefined && record.sentTo === undefined;
+      const sentTo = isLegacy ? [...recipients] : record.sentTo ?? [];
       next = {
         unitKey: key,
         price: currentPrice,
@@ -238,7 +240,7 @@ export async function processResults(
         previousPrice: record.previousPrice,
         sentTo
       };
-      if (sentTo.length < recipientCount) {
+      if (!isLegacy && sentTo.length < recipientCount) {
         alert = makeAlert(record.change ?? 'new', record.previousPrice, [...sentTo]);
       }
     }
