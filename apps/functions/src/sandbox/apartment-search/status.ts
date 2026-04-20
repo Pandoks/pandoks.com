@@ -42,6 +42,9 @@ async function batchGet(keys: string[]): Promise<Map<string, UnitRecord>> {
 
       pending = response.UnprocessedKeys as typeof pending;
     }
+    if (pending && Object.keys(pending).length) {
+      throw new Error(`batchGet: keys unprocessed after ${MAX_RETRIES} retries`);
+    }
   }
 
   return result;
@@ -66,6 +69,9 @@ async function batchPut(records: UnitRecord[]): Promise<void> {
     ) {
       const response = await client.send(new BatchWriteCommand({ RequestItems: pending }));
       pending = response.UnprocessedItems as typeof pending;
+    }
+    if (pending && Object.keys(pending).length) {
+      throw new Error(`batchPut: items unprocessed after ${MAX_RETRIES} retries`);
     }
   }
 }
@@ -130,9 +136,8 @@ function formatPrice(cents: number) {
 export async function processResults(
   targets: Target[],
   results: TargetResult[],
-  recipients: string[]
+  recipientCount: number
 ): Promise<ProcessedResults> {
-  const recipientCount = recipients.length;
   const alerts: AlertMatch[] = [];
   const alertToRecord = new Map<AlertMatch, UnitRecord>();
   const allKeys: string[] = [];
@@ -190,7 +195,7 @@ export async function processResults(
         const sentTo = record.sentTo ?? [];
         next = {
           unitKey: key,
-          price: Math.max(record.price, currentPrice),
+          price: record.price,
           change: 'out_of_range',
           previousPrice: record.previousPrice,
           sentTo
@@ -216,10 +221,10 @@ export async function processResults(
         unitKey: key,
         price: currentPrice,
         change: 'price_down',
-        previousPrice: record.price,
+        previousPrice: record.previousPrice,
         sentTo: []
       };
-      alert = makeAlert('price_down', record.price);
+      alert = makeAlert('price_down', record.previousPrice);
     } else if (currentPrice !== record.price) {
       const change = currentPrice < record.price ? 'price_down' : 'price_up';
       next = {
@@ -231,8 +236,7 @@ export async function processResults(
       };
       alert = makeAlert(change, record.price);
     } else {
-      const isLegacy = record.change === undefined && record.sentTo === undefined;
-      const sentTo = isLegacy ? [...recipients] : record.sentTo ?? [];
+      const sentTo = record.sentTo ?? [];
       next = {
         unitKey: key,
         price: currentPrice,
@@ -240,7 +244,7 @@ export async function processResults(
         previousPrice: record.previousPrice,
         sentTo
       };
-      if (!isLegacy && sentTo.length < recipientCount) {
+      if (sentTo.length < recipientCount) {
         alert = makeAlert(record.change ?? 'new', record.previousPrice, [...sentTo]);
       }
     }

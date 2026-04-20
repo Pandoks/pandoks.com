@@ -74,7 +74,7 @@ async function sendSms(phoneNumber: string, message: string) {
 export const notifierHandler = async () => {
   console.log(`Scraping ${TARGETS.length} properties...`);
 
-  const results = await scrapeAll(TARGETS, 70_000);
+  const { results, failures } = await scrapeAll(TARGETS, 70_000);
 
   const totalUnits = results.reduce((sum, r) => sum + r.units.length, 0);
   console.log(`Scraped ${results.length} properties, found ${totalUnits} total units`);
@@ -82,49 +82,54 @@ export const notifierHandler = async () => {
   const { alerts, toWrite, alertToRecord } = await processResults(
     TARGETS,
     results,
-    RECIPIENT_PHONE_NUMBERS
+    RECIPIENT_PHONE_NUMBERS.length
   );
-
-  if (!alerts.length) {
-    await persistState(toWrite);
-    console.log('No new alerts');
-    return { statusCode: 200, body: 'No alerts' };
-  }
-
-  console.log(`Found ${alerts.length} alerts, sending SMS...`);
 
   let sent = 0;
   let skipped = 0;
   let failed = 0;
 
-  for (const phoneNumber of RECIPIENT_PHONE_NUMBERS) {
-    const masked = `***${phoneNumber.slice(-4)}`;
-    const pending = alerts.filter((a) => !(a.alreadySent ?? []).includes(phoneNumber));
-    if (!pending.length) {
-      skipped += alerts.length;
-      continue;
-    }
-
-    const message = formatAlertMessage(pending);
-    try {
-      await sendSms(phoneNumber, message);
-      console.log(`SMS sent to ${masked} (${pending.length} alerts)`);
-      sent += pending.length;
-      for (const alert of pending) {
-        const record = alertToRecord.get(alert);
-        if (!record) continue;
-        record.sentTo = [...(record.sentTo ?? []), phoneNumber];
+  if (alerts.length) {
+    console.log(`Found ${alerts.length} alerts, sending SMS...`);
+    for (const phoneNumber of RECIPIENT_PHONE_NUMBERS) {
+      const masked = `***${phoneNumber.slice(-4)}`;
+      const pending = alerts.filter((a) => !(a.alreadySent ?? []).includes(phoneNumber));
+      if (!pending.length) {
+        skipped += alerts.length;
+        continue;
       }
-    } catch (err) {
-      failed += pending.length;
-      console.error(`SMS failed to ${masked}`, err);
+
+      const message = formatAlertMessage(pending);
+      try {
+        await sendSms(phoneNumber, message);
+        console.log(`SMS sent to ${masked} (${pending.length} alerts)`);
+        sent += pending.length;
+        for (const alert of pending) {
+          const record = alertToRecord.get(alert);
+          if (!record) continue;
+          record.sentTo = [...(record.sentTo ?? []), phoneNumber];
+        }
+      } catch (err) {
+        failed += pending.length;
+        console.error(`SMS failed to ${masked}`, err);
+      }
     }
+  } else {
+    console.log('No new alerts');
   }
 
   await persistState(toWrite);
 
+  if (failures.length || failed > 0) {
+    throw new Error(
+      `notifier partial failure: sent=${sent} skipped=${skipped} sms_failed=${failed} scrape_failures=${failures
+        .map((f) => f.target)
+        .join(',')}`
+    );
+  }
+
   return {
     statusCode: 200,
-    body: `sent=${sent} skipped=${skipped} failed=${failed}`
+    body: `sent=${sent} skipped=${skipped}`
   };
 };
