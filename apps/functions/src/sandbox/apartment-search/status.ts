@@ -5,7 +5,9 @@ import { priceToCents, extractUnitNumberValue } from './scrapers/lib';
 import type { AlertMatch, AlertRules, Target } from './types';
 import type { TargetResult, Unit } from './scrapers/types';
 
-const client = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const client = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
+  marshallOptions: { removeUndefinedValues: true }
+});
 const TABLE_NAME = Resource.ApartmentSearchKV.name;
 const TTL_DAYS = 30;
 const MAX_RETRIES = 3;
@@ -13,6 +15,9 @@ const MAX_RETRIES = 3;
 interface UnitRecord {
   unitKey: string;
   price: number;
+  change?: 'new' | 'price_up' | 'price_down';
+  previousPrice?: number;
+  sentTo?: string[];
 }
 
 async function batchGet(keys: string[]): Promise<Map<string, UnitRecord>> {
@@ -110,13 +115,20 @@ function matchesRules(unit: Unit, rules?: AlertRules): boolean {
 export interface ProcessedResults {
   alerts: AlertMatch[];
   toWrite: UnitRecord[];
+  alertToRecord: Map<AlertMatch, UnitRecord>;
+}
+
+function formatPrice(cents: number) {
+  return `$${(cents / 100).toFixed(2)}`;
 }
 
 export async function processResults(
   targets: Target[],
-  results: TargetResult[]
+  results: TargetResult[],
+  recipientCount: number
 ): Promise<ProcessedResults> {
   const alerts: AlertMatch[] = [];
+  const alertToRecord = new Map<AlertMatch, UnitRecord>();
   const allKeys: string[] = [];
   const keyToContext = new Map<string, { target: Target; result: TargetResult; unit: Unit }>();
 
@@ -147,38 +159,68 @@ export async function processResults(
       (n) => (ctx.unit.number ?? '') === n || (ctx.unit.number ?? '').endsWith(n)
     );
 
+    let next: UnitRecord;
+    let alert: AlertMatch | null = null;
+
     if (!record) {
-      alerts.push({
+      next = { unitKey: key, price: currentPrice, change: 'new', sentTo: [] };
+      alert = {
         source: ctx.result.source,
         targetName: ctx.result.name,
         unit: ctx.unit,
         change: 'new',
-        watched
-      });
-    } else if (currentPrice < record.price) {
-      alerts.push({
+        watched,
+        alreadySent: []
+      };
+    } else if (currentPrice !== record.price) {
+      const change = currentPrice < record.price ? 'price_down' : 'price_up';
+      next = {
+        unitKey: key,
+        price: currentPrice,
+        change,
+        previousPrice: record.price,
+        sentTo: []
+      };
+      alert = {
         source: ctx.result.source,
         targetName: ctx.result.name,
         unit: ctx.unit,
-        change: 'price_down',
-        previousPrice: `$${(record.price / 100).toFixed(2)}`,
-        watched
-      });
-    } else if (currentPrice > record.price) {
-      alerts.push({
-        source: ctx.result.source,
-        targetName: ctx.result.name,
-        unit: ctx.unit,
-        change: 'price_up',
-        previousPrice: `$${(record.price / 100).toFixed(2)}`,
-        watched
-      });
+        change,
+        previousPrice: formatPrice(record.price),
+        watched,
+        alreadySent: []
+      };
+    } else {
+      const sentTo = record.sentTo ?? [];
+      next = {
+        unitKey: key,
+        price: currentPrice,
+        change: record.change,
+        previousPrice: record.previousPrice,
+        sentTo
+      };
+      if (sentTo.length < recipientCount) {
+        alert = {
+          source: ctx.result.source,
+          targetName: ctx.result.name,
+          unit: ctx.unit,
+          change: record.change ?? 'new',
+          previousPrice:
+            record.previousPrice != null ? formatPrice(record.previousPrice) : undefined,
+          watched,
+          alreadySent: [...sentTo]
+        };
+      }
     }
 
-    toWrite.push({ unitKey: key, price: currentPrice });
+    toWrite.push(next);
+    if (alert) {
+      alerts.push(alert);
+      alertToRecord.set(alert, next);
+    }
   }
 
-  return { alerts, toWrite };
+  return { alerts, toWrite, alertToRecord };
 }
 
 export async function persistState(toWrite: UnitRecord[]): Promise<void> {

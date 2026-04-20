@@ -1,4 +1,4 @@
-import { ProxyAgent } from 'undici';
+import { fetch as undiciFetch, ProxyAgent } from 'undici';
 import { Resource } from 'sst';
 
 const USER_AGENT = 'apartment-scraper/1.0';
@@ -30,7 +30,7 @@ function unblockerAgent() {
   return cachedUnblockerAgent;
 }
 
-async function ensureOk(response: Response, rawUrl: string) {
+async function ensureOk(response: { ok: boolean; status: number; statusText: string; text: () => Promise<string> }, rawUrl: string) {
   if (response.ok) return;
   const body = (await response.text()).slice(0, 4096).trim();
   throw new Error(`${rawUrl} returned ${response.status} ${response.statusText}: ${body}`);
@@ -76,7 +76,7 @@ export async function getTextViaUnblocker(
   init: Record<string, string> = {},
   timeoutMs = 60_000
 ) {
-  const response = await fetch(rawUrl, {
+  const response = await undiciFetch(rawUrl, {
     method: 'GET',
     headers: headers({
       'x-oxylabs-render': 'html',
@@ -85,7 +85,7 @@ export async function getTextViaUnblocker(
     }),
     signal: withTimeout(signal, timeoutMs),
     dispatcher: unblockerAgent()
-  } as RequestInit & { dispatcher: ProxyAgent });
+  });
   await ensureOk(response, rawUrl);
   return response.text();
 }

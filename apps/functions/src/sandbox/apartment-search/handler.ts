@@ -55,6 +55,20 @@ function formatAlertMessage(alerts: AlertMatch[]): string {
   return lines.join('\n');
 }
 
+async function sendSms(phoneNumber: string, message: string) {
+  const response = await lambda.send(
+    new InvokeCommand({
+      FunctionName: process.env.TEXT_FUNCTION_ARN!,
+      InvocationType: 'RequestResponse',
+      Payload: new TextEncoder().encode(JSON.stringify({ phoneNumber, message }))
+    })
+  );
+  if (response.FunctionError) {
+    const body = response.Payload ? new TextDecoder().decode(response.Payload) : '';
+    throw new Error(`text lambda ${response.FunctionError}: ${body}`);
+  }
+}
+
 export const notifierHandler = async () => {
   console.log(`Scraping ${TARGETS.length} properties...`);
 
@@ -63,7 +77,11 @@ export const notifierHandler = async () => {
   const totalUnits = results.reduce((sum, r) => sum + r.units.length, 0);
   console.log(`Scraped ${results.length} properties, found ${totalUnits} total units`);
 
-  const { alerts, toWrite } = await processResults(TARGETS, results);
+  const { alerts, toWrite, alertToRecord } = await processResults(
+    TARGETS,
+    results,
+    RECIPIENT_PHONE_NUMBERS.length
+  );
 
   if (!alerts.length) {
     await persistState(toWrite);
@@ -72,47 +90,39 @@ export const notifierHandler = async () => {
   }
 
   console.log(`Found ${alerts.length} alerts, sending SMS...`);
-  const message = formatAlertMessage(alerts);
 
-  const sends = await Promise.allSettled(
-    RECIPIENT_PHONE_NUMBERS.map(async (phoneNumber) => {
-      const response = await lambda.send(
-        new InvokeCommand({
-          FunctionName: process.env.TEXT_FUNCTION_ARN!,
-          InvocationType: 'RequestResponse',
-          Payload: new TextEncoder().encode(JSON.stringify({ phoneNumber, message }))
-        })
-      );
-      if (response.FunctionError) {
-        const body = response.Payload ? new TextDecoder().decode(response.Payload) : '';
-        throw new Error(`text lambda ${response.FunctionError}: ${body}`);
+  let sent = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const phoneNumber of RECIPIENT_PHONE_NUMBERS) {
+    const masked = `***${phoneNumber.slice(-4)}`;
+    const pending = alerts.filter((a) => !(a.alreadySent ?? []).includes(phoneNumber));
+    if (!pending.length) {
+      skipped += alerts.length;
+      continue;
+    }
+
+    const message = formatAlertMessage(pending);
+    try {
+      await sendSms(phoneNumber, message);
+      console.log(`SMS sent to ${masked} (${pending.length} alerts)`);
+      sent += pending.length;
+      for (const alert of pending) {
+        const record = alertToRecord.get(alert);
+        if (!record) continue;
+        record.sentTo = [...(record.sentTo ?? []), phoneNumber];
       }
-    })
-  );
-
-  const failures: string[] = [];
-  for (let i = 0; i < sends.length; i++) {
-    const result = sends[i];
-    const masked = `***${RECIPIENT_PHONE_NUMBERS[i].slice(-4)}`;
-    if (result.status === 'fulfilled') {
-      console.log(`SMS sent to ${masked}`);
-    } else {
-      console.error(`SMS failed to ${masked}`, result.reason);
-      failures.push(
-        `${masked}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`
-      );
+    } catch (err) {
+      failed += pending.length;
+      console.error(`SMS failed to ${masked}`, err);
     }
   }
 
-  if (failures.length > 0) {
-    throw new Error(
-      `SMS delivery incomplete (${failures.length}/${sends.length} failed); skipping state persist so next run retries. Failures: ${failures.join('; ')}`
-    );
-  }
-
   await persistState(toWrite);
+
   return {
     statusCode: 200,
-    body: `Sent ${alerts.length} alerts to ${sends.length} recipients`
+    body: `sent=${sent} skipped=${skipped} failed=${failed}`
   };
 };
