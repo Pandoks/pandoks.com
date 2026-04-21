@@ -15,7 +15,6 @@ const scraperFunction = new sst.aws.Function('ApartmentScraper', {
   timeout: '120 seconds',
   memory: '256 MB',
   url: false,
-  concurrency: { reserved: 1 },
   link: [
     apartmentSearchKV,
     secrets.personal.KwokPhoneNumber,
