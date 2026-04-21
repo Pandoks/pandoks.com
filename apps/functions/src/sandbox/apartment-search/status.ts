@@ -1,11 +1,13 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { BatchGetCommand, BatchWriteCommand, DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
-import { priceToCents, extractUnitNumberValue } from './scrapers/lib';
+import { priceToCents, extractUnitNumberValue, formatCents } from './scrapers/lib';
 import type { AlertMatch, AlertRules, Target } from './types';
 import type { TargetResult, Unit } from './scrapers/types';
 
-const client = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const client = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
+  marshallOptions: { removeUndefinedValues: true }
+});
 const TABLE_NAME = Resource.ApartmentSearchKV.name;
 const TTL_DAYS = 30;
 const MAX_RETRIES = 3;
@@ -13,11 +15,9 @@ const MAX_RETRIES = 3;
 interface UnitRecord {
   unitKey: string;
   price: number;
-}
-
-function buildKey(target: Target, unit: Unit): string {
-  const id = target.url ?? target.name;
-  return `${target.source}#${id}#${unit.number ?? unit.id ?? 'unknown'}`;
+  change?: 'new' | 'price_up' | 'price_down' | 'out_of_range';
+  previousPrice?: number;
+  sentTo?: string[];
 }
 
 async function batchGet(keys: string[]): Promise<Map<string, UnitRecord>> {
@@ -41,6 +41,9 @@ async function batchGet(keys: string[]): Promise<Map<string, UnitRecord>> {
       }
 
       pending = response.UnprocessedKeys as typeof pending;
+    }
+    if (pending && Object.keys(pending).length) {
+      throw new Error(`batchGet: keys unprocessed after ${MAX_RETRIES} retries`);
     }
   }
 
@@ -67,23 +70,14 @@ async function batchPut(records: UnitRecord[]): Promise<void> {
       const response = await client.send(new BatchWriteCommand({ RequestItems: pending }));
       pending = response.UnprocessedItems as typeof pending;
     }
+    if (pending && Object.keys(pending).length) {
+      throw new Error(`batchPut: items unprocessed after ${MAX_RETRIES} retries`);
+    }
   }
 }
 
-function parseAvailableDate(raw?: string): string | null {
-  if (!raw) return null;
-  const d = new Date(raw);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 10);
-}
-
-function matchesRules(unit: Unit, rules?: AlertRules): boolean {
+function matchesStructure(unit: Unit, rules?: AlertRules): boolean {
   if (!rules) return true;
-
-  const price = priceToCents(unit.price);
-  if (price == null) return false;
-  if (rules.minPrice != null && price < Math.round(rules.minPrice * 100)) return false;
-  if (rules.maxPrice != null && price > Math.round(rules.maxPrice * 100)) return false;
 
   if (rules.unitNumbers?.length) {
     const unitStr = (unit.number ?? '').trim();
@@ -109,8 +103,9 @@ function matchesRules(unit: Unit, rules?: AlertRules): boolean {
   }
 
   if (rules.moveInAfter != null || rules.moveInBefore != null) {
-    const available = parseAvailableDate(unit.availableDate);
-    if (!available) return false;
+    const d = unit.availableDate ? new Date(unit.availableDate) : null;
+    if (!d || Number.isNaN(d.getTime())) return false;
+    const available = d.toISOString().slice(0, 10);
     if (rules.moveInAfter != null && available < rules.moveInAfter) return false;
     if (rules.moveInBefore != null && available > rules.moveInBefore) return false;
   }
@@ -118,16 +113,29 @@ function matchesRules(unit: Unit, rules?: AlertRules): boolean {
   return true;
 }
 
+function priceStatus(
+  priceCents: number,
+  rules?: AlertRules
+): 'in_range' | 'above_max' | 'below_min' {
+  if (!rules) return 'in_range';
+  if (rules.minPrice != null && priceCents < Math.round(rules.minPrice * 100)) return 'below_min';
+  if (rules.maxPrice != null && priceCents > Math.round(rules.maxPrice * 100)) return 'above_max';
+  return 'in_range';
+}
+
 export interface ProcessedResults {
   alerts: AlertMatch[];
   toWrite: UnitRecord[];
+  alertToRecord: Map<AlertMatch, UnitRecord>;
 }
 
 export async function processResults(
   targets: Target[],
-  results: TargetResult[]
+  results: TargetResult[],
+  recipientCount: number
 ): Promise<ProcessedResults> {
   const alerts: AlertMatch[] = [];
+  const alertToRecord = new Map<AlertMatch, UnitRecord>();
   const allKeys: string[] = [];
   const keyToContext = new Map<string, { target: Target; result: TargetResult; unit: Unit }>();
 
@@ -137,8 +145,9 @@ export async function processResults(
     if (!target || !result) continue;
 
     for (const unit of result.units) {
-      if (!matchesRules(unit, target.rules)) continue;
-      const key = buildKey(target, unit);
+      if (!matchesStructure(unit, target.rules)) continue;
+      const id = target.url ?? target.name;
+      const key = `${target.source}#${id}#${unit.number ?? unit.id ?? 'unknown'}`;
       allKeys.push(key);
       keyToContext.set(key, { target, result, unit });
     }
@@ -152,43 +161,105 @@ export async function processResults(
     const currentPrice = priceToCents(ctx.unit.price);
     if (currentPrice == null) continue;
 
+    const status = priceStatus(currentPrice, ctx.target.rules);
+    if (status === 'below_min') continue;
+
     const record = existing.get(key);
     const watched = ctx.target.watchUnits?.some(
       (n) => (ctx.unit.number ?? '') === n || (ctx.unit.number ?? '').endsWith(n)
     );
+    const makeAlert = (
+      change: AlertMatch['change'],
+      previousPrice?: number,
+      alreadySent: string[] = []
+    ): AlertMatch => ({
+      source: ctx.result.source,
+      targetName: ctx.result.name,
+      unit: ctx.unit,
+      change,
+      previousPrice: previousPrice != null ? formatCents(previousPrice) : undefined,
+      watched,
+      alreadySent
+    });
 
-    if (!record) {
-      alerts.push({
-        source: ctx.result.source,
-        targetName: ctx.result.name,
-        unit: ctx.unit,
-        change: 'new',
-        watched
-      });
-    } else if (currentPrice < record.price) {
-      alerts.push({
-        source: ctx.result.source,
-        targetName: ctx.result.name,
-        unit: ctx.unit,
-        change: 'price_down',
-        previousPrice: `$${(record.price / 100).toFixed(2)}`,
-        watched
-      });
-    } else if (currentPrice > record.price) {
-      alerts.push({
-        source: ctx.result.source,
-        targetName: ctx.result.name,
-        unit: ctx.unit,
-        change: 'price_up',
-        previousPrice: `$${(record.price / 100).toFixed(2)}`,
-        watched
-      });
+    let next: UnitRecord;
+    let alert: AlertMatch | null = null;
+
+    if (status === 'above_max') {
+      if (!record) continue;
+      if (record.change === 'out_of_range') {
+        const sentTo = record.sentTo ?? [];
+        next = {
+          unitKey: key,
+          price: record.price,
+          change: 'out_of_range',
+          previousPrice: record.previousPrice,
+          sentTo
+        };
+        if (sentTo.length < recipientCount) {
+          alert = makeAlert('out_of_range', record.previousPrice, [...sentTo]);
+        }
+      } else {
+        next = {
+          unitKey: key,
+          price: currentPrice,
+          change: 'out_of_range',
+          previousPrice: record.price,
+          sentTo: []
+        };
+        alert = makeAlert('out_of_range', record.price);
+      }
+    } else if (!record) {
+      next = { unitKey: key, price: currentPrice, change: 'new', sentTo: [] };
+      alert = makeAlert('new');
+    } else if (record.change === 'out_of_range') {
+      const prev = record.previousPrice;
+      const change: AlertMatch['change'] =
+        prev == null || currentPrice === prev
+          ? 'new'
+          : currentPrice < prev
+            ? 'price_down'
+            : 'price_up';
+      next = {
+        unitKey: key,
+        price: currentPrice,
+        change,
+        previousPrice: prev,
+        sentTo: []
+      };
+      alert = makeAlert(change, prev);
+    } else if (currentPrice !== record.price) {
+      const change = currentPrice < record.price ? 'price_down' : 'price_up';
+      next = {
+        unitKey: key,
+        price: currentPrice,
+        change,
+        previousPrice: record.price,
+        sentTo: []
+      };
+      alert = makeAlert(change, record.price);
+    } else {
+      const sentTo = record.sentTo ?? [];
+      next = {
+        unitKey: key,
+        price: currentPrice,
+        change: record.change,
+        previousPrice: record.previousPrice,
+        sentTo
+      };
+      if (sentTo.length < recipientCount) {
+        alert = makeAlert(record.change ?? 'new', record.previousPrice, [...sentTo]);
+      }
     }
 
-    toWrite.push({ unitKey: key, price: currentPrice });
+    toWrite.push(next);
+    if (alert) {
+      alerts.push(alert);
+      alertToRecord.set(alert, next);
+    }
   }
 
-  return { alerts, toWrite };
+  return { alerts, toWrite, alertToRecord };
 }
 
 export async function persistState(toWrite: UnitRecord[]): Promise<void> {

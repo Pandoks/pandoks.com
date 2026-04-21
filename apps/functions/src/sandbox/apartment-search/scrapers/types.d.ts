@@ -43,5 +43,6 @@ export interface Unit {
   basePrice?: string;
   deposit?: string;
   availableDate?: string;
+  priceDate?: string;
   applyUrl?: string;
 }

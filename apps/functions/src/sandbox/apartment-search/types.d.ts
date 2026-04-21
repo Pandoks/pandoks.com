@@ -14,21 +14,20 @@ export interface AlertRules {
 }
 
 export interface Target {
-  source: string;
+  source: 'essex' | 'eqr';
   name: string;
-  url?: string;
-  startDate?: string;
-  endDate?: string;
-  moveInDate?: string;
-  rules?: AlertRules;
+  url: string;
+  rules: AlertRules;
   watchUnits?: string[];
+  eqrBuildingSlug?: string;
 }
 
 export interface AlertMatch {
   source: string;
   targetName: string;
   unit: Unit;
-  change: 'new' | 'price_up' | 'price_down';
+  change: 'new' | 'price_up' | 'price_down' | 'out_of_range';
   previousPrice?: string;
   watched?: boolean;
+  alreadySent?: string[];
 }

@@ -14,7 +14,8 @@
     "shadcn": "pnpm dlx shadcn-svelte@latest add $@ -c packages/svelte",
     "clean": "pnpm -r run clean",
     "format": "prettier --write .",
-    "lint": "prettier --check ."
+    "lint": "prettier --check .",
+    "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {
     "glob": "^13.0.6",

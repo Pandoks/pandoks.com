@@ -1,5 +1,5 @@
 import { dev } from '$app/environment';
-import { NOTION_API_KEY, BLOG_NOTION_DATABASE_ID } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 import {
   Client,
   isFullDatabase,
@@ -9,6 +9,11 @@ import {
 } from '@notionhq/client';
 import { getImageExtensionFromSignedUrlImage } from './utils';
 import { SUPPORTED_LANGUAGES } from './highlight';
+
+const { NOTION_API_KEY, BLOG_NOTION_DATABASE_ID } = env;
+if (!NOTION_API_KEY || !BLOG_NOTION_DATABASE_ID) {
+  throw new Error('NOTION_API_KEY and BLOG_NOTION_DATABASE_ID required at build');
+}
 
 export const notion = new Client({
   auth: NOTION_API_KEY,
