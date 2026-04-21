@@ -1,4 +1,4 @@
-import { formatCents, getTextViaUnblocker, normalizeMoney, priceToCents } from './lib';
+import { formatCents, getTextViaUnblocker, priceToCents } from './lib';
 import type { Target } from '../types';
 import type { Floorplan, TargetResult, Unit } from './types';
 
@@ -58,7 +58,7 @@ export async function scrapeEqr(signal: AbortSignal, target: Target): Promise<Ta
       bedrooms: String(u.number_of_bedrooms),
       bathrooms: String(u.number_of_bathrooms),
       sqft: String(u.square_footage),
-      price: normalizeMoney(String(best.rent)),
+      price: formatCents(Math.round(best.rent * 100)),
       availableDate: best.dateAvailable,
       priceDate: best.dateAvailable
     });

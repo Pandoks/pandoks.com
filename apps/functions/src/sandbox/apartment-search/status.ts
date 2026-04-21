@@ -1,7 +1,7 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { BatchGetCommand, BatchWriteCommand, DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { Resource } from 'sst';
-import { priceToCents, extractUnitNumberValue } from './scrapers/lib';
+import { priceToCents, extractUnitNumberValue, formatCents } from './scrapers/lib';
 import type { AlertMatch, AlertRules, Target } from './types';
 import type { TargetResult, Unit } from './scrapers/types';
 
@@ -129,10 +129,6 @@ export interface ProcessedResults {
   alertToRecord: Map<AlertMatch, UnitRecord>;
 }
 
-function formatPrice(cents: number) {
-  return `$${(cents / 100).toFixed(2)}`;
-}
-
 export async function processResults(
   targets: Target[],
   results: TargetResult[],
@@ -181,7 +177,7 @@ export async function processResults(
       targetName: ctx.result.name,
       unit: ctx.unit,
       change,
-      previousPrice: previousPrice != null ? formatPrice(previousPrice) : undefined,
+      previousPrice: previousPrice != null ? formatCents(previousPrice) : undefined,
       watched,
       alreadySent
     });
@@ -217,14 +213,21 @@ export async function processResults(
       next = { unitKey: key, price: currentPrice, change: 'new', sentTo: [] };
       alert = makeAlert('new');
     } else if (record.change === 'out_of_range') {
+      const prev = record.previousPrice;
+      const change: AlertMatch['change'] =
+        prev == null || currentPrice === prev
+          ? 'new'
+          : currentPrice < prev
+            ? 'price_down'
+            : 'price_up';
       next = {
         unitKey: key,
         price: currentPrice,
-        change: 'price_down',
-        previousPrice: record.previousPrice,
+        change,
+        previousPrice: prev,
         sentTo: []
       };
-      alert = makeAlert('price_down', record.previousPrice);
+      alert = makeAlert(change, prev);
     } else if (currentPrice !== record.price) {
       const change = currentPrice < record.price ? 'price_down' : 'price_up';
       next = {
