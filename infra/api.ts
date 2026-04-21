@@ -1,8 +1,8 @@
 import { secrets } from './secrets';
-import { domain } from './dns';
+import { domain, isProduction } from './dns';
 
 const apiDomain = `api.${domain}`;
-const nodeVersion = 'nodejs22.x';
+export const nodeVersion = 'nodejs24.x';
 
 export const apiRouter = new sst.aws.Router('ApiRouter', {
   domain: {
@@ -28,7 +28,7 @@ export const blogApi = new sst.aws.Function('BlogApi', {
   }
 });
 
-export const textFunction = new sst.aws.Function('TextSmsFunction', {
+export const textFunction = new sst.aws.Function('TextSms', {
   handler: 'apps/functions/src/text.sendTextHandler',
   runtime: nodeVersion,
   url: false,
@@ -54,7 +54,7 @@ const scheduleInvokeTextRole = new aws.iam.Role('ScheduleInvokeTextRole', {
   }).json
 });
 const scheduleTextGroup = new aws.scheduler.ScheduleGroup('ScheduleTextGroup', {
-  name: $app.stage === 'production' ? 'text-scheduler' : 'text-scheduler-dev'
+  name: isProduction ? 'text-scheduler' : 'text-scheduler-dev'
 });
 new aws.iam.RolePolicy('ScheduleInvokeTextPolicy', {
   role: scheduleInvokeTextRole.id,
@@ -69,7 +69,7 @@ new aws.iam.RolePolicy('ScheduleInvokeTextPolicy', {
   }).json
 });
 
-if ($app.stage === 'production') {
+if (isProduction) {
   new sst.aws.Function('NotionWebhookHandler', {
     handler: 'apps/functions/src/api/notion/webhook.webhookHandler',
     runtime: nodeVersion,

@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { EXAMPLE_DOMAIN, STAGE_NAME, cloudflareZoneId } from './dns';
+import { EXAMPLE_DOMAIN, STAGE_NAME, cloudflareZoneId, isProduction } from './dns';
 import { controlPlaneLoadBalancers, workerLoadBalancers } from './vps/vps';
 import { secrets } from './secrets';
 
@@ -13,7 +13,7 @@ export const cloudflareIps: {
 
 const publicLoadBalancers = [...workerLoadBalancers, ...controlPlaneLoadBalancers];
 
-if (publicLoadBalancers.length && $app.stage !== 'production') {
+if (publicLoadBalancers.length && !isProduction) {
   for (const [i, loadBalancer] of publicLoadBalancers.entries()) {
     new cloudflare.DnsRecord(`ExampleDomainLoadBalancer${i}Ipv4`, {
       name: EXAMPLE_DOMAIN,

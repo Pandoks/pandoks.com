@@ -21,6 +21,14 @@ on:
         options:
           - production
           - pandoks
+      deploy:
+        description: 'What to deploy'
+        type: choice
+        default: all
+        options:
+          - all
+          - sst
+          - kubernetes
 
 permissions:
   id-token: write
@@ -33,11 +41,12 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      sst: ${{ steps.filter.outputs.sst }}
-      kubernetes: ${{ steps.filter.outputs.kubernetes }}
+      sst: ${{ github.event_name != 'workflow_dispatch' && steps.filter.outputs.sst || contains(fromJSON('["all","sst"]'), inputs.deploy) }}
+      kubernetes: ${{ github.event_name != 'workflow_dispatch' && steps.filter.outputs.kubernetes || contains(fromJSON('["all","kubernetes"]'), inputs.deploy) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v4
+        if: github.event_name != 'workflow_dispatch'
         id: filter
         with:
           filters: |
@@ -66,13 +75,13 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: 'pnpm'
@@ -81,12 +90,15 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
+      # TODO: remove continue-on-error after sst fixes refresh exit code bug
+      # https://github.com/anomalyco/sst/issues/6713
       - name: Refresh sst state
+        continue-on-error: true
         run: pnpm sst refresh --stage $SST_STAGE
 
       - name: Deploy SST
@@ -113,9 +125,17 @@ jobs:
           tags: tag:ci,tag:prod
 
       - name: Configure kubeconfig
-        run: sudo tailscale configure kubeconfig prod-cluster
+        run: |
+          PEERS=$(sudo tailscale status --peers) || { echo "tailscale status failed"; exit 1; }
+          if ! echo "$PEERS" | grep -q prod-cluster; then
+            echo "No cluster found — skipping deployment"
+            echo "SKIP_DEPLOY=true" >> $GITHUB_ENV
+            exit 0
+          fi
+          sudo tailscale configure kubeconfig prod-cluster
 
       - name: Trigger ArgoCD Sync
+        if: env.SKIP_DEPLOY != 'true'
         run: |
           sudo kubectl annotate application prod-cluster \
             argocd.argoproj.io/refresh=hard \
@@ -123,6 +143,7 @@ jobs:
             --namespace argocd
 
       - name: Wait for ArgoCD Sync
+        if: env.SKIP_DEPLOY != 'true'
         run: |
           for i in {1..60}; do
             STATUS=$(sudo kubectl get application prod-cluster -n argocd -o jsonpath='{.status.sync.status}')

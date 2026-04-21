@@ -4,8 +4,10 @@ import { render, screen } from '@testing-library/svelte';
 import Page from './+page.svelte';
 
 describe('/+page.svelte', () => {
-  test('should render h1', () => {
+  test('links to the Human Experience blog post', () => {
     render(Page);
-    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: 'Human Experience' });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute('href', '/blog/The-Human-Experience');
   });
 });
