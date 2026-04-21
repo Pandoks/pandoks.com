@@ -45,7 +45,7 @@ interface EssexUnit {
   minimum_rent: string;
 }
 
-interface LegacyEssexData {
+interface EssexListingData {
   propertyName: string;
   units: Unit[];
   floorplans: Floorplan[];
@@ -66,7 +66,7 @@ function sortByPrice<T>(
   });
 }
 
-async function fetchEssexLegacy(signal: AbortSignal, target: Target): Promise<LegacyEssexData> {
+async function fetchEssexListing(signal: AbortSignal, target: Target): Promise<EssexListingData> {
   const { moveInAfter, moveInBefore } = target.rules;
   if (!moveInAfter || !moveInBefore) {
     throw new Error(`essex "${target.name}" requires rules.moveInAfter and rules.moveInBefore`);
@@ -172,8 +172,8 @@ export async function scrapeEssex(signal: AbortSignal, target: Target): Promise<
     throw new Error(`essex "${target.name}" requires rules.moveInAfter and rules.moveInBefore`);
   }
 
-  const [legacy, sightmapCtx] = await Promise.all([
-    fetchEssexLegacy(signal, target),
+  const [listing, sightmapCtx] = await Promise.all([
+    fetchEssexListing(signal, target),
     discoverSightmapContext(signal, target.url)
   ]);
 
@@ -184,12 +184,12 @@ export async function scrapeEssex(signal: AbortSignal, target: Target): Promise<
   const units = await enrichUnitsWithSightmap(
     signal,
     sightmapCtx,
-    legacy.units,
+    listing.units,
     moveInAfter,
     moveInBefore,
     target.name
   );
-  const floorplans = rederiveFloorplans(legacy.floorplans, units);
+  const floorplans = rederiveFloorplans(listing.floorplans, units);
 
   sortByPrice(
     floorplans,
@@ -204,7 +204,7 @@ export async function scrapeEssex(signal: AbortSignal, target: Target): Promise<
 
   return {
     source: 'essex',
-    name: target.name || legacy.propertyName,
+    name: target.name || listing.propertyName,
     summary: { availableFloorplans: floorplans.length, availableUnits: units.length },
     floorplans,
     units
