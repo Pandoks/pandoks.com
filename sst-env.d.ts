@@ -4,188 +4,188 @@
 /* deno-fmt-ignore-file */
 /* biome-ignore-all lint: auto-generated */
 
-declare module 'sst' {
+declare module "sst" {
   export interface Resource {
-    ApartmentScraper: {
-      name: string;
-      type: 'sst.aws.Function';
-    };
-    ApartmentSearchKV: {
-      name: string;
-      type: 'sst.aws.Dynamo';
-    };
-    ApiRouter: {
-      type: 'sst.aws.Router';
-      url: string;
-    };
-    AwsRegion: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    BackupBucket: {
-      name: string;
-      type: 'sst.cloudflare.Bucket';
-    };
-    BlogApi: {
-      name: string;
-      type: 'sst.aws.Function';
-      url: string;
-    };
-    BlogDeployAuth: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    CloudflareApiKey: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    CloudflareBackupAccessKey: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    CloudflareBackupSecretKey: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    GithubPersonalAccessToken: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    HetznerApiKey: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    HetznerK3sToken: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    HetznerOriginTlsCrt: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    HetznerOriginTlsKey: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    KubernetesArgocdAccessKeyId: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    KubernetesArgocdSecretAccessKey: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    KubernetesGrafanaAdminPassword: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    KubernetesTailscaleOauthClientId: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    KubernetesTailscaleOauthClientSecret: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    KwokPhoneNumber: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    MainMainClickhouseAdminPassword: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    MainMainClickhouseClientPassword: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    MainMainPostgresAdminPassword: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    MainMainPostgresClientPassword: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    MainMainPostgresPatroniPassword: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    MainMainPostgresPgdogAdminPassword: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    MainMainPostgresReplicationPassword: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    MainMainPostgresSuperuserPassword: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    MainMainValkeyAdminPassword: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    MainMainValkeyClientPassword: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    MichellePhoneNumber: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    NotionApiKey: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    NotionWebhookVerificationToken: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    OxylabsWebUnblockerPassword: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    OxylabsWebUnblockerUsername: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    StageName: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    StaticWebsite: {
-      type: 'sst.cloudflare.StaticSite';
-      url: string;
-    };
-    TailscaleApiKey: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    TextSms: {
-      name: string;
-      type: 'sst.aws.Function';
-    };
-    TwilioAccountSid: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    TwilioAuthToken: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    TwilioNotionMessagingServiceSid: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
-    TwilioPhoneNumber: {
-      type: 'sst.sst.Secret';
-      value: string;
-    };
+    "ApartmentScraper": {
+      "name": string
+      "type": "sst.aws.Function"
+    }
+    "ApartmentSearchKV": {
+      "name": string
+      "type": "sst.aws.Dynamo"
+    }
+    "ApiRouter": {
+      "type": "sst.aws.Router"
+      "url": string
+    }
+    "AwsRegion": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "BackupBucket": {
+      "name": string
+      "type": "sst.cloudflare.Bucket"
+    }
+    "BlogApi": {
+      "name": string
+      "type": "sst.aws.Function"
+      "url": string
+    }
+    "BlogDeployAuth": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "CloudflareApiKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "CloudflareBackupAccessKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "CloudflareBackupSecretKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "GithubPersonalAccessToken": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "HetznerApiKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "HetznerK3sToken": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "HetznerOriginTlsCrt": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "HetznerOriginTlsKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "KubernetesArgocdAccessKeyId": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "KubernetesArgocdSecretAccessKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "KubernetesGrafanaAdminPassword": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "KubernetesTailscaleOauthClientId": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "KubernetesTailscaleOauthClientSecret": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "KwokPhoneNumber": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "MainMainClickhouseAdminPassword": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "MainMainClickhouseClientPassword": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "MainMainPostgresAdminPassword": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "MainMainPostgresClientPassword": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "MainMainPostgresPatroniPassword": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "MainMainPostgresPgdogAdminPassword": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "MainMainPostgresReplicationPassword": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "MainMainPostgresSuperuserPassword": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "MainMainValkeyAdminPassword": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "MainMainValkeyClientPassword": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "MichellePhoneNumber": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "NotionApiKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "NotionWebhookVerificationToken": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "OxylabsWebUnblockerPassword": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "OxylabsWebUnblockerUsername": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "StageName": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "StaticWebsite": {
+      "type": "sst.cloudflare.StaticSite"
+      "url": string
+    }
+    "TailscaleApiKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "TextSms": {
+      "name": string
+      "type": "sst.aws.Function"
+    }
+    "TwilioAccountSid": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "TwilioAuthToken": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "TwilioNotionMessagingServiceSid": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "TwilioPhoneNumber": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
   }
 }
 /// <reference path="sst-env.d.ts" />
 
-import 'sst';
-export {};
+import "sst"
+export {}
