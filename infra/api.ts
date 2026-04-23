@@ -1,5 +1,6 @@
 import { secrets } from './secrets';
 import { domain, isProduction } from './dns';
+import { githubOrg, githubRepoName } from './github';
 
 const apiDomain = `api.${domain}`;
 export const nodeVersion = 'nodejs24.x';
@@ -87,12 +88,16 @@ if (isProduction) {
       }
     ],
     environment: {
+      DOMAIN: apiDomain,
       SCHEDULER_INVOKE_ROLE_ARN: scheduleInvokeTextRole.arn,
       SCHEDULER_GROUP_NAME: scheduleTextGroup.name,
-      TEXT_FUNCTION_ARN: textFunction.arn
+      TEXT_FUNCTION_ARN: textFunction.arn,
+      GITHUB_NOTION_SYNC_URL: `https://api.github.com/repos/${githubOrg}/${githubRepoName}/actions/workflows/sync-notion.yaml/dispatches`
     },
     link: [
+      notion,
       secrets.aws.Region,
+      secrets.github.PersonalAccessToken,
       secrets.notion.ApiKey,
       secrets.notion.WebhookVerificationToken,
       secrets.personal.KwokPhoneNumber,
