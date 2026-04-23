@@ -1,0 +1,48 @@
+name: Sync Notion Content
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: us-west-1
+
+      - name: Sync all Notion content
+        run: pnpm sst shell --stage production -- pnpm -r --if-present run sync:notion
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: 'update(notion): sync from Notion'
+          title: 'update(notion): sync from Notion'
+          body: |
+            Automated content sync from Notion
+          branch: auto/notion-sync
+          delete-branch: true
+          add-paths: |
+            apps/web/*
