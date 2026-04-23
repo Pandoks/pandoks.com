@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Not Found — Pandoks</title>
+  <script>
+    const [, segment] = window.location.pathname.split('/');
+    let target;
+    switch (segment) {
+      case 'blog':
+        target = '/blog';
+        break;
+      default:
+        target = '/';
+    }
+    window.location.replace(target);
+  </script>
+</head>
+<body>
+  <p>Not found. <a href="/">Go home</a>.</p>
+</body>
+</html>
