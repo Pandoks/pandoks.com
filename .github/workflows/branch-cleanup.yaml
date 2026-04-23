@@ -2,6 +2,8 @@ name: Branch deletion cleanup
 on:
   delete:
 
+permissions: {}
+
 jobs:
   cleanup-previews:
     if: github.event.ref_type == 'branch'
