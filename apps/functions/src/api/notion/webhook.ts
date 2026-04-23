@@ -2,6 +2,7 @@ import { SSMClient, PutParameterCommand } from '@aws-sdk/client-ssm';
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Resource } from 'sst';
+import { handleNotionBlogSync } from './gh-blog-sync';
 import { handleTextReminder } from './text-reminder';
 
 const ssmClient = new SSMClient({});
@@ -92,7 +93,8 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
   // WARNING: Handlers MUST be idempotent — Notion retries the webhook on non-200 responses,
   // so any handler that succeeded will re-run on the next attempt.
   const results = await Promise.allSettled([
-    handleTextReminder(body)
+    handleTextReminder(body),
+    handleNotionBlogSync(body)
     // Add new feature handlers here
   ]);
 
