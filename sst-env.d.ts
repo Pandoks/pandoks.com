@@ -35,8 +35,8 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
-    "BlogNotion": {
-      "databaseId": string
+    "Notion": {
+      "blogDatabaseId": string
       "type": "sst.sst.Linkable"
     }
     "CloudflareApiKey": {
