@@ -60,7 +60,7 @@ function formatAlertMessage(alerts: AlertMatch[]): string {
 async function sendSms(phoneNumber: string, message: string) {
   const response = await lambda.send(
     new InvokeCommand({
-      FunctionName: process.env.TEXT_FUNCTION_ARN!,
+      FunctionName: Resource.TextSms.name,
       InvocationType: 'RequestResponse',
       Payload: new TextEncoder().encode(JSON.stringify({ phoneNumber, message }))
     })
