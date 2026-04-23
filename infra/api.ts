@@ -4,6 +4,11 @@ import { domain, isProduction } from './dns';
 const apiDomain = `api.${domain}`;
 export const nodeVersion = 'nodejs24.x';
 
+// NOTE: this linkable is needed so that it's accessible from sst shell cli
+const notion = new sst.Linkable('Notion', {
+  properties: { blogDatabaseId: '20f1bb259e4b804ba24be1ceebf4c761' }
+});
+
 export const apiRouter = new sst.aws.Router('ApiRouter', {
   domain: {
     name: apiDomain,
