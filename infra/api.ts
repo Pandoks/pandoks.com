@@ -11,23 +11,6 @@ export const apiRouter = new sst.aws.Router('ApiRouter', {
   }
 });
 
-export const blogApi = new sst.aws.Function('BlogApi', {
-  handler: 'apps/functions/src/api/blog.deployHandler',
-  runtime: nodeVersion,
-  url: {
-    router: {
-      instance: apiRouter,
-      path: '/blog/deploy'
-    }
-  },
-  link: [secrets.github.BlogDeployAuth, secrets.github.PersonalAccessToken],
-  environment: {
-    DOMAIN: apiDomain,
-    GITHUB_DEPLOY_URL:
-      'https://api.github.com/repos/pandoks/pandoks.com/actions/workflows/deploy-web.yaml/dispatches'
-  }
-});
-
 export const textFunction = new sst.aws.Function('TextSms', {
   handler: 'apps/functions/src/text.sendTextHandler',
   runtime: nodeVersion,
