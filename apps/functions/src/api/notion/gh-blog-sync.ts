@@ -10,7 +10,7 @@ export const handleNotionBlogSync = async (event: NotionWebhookEvent) => {
   const parent = (event.data as { parent?: { database_id?: string } }).parent;
   if (
     !parent?.database_id ||
-    normalizeNotionId(parent.database_id) !== process.env.BLOG_NOTION_DATABASE_ID!
+    normalizeNotionId(parent.database_id) !== Resource.Notion.blogDatabaseId
   ) {
     return;
   }
