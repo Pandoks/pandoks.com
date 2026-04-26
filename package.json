@@ -11,7 +11,7 @@
     "dev:destroy": "pnpm cluster k3d down && pnpm cluster k3d deps down",
     "dev:push": "pnpm -r dev:push",
     "docker:build": "pnpm -r docker:build",
-    "shadcn": "pnpm dlx shadcn-svelte@latest add $@ -c packages/svelte",
+    "shadcn": "pnpm dlx shadcn-svelte@latest add -c packages/svelte",
     "clean": "pnpm -r clean",
     "format": "prettier --write .",
     "lint": "prettier --check .",
