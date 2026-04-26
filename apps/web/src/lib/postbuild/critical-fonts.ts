@@ -91,8 +91,6 @@ async function subsetToBase64(
   if (chars.size === 0) return null;
   const text = [...chars].join('');
   const fontBuffer = readFileSync(fontPath);
-  // Pin to actual weights used on this page — the full variable font arrives
-  // via <link rel="preload"> and handles other weights after first paint.
   const variationAxes =
     weights.length === 1
       ? { wght: weights[0] }
@@ -128,61 +126,94 @@ export async function injectCriticalFonts(htmlPath: string) {
     const html = readFileSync(htmlPath, 'utf-8');
     const data = collectFontData(html);
 
-    const fontFaces: string[] = [];
-    // cssWeight must match the external CSS @font-face weight range — Chrome
-    // won't use an inline font with a narrower range than an existing CSS rule.
-    const fonts = [
-      {
-        data: data.inter,
-        file: 'Inter.woff2',
-        family: 'Inter',
-        style: 'normal',
-        cssWeight: '100 900'
+    // Inline faces use a distinct family name so they never compete with the external faces in the font-matching algorithm
+    const INLINE_FONTS = {
+      Inter: {
+        stack: [
+          'Inter-Inline',
+          'Inter',
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'Segoe UI',
+          'Roboto',
+          'Helvetica Neue',
+          'Arial',
+          'Noto Sans',
+          'sans-serif'
+        ],
+        cssVariables: ['--font-inter', '--font-sans']
       },
+      'EB Garamond': {
+        stack: [
+          'EB Garamond-Inline',
+          'EB Garamond',
+          'ui-serif',
+          'Georgia',
+          'Cambria',
+          'Times New Roman',
+          'Times',
+          'serif'
+        ],
+        cssVariables: ['--font-garamond', '--font-serif']
+      }
+    };
+
+    const fonts = [
+      { data: data.inter, file: 'Inter.woff2', family: 'Inter', style: 'normal', key: 'inter' },
       {
         data: data.interItalic,
         file: 'Inter-Italic.woff2',
         family: 'Inter',
         style: 'italic',
-        cssWeight: '100 900'
+        key: 'inter-italic'
       },
       {
         data: data.garamond,
         file: 'EBGaramond.woff2',
         family: 'EB Garamond',
         style: 'normal',
-        cssWeight: '400 800'
+        key: 'garamond'
       },
       {
         data: data.garamondItalic,
         file: 'EBGaramond-Italic.woff2',
         family: 'EB Garamond',
         style: 'italic',
-        cssWeight: '400 800'
+        key: 'garamond-italic'
       }
     ];
 
-    for (const { data, file, family, style, cssWeight } of fonts) {
+    const styleTags: string[] = [];
+    for (const { data, file, family, style, key } of fonts) {
       if (data.chars.size === 0) continue;
       const weights = [...data.weights].sort((a, b) => a - b);
       const b64 = await subsetToBase64(join(FONTS_DIR, file), data.chars, weights);
       if (!b64) continue;
       const unicodeRange = unicodeRangeFromChars(data.chars);
-      fontFaces.push(
-        `@font-face{font-family:'${family}';src:url(data:font/woff2;base64,${b64}) format('woff2-variations');font-weight:${cssWeight};font-style:${style};font-display:block;unicode-range:${unicodeRange}}`
-      );
+      const cssWeight =
+        weights.length === 1 ? `${weights[0]}` : `${weights[0]} ${weights[weights.length - 1]}`;
+      const face = `@font-face{font-family:'${family}-Inline';src:url(data:font/woff2;base64,${b64}) format('woff2');font-weight:${cssWeight};font-style:${style};font-display:block;unicode-range:${unicodeRange}}`;
+      const { stack, cssVariables } = INLINE_FONTS[family as keyof typeof INLINE_FONTS];
+      const stackCss = stack.map((s) => `'${s}'`).join(',');
+      const override = `:root{${cssVariables.map((v) => `${v}:${stackCss}`).join(';')}}`;
+      styleTags.push(`<style data-critical-font="${key}">${face}${override}</style>`);
     }
 
-    if (fontFaces.length === 0) return;
+    if (styleTags.length === 0) return;
 
-    const styleTag = `<style data-critical-font>${fontFaces.join('')}</style>`;
-    const injected = html.replace('</head>', `${styleTag}</head>`);
+    const injected = html.replace(/([ \t]*)<\/head>/, (_, closeIndent: string) => {
+      const childIndent = closeIndent + '  ';
+      const block = styleTags.map((t) => `${childIndent}${t}`).join('\n');
+      return `${block}\n${closeIndent}</head>`;
+    });
     writeFileSync(htmlPath, injected);
 
-    const totalKB = (Buffer.byteLength(styleTag) / 1024).toFixed(1);
+    const totalKB = (Buffer.byteLength(styleTags.join('')) / 1024).toFixed(1);
     const relativePath = htmlPath.replace(BUILD_DIR, '');
     console.log(
-      `criticalFonts: ${relativePath} — ${fontFaces.length} font(s), ${totalKB} KB inline`
+      `criticalFonts: ${relativePath} — ${styleTags.length} font(s), ${totalKB} KB inline`
     );
   } catch (err) {
     const relativePath = htmlPath.replace(BUILD_DIR, '');
