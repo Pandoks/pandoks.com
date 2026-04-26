@@ -1,6 +1,14 @@
 import { secrets } from './secrets';
 import { domain } from './dns';
 
+new sst.x.DevCommand('DevWebsite', {
+  dev: {
+    title: 'WebsiteDev',
+    command: 'pnpm run dev',
+    autostart: false,
+    directory: 'apps/web'
+  }
+});
 export const staticWebsite = new sst.cloudflare.StaticSite('StaticWebsite', {
   path: 'apps/web',
   build: {
@@ -29,7 +37,6 @@ export const staticWebsite = new sst.cloudflare.StaticSite('StaticWebsite', {
       {
         files: 'favicon/**',
         cacheControl: 'max-age=31536000,public,immutable'
-      },
       {
         files: '**/__data.json',
         cacheControl: 'max-age=3600,public'
