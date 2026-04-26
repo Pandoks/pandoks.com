@@ -1,9 +1,8 @@
 import { existsSync, globSync } from 'fs';
 import { join } from 'path';
+import { BUILD_DIR } from './paths';
 import { restoreBlogRoutes } from './postbuild/restore-blog-routes';
 import { injectCriticalFonts } from './postbuild/critical-fonts';
-
-const BUILD_DIR = join(process.cwd(), 'build');
 
 restoreBlogRoutes();
 
