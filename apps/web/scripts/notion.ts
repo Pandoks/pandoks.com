@@ -8,8 +8,8 @@ import {
   type BlockObjectResponse,
   type RichTextItemResponse
 } from '@notionhq/client';
-import { downloadSignedUrlImage, getImageExtensionFromSignedUrlImage } from '../utils';
-import { SUPPORTED_LANGUAGES } from '../highlight';
+import { downloadSignedUrlImage, getImageExtensionFromSignedUrlImage } from '../src/lib/utils';
+import { SUPPORTED_LANGUAGES } from '../src/lib/highlight';
 import { BLOG_CONTENT_DIR } from './paths';
 
 const NOTION_API_KEY = process.env.SST_RESOURCE_NotionApiKey
