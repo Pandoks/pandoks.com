@@ -12,13 +12,7 @@ export const downloadSignedUrlImage = async ({
   dir: string;
   name: string;
 }): Promise<string> => {
-  if (!dir.startsWith('/')) {
-    dir = `/${dir}`;
-  }
-
-  const staticDir = path.join(process.cwd(), 'static');
-  const imageDir = path.join(staticDir, dir);
-  await fs.promises.mkdir(imageDir, { recursive: true });
+  await fs.promises.mkdir(dir, { recursive: true });
 
   return new Promise((resolve, reject) => {
     const client = url.startsWith('https://') ? https : http;
@@ -26,26 +20,25 @@ export const downloadSignedUrlImage = async ({
     client
       .get(url, (response) => {
         if (response.statusCode !== 200) {
-          fs.unlink(dir, () => {
-            reject(new Error(`Failed to download image: ${url}`));
-          });
+          reject(new Error(`Failed to download image: ${url}`));
+          return;
         }
 
         const contentType = response.headers['content-type'];
         const extension = getImageExtensionFromMime(contentType);
 
-        const outputPath = path.join(imageDir, `${name}${extension}`);
+        const outputPath = path.join(dir, `${name}${extension}`);
         const file = fs.createWriteStream(outputPath);
         response.pipe(file);
 
         file.on('finish', () => {
           file.close();
           console.log(`downloadSignedUrlImage: Downloaded image: ${url} to ${outputPath}`);
-          resolve(`${dir}/${name}${extension}`);
+          resolve(outputPath);
         });
 
         file.on('error', (err) => {
-          fs.unlink(dir, () => {
+          fs.unlink(outputPath, () => {
             reject(new Error(`File writing error: ${err.message}`));
           });
         });
