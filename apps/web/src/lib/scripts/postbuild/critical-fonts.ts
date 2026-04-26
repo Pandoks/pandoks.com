@@ -1,11 +1,8 @@
 import { readFileSync, writeFileSync } from 'fs';
-import { join, resolve } from 'path';
+import { join } from 'path';
 import subsetFont from 'subset-font';
 import { parse } from 'node-html-parser';
-
-const WEB_DIR = process.cwd();
-const BUILD_DIR = join(WEB_DIR, 'build');
-const FONTS_DIR = resolve(WEB_DIR, '../../packages/svelte/static/fonts');
+import { BUILD_DIR, FONTS_DIR } from '../paths';
 
 const WEIGHT_MAP: Record<string, number> = {
   'font-thin': 100,
