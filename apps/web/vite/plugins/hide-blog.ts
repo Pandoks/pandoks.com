@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Plugin } from 'vite';
-import { BLOG_DIR, hasPosts } from '../declarations';
+import { BLOG_DIR, hasPosts } from '../globals';
 
 const ROOT = process.cwd();
 const TEMP_DIR = join(ROOT, '.temp');

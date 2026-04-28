@@ -4,7 +4,7 @@ import { enhancedImages } from '@sveltejs/enhanced-img';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vitest/config';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
-import { define } from './vite/declarations';
+import { define } from './vite/globals';
 import { hideBlogWhenEmpty } from './vite/plugins/hide-blog';
 
 export default defineConfig({

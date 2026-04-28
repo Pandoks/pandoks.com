@@ -23,6 +23,6 @@ const blogIndex = existsSync(BLOG_DIR)
 export const hasPosts = blogIndex.length > 0;
 
 export const define = {
-  __HAS_POSTS__: JSON.stringify(hasPosts),
-  __BLOG_INDEX__: JSON.stringify(blogIndex)
+  __HAS_POSTS__: hasPosts,
+  __BLOG_INDEX__: blogIndex
 };
