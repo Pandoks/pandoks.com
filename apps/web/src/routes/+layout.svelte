@@ -22,7 +22,7 @@
     { href: '/', text: 'Jason Kwok' },
     { href: '/socials', text: 'Socials' },
     { href: '/work', text: 'Work' },
-    { href: '/blog', text: 'Blog' }
+    ...(__HAS_POSTS__ ? [{ href: '/blog', text: 'Blog' }] : [])
   ];
 
   let activeNavIndex: number | undefined = $state();
