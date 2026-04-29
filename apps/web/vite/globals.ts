@@ -22,7 +22,10 @@ const blogIndex = existsSync(BLOG_DIR)
 
 export const hasPosts = blogIndex.length > 0;
 
+export const hasHomePageBlogPost = 'The-Human-Experience' in blogIndex.map((p) => p.slug);
+
 export const define = {
   __HAS_POSTS__: hasPosts,
-  __BLOG_INDEX__: blogIndex
+  __BLOG_INDEX__: blogIndex,
+  __HAS_HOME_PAGE_BLOG_POST__: hasHomePageBlogPost
 };
