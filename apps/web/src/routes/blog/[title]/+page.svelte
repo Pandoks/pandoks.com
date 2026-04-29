@@ -16,6 +16,13 @@
   {/each}
 </div>
 
+<svelte:head>
+  <title>{data.title}</title>
+  <meta name="description" content={`${data.title} by Jason Kwok`} />
+  <meta property="og:title" content={`${data.title} by Jason Kwok (Pandoks_)`} />
+  <meta property="og:description" content={`${data.title} by Jason Kwok`} />
+</svelte:head>
+
 {#snippet blockRender(block: any)}
   {#if block.type === 'heading_1'}
     <h2 class="text-xl font-extrabold">{@render textBlockRender(block.texts)}</h2>
@@ -51,18 +58,18 @@
         target="_blank"
         rel="noopener noreferrer"
         class={`text-neutral-500 hover:cursor-pointer hover:underline
-              ${annotations.bold ? 'font-medium' : ''} 
+              ${annotations.bold ? 'font-medium' : ''}
               ${annotations.italic ? 'italic' : ''}
-              ${annotations.strikethrough ? 'line-through' : ''} 
+              ${annotations.strikethrough ? 'line-through' : ''}
               ${annotations.underline ? 'underline' : ''}`}
       >
         {plain_text}
       </a>
     {:else}
       <span
-        class={`${annotations.bold ? 'font-medium' : ''} 
+        class={`${annotations.bold ? 'font-medium' : ''}
               ${annotations.italic ? 'italic' : ''}
-              ${annotations.strikethrough ? 'line-through' : ''} 
+              ${annotations.strikethrough ? 'line-through' : ''}
               ${annotations.underline ? 'underline' : ''}`}
       >
         {plain_text}
@@ -70,10 +77,3 @@
     {/if}
   {/each}
 {/snippet}
-
-<svelte:head>
-  <title>{data.title}</title>
-  <meta name="description" content={`${data.title} by Jason Kwok`} />
-  <meta property="og:title" content={`${data.title} by Jason Kwok (Pandoks_)`} />
-  <meta property="og:description" content={`${data.title} by Jason Kwok`} />
-</svelte:head>
