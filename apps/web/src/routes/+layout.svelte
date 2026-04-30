@@ -1,10 +1,22 @@
 <script lang="ts">
   import '../app.css';
   import { page } from '$app/state';
-  import { goto } from '$app/navigation';
+  import { goto, preloadData } from '$app/navigation';
+  import { onMount } from 'svelte';
   import { setVimState } from '$lib/vim.svelte';
 
   let { children } = $props();
+
+  onMount(() => {
+    if (!('requestIdleCallback' in window)) return;
+
+    const allRoutes: string[] = (window as any).__ALL_ROUTES ?? [];
+    requestIdleCallback(() => {
+      for (const route of allRoutes) {
+        preloadData(route);
+      }
+    });
+  });
 
   const navLinks = [
     { href: '/', text: 'Jason Kwok' },
@@ -49,7 +61,7 @@
   });
 </script>
 
-<nav class="font-inter bg-background fixed flex w-full gap-2 rounded-br-xs p-2 text-sm xl:w-auto">
+<nav class="bg-background fixed flex w-full gap-2 rounded-br-xs p-2 text-sm xl:w-auto">
   {#each navLinks as { href, text }, index}
     {@render navLink(href, text, index)}
   {/each}

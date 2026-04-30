@@ -2,9 +2,10 @@
   import { goto } from '$app/navigation';
   import { getVimState } from '$lib/vim.svelte.js';
   import { Badge } from '@pandoks.com/svelte/shadcn/badge';
-  const { data } = $props();
+  import type { PageProps } from './$types';
+  let { data }: PageProps = $props();
 
-  const titles = data.titles;
+  let titles = $derived(data.titles);
 
   let activeBlogIndex: number | undefined = $state();
   const vimState = getVimState()

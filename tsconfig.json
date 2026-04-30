@@ -1,0 +1,3 @@
+{
+  "extends": "./.sst/platform/tsconfig.json"
+}

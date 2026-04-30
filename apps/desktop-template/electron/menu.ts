@@ -1,5 +1,5 @@
 import { app } from 'electron';
-import { createWindow } from './browser';
+import { createBrowserWindow } from './browser';
 
 export const MENU = [
   ...(process.platform === 'darwin'
@@ -26,7 +26,7 @@ export const MENU = [
       {
         label: 'New Window',
         accelerator: 'CommandOrControl+N',
-        click: createWindow
+        click: createBrowserWindow
       },
       // Conditional Quit item for Windows/Linux
       // On macOS, 'quit' is handled by the app menu role above.

@@ -19,7 +19,7 @@ new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
   plaintextValue: secrets.hetzner.ApiKey.value
 });
 
-if ($app.stage === 'production') {
+if (isProduction) {
   new github.ActionsSecret('GithubGithubAccessToken', {
     repository: githubRepoName,
     secretName: 'GH_TOKEN',

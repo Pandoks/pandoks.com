@@ -53,6 +53,7 @@ expo-env.d.ts
 
 # AI
 .claude
+.codex
 
 # Processed images (generated during build)
 apps/web/static/blog-images

@@ -2,14 +2,22 @@
   "name": "@pandoks.com/functions",
   "version": "1.0.0",
   "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
   "dependencies": {
-    "@aws-sdk/client-scheduler": "^3.864.0",
-    "@aws-sdk/client-sns": "^3.830.0",
-    "sst": "^3.17.36",
-    "twilio": "^5.8.0"
+    "@aws-sdk/client-dynamodb": "^3.1031.0",
+    "@aws-sdk/client-lambda": "^3.1031.0",
+    "@aws-sdk/client-scheduler": "^3.1031.0",
+    "@aws-sdk/client-sns": "^3.1031.0",
+    "@aws-sdk/client-ssm": "^3.1031.0",
+    "@aws-sdk/lib-dynamodb": "^3.1031.0",
+    "@notionhq/client": "^5.18.0",
+    "sst": "^4.7.5",
+    "twilio": "^5.13.1",
+    "undici": "^7.24.0"
   },
   "devDependencies": {
-    "@notionhq/client": "^4.0.1",
-    "@types/aws-lambda": "^8.10.150"
+    "@types/aws-lambda": "^8.10.161"
   }
 }

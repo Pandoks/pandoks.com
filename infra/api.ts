@@ -1,8 +1,8 @@
 import { secrets } from './secrets';
-import { domain } from './dns';
+import { domain, isProduction } from './dns';
 
 const apiDomain = `api.${domain}`;
-const nodeVersion = 'nodejs22.x';
+export const nodeVersion = 'nodejs24.x';
 
 export const apiRouter = new sst.aws.Router('ApiRouter', {
   domain: {
@@ -28,7 +28,7 @@ export const blogApi = new sst.aws.Function('BlogApi', {
   }
 });
 
-export const textFunction = new sst.aws.Function('TextSmsFunction', {
+export const textFunction = new sst.aws.Function('TextSms', {
   handler: 'apps/functions/src/text.sendTextHandler',
   runtime: nodeVersion,
   url: false,
@@ -54,7 +54,7 @@ const scheduleInvokeTextRole = new aws.iam.Role('ScheduleInvokeTextRole', {
   }).json
 });
 const scheduleTextGroup = new aws.scheduler.ScheduleGroup('ScheduleTextGroup', {
-  name: $app.stage === 'production' ? 'text-scheduler' : 'text-scheduler-dev'
+  name: isProduction ? 'text-scheduler' : 'text-scheduler-dev'
 });
 new aws.iam.RolePolicy('ScheduleInvokeTextPolicy', {
   role: scheduleInvokeTextRole.id,
@@ -68,34 +68,47 @@ new aws.iam.RolePolicy('ScheduleInvokeTextPolicy', {
     ]
   }).json
 });
-export const scheduleTextReminderApi = new sst.aws.Function('ScheduleTextReminderApi', {
-  handler: 'apps/functions/src/api/notion/schedule-text.scheduleTextHandler',
-  runtime: nodeVersion,
-  url: {
-    router: {
-      instance: apiRouter,
-      path: '/todo/remind'
-    }
-  },
-  permissions: [
-    {
-      actions: [
-        'scheduler:CreateSchedule',
-        'scheduler:UpdateSchedule',
-        'scheduler:DeleteSchedule',
-        'scheduler:GetSchedule'
-      ],
-      resources: ['*']
+
+if (isProduction) {
+  new sst.aws.Function('NotionWebhookHandler', {
+    handler: 'apps/functions/src/api/notion/webhook.webhookHandler',
+    runtime: nodeVersion,
+    timeout: '30 seconds',
+    url: {
+      router: {
+        instance: apiRouter,
+        path: '/notion/webhook'
+      }
     },
-    {
-      actions: ['iam:PassRole'],
-      resources: [scheduleInvokeTextRole.arn]
-    }
-  ],
-  environment: {
-    SCHEDULER_INVOKE_ROLE_ARN: scheduleInvokeTextRole.arn,
-    SCHEDULER_GROUP_NAME: scheduleTextGroup.name,
-    TEXT_FUNCTION_ARN: textFunction.arn
-  },
-  link: [secrets.notion.AuthToken]
-});
+    permissions: [
+      {
+        actions: [
+          'scheduler:CreateSchedule',
+          'scheduler:UpdateSchedule',
+          'scheduler:DeleteSchedule'
+        ],
+        resources: ['*']
+      },
+      {
+        actions: ['iam:PassRole'],
+        resources: [scheduleInvokeTextRole.arn]
+      },
+      {
+        actions: ['ssm:PutParameter'],
+        resources: ['arn:aws:ssm:*:*:parameter/tmp/notion-verification-token']
+      }
+    ],
+    environment: {
+      SCHEDULER_INVOKE_ROLE_ARN: scheduleInvokeTextRole.arn,
+      SCHEDULER_GROUP_NAME: scheduleTextGroup.name,
+      TEXT_FUNCTION_ARN: textFunction.arn
+    },
+    link: [
+      secrets.aws.Region,
+      secrets.notion.ApiKey,
+      secrets.notion.WebhookVerificationToken,
+      secrets.personal.KwokPhoneNumber,
+      secrets.personal.MichellePhoneNumber
+    ]
+  });
+}
