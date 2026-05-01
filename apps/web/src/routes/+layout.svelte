@@ -1,21 +1,19 @@
 <script lang="ts">
   import '../app.css';
   import { page } from '$app/state';
-  import { goto, preloadData } from '$app/navigation';
+  import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import { setVimState } from '$lib/vim.svelte';
+  import { FONTS } from '$lib/fonts';
 
   let { children } = $props();
 
   onMount(() => {
-    if (!('requestIdleCallback' in window)) return;
-
-    const allRoutes: string[] = (window as any).__ALL_ROUTES ?? [];
-    requestIdleCallback(() => {
-      for (const route of allRoutes) {
-        preloadData(route);
-      }
-    });
+    for (const { file, family, weight, style, key } of FONTS) {
+      new FontFace(family, `url(/fonts/${file})`, { weight, style }).load().then(() => {
+        document.querySelector(`style[data-critical-font="${key}"]`)?.remove();
+      });
+    }
   });
 
   const navLinks = [
