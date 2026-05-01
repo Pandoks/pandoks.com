@@ -33,7 +33,7 @@ export const downloadSignedUrlImage = async ({
 
         file.on('finish', () => {
           file.close();
-          console.log(`downloadSignedUrlImage: Downloaded image: ${url} to ${outputPath}`);
+          console.log(`Downloaded ${path.basename(outputPath)}`);
           resolve(outputPath);
         });
 
@@ -85,4 +85,8 @@ export const getImageExtensionFromMime = (mime: string | undefined | null): stri
     default:
       throw new Error(`Unsupported image mime type: ${mime}`);
   }
+};
+
+export const getSlugFromBlogTitle = (title: string): string => {
+  return title.replaceAll(' ', '-').toLowerCase();
 };
