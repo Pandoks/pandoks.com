@@ -59,7 +59,7 @@ export const getImageExtensionFromSignedUrlImage = async (url: string) => {
   return getImageExtensionFromMime(contentType);
 };
 
-export const getImageExtensionFromMime = (mime: string | undefined | null): string => {
+const getImageExtensionFromMime = (mime: string | undefined | null): string => {
   if (!mime) {
     throw new Error('No mime type provided');
   }
