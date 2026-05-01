@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import subsetFont from 'subset-font';
 import { parse } from 'node-html-parser';
+import { FONTS } from '$lib/fonts';
 
 const FONTS_DIR = resolve(process.cwd(), '../../packages/svelte/static/fonts');
 
@@ -153,30 +154,6 @@ function unicodeRangeFromChars(chars: Set<string>): string {
 export async function injectCriticalFonts(html: string): Promise<string> {
   try {
     const data = collectFontData(html);
-    const fonts = [
-      { data: data.inter, file: 'Inter.woff2', family: 'Inter', style: 'normal', key: 'inter' },
-      {
-        data: data.interItalic,
-        file: 'Inter-Italic.woff2',
-        family: 'Inter',
-        style: 'italic',
-        key: 'inter-italic'
-      },
-      {
-        data: data.garamond,
-        file: 'EBGaramond.woff2',
-        family: 'EB Garamond',
-        style: 'normal',
-        key: 'garamond'
-      },
-      {
-        data: data.garamondItalic,
-        file: 'EBGaramond-Italic.woff2',
-        family: 'EB Garamond',
-        style: 'italic',
-        key: 'garamond-italic'
-      }
-    ];
 
     const styleTags: string[] = [];
     for (const { data, file, family, style, key } of fonts) {
