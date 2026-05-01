@@ -2,19 +2,20 @@
   import { goto } from '$app/navigation';
   import { getVimState } from '$lib/vim.svelte.js';
   import { Badge } from '@pandoks.com/svelte/shadcn/badge';
+  import { getSlugFromBlogTitle } from '$lib/utils';
 
   let activeBlogIndex: number | undefined = $state();
   const vimState = getVimState()
     .setBodyHandler((e) => {
       switch (e.key) {
         case 'j':
-          if (activeBlogIndex === __BLOG_INDEX__.length - 2) {
+          if (activeBlogIndex === __BLOG_TITLES__.length - 2) {
             // NOTE: You want to set bottom to true on the second to last item because once you've
             // reached the last item, you want the vim state to take over
             vimState.bodyBottom = true;
           }
           activeBlogIndex!++;
-          if (__BLOG_INDEX__.length > 1) {
+          if (__BLOG_TITLES__.length > 1) {
             vimState.bodyTop = false;
           }
           return;
@@ -25,14 +26,15 @@
           }
 
           activeBlogIndex!--;
-          if (__BLOG_INDEX__.length > 1) {
+          if (__BLOG_TITLES__.length > 1) {
             vimState.bodyBottom = false;
           }
           return;
         case 'Enter':
           if (activeBlogIndex !== undefined) {
             vimState.active = 'none';
-            goto(`/blog/${__BLOG_INDEX__[activeBlogIndex].slug}`);
+            const post = __BLOG_TITLES__[activeBlogIndex];
+            goto(`/blog/${post.title.replaceAll(' ', '-').toLowerCase()}`);
           }
           return;
       }
@@ -40,14 +42,14 @@
     .setInitBodyState((e: KeyboardEvent) => {
       if (e.key === 'j') {
         activeBlogIndex = 0;
-        if (__BLOG_INDEX__.length > 1) {
+        if (__BLOG_TITLES__.length > 1) {
           vimState.bodyBottom = false;
         }
       }
       if (e.key === 'k') {
-        activeBlogIndex = __BLOG_INDEX__.length - 1;
+        activeBlogIndex = __BLOG_TITLES__.length - 1;
         vimState.bodyBottom = true;
-        if (__BLOG_INDEX__.length > 1) {
+        if (__BLOG_TITLES__.length > 1) {
           vimState.bodyTop = false;
         }
       }
@@ -57,11 +59,11 @@
     });
 </script>
 
-{#if __BLOG_INDEX__.length}
+{#if __BLOG_TITLES__.length}
   <ul class="list-disc text-lg">
-    {#each __BLOG_INDEX__ as post, index}
+    {#each __BLOG_TITLES__ as title, index}
       <li>
-        {@render blogTitle(post, index)}
+        {@render blogTitle(title, index)}
       </li>
     {/each}
   </ul>
@@ -74,12 +76,12 @@
   </Badge>
 {/if}
 
-{#snippet blogTitle(post: { slug: string; title: string }, index: number)}
+{#snippet blogTitle(title: string, index: number)}
   <a
     class={`${activeBlogIndex === index && vimState.active === 'body' ? 'bg-highlight' : ''} font-garamond flex flex-col hover:cursor-pointer hover:underline`}
-    href="/blog/{post.slug}"
+    href="/blog/{getSlugFromBlogTitle(title)}"
   >
-    {post.title}
+    {title}
   </a>
 {/snippet}
 

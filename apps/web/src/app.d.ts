@@ -15,7 +15,7 @@ declare global {
   }
 
   const __HAS_POSTS__: typeof define.__HAS_POSTS__;
-  const __BLOG_INDEX__: typeof define.__BLOG_INDEX__;
+  const __BLOG_TITLES__: typeof define.__BLOG_TITLES__;
   const __HAS_HOME_PAGE_BLOG_POST__: typeof define.__HAS_HOME_PAGE_BLOG_POST__;
 }
 

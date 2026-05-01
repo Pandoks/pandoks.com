@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 export const BLOG_DIR = 'src/lib/blog';
 
-const blogIndex = existsSync(BLOG_DIR)
+const blogTitles = existsSync(BLOG_DIR)
   ? readdirSync(BLOG_DIR)
       .filter((f) => f.endsWith('.json'))
       .map((f) => {
@@ -11,21 +11,18 @@ const blogIndex = existsSync(BLOG_DIR)
           title: string;
           createdTime: string;
         };
-        return {
-          slug: f.replace(/\.json$/, ''),
-          title: data.title,
-          createdTime: data.createdTime
-        };
+        return { title: data.title, createdTime: data.createdTime };
       })
       .sort((a, b) => Date.parse(b.createdTime) - Date.parse(a.createdTime))
+      .map((post) => post.title)
   : [];
 
-export const hasPosts = blogIndex.length > 0;
+export const hasPosts = blogTitles.length > 0;
 
-export const hasHomePageBlogPost = 'The-Human-Experience' in blogIndex.map((p) => p.slug);
+export const hasHomePageBlogPost = blogTitles.includes('The Human Experience');
 
 export const define = {
   __HAS_POSTS__: hasPosts,
-  __BLOG_INDEX__: blogIndex,
+  __BLOG_TITLES__: blogTitles,
   __HAS_HOME_PAGE_BLOG_POST__: hasHomePageBlogPost
 };
