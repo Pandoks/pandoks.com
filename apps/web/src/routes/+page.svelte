@@ -2,7 +2,7 @@
   <p>
     Obssessed with the
     {#if __HAS_HOME_PAGE_BLOG_POST__}
-      <a href="/blog/The-Human-Experience" class="italic hover:underline">Human Experience</a>
+      <a href="/blog/the-human-experience" class="italic hover:underline">Human Experience</a>
     {:else}
       <span class="italic">Human Experience</span>
     {/if}
