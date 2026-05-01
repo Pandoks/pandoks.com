@@ -1,4 +1,5 @@
-import { mkdirSync, readdirSync, unlinkSync, writeFileSync } from 'fs';
+import https from 'https';
+import fs, { mkdirSync, readdirSync, unlinkSync, writeFileSync } from 'fs';
 import { basename, join } from 'path';
 import {
   Client,
@@ -8,9 +9,90 @@ import {
   type BlockObjectResponse,
   type RichTextItemResponse
 } from '@notionhq/client';
-import { downloadSignedUrlImage, getImageExtensionFromSignedUrlImage } from '../src/lib/utils';
+import { getSlugFromBlogTitle } from '../src/lib/utils';
 import { SUPPORTED_LANGUAGES } from '../src/lib/highlight';
-import { BLOG_CONTENT_DIR } from './paths';
+
+const getImageExtensionFromMime = (mime: string | undefined | null): string => {
+  if (!mime) {
+    throw new Error('No mime type provided');
+  }
+
+  switch (mime.toLowerCase()) {
+    case 'image/jpeg':
+    case 'image/jpg':
+      return '.jpeg';
+    case 'image/png':
+      return '.png';
+    case 'image/gif':
+      return '.gif';
+    case 'image/webp':
+      return '.webp';
+    case 'image/svg+xml':
+      return '.svg';
+    case 'image/bmp':
+      return '.bmp';
+    case 'image/tiff':
+      return '.tiff';
+    case 'image/x-icon':
+      return '.ico';
+    default:
+      throw new Error(`Unsupported image mime type: ${mime}`);
+  }
+};
+
+const getImageExtensionFromSignedUrlImage = async (url: string) => {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`HTTP error: ${response.status} - ${response.statusText}`);
+  }
+
+  const contentType = response.headers.get('Content-Type');
+  return getImageExtensionFromMime(contentType);
+};
+
+const downloadSignedUrlImage = async ({
+  url,
+  dir,
+  name
+}: {
+  url: string;
+  dir: string;
+  name: string;
+}): Promise<string> => {
+  await fs.promises.mkdir(dir, { recursive: true });
+
+  return new Promise((resolve, reject) => {
+    https
+      .get(url, (response) => {
+        if (response.statusCode !== 200) {
+          reject(new Error(`Failed to download image: ${url}`));
+          return;
+        }
+
+        const contentType = response.headers['content-type'];
+        const extension = getImageExtensionFromMime(contentType);
+
+        const outputPath = join(dir, `${name}${extension}`);
+        const file = fs.createWriteStream(outputPath);
+        response.pipe(file);
+
+        file.on('finish', () => {
+          file.close();
+          console.log(`Downloaded ${basename(outputPath)}`);
+          resolve(outputPath);
+        });
+
+        file.on('error', (err) => {
+          fs.unlink(outputPath, () => {
+            reject(new Error(`File writing error: ${err.message}`));
+          });
+        });
+      })
+      .on('error', (err) => {
+        reject(new Error(`Request error: ${err.message}`));
+      });
+  });
+};
 
 const NOTION_API_KEY = process.env.SST_RESOURCE_NotionApiKey
   ? JSON.parse(process.env.SST_RESOURCE_NotionApiKey).value
@@ -22,6 +104,7 @@ if (!NOTION_API_KEY || !BLOG_NOTION_DATABASE_ID) {
   throw new Error('NOTION_API_KEY and BLOG_NOTION_DATABASE_ID required');
 }
 
+const BLOG_CONTENT_DIR = join(process.cwd(), 'src/lib/blog');
 const IMAGE_DIR = join(BLOG_CONTENT_DIR, 'images');
 
 type ImageDownload = { url: string; id: string };
@@ -59,8 +142,6 @@ const blogDataSourceIdPromise = notion.databases
     return dataSourceId;
   });
 
-const titleToSlug = (title: string) => title.replaceAll(' ', '-');
-
 const minimizeRichText = (text: RichTextItemResponse) => ({
   plain_text: text.plain_text,
   annotations: text.annotations,
@@ -88,7 +169,7 @@ const minimizeBlock = async (block: BlockObjectResponse) => {
       const imageData = block.image;
       const imageUrl = imageData.type === 'file' ? imageData.file.url : imageData.external.url;
       const extension = await getImageExtensionFromSignedUrlImage(imageUrl);
-      return { type: block.type, url: `${block.id}${extension}` };
+      return { type: block.type, filename: `${block.id}${extension}` };
     }
     case 'code': {
       const codeBlock = block.code;
@@ -170,14 +251,14 @@ const syncNotion = async () => {
   mkdirSync(IMAGE_DIR, { recursive: true });
 
   const pages = await getPublishedPages();
-  console.log(`syncNotion: Found ${pages.length} published blog pages`);
+  console.log(`Found ${pages.length} published blog pages`);
 
   const currentSlugs = new Set<string>();
   const allImageDownloads: ImageDownload[] = [];
 
   await Promise.all(
     pages.map(async (page) => {
-      const slug = titleToSlug(page.title);
+      const slug = getSlugFromBlogTitle(page.title);
       currentSlugs.add(slug);
 
       const { blocks, imageDownloads } = await getPageBlocks(page.pageId);
@@ -188,7 +269,7 @@ const syncNotion = async () => {
 
       const filePath = join(BLOG_CONTENT_DIR, `${slug}.json`);
       writeFileSync(filePath, JSON.stringify(post, null, 2) + '\n');
-      console.log(`syncNotion: wrote ${slug}`);
+      console.log(`Wrote ${slug}.json`);
     })
   );
 
@@ -205,14 +286,14 @@ const syncNotion = async () => {
     const slug = fileName.replace(/\.json$/, '');
     if (!currentSlugs.has(slug)) {
       unlinkSync(join(BLOG_CONTENT_DIR, fileName));
-      console.log(`syncNotion: removed stale ${slug}`);
+      console.log(`Removed stale ${slug}.json`);
     }
   }
 
   for (const fileName of readdirSync(IMAGE_DIR)) {
     if (!writtenImageFiles.has(fileName)) {
       unlinkSync(join(IMAGE_DIR, fileName));
-      console.log(`syncNotion: removed stale image ${fileName}`);
+      console.log(`Removed stale image ${fileName}`);
     }
   }
 };
