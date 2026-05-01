@@ -9,8 +9,8 @@ import {
   type BlockObjectResponse,
   type RichTextItemResponse
 } from '@notionhq/client';
-import { getSlugFromBlogTitle } from '../src/lib/utils';
-import { SUPPORTED_LANGUAGES } from '../src/lib/highlight';
+import { getSlugFromBlogTitle } from '../src/lib/utils.ts';
+import { SUPPORTED_LANGUAGES } from '../src/lib/highlight.ts';
 
 const getImageExtensionFromMime = (mime: string | undefined | null): string => {
   if (!mime) {
