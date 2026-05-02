@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import subsetFont from 'subset-font';
 import { parse } from 'node-html-parser';
-import { FONTS } from '$lib/fonts';
+import { FONTS, FONT_FAMILIES } from '$lib/fonts';
 
 const FONTS_DIR = resolve(process.cwd(), '../../packages/svelte/static/fonts');
 
@@ -29,39 +29,6 @@ interface PageFonts {
   garamond: FontData;
   garamondItalic: FontData;
 }
-
-const INLINE_FONTS = {
-  Inter: {
-    stack: [
-      'Inter-Inline',
-      'Inter',
-      'ui-sans-serif',
-      'system-ui',
-      '-apple-system',
-      'BlinkMacSystemFont',
-      'Segoe UI',
-      'Roboto',
-      'Helvetica Neue',
-      'Arial',
-      'Noto Sans',
-      'sans-serif'
-    ],
-    cssVariables: ['--font-inter', '--font-sans']
-  },
-  'EB Garamond': {
-    stack: [
-      'EB Garamond-Inline',
-      'EB Garamond',
-      'ui-serif',
-      'Georgia',
-      'Cambria',
-      'Times New Roman',
-      'Times',
-      'serif'
-    ],
-    cssVariables: ['--font-garamond', '--font-serif']
-  }
-};
 
 function addChars(set: Set<string>, text: string) {
   for (const ch of text) {
@@ -154,18 +121,25 @@ function unicodeRangeFromChars(chars: Set<string>): string {
 export async function injectCriticalFonts(html: string): Promise<string> {
   try {
     const data = collectFontData(html);
+    const dataByKey: Record<(typeof FONTS)[number]['key'], FontData> = {
+      inter: data.inter,
+      'inter-italic': data.interItalic,
+      garamond: data.garamond,
+      'garamond-italic': data.garamondItalic
+    };
 
     const styleTags: string[] = [];
-    for (const { data, file, family, style, key } of fonts) {
-      if (data.chars.size === 0) continue;
-      const weights = [...data.weights].sort((a, b) => a - b);
-      const b64 = await subsetToBase64(join(FONTS_DIR, file), data.chars, weights);
+    for (const { file, family, style, key } of FONTS) {
+      const fontData = dataByKey[key];
+      if (fontData.chars.size === 0) continue;
+      const weights = [...fontData.weights].sort((a, b) => a - b);
+      const b64 = await subsetToBase64(join(FONTS_DIR, file), fontData.chars, weights);
       if (!b64) continue;
-      const unicodeRange = unicodeRangeFromChars(data.chars);
+      const unicodeRange = unicodeRangeFromChars(fontData.chars);
       const cssWeight =
         weights.length === 1 ? `${weights[0]}` : `${weights[0]} ${weights[weights.length - 1]}`;
       const face = `@font-face{font-family:'${family}-Inline';src:url(data:font/woff2;base64,${b64}) format('woff2');font-weight:${cssWeight};font-style:${style};font-display:block;unicode-range:${unicodeRange}}`;
-      const { stack, cssVariables } = INLINE_FONTS[family as keyof typeof INLINE_FONTS];
+      const { stack, cssVariables } = FONT_FAMILIES[family as keyof typeof FONT_FAMILIES];
       const stackCss = stack.map((s) => `'${s}'`).join(',');
       const override = `:root{${cssVariables.map((v) => `${v}:${stackCss}`).join(';')}}`;
       styleTags.push(`<style data-critical-font="${key}">${face}${override}</style>`);

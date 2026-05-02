@@ -22,3 +22,36 @@ export const FONTS = [
     key: 'garamond-italic'
   }
 ];
+
+export const FONT_FAMILIES = {
+  Inter: {
+    stack: [
+      'Inter-Inline',
+      'Inter',
+      'ui-sans-serif',
+      'system-ui',
+      '-apple-system',
+      'BlinkMacSystemFont',
+      'Segoe UI',
+      'Roboto',
+      'Helvetica Neue',
+      'Arial',
+      'Noto Sans',
+      'sans-serif'
+    ],
+    cssVariables: ['--font-inter', '--font-sans']
+  },
+  'EB Garamond': {
+    stack: [
+      'EB Garamond-Inline',
+      'EB Garamond',
+      'ui-serif',
+      'Georgia',
+      'Cambria',
+      'Times New Roman',
+      'Times',
+      'serif'
+    ],
+    cssVariables: ['--font-garamond', '--font-serif']
+  }
+};
