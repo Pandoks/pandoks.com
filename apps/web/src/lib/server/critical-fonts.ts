@@ -21,7 +21,7 @@ const WEIGHT_MAP: Record<string, number> = {
 
 type FontData = { chars: Set<string>; weights: Set<number> };
 
-function fontFromHtmlElement(element: HTMLElement): FontKey | null {
+export function fontFromHtmlElement(element: HTMLElement): FontKey | null {
   let italic = false;
   let family: 'inter' | 'garamond' = 'inter';
   for (let current: HTMLElement | null = element; current; current = current.parentNode) {
@@ -40,88 +40,36 @@ function fontFromHtmlElement(element: HTMLElement): FontKey | null {
   return italic ? `${family}-italic` : family;
 }
 
-function collectFontData(html: string): PageFonts {
-  const data: PageFonts = {
-    inter: { chars: new Set(), weights: new Set() },
-    interItalic: { chars: new Set(), weights: new Set() },
-    garamond: { chars: new Set(), weights: new Set() },
-    garamondItalic: { chars: new Set(), weights: new Set() }
-  };
+export function collectFontData(html: string): Record<FontKey, FontData> {
+  const data = {} as Record<FontKey, FontData>;
+  for (const k of Object.keys(FONTS) as FontKey[]) {
+    data[k] = { chars: new Set(), weights: new Set([400]) };
+  }
 
-  const root = parse(html);
-  const body = root.querySelector('body');
+  const body = parse(html).querySelector('body');
   if (!body) return data;
 
-  for (const el of body.querySelectorAll('.font-garamond')) {
-    addChars(data.garamond.chars, el.textContent);
-    addWeights(data.garamond.weights, el);
+  for (const el of body.querySelectorAll('*')) {
+    const key = fontFromHtmlElement(el);
+    if (!key) continue;
+    const bucket = data[key];
+    for (const cls of el.classList.values()) {
+      const w = WEIGHT_MAP[cls];
+      if (w !== undefined) bucket.weights.add(w);
+    }
+    for (const child of el.childNodes) {
+      if (child.nodeType !== NodeType.TEXT_NODE) continue;
+      for (const ch of (child as TextNode).text) {
+        if (ch === ' ' || ch.trim()) bucket.chars.add(ch);
+      }
+    }
   }
-
-  for (const el of body.querySelectorAll('.font-garamond .italic')) {
-    addChars(data.garamondItalic.chars, el.textContent);
-    addWeights(data.garamondItalic.weights, el);
-  }
-
-  const interClone = parse(body.outerHTML);
-  for (const el of interClone.querySelectorAll('.font-garamond, .font-mono, script, style')) {
-    el.remove();
-  }
-  addChars(data.inter.chars, interClone.textContent);
-  addWeights(data.inter.weights, interClone);
-
-  for (const el of body.querySelectorAll('.font-inter .italic')) {
-    addChars(data.interItalic.chars, el.textContent);
-    addWeights(data.interItalic.weights, el);
-  }
-
   return data;
 }
 
-async function subsetToBase64(
-  fontPath: string,
-  chars: Set<string>,
-  weights: number[]
-): Promise<string | null> {
-  if (chars.size === 0) return null;
-  const text = [...chars].join('');
-  const fontBuffer = readFileSync(fontPath);
-  const variationAxes =
-    weights.length === 1
-      ? { wght: weights[0] }
-      : { wght: { min: weights[0], max: weights[weights.length - 1] } };
-  const output = await subsetFont(fontBuffer, text, { targetFormat: 'woff2', variationAxes });
-  return Buffer.from(output).toString('base64');
-}
-
-function unicodeRangeFromChars(chars: Set<string>): string {
-  const codepoints = [...chars].map((c) => c.codePointAt(0)!).sort((a, b) => a - b);
-  const ranges: [number, number][] = [];
-  for (const cp of codepoints) {
-    const last = ranges.at(-1);
-    if (last && cp === last[1] + 1) {
-      last[1] = cp;
-    } else {
-      ranges.push([cp, cp]);
-    }
-  }
-  return ranges
-    .map(([s, e]) =>
-      s === e
-        ? `U+${s.toString(16).toUpperCase()}`
-        : `U+${s.toString(16).toUpperCase()}-${e.toString(16).toUpperCase()}`
-    )
-    .join(',');
-}
-
 export async function injectCriticalFonts(html: string): Promise<string> {
-  try {
-    const data = collectFontData(html);
-    const dataByKey: Record<(typeof FONTS)[number]['key'], FontData> = {
-      inter: data.inter,
-      'inter-italic': data.interItalic,
-      garamond: data.garamond,
-      'garamond-italic': data.garamondItalic
-    };
+  const data = collectFontData(html);
+  const styleTags: string[] = [];
 
     const styleTags: string[] = [];
     for (const { file, family, style, key } of FONTS) {
