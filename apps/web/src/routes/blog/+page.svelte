@@ -34,7 +34,7 @@
           if (activeBlogIndex !== undefined) {
             vimState.active = 'none';
             const post = __BLOG_TITLES__[activeBlogIndex];
-            goto(`/blog/${post.title.replaceAll(' ', '-').toLowerCase()}`);
+            goto(`/blog/${getSlugFromBlogTitle(post)}`);
           }
           return;
       }
