@@ -20,6 +20,9 @@ export function injectPrefetchHints(html: string): string {
     if (href) existingPreloads.add(href);
   }
 
+  // NOTE: `modulepreloads` automatically deduped by the browser because packages parsed by the
+  // browser and are smartly cached if used again. We don't need complicated logic to avoid
+  // duplicates. Our simple deduping logis is just to keep the HTML reasonably small.
   const tags = bundledJs
     .filter((url) => !existingPreloads.has(url))
     .map((url) => `<link rel="modulepreload" href="${url}">`)
