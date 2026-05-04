@@ -4,9 +4,9 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
+    "dev": "portless run --name web vite dev",
     "build": "vite build",
-    "preview": "vite preview",
+    "preview": "portless run --name web-preview vite preview",
     "sync:notion": "node ./scripts/notion.ts",
     "prepare": "svelte-kit sync || echo ''",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
