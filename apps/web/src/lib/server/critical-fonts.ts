@@ -18,29 +18,6 @@ const WEIGHT_MAP: Record<string, number> = {
   'font-black': 900
 };
 
-interface FontData {
-  chars: Set<string>;
-  weights: Set<number>;
-}
-
-interface PageFonts {
-  inter: FontData;
-  interItalic: FontData;
-  garamond: FontData;
-  garamondItalic: FontData;
-}
-
-function addChars(set: Set<string>, text: string) {
-  for (const ch of text) {
-    if (ch === ' ' || ch.trim()) set.add(ch);
-  }
-}
-
-function addWeights(weights: Set<number>, el: ReturnType<typeof parse>) {
-  weights.add(400);
-  for (const e of [el, ...el.querySelectorAll('*')]) {
-    for (const cls of (e.getAttribute('class') || '').split(/\s+/)) {
-      if (cls in WEIGHT_MAP) weights.add(WEIGHT_MAP[cls]);
     }
   }
 }
