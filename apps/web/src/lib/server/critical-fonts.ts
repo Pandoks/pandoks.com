@@ -2,10 +2,20 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import subsetFont from 'subset-font';
 import { parse, type HTMLElement, NodeType, type TextNode } from 'node-html-parser';
-import { FONTS, FONT_FAMILIES, type Font, type FontKey } from '$lib/fonts';
+import { FONTS, FONT_FAMILIES, type FontKey } from '$lib/fonts';
 import { unicodeRange } from '$lib/utils';
 
 const FONTS_DIR = resolve(process.cwd(), '../../packages/svelte/static/fonts');
+
+const FONT_BUFFERS = new Map<string, Buffer>();
+function loadFont(file: string): Buffer {
+  let buf = FONT_BUFFERS.get(file);
+  if (!buf) {
+    buf = readFileSync(join(FONTS_DIR, file));
+    FONT_BUFFERS.set(file, buf);
+  }
+  return buf;
+}
 
 const WEIGHT_MAP: Record<string, number> = {
   'font-thin': 100,
@@ -69,34 +79,43 @@ export function collectFontData(html: string): Record<FontKey, FontData> {
 
 export async function injectCriticalFonts(html: string): Promise<string> {
   const data = collectFontData(html);
-  const styleTags: string[] = [];
+  const usedKeys = (Object.keys(FONTS) as FontKey[]).filter((key) => data[key].chars.size > 0);
+  if (!usedKeys.length) return html;
 
-    const styleTags: string[] = [];
-    for (const { file, family, style, key } of FONTS) {
-      const fontData = dataByKey[key];
-      if (fontData.chars.size === 0) continue;
-      const weights = [...fontData.weights].sort((a, b) => a - b);
-      const b64 = await subsetToBase64(join(FONTS_DIR, file), fontData.chars, weights);
-      if (!b64) continue;
-      const unicodeRange = unicodeRangeFromChars(fontData.chars);
-      const cssWeight =
-        weights.length === 1 ? `${weights[0]}` : `${weights[0]} ${weights[weights.length - 1]}`;
-      const face = `@font-face{font-family:'${family}-Inline';src:url(data:font/woff2;base64,${b64}) format('woff2');font-weight:${cssWeight};font-style:${style};font-display:block;unicode-range:${unicodeRange}}`;
-      const { stack, cssVariables } = FONT_FAMILIES[family as keyof typeof FONT_FAMILIES];
-      const stackCss = stack.map((s) => `'${s}'`).join(',');
-      const override = `:root{${cssVariables.map((v) => `${v}:${stackCss}`).join(';')}}`;
-      styleTags.push(`<style data-critical-font="${key}">${face}${override}</style>`);
-    }
+  const fontFaces = await Promise.all(
+    usedKeys.map(async (key) => {
+      const { file, family, style } = FONTS[key];
+      const { chars, weights } = data[key];
+      const min = Math.min(...weights);
+      const max = Math.max(...weights);
+      const isFixedWeight = min === max;
 
-    if (styleTags.length === 0) return html;
+      const subset = await subsetFont(loadFont(file), [...chars].join(''), {
+        targetFormat: 'woff2',
+        variationAxes: isFixedWeight ? { wght: min } : { wght: { min, max } }
+      });
+      const b64 = Buffer.from(subset).toString('base64');
 
-    return html.replace(/([ \t]*)<\/head>/, (_, closeIndent: string) => {
-      const childIndent = closeIndent + '  ';
-      const block = styleTags.map((t) => `${childIndent}${t}`).join('\n');
-      return `${block}\n${closeIndent}</head>`;
-    });
-  } catch (err) {
-    console.error('criticalFonts: failed', err);
-    return html;
-  }
+      return (
+        `@font-face{font-family:'${family}-Inline';` +
+        `src:url(data:font/woff2;base64,${b64}) format('woff2');` +
+        `font-weight:${isFixedWeight ? min : `${min} ${max}`};` +
+        `font-style:${style};font-display:block;` +
+        `unicode-range:${unicodeRange(chars)}}`
+      );
+    })
+  );
+
+  const usedFamilies = new Set(usedKeys.map((key) => FONTS[key].family));
+  const rootRule = [...usedFamilies]
+    .flatMap((family) => {
+      const { stack, cssVariables } = FONT_FAMILIES[family];
+      const stackCss = stack.map((fontFamily) => `'${fontFamily}'`).join(',');
+      return cssVariables.map((cssVariable) => `${cssVariable}:${stackCss}`);
+    })
+    .join(';');
+
+  const styleTag =
+    `<style data-critical-font>` + fontFaces.join('') + `:root{${rootRule}}` + `</style>`;
+  return html.replace(/<\/head>/i, `${styleTag}</head>`);
 }
