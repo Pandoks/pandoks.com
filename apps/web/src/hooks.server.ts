@@ -1,7 +1,7 @@
 import { building } from '$app/environment';
 import type { Handle } from '@sveltejs/kit';
 import { injectCriticalFonts } from '$lib/server/critical-fonts';
-import { injectPrefetchHints } from '$lib/server/prefetch-hints';
+import { injectPrefetchHints } from '$lib/server/module-preloads';
 
 export const handle: Handle = async ({ event, resolve }) => {
   let htmlChunk = '';
