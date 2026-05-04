@@ -9,7 +9,7 @@
   let { children } = $props();
 
   onMount(() => {
-    for (const { file, family, weight, style, key } of FONTS) {
+    for (const [key, { file, family, weight, style }] of Object.entries(FONTS)) {
       new FontFace(family, `url(/fonts/${file})`, { weight, style }).load().then(() => {
         document.querySelector(`style[data-critical-font="${key}"]`)?.remove();
       });

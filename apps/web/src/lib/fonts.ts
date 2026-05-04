@@ -1,29 +1,31 @@
-export const FONTS = [
-  { file: 'Inter.woff2', family: 'Inter', weight: '100 900', style: 'normal', key: 'inter' },
-  {
+export type FontKey = 'inter' | 'inter-italic' | 'garamond' | 'garamond-italic';
+export type FontFamily = 'Inter' | 'EB Garamond';
+
+export type Font = {
+  file: string;
+  family: FontFamily;
+  weight: string;
+  style: 'normal' | 'italic';
+};
+
+export const FONTS: Record<FontKey, Font> = {
+  inter: { file: 'Inter.woff2', family: 'Inter', weight: '100 900', style: 'normal' },
+  'inter-italic': {
     file: 'Inter-Italic.woff2',
     family: 'Inter',
     weight: '100 900',
-    style: 'italic',
-    key: 'inter-italic'
+    style: 'italic'
   },
-  {
-    file: 'EBGaramond.woff2',
-    family: 'EB Garamond',
-    weight: '400 800',
-    style: 'normal',
-    key: 'garamond'
-  },
-  {
+  garamond: { file: 'EBGaramond.woff2', family: 'EB Garamond', weight: '400 800', style: 'normal' },
+  'garamond-italic': {
     file: 'EBGaramond-Italic.woff2',
     family: 'EB Garamond',
     weight: '400 800',
-    style: 'italic',
-    key: 'garamond-italic'
+    style: 'italic'
   }
-];
+};
 
-export const FONT_FAMILIES = {
+export const FONT_FAMILIES: Record<FontFamily, { stack: string[]; cssVariables: string[] }> = {
   Inter: {
     stack: [
       'Inter-Inline',
