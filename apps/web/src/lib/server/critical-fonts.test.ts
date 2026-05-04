@@ -2,22 +2,22 @@ import { describe, it, expect } from 'vitest';
 import { parse, type HTMLElement } from 'node-html-parser';
 import { collectFontData, fontFromHtmlElement } from './critical-fonts';
 
-const el = (html: string): HTMLElement =>
+const element = (html: string): HTMLElement =>
   parse(`<body>${html}</body>`).querySelector('body')!.firstChild as HTMLElement;
 
 const wrap = (body: string) => `<html><body>${body}</body></html>`;
 
 describe('fontFromHtmlElement', () => {
   it('defaults to inter when no font class is present in the ancestor chain', () => {
-    expect(fontFromHtmlElement(el('<p>hi</p>'))).toBe('inter');
+    expect(fontFromHtmlElement(element('<p>hi</p>'))).toBe('inter');
   });
 
   it('returns garamond when the element itself has font-garamond', () => {
-    expect(fontFromHtmlElement(el('<p class="font-garamond">hi</p>'))).toBe('garamond');
+    expect(fontFromHtmlElement(element('<p class="font-garamond">hi</p>'))).toBe('garamond');
   });
 
   it('returns inter-italic when italic is set without an explicit family', () => {
-    expect(fontFromHtmlElement(el('<em class="italic">hi</em>'))).toBe('inter-italic');
+    expect(fontFromHtmlElement(element('<em class="italic">hi</em>'))).toBe('inter-italic');
   });
 
   it('returns garamond-italic when italic is below font-garamond', () => {
@@ -39,9 +39,7 @@ describe('fontFromHtmlElement', () => {
   });
 
   it('still applies italic collected before reaching an explicit font-inter ancestor', () => {
-    const root = parse(
-      '<body><div class="font-inter"><em class="italic">hi</em></div></body>'
-    );
+    const root = parse('<body><div class="font-inter"><em class="italic">hi</em></div></body>');
     expect(fontFromHtmlElement(root.querySelector('em')!)).toBe('inter-italic');
   });
 

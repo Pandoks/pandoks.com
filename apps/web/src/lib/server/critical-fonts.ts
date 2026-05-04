@@ -42,25 +42,25 @@ export function fontFromHtmlElement(element: HTMLElement): FontKey | null {
 
 export function collectFontData(html: string): Record<FontKey, FontData> {
   const data = {} as Record<FontKey, FontData>;
-  for (const k of Object.keys(FONTS) as FontKey[]) {
-    data[k] = { chars: new Set(), weights: new Set([400]) };
+  for (const key of Object.keys(FONTS) as FontKey[]) {
+    data[key] = { chars: new Set(), weights: new Set([400]) };
   }
 
   const body = parse(html).querySelector('body');
   if (!body) return data;
 
-  for (const el of body.querySelectorAll('*')) {
-    const key = fontFromHtmlElement(el);
+  for (const element of body.querySelectorAll('*')) {
+    const key = fontFromHtmlElement(element);
     if (!key) continue;
     const bucket = data[key];
-    for (const cls of el.classList.values()) {
-      const w = WEIGHT_MAP[cls];
-      if (w !== undefined) bucket.weights.add(w);
+    for (const classList of element.classList.values()) {
+      const weight = WEIGHT_MAP[classList];
+      if (weight !== undefined) bucket.weights.add(weight);
     }
-    for (const child of el.childNodes) {
+    for (const child of element.childNodes) {
       if (child.nodeType !== NodeType.TEXT_NODE) continue;
-      for (const ch of (child as TextNode).text) {
-        if (ch === ' ' || ch.trim()) bucket.chars.add(ch);
+      for (const char of (child as TextNode).text) {
+        if (char === ' ' || char.trim()) bucket.chars.add(char);
       }
     }
   }
