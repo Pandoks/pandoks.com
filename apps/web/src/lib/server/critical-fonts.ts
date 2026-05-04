@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import subsetFont from 'subset-font';
-import { parse } from 'node-html-parser';
-import { FONTS, FONT_FAMILIES } from '$lib/fonts';
+import { parse, type HTMLElement, NodeType, type TextNode } from 'node-html-parser';
+import { FONTS, FONT_FAMILIES, type Font, type FontKey } from '$lib/fonts';
+import { unicodeRange } from '$lib/utils';
 
 const FONTS_DIR = resolve(process.cwd(), '../../packages/svelte/static/fonts');
 
@@ -18,8 +19,25 @@ const WEIGHT_MAP: Record<string, number> = {
   'font-black': 900
 };
 
+type FontData = { chars: Set<string>; weights: Set<number> };
+
+function fontFromHtmlElement(element: HTMLElement): FontKey | null {
+  let italic = false;
+  let family: 'inter' | 'garamond' = 'inter';
+  for (let current: HTMLElement | null = element; current; current = current.parentNode) {
+    const tag = current.tagName?.toLowerCase();
+    if (tag === 'script' || tag === 'style') return null;
+
+    const classList = current.classList;
+    if (classList.contains('font-mono')) return null;
+    if (classList.contains('italic')) italic = true;
+    if (classList.contains('font-garamond')) {
+      family = 'garamond';
+      break;
     }
+    if (classList.contains('font-inter')) break;
   }
+  return italic ? `${family}-italic` : family;
 }
 
 function collectFontData(html: string): PageFonts {
