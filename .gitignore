@@ -28,6 +28,7 @@ playwright*/
 
 # sst
 .sst
+sst-env.d.ts
 
 # Only pnpm
 package-lock.json
