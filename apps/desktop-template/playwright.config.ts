@@ -1,9 +1,16 @@
+import { execFileSync } from 'node:child_process';
 import { defineConfig } from '@playwright/test';
+
+const previewUrl = execFileSync('portless', ['get', 'desktop-template-preview'], {
+  encoding: 'utf8'
+}).trim();
 
 export default defineConfig({
   webServer: {
-    command: 'npm run build && npm run preview',
-    port: 4173
+    command: 'pnpm build && pnpm preview',
+    url: previewUrl,
+    ignoreHTTPSErrors: true
   },
+  use: { baseURL: previewUrl, ignoreHTTPSErrors: true },
   testDir: 'e2e'
 });
