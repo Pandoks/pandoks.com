@@ -56,7 +56,7 @@
       <a
         {href}
         target="_blank"
-        rel="noopener noreferrer"
+        rel="external noopener noreferrer"
         class={`text-neutral-500 hover:cursor-pointer hover:underline
               ${annotations.bold ? 'font-medium' : ''}
               ${annotations.italic ? 'italic' : ''}
