@@ -2,11 +2,12 @@
   import '../app.css';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import { onMount } from 'svelte';
   import { setVimState } from '$lib/vim.svelte';
   import { FONTS } from '$lib/fonts';
 
-  let { children } = $props();
+  const { children } = $props();
 
   onMount(() => {
     for (const [key, { file, family, weight, style }] of Object.entries(FONTS)) {
@@ -17,10 +18,10 @@
   });
 
   const navLinks = [
-    { href: '/', text: 'Jason Kwok' },
-    { href: '/socials', text: 'Socials' },
-    { href: '/work', text: 'Work' },
-    ...(__HAS_POSTS__ ? [{ href: '/blog', text: 'Blog' }] : [])
+    { path: '/', text: 'Jason Kwok' },
+    { path: '/socials', text: 'Socials' },
+    { path: '/work', text: 'Work' },
+    ...(__HAS_POSTS__ ? [{ path: '/blog', text: 'Blog' }] : [])
   ];
 
   let activeNavIndex: number | undefined = $state();
@@ -51,8 +52,11 @@
         return;
       case 'Enter':
         if (activeNavIndex !== undefined) {
-          vimState.clearBody();
-          goto(navLinks[activeNavIndex].href);
+          const link = navLinks[activeNavIndex];
+          if (link) {
+            vimState.clearBody();
+            goto(resolve(link.path));
+          }
         }
         return;
     }
@@ -60,8 +64,8 @@
 </script>
 
 <nav class="bg-background fixed flex w-full gap-2 rounded-br-xs p-2 text-sm xl:w-auto">
-  {#each navLinks as { href, text }, index}
-    {@render navLink(href, text, index)}
+  {#each navLinks as { path, text }, index}
+    {@render navLink(path, text, index)}
   {/each}
 </nav>
 
@@ -71,7 +75,8 @@
   </div>
 </div>
 
-{#snippet navLink(href: string, text: string, index: number)}
+{#snippet navLink(path: string, text: string, index: number)}
+  {@const href = resolve(path)}
   <a
     data-sveltekit-preload-data="hover"
     {href}
