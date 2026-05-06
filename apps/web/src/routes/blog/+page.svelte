@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import { getVimState } from '$lib/vim.svelte.js';
   import { Badge } from '@pandoks.com/svelte/shadcn/badge';
   import { getSlugFromBlogTitle } from '$lib/utils';
@@ -32,9 +33,11 @@
           return;
         case 'Enter':
           if (activeBlogIndex !== undefined) {
-            vimState.active = 'none';
             const post = __BLOG_TITLES__[activeBlogIndex];
-            goto(`/blog/${getSlugFromBlogTitle(post)}`);
+            if (post) {
+              vimState.active = 'none';
+              goto(resolve('/blog/[title]', { title: getSlugFromBlogTitle(post) }));
+            }
           }
           return;
       }
@@ -79,7 +82,7 @@
 {#snippet blogTitle(title: string, index: number)}
   <a
     class={`${activeBlogIndex === index && vimState.active === 'body' ? 'bg-highlight' : ''} font-garamond flex flex-col hover:cursor-pointer hover:underline`}
-    href="/blog/{getSlugFromBlogTitle(title)}"
+    href={resolve('/blog/[title]', { title: getSlugFromBlogTitle(title) })}
   >
     {title}
   </a>

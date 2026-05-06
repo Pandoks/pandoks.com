@@ -39,10 +39,10 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
 
   /** INITIALIZE WEBHOOK WITH NOTION */
   if (body.verification_token) {
-    const paramName = '/tmp/notion-verification-token';
+    const parameterName = '/tmp/notion-verification-token';
     await ssmClient.send(
       new PutParameterCommand({
-        Name: paramName,
+        Name: parameterName,
         Value: body.verification_token,
         Type: 'SecureString',
         Overwrite: true
@@ -50,7 +50,7 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
     );
 
     const parameterUrl = `https://console.aws.amazon.com/systems-manager/parameters/${encodeURIComponent(
-      encodeURIComponent(paramName)
+      encodeURIComponent(parameterName)
     )}/description?region=${Resource.AwsRegion.value}`;
     console.log(
       [

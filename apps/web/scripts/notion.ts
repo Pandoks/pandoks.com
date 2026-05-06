@@ -82,14 +82,14 @@ const downloadSignedUrlImage = async ({
           resolve(outputPath);
         });
 
-        file.on('error', (err) => {
+        file.on('error', (error) => {
           fs.unlink(outputPath, () => {
-            reject(new Error(`File writing error: ${err.message}`));
+            reject(new Error(`File writing error: ${error.message}`));
           });
         });
       })
-      .on('error', (err) => {
-        reject(new Error(`Request error: ${err.message}`));
+      .on('error', (error) => {
+        reject(new Error(`Request error: ${error.message}`));
       });
   });
 };

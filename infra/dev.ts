@@ -1,8 +1,3 @@
-import { isProduction } from './dns';
-import { readFileSync } from 'node:fs';
-import { tailscaleAcl } from './tailscale';
-import { inboundFirewall } from './vps/vps';
-
 new sst.x.DevCommand('DevInit', {
   dev: {
     title: 'InitDev',

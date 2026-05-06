@@ -82,13 +82,13 @@ export async function discoverSightmapContext(
 
 export async function getCheapestInWindow(
   signal: AbortSignal,
-  ctx: SightmapContext,
+  context: SightmapContext,
   unitId: string,
   windowStart: string,
   windowEnd: string
 ): Promise<{ price: string; date: string } | null> {
-  const referer = { referer: `${SIGHTMAP_ORIGIN}/embed/${ctx.embedToken}` };
-  const leasingBase = `${SIGHTMAP_ORIGIN}/app/api/v1/leasing/${ctx.leasingToken}/unit/${unitId}`;
+  const referer = { referer: `${SIGHTMAP_ORIGIN}/embed/${context.embedToken}` };
+  const leasingBase = `${SIGHTMAP_ORIGIN}/app/api/v1/leasing/${context.leasingToken}/unit/${unitId}`;
 
   const startDatesBody = await getCompressedText(
     signal,
@@ -103,7 +103,7 @@ export async function getCheapestInWindow(
     inWindow.map(async (date) => {
       const body = await getCompressedText(
         signal,
-        `${leasingBase}?sightmap_id=${ctx.sightmapId}&currency_code=USD&date=${date}`,
+        `${leasingBase}?sightmap_id=${context.sightmapId}&currency_code=USD&date=${date}`,
         referer
       );
       const options =

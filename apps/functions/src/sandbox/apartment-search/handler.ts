@@ -109,9 +109,9 @@ export const notifierHandler = async () => {
           if (!record) continue;
           record.sentTo = [...(record.sentTo ?? []), phoneNumber];
         }
-      } catch (err) {
+      } catch (error) {
         failed += pending.length;
-        console.error(`SMS failed to ${masked}`, err);
+        console.error(`SMS failed to ${masked}`, error);
       }
     }
   } else {
