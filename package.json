@@ -9,13 +9,9 @@
     "dev": "sst dev",
     "dev:init": "pnpm cluster k3d deps up && pnpm cluster k3d up && pnpm docker:build && pnpm dev:push && pnpm cluster deploy dev --bootstrap && pnpm cluster deploy dev",
     "dev:destroy": "pnpm cluster k3d down && pnpm cluster k3d deps down",
-    "dev:push": "pnpm -r dev:push",
-    "docker:build": "pnpm -r docker:build",
+    "dev:push": "pnpm -r --if-present dev:push",
+    "docker:build": "pnpm -r --if-present docker:build",
     "shadcn": "pnpm dlx shadcn-svelte@latest add -c packages/svelte",
-    "clean": "pnpm -r clean",
-    "format": "prettier --write .",
-    "lint": "prettier --check .",
-    "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {
     "glob": "^13.0.6",
