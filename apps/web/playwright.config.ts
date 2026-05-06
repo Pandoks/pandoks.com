@@ -6,7 +6,8 @@ const previewUrl = execFileSync('portless', ['get', 'web-preview'], { encoding: 
 export default defineConfig({
   webServer: {
     command: 'pnpm build && pnpm preview',
-    url: previewUrl
+    url: previewUrl,
+    ignoreHTTPSErrors: true
   },
   use: { baseURL: previewUrl, ignoreHTTPSErrors: true },
   testDir: 'e2e'
