@@ -84,10 +84,12 @@ function matchesStructure(unit: Unit, rules?: AlertRules): boolean {
     if (!rules.unitNumbers.some((n) => unitString === n || unitString.endsWith(n))) return false;
   } else {
     const unitNumber = extractUnitNumberValue(unit.number);
-    if (rules.unitNumberMin != null && (unitNumber == null || unitNumber < rules.unitNumberMin))
-      {return false;}
-    if (rules.unitNumberMax != null && (unitNumber == null || unitNumber > rules.unitNumberMax))
-      {return false;}
+    if (rules.unitNumberMin != null && (unitNumber == null || unitNumber < rules.unitNumberMin)) {
+      return false;
+    }
+    if (rules.unitNumberMax != null && (unitNumber == null || unitNumber > rules.unitNumberMax)) {
+      return false;
+    }
   }
 
   if (rules.bedrooms?.length) {

@@ -29,20 +29,22 @@ const deleteServerFromTailnet = new $util.ResourceHook(
         const failedToDeleteDeviceIds = deletedDevices
           .filter((device) => !device.success)
           .map((device) => device.deviceId);
-        if (deletedDeviceIds.length)
-          {console.log(
+        if (deletedDeviceIds.length) {
+          console.log(
             `Deleted Tailscale devices:\n${serverHetznerDevices
               .filter((device) => deletedDeviceIds.includes(device.nodeId))
               .map((device) => device.name)
               .join('\n')}`
-          );}
-        if (failedToDeleteDeviceIds.length)
-          {console.log(
+          );
+        }
+        if (failedToDeleteDeviceIds.length) {
+          console.log(
             `Failed to delete Tailscale devices:\n${serverHetznerDevices
               .filter((device) => failedToDeleteDeviceIds.includes(device.nodeId))
               .map((device) => device.name)
               .join('\n')}`
-          );}
+          );
+        }
       });
     }
   }

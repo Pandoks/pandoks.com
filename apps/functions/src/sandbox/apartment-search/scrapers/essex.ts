@@ -134,7 +134,13 @@ async function enrichUnitsWithSightmap(
         console.warn(`essex "${targetName}" unit ${u.number} not found in sightmap — dropping`);
         return null;
       }
-      const best = await getCheapestInWindow(signal, context, sightmapUnitId, windowStart, windowEnd);
+      const best = await getCheapestInWindow(
+        signal,
+        context,
+        sightmapUnitId,
+        windowStart,
+        windowEnd
+      );
       if (!best) return null;
       return { ...u, price: best.price, availableDate: best.date, priceDate: best.date };
     })
