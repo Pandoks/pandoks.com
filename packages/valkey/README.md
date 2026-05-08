@@ -79,7 +79,7 @@ You'll have to build and push the chart at least once before the local k3d clust
 images/helm chart via the local registry that are used in the `dev-patch.yaml` declarations:
 
 ```sh
-pnpm build && pnpm push
+pnpm build && pnpm dev:push
 ```
 
 If you make a change to the images or helm template run the build and push commands to make the changes
@@ -91,10 +91,10 @@ accessible to the local k3d cluster:
 | `pnpm build:helm`       | Packages the helm chart into a `.tgz` locally                         |
 | `pnpm build:reconciler` | Builds the valkey reconciler docker image locally                     |
 | `pnpm build`            | All of the build commands above                                       |
-| `pnpm push:image`       | Pushes the local valkey image to the local k3d registry               |
-| `pnpm push:helm`        | Pushes the local helm chart package to the local k3d registry via oci |
-| `pnpm push:reconciler`  | Pushes the local valkey reconciler image to the local k3d registry    |
-| `pnpm push`             | All of the push commands above                                        |
+| `pnpm dev:push:image`       | Pushes the local valkey image to the local k3d registry               |
+| `pnpm dev:push:helm`        | Pushes the local helm chart package to the local k3d registry via oci |
+| `pnpm dev:push:reconciler`  | Pushes the local valkey reconciler image to the local k3d registry    |
+| `pnpm dev:push`             | All of the push commands above                                        |
 
 ## Configuration
 

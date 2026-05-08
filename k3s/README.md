@@ -49,13 +49,10 @@ Or step by step:
 # Create k3d cluster
 ./scripts/cluster/main.sh k3d up
 
-# Install base infrastructure (helm charts + core)
-./scripts/cluster/main.sh setup
+# Install base infrastructure (helm charts + CRDs)
+./scripts/cluster/main.sh deploy dev --bootstrap
 
-# Apply SST templates
-./scripts/cluster/main.sh sst-apply all
-
-# Deploy dev overlay (MetalLB IP patch + app patches)
+# Deploy dev overlay (MetalLB IP patch + app patches; SST secrets substituted inline)
 ./scripts/cluster/main.sh deploy dev
 ```
 
@@ -68,13 +65,10 @@ The tailscale operator provides secure access to the cluster API without needing
 # Connect via tailscale (cluster appears as <stage>-cluster in your tailnet)
 kubectl --context <tailscale-context> get pods
 
-# Install base infrastructure
-./scripts/cluster/main.sh setup
+# Install base infrastructure (helm charts + CRDs)
+./scripts/cluster/main.sh deploy prod --bootstrap
 
-# Apply SST templates
-./scripts/cluster/main.sh sst-apply all
-
-# Deploy prod overlay (system-upgrade controller)
+# Deploy prod overlay (system-upgrade controller; SST secrets substituted inline)
 ./scripts/cluster/main.sh deploy prod
 ```
 
@@ -93,7 +87,7 @@ kubectl config use-context <context-name>
 **NOTE:** `k3d` is setup to use port 6444 for the local k3s cluster api so that it doesn't conflict
 with the remote k3s through ssh tunneling.
 
-You'll also see in `scripts/cluster/main.sh` that we forward port 30080 in _docker_ to port 8080 on the
+You'll also see in `scripts/cluster/k3d.sh` that we forward port 30080 in _docker_ to port 8080 on the
 machine (`localhost`). This is because `k3d` runs k3s inside of docker and we need to expose the
 ports that we're exposing from `NodePort` to the host machine. This also mimics the behavior of
 production clusters because the cluster is inside a private networks and the only thing that is
@@ -198,7 +192,7 @@ k3s doesn't create pods with `component=etcd` labels (embedded etcd).
 
 Grafana uses the default sidecar-based provisioning. Earlier versions had a race condition
 (REQ_SKIP_INIT bug) but this was fixed in Grafana helm chart 10.5.8 (included in
-kube-prometheus-stack 80.14.4+). See `MONITORING_SETUP.md` for details.
+kube-prometheus-stack 80.14.4+).
 
 ### Updating Helm Values
 
@@ -206,8 +200,5 @@ k3s HelmChart CRD sometimes doesn't trigger upgrades. To force update:
 
 ```bash
 kubectl delete helmchart kube-prometheus-stack -n kube-system
-pnpm cluster sync dev  # or prod
-pnpm cluster sst-apply all
+pnpm cluster deploy dev  # or prod
 ```
-
-See `MONITORING_SETUP.md` for full documentation.
