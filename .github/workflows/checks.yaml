@@ -1,0 +1,80 @@
+name: Checks
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      prettier: ${{ steps.filter.outputs.prettier }}
+      eslint: ${{ steps.filter.outputs.eslint }}
+      tsc: ${{ steps.filter.outputs.tsc }}
+      go: ${{ steps.filter.outputs.go }}
+      shell: ${{ steps.filter.outputs.shell }}
+      dockerfile: ${{ steps.filter.outputs.dockerfile }}
+      helm: ${{ steps.filter.outputs.helm }}
+      actions: ${{ steps.filter.outputs.actions }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            prettier:
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.js'
+              - '**/*.jsx'
+              - '**/*.svelte'
+              - '**/*.md'
+              - '**/*.json'
+              - '**/*.yaml'
+              - '**/*.yml'
+              - '**/*.css'
+              - '.prettierrc'
+              - '.prettierignore'
+            eslint:
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.js'
+              - '**/*.jsx'
+              - '**/*.svelte'
+              - 'eslint.config.ts'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+            tsc:
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.svelte'
+              - '**/tsconfig*.json'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+            go:
+              - '**/*.go'
+              - '**/go.mod'
+              - '**/go.sum'
+            shell:
+              - '**/*.sh'
+              - '.shellcheckrc'
+            dockerfile:
+              - '**/Dockerfile'
+            helm:
+              - '**/chart/**'
+            actions:
+              - '.github/workflows/**'
+
