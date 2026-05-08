@@ -30,12 +30,12 @@ func GetClusterNodes(client valkeygo.Client) (string, error) {
 	defer cancel()
 
 	cmd := client.B().ClusterNodes().Build()
-	reponse := client.Do(ctx, cmd)
-	if reponse.Error() != nil {
-		return "", reponse.Error()
+	response := client.Do(ctx, cmd)
+	if response.Error() != nil {
+		return "", response.Error()
 	}
 
-	output, err := reponse.ToString()
+	output, err := response.ToString()
 	if err != nil {
 		return "", err
 	}
@@ -105,7 +105,15 @@ func WaitForClusterInfoState(ctx context.Context, client *ValkeyClient, state st
 		default:
 		}
 
-		client.Refresh()
+		if err := client.Refresh(); err != nil {
+			fmt.Printf("refresh client failed, retrying: %v\n", err)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(2 * time.Second):
+			}
+			continue
+		}
 
 		clusterInfo, err := GetClusterInfo(client)
 		if err != nil {
@@ -199,7 +207,15 @@ func WaitForClusterNodeContains(ctx context.Context, client *ValkeyClient, match
 		default:
 		}
 
-		client.Refresh()
+		if err := client.Refresh(); err != nil {
+			fmt.Printf("refresh client failed, retrying: %v\n", err)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(2 * time.Second):
+			}
+			continue
+		}
 		clusterNodes, err := GetClusterNodes(client)
 		if err != nil {
 			select {

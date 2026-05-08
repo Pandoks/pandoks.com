@@ -177,7 +177,7 @@ func addReplicas(options *scaleUpOptions) error {
 			continue
 		} else if replicasToAdd < 0 {
 			fmt.Println(confusedMessage)
-			return fmt.Errorf("master doesn't have desired number of replicas. it has more...")
+			return fmt.Errorf("master has more replicas than desired")
 		}
 
 		for range replicasToAdd {
@@ -209,7 +209,7 @@ func addReplicas(options *scaleUpOptions) error {
 				return err
 			}
 
-			// wait for metadata (master id) to be recieved by the replica via bus
+			// wait for metadata (master id) to be received by the replica via bus
 			timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 			defer cancel()
 			if err := valkey.WaitForClusterNodeContains(timeoutCtx, replicaClient, []string{masterNode.Node.ID}); err != nil {
