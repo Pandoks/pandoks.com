@@ -167,7 +167,7 @@ func addressParts(address string) (string, uint16, uint16, string, error) {
 	ip := address[:lastColonIndex]
 	remainingAddress := address[lastColonIndex+1:]
 	commaIndex := strings.Index(remainingAddress, ",")
-	var hostname = ""
+	hostname := ""
 	if commaIndex != -1 {
 		hostname = remainingAddress[commaIndex+1:]
 		remainingAddress = remainingAddress[:commaIndex]
