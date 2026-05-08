@@ -92,3 +92,28 @@ jobs:
       - name: Run desktop tests
         run: pnpm --filter @pandoks.com/desktop-template test
 
+  test-svelte-pkg:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.svelte == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install pnpm dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @pandoks.com/svelte exec playwright install --with-deps chromium
+
+      - name: Run svelte package tests
+        run: pnpm --filter @pandoks.com/svelte test
+
