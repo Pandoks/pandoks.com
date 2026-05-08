@@ -1,0 +1,43 @@
+name: Tests
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.filter.outputs.web }}
+      desktop: ${{ steps.filter.outputs.desktop }}
+      svelte: ${{ steps.filter.outputs.svelte }}
+      valkey_reconciler: ${{ steps.filter.outputs.valkey_reconciler }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            web:
+              - 'apps/web/**'
+              - 'packages/svelte/**'
+            desktop:
+              - 'apps/desktop-template/**'
+              - 'packages/svelte/**'
+            svelte:
+              - 'packages/svelte/**'
+            valkey_reconciler:
+              - 'packages/valkey/reconciler/**'
