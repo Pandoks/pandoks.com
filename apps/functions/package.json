@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "check": "tsc --noEmit"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.1031.0",

@@ -15,6 +15,7 @@
     "format": "./scripts/format/main.sh",
     "lint": "./scripts/lint/main.sh",
     "fix": "./scripts/fix/main.sh",
+    "check": "pnpm format check all && pnpm lint all && pnpm -r --if-present check"
   },
   "devDependencies": {
     "@eslint/compat": "^1.2.5",
