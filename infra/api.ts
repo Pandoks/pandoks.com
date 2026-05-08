@@ -58,50 +58,44 @@ new aws.iam.RolePolicy('ScheduleInvokeTextPolicy', {
   }).json
 });
 
-if (isProduction) {
-  new sst.aws.Function('NotionWebhookHandler', {
-    handler: 'apps/functions/src/api/notion/webhook.webhookHandler',
-    runtime: nodeVersion,
-    timeout: '30 seconds',
-    url: {
-      router: {
-        instance: apiRouter,
-        path: '/notion/webhook'
-      }
+new sst.aws.Function('NotionWebhookHandler', {
+  handler: 'apps/functions/src/api/notion/webhook.webhookHandler',
+  runtime: nodeVersion,
+  timeout: '30 seconds',
+  url: {
+    router: {
+      instance: apiRouter,
+      path: '/notion/webhook'
+    }
+  },
+  permissions: [
+    {
+      actions: ['scheduler:CreateSchedule', 'scheduler:UpdateSchedule', 'scheduler:DeleteSchedule'],
+      resources: ['*']
     },
-    permissions: [
-      {
-        actions: [
-          'scheduler:CreateSchedule',
-          'scheduler:UpdateSchedule',
-          'scheduler:DeleteSchedule'
-        ],
-        resources: ['*']
-      },
-      {
-        actions: ['iam:PassRole'],
-        resources: [scheduleInvokeTextRole.arn]
-      },
-      {
-        actions: ['ssm:PutParameter'],
-        resources: ['arn:aws:ssm:*:*:parameter/tmp/notion-verification-token']
-      }
-    ],
-    environment: {
-      DOMAIN: apiDomain,
-      SCHEDULER_INVOKE_ROLE_ARN: scheduleInvokeTextRole.arn,
-      SCHEDULER_GROUP_NAME: scheduleTextGroup.name,
-      TEXT_FUNCTION_ARN: textFunction.arn,
-      GITHUB_NOTION_SYNC_URL: `https://api.github.com/repos/${githubOrg}/${githubRepoName}/actions/workflows/sync-notion.yaml/dispatches`
+    {
+      actions: ['iam:PassRole'],
+      resources: [scheduleInvokeTextRole.arn]
     },
-    link: [
-      notion,
-      secrets.aws.Region,
-      secrets.github.PersonalAccessToken,
-      secrets.notion.ApiKey,
-      secrets.notion.WebhookVerificationToken,
-      secrets.personal.KwokPhoneNumber,
-      secrets.personal.MichellePhoneNumber
-    ]
-  });
-}
+    {
+      actions: ['ssm:PutParameter'],
+      resources: ['arn:aws:ssm:*:*:parameter/tmp/notion-verification-token']
+    }
+  ],
+  environment: {
+    DOMAIN: apiDomain,
+    SCHEDULER_INVOKE_ROLE_ARN: scheduleInvokeTextRole.arn,
+    SCHEDULER_GROUP_NAME: scheduleTextGroup.name,
+    TEXT_FUNCTION_ARN: textFunction.arn,
+    GITHUB_NOTION_SYNC_URL: `https://api.github.com/repos/${githubOrg}/${githubRepoName}/actions/workflows/sync-notion.yaml/dispatches`
+  },
+  link: [
+    notion,
+    secrets.aws.Region,
+    secrets.github.PersonalAccessToken,
+    secrets.notion.ApiKey,
+    secrets.notion.WebhookVerificationToken,
+    secrets.personal.KwokPhoneNumber,
+    secrets.personal.MichellePhoneNumber
+  ]
+});

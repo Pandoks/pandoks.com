@@ -25,7 +25,9 @@ const scraperFunction = new sst.aws.Function('ApartmentScraper', {
   ]
 });
 
-new sst.aws.CronV2('ApartmentScraperCron', {
-  function: scraperFunction,
-  schedule: 'rate(5 minutes)'
-});
+if ($app.stage === 'pandoks') {
+  new sst.aws.CronV2('ApartmentScraperCron', {
+    function: scraperFunction,
+    schedule: 'rate(5 minutes)'
+  });
+}
