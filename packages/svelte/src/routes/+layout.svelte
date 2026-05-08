@@ -2,7 +2,7 @@
   import '$lib/styles/fonts.css';
   import '../app.css';
 
-  let { children } = $props();
+  const { children } = $props();
 </script>
 
 {@render children()}

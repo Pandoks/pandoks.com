@@ -76,10 +76,10 @@ $resolve([
     oauthClientSecretSecretValue,
     oauthClientSecret
   ]) => {
-    if (oauthClientIdSecretValue != oauthClientId) {
+    if (oauthClientIdSecretValue !== oauthClientId) {
       setSecret(oauthClientIdSecretName, oauthClientId);
     }
-    if (oauthClientSecretSecretValue != oauthClientSecret) {
+    if (oauthClientSecretSecretValue !== oauthClientSecret) {
       setSecret(oauthClientSecretSecretName, oauthClientSecret);
     }
   }

@@ -17,20 +17,12 @@ const scraperFunction = new sst.aws.Function('ApartmentScraper', {
   url: false,
   link: [
     apartmentSearchKV,
+    textFunction,
     secrets.personal.KwokPhoneNumber,
     secrets.personal.MichellePhoneNumber,
     secrets.oxylabs.webunblocker.Username,
     secrets.oxylabs.webunblocker.Password
-  ],
-  permissions: [
-    {
-      actions: ['lambda:InvokeFunction'],
-      resources: [textFunction.arn]
-    }
-  ],
-  environment: {
-    TEXT_FUNCTION_ARN: textFunction.arn
-  }
+  ]
 });
 
 new sst.aws.CronV2('ApartmentScraperCron', {

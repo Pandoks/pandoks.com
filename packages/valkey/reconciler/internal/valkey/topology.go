@@ -98,7 +98,7 @@ func (t Topology) IsHealthy() (bool, error) {
 		nodeIndex += 1
 	}
 
-	var replicasPerMaster = -1
+	replicasPerMaster := -1
 	for _, masterNode := range t.Masters {
 		if replicasPerMaster == -1 {
 			replicasPerMaster = len(masterNode.SlaveIds)

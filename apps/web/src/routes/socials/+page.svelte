@@ -59,6 +59,7 @@
   <a
     {href}
     target="_blank"
+    rel="external noopener noreferrer"
     class={`${activeSocialIndex === index && vimState.active === 'body' ? 'bg-highlight' : 'hover:bg-highlight'} flex flex-row items-center gap-1 px-2`}
   >
     <span class="h-5 w-5">{@html icon}</span>

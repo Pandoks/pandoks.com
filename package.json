@@ -7,23 +7,33 @@
     "sso": "aws sso login --sso-session=Pandoks_ --use-device-code --no-browser",
     "cluster": "./scripts/cluster/main.sh",
     "dev": "sst dev",
-    "dev:init": "pnpm run cluster k3d deps up && pnpm run cluster k3d up && pnpm run docker:build && pnpm run dev:push && pnpm run cluster deploy dev --bootstrap && pnpm run cluster deploy dev",
-    "dev:destroy": "pnpm run cluster k3d down && pnpm run cluster k3d deps down",
-    "dev:push": "pnpm -r run dev:push",
-    "docker:build": "pnpm -r run docker:build",
-    "shadcn": "pnpm dlx shadcn-svelte@latest add $@ -c packages/svelte",
-    "clean": "pnpm -r run clean",
-    "format": "prettier --write .",
-    "lint": "prettier --check .",
-    "typecheck": "pnpm -r typecheck"
+    "dev:init": "pnpm cluster k3d deps up && pnpm cluster k3d up && pnpm docker:build && pnpm dev:push && pnpm cluster deploy dev --bootstrap && pnpm cluster deploy dev",
+    "dev:destroy": "pnpm cluster k3d down && pnpm cluster k3d deps down",
+    "dev:push": "pnpm -r --if-present dev:push",
+    "docker:build": "pnpm -r --if-present docker:build",
+    "shadcn": "pnpm dlx shadcn-svelte@latest add -c packages/svelte",
+    "format": "./scripts/format/main.sh",
+    "lint": "./scripts/lint/main.sh",
+    "fix": "./scripts/fix/main.sh",
+    "check": "pnpm format check all && pnpm lint all && pnpm -r --if-present check"
   },
   "devDependencies": {
+    "@eslint/compat": "^1.2.5",
+    "@types/node": "^22.9.0",
+    "eslint": "^9.20.0",
+    "eslint-plugin-svelte": "^3.0.0",
+    "eslint-plugin-unicorn": "^57.0.0",
+    "globals": "^15.14.0",
     "glob": "^13.0.6",
+    "jiti": "^2.4.2",
     "json-stringify-pretty-compact": "^4.0.0",
+    "portless": "^0.11.0",
     "prettier": "^3.8.3",
     "prettier-plugin-svelte": "^3.5.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
-    "typescript": "^5.9.3"
+    "svelte-eslint-parser": "^1.0.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.24.0"
   },
   "dependencies": {
     "sst": "^4.7.5"

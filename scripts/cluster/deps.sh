@@ -43,7 +43,7 @@ cmd_deps() {
     up) cmd_deps_up "$@" ;;
     down) cmd_deps_down "$@" ;;
     restart) cmd_deps_restart "$@" ;;
-    help|--help|-h) usage_deps ;;
+    help | --help | -h) usage_deps ;;
     *)
       printf "%bError:%b Unknown deps subcommand '%s'\n" "${RED}" "${NORMAL}" "${cmd_deps_subcmd}" >&2
       usage_deps 1

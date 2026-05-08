@@ -28,6 +28,7 @@ playwright*/
 
 # sst
 .sst
+sst-env.d.ts
 
 # Only pnpm
 package-lock.json
@@ -54,6 +55,9 @@ expo-env.d.ts
 # AI
 .claude
 .codex
+
+# Worktrees
+.worktrees
 
 # Processed images (generated during build)
 apps/web/static/blog-images

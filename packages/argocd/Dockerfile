@@ -1,13 +1,13 @@
 FROM node:24-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    bash \
-    curl \
-    jq \
-    git \
-    unzip \
-    ca-certificates \
-    apache2-utils \
+    bash=5.2.15-2+b10 \
+    curl=7.88.1-10+deb12u14 \
+    jq=1.6-2.1+deb12u1 \
+    git=1:2.39.5-0+deb12u3 \
+    unzip=6.0-28 \
+    ca-certificates=20230311+deb12u1 \
+    apache2-utils=2.4.67-1~deb12u2 \
     && rm -rf /var/lib/apt/lists/* \
     && corepack enable
 

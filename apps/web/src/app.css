@@ -1,7 +1,5 @@
 @import 'tailwindcss';
-@plugin '@tailwindcss/forms';
-@plugin '@tailwindcss/typography';
-@source '../../../packages/svelte/src/**/*.{html,js,svelte,ts}';
+@source '../../../packages/svelte/src/lib/components/ui/badge/**/*.{html,js,svelte,ts}';
 @import '@pandoks.com/svelte/shadcn/css';
 @import '@pandoks.com/svelte/styles/fonts';
 @import 'highlight.js/styles/github.css';

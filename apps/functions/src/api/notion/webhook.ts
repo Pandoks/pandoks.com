@@ -2,6 +2,7 @@ import { SSMClient, PutParameterCommand } from '@aws-sdk/client-ssm';
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Resource } from 'sst';
+import { handleNotionBlogSync } from './gh-blog-sync';
 import { handleTextReminder } from './text-reminder';
 
 const ssmClient = new SSMClient({});
@@ -38,10 +39,10 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
 
   /** INITIALIZE WEBHOOK WITH NOTION */
   if (body.verification_token) {
-    const paramName = '/tmp/notion-verification-token';
+    const parameterName = '/tmp/notion-verification-token';
     await ssmClient.send(
       new PutParameterCommand({
-        Name: paramName,
+        Name: parameterName,
         Value: body.verification_token,
         Type: 'SecureString',
         Overwrite: true
@@ -49,7 +50,7 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
     );
 
     const parameterUrl = `https://console.aws.amazon.com/systems-manager/parameters/${encodeURIComponent(
-      encodeURIComponent(paramName)
+      encodeURIComponent(parameterName)
     )}/description?region=${Resource.AwsRegion.value}`;
     console.log(
       [
@@ -59,10 +60,10 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
         parameterUrl,
         '',
         '[ACTION] Set the SST secret:',
-        'pnpm exec sst secret set NotionWebhookVerificationToken --stage production <paste-token-here>',
+        'pnpm sst secret set NotionWebhookVerificationToken --stage production <paste-token-here>',
         '',
         '[ACTION] Redeploy:',
-        'pnpm exec sst deploy --stage production',
+        'pnpm sst deploy --stage production',
         '',
         '[REMINDER] Delete the temporary SSM parameter after the secret is set.'
       ].join('\n')
@@ -92,7 +93,8 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
   // WARNING: Handlers MUST be idempotent — Notion retries the webhook on non-200 responses,
   // so any handler that succeeded will re-run on the next attempt.
   const results = await Promise.allSettled([
-    handleTextReminder(body)
+    handleTextReminder(body),
+    handleNotionBlogSync(body)
     // Add new feature handlers here
   ]);
 

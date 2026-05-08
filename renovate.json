@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":dependencyDashboard", ":semanticCommits"],
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "rangeStrategy": "pin",
+  "packageRules": [
+    {
+      "matchManagers": ["dockerfile"],
+      "pinDigests": true
+    },
+    {
+      "matchManagers": ["dockerfile"],
+      "matchUpdateTypes": ["digest"],
+      "groupName": "docker base image digests"
+    },
+    {
+      "matchManagers": ["helm-values", "helmv3"],
+      "groupName": "helm charts"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions"
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "labels": ["security"],
+    "schedule": ["at any time"]
+  }
+}

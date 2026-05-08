@@ -80,14 +80,16 @@ function matchesStructure(unit: Unit, rules?: AlertRules): boolean {
   if (!rules) return true;
 
   if (rules.unitNumbers?.length) {
-    const unitStr = (unit.number ?? '').trim();
-    if (!rules.unitNumbers.some((n) => unitStr === n || unitStr.endsWith(n))) return false;
+    const unitString = (unit.number ?? '').trim();
+    if (!rules.unitNumbers.some((n) => unitString === n || unitString.endsWith(n))) return false;
   } else {
-    const unitNum = extractUnitNumberValue(unit.number);
-    if (rules.unitNumberMin != null && (unitNum == null || unitNum < rules.unitNumberMin))
+    const unitNumber = extractUnitNumberValue(unit.number);
+    if (rules.unitNumberMin != null && (unitNumber == null || unitNumber < rules.unitNumberMin)) {
       return false;
-    if (rules.unitNumberMax != null && (unitNum == null || unitNum > rules.unitNumberMax))
+    }
+    if (rules.unitNumberMax != null && (unitNumber == null || unitNumber > rules.unitNumberMax)) {
       return false;
+    }
   }
 
   if (rules.bedrooms?.length) {
@@ -96,8 +98,8 @@ function matchesStructure(unit: Unit, rules?: AlertRules): boolean {
   }
 
   if (rules.minFloor != null || rules.maxFloor != null) {
-    const unitNum = extractUnitNumberValue(unit.number);
-    const floor = unitNum != null && unitNum >= 100 ? Math.floor(unitNum / 100) : null;
+    const unitNumber = extractUnitNumberValue(unit.number);
+    const floor = unitNumber != null && unitNumber >= 100 ? Math.floor(unitNumber / 100) : null;
     if (rules.minFloor != null && (floor == null || floor < rules.minFloor)) return false;
     if (rules.maxFloor != null && (floor == null || floor > rules.maxFloor)) return false;
   }
@@ -139,9 +141,8 @@ export async function processResults(
   const allKeys: string[] = [];
   const keyToContext = new Map<string, { target: Target; result: TargetResult; unit: Unit }>();
 
-  for (let i = 0; i < results.length; i++) {
+  for (const [i, result] of results.entries()) {
     const target = targets[i];
-    const result = results[i];
     if (!target || !result) continue;
 
     for (const unit of result.units) {
@@ -157,25 +158,25 @@ export async function processResults(
   const toWrite: UnitRecord[] = [];
 
   for (const key of allKeys) {
-    const ctx = keyToContext.get(key)!;
-    const currentPrice = priceToCents(ctx.unit.price);
+    const context = keyToContext.get(key)!;
+    const currentPrice = priceToCents(context.unit.price);
     if (currentPrice == null) continue;
 
-    const status = priceStatus(currentPrice, ctx.target.rules);
+    const status = priceStatus(currentPrice, context.target.rules);
     if (status === 'below_min') continue;
 
     const record = existing.get(key);
-    const watched = ctx.target.watchUnits?.some(
-      (n) => (ctx.unit.number ?? '') === n || (ctx.unit.number ?? '').endsWith(n)
+    const watched = context.target.watchUnits?.some(
+      (n) => (context.unit.number ?? '') === n || (context.unit.number ?? '').endsWith(n)
     );
     const makeAlert = (
       change: AlertMatch['change'],
       previousPrice?: number,
       alreadySent: string[] = []
     ): AlertMatch => ({
-      source: ctx.result.source,
-      targetName: ctx.result.name,
-      unit: ctx.unit,
+      source: context.result.source,
+      targetName: context.result.name,
+      unit: context.unit,
       change,
       previousPrice: previousPrice != null ? formatCents(previousPrice) : undefined,
       watched,
@@ -213,21 +214,21 @@ export async function processResults(
       next = { unitKey: key, price: currentPrice, change: 'new', sentTo: [] };
       alert = makeAlert('new');
     } else if (record.change === 'out_of_range') {
-      const prev = record.previousPrice;
+      const previous = record.previousPrice;
       const change: AlertMatch['change'] =
-        prev == null || currentPrice === prev
+        previous == null || currentPrice === previous
           ? 'new'
-          : currentPrice < prev
+          : currentPrice < previous
             ? 'price_down'
             : 'price_up';
       next = {
         unitKey: key,
         price: currentPrice,
         change,
-        previousPrice: prev,
+        previousPrice: previous,
         sentTo: []
       };
-      alert = makeAlert(change, prev);
+      alert = makeAlert(change, previous);
     } else if (currentPrice !== record.price) {
       const change = currentPrice < record.price ? 'price_down' : 'price_up';
       next = {

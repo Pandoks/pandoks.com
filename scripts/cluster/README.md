@@ -12,17 +12,14 @@ POSIX-compliant `sh` scripts—no Bash-specific features are required.
 
 Use `help`, `--help`, or `-h` with any command/subcommand to view detailed
 options. Package scripts in `package.json` are wired directly to
-`./scripts/cluster/main.sh`, so you can invoke everything via `pnpm run` as well.
+`./scripts/cluster/main.sh`, so you can invoke everything via `pnpm` as well.
 
 ## Top-Level Commands
 
-| Command     | Description                                                    |
-| ----------- | -------------------------------------------------------------- |
-| `k3d`       | Manage the local k3d cluster and dependencies.                 |
-| `core`      | Apply core infrastructure (helm charts, CRDs, base resources). |
-| `deploy`    | Deploy environment-specific overlay (dev or prod).             |
-| `sync`      | Run core + deploy together (recommended for most operations).  |
-| `sst-apply` | Render SST templates and apply to cluster.                     |
+| Command  | Description                                       |
+| -------- | ------------------------------------------------- |
+| `k3d`    | Manage the local k3d cluster and dependencies.    |
+| `deploy` | Deploy environment overlay (local, dev, or prod). |
 
 ## k3d Subcommands
 
@@ -39,79 +36,48 @@ options. Package scripts in `package.json` are wired directly to
 | `restart`  | Stop and start the cluster sequentially.              |
 | `deps`     | Manage Docker Compose dependencies (up/down/restart). |
 
-## core
-
-`core` installs the base infrastructure (helm charts + core resources):
-
-- MetalLB, cert-manager, HAProxy Ingress
-- Waits for CRDs to be established
-- Applies core resources (IPAddressPool, cert-manager issuers, namespaces)
-
-Prompts for confirmation with current kubectl context.
-
-## sync
-
-`sync` runs `core` + `deploy` together. This is the recommended command for most operations:
-
-```sh
-./scripts/cluster/main.sh sync <dev|prod>
-```
-
-It applies all helm charts, waits for CRDs, applies core resources, then deploys the environment overlay.
-
 ## deploy
 
-`deploy` applies environment-specific overlays:
+`deploy` applies environment-specific kustomize paths to the cluster:
 
 ```sh
-./scripts/cluster/main.sh deploy <dev|prod>
+./scripts/cluster/main.sh deploy <local|dev|prod> [--bootstrap] [--stage <STAGE>] [--dry-run] [--kubeconfig <PATH>] [--quiet]
 ```
 
-| Environment | Description                                                                                |
-| ----------- | ------------------------------------------------------------------------------------------ |
-| `dev`       | For **local k3d clusters**: MetalLB IP patch for docker network (172.30.0.x etcd IPs)      |
-| `prod`      | For **cloud clusters** (Hetzner): Tailscale, system-upgrade controller (10.0.1.x etcd IPs) |
+Without `--bootstrap`, deploys the **overlay** at `k3s/overlays/<env>`. With
+`--bootstrap`, deploys the **bootstrap layer** at `k3s/bootstrap/<env>` instead
+(helm charts, CRDs, base resources). The two are separate kustomize paths — to
+deploy a fresh cluster end-to-end, run `deploy <env> --bootstrap` first, then
+`deploy <env>` again without the flag.
 
-**Important:** The `dev`/`prod` overlay refers to the **k3s configuration** (etcd IPs, networking),
-not the SST stage. For cloud clusters (even staging environments), use `sync prod`. The SST stage
-is specified separately via `sst-apply --stage <STAGE>`.
+| Environment | Description                                                                       |
+| ----------- | --------------------------------------------------------------------------------- |
+| `local`     | Local k3d cluster. ImageRegistry: `local-registry:5000`, ImageTag: `latest`.      |
+| `dev`       | Dev cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: branch name (or `latest` on main/master). |
+| `prod`      | Production cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: `latest`. SST stage forced to `production`. |
 
-## sst-apply Usage
+| Option        | Description                                                                                                |
+| ------------- | ---------------------------------------------------------------------------------------------------------- |
+| `--bootstrap` | Apply `k3s/bootstrap/<env>` (helm charts + CRD providers) and wait for CRDs.                               |
+| `--stage`     | SST stage to fetch secrets from (default: SST's default stage; forced to `production` for prod env).       |
+| `--dry-run`   | Render templates without applying.                                                                         |
+| `--kubeconfig`| Kubeconfig file for kubectl operations.                                                                    |
+| `--quiet`/`-q`| Suppress status messages, output only YAML (for CI/CD).                                                    |
 
-`sst-apply` renders templates with SST secrets and applies them to the cluster via
-`kubectl apply --server-side`:
+You will be prompted to confirm the destination kubectl context before anything
+is applied (unless using `--dry-run`).
 
-```sh
-./scripts/cluster/main.sh sst-apply <FILE|all> [--stage <STAGE>] [--dry-run] [--kubeconfig <path>]
-```
+### Template Variables
 
-- `<FILE>` – template file with `${VAR}` placeholders.
-- `all` – applies all templates (monitoring, apps, tailscale).
-- `--stage <STAGE>` – SST stage to fetch secrets from (default: current user stage).
-- `--dry-run` – show rendered YAML without applying to cluster.
-- `--kubeconfig <path>` – target a custom kubeconfig (falls back to current context).
+The `deploy` command renders templates with these substitutions before applying:
 
-### Template Syntax
-
-- `${VAR}` – plain substitution from SST secret value.
-- `${VAR | filter}` – apply a filter to the value before substitution.
-
-Available filters:
-| Filter | Description |
-| -------- | -------------------------- |
-| `base64` | Base64 encode the value |
-
-Example:
-
-```yaml
-stringData:
-  password: ${MySecret}
-data:
-  tls.crt: ${TlsCert | base64}
-```
-
-You will always be prompted to confirm the destination context before anything is
-applied (unless using `--dry-run`).
+| Variable                | Description                                          |
+| ----------------------- | ---------------------------------------------------- |
+| `${ImageRegistry}`      | Container registry (local-registry or GHCR).        |
+| `${ImageTag}`           | Image tag (latest or branch name).                  |
+| `${IsLocal}`            | `'true'` or `'false'` for conditional logic.        |
+| `${<SST Resource>}`     | Any SST resource by name.                            |
+| `${<Secret> \| base64}` | Base64 encode a secret value.                        |
 
 ## Examples
 
@@ -122,11 +88,9 @@ applied (unless using `--dry-run`).
 ./scripts/cluster/main.sh k3d deps up
 ./scripts/cluster/main.sh k3d up
 
-# Deploy everything (core + dev overlay)
-./scripts/cluster/main.sh sync dev
-
-# Apply SST secrets (uses your default stage)
-./scripts/cluster/main.sh sst-apply all
+# Deploy in two steps: bootstrap (helm charts + CRDs), then overlay
+./scripts/cluster/main.sh deploy dev --bootstrap
+./scripts/cluster/main.sh deploy dev
 
 # Tear down everything
 ./scripts/cluster/main.sh k3d down
@@ -139,22 +103,19 @@ applied (unless using `--dry-run`).
 # Switch to the cloud cluster context
 kubectl config use-context <tailscale-context>
 
-# Deploy everything (core + prod overlay for cloud)
-./scripts/cluster/main.sh sync prod
+# Two-step deploy on a fresh cluster
+./scripts/cluster/main.sh deploy prod --bootstrap
+./scripts/cluster/main.sh deploy prod
 
-# Apply SST secrets for the specific stage
-./scripts/cluster/main.sh sst-apply all --stage dev        # for dev-cluster
-./scripts/cluster/main.sh sst-apply all --stage production # for prod-cluster
+# Re-apply just the overlay (no bootstrap) on subsequent deploys
+./scripts/cluster/main.sh deploy prod
 ```
 
-### Step by Step
+### Preview Without Applying
 
 ```sh
-./scripts/cluster/main.sh core       # Install base infrastructure only
-./scripts/cluster/main.sh deploy dev # Deploy overlay only
-
-# Preview rendered SST templates (dry-run)
-./scripts/cluster/main.sh sst-apply all --dry-run --stage production
+./scripts/cluster/main.sh deploy prod --dry-run
+./scripts/cluster/main.sh deploy prod --bootstrap --dry-run
 ```
 
 ---

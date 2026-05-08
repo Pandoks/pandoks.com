@@ -7,18 +7,19 @@
   "main": ".vite/build/main.js",
   "scripts": {
     "start": "electron-forge start",
-    "dev": "vite dev",
+    "dev": "portless run --name desktop-template vite dev",
+    "build": "vite build",
+    "preview": "portless run --name desktop-template-preview vite preview",
     "package": "vite build && electron-forge package",
     "make": "vite build && electron-forge make",
     "publish": "electron-forge publish",
     "prepare": "svelte-kit sync || echo ''",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-    "test:unit": "vitest",
-    "test": "npm run test:unit -- --run && npm run test:e2e",
+    "test": "pnpm run /^test:/",
+    "test:unit": "vitest run",
     "test:e2e": "playwright test",
-    "shadcn": "pnpm dlx shadcn-svelte@latest add $@ -c ../../packages/svelte"
+    "shadcn": "pnpm dlx shadcn-svelte@latest add -c ../../packages/svelte"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.11.1",

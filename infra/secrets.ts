@@ -15,8 +15,7 @@ export const secrets = {
     BackupSecretKey: new sst.Secret('CloudflareBackupSecretKey')
   },
   github: {
-    PersonalAccessToken: new sst.Secret('GithubPersonalAccessToken'),
-    BlogDeployAuth: new sst.Secret('BlogDeployAuth')
+    PersonalAccessToken: new sst.Secret('GithubPersonalAccessToken')
   },
   personal: {
     KwokPhoneNumber: new sst.Secret('KwokPhoneNumber'),
