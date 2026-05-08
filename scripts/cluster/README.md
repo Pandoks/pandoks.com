@@ -50,19 +50,19 @@ Without `--bootstrap`, deploys the **overlay** at `k3s/overlays/<env>`. With
 deploy a fresh cluster end-to-end, run `deploy <env> --bootstrap` first, then
 `deploy <env>` again without the flag.
 
-| Environment | Description                                                                       |
-| ----------- | --------------------------------------------------------------------------------- |
-| `local`     | Local k3d cluster. ImageRegistry: `local-registry:5000`, ImageTag: `latest`.      |
-| `dev`       | Dev cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: branch name (or `latest` on main/master). |
+| Environment | Description                                                                                                       |
+| ----------- | ----------------------------------------------------------------------------------------------------------------- |
+| `local`     | Local k3d cluster. ImageRegistry: `local-registry:5000`, ImageTag: `latest`.                                      |
+| `dev`       | Dev cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: branch name (or `latest` on main/master).          |
 | `prod`      | Production cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: `latest`. SST stage forced to `production`. |
 
-| Option        | Description                                                                                                |
-| ------------- | ---------------------------------------------------------------------------------------------------------- |
-| `--bootstrap` | Apply `k3s/bootstrap/<env>` (helm charts + CRD providers) and wait for CRDs.                               |
-| `--stage`     | SST stage to fetch secrets from (default: SST's default stage; forced to `production` for prod env).       |
-| `--dry-run`   | Render templates without applying.                                                                         |
-| `--kubeconfig`| Kubeconfig file for kubectl operations.                                                                    |
-| `--quiet`/`-q`| Suppress status messages, output only YAML (for CI/CD).                                                    |
+| Option         | Description                                                                                          |
+| -------------- | ---------------------------------------------------------------------------------------------------- |
+| `--bootstrap`  | Apply `k3s/bootstrap/<env>` (helm charts + CRD providers) and wait for CRDs.                         |
+| `--stage`      | SST stage to fetch secrets from (default: SST's default stage; forced to `production` for prod env). |
+| `--dry-run`    | Render templates without applying.                                                                   |
+| `--kubeconfig` | Kubeconfig file for kubectl operations.                                                              |
+| `--quiet`/`-q` | Suppress status messages, output only YAML (for CI/CD).                                              |
 
 You will be prompted to confirm the destination kubectl context before anything
 is applied (unless using `--dry-run`).
@@ -71,13 +71,13 @@ is applied (unless using `--dry-run`).
 
 The `deploy` command renders templates with these substitutions before applying:
 
-| Variable                | Description                                          |
-| ----------------------- | ---------------------------------------------------- |
-| `${ImageRegistry}`      | Container registry (local-registry or GHCR).        |
-| `${ImageTag}`           | Image tag (latest or branch name).                  |
-| `${IsLocal}`            | `'true'` or `'false'` for conditional logic.        |
-| `${<SST Resource>}`     | Any SST resource by name.                            |
-| `${<Secret> \| base64}` | Base64 encode a secret value.                        |
+| Variable                | Description                                  |
+| ----------------------- | -------------------------------------------- |
+| `${ImageRegistry}`      | Container registry (local-registry or GHCR). |
+| `${ImageTag}`           | Image tag (latest or branch name).           |
+| `${IsLocal}`            | `'true'` or `'false'` for conditional logic. |
+| `${<SST Resource>}`     | Any SST resource by name.                    |
+| `${<Secret> \| base64}` | Base64 encode a secret value.                |
 
 ## Examples
 

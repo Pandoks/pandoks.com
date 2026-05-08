@@ -85,16 +85,16 @@ pnpm build && pnpm dev:push
 If you make a change to the images or helm template run the build and push commands to make the changes
 accessible to the local k3d cluster:
 
-| Command                 | Description                                                           |
-| ----------------------- | --------------------------------------------------------------------- |
-| `pnpm build:image`      | Builds the valkey docker image locally                                |
-| `pnpm build:helm`       | Packages the helm chart into a `.tgz` locally                         |
-| `pnpm build:reconciler` | Builds the valkey reconciler docker image locally                     |
-| `pnpm build`            | All of the build commands above                                       |
-| `pnpm dev:push:image`       | Pushes the local valkey image to the local k3d registry               |
-| `pnpm dev:push:helm`        | Pushes the local helm chart package to the local k3d registry via oci |
-| `pnpm dev:push:reconciler`  | Pushes the local valkey reconciler image to the local k3d registry    |
-| `pnpm dev:push`             | All of the push commands above                                        |
+| Command                    | Description                                                           |
+| -------------------------- | --------------------------------------------------------------------- |
+| `pnpm build:image`         | Builds the valkey docker image locally                                |
+| `pnpm build:helm`          | Packages the helm chart into a `.tgz` locally                         |
+| `pnpm build:reconciler`    | Builds the valkey reconciler docker image locally                     |
+| `pnpm build`               | All of the build commands above                                       |
+| `pnpm dev:push:image`      | Pushes the local valkey image to the local k3d registry               |
+| `pnpm dev:push:helm`       | Pushes the local helm chart package to the local k3d registry via oci |
+| `pnpm dev:push:reconciler` | Pushes the local valkey reconciler image to the local k3d registry    |
+| `pnpm dev:push`            | All of the push commands above                                        |
 
 ## Configuration
 
