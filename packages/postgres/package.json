@@ -4,12 +4,12 @@
   "type": "module",
   "sideEffects": false,
   "scripts": {
-    "build": "pnpm build:patroni & pnpm build:pgbackrest & pnpm build:helm & wait",
+    "build": "pnpm run /^build:/",
     "docker:build": "pnpm build",
     "build:patroni": "docker build -f ./patroni/Dockerfile ../../ -t localhost:12345/patroni:latest",
     "build:pgbackrest": "docker build -f ./pgbackrest/Dockerfile ../../ -t localhost:12345/pgbackrest:latest",
     "build:helm": "rm -f ./postgres-*.tgz && helm package ./chart",
-    "dev:push": "pnpm dev:push:patroni & pnpm dev:push:pgbackrest & pnpm dev:push:helm & wait",
+    "dev:push": "pnpm run /^dev:push:/",
     "dev:push:patroni": "docker push localhost:12345/patroni:latest",
     "dev:push:pgbackrest": "docker push localhost:12345/pgbackrest:latest",
     "dev:push:helm": "helm push postgres-*.tgz oci://localhost:12345/charts"
