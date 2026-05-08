@@ -41,3 +41,29 @@ jobs:
               - 'packages/svelte/**'
             valkey_reconciler:
               - 'packages/valkey/reconciler/**'
+
+  test-web:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install pnpm dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @pandoks.com/web exec playwright install --with-deps chromium
+
+      - name: Run web tests
+        run: pnpm --filter @pandoks.com/web test
+
