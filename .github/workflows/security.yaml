@@ -33,3 +33,70 @@ jobs:
               - '**/Dockerfile'
             helm:
               - '**/chart/**'
+
+  scan-images:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.dockerfile == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - dockerfile: packages/postgres/patroni/Dockerfile
+            name: patroni
+          - dockerfile: packages/postgres/pgbackrest/Dockerfile
+            name: pgbackrest
+          - dockerfile: packages/valkey/Dockerfile
+            name: valkey
+          - dockerfile: packages/valkey/reconciler/Dockerfile
+            name: valkey-reconciler
+          - dockerfile: packages/argocd/Dockerfile
+            name: argocd
+          - dockerfile: packages/clickhouse/clickhouse/Dockerfile
+            name: clickhouse
+          - dockerfile: packages/clickhouse/keeper/Dockerfile
+            name: clickhouse-keeper
+          - dockerfile: packages/clickhouse/backup/Dockerfile
+            name: clickhouse-backup
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          load: true
+          tags: ${{ matrix.name }}:scan
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ matrix.name }}:scan
+          trivy-config: trivy.yaml
+          trivyignores: .trivyignore
+
+  scan-helm-config:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.helm == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart:
+          - packages/postgres/chart
+          - packages/valkey/chart
+          - packages/clickhouse/chart
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Scan Helm chart with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: config
+          scan-ref: ${{ matrix.chart }}
+          trivy-config: trivy.yaml
+          trivyignores: .trivyignore
