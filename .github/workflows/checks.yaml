@@ -288,7 +288,7 @@ jobs:
       - name: Run actionlint
         uses: reviewdog/action-actionlint@v1
         with:
-          fail_level: error
+          fail_level: info
 
   # ─── Workspace checks ─────────────────────────────────────────────────
   check:
