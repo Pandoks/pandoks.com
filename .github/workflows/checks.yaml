@@ -309,5 +309,8 @@ jobs:
       - name: Install pnpm dependencies
         run: pnpm install --frozen-lockfile
 
+      # NOTE: If a workspace `check` adds a non-npm system binary (Go, helm, hadolint, etc.),
+      # add a `detect-changes`-gated install step above this — mirror the pattern in
+      # the `format-go` / `lint-helm` jobs.
       - name: Run workspace checks
         run: pnpm --filter "...[origin/${{ github.base_ref || 'main' }}]" --if-present check
