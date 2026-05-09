@@ -126,7 +126,7 @@ func Rebalance(options RebalanceOptions) error {
 		args = append(args, "-a", options.Password)
 	}
 
-	cmd := exec.Command("valkey-cli", args...) //nolint:gosec // valkey-cli binary is fixed; args are internally constructed
+	cmd := exec.Command("valkey-cli", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -174,7 +174,7 @@ func AddNode(options AddNodeOptions) error {
 		args = append(args, "-a", options.Password)
 	}
 
-	cmd := exec.Command("valkey-cli", args...) //nolint:gosec // valkey-cli binary is fixed; args are internally constructed
+	cmd := exec.Command("valkey-cli", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -207,7 +207,7 @@ func DelNode(options DelNodeOptions) error {
 		args = append(args, "-a", options.Password)
 	}
 
-	cmd := exec.Command("valkey-cli", args...) //nolint:gosec // valkey-cli binary is fixed; args are internally constructed
+	cmd := exec.Command("valkey-cli", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -349,7 +349,7 @@ func CreateCluster(options CreateClusterOptions) error {
 		args = append(args, "-a", options.Password)
 	}
 
-	cmd := exec.Command("valkey-cli", args...) //nolint:gosec // valkey-cli binary is fixed; args are internally constructed
+	cmd := exec.Command("valkey-cli", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
