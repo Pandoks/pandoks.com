@@ -18,10 +18,10 @@
   });
 
   const navLinks = [
-    { path: '/', text: 'Jason Kwok' },
-    { path: '/socials', text: 'Socials' },
-    { path: '/work', text: 'Work' },
-    ...(__HAS_POSTS__ ? [{ path: '/blog', text: 'Blog' }] : [])
+    { path: '/', text: 'Jason Kwok' } as const,
+    { path: '/socials', text: 'Socials' } as const,
+    { path: '/work', text: 'Work' } as const,
+    ...(__HAS_POSTS__ ? [{ path: '/blog', text: 'Blog' } as const] : [])
   ];
 
   let activeNavIndex: number | undefined = $state();
@@ -75,7 +75,7 @@
   </div>
 </div>
 
-{#snippet navLink(path: string, text: string, index: number)}
+{#snippet navLink(path: (typeof navLinks)[number]['path'], text: string, index: number)}
   {@const href = resolve(path)}
   <a
     data-sveltekit-preload-data="hover"

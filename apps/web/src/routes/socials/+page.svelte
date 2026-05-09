@@ -36,7 +36,10 @@
           return;
         case 'Enter':
           if (activeSocialIndex !== undefined) {
-            window.open(socialLinks[activeSocialIndex].href, '_blank');
+            const link = socialLinks[activeSocialIndex];
+            if (link) {
+              window.open(link.href, '_blank');
+            }
           }
           return;
       }

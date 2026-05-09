@@ -7,7 +7,10 @@ export const prerender = true;
 
 const posts = Object.fromEntries(
   Object.entries(import.meta.glob<Post>('/src/lib/blog/*.json', { import: 'default' })).map(
-    ([path, importer]) => [path.split('/').pop()!.split('.')[0], importer]
+    ([path, importer]): [string, () => Promise<Post>] => [
+      path.split('/').pop()!.split('.')[0]!,
+      importer
+    ]
   )
 );
 const images = Object.fromEntries(
@@ -16,7 +19,7 @@ const images = Object.fromEntries(
       query: { enhanced: true },
       import: 'default'
     })
-  ).map(([path, importer]) => [path.split('/').pop()!, importer])
+  ).map(([path, importer]): [string, () => Promise<Picture>] => [path.split('/').pop()!, importer])
 );
 
 export const entries: EntryGenerator = () => Object.keys(posts).map((slug) => ({ title: slug }));
