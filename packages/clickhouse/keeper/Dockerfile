@@ -1,5 +1,7 @@
 FROM clickhouse/clickhouse-keeper:25.11-alpine
 
+USER root
+RUN apk upgrade --no-cache
 RUN apk add --no-cache gettext=0.24.1-r1
 
 COPY ./packages/clickhouse/keeper/entrypoint.sh /usr/local/bin/entrypoint.sh
