@@ -18,9 +18,20 @@ spec:
       template:
         spec:
           restartPolicy: OnFailure
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
           containers:
             - name: clickhouse-backup
               image: {{ .context.Values.backup.image }}
+              securityContext:
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
               env:
                 - name: CLUSTER_NAME
                   value: {{ .context.Values.name }}
@@ -59,5 +70,8 @@ spec:
               resources:
                 {{- toYaml . | nindent 16 }}
               {{- end }}
+          volumes:
+            - name: tmp
+              emptyDir: {}
       backoffLimit: 4
 {{- end }}

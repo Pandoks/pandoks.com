@@ -91,9 +91,17 @@ spec:
                   app: *app
                   shard: *shard
               topologyKey: kubernetes.io/hostname
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: clickhouse
           image: {{ $.Values.clickhouse.image }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - name: http
               containerPort: &client-port 8123
@@ -143,6 +151,12 @@ spec:
             - name: &clickhouse-{{ $.Values.name }}-users users
               mountPath: /tmp/conf_templates/users.yaml
               subPath: users.yaml
+            - name: &etc-clickhouse etc-clickhouse
+              mountPath: /etc/clickhouse-server
+            - name: &tmp tmp
+              mountPath: /tmp
+            - name: &run run
+              mountPath: /var/run/clickhouse-server
           livenessProbe:
             httpGet:
               path: /ping
@@ -166,6 +180,12 @@ spec:
         - name: *clickhouse-{{ $.Values.name }}-users
           configMap:
             name: clickhouse-{{ $.Values.name }}-users
+        - name: *etc-clickhouse
+          emptyDir: {}
+        - name: *tmp
+          emptyDir: {}
+        - name: *run
+          emptyDir: {}
   volumeClaimTemplates:
     - metadata:
         name: *data
