@@ -77,7 +77,7 @@ jobs:
         with:
           image-ref: ${{ matrix.name }}:scan
           trivy-config: trivy.yaml
-          trivyignores: .trivyignore
+          trivyignores: .trivyignore.yaml
 
   scan-helm-config:
     needs: detect-changes
@@ -99,4 +99,4 @@ jobs:
           scan-type: config
           scan-ref: ${{ matrix.chart }}
           trivy-config: trivy.yaml
-          trivyignores: .trivyignore
+          trivyignores: .trivyignore.yaml
