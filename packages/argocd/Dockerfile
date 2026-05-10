@@ -1,6 +1,9 @@
 FROM node:24-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# The argocd plugin invokes pnpm via corepack — never npm. Remove the bundled npm to drop its
+# vendored picomatch (CVE-2026-33671 ReDoS).
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
+    && apt-get update && apt-get install -y --no-install-recommends \
     bash=5.2.15-2+b10 \
     curl=7.88.1-10+deb12u14 \
     jq=1.6-2.1+deb12u1 \
