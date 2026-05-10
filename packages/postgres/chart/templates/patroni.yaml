@@ -138,9 +138,16 @@ spec:
       serviceAccountName: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
       securityContext:
         fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: patroni
           image: {{ $.Values.patroni.image }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           readinessProbe:
             httpGet:
               scheme: HTTP
@@ -245,12 +252,22 @@ spec:
               mountPath: &wal_archives_mount /var/spool/pgbackrest
             - name: &socket postgres-socket
               mountPath: &socket_mount /var/run/postgresql
+            - name: &etc-patroni etc-patroni
+              mountPath: /etc/patroni
+            - name: &patroni-etc-pgbackrest patroni-etc-pgbackrest
+              mountPath: /etc/pgbackrest
+            - name: &patroni-tmp patroni-tmp
+              mountPath: /tmp
         - name: pgbackrest
           image: {{ $.Values.backup.image }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           args:
             - pgbackrest
             - server
-            - --config=/etc/pgbackrest.conf
           ports:
             - name: pgbackrest
               containerPort: 8432
@@ -298,8 +315,10 @@ spec:
             - name: *pgbackrest_config
               mountPath: *pgbackrest_mount
               subPath: pgbackrest.conf
-            - name: &tls tls
+            - name: &sidecar-etc-pgbackrest sidecar-etc-pgbackrest
               mountPath: /etc/pgbackrest
+            - name: &tls tls
+              mountPath: /etc/pgbackrest/certs
               readOnly: true
             - name: *data
               mountPath: *data_mount
@@ -307,8 +326,15 @@ spec:
               mountPath: *wal_archives_mount
             - name: *socket
               mountPath: *socket_mount
+            - name: &pgbackrest-tmp pgbackrest-tmp
+              mountPath: /tmp
         - name: postgres-exporter
           image: quay.io/prometheuscommunity/postgres-exporter:v0.18.1
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - name: pg-metrics
               containerPort: 9187
@@ -338,6 +364,9 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          volumeMounts:
+            - name: &exporter-tmp exporter-tmp
+              mountPath: /tmp
           livenessProbe:
             httpGet:
               path: /
@@ -357,6 +386,18 @@ spec:
         - name: *pgbackrest_config
           configMap:
             name: patroni-{{ $.Values.db }}-pgbackrest-config
+        - name: *etc-patroni
+          emptyDir: {}
+        - name: *patroni-etc-pgbackrest
+          emptyDir: {}
+        - name: *sidecar-etc-pgbackrest
+          emptyDir: {}
+        - name: *patroni-tmp
+          emptyDir: {}
+        - name: *pgbackrest-tmp
+          emptyDir: {}
+        - name: *exporter-tmp
+          emptyDir: {}
         - name: *tls
           projected:
             defaultMode: 0600
