@@ -11,17 +11,17 @@ for v in \
   eval ": \${$v:?Missing $v}"
 done
 
-envsubst < /tmp/conf_templates/valkey.conf > /etc/valkey.conf
+envsubst < /tmp/conf_templates/valkey.conf > /etc/valkey/valkey.conf
 envsubst < /tmp/conf_templates/users.acl > /etc/valkey/users.acl
 
 if [ -n "${PERSISTENCE:-}" ]; then
-  echo "dir /data" >> /etc/valkey.conf
+  echo "dir /data" >> /etc/valkey/valkey.conf
 
   IFS=','
   for mode in ${PERSISTENCE}; do
     case $mode in
       aof)
-        cat >> /etc/valkey.conf << EOF
+        cat >> /etc/valkey/valkey.conf << EOF
 
 appendonly yes
 appendfilename "appendonly.aof"
@@ -29,7 +29,7 @@ appendfsync everysec
 EOF
         ;;
       rdb)
-        cat >> /etc/valkey.conf << EOF
+        cat >> /etc/valkey/valkey.conf << EOF
 
 dbfilename "dump.rdb"
 save 900 1
@@ -41,8 +41,8 @@ EOF
   done
   unset IFS
 else
-  printf '\n# disabled default rdb settings\n' >> /etc/valkey.conf
-  echo 'save ""' >> /etc/valkey.conf
+  printf '\n# disabled default rdb settings\n' >> /etc/valkey/valkey.conf
+  echo 'save ""' >> /etc/valkey/valkey.conf
 fi
 
 exec "$@"
