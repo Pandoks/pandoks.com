@@ -12,8 +12,6 @@ RUN rm -f /usr/local/bin/gosu \
   gettext-base=0.23.1-2 \
   && rm -rf /var/lib/apt/lists/*
 
-RUN chown -R postgres:postgres /var/lib/postgresql
-
 COPY ./packages/postgres/patroni/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 

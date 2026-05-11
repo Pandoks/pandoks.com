@@ -25,9 +25,7 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
 
 RUN groupadd -g 999 argocd && useradd -u 999 -g 999 -m argocd
 
-RUN mkdir -p /home/argocd/cmp-server/config
-COPY packages/argocd/argocd-plugin.yaml /home/argocd/cmp-server/config/plugin.yaml
-RUN chown -R 999:999 /home/argocd
+COPY --chown=999:999 packages/argocd/argocd-plugin.yaml /home/argocd/cmp-server/config/plugin.yaml
 
 USER argocd
 WORKDIR /home/argocd
