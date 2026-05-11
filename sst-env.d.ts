@@ -26,15 +26,6 @@ declare module "sst" {
       "name": string
       "type": "sst.cloudflare.Bucket"
     }
-    "BlogApi": {
-      "name": string
-      "type": "sst.aws.Function"
-      "url": string
-    }
-    "BlogDeployAuth": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
     "CloudflareApiKey": {
       "type": "sst.sst.Secret"
       "value": string
@@ -135,9 +126,18 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "Notion": {
+      "blogDatabaseId": string
+      "type": "sst.sst.Linkable"
+    }
     "NotionApiKey": {
       "type": "sst.sst.Secret"
       "value": string
+    }
+    "NotionWebhookHandler": {
+      "name": string
+      "type": "sst.aws.Function"
+      "url": string
     }
     "NotionWebhookVerificationToken": {
       "type": "sst.sst.Secret"
@@ -154,10 +154,6 @@ declare module "sst" {
     "StageName": {
       "type": "sst.sst.Secret"
       "value": string
-    }
-    "StaticWebsite": {
-      "type": "sst.cloudflare.StaticSite"
-      "url": string
     }
     "TailscaleApiKey": {
       "type": "sst.sst.Secret"

@@ -60,7 +60,7 @@ function formatAlertMessage(alerts: AlertMatch[]): string {
 async function sendSms(phoneNumber: string, message: string) {
   const response = await lambda.send(
     new InvokeCommand({
-      FunctionName: process.env.TEXT_FUNCTION_ARN!,
+      FunctionName: Resource.TextSms.name,
       InvocationType: 'RequestResponse',
       Payload: new TextEncoder().encode(JSON.stringify({ phoneNumber, message }))
     })
@@ -109,9 +109,9 @@ export const notifierHandler = async () => {
           if (!record) continue;
           record.sentTo = [...(record.sentTo ?? []), phoneNumber];
         }
-      } catch (err) {
+      } catch (error) {
         failed += pending.length;
-        console.error(`SMS failed to ${masked}`, err);
+        console.error(`SMS failed to ${masked}`, error);
       }
     }
   } else {

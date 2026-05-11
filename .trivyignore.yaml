@@ -1,0 +1,10 @@
+misconfigurations:
+  # KSV-0109 (false positive): ConfigMaps store ${VAR} placeholder strings,
+  # not actual passwords. Real values come from a Secret mounted as env vars
+  # and are substituted via envsubst at container startup. Inline ignore
+  # comments aren't supported for helm misconfig scans (trivy issue #8198).
+  - id: AVD-KSV-0109
+    paths:
+      - templates/clickhouse.yaml
+      - templates/patroni.yaml
+    statement: ConfigMap holds envsubst placeholders, not real secrets

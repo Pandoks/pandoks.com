@@ -2,6 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    %sveltekit.head%
+
+    <link rel="preconnect" href="https://static.cloudflareinsights.com" crossorigin />
 
     <!-- Favicons -->
     <link rel="icon" type="image/svg+xml" href="%sveltekit.assets%/favicon/favicon.svg" />
@@ -17,14 +20,14 @@
       sizes="180x180"
       href="%sveltekit.assets%/favicon/apple-touch-icon.png"
     />
-    <link rel="manifest" href="%sveltekit.assets%/favicon/site.webmanifest" />
 
-    <!-- Preload full fonts immediately while inline critical fonts handle first render -->
+    <!-- Fonts (inline critical fonts handle first render; these cache the full files for SPA nav) -->
     <link
       rel="preload"
       as="font"
       type="font/woff2"
       crossorigin="anonymous"
+      fetchpriority="high"
       href="/fonts/Inter.woff2"
     />
     <link
@@ -32,6 +35,7 @@
       as="font"
       type="font/woff2"
       crossorigin="anonymous"
+      fetchpriority="high"
       href="/fonts/Inter-Italic.woff2"
     />
     <link
@@ -39,6 +43,7 @@
       as="font"
       type="font/woff2"
       crossorigin="anonymous"
+      fetchpriority="high"
       href="/fonts/EBGaramond.woff2"
     />
     <link
@@ -46,13 +51,13 @@
       as="font"
       type="font/woff2"
       crossorigin="anonymous"
+      fetchpriority="high"
       href="/fonts/EBGaramond-Italic.woff2"
     />
 
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">
-    <div style="display: contents">%sveltekit.body%</div>
+    <main style="display: contents">%sveltekit.body%</main>
   </body>
 </html>

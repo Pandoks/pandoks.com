@@ -121,7 +121,7 @@ async function fetchEssexListing(signal: AbortSignal, target: Target): Promise<E
 
 async function enrichUnitsWithSightmap(
   signal: AbortSignal,
-  ctx: SightmapContext,
+  context: SightmapContext,
   units: Unit[],
   windowStart: string,
   windowEnd: string,
@@ -129,12 +129,18 @@ async function enrichUnitsWithSightmap(
 ): Promise<Unit[]> {
   const enriched = await Promise.all(
     units.map(async (u): Promise<Unit | null> => {
-      const sightmapUnitId = ctx.unitIdByNumber.get(normalizeUnitNumber(u.number));
+      const sightmapUnitId = context.unitIdByNumber.get(normalizeUnitNumber(u.number));
       if (!sightmapUnitId) {
         console.warn(`essex "${targetName}" unit ${u.number} not found in sightmap — dropping`);
         return null;
       }
-      const best = await getCheapestInWindow(signal, ctx, sightmapUnitId, windowStart, windowEnd);
+      const best = await getCheapestInWindow(
+        signal,
+        context,
+        sightmapUnitId,
+        windowStart,
+        windowEnd
+      );
       if (!best) return null;
       return { ...u, price: best.price, availableDate: best.date, priceDate: best.date };
     })
@@ -172,18 +178,18 @@ export async function scrapeEssex(signal: AbortSignal, target: Target): Promise<
     throw new Error(`essex "${target.name}" requires rules.moveInAfter and rules.moveInBefore`);
   }
 
-  const [listing, sightmapCtx] = await Promise.all([
+  const [listing, sightmapContext] = await Promise.all([
     fetchEssexListing(signal, target),
     discoverSightmapContext(signal, target.url)
   ]);
 
-  if (!sightmapCtx.leasingToken) {
+  if (!sightmapContext.leasingToken) {
     throw new Error(`essex "${target.name}" sightmap context has no leasingToken`);
   }
 
   const units = await enrichUnitsWithSightmap(
     signal,
-    sightmapCtx,
+    sightmapContext,
     listing.units,
     moveInAfter,
     moveInBefore,

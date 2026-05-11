@@ -18,7 +18,7 @@ export function createLoadBalancers(
 
   const loadBalancerResourceName =
     loadBalancerArgs.type === 'control-plane' ? 'ControlPlane' : 'Worker';
-  let publicLoadBalancers: {
+  const publicLoadBalancers: {
     loadbalancer: hcloud.LoadBalancer;
     network: hcloud.LoadBalancerNetwork;
   }[] = [];

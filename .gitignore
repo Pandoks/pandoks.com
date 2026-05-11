@@ -55,6 +55,9 @@ expo-env.d.ts
 .claude
 .codex
 
+# Worktrees
+.worktrees
+
 # Processed images (generated during build)
 apps/web/static/blog-images
 

@@ -1,0 +1,20 @@
+name: Branch deletion cleanup
+on:
+  delete:
+
+permissions: {}
+
+jobs:
+  cleanup-previews:
+    if: github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete Cloudflare Pages previews for deleted branch
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          BRANCH: ${{ github.event.ref }} # WARNING: do not inline this (security risk)
+        run: |
+          API="https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}/pages/projects/pandoks/deployments"
+          curl -fsS -H "Authorization: Bearer ${TOKEN}" "${API}?env=preview&per_page=100" \
+            | jq -r --arg b "${BRANCH}" '.result[] | select(.deployment_trigger.metadata.branch==$b) | .id' \
+            | xargs -rI{} curl -fsS -X DELETE -H "Authorization: Bearer ${TOKEN}" "${API}/{}?force=true"

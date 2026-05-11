@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	"fmt"
+	"math"
 	"net"
 	"time"
 
@@ -54,6 +55,11 @@ func GetAllServicePods(serviceFQDN string) (ips []string, hostnames []string, er
 func WaitForStatefulSetReady(ctx context.Context, namespace, name string, expectedReplicas int) error {
 	fmt.Println("Waiting for StatefulSet to be fully ready...")
 
+	if expectedReplicas < 0 || expectedReplicas > math.MaxInt32 {
+		return fmt.Errorf("expectedReplicas %d out of int32 range", expectedReplicas)
+	}
+	expected := int32(expectedReplicas)
+
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		return fmt.Errorf("failed to get in-cluster config: %w", err)
@@ -76,8 +82,8 @@ func WaitForStatefulSetReady(ctx context.Context, namespace, name string, expect
 			return fmt.Errorf("failed to get statefulset: %w", err)
 		}
 
-		ready := sts.Status.ReadyReplicas == int32(expectedReplicas)
-		updated := sts.Status.UpdatedReplicas == int32(expectedReplicas)
+		ready := sts.Status.ReadyReplicas == expected
+		updated := sts.Status.UpdatedReplicas == expected
 		rolloutComplete := sts.Status.CurrentRevision == sts.Status.UpdateRevision
 
 		if ready && updated && rolloutComplete {

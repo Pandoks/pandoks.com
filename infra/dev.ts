@@ -1,12 +1,7 @@
-import { isProduction } from './dns';
-import { readFileSync } from 'node:fs';
-import { tailscaleAcl } from './tailscale';
-import { inboundFirewall } from './vps/vps';
-
 new sst.x.DevCommand('DevInit', {
   dev: {
     title: 'InitDev',
-    command: 'pnpm run dev:init',
+    command: 'pnpm dev:init',
     autostart: false
   }
 });
@@ -14,7 +9,7 @@ new sst.x.DevCommand('DevInit', {
 new sst.x.DevCommand('DevDestroy', {
   dev: {
     title: 'DestroyDev',
-    command: 'pnpm run dev:destroy',
+    command: 'pnpm dev:destroy',
     autostart: false
   }
 });
@@ -22,7 +17,7 @@ new sst.x.DevCommand('DevDestroy', {
 new sst.x.DevCommand('K3dRestart', {
   dev: {
     title: 'RestartK3d',
-    command: 'pnpm run cluster k3d restart',
+    command: 'pnpm cluster k3d restart',
     autostart: false
   }
 });
@@ -30,7 +25,7 @@ new sst.x.DevCommand('K3dRestart', {
 new sst.x.DevCommand('K3dDependencyRestart', {
   dev: {
     title: 'RestartK3dDeps',
-    command: 'pnpm run cluster k3d deps restart',
+    command: 'pnpm cluster k3d deps restart',
     autostart: false
   }
 });
