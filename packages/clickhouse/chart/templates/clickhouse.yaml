@@ -134,12 +134,12 @@ spec:
             - name: CLICKHOUSE_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ $.Values.credentials.secret }}
+                  name: &creds-secret {{ $.Values.credentials.secret }}
                   key: {{ $.Values.credentials.dataKeys.adminPassword }}
             - name: CLICKHOUSE_CLIENT_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ $.Values.credentials.secret }}
+                  name: *creds-secret
                   key: {{ $.Values.credentials.dataKeys.clientPassword }}
           volumeMounts:
             - name: &data data
