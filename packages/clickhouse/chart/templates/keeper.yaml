@@ -62,6 +62,7 @@ spec:
                   app: *app
               topologyKey: kubernetes.io/hostname
       securityContext:
+        fsGroup: 101
         seccompProfile:
           type: RuntimeDefault
       containers:
