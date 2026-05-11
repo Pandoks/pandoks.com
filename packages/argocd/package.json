@@ -5,6 +5,7 @@
   "sideEffects": false,
   "scripts": {
     "build": "pnpm docker:build",
-    "docker:build": "docker build -f ./Dockerfile ../../"
+    "docker:build": "docker build -f ./Dockerfile ../../ -t localhost:12345/argocd:latest",
+    "dev:push": "docker push localhost:12345/argocd:latest"
   }
 }
