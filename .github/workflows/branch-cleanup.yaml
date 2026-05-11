@@ -10,11 +10,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Delete Cloudflare Pages previews for deleted branch
+        shell: bash
         env:
           TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           BRANCH: ${{ github.event.ref }} # WARNING: do not inline this (security risk)
         run: |
           API="https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}/pages/projects/pandoks/deployments"
-          curl -fsS -H "Authorization: Bearer ${TOKEN}" "${API}?env=preview&per_page=100" \
-            | jq -r --arg b "${BRANCH}" '.result[] | select(.deployment_trigger.metadata.branch==$b) | .id' \
-            | xargs -rI{} curl -fsS -X DELETE -H "Authorization: Bearer ${TOKEN}" "${API}/{}?force=true"
+          IDS=()
+          PAGE=1
+          while :; do
+            RESPONSE=$(curl -fsS -H "Authorization: Bearer ${TOKEN}" "${API}?per_page=25&page=${PAGE}")
+            MATCHES=$(printf '%s' "$RESPONSE" | jq -r --arg b "${BRANCH}" '.result[] | select(.deployment_trigger.metadata.branch==$b) | .id')
+            [ -n "$MATCHES" ] && IDS+=("$MATCHES")
+            TOTAL=$(printf '%s' "$RESPONSE" | jq '.result_info.total_pages')
+            [ "$PAGE" -ge "$TOTAL" ] && break
+            PAGE=$((PAGE + 1))
+          done
+          [ ${#IDS[@]} -eq 0 ] && exit 0
+          printf '%s\n' "${IDS[@]}" | xargs -I{} curl -fsS -X DELETE -H "Authorization: Bearer ${TOKEN}" "${API}/{}?force=true"
