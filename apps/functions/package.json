@@ -13,7 +13,7 @@
     "@aws-sdk/client-ssm": "^3.1031.0",
     "@aws-sdk/lib-dynamodb": "^3.1031.0",
     "@notionhq/client": "^5.18.0",
-    "sst": "^4.7.5",
+    "sst": "^4.14.1",
     "twilio": "^5.13.1",
     "undici": "^7.24.0"
   },

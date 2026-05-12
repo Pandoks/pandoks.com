@@ -1,7 +1,7 @@
 {
   "name": "pandoks.com",
   "version": "1.0.0",
-  "packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319",
+  "packageManager": "pnpm@10.33.4",
   "type": "module",
   "scripts": {
     "sso": "aws sso login --sso-session=Pandoks_ --use-device-code --no-browser",
@@ -20,24 +20,24 @@
   },
   "devDependencies": {
     "@eslint/compat": "^1.2.5",
-    "@types/node": "^22.9.0",
+    "@types/node": "^22.19.17",
     "eslint": "^9.20.0",
     "eslint-plugin-svelte": "^3.0.0",
     "eslint-plugin-unicorn": "^57.0.0",
     "globals": "^15.14.0",
     "glob": "^13.0.6",
-    "jiti": "^2.4.2",
+    "jiti": "^2.7.0",
     "json-stringify-pretty-compact": "^4.0.0",
-    "portless": "^0.11.0",
+    "portless": "^0.13.0",
     "prettier": "^3.8.3",
     "prettier-plugin-svelte": "^3.5.1",
-    "prettier-plugin-tailwindcss": "^0.7.2",
+    "prettier-plugin-tailwindcss": "^0.8.0",
     "svelte-eslint-parser": "^1.0.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.24.0"
+    "typescript-eslint": "^8.59.2"
   },
   "dependencies": {
-    "sst": "^4.7.5"
+    "sst": "^4.14.1"
   },
   "pnpm": {
     "//TODO": "remove override when upstream bumps its pinned dep — follow-redirects: axios; @xmldom/xmldom: fonteditor-core + plist; undici: jsdom; fast-xml-parser: @aws-sdk/xml-builder; devalue: svelte; lodash: @electron-forge; picomatch: anymatch + @rollup/pluginutils; tar: @electron/node-gyp; cookie: @sveltejs/kit; tmp: external-editor; @tootallnate/once: http-proxy-agent; axios: twilio",
