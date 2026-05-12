@@ -1,4 +1,4 @@
-FROM clickhouse/clickhouse-keeper:25.11-alpine
+FROM clickhouse/clickhouse-keeper:26.4-alpine@sha256:127aa1e7496409d5c10a8c9c9e807f1cd37cb1f1000dfd4657043525355d5572
 
 USER root
 RUN apk upgrade --no-cache && apk add --no-cache gettext=0.24.1-r1
