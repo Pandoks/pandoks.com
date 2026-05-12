@@ -11,7 +11,7 @@ export default $config({
           profile:
             process.env.GITHUB_ACTIONS || process.env.AWS_ACCESS_KEY_ID ? undefined : 'Personal'
         },
-        cloudflare: '6.13.0',
+        cloudflare: '6.15.0',
         github: '6.12.1',
         hcloud: { token: process.env.HCLOUD_TOKEN, version: '1.32.1' },
         tailscale: { apiKey: process.env.TAILSCALE_API_KEY, version: '0.27.0' }
