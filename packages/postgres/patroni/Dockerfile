@@ -1,4 +1,4 @@
-FROM postgres:18-trixie
+FROM postgres:18-trixie@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db
 
 # gosu is bundled in the base image but never invoked by our entrypoint;
 # remove it to drop the (unreachable) Go stdlib CVEs in its static binary

@@ -1,4 +1,4 @@
-FROM valkey/valkey:9-alpine
+FROM valkey/valkey:9-alpine@sha256:d1cc70645bbcef743615463a2fa4616e841407545e18f560aed0c49671a90147
 
 USER root
 RUN apk upgrade --no-cache \
