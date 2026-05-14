@@ -30,8 +30,7 @@ export async function scrapeAll(
   const results: TargetResult[] = [];
   const failures: ScrapeFailure[] = [];
 
-  for (let i = 0; i < settled.length; i++) {
-    const r = settled[i];
+  for (const [i, r] of settled.entries()) {
     if (r.status === 'fulfilled') {
       results.push(r.value);
     } else {

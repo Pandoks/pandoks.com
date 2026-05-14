@@ -14,9 +14,20 @@ spec:
     spec:
       serviceAccountName: valkey-{{ .Values.name }}-reconciler
       restartPolicy: {{ .Values.hooks.restartPolicy }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: init
           image: {{ .Values.cluster.reconcilerImage }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: &tmp tmp
+              mountPath: /tmp
           args:
             - init
           env:
@@ -35,6 +46,9 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.credentials.secret }}
                   key: {{ .Values.credentials.dataKeys.adminPassword }}
+      volumes:
+        - name: *tmp
+          emptyDir: {}
 
 ---
 apiVersion: batch/v1
@@ -53,9 +67,20 @@ spec:
     spec:
       serviceAccountName: valkey-{{ .Values.name }}-reconciler
       restartPolicy: {{ .Values.hooks.restartPolicy }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: scale-up
           image: {{ .Values.cluster.reconcilerImage }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: &tmp tmp
+              mountPath: /tmp
           args:
             - scale-up
           env:
@@ -74,6 +99,9 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.credentials.secret }}
                   key: {{ .Values.credentials.dataKeys.adminPassword }}
+      volumes:
+        - name: *tmp
+          emptyDir: {}
 
 ---
 apiVersion: batch/v1
@@ -92,9 +120,20 @@ spec:
     spec:
       serviceAccountName: valkey-{{ .Values.name }}-reconciler
       restartPolicy: {{ .Values.hooks.restartPolicy }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: scale-down
           image: {{ .Values.cluster.reconcilerImage }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: &tmp tmp
+              mountPath: /tmp
           args:
             - scale-down
           env:
@@ -113,3 +152,6 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.credentials.secret }}
                   key: {{ .Values.credentials.dataKeys.adminPassword }}
+      volumes:
+        - name: *tmp
+          emptyDir: {}

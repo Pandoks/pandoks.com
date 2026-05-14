@@ -1,0 +1,12 @@
+# Default: don't cache (pages/HTML)
+/*
+  Cache-Control: max-age=0,no-cache,no-store,must-revalidate
+
+/_app/immutable/*
+  Cache-Control: max-age=31536000,public,immutable
+
+/fonts/*
+  Cache-Control: max-age=31536000,public,immutable
+
+/favicon/*
+  Cache-Control: max-age=31536000,public,immutable

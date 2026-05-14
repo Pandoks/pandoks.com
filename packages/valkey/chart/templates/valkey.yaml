@@ -83,9 +83,18 @@ spec:
                 matchLabels:
                   app: *app
               topologyKey: kubernetes.io/hostname
+      securityContext:
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: valkey
           image: {{ .Values.image }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - name: client
               containerPort: 6379
@@ -109,12 +118,12 @@ spec:
             - name: ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.credentials.secret }}
-                  key: {{ .Values.credentials.dataKeys.adminPassword }}
+                  name: &creds-secret {{ .Values.credentials.secret }}
+                  key: &admin-key {{ .Values.credentials.dataKeys.adminPassword }}
             - name: CLIENT_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.credentials.secret }}
+                  name: *creds-secret
                   key: {{ .Values.credentials.dataKeys.clientPassword }}
           {{- with .Values.resources }}
           resources:
@@ -129,6 +138,10 @@ spec:
             - name: &acl acl
               mountPath: /tmp/conf_templates/users.acl
               subPath: users.acl
+            - name: &etc-valkey etc-valkey
+              mountPath: /etc/valkey
+            - name: &tmp tmp
+              mountPath: /tmp
           livenessProbe:
             tcpSocket:
               port: 6379
@@ -147,6 +160,11 @@ spec:
             failureThreshold: 3
         - name: prometheus-exporter
           image: oliver006/redis_exporter:v1.80.1
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - name: metrics
               containerPort: 9121
@@ -159,8 +177,8 @@ spec:
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.credentials.secret }}
-                  key: {{ .Values.credentials.dataKeys.adminPassword }}
+                  name: *creds-secret
+                  key: *admin-key
           resources:
             limits:
               cpu: 50m
@@ -187,6 +205,10 @@ spec:
         - name: *acl
           configMap:
             name: valkey-{{ .Values.name }}-acl
+        - name: *etc-valkey
+          emptyDir: {}
+        - name: *tmp
+          emptyDir: {}
   volumeClaimTemplates:
     - metadata:
         name: *data

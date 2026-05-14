@@ -11,7 +11,7 @@ export default $config({
           profile:
             process.env.GITHUB_ACTIONS || process.env.AWS_ACCESS_KEY_ID ? undefined : 'Personal'
         },
-        cloudflare: '6.13.0',
+        cloudflare: '6.15.0',
         github: '6.12.1',
         hcloud: { token: process.env.HCLOUD_TOKEN, version: '1.32.1' },
         tailscale: { apiKey: process.env.TAILSCALE_API_KEY, version: '0.27.0' }
@@ -20,7 +20,7 @@ export default $config({
   },
   async run() {
     // NOTE: for some reason, dynamic imports don't work well so just manually import
-    let imports = await Promise.all([
+    const imports = await Promise.all([
       import('./infra/dns'),
       import('./infra/api'),
       import('./infra/cloudflare'),
@@ -31,13 +31,9 @@ export default $config({
       import('./infra/tailscale'),
       import('./infra/vps/vps'),
       import('./infra/kubernetes'),
-      import('./infra/dev')
+      import('./infra/dev'),
+      import('./infra/sandbox/apartment-search')
     ]);
-    // WARNING: sandboxes should only be imported in the pandoks stage
-    // You'll need to manually deploy them (not just push to main there is go gh ci)
-    if ($app.stage === 'pandoks') {
-      imports.push(await Promise.all([import('./infra/sandbox/apartment-search')]));
-    }
     return imports.reduce((acculumator, importResult: any) => {
       if (importResult.outputs) {
         return { ...acculumator, ...importResult.outputs };

@@ -1,4 +1,4 @@
-import { WebContentsView, BrowserWindow, ipcMain } from 'electron';
+import { type WebContentsView, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 
 export const createBrowserWindow = () => {

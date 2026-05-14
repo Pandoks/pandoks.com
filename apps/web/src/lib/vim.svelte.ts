@@ -1,6 +1,6 @@
 import { getContext, onMount, setContext } from 'svelte';
 
-type NoArgFunction = () => void;
+type NoArgumentFunction = () => void;
 type KeyEventFunction = (e: KeyboardEvent) => void;
 
 interface Vim {
@@ -9,24 +9,24 @@ interface Vim {
   bodyBottom: boolean;
 
   setNavHandler: (navHandler: KeyEventFunction) => Vim;
-  setInitNavState: (initNavState: NoArgFunction | KeyEventFunction) => Vim;
-  setResetNavState: (resetNavState: NoArgFunction) => Vim;
+  setInitNavState: (initNavState: NoArgumentFunction | KeyEventFunction) => Vim;
+  setResetNavState: (resetNavState: NoArgumentFunction) => Vim;
 
   setBodyHandler: (bodyHandler: KeyEventFunction) => Vim;
-  setInitBodyState: (initBodyState: NoArgFunction | KeyEventFunction) => Vim;
-  setResetBodyState: (resetBodyState: NoArgFunction) => Vim;
+  setInitBodyState: (initBodyState: NoArgumentFunction | KeyEventFunction) => Vim;
+  setResetBodyState: (resetBodyState: NoArgumentFunction) => Vim;
 
-  clearBody: NoArgFunction;
+  clearBody: NoArgumentFunction;
 }
 
 class VimClass implements Vim {
   private navHandler: KeyEventFunction = () => {};
-  private initNavState: NoArgFunction | KeyEventFunction = () => {};
-  private resetNavState: NoArgFunction = () => {};
+  private initNavState: NoArgumentFunction | KeyEventFunction = () => {};
+  private resetNavState: NoArgumentFunction = () => {};
 
   private bodyHandler: KeyEventFunction | undefined = undefined;
-  private initBodyState: NoArgFunction | KeyEventFunction | undefined = undefined;
-  private resetBodyState: NoArgFunction | undefined = undefined;
+  private initBodyState: NoArgumentFunction | KeyEventFunction | undefined = undefined;
+  private resetBodyState: NoArgumentFunction | undefined = undefined;
 
   active: 'nav' | 'body' | 'none' = $state('none');
   bodyTop = true;
@@ -108,7 +108,7 @@ class VimClass implements Vim {
     }
   };
 
-  clearBody: NoArgFunction = () => {
+  clearBody: NoArgumentFunction = () => {
     this.bodyHandler = undefined;
     this.initBodyState = undefined;
     this.resetBodyState = undefined;
@@ -121,12 +121,12 @@ class VimClass implements Vim {
     return this;
   }
 
-  setInitNavState(initNavState: NoArgFunction | KeyEventFunction) {
+  setInitNavState(initNavState: NoArgumentFunction | KeyEventFunction) {
     this.initNavState = initNavState;
     return this;
   }
 
-  setResetNavState(resetNavState: NoArgFunction) {
+  setResetNavState(resetNavState: NoArgumentFunction) {
     this.resetNavState = resetNavState;
     return this;
   }
@@ -136,12 +136,12 @@ class VimClass implements Vim {
     return this;
   }
 
-  setInitBodyState(initBodyState: NoArgFunction | KeyEventFunction) {
+  setInitBodyState(initBodyState: NoArgumentFunction | KeyEventFunction) {
     this.initBodyState = initBodyState;
     return this;
   }
 
-  setResetBodyState(resetBodyState: NoArgFunction) {
+  setResetBodyState(resetBodyState: NoArgumentFunction) {
     this.resetBodyState = resetBodyState;
     return this;
   }

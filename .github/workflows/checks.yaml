@@ -1,0 +1,318 @@
+name: Checks
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      prettier: ${{ steps.filter.outputs.prettier }}
+      eslint: ${{ steps.filter.outputs.eslint }}
+      go: ${{ steps.filter.outputs.go }}
+      shell: ${{ steps.filter.outputs.shell }}
+      dockerfile: ${{ steps.filter.outputs.dockerfile }}
+      helm: ${{ steps.filter.outputs.helm }}
+      actions: ${{ steps.filter.outputs.actions }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            prettier:
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.js'
+              - '**/*.jsx'
+              - '**/*.svelte'
+              - '**/*.md'
+              - '**/*.json'
+              - '**/*.yaml'
+              - '**/*.yml'
+              - '**/*.css'
+              - '.prettierrc'
+              - '.prettierignore'
+            eslint:
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.js'
+              - '**/*.jsx'
+              - '**/*.svelte'
+              - 'eslint.config.ts'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+            go:
+              - '**/*.go'
+              - '**/go.mod'
+              - '**/go.sum'
+            shell:
+              - '**/*.sh'
+              - '.shellcheckrc'
+            dockerfile:
+              - '**/Dockerfile'
+            helm:
+              - '**/chart/**'
+            actions:
+              - '.github/workflows/**'
+
+  # ─── JS / TS ──────────────────────────────────────────────────────────
+  format-js:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.prettier == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install pnpm dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Prettier check
+        run: pnpm format check js
+
+  lint-js:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.eslint == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install pnpm dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run ESLint
+        run: pnpm lint js
+
+  # ─── Go ───────────────────────────────────────────────────────────────
+  format-go:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: packages/valkey/reconciler/go.mod
+          cache-dependency-path: packages/valkey/reconciler/go.sum
+
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+
+      - name: Run format check
+        run: pnpm format check go
+
+  lint-go:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: packages/valkey/reconciler/go.mod
+          cache-dependency-path: packages/valkey/reconciler/go.sum
+
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run lint
+        run: pnpm lint go
+
+      - name: Run govulncheck
+        run: |
+          for d in $(go list -m -f '{{.Dir}}'); do
+            (cd "$d" && govulncheck ./...)
+          done
+
+  # ─── Shell ────────────────────────────────────────────────────────────
+  format-shell:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.shell == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install shfmt
+        run: sudo apt-get update && sudo apt-get install -y shfmt
+
+      - name: Run format check
+        run: pnpm format check shell
+
+  lint-shell:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.shell == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Run ShellCheck
+        run: pnpm lint shell
+
+  # ─── Dockerfile ───────────────────────────────────────────────────────
+  lint-dockerfile:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.dockerfile == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dockerfile:
+          - packages/postgres/patroni/Dockerfile
+          - packages/postgres/pgbackrest/Dockerfile
+          - packages/valkey/Dockerfile
+          - packages/valkey/reconciler/Dockerfile
+          - packages/argocd/Dockerfile
+          - packages/clickhouse/clickhouse/Dockerfile
+          - packages/clickhouse/keeper/Dockerfile
+          - packages/clickhouse/backup/Dockerfile
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run Hadolint
+        uses: hadolint/hadolint-action@v3.3.0
+        with:
+          dockerfile: ${{ matrix.dockerfile }}
+
+  # ─── Helm ─────────────────────────────────────────────────────────────
+  lint-helm:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.helm == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Install Helm
+        uses: azure/setup-helm@v5
+        with:
+          version: 'latest'
+
+      - name: Install kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz
+          sudo mv kubeconform /usr/local/bin/
+
+      - name: Run helm lint chain
+        run: pnpm lint helm
+
+  # ─── GitHub Actions ───────────────────────────────────────────────────
+  lint-actions:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.actions == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run actionlint
+        uses: reviewdog/action-actionlint@v1
+        with:
+          fail_level: info
+
+  # ─── Workspace checks ─────────────────────────────────────────────────
+  check:
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install pnpm dependencies
+        run: pnpm install --frozen-lockfile
+
+      # NOTE: If a workspace `check` adds a non-npm system binary (Go, helm, hadolint, etc.),
+      # add a `detect-changes`-gated install step above this — mirror the pattern in
+      # the `format-go` / `lint-helm` jobs.
+      - name: Run workspace checks
+        run: pnpm --filter "...[origin/${{ github.base_ref || 'main' }}]" --if-present check

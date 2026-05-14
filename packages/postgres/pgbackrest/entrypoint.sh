@@ -31,6 +31,6 @@ else
   done
 fi
 
-envsubst < /tmp/conf_templates/pgbackrest.conf > /etc/pgbackrest.conf
+envsubst < /tmp/conf_templates/pgbackrest.conf > /etc/pgbackrest/pgbackrest.conf
 
 exec "$@"

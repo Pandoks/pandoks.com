@@ -2,10 +2,8 @@ import { awsRegion, cloudflareAccountId, isProduction, STAGE_NAME } from './dns'
 import { secrets } from './secrets';
 import { tailscaleAcl } from './tailscale';
 
-export const githubRepo = await github.getRepository({
-  fullName: 'Pandoks/pandoks.com'
-});
-const githubRepoName = githubRepo.name;
+export const githubOrg = 'Pandoks';
+export const githubRepoName = 'pandoks.com';
 
 const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
   repository: githubRepoName,

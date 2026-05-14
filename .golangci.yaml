@@ -1,0 +1,20 @@
+version: '2'
+
+linters:
+  enable:
+    - gosec
+    - bodyclose
+    - misspell
+    - exhaustive
+  settings:
+    exhaustive:
+      default-signifies-exhaustive: true
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [gosec]
+
+formatters:
+  enable:
+    - goimports
+    - gofumpt

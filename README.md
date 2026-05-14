@@ -16,12 +16,12 @@ development:
 
 ```sh
 pnpm install
-pnpm run sso
+pnpm sso
 pnpm sst install
 ```
 
 > [!NOTE]
-> AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm run sso` again once in a while
+> AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while
 
 <details>
   <summary>Dependencies</summary>
@@ -30,11 +30,40 @@ pnpm sst install
       <a href="https://nodejs.org/en/">Node.js</a> >= v22 (<a href="https://github.com/nvm-sh/nvm">nvm</a> is recommended)
     </li>
     <li><a href="https://pnpm.io/">pnpm</a> >= v10</li>
+    <li><a href="https://go.dev/">Go</a> >= v1.25</li>
     <li><a href="https://docs.docker.com/get-docker/">Docker</a> >= v20</li>
+    <li><a href="https://kubernetes.io/docs/tasks/tools/">kubectl</a> >= v1.30</li>
     <li><a href="https://k3d.io/">k3d</a> >= v5.8</li>
     <li><a href="https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html">awscli</a> >= v2.13</li>
     <li><a href="https://helm.sh/docs/intro/install/">helm</a> >= v3.19</li>
+    <li><a href="https://jqlang.github.io/jq/">jq</a> >= v1.7</li>
   </ul>
+
+```sh
+brew install go kubectl k3d awscli helm jq
+```
+
+</details>
+
+<details>
+  <summary>Code Quality &amp; Formatting</summary>
+  <p>
+    Required to run <code>pnpm lint</code> or <code>pnpm format</code> locally. Not needed for
+    runtime or builds — CI installs these automatically.
+  </p>
+  <ul>
+    <li><a href="https://golangci-lint.run/">golangci-lint</a> — Go linter &amp; formatter</li>
+    <li><a href="https://www.shellcheck.net/">shellcheck</a> — shell script linter</li>
+    <li><a href="https://github.com/mvdan/sh">shfmt</a> — shell formatter (reads <code>.editorconfig</code>)</li>
+    <li><a href="https://github.com/hadolint/hadolint">hadolint</a> — Dockerfile linter</li>
+    <li><a href="https://github.com/rhysd/actionlint">actionlint</a> — GitHub Actions workflow linter</li>
+    <li><a href="https://github.com/yannh/kubeconform">kubeconform</a> — Kubernetes schema validator</li>
+  </ul>
+
+```sh
+brew install golangci-lint shellcheck shfmt hadolint actionlint kubeconform
+```
+
 </details>
 
 ## Local Kubernetes Cluster
@@ -51,19 +80,19 @@ To setup the local cluster, run this from the root of the monorepo:
 
 ```sh
 # Quick setup (all-in-one)
-pnpm run dev:init
+pnpm dev:init
 
 # Or step by step:
-pnpm run cluster k3d deps up   # Start docker compose dependencies
-pnpm run cluster k3d up        # Create k3d cluster
-pnpm run cluster sync dev      # Deploy dev overlay (helm charts + apps)
-pnpm run cluster sst-apply all # Apply SST secrets (requires SSO)
+pnpm cluster k3d deps up             # Start docker compose dependencies
+pnpm cluster k3d up                  # Create k3d cluster
+pnpm cluster deploy dev --bootstrap  # First-time: install helm charts + CRDs
+pnpm cluster deploy dev              # Apply environment overlay
 ```
 
 To tear down the cluster:
 
 ```sh
-pnpm run dev:destroy
+pnpm dev:destroy
 ```
 
 See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI commands and [k3s/README.md](./k3s/README.md) for cluster architecture details.
@@ -74,5 +103,5 @@ For things that are not deployed to Kubernetes, they are managed by `sst`. To ru
 server, run this from the root of the monorepo:
 
 ```sh
-pnpm run dev # assuming that you are still verified via SSO
+pnpm dev # assuming that you are still verified via SSO
 ```
