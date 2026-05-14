@@ -44,7 +44,7 @@
     "@types/electron-squirrel-startup": "^1.0.2",
     "electron": "^40.8.5",
     "jsdom": "^28.1.0",
-    "svelte": "^5.55.4",
+    "svelte": "^5.55.7",
     "svelte-check": "^4.4.6",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.9.3",
