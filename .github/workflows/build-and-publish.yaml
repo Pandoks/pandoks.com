@@ -25,7 +25,7 @@ jobs:
 
       - id: image-changes
         if: github.event_name == 'push'
-        uses: dorny/paths-filter@v4
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
         with:
           filters: |
             patroni:
@@ -47,7 +47,7 @@ jobs:
 
       - id: chart-changes
         if: github.event_name == 'push'
-        uses: dorny/paths-filter@v4
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
         with:
           filters: |
             postgres:
