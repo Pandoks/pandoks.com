@@ -26,12 +26,13 @@ jobs:
       dockerfile: ${{ steps.filter.outputs.dockerfile }}
       helm: ${{ steps.filter.outputs.helm }}
       actions: ${{ steps.filter.outputs.actions }}
+      renovate: ${{ steps.filter.outputs.renovate }}
 
     steps:
       - uses: actions/checkout@v6
 
       - id: filter
-        uses: dorny/paths-filter@v4
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
         with:
           filters: |
             prettier:
@@ -69,6 +70,12 @@ jobs:
               - '**/chart/**'
             actions:
               - '.github/workflows/**'
+            renovate:
+              - 'renovate.json'
+              - 'renovate.json5'
+              - '.renovaterc'
+              - '.renovaterc.json'
+              - '.renovaterc.json5'
 
   # ─── JS / TS ──────────────────────────────────────────────────────────
   format-js:
@@ -79,7 +86,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -101,7 +108,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -124,7 +131,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -152,7 +159,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -190,7 +197,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -212,7 +219,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -244,7 +251,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Run Hadolint
-        uses: hadolint/hadolint-action@v3.3.0
+        uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5 # v3.3.0
         with:
           dockerfile: ${{ matrix.dockerfile }}
 
@@ -257,7 +264,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -286,9 +293,25 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Run actionlint
-        uses: reviewdog/action-actionlint@v1
+        uses: reviewdog/action-actionlint@6fb7acc99f4a1008869fa8a0f09cfca740837d9d # v1
         with:
           fail_level: info
+
+  # ─── Renovate ─────────────────────────────────────────────────────────
+  validate-renovate:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.renovate == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate renovate.json
+        run: >
+          docker run --rm
+          -v "${{ github.workspace }}:/repo" -w /repo
+          --entrypoint renovate-config-validator
+          ghcr.io/renovatebot/renovate:43
+          --strict --no-global renovate.json
 
   # ─── Workspace checks ─────────────────────────────────────────────────
   check:
@@ -300,7 +323,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
 
       - name: Setup Node
         uses: actions/setup-node@v6
