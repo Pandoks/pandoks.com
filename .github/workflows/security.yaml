@@ -1,8 +1,5 @@
 name: Security
 
-permissions:
-  contents: read
-
 on:
   pull_request:
     branches:
@@ -10,6 +7,14 @@ on:
   push:
     branches:
       - main
+  schedule:
+    - cron: '0 17 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
 
 concurrency:
   group: security-${{ github.ref }}
