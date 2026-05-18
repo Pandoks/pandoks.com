@@ -144,3 +144,14 @@ jobs:
 
       - name: Run tests
         run: pnpm --filter @pandoks.com/valkey test
+
+  check:
+    needs:
+      - test-web
+      - test-desktop
+      - test-svelte-pkg
+      - test-valkey-reconciler
+    if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "ok"
