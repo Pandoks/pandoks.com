@@ -6,12 +6,12 @@ permissions:
 on:
   workflow_dispatch:
   push:
-    paths:
-      - 'packages/postgres/**'
-      - 'packages/valkey/**'
-      - 'packages/argocd/**'
-      - 'packages/clickhouse/**'
-      # NOTE: you can exclude files/directories/subdirectories using `!` prefix (!packages/**)
+    branches:
+      - '**'
+
+concurrency:
+  group: build-and-publish-${{ github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   detect-changes:
