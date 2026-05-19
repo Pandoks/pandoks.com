@@ -123,3 +123,11 @@ jobs:
         with:
           sarif_file: trivy-k3s.sarif
           category: trivy-k3s
+
+  check:
+    needs:
+      - scan-k3s-config
+    if: ${{ always() && !cancelled() && github.event_name == 'pull_request' && !contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "ok"
