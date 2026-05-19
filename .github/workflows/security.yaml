@@ -97,23 +97,29 @@ jobs:
         with:
           sarif_file: trivy-published-${{ matrix.name }}.sarif
           category: trivy-published-${{ matrix.name }}
+
+  scan-k3s-config:
     needs: detect-changes
-    if: needs.detect-changes.outputs.helm == 'true'
+    if: needs.detect-changes.outputs.k3s == 'true'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        chart:
-          - packages/postgres/chart
-          - packages/valkey/chart
-          - packages/clickhouse/chart
     steps:
       - uses: actions/checkout@v6
 
-      - name: Scan Helm chart with Trivy
+      - name: Scan k3s manifests with Trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: config
-          scan-ref: ${{ matrix.chart }}
+          scan-ref: k3s
+          scanners: misconfig
           trivy-config: trivy.yaml
           trivyignores: .trivyignore.yaml
+          format: sarif
+          output: trivy-k3s.sarif
+          exit-code: '0'
+
+      - name: Upload SARIF to GitHub Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-k3s.sarif
+          category: trivy-k3s
