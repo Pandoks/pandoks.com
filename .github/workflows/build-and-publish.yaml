@@ -5,6 +5,51 @@ permissions:
 
 on:
   workflow_dispatch:
+    inputs:
+      patroni:
+        description: 'Image · patroni'
+        type: boolean
+        default: false
+      pgbackrest:
+        description: 'Image · pgbackrest'
+        type: boolean
+        default: false
+      valkey:
+        description: 'Image · valkey'
+        type: boolean
+        default: false
+      valkey_reconciler:
+        description: 'Image · valkey-reconciler'
+        type: boolean
+        default: false
+      argocd_sst_plugin:
+        description: 'Image · argocd-sst-plugin'
+        type: boolean
+        default: false
+      clickhouse:
+        description: 'Image · clickhouse'
+        type: boolean
+        default: false
+      clickhouse_keeper:
+        description: 'Image · clickhouse-keeper'
+        type: boolean
+        default: false
+      clickhouse_backup:
+        description: 'Image · clickhouse-backup'
+        type: boolean
+        default: false
+      postgres_chart:
+        description: 'Chart · postgres'
+        type: boolean
+        default: false
+      valkey_chart:
+        description: 'Chart · valkey'
+        type: boolean
+        default: false
+      clickhouse_chart:
+        description: 'Chart · clickhouse'
+        type: boolean
+        default: false
   push:
     branches:
       - '**'
