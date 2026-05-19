@@ -22,7 +22,7 @@ jobs:
       web: ${{ steps.filter.outputs.web }}
       desktop: ${{ steps.filter.outputs.desktop }}
       svelte: ${{ steps.filter.outputs.svelte }}
-      valkey_reconciler: ${{ steps.filter.outputs.valkey_reconciler }}
+      valkey-reconciler: ${{ steps.filter.outputs.valkey-reconciler }}
 
     steps:
       - uses: actions/checkout@v6
@@ -39,7 +39,7 @@ jobs:
               - 'packages/svelte/**'
             svelte:
               - 'packages/svelte/**'
-            valkey_reconciler:
+            valkey-reconciler:
               - 'packages/valkey/reconciler/**'
 
   test-web:
@@ -119,7 +119,7 @@ jobs:
 
   test-valkey-reconciler:
     needs: detect-changes
-    if: needs.detect-changes.outputs.valkey_reconciler == 'true'
+    if: needs.detect-changes.outputs.valkey-reconciler == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
