@@ -262,3 +262,11 @@ jobs:
           helm package "${{ matrix.chart.path }}" "${version_arg[@]}"
           helm push "${{ matrix.chart.name }}"-*.tgz "oci://ghcr.io/${OWNER,,}/charts"
 
+  check:
+    needs:
+      - build-publish-images
+      - build-publish-charts
+    if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "ok"
