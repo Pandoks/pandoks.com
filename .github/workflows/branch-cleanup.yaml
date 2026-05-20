@@ -86,3 +86,28 @@ jobs:
           - postgres
           - valkey
           - clickhouse
+    steps:
+      - name: Delete GHCR chart versions for deleted branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GH_PACKAGE_MANAGEMENT_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          CHART: ${{ matrix.chart }}
+          BRANCH: ${{ github.event.ref }} # WARNING: do not inline this (security risk)
+        run: |
+          api="/users/${OWNER,,}/packages/container/charts%2F${CHART}/versions"
+          tag_identifier="-ref-${BRANCH//\//-}-"
+          ids=$(gh api --paginate --slurp "${api}" \
+            | jq -r --arg m "${tag_identifier}" '
+                add | .[]
+                | select((.metadata.container.tags // []) | any(contains($m)))
+                | .id')
+          if [ -z "${ids}" ]; then
+            echo "No ${CHART} chart versions matching *${tag_identifier}*; nothing to delete."
+            exit 0
+          fi
+          while read -r id; do
+            [ -z "${id}" ] && continue
+            echo "Deleting ${CHART} chart version ${id}"
+            gh api --method DELETE "${api}/${id}"
+          done <<<"${ids}"
