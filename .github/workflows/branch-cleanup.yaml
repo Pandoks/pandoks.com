@@ -48,6 +48,31 @@ jobs:
           - clickhouse
           - clickhouse-keeper
           - clickhouse-backup
+    steps:
+      - name: Delete GHCR versions for deleted branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          PACKAGE: ${{ matrix.name }}
+          BRANCH: ${{ github.event.ref }} # WARNING: do not inline this (security risk)
+        run: |
+          api="/users/${OWNER,,}/packages/container/${PACKAGE}/versions"
+          tag_prefix="ref-$(sed -E 's/[^a-zA-Z0-9._-]+/-/g' <<<"${BRANCH}")-"
+          ids=$(gh api --paginate --slurp "${api}" \
+            | jq -r --arg p "${tag_prefix}" '
+                add | .[]
+                | select((.metadata.container.tags // []) | any(startswith($p)))
+                | .id')
+          if [ -z "${ids}" ]; then
+            echo "No ${PACKAGE} versions tagged ${tag_prefix}*; nothing to delete."
+            exit 0
+          fi
+          while read -r id; do
+            [ -z "${id}" ] && continue
+            echo "Deleting ${PACKAGE} version ${id}"
+            gh api --method DELETE "${api}/${id}"
+          done <<<"${ids}"
   cleanup-ghcr-charts:
     if: github.event.ref_type == 'branch'
     runs-on: ubuntu-latest
