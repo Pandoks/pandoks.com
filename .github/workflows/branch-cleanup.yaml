@@ -31,3 +31,32 @@ jobs:
           [ ${#ids[@]} -eq 0 ] && exit 0
           printf '%s\n' "${ids[@]}" | xargs -I{} curl -fsS -X DELETE -H "Authorization: Bearer ${TOKEN}" "${api}/{}?force=true"
 
+  cleanup-ghcr-images:
+    if: github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        name:
+          - patroni
+          - pgbackrest
+          - valkey
+          - valkey-reconciler
+          - argocd-sst-plugin
+          - clickhouse
+          - clickhouse-keeper
+          - clickhouse-backup
+  cleanup-ghcr-charts:
+    if: github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        chart:
+          - postgres
+          - valkey
+          - clickhouse
