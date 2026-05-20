@@ -287,7 +287,7 @@ jobs:
           --strict --no-global renovate.json
 
   # ─── Workspace checks ─────────────────────────────────────────────────
-  check:
+  workspace-check:
     needs: detect-changes
     runs-on: ubuntu-latest
     steps:
@@ -311,7 +311,9 @@ jobs:
       # add a `detect-changes`-gated install step above this — mirror the pattern in
       # the `format-go` / `lint-helm` jobs.
       - name: Run workspace checks
-        run: pnpm --filter "...[origin/${{ github.base_ref || 'main' }}]" --if-present check
+        env:
+          BASE: ${{ github.base_ref || 'main' }}
+        run: pnpm --filter "...[origin/${BASE}]" --if-present check
 
   # ─── SST ──────────────────────────────────────────────────────────────
   diff-sst:
