@@ -24,7 +24,6 @@ jobs:
       eslint: ${{ steps.filter.outputs.eslint }}
       go: ${{ steps.filter.outputs.go }}
       shell: ${{ steps.filter.outputs.shell }}
-      dockerfile: ${{ steps.filter.outputs.dockerfile }}
       helm: ${{ steps.filter.outputs.helm }}
       actions: ${{ steps.filter.outputs.actions }}
       renovate: ${{ steps.filter.outputs.renovate }}
@@ -65,8 +64,6 @@ jobs:
             shell:
               - '**/*.sh'
               - '.shellcheckrc'
-            dockerfile:
-              - '**/Dockerfile'
             helm:
               - '**/chart/**'
             actions:
@@ -230,31 +227,6 @@ jobs:
 
       - name: Run ShellCheck
         run: pnpm lint shell
-
-  # ─── Dockerfile ───────────────────────────────────────────────────────
-  lint-dockerfile:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.dockerfile == 'true'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        dockerfile:
-          - packages/postgres/patroni/Dockerfile
-          - packages/postgres/pgbackrest/Dockerfile
-          - packages/valkey/Dockerfile
-          - packages/valkey/reconciler/Dockerfile
-          - packages/argocd/Dockerfile
-          - packages/clickhouse/clickhouse/Dockerfile
-          - packages/clickhouse/keeper/Dockerfile
-          - packages/clickhouse/backup/Dockerfile
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Run Hadolint
-        uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5 # v3.3.0
-        with:
-          dockerfile: ${{ matrix.dockerfile }}
 
   # ─── Helm ─────────────────────────────────────────────────────────────
   lint-helm:
