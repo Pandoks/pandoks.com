@@ -21,7 +21,9 @@ jobs:
           while :; do
             response=$(curl -fsS -H "Authorization: Bearer ${TOKEN}" "${api}?per_page=25&page=${page}")
             matches=$(printf '%s' "${response}" | jq -r --arg b "${BRANCH}" '.result[] | select(.deployment_trigger.metadata.branch==$b) | .id')
-            [ -n "${matches}" ] && ids+=("${matches}")
+            while IFS= read -r id; do
+              [ -n "${id}" ] && ids+=("${id}")
+            done <<<"${matches}"
             total=$(printf '%s' "${response}" | jq '.result_info.total_pages')
             [ "${page}" -ge "${total}" ] && break
             page=$((page + 1))
