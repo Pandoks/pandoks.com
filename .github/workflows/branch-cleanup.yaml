@@ -73,6 +73,7 @@ jobs:
             echo "Deleting ${PACKAGE} version ${id}"
             gh api --method DELETE "${api}/${id}"
           done <<<"${ids}"
+
   cleanup-ghcr-charts:
     if: github.event.ref_type == 'branch'
     runs-on: ubuntu-latest
