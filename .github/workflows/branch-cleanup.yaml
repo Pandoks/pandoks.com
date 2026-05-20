@@ -5,7 +5,7 @@ on:
 permissions: {}
 
 jobs:
-  cleanup-previews:
+  cleanup-cloudflare-previews:
     if: github.event.ref_type == 'branch'
     runs-on: ubuntu-latest
     steps:
