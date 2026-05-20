@@ -348,3 +348,21 @@ jobs:
 
       - name: Diff SST
         run: pnpm sst diff --stage production
+
+  check:
+    needs:
+      - format-js
+      - lint-js
+      - format-go
+      - lint-go
+      - format-shell
+      - lint-shell
+      - lint-helm
+      - lint-actions
+      - validate-renovate
+      - workspace-check
+      - diff-sst
+    if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "ok"
