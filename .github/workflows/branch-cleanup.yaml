@@ -52,7 +52,7 @@ jobs:
       - name: Delete GHCR versions for deleted branch
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PACKAGE_MANAGEMENT_TOKEN }}
           OWNER: ${{ github.repository_owner }}
           PACKAGE: ${{ matrix.name }}
           BRANCH: ${{ github.event.ref }} # WARNING: do not inline this (security risk)
