@@ -26,7 +26,7 @@ if (isProduction) {
 
   new github.ActionsSecret('GithubGithubPackageManagementToken', {
     repository: githubRepoName,
-    secretName: 'GITHUB_PACKAGE_MANAGEMENT_TOKEN',
+    secretName: 'GH_PACKAGE_MANAGEMENT_TOKEN',
     plaintextValue: secrets.github.PackageManagementToken.value
   });
 
