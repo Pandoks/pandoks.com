@@ -104,7 +104,6 @@ jobs:
 
       - id: set-image-matrix
         env:
-          CHANGES: ${{ steps.image-changes.outputs.changes }}
           DISPATCH: ${{ toJSON(inputs) }}
         run: |
           all='[
@@ -120,14 +119,13 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             selected=$(jq -c 'to_entries | map(select(.value == true) | .key)' <<<"${DISPATCH}")
           else
-            selected="${CHANGES:-[]}"
+            selected='${{ steps.image-changes.outputs.changes || '[]' }}'
           fi
           images=$(jq -c --argjson sel "${selected}" 'map(select(.name as $n | $sel | index($n)))' <<<"${all}")
           echo "images=${images}" >> "${GITHUB_OUTPUT}"
 
       - id: set-chart-matrix
         env:
-          CHANGES: ${{ steps.chart-changes.outputs.changes }}
           DISPATCH: ${{ toJSON(inputs) }}
         run: |
           all='[
@@ -138,7 +136,7 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             selected=$(jq -c 'to_entries | map(select(.value == true and (.key | endswith("-chart"))) | .key | sub("-chart$"; ""))' <<<"${DISPATCH}")
           else
-            selected="${CHANGES:-[]}"
+            selected='${{ steps.chart-changes.outputs.changes || '[]' }}'
           fi
           charts=$(jq -c --argjson sel "${selected}" 'map(select(.name as $n | $sel | index($n)))' <<<"${all}")
           echo "charts=${charts}" >> "${GITHUB_OUTPUT}"
@@ -221,7 +219,7 @@ jobs:
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: false
 
-  publish-charts:
+  build-publish-charts:
     needs: detect-changes
     if: needs.detect-changes.outputs.charts != '[]'
     runs-on: ubuntu-latest
