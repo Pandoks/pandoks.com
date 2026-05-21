@@ -15,7 +15,8 @@
     "format": "./scripts/format/main.sh",
     "lint": "./scripts/lint/main.sh",
     "fix": "./scripts/fix/main.sh",
-    "check": "pnpm -r --if-present check",
+    "check:infra": "tsc -p .",
+    "check": "pnpm -r --if-present check && pnpm check:infra",
     "postinstall": "sst install"
   },
   "devDependencies": {

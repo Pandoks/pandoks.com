@@ -1,3 +1,7 @@
 {
-  "extends": "./.sst/platform/tsconfig.json"
+  "extends": "./.sst/platform/tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["infra", "sst.config.ts"]
 }
