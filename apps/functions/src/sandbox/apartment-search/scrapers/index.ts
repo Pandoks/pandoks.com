@@ -34,8 +34,8 @@ export async function scrapeAll(
     if (r.status === 'fulfilled') {
       results.push(r.value);
     } else {
-      console.error('Scrape failed', { target: targets[i].name, error: r.reason });
-      failures.push({ target: targets[i].name, reason: r.reason });
+      console.error('Scrape failed', { target: targets[i].name, error: r.reason as unknown });
+      failures.push({ target: targets[i].name, reason: r.reason as unknown });
       results.push({
         source: targets[i].source,
         name: targets[i].name,

@@ -1,7 +1,7 @@
-import { app } from 'electron';
+import { app, type MenuItemConstructorOptions } from 'electron';
 import { createBrowserWindow } from './browser';
 
-export const MENU = [
+export const MENU: MenuItemConstructorOptions[] = [
   ...(process.platform === 'darwin'
     ? [
         {
@@ -12,11 +12,11 @@ export const MENU = [
             { role: 'services' },
             { type: 'separator' },
             { role: 'hide' },
-            { role: 'hideothers' },
+            { role: 'hideOthers' },
             { role: 'unhide' },
             { type: 'separator' },
             { role: 'quit' }
-          ]
+          ] satisfies MenuItemConstructorOptions[]
         }
       ]
     : []),
@@ -34,7 +34,7 @@ export const MENU = [
         ? [
             { type: 'separator' },
             { label: 'Quit', accelerator: 'CommandOrControl+Q', click: () => app.quit() }
-          ]
+          ] satisfies MenuItemConstructorOptions[]
         : [])
     ]
   },
@@ -50,6 +50,6 @@ export const MENU = [
       { role: 'pasteAndMatchStyle' }, // macOS specific, but harmless on others
       { role: 'delete' },
       { role: 'selectAll' }
-    ]
+    ] satisfies MenuItemConstructorOptions[]
   }
 ];

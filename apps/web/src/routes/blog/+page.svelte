@@ -36,7 +36,7 @@
             const post = __BLOG_TITLES__[activeBlogIndex];
             if (post) {
               vimState.active = 'none';
-              goto(resolve('/blog/[title]', { title: getSlugFromBlogTitle(post) }));
+              void goto(resolve('/blog/[title]', { title: getSlugFromBlogTitle(post) }));
             }
           }
           return;

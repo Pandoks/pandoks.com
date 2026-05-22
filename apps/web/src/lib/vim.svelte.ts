@@ -68,7 +68,7 @@ class VimClass implements Vim {
   private masterEventListener = (e: KeyboardEvent) => {
     switch (e.key) {
       case 'y':
-        navigator.clipboard.writeText(window.location.href);
+        void navigator.clipboard.writeText(window.location.href);
         return;
       case 'j':
         if (this.active === 'nav') {
