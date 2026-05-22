@@ -13,29 +13,34 @@ Scan the three GitHub Security tab surfaces plus `.trivyignore.yaml`, then attem
 ## Live state (pre-fetched)
 
 ### Code-scanning alerts (Security tab → Code scanning)
+
 ```!
 gh api "/repos/{owner}/{repo}/code-scanning/alerts?state=open&per_page=100" \
   --jq '[.[] | {number, rule_id: .rule.id, severity: .rule.severity, description: .rule.description, file: .most_recent_instance.location.path, url: .html_url}]' 2>&1 || echo "[]  (code-scanning not enabled or no SARIF uploads yet)"
 ```
 
 ### Dependabot alerts (Security tab → Dependabot)
+
 ```!
 gh api "/repos/{owner}/{repo}/dependabot/alerts?state=open&per_page=100" \
   --jq '[.[] | {number, severity: .security_vulnerability.severity, package: .security_vulnerability.package.name, ecosystem: .security_vulnerability.package.ecosystem, ghsa: .security_advisory.ghsa_id, summary: .security_advisory.summary, vulnerable_range: .security_vulnerability.vulnerable_version_range, fixed_in: .security_vulnerability.first_patched_version.identifier, manifest: .dependency.manifest_path, url: .html_url}]' 2>&1 || echo "[]  (dependabot alerts not accessible)"
 ```
 
 ### Secret-scanning alerts (Security tab → Secret scanning)
+
 ```!
 gh api "/repos/{owner}/{repo}/secret-scanning/alerts?state=open&per_page=100" \
   --jq '[.[] | {number, secret_type: .secret_type_display_name, created_at, url: .html_url, locations: .locations_url}]' 2>&1 || echo "[]  (secret-scanning not enabled or no findings)"
 ```
 
 ### Current `.trivyignore.yaml`
+
 ```!
 cat .trivyignore.yaml 2>&1 || echo "(no .trivyignore.yaml found)"
 ```
 
 ### Expired or near-expiry trivyignore entries
+
 ```!
 TODAY=$(date -u +%Y-%m-%d)
 SOON=$(date -u -v+14d +%Y-%m-%d 2>/dev/null || date -u -d '+14 days' +%Y-%m-%d)
@@ -51,11 +56,13 @@ grep -oE 'exp:[[:space:]]*[0-9]{4}-[0-9]{2}-[0-9]{2}' .trivyignore.yaml 2>/dev/n
 ```
 
 ### Package-manager manifests in this repo
+
 ```!
 find . -maxdepth 4 \( -name 'package.json' -o -name 'pnpm-lock.yaml' -o -name 'go.mod' -o -name 'Cargo.toml' -o -name 'requirements.txt' \) -not -path '*/node_modules/*' 2>&1
 ```
 
 ### Workspace cleanliness (before any edits)
+
 ```!
 git status --porcelain 2>&1 | head -20
 echo "---"
@@ -64,7 +71,7 @@ git branch --show-current 2>&1
 
 ## Your task
 
-For each finding across the three Security-tab surfaces and `.trivyignore.yaml`, **attempt a working-tree fix**. The default action is *try to fix*, not *defer to Renovate*. Only fall back to suppression or rotation guidance when a fix isn't possible.
+For each finding across the three Security-tab surfaces and `.trivyignore.yaml`, **attempt a working-tree fix**. The default action is _try to fix_, not _defer to Renovate_. Only fall back to suppression or rotation guidance when a fix isn't possible.
 
 ### Surface 1 — Dependabot alerts (npm, go, etc.)
 
@@ -103,7 +110,7 @@ For each open code-scanning alert:
      - If it's a base image vuln (`FROM debian:12` carries a CVE): check the upstream registry for a newer digest. Either update the `FROM` digest directly or note "Renovate's `dockerfile` manager with `pinDigests: true` will auto-PR this — check `dependencyDashboard`."
      - If it's a vendored Go stdlib in a downloaded binary (like kubectl): the only fix is waiting for upstream to rebuild. `gh api /repos/<upstream>/.go-version` on the release branch to confirm Go version is still vulnerable. If unfixable, fall through to suppression.
    - **If no upstream fix exists yet**, add a justified entry to `.trivyignore.yaml`:
-     - Required fields: `id` (exact CVE), `paths` (scoped to the affected binary path, e.g. `usr/local/bin/kubectl`), `statement` (one-line exploitability assessment for *our* usage — never just "no fix"), `exp` (~90 days out, YYYY-MM-DD).
+     - Required fields: `id` (exact CVE), `paths` (scoped to the affected binary path, e.g. `usr/local/bin/kubectl`), `statement` (one-line exploitability assessment for _our_ usage — never just "no fix"), `exp` (~90 days out, YYYY-MM-DD).
      - **Group related CVEs**. If Trivy reports 5 stdlib CVEs in the same binary (e.g., Go 1.26.2 reports CVE-2026-33811, 33814, 39820, 39836, 42499), add all five entries in one edit with shared justification. Half-suppressing a multi-CVE finding leaves CI red.
      - Add a leading comment block above the entries explaining the upstream blocker, exploitability for our usage, and what would close it (so a future audit knows what condition to re-check).
 
@@ -142,13 +149,13 @@ For each open secret-scanning alert:
    4. **Scrub git history** if the secret was committed: link to https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository (`git filter-repo` is the current recommended tool; BFG is older). **Do not run the scrub command** — that rewrites every collaborator's clone and requires coordination. State the command, let the user run it after notifying anyone else with a clone.
    5. **Dismiss the alert** at the GitHub URL with reason "revoked" — the user does this manually in the UI, the skill never closes alerts via the API.
 
-5. **Never edit source code to "remove" a secret.** The secret is already public the moment it hit GitHub. Removal from current HEAD doesn't undo the leak; only rotation does. The skill *should* propose a follow-up edit to *prevent the next leak* (e.g., adding the file to `.gitignore`, switching from `.env.example` with real values to a clean template) — but that's not a "fix" for the existing alert, it's a hardening step.
+5. **Never edit source code to "remove" a secret.** The secret is already public the moment it hit GitHub. Removal from current HEAD doesn't undo the leak; only rotation does. The skill _should_ propose a follow-up edit to _prevent the next leak_ (e.g., adding the file to `.gitignore`, switching from `.env.example` with real values to a clean template) — but that's not a "fix" for the existing alert, it's a hardening step.
 
 6. **Audit the blast radius** in the report: how long was the secret exposed? (use the `created_at` field to estimate). What services or data could it access? This isn't a fix step but it's load-bearing for the user's incident-response decisions (do they need to check logs for unauthorized use, notify users, file a disclosure, etc.).
 
 ### Surface 4 — `.trivyignore.yaml` housekeeping
 
-For each entry in the *Expired or near-expiry* list above:
+For each entry in the _Expired or near-expiry_ list above:
 
 - **EXPIRED:** the `exp:` date is past today. Action sequence:
   1. **Re-derive the original blocker** from the entry's leading comment block — what condition was supposed to clear? ("upstream k8s rebuilds with Go 1.26.3+", "false-positive resolves when KSV-0109 supports inline ignores", etc.)
@@ -157,7 +164,7 @@ For each entry in the *Expired or near-expiry* list above:
      - For library CVE entries: check whether a fixed version is published and whether the chain leading to it has bumped.
      - For misconfig false-positives: check whether Trivy has released a version that handles the case correctly (`WebFetch https://github.com/aquasecurity/trivy/releases`).
   3. **If blocker cleared** → remove the entry, apply the underlying fix (bump the binary, update the chart, etc.) in the same audit. Don't leave a "you can remove this now" note without removing it; the whole point is to keep the file lean.
-  4. **If blocker not cleared** → bump `exp:` to today + 90 days, update the `statement:` with the *current* observed state (e.g., "as of 2026-05-15, k8s release-1.36 still pins .go-version=1.26.2"), and update the leading comment block if the situation has materially changed.
+  4. **If blocker not cleared** → bump `exp:` to today + 90 days, update the `statement:` with the _current_ observed state (e.g., "as of 2026-05-15, k8s release-1.36 still pins .go-version=1.26.2"), and update the leading comment block if the situation has materially changed.
 
 - **EXPIRING (within 14 days):** flag in the report. Same re-evaluation logic as EXPIRED, but the action is preventive rather than reactive. Better to bump or remove now than after CI starts failing.
 
@@ -169,7 +176,7 @@ For each entry in the *Expired or near-expiry* list above:
 
 - **Working-tree edits only.** Apply edits via `Edit`/`Write` so they land unstaged. **Never** run `git add`, `git commit`, `git push`, `gh pr edit`, `gh pr comment`, `gh pr review`, `gh pr merge`, `git checkout`, `git stash`, `git reset`, or anything that mutates git history, remote state, or other branches. Per `feedback_no_external_actions.md`, Claude scope is local file changes only.
 - **The default is unstaged.** Only commit if the user explicitly says "commit those" in a follow-up turn.
-- **Before any edit, check the workspace state** (the *Workspace cleanliness* injection above). If there are already-modified files unrelated to this audit, mention them in the report so the user knows the working tree had existing changes before the audit started.
+- **Before any edit, check the workspace state** (the _Workspace cleanliness_ injection above). If there are already-modified files unrelated to this audit, mention them in the report so the user knows the working tree had existing changes before the audit started.
 - **Never invent CVE IDs, package versions, or "upstream shipped" claims.** Every factual claim in the report needs a verification-log entry (URL or command + what it confirmed).
 - **Prefer a real fix over a suppression.** Add a `.trivyignore.yaml` entry only when no fix exists upstream. If you can't justify the entry in writing, leave the finding open and say so in the report.
 - **Don't recommend `severity: CRITICAL`-only filtering as a workaround.** The existing `trivy.yaml` gate (`CRITICAL,HIGH` + `ignore-unfixed: true` + `exit-code: 1`) is the canonical setup; this skill operates within it, not against it.

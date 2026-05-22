@@ -31,10 +31,10 @@ export const MENU: MenuItemConstructorOptions[] = [
       // Conditional Quit item for Windows/Linux
       // On macOS, 'quit' is handled by the app menu role above.
       ...(process.platform !== 'darwin'
-        ? [
+        ? ([
             { type: 'separator' },
             { label: 'Quit', accelerator: 'CommandOrControl+Q', click: () => app.quit() }
-          ] satisfies MenuItemConstructorOptions[]
+          ] satisfies MenuItemConstructorOptions[])
         : [])
     ]
   },

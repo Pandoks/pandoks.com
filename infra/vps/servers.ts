@@ -170,9 +170,7 @@ export function createServers(
           S3_SECRET_KEY
         };
         return cloudInitConfig.replace(/\$\{([A-Z0-9_]+)\}/g, (_, capture: string) =>
-          capture in environments
-            ? (environments[capture as keyof typeof environments] ?? '')
-            : ''
+          capture in environments ? (environments[capture as keyof typeof environments] ?? '') : ''
         );
       }
     );
