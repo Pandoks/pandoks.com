@@ -85,7 +85,7 @@ $resolve([
   }
 );
 
-export async function deleteTailscaleDevices(...deviceIds: string[]) {
+export function deleteTailscaleDevices(...deviceIds: string[]) {
   return secrets.tailscale.ApiKey.value.apply(async (apiKey) => {
     return await Promise.all(
       deviceIds.map(async (deviceId) => {

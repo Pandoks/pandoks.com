@@ -9,7 +9,9 @@ const cloudInitConfig = readFileSync(`${process.cwd()}/infra/vps/cloud-config.ya
 const deleteServerFromTailnet = new $util.ResourceHook(
   'DeleteServerFromTailnet',
   async (serverOutput) => {
-    const outputs = serverOutput.oldOutputs as hcloud.Server;
+    const outputs = serverOutput.oldOutputs as {
+      labels: $util.Unwrap<hcloud.Server['labels']>;
+    };
     const serverLabels = outputs.labels ?? {};
 
     const devices = await tailscale.getDevices({
@@ -19,7 +21,7 @@ const deleteServerFromTailnet = new $util.ResourceHook(
       (device) => device.tags.includes('tag:hetzner') && device.tags.includes(`tag:${STAGE_NAME}`)
     );
     if (serverHetznerDevices.length > 0) {
-      const deletedDevices = await deleteTailscaleDevices(
+      const deletedDevices = deleteTailscaleDevices(
         ...serverHetznerDevices.map((device) => device.nodeId)
       );
       deletedDevices.apply((deletedDevices) => {
@@ -167,8 +169,10 @@ export function createServers(
           S3_ACCESS_KEY,
           S3_SECRET_KEY
         };
-        return cloudInitConfig.replace(/\$\{([A-Z0-9_]+)\}/g, (_, capture) =>
-          capture in environments ? environments[capture] : ''
+        return cloudInitConfig.replace(/\$\{([A-Z0-9_]+)\}/g, (_, capture: string) =>
+          capture in environments
+            ? (environments[capture as keyof typeof environments] ?? '')
+            : ''
         );
       }
     );
