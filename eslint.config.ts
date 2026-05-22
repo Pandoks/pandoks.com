@@ -34,7 +34,7 @@ export default defineConfig([
             '*/*/vite.main.config.ts',
             '*/*/vite.preload.config.ts',
             '*/*/e2e/*.test.ts',
-            'scripts/*/*.js'
+            'scripts/*/*.{js,ts}'
           ],
           maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 25
         },
