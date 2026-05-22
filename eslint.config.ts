@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import js from '@eslint/js';
 import { includeIgnoreFile } from '@eslint/compat';
 import { defineConfig } from 'eslint/config';
 import tseslint from 'typescript-eslint';
@@ -11,16 +12,34 @@ const gitignorePath = fileURLToPath(new URL('.gitignore', import.meta.url));
 
 export default defineConfig([
   includeIgnoreFile(gitignorePath),
-  { ignores: ['sst.config.ts'] },
+  { ignores: ['sst.config.ts', '**/sst-env.d.ts', '**/.svelte-kit/'] },
 
   // GLOBAL RULES
-  ...tseslint.configs.recommended,
+  js.configs.recommended,
+  ...tseslint.configs.recommendedTypeChecked,
   {
     plugins: { unicorn },
     languageOptions: {
       ecmaVersion: 2024,
       sourceType: 'module',
-      globals: { ...globals.browser, ...globals.node }
+      globals: { ...globals.browser, ...globals.node },
+      parserOptions: {
+        projectService: {
+          allowDefaultProject: [
+            'eslint.config.ts',
+            '*/*/forge.config.ts',
+            '*/*/svelte.config.js',
+            '*/*/playwright.config.ts',
+            '*/*/vitest-setup-client.ts',
+            '*/*/vite.main.config.ts',
+            '*/*/vite.preload.config.ts',
+            '*/*/e2e/*.test.ts',
+            'scripts/*/*.js'
+          ],
+          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 25
+        },
+        tsconfigRootDir: import.meta.dirname
+      }
     },
     rules: {
       'unicorn/prevent-abbreviations': [
@@ -117,7 +136,7 @@ export default defineConfig([
   },
 
   // SVELTE RULES
-  ...svelte.configs['flat/recommended'],
+  svelte.configs.recommended,
   {
     files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],
     languageOptions: {
