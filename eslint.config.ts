@@ -157,7 +157,37 @@ export default defineConfig([
   {
     files: ['packages/svelte/src/lib/components/ui/**'],
     rules: {
-      'svelte/no-navigation-without-resolve': 'off'
+      'svelte/no-navigation-without-resolve': 'off',
+      'no-useless-assignment': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off'
+    }
+  },
+  {
+    files: ['**/vitest-setup-client.ts'],
+    rules: {
+      '@typescript-eslint/no-unsafe-assignment': 'off'
+    }
+  },
+  {
+    files: ['apps/desktop-template/electron/**'],
+    rules: {
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off'
+    }
+  },
+  {
+    files: ['apps/web/**'],
+    languageOptions: {
+      globals: {
+        __HAS_POSTS__: 'readonly',
+        __BLOG_TITLES__: 'readonly',
+        __HAS_HOME_PAGE_BLOG_POST__: 'readonly'
+      }
     }
   },
   {
