@@ -99,15 +99,14 @@ export async function handleTextReminder(body: NotionWebhookEvent): Promise<void
       }
     }
 
+    const knownUsers = Object.keys(PHONE_NUMBER_MAPPINGS) as Users[];
     const users =
-      peopleProperty?.people.flatMap((personOrGroup) => {
+      peopleProperty?.people.flatMap((personOrGroup): Users[] => {
         const name =
           'name' in personOrGroup && typeof personOrGroup.name === 'string'
             ? personOrGroup.name
             : undefined;
-        return name && (Object.keys(PHONE_NUMBER_MAPPINGS) as Users[]).includes(name as Users)
-          ? [name as Users]
-          : [];
+        return name && knownUsers.includes(name as Users) ? [name as Users] : [];
       }) ?? [];
 
     const phoneNumbers = [...new Set(users.map((user) => PHONE_NUMBER_MAPPINGS[user]))];
