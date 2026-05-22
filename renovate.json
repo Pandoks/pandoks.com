@@ -1,18 +1,9 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:best-practices",
-    ":semanticCommits",
-    "group:allNonMajor",
-    "group:allDigest"
-  ],
+  "extends": ["config:best-practices", ":semanticCommits", "group:allNonMajor", "group:allDigest"],
   "labels": ["dependencies"],
   "assignees": ["pandoks"],
   "minimumReleaseAge": "7 days",
-  "lockFileMaintenance": {
-    "enabled": true,
-    "schedule": ["* * * * 1"]
-  },
   "dependencyDashboardTitle": "[renovate] 🤖 outdated dependencies",
   "dependencyDashboardLabels": ["dependencies"],
   "dependencyDashboardAutoclose": false,
@@ -21,6 +12,7 @@
   "prConcurrentLimit": 5,
   "prHourlyLimit": 0,
   "rangeStrategy": "pin",
+  "postUpdateOptions": ["pnpmDedupe", "gomodTidy"],
   "customManagers": [
     {
       "customType": "regex",
