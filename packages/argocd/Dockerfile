@@ -14,6 +14,8 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
     && rm -rf /var/lib/apt/lists/* \
     && corepack enable
 
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
     && unzip awscliv2.zip \
     && ./aws/install \
