@@ -4,7 +4,7 @@
   "packageManager": "pnpm@11.2.2+sha512.NuZiH61QYXiTZFXnAke4gI707CV5ep9DepMoGgIEhOJgf2pGmiLpgph8PbuIZuMHFRSrEKShdJ4G7c0ewRhDbw==",
   "type": "module",
   "engines": {
-    "node": ">=22",
+    "node": ">=24",
     "pnpm": ">=11"
   },
   "scripts": {
