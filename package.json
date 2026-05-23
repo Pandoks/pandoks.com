@@ -24,6 +24,7 @@
     "postinstall": "sst install"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260522.1",
     "@eslint/compat": "^2.1.0",
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.9.1",
