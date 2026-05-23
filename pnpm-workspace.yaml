@@ -2,8 +2,17 @@ packages:
   - apps/*
   - packages/*
 
-onlyBuiltDependencies:
-  - esbuild
+engineStrict: true
+nodeLinker: hoisted # needed for electron
+publicHoistPattern:
   - electron
-  - electron-winstaller
-  - sharp
+enablePrePostScripts: false # supply-chain: block pre/post lifecycle scripts on `pnpm <script>`
+
+# supply-chain: dependency build-script allowlist (enablePrePostScript exceptions)
+allowBuilds:
+  esbuild: true
+  electron: true
+  electron-winstaller: true
+  sharp: true
+  fs-xattr: true # @electron-forge/maker-dmg (packaging)
+  macos-alias: true # @electron-forge/maker-dmg (packaging)
