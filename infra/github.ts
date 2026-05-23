@@ -18,6 +18,25 @@ new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
 });
 
 if (isProduction) {
+  new github.BranchProtection('GithubMainBranchProtection', {
+    repositoryId: githubRepoName,
+    pattern: 'main',
+    requiredStatusChecks: [
+      {
+        strict: false,
+        contexts: [
+          'Checks / check',
+          'Security / check',
+          'Tests / check',
+          'Build and Publish / check'
+        ]
+      }
+    ],
+    allowsDeletions: false,
+    allowsForcePushes: false,
+    enforceAdmins: false
+  });
+
   new github.ActionsSecret('GithubGithubAccessToken', {
     repository: githubRepoName,
     secretName: 'GH_TOKEN',
