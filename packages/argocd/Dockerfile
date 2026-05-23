@@ -10,6 +10,7 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
     git=1:2.39.5-0+deb12u3 \
     unzip=6.0-28 \
     ca-certificates=20230311+deb12u1 \
+    libgnutls30=3.7.9-2+deb12u7 \
     apache2-utils=2.4.67-1~deb12u2 \
     && rm -rf /var/lib/apt/lists/* \
     && corepack enable
