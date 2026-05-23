@@ -86,7 +86,6 @@ jobs:
           trivyignores: .trivyignore.yaml
           format: sarif
           output: trivy-published-${{ matrix.name }}.sarif
-          exit-code: '0'
 
       - name: Upload SARIF to GitHub Code Scanning
         if: always()
@@ -112,7 +111,6 @@ jobs:
           trivyignores: .trivyignore.yaml
           format: sarif
           output: trivy-k3s.sarif
-          exit-code: '0'
 
       - name: Upload SARIF to GitHub Code Scanning
         if: always()
