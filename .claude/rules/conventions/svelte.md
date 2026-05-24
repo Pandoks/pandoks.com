@@ -84,8 +84,8 @@ every page reads it with `getVimState()`.
   should not register a nav handler.
 - **Body handler** is per-page. Use the fluent setters:
   `getVimState().setBodyHandler((e) => { ... })
- .setInitBodyState(() => { ... })
- .setResetBodyState(() => { ... })`.
+.setInitBodyState(() => { ... })
+.setResetBodyState(() => { ... })`.
   Canonical example: `apps/web/src/routes/socials/+page.svelte`.
 - **Reserved keys** owned by the master listener (`vim.svelte.ts:69-105`)
   — DO NOT consume in your handler:
