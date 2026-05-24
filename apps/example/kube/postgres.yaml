@@ -5,7 +5,7 @@ metadata:
   namespace: kube-system
 spec:
   chart: oci://${ImageRegistry}/charts/postgres
-  version: 0.1.0
+  version: 0.1.0 # renovate: datasource=docker packageName=pandoks/charts/postgres
   targetNamespace: &namespace main
   createNamespace: true
   failurePolicy: abort

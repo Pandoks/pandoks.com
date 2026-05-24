@@ -31,6 +31,16 @@
         "# renovate: datasource=(?<datasource>[a-z-]+) packageName=(?<packageName>[^\\s]+)\\s+ARG KUBECTL_VERSION=(?<currentValue>v[\\d.]+)"
       ],
       "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Bump `version:` pins annotated with a trailing `# renovate: datasource=... packageName=...` comment.",
+      "managerFilePatterns": ["/^apps/.+/kube/.+\\.ya?ml$/"],
+      "matchStrings": [
+        "version:\\s*(?<currentValue>\\S+)\\s*#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)\\s+packageName=(?<packageName>[^\\s]+)"
+      ],
+      "registryUrlTemplate": "https://ghcr.io",
+      "versioningTemplate": "semver"
     }
   ],
   "packageRules": [
