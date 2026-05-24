@@ -1,8 +1,12 @@
 {
   "name": "pandoks.com",
   "version": "1.0.0",
-  "packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319",
+  "packageManager": "pnpm@11.2.2+sha512.36e6621fad506178936455e70247b8808ef4ec25797a9f437a93281a020484e2607f6a469a22e982987c3dbb8866e3071514ab10a4a1749e06edcd1ec118436f",
   "type": "module",
+  "engines": {
+    "node": ">=24",
+    "pnpm": ">=11"
+  },
   "scripts": {
     "sso": "aws sso login --sso-session=Pandoks_ --use-device-code --no-browser",
     "cluster": "./scripts/cluster/main.sh",
@@ -15,45 +19,31 @@
     "format": "./scripts/format/main.sh",
     "lint": "./scripts/lint/main.sh",
     "fix": "./scripts/fix/main.sh",
-    "check": "pnpm -r --if-present check",
+    "check:infra": "tsc -p .",
+    "check": "pnpm -r --if-present check && pnpm check:infra",
     "postinstall": "sst install"
   },
   "devDependencies": {
-    "@eslint/compat": "^1.2.5",
-    "@types/node": "^22.9.0",
-    "eslint": "^9.20.0",
+    "@cloudflare/workers-types": "^4.20260522.1",
+    "@eslint/compat": "^2.1.0",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^25.9.1",
+    "eslint": "^10.4.0",
     "eslint-plugin-svelte": "^3.0.0",
-    "eslint-plugin-unicorn": "^57.0.0",
-    "globals": "^15.14.0",
+    "eslint-plugin-unicorn": "^64.0.0",
     "glob": "^13.0.6",
-    "jiti": "^2.4.2",
+    "globals": "^17.6.0",
+    "jiti": "^2.7.0",
     "json-stringify-pretty-compact": "^4.0.0",
-    "portless": "^0.11.0",
+    "portless": "^0.13.0",
     "prettier": "^3.8.3",
-    "prettier-plugin-svelte": "^3.5.1",
+    "prettier-plugin-svelte": "^4.0.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
     "svelte-eslint-parser": "^1.0.0",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.24.0"
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.4"
   },
   "dependencies": {
-    "sst": "^4.7.5"
-  },
-  "pnpm": {
-    "//TODO": "remove override when upstream bumps its pinned dep — follow-redirects: axios; @xmldom/xmldom: fonteditor-core + plist; undici: jsdom; fast-xml-parser: @aws-sdk/xml-builder; devalue: svelte; lodash: @electron-forge; picomatch: anymatch + @rollup/pluginutils; tar: @electron/node-gyp; cookie: @sveltejs/kit; tmp: external-editor; @tootallnate/once: http-proxy-agent; axios: twilio",
-    "overrides": {
-      "follow-redirects": "^1.16.0",
-      "@xmldom/xmldom": "^0.9.9",
-      "undici": "^7.24.0",
-      "fast-xml-parser": "^5.6.0",
-      "devalue": "^5.7.1",
-      "lodash": "^4.18.1",
-      "picomatch": "^4.0.4",
-      "tar": "^7.5.13",
-      "cookie": "~0.7.0",
-      "tmp": "^0.2.5",
-      "@tootallnate/once": "^3.0.1",
-      "axios": "^1.15.0"
-    }
+    "sst": "^4.14.3"
   }
 }

@@ -106,7 +106,7 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
       console.error('Notion webhook handler failed', {
         eventType: body.type,
         pageId: body.entity.id,
-        error: failure.reason
+        error: failure.reason as unknown
       });
     }
   }

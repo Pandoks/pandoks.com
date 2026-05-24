@@ -6,14 +6,6 @@
 
 declare module "sst" {
   export interface Resource {
-    "ApartmentScraper": {
-      "name": string
-      "type": "sst.aws.Function"
-    }
-    "ApartmentSearchKV": {
-      "name": string
-      "type": "sst.aws.Dynamo"
-    }
     "ApiRouter": {
       "type": "sst.aws.Router"
       "url": string
@@ -35,6 +27,10 @@ declare module "sst" {
       "value": string
     }
     "CloudflareBackupSecretKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "GithubPackageManagementToken": {
       "type": "sst.sst.Secret"
       "value": string
     }

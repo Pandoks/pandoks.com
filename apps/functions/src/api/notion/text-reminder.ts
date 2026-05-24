@@ -17,6 +17,8 @@ const schedulerClient = new SchedulerClient({});
 const ALL_PHONE_NUMBERS = [...new Set(Object.values(PHONE_NUMBER_MAPPINGS))];
 const NAME_PROPERTY_KEYS = ['Assigned To', 'Person', 'Assignee'];
 
+const ONE_MINUTE = 60_000;
+
 function scheduleName(pageId: string, phoneNumber: string): string {
   const phoneHash = createHash('sha256').update(phoneNumber).digest('hex');
   const prefix = `schedule-notion-text-${pageId}-`;
@@ -81,7 +83,8 @@ export async function handleTextReminder(body: NotionWebhookEvent): Promise<void
       response.properties['Notification Time']?.type === 'date'
         ? response.properties['Notification Time'].date?.start
         : undefined;
-    if (!notificationTime || new Date(notificationTime).getTime() <= Date.now()) {
+    const fiveMinutes = 5 * ONE_MINUTE;
+    if (!notificationTime || new Date(notificationTime).getTime() + fiveMinutes < Date.now()) {
       for (const phone of ALL_PHONE_NUMBERS) {
         await deleteSchedule(scheduleName(pageId, phone));
       }
@@ -99,15 +102,14 @@ export async function handleTextReminder(body: NotionWebhookEvent): Promise<void
       }
     }
 
+    const knownUsers = Object.keys(PHONE_NUMBER_MAPPINGS) as Users[];
     const users =
-      peopleProperty?.people.flatMap((personOrGroup) => {
+      peopleProperty?.people.flatMap((personOrGroup): Users[] => {
         const name =
           'name' in personOrGroup && typeof personOrGroup.name === 'string'
             ? personOrGroup.name
             : undefined;
-        return name && (Object.keys(PHONE_NUMBER_MAPPINGS) as Users[]).includes(name as Users)
-          ? [name as Users]
-          : [];
+        return name && knownUsers.includes(name as Users) ? [name as Users] : [];
       }) ?? [];
 
     const phoneNumbers = [...new Set(users.map((user) => PHONE_NUMBER_MAPPINGS[user]))];
@@ -134,7 +136,11 @@ export async function handleTextReminder(body: NotionWebhookEvent): Promise<void
     message.push(response.url);
     const messageText = message.join('\n');
 
-    const scheduleTime = new Date(notificationTime).toISOString().split('.')[0];
+    const scheduleTime = new Date(
+      Math.max(new Date(notificationTime).getTime(), Date.now() + fiveMinutes)
+    )
+      .toISOString()
+      .split('.')[0];
 
     for (const phoneNumber of phoneNumbers) {
       const name = scheduleName(pageId, phoneNumber);

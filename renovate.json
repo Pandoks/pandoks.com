@@ -1,36 +1,52 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended",
-    ":dependencyDashboard",
-    ":semanticCommits",
-    "group:allNonMajor"
-  ],
+  "extends": ["config:best-practices", ":semanticCommits", "group:allNonMajor", "group:allDigest"],
   "labels": ["dependencies"],
+  "assignees": ["pandoks"],
+  "minimumReleaseAge": "7 days",
   "dependencyDashboardTitle": "[renovate] 🤖 outdated dependencies",
   "dependencyDashboardLabels": ["dependencies"],
   "dependencyDashboardAutoclose": false,
   "dependencyDashboardOSVVulnerabilitySummary": "unresolved",
+  "osvVulnerabilityAlerts": true,
   "prConcurrentLimit": 5,
   "prHourlyLimit": 0,
   "rangeStrategy": "pin",
+  "postUpdateOptions": ["pnpmDedupe", "gomodTidy"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Sync the `go` directive in go.work when go.mod is bumped (Renovate's gomod manager only handles go.mod)",
+      "managerFilePatterns": ["/(^|/)go\\.work$/"],
+      "matchStrings": ["(^|\\n)go (?<currentValue>[\\d.]+)\\s*(\\n|$)"],
+      "depNameTemplate": "go",
+      "datasourceTemplate": "golang-version",
+      "versioningTemplate": "go-mod-directive"
+    },
+    {
+      "customType": "regex",
+      "description": "Track kubectl version in the argocd image (binary fetched from dl.k8s.io). KUBECTL_SHA256 must be updated by hand on each bump — Renovate cannot compute binary checksums.",
+      "managerFilePatterns": ["/(^|/)packages/argocd/Dockerfile$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) packageName=(?<packageName>[^\\s]+)\\s+ARG KUBECTL_VERSION=(?<currentValue>v[\\d.]+)"
+      ],
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Bump `version:` pins annotated with a trailing `# renovate: datasource=... packageName=...` comment.",
+      "managerFilePatterns": ["/^apps/.+/kube/.+\\.ya?ml$/"],
+      "matchStrings": [
+        "version:\\s*(?<currentValue>\\S+)\\s*#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)\\s+packageName=(?<packageName>[^\\s]+)"
+      ],
+      "registryUrlTemplate": "https://ghcr.io",
+      "versioningTemplate": "semver"
+    }
+  ],
   "packageRules": [
-    {
-      "matchManagers": ["dockerfile"],
-      "pinDigests": true
-    },
-    {
-      "matchManagers": ["dockerfile"],
-      "matchUpdateTypes": ["digest"],
-      "groupName": "docker base image digests"
-    },
     {
       "matchManagers": ["helm-values", "helmv3"],
       "groupName": "helm charts"
-    },
-    {
-      "matchManagers": ["github-actions"],
-      "groupName": "github actions"
     }
   ],
   "vulnerabilityAlerts": {

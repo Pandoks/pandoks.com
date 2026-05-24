@@ -1,8 +1,5 @@
 name: Security
 
-permissions:
-  contents: read
-
 on:
   pull_request:
     branches:
@@ -10,93 +7,123 @@ on:
   push:
     branches:
       - main
+  schedule:
+    - cron: '0 17 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
 
 concurrency:
   group: security-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      dockerfile: ${{ steps.filter.outputs.dockerfile }}
-      helm: ${{ steps.filter.outputs.helm }}
-
+      k3s: ${{ steps.filter.outputs.k3s || github.event_name != 'pull_request' }}
     steps:
       - uses: actions/checkout@v6
 
       - id: filter
-        uses: dorny/paths-filter@v4
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
         with:
           filters: |
-            dockerfile:
-              - '**/Dockerfile'
-            helm:
-              - '**/chart/**'
+            k3s:
+              - 'k3s/**'
 
-  scan-images:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.dockerfile == 'true'
+  scan-published-images:
+    # NOTE: we don't scan charts because the only issues are misconfigs, not CVEs.
+    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      packages: read
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - dockerfile: packages/postgres/patroni/Dockerfile
-            name: patroni
-          - dockerfile: packages/postgres/pgbackrest/Dockerfile
-            name: pgbackrest
-          - dockerfile: packages/valkey/Dockerfile
-            name: valkey
-          - dockerfile: packages/valkey/reconciler/Dockerfile
-            name: valkey-reconciler
-          - dockerfile: packages/argocd/Dockerfile
-            name: argocd
-          - dockerfile: packages/clickhouse/clickhouse/Dockerfile
-            name: clickhouse
-          - dockerfile: packages/clickhouse/keeper/Dockerfile
-            name: clickhouse-keeper
-          - dockerfile: packages/clickhouse/backup/Dockerfile
-            name: clickhouse-backup
+        name:
+          - patroni
+          - pgbackrest
+          - valkey
+          - valkey-reconciler
+          - argocd-sst-plugin
+          - clickhouse
+          - clickhouse-keeper
+          - clickhouse-backup
     steps:
       - uses: actions/checkout@v6
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+      - name: Compute image reference
+        id: ref
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: echo "image=ghcr.io/${OWNER,,}/${{ matrix.name }}:latest" >> "${GITHUB_OUTPUT}"
 
-      - name: Build image
-        uses: docker/build-push-action@v7
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
         with:
-          context: .
-          file: ${{ matrix.dockerfile }}
-          load: true
-          tags: ${{ matrix.name }}:scan
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@v0.36.0
+      - name: Pull published image
+        env:
+          IMAGE: ${{ steps.ref.outputs.image }}
+        run: docker pull "${IMAGE}"
+
+      - name: Scan published image with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ matrix.name }}:scan
+          image-ref: ${{ steps.ref.outputs.image }}
+          scanners: vuln,secret
           trivy-config: trivy.yaml
           trivyignores: .trivyignore.yaml
+          format: sarif
+          output: trivy-published-${{ matrix.name }}.sarif
 
-  scan-helm-config:
+      - name: Upload SARIF to GitHub Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-published-${{ matrix.name }}.sarif
+          category: trivy-published-${{ matrix.name }}
+
+  scan-k3s-config:
     needs: detect-changes
-    if: needs.detect-changes.outputs.helm == 'true'
+    if: needs.detect-changes.outputs.k3s == 'true'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        chart:
-          - packages/postgres/chart
-          - packages/valkey/chart
-          - packages/clickhouse/chart
     steps:
       - uses: actions/checkout@v6
 
-      - name: Scan Helm chart with Trivy
-        uses: aquasecurity/trivy-action@v0.36.0
+      - name: Scan k3s manifests with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: config
-          scan-ref: ${{ matrix.chart }}
+          scan-ref: k3s
+          scanners: misconfig
           trivy-config: trivy.yaml
           trivyignores: .trivyignore.yaml
+          format: sarif
+          output: trivy-k3s.sarif
+
+      - name: Upload SARIF to GitHub Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-k3s.sarif
+          category: trivy-k3s
+
+  check:
+    name: Security
+    needs:
+      - scan-k3s-config
+    if: ${{ always() && !cancelled() && github.event_name == 'pull_request' && !contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "ok"
