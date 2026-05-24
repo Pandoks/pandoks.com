@@ -24,14 +24,14 @@ jobs:
           RENOVATE_REQUIRE_CONFIG: required
           RENOVATE_GIT_AUTHOR: 'Renovate Bot <renovate@pandoks.com>'
 
-  cleanup-orphan-ghcr-images:
+  cleanup-orphan-ghcr-versions:
     runs-on: ubuntu-latest
     permissions:
       packages: write
     strategy:
       fail-fast: false
       matrix:
-        name:
+        package:
           - patroni
           - pgbackrest
           - valkey
@@ -40,73 +40,24 @@ jobs:
           - clickhouse
           - clickhouse-keeper
           - clickhouse-backup
+          - charts/postgres
+          - charts/valkey
+          - charts/clickhouse
     steps:
-      - name: Delete orphan untagged GHCR image versions
+      - name: Delete orphan untagged versions for ${{ matrix.package }}
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GH_PACKAGE_MANAGEMENT_TOKEN }}
           OWNER: ${{ github.repository_owner }}
-          PACKAGE: ${{ matrix.name }}
+          PACKAGE: ${{ matrix.package }}
         run: |
-          api="/users/${OWNER,,}/packages/container/${PACKAGE}/versions"
+          api="/users/${OWNER,,}/packages/container/${PACKAGE//\//%2F}/versions"
           repo="${OWNER,,}/${PACKAGE}"
           all=$(gh api --paginate --slurp "${api}" | jq 'add')
-          tagged_digests=$(jq -r '.[] | select((.metadata.container.tags // []) | length > 0) | .name' <<<"${all}")
           token=$(curl -fsSL "https://ghcr.io/token?scope=repository:${repo}:pull" | jq -r '.token')
-          referenced=$(while read -r d; do
-            [ -z "${d}" ] && continue
-            curl -fsSL -H "Authorization: Bearer ${token}" -H 'Accept: application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json' "https://ghcr.io/v2/${repo}/manifests/${d}" 2>/dev/null \
-              | jq -r '.manifests[]?.digest // empty'
-          done <<<"${tagged_digests}" | sort -u)
-          ids=$(jq -r --argjson refs "$(jq -Rn '[inputs | select(length>0)]' <<<"${referenced}")" '
-            .[] | select((.metadata.container.tags // []) | length == 0) | select(.name as $d | $refs | index($d) | not) | .id' <<<"${all}")
-          if [ -z "${ids}" ]; then
-            echo "No orphan ${PACKAGE} versions to delete."
-            exit 0
-          fi
-          while read -r id; do
-            [ -z "${id}" ] && continue
-            echo "Deleting orphan ${PACKAGE} version ${id}"
-            gh api --method DELETE "${api}/${id}"
-          done <<<"${ids}"
-
-  cleanup-orphan-ghcr-charts:
-    runs-on: ubuntu-latest
-    permissions:
-      packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        chart:
-          - postgres
-          - valkey
-          - clickhouse
-    steps:
-      - name: Delete orphan untagged GHCR chart versions
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GH_PACKAGE_MANAGEMENT_TOKEN }}
-          OWNER: ${{ github.repository_owner }}
-          CHART: ${{ matrix.chart }}
-        run: |
-          api="/users/${OWNER,,}/packages/container/charts%2F${CHART}/versions"
-          repo="${OWNER,,}/charts/${CHART}"
-          all=$(gh api --paginate --slurp "${api}" | jq 'add')
-          tagged_digests=$(jq -r '.[] | select((.metadata.container.tags // []) | length > 0) | .name' <<<"${all}")
-          token=$(curl -fsSL "https://ghcr.io/token?scope=repository:${repo}:pull" | jq -r '.token')
-          referenced=$(while read -r d; do
-            [ -z "${d}" ] && continue
-            curl -fsSL -H "Authorization: Bearer ${token}" -H 'Accept: application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json' "https://ghcr.io/v2/${repo}/manifests/${d}" 2>/dev/null \
-              | jq -r '.manifests[]?.digest // empty'
-          done <<<"${tagged_digests}" | sort -u)
-          ids=$(jq -r --argjson refs "$(jq -Rn '[inputs | select(length>0)]' <<<"${referenced}")" '
-            .[] | select((.metadata.container.tags // []) | length == 0) | select(.name as $d | $refs | index($d) | not) | .id' <<<"${all}")
-          if [ -z "${ids}" ]; then
-            echo "No orphan ${CHART} chart versions to delete."
-            exit 0
-          fi
-          while read -r id; do
-            [ -z "${id}" ] && continue
-            echo "Deleting orphan ${CHART} chart version ${id}"
-            gh api --method DELETE "${api}/${id}"
-          done <<<"${ids}"
+          referenced=$(jq -r '.[] | select(.metadata.container.tags != []) | .name' <<<"${all}" \
+            | xargs -I{} curl -fsSL -H "Authorization: Bearer ${token}" -H 'Accept: application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json' "https://ghcr.io/v2/${repo}/manifests/{}" 2>/dev/null \
+            | jq -rs '[.[].manifests[]?.digest] | unique[]')
+          jq -r --argjson refs "$(jq -Rn '[inputs]' <<<"${referenced}")" \
+            '.[] | select(.metadata.container.tags == []) | select(.name as $d | $refs | index($d) | not) | .id' <<<"${all}" \
+            | xargs -rI{} gh api --method DELETE "${api}/{}"
