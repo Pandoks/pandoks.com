@@ -379,8 +379,7 @@ jobs:
       - name: Diff SST
         run: pnpm sst diff --stage production
 
-  check:
-    name: Checks
+  checks-pass:
     needs:
       - format-js
       - lint-js
