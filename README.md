@@ -27,9 +27,9 @@ pnpm sst install
   <summary>Dependencies</summary>
   <ul>
     <li>
-      <a href="https://nodejs.org/en/">Node.js</a> >= v22 (<a href="https://github.com/nvm-sh/nvm">nvm</a> is recommended)
+      <a href="https://nodejs.org/en/">Node.js</a> >= v24 (<a href="https://github.com/nvm-sh/nvm">nvm</a> is recommended)
     </li>
-    <li><a href="https://pnpm.io/">pnpm</a> >= v10</li>
+    <li><a href="https://pnpm.io/">pnpm</a> >= v11</li>
     <li><a href="https://go.dev/">Go</a> >= v1.25</li>
     <li><a href="https://docs.docker.com/get-docker/">Docker</a> >= v20</li>
     <li><a href="https://kubernetes.io/docs/tasks/tools/">kubectl</a> >= v1.30</li>
