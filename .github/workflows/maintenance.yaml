@@ -66,9 +66,15 @@ jobs:
           repo="${OWNER,,}/${PACKAGE}"
           all=$(gh api --paginate --slurp "${api}" | jq 'add')
           token=$(curl -fsSL "https://ghcr.io/token?scope=repository:${repo}:pull" | jq -r '.token')
-          referenced=$(jq -r '.[] | select(.metadata.container.tags != []) | .name' <<<"${all}" \
-            | xargs -I{} curl -fsSL -H "Authorization: Bearer ${token}" -H 'Accept: application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json' "https://ghcr.io/v2/${repo}/manifests/{}" 2>/dev/null \
+          accept='application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json'
+          children=$(jq -r '.[] | select(.metadata.container.tags != []) | .name' <<<"${all}" \
+            | xargs -I{} curl -fsSL -H "Authorization: Bearer ${token}" -H "Accept: ${accept}" "https://ghcr.io/v2/${repo}/manifests/{}" \
             | jq -rs '[.[].manifests[]?.digest] | unique[]')
-          jq -r --argjson refs "$(jq -Rn '[inputs]' <<<"${referenced}")" \
+          tagged=$(jq -r '.[] | select(.metadata.container.tags != []) | .name' <<<"${all}")
+          attestations=$(printf '%s\n%s\n' "${tagged}" "${children}" | sort -u \
+            | xargs -I{} curl -fsSL -H "Authorization: Bearer ${token}" -H "Accept: ${accept}" "https://ghcr.io/v2/${repo}/referrers/{}" \
+            | jq -rs '[.[].manifests[]?.digest] | unique[]')
+          keep=$(printf '%s\n%s\n' "${children}" "${attestations}" | sort -u)
+          jq -r --argjson refs "$(jq -Rn '[inputs | select(length > 0)]' <<<"${keep}")" \
             '.[] | select(.metadata.container.tags == []) | select(.name as $d | $refs | index($d) | not) | .id' <<<"${all}" \
             | xargs -rI{} gh api --method DELETE "${api}/{}"
