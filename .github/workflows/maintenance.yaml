@@ -49,6 +49,7 @@ jobs:
       PACKAGE: ${{ matrix.package }}
     steps:
       - name: Prune old ref-main-<sha> versions for ${{ matrix.package }} (keep newest 30)
+        shell: bash
         run: |
           api="/users/${OWNER,,}/packages/container/${PACKAGE//\//%2F}/versions"
           gh api --paginate --slurp "${api}" | jq -r '
@@ -59,6 +60,7 @@ jobs:
             | xargs -rI{} gh api --method DELETE "${api}/{}"
 
       - name: Delete orphan untagged versions for ${{ matrix.package }}
+        shell: bash
         run: |
           api="/users/${OWNER,,}/packages/container/${PACKAGE//\//%2F}/versions"
           repo="${OWNER,,}/${PACKAGE}"
