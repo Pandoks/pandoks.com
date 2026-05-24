@@ -146,6 +146,7 @@ jobs:
         run: pnpm --filter @pandoks.com/valkey test
 
   check:
+    name: Tests
     needs:
       - test-web
       - test-desktop

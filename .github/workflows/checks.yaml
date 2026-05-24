@@ -380,6 +380,7 @@ jobs:
         run: pnpm sst diff --stage production
 
   check:
+    name: Checks
     needs:
       - format-js
       - lint-js

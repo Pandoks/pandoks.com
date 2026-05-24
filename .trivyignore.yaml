@@ -28,10 +28,16 @@ vulnerabilities:
     expired_at: 2026-08-12
 
 misconfigurations:
-  # KSV-0109 false positive: flags `password:`/`secret:`-named keys in these
-  # ConfigMaps, but the values are envsubst placeholders or nulls — real secrets come from a Secret via secretKeyRef.
+  # KSV-0109 false positive: flags `password:`/`secret:`-named keys in these ConfigMaps, but the
+  # values are envsubst placeholders or nulls — real secrets come from a Secret via secretKeyRef.
   - id: AVD-KSV-0109
     paths:
       - templates/clickhouse.yaml
       - templates/patroni.yaml
     statement: ConfigMap holds envsubst placeholders, not real secrets
+  # KSV-0056: Patroni needs write access to endpoints & services for endpoint-DCS leader election (matches upstream patroni/patroni example RBAC).
+  # The patroni ServiceAccount is already trusted for HA state.
+  - id: AVD-KSV-0056
+    paths:
+      - base/core/postgres.yaml
+    statement: Patroni endpoint-DCS leader election requires endpoints write

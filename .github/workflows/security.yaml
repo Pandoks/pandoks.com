@@ -120,6 +120,7 @@ jobs:
           category: trivy-k3s
 
   check:
+    name: Security
     needs:
       - scan-k3s-config
     if: ${{ always() && !cancelled() && github.event_name == 'pull_request' && !contains(needs.*.result, 'failure') }}
