@@ -18,10 +18,35 @@ new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
 });
 
 if (isProduction) {
+  new github.BranchProtection('GithubMainBranchProtection', {
+    repositoryId: githubRepoName,
+    pattern: 'main',
+    requiredStatusChecks: [
+      {
+        strict: false,
+        contexts: [
+          'Checks / check',
+          'Security / check',
+          'Tests / check',
+          'Build and Publish / check'
+        ]
+      }
+    ],
+    allowsDeletions: false,
+    allowsForcePushes: false,
+    enforceAdmins: false
+  });
+
   new github.ActionsSecret('GithubGithubAccessToken', {
     repository: githubRepoName,
     secretName: 'GH_TOKEN',
     plaintextValue: secrets.github.PersonalAccessToken.value
+  });
+
+  new github.ActionsSecret('GithubGithubPackageManagementToken', {
+    repository: githubRepoName,
+    secretName: 'GH_PACKAGE_MANAGEMENT_TOKEN',
+    plaintextValue: secrets.github.PackageManagementToken.value
   });
 
   new github.ActionsSecret('GithubCloudflareApiToken', {

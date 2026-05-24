@@ -52,8 +52,9 @@ expo-env.d.ts
 .metro-health-check*
 
 # AI
-.claude
 .codex
+.claude/plans
+.claude/artifacts/
 
 # Worktrees
 .worktrees

@@ -6,10 +6,10 @@ import { controlPlaneLoadBalancers, workerLoadBalancers } from './vps/vps';
 import { secrets } from './secrets';
 
 const cloudflareIpRequest = await fetch('https://api.cloudflare.com/client/v4/ips');
-export const cloudflareIps: {
+export const cloudflareIps = (await cloudflareIpRequest.json()) as {
   result: { ipv4_cidrs: string[]; ipv6_cidrs: string[]; etag: string };
   success: boolean;
-} = await cloudflareIpRequest.json();
+};
 
 const publicLoadBalancers = [...workerLoadBalancers, ...controlPlaneLoadBalancers];
 

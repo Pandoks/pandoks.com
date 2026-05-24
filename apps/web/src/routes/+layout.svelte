@@ -6,12 +6,13 @@
   import { onMount } from 'svelte';
   import { setVimState } from '$lib/vim.svelte';
   import { FONTS } from '$lib/fonts';
+  import type { Snippet } from 'svelte';
 
-  const { children } = $props();
+  const { children }: { children: Snippet } = $props();
 
   onMount(() => {
     for (const [key, { file, family, weight, style }] of Object.entries(FONTS)) {
-      new FontFace(family, `url(/fonts/${file})`, { weight, style }).load().then(() => {
+      void new FontFace(family, `url(/fonts/${file})`, { weight, style }).load().then(() => {
         document.querySelector(`style[data-critical-font="${key}"]`)?.remove();
       });
     }
@@ -55,7 +56,7 @@
           const link = navLinks[activeNavIndex];
           if (link) {
             vimState.clearBody();
-            goto(resolve(link.path));
+            void goto(resolve(link.path));
           }
         }
         return;

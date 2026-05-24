@@ -135,7 +135,7 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
     (device) => device.tags.includes('tag:k8s') && device.tags.includes(`tag:${STAGE_NAME}`)
   );
   if (kubernetesDevices.length > 0) {
-    const deletedDevices = await deleteTailscaleDevices(
+    const deletedDevices = deleteTailscaleDevices(
       ...kubernetesDevices.map((device) => device.nodeId)
     );
     deletedDevices.apply((deletedDevices) => {
@@ -168,11 +168,14 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
 const publicLoadBalancerOutputs = Object.fromEntries(
   // NOTE: we have to hard code the name because indecies can't be pulumi inputs/outputs
   [
-    ...controlPlaneLoadBalancers.map((lb, i) => [
+    ...controlPlaneLoadBalancers.map((lb, i): [string, $util.Output<string>] => [
       `ControlPlaneLoadBalancer${i}`,
       lb.loadbalancer.ipv4
     ]),
-    ...workerLoadBalancers.map((lb, i) => [`WorkerLoadBalancer${i}`, lb.loadbalancer.ipv4])
+    ...workerLoadBalancers.map((lb, i): [string, $util.Output<string>] => [
+      `WorkerLoadBalancer${i}`,
+      lb.loadbalancer.ipv4
+    ])
   ]
 );
 

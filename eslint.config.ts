@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import js from '@eslint/js';
 import { includeIgnoreFile } from '@eslint/compat';
 import { defineConfig } from 'eslint/config';
 import tseslint from 'typescript-eslint';
@@ -11,16 +12,34 @@ const gitignorePath = fileURLToPath(new URL('.gitignore', import.meta.url));
 
 export default defineConfig([
   includeIgnoreFile(gitignorePath),
-  { ignores: ['sst.config.ts'] },
+  { ignores: ['sst.config.ts', '**/sst-env.d.ts', '**/.svelte-kit/'] },
 
   // GLOBAL RULES
-  ...tseslint.configs.recommended,
+  js.configs.recommended,
+  ...tseslint.configs.recommendedTypeChecked,
   {
     plugins: { unicorn },
     languageOptions: {
       ecmaVersion: 2024,
       sourceType: 'module',
-      globals: { ...globals.browser, ...globals.node }
+      globals: { ...globals.browser, ...globals.node },
+      parserOptions: {
+        projectService: {
+          allowDefaultProject: [
+            'eslint.config.ts',
+            '*/*/forge.config.ts',
+            '*/*/svelte.config.js',
+            '*/*/playwright.config.ts',
+            '*/*/vitest-setup-client.ts',
+            '*/*/vite.main.config.ts',
+            '*/*/vite.preload.config.ts',
+            '*/*/e2e/*.test.ts',
+            'scripts/*/*.{js,ts}'
+          ],
+          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 25
+        },
+        tsconfigRootDir: import.meta.dirname
+      }
     },
     rules: {
       'unicorn/prevent-abbreviations': [
@@ -117,7 +136,7 @@ export default defineConfig([
   },
 
   // SVELTE RULES
-  ...svelte.configs['flat/recommended'],
+  svelte.configs.recommended,
   {
     files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],
     languageOptions: {
@@ -138,7 +157,37 @@ export default defineConfig([
   {
     files: ['packages/svelte/src/lib/components/ui/**'],
     rules: {
-      'svelte/no-navigation-without-resolve': 'off'
+      'svelte/no-navigation-without-resolve': 'off',
+      'no-useless-assignment': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off'
+    }
+  },
+  {
+    files: ['**/vitest-setup-client.ts'],
+    rules: {
+      '@typescript-eslint/no-unsafe-assignment': 'off'
+    }
+  },
+  {
+    files: ['apps/desktop-template/electron/**'],
+    rules: {
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off'
+    }
+  },
+  {
+    files: ['apps/web/**'],
+    languageOptions: {
+      globals: {
+        __HAS_POSTS__: 'readonly',
+        __BLOG_TITLES__: 'readonly',
+        __HAS_HOME_PAGE_BLOG_POST__: 'readonly'
+      }
     }
   },
   {
