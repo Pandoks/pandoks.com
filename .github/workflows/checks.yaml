@@ -96,7 +96,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: '24'
+          node-version: '24.15.0'
           cache: 'pnpm'
 
       - name: Install pnpm dependencies
@@ -118,7 +118,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: '24'
+          node-version: '24.15.0'
           cache: 'pnpm'
 
       - name: Install pnpm dependencies
@@ -141,7 +141,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: '24'
+          node-version: '24.15.0'
           cache: 'pnpm'
 
       - name: Setup Go
@@ -169,7 +169,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: '24'
+          node-version: '24.15.0'
           cache: 'pnpm'
 
       - name: Setup Go
@@ -207,7 +207,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: '24'
+          node-version: '24.15.0'
           cache: 'pnpm'
 
       - name: Install shfmt
@@ -229,7 +229,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: '24'
+          node-version: '24.15.0'
           cache: 'pnpm'
 
       - name: Run ShellCheck
@@ -249,7 +249,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: '24'
+          node-version: '24.15.0'
 
       - name: Install Helm
         uses: azure/setup-helm@v5
@@ -308,7 +308,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: '24'
+          node-version: '24.15.0'
           cache: 'pnpm'
 
       - name: Install pnpm dependencies
