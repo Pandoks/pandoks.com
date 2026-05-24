@@ -253,11 +253,10 @@ jobs:
         env:
           OWNER: ${{ github.repository_owner }}
           BRANCH: ${{ github.ref_name }} # WARNING: do not inline this (security risk)
-          SHA: ${{ github.sha }}
         run: |
           version_arg=()
           if [[ "${BRANCH}" != "${{ github.event.repository.default_branch }}" ]]; then
-            version_arg=(--version "$(yq .version "${{ matrix.chart.path }}/Chart.yaml")-ref-${BRANCH//\//-}-${SHA:0:7}")
+            version_arg=(--version "$(yq .version "${{ matrix.chart.path }}/Chart.yaml")-${BRANCH//\//-}")
           fi
           helm package "${{ matrix.chart.path }}" "${version_arg[@]}"
           helm push "${{ matrix.chart.name }}"-*.tgz "oci://ghcr.io/${OWNER,,}/charts"
