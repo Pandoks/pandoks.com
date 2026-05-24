@@ -33,15 +33,15 @@ networking via the headless service.
 
 ## Key abstractions (`internal/valkey/`)
 
-| File         | Role                                                                                                                                                   |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `topology.go`| `Topology` struct with `Masters`, `Slaves`, `OrderedNodes` (by StatefulSet index), `OrderedShards` (by lowest node index). `IsHealthy()` at `:79-118`. |
-| `nodes.go`   | `ClusterNode` parses `CLUSTER NODES` output. `Index()` extracts the StatefulSet ordinal from `valkey-{cluster}-{N}`; returns `-1` on parse failure.    |
-| `cli.go`     | Wrappers around `valkey-cli --cluster` subcommands (rebalance, add-node, del-node, create). Options structs validate auth up front.                    |
-| `client.go`  | Thin `ValkeyClient` over valkey-go. **Embeds `valkeygo.Client` anonymously** (`client.go:7-10`), so every method on the underlying client (`Do`, `Receive`, etc.) is callable directly on `*ValkeyClient`. The embedded field is also accessible as `.Client` when a helper needs the raw `valkeygo.Client` (e.g., `GetClusterInfo(client.Client)`). `Refresh()` swaps the underlying client without mutating the original options struct (`client.go:25-26`). |
-| `info.go`    | Semaphore-bounded (10) parallel polling helpers — `WaitFor*ClusterNodeContains` ensure cluster-wide bus convergence before continuing.                 |
-| `shard.go`   | `PromoteOriginalShardLeader()` issues `CLUSTER FAILOVER`, polls `INFO replication` until both old + new leader agree (`shard.go:19-95`).               |
-| `print.go`   | Pretty-print helpers for status output.                                                                                                                |
+| File          | Role                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `topology.go` | `Topology` struct with `Masters`, `Slaves`, `OrderedNodes` (by StatefulSet index), `OrderedShards` (by lowest node index). `IsHealthy()` at `:79-118`.                                                                                                                                                                                                                                                                                                         |
+| `nodes.go`    | `ClusterNode` parses `CLUSTER NODES` output. `Index()` extracts the StatefulSet ordinal from `valkey-{cluster}-{N}`; returns `-1` on parse failure.                                                                                                                                                                                                                                                                                                            |
+| `cli.go`      | Wrappers around `valkey-cli --cluster` subcommands (rebalance, add-node, del-node, create). Options structs validate auth up front.                                                                                                                                                                                                                                                                                                                            |
+| `client.go`   | Thin `ValkeyClient` over valkey-go. **Embeds `valkeygo.Client` anonymously** (`client.go:7-10`), so every method on the underlying client (`Do`, `Receive`, etc.) is callable directly on `*ValkeyClient`. The embedded field is also accessible as `.Client` when a helper needs the raw `valkeygo.Client` (e.g., `GetClusterInfo(client.Client)`). `Refresh()` swaps the underlying client without mutating the original options struct (`client.go:25-26`). |
+| `info.go`     | Semaphore-bounded (10) parallel polling helpers — `WaitFor*ClusterNodeContains` ensure cluster-wide bus convergence before continuing.                                                                                                                                                                                                                                                                                                                         |
+| `shard.go`    | `PromoteOriginalShardLeader()` issues `CLUSTER FAILOVER`, polls `INFO replication` until both old + new leader agree (`shard.go:19-95`).                                                                                                                                                                                                                                                                                                                       |
+| `print.go`    | Pretty-print helpers for status output.                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ## Env loading (`internal/utils/`)
 
@@ -58,15 +58,15 @@ In production these come from the Helm chart's `values.yaml` injected
 into the hook Job's container env (see "Helm-hook wiring" below).
 `kubernetes.go:15-55` exposes:
 
-| Helper                                           | What                                                        |
-| ------------------------------------------------ | ----------------------------------------------------------- |
-| `GetClusterServiceFQDN(name, ns)`                | Headed cluster service FQDN.                                |
-| `GetHeadlessServiceFQDN(name, ns)`               | Headless service FQDN — used as seed for cluster discovery. |
-| `GetPodHeadlessServiceFQDN(name, ns, index)`     | Per-pod FQDN, used to address pod N directly.               |
-| `GetStatefulsetName(name)`                       | StatefulSet name — `valkey-{name}`.                         |
-| `GetStatefulsetPodName(name, index)`             | Pod name at index — `valkey-{name}-{index}`.                |
-| `GetAllServicePods(serviceFQDN)`                 | Uses `net.LookupSRV()` for DNS-based discovery.             |
-| `WaitForStatefulSetReady(ctx, ns, name, count)`  | Polls in-cluster API until ready.                           |
+| Helper                                          | What                                                        |
+| ----------------------------------------------- | ----------------------------------------------------------- |
+| `GetClusterServiceFQDN(name, ns)`               | Headed cluster service FQDN.                                |
+| `GetHeadlessServiceFQDN(name, ns)`              | Headless service FQDN — used as seed for cluster discovery. |
+| `GetPodHeadlessServiceFQDN(name, ns, index)`    | Per-pod FQDN, used to address pod N directly.               |
+| `GetStatefulsetName(name)`                      | StatefulSet name — `valkey-{name}`.                         |
+| `GetStatefulsetPodName(name, index)`            | Pod name at index — `valkey-{name}-{index}`.                |
+| `GetAllServicePods(serviceFQDN)`                | Uses `net.LookupSRV()` for DNS-based discovery.             |
+| `WaitForStatefulSetReady(ctx, ns, name, count)` | Polls in-cluster API until ready.                           |
 
 ## Helm-hook wiring (`packages/valkey/chart/templates/hooks.yaml`)
 
@@ -74,11 +74,11 @@ Subcommands are invoked by Helm hooks, one Job per subcommand. The
 pattern at `packages/valkey/chart/templates/hooks.yaml:1-52` (`init`
 hook) is the template — every subcommand needs its own Job block:
 
-| Subcommand   | Helm hook annotation          | Cited in `hooks.yaml`                              |
-| ------------ | ----------------------------- | -------------------------------------------------- |
-| `init`       | `"helm.sh/hook": post-install`| `:7`                                               |
-| `scale-up`   | `"helm.sh/hook": post-upgrade`| `:60`                                              |
-| `scale-down` | `"helm.sh/hook": pre-upgrade` | `:113`                                             |
+| Subcommand   | Helm hook annotation           | Cited in `hooks.yaml` |
+| ------------ | ------------------------------ | --------------------- |
+| `init`       | `"helm.sh/hook": post-install` | `:7`                  |
+| `scale-up`   | `"helm.sh/hook": post-upgrade` | `:60`                 |
+| `scale-down` | `"helm.sh/hook": pre-upgrade`  | `:113`                |
 
 Shape: each Job sets `args: [<subcommand>]` and injects the 5 required
 env vars (`CLUSTER_NAME`, `NAMESPACE`, `MASTERS`, `REPLICAS_PER_MASTER`,
@@ -120,7 +120,7 @@ the `scale-up` shape and swapping `args:` + the hook annotation.
 
 ## When to use `WaitForStatefulSetReady`
 
-Every existing command calls it first because they all *mutate* cluster
+Every existing command calls it first because they all _mutate_ cluster
 topology and need a steady starting state. **Read-only commands
 should NOT block on full readiness** — they should report whatever they
 see. If you add a read-only subcommand (status, inspect, diag), skip
@@ -131,11 +131,11 @@ producing output.
 
 ## Exit-code semantics
 
-| Code | Meaning                                       | Cited in main.go              |
-| ---- | --------------------------------------------- | ----------------------------- |
-| `0`  | Success — implicit.                           | (no explicit `os.Exit(0)`)    |
-| `1`  | Runtime failure — any `err != nil` from env load or command execution. | `main.go:21, 28, 34, 40` |
-| `2`  | Misuse — no args, unknown subcommand.         | `main.go:13, 46`              |
+| Code | Meaning                                                                | Cited in main.go           |
+| ---- | ---------------------------------------------------------------------- | -------------------------- |
+| `0`  | Success — implicit.                                                    | (no explicit `os.Exit(0)`) |
+| `1`  | Runtime failure — any `err != nil` from env load or command execution. | `main.go:21, 28, 34, 40`   |
+| `2`  | Misuse — no args, unknown subcommand.                                  | `main.go:13, 46`           |
 
 There is no separate "operation succeeded but observed state is
 unhealthy" code. A read-only subcommand that reports an unhealthy
@@ -151,7 +151,7 @@ Sentinels that span multiple subcommands go in a new file
 `internal/commands/errors.go` (none exist yet — the first one creates
 it). `main.go` should NOT branch on specific sentinels; it remains a
 flat switch with one `error != nil → exit 1` arm per case. Sentinels
-are for *internal* differentiation (logging detail, callers in
+are for _internal_ differentiation (logging detail, callers in
 `internal/valkey/`), not for shaping the exit-code surface.
 
 ## Load-bearing comments — don't remove
@@ -175,7 +175,7 @@ preserve or update the comment too.
   `Index()`; do not blindly slice.
 - `internal/valkey/cli.go:135` — `AddNode` does NOT add replicas
   directly — a CLI race condition forces empty-master + `CLUSTER
-  REPLICATE` instead.
+REPLICATE` instead.
 - `internal/valkey/client.go:25-26` — `Refresh()` must NOT mutate
   original options; the caller relies on being able to fall back.
 
@@ -192,7 +192,7 @@ preserve or update the comment too.
    bounded by 10 goroutines. For >10 nodes the polls serialize and may
    approach the 5-minute timeout.
 4. **`Rebalance()` trusts exit code.** If `valkey-cli --cluster
-   rebalance` partially succeeds but leaves the cluster inconsistent,
+rebalance` partially succeeds but leaves the cluster inconsistent,
    the error bubbles up but slot ownership is already wrong. There is
    no post-rebalance validation step.
 5. **No retry on auth failure.** Wrong/rotated password produces

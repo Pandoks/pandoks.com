@@ -58,12 +58,12 @@ phases. Applying overlay first = silent CRD-missing failures.
 
 ## Per-environment specifics
 
-| Env       | MetalLB pool                       | etcd IPs                | Tailscale operator | ArgoCD App-of-Apps |
-| --------- | ---------------------------------- | ----------------------- | ------------------ | ------------------ |
-| `local`   | `172.30.100.1-172.30.100.200` (`k3s/overlays/local/dev-patch.yaml:1-8`) | `172.30.0.4-6` (k3d) | ❌                 | ❌                 |
-| `dev`     | (no inbound; cluster-overlay only) | (cluster overlay)       | ✅ (via cluster/)  | ❌                 |
-| `prod`    | `10.0.1.100-10.0.1.200` (`k3s/base/core/metallb.yaml:1-9`)              | Hetzner CP IPs (`10.0.1.10+`) | ✅            | ✅ (`overlays/prod/argocd.yaml:47-69`) |
-| `cluster` | (intermediate overlay — not deployed directly; `dev`/`prod` include it) |                         |                    |                    |
+| Env       | MetalLB pool                                                            | etcd IPs                      | Tailscale operator | ArgoCD App-of-Apps                     |
+| --------- | ----------------------------------------------------------------------- | ----------------------------- | ------------------ | -------------------------------------- |
+| `local`   | `172.30.100.1-172.30.100.200` (`k3s/overlays/local/dev-patch.yaml:1-8`) | `172.30.0.4-6` (k3d)          | ❌                 | ❌                                     |
+| `dev`     | (no inbound; cluster-overlay only)                                      | (cluster overlay)             | ✅ (via cluster/)  | ❌                                     |
+| `prod`    | `10.0.1.100-10.0.1.200` (`k3s/base/core/metallb.yaml:1-9`)              | Hetzner CP IPs (`10.0.1.10+`) | ✅                 | ✅ (`overlays/prod/argocd.yaml:47-69`) |
+| `cluster` | (intermediate overlay — not deployed directly; `dev`/`prod` include it) |                               |                    |                                        |
 
 The `overlays/cluster/` overlay is the shared parent for `dev` and
 `prod` — it carries the Tailscale operator HelmChart, the
@@ -76,13 +76,13 @@ All helm charts are pulled from upstream OCI/HTTPS repos at deploy
 time, **not vendored**. Pinned versions are in
 `k3s/bootstrap/core/*.yaml` and `k3s/overlays/cluster/tailscale.yaml`:
 
-| Chart                  | Version  | Source                                                                |
-| ---------------------- | -------- | --------------------------------------------------------------------- |
-| MetalLB                | 0.15.3   | `https://metallb.github.io/metallb`                                   |
-| cert-manager           | 1.19.2   | `https://charts.jetstack.io`                                          |
-| HAProxy-Ingress        | 0.15.1   | `https://haproxy-ingress.github.io/charts`                            |
-| kube-prometheus-stack  | 80.14.4  | `https://prometheus-community.github.io/helm-charts`                  |
-| tailscale-operator     | 1.92.5   | `https://pkgs.tailscale.com/helmcharts`                               |
+| Chart                 | Version | Source                                               |
+| --------------------- | ------- | ---------------------------------------------------- |
+| MetalLB               | 0.15.3  | `https://metallb.github.io/metallb`                  |
+| cert-manager          | 1.19.2  | `https://charts.jetstack.io`                         |
+| HAProxy-Ingress       | 0.15.1  | `https://haproxy-ingress.github.io/charts`           |
+| kube-prometheus-stack | 80.14.4 | `https://prometheus-community.github.io/helm-charts` |
+| tailscale-operator    | 1.92.5  | `https://pkgs.tailscale.com/helmcharts`              |
 
 App charts (postgres, valkey, clickhouse) are published as OCI images
 under `oci://ghcr.io/pandoks/charts/<name>` by `build-and-publish.yaml`
@@ -144,14 +144,14 @@ itself CI-excluded per `universal.md`, but its manifests still ship to
 clusters via `k3s/base/apps/kustomization.yaml`). What's load-bearing
 vs. example-noise:
 
-| Pattern in `apps/example` | Load-bearing? |
-| ------------------------- | ------------- |
-| Per-app `kustomization.yaml` resources list | ✅ |
-| Three-section `Ingress` shape (HTTPS host + `localhost` fallback) with `cloudflare-origin-tls` | ✅ |
-| `ingressClassName: haproxy` | ✅ |
-| `dev-patch.yaml` overriding the hostname for the dev env | ✅ (when the app needs a `*.dev.pandoks.com` subdomain) |
-| Specific busybox/postgres/valkey/clickhouse sidecars in `example.yaml` | ❌ — domain-specific to the example app |
-| Multi-Ingress fragmentation (HAProxy auto-merges) | ❌ — only when an app needs distinct annotations per path |
+| Pattern in `apps/example`                                                                      | Load-bearing?                                             |
+| ---------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Per-app `kustomization.yaml` resources list                                                    | ✅                                                        |
+| Three-section `Ingress` shape (HTTPS host + `localhost` fallback) with `cloudflare-origin-tls` | ✅                                                        |
+| `ingressClassName: haproxy`                                                                    | ✅                                                        |
+| `dev-patch.yaml` overriding the hostname for the dev env                                       | ✅ (when the app needs a `*.dev.pandoks.com` subdomain)   |
+| Specific busybox/postgres/valkey/clickhouse sidecars in `example.yaml`                         | ❌ — domain-specific to the example app                   |
+| Multi-Ingress fragmentation (HAProxy auto-merges)                                              | ❌ — only when an app needs distinct annotations per path |
 
 ### Step-by-step
 
@@ -185,7 +185,7 @@ vs. example-noise:
      must present a cert).
 6. **App-specific SA only if the app needs operator-style RBAC** (like
    `k3s/base/core/postgres.yaml:55` — `# NOTE: you need one service
-   account per namespace`). Most apps don't — the `default` SA from
+account per namespace`). Most apps don't — the `default` SA from
    step 5 is enough.
 7. **SST secrets**: declare `new sst.Secret('<Name>')` in
    `infra/secrets.ts` under the appropriate flat namespace
@@ -216,18 +216,18 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: <app>
-  namespace: monitoring          # ServiceMonitors live in monitoring/
+  namespace: monitoring # ServiceMonitors live in monitoring/
   labels:
     app: <app>
 spec:
   namespaceSelector:
     matchNames:
-      - <app>                    # the app's own namespace
+      - <app> # the app's own namespace
   selector:
     matchLabels:
-      app: <app>                 # must match the Service's labels
+      app: <app> # must match the Service's labels
   endpoints:
-    - port: metrics              # must match the named port on the Service
+    - port: metrics # must match the named port on the Service
       path: /metrics
       interval: 30s
       scheme: http
@@ -260,7 +260,7 @@ When adding a new cluster app you must add explicit DNS:
   (`infra/vps/vps.ts:9, 11`), so no prod LB exists to point a record
   at. When prod cluster nodes are first brought up, the prod DNS pattern
   has to be defined — likely a sibling `if (publicLoadBalancers.length
-  && isProduction)` block in `infra/cloudflare.ts` with the same
+&& isProduction)` block in `infra/cloudflare.ts` with the same
   per-app record shape but without the dev hostname. Flag this to the
   user when adding the first prod cluster app; do not invent the
   pattern silently.
@@ -400,7 +400,7 @@ than bumping by hand to keep the audit trail.
 
 1. **`k3s/base/apps/kustomization.yaml` cross-traverses** to
    `apps/<name>/kube` — must apply with `--load-restrictor
-   LoadRestrictionsNone`. The CLI does this; raw `kubectl apply -k`
+LoadRestrictionsNone`. The CLI does this; raw `kubectl apply -k`
    will fail with `security; file is not in or below`.
 2. **k3d API port is 6444**, not 6443 — avoids SSH-tunnel conflict
    with remote prod (`scripts/cluster/k3d.sh:37`).

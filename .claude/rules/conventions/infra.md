@@ -91,7 +91,7 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
 
 - Use `sst.aws.CronV2` for time-based triggers (not the deprecated
   `sst.aws.Cron`). Schedule strings are AWS EventBridge format: `rate(5
-  minutes)` for fixed intervals, `cron(M H D-of-M M D-of-W Y)` (with `?`
+minutes)` for fixed intervals, `cron(M H D-of-M M D-of-W Y)` (with `?`
   for one of the two day slots) for calendar time, all in UTC.
 - For a stage-gated cron, wrap the **entire `sst.aws.CronV2`** in the
   `if (isProduction) { ... }` or `if ($app.stage === 'pandoks') { ... }`
@@ -106,7 +106,7 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
 ## Cross-file SST resource sharing
 
 - **Define each SST resource exactly once.** `new sst.Linkable('Notion',
-  …)` at `infra/api.ts:9-11` is the single declaration of the `Notion`
+…)` at `infra/api.ts:9-11` is the single declaration of the `Notion`
   Linkable. To use it from another infra file, `export` it from
   `api.ts` and `import` it — do NOT re-instantiate (collides on the
   resource ID).
@@ -118,5 +118,5 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
 
 - **`sst.config.ts:22-34` MUST keep the literal `await Promise.all([import('./infra/...')])`
   list**. Dynamic-string imports break SST. The `// NOTE: for some
-  reason, dynamic imports don't work well so just manually import`
+reason, dynamic imports don't work well so just manually import`
   comment at `:22` is load-bearing.

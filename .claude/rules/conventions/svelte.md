@@ -21,7 +21,7 @@ Svelte 5 runes are mandatory. No Svelte 4 store/slot patterns in new code.
   component pass-through.
 - **Explicit `Snippet` annotation for `children`** instead of letting it
   infer to `unknown` (`+layout.svelte:9, 11`).
-- **`bind:this={ref}`** pairs with `ref = $bindable(null)` *inside* a
+- **`bind:this={ref}`** pairs with `ref = $bindable(null)` _inside_ a
   component's own implementation. Consumers of shadcn components use
   **`bind:ref={ref}`** — the components re-expose their internal `ref`
   prop as `$bindable(null)`
@@ -84,14 +84,14 @@ every page reads it with `getVimState()`.
   should not register a nav handler.
 - **Body handler** is per-page. Use the fluent setters:
   `getVimState().setBodyHandler((e) => { ... })
-   .setInitBodyState(() => { ... })
-   .setResetBodyState(() => { ... })`.
+ .setInitBodyState(() => { ... })
+ .setResetBodyState(() => { ... })`.
   Canonical example: `apps/web/src/routes/socials/+page.svelte`.
 - **Reserved keys** owned by the master listener (`vim.svelte.ts:69-105`)
   — DO NOT consume in your handler:
   - `y` — copies `window.location.href`.
   - `Escape` — sets `active = 'none'`.
-  - `j` / `k` — used to switch *between* nav and body modes.
+  - `j` / `k` — used to switch _between_ nav and body modes.
 - **`bodyTop` / `bodyBottom` are the load-bearing contract** for letting
   your page's `j`/`k` work as in-body movement instead of triggering
   mode-switch.
@@ -102,7 +102,7 @@ every page reads it with `getVimState()`.
   - To use `j`/`k` for in-page cursor movement, your body handler must
     mutate `vimState.bodyTop = false` / `bodyBottom = false` as soon as
     the cursor leaves the edges, and restore them when it returns. The
-    master listener checks these flags *before* dispatching to your
+    master listener checks these flags _before_ dispatching to your
     handler (`vim.svelte.ts:80, 92` — `if (!this.bodyBottom) return;`
     is the load-bearing line that lets the body handler get the event).
   - **Canonical invariant after any cursor move:**
@@ -118,7 +118,7 @@ every page reads it with `getVimState()`.
 **The vim system is currently incompatible with pages containing
 focusable inputs** (`<input>`, `<textarea>`, `contenteditable`). The
 master listener at `apps/web/src/lib/vim.svelte.ts:37` is bound to
-`keypress` on `document`. `keypress` fires *after* the character has
+`keypress` on `document`. `keypress` fires _after_ the character has
 been committed to the focused element, so navigation keys like
 `j`/`k`/`h`/`l` would both type the literal character into the input
 AND fire the body handler — visible double-effect. There is no
@@ -154,10 +154,11 @@ server-to-server from Notion). When adding one, the handler must:
 This is uncharted territory in this repo — when you ship the first
 browser-facing endpoint, document the chosen CORS shape here so future
 handlers copy it instead of reinventing.
+
 - **`vimState.active`** is `$state`-tracked (`vim.svelte.ts:32`) — read
   it in class bindings to highlight the active row (e.g.,
   `${activeIndex === i && vimState.active === 'body' ? 'bg-highlight' :
-  ''}`, mirroring `+layout.svelte:87`).
+''}`, mirroring `+layout.svelte:87`).
 
 ## Installed shadcn components
 

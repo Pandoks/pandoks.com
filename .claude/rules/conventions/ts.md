@@ -128,7 +128,7 @@ exported handler at `:25-end`).
 - **Inline `for…of` over array helpers** when the loop has side effects
   spanning multiple AWS calls
   (`apps/functions/src/api/notion/text-reminder.ts:88-89, 117-118, 145-148,
-  151-153, 157-158`). The code keeps the explicit imperative form
+151-153, 157-158`). The code keeps the explicit imperative form
   rather than chained `.map`/`.forEach`.
 
 ## Lambda-handler specifics
@@ -178,7 +178,7 @@ No live in-repo example yet. When you need it:
   `sst.Linkable` so they don't fit `link:`.
 - Match the payload shape to the target handler's expected event
   type. `sendTextHandler` accepts `{ phoneNumber: string; message:
-  string }` directly (`apps/functions/src/text.ts:6`).
+string }` directly (`apps/functions/src/text.ts:6`).
 
 ## Comments
 

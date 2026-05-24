@@ -105,15 +105,15 @@ unsafe quoting) is enforced by the language-specific dispatchers under
 `scripts/lint/`, `scripts/format/`, and `scripts/fix/`. Don't reason about
 those rules — run the tools.
 
-| Command                    | What it does                                                                              |
-| -------------------------- | ----------------------------------------------------------------------------------------- |
-| `pnpm lint`                | Help (lists subcommands). Run nothing.                                                    |
-| `pnpm lint <lang>`         | One of: `js`, `go`, `helm`, `docker`, `shell`, `actions`, `all`.                          |
-| `pnpm format <lang>`       | Writes: Prettier / golangci-lint fmt / shfmt -w. Subcommands: `js`, `go`, `shell`, `all`. |
-| `pnpm format check <lang>` | Same as above but check-only (no writes).                                                 |
-| `pnpm fix <lang>`          | Auto-fixers: `eslint . --fix` (js) / `golangci-lint run --fix` (go).                      |
+| Command                    | What it does                                                                                                      |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `pnpm lint`                | Help (lists subcommands). Run nothing.                                                                            |
+| `pnpm lint <lang>`         | One of: `js`, `go`, `helm`, `docker`, `shell`, `actions`, `all`.                                                  |
+| `pnpm format <lang>`       | Writes: Prettier / golangci-lint fmt / shfmt -w. Subcommands: `js`, `go`, `shell`, `all`.                         |
+| `pnpm format check <lang>` | Same as above but check-only (no writes).                                                                         |
+| `pnpm fix <lang>`          | Auto-fixers: `eslint . --fix` (js) / `golangci-lint run --fix` (go).                                              |
 | `pnpm check`               | `pnpm -r --if-present check && pnpm check:infra` — workspace svelte-check / tsc + root `tsc -p .` for `infra/**`. |
-| `pnpm check:infra`         | `tsc -p .` only — typecheck SST infra (`package.json:23`).                                |
+| `pnpm check:infra`         | `tsc -p .` only — typecheck SST infra (`package.json:23`).                                                        |
 
 Prettier config (`.prettierrc`): `singleQuote: true`,
 `trailingComma: 'none'`, `printWidth: 100`, `useTabs: false`, plugins

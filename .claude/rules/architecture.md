@@ -13,7 +13,7 @@ scaffolding — the apartment-scraper experiment lived here until it was
 removed. Future sandbox modules should be imported from `sst.config.ts`
 the same way `infra/sandbox/apartment-search.ts` used to be (literal
 `import('./infra/sandbox/<name>')` in the `Promise.all` at `:23-34`),
-with stage gating *inside* the sandbox file rather than at the import
+with stage gating _inside_ the sandbox file rather than at the import
 site.
 
 ## Layering
@@ -47,20 +47,20 @@ k3s/
 `await Promise.all([import('./infra/...')])` (dynamic imports break SST,
 see `sst.config.ts:22`).
 
-| Module                | Provisions                                                                                                                              |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `infra/dns.ts`        | CF zone lookup, exports `domain`, `STAGE_NAME`, `isProduction` (`:3-9`). Auto-sets `Stage`/`AwsRegion` secrets via `setSecret()`.       |
-| `infra/secrets.ts`    | All `sst.Secret`s in a nested namespace (`:3-79`). Flat PascalCase resource names. `setSecret()` at `:81`.                              |
-| `infra/api.ts`        | `apiRouter` (`:13`), `textFunction` aka `TextSms` (`:20`), `scheduleTextGroup` (`:45`), `NotionWebhookHandler` (`:61`).                 |
-| `infra/website.ts`    | `PersonalWebsite` Cloudflare Pages project (`:14`), prod-only block `:13-end`. `DevWebsite` SST DevCommand at `:4-11`.                  |
-| `infra/storage.ts`    | `BackupBucket` on Cloudflare R2.                                                                                                        |
-| `infra/cloudflare.ts` | Origin TLS cert for Hetzner (15-year validity, `:74-82`). LB DNS records (dev only, `:16-37`).                                          |
-| `infra/github.ts`     | OIDC AWS role (`:59`), prod-only action secrets, Tailscale CI OAuth (`:110`).                                                           |
-| `infra/tailscale.ts`  | Tailnet ACL — overwrites globally (`:14`), k8s operator OAuth (`:54`).                                                                  |
-| `infra/kubernetes.ts` | ArgoCD CMP IAM user (prod-only, `:4-50`).                                                                                               |
-| `infra/vps/vps.ts`    | Hetzner network, firewall, k3s nodes — counts currently 0 (`:9, 11`); tail (`:131-164`) reclaims orphaned Tailnet entries when sum==0.  |
-| `infra/dev.ts`        | `sst.x.DevCommand` shortcuts for `dev:init`, `dev:destroy`, k3d restart.                                                                |
-| `infra/sandbox/`      | Empty (`.gitkeep`). Re-add per-experiment modules here and import them explicitly in `sst.config.ts`.                                   |
+| Module                | Provisions                                                                                                                             |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `infra/dns.ts`        | CF zone lookup, exports `domain`, `STAGE_NAME`, `isProduction` (`:3-9`). Auto-sets `Stage`/`AwsRegion` secrets via `setSecret()`.      |
+| `infra/secrets.ts`    | All `sst.Secret`s in a nested namespace (`:3-79`). Flat PascalCase resource names. `setSecret()` at `:81`.                             |
+| `infra/api.ts`        | `apiRouter` (`:13`), `textFunction` aka `TextSms` (`:20`), `scheduleTextGroup` (`:45`), `NotionWebhookHandler` (`:61`).                |
+| `infra/website.ts`    | `PersonalWebsite` Cloudflare Pages project (`:14`), prod-only block `:13-end`. `DevWebsite` SST DevCommand at `:4-11`.                 |
+| `infra/storage.ts`    | `BackupBucket` on Cloudflare R2.                                                                                                       |
+| `infra/cloudflare.ts` | Origin TLS cert for Hetzner (15-year validity, `:74-82`). LB DNS records (dev only, `:16-37`).                                         |
+| `infra/github.ts`     | OIDC AWS role (`:59`), prod-only action secrets, Tailscale CI OAuth (`:110`).                                                          |
+| `infra/tailscale.ts`  | Tailnet ACL — overwrites globally (`:14`), k8s operator OAuth (`:54`).                                                                 |
+| `infra/kubernetes.ts` | ArgoCD CMP IAM user (prod-only, `:4-50`).                                                                                              |
+| `infra/vps/vps.ts`    | Hetzner network, firewall, k3s nodes — counts currently 0 (`:9, 11`); tail (`:131-164`) reclaims orphaned Tailnet entries when sum==0. |
+| `infra/dev.ts`        | `sst.x.DevCommand` shortcuts for `dev:init`, `dev:destroy`, k3d restart.                                                               |
+| `infra/sandbox/`      | Empty (`.gitkeep`). Re-add per-experiment modules here and import them explicitly in `sst.config.ts`.                                  |
 
 ## Data flows (one-liners)
 
@@ -84,13 +84,13 @@ For full per-flow traces, see `.claude/rules/gotchas/*.md`.
 
 ## State storage
 
-| Where                                             | What                                                                                                  |
-| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Cloudflare R2 `BackupBucket`                      | Patroni WAL + ClickHouse backups                                                                      |
-| AWS SSM `/tmp/notion-verification-token`          | Transient Notion bootstrap, manually promoted                                                         |
-| EventBridge Scheduler `text-scheduler[-dev]`      | Per-phone SMS reminder schedules (`infra/api.ts:45-47`)                                               |
-| Notion blog DB `20f1bb259e4b804ba24be1ceebf4c761` | Blog source of truth (`infra/api.ts:9-11`, the `Notion` Linkable)                                     |
-| SST secrets                                       | All credentials in a nested namespace (`infra/secrets.ts`); `sst-env.d.ts` is the typed manifest      |
+| Where                                             | What                                                                                             |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Cloudflare R2 `BackupBucket`                      | Patroni WAL + ClickHouse backups                                                                 |
+| AWS SSM `/tmp/notion-verification-token`          | Transient Notion bootstrap, manually promoted                                                    |
+| EventBridge Scheduler `text-scheduler[-dev]`      | Per-phone SMS reminder schedules (`infra/api.ts:45-47`)                                          |
+| Notion blog DB `20f1bb259e4b804ba24be1ceebf4c761` | Blog source of truth (`infra/api.ts:9-11`, the `Notion` Linkable)                                |
+| SST secrets                                       | All credentials in a nested namespace (`infra/secrets.ts`); `sst-env.d.ts` is the typed manifest |
 
 ## Cluster overview
 

@@ -52,7 +52,7 @@ paths:
 
 - **`k3s/base/core/postgres.yaml:55`**: `# NOTE: you need one service
 account per namespace` — when adding new app namespaces, mirror the SA
-setup.
+  setup.
 
 ## Charts / builds
 

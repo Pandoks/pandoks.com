@@ -55,7 +55,7 @@ paths:
   alert, not tied to a Notion user) — link the secret on
   `NotionWebhookHandler` (or whichever Lambda computes the message),
   read it via `Resource.<Name>.value` there, and pass `{ phoneNumber,
-  message }` to `TextSms` via the existing invoke shape
+message }` to `TextSms` via the existing invoke shape
   (`text.ts:6` accepts `{ phoneNumber, message }` directly). Don't
   pollute `PHONE_NUMBER_MAPPINGS` with non-user recipients.
 
@@ -76,7 +76,7 @@ Notion retries non-200 webhooks; every handler in
    workflow each time.
 
 **One-shot side effects with no natural idempotency key** (sending an
-SMS, posting to a webhook, charging a card) need an *explicit* dedup
+SMS, posting to a webhook, charging a card) need an _explicit_ dedup
 record — e.g., a small DynamoDB table keyed on `body.id` with a TTL.
 This repo doesn't yet have one. If you're adding such a handler, either
 (a) introduce the dedup table as part of the same PR and document it
@@ -90,6 +90,6 @@ they do.
   experiment lived here until it was removed. If you add a new sandbox
   Lambda, mirror the prior layout (`<feature>/handler.ts`,
   `<feature>/types.d.ts`) and add the resource in
-  `infra/sandbox/<feature>.ts`, gated *inside* the file with
+  `infra/sandbox/<feature>.ts`, gated _inside_ the file with
   `if ($app.stage === 'pandoks')` so the import in `sst.config.ts` can
   stay unconditional.
