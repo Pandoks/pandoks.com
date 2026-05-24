@@ -263,6 +263,7 @@ jobs:
           helm push "${{ matrix.chart.name }}"-*.tgz "oci://ghcr.io/${OWNER,,}/charts"
 
   check:
+    name: Build and Publish
     needs:
       - build-publish-images
       - build-publish-charts
