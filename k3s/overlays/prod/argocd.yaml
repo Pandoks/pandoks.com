@@ -7,13 +7,14 @@ metadata:
 spec:
   template:
     spec:
+      securityContext:
+        runAsUser: 999
       containers:
         - name: kustomize-sst-render
           image: ghcr.io/pandoks/argocd-sst-plugin:main
           command: [/var/run/argocd/argocd-cmp-server]
           securityContext:
-            runAsNonRoot: true
-            runAsUser: 999
+            readOnlyRootFilesystem: true
           env:
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
