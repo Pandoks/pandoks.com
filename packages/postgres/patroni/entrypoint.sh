@@ -27,7 +27,7 @@ for v in \
 done
 
 envsubst < /tmp/conf_templates/patroni.yaml > /etc/patroni/patroni.yaml
-envsubst < /tmp/conf_templates/pgbackrest.conf > /etc/pgbackrest.conf
+envsubst < /tmp/conf_templates/pgbackrest.conf > /etc/pgbackrest/pgbackrest.conf
 
 # NOTE: needed here because the volume is mounted after the container is created.
 # otherwise you can just do it in the Dockerfile

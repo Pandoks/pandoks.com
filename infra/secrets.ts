@@ -4,7 +4,7 @@ export const secrets = {
   Stage: new sst.Secret('StageName', 'dev'), // Automatically set during deploy
   notion: {
     ApiKey: new sst.Secret('NotionApiKey'),
-    AuthToken: new sst.Secret('NotionAuthToken')
+    WebhookVerificationToken: new sst.Secret('NotionWebhookVerificationToken')
   },
   aws: {
     Region: new sst.Secret('AwsRegion', 'us-west-1')
@@ -16,7 +16,7 @@ export const secrets = {
   },
   github: {
     PersonalAccessToken: new sst.Secret('GithubPersonalAccessToken'),
-    BlogDeployAuth: new sst.Secret('BlogDeployAuth')
+    PackageManagementToken: new sst.Secret('GithubPackageManagementToken')
   },
   personal: {
     KwokPhoneNumber: new sst.Secret('KwokPhoneNumber'),
@@ -27,6 +27,12 @@ export const secrets = {
     AccountSid: new sst.Secret('TwilioAccountSid'),
     AuthToken: new sst.Secret('TwilioAuthToken'),
     NotionMessagingServiceSid: new sst.Secret('TwilioNotionMessagingServiceSid')
+  },
+  oxylabs: {
+    webunblocker: {
+      Username: new sst.Secret('OxylabsWebUnblockerUsername'),
+      Password: new sst.Secret('OxylabsWebUnblockerPassword')
+    }
   },
   hetzner: {
     ApiKey: new sst.Secret('HetznerApiKey'),

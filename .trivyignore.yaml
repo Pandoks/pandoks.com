@@ -1,0 +1,43 @@
+vulnerabilities:
+  # Go DoS CVEs in kubectl (argocd image). Fixed in Go 1.26.3; k8s release-1.36 still builds on 1.26.2.
+  # Unreachable: kubectl only talks to the cluster API. Drop once a Go-1.26.3+ kubectl lands; expired_at forces re-review otherwise.
+  - id: CVE-2026-33811
+    paths:
+      - usr/local/bin/kubectl
+    statement: LookupCNAME cgo-DNS DoS not exercised
+    expired_at: 2026-08-12
+  - id: CVE-2026-33814
+    paths:
+      - usr/local/bin/kubectl
+    statement: HTTP/2 SETTINGS-frame DoS needs a malicious server; kubectl talks only to in-cluster API
+    expired_at: 2026-08-12
+  - id: CVE-2026-39820
+    paths:
+      - usr/local/bin/kubectl
+    statement: net/mail ParseAddress DoS not used by kubectl
+    expired_at: 2026-08-12
+  - id: CVE-2026-39836
+    paths:
+      - usr/local/bin/kubectl
+    statement: net.Dial/LookupPort NUL-byte panic needs an attacker-controlled host; kubectl reads kubeconfig only
+    expired_at: 2026-08-12
+  - id: CVE-2026-42499
+    paths:
+      - usr/local/bin/kubectl
+    statement: net/mail consumePhrase DoS not exercised by kubectl
+    expired_at: 2026-08-12
+
+misconfigurations:
+  # KSV-0109 false positive: flags `password:`/`secret:`-named keys in these ConfigMaps, but the
+  # values are envsubst placeholders or nulls — real secrets come from a Secret via secretKeyRef.
+  - id: AVD-KSV-0109
+    paths:
+      - templates/clickhouse.yaml
+      - templates/patroni.yaml
+    statement: ConfigMap holds envsubst placeholders, not real secrets
+  # KSV-0056: Patroni needs write access to endpoints & services for endpoint-DCS leader election (matches upstream patroni/patroni example RBAC).
+  # The patroni ServiceAccount is already trusted for HA state.
+  - id: AVD-KSV-0056
+    paths:
+      - base/core/postgres.yaml
+    statement: Patroni endpoint-DCS leader election requires endpoints write

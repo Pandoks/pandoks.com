@@ -2,10 +2,8 @@ import { awsRegion, cloudflareAccountId, isProduction, STAGE_NAME } from './dns'
 import { secrets } from './secrets';
 import { tailscaleAcl } from './tailscale';
 
-export const githubRepo = await github.getRepository({
-  fullName: 'Pandoks/pandoks.com'
-});
-const githubRepoName = githubRepo.name;
+export const githubOrg = 'Pandoks';
+export const githubRepoName = 'pandoks.com';
 
 const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
   repository: githubRepoName,
@@ -19,11 +17,31 @@ new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
   plaintextValue: secrets.hetzner.ApiKey.value
 });
 
-if ($app.stage === 'production') {
+if (isProduction) {
+  new github.BranchProtection('GithubMainBranchProtection', {
+    repositoryId: githubRepoName,
+    pattern: 'main',
+    requiredStatusChecks: [
+      {
+        strict: false,
+        contexts: ['Checks', 'Security', 'Tests', 'Build and Publish']
+      }
+    ],
+    allowsDeletions: false,
+    allowsForcePushes: false,
+    enforceAdmins: false
+  });
+
   new github.ActionsSecret('GithubGithubAccessToken', {
     repository: githubRepoName,
     secretName: 'GH_TOKEN',
     plaintextValue: secrets.github.PersonalAccessToken.value
+  });
+
+  new github.ActionsSecret('GithubGithubPackageManagementToken', {
+    repository: githubRepoName,
+    secretName: 'GH_PACKAGE_MANAGEMENT_TOKEN',
+    plaintextValue: secrets.github.PackageManagementToken.value
   });
 
   new github.ActionsSecret('GithubCloudflareApiToken', {

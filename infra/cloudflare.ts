@@ -1,19 +1,19 @@
 import { resolve } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { EXAMPLE_DOMAIN, STAGE_NAME, cloudflareZoneId } from './dns';
+import { EXAMPLE_DOMAIN, STAGE_NAME, cloudflareZoneId, isProduction } from './dns';
 import { controlPlaneLoadBalancers, workerLoadBalancers } from './vps/vps';
 import { secrets } from './secrets';
 
 const cloudflareIpRequest = await fetch('https://api.cloudflare.com/client/v4/ips');
-export const cloudflareIps: {
+export const cloudflareIps = (await cloudflareIpRequest.json()) as {
   result: { ipv4_cidrs: string[]; ipv6_cidrs: string[]; etag: string };
   success: boolean;
-} = await cloudflareIpRequest.json();
+};
 
 const publicLoadBalancers = [...workerLoadBalancers, ...controlPlaneLoadBalancers];
 
-if (publicLoadBalancers.length && $app.stage !== 'production') {
+if (publicLoadBalancers.length && !isProduction) {
   for (const [i, loadBalancer] of publicLoadBalancers.entries()) {
     new cloudflare.DnsRecord(`ExampleDomainLoadBalancer${i}Ipv4`, {
       name: EXAMPLE_DOMAIN,

@@ -185,7 +185,9 @@ func removeShards(options *scaleDownOptions) error {
 		return err
 	}
 
-	client.Refresh(leftOverNodeHostnames...)
+	if err := client.Refresh(leftOverNodeHostnames...); err != nil {
+		return fmt.Errorf("refresh client after shard removal: %w", err)
+	}
 	clusterTopology, err := valkey.GetClusterTopology(client.Client)
 	if err != nil {
 		return err
@@ -287,7 +289,9 @@ func makeRoomForMasters(options *scaleDownOptions) error {
 		return err
 	}
 
-	client.Refresh(leftOverNodeHostnames...)
+	if err := client.Refresh(leftOverNodeHostnames...); err != nil {
+		return fmt.Errorf("refresh client after shard removal: %w", err)
+	}
 	clusterTopology, err := valkey.GetClusterTopology(client.Client)
 	if err != nil {
 		return err
@@ -363,7 +367,9 @@ func removeReplicasFromMasters(options *scaleDownOptions) error {
 		return err
 	}
 
-	client.Refresh(leftOverNodeHostnames...)
+	if err := client.Refresh(leftOverNodeHostnames...); err != nil {
+		return fmt.Errorf("refresh client after shard removal: %w", err)
+	}
 	clusterTopology, err := valkey.GetClusterTopology(client.Client)
 	if err != nil {
 		return err
@@ -481,7 +487,9 @@ func removeDangerZoneNodes(options *scaleDownOptions) error {
 	if err := valkey.WaitForAllNodesClusterInfoState(timeoutCtx, env, leftOverNodeHostnames, fmt.Sprintf("cluster_known_nodes:%d", *options.nodeCount)); err != nil {
 		return err
 	}
-	client.Refresh(leftOverNodeHostnames...)
+	if err := client.Refresh(leftOverNodeHostnames...); err != nil {
+		return fmt.Errorf("refresh client after shard removal: %w", err)
+	}
 	clusterTopology, err := valkey.GetClusterTopology(client)
 	if err != nil {
 		return err

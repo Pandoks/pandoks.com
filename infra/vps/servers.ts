@@ -9,7 +9,9 @@ const cloudInitConfig = readFileSync(`${process.cwd()}/infra/vps/cloud-config.ya
 const deleteServerFromTailnet = new $util.ResourceHook(
   'DeleteServerFromTailnet',
   async (serverOutput) => {
-    const outputs = serverOutput.oldOutputs as hcloud.Server;
+    const outputs = serverOutput.oldOutputs as {
+      labels: $util.Unwrap<hcloud.Server['labels']>;
+    };
     const serverLabels = outputs.labels ?? {};
 
     const devices = await tailscale.getDevices({
@@ -19,7 +21,7 @@ const deleteServerFromTailnet = new $util.ResourceHook(
       (device) => device.tags.includes('tag:hetzner') && device.tags.includes(`tag:${STAGE_NAME}`)
     );
     if (serverHetznerDevices.length > 0) {
-      const deletedDevices = await deleteTailscaleDevices(
+      const deletedDevices = deleteTailscaleDevices(
         ...serverHetznerDevices.map((device) => device.nodeId)
       );
       deletedDevices.apply((deletedDevices) => {
@@ -29,20 +31,22 @@ const deleteServerFromTailnet = new $util.ResourceHook(
         const failedToDeleteDeviceIds = deletedDevices
           .filter((device) => !device.success)
           .map((device) => device.deviceId);
-        if (deletedDeviceIds.length)
+        if (deletedDeviceIds.length) {
           console.log(
             `Deleted Tailscale devices:\n${serverHetznerDevices
               .filter((device) => deletedDeviceIds.includes(device.nodeId))
               .map((device) => device.name)
               .join('\n')}`
           );
-        if (failedToDeleteDeviceIds.length)
+        }
+        if (failedToDeleteDeviceIds.length) {
           console.log(
             `Failed to delete Tailscale devices:\n${serverHetznerDevices
               .filter((device) => failedToDeleteDeviceIds.includes(device.nodeId))
               .map((device) => device.name)
               .join('\n')}`
           );
+        }
       });
     }
   }
@@ -73,8 +77,8 @@ export function createServers(
     );
   }
 
-  let tailscaleHostnames: string[] = [];
-  let servers: hcloud.Server[] = [];
+  const tailscaleHostnames: string[] = [];
+  const servers: hcloud.Server[] = [];
 
   const nodeResourceName = serverArgs.type === 'control-plane' ? 'ControlPlane' : 'Worker';
 
@@ -148,7 +152,7 @@ export function createServers(
         S3_ACCESS_KEY,
         S3_SECRET_KEY
       ]) => {
-        const envs = {
+        const environments = {
           STAGE_NAME,
           PRIVATE_IP_RANGE,
           K3S_TOKEN,
@@ -165,8 +169,8 @@ export function createServers(
           S3_ACCESS_KEY,
           S3_SECRET_KEY
         };
-        return cloudInitConfig.replace(/\$\{([A-Z0-9_]+)\}/g, (_, capture) =>
-          capture in envs ? envs[capture] : ''
+        return cloudInitConfig.replace(/\$\{([A-Z0-9_]+)\}/g, (_, capture: string) =>
+          capture in environments ? (environments[capture as keyof typeof environments] ?? '') : ''
         );
       }
     );
@@ -207,7 +211,7 @@ export function createServers(
     servers.push(server);
   }
 
-  servers.forEach((server, index) => {
+  for (const [index, server] of servers.entries()) {
     const groupIndex = Math.floor(index / 25);
     for (let j = 0; j < serverArgs.loadBalancersPerNode; j++) {
       const loadBalancerIndex = groupIndex * serverArgs.loadBalancersPerNode + j;
@@ -223,7 +227,7 @@ export function createServers(
         { dependsOn: [network] }
       );
     }
-  });
+  }
 
   return { tailscaleHostnames, servers };
 }

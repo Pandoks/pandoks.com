@@ -15,10 +15,7 @@ import (
 
 func doesCommandExist(cmd string) bool {
 	_, err := exec.LookPath(cmd)
-	if err != nil {
-		return false
-	}
-	return true
+	return err == nil
 }
 
 type Auth struct {
@@ -129,7 +126,7 @@ func Rebalance(options RebalanceOptions) error {
 		args = append(args, "-a", options.Password)
 	}
 
-	cmd := exec.Command("valkey-cli", args...)
+	cmd := exec.Command("valkey-cli", args...) // #nosec G204 (cmd injection) -- args from validated structs, not user input
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -177,7 +174,7 @@ func AddNode(options AddNodeOptions) error {
 		args = append(args, "-a", options.Password)
 	}
 
-	cmd := exec.Command("valkey-cli", args...)
+	cmd := exec.Command("valkey-cli", args...) // #nosec G204 (cmd injection) -- args from validated structs, not user input
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -210,7 +207,7 @@ func DelNode(options DelNodeOptions) error {
 		args = append(args, "-a", options.Password)
 	}
 
-	cmd := exec.Command("valkey-cli", args...)
+	cmd := exec.Command("valkey-cli", args...) // #nosec G204 (cmd injection) -- args from validated structs, not user input
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -352,7 +349,7 @@ func CreateCluster(options CreateClusterOptions) error {
 		args = append(args, "-a", options.Password)
 	}
 
-	cmd := exec.Command("valkey-cli", args...)
+	cmd := exec.Command("valkey-cli", args...) // #nosec G204 (cmd injection) -- args from validated structs, not user input
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

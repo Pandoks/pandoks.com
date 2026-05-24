@@ -1,23 +1,22 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import { getVimState } from '$lib/vim.svelte.js';
   import { Badge } from '@pandoks.com/svelte/shadcn/badge';
-  const { data } = $props();
-
-  const titles = data.titles;
+  import { getSlugFromBlogTitle } from '$lib/utils';
 
   let activeBlogIndex: number | undefined = $state();
   const vimState = getVimState()
     .setBodyHandler((e) => {
       switch (e.key) {
         case 'j':
-          if (activeBlogIndex === titles.length - 2) {
+          if (activeBlogIndex === __BLOG_TITLES__.length - 2) {
             // NOTE: You want to set bottom to true on the second to last item because once you've
             // reached the last item, you want the vim state to take over
             vimState.bodyBottom = true;
           }
           activeBlogIndex!++;
-          if (titles.length > 1) {
+          if (__BLOG_TITLES__.length > 1) {
             vimState.bodyTop = false;
           }
           return;
@@ -28,14 +27,17 @@
           }
 
           activeBlogIndex!--;
-          if (titles.length > 1) {
+          if (__BLOG_TITLES__.length > 1) {
             vimState.bodyBottom = false;
           }
           return;
         case 'Enter':
           if (activeBlogIndex !== undefined) {
-            vimState.active = 'none';
-            goto(`/blog/${titles[activeBlogIndex].replaceAll(' ', '-')}`);
+            const post = __BLOG_TITLES__[activeBlogIndex];
+            if (post) {
+              vimState.active = 'none';
+              void goto(resolve('/blog/[title]', { title: getSlugFromBlogTitle(post) }));
+            }
           }
           return;
       }
@@ -43,14 +45,14 @@
     .setInitBodyState((e: KeyboardEvent) => {
       if (e.key === 'j') {
         activeBlogIndex = 0;
-        if (titles.length > 1) {
+        if (__BLOG_TITLES__.length > 1) {
           vimState.bodyBottom = false;
         }
       }
       if (e.key === 'k') {
-        activeBlogIndex = titles.length - 1;
+        activeBlogIndex = __BLOG_TITLES__.length - 1;
         vimState.bodyBottom = true;
-        if (titles.length > 1) {
+        if (__BLOG_TITLES__.length > 1) {
           vimState.bodyTop = false;
         }
       }
@@ -60,9 +62,9 @@
     });
 </script>
 
-{#if titles.length}
+{#if __BLOG_TITLES__.length}
   <ul class="list-disc text-lg">
-    {#each titles as title, index}
+    {#each __BLOG_TITLES__ as title, index}
       <li>
         {@render blogTitle(title, index)}
       </li>
@@ -80,7 +82,7 @@
 {#snippet blogTitle(title: string, index: number)}
   <a
     class={`${activeBlogIndex === index && vimState.active === 'body' ? 'bg-highlight' : ''} font-garamond flex flex-col hover:cursor-pointer hover:underline`}
-    href="/blog/{title.replaceAll(' ', '-')}"
+    href={resolve('/blog/[title]', { title: getSlugFromBlogTitle(title) })}
   >
     {title}
   </a>

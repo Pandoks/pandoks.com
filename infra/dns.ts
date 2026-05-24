@@ -18,7 +18,7 @@ const awsAccountIdentityJson = await aws.getCallerIdentity();
 export const awsAccountId = awsAccountIdentityJson.accountId;
 
 const awsRegionJson = await aws.getRegion();
-export const awsRegion = awsRegionJson.name;
+export const awsRegion = awsRegionJson.region;
 secrets.aws.Region.value.apply((region) => {
   if (region !== awsRegion) {
     setSecret(secrets.aws.Region.name, awsRegion);

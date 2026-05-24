@@ -87,12 +87,12 @@ export const workerLoadBalancers = createLoadBalancers(
   }
 );
 
-let bootstrapServer: { ip: string | undefined; server: hcloud.Server | undefined } = {
+const bootstrapServer: { ip: string | undefined; server: hcloud.Server | undefined } = {
   ip: undefined,
   server: undefined
 };
 
-const { tailscaleHostnames: controlPlaneTailscaleHostnames, servers: controlPlaneServers } =
+const { tailscaleHostnames: _controlPlaneTailscaleHostnames, servers: _controlPlaneServers } =
   createServers(
     {
       type: 'control-plane',
@@ -110,7 +110,7 @@ const { tailscaleHostnames: controlPlaneTailscaleHostnames, servers: controlPlan
     },
     bootstrapServer
   );
-const { tailscaleHostnames: workerTailscaleHostnames, servers: workerServers } = createServers(
+const { tailscaleHostnames: _workerTailscaleHostnames, servers: _workerServers } = createServers(
   {
     type: 'worker',
     serverCount: WORKER_NODE_COUNT,
@@ -135,7 +135,7 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
     (device) => device.tags.includes('tag:k8s') && device.tags.includes(`tag:${STAGE_NAME}`)
   );
   if (kubernetesDevices.length > 0) {
-    const deletedDevices = await deleteTailscaleDevices(
+    const deletedDevices = deleteTailscaleDevices(
       ...kubernetesDevices.map((device) => device.nodeId)
     );
     deletedDevices.apply((deletedDevices) => {
@@ -145,20 +145,22 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
       const failedToDeleteDeviceIds = deletedDevices
         .filter((device) => !device.success)
         .map((device) => device.deviceId);
-      if (deletedDeviceIds.length)
+      if (deletedDeviceIds.length) {
         console.log(
           `Deleted Tailscale devices:\n${kubernetesDevices
             .filter((device) => deletedDeviceIds.includes(device.nodeId))
             .map((device) => device.name)
             .join('\n')}`
         );
-      if (failedToDeleteDeviceIds.length)
+      }
+      if (failedToDeleteDeviceIds.length) {
         console.log(
           `Failed to delete Tailscale devices:\n${kubernetesDevices
             .filter((device) => failedToDeleteDeviceIds.includes(device.nodeId))
             .map((device) => device.name)
             .join('\n')}`
         );
+      }
     });
   }
 }
@@ -166,11 +168,14 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
 const publicLoadBalancerOutputs = Object.fromEntries(
   // NOTE: we have to hard code the name because indecies can't be pulumi inputs/outputs
   [
-    ...controlPlaneLoadBalancers.map((lb, i) => [
+    ...controlPlaneLoadBalancers.map((lb, i): [string, $util.Output<string>] => [
       `ControlPlaneLoadBalancer${i}`,
       lb.loadbalancer.ipv4
     ]),
-    ...workerLoadBalancers.map((lb, i) => [`WorkerLoadBalancer${i}`, lb.loadbalancer.ipv4])
+    ...workerLoadBalancers.map((lb, i): [string, $util.Output<string>] => [
+      `WorkerLoadBalancer${i}`,
+      lb.loadbalancer.ipv4
+    ])
   ]
 );
 

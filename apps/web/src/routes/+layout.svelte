@@ -2,15 +2,27 @@
   import '../app.css';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
+  import { onMount } from 'svelte';
   import { setVimState } from '$lib/vim.svelte';
+  import { FONTS } from '$lib/fonts';
+  import type { Snippet } from 'svelte';
 
-  let { children } = $props();
+  const { children }: { children: Snippet } = $props();
+
+  onMount(() => {
+    for (const [key, { file, family, weight, style }] of Object.entries(FONTS)) {
+      void new FontFace(family, `url(/fonts/${file})`, { weight, style }).load().then(() => {
+        document.querySelector(`style[data-critical-font="${key}"]`)?.remove();
+      });
+    }
+  });
 
   const navLinks = [
-    { href: '/', text: 'Jason Kwok' },
-    { href: '/socials', text: 'Socials' },
-    { href: '/work', text: 'Work' },
-    { href: '/blog', text: 'Blog' }
+    { path: '/', text: 'Jason Kwok' } as const,
+    { path: '/socials', text: 'Socials' } as const,
+    { path: '/work', text: 'Work' } as const,
+    ...(__HAS_POSTS__ ? [{ path: '/blog', text: 'Blog' } as const] : [])
   ];
 
   let activeNavIndex: number | undefined = $state();
@@ -41,17 +53,20 @@
         return;
       case 'Enter':
         if (activeNavIndex !== undefined) {
-          vimState.clearBody();
-          goto(navLinks[activeNavIndex].href);
+          const link = navLinks[activeNavIndex];
+          if (link) {
+            vimState.clearBody();
+            void goto(resolve(link.path));
+          }
         }
         return;
     }
   });
 </script>
 
-<nav class="font-inter bg-background fixed flex w-full gap-2 rounded-br-xs p-2 text-sm xl:w-auto">
-  {#each navLinks as { href, text }, index}
-    {@render navLink(href, text, index)}
+<nav class="bg-background fixed flex w-full gap-2 rounded-br-xs p-2 text-sm xl:w-auto">
+  {#each navLinks as { path, text }, index}
+    {@render navLink(path, text, index)}
   {/each}
 </nav>
 
@@ -61,7 +76,8 @@
   </div>
 </div>
 
-{#snippet navLink(href: string, text: string, index: number)}
+{#snippet navLink(path: (typeof navLinks)[number]['path'], text: string, index: number)}
+  {@const href = resolve(path)}
   <a
     data-sveltekit-preload-data="hover"
     {href}

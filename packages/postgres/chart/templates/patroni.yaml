@@ -138,9 +138,16 @@ spec:
       serviceAccountName: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
       securityContext:
         fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: patroni
           image: {{ $.Values.patroni.image }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           readinessProbe:
             httpGet:
               scheme: HTTP
@@ -158,7 +165,7 @@ spec:
               protocol: TCP
           env:
             - name: POSTGRES_DB
-              value: &db_name {{ $.Values.db }}
+              value: &db-name {{ $.Values.db }}
             - name: APP_NAME
               value: *app
             - name: CLUSTER_NAME
@@ -178,54 +185,54 @@ spec:
             - name: SUPERUSER_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: &db_creds {{ $.Values.credentials.secret }}
-                  key: {{ $.Values.credentials.dataKeys.superuserPassword }}
+                  name: &db-creds {{ $.Values.credentials.secret }}
+                  key: &superuser-key {{ $.Values.credentials.dataKeys.superuserPassword }}
             - name: REPLICATION_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: *db_creds
+                  name: *db-creds
                   key: {{ $.Values.credentials.dataKeys.replicationPassword }}
             - name: ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: *db_creds
+                  name: *db-creds
                   key: {{ $.Values.credentials.dataKeys.adminPassword }}
             - name: CLIENT_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: *db_creds
+                  name: *db-creds
                   key: {{ $.Values.credentials.dataKeys.clientPassword }}
             - name: PATRONI_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: *db_creds
+                  name: *db-creds
                   key: {{ $.Values.credentials.dataKeys.patroniPassword }}
             - name: BACKUP_BUCKET
-              value: &backup_bucket {{ $.Values.backup.bucket }}
+              value: &backup-bucket {{ $.Values.backup.bucket }}
             - name: BACKUP_PATH
-              value: &backup_path {{ $.Values.backup.path }}
+              value: &backup-path {{ $.Values.backup.path }}
             - name: S3_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: &backup_creds {{ $.Values.backup.credentials.secret }}
-                  key: &s3_key {{ $.Values.backup.credentials.dataKeys.accessKey }}
+                  name: &backup-creds {{ $.Values.backup.credentials.secret }}
+                  key: &s3-key {{ $.Values.backup.credentials.dataKeys.accessKey }}
             - name: S3_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: *backup_creds
-                  key: &s3_key_secret {{ $.Values.backup.credentials.dataKeys.secretKey }}
+                  name: *backup-creds
+                  key: &s3-key-secret {{ $.Values.backup.credentials.dataKeys.secretKey }}
             - name: S3_REGION
-              value: &s3_region {{ $.Values.s3.region }}
+              value: &s3-region {{ $.Values.s3.region }}
             - name: S3_HOST
-              value: &s3_host {{ $.Values.s3.host }}
+              value: &s3-host {{ $.Values.s3.host }}
             - name: S3_TLS
-              value: &s3_tls {{ $.Values.s3.tls | quote }}
+              value: &s3-tls {{ $.Values.s3.tls | quote }}
             - name: S3_URI_STYLE
-              value: &s3_uri_style {{ $.Values.s3.uriStyle }}
+              value: &s3-uri-style {{ $.Values.s3.uriStyle }}
             - name: ENCRYPTION_KEY
-              value: &encryption_key {{ $.Values.backup.encryptionKey }}
+              value: &encryption-key {{ $.Values.backup.encryptionKey }}
             - name: BACKUP_HOST_COMMON_NAME
-              value: &backup_host_common_name {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup
+              value: &backup-host-common-name {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup
             - name: STANZA
               value: *cluster-name
           {{- with $.Values.patroni.resources.patroni }}
@@ -233,82 +240,101 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
-            - name: &patroni_config patroni-config
+            - name: &patroni-config patroni-config
               mountPath: /tmp/conf_templates/patroni.yaml
               subPath: patroni.yaml
-            - name: &pgbackrest_config pgbackrest-config
-              mountPath: &pgbackrest_mount /tmp/conf_templates/pgbackrest.conf
+            - name: &pgbackrest-config pgbackrest-config
+              mountPath: &pgbackrest-mount /tmp/conf_templates/pgbackrest.conf
               subPath: pgbackrest.conf
             - name: &data patroni-data
-              mountPath: &data_mount /var/lib/postgresql
-            - name: &wal_archives patroni-wal-archives
-              mountPath: &wal_archives_mount /var/spool/pgbackrest
+              mountPath: &data-mount /var/lib/postgresql
+            - name: &wal-archives patroni-wal-archives
+              mountPath: &wal-archives-mount /var/spool/pgbackrest
             - name: &socket postgres-socket
-              mountPath: &socket_mount /var/run/postgresql
+              mountPath: &socket-mount /var/run/postgresql
+            - name: &etc-patroni etc-patroni
+              mountPath: /etc/patroni
+            - name: &patroni-etc-pgbackrest patroni-etc-pgbackrest
+              mountPath: /etc/pgbackrest
+            - name: &patroni-tmp patroni-tmp
+              mountPath: /tmp
         - name: pgbackrest
           image: {{ $.Values.backup.image }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           args:
             - pgbackrest
             - server
-            - --config=/etc/pgbackrest.conf
           ports:
             - name: pgbackrest
               containerPort: 8432
           env:
             - name: POSTGRES_DB
-              value: *db_name
+              value: *db-name
             - name: BACKUP_BUCKET
-              value: *backup_bucket
+              value: *backup-bucket
             - name: BACKUP_PATH
-              value: *backup_path
+              value: *backup-path
             - name: S3_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: *backup_creds
-                  key: *s3_key
+                  name: *backup-creds
+                  key: *s3-key
             - name: S3_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: *backup_creds
-                  key: *s3_key_secret
+                  name: *backup-creds
+                  key: *s3-key-secret
             - name: S3_REGION
-              value: *s3_region
+              value: *s3-region
             - name: S3_HOST
-              value: *s3_host
+              value: *s3-host
             - name: S3_TLS
-              value: *s3_tls
+              value: *s3-tls
             - name: S3_URI_STYLE
-              value: *s3_uri_style
+              value: *s3-uri-style
             - name: ENCRYPTION_KEY
-              value: *encryption_key
+              value: *encryption-key
             - name: BACKUP_HOST_COMMON_NAME
-              value: *backup_host_common_name
+              value: *backup-host-common-name
             - name: STANZA
               value: *cluster-name
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: *db_creds
-                  key: {{ $.Values.credentials.dataKeys.superuserPassword }}
+                  name: *db-creds
+                  key: *superuser-key
           {{- with $.Values.patroni.resources.pgbackrest }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
-            - name: *pgbackrest_config
-              mountPath: *pgbackrest_mount
+            - name: *pgbackrest-config
+              mountPath: *pgbackrest-mount
               subPath: pgbackrest.conf
-            - name: &tls tls
+            - name: &sidecar-etc-pgbackrest sidecar-etc-pgbackrest
               mountPath: /etc/pgbackrest
+            - name: &tls tls
+              mountPath: /etc/pgbackrest/certs
               readOnly: true
             - name: *data
-              mountPath: *data_mount
-            - name: *wal_archives
-              mountPath: *wal_archives_mount
+              mountPath: *data-mount
+            - name: *wal-archives
+              mountPath: *wal-archives-mount
             - name: *socket
-              mountPath: *socket_mount
+              mountPath: *socket-mount
+            - name: &pgbackrest-tmp pgbackrest-tmp
+              mountPath: /tmp
         - name: postgres-exporter
           image: quay.io/prometheuscommunity/postgres-exporter:v0.18.1
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - name: pg-metrics
               containerPort: 9187
@@ -332,12 +358,15 @@ spec:
             - name: DATA_SOURCE_PASS
               valueFrom:
                 secretKeyRef:
-                  name: *db_creds
-                  key: {{ $.Values.credentials.dataKeys.superuserPassword }}
+                  name: *db-creds
+                  key: *superuser-key
           {{- with $.Values.patroni.resources.postgresExporter }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          volumeMounts:
+            - name: &exporter-tmp exporter-tmp
+              mountPath: /tmp
           livenessProbe:
             httpGet:
               path: /
@@ -351,12 +380,24 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 5
       volumes:
-        - name: *patroni_config
+        - name: *patroni-config
           configMap:
             name: patroni-{{ $.Values.db }}-config
-        - name: *pgbackrest_config
+        - name: *pgbackrest-config
           configMap:
             name: patroni-{{ $.Values.db }}-pgbackrest-config
+        - name: *etc-patroni
+          emptyDir: {}
+        - name: *patroni-etc-pgbackrest
+          emptyDir: {}
+        - name: *sidecar-etc-pgbackrest
+          emptyDir: {}
+        - name: *patroni-tmp
+          emptyDir: {}
+        - name: *pgbackrest-tmp
+          emptyDir: {}
+        - name: *exporter-tmp
+          emptyDir: {}
         - name: *tls
           projected:
             defaultMode: 0600
@@ -390,7 +431,7 @@ spec:
           requests:
             storage: 999Pi # local-path does not support storage requests so we use a big number just to show that it's uncapped
     - metadata:
-        name: *wal_archives
+        name: *wal-archives
       spec:
         accessModes:
           - ReadWriteOnce

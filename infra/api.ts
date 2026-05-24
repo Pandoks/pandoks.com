@@ -1,8 +1,14 @@
 import { secrets } from './secrets';
-import { domain } from './dns';
+import { domain, isProduction } from './dns';
+import { githubOrg, githubRepoName } from './github';
 
 const apiDomain = `api.${domain}`;
-const nodeVersion = 'nodejs22.x';
+export const nodeVersion = 'nodejs24.x';
+
+// NOTE: this linkable is needed so that it's accessible from sst shell cli
+const notion = new sst.Linkable('Notion', {
+  properties: { blogDatabaseId: '20f1bb259e4b804ba24be1ceebf4c761' }
+});
 
 export const apiRouter = new sst.aws.Router('ApiRouter', {
   domain: {
@@ -11,24 +17,7 @@ export const apiRouter = new sst.aws.Router('ApiRouter', {
   }
 });
 
-export const blogApi = new sst.aws.Function('BlogApi', {
-  handler: 'apps/functions/src/api/blog.deployHandler',
-  runtime: nodeVersion,
-  url: {
-    router: {
-      instance: apiRouter,
-      path: '/blog/deploy'
-    }
-  },
-  link: [secrets.github.BlogDeployAuth, secrets.github.PersonalAccessToken],
-  environment: {
-    DOMAIN: apiDomain,
-    GITHUB_DEPLOY_URL:
-      'https://api.github.com/repos/pandoks/pandoks.com/actions/workflows/deploy-web.yaml/dispatches'
-  }
-});
-
-export const textFunction = new sst.aws.Function('TextSmsFunction', {
+export const textFunction = new sst.aws.Function('TextSms', {
   handler: 'apps/functions/src/text.sendTextHandler',
   runtime: nodeVersion,
   url: false,
@@ -54,7 +43,7 @@ const scheduleInvokeTextRole = new aws.iam.Role('ScheduleInvokeTextRole', {
   }).json
 });
 const scheduleTextGroup = new aws.scheduler.ScheduleGroup('ScheduleTextGroup', {
-  name: $app.stage === 'production' ? 'text-scheduler' : 'text-scheduler-dev'
+  name: isProduction ? 'text-scheduler' : 'text-scheduler-dev'
 });
 new aws.iam.RolePolicy('ScheduleInvokeTextPolicy', {
   role: scheduleInvokeTextRole.id,
@@ -68,34 +57,45 @@ new aws.iam.RolePolicy('ScheduleInvokeTextPolicy', {
     ]
   }).json
 });
-export const scheduleTextReminderApi = new sst.aws.Function('ScheduleTextReminderApi', {
-  handler: 'apps/functions/src/api/notion/schedule-text.scheduleTextHandler',
+
+new sst.aws.Function('NotionWebhookHandler', {
+  handler: 'apps/functions/src/api/notion/webhook.webhookHandler',
   runtime: nodeVersion,
+  timeout: '30 seconds',
   url: {
     router: {
       instance: apiRouter,
-      path: '/todo/remind'
+      path: '/notion/webhook'
     }
   },
   permissions: [
     {
-      actions: [
-        'scheduler:CreateSchedule',
-        'scheduler:UpdateSchedule',
-        'scheduler:DeleteSchedule',
-        'scheduler:GetSchedule'
-      ],
+      actions: ['scheduler:CreateSchedule', 'scheduler:UpdateSchedule', 'scheduler:DeleteSchedule'],
       resources: ['*']
     },
     {
       actions: ['iam:PassRole'],
       resources: [scheduleInvokeTextRole.arn]
+    },
+    {
+      actions: ['ssm:PutParameter'],
+      resources: ['arn:aws:ssm:*:*:parameter/tmp/notion-verification-token']
     }
   ],
   environment: {
+    DOMAIN: apiDomain,
     SCHEDULER_INVOKE_ROLE_ARN: scheduleInvokeTextRole.arn,
     SCHEDULER_GROUP_NAME: scheduleTextGroup.name,
-    TEXT_FUNCTION_ARN: textFunction.arn
+    TEXT_FUNCTION_ARN: textFunction.arn,
+    GITHUB_NOTION_SYNC_URL: `https://api.github.com/repos/${githubOrg}/${githubRepoName}/actions/workflows/sync-notion.yaml/dispatches`
   },
-  link: [secrets.notion.AuthToken]
+  link: [
+    notion,
+    secrets.aws.Region,
+    secrets.github.PersonalAccessToken,
+    secrets.notion.ApiKey,
+    secrets.notion.WebhookVerificationToken,
+    secrets.personal.KwokPhoneNumber,
+    secrets.personal.MichellePhoneNumber
+  ]
 });

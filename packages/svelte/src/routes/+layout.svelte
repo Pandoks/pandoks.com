@@ -1,8 +1,9 @@
 <script lang="ts">
   import '$lib/styles/fonts.css';
   import '../app.css';
+  import type { Snippet } from 'svelte';
 
-  let { children } = $props();
+  const { children }: { children: Snippet } = $props();
 </script>
 
 {@render children()}

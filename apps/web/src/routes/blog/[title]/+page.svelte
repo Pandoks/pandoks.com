@@ -1,8 +1,11 @@
 <script lang="ts">
-  import { dev } from '$app/environment';
+  import type { PageData } from './$types';
+  import type { RichText } from '$lib/blog/types';
   import { hljs } from '$lib/highlight';
 
-  const { data } = $props();
+  const { data }: { data: PageData } = $props();
+
+  type Block = PageData['blocks'][number];
 </script>
 
 <div
@@ -16,7 +19,14 @@
   {/each}
 </div>
 
-{#snippet blockRender(block: any)}
+<svelte:head>
+  <title>{data.title}</title>
+  <meta name="description" content={`${data.title} by Jason Kwok`} />
+  <meta property="og:title" content={`${data.title} by Jason Kwok (Pandoks_)`} />
+  <meta property="og:description" content={`${data.title} by Jason Kwok`} />
+</svelte:head>
+
+{#snippet blockRender(block: Block)}
   {#if block.type === 'heading_1'}
     <h2 class="text-xl font-extrabold">{@render textBlockRender(block.texts)}</h2>
   {:else if block.type === 'heading_2'}
@@ -28,41 +38,38 @@
   {:else if block.type === 'break'}
     <br />
   {:else if block.type === 'image'}
-    {#if dev}
-      <img class="mx-auto mb-4 rounded-xs" src={block.url} alt="A thousand words" />
-    {:else}
-      <enhanced:img class="mx-auto mb-4 rounded-xs" src={block.url} alt="A thousand words" />
-    {/if}
+    <enhanced:img class="mx-auto mb-4 rounded-xs" src={block.picture} alt="A thousand words" />
   {:else if block.type === 'code'}
-    <!-- NOTE: this NEEDS to be formatted weirdly because of the pre tag -->
     <pre
       class="bg-highlight scrollbar-thin mb-4 overflow-x-auto rounded-xs p-4"
-      style="scrollbar-width: thin;"><code class="font-mono text-xs lg:text-sm"
-        >{@html hljs.highlight(block.code, { language: block.language }).value}</code
-      ></pre>
+      style="scrollbar-width: thin;">
+      <code class="font-mono text-xs lg:text-sm">
+        {@html hljs.highlight(block.code, { language: block.language }).value}
+      </code>
+    </pre>
   {/if}
 {/snippet}
 
-{#snippet textBlockRender(textData: any)}
+{#snippet textBlockRender(textData: RichText[])}
   {#each textData as { plain_text, annotations, href }}
     {#if href}
       <a
         {href}
         target="_blank"
-        rel="noopener noreferrer"
+        rel="external noopener noreferrer"
         class={`text-neutral-500 hover:cursor-pointer hover:underline
-              ${annotations.bold ? 'font-medium' : ''} 
+              ${annotations.bold ? 'font-medium' : ''}
               ${annotations.italic ? 'italic' : ''}
-              ${annotations.strikethrough ? 'line-through' : ''} 
+              ${annotations.strikethrough ? 'line-through' : ''}
               ${annotations.underline ? 'underline' : ''}`}
       >
         {plain_text}
       </a>
     {:else}
       <span
-        class={`${annotations.bold ? 'font-medium' : ''} 
+        class={`${annotations.bold ? 'font-medium' : ''}
               ${annotations.italic ? 'italic' : ''}
-              ${annotations.strikethrough ? 'line-through' : ''} 
+              ${annotations.strikethrough ? 'line-through' : ''}
               ${annotations.underline ? 'underline' : ''}`}
       >
         {plain_text}
@@ -70,10 +77,3 @@
     {/if}
   {/each}
 {/snippet}
-
-<svelte:head>
-  <title>{data.title}</title>
-  <meta name="description" content={`${data.title} by Jason Kwok`} />
-  <meta property="og:title" content={`${data.title} by Jason Kwok (Pandoks_)`} />
-  <meta property="og:description" content={`${data.title} by Jason Kwok`} />
-</svelte:head>

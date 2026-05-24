@@ -58,14 +58,14 @@ usage_deps() {
   printf "  %brestart%b    Restart docker compose dependencies\n\n" "${GREEN}" "${NORMAL}" >&2
 
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
-  printf "  %s deps up\n" "$0" >&2
-  printf "  %s deps down\n\n" "$0" >&2
+  printf "  %s k3d deps up\n" "$0" >&2
+  printf "  %s k3d deps down\n\n" "$0" >&2
 
   exit "${1:-0}"
 }
 
 usage_deploy() {
-  printf "%bUsage:%b %s deploy <dev|prod> [options]\n\n" "${BOLD}" "${NORMAL}" "$0" >&2
+  printf "%bUsage:%b %s deploy <local|dev|prod> [options]\n\n" "${BOLD}" "${NORMAL}" "$0" >&2
   printf "Deploy environment overlay to cluster.\n\n" >&2
   printf "This command:\n" >&2
   printf "  1. Runs kubectl kustomize on the specified target\n" >&2
@@ -74,23 +74,32 @@ usage_deploy() {
   printf "  4. Waits for CRDs to be established (bootstrap only)\n\n" >&2
 
   printf "%bEnvironments:%b\n" "${BOLD}" "${NORMAL}" >&2
-  printf "  %bdev%b\n" "${GREEN}" "${NORMAL}" >&2
-  printf "      Deploy dev overlay with:\n" >&2
+  printf "  %blocal%b\n" "${GREEN}" "${NORMAL}" >&2
+  printf "      Deploy to local k3d cluster with:\n" >&2
   printf "        - ImageRegistry: local-registry:5000\n" >&2
   printf "        - ImageTag: latest\n" >&2
-  printf "        - IsDev: true\n\n" >&2
-  printf "  %bprod%b\n" "${GREEN}" "${NORMAL}" >&2
-  printf "      Deploy prod overlay with:\n" >&2
+  printf "        - IsLocal: true\n\n" >&2
+  printf "  %bdev%b\n" "${GREEN}" "${NORMAL}" >&2
+  printf "      Deploy to dev cloud cluster with:\n" >&2
   printf "        - ImageRegistry: ghcr.io/pandoks\n" >&2
-  printf "        - ImageTag: <branch-name> (or 'latest' on main)\n" >&2
-  printf "        - IsDev: false\n\n" >&2
+  printf "        - ImageTag: <branch-name> (or 'latest' on main/master)\n" >&2
+  printf "        - IsLocal: false\n\n" >&2
+  printf "  %bprod%b\n" "${GREEN}" "${NORMAL}" >&2
+  printf "      Deploy to production cloud cluster with:\n" >&2
+  printf "        - ImageRegistry: ghcr.io/pandoks\n" >&2
+  printf "        - ImageTag: latest\n" >&2
+  printf "        - IsLocal: false\n" >&2
+  printf "        - SST stage forced to 'production'\n\n" >&2
 
   printf "%bOptions:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %b--bootstrap%b\n" "${YELLOW}" "${NORMAL}" >&2
-  printf "      Install only helm-charts (CRD providers) and wait for CRDs.\n" >&2
-  printf "      Run this first on a fresh cluster before running deploy.\n\n" >&2
+  printf "      Apply the bootstrap kustomize path (k3s/bootstrap/<env>) instead of\n" >&2
+  printf "      the overlay (k3s/overlays/<env>). Installs helm charts / CRD providers\n" >&2
+  printf "      and waits for CRDs. Run this first on a fresh cluster, then run deploy\n" >&2
+  printf "      again without --bootstrap to apply the overlay.\n\n" >&2
   printf "  %b--stage%b <STAGE>\n" "${YELLOW}" "${NORMAL}" >&2
-  printf "      SST stage to fetch secrets from (default: SST's default stage)\n\n" >&2
+  printf "      SST stage to fetch secrets from (default: SST's default stage;\n" >&2
+  printf "      forced to 'production' for the prod environment)\n\n" >&2
   printf "  %b--dry-run%b\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      Show rendered YAML without applying to cluster\n\n" >&2
   printf "  %b--kubeconfig%b <PATH>\n" "${YELLOW}" "${NORMAL}" >&2
@@ -101,19 +110,18 @@ usage_deploy() {
   printf "%bTemplate Variables:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  \${ImageRegistry}     - Container registry (local or GHCR)\n" >&2
   printf "  \${ImageTag}          - Image tag (latest or branch name)\n" >&2
-  printf "  \${IsDev}             - 'true' or 'false' for conditional logic\n" >&2
-  printf "  \${BackupBucket}      - S3 bucket for backups from SST\n" >&2
+  printf "  \${IsLocal}           - 'true' or 'false' for conditional logic\n" >&2
   printf "  \${<SST Resource>}    - Any SST resource by name\n" >&2
   printf "  \${<Secret> | base64} - Base64 encode a secret value\n\n" >&2
 
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
-  printf "  # First-time cluster setup:\n" >&2
+  printf "  # First-time cluster setup (bootstrap, then overlay):\n" >&2
   printf "  %s deploy dev --bootstrap\n" "$0" >&2
   printf "  %s deploy dev\n\n" "$0" >&2
   printf "  # Regular deployments:\n" >&2
   printf "  %s deploy dev\n" "$0" >&2
   printf "  %s deploy dev --dry-run\n" "$0" >&2
-  printf "  %s deploy prod --stage production\n" "$0" >&2
+  printf "  %s deploy prod\n" "$0" >&2
   printf "  %s deploy prod --kubeconfig ~/.kube/prod-config\n\n" "$0" >&2
 
   exit "${1:-0}"

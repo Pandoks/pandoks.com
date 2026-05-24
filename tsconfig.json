@@ -1,0 +1,9 @@
+{
+  "extends": "./.sst/platform/tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"],
+    "downlevelIteration": null
+  },
+  "include": ["infra", "sst.config.ts"]
+}

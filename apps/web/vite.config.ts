@@ -2,17 +2,23 @@ import tailwindcss from '@tailwindcss/vite';
 import { svelteTesting } from '@testing-library/svelte/vite';
 import { enhancedImages } from '@sveltejs/enhanced-img';
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
+import { define } from './vite/globals';
+import { hideBlogWhenEmpty } from './vite/plugins/hide-blog';
 
 export default defineConfig({
+  define,
   plugins: [
+    hideBlogWhenEmpty(),
     tailwindcss(),
     enhancedImages(),
     sveltekit(),
     viteStaticCopy({
       // don't point to static directory, point to finished build directory (static -> / after build)
-      targets: [{ src: '../../packages/svelte/static/fonts/*', dest: 'fonts' }]
+      targets: [
+        { src: '../../packages/svelte/static/fonts/*', dest: 'fonts', rename: { stripBase: true } }
+      ]
     })
   ],
   envDir: '../..',
@@ -22,7 +28,7 @@ export default defineConfig({
     }
   },
   test: {
-    workspace: [
+    projects: [
       {
         extends: './vite.config.ts',
         plugins: [svelteTesting()],
