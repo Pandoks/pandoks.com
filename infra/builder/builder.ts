@@ -1,4 +1,6 @@
+import { STAGE_NAME } from '../dns';
 import { builderArtifactsBucket, builderCacheBucket } from '../storage';
+import { builderImageArm64, builderImageX86 } from './ami';
 
 const builderInstanceRole = new aws.iam.Role('BuilderInstanceRole', {
   assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
@@ -31,4 +33,28 @@ new aws.iam.RolePolicy('BuilderInstanceS3Policy', {
 });
 const builderInstanceProfile = new aws.iam.InstanceProfile('BuilderInstanceProfile', {
   role: builderInstanceRole.name
+});
+
+const baseTags = { Stage: STAGE_NAME, ManagedBy: 'Builder' };
+const builderLaunchTemplateX86 = new aws.ec2.LaunchTemplate('BuilderLaunchTemplateX86', {
+  name: `builder-x86`,
+  imageId: builderImageX86.id,
+  iamInstanceProfile: { arn: builderInstanceProfile.arn },
+  tagSpecifications: [
+    {
+      resourceType: 'instance',
+      tags: { ...baseTags, Name: `builder-x86`, Arch: 'x86_64' }
+    }
+  ]
+});
+const builderLaunchTemplateArm64 = new aws.ec2.LaunchTemplate('BuilderLaunchTemplateArm64', {
+  name: `builder-arm64`,
+  imageId: builderImageArm64.id,
+  iamInstanceProfile: { arn: builderInstanceProfile.arn },
+  tagSpecifications: [
+    {
+      resourceType: 'instance',
+      tags: { ...baseTags, Name: `builder-arm64`, Arch: 'arm64' }
+    }
+  ]
 });
