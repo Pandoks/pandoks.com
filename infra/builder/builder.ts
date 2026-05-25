@@ -1,4 +1,4 @@
-import { builderArtifactsBucket, builderCacheBucket } from './storage';
+import { builderArtifactsBucket, builderCacheBucket } from '../storage';
 
 const builderInstanceRole = new aws.iam.Role('BuilderInstanceRole', {
   assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
