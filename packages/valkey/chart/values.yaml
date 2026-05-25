@@ -1,6 +1,6 @@
 name: example
 namespace: example
-image: ghcr.io/pandoks/valkey:latest
+image: ghcr.io/pandoks/valkey:latest@sha256:aaf838434abd52b0800b31b0edbd455a3d0bba1c4be8258e793e8ad315e2403b
 
 credentials:
   secret: valkey-example-creds
@@ -11,7 +11,7 @@ credentials:
 cluster:
   masters: 1
   replicasPerMaster: 0
-  reconcilerImage: ghcr.io/pandoks/valkey-reconciler:latest
+  reconcilerImage: ghcr.io/pandoks/valkey-reconciler:latest@sha256:fca5d9ad3c68615da11ed3d01d9303de2b89ed550e80e17981603d1e5334121f
 
 # No persistence by default
 # options: rdb,aof | rdb | aof | ~
