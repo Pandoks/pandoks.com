@@ -58,3 +58,42 @@ const builderLaunchTemplateArm64 = new aws.ec2.LaunchTemplate('BuilderLaunchTemp
     }
   ]
 });
+
+const builderStateMachineRole = new aws.iam.Role('BuilderStateMachineRole', {
+  assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
+    statements: [
+      {
+        effect: 'Allow',
+        principals: [{ type: 'Service', identifiers: ['states.amazonaws.com'] }],
+        actions: ['sts:AssumeRole']
+      }
+    ]
+  }).json
+});
+new aws.iam.RolePolicy('BuilderStateMachinePolicy', {
+  role: builderStateMachineRole.id,
+  policy: aws.iam.getPolicyDocumentOutput({
+    statements: [
+      {
+        effect: 'Allow',
+        actions: [
+          'ec2:RunInstances',
+          'ec2:TerminateInstances',
+          'ec2:DescribeInstances',
+          'ec2:CreateTags'
+        ],
+        resources: ['*']
+      },
+      {
+        effect: 'Allow',
+        actions: ['ssm:SendCommand', 'ssm:GetCommandInvocation', 'ssm:DescribeInstanceInformation'],
+        resources: ['*']
+      },
+      {
+        effect: 'Allow',
+        actions: ['iam:PassRole'],
+        resources: [builderInstanceRole.arn]
+      }
+    ]
+  }).json
+});
