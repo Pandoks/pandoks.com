@@ -41,7 +41,7 @@ phases:
         action: ExecuteBash
         inputs:
           commands:
-            - curl -fsSL https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip -o /tmp/awscli.zip
+            - curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o /tmp/awscli.zip
             - cd /tmp && unzip -q awscli.zip && sudo ./aws/install
             - rm -rf /tmp/awscli.zip /tmp/aws
 
