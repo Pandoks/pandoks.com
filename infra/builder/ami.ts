@@ -70,3 +70,44 @@ export const builderImageArm64 = new aws.imagebuilder.Image('BuilderImageArm64',
   imageRecipeArn: builderRecipeArm64.arn,
   infrastructureConfigurationArn: builderBakeInfraArm64.arn
 });
+
+const lifecycleRole = new aws.iam.Role('BuilderLifecycleRole', {
+  assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
+    statements: [
+      {
+        effect: 'Allow',
+        principals: [{ type: 'Service', identifiers: ['imagebuilder.amazonaws.com'] }],
+        actions: ['sts:AssumeRole']
+      }
+    ]
+  }).json,
+  managedPolicyArns: [
+    'arn:aws:iam::aws:policy/service-role/EC2ImageBuilderLifecycleExecutionPolicy'
+  ]
+});
+new aws.imagebuilder.LifecyclePolicy('BuilderLifecyclePolicy', {
+  name: `builder-image-lifecycle`,
+  description:
+    'Keep the latest 10 builder AMI versions per arch; delete older versions and their snapshots',
+  executionRole: lifecycleRole.arn,
+  resourceType: 'AMI_IMAGE',
+  policyDetails: [
+    {
+      action: {
+        type: 'DELETE',
+        includeResources: { amis: true, snapshots: true }
+      },
+      filter: {
+        type: 'COUNT',
+        value: 10,
+        retainAtLeast: 1
+      }
+    }
+  ],
+  resourceSelection: {
+    recipes: [
+      { name: builderRecipeX86.name, semanticVersion: VERSION },
+      { name: builderRecipeArm64.name, semanticVersion: VERSION }
+    ]
+  }
+});
