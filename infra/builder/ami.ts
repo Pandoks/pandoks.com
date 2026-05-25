@@ -61,3 +61,12 @@ const builderBakeInfraArm64 = new aws.imagebuilder.InfrastructureConfiguration(
     terminateInstanceOnFailure: true
   }
 );
+
+export const builderImageX86 = new aws.imagebuilder.Image('BuilderImageX86', {
+  imageRecipeArn: builderRecipeX86.arn,
+  infrastructureConfigurationArn: builderBakeInfraX86.arn
+});
+export const builderImageArm64 = new aws.imagebuilder.Image('BuilderImageArm64', {
+  imageRecipeArn: builderRecipeArm64.arn,
+  infrastructureConfigurationArn: builderBakeInfraArm64.arn
+});
