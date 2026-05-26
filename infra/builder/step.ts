@@ -36,14 +36,14 @@ export function builderStateMachineDefinition(
           ChooseArchitecture: {
             Type: 'Choice',
             Choices: [
-              ...ARM_INSTANCE_TYPES.map((type) => ({
+              ...ARM_INSTANCE_TYPES.map((instanceType) => ({
                 Variable: '$.instanceType',
-                StringEquals: type,
+                StringEquals: instanceType,
                 Next: 'ChooseMarketArm64'
               })),
-              ...X86_INSTANCE_TYPES.map((type) => ({
+              ...X86_INSTANCE_TYPES.map((instanceType) => ({
                 Variable: '$.instanceType',
-                StringEquals: type,
+                StringEquals: instanceType,
                 Next: 'ChooseMarketX86'
               }))
             ],
