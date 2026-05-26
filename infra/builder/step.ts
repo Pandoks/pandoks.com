@@ -160,18 +160,17 @@ export function builderStateMachineDefinition({
       artifactsBucket,
       githubCloningTokenSSMParameter
     ]) => {
-      // NOTE: line 204. takes in inputs and replace `{}` with them in order similarly to argv
-      const bootstrapScript = [
+      const bashScript = [
         `set -euo pipefail`,
         `export BUILD_ID={}`,
         `export BUILDER_CACHE_BUCKET=${cacheBucket}`,
         `export BUILDER_ARTIFACTS_BUCKET=${artifactsBucket}`,
         `GITHUB_TOKEN=$(aws ssm get-parameter --name ${githubCloningTokenSSMParameter} --with-decryption --query Parameter.Value --output text)`,
-        `git clone --depth 1 --branch {} https://x-access-token:\${GITHUB_TOKEN}@github.com/${githubOrg}/${githubRepoName}.git /opt/repo`,
+        `git clone --depth 1 --branch {} https://x-access-token:$\\{GITHUB_TOKEN\\}@github.com/${githubOrg}/${githubRepoName}.git /opt/repo`,
         `unset GITHUB_TOKEN`,
         `cd /opt/repo`,
         `{}`
-      ].join('\\n');
+      ].join('; ');
 
       return JSON.stringify({
         Comment:
@@ -201,7 +200,7 @@ export function builderStateMachineDefinition({
               DocumentName: 'AWS-RunShellScript',
               TimeoutSeconds: 60,
               Parameters: {
-                'commands.$': `States.Array(States.Format('${bootstrapScript}', $.buildId, $.repoRef, $.command))`,
+                'commands.$': `States.Array(States.Format('bash -c \\'${bashScript}\\'', $.buildId, $.repoRef, $.command))`,
                 executionTimeout: ['86400'] // 24 hours
               },
               CloudWatchOutputConfig: { CloudWatchOutputEnabled: true }
