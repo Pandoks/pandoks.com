@@ -1,0 +1,74 @@
+name: BuilderTools
+description: Install build tooling for ephemeral EC2 builders. Bake this into the AMI so per-build EC2s skip apt-install time.
+schemaVersion: 1.0
+
+phases:
+  - name: build
+    steps:
+      - name: UpdateApt
+        action: ExecuteBash
+        inputs:
+          commands:
+            - sudo apt-get update -y
+
+      - name: InstallBuildEssentials
+        action: ExecuteBash
+        inputs:
+          commands:
+            - sudo DEBIAN_FRONTEND=noninteractive apt-get install -y
+              build-essential
+              ca-certificates
+              ccache
+              clang
+              curl
+              git
+              jq
+              lld
+              ninja-build
+              python3
+              unzip
+              zstd
+
+      - name: InstallNode
+        action: ExecuteBash
+        inputs:
+          commands:
+            - curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
+            - sudo DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs
+            - sudo corepack enable
+
+      - name: InstallAwsCli
+        action: ExecuteBash
+        inputs:
+          commands:
+            - curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o /tmp/awscli.zip
+            - cd /tmp && unzip -q awscli.zip && sudo ./aws/install
+            - rm -rf /tmp/awscli.zip /tmp/aws
+
+      - name: InstallUv
+        action: ExecuteBash
+        inputs:
+          commands:
+            - curl -fsSL https://astral.sh/uv/install.sh | sudo UV_INSTALL_DIR=/usr/local/bin sh
+
+      - name: ConfigureCcache
+        action: ExecuteBash
+        inputs:
+          commands:
+            - sudo mkdir -p /etc/ccache
+            - echo 'max_size = 50G' | sudo tee /etc/ccache.conf
+
+      - name: CleanApt
+        action: ExecuteBash
+        inputs:
+          commands:
+            - sudo apt-get clean
+            - sudo rm -rf /var/lib/apt/lists/*
+
+  - name: validate
+    steps:
+      - name: VerifyToolsPresent
+        action: ExecuteBash
+        inputs:
+          commands:
+            - which clang ninja ccache git python3 node corepack pnpm aws uv zstd

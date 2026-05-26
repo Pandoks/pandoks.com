@@ -14,9 +14,14 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
-    "BackupBucket": {
+    "BackupBucket": import("@cloudflare/workers-types").R2Bucket
+    "BuilderArtifactsBucket": {
       "name": string
-      "type": "sst.cloudflare.Bucket"
+      "type": "sst.aws.Bucket"
+    }
+    "BuilderCacheBucket": {
+      "name": string
+      "type": "sst.aws.Bucket"
     }
     "CloudflareApiKey": {
       "type": "sst.sst.Secret"
@@ -177,7 +182,6 @@ declare module "sst" {
     }
   }
 }
-/// <reference path="sst-env.d.ts" />
 
 import "sst"
 export {}
