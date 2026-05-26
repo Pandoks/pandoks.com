@@ -1,0 +1,50 @@
+# apex patch: close the 2026 CDP inspector-preview detection vector
+#
+# THE PROBLEM. When any CDP client calls Runtime.enable (nodriver, Puppeteer,
+# Playwright all do), V8's inspector starts previewing console arguments for the
+# DevTools UI. The 2026 detection trick:
+#
+#   console.groupEnd(Object.create(new Proxy({}, {
+#     ownKeys() { /* detected! */ return []; }
+#   })));
+#
+# V8ConsoleMessage::wrapArguments() deep-previews EVERY console argument via
+# session->wrapObject(..., generatePreview=true). The preview walks the object's
+# properties -- and the prototype chain -- which invokes the Proxy `ownKeys`
+# trap. The trap firing is synchronous, deterministic page-observable JS: the
+# page now knows a CDP inspector is attached. No network signal, no timing --
+# it fires inside the JS context.
+#
+# THE FIX. The argument *preview* is purely a DevTools-UI convenience -- it
+# populates the expandable object tree in the console panel. Nothing in normal
+# page execution depends on it. We force `generatePreview = false` in
+# wrapArguments(): console messages are still delivered over CDP (logging,
+# Runtime.consoleAPICalled still work), but no eager property/prototype walk
+# happens, so no Proxy trap can fire. The detection probe sees nothing.
+#
+# This is a V8 patch (the inspector lives in v8/src/inspector/). It is gated by
+# APEX_FP_ACTIVE so a binary launched without it behaves like stock V8.
+#
+# Apply target: v8/src/inspector/v8-console-message.cc
+--- a/src/inspector/v8-console-message.cc
++++ b/src/inspector/v8-console-message.cc
+@@ -1,3 +1,5 @@
++#include "apex_fingerprint.h"
++
+ // Copyright 2016 the V8 project authors. All rights reserved.
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+@@ V8ConsoleMessage::wrapArguments @@
+ std::unique_ptr<protocol::Array<protocol::Runtime::RemoteObject>>
+ V8ConsoleMessage::wrapArguments(V8InspectorSessionImpl* session,
+                                 bool generatePreview) const {
++  // --- apex: suppress eager argument preview ---
++  // The preview deep-walks each argument's properties + prototype chain, which
++  // invokes Proxy traps -- a page-observable CDP detection signal. Console
++  // messages are still delivered; only the UI-only preview is skipped.
++  if (apex_fp::Active()) {
++    generatePreview = false;
++  }
++  // --- end apex ---
+   v8::Isolate* isolate = m_isolate;
+   if (!m_arguments.size() || !m_contextId) return nullptr;

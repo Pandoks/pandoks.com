@@ -1,0 +1,6 @@
+{
+  "name": "@pandoks.com/stealth-chromium",
+  "version": "0.0.1",
+  "type": "module",
+  "sideEffects": false
+}

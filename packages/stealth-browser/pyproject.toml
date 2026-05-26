@@ -1,0 +1,25 @@
+[project]
+name = "stealth-browser"
+version = "0.1.0"
+description = "Stealth headless Chrome service -- real Chrome + nodriver + coherent per-session identity + HTTP API"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "nodriver>=0.40",
+    "patchright>=1.52",
+    "playwright>=1.52",
+]
+
+[project.scripts]
+# `stealth-browser` from a terminal starts the HTTP service.
+# Wires the [tool.uv]/[project.scripts] entry to stealth_browser.server.run_server.
+stealth-browser = "stealth_browser.server:run_server"
+
+[tool.uv]
+package = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["stealth_browser"]

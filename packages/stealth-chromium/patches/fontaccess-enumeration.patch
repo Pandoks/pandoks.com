@@ -1,0 +1,34 @@
+# apex patch: filter the Local Font Access API font list
+#
+# window.queryLocalFonts() enumerates every installed font -- a high-entropy
+# fingerprint. DidGetEnumerationResponse() is the single renderer-side point
+# where the OS font list is materialized into FontMetadata objects, so it is a
+# clean chokepoint.
+#
+# apex's policy here is CONSERVATIVE: rather than spoof a fake font list (which
+# must stay coherent with the classic width-measurement path -- see the
+# apex-chromium README "honest limits" section, that path has no single
+# chokepoint and is NOT patched), this patch simply makes queryLocalFonts
+# enumerate nothing when APEX_FP_ACTIVE is set. An empty result is a normal,
+# common outcome (the API is permission-gated and most users never grant it),
+# whereas a fabricated list that disagrees with width-inference is a tell.
+#
+# Apply target: third_party/blink/renderer/modules/font_access/font_access.cc
+--- a/third_party/blink/renderer/modules/font_access/font_access.cc
++++ b/third_party/blink/renderer/modules/font_access/font_access.cc
+@@ -1,3 +1,5 @@
++#include "apex_fingerprint.h"
++
+ // Copyright 2020 The Chromium Authors
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+@@ FontAccess::DidGetEnumerationResponse @@
+   // <upstream> receives the enumeration result and is about to build the
+   // FontMetadata list from the shared-memory font table.
++  // --- apex: suppress local-font enumeration when fingerprint mode is on ---
++  if (apex_fp::Active()) {
++    resolver->Resolve(HeapVector<Member<FontMetadata>>());
++    return;
++  }
++  // --- end apex ---
+   // ... upstream proceeds to populate and resolve with the real list.

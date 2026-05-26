@@ -1,0 +1,29 @@
+# apex-chromium patch series -- applied in this order by scripts/apply.sh.
+#
+# These are the RAW .patch files (mid-function edits that a chromium_src overlay
+# cannot express). The whole-function overlays in chromium_src/ are applied
+# separately by copying, not patching -- see scripts/apply.sh.
+#
+# Order does not matter here (each patch touches a different file), but the
+# series file is the canonical list quilt/apply.sh iterate over.
+
+# --- fingerprint surfaces (canvas / WebGL / audio / UA-CH / fonts) ---
+navigator-uadata-platform.patch
+webgl-unmasked-strings.patch
+canvas-getimagedata-noise.patch
+canvas-todataurl-noise.patch
+audio-buffer-noise.patch
+fontaccess-enumeration.patch
+
+# --- network / leak prevention ---
+webrtc-no-ip-leak.patch
+
+# --- automation-protocol leak (V8 inspector) ---
+v8-cdp-inspector-leak.patch
+
+# --- device / sensor API realism ---
+mediadevices-enumerate.patch
+speechsynthesis-voices.patch
+
+# --- font availability consistency ---
+fontcache-availability.patch

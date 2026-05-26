@@ -1,0 +1,53 @@
+# apex patch: spoof WebGL UNMASKED_VENDOR_WEBGL / UNMASKED_RENDERER_WEBGL
+#
+# getParameter()'s UNMASKED cases sit mid-switch in a ~600-line function, so a
+# chromium_src whole-function overlay would be fragile. This surgical patch
+# touches only the two `case` blocks, reading the apex per-session vendor /
+# renderer strings from the environment (falling through to the real GL strings
+# when unset).
+#
+# Apply target: third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
+# Verified against Chromium main (kUnmaskedVendorWebgl=0x9245, kUnmaskedRendererWebgl=0x9246).
+#
+# NOTE on context-line drift: the @@ hunk header line numbers and the exact
+# surrounding context are version-sensitive. scripts/refresh_patches.sh
+# re-generates this hunk against each new Chromium tag (quilt push -f + refresh).
+--- a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
++++ b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
+@@ -1,3 +1,5 @@
++#include "third_party/blink/renderer/modules/webgl/apex_webgl_strings.h"
++
+ // Copyright 2014 The Chromium Authors
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+@@ getParameter UNMASKED cases @@
+     case WebGLDebugRendererInfo::kUnmaskedRendererWebgl:
+       if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {
++        {
++          String apex_r = apex_fp::WebGLRendererOverride();
++          if (!apex_r.empty()) {
++            return WebGLAny(script_state, apex_r);
++          }
++        }
+         return WebGLAny(script_state,
+                         String(ContextGL()->GetString(GL_RENDERER)));
+       }
+       SynthesizeGLError(
+           GL_INVALID_ENUM, "getParameter",
+           "invalid parameter name, WEBGL_debug_renderer_info not enabled");
+       return ScriptValue::CreateNull(script_state->GetIsolate());
+     case WebGLDebugRendererInfo::kUnmaskedVendorWebgl:
+       if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {
++        {
++          String apex_v = apex_fp::WebGLVendorOverride();
++          if (!apex_v.empty()) {
++            return WebGLAny(script_state, apex_v);
++          }
++        }
+         return WebGLAny(script_state,
+                         String(ContextGL()->GetString(GL_VENDOR)));
+       }
+       SynthesizeGLError(
+           GL_INVALID_ENUM, "getParameter",
+           "invalid parameter name, WEBGL_debug_renderer_info not enabled");
+       return ScriptValue::CreateNull(script_state->GetIsolate());

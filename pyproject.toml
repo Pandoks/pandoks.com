@@ -1,0 +1,16 @@
+# Monorepo-root pyproject -- declares the uv workspace so uv can resolve
+# Python packages and their cross-package path deps in editable mode.
+#
+# This file exists in PARALLEL to pnpm-workspace.yaml (JS) and go.work (Go).
+# pnpm/go don't read this file; uv doesn't read theirs. Each toolchain
+# manages its own dependency graph against the same on-disk layout. See
+# packages/stealth-browser/README.md and packages/stealth-chromium/README.md
+# for why each package fits where it does.
+
+[tool.uv.workspace]
+members = [
+    "packages/stealth-browser",
+]
+# stealth-chromium is NOT a uv member -- it's a C++ build recipe with shell
+# scripts. uv would parse its (nonexistent) pyproject.toml and complain.
+# pnpm sees its package.json wrapper instead.

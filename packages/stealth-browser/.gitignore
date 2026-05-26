@@ -1,0 +1,19 @@
+# Chrome user-data-dir clones generated at runtime by the service.
+# Each persona is a full Chrome profile (hundreds of MB of binary databases,
+# cookies, cache, GPU shader caches) -- ignore the whole tree.
+personas/
+
+# Python build / cache
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# uv / virtualenv
+.venv/
+.uv-cache/
+
+# local-only env files
+.env
+.env.local

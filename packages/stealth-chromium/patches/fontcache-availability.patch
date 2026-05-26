@@ -1,0 +1,40 @@
+# apex patch: consistent font-availability for the direct font-query path
+#
+# THE PROBLEM. Font fingerprinting probes "is font X installed?". The direct
+# API path runs through FontCache::IsPlatformFamilyMatchAvailable. A container
+# with a sparse font set answers "no" to common web-safe fonts -- a headless/VM
+# tell, and inconsistent with the persona.
+#
+# THE FIX. When APEX_FP_ACTIVE is set, the common web-safe + OS-bundled font
+# allowlist (apex_font_policy.h) always reports as available. This matches the
+# width-measurement path, because apex-browser's Dockerfile installs exactly
+# that font set -- so a fingerprinter measuring text widths AND a fingerprinter
+# calling the font API get the same, consistent answer.
+#
+# We never report a genuinely-installed font as missing -- the patch only adds
+# a positive allowlist short-circuit before the real lookup.
+#
+# Apply target: third_party/blink/renderer/platform/fonts/font_cache.cc
+--- a/third_party/blink/renderer/platform/fonts/font_cache.cc
++++ b/third_party/blink/renderer/platform/fonts/font_cache.cc
+@@ -1,3 +1,5 @@
++#include "third_party/blink/renderer/platform/fonts/apex_font_policy.h"
++
+ // Copyright 2014 The Chromium Authors
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+@@ FontCache::IsPlatformFamilyMatchAvailable @@
+ bool FontCache::IsPlatformFamilyMatchAvailable(
+     const FontDescription& font_description,
+     const AtomicString& family) {
++  // --- apex: allowlisted common fonts always report as available ---
++  // (consistent with the font set the apex Docker image installs)
++  if (apex_fp::IsAllowlistedFont(family)) {
++    return true;
++  }
++  // --- end apex ---
+   return GetFontPlatformData(
+       font_description,
+       FontFaceCreationParams(AdjustFamilyNameToAvoidUnsupportedFonts(family)),
+       AlternateFontName::kNoAlternate);
+ }

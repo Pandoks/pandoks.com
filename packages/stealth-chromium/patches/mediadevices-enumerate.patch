@@ -1,0 +1,38 @@
+# apex patch: give enumerateDevices() a realistic synthetic device list
+#
+# THE PROBLEM. navigator.mediaDevices.enumerateDevices() returning an EMPTY
+# list is a classic headless/VM tell -- a real desktop has at least a default
+# audio output, usually a mic and often a camera. A containerized headful
+# Chrome (Xvfb, no sound card, no webcam) enumerates nothing.
+#
+# THE FIX. In DevicesEnumerated() -- the callback that materializes the Mojo
+# device-enumeration result into MediaDeviceInfo objects -- when APEX_FP_ACTIVE
+# is set and the real list is empty/sparse, substitute a small realistic set:
+# one default audio input ("Default - Microphone"), one audio output
+# ("Default - Speakers"), one video input ("FaceTime HD Camera" / a generic
+# webcam). Labels are only exposed after a getUserMedia permission grant, so a
+# bare enumerateDevices() shows the right *count* with empty labels -- exactly
+# what a real un-permissioned page sees. deviceId/groupId are stable per session
+# (seeded) so repeat calls agree.
+#
+# Device labels can be customized via APEX_FP_DEVICELABELS (";"-joined); the
+# default set below matches a typical laptop.
+#
+# Apply target: third_party/blink/renderer/modules/mediastream/media_devices.cc
+--- a/third_party/blink/renderer/modules/mediastream/media_devices.cc
++++ b/third_party/blink/renderer/modules/mediastream/media_devices.cc
+@@ -1,3 +1,5 @@
++#include "third_party/blink/renderer/modules/mediastream/apex_devices.h"
++
+ // Copyright 2015 The Chromium Authors
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+@@ MediaDevices::DevicesEnumerated @@
+   // <upstream> has built `media_devices` (the HeapVector<Member<MediaDeviceInfo>>)
+   // from the Mojo enumeration result and is about to resolve the promise.
++  // --- apex: ensure a realistic device set ---
++  if (apex_fp::Active()) {
++    apex_fp::EnsureRealisticDevices(&media_devices, GetExecutionContext());
++  }
++  // --- end apex ---
+   result_tracker->Resolve(media_devices);

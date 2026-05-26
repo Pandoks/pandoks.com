@@ -1,0 +1,35 @@
+# apex patch: deterministic per-session noise on canvas getImageData
+#
+# getImageDataInternal() produces the RGBA pixel buffer a page reads back for
+# canvas fingerprinting. We perturb that buffer just before it is wrapped into
+# the returned ImageData -- ~0.3% of pixels nudged +/-1, seeded by APEX_FP_SEED.
+#
+# The perturbation is applied to the SnapshotState / image data staging buffer.
+# The exact local variable holding the pixel bytes is version-sensitive; the
+# hunk below targets the point after the pixels are read into a contiguous
+# buffer and before the ImageData is constructed. refresh_patches.sh re-fits
+# this hunk on each Chromium bump.
+#
+# Apply target: third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
+--- a/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
++++ b/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
+@@ -1,3 +1,5 @@
++#include "third_party/blink/renderer/modules/canvas/canvas2d/apex_canvas_noise.h"
++
+ // Copyright 2015 The Chromium Authors
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+@@ getImageDataInternal: after pixel readback, before ImageData wrap @@
+   // <upstream> reads the snapshot pixels into `contents` (a contiguous RGBA
+   // SkPixmap / ArrayBufferContents). apex perturbs that buffer in place.
++  // --- apex canvas-noise injection ---
++  if (apex_fp::Active()) {
++    if (void* apex_data = contents.Data()) {
++      // contents holds RGBA8; DataLength() is in bytes.
++      apex_fp::PerturbRGBA(static_cast<uint8_t*>(apex_data),
++                           contents.DataLength() / 4);
++    }
++  }
++  // --- end apex ---
+   ImageData* image_data =
+       ImageData::Create(contents, Size(sw, sh), color_settings);

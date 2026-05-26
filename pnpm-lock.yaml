@@ -299,6 +299,10 @@ importers:
 
   packages/postgres: {}
 
+  packages/stealth-browser: {}
+
+  packages/stealth-chromium: {}
+
   packages/svelte:
     devDependencies:
       '@internationalized/date':

@@ -1,0 +1,42 @@
+# apex patch: deterministic per-session noise on canvas toDataURL
+#
+# ToDataURLInternal() snapshots the canvas and encodes it to a data: URL --
+# the other half of canvas fingerprinting (many fingerprinters hash the
+# toDataURL string rather than getImageData bytes). We perturb the snapshot's
+# pixel buffer before encoding, with the SAME seed as the getImageData patch so
+# both readback paths yield a mutually consistent fingerprint.
+#
+# Apply target: third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
+--- a/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
++++ b/third_party/blink/renderer/core/html/canvas/html_canvas_element.cc
+@@ -1,3 +1,5 @@
++#include "third_party/blink/renderer/modules/canvas/canvas2d/apex_canvas_noise.h"
++
+ // Copyright 2010 The Chromium Authors
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+@@ ToDataURLInternal: after snapshot, before ImageEncoder encode @@
+   // <upstream> obtains `image_bitmap` (a StaticBitmapImage snapshot) and is
+   // about to hand it to ImageDataBuffer / the encoder. apex perturbs the
+   // snapshot's pixels first.
++  // --- apex canvas-noise injection ---
++  if (apex_fp::Active() && image_bitmap) {
++    if (sk_sp<SkImage> apex_img =
++            image_bitmap->PaintImageForCurrentFrame().GetSwSkImage()) {
++      SkImageInfo apex_info =
++          SkImageInfo::MakeN32Premul(apex_img->width(), apex_img->height());
++      const size_t apex_row = apex_info.minRowBytes();
++      std::vector<uint8_t> apex_buf(apex_row * apex_img->height());
++      if (apex_img->readPixels(apex_info, apex_buf.data(), apex_row, 0, 0)) {
++        apex_fp::PerturbRGBA(apex_buf.data(),
++                             apex_buf.size() / 4);
++        SkPixmap apex_pm(apex_info, apex_buf.data(), apex_row);
++        if (sk_sp<SkImage> apex_noised =
++                SkImages::RasterFromPixmapCopy(apex_pm)) {
++          image_bitmap = UnacceleratedStaticBitmapImage::Create(apex_noised);
++        }
++      }
++    }
++  }
++  // --- end apex ---
+   ImageDataBuffer data_buffer(image_bitmap);

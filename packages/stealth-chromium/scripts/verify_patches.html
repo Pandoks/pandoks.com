@@ -1,0 +1,185 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>apex-chromium patch verification</title>
+<style>
+  body { font: 14px ui-monospace, Menlo, monospace; max-width: 760px; margin: 40px auto; padding: 0 20px; }
+  h1 { font-size: 18px; }
+  .row { display: flex; gap: 10px; padding: 4px 0; border-bottom: 1px solid #eee; }
+  .k { width: 280px; color: #555; }
+  .v { flex: 1; }
+  .ok { color: #1a7f37; } .bad { color: #c00; } .info { color: #555; }
+</style>
+<h1>apex-chromium patch verification</h1>
+<p class="info">
+  Open this in the apex-patched Chromium with the APEX_FP_* env vars set.
+  It probes every patched surface and checks that each patched function's
+  toString() still reports [native code]. A real C++ patch leaves no JS-visible
+  trace; a JS shim would fail the toString rows.
+</p>
+<div id="out"></div>
+<script>
+// This is a local diagnostic page. Every value rendered below is computed
+// locally from the browser's own APIs -- there is no external/untrusted input.
+const out = document.getElementById('out');
+function row(k, v, cls) {
+  const r = document.createElement('div');
+  r.className = 'row';
+  const kd = document.createElement('div');
+  kd.className = 'k';
+  kd.textContent = k;
+  const vd = document.createElement('div');
+  vd.className = 'v ' + (cls || 'info');
+  vd.textContent = v;
+  r.appendChild(kd);
+  r.appendChild(vd);
+  out.appendChild(r);
+}
+
+// --- spoofed values -----------------------------------------------------
+row('navigator.platform', navigator.platform);
+row('navigator.hardwareConcurrency', navigator.hardwareConcurrency);
+row('navigator.deviceMemory', navigator.deviceMemory);
+row('navigator.userAgentData.platform',
+    navigator.userAgentData ? navigator.userAgentData.platform : '(no UA-CH)');
+row('screen.width x height', screen.width + ' x ' + screen.height);
+row('screen.availWidth x availHeight', screen.availWidth + ' x ' + screen.availHeight);
+row('screen.colorDepth', screen.colorDepth);
+
+// WebGL unmasked strings
+try {
+  const gl = document.createElement('canvas').getContext('webgl');
+  const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+  row('WebGL UNMASKED_VENDOR', gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL));
+  row('WebGL UNMASKED_RENDERER', gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL));
+} catch (e) { row('WebGL', 'error: ' + e, 'bad'); }
+
+// Canvas hash (should differ per session, be stable within session)
+function canvasHash() {
+  const c = document.createElement('canvas');
+  c.width = 220; c.height = 30;
+  const x = c.getContext('2d');
+  x.textBaseline = 'top';
+  x.font = "14px Arial";
+  x.fillStyle = '#069';
+  x.fillText('apex-fp-check', 2, 2);
+  return c.toDataURL();
+}
+const h1 = canvasHash(), h2 = canvasHash();
+row('canvas toDataURL stable in-session', h1 === h2 ? 'YES (deterministic)' : 'NO',
+    h1 === h2 ? 'ok' : 'bad');
+row('canvas hash (sample chars)', h1.slice(22, 70));
+
+// --- the decisive check: toString integrity -----------------------------
+// A C++ patch leaves the JS getter pristine. A JS shim would show a different
+// toString. Every row here MUST say "native code".
+function ts(label, fn) {
+  let s;
+  try { s = Function.prototype.toString.call(fn); }
+  catch (e) { s = 'THREW: ' + e; }
+  const native = /\{\s*\[native code\]\s*\}/.test(s);
+  row('toString: ' + label, native ? 'native code  OK' : s, native ? 'ok' : 'bad');
+}
+const navProto = Object.getPrototypeOf(navigator);
+ts('navigator.hardwareConcurrency getter',
+   Object.getOwnPropertyDescriptor(navProto, 'hardwareConcurrency')?.get
+   || Object.getOwnPropertyDescriptor(Navigator.prototype, 'hardwareConcurrency')?.get
+   || (() => {}));
+ts('Screen.width getter',
+   Object.getOwnPropertyDescriptor(Screen.prototype, 'width')?.get);
+ts('HTMLCanvasElement.toDataURL',
+   HTMLCanvasElement.prototype.toDataURL);
+ts('CanvasRenderingContext2D.getImageData',
+   CanvasRenderingContext2D.prototype.getImageData);
+ts('WebGLRenderingContext.getParameter',
+   WebGLRenderingContext.prototype.getParameter);
+ts('AudioBuffer.getChannelData',
+   AudioBuffer.prototype.getChannelData);
+
+// --- new surfaces: WebRTC, devices, voices, battery, CDP ----------------
+
+// WebRTC: no host candidate should ever expose a private/real IP.
+(function () {
+  let pc;
+  try { pc = new RTCPeerConnection({iceServers: []}); }
+  catch (e) { row('WebRTC RTCPeerConnection', 'unavailable: ' + e, 'bad'); return; }
+  let leaked = [];
+  pc.onicecandidate = (ev) => {
+    if (!ev.candidate) {
+      // gathering done
+      row('WebRTC host-candidate IP leak',
+          leaked.length === 0 ? 'none — no real IP exposed'
+                              : 'LEAKED: ' + leaked.join(', '),
+          leaked.length === 0 ? 'ok' : 'bad');
+      return;
+    }
+    const c = ev.candidate.candidate || '';
+    // a host candidate carrying a routable/private IPv4 is the leak
+    const m = c.match(/(\d+\.\d+\.\d+\.\d+)/);
+    if (m && c.includes('typ host') && !/^0\.|^127\./.test(m[1])) {
+      leaked.push(m[1]);
+    }
+  };
+  pc.createDataChannel('apex');
+  pc.createOffer().then(o => pc.setLocalDescription(o)).catch(()=>{});
+})();
+
+// enumerateDevices: must NOT be an empty list.
+navigator.mediaDevices?.enumerateDevices?.().then(ds => {
+  const kinds = ds.map(d => d.kind);
+  row('mediaDevices.enumerateDevices count',
+      ds.length + '  [' + kinds.join(', ') + ']',
+      ds.length > 0 ? 'ok' : 'bad');
+}).catch(e => row('enumerateDevices', 'error: ' + e, 'bad'));
+
+// speechSynthesis voices: must NOT be empty.
+function checkVoices() {
+  const v = speechSynthesis.getVoices();
+  if (v.length === 0) { return false; }
+  row('speechSynthesis voices',
+      v.length + '  [' + v.slice(0,3).map(x=>x.name).join(', ') + '…]', 'ok');
+  return true;
+}
+if (!checkVoices()) {
+  speechSynthesis.onvoiceschanged = () => {
+    if (!checkVoices()) row('speechSynthesis voices', 'EMPTY LIST', 'bad');
+  };
+  setTimeout(() => { if (speechSynthesis.getVoices().length === 0)
+    row('speechSynthesis voices', 'EMPTY LIST (headless tell)', 'bad'); }, 1500);
+}
+
+// Battery: a discharging laptop with a plausible level.
+if (navigator.getBattery) {
+  navigator.getBattery().then(b => {
+    const sane = b.level > 0 && b.level < 1 && b.level === Math.round(b.level*100)/100;
+    row('Battery level / charging',
+        'level=' + b.level + ' charging=' + b.charging,
+        sane ? 'ok' : 'info');
+  }).catch(e => row('Battery API', 'error: ' + e, 'info'));
+} else {
+  row('Battery API', 'not present', 'info');
+}
+
+// CDP inspector leak: the 2026 prototype-Proxy probe. If a CDP client is
+// attached AND the inspector previews console args walking the prototype
+// chain, this Proxy ownKeys trap fires.
+(function () {
+  let cdpDetected = false;
+  try {
+    const probe = Object.create(new Proxy({}, {
+      ownKeys() { cdpDetected = true; return []; },
+      getOwnPropertyDescriptor() { return undefined; },
+    }));
+    console.groupEnd(probe);
+  } catch (e) { /* ignore */ }
+  row('CDP inspector-preview leak',
+      cdpDetected ? 'DETECTED — inspector walked the Proxy'
+                  : 'clean — no CDP preview leak',
+      cdpDetected ? 'bad' : 'ok');
+})();
+
+row('--- verdict ---',
+    document.querySelectorAll('.bad').length === 0
+      ? 'ALL CLEAN -- patches present, zero JS-visible tampering'
+      : 'SOME ROWS FAILED -- see red',
+    document.querySelectorAll('.bad').length === 0 ? 'ok' : 'bad');
+</script>
