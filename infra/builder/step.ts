@@ -49,6 +49,11 @@ export function builderStateMachineDefinition(
             ],
             Default: 'FailInvalidInstanceType'
           },
+          FailNoInstance: {
+            Type: 'Fail',
+            Cause: 'RunInstances failed; nothing to terminate',
+            Error: 'LaunchFailed'
+          },
           FailInvalidInstanceType: {
             Type: 'Fail',
             Cause: 'instanceType is not in the supported list',
