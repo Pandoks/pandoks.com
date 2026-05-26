@@ -1,4 +1,5 @@
 import { STAGE_NAME } from '../dns';
+import { secrets } from '../secrets';
 import { builderArtifactsBucket, builderCacheBucket } from '../storage';
 import { builderImageArm64, builderImageX86 } from './ami';
 
@@ -59,6 +60,11 @@ const builderLaunchTemplateArm64 = new aws.ec2.LaunchTemplate('BuilderLaunchTemp
   ]
 });
 
+export const builderGithubTokenParam = new aws.ssm.Parameter('BuilderGithubCloningToken', {
+  name: '/builders/github-cloning-pat',
+  type: 'SecureString',
+  value: secrets.github.PersonalAccessToken.value
+});
 const builderStateMachineRole = new aws.iam.Role('BuilderStateMachineRole', {
   assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
     statements: [
