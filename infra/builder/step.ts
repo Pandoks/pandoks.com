@@ -48,6 +48,23 @@ function launchInstance(architecture: 'x86' | 'arm64', market: 'spot' | 'on-dema
   };
 }
 
+const storageSizeGate = {
+  ValidateStorageSize: {
+    Type: 'Choice',
+    Choices: [
+      {
+        And: [
+          { Variable: '$.storageSizeGib', IsNumeric: true },
+          { Variable: '$.storageSizeGib', NumericGreaterThanEquals: 8 },
+          { Variable: '$.storageSizeGib', NumericLessThanEquals: 16384 }
+        ],
+        Next: 'ChooseArchitecture'
+      }
+    ],
+    Default: 'FailInvalidStorageSize'
+  }
+};
+
 const instanceTypesGate = {
   ChooseArchitecture: {
     Type: 'Choice',
@@ -273,6 +290,11 @@ export function builderStateMachineDefinition({
             Type: 'Fail',
             Cause: 'instanceType is not in the supported list',
             Error: 'InvalidInstanceType'
+          },
+          FailInvalidStorageSize: {
+            Type: 'Fail',
+            Cause: 'storageSizeGib must be a number between 8 and 16384 (gp3 max)',
+            Error: 'InvalidStorageSize'
           },
           FailBuild: {
             Type: 'Fail',
