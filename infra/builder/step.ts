@@ -19,6 +19,36 @@ export function builderStateMachineDefinition(
 ) {
   return $resolve([launchTemplateIdX86, launchTemplateIdArm64, cacheBucket, artifactsBucket]).apply(
     ([launchTemplateIdX86, launchTemplateIdArm64, cacheBucket, artifactsBucket]) =>
+      JSON.stringify({
+        Comment:
+          'Ephemeral EC2 builder — launch (arch-routed), run script via SSM, always terminate',
+        StartAt: 'ResolveLaunchTemplates',
+        States: {
+          ResolveLaunchTemplates: {
+            Type: 'Pass',
+            Result: {
+              launchTemplateIdX86,
+              launchTemplateIdArm64
+            },
+            ResultPath: '$.templates',
+            Next: 'ChooseArchitecture'
+          },
+          ChooseArchitecture: {
+            Type: 'Choice',
+            Choices: [
+              ...ARM_INSTANCE_TYPES.map((type) => ({
+                Variable: '$.instanceType',
+                StringEquals: type,
+                Next: 'ChooseMarketArm64'
+              })),
+              ...X86_INSTANCE_TYPES.map((type) => ({
+                Variable: '$.instanceType',
+                StringEquals: type,
+                Next: 'ChooseMarketX86'
+              }))
+            ],
+            Default: 'FailInvalidInstanceType'
+          },
       })
   );
 }
