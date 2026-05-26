@@ -27,8 +27,8 @@ function launchInstance(architecture: 'x86' | 'arm64', market: 'spot' | 'on-dema
         {
           ResourceType: 'instance',
           Tags: [
-            { Key: 'BuildId', 'Value.$': '$.buildId' },
-            { Key: 'RepoRef', 'Value.$': '$.repoRef' }
+            { Key: 'Id', 'Value.$': '$.id' },
+            { Key: 'Ref', 'Value.$': '$.ref' }
           ]
         }
       ]
@@ -175,15 +175,37 @@ export function builderStateMachineDefinition({
       return JSON.stringify({
         Comment:
           'Ephemeral EC2 builder — launch (arch-routed), run script via SSM, always terminate',
-        StartAt: 'ResolveLaunchTemplates',
+        StartAt: 'ResolveInputs',
         States: {
-          ResolveLaunchTemplates: {
+          ResolveInputs: {
+            Type: 'Choice',
+            Choices: [
+              { Variable: '$.id', IsPresent: true, Next: 'ResolveInputsWithId' }
+            ],
+            Default: 'ResolveInputsWithExecutionId'
+          },
+          ResolveInputsWithId: {
             Type: 'Pass',
-            Result: {
-              launchTemplateIdX86,
-              launchTemplateIdArm64
+            Parameters: {
+              'id.$': '$.id',
+              'ref.$': '$.ref',
+              'instanceType.$': '$.instanceType',
+              'marketType.$': '$.marketType',
+              'command.$': '$.command',
+              templates: { launchTemplateIdX86, launchTemplateIdArm64 }
             },
-            ResultPath: '$.templates',
+            Next: 'ChooseArchitecture'
+          },
+          ResolveInputsWithExecutionId: {
+            Type: 'Pass',
+            Parameters: {
+              'id.$': '$$.Execution.Name',
+              'ref.$': '$.ref',
+              'instanceType.$': '$.instanceType',
+              'marketType.$': '$.marketType',
+              'command.$': '$.command',
+              templates: { launchTemplateIdX86, launchTemplateIdArm64 }
+            },
             Next: 'ChooseArchitecture'
           },
           ...instanceTypesGate,
@@ -200,7 +222,7 @@ export function builderStateMachineDefinition({
               DocumentName: 'AWS-RunShellScript',
               TimeoutSeconds: 60,
               Parameters: {
-                'commands.$': `States.Array(States.Format('bash -c \\'${bashScript}\\'', $.buildId, $.repoRef, $.command))`,
+                'commands.$': `States.Array(States.Format('bash -c \\'${bashScript}\\'', $.id, $.ref, $.command))`,
                 executionTimeout: ['86400'] // 24 hours
               },
               CloudWatchOutputConfig: { CloudWatchOutputEnabled: true }
