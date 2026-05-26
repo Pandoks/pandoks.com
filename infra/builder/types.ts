@@ -1,3 +1,8 @@
+/**
+ * NOTE: this file is used by both the infra and the apps/functions. we do this to avoid functions
+ * importing SST specifics and causing type errors. this also allows up to sync up the instances
+ * to gate.
+ */
 export const ARM_INSTANCE_TYPES = ['c7g.16xlarge', 'c8g.16xlarge', 'c8g.48xlarge'] as const;
 
 export const X86_INSTANCE_TYPES = [
@@ -12,9 +17,6 @@ export const X86_INSTANCE_TYPES = [
   'c8i.metal-48xl'
 ] as const;
 
-export const SUPPORTED_INSTANCE_TYPES = [
-  ...ARM_INSTANCE_TYPES,
-  ...X86_INSTANCE_TYPES
-] as const;
+export const SUPPORTED_INSTANCE_TYPES = [...ARM_INSTANCE_TYPES, ...X86_INSTANCE_TYPES] as const;
 
 export type InstanceType = (typeof SUPPORTED_INSTANCE_TYPES)[number];
