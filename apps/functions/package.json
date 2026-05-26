@@ -15,7 +15,7 @@
     "@notionhq/client": "^5.22.0",
     "sst": "^4.14.3",
     "twilio": "^6.0.2",
-    "undici": "^7.24.0"
+    "undici": "^8.0.0"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.161"
