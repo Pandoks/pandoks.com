@@ -38,9 +38,11 @@ const builderInstanceProfile = new aws.iam.InstanceProfile('BuilderInstanceProfi
 });
 
 const baseTags = { Stage: STAGE_NAME, ManagedBy: 'Builder' };
+const builderImageX86Ami = builderImageX86.outputResources.apply((r) => r[0].amis[0].image);
+const builderImageArm64Ami = builderImageArm64.outputResources.apply((r) => r[0].amis[0].image);
 const builderLaunchTemplateX86 = new aws.ec2.LaunchTemplate('BuilderLaunchTemplateX86', {
   name: `builder-x86`,
-  imageId: builderImageX86.id,
+  imageId: builderImageX86Ami,
   iamInstanceProfile: { arn: builderInstanceProfile.arn },
   tagSpecifications: [
     {
@@ -51,7 +53,7 @@ const builderLaunchTemplateX86 = new aws.ec2.LaunchTemplate('BuilderLaunchTempla
 });
 const builderLaunchTemplateArm64 = new aws.ec2.LaunchTemplate('BuilderLaunchTemplateArm64', {
   name: `builder-arm64`,
-  imageId: builderImageArm64.id,
+  imageId: builderImageArm64Ami,
   iamInstanceProfile: { arn: builderInstanceProfile.arn },
   tagSpecifications: [
     {
@@ -115,6 +117,6 @@ export const builderStateMachine = new aws.sfn.StateMachine('BuilderStateMachine
     launchTemplateIdArm64: builderLaunchTemplateArm64.id,
     cacheBucket: builderCacheBucket.name,
     artifactsBucket: builderArtifactsBucket.name,
-    githubCloningTokenSSMParam: builderGithubTokenParameter.name
+    githubCloningTokenSSMParameter: builderGithubTokenParameter.name
   })
 });

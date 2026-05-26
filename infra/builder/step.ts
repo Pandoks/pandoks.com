@@ -88,7 +88,7 @@ const waitForSsm = {
     ResultPath: '$.ssmStatus',
     Next: 'IsSSMReady',
     Retry: [{ ErrorEquals: ['States.ALL'], IntervalSeconds: 15, MaxAttempts: 8 }],
-    Catch: [{ ErrorEquals: ['States.ALL'], ResultPath: '$.error', Next: 'Terminate' }]
+    Catch: [{ ErrorEquals: ['States.ALL'], ResultPath: '$.error', Next: 'TerminateAfterFailure' }]
   },
   IsSSMReady: {
     Type: 'Choice',
@@ -119,15 +119,15 @@ const waitForBuild = {
     ResultPath: '$.invocation',
     Next: 'IsBuildDone',
     Retry: [{ ErrorEquals: ['States.ALL'], IntervalSeconds: 10, MaxAttempts: 3 }],
-    Catch: [{ ErrorEquals: ['States.ALL'], ResultPath: '$.error', Next: 'Terminate' }]
+    Catch: [{ ErrorEquals: ['States.ALL'], ResultPath: '$.error', Next: 'TerminateAfterFailure' }]
   },
   IsBuildDone: {
     Type: 'Choice',
     Choices: [
-      { Variable: '$.invocation.Status', StringEquals: 'Success', Next: 'Terminate' },
-      { Variable: '$.invocation.Status', StringEquals: 'Failed', Next: 'Terminate' },
-      { Variable: '$.invocation.Status', StringEquals: 'Cancelled', Next: 'Terminate' },
-      { Variable: '$.invocation.Status', StringEquals: 'TimedOut', Next: 'Terminate' }
+      { Variable: '$.invocation.Status', StringEquals: 'Success', Next: 'TerminateAfterSuccess' },
+      { Variable: '$.invocation.Status', StringEquals: 'Failed', Next: 'TerminateAfterFailure' },
+      { Variable: '$.invocation.Status', StringEquals: 'Cancelled', Next: 'TerminateAfterFailure' },
+      { Variable: '$.invocation.Status', StringEquals: 'TimedOut', Next: 'TerminateAfterFailure' }
     ],
     Default: 'WaitForBuild'
   }
@@ -208,10 +208,12 @@ export function builderStateMachineDefinition({
             },
             ResultPath: '$.command',
             Next: 'WaitForBuild',
-            Catch: [{ ErrorEquals: ['States.ALL'], ResultPath: '$.error', Next: 'Terminate' }]
+            Catch: [
+              { ErrorEquals: ['States.ALL'], ResultPath: '$.error', Next: 'TerminateAfterFailure' }
+            ]
           },
           ...waitForBuild,
-          Terminate: {
+          TerminateAfterSuccess: {
             Type: 'Task',
             Resource: 'arn:aws:states:::aws-sdk:ec2:terminateInstances',
             Parameters: {
@@ -220,6 +222,19 @@ export function builderStateMachineDefinition({
             ResultPath: '$.termination',
             Next: 'Done',
             Retry: [{ ErrorEquals: ['States.ALL'], IntervalSeconds: 15, MaxAttempts: 5 }]
+          },
+          TerminateAfterFailure: {
+            Type: 'Task',
+            Resource: 'arn:aws:states:::aws-sdk:ec2:terminateInstances',
+            Parameters: {
+              'InstanceIds.$': 'States.Array($.instance.Instances[0].InstanceId)'
+            },
+            ResultPath: '$.termination',
+            Next: 'FailBuild',
+            Retry: [{ ErrorEquals: ['States.ALL'], IntervalSeconds: 15, MaxAttempts: 5 }],
+            Catch: [
+              { ErrorEquals: ['States.ALL'], ResultPath: '$.terminationError', Next: 'FailBuild' }
+            ]
           },
           FailNoInstance: {
             Type: 'Fail',
@@ -230,6 +245,11 @@ export function builderStateMachineDefinition({
             Type: 'Fail',
             Cause: 'instanceType is not in the supported list',
             Error: 'InvalidInstanceType'
+          },
+          FailBuild: {
+            Type: 'Fail',
+            Cause: 'Remote build command failed, was cancelled, or timed out',
+            Error: 'BuildFailed'
           },
           Done: { Type: 'Succeed' }
         }
