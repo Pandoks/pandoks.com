@@ -50,7 +50,7 @@ function launchInstance(architecture: 'x86' | 'arm64', market: 'spot' | 'on-dema
   };
 }
 
-const instanceTypeGate = {
+const instanceTypesGate = {
   ChooseArchitecture: {
     Type: 'Choice',
     Choices: [
@@ -79,6 +79,41 @@ const instanceTypeGate = {
   }
 };
 
+const waitForSsm = {
+  WaitForSSM: {
+    Type: 'Wait',
+    Seconds: 60,
+    Next: 'CheckSSMReady'
+  },
+  CheckSSMReady: {
+    Type: 'Task',
+    Resource: 'arn:aws:states:::aws-sdk:ssm:describeInstanceInformation',
+    Parameters: {
+      Filters: [
+        {
+          Key: 'InstanceIds',
+          'Values.$': 'States.Array($.instance.Instances[0].InstanceId)'
+        }
+      ]
+    },
+    ResultPath: '$.ssmStatus',
+    Next: 'IsSSMReady',
+    Retry: [{ ErrorEquals: ['States.ALL'], IntervalSeconds: 15, MaxAttempts: 8 }],
+    Catch: [{ ErrorEquals: ['States.ALL'], ResultPath: '$.error', Next: 'Terminate' }]
+  },
+  IsSSMReady: {
+    Type: 'Choice',
+    Choices: [
+      {
+        Variable: '$.ssmStatus.InstanceInformationList[0].PingStatus',
+        StringEquals: 'Online',
+        Next: 'RunBuild'
+      }
+    ],
+    Default: 'WaitForSSM'
+  }
+};
+
 export function builderStateMachineDefinition(
   launchTemplateIdX86: $util.Input<string>,
   launchTemplateIdArm64: $util.Input<string>,
@@ -101,27 +136,12 @@ export function builderStateMachineDefinition(
             ResultPath: '$.templates',
             Next: 'ChooseArchitecture'
           },
-          ...instanceTypeGate,
-          },
-          ChooseMarketX86: {
-            Type: 'Choice',
-            Choices: [
-              { Variable: '$.marketType', StringEquals: 'on-demand', Next: 'LaunchOnDemandX86' }
-            ],
-            Default: 'LaunchSpotX86'
-          },
-          ChooseMarketArm64: {
-            Type: 'Choice',
-            Choices: [
-              { Variable: '$.marketType', StringEquals: 'on-demand', Next: 'LaunchOnDemandArm64' }
-            ],
-            Default: 'LaunchSpotArm64'
-          },
+          ...instanceTypesGate,
           LaunchSpotX86: launchInstance('x86', 'spot'),
           LaunchOnDemandX86: launchInstance('x86', 'on-demand'),
           LaunchSpotArm64: launchInstance('arm64', 'spot'),
           LaunchOnDemandArm64: launchInstance('arm64', 'on-demand'),
-          WaitForSSM: {
+          ...waitForSsm,
             Type: 'Wait',
             Seconds: 60,
             Next: 'CheckSSMReady'
