@@ -15,6 +15,25 @@ function launchInstance(architecture: 'x86' | 'arm64', market: 'spot' | 'on-dema
       MinCount: 1,
       MaxCount: 1,
       'InstanceType.$': '$.instanceType',
+      // Per-execution root volume override. The AMI defaults to 8 GB which is
+      // fine for a hello-world build but too small for anything that needs to
+      // check out a large source tree (Chromium needs ~130 GB). Callers pass
+      // $.rootVolumeSizeGb; the launch template's root device name
+      // (/dev/sda1) is hardcoded here because BlockDeviceMappings overrides
+      // must match the AMI's RootDeviceName exactly or they are silently
+      // ignored. DeleteOnTermination defaults true for root volumes (matches
+      // the AMI), so the volume vanishes with the instance and never bills
+      // between runs.
+      BlockDeviceMappings: [
+        {
+          DeviceName: '/dev/sda1',
+          Ebs: {
+            'VolumeSize.$': '$.rootVolumeSizeGb',
+            VolumeType: 'gp3',
+            DeleteOnTermination: true
+          }
+        }
+      ],
       ...(market === 'spot'
         ? {
             InstanceMarketOptions: {
@@ -177,7 +196,26 @@ export function builderStateMachineDefinition({
           'Ephemeral EC2 builder — launch (arch-routed), run script via SSM, always terminate',
         StartAt: 'ResolveInputs',
         States: {
+          // Default rootVolumeSizeGb to 30 GB if the caller omitted it.
+          // SFN Pass states can't express "default if absent", so the only
+          // safe pattern is: Choice on IsPresent -> Pass that injects the
+          // default -> common downstream. After this state, $.rootVolumeSizeGb
+          // is always set, and the resolve-inputs Pass below can safely
+          // forward it with `'rootVolumeSizeGb.$': '$.rootVolumeSizeGb'`.
           ResolveInputs: {
+            Type: 'Choice',
+            Choices: [
+              { Variable: '$.rootVolumeSizeGb', IsPresent: true, Next: 'PickIdSource' }
+            ],
+            Default: 'ApplyDefaultRootVolumeSize'
+          },
+          ApplyDefaultRootVolumeSize: {
+            Type: 'Pass',
+            Result: 30,
+            ResultPath: '$.rootVolumeSizeGb',
+            Next: 'PickIdSource'
+          },
+          PickIdSource: {
             Type: 'Choice',
             Choices: [{ Variable: '$.id', IsPresent: true, Next: 'ResolveInputsWithId' }],
             Default: 'ResolveInputsWithExecutionId'
@@ -190,6 +228,7 @@ export function builderStateMachineDefinition({
               'instanceType.$': '$.instanceType',
               'marketType.$': '$.marketType',
               'command.$': '$.command',
+              'rootVolumeSizeGb.$': '$.rootVolumeSizeGb',
               templates: { launchTemplateIdX86, launchTemplateIdArm64 }
             },
             Next: 'ChooseArchitecture'
@@ -202,6 +241,7 @@ export function builderStateMachineDefinition({
               'instanceType.$': '$.instanceType',
               'marketType.$': '$.marketType',
               'command.$': '$.command',
+              'rootVolumeSizeGb.$': '$.rootVolumeSizeGb',
               templates: { launchTemplateIdX86, launchTemplateIdArm64 }
             },
             Next: 'ChooseArchitecture'

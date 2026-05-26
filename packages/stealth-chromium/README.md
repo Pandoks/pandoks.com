@@ -136,6 +136,11 @@ like a touch device.
 
 ## Run
 
+Two paths: **on your own machine** (long, but you keep the checkout) or
+**via the AWS SFN builder** (ephemeral, parallelizable, artifact in S3).
+
+### Local
+
 ```sh
 cd packages/stealth-chromium
 
@@ -155,10 +160,122 @@ The output binary lives at
 the stealth-browser service at it via
 `APEX_CHROME_PATH=/path/to/Chromium`.
 
-> The env var is `APEX_CHROMIUM_WORK`, not `STEALTH_CHROMIUM_WORK`. Renaming
-> was deferred to keep the in-flight v2 build's scripts working. If you start
-> fresh, the rename is a one-shot `grep | xargs sed` &mdash; see
-> [HANDOFF.md](../stealth-browser/HANDOFF.md) for the command.
+### Via the AWS SFN builder (recommended for fresh builds)
+
+The monorepo ships an ephemeral EC2 builder defined under
+[`infra/builder/`](../../infra/builder/). It launches a fresh c7i / c7g
+instance from a pre-baked AMI (clang, lld, ninja, ccache, depot_tools deps
+pre-installed), runs the build in a managed Step Functions workflow with
+SSM-streamed CloudWatch logs, uploads the patched binary to S3, and
+terminates the instance &mdash; even on failure.
+
+The first build is cold &mdash; expect **6&ndash;10 hours** on a 4xlarge.
+Subsequent builds restore the Chromium source tree + ccache from
+`BUILDER_CACHE_BUCKET` and complete in **30&ndash;90 minutes**.
+
+**Prerequisites** (one-time):
+
+- AWS SSO access to the account hosting the builder
+  (we use `AWS_PROFILE=Personal` against `us-west-1`).
+- The `dev-builder` (or `prod-builder`) state machine must be deployed.
+  If it isn't, `cd` to the repo root and run `pnpm sst deploy --stage dev`
+  &mdash; that provisions VPC, IAM, launch templates, S3 buckets, and the
+  state machine itself in one pass.
+- The branch with your code **must be pushed to GitHub** &mdash; the SFN
+  does `git clone --branch <ref>` from origin. Local-only branches are
+  invisible.
+
+**Start a build:**
+
+```sh
+export AWS_PROFILE=Personal AWS_REGION=us-west-1
+BUILD_ID="stealth-chromium-$(date +%Y%m%d-%H%M%S)"
+
+aws stepfunctions start-execution \
+  --state-machine-arn arn:aws:states:us-west-1:343487555569:stateMachine:dev-builder \
+  --name "$BUILD_ID" \
+  --input "$(jq -nc \
+    --arg id "$BUILD_ID" \
+    --arg ref "$(git rev-parse --abbrev-ref HEAD)" \
+    '{id:$id, ref:$ref,
+      instanceType:"c7i.4xlarge",
+      marketType:"on-demand",
+      rootVolumeSizeGb:200,
+      command:"bash packages/stealth-chromium/scripts/sfn-build.sh"}')"
+```
+
+Pick `instanceType` from the lists in
+[`infra/builder/types.ts`](../../infra/builder/types.ts). The architecture
+gate routes you to the matching launch template automatically (c7g.\* /
+c8g.\* / m\*g.\* &rarr; arm64; c7i.\* / c8i.\* / m\*i.\* &rarr; x86).
+`marketType: "spot"` is ~4&times; cheaper but can be interrupted; for the
+multi-hour Chromium build use `"on-demand"` unless you've already cached
+the checkout.
+
+**`rootVolumeSizeGb`** sizes the EC2 instance's root EBS volume for this
+run. The default (when omitted) is **30 GB** &mdash; intentionally small,
+so a quick smoke build doesn't overpay. **For a Chromium build you must
+pass at least 200 GB** (~100 GB source checkout + ~30 GB build output +
+ccache + tarball staging). The volume has `DeleteOnTermination: true`, so
+it disappears with the instance and bills nothing between runs. gp3 at
+$0.08/GB-month works out to ~$0.022/hr while the build is running &mdash;
+trivial compared to the instance cost itself.
+
+**Monitor the build:**
+
+```sh
+# top-line status
+aws stepfunctions describe-execution \
+  --execution-arn "arn:aws:states:us-west-1:343487555569:execution:dev-builder:$BUILD_ID" \
+  --query '{status:status,started:startDate,stopped:stopDate,error:error}' \
+  --output table
+
+# step history (newest first)
+aws stepfunctions get-execution-history \
+  --execution-arn "arn:aws:states:us-west-1:343487555569:execution:dev-builder:$BUILD_ID" \
+  --max-results 20 --reverse-order \
+  --query 'events[].{ts:timestamp,type:type,name:stateEnteredEventDetails.name}' \
+  --output table
+
+# live build log (the SSM-RunShellScript task streams to CloudWatch)
+aws logs tail "/aws/ssm/AWS-RunShellScript" --follow \
+  --filter-pattern "$BUILD_ID"
+```
+
+**Fetch the artifact:**
+
+```sh
+ARTIFACTS_BUCKET=personal-pandoks-builderartifactsbucketbucket-oawuxubt
+aws s3 cp "s3://${ARTIFACTS_BUCKET}/${BUILD_ID}/manifest.json" - | jq .
+aws s3 cp "s3://${ARTIFACTS_BUCKET}/${BUILD_ID}/chromium-148.0.7778.179.tar.zst" .
+tar --use-compress-program 'zstd -d --long=27' -xf chromium-148.0.7778.179.tar.zst -C /opt/stealth-chromium/
+export APEX_CHROME_PATH=/opt/stealth-chromium/chrome
+```
+
+**Diagnose a failure:** `sfn-build.sh` traps `ERR` and uploads the last
+1MB of the build log to `s3://<artifacts>/<BUILD_ID>/build-failure.log`
+*before* the SFN terminates the instance &mdash; so the diagnostic survives
+the cleanup. Pull it with `aws s3 cp` and grep for `ANCHOR NOT FOUND`,
+`ld64.lld`, `error:`, etc.
+
+**Cost ballpark** (us-west-1):
+
+| step | duration | cost |
+|---|---|---|
+| cold first build (c7i.4xlarge on-demand, no cache) | ~7h | ~$5 |
+| warm incremental (cache HIT for src + ccache) | ~45min | ~$0.55 |
+| spot variant (c7i.4xlarge spot, no cache) | ~7h | ~$1.40 |
+
+S3 storage for the Chromium-src tarball (~6 GB compressed) + ccache
+tarball (~12 GB compressed) is ~$0.40/mo at standard pricing.
+
+### Env var naming note
+
+The build scripts and C++ patches use the `APEX_*` prefix
+(`APEX_CHROMIUM_WORK`, `APEX_FP_*`) &mdash; legacy from when this code
+lived in `~/Projects/sandbox/apex-chromium/`. It has NOT been renamed to
+`STEALTH_*` because an in-flight v2 build still references those exact
+strings. New code should match the existing `APEX_*` prefix.
 
 ## Verify
 

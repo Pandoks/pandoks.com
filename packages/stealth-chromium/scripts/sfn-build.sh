@@ -40,24 +40,18 @@ cleanup_on_failure() {
 }
 trap cleanup_on_failure ERR
 
-# --- 1. mount /build on the largest spare block device, if any -------------
-# c7i.4xlarge has root EBS only by default; if the operator attached extra
-# storage we'd rather use it. Best-effort: skip silently if nothing matches.
-SPARE_DEV="$(lsblk -dpno NAME,SIZE,TYPE,MOUNTPOINT 2>/dev/null \
-  | awk '$3=="disk" && $4=="" {print $1, $2}' \
-  | sort -k2 -h -r \
-  | head -1 \
-  | awk '{print $1}')"
-if [ -n "$SPARE_DEV" ] && [ ! -d /build ]; then
-  echo "[mount] formatting $SPARE_DEV as /build"
-  sudo mkfs.ext4 -F -q "$SPARE_DEV"
-  sudo mkdir -p /build
-  sudo mount "$SPARE_DEV" /build
-  sudo chown "$USER:$USER" /build
-else
-  echo "[mount] no spare disk found, building on root volume"
-  sudo mkdir -p /build && sudo chown "$USER:$USER" /build
-fi
+# --- 1. set up /build on the root volume -----------------------------------
+# The SFN sizes the root EBS volume at run time via $.rootVolumeSizeGb, so
+# /build just lives on /. Earlier versions of this script tried to format a
+# "spare" block device for /build, but on c7i/c8i/m*i instance families
+# there are no instance-store NVMe drives, and on Ubuntu c7i the root disk
+# (/dev/nvme0n1) reports an empty MOUNTPOINT in lsblk -d (its partitions
+# carry the mounts), which made the auto-detect grab the live root and
+# refuse to format it. Simpler is better: trust the SFN sizing.
+sudo mkdir -p /build
+sudo chown "$USER:$USER" /build
+echo "[mount] /build on root volume; df:"
+df -h /build
 export APEX_CHROMIUM_WORK=/build
 
 # --- 2,3,4: hand off to the existing scripts -------------------------------
