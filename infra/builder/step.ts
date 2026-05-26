@@ -172,9 +172,16 @@ export function builderStateMachineDefinition(
           LaunchSpotArm64: launchInstance('arm64', 'spot'),
           LaunchOnDemandArm64: launchInstance('arm64', 'on-demand'),
           ...waitForSsm,
-            Type: 'Wait',
-            Seconds: 60,
-            Next: 'CheckSSMReady'
+          ...waitForBuild,
+          Terminate: {
+            Type: 'Task',
+            Resource: 'arn:aws:states:::aws-sdk:ec2:terminateInstances',
+            Parameters: {
+              'InstanceIds.$': 'States.Array($.instance.Instances[0].InstanceId)'
+            },
+            ResultPath: '$.termination',
+            Next: 'Done',
+            Retry: [{ ErrorEquals: ['States.ALL'], IntervalSeconds: 15, MaxAttempts: 5 }]
           },
           FailNoInstance: {
             Type: 'Fail',
@@ -188,6 +195,7 @@ export function builderStateMachineDefinition(
           },
           Done: { Type: 'Succeed' }
         }
-      })
+      });
+    }
   );
 }
