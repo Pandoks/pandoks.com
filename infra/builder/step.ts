@@ -49,6 +49,20 @@ export function builderStateMachineDefinition(
             ],
             Default: 'FailInvalidInstanceType'
           },
+          ChooseMarketX86: {
+            Type: 'Choice',
+            Choices: [
+              { Variable: '$.marketType', StringEquals: 'on-demand', Next: 'LaunchOnDemandX86' }
+            ],
+            Default: 'LaunchSpotX86'
+          },
+          ChooseMarketArm64: {
+            Type: 'Choice',
+            Choices: [
+              { Variable: '$.marketType', StringEquals: 'on-demand', Next: 'LaunchOnDemandArm64' }
+            ],
+            Default: 'LaunchSpotArm64'
+          },
           FailNoInstance: {
             Type: 'Fail',
             Cause: 'RunInstances failed; nothing to terminate',
