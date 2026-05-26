@@ -105,3 +105,16 @@ new aws.iam.RolePolicy('BuilderStateMachinePolicy', {
     ]
   }).json
 });
+
+export const builderStateMachine = new aws.sfn.StateMachine('BuilderStateMachine', {
+  name: 'builder',
+  roleArn: builderStateMachineRole.arn,
+  type: 'STANDARD',
+  definition: builderStateMachineDefinition({
+    launchTemplateIdX86: builderLaunchTemplateX86.id,
+    launchTemplateIdArm64: builderLaunchTemplateArm64.id,
+    cacheBucket: builderCacheBucket.name,
+    artifactsBucket: builderArtifactsBucket.name,
+    githubCloningTokenSSMParam: builderGithubTokenParam.name
+  })
+});
