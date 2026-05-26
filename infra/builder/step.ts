@@ -1,6 +1,8 @@
 import { githubOrg, githubRepoName } from '../github';
 import { ARM_INSTANCE_TYPES, X86_INSTANCE_TYPES } from './types';
 
+const INPUT_DEFAULTS = { storageSizeGib: 8 };
+
 function launchInstance(architecture: 'x86' | 'arm64', market: 'spot' | 'on-demand') {
   return {
     Type: 'Task',
@@ -224,24 +226,15 @@ export function builderStateMachineDefinition({
       return JSON.stringify({
         Comment:
           'Ephemeral EC2 builder — launch (arch-routed), run script via SSM, always terminate',
-        StartAt: 'ResolveInputs',
+        StartAt: 'ApplyDefaults',
         States: {
-          ResolveInputs: {
-            Type: 'Choice',
-            Choices: [{ Variable: '$.id', IsPresent: true, Next: 'ResolveInputsWithId' }],
-            Default: 'ResolveInputsWithExecutionId'
-          },
-          ResolveInputsWithId: {
+          ApplyDefaults: {
             Type: 'Pass',
             Parameters: {
-              'id.$': '$.id',
-              'ref.$': '$.ref',
-              'instanceType.$': '$.instanceType',
-              'marketType.$': '$.marketType',
-              'command.$': '$.command',
-              templates: { launchTemplateIdX86, launchTemplateIdArm64 }
+              'resolved.$': `States.JsonMerge(States.StringToJson('${JSON.stringify(INPUT_DEFAULTS)}'), $$.Execution.Input, false)`
             },
-            Next: 'ChooseArchitecture'
+            OutputPath: '$.resolved',
+            Next: 'ResolveId'
           },
           ResolveInputsWithExecutionId: {
             Type: 'Pass',
