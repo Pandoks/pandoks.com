@@ -39,30 +39,30 @@ const builderInstanceProfile = new aws.iam.InstanceProfile('BuilderInstanceProfi
 
 const baseTags = { Stage: STAGE_NAME, ManagedBy: 'Builder' };
 const builderLaunchTemplateX86 = new aws.ec2.LaunchTemplate('BuilderLaunchTemplateX86', {
-  name: `builder-x86`,
+  name: `${STAGE_NAME}-builder-x86`,
   imageId: builderImageX86.outputResources[0].amis[0].image,
   iamInstanceProfile: { arn: builderInstanceProfile.arn },
   tagSpecifications: [
     {
       resourceType: 'instance',
-      tags: { ...baseTags, Name: `builder-x86`, Arch: 'x86_64' }
+      tags: { ...baseTags, Name: `${STAGE_NAME}-builder-x86`, Arch: 'x86_64' }
     }
   ]
 });
 const builderLaunchTemplateArm64 = new aws.ec2.LaunchTemplate('BuilderLaunchTemplateArm64', {
-  name: `builder-arm64`,
+  name: `${STAGE_NAME}-builder-arm64`,
   imageId: builderImageArm64.outputResources[0].amis[0].image,
   iamInstanceProfile: { arn: builderInstanceProfile.arn },
   tagSpecifications: [
     {
       resourceType: 'instance',
-      tags: { ...baseTags, Name: `builder-arm64`, Arch: 'arm64' }
+      tags: { ...baseTags, Name: `${STAGE_NAME}-builder-arm64`, Arch: 'arm64' }
     }
   ]
 });
 
 export const builderGithubTokenParameter = new aws.ssm.Parameter('BuilderGithubCloningToken', {
-  name: '/builders/github-cloning-pat',
+  name: `/builders/${STAGE_NAME}/github-cloning-pat`,
   type: 'SecureString',
   value: secrets.github.PersonalAccessToken.value
 });
@@ -107,7 +107,7 @@ new aws.iam.RolePolicy('BuilderStateMachinePolicy', {
 });
 
 export const builderStateMachine = new aws.sfn.StateMachine('BuilderStateMachine', {
-  name: 'builder',
+  name: `${STAGE_NAME}-builder`,
   roleArn: builderStateMachineRole.arn,
   type: 'STANDARD',
   definition: builderStateMachineDefinition({
