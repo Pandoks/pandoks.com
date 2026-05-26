@@ -51,6 +51,12 @@ function launchInstance(architecture: 'x86' | 'arm64', market: 'spot' | 'on-dema
 }
 
 const storageSizeGate = {
+  NormalizeStorageSize: {
+    Type: 'Pass',
+    Parameters: { 'storageSizeGibStr.$': "States.Format('{}', $.storageSizeGib)" },
+    ResultPath: '$.normalized',
+    Next: 'ValidateStorageSize'
+  },
   ValidateStorageSize: {
     Type: 'Choice',
     Choices: [
@@ -58,7 +64,8 @@ const storageSizeGate = {
         And: [
           { Variable: '$.storageSizeGib', IsNumeric: true },
           { Variable: '$.storageSizeGib', NumericGreaterThanEquals: 8 },
-          { Variable: '$.storageSizeGib', NumericLessThanEquals: 16384 }
+          { Variable: '$.storageSizeGib', NumericLessThanEquals: 16384 },
+          { Not: { Variable: '$.normalized.storageSizeGibStr', StringMatches: '*.*' } }
         ],
         Next: 'ChooseArchitecture'
       }
@@ -174,7 +181,7 @@ const fails = {
   },
   FailInvalidStorageSize: {
     Type: 'Fail',
-    Cause: 'storageSizeGib must be a number between 8 and 16384 (gp3 max)',
+    Cause: 'storageSizeGib must be an integer between 8 and 16384 (gp3 max)',
     Error: 'InvalidStorageSize'
   },
   FailBuild: {
@@ -251,7 +258,7 @@ export function builderStateMachineDefinition({
             Type: 'Pass',
             Result: { launchTemplateIdX86, launchTemplateIdArm64 },
             ResultPath: '$.templates',
-            Next: 'ValidateStorageSize'
+            Next: 'NormalizeStorageSize'
           },
           ...storageSizeGate,
           ...instanceTypesGate,
