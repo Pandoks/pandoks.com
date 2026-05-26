@@ -11,6 +11,45 @@ export const X86_INSTANCE_TYPES = [
   'c8i.metal-48xl'
 ] as const;
 
+function launchInstance(architecture: 'x86' | 'arm64', market: 'spot' | 'on-demand') {
+  return {
+    Type: 'Task',
+    Resource: 'arn:aws:states:::aws-sdk:ec2:runInstances',
+    Parameters: {
+      LaunchTemplate: {
+        'LaunchTemplateId.$':
+          architecture === 'x86'
+            ? '$.templates.launchTemplateIdX86'
+            : '$.templates.launchTemplateIdArm64'
+      },
+      MinCount: 1,
+      MaxCount: 1,
+      'InstanceType.$': '$.instanceType',
+      ...(market === 'spot'
+        ? {
+            InstanceMarketOptions: {
+              MarketType: 'spot',
+              SpotOptions: { SpotInstanceType: 'one-time' }
+            }
+          }
+        : {}),
+      TagSpecifications: [
+        {
+          ResourceType: 'instance',
+          Tags: [
+            { Key: 'BuildId', 'Value.$': '$.buildId' },
+            { Key: 'Script', 'Value.$': '$.script' },
+            { Key: 'RepoRef', 'Value.$': '$.repoRef' }
+          ]
+        }
+      ]
+    },
+    ResultPath: '$.instance',
+    Next: 'WaitForSSM',
+    Catch: [{ ErrorEquals: ['States.ALL'], ResultPath: '$.error', Next: 'FailNoInstance' }]
+  };
+}
+
 export function builderStateMachineDefinition(
   launchTemplateIdX86: $util.Input<string>,
   launchTemplateIdArm64: $util.Input<string>,
