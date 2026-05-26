@@ -49,6 +49,13 @@ export function builderStateMachineDefinition(
             ],
             Default: 'FailInvalidInstanceType'
           },
+          FailInvalidInstanceType: {
+            Type: 'Fail',
+            Cause: 'instanceType is not in the supported list',
+            Error: 'InvalidInstanceType'
+          },
+          Done: { Type: 'Succeed' }
+        }
       })
   );
 }
