@@ -193,6 +193,23 @@ export function builderStateMachineDefinition({
           LaunchSpotArm64: launchInstance('arm64', 'spot'),
           LaunchOnDemandArm64: launchInstance('arm64', 'on-demand'),
           ...waitForSsm,
+          RunBuild: {
+            Type: 'Task',
+            Resource: 'arn:aws:states:::aws-sdk:ssm:sendCommand',
+            Parameters: {
+              'InstanceIds.$': 'States.Array($.instance.Instances[0].InstanceId)',
+              DocumentName: 'AWS-RunShellScript',
+              TimeoutSeconds: 60,
+              Parameters: {
+                'commands.$': `States.Array(States.Format('${bootstrapScript}', $.buildId, $.repoRef, $.command))`,
+                executionTimeout: ['86400'] // 24 hours
+              },
+              CloudWatchOutputConfig: { CloudWatchOutputEnabled: true }
+            },
+            ResultPath: '$.command',
+            Next: 'WaitForBuild',
+            Catch: [{ ErrorEquals: ['States.ALL'], ResultPath: '$.error', Next: 'Terminate' }]
+          },
           ...waitForBuild,
           Terminate: {
             Type: 'Task',
