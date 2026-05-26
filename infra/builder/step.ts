@@ -114,6 +114,36 @@ const waitForSsm = {
   }
 };
 
+const waitForBuild = {
+  WaitForBuild: {
+    Type: 'Wait',
+    Seconds: 60,
+    Next: 'CheckBuildStatus'
+  },
+  CheckBuildStatus: {
+    Type: 'Task',
+    Resource: 'arn:aws:states:::aws-sdk:ssm:getCommandInvocation',
+    Parameters: {
+      'CommandId.$': '$.command.Command.CommandId',
+      'InstanceId.$': '$.instance.Instances[0].InstanceId'
+    },
+    ResultPath: '$.invocation',
+    Next: 'IsBuildDone',
+    Retry: [{ ErrorEquals: ['States.ALL'], IntervalSeconds: 10, MaxAttempts: 3 }],
+    Catch: [{ ErrorEquals: ['States.ALL'], ResultPath: '$.error', Next: 'Terminate' }]
+  },
+  IsBuildDone: {
+    Type: 'Choice',
+    Choices: [
+      { Variable: '$.invocation.Status', StringEquals: 'Success', Next: 'Terminate' },
+      { Variable: '$.invocation.Status', StringEquals: 'Failed', Next: 'Terminate' },
+      { Variable: '$.invocation.Status', StringEquals: 'Cancelled', Next: 'Terminate' },
+      { Variable: '$.invocation.Status', StringEquals: 'TimedOut', Next: 'Terminate' }
+    ],
+    Default: 'WaitForBuild'
+  }
+};
+
 export function builderStateMachineDefinition(
   launchTemplateIdX86: $util.Input<string>,
   launchTemplateIdArm64: $util.Input<string>,
