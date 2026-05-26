@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { awsRegion, STAGE_NAME } from '../dns';
+import { awsRegion } from '../dns';
 
 // WARNING: version must be bumped when AMI changes to rebuild
 const VERSION = '1.0.0';

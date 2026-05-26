@@ -2,6 +2,7 @@ import { STAGE_NAME } from '../dns';
 import { secrets } from '../secrets';
 import { builderArtifactsBucket, builderCacheBucket } from '../storage';
 import { builderImageArm64, builderImageX86 } from './ami';
+import { builderStateMachineDefinition } from './step';
 
 const builderInstanceRole = new aws.iam.Role('BuilderInstanceRole', {
   assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
@@ -65,6 +66,7 @@ export const builderGithubTokenParam = new aws.ssm.Parameter('BuilderGithubCloni
   type: 'SecureString',
   value: secrets.github.PersonalAccessToken.value
 });
+
 const builderStateMachineRole = new aws.iam.Role('BuilderStateMachineRole', {
   assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
     statements: [
