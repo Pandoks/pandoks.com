@@ -24,7 +24,7 @@ if (isProduction) {
     requiredStatusChecks: [
       {
         strict: false,
-        contexts: ['Checks', 'Security', 'Tests', 'Build and Publish']
+        contexts: ['checks-pass', 'security-pass', 'tests-pass', 'build-and-publish-pass']
       }
     ],
     allowsDeletions: false,

@@ -145,8 +145,7 @@ jobs:
       - name: Run tests
         run: pnpm --filter @pandoks.com/valkey test
 
-  check:
-    name: Tests
+  tests-pass:
     needs:
       - test-web
       - test-desktop
