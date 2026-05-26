@@ -236,18 +236,24 @@ export function builderStateMachineDefinition({
             OutputPath: '$.resolved',
             Next: 'ResolveId'
           },
-          ResolveInputsWithExecutionId: {
-            Type: 'Pass',
-            Parameters: {
-              'id.$': '$$.Execution.Name',
-              'ref.$': '$.ref',
-              'instanceType.$': '$.instanceType',
-              'marketType.$': '$.marketType',
-              'command.$': '$.command',
-              templates: { launchTemplateIdX86, launchTemplateIdArm64 }
-            },
-            Next: 'ChooseArchitecture'
+          ResolveId: {
+            Type: 'Choice',
+            Choices: [{ Variable: '$.id', IsPresent: true, Next: 'AttachTemplates' }],
+            Default: 'FallbackId'
           },
+          FallbackId: {
+            Type: 'Pass',
+            InputPath: '$$.Execution.Name',
+            ResultPath: '$.id',
+            Next: 'AttachTemplates'
+          },
+          AttachTemplates: {
+            Type: 'Pass',
+            Result: { launchTemplateIdX86, launchTemplateIdArm64 },
+            ResultPath: '$.templates',
+            Next: 'ValidateStorageSize'
+          },
+          ...storageSizeGate,
           ...instanceTypesGate,
           LaunchSpotX86: launchInstance('x86', 'spot'),
           LaunchOnDemandX86: launchInstance('x86', 'on-demand'),
