@@ -15,6 +15,15 @@ function launchInstance(architecture: 'x86' | 'arm64', market: 'spot' | 'on-dema
       MinCount: 1,
       MaxCount: 1,
       'InstanceType.$': '$.instanceType',
+      BlockDeviceMappings: [
+        {
+          DeviceName: '/dev/sda1',
+          Ebs: {
+            'VolumeSize.$': '$.storageSizeGib',
+            DeleteOnTermination: true
+          }
+        }
+      ],
       ...(market === 'spot'
         ? {
             InstanceMarketOptions: {
