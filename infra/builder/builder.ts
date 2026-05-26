@@ -61,7 +61,7 @@ const builderLaunchTemplateArm64 = new aws.ec2.LaunchTemplate('BuilderLaunchTemp
   ]
 });
 
-export const builderGithubTokenParam = new aws.ssm.Parameter('BuilderGithubCloningToken', {
+export const builderGithubTokenParameter = new aws.ssm.Parameter('BuilderGithubCloningToken', {
   name: '/builders/github-cloning-pat',
   type: 'SecureString',
   value: secrets.github.PersonalAccessToken.value
@@ -115,6 +115,6 @@ export const builderStateMachine = new aws.sfn.StateMachine('BuilderStateMachine
     launchTemplateIdArm64: builderLaunchTemplateArm64.id,
     cacheBucket: builderCacheBucket.name,
     artifactsBucket: builderArtifactsBucket.name,
-    githubCloningTokenSSMParam: builderGithubTokenParam.name
+    githubCloningTokenSSMParam: builderGithubTokenParameter.name
   })
 });

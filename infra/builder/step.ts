@@ -138,27 +138,27 @@ export function builderStateMachineDefinition({
   launchTemplateIdArm64,
   cacheBucket,
   artifactsBucket,
-  githubCloningTokenSSMParam
+  githubCloningTokenSSMParameter
 }: {
   launchTemplateIdX86: $util.Input<string>;
   launchTemplateIdArm64: $util.Input<string>;
   cacheBucket: $util.Input<string>;
   artifactsBucket: $util.Input<string>;
-  githubCloningTokenSSMParam: $util.Input<string>;
+  githubCloningTokenSSMParameter: $util.Input<string>;
 }) {
   return $resolve([
     launchTemplateIdX86,
     launchTemplateIdArm64,
     cacheBucket,
     artifactsBucket,
-    githubCloningTokenSSMParam
+    githubCloningTokenSSMParameter
   ]).apply(
     ([
       launchTemplateIdX86,
       launchTemplateIdArm64,
       cacheBucket,
       artifactsBucket,
-      githubCloningTokenSSMParam
+      githubCloningTokenSSMParameter
     ]) => {
       // NOTE: line 204. takes in inputs and replace `{}` with them in order similarly to argv
       const bootstrapScript = [
@@ -166,7 +166,7 @@ export function builderStateMachineDefinition({
         `export BUILD_ID={}`,
         `export BUILDER_CACHE_BUCKET=${cacheBucket}`,
         `export BUILDER_ARTIFACTS_BUCKET=${artifactsBucket}`,
-        `GITHUB_TOKEN=$(aws ssm get-parameter --name ${githubCloningTokenSSMParam} --with-decryption --query Parameter.Value --output text)`,
+        `GITHUB_TOKEN=$(aws ssm get-parameter --name ${githubCloningTokenSSMParameter} --with-decryption --query Parameter.Value --output text)`,
         `git clone --depth 1 --branch {} https://x-access-token:\${GITHUB_TOKEN}@github.com/${githubOrg}/${githubRepoName}.git /opt/repo`,
         `unset GITHUB_TOKEN`,
         `cd /opt/repo`,
