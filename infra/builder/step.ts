@@ -102,6 +102,15 @@ export function builderStateMachineDefinition(
             ],
             Default: 'LaunchSpotArm64'
           },
+          LaunchSpotX86: launchInstance('x86', 'spot'),
+          LaunchOnDemandX86: launchInstance('x86', 'on-demand'),
+          LaunchSpotArm64: launchInstance('arm64', 'spot'),
+          LaunchOnDemandArm64: launchInstance('arm64', 'on-demand'),
+          WaitForSSM: {
+            Type: 'Wait',
+            Seconds: 60,
+            Next: 'CheckSSMReady'
+          },
           FailNoInstance: {
             Type: 'Fail',
             Cause: 'RunInstances failed; nothing to terminate',
