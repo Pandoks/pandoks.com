@@ -8,7 +8,7 @@ overrides:
   '@xmldom/xmldom': ^0.9.10
   picomatch: ^4.0.4
   tar: ^7.5.13
-  cookie: ~0.7.0
+  cookie: ~1.1.0
   tmp: ^0.2.5
   '@electron/node-gyp': ^10.2.0-electron.2
 
@@ -2109,9 +2109,9 @@ packages:
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
 
-  cookie@0.7.2:
-    resolution: {integrity: sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w==}
-    engines: {node: '>= 0.6'}
+  cookie@1.1.1:
+    resolution: {integrity: sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ==}
+    engines: {node: '>=18'}
 
   core-js-compat@3.49.0:
     resolution: {integrity: sha512-VQXt1jr9cBz03b331DFDCCP90b3fanciLkgiOoy8SBHy06gNf+vQ1A3WFLqG7I8TipYIKeYK9wxd0tUrvHcOZA==}
@@ -6055,7 +6055,7 @@ snapshots:
       '@sveltejs/vite-plugin-svelte': 7.1.2(svelte@5.55.9(@typescript-eslint/types@8.59.4))(vite@8.0.14(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0))
       '@types/cookie': 0.6.0
       acorn: 8.16.0
-      cookie: 0.7.2
+      cookie: 1.1.1
       devalue: 5.8.1
       esm-env: 1.2.2
       kleur: 4.1.5
@@ -6947,7 +6947,7 @@ snapshots:
 
   convert-source-map@2.0.0: {}
 
-  cookie@0.7.2: {}
+  cookie@1.1.1: {}
 
   core-js-compat@3.49.0:
     dependencies:
