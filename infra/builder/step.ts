@@ -179,9 +179,7 @@ export function builderStateMachineDefinition({
         States: {
           ResolveInputs: {
             Type: 'Choice',
-            Choices: [
-              { Variable: '$.id', IsPresent: true, Next: 'ResolveInputsWithId' }
-            ],
+            Choices: [{ Variable: '$.id', IsPresent: true, Next: 'ResolveInputsWithId' }],
             Default: 'ResolveInputsWithExecutionId'
           },
           ResolveInputsWithId: {
