@@ -50,6 +50,35 @@ function launchInstance(architecture: 'x86' | 'arm64', market: 'spot' | 'on-dema
   };
 }
 
+const instanceTypeGate = {
+  ChooseArchitecture: {
+    Type: 'Choice',
+    Choices: [
+      ...ARM_INSTANCE_TYPES.map((instanceType) => ({
+        Variable: '$.instanceType',
+        StringEquals: instanceType,
+        Next: 'ChooseMarketArm64'
+      })),
+      ...X86_INSTANCE_TYPES.map((instanceType) => ({
+        Variable: '$.instanceType',
+        StringEquals: instanceType,
+        Next: 'ChooseMarketX86'
+      }))
+    ],
+    Default: 'FailInvalidInstanceType'
+  },
+  ChooseMarketX86: {
+    Type: 'Choice',
+    Choices: [{ Variable: '$.marketType', StringEquals: 'on-demand', Next: 'LaunchOnDemandX86' }],
+    Default: 'LaunchSpotX86'
+  },
+  ChooseMarketArm64: {
+    Type: 'Choice',
+    Choices: [{ Variable: '$.marketType', StringEquals: 'on-demand', Next: 'LaunchOnDemandArm64' }],
+    Default: 'LaunchSpotArm64'
+  }
+};
+
 export function builderStateMachineDefinition(
   launchTemplateIdX86: $util.Input<string>,
   launchTemplateIdArm64: $util.Input<string>,
@@ -72,21 +101,7 @@ export function builderStateMachineDefinition(
             ResultPath: '$.templates',
             Next: 'ChooseArchitecture'
           },
-          ChooseArchitecture: {
-            Type: 'Choice',
-            Choices: [
-              ...ARM_INSTANCE_TYPES.map((instanceType) => ({
-                Variable: '$.instanceType',
-                StringEquals: instanceType,
-                Next: 'ChooseMarketArm64'
-              })),
-              ...X86_INSTANCE_TYPES.map((instanceType) => ({
-                Variable: '$.instanceType',
-                StringEquals: instanceType,
-                Next: 'ChooseMarketX86'
-              }))
-            ],
-            Default: 'FailInvalidInstanceType'
+          ...instanceTypeGate,
           },
           ChooseMarketX86: {
             Type: 'Choice',
