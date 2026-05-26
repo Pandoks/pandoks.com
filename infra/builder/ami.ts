@@ -99,8 +99,7 @@ new aws.imagebuilder.LifecyclePolicy('BuilderLifecyclePolicy', {
       },
       filter: {
         type: 'COUNT',
-        value: 10,
-        retainAtLeast: 1
+        value: 10
       }
     }
   ],

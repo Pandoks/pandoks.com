@@ -30,4 +30,10 @@ new sst.x.DevCommand('K3dDependencyRestart', {
   }
 });
 
+new aws.iam.ServiceLinkedRole(
+  'Ec2SpotServiceLinkedRole',
+  { awsServiceName: 'spot.amazonaws.com' },
+  { protect: true }
+);
+
 export {};
