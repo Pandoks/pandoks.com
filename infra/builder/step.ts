@@ -1,3 +1,4 @@
+import { githubOrg, githubRepoName } from '../github';
 import { ARM_INSTANCE_TYPES, X86_INSTANCE_TYPES } from './types';
 
 function launchInstance(architecture: 'x86' | 'arm64', market: 'spot' | 'on-demand') {
@@ -132,15 +133,47 @@ const waitForBuild = {
   }
 };
 
-export function builderStateMachineDefinition(
-  launchTemplateIdX86: $util.Input<string>,
-  launchTemplateIdArm64: $util.Input<string>,
-  cacheBucket: $util.Input<string>,
-  artifactsBucket: $util.Input<string>
-) {
-  return $resolve([launchTemplateIdX86, launchTemplateIdArm64, cacheBucket, artifactsBucket]).apply(
-    ([launchTemplateIdX86, launchTemplateIdArm64, cacheBucket, artifactsBucket]) =>
-      JSON.stringify({
+export function builderStateMachineDefinition({
+  launchTemplateIdX86,
+  launchTemplateIdArm64,
+  cacheBucket,
+  artifactsBucket,
+  githubCloningTokenSSMParam
+}: {
+  launchTemplateIdX86: $util.Input<string>;
+  launchTemplateIdArm64: $util.Input<string>;
+  cacheBucket: $util.Input<string>;
+  artifactsBucket: $util.Input<string>;
+  githubCloningTokenSSMParam: $util.Input<string>;
+}) {
+  return $resolve([
+    launchTemplateIdX86,
+    launchTemplateIdArm64,
+    cacheBucket,
+    artifactsBucket,
+    githubCloningTokenSSMParam
+  ]).apply(
+    ([
+      launchTemplateIdX86,
+      launchTemplateIdArm64,
+      cacheBucket,
+      artifactsBucket,
+      githubCloningTokenSSMParam
+    ]) => {
+      // NOTE: line 204. takes in inputs and replace `{}` with them in order similarly to argv
+      const bootstrapScript = [
+        `set -euo pipefail`,
+        `export BUILD_ID={}`,
+        `export BUILDER_CACHE_BUCKET=${cacheBucket}`,
+        `export BUILDER_ARTIFACTS_BUCKET=${artifactsBucket}`,
+        `GITHUB_TOKEN=$(aws ssm get-parameter --name ${githubCloningTokenSSMParam} --with-decryption --query Parameter.Value --output text)`,
+        `git clone --depth 1 --branch {} https://x-access-token:\${GITHUB_TOKEN}@github.com/${githubOrg}/${githubRepoName}.git /opt/repo`,
+        `unset GITHUB_TOKEN`,
+        `cd /opt/repo`,
+        `{}`
+      ].join('\\n');
+
+      return JSON.stringify({
         Comment:
           'Ephemeral EC2 builder — launch (arch-routed), run script via SSM, always terminate',
         StartAt: 'ResolveLaunchTemplates',
