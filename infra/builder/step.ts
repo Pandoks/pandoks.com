@@ -159,6 +159,29 @@ const waitForBuild = {
   }
 };
 
+const fails = {
+  FailNoInstance: {
+    Type: 'Fail',
+    Cause: 'RunInstances failed; nothing to terminate',
+    Error: 'LaunchFailed'
+  },
+  FailInvalidInstanceType: {
+    Type: 'Fail',
+    Cause: 'instanceType is not in the supported list',
+    Error: 'InvalidInstanceType'
+  },
+  FailInvalidStorageSize: {
+    Type: 'Fail',
+    Cause: 'storageSizeGib must be a number between 8 and 16384 (gp3 max)',
+    Error: 'InvalidStorageSize'
+  },
+  FailBuild: {
+    Type: 'Fail',
+    Cause: 'Remote build command failed, was cancelled, or timed out',
+    Error: 'BuildFailed'
+  }
+};
+
 export function builderStateMachineDefinition({
   launchTemplateIdX86,
   launchTemplateIdArm64,
@@ -281,26 +304,7 @@ export function builderStateMachineDefinition({
               { ErrorEquals: ['States.ALL'], ResultPath: '$.terminationError', Next: 'FailBuild' }
             ]
           },
-          FailNoInstance: {
-            Type: 'Fail',
-            Cause: 'RunInstances failed; nothing to terminate',
-            Error: 'LaunchFailed'
-          },
-          FailInvalidInstanceType: {
-            Type: 'Fail',
-            Cause: 'instanceType is not in the supported list',
-            Error: 'InvalidInstanceType'
-          },
-          FailInvalidStorageSize: {
-            Type: 'Fail',
-            Cause: 'storageSizeGib must be a number between 8 and 16384 (gp3 max)',
-            Error: 'InvalidStorageSize'
-          },
-          FailBuild: {
-            Type: 'Fail',
-            Cause: 'Remote build command failed, was cancelled, or timed out',
-            Error: 'BuildFailed'
-          },
+          ...fails,
           Done: { Type: 'Succeed' }
         }
       });
