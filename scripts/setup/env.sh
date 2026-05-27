@@ -81,3 +81,30 @@ cmd_setup_ensure_package_manager() { # Outputs: package manager name (brew | apt
   is_supported_package_manager "${cmd_setup_ensure_package_manager_package_manager}" || exit 1
   printf '%s' "${cmd_setup_ensure_package_manager_package_manager}"
 }
+
+cmd_setup_fetch_pgp_key() {
+  cmd_setup_fetch_pgp_key_url="$1"  # URL of armored key
+  cmd_setup_fetch_pgp_key_dest="$2" # Output path for dearmored key (sudo-writable)
+  cmd_setup_fetch_pgp_key_name="$3" # Human-readable name (for error messages)
+
+  cmd_setup_fetch_pgp_key_attempt=1
+  while [ "${cmd_setup_fetch_pgp_key_attempt}" -le 3 ]; do
+    cmd_setup_fetch_pgp_key_tmp=$(mktemp)
+    if curl -fsSL --retry 2 --retry-delay 2 \
+      "${cmd_setup_fetch_pgp_key_url}" \
+      -o "${cmd_setup_fetch_pgp_key_tmp}" \
+      && [ -s "${cmd_setup_fetch_pgp_key_tmp}" ] \
+      && head -1 "${cmd_setup_fetch_pgp_key_tmp}" | grep -q "BEGIN PGP PUBLIC KEY BLOCK"; then
+      use_sudo gpg --batch --yes --dearmor \
+        -o "${cmd_setup_fetch_pgp_key_dest}" \
+        < "${cmd_setup_fetch_pgp_key_tmp}"
+      rm -f "${cmd_setup_fetch_pgp_key_tmp}"
+      return 0
+    fi
+    rm -f "${cmd_setup_fetch_pgp_key_tmp}"
+    log_warn "Fetch of ${cmd_setup_fetch_pgp_key_name} key failed (attempt ${cmd_setup_fetch_pgp_key_attempt}/3) — retrying"
+    cmd_setup_fetch_pgp_key_attempt=$((cmd_setup_fetch_pgp_key_attempt + 1))
+    sleep 3
+  done
+  die "Failed to fetch ${cmd_setup_fetch_pgp_key_name} PGP key from ${cmd_setup_fetch_pgp_key_url} after 3 attempts"
+}
