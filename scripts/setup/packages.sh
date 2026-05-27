@@ -182,13 +182,12 @@ cmd_setup_aws() {
 }
 
 cmd_setup_docker() {
-  cmd_setup_docker_package_manager=$(cmd_setup_ensure_package_manager)
-
   if command -v docker > /dev/null 2>&1; then
     log_ok "Docker already installed: $(docker --version)"
     return 0
   fi
 
+  cmd_setup_docker_package_manager=$(cmd_setup_ensure_package_manager)
   case "${cmd_setup_docker_package_manager}" in
     brew)
       log_step "Installing Docker Desktop via Homebrew cask"
