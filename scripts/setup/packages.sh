@@ -169,12 +169,12 @@ cmd_setup_docker() {
 }
 
 cmd_setup_cluster() {
-  cmd_setup_cluster_pm=$(cmd_setup_ensure_package_manager)
+  cmd_setup_cluster_package_manager=$(cmd_setup_ensure_package_manager)
 
   cmd_setup_docker
 
   log_step "Installing kubectl, k3d, helm"
-  case "${cmd_setup_cluster_pm}" in
+  case "${cmd_setup_cluster_package_manager}" in
     brew)
       install_packages brew kubectl k3d helm
       ;;
@@ -221,4 +221,73 @@ cmd_setup_cluster() {
   log_ok "kubectl $(kubectl version --client --output=yaml 2> /dev/null | awk '/gitVersion/ {print $2; exit}')"
   log_ok "k3d $(k3d version 2> /dev/null | awk '/k3d version/ {print $3; exit}')"
   log_ok "helm $(helm version --short 2> /dev/null)"
+}
+
+cmd_setup_quality() {
+  cmd_setup_quality_package_manager=$(cmd_setup_ensure_package_manager)
+
+  log_step "Installing shellcheck, shfmt, hadolint, jq, openssl"
+  case "${cmd_setup_quality_package_manager}" in
+    brew)
+      install_packages brew \
+        shellcheck \
+        shfmt \
+        hadolint \
+        actionlint \
+        golangci-lint \
+        jq \
+        openssl@3
+      ;;
+    apt-get)
+      install_packages apt-get \
+        shellcheck \
+        shfmt \
+        jq \
+        openssl
+      log_step "Installing hadolint binary (no apt package)"
+      cmd_setup_quality_arch=$(uname -m)
+      case "${cmd_setup_quality_arch}" in
+        x86_64) cmd_setup_quality_hadolint_asset="hadolint-Linux-x86_64" ;;
+        aarch64 | arm64) cmd_setup_quality_hadolint_asset="hadolint-Linux-arm64" ;;
+        *) die "Unsupported architecture for hadolint: ${cmd_setup_quality_arch}" ;;
+      esac
+      use_sudo curl -fsSL \
+        "https://github.com/hadolint/hadolint/releases/latest/download/${cmd_setup_quality_hadolint_asset}" \
+        -o /usr/local/bin/hadolint
+      use_sudo chmod +x /usr/local/bin/hadolint
+
+      command -v go > /dev/null 2>&1 || cmd_setup_go
+      log_step "Installing actionlint and golangci-lint via go install"
+      GO111MODULE=on go install github.com/rhysd/actionlint/cmd/actionlint@latest
+      GO111MODULE=on go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+      ;;
+    pacman)
+      install_packages pacman \
+        shellcheck \
+        shfmt \
+        jq \
+        openssl
+      log_step "Installing hadolint binary (Arch ships it in AUR only)"
+      cmd_setup_quality_arch=$(uname -m)
+      case "${cmd_setup_quality_arch}" in
+        x86_64) cmd_setup_quality_hadolint_asset="hadolint-Linux-x86_64" ;;
+        aarch64 | arm64) cmd_setup_quality_hadolint_asset="hadolint-Linux-arm64" ;;
+        *) die "Unsupported architecture for hadolint: ${cmd_setup_quality_arch}" ;;
+      esac
+      use_sudo curl -fsSL \
+        "https://github.com/hadolint/hadolint/releases/latest/download/${cmd_setup_quality_hadolint_asset}" \
+        -o /usr/local/bin/hadolint
+      use_sudo chmod +x /usr/local/bin/hadolint
+
+      command -v go > /dev/null 2>&1 || cmd_setup_go
+      GO111MODULE=on go install github.com/rhysd/actionlint/cmd/actionlint@latest
+      GO111MODULE=on go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+      ;;
+  esac
+
+  command -v go > /dev/null 2>&1 || cmd_setup_go
+  log_step "Installing govulncheck via go install"
+  GO111MODULE=on go install golang.org/x/vuln/cmd/govulncheck@latest
+
+  log_ok "Quality tools installed"
 }
