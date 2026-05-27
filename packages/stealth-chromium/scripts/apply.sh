@@ -31,6 +31,7 @@ echo "[0/4] installing shared headers ..."
 FP_H="$CS/apex_fingerprint.h"
 for dir in \
   "third_party/blink/renderer/core/frame" \
+  "third_party/blink/renderer/core/html/canvas" \
   "third_party/blink/renderer/modules/webgl" \
   "third_party/blink/renderer/modules/canvas/canvas2d" \
   "third_party/blink/renderer/modules/webaudio" \
@@ -50,6 +51,8 @@ cp "$CS/third_party/blink/renderer/modules/webgl/apex_webgl_strings.h" \
    "$SRC/third_party/blink/renderer/modules/webgl/"
 cp "$CS/third_party/blink/renderer/modules/canvas/canvas2d/apex_canvas_noise.h" \
    "$SRC/third_party/blink/renderer/modules/canvas/canvas2d/"
+cp "$CS/third_party/blink/renderer/core/html/canvas/apex_text_metrics_noise.h" \
+   "$SRC/third_party/blink/renderer/core/html/canvas/"
 cp "$CS/third_party/blink/renderer/modules/webaudio/apex_audio_noise.h" \
    "$SRC/third_party/blink/renderer/modules/webaudio/"
 cp "$CS/third_party/blink/renderer/modules/mediastream/apex_devices.h" \
