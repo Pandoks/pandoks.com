@@ -1,11 +1,23 @@
 # shellcheck shell=sh
 
+SETUP_INSTALLED_NODE=0
 SETUP_INSTALLED_UV=0
 SETUP_INSTALLED_GO=0
 
 cmd_setup_node() {
-  cmd_setup_node_package_manager=$(cmd_setup_ensure_package_manager)
+  cmd_setup_node_nvmrc="${REPO_ROOT}/.nvmrc"
+  [ -f "${cmd_setup_node_nvmrc}" ] || die ".nvmrc not found at ${cmd_setup_node_nvmrc}"
+  cmd_setup_node_version=$(tr -d '[:space:]' < "${cmd_setup_node_nvmrc}")
 
+  if [ -d "${HOME}/.nvm" ] && NVM_DIR="${HOME}/.nvm" bash -c "
+    . \"\$NVM_DIR/nvm.sh\" 2> /dev/null
+    nvm version \"${cmd_setup_node_version}\" > /dev/null 2>&1
+  "; then
+    log_ok "Node ${cmd_setup_node_version} already installed via nvm"
+    return 0
+  fi
+
+  cmd_setup_node_package_manager=$(cmd_setup_ensure_package_manager)
   command -v bash > /dev/null 2>&1 || install_packages "${cmd_setup_node_package_manager}" bash
 
   if [ ! -d "${HOME}/.nvm" ]; then
@@ -20,10 +32,6 @@ cmd_setup_node() {
     append_shell_rc '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"'
   fi
 
-  cmd_setup_node_nvmrc="${REPO_ROOT}/.nvmrc"
-  [ -f "${cmd_setup_node_nvmrc}" ] || die ".nvmrc not found at ${cmd_setup_node_nvmrc}"
-  cmd_setup_node_version=$(tr -d '[:space:]' < "${cmd_setup_node_nvmrc}")
-
   log_step "Installing Node ${cmd_setup_node_version} via nvm"
   NVM_DIR="${HOME}/.nvm" bash -c '
     . "$NVM_DIR/nvm.sh"
@@ -37,7 +45,10 @@ cmd_setup_node() {
     pnpm --version || exit 18
   ' nvm-bootstrap "${cmd_setup_node_version}" || die "nvm/node/pnpm bootstrap failed"
 
+  SETUP_INSTALLED_NODE=1
   log_ok "Node ${cmd_setup_node_version} ready via nvm"
+  # shellcheck disable=SC2016
+  log_warn 'Activate in this shell: export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use '"${cmd_setup_node_version}"
   unset cmd_setup_node_package_manager
 }
 
