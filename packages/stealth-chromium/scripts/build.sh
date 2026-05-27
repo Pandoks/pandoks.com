@@ -14,46 +14,40 @@ export PATH="$WORK/depot_tools:$PATH"
 
 cd "$SRC"
 
-# Restore ccache from s3 if available -- 30-50GB of compiler cache cuts an
-# incremental rebuild from 5h to ~30min. Keyed per chromium-version + clang
-# major so a toolchain bump invalidates.
+# ccache configuration. We disabled `-fmodules` (Clang header modules) in
+# args.gn via `use_clang_modules = false`, which removes the only flag that
+# was making compiles uncacheable. Without -fmodules in cflags, ccache can
+# hash every compile normally.
+#
+# Empirical history that led here:
+#   - Build 103425 first populated ccache (119.7 MiB).
+#   - Build 140538 (warm test) revealed 88.17% of calls were "uncacheable"
+#     because -fmodules was in the compile flags. ccache's strict bypass.
+#   - Build 142930 tested CCACHE_SLOPPINESS=modules — no effect.
+#     sccache also bypasses -fmodules (per mozilla/sccache README).
+#   - Verified via Chromium's build/config/compiler/BUILD.gn: -fmodules is
+#     only emitted when use_clang_modules is true. Setting it false drops
+#     the flag entirely. Trade-off: slightly slower cold builds (modules
+#     accelerate header parsing), but warm builds become genuinely cached.
+#
+# Cache-key versioning so the no-modules-build cache doesn't collide with
+# the prior modules-build entries (different compile flags = different
+# hashes anyway, but key-prefixing makes it explicit and clean).
 CHROMIUM_VERSION="$(cat "$APEX_ROOT/chromium_version.txt")"
-# Extract clang major version. clang --version output on Ubuntu:
-#   "Ubuntu clang version 18.1.3 (1ubuntu1)"
-# The previous "awk '{print $NF}' | cut -d. -f1" grabbed "(1ubuntu1)" — the
-# Ubuntu package-revision suffix in parens, NOT the version number. Build
-# 003811 produced "ccache-148.0.7778.179-clang(1ubuntu1).tar.zst" (76 bytes,
-# empty tarball) because the wrong key was used. grep-pattern is robust to
-# whatever vendor prefix clang prints.
 CLANG_KEY="$(clang --version 2>/dev/null \
   | head -1 \
   | grep -oE 'version [0-9]+' \
   | awk '{print $2}')"
-CCACHE_KEY="ccache-${CHROMIUM_VERSION}-clang${CLANG_KEY:-unknown}.tar.zst"
+# -nomod suffix marks this as the no-modules-build ccache. Bump when the
+# compile-flag set changes substantially.
+CCACHE_KEY="ccache-${CHROMIUM_VERSION}-clang${CLANG_KEY:-unknown}-nomod.tar.zst"
 export CCACHE_DIR="${CCACHE_DIR:-$WORK/.ccache}"
 # CCACHE_BASEDIR rewrites absolute paths in compile commands to relative ones
-# so the cache hashes match across different work dirs. Without this, every
-# EC2 instance's $WORK path differs and ccache misses on every compile even
-# when contents are identical. With it, the cache is portable across instances.
+# so the cache hashes match across different work dirs.
 export CCACHE_BASEDIR="$WORK"
-# Tell ccache to hash on file content + size, not mtime (which differs after
-# every tar extract from S3). Without this every cache restore from S3 would
-# invalidate the entire cache.
+# Hash compiler binary by content, not mtime (mtime resets after tar extract).
 export CCACHE_COMPILERCHECK="content"
-# CCACHE_SLOPPINESS=modules lets ccache cache C++20-modules-using compiles.
-# By default ccache marks any compile with -fmodules as "uncacheable" because
-# .pcm (precompiled module) files reference transitive include content ccache
-# can't fully hash. Chromium uses modules HEAVILY — build 140538 showed 88%
-# of compile calls (60111/68179) were uncacheable, making ccache nearly
-# useless. With this sloppiness, ccache trusts source + flags + .pcm file
-# paths/mtimes as the key. Small risk of stale cached objects if .pcm
-# content changes without path change, mitigated by CCACHE_COMPILERCHECK
-# (above) and the fact that .pcm regeneration always bumps mtime.
-# Also: time_macros + locale + system_headers tolerate __DATE__/__TIME__
-# in source (rare in Chromium) and locale-sensitive output differences.
-export CCACHE_SLOPPINESS="modules,time_macros,locale,system_headers,include_file_mtime,include_file_ctime,pch_defines"
-# Cap ccache disk usage so it doesn't blow past the 200 GB EBS volume. 50 GB
-# is roughly the size of a fully-populated Chromium ccache.
+# Cap on-disk size so we don't blow past the 200 GB EBS volume.
 export CCACHE_MAXSIZE="50G"
 mkdir -p "$CCACHE_DIR"
 if [ -n "${BUILDER_CACHE_BUCKET:-}" ] \

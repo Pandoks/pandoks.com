@@ -44,12 +44,34 @@ blink_enable_generated_code_formatting = false
 # Disable siso, use plain ninja. siso is Google's distributed-build runner
 # for their RBE cluster; we have no RBE access so siso's local-fallback mode
 # just blocks ccache from intercepting compile calls. Plain ninja + ccache
-# is the well-trodden path for non-Google Chromium builds — warm rebuilds
-# of one-file changes drop from ~50min cold to ~3-5min with a populated
-# ccache from S3.
+# is the well-trodden path for non-Google Chromium builds.
 use_siso = false
 
 # Route every C/C++ compile call through ccache. GN-native equivalent to
 # CC="ccache clang" — cleaner because GN owns command construction.
 # Requires ccache in PATH (installed via ami.yaml:21).
 cc_wrapper = "ccache"
+
+# Disable Clang header modules (-fmodules). This is the SINGLE most
+# important arg for making ccache actually work. Without this, every
+# C++ compile gets -fmodules in cflags, and BOTH ccache and sccache
+# (verified against mozilla/sccache's README) refuse to cache compiles
+# with -fmodules — they treat them as uncacheable because .pcm files
+# reference binary state the cache can't hash.
+#
+# Empirical proof: build 142930 with -fmodules on, CCACHE_SLOPPINESS=modules
+# set: still 88.39% uncacheable. The sloppiness only relaxes hashing for
+# C++20 NAMED modules (-fmodule-file=), not Clang header modules (-fmodules).
+# Chromium uses BOTH.
+#
+# Source: chromium build/config/compiler/BUILD.gn — the -fmodules block is
+# only emitted when use_clang_modules is true. Disabling it drops the flag
+# AND the USE_LIBCXX_MODULES define, which together make the entire compile
+# graph cache-friendly.
+#
+# Trade-off: slightly slower cold compile (modules speed up header parsing
+# during a fresh build), but warm builds become genuinely cached — ~10min
+# vs ~60min. For a project where we iterate on patches, this is a massive
+# win. The emitted binary is identical at the assembly level either way
+# (modules are a compile-time concept, not a runtime one).
+use_clang_modules = false
