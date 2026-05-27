@@ -83,44 +83,90 @@ cmd_setup_go() {
   log_ok "$(go version)"
 }
 
-cmd_setup_aws() {
-  cmd_setup_aws_package_manager=$(cmd_setup_ensure_package_manager)
+cmd_setup_aws_install() {
+  cmd_setup_aws_install_package_manager=$(cmd_setup_ensure_package_manager)
 
   if command -v aws > /dev/null 2>&1; then
-    cmd_setup_aws_version=$(aws --version 2>&1 | awk '{print $1}')
-    case "${cmd_setup_aws_version}" in
+    cmd_setup_aws_install_version=$(aws --version 2>&1 | awk '{print $1}')
+    case "${cmd_setup_aws_install_version}" in
       aws-cli/2.*)
-        log_ok "awscli v2 already installed: ${cmd_setup_aws_version}"
+        log_ok "awscli v2 already installed: ${cmd_setup_aws_install_version}"
         return 0
         ;;
       *)
-        log_warn "awscli ${cmd_setup_aws_version} detected — replacing with v2"
+        log_warn "awscli ${cmd_setup_aws_install_version} detected — replacing with v2"
         ;;
     esac
   fi
 
-  case "${cmd_setup_aws_package_manager}" in
+  case "${cmd_setup_aws_install_package_manager}" in
     brew)
       log_step "Installing awscli v2 via Homebrew"
       install_packages brew awscli
       ;;
     apt-get | pacman)
       log_step "Installing awscli v2 via official bundle"
-      cmd_setup_aws_arch=$(uname -m)
-      case "${cmd_setup_aws_arch}" in
-        x86_64) cmd_setup_aws_zip="awscli-exe-linux-x86_64.zip" ;;
-        aarch64 | arm64) cmd_setup_aws_zip="awscli-exe-linux-aarch64.zip" ;;
-        *) die "Unsupported architecture for awscli v2: ${cmd_setup_aws_arch}" ;;
+      cmd_setup_aws_install_arch=$(uname -m)
+      case "${cmd_setup_aws_install_arch}" in
+        x86_64) cmd_setup_aws_install_zip="awscli-exe-linux-x86_64.zip" ;;
+        aarch64 | arm64) cmd_setup_aws_install_zip="awscli-exe-linux-aarch64.zip" ;;
+        *) die "Unsupported architecture for awscli v2: ${cmd_setup_aws_install_arch}" ;;
       esac
-      cmd_setup_aws_tmp=$(mktemp -d)
-      curl -fsSL "https://awscli.amazonaws.com/${cmd_setup_aws_zip}" -o "${cmd_setup_aws_tmp}/awscliv2.zip"
-      unzip -q "${cmd_setup_aws_tmp}/awscliv2.zip" -d "${cmd_setup_aws_tmp}"
-      use_sudo "${cmd_setup_aws_tmp}/aws/install" --update
-      rm -rf "${cmd_setup_aws_tmp}"
+      cmd_setup_aws_install_tmp=$(mktemp -d)
+      curl -fsSL "https://awscli.amazonaws.com/${cmd_setup_aws_install_zip}" -o "${cmd_setup_aws_install_tmp}/awscliv2.zip"
+      unzip -q "${cmd_setup_aws_install_tmp}/awscliv2.zip" -d "${cmd_setup_aws_install_tmp}"
+      use_sudo "${cmd_setup_aws_install_tmp}/aws/install" --update
+      rm -rf "${cmd_setup_aws_install_tmp}"
       ;;
   esac
 
   log_ok "$(aws --version 2>&1)"
+}
+
+cmd_setup_aws_config() {
+  cmd_setup_aws_config_dir="${HOME}/.aws"
+  cmd_setup_aws_config_file="${cmd_setup_aws_config_dir}/config"
+
+  if [ -s "${cmd_setup_aws_config_file}" ]; then
+    # shellcheck disable=SC2088
+    log_warn "~/.aws/config already exists — skipping write to preserve your existing settings"
+    log_warn "Delete or move ${cmd_setup_aws_config_file} and re-run 'pnpm setup aws' if you want the Pandoks_ template"
+    return 0
+  fi
+
+  mkdir -p "${cmd_setup_aws_config_dir}"
+  chmod 700 "${cmd_setup_aws_config_dir}"
+
+  cat > "${cmd_setup_aws_config_file}" << 'EOF'
+[sso-session Pandoks_]
+sso_start_url = https://pandoks.awsapps.com/start
+sso_region = us-west-1
+
+[profile Personal]
+sso_session = Pandoks_
+sso_account_id = 343487555569
+sso_role_name = AdministratorAccess
+region = us-west-1
+
+[profile tzugi-production]
+sso_session = Pandoks_
+sso_account_id = 568555767113
+sso_role_name = AdministratorAccess
+region = us-west-1
+
+[profile tzugi-dev]
+sso_session = Pandoks_
+sso_account_id = 489335433499
+sso_role_name = AdministratorAccess
+region = us-west-1
+EOF
+  chmod 600 "${cmd_setup_aws_config_file}"
+  log_ok "Wrote ~/.aws/config (SSO session + 3 profiles)"
+}
+
+cmd_setup_aws() {
+  cmd_setup_aws_install
+  cmd_setup_aws_config
 }
 
 cmd_setup_docker() {

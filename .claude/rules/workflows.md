@@ -18,7 +18,12 @@ pnpm run sso          # AWS SSO; 12-hour validity
 ```
 
 `pnpm run sso` is `aws sso login --sso-session=Pandoks_ --use-device-code --no-browser`
-(`package.json:11`).
+(`package.json:11`). The `~/.aws/config` file (including the
+`[sso-session Pandoks_]` block and per-account profiles) is written by
+`cmd_setup_aws_config` in `scripts/setup/packages.sh:126-167` — see
+`gotchas/setup.md` for the maintenance rule (the heredoc is hardcoded
+to the Pandoks_ org and must be updated in lockstep with any AWS
+Identity Center / profile / account-ID change).
 
 ## Env files
 
