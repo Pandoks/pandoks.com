@@ -380,26 +380,23 @@ cmd_setup_quality() {
   log_ok "Quality tools installed"
 }
 
-cmd_setup_base() { # Language runtimes only (no Docker, no cluster, no quality tools)
-  cmd_setup_ensure_package_manager > /dev/null
+cmd_setup_all() {
   cmd_setup_node
   cmd_setup_python
   cmd_setup_go
   cmd_setup_aws
-}
-
-cmd_setup_all() {
-  cmd_setup_base
   cmd_setup_cluster
   cmd_setup_quality
-  cmd_setup_check
+  if [ "${SETUP_INSTALLED_NODE}" -eq 0 ] \
+    && [ "${SETUP_INSTALLED_UV}" -eq 0 ] \
+    && [ "${SETUP_INSTALLED_GO}" -eq 0 ]; then
+    log_ok "All dependencies already installed"
+  else
+    cmd_setup_check
+  fi
   printf "\n" >&2
-  log_ok "Setup complete — open a new shell to pick up PATH changes."
-  log_warn "Next steps:"
-  # shellcheck disable=SC2016
-  log_warn '  1. cp .env.example .env.$(whoami) and fill in CLOUDFLARE_*, HCLOUD_*, TAILSCALE_*, GITHUB_TOKEN'
-  log_warn "  2. pnpm install"
-  log_warn "  3. pnpm sso"
+  log_ok "Setup complete."
+  cmd_setup_print_next_steps
 }
 
 cmd_setup_check_report() {
