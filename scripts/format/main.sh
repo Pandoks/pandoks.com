@@ -9,6 +9,7 @@ readonly SCRIPT_DIR
 readonly REPO_ROOT
 
 . "${REPO_ROOT}/scripts/lib/font.sh"
+. "${REPO_ROOT}/scripts/lib/log.sh"
 
 usage() {
   printf "%bUsage:%b pnpm format <command>\n\n" "${BOLD}" "${NORMAL}" >&2
@@ -79,7 +80,7 @@ cmd_format_check() {
     all) cmd_format_check_all ;;
     help | --help | -h) usage ;;
     *)
-      printf "%bError:%b Unknown check language '%s'\n" "${RED}" "${NORMAL}" "${cmd}" >&2
+      log_error "Unknown check language '${cmd}'"
       usage 1
       ;;
   esac
@@ -98,7 +99,7 @@ main() {
     check) cmd_format_check "$@" ;;
     help | --help | -h) usage ;;
     *)
-      printf "%bError:%b Unknown command '%s'\n" "${RED}" "${NORMAL}" "${cmd}" >&2
+      log_error "Unknown command '${cmd}'"
       usage 1
       ;;
   esac

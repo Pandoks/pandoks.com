@@ -54,7 +54,7 @@ cmd_deploy_get_template_vars() {
   fi
   cmd_deploy_get_template_vars_sst=$(get_sst_resources "${cmd_deploy_get_template_vars_stage}")
   if [ -z "${cmd_deploy_get_template_vars_sst}" ]; then
-    printf "%bError:%b Failed to fetch SST resources. Make sure you're authenticated with SST.\n" "${RED}" "${NORMAL}" >&2
+    log_error "Failed to fetch SST resources. Make sure you're authenticated with SST."
     printf "Try running: %bpnpm sso%b.\n" "${BOLD}" "${NORMAL}" >&2
     return 1
   fi
@@ -134,7 +134,7 @@ cmd_deploy() {
     local | dev | prod) ;;
     help | --help | -h) usage_deploy ;;
     *)
-      printf "%bError:%b Unknown environment '%s'. Use 'local', 'dev', or 'prod'\n" "${RED}" "${NORMAL}" "${cmd_deploy_env}" >&2
+      log_error "Unknown environment '${cmd_deploy_env}'. Use 'local', 'dev', or 'prod'"
       usage_deploy 1
       ;;
   esac
@@ -154,16 +154,14 @@ cmd_deploy() {
         ;;
       --stage)
         if [ $# -lt 2 ]; then
-          printf "%bError:%b Missing value for --stage\n" "${RED}" "${NORMAL}" >&2
-          exit 1
+          die "Missing value for --stage"
         fi
         cmd_deploy_stage="$2"
         shift 2
         ;;
       --kubeconfig)
         if [ $# -lt 2 ]; then
-          printf "%bError:%b Missing value for --kubeconfig\n" "${RED}" "${NORMAL}" >&2
-          exit 1
+          die "Missing value for --kubeconfig"
         fi
         KUBECONFIG="$(validate_and_get_absolute_kubeconfig_path "$2")"
         export KUBECONFIG
@@ -176,7 +174,7 @@ cmd_deploy() {
         ;;
       help | --help | -h) usage_deploy ;;
       *)
-        printf "%bError:%b Unexpected argument for deploy: %s\n" "${RED}" "${NORMAL}" "$1" >&2
+        log_error "Unexpected argument for deploy: $1"
         usage_deploy 1
         ;;
     esac
@@ -190,7 +188,7 @@ cmd_deploy() {
   fi
 
   if [ ! -d "${cmd_deploy_kustomize_path}" ]; then
-    printf "%bError:%b Directory not found: %s\n" "${RED}" "${NORMAL}" "${cmd_deploy_kustomize_path}" >&2
+    log_error "Directory not found: ${cmd_deploy_kustomize_path}"
     return 1
   fi
 

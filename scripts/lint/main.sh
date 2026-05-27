@@ -9,6 +9,7 @@ readonly SCRIPT_DIR
 readonly REPO_ROOT
 
 . "${REPO_ROOT}/scripts/lib/font.sh"
+. "${REPO_ROOT}/scripts/lib/log.sh"
 
 CRDS_CATALOG='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
 readonly CRDS_CATALOG
@@ -88,7 +89,7 @@ main() {
     all) cmd_lint_all ;;
     help | --help | -h) usage ;;
     *)
-      printf "%bError:%b Unknown language '%s'\n" "${RED}" "${NORMAL}" "${cmd}" >&2
+      log_error "Unknown language '${cmd}'"
       usage 1
       ;;
   esac
