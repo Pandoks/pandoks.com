@@ -82,3 +82,43 @@ cmd_setup_go() {
   export PATH
   log_ok "$(go version)"
 }
+
+cmd_setup_aws() {
+  cmd_setup_aws_package_manager=$(cmd_setup_ensure_package_manager)
+
+  if command -v aws > /dev/null 2>&1; then
+    cmd_setup_aws_version=$(aws --version 2>&1 | awk '{print $1}')
+    case "${cmd_setup_aws_version}" in
+      aws-cli/2.*)
+        log_ok "awscli v2 already installed: ${cmd_setup_aws_version}"
+        return 0
+        ;;
+      *)
+        log_warn "awscli ${cmd_setup_aws_version} detected — replacing with v2"
+        ;;
+    esac
+  fi
+
+  case "${cmd_setup_aws_package_manager}" in
+    brew)
+      log_step "Installing awscli v2 via Homebrew"
+      install_packages brew awscli
+      ;;
+    apt-get | pacman)
+      log_step "Installing awscli v2 via official bundle"
+      cmd_setup_aws_arch=$(uname -m)
+      case "${cmd_setup_aws_arch}" in
+        x86_64) cmd_setup_aws_zip="awscli-exe-linux-x86_64.zip" ;;
+        aarch64 | arm64) cmd_setup_aws_zip="awscli-exe-linux-aarch64.zip" ;;
+        *) die "Unsupported architecture for awscli v2: ${cmd_setup_aws_arch}" ;;
+      esac
+      cmd_setup_aws_tmp=$(mktemp -d)
+      curl -fsSL "https://awscli.amazonaws.com/${cmd_setup_aws_zip}" -o "${cmd_setup_aws_tmp}/awscliv2.zip"
+      unzip -q "${cmd_setup_aws_tmp}/awscliv2.zip" -d "${cmd_setup_aws_tmp}"
+      use_sudo "${cmd_setup_aws_tmp}/aws/install" --update
+      rm -rf "${cmd_setup_aws_tmp}"
+      ;;
+  esac
+
+  log_ok "$(aws --version 2>&1)"
+}
