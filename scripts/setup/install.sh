@@ -52,16 +52,3 @@ cmd_setup_ensure_package_manager() { # Outputs: package manager name (brew | apt
   is_supported_package_manager "${cmd_setup_ensure_package_manager_package_manager}" || exit 1
   printf '%s' "${cmd_setup_ensure_package_manager_package_manager}"
 }
-
-install_packages() {
-  install_packages_package_manager="$1" # brew | apt-get | pacman
-  install_packages_packages="$2"
-
-  case "${install_packages_package_manager}" in
-    brew) brew install "${install_packages_packages}" ;;
-    apt-get) use_sudo apt-get install -y "${install_packages_packages}" ;;
-    pacman) use_sudo pacman -S --noconfirm --needed "${install_packages_packages}" ;;
-    *) die "Unsupported package manager: ${install_packages_package_manager}" ;;
-  esac
-}
-
