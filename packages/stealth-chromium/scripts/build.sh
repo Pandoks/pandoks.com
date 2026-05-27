@@ -34,6 +34,19 @@ else
 fi
 
 echo "=== apex-chromium build ==="
+
+# Warm depot_tools' python3 wrapper. The wrapper reads
+# `$WORK/depot_tools/python3_bin_reldir.txt` which is only written when
+# gclient or update_depot_tools runs in the depot_tools dir at least once
+# in this shell context. Our cache-hit path skips gclient sync entirely, so
+# the file is missing and `gn gen` fails with:
+#   python3_bin_reldir.txt not found. need to initialize depot_tools by
+#   running gclient, update_depot_tools or ensure_bootstrap.
+# Calling `gclient` with no args is a no-op for sync purposes but triggers
+# the bootstrap. Idempotent + cheap (~5s).
+echo "[0/2] warming depot_tools (python3 wrapper bootstrap) ..."
+gclient >/dev/null 2>&1 || true
+
 echo "[1/2] gn gen ..."
 gn gen out/apex
 
