@@ -215,6 +215,15 @@ cmd_setup_docker() {
 }
 
 cmd_setup_cluster() {
+  if command -v kubectl > /dev/null 2>&1 \
+    && command -v helm > /dev/null 2>&1 \
+    && command -v k3d > /dev/null 2>&1 \
+    && command -v kubeconform > /dev/null 2>&1 \
+    && command -v docker > /dev/null 2>&1; then
+    log_ok "Cluster tools already installed (kubectl, helm, k3d, kubeconform, docker)"
+    return 0
+  fi
+
   cmd_setup_cluster_package_manager=$(cmd_setup_ensure_package_manager)
 
   cmd_setup_docker
@@ -269,6 +278,18 @@ cmd_setup_cluster() {
 }
 
 cmd_setup_quality() {
+  if command -v shellcheck > /dev/null 2>&1 \
+    && command -v shfmt > /dev/null 2>&1 \
+    && command -v hadolint > /dev/null 2>&1 \
+    && command -v actionlint > /dev/null 2>&1 \
+    && command -v golangci-lint > /dev/null 2>&1 \
+    && command -v govulncheck > /dev/null 2>&1 \
+    && command -v jq > /dev/null 2>&1 \
+    && command -v openssl > /dev/null 2>&1; then
+    log_ok "Quality tools already installed (shellcheck, shfmt, hadolint, actionlint, golangci-lint, govulncheck, jq, openssl)"
+    return 0
+  fi
+
   cmd_setup_quality_package_manager=$(cmd_setup_ensure_package_manager)
 
   log_step "Installing shellcheck, shfmt, hadolint, jq, openssl"
