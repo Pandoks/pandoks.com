@@ -241,8 +241,7 @@ cmd_setup_cluster() {
       install_packages apt-get kubectl apache2-utils
 
       log_step "Installing helm via official installer (baltocdn apt repo decommissioned)"
-      cmd_setup_cluster_helm_latest=$(curl -fsSL https://api.github.com/repos/helm/helm/releases/latest \
-        | sed -n 's/.*"tag_name": "\(v[0-9.]*\)".*/\1/p')
+      cmd_setup_cluster_helm_latest=$(curl -fsSL https://get.helm.sh/helm-latest-version)
       [ -n "${cmd_setup_cluster_helm_latest}" ] || die "Could not determine latest helm version"
       cmd_setup_cluster_helm_arch=$(dpkg --print-architecture)
       curl -fsSL "https://get.helm.sh/helm-${cmd_setup_cluster_helm_latest}-linux-${cmd_setup_cluster_helm_arch}.tar.gz" \

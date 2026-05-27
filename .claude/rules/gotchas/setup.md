@@ -71,10 +71,16 @@ including a literal AWS config.
 
 - **`baltocdn.com/helm/signing.asc` returns HTTP 204 / empty body**
   — the Helm apt repo was decommissioned. `packages.sh:197-210`
-  uses the official `get.helm.sh` tarball + GitHub releases API
-  for the latest version instead. **Don't try to revive the apt
-  repo path** — the upstream URL is alive but no longer serves a
-  key.
+  uses the official `get.helm.sh` tarball instead. **Don't try to
+  revive the apt repo path** — the upstream URL is alive but no
+  longer serves a key.
+- **Don't use `api.github.com` for version discovery.** It
+  rate-limits unauthenticated requests at 60/hour per IP and 403s
+  on shared-egress hosts (Claude Code Cloud, CI runners). The
+  helm install uses `https://get.helm.sh/helm-latest-version`
+  (plain-text endpoint, no quota) instead. If you add new
+  "get latest version" lookups, prefer vendor CDN endpoints over
+  the GitHub API.
 - **`hadolint` is not in any major apt/pacman repo** (Arch has it
   in AUR only). `packages.sh:182-192` (Ubuntu) and `:215-225`
   (Arch) install via GitHub releases binary download. Same for
