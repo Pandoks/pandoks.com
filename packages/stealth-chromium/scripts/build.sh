@@ -18,9 +18,31 @@ cd "$SRC"
 # incremental rebuild from 5h to ~30min. Keyed per chromium-version + clang
 # major so a toolchain bump invalidates.
 CHROMIUM_VERSION="$(cat "$APEX_ROOT/chromium_version.txt")"
-CLANG_KEY="$(clang --version 2>/dev/null | head -1 | awk '{print $NF}' | cut -d. -f1)"
+# Extract clang major version. clang --version output on Ubuntu:
+#   "Ubuntu clang version 18.1.3 (1ubuntu1)"
+# The previous "awk '{print $NF}' | cut -d. -f1" grabbed "(1ubuntu1)" — the
+# Ubuntu package-revision suffix in parens, NOT the version number. Build
+# 003811 produced "ccache-148.0.7778.179-clang(1ubuntu1).tar.zst" (76 bytes,
+# empty tarball) because the wrong key was used. grep-pattern is robust to
+# whatever vendor prefix clang prints.
+CLANG_KEY="$(clang --version 2>/dev/null \
+  | head -1 \
+  | grep -oE 'version [0-9]+' \
+  | awk '{print $2}')"
 CCACHE_KEY="ccache-${CHROMIUM_VERSION}-clang${CLANG_KEY:-unknown}.tar.zst"
 export CCACHE_DIR="${CCACHE_DIR:-$WORK/.ccache}"
+# CCACHE_BASEDIR rewrites absolute paths in compile commands to relative ones
+# so the cache hashes match across different work dirs. Without this, every
+# EC2 instance's $WORK path differs and ccache misses on every compile even
+# when contents are identical. With it, the cache is portable across instances.
+export CCACHE_BASEDIR="$WORK"
+# Tell ccache to hash on file content + size, not mtime (which differs after
+# every tar extract from S3). Without this every cache restore from S3 would
+# invalidate the entire cache.
+export CCACHE_COMPILERCHECK="content"
+# Cap ccache disk usage so it doesn't blow past the 200 GB EBS volume. 50 GB
+# is roughly the size of a fully-populated Chromium ccache.
+export CCACHE_MAXSIZE="50G"
 mkdir -p "$CCACHE_DIR"
 if [ -n "${BUILDER_CACHE_BUCKET:-}" ] \
      && [ -z "$(ls -A "$CCACHE_DIR" 2>/dev/null)" ] \
@@ -29,6 +51,8 @@ if [ -n "${BUILDER_CACHE_BUCKET:-}" ] \
   aws s3 cp "s3://${BUILDER_CACHE_BUCKET}/${CCACHE_KEY}" - \
     | zstd -d --long=27 \
     | tar -x -C "$CCACHE_DIR"
+  echo "[ccache] restored. stats:"
+  ccache -s | head -20 || true
 else
   echo "[ccache] MISS (or cache disabled) -- will populate during build"
 fi
@@ -54,9 +78,16 @@ gn gen out/apex
 echo "[2/2] autoninja -- this is the long step (5-10h first build) ..."
 autoninja -C out/apex chrome
 
+# Report ccache stats post-build — measure cache hit rate / size for the
+# next build's expected speedup. Hit rate is the most useful number: >80%
+# means future warm builds will be ~5-10 min instead of ~50 min.
+echo "[ccache] post-build stats:"
+ccache -s 2>&1 | head -30 || true
+
 # Persist ccache back to s3 so the next build can read it.
 if [ -n "${BUILDER_CACHE_BUCKET:-}" ] && [ -d "$CCACHE_DIR" ]; then
-  echo "[ccache] uploading to s3://${BUILDER_CACHE_BUCKET}/${CCACHE_KEY} ..."
+  CCACHE_BYTES="$(du -sb "$CCACHE_DIR" 2>/dev/null | awk '{print $1}')"
+  echo "[ccache] uploading to s3://${BUILDER_CACHE_BUCKET}/${CCACHE_KEY} (raw size: ${CCACHE_BYTES} bytes) ..."
   tar -c -C "$CCACHE_DIR" . \
     | zstd -19 --long=27 -T0 \
     | aws s3 cp - "s3://${BUILDER_CACHE_BUCKET}/${CCACHE_KEY}" \

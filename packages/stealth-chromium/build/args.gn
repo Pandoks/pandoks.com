@@ -40,3 +40,16 @@ use_remoteexec = false
 # only needs the `chrome` target. (autoninja is told `chrome` explicitly,
 # but this trims dependency graph work.)
 blink_enable_generated_code_formatting = false
+
+# Disable siso, use plain ninja. siso is Google's distributed-build runner
+# for their RBE cluster; we have no RBE access so siso's local-fallback mode
+# just blocks ccache from intercepting compile calls. Plain ninja + ccache
+# is the well-trodden path for non-Google Chromium builds — warm rebuilds
+# of one-file changes drop from ~50min cold to ~3-5min with a populated
+# ccache from S3.
+use_siso = false
+
+# Route every C/C++ compile call through ccache. GN-native equivalent to
+# CC="ccache clang" — cleaner because GN owns command construction.
+# Requires ccache in PATH (installed via ami.yaml:21).
+cc_wrapper = "ccache"
