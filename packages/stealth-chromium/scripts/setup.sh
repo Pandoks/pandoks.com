@@ -86,6 +86,29 @@ else
   echo "[2/3] Chromium checkout already present locally, skipping fetch"
 fi
 
+# 2.5 — install Chromium's system build dependencies. Always runs because the
+# AMI is Ubuntu base (no Chromium-specific packages baked in) and even
+# cache-hit builds land on a fresh EC2 with no system pkgs from prior runs.
+# The script is canonical upstream so it adapts to whatever new dep Chromium
+# adds in any release.
+#
+# Flags chosen:
+#   --no-prompt           -- non-interactive (required for SSM-driven runs)
+#   --no-chromeos-fonts   -- we don't build ChromeOS, skip 200 MB of fonts
+#   --no-nacl             -- NaCl is removed from Chromium, skip its leftover deps
+#   --no-arm              -- we build x86_64 only on x86 AMIs, skip cross-arch libs
+#
+# Without this, gn gen fails as build 230610 did with:
+#   ERROR at //build/config/linux/atk/BUILD.gn:24:17: Script returned non-zero exit code.
+#   FileNotFoundError: [Errno 2] No such file or directory: 'pkg-config'
+#
+# Idempotent: apt-get install is a no-op on a fully-installed system, so
+# warm-cache builds re-running this just pay the ~10s "already installed"
+# check cost (not the 5-10min install cost).
+echo "[2.5/3] installing Chromium build dependencies (apt) ..."
+sudo "$WORK/chromium/src/build/install-build-deps.sh" \
+  --no-prompt --no-chromeos-fonts --no-nacl --no-arm
+
 # 3. check out the pinned version + sync deps -- ONLY on cache miss or
 # pre-sentinel cache. The sentinel is created by the cache-write path
 # above, so if it's present in the restored tarball we know setup is done.
