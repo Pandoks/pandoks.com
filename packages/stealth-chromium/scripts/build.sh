@@ -35,17 +35,18 @@ fi
 
 echo "=== apex-chromium build ==="
 
-# Warm depot_tools' python3 wrapper. The wrapper reads
-# `$WORK/depot_tools/python3_bin_reldir.txt` which is only written when
-# gclient or update_depot_tools runs in the depot_tools dir at least once
-# in this shell context. Our cache-hit path skips gclient sync entirely, so
-# the file is missing and `gn gen` fails with:
+# Bootstrap depot_tools so the python3 wrapper can find its bundled interpreter.
+# depot_tools/python3 reads $WORK/depot_tools/python3_bin_reldir.txt which is
+# only written after the cipd bootstrap runs. Our cache-hit path skips gclient
+# sync entirely so the marker is missing and `gn gen` fails with:
 #   python3_bin_reldir.txt not found. need to initialize depot_tools by
 #   running gclient, update_depot_tools or ensure_bootstrap.
-# Calling `gclient` with no args is a no-op for sync purposes but triggers
-# the bootstrap. Idempotent + cheap (~5s).
-echo "[0/2] warming depot_tools (python3 wrapper bootstrap) ..."
-gclient >/dev/null 2>&1 || true
+# Bare `gclient` (no args) only prints usage and exits — does NOT bootstrap
+# (verified empirically in build 224315: the warmup line ran but the same
+# error fired immediately after). `ensure_bootstrap` is the canonical entry —
+# it explicitly runs `cipd ensure` which writes python3_bin_reldir.txt.
+echo "[0/2] ensuring depot_tools bootstrap (cipd + python3 wrapper) ..."
+"$WORK/depot_tools/ensure_bootstrap"
 
 echo "[1/2] gn gen ..."
 gn gen out/apex
