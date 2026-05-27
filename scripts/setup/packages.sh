@@ -399,14 +399,16 @@ cmd_setup_all() {
   cmd_setup_print_next_steps
 }
 
-cmd_setup_check_report() {
-  cmd_setup_check_report_name="$1"
-  cmd_setup_check_report_cmd="$2"
-  if command -v "${cmd_setup_check_report_name}" > /dev/null 2>&1; then
-    printf "  %b✓%b %-14s %s\n" "${GREEN}" "${NORMAL}" "${cmd_setup_check_report_name}" \
-      "$(eval "${cmd_setup_check_report_cmd}" 2>&1 | head -n1)" >&2
+cmd_setup_check_report_to() {
+  cmd_setup_check_report_to_out="$1"
+  cmd_setup_check_report_to_name="$2"
+  cmd_setup_check_report_to_cmd="$3"
+  if command -v "${cmd_setup_check_report_to_name}" > /dev/null 2>&1; then
+    printf "  %b✓%b %-14s %s\n" "${GREEN}" "${NORMAL}" "${cmd_setup_check_report_to_name}" \
+      "$(eval "${cmd_setup_check_report_to_cmd}" 2>&1 | head -n1)" > "${cmd_setup_check_report_to_out}"
   else
-    printf "  %b✗%b %-14s not installed\n" "${RED}" "${NORMAL}" "${cmd_setup_check_report_name}" >&2
+    printf "  %b✗%b %-14s not installed\n" "${RED}" "${NORMAL}" "${cmd_setup_check_report_to_name}" \
+      > "${cmd_setup_check_report_to_out}"
   fi
 }
 
