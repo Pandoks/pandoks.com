@@ -40,6 +40,18 @@ export CCACHE_BASEDIR="$WORK"
 # every tar extract from S3). Without this every cache restore from S3 would
 # invalidate the entire cache.
 export CCACHE_COMPILERCHECK="content"
+# CCACHE_SLOPPINESS=modules lets ccache cache C++20-modules-using compiles.
+# By default ccache marks any compile with -fmodules as "uncacheable" because
+# .pcm (precompiled module) files reference transitive include content ccache
+# can't fully hash. Chromium uses modules HEAVILY — build 140538 showed 88%
+# of compile calls (60111/68179) were uncacheable, making ccache nearly
+# useless. With this sloppiness, ccache trusts source + flags + .pcm file
+# paths/mtimes as the key. Small risk of stale cached objects if .pcm
+# content changes without path change, mitigated by CCACHE_COMPILERCHECK
+# (above) and the fact that .pcm regeneration always bumps mtime.
+# Also: time_macros + locale + system_headers tolerate __DATE__/__TIME__
+# in source (rare in Chromium) and locale-sensitive output differences.
+export CCACHE_SLOPPINESS="modules,time_macros,locale,system_headers,include_file_mtime,include_file_ctime,pch_defines"
 # Cap ccache disk usage so it doesn't blow past the 200 GB EBS volume. 50 GB
 # is roughly the size of a fully-populated Chromium ccache.
 export CCACHE_MAXSIZE="50G"
