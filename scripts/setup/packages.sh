@@ -99,8 +99,6 @@ cmd_setup_go() {
 }
 
 cmd_setup_aws_install() {
-  cmd_setup_aws_install_package_manager=$(cmd_setup_ensure_package_manager)
-
   if command -v aws > /dev/null 2>&1; then
     cmd_setup_aws_install_version=$(aws --version 2>&1 | awk '{print $1}')
     case "${cmd_setup_aws_install_version}" in
@@ -114,6 +112,7 @@ cmd_setup_aws_install() {
     esac
   fi
 
+  cmd_setup_aws_install_package_manager=$(cmd_setup_ensure_package_manager)
   case "${cmd_setup_aws_install_package_manager}" in
     brew)
       log_step "Installing awscli v2 via Homebrew"
@@ -143,9 +142,7 @@ cmd_setup_aws_config() {
   cmd_setup_aws_config_file="${cmd_setup_aws_config_dir}/config"
 
   if [ -s "${cmd_setup_aws_config_file}" ]; then
-    # shellcheck disable=SC2088
-    log_warn "~/.aws/config already exists — skipping write to preserve your existing settings"
-    log_warn "Delete or move ${cmd_setup_aws_config_file} and re-run 'pnpm setup aws' if you want the Pandoks_ template"
+    log_ok "AWS config already present (~/.aws/config)"
     return 0
   fi
 
