@@ -1,17 +1,3 @@
-# shellcheck shell=sh
-
-use_sudo() {
-  if [ "$(id -u)" -eq 0 ]; then
-    "$@"
-  else
-    sudo "$@"
-  fi
-}
-
-log_step() {
-  printf "%b==>%b %s\n" "${BOLD}" "${NORMAL}" "$*" >&2
-}
-
 cmd_setup_ensure_package_manager() { # Outputs: package manager name (brew | apt-get | pacman)
   cmd_setup_ensure_package_manager_os=$(get_os)
   is_supported_os "${cmd_setup_ensure_package_manager_os}" || exit 1
