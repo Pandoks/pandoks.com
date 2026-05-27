@@ -65,10 +65,19 @@ fi
 # 3. check out the pinned version + sync deps
 echo "[3/3] checking out $CHROMIUM_VERSION and syncing deps ..."
 cd "$WORK/chromium/src"
-git fetch --tags --depth 1 origin "refs/tags/$CHROMIUM_VERSION" || true
+# Skip refetch when the cached tarball already contains the tag (warm-cache
+# path saves ~80 min of single-threaded git index-pack on the 13.5M-object
+# pack — that step took 1h 19min in the 184805 build attempt).
+if ! git rev-parse "tags/$CHROMIUM_VERSION" >/dev/null 2>&1; then
+  git fetch --tags --depth 1 origin "refs/tags/$CHROMIUM_VERSION" || true
+fi
 git checkout "tags/$CHROMIUM_VERSION" 2>/dev/null \
   || echo "  (tag checkout skipped -- staying on fetched revision)"
-gclient sync -D --no-history --with_branch_heads
+# -j 4: throttle parallel git fetches so the secondary DEPS pulls don't trip
+# chromium.googlesource.com's per-IP burst rate limit (HTTP 429 RESOURCE_EXHAUSTED).
+# Default is 8*cpu_count which on c8i.16xlarge = 512 parallel fetches — guaranteed
+# 429. The 184805 build died at libvpx with this exact error.
+gclient sync -D --no-history --with_branch_heads -j 4
 
 echo
 echo "=== setup complete ==="
