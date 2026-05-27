@@ -1,0 +1,42 @@
+# apex-chromium GN build args.
+#
+# A release build of real Chrome, with the apex fingerprint overlay/edits
+# already applied to the tree by scripts/apply.sh. Nothing here enables the
+# patches -- they are runtime-gated by the APEX_FP_* environment variables, so
+# this binary behaves exactly like stock Chrome when launched without them.
+
+# Release, optimized, official-style build -- a genuine consumer Chrome build,
+# so the version string / codecs / behavior match real Chrome. A debug or
+# non-official build is itself a fingerprint, so is_official_build stays true.
+is_debug = false
+is_official_build = true
+is_component_build = false
+
+# Real Chrome ships proprietary codecs; a build without them is detectable
+# (missing H.264 etc.). Match real Chrome.
+proprietary_codecs = true
+ffmpeg_branding = "Chrome"
+
+# No symbols -- apex never needs to debug the binary, real Chrome release ships
+# stripped, and symbol_level=0 meaningfully cuts compile time + disk.
+symbol_level = 0
+blink_symbol_level = 0
+
+# Do NOT enable dcheck in release (real Chrome release has it off).
+dcheck_always_on = false
+
+# (NaCl is already fully removed from current Chromium -- no arg needed.)
+
+# PGO (profile-guided optimization) is a pure codegen speed optimization -- it
+# is NOT web-observable and cannot be fingerprinted. The --no-history fetch
+# skips the PGO profile data, so we disable PGO rather than download it. The
+# resulting binary's behavior / version / feature set is identical.
+chrome_pgo_phase = 0
+
+# Build the local toolchain; no remote execution available here.
+use_remoteexec = false
+
+# Skip building unbundled test binaries / the chromedriver target -- apex
+# only needs the `chrome` target. (autoninja is told `chrome` explicitly,
+# but this trims dependency graph work.)
+blink_enable_generated_code_formatting = false

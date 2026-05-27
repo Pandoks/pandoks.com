@@ -41,7 +41,7 @@ cleanup_on_failure() {
 trap cleanup_on_failure ERR
 
 # --- 1. set up /build on the root volume -----------------------------------
-# The SFN sizes the root EBS volume at run time via $.rootVolumeSizeGb, so
+# The SFN sizes the root EBS volume at run time via $.storageSizeGib, so
 # /build just lives on /. Earlier versions of this script tried to format a
 # "spare" block device for /build, but on c7i/c8i/m*i instance families
 # there are no instance-store NVMe drives, and on Ubuntu c7i the root disk

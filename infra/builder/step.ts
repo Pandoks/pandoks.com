@@ -1,6 +1,8 @@
 import { githubOrg, githubRepoName } from '../github';
 import { ARM_INSTANCE_TYPES, X86_INSTANCE_TYPES } from './types';
 
+const INPUT_DEFAULTS = { storageSizeGib: 8 };
+
 function launchInstance(architecture: 'x86' | 'arm64', market: 'spot' | 'on-demand') {
   return {
     Type: 'Task',
@@ -15,21 +17,11 @@ function launchInstance(architecture: 'x86' | 'arm64', market: 'spot' | 'on-dema
       MinCount: 1,
       MaxCount: 1,
       'InstanceType.$': '$.instanceType',
-      // Per-execution root volume override. The AMI defaults to 8 GB which is
-      // fine for a hello-world build but too small for anything that needs to
-      // check out a large source tree (Chromium needs ~130 GB). Callers pass
-      // $.rootVolumeSizeGb; the launch template's root device name
-      // (/dev/sda1) is hardcoded here because BlockDeviceMappings overrides
-      // must match the AMI's RootDeviceName exactly or they are silently
-      // ignored. DeleteOnTermination defaults true for root volumes (matches
-      // the AMI), so the volume vanishes with the instance and never bills
-      // between runs.
       BlockDeviceMappings: [
         {
           DeviceName: '/dev/sda1',
           Ebs: {
-            'VolumeSize.$': '$.rootVolumeSizeGb',
-            VolumeType: 'gp3',
+            'VolumeSize.$': '$.storageSizeGib',
             DeleteOnTermination: true
           }
         }
@@ -57,6 +49,30 @@ function launchInstance(architecture: 'x86' | 'arm64', market: 'spot' | 'on-dema
     Catch: [{ ErrorEquals: ['States.ALL'], ResultPath: '$.error', Next: 'FailNoInstance' }]
   };
 }
+
+const storageSizeGate = {
+  NormalizeStorageSize: {
+    Type: 'Pass',
+    Parameters: { 'storageSizeGibStr.$': "States.Format('{}', $.storageSizeGib)" },
+    ResultPath: '$.normalized',
+    Next: 'ValidateStorageSize'
+  },
+  ValidateStorageSize: {
+    Type: 'Choice',
+    Choices: [
+      {
+        And: [
+          { Variable: '$.storageSizeGib', IsNumeric: true },
+          { Variable: '$.storageSizeGib', NumericGreaterThanEquals: 8 },
+          { Variable: '$.storageSizeGib', NumericLessThanEquals: 16384 },
+          { Not: { Variable: '$.normalized.storageSizeGibStr', StringMatches: '*.*' } }
+        ],
+        Next: 'ChooseArchitecture'
+      }
+    ],
+    Default: 'FailInvalidStorageSize'
+  }
+};
 
 const instanceTypesGate = {
   ChooseArchitecture: {
@@ -152,6 +168,29 @@ const waitForBuild = {
   }
 };
 
+const fails = {
+  FailNoInstance: {
+    Type: 'Fail',
+    Cause: 'RunInstances failed; nothing to terminate',
+    Error: 'LaunchFailed'
+  },
+  FailInvalidInstanceType: {
+    Type: 'Fail',
+    Cause: 'instanceType is not in the supported list',
+    Error: 'InvalidInstanceType'
+  },
+  FailInvalidStorageSize: {
+    Type: 'Fail',
+    Cause: 'storageSizeGib must be an integer between 8 and 16384 (gp3 max)',
+    Error: 'InvalidStorageSize'
+  },
+  FailBuild: {
+    Type: 'Fail',
+    Cause: 'Remote build command failed, was cancelled, or timed out',
+    Error: 'BuildFailed'
+  }
+};
+
 export function builderStateMachineDefinition({
   launchTemplateIdX86,
   launchTemplateIdArm64,
@@ -194,58 +233,34 @@ export function builderStateMachineDefinition({
       return JSON.stringify({
         Comment:
           'Ephemeral EC2 builder — launch (arch-routed), run script via SSM, always terminate',
-        StartAt: 'ResolveInputs',
+        StartAt: 'ApplyDefaults',
         States: {
-          // Default rootVolumeSizeGb to 30 GB if the caller omitted it.
-          // SFN Pass states can't express "default if absent", so the only
-          // safe pattern is: Choice on IsPresent -> Pass that injects the
-          // default -> common downstream. After this state, $.rootVolumeSizeGb
-          // is always set, and the resolve-inputs Pass below can safely
-          // forward it with `'rootVolumeSizeGb.$': '$.rootVolumeSizeGb'`.
-          ResolveInputs: {
-            Type: 'Choice',
-            Choices: [
-              { Variable: '$.rootVolumeSizeGb', IsPresent: true, Next: 'PickIdSource' }
-            ],
-            Default: 'ApplyDefaultRootVolumeSize'
-          },
-          ApplyDefaultRootVolumeSize: {
-            Type: 'Pass',
-            Result: 30,
-            ResultPath: '$.rootVolumeSizeGb',
-            Next: 'PickIdSource'
-          },
-          PickIdSource: {
-            Type: 'Choice',
-            Choices: [{ Variable: '$.id', IsPresent: true, Next: 'ResolveInputsWithId' }],
-            Default: 'ResolveInputsWithExecutionId'
-          },
-          ResolveInputsWithId: {
+          ApplyDefaults: {
             Type: 'Pass',
             Parameters: {
-              'id.$': '$.id',
-              'ref.$': '$.ref',
-              'instanceType.$': '$.instanceType',
-              'marketType.$': '$.marketType',
-              'command.$': '$.command',
-              'rootVolumeSizeGb.$': '$.rootVolumeSizeGb',
-              templates: { launchTemplateIdX86, launchTemplateIdArm64 }
+              'resolved.$': `States.JsonMerge(States.StringToJson('${JSON.stringify(INPUT_DEFAULTS)}'), $$.Execution.Input, false)`
             },
-            Next: 'ChooseArchitecture'
+            OutputPath: '$.resolved',
+            Next: 'ResolveId'
           },
-          ResolveInputsWithExecutionId: {
+          ResolveId: {
+            Type: 'Choice',
+            Choices: [{ Variable: '$.id', IsPresent: true, Next: 'AttachTemplates' }],
+            Default: 'FallbackId'
+          },
+          FallbackId: {
             Type: 'Pass',
-            Parameters: {
-              'id.$': '$$.Execution.Name',
-              'ref.$': '$.ref',
-              'instanceType.$': '$.instanceType',
-              'marketType.$': '$.marketType',
-              'command.$': '$.command',
-              'rootVolumeSizeGb.$': '$.rootVolumeSizeGb',
-              templates: { launchTemplateIdX86, launchTemplateIdArm64 }
-            },
-            Next: 'ChooseArchitecture'
+            InputPath: '$$.Execution.Name',
+            ResultPath: '$.id',
+            Next: 'AttachTemplates'
           },
+          AttachTemplates: {
+            Type: 'Pass',
+            Result: { launchTemplateIdX86, launchTemplateIdArm64 },
+            ResultPath: '$.templates',
+            Next: 'NormalizeStorageSize'
+          },
+          ...storageSizeGate,
           ...instanceTypesGate,
           LaunchSpotX86: launchInstance('x86', 'spot'),
           LaunchOnDemandX86: launchInstance('x86', 'on-demand'),
@@ -295,21 +310,7 @@ export function builderStateMachineDefinition({
               { ErrorEquals: ['States.ALL'], ResultPath: '$.terminationError', Next: 'FailBuild' }
             ]
           },
-          FailNoInstance: {
-            Type: 'Fail',
-            Cause: 'RunInstances failed; nothing to terminate',
-            Error: 'LaunchFailed'
-          },
-          FailInvalidInstanceType: {
-            Type: 'Fail',
-            Cause: 'instanceType is not in the supported list',
-            Error: 'InvalidInstanceType'
-          },
-          FailBuild: {
-            Type: 'Fail',
-            Cause: 'Remote build command failed, was cancelled, or timed out',
-            Error: 'BuildFailed'
-          },
+          ...fails,
           Done: { Type: 'Succeed' }
         }
       });
