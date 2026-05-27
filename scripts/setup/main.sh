@@ -38,3 +38,28 @@ install_packages() {
   esac
 }
 
+main() {
+  [ $# -ge 1 ] || usage 0
+  cmd="$1"
+  shift
+
+  case "${cmd}" in
+    all) cmd_setup_all "$@" ;;
+    base) cmd_setup_base "$@" ;;
+    node) cmd_setup_node "$@" ;;
+    python) cmd_setup_python "$@" ;;
+    go) cmd_setup_go "$@" ;;
+    aws) cmd_setup_aws "$@" ;;
+    docker) cmd_setup_docker "$@" ;;
+    cluster) cmd_setup_cluster "$@" ;;
+    quality) cmd_setup_quality "$@" ;;
+    check) cmd_setup_check "$@" ;;
+    help | --help | -h) usage ;;
+    *)
+      log_error "Unknown command '${cmd}'"
+      usage 1
+      ;;
+  esac
+}
+
+main "$@"
