@@ -1,6 +1,8 @@
 # shellcheck shell=sh
 
 SETUP_INSTALLED_UV=0
+SETUP_INSTALLED_GO=0
+
 cmd_setup_node() {
   cmd_setup_node_package_manager=$(cmd_setup_ensure_package_manager)
 
@@ -73,8 +75,12 @@ cmd_setup_python() {
 }
 
 cmd_setup_go() {
-  cmd_setup_go_package_manager=$(cmd_setup_ensure_package_manager)
+  if command -v go > /dev/null 2>&1; then
+    log_ok "Go already installed: $(go version)"
+    return 0
+  fi
 
+  cmd_setup_go_package_manager=$(cmd_setup_ensure_package_manager)
   log_step "Installing Go"
   case "${cmd_setup_go_package_manager}" in
     brew) install_packages brew go ;;
@@ -87,7 +93,9 @@ cmd_setup_go() {
   append_shell_rc "export PATH=\"${cmd_setup_go_bin}:\$PATH\""
   PATH="${cmd_setup_go_bin}:${PATH}"
   export PATH
+  SETUP_INSTALLED_GO=1
   log_ok "$(go version)"
+  log_warn "Activate in this shell: export PATH=\"${cmd_setup_go_bin}:\$PATH\""
 }
 
 cmd_setup_aws_install() {
