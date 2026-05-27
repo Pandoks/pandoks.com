@@ -46,8 +46,7 @@ cmd_setup_print_next_steps() {
   cmd_setup_print_next_steps_step=1
   SETUP_BOOTSTRAP_HEADER_SHOWN=0
 
-  # 1. .env.<stage> — needed if no .env.<stage> file exists yet
-  #    (.env.example doesn't count — it's the template).
+  # 1. .env.<stage> — needed if no .env.<stage> file exists yet (.env.example doesn't count — it's the template).
   if ! find "${REPO_ROOT}" -maxdepth 1 -name '.env.*' ! -name '.env.example' \
     | grep -q .; then
     cmd_setup_show_bootstrap_header
