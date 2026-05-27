@@ -35,7 +35,24 @@ export PATH="$WORK/depot_tools:$PATH"
 # The cache object key is keyed on the version string so a bump to
 # chromium_version.txt invalidates automatically. Tarball is `tar | zstd -19`
 # of the whole $WORK/chromium tree -- depot_tools state + src/ + deps.
-CACHE_KEY="chromium-src-${CHROMIUM_VERSION}.tar.zst"
+# Cache-key schema version. Bump whenever the tarball CONTENTS shape changes
+# (e.g. adding a sentinel marker, including ccache, packing more dirs) so
+# the new code doesn't try to interpret a tarball written under old rules.
+# Independent of CHROMIUM_VERSION which captures the source-tree version.
+#   v1 — original layout (chromium/ tarball, no sentinel)
+#   v2 — adds .apex-cache-ready-<version> sentinel, gclient sync runs with -j 4
+CACHE_KEY="chromium-src-${CHROMIUM_VERSION}-v2.tar.zst"
+# Sentinel file written after a successful checkout — its presence is the
+# load-bearing signal that the entire setup (fetch + gclient sync) finished
+# and was tarballed. The cache-write step is the only thing that creates it,
+# so its presence in a restored tarball means "this tree is fully synced for
+# this exact version" — and step 3 (refetch + checkout + gclient sync) can
+# be safely skipped. Saves ~80 min of single-threaded git index-pack on the
+# 13.5M-object pack that the 184805/210904 builds wasted time on, and
+# eliminates the chromium.googlesource.com 429 rate-limit class of failures
+# entirely on warm cache hits.
+SENTINEL="$WORK/chromium/.apex-cache-ready-${CHROMIUM_VERSION}"
+
 if [ ! -d "$WORK/chromium/src" ]; then
   if [ -n "${BUILDER_CACHE_BUCKET:-}" ] \
        && aws s3 ls "s3://${BUILDER_CACHE_BUCKET}/${CACHE_KEY}" >/dev/null 2>&1; then
@@ -48,7 +65,14 @@ if [ ! -d "$WORK/chromium/src" ]; then
     mkdir -p "$WORK/chromium"
     cd "$WORK/chromium"
     fetch --no-history chromium
+    cd "$WORK/chromium/src"
+    # -j 4: throttle parallel git fetches so the DEPS pulls don't trip
+    # chromium.googlesource.com's per-IP burst rate limit (HTTP 429
+    # RESOURCE_EXHAUSTED). Default is 8*cpu_count which on c8i.16xlarge
+    # is 512 parallel fetches — guaranteed 429. 184805 died here.
+    gclient sync -D --no-history --with_branch_heads -j 4
     cd "$WORK"
+    touch "$SENTINEL"
     if [ -n "${BUILDER_CACHE_BUCKET:-}" ]; then
       echo "      uploading checkout to s3://${BUILDER_CACHE_BUCKET}/${CACHE_KEY} ..."
       tar -c -C "$WORK" chromium \
@@ -62,22 +86,21 @@ else
   echo "[2/3] Chromium checkout already present locally, skipping fetch"
 fi
 
-# 3. check out the pinned version + sync deps
-echo "[3/3] checking out $CHROMIUM_VERSION and syncing deps ..."
-cd "$WORK/chromium/src"
-# Skip refetch when the cached tarball already contains the tag (warm-cache
-# path saves ~80 min of single-threaded git index-pack on the 13.5M-object
-# pack — that step took 1h 19min in the 184805 build attempt).
-if ! git rev-parse "tags/$CHROMIUM_VERSION" >/dev/null 2>&1; then
+# 3. check out the pinned version + sync deps -- ONLY on cache miss or
+# pre-sentinel cache. The sentinel is created by the cache-write path
+# above, so if it's present in the restored tarball we know setup is done.
+if [ -f "$SENTINEL" ]; then
+  echo "[3/3] cache is fully synced (sentinel found), skipping fetch + gclient sync"
+else
+  echo "[3/3] checking out $CHROMIUM_VERSION and syncing deps ..."
+  cd "$WORK/chromium/src"
   git fetch --tags --depth 1 origin "refs/tags/$CHROMIUM_VERSION" || true
+  git checkout "tags/$CHROMIUM_VERSION" 2>/dev/null \
+    || echo "  (tag checkout skipped -- staying on fetched revision)"
+  # -j 4 rate-limit cap (see comment in cache-MISS path above).
+  gclient sync -D --no-history --with_branch_heads -j 4
+  touch "$SENTINEL"
 fi
-git checkout "tags/$CHROMIUM_VERSION" 2>/dev/null \
-  || echo "  (tag checkout skipped -- staying on fetched revision)"
-# -j 4: throttle parallel git fetches so the secondary DEPS pulls don't trip
-# chromium.googlesource.com's per-IP burst rate limit (HTTP 429 RESOURCE_EXHAUSTED).
-# Default is 8*cpu_count which on c8i.16xlarge = 512 parallel fetches — guaranteed
-# 429. The 184805 build died at libvpx with this exact error.
-gclient sync -D --no-history --with_branch_heads -j 4
 
 echo
 echo "=== setup complete ==="
