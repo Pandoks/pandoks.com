@@ -37,3 +37,30 @@ cmd_setup_node() {
   log_ok "Node ${cmd_setup_node_version} ready via nvm"
   unset cmd_setup_node_package_manager
 }
+
+cmd_setup_python() {
+  cmd_setup_python_package_manager=$(cmd_setup_ensure_package_manager)
+
+  if command -v uv > /dev/null 2>&1; then
+    log_ok "uv already installed: $(uv --version)"
+    return 0
+  fi
+
+  case "${cmd_setup_python_package_manager}" in
+    brew)
+      log_step "Installing uv via Homebrew"
+      install_packages brew uv
+      ;;
+    apt-get | pacman)
+      log_step "Installing uv via official installer"
+      curl -fsSL https://astral.sh/uv/install.sh | sh
+      # shellcheck disable=SC2016
+      append_shell_rc 'export PATH="$HOME/.local/bin:$PATH"'
+      PATH="${HOME}/.local/bin:${PATH}"
+      export PATH
+      ;;
+  esac
+
+  command -v uv > /dev/null 2>&1 || die "uv installation failed"
+  log_ok "uv $(uv --version)"
+}
