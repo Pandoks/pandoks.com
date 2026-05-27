@@ -13,6 +13,7 @@ readonly REPO_ROOT
 . "${SCRIPT_DIR}/usage.sh"
 . "${SCRIPT_DIR}/env.sh"
 . "${SCRIPT_DIR}/packages.sh"
+. "${SCRIPT_DIR}/next-steps.sh"
 
 use_sudo() {
   if [ "$(id -u)" -eq 0 ]; then
