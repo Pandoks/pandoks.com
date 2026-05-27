@@ -27,7 +27,14 @@ append_shell_rc() {
   fi
 }
 
+SETUP_PACKAGE_MANAGER_CACHE=""
+
 cmd_setup_ensure_package_manager() { # Outputs: package manager name (brew | apt-get | pacman)
+  if [ -n "${SETUP_PACKAGE_MANAGER_CACHE}" ]; then
+    printf '%s' "${SETUP_PACKAGE_MANAGER_CACHE}"
+    return 0
+  fi
+
   cmd_setup_ensure_package_manager_os=$(get_os)
   is_supported_os "${cmd_setup_ensure_package_manager_os}" || exit 1
 
@@ -79,7 +86,8 @@ cmd_setup_ensure_package_manager() { # Outputs: package manager name (brew | apt
 
   cmd_setup_ensure_package_manager_package_manager=$(get_package_manager)
   is_supported_package_manager "${cmd_setup_ensure_package_manager_package_manager}" || exit 1
-  printf '%s' "${cmd_setup_ensure_package_manager_package_manager}"
+  SETUP_PACKAGE_MANAGER_CACHE="${cmd_setup_ensure_package_manager_package_manager}"
+  printf '%s' "${SETUP_PACKAGE_MANAGER_CACHE}"
 }
 
 cmd_setup_fetch_pgp_key() {
