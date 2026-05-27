@@ -1,5 +1,6 @@
 # shellcheck shell=sh
 
+SETUP_INSTALLED_UV=0
 cmd_setup_node() {
   cmd_setup_node_package_manager=$(cmd_setup_ensure_package_manager)
 
@@ -39,13 +40,12 @@ cmd_setup_node() {
 }
 
 cmd_setup_python() {
-  cmd_setup_python_package_manager=$(cmd_setup_ensure_package_manager)
-
   if command -v uv > /dev/null 2>&1; then
     log_ok "uv already installed: $(uv --version)"
     return 0
   fi
 
+  cmd_setup_python_package_manager=$(cmd_setup_ensure_package_manager)
   case "${cmd_setup_python_package_manager}" in
     brew)
       log_step "Installing uv via Homebrew"
@@ -62,7 +62,14 @@ cmd_setup_python() {
   esac
 
   command -v uv > /dev/null 2>&1 || die "uv installation failed"
+  SETUP_INSTALLED_UV=1
   log_ok "uv $(uv --version)"
+  case "${cmd_setup_python_package_manager}" in
+    apt-get | pacman)
+      # shellcheck disable=SC2016
+      log_warn 'Activate in this shell: export PATH="$HOME/.local/bin:$PATH"'
+      ;;
+  esac
 }
 
 cmd_setup_go() {
