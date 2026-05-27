@@ -33,10 +33,40 @@ echo " package root  : $PKG_ROOT"
 date -u +"%Y-%m-%dT%H:%M:%SZ"
 
 cleanup_on_failure() {
-  echo "=== sfn-build FAILED -- uploading log tail ==="
+  echo "=== sfn-build FAILED -- uploading diagnostics ==="
+  local s3_prefix="s3://${BUILDER_ARTIFACTS_BUCKET}/${BUILD_ID}"
+  # 1. The 1MB log tail — sometimes contains the error, sometimes not (siso's
+  #    success-step chatter is dense; on a big compile failure the actual
+  #    error gets pushed past the 1MB window by thousands of "F CXX ..."
+  #    success lines reporting the in-flight steps).
   tail -c 1048576 "$LOG_FILE" \
-    | aws s3 cp - "s3://${BUILDER_ARTIFACTS_BUCKET}/${BUILD_ID}/build-failure.log" \
-    || echo "(log upload also failed)"
+    | aws s3 cp - "${s3_prefix}/build-failure.log" \
+    || echo "(build-failure.log upload also failed)"
+  # 2. siso's own failure dump — the canonical Chromium debugging entry point.
+  #    Build 233333 demonstrated the 1MB log tail can't capture compiler
+  #    errors when siso runs ahead with thousands of parallel compile jobs;
+  #    these two siso files have the actual error.
+  local siso_out="${APEX_CHROMIUM_WORK:-/build}/chromium/src/out/apex"
+  if [ -f "${siso_out}/siso_failed_commands.sh" ]; then
+    aws s3 cp "${siso_out}/siso_failed_commands.sh" \
+      "${s3_prefix}/siso_failed_commands.sh" \
+      || echo "(siso_failed_commands.sh upload failed)"
+  fi
+  if [ -f "${siso_out}/siso_output" ]; then
+    tail -c 1048576 "${siso_out}/siso_output" \
+      | aws s3 cp - "${s3_prefix}/siso_output.tail" \
+      || echo "(siso_output upload failed)"
+  fi
+  # 3. Grep for the actual compiler error patterns and upload as a
+  #    self-contained summary. -B 5 -A 30 captures the offending file +
+  #    next 30 lines of error output (template stacks etc).
+  if [ -f "${siso_out}/siso_output" ]; then
+    grep -nB 5 -A 30 -E "^FAILED:|error:|undefined reference|fatal error" \
+      "${siso_out}/siso_output" 2>/dev/null \
+      | head -c 1048576 \
+      | aws s3 cp - "${s3_prefix}/compile-errors.log" \
+      || echo "(compile-errors.log upload failed)"
+  fi
 }
 trap cleanup_on_failure ERR
 
