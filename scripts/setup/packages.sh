@@ -64,3 +64,21 @@ cmd_setup_python() {
   command -v uv > /dev/null 2>&1 || die "uv installation failed"
   log_ok "uv $(uv --version)"
 }
+
+cmd_setup_go() {
+  cmd_setup_go_package_manager=$(cmd_setup_ensure_package_manager)
+
+  log_step "Installing Go"
+  case "${cmd_setup_go_package_manager}" in
+    brew) install_packages brew go ;;
+    apt-get) install_packages apt-get golang-go ;;
+    pacman) install_packages pacman go ;;
+  esac
+
+  command -v go > /dev/null 2>&1 || die "go not found after install"
+  cmd_setup_go_bin="$(go env GOPATH)/bin"
+  append_shell_rc "export PATH=\"${cmd_setup_go_bin}:\$PATH\""
+  PATH="${cmd_setup_go_bin}:${PATH}"
+  export PATH
+  log_ok "$(go version)"
+}
