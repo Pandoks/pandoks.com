@@ -414,23 +414,42 @@ cmd_setup_check_report_to() {
 
 cmd_setup_check() {
   log_step "Detected versions"
-  cmd_setup_check_report node "node --version"
-  cmd_setup_check_report pnpm "pnpm --version"
-  cmd_setup_check_report uv "uv --version"
-  cmd_setup_check_report go "go version"
-  cmd_setup_check_report aws "aws --version"
-  cmd_setup_check_report docker "docker --version"
-  cmd_setup_check_report kubectl "kubectl version --client --output=yaml | awk '/gitVersion/ {print \$2; exit}'"
-  cmd_setup_check_report k3d "k3d version | awk '/k3d version/ {print \$3; exit}'"
-  cmd_setup_check_report helm "helm version --short"
-  cmd_setup_check_report kubeconform "kubeconform -v"
-  cmd_setup_check_report jq "jq --version"
-  cmd_setup_check_report openssl "openssl version"
-  cmd_setup_check_report htpasswd "htpasswd -v 2>&1 | head -n1 || echo present"
-  cmd_setup_check_report shellcheck "shellcheck --version | awk '/^version:/ {print \$2}'"
-  cmd_setup_check_report shfmt "shfmt --version"
-  cmd_setup_check_report hadolint "hadolint --version"
-  cmd_setup_check_report actionlint "actionlint -version | head -n1"
-  cmd_setup_check_report golangci-lint "golangci-lint --version | head -n1"
-  cmd_setup_check_report govulncheck "govulncheck -version | head -n1"
+
+  cmd_setup_check_tmp=$(mktemp -d)
+  cmd_setup_check_i=0
+  # shellcheck disable=SC2016
+  for cmd_setup_check_spec in \
+    'node|node --version' \
+    'pnpm|pnpm --version' \
+    'uv|uv --version' \
+    'go|go version' \
+    'aws|aws --version' \
+    'docker|docker --version' \
+    'kubectl|kubectl version --client --output=yaml | awk "/gitVersion/ {print \$2; exit}"' \
+    'k3d|k3d version | awk "/k3d version/ {print \$3; exit}"' \
+    'helm|helm version --short' \
+    'kubeconform|kubeconform -v' \
+    'jq|jq --version' \
+    'openssl|openssl version' \
+    'htpasswd|htpasswd -v 2>&1 | head -n1 || echo present' \
+    'shellcheck|shellcheck --version | awk "/^version:/ {print \$2}"' \
+    'shfmt|shfmt --version' \
+    'hadolint|hadolint --version' \
+    'actionlint|actionlint -version | head -n1' \
+    'golangci-lint|golangci-lint --version | head -n1' \
+    'govulncheck|govulncheck -version | head -n1'; do
+    cmd_setup_check_name="${cmd_setup_check_spec%%|*}"
+    cmd_setup_check_cmd="${cmd_setup_check_spec#*|}"
+    cmd_setup_check_report_to \
+      "${cmd_setup_check_tmp}/$(printf '%02d' "${cmd_setup_check_i}")" \
+      "${cmd_setup_check_name}" \
+      "${cmd_setup_check_cmd}" &
+    cmd_setup_check_i=$((cmd_setup_check_i + 1))
+  done
+  wait
+
+  for cmd_setup_check_f in "${cmd_setup_check_tmp}"/*; do
+    cat "${cmd_setup_check_f}" >&2
+  done
+  rm -rf "${cmd_setup_check_tmp}"
 }
