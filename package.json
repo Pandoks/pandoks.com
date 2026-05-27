@@ -9,6 +9,7 @@
   },
   "scripts": {
     "sso": "aws sso login --sso-session=Pandoks_ --use-device-code --no-browser",
+    "setup": "./scripts/setup/main.sh",
     "cluster": "./scripts/cluster/main.sh",
     "dev": "sst dev",
     "dev:init": "pnpm cluster k3d deps up && pnpm cluster k3d up && pnpm docker:build && pnpm dev:push && pnpm cluster deploy dev --bootstrap && pnpm cluster deploy dev",
