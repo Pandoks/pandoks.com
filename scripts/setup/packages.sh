@@ -167,3 +167,58 @@ cmd_setup_docker() {
 
   log_ok "Docker installed"
 }
+
+cmd_setup_cluster() {
+  cmd_setup_cluster_pm=$(cmd_setup_ensure_package_manager)
+
+  cmd_setup_docker
+
+  log_step "Installing kubectl, k3d, helm"
+  case "${cmd_setup_cluster_pm}" in
+    brew)
+      install_packages brew kubectl k3d helm
+      ;;
+    apt-get)
+      use_sudo install -m 0755 -d /etc/apt/keyrings
+      cmd_setup_cluster_kube_minor="v1.36"
+
+      cmd_setup_fetch_pgp_key \
+        "https://pkgs.k8s.io/core:/stable:/${cmd_setup_cluster_kube_minor}/deb/Release.key" \
+        /etc/apt/keyrings/kubernetes-apt-keyring.gpg \
+        "kubernetes"
+
+      printf 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/%s/deb/ /\n' \
+        "${cmd_setup_cluster_kube_minor}" \
+        | use_sudo tee /etc/apt/sources.list.d/kubernetes.list > /dev/null
+
+      use_sudo apt-get update -y
+      install_packages apt-get kubectl apache2-utils
+
+      log_step "Installing helm via official installer (baltocdn apt repo decommissioned)"
+      cmd_setup_cluster_helm_latest=$(curl -fsSL https://api.github.com/repos/helm/helm/releases/latest \
+        | sed -n 's/.*"tag_name": "\(v[0-9.]*\)".*/\1/p')
+      [ -n "${cmd_setup_cluster_helm_latest}" ] || die "Could not determine latest helm version"
+      cmd_setup_cluster_helm_arch=$(dpkg --print-architecture)
+      curl -fsSL "https://get.helm.sh/helm-${cmd_setup_cluster_helm_latest}-linux-${cmd_setup_cluster_helm_arch}.tar.gz" \
+        -o /tmp/helm.tar.gz
+      tar -xzf /tmp/helm.tar.gz -C /tmp
+      use_sudo install -m 0755 "/tmp/linux-${cmd_setup_cluster_helm_arch}/helm" /usr/local/bin/helm
+      rm -rf /tmp/helm.tar.gz "/tmp/linux-${cmd_setup_cluster_helm_arch}"
+
+      log_step "Installing k3d via official installer"
+      curl -fsSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | use_sudo bash
+      ;;
+    pacman)
+      install_packages pacman kubectl helm apache
+      log_step "Installing k3d binary (Arch ships it in AUR only)"
+      curl -fsSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | use_sudo bash
+      ;;
+  esac
+
+  log_step "Installing kubeconform via go install"
+  GO111MODULE=on go install github.com/yannh/kubeconform/cmd/kubeconform@latest
+
+  log_ok "kubectl $(kubectl version --client --output=yaml 2> /dev/null | awk '/gitVersion/ {print $2; exit}')"
+  log_ok "k3d $(k3d version 2> /dev/null | awk '/k3d version/ {print $3; exit}')"
+  log_ok "helm $(helm version --short 2> /dev/null)"
+}
