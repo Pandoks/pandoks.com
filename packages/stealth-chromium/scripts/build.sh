@@ -34,13 +34,25 @@ cd "$SRC"
 # the prior modules-build entries (different compile flags = different
 # hashes anyway, but key-prefixing makes it explicit and clean).
 CHROMIUM_VERSION="$(cat "$APEX_ROOT/chromium_version.txt")"
+# Chromium MAJOR version (e.g. "148" from "148.0.7778.179"). Key ccache on
+# major rather than full version so patch releases (148.0.7778.179 → .215)
+# can REUSE most cached objects. Hit rate empirically ~10-25% on patch
+# bumps because Chromium has high inter-version source churn — but even
+# 15% hit rate cuts ~10 min off an 80-min cold build.
+#
+# Major-version bumps (148 → 149) clear the cache (different key), which
+# is correct: source files change too much for cross-major reuse to be
+# safe in practice (~80% would miss anyway).
+CHROMIUM_MAJOR="${CHROMIUM_VERSION%%.*}"
 CLANG_KEY="$(clang --version 2>/dev/null \
   | head -1 \
   | grep -oE 'version [0-9]+' \
   | awk '{print $2}')"
-# -nomod suffix marks this as the no-modules-build ccache. Bump when the
-# compile-flag set changes substantially.
-CCACHE_KEY="ccache-${CHROMIUM_VERSION}-clang${CLANG_KEY:-unknown}-nomod.tar.zst"
+# Key: chromium-MAJOR + clang-major + flags-shape suffix.
+#   -nomod  — built with use_clang_modules=false (the ABI-relevant flag).
+# Bump the suffix when args.gn changes substantially (compile flags affect
+# the hash anyway, but namespacing makes the boundary explicit).
+CCACHE_KEY="ccache-chromium${CHROMIUM_MAJOR}-clang${CLANG_KEY:-unknown}-nomod.tar.zst"
 export CCACHE_DIR="${CCACHE_DIR:-$WORK/.ccache}"
 # CCACHE_BASEDIR rewrites absolute paths in compile commands to relative ones
 # so the cache hashes match across different work dirs.

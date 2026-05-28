@@ -13,7 +13,27 @@
   "prHourlyLimit": 0,
   "rangeStrategy": "pin",
   "postUpdateOptions": ["pnpmDedupe", "gomodTidy"],
+  "customDatasources": {
+    "chromium-stable": {
+      "description": "Chrome stable channel for Linux, queried from Google's official version history API. Returns the latest stable Chromium version (e.g. 148.0.7778.215). Used to keep packages/stealth-chromium/chromium_version.txt in sync with upstream releases.",
+      "defaultRegistryUrlTemplate": "https://versionhistory.googleapis.com/v1/chrome/platforms/linux/channels/stable/versions",
+      "format": "json",
+      "transformTemplates": [
+        "{\"releases\": $map(versions, function($v) { {\"version\": $v.version} })}"
+      ]
+    }
+  },
   "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track Chromium stable releases. The version in packages/stealth-chromium/chromium_version.txt is the pin used by setup.sh + build.sh. Renovate polls Google's version history API and opens a PR when stable advances. The build pipeline runs automatically on PR merge via .github/workflows/build-chromium.yaml.",
+      "managerFilePatterns": ["/(^|/)packages/stealth-chromium/chromium_version\\.txt$/"],
+      "matchStrings": ["^(?<currentValue>\\d+\\.\\d+\\.\\d+\\.\\d+)\\s*$"],
+      "depNameTemplate": "chromium",
+      "packageNameTemplate": "chromium",
+      "datasourceTemplate": "custom.chromium-stable",
+      "versioningTemplate": "semver"
+    },
     {
       "customType": "regex",
       "description": "Sync the `go` directive in go.work when go.mod is bumped (Renovate's gomod manager only handles go.mod)",

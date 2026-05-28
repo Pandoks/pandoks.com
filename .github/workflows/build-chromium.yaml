@@ -1,0 +1,193 @@
+name: Build Patched Chromium
+
+# Fires when chromium_version.txt changes on main (the file Renovate bumps
+# when Google publishes a new stable). Also manually triggerable.
+#
+# Triggers the dev-builder SFN, which:
+#   1. Restores the rolling source cache from S3
+#   2. Fetches the version delta + gclient sync
+#   3. Applies our 25 patches
+#   4. Runs autoninja with ccache (warm if same major version)
+#   5. Uploads the patched binary to s3://...-builderartifactsbucket-.../<BUILD_ID>/
+#
+# Empirical times after the caching work of 2026-05-27:
+#   - Patch release (e.g. 148.0.7778.179 -> .215): ~30-45 min, ~$1.50-2.50
+#   - Major bump (148 -> 149): ~100 min, ~$5
+# Per-build, far cheaper than the original ~7h pre-caching baseline.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/stealth-chromium/chromium_version.txt'
+  workflow_dispatch:
+    inputs:
+      instanceType:
+        description: 'EC2 instance type (must be in infra/builder/types.ts)'
+        type: choice
+        default: c7i.16xlarge
+        options:
+          - c7i.4xlarge
+          - c7i.8xlarge
+          - c7i.16xlarge
+          - c7i.24xlarge
+          - c8i.16xlarge
+      marketType:
+        description: 'Spot or on-demand'
+        type: choice
+        default: on-demand
+        options:
+          - on-demand
+          - spot
+      ref:
+        description: 'Git ref to build from (default: main)'
+        type: string
+        default: main
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  # The dev-builder SFN is the only one with the AMI + launch templates wired up.
+  # In future when we have a prod-builder pipeline, switch this conditionally.
+  SFN_ARN: arn:aws:states:us-west-1:343487555569:stateMachine:dev-builder
+  ARTIFACTS_BUCKET: personal-pandoks-builderartifactsbucketbucket-oawuxubt
+
+jobs:
+  trigger-build:
+    concurrency:
+      # Queue concurrent triggers (e.g. two version bumps in quick succession)
+      # rather than cancelling — a half-finished Chromium build is wasted compute.
+      group: chromium-build
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # SAFETY: workflow_dispatch.ref is user-controllable but only by repo
+          # members with workflow write. checkout@v6 validates refs against the
+          # repo's actual refs, so this can't pull random remote content.
+          ref: ${{ github.event.inputs.ref || github.ref }}
+
+      - name: Read Chromium version
+        id: version
+        # SAFETY: chromium_version.txt is repo-controlled content. We validate
+        # the regex (digits + dots only) before exporting to GITHUB_OUTPUT.
+        run: |
+          set -euo pipefail
+          raw=$(cat packages/stealth-chromium/chromium_version.txt)
+          # Trim whitespace
+          raw="${raw//[[:space:]]/}"
+          # Strict validation: must match digits.digits.digits.digits exactly
+          if [[ ! "$raw" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::chromium_version.txt content is malformed: $raw"
+            exit 1
+          fi
+          echo "version=$raw" >> "$GITHUB_OUTPUT"
+          echo "Building Chromium $raw"
+
+      - uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Start SFN execution
+        id: start
+        # SAFETY: every interpolated value is either:
+        #  (a) a vetted workflow_dispatch input from an allowlist (instanceType,
+        #      marketType — both `type: choice` so only listed values pass), or
+        #  (b) the validated CHROMIUM_VERSION from the previous step.
+        # All values are passed via env: and referenced as shell vars.
+        env:
+          CHROMIUM_VERSION: ${{ steps.version.outputs.version }}
+          INSTANCE_TYPE: ${{ github.event.inputs.instanceType || 'c7i.16xlarge' }}
+          MARKET_TYPE: ${{ github.event.inputs.marketType || 'on-demand' }}
+          STORAGE_SIZE_GIB: '200'
+          REF: ${{ github.event.inputs.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          # SFN execution names must match [a-zA-Z0-9_-]{1,80}. Dots in the
+          # Chromium version are converted to dashes.
+          version_slug="${CHROMIUM_VERSION//./-}"
+          build_id="stealth-chromium-${version_slug}-$(date -u +%Y%m%d-%H%M%S)"
+          # Truncate to 80 chars max.
+          build_id="${build_id:0:80}"
+          echo "build_id=$build_id" >> "$GITHUB_OUTPUT"
+
+          input=$(jq -nc \
+            --arg id "$build_id" \
+            --arg ref "$REF" \
+            --arg it "$INSTANCE_TYPE" \
+            --arg mt "$MARKET_TYPE" \
+            --argjson ssg "$STORAGE_SIZE_GIB" \
+            '{id: $id, ref: $ref,
+              instanceType: $it,
+              marketType: $mt,
+              storageSizeGib: $ssg,
+              command: "bash packages/stealth-chromium/scripts/sfn-build.sh"}')
+          echo "Starting SFN with input: $input"
+
+          execution_arn=$(aws stepfunctions start-execution \
+            --state-machine-arn "$SFN_ARN" \
+            --name "$build_id" \
+            --input "$input" \
+            --query 'executionArn' --output text)
+          echo "execution_arn=$execution_arn" >> "$GITHUB_OUTPUT"
+          echo "Started:  $execution_arn"
+          echo "Console:  https://${AWS_REGION}.console.aws.amazon.com/states/home?region=${AWS_REGION}#/v2/executions/details/$execution_arn"
+
+      - name: Wait for SFN completion (poll every 60s, max 3h)
+        id: wait
+        env:
+          EXECUTION_ARN: ${{ steps.start.outputs.execution_arn }}
+          BUILD_ID: ${{ steps.start.outputs.build_id }}
+        run: |
+          set -euo pipefail
+          # Poll for up to 180 minutes (cold major-version bump worst case).
+          # Each iteration is one describe-execution call (~$0 cost).
+          deadline=$(( $(date +%s) + 10800 ))
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            status=$(aws stepfunctions describe-execution \
+              --execution-arn "$EXECUTION_ARN" \
+              --query 'status' --output text)
+            echo "[$(date -u +%H:%M:%S)] status=$status"
+            case "$status" in
+              SUCCEEDED)
+                echo "✅ build complete"
+                exit 0
+                ;;
+              FAILED|ABORTED|TIMED_OUT)
+                echo "❌ build $status — fetching diagnostic logs from S3"
+                aws s3 cp "s3://${ARTIFACTS_BUCKET}/${BUILD_ID}/compile-errors.log" - 2>/dev/null | head -50 || echo "(no compile-errors.log)"
+                aws s3 cp "s3://${ARTIFACTS_BUCKET}/${BUILD_ID}/build-failure.log" - 2>/dev/null | tail -80 || echo "(no build-failure.log)"
+                exit 1
+                ;;
+              RUNNING)
+                sleep 60
+                ;;
+              *)
+                echo "unknown status $status; treating as transient and polling again"
+                sleep 60
+                ;;
+            esac
+          done
+          echo "❌ timed out waiting for SFN after 3h — abandoning the wait, the build may still complete remotely"
+          exit 1
+
+      - name: Report success
+        if: success()
+        env:
+          CHROMIUM_VERSION: ${{ steps.version.outputs.version }}
+          BUILD_ID: ${{ steps.start.outputs.build_id }}
+        run: |
+          {
+            echo "## ✅ Patched Chromium ${CHROMIUM_VERSION} built"
+            echo ""
+            echo "**Build ID**: \`${BUILD_ID}\`"
+            echo ""
+            echo "**Artifact**: \`s3://${ARTIFACTS_BUCKET}/${BUILD_ID}/chromium-${CHROMIUM_VERSION}.tar.zst\`"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -28,30 +28,35 @@ if [ ! -d "$WORK/depot_tools" ]; then
 fi
 export PATH="$WORK/depot_tools:$PATH"
 
-# 2. Chromium checkout. Prefer the s3 cache if BUILDER_CACHE_BUCKET points at
-# a bucket that has a usable tarball for our pinned version. Falls back to a
-# full ~100GB depot_tools `fetch` if the cache miss is total.
+# 2. Chromium checkout — ROLLING cache strategy.
 #
-# The cache object key is keyed on the version string so a bump to
-# chromium_version.txt invalidates automatically. Tarball is `tar | zstd -19`
-# of the whole $WORK/chromium tree -- depot_tools state + src/ + deps.
-# Cache-key schema version. Bump whenever the tarball CONTENTS shape changes
-# (e.g. adding a sentinel marker, including ccache, packing more dirs) so
-# the new code doesn't try to interpret a tarball written under old rules.
-# Independent of CHROMIUM_VERSION which captures the source-tree version.
-#   v1 — original layout (chromium/ tarball, no sentinel)
-#   v2 — adds .apex-cache-ready-<version> sentinel, gclient sync runs with -j 4
-CACHE_KEY="chromium-src-${CHROMIUM_VERSION}-v2.tar.zst"
-# Sentinel file written after a successful checkout — its presence is the
-# load-bearing signal that the entire setup (fetch + gclient sync) finished
-# and was tarballed. The cache-write step is the only thing that creates it,
-# so its presence in a restored tarball means "this tree is fully synced for
-# this exact version" — and step 3 (refetch + checkout + gclient sync) can
-# be safely skipped. Saves ~80 min of single-threaded git index-pack on the
-# 13.5M-object pack that the 184805/210904 builds wasted time on, and
-# eliminates the chromium.googlesource.com 429 rate-limit class of failures
-# entirely on warm cache hits.
-SENTINEL="$WORK/chromium/.apex-cache-ready-${CHROMIUM_VERSION}"
+# Old strategy (v2): one tarball PER Chromium version. Bumping version =
+# cold full ~25min fetch. At weekly Chromium releases, that's ~$200/yr in
+# wasted recompute just for the source step.
+#
+# New strategy (v3): ONE rolling tarball that always reflects the most
+# recent successful setup. Restore unconditionally, then `git fetch --tags`
+# + `gclient sync` the DELTA to the new target version. Patch-release
+# deltas (e.g. 148.0.7778.179 → .215) are typically a few thousand objects
+# and a handful of changed third_party submodules — pulls in ~3-8 min
+# instead of ~25 min. Major-version bumps (148 → 149) are bigger but still
+# benefit because git deltas against the closest existing ancestor.
+#
+# The sentinel file records WHICH version the cached tree was last synced
+# to. Three cases:
+#   1. sentinel matches current $CHROMIUM_VERSION: tree is exactly right,
+#      skip step 3 entirely (fastest path — what every iterative build hits).
+#   2. sentinel exists but for a different version: tree is "close enough",
+#      run step 3 to fetch the version delta + gclient sync.
+#   3. no sentinel (first-ever build, or after cache wipe): full fetch.
+#
+# Cache-key schema version:
+#   v1 — original per-version layout (no sentinel)
+#   v2 — added .apex-cache-ready-<version> sentinel
+#   v3 — ROLLING: one tarball "chromium-src-rolling.tar.zst", sentinel
+#        records last-synced version
+CACHE_KEY="chromium-src-rolling-v3.tar.zst"
+SENTINEL="$WORK/chromium/.apex-cache-ready"
 
 if [ ! -d "$WORK/chromium/src" ]; then
   if [ -n "${BUILDER_CACHE_BUCKET:-}" ] \
@@ -72,15 +77,7 @@ if [ ! -d "$WORK/chromium/src" ]; then
     # is 512 parallel fetches — guaranteed 429. 184805 died here.
     gclient sync -D --no-history --with_branch_heads -j 4
     cd "$WORK"
-    touch "$SENTINEL"
-    if [ -n "${BUILDER_CACHE_BUCKET:-}" ]; then
-      echo "      uploading checkout to s3://${BUILDER_CACHE_BUCKET}/${CACHE_KEY} ..."
-      tar -c -C "$WORK" chromium \
-        | zstd -19 --long=27 -T0 \
-        | aws s3 cp - "s3://${BUILDER_CACHE_BUCKET}/${CACHE_KEY}" \
-            --expected-size 80000000000 \
-        || echo "      (cache upload failed, continuing)"
-    fi
+    echo "$CHROMIUM_VERSION" > "$SENTINEL"
   fi
 else
   echo "[2/3] Chromium checkout already present locally, skipping fetch"
@@ -109,20 +106,48 @@ echo "[2.5/3] installing Chromium build dependencies (apt) ..."
 sudo "$WORK/chromium/src/build/install-build-deps.sh" \
   --no-prompt --no-chromeos-fonts --no-nacl --no-arm
 
-# 3. check out the pinned version + sync deps -- ONLY on cache miss or
-# pre-sentinel cache. The sentinel is created by the cache-write path
-# above, so if it's present in the restored tarball we know setup is done.
+# 3. check out the target version + sync deps. Three sub-paths based on
+# sentinel state:
+#   (a) sentinel matches current version → skip (fastest path)
+#   (b) sentinel exists for a different version → fetch the delta + sync
+#   (c) no sentinel → step 2 just did a full fetch; record it and skip here
+CACHED_VERSION=""
 if [ -f "$SENTINEL" ]; then
-  echo "[3/3] cache is fully synced (sentinel found), skipping fetch + gclient sync"
-else
-  echo "[3/3] checking out $CHROMIUM_VERSION and syncing deps ..."
+  CACHED_VERSION="$(cat "$SENTINEL" 2>/dev/null || echo "")"
+fi
+
+if [ "$CACHED_VERSION" = "$CHROMIUM_VERSION" ]; then
+  echo "[3/3] cache already synced to $CHROMIUM_VERSION, skipping fetch + gclient sync"
+elif [ -n "$CACHED_VERSION" ]; then
+  echo "[3/3] cache was at $CACHED_VERSION, advancing to $CHROMIUM_VERSION (incremental) ..."
   cd "$WORK/chromium/src"
+  # Fetch only the new tag's commit. Git is smart about object reuse:
+  # ancestors shared with the cached commit aren't re-transferred. Patch
+  # release deltas (148.0.7778.179 → .215) are typically a few MB.
   git fetch --tags --depth 1 origin "refs/tags/$CHROMIUM_VERSION" || true
   git checkout "tags/$CHROMIUM_VERSION" 2>/dev/null \
     || echo "  (tag checkout skipped -- staying on fetched revision)"
-  # -j 4 rate-limit cap (see comment in cache-MISS path above).
+  # gclient sync pulls the third-party submodule deltas implied by the
+  # new src/DEPS. -j 4 to stay under chromium.googlesource.com's burst
+  # rate limit (HTTP 429 RESOURCE_EXHAUSTED).
   gclient sync -D --no-history --with_branch_heads -j 4
-  touch "$SENTINEL"
+  echo "$CHROMIUM_VERSION" > "$SENTINEL"
+else
+  echo "[3/3] freshly fetched checkout — recording version $CHROMIUM_VERSION"
+  echo "$CHROMIUM_VERSION" > "$SENTINEL"
+fi
+
+# Upload (or refresh) the rolling cache so the NEXT build benefits from
+# whatever sync we just did. Always upload — the cost is ~5 min of zstd
+# compression + S3 upload, and it overwrites cleanly so we always have
+# the latest tree state ready for the next build.
+if [ -n "${BUILDER_CACHE_BUCKET:-}" ]; then
+  echo "[3/3] refreshing rolling cache at s3://${BUILDER_CACHE_BUCKET}/${CACHE_KEY} ..."
+  tar -c -C "$WORK" chromium \
+    | zstd -19 --long=27 -T0 \
+    | aws s3 cp - "s3://${BUILDER_CACHE_BUCKET}/${CACHE_KEY}" \
+        --expected-size 80000000000 \
+    || echo "      (cache upload failed, continuing)"
 fi
 
 echo
