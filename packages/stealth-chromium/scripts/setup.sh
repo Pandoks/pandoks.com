@@ -125,12 +125,24 @@ CACHE_DIRTY=0
 if [ "$CACHED_VERSION" = "$CHROMIUM_VERSION" ]; then
   echo "[3/3] cache already synced to $CHROMIUM_VERSION, skipping fetch + gclient sync"
 elif [ -n "$CACHED_VERSION" ]; then
-  echo "[3/3] cache was at $CACHED_VERSION, advancing to $CHROMIUM_VERSION (incremental) ..."
+  echo "[3/3] cache was at $CACHED_VERSION, advancing to $CHROMIUM_VERSION ..."
   cd "$WORK/chromium/src"
-  # Fetch only the new tag's commit. Git is smart about object reuse:
-  # ancestors shared with the cached commit aren't re-transferred. Patch
-  # release deltas (148.0.7778.179 → .215) are typically a few MB.
-  git fetch --tags --depth 1 origin "refs/tags/$CHROMIUM_VERSION" || true
+  # IMPORTANT: the cached checkout is SHALLOW (fetch --no-history = depth 1).
+  # A shallow clone has NO ancestor commits, so `git fetch <new-tag>` cannot
+  # compute a delta against what we have — the server sends a self-contained
+  # pack of ~13.5M objects (verified empirically: build #21 spent ~56 min in
+  # index-pack on a "13579784"-object pack, same as a cold fetch).
+  #
+  # Fix: deepen the history enough that consecutive Chromium release tags
+  # share ancestors. Chromium release tags within a major are typically tens
+  # of commits apart on the release branch, so --deepen 500 gives git common
+  # ancestors to delta against. The deepen itself transfers the missing
+  # ancestor commits (one-time, ~a few hundred MB), but THEN the new-tag
+  # fetch is a true small delta. Net: first cross-version bump after this
+  # change pays the deepen cost; subsequent ones are cheap.
+  echo "  deepening shallow history so the version delta can be computed ..."
+  git fetch --deepen 500 origin 2>/dev/null || echo "  (deepen skipped — may already have history)"
+  git fetch --tags origin "refs/tags/$CHROMIUM_VERSION" || true
   git checkout "tags/$CHROMIUM_VERSION" 2>/dev/null \
     || echo "  (tag checkout skipped -- staying on fetched revision)"
   # gclient sync pulls the third-party submodule deltas implied by the
