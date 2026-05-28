@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "pandoks": {
+      "source": {
+        "source": "github",
+        "repo": "Pandoks/.dotfiles"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "tools@pandoks": true
+  }
+}
