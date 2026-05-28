@@ -42,30 +42,26 @@ cleanup_on_failure() {
   tail -c 1048576 "$LOG_FILE" \
     | aws s3 cp - "${s3_prefix}/build-failure.log" \
     || echo "(build-failure.log upload also failed)"
-  # 2. siso's own failure dump — the canonical Chromium debugging entry point.
-  #    Build 233333 demonstrated the 1MB log tail can't capture compiler
-  #    errors when siso runs ahead with thousands of parallel compile jobs;
-  #    these two siso files have the actual error.
   local siso_out="${APEX_CHROMIUM_WORK:-/build}/chromium/src/out/apex"
+  # 2. Grep the FULL build log for the actual error. This is path-AGNOSTIC:
+  #    works for both siso (out/apex/siso_output) and plain ninja (errors go
+  #    inline to $LOG_FILE). We grep $LOG_FILE itself — it always exists and
+  #    always contains the failed step's stderr, even when the 1MB tail (which
+  #    captures the END of the log) missed it because success-chatter scrolled
+  #    the error out of the last 1MB window.
+  #    -B 5 -A 40 captures the offending command + the compiler/linker error
+  #    block (template stacks, "FAILED:" gn-action output, etc.).
+  {
+    grep -nB 5 -A 40 -E "FAILED:|error:|undefined reference|fatal error|ninja: build stopped" \
+      "$LOG_FILE" 2>/dev/null || echo "(no error pattern matched in build log)"
+  } | head -c 1048576 \
+    | aws s3 cp - "${s3_prefix}/compile-errors.log" \
+    || echo "(compile-errors.log upload failed)"
+  # Also grab siso's own dump when present (siso builds only — currently we
+  # use plain ninja so these usually 404, harmless).
   if [ -f "${siso_out}/siso_failed_commands.sh" ]; then
     aws s3 cp "${siso_out}/siso_failed_commands.sh" \
-      "${s3_prefix}/siso_failed_commands.sh" \
-      || echo "(siso_failed_commands.sh upload failed)"
-  fi
-  if [ -f "${siso_out}/siso_output" ]; then
-    tail -c 1048576 "${siso_out}/siso_output" \
-      | aws s3 cp - "${s3_prefix}/siso_output.tail" \
-      || echo "(siso_output upload failed)"
-  fi
-  # 3. Grep for the actual compiler error patterns and upload as a
-  #    self-contained summary. -B 5 -A 30 captures the offending file +
-  #    next 30 lines of error output (template stacks etc).
-  if [ -f "${siso_out}/siso_output" ]; then
-    grep -nB 5 -A 30 -E "^FAILED:|error:|undefined reference|fatal error" \
-      "${siso_out}/siso_output" 2>/dev/null \
-      | head -c 1048576 \
-      | aws s3 cp - "${s3_prefix}/compile-errors.log" \
-      || echo "(compile-errors.log upload failed)"
+      "${s3_prefix}/siso_failed_commands.sh" 2>/dev/null || true
   fi
 }
 trap cleanup_on_failure ERR
