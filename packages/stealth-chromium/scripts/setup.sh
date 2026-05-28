@@ -127,22 +127,23 @@ if [ "$CACHED_VERSION" = "$CHROMIUM_VERSION" ]; then
 elif [ -n "$CACHED_VERSION" ]; then
   echo "[3/3] cache was at $CACHED_VERSION, advancing to $CHROMIUM_VERSION ..."
   cd "$WORK/chromium/src"
-  # IMPORTANT: the cached checkout is SHALLOW (fetch --no-history = depth 1).
-  # A shallow clone has NO ancestor commits, so `git fetch <new-tag>` cannot
-  # compute a delta against what we have — the server sends a self-contained
-  # pack of ~13.5M objects (verified empirically: build #21 spent ~56 min in
-  # index-pack on a "13579784"-object pack, same as a cold fetch).
+  # The cached checkout is SHALLOW (fetch --no-history = depth 1). A shallow
+  # clone has no ancestor commits, so `git fetch <new-tag>` can't delta — it
+  # pulls a self-contained ~13.5M-object pack (~25 min index-pack).
   #
-  # Fix: deepen the history enough that consecutive Chromium release tags
-  # share ancestors. Chromium release tags within a major are typically tens
-  # of commits apart on the release branch, so --deepen 500 gives git common
-  # ancestors to delta against. The deepen itself transfers the missing
-  # ancestor commits (one-time, ~a few hundred MB), but THEN the new-tag
-  # fetch is a true small delta. Net: first cross-version bump after this
-  # change pays the deepen cost; subsequent ones are cheap.
-  echo "  deepening shallow history so the version delta can be computed ..."
-  git fetch --deepen 500 origin 2>/dev/null || echo "  (deepen skipped — may already have history)"
-  git fetch --tags origin "refs/tags/$CHROMIUM_VERSION" || true
+  # We deliberately DON'T try to make this cheaper via `git fetch --deepen`.
+  # Build #22 measured that: deepen DID make the new-tag fetch fast, but it
+  # ballooned the rolling cache from 10 GiB → 35 GiB (all the pulled ancestor
+  # history), which then slows the cache RESTORE on EVERY build — including
+  # the common same-version-iteration path (17 min → ~24 min). Net-negative:
+  # it speeds the rare weekly version bump by ~12 min while taxing every
+  # patch-iteration build by ~7 min. Wrong trade.
+  #
+  # Instead: accept the ~25-min cold source fetch on version bumps (it's
+  # inherent to shallow Chromium checkouts). The major-version-keyed ccache
+  # (see build.sh) still provides the cross-version COMPILE savings, which is
+  # where the real cost lives anyway. Keep the rolling cache lean (depth-1).
+  git fetch --tags --depth 1 origin "refs/tags/$CHROMIUM_VERSION" || true
   git checkout "tags/$CHROMIUM_VERSION" 2>/dev/null \
     || echo "  (tag checkout skipped -- staying on fetched revision)"
   # gclient sync pulls the third-party submodule deltas implied by the
