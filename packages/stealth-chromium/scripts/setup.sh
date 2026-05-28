@@ -58,6 +58,17 @@ export PATH="$WORK/depot_tools:$PATH"
 CACHE_KEY="chromium-src-rolling-v3.tar.zst"
 SENTINEL="$WORK/chromium/.apex-cache-ready"
 
+# CACHE_DIRTY tracks whether the source tree CHANGED this run. Declared HERE
+# (before step 2) because BOTH step 2 (cache miss → full fetch) and step 3
+# (version advance) can dirty the tree, and the single upload at the end
+# fires when either did. BUG FIXED (builds #18-#28 never persisted a rolling
+# cache): the old code declared CACHE_DIRTY inside step 3, so a cache-MISS
+# fetch in step 2 wrote the sentinel, step 3 then saw sentinel==version and
+# took the skip path (CACHE_DIRTY stayed 0), and the upload never ran. Every
+# build cold-fetched the source. Hoisting the flag + setting it in the miss
+# branch is the fix.
+CACHE_DIRTY=0
+
 if [ ! -d "$WORK/chromium/src" ]; then
   if [ -n "${BUILDER_CACHE_BUCKET:-}" ] \
        && aws s3 ls "s3://${BUILDER_CACHE_BUCKET}/${CACHE_KEY}" >/dev/null 2>&1; then
@@ -78,6 +89,7 @@ if [ ! -d "$WORK/chromium/src" ]; then
     gclient sync -D --no-history --with_branch_heads -j 4
     cd "$WORK"
     echo "$CHROMIUM_VERSION" > "$SENTINEL"
+    CACHE_DIRTY=1  # fresh fetch → tree is new → must upload the rolling cache
   fi
 else
   echo "[2/3] Chromium checkout already present locally, skipping fetch"
@@ -116,12 +128,12 @@ if [ -f "$SENTINEL" ]; then
   CACHED_VERSION="$(cat "$SENTINEL" 2>/dev/null || echo "")"
 fi
 
-# CACHE_DIRTY tracks whether the source tree CHANGED this run. We only
-# re-upload the rolling cache when it did — re-uploading an unchanged 10 GiB
+# CACHE_DIRTY was set above if step 2 did a fresh fetch. We only re-upload
+# the rolling cache when the tree changed — re-uploading an unchanged 10 GiB
 # tarball wastes ~5 min of zstd+S3 on every same-version iteration. Build
-# #19 measured this: 27 min warm vs 18 min for the old per-version scheme,
-# the 9-min gap was the needless re-upload.
-CACHE_DIRTY=0
+# #19 measured this: 27 min warm vs 18 min, the 9-min gap was needless
+# re-upload. Do NOT reset CACHE_DIRTY here — step 2's cache-miss fetch
+# already set it to 1 and that upload must happen.
 if [ "$CACHED_VERSION" = "$CHROMIUM_VERSION" ]; then
   echo "[3/3] cache already synced to $CHROMIUM_VERSION, skipping fetch + gclient sync"
 elif [ -n "$CACHED_VERSION" ]; then
