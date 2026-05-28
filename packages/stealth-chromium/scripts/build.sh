@@ -10,6 +10,22 @@ WORK="${APEX_CHROMIUM_WORK:-$HOME/apex-chromium-build}"
 SRC="$WORK/chromium/src"
 export PATH="$WORK/depot_tools:$PATH"
 
+# Go env for dawn/tint's code generator. Chromium's WebGPU layer (dawn) runs
+# a bundled Go binary (third_party/dawn/tools/golang/.../go) to generate tint
+# shader-language enum sources during the build. On a fresh EC2 instance the
+# SSM-RunShellScript context has no usable $HOME (see "Can't resolve $HOME"
+# warnings from depot_tools throughout the logs), so Go can't find a default
+# module cache and dies with:
+#   go: module cache not found: neither GOMODCACHE nor GOPATH is set
+# This failed build #25 at the dawn:generate_sources ACTION (~step 6535).
+# Earlier builds masked it because the cached source tree still had stale
+# pre-generated tint outputs; a truly clean fetch exposes it. Point Go's
+# caches at writable dirs under $WORK.
+export GOPATH="$WORK/.gopath"
+export GOMODCACHE="$WORK/.gopath/pkg/mod"
+export GOCACHE="$WORK/.gocache"
+mkdir -p "$GOPATH" "$GOMODCACHE" "$GOCACHE"
+
 [ -d "$SRC/out/apex" ] || { echo "ERROR: run scripts/apply.sh first"; exit 1; }
 
 cd "$SRC"
