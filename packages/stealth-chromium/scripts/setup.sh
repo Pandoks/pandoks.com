@@ -116,6 +116,12 @@ if [ -f "$SENTINEL" ]; then
   CACHED_VERSION="$(cat "$SENTINEL" 2>/dev/null || echo "")"
 fi
 
+# CACHE_DIRTY tracks whether the source tree CHANGED this run. We only
+# re-upload the rolling cache when it did — re-uploading an unchanged 10 GiB
+# tarball wastes ~5 min of zstd+S3 on every same-version iteration. Build
+# #19 measured this: 27 min warm vs 18 min for the old per-version scheme,
+# the 9-min gap was the needless re-upload.
+CACHE_DIRTY=0
 if [ "$CACHED_VERSION" = "$CHROMIUM_VERSION" ]; then
   echo "[3/3] cache already synced to $CHROMIUM_VERSION, skipping fetch + gclient sync"
 elif [ -n "$CACHED_VERSION" ]; then
@@ -132,22 +138,25 @@ elif [ -n "$CACHED_VERSION" ]; then
   # rate limit (HTTP 429 RESOURCE_EXHAUSTED).
   gclient sync -D --no-history --with_branch_heads -j 4
   echo "$CHROMIUM_VERSION" > "$SENTINEL"
+  CACHE_DIRTY=1
 else
   echo "[3/3] freshly fetched checkout — recording version $CHROMIUM_VERSION"
   echo "$CHROMIUM_VERSION" > "$SENTINEL"
+  CACHE_DIRTY=1
 fi
 
-# Upload (or refresh) the rolling cache so the NEXT build benefits from
-# whatever sync we just did. Always upload — the cost is ~5 min of zstd
-# compression + S3 upload, and it overwrites cleanly so we always have
-# the latest tree state ready for the next build.
-if [ -n "${BUILDER_CACHE_BUCKET:-}" ]; then
-  echo "[3/3] refreshing rolling cache at s3://${BUILDER_CACHE_BUCKET}/${CACHE_KEY} ..."
+# Refresh the rolling cache ONLY when the tree changed (full fetch or
+# version advance). On a same-version warm build, the tarball content is
+# byte-identical to what's already in S3, so re-uploading is pure waste.
+if [ -n "${BUILDER_CACHE_BUCKET:-}" ] && [ "$CACHE_DIRTY" = "1" ]; then
+  echo "[3/3] tree changed — refreshing rolling cache at s3://${BUILDER_CACHE_BUCKET}/${CACHE_KEY} ..."
   tar -c -C "$WORK" chromium \
     | zstd -19 --long=27 -T0 \
     | aws s3 cp - "s3://${BUILDER_CACHE_BUCKET}/${CACHE_KEY}" \
         --expected-size 80000000000 \
     || echo "      (cache upload failed, continuing)"
+elif [ -n "${BUILDER_CACHE_BUCKET:-}" ]; then
+  echo "[3/3] tree unchanged since last build — rolling cache already current, skipping re-upload"
 fi
 
 echo

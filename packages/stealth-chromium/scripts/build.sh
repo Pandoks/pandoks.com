@@ -62,6 +62,7 @@ export CCACHE_COMPILERCHECK="content"
 # Cap on-disk size so we don't blow past the 200 GB EBS volume.
 export CCACHE_MAXSIZE="50G"
 mkdir -p "$CCACHE_DIR"
+CCACHE_SIZE_BEFORE=0
 if [ -n "${BUILDER_CACHE_BUCKET:-}" ] \
      && [ -z "$(ls -A "$CCACHE_DIR" 2>/dev/null)" ] \
      && aws s3 ls "s3://${BUILDER_CACHE_BUCKET}/${CCACHE_KEY}" >/dev/null 2>&1; then
@@ -71,6 +72,9 @@ if [ -n "${BUILDER_CACHE_BUCKET:-}" ] \
     | tar -x -C "$CCACHE_DIR"
   echo "[ccache] restored. stats:"
   ccache -s | head -20 || true
+  # Record post-restore size so we can detect whether the build added enough
+  # new objects to justify re-uploading the (3.5 GiB) tarball afterward.
+  CCACHE_SIZE_BEFORE="$(du -sb "$CCACHE_DIR" 2>/dev/null | awk '{print $1}')"
 else
   echo "[ccache] MISS (or cache disabled) -- will populate during build"
 fi
@@ -102,14 +106,25 @@ autoninja -C out/apex chrome
 echo "[ccache] post-build stats:"
 ccache -s 2>&1 | head -30 || true
 
-# Persist ccache back to s3 so the next build can read it.
+# Persist ccache back to s3 — but ONLY if the build added a meaningful amount
+# of new objects. On a same-version warm build with ~99% hits, ccache grows by
+# only a few MB (the handful of misses), and re-uploading the full 3.5 GiB
+# tarball to capture that wastes ~4 min. Build #19 measured this overhead.
+# Threshold: re-upload if cache grew by >100 MB OR if it was a cold cache
+# (CCACHE_SIZE_BEFORE=0 means no restore happened, so we must upload).
 if [ -n "${BUILDER_CACHE_BUCKET:-}" ] && [ -d "$CCACHE_DIR" ]; then
-  CCACHE_BYTES="$(du -sb "$CCACHE_DIR" 2>/dev/null | awk '{print $1}')"
-  echo "[ccache] uploading to s3://${BUILDER_CACHE_BUCKET}/${CCACHE_KEY} (raw size: ${CCACHE_BYTES} bytes) ..."
-  tar -c -C "$CCACHE_DIR" . \
-    | zstd -19 --long=27 -T0 \
-    | aws s3 cp - "s3://${BUILDER_CACHE_BUCKET}/${CCACHE_KEY}" \
-    || echo "      (ccache upload failed, continuing)"
+  CCACHE_SIZE_AFTER="$(du -sb "$CCACHE_DIR" 2>/dev/null | awk '{print $1}')"
+  CCACHE_GROWTH=$(( CCACHE_SIZE_AFTER - CCACHE_SIZE_BEFORE ))
+  UPLOAD_THRESHOLD=$((100 * 1024 * 1024)) # 100 MB
+  if [ "$CCACHE_SIZE_BEFORE" = "0" ] || [ "$CCACHE_GROWTH" -gt "$UPLOAD_THRESHOLD" ]; then
+    echo "[ccache] grew by ${CCACHE_GROWTH} bytes (>threshold or cold) — uploading to s3://${BUILDER_CACHE_BUCKET}/${CCACHE_KEY} ..."
+    tar -c -C "$CCACHE_DIR" . \
+      | zstd -19 --long=27 -T0 \
+      | aws s3 cp - "s3://${BUILDER_CACHE_BUCKET}/${CCACHE_KEY}" \
+      || echo "      (ccache upload failed, continuing)"
+  else
+    echo "[ccache] grew by only ${CCACHE_GROWTH} bytes (<100 MB) — S3 cache already current, skipping re-upload"
+  fi
 fi
 
 # Resolve the built binary path per-platform.
