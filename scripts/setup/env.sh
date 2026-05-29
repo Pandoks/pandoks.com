@@ -119,6 +119,10 @@ fetch_pgp_key() {
   die "Failed to fetch ${fetch_pgp_key_name} PGP key from ${fetch_pgp_key_url} after 3 attempts"
 }
 
+read_nvmrc() { # Outputs: node version inside .nvmrc
+  tr -d '[:space:]' < "${REPO_ROOT}/.nvmrc"
+}
+
 nvm_node_path() {
   # shellcheck disable=SC2012
   ls -d "${HOME}"/.nvm/versions/node/v"$(tr -d '[:space:]' < "${REPO_ROOT}/.nvmrc")".*/bin \
