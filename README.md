@@ -21,8 +21,9 @@ pnpm sso
 ```
 
 `pnpm setup` supports macOS (via Homebrew), Ubuntu/Debian (apt), and Arch (pacman). It assumes only
-that `git` is installed and the repo is cloned. Run `pnpm setup` with no args for the list of
-subcommands (`base`, `cluster`, `quality`, `docker`, individual tools, `check`).
+that `git` is installed and the repo is cloned. It has three subcommands: `all` (the default —
+installs everything), `check` (inventory installed versions and flag drift from the pins), and
+`help`.
 
 > [!NOTE]
 > AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while
@@ -45,6 +46,8 @@ subcommands (`base`, `cluster`, `quality`, `docker`, individual tools, `check`).
     <li><a href="https://jqlang.github.io/jq/">jq</a> >= v1.7</li>
     <li><a href="https://www.openssl.org/">openssl</a> >= v3 (used by <code>infra/cloudflare.ts</code> for the 15-year origin TLS cert)</li>
     <li><a href="https://httpd.apache.org/docs/current/programs/htpasswd.html">htpasswd</a> — bcrypt hasher used by the <code>${VAR | bcrypt}</code> template filter in <code>pnpm cluster deploy</code> (ships with macOS; from <code>apache2-utils</code> on Debian, <code>apache</code> on Arch)</li>
+    <li><a href="https://github.com/yannh/kubeconform">kubeconform</a> — Kubernetes manifest validator (installed via <code>go install</code>)</li>
+    <li>Lint / format / security toolchain, all run by <code>pnpm lint</code> / <code>pnpm format</code>: <a href="https://www.shellcheck.net/">shellcheck</a>, <a href="https://github.com/mvdan/sh">shfmt</a>, <a href="https://github.com/hadolint/hadolint">hadolint</a> (Dockerfiles), <a href="https://github.com/rhysd/actionlint">actionlint</a> (GitHub Actions), <a href="https://golangci-lint.run/">golangci-lint</a>, <a href="https://go.dev/security/vuln/">govulncheck</a>. On Linux the latter four come via GitHub releases / <code>go install</code> (not in apt/pacman); on macOS they are Homebrew formulae.</li>
     <li><a href="https://tailscale.com/download">Tailscale</a> — only required for production cluster access (<code>sudo tailscale configure kubeconfig prod-cluster</code>); not installed by <code>pnpm setup</code>, install manually if you need prod access</li>
   </ul>
 
