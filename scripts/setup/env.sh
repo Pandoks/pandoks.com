@@ -116,3 +116,18 @@ cmd_setup_fetch_pgp_key() {
   done
   die "Failed to fetch ${cmd_setup_fetch_pgp_key_name} PGP key from ${cmd_setup_fetch_pgp_key_url} after 3 attempts"
 }
+
+nvm_node_path() {
+  # shellcheck disable=SC2012
+  ls -d "${HOME}"/.nvm/versions/node/v"$(tr -d '[:space:]' < "${REPO_ROOT}/.nvmrc")".*/bin \
+    2> /dev/null | sort -V | tail -n1
+}
+
+# needed for non-interactive shells (CI / wrappers / Claude Code Cloud)
+populate_proper_pathing() {
+  populate_proper_pathing_node=$(nvm_node_path)
+  [ -n "${populate_proper_pathing_node}" ] && PATH="${populate_proper_pathing_node}:${PATH}"
+  [ -x "${HOME}/.local/bin/uv" ] && PATH="${HOME}/.local/bin:${PATH}"
+  command -v go > /dev/null 2>&1 && PATH="$(go env GOPATH)/bin:${PATH}"
+  export PATH
+}
