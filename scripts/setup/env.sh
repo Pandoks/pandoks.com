@@ -29,17 +29,18 @@ append_shell_rc() {
 
 SETUP_PACKAGE_MANAGER_CACHE=""
 
-cmd_setup_ensure_package_manager() { # Outputs: package manager name (brew | apt-get | pacman)
+ensure_package_manager() { # Outputs: package manager name (brew | apt-get | pacman)
   if [ -n "${SETUP_PACKAGE_MANAGER_CACHE}" ]; then
     printf '%s' "${SETUP_PACKAGE_MANAGER_CACHE}"
     return 0
   fi
 
-  cmd_setup_ensure_package_manager_os=$(get_os)
-  is_supported_os "${cmd_setup_ensure_package_manager_os}" || exit 1
+  ensure_package_manager_os=$(get_os)
+  is_supported_os "${ensure_package_manager_os}" || exit 1
 
+  # install needed dependencies for basic functionality
   {
-    case "${cmd_setup_ensure_package_manager_os}" in
+    case "${ensure_package_manager_os}" in
       macos)
         if ! xcode-select -p > /dev/null 2>&1; then
           log_step "Installing Xcode Command Line Tools (accept the GUI prompt)"
@@ -79,14 +80,14 @@ cmd_setup_ensure_package_manager() { # Outputs: package manager name (brew | apt
           unzip
         ;;
       *)
-        die "Setup script does not yet support OS: ${cmd_setup_ensure_package_manager_os}"
+        die "Setup script does not yet support OS: ${ensure_package_manager_os}"
         ;;
     esac
   } 1>&2
 
-  cmd_setup_ensure_package_manager_package_manager=$(get_package_manager)
-  is_supported_package_manager "${cmd_setup_ensure_package_manager_package_manager}" || exit 1
-  SETUP_PACKAGE_MANAGER_CACHE="${cmd_setup_ensure_package_manager_package_manager}"
+  ensure_package_manager_package_manager=$(get_package_manager)
+  is_supported_package_manager "${ensure_package_manager_package_manager}" || exit 1
+  SETUP_PACKAGE_MANAGER_CACHE="${ensure_package_manager_package_manager}"
   printf '%s' "${SETUP_PACKAGE_MANAGER_CACHE}"
 }
 
