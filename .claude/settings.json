@@ -23,5 +23,18 @@
     "playwright@claude-plugins-official": true,
     "notion@claude-plugins-official": true,
     "tools@pandoks": true
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.claude/hooks/startup.sh"
+          }
+        ]
+      }
+    ]
   }
 }
