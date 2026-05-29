@@ -134,9 +134,11 @@ required_path_dirs() { # Outputs: paths of tools to add to PATH (one per line \n
 
 # needed for non-interactive shells (CI / wrappers / Claude Code Cloud)
 populate_proper_pathing() {
-  populate_proper_pathing_node=$(nvm_node_path)
-  [ -n "${populate_proper_pathing_node}" ] && PATH="${populate_proper_pathing_node}:${PATH}"
-  [ -x "${HOME}/.local/bin/uv" ] && PATH="${HOME}/.local/bin:${PATH}"
-  command -v go > /dev/null 2>&1 && PATH="$(go env GOPATH)/bin:${PATH}"
+  while read -r populate_proper_pathing_dir; do
+    [ -n "${populate_proper_pathing_dir}" ] \
+      && PATH="${populate_proper_pathing_dir}:${PATH}"
+  done << EOF
+$(required_path_dirs)
+EOF
   export PATH
 }
