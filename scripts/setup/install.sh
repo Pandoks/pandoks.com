@@ -4,6 +4,13 @@ SETUP_INSTALLED_NODE=0
 SETUP_INSTALLED_UV=0
 SETUP_INSTALLED_GO=0
 
+detect_architecture() {
+  case "$(uname -m)" in
+    x86_64) printf 'x86_64' ;;
+    aarch64 | arm64) printf 'arm64' ;;
+    *) die "Unsupported architecture: $(uname -m)" ;;
+  esac
+}
 cmd_setup_node() {
   cmd_setup_node_nvmrc="${REPO_ROOT}/.nvmrc"
   [ -f "${cmd_setup_node_nvmrc}" ] || die ".nvmrc not found at ${cmd_setup_node_nvmrc}"
