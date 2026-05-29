@@ -91,31 +91,32 @@ ensure_package_manager() { # Outputs: package manager name (brew | apt-get | pac
   printf '%s' "${SETUP_PACKAGE_MANAGER_CACHE}"
 }
 
-cmd_setup_fetch_pgp_key() {
-  cmd_setup_fetch_pgp_key_url="$1"  # URL of armored key
-  cmd_setup_fetch_pgp_key_dest="$2" # Output path for dearmored key (sudo-writable)
-  cmd_setup_fetch_pgp_key_name="$3" # Human-readable name (for error messages)
+# fetches/installs signing key apt needs to trust third party repos (so we can install packages from them)
+fetch_pgp_key() {
+  fetch_pgp_key_url="$1"  # URL of armored key
+  fetch_pgp_key_dest="$2" # Output path for dearmored key (sudo-writable)
+  fetch_pgp_key_name="$3" # Human-readable name (for error messages)
 
-  cmd_setup_fetch_pgp_key_attempt=1
-  while [ "${cmd_setup_fetch_pgp_key_attempt}" -le 3 ]; do
-    cmd_setup_fetch_pgp_key_tmp=$(mktemp)
+  fetch_pgp_key_attempt=1
+  while [ "${fetch_pgp_key_attempt}" -le 3 ]; do
+    fetch_pgp_key_tmp=$(mktemp)
     if curl -fsSL --retry 2 --retry-delay 2 \
-      "${cmd_setup_fetch_pgp_key_url}" \
-      -o "${cmd_setup_fetch_pgp_key_tmp}" \
-      && [ -s "${cmd_setup_fetch_pgp_key_tmp}" ] \
-      && head -1 "${cmd_setup_fetch_pgp_key_tmp}" | grep -q "BEGIN PGP PUBLIC KEY BLOCK"; then
+      "${fetch_pgp_key_url}" \
+      -o "${fetch_pgp_key_tmp}" \
+      && [ -s "${fetch_pgp_key_tmp}" ] \
+      && head -1 "${fetch_pgp_key_tmp}" | grep -q "BEGIN PGP PUBLIC KEY BLOCK"; then
       use_sudo gpg --batch --yes --dearmor \
-        -o "${cmd_setup_fetch_pgp_key_dest}" \
-        < "${cmd_setup_fetch_pgp_key_tmp}"
-      rm -f "${cmd_setup_fetch_pgp_key_tmp}"
+        -o "${fetch_pgp_key_dest}" \
+        < "${fetch_pgp_key_tmp}"
+      rm -f "${fetch_pgp_key_tmp}"
       return 0
     fi
-    rm -f "${cmd_setup_fetch_pgp_key_tmp}"
-    log_warn "Fetch of ${cmd_setup_fetch_pgp_key_name} key failed (attempt ${cmd_setup_fetch_pgp_key_attempt}/3) — retrying"
-    cmd_setup_fetch_pgp_key_attempt=$((cmd_setup_fetch_pgp_key_attempt + 1))
+    rm -f "${fetch_pgp_key_tmp}"
+    log_warn "Fetch of ${fetch_pgp_key_name} key failed (attempt ${fetch_pgp_key_attempt}/3) — retrying"
+    fetch_pgp_key_attempt=$((fetch_pgp_key_attempt + 1))
     sleep 3
   done
-  die "Failed to fetch ${cmd_setup_fetch_pgp_key_name} PGP key from ${cmd_setup_fetch_pgp_key_url} after 3 attempts"
+  die "Failed to fetch ${fetch_pgp_key_name} PGP key from ${fetch_pgp_key_url} after 3 attempts"
 }
 
 nvm_node_path() {
