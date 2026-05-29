@@ -123,10 +123,13 @@ read_nvmrc() { # Outputs: node version inside .nvmrc
   tr -d '[:space:]' < "${REPO_ROOT}/.nvmrc"
 }
 
-nvm_node_path() {
+required_path_dirs() { # Outputs: paths of tools to add to PATH (one per line \n)
   # shellcheck disable=SC2012
-  ls -d "${HOME}"/.nvm/versions/node/v"$(tr -d '[:space:]' < "${REPO_ROOT}/.nvmrc")".*/bin \
-    2> /dev/null | sort -V | tail -n1
+  required_path_dirs_node=$(ls -d "${HOME}"/.nvm/versions/node/v"$(read_nvmrc)".*/bin \
+    2> /dev/null | sort -V | tail -n1)
+  [ -n "${required_path_dirs_node}" ] && printf '%s\n' "${required_path_dirs_node}"
+  [ -x "${HOME}/.local/bin/uv" ] && printf '%s\n' "${HOME}/.local/bin"
+  command -v go > /dev/null 2>&1 && printf '%s\n' "$(go env GOPATH)/bin"
 }
 
 # needed for non-interactive shells (CI / wrappers / Claude Code Cloud)
