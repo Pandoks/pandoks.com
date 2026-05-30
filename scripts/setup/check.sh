@@ -50,3 +50,30 @@ version_drift() {
       ;;
   esac
 }
+
+print_check_report_status() {
+  check_report_out="$1"  # slot file to write the ✓/✗ line to
+  check_report_name="$2" # tool name, e.g. kubectl
+  check_report_cmd="$3"  # version probe, e.g. 'kubectl version ... | awk ...'
+
+  # missing → red ✗ "not installed"
+  if ! command -v "${check_report_name}" > /dev/null 2>&1; then
+    printf "  %b✗%b %-14s not installed\n" "${RED}" "${NORMAL}" "${check_report_name}" \
+      > "${check_report_out}"
+    return
+  fi
+
+  check_report_version=$(eval "${check_report_cmd}" 2>&1 | head -n1)
+  check_report_drift=$(version_drift "${check_report_name}" "${check_report_version}")
+
+  # drifted → red ✗ "<version> (want ...)"
+  if [ -n "${check_report_drift}" ]; then
+    printf "  %b✗%b %-14s %s (%s)\n" "${RED}" "${NORMAL}" "${check_report_name}" \
+      "${check_report_version}" "${check_report_drift}" > "${check_report_out}"
+    return
+  fi
+
+  # in spec → green ✓ "<version>"
+  printf "  %b✓%b %-14s %s\n" "${GREEN}" "${NORMAL}" "${check_report_name}" \
+    "${check_report_version}" > "${check_report_out}"
+}
