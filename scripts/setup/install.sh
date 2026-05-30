@@ -11,11 +11,15 @@ detect_architecture() {
     *) die "Unsupported architecture: $(uname -m)" ;;
   esac
 }
-cmd_setup_node() {
-  cmd_setup_node_nvmrc="${REPO_ROOT}/.nvmrc"
-  [ -f "${cmd_setup_node_nvmrc}" ] || die ".nvmrc not found at ${cmd_setup_node_nvmrc}"
-  cmd_setup_node_version=$(tr -d '[:space:]' < "${cmd_setup_node_nvmrc}")
 
+architecture_asset() {
+  x86_64_asset="$1" # e.g. awscli-exe-linux-x86_64.zip
+  arm64_asset="$2"  # e.g. awscli-exe-linux-aarch64.zip
+  case "$(detect_architecture)" in
+    x86_64) printf '%s' "${x86_64_asset}" ;;
+    arm64) printf '%s' "${arm64_asset}" ;;
+  esac
+}
   if [ -d "${HOME}/.nvm" ] && NVM_DIR="${HOME}/.nvm" bash -c "
     . \"\$NVM_DIR/nvm.sh\" 2> /dev/null
     nvm version \"${cmd_setup_node_version}\" > /dev/null 2>&1
