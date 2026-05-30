@@ -77,3 +77,44 @@ print_check_report_status() {
   printf "  %b✓%b %-14s %s\n" "${GREEN}" "${NORMAL}" "${check_report_name}" \
     "${check_report_version}" > "${check_report_out}"
 }
+
+cmd_setup_check() {
+  log_step "Detected versions"
+
+  cmd_setup_check_tmp=$(mktemp -d)
+  cmd_setup_check_i=0
+  # shellcheck disable=SC2016
+  for cmd_setup_check_spec in \
+    'node|node --version' \
+    'pnpm|pnpm --version' \
+    'uv|uv --version' \
+    'go|go version' \
+    'aws|aws --version' \
+    'docker|docker --version' \
+    'kubectl|kubectl version --client --output=yaml | awk "/gitVersion/ {print \$2; exit}"' \
+    'k3d|k3d version | awk "/k3d version/ {print \$3; exit}"' \
+    'helm|helm version --short' \
+    'kubeconform|kubeconform -v' \
+    'jq|jq --version' \
+    'openssl|openssl version' \
+    'htpasswd|htpasswd -v 2>&1 | head -n1 || echo present' \
+    'shellcheck|shellcheck --version | awk "/^version:/ {print \$2}"' \
+    'shfmt|shfmt --version' \
+    'hadolint|hadolint --version' \
+    'actionlint|actionlint -version | head -n1' \
+    'golangci-lint|golangci-lint --version | head -n1' \
+    'govulncheck|govulncheck -version | head -n1'; do
+    print_check_report_status "${cmd_setup_check_tmp}/$(printf '%02d' "${cmd_setup_check_i}")" \
+      "${cmd_setup_check_spec%%|*}" "${cmd_setup_check_spec#*|}" &
+    cmd_setup_check_i=$((cmd_setup_check_i + 1))
+  done
+  wait
+
+  cmd_setup_check_drifted=0
+  for cmd_setup_check_slot in "${cmd_setup_check_tmp}"/*; do
+    cat "${cmd_setup_check_slot}" >&2
+    grep -q '✗' "${cmd_setup_check_slot}" && cmd_setup_check_drifted=1
+  done
+  rm -rf "${cmd_setup_check_tmp}"
+  return "${cmd_setup_check_drifted}"
+}
