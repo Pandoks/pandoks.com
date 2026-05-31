@@ -20,6 +20,12 @@ architecture_asset() {
     arm64) printf '%s' "${arm64_asset}" ;;
   esac
 }
+
+all_tools_present_in_path() {
+  for all_present_tool in "$@"; do
+    command -v "${all_present_tool}" > /dev/null 2>&1 || return 1
+  done
+}
   if [ -d "${HOME}/.nvm" ] && NVM_DIR="${HOME}/.nvm" bash -c "
     . \"\$NVM_DIR/nvm.sh\" 2> /dev/null
     nvm version \"${cmd_setup_node_version}\" > /dev/null 2>&1
