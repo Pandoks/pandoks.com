@@ -96,14 +96,14 @@ install_node() {
   log_warn 'Activate in this shell: export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use '"${install_node_version}"
 }
 
-cmd_setup_python() {
+install_python() {
   if command -v uv > /dev/null 2>&1; then
     log_ok "uv already installed: $(uv --version)"
     return 0
   fi
 
-  cmd_setup_python_package_manager=$(cmd_setup_ensure_package_manager)
-  case "${cmd_setup_python_package_manager}" in
+  install_python_package_manager=$(ensure_package_manager)
+  case "${install_python_package_manager}" in
     brew)
       log_step "Installing uv via Homebrew"
       install_packages brew uv
@@ -115,18 +115,13 @@ cmd_setup_python() {
       append_shell_rc 'export PATH="$HOME/.local/bin:$PATH"'
       PATH="${HOME}/.local/bin:${PATH}"
       export PATH
-      ;;
-  esac
-
-  command -v uv > /dev/null 2>&1 || die "uv installation failed"
-  SETUP_INSTALLED_UV=1
-  log_ok "uv $(uv --version)"
-  case "${cmd_setup_python_package_manager}" in
-    apt-get | pacman)
       # shellcheck disable=SC2016
       log_warn 'Activate in this shell: export PATH="$HOME/.local/bin:$PATH"'
       ;;
   esac
+
+  command -v uv > /dev/null 2>&1 || die "uv installation failed"
+  log_ok "uv $(uv --version)"
 }
 
 cmd_setup_go() {
