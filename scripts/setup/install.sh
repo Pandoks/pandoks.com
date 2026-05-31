@@ -212,15 +212,14 @@ EOF
   log_ok "Wrote ~/.aws/config (SSO session + 3 profiles)"
 }
 
-
-cmd_setup_docker() {
+install_docker() {
   if command -v docker > /dev/null 2>&1; then
     log_ok "Docker already installed: $(docker --version)"
     return 0
   fi
 
-  cmd_setup_docker_package_manager=$(cmd_setup_ensure_package_manager)
-  case "${cmd_setup_docker_package_manager}" in
+  install_docker_package_manager=$(ensure_package_manager)
+  case "${install_docker_package_manager}" in
     brew)
       log_step "Installing Docker Desktop via Homebrew cask"
       brew install --cask docker
@@ -229,12 +228,15 @@ cmd_setup_docker() {
     apt-get)
       log_step "Installing Docker Engine from docker.com apt repo"
       use_sudo install -m 0755 -d /etc/apt/keyrings
-      curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
-        | use_sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+      fetch_pgp_key \
+        https://download.docker.com/linux/ubuntu/gpg \
+        /etc/apt/keyrings/docker.gpg \
+        "docker"
       use_sudo chmod a+r /etc/apt/keyrings/docker.gpg
-      cmd_setup_docker_codename=$(. /etc/os-release && echo "${VERSION_CODENAME}")
+      install_docker_arch=$(architecture_asset amd64 arm64)
+      install_docker_codename=$(. /etc/os-release && echo "${VERSION_CODENAME}") # NOTE: os-release defines VERSION_CODENAME
       printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu %s stable\n' \
-        "$(dpkg --print-architecture)" "${cmd_setup_docker_codename}" \
+        "${install_docker_arch}" "${install_docker_codename}" \
         | use_sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
       use_sudo apt-get update -y
       install_packages apt-get \
