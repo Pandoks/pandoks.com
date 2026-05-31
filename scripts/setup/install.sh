@@ -259,58 +259,47 @@ install_docker() {
   log_ok "Docker installed"
 }
 
-cmd_setup_cluster() {
-  if command -v kubectl > /dev/null 2>&1 \
-    && command -v helm > /dev/null 2>&1 \
-    && command -v k3d > /dev/null 2>&1 \
-    && command -v kubeconform > /dev/null 2>&1 \
-    && command -v docker > /dev/null 2>&1; then
+install_kubernetes() {
+  if all_tools_present_in_path kubectl helm k3d kubeconform docker \
+    && [ -z "$(version_drift kubectl "$(kubectl version --client --output=yaml 2> /dev/null | awk '/gitVersion/ {print $2; exit}')")" ] \
+    && [ -z "$(version_drift helm "$(helm version --short 2> /dev/null)")" ]; then
     log_ok "Cluster tools already installed (kubectl, helm, k3d, kubeconform, docker)"
     return 0
   fi
 
-  cmd_setup_cluster_package_manager=$(cmd_setup_ensure_package_manager)
+  install_cluster_package_manager=$(ensure_package_manager)
 
-  cmd_setup_docker
+  install_docker
 
   log_step "Installing kubectl, k3d, helm"
-  case "${cmd_setup_cluster_package_manager}" in
+  case "${install_cluster_package_manager}" in
     brew)
       install_packages brew kubectl k3d helm
       ;;
     apt-get)
       use_sudo install -m 0755 -d /etc/apt/keyrings
-      cmd_setup_cluster_kube_minor="v1.36"
+      install_cluster_kube_minor="v$(kubectl_pinned_minor)"
+      [ "${install_cluster_kube_minor}" != "v" ] || die "Could not read KUBECTL_VERSION from packages/argocd/Dockerfile"
 
-      cmd_setup_fetch_pgp_key \
-        "https://pkgs.k8s.io/core:/stable:/${cmd_setup_cluster_kube_minor}/deb/Release.key" \
+      fetch_pgp_key \
+        "https://pkgs.k8s.io/core:/stable:/${install_cluster_kube_minor}/deb/Release.key" \
         /etc/apt/keyrings/kubernetes-apt-keyring.gpg \
         "kubernetes"
 
       printf 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/%s/deb/ /\n' \
-        "${cmd_setup_cluster_kube_minor}" \
+        "${install_cluster_kube_minor}" \
         | use_sudo tee /etc/apt/sources.list.d/kubernetes.list > /dev/null
 
       use_sudo apt-get update -y
       install_packages apt-get kubectl apache2-utils
 
-      log_step "Installing helm via official installer (baltocdn apt repo decommissioned)"
-      cmd_setup_cluster_helm_latest=$(curl -fsSL https://get.helm.sh/helm-latest-version)
-      [ -n "${cmd_setup_cluster_helm_latest}" ] || die "Could not determine latest helm version"
-      cmd_setup_cluster_helm_arch=$(dpkg --print-architecture)
-      curl -fsSL "https://get.helm.sh/helm-${cmd_setup_cluster_helm_latest}-linux-${cmd_setup_cluster_helm_arch}.tar.gz" \
-        -o /tmp/helm.tar.gz
-      tar -xzf /tmp/helm.tar.gz -C /tmp
-      use_sudo install -m 0755 "/tmp/linux-${cmd_setup_cluster_helm_arch}/helm" /usr/local/bin/helm
-      rm -rf /tmp/helm.tar.gz "/tmp/linux-${cmd_setup_cluster_helm_arch}"
-
-      log_step "Installing k3d via official installer"
-      curl -fsSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | use_sudo bash
+      install_helm
+      install_k3d
       ;;
     pacman)
-      install_packages pacman kubectl helm apache
-      log_step "Installing k3d binary (Arch ships it in AUR only)"
-      curl -fsSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | use_sudo bash
+      install_packages pacman kubectl apache
+      install_helm
+      install_k3d
       ;;
   esac
 
