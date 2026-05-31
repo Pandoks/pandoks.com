@@ -41,16 +41,29 @@ install_k3d() {
   log_step "Installing k3d via official installer"
   curl -fsSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | use_sudo bash
 }
+
+install_node() {
+  [ -f "${REPO_ROOT}/.nvmrc" ] || die ".nvmrc not found at ${REPO_ROOT}/.nvmrc"
+  install_node_version=$(read_nvmrc)
+
+  # Short circuit if detected version exists on plate instead of sourcing from nvm.sh to use cli
+  for install_node_dir in "${HOME}"/.nvm/versions/node/v"${install_node_version}".*/bin; do
+    if [ -d "${install_node_dir}" ]; then
+      log_ok "Node ${install_node_version} already installed via nvm"
+      return 0
+    fi
+  done
+
   if [ -d "${HOME}/.nvm" ] && NVM_DIR="${HOME}/.nvm" bash -c "
     . \"\$NVM_DIR/nvm.sh\" 2> /dev/null
-    nvm version \"${cmd_setup_node_version}\" > /dev/null 2>&1
+    nvm version \"${install_node_version}\" > /dev/null 2>&1
   "; then
-    log_ok "Node ${cmd_setup_node_version} already installed via nvm"
+    log_ok "Node ${install_node_version} already installed via nvm"
     return 0
   fi
 
-  cmd_setup_node_package_manager=$(cmd_setup_ensure_package_manager)
-  command -v bash > /dev/null 2>&1 || install_packages "${cmd_setup_node_package_manager}" bash
+  install_node_package_manager=$(ensure_package_manager)
+  command -v bash > /dev/null 2>&1 || install_packages "${install_node_package_manager}" bash
 
   if [ ! -d "${HOME}/.nvm" ]; then
     log_step "Installing nvm"
@@ -64,24 +77,23 @@ install_k3d() {
     append_shell_rc '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"'
   fi
 
-  log_step "Installing Node ${cmd_setup_node_version} via nvm"
-  NVM_DIR="${HOME}/.nvm" bash -c '
-    . "$NVM_DIR/nvm.sh"
-    command -v nvm > /dev/null 2>&1 || { echo "nvm function not loaded" >&2; exit 11; }
-    nvm install "$1" || exit 12
-    nvm alias default "$1" || exit 13
-    nvm use "$1" || exit 14
-    corepack enable || exit 15
-    corepack prepare --activate || exit 16
-    node --version || exit 17
-    pnpm --version || exit 18
-  ' nvm-bootstrap "${cmd_setup_node_version}" || die "nvm/node/pnpm bootstrap failed"
+  install_node_pnpm_pin=$(pnpm_spec)
 
-  SETUP_INSTALLED_NODE=1
-  log_ok "Node ${cmd_setup_node_version} ready via nvm"
+  log_step "Installing Node ${install_node_version} via nvm"
+  # NOTE: nvm has to run via bash (not posix sh)
+  NVM_DIR="${HOME}/.nvm" bash -c '
+    set -e
+    . "$NVM_DIR/nvm.sh"
+    nvm install "$1"
+    nvm alias default "$1"
+    nvm use "$1"
+    corepack enable
+    corepack prepare "${2:-pnpm@latest}" --activate
+  ' nvm-bootstrap "${install_node_version}" "${install_node_pnpm_pin}" || die "nvm/node/pnpm bootstrap failed"
+
+  log_ok "Node ${install_node_version} ready via nvm"
   # shellcheck disable=SC2016
-  log_warn 'Activate in this shell: export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use '"${cmd_setup_node_version}"
-  unset cmd_setup_node_package_manager
+  log_warn 'Activate in this shell: export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use '"${install_node_version}"
 }
 
 cmd_setup_python() {
