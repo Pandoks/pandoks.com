@@ -124,28 +124,27 @@ install_python() {
   log_ok "uv $(uv --version)"
 }
 
-cmd_setup_go() {
+install_go() {
   if command -v go > /dev/null 2>&1; then
     log_ok "Go already installed: $(go version)"
     return 0
   fi
 
-  cmd_setup_go_package_manager=$(cmd_setup_ensure_package_manager)
+  install_go_package_manager=$(ensure_package_manager)
   log_step "Installing Go"
-  case "${cmd_setup_go_package_manager}" in
+  case "${install_go_package_manager}" in
     brew) install_packages brew go ;;
     apt-get) install_packages apt-get golang-go ;;
     pacman) install_packages pacman go ;;
   esac
 
   command -v go > /dev/null 2>&1 || die "go not found after install"
-  cmd_setup_go_bin="$(go env GOPATH)/bin"
-  append_shell_rc "export PATH=\"${cmd_setup_go_bin}:\$PATH\""
-  PATH="${cmd_setup_go_bin}:${PATH}"
+  install_go_bin="$(go env GOPATH)/bin"
+  append_shell_rc "export PATH=\"${install_go_bin}:\$PATH\""
+  PATH="${install_go_bin}:${PATH}"
   export PATH
-  SETUP_INSTALLED_GO=1
   log_ok "$(go version)"
-  log_warn "Activate in this shell: export PATH=\"${cmd_setup_go_bin}:\$PATH\""
+  log_warn "Activate in this shell: export PATH=\"${install_go_bin}:\$PATH\""
 }
 
 cmd_setup_aws_install() {
