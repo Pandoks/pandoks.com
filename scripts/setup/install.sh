@@ -311,23 +311,16 @@ install_kubernetes() {
   log_ok "helm $(helm version --short 2> /dev/null)"
 }
 
-cmd_setup_quality() {
-  if command -v shellcheck > /dev/null 2>&1 \
-    && command -v shfmt > /dev/null 2>&1 \
-    && command -v hadolint > /dev/null 2>&1 \
-    && command -v actionlint > /dev/null 2>&1 \
-    && command -v golangci-lint > /dev/null 2>&1 \
-    && command -v govulncheck > /dev/null 2>&1 \
-    && command -v jq > /dev/null 2>&1 \
-    && command -v openssl > /dev/null 2>&1; then
+install_quality() {
+  if all_tools_present_in_path shellcheck shfmt hadolint actionlint golangci-lint govulncheck jq openssl; then
     log_ok "Quality tools already installed (shellcheck, shfmt, hadolint, actionlint, golangci-lint, govulncheck, jq, openssl)"
     return 0
   fi
 
-  cmd_setup_quality_package_manager=$(cmd_setup_ensure_package_manager)
+  install_quality_package_manager=$(ensure_package_manager)
 
   log_step "Installing shellcheck, shfmt, hadolint, jq, openssl"
-  case "${cmd_setup_quality_package_manager}" in
+  case "${install_quality_package_manager}" in
     brew)
       install_packages brew \
         shellcheck \
@@ -338,54 +331,29 @@ cmd_setup_quality() {
         jq \
         openssl@3
       ;;
-    apt-get)
-      install_packages apt-get \
+    apt-get | pacman)
+      install_packages "${install_quality_package_manager}" \
         shellcheck \
         shfmt \
         jq \
         openssl
-      log_step "Installing hadolint binary (no apt package)"
-      cmd_setup_quality_arch=$(uname -m)
-      case "${cmd_setup_quality_arch}" in
-        x86_64) cmd_setup_quality_hadolint_asset="hadolint-Linux-x86_64" ;;
-        aarch64 | arm64) cmd_setup_quality_hadolint_asset="hadolint-Linux-arm64" ;;
-        *) die "Unsupported architecture for hadolint: ${cmd_setup_quality_arch}" ;;
-      esac
+
+      install_quality_hadolint_asset=$(architecture_asset hadolint-Linux-x86_64 hadolint-Linux-arm64)
+      log_step "Installing hadolint binary (not in apt/pacman repos)"
       use_sudo curl -fsSL \
-        "https://github.com/hadolint/hadolint/releases/latest/download/${cmd_setup_quality_hadolint_asset}" \
+        "https://github.com/hadolint/hadolint/releases/latest/download/${install_quality_hadolint_asset}" \
         -o /usr/local/bin/hadolint
       use_sudo chmod +x /usr/local/bin/hadolint
 
-      command -v go > /dev/null 2>&1 || cmd_setup_go
+      command -v go > /dev/null 2>&1 || install_go
       log_step "Installing actionlint and golangci-lint via go install"
-      GO111MODULE=on go install github.com/rhysd/actionlint/cmd/actionlint@latest
-      GO111MODULE=on go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
-      ;;
-    pacman)
-      install_packages pacman \
-        shellcheck \
-        shfmt \
-        jq \
-        openssl
-      log_step "Installing hadolint binary (Arch ships it in AUR only)"
-      cmd_setup_quality_arch=$(uname -m)
-      case "${cmd_setup_quality_arch}" in
-        x86_64) cmd_setup_quality_hadolint_asset="hadolint-Linux-x86_64" ;;
-        aarch64 | arm64) cmd_setup_quality_hadolint_asset="hadolint-Linux-arm64" ;;
-        *) die "Unsupported architecture for hadolint: ${cmd_setup_quality_arch}" ;;
-      esac
-      use_sudo curl -fsSL \
-        "https://github.com/hadolint/hadolint/releases/latest/download/${cmd_setup_quality_hadolint_asset}" \
-        -o /usr/local/bin/hadolint
-      use_sudo chmod +x /usr/local/bin/hadolint
-
-      command -v go > /dev/null 2>&1 || cmd_setup_go
       GO111MODULE=on go install github.com/rhysd/actionlint/cmd/actionlint@latest
       GO111MODULE=on go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
       ;;
   esac
 
-  command -v go > /dev/null 2>&1 || cmd_setup_go
+  # NOTE: govulncheck is go-install on every platform (no brew/apt/pacman package).
+  command -v go > /dev/null 2>&1 || install_go
   log_step "Installing govulncheck via go install"
   GO111MODULE=on go install golang.org/x/vuln/cmd/govulncheck@latest
 
