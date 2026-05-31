@@ -12,7 +12,8 @@ readonly REPO_ROOT
 . "${REPO_ROOT}/scripts/lib/os.sh"
 . "${SCRIPT_DIR}/usage.sh"
 . "${SCRIPT_DIR}/env.sh"
-. "${SCRIPT_DIR}/packages.sh"
+. "${SCRIPT_DIR}/install.sh"
+. "${SCRIPT_DIR}/check.sh"
 . "${SCRIPT_DIR}/next-steps.sh"
 
 use_sudo() {
