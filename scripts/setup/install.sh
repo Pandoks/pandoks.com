@@ -36,6 +36,11 @@ install_helm() {
   use_sudo install -m 0755 "${install_helm_tmp}/linux-${install_helm_arch}/helm" /usr/local/bin/helm
   rm -rf "${install_helm_tmp}"
 }
+
+install_k3d() {
+  log_step "Installing k3d via official installer"
+  curl -fsSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | use_sudo bash
+}
   if [ -d "${HOME}/.nvm" ] && NVM_DIR="${HOME}/.nvm" bash -c "
     . \"\$NVM_DIR/nvm.sh\" 2> /dev/null
     nvm version \"${cmd_setup_node_version}\" > /dev/null 2>&1
