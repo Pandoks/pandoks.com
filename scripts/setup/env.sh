@@ -123,6 +123,16 @@ read_nvmrc() { # Outputs: node version inside .nvmrc
   tr -d '[:space:]' < "${REPO_ROOT}/.nvmrc"
 }
 
+pnpm_spec() {
+  sed -n 's/.*"packageManager"[[:space:]]*:[[:space:]]*"\(pnpm@[^+"]*\).*/\1/p' \
+    "${REPO_ROOT}/package.json" | head -n1
+}
+
+kubectl_pinned_minor() {
+  sed -n 's/.*KUBECTL_VERSION=v\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' \
+    "${REPO_ROOT}/packages/argocd/Dockerfile" | head -n1
+}
+
 required_path_dirs() { # Outputs: paths of tools to add to PATH (one per line \n)
   # shellcheck disable=SC2012
   required_path_dirs_node=$(ls -d "${HOME}"/.nvm/versions/node/v"$(read_nvmrc)".*/bin \
