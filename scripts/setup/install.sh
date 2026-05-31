@@ -361,75 +361,24 @@ install_quality() {
 }
 
 cmd_setup_all() {
-  cmd_setup_node
-  cmd_setup_python
-  cmd_setup_go
-  cmd_setup_aws
-  cmd_setup_cluster
-  cmd_setup_quality
-  if [ "${SETUP_INSTALLED_NODE}" -eq 0 ] \
-    && [ "${SETUP_INSTALLED_UV}" -eq 0 ] \
-    && [ "${SETUP_INSTALLED_GO}" -eq 0 ]; then
-    log_ok "All dependencies already installed"
-  else
-    cmd_setup_check
-  fi
+  populate_proper_pathing
+  install_node
+  install_python
+  install_go
+  install_aws
+  install_kubernetes
+  install_quality
   printf "\n" >&2
-  log_ok "Setup complete."
-  cmd_setup_print_next_steps
-}
+  log_ok "Setup complete. Run 'setup check' to inventory versions / detect drift."
+  print_next_steps
 
-cmd_setup_check_report_to() {
-  cmd_setup_check_report_to_out="$1"
-  cmd_setup_check_report_to_name="$2"
-  cmd_setup_check_report_to_cmd="$3"
-  if command -v "${cmd_setup_check_report_to_name}" > /dev/null 2>&1; then
-    printf "  %b✓%b %-14s %s\n" "${GREEN}" "${NORMAL}" "${cmd_setup_check_report_to_name}" \
-      "$(eval "${cmd_setup_check_report_to_cmd}" 2>&1 | head -n1)" > "${cmd_setup_check_report_to_out}"
-  else
-    printf "  %b✗%b %-14s not installed\n" "${RED}" "${NORMAL}" "${cmd_setup_check_report_to_name}" \
-      > "${cmd_setup_check_report_to_out}"
+  if [ "${CLAUDE_CODE_REMOTE:-}" = true ] && [ -n "${CLAUDE_ENV_FILE:-}" ]; then
+    while read -r cmd_setup_all_dir; do
+      # shellcheck disable=SC2016
+      [ -n "${cmd_setup_all_dir}" ] \
+        && printf 'export PATH="%s:$PATH"\n' "${cmd_setup_all_dir}"
+    done << EOF >> "${CLAUDE_ENV_FILE}" 2> /dev/null || true
+$(required_path_dirs)
+EOF
   fi
-}
-
-cmd_setup_check() {
-  log_step "Detected versions"
-
-  cmd_setup_check_tmp=$(mktemp -d)
-  cmd_setup_check_i=0
-  # shellcheck disable=SC2016
-  for cmd_setup_check_spec in \
-    'node|node --version' \
-    'pnpm|pnpm --version' \
-    'uv|uv --version' \
-    'go|go version' \
-    'aws|aws --version' \
-    'docker|docker --version' \
-    'kubectl|kubectl version --client --output=yaml | awk "/gitVersion/ {print \$2; exit}"' \
-    'k3d|k3d version | awk "/k3d version/ {print \$3; exit}"' \
-    'helm|helm version --short' \
-    'kubeconform|kubeconform -v' \
-    'jq|jq --version' \
-    'openssl|openssl version' \
-    'htpasswd|htpasswd -v 2>&1 | head -n1 || echo present' \
-    'shellcheck|shellcheck --version | awk "/^version:/ {print \$2}"' \
-    'shfmt|shfmt --version' \
-    'hadolint|hadolint --version' \
-    'actionlint|actionlint -version | head -n1' \
-    'golangci-lint|golangci-lint --version | head -n1' \
-    'govulncheck|govulncheck -version | head -n1'; do
-    cmd_setup_check_name="${cmd_setup_check_spec%%|*}"
-    cmd_setup_check_cmd="${cmd_setup_check_spec#*|}"
-    cmd_setup_check_report_to \
-      "${cmd_setup_check_tmp}/$(printf '%02d' "${cmd_setup_check_i}")" \
-      "${cmd_setup_check_name}" \
-      "${cmd_setup_check_cmd}" &
-    cmd_setup_check_i=$((cmd_setup_check_i + 1))
-  done
-  wait
-
-  for cmd_setup_check_f in "${cmd_setup_check_tmp}"/*; do
-    cat "${cmd_setup_check_f}" >&2
-  done
-  rm -rf "${cmd_setup_check_tmp}"
 }
