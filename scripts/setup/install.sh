@@ -80,15 +80,15 @@ install_node() {
   install_node_pnpm_pin=$(pnpm_spec)
 
   log_step "Installing Node ${install_node_version} via nvm"
-  # NOTE: nvm has to run via bash (not posix sh)
+  # NOTE: nvm has to run via bash (not posix sh) and exit codes are needed to differentiate between
+  # critial erros or just warning short circuits.
   NVM_DIR="${HOME}/.nvm" bash -c '
-    set -e
     . "$NVM_DIR/nvm.sh"
-    nvm install "$1"
-    nvm alias default "$1"
-    nvm use "$1"
-    corepack enable
-    corepack prepare "${2:-pnpm@latest}" --activate
+    nvm install "$1" || exit 12
+    nvm alias default "$1" || exit 13
+    nvm use "$1" || exit 14
+    corepack enable || exit 15
+    corepack prepare "${2:-pnpm@latest}" --activate || exit 16
   ' nvm-bootstrap "${install_node_version}" "${install_node_pnpm_pin}" || die "nvm/node/pnpm bootstrap failed"
 
   log_ok "Node ${install_node_version} ready via nvm"
