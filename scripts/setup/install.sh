@@ -1,8 +1,7 @@
 # shellcheck shell=sh
 
-SETUP_INSTALLED_NODE=0
-SETUP_INSTALLED_UV=0
-SETUP_INSTALLED_GO=0
+# renovate: datasource=github-releases packageName=helm/helm
+HELM_VERSION=v4.2.0
 
 detect_architecture() {
   case "$(uname -m)" in

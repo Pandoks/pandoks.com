@@ -41,6 +41,15 @@
       ],
       "registryUrlTemplate": "https://ghcr.io",
       "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Bump `azure/setup-helm` version pins in CI workflows (annotated with a leading `# renovate:` comment) in lockstep with HELM_VERSION in scripts/setup/install.sh.",
+      "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)\\s+packageName=(?<packageName>[^\\s]+)\\s+version:\\s*'?(?<currentValue>v[\\d.]+)'?"
+      ],
+      "versioningTemplate": "semver"
     }
   ],
   "packageRules": [
