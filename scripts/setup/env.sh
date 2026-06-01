@@ -133,6 +133,10 @@ kubectl_pinned_minor() {
     "${REPO_ROOT}/packages/argocd/Dockerfile" | head -n1
 }
 
+go_required_version() {
+  sed -n 's/^go \([0-9][0-9.]*\).*/\1/p' "${REPO_ROOT}/go.work" | head -n1
+}
+
 required_path_dirs() { # Outputs: paths of tools to add to PATH (one per line \n)
   # shellcheck disable=SC2012
   required_path_dirs_node=$(ls -d "${HOME}"/.nvm/versions/node/v"$(read_nvmrc)".*/bin \
