@@ -1,4 +1,4 @@
-FROM golang:1-trixie AS builder
+FROM golang:1.26.3-trixie AS builder
 
 WORKDIR /src
 COPY packages/valkey/reconciler/go.mod packages/valkey/reconciler/go.sum ./
