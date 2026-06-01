@@ -32,6 +32,17 @@ version_drift() {
         *) printf 'want aws-cli/2.x' ;;
       esac
       ;;
+    go)
+      # go must be >= the minor required by go.work (apt ships an older go)
+      version_drift_want_minor=$(go_required_version | cut -d. -f2)
+      version_drift_have_minor=$(printf '%s' "${version_drift_version}" \
+        | sed 's/.*go1\./1./' | cut -d. -f2)
+      case "${version_drift_have_minor}" in
+        '' | *[!0-9]*) return 0 ;;
+      esac
+      [ "${version_drift_have_minor}" -ge "${version_drift_want_minor}" ] \
+        || printf 'want >= 1.%s' "${version_drift_want_minor}"
+      ;;
     kubectl)
       # kubectl supports +/-1 minor skew against the cluster pin
       version_drift_want=$(kubectl_pinned_minor)
