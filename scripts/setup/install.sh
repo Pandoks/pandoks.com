@@ -130,12 +130,26 @@ install_go() {
     return 0
   fi
 
+  install_go_version=$(go_required_version)
   install_go_package_manager=$(ensure_package_manager)
-  log_step "Installing Go"
+  log_step "Installing Go ${install_go_version}"
   case "${install_go_package_manager}" in
     brew) install_packages brew go ;;
-    apt-get) install_packages apt-get golang-go ;;
     pacman) install_packages pacman go ;;
+    apt-get)
+      # apt's golang-go lags the go.work directive — fetch the official tarball.
+      install_go_arch=$(architecture_asset amd64 arm64)
+      install_go_tmp=$(mktemp -d)
+      curl -fsSL "https://go.dev/dl/go${install_go_version}.linux-${install_go_arch}.tar.gz" \
+        -o "${install_go_tmp}/go.tar.gz"
+      use_sudo rm -rf /usr/local/go
+      use_sudo tar -C /usr/local -xzf "${install_go_tmp}/go.tar.gz"
+      rm -rf "${install_go_tmp}"
+      # shellcheck disable=SC2016
+      append_shell_rc 'export PATH="/usr/local/go/bin:$PATH"'
+      PATH="/usr/local/go/bin:${PATH}"
+      export PATH
+      ;;
   esac
 
   command -v go > /dev/null 2>&1 || die "go not found after install"
