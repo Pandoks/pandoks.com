@@ -50,6 +50,15 @@
         "#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)\\s+packageName=(?<packageName>[^\\s]+)\\s+version:\\s*'?(?<currentValue>v[\\d.]+)'?"
       ],
       "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Bump HELM_VERSION in the setup installer (annotated with a leading `# renovate:` comment).",
+      "managerFilePatterns": ["/(^|/)scripts/setup/install\\.sh$/"],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)\\s+packageName=(?<packageName>[^\\s]+)\\s+HELM_VERSION=(?<currentValue>v?[\\d.]+)"
+      ],
+      "versioningTemplate": "semver"
     }
   ],
   "packageRules": [
