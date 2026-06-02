@@ -142,8 +142,16 @@ required_path_dirs() { # Outputs: paths of tools to add to PATH (one per line \n
   required_path_dirs_node=$(ls -d "${HOME}"/.nvm/versions/node/v"$(read_nvmrc)".*/bin \
     2> /dev/null | sort -V | tail -n1)
   [ -n "${required_path_dirs_node}" ] && printf '%s\n' "${required_path_dirs_node}"
+
   [ -x "${HOME}/.local/bin/uv" ] && printf '%s\n' "${HOME}/.local/bin"
-  command -v go > /dev/null 2>&1 && printf '%s\n' "$(go env GOPATH)/bin"
+
+  # need to include go's env GOPATH so we can use golang tools as cli
+  if [ -x /usr/local/go/bin/go ]; then # ubuntu doesn't install go to a dir in PATH directly
+    printf '%s\n' '/usr/local/go/bin'
+    printf '%s\n' "$(/usr/local/go/bin/go env GOPATH)/bin"
+  elif command -v go > /dev/null 2>&1; then
+    printf '%s\n' "$(go env GOPATH)/bin"
+  fi
 }
 
 # needed for non-interactive shells (CI / wrappers / Claude Code Cloud)
