@@ -22,7 +22,8 @@ networking via the headless service.
   Wait for StatefulSet → query `CLUSTER NODES` → add missing masters
   (index-ordered) → add replicas to balance `ReplicasPerMaster` →
   rebalance slots with `--cluster-use-empty-masters`. Asserts topology
-  is healthy before starting (`scale-up.go:75`).
+  is healthy as the FINAL gate before rebalancing — not before starting
+  — in `finalizeScaleUp` (`scale-up.go:327`, `IsHealthy()`).
 - **`scale-down`** (`packages/valkey/reconciler/internal/commands/scale-down.go:15-118`):
   Query state → remove extra shards → remove extra replicas → **move
   masters out of the "danger zone"** (indices ≥ desired count) by
@@ -82,8 +83,33 @@ hook) is the template — every subcommand needs its own Job block:
 
 Shape: each Job sets `args: [<subcommand>]` and injects the 5 required
 env vars (`CLUSTER_NAME`, `NAMESPACE`, `MASTERS`, `REPLICAS_PER_MASTER`,
-`ADMIN_PASSWORD`) — `hooks.yaml:31-48`. SA is
-`valkey-{name}-reconciler` (RBAC in `rbac.yaml`), image is
+`ADMIN_PASSWORD`) — `hooks.yaml:31-48`. **Also replicate these per-Job
+hook fields:**
+
+- `"helm.sh/hook-weight": "0"` on every Job (`hooks.yaml:8, 61, 114`) —
+  if a new post-upgrade Job must run AFTER `scale-up`, give it a HIGHER
+  weight; equal weights leave ordering non-deterministic.
+- `"helm.sh/hook-delete-policy"` templated from
+  `.Values.hooks.hookDeletePolicy` (`values.yaml:29` =
+  `before-hook-creation,hook-succeeded`).
+- `post-upgrade` fires only on `helm upgrade`, **NOT** initial
+  `helm install` — add `post-install` too if first-install coverage is
+  needed. Literal: `"helm.sh/hook": post-install,post-upgrade`
+  (comma-list) or a second annotation. Existing hook annotations are
+  string values (`hooks.yaml:7, 60, 113`).
+
+**RBAC:** the chart's `rbac.yaml` defines only the ServiceAccount
+`valkey-{name}-reconciler` + a RoleBinding; the actual `ClusterRole`
+`valkey-reconciler` (get/list/watch on pods + statefulsets only, no
+write verbs — `k3s/base/core/valkey.yaml:5-21`) lives OUTSIDE the
+chart. The reconciler does only K8s **reads** (Gets StatefulSets) and
+performs all cluster mutation over the network via
+`valkey-cli`/valkey-go — so a new **read-only** subcommand needs **NO
+RBAC change**. The boundary is **verb-scoped, not resource-scoped**: a
+subcommand that mutates a K8s object — even the SAME resource
+(`patch`/`update`/`delete`/`scale` on `statefulsets`) — must add the
+verb to the ClusterRole, because the grant is read-only today. A brand
+new resource type needs a new rule block too. Image is
 `.Values.cluster.reconcilerImage`, securityContext is
 `readOnlyRootFilesystem + drop ALL caps`, `/tmp` is the only writable
 mount.
@@ -120,14 +146,23 @@ the `scale-up` shape and swapping `args:` + the hook annotation.
 
 ## When to use `WaitForStatefulSetReady`
 
-Every existing command calls it first because they all _mutate_ cluster
-topology and need a steady starting state. **Read-only commands
-should NOT block on full readiness** — they should report whatever they
-see. If you add a read-only subcommand (status, inspect, diag), skip
-`WaitForStatefulSetReady` and let the valkey client surface
+The mutating commands `init` (`init.go:31`) and `scale-up`
+(`scale-up.go:25`) call it first because they need a steady starting
+state. **`scale-down` does NOT call it** — it instead asserts
+`Topology.IsHealthy()` up front (`scale-down.go:36`). **Read-only
+commands should NOT block on full readiness** — they should report
+whatever they see. If you add a read-only subcommand (status, inspect,
+diag), skip `WaitForStatefulSetReady` and let the valkey client surface
 unreachable seeds as errors. A degraded cluster with `<totalNodes`
-ready pods would otherwise hang for the full 5-minute timeout before
-producing output.
+ready pods would otherwise hang for the wait's context timeout (5 min
+in `init`, 10 min in `scale-up`) before producing output.
+
+**For the health verdict itself, reuse `Topology.IsHealthy()`**
+(`topology.go:79-118`) — the same `(bool, error)` predicate that
+`scale-up` (`scale-up.go:327`) and `scale-down` (`scale-down.go:36`)
+gate on. A read-only command can return its `error` directly to get
+the exit-1 mapping (don't invent a new health criterion — the codebase
+already has one).
 
 ## Exit-code semantics
 

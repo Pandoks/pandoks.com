@@ -22,8 +22,11 @@ paths:
   the layout-level prefetch all hide together.
 - **Notion content is fetched by a standalone script**, not inside the
   Vite build. `apps/web/scripts/notion.ts` syncs the Notion DB to
-  `apps/web/src/routes/blog/[title]/` files at the timing of the
-  `sync-notion.yaml` workflow (manual / Notion-webhook-triggered).
+  **`apps/web/src/lib/blog/*.json`** (+ `src/lib/blog/images/`,
+  `notion.ts:107-108, 271`) at the timing of the `sync-notion.yaml`
+  workflow (manual / Notion-webhook-triggered). The route dir
+  `routes/blog/[title]/` holds only `+page.svelte` + `+page.ts`, which
+  read that synced JSON via `import.meta.glob('/src/lib/blog/*.json')`.
 - **Build crashes on missing Notion data are intentional.** Better to
   fail the build than ship empty pages.
 
@@ -39,10 +42,14 @@ paths:
 
 ## Route choice
 
-- **Use `+page.ts` over `+page.server.ts` for offline-first prefetch** —
-  but blog routes are the exception (need Notion API at build time).
-- `apps/web/src/routes/+layout.ts` is the only `.ts` load function and
-  exists solely to set `export const prerender = true`.
+- **Use `+page.ts`, never `+page.server.ts`** — there are **zero**
+  `+page.server.ts` files in `apps/web/src`. The blog is NOT an
+  exception: `blog/[title]/+page.ts` (`prerender = true`) reads the
+  **pre-synced** `src/lib/blog/*.json` at build via `import.meta.glob`
+  — the Notion API is hit only by the out-of-band `notion.ts` script,
+  never at request/build time of the route itself.
+- `apps/web/src/routes/+layout.ts` sets `export const prerender = true`;
+  `blog/[title]/+page.ts` also sets it (the blog content load).
 
 ## Static assets
 
@@ -51,8 +58,11 @@ paths:
   `../../packages/svelte/static/fonts/*`. **Don't add fonts to
   `apps/web/static/`.** The font registry consumed at runtime is
   `apps/web/src/lib/fonts.ts` (referenced from `+layout.svelte:8, 15`).
-- **`apps/web/static/blog-images/` is gitignored** (`.gitignore:63`) —
-  populated by `apps/web/scripts/notion.ts` during the Notion sync.
+- **Blog images go to `apps/web/src/lib/blog/images/`** (written by
+  `notion.ts:108`, served via the `import.meta.glob` enhanced-img
+  pipeline in `+page.ts`), NOT `static/`. The `static/blog-images/`
+  `.gitignore` entry (`.gitignore:63`) is for a path `notion.ts` no
+  longer uses — don't rely on it.
 
 ## Workspace imports
 
