@@ -42,6 +42,16 @@ install_k3d() {
   curl -fsSL https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | use_sudo bash
 }
 
+# not in apt, and AUR-only on Arch.
+install_hadolint() {
+  install_hadolint_asset=$(architecture_asset hadolint-Linux-x86_64 hadolint-Linux-arm64)
+  log_step "Installing hadolint binary (not in apt/pacman repos)"
+  use_sudo curl -fsSL \
+    "https://github.com/hadolint/hadolint/releases/latest/download/${install_hadolint_asset}" \
+    -o /usr/local/bin/hadolint
+  use_sudo chmod +x /usr/local/bin/hadolint
+}
+
 install_node() {
   [ -f "${REPO_ROOT}/.nvmrc" ] || die ".nvmrc not found at ${REPO_ROOT}/.nvmrc"
   install_node_version=$(read_nvmrc)
@@ -104,11 +114,10 @@ install_python() {
 
   install_python_package_manager=$(ensure_package_manager)
   case "${install_python_package_manager}" in
-    brew)
-      log_step "Installing uv via Homebrew"
-      install_packages brew uv
-      ;;
-    apt-get | pacman)
+    brew) install_packages brew uv ;;
+    pacman) install_packages pacman uv ;;
+    apt-get)
+      # uv isn't in apt (Ubuntu 24.04 LTS lacks it) — official installer.
       log_step "Installing uv via official installer"
       curl -fsSL https://astral.sh/uv/install.sh | sh
       # shellcheck disable=SC2016
@@ -170,11 +179,10 @@ install_aws() {
     *)
       install_aws_package_manager=$(ensure_package_manager)
       case "${install_aws_package_manager}" in
-        brew)
-          log_step "Installing awscli v2 via Homebrew"
-          install_packages brew awscli
-          ;;
-        apt-get | pacman)
+        brew) install_packages brew awscli ;;
+        pacman) install_packages pacman aws-cli-v2 ;;
+        apt-get)
+          # apt has no awscli v2 (only v1) — official v2 bundle.
           log_step "Installing awscli v2 via official bundle"
           install_aws_zip=$(architecture_asset awscli-exe-linux-x86_64.zip awscli-exe-linux-aarch64.zip)
           install_aws_tmp=$(mktemp -d)
@@ -281,27 +289,27 @@ install_kubernetes() {
     return 0
   fi
 
-  install_cluster_package_manager=$(ensure_package_manager)
+  install_kubernetes_package_manager=$(ensure_package_manager)
 
   install_docker
 
   log_step "Installing kubectl, k3d, helm"
-  case "${install_cluster_package_manager}" in
+  case "${install_kubernetes_package_manager}" in
     brew)
       install_packages brew kubectl k3d helm
       ;;
     apt-get)
       use_sudo install -m 0755 -d /etc/apt/keyrings
-      install_cluster_kube_minor="v$(kubectl_pinned_minor)"
-      [ "${install_cluster_kube_minor}" != "v" ] || die "Could not read KUBECTL_VERSION from packages/argocd/Dockerfile"
+      install_kubernetes_kube_minor="v$(kubectl_pinned_minor)"
+      [ "${install_kubernetes_kube_minor}" != "v" ] || die "Could not read KUBECTL_VERSION from packages/argocd/Dockerfile"
 
       fetch_pgp_key \
-        "https://pkgs.k8s.io/core:/stable:/${install_cluster_kube_minor}/deb/Release.key" \
+        "https://pkgs.k8s.io/core:/stable:/${install_kubernetes_kube_minor}/deb/Release.key" \
         /etc/apt/keyrings/kubernetes-apt-keyring.gpg \
         "kubernetes"
 
       printf 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/%s/deb/ /\n' \
-        "${install_cluster_kube_minor}" \
+        "${install_kubernetes_kube_minor}" \
         | use_sudo tee /etc/apt/sources.list.d/kubernetes.list > /dev/null
 
       use_sudo apt-get update -y
@@ -333,7 +341,7 @@ install_quality() {
 
   install_quality_package_manager=$(ensure_package_manager)
 
-  log_step "Installing shellcheck, shfmt, hadolint, jq, openssl"
+  log_step "Installing quality tools (shellcheck, shfmt, hadolint, actionlint, golangci-lint, govulncheck, jq, openssl)"
   case "${install_quality_package_manager}" in
     brew)
       install_packages brew \
@@ -345,31 +353,33 @@ install_quality() {
         jq \
         openssl@3
       ;;
-    apt-get | pacman)
-      install_packages "${install_quality_package_manager}" \
+    pacman)
+      install_packages pacman \
+        shellcheck \
+        shfmt \
+        jq \
+        openssl \
+        actionlint \
+        golangci-lint \
+        govulncheck
+      install_hadolint
+      ;;
+    apt-get)
+      # apt has the basics; the linters aren't packaged, so binary + go install.
+      install_packages apt-get \
         shellcheck \
         shfmt \
         jq \
         openssl
-
-      install_quality_hadolint_asset=$(architecture_asset hadolint-Linux-x86_64 hadolint-Linux-arm64)
-      log_step "Installing hadolint binary (not in apt/pacman repos)"
-      use_sudo curl -fsSL \
-        "https://github.com/hadolint/hadolint/releases/latest/download/${install_quality_hadolint_asset}" \
-        -o /usr/local/bin/hadolint
-      use_sudo chmod +x /usr/local/bin/hadolint
+      install_hadolint
 
       command -v go > /dev/null 2>&1 || install_go
-      log_step "Installing actionlint and golangci-lint via go install"
+      log_step "Installing actionlint, golangci-lint, govulncheck via go install"
       GO111MODULE=on go install github.com/rhysd/actionlint/cmd/actionlint@latest
       GO111MODULE=on go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+      GO111MODULE=on go install golang.org/x/vuln/cmd/govulncheck@latest
       ;;
   esac
-
-  # NOTE: govulncheck is go-install on every platform (no brew/apt/pacman package).
-  command -v go > /dev/null 2>&1 || install_go
-  log_step "Installing govulncheck via go install"
-  GO111MODULE=on go install golang.org/x/vuln/cmd/govulncheck@latest
 
   log_ok "Quality tools installed"
 }
