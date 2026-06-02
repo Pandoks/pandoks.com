@@ -37,12 +37,12 @@ installs everything), `check` (inventory installed versions and flag drift from 
     </li>
     <li><a href="https://pnpm.io/">pnpm</a> >= v11 (activated via <code>corepack</code> from <code>package.json</code>)</li>
     <li><a href="https://docs.astral.sh/uv/">uv</a> — Python version + project manager (Python toolchain is installed on demand via <code>uv python install</code>)</li>
-    <li><a href="https://go.dev/">Go</a> >= v1.25</li>
+    <li><a href="https://go.dev/">Go</a> v1.26 (pinned by the <code>go</code> directive in <code>go.work</code>, the same source CI's <code>setup-go</code> uses; on apt the official tarball is fetched since the distro package lags)</li>
     <li><a href="https://docs.docker.com/get-docker/">Docker</a> >= v20</li>
     <li><a href="https://kubernetes.io/docs/tasks/tools/">kubectl</a> v1.36 (matches the prod cluster in <code>packages/argocd/Dockerfile</code>; kubectl supports ±1 minor against the cluster)</li>
     <li><a href="https://k3d.io/">k3d</a> >= v5.8</li>
     <li><a href="https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html">awscli</a> >= v2.13 (v2 only; v1 is not supported)</li>
-    <li><a href="https://helm.sh/docs/intro/install/">helm</a> >= v3.19</li>
+    <li><a href="https://helm.sh/docs/intro/install/">helm</a> v4.2.0 (pinned by <code>HELM_VERSION</code> in <code>scripts/setup/install.sh</code>; on macOS Homebrew installs latest, which may drift a minor)</li>
     <li><a href="https://jqlang.github.io/jq/">jq</a> >= v1.7</li>
     <li><a href="https://www.openssl.org/">openssl</a> >= v3 (used by <code>infra/cloudflare.ts</code> for the 15-year origin TLS cert)</li>
     <li><a href="https://httpd.apache.org/docs/current/programs/htpasswd.html">htpasswd</a> — bcrypt hasher used by the <code>${VAR | bcrypt}</code> template filter in <code>pnpm cluster deploy</code> (ships with macOS; from <code>apache2-utils</code> on Debian, <code>apache</code> on Arch)</li>
