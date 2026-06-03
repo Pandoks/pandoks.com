@@ -1,297 +1,318 @@
 # `stealth-browser` + `stealth-chromium` — context for the next Claude session
 
-This is a one-page brief for any future Claude session picking up this work
-after the migration from `~/Projects/sandbox/{stealth-browser,apex-browser,apex-chromium}/`
-into `pandoks_browser/packages/{stealth-browser,stealth-chromium}/`. Read this
-FIRST — it captures everything that doesn't survive a fresh checkout.
+One-page brief for any future Claude session (including a fresh Claude Cloud
+session) picking up this work. Read this FIRST — it captures everything that
+doesn't survive a fresh checkout. **Last substantively updated 2026-06-03**
+(branch `browser-iterations`, after the cloud-build + caching work).
+
+> **Currency note.** Sections marked 🟢 CURRENT reflect the cloud build
+> pipeline as actually deployed and validated. Sections marked 🟡 HISTORICAL
+> describe the original migration and are kept for context but are no longer
+> the active workflow.
+
+---
 
 ## TL;DR
 
 A stealth headless-Chrome service designed to compete with Browserbase. It runs
-*real* Chrome (not `--headless`) via Xvfb, drives it through `nodriver` (CDP-direct)
-or patched Playwright (`patchright`), and exposes an HTTP API for managed sessions
-with per-session proxies, session cloning, and `/fetch` for "browser-as-HTTP-client".
+*real* Chrome (not `--headless`) via Xvfb, drives it through `nodriver`
+(CDP-direct) or patched Playwright (`patchright`), and exposes an HTTP API for
+managed sessions with per-session proxies, session cloning, and `/fetch` for
+"browser-as-HTTP-client".
 
-Stealth depth currently sits at **composite 1.000 on a 17-detector benchmark**
-(CreepJS 0% headless / 0% stealth, all major fingerprinters pass, WebRTC + CDP
-leaks closed, 6/7 anti-bot sites OK with the 1 BLOCK being IP-reputation, not
-fingerprint).
-
-Two packages here, by responsibility:
+Two packages, by responsibility:
 
 | Package | What it is | Language |
 |---|---|---|
 | [`stealth-browser`](.) | Importable Python lib + HTTP service | Python |
-| [`stealth-chromium`](../stealth-chromium/) | C++ patches + Chromium build recipe (operator tooling, multi-hour build) | C++ + shell |
+| [`stealth-chromium`](../stealth-chromium/) | C++ fingerprint patches + Chromium build recipe | C++ + shell |
 
-## What just happened (the migration)
+**The single most important thing to know:** the Chromium build no longer runs
+on anyone's local machine. It runs on an **ephemeral EC2 builder orchestrated by
+an AWS Step Functions state machine** (`dev-builder`), triggered by one
+`aws stepfunctions start-execution` call (or fully automatically via Renovate →
+GitHub Actions). Your laptop is never pinned. See "Cloud build" below.
 
-Three sandbox projects collapsed into two monorepo packages:
+---
 
-| Sandbox source | Pandoks destination |
-|---|---|
-| `~/Projects/sandbox/stealth-browser/stealth/*.py` | `packages/stealth-browser/stealth_browser/*.py` |
-| `~/Projects/sandbox/apex-browser/apex/*.py` | `packages/stealth-browser/stealth_browser/*.py` (same dir — merged) |
-| `~/Projects/sandbox/apex-browser/personas/` | `packages/stealth-browser/personas/` |
-| `~/Projects/sandbox/apex-chromium/*` | `packages/stealth-chromium/*` (whole tree) |
+## 🟢 CURRENT: how to build patched Chromium (cloud)
 
-Notable code-level edits made during migration:
+The build pipeline is in `infra/builder/` (SST/Pulumi) + `packages/stealth-chromium/scripts/`.
+It launches a fresh c7i/c7g EC2 from a pre-baked AMI, restores caches from S3,
+applies the patches, compiles, uploads the binary to S3, and self-terminates —
+even on failure.
 
-1. **`_paths.py` shim removed**. The old `apex-browser/apex/_paths.py` injected
-   `../stealth-browser/` onto `sys.path`. With both halves in one package now,
-   imports are regular relative imports.
-2. **All `from stealth.X import Y` → `from stealth_browser.X import Y`**. The
-   package was renamed from `stealth` → `stealth_browser`.
-3. **All bare-sibling imports → relative imports** (`from session import X` →
-   `from .session import X`). Apex's `core_nodriver.py`/`server.py`/etc.
-   used to import their siblings without prefix; that doesn't work when the
-   module lives inside a package.
-4. **`session.py` name collision resolved**: apex's `session.py` (the HTTP
-   `SessionManager`) won the name; stealth's `session.py` (the human-flow
-   simulator) was renamed `human_session.py` so both survive.
-5. **Added `run_server()` callable** at the bottom of `server.py` so the
-   `[project.scripts]` `console_script` entry has a sync entry point.
+### Trigger a build (manual, from any machine with AWS creds)
 
-Smoke-tested with `uv sync` + `uv run python -c 'from stealth_browser ...'` —
-all imports clean.
+```sh
+export AWS_PROFILE=Personal AWS_REGION=us-west-1   # 12-hour SSO; rerun `pnpm sso` when expired
+BUILD_ID="stealth-chromium-$(date +%Y%m%d-%H%M%S)"
+aws stepfunctions start-execution \
+  --state-machine-arn arn:aws:states:us-west-1:343487555569:stateMachine:dev-builder \
+  --name "$BUILD_ID" \
+  --input "$(jq -nc --arg id "$BUILD_ID" --arg ref "$(git rev-parse --abbrev-ref HEAD)" \
+    '{id:$id, ref:$ref, instanceType:"c7i.16xlarge", marketType:"on-demand",
+      storageSizeGib:200, command:"bash packages/stealth-chromium/scripts/sfn-build.sh"}')"
+```
 
-**Sandbox is untouched.** Original projects still work where they live —
-this was a copy, not a move. You can delete them whenever you're confident in
-the migration.
+The SFN clones the branch from GitHub (`ref` must be **pushed** — local-only
+branches are invisible to the builder), so commit + push before triggering.
 
-## Repo conventions you must know
+### Trigger a build (automatic — the intended default)
 
-Pandoks_browser is a pnpm/SST/k3s monorepo. Read these first:
+`.github/workflows/build-chromium.yaml` fires the SFN automatically when
+`packages/stealth-chromium/chromium_version.txt` changes on `main`. Renovate
+watches Google's version API (`renovate.json` custom datasource `chromium-stable`)
+and opens a PR when a new stable ships; merging it triggers the build. **Zero
+machine involvement.** The workflow also has a `workflow_dispatch` with
+`instanceType`/`marketType`/`ref` inputs for manual runs from the Actions UI.
 
-- `~/Projects/pandoks_browser/.claude/rules/universal.md` — pnpm-only,
-  conventional commits (`feat()/fix()/update()/chore()/refactor()/cleanup()/build()`),
-  comment density rules, no try/catch around AWS SDK, format/lint
-  dispatchers.
-- `~/Projects/pandoks_browser/.claude/rules/architecture.md` — SST topology
-  + apps/packages map.
-- `~/Projects/pandoks_browser/.claude/rules/workflows.md` — exact `pnpm`
-  commands mirroring CI.
-- `~/Projects/pandoks_browser/.claude/rules/conventions/{ts,go,shell,charts}.md`
-  — per-language conventions.
+### Monitor a running build
 
-**Python is new to this repo** — there's no existing `conventions/py.md`. The
-stealth-browser package is the first Python member. Lint/format dispatchers
-(`scripts/lint/`, `scripts/format/`) don't have a `py` subcommand yet — add one
-when you want repo-wide Python linting (probably `ruff`).
+```sh
+EXEC=arn:aws:states:us-west-1:343487555569:execution:dev-builder:$BUILD_ID
+aws stepfunctions describe-execution --execution-arn "$EXEC" \
+  --query '{status:status,started:startDate,stopped:stopDate}' --output json
+# Live probe of the EC2 (instance id is tagged with the build id):
+INSTANCE=$(aws ec2 describe-instances \
+  --filters "Name=tag:Id,Values=$BUILD_ID" "Name=instance-state-name,Values=running" \
+  --query 'Reservations[].Instances[].InstanceId' --output text)
+aws ssm send-command --instance-ids "$INSTANCE" --document-name AWS-RunShellScript \
+  --parameters '{"commands":["#!/bin/bash","sudo grep -oE \"\\[[0-9]+/[0-9]+\\]\" /tmp/stealth-chromium-build-*.log | tail -1","sudo CCACHE_DIR=/build/.ccache ccache -s | head -8"]}'
+```
 
-## How Python coexists with pnpm
+### Fetch the built binary
 
-Three parallel workspace systems share the same on-disk layout:
+```sh
+ARTIFACTS=personal-pandoks-builderartifactsbucketbucket-oawuxubt
+aws s3 cp "s3://$ARTIFACTS/$BUILD_ID/manifest.json" - | jq .
+aws s3 cp "s3://$ARTIFACTS/$BUILD_ID/chromium-<version>.tar.zst" .
+tar --use-compress-program 'zstd -d --long=27' -xf chromium-<version>.tar.zst -C /opt/stealth-chromium/
+export APEX_CHROME_PATH=/opt/stealth-chromium/chrome
+```
 
-| System | Workspace file | Members |
+### Build-time profile (measured, c7i.16xlarge, us-west-1)
+
+| Scenario | Wall time | Cost |
 |---|---|---|
-| pnpm | `pnpm-workspace.yaml` | `apps/*`, `packages/*` (every dir with a `package.json`) |
-| Go | `go.work` | `./packages/valkey/reconciler` |
-| **uv (NEW)** | **`pyproject.toml` (root)** | `packages/stealth-browser` |
+| Same-version warm (both caches hot) | ~17 min | ~$0.85 |
+| Patch-release bump (warm ccache, same major) | ~45 min | ~$2.15 |
+| Cold / new-major build (both caches cold) | ~86 min | ~$4.10 |
 
-`pnpm install` does NOT install Python deps. Run `cd packages/stealth-browser && uv sync`
-separately, same as Go developers run `go mod tidy` in the reconciler dir.
+---
 
-`stealth-chromium` has a `package.json` for pnpm enumeration but is intentionally
-**NOT** in the uv workspace — it has no `pyproject.toml` and uv would crash trying
-to parse it.
+## 🟢 CURRENT: the caching system (read before touching setup.sh/build.sh)
 
-## Apps NOT created — and why
+Two independent caches in one S3 bucket
+(`personal-pandoks-buildercachebucketbucket-dadcwbmn`). Full diagram in
+`.claude/artifacts/2026-05-27-caching-explainer.html` and
+`.claude/artifacts/2026-05-28-chromium-build-pipeline-report.html`.
 
-The integration plan deliberately put **nothing in `apps/`**. Every existing
-`apps/*` carries deployment-specific config (`apps/example/` has `kube/`,
-`apps/web/` is a SvelteKit build, `apps/functions/` is Lambda handlers).
-Today there's no deployment to configure, so the package is the unit. The
-console-script entry (`uv run stealth-browser`) is the runnable.
+| Cache | S3 key | What | Keyed on | Restored / updated |
+|---|---|---|---|---|
+| Rolling source | `chromium-src-rolling-v3.tar.zst` (~10 GiB) | full Chromium checkout + `.apex-cache-ready` sentinel (records last-synced version) | static rolling name | restored every build; re-uploaded only when tree changed (`CACHE_DIRTY=1`) |
+| ccache | `ccache-chromium<MAJOR>-clang<N>-nomod.tar.zst` (~4-5 GiB) | ~30k compiled `.o` files | Chromium MAJOR + clang MAJOR | restored if key exists; re-uploaded only if grew >100 MB or cold |
 
-`apps/stealth-browser/` shows up the moment there's a real deployment —
-typically a `kube/{kustomization,stealth-browser,dev-patch}.yaml` overlay
-referencing a Docker image of this package.
+**Critical invariants — do not break these (each was a hard-won fix):**
 
-## What's running right now (in the SANDBOX, not the monorepo)
+1. **`use_clang_modules = false` in `build/args.gn`** is load-bearing. Chromium's
+   default `-fmodules` flag makes BOTH ccache and sccache treat ~88% of compiles
+   as uncacheable. Disabling it took cacheable from 11.8% → 99.96%. Don't
+   re-enable modules without a replacement caching strategy.
+2. **`use_siso = false` + `cc_wrapper = "ccache"`** (`build/args.gn`). siso
+   bypasses ccache; plain ninja routes every compile through it.
+3. **`CACHE_DIRTY` is declared before step 2 in `setup.sh`** and set in the
+   cache-miss branch. If you move it back inside step 3, the rolling cache
+   silently never persists (this bug hid for 10 builds — every build was
+   secretly source-cold while ccache masked it on wall-time).
+4. **ccache env in `build.sh`:** `CCACHE_BASEDIR=$WORK` (path-portable hashes),
+   `CCACHE_COMPILERCHECK=content` (mtime resets after tar extract),
+   `CCACHE_MAXSIZE=50G`.
+5. **`GOPATH`/`GOMODCACHE`/`GOCACHE` exported in `build.sh`** for dawn/tint's
+   Go codegen. On a fresh EC2 `$HOME` is unusable, so without these the
+   `dawn:generate_sources` action dies with "module cache not found." Only
+   surfaces on truly-clean cold builds (the cache used to mask it).
+6. **Cross-version source fetch is intentionally cold** (~25 min). We tried
+   `git fetch --deepen` to make it incremental; it worked but ballooned the
+   cache 10→35 GiB and taxed the common same-version path. Reverted. The
+   major-keyed ccache provides the cross-version *compile* savings instead.
 
-The sandbox still has live work in progress. Don't confuse it with the
-migrated package:
+**Invalidation:** Chromium version bump does NOT invalidate the rolling source
+cache (it advances via the sentinel). It DOES rotate the ccache key on a
+**major** bump (`chromium148` → `chromium149`); patch releases reuse the ccache.
+To force a clean rebuild: `aws s3 rm s3://<cache-bucket>/ --recursive`.
 
-- **An apex-chromium build** is/was running on `/Volumes/X9Pro/apex-chromium-build/`
-  — Chrome **148.0.7778.179** with the C++ fingerprint patches. The last
-  attempt failed at the `v8_context_snapshot_generator` link step with
-  `dyld: unknown imports format` — a stale-toolchain artifact from many
-  interrupted builds, NOT an apex code bug.
-  See `~/Projects/sandbox/apex-chromium-build/build148_v2.log` for the
-  failure trace.
-- **The first apex-chromium v1 binary works** and lives at
-  `/Volumes/X9Pro/apex-chromium-build/chromium/src/out/apex/Chromium.app/Contents/MacOS/Chromium`.
-  It has the original 21 C++ patches (covered below) but NOT the
-  newer WebGL `readPixels` + canvas `measureText` farbling patches.
-- **A 22-detector benchmark** lives at `~/Projects/sandbox/benchmark/` — verified
-  composite 1.000 against the v1 binary. NOT migrated yet (could become
-  `packages/stealth-bench/` later if desired).
+**Failure diagnostics:** `sfn-build.sh`'s ERR trap uploads `build-failure.log`
+(1 MB tail) + a path-agnostic `compile-errors.log` (greps the full log for
+`FAILED:`/`error:`, works for plain ninja) to
+`s3://$ARTIFACTS/$BUILD_ID/`. Always check `compile-errors.log` first on a failure.
 
-## C++ patches — current status
+---
 
-**For the full list, the patch-adding workflow, the env-var convention,
-and which mechanism each patch uses, read
-[`../stealth-chromium/README.md`](../stealth-chromium/README.md).** That's
-the source of truth — this section is a summary.
+## 🟢 CURRENT: status & open work
 
-Patches land via **three mechanisms** (not all `.patch` files!):
+### Version state — WE ARE A MAJOR VERSION BEHIND
+- Our pin (`packages/stealth-chromium/chromium_version.txt`): **148.0.7778.215**
+- Chrome stable as of 2026-06-03: **149.0.7827.53**
+- The next build should bump to 149. Anchor edits *should* survive the major
+  bump but this is unverified — run
+  `APEX_CHROMIUM_WORK=$WORK python3 scripts/apply_edits.py --check` against a
+  149 checkout to confirm no anchors drifted before trusting the build.
+
+### THE BUILT BINARY IS NOT FINGERPRINT-TESTED
+This is the biggest open gap. The SFN pipeline runs only
+`setup.sh → apply.sh → build.sh` — it **does not run
+`test_patched_binary.sh`**. So every binary we've produced (including the
+`.215` one in S3) is verified to *compile*, but never verified to actually
+*spoof fingerprints* at runtime. `test_patched_binary.sh` exists but is a
+manual, headful, host-side step (loads `verify_patches.html`, runs a
+16-detector benchmark). **The "composite 1.000 / 17-detector" claim below in
+the patch section is STALE** — it predates the monorepo migration and was
+measured against an old local binary, not the cloud-built `.215`.
+
+**Top open items, in priority order:**
+1. **Close the validation loop.** Run `test_patched_binary.sh` against the
+   cloud `.215` binary (or wire it into the pipeline) to get a real, current
+   stealth score. Right now "is it better than the market" is unproven on the
+   shipped artifact.
+2. **Bump to Chromium 149** + `apply_edits.py --check` for anchor drift +
+   rebuild. The 148→149 bump is the natural forcing function to do #1 too.
+3. **Close the Clark gaps** (see competitive section). Quick wins first:
+   `navigator.connection` spoof, `storage.estimate()` quota, launcher hygiene.
+4. **No `apps/stealth-browser/` deploy yet** — the Python service has no k8s
+   deployment. When ready it becomes a `kube/` overlay over a Docker image of
+   this package. Don't add it unless asked.
+5. **No Python lint dispatcher** — `scripts/{lint,format}/main.sh` have no `py`
+   subcommand. Add `ruff` when you want repo-wide Python linting.
+
+---
+
+## 🟢 CURRENT: C++ patch inventory
+
+**25 distinct edits** (verified in `scripts/apply_edits.py` + `apply.sh`),
+unchanged since the migration. Full per-surface table with env-var names lives
+in [`../stealth-chromium/README.md`](../stealth-chromium/README.md#whats-already-patched).
+
+Three patch mechanisms (only the first two are applied):
 
 | # | Mechanism | Count | Where |
 |---|---|---|---|
-| 1 | Full-file `chromium_src/` overlay | 2 | `chromium_src/<path>/<file>.cc` + `apply.sh` OVERLAYS list |
+| 1 | Full-file `chromium_src/` overlay | 2 | `apply.sh` `OVERLAYS=()` (navigator hardwareConcurrency + deviceMemory) |
 | 2 | Anchor edit (preferred) | 23 | `EDITS = [...]` in `scripts/apply_edits.py` |
-| 3 | `.patch` files (documentation only — NOT applied) | 11 | `patches/*.patch` |
+| 3 | `.patch` files (DOC ONLY — NOT applied) | 11 | `patches/*.patch` — vestigial, ignore for current behavior |
 
-Total: **2 overlays + 23 anchor edits = 25 distinct edits**, covering
-~20 web-facing surfaces (navigator, screen, WebGL, canvas, audio, fonts,
-WebRTC, V8 inspector, battery, speech, media-devices). The full surface
-list with per-surface env-var names lives in
-[the stealth-chromium README](../stealth-chromium/README.md#whats-already-patched).
+The 23 anchor markers: WebGL renderer/vendor/readPixels, navigator
+platform + userAgentData.platform, WebRTC no-leak, V8 CDP no-preview, canvas
+getImageData/encode/measureText, audio noise, mediaDevices, fonts, screen
+(5 dims), battery (4 fields), speech voices.
 
-Verified compile-clean on Chromium 148. The v1 binary on `/Volumes/X9Pro/`
-has 23 of the 25 edits applied; v2 adds WebGL `readPixels` noise and
-canvas `measureText` farbling but is currently failing at link &mdash; see
-"Open work" #2.
+Deferred (not started): RAF/audio-quantum jitter (Chrome already clamps
+`performance.now()` to 100µs); per-eTLD+1 reseeding (`EtldSeed()` helper exists
+in `chromium_src/apex_fingerprint.h`, no consumer yet).
 
-Three patches were intentionally **deferred** (not started):
-- RAF/audio quantum jitter — Chrome already clamps `performance.now()` to
-  100µs; need empirical evidence we need more before patching the scheduler.
-- Per-eTLD+1 reseeding — the `EtldSeed(host)` helper exists in
-  `chromium_src/apex_fingerprint.h` but no patch consumes it yet.
+> **Stale benchmark claim (do not trust without re-running):** earlier docs
+> cite "composite 1.000 on a 17-detector benchmark, CreepJS 0% headless." That
+> was measured pre-migration against an old local binary. The cloud `.215`
+> binary has NOT been benchmarked. Treat the patch set as "compiles clean,
+> runtime-unverified" until `test_patched_binary.sh` runs against it.
 
-## Open work (continue from here)
+---
 
-In priority order:
+## 🟢 CURRENT: competitive position (vs clark-browser)
 
-1. **Verify the migrated package still runs end-to-end against a live
-   browser.** Import-only smoke-test passed (every module importable,
-   `run_server` callable) but the service has NOT been started against a
-   real browser since the migration. To verify:
-   ```sh
-   # terminal A
-   cd packages/stealth-browser
-   uv sync
-   APEX_CORE=patchright PORT=8089 uv run stealth-browser
+Detailed analysis: `.claude/artifacts/2026-05-26-clark-vs-stealth-browser.html`
+and `2026-05-26-clark-browser-audit.html`. The apples-to-apples comparison is
+**stealth-chromium ↔ Clark** (the C++ patch layer); our HTTP-service half has
+no Clark equivalent (that's the Browserbase/Steel lane).
 
-   # terminal B (with the service running):
-   curl -s localhost:8089/health
-   SID=$(curl -s -XPOST localhost:8089/sessions \
-         -H 'content-type: application/json' -d '{}' | jq -r .id)
-   curl -s -XPOST localhost:8089/sessions/$SID/navigate \
-         -H 'content-type: application/json' \
-         -d '{"url":"https://example.com"}'
-   curl -s -XDELETE localhost:8089/sessions/$SID
-   ```
-   Likely first-run hiccups: missing system Chrome (install Chrome or set
-   `APEX_CHROME_PATH`), or `patchright`/`nodriver` downloading their
-   browser binary on first start (~30s lag).
-2. **Decide what to do with the v2 build failure.** The v2 build is on the
-   X9Pro external SSD &mdash; mount it, then:
-   ```sh
-   tail -200 /Volumes/X9Pro/apex-chromium-build/build148_v2.log
-   ```
-   Last seen failure: `ld64.lld` linking
-   `obj/v8/v8_context_snapshot_generator/v8_context_snapshot_generator.o`
-   fails with `dyld: unknown imports format` &mdash; a stale-toolchain
-   artifact from repeated interrupted builds, not an apex code bug. The
-   canonical recovery: delete the cached link inputs
-   (`out/apex/obj/v8/v8_context_snapshot_generator/` and the matching
-   `.ninja_deps` entry) and re-link &mdash; no source change needed. Or
-   accept the v1 binary as "good enough" and ship without the WebGL-
-   readPixels / measureText farbling.
-3. **Migrate the benchmark** if you want it in-repo. Lives at
-   `~/Projects/sandbox/benchmark/` — would become `packages/stealth-bench/`
-   with the same pnpm wrapper pattern.
-4. **Wire deploy when ready.** That's the moment `apps/stealth-browser/`
-   appears with a `kube/` overlay. The integration plan
-   (`pandoks_browser/.claude/artifacts/2026-05-26-stealth-browser-monorepo-integration.html`)
-   sketched it but did NOT execute it — by design.
-5. **Add a Python lint/format dispatcher** to
-   `scripts/lint/main.sh` + `scripts/format/main.sh` (a `py` subcommand
-   running `ruff`). Currently those scripts have no Python awareness.
+**Where we already win:** real Google Chrome (not ungoogled — genuine TLS/JA3);
+headful on Xvfb (Clark admits CreepJS still flags their `--headless=new`); full
+HTTP service with session cloning + `/fetch` + first-class proxy (Clark has
+none); anchor-edit patches survive version bumps (Clark's `.patch` files don't);
+battery/speech/mediaDevices patches not in Clark's catalog. Clark ships only 17
+of its 49 cataloged patches; we ship 25 edits.
 
-## Things that aren't in this repo (intentionally)
+**Top gaps vs Clark's shipped patches** (ranked by 2025-26 detector weight;
+🟢 quick / 🟡 medium / 🟠 port-from-Brave):
+1. 🟡 `navigator.plugins`/`mimeTypes` PDF-viewer list
+2. 🟡 WebGPU `GPUAdapterInfo` coherence (must match WebGL GPU strings)
+3. 🟢 `navigator.connection` spoof (datacenter-vs-residential signal)
+4. 🟠 `getClientRects`/`getBoundingClientRect` jitter (cross-session correlation)
+5. 🟠 AudioContext + AnalyserNode noise (we only patch getChannelData, 1 of 3 levels)
+6. 🟡 WebGL `getParameter`/`getSupportedExtensions` cross-field coherence
+7. 🟡 UA Client Hints `Sec-CH-UA-*` header coherence
+8. 🟢 `--enable-automation` launcher hygiene (operational guardrail)
+9. 🟡 `document.fonts.check()` realism (Win/Mac font packs)
+10. 🟢 `navigator.storage.estimate()` quota spoof
 
-- The 100GB Chromium source checkout — lives on the external SSD at
-  `/Volumes/X9Pro/apex-chromium-build/chromium/src/`. The
-  `stealth-chromium` package is just the **recipe** for patching that
-  checkout, not the checkout itself.
-- The patched Chromium binary itself — also outside the repo. When
-  packaged for deployment, it'll be baked into a multi-stage Docker
-  image referenced by the eventual `apps/stealth-browser/`.
-- The integration-plan HTML artifact lives at
-  `.claude/artifacts/2026-05-26-stealth-browser-monorepo-integration.html`
-  (gitignored). Open it for the full rationale of the package split.
+---
 
-## How to run things
-
-### Prerequisites
-
-Before running anything:
-
-- **System Google Chrome** installed (the service defaults to driving real
-  Chrome, not bundled Chromium). On macOS: install Chrome.app the normal
-  way. On Linux: `apt-get install google-chrome-stable` (or set
-  `APEX_CHROME_PATH` to a custom binary &mdash; e.g. the patched
-  stealth-chromium output).
-- **Xvfb** on Linux only (Docker, headless servers). The service is
-  *headful* by design (real Chrome, not `--headless`) so a display is
-  required. Not needed on macOS &mdash; the WindowServer is the display.
-  The repo's `entrypoint.sh` wraps the service in `Xvfb-run` automatically.
-- **`jq`** if you'll use the smoke-test curl commands below (`brew install jq`).
-- **`uv`** &mdash; the Python package manager (`brew install uv`).
-
-### Environment variables (Python service)
-
-| Var | Values | Purpose |
-|---|---|---|
-| `APEX_CORE` | `nodriver` \| `patchright` | Which automation transport to use. `nodriver` = CDP-direct (B's stack, generally stealthier). `patchright` = patched Playwright (A's stack, better high-level ergonomics). Both drive real Chrome. |
-| `PORT` | int, default `8088` | HTTP service port. |
-| `APEX_CHROME_PATH` | abs path | Override the Chrome binary. Point here at the patched stealth-chromium output once it's built. |
-| `APEX_FP_*` | see [stealth-chromium README](../stealth-chromium/README.md#apex_fp_-env-var-convention) | Per-session fingerprint overrides &mdash; only meaningful when running the *patched* binary. The Python service sets these per session from `fp_profiles.py`. |
-| `OXYLABS_USERNAME` / `OXYLABS_PASSWORD` / `OXYLABS_PROXIES` | strings | Residential proxy credentials. Optional. |
-
-### Commands
+## 🟢 CURRENT: running the Python service locally
 
 ```sh
-# stealth-browser service (Python)
 cd packages/stealth-browser
-uv sync
-APEX_CORE=patchright PORT=8089 uv run stealth-browser
-
-# stealth-chromium build (multi-hour, runs on operator machine)
-cd packages/stealth-chromium
-APEX_CHROMIUM_WORK=/Volumes/X9Pro/apex-chromium-build scripts/setup.sh
-APEX_CHROMIUM_WORK=/Volumes/X9Pro/apex-chromium-build scripts/apply.sh
-APEX_CHROMIUM_WORK=/Volumes/X9Pro/apex-chromium-build scripts/build.sh
+uv sync                                          # uv is separate from pnpm; see below
+APEX_CORE=patchright PORT=8089 uv run stealth-browser   # PORT default in code is 8089
+# smoke test in another terminal:
+curl -s localhost:8089/health
+SID=$(curl -s -XPOST localhost:8089/sessions -H 'content-type: application/json' -d '{}' | jq -r .id)
+curl -s -XPOST localhost:8089/sessions/$SID/navigate -H 'content-type: application/json' -d '{"url":"https://example.com"}'
+curl -s -XDELETE localhost:8089/sessions/$SID
 ```
 
-> **Env var naming note.** Build scripts and C++ patches both use the
-> `APEX_*` prefix (legacy from when the code lived in
-> `~/Projects/sandbox/apex-chromium/`). It has NOT been renamed to
-> `STEALTH_*` because an in-flight v2 build still references those exact
-> strings. New code should match the existing `APEX_*` prefix. When you
-> eventually start fresh, the rename is a one-shot:
->
-> ```sh
-> grep -rln APEX_CHROMIUM_WORK packages/stealth-chromium/ \
->   | xargs sed -i '' 's|APEX_CHROMIUM_WORK|STEALTH_CHROMIUM_WORK|g'
-> ```
+Prereqs: system Google Chrome (or `APEX_CHROME_PATH` → patched binary), Xvfb on
+Linux (service is headful by design), `jq`, `uv`. Env vars: `APEX_CORE`
+(`nodriver`|`patchright`), `PORT`, `APEX_CHROME_PATH`, `APEX_FP_*` (per-session
+fingerprint overrides, only meaningful with the patched binary), Oxylabs proxy
+creds. The service has NOT been started against a live browser since the
+migration — import-only smoke test passed; a real end-to-end run is still open.
 
-## What the user values (from .claude/rules + recent sessions)
+---
 
-- **Verified > inferred.** Don't make claims without checking. Use the
-  `verify` skill before recommending facts; the `dig` skill before
-  bailing with "I don't know."
-- **No deploy until asked.** The user explicitly trimmed scope twice
-  during this migration. Don't add `kube/`, `Dockerfile`, helm chart,
-  CI matrix entries unless explicitly requested.
-- **HTML artifacts for any non-trivial explainer.** Per the `html`
-  skill. The migration plan was an HTML artifact at
-  `.claude/artifacts/2026-05-26-stealth-browser-monorepo-integration.html`.
-- **Conventional commits with type-only prefix.** The active set:
-  `feat() fix() update() chore() refactor() cleanup() build()`.
-  PR number in parens at end when applicable.
-- **No commits unless asked.** This migration was explicitly
-  "do it now but don't commit."
+## 🟡 HISTORICAL: the migration (2026-05-26)
+
+Three sandbox projects (`~/Projects/sandbox/{stealth-browser,apex-browser,apex-chromium}/`)
+collapsed into `packages/{stealth-browser,stealth-chromium}/`. Code-level edits:
+`_paths.py` shim removed; `from stealth.X` → `from stealth_browser.X`;
+bare-sibling imports → relative; apex's `session.py` kept the name (HTTP
+`SessionManager`), stealth's became `human_session.py`; added `run_server()`
+for the console-script entry. Sandbox was a copy, not a move — originals
+untouched.
+
+The X9Pro external SSD (`/Volumes/X9Pro/apex-chromium-build/`) held the
+original local build + a v1 binary + a 22-detector benchmark. **This is no
+longer the build path** — the cloud SFN builder replaced it. The v2 link
+failure described in old versions of this doc was a local stale-toolchain
+artifact; the cloud builder compiles `.215` cleanly.
+
+---
+
+## Repo conventions you must know
+
+pandoks_browser is a pnpm/SST/k3s monorepo. Read `.claude/rules/`:
+`universal.md` (pnpm-only, conventional commits `feat/fix/update/chore/refactor/cleanup/build`,
+comment density, no try/catch around AWS SDK), `architecture.md`,
+`workflows.md`, `conventions/{ts,go,shell,charts,svelte}.md`. Python is the
+first non-JS/Go member and has no `conventions/py.md` yet.
+
+**Three parallel workspaces share the on-disk layout:** pnpm
+(`pnpm-workspace.yaml`, every dir with `package.json`), Go (`go.work`,
+valkey/reconciler), uv (root `pyproject.toml`, only `stealth-browser`).
+`pnpm install` does NOT install Python deps — run `uv sync` in the package.
+`stealth-chromium` has a `package.json` for pnpm enumeration but is NOT a uv
+member (no `pyproject.toml`).
+
+**`APEX_*` env-var prefix is legacy and intentional** (`APEX_CHROMIUM_WORK`,
+`APEX_FP_*`, `APEX_CORE`, `APEX_CHROME_PATH`). New code matches the existing
+prefix. The rename to `STEALTH_*` is deferred.
+
+## What the user values
+
+- **Verified > inferred.** Check before claiming; measure the artifact, not a
+  proxy (the caching saga's central lesson: a fast build ≠ a working cache).
+- **No deploy until asked.** No `kube/`/Dockerfile/helm/CI matrix entries unless
+  explicitly requested.
+- **HTML artifacts for non-trivial explainers** (`.claude/artifacts/`).
+- **Conventional commits**, type-only prefix, PR number in parens when applicable.
+- **Cost estimates labeled as estimates** (Cost Explorer lags 12-48h).
+- **No commits unless asked.**
