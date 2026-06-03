@@ -7,8 +7,8 @@ Mirrors `.github/workflows/*.yaml` exactly.
 
 Node v24 (`.nvmrc` pins `24`; CI pins `24.15.0` exactly) · pnpm ≥ v11
 (`pnpm@11.2.2` pinned in `package.json:4`, `engines.pnpm: ">=11"` at
-`:8`) · Docker ≥ v20 · k3d ≥ v5.8 · awscli ≥ v2.13 · helm ≥ v3.19 ·
-shfmt · shellcheck · jq · openssl.
+`:8`) · Docker ≥ v20 · k3d ≥ v5.8 · awscli ≥ v2.13 · helm `v4.2.0`
+(pinned — see `gotchas/setup.md`) · shfmt · shellcheck · jq · openssl.
 
 ## Install
 
@@ -18,7 +18,12 @@ pnpm run sso          # AWS SSO; 12-hour validity
 ```
 
 `pnpm run sso` is `aws sso login --sso-session=Pandoks_ --use-device-code --no-browser`
-(`package.json:11`).
+(`package.json:11`). The `~/.aws/config` file (including the
+`[sso-session Pandoks_]` block and per-account profiles) is written by
+the AWS-config heredoc in `install_aws` (`scripts/setup/install.sh:202-235`) — see
+`gotchas/setup.md` for the maintenance rule (the heredoc is hardcoded
+to the Pandoks\_ org and must be updated in lockstep with any AWS
+Identity Center / profile / account-ID change).
 
 ## Env files
 
@@ -69,7 +74,7 @@ pnpm run cluster deploy {local|dev|prod} [--bootstrap] [--stage NAME]
 
 Zero-arg invocation prints help; there is no `all` subcommand. `deploy prod`
 auto-overrides the SST stage to `production`
-(`scripts/cluster/deploy.sh:200` — `[ "${cmd_deploy_env}" = "prod" ] && cmd_deploy_stage="production"`).
+(`scripts/cluster/deploy.sh:182` — `[ "${cmd_deploy_env}" = "prod" ] && cmd_deploy_stage="production"`).
 
 > Root `README.md` and `k3s/README.md` reference `cluster sst-apply` /
 > `cluster sync` / `cluster setup` — **those subcommands don't exist in the
@@ -159,12 +164,12 @@ Then wait for ArgoCD sync (CI's loop is in
 
 | File                     | Triggers                                                                                                                                                                    | Does                                                                                                                                                                                                                                                                                                                             |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `deploy-infra.yaml`      | push to main on `infra/**`, `apps/**` (excl. `desktop-template`/`example`), `packages/svelte/**`, `k3s/**`, `scripts/cluster/**`; manual dispatch (`stage`/`deploy` inputs) | Install, AWS OIDC, `pnpm sst refresh` (`continue-on-error: true`, `:106-109`), `pnpm sst deploy`. On success: Tailscale + ArgoCD `refresh=hard` + sync-wait loop (60×5s, `:151-162`). Skips kubernetes step if no `prod-cluster` Tailnet peer (`:133-140`). Each job uses `concurrency: { cancel-in-progress: false }`.          |
+| `deploy-infra.yaml`      | push to main on `infra/**`, `apps/**` (excl. `desktop-template`/`example`), `packages/svelte/**`, `k3s/**`, `scripts/cluster/**`; manual dispatch (`stage`/`deploy` inputs) | Install, AWS OIDC, `pnpm sst refresh` (`continue-on-error: true`, `:98-102`), `pnpm sst deploy`. On success: Tailscale + ArgoCD `refresh=hard` + sync-wait loop (60×5s, `:151-162`). Skips kubernetes step if no `prod-cluster` Tailnet peer (`:133-140`). Each job uses `concurrency: { cancel-in-progress: false }`.           |
 | `sync-notion.yaml`       | `workflow_dispatch` only (fired by `NotionWebhookHandler` Lambda via GitHub API)                                                                                            | Install, AWS OIDC, run `pnpm sst shell --stage production -- pnpm -r --if-present run sync:notion`. Opens a PR (`peter-evans/create-pull-request@v8`) under branch `auto/notion-sync` with content under `apps/web/*`.                                                                                                           |
 | `checks.yaml`            | push to main, PR to main                                                                                                                                                    | paths-filter dispatches per-language jobs (prettier, eslint, golangci, shfmt+shellcheck, hadolint, helm+kubeconform, actionlint, renovate-config-validator, `pnpm check:infra` via `infra` filter). Each job runs only when its file patterns changed.                                                                           |
 | `tests.yaml`             | push to main, PR to main                                                                                                                                                    | paths-filter per-app: web (vitest + playwright), desktop-template, svelte package, valkey reconciler (go test). Each gated by `apps/web/**`-style globs.                                                                                                                                                                         |
 | `security.yaml`          | push to main, PR to main, daily 17:00 UTC cron, manual dispatch                                                                                                             | Trivy scans on **published** images (not pre-build) plus config-scan on `k3s/**`. Findings upload to GitHub code-scanning.                                                                                                                                                                                                       |
-| `build-and-publish.yaml` | push to `packages/{postgres,valkey,argocd,clickhouse}/**`; branch create; manual dispatch                                                                                   | paths-filter detects changes (skipped on `workflow_dispatch` → all rebuild). Matrix builds each Dockerfile **from repo-root context** (`context: .` at `:144`), pushes to `ghcr.io/<owner>/<image>` with SLSA attestation, tags main builds as `ref-main-<sha>` (#57). Matrix packages charts to `oci://ghcr.io/<owner>/charts`. |
+| `build-and-publish.yaml` | push to `packages/{postgres,valkey,argocd,clickhouse}/**`; branch create; manual dispatch                                                                                   | paths-filter detects changes (skipped on `workflow_dispatch` → all rebuild). Matrix builds each Dockerfile **from repo-root context** (`context: .` at `:185`), pushes to `ghcr.io/<owner>/<image>` with SLSA attestation, tags main builds as `ref-main-<sha>` (#57). Matrix packages charts to `oci://ghcr.io/<owner>/charts`. |
 | `branch-cleanup.yaml`    | `on: delete` (branch deletion)                                                                                                                                              | Three matrix jobs: delete Cloudflare Pages previews for the deleted branch, then delete GHCR image tags (`ref-<branch>-*`) for all 8 image packages, then delete GHCR chart tags (suffix `-<branch>`) for the 3 charts.                                                                                                          |
 | `maintenance.yaml`       | daily 05:00 UTC cron + manual dispatch                                                                                                                                      | Two jobs: (1) Renovate via `renovatebot/github-action`; (2) `cleanup-packages` matrix — for each of 11 ghcr packages, keeps newest 30 `ref-main-<sha>` tags and prunes orphan untagged versions (preserves manifest children + provenance attestations).                                                                         |
 

@@ -77,12 +77,23 @@ Notion retries non-200 webhooks; every handler in
 
 **One-shot side effects with no natural idempotency key** (sending an
 SMS, posting to a webhook, charging a card) need an _explicit_ dedup
-record — e.g., a small DynamoDB table keyed on `body.id` with a TTL.
-This repo doesn't yet have one. If you're adding such a handler, either
-(a) introduce the dedup table as part of the same PR and document it
-here, or (b) accept duplicate fires at-least-once and call that out in
-the PR description. **Do not silently rely on Notion not retrying** —
-they do.
+record — e.g., a small DynamoDB table keyed on a **stable per-event
+id** with a TTL. **Watch the key choice:** the webhook payload has BOTH
+a top-level `id` (`webhook.ts:11`) AND `attempt_number`
+(`webhook.ts:17`, which increments on each Notion retry). A dedup table
+keyed on a value that _changes per attempt_ won't dedupe at all —
+verify whether Notion reuses `id` across retries (it should be the
+event id, stable) before keying on it; never key on `attempt_number`.
+This repo doesn't yet have such a table. If you're adding such a
+handler, either (a) introduce the dedup table as part of the same PR
+and document it here, or (b) accept duplicate fires at-least-once and
+call that out in the PR description. **Do not silently rely on Notion
+not retrying** — they do. For the AWS-resource wiring a new handler's
+side effect needs (IAM permissions, SST links, ARN-via-env), see
+`conventions/ts.md` "Lambda → Lambda invocation" + the live anchor
+`infra/api.ts:71-99`; new handler files go at
+`apps/functions/src/api/<surface>/<handler>.ts` and register at the
+`// Add new feature handlers here` marker in `webhook.ts`.
 
 ## Sandbox dir is empty (placeholder)
 

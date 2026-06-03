@@ -39,6 +39,19 @@ Svelte 5 runes are mandatory. No Svelte 4 store/slot patterns in new code.
   for repeated markup. `apps/web/src/routes/+layout.svelte:80` defines
   a `navLink` snippet and renders it from inside the `{#each}` at
   `apps/web/src/routes/+layout.svelte:69-71`.
+- **Banned Svelte-4 syntax** (zero occurrences in `packages/svelte/src`
+  or `apps/web/src`): `<slot>` / `<slot name="x">`,
+  `<svelte:fragment>`, `$$slots`, `$:` reactive statements,
+  `export let`, and `$store` auto-subscription. All superseded by
+  snippets + `$props()` / `$state` / `$derived` / `$effect`.
+- **Named snippet PROP** (a consumer passes a content region): declare
+  it on `$props()` typed `Snippet`, render with `{@render}`. Import the
+  type via `import type { Snippet } from 'svelte'`. Real:
+  `tooltipContent?: Snippet | string` and
+  `child?: Snippet<[{ props: Record<string, unknown> }]>` at
+  `packages/svelte/src/lib/components/ui/sidebar/sidebar-menu-button.svelte:51, 53`
+  (rendered `{@render Button({})}` at `:80`); `children: Snippet` at
+  `packages/svelte/src/lib/components/ui/sheet/sheet-content.svelte:40`.
 
 ## HTML escape hatches
 
@@ -72,7 +85,7 @@ Svelte 5 runes are mandatory. No Svelte 4 store/slot patterns in new code.
 
 - **Typed-key pattern**: `getContext<T>(key)` / `setContext(key, x)` with a
   module-scope `DEFAULT_KEY` constant
-  (`apps/web/src/lib/vim.svelte.ts:146`).
+  (`apps/web/src/lib/vim.svelte.ts:150`).
 
 ## Vim-mode navigation (`vim.svelte.ts`)
 

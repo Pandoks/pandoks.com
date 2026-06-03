@@ -19,7 +19,7 @@ paths:
 ## HAProxy
 
 - **Proxy-protocol must stay on.**
-  `infra/vps/load-balancers.ts:48` — flag is on to validate Cloudflare
+  `infra/vps/load-balancers.ts:49` — flag is on to validate Cloudflare
   IPs; setting it false hides the client IP behind the LB private IP and
   breaks Cloudflare attribution.
 
@@ -41,7 +41,7 @@ paths:
 - **`k3s/base/apps/kustomization.yaml`** must be applied with
   `kubectl apply --load-restrictor LoadRestrictionsNone` — it
   path-traverses (`../../../apps/example/kube`). The deploy CLI passes
-  the flag automatically (`scripts/cluster/deploy.sh:81`).
+  the flag automatically (`scripts/cluster/deploy.sh:79`).
 
 ## k3d
 
@@ -57,14 +57,16 @@ account per namespace` — when adding new app namespaces, mirror the SA
 ## Charts / builds
 
 - **Dockerfile build context is repo root** for every package
-  (`.github/workflows/build-and-publish.yaml:144` —
+  (`.github/workflows/build-and-publish.yaml:185` —
   `context: .  # WARN: all dockerfiles should have a context of the
 root of the repo`). Never use the package dir as context.
 - **`workflow_dispatch` rebuilds everything.**
-  `.github/workflows/build-and-publish.yaml:79-89` (image dispatch) and
-  `:100-110` (chart dispatch) skip the paths-filter on manual dispatch
-  via `if [[ "${{ github.event_name }}" != "push" ]]; then ... fi` and
-  emit the full matrix — intentional escape hatch.
+  `.github/workflows/build-and-publish.yaml:119-125` (image dispatch) and
+  `:136-142` (chart dispatch) skip the paths-filter on manual dispatch
+  via `if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then ... fi`
+  and emit the full matrix — intentional escape hatch. (The paths-filter
+  steps themselves carry the inverse `if: github.event_name != 'workflow_dispatch'`
+  at `:72, :94`.)
 
 ## CLI subcommands
 
@@ -88,6 +90,6 @@ root of the repo`). Never use the package dir as context.
   `maintenance.yaml:34-44`.
 - **`branch-cleanup.yaml`** removes both Cloudflare Pages previews and
   per-branch ghcr image/chart tags when a branch is deleted. Matrices
-  at `branch-cleanup.yaml:38-46` (images) and `:78-83` (charts).
+  at `branch-cleanup.yaml:38-46` (images) and `:84-88` (charts).
 - Main builds tag images as `ref-main-<sha>` (#57) — the manifest list
   on multi-platform builds gets the tag, not the per-arch children.

@@ -8,6 +8,7 @@ readonly SCRIPT_DIR
 readonly REPO_ROOT
 
 . "${REPO_ROOT}/scripts/lib/font.sh"
+. "${REPO_ROOT}/scripts/lib/log.sh"
 . "${REPO_ROOT}/scripts/lib/sst.sh"
 . "${REPO_ROOT}/scripts/lib/template.sh"
 . "${REPO_ROOT}/scripts/lib/kubernetes.sh"
@@ -25,7 +26,7 @@ main() {
     deploy) cmd_deploy "$@" ;;
     help | --help | -h) usage ;;
     *)
-      printf "%bError:%b Unknown command '%s'\n" "${RED}" "${NORMAL}" "${cmd}" >&2
+      log_error "Unknown command '${cmd}'"
       usage 1
       ;;
   esac
