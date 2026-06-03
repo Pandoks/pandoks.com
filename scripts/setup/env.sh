@@ -137,21 +137,28 @@ go_required_version() {
   sed -n 's/^go \([0-9][0-9.]*\).*/\1/p' "${REPO_ROOT}/go.work" | head -n1
 }
 
+SETUP_PATH_DIRS_CACHE=""
+
 required_path_dirs() { # Outputs: paths of tools to add to PATH (one per line \n)
-  # shellcheck disable=SC2012
-  required_path_dirs_node=$(ls -d "${HOME}"/.nvm/versions/node/v"$(read_nvmrc)".*/bin \
-    2> /dev/null | sort -V | tail -n1)
-  [ -n "${required_path_dirs_node}" ] && printf '%s\n' "${required_path_dirs_node}"
+  if [ -z "${SETUP_PATH_DIRS_CACHE}" ]; then
+    SETUP_PATH_DIRS_CACHE=$(
+      # shellcheck disable=SC2012
+      required_path_dirs_node=$(ls -d "${HOME}"/.nvm/versions/node/v"$(read_nvmrc)".*/bin \
+        2> /dev/null | sort -V | tail -n1)
+      [ -n "${required_path_dirs_node}" ] && printf '%s\n' "${required_path_dirs_node}"
 
-  [ -x "${HOME}/.local/bin/uv" ] && printf '%s\n' "${HOME}/.local/bin"
+      [ -x "${HOME}/.local/bin/uv" ] && printf '%s\n' "${HOME}/.local/bin"
 
-  # need to include go's env GOPATH so we can use golang tools as cli
-  if [ -x /usr/local/go/bin/go ]; then # ubuntu doesn't install go to a dir in PATH directly
-    printf '%s\n' '/usr/local/go/bin'
-    printf '%s\n' "$(/usr/local/go/bin/go env GOPATH)/bin"
-  elif command -v go > /dev/null 2>&1; then
-    printf '%s\n' "$(go env GOPATH)/bin"
+      # need to include go's env GOPATH so we can use golang tools as cli
+      if [ -x /usr/local/go/bin/go ]; then # ubuntu doesn't install go to a dir in PATH directly
+        printf '%s\n' '/usr/local/go/bin'
+        printf '%s\n' "$(/usr/local/go/bin/go env GOPATH)/bin"
+      elif command -v go > /dev/null 2>&1; then
+        printf '%s\n' "$(go env GOPATH)/bin"
+      fi
+    )
   fi
+  printf '%s\n' "${SETUP_PATH_DIRS_CACHE}"
 }
 
 # needed for non-interactive shells (CI / wrappers / Claude Code Cloud)
