@@ -26,7 +26,7 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
   Note: `NotionWebhookHandler` (`infra/api.ts:61`) is **unconditional**
   — not a prod-only example, deploys in every stage.
 - **Sandbox imports go in the literal `Promise.all` list** at
-  `sst.config.ts:23-34`. When re-adding sandbox files under
+  `sst.config.ts:23-36`. When re-adding sandbox files under
   `infra/sandbox/<name>.ts`, gate **inside** the sandbox file with
   `if ($app.stage === 'pandoks') { ... }` rather than at the
   `sst.config.ts` import site — keeps the import list literal
@@ -66,6 +66,13 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
   `TwilioPhoneNumber`, `HetznerApiKey`. The k8s tree adds the prefix
   because two databases (`mainPostgres`, `mainValkey`,
   `mainClickhouse`) share property names like `AdminPassword`.
+- **A brand-new non-derived `sst.Secret` must be seeded once** via
+  `pnpm sst secret set <Name> --stage <stage>` (or an `.env.<stage>`
+  entry) BEFORE the first deploy — only `setSecret()`-driven values
+  auto-populate. A new secret with no value fails the deploy.
+- A new top-level `infra/<feature>.ts` is **auto-covered** by the
+  existing `infra/**` paths filter (`deploy-infra.yaml:8, 54`,
+  `checks.yaml:79`) — no workflow glob edit needed when adding one.
 
 ## Resource ID + stage naming
 
@@ -97,7 +104,7 @@ minutes)` for fixed intervals, `cron(M H D-of-M M D-of-W Y)` (with `?`
   `if (isProduction) { ... }` or `if ($app.stage === 'pandoks') { ... }`
   guard. Put the cron file under `infra/<feature>.ts` (or
   `infra/sandbox/<feature>.ts` for pandoks-only experiments) and add it
-  to the `Promise.all` list in `sst.config.ts:23-34`.
+  to the `Promise.all` list in `sst.config.ts:23-36`.
 - Cron handlers are Lambdas, so the cron file should hold the
   `sst.aws.Function` + `sst.aws.CronV2` pair, not the handler code.
   Handler implementation lives under `apps/functions/src/` (see
@@ -116,7 +123,7 @@ minutes)` for fixed intervals, `cron(M H D-of-M M D-of-W Y)` (with `?`
 
 ## Dynamic-import constraint
 
-- **`sst.config.ts:22-34` MUST keep the literal `await Promise.all([import('./infra/...')])`
+- **`sst.config.ts:23-36` MUST keep the literal `await Promise.all([import('./infra/...')])`
   list**. Dynamic-string imports break SST. The `// NOTE: for some
 reason, dynamic imports don't work well so just manually import`
   comment at `:22` is load-bearing.

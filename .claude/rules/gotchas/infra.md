@@ -11,7 +11,7 @@ paths:
 
 ## Dynamic imports
 
-- **Dynamic imports break SST.** `sst.config.ts:22-34` keeps the literal
+- **Dynamic imports break SST.** `sst.config.ts:23-36` keeps the literal
   `await Promise.all([import('./infra/...')])` list. The
   `// NOTE: for some reason, dynamic imports don't work well so just
 manually import` comment at `sst.config.ts:22` is load-bearing.
@@ -31,7 +31,18 @@ manually import` comment at `sst.config.ts:22` is load-bearing.
   (`infra/vps/vps.ts:24-35`). Multi-region requires multiple clusters +
   Cloudflare DNS steering.
 - **Servers can only be upsized.** `infra/vps/vps.ts:13` — disk size must
-  monotonically grow.
+  monotonically grow. The constraint NOTE lives in `vps.ts`, but the
+  actual `hcloud.Server` resource (its `serverType`/`image`/`location`)
+  is built in the sibling `infra/vps/servers.ts:182-188` by
+  `createServers()` (`:55`); that file also owns the
+  `DeleteServerFromTailnet` `$util.ResourceHook` (`:10`) that reclaims a
+  destroyed node's Tailnet entry, and reads `infra/vps/cloud-config.yaml`
+  (`:7`). But the literal VALUES are stage-switched module consts back in
+  `vps.ts` — `SERVER_TYPE` (`vps.ts:14`, `ccx13` prod / `cx23` dev),
+  `SERVER_IMAGE` (`:18`, `ubuntu-24.04`), `LOCATION` (`:19`, `hil` prod /
+  `fsn1` dev) — passed into `createServers()` at `vps.ts:106-108, 123-125`.
+  So: change the resource SHAPE in `servers.ts`, change the type/image/
+  region VALUES in `vps.ts`.
 - **Downsizing requires manual drain.** `infra/vps/vps.ts:8`: must
   `kubectl drain && kubectl delete node` first. Pulumi scaling node count
   down does not drain k8s.
@@ -61,7 +72,7 @@ manually import` comment at `sst.config.ts:22` is load-bearing.
 ## SST refresh exit code
 
 - **`sst refresh` exit-code bug.**
-  `.github/workflows/deploy-infra.yaml:104-109` carries
+  `.github/workflows/deploy-infra.yaml:98-102` carries
   `continue-on-error: true` with a `# TODO` link to
   `https://github.com/anomalyco/sst/issues/6713`. Don't replicate in
   other jobs.
@@ -79,8 +90,8 @@ manually import` comment at `sst.config.ts:22` is load-bearing.
 ## CI concurrency
 
 - **Deploy jobs use `cancel-in-progress: false`**
-  (`.github/workflows/deploy-infra.yaml:62-64, 115-117`) — concurrent
-  deploys queue, don't cancel.
+  (`.github/workflows/deploy-infra.yaml:62-64` deploy-sst,
+  `:108-110` deploy-kubernetes) — concurrent deploys queue, don't cancel.
 - **Notion blog rebuild via `sync-notion.yaml`**, not a separate
   `deploy-web.yaml`. The `NotionWebhookHandler` Lambda fans out to
   `handleNotionBlogSync` (`apps/functions/src/api/notion/gh-blog-sync.ts:7`)

@@ -23,8 +23,9 @@ area is being edited.
     `// WARNING: Handlers MUST be idempotent`
   - `sst.config.ts:22` —
     `// NOTE: for some reason, dynamic imports don't work well`
-  - `package.json:43` (the `// TODO` for pnpm overrides upstream blocker
-    — exists in the JSON-with-comments via the leading `//TODO` key).
+  - `TODO:` is equally valid for an operator action or an
+    upstream-blocker note (no live example in the tree right now — the
+    former `package.json` pnpm-overrides `//TODO` key was removed).
 - **Single-use constants stay in their file.** Don't extract to `$lib` /
   shared module unless ≥2 files use it.
 - **Conventional commits.** Active set: `feat()`, `fix()`, `update()`,

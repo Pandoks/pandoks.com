@@ -96,7 +96,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: '24.15.0'
+          node-version: '24.16.0'
           cache: 'pnpm'
 
       - name: Install pnpm dependencies
@@ -118,7 +118,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: '24.15.0'
+          node-version: '24.16.0'
           cache: 'pnpm'
 
       - name: Install pnpm dependencies
@@ -141,7 +141,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: '24.15.0'
+          node-version: '24.16.0'
           cache: 'pnpm'
 
       - name: Setup Go
@@ -169,7 +169,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: '24.15.0'
+          node-version: '24.16.0'
           cache: 'pnpm'
 
       - name: Setup Go
@@ -207,7 +207,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: '24.15.0'
+          node-version: '24.16.0'
           cache: 'pnpm'
 
       - name: Install shfmt
@@ -229,7 +229,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: '24.15.0'
+          node-version: '24.16.0'
           cache: 'pnpm'
 
       - name: Run ShellCheck
@@ -249,12 +249,13 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: '24.15.0'
+          node-version: '24.16.0'
 
       - name: Install Helm
         uses: azure/setup-helm@v5
         with:
-          version: 'latest'
+          # renovate: datasource=github-releases packageName=helm/helm
+          version: 'v4.2.0'
 
       - name: Install kubeconform
         run: |
@@ -308,7 +309,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: '24.15.0'
+          node-version: '24.16.0'
           cache: 'pnpm'
 
       - name: Install pnpm dependencies
@@ -371,7 +372,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}

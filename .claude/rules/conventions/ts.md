@@ -91,6 +91,26 @@ Same shape in `apps/functions/src/api/notion/webhook.ts`
 (externals at `:1-4`, internals at `:5-6`, ssmClient + type at `:8-23`,
 exported handler at `:25-end`).
 
+## Imports — type-only uses inline `type`
+
+**`error`-level lint rule**, not a free choice:
+`@typescript-eslint/consistent-type-imports` with
+`fixStyle: 'inline-type-imports'` (`eslint.config.ts:103`).
+
+- A mixed value+type import puts `type` on the specifier:
+  `import { PHONE_NUMBER_MAPPINGS, type Users } from '../../lib/pii'`
+  (`text-reminder.ts:12`; also `import { clsx, type ClassValue } from 'clsx'`
+  at `packages/svelte/src/lib/utils.ts:1`).
+- An import that is **entirely** types collapses to a whole-import
+  `import type { … }` (`webhook.ts:2`, `gh-blog-sync.ts:2`).
+
+Don't hand-fix — `pnpm fix js` rewrites it. The broader enforced JS/TS
+ruleset (consistent-type-imports, `consistent-indexed-object-style`→record,
+unicorn `no-for-loop`/`no-array-for-each`, `curly` multi-line,
+`no-else-return`, smart `eqeqeq`, the naming-convention matrix) lives in
+`eslint.config.ts:88-135` — `universal.md`'s lint table only names the
+dispatcher, so that file is the source for what's machine-enforced.
+
 ## Error handling
 
 - **HTTP handlers return `new Response('Reason', { status: NNN })`** —

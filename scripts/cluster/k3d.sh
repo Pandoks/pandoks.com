@@ -4,8 +4,7 @@
 
 cmd_k3d_up() {
   if [ $# -gt 0 ]; then
-    printf "%bError:%b Unexpected argument for k3d up: %s\n" "${RED}" "${NORMAL}" "$1" >&2
-    exit 1
+    die "Unexpected argument for k3d up: $1"
   fi
 
   if k3d cluster list 2> /dev/null | grep -q "^local-cluster"; then
@@ -14,7 +13,7 @@ cmd_k3d_up() {
   fi
 
   if ! docker network inspect pandoks-net > /dev/null 2>&1; then
-    printf "%bError:%b docker network 'pandoks-net' not found.\n" "${RED}" "${NORMAL}" >&2
+    log_error "docker network 'pandoks-net' not found."
     printf "Run 'docker compose up -d' first to create the network.\n" >&2
     return 1
   fi
@@ -22,7 +21,7 @@ cmd_k3d_up() {
   echo "Fetching latest stable k3s version..."
   cmd_k3d_up_k3s_version=$(curl -sL https://update.k3s.io/v1-release/channels | jq -r '.data[] | select(.id == "stable") | .latest')
   if [ -z "${cmd_k3d_up_k3s_version}" ]; then
-    printf "%bError:%b Failed to fetch latest k3s version\n" "${RED}" "${NORMAL}" >&2
+    log_error "Failed to fetch latest k3s version"
     return 1
   fi
   cmd_k3d_up_k3s_image="rancher/k3s:$(echo "${cmd_k3d_up_k3s_version}" | tr '+' '-')"
@@ -40,13 +39,12 @@ cmd_k3d_up() {
     --k3s-arg "--etcd-expose-metrics@server:*" \
     -p "8080:30080@loadbalancer" \
     --network pandoks-net
-  printf "%b✓ k3d cluster created%b\n" "${GREEN}" "${NORMAL}"
+  log_ok "k3d cluster created"
 }
 
 cmd_k3d_down() {
   if [ $# -gt 0 ]; then
-    printf "%bError:%b Unexpected argument for k3d down: %s\n" "${RED}" "${NORMAL}" "$1" >&2
-    exit 1
+    die "Unexpected argument for k3d down: $1"
   fi
 
   if ! k3d cluster list 2> /dev/null | grep -q "^local-cluster"; then
@@ -56,13 +54,12 @@ cmd_k3d_down() {
 
   echo "Deleting k3d cluster 'local-cluster'..."
   k3d cluster delete local-cluster
-  printf "%b✓ k3d cluster deleted%b\n" "${GREEN}" "${NORMAL}"
+  log_ok "k3d cluster deleted"
 }
 
 cmd_k3d_start() {
   if [ $# -gt 0 ]; then
-    printf "%bError:%b Unexpected argument for k3d start: %s\n" "${RED}" "${NORMAL}" "$1" >&2
-    exit 1
+    die "Unexpected argument for k3d start: $1"
   fi
 
   if ! k3d cluster list 2> /dev/null | grep -q "^local-cluster"; then
@@ -72,13 +69,12 @@ cmd_k3d_start() {
 
   echo "Starting k3d cluster 'local-cluster'..."
   k3d cluster start local-cluster
-  printf "%b✓ k3d cluster started%b\n" "${GREEN}" "${NORMAL}"
+  log_ok "k3d cluster started"
 }
 
 cmd_k3d_stop() {
   if [ $# -gt 0 ]; then
-    printf "%bError:%b Unexpected argument for k3d stop: %s\n" "${RED}" "${NORMAL}" "$1" >&2
-    exit 1
+    die "Unexpected argument for k3d stop: $1"
   fi
 
   if ! k3d cluster list 2> /dev/null | grep -q "^local-cluster"; then
@@ -88,13 +84,12 @@ cmd_k3d_stop() {
 
   echo "Stopping k3d cluster 'local-cluster'..."
   k3d cluster stop local-cluster
-  printf "%b✓ k3d cluster stopped%b\n" "${GREEN}" "${NORMAL}"
+  log_ok "k3d cluster stopped"
 }
 
 cmd_k3d_restart() {
   if [ $# -gt 0 ]; then
-    printf "%bError:%b Unexpected argument for k3d restart: %s\n" "${RED}" "${NORMAL}" "$1" >&2
-    exit 1
+    die "Unexpected argument for k3d restart: $1"
   fi
 
   if ! k3d cluster list 2> /dev/null | grep -q "^local-cluster"; then
@@ -105,7 +100,7 @@ cmd_k3d_restart() {
   echo "Restarting k3d cluster 'local-cluster'..."
   cmd_k3d_stop
   cmd_k3d_start
-  printf "%b✓ k3d cluster restarted%b\n" "${GREEN}" "${NORMAL}"
+  log_ok "k3d cluster restarted"
 }
 
 cmd_k3d() {
@@ -122,7 +117,7 @@ cmd_k3d() {
     deps) cmd_deps "$@" ;;
     help | --help | -h) usage_k3d ;;
     *)
-      printf "%bError:%b Unknown k3d subcommand '%s'\n" "${RED}" "${NORMAL}" "${cmd_k3d_subcmd}" >&2
+      log_error "Unknown k3d subcommand '${cmd_k3d_subcmd}'"
       usage_k3d 1
       ;;
   esac

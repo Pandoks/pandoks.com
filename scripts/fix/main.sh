@@ -9,6 +9,7 @@ readonly SCRIPT_DIR
 readonly REPO_ROOT
 
 . "${REPO_ROOT}/scripts/lib/font.sh"
+. "${REPO_ROOT}/scripts/lib/log.sh"
 
 usage() {
   printf "%bUsage:%b pnpm fix <language>\n\n" "${BOLD}" "${NORMAL}" >&2
@@ -47,7 +48,7 @@ main() {
     all) cmd_fix_all ;;
     help | --help | -h) usage ;;
     *)
-      printf "%bError:%b Unknown language '%s'\n" "${RED}" "${NORMAL}" "${cmd}" >&2
+      log_error "Unknown language '${cmd}'"
       usage 1
       ;;
   esac

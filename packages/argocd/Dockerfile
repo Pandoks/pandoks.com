@@ -1,4 +1,4 @@
-FROM node:24-slim
+FROM node:24.16.0-slim@sha256:242549cd46785b480c832479a730f4f2a20865d61ea2e404fdb2a5c3d3b73ecf
 
 # The argocd plugin invokes pnpm via corepack — never npm. Remove the bundled npm to drop its
 # vendored picomatch (CVE-2026-33671 ReDoS).
