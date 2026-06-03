@@ -76,13 +76,23 @@ def main() -> int:
         log_mark = Path(proxy_log).stat().st_size  # only read NEW lines
 
     env = dict(os.environ, PORT=str(PORT), STEALTH_IN_DOCKER="1")
+    # Stale X locks from a previously-killed Xvfb make `xvfb-run` fail silently;
+    # clear them so repeated runs are robust.
+    import glob
+    for lock in glob.glob("/tmp/.X*-lock"):
+        try:
+            os.remove(lock)
+        except OSError:
+            pass
     # Headful on Xvfb (the real config). xvfb-run wraps the whole service.
+    # start_new_session so we can signal the WHOLE group (xvfb-run + uv +
+    # python + chrome) on teardown.
     cmd = ["xvfb-run", "-a", "uv", "run", "--project", str(PKG),
            "stealth-browser"]
     print(f"=== starting service: APEX_CORE={env.get('APEX_CORE','nodriver')} "
           f"patched={bool(env.get('APEX_CHROME_PATH'))} proxy="
-          f"{env.get('PROXY_HOST')}:{env.get('PROXY_PORT')} ===")
-    proc = subprocess.Popen(cmd, env=env, cwd=str(PKG))
+          f"{env.get('PROXY_HOST')}:{env.get('PROXY_PORT')} ===", flush=True)
+    proc = subprocess.Popen(cmd, env=env, cwd=str(PKG), start_new_session=True)
     results: list = []
 
     def check(ok, label, detail="", hard=True):
@@ -192,11 +202,18 @@ def main() -> int:
                 _req("DELETE", f"/sessions/{sid}")
             except Exception:
                 pass
-        proc.send_signal(signal.SIGTERM)
+        # Signal the whole process group (xvfb-run + uv + python + chrome).
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        except Exception:
+            proc.send_signal(signal.SIGTERM)
         try:
             proc.wait(timeout=20)
         except Exception:
-            proc.kill()
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            except Exception:
+                proc.kill()
 
     print("\n--- proxy feature assertions ---")
     hard_fail = 0

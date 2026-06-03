@@ -243,6 +243,16 @@ def chrome_launch_flags(identity: Identity, *, headless: bool,
             "--enable-webgl",
             "--enable-unsafe-swiftshader",  # fallback only
         ]
+    # Opt-in cert tolerance for TLS-TERMINATING unblockers (e.g. Oxylabs Web
+    # Unblocker, which MITMs HTTPS and presents its own CA). Without this,
+    # every navigation through such an endpoint dies with
+    # ERR_CERT_AUTHORITY_INVALID. Gated on its own env var (NOT on `proxy`,
+    # since both cores wire the proxy via the driver and call this without the
+    # proxy arg). Do NOT set it for a transparent tunnelling proxy -- it
+    # weakens TLS validation; the clean alternative is to install the
+    # unblocker's CA cert into the system store.
+    if os.environ.get("APEX_PROXY_IGNORE_CERT") == "1":
+        flags.append("--ignore-certificate-errors")
     if proxy is not None and getattr(proxy, "configured", False):
         # route all of Chrome's traffic through the proxy. Credentials are NOT
         # in this flag -- they are supplied over CDP (Fetch.authRequired).

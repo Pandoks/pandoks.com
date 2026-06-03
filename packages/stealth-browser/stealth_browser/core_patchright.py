@@ -83,7 +83,8 @@ class PatchrightCore:
         # async_playwright().start() ran above, so a later os.environ.update
         # would NOT reach the spawned Chrome. `env=` sets the child process
         # environment explicitly and reliably.
-        from fp_profiles import (pick_profile, fp_env, patched_chrome_path)
+        from stealth_browser.fp_profiles import (
+            pick_profile, fp_env, patched_chrome_path)
         import os as _os
         patched = patched_chrome_path()
         if patched is not None:

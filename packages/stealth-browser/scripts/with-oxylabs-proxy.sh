@@ -61,6 +61,9 @@ export PROXY_PASS="$PROXY_PASS_VALUE"
 # Explicitly UNSET any residential-style template so the WU username is used
 # verbatim (see WIRING FACTS above).
 unset PROXY_USER_TEMPLATE || true
+# Web Unblocker terminates TLS, so Chrome must tolerate its CA (or you install
+# the Oxylabs CA cert). This opt-in is read by profile.chrome_launch_flags.
+export APEX_PROXY_IGNORE_CERT="1"
 
 echo "[with-oxylabs-proxy] PROXY_HOST=$PROXY_HOST PROXY_PORT=$PROXY_PORT" \
      "PROXY_SCHEME=$PROXY_SCHEME PROXY_USER=${PROXY_USER%%_*}_*** (as-is)" >&2
