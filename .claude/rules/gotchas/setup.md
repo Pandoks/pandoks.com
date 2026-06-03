@@ -92,17 +92,42 @@ the original problem.
   detected PM name so `ensure_package_manager` only runs
   apt-update / pacman -Syu / Xcode-CLT / Homebrew bootstrap once per
   run, not per-installer.
+- **`SETUP_PATH_DIRS_CACHE`** at `env.sh:140` memoizes
+  `required_path_dirs` the same way (gate-at-top, mirrors the PM cache).
+  Deterministic within a run (check is read-only — no installs, no PATH
+  mutation). The main beneficiary is `populate_proper_pathing` in
+  `cmd_setup_all`, which calls `required_path_dirs` in the single main
+  process. **Inside `setup check` the cache is per-subshell**: the 19
+  probes run as backgrounded (`&`) subshells, and a shell var set in a
+  subshell can't propagate back to the parent or siblings — so each
+  off-PATH probe recomputes its own copy (the first call in each subshell
+  pays `go env GOPATH`). Not primed before the fan-out by design — the
+  per-subshell recompute is cheap enough and check stays sub-second.
 - **No `~/.cache/pandoks-setup/`** — explicitly chose not to ship
   on-disk caches after trying them in worktrees. The in-memory
   short-circuits get warm runs sub-second; the extra wasn't worth a
   cache-invalidation surface.
-- **`cmd_setup_check` is parallel** (`check.sh:92`) — 19 `command -v` +
-  version probes fan out via `&` + `wait` (`check.sh:118-122`), each
+- **`cmd_setup_check` is parallel** (`check.sh:106`) — 19 `command -v` +
+  version probes fan out via `&` + `wait` (`check.sh:132-136`), each
   writing to its own numbered temp file via `print_check_report_status`,
-  then cat'd in order. Drift is derived from the report content (a `✗` line via
-  `grep`), not a separate marker file — a marker written after the
-  report could be lost if the backgrounded subshell died in between,
-  silently downgrading drift to OK.
+  then cat'd in order. Drift is derived from the report content (a `✗`
+  **or `⚠`** line via `grep`, `check.sh:141`), not a separate marker
+  file — a marker written after the report could be lost if the
+  backgrounded subshell died in between, silently downgrading drift to OK.
+- **`setup check` is 3-state, not 2** (`print_check_report_status`,
+  `check.sh:65-104`). For each tool: on PATH + in-spec → `✓`; on PATH +
+  wrong version → `✗ … (want …)` (drift, `version_drift`); \*\*not on the
+  live PATH but found in one of `required_path_dirs` → `⚠ installed at
+  <dir> — not on PATH (source your rc)`**; nowhere → `✗ not installed`.
+  The `⚠` state exists because a **non-interactive** shell (CI, the
+  SessionStart hook, `su -c`) never sources the rc the installer wrote,
+  so user-dir tools (nvm node, `/usr/local/go/bin`, `~/go/bin`,
+  `~/.local/bin`) are installed but off-PATH. **`⚠` still exits
+  non-zero** — off-PATH means "not usable in this shell" — it only
+  changes the message (source-your-rc vs reinstall). The off-PATH probe
+  runs in a `$(…)` subshell, so `check` never mutates the live PATH (it
+  reports honest current-shell truth); it does NOT call
+  `populate_proper_pathing` the way `cmd_setup_all` does.
 
 ## Pinned versions to keep in sync with prod
 
