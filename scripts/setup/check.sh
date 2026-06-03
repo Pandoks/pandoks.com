@@ -63,14 +63,28 @@ version_drift() {
 }
 
 print_check_report_status() {
-  check_report_out="$1"  # slot file to write the ✓/✗ line to
+  check_report_out="$1"  # slot file to write the ✓/✗/⚠ line to
   check_report_name="$2" # tool name, e.g. kubectl
   check_report_cmd="$3"  # version probe, e.g. 'kubectl version ... | awk ...'
 
-  # missing → red ✗ "not installed"
   if ! command -v "${check_report_name}" > /dev/null 2>&1; then
-    printf "  %b✗%b %-14s not installed\n" "${RED}" "${NORMAL}" "${check_report_name}" \
-      > "${check_report_out}"
+    check_report_offpath_dir=$(
+      required_path_dirs | while read -r check_report_dir; do
+        [ -n "${check_report_dir}" ] || continue
+        if [ -x "${check_report_dir}/${check_report_name}" ]; then
+          printf '%s' "${check_report_dir}"
+          break
+        fi
+      done
+    )
+    if [ -n "${check_report_offpath_dir}" ]; then # installed but not on PATH
+      printf "  %b⚠%b %-14s installed at %s — not on PATH (source your rc)\n" \
+        "${YELLOW}" "${NORMAL}" "${check_report_name}" "${check_report_offpath_dir}" \
+        > "${check_report_out}"
+    else
+      printf "  %b✗%b %-14s not installed\n" "${RED}" "${NORMAL}" "${check_report_name}" \
+        > "${check_report_out}"
+    fi
     return
   fi
 
@@ -124,7 +138,7 @@ cmd_setup_check() {
   cmd_setup_check_drifted=0
   for cmd_setup_check_slot in "${cmd_setup_check_tmp}"/*; do
     cat "${cmd_setup_check_slot}" >&2
-    grep -q '✗' "${cmd_setup_check_slot}" && cmd_setup_check_drifted=1
+    grep -q '✗\|⚠' "${cmd_setup_check_slot}" && cmd_setup_check_drifted=1
   done
   rm -rf "${cmd_setup_check_tmp}"
   return "${cmd_setup_check_drifted}"
