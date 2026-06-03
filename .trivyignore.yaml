@@ -1,5 +1,5 @@
 vulnerabilities:
-  # Go DoS CVEs in kubectl (argocd image). Fixed in Go 1.26.3; k8s release-1.36 still builds on 1.26.2.
+  # Go stdlib CVEs in kubectl (argocd image). Fixed in Go 1.26.3; k8s release-1.36 still builds on 1.26.2.
   # Unreachable: kubectl only talks to the cluster API. Drop once a Go-1.26.3+ kubectl lands; expired_at forces re-review otherwise.
   - id: CVE-2026-33811
     paths:
@@ -25,6 +25,21 @@ vulnerabilities:
     paths:
       - usr/local/bin/kubectl
     statement: net/mail consumePhrase DoS not exercised by kubectl
+    expired_at: 2026-08-12
+  - id: CVE-2026-39823
+    paths:
+      - usr/local/bin/kubectl
+    statement: html/template <meta> content URL XSS; kubectl renders no HTML templates
+    expired_at: 2026-08-12
+  - id: CVE-2026-39825
+    paths:
+      - usr/local/bin/kubectl
+    statement: net/http/httputil ReverseProxy query-param forwarding needs an internet-facing proxy; kubectl proxy binds localhost only
+    expired_at: 2026-08-12
+  - id: CVE-2026-39826
+    paths:
+      - usr/local/bin/kubectl
+    statement: html/template <script> type-attr XSS; kubectl renders no HTML templates
     expired_at: 2026-08-12
 
 misconfigurations:
