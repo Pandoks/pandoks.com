@@ -159,6 +159,33 @@ if (navigator.getBattery) {
   row('Battery API', 'not present', 'info');
 }
 
+// navigator.connection: rtt/downlink/effectiveType should report the
+// spoofed residential profile. rtt must be a multiple of 50 (Chrome's
+// privacy rounding, which the patch mirrors).
+(function () {
+  const c = navigator.connection;
+  if (!c) { row('navigator.connection', 'not present', 'info'); return; }
+  const rttOk = typeof c.rtt === 'number' && c.rtt % 50 === 0;
+  row('connection.effectiveType', String(c.effectiveType),
+      c.effectiveType === '4g' ? 'ok' : 'info');
+  row('connection.rtt / downlink',
+      'rtt=' + c.rtt + ' downlink=' + c.downlink,
+      rttOk ? 'ok' : 'info');
+})();
+
+// navigator.storage.estimate().quota: the spoofed per-origin quota. A
+// datacenter VM reports a small/uniform quota; ours is a residential band.
+if (navigator.storage && navigator.storage.estimate) {
+  navigator.storage.estimate().then(est => {
+    const gib = est.quota / (1024 * 1024 * 1024);
+    row('storage.estimate().quota',
+        est.quota + '  (~' + gib.toFixed(0) + ' GiB), usage=' + est.usage,
+        est.quota > 0 ? 'ok' : 'info');
+  }).catch(e => row('storage.estimate()', 'error: ' + e, 'info'));
+} else {
+  row('storage.estimate()', 'not present', 'info');
+}
+
 // CDP inspector leak: the 2026 prototype-Proxy probe. If a CDP client is
 // attached AND the inspector previews console args walking the prototype
 // chain, this Proxy ownKeys trap fires.

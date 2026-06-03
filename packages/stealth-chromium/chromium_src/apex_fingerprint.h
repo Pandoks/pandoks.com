@@ -25,6 +25,11 @@
 //   APEX_FP_BATTERY_CHARGING "1"/"0", battery charging state
 //   APEX_FP_DEVICELABELS     ";"-joined synthetic media-device labels
 //   APEX_FP_VOICES           "name|lang|default,..." speechSynthesis voices
+//   APEX_FP_NET_RTT          uint ms, navigator.connection.rtt (rounded /50)
+//   APEX_FP_NET_DOWNLINK     float Mbps, navigator.connection.downlink
+//   APEX_FP_NET_EFFECTIVE_TYPE  navigator.connection.effectiveType
+//                            ("slow-2g"|"2g"|"3g"|"4g")
+//   APEX_FP_STORAGE_QUOTA    uint64 bytes, navigator.storage.estimate().quota
 //   (WebRTC: when APEX_FP_ACTIVE=1, non-proxied UDP is force-disabled so the
 //    real IP cannot leak past a proxy -- no separate env var, always on.)
 //
@@ -81,6 +86,21 @@ inline uint32_t EnvU32(const char* name, uint32_t fallback) {
     if (acc > 0xFFFFFFFFull) return fallback;  // overflow guard
   }
   return static_cast<uint32_t>(acc);
+}
+
+inline uint64_t EnvU64(const char* name, uint64_t fallback) {
+  std::string s = EnvStr(name);
+  if (s.empty()) return fallback;
+  uint64_t acc = 0;
+  for (char c : s) {
+    if (c < '0' || c > '9') return fallback;
+    // Overflow guard: reject anything that would wrap past UINT64_MAX.
+    if (acc > (0xFFFFFFFFFFFFFFFFull - static_cast<uint64_t>(c - '0')) / 10u) {
+      return fallback;
+    }
+    acc = acc * 10u + static_cast<uint64_t>(c - '0');
+  }
+  return acc;
 }
 
 inline int EnvInt(const char* name, int fallback) {

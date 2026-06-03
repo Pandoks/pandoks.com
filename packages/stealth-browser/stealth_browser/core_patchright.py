@@ -68,6 +68,12 @@ class PatchrightCore:
             "channel": "chrome",  # real Google Chrome, not bundled Chromium
             "headless": self.headless,
             "args": chrome_launch_flags(idn, headless=self.headless),
+            # Playwright injects --enable-automation as a DEFAULT arg (outside
+            # our args list above); strip it so the launcher-hygiene guarantee
+            # holds for this backend too. patchright also removes it, but
+            # making it explicit means a patchright behaviour change can't
+            # silently re-cloak us.
+            "ignore_default_args": ["--enable-automation"],
         }
         # use the apex-chromium patched binary when available so the C++
         # fingerprint patches are active for this variant too.

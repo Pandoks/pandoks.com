@@ -37,7 +37,7 @@ ways a patch can land, and you need to know which one for each surface.
 | # | Mechanism | When to use | Where it lives | Count |
 |---|---|---|---|---|
 | 1 | **Full-file `chromium_src/` overlay** | The upstream `.cc` is a single tiny function. Drop in a complete replacement. | `chromium_src/<path>/<file>.cc` + listed in `scripts/apply.sh` `OVERLAYS=()` | 2 |
-| 2 | **Anchor edit** (preferred for everything else) | Patch one function inside a multi-function file. A unique substring anchors the insertion, surviving Chromium version drift. | A dict in the `EDITS = [...]` list at `scripts/apply_edits.py` | 23 |
+| 2 | **Anchor edit** (preferred for everything else) | Patch one function inside a multi-function file. A unique substring anchors the insertion, surviving Chromium version drift. | A dict in the `EDITS = [...]` list at `scripts/apply_edits.py` | 27 |
 | 3 | **`.patch` file** (documentation only) | None &mdash; the `.patch` files in `patches/` are vestigial. They describe historical intent. `apply.sh` does **not** apply them. | `patches/*.patch` + `patches/series` | 11 (informational) |
 
 The header at the top of `scripts/apply.sh` claims it applies the `.patch`
@@ -298,7 +298,7 @@ uv run --project ../stealth-browser python scripts/cdp_probe.py
 ## What's already patched
 
 `apply.sh` + `apply_edits.py` together cover (truthful count: **2 overlays +
-23 anchor edits = 25 distinct edits**, spanning ~20 web-facing surfaces):
+27 anchor edits = 29 distinct edits**, spanning ~22 web-facing surfaces):
 
 | Surface | Mechanism | Env var(s) |
 |---|---|---|
@@ -319,6 +319,8 @@ uv run --project ../stealth-browser python scripts/cdp_probe.py
 | Local Font Access (`queryLocalFonts`) | anchor edit + `apex_font_policy.h` | `APEX_FP_ACTIVE` |
 | WebRTC ICE (no-non-proxied-UDP, real-IP leak) | anchor edit | `APEX_FP_ACTIVE` |
 | V8 inspector console-preview (2026 CDP-detection vector) | anchor edit | `APEX_FP_ACTIVE` |
+| `navigator.connection.{effectiveType,rtt,downlink}` | anchor edit (×3) | `APEX_FP_NET_EFFECTIVE_TYPE` / `APEX_FP_NET_RTT` / `APEX_FP_NET_DOWNLINK` |
+| `navigator.storage.estimate().quota` | anchor edit | `APEX_FP_STORAGE_QUOTA` |
 
 `patches/*.patch` files describe these in unified-diff form for review
 purposes but are NOT executed by the build.

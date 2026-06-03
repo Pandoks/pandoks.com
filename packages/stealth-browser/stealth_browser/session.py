@@ -32,6 +32,37 @@ class ServiceError(Exception):
         self.message = message
 
 
+# Launch flags that must NEVER reach Chrome -- they re-add the automation tells
+# the rest of the stealth stack works to remove. --enable-automation adds the
+# "Chrome is being controlled by automated software" infobar, sets the
+# AutomationControlled blink feature (navigator.webdriver = true), and flips
+# several CDP-detectable bits. Clark catalogs this as launcher hygiene.
+_BANNED_LAUNCH_FLAGS = ("--enable-automation",)
+
+
+def _assert_launcher_hygiene() -> None:
+    """Fail-fast if the canonical launch flags carry a banned automation flag.
+
+    Validates the single source of Chrome flags
+    (`profile.chrome_launch_flags`) in BOTH headful and headless modes, so a
+    regression in profile.py aborts session creation loudly instead of silently
+    de-cloaking the browser. Raises ServiceError(500) -- the HTTP layer turns
+    that into a 500 rather than launching a controlled-looking Chrome.
+    """
+    from stealth_browser.profile import Identity, chrome_launch_flags
+    idn = Identity()
+    for headless in (False, True):
+        for flag in chrome_launch_flags(idn, headless=headless):
+            for banned in _BANNED_LAUNCH_FLAGS:
+                if banned in flag:
+                    raise ServiceError(
+                        500,
+                        f"launcher hygiene violation: {banned!r} present in "
+                        f"chrome_launch_flags(headless={headless}) -- refusing "
+                        f"to launch a de-cloaked browser",
+                    )
+
+
 def _make_core(headless: bool, proxy=None, profile_label: str | None = None):
     """Build a core for the configured backend (APEX_CORE env var).
 
@@ -100,6 +131,7 @@ class SessionManager:
         so it looks to the server like the same authenticated user signing in
         from a new device/IP. This is the shared-login multi-session pattern.
         """
+        _assert_launcher_hygiene()
         if len(self._sessions) >= self.max_sessions:
             raise ServiceError(
                 429, f"session limit reached ({self.max_sessions})")

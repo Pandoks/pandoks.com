@@ -245,6 +245,16 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
     # per-session battery: deterministic from seed, 0.55..0.95, whole percent
     rng = random.Random(seed)
     battery_pct = rng.randint(55, 95)
+    # navigator.connection: a residential broadband profile. Chrome caps
+    # downlink at 10 Mbps and rounds rtt to 50ms for privacy, so these ARE the
+    # values a real fast connection reports -- the spoof matters because a
+    # datacenter/headless host often reports rtt~0 or an odd effectiveType,
+    # which is the datacenter-vs-residential tell. rtt varies per session.
+    net_rtt = rng.choice([50, 50, 100, 100, 150])
+    # storage.estimate().quota: a per-origin quota in a plausible residential
+    # band (120-400 GiB), seed-stable. Datacenter VMs report small/uniform
+    # quotas tied to a tiny host disk.
+    quota_bytes = rng.randint(120, 400) * 1024 * 1024 * 1024
     return {
         "APEX_FP_ACTIVE": "1",
         "APEX_FP_SEED": str(seed & 0xFFFFFFFF),
@@ -261,6 +271,10 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         "APEX_FP_COLOR_DEPTH": str(profile.color_depth),
         "APEX_FP_BATTERY_LEVEL": str(battery_pct / 100.0),
         "APEX_FP_BATTERY_CHARGING": "0",
+        "APEX_FP_NET_RTT": str(net_rtt),
+        "APEX_FP_NET_DOWNLINK": "10",
+        "APEX_FP_NET_EFFECTIVE_TYPE": "4g",
+        "APEX_FP_STORAGE_QUOTA": str(quota_bytes),
     }
 
 

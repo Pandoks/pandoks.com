@@ -410,6 +410,85 @@ EDITS = [
                   "    em_height_descent_ *= f;\n"
                   "  }\n",
     },
+
+    # --- navigator.connection.effectiveType ---------------------------
+    # Datacenter/headless hosts often report a NetInfo profile that differs
+    # from a residential machine (rtt≈0, missing/odd effectiveType). Spoof a
+    # plausible residential broadband profile. Returned BEFORE the upstream
+    # body so the holdback-experiment + observer paths are bypassed cleanly.
+    {
+        "file": "third_party/blink/renderer/modules/netinfo/"
+                "network_information.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-net-effective-type",
+        "anchor": "V8EffectiveConnectionType NetworkInformation::effectiveType()"
+                  " {\n",
+        "where": "after",
+        "inject": "  // apex-net-effective-type\n"
+                  "  if (apex_fp::HasOverride(\"APEX_FP_NET_EFFECTIVE_TYPE\")) {\n"
+                  "    const std::string ect =\n"
+                  "        apex_fp::EnvStr(\"APEX_FP_NET_EFFECTIVE_TYPE\");\n"
+                  "    if (ect == \"slow-2g\")\n"
+                  "      return V8EffectiveConnectionType(\n"
+                  "          V8EffectiveConnectionType::Enum::kSlow2G);\n"
+                  "    if (ect == \"2g\")\n"
+                  "      return V8EffectiveConnectionType(\n"
+                  "          V8EffectiveConnectionType::Enum::k2G);\n"
+                  "    if (ect == \"3g\")\n"
+                  "      return V8EffectiveConnectionType(\n"
+                  "          V8EffectiveConnectionType::Enum::k3G);\n"
+                  "    if (ect == \"4g\")\n"
+                  "      return V8EffectiveConnectionType(\n"
+                  "          V8EffectiveConnectionType::Enum::k4G);\n"
+                  "  }\n",
+    },
+    # --- navigator.connection.rtt -------------------------------------
+    # Chrome rounds RTT to the nearest 50ms for privacy; mirror that so the
+    # spoofed value can't be distinguished by its granularity.
+    {
+        "file": "third_party/blink/renderer/modules/netinfo/"
+                "network_information.cc",
+        "marker": "apex-net-rtt",
+        "anchor": "uint32_t NetworkInformation::rtt() {\n",
+        "where": "after",
+        "inject": "  // apex-net-rtt\n"
+                  "  if (apex_fp::HasOverride(\"APEX_FP_NET_RTT\")) {\n"
+                  "    uint32_t v = apex_fp::EnvU32(\"APEX_FP_NET_RTT\", 0u);\n"
+                  "    return ((v + 25u) / 50u) * 50u;\n"
+                  "  }\n",
+    },
+    # --- navigator.connection.downlink --------------------------------
+    {
+        "file": "third_party/blink/renderer/modules/netinfo/"
+                "network_information.cc",
+        "marker": "apex-net-downlink",
+        "anchor": "double NetworkInformation::downlink() {\n",
+        "where": "after",
+        "inject": "  // apex-net-downlink\n"
+                  "  if (apex_fp::HasOverride(\"APEX_FP_NET_DOWNLINK\")) {\n"
+                  "    double v = apex_fp::EnvDouble(\"APEX_FP_NET_DOWNLINK\","
+                  " -1.0);\n"
+                  "    if (v >= 0.0) return v;\n"
+                  "  }\n",
+    },
+
+    # --- navigator.storage.estimate() quota ---------------------------
+    # Spoof the per-origin quota the engine reports. Datacenter VMs expose a
+    # small/uniform quota (a function of the host disk); a residential machine
+    # reports a large one. Override only on the success path (this runs after
+    # the QuotaStatusCode error check, right after the real quota is set).
+    {
+        "file": "third_party/blink/renderer/modules/quota/storage_manager.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-storage-quota",
+        "anchor": "  estimate->setQuota(quota_in_bytes);\n",
+        "where": "after",
+        "inject": "  // apex-storage-quota\n"
+                  "  if (apex_fp::HasOverride(\"APEX_FP_STORAGE_QUOTA\")) {\n"
+                  "    estimate->setQuota(static_cast<int64_t>(\n"
+                  "        apex_fp::EnvU64(\"APEX_FP_STORAGE_QUOTA\", 0)));\n"
+                  "  }\n",
+    },
 ]
 
 
