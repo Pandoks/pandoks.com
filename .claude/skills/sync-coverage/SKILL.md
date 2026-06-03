@@ -129,7 +129,7 @@ edited scripts, and `pnpm setup check 2>&1 | grep <tool>` to confirm the new
 inventory line resolves.
 
 Report each as a `### NEW-DEPENDENCY` block naming the tool, where it's used, and
-the touchpoints edited. Do NOT edit code to make a *rule* match (the Constraints
+the touchpoints edited. Do NOT edit code to make a _rule_ match (the Constraints
 ban that) — but wiring a real new dependency into the setup script IS in scope
 here, because the dependency already exists in the code; you're making the
 installer cover it, not fabricating a rule.
@@ -159,13 +159,13 @@ Emit a one-line status per rule:
 
 ### 6. Drift categories (reference table)
 
-| Category             | Signal                                                                       | Fix                                                       |
-| -------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------- |
-| **DEAD**             | File no longer exists or cited symbol removed                                | Delete the citation or rewrite around current state       |
-| **STALE**            | File exists, cited symbol moved >5 lines                                     | Update line number in the rule                            |
-| **CONTRADICTED**     | Code now does the opposite of what the rule says                             | Surface to user — could be drift OR a bug in the new code |
-| **GLOB-MISMATCH**    | `paths:` glob matches zero files OR matches files the rule doesn't describe  | Adjust the `paths:` list                                  |
-| **MISSING-COVERAGE** | Code surface (handler dir, package, sandbox module) with no rule covering it | Propose a new rule file or extend an existing one         |
+| Category             | Signal                                                                       | Fix                                                                     |
+| -------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| **DEAD**             | File no longer exists or cited symbol removed                                | Delete the citation or rewrite around current state                     |
+| **STALE**            | File exists, cited symbol moved >5 lines                                     | Update line number in the rule                                          |
+| **CONTRADICTED**     | Code now does the opposite of what the rule says                             | Surface to user — could be drift OR a bug in the new code               |
+| **GLOB-MISMATCH**    | `paths:` glob matches zero files OR matches files the rule doesn't describe  | Adjust the `paths:` list                                                |
+| **MISSING-COVERAGE** | Code surface (handler dir, package, sandbox module) with no rule covering it | Propose a new rule file or extend an existing one                       |
 | **NEW-DEPENDENCY**   | A new external tool the code now calls that `scripts/setup/` doesn't install | Wire into the installer + `check.sh` inventory + README deps list (§3b) |
 
 ### 6. Cross-check with universal invariants
