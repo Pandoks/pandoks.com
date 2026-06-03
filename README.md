@@ -62,8 +62,8 @@ brew install go kubectl k3d awscli helm jq openssl@3 uv tailscale
   <summary>Code Quality &amp; Formatting</summary>
   <p>
     Required to run <code>pnpm lint</code> or <code>pnpm format</code> locally. Installed by
-    <code>pnpm setup all</code> (or <code>pnpm setup quality</code> for just these). Not needed for
-    runtime or builds — CI installs these automatically.
+    <code>pnpm setup all</code>. Not needed for runtime or builds — CI installs these
+    automatically.
   </p>
   <ul>
     <li><a href="https://golangci-lint.run/">golangci-lint</a> — Go linter &amp; formatter</li>
