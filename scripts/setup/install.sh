@@ -134,7 +134,8 @@ install_python() {
 }
 
 install_go() {
-  if command -v go > /dev/null 2>&1; then
+  if command -v go > /dev/null 2>&1 \
+    && [ -z "$(version_drift go "$(go version 2> /dev/null)")" ]; then
     log_ok "Go already installed: $(go version)"
     return 0
   fi
@@ -250,15 +251,17 @@ install_docker() {
     apt-get)
       log_step "Installing Docker Engine from docker.com apt repo"
       use_sudo install -m 0755 -d /etc/apt/keyrings
+      # Docker serves separate ubuntu/ and debian/ apt repos; ID picks the right one.
+      install_docker_distro=$(. /etc/os-release && [ "${ID:-}" = debian ] && echo debian || echo ubuntu) # NOTE: os-release defines ID
       fetch_pgp_key \
-        https://download.docker.com/linux/ubuntu/gpg \
+        "https://download.docker.com/linux/${install_docker_distro}/gpg" \
         /etc/apt/keyrings/docker.gpg \
         "docker"
       use_sudo chmod a+r /etc/apt/keyrings/docker.gpg
       install_docker_arch=$(architecture_asset amd64 arm64)
       install_docker_codename=$(. /etc/os-release && echo "${VERSION_CODENAME}") # NOTE: os-release defines VERSION_CODENAME
-      printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu %s stable\n' \
-        "${install_docker_arch}" "${install_docker_codename}" \
+      printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/%s %s stable\n' \
+        "${install_docker_arch}" "${install_docker_distro}" "${install_docker_codename}" \
         | use_sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
       use_sudo apt-get update -y
       install_packages apt-get \
@@ -350,6 +353,7 @@ install_quality() {
         hadolint \
         actionlint \
         golangci-lint \
+        govulncheck \
         jq \
         openssl@3
       ;;
