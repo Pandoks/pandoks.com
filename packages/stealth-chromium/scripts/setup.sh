@@ -88,7 +88,11 @@ if [ ! -d "$WORK/chromium/src" ]; then
     # is 512 parallel fetches — guaranteed 429. 184805 died here.
     gclient sync -D --no-history --with_branch_heads -j 4
     cd "$WORK"
-    echo "$CHROMIUM_VERSION" > "$SENTINEL"
+    # NOTE: do NOT write the sentinel here. `fetch chromium` lands on ToT
+    # (main), NOT $CHROMIUM_VERSION -- recording the version now would make
+    # step 3 believe the tree is already at the pin and skip the tag checkout,
+    # which is exactly the bug that shipped ToT mislabelled as the pin. Step 3
+    # checks the real chrome/VERSION and does the checkout.
     CACHE_DIRTY=1  # fresh fetch → tree is new → must upload the rolling cache
   fi
 else
@@ -118,57 +122,61 @@ echo "[2.5/3] installing Chromium build dependencies (apt) ..."
 sudo "$WORK/chromium/src/build/install-build-deps.sh" \
   --no-prompt --no-chromeos-fonts --no-nacl --no-arm
 
-# 3. check out the target version + sync deps. Three sub-paths based on
-# sentinel state:
-#   (a) sentinel matches current version → skip (fastest path)
-#   (b) sentinel exists for a different version → fetch the delta + sync
-#   (c) no sentinel → step 2 just did a full fetch; record it and skip here
-CACHED_VERSION=""
-if [ -f "$SENTINEL" ]; then
-  CACHED_VERSION="$(cat "$SENTINEL" 2>/dev/null || echo "")"
-fi
+# 3. Ensure the checkout is EXACTLY at the pinned tag. Ground truth is the
+# tree's own chrome/VERSION file, NOT the sentinel: the sentinel only records
+# INTENT, but a fresh `fetch chromium` lands on ToT and a failed tag checkout
+# leaves a stale tree -- neither of which the sentinel can detect. Reading
+# chrome/VERSION is the only honest signal of what will actually be compiled.
+# (Builds #18-#N silently shipped ToT mislabelled as the pin because the
+# sentinel said "synced" while the tree was never checked out to the tag.)
+cd "$WORK/chromium/src"
 
-# CACHE_DIRTY was set above if step 2 did a fresh fetch. We only re-upload
-# the rolling cache when the tree changed — re-uploading an unchanged 10 GiB
-# tarball wastes ~5 min of zstd+S3 on every same-version iteration. Build
-# #19 measured this: 27 min warm vs 18 min, the 9-min gap was needless
-# re-upload. Do NOT reset CACHE_DIRTY here — step 2's cache-miss fetch
-# already set it to 1 and that upload must happen.
-if [ "$CACHED_VERSION" = "$CHROMIUM_VERSION" ]; then
-  echo "[3/3] cache already synced to $CHROMIUM_VERSION, skipping fetch + gclient sync"
-elif [ -n "$CACHED_VERSION" ]; then
-  echo "[3/3] cache was at $CACHED_VERSION, advancing to $CHROMIUM_VERSION ..."
-  cd "$WORK/chromium/src"
-  # The cached checkout is SHALLOW (fetch --no-history = depth 1). A shallow
-  # clone has no ancestor commits, so `git fetch <new-tag>` can't delta — it
-  # pulls a self-contained ~13.5M-object pack (~25 min index-pack).
-  #
-  # We deliberately DON'T try to make this cheaper via `git fetch --deepen`.
-  # Build #22 measured that: deepen DID make the new-tag fetch fast, but it
-  # ballooned the rolling cache from 10 GiB → 35 GiB (all the pulled ancestor
-  # history), which then slows the cache RESTORE on EVERY build — including
-  # the common same-version-iteration path (17 min → ~24 min). Net-negative:
-  # it speeds the rare weekly version bump by ~12 min while taxing every
-  # patch-iteration build by ~7 min. Wrong trade.
-  #
-  # Instead: accept the ~25-min cold source fetch on version bumps (it's
-  # inherent to shallow Chromium checkouts). The major-version-keyed ccache
-  # (see build.sh) still provides the cross-version COMPILE savings, which is
-  # where the real cost lives anyway. Keep the rolling cache lean (depth-1).
-  git fetch --tags --depth 1 origin "refs/tags/$CHROMIUM_VERSION" || true
-  git checkout "tags/$CHROMIUM_VERSION" 2>/dev/null \
-    || echo "  (tag checkout skipped -- staying on fetched revision)"
-  # gclient sync pulls the third-party submodule deltas implied by the
-  # new src/DEPS. -j 4 to stay under chromium.googlesource.com's burst
-  # rate limit (HTTP 429 RESOURCE_EXHAUSTED).
-  gclient sync -D --no-history --with_branch_heads -j 4
-  echo "$CHROMIUM_VERSION" > "$SENTINEL"
+read_tree_version() {
+  awk -F= '
+    /^MAJOR=/{a=$2} /^MINOR=/{b=$2} /^BUILD=/{c=$2} /^PATCH=/{d=$2}
+    END { if (a != "") print a"."b"."c"."d }
+  ' chrome/VERSION 2>/dev/null
+}
+
+TREE_VERSION="$(read_tree_version)"
+if [ "$TREE_VERSION" != "$CHROMIUM_VERSION" ]; then
+  echo "[3/3] tree at '${TREE_VERSION:-unknown}', checking out $CHROMIUM_VERSION ..."
+  # Explicit DESTINATION refspec (…:refs/tags/X) so the tag ref is created
+  # LOCALLY. `git fetch origin refs/tags/X` alone only writes FETCH_HEAD, so a
+  # later `git checkout tags/X` finds no ref and (previously, silently) left
+  # the tree on ToT. depth 1 keeps the rolling cache lean (see invariant #6).
+  git fetch --depth 1 origin \
+    "refs/tags/$CHROMIUM_VERSION:refs/tags/$CHROMIUM_VERSION"
+  # -f discards the prior build's apex working-tree patches so the tree is
+  # pristine for apply.sh to re-apply every edit cleanly (a stale partial
+  # patch is how the apex-platform edit silently dropped out of a build).
+  git checkout -f "refs/tags/$CHROMIUM_VERSION"
+  # Pin gclient to the SAME tag so third_party matches the checked-out src.
+  # -j 4 stays under chromium.googlesource.com's burst rate limit (HTTP 429).
+  gclient sync -D --no-history --with_branch_heads \
+    --revision "src@refs/tags/$CHROMIUM_VERSION" -j 4
   CACHE_DIRTY=1
 else
-  echo "[3/3] freshly fetched checkout — recording version $CHROMIUM_VERSION"
-  echo "$CHROMIUM_VERSION" > "$SENTINEL"
-  CACHE_DIRTY=1
+  echo "[3/3] tree already at $CHROMIUM_VERSION"
+  # Right version, but the cached tree may still carry the prior build's apex
+  # working-tree patches. Revert tracked files to pristine so apply.sh
+  # re-applies every edit fresh (untracked apex_*.h headers are harmless and
+  # get re-copied by apply.sh). Reverting to the cached-pristine state does
+  # NOT change the tree vs S3, so CACHE_DIRTY stays 0 -- no needless re-upload.
+  git checkout -f -- . 2>/dev/null || true
 fi
+
+# Fail-fast: NEVER compile (and then mislabel) a tree that isn't the pin. A
+# mismatch here means the checkout above didn't take -- abort rather than ship
+# the wrong revision. This is the guard that the whole pipeline lacked.
+TREE_VERSION="$(read_tree_version)"
+if [ "$TREE_VERSION" != "$CHROMIUM_VERSION" ]; then
+  echo "ERROR: checkout is at '${TREE_VERSION:-unknown}', expected $CHROMIUM_VERSION -- aborting."
+  exit 1
+fi
+echo "[3/3] verified tree is at $CHROMIUM_VERSION"
+echo "$CHROMIUM_VERSION" > "$SENTINEL"
+cd "$WORK"
 
 # Refresh the rolling cache ONLY when the tree changed (full fetch or
 # version advance). On a same-version warm build, the tarball content is
