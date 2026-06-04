@@ -85,6 +85,14 @@ export APEX_CHROMIUM_WORK=/build
 "$PKG_ROOT/scripts/apply.sh"
 "$PKG_ROOT/scripts/build.sh"
 
+# --- 4.5: assert the patches actually LINKED into the binary ---------------
+# build.sh only proves it COMPILED. A patch can silently drop out (apply skip,
+# stale ccache object, header misplacement) while the build still succeeds.
+# This guard greps the binary for every env-var-gated patch string and aborts
+# (-> ERR trap uploads diagnostics, no artifact) if any is missing -- so we
+# never ship a half-patched, quietly-de-cloaking binary again.
+"$PKG_ROOT/scripts/assert_binary_patched.sh"
+
 # --- 5. pack + upload artifact ---------------------------------------------
 echo "=== packaging artifact ==="
 CHROMIUM_VERSION="$(cat "$PKG_ROOT/chromium_version.txt")"

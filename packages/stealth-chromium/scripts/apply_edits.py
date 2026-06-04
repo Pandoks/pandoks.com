@@ -493,15 +493,37 @@ EDITS = [
 
 
 def _ensure_header(text: str, header: str | None) -> str:
-    """Add the apex #include just after the file's license block."""
+    """Add the apex #include just after the file's license block.
+
+    The license block is either a run of `//` line comments or a single
+    `/* ... */` block comment (Blink uses both). We must skip the WHOLE block:
+    inserting an #include *before* a `/* ... */` license -- which the old
+    `//`-only skip did for files like navigator_id.cc -- is legal C++ but
+    mangles the file's top and is exactly the kind of inconsistency that hides
+    bugs. Skip `//` lines, blank lines, and a leading `/* ... */` block, then
+    insert.
+    """
     if not header or header in text:
         return text
     lines = text.splitlines(keepends=True)
-    # insert after the first run of comment lines (the license header)
     i = 0
-    while i < len(lines) and (lines[i].startswith("//")
-                              or lines[i].strip() == ""):
-        i += 1
+    in_block = False
+    while i < len(lines):
+        stripped = lines[i].strip()
+        if in_block:
+            if "*/" in stripped:
+                in_block = False
+            i += 1
+            continue
+        if stripped == "" or stripped.startswith("//"):
+            i += 1
+            continue
+        if stripped.startswith("/*"):
+            if "*/" not in stripped:  # start of a multi-line block
+                in_block = True
+            i += 1
+            continue
+        break  # first real line of code
     lines.insert(i, header + "\n\n")
     return "".join(lines)
 
