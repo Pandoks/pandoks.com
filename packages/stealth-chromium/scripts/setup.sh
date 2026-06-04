@@ -183,10 +183,16 @@ cd "$WORK"
 # byte-identical to what's already in S3, so re-uploading is pure waste.
 if [ -n "${BUILDER_CACHE_BUCKET:-}" ] && [ "$CACHE_DIRTY" = "1" ]; then
   echo "[3/3] tree changed — refreshing rolling cache at s3://${BUILDER_CACHE_BUCKET}/${CACHE_KEY} ..."
+  # --expected-size sizes the S3 multipart chunks (cap is 10000 parts). The
+  # old 80 GB hint silently FAILED to upload a tree that exceeded it (a bloated
+  # cache once hit 71 GiB compressed), leaving the cache stuck at a stale
+  # version forever -- every build then re-downgraded and re-failed in a loop.
+  # 300 GB of headroom (30 MB parts) covers even a pathologically bloated tree;
+  # a healthy lean tree (~10 GiB) is unaffected.
   tar -c -C "$WORK" chromium \
     | zstd -19 --long=27 -T0 \
     | aws s3 cp - "s3://${BUILDER_CACHE_BUCKET}/${CACHE_KEY}" \
-        --expected-size 80000000000 \
+        --expected-size 300000000000 \
     || echo "      (cache upload failed, continuing)"
 elif [ -n "${BUILDER_CACHE_BUCKET:-}" ]; then
   echo "[3/3] tree unchanged since last build — rolling cache already current, skipping re-upload"
