@@ -49,7 +49,7 @@ cd "$SRC"
 # Cache-key versioning so the no-modules-build cache doesn't collide with
 # the prior modules-build entries (different compile flags = different
 # hashes anyway, but key-prefixing makes it explicit and clean).
-CHROMIUM_VERSION="$(cat "$APEX_ROOT/chromium_version.txt")"
+CHROMIUM_VERSION="$("$APEX_ROOT/scripts/resolve-chromium-version.sh")"
 # Chromium MAJOR version (e.g. "148" from "148.0.7778.179"). Key ccache on
 # major rather than full version so patch releases (148.0.7778.179 → .215)
 # can REUSE most cached objects. Hit rate empirically ~10-25% on patch

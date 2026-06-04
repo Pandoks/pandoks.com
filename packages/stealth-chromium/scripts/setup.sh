@@ -10,7 +10,7 @@ set -euo pipefail
 
 APEX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="${APEX_CHROMIUM_WORK:-$HOME/apex-chromium-build}"
-CHROMIUM_VERSION="$(cat "$APEX_ROOT/chromium_version.txt")"
+CHROMIUM_VERSION="$("$APEX_ROOT/scripts/resolve-chromium-version.sh")"
 
 echo "=== apex-chromium setup ==="
 echo " work dir         : $WORK"

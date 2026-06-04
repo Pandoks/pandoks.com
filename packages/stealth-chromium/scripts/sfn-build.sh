@@ -95,7 +95,7 @@ export APEX_CHROMIUM_WORK=/build
 
 # --- 5. pack + upload artifact ---------------------------------------------
 echo "=== packaging artifact ==="
-CHROMIUM_VERSION="$(cat "$PKG_ROOT/chromium_version.txt")"
+CHROMIUM_VERSION="$("$PKG_ROOT/scripts/resolve-chromium-version.sh")"
 ARTIFACT="/tmp/chromium-${CHROMIUM_VERSION}.tar.zst"
 OUT_DIR="$APEX_CHROMIUM_WORK/chromium/src/out/apex"
 [ -f "$OUT_DIR/chrome" ] || { echo "ERROR: built chrome binary missing"; exit 1; }
