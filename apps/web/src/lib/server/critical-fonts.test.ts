@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { parse, type HTMLElement } from 'node-html-parser';
-import { collectFontData, fontFromHtmlElement } from './critical-fonts';
+import { collectFontData, fontFromHtmlElement, injectCriticalFonts } from './critical-fonts';
+import { FONTS, type FontKey } from '$lib/fonts';
 
 const element = (html: string): HTMLElement =>
   parse(`<body>${html}</body>`).querySelector('body')!.firstChild as HTMLElement;
 
 const wrap = (body: string) => `<html><body>${body}</body></html>`;
+
+const page = (body: string) => `<html><head></head><body>${body}</body></html>`;
 
 describe('fontFromHtmlElement', () => {
   it('defaults to inter when no font class is present in the ancestor chain', () => {
@@ -208,5 +211,45 @@ describe('collectFontData', () => {
   it('deduplicates repeated characters within a bucket', () => {
     const { inter } = collectFontData(wrap('<p>aaa</p><span>aab</span>'));
     expect([...inter.chars].sort()).toEqual(['a', 'b']);
+  });
+});
+
+describe('injectCriticalFonts inline → woff2 switch contract', () => {
+  const blogish = page(
+    '<h1 class="font-black">Hello</h1>' +
+      '<div class="font-garamond"><p>The quick brown fox</p>' +
+      '<em class="italic">jumps over</em></div>'
+  );
+
+  it('tags each inline face with a valued data-critical-font matching its FONTS key', async () => {
+    const dom = parse(await injectCriticalFonts(blogish));
+    for (const style of dom.querySelectorAll('style[data-critical-font]')) {
+      const key = style.getAttribute('data-critical-font');
+      expect(Object.keys(FONTS)).toContain(key);
+    }
+  });
+
+  it('keeps the :root variable rule in a tag with no data-critical-font attribute', () => {
+    return injectCriticalFonts(blogish).then((html) => {
+      const dom = parse(html);
+      const rootTags = dom.querySelectorAll('style').filter((s) => s.innerHTML.includes(':root'));
+      expect(rootTags).toHaveLength(1);
+      const [rootTag] = rootTags;
+      expect(rootTag?.getAttribute('data-critical-font')).toBeUndefined();
+    });
+  });
+
+  it('every injected inline face is removable by the client per-key selector', async () => {
+    const dom = parse(await injectCriticalFonts(blogish));
+    expect(dom.querySelectorAll('style[data-critical-font]').length).toBeGreaterThan(0);
+
+    for (const key of Object.keys(FONTS) as FontKey[]) {
+      dom.querySelector(`style[data-critical-font="${key}"]`)?.remove();
+    }
+
+    const survivors = dom
+      .querySelectorAll('style')
+      .filter((s) => /font-family:'[^']*-Inline'/.test(s.innerHTML));
+    expect(survivors.map((s) => s.innerHTML)).toEqual([]);
   });
 });
