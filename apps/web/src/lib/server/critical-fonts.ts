@@ -82,7 +82,7 @@ export async function injectCriticalFonts(html: string): Promise<string> {
   const usedKeys = (Object.keys(FONTS) as FontKey[]).filter((key) => data[key].chars.size > 0);
   if (!usedKeys.length) return html;
 
-  const fontFaces = await Promise.all(
+  const styleTags = await Promise.all(
     usedKeys.map(async (key) => {
       const { file, family, style } = FONTS[key];
       const { chars, weights } = data[key];
@@ -96,13 +96,14 @@ export async function injectCriticalFonts(html: string): Promise<string> {
       });
       const b64 = Buffer.from(subset).toString('base64');
 
-      return (
+      const face =
         `@font-face{font-family:'${family}-Inline';` +
         `src:url(data:font/woff2;base64,${b64}) format('woff2');` +
         `font-weight:${isFixedWeight ? min : `${min} ${max}`};` +
         `font-style:${style};font-display:block;` +
-        `unicode-range:${unicodeRange(chars)}}`
-      );
+        `unicode-range:${unicodeRange(chars)}}`;
+
+      return `<style data-critical-font="${key}">${face}</style>`;
     })
   );
 
@@ -115,7 +116,6 @@ export async function injectCriticalFonts(html: string): Promise<string> {
     })
     .join(';');
 
-  const styleTag =
-    `<style data-critical-font>` + fontFaces.join('') + `:root{${rootRule}}` + `</style>`;
-  return html.replace(/<\/head>/i, `${styleTag}</head>`);
+  const rootTag = `<style>:root{${rootRule}}</style>`;
+  return html.replace(/<\/head>/i, `${styleTags.join('')}${rootTag}</head>`);
 }
