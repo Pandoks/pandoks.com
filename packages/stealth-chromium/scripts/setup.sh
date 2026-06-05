@@ -183,13 +183,20 @@ cd "$WORK"
 # byte-identical to what's already in S3, so re-uploading is pure waste.
 if [ -n "${BUILDER_CACHE_BUCKET:-}" ] && [ "$CACHE_DIRTY" = "1" ]; then
   echo "[3/3] tree changed — refreshing rolling cache at s3://${BUILDER_CACHE_BUCKET}/${CACHE_KEY} ..."
+  # De-bloat before compressing: a fresh `fetch` lands on ToT and the
+  # subsequent tag checkout leaves BOTH versions' git objects in src/.git,
+  # ballooning the cache (~10 GiB -> ~90 GiB). git gc --prune=now repacks and
+  # drops the unreachable ToT objects. Also exclude src/out (build output is
+  # NOT source; ccache is the compile cache) so the tarball stays lean.
+  echo "      de-bloating src/.git (git gc) ..."
+  git -C "$SRC" gc --prune=now --quiet 2>/dev/null || true
   # --expected-size sizes the S3 multipart chunks (cap is 10000 parts). The
   # old 80 GB hint silently FAILED to upload a tree that exceeded it (a bloated
-  # cache once hit 71 GiB compressed), leaving the cache stuck at a stale
+  # cache once hit 90 GiB compressed), leaving the cache stuck at a stale
   # version forever -- every build then re-downgraded and re-failed in a loop.
   # 300 GB of headroom (30 MB parts) covers even a pathologically bloated tree;
   # a healthy lean tree (~10 GiB) is unaffected.
-  tar -c -C "$WORK" chromium \
+  tar -c -C "$WORK" --exclude='chromium/src/out' chromium \
     | zstd -19 --long=27 -T0 \
     | aws s3 cp - "s3://${BUILDER_CACHE_BUCKET}/${CACHE_KEY}" \
         --expected-size 300000000000 \
