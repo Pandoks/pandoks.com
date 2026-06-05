@@ -110,14 +110,20 @@ PROBE_JS = r"""
   } catch (e) { audioHash = 'err'; }
   const h1 = canvasHash(), h2 = canvasHash();
 
-  // webgl unmasked strings (may be unavailable with no GL — caught)
+  // webgl unmasked strings + the numeric caps that must agree with the GPU the
+  // string claims (MAX_TEXTURE_SIZE driver-IDs hardware at ~91% accuracy).
   let webglVendor = null, webglRenderer = null, webglErr = null;
+  let maxTextureSize = null, maxRenderbufferSize = null, maxViewportDim = null;
   try {
     const gl = document.createElement('canvas').getContext('webgl')
       || document.createElement('canvas').getContext('experimental-webgl');
     const dbg = gl.getExtension('WEBGL_debug_renderer_info');
     webglVendor = gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL);
     webglRenderer = gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL);
+    maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+    maxRenderbufferSize = gl.getParameter(gl.MAX_RENDERBUFFER_SIZE);
+    const vp = gl.getParameter(gl.MAX_VIEWPORT_DIMS);
+    maxViewportDim = vp ? vp[0] : null;
   } catch (e) { webglErr = String(e); }
 
   // UA-CH high-entropy platform/version -- comes from the SAME UserAgentMetadata
@@ -185,6 +191,7 @@ PROBE_JS = r"""
     availW: screen.availWidth, availH: screen.availHeight,
     colorDepth: screen.colorDepth,
     webglVendor, webglRenderer, webglErr,
+    maxTextureSize, maxRenderbufferSize, maxViewportDim,
     webgpuVendor, webgpuArchitecture, webgpuIsFallback, webgpuErr,
     measureTextW, audioHash, canvasTail: (canvasHash() || '').slice(-24),
     connEffectiveType: conn ? conn.effectiveType : null,
@@ -353,6 +360,28 @@ async def run() -> int:
                (r["webglVendor"], r["webglRenderer"]),
                (FP_ENV["APEX_FP_WEBGL_VENDOR"],
                 FP_ENV["APEX_FP_WEBGL_RENDERER"]))
+        # WebGL NUMERIC coherence (informational, NOT a pass/fail surface).
+        # The UNMASKED renderer string is spoofed natively, but the numeric
+        # caps come from the real rendering backend. MAX_TEXTURE_SIZE driver-IDs
+        # hardware at ~91% accuracy: real Apple/Intel/AMD report 16384, NVIDIA
+        # 32768, but SwiftShader (a GPU-less host) reports 8192 -- which matches
+        # NO real consumer GPU, so the string<->caps pair is incoherent there.
+        # This is DEPLOYMENT-gated, not patchable: on a real-GPU host matching
+        # the persona's gpu_class the caps are already correct; on SwiftShader
+        # no caps-spoof fixes the render-OUTPUT pixel hash anyway. We surface it
+        # so an incoherent (GPU-less) deployment is loud, not silent.
+        rstr = r["webglRenderer"] or ""
+        expected = (32768 if "NVIDIA" in rstr else 16384)  # all others 16384
+        mts = r.get("maxTextureSize")
+        if mts is not None and mts < expected:
+            print(f"\n[WebGL CAPS INCOHERENT] renderer claims {rstr!r} but "
+                  f"MAX_TEXTURE_SIZE={mts} (expected >= {expected}). This host "
+                  f"renders via SwiftShader (8192) — string<->caps mismatch, a "
+                  f"high-signal tell. FIX IS DEPLOYMENT: run on a GPU host whose "
+                  f"class matches the persona. Not a binary defect.")
+        else:
+            print(f"\n[WebGL caps OK] MAX_TEXTURE_SIZE={mts} coherent with "
+                  f"the claimed GPU (expected >= {expected}).")
     else:
         print(f"\n[WebGL SKIP] no GL context in this container "
               f"(err={r['webglErr']}) — patch fires inside getParameter; "

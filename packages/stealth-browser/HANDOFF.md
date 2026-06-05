@@ -284,7 +284,16 @@ of its 49 cataloged patches; we ship 25 edits.
 3. ✅ `navigator.connection` spoof (`APEX_FP_NET_*`)
 4. ✅ `getClientRects`/`getBoundingClientRect` jitter (`JitterCoord`)
 5. ✅ AudioContext + AnalyserNode noise (`PerturbAnalyserFloat` added — was 1/3)
-6. 🟡 WebGL `getParameter`/`getSupportedExtensions` cross-field coherence — OPEN
+6. 🟢 WebGL numeric coherence — ANALYZED: it's DEPLOYMENT-gated, not a safe
+   patch. Real Apple/Intel/AMD report `MAX_TEXTURE_SIZE` 16384, NVIDIA 32768,
+   but a GPU-less host renders via SwiftShader → 8192 (matches no real GPU →
+   tell). On a real-GPU host matching the persona's `gpu_class` the caps are
+   already correct (the `fp_profiles` design); on SwiftShader, caps-spoofing
+   is a band-aid that doesn't fix the render-OUTPUT pixel hash and risks
+   allocation-probe detection (claim 16384, fail to allocate >8192). The
+   verifier now prints a `[WebGL CAPS INCOHERENT]` warning when string<->caps
+   disagree, so a GPU-less deployment is loud. **Action: deploy on GPU hosts
+   whose class matches the persona pool (or accept WebGL won't pass).**
 7. ✅ UA Client Hints `Sec-CH-UA-*` header coherence (`APEX_FP_UA_PLATFORM_VERSION`)
 8. ✅ `--enable-automation` launcher hygiene
 9. 🟡 fonts: path-1 (direct query) now OS-coherent (allowlist gated on
@@ -299,9 +308,11 @@ result bypasses it) — found by spoof-vs-stock differential, fixed via
 catches noise regressions like it.
 
 Remaining: #1 plugins/mimeTypes is NOT a real gap (real-Chromium already has
-the correct 5 PDF plugins — verified). Still open: #6 (WebGL numeric
-coherence), fonts path-2 (deployment bundle), per-eTLD+1 noise reseeding
-(`EtldSeed` helper exists, no call site consumes it yet).
+the correct 5 PDF plugins — verified). #6 WebGL numeric coherence is
+deployment-gated (real GPU host required — see above), not a patch.
+Genuinely-open PATCH work: per-eTLD+1 noise reseeding (`EtldSeed` helper
+exists, no call site consumes it yet). Genuinely-open DEPLOYMENT work: GPU
+hosts matching the persona pool, and per-OS font bundles (fonts path-2).
 
 ---
 
