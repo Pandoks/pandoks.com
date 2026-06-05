@@ -214,20 +214,11 @@ EDITS = [
                   "  if (apex_fp::IsAllowlistedFont(family)) return true;\n",
     },
 
-    # --- navigator.platform -------------------------------------------
-    # navigator_id.cc is a multi-function file; anchor-patch just platform().
-    {
-        "file": "third_party/blink/renderer/core/frame/navigator_id.cc",
-        "header": '#include "apex_fingerprint.h"',
-        "marker": "apex-platform",
-        "anchor": "String NavigatorID::platform() const {\n",
-        "where": "after",
-        "inject": "  // apex-platform\n"
-                  "  if (apex_fp::HasOverride(\"APEX_FP_PLATFORM\")) {\n"
-                  "    return String::FromUtf8(std::string_view(\n"
-                  "        apex_fp::EnvStr(\"APEX_FP_PLATFORM\")));\n"
-                  "  }\n",
-    },
+    # NOTE: navigator.platform (apex-platform) was MOVED from an anchor edit to
+    # a FULL-FILE OVERLAY (chromium_src/.../navigator_id.cc, in apply.sh
+    # OVERLAYS) -- the anchor edit silently dropped out of cloud builds 3x for
+    # reasons unreproducible locally. The overlay can't be skipped. Don't
+    # re-add it here.
 
     # --- screen.{width,height,availWidth,availHeight,colorDepth} -------
     # Each getter is anchored on its unique signature line; the apex value

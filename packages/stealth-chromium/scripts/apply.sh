@@ -67,15 +67,18 @@ cp "$CS/third_party/blink/renderer/platform/fonts/apex_font_policy.h" \
    "$SRC/third_party/blink/renderer/platform/fonts/"
 
 # --- 1. full-file overlays ------------------------------------------------
-# Only the two TINY single-function files are full-file overlays (a complete
-# verbatim rewrite is simplest and safest there). The larger multi-function
-# files (navigator_id, screen, battery_manager) are handled by anchor edits in
-# apply_edits.py -- surgically patching one function each, avoiding the
-# redefine-then-include fragility on multi-function translation units.
+# navigator_concurrent_hardware + navigator_device_memory are tiny single-
+# function files (a verbatim rewrite is simplest there). navigator_id.cc is a
+# multi-function file but is ALSO a full overlay: its anchor edit (the
+# navigator.platform spoof) silently dropped out of cloud builds 3x for reasons
+# unreproducible locally, so the verbatim copy guarantees it lands. The other
+# multi-function files (screen, battery_manager) stay anchor edits in
+# apply_edits.py. RE-SYNC navigator_id.cc on a Chromium major bump.
 echo "[1/4] installing full-file overlays ..."
 OVERLAYS=(
   "third_party/blink/renderer/core/frame/navigator_concurrent_hardware.cc"
   "third_party/blink/renderer/core/frame/navigator_device_memory.cc"
+  "third_party/blink/renderer/core/frame/navigator_id.cc"
 )
 for rel in "${OVERLAYS[@]}"; do
   up="$SRC/$rel"
