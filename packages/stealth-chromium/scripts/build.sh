@@ -130,11 +130,11 @@ echo " source navigator_id.cc APEX_FP_PLATFORM hits: $(grep -c APEX_FP_PLATFORM 
 echo " is there a standalone navigator_id .o (vs jumbo)?:"
 find "$SRC/out/apex/obj/third_party/blink" -name '*navigator_id*' 2>/dev/null | head -5
 echo " .o objects containing APEX_FP_PLATFORM (should-be navigator_id):"
-find "$SRC/out/apex/obj/third_party/blink" -name '*.o' 2>/dev/null \
-  | xargs -r grep -lZ APEX_FP_PLATFORM 2>/dev/null | tr '\0' '\n' | head -5
+{ find "$SRC/out/apex/obj/third_party/blink" -name '*.o' 2>/dev/null \
+  | xargs -r grep -lZ APEX_FP_PLATFORM 2>/dev/null | tr '\0' '\n' | head -5; } || true
 echo " .o objects containing APEX_FP_UA_PLATFORM (control -- this one lands):"
-find "$SRC/out/apex/obj/third_party/blink" -name '*.o' 2>/dev/null \
-  | xargs -r grep -lZ APEX_FP_UA_PLATFORM 2>/dev/null | tr '\0' '\n' | head -5
+{ find "$SRC/out/apex/obj/third_party/blink" -name '*.o' 2>/dev/null \
+  | xargs -r grep -lZ APEX_FP_UA_PLATFORM 2>/dev/null | tr '\0' '\n' | head -5; } || true
 echo "=== end apex-platform diagnostic ==="
 
 # Report ccache stats post-build — measure cache hit rate / size for the
