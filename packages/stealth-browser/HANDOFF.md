@@ -2,8 +2,46 @@
 
 One-page brief for any future Claude session (including a fresh Claude Cloud
 session) picking up this work. Read this FIRST — it captures everything that
-doesn't survive a fresh checkout. **Last substantively updated 2026-06-03**
-(branch `browser-iterations`, after the cloud-build + caching work).
+doesn't survive a fresh checkout. **Last substantively updated 2026-06-05**
+(branch `claude/sleepy-hawking-PUugj`, after the platform-fix + WebGPU +
+GL-libs-packaging work).
+
+## 🟢 LATEST VERIFIED STATE (2026-06-05)
+
+**First fully-green patched binary.** Build
+`stealth-chromium-149final-20260605-153624` (Chromium `149.0.7827.53`, off
+commit `a79f0c4`) SUCCEEDED and passed all 21 binary-string asserts.
+Artifact: `s3://personal-pandoks-builderartifactsbucketbucket-oawuxubt/stealth-chromium-149final-20260605-153624/`.
+
+Runtime-verified with `verify_patched_binary.py` (headless, this container):
+**26/26 surfaces spoofed, zero JS-visible tampering** (every toString-native
+check passes). Includes `navigator.platform` — the surface that silently
+dropped from 6 prior builds (root cause: it was patched on the LTO-dead
+`NavigatorID::platform()`; fix moved it to the reachable
+`NavigatorBase::platform()`). WebGL spoof confirmed live
+(`Google Inc. (Apple)` / `ANGLE … Apple M1 Pro`). Automation surface clean:
+`navigator.webdriver=false`, no `cdc_` props, correct 5-entry PDF plugin
+list + 2 mimeTypes, `window.chrome` present, Notification permission
+internally consistent (no headless mismatch tell).
+
+**Two bugs found by closing the runtime-verification gap** (downloading the
+binary and running it, not just `strings`-checking):
+1. The artifact whitelist shipped **no GL/Vulkan libs** → the binary had NO
+   working WebGL/WebGPU (a glaring bot tell). Fixed: `sfn-build.sh` now
+   globs every top-level `.so`/`.so.N`/`_icd.json` (ANGLE + SwiftShader).
+2. `verify_patched_binary.py` couldn't launch as root → added nodriver
+   `sandbox=False`.
+
+**WebGPU coherence** (`apex-webgpu-adapterinfo`): patch is linked + asserted
++ statically verified, but **runtime-unverified** — this ephemeral GPU-less
+container can't produce a software WebGPU adapter (flag-brittle; not a patch
+defect). Verify on a host with a real GPU or working SwiftShader-Vulkan.
+
+**Blocked from THIS container (egress policy MITMs browser TLS/QUIC):**
+the live fingerprinter panel (`fingerprint_benchmark.py` → cert errors /
+`ERR_QUIC_PROTOCOL_ERROR`) and the Oxylabs proxy test (`:60000` blocked).
+`curl` returns 200 but Chrome rejects the MITM'd certs. **Run the panel +
+proxy test from the production host or a clean-egress environment.**
 
 > **Currency note.** Sections marked 🟢 CURRENT reflect the cloud build
 > pipeline as actually deployed and validated. Sections marked 🟡 HISTORICAL
