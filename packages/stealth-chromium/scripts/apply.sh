@@ -45,6 +45,7 @@ for dir in \
   "third_party/blink/renderer/modules/font_access" \
   "third_party/blink/renderer/platform/fonts" \
   "third_party/blink/renderer/platform/graphics" \
+  "components/embedder_support" \
   "v8/src/inspector" ; do
   mkdir -p "$SRC/$dir"
   cp "$FP_H" "$SRC/$dir/apex_fingerprint.h"

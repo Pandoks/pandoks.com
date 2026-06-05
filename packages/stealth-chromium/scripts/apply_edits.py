@@ -511,6 +511,39 @@ EDITS = [
                   "        apex_fp::JitterCoord(rect.height(), 3));\n"
                   "  }\n",
     },
+
+    # --- UA Client Hints: Sec-CH-UA-Platform header coherence ----------
+    # navigator.userAgentData.platform (Blink, apex-uadata-platform) and the
+    # Sec-CH-UA-Platform REQUEST HEADER come from different layers. If the JS
+    # surface says macOS but the header says Linux, that mismatch is an instant
+    # server-side lie. Patch the browser-process header source to read the SAME
+    # APEX_FP_UA_PLATFORM so both agree. (components/embedder_support runs in
+    # the browser process, which inherits APEX_FP_* from the launcher.)
+    {
+        "file": "components/embedder_support/user_agent_utils.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-uach-platform",
+        "anchor": "std::string GetPlatformForUAMetadata() {\n",
+        "where": "after",
+        "inject": "  // apex-uach-platform\n"
+                  "  if (apex_fp::HasOverride(\"APEX_FP_UA_PLATFORM\")) {\n"
+                  "    return apex_fp::EnvStr(\"APEX_FP_UA_PLATFORM\");\n"
+                  "  }\n",
+    },
+    # --- Sec-CH-UA-Platform-Version header coherence -------------------
+    # MUST move in lockstep with the platform above: a macOS platform with a
+    # Linux kernel version is itself a tell. Operator/profile supplies a
+    # coherent version via APEX_FP_UA_PLATFORM_VERSION.
+    {
+        "file": "components/embedder_support/user_agent_utils.cc",
+        "marker": "apex-uach-platform-version",
+        "anchor": "std::string GetPlatformVersion() {\n",
+        "where": "after",
+        "inject": "  // apex-uach-platform-version\n"
+                  "  if (apex_fp::HasOverride(\"APEX_FP_UA_PLATFORM_VERSION\")) {\n"
+                  "    return apex_fp::EnvStr(\"APEX_FP_UA_PLATFORM_VERSION\");\n"
+                  "  }\n",
+    },
 ]
 
 

@@ -255,6 +255,13 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
     # band (120-400 GiB), seed-stable. Datacenter VMs report small/uniform
     # quotas tied to a tiny host disk.
     quota_bytes = rng.randint(120, 400) * 1024 * 1024 * 1024
+    # Sec-CH-UA-Platform-Version must be coherent with the spoofed platform: a
+    # macOS platform with a Linux kernel version is itself a tell. Verified
+    # real values -- macOS uses the macOS version, Win11 24H2 reports "15.0.0".
+    ua_platform_version = {
+        "macOS": "14.6.0",
+        "Windows": "15.0.0",
+    }.get(profile.ua_platform, "")
     return {
         "APEX_FP_ACTIVE": "1",
         "APEX_FP_SEED": str(seed & 0xFFFFFFFF),
@@ -275,6 +282,7 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         "APEX_FP_NET_DOWNLINK": "10",
         "APEX_FP_NET_EFFECTIVE_TYPE": "4g",
         "APEX_FP_STORAGE_QUOTA": str(quota_bytes),
+        "APEX_FP_UA_PLATFORM_VERSION": ua_platform_version,
     }
 
 

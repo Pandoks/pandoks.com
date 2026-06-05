@@ -11,7 +11,11 @@
 //   APEX_FP_ACTIVE           "1" to enable any spoofing at all (master switch)
 //   APEX_FP_SEED             uint32, drives deterministic canvas/audio noise
 //   APEX_FP_PLATFORM         e.g. "MacIntel", "Win32", "Linux x86_64"
-//   APEX_FP_UA_PLATFORM      navigator.userAgentData platform, e.g. "macOS"
+//   APEX_FP_UA_PLATFORM      navigator.userAgentData platform + the
+//                            Sec-CH-UA-Platform request header, e.g. "macOS"
+//   APEX_FP_UA_PLATFORM_VERSION  Sec-CH-UA-Platform-Version + getHighEntropy
+//                            platformVersion, e.g. "14.6.0" (macOS) / "15.0.0"
+//                            (Win11). MUST be coherent with APEX_FP_UA_PLATFORM.
 //   APEX_FP_HW_CONCURRENCY   uint, navigator.hardwareConcurrency
 //   APEX_FP_DEVICE_MEMORY    float, navigator.deviceMemory (0.25..8)
 //   APEX_FP_WEBGL_VENDOR     UNMASKED_VENDOR_WEBGL string

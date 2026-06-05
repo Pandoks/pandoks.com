@@ -37,6 +37,7 @@ FP_ENV = {
     "APEX_FP_SEED": "4242",
     "APEX_FP_PLATFORM": "MacIntel",
     "APEX_FP_UA_PLATFORM": "macOS",
+    "APEX_FP_UA_PLATFORM_VERSION": "14.6.0",
     "APEX_FP_HW_CONCURRENCY": "10",
     "APEX_FP_DEVICE_MEMORY": "8",
     "APEX_FP_WEBGL_VENDOR": "Google Inc. (Apple)",
@@ -95,6 +96,19 @@ PROBE_JS = r"""
     webglRenderer = gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL);
   } catch (e) { webglErr = String(e); }
 
+  // UA-CH high-entropy platform/version -- comes from the SAME UserAgentMetadata
+  // that fills the Sec-CH-UA-Platform[-Version] request headers, so this checks
+  // header coherence from JS.
+  let uachPlatform = null, uachPlatformVersion = null;
+  try {
+    if (navigator.userAgentData) {
+      const hev = await navigator.userAgentData.getHighEntropyValues(
+        ['platform', 'platformVersion']);
+      uachPlatform = hev.platform;
+      uachPlatformVersion = hev.platformVersion;
+    }
+  } catch (e) {}
+
   const conn = navigator.connection || null;
 
   let storage = null, storageErr = null;
@@ -126,6 +140,7 @@ PROBE_JS = r"""
     deviceMemory: navigator.deviceMemory,
     uaPlatform: navigator.userAgentData ? navigator.userAgentData.platform
                                         : null,
+    uachPlatform, uachPlatformVersion,
     screenW: screen.width, screenH: screen.height,
     availW: screen.availWidth, availH: screen.availHeight,
     colorDepth: screen.colorDepth,
@@ -209,6 +224,12 @@ async def run() -> int:
            r["deviceMemory"], 8)
     _check(results, r["uaPlatform"] == "macOS",
            "userAgentData.platform", r["uaPlatform"], "macOS")
+    _check(results, r["uachPlatform"] == "macOS",
+           "UA-CH high-entropy platform (header coherence)",
+           r["uachPlatform"], "macOS")
+    _check(results, r["uachPlatformVersion"] == "14.6.0",
+           "UA-CH platform version (header coherence)",
+           r["uachPlatformVersion"], "14.6.0")
     _check(results, r["screenW"] == 1512 and r["screenH"] == 982,
            "screen.width/height", f'{r["screenW"]}x{r["screenH"]}', "1512x982")
     _check(results, r["availW"] == 1512 and r["availH"] == 944,
