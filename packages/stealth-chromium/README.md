@@ -298,7 +298,7 @@ uv run --project ../stealth-browser python scripts/cdp_probe.py
 ## What's already patched
 
 `apply.sh` + `apply_edits.py` together cover (truthful count: **2 overlays +
-31 anchor edits = 33 distinct edits**, spanning ~25 web-facing surfaces):
+32 anchor edits = 34 distinct edits**, spanning ~26 web-facing surfaces):
 
 | Surface | Mechanism | Env var(s) |
 |---|---|---|
@@ -308,6 +308,7 @@ uv run --project ../stealth-browser python scripts/cdp_probe.py
 | `navigator.platform` | anchor edit | `APEX_FP_PLATFORM` |
 | `screen.{width,height,availWidth,availHeight,colorDepth}` | anchor edit | `APEX_FP_SCREEN_*` |
 | WebGL `UNMASKED_VENDOR` / `UNMASKED_RENDERER` | anchor edit | `APEX_FP_WEBGL_*` |
+| WebGPU `GPUAdapterInfo.{vendor,architecture}` (coherent with WebGL, no fallback adapter) | anchor edit | `APEX_FP_WEBGPU_VENDOR` / `APEX_FP_WEBGPU_ARCHITECTURE` |
 | WebGL `readPixels` (per-session pixel noise) | anchor edit + `apex_canvas_noise.h` | `APEX_FP_SEED` (master) |
 | Canvas `getImageData` (per-session pixel noise) | anchor edit + `apex_canvas_noise.h` | `APEX_FP_SEED` |
 | Canvas `toDataURL`/`toBlob` encode path | anchor edit | `APEX_FP_SEED` |

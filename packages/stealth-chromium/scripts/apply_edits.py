@@ -239,6 +239,42 @@ EDITS = [
                   "  }\n",
     },
 
+    # --- WebGPU GPUAdapterInfo coherence -------------------------------
+    # 2025-26 detectors cross-check the WebGPU adapter against the WebGL
+    # UNMASKED_* strings: both describe the same physical GPU, so if WebGL
+    # says "Apple" but the WebGPU adapter vendor is "nvidia" the identity
+    # contradicts itself and is flagged. We already spoof the WebGL GPU
+    # strings, so spoof the WebGPU adapter to match (the launcher sets all
+    # of them coherently per profile -- see fp_profiles).
+    #
+    # VERIFIED against gpu_adapter.cc (149): stock Chrome (developer
+    # features OFF -- the default) constructs GPUAdapterInfo with ONLY
+    # vendor + architecture + subgroup limits + is_fallback_adapter;
+    # device/description/driver are omitted (stay empty). So we override
+    # ONLY vendor_ + architecture_ -- populating device_/description_ would
+    # itself be a tell (stock Chrome leaves them empty). And SwiftShader on
+    # a headless box sets is_fallback_adapter_ true (an instant bot tell),
+    # so force it false whenever we spoof. Patched in the constructor body
+    # (the single chokepoint -- the getters return const& to these members,
+    # so overriding the members is cleaner than overriding each getter).
+    {
+        "file": "third_party/blink/renderer/modules/webgpu/"
+                "gpu_adapter_info.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-webgpu-adapterinfo",
+        "anchor": "power_preference_(power_preference) {",
+        "where": "after",
+        "inject": "\n  // apex-webgpu-adapterinfo: keep WebGPU coherent with the "
+                  "spoofed WebGL GPU\n"
+                  "  if (apex_fp::HasOverride(\"APEX_FP_WEBGPU_VENDOR\")) {\n"
+                  "    vendor_ = String::FromUtf8(std::string_view(\n"
+                  "        apex_fp::EnvStr(\"APEX_FP_WEBGPU_VENDOR\")));\n"
+                  "    architecture_ = String::FromUtf8(std::string_view(\n"
+                  "        apex_fp::EnvStr(\"APEX_FP_WEBGPU_ARCHITECTURE\")));\n"
+                  "    is_fallback_adapter_ = false;\n"
+                  "  }\n",
+    },
+
     # --- screen.{width,height,availWidth,availHeight,colorDepth} -------
     # Each getter is anchored on its unique signature line; the apex value
     # is returned first, the upstream body stays as the fallback.

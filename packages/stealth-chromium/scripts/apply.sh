@@ -43,6 +43,7 @@ for dir in \
   "third_party/blink/renderer/modules/peerconnection" \
   "third_party/blink/renderer/modules/netinfo" \
   "third_party/blink/renderer/modules/quota" \
+  "third_party/blink/renderer/modules/webgpu" \
   "third_party/blink/renderer/modules/font_access" \
   "third_party/blink/renderer/platform/fonts" \
   "third_party/blink/renderer/platform/graphics" \

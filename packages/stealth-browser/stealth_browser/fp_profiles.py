@@ -271,6 +271,19 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         "APEX_FP_DEVICE_MEMORY": str(profile.device_memory),
         "APEX_FP_WEBGL_VENDOR": profile.webgl_vendor,
         "APEX_FP_WEBGL_RENDERER": profile.webgl_renderer,
+        # WebGPU adapter must agree with the WebGL GPU -- 2025-26 detectors
+        # cross-check the two and flag a mismatch. The web-exposed WebGPU
+        # vendor is the lowercase GPU family, which is exactly gpu_class
+        # ("apple"/"nvidia"/"amd"/"intel"). The patched binary also forces
+        # isFallbackAdapter=false so the headless box's SwiftShader adapter
+        # doesn't out itself. architecture is left empty: stock Chrome reports
+        # empty for many real adapters (verified for NVIDIA), and an absent
+        # value is coherent (never a contradiction), whereas a guessed
+        # per-family arch string risks an outright mismatch.
+        # TODO: verify real per-family architecture strings (apple/intel/amd)
+        # and set them here for an even tighter match.
+        "APEX_FP_WEBGPU_VENDOR": profile.gpu_class,
+        "APEX_FP_WEBGPU_ARCHITECTURE": "",
         "APEX_FP_SCREEN_W": str(profile.screen_w),
         "APEX_FP_SCREEN_H": str(profile.screen_h),
         "APEX_FP_SCREEN_AVAIL_W": str(profile.avail_w),

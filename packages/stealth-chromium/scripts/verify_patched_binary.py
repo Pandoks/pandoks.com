@@ -45,6 +45,8 @@ FP_ENV = {
         "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Pro, "
         "Unspecified Version)"
     ),
+    "APEX_FP_WEBGPU_VENDOR": "apple",      # coherent with the WebGL GPU above
+    "APEX_FP_WEBGPU_ARCHITECTURE": "",
     "APEX_FP_SCREEN_W": "1512",
     "APEX_FP_SCREEN_H": "982",
     "APEX_FP_SCREEN_AVAIL_W": "1512",
@@ -109,6 +111,22 @@ PROBE_JS = r"""
     }
   } catch (e) {}
 
+  // WebGPU adapter info — detectors cross-check this against the WebGL GPU.
+  // On a headless box this is a SwiftShader fallback adapter; the patch
+  // overrides vendor and forces isFallbackAdapter=false.
+  let webgpuVendor = null, webgpuArchitecture = null,
+      webgpuIsFallback = null, webgpuErr = null;
+  try {
+    if (navigator.gpu) {
+      const adapter = await navigator.gpu.requestAdapter();
+      if (adapter && adapter.info) {
+        webgpuVendor = adapter.info.vendor;
+        webgpuArchitecture = adapter.info.architecture;
+        webgpuIsFallback = adapter.info.isFallbackAdapter;
+      } else { webgpuErr = 'no adapter'; }
+    } else { webgpuErr = 'no navigator.gpu'; }
+  } catch (e) { webgpuErr = String(e); }
+
   const conn = navigator.connection || null;
 
   let storage = null, storageErr = null;
@@ -145,6 +163,7 @@ PROBE_JS = r"""
     availW: screen.availWidth, availH: screen.availHeight,
     colorDepth: screen.colorDepth,
     webglVendor, webglRenderer, webglErr,
+    webgpuVendor, webgpuArchitecture, webgpuIsFallback, webgpuErr,
     connEffectiveType: conn ? conn.effectiveType : null,
     connRtt: conn ? conn.rtt : null,
     connDownlink: conn ? conn.downlink : null,
@@ -276,6 +295,20 @@ async def run() -> int:
         print(f"\n[WebGL SKIP] no GL context in this container "
               f"(err={r['webglErr']}) — patch fires inside getParameter; "
               f"untestable without GL, not a patch failure.")
+
+    # WebGPU: soft like WebGL (a container with no adapter, even SwiftShader,
+    # legitimately yields none). If an adapter WAS returned, the override MUST
+    # apply: vendor coherent with WebGL + the fallback flag forced off.
+    if r.get("webgpuErr") is None and r.get("webgpuVendor") is not None:
+        webgpu_ok = (r["webgpuVendor"] == FP_ENV["APEX_FP_WEBGPU_VENDOR"]
+                     and r["webgpuIsFallback"] is False)
+        _check(results, webgpu_ok, "WebGPU adapter vendor + no-fallback",
+               (r["webgpuVendor"], r["webgpuIsFallback"]),
+               (FP_ENV["APEX_FP_WEBGPU_VENDOR"], False))
+    else:
+        print(f"\n[WebGPU SKIP] no adapter in this container "
+              f"(err={r.get('webgpuErr')}) — patch fires in the "
+              f"GPUAdapterInfo ctor; untestable without an adapter.")
 
     print("\n--- assertions ---")
     passed = 0

@@ -233,17 +233,23 @@ battery/speech/mediaDevices patches not in Clark's catalog. Clark ships only 17
 of its 49 cataloged patches; we ship 25 edits.
 
 **Top gaps vs Clark's shipped patches** (ranked by 2025-26 detector weight;
-🟢 quick / 🟡 medium / 🟠 port-from-Brave):
-1. 🟡 `navigator.plugins`/`mimeTypes` PDF-viewer list
-2. 🟡 WebGPU `GPUAdapterInfo` coherence (must match WebGL GPU strings)
-3. 🟢 `navigator.connection` spoof (datacenter-vs-residential signal)
-4. 🟠 `getClientRects`/`getBoundingClientRect` jitter (cross-session correlation)
-5. 🟠 AudioContext + AnalyserNode noise (we only patch getChannelData, 1 of 3 levels)
-6. 🟡 WebGL `getParameter`/`getSupportedExtensions` cross-field coherence
-7. 🟡 UA Client Hints `Sec-CH-UA-*` header coherence
-8. 🟢 `--enable-automation` launcher hygiene (operational guardrail)
-9. 🟡 `document.fonts.check()` realism (Win/Mac font packs)
-10. 🟢 `navigator.storage.estimate()` quota spoof
+🟢 quick / 🟡 medium / 🟠 port-from-Brave; ✅ = now shipped):
+1. 🟡 `navigator.plugins`/`mimeTypes` PDF-viewer list — STILL OPEN
+2. ✅ WebGPU `GPUAdapterInfo` coherence — vendor/architecture overridden +
+   isFallbackAdapter forced false (`apex-webgpu-adapterinfo`), coherent with
+   the WebGL GPU; launcher sets `APEX_FP_WEBGPU_*` per profile
+3. ✅ `navigator.connection` spoof (`APEX_FP_NET_*`)
+4. ✅ `getClientRects`/`getBoundingClientRect` jitter (`JitterCoord`)
+5. ✅ AudioContext + AnalyserNode noise (`PerturbAnalyserFloat` added — was 1/3)
+6. 🟡 WebGL `getParameter`/`getSupportedExtensions` cross-field coherence — OPEN
+7. ✅ UA Client Hints `Sec-CH-UA-*` header coherence (`APEX_FP_UA_PLATFORM_VERSION`)
+8. ✅ `--enable-automation` launcher hygiene
+9. 🟡 `document.fonts.check()` realism (Win/Mac font packs) — OPEN
+10. ✅ `navigator.storage.estimate()` quota spoof (`APEX_FP_STORAGE_QUOTA`)
+
+Remaining after this round: #1 (plugins/mimeTypes), #6 (WebGL numeric
+coherence), #9 (fonts realism), plus per-eTLD+1 noise reseeding (`EtldSeed`
+helper exists, no call site consumes it yet).
 
 ---
 

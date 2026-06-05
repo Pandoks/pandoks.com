@@ -20,6 +20,13 @@
 //   APEX_FP_DEVICE_MEMORY    float, navigator.deviceMemory (0.25..8)
 //   APEX_FP_WEBGL_VENDOR     UNMASKED_VENDOR_WEBGL string
 //   APEX_FP_WEBGL_RENDERER   UNMASKED_RENDERER_WEBGL string
+//   APEX_FP_WEBGPU_VENDOR    WebGPU GPUAdapterInfo.vendor (e.g. "apple",
+//                            "intel", "nvidia", "amd"). MUST be coherent with
+//                            APEX_FP_WEBGL_* -- detectors cross-check the two.
+//                            Setting it also forces isFallbackAdapter=false.
+//   APEX_FP_WEBGPU_ARCHITECTURE  GPUAdapterInfo.architecture (e.g. "" for
+//                            nvidia, "metal-3" for apple). device/description
+//                            stay empty to match stock Chrome's reduced info.
 //   APEX_FP_SCREEN_W         int, screen.width
 //   APEX_FP_SCREEN_H         int, screen.height
 //   APEX_FP_SCREEN_AVAIL_W   int, screen.availWidth
