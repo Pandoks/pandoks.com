@@ -215,8 +215,12 @@ async def run() -> int:
         "--no-first-run", "--no-default-browser-check",
     ]
     print(f"=== verify_patched_binary: {bin_path} ===")
+    # sandbox=False: the --no-sandbox arg alone doesn't satisfy nodriver's own
+    # launch guard when running as root (cloud/CI containers), so pass it
+    # explicitly too -- otherwise start() raises "Failed to connect to browser".
     browser = await nodriver.start(
-        browser_executable_path=bin_path, headless=True, browser_args=args)
+        browser_executable_path=bin_path, headless=True, sandbox=False,
+        browser_args=args)
     try:
         tab = await browser.get(VERIFY_HTML.as_uri())
         await asyncio.sleep(1.5)

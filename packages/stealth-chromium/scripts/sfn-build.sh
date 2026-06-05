@@ -122,6 +122,23 @@ for entry in "${WHITELIST[@]}"; do
     TAR_INCLUDES+=("$entry")
   fi
 done
+
+# GL/Vulkan runtime libs: ANGLE (libEGL.so/libGLESv2.so) drives WebGL and
+# SwiftShader (libvk_swiftshader.so + vk_swiftshader_icd.json, libvulkan.so.1)
+# is the software path Dawn/WebGPU + WebGL fall back to on a GPU-less box.
+# These live at the TOP of out/ (object files are under obj/), so a top-level
+# .so/.so.N/_icd.json glob captures exactly the runtime libs with no stray
+# objects. WITHOUT them the binary has NO working WebGL/WebGPU at all -- which
+# is itself a glaring bot tell (real Chrome always renders WebGL), and makes
+# the WebGL/WebGPU spoofs moot. Confirmed missing from earlier artifacts by
+# the runtime verifier (no GL context / no adapter).
+shopt -s nullglob
+for lib in "$OUT_DIR"/*.so "$OUT_DIR"/*.so.* "$OUT_DIR"/*_icd.json; do
+  TAR_INCLUDES+=("$(basename "$lib")")
+done
+shopt -u nullglob
+
+echo "[pack] including: ${TAR_INCLUDES[*]}"
 tar -c -C "$OUT_DIR" "${TAR_INCLUDES[@]}" \
   | zstd -19 --long=27 -T0 -o "$ARTIFACT"
 KEY="${BUILD_ID}/chromium-${CHROMIUM_VERSION}.tar.zst"
