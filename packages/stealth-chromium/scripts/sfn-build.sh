@@ -93,6 +93,27 @@ export APEX_CHROMIUM_WORK=/build
 # never ship a half-patched, quietly-de-cloaking binary again.
 "$PKG_ROOT/scripts/assert_binary_patched.sh"
 
+# --- 4.6: runtime self-check (NON-FATAL) -----------------------------------
+# assert_binary_patched.sh proves each patch's string LINKED into the binary;
+# it cannot prove the patch actually FIRES, nor catch a runtime-only defect
+# like the missing GL libs that once shipped a WebGL-less binary through a
+# "successful" build. This launches the freshly built chrome and asserts it
+# spoofs at runtime (navigator.platform, WebGL strings, 20+ surfaces, zero
+# toString tampering). The builder has the GL libs right in out/apex, so WebGL
+# verifies here too. STRICTLY non-fatal + timeout-bounded: a verifier hiccup
+# must never fail an otherwise-good build (the string assert above is the hard
+# gate), so its exit code is swallowed -- it only adds a runtime score to the
+# log. Skips cleanly if uv isn't on the builder.
+if command -v uv >/dev/null 2>&1; then
+  echo "=== runtime self-check (non-fatal) ==="
+  APEX_CHROME_PATH="$APEX_CHROMIUM_WORK/chromium/src/out/apex/chrome" \
+    timeout 300 uv run --project "$PKG_ROOT/../stealth-browser" \
+    python "$PKG_ROOT/scripts/verify_patched_binary.py" \
+    || echo "  (runtime self-check did not pass cleanly -- non-fatal, see above)"
+else
+  echo "=== runtime self-check skipped (no uv on builder) ==="
+fi
+
 # --- 5. pack + upload artifact ---------------------------------------------
 echo "=== packaging artifact ==="
 CHROMIUM_VERSION="$("$PKG_ROOT/scripts/resolve-chromium-version.sh")"
