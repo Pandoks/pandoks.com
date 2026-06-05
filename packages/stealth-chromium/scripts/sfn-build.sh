@@ -110,9 +110,17 @@ export APEX_CHROMIUM_WORK=/build
 # result (incl. the builder-side WebGL/WebGPU runtime outcome) is lost.
 SELFCHECK_LOG="/tmp/runtime-selfcheck.log"
 if command -v uv >/dev/null 2>&1; then
-  echo "=== runtime self-check (non-fatal) ==="
+  echo "=== runtime self-check (non-fatal, HEADFUL on Xvfb) ==="
+  # Headful-on-Xvfb is production's real mode -- and it's the ONLY way WebGL
+  # routes through Mesa llvmpipe (MAX_TEXTURE_SIZE 16384, coherent) instead of
+  # the --headless=new SwiftShader fallback (8192). So the self-check must run
+  # under Xvfb to see production's real WebGL. Install xvfb if the builder
+  # lacks it (non-fatal).
+  command -v xvfb-run >/dev/null 2>&1 \
+    || sudo apt-get install -y -qq xvfb >/dev/null 2>&1 || true
   APEX_CHROME_PATH="$APEX_CHROMIUM_WORK/chromium/src/out/apex/chrome" \
-    timeout 300 uv run --project "$PKG_ROOT/../stealth-browser" \
+    timeout 360 xvfb-run -a -s "-screen 0 1920x1080x24" \
+    uv run --project "$PKG_ROOT/../stealth-browser" \
     python "$PKG_ROOT/scripts/verify_patched_binary.py" 2>&1 \
     | tee "$SELFCHECK_LOG" \
     || echo "  (runtime self-check did not pass cleanly -- non-fatal, see above)"

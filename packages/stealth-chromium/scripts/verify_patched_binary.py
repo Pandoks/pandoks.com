@@ -252,17 +252,24 @@ async def _probe(bin_path: str, spoof: bool) -> dict:
             del os.environ[k]
     if spoof:
         os.environ.update(FP_ENV)
+    # HEADFUL on Xvfb -- the REAL production mode -- not --headless=new. This
+    # matters for WebGL: headful routes ANGLE through Mesa llvmpipe
+    # (MAX_TEXTURE_SIZE 16384, coherent with real Intel/Apple/AMD GPUs), while
+    # --headless=new falls back to SwiftShader (8192, matches no real GPU).
+    # Run this script under `xvfb-run`. Mirrors profile.chrome_launch_flags'
+    # container WebGL setup so the self-check sees what production sees.
     args = [
         "--no-sandbox", "--disable-dev-shm-usage",
-        "--headless=new", "--disable-gpu",
-        "--enable-unsafe-swiftshader",
+        "--use-gl=angle", "--use-angle=gl",
+        "--ignore-gpu-blocklist", "--enable-webgl",
+        "--enable-unsafe-swiftshader",  # fallback only
         "--no-first-run", "--no-default-browser-check",
     ]
     # sandbox=False: the --no-sandbox arg alone doesn't satisfy nodriver's own
     # launch guard when running as root (cloud/CI containers), so pass it
     # explicitly too -- otherwise start() raises "Failed to connect to browser".
     browser = await nodriver.start(
-        browser_executable_path=bin_path, headless=True, sandbox=False,
+        browser_executable_path=bin_path, headless=False, sandbox=False,
         browser_args=args)
     try:
         tab = await browser.get(VERIFY_HTML.as_uri())
