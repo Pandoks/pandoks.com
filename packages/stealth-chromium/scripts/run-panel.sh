@@ -15,8 +15,8 @@
 # upload to s3://$BUILDER_ARTIFACTS_BUCKET/$BUILD_ID/panel/.
 set -euo pipefail
 
-PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-REPO_ROOT="$(cd "$PKG_ROOT/.." && pwd)"
+PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"  # packages/stealth-chromium
+REPO_ROOT="$(cd "$PKG_ROOT/../.." && pwd)"                   # repo root (two up)
 WORK=/tmp/panel
 mkdir -p "$WORK"
 
