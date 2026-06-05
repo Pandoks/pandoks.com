@@ -104,14 +104,26 @@ export APEX_CHROMIUM_WORK=/build
 # must never fail an otherwise-good build (the string assert above is the hard
 # gate), so its exit code is swallowed -- it only adds a runtime score to the
 # log. Skips cleanly if uv isn't on the builder.
+# The verdict is tee'd to a log and uploaded to the artifact prefix even on
+# SUCCESS -- a green build's stdout is NOT persisted (SSM truncates to the
+# first 2.5 KB; no CloudWatch group), so without this upload the self-check
+# result (incl. the builder-side WebGL/WebGPU runtime outcome) is lost.
+SELFCHECK_LOG="/tmp/runtime-selfcheck.log"
 if command -v uv >/dev/null 2>&1; then
   echo "=== runtime self-check (non-fatal) ==="
   APEX_CHROME_PATH="$APEX_CHROMIUM_WORK/chromium/src/out/apex/chrome" \
     timeout 300 uv run --project "$PKG_ROOT/../stealth-browser" \
-    python "$PKG_ROOT/scripts/verify_patched_binary.py" \
+    python "$PKG_ROOT/scripts/verify_patched_binary.py" 2>&1 \
+    | tee "$SELFCHECK_LOG" \
     || echo "  (runtime self-check did not pass cleanly -- non-fatal, see above)"
 else
-  echo "=== runtime self-check skipped (no uv on builder) ==="
+  echo "=== runtime self-check skipped (no uv on builder) ===" | tee "$SELFCHECK_LOG"
+fi
+if [ -n "${BUILDER_ARTIFACTS_BUCKET:-}" ] && [ -s "$SELFCHECK_LOG" ]; then
+  aws s3 cp "$SELFCHECK_LOG" \
+    "s3://${BUILDER_ARTIFACTS_BUCKET}/${BUILD_ID}/runtime-selfcheck.log" \
+    >/dev/null 2>&1 \
+    || echo "  (self-check log upload failed -- non-fatal)"
 fi
 
 # --- 5. pack + upload artifact ---------------------------------------------
