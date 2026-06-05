@@ -20,6 +20,19 @@ REPO_ROOT="$(cd "$PKG_ROOT/.." && pwd)"
 WORK=/tmp/panel
 mkdir -p "$WORK"
 
+# Self-diagnosing: capture ALL output and upload it on ANY exit (success or
+# failure). A failed SFN command leaves no retrievable stdout (SSM truncates,
+# the instance is terminated), so without this the failure point is invisible.
+LOG="$WORK/panel-run.log"
+exec > >(tee "$LOG") 2>&1
+_upload_log() {
+  [ -n "${BUILDER_ARTIFACTS_BUCKET:-}" ] && \
+    aws s3 cp "$LOG" \
+      "s3://${BUILDER_ARTIFACTS_BUCKET}/${BUILD_ID}/panel-run.log" \
+      >/dev/null 2>&1 || true
+}
+trap _upload_log EXIT
+
 echo "=== [1/5] runtime deps (Chromium libs + Xvfb + base fonts) ==="
 export DEBIAN_FRONTEND=noninteractive
 sudo apt-get update -qq || true
@@ -39,19 +52,22 @@ sudo apt-get install -y -qq \
   || echo "  (some deps failed to install -- continuing; launch will tell)"
 
 echo "=== [2/5] download latest patched binary from S3 ==="
-KEY="$(aws s3 ls "s3://${BUILDER_ARTIFACTS_BUCKET}/" \
-  | awk '{print $NF}' | grep '^stealth-chromium-149' | sort | tail -1)"
-KEY="${KEY%/}"
-[ -n "$KEY" ] || { echo "ERROR: no stealth-chromium-149* artifact found"; exit 1; }
-echo "  artifact build: $KEY"
-TARBALL="$(aws s3 ls "s3://${BUILDER_ARTIFACTS_BUCKET}/${KEY}/" \
-  | awk '{print $NF}' | grep '\.tar\.zst$' | head -1)"
-aws s3 cp "s3://${BUILDER_ARTIFACTS_BUCKET}/${KEY}/${TARBALL}" "$WORK/c.tar.zst"
+# Pick the NEWEST tarball by DATE -- `aws s3 ls --recursive` prefixes each line
+# with `YYYY-MM-DD HH:MM:SS`, so a plain sort is chronological. (A sort over
+# the prefix NAMES would be lexical and wrongly pick e.g. 149selfcheck over the
+# newer 149audio.)
+TARKEY="$(aws s3 ls --recursive "s3://${BUILDER_ARTIFACTS_BUCKET}/" \
+  | grep -E 'stealth-chromium-149.*/chromium-.*\.tar\.zst$' \
+  | sort | tail -1 | awk '{print $NF}')"
+[ -n "$TARKEY" ] || { echo "ERROR: no stealth-chromium-149* tarball found"; exit 1; }
+echo "  artifact: $TARKEY"
+aws s3 cp "s3://${BUILDER_ARTIFACTS_BUCKET}/${TARKEY}" "$WORK/c.tar.zst"
 mkdir -p "$WORK/chrome"
 zstd -d --long=27 -c "$WORK/c.tar.zst" | tar -x -C "$WORK/chrome"
 BIN="$WORK/chrome/chrome"
 chmod +x "$BIN"
-echo "  binary: $BIN"
+echo "  binary: $BIN ($(du -h "$BIN" | cut -f1))"
+ldd "$BIN" 2>&1 | grep -i 'not found' && echo "  WARNING: missing shared libs above" || echo "  ldd: all libs resolved"
 
 echo "=== [3/5] uv sync (nodriver / patchright) ==="
 cd "$REPO_ROOT/packages/stealth-browser"
