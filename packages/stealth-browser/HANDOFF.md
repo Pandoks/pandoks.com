@@ -8,14 +8,44 @@ GL-libs-packaging work).
 
 ## 🟢 LATEST VERIFIED STATE (2026-06-05)
 
-**Latest green build:** `stealth-chromium-149audio-20260605-180008`
-(Chromium `149.0.7827.53`, off commit `a8d743b`) — passed all 21
-binary-string asserts AND the in-build runtime self-check scored
-**29/29 surfaces = 1.000, ALL CLEAN** (uploaded to the artifact prefix as
-`runtime-selfcheck.log`). The self-check is now a two-pass differential
-(stock baseline vs spoofed); the audio FP fix below is confirmed:
-`PASS OfflineAudioContext farbled vs stock`. WebGL also PASS on the builder.
-WebGPU still SKIP (no software adapter even on the GPU-less builder).
+**Latest green build:** `stealth-chromium-149ua-20260605-224540`
+(Chromium `149.0.7827.53`) — in-build self-check **31/31 = ALL CLEAN**,
+including the two newest fixes: `navigator.userAgent OS coherence` and
+`canvas.toBlob farbled vs stock`. Binary surfaces all spoof; zero JS-visible
+tampering.
+
+**First live fingerprinter-panel results** (`stealth-panel2/3/4`, run on a
+clean-egress EC2 spot box via `run-panel.sh`; GPU-less, datacenter IP):
+- ✅ `areyouheadless`: "You are NOT Chrome headless"
+- ✅ `sannysoft`: all webdriver/automation checks pass (`webdriver=false`)
+- ✅ CreepJS: **`0% headless`, `0% stealth`** (the decisive verdicts). UA now
+  Windows-coherent in BOTH window + worker (`Chrome/149`, was Linux). `38%
+  like headless` = soft resemblance score (repo treats it as non-failing).
+- ✅ `browserscan`: authenticity **85% → 90%** after the UA fix (one fewer
+  `-5%` deduction).
+- ✅ `bl_tls`: authentic real-Chrome JA3/JA4 (`t13d1517h2…`).
+- ✅ instance-side verifier.txt: `MAX_TEXTURE_SIZE=16384 coherent` (headful
+  Mesa llvmpipe — production's real WebGL), 31/31.
+- ⚠️ `iphey`: "suspicious" but HW/SW "fine" → **datacenter IP**, not
+  fingerprint. `bl_webrtc` leaks the EC2 IP (no proxy). Both clear with a
+  residential proxy.
+
+**This-session fixes (all built + validated):** UA-string OS coherence
+(`apex-ua-platform`, native `GetUnifiedPlatform`), `canvas.toBlob` farbling
+(`apex-canvas-encode-blob` + private SkBitmap), removed a dead JS
+`_WEBGL_NORMALIZE_JS` toString-proxy landmine, corrected #6 (WebGL caps are
+coherent in production via headful Mesa llvmpipe = 16384; the 8192 was a
+`--headless` artifact), verifier now runs headful-on-Xvfb.
+
+**Fonts:** `run-panel` installs MS core fonts + metric clones (Carlito=Calibri,
+Caladea=Cambria) + `fc-cache` — verified 358 fonts visible, `Calibri→Carlito`
+resolves. CreepJS still counts `6/51` (its own width-expectation methodology,
+not a system misconfig). Production wants these fonts + fontconfig aliases
+baked into the per-persona image.
+
+**Still genuinely blocked / deployment-side:** residential-proxy test (needs
+Oxylabs creds — none in SSM); WebGPU runtime (no software adapter even on the
+builder); render-OUTPUT pixel coherence (llvmpipe vs claimed GPU — deep/rare).
 
 Earlier milestone: build `stealth-chromium-149final-20260605-153624`
 (off `a79f0c4`) was the first fully-green binary; verified
