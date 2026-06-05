@@ -298,7 +298,7 @@ uv run --project ../stealth-browser python scripts/cdp_probe.py
 ## What's already patched
 
 `apply.sh` + `apply_edits.py` together cover (truthful count: **2 overlays +
-32 anchor edits = 34 distinct edits**, spanning ~26 web-facing surfaces):
+33 anchor edits = 35 distinct edits**, spanning ~26 web-facing surfaces):
 
 | Surface | Mechanism | Env var(s) |
 |---|---|---|

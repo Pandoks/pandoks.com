@@ -282,12 +282,21 @@ of its 49 cataloged patches; we ship 25 edits.
 6. 🟡 WebGL `getParameter`/`getSupportedExtensions` cross-field coherence — OPEN
 7. ✅ UA Client Hints `Sec-CH-UA-*` header coherence (`APEX_FP_UA_PLATFORM_VERSION`)
 8. ✅ `--enable-automation` launcher hygiene
-9. 🟡 `document.fonts.check()` realism (Win/Mac font packs) — OPEN
+9. 🟡 fonts: path-1 (direct query) now OS-coherent (allowlist gated on
+   `APEX_FP_UA_PLATFORM` — no more impossible Win+Mac combo). Path-2 (width
+   measurement) still needs the deployment font bundle to match the persona.
 10. ✅ `navigator.storage.estimate()` quota spoof (`APEX_FP_STORAGE_QUOTA`)
 
-Remaining after this round: #1 (plugins/mimeTypes), #6 (WebGL numeric
-coherence), #9 (fonts realism), plus per-eTLD+1 noise reseeding (`EtldSeed`
-helper exists, no call site consumes it yet).
+Also fixed this round: the **OfflineAudioContext audio fingerprint** was not
+being farbled (only the `AudioBuffer(AudioBus*)` ctor was hooked; the offline
+result bypasses it) — found by spoof-vs-stock differential, fixed via
+`apex-audio-offline-noise`. The verifier is now a two-pass differential that
+catches noise regressions like it.
+
+Remaining: #1 plugins/mimeTypes is NOT a real gap (real-Chromium already has
+the correct 5 PDF plugins — verified). Still open: #6 (WebGL numeric
+coherence), fonts path-2 (deployment bundle), per-eTLD+1 noise reseeding
+(`EtldSeed` helper exists, no call site consumes it yet).
 
 ---
 

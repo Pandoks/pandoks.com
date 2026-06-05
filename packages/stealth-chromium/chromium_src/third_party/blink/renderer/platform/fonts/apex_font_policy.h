@@ -27,33 +27,75 @@
 namespace apex_fp {
 
 // Returns true if `family` (lowercased ascii) is on the always-present
-// allowlist. Used by the FontCache overlay to ensure the common web-safe set
-// reports as installed regardless of the container's exact fontconfig state.
+// allowlist. Used by the FontCache overlay so the direct font query agrees
+// with the persona's OS.
+//
+// COHERENCE: the allowlist is OS-SCOPED. A real machine ships its OS's system
+// fonts, NOT another OS's -- so a macOS persona must NOT report Windows-only
+// families (Segoe UI, Calibri, Consolas) present, and vice-versa. The earlier
+// version returned true for the UNION of both sets for every persona, i.e. it
+// claimed an impossible Windows+macOS font combo -- itself an instant tell.
+// We now gate the OS-specific lists on APEX_FP_UA_PLATFORM ("macOS"/"Windows";
+// anything else -> common set only). The web-safe core (shipped by both) is
+// always allowed.
+//
+// NOTE: this is path 1 (direct query). Full coherence also needs path 2 (width
+// measurement) to agree, which is the DEPLOYMENT's job -- the container's
+// installed font bundle must match the persona's OS. Linux-only families
+// (DejaVu, Liberation) are deliberately NOT listed: a macOS/Windows persona
+// reporting them present is a headless-Linux tell.
 inline bool IsAllowlistedFont(const blink::AtomicString& family) {
   if (!Active()) {
     return false;  // policy off -> caller uses real availability
   }
-  // common web-safe + OS-bundled families. Lowercased compare.
-  static const char* kAllow[] = {
-    "arial", "helvetica", "times new roman", "times", "courier new",
-    "courier", "verdana", "georgia", "palatino", "garamond", "bookman",
-    "tahoma", "trebuchet ms", "arial black", "impact", "comic sans ms",
-    "lucida console", "lucida sans unicode", "segoe ui", "calibri",
-    "cambria", "consolas", "candara", "constantia", "corbel",
-    // macOS-bundled
-    "san francisco", "sf pro", "helvetica neue", "menlo", "monaco",
-    "geneva", "lucida grande", "avenir", "avenir next", "gill sans",
-    "optima", "futura", "baskerville", "american typewriter",
-    // cross-platform web fonts the bundle installs
+  // Web-safe core shipped by BOTH Windows and macOS -> always allowed.
+  static const char* kCommon[] = {
+    "arial", "arial black", "comic sans ms", "courier new", "georgia",
+    "impact", "times new roman", "trebuchet ms", "verdana",
+    // cross-platform web fonts a real user plausibly has (Office / Chrome /
+    // websites install these on Win+Mac alike) -- NOT the Linux-only ones.
     "roboto", "open sans", "lato", "noto sans", "noto serif",
-    "dejavu sans", "dejavu serif", "liberation sans", "liberation serif",
+  };
+  // Windows-only system/Office families.
+  static const char* kWindows[] = {
+    "calibri", "cambria", "candara", "consolas", "constantia", "corbel",
+    "segoe ui", "tahoma", "lucida console", "lucida sans unicode",
+    "microsoft sans serif", "ms sans serif", "palatino linotype", "sylfaen",
+    "franklin gothic medium", "gadugi", "ebrima",
+  };
+  // macOS-only system families. (San Francisco / "SF Pro" are intentionally
+  // omitted: the system font is not accessible to the web by name on a real
+  // Mac, so claiming it present would itself be wrong.)
+  static const char* kMac[] = {
+    "helvetica", "helvetica neue", "menlo", "monaco", "geneva",
+    "lucida grande", "avenir", "avenir next", "gill sans", "optima",
+    "futura", "baskerville", "american typewriter", "times", "courier",
+    "palatino", "hoefler text", "andale mono", "apple chancery",
+    "marker felt", "papyrus", "charter", "cochin", "didot", "copperplate",
   };
   // Lowercase the family name using Blink's own AtomicString API -- no manual
   // char indexing, so this is clean under -Wunsafe-buffer-usage.
   const std::string f = family.ToAsciiLower().Utf8();
-  for (const char* a : kAllow) {
+  for (const char* a : kCommon) {
     if (f == a) {
       return true;
+    }
+  }
+  // APEX_FP_UA_PLATFORM is the persona OS label ("macOS" / "Windows"), the
+  // same value driving navigator.userAgentData.platform -- so fonts stay
+  // coherent with the rest of the identity.
+  const std::string os = EnvStr("APEX_FP_UA_PLATFORM");
+  if (os == "Windows") {
+    for (const char* a : kWindows) {
+      if (f == a) {
+        return true;
+      }
+    }
+  } else if (os == "macOS") {
+    for (const char* a : kMac) {
+      if (f == a) {
+        return true;
+      }
     }
   }
   return false;
