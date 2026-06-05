@@ -135,6 +135,20 @@ echo " navigator_id.o: ${_navobj:-NOT FOUND}"
 if [ -n "$_navobj" ]; then
   echo " navigator_id.o APEX_FP_PLATFORM (strings): $(strings -a "$_navobj" 2>/dev/null | grep -c '^APEX_FP_PLATFORM$')"
 fi
+# If the fresh object lacks the string, check whether the PREPROCESSED source
+# has it -- distinguishes "compiler/optimizer dropped it" from "include/macro
+# made it never reach the compiler" (e.g. a guard collision).
+echo " preprocessed navigator_id.cc APEX_FP_PLATFORM:"
+{
+  cd "$SRC/out/apex" 2>/dev/null &&
+    _cmd="$(ninja -t commands obj/third_party/blink/renderer/core/core/navigator_id.o 2>/dev/null | tail -1)" &&
+    [ -n "$_cmd" ] &&
+    printf '%s\n' "$_cmd" | tr ' ' '\n' | grep -nE 'navigator_id|apex|fingerprint|^-DBLINK|jumbo' | head -8 &&
+    _pp="$(printf '%s' "$_cmd" | sed 's/ -c / -E /; s#-o [^ ]*navigator_id\.o#-o /tmp/nav.pp#')" &&
+    eval "$_pp" 2>/dev/null &&
+    echo "   preprocessed hits: $(grep -c APEX_FP_PLATFORM /tmp/nav.pp 2>/dev/null)"
+  cd "$SRC" 2>/dev/null
+} || echo "   (preprocess probe failed)"
 _uaobj="$(find "$SRC/out/apex/obj" -name 'navigator_ua_data.o' 2>/dev/null | head -1)"
 if [ -n "$_uaobj" ]; then
   echo " CONTROL navigator_ua_data.o APEX_FP_UA_PLATFORM (strings): $(strings -a "$_uaobj" 2>/dev/null | grep -c '^APEX_FP_UA_PLATFORM$')"
