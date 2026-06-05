@@ -30,7 +30,7 @@ echo
 # 1. overlays -- check each upstream target file still exists
 echo "[1/2] checking whole-function overlay targets ..."
 OVERLAYS=(
-  "third_party/blink/renderer/core/frame/navigator_id.cc"
+  "third_party/blink/renderer/core/execution_context/navigator_base.cc"
   "third_party/blink/renderer/core/frame/navigator_concurrent_hardware.cc"
   "third_party/blink/renderer/core/frame/navigator_device_memory.cc"
   "third_party/blink/renderer/core/frame/screen.cc"

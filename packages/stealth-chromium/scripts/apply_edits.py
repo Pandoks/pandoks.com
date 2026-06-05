@@ -214,11 +214,30 @@ EDITS = [
                   "  if (apex_fp::IsAllowlistedFont(family)) return true;\n",
     },
 
-    # NOTE: navigator.platform (apex-platform) was MOVED from an anchor edit to
-    # a FULL-FILE OVERLAY (chromium_src/.../navigator_id.cc, in apply.sh
-    # OVERLAYS) -- the anchor edit silently dropped out of cloud builds 3x for
-    # reasons unreproducible locally. The overlay can't be skipped. Don't
-    # re-add it here.
+    # --- navigator.platform --------------------------------------------
+    # CHOKEPOINT: NavigatorBase::platform() in core/execution_context/, NOT
+    # NavigatorID::platform() in core/frame/. On desktop the latter is DEAD --
+    # NavigatorBase::platform() returns GetReducedNavigatorPlatform() directly
+    # and only delegates to NavigatorID::platform() on Android. Patching the
+    # dead function meant ThinLTO (is_official_build) garbage-collected the
+    # apex code + its env-var strings out of the binary -- which is why this
+    # edit "silently dropped out" of ~6 cloud builds (it was never reachable).
+    # NavigatorBase::platform() is the common chokepoint for BOTH the main
+    # window and worker contexts, so the override stays coherent (no CreepJS
+    # window-vs-worker mismatch).
+    {
+        "file": "third_party/blink/renderer/core/execution_context/"
+                "navigator_base.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-platform",
+        "anchor": "String NavigatorBase::platform() const {\n",
+        "where": "after",
+        "inject": "  // apex-platform\n"
+                  "  if (apex_fp::HasOverride(\"APEX_FP_PLATFORM\")) {\n"
+                  "    return String::FromUtf8(std::string_view(\n"
+                  "        apex_fp::EnvStr(\"APEX_FP_PLATFORM\")));\n"
+                  "  }\n",
+    },
 
     # --- screen.{width,height,availWidth,availHeight,colorDepth} -------
     # Each getter is anchored on its unique signature line; the apex value

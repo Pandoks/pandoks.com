@@ -31,6 +31,7 @@ echo "[0/4] installing shared headers ..."
 FP_H="$CS/apex_fingerprint.h"
 for dir in \
   "third_party/blink/renderer/core/frame" \
+  "third_party/blink/renderer/core/execution_context" \
   "third_party/blink/renderer/core/geometry" \
   "third_party/blink/renderer/core/html/canvas" \
   "third_party/blink/renderer/modules/webgl" \
@@ -68,17 +69,13 @@ cp "$CS/third_party/blink/renderer/platform/fonts/apex_font_policy.h" \
 
 # --- 1. full-file overlays ------------------------------------------------
 # navigator_concurrent_hardware + navigator_device_memory are tiny single-
-# function files (a verbatim rewrite is simplest there). navigator_id.cc is a
-# multi-function file but is ALSO a full overlay: its anchor edit (the
-# navigator.platform spoof) silently dropped out of cloud builds 3x for reasons
-# unreproducible locally, so the verbatim copy guarantees it lands. The other
-# multi-function files (screen, battery_manager) stay anchor edits in
-# apply_edits.py. RE-SYNC navigator_id.cc on a Chromium major bump.
+# function files (a verbatim rewrite is simplest there). The other multi-
+# function files (screen, battery_manager, navigator_base) stay anchor edits in
+# apply_edits.py.
 echo "[1/4] installing full-file overlays ..."
 OVERLAYS=(
   "third_party/blink/renderer/core/frame/navigator_concurrent_hardware.cc"
   "third_party/blink/renderer/core/frame/navigator_device_memory.cc"
-  "third_party/blink/renderer/core/frame/navigator_id.cc"
 )
 for rel in "${OVERLAYS[@]}"; do
   up="$SRC/$rel"

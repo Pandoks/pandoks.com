@@ -113,48 +113,8 @@ echo "[0/2] ensuring depot_tools bootstrap (cipd + python3 wrapper) ..."
 echo "[1/2] gn gen ..."
 gn gen out/apex
 
-# apex-platform DECISIVE workaround/probe: force-delete navigator_id.o so ninja
-# MUST recompile it from the (patched, overlaid) source. Combined with the
-# nuked ccache, this guarantees a fresh compile -- separating "ninja reused a
-# stale restored object" (this fixes it) from "the apex code compiles/links
-# out" (this won't). The restored build tree carries the prior build's
-# out/apex/obj, and the evidence says that stale navigator_id.o was surviving.
-echo "[1.5/2] forcing navigator_id.o recompile (apex-platform staleness) ..."
-find "$SRC/out/apex/obj" -name 'navigator_id.o' -print -delete 2>/dev/null || true
-
 echo "[2/2] autoninja -- this is the long step (5-10h first build) ..."
 autoninja -C out/apex chrome
-
-# --- apex-platform diagnostic (uses `strings`, not raw grep, on the EXACT
-# object -- raw grep on .o doesn't reliably find .rodata literals) ----------
-echo "=== apex-platform diagnostic ==="
-_navsrc="$SRC/third_party/blink/renderer/core/frame/navigator_id.cc"
-echo " source navigator_id.cc APEX_FP_PLATFORM hits: $(grep -c APEX_FP_PLATFORM "$_navsrc" 2>/dev/null || echo NA)"
-_navobj="$(find "$SRC/out/apex/obj" -name 'navigator_id.o' 2>/dev/null | head -1)"
-echo " navigator_id.o: ${_navobj:-NOT FOUND}"
-if [ -n "$_navobj" ]; then
-  echo " navigator_id.o APEX_FP_PLATFORM (strings): $(strings -a "$_navobj" 2>/dev/null | grep -c '^APEX_FP_PLATFORM$')"
-fi
-# If the fresh object lacks the string, check whether the PREPROCESSED source
-# has it -- distinguishes "compiler/optimizer dropped it" from "include/macro
-# made it never reach the compiler" (e.g. a guard collision).
-echo " preprocessed navigator_id.cc APEX_FP_PLATFORM:"
-{
-  cd "$SRC/out/apex" 2>/dev/null &&
-    _cmd="$(ninja -t commands obj/third_party/blink/renderer/core/core/navigator_id.o 2>/dev/null | tail -1)" &&
-    [ -n "$_cmd" ] &&
-    printf '%s\n' "$_cmd" | tr ' ' '\n' | grep -nE 'navigator_id|apex|fingerprint|^-DBLINK|jumbo' | head -8 &&
-    _pp="$(printf '%s' "$_cmd" | sed 's/ -c / -E /; s#-o [^ ]*navigator_id\.o#-o /tmp/nav.pp#')" &&
-    eval "$_pp" 2>/dev/null &&
-    echo "   preprocessed hits: $(grep -c APEX_FP_PLATFORM /tmp/nav.pp 2>/dev/null)"
-  cd "$SRC" 2>/dev/null
-} || echo "   (preprocess probe failed)"
-_uaobj="$(find "$SRC/out/apex/obj" -name 'navigator_ua_data.o' 2>/dev/null | head -1)"
-if [ -n "$_uaobj" ]; then
-  echo " CONTROL navigator_ua_data.o APEX_FP_UA_PLATFORM (strings): $(strings -a "$_uaobj" 2>/dev/null | grep -c '^APEX_FP_UA_PLATFORM$')"
-fi
-echo " binary APEX_FP_PLATFORM (strings): $(strings -a "$SRC/out/apex/chrome" 2>/dev/null | grep -c '^APEX_FP_PLATFORM$')"
-echo "=== end apex-platform diagnostic ==="
 
 # Report ccache stats post-build — measure cache hit rate / size for the
 # next build's expected speedup. Hit rate is the most useful number: >80%
