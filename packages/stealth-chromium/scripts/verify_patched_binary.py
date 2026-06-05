@@ -194,6 +194,7 @@ PROBE_JS = r"""
 
   return {
     platform: navigator.platform,
+    userAgent: navigator.userAgent,
     hardwareConcurrency: navigator.hardwareConcurrency,
     deviceMemory: navigator.deviceMemory,
     uaPlatform: navigator.userAgentData ? navigator.userAgentData.platform
@@ -298,6 +299,12 @@ async def run() -> int:
     results: list = []
     _check(results, r["platform"] == "MacIntel", "navigator.platform",
            r["platform"], "MacIntel")
+    # UA string must carry the macOS token (persona is macOS) -- NOT the build's
+    # real Linux token. This is the apex-ua-platform fix; without it the UA
+    # string contradicts platform/userAgentData (a cross-check lie).
+    _check(results, "Macintosh; Intel Mac OS X 10_15_7" in (r.get("userAgent") or "")
+           and "Linux" not in (r.get("userAgent") or ""),
+           "navigator.userAgent OS coherence", r.get("userAgent"), "Macintosh…")
     _check(results, r["hardwareConcurrency"] == 10,
            "navigator.hardwareConcurrency", r["hardwareConcurrency"], 10)
     _check(results, r["deviceMemory"] == 8, "navigator.deviceMemory",
