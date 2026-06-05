@@ -489,6 +489,28 @@ EDITS = [
                   "        apex_fp::EnvU64(\"APEX_FP_STORAGE_QUOTA\", 0)));\n"
                   "  }\n",
     },
+
+    # --- getBoundingClientRect / getClientRects sub-pixel jitter -------
+    # DOMRect::FromRectF is the chokepoint for layout rects returned to JS
+    # (getBoundingClientRect, Range rects, getClientRects' rects) -- but NOT
+    # user-built `new DOMRect()` (that goes through Create()). Perturb each
+    # coordinate with a per-session, value-dependent sub-pixel offset so a
+    # clientRects hash differs per session, stable within it.
+    {
+        "file": "third_party/blink/renderer/core/geometry/dom_rect.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-clientrect-jitter",
+        "anchor": "DOMRect* DOMRect::FromRectF(const gfx::RectF& rect) {\n",
+        "where": "after",
+        "inject": "  // apex-clientrect-jitter\n"
+                  "  if (apex_fp::Active() && apex_fp::Seed() != 0) {\n"
+                  "    return MakeGarbageCollected<DOMRect>(\n"
+                  "        apex_fp::JitterCoord(rect.x(), 0),\n"
+                  "        apex_fp::JitterCoord(rect.y(), 1),\n"
+                  "        apex_fp::JitterCoord(rect.width(), 2),\n"
+                  "        apex_fp::JitterCoord(rect.height(), 3));\n"
+                  "  }\n",
+    },
 ]
 
 

@@ -69,6 +69,18 @@ row('canvas toDataURL stable in-session', h1 === h2 ? 'YES (deterministic)' : 'N
     h1 === h2 ? 'ok' : 'bad');
 row('canvas hash (sample chars)', h1.slice(22, 70));
 
+// clientRect jitter: must be STABLE within a session (deterministic);
+// a rect that changes between two calls would itself be a tell.
+(function () {
+  const a = document.body.getBoundingClientRect();
+  const b = document.body.getBoundingClientRect();
+  const stable = a.width === b.width && a.x === b.x && a.height === b.height;
+  row('getBoundingClientRect stable in-session',
+      stable ? 'YES (deterministic)' : 'NO (fluctuates)',
+      stable ? 'ok' : 'bad');
+  row('getBoundingClientRect width', String(a.width));
+})();
+
 // --- the decisive check: toString integrity -----------------------------
 // A C++ patch leaves the JS getter pristine. A JS shim would show a different
 // toString. Every row here MUST say "native code".

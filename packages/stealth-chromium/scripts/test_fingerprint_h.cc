@@ -176,6 +176,27 @@ int main() {
     CHECK(a != c, "device id differs for different salt (mic vs camera)");
   }
 
+  // --- JitterCoord: getBoundingClientRect sub-pixel jitter ---
+  {
+    setenv("APEX_FP_SEED", "4242", 1);
+    double a = apex_fp::JitterCoord(764.0, 2);
+    double b = apex_fp::JitterCoord(764.0, 2);
+    CHECK(a == b, "rect jitter stable for same (seed,value,coord)");
+    double d = a - 764.0;
+    if (d < 0) d = -d;
+    CHECK(d <= 0.01 && d > 0.0, "rect jitter sub-pixel (0 < |d| <= 0.01px)");
+    double w = apex_fp::JitterCoord(764.0, 2);
+    double h = apex_fp::JitterCoord(764.0, 3);
+    CHECK(w != h, "diff coords get independent jitter (not a uniform scale)");
+    CHECK(apex_fp::JitterCoord(100.0, 2) != a, "diff values get diff jitter");
+    setenv("APEX_FP_SEED", "9999", 1);
+    CHECK(apex_fp::JitterCoord(764.0, 2) != a,
+          "rect jitter differs across sessions (seeds)");
+    setenv("APEX_FP_SEED", "0", 1);
+    CHECK(apex_fp::JitterCoord(764.0, 2) == 764.0,
+          "seed 0 -> identity (no jitter)");
+  }
+
   std::printf("\n%s (%d failure%s)\n",
               failures == 0 ? "ALL PASS" : "FAILURES",
               failures, failures == 1 ? "" : "s");

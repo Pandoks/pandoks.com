@@ -205,6 +205,33 @@ inline uint32_t EtldSeed(const std::string& host) {
   return h ? h : 1u;
 }
 
+// --- client-rect jitter ----------------------------------------------------
+//
+// getBoundingClientRect()/getClientRects() expose sub-pixel layout floats that
+// differ by font rasterizer + zoom; hashing them is a stable fingerprint. We
+// add a tiny per-session, per-coordinate, VALUE-dependent offset so the hash
+// differs per session but is stable within it. Value-dependent (not a uniform
+// scale) so a detector can't divide the jitter back out by comparing two
+// elements. Magnitude is sub-pixel (<= ~0.01 CSS px) -- below what any layout
+// actually depends on, but enough to move a full-precision hash.
+//
+// Dependency-free (only Seed()/Mulberry32) so it unit-tests without Chromium.
+//   v         : the coordinate (x/y/width/height), in CSS px
+//   coord_idx : 0..3 -- so the four coords of one rect jitter independently
+inline double JitterCoord(double v, uint32_t coord_idx) {
+  const uint32_t s = Seed();
+  if (s == 0) {
+    return v;
+  }
+  // Quantize v into a bucket so equal coordinates jitter equally (stable) but
+  // distinct coordinates jitter distinctly (not a uniform, divisible scale).
+  const uint32_t vbucket =
+      static_cast<uint32_t>(static_cast<int64_t>(v * 64.0));
+  Mulberry32 rng(s ^ (0x85EBCA6Bu * (coord_idx + 1u)) ^
+                 (vbucket * 0x9E3779B9u));
+  return v + rng.NextSigned(0.01);
+}
+
 }  // namespace apex_fp
 
 #endif  // APEX_CHROMIUM_FINGERPRINT_H_

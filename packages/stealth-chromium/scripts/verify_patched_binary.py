@@ -141,6 +141,11 @@ PROBE_JS = r"""
     deviceCount: devices ? devices.length : null,
     voiceCount: voices.length,
     canvasStable: h1 === h2,
+    clientRectStable: (() => {
+      const a = document.body.getBoundingClientRect();
+      const b = document.body.getBoundingClientRect();
+      return a.width === b.width && a.x === b.x && a.height === b.height;
+    })(),
     ts: {
       hardwareConcurrency: tsNative(hwGetter),
       screenWidth: tsNative(
@@ -229,6 +234,9 @@ async def run() -> int:
            r["voiceCount"])
     _check(results, r["canvasStable"] is True,
            "canvas hash stable in-session", r["canvasStable"])
+    _check(results, r["clientRectStable"] is True,
+           "clientRect stable in-session (deterministic jitter)",
+           r["clientRectStable"])
     # --- toString native-code integrity (the decisive check) ---
     for k, v in r["ts"].items():
         _check(results, v is True, f"toString native: {k}", v, True)

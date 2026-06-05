@@ -31,6 +31,7 @@ echo "[0/4] installing shared headers ..."
 FP_H="$CS/apex_fingerprint.h"
 for dir in \
   "third_party/blink/renderer/core/frame" \
+  "third_party/blink/renderer/core/geometry" \
   "third_party/blink/renderer/core/html/canvas" \
   "third_party/blink/renderer/modules/webgl" \
   "third_party/blink/renderer/modules/canvas/canvas2d" \
