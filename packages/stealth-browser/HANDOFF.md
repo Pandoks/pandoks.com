@@ -8,14 +8,19 @@ GL-libs-packaging work).
 
 ## 🟢 LATEST VERIFIED STATE (2026-06-05)
 
-**First fully-green patched binary.** Build
-`stealth-chromium-149final-20260605-153624` (Chromium `149.0.7827.53`, off
-commit `a79f0c4`) SUCCEEDED and passed all 21 binary-string asserts.
-Artifact: `s3://personal-pandoks-builderartifactsbucketbucket-oawuxubt/stealth-chromium-149final-20260605-153624/`.
+**Latest green build:** `stealth-chromium-149audio-20260605-180008`
+(Chromium `149.0.7827.53`, off commit `a8d743b`) — passed all 21
+binary-string asserts AND the in-build runtime self-check scored
+**29/29 surfaces = 1.000, ALL CLEAN** (uploaded to the artifact prefix as
+`runtime-selfcheck.log`). The self-check is now a two-pass differential
+(stock baseline vs spoofed); the audio FP fix below is confirmed:
+`PASS OfflineAudioContext farbled vs stock`. WebGL also PASS on the builder.
+WebGPU still SKIP (no software adapter even on the GPU-less builder).
 
-Runtime-verified with `verify_patched_binary.py` (headless, this container):
-**26/26 surfaces spoofed, zero JS-visible tampering** (every toString-native
-check passes). Includes `navigator.platform` — the surface that silently
+Earlier milestone: build `stealth-chromium-149final-20260605-153624`
+(off `a79f0c4`) was the first fully-green binary; verified
+**26/26 surfaces** locally (now 29/29 with the added differential checks),
+zero JS-visible tampering (every toString-native check passes). Includes `navigator.platform` — the surface that silently
 dropped from 6 prior builds (root cause: it was patched on the LTO-dead
 `NavigatorID::platform()`; fix moved it to the reachable
 `NavigatorBase::platform()`). WebGL spoof confirmed live
