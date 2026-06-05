@@ -86,6 +86,28 @@ PROBE_JS = r"""
     x.fillStyle = '#069'; x.fillText('apex-fp-check', 2, 2);
     return c.toDataURL();
   };
+
+  // --- noise surfaces (compared spoof-on vs stock by the runner) ---
+  // measureText sub-pixel width -- farbling moves it off the stock grid value.
+  let measureTextW = null;
+  try {
+    const mc = document.createElement('canvas').getContext('2d');
+    mc.font = '16px Arial';
+    measureTextW = mc.measureText('apex 0123456789 the quick brown fox').width;
+  } catch (e) {}
+  // OfflineAudioContext render hash -- THE canonical audio fingerprint path.
+  let audioHash = null;
+  try {
+    const ac = new OfflineAudioContext(1, 44100, 44100);
+    const osc = ac.createOscillator(); osc.type = 'triangle';
+    osc.frequency.value = 440;
+    const comp = ac.createDynamicsCompressor();
+    osc.connect(comp); comp.connect(ac.destination); osc.start(0);
+    const rb = await ac.startRendering();
+    const d = rb.getChannelData(0);
+    let s = 0; for (let i = 4000; i < 6000; i++) { s += Math.abs(d[i]); }
+    audioHash = s.toFixed(10);
+  } catch (e) { audioHash = 'err'; }
   const h1 = canvasHash(), h2 = canvasHash();
 
   // webgl unmasked strings (may be unavailable with no GL — caught)
@@ -164,6 +186,7 @@ PROBE_JS = r"""
     colorDepth: screen.colorDepth,
     webglVendor, webglRenderer, webglErr,
     webgpuVendor, webgpuArchitecture, webgpuIsFallback, webgpuErr,
+    measureTextW, audioHash, canvasTail: (canvasHash() || '').slice(-24),
     connEffectiveType: conn ? conn.effectiveType : null,
     connRtt: conn ? conn.rtt : null,
     connDownlink: conn ? conn.downlink : null,
@@ -201,20 +224,20 @@ def _check(results: list, ok: bool, label: str, got, want=None) -> None:
     results.append((ok, label, "" if ok else detail))
 
 
-async def run() -> int:
-    bin_path = os.environ.get("APEX_CHROME_PATH")
-    if not bin_path or not Path(bin_path).exists():
-        print(f"ERROR: APEX_CHROME_PATH not set or missing: {bin_path!r}")
-        return 2
-    os.environ.update(FP_ENV)
-
+async def _probe(bin_path: str, spoof: bool) -> dict:
+    """Launch the binary once and run PROBE_JS. spoof=True applies FP_ENV;
+    spoof=False launches stock (no APEX_FP_*) for a noise baseline."""
+    for k in list(os.environ):
+        if k.startswith("APEX_FP_"):
+            del os.environ[k]
+    if spoof:
+        os.environ.update(FP_ENV)
     args = [
         "--no-sandbox", "--disable-dev-shm-usage",
         "--headless=new", "--disable-gpu",
         "--enable-unsafe-swiftshader",
         "--no-first-run", "--no-default-browser-check",
     ]
-    print(f"=== verify_patched_binary: {bin_path} ===")
     # sandbox=False: the --no-sandbox arg alone doesn't satisfy nodriver's own
     # launch guard when running as root (cloud/CI containers), so pass it
     # explicitly too -- otherwise start() raises "Failed to connect to browser".
@@ -228,14 +251,29 @@ async def run() -> int:
                                  return_by_value=True)
     finally:
         browser.stop()
+    return raw if isinstance(raw, dict) else _unwrap(raw)
 
-    # nodriver returns a deep-serialized RemoteObject for object results;
-    # _unwrap (the same helper core_nodriver uses) normalizes it to a dict.
-    r = raw if isinstance(raw, dict) else _unwrap(raw)
-    if not isinstance(r, dict) or not r:
-        print(f"ERROR: probe returned no usable dict: {raw!r}")
+
+async def run() -> int:
+    bin_path = os.environ.get("APEX_CHROME_PATH")
+    if not bin_path or not Path(bin_path).exists():
+        print(f"ERROR: APEX_CHROME_PATH not set or missing: {bin_path!r}")
         return 2
-    print("--- raw probe ---")
+
+    print(f"=== verify_patched_binary: {bin_path} ===")
+    # Two passes: a stock baseline (no spoofing) then the spoofed run. The
+    # noise patches (canvas/audio/measureText) can't be asserted to an exact
+    # value -- they're per-seed random -- so we assert they DIFFER from stock,
+    # the only version-independent proof the farbling actually fires. (This is
+    # what would have caught the OfflineAudioContext audio gap, which produced
+    # an identical hash spoof-on vs stock.)
+    print("--- stock baseline pass (no APEX_FP_*) ---")
+    stock = await _probe(bin_path, spoof=False)
+    r = await _probe(bin_path, spoof=True)
+    if not isinstance(r, dict) or not r:
+        print(f"ERROR: probe returned no usable dict: {r!r}")
+        return 2
+    print("--- raw probe (spoofed) ---")
     print(json.dumps(r, indent=2)[:2000])
 
     results: list = []
@@ -281,6 +319,26 @@ async def run() -> int:
     _check(results, r["clientRectStable"] is True,
            "clientRect stable in-session (deterministic jitter)",
            r["clientRectStable"])
+    # --- differential noise checks: farbled value must DIFFER from stock ---
+    # The only version-independent proof the noise patches actually fire.
+    # Guarded on a usable stock baseline so a flaky stock launch downgrades to
+    # a skip rather than a false failure.
+    if isinstance(stock, dict) and stock:
+        _check(results, r["canvasTail"] != stock.get("canvasTail"),
+               "canvas farbled vs stock", r["canvasTail"], "!= stock")
+        _check(results, r["measureTextW"] != stock.get("measureTextW"),
+               "measureText farbled vs stock",
+               r["measureTextW"], stock.get("measureTextW"))
+        if r["audioHash"] != "err" and stock.get("audioHash") not in (None, "err"):
+            _check(results, r["audioHash"] != stock.get("audioHash"),
+                   "OfflineAudioContext farbled vs stock (audio FP)",
+                   r["audioHash"], stock.get("audioHash"))
+        else:
+            print(f"\n[AUDIO SKIP] no usable audio baseline "
+                  f"(spoofed={r['audioHash']!r} stock={stock.get('audioHash')!r})")
+    else:
+        print("\n[NOISE-DIFF SKIP] stock baseline pass unavailable — "
+              "canvas/measureText/audio differential not measured")
     # --- toString native-code integrity (the decisive check) ---
     for k, v in r["ts"].items():
         _check(results, v is True, f"toString native: {k}", v, True)

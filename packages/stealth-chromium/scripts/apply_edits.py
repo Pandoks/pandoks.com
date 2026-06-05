@@ -186,6 +186,36 @@ EDITS = [
                   "          channel_data_array->AsSpan(), i);\n"
                   "    }\n",
     },
+    # --- audio: perturb the OfflineAudioContext RESULT -----------------
+    # The apex-audio-noise edit above only fires in AudioBuffer(AudioBus*).
+    # The canonical audio fingerprint -- OfflineAudioContext.startRendering()
+    # then getChannelData() -- does NOT use that ctor: the result buffer is
+    # made via AudioBuffer::CreateUninitialized and filled IN PLACE by the
+    # destination handler, so it bypassed the hook entirely (confirmed by a
+    # spoof-on-vs-stock differential: identical audio hash). Perturb the final
+    # buffer once in FireCompletionEvent, just before the promise resolve +
+    # oncomplete event -- the single point both paths read the result from.
+    {
+        "file": "third_party/blink/renderer/modules/webaudio/"
+                "offline_audio_context.cc",
+        "header": '#include "third_party/blink/renderer/modules/webaudio/'
+                  'apex_audio_noise.h"',
+        "marker": "apex-audio-offline-noise",
+        "anchor": "    DispatchEvent(*OfflineAudioCompletionEvent::Create("
+                  "rendered_buffer));\n",
+        "where": "before",
+        "inject": "    // apex-audio-offline-noise: farble the canonical "
+                  "OfflineAudioContext result\n"
+                  "    if (apex_fp::Active()) {\n"
+                  "      for (unsigned apex_ch = 0;\n"
+                  "           apex_ch < rendered_buffer->numberOfChannels(); "
+                  "++apex_ch) {\n"
+                  "        apex_fp::PerturbAudioChannel(\n"
+                  "            rendered_buffer->getChannelData(apex_ch)"
+                  ".Get()->AsSpan(), apex_ch);\n"
+                  "      }\n"
+                  "    }\n",
+    },
     # --- mediaDevices.enumerateDevices --------------------------------
     # Verified anchor (Chromium 148): in DevicesEnumerated, the
     # MediaDeviceInfoVector `media_devices` is resolved via
