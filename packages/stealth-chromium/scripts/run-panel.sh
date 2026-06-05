@@ -65,6 +65,18 @@ sudo apt-get install -y -qq \
        libgtk-3-0 libxshmfence1 libglib2.0-0 \
   || echo "  (some deps failed to install -- continuing; launch will tell)"
 
+# Rebuild the fontconfig cache so Chrome SEES the fonts installed above. Without
+# this the new fonts are on disk but not in the cache Chrome reads at launch, so
+# a width-based font test (CreepJS) still misses them. fontconfig's bundled
+# 30-metric-aliases.conf maps Calibri->Carlito, Cambria->Caladea, Arial->
+# Liberation Sans etc., so name-based font requests resolve to the metric
+# clones once the cache is fresh.
+sudo fc-cache -f >/dev/null 2>&1 || true
+echo "  fonts visible to fontconfig: $(fc-list 2>/dev/null | wc -l)"
+for f in Calibri Cambria Arial "Times New Roman" Verdana Georgia "Segoe UI" Consolas Tahoma; do
+  printf '    %-16s %s\n' "$f" "$(fc-match "$f" 2>/dev/null)"
+done
+
 echo "=== [2/5] download latest patched binary from S3 ==="
 # Pick the NEWEST tarball by DATE -- `aws s3 ls --recursive` prefixes each line
 # with `YYYY-MM-DD HH:MM:SS`, so a plain sort is chronological. (A sort over
