@@ -100,6 +100,11 @@ class NodriverCore:
         if self._patched_chrome is not None:
             os.environ.update(fp_env(self._fp_profile, self._fp_seed))
 
+        # UA-STRING COHERENCE is handled NATIVELY in the binary (apex-ua-platform
+        # in user_agent_utils.cc swaps the reduced-UA OS token from the same
+        # APEX_FP_UA_PLATFORM env), NOT via --user-agent: the flag disables the
+        # whole UA Client Hints API (navigator.userAgentData becomes null -- a
+        # worse tell than the UA mismatch it fixes).
         kwargs: dict = {"headless": self.headless}
         if self._patched_chrome is not None:
             kwargs["chrome_path"] = self._patched_chrome

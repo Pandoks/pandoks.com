@@ -108,6 +108,18 @@ PROBE_JS = r"""
     let s = 0; for (let i = 4000; i < 6000; i++) { s += Math.abs(d[i]); }
     audioHash = s.toFixed(10);
   } catch (e) { audioHash = 'err'; }
+  // canvas.toBlob() -- a DIFFERENT encode path from toDataURL; must also farble.
+  let blobHash = null;
+  try {
+    const bc = document.createElement('canvas'); bc.width = 120; bc.height = 40;
+    const bx = bc.getContext('2d');
+    bx.fillStyle = '#3a7'; bx.fillRect(0, 0, 120, 40);
+    bx.fillStyle = '#a33'; bx.font = '14px Arial'; bx.fillText('apex-blob', 4, 22);
+    const blob = await new Promise(r => bc.toBlob(r));
+    const u = new Uint8Array(await blob.arrayBuffer());
+    let bh = 0; for (let i = 0; i < u.length; i += 13) { bh = (bh * 31 + u[i]) >>> 0; }
+    blobHash = bh;
+  } catch (e) { blobHash = 'err'; }
   const h1 = canvasHash(), h2 = canvasHash();
 
   // webgl unmasked strings + the numeric caps that must agree with the GPU the
@@ -193,7 +205,7 @@ PROBE_JS = r"""
     webglVendor, webglRenderer, webglErr,
     maxTextureSize, maxRenderbufferSize, maxViewportDim,
     webgpuVendor, webgpuArchitecture, webgpuIsFallback, webgpuErr,
-    measureTextW, audioHash, canvasTail: (canvasHash() || '').slice(-24),
+    measureTextW, audioHash, blobHash, canvasTail: (canvasHash() || '').slice(-24),
     connEffectiveType: conn ? conn.effectiveType : null,
     connRtt: conn ? conn.rtt : null,
     connDownlink: conn ? conn.downlink : null,
@@ -343,6 +355,13 @@ async def run() -> int:
         else:
             print(f"\n[AUDIO SKIP] no usable audio baseline "
                   f"(spoofed={r['audioHash']!r} stock={stock.get('audioHash')!r})")
+        if r["blobHash"] != "err" and stock.get("blobHash") not in (None, "err"):
+            _check(results, r["blobHash"] != stock.get("blobHash"),
+                   "canvas.toBlob farbled vs stock",
+                   r["blobHash"], stock.get("blobHash"))
+        else:
+            print(f"\n[toBlob SKIP] no usable blob baseline "
+                  f"(spoofed={r['blobHash']!r} stock={stock.get('blobHash')!r})")
     else:
         print("\n[NOISE-DIFF SKIP] stock baseline pass unavailable — "
               "canvas/measureText/audio differential not measured")

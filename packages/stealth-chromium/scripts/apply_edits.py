@@ -637,6 +637,80 @@ EDITS = [
                   "    return apex_fp::EnvStr(\"APEX_FP_UA_PLATFORM_VERSION\");\n"
                   "  }\n",
     },
+    # --- canvas toBlob() farbling (coherent with toDataURL) ------------
+    # apex-canvas-encode farbles toDataURL via the ImageDataBuffer readPixels
+    # ctor, but toBlob takes a different path: CanvasAsyncBlobCreator does
+    # skia_image_->peekPixels(&src_data_) (src_data_ points at memory OWNED BY
+    # skia_image_) then ImageDataBuffer::Create(src_data_), bypassing the hook.
+    # Result (confirmed by spoof-vs-stock differential): toBlob is un-farbled
+    # and DISAGREES with toDataURL on the same canvas -- a coherence tell.
+    # Fix in two parts: (1) .h adds a private SkBitmap member to own a writable
+    # copy; (2) .cc copies src_data_ into it, perturbs it, and repoints
+    # src_data_ -- mutating skia_image_'s pixels in place would corrupt a
+    # possibly-shared image, so we never touch the original.
+    {
+        "file": "third_party/blink/renderer/core/html/canvas/"
+                "canvas_async_blob_creator.h",
+        "header": '#include "third_party/skia/include/core/SkBitmap.h"',
+        "marker": "apex-blob-pixels-member",
+        "anchor": "  SkPixmap src_data_;",
+        "where": "after",
+        "inject": "\n  // apex-blob-pixels-member: owned, perturbed copy so "
+                  "toBlob farbles\n"
+                  "  // coherently with toDataURL (see apex-canvas-encode-blob).\n"
+                  "  SkBitmap apex_blob_pixels_;",
+    },
+    {
+        "file": "third_party/blink/renderer/core/html/canvas/"
+                "canvas_async_blob_creator.cc",
+        "header": '#include "third_party/blink/renderer/modules/canvas/'
+                  'canvas2d/apex_canvas_noise.h"',
+        "marker": "apex-canvas-encode-blob",
+        "anchor": "      static_bitmap_image_loaded_ = true;\n",
+        "where": "after",
+        "inject": "      // apex-canvas-encode-blob: farble toBlob's pixels in a\n"
+                  "      // PRIVATE copy (src_data_ aliases skia_image_'s own "
+                  "memory).\n"
+                  "      if (apex_fp::Active() &&\n"
+                  "          apex_blob_pixels_.tryAllocPixels(src_data_.info()) "
+                  "&&\n"
+                  "          src_data_.readPixels(apex_blob_pixels_.pixmap())) {\n"
+                  "        apex_fp::PerturbRGBA(\n"
+                  "            static_cast<uint8_t*>("
+                  "apex_blob_pixels_.getPixels()),\n"
+                  "            static_cast<size_t>(apex_blob_pixels_.width()) *\n"
+                  "                apex_blob_pixels_.height());\n"
+                  "        src_data_ = apex_blob_pixels_.pixmap();\n"
+                  "      }\n",
+    },
+    # --- classic User-Agent STRING OS token coherence ------------------
+    # The two edits above fix the UA-CH (Sec-CH-UA-Platform + userAgentData),
+    # but the CLASSIC navigator.userAgent and the HTTP User-Agent header come
+    # from the reduced-UA string built on GetUnifiedPlatform()'s OS token --
+    # which stays the build's real "X11; Linux x86_64" while everything else
+    # says Windows/macOS. The panel caught exactly this (a Windows persona
+    # served a Linux UA -- a cross-check lie CreepJS/browserscan flag). Swap
+    # the OS token from the SAME APEX_FP_UA_PLATFORM env so the UA string +
+    # header agree with the UA-CH + navigator.platform. Done natively (NOT via
+    # --user-agent, which disables the whole UA Client Hints API -> null
+    # userAgentData, a worse tell). GetUnifiedPlatform() feeds BOTH the JS
+    # property and the request header, so one edit fixes both coherently.
+    {
+        "file": "components/embedder_support/user_agent_utils.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-ua-platform",
+        "anchor": "std::string GetUnifiedPlatform() {\n",
+        "where": "after",
+        "inject": "  // apex-ua-platform\n"
+                  "  if (apex_fp::HasOverride(\"APEX_FP_UA_PLATFORM\")) {\n"
+                  "    const std::string apex_p = "
+                  "apex_fp::EnvStr(\"APEX_FP_UA_PLATFORM\");\n"
+                  "    if (apex_p == \"Windows\") "
+                  "return \"Windows NT 10.0; Win64; x64\";\n"
+                  "    if (apex_p == \"macOS\") "
+                  "return \"Macintosh; Intel Mac OS X 10_15_7\";\n"
+                  "  }\n",
+    },
 ]
 
 
