@@ -43,61 +43,14 @@ from .profile import (Identity, chrome_launch_flags, chrome_path,
 # Resolved per-environment: $CHROME_PATH (Docker) -> OS default -> PATH.
 REAL_CHROME = chrome_path()
 
-# WebGL vendor/renderer normalization for containers. A GPU-less container
-# reports SwiftShader or null -- both are headless/VM tells. We make WebGL
-# report a common, real Linux desktop GPU (Intel + Mesa), so the fingerprint
-# is coherent with a Linux Chrome.
-#
-# CRITICAL: the override must be INVISIBLE. CreepJS checks whether functions
-# like getParameter have been tampered with by reading getParameter.toString()
-# (expects "[native code]") and Function.prototype.toString. A naive override
-# is itself detected as a "lie" (stealth % goes up). So we:
-#   1. proxy getParameter via a Proxy whose `get` traps nothing observable,
-#   2. patch Function.prototype.toString so the proxied fn still reports
-#      native code, and patch toString itself to look native too.
-# Applied before any page script runs.
-_WEBGL_NORMALIZE_JS = r"""
-(() => {
-  const VENDOR = 'Google Inc. (Intel)';
-  const RENDERER = 'ANGLE (Intel, Mesa Intel(R) UHD Graphics (CML GT2), '
-                 + 'OpenGL 4.6)';
-
-  // --- make patched functions report native code ---
-  const nativeToString = Function.prototype.toString;
-  const fakeNatives = new WeakMap();   // patchedFn -> name to fake
-
-  const makeNative = (fn, name) => { fakeNatives.set(fn, name); return fn; };
-
-  const toStringProxy = new Proxy(nativeToString, {
-    apply(target, thisArg, args) {
-      if (fakeNatives.has(thisArg)) {
-        return 'function ' + fakeNatives.get(thisArg)
-             + '() { [native code] }';
-      }
-      return Reflect.apply(target, thisArg, args);
-    },
-  });
-  // install the toString proxy, and make ITS toString look native too
-  Function.prototype.toString = toStringProxy;
-  fakeNatives.set(toStringProxy, 'toString');
-
-  // --- patch WebGL getParameter behind a native-looking wrapper ---
-  const patch = (proto) => {
-    if (!proto || !proto.getParameter) return;
-    const gp = proto.getParameter;
-    const wrapped = function getParameter(p) {
-      if (p === 37445) return VENDOR;     // UNMASKED_VENDOR_WEBGL
-      if (p === 37446) return RENDERER;   // UNMASKED_RENDERER_WEBGL
-      if (p === 7937)  return RENDERER;   // RENDERER
-      return gp.apply(this, arguments);
-    };
-    makeNative(wrapped, 'getParameter');
-    proto.getParameter = wrapped;
-  };
-  try { patch(WebGLRenderingContext.prototype); } catch (e) {}
-  try { patch(WebGL2RenderingContext.prototype); } catch (e) {}
-})();
-"""
+# NOTE: there is intentionally NO JS-based WebGL/getParameter override here.
+# WebGL vendor/renderer are spoofed NATIVELY by the patched binary
+# (APEX_FP_WEBGL_*). A JS override -- and especially the Function.prototype.
+# toString proxy a naive one needs to hide itself -- is exactly the tampering
+# CreepJS's "lies" detector hunts for, so it would LOWER the stealth score.
+# A prior dead _WEBGL_NORMALIZE_JS doing this was removed (2026-06-05); on a
+# GPU-less host the honest fix is a real GPU matching the persona, not a JS
+# lie (see stealth-chromium #6 analysis).
 
 
 class StealthBrowser:
