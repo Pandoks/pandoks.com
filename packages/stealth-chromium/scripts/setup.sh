@@ -189,7 +189,7 @@ if [ -n "${BUILDER_CACHE_BUCKET:-}" ] && [ "$CACHE_DIRTY" = "1" ]; then
   # drops the unreachable ToT objects. Also exclude src/out (build output is
   # NOT source; ccache is the compile cache) so the tarball stays lean.
   echo "      de-bloating src/.git (git gc) ..."
-  git -C "$SRC" gc --prune=now --quiet 2>/dev/null || true
+  git -C "$WORK/chromium/src" gc --prune=now --quiet 2>/dev/null || true
   # --expected-size sizes the S3 multipart chunks (cap is 10000 parts). The
   # old 80 GB hint silently FAILED to upload a tree that exceeded it (a bloated
   # cache once hit 90 GiB compressed), leaving the cache stuck at a stale
