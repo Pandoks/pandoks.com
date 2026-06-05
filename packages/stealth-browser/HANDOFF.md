@@ -307,6 +307,28 @@ result bypasses it) — found by spoof-vs-stock differential, fixed via
 `apex-audio-offline-noise`. The verifier is now a two-pass differential that
 catches noise regressions like it.
 
+**Noise-surface differential audit (spoof-on vs stock, two seeds), 2026-06-05:**
+| surface | fires? |
+|---|---|
+| canvas `toDataURL` | ✅ |
+| canvas `getImageData` | ✅ |
+| canvas `measureText` | ✅ |
+| WebGL `readPixels` | ✅ |
+| WebAudio `getChannelData` (AudioBuffer-from-bus) | ✅ |
+| `OfflineAudioContext` render | ✅ (after this round's fix) |
+| `AnalyserNode.getFloatFrequencyData` | ✅ |
+| `clientRect` jitter | ✅ |
+| **canvas `toBlob`** | 🔴 **NOT farbled — known gap** |
+
+`canvas.toBlob()` is un-farbled: it `peekPixels(&src_data_)` (the SkImage's own
+memory) then `ImageDataBuffer::Create(src_data_)`, bypassing the readPixels
+hook `apex-canvas-encode` uses for `toDataURL`. So `toDataURL` and `toBlob` of
+the same canvas now DISAGREE (a coherence tell if a detector compares both —
+uncommon). LOWER priority than the working surfaces. SAFE FIX (not yet done):
+in `canvas_async_blob_creator.cc` after `peekPixels`, perturb a PRIVATE copy of
+the pixels (NOT `src_data_` in place — that may mutate a shared `SkImage`),
+which needs an owned buffer member on the class.
+
 Remaining: #1 plugins/mimeTypes is NOT a real gap (real-Chromium already has
 the correct 5 PDF plugins — verified). #6 WebGL numeric coherence is
 deployment-gated (real GPU host required — see above), not a patch.
