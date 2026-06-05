@@ -116,6 +116,27 @@ gn gen out/apex
 echo "[2/2] autoninja -- this is the long step (5-10h first build) ..."
 autoninja -C out/apex chrome
 
+# --- apex-platform diagnostic ----------------------------------------------
+# navigator.platform spoof (APEX_FP_PLATFORM) has silently failed to land in
+# the binary across multiple builds via BOTH an anchor edit and a full-file
+# overlay, while every other patch lands. This pinpoints WHERE it is lost:
+#   source patched?  -> overlay/apply worked
+#   in an .o?        -> compiled in (so loss is at link/strip) vs not (ccache
+#                       stale, or the apex code compiled out / jumbo issue)
+# Compared against APEX_FP_UA_PLATFORM, a sibling patch that DOES land.
+echo "=== apex-platform diagnostic ==="
+_navsrc="$SRC/third_party/blink/renderer/core/frame/navigator_id.cc"
+echo " source navigator_id.cc APEX_FP_PLATFORM hits: $(grep -c APEX_FP_PLATFORM "$_navsrc" 2>/dev/null || echo NA)"
+echo " is there a standalone navigator_id .o (vs jumbo)?:"
+find "$SRC/out/apex/obj/third_party/blink" -name '*navigator_id*' 2>/dev/null | head -5
+echo " .o objects containing APEX_FP_PLATFORM (should-be navigator_id):"
+find "$SRC/out/apex/obj/third_party/blink" -name '*.o' 2>/dev/null \
+  | xargs -r grep -lZ APEX_FP_PLATFORM 2>/dev/null | tr '\0' '\n' | head -5
+echo " .o objects containing APEX_FP_UA_PLATFORM (control -- this one lands):"
+find "$SRC/out/apex/obj/third_party/blink" -name '*.o' 2>/dev/null \
+  | xargs -r grep -lZ APEX_FP_UA_PLATFORM 2>/dev/null | tr '\0' '\n' | head -5
+echo "=== end apex-platform diagnostic ==="
+
 # Report ccache stats post-build — measure cache hit rate / size for the
 # next build's expected speedup. Hit rate is the most useful number: >80%
 # means future warm builds will be ~5-10 min instead of ~50 min.
