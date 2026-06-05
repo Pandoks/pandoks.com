@@ -503,6 +503,23 @@ EDITS = [
                   "  }\n",
     },
 
+    # --- AnalyserNode.getFloatFrequencyData noise (audio FP, 2nd surface) --
+    # We already perturb the rendered AudioBuffer (audio_buffer.cc); this covers
+    # the analyser dB-spectrum path some FP libs read instead. Inject after the
+    # fill loop, inside the `if (len > 0)` block (destination + len in scope).
+    {
+        "file": "third_party/blink/renderer/modules/webaudio/"
+                "realtime_analyser.cc",
+        "header": '#include "third_party/blink/renderer/modules/webaudio/'
+                  'apex_audio_noise.h"',
+        "marker": "apex-analyser-noise",
+        "anchor": "      destination[i] = static_cast<float>(db_mag);\n"
+                  "    }\n",
+        "where": "after",
+        "inject": "    // apex-analyser-noise: per-session imperceptible dB offset\n"
+                  "    apex_fp::PerturbAnalyserFloat(destination, len);\n",
+    },
+
     # --- UA Client Hints: Sec-CH-UA-Platform header coherence ----------
     # navigator.userAgentData.platform (Blink, apex-uadata-platform) and the
     # Sec-CH-UA-Platform REQUEST HEADER come from different layers. If the JS

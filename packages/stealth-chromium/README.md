@@ -36,7 +36,7 @@ ways a patch can land, and you need to know which one for each surface.
 
 | # | Mechanism | When to use | Where it lives | Count |
 |---|---|---|---|---|
-| 1 | **Full-file `chromium_src/` overlay** | The upstream `.cc` is a single tiny function. Drop in a complete replacement. | `chromium_src/<path>/<file>.cc` + listed in `scripts/apply.sh` `OVERLAYS=()` | 2 |
+| 1 | **Full-file `chromium_src/` overlay** | The upstream `.cc` is a single tiny function. Drop in a complete replacement. | `chromium_src/<path>/<file>.cc` + listed in `scripts/apply.sh` `OVERLAYS=()` | 3 |
 | 2 | **Anchor edit** (preferred for everything else) | Patch one function inside a multi-function file. A unique substring anchors the insertion, surviving Chromium version drift. | A dict in the `EDITS = [...]` list at `scripts/apply_edits.py` | 30 |
 | 3 | **`.patch` file** (documentation only) | None &mdash; the `.patch` files in `patches/` are vestigial. They describe historical intent. `apply.sh` does **not** apply them. | `patches/*.patch` + `patches/series` | 11 (informational) |
 
@@ -297,8 +297,8 @@ uv run --project ../stealth-browser python scripts/cdp_probe.py
 
 ## What's already patched
 
-`apply.sh` + `apply_edits.py` together cover (truthful count: **2 overlays +
-30 anchor edits = 32 distinct edits**, spanning ~24 web-facing surfaces):
+`apply.sh` + `apply_edits.py` together cover (truthful count: **3 overlays +
+30 anchor edits = 33 distinct edits**, spanning ~25 web-facing surfaces):
 
 | Surface | Mechanism | Env var(s) |
 |---|---|---|

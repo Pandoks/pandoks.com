@@ -56,6 +56,27 @@ inline void PerturbAudioChannel(base::span<float> samples, unsigned channel) {
   }
 }
 
+// Perturb AnalyserNode.getFloatFrequencyData() output -- the OTHER audio
+// fingerprint surface (some libs read the dB spectrum, not the rendered
+// buffer). Deterministic per (seed, bin) so the spectrum hash differs per
+// session but is stable within it. Offset ~1e-3 dB: far below audible /
+// meaningful, enough to move a hash. `data` holds dB values (~ -100..0).
+inline void PerturbAnalyserFloat(base::span<float> data, size_t len) {
+  if (!Active()) {
+    return;
+  }
+  const uint32_t seed = Seed();
+  if (seed == 0) {
+    return;
+  }
+  Mulberry32 rng(seed ^ 0x5EED5EEDu);
+  const double kMagnitude = 1e-3;
+  const size_t n = len < data.size() ? len : data.size();
+  for (size_t i = 0; i < n; ++i) {
+    data[i] += static_cast<float>(rng.NextSigned(kMagnitude));
+  }
+}
+
 }  // namespace apex_fp
 
 #endif  // APEX_CHROMIUM_AUDIO_NOISE_H_
