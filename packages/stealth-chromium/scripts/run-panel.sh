@@ -36,6 +36,20 @@ trap _upload_log EXIT
 echo "=== [1/5] runtime deps (Chromium libs + Xvfb + base fonts) ==="
 export DEBIAN_FRONTEND=noninteractive
 sudo apt-get update -qq || true
+# Windows-persona FONT REALISM: CreepJS (and others) measure font WIDTHS to
+# detect which fonts are installed. A Linux box has Liberation/DejaVu, NOT the
+# Windows web-safe set the persona claims -> only ~6/51 common fonts match, a
+# "like headless"/anomalous-platform signal. Fix with the real MS core fonts
+# PLUS free METRIC-COMPATIBLE substitutes: Carlito has Calibri's exact metrics,
+# Caladea has Cambria's -- so a width-based test sees the persona's fonts as
+# present. (The proprietary originals can't be installed; metric clones are how
+# stealth browsers solve this. For production this belongs in the per-persona
+# image, not just the panel box.)
+echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" \
+  | sudo debconf-set-selections 2>/dev/null || true
+sudo apt-get install -y -qq \
+  ttf-mscorefonts-installer fonts-crosextra-carlito fonts-crosextra-caladea \
+  2>/dev/null || true
 # Non-fatal: if a lib name drifted across Ubuntu releases, the actual chrome
 # launch is the real test. t64 names are noble (24.04); fall back to classic.
 sudo apt-get install -y -qq \
