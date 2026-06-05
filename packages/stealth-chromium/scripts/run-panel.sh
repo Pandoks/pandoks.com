@@ -73,15 +73,26 @@ echo "=== [3/5] uv sync (nodriver / patchright) ==="
 cd "$REPO_ROOT/packages/stealth-browser"
 uv sync
 
-echo "=== [4/5] run panel (headful on Xvfb) ==="
 export APEX_CHROME_PATH="$BIN" APEX_CORE=nodriver
+S3="s3://${BUILDER_ARTIFACTS_BUCKET}/${BUILD_ID}/panel"
+
+echo "=== [4a/5] binary self-check (headful, explicit surfaces) ==="
+# Surface-by-surface confirmation on THIS instance (UA OS-coherence, WebGL
+# caps 16384 via Mesa llvmpipe, canvas/audio/toBlob farbling, zero toString
+# tampering) before the external panel -- so the run carries both the
+# market verdicts AND a precise spoof report. Non-fatal.
+timeout 300 xvfb-run -a -s "-screen 0 1920x1080x24" \
+  uv run python "$PKG_ROOT/scripts/verify_patched_binary.py" 2>&1 \
+  | tee "$WORK/verifier.txt" || true
+aws s3 cp "$WORK/verifier.txt" "${S3}/verifier.txt" >/dev/null 2>&1 || true
+
+echo "=== [4b/5] run panel (headful on Xvfb) ==="
 # Full panel; per-site errors don't abort (the script catches them).
 xvfb-run -a -s "-screen 0 1920x1080x24" \
   uv run python "$PKG_ROOT/scripts/fingerprint_benchmark.py" 2>&1 \
   | tee "$WORK/panel-output.txt" || true
 
 echo "=== [5/5] upload results ==="
-S3="s3://${BUILDER_ARTIFACTS_BUCKET}/${BUILD_ID}/panel"
 aws s3 cp "$WORK/panel-output.txt" "${S3}/panel-output.txt" || true
 if [ -d /tmp/fpbench ]; then
   aws s3 cp /tmp/fpbench/ "${S3}/" --recursive || true
