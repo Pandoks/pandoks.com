@@ -128,6 +128,90 @@ PROFILES: list[FpProfile] = [
         screen_w=2560, screen_h=1440, avail_w=2560, avail_h=1400,
         gpu_class="amd",
     ),
+    # --- additional Apple-Silicon (gpu_class="apple") ---
+    FpProfile(
+        label="MacBook Air 13 M1",
+        platform="MacIntel", ua_platform="macOS",
+        hw_concurrency=8, device_memory=8,
+        webgl_vendor="Google Inc. (Apple)",
+        webgl_renderer="ANGLE (Apple, ANGLE Metal Renderer: Apple M1, "
+                       "Unspecified Version)",
+        screen_w=1440, screen_h=900, avail_w=1440, avail_h=862,
+        gpu_class="apple",
+    ),
+    FpProfile(
+        label="MacBook Pro 16 M2 Max",
+        platform="MacIntel", ua_platform="macOS",
+        hw_concurrency=12, device_memory=8,
+        webgl_vendor="Google Inc. (Apple)",
+        webgl_renderer="ANGLE (Apple, ANGLE Metal Renderer: Apple M2 Max, "
+                       "Unspecified Version)",
+        screen_w=1728, screen_h=1117, avail_w=1728, avail_h=1079,
+        gpu_class="apple",
+    ),
+    FpProfile(
+        label="MacBook Pro 14 M2 Pro",
+        platform="MacIntel", ua_platform="macOS",
+        hw_concurrency=10, device_memory=8,
+        webgl_vendor="Google Inc. (Apple)",
+        webgl_renderer="ANGLE (Apple, ANGLE Metal Renderer: Apple M2 Pro, "
+                       "Unspecified Version)",
+        screen_w=1512, screen_h=982, avail_w=1512, avail_h=944,
+        gpu_class="apple",
+    ),
+    # --- additional Windows / NVIDIA (gpu_class="nvidia") ---
+    FpProfile(
+        label="Windows desktop, NVIDIA RTX 4060",
+        platform="Win32", ua_platform="Windows",
+        hw_concurrency=16, device_memory=8,
+        webgl_vendor="Google Inc. (NVIDIA)",
+        webgl_renderer="ANGLE (NVIDIA, NVIDIA GeForce RTX 4060 (0x00002882) "
+                       "Direct3D11 vs_5_0 ps_5_0, D3D11)",
+        screen_w=1920, screen_h=1080, avail_w=1920, avail_h=1040,
+        gpu_class="nvidia",
+    ),
+    FpProfile(
+        label="Windows desktop, NVIDIA RTX 4090",
+        platform="Win32", ua_platform="Windows",
+        hw_concurrency=24, device_memory=8,
+        webgl_vendor="Google Inc. (NVIDIA)",
+        webgl_renderer="ANGLE (NVIDIA, NVIDIA GeForce RTX 4090 (0x00002684) "
+                       "Direct3D11 vs_5_0 ps_5_0, D3D11)",
+        screen_w=2560, screen_h=1440, avail_w=2560, avail_h=1400,
+        gpu_class="nvidia",
+    ),
+    FpProfile(
+        label="Windows laptop, NVIDIA GTX 1660 Ti",
+        platform="Win32", ua_platform="Windows",
+        hw_concurrency=12, device_memory=8,
+        webgl_vendor="Google Inc. (NVIDIA)",
+        webgl_renderer="ANGLE (NVIDIA, NVIDIA GeForce GTX 1660 Ti (0x00002182) "
+                       "Direct3D11 vs_5_0 ps_5_0, D3D11)",
+        screen_w=1920, screen_h=1080, avail_w=1920, avail_h=1032,
+        gpu_class="nvidia",
+    ),
+    # --- additional Windows / Intel (gpu_class="intel") ---
+    FpProfile(
+        label="Windows laptop, Intel UHD 630",
+        platform="Win32", ua_platform="Windows",
+        hw_concurrency=8, device_memory=8,
+        webgl_vendor="Google Inc. (Intel)",
+        webgl_renderer="ANGLE (Intel, Intel(R) UHD Graphics 630 (0x00003E9B) "
+                       "Direct3D11 vs_5_0 ps_5_0, D3D11)",
+        screen_w=1920, screen_h=1080, avail_w=1920, avail_h=1032,
+        gpu_class="intel",
+    ),
+    # --- additional Windows / AMD (gpu_class="amd") ---
+    FpProfile(
+        label="Windows desktop, AMD RX 7600",
+        platform="Win32", ua_platform="Windows",
+        hw_concurrency=12, device_memory=8,
+        webgl_vendor="Google Inc. (AMD)",
+        webgl_renderer="ANGLE (AMD, AMD Radeon RX 7600 Direct3D11 "
+                       "vs_5_0 ps_5_0, D3D11)",
+        screen_w=1920, screen_h=1080, avail_w=1920, avail_h=1040,
+        gpu_class="amd",
+    ),
 ]
 
 
@@ -271,6 +355,14 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         "APEX_FP_DEVICE_MEMORY": str(profile.device_memory),
         "APEX_FP_WEBGL_VENDOR": profile.webgl_vendor,
         "APEX_FP_WEBGL_RENDERER": profile.webgl_renderer,
+        # WebGL float ranges that betray the SOFTWARE renderer (ANGLE-GL/
+        # llvmpipe) vs the persona's claimed backend. Line-width is [1,1] on
+        # BOTH D3D11 (Windows) and Metal (macOS) -- neither does wide lines --
+        # so it's always 1. Point-size max is backend-specific: ANGLE-Metal
+        # reports 511, ANGLE-D3D11 reports 1024.
+        "APEX_FP_WEBGL_LINE_WIDTH_MAX": "1",
+        "APEX_FP_WEBGL_POINT_SIZE_MAX": (
+            "511" if profile.gpu_class == "apple" else "1024"),
         # WebGPU adapter must agree with the WebGL GPU -- 2025-26 detectors
         # cross-check the two and flag a mismatch. The web-exposed WebGPU
         # vendor is the lowercase GPU family, which is exactly gpu_class
