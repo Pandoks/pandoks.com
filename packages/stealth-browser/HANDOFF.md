@@ -58,7 +58,11 @@ the UA OS token, AND `ALIASED_LINE_WIDTH_RANGE[1]==1` (the new
 D3D11/Metal GPUs report 1, so this closes a software-renderer tell).
 Profiles span 8 Apple-Silicon Macs + 7 Windows (NVIDIA RTX 30/40, GTX
 1660 Ti, Intel Iris Xe / UHD 630, AMD RX 6700/7600) with real ANGLE
-renderer strings + PCI device IDs.
+renderer strings + PCI device IDs. Re-run `stealth-fulltest-20260606-071103`
+adds **WebGPU vendor coherence per family** — all 15 report
+`adapter.info.vendor == gpu_class` (apple/nvidia/intel/amd) with
+`isFallbackAdapter=false`, i.e. the WebGL↔WebGPU GPU cross-check agrees on
+every persona, not just Apple/Intel.
 
 **Behavioral ghost-cursor confirmed (same run, vs `bot.incolumitas.com`):**
 the CDP `Input.dispatchMouseEvent` stream from `human.py` fires real
