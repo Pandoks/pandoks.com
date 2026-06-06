@@ -81,20 +81,28 @@ async def main() -> None:
         (gc == "apple" and "apple" in g) or
         (gc == "nvidia" and "nvidia" in g) or
         (gc == "intel" and "intel" in g) or
-        (gc == "amd" and ("amd" in g or "radeon" in g)))
+        (gc == "amd" and ("amd" in g or "radeon" in g)) or
+        (gc == "llvmpipe" and "llvmpipe" in g))
     plat_ok = (r.get("platform") == p.platform and
                r.get("uad") == p.ua_platform and
                r.get("cores") == p.hw_concurrency and
                r.get("sw") == p.screen_w)
-    # the persona OS token must be in the UA (apex-ua-platform)
-    osname = "Windows NT" if p.ua_platform == "Windows" else "Mac OS X"
+    # the persona OS token must be in the UA (apex-ua-platform; Linux is native)
+    osname = {"Windows": "Windows NT", "macOS": "Mac OS X",
+              "Linux": "X11; Linux x86_64"}.get(p.ua_platform, "")
     ua_ok = osname in (r.get("ua") or "")
-    # line-width coherence (apex-webgl-ranges): D3D/Metal -> max 1
-    lw_ok = r.get("lineWidthMax") == 1
+    # line-width coherence (apex-webgl-ranges): D3D11/Metal -> 1, but Mesa
+    # llvmpipe (Linux software) genuinely reports 255 (measured).
+    lw_ok = r.get("lineWidthMax") == (255 if gc == "llvmpipe" else 1)
     # WebGPU adapter must be present + vendor == gpu_class + not a fallback
     # (apex-webgpu-adapterinfo). Verifies WebGL<->WebGPU GPU agreement per
-    # family (apple/nvidia/intel/amd), the 2025-26 cross-check.
-    wgpu_ok = (r.get("wgpuVendor") == gc and r.get("wgpuFallback") is False)
+    # family (apple/nvidia/intel/amd), the 2025-26 cross-check. The llvmpipe
+    # (GPU-less Linux) persona leaves WebGPU NATIVE -- Chrome's bundled
+    # SwiftShader, vendor "google" -- which is the honest pairing for that box.
+    if gc == "llvmpipe":
+        wgpu_ok = (r.get("wgpuVendor") == "google")
+    else:
+        wgpu_ok = (r.get("wgpuVendor") == gc and r.get("wgpuFallback") is False)
     ok = plat_ok and gpu_ok and ua_ok and lw_ok and wgpu_ok
     wgpu_fb = "fb" if r.get("wgpuFallback") else "nofb"
     wgpu_detail = "" if wgpu_ok else f" (want {gc}) err={r.get('wgpuErr')!r}"

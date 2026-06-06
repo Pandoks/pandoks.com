@@ -44,7 +44,7 @@ class FpProfile:
     screen_h: int
     avail_w: int
     avail_h: int
-    gpu_class: str = "apple"   # apple | nvidia | amd | intel
+    gpu_class: str = "apple"   # apple | nvidia | amd | intel | llvmpipe
     color_depth: int = 24
 
 
@@ -212,6 +212,22 @@ PROFILES: list[FpProfile] = [
         screen_w=1920, screen_h=1080, avail_w=1920, avail_h=1040,
         gpu_class="amd",
     ),
+    # --- Linux desktop, Mesa llvmpipe software renderer (gpu_class="llvmpipe")
+    # A real GPU-less Linux config (VM / cloud desktop / driver-less laptop) and
+    # the ONLY persona whose GPU stack is 100% MEASURED on our own host (no
+    # speculation): WebGL = Mesa llvmpipe (OpenGL, line-width [1,255], point
+    # [1,256], maxTex 16384), WebGPU = Chrome's bundled SwiftShader left native.
+    # platform/UA are genuinely Linux (the host IS Linux) -- zero OS spoofing.
+    FpProfile(
+        label="Linux desktop, Mesa llvmpipe",
+        platform="Linux x86_64", ua_platform="Linux",
+        hw_concurrency=8, device_memory=8,
+        webgl_vendor="Google Inc. (Mesa)",
+        webgl_renderer="ANGLE (Mesa, llvmpipe (LLVM 20.1.2 256 bits), "
+                       "OpenGL 4.5)",
+        screen_w=1920, screen_h=1080, avail_w=1920, avail_h=1053,
+        gpu_class="llvmpipe",
+    ),
 ]
 
 
@@ -346,6 +362,23 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         "macOS": "14.6.0",
         "Windows": "15.0.0",
     }.get(profile.ua_platform, "")
+    # Per-backend WebGL float ranges + WebGPU coherence. Windows=ANGLE-D3D11,
+    # macOS=ANGLE-Metal (both line-width [1,1]; point-size 1024/511). Linux
+    # software = ANGLE-GL on Mesa llvmpipe, whose REAL ranges are [1,255]/
+    # [1,256] (MEASURED on our host) -- forcing [1,1] there would itself be the
+    # tell. For llvmpipe we also leave WebGPU NATIVE (empty vendor -> the apex
+    # WebGPU patches don't fire): a real GPU-less Linux Chrome reports Chrome's
+    # bundled SwiftShader (vendor "google", maxTex 8192, fallback), and that
+    # honest software pairing is coherent (no lie) for a GPU-less-Linux persona.
+    if profile.gpu_class == "llvmpipe":
+        line_width_max, point_size_max = "255", "256"
+        webgpu_vendor, webgpu_arch = "", ""
+    elif profile.gpu_class == "apple":
+        line_width_max, point_size_max = "1", "511"
+        webgpu_vendor, webgpu_arch = profile.gpu_class, ""
+    else:  # nvidia / intel / amd -> ANGLE-D3D11
+        line_width_max, point_size_max = "1", "1024"
+        webgpu_vendor, webgpu_arch = profile.gpu_class, ""
     return {
         "APEX_FP_ACTIVE": "1",
         "APEX_FP_SEED": str(seed & 0xFFFFFFFF),
@@ -360,9 +393,8 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         # BOTH D3D11 (Windows) and Metal (macOS) -- neither does wide lines --
         # so it's always 1. Point-size max is backend-specific: ANGLE-Metal
         # reports 511, ANGLE-D3D11 reports 1024.
-        "APEX_FP_WEBGL_LINE_WIDTH_MAX": "1",
-        "APEX_FP_WEBGL_POINT_SIZE_MAX": (
-            "511" if profile.gpu_class == "apple" else "1024"),
+        "APEX_FP_WEBGL_LINE_WIDTH_MAX": line_width_max,
+        "APEX_FP_WEBGL_POINT_SIZE_MAX": point_size_max,
         # WebGPU adapter must agree with the WebGL GPU -- 2025-26 detectors
         # cross-check the two and flag a mismatch. The web-exposed WebGPU
         # vendor is the lowercase GPU family, which is exactly gpu_class
@@ -374,8 +406,8 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         # per-family arch string risks an outright mismatch.
         # TODO: verify real per-family architecture strings (apple/intel/amd)
         # and set them here for an even tighter match.
-        "APEX_FP_WEBGPU_VENDOR": profile.gpu_class,
-        "APEX_FP_WEBGPU_ARCHITECTURE": "",
+        "APEX_FP_WEBGPU_VENDOR": webgpu_vendor,
+        "APEX_FP_WEBGPU_ARCHITECTURE": webgpu_arch,
         "APEX_FP_SCREEN_W": str(profile.screen_w),
         "APEX_FP_SCREEN_H": str(profile.screen_h),
         "APEX_FP_SCREEN_AVAIL_W": str(profile.avail_w),
