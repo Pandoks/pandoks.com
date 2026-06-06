@@ -3,16 +3,26 @@
 One-page brief for any future Claude session (including a fresh Claude Cloud
 session) picking up this work. Read this FIRST — it captures everything that
 doesn't survive a fresh checkout. **Last substantively updated 2026-06-06**
-(branch `claude/sleepy-hawking-PUugj`, after the WebGL float-range patch +
-15-profile runtime verification + behavioral ghost-cursor confirmation).
+(branch `claude/sleepy-hawking-PUugj`, after WebGPU enable + limits/features
+coherence, the in_container→Linux WebGL-gate fix, and 15-profile verification).
 
 ## 🟢 LATEST VERIFIED STATE (2026-06-06)
 
-**Latest green build:** `stealth-chromium-149wgl-20260606-012244`
-(Chromium `149.0.7827.53`) — in-build self-check **32/32 = ALL CLEAN**
-(WebGPU is now a hard-asserted surface, see below). Binary surfaces all
-spoof; zero JS-visible tampering. No C++ changes since this build — the
-WebGPU + WebGL-gate fixes below are all runtime launch-flag / Python.
+**Latest green build:** `stealth-chromium-149wgpu-20260606-075755`
+(Chromium `149.0.7827.53`) — in-build self-check **34/34 = ALL CLEAN**.
+Adds `apex-webgpu-limits` + `apex-webgpu-features` (WebGPU limits/features
+coherence, see below). Binary surfaces all spoof; zero JS-visible tampering.
+
+**WebGPU limits/features coherence (`apex-webgpu-limits` + `-features`):**
+the adapter-info patch only spoofed vendor/arch — the ~40 `adapter.limits`
+and the `features` set were raw SwiftShader, identical across all personas.
+Two grounded tells fixed: (1) `maxTextureDimension1D/2D` 8192→16384 (real
+GPUs report 16384; 8192 contradicted our spoofed WebGL `MAX_TEXTURE_SIZE`);
+(2) ASTC/ETC2 texture-compression stripped for non-Apple personas (mobile
+formats: ~93% macOS but ~0.6% Windows real support — web3dsurvey), BC kept.
+Runtime-verified per family (`stealth-wgpulim-20260606-082750`): Apple →
+maxTex2D 16384 + astc/etc2/bc; NVIDIA → maxTex2D 16384 + bc only (astc/etc2
+stripped). build self-check asserts maxTex2D==16384 + ASTC-for-Apple.
 
 **🔴→🟢 CRITICAL FIX — WebGL + WebGPU were DISABLED in the real launch path.**
 The GL/WebGL/WebGPU flag block in `chrome_launch_flags` was gated on
@@ -347,7 +357,7 @@ proxy_ip_not_allowed`); validate from an allowlisted host or via the
 
 ## 🟢 CURRENT: C++ patch inventory
 
-**37 anchor edits** (count via `marker` keys in `scripts/apply_edits.py`)
+**39 anchor edits** (count via `marker` keys in `scripts/apply_edits.py`)
 
 - 2 full-file overlays. Full per-surface table with env-var names lives
   in [`../stealth-chromium/README.md`](../stealth-chromium/README.md#whats-already-patched).
