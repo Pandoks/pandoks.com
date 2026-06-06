@@ -39,16 +39,15 @@ persona's GPU family with `isFallbackAdapter=false`. Was absent before
 being killed + GL permanently disabled under a heavy WebGL battery.
 
 **Live panel after the fixes (`stealth-panel-20260606-064440`,
-run-panel.sh, GPU-less datacenter IP):** WebGL **ALIVE + spoofed** in window
-
-- worker (`Google Inc. (Intel)` / `ANGLE (Intel, Intel(R) Iris(R) Xe …
-D3D11)`), `ALIASED_LINE_WIDTH_RANGE [1,1]`, `POINT_SIZE [1,1024]`,
-  MAX_TEXTURE_SIZE 16384, WebGL2 on; **WebGPU present + hashed** (not
-  `unsupported`); CreepJS held at **0% headless / 0% stealth** (the now-visible
-  GPU surfaces introduce no new lie). Only residual tells are IP-based
-  (iphey suspicious, browserscan 85%, WebRTC IP) — clear with a residential
-  proxy. Proxy path verified compatible in code (CDP `Fetch.authRequired`
-  auth, `{session}`/`{peer}` rotation, identity geo-matched to exit IP).
+run-panel.sh, GPU-less datacenter IP):** WebGL **ALIVE + spoofed** in both
+window and worker (`Google Inc. (Intel)` / `ANGLE (Intel, Intel(R) Iris(R)
+Xe … D3D11)`), `ALIASED_LINE_WIDTH_RANGE [1,1]`, `POINT_SIZE [1,1024]`,
+MAX_TEXTURE_SIZE 16384, WebGL2 on; **WebGPU present + hashed** (not
+`unsupported`); CreepJS held at **0% headless / 0% stealth** (the now-visible
+GPU surfaces introduce no new lie). Only residual tells are IP-based
+(iphey suspicious, browserscan 85%, WebRTC IP) — clear with a residential
+proxy. Proxy path verified compatible in code (CDP `Fetch.authRequired`
+auth, `{session}`/`{peer}` rotation, identity geo-matched to exit IP).
 
 **All 15 profiles runtime-verified (`stealth-fulltest-20260606-015651`,
 clean EC2 spot, one browser/process):** **15/15 coherent** — every profile
@@ -116,8 +115,10 @@ the property would be WORSE (diverges from real Chrome). Only real negative:
 exist (Oxylabs hbproxy.net + SST `OxylabsWebUnblocker*`) but the hbproxy
 endpoints reject with `403 proxy_ip_not_allowed` (account is IP-allowlist
 auth; source IP not whitelisted) — needs the Oxylabs dashboard set to
-user:pass auth OR a whitelisted static IP. WebGPU runtime (no software adapter
-even on the builder); render-OUTPUT pixel coherence (llvmpipe vs claimed GPU).
+user:pass auth OR a whitelisted static IP. (WebGPU runtime is now RESOLVED —
+present + coherent via SwiftShader Vulkan, see the CRITICAL FIX above.) Only
+the residual render-OUTPUT pixel coherence (llvmpipe vs claimed GPU) and the
+residential-proxy IP test remain.
 
 Earlier milestone: build `stealth-chromium-149final-20260605-153624`
 (off `a79f0c4`) was the first fully-green binary; verified
