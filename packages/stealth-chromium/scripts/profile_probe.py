@@ -12,6 +12,8 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+import tempfile
+from pathlib import Path
 
 import nodriver
 from stealth_browser.fp_profiles import PROFILES, fp_env
@@ -47,11 +49,16 @@ async def main() -> None:
         "--enable-webgl", "--enable-unsafe-swiftshader",
         "--no-first-run", "--no-default-browser-check",
     ]
+    # navigator.userAgentData is gated to secure contexts -- a data: URL is
+    # NOT one (returns undefined), but file:// is treated as potentially
+    # trustworthy, so the UA-CH platform check sees the spoofed value.
+    page = Path(tempfile.gettempdir()) / "apex_probe.html"
+    page.write_text("<!doctype html><html><body>x</body></html>")
     browser = await nodriver.start(
         browser_executable_path=os.environ["APEX_CHROME_PATH"],
         headless=False, sandbox=False, browser_args=args)
     try:
-        tab = await browser.get("data:text/html,<html><body>x</body></html>")
+        tab = await browser.get(page.as_uri())
         await asyncio.sleep(1.0)
         raw = await tab.evaluate(PROBE, return_by_value=True)
         r = raw if isinstance(raw, dict) else _unwrap(raw)
