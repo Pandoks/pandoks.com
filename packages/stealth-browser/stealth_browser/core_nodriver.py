@@ -206,6 +206,31 @@ class NodriverCore:
     async def scroll(self, amount: int) -> None:
         await self._human.scroll(amount)
 
+    async def idle_activity(self, seconds: float = 14.0) -> None:
+        """Generate human-like BEHAVIORAL signals for ~`seconds`: curved mouse
+        paths (the ghost cursor in human.py) + occasional scrolls + pauses.
+
+        This is what behavioral anti-bot (DataDome, incolumitas's
+        behavioralClassificationScore, Cloudflare's behavior layer) actually
+        scores -- mouse-movement curvature/velocity, scroll cadence, idle
+        jitter. Passive navigation produces NONE of it, so a behavioral
+        classifier sees a perfectly inert session = bot. Call this on a tab
+        whose challenge watches behavior.
+        """
+        import asyncio
+        import time
+        if self._human is None:
+            return
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            try:
+                await self._human.wander(n=random.randint(1, 2))
+                if random.random() < 0.45:
+                    await self._human.scroll(random.randint(80, 280))
+                await asyncio.sleep(random.uniform(0.25, 0.8))
+            except Exception:  # noqa: BLE001 - best-effort behavior
+                break
+
     async def screenshot(self) -> bytes:
         result = await self._tab.send(
             cdp.page.capture_screenshot(format_="png"))

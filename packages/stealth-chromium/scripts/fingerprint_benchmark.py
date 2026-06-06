@@ -39,18 +39,21 @@ OUT.mkdir(parents=True, exist_ok=True)
 TARGETS = [
     # --- composite coherence scanners (the hard ones) ---
     {"name": "incolumitas",
-     "url": "https://bot.incolumitas.com/", "settle": 26, "tier": "composite",
-     "scores": {"fp": r'"fpBotScore"\s*:\s*([\d.]+)|"bot"\s*:\s*(false|true|[\d.]+)',
-                "behav": r'"behavioralClassificationScore"\s*:\s*([\d.]+)'},
-     "lines": ["bot", "fpBotScore", "behavioralClass", "webdriver",
-               "datacenter", "fp.", "score", "isBot", "tagger"]},
+     "url": "https://bot.incolumitas.com/", "settle": 8, "tier": "composite",
+     "behavioral": True, "behavioral_seconds": 18,
+     "scores": {"behavioral": r'Behavioral Score:\s*([\d.]+|\.\.\.)',
+                "fpBot": r'"fpBotScore"\s*:\s*([\d.]+)|"bot"\s*:\s*(false|true)',
+                "webdriverChk": r'"webdriverPresent"\s*:\s*"(OK|FAIL)"'},
+     "lines": ["Behavioral Score", "fpBotScore", "isBot", "webdriverPresent",
+               "is_datacenter", "WEBDRIVER", "puppeteerExtra"]},
     {"name": "creepjs", "url": "https://abrahamjuliot.github.io/creepjs/",
-     "settle": 20, "tier": "composite",
-     "scores": {"trust": r"trust score[^\d]*([\d.]+\s*%)",
-                "lies": r"(\d+)\s*lie", "bot": r"\bbot\b[^\n]{0,30}",
-                "resists": r"(\d+\s*%)\s*(?:unique|resist)"},
-     "lines": ["headless", "stealth", "lies", "prototype", "tampering",
-               "like headless", "trust score"]},
+     "settle": 24, "tier": "composite",
+     "scores": {"likeHeadless": r"(\d+)%\s*like headless",
+                "headless": r"(?<!like )(?<!like headless: )\b(\d+)%\s*headless",
+                "stealth": r"(\d+)%\s*stealth",
+                "lies": r"\blies\b\s*\(?(\d+)\)?|(\d+)\s*lies?\b"},
+     "lines": ["like headless", "% headless", "% stealth", "lies",
+               "prototype", "tampering", "Lies", "forced"]},
     {"name": "iphey", "url": "https://iphey.com/", "settle": 14,
      "tier": "composite",
      "scores": {"verdict": r"(Trustworthy|Suspicious|Not reliable)"},
@@ -148,6 +151,16 @@ async def run_target(core, t: dict) -> dict:
     except Exception as e:  # noqa: BLE001 - capture whatever rendered anyway
         print(f"   navigate warn: {str(e)[:80]}")
     await asyncio.sleep(t["settle"])
+    # BEHAVIORAL: drive human-like mouse/scroll so a behavior classifier
+    # (incolumitas, DataDome-style) has real signals to score, then the
+    # innerText grab below captures the now-populated behavioral verdict.
+    if t.get("behavioral"):
+        secs = t.get("behavioral_seconds", 16)
+        print(f"   (behavioral exercise: ghost-cursor + scroll for {secs}s)")
+        try:
+            await core.idle_activity(secs)
+        except Exception as e:  # noqa: BLE001
+            print(f"   behavioral warn: {str(e)[:80]}")
     try:
         txt = await core.eval_js("document.body ? document.body.innerText : ''")
         txt = txt if isinstance(txt, str) else ""
