@@ -32,6 +32,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import json
 import random
 
 import nodriver as uc
@@ -60,7 +61,8 @@ class StealthBrowser:
                  *, headless: bool = False,
                  chrome_path: str = REAL_CHROME,
                  proxy=None,
-                 extra_args: list[str] | None = None):
+                 extra_args: list[str] | None = None,
+                 mobile_spec: dict | None = None):
         # headless defaults to False on purpose -- see module docstring.
         # proxy: an optional ProxyConfig (stealth.proxy.from_env()). When set,
         # all of Chrome's traffic routes through it and proxy auth is handled
@@ -73,6 +75,7 @@ class StealthBrowser:
         self.chrome_path = chrome_path
         self.proxy = proxy
         self.extra_args = list(extra_args or [])
+        self.mobile_spec = mobile_spec
         self._browser = None
 
     async def __aenter__(self) -> "StealthBrowser":
@@ -192,6 +195,13 @@ class StealthBrowser:
         await self._safe(tab, cdp.browser.grant_permissions(
             permissions=[cdp.browser.PermissionType.NOTIFICATIONS],
         ))
+        # MOBILE (Android) emulation via CDP device-mode -- the same mechanism
+        # DevTools/Puppeteer use. Reuses the browser's REAL Chrome brands (never
+        # fabricated); only the platform bits become Android. Runtime-verified
+        # to yield a fully coherent phone (mobile=true + touch + DPR +
+        # pointer:coarse + Adreno all agree).
+        if self.mobile_spec:
+            await self._apply_mobile(tab, self.mobile_spec)
         # NOTE on WebGL in containers: a GPU-less container renders WebGL via
         # SwiftShader. We do NOT patch the WebGL renderer string in JS --
         # CreepJS specifically detects such patches (and the toString masking
@@ -199,6 +209,43 @@ class StealthBrowser:
         # real software GL that reports a non-SwiftShader string must come
         # from the driver layer (see Dockerfile / launch flags), not JS.
         # Patching JS to hide SwiftShader is strictly worse than SwiftShader.
+
+    async def _apply_mobile(self, tab, spec: dict) -> None:
+        """Emulate a mobile device over CDP (DevTools device-mode mechanism).
+
+        setUserAgentOverride carries the reduced UA + navigator.platform + the
+        UA-CH metadata. We reuse the browser's REAL Chrome brands/fullVersionList
+        (read live, never fabricated) so only the platform bits become Android.
+        setDeviceMetricsOverride(mobile=True) drives DPR + viewport +
+        (pointer:coarse)/(hover:none); setTouchEmulationEnabled drives touch +
+        maxTouchPoints.
+        """
+        try:
+            raw = await tab.evaluate(
+                "navigator.userAgentData.getHighEntropyValues(['fullVersionList'])"
+                ".then(h => JSON.stringify({b: navigator.userAgentData.brands,"
+                " f: h.fullVersionList}))",
+                await_promise=True, return_by_value=True)
+            native = json.loads(raw) if isinstance(raw, str) else (raw or {})
+            mk = cdp.emulation.UserAgentBrandVersion
+            brands = [mk(brand=b["brand"], version=b["version"]) for b in native.get("b", [])]
+            fvl = [mk(brand=b["brand"], version=b["version"]) for b in native.get("f", [])]
+            meta = cdp.emulation.UserAgentMetadata(
+                platform=spec["ua_ch_platform"],
+                platform_version=spec["ua_ch_platform_version"],
+                architecture="", model=spec["ua_ch_model"], mobile=True,
+                brands=brands, full_version_list=fvl, bitness="", wow64=False,
+                form_factors=spec.get("form_factors", ["Mobile"]))
+            await self._safe(tab, cdp.emulation.set_user_agent_override(
+                user_agent=spec["ua"], accept_language=self.identity.accept_language,
+                platform=spec["navigator_platform"], user_agent_metadata=meta))
+            await self._safe(tab, cdp.emulation.set_device_metrics_override(
+                width=spec["width"], height=spec["height"],
+                device_scale_factor=spec["device_scale_factor"], mobile=True))
+            await self._safe(tab, cdp.emulation.set_touch_emulation_enabled(
+                enabled=True, max_touch_points=spec["max_touch_points"]))
+        except Exception:  # noqa: BLE001 - mobile emulation is best-effort
+            pass
 
     @staticmethod
     async def _safe(tab, coro) -> None:

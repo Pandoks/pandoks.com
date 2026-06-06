@@ -25,7 +25,8 @@ from stealth_browser.proxy import from_env as proxy_from_env, lookup_exit_geo
 import os
 import random
 
-from .fp_profiles import pick_profile, fp_env, patched_chrome_path
+from .fp_profiles import (pick_profile, fp_env, patched_chrome_path,
+                          mobile_emulation_spec)
 from .personas import POOL as PERSONA_POOL
 
 
@@ -115,6 +116,8 @@ class NodriverCore:
         # is exhausted (still isolated, just not warmed).
         if self._persona is not None:
             kwargs["extra_args"] = [f"--user-data-dir={self._persona}"]
+        # Mobile (Android) personas emulate the device over CDP at runtime.
+        kwargs["mobile_spec"] = mobile_emulation_spec(self._fp_profile)
 
         self._sb = StealthBrowser(self.identity, **kwargs)
         await self._sb.__aenter__()

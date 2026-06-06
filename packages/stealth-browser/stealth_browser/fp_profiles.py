@@ -44,8 +44,20 @@ class FpProfile:
     screen_h: int
     avail_w: int
     avail_h: int
-    gpu_class: str = "apple"   # apple | nvidia | amd | intel | llvmpipe
+    gpu_class: str = "apple"   # apple | nvidia | amd | intel | llvmpipe | adreno | mali
     color_depth: int = 24
+    # --- mobile (Android) ---------------------------------------------------
+    # Mobile personas are emulated at RUNTIME over CDP (setUserAgentOverride +
+    # metadata, setDeviceMetricsOverride mobile=True, setTouchEmulationEnabled)
+    # -- NOT via a rebuild. When `is_mobile`, fp_env emits only the hardware
+    # subset (GPU/cores/mem) and `mobile_emulation_spec()` carries everything
+    # CDP applies (UA/UA-CH/touch/DPR/viewport). Desktop personas ignore these.
+    is_mobile: bool = False
+    device_scale_factor: float = 1.0   # devicePixelRatio (mobile DPR)
+    ua_reduced: str = ""               # full reduced UA string (Android 10; K)
+    ua_model: str = ""                 # UA-CH high-entropy model (e.g. SM-S911B)
+    ua_platform_version_mobile: str = ""  # UA-CH platformVersion (e.g. 14.0.0)
+    max_touch_points: int = 0
 
 
 # A pool of real, common device configurations. Each row is a genuine device
@@ -228,6 +240,37 @@ PROFILES: list[FpProfile] = [
         screen_w=1920, screen_h=1080, avail_w=1920, avail_h=1053,
         gpu_class="llvmpipe",
     ),
+    # --- Android phones (emulated at runtime over CDP; see mobile fields) ---
+    # Reduced UA is frozen to "Android 10; K" (verified); the real model/version
+    # live ONLY in UA-CH high-entropy. CDP applies UA/UA-CH/touch/DPR/viewport;
+    # APEX_FP spoofs the GPU. Coherence runtime-verified (stealth-android run):
+    # mobile=true + touch(5) + pointer:coarse + DPR + Adreno all agree.
+    FpProfile(
+        label="Samsung Galaxy S23 (Android)",
+        platform="Linux armv8l", ua_platform="Android",
+        hw_concurrency=8, device_memory=8,
+        webgl_vendor="Qualcomm",
+        webgl_renderer="ANGLE (Qualcomm, Adreno (TM) 740, OpenGL ES 3.2)",
+        screen_w=360, screen_h=780, avail_w=360, avail_h=780,
+        gpu_class="adreno",
+        is_mobile=True, device_scale_factor=3.0, max_touch_points=5,
+        ua_reduced=("Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36"),
+        ua_model="SM-S911B", ua_platform_version_mobile="14.0.0",
+    ),
+    FpProfile(
+        label="Google Pixel 7 (Android)",
+        platform="Linux armv8l", ua_platform="Android",
+        hw_concurrency=8, device_memory=8,
+        webgl_vendor="ARM",
+        webgl_renderer="ANGLE (ARM, Mali-G710, OpenGL ES 3.2)",
+        screen_w=412, screen_h=915, avail_w=412, avail_h=915,
+        gpu_class="mali",
+        is_mobile=True, device_scale_factor=2.625, max_touch_points=5,
+        ua_reduced=("Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36"),
+        ua_model="Pixel 7", ua_platform_version_mobile="14.0.0",
+    ),
 ]
 
 
@@ -345,6 +388,25 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
     # per-session battery: deterministic from seed, 0.55..0.95, whole percent
     rng = random.Random(seed)
     battery_pct = rng.randint(55, 95)
+    if profile.is_mobile:
+        # Mobile: CDP owns UA / UA-CH / navigator.platform / screen / touch /
+        # DPR (see mobile_emulation_spec + the launcher). APEX_FP only spoofs
+        # the GPU + cores/mem + canvas/audio noise the binary renders natively.
+        # Adreno/Mali GLES line-width is [1,1] (no wide lines on mobile GL).
+        return {
+            "APEX_FP_ACTIVE": "1",
+            "APEX_FP_SEED": str(seed & 0xFFFFFFFF),
+            "APEX_FP_HW_CONCURRENCY": str(profile.hw_concurrency),
+            "APEX_FP_DEVICE_MEMORY": str(profile.device_memory),
+            "APEX_FP_WEBGL_VENDOR": profile.webgl_vendor,
+            "APEX_FP_WEBGL_RENDERER": profile.webgl_renderer,
+            "APEX_FP_WEBGL_LINE_WIDTH_MAX": "1",
+            "APEX_FP_BATTERY_LEVEL": str(battery_pct / 100.0),
+            "APEX_FP_BATTERY_CHARGING": str(rng.choice([0, 1])),
+            "APEX_FP_NET_RTT": str(rng.choice([50, 100, 150])),
+            "APEX_FP_NET_DOWNLINK": "10",
+            "APEX_FP_NET_EFFECTIVE_TYPE": "4g",
+        }
     # navigator.connection: a residential broadband profile. Chrome caps
     # downlink at 10 Mbps and rounds rtt to 50ms for privacy, so these ARE the
     # values a real fast connection reports -- the spoof matters because a
@@ -420,6 +482,33 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         "APEX_FP_NET_EFFECTIVE_TYPE": "4g",
         "APEX_FP_STORAGE_QUOTA": str(quota_bytes),
         "APEX_FP_UA_PLATFORM_VERSION": ua_platform_version,
+    }
+
+
+def mobile_emulation_spec(profile: FpProfile) -> dict | None:
+    """CDP device-emulation params for a mobile persona, else None.
+
+    The launcher feeds these to CDP Emulation.setUserAgentOverride (UA +
+    navigator.platform + UA-CH metadata) / setDeviceMetricsOverride (mobile
+    viewport + DPR + pointer:coarse/hover:none) / setTouchEmulationEnabled
+    (maxTouchPoints). The UA-CH `brands`/`fullVersionList` are NOT here -- the
+    launcher reads the browser's REAL Chrome brands at runtime so they're never
+    fabricated; only the platform bits below become Android.
+    """
+    if not profile.is_mobile:
+        return None
+    return {
+        "ua": profile.ua_reduced,
+        "navigator_platform": profile.platform,   # "Linux armv8l"
+        "ua_ch_platform": profile.ua_platform,    # "Android"
+        "ua_ch_platform_version": profile.ua_platform_version_mobile,
+        "ua_ch_model": profile.ua_model,
+        "ua_ch_mobile": True,
+        "form_factors": ["Mobile"],
+        "width": profile.screen_w,
+        "height": profile.screen_h,
+        "device_scale_factor": profile.device_scale_factor,
+        "max_touch_points": profile.max_touch_points,
     }
 
 
