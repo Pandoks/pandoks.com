@@ -48,6 +48,12 @@ PROBE = r"""(async () => {
 
 async def main() -> None:
     p = PROFILES[int(sys.argv[1])]
+    # Mobile personas are emulated over CDP by the production launcher
+    # (StealthBrowser._apply_mobile), which this raw-nodriver probe doesn't use.
+    # They're validated separately by mobile_prod_probe.py -- skip here.
+    if getattr(p, "is_mobile", False):
+        print(f"RESULT [SKIP] {p.label[:30]:30} mobile -- see mobile_prod_probe")
+        return
     for k in list(os.environ):
         if k.startswith("APEX_FP_"):
             del os.environ[k]
