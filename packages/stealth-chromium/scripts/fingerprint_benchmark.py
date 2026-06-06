@@ -38,6 +38,12 @@ OUT.mkdir(parents=True, exist_ok=True)
 # lines we echo for a quick read. Grouped by what they test.
 TARGETS = [
     # --- composite coherence scanners (the hard ones) ---
+    {"name": "incolumitas",
+     "url": "https://bot.incolumitas.com/", "settle": 26, "tier": "composite",
+     "scores": {"fp": r'"fpBotScore"\s*:\s*([\d.]+)|"bot"\s*:\s*(false|true|[\d.]+)',
+                "behav": r'"behavioralClassificationScore"\s*:\s*([\d.]+)'},
+     "lines": ["bot", "fpBotScore", "behavioralClass", "webdriver",
+               "datacenter", "fp.", "score", "isBot", "tagger"]},
     {"name": "creepjs", "url": "https://abrahamjuliot.github.io/creepjs/",
      "settle": 20, "tier": "composite",
      "scores": {"trust": r"trust score[^\d]*([\d.]+\s*%)",
