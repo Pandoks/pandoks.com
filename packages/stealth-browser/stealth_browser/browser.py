@@ -220,32 +220,45 @@ class StealthBrowser:
         (pointer:coarse)/(hover:none); setTouchEmulationEnabled drives touch +
         maxTouchPoints.
         """
+        mk = cdp.emulation.UserAgentBrandVersion
+        # Device metrics + touch need NO brands -- apply them first/always so
+        # mobile viewport/DPR/pointer/touch land even if the brand read fails.
+        await self._safe(tab, cdp.emulation.set_device_metrics_override(
+            width=spec["width"], height=spec["height"],
+            device_scale_factor=spec["device_scale_factor"], mobile=True))
+        await self._safe(tab, cdp.emulation.set_touch_emulation_enabled(
+            enabled=True, max_touch_points=spec["max_touch_points"]))
+        # Reuse our REAL Chrome brands. brands is LOW-entropy (available even on
+        # about:blank); fullVersionList is HIGH-entropy and can reject on an
+        # opaque origin -- so read brands sync and derive the FVL if needed.
+        brands: list = []
+        fvl: list = []
         try:
             raw = await tab.evaluate(
-                "navigator.userAgentData.getHighEntropyValues(['fullVersionList'])"
-                ".then(h => JSON.stringify({b: navigator.userAgentData.brands,"
-                " f: h.fullVersionList}))",
-                await_promise=True, return_by_value=True)
-            native = json.loads(raw) if isinstance(raw, str) else (raw or {})
-            mk = cdp.emulation.UserAgentBrandVersion
-            brands = [mk(brand=b["brand"], version=b["version"]) for b in native.get("b", [])]
-            fvl = [mk(brand=b["brand"], version=b["version"]) for b in native.get("f", [])]
-            meta = cdp.emulation.UserAgentMetadata(
-                platform=spec["ua_ch_platform"],
-                platform_version=spec["ua_ch_platform_version"],
-                architecture="", model=spec["ua_ch_model"], mobile=True,
-                brands=brands, full_version_list=fvl, bitness="", wow64=False,
-                form_factors=spec.get("form_factors", ["Mobile"]))
-            await self._safe(tab, cdp.emulation.set_user_agent_override(
-                user_agent=spec["ua"], accept_language=self.identity.accept_language,
-                platform=spec["navigator_platform"], user_agent_metadata=meta))
-            await self._safe(tab, cdp.emulation.set_device_metrics_override(
-                width=spec["width"], height=spec["height"],
-                device_scale_factor=spec["device_scale_factor"], mobile=True))
-            await self._safe(tab, cdp.emulation.set_touch_emulation_enabled(
-                enabled=True, max_touch_points=spec["max_touch_points"]))
-        except Exception:  # noqa: BLE001 - mobile emulation is best-effort
-            pass
+                "JSON.stringify(navigator.userAgentData.brands)",
+                return_by_value=True)
+            bl = json.loads(raw) if isinstance(raw, str) else []
+            brands = [mk(brand=b["brand"], version=b["version"]) for b in bl]
+            try:
+                raw2 = await tab.evaluate(
+                    "navigator.userAgentData.getHighEntropyValues(['fullVersionList'])"
+                    ".then(h => JSON.stringify(h.fullVersionList))",
+                    await_promise=True, return_by_value=True)
+                fl = json.loads(raw2) if isinstance(raw2, str) else []
+                fvl = [mk(brand=b["brand"], version=b["version"]) for b in fl]
+            except Exception:  # noqa: BLE001 - opaque origin: derive from brands
+                fvl = [mk(brand=b["brand"], version=f"{b['version']}.0.0.0") for b in bl]
+        except Exception as e:  # noqa: BLE001
+            print(f"   _apply_mobile brand-read failed: {str(e)[:80]}")
+        meta = cdp.emulation.UserAgentMetadata(
+            platform=spec["ua_ch_platform"],
+            platform_version=spec["ua_ch_platform_version"],
+            architecture="", model=spec["ua_ch_model"], mobile=True,
+            brands=brands, full_version_list=fvl, bitness="", wow64=False,
+            form_factors=spec.get("form_factors", ["Mobile"]))
+        await self._safe(tab, cdp.emulation.set_user_agent_override(
+            user_agent=spec["ua"], accept_language=self.identity.accept_language,
+            platform=spec["navigator_platform"], user_agent_metadata=meta))
 
     @staticmethod
     async def _safe(tab, coro) -> None:
