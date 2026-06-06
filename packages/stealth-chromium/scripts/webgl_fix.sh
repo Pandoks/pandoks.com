@@ -38,18 +38,28 @@ mkdir -p "$WORK/chrome"; zstd -d --long=27 -c "$WORK/c.tar.zst" | tar -x -C "$WO
 export APEX_CHROME_PATH="$WORK/chrome/chrome"; chmod +x "$APEX_CHROME_PATH"
 cd "$REPO_ROOT/packages/stealth-browser"; uv sync
 
-echo "=== [3/3] WebGL stability-flag test (one browser/process) ==="
-for i in 0 1 2 3; do
-  echo "--- mode $i ---"
-  out=""
+echo "=== [3/3] WebGL stability test (panel-faithful, one browser/process) ==="
+export STEALTH_IN_DOCKER=1
+run() { # label  APEX_SHOT  APEX_EXTRA_FLAGS
+  echo "--- $1 ---"
+  local out=""
   for try in 1 2; do
     pkill -x chrome 2>/dev/null; sleep 1
-    out=$(timeout 160 xvfb-run -a -s "-screen 0 1920x1080x24" \
-      uv run python "$PKG_ROOT/scripts/webgl_fix.py" "$i" 2>&1 \
-      | grep -E 'WEBGL-|FIX \[|NAV-FAIL')
-    [ -n "$(echo "$out" | grep 'FIX \[')" ] && break
+    out=$(APEX_SHOT="$2" APEX_EXTRA_FLAGS="$3" timeout 170 \
+      xvfb-run -a -s "-screen 0 1920x1080x24" \
+      uv run python "$PKG_ROOT/scripts/webgl_fix.py" "$1" 2>&1 \
+      | grep -E 'WEBGL-|FIX \[|NAV-FAIL|warn')
+    echo "$out" | grep -q 'FIX \[' && break
   done
   echo "$out"
-done
+}
+# A: panel-faithful (screenshots) -- expected to REPRODUCE the death
+run "A-shot-control"        1 ""
+# B: same but NO screenshots -- isolate screenshot() as the trigger
+run "B-noshot-control"      0 ""
+# C: screenshots + GPU stability flags -- the candidate FIX
+run "C-shot-watchdog+limit" 1 "--disable-gpu-watchdog --disable-gpu-process-crash-limit"
+# D: screenshots + just the watchdog flag (minimal fix)
+run "D-shot-watchdog-only"  1 "--disable-gpu-watchdog"
 
 echo "=== done -> ${S3}/webgl-fix.log ==="

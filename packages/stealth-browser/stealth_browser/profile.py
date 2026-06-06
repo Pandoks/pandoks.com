@@ -272,4 +272,10 @@ def chrome_launch_flags(identity: Identity, *, headless: bool,
     if headless:
         # only used by the headless control test; the real run stays headful
         flags.append("--headless=new")
+    # Escape hatch for ops/diagnostics: APEX_EXTRA_FLAGS (space-separated) is
+    # appended verbatim. Never page-visible (launch flags), so it can't add a
+    # tell; used to test GPU-stability switches without a rebuild.
+    extra = os.environ.get("APEX_EXTRA_FLAGS", "").strip()
+    if extra:
+        flags += extra.split()
     return flags
