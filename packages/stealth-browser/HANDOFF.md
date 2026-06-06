@@ -9,9 +9,46 @@ doesn't survive a fresh checkout. **Last substantively updated 2026-06-06**
 ## 🟢 LATEST VERIFIED STATE (2026-06-06)
 
 **Latest green build:** `stealth-chromium-149wgl-20260606-012244`
-(Chromium `149.0.7827.53`) — in-build self-check **31/31 = ALL CLEAN**,
-adds WebGL float-range backend coherence (`apex-webgl-ranges`). Binary
-surfaces all spoof; zero JS-visible tampering.
+(Chromium `149.0.7827.53`) — in-build self-check **32/32 = ALL CLEAN**
+(WebGPU is now a hard-asserted surface, see below). Binary surfaces all
+spoof; zero JS-visible tampering. No C++ changes since this build — the
+WebGPU + WebGL-gate fixes below are all runtime launch-flag / Python.
+
+**🔴→🟢 CRITICAL FIX — WebGL + WebGPU were DISABLED in the real launch path.**
+The GL/WebGL/WebGPU flag block in `chrome_launch_flags` was gated on
+`in_container()`, which only detects Docker (`/.dockerenv` or
+`STEALTH_IN_DOCKER`). Under **containerd/CRI-O (k8s — our deploy target)**,
+podman, bare EC2, and CI that check is **False**, so Chrome got none of
+`--use-gl/--enable-webgl/--enable-unsafe-webgpu` and **silently disabled
+WebGL + WebGPU** (`navigator` → "WebGL: disabled or unavailable", a glaring
+bot tell). Every prior panel measured a WebGL-OFF browser; the verifier
+(hardcoded flags) was the only thing that ever had WebGL, which masked the
+bug. **Now gated on `platform == "Linux"`** (robust across
+docker/containerd/k8s/bare-EC2; harmless on a real GPU). `--no-sandbox` /
+`--disable-dev-shm-usage` split onto a root-or-container gate.
+Fixed in `profile.py:chrome_launch_flags`.
+
+**WebGPU enabled + coherent** (`profile.py` + `apex-webgpu-adapterinfo`):
+`--enable-unsafe-webgpu --enable-features=Vulkan` make Chrome's bundled
+SwiftShader Vulkan yield an adapter on a GPU-less box; the patch reports the
+persona's GPU family with `isFallbackAdapter=false`. Was absent before
+(`requestAdapter()`→null) — a coherence tell for macOS/Windows personas.
+
+**WebGL software-renderer stability**: `--disable-gpu-watchdog`
+`--disable-gpu-process-crash-limit` keep the slow llvmpipe GPU process from
+being killed + GL permanently disabled under a heavy WebGL battery.
+
+**Live panel after the fixes (`stealth-panel-20260606-064440`,
+run-panel.sh, GPU-less datacenter IP):** WebGL **ALIVE + spoofed** in window
+
+- worker (`Google Inc. (Intel)` / `ANGLE (Intel, Intel(R) Iris(R) Xe …
+D3D11)`), `ALIASED_LINE_WIDTH_RANGE [1,1]`, `POINT_SIZE [1,1024]`,
+  MAX_TEXTURE_SIZE 16384, WebGL2 on; **WebGPU present + hashed** (not
+  `unsupported`); CreepJS held at **0% headless / 0% stealth** (the now-visible
+  GPU surfaces introduce no new lie). Only residual tells are IP-based
+  (iphey suspicious, browserscan 85%, WebRTC IP) — clear with a residential
+  proxy. Proxy path verified compatible in code (CDP `Fetch.authRequired`
+  auth, `{session}`/`{peer}` rotation, identity geo-matched to exit IP).
 
 **All 15 profiles runtime-verified (`stealth-fulltest-20260606-015651`,
 clean EC2 spot, one browser/process):** **15/15 coherent** — every profile
@@ -31,8 +68,10 @@ A DataDome-class behavioral model receives genuine human-shaped input, not
 synthetic JS dispatch. (incolumitas's own `Behavioral Score: ...` field
 never numerically populates — that's its display, not our gap.)
 
-**First live fingerprinter-panel results** (`stealth-panel2/3/4`, run on a
-clean-egress EC2 spot box via `run-panel.sh`; GPU-less, datacenter IP):
+**Earlier panel results** (`stealth-panel2/3/4`, pre WebGL-gate fix — these
+ran with WebGL/WebGPU OFF in the panel browser; see the CRITICAL FIX above.
+The non-GPU verdicts still stand; the WebGL/WebGPU lines were superseded by
+`stealth-panel-20260606-064440`):
 
 - ✅ `areyouheadless`: "You are NOT Chrome headless"
 - ✅ `sannysoft`: all webdriver/automation checks pass (`webdriver=false`)
