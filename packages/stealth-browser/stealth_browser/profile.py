@@ -222,51 +222,54 @@ def chrome_launch_flags(identity: Identity, *, headless: bool,
         f"--lang={identity.locale}",
         f"--window-size={identity.viewport_width},{identity.viewport_height}",
     ]
-    if in_container():
-        # Required to run Chrome (headful, on Xvfb) inside a container:
-        #  --no-sandbox        -- Chrome's sandbox cannot init as root in a
-        #                         container. Mild automation tell, but
-        #                         unavoidable here and NOT page-visible.
-        #  --disable-dev-shm-usage -- containers give /dev/shm only ~64MB;
-        #                         without this Chrome crashes on big pages.
-        flags += ["--no-sandbox", "--disable-dev-shm-usage"]
-        # WebGL: a container has no GPU. Without help Chrome disables WebGL
-        # entirely (renderer = null -- a dead headless tell). We route WebGL
-        # through ANGLE's GL backend on top of Mesa's llvmpipe (installed in
-        # the image). llvmpipe is a REAL software renderer used by countless
-        # GPU-less Linux desktops -- so the renderer string is genuine and
-        # not the Chrome-internal "SwiftShader" tell. No JS patching needed.
+    # GPU / WebGL / WebGPU. This service ALWAYS renders headful on a GPU-less
+    # Linux server (Xvfb), so these flags must apply there or WebGL + WebGPU are
+    # silently DISABLED -- navigator reports "WebGL: disabled or unavailable",
+    # a glaring bot tell. They were previously gated on in_container(), but that
+    # check (/.dockerenv) is FALSE under containerd/CRI-O (k8s), podman, and on
+    # bare servers/CI -- so the flags were skipped exactly where we deploy,
+    # shipping a WebGL-off browser. Gate on Linux instead (the deploy + Xvfb
+    # target), which is robust across docker/containerd/k8s/bare-EC2. Harmless
+    # on a real GPU: ANGLE-GL just layers over the system GL stack.
+    if platform.system() == "Linux":
+        # WebGL via ANGLE's GL backend on Mesa llvmpipe (a REAL software
+        # renderer used by countless GPU-less Linux desktops -- genuine string,
+        # not the Chrome-internal "SwiftShader" tell). SwiftShader is fallback.
         flags += [
             "--use-gl=angle",
             "--use-angle=gl",
             "--ignore-gpu-blocklist",
             "--enable-webgl",
             "--enable-unsafe-swiftshader",  # fallback only
-            # WebGPU: a GPU-less box has no Vulkan adapter, so
-            # navigator.gpu.requestAdapter() returns null -- but a macOS/Windows
-            # persona claims an OS where Chrome ships WebGPU on by default, so an
-            # absent adapter is itself a coherence tell. Enable WebGPU over
-            # Chrome's bundled SwiftShader Vulkan; the apex-webgpu-adapterinfo
-            # patch then makes the adapter report the persona's GPU family with
-            # isFallbackAdapter=false. Verified on a clean EC2 box: adapter
-            # present + vendor coherent while WebGL stays on ANGLE-GL/llvmpipe
-            # (MAX_TEXTURE_SIZE 16384). Both flags are launch-only, never
-            # page-visible -- they cannot be read back as a tell.
+            # WebGPU over Chrome's bundled SwiftShader Vulkan: a GPU-less box has
+            # no Vulkan adapter, so navigator.gpu.requestAdapter() returns null
+            # -- but a macOS/Windows persona claims an OS where Chrome ships
+            # WebGPU on by default, so an absent adapter is itself a coherence
+            # tell. With these flags the apex-webgpu-adapterinfo patch makes the
+            # adapter report the persona's GPU family + isFallbackAdapter=false.
+            # Verified: adapter present + vendor coherent while WebGL stays on
+            # ANGLE-GL/llvmpipe (MAX_TEXTURE_SIZE 16384). Launch-only flags,
+            # never page-visible.
             "--enable-unsafe-webgpu",
             "--enable-features=Vulkan",
-            # GPU-process stability for a SOFTWARE renderer (llvmpipe/
-            # SwiftShader). A heavy WebGL fingerprint battery (e.g. CreepJS) can
-            # make the slow software GPU process miss the watchdog deadline; the
-            # watchdog then kills it, and after a few restarts Chrome PERMANENTLY
-            # disables GL -> navigator WebGL reports "disabled or unavailable",
-            # a glaring bot tell for the rest of the session. Disable the
-            # watchdog (don't kill a slow-but-working software render) and the
-            # restart cap (never permanently disable GL). Launch-only, never
-            # page-visible. Verified: the prod launch path keeps WebGL alive +
-            # reporting the spoofed renderer across a heavy multi-site session.
+            # GPU-process stability for a SOFTWARE renderer. A heavy WebGL
+            # fingerprint battery (e.g. CreepJS) can make the slow software GPU
+            # process miss the watchdog deadline; the watchdog then kills it,
+            # and after a few restarts Chrome PERMANENTLY disables GL for the
+            # session. Disable the watchdog (don't kill a slow-but-working
+            # software render) and the restart cap (never permanently disable
+            # GL). Launch-only, never page-visible.
             "--disable-gpu-watchdog",
             "--disable-gpu-process-crash-limit",
         ]
+    # --no-sandbox is MANDATORY when running as root (Chrome refuses to sandbox
+    # as root -- the case for servers/containers/CI); harmless and omitted for a
+    # non-root desktop. --disable-dev-shm-usage avoids crashes where /dev/shm is
+    # tiny (~64MB in containers). Gate on root-or-container (robust) rather than
+    # /.dockerenv alone. Neither is page-visible.
+    _is_root = hasattr(os, "geteuid") and os.geteuid() == 0
+    if _is_root or in_container():
+        flags += ["--no-sandbox", "--disable-dev-shm-usage"]
     # Opt-in cert tolerance for TLS-TERMINATING unblockers (e.g. Oxylabs Web
     # Unblocker, which MITMs HTTPS and presents its own CA). Without this,
     # every navigation through such an endpoint dies with
