@@ -69,10 +69,24 @@ D3D11/Metal GPUs report 1, so this closes a software-renderer tell).
 Profiles span 8 Apple-Silicon Macs + 7 Windows (NVIDIA RTX 30/40, GTX
 1660 Ti, Intel Iris Xe / UHD 630, AMD RX 6700/7600) with real ANGLE
 renderer strings + PCI device IDs. Re-run `stealth-fulltest-20260606-071103`
-adds **WebGPU vendor coherence per family** — all 15 report
+adds **WebGPU vendor coherence per family** — all report
 `adapter.info.vendor == gpu_class` (apple/nvidia/intel/amd) with
 `isFallbackAdapter=false`, i.e. the WebGL↔WebGPU GPU cross-check agrees on
 every persona, not just Apple/Intel.
+
+**16th persona — Linux/Mesa-llvmpipe (`stealth-fulltest-20260606-195629`,
+16/16 coherent).** The ONLY persona with a 100%-MEASURED GPU stack
+(`scripts/stock_params.sh` on our own host, zero speculation): a GPU-less
+Linux/VM. platform `Linux x86_64` + UA-CH `Linux` are GENUINE (host is Linux,
+no OS spoofing); WebGL = Mesa llvmpipe (OpenGL, line-width `[1,255]`, point
+`[1,256]`, maxTex 16384 — all measured); WebGPU left NATIVE (Chrome's bundled
+SwiftShader, vendor `google`, fallback) — the honest pairing a real GPU-less
+Linux Chrome reports. `fp_env` now sets per-`gpu_class` WebGL ranges +
+WebGPU vendor; `profile_probe` is Linux/llvmpipe-aware. **Real-GPU-Linux +
+mobile personas NOT added** — their per-device OpenGL float-ranges / mobile
+GPU+touch+DPR data aren't publicly groundable, and shipping guessed values
+is a tell; they need real-device dumps (and mobile needs a touch/DPR/UA-CH
+emulation subsystem).
 
 **Behavioral ghost-cursor confirmed (same run, vs `bot.incolumitas.com`):**
 the CDP `Input.dispatchMouseEvent` stream from `human.py` fires real
