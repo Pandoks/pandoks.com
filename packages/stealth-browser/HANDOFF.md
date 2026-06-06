@@ -2,25 +2,43 @@
 
 One-page brief for any future Claude session (including a fresh Claude Cloud
 session) picking up this work. Read this FIRST — it captures everything that
-doesn't survive a fresh checkout. **Last substantively updated 2026-06-05**
-(branch `claude/sleepy-hawking-PUugj`, after the platform-fix + WebGPU +
-GL-libs-packaging work).
+doesn't survive a fresh checkout. **Last substantively updated 2026-06-06**
+(branch `claude/sleepy-hawking-PUugj`, after the WebGL float-range patch +
+15-profile runtime verification + behavioral ghost-cursor confirmation).
 
-## 🟢 LATEST VERIFIED STATE (2026-06-05)
+## 🟢 LATEST VERIFIED STATE (2026-06-06)
 
-**Latest green build:** `stealth-chromium-149ua-20260605-224540`
+**Latest green build:** `stealth-chromium-149wgl-20260606-012244`
 (Chromium `149.0.7827.53`) — in-build self-check **31/31 = ALL CLEAN**,
-including the two newest fixes: `navigator.userAgent OS coherence` and
-`canvas.toBlob farbled vs stock`. Binary surfaces all spoof; zero JS-visible
-tampering.
+adds WebGL float-range backend coherence (`apex-webgl-ranges`). Binary
+surfaces all spoof; zero JS-visible tampering.
+
+**All 15 profiles runtime-verified (`stealth-fulltest-20260606-015651`,
+clean EC2 spot, one browser/process):** **15/15 coherent** — every profile
+correct on `navigator.platform`, `userAgentData.platform`,
+`hardwareConcurrency`, `screen.width`, WebGL UNMASKED_RENDERER GPU-class,
+the UA OS token, AND `ALIASED_LINE_WIDTH_RANGE[1]==1` (the new
+`apex-webgl-ranges` patch — llvmpipe's native default is 255; real
+D3D11/Metal GPUs report 1, so this closes a software-renderer tell).
+Profiles span 8 Apple-Silicon Macs + 7 Windows (NVIDIA RTX 30/40, GTX
+1660 Ti, Intel Iris Xe / UHD 630, AMD RX 6700/7600) with real ANGLE
+renderer strings + PCI device IDs.
+
+**Behavioral ghost-cursor confirmed (same run, vs `bot.incolumitas.com`):**
+the CDP `Input.dispatchMouseEvent` stream from `human.py` fires real
+in-page events — **724 mousemove + 724 pointermove, all `isTrusted:true`**.
+A DataDome-class behavioral model receives genuine human-shaped input, not
+synthetic JS dispatch. (incolumitas's own `Behavioral Score: ...` field
+never numerically populates — that's its display, not our gap.)
 
 **First live fingerprinter-panel results** (`stealth-panel2/3/4`, run on a
 clean-egress EC2 spot box via `run-panel.sh`; GPU-less, datacenter IP):
+
 - ✅ `areyouheadless`: "You are NOT Chrome headless"
 - ✅ `sannysoft`: all webdriver/automation checks pass (`webdriver=false`)
 - ✅ CreepJS: **`0% headless`, `0% stealth`** (the decisive verdicts). UA now
   Windows-coherent in BOTH window + worker (`Chrome/149`, was Linux). `38%
-  like headless` = soft resemblance score (repo treats it as non-failing).
+like headless` = soft resemblance score (repo treats it as non-failing).
 - ✅ `browserscan`: authenticity **85% → 90%** after the UA fix (one fewer
   `-5%` deduction).
 - ✅ `bl_tls`: authentic real-Chrome JA3/JA4 (`t13d1517h2…`).
@@ -45,7 +63,7 @@ baked into the per-persona image.
 
 **incolumitas (`bot.incolumitas.com`, panel5)** — the most detailed open bot
 test, run for the IP-independent fingerprint/automation verdict: **~40 tests
-pass** (fpscanner PHANTOM_*/HEADCHR_*/SELENIUM/CHR_DEBUG, intoli webDriver +
+pass** (fpscanner PHANTOM*\*/HEADCHR*\*/SELENIUM/CHR_DEBUG, intoli webDriver +
 webDriverAdvanced, custom puppeteerExtraStealthUsed + worker/serviceworker
 consistency — all OK). The ONLY automation "FAIL" is `fpscanner.WEBDRIVER`,
 which is a stale-library FALSE POSITIVE: it flags the mere presence of
@@ -76,6 +94,7 @@ internally consistent (no headless mismatch tell).
 
 **Two bugs found by closing the runtime-verification gap** (downloading the
 binary and running it, not just `strings`-checking):
+
 1. The artifact whitelist shipped **no GL/Vulkan libs** → the binary had NO
    working WebGL/WebGPU (a glaring bot tell). Fixed: `sfn-build.sh` now
    globs every top-level `.so`/`.so.N`/`_icd.json` (ANGLE + SwiftShader).
@@ -83,9 +102,10 @@ binary and running it, not just `strings`-checking):
    `sandbox=False`.
 
 **WebGPU coherence** (`apex-webgpu-adapterinfo`): patch is linked + asserted
-+ statically verified, but **runtime-unverified** — this ephemeral GPU-less
-container can't produce a software WebGPU adapter (flag-brittle; not a patch
-defect). Verify on a host with a real GPU or working SwiftShader-Vulkan.
+
+- statically verified, but **runtime-unverified** — this ephemeral GPU-less
+  container can't produce a software WebGPU adapter (flag-brittle; not a patch
+  defect). Verify on a host with a real GPU or working SwiftShader-Vulkan.
 
 **Blocked from THIS container (egress policy MITMs browser TLS/QUIC):**
 the live fingerprinter panel (`fingerprint_benchmark.py` → cert errors /
@@ -103,16 +123,16 @@ proxy test from the production host or a clean-egress environment.**
 ## TL;DR
 
 A stealth headless-Chrome service designed to compete with Browserbase. It runs
-*real* Chrome (not `--headless`) via Xvfb, drives it through `nodriver`
+_real_ Chrome (not `--headless`) via Xvfb, drives it through `nodriver`
 (CDP-direct) or patched Playwright (`patchright`), and exposes an HTTP API for
 managed sessions with per-session proxies, session cloning, and `/fetch` for
 "browser-as-HTTP-client".
 
 Two packages, by responsibility:
 
-| Package | What it is | Language |
-|---|---|---|
-| [`stealth-browser`](.) | Importable Python lib + HTTP service | Python |
+| Package                                    | What it is                                      | Language    |
+| ------------------------------------------ | ----------------------------------------------- | ----------- |
+| [`stealth-browser`](.)                     | Importable Python lib + HTTP service            | Python      |
 | [`stealth-chromium`](../stealth-chromium/) | C++ fingerprint patches + Chromium build recipe | C++ + shell |
 
 **The single most important thing to know:** the Chromium build no longer runs
@@ -181,11 +201,11 @@ export APEX_CHROME_PATH=/opt/stealth-chromium/chrome
 
 ### Build-time profile (measured, c7i.16xlarge, us-west-1)
 
-| Scenario | Wall time | Cost |
-|---|---|---|
-| Same-version warm (both caches hot) | ~17 min | ~$0.85 |
-| Patch-release bump (warm ccache, same major) | ~45 min | ~$2.15 |
-| Cold / new-major build (both caches cold) | ~86 min | ~$4.10 |
+| Scenario                                     | Wall time | Cost   |
+| -------------------------------------------- | --------- | ------ |
+| Same-version warm (both caches hot)          | ~17 min   | ~$0.85 |
+| Patch-release bump (warm ccache, same major) | ~45 min   | ~$2.15 |
+| Cold / new-major build (both caches cold)    | ~86 min   | ~$4.10 |
 
 ---
 
@@ -196,10 +216,10 @@ Two independent caches in one S3 bucket
 `.claude/artifacts/2026-05-27-caching-explainer.html` and
 `.claude/artifacts/2026-05-28-chromium-build-pipeline-report.html`.
 
-| Cache | S3 key | What | Keyed on | Restored / updated |
-|---|---|---|---|---|
-| Rolling source | `chromium-src-rolling-v3.tar.zst` (~10 GiB) | full Chromium checkout + `.apex-cache-ready` sentinel (records last-synced version) | static rolling name | restored every build; re-uploaded only when tree changed (`CACHE_DIRTY=1`) |
-| ccache | `ccache-chromium<MAJOR>-clang<N>-nomod.tar.zst` (~4-5 GiB) | ~30k compiled `.o` files | Chromium MAJOR + clang MAJOR | restored if key exists; re-uploaded only if grew >100 MB or cold |
+| Cache          | S3 key                                                     | What                                                                                | Keyed on                     | Restored / updated                                                         |
+| -------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------- |
+| Rolling source | `chromium-src-rolling-v3.tar.zst` (~10 GiB)                | full Chromium checkout + `.apex-cache-ready` sentinel (records last-synced version) | static rolling name          | restored every build; re-uploaded only when tree changed (`CACHE_DIRTY=1`) |
+| ccache         | `ccache-chromium<MAJOR>-clang<N>-nomod.tar.zst` (~4-5 GiB) | ~30k compiled `.o` files                                                            | Chromium MAJOR + clang MAJOR | restored if key exists; re-uploaded only if grew >100 MB or cold           |
 
 **Critical invariants — do not break these (each was a hard-won fix):**
 
@@ -223,7 +243,7 @@ Two independent caches in one S3 bucket
 6. **Cross-version source fetch is intentionally cold** (~25 min). We tried
    `git fetch --deepen` to make it incremental; it worked but ballooned the
    cache 10→35 GiB and taxed the common same-version path. Reverted. The
-   major-keyed ccache provides the cross-version *compile* savings instead.
+   major-keyed ccache provides the cross-version _compile_ savings instead.
 
 **Invalidation:** Chromium version bump does NOT invalidate the rolling source
 cache (it advances via the sentinel). It DOES rotate the ccache key on a
@@ -239,59 +259,69 @@ To force a clean rebuild: `aws s3 rm s3://<cache-bucket>/ --recursive`.
 
 ## 🟢 CURRENT: status & open work
 
-### Version state — WE ARE A MAJOR VERSION BEHIND
-- Our pin (`packages/stealth-chromium/chromium_version.txt`): **148.0.7778.215**
-- Chrome stable as of 2026-06-03: **149.0.7827.53**
-- The next build should bump to 149. Anchor edits *should* survive the major
-  bump but this is unverified — run
-  `APEX_CHROMIUM_WORK=$WORK python3 scripts/apply_edits.py --check` against a
-  149 checkout to confirm no anchors drifted before trusting the build.
+### Version state — ON CHROMIUM 149 (current)
 
-### THE BUILT BINARY IS NOT FINGERPRINT-TESTED
-This is the biggest open gap. The SFN pipeline runs only
-`setup.sh → apply.sh → build.sh` — it **does not run
-`test_patched_binary.sh`**. So every binary we've produced (including the
-`.215` one in S3) is verified to *compile*, but never verified to actually
-*spoof fingerprints* at runtime. `test_patched_binary.sh` exists but is a
-manual, headful, host-side step (loads `verify_patches.html`, runs a
-16-detector benchmark). **The "composite 1.000 / 17-detector" claim below in
-the patch section is STALE** — it predates the monorepo migration and was
-measured against an old local binary, not the cloud-built `.215`.
+- Building **149.0.7827.53** (Chrome stable). Anchor edits survived the
+  148→149 bump; the `149wgl` build is green with 25 edits applied.
+
+### Validation loop — CLOSED
+
+The binary IS now fingerprint-tested, two ways:
+
+1. **In-build, every build:** `sfn-build.sh` step 4.6 runs
+   `verify_patched_binary.py` headful-on-Xvfb (production's real WebGL
+   mode) and uploads `runtime-selfcheck.log`. The `149wgl` build scored
+   **31/31 surfaces spoofed, ALL CLEAN**, MAX_TEXTURE_SIZE 16384 coherent.
+2. **On-demand, all profiles + behavioral:** `full_test.sh` (driven by the
+   same SFN) loops `profile_probe.py` over every `fp_profiles.PROFILES`
+   entry one-browser-per-process and runs `behavior_probe.py`. Latest run
+   `stealth-fulltest-20260606-015651`: **15/15 profiles coherent**, ghost
+   cursor fires **724 trusted mouse events**. See the verified-state block
+   at the top.
+
+Plus live fingerprinter panels (`run-panel.sh`): CreepJS 0% headless / 0%
+stealth, sannysoft/areyouheadless pass, incolumitas ~40 tests pass,
+authentic JA3/JA4 TLS. The only remaining tells are **datacenter-IP**
+(iphey "suspicious", WebRTC IP leak) — both clear with a residential proxy.
 
 **Top open items, in priority order:**
-1. **Close the validation loop.** Run `test_patched_binary.sh` against the
-   cloud `.215` binary (or wire it into the pipeline) to get a real, current
-   stealth score. Right now "is it better than the market" is unproven on the
-   shipped artifact.
-2. **Bump to Chromium 149** + `apply_edits.py --check` for anchor drift +
-   rebuild. The 148→149 bump is the natural forcing function to do #1 too.
-3. **Close the Clark gaps** (see competitive section). Quick wins first:
+
+1. **Residential-proxy validation.** The only unproven surface is IP-based
+   (iphey/WebRTC). Oxylabs `hbproxy.net` residential is IP-allowlist auth
+   and the container egress IP isn't allowlisted (`403
+proxy_ip_not_allowed`); validate from an allowlisted host or via the
+   panel box once its egress IP is added to the Oxylabs allowlist.
+2. **Close the Clark gaps** (see competitive section). Quick wins first:
    `navigator.connection` spoof, `storage.estimate()` quota, launcher hygiene.
-4. **No `apps/stealth-browser/` deploy yet** — the Python service has no k8s
+3. **No `apps/stealth-browser/` deploy yet** — the Python service has no k8s
    deployment. When ready it becomes a `kube/` overlay over a Docker image of
    this package. Don't add it unless asked.
-5. **No Python lint dispatcher** — `scripts/{lint,format}/main.sh` have no `py`
+4. **No Python lint dispatcher** — `scripts/{lint,format}/main.sh` have no `py`
    subcommand. Add `ruff` when you want repo-wide Python linting.
 
 ---
 
 ## 🟢 CURRENT: C++ patch inventory
 
-**25 distinct edits** (verified in `scripts/apply_edits.py` + `apply.sh`),
-unchanged since the migration. Full per-surface table with env-var names lives
-in [`../stealth-chromium/README.md`](../stealth-chromium/README.md#whats-already-patched).
+**37 anchor edits** (count via `marker` keys in `scripts/apply_edits.py`)
+
+- 2 full-file overlays. Full per-surface table with env-var names lives
+  in [`../stealth-chromium/README.md`](../stealth-chromium/README.md#whats-already-patched).
 
 Three patch mechanisms (only the first two are applied):
 
-| # | Mechanism | Count | Where |
-|---|---|---|---|
-| 1 | Full-file `chromium_src/` overlay | 2 | `apply.sh` `OVERLAYS=()` (navigator hardwareConcurrency + deviceMemory) |
-| 2 | Anchor edit (preferred) | 23 | `EDITS = [...]` in `scripts/apply_edits.py` |
-| 3 | `.patch` files (DOC ONLY — NOT applied) | 11 | `patches/*.patch` — vestigial, ignore for current behavior |
+| #   | Mechanism                               | Count | Where                                                                   |
+| --- | --------------------------------------- | ----- | ----------------------------------------------------------------------- |
+| 1   | Full-file `chromium_src/` overlay       | 2     | `apply.sh` `OVERLAYS=()` (navigator hardwareConcurrency + deviceMemory) |
+| 2   | Anchor edit (preferred)                 | 37    | `EDITS = [...]` in `scripts/apply_edits.py`                             |
+| 3   | `.patch` files (DOC ONLY — NOT applied) | 11    | `patches/*.patch` — vestigial, ignore for current behavior              |
 
-The 23 anchor markers: WebGL renderer/vendor/readPixels, navigator
-platform + userAgentData.platform, WebRTC no-leak, V8 CDP no-preview, canvas
-getImageData/encode/measureText, audio noise, mediaDevices, fonts, screen
+The anchor markers cover: WebGL renderer/vendor/readPixels +
+ALIASED_LINE_WIDTH/POINT_SIZE ranges (`apex-webgl-ranges`), navigator
+platform + userAgentData.platform + UA-string OS token
+(`apex-ua-platform`), WebGPU adapterInfo, WebRTC no-leak, V8 CDP
+no-preview, canvas getImageData/toBlob/encode/measureText, audio
+noise (online + OfflineAudioContext), mediaDevices, fonts, screen
 (5 dims), battery (4 fields), speech voices.
 
 Deferred (not started): RAF/audio-quantum jitter (Chrome already clamps
@@ -322,6 +352,7 @@ of its 49 cataloged patches; we ship 25 edits.
 
 **Top gaps vs Clark's shipped patches** (ranked by 2025-26 detector weight;
 🟢 quick / 🟡 medium / 🟠 port-from-Brave; ✅ = now shipped):
+
 1. 🟡 `navigator.plugins`/`mimeTypes` PDF-viewer list — STILL OPEN
 2. ✅ WebGPU `GPUAdapterInfo` coherence — vendor/architecture overridden +
    isFallbackAdapter forced false (`apex-webgpu-adapterinfo`), coherent with
