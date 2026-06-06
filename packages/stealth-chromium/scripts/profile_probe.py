@@ -19,11 +19,19 @@ import nodriver
 from stealth_browser.fp_profiles import PROFILES, fp_env
 from stealth_browser.runner_nodriver import _unwrap
 
-PROBE = r"""(() => {
+PROBE = r"""(async () => {
   let gl = document.createElement('canvas').getContext('webgl');
   let u = gl && gl.getExtension('WEBGL_debug_renderer_info');
   let lw = null;
   try { const r = gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE); lw = r ? r[1] : null; } catch (e) {}
+  let wgpuVendor = null, wgpuFallback = null, wgpuErr = null;
+  try {
+    if (navigator.gpu) {
+      const a = await navigator.gpu.requestAdapter();
+      if (a && a.info) { wgpuVendor = a.info.vendor; wgpuFallback = a.info.isFallbackAdapter; }
+      else { wgpuErr = 'no adapter'; }
+    } else { wgpuErr = 'no navigator.gpu'; }
+  } catch (e) { wgpuErr = String(e); }
   return {
     platform: navigator.platform,
     uad: navigator.userAgentData ? navigator.userAgentData.platform : null,
@@ -33,6 +41,7 @@ PROBE = r"""(() => {
     sw: screen.width, sh: screen.height,
     webgl: u ? gl.getParameter(u.UNMASKED_RENDERER_WEBGL) : '',
     lineWidthMax: lw,
+    wgpuVendor, wgpuFallback, wgpuErr,
   };
 })()"""
 
@@ -47,6 +56,7 @@ async def main() -> None:
         "--no-sandbox", "--disable-dev-shm-usage",
         "--use-gl=angle", "--use-angle=gl", "--ignore-gpu-blocklist",
         "--enable-webgl", "--enable-unsafe-swiftshader",
+        "--enable-unsafe-webgpu", "--enable-features=Vulkan",
         "--no-first-run", "--no-default-browser-check",
     ]
     # navigator.userAgentData is gated to secure contexts -- a data: URL is
@@ -59,8 +69,8 @@ async def main() -> None:
         headless=False, sandbox=False, browser_args=args)
     try:
         tab = await browser.get(page.as_uri())
-        await asyncio.sleep(1.0)
-        raw = await tab.evaluate(PROBE, return_by_value=True)
+        await asyncio.sleep(1.5)
+        raw = await tab.evaluate(PROBE, await_promise=True, return_by_value=True)
         r = raw if isinstance(raw, dict) else _unwrap(raw)
     finally:
         browser.stop()
@@ -81,11 +91,17 @@ async def main() -> None:
     ua_ok = osname in (r.get("ua") or "")
     # line-width coherence (apex-webgl-ranges): D3D/Metal -> max 1
     lw_ok = r.get("lineWidthMax") == 1
-    ok = plat_ok and gpu_ok and ua_ok and lw_ok
+    # WebGPU adapter must be present + vendor == gpu_class + not a fallback
+    # (apex-webgpu-adapterinfo). Verifies WebGL<->WebGPU GPU agreement per
+    # family (apple/nvidia/intel/amd), the 2025-26 cross-check.
+    wgpu_ok = (r.get("wgpuVendor") == gc and r.get("wgpuFallback") is False)
+    ok = plat_ok and gpu_ok and ua_ok and lw_ok and wgpu_ok
     print(f"RESULT [{'PASS' if ok else 'FAIL'}] {p.label[:30]:30} "
           f"plat={r.get('platform')} ua={r.get('uad')} cores={r.get('cores')} "
           f"scr={r.get('sw')} gpu={'ok' if gpu_ok else 'NO'} "
-          f"uaTok={'ok' if ua_ok else 'NO'} lineWidth={r.get('lineWidthMax')}")
+          f"uaTok={'ok' if ua_ok else 'NO'} lineWidth={r.get('lineWidthMax')} "
+          f"wgpu={r.get('wgpuVendor')!r}/{'fb' if r.get('wgpuFallback') else 'nofb'}"
+          f"{'' if wgpu_ok else f'(want {gc}) err={r.get('wgpuErr')!r}'}")
 
 
 if __name__ == "__main__":
