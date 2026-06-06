@@ -130,9 +130,25 @@ exist (Oxylabs hbproxy.net + SST `OxylabsWebUnblocker*`) but the hbproxy
 endpoints reject with `403 proxy_ip_not_allowed` (account is IP-allowlist
 auth; source IP not whitelisted) — needs the Oxylabs dashboard set to
 user:pass auth OR a whitelisted static IP. (WebGPU runtime is now RESOLVED —
-present + coherent via SwiftShader Vulkan, see the CRITICAL FIX above.) Only
-the residual render-OUTPUT pixel coherence (llvmpipe vs claimed GPU) and the
-residential-proxy IP test remain.
+present + coherent via SwiftShader Vulkan, see the CRITICAL FIX above.)
+
+**Render-OUTPUT pixel coherence — INVESTIGATED (`stealth-rendersw-20260606-090309`,
+`scripts/render_gpu.sh` + `render_probe.py`).** Same deterministic canvas2d +
+WebGL scene rendered many ways on one box: raw llvmpipe and raw SwiftShader
+produce DIFFERENT pixel hashes (render output is renderer-specific, so a real
+GPU would differ too), but per-persona FARBLING makes each seed's hash unique
+AND moved off the raw llvmpipe baseline (seeds 1001/2002/3003 all distinct
+from each other and from raw), while `canvasStable=true` keeps it stable
+WITHIN a session. Net: there is no FIXED software-renderer hash to blacklist —
+each persona is a unique, real-looking, in-session-stable device, which is the
+correct anti-bot behavior (NOT per-read randomization, which is itself a
+Tor/Brave tell). Residual (untested): a detector that STRUCTURALLY infers
+"software-rendered" from pixel characteristics despite the noise — exotic, and
+CreepJS (hash + lie analysis) does not flag us. A true hardware-vs-software
+delta is UNMEASURABLE on this account: the SFN whitelists instance types (IaC)
+and the EC2 **G/VT GPU quota is 0** (on-demand AND spot) — a quota-increase
+request is the only path, deliberately not initiated. The residential-proxy IP
+test is the other remaining gap (deferred by the user).
 
 Earlier milestone: build `stealth-chromium-149final-20260605-153624`
 (off `a79f0c4`) was the first fully-green binary; verified
