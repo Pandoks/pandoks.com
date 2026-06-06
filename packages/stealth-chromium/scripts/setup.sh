@@ -118,6 +118,27 @@ fi
 # Idempotent: apt-get install is a no-op on a fully-installed system, so
 # warm-cache builds re-running this just pay the ~10s "already installed"
 # check cost (not the 5-10min install cost).
+# A fresh-boot EC2 runs unattended-upgrades / apt-daily on startup, which holds
+# the dpkg lock. install-build-deps' `apt-get` then dies with
+# "Could not get lock /var/lib/dpkg/lock-frontend ... held by ... unattended-upgr"
+# (observed: build 149wgpu). Stop those services and wait for the lock to clear
+# before installing deps, so a boot-race doesn't fail an otherwise-good build.
+echo "[2.4/3] waiting for apt/dpkg lock (unattended-upgrades) to clear ..."
+sudo systemctl stop unattended-upgrades.service apt-daily.service \
+  apt-daily-upgrade.service apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
+sudo systemctl kill --kill-who=all unattended-upgrades.service 2>/dev/null || true
+_apt_wait=0
+while sudo fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock \
+    /var/lib/apt/lists/lock >/dev/null 2>&1; do
+  _apt_wait=$((_apt_wait + 1))
+  [ "$_apt_wait" -gt 60 ] && {
+    echo "  dpkg lock still held after ~5min; proceeding anyway"
+    break
+  }
+  echo "  ... lock held, waiting (${_apt_wait}/60)"
+  sleep 5
+done
+
 echo "[2.5/3] installing Chromium build dependencies (apt) ..."
 sudo "$WORK/chromium/src/build/install-build-deps.sh" \
   --no-prompt --no-chromeos-fonts --no-nacl --no-arm
