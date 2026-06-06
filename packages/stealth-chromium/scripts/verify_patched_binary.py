@@ -125,7 +125,7 @@ PROBE_JS = r"""
   // webgl unmasked strings + the numeric caps that must agree with the GPU the
   // string claims (MAX_TEXTURE_SIZE driver-IDs hardware at ~91% accuracy).
   let webglVendor = null, webglRenderer = null, webglErr = null;
-  let maxTextureSize = null, maxRenderbufferSize = null, maxViewportDim = null;
+  let maxTextureSize = null, maxRenderbufferSize = null, maxViewportDim = null, aliasedLineWidthMax = null;
   try {
     const gl = document.createElement('canvas').getContext('webgl')
       || document.createElement('canvas').getContext('experimental-webgl');
@@ -136,6 +136,8 @@ PROBE_JS = r"""
     maxRenderbufferSize = gl.getParameter(gl.MAX_RENDERBUFFER_SIZE);
     const vp = gl.getParameter(gl.MAX_VIEWPORT_DIMS);
     maxViewportDim = vp ? vp[0] : null;
+    const lw = gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE);
+    aliasedLineWidthMax = lw ? lw[1] : null;
   } catch (e) { webglErr = String(e); }
 
   // UA-CH high-entropy platform/version -- comes from the SAME UserAgentMetadata

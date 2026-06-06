@@ -58,6 +58,38 @@ EDITS = [
                   "            return WebGLAny(script_state, apex_v);\n"
                   "        }\n",
     },
+    # --- WebGL float-range params (backend coherence) ------------------
+    # We render via ANGLE-over-Mesa-llvmpipe (GL), but our personas claim a
+    # D3D11 (Windows) or Metal (macOS) backend. Those report different float
+    # ranges: ALIASED_LINE_WIDTH_RANGE is [1,1] on BOTH D3D11 and Metal
+    # (neither supports wide lines), but ANGLE-GL/llvmpipe reports [1,255] -- a
+    # software-renderer tell against a D3D/Metal persona. Point-size max is
+    # backend-specific (D3D11 ~1024, Metal ~511). GetWebGLFloatArrayParameter
+    # is the single chokepoint for these; override the max after GetFloatv from
+    # per-persona env. Line-width max defaults to 1 (correct for every persona
+    # we ship); point-size only overrides when the launcher sets it.
+    {
+        "file": "third_party/blink/renderer/modules/webgl/"
+                "webgl_rendering_context_base.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-webgl-ranges",
+        "anchor": "  ContextGL()->GetFloatv(pname, value.data());\n",
+        "where": "after",
+        "inject": "  // apex-webgl-ranges\n"
+                  "  if (apex_fp::HasOverride(\"APEX_FP_WEBGL_RENDERER\")) {\n"
+                  "    if (pname == GL_ALIASED_LINE_WIDTH_RANGE) {\n"
+                  "      value[0] = 1.0f;\n"
+                  "      value[1] = static_cast<GLfloat>(\n"
+                  "          apex_fp::EnvU32(\"APEX_FP_WEBGL_LINE_WIDTH_MAX\", 1));\n"
+                  "    } else if (pname == GL_ALIASED_POINT_SIZE_RANGE &&\n"
+                  "               apex_fp::HasOverride("
+                  "\"APEX_FP_WEBGL_POINT_SIZE_MAX\")) {\n"
+                  "      value[0] = 1.0f;\n"
+                  "      value[1] = static_cast<GLfloat>(\n"
+                  "          apex_fp::EnvU32(\"APEX_FP_WEBGL_POINT_SIZE_MAX\", 1));\n"
+                  "    }\n"
+                  "  }\n",
+    },
     # --- navigator.userAgentData.platform ------------------------------
     {
         "file": "third_party/blink/renderer/core/frame/navigator_ua_data.cc",

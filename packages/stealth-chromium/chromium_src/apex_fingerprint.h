@@ -20,6 +20,14 @@
 //   APEX_FP_DEVICE_MEMORY    float, navigator.deviceMemory (0.25..8)
 //   APEX_FP_WEBGL_VENDOR     UNMASKED_VENDOR_WEBGL string
 //   APEX_FP_WEBGL_RENDERER   UNMASKED_RENDERER_WEBGL string
+//   APEX_FP_WEBGL_LINE_WIDTH_MAX  ALIASED_LINE_WIDTH_RANGE max (default 1).
+//                            D3D11/Metal report [1,1] (no wide lines); ANGLE-GL
+//                            /llvmpipe reports [1,255] -- a software-renderer
+//                            tell vs a D3D/Metal persona. Applied whenever the
+//                            WebGL renderer is spoofed.
+//   APEX_FP_WEBGL_POINT_SIZE_MAX  ALIASED_POINT_SIZE_RANGE max (backend-
+//                            specific: D3D11 ~1024, Metal ~511). Only applied
+//                            when set, so an unverified value is never shipped.
 //   APEX_FP_WEBGPU_VENDOR    WebGPU GPUAdapterInfo.vendor (e.g. "apple",
 //                            "intel", "nvidia", "amd"). MUST be coherent with
 //                            APEX_FP_WEBGL_* -- detectors cross-check the two.
