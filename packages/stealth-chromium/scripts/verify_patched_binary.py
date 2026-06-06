@@ -265,6 +265,11 @@ async def _probe(bin_path: str, spoof: bool) -> dict:
         "--use-gl=angle", "--use-angle=gl",
         "--ignore-gpu-blocklist", "--enable-webgl",
         "--enable-unsafe-swiftshader",  # fallback only
+        # WebGPU over the bundled SwiftShader Vulkan -- mirrors
+        # profile.chrome_launch_flags so the self-check exercises the same
+        # WebGPU path production uses (adapter present, apex-webgpu-adapterinfo
+        # fires). Without these navigator.gpu.requestAdapter() returns null.
+        "--enable-unsafe-webgpu", "--enable-features=Vulkan",
         "--no-first-run", "--no-default-browser-check",
     ]
     # sandbox=False: the --no-sandbox arg alone doesn't satisfy nodriver's own
@@ -422,19 +427,19 @@ async def run() -> int:
               f"(err={r['webglErr']}) — patch fires inside getParameter; "
               f"untestable without GL, not a patch failure.")
 
-    # WebGPU: soft like WebGL (a container with no adapter, even SwiftShader,
-    # legitimately yields none). If an adapter WAS returned, the override MUST
-    # apply: vendor coherent with WebGL + the fallback flag forced off.
-    if r.get("webgpuErr") is None and r.get("webgpuVendor") is not None:
-        webgpu_ok = (r["webgpuVendor"] == FP_ENV["APEX_FP_WEBGPU_VENDOR"]
-                     and r["webgpuIsFallback"] is False)
-        _check(results, webgpu_ok, "WebGPU adapter vendor + no-fallback",
-               (r["webgpuVendor"], r["webgpuIsFallback"]),
-               (FP_ENV["APEX_FP_WEBGPU_VENDOR"], False))
-    else:
-        print(f"\n[WebGPU SKIP] no adapter in this container "
-              f"(err={r.get('webgpuErr')}) — patch fires in the "
-              f"GPUAdapterInfo ctor; untestable without an adapter.")
+    # WebGPU is now a HARD check: we launch with --enable-unsafe-webgpu +
+    # --enable-features=Vulkan so Chrome's bundled SwiftShader Vulkan yields an
+    # adapter even on a GPU-less box. An absent adapter means production would
+    # ALSO lack WebGPU -- a coherence tell for macOS/Windows personas -- so it
+    # must fail, not skip. When present, the apex-webgpu-adapterinfo override
+    # MUST apply: vendor coherent with WebGL + isFallbackAdapter forced off.
+    webgpu_ok = (r.get("webgpuErr") is None
+                 and r.get("webgpuVendor") == FP_ENV["APEX_FP_WEBGPU_VENDOR"]
+                 and r.get("webgpuIsFallback") is False)
+    _check(results, webgpu_ok, "WebGPU adapter present + vendor + no-fallback",
+           (r.get("webgpuVendor"), r.get("webgpuIsFallback"),
+            r.get("webgpuErr")),
+           (FP_ENV["APEX_FP_WEBGPU_VENDOR"], False, None))
 
     print("\n--- assertions ---")
     passed = 0

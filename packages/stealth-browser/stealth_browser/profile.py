@@ -242,6 +242,18 @@ def chrome_launch_flags(identity: Identity, *, headless: bool,
             "--ignore-gpu-blocklist",
             "--enable-webgl",
             "--enable-unsafe-swiftshader",  # fallback only
+            # WebGPU: a GPU-less box has no Vulkan adapter, so
+            # navigator.gpu.requestAdapter() returns null -- but a macOS/Windows
+            # persona claims an OS where Chrome ships WebGPU on by default, so an
+            # absent adapter is itself a coherence tell. Enable WebGPU over
+            # Chrome's bundled SwiftShader Vulkan; the apex-webgpu-adapterinfo
+            # patch then makes the adapter report the persona's GPU family with
+            # isFallbackAdapter=false. Verified on a clean EC2 box: adapter
+            # present + vendor coherent while WebGL stays on ANGLE-GL/llvmpipe
+            # (MAX_TEXTURE_SIZE 16384). Both flags are launch-only, never
+            # page-visible -- they cannot be read back as a tell.
+            "--enable-unsafe-webgpu",
+            "--enable-features=Vulkan",
         ]
     # Opt-in cert tolerance for TLS-TERMINATING unblockers (e.g. Oxylabs Web
     # Unblocker, which MITMs HTTPS and presents its own CA). Without this,
