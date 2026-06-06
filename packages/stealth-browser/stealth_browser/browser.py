@@ -44,6 +44,19 @@ from .profile import (Identity, chrome_launch_flags, chrome_path,
 # Resolved per-environment: $CHROME_PATH (Docker) -> OS default -> PATH.
 REAL_CHROME = chrome_path()
 
+# Our pinned apex-chromium build's real UA-CH brands (MEASURED on a real origin,
+# stealth-android run). Used as the mobile UA-CH brand list when the live read
+# returns empty -- about:blank exposes empty userAgentData.brands, and an empty
+# brand list is itself a tell. Update these together with the Chromium pin.
+_CHROME_BRANDS = [
+    {"brand": "Chromium", "version": "149"},
+    {"brand": "Not)A;Brand", "version": "24"},
+]
+_CHROME_FULL_VERSION_LIST = [
+    {"brand": "Chromium", "version": "149.0.7827.53"},
+    {"brand": "Not)A;Brand", "version": "24.0.0.0"},
+]
+
 # NOTE: there is intentionally NO JS-based WebGL/getParameter override here.
 # WebGL vendor/renderer are spoofed NATIVELY by the patched binary
 # (APEX_FP_WEBGL_*). A JS override -- and especially the Function.prototype.
@@ -231,25 +244,34 @@ class StealthBrowser:
         # Reuse our REAL Chrome brands. brands is LOW-entropy (available even on
         # about:blank); fullVersionList is HIGH-entropy and can reject on an
         # opaque origin -- so read brands sync and derive the FVL if needed.
-        brands: list = []
-        fvl: list = []
+        bl: list = []
+        fl: list = []
         try:
             raw = await tab.evaluate(
                 "JSON.stringify(navigator.userAgentData.brands)",
                 return_by_value=True)
             bl = json.loads(raw) if isinstance(raw, str) else []
-            brands = [mk(brand=b["brand"], version=b["version"]) for b in bl]
             try:
                 raw2 = await tab.evaluate(
                     "navigator.userAgentData.getHighEntropyValues(['fullVersionList'])"
                     ".then(h => JSON.stringify(h.fullVersionList))",
                     await_promise=True, return_by_value=True)
                 fl = json.loads(raw2) if isinstance(raw2, str) else []
-                fvl = [mk(brand=b["brand"], version=b["version"]) for b in fl]
-            except Exception:  # noqa: BLE001 - opaque origin: derive from brands
-                fvl = [mk(brand=b["brand"], version=f"{b['version']}.0.0.0") for b in bl]
+            except Exception:  # noqa: BLE001 - high-entropy rejects on opaque origin
+                fl = []
         except Exception as e:  # noqa: BLE001
             print(f"   _apply_mobile brand-read failed: {str(e)[:80]}")
+        # about:blank yields EMPTY brands (the override is applied pre-nav), and
+        # empty userAgentData.brands is itself a tell. Fall back to our pinned
+        # build's real brands (measured) so the mobile UA-CH brand list is never
+        # empty. Derive the FVL from brands when the high-entropy read rejected.
+        if not bl:
+            bl = list(_CHROME_BRANDS)
+        if not fl:
+            fl = list(_CHROME_FULL_VERSION_LIST) if bl == list(_CHROME_BRANDS) \
+                else [{"brand": b["brand"], "version": f"{b['version']}.0.0.0"} for b in bl]
+        brands = [mk(brand=b["brand"], version=b["version"]) for b in bl]
+        fvl = [mk(brand=b["brand"], version=b["version"]) for b in fl]
         meta = cdp.emulation.UserAgentMetadata(
             platform=spec["ua_ch_platform"],
             platform_version=spec["ua_ch_platform_version"],
