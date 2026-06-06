@@ -96,12 +96,13 @@ async def main() -> None:
     # family (apple/nvidia/intel/amd), the 2025-26 cross-check.
     wgpu_ok = (r.get("wgpuVendor") == gc and r.get("wgpuFallback") is False)
     ok = plat_ok and gpu_ok and ua_ok and lw_ok and wgpu_ok
+    wgpu_fb = "fb" if r.get("wgpuFallback") else "nofb"
+    wgpu_detail = "" if wgpu_ok else f" (want {gc}) err={r.get('wgpuErr')!r}"
     print(f"RESULT [{'PASS' if ok else 'FAIL'}] {p.label[:30]:30} "
           f"plat={r.get('platform')} ua={r.get('uad')} cores={r.get('cores')} "
           f"scr={r.get('sw')} gpu={'ok' if gpu_ok else 'NO'} "
           f"uaTok={'ok' if ua_ok else 'NO'} lineWidth={r.get('lineWidthMax')} "
-          f"wgpu={r.get('wgpuVendor')!r}/{'fb' if r.get('wgpuFallback') else 'nofb'}"
-          f"{'' if wgpu_ok else f'(want {gc}) err={r.get('wgpuErr')!r}'}")
+          f"wgpu={r.get('wgpuVendor')!r}/{wgpu_fb}{wgpu_detail}")
 
 
 if __name__ == "__main__":
