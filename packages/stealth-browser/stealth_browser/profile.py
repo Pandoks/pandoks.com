@@ -254,6 +254,18 @@ def chrome_launch_flags(identity: Identity, *, headless: bool,
             # page-visible -- they cannot be read back as a tell.
             "--enable-unsafe-webgpu",
             "--enable-features=Vulkan",
+            # GPU-process stability for a SOFTWARE renderer (llvmpipe/
+            # SwiftShader). A heavy WebGL fingerprint battery (e.g. CreepJS) can
+            # make the slow software GPU process miss the watchdog deadline; the
+            # watchdog then kills it, and after a few restarts Chrome PERMANENTLY
+            # disables GL -> navigator WebGL reports "disabled or unavailable",
+            # a glaring bot tell for the rest of the session. Disable the
+            # watchdog (don't kill a slow-but-working software render) and the
+            # restart cap (never permanently disable GL). Launch-only, never
+            # page-visible. Verified: the prod launch path keeps WebGL alive +
+            # reporting the spoofed renderer across a heavy multi-site session.
+            "--disable-gpu-watchdog",
+            "--disable-gpu-process-crash-limit",
         ]
     # Opt-in cert tolerance for TLS-TERMINATING unblockers (e.g. Oxylabs Web
     # Unblocker, which MITMs HTTPS and presents its own CA). Without this,

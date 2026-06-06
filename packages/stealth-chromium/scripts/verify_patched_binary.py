@@ -270,6 +270,10 @@ async def _probe(bin_path: str, spoof: bool) -> dict:
         # WebGPU path production uses (adapter present, apex-webgpu-adapterinfo
         # fires). Without these navigator.gpu.requestAdapter() returns null.
         "--enable-unsafe-webgpu", "--enable-features=Vulkan",
+        # software-GPU stability (parity with production) -- keep WebGL alive
+        # through a heavy multi-site session instead of the watchdog killing the
+        # slow software GPU process and Chrome permanently disabling GL.
+        "--disable-gpu-watchdog", "--disable-gpu-process-crash-limit",
         "--no-first-run", "--no-default-browser-check",
     ]
     # sandbox=False: the --no-sandbox arg alone doesn't satisfy nodriver's own
