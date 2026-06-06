@@ -43,9 +43,24 @@ resolves. CreepJS still counts `6/51` (its own width-expectation methodology,
 not a system misconfig). Production wants these fonts + fontconfig aliases
 baked into the per-persona image.
 
-**Still genuinely blocked / deployment-side:** residential-proxy test (needs
-Oxylabs creds — none in SSM); WebGPU runtime (no software adapter even on the
-builder); render-OUTPUT pixel coherence (llvmpipe vs claimed GPU — deep/rare).
+**incolumitas (`bot.incolumitas.com`, panel5)** — the most detailed open bot
+test, run for the IP-independent fingerprint/automation verdict: **~40 tests
+pass** (fpscanner PHANTOM_*/HEADCHR_*/SELENIUM/CHR_DEBUG, intoli webDriver +
+webDriverAdvanced, custom puppeteerExtraStealthUsed + worker/serviceworker
+consistency — all OK). The ONLY automation "FAIL" is `fpscanner.WEBDRIVER`,
+which is a stale-library FALSE POSITIVE: it flags the mere presence of
+`navigator.webdriver` (a standard W3C property every Chrome 89+ ships).
+Verified our state == real Chrome (webdriver=false, property present, zero
+cdc/phantom/selenium artifacts) — real Chrome fails it identically; removing
+the property would be WORSE (diverges from real Chrome). Only real negative:
+`is_datacenter: true` (the IP).
+
+**Still genuinely blocked / deployment-side:** residential-proxy test — creds
+exist (Oxylabs hbproxy.net + SST `OxylabsWebUnblocker*`) but the hbproxy
+endpoints reject with `403 proxy_ip_not_allowed` (account is IP-allowlist
+auth; source IP not whitelisted) — needs the Oxylabs dashboard set to
+user:pass auth OR a whitelisted static IP. WebGPU runtime (no software adapter
+even on the builder); render-OUTPUT pixel coherence (llvmpipe vs claimed GPU).
 
 Earlier milestone: build `stealth-chromium-149final-20260605-153624`
 (off `a79f0c4`) was the first fully-green binary; verified
