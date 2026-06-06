@@ -88,6 +88,34 @@ GPU+touch+DPR data aren't publicly groundable, and shipping guessed values
 is a tell; they need real-device dumps (and mobile needs a touch/DPR/UA-CH
 emulation subsystem).
 
+**Android MOBILE personas (17th/18th) — solved via CDP, NO rebuild
+(`stealth-mobileprod-20260606-222356`).** Mobile is pure runtime CDP device
+emulation (the DevTools/Puppeteer mechanism), wired into the launcher exactly
+like timezone/locale -- no C++ patch. `StealthBrowser._apply_mobile`:
+`setDeviceMetricsOverride(mobile=True)` (DPR + viewport + pointer:coarse/
+hover:none) + `setTouchEmulationEnabled` (maxTouchPoints) + `setUserAgentOverride`
+(reduced UA "Android 10; K" + navigator.platform + UA-CH metadata
+mobile/platform/model, REUSING our real Chrome-149 brands -- never fabricated;
+falls back to the measured `_CHROME_BRANDS` const since about:blank exposes
+empty brands). `fp_env` emits only the GPU/cores/mem subset for mobile (CDP
+owns the rest); `mobile_emulation_spec()` carries the CDP params.
+Personas: **Samsung Galaxy S23** (Adreno 740, 360x780@3) + **Google Pixel 7**
+(Mali-G710, 412x915@2.625). Production-path verified fully coherent: mobile=true,
+UA-CH Android/model, maxTouchPoints 5, ontouchstart, DPR, pointer:coarse,
+brands populated, mobile GPU. To pin one: `APEX_PROFILE='Galaxy S23'`. Scales
+to any Android model by adding a row + its screen/DPR/GPU (all mineable).
+`profile_probe` SKIPs mobile (it's raw-nodriver, no CDP path);
+`mobile_prod_probe.py` validates the production path.
+
+**iOS personas — deliberately NOT attempted (un-spoofable from Blink).** Every
+iOS browser is forced onto Apple's WebKit/JavaScriptCore engine; apex-chromium
+is Blink/V8. The engine fingerprint (JS quirks, WebGL/WebGPU impl, CSS support,
+error-stack format) betrays a fake iPhone regardless of how perfectly UA/screen/
+touch are set -- and engine-level checks are exactly what CreepJS/DataDome run.
+A UA-only iOS persona would fool only weak checks and give false confidence, so
+it's intentionally omitted. (EU DMA allows alt-engine iOS browsers since 17.4
+but adoption is ~zero, so "iOS == WebKit" holds for fingerprinting.)
+
 **Behavioral ghost-cursor confirmed (same run, vs `bot.incolumitas.com`):**
 the CDP `Input.dispatchMouseEvent` stream from `human.py` fires real
 in-page events — **724 mousemove + 724 pointermove, all `isTrusted:true`**.
