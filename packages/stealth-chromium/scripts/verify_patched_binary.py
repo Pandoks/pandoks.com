@@ -157,7 +157,8 @@ PROBE_JS = r"""
   // On a headless box this is a SwiftShader fallback adapter; the patch
   // overrides vendor and forces isFallbackAdapter=false.
   let webgpuVendor = null, webgpuArchitecture = null,
-      webgpuIsFallback = null, webgpuErr = null;
+      webgpuIsFallback = null, webgpuErr = null,
+      webgpuMaxTex2D = null, webgpuHasAstc = null;
   try {
     if (navigator.gpu) {
       const adapter = await navigator.gpu.requestAdapter();
@@ -165,6 +166,8 @@ PROBE_JS = r"""
         webgpuVendor = adapter.info.vendor;
         webgpuArchitecture = adapter.info.architecture;
         webgpuIsFallback = adapter.info.isFallbackAdapter;
+        webgpuMaxTex2D = adapter.limits.maxTextureDimension2D;
+        webgpuHasAstc = adapter.features.has('texture-compression-astc');
       } else { webgpuErr = 'no adapter'; }
     } else { webgpuErr = 'no navigator.gpu'; }
   } catch (e) { webgpuErr = String(e); }
@@ -208,6 +211,7 @@ PROBE_JS = r"""
     webglVendor, webglRenderer, webglErr,
     maxTextureSize, maxRenderbufferSize, maxViewportDim,
     webgpuVendor, webgpuArchitecture, webgpuIsFallback, webgpuErr,
+    webgpuMaxTex2D, webgpuHasAstc,
     measureTextW, audioHash, blobHash, canvasTail: (canvasHash() || '').slice(-24),
     connEffectiveType: conn ? conn.effectiveType : null,
     connRtt: conn ? conn.rtt : null,
@@ -444,6 +448,16 @@ async def run() -> int:
            (r.get("webgpuVendor"), r.get("webgpuIsFallback"),
             r.get("webgpuErr")),
            (FP_ENV["APEX_FP_WEBGPU_VENDOR"], False, None))
+    # apex-webgpu-limits: maxTextureDimension2D must be 16384 (real GPUs +
+    # coherent with our WebGL MAX_TEXTURE_SIZE), not SwiftShader's 8192 floor.
+    _check(results, r.get("webgpuMaxTex2D") == 16384,
+           "WebGPU maxTextureDimension2D coherent (==WebGL 16384)",
+           r.get("webgpuMaxTex2D"), 16384)
+    # FP_ENV is an Apple persona -> ASTC is correct (kept). The non-Apple strip
+    # (apex-webgpu-features) is checked at runtime by webgpu_limits_probe.
+    _check(results, r.get("webgpuHasAstc") is True,
+           "WebGPU ASTC present for Apple persona (family-correct)",
+           r.get("webgpuHasAstc"), True)
 
     print("\n--- assertions ---")
     passed = 0

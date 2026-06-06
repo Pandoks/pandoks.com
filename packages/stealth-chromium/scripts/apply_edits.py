@@ -337,6 +337,61 @@ EDITS = [
                   "  }\n",
     },
 
+    # --- WebGPU adapter.limits: max texture dimensions ------------------
+    # SwiftShader (our software WebGPU backend) reports the spec FLOOR
+    # maxTextureDimension1D/2D = 8192. Every real modern GPU reports 16384
+    # (99.4% of devices per web3dsurvey), AND we already spoof WebGL
+    # MAX_TEXTURE_SIZE = 16384 -- so leaving WebGPU at 8192 is a WebGL<->WebGPU
+    # cross-API contradiction (the decisive 2025-26 WebGPU detection vector).
+    # Raise both to 16384 in the GPUSupportedLimits ctor (the single chokepoint
+    # -- the per-limit getters just return limits_.<name>). Other limits stay
+    # SwiftShader's (1 GiB buffers etc. are a plausible real mid-tier).
+    {
+        "file": "third_party/blink/renderer/modules/webgpu/"
+                "gpu_supported_limits.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-webgpu-limits",
+        "anchor": "GPUSupportedLimits::GPUSupportedLimits(const ComboLimits& "
+                  "limits) {\n  limits.UnlinkedCopyTo(&limits_);\n",
+        "where": "after",
+        "inject": "  // apex-webgpu-limits: real modern GPUs (and our spoofed "
+                  "WebGL = 16384)\n"
+                  "  if (apex_fp::HasOverride(\"APEX_FP_WEBGPU_VENDOR\")) {\n"
+                  "    limits_.maxTextureDimension1D = 16384;\n"
+                  "    limits_.maxTextureDimension2D = 16384;\n"
+                  "  }\n",
+    },
+
+    # --- WebGPU adapter.features: drop mobile compression on desktop ----
+    # SwiftShader advertises ALL texture-compression formats (bc + astc +
+    # etc2). On real hardware ASTC/ETC2 are mobile/Apple formats: ~93% on
+    # macOS but only ~0.6% on Windows (web3dsurvey). So a Windows persona
+    # (nvidia/intel/amd) advertising ASTC/ETC2 is a SwiftShader/software tell.
+    # Drop them in AddFeatureName (the single insert chokepoint) unless the
+    # spoofed family is apple. BC stays (desktop GPUs do support it). String
+    # compare on the stable web-exposed name avoids brittle V8 enum casing.
+    {
+        "file": "third_party/blink/renderer/modules/webgpu/"
+                "gpu_supported_features.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-webgpu-features",
+        "anchor": "void GPUSupportedFeatures::AddFeatureName(const "
+                  "V8GPUFeatureName feature_name) {\n",
+        "where": "after",
+        "inject": "  // apex-webgpu-features: ASTC/ETC2 are mobile/Apple-only "
+                  "on real HW\n"
+                  "  if (apex_fp::HasOverride(\"APEX_FP_WEBGPU_VENDOR\") &&\n"
+                  "      apex_fp::EnvStr(\"APEX_FP_WEBGPU_VENDOR\") != "
+                  "\"apple\") {\n"
+                  "    const auto apex_n = feature_name.AsString();\n"
+                  "    if (apex_n == \"texture-compression-astc\" ||\n"
+                  "        apex_n == \"texture-compression-astc-sliced-3d\" ||\n"
+                  "        apex_n == \"texture-compression-etc2\") {\n"
+                  "      return;\n"
+                  "    }\n"
+                  "  }\n",
+    },
+
     # --- screen.{width,height,availWidth,availHeight,colorDepth} -------
     # Each getter is anchored on its unique signature line; the apex value
     # is returned first, the upstream body stays as the fallback.
