@@ -106,6 +106,15 @@ brands populated, mobile GPU. To pin one: `APEX_PROFILE='Galaxy S23'`. Scales
 to any Android model by adding a row + its screen/DPR/GPU (all mineable).
 `profile_probe` SKIPs mobile (it's raw-nodriver, no CDP path);
 `mobile_prod_probe.py` validates the production path.
+CreepJS-validated (`stealth-panel-mobile-20260606-223342`, pinned via
+`run-panel-mobile.sh`): **0% headless / 0% stealth** with all mobile signals
+coherent (touch:5, Android 14/SM-S911B, mobile, Adreno window+worker).
+**Caveat — mobile needs a mobile/residential IP MORE than desktop:** on the
+datacenter EC2 IP, `deviceinfo` flagged "you are a bot" and browserscan
+dropped to 80% because a phone on an AWS IP is structurally impossible (phones
+are on cellular/residential). The FINGERPRINT is coherent (CreepJS is
+IP-independent); the flag is the IP layer (deferred). Pair mobile personas
+with a mobile/residential proxy.
 
 **iOS personas — deliberately NOT attempted (un-spoofable from Blink).** Every
 iOS browser is forced onto Apple's WebKit/JavaScriptCore engine; apex-chromium
