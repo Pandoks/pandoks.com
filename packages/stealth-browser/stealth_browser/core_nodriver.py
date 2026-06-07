@@ -33,6 +33,40 @@ from .fp_profiles import (pick_profile, fp_env, patched_chrome_path,
 from .personas import POOL as PERSONA_POOL
 
 
+def _write_locale_pref(persona_dir, accept_language: str) -> None:
+    """Set navigator.languages natively via the profile's intl.accept_languages
+    pref (the only no-JS-tampering way; the flags don't set the JS array).
+
+    `persona_dir` is the Chrome --user-data-dir; the pref lives in
+    <dir>/Default/Preferences. Merges into an existing (warmed) Preferences so
+    cookies/history are preserved. Best-effort -- a pref write must never block a
+    session. `accept_language` is the q-valued header form; we strip the q-values
+    to the plain list Chrome stores (e.g. "es-ES,es,en").
+    """
+    import json as _json
+    from pathlib import Path
+    langs = ",".join(t.split(";")[0].strip()
+                     for t in accept_language.split(",") if t.strip())
+    if not langs:
+        return
+    try:
+        default_dir = Path(persona_dir) / "Default"
+        default_dir.mkdir(parents=True, exist_ok=True)
+        pref_path = default_dir / "Preferences"
+        prefs: dict = {}
+        if pref_path.exists():
+            try:
+                prefs = _json.loads(pref_path.read_text() or "{}")
+            except Exception:  # noqa: BLE001 - corrupt/partial -> start fresh
+                prefs = {}
+        intl = prefs.setdefault("intl", {})
+        intl["accept_languages"] = langs
+        intl["selected_languages"] = langs
+        pref_path.write_text(_json.dumps(prefs))
+    except Exception:  # noqa: BLE001 - pref write is best-effort
+        pass
+
+
 class NodriverCore:
     """A single stealth browser session backed by nodriver + real Chrome.
 
@@ -126,6 +160,15 @@ class NodriverCore:
         _loc = self.identity.locale.replace("-", "_")
         os.environ["LANGUAGE"] = _loc
         os.environ["LANG"] = f"{_loc}.UTF-8"
+
+        # navigator.languages follows the PROFILE pref intl.accept_languages,
+        # NOT --lang/--accept-lang (empirically Chrome left the JS array [en-US]
+        # on a non-US exit even with --accept-lang set, so iphey flagged a
+        # language<->IP mismatch). Write the pref into the persona's Preferences
+        # so the array matches the exit-IP locale natively -- no JS override (a
+        # JS shim to navigator.languages is exactly the tampering CreepJS hunts).
+        if self._persona is not None:
+            _write_locale_pref(self._persona, self.identity.accept_language)
 
         # UA-STRING COHERENCE is handled NATIVELY in the binary (apex-ua-platform
         # in user_agent_utils.cc swaps the reduced-UA OS token from the same
