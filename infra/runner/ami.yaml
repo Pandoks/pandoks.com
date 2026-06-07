@@ -3,7 +3,7 @@ description: Install tooling for ephemeral EC2 runners. Bake this into the AMI s
 schemaVersion: 1.0
 
 phases:
-  - name: tool-install
+  - name: build
     steps:
       - name: UpdateApt
         action: ExecuteBash
@@ -11,7 +11,7 @@ phases:
           commands:
             - sudo apt-get update -y
 
-      - name: InstallBuildEssentials
+      - name: InstallRunnerEssentials
         action: ExecuteBash
         inputs:
           commands:

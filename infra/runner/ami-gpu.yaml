@@ -3,7 +3,7 @@ description: Install NVIDIA Tesla driver + CUDA toolkit for ephemeral EC2 GPU ru
 schemaVersion: 1.0
 
 phases:
-  - name: tool-install
+  - name: build
     steps:
       - name: InstallKernelHeaders
         action: ExecuteBash

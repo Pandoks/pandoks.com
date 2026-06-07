@@ -4,7 +4,7 @@ import { US_WEST_2_REGION, usWest2Provider } from '../aws';
 import { STAGE_NAME } from '../dns';
 
 // WARNING: version must be bumped when AMI changes to rebuild
-const VERSION = '1.0.1';
+const VERSION = '1.0.2';
 
 const bakeInstanceRole = new aws.iam.Role(
   'RunnerBakeInstanceRole',
