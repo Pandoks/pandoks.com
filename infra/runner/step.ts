@@ -22,15 +22,20 @@ const RUNNER_VARIANTS = [
     templatePath: '$.templates.launchTemplateIdGpuArm64'
   }
 ] as const;
+
+function launchInstance({
+  templatePath,
+  market
+}: {
+  templatePath: string;
+  market: 'spot' | 'on-demand';
+}) {
   return {
     Type: 'Task',
     Resource: 'arn:aws:states:::aws-sdk:ec2:runInstances',
     Parameters: {
       LaunchTemplate: {
-        'LaunchTemplateId.$':
-          architecture === 'x86'
-            ? '$.templates.launchTemplateIdX86'
-            : '$.templates.launchTemplateIdArm64'
+        'LaunchTemplateId.$': templatePath
       },
       MinCount: 1,
       MaxCount: 1,
