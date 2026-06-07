@@ -24,6 +24,14 @@ echo "node: $(node -v 2>&1) | pnpm: $(pnpm -v 2>&1 | tail -1)"
 cd "$REPO_ROOT"
 echo "=== pnpm install (no scripts) ==="
 pnpm install --frozen-lockfile --ignore-scripts >/dev/null 2>&1 && echo "install OK" || echo "install FAILED"
+# The builder instance role has no 'Personal' AWS profile (sst.config.ts default)
+# and sst must run in the box's own region to find /sst/bootstrap (else it tries
+# to CreateBucket, which the minimal role can't). Fix both before sst shell.
+eval "$(aws configure export-credentials --format env 2>/dev/null)" || true
+IMDS_TOKEN="$(curl -fsS -X PUT 'http://169.254.169.254/latest/api/token' -H 'X-aws-ec2-metadata-token-ttl-seconds: 120' 2>/dev/null || true)"
+EC2_REGION="$(curl -fsS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" 'http://169.254.169.254/latest/meta-data/placement/region' 2>/dev/null || true)"
+export AWS_REGION="${EC2_REGION:-us-west-1}" AWS_DEFAULT_REGION="${EC2_REGION:-us-west-1}"
+echo "  creds=$([ -n "${AWS_ACCESS_KEY_ID:-}" ] && echo yes || echo NO) region=${AWS_REGION}"
 echo "=== sst shell secret exposure (values redacted) ==="
 pnpm sst shell --stage production -- sh -c '
   for v in SST_RESOURCE_OxylabsResidentialUsername SST_RESOURCE_OxylabsResidentialPassword; do

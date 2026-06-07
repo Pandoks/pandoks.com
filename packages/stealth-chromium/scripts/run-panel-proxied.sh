@@ -50,7 +50,13 @@ pnpm install --frozen-lockfile --ignore-scripts 2>&1 | tail -3 || echo "  (pnpm 
 # the instance role (IMDS). Materialize those role creds into the env so SST's
 # default credential chain is used instead of the missing profile.
 eval "$(aws configure export-credentials --format env 2>/dev/null)" || true
-echo "  aws creds in env: $([ -n "${AWS_ACCESS_KEY_ID:-}" ] && echo yes || echo NO) ($(aws sts get-caller-identity --query Arn --output text 2>&1 | sed 's#.*/##'))"
+# Pin the region to the box's own (IMDSv2; us-west-1 fallback). Without it, sst's
+# bootstrap probe hits the wrong region, finds no /sst/bootstrap marker, and tries
+# to CreateBucket a fresh sst-asset bucket -- which the minimal instance role can't.
+IMDS_TOKEN="$(curl -fsS -X PUT 'http://169.254.169.254/latest/api/token' -H 'X-aws-ec2-metadata-token-ttl-seconds: 120' 2>/dev/null || true)"
+EC2_REGION="$(curl -fsS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" 'http://169.254.169.254/latest/meta-data/placement/region' 2>/dev/null || true)"
+export AWS_REGION="${EC2_REGION:-us-west-1}" AWS_DEFAULT_REGION="${EC2_REGION:-us-west-1}"
+echo "  aws creds in env: $([ -n "${AWS_ACCESS_KEY_ID:-}" ] && echo yes || echo NO) region=${AWS_REGION} ($(aws sts get-caller-identity --query Arn --output text 2>&1 | sed 's#.*/##'))"
 echo "=== entering sst shell (creds) -> run-panel ==="
 pnpm sst shell --stage production -- bash "$PKG_ROOT/scripts/run-panel-proxied.sh" --inner
 echo "=== proxied panel done (rc=$?) ==="
