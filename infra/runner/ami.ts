@@ -24,6 +24,13 @@ const bakeInstanceProfile = new aws.iam.InstanceProfile('RunnerBakeInstanceProfi
   role: bakeInstanceRole.name
 });
 
+function renderAmiTemplateYaml(file: string, replacements: Record<string, string> = {}): string {
+  let data = readFileSync(join(process.cwd(), 'infra/runner', file), 'utf-8');
+  for (const [token, value] of Object.entries(replacements)) {
+    data = data.replaceAll(`{{${token}}}`, value);
+  }
+  return data;
+}
 const runnerToolsComponent = new aws.imagebuilder.Component('RunnerToolsComponent', {
   name: `${STAGE_NAME}-runner-tools`,
   platform: 'Linux',
