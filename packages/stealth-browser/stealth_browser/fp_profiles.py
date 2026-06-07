@@ -137,12 +137,12 @@ PROFILES: list[FpProfile] = [
     ),
     # --- Windows / AMD (gpu_class="amd") ---
     FpProfile(
-        label="Windows desktop, AMD RX 6700",
+        label="Windows desktop, AMD RX 6700 XT",
         platform="Win32", ua_platform="Windows",
         hw_concurrency=16, device_memory=8,
         webgl_vendor="Google Inc. (AMD)",
-        webgl_renderer="ANGLE (AMD, AMD Radeon RX 6700 XT Direct3D11 "
-                       "vs_5_0 ps_5_0, D3D11)",
+        webgl_renderer="ANGLE (AMD, AMD Radeon RX 6700 XT (0x000073DF) "
+                       "Direct3D11 vs_5_0 ps_5_0, D3D11)",
         screen_w=2560, screen_h=1440, avail_w=2560, avail_h=1400,
         gpu_class="amd",
     ),
@@ -225,8 +225,8 @@ PROFILES: list[FpProfile] = [
         platform="Win32", ua_platform="Windows",
         hw_concurrency=12, device_memory=8,
         webgl_vendor="Google Inc. (AMD)",
-        webgl_renderer="ANGLE (AMD, AMD Radeon RX 7600 Direct3D11 "
-                       "vs_5_0 ps_5_0, D3D11)",
+        webgl_renderer="ANGLE (AMD, AMD Radeon RX 7600 (0x00007480) "
+                       "Direct3D11 vs_5_0 ps_5_0, D3D11)",
         screen_w=1920, screen_h=1080, avail_w=1920, avail_h=1040,
         gpu_class="amd",
     ),
@@ -334,17 +334,262 @@ PROFILES: list[FpProfile] = [
     FpProfile(
         label="Samsung Galaxy A54 (Android)",
         platform="Linux armv8l", ua_platform="Android",
-        hw_concurrency=8, device_memory=6,
+        # 8GB variant -> deviceMemory 8 (Chrome only reports powers of two;
+        # the previous value 6 is impossible and itself a bot tell).
+        hw_concurrency=8, device_memory=8,
         webgl_vendor="ARM",
         webgl_renderer="ANGLE (ARM, Mali-G68, OpenGL ES 3.2)",
-        screen_w=360, screen_h=780, avail_w=360, avail_h=780,
+        screen_w=412, screen_h=892, avail_w=412, avail_h=892,
         gpu_class="mali",
-        is_mobile=True, device_scale_factor=3.0, max_touch_points=5,
+        is_mobile=True, device_scale_factor=2.625, max_touch_points=5,
         ua_reduced=("Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 "
                     "(KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36"),
         ua_model="SM-A546B", ua_platform_version_mobile="14.0.0",
     ),
 ]
+
+
+# ============================================================================
+# GENERATED real-device templates (2026-06-07). Each row is built from a
+# VERIFIED primitive -- the exact ANGLE WebGL renderer string + real PCI device
+# id a genuine machine reports (researched + sourced: techpowerup/pci.ids +
+# real fingerprint corpora for desktop GPUs; deviceandbrowserinfo corpus for
+# Apple Metal strings; chromium UA-reduction + viewport DBs for Android) -- then
+# expanded across the real (screen, cores) combinations that actually ship for
+# each GPU. Invariants enforced for coherence:
+#   * navigator.deviceMemory is ALWAYS a power of two <= 8 (Chrome caps at 8;
+#     >8, or a non-power-of-two like 6, is itself a bot tell).
+#   * hardwareConcurrency stays in the realistic band for the GPU tier.
+#   * the renderer string (incl. the 0x<PCIID>) is the literal ANGLE output.
+# The per-session farbling seed makes each session's canvas/audio/WebGL HASH
+# unique (~4.3e9 per template), so these templates are the realistic *device
+# distribution*, not the fingerprint count -- adding more is honest diversity.
+# To grow further: append a verified GPU/chip/model row below.
+# ----------------------------------------------------------------------------
+
+# tier -> realistic (screen_w, screen_h, avail_h) at the panel's logical/CSS
+# size. avail_h = screen_h - Windows 11 taskbar (~48px); avail_w == screen_w.
+_WIN_SCREENS: dict[str, list[tuple[int, int, int]]] = {
+    "high": [(2560, 1440, 1392), (3840, 2160, 2112), (2560, 1600, 1552)],
+    "mid": [(1920, 1080, 1032), (2560, 1440, 1392), (1920, 1200, 1152)],
+    "budget": [(1920, 1080, 1032), (1366, 768, 720), (1600, 900, 852)],
+    "laptop": [(1920, 1080, 1032), (1536, 864, 816), (2560, 1440, 1392)],
+}
+# tier -> realistic logical-core counts (cores x SMT) for CPUs paired with it.
+_WIN_CORES: dict[str, list[int]] = {
+    "high": [16, 24, 32],
+    "mid": [12, 16, 24],
+    "budget": [8, 12, 16],
+    "laptop": [8, 12, 16],
+}
+# (gpu name, gpu_class, UNMASKED_VENDOR, exact ANGLE UNMASKED_RENDERER, tier)
+_WIN_GPUS: list[tuple[str, str, str, str, str]] = [
+    # NVIDIA -- vendor "Google Inc. (NVIDIA)"
+    ("NVIDIA GeForce RTX 4090", "nvidia", "Google Inc. (NVIDIA)",
+     "ANGLE (NVIDIA, NVIDIA GeForce RTX 4090 (0x00002684) Direct3D11 vs_5_0 ps_5_0, D3D11)", "high"),
+    ("NVIDIA GeForce RTX 4080", "nvidia", "Google Inc. (NVIDIA)",
+     "ANGLE (NVIDIA, NVIDIA GeForce RTX 4080 (0x00002704) Direct3D11 vs_5_0 ps_5_0, D3D11)", "high"),
+    ("NVIDIA GeForce RTX 4070 Ti", "nvidia", "Google Inc. (NVIDIA)",
+     "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Ti (0x00002782) Direct3D11 vs_5_0 ps_5_0, D3D11)", "high"),
+    ("NVIDIA GeForce RTX 4070", "nvidia", "Google Inc. (NVIDIA)",
+     "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 (0x00002786) Direct3D11 vs_5_0 ps_5_0, D3D11)", "mid"),
+    ("NVIDIA GeForce RTX 4060 Ti", "nvidia", "Google Inc. (NVIDIA)",
+     "ANGLE (NVIDIA, NVIDIA GeForce RTX 4060 Ti (0x00002803) Direct3D11 vs_5_0 ps_5_0, D3D11)", "mid"),
+    ("NVIDIA GeForce RTX 4060", "nvidia", "Google Inc. (NVIDIA)",
+     "ANGLE (NVIDIA, NVIDIA GeForce RTX 4060 (0x00002882) Direct3D11 vs_5_0 ps_5_0, D3D11)", "mid"),
+    ("NVIDIA GeForce RTX 3080", "nvidia", "Google Inc. (NVIDIA)",
+     "ANGLE (NVIDIA, NVIDIA GeForce RTX 3080 (0x00002206) Direct3D11 vs_5_0 ps_5_0, D3D11)", "mid"),
+    ("NVIDIA GeForce RTX 3070", "nvidia", "Google Inc. (NVIDIA)",
+     "ANGLE (NVIDIA, NVIDIA GeForce RTX 3070 (0x00002484) Direct3D11 vs_5_0 ps_5_0, D3D11)", "mid"),
+    ("NVIDIA GeForce RTX 3060 Ti", "nvidia", "Google Inc. (NVIDIA)",
+     "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Ti (0x00002486) Direct3D11 vs_5_0 ps_5_0, D3D11)", "mid"),
+    ("NVIDIA GeForce RTX 3060", "nvidia", "Google Inc. (NVIDIA)",
+     "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002504) Direct3D11 vs_5_0 ps_5_0, D3D11)", "mid"),
+    ("NVIDIA GeForce RTX 3050", "nvidia", "Google Inc. (NVIDIA)",
+     "ANGLE (NVIDIA, NVIDIA GeForce RTX 3050 (0x00002507) Direct3D11 vs_5_0 ps_5_0, D3D11)", "budget"),
+    ("NVIDIA GeForce RTX 2060", "nvidia", "Google Inc. (NVIDIA)",
+     "ANGLE (NVIDIA, NVIDIA GeForce RTX 2060 (0x00001F08) Direct3D11 vs_5_0 ps_5_0, D3D11)", "budget"),
+    ("NVIDIA GeForce GTX 1660 Ti", "nvidia", "Google Inc. (NVIDIA)",
+     "ANGLE (NVIDIA, NVIDIA GeForce GTX 1660 Ti (0x00002182) Direct3D11 vs_5_0 ps_5_0, D3D11)", "budget"),
+    ("NVIDIA GeForce GTX 1650", "nvidia", "Google Inc. (NVIDIA)",
+     "ANGLE (NVIDIA, NVIDIA GeForce GTX 1650 (0x00001F82) Direct3D11 vs_5_0 ps_5_0, D3D11)", "budget"),
+    ("NVIDIA GeForce GTX 1060 6GB", "nvidia", "Google Inc. (NVIDIA)",
+     "ANGLE (NVIDIA, NVIDIA GeForce GTX 1060 6GB (0x00001C03) Direct3D11 vs_5_0 ps_5_0, D3D11)", "budget"),
+    ("NVIDIA GeForce RTX 4060 Laptop GPU", "nvidia", "Google Inc. (NVIDIA)",
+     "ANGLE (NVIDIA, NVIDIA GeForce RTX 4060 Laptop GPU (0x000028E0) Direct3D11 vs_5_0 ps_5_0, D3D11)", "laptop"),
+    # AMD -- vendor "Google Inc. (AMD)"; family PCI id shared, name differs
+    ("AMD Radeon RX 7900 XT", "amd", "Google Inc. (AMD)",
+     "ANGLE (AMD, AMD Radeon RX 7900 XT (0x0000744C) Direct3D11 vs_5_0 ps_5_0, D3D11)", "high"),
+    ("AMD Radeon RX 7800 XT", "amd", "Google Inc. (AMD)",
+     "ANGLE (AMD, AMD Radeon RX 7800 XT (0x0000747E) Direct3D11 vs_5_0 ps_5_0, D3D11)", "high"),
+    ("AMD Radeon RX 7700 XT", "amd", "Google Inc. (AMD)",
+     "ANGLE (AMD, AMD Radeon RX 7700 XT (0x0000747E) Direct3D11 vs_5_0 ps_5_0, D3D11)", "high"),
+    ("AMD Radeon RX 6800", "amd", "Google Inc. (AMD)",
+     "ANGLE (AMD, AMD Radeon RX 6800 (0x000073BF) Direct3D11 vs_5_0 ps_5_0, D3D11)", "mid"),
+    ("AMD Radeon RX 6700 XT", "amd", "Google Inc. (AMD)",
+     "ANGLE (AMD, AMD Radeon RX 6700 XT (0x000073DF) Direct3D11 vs_5_0 ps_5_0, D3D11)", "mid"),
+    ("AMD Radeon RX 6600 XT", "amd", "Google Inc. (AMD)",
+     "ANGLE (AMD, AMD Radeon RX 6600 XT (0x000073FF) Direct3D11 vs_5_0 ps_5_0, D3D11)", "mid"),
+    ("AMD Radeon RX 6600", "amd", "Google Inc. (AMD)",
+     "ANGLE (AMD, AMD Radeon RX 6600 (0x000073FF) Direct3D11 vs_5_0 ps_5_0, D3D11)", "mid"),
+    ("AMD Radeon RX 7600", "amd", "Google Inc. (AMD)",
+     "ANGLE (AMD, AMD Radeon RX 7600 (0x00007480) Direct3D11 vs_5_0 ps_5_0, D3D11)", "mid"),
+    ("AMD Radeon RX 580", "amd", "Google Inc. (AMD)",
+     "ANGLE (AMD, AMD Radeon RX 580 (0x000067DF) Direct3D11 vs_5_0 ps_5_0, D3D11)", "budget"),
+    ("AMD Radeon(TM) Graphics", "amd", "Google Inc. (AMD)",
+     "ANGLE (AMD, AMD Radeon(TM) Graphics (0x0000164E) Direct3D11 vs_5_0 ps_5_0, D3D11)", "budget"),
+    # Intel -- vendor "Google Inc. (Intel)"
+    ("Intel Arc A770", "intel", "Google Inc. (Intel)",
+     "ANGLE (Intel, Intel(R) Arc(TM) A770 Graphics (0x000056A0) Direct3D11 vs_5_0 ps_5_0, D3D11)", "mid"),
+    ("Intel Arc A750", "intel", "Google Inc. (Intel)",
+     "ANGLE (Intel, Intel(R) Arc(TM) A750 Graphics (0x000056A1) Direct3D11 vs_5_0 ps_5_0, D3D11)", "mid"),
+    ("Intel UHD Graphics 770", "intel", "Google Inc. (Intel)",
+     "ANGLE (Intel, Intel(R) UHD Graphics 770 (0x0000A780) Direct3D11 vs_5_0 ps_5_0, D3D11)", "budget"),
+    ("Intel UHD Graphics 630 (desktop)", "intel", "Google Inc. (Intel)",
+     "ANGLE (Intel, Intel(R) UHD Graphics 630 (0x00003E92) Direct3D11 vs_5_0 ps_5_0, D3D11)", "budget"),
+    ("Intel Iris Xe Graphics", "intel", "Google Inc. (Intel)",
+     "ANGLE (Intel, Intel(R) Iris(R) Xe Graphics (0x000046A6) Direct3D11 vs_5_0 ps_5_0, D3D11)", "laptop"),
+]
+
+# Apple Silicon: (chip, model label, screen_w, screen_h, avail_h, cores).
+# Renderer = "ANGLE (Apple, ANGLE Metal Renderer: Apple <chip>, Unspecified
+# Version)", vendor "Google Inc. (Apple)", platform MacIntel, deviceMemory 8.
+# Laptop avail_h = screen_h - notch/menubar (corpus-observed); desktop/external
+# avail_h = screen_h - 25 (menubar; Dock auto-hides).
+_APPLE_ROWS: list[tuple[str, str, int, int, int, int]] = [
+    ("M1", "MacBook Air 13 M1", 1440, 900, 862, 8),
+    ("M1", "MacBook Pro 13 M1", 1440, 900, 862, 8),
+    ("M1", "Mac mini M1", 1920, 1080, 1055, 8),
+    ("M1", "iMac 24 M1", 2048, 1152, 1127, 8),
+    ("M2", "MacBook Air 13 M2", 1470, 956, 918, 8),
+    ("M2", "MacBook Air 15 M2", 1710, 1112, 1074, 8),
+    ("M2", "Mac mini M2", 2560, 1440, 1415, 8),
+    ("M3", "MacBook Air 13 M3", 1470, 956, 918, 8),
+    ("M3", "MacBook Air 15 M3", 1710, 1112, 1074, 8),
+    ("M3", "iMac 24 M3", 2048, 1152, 1127, 8),
+    ("M4", "iMac 24 M4", 2048, 1152, 1127, 10),
+    ("M4", "Mac mini M4", 2560, 1440, 1415, 10),
+    ("M4", "MacBook Air 13 M4", 1470, 956, 918, 10),
+    ("M1 Pro", "MacBook Pro 14 M1 Pro", 1512, 982, 944, 10),
+    ("M1 Pro", "MacBook Pro 16 M1 Pro", 1728, 1117, 1079, 10),
+    ("M1 Max", "MacBook Pro 14 M1 Max", 1512, 982, 944, 10),
+    ("M1 Max", "MacBook Pro 16 M1 Max", 1728, 1117, 1079, 10),
+    ("M1 Ultra", "Mac Studio M1 Ultra", 2560, 1440, 1415, 20),
+    ("M2 Pro", "MacBook Pro 14 M2 Pro", 1512, 982, 944, 12),
+    ("M2 Pro", "MacBook Pro 16 M2 Pro", 1728, 1117, 1079, 12),
+    ("M2 Pro", "Mac mini M2 Pro", 2560, 1440, 1415, 12),
+    ("M2 Max", "MacBook Pro 16 M2 Max", 1728, 1117, 1079, 12),
+    ("M2 Max", "Mac Studio M2 Max", 3840, 2160, 2135, 12),
+    ("M2 Ultra", "Mac Studio M2 Ultra", 3840, 2160, 2135, 24),
+    ("M3 Pro", "MacBook Pro 14 M3 Pro", 1512, 982, 944, 12),
+    ("M3 Pro", "MacBook Pro 16 M3 Pro", 1728, 1117, 1079, 12),
+    ("M3 Max", "MacBook Pro 14 M3 Max", 1512, 982, 944, 16),
+    ("M3 Max", "MacBook Pro 16 M3 Max", 1728, 1117, 1079, 16),
+    ("M3 Ultra", "Mac Studio M3 Ultra", 3840, 2160, 2135, 28),
+    ("M4 Pro", "MacBook Pro 14 M4 Pro", 1512, 982, 944, 14),
+    ("M4 Pro", "MacBook Pro 16 M4 Pro", 1728, 1117, 1079, 14),
+    ("M4 Pro", "Mac mini M4 Pro", 2560, 1440, 1415, 14),
+    ("M4 Max", "MacBook Pro 16 M4 Max", 1728, 1117, 1079, 16),
+    ("M4 Max", "Mac Studio M4 Max", 3840, 2160, 2135, 16),
+]
+
+_CHROME_MAJOR = "149"  # keep in lockstep with the apex-chromium build + browser._CHROME_BRANDS
+_ANDROID_UA = (
+    "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 "
+    f"(KHTML, like Gecko) Chrome/{_CHROME_MAJOR}.0.0.0 Mobile Safari/537.36"
+)
+# Android: (label, ua_model, gpu_class, vendor, renderer, w, h, dpr, mem, cores).
+# Frozen UA (Android 10; K) + platform Linux armv8l + touch 5 are universal.
+# Snapdragon->Adreno rows (US "U" Samsung codes match the Adreno GPU); Pixel
+# Tensor->Mali (Tensor G3 in Pixel 8/8Pro is 9-core). deviceMemory <= 8.
+_ANDROID_ROWS: list[tuple[str, str, str, str, str, int, int, float, int, int]] = [
+    ("Samsung Galaxy S21", "SM-G991U", "adreno", "Qualcomm",
+     "ANGLE (Qualcomm, Adreno (TM) 660, OpenGL ES 3.2)", 360, 800, 3.0, 8, 8),
+    ("Samsung Galaxy S22", "SM-S901U", "adreno", "Qualcomm",
+     "ANGLE (Qualcomm, Adreno (TM) 730, OpenGL ES 3.2)", 360, 780, 3.0, 8, 8),
+    ("Samsung Galaxy S23 Ultra", "SM-S918B", "adreno", "Qualcomm",
+     "ANGLE (Qualcomm, Adreno (TM) 740, OpenGL ES 3.2)", 384, 824, 3.75, 8, 8),
+    ("Samsung Galaxy S24", "SM-S921U", "adreno", "Qualcomm",
+     "ANGLE (Qualcomm, Adreno (TM) 750, OpenGL ES 3.2)", 360, 780, 3.0, 8, 8),
+    ("Samsung Galaxy S24 Ultra", "SM-S928B", "adreno", "Qualcomm",
+     "ANGLE (Qualcomm, Adreno (TM) 750, OpenGL ES 3.2)", 384, 824, 3.75, 8, 8),
+    ("Google Pixel 6", "Pixel 6", "mali", "ARM",
+     "ANGLE (ARM, Mali-G78, OpenGL ES 3.2)", 412, 915, 2.625, 8, 8),
+    ("Google Pixel 8 Pro", "Pixel 8 Pro", "mali", "ARM",
+     "ANGLE (ARM, Mali-G715, OpenGL ES 3.2)", 448, 997, 3.0, 8, 9),
+    ("Google Pixel 9", "Pixel 9", "mali", "ARM",
+     "ANGLE (ARM, Mali-G715, OpenGL ES 3.2)", 360, 808, 3.0, 8, 8),
+    ("OnePlus 12", "CPH2581", "adreno", "Qualcomm",
+     "ANGLE (Qualcomm, Adreno (TM) 750, OpenGL ES 3.2)", 412, 919, 3.0, 8, 8),
+    ("Xiaomi 13", "2211133G", "adreno", "Qualcomm",
+     "ANGLE (Qualcomm, Adreno (TM) 740, OpenGL ES 3.2)", 393, 852, 3.0, 8, 8),
+]
+
+
+def _gen_windows() -> list[FpProfile]:
+    out: list[FpProfile] = []
+    for name, gclass, vendor, renderer, tier in _WIN_GPUS:
+        form = "laptop" if tier == "laptop" else "desktop"
+        for w, h, ah in _WIN_SCREENS[tier]:
+            for c in _WIN_CORES[tier]:
+                out.append(FpProfile(
+                    label=f"Windows {form}, {name} {w}x{h} {c}c",
+                    platform="Win32", ua_platform="Windows",
+                    hw_concurrency=c, device_memory=8,
+                    webgl_vendor=vendor, webgl_renderer=renderer,
+                    screen_w=w, screen_h=h, avail_w=w, avail_h=ah,
+                    gpu_class=gclass,
+                ))
+    return out
+
+
+def _gen_apple() -> list[FpProfile]:
+    out: list[FpProfile] = []
+    for chip, label, w, h, ah, cores in _APPLE_ROWS:
+        out.append(FpProfile(
+            # core count disambiguates binned vs full chips (e.g. 10- vs 12-core
+            # M2 Pro) so labels stay unique vs the hand-written rows above.
+            label=f"{label} {cores}c", platform="MacIntel", ua_platform="macOS",
+            hw_concurrency=cores, device_memory=8,
+            webgl_vendor="Google Inc. (Apple)",
+            webgl_renderer=(f"ANGLE (Apple, ANGLE Metal Renderer: Apple {chip}, "
+                            "Unspecified Version)"),
+            screen_w=w, screen_h=h, avail_w=w, avail_h=ah, gpu_class="apple",
+        ))
+    return out
+
+
+def _gen_android() -> list[FpProfile]:
+    out: list[FpProfile] = []
+    for label, model, gclass, vendor, renderer, w, h, dpr, mem, cores in _ANDROID_ROWS:
+        out.append(FpProfile(
+            label=f"{label} (Android)",
+            platform="Linux armv8l", ua_platform="Android",
+            hw_concurrency=cores, device_memory=mem,
+            webgl_vendor=vendor, webgl_renderer=renderer,
+            screen_w=w, screen_h=h, avail_w=w, avail_h=h, gpu_class=gclass,
+            is_mobile=True, device_scale_factor=dpr, max_touch_points=5,
+            ua_reduced=_ANDROID_UA, ua_model=model,
+            ua_platform_version_mobile="14.0.0",
+        ))
+    return out
+
+
+def _extend_profiles() -> None:
+    """Append generated templates, de-duped against existing rows by the tuple
+    that defines a distinct device (renderer + screen + cores + platform)."""
+    def key(p: FpProfile) -> tuple:
+        return (p.webgl_renderer, p.screen_w, p.screen_h,
+                p.hw_concurrency, p.platform)
+    seen = {key(p) for p in PROFILES}
+    for p in _gen_windows() + _gen_apple() + _gen_android():
+        k = key(p)
+        if k not in seen:
+            seen.add(k)
+            PROFILES.append(p)
+
+
+_extend_profiles()
 
 
 def detect_host_gpu_class() -> str:
