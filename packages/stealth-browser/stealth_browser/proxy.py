@@ -65,16 +65,49 @@ def _rand_session(n: int = 10) -> str:
     return "".join(random.choices(string.ascii_lowercase + string.digits, k=n))
 
 
+def _oxylabs_from_env(session_id: str | None) -> ProxyConfig | None:
+    """Oxylabs hbproxy.net residential, from OXYLABS_* env (VERIFIED recipe).
+
+    Empirically-confirmed contract for these endpoints (NOT the standard
+    pr.oxylabs.io:7777 SKU):
+      * port is 60000 (the only open port),
+      * the username MUST carry a "-<suffix>" -- a bare username gets 407; a
+        "-session-<id>" suffix gives a STICKY exit IP, any other suffix rotates,
+      * target HTTPS (plain http through the proxy returns empty bodies).
+    Env: OXYLABS_USERNAME, OXYLABS_PASSWORD, OXYLABS_PROXIES (comma-separated
+    <token>.hbproxy.net hosts). One host is chosen per session; the session id
+    becomes the sticky suffix so all of a session's requests share one exit IP.
+    """
+    user = os.environ.get("OXYLABS_USERNAME")
+    pwd = os.environ.get("OXYLABS_PASSWORD")
+    hosts = [h.strip() for h in os.environ.get("OXYLABS_PROXIES", "").split(",")
+             if h.strip()]
+    if not (user and pwd and hosts):
+        return None
+    sid = session_id or _rand_session()
+    return ProxyConfig(
+        host=random.choice(hosts),
+        port=60000,
+        username=f"{user}-session-{sid}",  # mandatory suffix -> sticky exit IP
+        password=pwd,
+        scheme="http",
+    )
+
+
 def from_env(*, session_id: str | None = None) -> ProxyConfig | None:
     """Build a ProxyConfig from environment variables.
 
-    Returns None if PROXY_HOST is not set -- i.e. proxies are simply off and
-    the browser connects directly. This keeps proxies fully optional.
+    Precedence: OXYLABS_* (the hbproxy residential SKU, verified recipe) ->
+    generic PROXY_* . Returns None if neither is set -- proxies off, the browser
+    connects directly. This keeps proxies fully optional.
 
     If PROXY_USER_TEMPLATE is set (contains "{session}"), each call substitutes
     a fresh random session id -> a rotating-gateway proxy hands out a new exit
     IP per session. Otherwise PROXY_USER / PROXY_PASS are used as-is.
     """
+    oxy = _oxylabs_from_env(session_id)
+    if oxy is not None:
+        return oxy
     host = os.environ.get("PROXY_HOST")
     port = os.environ.get("PROXY_PORT")
     if not host or not port:

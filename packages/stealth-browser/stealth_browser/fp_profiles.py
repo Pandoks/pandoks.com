@@ -46,6 +46,12 @@ class FpProfile:
     avail_h: int
     gpu_class: str = "apple"   # apple | nvidia | amd | intel | llvmpipe | adreno | mali
     color_depth: int = 24
+    # Optional per-persona WebGL float-range overrides. Default None -> fp_env
+    # derives from gpu_class (D3D11/Metal=1; llvmpipe=255). Linux real-GPU
+    # personas set these to the Mesa values (line 255 / point 256): Intel iris +
+    # AMD radeonsi share the Mesa GL stack with llvmpipe (measured on our host).
+    webgl_line_width_max: int | None = None
+    webgl_point_size_max: int | None = None
     # --- mobile (Android) ---------------------------------------------------
     # Mobile personas are emulated at RUNTIME over CDP (setUserAgentOverride +
     # metadata, setDeviceMetricsOverride mobile=True, setTouchEmulationEnabled)
@@ -271,6 +277,73 @@ PROFILES: list[FpProfile] = [
                     "(KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36"),
         ua_model="Pixel 7", ua_platform_version_mobile="14.0.0",
     ),
+    # --- Linux desktop, real GPU (Mesa stack: same GL float ranges as our
+    # measured llvmpipe -- Intel iris + AMD radeonsi share Mesa with llvmpipe;
+    # line 255 / point 256. Renderer strings are real Linux/OpenGL ANGLE strings
+    # mined from a public fingerprint DB. NVIDIA-Linux uses the proprietary
+    # driver (different ranges, unmeasured here) so it's intentionally absent.)
+    FpProfile(
+        label="Linux desktop, Intel UHD 630 (Mesa)",
+        platform="Linux x86_64", ua_platform="Linux",
+        hw_concurrency=8, device_memory=8,
+        webgl_vendor="Google Inc. (Intel)",
+        webgl_renderer="ANGLE (Intel, Mesa Intel(R) UHD Graphics 630 (CFL GT2), "
+                       "OpenGL 4.6)",
+        screen_w=1920, screen_h=1080, avail_w=1920, avail_h=1053,
+        gpu_class="intel",
+        webgl_line_width_max=255, webgl_point_size_max=256,
+    ),
+    FpProfile(
+        label="Linux desktop, AMD Radeon (Mesa radeonsi)",
+        platform="Linux x86_64", ua_platform="Linux",
+        hw_concurrency=12, device_memory=8,
+        webgl_vendor="Google Inc. (AMD)",
+        webgl_renderer="ANGLE (AMD, AMD Radeon RX 6700 XT (radeonsi navi22 "
+                       "LLVM 17.0.6), OpenGL 4.6)",
+        screen_w=2560, screen_h=1440, avail_w=2560, avail_h=1413,
+        gpu_class="amd",
+        webgl_line_width_max=255, webgl_point_size_max=256,
+    ),
+    # --- additional Android phones (CDP-emulated; data-only additions) ---
+    FpProfile(
+        label="Google Pixel 8 (Android)",
+        platform="Linux armv8l", ua_platform="Android",
+        hw_concurrency=9, device_memory=8,
+        webgl_vendor="ARM",
+        webgl_renderer="ANGLE (ARM, Mali-G715, OpenGL ES 3.2)",
+        screen_w=412, screen_h=915, avail_w=412, avail_h=915,
+        gpu_class="mali",
+        is_mobile=True, device_scale_factor=2.625, max_touch_points=5,
+        ua_reduced=("Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36"),
+        ua_model="Pixel 8", ua_platform_version_mobile="14.0.0",
+    ),
+    FpProfile(
+        label="OnePlus 11 (Android)",
+        platform="Linux armv8l", ua_platform="Android",
+        hw_concurrency=8, device_memory=8,
+        webgl_vendor="Qualcomm",
+        webgl_renderer="ANGLE (Qualcomm, Adreno (TM) 740, OpenGL ES 3.2)",
+        screen_w=360, screen_h=804, avail_w=360, avail_h=804,
+        gpu_class="adreno",
+        is_mobile=True, device_scale_factor=3.0, max_touch_points=5,
+        ua_reduced=("Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36"),
+        ua_model="CPH2449", ua_platform_version_mobile="14.0.0",
+    ),
+    FpProfile(
+        label="Samsung Galaxy A54 (Android)",
+        platform="Linux armv8l", ua_platform="Android",
+        hw_concurrency=8, device_memory=6,
+        webgl_vendor="ARM",
+        webgl_renderer="ANGLE (ARM, Mali-G68, OpenGL ES 3.2)",
+        screen_w=360, screen_h=780, avail_w=360, avail_h=780,
+        gpu_class="mali",
+        is_mobile=True, device_scale_factor=3.0, max_touch_points=5,
+        ua_reduced=("Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36"),
+        ua_model="SM-A546B", ua_platform_version_mobile="14.0.0",
+    ),
 ]
 
 
@@ -441,6 +514,11 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
     else:  # nvidia / intel / amd -> ANGLE-D3D11
         line_width_max, point_size_max = "1", "1024"
         webgpu_vendor, webgpu_arch = profile.gpu_class, ""
+    # Per-persona overrides win (Linux real-GPU personas: Mesa ranges 255/256).
+    if profile.webgl_line_width_max is not None:
+        line_width_max = str(profile.webgl_line_width_max)
+    if profile.webgl_point_size_max is not None:
+        point_size_max = str(profile.webgl_point_size_max)
     return {
         "APEX_FP_ACTIVE": "1",
         "APEX_FP_SEED": str(seed & 0xFFFFFFFF),

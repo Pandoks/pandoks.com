@@ -97,9 +97,12 @@ async def main() -> None:
     osname = {"Windows": "Windows NT", "macOS": "Mac OS X",
               "Linux": "X11; Linux x86_64"}.get(p.ua_platform, "")
     ua_ok = osname in (r.get("ua") or "")
-    # line-width coherence (apex-webgl-ranges): D3D11/Metal -> 1, but Mesa
-    # llvmpipe (Linux software) genuinely reports 255 (measured).
-    lw_ok = r.get("lineWidthMax") == (255 if gc == "llvmpipe" else 1)
+    # line-width coherence (apex-webgl-ranges): D3D11/Metal -> 1, Mesa (llvmpipe
+    # + Linux real-GPU personas) -> 255. Honor a per-persona override if set.
+    exp_lw = getattr(p, "webgl_line_width_max", None)
+    if exp_lw is None:
+        exp_lw = 255 if gc == "llvmpipe" else 1
+    lw_ok = r.get("lineWidthMax") == exp_lw
     # WebGPU adapter must be present + vendor == gpu_class + not a fallback
     # (apex-webgpu-adapterinfo). Verifies WebGL<->WebGPU GPU agreement per
     # family (apple/nvidia/intel/amd), the 2025-26 cross-check. The llvmpipe
