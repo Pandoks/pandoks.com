@@ -8,6 +8,7 @@ export default $config({
       home: 'aws',
       providers: {
         aws: {
+          region: 'us-west-1',
           profile:
             process.env.GITHUB_ACTIONS || process.env.AWS_ACCESS_KEY_ID ? undefined : 'Personal'
         },
