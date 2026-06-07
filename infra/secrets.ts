@@ -29,7 +29,11 @@ export const secrets = {
     NotionMessagingServiceSid: new sst.Secret('TwilioNotionMessagingServiceSid')
   },
   oxylabs: {
-    webunblocker: {
+    residential: {
+      Username: new sst.Secret('OxylabsResidentialUsername'),
+      Password: new sst.Secret('OxylabsResidentialPassword')
+    },
+    webUnblocker: {
       Username: new sst.Secret('OxylabsWebUnblockerUsername'),
       Password: new sst.Secret('OxylabsWebUnblockerPassword')
     }
