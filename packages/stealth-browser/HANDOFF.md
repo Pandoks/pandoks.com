@@ -7,6 +7,55 @@ doesn't survive a fresh checkout. **Last substantively updated 2026-06-07**
 made to actually work end-to-end — see the next section — on top of the
 2026-06-06 WebGPU/WebGL work below).
 
+## 🟢 GAP AUDIT + FIXES (2026-06-07, later session)
+
+Systematic audit of every surface, with cross-persona + proxied panel tests.
+FIXED (code, verified): (1) **battery** — desktops (Windows desktop/iMac/Mac
+Studio/mini/llvmpipe) reported a discharging laptop battery; now mains/full
+(charging=true, level=1.0); laptops/phones keep the seed band. `_has_battery()`
+by form factor. (2) **WebRTC leak guard** — added
+`--force-webrtc-ip-handling-policy=disable_non_proxied_udp` so WebRTC UDP can't
+bypass the HTTP-CONNECT proxy and leak the box IP; browserscan WebRTC shows the
+RESIDENTIAL IP (verified, no datacenter leak); browserscan **DNS Leak:
+NoDetection**. (3) **per-OS fonts** — `setup-fonts.sh` builds
+/opt/apex-fonts/{windows,macos,android}; `core_nodriver` sets `FONTCONFIG_FILE`
+per persona OS so a Mac never shows Calibri, a Windows box never shows Roboto.
+Windows+Android fully coherent; **macOS PARTIAL** — MS-web fonts + Nimbus/TeX
+Gyre Helvetica/Times/Courier clones, but the Mac-EXCLUSIVE faces (Helvetica
+Neue, SF Pro, Menlo, Geneva, Lucida Grande) have no free clone → absent
+(needs real macOS fonts bundled; licensing call). Verified: no foreign-exclusive
+fonts on any persona. (4) **UA-CH "Google Chrome" brand** — Chromium build's
+`navigator.userAgentData.brands` was [GREASE, Chromium], MISSING "Google Chrome"
+(rebrowser's `useragent` test RED on desktop AND mobile). Fix = `apex-brands`
+binary patch (GenerateBrandVersionList, inject Google Chrome pre-shuffle) +
+mobile CDP consts + verifier assertion. **Built into stealth-chromium-149brands-*;
+re-verify rebrowser useragent is green.**
+
+VERIFIED CLEAN (proxied panel, the detectors that loaded): iphey Trustworthy
+(desktop), browserscan 85% Bot Detection NoDetection, creepjs 0% headless / 0%
+stealth, sannysoft webdriver missing(passed), rebrowser navigatorWebdriver /
+runtimeEnableLeak / pwInitScripts / viewport all 🟢, WebRTC no datacenter leak,
+DNS NoDetection, mobile Pixel 7 touch+UA+platform coherent.
+
+TEST-INFRA LIMITS (not stealth failures): browserleaks.com, nowsecure.nl,
+ipinfo.io, and on a poor exit also deviceinfo/fingerprintjs/amiunique/incolumitas
+RESET (`ERR_CONNECTION_CLOSED`) through the residential exit — these sites block
+proxy-pool IPs, and **exit-IP QUALITY VARIES** (some exits reach all 19 targets,
+some reach ~5). For reliable testing pick a good exit / Oxylabs quality tier.
+
+DOCUMENTED design/operational gaps (not "broken", inherent): **persona warming**
+(a brand-new account has no cookies/history — a mild fresh-profile signal; warm
+before high-stakes use); **concurrency** (`acquire_named` lock is per-process —
+same account from 2 hosts conflicts on the Chrome profile lock); **sticky-session
+TTL** (Oxylabs sticky exits expire — a long session may rotate IP mid-flight);
+**enterprise detectors** (DataDome/Akamai/PerimeterX/Kasada/CF managed-challenge)
+UNTESTED — no public test page survives the residential pool; need a real target
+the operator hits; **mobile-on-residential-IP** (a phone ideally pairs with a
+mobile/cellular proxy, not residential WiFi — iphey leans stricter on mobile);
+**device popularity not market-weighted** (GTX 1060 as likely as RTX 4090).
+STILL deferred: GPU instances (WebGL render / creepjs likeHeadless), service
+productionization (fonts into the prod image), sync-coverage, automated tests.
+
 ## 🟢 IP / RESIDENTIAL-PROXY LAYER — VERIFIED WORKING (2026-06-07)
 
 **Result (`stealth-proxypanel-20260607-055608`, proxied through Oxylabs
