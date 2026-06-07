@@ -17,6 +17,7 @@ trap 'aws s3 cp "$LOG" "${S3}/lang-probe.log" >/dev/null 2>&1 || true' EXIT
 
 echo "=== deps ==="
 export DEBIAN_FRONTEND=noninteractive
+sudo apt-get update -qq || true
 sudo apt-get install -y -qq xvfb fonts-liberation libnss3 libnspr4 \
   libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 libxkbcommon0 \
   libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64 \
