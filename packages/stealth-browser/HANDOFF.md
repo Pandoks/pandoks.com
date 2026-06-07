@@ -38,27 +38,29 @@ out). The fixes, in order of discovery:
    exit): **ipapi.co + ipwho.is** return a proper IANA timezone and survive the
    exit; **ipinfo.io / browserleaks / ipapi.is reset the TLS**; **get.geojs
    geolocates by ASN owner (wrong)**.
-3. **Locale: en-US EVERYWHERE, only the timezone tracks the exit IP** (final
-   decision after chasing per-country locale). The chain of findings:
-   browserscan's tz flag cleared after (2) but a "−10% language ≠ system"
-   appeared, and CreepJS showed `Intl(main)=es-ES` vs `Worker=en-US`. We set
-   `LANGUAGE`/`LANG` env (fixes the Worker — Chrome uses bundled ICU, no glibc
-   locale-gen) and passed `--accept-lang` and even wrote the profile
-   `intl.accept_languages` pref — but **`navigator.languages` would NOT move
-   off `["en-US"]`**: CDP `setLocaleOverride` changes Intl only, and none of
-   `--lang`/`--accept-lang`/profile-pref move the JS array (a JS shim would, but
-   that's exactly the tampering CreepJS detects). So localizing locale to the
-   exit country made `Intl(es-ES)` disagree with `navigator.languages(en-US)` —
-   the INTERNAL inconsistency iphey flagged ("trying to hide your location") on
-   a Spain exit. **Empirical proof of the fix:** a Poland exit with locale left
-   en-US + Europe/Warsaw timezone came back **Trustworthy** (verified twice,
-   `stealth-proxypanel-20260607-071216`/`-072440`). So `identity_for_ip_geo`
-   now keeps `locale=en-US`/`accept_language=en-US` for every country and only
-   matches timezone (+ geo coords); en-US-everywhere is internally consistent
-   and Trustworthy on US AND non-US IPs. A true native per-country locale is
-   deferred to an `APEX_FP_LANGUAGES` binary patch that sets `navigator.languages`
-   natively (`_COUNTRY_LOCALE` retained for that path). The `LANGUAGE`/`LANG`
-   env + `--accept-lang` + pref writes stay (correct/forward-compatible).
+3. **Locale: full per-country, native (DONE via the `apex-languages` binary
+   patch).** The hard surface was `navigator.languages` (the JS array): CDP
+   `setLocaleOverride` moves Intl only, and `--lang`/`--accept-lang`/the profile
+   `intl.accept_languages` pref all left it stuck on `["en-US"]` (a JS shim
+   would move it but that's exactly the tampering CreepJS detects). So localizing
+   the locale made `Intl(es-ES)` disagree with `navigator.languages(en-US)` — the
+   internal inconsistency iphey flagged ("trying to hide your location") on a
+   Spain exit. **Fix:** an apex-chromium C++ patch (`apply_edits.py` →
+   `apex-languages`) on `NavigatorLanguage::languages()` (the mixin shared by
+   window Navigator AND WorkerNavigator → window+worker coherent; `language()`
+   returns `languages().front()` so it's covered too) returns
+   `ParseAndSanitize(APEX_FP_LANGUAGES)` when set — the same file-local parser
+   the stock path uses. `core_nodriver.open()` emits `APEX_FP_LANGUAGES` from the
+   matched identity, and `identity_for_ip_geo` matches locale to the exit country
+   (`es-ES` on a Spanish IP, `de-DE` on a German IP, via `_COUNTRY_LOCALE`).
+   **Verified** (`stealth-langprobe-20260607-174249`, forced es-ES identity):
+   `navigator.languages = ["es-ES","es","en"]`, `navigator.language = es-ES`,
+   **worker** `["es-ES","es","en"]` — all coherent. Built into
+   `stealth-chromium-149langs-20260607-165810` (34/34 self-check). Now Intl,
+   navigator.language, navigator.languages, the worker scope, the `LANGUAGE`/
+   `LANG` env and the timezone ALL agree with the exit-IP country. (Earlier
+   builds without this patch fell back to en-US-everywhere; that fallback is
+   still coherent on stock Chrome where the env var is inert.)
 
 **Device profiles: 23 → 334** (`fp_profiles.py`, all verified real combos:
 145 NVIDIA, 91 AMD, 47 Intel, 35 Apple, 15 Android, 1 llvmpipe). Built by a
