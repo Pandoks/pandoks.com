@@ -1,28 +1,37 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { awsRegion, STAGE_NAME } from '../dns';
+import { US_WEST_2_REGION, usWest2Provider } from '../aws';
+import { STAGE_NAME } from '../dns';
 
 // WARNING: version must be bumped when AMI changes to rebuild
-const VERSION = '1.0.0';
+const VERSION = '1.0.1';
 
-const bakeInstanceRole = new aws.iam.Role('RunnerBakeInstanceRole', {
-  assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
-    statements: [
-      {
-        effect: 'Allow',
-        principals: [{ type: 'Service', identifiers: ['ec2.amazonaws.com'] }],
-        actions: ['sts:AssumeRole']
-      }
+const bakeInstanceRole = new aws.iam.Role(
+  'RunnerBakeInstanceRole',
+  {
+    assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
+      statements: [
+        {
+          effect: 'Allow',
+          principals: [{ type: 'Service', identifiers: ['ec2.amazonaws.com'] }],
+          actions: ['sts:AssumeRole']
+        }
+      ]
+    }).json,
+    managedPolicyArns: [
+      'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore',
+      'arn:aws:iam::aws:policy/EC2InstanceProfileForImageBuilder'
     ]
-  }).json,
-  managedPolicyArns: [
-    'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore',
-    'arn:aws:iam::aws:policy/EC2InstanceProfileForImageBuilder'
-  ]
-});
-const bakeInstanceProfile = new aws.iam.InstanceProfile('RunnerBakeInstanceProfile', {
-  role: bakeInstanceRole.name
-});
+  },
+  { provider: usWest2Provider }
+);
+const bakeInstanceProfile = new aws.iam.InstanceProfile(
+  'RunnerBakeInstanceProfile',
+  {
+    role: bakeInstanceRole.name
+  },
+  { provider: usWest2Provider }
+);
 
 function renderAmiTemplateYaml({
   file,
@@ -41,8 +50,8 @@ function renderAmiTemplateYaml({
 }
 
 const ARCH_IMAGE_MAPPING = {
-  x86: `arn:aws:imagebuilder:${awsRegion}:aws:image/ubuntu-server-24-lts-x86/x.x.x`,
-  arm64: `arn:aws:imagebuilder:${awsRegion}:aws:image/ubuntu-server-24-lts-arm64/x.x.x`
+  x86: `arn:aws:imagebuilder:${US_WEST_2_REGION}:aws:image/ubuntu-server-24-lts-x86/x.x.x`,
+  arm64: `arn:aws:imagebuilder:${US_WEST_2_REGION}:aws:image/ubuntu-server-24-lts-arm64/x.x.x`
 } as const;
 function makeRecipe({
   id,
@@ -55,12 +64,16 @@ function makeRecipe({
   arch: keyof typeof ARCH_IMAGE_MAPPING;
   components: aws.imagebuilder.Component[];
 }) {
-  return new aws.imagebuilder.ImageRecipe(id, {
-    name: `${STAGE_NAME}-${name}`,
-    parentImage: ARCH_IMAGE_MAPPING[arch],
-    version: VERSION,
-    components: components.map((c) => ({ componentArn: c.arn }))
-  });
+  return new aws.imagebuilder.ImageRecipe(
+    id,
+    {
+      name: `${STAGE_NAME}-${name}`,
+      parentImage: ARCH_IMAGE_MAPPING[arch],
+      version: VERSION,
+      components: components.map((c) => ({ componentArn: c.arn }))
+    },
+    { provider: usWest2Provider }
+  );
 }
 
 function makeBakeInfra({
@@ -72,32 +85,48 @@ function makeBakeInfra({
   name: string;
   instanceType: string;
 }) {
-  return new aws.imagebuilder.InfrastructureConfiguration(id, {
-    name: `${STAGE_NAME}-${name}`,
-    instanceTypes: [instanceType],
-    instanceProfileName: bakeInstanceProfile.name,
-    terminateInstanceOnFailure: true
-  });
+  return new aws.imagebuilder.InfrastructureConfiguration(
+    id,
+    {
+      name: `${STAGE_NAME}-${name}`,
+      instanceTypes: [instanceType],
+      instanceProfileName: bakeInstanceProfile.name,
+      terminateInstanceOnFailure: true
+    },
+    { provider: usWest2Provider }
+  );
 }
 
-const runnerToolsComponent = new aws.imagebuilder.Component('RunnerToolsComponent', {
-  name: `${STAGE_NAME}-runner-tools`,
-  platform: 'Linux',
-  version: VERSION,
-  data: renderAmiTemplateYaml({ file: 'ami.yaml' })
-});
-const runnerGpuX86ToolsComponent = new aws.imagebuilder.Component('RunnerGpuToolsComponent', {
-  name: `${STAGE_NAME}-runner-gpu-tools`,
-  platform: 'Linux',
-  version: VERSION,
-  data: renderAmiTemplateYaml({ file: 'ami-gpu.yaml', replacements: { CUDA_ARCH: 'x86_64' } })
-});
-const runnerGpuArmToolsComponent = new aws.imagebuilder.Component('RunnerGpuArmToolsComponent', {
-  name: `${STAGE_NAME}-runner-gpu-arm-tools`,
-  platform: 'Linux',
-  version: VERSION,
-  data: renderAmiTemplateYaml({ file: 'ami-gpu.yaml', replacements: { CUDA_ARCH: 'sbsa' } })
-});
+const runnerToolsComponent = new aws.imagebuilder.Component(
+  'RunnerToolsComponent',
+  {
+    name: `${STAGE_NAME}-runner-tools`,
+    platform: 'Linux',
+    version: VERSION,
+    data: renderAmiTemplateYaml({ file: 'ami.yaml' })
+  },
+  { provider: usWest2Provider }
+);
+const runnerGpuX86ToolsComponent = new aws.imagebuilder.Component(
+  'RunnerGpuToolsComponent',
+  {
+    name: `${STAGE_NAME}-runner-gpu-tools`,
+    platform: 'Linux',
+    version: VERSION,
+    data: renderAmiTemplateYaml({ file: 'ami-gpu.yaml', replacements: { CUDA_ARCH: 'x86_64' } })
+  },
+  { provider: usWest2Provider }
+);
+const runnerGpuArmToolsComponent = new aws.imagebuilder.Component(
+  'RunnerGpuArmToolsComponent',
+  {
+    name: `${STAGE_NAME}-runner-gpu-arm-tools`,
+    platform: 'Linux',
+    version: VERSION,
+    data: renderAmiTemplateYaml({ file: 'ami-gpu.yaml', replacements: { CUDA_ARCH: 'sbsa' } })
+  },
+  { provider: usWest2Provider }
+);
 
 const runnerRecipeX86 = makeRecipe({
   id: 'RunnerRecipeX86',
@@ -145,61 +174,85 @@ const runnerBakeInfraGpuArm64 = makeBakeInfra({
   instanceType: 'g5g.2xlarge'
 });
 
-export const runnerImageX86 = new aws.imagebuilder.Image('RunnerImageX86', {
-  imageRecipeArn: runnerRecipeX86.arn,
-  infrastructureConfigurationArn: runnerBakeInfraX86.arn
-});
-export const runnerImageArm64 = new aws.imagebuilder.Image('RunnerImageArm64', {
-  imageRecipeArn: runnerRecipeArm64.arn,
-  infrastructureConfigurationArn: runnerBakeInfraArm64.arn
-});
-export const runnerImageGpuX86 = new aws.imagebuilder.Image('RunnerImageGpuX86', {
-  imageRecipeArn: runnerRecipeGpuX86.arn,
-  infrastructureConfigurationArn: runnerBakeInfraGpuX86.arn
-});
-export const runnerImageGpuArm64 = new aws.imagebuilder.Image('RunnerImageGpuArm64', {
-  imageRecipeArn: runnerRecipeGpuArm64.arn,
-  infrastructureConfigurationArn: runnerBakeInfraGpuArm64.arn
-});
+export const runnerImageX86 = new aws.imagebuilder.Image(
+  'RunnerImageX86',
+  {
+    imageRecipeArn: runnerRecipeX86.arn,
+    infrastructureConfigurationArn: runnerBakeInfraX86.arn
+  },
+  { provider: usWest2Provider }
+);
+export const runnerImageArm64 = new aws.imagebuilder.Image(
+  'RunnerImageArm64',
+  {
+    imageRecipeArn: runnerRecipeArm64.arn,
+    infrastructureConfigurationArn: runnerBakeInfraArm64.arn
+  },
+  { provider: usWest2Provider }
+);
+export const runnerImageGpuX86 = new aws.imagebuilder.Image(
+  'RunnerImageGpuX86',
+  {
+    imageRecipeArn: runnerRecipeGpuX86.arn,
+    infrastructureConfigurationArn: runnerBakeInfraGpuX86.arn
+  },
+  { provider: usWest2Provider }
+);
+export const runnerImageGpuArm64 = new aws.imagebuilder.Image(
+  'RunnerImageGpuArm64',
+  {
+    imageRecipeArn: runnerRecipeGpuArm64.arn,
+    infrastructureConfigurationArn: runnerBakeInfraGpuArm64.arn
+  },
+  { provider: usWest2Provider }
+);
 
-const lifecycleRole = new aws.iam.Role('RunnerLifecycleRole', {
-  assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
-    statements: [
+const lifecycleRole = new aws.iam.Role(
+  'RunnerLifecycleRole',
+  {
+    assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
+      statements: [
+        {
+          effect: 'Allow',
+          principals: [{ type: 'Service', identifiers: ['imagebuilder.amazonaws.com'] }],
+          actions: ['sts:AssumeRole']
+        }
+      ]
+    }).json,
+    managedPolicyArns: [
+      'arn:aws:iam::aws:policy/service-role/EC2ImageBuilderLifecycleExecutionPolicy'
+    ]
+  },
+  { provider: usWest2Provider }
+);
+new aws.imagebuilder.LifecyclePolicy(
+  'RunnerLifecyclePolicy',
+  {
+    name: `${STAGE_NAME}-runner-image-lifecycle`,
+    description:
+      'Keep the latest 10 runner AMI versions per recipe; delete older versions and their snapshots',
+    executionRole: lifecycleRole.arn,
+    resourceType: 'AMI_IMAGE',
+    policyDetails: [
       {
-        effect: 'Allow',
-        principals: [{ type: 'Service', identifiers: ['imagebuilder.amazonaws.com'] }],
-        actions: ['sts:AssumeRole']
+        action: {
+          type: 'DELETE',
+          includeResources: { amis: true, snapshots: true }
+        },
+        filter: {
+          type: 'COUNT',
+          value: 10
+        }
       }
-    ]
-  }).json,
-  managedPolicyArns: [
-    'arn:aws:iam::aws:policy/service-role/EC2ImageBuilderLifecycleExecutionPolicy'
-  ]
-});
-new aws.imagebuilder.LifecyclePolicy('RunnerLifecyclePolicy', {
-  name: `${STAGE_NAME}-runner-image-lifecycle`,
-  description:
-    'Keep the latest 10 runner AMI versions per recipe; delete older versions and their snapshots',
-  executionRole: lifecycleRole.arn,
-  resourceType: 'AMI_IMAGE',
-  policyDetails: [
-    {
-      action: {
-        type: 'DELETE',
-        includeResources: { amis: true, snapshots: true }
-      },
-      filter: {
-        type: 'COUNT',
-        value: 10
-      }
+    ],
+    resourceSelection: {
+      recipes: [
+        { name: runnerRecipeX86.name, semanticVersion: VERSION },
+        { name: runnerRecipeArm64.name, semanticVersion: VERSION },
+        { name: runnerRecipeGpuX86.name, semanticVersion: VERSION },
+        { name: runnerRecipeGpuArm64.name, semanticVersion: VERSION }
+      ]
     }
-  ],
-  resourceSelection: {
-    recipes: [
-      { name: runnerRecipeX86.name, semanticVersion: VERSION },
-      { name: runnerRecipeArm64.name, semanticVersion: VERSION },
-      { name: runnerRecipeGpuX86.name, semanticVersion: VERSION },
-      { name: runnerRecipeGpuArm64.name, semanticVersion: VERSION }
-    ]
-  }
-});
+  },
+  { provider: usWest2Provider }
+);
