@@ -32,7 +32,7 @@ export default $config({
       import('./infra/vps/vps'),
       import('./infra/kubernetes'),
       import('./infra/dev'),
-      import('./infra/builder/builder')
+      import('./infra/runner/runner')
     ]);
     return imports.reduce((acculumator, importResult: any) => {
       if (importResult.outputs) {
