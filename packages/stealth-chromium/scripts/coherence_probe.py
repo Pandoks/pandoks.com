@@ -86,7 +86,12 @@ PROBE_JS = r"""
 
 
 async def audit_one(label: str) -> None:
+    # Force THIS persona: pin the device (APEX_PROFILE) AND give it its own fresh
+    # account dir (APEX_PERSONA) so persona_fingerprint generates from the pin
+    # instead of reloading a pooled dir's saved fingerprint.
     os.environ["APEX_PROFILE"] = label
+    os.environ["APEX_PERSONA"] = "audit-" + "".join(
+        c if c.isalnum() else "_" for c in label)[:48]
     from stealth_browser.core_nodriver import NodriverCore
     from stealth_browser.fp_profiles import pick_profile_by_label
     prof = pick_profile_by_label(label)
@@ -131,6 +136,10 @@ async def audit_one(label: str) -> None:
 
 
 async def main() -> int:
+    # fresh persona root so each audited persona gets a clean dir (set BEFORE
+    # core_nodriver/personas import builds the pool).
+    import tempfile
+    os.environ["APEX_PERSONA_DIR"] = tempfile.mkdtemp(prefix="apex-audit-")
     for label in PERSONAS:
         try:
             await audit_one(label)

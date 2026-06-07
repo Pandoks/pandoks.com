@@ -77,6 +77,10 @@ sudo apt-get install -y -qq \
 # clones once the cache is fresh.
 sudo fc-cache -f >/dev/null 2>&1 || true
 echo "  fonts visible to fontconfig: $(fc-list 2>/dev/null | wc -l)"
+# per-OS font sets: core_nodriver points FONTCONFIG_FILE at the persona's OS set
+# so the font fingerprint matches the claimed OS (a Mac persona won't show
+# Calibri). Built into /opt/apex-fonts/{windows,macos,android}.
+bash "$PKG_ROOT/scripts/setup-fonts.sh" || echo "  (setup-fonts warn)"
 for f in Calibri Cambria Arial "Times New Roman" Verdana Georgia "Segoe UI" Consolas Tahoma; do
   printf '    %-16s %s\n' "$f" "$(fc-match "$f" 2>/dev/null)"
 done

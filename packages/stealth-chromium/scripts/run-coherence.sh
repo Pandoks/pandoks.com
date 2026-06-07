@@ -33,6 +33,8 @@ sudo apt-get install -y -qq xvfb fonts-liberation libnss3 libnspr4 \
        libasound2 fonts-roboto fonts-noto-core >/dev/null 2>&1 || true
 sudo fc-cache -f >/dev/null 2>&1 || true
 echo "  fonts visible: $(fc-list 2>/dev/null | wc -l)"
+echo "=== per-OS font sets ==="
+bash "$PKG_ROOT/scripts/setup-fonts.sh" || echo "  (setup-fonts warn)"
 
 echo "=== newest patched binary ==="
 TARKEY="$(aws s3 ls --recursive "s3://${BUILDER_ARTIFACTS_BUCKET}/" \

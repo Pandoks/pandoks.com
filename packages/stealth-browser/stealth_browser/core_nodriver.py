@@ -185,6 +185,20 @@ class NodriverCore:
         if self._persona is not None:
             _write_locale_pref(self._persona, self.identity.accept_language)
 
+        # PER-OS FONT ISOLATION: expose ONLY the persona-OS font set so the font
+        # fingerprint matches the claimed OS (a Mac must not show Calibri, a
+        # Windows box must not show Roboto). Point this session's FONTCONFIG_FILE
+        # at the matching per-OS config (built by setup-fonts.sh). Linux personas
+        # + missing config -> default fontconfig (the box IS Linux, so coherent).
+        _font_root = os.environ.get("APEX_FONT_ROOT", "/opt/apex-fonts")
+        _osd = {"Windows": "windows", "macOS": "macos",
+                "Android": "android"}.get(self._fp_profile.ua_platform)
+        _conf = os.path.join(_font_root, f"{_osd}.conf") if _osd else ""
+        if _conf and os.path.exists(_conf):
+            os.environ["FONTCONFIG_FILE"] = _conf
+        else:
+            os.environ.pop("FONTCONFIG_FILE", None)
+
         # UA-STRING COHERENCE is handled NATIVELY in the binary (apex-ua-platform
         # in user_agent_utils.cc swaps the reduced-UA OS token from the same
         # APEX_FP_UA_PLATFORM env), NOT via --user-agent: the flag disables the
