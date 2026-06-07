@@ -144,6 +144,14 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "OxylabsResidentialPassword": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "OxylabsResidentialUsername": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "OxylabsWebUnblockerPassword": {
       "type": "sst.sst.Secret"
       "value": string

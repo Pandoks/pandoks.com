@@ -75,7 +75,7 @@ see `sst.config.ts:22`).
   (`apps/web/vite/plugins/hide-blog.ts`) skips the route when no posts.
   **Deploy is a Cloudflare Pages GitHub git-integration**
   (`infra/website.ts:14-34`: `source.type=github`,
-  `productionBranch=main`, `pathIncludes apps/web/**`): Cloudflare runs
+  `productionBranch=main`, `pathIncludes apps/web/*`): Cloudflare runs
   `buildCommand` `pnpm --filter web build` on push to `main` — **SST
   provisions the Pages project but does NOT build/upload artifacts.**
   Full chain: Notion webhook → `NotionWebhookHandler` Lambda fans out

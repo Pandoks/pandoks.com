@@ -58,7 +58,7 @@
         target="_blank"
         rel="external noopener noreferrer"
         class={`text-neutral-500 hover:cursor-pointer hover:underline
-              ${annotations.bold ? 'font-medium' : ''}
+              ${annotations.bold ? 'font-bold' : ''}
               ${annotations.italic ? 'italic' : ''}
               ${annotations.strikethrough ? 'line-through' : ''}
               ${annotations.underline ? 'underline' : ''}`}
@@ -67,7 +67,7 @@
       </a>
     {:else}
       <span
-        class={`${annotations.bold ? 'font-medium' : ''}
+        class={`${annotations.bold ? 'font-bold' : ''}
               ${annotations.italic ? 'italic' : ''}
               ${annotations.strikethrough ? 'line-through' : ''}
               ${annotations.underline ? 'underline' : ''}`}
