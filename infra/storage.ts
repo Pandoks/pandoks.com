@@ -14,11 +14,11 @@ export const backupBucket = new sst.cloudflare.Bucket('BackupBucket', {
 
 export const s3Endpoint = `${cloudflareAccountId}.r2.cloudflarestorage.com`;
 
-export const builderCacheBucket = new sst.aws.Bucket('BuilderCacheBucket', {
+export const runnerCacheBucket = new sst.aws.Bucket('RunnerCacheStore', {
   lifecycle: [{ id: 'expire-stale-cache', enabled: true, prefix: 'cache/', expiresIn: '30 days' }]
 });
 
-export const builderArtifactsBucket = new sst.aws.Bucket('BuilderArtifactsBucket', {
+export const runnerArtifactsBucket = new sst.aws.Bucket('RunnerArtifactsStore', {
   transform: {
     lifecycle: {
       rules: [
