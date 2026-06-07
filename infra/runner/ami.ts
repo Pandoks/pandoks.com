@@ -31,6 +31,29 @@ function renderAmiTemplateYaml(file: string, replacements: Record<string, string
   }
   return data;
 }
+
+const ARCH_IMAGE_MAPPING = {
+  x86: `arn:aws:imagebuilder:${awsRegion}:aws:image/ubuntu-server-24-lts-x86/x.x.x`,
+  arm64: `arn:aws:imagebuilder:${awsRegion}:aws:image/ubuntu-server-24-lts-arm64/x.x.x`
+} as const;
+function makeRecipe({
+  id,
+  name,
+  arch,
+  components
+}: {
+  id: string;
+  name: string;
+  arch: keyof typeof ARCH_IMAGE_MAPPING;
+  components: aws.imagebuilder.Component[];
+}) {
+  return new aws.imagebuilder.ImageRecipe(id, {
+    name: `${STAGE_NAME}-${name}`,
+    parentImage: ARCH_IMAGE_MAPPING[arch],
+    version: VERSION,
+    components: components.map((c) => ({ componentArn: c.arn }))
+  });
+}
 const runnerToolsComponent = new aws.imagebuilder.Component('RunnerToolsComponent', {
   name: `${STAGE_NAME}-runner-tools`,
   platform: 'Linux',
