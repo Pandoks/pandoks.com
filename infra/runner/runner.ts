@@ -1,7 +1,7 @@
 import { STAGE_NAME } from '../dns';
 import { secrets } from '../secrets';
 import { runnerArtifactsBucket, runnerCacheBucket } from '../storage';
-import { runnerImageArm64, runnerImageX86 } from './ami';
+import { runnerImageArm64, runnerImageGpuArm64, runnerImageGpuX86, runnerImageX86 } from './ami';
 import { runnerStateMachineDefinition } from './step';
 
 const runnerInstanceRole = new aws.iam.Role('RunnerInstanceRole', {
@@ -38,16 +38,36 @@ const runnerInstanceProfile = new aws.iam.InstanceProfile('RunnerInstanceProfile
 });
 
 const baseTags = { Stage: STAGE_NAME, ManagedBy: 'Runner' };
-const runnerLaunchTemplateX86 = new aws.ec2.LaunchTemplate('RunnerLaunchTemplateX86', {
-  name: `${STAGE_NAME}-runner-x86`,
-  imageId: runnerImageX86.outputResources[0].amis[0].image,
-  iamInstanceProfile: { arn: runnerInstanceProfile.arn },
-  tagSpecifications: [
-    {
-      resourceType: 'instance',
-      tags: { ...baseTags, Name: `${STAGE_NAME}-runner-x86`, Arch: 'x86_64' }
-    }
-  ]
+function makeLaunchTemplate({
+  id,
+  name,
+  image,
+  arch,
+  gpu
+}: {
+  id: string;
+  name: string;
+  image: $util.Output<string>;
+  arch: 'x86_64' | 'arm64';
+  gpu: boolean;
+}) {
+  return new aws.ec2.LaunchTemplate(id, {
+    name: `${STAGE_NAME}-${name}`,
+    imageId: image,
+    iamInstanceProfile: { arn: runnerInstanceProfile.arn },
+    tagSpecifications: [
+      {
+        resourceType: 'instance',
+        tags: {
+          ...baseTags,
+          Name: `${STAGE_NAME}-${name}`,
+          Arch: arch,
+          ...(gpu ? { Gpu: 'nvidia' } : {})
+        }
+      }
+    ]
+  });
+}
 });
 const runnerLaunchTemplateArm64 = new aws.ec2.LaunchTemplate('RunnerLaunchTemplateArm64', {
   name: `${STAGE_NAME}-runner-arm64`,
