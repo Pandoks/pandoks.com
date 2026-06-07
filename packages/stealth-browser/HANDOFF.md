@@ -28,8 +28,18 @@ fonts on any persona. (4) **UA-CH "Google Chrome" brand** — Chromium build's
 `navigator.userAgentData.brands` was [GREASE, Chromium], MISSING "Google Chrome"
 (rebrowser's `useragent` test RED on desktop AND mobile). Fix = `apex-brands`
 binary patch (GenerateBrandVersionList, inject Google Chrome pre-shuffle) +
-mobile CDP consts + verifier assertion. **Built into stealth-chromium-149brands-*;
-re-verify rebrowser useragent is green.**
+mobile CDP consts + verifier assertion. **Built into
+stealth-chromium-149brands-20260607-190018 (CURRENT binary, self-check 35/35
+incl. the brands assertion); VERIFIED: rebrowser `useragent` is now 🟢 green on
+BOTH desktop + mobile ("Google Chrome version ... which is fine"), and mobile
+iphey flipped to Trustworthy.**
+
+NOTE on the timezone residual: on SOME exits browserscan still shows "-10% IP
+timezone does not match" even on a US exit -- our tz comes from ipapi.co, and
+its IP->location can disagree with browserscan's (MaxMind-ish) DB for the same
+IP. It's per-exit variance (other US exits = Trustworthy/85%), not a regression.
+To reduce it, align the geo source with what detectors use (MaxMind GeoLite2 --
+free, needs a license key + the .mmdb on the box). Documented, not yet wired.
 
 VERIFIED CLEAN (proxied panel, the detectors that loaded): iphey Trustworthy
 (desktop), browserscan 85% Bot Detection NoDetection, creepjs 0% headless / 0%
