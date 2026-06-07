@@ -100,30 +100,31 @@ const storageSizeGate = {
 const instanceTypesGate = {
   ChooseArchitecture: {
     Type: 'Choice',
-    Choices: [
-      ...ARM_INSTANCE_TYPES.map((instanceType) => ({
+    Choices: RUNNER_VARIANTS.flatMap((variantInstance) =>
+      variantInstance.types.map((instanceType) => ({
         Variable: '$.instanceType',
         StringEquals: instanceType,
-        Next: 'ChooseMarketArm64'
-      })),
-      ...X86_INSTANCE_TYPES.map((instanceType) => ({
-        Variable: '$.instanceType',
-        StringEquals: instanceType,
-        Next: 'ChooseMarketX86'
+        Next: `ChooseMarket${variantInstance.suffix}`
       }))
-    ],
+    ),
     Default: 'FailInvalidInstanceType'
   },
-  ChooseMarketX86: {
-    Type: 'Choice',
-    Choices: [{ Variable: '$.marketType', StringEquals: 'on-demand', Next: 'LaunchOnDemandX86' }],
-    Default: 'LaunchSpotX86'
-  },
-  ChooseMarketArm64: {
-    Type: 'Choice',
-    Choices: [{ Variable: '$.marketType', StringEquals: 'on-demand', Next: 'LaunchOnDemandArm64' }],
-    Default: 'LaunchSpotArm64'
-  }
+  ...Object.fromEntries(
+    RUNNER_VARIANTS.map((variantInstance) => [
+      `ChooseMarket${variantInstance.suffix}`,
+      {
+        Type: 'Choice',
+        Choices: [
+          {
+            Variable: '$.marketType',
+            StringEquals: 'on-demand',
+            Next: `LaunchOnDemand${variantInstance.suffix}`
+          }
+        ],
+        Default: `LaunchSpot${variantInstance.suffix}`
+      }
+    ])
+  )
 };
 
 const waitForSsm = {
