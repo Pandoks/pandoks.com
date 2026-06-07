@@ -23,19 +23,23 @@ echo "[fonts] installing packages"
 sudo apt-get update -qq || true
 echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" \
   | sudo debconf-set-selections 2>/dev/null || true
-sudo apt-get install -y -qq fontconfig ttf-mscorefonts-installer \
-  fonts-crosextra-carlito fonts-crosextra-caladea fonts-liberation \
-  fonts-roboto fonts-noto-core fonts-droid-fallback fonts-texgyre \
-  >/dev/null 2>&1 || sudo apt-get install -y -qq fontconfig fonts-liberation \
-  fonts-roboto fonts-noto-core >/dev/null 2>&1 || true
+# install each package independently so one missing package can't abort the set
+for pkg in fontconfig ttf-mscorefonts-installer fonts-crosextra-carlito \
+  fonts-crosextra-caladea fonts-liberation fonts-roboto fonts-noto-core \
+  fonts-droid-fallback fonts-texgyre fonts-urw-base35; do
+  sudo apt-get install -y -qq "$pkg" >/dev/null 2>&1 || true
+done
 
 sudo mkdir -p "$ROOT/windows" "$ROOT/macos" "$ROOT/android"
 
 # copy_glob <dest> <name-substr>...  -- copy matching font files from the system
+# (search the font tree + the TeX tree, since fonts-texgyre lands outside
+# /usr/share/fonts on some distros).
 copy_glob() {
   dest="$1"; shift
   for pat in "$@"; do
-    find /usr/share/fonts -type f \( -iname '*.ttf' -o -iname '*.otf' \) \
+    find /usr/share/fonts /usr/share/texmf /usr/share/texlive \
+      /usr/local/share/fonts -type f \( -iname '*.ttf' -o -iname '*.otf' \) \
       -iname "*${pat}*" 2>/dev/null | while read -r f; do
       sudo cp -n "$f" "$dest/" 2>/dev/null || true
     done
@@ -45,15 +49,21 @@ copy_glob() {
 echo "[fonts] windows set"
 copy_glob "$ROOT/windows" Arial Times_New_Roman Courier_New Verdana Georgia \
   Trebuchet Comic Impact Andale Webdings Carlito Caladea
-echo "[fonts] macos set (Helvetica/Times/Courier substitutes + Noto base)"
-copy_glob "$ROOT/macos" texgyreheros texgyretermes texgyrecursor NotoSans NotoSerif
+# macOS ships the MS web-core fonts (Arial/Times New Roman/Courier New/Georgia/
+# Verdana/Trebuchet/Comic Sans/Impact) AND Helvetica -- but NOT Calibri/Cambria
+# (Windows-only) or Roboto/Noto (Android/Linux). So: MS web fonts + Nimbus/TeX
+# Gyre Helvetica/Times/Courier clones, NO Carlito/Caladea, NO Noto.
+echo "[fonts] macos set (MS web fonts + Helvetica/Times/Courier clones)"
+copy_glob "$ROOT/macos" Arial Times_New_Roman Courier_New Georgia Verdana \
+  Trebuchet Comic Impact Andale NimbusSans NimbusRoman NimbusMono \
+  texgyreheros texgyretermes texgyrecursor
 echo "[fonts] android set"
 copy_glob "$ROOT/android" Roboto NotoSans NotoSerif Droid
 
 # write one fontconfig per OS: ONLY that dir + the metric-alias rules so the
 # original family names (Calibri, Helvetica, ...) resolve to the present clones.
 write_conf() {
-  os="$1"; sans="$2"; serif="$3"; mono="$4"
+  os="$1"; sans="$2"; serif="$3"; mono="$4"; extra="${5:-}"
   cat <<EOF | sudo tee "$ROOT/$os.conf" >/dev/null
 <?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
@@ -64,6 +74,7 @@ write_conf() {
   <alias><family>sans-serif</family><prefer><family>$sans</family></prefer></alias>
   <alias><family>serif</family><prefer><family>$serif</family></prefer></alias>
   <alias><family>monospace</family><prefer><family>$mono</family></prefer></alias>
+$extra
 </fontconfig>
 EOF
   sudo mkdir -p "/tmp/apex-fc/$os"
@@ -72,6 +83,14 @@ EOF
   echo "[fonts] $os: $n font files, conf=$ROOT/$os.conf"
 }
 write_conf windows Arial "Times New Roman" "Courier New"
-write_conf macos Helvetica Times Courier
+# macOS: map the classic Mac faces to the present Nimbus/TeX Gyre clones so a
+# width probe for Helvetica / Helvetica Neue / Times / Courier resolves. (The
+# Mac-EXCLUSIVE faces -- SF Pro, Menlo, Geneva, Lucida Grande -- have no free
+# clone and stay absent; documented residual.)
+_mac_alias='  <alias><family>Helvetica</family><accept><family>Nimbus Sans</family><family>TeX Gyre Heros</family></accept></alias>
+  <alias><family>Helvetica Neue</family><accept><family>Nimbus Sans</family><family>TeX Gyre Heros</family></accept></alias>
+  <alias><family>Times</family><accept><family>Nimbus Roman</family><family>TeX Gyre Termes</family></accept></alias>
+  <alias><family>Courier</family><accept><family>Nimbus Mono PS</family><family>TeX Gyre Cursor</family></accept></alias>'
+write_conf macos Helvetica Times Courier "$_mac_alias"
 write_conf android Roboto "Noto Serif" "Roboto Mono"
 echo "[fonts] done -> $ROOT"
