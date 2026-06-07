@@ -217,6 +217,14 @@ def chrome_launch_flags(identity: Identity, *, headless: bool,
     flags = [
         # kill the navigator.webdriver = true signal
         "--disable-blink-features=AutomationControlled",
+        # WebRTC LEAK GUARD: the proxy is HTTP CONNECT (TCP only), so WebRTC's
+        # UDP/STUN would bypass it and could expose the box's REAL public IP
+        # (e.g. the EC2/datacenter IP) -- a fatal mismatch vs the residential
+        # exit. disable_non_proxied_udp forbids UDP outside the proxy, so no
+        # public srflx candidate is gathered (looks like a strict-NAT/privacy
+        # user -- common, not a bot tell), guaranteeing no real-IP leak in any
+        # environment. Local IPs are already mDNS-obfuscated by Chrome.
+        "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
         "--no-first-run",
         "--no-default-browser-check",
         "--no-service-autorun",

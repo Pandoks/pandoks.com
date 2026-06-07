@@ -739,6 +739,21 @@ def persona_fingerprint(persona_dir) -> tuple["FpProfile", int]:
     return prof, seed
 
 
+def _has_battery(profile: "FpProfile") -> bool:
+    """Whether the device has a battery (laptop/phone) vs mains-only (desktop).
+    Desktops must report charging=true, level=1.0 -- a discharging battery on a
+    desktop is a coherence tell. Derived from the label/form factor.
+    """
+    if profile.is_mobile:
+        return True
+    lbl = profile.label.lower()
+    if any(m in lbl for m in ("imac", "mac studio", "mac mini", "desktop")):
+        return False
+    if any(m in lbl for m in ("laptop", "macbook")):
+        return True
+    return False  # generic/llvmpipe/VM -> treat as desktop (no battery)
+
+
 def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
     """Build the APEX_FP_* environment dict for a session.
 
@@ -750,6 +765,14 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
     # per-session battery: deterministic from seed, 0.55..0.95, whole percent
     rng = random.Random(seed)
     battery_pct = rng.randint(55, 95)
+    # DESKTOPS HAVE NO BATTERY: navigator.getBattery() on a desktop resolves to
+    # charging=true, level=1.0 (mains power, full). Reporting a *discharging*
+    # laptop battery (e.g. 82%) on a Windows desktop / iMac / Mac Studio/mini is
+    # an incoherence detectors flag. Laptops + phones use the seed-derived band.
+    if _has_battery(profile):
+        bat_level, bat_charging = battery_pct / 100.0, rng.choice([0, 1])
+    else:
+        bat_level, bat_charging = 1.0, 1
     if profile.is_mobile:
         # Mobile: CDP owns UA / UA-CH / navigator.platform / screen / touch /
         # DPR (see mobile_emulation_spec + the launcher). APEX_FP only spoofs
@@ -763,8 +786,8 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
             "APEX_FP_WEBGL_VENDOR": profile.webgl_vendor,
             "APEX_FP_WEBGL_RENDERER": profile.webgl_renderer,
             "APEX_FP_WEBGL_LINE_WIDTH_MAX": "1",
-            "APEX_FP_BATTERY_LEVEL": str(battery_pct / 100.0),
-            "APEX_FP_BATTERY_CHARGING": str(rng.choice([0, 1])),
+            "APEX_FP_BATTERY_LEVEL": str(bat_level),
+            "APEX_FP_BATTERY_CHARGING": str(bat_charging),
             "APEX_FP_NET_RTT": str(rng.choice([50, 100, 150])),
             "APEX_FP_NET_DOWNLINK": "10",
             "APEX_FP_NET_EFFECTIVE_TYPE": "4g",
@@ -842,8 +865,8 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         "APEX_FP_SCREEN_AVAIL_W": str(profile.avail_w),
         "APEX_FP_SCREEN_AVAIL_H": str(profile.avail_h),
         "APEX_FP_COLOR_DEPTH": str(profile.color_depth),
-        "APEX_FP_BATTERY_LEVEL": str(battery_pct / 100.0),
-        "APEX_FP_BATTERY_CHARGING": "0",
+        "APEX_FP_BATTERY_LEVEL": str(bat_level),
+        "APEX_FP_BATTERY_CHARGING": str(bat_charging),
         "APEX_FP_NET_RTT": str(net_rtt),
         "APEX_FP_NET_DOWNLINK": "10",
         "APEX_FP_NET_EFFECTIVE_TYPE": "4g",
