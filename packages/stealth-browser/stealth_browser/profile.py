@@ -165,9 +165,18 @@ def identity_for_ip_geo(geo: dict, *, vary_viewport: bool = True) -> Identity:
     """
     tz = geo.get("timezone") or _REGION_TZ.get(
         geo.get("region", ""), "America/Los_Angeles")
-    country = (geo.get("country") or "US").upper()
-    locale, accept_language = _COUNTRY_LOCALE.get(
-        country, ("en-US", "en-US,en;q=0.9"))
+    # Locale stays en-US regardless of exit country. navigator.languages can
+    # only be set NATIVELY: CDP setLocaleOverride changes Intl but NOT the JS
+    # array, and --lang / --accept-lang / the profile pref did not move it
+    # either (empirically it stays ["en-US"]). Localizing the language thus
+    # makes Intl (es-ES) and navigator.languages (en-US) disagree -- an INTERNAL
+    # inconsistency iphey flags as "trying to hide your location". en-US
+    # everywhere + a timezone matched to the exit IP is internally consistent
+    # and verified Trustworthy on US AND non-US exits (Poland/Warsaw) alike. A
+    # true per-country locale needs an APEX_FP_LANGUAGES patch in the binary to
+    # set navigator.languages natively; _COUNTRY_LOCALE is kept for that path.
+    _ = _COUNTRY_LOCALE  # retained for the future native-languages patch
+    locale, accept_language = "en-US", "en-US,en;q=0.9"
 
     kwargs: dict = {
         "timezone": tz,
