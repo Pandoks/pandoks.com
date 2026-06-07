@@ -153,6 +153,14 @@ export const runnerImageArm64 = new aws.imagebuilder.Image('RunnerImageArm64', {
   imageRecipeArn: runnerRecipeArm64.arn,
   infrastructureConfigurationArn: runnerBakeInfraArm64.arn
 });
+export const runnerImageGpuX86 = new aws.imagebuilder.Image('RunnerImageGpuX86', {
+  imageRecipeArn: runnerRecipeGpuX86.arn,
+  infrastructureConfigurationArn: runnerBakeInfraGpuX86.arn
+});
+export const runnerImageGpuArm64 = new aws.imagebuilder.Image('RunnerImageGpuArm64', {
+  imageRecipeArn: runnerRecipeGpuArm64.arn,
+  infrastructureConfigurationArn: runnerBakeInfraGpuArm64.arn
+});
 
 const lifecycleRole = new aws.iam.Role('RunnerLifecycleRole', {
   assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
@@ -171,7 +179,7 @@ const lifecycleRole = new aws.iam.Role('RunnerLifecycleRole', {
 new aws.imagebuilder.LifecyclePolicy('RunnerLifecyclePolicy', {
   name: `${STAGE_NAME}-runner-image-lifecycle`,
   description:
-    'Keep the latest 10 runner AMI versions per arch; delete older versions and their snapshots',
+    'Keep the latest 10 runner AMI versions per recipe; delete older versions and their snapshots',
   executionRole: lifecycleRole.arn,
   resourceType: 'AMI_IMAGE',
   policyDetails: [
@@ -189,7 +197,9 @@ new aws.imagebuilder.LifecyclePolicy('RunnerLifecyclePolicy', {
   resourceSelection: {
     recipes: [
       { name: runnerRecipeX86.name, semanticVersion: VERSION },
-      { name: runnerRecipeArm64.name, semanticVersion: VERSION }
+      { name: runnerRecipeArm64.name, semanticVersion: VERSION },
+      { name: runnerRecipeGpuX86.name, semanticVersion: VERSION },
+      { name: runnerRecipeGpuArm64.name, semanticVersion: VERSION }
     ]
   }
 });
