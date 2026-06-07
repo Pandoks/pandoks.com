@@ -176,12 +176,24 @@ cdc/phantom/selenium artifacts) — real Chrome fails it identically; removing
 the property would be WORSE (diverges from real Chrome). Only real negative:
 `is_datacenter: true` (the IP).
 
-**Still genuinely blocked / deployment-side:** residential-proxy test — creds
-exist (Oxylabs hbproxy.net + SST `OxylabsWebUnblocker*`) but the hbproxy
-endpoints reject with `403 proxy_ip_not_allowed` (account is IP-allowlist
-auth; source IP not whitelisted) — needs the Oxylabs dashboard set to
-user:pass auth OR a whitelisted static IP. (WebGPU runtime is now RESOLVED —
-present + coherent via SwiftShader Vulkan, see the CRITICAL FIX above.)
+**Persona roster: 23** (8 Apple, 7 Windows, 3 Linux [llvmpipe + Intel-Mesa +
+AMD-Mesa], 5 Android [S23/Pixel7/Pixel8/OnePlus11/A54]). Desktop+Linux all PASS
+`full_test` (`stealth-fulltest-20260607-001708`, 18/18 + 5 mobile validated via
+`mobile_prod_probe`); Linux real-GPU personas use the MEASURED Mesa ranges
+(line 255/point 256 -- Intel iris + AMD radeonsi share Mesa with llvmpipe).
+NVIDIA-Linux intentionally absent (proprietary-driver float-ranges unmeasured;
+GPU quota=0).
+
+**Residential proxy — recipe VERIFIED + wired (`proxy.py:_oxylabs_from_env`).**
+The Oxylabs `hbproxy.net` residential SKU (user-confirmed working): **port
+60000** (only open port), username MUST carry a **`-session-<id>` suffix**
+(bare = 407; suffix = sticky exit IP), **http scheme, HTTPS targets only**.
+Reads `OXYLABS_USERNAME / OXYLABS_PASSWORD / OXYLABS_PROXIES` (comma-sep hosts).
+Residential IPs make BOTH desktop AND mobile personas IP-coherent (a phone on
+home WiFi is normal). **Still TODO:** exercise it on our infra (creds can't go
+in the SFN command -- it's logged) + run LIVE commercial anti-bot tests
+(DataDome/Cloudflare) through it -- the real bar, only ever tested on open
+fingerprint panels so far.
 
 **Render-OUTPUT pixel coherence — INVESTIGATED (`stealth-rendersw-20260606-090309`,
 `scripts/render_gpu.sh` + `render_probe.py`).** Same deterministic canvas2d +
