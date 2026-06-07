@@ -216,21 +216,26 @@ const fails = {
 };
 
 export function runnerStateMachineDefinition({
-  launchTemplateIdX86,
-  launchTemplateIdArm64,
+  templates: { x86, arm64, gpuX86, gpuArm64 },
   cacheBucket,
   artifactsBucket,
   githubCloningTokenSSMParameter
 }: {
-  launchTemplateIdX86: $util.Input<string>;
-  launchTemplateIdArm64: $util.Input<string>;
+  templates: {
+    x86: $util.Input<string>;
+    arm64: $util.Input<string>;
+    gpuX86: $util.Input<string>;
+    gpuArm64: $util.Input<string>;
+  };
   cacheBucket: $util.Input<string>;
   artifactsBucket: $util.Input<string>;
   githubCloningTokenSSMParameter: $util.Input<string>;
 }) {
   return $resolve([
-    launchTemplateIdX86,
-    launchTemplateIdArm64,
+    x86,
+    arm64,
+    gpuX86,
+    gpuArm64,
     cacheBucket,
     artifactsBucket,
     githubCloningTokenSSMParameter
@@ -238,6 +243,8 @@ export function runnerStateMachineDefinition({
     ([
       launchTemplateIdX86,
       launchTemplateIdArm64,
+      launchTemplateIdGpuX86,
+      launchTemplateIdGpuArm64,
       cacheBucket,
       artifactsBucket,
       githubCloningTokenSSMParameter
@@ -256,7 +263,7 @@ export function runnerStateMachineDefinition({
 
       return JSON.stringify({
         Comment:
-          'Ephemeral EC2 runner — launch (arch-routed), run command via SSM, always terminate',
+          'Ephemeral EC2 runner — launch (arch/gpu-routed), run command via SSM, always terminate',
         StartAt: 'ApplyDefaults',
         States: {
           ApplyDefaults: {
@@ -280,16 +287,29 @@ export function runnerStateMachineDefinition({
           },
           AttachTemplates: {
             Type: 'Pass',
-            Result: { launchTemplateIdX86, launchTemplateIdArm64 },
+            Result: {
+              launchTemplateIdX86,
+              launchTemplateIdArm64,
+              launchTemplateIdGpuX86,
+              launchTemplateIdGpuArm64
+            },
             ResultPath: '$.templates',
             Next: 'NormalizeStorageSize'
           },
           ...storageSizeGate,
           ...instanceTypesGate,
-          LaunchSpotX86: launchInstance('x86', 'spot'),
-          LaunchOnDemandX86: launchInstance('x86', 'on-demand'),
-          LaunchSpotArm64: launchInstance('arm64', 'spot'),
-          LaunchOnDemandArm64: launchInstance('arm64', 'on-demand'),
+          ...Object.fromEntries(
+            RUNNER_VARIANTS.flatMap((variant) => [
+              [
+                `LaunchSpot${variant.suffix}`,
+                launchInstance({ templatePath: variant.templatePath, market: 'spot' })
+              ],
+              [
+                `LaunchOnDemand${variant.suffix}`,
+                launchInstance({ templatePath: variant.templatePath, market: 'on-demand' })
+              ]
+            ])
+          ),
           ...waitForSsm,
           RunJob: {
             Type: 'Task',
