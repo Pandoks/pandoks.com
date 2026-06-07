@@ -90,11 +90,30 @@ class StealthBrowser:
         self.extra_args = list(extra_args or [])
         self.mobile_spec = mobile_spec
         self._browser = None
+        self._forwarder = None
 
     async def __aenter__(self) -> "StealthBrowser":
+        # Authenticated proxy: Chrome can't send proxy creds, and the CDP Fetch
+        # auth path stalls every request (0 upstream connections). Instead spin
+        # up a local forwarder that injects the Proxy-Authorization upstream and
+        # tunnels CONNECT verbatim (Chrome's real TLS reaches the target). Point
+        # Chrome at the local no-auth endpoint, so goto()'s _setup_proxy_auth is
+        # a no-op and NO Fetch interception happens.
+        proxy_for_chrome = self.proxy
+        if self.proxy is not None and self.proxy.has_auth():
+            from .proxy import ProxyConfig
+            from .proxy_forwarder import ProxyForwarder
+            self._forwarder = ProxyForwarder(
+                self.proxy.host, self.proxy.port,
+                self.proxy.username, self.proxy.password)
+            local_port = await self._forwarder.start()
+            proxy_for_chrome = ProxyConfig(
+                host="127.0.0.1", port=local_port, scheme="http")
+            self.proxy = proxy_for_chrome
+
         args = chrome_launch_flags(self.identity,
                                    headless=self.headless,
-                                   proxy=self.proxy)
+                                   proxy=proxy_for_chrome)
         args += self.extra_args
         self._browser = await uc.start(
             browser_executable_path=self.chrome_path,
@@ -108,6 +127,9 @@ class StealthBrowser:
         if self._browser is not None:
             self._browser.stop()
             self._browser = None
+        if self._forwarder is not None:
+            await self._forwarder.stop()
+            self._forwarder = None
 
     async def goto(self, url: str, *, settle: float = 2.0):
         """Open a tab with a coherent identity applied, navigate, return tab.
