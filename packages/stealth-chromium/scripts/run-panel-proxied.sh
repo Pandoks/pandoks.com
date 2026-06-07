@@ -7,7 +7,6 @@
 #   * host list  -> $OXYLABS_RESIDENTIAL_PROXIES (passed in the command -- it's
 #     an endpoint list, useless without the creds, so not a secret).
 #   * persona    -> $APEX_PROFILE (also passed; not sensitive).
-# proxy.py:_oxylabs_from_env reads OXYLABS_USERNAME/PASSWORD/PROXIES.
 #   command="bash -c \"export OXYLABS_RESIDENTIAL_PROXIES='...'; export APEX_PROFILE='...'; bash packages/stealth-chromium/scripts/run-panel-proxied.sh\""
 set -uo pipefail
 export HOME="${HOME:-/root}"
@@ -24,10 +23,17 @@ if [ "${1:-}" = "--inner" ]; then
   if [ -z "$OXYLABS_USERNAME" ] || [ -z "$OXYLABS_PASSWORD" ] || [ -z "$OXYLABS_PROXIES" ]; then
     echo "ERROR: oxylabs creds/hosts unavailable -- aborting proxied panel"; exit 1
   fi
-  exec bash "$PKG_ROOT/scripts/run-panel.sh"
+  bash "$PKG_ROOT/scripts/run-panel.sh"
+  exit $?
 fi
 
-# --- outer: install node+pnpm (for sst), then re-enter under `sst shell` ---
+# --- outer: own log+upload trap (run-panel.sh's upload only fires once we reach
+# it; without this a failure in setup/sst-shell uploads nothing) ---
+WORK=/tmp/proxiedpanel; mkdir -p "$WORK"
+LOG="$WORK/proxied-panel.log"; exec > >(tee "$LOG") 2>&1
+S3="s3://${BUILDER_ARTIFACTS_BUCKET}/${BUILD_ID}"
+trap 'aws s3 cp "$LOG" "${S3}/proxied-panel.log" >/dev/null 2>&1 || true' EXIT
+
 echo "=== proxied panel: persona='${APEX_PROFILE:-<host-matched>}' hosts=$(printf '%s' "${OXYLABS_RESIDENTIAL_PROXIES:-}" | tr ',' '\n' | grep -c .) ==="
 export DEBIAN_FRONTEND=noninteractive
 if ! command -v node >/dev/null 2>&1; then
@@ -35,6 +41,10 @@ if ! command -v node >/dev/null 2>&1; then
   sudo apt-get install -y -qq nodejs >/dev/null 2>&1 || true
 fi
 corepack enable >/dev/null 2>&1 || true
+echo "  node=$(node -v 2>&1) pnpm=$(pnpm -v 2>&1 | tail -1)"
 cd "$REPO_ROOT"
-pnpm install --frozen-lockfile --ignore-scripts >/dev/null 2>&1 || echo "  (pnpm install warn)"
-exec pnpm sst shell --stage production -- bash "$PKG_ROOT/scripts/run-panel-proxied.sh" --inner
+echo "=== pnpm install ==="
+pnpm install --frozen-lockfile --ignore-scripts 2>&1 | tail -3 || echo "  (pnpm install warn)"
+echo "=== entering sst shell (creds) -> run-panel ==="
+pnpm sst shell --stage production -- bash "$PKG_ROOT/scripts/run-panel-proxied.sh" --inner
+echo "=== proxied panel done (rc=$?) ==="
