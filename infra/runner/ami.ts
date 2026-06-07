@@ -63,7 +63,15 @@ function makeRecipe({
   });
 }
 
-function makeBakeInfra(id: string, name: string, instanceType: string) {
+function makeBakeInfra({
+  id,
+  name,
+  instanceType
+}: {
+  id: string;
+  name: string;
+  instanceType: string;
+}) {
   return new aws.imagebuilder.InfrastructureConfiguration(id, {
     name: `${STAGE_NAME}-${name}`,
     instanceTypes: [instanceType],
@@ -115,14 +123,27 @@ const runnerRecipeGpuArm64 = makeRecipe({
   arch: 'arm64',
   components: [runnerToolsComponent, runnerGpuArmToolsComponent]
 });
-  'RunnerBakeInfraArm64',
-  {
-    name: `${STAGE_NAME}-runner-bake-arm64`,
-    instanceTypes: ['c7g.large'],
-    instanceProfileName: bakeInstanceProfile.name,
-    terminateInstanceOnFailure: true
-  }
-);
+
+const runnerBakeInfraX86 = makeBakeInfra({
+  id: 'RunnerBakeInfraX86',
+  name: 'runner-bake-x86',
+  instanceType: 'c7i.large'
+});
+const runnerBakeInfraArm64 = makeBakeInfra({
+  id: 'RunnerBakeInfraArm64',
+  name: 'runner-bake-arm64',
+  instanceType: 'c7g.large'
+});
+const runnerBakeInfraGpuX86 = makeBakeInfra({
+  id: 'RunnerBakeInfraGpuX86',
+  name: 'runner-bake-gpu-x86',
+  instanceType: 'g6.xlarge'
+});
+const runnerBakeInfraGpuArm64 = makeBakeInfra({
+  id: 'RunnerBakeInfraGpuArm64',
+  name: 'runner-bake-gpu-arm64',
+  instanceType: 'g5g.2xlarge'
+});
 
 export const runnerImageX86 = new aws.imagebuilder.Image('RunnerImageX86', {
   imageRecipeArn: runnerRecipeX86.arn,
