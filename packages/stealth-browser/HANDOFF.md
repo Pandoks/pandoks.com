@@ -75,6 +75,27 @@ so these are the device *distribution*, not the fingerprint count. Also fixed 3
 latent bugs (AMD renderers missing PCI id; RX 6700 label/string mismatch; A54
 `deviceMemory=6`, an impossible non-power-of-two).
 
+**Per-account STABLE fingerprints (the antidetect "profile" model).** A real
+human's device doesn't change between logins, so each account must look like ONE
+fixed machine every session -- distinct + unlinkable from other accounts.
+`fp_profiles.persona_fingerprint(persona_dir)` generates the (device profile +
+farbling seed) ONCE and persists it in `<persona>/apex-fingerprint.json`, then
+reuses it every session. `core_nodriver` calls it (replacing the old random-
+per-session profile+seed). Account binding: **`APEX_PERSONA=<account id>`** ->
+`PersonaPool.acquire_named()` gives that account a dedicated persistent dir
+(cookies/history) next to its saved fingerprint. **Diversity:** per-account
+draws from ALL 334 profiles (`pick_profile(any_class=True)`) so accounts are
+genuinely different machines (40 accounts -> 40 distinct devices across
+nvidia/amd/intel/apple/android; Windows-heavy ~ real market share). Trade-off:
+on a host whose GPU != the account's device the WebGL *render* shows the -5%
+gap until real-GPU infra (strings/canvas/audio stay coherent + farbled).
+`pick_profile()` default (`any_class=False`, host-coherent) stays for callers
+that need render-matching; `APEX_PROFILE` still overrides. Ephemeral (pool
+exhausted, no `APEX_PERSONA`) -> fresh fingerprint per session (correct for
+throwaways). Verified locally (same account = identical profile+seed across
+logins; different accounts = distinct; persisted). Python-only, no rebuild.
+Set `APEX_PERSONA_DIR=/persistent/volume` in prod so personas survive restarts.
+
 **Proxy is validated independently** (`proxy_curl_test.sh`, curl-only from a
 clean-egress EC2 box): TCP `:60000` reachable, CONNECT 200, full TLS to
 `ip.oxylabs.io` → residential exit IP. The **local sandbox blocks egress on
