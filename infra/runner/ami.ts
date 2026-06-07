@@ -24,10 +24,18 @@ const bakeInstanceProfile = new aws.iam.InstanceProfile('RunnerBakeInstanceProfi
   role: bakeInstanceRole.name
 });
 
-function renderAmiTemplateYaml(file: string, replacements: Record<string, string> = {}): string {
+function renderAmiTemplateYaml({
+  file,
+  replacements
+}: {
+  file: string;
+  replacements?: Record<string, string>;
+}) {
   let data = readFileSync(join(process.cwd(), 'infra/runner', file), 'utf-8');
-  for (const [token, value] of Object.entries(replacements)) {
-    data = data.replaceAll(`{{${token}}}`, value);
+  if (replacements) {
+    for (const [token, value] of Object.entries(replacements)) {
+      data = data.replaceAll(`{{${token}}}`, value);
+    }
   }
   return data;
 }
@@ -68,19 +76,19 @@ const runnerToolsComponent = new aws.imagebuilder.Component('RunnerToolsComponen
   name: `${STAGE_NAME}-runner-tools`,
   platform: 'Linux',
   version: VERSION,
-  data: readFileSync(join(process.cwd(), 'infra/runner/ami.yaml'), 'utf-8')
+  data: renderAmiTemplateYaml({ file: 'ami.yaml' })
 });
-const runnerRecipeX86 = new aws.imagebuilder.ImageRecipe('RunnerRecipeX86', {
-  name: `${STAGE_NAME}-runner-x86`,
-  parentImage: `arn:aws:imagebuilder:${awsRegion}:aws:image/ubuntu-server-24-lts-x86/x.x.x`,
+const runnerGpuX86ToolsComponent = new aws.imagebuilder.Component('RunnerGpuToolsComponent', {
+  name: `${STAGE_NAME}-runner-gpu-tools`,
+  platform: 'Linux',
   version: VERSION,
-  components: [{ componentArn: runnerToolsComponent.arn }]
+  data: renderAmiTemplateYaml({ file: 'ami-gpu.yaml', replacements: { CUDA_ARCH: 'x86_64' } })
 });
-const runnerRecipeArm64 = new aws.imagebuilder.ImageRecipe('RunnerRecipeArm64', {
-  name: `${STAGE_NAME}-runner-arm64`,
-  parentImage: `arn:aws:imagebuilder:${awsRegion}:aws:image/ubuntu-server-24-lts-arm64/x.x.x`,
+const runnerGpuArmToolsComponent = new aws.imagebuilder.Component('RunnerGpuArmToolsComponent', {
+  name: `${STAGE_NAME}-runner-gpu-arm-tools`,
+  platform: 'Linux',
   version: VERSION,
-  components: [{ componentArn: runnerToolsComponent.arn }]
+  data: renderAmiTemplateYaml({ file: 'ami-gpu.yaml', replacements: { CUDA_ARCH: 'sbsa' } })
 });
 
 const runnerBakeInfraX86 = new aws.imagebuilder.InfrastructureConfiguration('RunnerBakeInfraX86', {
