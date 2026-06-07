@@ -38,14 +38,40 @@ out). The fixes, in order of discovery:
    exit): **ipapi.co + ipwho.is** return a proper IANA timezone and survive the
    exit; **ipinfo.io / browserleaks / ipapi.is reset the TLS**; **get.geojs
    geolocates by ASN owner (wrong)**.
-3. **Worker/system locale coherence.** After (2), browserscan's tz flag cleared
-   but a new "−10% language ≠ system" appeared, and CreepJS showed
-   `Intl(main)=es-ES` vs `Worker=en-US`. `--lang` sets only the main thread; a
-   Web Worker takes its locale from the renderer's `LANGUAGE`/`LANG` env (box
-   default en-US). `core_nodriver.open()` now sets `LANGUAGE`/`LANG` from the
-   matched identity locale before launch (Chrome uses bundled ICU — no glibc
-   locale-gen needed). Validated on a US exit (coherent, iphey Trustworthy);
-   correct-by-construction for non-US exits (one non-US run would fully confirm).
+3. **Locale: en-US EVERYWHERE, only the timezone tracks the exit IP** (final
+   decision after chasing per-country locale). The chain of findings:
+   browserscan's tz flag cleared after (2) but a "−10% language ≠ system"
+   appeared, and CreepJS showed `Intl(main)=es-ES` vs `Worker=en-US`. We set
+   `LANGUAGE`/`LANG` env (fixes the Worker — Chrome uses bundled ICU, no glibc
+   locale-gen) and passed `--accept-lang` and even wrote the profile
+   `intl.accept_languages` pref — but **`navigator.languages` would NOT move
+   off `["en-US"]`**: CDP `setLocaleOverride` changes Intl only, and none of
+   `--lang`/`--accept-lang`/profile-pref move the JS array (a JS shim would, but
+   that's exactly the tampering CreepJS detects). So localizing locale to the
+   exit country made `Intl(es-ES)` disagree with `navigator.languages(en-US)` —
+   the INTERNAL inconsistency iphey flagged ("trying to hide your location") on
+   a Spain exit. **Empirical proof of the fix:** a Poland exit with locale left
+   en-US + Europe/Warsaw timezone came back **Trustworthy** (verified twice,
+   `stealth-proxypanel-20260607-071216`/`-072440`). So `identity_for_ip_geo`
+   now keeps `locale=en-US`/`accept_language=en-US` for every country and only
+   matches timezone (+ geo coords); en-US-everywhere is internally consistent
+   and Trustworthy on US AND non-US IPs. A true native per-country locale is
+   deferred to an `APEX_FP_LANGUAGES` binary patch that sets `navigator.languages`
+   natively (`_COUNTRY_LOCALE` retained for that path). The `LANGUAGE`/`LANG`
+   env + `--accept-lang` + pref writes stay (correct/forward-compatible).
+
+**Device profiles: 23 → 334** (`fp_profiles.py`, all verified real combos:
+145 NVIDIA, 91 AMD, 47 Intel, 35 Apple, 15 Android, 1 llvmpipe). Built by a
+generator from grounded primitives — exact ANGLE renderer strings WITH real PCI
+device ids (techpowerup/pci.ids + corpora), Apple Metal strings + real Mac
+screens, Android model codes + Adreno/Mali strings + viewport/DPR — expanded
+across the real (screen, cores) combos per GPU. Invariants enforced:
+deviceMemory is a power of two ≤ 8 (>8 or 6 is a bot tell), cores in the GPU
+tier's band, every Windows renderer carries its 0x<PCIID>. Per-session farbling
+seed still makes each session's canvas/audio/WebGL HASH unique (~4.3e9/template),
+so these are the device *distribution*, not the fingerprint count. Also fixed 3
+latent bugs (AMD renderers missing PCI id; RX 6700 label/string mismatch; A54
+`deviceMemory=6`, an impossible non-power-of-two).
 
 **Proxy is validated independently** (`proxy_curl_test.sh`, curl-only from a
 clean-egress EC2 box): TCP `:60000` reachable, CONNECT 200, full TLS to
