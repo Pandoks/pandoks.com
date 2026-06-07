@@ -2,9 +2,76 @@
 
 One-page brief for any future Claude session (including a fresh Claude Cloud
 session) picking up this work. Read this FIRST — it captures everything that
-doesn't survive a fresh checkout. **Last substantively updated 2026-06-06**
-(branch `claude/sleepy-hawking-PUugj`, after WebGPU enable + limits/features
-coherence, the in_container→Linux WebGL-gate fix, and 15-profile verification).
+doesn't survive a fresh checkout. **Last substantively updated 2026-06-07**
+(branch `claude/sleepy-hawking-PUugj`, after the residential-proxy IP layer was
+made to actually work end-to-end — see the next section — on top of the
+2026-06-06 WebGPU/WebGL work below).
+
+## 🟢 IP / RESIDENTIAL-PROXY LAYER — VERIFIED WORKING (2026-06-07)
+
+**Result (`stealth-proxypanel-20260607-055608`, proxied through Oxylabs
+residential, US exit): iphey = `Trustworthy`; browserscan = 85% + Bot Detection
+`NoDetection`; creepjs Intl=Worker=lang (locale coherent); 19/19 detectors load,
+0 failures; no WebRTC leak of the EC2 IP.** Before this session the proxied
+browser was 100% broken (0 connections to the proxy, every target hung/timed
+out). The fixes, in order of discovery:
+
+1. **CDP `Fetch` proxy-auth does NOT work** (it was the prior design). With
+   `Fetch.enable(handle_auth_requests=True)` requests stalled at the
+   interception layer — **zero** TCP connections ever reached the proxy, every
+   navigation hung. Replaced with a **local authenticating forwarder**
+   (`stealth_browser/proxy_forwarder.py`, `ProxyForwarder`): Chrome →
+   `127.0.0.1:<port>` (no auth) → forwarder injects `Proxy-Authorization` and
+   CONNECT-tunnels to the upstream, piping bytes verbatim so Chrome's real
+   TLS/JA3 reaches the target untouched (no MITM). Wired in
+   `browser.py.__aenter__`: if `proxy.has_auth()`, start the forwarder, point
+   Chrome at the local no-auth endpoint, so `goto()._setup_proxy_auth` becomes a
+   no-op (NO Fetch interception). One upstream host + sticky session per browser
+   → one residential exit IP.
+2. **Timezone↔exit-IP coherence.** iphey ("trying to hide your location") +
+   browserscan ("IP timezone does not match", −10%) flagged the default
+   `America/Los_Angeles` vs the actual exit (the pool rotates country per
+   session: Spain/DC/Lithuania seen). `core_nodriver._match_identity_to_proxy`
+   now runs **pre-launch**, Python-side (`urllib`) over the **same upstream
+   proxy + sticky session** the browser uses (so geo = the exact exit IP), and
+   builds the identity from it. Endpoints (curl-proven through the residential
+   exit): **ipapi.co + ipwho.is** return a proper IANA timezone and survive the
+   exit; **ipinfo.io / browserleaks / ipapi.is reset the TLS**; **get.geojs
+   geolocates by ASN owner (wrong)**.
+3. **Worker/system locale coherence.** After (2), browserscan's tz flag cleared
+   but a new "−10% language ≠ system" appeared, and CreepJS showed
+   `Intl(main)=es-ES` vs `Worker=en-US`. `--lang` sets only the main thread; a
+   Web Worker takes its locale from the renderer's `LANGUAGE`/`LANG` env (box
+   default en-US). `core_nodriver.open()` now sets `LANGUAGE`/`LANG` from the
+   matched identity locale before launch (Chrome uses bundled ICU — no glibc
+   locale-gen needed). Validated on a US exit (coherent, iphey Trustworthy);
+   correct-by-construction for non-US exits (one non-US run would fully confirm).
+
+**Proxy is validated independently** (`proxy_curl_test.sh`, curl-only from a
+clean-egress EC2 box): TCP `:60000` reachable, CONNECT 200, full TLS to
+`ip.oxylabs.io` → residential exit IP. The **local sandbox blocks egress on
+:60000**, so all proxy testing must run on EC2.
+
+**Secret/cred handling for the panel** (owner-approved plaintext on the private
+ephemeral builder box): the box CANNOT resolve SST secrets itself (the minimal
+instance role has no provider tokens + no state-bucket access; secrets live
+encrypted in the SST state bucket, not as plain SSM params). So creds are
+resolved LOCALLY via `sst shell` (dummy provider tokens: `CLOUDFLARE_API_TOKEN`
+etc. = `dummy`, since `shell` only reads state, never calls the providers) and
+injected as plaintext env in the SFN command. `run-panel-proxied.sh` is a thin
+env shim → `run-panel.sh`. NOTE: `sst.config.ts` picks profile `Personal` unless
+`AWS_ACCESS_KEY_ID` is set, and the SSO *token* refresh fails even when role
+creds are cached → run `eval "$(aws configure export-credentials --profile
+Personal --format env)"` first so sst uses the env-cred path.
+
+**Remaining (NOT IP-layer):** browserscan's other −5%s are **WebGL exception**
+(GPU-less SwiftShader) + **Canvas Tampering** (intentional farbling tradeoff);
+creepjs `likeHeadless=38` is the GPU-less box (WebGL doesn't match the RTX
+persona). All GPU-dependent → clear with a real-GPU instance (the parallel
+track), not the IP layer.
+
+New files this session: `stealth_browser/proxy_forwarder.py`,
+`scripts/proxy_curl_test.sh` (diagnostic). Removed: `scripts/proxy_cred_check.sh`.
 
 ## 🟢 LATEST VERIFIED STATE (2026-06-06)
 
