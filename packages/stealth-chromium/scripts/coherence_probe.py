@@ -126,13 +126,23 @@ async def audit_one(label: str) -> None:
     def shown(group): return [f for f in FONT_SETS[group] if fonts.get(f)]
     print(f"  fonts present: Windows={shown('Windows')} macOS={shown('macOS')} "
           f"Android={shown('Android')} common={shown('common')}")
-    # coherence: the persona's OS fonts should be present, OTHER OS fonts absent
+    # Real coherence test: no foreign OS-EXCLUSIVE font may be present. Calibri/
+    # Cambria are Windows-only; Roboto/Droid Android-only; Helvetica Neue/Menlo/
+    # Geneva/Lucida Grande macOS-only. Plain "Helvetica" is cross-platform
+    # (resolves via Arial on Windows) so it is NOT exclusive. The macOS-exclusive
+    # faces have no free clone, so a Mac persona can't show them -- the pass
+    # criterion is the absence of FOREIGN exclusives, not the presence of own.
+    EXCL = {
+        "Windows": ["Calibri", "Cambria", "Segoe UI", "Consolas"],
+        "macOS": ["Helvetica Neue", "Menlo", "Geneva", "Lucida Grande"],
+        "Android": ["Roboto", "Droid Sans"],
+    }
     own = {"Windows": "Windows", "macOS": "macOS", "Android": "Android"}.get(osname)
     if own:
-        own_present = len(shown(own))
-        foreign = sum(len(shown(g)) for g in ("Windows", "macOS", "Android") if g != own)
-        print(f"  [{'PASS' if (own_present >= 2 and foreign == 0) else 'FAIL'}] "
-              f"font set matches OS ({own}: {own_present} present, foreign: {foreign})")
+        foreign = [f for g, fl in EXCL.items() if g != own
+                   for f in fl if fonts.get(f)]
+        print(f"  [{'PASS' if not foreign else 'FAIL'}] no foreign-exclusive "
+              f"fonts (foreign present: {foreign})")
 
 
 async def main() -> int:
