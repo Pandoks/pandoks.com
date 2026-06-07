@@ -1,9 +1,9 @@
-name: BuilderTools
-description: Install build tooling for ephemeral EC2 builders. Bake this into the AMI so per-build EC2s skip apt-install time.
+name: RunnerTools
+description: Install tooling for ephemeral EC2 runners. Bake this into the AMI so per-job EC2s skip apt-install time.
 schemaVersion: 1.0
 
 phases:
-  - name: build
+  - name: tool-install
     steps:
       - name: UpdateApt
         action: ExecuteBash
