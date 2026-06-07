@@ -220,6 +220,12 @@ def chrome_launch_flags(identity: Identity, *, headless: bool,
         "--disable-popup-blocking",
         # keep the GPU on -- a real machine has WebGL; SwiftShader looks fake
         f"--lang={identity.locale}",
+        # navigator.languages follows --accept-lang, NOT --lang. Without it the
+        # array defaults to ["en-US"] while navigator.language/Intl are the
+        # locale (e.g. es-ES on a Spanish exit) -- an incoherence iphey flags.
+        # Strip the q-values from accept_language for the flag's plain list form.
+        "--accept-lang=" + ",".join(
+            t.split(";")[0].strip() for t in identity.accept_language.split(",")),
         f"--window-size={identity.viewport_width},{identity.viewport_height}",
     ]
     # GPU / WebGL / WebGPU. This service ALWAYS renders headful on a GPU-less
