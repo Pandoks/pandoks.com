@@ -29,6 +29,30 @@ SRC = WORK / "chromium" / "src"
 # An Edit: in `file`, find `anchor` (must be unique) and splice `inject`
 # either "before" or "after" it. `marker` makes the edit idempotent.
 EDITS = [
+    # --- UA-CH brands: add the "Google Chrome" brand ------------------
+    # A Chromium build's navigator.userAgentData.brands is [GREASE, Chromium]
+    # -- it OMITS "Google Chrome", which a real branded Chrome includes. That
+    # absence (while the UA string still says "Chrome/149") is a coherence tell:
+    # rebrowser's `useragent` test flags it as "Google Chrome is not presented
+    # ... a red flag". Inject the brand into GenerateBrandVersionList BEFORE the
+    # shuffle, with the same `version` -- so the list becomes
+    # shuffle([GREASE, Chromium, Google Chrome]), byte-identical to a real
+    # branded build (covers both the major-version and full-version lists, and
+    # both window + worker since they share this builder). Gated on apex_fp::
+    # Active() so stock behaviour is unchanged.
+    {
+        "file": "components/embedder_support/user_agent_utils.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-brands",
+        "anchor": "  if (brand) {\n"
+                  "    brand_version_list.emplace_back(brand.value(), version);\n"
+                  "  }\n",
+        "where": "before",
+        "inject": "  // apex-brands\n"
+                  "  if (apex_fp::Active()) {\n"
+                  "    brand_version_list.emplace_back(\"Google Chrome\", version);\n"
+                  "  }\n",
+    },
     # --- WebGL UNMASKED strings ----------------------------------------
     {
         "file": "third_party/blink/renderer/modules/webgl/"

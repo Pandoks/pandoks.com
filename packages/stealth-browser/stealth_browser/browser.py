@@ -50,10 +50,12 @@ REAL_CHROME = chrome_path()
 # brand list is itself a tell. Update these together with the Chromium pin.
 _CHROME_BRANDS = [
     {"brand": "Chromium", "version": "149"},
+    {"brand": "Google Chrome", "version": "149"},
     {"brand": "Not)A;Brand", "version": "24"},
 ]
 _CHROME_FULL_VERSION_LIST = [
     {"brand": "Chromium", "version": "149.0.7827.53"},
+    {"brand": "Google Chrome", "version": "149.0.7827.53"},
     {"brand": "Not)A;Brand", "version": "24.0.0.0"},
 ]
 

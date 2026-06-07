@@ -156,13 +156,14 @@ PROBE_JS = r"""
   // UA-CH high-entropy platform/version -- comes from the SAME UserAgentMetadata
   // that fills the Sec-CH-UA-Platform[-Version] request headers, so this checks
   // header coherence from JS.
-  let uachPlatform = null, uachPlatformVersion = null;
+  let uachPlatform = null, uachPlatformVersion = null, uaBrands = null;
   try {
     if (navigator.userAgentData) {
       const hev = await navigator.userAgentData.getHighEntropyValues(
         ['platform', 'platformVersion']);
       uachPlatform = hev.platform;
       uachPlatformVersion = hev.platformVersion;
+      uaBrands = (navigator.userAgentData.brands || []).map(b => b.brand);
     }
   } catch (e) {}
 
@@ -215,6 +216,7 @@ PROBE_JS = r"""
     userAgent: navigator.userAgent,
     hardwareConcurrency: navigator.hardwareConcurrency,
     deviceMemory: navigator.deviceMemory,
+    uaBrands,
     uaPlatform: navigator.userAgentData ? navigator.userAgentData.platform
                                         : null,
     uachPlatform, uachPlatformVersion,
@@ -348,6 +350,10 @@ async def run() -> int:
            r["deviceMemory"], 8)
     _check(results, r["uaPlatform"] == "macOS",
            "userAgentData.platform", r["uaPlatform"], "macOS")
+    # navigator.userAgentData.brands must include "Google Chrome" (a Chromium
+    # build omits it -> rebrowser flags "not Google Chrome"). apex-brands patch.
+    _check(results, "Google Chrome" in (r.get("uaBrands") or []),
+           "userAgentData.brands includes Google Chrome", r.get("uaBrands"))
     _check(results, r["uachPlatform"] == "macOS",
            "UA-CH high-entropy platform (header coherence)",
            r["uachPlatform"], "macOS")
