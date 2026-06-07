@@ -148,10 +148,12 @@ export const runnerStateMachine = new aws.sfn.StateMachine('RunnerStateMachine',
   roleArn: runnerStateMachineRole.arn,
   type: 'STANDARD',
   definition: runnerStateMachineDefinition({
-    launchTemplateIdX86: runnerLaunchTemplateX86.id,
-    launchTemplateIdArm64: runnerLaunchTemplateArm64.id,
-    launchTemplateIdGpuX86: runnerLaunchTemplateGpuX86.id,
-    launchTemplateIdGpuArm64: runnerLaunchTemplateGpuArm64.id,
+    templates: {
+      x86: runnerLaunchTemplateX86.id,
+      arm64: runnerLaunchTemplateArm64.id,
+      gpuX86: runnerLaunchTemplateGpuX86.id,
+      gpuArm64: runnerLaunchTemplateGpuArm64.id
+    },
     cacheBucket: runnerCacheBucket.name,
     artifactsBucket: runnerArtifactsBucket.name,
     githubCloningTokenSSMParameter: runnerGithubTokenParameter.name
