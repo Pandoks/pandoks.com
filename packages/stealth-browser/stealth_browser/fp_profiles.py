@@ -670,25 +670,30 @@ def pick_profile_by_label(label_or_substring: str) -> FpProfile | None:
     return None
 
 
-def pick_profile(rng: random.Random | None = None) -> FpProfile:
-    """Pick a random profile whose GPU class matches the host.
+def pick_profile(rng: random.Random | None = None,
+                 any_class: bool = False) -> FpProfile:
+    """Pick a random profile (APEX_PROFILE pins one; else random).
 
-    Env override: APEX_PROFILE=<label substring> pins a specific profile
-    instead of randomising. Useful for service mode where the caller wants
-    "give me a Windows RTX 3060 session" -- set APEX_PROFILE per container.
+    `any_class=False` (default): pick within the HOST GPU class -- deep WebGL
+    coherence (the claimed GPU IS the host GPU, so renderer string, numeric GL
+    params, shader precision AND rendered-pixel output all agree).
 
-    This is the key to deep WebGL coherence: the profile's claimed GPU IS the
-    host GPU, so the renderer string, numeric GL params, shader precision, and
-    actual rendered-pixel output all agree -- not just the string. Per-session
-    variety comes from the multiple device models within the host's GPU class.
+    `any_class=True`: pick from ALL profiles -- used for per-ACCOUNT device
+    DIVERSITY (each account a genuinely different machine: Windows-RTX, MacBook,
+    Android, ...). On a host whose GPU differs from the chosen profile the WebGL
+    *render* won't match the claimed GPU (the known -5% gap real-GPU infra
+    closes); the strings/canvas/audio stay coherent + farbled. APEX_PROFILE
+    still overrides either way.
     """
     pinned = os.environ.get("APEX_PROFILE", "").strip()
     if pinned:
         match = pick_profile_by_label(pinned)
         if match is not None:
             return match
-        # fall through to host-coherent random if APEX_PROFILE didn't match
+        # fall through to random if APEX_PROFILE didn't match
     r = rng or random
+    if any_class:
+        return r.choice(PROFILES)
     coherent = [p for p in PROFILES if p.gpu_class == _HOST_GPU_CLASS]
     if not coherent:
         # no profile for this GPU class -- fall back to the whole pool, but
@@ -714,7 +719,7 @@ def persona_fingerprint(persona_dir) -> tuple["FpProfile", int]:
     a read/write failure degrades to a fresh fingerprint, never blocks.
     """
     if persona_dir is None:
-        return pick_profile(), random.getrandbits(32)
+        return pick_profile(any_class=True), random.getrandbits(32)
     path = Path(persona_dir) / "apex-fingerprint.json"
     try:
         if path.exists():
@@ -724,7 +729,8 @@ def persona_fingerprint(persona_dir) -> tuple["FpProfile", int]:
                 return prof, int(data["seed"]) & 0xFFFFFFFF
     except Exception:  # noqa: BLE001 - corrupt/missing -> regenerate
         pass
-    prof = pick_profile()
+    # draw from ALL profiles so each account is a genuinely different device
+    prof = pick_profile(any_class=True)
     seed = random.getrandbits(32)
     try:
         path.write_text(json.dumps({"profile": prof.label, "seed": seed}))
