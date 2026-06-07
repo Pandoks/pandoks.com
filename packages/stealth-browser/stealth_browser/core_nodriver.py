@@ -28,8 +28,8 @@ from stealth_browser.proxy import from_env as proxy_from_env
 import os
 import random
 
-from .fp_profiles import (pick_profile, fp_env, patched_chrome_path,
-                          mobile_emulation_spec)
+from .fp_profiles import (fp_env, patched_chrome_path, mobile_emulation_spec,
+                          persona_fingerprint)
 from .personas import POOL as PERSONA_POOL
 
 
@@ -92,9 +92,6 @@ class NodriverCore:
         self._sb: StealthBrowser | None = None
         self._tab = None
         self._human: Human | None = None
-        # per-session fingerprint profile (only meaningful with apex-chromium)
-        self._fp_profile = pick_profile()
-        self._fp_seed = random.getrandbits(32)
         self._patched_chrome = patched_chrome_path()
         # per-session proxy: an explicit ProxyConfig (from the request body)
         # takes priority over env defaults; env is used as fallback so
@@ -102,9 +99,17 @@ class NodriverCore:
         self._proxy = (proxy if proxy is not None
                        else (proxy_from_env() if use_proxy else None))
         self._exit_geo: dict | None = None
-        # persistent persona profile -- a "lived-in" Chrome profile dir with
-        # accumulated cookies/history. None -> ephemeral (pool exhausted).
-        self._persona = PERSONA_POOL.acquire()
+        # persona profile dir. ACCOUNT model: APEX_PERSONA=<account id> pins a
+        # dedicated dir so the account always reuses its cookies/history; without
+        # it, the rotating pool hands out any free dir (None -> ephemeral).
+        _acct = os.environ.get("APEX_PERSONA", "").strip()
+        self._persona = (PERSONA_POOL.acquire_named(_acct) if _acct
+                         else PERSONA_POOL.acquire())
+        # fingerprint (device profile + farbling seed) STABLE per persona/account
+        # -- saved next to the persona and reused every session, so the account
+        # is ONE fixed device over time (distinct + unlinkable across accounts).
+        # Only meaningful with apex-chromium; ephemeral -> fresh per session.
+        self._fp_profile, self._fp_seed = persona_fingerprint(self._persona)
 
     @property
     def profile(self) -> dict:

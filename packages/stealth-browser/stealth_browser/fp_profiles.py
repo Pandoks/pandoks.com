@@ -16,9 +16,11 @@ the patches do not exist, so the env vars are simply ignored.
 
 from __future__ import annotations
 
+import json
 import os
 import random
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -693,6 +695,42 @@ def pick_profile(rng: random.Random | None = None) -> FpProfile:
         # this means WebGL render output may not match the string (logged).
         coherent = PROFILES
     return r.choice(coherent)
+
+
+def persona_fingerprint(persona_dir) -> tuple["FpProfile", int]:
+    """Return (FpProfile, seed) STABLE for a persona/account.
+
+    The ACCOUNT model: each account maps to a persistent persona dir, and its
+    fingerprint (device profile + farbling seed) is generated ONCE and saved in
+    <persona>/apex-fingerprint.json, then reused every session. So an account
+    looks like ONE fixed device over time -- same canvas/audio/WebGL hash and
+    same device profile every login -- while different accounts get different,
+    unlinkable fingerprints (exactly the Multilogin/GoLogin "profile" model).
+
+    `persona_dir` None (pool exhausted -> ephemeral) returns a fresh random
+    fingerprint, which is correct for a throwaway session. Generation honors
+    APEX_PROFILE + host GPU class via pick_profile(). If the saved profile label
+    no longer exists (PROFILES changed), it regenerates + re-saves. Best-effort:
+    a read/write failure degrades to a fresh fingerprint, never blocks.
+    """
+    if persona_dir is None:
+        return pick_profile(), random.getrandbits(32)
+    path = Path(persona_dir) / "apex-fingerprint.json"
+    try:
+        if path.exists():
+            data = json.loads(path.read_text())
+            prof = pick_profile_by_label(data.get("profile", ""))
+            if prof is not None and "seed" in data:
+                return prof, int(data["seed"]) & 0xFFFFFFFF
+    except Exception:  # noqa: BLE001 - corrupt/missing -> regenerate
+        pass
+    prof = pick_profile()
+    seed = random.getrandbits(32)
+    try:
+        path.write_text(json.dumps({"profile": prof.label, "seed": seed}))
+    except Exception:  # noqa: BLE001 - persistence best-effort
+        pass
+    return prof, seed
 
 
 def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:

@@ -63,6 +63,23 @@ class PersonaPool:
                     return d
             return None
 
+    def acquire_named(self, name: str) -> Path:
+        """Acquire a SPECIFIC persona by name -- the ACCOUNT model. An account id
+        maps to its own dedicated, persistent profile dir (created if new), so
+        that account always reuses the same cookies/history AND (via the saved
+        apex-fingerprint.json next to it) the same device fingerprint -- it looks
+        like ONE fixed machine every login, distinct + unlinkable from other
+        accounts. Unlike acquire() it never returns None: a named account always
+        maps to its dir. Name is sanitized to a safe dir component.
+        """
+        safe = "".join(c if (c.isalnum() or c in "-_.") else "_"
+                       for c in name)[:64] or "default"
+        d = self._root / f"acct-{safe}"
+        with self._lock:
+            d.mkdir(parents=True, exist_ok=True)
+            self._busy[d] = True
+        return d
+
     def release(self, persona: Path | None) -> None:
         """Return a persona to the pool."""
         if persona is None:
