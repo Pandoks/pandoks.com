@@ -36,6 +36,7 @@ phases:
             - curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
             - sudo DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs
             - sudo corepack enable
+            - sudo corepack prepare pnpm@11.5.0 --activate
 
       - name: InstallAwsCli
         action: ExecuteBash
