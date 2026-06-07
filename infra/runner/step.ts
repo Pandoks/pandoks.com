@@ -1,9 +1,27 @@
 import { githubOrg, githubRepoName } from '../github';
-import { ARM_INSTANCE_TYPES, X86_INSTANCE_TYPES } from './types';
+import {
+  ARM_INSTANCE_TYPES,
+  GPU_ARM_INSTANCE_TYPES,
+  GPU_X86_INSTANCE_TYPES,
+  X86_INSTANCE_TYPES
+} from './types';
 
 const INPUT_DEFAULTS = { storageSizeGib: 8 };
 
-function launchInstance(architecture: 'x86' | 'arm64', market: 'spot' | 'on-demand') {
+const RUNNER_VARIANTS = [
+  { suffix: 'X86', types: X86_INSTANCE_TYPES, templatePath: '$.templates.launchTemplateIdX86' },
+  { suffix: 'Arm64', types: ARM_INSTANCE_TYPES, templatePath: '$.templates.launchTemplateIdArm64' },
+  {
+    suffix: 'GpuX86',
+    types: GPU_X86_INSTANCE_TYPES,
+    templatePath: '$.templates.launchTemplateIdGpuX86'
+  },
+  {
+    suffix: 'GpuArm64',
+    types: GPU_ARM_INSTANCE_TYPES,
+    templatePath: '$.templates.launchTemplateIdGpuArm64'
+  }
+] as const;
   return {
     Type: 'Task',
     Resource: 'arn:aws:states:::aws-sdk:ec2:runInstances',
