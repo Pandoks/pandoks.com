@@ -45,6 +45,12 @@ echo "  node=$(node -v 2>&1) pnpm=$(pnpm -v 2>&1 | tail -1)"
 cd "$REPO_ROOT"
 echo "=== pnpm install ==="
 pnpm install --frozen-lockfile --ignore-scripts 2>&1 | tail -3 || echo "  (pnpm install warn)"
+# sst.config.ts picks AWS profile 'Personal' unless GITHUB_ACTIONS/AWS_ACCESS_KEY_ID
+# is set. On the builder EC2 there is no 'Personal' profile -- it authenticates via
+# the instance role (IMDS). Materialize those role creds into the env so SST's
+# default credential chain is used instead of the missing profile.
+eval "$(aws configure export-credentials --format env 2>/dev/null)" || true
+echo "  aws creds in env: $([ -n "${AWS_ACCESS_KEY_ID:-}" ] && echo yes || echo NO) ($(aws sts get-caller-identity --query Arn --output text 2>&1 | sed 's#.*/##'))"
 echo "=== entering sst shell (creds) -> run-panel ==="
 pnpm sst shell --stage production -- bash "$PKG_ROOT/scripts/run-panel-proxied.sh" --inner
 echo "=== proxied panel done (rc=$?) ==="
