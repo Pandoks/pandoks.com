@@ -131,20 +131,20 @@ const waitForSsm = {
       {
         Variable: '$.ssmStatus.InstanceInformationList[0].PingStatus',
         StringEquals: 'Online',
-        Next: 'RunBuild'
+        Next: 'RunJob'
       }
     ],
     Default: 'WaitForSSM'
   }
 };
 
-const waitForBuild = {
-  WaitForBuild: {
+const waitForJob = {
+  WaitForJob: {
     Type: 'Wait',
     Seconds: 60,
-    Next: 'CheckBuildStatus'
+    Next: 'CheckJobStatus'
   },
-  CheckBuildStatus: {
+  CheckJobStatus: {
     Type: 'Task',
     Resource: 'arn:aws:states:::aws-sdk:ssm:getCommandInvocation',
     Parameters: {
@@ -152,11 +152,11 @@ const waitForBuild = {
       'InstanceId.$': '$.instance.Instances[0].InstanceId'
     },
     ResultPath: '$.invocation',
-    Next: 'IsBuildDone',
+    Next: 'IsJobDone',
     Retry: [{ ErrorEquals: ['States.ALL'], IntervalSeconds: 10, MaxAttempts: 3 }],
     Catch: [{ ErrorEquals: ['States.ALL'], ResultPath: '$.error', Next: 'TerminateAfterFailure' }]
   },
-  IsBuildDone: {
+  IsJobDone: {
     Type: 'Choice',
     Choices: [
       { Variable: '$.invocation.Status', StringEquals: 'Success', Next: 'TerminateAfterSuccess' },
@@ -164,7 +164,7 @@ const waitForBuild = {
       { Variable: '$.invocation.Status', StringEquals: 'Cancelled', Next: 'TerminateAfterFailure' },
       { Variable: '$.invocation.Status', StringEquals: 'TimedOut', Next: 'TerminateAfterFailure' }
     ],
-    Default: 'WaitForBuild'
+    Default: 'WaitForJob'
   }
 };
 
@@ -184,14 +184,14 @@ const fails = {
     Cause: 'storageSizeGib must be an integer between 8 and 16384 (gp3 max)',
     Error: 'InvalidStorageSize'
   },
-  FailBuild: {
+  FailJob: {
     Type: 'Fail',
-    Cause: 'Remote build command failed, was cancelled, or timed out',
-    Error: 'BuildFailed'
+    Cause: 'Remote job command failed, was cancelled, or timed out',
+    Error: 'JobFailed'
   }
 };
 
-export function builderStateMachineDefinition({
+export function runnerStateMachineDefinition({
   launchTemplateIdX86,
   launchTemplateIdArm64,
   cacheBucket,
@@ -220,9 +220,9 @@ export function builderStateMachineDefinition({
     ]) => {
       const bashScript = [
         `set -euo pipefail`,
-        `export BUILD_ID={}`,
-        `export BUILDER_CACHE_BUCKET=${cacheBucket}`,
-        `export BUILDER_ARTIFACTS_BUCKET=${artifactsBucket}`,
+        `export RUNNER_JOB_ID={}`,
+        `export RUNNER_CACHE_BUCKET=${cacheBucket}`,
+        `export RUNNER_ARTIFACTS_BUCKET=${artifactsBucket}`,
         `GITHUB_TOKEN=$(aws ssm get-parameter --name ${githubCloningTokenSSMParameter} --with-decryption --query Parameter.Value --output text)`,
         `git clone --depth 1 --branch {} https://x-access-token:$\\{GITHUB_TOKEN\\}@github.com/${githubOrg}/${githubRepoName}.git /opt/repo`,
         `unset GITHUB_TOKEN`,
@@ -232,7 +232,7 @@ export function builderStateMachineDefinition({
 
       return JSON.stringify({
         Comment:
-          'Ephemeral EC2 builder — launch (arch-routed), run script via SSM, always terminate',
+          'Ephemeral EC2 runner — launch (arch-routed), run command via SSM, always terminate',
         StartAt: 'ApplyDefaults',
         States: {
           ApplyDefaults: {
@@ -267,7 +267,7 @@ export function builderStateMachineDefinition({
           LaunchSpotArm64: launchInstance('arm64', 'spot'),
           LaunchOnDemandArm64: launchInstance('arm64', 'on-demand'),
           ...waitForSsm,
-          RunBuild: {
+          RunJob: {
             Type: 'Task',
             Resource: 'arn:aws:states:::aws-sdk:ssm:sendCommand',
             Parameters: {
@@ -281,12 +281,12 @@ export function builderStateMachineDefinition({
               CloudWatchOutputConfig: { CloudWatchOutputEnabled: true }
             },
             ResultPath: '$.command',
-            Next: 'WaitForBuild',
+            Next: 'WaitForJob',
             Catch: [
               { ErrorEquals: ['States.ALL'], ResultPath: '$.error', Next: 'TerminateAfterFailure' }
             ]
           },
-          ...waitForBuild,
+          ...waitForJob,
           TerminateAfterSuccess: {
             Type: 'Task',
             Resource: 'arn:aws:states:::aws-sdk:ec2:terminateInstances',
@@ -304,10 +304,10 @@ export function builderStateMachineDefinition({
               'InstanceIds.$': 'States.Array($.instance.Instances[0].InstanceId)'
             },
             ResultPath: '$.termination',
-            Next: 'FailBuild',
+            Next: 'FailJob',
             Retry: [{ ErrorEquals: ['States.ALL'], IntervalSeconds: 15, MaxAttempts: 5 }],
             Catch: [
-              { ErrorEquals: ['States.ALL'], ResultPath: '$.terminationError', Next: 'FailBuild' }
+              { ErrorEquals: ['States.ALL'], ResultPath: '$.terminationError', Next: 'FailJob' }
             ]
           },
           ...fails,
