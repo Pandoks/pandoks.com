@@ -129,13 +129,23 @@ class NodriverCore:
 
     async def _match_identity_to_proxy(self) -> None:
         """Rebuild Identity from the proxy exit IP's geolocation."""
+        import asyncio as _asyncio
+        import json as _json
         try:
             # look up the exit geo through the proxied browser itself
             tab = await self._sb._browser.get("about:blank")  # type: ignore[union-attr]
-            import json as _json
-            raw = await tab.evaluate(
-                "fetch('https://ipapi.co/json/').then(r=>r.text())",
-                await_promise=True, return_by_value=True)
+            # This tab bypasses goto(), so it has NO proxy-auth Fetch handler.
+            # An authenticated proxy answers the first request with a 407; in a
+            # headful browser that pops a native credential dialog which never
+            # gets answered under Xvfb, so the fetch below would hang forever.
+            # Wire the same auth handler goto() uses, then cap the lookup so a
+            # slow/failed proxy degrades to "no geo match" instead of a stall.
+            await self._sb._setup_proxy_auth(tab)  # type: ignore[union-attr]
+            raw = await _asyncio.wait_for(
+                tab.evaluate(
+                    "fetch('https://ipapi.co/json/').then(r=>r.text())",
+                    await_promise=True, return_by_value=True),
+                timeout=25)
             payload = raw if isinstance(raw, str) else getattr(
                 getattr(raw, "deep_serialized_value", None), "value", None)
             if payload:

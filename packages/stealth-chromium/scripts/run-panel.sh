@@ -19,6 +19,10 @@ PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"  # packages/stealth-
 REPO_ROOT="$(cd "$PKG_ROOT/../.." && pwd)"                   # repo root (two up)
 WORK=/tmp/panel
 mkdir -p "$WORK"
+# Unbuffered Python so per-target progress is visible live in panel-run.log
+# (peekable mid-run via a second SSM command) instead of stuck in a block buffer
+# until the process exits. Cheap; applies to the verifier + the benchmark below.
+export PYTHONUNBUFFERED=1
 
 # Self-diagnosing: capture ALL output and upload it on ANY exit (success or
 # failure). A failed SFN command leaves no retrievable stdout (SSM truncates,

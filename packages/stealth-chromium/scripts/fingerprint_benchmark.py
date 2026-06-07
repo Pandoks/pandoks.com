@@ -214,10 +214,22 @@ async def main() -> int:
     results = []
     try:
         for t in targets:
+            # Hard per-target wall-clock cap. Through a residential proxy a
+            # single detector can stall indefinitely (e.g. a subresource that
+            # never returns), and one stalled target must not hang the whole
+            # panel. Budget = settle + behavioral exercise + a generous proxied
+            # page-load allowance.
+            budget = t["settle"] + t.get("behavioral_seconds", 0) + 75
             try:
-                results.append(await run_target(core, t))
+                results.append(
+                    await asyncio.wait_for(run_target(core, t), timeout=budget))
+            except asyncio.TimeoutError:
+                print(f"   !! {t['name']} TIMEOUT after {budget}s -- skipping",
+                      flush=True)
+                results.append({"name": t["name"], "tier": t["tier"],
+                                "timeout": f">{budget}s"})
             except Exception as e:  # noqa: BLE001 - one site shouldn't kill the run
-                print(f"   !! {t['name']} errored: {str(e)[:100]}")
+                print(f"   !! {t['name']} errored: {str(e)[:100]}", flush=True)
     finally:
         await core.close()
 
