@@ -115,6 +115,18 @@ class NodriverCore:
         if self._proxy is not None:
             await self._match_identity_to_proxy()
 
+        # Align the process locale to the identity so the WORKER scope's
+        # navigator.language matches the main thread. --lang only sets the main
+        # thread; a Web Worker inherits its locale from the renderer process's
+        # LANGUAGE/LANG env, which otherwise stays the box default (en-US) ->
+        # CreepJS flags the main<->worker locale mismatch and browserscan flags
+        # "webpage language does not match the system". Chrome resolves the
+        # web-exposed locale from these env vars via its bundled ICU data, so no
+        # glibc locale-gen is required. Inherited by the Chrome child process.
+        _loc = self.identity.locale.replace("-", "_")
+        os.environ["LANGUAGE"] = _loc
+        os.environ["LANG"] = f"{_loc}.UTF-8"
+
         # UA-STRING COHERENCE is handled NATIVELY in the binary (apex-ua-platform
         # in user_agent_utils.cc swaps the reduced-UA OS token from the same
         # APEX_FP_UA_PLATFORM env), NOT via --user-agent: the flag disables the
