@@ -68,17 +68,34 @@ function makeLaunchTemplate({
     ]
   });
 }
+
+const runnerLaunchTemplateX86 = makeLaunchTemplate({
+  id: 'RunnerLaunchTemplateX86',
+  name: 'runner-x86',
+  image: runnerImageX86.outputResources[0].amis[0].image,
+  arch: 'x86_64',
+  gpu: false
 });
-const runnerLaunchTemplateArm64 = new aws.ec2.LaunchTemplate('RunnerLaunchTemplateArm64', {
-  name: `${STAGE_NAME}-runner-arm64`,
-  imageId: runnerImageArm64.outputResources[0].amis[0].image,
-  iamInstanceProfile: { arn: runnerInstanceProfile.arn },
-  tagSpecifications: [
-    {
-      resourceType: 'instance',
-      tags: { ...baseTags, Name: `${STAGE_NAME}-runner-arm64`, Arch: 'arm64' }
-    }
-  ]
+const runnerLaunchTemplateArm64 = makeLaunchTemplate({
+  id: 'RunnerLaunchTemplateArm64',
+  name: 'runner-arm64',
+  image: runnerImageArm64.outputResources[0].amis[0].image,
+  arch: 'arm64',
+  gpu: false
+});
+const runnerLaunchTemplateGpuX86 = makeLaunchTemplate({
+  id: 'RunnerLaunchTemplateGpuX86',
+  name: 'runner-gpu-x86',
+  image: runnerImageGpuX86.outputResources[0].amis[0].image,
+  arch: 'x86_64',
+  gpu: true
+});
+const runnerLaunchTemplateGpuArm64 = makeLaunchTemplate({
+  id: 'RunnerLaunchTemplateGpuArm64',
+  name: 'runner-gpu-arm64',
+  image: runnerImageGpuArm64.outputResources[0].amis[0].image,
+  arch: 'arm64',
+  gpu: true
 });
 
 export const runnerGithubTokenParameter = new aws.ssm.Parameter('RunnerGithubCloningToken', {
@@ -133,6 +150,8 @@ export const runnerStateMachine = new aws.sfn.StateMachine('RunnerStateMachine',
   definition: runnerStateMachineDefinition({
     launchTemplateIdX86: runnerLaunchTemplateX86.id,
     launchTemplateIdArm64: runnerLaunchTemplateArm64.id,
+    launchTemplateIdGpuX86: runnerLaunchTemplateGpuX86.id,
+    launchTemplateIdGpuArm64: runnerLaunchTemplateGpuArm64.id,
     cacheBucket: runnerCacheBucket.name,
     artifactsBucket: runnerArtifactsBucket.name,
     githubCloningTokenSSMParameter: runnerGithubTokenParameter.name
