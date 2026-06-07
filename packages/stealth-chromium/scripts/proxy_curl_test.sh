@@ -1,14 +1,10 @@
 #!/usr/bin/env bash
-# Isolation diagnostic: does the Oxylabs residential proxy work from a clean-
-# egress EC2 box, independent of the browser? curl-only (no Chrome, no CDP
-# Fetch), so it separates "proxy reachable + creds valid + residential exit IP"
-# from the browser-integration question. Captures curl -v so the proxy's actual
-# CONNECT response (200 / 407 / error body / cert) is visible, and tries a few
-# username suffix forms since the hbproxy SKU mandates a "-<suffix>". Creds +
-# hosts arrive as plaintext env vars in the SFN command (owner-approved).
-#   command="bash -c \"export OXYLABS_USERNAME='...'; export OXYLABS_PASSWORD='...'; \
-#     export OXYLABS_PROXIES='h1.hbproxy.net,...'; \
-#     bash packages/stealth-chromium/scripts/proxy_curl_test.sh\""
+# Geo-endpoint finder: which IP-geolocation API both (a) works through the
+# Oxylabs residential exit (many reset the TLS handshake -- ipinfo, browserleaks,
+# ipapi.co) AND (b) returns a usable timezone, so the browser identity's timezone
+# can be matched to the exit IP (the timezone<->IP mismatch is what iphey /
+# browserscan flag as "trying to hide your location"). curl-only; creds + hosts
+# arrive as plaintext env vars in the SFN command (owner-approved).
 set -uo pipefail
 export HOME="${HOME:-/root}"
 WORK=/tmp/proxycurl
@@ -22,35 +18,24 @@ U="${OXYLABS_USERNAME:-}"
 P="${OXYLABS_PASSWORD:-}"
 HOSTS="${OXYLABS_PROXIES:-${OXYLABS_RESIDENTIAL_PROXIES:-}}"
 H1="$(printf '%s' "$HOSTS" | cut -d, -f1)"
-echo "creds: user_len=${#U} pass_len=${#P} hosts=$(printf '%s' "$HOSTS" | tr ',' '\n' | grep -c .) host1=$H1"
-echo "curl: $(curl --version | head -1)"
+PX="http://${U}-session-geofind:${P}@${H1}:60000"
+echo "host1=$H1 user_len=${#U} pass_len=${#P}"
 
-# show only the proxy/tunnel-relevant verbose lines (CONNECT, status, TLS,
-# Proxy-Authenticate) + the body, never the Proxy-Authorization (has the creds).
-filter() { grep -iE 'CONNECT |HTTP/|Proxy-Auth|certificate|SSL|TLS|alert|denied|error|< |^\{' | grep -ivE 'Proxy-Authorization' | head -25; }
-
-try() { # $1 = label, $2 = full proxy URL, $3 = target URL
-  echo "=== $1 -> $3 ==="
-  out=$(curl -sv --max-time 40 -x "$2" "$3" 2>"$WORK/err.txt")
+for url in \
+  "https://ip.oxylabs.io/location" \
+  "https://ipapi.co/json/" \
+  "https://ipwho.is/" \
+  "https://get.geojs.io/v1/ip/geo.json" \
+  "https://api.ip.sb/geoip" \
+  "https://ipapi.is/json/" \
+  "https://freeipapi.com/api/json"; do
+  echo "============================================================"
+  echo "=== $url ==="
+  out=$(curl -s --max-time 35 -x "$PX" "$url")
   rc=$?
-  echo "  rc=$rc body_len=${#out}"
-  filter <"$WORK/err.txt"
-  [ -n "$out" ] && echo "  BODY: ${out:0:200}"
-}
-
-echo "### A. bare username (expect 407 per SKU) ###"
-try "bare-https" "http://${U}:${P}@${H1}:60000" "https://ipinfo.io/json"
-
-echo "### B. -session-<id> suffix (current proxy.py form) ###"
-try "session-https" "http://${U}-session-abc123:${P}@${H1}:60000" "https://ipinfo.io/json"
-
-echo "### C. simple -<id> suffix ###"
-try "simple-https" "http://${U}-abc123:${P}@${H1}:60000" "https://ipinfo.io/json"
-
-echo "### D. -session-<id> against an HTTP target (SKU note: http may be empty) ###"
-try "session-http" "http://${U}-session-abc123:${P}@${H1}:60000" "http://ip-api.com/json"
-
-echo "### E. -session-<id> to oxylabs' own ip endpoint ###"
-try "session-oxy" "http://${U}-session-abc123:${P}@${H1}:60000" "https://ip.oxylabs.io/location"
-
+  echo "rc=$rc len=${#out}"
+  # show whether a timezone is present + the body (truncated)
+  printf '%s' "$out" | grep -oiE '"?time[_]?zone[^,}"]*"?[: ]*"?[A-Za-z]+/[A-Za-z_]+' | head -2
+  echo "BODY: ${out:0:500}"
+done
 echo "=== done ==="
