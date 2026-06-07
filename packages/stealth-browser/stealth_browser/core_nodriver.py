@@ -13,14 +13,17 @@ Every core exposes the same interface so session.py is backend-agnostic:
 from __future__ import annotations
 
 
+import asyncio
 import base64
+import json
+import urllib.request
 
 from nodriver import cdp
 from stealth_browser.browser import StealthBrowser
 from stealth_browser.profile import Identity, identity_for_ip_geo
 from stealth_browser.human import Human
 from stealth_browser.runner_nodriver import _unwrap
-from stealth_browser.proxy import from_env as proxy_from_env, lookup_exit_geo
+from stealth_browser.proxy import from_env as proxy_from_env
 
 import os
 import random
@@ -101,6 +104,17 @@ class NodriverCore:
         if self._patched_chrome is not None:
             os.environ.update(fp_env(self._fp_profile, self._fp_seed))
 
+        # PROXY IDENTITY COHERENCE, done BEFORE launch. The single strongest
+        # IP-layer tell is a browser timezone/locale that disagrees with the
+        # exit IP -- iphey ("trying to hide your location") and browserscan
+        # ("IP timezone does not match", -10%) flag it instantly. We look the
+        # exit geo up over the SAME upstream proxy + sticky session the browser
+        # will use, so the geo is for the exact exit IP, then build the identity
+        # from it so --lang (launch flag) AND the timezone override both agree
+        # from tick zero. Done pre-launch because locale is a launch flag.
+        if self._proxy is not None:
+            await self._match_identity_to_proxy()
+
         # UA-STRING COHERENCE is handled NATIVELY in the binary (apex-ua-platform
         # in user_agent_utils.cc swaps the reduced-UA OS token from the same
         # APEX_FP_UA_PLATFORM env), NOT via --user-agent: the flag disables the
@@ -122,49 +136,66 @@ class NodriverCore:
         self._sb = StealthBrowser(self.identity, **kwargs)
         await self._sb.__aenter__()
 
-        # With a proxy, make the identity agree with the exit IP. A US
-        # fingerprint on a German exit is the classic coherence "lie".
-        if self._proxy is not None:
-            await self._match_identity_to_proxy()
-
     async def _match_identity_to_proxy(self) -> None:
-        """Rebuild Identity from the proxy exit IP's geolocation."""
-        import asyncio as _asyncio
-        import json as _json
-        try:
-            # look up the exit geo through the proxied browser itself
-            tab = await self._sb._browser.get("about:blank")  # type: ignore[union-attr]
-            # This tab bypasses goto(), so it has NO proxy-auth Fetch handler.
-            # An authenticated proxy answers the first request with a 407; in a
-            # headful browser that pops a native credential dialog which never
-            # gets answered under Xvfb, so the fetch below would hang forever.
-            # Wire the same auth handler goto() uses, then cap the lookup so a
-            # slow/failed proxy degrades to "no geo match" instead of a stall.
-            await self._sb._setup_proxy_auth(tab)  # type: ignore[union-attr]
-            raw = await _asyncio.wait_for(
-                tab.evaluate(
-                    "fetch('https://ipapi.co/json/').then(r=>r.text())",
-                    await_promise=True, return_by_value=True),
-                timeout=25)
-            payload = raw if isinstance(raw, str) else getattr(
-                getattr(raw, "deep_serialized_value", None), "value", None)
-            if payload:
-                geo_raw = _json.loads(payload)
-                geo = {
-                    "ip": geo_raw.get("ip"),
-                    "city": geo_raw.get("city"),
-                    "region": geo_raw.get("region"),
-                    "country": geo_raw.get("country_code")
-                    or geo_raw.get("country"),
-                    "timezone": geo_raw.get("timezone"),
-                    "latitude": geo_raw.get("latitude"),
-                    "longitude": geo_raw.get("longitude"),
-                }
+        """Rebuild Identity from the proxy exit IP's geolocation (pre-launch).
+
+        Looked up over the SAME upstream proxy + sticky session the browser will
+        use, so the timezone/locale/geo are for the exact exit IP. Best-effort:
+        on any failure the default identity stands (still internally coherent).
+        """
+        loop = asyncio.get_running_loop()
+        geo = await loop.run_in_executor(None, self._lookup_exit_geo_via_proxy)
+        if geo and geo.get("timezone"):
+            self._exit_geo = geo
+            self.identity = identity_for_ip_geo(geo)
+
+    def _lookup_exit_geo_via_proxy(self) -> dict | None:
+        """Fetch exit-IP geo THROUGH the upstream proxy (blocking; run in an
+        executor). curl-proven endpoints: ipapi.co + ipwho.is return a proper
+        IANA timezone and survive the residential exit (ipinfo/browserleaks
+        reset it; get.geojs geolocates by ASN owner -> wrong). Tries each until
+        one yields a timezone.
+        """
+        p = self._proxy
+        if p is None or not p.has_auth():
+            return None
+        proxy_url = f"http://{p.username}:{p.password}@{p.host}:{p.port}"
+        handler = urllib.request.ProxyHandler(
+            {"https": proxy_url, "http": proxy_url})
+        opener = urllib.request.build_opener(handler)
+        for url, parse in (("https://ipapi.co/json/", self._parse_ipapi),
+                           ("https://ipwho.is/", self._parse_ipwhois)):
+            try:
+                with opener.open(url, timeout=15) as r:
+                    geo = parse(json.load(r))
                 if geo.get("timezone"):
-                    self._exit_geo = geo
-                    self.identity = identity_for_ip_geo(geo)
-        except Exception:  # noqa: BLE001 - proxy geo match is best-effort
-            pass
+                    return geo
+            except Exception:  # noqa: BLE001 - try the next endpoint
+                continue
+        return None
+
+    @staticmethod
+    def _parse_ipapi(d: dict) -> dict:
+        return {
+            "ip": d.get("ip"), "city": d.get("city"),
+            "region": d.get("region"),
+            "country": d.get("country_code") or d.get("country"),
+            "timezone": d.get("timezone"),
+            "latitude": d.get("latitude"), "longitude": d.get("longitude"),
+        }
+
+    @staticmethod
+    def _parse_ipwhois(d: dict) -> dict:
+        tz = d.get("timezone")
+        if isinstance(tz, dict):  # ipwho.is nests timezone under .id
+            tz = tz.get("id")
+        return {
+            "ip": d.get("ip"), "city": d.get("city"),
+            "region": d.get("region"),
+            "country": d.get("country_code") or d.get("country"),
+            "timezone": tz,
+            "latitude": d.get("latitude"), "longitude": d.get("longitude"),
+        }
 
     async def navigate(self, url: str) -> dict:
         if self._sb is None:
