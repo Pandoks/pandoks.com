@@ -54,6 +54,16 @@ function makeRecipe({
     components: components.map((c) => ({ componentArn: c.arn }))
   });
 }
+
+function makeBakeInfra(id: string, name: string, instanceType: string) {
+  return new aws.imagebuilder.InfrastructureConfiguration(id, {
+    name: `${STAGE_NAME}-${name}`,
+    instanceTypes: [instanceType],
+    instanceProfileName: bakeInstanceProfile.name,
+    terminateInstanceOnFailure: true
+  });
+}
+
 const runnerToolsComponent = new aws.imagebuilder.Component('RunnerToolsComponent', {
   name: `${STAGE_NAME}-runner-tools`,
   platform: 'Linux',
