@@ -91,13 +91,30 @@ const runnerGpuArmToolsComponent = new aws.imagebuilder.Component('RunnerGpuArmT
   data: renderAmiTemplateYaml({ file: 'ami-gpu.yaml', replacements: { CUDA_ARCH: 'sbsa' } })
 });
 
-const runnerBakeInfraX86 = new aws.imagebuilder.InfrastructureConfiguration('RunnerBakeInfraX86', {
-  name: `${STAGE_NAME}-runner-bake-x86`,
-  instanceTypes: ['c7i.large'],
-  instanceProfileName: bakeInstanceProfile.name,
-  terminateInstanceOnFailure: true
+const runnerRecipeX86 = makeRecipe({
+  id: 'RunnerRecipeX86',
+  name: 'runner-x86',
+  arch: 'x86',
+  components: [runnerToolsComponent]
 });
-const runnerBakeInfraArm64 = new aws.imagebuilder.InfrastructureConfiguration(
+const runnerRecipeArm64 = makeRecipe({
+  id: 'RunnerRecipeArm64',
+  name: 'runner-arm64',
+  arch: 'arm64',
+  components: [runnerToolsComponent]
+});
+const runnerRecipeGpuX86 = makeRecipe({
+  id: 'RunnerRecipeGpuX86',
+  name: 'runner-gpu-x86',
+  arch: 'x86',
+  components: [runnerToolsComponent, runnerGpuX86ToolsComponent]
+});
+const runnerRecipeGpuArm64 = makeRecipe({
+  id: 'RunnerRecipeGpuArm64',
+  name: 'runner-gpu-arm64',
+  arch: 'arm64',
+  components: [runnerToolsComponent, runnerGpuArmToolsComponent]
+});
   'RunnerBakeInfraArm64',
   {
     name: `${STAGE_NAME}-runner-bake-arm64`,
