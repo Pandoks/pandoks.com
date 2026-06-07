@@ -108,6 +108,19 @@ PROBE_JS = r"""
     let s = 0; for (let i = 4000; i < 6000; i++) { s += Math.abs(d[i]); }
     audioHash = s.toFixed(10);
   } catch (e) { audioHash = 'err'; }
+  // REALTIME AudioContext internals -- browserscan flags "Audio is not
+  // functioning properly" when the live context is suspended / has no output
+  // device. Capture state/sampleRate to tell a no-audio-device env from the
+  // farbling.
+  let audioRtState = null, audioSampleRate = null, audioBaseLatency = null;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const rt = new AC();
+    audioRtState = rt.state;
+    audioSampleRate = rt.sampleRate;
+    audioBaseLatency = (typeof rt.baseLatency === 'number') ? rt.baseLatency : null;
+    try { rt.close(); } catch (e) {}
+  } catch (e) { audioRtState = 'err:' + String(e).slice(0, 40); }
   // canvas.toBlob() -- a DIFFERENT encode path from toDataURL; must also farble.
   let blobHash = null;
   try {
@@ -212,7 +225,9 @@ PROBE_JS = r"""
     maxTextureSize, maxRenderbufferSize, maxViewportDim,
     webgpuVendor, webgpuArchitecture, webgpuIsFallback, webgpuErr,
     webgpuMaxTex2D, webgpuHasAstc,
-    measureTextW, audioHash, blobHash, canvasTail: (canvasHash() || '').slice(-24),
+    measureTextW, audioHash, audioRtState, audioSampleRate, audioBaseLatency,
+    audioOutCount: devices ? devices.filter(d => d.kind === 'audiooutput').length : null,
+    blobHash, canvasTail: (canvasHash() || '').slice(-24),
     connEffectiveType: conn ? conn.effectiveType : null,
     connRtt: conn ? conn.rtt : null,
     connDownlink: conn ? conn.downlink : null,
