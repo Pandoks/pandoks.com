@@ -301,6 +301,33 @@ EDITS = [
                   "  }\n",
     },
 
+    # --- navigator.languages (+ navigator.language) --------------------
+    # navigator.languages is the JS array. CDP setLocaleOverride moves Intl but
+    # NOT this array, and NO launch flag (--lang/--accept-lang) or profile pref
+    # moved it either -- empirically it stayed ["en-US"] even with a per-country
+    # locale, so Intl(es-ES) disagreed with navigator.languages(en-US) and iphey
+    # flagged "trying to hide your location". Set it NATIVELY here so a per-exit-
+    # country locale is coherent. NavigatorLanguage is the mixin for BOTH window
+    # Navigator and WorkerNavigator, so window+worker stay coherent (no CreepJS
+    # mismatch). language() returns languages().front(), so this fixes
+    # navigator.language too. ParseAndSanitize is the file-local helper the stock
+    # path uses, so the parsed list is shaped identically to a real one.
+    # Env APEX_FP_LANGUAGES is a comma list, e.g. "es-ES,es,en".
+    {
+        "file": "third_party/blink/renderer/core/frame/navigator_language.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-languages",
+        "anchor": "const Vector<String>& NavigatorLanguage::languages() {\n",
+        "where": "after",
+        "inject": "  // apex-languages\n"
+                  "  if (apex_fp::HasOverride(\"APEX_FP_LANGUAGES\")) {\n"
+                  "    languages_ = ParseAndSanitize(String::FromUtf8(\n"
+                  "        std::string_view(apex_fp::EnvStr(\"APEX_FP_LANGUAGES\"))));\n"
+                  "    languages_dirty_ = false;\n"
+                  "    return languages_;\n"
+                  "  }\n",
+    },
+
     # --- WebGPU GPUAdapterInfo coherence -------------------------------
     # 2025-26 detectors cross-check the WebGPU adapter against the WebGL
     # UNMASKED_* strings: both describe the same physical GPU, so if WebGL

@@ -161,6 +161,16 @@ class NodriverCore:
         os.environ["LANGUAGE"] = _loc
         os.environ["LANG"] = f"{_loc}.UTF-8"
 
+        # navigator.languages (the JS array) is set NATIVELY by the apex-languages
+        # binary patch from APEX_FP_LANGUAGES -- the ONLY coherent way to move it
+        # (flags/prefs/CDP don't), so a per-exit-country locale (es-ES on a
+        # Spanish IP) no longer disagrees with Intl. Comma list, q-values
+        # stripped. Inert on stock Chrome (env var ignored).
+        if self._patched_chrome is not None:
+            os.environ["APEX_FP_LANGUAGES"] = ",".join(
+                t.split(";")[0].strip()
+                for t in self.identity.accept_language.split(",") if t.strip())
+
         # navigator.languages follows the PROFILE pref intl.accept_languages,
         # NOT --lang/--accept-lang (empirically Chrome left the JS array [en-US]
         # on a non-US exit even with --accept-lang set, so iphey flagged a
