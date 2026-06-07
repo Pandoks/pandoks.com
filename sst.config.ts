@@ -22,13 +22,13 @@ export default $config({
   async run() {
     // NOTE: for some reason, dynamic imports don't work well so just manually import
     const imports = await Promise.all([
+      import('./infra/secrets'),
       import('./infra/aws'),
       import('./infra/dns'),
       import('./infra/api'),
       import('./infra/cloudflare'),
       import('./infra/storage'),
       import('./infra/github'),
-      import('./infra/secrets'),
       import('./infra/website'),
       import('./infra/tailscale'),
       import('./infra/vps/vps'),
