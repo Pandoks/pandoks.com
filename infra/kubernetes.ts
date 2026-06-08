@@ -1,4 +1,5 @@
-import { awsAccountId, awsRegion, isProduction } from './dns';
+import { awsAccountId, isProduction } from './dns';
+import { defaultAwsRegion } from './aws';
 import { secrets, setSecret } from './secrets';
 
 if (isProduction) {
@@ -19,8 +20,8 @@ if (isProduction) {
           Effect: 'Allow',
           Action: ['ssm:GetParameter'],
           Resource: [
-            `arn:aws:ssm:${awsRegion}:${awsAccountId}:parameter/sst/bootstrap`,
-            `arn:aws:ssm:${awsRegion}:${awsAccountId}:parameter/sst/passphrase/personal/production`
+            `arn:aws:ssm:${defaultAwsRegion}:${awsAccountId}:parameter/sst/bootstrap`,
+            `arn:aws:ssm:${defaultAwsRegion}:${awsAccountId}:parameter/sst/passphrase/personal/production`
           ]
         },
         {

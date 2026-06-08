@@ -15,14 +15,6 @@ declare module "sst" {
       "value": string
     }
     "BackupBucket": import("@cloudflare/workers-types").R2Bucket
-    "BuilderArtifactsBucket": {
-      "name": string
-      "type": "sst.aws.Bucket"
-    }
-    "BuilderCacheBucket": {
-      "name": string
-      "type": "sst.aws.Bucket"
-    }
     "CloudflareApiKey": {
       "type": "sst.sst.Secret"
       "value": string
@@ -159,6 +151,14 @@ declare module "sst" {
     "OxylabsWebUnblockerUsername": {
       "type": "sst.sst.Secret"
       "value": string
+    }
+    "RunnerArtifactsStore": {
+      "name": string
+      "type": "sst.aws.Bucket"
+    }
+    "RunnerCacheStore": {
+      "name": string
+      "type": "sst.aws.Bucket"
     }
     "StageName": {
       "type": "sst.sst.Secret"

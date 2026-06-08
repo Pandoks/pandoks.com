@@ -1,5 +1,5 @@
-name: BuilderTools
-description: Install build tooling for ephemeral EC2 builders. Bake this into the AMI so per-build EC2s skip apt-install time.
+name: RunnerTools
+description: Install tooling for ephemeral EC2 runners. Bake this into the AMI so per-job EC2s skip apt-install time.
 schemaVersion: 1.0
 
 phases:
@@ -11,7 +11,7 @@ phases:
           commands:
             - sudo apt-get update -y
 
-      - name: InstallBuildEssentials
+      - name: InstallRunnerEssentials
         action: ExecuteBash
         inputs:
           commands:
@@ -36,6 +36,7 @@ phases:
             - curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
             - sudo DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs
             - sudo corepack enable
+            - sudo corepack prepare pnpm@11.5.0 --activate
 
       - name: InstallAwsCli
         action: ExecuteBash

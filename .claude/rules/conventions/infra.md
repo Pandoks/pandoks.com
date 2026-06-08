@@ -26,11 +26,35 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
   Note: `NotionWebhookHandler` (`infra/api.ts:61`) is **unconditional**
   — not a prod-only example, deploys in every stage.
 - **Sandbox imports go in the literal `Promise.all` list** at
-  `sst.config.ts:23-36`. When re-adding sandbox files under
+  `sst.config.ts:24-38`. When re-adding sandbox files under
   `infra/sandbox/<name>.ts`, gate **inside** the sandbox file with
   `if ($app.stage === 'pandoks') { ... }` rather than at the
   `sst.config.ts` import site — keeps the import list literal
   (dynamic imports break SST per `sst.config.ts:22`).
+
+## Region / non-default provider override
+
+- **App default region is `us-west-1`** (`sst.config.ts:11`, the `aws`
+  provider block). Resources land there unless explicitly handed a
+  different provider.
+- **To pin a resource to another region, pass `{ provider: usWest2Provider }`
+  as the 3rd constructor arg** — the shared `aws.Provider` is defined once in
+  `infra/aws.ts:4` (`usWest2Provider`, region `US_WEST_2_REGION` `:3`) and
+  imported where needed. Don't `new aws.Provider(...)` per file — reuse the
+  `infra/aws.ts` export (single declaration, same rule as
+  "Cross-file SST resource sharing" below).
+- **Both raw Pulumi resources and SST components take it the same way.**
+  Every resource in `infra/runner/runner.ts` + `infra/runner/ami.ts` passes
+  `{ provider: usWest2Provider }`; the two `sst.aws.Bucket`s in
+  `infra/storage.ts:18, 26` pass it as the component's `opts` (3rd arg) — SST
+  forwards it to the child `aws.s3.Bucket`, which inherits the provider via
+  `{ parent }`. So the runner buckets physically live in us-west-2,
+  co-located with the runners.
+- **S3 buckets are region- and name-immutable.** Changing a bucket's region
+  (or hardcoded name) forces a destroy+recreate, and `sst.aws.Bucket`
+  hardcodes `forceDestroy: true` — so a naive region change **deletes the
+  data**. Migrate by: back up to a holding bucket → deploy (creates new
+  bucket, drops old) → restore → verify object counts → delete holding.
 
 ## Secret-drift auto-set helper
 
@@ -104,7 +128,7 @@ minutes)` for fixed intervals, `cron(M H D-of-M M D-of-W Y)` (with `?`
   `if (isProduction) { ... }` or `if ($app.stage === 'pandoks') { ... }`
   guard. Put the cron file under `infra/<feature>.ts` (or
   `infra/sandbox/<feature>.ts` for pandoks-only experiments) and add it
-  to the `Promise.all` list in `sst.config.ts:23-36`.
+  to the `Promise.all` list in `sst.config.ts:24-38`.
 - Cron handlers are Lambdas, so the cron file should hold the
   `sst.aws.Function` + `sst.aws.CronV2` pair, not the handler code.
   Handler implementation lives under `apps/functions/src/` (see
@@ -123,7 +147,7 @@ minutes)` for fixed intervals, `cron(M H D-of-M M D-of-W Y)` (with `?`
 
 ## Dynamic-import constraint
 
-- **`sst.config.ts:23-36` MUST keep the literal `await Promise.all([import('./infra/...')])`
+- **`sst.config.ts:24-38` MUST keep the literal `await Promise.all([import('./infra/...')])`
   list**. Dynamic-string imports break SST. The `// NOTE: for some
 reason, dynamic imports don't work well so just manually import`
   comment at `:22` is load-bearing.
