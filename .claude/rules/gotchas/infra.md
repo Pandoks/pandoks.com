@@ -11,7 +11,7 @@ paths:
 
 ## Dynamic imports
 
-- **Dynamic imports break SST.** `sst.config.ts:23-36` keeps the literal
+- **Dynamic imports break SST.** `sst.config.ts:24-38` keeps the literal
   `await Promise.all([import('./infra/...')])` list. The
   `// NOTE: for some reason, dynamic imports don't work well so just
 manually import` comment at `sst.config.ts:22` is load-bearing.
