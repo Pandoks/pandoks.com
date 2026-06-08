@@ -1,0 +1,62 @@
+name: RunnerGpuTools
+description: Install NVIDIA Tesla driver + CUDA toolkit for ephemeral EC2 GPU runners. Layered on top of RunnerTools. Bake into the AMI so per-job GPU EC2s skip the multi-GB driver/CUDA install.
+schemaVersion: 1.0
+
+phases:
+  - name: build
+    steps:
+      - name: InstallKernelHeaders
+        action: ExecuteBash
+        inputs:
+          commands:
+            - sudo apt-get update -y
+            - sudo DEBIAN_FRONTEND=noninteractive apt-get install -y linux-headers-$(uname -r)
+
+      - name: RegisterCudaRepo
+        action: ExecuteBash
+        inputs:
+          commands:
+            - cd /tmp
+            - wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/{{CUDA_ARCH}}/cuda-keyring_1.1-1_all.deb
+            - sudo dpkg -i cuda-keyring_1.1-1_all.deb
+            - rm -f /tmp/cuda-keyring_1.1-1_all.deb
+            - sudo apt-get update -y
+
+      - name: InstallCudaToolkit
+        action: ExecuteBash
+        inputs:
+          commands:
+            - sudo DEBIAN_FRONTEND=noninteractive apt-get install -y cuda-toolkit
+
+      - name: InstallNvidiaDriver
+        action: ExecuteBash
+        inputs:
+          commands:
+            - sudo DEBIAN_FRONTEND=noninteractive apt-get install -y nvidia-open
+
+      - name: EnablePersistence
+        action: ExecuteBash
+        inputs:
+          commands:
+            - sudo systemctl enable nvidia-persistenced
+
+      - name: ExportCudaPath
+        action: ExecuteBash
+        inputs:
+          commands:
+            - echo 'export PATH=${PATH}:/usr/local/cuda/bin' | sudo tee /etc/profile.d/cuda.sh
+            - echo 'export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda/lib64' | sudo tee -a /etc/profile.d/cuda.sh
+
+      # NOTE: driver load needs a reboot before nvidia-smi works; Image Builder resumes the build on the same instance after the reboot completes.
+      - name: RebootForDriver
+        action: Reboot
+        onFailure: Abort
+
+  - name: validate
+    steps:
+      - name: VerifyGpuStack
+        action: ExecuteBash
+        inputs:
+          commands:
+            - nvidia-smi
+            - /usr/local/cuda/bin/nvcc --version

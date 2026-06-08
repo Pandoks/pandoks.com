@@ -1,4 +1,5 @@
-import { awsRegion, cloudflareAccountId, isProduction, STAGE_NAME } from './dns';
+import { cloudflareAccountId, isProduction, STAGE_NAME } from './dns';
+import { defaultAwsRegion } from './aws';
 import { secrets } from './secrets';
 import { tailscaleAcl } from './tailscale';
 
@@ -98,7 +99,7 @@ if (isProduction) {
   new github.ActionsVariable('GithubAWSRegion', {
     repository: githubRepoName,
     variableName: 'AWS_REGION',
-    value: awsRegion
+    value: defaultAwsRegion
   });
 
   new github.ActionsSecret('GithubTailscaleApiKey', {

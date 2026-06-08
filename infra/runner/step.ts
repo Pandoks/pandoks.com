@@ -1,18 +1,41 @@
 import { githubOrg, githubRepoName } from '../github';
-import { ARM_INSTANCE_TYPES, X86_INSTANCE_TYPES } from './types';
+import {
+  ARM_INSTANCE_TYPES,
+  GPU_ARM_INSTANCE_TYPES,
+  GPU_X86_INSTANCE_TYPES,
+  X86_INSTANCE_TYPES
+} from './types';
 
 const INPUT_DEFAULTS = { storageSizeGib: 8 };
 
-function launchInstance(architecture: 'x86' | 'arm64', market: 'spot' | 'on-demand') {
+const RUNNER_VARIANTS = [
+  { suffix: 'X86', types: X86_INSTANCE_TYPES, templatePath: '$.templates.launchTemplateIdX86' },
+  { suffix: 'Arm64', types: ARM_INSTANCE_TYPES, templatePath: '$.templates.launchTemplateIdArm64' },
+  {
+    suffix: 'GpuX86',
+    types: GPU_X86_INSTANCE_TYPES,
+    templatePath: '$.templates.launchTemplateIdGpuX86'
+  },
+  {
+    suffix: 'GpuArm64',
+    types: GPU_ARM_INSTANCE_TYPES,
+    templatePath: '$.templates.launchTemplateIdGpuArm64'
+  }
+] as const;
+
+function launchInstance({
+  templatePath,
+  market
+}: {
+  templatePath: string;
+  market: 'spot' | 'on-demand';
+}) {
   return {
     Type: 'Task',
     Resource: 'arn:aws:states:::aws-sdk:ec2:runInstances',
     Parameters: {
       LaunchTemplate: {
-        'LaunchTemplateId.$':
-          architecture === 'x86'
-            ? '$.templates.launchTemplateIdX86'
-            : '$.templates.launchTemplateIdArm64'
+        'LaunchTemplateId.$': templatePath
       },
       MinCount: 1,
       MaxCount: 1,
@@ -77,30 +100,31 @@ const storageSizeGate = {
 const instanceTypesGate = {
   ChooseArchitecture: {
     Type: 'Choice',
-    Choices: [
-      ...ARM_INSTANCE_TYPES.map((instanceType) => ({
+    Choices: RUNNER_VARIANTS.flatMap((variantInstance) =>
+      variantInstance.types.map((instanceType) => ({
         Variable: '$.instanceType',
         StringEquals: instanceType,
-        Next: 'ChooseMarketArm64'
-      })),
-      ...X86_INSTANCE_TYPES.map((instanceType) => ({
-        Variable: '$.instanceType',
-        StringEquals: instanceType,
-        Next: 'ChooseMarketX86'
+        Next: `ChooseMarket${variantInstance.suffix}`
       }))
-    ],
+    ),
     Default: 'FailInvalidInstanceType'
   },
-  ChooseMarketX86: {
-    Type: 'Choice',
-    Choices: [{ Variable: '$.marketType', StringEquals: 'on-demand', Next: 'LaunchOnDemandX86' }],
-    Default: 'LaunchSpotX86'
-  },
-  ChooseMarketArm64: {
-    Type: 'Choice',
-    Choices: [{ Variable: '$.marketType', StringEquals: 'on-demand', Next: 'LaunchOnDemandArm64' }],
-    Default: 'LaunchSpotArm64'
-  }
+  ...Object.fromEntries(
+    RUNNER_VARIANTS.map((variantInstance) => [
+      `ChooseMarket${variantInstance.suffix}`,
+      {
+        Type: 'Choice',
+        Choices: [
+          {
+            Variable: '$.marketType',
+            StringEquals: 'on-demand',
+            Next: `LaunchOnDemand${variantInstance.suffix}`
+          }
+        ],
+        Default: `LaunchSpot${variantInstance.suffix}`
+      }
+    ])
+  )
 };
 
 const waitForSsm = {
@@ -131,20 +155,20 @@ const waitForSsm = {
       {
         Variable: '$.ssmStatus.InstanceInformationList[0].PingStatus',
         StringEquals: 'Online',
-        Next: 'RunBuild'
+        Next: 'RunJob'
       }
     ],
     Default: 'WaitForSSM'
   }
 };
 
-const waitForBuild = {
-  WaitForBuild: {
+const waitForJob = {
+  WaitForJob: {
     Type: 'Wait',
     Seconds: 60,
-    Next: 'CheckBuildStatus'
+    Next: 'CheckJobStatus'
   },
-  CheckBuildStatus: {
+  CheckJobStatus: {
     Type: 'Task',
     Resource: 'arn:aws:states:::aws-sdk:ssm:getCommandInvocation',
     Parameters: {
@@ -152,11 +176,11 @@ const waitForBuild = {
       'InstanceId.$': '$.instance.Instances[0].InstanceId'
     },
     ResultPath: '$.invocation',
-    Next: 'IsBuildDone',
+    Next: 'IsJobDone',
     Retry: [{ ErrorEquals: ['States.ALL'], IntervalSeconds: 10, MaxAttempts: 3 }],
     Catch: [{ ErrorEquals: ['States.ALL'], ResultPath: '$.error', Next: 'TerminateAfterFailure' }]
   },
-  IsBuildDone: {
+  IsJobDone: {
     Type: 'Choice',
     Choices: [
       { Variable: '$.invocation.Status', StringEquals: 'Success', Next: 'TerminateAfterSuccess' },
@@ -164,7 +188,7 @@ const waitForBuild = {
       { Variable: '$.invocation.Status', StringEquals: 'Cancelled', Next: 'TerminateAfterFailure' },
       { Variable: '$.invocation.Status', StringEquals: 'TimedOut', Next: 'TerminateAfterFailure' }
     ],
-    Default: 'WaitForBuild'
+    Default: 'WaitForJob'
   }
 };
 
@@ -184,29 +208,34 @@ const fails = {
     Cause: 'storageSizeGib must be an integer between 8 and 16384 (gp3 max)',
     Error: 'InvalidStorageSize'
   },
-  FailBuild: {
+  FailJob: {
     Type: 'Fail',
-    Cause: 'Remote build command failed, was cancelled, or timed out',
-    Error: 'BuildFailed'
+    Cause: 'Remote job command failed, was cancelled, or timed out',
+    Error: 'JobFailed'
   }
 };
 
-export function builderStateMachineDefinition({
-  launchTemplateIdX86,
-  launchTemplateIdArm64,
+export function runnerStateMachineDefinition({
+  templates: { x86, arm64, gpuX86, gpuArm64 },
   cacheBucket,
   artifactsBucket,
   githubCloningTokenSSMParameter
 }: {
-  launchTemplateIdX86: $util.Input<string>;
-  launchTemplateIdArm64: $util.Input<string>;
+  templates: {
+    x86: $util.Input<string>;
+    arm64: $util.Input<string>;
+    gpuX86: $util.Input<string>;
+    gpuArm64: $util.Input<string>;
+  };
   cacheBucket: $util.Input<string>;
   artifactsBucket: $util.Input<string>;
   githubCloningTokenSSMParameter: $util.Input<string>;
 }) {
   return $resolve([
-    launchTemplateIdX86,
-    launchTemplateIdArm64,
+    x86,
+    arm64,
+    gpuX86,
+    gpuArm64,
     cacheBucket,
     artifactsBucket,
     githubCloningTokenSSMParameter
@@ -214,15 +243,17 @@ export function builderStateMachineDefinition({
     ([
       launchTemplateIdX86,
       launchTemplateIdArm64,
+      launchTemplateIdGpuX86,
+      launchTemplateIdGpuArm64,
       cacheBucket,
       artifactsBucket,
       githubCloningTokenSSMParameter
     ]) => {
       const bashScript = [
         `set -euo pipefail`,
-        `export BUILD_ID={}`,
-        `export BUILDER_CACHE_BUCKET=${cacheBucket}`,
-        `export BUILDER_ARTIFACTS_BUCKET=${artifactsBucket}`,
+        `export RUNNER_JOB_ID={}`,
+        `export RUNNER_CACHE_BUCKET=${cacheBucket}`,
+        `export RUNNER_ARTIFACTS_BUCKET=${artifactsBucket}`,
         `GITHUB_TOKEN=$(aws ssm get-parameter --name ${githubCloningTokenSSMParameter} --with-decryption --query Parameter.Value --output text)`,
         `git clone --depth 1 --branch {} https://x-access-token:$\\{GITHUB_TOKEN\\}@github.com/${githubOrg}/${githubRepoName}.git /opt/repo`,
         `unset GITHUB_TOKEN`,
@@ -232,7 +263,7 @@ export function builderStateMachineDefinition({
 
       return JSON.stringify({
         Comment:
-          'Ephemeral EC2 builder — launch (arch-routed), run script via SSM, always terminate',
+          'Ephemeral EC2 runner — launch (arch/gpu-routed), run command via SSM, always terminate',
         StartAt: 'ApplyDefaults',
         States: {
           ApplyDefaults: {
@@ -256,18 +287,31 @@ export function builderStateMachineDefinition({
           },
           AttachTemplates: {
             Type: 'Pass',
-            Result: { launchTemplateIdX86, launchTemplateIdArm64 },
+            Result: {
+              launchTemplateIdX86,
+              launchTemplateIdArm64,
+              launchTemplateIdGpuX86,
+              launchTemplateIdGpuArm64
+            },
             ResultPath: '$.templates',
             Next: 'NormalizeStorageSize'
           },
           ...storageSizeGate,
           ...instanceTypesGate,
-          LaunchSpotX86: launchInstance('x86', 'spot'),
-          LaunchOnDemandX86: launchInstance('x86', 'on-demand'),
-          LaunchSpotArm64: launchInstance('arm64', 'spot'),
-          LaunchOnDemandArm64: launchInstance('arm64', 'on-demand'),
+          ...Object.fromEntries(
+            RUNNER_VARIANTS.flatMap((variant) => [
+              [
+                `LaunchSpot${variant.suffix}`,
+                launchInstance({ templatePath: variant.templatePath, market: 'spot' })
+              ],
+              [
+                `LaunchOnDemand${variant.suffix}`,
+                launchInstance({ templatePath: variant.templatePath, market: 'on-demand' })
+              ]
+            ])
+          ),
           ...waitForSsm,
-          RunBuild: {
+          RunJob: {
             Type: 'Task',
             Resource: 'arn:aws:states:::aws-sdk:ssm:sendCommand',
             Parameters: {
@@ -281,12 +325,12 @@ export function builderStateMachineDefinition({
               CloudWatchOutputConfig: { CloudWatchOutputEnabled: true }
             },
             ResultPath: '$.command',
-            Next: 'WaitForBuild',
+            Next: 'WaitForJob',
             Catch: [
               { ErrorEquals: ['States.ALL'], ResultPath: '$.error', Next: 'TerminateAfterFailure' }
             ]
           },
-          ...waitForBuild,
+          ...waitForJob,
           TerminateAfterSuccess: {
             Type: 'Task',
             Resource: 'arn:aws:states:::aws-sdk:ec2:terminateInstances',
@@ -304,10 +348,10 @@ export function builderStateMachineDefinition({
               'InstanceIds.$': 'States.Array($.instance.Instances[0].InstanceId)'
             },
             ResultPath: '$.termination',
-            Next: 'FailBuild',
+            Next: 'FailJob',
             Retry: [{ ErrorEquals: ['States.ALL'], IntervalSeconds: 15, MaxAttempts: 5 }],
             Catch: [
-              { ErrorEquals: ['States.ALL'], ResultPath: '$.terminationError', Next: 'FailBuild' }
+              { ErrorEquals: ['States.ALL'], ResultPath: '$.terminationError', Next: 'FailJob' }
             ]
           },
           ...fails,
