@@ -1,6 +1,7 @@
 packages:
   - apps/*
   - packages/*
+  - packages/react-native/*
 
 engineStrict: true
 nodeLinker: hoisted # needed for electron
