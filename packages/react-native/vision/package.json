@@ -1,0 +1,25 @@
+{
+  "name": "@pandoks.com/react-native-vision",
+  "version": "0.0.1",
+  "description": "On-device image classification — Vision (iOS) + ML Kit (Android). A reference Expo native module: async function + typed return.",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "expo": ">=56.0.0",
+    "react": ">=19.0.0",
+    "react-native": ">=0.81.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.15",
+    "expo": "~56.0.8",
+    "expo-modules-core": "~56.0.0",
+    "react": "19.2.3",
+    "react-native": "0.85.3",
+    "typescript": "~6.0.3"
+  }
+}
