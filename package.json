@@ -30,6 +30,8 @@
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.9.1",
     "eslint": "^10.4.0",
+    "eslint-plugin-expo": "^1.0.3",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-svelte": "^3.19.0",
     "eslint-plugin-unicorn": "^64.0.0",
     "glob": "^13.0.6",
