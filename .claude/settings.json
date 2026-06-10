@@ -22,6 +22,7 @@
     "security-guidance@claude-plugins-official": true,
     "playwright@claude-plugins-official": true,
     "notion@claude-plugins-official": true,
+    "expo@claude-plugins-official": true,
     "tools@pandoks": true
   },
   "hooks": {
