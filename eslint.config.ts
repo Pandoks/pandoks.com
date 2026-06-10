@@ -29,6 +29,7 @@ export default defineConfig([
       sourceType: 'module',
       globals: { ...globals.browser, ...globals.node },
       parserOptions: {
+        extraFileExtensions: ['.svelte'],
         projectService: {
           allowDefaultProject: [
             '*/*/forge.config.ts',

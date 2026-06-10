@@ -31,7 +31,7 @@ usage() {
 }
 
 cmd_lint_js() {
-  cd "${REPO_ROOT}" && eslint .
+  cd "${REPO_ROOT}" && eslint . --concurrency auto
 }
 
 cmd_lint_go() {
