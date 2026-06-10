@@ -3,19 +3,22 @@ import { SymbolView } from 'expo-symbols';
 import { Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ExternalLink } from '@/components/external-link';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import { ExternalLink } from '@pandoks.com/react-native-core/components/external-link';
+import { ThemedText } from '@pandoks.com/react-native-core/components/themed-text';
+import { ThemedView } from '@pandoks.com/react-native-core/components/themed-view';
 import { Collapsible } from '@/components/ui/collapsible';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import {
+  BottomTabInset,
+  MaxContentWidth,
+  Spacing
+} from '@pandoks.com/react-native-core/lib/constants/theme';
+import { useTheme } from '@pandoks.com/react-native-core/lib/hooks/use-theme';
 
 export default function TabTwoScreen() {
   const safeAreaInsets = useSafeAreaInsets();
   const insets = {
     ...safeAreaInsets,
-    bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
+    bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three
   };
   const theme = useTheme();
 
@@ -24,19 +27,16 @@ export default function TabTwoScreen() {
       paddingTop: insets.top,
       paddingLeft: insets.left,
       paddingRight: insets.right,
-      paddingBottom: insets.bottom,
-    },
-    web: {
-      paddingTop: Spacing.six,
-      paddingBottom: Spacing.four,
-    },
+      paddingBottom: insets.bottom
+    }
   });
 
   return (
     <ScrollView
       style={[styles.scrollView, { backgroundColor: theme.background }]}
       contentInset={insets}
-      contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}>
+      contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}
+    >
       <ThemedView style={styles.container}>
         <ThemedView style={styles.titleContainer}>
           <ThemedText type="subtitle">Explore</ThemedText>
@@ -73,20 +73,6 @@ export default function TabTwoScreen() {
             </ExternalLink>
           </Collapsible>
 
-          <Collapsible title="Android, iOS, and web support">
-            <ThemedView type="backgroundElement" style={styles.collapsibleContent}>
-              <ThemedText type="small">
-                You can open this project on Android, iOS, and the web. To open the web version,
-                press <ThemedText type="smallBold">w</ThemedText> in the terminal running this
-                project.
-              </ThemedText>
-              <Image
-                source={require('@/assets/images/tutorial-web.png')}
-                style={styles.imageTutorial}
-              />
-            </ThemedView>
-          </Collapsible>
-
           <Collapsible title="Images">
             <ThemedText type="small">
               For static images, you can use the <ThemedText type="code">@2x</ThemedText> and{' '}
@@ -119,7 +105,6 @@ export default function TabTwoScreen() {
             </ThemedText>
           </Collapsible>
         </ThemedView>
-        {Platform.OS === 'web' && <WebBadge />}
       </ThemedView>
     </ScrollView>
   );
@@ -127,27 +112,27 @@ export default function TabTwoScreen() {
 
 const styles = StyleSheet.create({
   scrollView: {
-    flex: 1,
+    flex: 1
   },
   contentContainer: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'center'
   },
   container: {
     maxWidth: MaxContentWidth,
-    flexGrow: 1,
+    flexGrow: 1
   },
   titleContainer: {
     gap: Spacing.three,
     alignItems: 'center',
     paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.six,
+    paddingVertical: Spacing.six
   },
   centerText: {
-    textAlign: 'center',
+    textAlign: 'center'
   },
   pressed: {
-    opacity: 0.7,
+    opacity: 0.7
   },
   linkButton: {
     flexDirection: 'row',
@@ -156,25 +141,16 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.five,
     justifyContent: 'center',
     gap: Spacing.one,
-    alignItems: 'center',
+    alignItems: 'center'
   },
   sectionsWrapper: {
     gap: Spacing.five,
     paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
-  },
-  collapsibleContent: {
-    alignItems: 'center',
-  },
-  imageTutorial: {
-    width: '100%',
-    aspectRatio: 296 / 171,
-    borderRadius: Spacing.three,
-    marginTop: Spacing.two,
+    paddingTop: Spacing.three
   },
   imageReact: {
     width: 100,
     height: 100,
-    alignSelf: 'center',
-  },
+    alignSelf: 'center'
+  }
 });

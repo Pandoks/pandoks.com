@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
 import { View, StyleSheet } from 'react-native';
 
-import { ThemedText } from './themed-text';
-import { ThemedView } from './themed-view';
+import { ThemedText } from '@pandoks.com/react-native-core/components/themed-text';
+import { ThemedView } from '@pandoks.com/react-native-core/components/themed-view';
 
-import { Spacing } from '@/constants/theme';
+import { Spacing } from '@pandoks.com/react-native-core/lib/constants/theme';
 
 type HintRowProps = {
   title?: string;
@@ -25,11 +25,11 @@ export function HintRow({ title = 'Try editing', hint = 'app/index.tsx' }: HintR
 const styles = StyleSheet.create({
   stepRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-between'
   },
   codeSnippet: {
     borderRadius: Spacing.two,
     paddingVertical: Spacing.half,
-    paddingHorizontal: Spacing.two,
-  },
+    paddingHorizontal: Spacing.two
+  }
 });
