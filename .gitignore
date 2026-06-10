@@ -51,6 +51,13 @@ expo-env.d.ts
 # Metro
 .metro-health-check*
 
+# generated native folders
+/ios
+/android
+
+# typescript
+*.tsbuildinfo
+
 # AI
 .codex
 .claude/plans
