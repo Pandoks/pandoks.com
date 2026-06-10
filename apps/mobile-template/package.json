@@ -1,7 +1,23 @@
 {
-  "name": "mobile-template",
+  "name": "@pandoks.com/mobile-template",
   "main": "expo-router/entry",
   "version": "1.0.0",
+  "private": true,
+  "expo": {
+    "autolinking": {
+      "searchPaths": [
+        "../../packages/react-native"
+      ]
+    }
+  },
+  "scripts": {
+    "start": "expo start",
+    "reset-project": "node ./scripts/reset-project.js",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "lint": "expo lint"
+  },
   "dependencies": {
     "@expo/ui": "~56.0.16",
     "expo": "~56.0.9",
@@ -30,21 +46,5 @@
   "devDependencies": {
     "@types/react": "~19.2.2",
     "typescript": "~6.0.3"
-  },
-  "scripts": {
-    "start": "expo start",
-    "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web",
-    "lint": "expo lint"
-  },
-  "private": true,
-  "expo": {
-    "autolinking": {
-      "searchPaths": [
-        "../../packages/react-native"
-      ]
-    }
   }
 }
