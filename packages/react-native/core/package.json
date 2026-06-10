@@ -1,0 +1,38 @@
+{
+  "name": "@pandoks.com/react-native-core",
+  "version": "0.0.1",
+  "type": "module",
+  "exports": {
+    "./components/*": "./src/components/*.tsx",
+    "./lib/*": "./src/lib/*.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@expo/vector-icons": ">=15.0.0",
+    "@react-navigation/bottom-tabs": ">=7.0.0",
+    "@react-navigation/elements": ">=2.0.0",
+    "expo-haptics": ">=15.0.0",
+    "expo-router": ">=5.0.0",
+    "expo-symbols": ">=1.0.0",
+    "expo-web-browser": ">=15.0.0",
+    "react": ">=19.0.0",
+    "react-native": ">=0.81.0",
+    "react-native-reanimated": ">=4.0.0"
+  },
+  "devDependencies": {
+    "@expo/vector-icons": "^15.1.1",
+    "@react-navigation/bottom-tabs": "^7.16.1",
+    "@react-navigation/elements": "^2.9.18",
+    "@types/react": "~19.2.15",
+    "expo-haptics": "~56.0.3",
+    "expo-router": "~56.2.6",
+    "expo-symbols": "~56.0.5",
+    "expo-web-browser": "~56.0.5",
+    "react": "19.2.3",
+    "react-native": "0.85.3",
+    "react-native-reanimated": "~4.3.1",
+    "typescript": "^5.0.0"
+  }
+}
