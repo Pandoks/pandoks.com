@@ -24,6 +24,10 @@ export default defineConfig([
       sourceType: 'module',
       globals: { ...globals.browser, ...globals.node },
       parserOptions: {
+        // WARNING: must match the svelte block's extraFileExtensions — differing values
+        // between files force a full project reload per file (~5x slower lint):
+        // https://typescript-eslint.io/troubleshooting/typed-linting/performance/#changes-to-extrafileextensions-with-projectservice
+        extraFileExtensions: ['.svelte'],
         projectService: {
           allowDefaultProject: [
             'eslint.config.ts',
