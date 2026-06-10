@@ -18,6 +18,7 @@ allowBuilds:
   fs-xattr: true # @electron-forge/maker-dmg (packaging)
   macos-alias: true # @electron-forge/maker-dmg (packaging)
   msgpackr-extract: false
+  unrs-resolver: false # eslint-import-resolver-typescript; prebuilt @unrs/resolver-binding-* loads without the script
 
 # TODO: remove override when upstream bumps its pinned dep (fix CVEs)
 overrides:
