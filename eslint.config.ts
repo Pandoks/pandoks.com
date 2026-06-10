@@ -1,8 +1,13 @@
 import { fileURLToPath } from 'node:url';
 import js from '@eslint/js';
-import { includeIgnoreFile } from '@eslint/compat';
-import { defineConfig } from 'eslint/config';
+import { defineConfig, includeIgnoreFile } from 'eslint/config';
+// @ts-expect-error eslint-plugin-expo ships no type declarations
+import expoPlugin from 'eslint-plugin-expo';
+import reactHooks from 'eslint-plugin-react-hooks';
+import type { ESLint } from 'eslint';
 import tseslint from 'typescript-eslint';
+
+const expo = expoPlugin as ESLint.Plugin;
 import unicorn from 'eslint-plugin-unicorn';
 import svelte from 'eslint-plugin-svelte';
 import svelteParser from 'svelte-eslint-parser';
@@ -26,7 +31,6 @@ export default defineConfig([
       parserOptions: {
         projectService: {
           allowDefaultProject: [
-            'eslint.config.ts',
             '*/*/forge.config.ts',
             '*/*/svelte.config.js',
             '*/*/playwright.config.ts',
@@ -126,6 +130,7 @@ export default defineConfig([
           format: ['camelCase', 'UPPER_CASE'],
           leadingUnderscore: 'allow'
         },
+        { selector: 'function', format: ['camelCase', 'PascalCase'] },
         { selector: 'typeLike', format: ['PascalCase'] },
         { selector: 'enumMember', format: ['PascalCase'] },
         { selector: 'import', format: null },
@@ -195,6 +200,24 @@ export default defineConfig([
     rules: {
       'svelte/no-at-html-tags': 'off',
       'svelte/require-each-key': 'off'
+    }
+  },
+
+  // REACT NATIVE RULES
+  {
+    files: ['apps/mobile-template/**', 'packages/react-native/**'],
+    extends: [reactHooks.configs.flat.recommended],
+    plugins: { expo },
+    rules: {
+      'expo/no-dynamic-env-var': 'error',
+      'expo/no-env-var-destructuring': 'error',
+      'expo/prefer-box-shadow': 'error',
+      '@typescript-eslint/no-require-imports': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-misused-promises': [
+        'error',
+        { checksVoidReturn: { attributes: false } }
+      ]
     }
   },
 
