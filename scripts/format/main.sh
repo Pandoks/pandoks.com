@@ -19,12 +19,14 @@ usage() {
   printf "  %bjs%b           Prettier over JS/TS/Svelte/MD/YAML/JSON\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bgo%b           golangci-lint fmt over Go modules\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bshell%b        shfmt over shell scripts\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bswift%b        swift-format over Swift sources\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %ball%b          Format all\n\n" "${GREEN}" "${NORMAL}" >&2
 
   printf "%bCheck mode (no writes):%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %bcheck js%b     Prettier --check\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bcheck go%b     golangci-lint fmt --diff\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bcheck shell%b  shfmt -d\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bcheck swift%b  swift-format lint --strict\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bcheck all%b    Check all\n\n" "${GREEN}" "${NORMAL}" >&2
 
   exit "${1:-0}"
@@ -43,10 +45,16 @@ cmd_format_shell() {
   git ls-files -z '*.sh' | xargs -0 shfmt -w
 }
 
+cmd_format_swift() {
+  cd "${REPO_ROOT}"
+  git ls-files -z '*.swift' | xargs -0 swift-format format --in-place
+}
+
 cmd_format_all() {
   cmd_format_js
   cmd_format_go
   cmd_format_shell
+  cmd_format_swift
 }
 
 cmd_format_check_js() {
@@ -62,10 +70,16 @@ cmd_format_check_shell() {
   git ls-files -z '*.sh' | xargs -0 shfmt -d
 }
 
+cmd_format_check_swift() {
+  cd "${REPO_ROOT}"
+  git ls-files -z '*.swift' | xargs -0 swift-format lint --strict
+}
+
 cmd_format_check_all() {
   cmd_format_check_js
   cmd_format_check_go
   cmd_format_check_shell
+  cmd_format_check_swift
 }
 
 cmd_format_check() {
@@ -77,6 +91,7 @@ cmd_format_check() {
     js) cmd_format_check_js ;;
     go) cmd_format_check_go ;;
     shell) cmd_format_check_shell ;;
+    swift) cmd_format_check_swift ;;
     all) cmd_format_check_all ;;
     help | --help | -h) usage ;;
     *)
@@ -95,6 +110,7 @@ main() {
     js) cmd_format_js ;;
     go) cmd_format_go ;;
     shell) cmd_format_shell ;;
+    swift) cmd_format_swift ;;
     all) cmd_format_all ;;
     check) cmd_format_check "$@" ;;
     help | --help | -h) usage ;;

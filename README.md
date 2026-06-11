@@ -48,6 +48,7 @@ installs everything), `check` (inventory installed versions and flag drift from 
     <li><a href="https://httpd.apache.org/docs/current/programs/htpasswd.html">htpasswd</a> — bcrypt hasher used by the <code>${VAR | bcrypt}</code> template filter in <code>pnpm cluster deploy</code> (ships with macOS; from <code>apache2-utils</code> on Debian, <code>apache</code> on Arch)</li>
     <li><a href="https://github.com/yannh/kubeconform">kubeconform</a> — Kubernetes manifest validator (installed via <code>go install</code>)</li>
     <li>Lint / format / security toolchain, all run by <code>pnpm lint</code> / <code>pnpm format</code>: <a href="https://www.shellcheck.net/">shellcheck</a>, <a href="https://github.com/mvdan/sh">shfmt</a>, <a href="https://github.com/hadolint/hadolint">hadolint</a> (Dockerfiles), <a href="https://github.com/rhysd/actionlint">actionlint</a> (GitHub Actions), <a href="https://golangci-lint.run/">golangci-lint</a>, <a href="https://go.dev/security/vuln/">govulncheck</a>. On Linux the latter four come via GitHub releases / <code>go install</code> (not in apt/pacman); on macOS they are Homebrew formulae.</li>
+    <li>Native (React Native) lint / format toolchain: <a href="https://github.com/realm/SwiftLint">SwiftLint</a> + <a href="https://github.com/swiftlang/swift-format">swift-format</a> (Swift; macOS-only — needs Xcode) and <a href="https://pinterest.github.io/ktlint/">ktlint</a> (Kotlin; self-executing jar, needs a JDK — the dispatchers pin JDK 17 via <code>scripts/lib/jdk.sh</code> since very new JVMs crash it).</li>
     <li><a href="https://tailscale.com/download">Tailscale</a> — only required for production cluster access (<code>sudo tailscale configure kubeconfig prod-cluster</code>); not installed by <code>pnpm setup</code>, install manually if you need prod access</li>
   </ul>
 
@@ -73,10 +74,12 @@ brew install go kubectl k3d awscli helm jq openssl@3 uv tailscale
     <li><a href="https://github.com/hadolint/hadolint">hadolint</a> — Dockerfile linter</li>
     <li><a href="https://github.com/rhysd/actionlint">actionlint</a> — GitHub Actions workflow linter</li>
     <li><a href="https://github.com/yannh/kubeconform">kubeconform</a> — Kubernetes schema validator</li>
+    <li><a href="https://github.com/realm/SwiftLint">SwiftLint</a> — Swift linter (macOS-only)</li>
+    <li><a href="https://github.com/swiftlang/swift-format">swift-format</a> — Apple's Swift formatter (macOS-only; reads <code>.swift-format</code>)</li>
   </ul>
 
 ```sh
-brew install golangci-lint shellcheck shfmt hadolint actionlint kubeconform
+brew install golangci-lint shellcheck shfmt hadolint actionlint kubeconform swiftlint swift-format ktlint
 go install golang.org/x/vuln/cmd/govulncheck@latest
 ```
 

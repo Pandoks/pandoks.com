@@ -25,6 +25,7 @@ usage() {
   printf "  %bdocker%b    hadolint over all Dockerfiles\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bshell%b     shellcheck over all shell scripts\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bactions%b   actionlint over GitHub Actions workflows\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bswift%b     SwiftLint over Swift sources\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %ball%b       Run every linter\n\n" "${GREEN}" "${NORMAL}" >&2
 
   exit "${1:-0}"
@@ -53,6 +54,11 @@ cmd_lint_actions() {
   cd "${REPO_ROOT}" && actionlint
 }
 
+cmd_lint_swift() {
+  cd "${REPO_ROOT}"
+  git ls-files -z '*.swift' | xargs -0 swiftlint lint --quiet --strict
+}
+
 cmd_lint_helm() {
   cd "${REPO_ROOT}"
   helm lint --quiet --strict packages/*/chart
@@ -72,6 +78,7 @@ cmd_lint_all() {
   cmd_lint_docker
   cmd_lint_shell
   cmd_lint_actions
+  cmd_lint_swift
 }
 
 main() {
@@ -86,6 +93,7 @@ main() {
     docker) cmd_lint_docker ;;
     shell) cmd_lint_shell ;;
     actions) cmd_lint_actions ;;
+    swift) cmd_lint_swift ;;
     all) cmd_lint_all ;;
     help | --help | -h) usage ;;
     *)
