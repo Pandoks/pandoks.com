@@ -4,5 +4,5 @@ export interface Classification {
 }
 
 export interface ClassifyOptions {
-  minConfidence: number; // drop results below this score. Default: 0.5
+  minConfidence?: number; // drop results below this score. Default: 0.5
 }

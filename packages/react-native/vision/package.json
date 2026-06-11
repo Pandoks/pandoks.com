@@ -2,7 +2,7 @@
   "name": "@pandoks.com/react-native-vision",
   "version": "0.0.1",
   "description": "On-device image classification — Vision (iOS) + ML Kit (Android). A reference Expo native module: async function + typed return.",
-  "main": "src/index.ts",
+  "main": "src/ExpoVision.ts",
   "exports": {
     ".": "./src/index.ts"
   },

@@ -18,7 +18,7 @@ export async function classifyImage({
   options = { minConfidence: 0.5 }
 }: {
   uri: string;
-  options: ClassifyOptions;
+  options?: ClassifyOptions;
 }): Promise<Classification[]> {
   return ExpoVisionModule.classifyImage(uri, options.minConfidence);
 }
