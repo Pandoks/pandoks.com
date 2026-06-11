@@ -76,6 +76,7 @@ brew install go kubectl k3d awscli helm jq openssl@3 uv tailscale
     <li><a href="https://github.com/yannh/kubeconform">kubeconform</a> — Kubernetes schema validator</li>
     <li><a href="https://github.com/realm/SwiftLint">SwiftLint</a> — Swift linter (macOS-only)</li>
     <li><a href="https://github.com/swiftlang/swift-format">swift-format</a> — Apple's Swift formatter (macOS-only; reads <code>.swift-format</code>)</li>
+    <li><a href="https://pinterest.github.io/ktlint/">ktlint</a> — Kotlin linter + formatter (reads <code>.editorconfig</code>; needs JDK 17)</li>
   </ul>
 
 ```sh
