@@ -133,6 +133,17 @@ cmd_setup_check() {
       "${cmd_setup_check_spec%%|*}" "${cmd_setup_check_spec#*|}" &
     cmd_setup_check_i=$((cmd_setup_check_i + 1))
   done
+
+  # Swift tooling is macOS-only (needs Xcode) — don't report it as missing on Linux.
+  if [ "$(uname -s)" = "Darwin" ]; then
+    for cmd_setup_check_spec in \
+      'swiftlint|swiftlint version' \
+      'swift-format|swift-format --version'; do
+      print_check_report_status "${cmd_setup_check_tmp}/$(printf '%02d' "${cmd_setup_check_i}")" \
+        "${cmd_setup_check_spec%%|*}" "${cmd_setup_check_spec#*|}" &
+      cmd_setup_check_i=$((cmd_setup_check_i + 1))
+    done
+  fi
   wait
 
   cmd_setup_check_drifted=0
