@@ -52,6 +52,15 @@ install_hadolint() {
   use_sudo chmod +x /usr/local/bin/hadolint
 }
 
+# self-executing jar (arch-independent); not in apt, AUR-only on Arch.
+install_ktlint() {
+  log_step "Installing ktlint binary (not in apt/pacman repos)"
+  use_sudo curl -fsSL \
+    "https://github.com/pinterest/ktlint/releases/latest/download/ktlint" \
+    -o /usr/local/bin/ktlint
+  use_sudo chmod +x /usr/local/bin/ktlint
+}
+
 install_node() {
   [ -f "${REPO_ROOT}/.nvmrc" ] || die ".nvmrc not found at ${REPO_ROOT}/.nvmrc"
   install_node_version=$(read_nvmrc)
@@ -388,6 +397,31 @@ install_quality() {
   log_ok "Quality tools installed"
 }
 
+install_native_lint() {
+  # NOTE: ktlint runs anywhere (self-executing jar; needs a JDK — Android dev pins 17).
+  # The Swift pair is macOS-only: iOS development requires Xcode, so Linux skips it.
+  install_native_lint_package_manager=$(ensure_package_manager)
+  case "${install_native_lint_package_manager}" in
+    brew)
+      if all_tools_present_in_path swiftlint swift-format ktlint; then
+        log_ok "Native lint tools already installed (swiftlint, swift-format, ktlint)"
+        return 0
+      fi
+      log_step "Installing native lint tools (swiftlint, swift-format, ktlint)"
+      install_packages brew swiftlint swift-format ktlint
+      ;;
+    *)
+      if command -v ktlint > /dev/null 2>&1; then
+        log_ok "ktlint already installed (swiftlint/swift-format are macOS-only)"
+        return 0
+      fi
+      install_ktlint
+      ;;
+  esac
+
+  log_ok "Native lint tools installed"
+}
+
 cmd_setup_all() {
   populate_proper_pathing
   install_node
@@ -396,6 +430,7 @@ cmd_setup_all() {
   install_aws
   install_kubernetes
   install_quality
+  install_native_lint
   printf "\n" >&2
   log_ok "Setup complete. Run 'setup check' to inventory versions / detect drift."
   print_next_steps
