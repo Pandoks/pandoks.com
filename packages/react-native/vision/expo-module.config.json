@@ -4,6 +4,6 @@
     "modules": ["ExpoVisionModule"]
   },
   "android": {
-    "modules": ["expo.modules.vision.ExpoVisionModule"]
+    "modules": ["com.pandoks.vision.ExpoVisionModule"]
   }
 }

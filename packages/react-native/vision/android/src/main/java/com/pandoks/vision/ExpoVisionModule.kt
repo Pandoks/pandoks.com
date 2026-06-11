@@ -1,4 +1,4 @@
-package expo.modules.vision
+package com.pandoks.vision
 
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
