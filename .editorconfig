@@ -12,6 +12,11 @@ insert_final_newline = true
 [*.swift]
 max_line_length = 120
 
+[*.{kt,kts}]
+# NOTE: ktlint specific rules that are specified in .editorconfig
+ktlint_function_naming_ignore_when_annotated_with = Composable
+ij_kotlin_packages_to_use_import_on_demand = androidx.compose.**,androidx.wear.compose.**
+
 [*.sh]
 shell_variant = posix
 simplify = true
