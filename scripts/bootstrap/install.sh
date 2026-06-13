@@ -39,6 +39,14 @@ install_mise() {
   esac
 }
 
+install_mise_tools() {
+  log_step "Installing toolchain from mise.toml"
+  (
+    cd "${REPO_ROOT}"
+    mise trust > /dev/null 2>&1 # if mise.toml has an [env] section
+    mise install
+  ) || die "mise install failed"
+  log_ok "mise toolchain installed"
 }
 
 
