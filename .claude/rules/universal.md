@@ -7,7 +7,7 @@ area is being edited.
 
 - **pnpm only** — never npm/npx. Use `pnpm dlx` for one-off binaries.
   `package.json:17-19` calls `pnpm` directly; the workspace is pinned to
-  `pnpm@11.2.2` (`package.json:4`), engines require `pnpm >=11` (`:8`).
+  `pnpm@11.5.1` (`package.json:4`), engines require `pnpm >=11` (`:8`).
 - **Minimize comments.** Default to zero. Only write one for non-obvious
   WHY: hidden constraints, invariants, intentional crashes, workarounds
   for specific bugs. Bare comments are fine — most live comments in the
@@ -106,15 +106,15 @@ unsafe quoting) is enforced by the language-specific dispatchers under
 `scripts/lint/`, `scripts/format/`, and `scripts/fix/`. Don't reason about
 those rules — run the tools.
 
-| Command                    | What it does                                                                                                      |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `pnpm lint`                | Help (lists subcommands). Run nothing.                                                                            |
-| `pnpm lint <lang>`         | One of: `js`, `go`, `helm`, `docker`, `shell`, `actions`, `swift`, `kotlin`, `all`.                                                  |
-| `pnpm format <lang>`       | Writes: Prettier / golangci-lint fmt / shfmt -w / swift-format -i / ktlint -F. Subcommands: `js`, `go`, `shell`, `swift`, `kotlin`, `all`.                         |
-| `pnpm format check <lang>` | Same as above but check-only (no writes).                                                                         |
-| `pnpm fix <lang>`          | Auto-fixers: `eslint . --fix` (js) / `golangci-lint run --fix` (go).                                              |
-| `pnpm check`               | `pnpm -r --if-present check && pnpm check:infra` — workspace svelte-check / tsc + root `tsc -p .` for `infra/**`. |
-| `pnpm check:infra`         | `tsc -p .` only — typecheck SST infra (`package.json:23`).                                                        |
+| Command                    | What it does                                                                                                                               |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm lint`                | Help (lists subcommands). Run nothing.                                                                                                     |
+| `pnpm lint <lang>`         | One of: `js`, `go`, `helm`, `docker`, `shell`, `actions`, `swift`, `kotlin`, `all`.                                                        |
+| `pnpm format <lang>`       | Writes: Prettier / golangci-lint fmt / shfmt -w / swift-format -i / ktlint -F. Subcommands: `js`, `go`, `shell`, `swift`, `kotlin`, `all`. |
+| `pnpm format check <lang>` | Same as above but check-only (no writes).                                                                                                  |
+| `pnpm fix <lang>`          | Auto-fixers: `eslint . --fix` (js) / `golangci-lint run --fix` (go).                                                                       |
+| `pnpm check`               | `pnpm -r --if-present check && pnpm check:infra` — workspace svelte-check / tsc + root `tsc -p .` for `infra/**`.                          |
+| `pnpm check:infra`         | `tsc -p .` only — typecheck SST infra (`package.json:23`).                                                                                 |
 
 Prettier config (`.prettierrc`): `singleQuote: true`,
 `trailingComma: 'none'`, `printWidth: 100`, `useTabs: false`, plugins

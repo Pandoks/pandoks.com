@@ -96,7 +96,7 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
   auto-populate. A new secret with no value fails the deploy.
 - A new top-level `infra/<feature>.ts` is **auto-covered** by the
   existing `infra/**` paths filter (`deploy-infra.yaml:8, 54`,
-  `checks.yaml:79`) — no workflow glob edit needed when adding one.
+  `checks.yaml:88`) — no workflow glob edit needed when adding one.
 
 ## Resource ID + stage naming
 

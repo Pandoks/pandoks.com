@@ -5,6 +5,15 @@ paths:
 
 # Adding native capability to a mobile app in this monorepo
 
+> **ROADMAP DOC — partially built.** The repo is mid-way through a manual
+> rebuild (currently: `core` + `vision` exist under `packages/react-native/`;
+> the app is the new SDK 56 flat-route template). Everything else described
+> here (watch targets, wear module, widgets, ble-peripheral, watch-bridge,
+> `packages/typescript`) is the target state — the finished reference
+> implementation lives on the **`mobile-llm` branch** (older app design:
+> `(tabs)` routes, `index.ts` entries, `expo-modules-core` imports — translate
+> per the Conventions section below when copying from it).
+
 ## Philosophy
 
 Use first-party Expo modules where they exist. Use mature OSS libraries where Expo doesn't cover. Write your own native module only as a last resort — scaffolds in this repo demonstrate the integration pattern, not bespoke native code.
@@ -52,8 +61,8 @@ apps/mobile-template/
 ├── plugins/
 │   ├── with-android-watch-module.js   # copies android-watch/ → android/wear, registers :wear in settings.gradle
 │   └── with-hermes-vm-fix.js          # patches SDK56 dual-Hermes bundle-id collision in the Podfile
-└── src/app/
-    ├── (tabs)/native.tsx              # demos index
+└── src/app/                           # flat routes + NativeTabs (no (tabs)/ group in the current template)
+    ├── native.tsx                     # demos index (third NativeTabs.Trigger in src/components/app-tabs.tsx)
     └── demos/                         # per-capability demo screens
         ├── image-classify.tsx        # native-vision (custom Expo Module)
         ├── ble-advertise.tsx         # ble-peripheral (custom Expo Module)
@@ -63,17 +72,49 @@ apps/mobile-template/
         └── ahap-haptics.tsx
 
 packages/react-native/
-├── core/                              # source-shipped shared RN components + hooks
-├── watch-bridge/                      # source-shipped wrapper around watch+wear connectivity
-│   └── src/hooks/use-watch-sync.ts    # the useWatchSync<TIn, TOut>() hook
-├── widget-android/                    # config plugin for the Android widget (STOPGAP — see its README)
-├── native-vision/                     # CUSTOM Expo Module: on-device image classification (Vision/ML Kit)
+├── core/                              # ✅ EXISTS — source-shipped shared RN components + hooks
+├── vision/                            # ✅ EXISTS — CUSTOM Expo Module: on-device image classification (Vision/ML Kit)
 │   ├── ios/  + android/  + expo-module.config.json    # ships its own Swift + Kotlin
-│   └── src/  index.ts (classifyImage) + types
-└── ble-peripheral/                    # CUSTOM Expo Module: BLE peripheral advertising (CoreBluetooth / BluetoothLeAdvertiser)
-    ├── ios/  + android/  + expo-module.config.json
-    └── src/  index.ts + hooks/useBlePeripheral.ts
+│   └── src/  ExpoVision.ts (entry: classifyImage) + ExpoVisionModule.ts (binding) + types
+├── watch-bridge/                      # roadmap — wrapper around watch+wear connectivity (useWatchSync<TIn,TOut>())
+├── widget-android/                    # roadmap — config plugin for the Android widget (STOPGAP)
+└── ble-peripheral/                    # roadmap — BLE peripheral advertising (CoreBluetooth / BluetoothLeAdvertiser)
 ```
+
+## Custom Expo Module conventions (implemented in `vision` — copy these)
+
+- **Named entry file, not `index.ts`**: `package.json` `main` + `exports "."`
+  point at `src/<ModuleName>.ts` (e.g. `src/ExpoVision.ts`) — the
+  expo-haptics pattern (`"main": "src/Haptics.ts"`); under an explicit
+  `exports` map the name `index` has no special meaning. The entry holds the
+  public API wrapper (option defaults, type re-exports) and keeps the raw
+  binding un-exported.
+- **Binding style**: `declare class XModule extends NativeModule<TEvents>`
+  imported `from 'expo'` — NOT the older `interface` + `'expo-modules-core'`
+  style (`expo` re-exports the same symbols; the class form types the event
+  emitter, which matters for event modules like ble-peripheral). Repo lint
+  forbids `NativeModule<{}>` — omit the generic for event-less modules.
+- **The `Name()` triple-contract**: the string in Swift `Name("ExpoVision")`
+  == Kotlin `Name("ExpoVision")` == JS `requireNativeModule('ExpoVision')`.
+  The podspec name and class names are separate axes (config `apple.modules`
+  = bare Swift class; `android.modules` = fully-qualified Kotlin class).
+- **Never name a module after an Apple framework** (`Vision`, `Contacts`,
+  `Photos`…): the module's Swift would shadow the framework it imports.
+  `create-expo-module` auto-prefixes (`Vision` → `ExpoVision`) — keep that.
+- **Android five-tuple moves together**: gradle `group`, gradle `namespace`,
+  Kotlin source dir, `package` declaration, and `expo-module.config.json`
+  `android.modules` FQN — all `com.pandoks.<module>`, never the generator's
+  `expo.modules.*`.
+- **Native-only**: delete the generator's `src/*.web.ts` stub; apps declare
+  `"platforms": ["ios", "android"]`.
+- **Scaffold flow**: from the repo root,
+  `pnpm dlx create-expo-module@latest <name> --local` (arg is a NAME — it
+  always lands under `modules/<arg>`), then
+  `mv modules/<name> packages/react-native/<name> && rmdir modules`, then add
+  the `package.json` the `--local` template deliberately omits
+  (name `@pandoks.com/react-native-<name>`, `main`/`exports` → the named
+  entry, peer deps, `"check": "tsc --noEmit"`) — `searchPaths` autolinking
+  only discovers real packages.
 
 ## When to drop to native code
 
@@ -86,7 +127,7 @@ Production RN apps drop to native almost entirely for **capability access not ex
 | BLE, NFC                                                 | `react-native-ble-plx`, `react-native-nfc-manager`      | No                                                                                                                    |
 | Home-screen widget / Live Activity (iOS)                 | `expo-widgets`                                          | No — first-party, stable SDK 56                                                                                       |
 | Home-screen widget (Android)                             | custom plugin (`widget-android`)                        | Yes, for now — `expo-widgets` Android renders a stub only (SDK 56). Stopgap; see `widget-android/README.md` swap plan |
-| On-device ML / image classify                            | `native-vision` (custom Expo Module)                    | Yes — no maintained lib; our reference custom module                                                                  |
+| On-device ML / image classify                            | `vision` (custom Expo Module)                           | Yes — OS built-ins (Apple Vision / ML Kit) beat bundling models; our reference custom module                          |
 | BLE peripheral / advertising                             | `ble-peripheral` (custom Expo Module)                   | Yes — `ble-plx` is central-only; advertising needs a custom module                                                    |
 | Background tasks                                         | `expo-task-manager` + `expo-background-task`            | No                                                                                                                    |
 | Storage (fast sync KV)                                   | `react-native-mmkv`                                     | No                                                                                                                    |
@@ -209,4 +250,6 @@ Use `@pandoks.com/react-native-widget-android`:
 
 See the SDK 56 inline-modules docs: https://docs.expo.dev/modules/inline-modules-reference/. Drop a `.swift`/`.kt` next to your JS, enable `expo.experiments.inlineModules: true`. Less boilerplate than a separate package; suitable for one-off natives.
 
-For shared-across-apps native modules, scaffold a new `packages/react-native/<feature>/` using `create-expo-module --local` as a starting point, then migrate it to live under `packages/react-native/` instead of `apps/<app>/modules/`.
+For shared-across-apps native modules, follow the scaffold flow in the
+Conventions section above (`create-expo-module --local` → move to
+`packages/react-native/<name>` → add the package.json).

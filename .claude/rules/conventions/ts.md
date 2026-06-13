@@ -108,8 +108,10 @@ Don't hand-fix — `pnpm fix js` rewrites it. The broader enforced JS/TS
 ruleset (consistent-type-imports, `consistent-indexed-object-style`→record,
 unicorn `no-for-loop`/`no-array-for-each`, `curly` multi-line,
 `no-else-return`, smart `eqeqeq`, the naming-convention matrix) lives in
-`eslint.config.ts:88-135` — `universal.md`'s lint table only names the
-dispatcher, so that file is the source for what's machine-enforced.
+`eslint.config.ts:49-141` (plus a React-Native block at `:207-228` for
+`apps/mobile-template/**` + `packages/react-native/**`) — `universal.md`'s
+lint table only names the dispatcher, so that file is the source for
+what's machine-enforced.
 
 ## Error handling
 
