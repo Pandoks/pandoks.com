@@ -41,8 +41,9 @@ install_packages() {
 }
 
 main() {
-  cmd="${1:-all}"
-  [ $# -ge 1 ] && shift
+  [ $# -ge 1 ] || usage 0
+  cmd="$1"
+  shift
 
   case "${cmd}" in
     all) cmd_setup_all "$@" ;;
