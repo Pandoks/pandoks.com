@@ -15,12 +15,12 @@ Once you have created your `.env` files, run this from the root of the monorepo 
 development:
 
 ```sh
-pnpm setup all   # one-time: install every dependency listed below (see script for per-OS details)
+pnpm bootstrap all   # one-time: install every dependency listed below (see script for per-OS details)
 pnpm install
 pnpm sso
 ```
 
-`pnpm setup` supports macOS (via Homebrew), Ubuntu/Debian (apt), and Arch (pacman). It assumes only
+`pnpm bootstrap` supports macOS (via Homebrew), Ubuntu/Debian (apt), and Arch (pacman). It assumes only
 that `git` is installed and the repo is cloned. It has three subcommands: `all` (the default —
 installs everything), `check` (inventory installed versions and flag drift from the pins), and
 `help`.
@@ -30,58 +30,40 @@ installs everything), `check` (inventory installed versions and flag drift from 
 
 <details>
   <summary>Dependencies</summary>
-  <p>All installed by <code>pnpm setup all</code>. Listed here for reference / manual installs.</p>
-  <ul>
-    <li>
-      <a href="https://nodejs.org/en/">Node.js</a> >= v24 (installed via <a href="https://github.com/nvm-sh/nvm">nvm</a>, version pinned in <code>.nvmrc</code>)
-    </li>
-    <li><a href="https://pnpm.io/">pnpm</a> >= v11 (activated via <code>corepack</code> from <code>package.json</code>)</li>
-    <li><a href="https://docs.astral.sh/uv/">uv</a> — Python version + project manager (Python toolchain is installed on demand via <code>uv python install</code>)</li>
-    <li><a href="https://go.dev/">Go</a> v1.26 (pinned by the <code>go</code> directive in <code>go.work</code>, the same source CI's <code>setup-go</code> uses; on apt the official tarball is fetched since the distro package lags)</li>
-    <li><a href="https://docs.docker.com/get-docker/">Docker</a> >= v20</li>
-    <li><a href="https://kubernetes.io/docs/tasks/tools/">kubectl</a> v1.36 (matches the prod cluster in <code>packages/argocd/Dockerfile</code>; kubectl supports ±1 minor against the cluster)</li>
-    <li><a href="https://k3d.io/">k3d</a> >= v5.8</li>
-    <li><a href="https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html">awscli</a> >= v2.13 (v2 only; v1 is not supported)</li>
-    <li><a href="https://helm.sh/docs/intro/install/">helm</a> v4.2.0 (pinned by <code>HELM_VERSION</code> in <code>scripts/setup/install.sh</code>; on macOS Homebrew installs latest, which may drift a minor)</li>
-    <li><a href="https://jqlang.github.io/jq/">jq</a> >= v1.7</li>
-    <li><a href="https://www.openssl.org/">openssl</a> >= v3 (used by <code>infra/cloudflare.ts</code> for the 15-year origin TLS cert)</li>
-    <li><a href="https://httpd.apache.org/docs/current/programs/htpasswd.html">htpasswd</a> — bcrypt hasher used by the <code>${VAR | bcrypt}</code> template filter in <code>pnpm cluster deploy</code> (ships with macOS; from <code>apache2-utils</code> on Debian, <code>apache</code> on Arch)</li>
-    <li><a href="https://github.com/yannh/kubeconform">kubeconform</a> — Kubernetes manifest validator (installed via <code>go install</code>)</li>
-    <li>Lint / format / security toolchain, all run by <code>pnpm lint</code> / <code>pnpm format</code>: <a href="https://www.shellcheck.net/">shellcheck</a>, <a href="https://github.com/mvdan/sh">shfmt</a>, <a href="https://github.com/hadolint/hadolint">hadolint</a> (Dockerfiles), <a href="https://github.com/rhysd/actionlint">actionlint</a> (GitHub Actions), <a href="https://golangci-lint.run/">golangci-lint</a>, <a href="https://go.dev/security/vuln/">govulncheck</a>. On Linux the latter four come via GitHub releases / <code>go install</code> (not in apt/pacman); on macOS they are Homebrew formulae.</li>
-    <li>Native (React Native) lint / format toolchain: <a href="https://github.com/realm/SwiftLint">SwiftLint</a> + <a href="https://github.com/swiftlang/swift-format">swift-format</a> (Swift; macOS-only — needs Xcode) and <a href="https://pinterest.github.io/ktlint/">ktlint</a> (Kotlin; self-executing jar, needs a JDK — the dispatchers pin JDK 17 via <code>scripts/lib/jdk.sh</code> since very new JVMs crash it).</li>
-    <li><a href="https://tailscale.com/download">Tailscale</a> — only required for production cluster access (<code>sudo tailscale configure kubeconfig prod-cluster</code>); not installed by <code>pnpm setup</code>, install manually if you need prod access</li>
-  </ul>
-
-```sh
-# macOS (htpasswd ships with the OS):
-brew install go kubectl k3d awscli helm jq openssl@3 uv tailscale
-```
-
-</details>
-
-<details>
-  <summary>Code Quality &amp; Formatting</summary>
   <p>
-    Required to run <code>pnpm lint</code> or <code>pnpm format</code> locally. Installed by
-    <code>pnpm setup all</code>. Not needed for runtime or builds — CI installs these
-    automatically.
+    All installed by <code>pnpm bootstrap all</code>: it bootstraps
+    <a href="https://mise.jdx.dev/">mise</a> (wiring the shell rc with
+    <code>mise activate</code> so mise always wins PATH resolution), runs
+    <code>mise install</code> (every version-shaped tool, declared in <code>mise.toml</code>),
+    then handles the system pieces (Docker, openssl/htpasswd, the AWS config). Listed here for
+    reference / manual installs.
   </p>
   <ul>
-    <li><a href="https://golangci-lint.run/">golangci-lint</a> — Go linter &amp; formatter</li>
-    <li><a href="https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck">govulncheck</a> — Go vulnerability scanner (run by <code>pnpm lint go</code>)</li>
-    <li><a href="https://www.shellcheck.net/">shellcheck</a> — shell script linter</li>
-    <li><a href="https://github.com/mvdan/sh">shfmt</a> — shell formatter (reads <code>.editorconfig</code>)</li>
-    <li><a href="https://github.com/hadolint/hadolint">hadolint</a> — Dockerfile linter</li>
-    <li><a href="https://github.com/rhysd/actionlint">actionlint</a> — GitHub Actions workflow linter</li>
-    <li><a href="https://github.com/yannh/kubeconform">kubeconform</a> — Kubernetes schema validator</li>
-    <li><a href="https://github.com/realm/SwiftLint">SwiftLint</a> — Swift linter (macOS-only)</li>
-    <li><a href="https://github.com/swiftlang/swift-format">swift-format</a> — Apple's Swift formatter (macOS-only; reads <code>.swift-format</code>)</li>
-    <li><a href="https://pinterest.github.io/ktlint/">ktlint</a> — Kotlin linter + formatter (reads <code>.editorconfig</code>; needs JDK 17)</li>
+    <li>
+      <b>Via mise</b> (<code>mise.toml</code> — every tool an exact pin, Renovate-bumped via its
+      native mise manager): Node, pnpm (bootstrap; <code>packageManager</code> is the authority),
+      Go (bootstrap; <code>go.work</code>'s directive rules via GOTOOLCHAIN), JDK 17 (zulu — the
+      Android Gradle pin), kubectl (cluster truth stays <code>KUBECTL_VERSION</code> in
+      <code>packages/argocd/Dockerfile</code>; ±1 minor skew tolerated and drift-checked), helm, k3d,
+      kubeconform, awscli v2, jq, Python 3.14 + uv (uv resolves mise's interpreter via <code>UV_PYTHON_PREFERENCE=system</code>; uv owns project deps/venvs), CocoaPods (+ a hermetic ruby for its gem backend —
+      macOS-only), and the whole lint/format toolchain: shellcheck, shfmt, hadolint, actionlint,
+      golangci-lint, govulncheck, ktlint, swiftlint.
+    </li>
+    <li>
+      <a href="https://pnpm.io/">pnpm</a> ≥ v11 — mise installs a bootstrap copy; the
+      <code>packageManager</code> pin in <code>package.json</code> stays the authority (pnpm
+      self-switches to it via <code>manage-package-manager-versions</code> — corepack is removed
+      from node 25+)
+    </li>
+    <li><a href="https://docs.docker.com/get-docker/">Docker</a> >= v20 — system platform, installed by setup, not mise</li>
+    <li><a href="https://github.com/swiftlang/swift-format">swift-format</a> — not in the mise registry; brew formula (macOS-only, like the rest of the Swift toolchain)</li>
+    <li><a href="https://www.openssl.org/">openssl</a> >= v3 (used by <code>infra/cloudflare.ts</code> for the 15-year origin TLS cert) and <a href="https://httpd.apache.org/docs/current/programs/htpasswd.html">htpasswd</a> (bcrypt hasher for the <code>${VAR | bcrypt}</code> template filter in <code>pnpm cluster deploy</code>; ships with macOS, <code>apache2-utils</code> on Debian, <code>apache</code> on Arch) — system packages</li>
+    <li><a href="https://tailscale.com/download">Tailscale</a> — only required for production cluster access (<code>sudo tailscale configure kubeconfig prod-cluster</code>); not installed by <code>pnpm bootstrap</code>, install manually if you need prod access</li>
   </ul>
 
 ```sh
-brew install golangci-lint shellcheck shfmt hadolint actionlint kubeconform swiftlint swift-format ktlint
-go install golang.org/x/vuln/cmd/govulncheck@latest
+# the short version:
+brew install mise swift-format && mise install
 ```
 
 </details>
