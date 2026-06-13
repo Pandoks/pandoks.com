@@ -49,9 +49,17 @@ install_mise_tools() {
   log_ok "mise toolchain installed"
 }
 
+install_swift_format() { # NOTE: not in mise registry (MAC ONLY)
+  install_swift_format_package_manager=$(ensure_package_manager)
+  [ "${install_swift_format_package_manager}" = "brew" ] || return 0
 
+  if command -v swift-format > /dev/null 2>&1; then
+    log_ok "swift-format already installed"
     return 0
   fi
+  log_step "Installing swift-format"
+  install_packages brew swift-format
+  log_ok "swift-format installed"
 }
 
       ;;
