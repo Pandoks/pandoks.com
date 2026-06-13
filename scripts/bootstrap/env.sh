@@ -119,15 +119,6 @@ fetch_pgp_key() {
   die "Failed to fetch ${fetch_pgp_key_name} PGP key from ${fetch_pgp_key_url} after 3 attempts"
 }
 
-read_nvmrc() { # Outputs: node version inside .nvmrc
-  tr -d '[:space:]' < "${REPO_ROOT}/.nvmrc"
-}
-
-pnpm_spec() {
-  sed -n 's/.*"packageManager"[[:space:]]*:[[:space:]]*"\(pnpm@[^+"]*\).*/\1/p' \
-    "${REPO_ROOT}/package.json" | head -n1
-}
-
 kubectl_pinned_minor() {
   sed -n 's/.*KUBECTL_VERSION=v\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' \
     "${REPO_ROOT}/packages/argocd/Dockerfile" | head -n1
