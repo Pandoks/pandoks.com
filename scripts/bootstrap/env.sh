@@ -119,15 +119,6 @@ fetch_pgp_key() {
   die "Failed to fetch ${fetch_pgp_key_name} PGP key from ${fetch_pgp_key_url} after 3 attempts"
 }
 
-kubectl_pinned_minor() {
-  sed -n 's/.*KUBECTL_VERSION=v\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' \
-    "${REPO_ROOT}/packages/argocd/Dockerfile" | head -n1
-}
-
-go_required_version() {
-  sed -n 's/^go \([0-9][0-9.]*\).*/\1/p' "${REPO_ROOT}/go.work" | head -n1
-}
-
 SETUP_PATH_DIRS_CACHE=""
 
 required_path_dirs() { # Outputs: paths of tools to add to PATH (one per line \n)
