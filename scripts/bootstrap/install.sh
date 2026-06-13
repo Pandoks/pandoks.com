@@ -62,11 +62,33 @@ install_swift_format() { # NOTE: not in mise registry (MAC ONLY)
   log_ok "swift-format installed"
 }
 
+install_system_tools() {
+  install_system_tools_package_manager=$(ensure_package_manager)
+  case "${install_system_tools_package_manager}" in
+    brew)
+      command -v openssl > /dev/null 2>&1 && {
+        log_ok "System tools already installed"
+        return 0
+      }
+      install_packages brew openssl@3
       ;;
     apt-get)
+      command -v openssl > /dev/null 2>&1 && command -v htpasswd > /dev/null 2>&1 && {
+        log_ok "System tools already installed (openssl, htpasswd)"
+        return 0
+      }
+      install_packages apt-get openssl apache2-utils
+      ;;
+    pacman)
+      command -v openssl > /dev/null 2>&1 && command -v htpasswd > /dev/null 2>&1 && {
+        log_ok "System tools already installed (openssl, htpasswd)"
+        return 0
+      }
+      install_packages pacman openssl apache
       ;;
   esac
 
+  log_ok "System tools installed"
 }
 
 
