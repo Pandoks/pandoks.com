@@ -24,7 +24,9 @@ append_shell_rc() {
   [ -f "${append_shell_rc_file}" ] || touch "${append_shell_rc_file}"
   if ! grep -Fqx "${append_shell_rc_line}" "${append_shell_rc_file}"; then
     printf '%s\n' "${append_shell_rc_line}" >> "${append_shell_rc_file}"
+    return 0
   fi
+  return 1 # already present (not fail in traditional sense)
 }
 
 SETUP_PACKAGE_MANAGER_CACHE=""
