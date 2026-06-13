@@ -91,7 +91,7 @@ install_system_tools() {
   log_ok "System tools installed"
 }
 
-
+install_aws_config() {
   install_aws_config_dir="${HOME}/.aws"
   install_aws_config_file="${install_aws_config_dir}/config"
 
