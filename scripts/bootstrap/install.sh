@@ -17,8 +17,26 @@ architecture_asset() {
   esac
 }
 
+install_mise() {
+  if ! command -v mise > /dev/null 2>&1; then
+    if [ "$(ensure_package_manager)" = brew ]; then
+      install_packages brew mise
+    else
+      log_step "Installing mise via official installer"
+      curl -fsSL https://mise.run | sh # drops binary in ~/.local/bin, no rc edit
+      PATH="${HOME}/.local/bin:${PATH}"
+    fi
+    command -v mise > /dev/null 2>&1 || die "mise installation failed"
+  fi
+  PATH="${HOME}/.local/share/mise/shims:${PATH}"
+  export PATH # exposes mise for the rest of the script after initial install
+  log_ok "mise $(mise version)"
 
-
+  install_mise_shell=$(get_shell 2> /dev/null) || return 1
+  case "${install_mise_shell}" in
+    zsh | bash) append_shell_rc "eval \"\$(mise activate ${install_mise_shell})\"" ;;
+    *) return 1 ;;
+  esac
 }
 
 }
