@@ -24,6 +24,13 @@ install_mise() {
     else
       log_step "Installing mise via official installer"
       curl -fsSL https://mise.run | sh # drops binary in ~/.local/bin, no rc edit
+
+      # shellcheck disable=SC2016
+      install_mise_path_line='export PATH="$HOME/.local/bin:$PATH"'
+      case ":${PATH}:" in
+        *":${HOME}/.local/bin:"*) ;;
+        *) append_shell_rc "${install_mise_path_line}" || true ;;
+      esac
       PATH="${HOME}/.local/bin:${PATH}"
     fi
     command -v mise > /dev/null 2>&1 || die "mise installation failed"
