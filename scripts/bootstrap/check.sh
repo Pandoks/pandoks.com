@@ -71,52 +71,41 @@ check_mise_tools() {
   return 1
 }
 
+check_mise_managed_tools() {
+  [ -d "${MISE_SHIMS_DIR}" ] || return 0
+  check_mise_managed_tools_bad=0
 
-  cmd_setup_check_tmp=$(mktemp -d)
-  cmd_setup_check_i=0
-  # shellcheck disable=SC2016
-  for cmd_setup_check_spec in \
-    'node|node --version' \
-    'pnpm|pnpm --version' \
-    'uv|uv --version' \
-    'go|go version' \
-    'aws|aws --version' \
-    'docker|docker --version' \
-    'kubectl|kubectl version --client --output=yaml | awk "/gitVersion/ {print \$2; exit}"' \
-    'k3d|k3d version | awk "/k3d version/ {print \$3; exit}"' \
-    'helm|helm version --short' \
-    'kubeconform|kubeconform -v' \
-    'jq|jq --version' \
-    'openssl|openssl version' \
-    'htpasswd|htpasswd -v 2>&1 | head -n1 || echo present' \
-    'shellcheck|shellcheck --version | awk "/^version:/ {print \$2}"' \
-    'shfmt|shfmt --version' \
-    'hadolint|hadolint --version' \
-    'actionlint|actionlint -version | head -n1' \
-    'golangci-lint|golangci-lint --version | head -n1' \
-    'govulncheck|govulncheck -version | head -n1'; do
-    print_check_report_status "${cmd_setup_check_tmp}/$(printf '%02d' "${cmd_setup_check_i}")" \
-      "${cmd_setup_check_spec%%|*}" "${cmd_setup_check_spec#*|}" &
-    cmd_setup_check_i=$((cmd_setup_check_i + 1))
+  for check_mise_managed_tools_shim in "${MISE_SHIMS_DIR}"/*; do
+    [ -e "${check_mise_managed_tools_shim}" ] || continue
+    check_mise_managed_tools_name="${check_mise_managed_tools_shim##*/}"
+    check_mise_managed_tools_at=$(command -v "${check_mise_managed_tools_name}" 2> /dev/null) || continue
+
+    case "${check_mise_managed_tools_at}" in
+      "${check_mise_managed_tools_shim}" | "${MISE_INSTALLS_DIR}/"*) continue ;;
+    esac
+
+    if (cd "${REPO_ROOT}" && "$1" which "${check_mise_managed_tools_name}" > /dev/null 2>&1); then
+      check_report fail "shadowed: ${check_mise_managed_tools_name} resolves to ${check_mise_managed_tools_at}"
+      check_mise_managed_tools_bad=1
+    fi
   done
 
-  # Swift tooling is macOS-only (needs Xcode) — don't report it as missing on Linux.
-  if [ "$(uname -s)" = "Darwin" ]; then
-    for cmd_setup_check_spec in \
-      'swiftlint|swiftlint version' \
-      'swift-format|swift-format --version'; do
-      print_check_report_status "${cmd_setup_check_tmp}/$(printf '%02d' "${cmd_setup_check_i}")" \
-        "${cmd_setup_check_spec%%|*}" "${cmd_setup_check_spec#*|}" &
-      cmd_setup_check_i=$((cmd_setup_check_i + 1))
-    done
-  fi
-  wait
+  [ "${check_mise_managed_tools_bad}" -eq 0 ] && check_report ok "no mise tool shadowed on PATH"
+  return "${check_mise_managed_tools_bad}"
+}
 
-  cmd_setup_check_drifted=0
-  for cmd_setup_check_slot in "${cmd_setup_check_tmp}"/*; do
-    cat "${cmd_setup_check_slot}" >&2
-    grep -q '✗\|⚠' "${cmd_setup_check_slot}" && cmd_setup_check_drifted=1
+check_system_tools() {
+  check_system_tools_list="docker openssl htpasswd"
+  [ "$(uname -s)" = "Darwin" ] && check_system_tools_list="${check_system_tools_list} swift-format"
+
+  check_system_tools_failed=0
+  for check_system_tools_name in ${check_system_tools_list}; do
+    if command -v "${check_system_tools_name}" > /dev/null 2>&1; then
+      check_report ok "${check_system_tools_name} present"
+    else
+      check_report fail "${check_system_tools_name} not installed"
+      check_system_tools_failed=1
+    fi
   done
-  rm -rf "${cmd_setup_check_tmp}"
-  return "${cmd_setup_check_drifted}"
+  return "${check_system_tools_failed}"
 }
