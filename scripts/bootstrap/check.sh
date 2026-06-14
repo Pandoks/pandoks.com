@@ -1,12 +1,16 @@
 # shellcheck shell=sh
 
-check_major_match() {
-  check_major_match_want="$1"    # wanted major, e.g. 24
-  check_major_match_version="$2" # raw installed version, e.g. v24.15.0
-  [ -z "${check_major_match_want}" ] && return 0
-  check_major_match_have=$(printf '%s' "${check_major_match_version}" | sed 's/^v//' | cut -d. -f1)
-  [ "${check_major_match_have}" = "${check_major_match_want}" ] \
-    || printf 'want major %s' "${check_major_match_want}"
+MISE_SHIMS_DIR="${HOME}/.local/share/mise/shims"
+MISE_INSTALLS_DIR="${HOME}/.local/share/mise/installs"
+
+check_report() {
+  check_report_level="$1"
+  shift
+  case "${check_report_level}" in
+    ok) printf "  %b✓%b %s\n" "${GREEN}" "${NORMAL}" "$*" >&2 ;;
+    warn) printf "  %b⚠%b %s\n" "${YELLOW}" "${NORMAL}" "$*" >&2 ;;
+    fail) printf "  %b✗%b %s\n" "${RED}" "${NORMAL}" "$*" >&2 ;;
+  esac
 }
 
 version_drift() {
