@@ -23,7 +23,27 @@ mise_bin() {
   done
   return 1
 }
+
+check_mise_wiring() {
+  if command -v mise > /dev/null 2>&1; then
+    check_report ok "mise on PATH"
+  else
+    check_report warn "mise installed at $(dirname "$1") — not on PATH (source your rc)"
+    return 1
+  fi
+
+  case ":${PATH}:" in
+    *":${MISE_SHIMS_DIR}:"*)
+      check_report ok "mise wired (shims on PATH)"
+      return 0
+      ;;
   esac
+  if [ -n "${MISE_SHELL:-}" ]; then
+    check_report ok "mise wired (activate, MISE_SHELL=${MISE_SHELL})"
+    return 0
+  fi
+  check_report warn "mise not wired (rc: eval mise activate; scripts: shims dir on PATH)"
+  return 1
 }
 
 print_check_report_status() {
