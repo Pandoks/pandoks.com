@@ -13,56 +13,16 @@ check_report() {
   esac
 }
 
-version_drift() {
-  version_drift_name="$1"    # tool name, e.g. kubectl
-  version_drift_version="$2" # raw installed version, e.g. v1.36.1
-  case "${version_drift_name}" in
-    node)
-      check_major_match "$(read_nvmrc)" "${version_drift_version}"
-      ;;
-    pnpm)
-      check_major_match \
-        "$(pnpm_spec | sed 's/^pnpm@//' | cut -d. -f1)" \
-        "${version_drift_version}"
-      ;;
-    helm)
-      check_major_match \
-        "$(printf '%s' "${HELM_VERSION}" | sed 's/^v//' | cut -d. -f1)" \
-        "${version_drift_version}"
-      ;;
-    aws)
-      case "${version_drift_version}" in
-        aws-cli/2.*) ;;
-        *) printf 'want aws-cli/2.x' ;;
-      esac
-      ;;
-    go)
-      # go must be >= the minor required by go.work (apt ships an older go)
-      version_drift_want_minor=$(go_required_version | cut -d. -f2)
-      version_drift_have_minor=$(printf '%s' "${version_drift_version}" \
-        | sed 's/.*go1\./1./' | cut -d. -f2)
-      case "${version_drift_have_minor}" in
-        '' | *[!0-9]*) return 0 ;;
-      esac
-      [ "${version_drift_have_minor}" -ge "${version_drift_want_minor}" ] \
-        || printf 'want >= 1.%s' "${version_drift_want_minor}"
-      ;;
-    kubectl)
-      # kubectl supports +/-1 minor skew against the cluster pin
-      version_drift_want=$(kubectl_pinned_minor)
-      [ -z "${version_drift_want}" ] && return 0
-      version_drift_want_minor=${version_drift_want#*.}
-      version_drift_have=$(printf '%s' "${version_drift_version}" \
-        | sed 's/^v//' | cut -d. -f1-2)
-      version_drift_have_minor=${version_drift_have#*.}
-      case "${version_drift_have_minor}" in
-        '' | *[!0-9]*) return 0 ;;
-      esac
-      version_drift_skew=$((version_drift_have_minor - version_drift_want_minor))
-      if [ "${version_drift_skew}" -lt -1 ] || [ "${version_drift_skew}" -gt 1 ]; then
-        printf 'want %s +/-1 minor' "${version_drift_want}"
-      fi
-      ;;
+mise_bin() {
+  command -v mise 2> /dev/null && return 0
+  for mise_bin_dir in $(required_path_dirs); do
+    if [ -x "${mise_bin_dir}/mise" ]; then
+      printf '%s' "${mise_bin_dir}/mise"
+      return 0
+    fi
+  done
+  return 1
+}
   esac
 }
 
