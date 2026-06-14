@@ -204,52 +204,52 @@ reload_or_hint() {
   log_warn "  (or restart your shell, or re-run with: pnpm bootstrap all --reload)"
 }
 
-cmd_setup_all() {
+cmd_bootstrap_all() {
   populate_proper_pathing
   ensure_package_manager > /dev/null
 
   if install_mise; then
-    cmd_setup_all_rc_added=1
+    cmd_bootstrap_all_rc_added=1
   else
-    cmd_setup_all_rc_added=0
+    cmd_bootstrap_all_rc_added=0
   fi
 
   log_step "Installing toolchain + system packages concurrently"
-  cmd_setup_all_logs=$(mktemp -d)
-  (install_mise_tools) > "${cmd_setup_all_logs}/mise" 2>&1 &
-  cmd_setup_all_mise_pid=$!
+  cmd_bootstrap_all_logs=$(mktemp -d)
+  (install_mise_tools) > "${cmd_bootstrap_all_logs}/mise" 2>&1 &
+  cmd_bootstrap_all_mise_pid=$!
   (
     install_swift_format
     install_docker
     install_system_tools
-  ) > "${cmd_setup_all_logs}/pkg" 2>&1 &
-  cmd_setup_all_pkg_pid=$!
+  ) > "${cmd_bootstrap_all_logs}/pkg" 2>&1 &
+  cmd_bootstrap_all_pkg_pid=$!
 
   install_aws_config
 
-  cmd_setup_all_failed=0
-  wait "${cmd_setup_all_mise_pid}" || cmd_setup_all_failed=1
-  cat "${cmd_setup_all_logs}/mise" >&2
-  wait "${cmd_setup_all_pkg_pid}" || cmd_setup_all_failed=1
-  cat "${cmd_setup_all_logs}/pkg" >&2
-  rm -rf "${cmd_setup_all_logs}"
-  if [ "${cmd_setup_all_failed}" -ne 0 ]; then
+  cmd_bootstrap_all_failed=0
+  wait "${cmd_bootstrap_all_mise_pid}" || cmd_bootstrap_all_failed=1
+  cat "${cmd_bootstrap_all_logs}/mise" >&2
+  wait "${cmd_bootstrap_all_pkg_pid}" || cmd_bootstrap_all_failed=1
+  cat "${cmd_bootstrap_all_logs}/pkg" >&2
+  rm -rf "${cmd_bootstrap_all_logs}"
+  if [ "${cmd_bootstrap_all_failed}" -ne 0 ]; then
     die "setup failed — see logs above"
   fi
 
   printf "\n" >&2
-  log_ok "Setup complete. Run 'pnpm bootstrap check' to inventory versions / detect drift."
+  log_ok "Bootstrap complete. Run 'pnpm bootstrap check' to inventory versions / detect drift."
   print_next_steps
 
   if [ "${CLAUDE_CODE_REMOTE:-}" = true ] && [ -n "${CLAUDE_ENV_FILE:-}" ]; then
-    while read -r cmd_setup_all_dir; do
+    while read -r cmd_bootstrap_all_dir; do
       # shellcheck disable=SC2016
-      [ -n "${cmd_setup_all_dir}" ] \
-        && printf 'export PATH="%s:$PATH"\n' "${cmd_setup_all_dir}"
+      [ -n "${cmd_bootstrap_all_dir}" ] \
+        && printf 'export PATH="%s:$PATH"\n' "${cmd_bootstrap_all_dir}"
     done << EOF >> "${CLAUDE_ENV_FILE}" 2> /dev/null || true
 $(required_path_dirs)
 EOF
   fi
 
-  reload_or_hint "${cmd_setup_all_rc_added}" "${RELOAD}"
+  reload_or_hint "${cmd_bootstrap_all_rc_added}" "${RELOAD}"
 }

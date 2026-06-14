@@ -29,11 +29,11 @@ append_shell_rc() {
   return 1 # already present (not fail in traditional sense)
 }
 
-SETUP_PACKAGE_MANAGER_CACHE=""
+BOOTSTRAP_PACKAGE_MANAGER_CACHE=""
 
 ensure_package_manager() { # Outputs: package manager name (brew | apt-get | pacman)
-  if [ -n "${SETUP_PACKAGE_MANAGER_CACHE}" ]; then
-    printf '%s' "${SETUP_PACKAGE_MANAGER_CACHE}"
+  if [ -n "${BOOTSTRAP_PACKAGE_MANAGER_CACHE}" ]; then
+    printf '%s' "${BOOTSTRAP_PACKAGE_MANAGER_CACHE}"
     return 0
   fi
 
@@ -89,8 +89,8 @@ ensure_package_manager() { # Outputs: package manager name (brew | apt-get | pac
 
   ensure_package_manager_package_manager=$(get_package_manager)
   is_supported_package_manager "${ensure_package_manager_package_manager}" || exit 1
-  SETUP_PACKAGE_MANAGER_CACHE="${ensure_package_manager_package_manager}"
-  printf '%s' "${SETUP_PACKAGE_MANAGER_CACHE}"
+  BOOTSTRAP_PACKAGE_MANAGER_CACHE="${ensure_package_manager_package_manager}"
+  printf '%s' "${BOOTSTRAP_PACKAGE_MANAGER_CACHE}"
 }
 
 # fetches/installs signing key apt needs to trust third party repos (so we can install packages from them)
@@ -121,18 +121,18 @@ fetch_pgp_key() {
   die "Failed to fetch ${fetch_pgp_key_name} PGP key from ${fetch_pgp_key_url} after 3 attempts"
 }
 
-SETUP_PATH_DIRS_CACHE=""
+BOOTSTRAP_PATH_DIRS_CACHE=""
 
 required_path_dirs() { # Outputs: paths of tools to add to PATH (one per line \n)
-  if [ -z "${SETUP_PATH_DIRS_CACHE}" ]; then
-    SETUP_PATH_DIRS_CACHE=$(
+  if [ -z "${BOOTSTRAP_PATH_DIRS_CACHE}" ]; then
+    BOOTSTRAP_PATH_DIRS_CACHE=$(
       printf '%s\n' "${HOME}/.local/share/mise/shims"
       if [ -x "${HOME}/.local/bin/mise" ]; then
         printf '%s\n' "${HOME}/.local/bin"
       fi
     )
   fi
-  printf '%s\n' "${SETUP_PATH_DIRS_CACHE}"
+  printf '%s\n' "${BOOTSTRAP_PATH_DIRS_CACHE}"
 }
 
 # needed for non-interactive shells (CI / wrappers / Claude Code Cloud)

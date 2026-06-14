@@ -111,28 +111,28 @@ check_system_tools() {
   return "${check_system_tools_failed}"
 }
 
-cmd_setup_check() {
-  log_step "Setup check"
-  cmd_setup_check_failed=0
+cmd_bootstrap_check() {
+  log_step "Bootstrap check"
+  cmd_bootstrap_check_failed=0
 
-  if ! cmd_setup_check_mise=$(mise_bin); then
+  if ! cmd_bootstrap_check_mise=$(mise_bin); then
     check_report fail "mise not installed (run pnpm bootstrap all)"
-    cmd_setup_check_failed=1
+    cmd_bootstrap_check_failed=1
   else
-    if check_mise_wiring "${cmd_setup_check_mise}"; then
-      cmd_setup_check_wired=1
+    if check_mise_wiring "${cmd_bootstrap_check_mise}"; then
+      cmd_bootstrap_check_wired=1
     else
-      cmd_setup_check_wired=0
-      cmd_setup_check_failed=1
+      cmd_bootstrap_check_wired=0
+      cmd_bootstrap_check_failed=1
     fi
 
-    check_mise_tools "${cmd_setup_check_mise}" || cmd_setup_check_failed=1
+    check_mise_tools "${cmd_bootstrap_check_mise}" || cmd_bootstrap_check_failed=1
 
-    if [ "${cmd_setup_check_wired}" -eq 1 ]; then
-      check_mise_managed_tools "${cmd_setup_check_mise}" || cmd_setup_check_failed=1
+    if [ "${cmd_bootstrap_check_wired}" -eq 1 ]; then
+      check_mise_managed_tools "${cmd_bootstrap_check_mise}" || cmd_bootstrap_check_failed=1
     fi
   fi
 
-  check_system_tools || cmd_setup_check_failed=1
-  return "${cmd_setup_check_failed}"
+  check_system_tools || cmd_bootstrap_check_failed=1
+  return "${cmd_bootstrap_check_failed}"
 }

@@ -57,8 +57,8 @@ main() {
   done
 
   case "${cmd}" in
-    all) cmd_setup_all ;;
-    check) cmd_setup_check ;;
+    all) cmd_bootstrap_all ;;
+    check) cmd_bootstrap_check ;;
     help | --help | -h) usage ;;
     *)
       log_error "Unknown command '${cmd}'"
