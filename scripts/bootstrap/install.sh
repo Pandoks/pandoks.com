@@ -186,10 +186,23 @@ install_docker() {
   log_ok "Docker installed"
 }
 
+reload_or_hint() {
+  reload_or_hint_wired="$1"  # 1 if install_mise freshly wired the rc this run
+  reload_or_hint_reload="$2" # 1 if --reload was passed
+
+  if [ "${reload_or_hint_reload}" = 1 ] && [ -t 0 ] && [ -t 1 ] && [ -n "${SHELL:-}" ]; then
+    printf "\n" >&2
+    log_step "Reloading your shell so mise is live (--reload)"
+    exec "${SHELL}" -l
   fi
 
-  fi
-
+  [ "${reload_or_hint_wired}" -eq 1 ] || return 0
+  printf "\n" >&2
+  log_warn "mise was just wired into your shell rc. New terminals get it automatically."
+  log_warn "To use it in THIS shell now, run:"
+  log_warn "    eval \"\$(mise activate $(get_shell 2> /dev/null || echo zsh))\""
+  log_warn "  (or restart your shell, or re-run with: pnpm bootstrap all --reload)"
+}
 
 cmd_setup_all() {
   populate_proper_pathing
@@ -237,4 +250,6 @@ cmd_setup_all() {
 $(required_path_dirs)
 EOF
   fi
+
+  reload_or_hint "${cmd_setup_all_rc_added}" "${RELOAD}"
 }
