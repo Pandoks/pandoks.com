@@ -46,49 +46,31 @@ check_mise_wiring() {
   return 1
 }
 
-print_check_report_status() {
-  check_report_out="$1"  # slot file to write the ✓/✗/⚠ line to
-  check_report_name="$2" # tool name, e.g. kubectl
-  check_report_cmd="$3"  # version probe, e.g. 'kubectl version ... | awk ...'
+check_mise_tools() {
+  check_mise_tools_mise="$1" # mise binary path
 
-  if ! command -v "${check_report_name}" > /dev/null 2>&1; then
-    check_report_offpath_dir=$(
-      required_path_dirs | while read -r check_report_dir; do
-        [ -n "${check_report_dir}" ] || continue
-        if [ -x "${check_report_dir}/${check_report_name}" ]; then
-          printf '%s' "${check_report_dir}"
-          break
-        fi
-      done
-    )
-    if [ -n "${check_report_offpath_dir}" ]; then # installed but not on PATH
-      printf "  %b⚠%b %-14s installed at %s — not on PATH (source your rc)\n" \
-        "${YELLOW}" "${NORMAL}" "${check_report_name}" "${check_report_offpath_dir}" \
-        > "${check_report_out}"
-    else
-      printf "  %b✗%b %-14s not installed\n" "${RED}" "${NORMAL}" "${check_report_name}" \
-        > "${check_report_out}"
-    fi
-    return
+  check_mise_tools_inventory=$(cd "${REPO_ROOT}" && "${check_mise_tools_mise}" ls --current 2> /dev/null)
+  check_mise_tools_missing=$(
+    printf '%s\n' "${check_mise_tools_inventory}" | awk '$3 == "(missing)" {print $1}'
+  )
+
+  if [ "$(uname -s)" != "Darwin" ]; then
+    check_mise_tools_missing=$(printf '%s\n' "${check_mise_tools_missing}" | grep -v '^cocoapods$') || true
   fi
 
-  check_report_version=$(eval "${check_report_cmd}" 2>&1 | head -n1)
-  check_report_drift=$(version_drift "${check_report_name}" "${check_report_version}")
-
-  # drifted → red ✗ "<version> (want ...)"
-  if [ -n "${check_report_drift}" ]; then
-    printf "  %b✗%b %-14s %s (%s)\n" "${RED}" "${NORMAL}" "${check_report_name}" \
-      "${check_report_version}" "${check_report_drift}" > "${check_report_out}"
-    return
+  if [ -z "${check_mise_tools_missing}" ]; then
+    check_mise_tools_count=$(printf '%s\n' "${check_mise_tools_inventory}" | grep -c .) || true
+    check_report ok "all ${check_mise_tools_count:-0} mise.toml tools installed"
+    return 0
   fi
 
-  # in spec → green ✓ "<version>"
-  printf "  %b✓%b %-14s %s\n" "${GREEN}" "${NORMAL}" "${check_report_name}" \
-    "${check_report_version}" > "${check_report_out}"
+  printf '%s\n' "${check_mise_tools_missing}" | while read -r check_mise_tools_name; do
+    [ -n "${check_mise_tools_name}" ] \
+      && check_report fail "${check_mise_tools_name} pinned in mise.toml but not installed (run mise install)"
+  done
+  return 1
 }
 
-cmd_setup_check() {
-  log_step "Detected versions"
 
   cmd_setup_check_tmp=$(mktemp -d)
   cmd_setup_check_i=0
