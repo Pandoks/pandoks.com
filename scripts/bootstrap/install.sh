@@ -191,14 +191,41 @@ install_docker() {
   fi
 
 
-
-
-
-
-
 cmd_setup_all() {
+  populate_proper_pathing
+  ensure_package_manager > /dev/null
+
+  if install_mise; then
+    cmd_setup_all_rc_added=1
+  else
+    cmd_setup_all_rc_added=0
+  fi
+
+  log_step "Installing toolchain + system packages concurrently"
+  cmd_setup_all_logs=$(mktemp -d)
+  (install_mise_tools) > "${cmd_setup_all_logs}/mise" 2>&1 &
+  cmd_setup_all_mise_pid=$!
+  (
+    install_swift_format
+    install_docker
+    install_system_tools
+  ) > "${cmd_setup_all_logs}/pkg" 2>&1 &
+  cmd_setup_all_pkg_pid=$!
+
+  install_aws_config
+
+  cmd_setup_all_failed=0
+  wait "${cmd_setup_all_mise_pid}" || cmd_setup_all_failed=1
+  cat "${cmd_setup_all_logs}/mise" >&2
+  wait "${cmd_setup_all_pkg_pid}" || cmd_setup_all_failed=1
+  cat "${cmd_setup_all_logs}/pkg" >&2
+  rm -rf "${cmd_setup_all_logs}"
+  if [ "${cmd_setup_all_failed}" -ne 0 ]; then
+    die "setup failed — see logs above"
+  fi
+
   printf "\n" >&2
-  log_ok "Setup complete. Run 'setup check' to inventory versions / detect drift."
+  log_ok "Setup complete. Run 'pnpm bootstrap check' to inventory versions / detect drift."
   print_next_steps
 
   if [ "${CLAUDE_CODE_REMOTE:-}" = true ] && [ -n "${CLAUDE_ENV_FILE:-}" ]; then
