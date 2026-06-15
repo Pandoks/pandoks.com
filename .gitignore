@@ -53,8 +53,8 @@ apps/mobile-template/.gitignore
 .metro-health-check*
 
 # generated native folders
-/ios
-/android
+apps/mobile-template/ios
+apps/mobile-template/android
 
 # typescript
 *.tsbuildinfo
