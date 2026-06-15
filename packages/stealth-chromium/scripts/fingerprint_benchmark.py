@@ -68,8 +68,8 @@ TARGETS = [
                "proxy", "fingerprint"]},
     {"name": "browserscan", "url": "https://www.browserscan.net/", "settle": 18,
      "tier": "composite",
-     "scores": {"bot": r"Robot[^\n]{0,30}|Bot[^\n]{0,30}",
-                "score": r"(\d+\s*%)"},
+     "scores": {"bot": r"(NoDetection|Bot Detected|Detection detected)",
+                "authenticity": r"authenticity[:\s]*(\d+\s*%)"},
      "lines": ["Robot", "Bot", "WebDriver", "CDP", "Automation",
                "Hardware", "Software"]},
     {"name": "deviceinfo", "url": "https://deviceandbrowserinfo.com/are_you_a_bot",
@@ -80,14 +80,14 @@ TARGETS = [
     # --- headless / automation detectors ---
     {"name": "sannysoft", "url": "https://bot.sannysoft.com/", "settle": 9,
      "tier": "headless",
-     "scores": {"webdriver": r"webdriver[^\n]{0,40}"},
+     "scores": {"webdriver": r"(missing \(passed\)|present \(failed\)|present \(passed\))"},
      "lines": ["webdriver", "missing", "present", "failed", "passed",
                "HeadlessChrome", "Chrome (New)", "Plugins", "Permissions"]},
     {"name": "areyouheadless",
      "url": "https://arh.antoinevastel.com/bots/areyouheadless", "settle": 8,
      "tier": "headless",
-     "scores": {"verdict": r"(not Chrome headless|Chrome headless)"},
-     "lines": ["headless", "Chrome"]},
+     "scores": {"verdict": r"(You are not Chrome headless|You are Chrome headless)"},
+     "lines": ["You are", "headless", "Chrome"]},
     {"name": "fingerprintjs", "url": "https://demo.fingerprint.com/", "settle": 16,
      "tier": "headless",
      "scores": {"bot": r"(bot detected|no bot detected|automation tool)",
@@ -168,6 +168,20 @@ async def run_target(core, t: dict) -> dict:
     except Exception as e:  # noqa: BLE001 - capture whatever rendered anyway
         print(f"   navigate warn: {str(e)[:80]}")
     await asyncio.sleep(t["settle"])
+    # Flaky-page retry: some targets (browserleaks WebRTC, incolumitas) randomly
+    # close the connection on a residential exit; a single re-navigate usually
+    # recovers, vs the old behavior of recording an empty report.
+    try:
+        probe = await core.eval_js("document.body ? document.body.innerText.length : 0")
+    except Exception:  # noqa: BLE001
+        probe = 0
+    if not probe or (isinstance(probe, (int, float)) and probe < 50):
+        print("   (empty/flaky -- one retry)")
+        try:
+            await core.navigate(url)
+            await asyncio.sleep(t["settle"])
+        except Exception as e:  # noqa: BLE001
+            print(f"   retry warn: {str(e)[:80]}")
     # BEHAVIORAL: drive human-like mouse/scroll so a behavior classifier
     # (incolumitas, DataDome-style) has real signals to score, then the
     # innerText grab below captures the now-populated behavioral verdict.
@@ -185,6 +199,15 @@ async def run_target(core, t: dict) -> dict:
         print(f"   eval failed: {str(e)[:80]}")
         txt = ""
     (OUT / f"{name}.txt").write_text(txt)
+    # Scroll to top before the screenshot: most verdict badges (iphey, browserscan,
+    # creepjs, sannysoft, rebrowser) render near the top, but a settled page is
+    # often scrolled to the footer/ads -- which is why earlier captures missed the
+    # verdict. Top-of-page is the authoritative screenshot.
+    try:
+        await core.eval_js("window.scrollTo(0, 0)")
+        await asyncio.sleep(0.4)
+    except Exception:  # noqa: BLE001
+        pass
     try:
         (OUT / f"{name}.png").write_bytes(await core.screenshot())
     except Exception:  # noqa: BLE001

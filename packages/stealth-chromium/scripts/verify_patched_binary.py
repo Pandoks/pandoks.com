@@ -304,9 +304,20 @@ async def _probe(bin_path: str, spoof: bool) -> dict:
     # sandbox=False: the --no-sandbox arg alone doesn't satisfy nodriver's own
     # launch guard when running as root (cloud/CI containers), so pass it
     # explicitly too -- otherwise start() raises "Failed to connect to browser".
-    browser = await nodriver.start(
-        browser_executable_path=bin_path, headless=False, sandbox=False,
-        browser_args=args)
+    async def _start(launch_args):
+        return await nodriver.start(browser_executable_path=bin_path,
+                                    headless=False, sandbox=False,
+                                    browser_args=launch_args)
+    try:
+        browser = await _start(args)
+    except Exception as e:  # noqa: BLE001
+        # On a real GPU under Xvfb, ANGLE-GL/Vulkan can fail to bring up a
+        # context and Chrome never opens the CDP port. Degrade to SwiftShader so
+        # the self-check still runs (reporting software WebGL) instead of aborting.
+        print(f"  (launch failed: {str(e)[:70]} -- retrying on swiftshader)")
+        sw = [a for a in args if not a.startswith(("--use-gl", "--use-angle"))]
+        sw += ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"]
+        browser = await _start(sw)
     try:
         tab = await browser.get(VERIFY_HTML.as_uri())
         await asyncio.sleep(1.5)
