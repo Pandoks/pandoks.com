@@ -110,11 +110,38 @@ Ranked by Scrapfly's 2026 bypass-success (lower % = harder):
 
 **To identify which vendor protects a site:** Scrapfly **Antibot-Detector** (github.com/scrapfly/Antibot-Detector) + the cookie/interstitial signatures above.
 
-> **Two network-effect vendors are uniquely dangerous to a fleet:** Imperva's
-> **Known-Violators DB** (fingerprint-keyed) and HUMAN's **behavioral network** — a flag on
-> *one* protected site blocks your identity across *all* of them. This makes
-> **fresh-fingerprint-per-session + never-reuse-a-flagged-one** a hard requirement we don't
-> yet enforce (we have per-account *stable* fps, but no rotate-on-flag).
+> **⚠️ The % above is MANAGED-UNBLOCKER success — for a DIY stealth browser the ranking
+> INVERTS.** DIY-hardest (what matters for us): **Kasada & Netacea (extreme) > Akamai ≈ F5/Shape
+> ≈ Arkose ≈ HUMAN ≈ Imperva ≈ DataDome (very hard) > reCAPTCHA-Ent ≈ CF-full-BotMgmt ≈
+> Fingerprint Pro ≈ AWS-WAF-Targeted ≈ Radware (hard) > Castle ≈ Turnstile ≈ AWS-Common
+> (moderate)**. Kasada = polymorphic **anti-tamper JS VM + human-timed PoW** (must *execute*,
+> can't spoof). Netacea = **server-side/agentless, no client JS at all** → fingerprint spoofing
+> is *irrelevant*, and there's no client-side oracle to iterate against.
+
+**Which vendors fingerprint-spoofing alone CANNOT beat (the core finding):**
+
+| Failure mode | Vendors | What's needed beyond a spoofed fingerprint |
+| --- | --- | --- |
+| Pure server-side/behavioral (spoofing irrelevant) | **Netacea** | make *aggregate traffic* statistically human over time |
+| Behavioral biometrics can block on their own | HUMAN, F5/Shape, Radware, reCAPTCHA-Ent | human mouse/keystroke/timing over a full session |
+| Anti-tamper VM + PoW (must *execute*) | **Kasada**, F5/Shape, HUMAN | run their obfuscated self-mutating VM, return human-timed tokens |
+| Challenge / economic deterrence | **Arkose**, reCAPTCHA-Ent | actually solve a CV/LLM-resistant puzzle at scale |
+| Per-device-FP rate-limit + cross-customer burn list | Imperva, Radware, HUMAN, Fingerprint | clean residential/mobile IP **+** a never-flagged fingerprint |
+| Protocol-level (decided before JS runs) | Akamai, CF, DataDome, F5, AWS-Targeted, Imperva | real browser **network stack** (JA3/JA4 + Akamai-h2) — Appendix A gate |
+
+> **Network-effect danger:** Imperva (Known-Violators DB) + HUMAN (20T interactions/wk) **flag a
+> fingerprint network-wide** — argues for **fresh-fp-per-session + rotate-on-flag** (we have
+> per-account *stable* fps, no rotate-on-flag yet).
+
+> **✅ Architecture validation (2026 benchmark, 7 tools × 31 anti-bot targets):** **nodriver won —
+> 28 OK / 0 blocked** — *because* it drives Chrome **CDP-direct with no Playwright shim and
+> avoids `Runtime.enable`**. We use nodriver. Camoufox (binary-patched Firefox) was the other
+> top performer — same philosophy as our **source-patched Chromium**. So our two core choices
+> (nodriver + native binary patches, not JS shims) are the **empirically-best 2026 approach**.
+> The `Runtime.enable` leak is the defining automation tell — the suite must confirm we don't
+> trip it (nodriver should avoid it; verify on `bot-detector.rebrowser.net` `runtimeEnableLeak`,
+> noting that the classic Error-stack variant was V8-patched mid-2025 but a prototype-Proxy
+> variant is still unpatched).
 
 ---
 
