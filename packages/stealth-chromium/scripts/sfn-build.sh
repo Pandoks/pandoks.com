@@ -17,18 +17,20 @@
 #      operator can diagnose without re-running.
 set -euo pipefail
 
-# The runner's SSM shell starts with NO $HOME. Without it the AWS CLI's
-# `aws s3 ls` cache probe in setup.sh fails -> a false "cache MISS" that triggers
-# a slow fresh `gclient sync` instead of restoring the warm chromium-src/ccache,
-# and gclient spams "Can't resolve $HOME". Set it before anything runs.
+# The runner's SSM shell starts with NO $HOME; gclient spams "Can't resolve
+# $HOME" without it. Set it before anything runs.
 export HOME="${HOME:-/root}"
 
 # The generic runner (infra/runner/) exports RUNNER_JOB_ID / RUNNER_CACHE_BUCKET
 # / RUNNER_ARTIFACTS_BUCKET; this script predates the builder->runner rename and
-# reads the legacy names. Map new -> legacy so it works under both.
+# reads the legacy names. Map new -> legacy AND export -- setup.sh/apply.sh/
+# build.sh are child PROCESSES, so an unexported assignment leaves their
+# BUILDER_CACHE_BUCKET empty, which makes setup.sh's cache guard false -> a false
+# "cache MISS" -> a slow fresh gclient sync instead of restoring the warm cache.
 : "${BUILD_ID:=${RUNNER_JOB_ID:-}}"
 : "${BUILDER_CACHE_BUCKET:=${RUNNER_CACHE_BUCKET:-}}"
 : "${BUILDER_ARTIFACTS_BUCKET:=${RUNNER_ARTIFACTS_BUCKET:-}}"
+export BUILD_ID BUILDER_CACHE_BUCKET BUILDER_ARTIFACTS_BUCKET
 
 : "${BUILD_ID:?BUILD_ID (or RUNNER_JOB_ID) must be set by the SFN}"
 : "${BUILDER_CACHE_BUCKET:?BUILDER_CACHE_BUCKET (or RUNNER_CACHE_BUCKET) must be set by the SFN}"
