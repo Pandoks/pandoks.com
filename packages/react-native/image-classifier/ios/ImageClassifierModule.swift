@@ -5,7 +5,7 @@ public class ImageClassifierModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ImageClassifier")
 
-    AsyncFunction("classifyImage") { (uri: String, minConfidence: Double) -> [[String: Any]] in
+    AsyncFunction("classifyImage") { (uri: String, minConfidence: Double) -> [Classification] in
       // NOTE: handles file:// or absolute paths
       let url: URL
       if uri.contains("://") {
@@ -30,9 +30,14 @@ public class ImageClassifierModule: Module {
         observations
         .filter { Double($0.confidence) >= minConfidence }
         .sorted { $0.confidence > $1.confidence }
-        .map { ["label": $0.identifier, "confidence": Double($0.confidence)] }
+        .map { Classification(label: $0.identifier, confidence: Double($0.confidence)) }
     }
   }
+}
+
+private struct Classification: Record {
+  @Field var label: String = ""
+  @Field var confidence: Double = 0
 }
 
 private final class InvalidImageURIException: GenericException<String>, @unchecked Sendable {
