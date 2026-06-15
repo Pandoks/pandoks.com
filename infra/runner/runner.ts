@@ -42,6 +42,37 @@ new aws.iam.RolePolicy(
   },
   { provider: usWest2Provider }
 );
+// The state machine runs jobs with CloudWatchOutputEnabled, but the SSM agent
+// can only ship stdout/stderr to CloudWatch if the instance role can write logs
+// -- without this, job output is silently lost on failure (the agent has no
+// perms to create the /aws/ssm/* log group). Scope to the SSM + runner groups.
+new aws.iam.RolePolicy(
+  'RunnerInstanceLogsPolicy',
+  {
+    role: runnerInstanceRole.id,
+    policy: aws.iam.getPolicyDocumentOutput({
+      statements: [
+        {
+          effect: 'Allow',
+          actions: [
+            'logs:CreateLogGroup',
+            'logs:CreateLogStream',
+            'logs:PutLogEvents',
+            'logs:DescribeLogStreams',
+            'logs:DescribeLogGroups'
+          ],
+          resources: [
+            'arn:aws:logs:*:*:log-group:/aws/ssm/*',
+            'arn:aws:logs:*:*:log-group:/aws/ssm/*:*',
+            `arn:aws:logs:*:*:log-group:/runners/${STAGE_NAME}/*`,
+            `arn:aws:logs:*:*:log-group:/runners/${STAGE_NAME}/*:*`
+          ]
+        }
+      ]
+    }).json
+  },
+  { provider: usWest2Provider }
+);
 const runnerInstanceProfile = new aws.iam.InstanceProfile(
   'RunnerInstanceProfile',
   {

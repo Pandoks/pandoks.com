@@ -75,6 +75,12 @@ function launchInstance({
     },
     ResultPath: '$.instance',
     Next: 'WaitForSSM',
+    // EC2 "Insufficient capacity" (esp. GPU on-demand) is usually transient --
+    // retry with backoff before giving up, so a momentary capacity gap doesn't
+    // abort the whole job. Ec2.Ec2Exception also covers request throttling.
+    Retry: [
+      { ErrorEquals: ['Ec2.Ec2Exception'], IntervalSeconds: 20, MaxAttempts: 4, BackoffRate: 2 }
+    ],
     Catch: [{ ErrorEquals: ['States.ALL'], ResultPath: '$.error', Next: 'FailNoInstance' }]
   };
 }
