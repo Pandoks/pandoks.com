@@ -1,5 +1,5 @@
-import ExpoVisionModule from './ExpoVisionModule';
-import type { Classification, ClassifyOptions } from './ExpoVision.types';
+import ImageClassifierModule from './ImageClassifierModule';
+import type { Classification, ClassifyOptions } from './ImageClassifier.types';
 
 export type { Classification, ClassifyOptions };
 
@@ -15,10 +15,10 @@ export type { Classification, ClassifyOptions };
  */
 export async function classifyImage({
   uri,
-  options = { minConfidence: 0.5 }
+  options: { minConfidence = 0.5 } = {}
 }: {
   uri: string;
   options?: ClassifyOptions;
 }): Promise<Classification[]> {
-  return ExpoVisionModule.classifyImage(uri, options.minConfidence);
+  return ImageClassifierModule.classifyImage(uri, minConfidence);
 }

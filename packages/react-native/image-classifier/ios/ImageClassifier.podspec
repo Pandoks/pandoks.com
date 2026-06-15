@@ -1,8 +1,8 @@
 Pod::Spec.new do |s|
-  s.name           = 'ExpoVision'
+  s.name           = 'ImageClassifier'
   s.version        = '1.0.0'
-  s.summary        = 'A sample project summary'
-  s.description    = 'A sample project description'
+  s.summary        = 'On-device image classification via Vision.'
+  s.description    = 'Reference Expo native module: async classifyImage using VNClassifyImageRequest.'
   s.author         = ''
   s.homepage       = 'https://docs.expo.dev/modules/'
   s.platforms      = {
@@ -10,6 +10,7 @@ Pod::Spec.new do |s|
     :tvos => '16.4'
   }
   s.source         = { git: '' }
+  s.frameworks     = 'Vision', 'CoreML'
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'

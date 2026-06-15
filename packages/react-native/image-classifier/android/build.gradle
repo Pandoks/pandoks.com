@@ -3,11 +3,11 @@ plugins {
   id 'expo-module-gradle-plugin'
 }
 
-group = 'com.pandoks.vision'
+group = 'com.pandoks.imageclassifier'
 version = '0.1.0'
 
 android {
-  namespace "com.pandoks.vision"
+  namespace "com.pandoks.imageclassifier"
   defaultConfig {
     versionCode 1
     versionName "0.1.0"
@@ -15,4 +15,8 @@ android {
   lintOptions {
     abortOnError false
   }
+}
+
+dependencies {
+  implementation "com.google.mlkit:image-labeling:17.0.9"
 }

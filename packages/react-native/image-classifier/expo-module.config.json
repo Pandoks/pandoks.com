@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["ImageClassifierModule"]
+  },
+  "android": {
+    "modules": ["com.pandoks.imageclassifier.ImageClassifierModule"]
+  }
+}
