@@ -35,7 +35,13 @@ function launchInstance({
     Resource: 'arn:aws:states:::aws-sdk:ec2:runInstances',
     Parameters: {
       LaunchTemplate: {
-        'LaunchTemplateId.$': templatePath
+        'LaunchTemplateId.$': templatePath,
+        // Launch the newest template version, not the unversioned default. The
+        // default version stays pinned to v1, whose ImageId is stale (CPU) or
+        // empty (GPU AMIs bake slower than the first deploy, so v1 has no
+        // ImageId -> RunInstances fails "must contain the parameter ImageId").
+        // $Latest always resolves to the most recently baked AMI.
+        Version: '$Latest'
       },
       MinCount: 1,
       MaxCount: 1,

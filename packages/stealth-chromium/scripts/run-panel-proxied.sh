@@ -16,6 +16,11 @@
 #     bash packages/stealth-chromium/scripts/run-panel-proxied.sh\""
 set -uo pipefail
 export HOME="${HOME:-/root}"
+# Runner (infra/runner/) exports RUNNER_ARTIFACTS_BUCKET/RUNNER_JOB_ID; map to the
+# legacy names this script (and the run-panel.sh it execs) read.
+: "${BUILDER_ARTIFACTS_BUCKET:=${RUNNER_ARTIFACTS_BUCKET:-}}"
+: "${BUILD_ID:=${RUNNER_JOB_ID:-}}"
+export BUILDER_ARTIFACTS_BUCKET BUILD_ID
 PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # proxy.py reads OXYLABS_PROXIES; accept the longer alias the earlier command used.

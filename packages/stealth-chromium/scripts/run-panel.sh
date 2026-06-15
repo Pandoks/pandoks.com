@@ -15,6 +15,12 @@
 # upload to s3://$BUILDER_ARTIFACTS_BUCKET/$BUILD_ID/panel/.
 set -euo pipefail
 
+# The ephemeral runner (infra/runner/) exports RUNNER_ARTIFACTS_BUCKET/RUNNER_JOB_ID;
+# this script predates the builder->runner rename and reads the legacy names.
+# Map new -> legacy so the script works under both.
+: "${BUILDER_ARTIFACTS_BUCKET:=${RUNNER_ARTIFACTS_BUCKET:-}}"
+: "${BUILD_ID:=${RUNNER_JOB_ID:-}}"
+
 PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"  # packages/stealth-chromium
 REPO_ROOT="$(cd "$PKG_ROOT/../.." && pwd)"                   # repo root (two up)
 WORK=/tmp/panel

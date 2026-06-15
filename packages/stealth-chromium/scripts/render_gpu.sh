@@ -10,6 +10,11 @@
 #   command="bash packages/stealth-chromium/scripts/render_gpu.sh"
 set -uo pipefail
 
+# The ephemeral runner (infra/runner/) exports RUNNER_ARTIFACTS_BUCKET/RUNNER_JOB_ID;
+# this script predates the builder->runner rename and reads the legacy names.
+: "${BUILDER_ARTIFACTS_BUCKET:=${RUNNER_ARTIFACTS_BUCKET:-}}"
+: "${BUILD_ID:=${RUNNER_JOB_ID:-}}"
+
 PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "$PKG_ROOT/../.." && pwd)"
 WORK=/tmp/rendergpu
@@ -37,12 +42,18 @@ sudo apt-get install -y -qq xvfb fonts-liberation libnss3 libnspr4 \
     libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2 \
     libpango-1.0-0 libcairo2 libatspi2.0-0 libgtk-3-0 libxshmfence1 \
     libglib2.0-0 mesa-utils 2>/dev/null || echo "  (some deps failed)"
-echo "  installing NVIDIA driver (ubuntu-drivers autoinstall) ..."
-sudo apt-get install -y -qq ubuntu-drivers-common 2>/dev/null || true
-sudo ubuntu-drivers autoinstall 2>&1 | tail -3 || \
-  sudo apt-get install -y -qq nvidia-driver-535-server 2>&1 | tail -3 || \
-  echo "  (driver install failed -- GPU arm will fall back to software)"
-sudo modprobe nvidia 2>/dev/null || true
+# GPU runner AMIs (infra/runner/ami-gpu.yaml) pre-bake nvidia-open + CUDA, so
+# nvidia-smi already works -- skip the multi-minute driver install in that case.
+if nvidia-smi >/dev/null 2>&1; then
+  echo "  NVIDIA driver already present (baked into the GPU AMI) -- skipping install"
+else
+  echo "  installing NVIDIA driver (ubuntu-drivers autoinstall) ..."
+  sudo apt-get install -y -qq ubuntu-drivers-common 2>/dev/null || true
+  sudo ubuntu-drivers autoinstall 2>&1 | tail -3 || \
+    sudo apt-get install -y -qq nvidia-driver-535-server 2>&1 | tail -3 || \
+    echo "  (driver install failed -- GPU arm will fall back to software)"
+  sudo modprobe nvidia 2>/dev/null || true
+fi
 echo "  nvidia-smi:"; nvidia-smi --query-gpu=name,driver_version --format=csv 2>&1 | head -3 || echo "  (nvidia-smi unavailable)"
 
 echo "=== [2/4] download newest 149 binary ==="
