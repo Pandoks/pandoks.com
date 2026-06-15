@@ -29,7 +29,6 @@ class ImageClassifierModule : Module() {
         val labeler = ImageLabeling.getClient(options)
 
         try {
-          // ML Kit's bundled model — on-device, no network.
           val image = InputImage.fromFilePath(context, Uri.parse(uri))
           labeler
             .process(image)
