@@ -103,7 +103,7 @@ install_aws_config() {
   install_aws_config_file="${install_aws_config_dir}/config"
 
   if [ -s "${install_aws_config_file}" ]; then
-    log_ok "AWS config already present (~/.aws/config)"
+    printf '  %b[aws]%b  AWS config already present (~/.aws/config)\n' "${GREEN}" "${NORMAL}" >&2
     return 0
   fi
 
@@ -134,7 +134,7 @@ sso_role_name = AdministratorAccess
 region = us-west-1
 EOF
   chmod 600 "${install_aws_config_file}"
-  log_ok "Wrote ~/.aws/config (SSO session + 3 profiles)"
+  printf '  %b[aws]%b  Wrote ~/.aws/config (SSO session + 3 profiles)\n' "${GREEN}" "${NORMAL}" >&2
 }
 
 install_docker() {
@@ -204,6 +204,22 @@ reload_or_hint() {
   log_warn "  (or restart your shell, or re-run with: pnpm bootstrap all --reload)"
 }
 
+stream_track() {
+  stream_track_color="$1"
+  stream_track_label="$2"
+  stream_track_rc="$3"
+  shift 3
+  {
+    stream_track_status=0
+    for stream_track_fn in "$@"; do
+      "${stream_track_fn}" || stream_track_status=1
+    done
+    printf '%s' "${stream_track_status}" > "${stream_track_rc}"
+  } 2>&1 | while IFS= read -r stream_track_line; do
+    printf '  %b%s%b %s\n' "${stream_track_color}" "${stream_track_label}" "${NORMAL}" "${stream_track_line}" >&2
+  done
+}
+
 cmd_bootstrap_all() {
   populate_proper_pathing
   ensure_package_manager > /dev/null
@@ -216,25 +232,23 @@ cmd_bootstrap_all() {
 
   log_step "Installing toolchain + system packages concurrently"
   cmd_bootstrap_all_logs=$(mktemp -d)
-  (install_mise_tools) > "${cmd_bootstrap_all_logs}/mise" 2>&1 &
+
+  stream_track "${CYAN}" "[mise]" "${cmd_bootstrap_all_logs}/mise.rc" install_mise_tools &
   cmd_bootstrap_all_mise_pid=$!
-  (
-    install_swift_format
-    install_docker
-    install_system_tools
-  ) > "${cmd_bootstrap_all_logs}/pkg" 2>&1 &
+  stream_track "${BLUE}" "[pkg] " "${cmd_bootstrap_all_logs}/pkg.rc" \
+    install_swift_format install_docker install_system_tools &
   cmd_bootstrap_all_pkg_pid=$!
 
   install_aws_config
 
+  wait "${cmd_bootstrap_all_mise_pid}"
+  wait "${cmd_bootstrap_all_pkg_pid}"
   cmd_bootstrap_all_failed=0
-  wait "${cmd_bootstrap_all_mise_pid}" || cmd_bootstrap_all_failed=1
-  cat "${cmd_bootstrap_all_logs}/mise" >&2
-  wait "${cmd_bootstrap_all_pkg_pid}" || cmd_bootstrap_all_failed=1
-  cat "${cmd_bootstrap_all_logs}/pkg" >&2
+  [ "$(cat "${cmd_bootstrap_all_logs}/mise.rc" 2> /dev/null || echo 1)" -eq 0 ] || cmd_bootstrap_all_failed=1
+  [ "$(cat "${cmd_bootstrap_all_logs}/pkg.rc" 2> /dev/null || echo 1)" -eq 0 ] || cmd_bootstrap_all_failed=1
   rm -rf "${cmd_bootstrap_all_logs}"
   if [ "${cmd_bootstrap_all_failed}" -ne 0 ]; then
-    die "setup failed — see logs above"
+    die "setup failed — see streamed logs above"
   fi
 
   printf "\n" >&2
