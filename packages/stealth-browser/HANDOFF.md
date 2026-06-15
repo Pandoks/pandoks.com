@@ -791,3 +791,62 @@ prefix. The rename to `STEALTH_*` is deferred.
 - **Conventional commits**, type-only prefix, PR number in parens when applicable.
 - **Cost estimates labeled as estimates** (Cost Explorer lags 12-48h).
 - **No commits unless asked.**
+
+---
+
+## GPU runner findings (2026-06-15, us-west-2 ephemeral runner)
+
+The `builder` became a generic `infra/runner/` SFN (x86/arm64/gpu-x86/gpu-arm64).
+GPU testing on a real NVIDIA box ran end-to-end through it. Key results:
+
+- **Runner GPU launch was broken**: `RunInstances` used the launch template's
+  unversioned default (v1), whose ImageId is empty for GPU (the GPU AMI bakes
+  slower than the first deploy). Fixed in `infra/runner/step.ts` with
+  `Version: '$Latest'` (also fixed independently on main as `fe9082c`). GPU spot
+  quota is **0** -> use `marketType: on-demand`; GPU AMI needs `storageSizeGib>=60`.
+- **Capacity**: `g6.xlarge` on-demand frequently "Insufficient capacity" in
+  us-west-2; `g5.xlarge` (A10G) works. The SFN has NO capacity fallback (single
+  type, no retry) -- launch with a g6->g5->g4dn fallback loop.
+- **Runner has no job-output capture**: instance role lacks CloudWatch Logs
+  perms so `CloudWatchOutputEnabled` is a no-op; scripts self-upload logs to S3.
+- **Scripts read legacy `BUILD_ID`/`BUILDER_*` env**; runner exports `RUNNER_*`.
+  Shimmed in run-panel.sh, run-panel-proxied.sh, render_gpu.sh, sfn-build.sh.
+  Other scripts in scripts/ still need the shim if used under the runner.
+- **ANGLE backend** is now `APEX_ANGLE_BACKEND`-selectable (profile.py): default
+  `gl` (llvmpipe software, proven for GPU-less servers); `vulkan` engages a real
+  NVIDIA GPU under Xvfb (`--use-angle=vulkan --disable-vulkan-surface`, Chrome's
+  documented headless-NVIDIA path). `--use-angle=gl` CRASHES on a real GPU under
+  Xvfb (GLX has no GPU context) -- that's why verify_patched_binary.py failed.
+- **Real GPU alone HURTS coherence**: the WebGL numeric size caps are cached
+  from the host GPU and LEAK (A10G/Vulkan: MAX_TEXTURE_SIZE 32768,
+  MAX_3D_TEXTURE_SIZE 16384), contradicting a D3D11 persona (32768 / 2048).
+  GPU did NOT change `creepjs likeHeadless` (38) or clear the browserscan
+  "WebGL vendors vary / hiding hardware" exception. Those are NOT
+  rendering-fidelity issues.
+- **WebGL-caps patch (committed `bf4989c`, NOT yet built)**: 3 new edits in
+  apply_edits.py (`apex-webgl-maxcaps[-viewport][-3d]`) clamp the cached caps to
+  the persona's GPU; fp_env emits APEX_FP_WEBGL_MAX_TEXTURE_SIZE / _MAX_3D_
+  TEXTURE_SIZE / _MAX_ARRAY_TEXTURE_LAYERS (nvidia 32768, else 16384; 3D 2048;
+  array 2048). **Anchors taken from the 149.0.7827.53 source via WebFetch --
+  the multi-hour build's patch-apply step validates them; if an anchor fails,
+  fix it there.** Open question: whether coherent caps actually clear the
+  browserscan WebGL exception (the 3D-size mismatch is a candidate cause, but
+  it may be a generic "you're masking your GPU" flag that fires for any
+  renderer-string spoof). likeHeadless 38 is independent of this.
+
+### How to build the patched binary under the runner
+`marketType: on-demand`, big CPU instance (e.g. `c7i.12xlarge`/`m7i.8xlarge`),
+`storageSizeGib >= 150`, `command: "bash packages/stealth-chromium/scripts/sfn-build.sh"`.
+The dev (pandoks) runner's RUNNER_CACHE_BUCKET has the chromium-src/ccache from
+the old builder; RUNNER_ARTIFACTS_BUCKET receives `<jobid>/chromium-149.*.tar.zst`.
+Then GPU-test: `APEX_ANGLE_BACKEND=vulkan APEX_PROFILE=RTX bash .../run-panel.sh`
+on g5.xlarge and read `<jobid>/panel/bl_webgl.txt` (expect MAX_TEXTURE_SIZE
+32768, MAX_3D_TEXTURE_SIZE 2048 -- coherent NVIDIA-D3D11) + browserscan.txt.
+
+### Residual tooling bugs (non-blocking)
+- `verify_patched_binary.py` still crashes launching as root on the GPU box even
+  with vulkan (raw `nodriver.start()` is less robust than `core_nodriver`); the
+  benchmark path works. Should reuse the core_nodriver launch.
+- `fingerprint_benchmark.py` summary parser mis-reports (showed false
+  "WebDriver"/"chrome headless"/"80%" while raw reports were clean) -- fix the
+  per-target extraction so headline verdicts are trustworthy.
