@@ -136,10 +136,28 @@ Ranked by Scrapfly's 2026 bypass-success (lower % = harder):
 
 ## Tier 7 — Behavioral detection ❌ (NOT covered — biggest enterprise gap)
 
-mouse curvature / Fitts's-law overshoot, click cadence, scroll dynamics, keystroke timing,
-page-dwell, navigation graph. Used by reCAPTCHA, DataDome, HUMAN, Kasada, Imperva.
-**We have zero behavioral humanization.** This is the single biggest reason the browser
-isn't "enterprise-ready" regardless of fingerprint quality.
+The hardest layer, because it's *continuous and live* — fixing TLS/fingerprint does nothing for
+it. Used by reCAPTCHA, DataDome, HUMAN, Akamai, Kasada, Imperva, Arkose, F5/Shape.
+**We have zero behavioral humanization** — the single biggest reason the browser isn't
+"enterprise-ready" regardless of fingerprint quality.
+
+What they measure (grounded):
+- **Mouse:** event density (humans fire *hundreds* of `mousemove`/gesture; a teleporting bot
+  fires ~4), bell-shaped velocity, **near-zero acceleration on straight segments = bot**,
+  ballistic **overshoot+correction**, physiological **tremor** synthetic paths omit.
+- **Keystroke:** dwell + flight times; programmatic fill with no keydown/keyup or zero flight = tell.
+- **Scroll:** trackpad **inertial scroll decays geometrically** (`lethargy`) — a "MacBook"
+  emitting uniform wheel steps is inconsistent.
+- **Mobile:** **live accelerometer/gyro jitter** (real hand is never still; emulator = flat/zero).
+- **Timing:** faster-than-human submit, fixed cadence; regularity itself is the tell.
+
+Why naive humanization fails (don't waste effort):
+- **Bézier cursors (Ghost Cursor) help only marginally** — too smooth (no tremor); ML scores the
+  *distribution*, not one path.
+- **Replaying a recorded human session is detectable** (ReMouse; Akamai detects telemetry replay).
+- **Per-customer models** (DataDome runs **85k+**) defeat "tune once, run everywhere."
+- Test surface: `bot.incolumitas.com` (0–1 score over 15s), HUMAN "Press & Hold", reCAPTCHA v3.
+  **Building this is a separate workstream** (human-motion gen + CAPTCHA handling), not a patch.
 
 ---
 
