@@ -113,6 +113,7 @@ const runnerToolsComponent = new aws.imagebuilder.Component(
     name: `${STAGE_NAME}-runner-tools`,
     platform: 'Linux',
     version: VERSION,
+    skipDestroy: true,
     data: renderAmiTemplateYaml({ file: 'ami.yaml' })
   },
   { provider: usWest2Provider }
@@ -123,6 +124,7 @@ const runnerGpuX86ToolsComponent = new aws.imagebuilder.Component(
     name: `${STAGE_NAME}-runner-gpu-tools`,
     platform: 'Linux',
     version: VERSION,
+    skipDestroy: true,
     data: renderAmiTemplateYaml({ file: 'ami-gpu.yaml', replacements: { CUDA_ARCH: 'x86_64' } })
   },
   { provider: usWest2Provider }
@@ -133,6 +135,7 @@ const runnerGpuArmToolsComponent = new aws.imagebuilder.Component(
     name: `${STAGE_NAME}-runner-gpu-arm-tools`,
     platform: 'Linux',
     version: VERSION,
+    skipDestroy: true,
     data: renderAmiTemplateYaml({ file: 'ami-gpu.yaml', replacements: { CUDA_ARCH: 'sbsa' } })
   },
   { provider: usWest2Provider }
