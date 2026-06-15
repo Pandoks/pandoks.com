@@ -140,22 +140,11 @@ EDITS = [
                   "    max_renderbuffer_size_ = apex_max;\n"
                   "  }\n",
     },
-    {
-        "file": "third_party/blink/renderer/modules/webgl/"
-                "webgl_rendering_context_base.cc",
-        "header": '#include "apex_fingerprint.h"',
-        "marker": "apex-webgl-maxcaps-viewport",
-        "anchor": "  ContextGL()->GetIntegerv(GL_MAX_VIEWPORT_DIMS, "
-                  "max_viewport_dims_.data());\n",
-        "where": "after",
-        "inject": "  // apex-webgl-maxcaps-viewport (tracks MAX_TEXTURE_SIZE)\n"
-                  "  if (apex_fp::HasOverride(\"APEX_FP_WEBGL_MAX_TEXTURE_SIZE\")) {\n"
-                  "    GLint apex_vp = static_cast<GLint>(apex_fp::EnvU32(\n"
-                  "        \"APEX_FP_WEBGL_MAX_TEXTURE_SIZE\", max_viewport_dims_[0]));\n"
-                  "    max_viewport_dims_[0] = apex_vp;\n"
-                  "    max_viewport_dims_[1] = apex_vp;\n"
-                  "  }\n",
-    },
+    # NOTE: a MAX_VIEWPORT_DIMS edit was deferred -- the source wraps that
+    # GetIntegerv call across two lines and the exact continuation indent must be
+    # matched against the real tree before re-adding it. MAX_VIEWPORT_DIMS tracks
+    # MAX_TEXTURE_SIZE on real hardware, so on a host-matched persona it is
+    # already coherent; refit + re-add when iterating.
     {
         "file": "third_party/blink/renderer/modules/webgl/"
                 "webgl_rendering_context_base.cc",
