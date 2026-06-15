@@ -4,7 +4,7 @@ import { US_WEST_2_REGION, usWest2Provider } from '../aws';
 import { STAGE_NAME } from '../dns';
 
 // WARNING: version must be bumped when AMI changes to rebuild
-const VERSION = '1.0.2';
+const VERSION = '1.0.3';
 
 const bakeInstanceRole = new aws.iam.Role(
   'RunnerBakeInstanceRole',
@@ -57,12 +57,14 @@ function makeRecipe({
   id,
   name,
   arch,
-  components
+  components,
+  volumeSizeGib
 }: {
   id: string;
   name: string;
   arch: keyof typeof ARCH_IMAGE_MAPPING;
   components: aws.imagebuilder.Component[];
+  volumeSizeGib?: number;
 }) {
   return new aws.imagebuilder.ImageRecipe(
     id,
@@ -70,7 +72,15 @@ function makeRecipe({
       name: `${STAGE_NAME}-${name}`,
       parentImage: ARCH_IMAGE_MAPPING[arch],
       version: VERSION,
-      components: components.map((c) => ({ componentArn: c.arn }))
+      components: components.map((c) => ({ componentArn: c.arn })),
+      blockDeviceMappings: volumeSizeGib // NOTE: default 8 GiB can't hold the full CUDA toolkit for GPU
+        ? [
+            {
+              deviceName: '/dev/sda1',
+              ebs: { volumeSize: volumeSizeGib, volumeType: 'gp3', deleteOnTermination: 'true' }
+            }
+          ]
+        : undefined
     },
     { provider: usWest2Provider }
   );
@@ -144,13 +154,15 @@ const runnerRecipeGpuX86 = makeRecipe({
   id: 'RunnerRecipeGpuX86',
   name: 'runner-gpu-x86',
   arch: 'x86',
-  components: [runnerToolsComponent, runnerGpuX86ToolsComponent]
+  components: [runnerToolsComponent, runnerGpuX86ToolsComponent],
+  volumeSizeGib: 60
 });
 const runnerRecipeGpuArm64 = makeRecipe({
   id: 'RunnerRecipeGpuArm64',
   name: 'runner-gpu-arm64',
   arch: 'arm64',
-  components: [runnerToolsComponent, runnerGpuArmToolsComponent]
+  components: [runnerToolsComponent, runnerGpuArmToolsComponent],
+  volumeSizeGib: 60
 });
 
 const runnerBakeInfraX86 = makeBakeInfra({
