@@ -58,7 +58,7 @@ echo "  nvidia-smi:"; nvidia-smi --query-gpu=name,driver_version --format=csv 2>
 
 echo "=== [2/4] download newest 149 binary ==="
 TARKEY="$(aws s3 ls --recursive "s3://${BUILDER_ARTIFACTS_BUCKET}/" \
-  | grep -E 'stealth-chromium-149.*/chromium-.*\.tar\.zst$' \
+  | grep -E '/chromium-149.*\.tar\.zst$' \
   | sort | tail -1 | awk '{print $NF}')"
 [ -n "$TARKEY" ] || { echo "ERROR: no binary"; exit 1; }
 echo "  artifact: $TARKEY"

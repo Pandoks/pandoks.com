@@ -97,7 +97,7 @@ echo "=== [2/5] download latest patched binary from S3 ==="
 # the prefix NAMES would be lexical and wrongly pick e.g. 149selfcheck over the
 # newer 149audio.)
 TARKEY="$(aws s3 ls --recursive "s3://${BUILDER_ARTIFACTS_BUCKET}/" \
-  | grep -E 'stealth-chromium-149.*/chromium-.*\.tar\.zst$' \
+  | grep -E '/chromium-149.*\.tar\.zst$' \
   | sort | tail -1 | awk '{print $NF}')"
 [ -n "$TARKEY" ] || { echo "ERROR: no stealth-chromium-149* tarball found"; exit 1; }
 echo "  artifact: $TARKEY"
