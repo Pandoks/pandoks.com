@@ -5,6 +5,12 @@
 # (the patch is IP-independent). Run via the dev-builder SFN with
 #   command="bash packages/stealth-chromium/scripts/run-lang-probe.sh"
 set -uo pipefail
+
+# Runner (infra/runner/) exports RUNNER_*; map to the legacy names this
+# script reads (builder->runner rename).
+: "${BUILDER_ARTIFACTS_BUCKET:=${RUNNER_ARTIFACTS_BUCKET:-}}"
+: "${BUILD_ID:=${RUNNER_JOB_ID:-}}"
+: "${BUILDER_CACHE_BUCKET:=${RUNNER_CACHE_BUCKET:-}}"
 export HOME="${HOME:-/root}"
 PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "$PKG_ROOT/../.." && pwd)"

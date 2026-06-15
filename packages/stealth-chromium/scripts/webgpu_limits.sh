@@ -5,6 +5,12 @@
 #   command="bash packages/stealth-chromium/scripts/webgpu_limits.sh"
 set -uo pipefail
 
+# Runner (infra/runner/) exports RUNNER_*; map to the legacy names this
+# script reads (builder->runner rename).
+: "${BUILDER_ARTIFACTS_BUCKET:=${RUNNER_ARTIFACTS_BUCKET:-}}"
+: "${BUILD_ID:=${RUNNER_JOB_ID:-}}"
+: "${BUILDER_CACHE_BUCKET:=${RUNNER_CACHE_BUCKET:-}}"
+
 PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "$PKG_ROOT/../.." && pwd)"
 WORK=/tmp/wgpulimits
