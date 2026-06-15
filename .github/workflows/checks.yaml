@@ -95,17 +95,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24.16.0'
-          cache: 'pnpm'
-
-      - name: Install pnpm dependencies
-        run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-node-pnpm
 
       - name: Run Prettier check
         run: pnpm format check js
@@ -117,17 +107,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24.16.0'
-          cache: 'pnpm'
-
-      - name: Install pnpm dependencies
-        run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-node-pnpm
 
       - name: Run ESLint
         run: pnpm lint js
@@ -140,14 +120,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24.16.0'
-          cache: 'pnpm'
+      - uses: ./.github/actions/setup-node-pnpm
 
       - name: Setup Go
         uses: actions/setup-go@v6
@@ -155,8 +128,9 @@ jobs:
           go-version-file: packages/valkey/reconciler/go.mod
           cache-dependency-path: packages/valkey/reconciler/go.sum
 
-      - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: golangci-lint
 
       - name: Run format check
         run: pnpm format check go
@@ -168,14 +142,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24.16.0'
-          cache: 'pnpm'
+      - uses: ./.github/actions/setup-node-pnpm
 
       - name: Setup Go
         uses: actions/setup-go@v6
@@ -183,11 +150,9 @@ jobs:
           go-version-file: packages/valkey/reconciler/go.mod
           cache-dependency-path: packages/valkey/reconciler/go.sum
 
-      - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
-
-      - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: golangci-lint go:golang.org/x/vuln/cmd/govulncheck
 
       - name: Run lint
         run: pnpm lint go
@@ -206,20 +171,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
+      - uses: ./.github/actions/setup-mise
         with:
-          node-version: '24.16.0'
-          cache: 'pnpm'
-
-      - name: Install shfmt
-        run: sudo apt-get update && sudo apt-get install -y shfmt
+          tools: shfmt
 
       - name: Run format check
-        run: pnpm format check shell
+        run: ./scripts/format/main.sh check shell
 
   lint-shell:
     needs: detect-changes
@@ -228,17 +185,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
+      - uses: ./.github/actions/setup-mise
         with:
-          node-version: '24.16.0'
-          cache: 'pnpm'
+          tools: shellcheck
 
       - name: Run ShellCheck
-        run: pnpm lint shell
+        run: ./scripts/lint/main.sh shell
 
   # ─── Swift ────────────────────────────────────────────────────────────
   checks-swift:
@@ -248,8 +200,13 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install SwiftLint + swift-format
-        run: brew install swiftlint swift-format
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: swiftlint
+
+      # swift-format is not in the mise registry
+      - name: Install swift-format
+        run: brew install swift-format
 
       - name: Run SwiftLint
         run: ./scripts/lint/main.sh swift
@@ -264,27 +221,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
+      - uses: ./.github/actions/setup-mise
         with:
-          node-version: '24.16.0'
-
-      - name: Install Helm
-        uses: azure/setup-helm@v5
-        with:
-          # renovate: datasource=github-releases packageName=helm/helm
-          version: 'v4.2.0'
-
-      - name: Install kubeconform
-        run: |
-          curl -sSL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz
-          sudo mv kubeconform /usr/local/bin/
+          tools: helm kubeconform
 
       - name: Run helm lint chain
-        run: pnpm lint helm
+        run: ./scripts/lint/main.sh helm
 
   # ─── GitHub Actions ───────────────────────────────────────────────────
   lint-actions:
@@ -324,17 +266,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24.16.0'
-          cache: 'pnpm'
-
-      - name: Install pnpm dependencies
-        run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-node-pnpm
 
       # NOTE: If a workspace `check` adds a non-npm system binary (Go, helm, hadolint, etc.),
       # add a `detect-changes`-gated install step above this — mirror the pattern in
@@ -352,17 +284,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: 'pnpm'
-
-      - name: Install pnpm dependencies
-        run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-node-pnpm
 
       - name: Typecheck infra
         run: pnpm check:infra
@@ -380,17 +302,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: 'pnpm'
-
-      - name: Install pnpm dependencies
-        run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-node-pnpm
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
