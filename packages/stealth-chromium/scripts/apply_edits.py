@@ -114,6 +114,71 @@ EDITS = [
                   "    }\n"
                   "  }\n",
     },
+    # --- WebGL integer size caps (MAX_TEXTURE_SIZE etc.) ---------------
+    # apex-webgl-ranges only spoofs the renderer STRING + float ranges. The
+    # numeric size caps are cached at context init from GetIntegerv, so they
+    # reflect the HOST GPU -- on a real NVIDIA box via ANGLE-Vulkan that is
+    # MAX_TEXTURE_SIZE 32768 / MAX_3D_TEXTURE_SIZE 16384, which contradicts a
+    # Windows/D3D11 persona (32768 / 2048). Clamp the cached members to the
+    # persona's claimed-GPU values right after they're read. MAX_TEXTURE_SIZE
+    # drives the renderbuffer + cube-map + viewport caps (they track on real
+    # hardware), so one env var sets all four.
+    {
+        "file": "third_party/blink/renderer/modules/webgl/"
+                "webgl_rendering_context_base.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-webgl-maxcaps",
+        "anchor": "  ContextGL()->GetIntegerv(GL_MAX_RENDERBUFFER_SIZE, "
+                  "&max_renderbuffer_size_);\n",
+        "where": "after",
+        "inject": "  // apex-webgl-maxcaps: size caps follow the persona's GPU\n"
+                  "  if (apex_fp::HasOverride(\"APEX_FP_WEBGL_MAX_TEXTURE_SIZE\")) {\n"
+                  "    GLint apex_max = static_cast<GLint>(apex_fp::EnvU32(\n"
+                  "        \"APEX_FP_WEBGL_MAX_TEXTURE_SIZE\", max_texture_size_));\n"
+                  "    max_texture_size_ = apex_max;\n"
+                  "    max_cube_map_texture_size_ = apex_max;\n"
+                  "    max_renderbuffer_size_ = apex_max;\n"
+                  "  }\n",
+    },
+    {
+        "file": "third_party/blink/renderer/modules/webgl/"
+                "webgl_rendering_context_base.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-webgl-maxcaps-viewport",
+        "anchor": "  ContextGL()->GetIntegerv(GL_MAX_VIEWPORT_DIMS, "
+                  "max_viewport_dims_.data());\n",
+        "where": "after",
+        "inject": "  // apex-webgl-maxcaps-viewport (tracks MAX_TEXTURE_SIZE)\n"
+                  "  if (apex_fp::HasOverride(\"APEX_FP_WEBGL_MAX_TEXTURE_SIZE\")) {\n"
+                  "    GLint apex_vp = static_cast<GLint>(apex_fp::EnvU32(\n"
+                  "        \"APEX_FP_WEBGL_MAX_TEXTURE_SIZE\", max_viewport_dims_[0]));\n"
+                  "    max_viewport_dims_[0] = apex_vp;\n"
+                  "    max_viewport_dims_[1] = apex_vp;\n"
+                  "  }\n",
+    },
+    {
+        "file": "third_party/blink/renderer/modules/webgl/"
+                "webgl_rendering_context_base.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-webgl-maxcaps-3d",
+        "anchor": "    ContextGL()->GetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS,\n"
+                  "                             &max_array_texture_layers_);\n",
+        "where": "after",
+        "inject": "    // apex-webgl-maxcaps-3d (WebGL2: D3D11/Metal -> 2048/2048)\n"
+                  "    if (apex_fp::HasOverride("
+                  "\"APEX_FP_WEBGL_MAX_3D_TEXTURE_SIZE\")) {\n"
+                  "      max3d_texture_size_ = static_cast<GLint>(apex_fp::EnvU32(\n"
+                  "          \"APEX_FP_WEBGL_MAX_3D_TEXTURE_SIZE\", "
+                  "max3d_texture_size_));\n"
+                  "    }\n"
+                  "    if (apex_fp::HasOverride("
+                  "\"APEX_FP_WEBGL_MAX_ARRAY_TEXTURE_LAYERS\")) {\n"
+                  "      max_array_texture_layers_ = static_cast<GLint>("
+                  "apex_fp::EnvU32(\n"
+                  "          \"APEX_FP_WEBGL_MAX_ARRAY_TEXTURE_LAYERS\", "
+                  "max_array_texture_layers_));\n"
+                  "    }\n",
+    },
     # --- navigator.userAgentData.platform ------------------------------
     {
         "file": "third_party/blink/renderer/core/frame/navigator_ua_data.cc",

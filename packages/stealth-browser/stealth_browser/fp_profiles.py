@@ -54,6 +54,16 @@ class FpProfile:
     # AMD radeonsi share the Mesa GL stack with llvmpipe (measured on our host).
     webgl_line_width_max: int | None = None
     webgl_point_size_max: int | None = None
+    # Optional per-persona WebGL size caps (getParameter readback). Default None
+    # -> fp_env derives from gpu_class. These follow the persona's claimed GPU/
+    # backend, NOT the host's real GPU -- which leaks through unpatched: a real
+    # NVIDIA A10G via ANGLE-Vulkan reports MAX_3D_TEXTURE_SIZE 16384, but a
+    # Windows/D3D11 persona must report 2048. The headline cap (MAX_TEXTURE_SIZE,
+    # which also drives RENDERBUFFER / CUBE_MAP / VIEWPORT) is 32768 on NVIDIA
+    # ANGLE-D3D11 and 16384 on Intel/Apple/AMD/llvmpipe.
+    webgl_max_texture_size: int | None = None
+    webgl_max_3d_texture_size: int | None = None
+    webgl_max_array_texture_layers: int | None = None
     # --- mobile (Android) ---------------------------------------------------
     # Mobile personas are emulated at RUNTIME over CDP (setUserAgentOverride +
     # metadata, setDeviceMetricsOverride mobile=True, setTouchEmulationEnabled)
@@ -831,6 +841,22 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         line_width_max = str(profile.webgl_line_width_max)
     if profile.webgl_point_size_max is not None:
         point_size_max = str(profile.webgl_point_size_max)
+    # WebGL size caps (getParameter). Unpatched they leak the HOST GPU (e.g. an
+    # NVIDIA A10G on ANGLE-Vulkan: MAX_TEXTURE_SIZE 32768, MAX_3D_TEXTURE_SIZE
+    # 16384), contradicting the persona's claimed GPU/backend. Spoof them to the
+    # claimed device's real values. Headline cap (MAX_TEXTURE_SIZE == RENDER-
+    # BUFFER == CUBE_MAP == VIEWPORT): NVIDIA ANGLE-D3D11 reports 32768; Intel/
+    # Apple(Metal)/AMD/llvmpipe report 16384. MAX_3D_TEXTURE_SIZE on both D3D11
+    # and Metal is 2048; MAX_ARRAY_TEXTURE_LAYERS is 2048.
+    max_texture_size = 32768 if profile.gpu_class == "nvidia" else 16384
+    max_3d_texture_size = 2048
+    max_array_texture_layers = 2048
+    if profile.webgl_max_texture_size is not None:
+        max_texture_size = profile.webgl_max_texture_size
+    if profile.webgl_max_3d_texture_size is not None:
+        max_3d_texture_size = profile.webgl_max_3d_texture_size
+    if profile.webgl_max_array_texture_layers is not None:
+        max_array_texture_layers = profile.webgl_max_array_texture_layers
     return {
         "APEX_FP_ACTIVE": "1",
         "APEX_FP_SEED": str(seed & 0xFFFFFFFF),
@@ -847,6 +873,9 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         # reports 511, ANGLE-D3D11 reports 1024.
         "APEX_FP_WEBGL_LINE_WIDTH_MAX": line_width_max,
         "APEX_FP_WEBGL_POINT_SIZE_MAX": point_size_max,
+        "APEX_FP_WEBGL_MAX_TEXTURE_SIZE": str(max_texture_size),
+        "APEX_FP_WEBGL_MAX_3D_TEXTURE_SIZE": str(max_3d_texture_size),
+        "APEX_FP_WEBGL_MAX_ARRAY_TEXTURE_LAYERS": str(max_array_texture_layers),
         # WebGPU adapter must agree with the WebGL GPU -- 2025-26 detectors
         # cross-check the two and flag a mismatch. The web-exposed WebGPU
         # vendor is the lowercase GPU family, which is exactly gpu_class
