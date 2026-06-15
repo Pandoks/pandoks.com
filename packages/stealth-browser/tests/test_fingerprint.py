@@ -93,6 +93,27 @@ def test_apex_languages_emitted_from_locale():
     assert langs == "es-ES,es,en"
 
 
+def test_persona_group_and_host_feasibility():
+    import importlib
+    os.environ["APEX_HOST_GPU"] = "intel"  # software/Intel/Apple host maxes at 16384
+    os.environ.pop("APEX_PROFILE_GROUP", None)
+    importlib.reload(fp)
+    pool = fp._persona_pool()
+    assert pool, "feasible pool empty"
+    assert all(fp._persona_max_texture(p) <= 16384 for p in pool), \
+        "16384 host offered a 32768 persona"
+    os.environ["APEX_PROFILE_GROUP"] = "apple,intel"
+    assert {p.gpu_class for p in fp._persona_pool()}.issubset({"apple", "intel"})
+    os.environ["APEX_PROFILE_GROUP"] = "MacBook"
+    assert all("macbook" in p.label.lower() for p in fp._persona_pool())
+    os.environ.pop("APEX_PROFILE_GROUP", None)
+    os.environ["APEX_HOST_GPU"] = "nvidia"
+    importlib.reload(fp)
+    assert any(p.gpu_class == "nvidia" for p in fp._persona_pool())
+    os.environ.pop("APEX_HOST_GPU", None)
+    importlib.reload(fp)
+
+
 def _run():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

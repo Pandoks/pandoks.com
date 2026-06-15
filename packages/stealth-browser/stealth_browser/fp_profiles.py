@@ -680,6 +680,43 @@ def pick_profile_by_label(label_or_substring: str) -> FpProfile | None:
     return None
 
 
+def _persona_max_texture(p: "FpProfile") -> int:
+    """The MAX_TEXTURE_SIZE this persona claims (matches fp_env's derivation)."""
+    if p.webgl_max_texture_size is not None:
+        return p.webgl_max_texture_size
+    return 32768 if p.gpu_class == "nvidia" else 16384
+
+
+def _persona_pool() -> list["FpProfile"]:
+    """The candidate pool after the user's APEX_PROFILE_GROUP selection and the
+    host-feasibility filter.
+
+    APEX_PROFILE_GROUP lets a caller restrict to a SET of personas (vs APEX_
+    PROFILE which pins exactly one): a comma-separated list of gpu_class names
+    and/or label substrings, e.g. "nvidia,intel" or "MacBook,iMac" or
+    "rtx 4090,m1 pro". Empty -> all profiles.
+
+    Host-feasibility: a persona may not claim a MAX_TEXTURE_SIZE the host GPU
+    cannot actually render -- Chromium clamps the cap DOWN to the real hardware
+    limit, so a 32768 NVIDIA persona silently understates to 16384 on a 16384
+    host (software llvmpipe / Intel / Apple), an incoherence a strict detector
+    could catch. Only real NVIDIA hardware backs 32768. An explicit APEX_PROFILE
+    pin bypasses this (handled in pick_profile) -- the operator's choice wins.
+    """
+    pool = PROFILES
+    group = os.environ.get("APEX_PROFILE_GROUP", "").strip()
+    if group:
+        needles = [g.strip().lower() for g in group.split(",") if g.strip()]
+        filtered = [p for p in pool
+                    if p.gpu_class.lower() in needles
+                    or any(n in p.label.lower() for n in needles)]
+        if filtered:
+            pool = filtered
+    host_cap = 32768 if _HOST_GPU_CLASS == "nvidia" else 16384
+    feasible = [p for p in pool if _persona_max_texture(p) <= host_cap]
+    return feasible or pool
+
+
 def pick_profile(rng: random.Random | None = None,
                  any_class: bool = False) -> FpProfile:
     """Pick a random profile (APEX_PROFILE pins one; else random).
@@ -688,12 +725,11 @@ def pick_profile(rng: random.Random | None = None,
     coherence (the claimed GPU IS the host GPU, so renderer string, numeric GL
     params, shader precision AND rendered-pixel output all agree).
 
-    `any_class=True`: pick from ALL profiles -- used for per-ACCOUNT device
-    DIVERSITY (each account a genuinely different machine: Windows-RTX, MacBook,
-    Android, ...). On a host whose GPU differs from the chosen profile the WebGL
-    *render* won't match the claimed GPU (the known -5% gap real-GPU infra
-    closes); the strings/canvas/audio stay coherent + farbled. APEX_PROFILE
-    still overrides either way.
+    `any_class=True`: pick from the feasible pool (all profiles minus those the
+    host can't render at full cap, intersected with APEX_PROFILE_GROUP) -- used
+    for per-ACCOUNT device DIVERSITY (each account a genuinely different machine:
+    Windows-RTX, MacBook, Android, ...). The strings/canvas/audio stay coherent +
+    farbled. APEX_PROFILE still overrides either way; APEX_PROFILE_GROUP narrows.
     """
     pinned = os.environ.get("APEX_PROFILE", "").strip()
     if pinned:
@@ -702,13 +738,14 @@ def pick_profile(rng: random.Random | None = None,
             return match
         # fall through to random if APEX_PROFILE didn't match
     r = rng or random
+    pool = _persona_pool()
     if any_class:
-        return r.choice(PROFILES)
-    coherent = [p for p in PROFILES if p.gpu_class == _HOST_GPU_CLASS]
+        return r.choice(pool)
+    coherent = [p for p in pool if p.gpu_class == _HOST_GPU_CLASS]
     if not coherent:
-        # no profile for this GPU class -- fall back to the whole pool, but
+        # no profile for this GPU class -- fall back to the feasible pool, but
         # this means WebGL render output may not match the string (logged).
-        coherent = PROFILES
+        coherent = pool
     return r.choice(coherent)
 
 
