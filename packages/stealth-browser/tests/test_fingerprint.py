@@ -5,6 +5,7 @@ failure) or `pytest`. Locks in the coherence invariants fixed in the gap audit.
 """
 from __future__ import annotations
 
+import os
 import sys
 import tempfile
 from pathlib import Path
