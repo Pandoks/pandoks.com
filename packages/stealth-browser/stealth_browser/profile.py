@@ -200,6 +200,55 @@ def in_container() -> bool:
     return os.path.exists("/.dockerenv")
 
 
+def _angle_backend_flags() -> list[str]:
+    """ANGLE/WebGL launch flags, selected by APEX_ANGLE_BACKEND.
+
+    - "gl" (default): ANGLE's GL backend over Mesa llvmpipe -- a REAL software
+      renderer used by countless GPU-less Linux desktops (genuine string, not
+      the Chrome-internal "SwiftShader" tell), MAX_TEXTURE_SIZE 16384. This is
+      the proven path for GPU-less servers.
+    - "vulkan": ANGLE's Vulkan backend over the NVIDIA driver -- engages a REAL
+      GPU on a headless server. --use-angle=gl targets GLX, which Xvfb cannot
+      back with an NVIDIA context (Chrome crashes on launch); the Vulkan backend
+      is the path Chrome itself documents for headless NVIDIA WebGL/WebGPU, with
+      --disable-vulkan-surface for the windowless case. Set this only on a real
+      GPU box (the GPU runner AMI bakes the NVIDIA Vulkan driver).
+    """
+    backend = os.environ.get("APEX_ANGLE_BACKEND", "gl").lower()
+    common = [
+        "--ignore-gpu-blocklist",
+        "--enable-webgl",
+        "--enable-unsafe-webgpu",
+        # GPU-process stability: a heavy WebGL fingerprint battery (e.g. CreepJS)
+        # can make the GPU process miss the watchdog deadline; the watchdog then
+        # kills it and after a few restarts Chrome PERMANENTLY disables GL for
+        # the session. Disable the watchdog + restart cap. Launch-only.
+        "--disable-gpu-watchdog",
+        "--disable-gpu-process-crash-limit",
+    ]
+    if backend == "vulkan":
+        # Real-GPU path. WebGPU + WebGL both ride the NVIDIA Vulkan driver.
+        return [
+            "--use-gl=angle",
+            "--use-angle=vulkan",
+            "--enable-features=Vulkan",
+            "--disable-vulkan-surface",
+            *common,
+        ]
+    # Software path (default). WebGPU rides Chrome's bundled SwiftShader Vulkan
+    # so navigator.gpu.requestAdapter() is non-null (a macOS/Windows persona
+    # claims an OS where WebGPU ships on by default, so an absent adapter is
+    # itself a coherence tell); the apex-webgpu-adapterinfo patch then reports
+    # the persona's GPU family + isFallbackAdapter=false.
+    return [
+        "--use-gl=angle",
+        "--use-angle=gl",
+        "--enable-unsafe-swiftshader",  # fallback only
+        "--enable-features=Vulkan",
+        *common,
+    ]
+
+
 def chrome_launch_flags(identity: Identity, *, headless: bool,
                         proxy=None) -> list[str]:
     """Chrome command-line flags that remove headless/automation tells.
@@ -253,36 +302,7 @@ def chrome_launch_flags(identity: Identity, *, headless: bool,
     # target), which is robust across docker/containerd/k8s/bare-EC2. Harmless
     # on a real GPU: ANGLE-GL just layers over the system GL stack.
     if platform.system() == "Linux":
-        # WebGL via ANGLE's GL backend on Mesa llvmpipe (a REAL software
-        # renderer used by countless GPU-less Linux desktops -- genuine string,
-        # not the Chrome-internal "SwiftShader" tell). SwiftShader is fallback.
-        flags += [
-            "--use-gl=angle",
-            "--use-angle=gl",
-            "--ignore-gpu-blocklist",
-            "--enable-webgl",
-            "--enable-unsafe-swiftshader",  # fallback only
-            # WebGPU over Chrome's bundled SwiftShader Vulkan: a GPU-less box has
-            # no Vulkan adapter, so navigator.gpu.requestAdapter() returns null
-            # -- but a macOS/Windows persona claims an OS where Chrome ships
-            # WebGPU on by default, so an absent adapter is itself a coherence
-            # tell. With these flags the apex-webgpu-adapterinfo patch makes the
-            # adapter report the persona's GPU family + isFallbackAdapter=false.
-            # Verified: adapter present + vendor coherent while WebGL stays on
-            # ANGLE-GL/llvmpipe (MAX_TEXTURE_SIZE 16384). Launch-only flags,
-            # never page-visible.
-            "--enable-unsafe-webgpu",
-            "--enable-features=Vulkan",
-            # GPU-process stability for a SOFTWARE renderer. A heavy WebGL
-            # fingerprint battery (e.g. CreepJS) can make the slow software GPU
-            # process miss the watchdog deadline; the watchdog then kills it,
-            # and after a few restarts Chrome PERMANENTLY disables GL for the
-            # session. Disable the watchdog (don't kill a slow-but-working
-            # software render) and the restart cap (never permanently disable
-            # GL). Launch-only, never page-visible.
-            "--disable-gpu-watchdog",
-            "--disable-gpu-process-crash-limit",
-        ]
+        flags += _angle_backend_flags()
     # --no-sandbox is MANDATORY when running as root (Chrome refuses to sandbox
     # as root -- the case for servers/containers/CI); harmless and omitted for a
     # non-root desktop. --disable-dev-shm-usage avoids crashes where /dev/shm is

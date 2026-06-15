@@ -281,19 +281,23 @@ async def _probe(bin_path: str, spoof: bool) -> dict:
     # --headless=new falls back to SwiftShader (8192, matches no real GPU).
     # Run this script under `xvfb-run`. Mirrors profile.chrome_launch_flags'
     # container WebGL setup so the self-check sees what production sees.
+    # Mirror production's ANGLE backend selection (APEX_ANGLE_BACKEND): on a real
+    # GPU box set APEX_ANGLE_BACKEND=vulkan so the self-check exercises the same
+    # Vulkan path -- --use-angle=gl targets GLX, which Xvfb cannot back with an
+    # NVIDIA context, so the binary fails to launch ("Failed to connect").
+    backend = os.environ.get("APEX_ANGLE_BACKEND", "gl").lower()
+    gl_args = (
+        ["--use-gl=angle", "--use-angle=vulkan", "--enable-features=Vulkan",
+         "--disable-vulkan-surface"]
+        if backend == "vulkan"
+        else ["--use-gl=angle", "--use-angle=gl", "--enable-unsafe-swiftshader",
+              "--enable-features=Vulkan"]
+    )
     args = [
         "--no-sandbox", "--disable-dev-shm-usage",
-        "--use-gl=angle", "--use-angle=gl",
+        *gl_args,
         "--ignore-gpu-blocklist", "--enable-webgl",
-        "--enable-unsafe-swiftshader",  # fallback only
-        # WebGPU over the bundled SwiftShader Vulkan -- mirrors
-        # profile.chrome_launch_flags so the self-check exercises the same
-        # WebGPU path production uses (adapter present, apex-webgpu-adapterinfo
-        # fires). Without these navigator.gpu.requestAdapter() returns null.
-        "--enable-unsafe-webgpu", "--enable-features=Vulkan",
-        # software-GPU stability (parity with production) -- keep WebGL alive
-        # through a heavy multi-site session instead of the watchdog killing the
-        # slow software GPU process and Chrome permanently disabling GL.
+        "--enable-unsafe-webgpu",
         "--disable-gpu-watchdog", "--disable-gpu-process-crash-limit",
         "--no-first-run", "--no-default-browser-check",
     ]
