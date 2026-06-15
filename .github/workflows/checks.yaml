@@ -25,6 +25,7 @@ jobs:
       go: ${{ steps.filter.outputs.go }}
       shell: ${{ steps.filter.outputs.shell }}
       swift: ${{ steps.filter.outputs.swift }}
+      kotlin: ${{ steps.filter.outputs.kotlin }}
       helm: ${{ steps.filter.outputs.helm }}
       actions: ${{ steps.filter.outputs.actions }}
       renovate: ${{ steps.filter.outputs.renovate }}
@@ -70,6 +71,10 @@ jobs:
               - '**/*.swift'
               - '.swiftlint.yml'
               - '.swift-format'
+            kotlin:
+              - '**/*.kt'
+              - '**/*.kts'
+              - '.editorconfig'
             helm:
               - '**/chart/**'
             actions:
@@ -213,6 +218,22 @@ jobs:
 
       - name: Run swift-format check
         run: ./scripts/format/main.sh check swift
+
+  # ─── Kotlin ───────────────────────────────────────────────────────────
+  checks-kotlin:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.kotlin == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: java ktlint
+
+      - name: Run ktlint
+        run: ./scripts/lint/main.sh kotlin
+
   # ─── Helm ─────────────────────────────────────────────────────────────
   lint-helm:
     needs: detect-changes
@@ -322,6 +343,7 @@ jobs:
       - format-shell
       - lint-shell
       - checks-swift
+      - checks-kotlin
       - lint-helm
       - lint-actions
       - validate-renovate
