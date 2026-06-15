@@ -17,9 +17,16 @@
 #      operator can diagnose without re-running.
 set -euo pipefail
 
-: "${BUILD_ID:?BUILD_ID must be set by the SFN}"
-: "${BUILDER_CACHE_BUCKET:?BUILDER_CACHE_BUCKET must be set by the SFN}"
-: "${BUILDER_ARTIFACTS_BUCKET:?BUILDER_ARTIFACTS_BUCKET must be set by the SFN}"
+# The generic runner (infra/runner/) exports RUNNER_JOB_ID / RUNNER_CACHE_BUCKET
+# / RUNNER_ARTIFACTS_BUCKET; this script predates the builder->runner rename and
+# reads the legacy names. Map new -> legacy so it works under both.
+: "${BUILD_ID:=${RUNNER_JOB_ID:-}}"
+: "${BUILDER_CACHE_BUCKET:=${RUNNER_CACHE_BUCKET:-}}"
+: "${BUILDER_ARTIFACTS_BUCKET:=${RUNNER_ARTIFACTS_BUCKET:-}}"
+
+: "${BUILD_ID:?BUILD_ID (or RUNNER_JOB_ID) must be set by the SFN}"
+: "${BUILDER_CACHE_BUCKET:?BUILDER_CACHE_BUCKET (or RUNNER_CACHE_BUCKET) must be set by the SFN}"
+: "${BUILDER_ARTIFACTS_BUCKET:?BUILDER_ARTIFACTS_BUCKET (or RUNNER_ARTIFACTS_BUCKET) must be set by the SFN}"
 
 PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOG_FILE="/tmp/stealth-chromium-build-${BUILD_ID}.log"
