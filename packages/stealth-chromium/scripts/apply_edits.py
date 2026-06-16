@@ -168,6 +168,43 @@ EDITS = [
                   "max_array_texture_layers_));\n"
                   "    }\n",
     },
+    # --- WebGL2 size caps via getParameter (LIVE-queried, not cached) ---
+    # MAX_3D_TEXTURE_SIZE / MAX_ARRAY_TEXTURE_LAYERS are returned by
+    # WebGL2RenderingContextBase::getParameter via GetIntParameter -- a LIVE
+    # GetIntegerv, NOT the cached members the init-time clamp (apex-webgl-
+    # maxcaps-3d) touches. So on a real GPU they leaked the host's values
+    # (A10G/Vulkan: MAX_3D 16384) instead of the persona's claimed 2048
+    # (verified: the cached clamp showed 16384 on the GPU test). Spoof at the
+    # getParameter chokepoint, injected before the switch (a statement before
+    # the first case is ill-formed), so a D3D11/Metal persona reports 2048/2048
+    # on any backend. Anchor = the unique getParameter opening.
+    {
+        "file": "third_party/blink/renderer/modules/webgl/"
+                "webgl2_rendering_context_base.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-webgl2-maxcaps",
+        "anchor": "  if (isContextLost())\n"
+                  "    return ScriptValue::CreateNull("
+                  "script_state->GetIsolate());\n"
+                  "  switch (pname) {\n",
+        "where": "before",
+        "inject": "  // apex-webgl2-maxcaps: WebGL2 size caps are live-queried via\n"
+                  "  // GetIntParameter (not cached), so spoof here to match the\n"
+                  "  // persona's GPU/backend (D3D11/Metal = 2048), not the host.\n"
+                  "  if (apex_fp::HasOverride("
+                  "\"APEX_FP_WEBGL_MAX_3D_TEXTURE_SIZE\")) {\n"
+                  "    if (pname == GL_MAX_3D_TEXTURE_SIZE) {\n"
+                  "      return WebGLAny(script_state, static_cast<GLint>(\n"
+                  "          apex_fp::EnvU32("
+                  "\"APEX_FP_WEBGL_MAX_3D_TEXTURE_SIZE\", 2048)));\n"
+                  "    }\n"
+                  "    if (pname == GL_MAX_ARRAY_TEXTURE_LAYERS) {\n"
+                  "      return WebGLAny(script_state, static_cast<GLint>(\n"
+                  "          apex_fp::EnvU32("
+                  "\"APEX_FP_WEBGL_MAX_ARRAY_TEXTURE_LAYERS\", 2048)));\n"
+                  "    }\n"
+                  "  }\n",
+    },
     # --- navigator.userAgentData.platform ------------------------------
     {
         "file": "third_party/blink/renderer/core/frame/navigator_ua_data.cc",
