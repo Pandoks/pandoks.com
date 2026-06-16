@@ -91,12 +91,15 @@ async def network_gate() -> dict:
         res["proxy_active"] = prof["proxy"]["active"]
         res["exit_geo"] = prof["proxy"]["exit_geo"]
         res["persona_ua_platform"] = prof["fingerprint"]["device_profile"]
-        await core.navigate("https://tls.peet.ws/api/all")
-        await asyncio.sleep(2)
+        # Load the origin's HTML page, then fetch the JSON same-origin -- the
+        # fetch rides Chrome's own network stack (identical TLS/H2 fingerprint)
+        # and returns clean JSON, avoiding Chrome's JSON-viewer DOM ambiguity.
+        await core.navigate("https://tls.peet.ws/")
+        await asyncio.sleep(1)
         raw = await core.eval_js(
-            "(()=>{try{return JSON.parse(document.body.innerText);}"
-            "catch(e){return {parse_error:String(e),"
-            "body:(document.body?document.body.innerText:'').slice(0,400)};}})()"
+            "(async()=>{try{const r=await fetch('/api/all',"
+            "{cache:'no-store'});return await r.json();}"
+            "catch(e){return {fetch_error:String(e)};}})()"
         )
         if not isinstance(raw, dict) or "tls" not in raw:
             res["ok"] = False
