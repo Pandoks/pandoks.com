@@ -163,6 +163,37 @@ EDITS = [
                   "    value[1] = apex_vp;\n"
                   "  }\n",
     },
+    # --- MAX_TEXTURE/CUBE_MAP/RENDERBUFFER size (live-queried scalar) ---
+    # getParameter(GL_MAX_TEXTURE_SIZE) routes through GetIntParameter, which
+    # GetIntegerv-LIVE-queries the driver -- it does NOT read the cached
+    # max_texture_size_ that apex-webgl-maxcaps clamps (that member only backs
+    # internal texImage validation). So on a real GPU (native 32768) an
+    # Intel/AMD persona (16384) leaked 32768. Clamp at the getParameter
+    # chokepoint, same as apex-webgl2-maxcaps does for MAX_3D. min() never
+    # claims more than the host supports (the persona feasibility filter keeps
+    # the claim <= native anyway).
+    {
+        "file": "third_party/blink/renderer/modules/webgl/"
+                "webgl_rendering_context_base.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-webgl-maxcaps-scalar",
+        "anchor": "  return WebGLAny(script_state, value);\n"
+                  "}\n"
+                  "\n"
+                  "ScriptValue WebGLRenderingContextBase::GetInt64Parameter(\n",
+        "where": "before",
+        "inject": "  // apex-webgl-maxcaps-scalar: these caps are live-queried\n"
+                  "  // (not from the cached members), so clamp here too.\n"
+                  "  if ((pname == GL_MAX_TEXTURE_SIZE ||\n"
+                  "       pname == GL_MAX_CUBE_MAP_TEXTURE_SIZE ||\n"
+                  "       pname == GL_MAX_RENDERBUFFER_SIZE) &&\n"
+                  "      apex_fp::HasOverride("
+                  "\"APEX_FP_WEBGL_MAX_TEXTURE_SIZE\")) {\n"
+                  "    value = std::min(value, static_cast<GLint>("
+                  "apex_fp::EnvU32(\n"
+                  "        \"APEX_FP_WEBGL_MAX_TEXTURE_SIZE\", value)));\n"
+                  "  }\n",
+    },
     {
         "file": "third_party/blink/renderer/modules/webgl/"
                 "webgl_rendering_context_base.cc",
