@@ -127,9 +127,11 @@ timeout 300 xvfb-run -a -s "-screen 0 1920x1080x24" \
 aws s3 cp "$WORK/verifier.txt" "${S3}/verifier.txt" >/dev/null 2>&1 || true
 
 echo "=== [4b/5] run panel (headful on Xvfb) ==="
-# Full panel; per-site errors don't abort (the script catches them).
+# Full panel by default; forwarded args restrict to named targets (e.g.
+# `... run-panel.sh bl_webgl` runs just that one -- fast focused verification).
+# Per-site errors don't abort (the script catches them).
 xvfb-run -a -s "-screen 0 1920x1080x24" \
-  uv run python "$PKG_ROOT/scripts/fingerprint_benchmark.py" 2>&1 \
+  uv run python "$PKG_ROOT/scripts/fingerprint_benchmark.py" "$@" 2>&1 \
   | tee "$WORK/panel-output.txt" || true
 
 echo "=== [5/5] upload results ==="
