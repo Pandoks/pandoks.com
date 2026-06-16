@@ -281,24 +281,15 @@ async def _probe(bin_path: str, spoof: bool) -> dict:
     # --headless=new falls back to SwiftShader (8192, matches no real GPU).
     # Run this script under `xvfb-run`. Mirrors profile.chrome_launch_flags'
     # container WebGL setup so the self-check sees what production sees.
-    # Mirror production's ANGLE backend selection (APEX_ANGLE_BACKEND): on a real
-    # GPU box set APEX_ANGLE_BACKEND=vulkan so the self-check exercises the same
-    # Vulkan path -- --use-angle=gl targets GLX, which Xvfb cannot back with an
-    # NVIDIA context, so the binary fails to launch ("Failed to connect").
-    backend = os.environ.get("APEX_ANGLE_BACKEND", "gl").lower()
-    gl_args = (
-        ["--use-gl=angle", "--use-angle=vulkan", "--enable-features=Vulkan",
-         "--disable-vulkan-surface"]
-        if backend == "vulkan"
-        else ["--use-gl=angle", "--use-angle=gl", "--enable-unsafe-swiftshader",
-              "--enable-features=Vulkan"]
-    )
+    # GL/WebGPU/stability flags come from the SINGLE production source
+    # (profile._angle_backend_flags, honoring APEX_ANGLE_BACKEND) so the
+    # self-check launches with byte-identical flags to what ships -- no
+    # hand-rolled divergence (the old hand-rolled --use-angle=gl is what
+    # crashed under Xvfb on a real GPU).
+    from stealth_browser.profile import _angle_backend_flags
     args = [
         "--no-sandbox", "--disable-dev-shm-usage",
-        *gl_args,
-        "--ignore-gpu-blocklist", "--enable-webgl",
-        "--enable-unsafe-webgpu",
-        "--disable-gpu-watchdog", "--disable-gpu-process-crash-limit",
+        *_angle_backend_flags(),
         "--no-first-run", "--no-default-browser-check",
     ]
     # sandbox=False: the --no-sandbox arg alone doesn't satisfy nodriver's own
@@ -311,12 +302,12 @@ async def _probe(bin_path: str, spoof: bool) -> dict:
     try:
         browser = await _start(args)
     except Exception as e:  # noqa: BLE001
-        # On a real GPU under Xvfb, ANGLE-GL/Vulkan can fail to bring up a
-        # context and Chrome never opens the CDP port. Degrade to SwiftShader so
-        # the self-check still runs (reporting software WebGL) instead of aborting.
+        # Last-resort safety net: if even the production flags can't bring up a
+        # GL context on this box, degrade to SwiftShader so the self-check runs.
         print(f"  (launch failed: {str(e)[:70]} -- retrying on swiftshader)")
         sw = [a for a in args if not a.startswith(("--use-gl", "--use-angle"))]
-        sw += ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"]
+        sw += ["--use-gl=angle", "--use-angle=swiftshader",
+               "--enable-unsafe-swiftshader"]
         browser = await _start(sw)
     try:
         tab = await browser.get(VERIFY_HTML.as_uri())
