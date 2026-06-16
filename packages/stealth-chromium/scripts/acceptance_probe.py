@@ -136,7 +136,11 @@ async def _peet_fingerprint(use_proxy: bool) -> dict:
             "akamai_fingerprint_hash": h2.get("akamai_fingerprint_hash", ""),
             "checks": {
                 "ja4_tls13_h2": ja4.startswith("t13d") and "h2" in ja4,
-                "tls13": "1.3" in str(tls.get("tls_version_negotiated", "")),
+                # peet reports the numeric TLS version code: 772 == 0x0304 ==
+                # TLS 1.3 (771 == TLS 1.2). Accept either the code or a string.
+                "tls13": str(tls.get("tls_version_negotiated", "")) in (
+                    "772", "TLS 1.3") or "1.3" in str(
+                    tls.get("tls_version_negotiated", "")),
                 "http2": raw.get("http_version", "") in ("h2", "HTTP/2.0", "2"),
                 "ua_is_chrome": "Chrome/" in ua and "Headless" not in ua,
                 "akamai_matches_chrome": akamai == CHROME_AKAMAI_H2,
@@ -178,54 +182,75 @@ async def network_gate() -> dict:
     return res
 
 
-async def enterprise_targets() -> dict:
-    """Load real anti-bot-fronted pages + behave humanly, on ONE shared core.
+async def _load_target(name: str, url: str) -> dict | None:
+    """One attempt at one target on a FRESH core (= a fresh random exit IP).
 
-    One long-lived browser navigating sequentially is the panel-proven pattern
-    (a fresh browser+forwarder per target was less reliable). A chrome-error
-    landing means the page never loaded (residential exit dropped the
-    connection) -- reported as "unreachable", NOT "blocked": no detection
-    occurred, so it must not be read as a fingerprint failure.
+    Returns the verdict dict, or None if the exit dropped the connection
+    (chrome-error) so the caller can retry on another exit. A "blocked/
+    challenged" verdict requires BOTH block markers AND a thin page -- a real
+    page that merely mentions "captcha" in its own copy (e.g. browserscan's
+    report) is "ok", not a challenge.
     """
-    print("=== [2/3] enterprise live targets (via proxy, shared core) ===")
-    results = []
     core = NodriverCore(headless=False, use_proxy=True)
     try:
         await core.open()
         exit_geo = core.profile["proxy"]["exit_geo"]
-        for name, url in _targets():
-            entry: dict = {"name": name, "url": url}
-            try:
-                nav = await core.navigate(url)
-                final = nav.get("finalUrl", "")
-                if "chrome-error" in final:
-                    entry.update({"final_url": final, "verdict": "unreachable",
-                                  "note": "exit dropped connection (transport)"})
-                else:
-                    await core.idle_activity(seconds=10.0)  # behavioral signal
-                    await asyncio.sleep(2)
-                    text = (await core.extract_text() or "")
-                    low = text.lower()
-                    hits = [m for m in BLOCK_MARKERS if m in low]
-                    entry.update({
-                        "final_url": final,
-                        "title": nav.get("title", ""),
-                        "text_len": len(text),
-                        "block_markers": hits,
-                        "verdict": ("blocked/challenged" if hits
-                                    else ("ok" if len(text) > 400 else "thin")),
-                    })
-                await _shot(core, f"enterprise_{name}")
-            except Exception as e:  # noqa: BLE001
-                entry["verdict"] = "error"
-                entry["error"] = str(e)[:160]
-            print(f"  {name:<12} verdict={entry.get('verdict')} "
-                  f"markers={entry.get('block_markers', [])}")
-            results.append(entry)
+        nav = await core.navigate(url)
+        final = nav.get("finalUrl", "")
+        if "chrome-error" in final:
+            return None
+        await core.idle_activity(seconds=10.0)  # behavioral signal
+        await asyncio.sleep(2)
+        text = (await core.extract_text() or "")
+        low = text.lower()
+        hits = [m for m in BLOCK_MARKERS if m in low]
+        # challenge interstitials are thin; a full page that mentions a marker
+        # in its body copy is the real page, not a block.
+        challenged = bool(hits) and len(text) < 2500
+        await _shot(core, f"enterprise_{name}")
+        return {
+            "final_url": final, "title": nav.get("title", ""),
+            "text_len": len(text), "block_markers": hits,
+            "exit_geo": exit_geo,
+            "verdict": ("blocked/challenged" if challenged
+                        else ("ok" if len(text) > 400 else "thin")),
+        }
     finally:
         await core.close()
-    return {"check": "enterprise_targets", "exit_geo": exit_geo,
-            "results": results}
+
+
+async def enterprise_targets() -> dict:
+    """Load real anti-bot-fronted pages, retrying each across fresh exits.
+
+    These residential exits are per-IP flaky for CDN-fronted domains (the exit
+    range is often on the target's blocklist -> the connection is dropped at the
+    edge, a chrome-error). That is a TRANSPORT limit, not detection -- so we give
+    each target several fresh exits before declaring it "unreachable", and never
+    label a dropped connection "blocked".
+    """
+    print("=== [2/3] enterprise live targets (per-target fresh exits) ===")
+    attempts = int(os.environ.get("APEX_ACCEPT_EXIT_TRIES", "3"))
+    results = []
+    for name, url in _targets():
+        entry: dict = {"name": name, "url": url}
+        for i in range(attempts):
+            try:
+                got = await _load_target(name, url)
+            except Exception as e:  # noqa: BLE001
+                entry.update({"verdict": "error", "error": str(e)[:160]})
+                break
+            if got is not None:
+                entry.update(got)
+                entry["exit_tries"] = i + 1
+                break
+        else:
+            entry.update({"verdict": "unreachable", "exit_tries": attempts,
+                          "note": "all exits dropped the connection (transport)"})
+        print(f"  {name:<12} verdict={entry.get('verdict')} "
+              f"tries={entry.get('exit_tries')} "
+              f"markers={entry.get('block_markers', [])}")
+        results.append(entry)
+    return {"check": "enterprise_targets", "results": results}
 
 
 _WRITE_JS = """
