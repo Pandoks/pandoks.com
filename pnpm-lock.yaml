@@ -39,8 +39,8 @@ importers:
         specifier: ^3.19.0
         version: 3.19.0(eslint@10.4.0(jiti@2.7.0))(svelte@5.56.0(@typescript-eslint/types@8.60.0))
       eslint-plugin-unicorn:
-        specifier: ^64.0.0
-        version: 64.0.0(eslint@10.4.0(jiti@2.7.0))
+        specifier: ^66.0.0
+        version: 66.0.0(eslint@10.4.0(jiti@2.7.0))
       glob:
         specifier: ^13.0.6
         version: 13.0.6
@@ -529,8 +529,8 @@ packages:
     resolution: {integrity: sha512-9NhCeYjq9+3uxgdtp20LSiJXJvN0FeCtNGpJxuMFZ1Kv3cWUNb6DOhJwUvcVCzKGR66cw4njwM6hrJLqgOwbcw==}
     engines: {node: '>=6.9.0'}
 
-  '@babel/helper-validator-identifier@7.28.5':
-    resolution: {integrity: sha512-qSs4ifwzKJSV39ucNjsvc6WVHs6b7S03sOh2OcHF9UHfVPqWWALUsNUVzhSBiItjRZoLHx7nIarVjqKVusUZ1Q==}
+  '@babel/helper-validator-identifier@7.29.7':
+    resolution: {integrity: sha512-qehxGkRj55h/ff8EMaJ+cYhyaKlHIxqYDn682wQD7RNp9UujOQsHog2uS0r2vzr4pW+sXf90NeeayjcNaX3fFg==}
     engines: {node: '>=6.9.0'}
 
   '@babel/runtime@7.29.2':
@@ -2005,10 +2005,6 @@ packages:
     resolution: {integrity: sha512-77PSwercCZU2Fc4sX94eF8k8Pxte6JAwL4/ICZLFjJLqegs7kCuAsqqj/70NQF6TvDpgFjkubQB2FW2ZZddvQg==}
     engines: {node: '>=8'}
 
-  clean-regexp@1.0.0:
-    resolution: {integrity: sha512-GfisEZEJvzKrmGWkvfhgzcz/BllN1USeqD2V6tg14OAOgaCD2Z/PUEuxnAZ/nPvmaHRG7a8y77p1T/IRQ4D1Hw==}
-    engines: {node: '>=4'}
-
   clean-stack@2.2.0:
     resolution: {integrity: sha512-4diC9HaTE+KRAMWhDhrGOECgWZxoevMc5TlkObMqNSsVU62PYzXZ/SMTjzyGAFF1YusgxGcSWTEXBhp0CPwQ1A==}
     engines: {node: '>=6'}
@@ -2222,6 +2218,10 @@ packages:
     resolution: {integrity: sha512-0je+qPKHEMohvfRTCEo3CrPG6cAzAYgmzKyxRiYSSDkS6eGJdyVJm7WaYA5ECaAD9wLB2T4EEeymA5aFVcYXCA==}
     engines: {node: '>=6'}
 
+  detect-indent@7.0.2:
+    resolution: {integrity: sha512-y+8xyqdGLL+6sh0tVeHcfP/QDd8gUgbasolJJpY7NgeQGSZ739bDtSiaiDgtoicy+mtYB81dKLxO9xRhCyIB3A==}
+    engines: {node: '>=12.20'}
+
   detect-libc@2.1.2:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
@@ -2388,11 +2388,11 @@ packages:
       svelte:
         optional: true
 
-  eslint-plugin-unicorn@64.0.0:
-    resolution: {integrity: sha512-rNZwalHh8i0UfPlhNwg5BTUO1CMdKNmjqe+TgzOTZnpKoi8VBgsW7u9qCHIdpxEzZ1uwrJrPF0uRb7l//K38gA==}
-    engines: {node: ^20.10.0 || >=21.0.0}
+  eslint-plugin-unicorn@66.0.0:
+    resolution: {integrity: sha512-+ywdy8T3foyZ2t3nRBujGa3vfOVMobHIi5iLB0L+fogdVO3EiUJ4BAyIacogWytnweLw3hgT70LQL9KoKTY/kA==}
+    engines: {node: '>=22'}
     peerDependencies:
-      eslint: '>=9.38.0'
+      eslint: '>=10.4'
 
   eslint-scope@5.1.1:
     resolution: {integrity: sha512-2NxwbF/hZ0KpepYN0cNbo+FN6XoK7GaHlQhgx/hIZl6Va0bF45RQOOwhLIy8lQDbuCiadSLCBnH2CFYquit5bw==}
@@ -3855,10 +3855,6 @@ packages:
     resolution: {integrity: sha512-6tDA8g98We0zd0GvVeMT9arEOnTw9qM03L9cJXaCjrip1OO764RDBLBfrB4cwzNGDj5OA5ioymC9GkizgWJDUg==}
     engines: {node: '>=8'}
 
-  regexp-tree@0.1.27:
-    resolution: {integrity: sha512-iETxpjK6YoRWJG5o6hXLwvjYAoW+FEZn9os0PD/b6AP6xQwsa/Y7lCVgIixBbUPMfhu+i2LtdeAqVTgGlQarfA==}
-    hasBin: true
-
   registry-auth-token@3.3.2:
     resolution: {integrity: sha512-JL39c60XlzCVgNrO+qq68FoNb56w/m7JYvGR2jT5iR1xBrUA3Mfx5Twk5rqTThPmQKMWydGmq8oFtDlxfrmxnQ==}
 
@@ -3983,8 +3979,8 @@ packages:
     resolution: {integrity: sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==}
     hasBin: true
 
-  semver@7.8.1:
-    resolution: {integrity: sha512-rkVq3IXh+4FDGch+KwzX3aV9W3kO54GyEgpvBzSyctDA6Xtd7RJQV1xmXbeQp5v7+VzLOfVqiutSE6GICgPFvg==}
+  semver@7.8.4:
+    resolution: {integrity: sha512-rUCObTnP32Q08R2uuIrt7r9PlEonuTmtuXYcW6s5kjdlj3xbnwe+21yXptAUYcMAABLkYYTtnmzb3w3EDZfueA==}
     engines: {node: '>=10'}
     hasBin: true
 
@@ -5086,11 +5082,11 @@ snapshots:
 
   '@babel/code-frame@7.29.0':
     dependencies:
-      '@babel/helper-validator-identifier': 7.28.5
+      '@babel/helper-validator-identifier': 7.29.7
       js-tokens: 4.0.0
       picocolors: 1.1.1
 
-  '@babel/helper-validator-identifier@7.28.5': {}
+  '@babel/helper-validator-identifier@7.29.7': {}
 
   '@babel/runtime@7.29.2': {}
 
@@ -5138,7 +5134,7 @@ snapshots:
       fs-extra: 10.1.0
       listr2: 7.0.2
       log-symbols: 4.1.0
-      semver: 7.8.1
+      semver: 7.8.4
     transitivePeerDependencies:
       - '@minify-html/node'
       - '@swc/core'
@@ -5168,7 +5164,7 @@ snapshots:
       fs-extra: 10.1.0
       log-symbols: 4.1.0
       parse-author: 2.0.0
-      semver: 7.8.1
+      semver: 7.8.4
     transitivePeerDependencies:
       - bluebird
       - supports-color
@@ -5206,7 +5202,7 @@ snapshots:
       log-symbols: 4.1.0
       node-fetch: 2.7.0(encoding@0.1.13)
       rechoir: 0.8.0
-      semver: 7.8.1
+      semver: 7.8.4
       source-map-support: 0.5.21
       username: 5.1.0
     transitivePeerDependencies:
@@ -5349,7 +5345,7 @@ snapshots:
       '@malept/cross-spawn-promise': 2.0.0
       debug: 4.4.3
       fs-extra: 10.1.0
-      semver: 7.8.1
+      semver: 7.8.4
       username: 5.1.0
     transitivePeerDependencies:
       - bluebird
@@ -5438,7 +5434,7 @@ snapshots:
       env-paths: 3.0.0
       graceful-fs: 4.2.11
       progress: 2.0.3
-      semver: 7.8.1
+      semver: 7.8.4
       sumchecker: 3.0.1
     optionalDependencies:
       undici: 7.25.0
@@ -5454,7 +5450,7 @@ snapshots:
       make-fetch-happen: 10.2.1
       nopt: 6.0.0
       proc-log: 2.0.1
-      semver: 7.8.1
+      semver: 7.8.4
       tar: 7.5.15
       which: 2.0.2
     transitivePeerDependencies:
@@ -5501,7 +5497,7 @@ snapshots:
       prettier: 3.8.3
       resedit: 2.0.3
       resolve: 1.22.12
-      semver: 7.8.1
+      semver: 7.8.4
       yargs-parser: 21.1.1
     transitivePeerDependencies:
       - supports-color
@@ -5519,7 +5515,7 @@ snapshots:
       node-api-version: 0.2.1
       ora: 5.4.1
       read-binary-file-arch: 1.0.6
-      semver: 7.8.1
+      semver: 7.8.4
       tar: 7.5.15
       yargs: 17.7.2
     transitivePeerDependencies:
@@ -5907,7 +5903,7 @@ snapshots:
   '@npmcli/fs@2.1.2':
     dependencies:
       '@gar/promisify': 1.1.3
-      semver: 7.8.1
+      semver: 7.8.4
 
   '@npmcli/move-file@2.0.1':
     dependencies:
@@ -6083,7 +6079,7 @@ snapshots:
       chokidar: 5.0.0
       kleur: 4.1.5
       sade: 1.8.1
-      semver: 7.8.1
+      semver: 7.8.4
       svelte: 5.56.0(@typescript-eslint/types@8.60.0)
       svelte2tsx: 0.7.55(svelte@5.56.0(@typescript-eslint/types@8.60.0))(typescript@6.0.3)
     transitivePeerDependencies:
@@ -6369,7 +6365,7 @@ snapshots:
       '@typescript-eslint/visitor-keys': 8.60.0
       debug: 4.4.3
       minimatch: 10.2.5
-      semver: 7.8.1
+      semver: 7.8.4
       tinyglobby: 0.2.16
       ts-api-utils: 2.5.0(typescript@6.0.3)
       typescript: 6.0.3
@@ -6858,10 +6854,6 @@ snapshots:
 
   ci-info@4.4.0: {}
 
-  clean-regexp@1.0.0:
-    dependencies:
-      escape-string-regexp: 1.0.5
-
   clean-stack@2.2.0: {}
 
   cli-boxes@3.0.0: {}
@@ -7055,6 +7047,8 @@ snapshots:
 
   dequal@2.0.3: {}
 
+  detect-indent@7.0.2: {}
+
   detect-libc@2.1.2: {}
 
   detect-node@2.1.0:
@@ -7117,7 +7111,7 @@ snapshots:
       glob: 7.2.3
       lodash: 4.18.1
       parse-author: 2.0.0
-      semver: 7.8.1
+      semver: 7.8.4
       tmp-promise: 3.0.3
     optionalDependencies:
       '@types/fs-extra': 9.0.13
@@ -7264,21 +7258,22 @@ snapshots:
       postcss: 8.5.15
       postcss-load-config: 3.1.4(postcss@8.5.15)
       postcss-safe-parser: 7.0.1(postcss@8.5.15)
-      semver: 7.8.1
+      semver: 7.8.4
       svelte-eslint-parser: 1.7.0(svelte@5.56.0(@typescript-eslint/types@8.60.0))
     optionalDependencies:
       svelte: 5.56.0(@typescript-eslint/types@8.60.0)
     transitivePeerDependencies:
       - ts-node
 
-  eslint-plugin-unicorn@64.0.0(eslint@10.4.0(jiti@2.7.0)):
+  eslint-plugin-unicorn@66.0.0(eslint@10.4.0(jiti@2.7.0)):
     dependencies:
-      '@babel/helper-validator-identifier': 7.28.5
+      '@babel/helper-validator-identifier': 7.29.7
       '@eslint-community/eslint-utils': 4.9.1(eslint@10.4.0(jiti@2.7.0))
+      browserslist: 4.28.2
       change-case: 5.4.4
       ci-info: 4.4.0
-      clean-regexp: 1.0.0
       core-js-compat: 3.49.0
+      detect-indent: 7.0.2
       eslint: 10.4.0(jiti@2.7.0)
       find-up-simple: 1.0.1
       globals: 17.6.0
@@ -7286,9 +7281,8 @@ snapshots:
       is-builtin-module: 5.0.0
       jsesc: 3.1.0
       pluralize: 8.0.0
-      regexp-tree: 0.1.27
       regjsparser: 0.13.1
-      semver: 7.8.1
+      semver: 7.8.4
       strip-indent: 4.1.1
 
   eslint-scope@5.1.1:
@@ -7699,7 +7693,7 @@ snapshots:
       es6-error: 4.1.1
       matcher: 3.0.0
       roarr: 2.15.4
-      semver: 7.8.1
+      semver: 7.8.4
       serialize-error: 7.0.1
     optional: true
 
@@ -7990,7 +7984,7 @@ snapshots:
       lodash.isstring: 4.0.1
       lodash.once: 4.1.1
       ms: 2.1.3
-      semver: 7.8.1
+      semver: 7.8.4
 
   junk@3.1.0: {}
 
@@ -8324,11 +8318,11 @@ snapshots:
 
   node-abi@3.92.0:
     dependencies:
-      semver: 7.8.1
+      semver: 7.8.4
 
   node-api-version@0.2.1:
     dependencies:
-      semver: 7.8.1
+      semver: 7.8.4
 
   node-fetch@2.7.0(encoding@0.1.13):
     dependencies:
@@ -8670,8 +8664,6 @@ snapshots:
       indent-string: 4.0.0
       strip-indent: 3.0.0
 
-  regexp-tree@0.1.27: {}
-
   registry-auth-token@3.3.2:
     dependencies:
       rc: 1.2.8
@@ -8808,7 +8800,7 @@ snapshots:
 
   semver@6.3.1: {}
 
-  semver@7.8.1: {}
+  semver@7.8.4: {}
 
   serialize-error@7.0.1:
     dependencies:
@@ -8847,7 +8839,7 @@ snapshots:
     dependencies:
       '@img/colour': 1.1.0
       detect-libc: 2.1.2
-      semver: 7.8.1
+      semver: 7.8.4
     optionalDependencies:
       '@img/sharp-darwin-arm64': 0.34.5
       '@img/sharp-darwin-x64': 0.34.5
@@ -9115,7 +9107,7 @@ snapshots:
       postcss: 8.5.15
       postcss-scss: 4.0.9(postcss@8.5.15)
       postcss-selector-parser: 7.1.1
-      semver: 7.8.1
+      semver: 7.8.4
     optionalDependencies:
       svelte: 5.56.0(@typescript-eslint/types@8.60.0)
 
