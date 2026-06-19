@@ -1,0 +1,9 @@
+{
+  "type": "watch",
+  "icon": "https://github.com/expo.png",
+  "colors": {
+    "$accent": "darkcyan"
+  },
+  "deploymentTarget": "9.4",
+  "entitlements": {}
+}
