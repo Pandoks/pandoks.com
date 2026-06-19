@@ -16,7 +16,9 @@
     "ios": "expo run:ios",
     "prebuild": "expo prebuild --clean",
     "lint": "eslint .",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "pnpm test:unit",
+    "test:unit": "jest"
   },
   "dependencies": {
     "@pandoks.com/react-native-core": "workspace:*",
@@ -41,7 +43,13 @@
     "react-native-worklets": "0.8.3"
   },
   "devDependencies": {
+    "@testing-library/react-native": "^13.3.3",
+    "@types/jest": "29.5.14",
     "@types/react": "~19.2.15",
+    "jest": "~29.7.0",
+    "jest-expo": "~56.0.5",
+    "react-test-renderer": "19.2.3",
+    "ts-node": "^10.9.2",
     "typescript": "~6.0.3"
   }
 }

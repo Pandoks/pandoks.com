@@ -9,7 +9,7 @@
   "scripts": {
     "check": "tsc --noEmit",
     "test:unit": "jest",
-    "test": "pnpm run test:unit"
+    "test": "pnpm test:unit"
   },
   "peerDependencies": {
     "expo": ">=56.0.0",
