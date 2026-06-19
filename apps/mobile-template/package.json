@@ -21,6 +21,7 @@
     "test:unit": "jest"
   },
   "dependencies": {
+    "@bacons/apple-targets": "^4.0.7",
     "@pandoks.com/react-native-core": "workspace:*",
     "@pandoks.com/react-native-image-classifier": "workspace:*",
     "expo": "~56.0.9",
