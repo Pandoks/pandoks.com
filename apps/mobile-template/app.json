@@ -1,6 +1,9 @@
 {
   "expo": {
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "name": "mobile-template",
     "slug": "mobile-template",
     "version": "1.0.0",
@@ -10,7 +13,8 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.pandoks.mobile-template"
+      "bundleIdentifier": "com.pandoks.mobile-template",
+      "appleTeamId": "23YN3Z3K8M"
     },
     "android": {
       "adaptiveIcon": {
@@ -40,6 +44,12 @@
           "photosPermission": "Mobile template needs access to your photos so you can pick an image to classify.",
           "cameraPermission": false,
           "microphonePermission": false
+        }
+      ],
+      [
+        "@bacons/apple-targets",
+        {
+          "root": "./ios-targets"
         }
       ]
     ],
