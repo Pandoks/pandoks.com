@@ -39,6 +39,8 @@ export default defineConfig([
             '*/*/vite.main.config.ts',
             '*/*/vite.preload.config.ts',
             '*/*/e2e/*.test.ts',
+            '*/*/jest.config.js',
+            'packages/*/*/jest.config.ts',
             'scripts/*/*.{js,ts}'
           ],
           maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 25
@@ -224,11 +226,14 @@ export default defineConfig([
 
   // TEST RULES
   {
-    files: ['**/*.{test,spec}.ts', '**/*.svelte.{test,spec}.ts'],
+    files: ['**/*.{test,spec}.{ts,tsx}', '**/*.svelte.{test,spec}.ts'],
     rules: {
       'unicorn/prevent-abbreviations': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
-      '@typescript-eslint/naming-convention': 'off'
+      '@typescript-eslint/naming-convention': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/unbound-method': 'off'
     }
   }
 ]);
