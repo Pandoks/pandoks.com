@@ -1,0 +1,12 @@
+{
+  "name": "@pandoks.com/auth",
+  "version": "0.0.1",
+  "type": "module",
+  "sideEffects": false,
+  "scripts": {
+    "build": "pnpm run /^build:/",
+    "docker:build": "pnpm build",
+    "build:image": "docker build -f ./Dockerfile ../../ -t localhost:12345/auth:latest",
+    "test": "go test -C ./... -v"
+  }
+}
