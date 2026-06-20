@@ -1,8 +1,13 @@
 import { fileURLToPath } from 'node:url';
 import js from '@eslint/js';
-import { includeIgnoreFile } from '@eslint/compat';
-import { defineConfig } from 'eslint/config';
+import { defineConfig, includeIgnoreFile } from 'eslint/config';
+// @ts-expect-error eslint-plugin-expo ships no type declarations
+import expoPlugin from 'eslint-plugin-expo';
+import reactHooks from 'eslint-plugin-react-hooks';
+import type { ESLint } from 'eslint';
 import tseslint from 'typescript-eslint';
+
+const expo = expoPlugin as ESLint.Plugin;
 import unicorn from 'eslint-plugin-unicorn';
 import svelte from 'eslint-plugin-svelte';
 import svelteParser from 'svelte-eslint-parser';
@@ -24,9 +29,9 @@ export default defineConfig([
       sourceType: 'module',
       globals: { ...globals.browser, ...globals.node },
       parserOptions: {
+        extraFileExtensions: ['.svelte'],
         projectService: {
           allowDefaultProject: [
-            'eslint.config.ts',
             '*/*/forge.config.ts',
             '*/*/svelte.config.js',
             '*/*/playwright.config.ts',
@@ -34,6 +39,8 @@ export default defineConfig([
             '*/*/vite.main.config.ts',
             '*/*/vite.preload.config.ts',
             '*/*/e2e/*.test.ts',
+            '*/*/jest.config.js',
+            'packages/*/*/jest.config.ts',
             'scripts/*/*.{js,ts}'
           ],
           maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 25
@@ -126,6 +133,7 @@ export default defineConfig([
           format: ['camelCase', 'UPPER_CASE'],
           leadingUnderscore: 'allow'
         },
+        { selector: 'function', format: ['camelCase', 'PascalCase'] },
         { selector: 'typeLike', format: ['PascalCase'] },
         { selector: 'enumMember', format: ['PascalCase'] },
         { selector: 'import', format: null },
@@ -198,13 +206,34 @@ export default defineConfig([
     }
   },
 
+  // REACT NATIVE RULES
+  {
+    files: ['apps/mobile-template/**', 'packages/react-native/**'],
+    extends: [reactHooks.configs.flat.recommended],
+    plugins: { expo },
+    rules: {
+      'expo/no-dynamic-env-var': 'error',
+      'expo/no-env-var-destructuring': 'error',
+      'expo/prefer-box-shadow': 'error',
+      '@typescript-eslint/no-require-imports': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-misused-promises': [
+        'error',
+        { checksVoidReturn: { attributes: false } }
+      ]
+    }
+  },
+
   // TEST RULES
   {
-    files: ['**/*.{test,spec}.ts', '**/*.svelte.{test,spec}.ts'],
+    files: ['**/*.{test,spec}.{ts,tsx}', '**/*.svelte.{test,spec}.ts'],
     rules: {
       'unicorn/prevent-abbreviations': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
-      '@typescript-eslint/naming-convention': 'off'
+      '@typescript-eslint/naming-convention': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/unbound-method': 'off'
     }
   }
 ]);

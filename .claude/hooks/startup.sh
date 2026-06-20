@@ -1,3 +1,3 @@
 #!/bin/sh
 
-exec "${CLAUDE_PROJECT_DIR}/scripts/setup/main.sh" 1>&2
+exec "${CLAUDE_PROJECT_DIR}/scripts/bootstrap/main.sh" all 1>&2

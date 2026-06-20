@@ -1,0 +1,10 @@
+# https://realm.github.io/SwiftLint/rule-directory.html
+# NOTE: don't use `included` — when set, paths passed as CLI arguments are ignored
+excluded:
+  - node_modules
+  - apps/mobile-template/ios
+  - apps/mobile-template/android
+
+line_length:
+  warning: 120
+  error: 160

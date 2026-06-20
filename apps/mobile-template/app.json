@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "name": "mobile-template",
+    "slug": "mobile-template",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "mobiletemplate",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.pandoks.mobile-template",
+      "appleTeamId": "23YN3Z3K8M"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.pandoks.mobiletemplate"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#208AEF",
+          "android": {
+            "image": "./assets/images/splash-icon.png",
+            "imageWidth": 76
+          }
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Mobile template needs access to your photos so you can pick an image to classify.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "@bacons/apple-targets",
+        {
+          "root": "./ios-targets"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true,
+      "autolinkingModuleResolution": true
+    }
+  }
+}

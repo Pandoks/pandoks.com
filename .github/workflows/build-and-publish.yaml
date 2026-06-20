@@ -242,11 +242,9 @@ jobs:
           trivy-config: trivy.yaml
           trivyignores: .trivyignore.yaml
 
-      - name: Install Helm
-        uses: azure/setup-helm@v5
+      - uses: ./.github/actions/setup-mise
         with:
-          # renovate: datasource=github-releases packageName=helm/helm
-          version: v4.2.0
+          tools: helm
 
       - name: Login to GHCR
         run: |

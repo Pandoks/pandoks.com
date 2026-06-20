@@ -56,13 +56,12 @@ Verbose, but necessary.
   run-all on bare invocation. **No `all` subcommand.**
   See `scripts/cluster/main.sh:19`, `scripts/cluster/deploy.sh:129`,
   `scripts/cluster/k3d.sh:106`.
-- **Exception — `scripts/setup/main.sh`**: the dependency installer
-  intentionally defaults bare invocation to the `all` subcommand
-  (`cmd="${1:-all}"`, `setup/main.sh:44`) because it ALSO backs the
-  Claude Code SessionStart hook, which must run unattended with no args.
-  See `gotchas/setup.md` (CLI surface). This is the ONLY dispatcher
-  exempt from help-by-default — the decision rule: a bootstrap that runs
-  unattended → default-to-`all`; a normal interactive dispatcher → help.
+- **No exceptions** — `scripts/bootstrap/main.sh` is help-by-default too
+  (`usage 0` on zero args, `bootstrap/main.sh:44`; it does have an `all`
+  subcommand). Unattended callers pass the subcommand explicitly: the
+  Claude Code SessionStart hook execs `main.sh all`
+  (`.claude/hooks/startup.sh:3`). The decision rule: dispatchers never
+  guess — anything automated spells out what it wants.
 
 ## Status output
 

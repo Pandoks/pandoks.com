@@ -25,7 +25,7 @@
     },
     {
       "customType": "regex",
-      "description": "Track kubectl version in the argocd image (binary fetched from dl.k8s.io). KUBECTL_SHA256 must be updated by hand on each bump — Renovate cannot compute binary checksums.",
+      "description": "Track kubectl version in the argocd image (binary fetched from dl.k8s.io). KUBECTL_SHA256 must be updated by hand on each bump — Renovate cannot compute binary checksums, and the stale SHA fails the argocd image build on the PR branch until fixed.",
       "managerFilePatterns": ["/(^|/)packages/argocd/Dockerfile$/"],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z-]+) packageName=(?<packageName>[^\\s]+)\\s+ARG KUBECTL_VERSION=(?<currentValue>v[\\d.]+)"
@@ -41,30 +41,17 @@
       ],
       "registryUrlTemplate": "https://ghcr.io",
       "versioningTemplate": "semver"
-    },
-    {
-      "customType": "regex",
-      "description": "Bump `azure/setup-helm` version pins in CI workflows (annotated with a leading `# renovate:` comment) in lockstep with HELM_VERSION in scripts/setup/install.sh.",
-      "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/"],
-      "matchStrings": [
-        "#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)\\s+packageName=(?<packageName>[^\\s]+)\\s+version:\\s*'?(?<currentValue>v[\\d.]+)'?"
-      ],
-      "versioningTemplate": "semver"
-    },
-    {
-      "customType": "regex",
-      "description": "Bump HELM_VERSION in the setup installer (annotated with a leading `# renovate:` comment).",
-      "managerFilePatterns": ["/(^|/)scripts/setup/install\\.sh$/"],
-      "matchStrings": [
-        "#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)\\s+packageName=(?<packageName>[^\\s]+)\\s+HELM_VERSION=(?<currentValue>v?[\\d.]+)"
-      ],
-      "versioningTemplate": "semver"
     }
   ],
   "packageRules": [
     {
       "matchManagers": ["helm-values", "helmv3"],
       "groupName": "helm charts"
+    },
+    {
+      "description": "Group all kubectl pins into one PR — kubectl's depNames differ across managers so copies don't auto-coalesce, and the bump needs a manual KUBECTL_SHA256 edit that shouldn't block the all-minor-patch group.",
+      "matchDepNames": ["kubectl", "kubernetes/kubernetes"],
+      "groupName": "kubectl"
     }
   ],
   "vulnerabilityAlerts": {

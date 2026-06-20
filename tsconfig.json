@@ -5,5 +5,5 @@
     "types": ["node"],
     "downlevelIteration": null
   },
-  "include": ["infra", "sst.config.ts"]
+  "include": ["infra", "sst.config.ts", "eslint.config.ts"]
 }
