@@ -51,7 +51,8 @@
         {
           "root": "./ios-targets"
         }
-      ]
+      ],
+      "./plugins/build/android-watch"
     ],
     "experiments": {
       "typedRoutes": true,

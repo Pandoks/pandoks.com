@@ -58,9 +58,8 @@ apps/mobile-template/
 ├── android-widget/                    # Android home-screen widget (classic RemoteViews + Kotlin + XML)
 │   ├── kotlin/ExampleWidgetProvider.kt
 │   └── res/{layout,xml}/
-├── plugins/
-│   ├── with-android-watch-module.js   # copies android-watch/ → android/wear, registers :wear in settings.gradle
-│   └── with-hermes-vm-fix.js          # patches SDK56 dual-Hermes bundle-id collision in the Podfile
+├── plugins/                           # TS source in src/, tsc → build/ (build:plugins), referenced from build/
+│   └── src/android-watch.ts           # copies android-watch/ → android/wear, registers :wear in settings.gradle
 └── src/app/                           # flat routes + NativeTabs (no (tabs)/ group in the current template)
     ├── native.tsx                     # demos index (third NativeTabs.Trigger in src/components/app-tabs.tsx)
     └── demos/                         # per-capability demo screens
@@ -169,14 +168,14 @@ Production RN apps drop to native almost entirely for **capability access not ex
        ├── AndroidManifest.xml  # <uses-feature android:name="android.hardware.type.watch" />
        └── java/com/<scope>/<app>/wear/MainActivity.kt
    ```
-2. Write a local config plugin `apps/<app>/plugins/with-android-watch-module.js` that:
+2. Write a local config plugin `apps/<app>/plugins/src/android-watch.ts` that:
    - `withSettingsGradle`: appends `include ':wear'` + `project(':wear').projectDir = ...`
    - `withDangerousMod('android')`: copies `android-watch/` → `android/wear/` so Gradle sees it
      (the on-disk source dir is platform-prefixed `android-watch/`; the Gradle module id stays `:wear`)
-3. Add `"./plugins/with-android-watch-module"` to `app.json:plugins`.
+3. Add `"./plugins/build/android-watch"` to `app.json:plugins` (the tsc-built artifact; `build:plugins` compiles `src/` → `build/`).
 4. `expo prebuild --clean` → `android/settings.gradle` now includes `:wear`, and `pnpm android` builds both APKs.
 
-The `apps/mobile-template/plugins/with-android-watch-module.js` is the reference.
+The `apps/mobile-template/plugins/src/android-watch.ts` is the reference.
 
 ## Wiring phone ↔ watch sync
 
