@@ -1,0 +1,37 @@
+apply plugin: 'com.android.application'
+apply plugin: 'org.jetbrains.kotlin.android'
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'
+
+android {
+  namespace 'com.pandoks.mobiletemplate.wear'
+  compileSdk 35
+
+  defaultConfig {
+    // NOTE: Match the phone app's package name from app.json — required for phone↔watch connectivity.
+    // Google Play services only routes Data Layer messages between a watch and phone sharing the
+    // same package name + signing key.
+    applicationId 'com.pandoks.mobiletemplate'
+    minSdk 30
+    targetSdk 35
+    versionCode 1
+    versionName '1.0'
+  }
+
+  buildFeatures {
+    compose true
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+  kotlinOptions { jvmTarget = '17' }
+}
+
+dependencies {
+  implementation 'androidx.activity:activity-compose:1.9.3'
+  implementation 'androidx.compose.runtime:runtime:1.7.6'
+  implementation 'androidx.compose.foundation:foundation:1.7.6'
+  implementation 'androidx.wear.compose:compose-material3:1.5.0'
+  implementation 'androidx.wear.compose:compose-foundation:1.4.1'
+}
