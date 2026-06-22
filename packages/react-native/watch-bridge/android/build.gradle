@@ -1,0 +1,22 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.pandoks.watchbridge'
+version = '0.0.1'
+
+android {
+  namespace "com.pandoks.watchbridge"
+  defaultConfig {
+    versionCode 1
+    versionName "0.0.1"
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  implementation "com.google.android.gms:play-services-wearable:20.0.1"
+}
