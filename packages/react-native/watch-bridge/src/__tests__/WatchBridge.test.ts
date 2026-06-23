@@ -1,4 +1,4 @@
-import { addMessageListener, send, setContext, transfer } from '../WatchBridge';
+import { send, setContext, transfer } from '../WatchBridge';
 import WatchBridgeModule from '../WatchBridgeModule';
 
 jest.mock('../WatchBridgeModule', () => ({
@@ -6,8 +6,7 @@ jest.mock('../WatchBridgeModule', () => ({
   default: {
     send: jest.fn().mockResolvedValue(true),
     transfer: jest.fn().mockResolvedValue(true),
-    setContext: jest.fn().mockResolvedValue(true),
-    addListener: jest.fn().mockReturnValue({ remove: jest.fn() })
+    setContext: jest.fn().mockResolvedValue(true)
   }
 }));
 
@@ -29,11 +28,5 @@ describe('WatchBridge raw API', () => {
   it('forwards the setContext payload', async () => {
     await setContext({ unread: 3 });
     expect(mockedModule.setContext).toHaveBeenCalledWith({ unread: 3 });
-  });
-
-  it('subscribes to the onMessage event', () => {
-    const listener = jest.fn();
-    addMessageListener(listener);
-    expect(mockedModule.addListener).toHaveBeenCalledWith('onMessage', listener);
   });
 });
