@@ -1,5 +1,4 @@
-import type { EventSubscription } from 'expo-modules-core';
-import WatchModule, { type WatchPayload, type WatchReceiveEvent } from './WatchBridgeModule';
+import WatchModule, { type WatchPayload } from './WatchBridgeModule';
 
 export type { WatchPayload, WatchReceiveEvent } from './WatchBridgeModule';
 export { useWatchSync } from './hooks/useWatchSync';
@@ -15,10 +14,4 @@ export function transfer(payload: WatchPayload): Promise<boolean> {
 
 export function setContext(payload: WatchPayload): Promise<boolean> {
   return WatchModule.setContext(payload);
-}
-
-export function addMessageListener(
-  listener: (event: WatchReceiveEvent) => void
-): EventSubscription {
-  return WatchModule.addListener('onMessage', listener);
 }
