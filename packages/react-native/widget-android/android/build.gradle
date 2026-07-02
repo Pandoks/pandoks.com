@@ -1,0 +1,36 @@
+buildscript {
+  repositories {
+    google()
+    mavenCentral()
+  }
+  dependencies {
+    classpath("org.jetbrains.kotlin.plugin.compose:org.jetbrains.kotlin.plugin.compose.gradle.plugin:${kotlinVersion}")
+  }
+}
+
+apply plugin: 'com.android.library'
+apply plugin: 'expo-module-gradle-plugin'
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'
+
+group = 'com.pandoks.widgetandroid'
+version = '0.0.1'
+
+android {
+  namespace "com.pandoks.widgetandroid"
+  defaultConfig {
+    versionCode 1
+    versionName "0.0.1"
+  }
+  buildFeatures {
+    compose true
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  api "androidx.glance:glance:1.2.0-rc01"
+  api "androidx.glance:glance-appwidget:1.2.0-rc01"
+  api "androidx.datastore:datastore-preferences:1.2.1"
+}
