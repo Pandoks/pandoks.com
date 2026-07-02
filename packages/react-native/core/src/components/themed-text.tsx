@@ -39,7 +39,7 @@ const styles = StyleSheet.create({
   smallBold: {
     fontSize: 14,
     lineHeight: 20,
-    fontWeight: 700
+    fontWeight: 'bold'
   },
   default: {
     fontSize: 16,

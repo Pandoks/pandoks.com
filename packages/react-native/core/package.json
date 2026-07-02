@@ -12,17 +12,21 @@
     "test": "pnpm test:unit"
   },
   "peerDependencies": {
+    "@pandoks.com/react-native-widget-android": "workspace:*",
     "expo-router": ">=5.0.0",
     "expo-web-browser": ">=15.0.0",
+    "expo-widgets": ">=56.0.0",
     "react": ">=19.0.0",
     "react-native": ">=0.81.0"
   },
   "devDependencies": {
+    "@pandoks.com/react-native-widget-android": "workspace:*",
     "@testing-library/react-native": "^13.3.3",
     "@types/jest": "29.5.14",
     "@types/react": "~19.2.15",
     "expo-router": "~56.2.9",
     "expo-web-browser": "~56.0.5",
+    "expo-widgets": "~56.0.20",
     "jest": "~29.7.0",
     "jest-expo": "~56.0.5",
     "react": "19.2.3",
