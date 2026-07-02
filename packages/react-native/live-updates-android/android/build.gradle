@@ -1,0 +1,23 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.pandoks.liveupdatesandroid'
+version = '0.0.1'
+
+android {
+  namespace "com.pandoks.liveupdatesandroid"
+  defaultConfig {
+    versionCode 1
+    versionName "0.0.1"
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  // NOTE: 1.17.0 is stable with latest expo compilesdk version (36). 1.18.0 requires 37.
+  implementation "androidx.core:core-ktx:1.17.0"
+}
