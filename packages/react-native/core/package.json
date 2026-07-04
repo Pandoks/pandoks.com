@@ -12,6 +12,7 @@
     "test": "pnpm test:unit"
   },
   "peerDependencies": {
+    "@pandoks.com/react-native-live-updates-android": "workspace:*",
     "@pandoks.com/react-native-widget-android": "workspace:*",
     "expo-router": ">=5.0.0",
     "expo-web-browser": ">=15.0.0",
@@ -20,6 +21,7 @@
     "react-native": ">=0.81.0"
   },
   "devDependencies": {
+    "@pandoks.com/react-native-live-updates-android": "workspace:*",
     "@pandoks.com/react-native-widget-android": "workspace:*",
     "@testing-library/react-native": "^13.3.3",
     "@types/jest": "29.5.14",
