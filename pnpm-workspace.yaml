@@ -28,3 +28,6 @@ overrides:
   cookie: ~1.1.0 # @sveltejs/kit@^0.6.x
   tmp: ^0.2.5 # @electron-forge/cli → external-editor@^0.0.33
   '@electron/node-gyp': ^10.2.0-electron.2 # @electron-forge/cli → @electron/rebuild@3.7
+
+patchedDependencies:
+  '@bacons/apple-targets': patches/@bacons__apple-targets.patch # wait for merge: https://github.com/EvanBacon/expo-apple-targets/pull/180

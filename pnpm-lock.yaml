@@ -12,6 +12,9 @@ overrides:
   tmp: ^0.2.5
   '@electron/node-gyp': ^10.2.0-electron.2
 
+patchedDependencies:
+  '@bacons/apple-targets': 4f18c0dfaf0d03b6965ec6d0292e51033c0cfccd05aab8d261f94e2d52068b1a
+
 importers:
 
   .:
