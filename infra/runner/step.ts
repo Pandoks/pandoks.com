@@ -35,7 +35,8 @@ function launchInstance({
     Resource: 'arn:aws:states:::aws-sdk:ec2:runInstances',
     Parameters: {
       LaunchTemplate: {
-        'LaunchTemplateId.$': templatePath
+        'LaunchTemplateId.$': templatePath,
+        Version: '$Latest'
       },
       MinCount: 1,
       MaxCount: 1,
