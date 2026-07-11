@@ -13,6 +13,11 @@ vulnerabilities:
       - usr/local/bin/kubectl
     statement: x/net/html parsing-bypass XSS; kubectl parses no untrusted HTML
     expired_at: 2026-08-12
+  - id: CVE-2026-33814
+    paths:
+      - usr/local/bin/kubectl
+    statement: x/net http2 SETTINGS-frame DoS needs a malicious server; kubectl talks only to in-cluster API
+    expired_at: 2026-08-12
   - id: CVE-2026-39821
     paths:
       - usr/local/bin/kubectl
