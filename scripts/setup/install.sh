@@ -1,7 +1,7 @@
 # shellcheck shell=sh
 
 # renovate: datasource=github-releases packageName=helm/helm
-HELM_VERSION=v4.2.0
+HELM_VERSION=v4.2.2
 
 detect_architecture() {
   case "$(uname -m)" in
