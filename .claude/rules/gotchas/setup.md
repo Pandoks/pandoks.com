@@ -151,7 +151,7 @@ the original problem.
     (`renovate.json:28`), so its PR always needs a manual SHA edit.
   - A minor bump also changes the Go toolchain kubectl is built on,
     which can invalidate the kubectl CVE suppressions in
-    `.trivyignore.yaml` (currently scoped to `release-1.36`/Go-1.26.2,
+    `.trivyignore.yaml` (currently scoped to `release-1.36`/Go-1.26.4/x-net-0.49.0,
     `expired_at: 2026-08-12`) — re-review those entries after bumping.
 - **`.nvmrc`** is the source of truth for Node version, read via the
   shared `read_nvmrc` helper (`env.sh:122-124`, `tr -d '[:space:]'`) —
