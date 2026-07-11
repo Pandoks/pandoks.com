@@ -1,45 +1,32 @@
 vulnerabilities:
-  # Go stdlib CVEs in kubectl (argocd image). Fixed in Go 1.26.3; k8s release-1.36 still builds on 1.26.2.
-  # Unreachable: kubectl only talks to the cluster API. Drop once a Go-1.26.3+ kubectl lands; expired_at forces re-review otherwise.
-  - id: CVE-2026-33811
+  # Go stdlib + x/net CVEs in kubectl (argocd image). kubectl v1.36.2 builds on Go 1.26.4 with
+  # x/net v0.49.0; these need Go 1.26.5 / x/net 0.55.0. Unreachable: kubectl only talks to the
+  # cluster API. Drop once a kubectl built on Go 1.26.5+ and x/net 0.55.0+ lands (likely v1.36.3);
+  # expired_at forces re-review otherwise.
+  - id: CVE-2026-25681
     paths:
       - usr/local/bin/kubectl
-    statement: LookupCNAME cgo-DNS DoS not exercised
+    statement: x/net/html XSS; kubectl parses no untrusted HTML
+    expired_at: 2026-08-12
+  - id: CVE-2026-27136
+    paths:
+      - usr/local/bin/kubectl
+    statement: x/net/html parsing-bypass XSS; kubectl parses no untrusted HTML
     expired_at: 2026-08-12
   - id: CVE-2026-33814
     paths:
       - usr/local/bin/kubectl
-    statement: HTTP/2 SETTINGS-frame DoS needs a malicious server; kubectl talks only to in-cluster API
+    statement: x/net http2 SETTINGS-frame DoS needs a malicious server; kubectl talks only to in-cluster API
     expired_at: 2026-08-12
-  - id: CVE-2026-39820
+  - id: CVE-2026-39821
     paths:
       - usr/local/bin/kubectl
-    statement: net/mail ParseAddress DoS not used by kubectl
+    statement: x/net/idna Punycode privilege escalation; kubectl resolves hosts from kubeconfig only
     expired_at: 2026-08-12
-  - id: CVE-2026-39836
+  - id: CVE-2026-39822
     paths:
       - usr/local/bin/kubectl
-    statement: net.Dial/LookupPort NUL-byte panic needs an attacker-controlled host; kubectl reads kubeconfig only
-    expired_at: 2026-08-12
-  - id: CVE-2026-42499
-    paths:
-      - usr/local/bin/kubectl
-    statement: net/mail consumePhrase DoS not exercised by kubectl
-    expired_at: 2026-08-12
-  - id: CVE-2026-39823
-    paths:
-      - usr/local/bin/kubectl
-    statement: html/template <meta> content URL XSS; kubectl renders no HTML templates
-    expired_at: 2026-08-12
-  - id: CVE-2026-39825
-    paths:
-      - usr/local/bin/kubectl
-    statement: net/http/httputil ReverseProxy query-param forwarding needs an internet-facing proxy; kubectl proxy binds localhost only
-    expired_at: 2026-08-12
-  - id: CVE-2026-39826
-    paths:
-      - usr/local/bin/kubectl
-    statement: html/template <script> type-attr XSS; kubectl renders no HTML templates
+    statement: os.Root symlink traversal; kubectl does not open untrusted directory trees
     expired_at: 2026-08-12
 
 misconfigurations:
