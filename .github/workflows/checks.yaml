@@ -348,6 +348,9 @@ jobs:
 
   # ─── SST ──────────────────────────────────────────────────────────────
   diff-sst:
+    # Dependabot-triggered runs only get Dependabot secrets, so the Cloudflare/Hetzner/Tailscale
+    # providers can never initialize — skip instead of failing.
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     environment: production
     env:
