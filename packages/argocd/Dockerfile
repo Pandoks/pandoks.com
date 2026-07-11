@@ -23,8 +23,8 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2
     && rm -rf awscliv2.zip aws
 
 # renovate: datasource=github-releases packageName=kubernetes/kubernetes
-ARG KUBECTL_VERSION=v1.36.1
-ARG KUBECTL_SHA256=629d3f410e09bf49b64ae7079f7f0bda1191efed311f7d37fdbab0ad5b0ec2b7
+ARG KUBECTL_VERSION=v1.36.2
+ARG KUBECTL_SHA256=1e9045ec32bea85da43de85f0065358529ea7c7a152eca78154fba5b58c27d82
 RUN curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
     && echo "${KUBECTL_SHA256}  kubectl" | sha256sum -c - \
     && chmod +x kubectl \
