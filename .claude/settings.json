@@ -36,5 +36,16 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git fetch *)",
+      "Bash(pnpm audit *)",
+      "Bash(go version *)",
+      "mcp__github__pull_request_read",
+      "mcp__github__get_job_logs",
+      "mcp__github__list_pull_requests",
+      "mcp__github__actions_list"
+    ]
   }
 }
