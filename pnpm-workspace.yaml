@@ -21,7 +21,9 @@ allowBuilds:
 overrides:
   '@xmldom/xmldom': ^0.9.10 # @electron-forge/cli → plist@^0.8.x
   picomatch: ^4.0.4 # @electron-forge/cli + vite-plugin-static-copy → anymatch@^2.x
-  tar: ^7.5.13 # @electron-forge/cli → @electron/node-gyp@^6.x
+  tar: ^7.5.16 # @electron-forge/cli → @electron/node-gyp@^6.x (GHSA-vmf3-w455-68vh)
   cookie: ~1.1.0 # @sveltejs/kit@^0.6.x
-  tmp: ^0.2.5 # @electron-forge/cli → external-editor@^0.0.33
+  tmp: ^0.2.6 # @electron-forge/cli → external-editor@^0.0.33 (GHSA-ph9p-34f9-6g65)
   '@electron/node-gyp': ^10.2.0-electron.2 # @electron-forge/cli → @electron/rebuild@3.7
+  form-data: ^4.0.6 # twilio → axios@^1.x (GHSA-hmw2-7cc7-3qxx)
+  undici@^7: ^7.28.0 # jsdom + electron>@electron/get; selector keeps apps/functions' undici@^8 untouched (GHSA-vmh5-mc38-953g et al)

@@ -24,8 +24,8 @@ area is being edited.
   - `sst.config.ts:22` —
     `// NOTE: for some reason, dynamic imports don't work well`
   - `TODO:` is equally valid for an operator action or an
-    upstream-blocker note (no live example in the tree right now — the
-    former `package.json` pnpm-overrides `//TODO` key was removed).
+    upstream-blocker note (live example: `pnpm-workspace.yaml:20` —
+    `# TODO: remove override when upstream bumps its pinned dep`).
 - **Single-use constants stay in their file.** Don't extract to `$lib` /
   shared module unless ≥2 files use it.
 - **Conventional commits.** Active set: `feat()`, `fix()`, `update()`,
