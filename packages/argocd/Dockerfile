@@ -5,13 +5,13 @@ FROM node:24.16.0-slim@sha256:242549cd46785b480c832479a730f4f2a20865d61ea2e404fd
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
     && apt-get update && apt-get install -y --no-install-recommends \
     bash=5.2.15-2+b13 \
-    curl=7.88.1-10+deb12u14 \
+    curl=7.88.1-10+deb12u15 \
     jq=1.6-2.1+deb12u2 \
     git=1:2.39.5-0+deb12u3 \
     unzip=6.0-28 \
     ca-certificates=20230311+deb12u1 \
     libgnutls30=3.7.9-2+deb12u7 \
-    apache2-utils=2.4.67-1~deb12u3 \
+    apache2-utils=2.4.68-1~deb12u1 \
     && rm -rf /var/lib/apt/lists/* \
     && corepack enable
 
