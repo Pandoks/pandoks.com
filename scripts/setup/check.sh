@@ -33,15 +33,23 @@ version_drift() {
       esac
       ;;
     go)
-      # go must be >= the minor required by go.work (apt ships an older go)
-      version_drift_want_minor=$(go_required_version | cut -d. -f2)
-      version_drift_have_minor=$(printf '%s' "${version_drift_version}" \
-        | sed 's/.*go1\./1./' | cut -d. -f2)
+      # go must be >= the version required by go.work (apt ships an older go);
+      # patch matters too — go.work patch bumps are usually stdlib CVE fixes
+      version_drift_want=$(go_required_version)
+      version_drift_want_minor=$(printf '%s' "${version_drift_want}" | cut -d. -f2)
+      version_drift_have=$(printf '%s' "${version_drift_version}" \
+        | sed -n 's/.*go1\.\([0-9][0-9]*\(\.[0-9][0-9]*\)*\).*/1.\1/p')
+      version_drift_have_minor=$(printf '%s' "${version_drift_have}" | cut -d. -f2)
       case "${version_drift_have_minor}" in
         '' | *[!0-9]*) return 0 ;;
       esac
-      [ "${version_drift_have_minor}" -ge "${version_drift_want_minor}" ] \
-        || printf 'want >= 1.%s' "${version_drift_want_minor}"
+      version_drift_want_patch=$(printf '%s' "${version_drift_want}" | cut -sd. -f3)
+      version_drift_have_patch=$(printf '%s' "${version_drift_have}" | cut -sd. -f3)
+      if [ "${version_drift_have_minor}" -lt "${version_drift_want_minor}" ] \
+        || { [ "${version_drift_have_minor}" -eq "${version_drift_want_minor}" ] \
+          && [ "${version_drift_have_patch:-0}" -lt "${version_drift_want_patch:-0}" ]; }; then
+        printf 'want >= %s' "${version_drift_want}"
+      fi
       ;;
     kubectl)
       # kubectl supports +/-1 minor skew against the cluster pin

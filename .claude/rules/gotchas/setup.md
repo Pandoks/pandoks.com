@@ -107,15 +107,15 @@ the original problem.
   on-disk caches after trying them in worktrees. The in-memory
   short-circuits get warm runs sub-second; the extra wasn't worth a
   cache-invalidation surface.
-- **`cmd_setup_check` is parallel** (`check.sh:106`) — 19 `command -v` +
-  version probes fan out via `&` + `wait` (`check.sh:132-136`), each
+- **`cmd_setup_check` is parallel** (`check.sh:114`) — 19 `command -v` +
+  version probes fan out via `&` + `wait` (`check.sh:140-144`), each
   writing to its own numbered temp file via `print_check_report_status`,
   then cat'd in order. Drift is derived from the report content (a `✗`
-  **or `⚠`** line via `grep`, `check.sh:141`), not a separate marker
+  **or `⚠`** line via `grep`, `check.sh:149`), not a separate marker
   file — a marker written after the report could be lost if the
   backgrounded subshell died in between, silently downgrading drift to OK.
 - **`setup check` is 3-state, not 2** (`print_check_report_status`,
-  `check.sh:65-104`). For each tool: on PATH + in-spec → `✓`; on PATH +
+  `check.sh:73-112`). For each tool: on PATH + in-spec → `✓`; on PATH +
   wrong version → `✗ … (want …)` (drift, `version_drift`); \*\*not on the
   live PATH but found in one of `required_path_dirs` → `⚠ installed at
   <dir> — not on PATH (source your rc)`**; nowhere → `✗ not installed`.
@@ -137,7 +137,7 @@ the original problem.
   `MAJOR.MINOR` out of it; both the apt-repo channel
   (`install.sh:307, 311`) and the drift check consume that one value, so
   the **setup script** follows the Dockerfile automatically. The
-  `version_drift` kubectl case (`check.sh:46-60`) flags drift
+  `version_drift` kubectl case (`check.sh:54-69`) flags drift
   when the installed minor falls outside kubectl's ±1-minor support
   envelope around the pin. Only the apt arm is channel-pinned to the
   minor; brew/pacman install latest kubectl (the ±1 envelope + drift
@@ -168,8 +168,10 @@ the original problem.
   (`env.sh:136-138`) parses it. On apt the official `go.dev` tarball is
   fetched (apt's `golang-go` lags — Ubuntu 24.04 ships 1.22, below the
   directive) (`install.sh:148-161`); brew/pacman use the current native
-  package. The `version_drift` go case (`check.sh:35-44`) flags an
-  installed go below the required minor. Renovate keeps `go.work`,
+  package. The `version_drift` go case (`check.sh:35-53`) flags an
+  installed go below the required version — patch-aware when the
+  directive pins one, since go.work patch bumps are usually stdlib
+  CVE fixes. Renovate keeps `go.work`,
   `go.mod`, and the valkey Dockerfile in sync (grouped via `allNonMajor`).
 - **helm is pinned to a literal `HELM_VERSION`** (`install.sh:3-4`,
   Renovate-annotated; a customManager in `renovate.json` reads the
@@ -245,11 +247,12 @@ captured variable gets ~40 KB of `Setting up …` apt output.
 
 The per-installer short-circuit (`command -v <tool>`) accepts any
 version. The real version enforcement lives in `version_drift`
-(`check.sh:12-63`), which pins six tools:
+(`check.sh:12-71`), which pins six tools:
 
 - **node** — major must match `.nvmrc`.
 - **pnpm** — major must match `package.json`'s `packageManager`.
-- **go** — minor must be `>=` the `go.work` directive.
+- **go** — must be `>=` the `go.work` directive; when the directive
+  pins a patch, an equal-minor install must also meet the patch.
 - **aws** — must be `aws-cli/2.*` (rejects v1, accepts any v2.x).
 - **helm** — major must match `HELM_VERSION` (`install.sh:4`).
 - **kubectl** — minor must be within ±1 of the prod cluster pin
