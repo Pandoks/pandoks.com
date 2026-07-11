@@ -41,6 +41,36 @@ vulnerabilities:
       - usr/local/bin/kubectl
     statement: html/template <script> type-attr XSS; kubectl renders no HTML templates
     expired_at: 2026-08-12
+  - id: CVE-2026-25681
+    paths:
+      - usr/local/bin/kubectl
+    statement: golang.org/x/net/html XSS via crafted markup; kubectl renders no HTML from untrusted input
+    expired_at: 2026-08-12
+  - id: CVE-2026-27136
+    paths:
+      - usr/local/bin/kubectl
+    statement: golang.org/x/net/html parser XSS bypass; kubectl renders no HTML from untrusted input
+    expired_at: 2026-08-12
+  - id: CVE-2026-27145
+    paths:
+      - usr/local/bin/kubectl
+    statement: crypto/x509 DNS-name DoS; kubectl only verifies its configured API-server cert
+    expired_at: 2026-08-12
+  - id: CVE-2026-39821
+    paths:
+      - usr/local/bin/kubectl
+    statement: golang.org/x/net/idna Punycode label handling; kubeconfig-controlled hosts only, not attacker-controlled
+    expired_at: 2026-08-12
+  - id: CVE-2026-39822
+    paths:
+      - usr/local/bin/kubectl
+    statement: os.Root symlink-following bypass; kubectl uses no os.Root filesystem confinement
+    expired_at: 2026-08-12
+  - id: CVE-2026-42504
+    paths:
+      - usr/local/bin/kubectl
+    statement: mime header parsing DoS; kubectl parses no MIME headers from untrusted input
+    expired_at: 2026-08-12
 
 misconfigurations:
   # KSV-0109 false positive: flags `password:`/`secret:`-named keys in these ConfigMaps, but the
