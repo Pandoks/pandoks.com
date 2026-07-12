@@ -49,7 +49,7 @@ check_mise_wiring() {
 check_mise_tools() {
   check_mise_tools_mise="$1" # mise binary path
 
-  check_mise_tools_inventory=$(cd "${REPO_ROOT}" && "${check_mise_tools_mise}" ls --current 2> /dev/null)
+  check_mise_tools_inventory=$(cd "${REPO_ROOT}" && "${check_mise_tools_mise}" ls --local 2> /dev/null)
   if [ -z "${check_mise_tools_inventory}" ]; then
     check_report fail "mise can't read mise.toml (untrusted config? run mise trust / pnpm bootstrap all)"
     return 1

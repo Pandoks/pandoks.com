@@ -169,10 +169,13 @@ installed`. Wiring counts as either the shims dir string-matched in
    `$PATH` or `MISE_SHELL` set (`mise activate` strips the shims dir
    and prepends real tool dirs, so activate'd shells pass via the env
    marker).
-2. **Pinned tools installed** — one `mise ls --current` (run from
-   `REPO_ROOT`, captured once); missing rows carry `(missing)` in
-   field 3 (`awk '$3 == "(missing)"'`), and the same capture provides
-   the tool count — no second mise call. Each missing tool is a `✗`.
+2. **Pinned tools installed** — one `mise ls --local` (run from
+   `REPO_ROOT`, captured once; `--local` and not `--current`, which
+   would drag in a developer's global `~/.config/mise` pins and fail
+   the repo check on unrelated tools); missing rows carry `(missing)`
+   in field 3 (`awk '$3 == "(missing)"'`), and the same capture
+   provides the tool count — no second mise call. Each missing tool
+   is a `✗`.
 3. **Shadow sweep** — every entry in the shims dir must resolve via
    mise (its own shim, or a `…/mise/installs/…` path in activate'd
    shells). A tool that resolves elsewhere is flagged only if
