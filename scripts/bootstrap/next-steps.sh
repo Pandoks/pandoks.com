@@ -1,17 +1,17 @@
 # shellcheck shell=sh
 
-SETUP_BOOTSTRAP_HEADER_SHOWN=0
+BOOTSTRAP_HEADER_SHOWN=0
 
 show_bootstrap_header() {
-  [ "${SETUP_BOOTSTRAP_HEADER_SHOWN}" -eq 1 ] && return 0
+  [ "${BOOTSTRAP_HEADER_SHOWN}" -eq 1 ] && return 0
   printf "\n" >&2
   log_warn "Bootstrap todos:"
-  SETUP_BOOTSTRAP_HEADER_SHOWN=1
+  BOOTSTRAP_HEADER_SHOWN=1
 }
 
 print_next_steps() {
   print_next_steps_step=1
-  SETUP_BOOTSTRAP_HEADER_SHOWN=0
+  BOOTSTRAP_HEADER_SHOWN=0
 
   # 1. .env.<stage> — needed if no .env.<stage> file exists yet (.env.example doesn't count — it's the template).
   if ! find "${REPO_ROOT}" -maxdepth 1 -name '.env.*' ! -name '.env.example' \

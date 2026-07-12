@@ -1,0 +1,23 @@
+name: Setup Node + pnpm
+description: Read the node version from mise.toml, set up pnpm and node with the pnpm-store cache, then install workspace dependencies.
+
+runs:
+  using: composite
+  steps:
+    - name: Read node version from mise.toml
+      id: mise-node
+      shell: bash
+      run: echo "version=$(sed -n -E 's/^node[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' mise.toml)" >> "$GITHUB_OUTPUT"
+
+    - name: Setup pnpm
+      uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+
+    - name: Setup Node
+      uses: actions/setup-node@v6
+      with:
+        node-version: ${{ steps.mise-node.outputs.version }}
+        cache: 'pnpm'
+
+    - name: Install pnpm dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile
