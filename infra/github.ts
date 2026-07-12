@@ -127,4 +127,10 @@ if (isProduction) {
     secretName: 'TS_OAUTH_SECRET',
     plaintextValue: githubActionsOauthClient.key
   });
+
+  // NOTE: Renovate handles the security-PRs, and reads dependabot alerts.
+  new github.RepositoryDependabotSecurityUpdates('GithubDependabotSecurityUpdates', {
+    repository: githubRepoName,
+    enabled: false
+  });
 }
