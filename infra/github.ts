@@ -102,10 +102,15 @@ if (isProduction) {
     value: defaultAwsRegion
   });
 
-  new github.ActionsSecret('GithubTailscaleApiKey', {
+  new github.ActionsSecret('GithubTailscaleOauthClientId', {
     repository: githubRepoName,
-    secretName: 'TAILSCALE_API_KEY',
-    plaintextValue: secrets.tailscale.ApiKey.value
+    secretName: 'TAILSCALE_OAUTH_CLIENT_ID',
+    plaintextValue: secrets.tailscale.OauthClientId.value
+  });
+  new github.ActionsSecret('GithubTailscaleOauthClientSecret', {
+    repository: githubRepoName,
+    secretName: 'TAILSCALE_OAUTH_CLIENT_SECRET',
+    plaintextValue: secrets.tailscale.OauthClientSecret.value
   });
 
   const githubActionsOauthClient = new tailscale.OauthClient(

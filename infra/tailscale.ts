@@ -37,14 +37,18 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         }
       ],
       tagOwners: {
-        'tag:hetzner': ['pandoks@github'],
-        'tag:k8s-operator': ['tag:k8s-operator'],
-        'tag:k8s': ['tag:k8s-operator'],
-        'tag:control-plane': ['pandoks@github'],
-        'tag:worker': ['pandoks@github'],
-        'tag:dev': ['pandoks@github', 'tag:k8s-operator'],
-        'tag:prod': ['pandoks@github', 'tag:k8s-operator'],
-        'tag:ci': ['pandoks@github']
+        // NOTE: tag:iac is the root OAuth client the SST tailscale provider authenticates as
+        // (created manually in the admin console — the one credential IaC can't create). It must
+        // own every tag that IaC-created OAuth clients/devices carry.
+        'tag:iac': ['pandoks@github'],
+        'tag:hetzner': ['pandoks@github', 'tag:iac'],
+        'tag:k8s-operator': ['tag:k8s-operator', 'tag:iac'],
+        'tag:k8s': ['tag:k8s-operator', 'tag:iac'],
+        'tag:control-plane': ['pandoks@github', 'tag:iac'],
+        'tag:worker': ['pandoks@github', 'tag:iac'],
+        'tag:dev': ['pandoks@github', 'tag:k8s-operator', 'tag:iac'],
+        'tag:prod': ['pandoks@github', 'tag:k8s-operator', 'tag:iac'],
+        'tag:ci': ['pandoks@github', 'tag:iac']
       }
     },
     { maxLength: 80, indent: 2 }
@@ -85,14 +89,37 @@ $resolve([
   }
 );
 
+async function tailscaleApiToken(clientId: string, clientSecret: string): Promise<string> {
+  const response = await fetch('https://api.tailscale.com/api/v2/oauth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: clientId,
+      client_secret: clientSecret
+    })
+  });
+  if (!response.ok) {
+    throw new Error(
+      `Tailscale OAuth token exchange failed: ${response.status} ${response.statusText}`
+    );
+  }
+  const { access_token: accessToken } = (await response.json()) as { access_token: string };
+  return accessToken;
+}
+
 export function deleteTailscaleDevices(...deviceIds: string[]) {
-  return secrets.tailscale.ApiKey.value.apply(async (apiKey) => {
+  return $resolve([
+    secrets.tailscale.OauthClientId.value,
+    secrets.tailscale.OauthClientSecret.value
+  ]).apply(async ([clientId, clientSecret]) => {
+    const accessToken = await tailscaleApiToken(clientId, clientSecret);
     return await Promise.all(
       deviceIds.map(async (deviceId) => {
         try {
           const response = await fetch(`https://api.tailscale.com/api/v2/device/${deviceId}`, {
             method: 'DELETE',
-            headers: { Authorization: `Basic ${Buffer.from(`${apiKey}:`).toString('base64')}` }
+            headers: { Authorization: `Bearer ${accessToken}` }
           });
           if (!response.ok) {
             throw new Error(`${response.status} ${response.statusText}`);
