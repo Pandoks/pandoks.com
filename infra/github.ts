@@ -127,4 +127,11 @@ if (isProduction) {
     secretName: 'TS_OAUTH_SECRET',
     plaintextValue: githubActionsOauthClient.key
   });
+
+  // Renovate (osvVulnerabilityAlerts) is the sole security-PR opener; Dependabot alerts +
+  // dependency graph stay enabled — Renovate reads them as its data source.
+  new github.RepositoryDependabotSecurityUpdates('GithubDependabotSecurityUpdates', {
+    repository: githubRepoName,
+    enabled: false
+  });
 }
