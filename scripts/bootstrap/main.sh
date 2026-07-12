@@ -40,13 +40,25 @@ install_packages() {
   esac
 }
 
+RELOAD=0
 main() {
-  cmd="${1:-all}"
-  [ $# -ge 1 ] && shift
+  [ $# -ge 1 ] || usage 0
+  cmd="$1"
+  shift
+
+  for arg in "$@"; do
+    case "${arg}" in
+      --reload) RELOAD=1 ;;
+      -*)
+        log_error "Unknown option '${arg}'"
+        usage 1
+        ;;
+    esac
+  done
 
   case "${cmd}" in
-    all) cmd_setup_all "$@" ;;
-    check) cmd_setup_check "$@" ;;
+    all) cmd_bootstrap_all ;;
+    check) cmd_bootstrap_check ;;
     help | --help | -h) usage ;;
     *)
       log_error "Unknown command '${cmd}'"

@@ -24,14 +24,16 @@ append_shell_rc() {
   [ -f "${append_shell_rc_file}" ] || touch "${append_shell_rc_file}"
   if ! grep -Fqx "${append_shell_rc_line}" "${append_shell_rc_file}"; then
     printf '%s\n' "${append_shell_rc_line}" >> "${append_shell_rc_file}"
+    return 0
   fi
+  return 1 # already present (not fail in traditional sense)
 }
 
-SETUP_PACKAGE_MANAGER_CACHE=""
+BOOTSTRAP_PACKAGE_MANAGER_CACHE=""
 
 ensure_package_manager() { # Outputs: package manager name (brew | apt-get | pacman)
-  if [ -n "${SETUP_PACKAGE_MANAGER_CACHE}" ]; then
-    printf '%s' "${SETUP_PACKAGE_MANAGER_CACHE}"
+  if [ -n "${BOOTSTRAP_PACKAGE_MANAGER_CACHE}" ]; then
+    printf '%s' "${BOOTSTRAP_PACKAGE_MANAGER_CACHE}"
     return 0
   fi
 
@@ -87,8 +89,8 @@ ensure_package_manager() { # Outputs: package manager name (brew | apt-get | pac
 
   ensure_package_manager_package_manager=$(get_package_manager)
   is_supported_package_manager "${ensure_package_manager_package_manager}" || exit 1
-  SETUP_PACKAGE_MANAGER_CACHE="${ensure_package_manager_package_manager}"
-  printf '%s' "${SETUP_PACKAGE_MANAGER_CACHE}"
+  BOOTSTRAP_PACKAGE_MANAGER_CACHE="${ensure_package_manager_package_manager}"
+  printf '%s' "${BOOTSTRAP_PACKAGE_MANAGER_CACHE}"
 }
 
 # fetches/installs signing key apt needs to trust third party repos (so we can install packages from them)
@@ -119,46 +121,18 @@ fetch_pgp_key() {
   die "Failed to fetch ${fetch_pgp_key_name} PGP key from ${fetch_pgp_key_url} after 3 attempts"
 }
 
-read_nvmrc() { # Outputs: node version inside .nvmrc
-  tr -d '[:space:]' < "${REPO_ROOT}/.nvmrc"
-}
-
-pnpm_spec() {
-  sed -n 's/.*"packageManager"[[:space:]]*:[[:space:]]*"\(pnpm@[^+"]*\).*/\1/p' \
-    "${REPO_ROOT}/package.json" | head -n1
-}
-
-kubectl_pinned_minor() {
-  sed -n 's/.*KUBECTL_VERSION=v\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' \
-    "${REPO_ROOT}/packages/argocd/Dockerfile" | head -n1
-}
-
-go_required_version() {
-  sed -n 's/^go \([0-9][0-9.]*\).*/\1/p' "${REPO_ROOT}/go.work" | head -n1
-}
-
-SETUP_PATH_DIRS_CACHE=""
+BOOTSTRAP_PATH_DIRS_CACHE=""
 
 required_path_dirs() { # Outputs: paths of tools to add to PATH (one per line \n)
-  if [ -z "${SETUP_PATH_DIRS_CACHE}" ]; then
-    SETUP_PATH_DIRS_CACHE=$(
-      # shellcheck disable=SC2012
-      required_path_dirs_node=$(ls -d "${HOME}"/.nvm/versions/node/v"$(read_nvmrc)".*/bin \
-        2> /dev/null | sort -V | tail -n1)
-      [ -n "${required_path_dirs_node}" ] && printf '%s\n' "${required_path_dirs_node}"
-
-      [ -x "${HOME}/.local/bin/uv" ] && printf '%s\n' "${HOME}/.local/bin"
-
-      # need to include go's env GOPATH so we can use golang tools as cli
-      if [ -x /usr/local/go/bin/go ]; then # ubuntu doesn't install go to a dir in PATH directly
-        printf '%s\n' '/usr/local/go/bin'
-        printf '%s\n' "$(/usr/local/go/bin/go env GOPATH)/bin"
-      elif command -v go > /dev/null 2>&1; then
-        printf '%s\n' "$(go env GOPATH)/bin"
+  if [ -z "${BOOTSTRAP_PATH_DIRS_CACHE}" ]; then
+    BOOTSTRAP_PATH_DIRS_CACHE=$(
+      printf '%s\n' "${HOME}/.local/share/mise/shims"
+      if [ -x "${HOME}/.local/bin/mise" ]; then
+        printf '%s\n' "${HOME}/.local/bin"
       fi
     )
   fi
-  printf '%s\n' "${SETUP_PATH_DIRS_CACHE}"
+  printf '%s\n' "${BOOTSTRAP_PATH_DIRS_CACHE}"
 }
 
 # needed for non-interactive shells (CI / wrappers / Claude Code Cloud)
