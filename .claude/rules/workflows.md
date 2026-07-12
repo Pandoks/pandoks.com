@@ -50,7 +50,8 @@ Required envs (`.env.example`): `CLOUDFLARE_API_TOKEN`,
 `CLOUDFLARE_DEFAULT_ACCOUNT_ID`, `HCLOUD_TOKEN`,
 `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_CLIENT_SECRET`,
 `GITHUB_TOKEN`. The Tailscale pair is the manually-created root OAuth
-client (tag `tag:iac`, admin console → Trust credentials) — the one
+client (admin console → Trust credentials, "All - Read & Write",
+tagless — see `gotchas/infra.md`) — the one
 credential IaC can't create; its secret never expires. The provider
 exchanges it for 1-hour API tokens per run (`sst.config.ts:18-22`), and
 `deleteTailscaleDevices` does the same exchange for its raw API calls

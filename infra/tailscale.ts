@@ -37,18 +37,14 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         }
       ],
       tagOwners: {
-        // NOTE: tag:iac is the root OAuth client the SST tailscale provider authenticates as
-        // (created manually in the admin console — the one credential IaC can't create). It must
-        // own every tag that IaC-created OAuth clients/devices carry.
-        'tag:iac': ['pandoks@github'],
-        'tag:hetzner': ['pandoks@github', 'tag:iac'],
-        'tag:k8s-operator': ['tag:k8s-operator', 'tag:iac'],
-        'tag:k8s': ['tag:k8s-operator', 'tag:iac'],
-        'tag:control-plane': ['pandoks@github', 'tag:iac'],
-        'tag:worker': ['pandoks@github', 'tag:iac'],
-        'tag:dev': ['pandoks@github', 'tag:k8s-operator', 'tag:iac'],
-        'tag:prod': ['pandoks@github', 'tag:k8s-operator', 'tag:iac'],
-        'tag:ci': ['pandoks@github', 'tag:iac']
+        'tag:hetzner': ['pandoks@github'],
+        'tag:k8s-operator': ['tag:k8s-operator'],
+        'tag:k8s': ['tag:k8s-operator'],
+        'tag:control-plane': ['pandoks@github'],
+        'tag:worker': ['pandoks@github'],
+        'tag:dev': ['pandoks@github', 'tag:k8s-operator'],
+        'tag:prod': ['pandoks@github', 'tag:k8s-operator'],
+        'tag:ci': ['pandoks@github']
       }
     },
     { maxLength: 80, indent: 2 }
