@@ -128,8 +128,7 @@ if (isProduction) {
     plaintextValue: githubActionsOauthClient.key
   });
 
-  // Renovate (osvVulnerabilityAlerts) is the sole security-PR opener; Dependabot alerts +
-  // dependency graph stay enabled — Renovate reads them as its data source.
+  // NOTE: Renovate handles the security-PRs, and reads dependabot alerts.
   new github.RepositoryDependabotSecurityUpdates('GithubDependabotSecurityUpdates', {
     repository: githubRepoName,
     enabled: false
