@@ -36,5 +36,8 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "allow": ["Edit(.claude/rules/**)", "Write(.claude/rules/**)"]
   }
 }
