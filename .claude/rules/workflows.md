@@ -194,8 +194,11 @@ Core actions pinned to v6: `actions/checkout@v6`, `actions/setup-node@v6`,
 `docker/setup-buildx-action@v4`, `docker/login-action@v4`,
 `docker/build-push-action@v7`, `dorny/paths-filter@v4`,
 `actions/attest-build-provenance@v4`,
-`tailscale/github-action@v4`. Node version in CI is `'24.16.0'`
-(exact pin — keep in sync with the `node` pin in `mise.toml`).
+`tailscale/github-action@v4`. CI reads the node version from
+`mise.toml` (the `setup-node-pnpm` composite,
+`.github/actions/setup-node-pnpm/action.yml:10`); Cloudflare Pages
+can't, so root `.node-version` carries the same exact pin — Renovate's
+`nodenv` manager bumps both copies in one `allNonMajor` PR.
 
 Trusted third-party actions outside the Anthropic-blessed set are
 SHA-pinned with `# vN.N.N` comments — see every `uses:` in

@@ -32,7 +32,14 @@ Cloud too — see the shims row and the `cmd_bootstrap_all` env-file block below
   branch — the failing argocd image build on the PR is the reminder).
   The mise.toml + Dockerfile copies travel in one PR via the
   `groupName: "kubectl"` packageRule, so Renovate keeps them in sync —
-  no local skew check.
+  no local skew check. **node** has one extra copy: root
+  `.node-version` (same exact pin) exists ONLY for Cloudflare Pages,
+  which can't read mise.toml and otherwise builds on its image default
+  (node 22 — fails root `engines.node >= 24` during install; that broke
+  every Pages build after the old `.nvmrc` was deleted). Renovate's
+  `nodenv` manager bumps it in the same `allNonMajor` PR as the mise
+  pin; mise itself ignores it (mise.toml outranks idiomatic version
+  files). Don't delete it.
 - **`mise trust` before `mise install` is load-bearing** — mise.toml
   has an `[env]` section, which mise refuses to evaluate from untrusted
   configs. CI sets `MISE_TRUSTED_CONFIG_PATHS` on every mise-action
