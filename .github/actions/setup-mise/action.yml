@@ -13,5 +13,5 @@ runs:
       env:
         MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
       with:
-        version: 2026.6.3
+        version: 2026.7.7
         install_args: ${{ inputs.tools }}
