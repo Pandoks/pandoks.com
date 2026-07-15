@@ -27,8 +27,7 @@ bootstrap_with_mise() {
     || die "No supported mise system package manager found"
   (
     cd "${REPO_ROOT}"
-    MISE_SYSTEM_PACKAGES_MANAGERS="${bootstrap_with_mise_package_managers}"
-    export MISE_SYSTEM_PACKAGES_MANAGERS
+    export MISE_SYSTEM_PACKAGES_MANAGERS="${bootstrap_with_mise_package_managers}"
     mise trust > /dev/null 2>&1
     mise bootstrap --yes --update
     mise bootstrap packages upgrade --yes
