@@ -1,19 +1,19 @@
 # shellcheck shell=sh
 
-BOOTSTRAP_PACKAGE_MANAGER_CACHE=""
+BOOTSTRAP_PACKAGE_MANAGER=""
 
-mise_system_package_managers() {
-  case "$(get_package_manager)" in
-    apt-get) printf 'apt' ;;
+mise_package_managers_for() {
+  case "$1" in
+    apt) printf 'apt' ;;
     brew) printf 'brew,brew-cask' ;;
     pacman) printf 'pacman' ;;
     *) return 1 ;;
   esac
 }
 
-ensure_package_manager() { # Outputs: package manager name (brew | apt-get | pacman)
-  if [ -n "${BOOTSTRAP_PACKAGE_MANAGER_CACHE}" ]; then
-    printf '%s' "${BOOTSTRAP_PACKAGE_MANAGER_CACHE}"
+ensure_package_manager() { # Outputs: package manager ID (brew | apt | pacman)
+  if [ -n "${BOOTSTRAP_PACKAGE_MANAGER}" ]; then
+    printf '%s' "${BOOTSTRAP_PACKAGE_MANAGER}"
     return 0
   fi
 
@@ -67,10 +67,10 @@ ensure_package_manager() { # Outputs: package manager name (brew | apt-get | pac
     esac
   } 1>&2
 
-  ensure_package_manager_package_manager=$(get_package_manager)
+  ensure_package_manager_package_manager=$(detect_package_manager)
   is_supported_package_manager "${ensure_package_manager_package_manager}" || exit 1
-  BOOTSTRAP_PACKAGE_MANAGER_CACHE="${ensure_package_manager_package_manager}"
-  printf '%s' "${BOOTSTRAP_PACKAGE_MANAGER_CACHE}"
+  BOOTSTRAP_PACKAGE_MANAGER="${ensure_package_manager_package_manager}"
+  printf '%s' "${BOOTSTRAP_PACKAGE_MANAGER}"
 }
 
 # fetches/installs signing key apt needs to trust third party repos (so we can install packages from them)

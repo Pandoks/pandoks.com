@@ -34,17 +34,17 @@ get_os() {
 }
 
 #######################################
-# Determine available package manager for current system.
+# Detect the available package manager for the current system.
 # Outputs:
-#   Package Manager: brew | apt-get | dnf | yum | pacman | apk | unknown
+#   Package Manager ID: brew | apt | dnf | yum | pacman | apk | unknown
 #######################################
-get_package_manager() {
+detect_package_manager() {
   case "$(get_os)" in
     macos)
       command -v brew > /dev/null 2>&1 && echo "brew" || echo "unknown"
       ;;
     debian)
-      command -v apt-get > /dev/null 2>&1 && echo "apt-get" || echo "unknown"
+      command -v apt-get > /dev/null 2>&1 && echo "apt" || echo "unknown"
       ;;
     fedora | rhel)
       if command -v dnf > /dev/null 2>&1; then
@@ -63,7 +63,7 @@ get_package_manager() {
       ;;
     linux)
       if command -v apt-get > /dev/null 2>&1; then
-        echo "apt-get"
+        echo "apt"
       elif command -v dnf > /dev/null 2>&1; then
         echo "dnf"
       elif command -v yum > /dev/null 2>&1; then
@@ -229,7 +229,7 @@ is_supported_shell() {
 #######################################
 # Check if the package manager is supported.
 # Arguments:
-#   Package Manager: brew | apt-get | dnf | yum | pacman | apk
+#   Package Manager ID: brew | apt | dnf | yum | pacman | apk
 # Outputs:
 #   Unsupported package manager message to STDERR
 # Returns:
@@ -238,7 +238,7 @@ is_supported_shell() {
 is_supported_package_manager() {
   is_supported_package_manager_package_manager="$1"
   case "${is_supported_package_manager_package_manager}" in
-    brew | apt-get | dnf | yum | pacman | apk)
+    brew | apt | dnf | yum | pacman | apk)
       return 0
       ;;
     *)

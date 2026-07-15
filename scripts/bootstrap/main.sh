@@ -29,12 +29,12 @@ log_step() {
 }
 
 install_packages() {
-  install_packages_package_manager="$1" # brew | apt-get | pacman
+  install_packages_package_manager="$1" # brew | apt | pacman
   shift
 
   case "${install_packages_package_manager}" in
     brew) brew install "$@" ;;
-    apt-get) use_sudo apt-get install -y "$@" ;;
+    apt) use_sudo apt-get install -y "$@" ;;
     pacman) use_sudo pacman -S --noconfirm --needed "$@" ;;
     *) die "Unsupported package manager: ${install_packages_package_manager}" ;;
   esac

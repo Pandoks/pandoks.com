@@ -73,7 +73,7 @@ check_mise_tools() {
 
 check_mise_packages() {
   check_mise_packages_mise="$1"
-  check_mise_packages_managers=$(mise_system_package_managers) || {
+  check_mise_packages_managers=$(mise_package_managers_for "$(detect_package_manager)") || {
     check_report fail "no supported mise system package manager found"
     return 1
   }

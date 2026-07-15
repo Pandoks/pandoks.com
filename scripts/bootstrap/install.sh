@@ -5,12 +5,12 @@ install_mise() {
     install_mise_package_manager=$(ensure_package_manager)
     case "${install_mise_package_manager}" in
       brew) install_packages brew mise ;;
-      apt-get)
+      apt)
         log_step "Installing mise from its apt repository"
-        install_packages apt-get extrepo
+        install_packages apt extrepo
         use_sudo extrepo enable mise
         use_sudo apt-get update -y
-        install_packages apt-get mise
+        install_packages apt mise
         ;;
       pacman) install_packages pacman mise ;;
     esac
@@ -23,7 +23,7 @@ install_mise() {
 
 bootstrap_with_mise() {
   log_step "Bootstrapping system packages, shell activation, and toolchain with mise"
-  bootstrap_with_mise_package_managers=$(mise_system_package_managers) \
+  bootstrap_with_mise_package_managers=$(mise_package_managers_for "$(ensure_package_manager)") \
     || die "No supported mise system package manager found"
   (
     cd "${REPO_ROOT}"
@@ -78,7 +78,7 @@ EOF
 configure_docker_package_source() {
   configure_docker_package_manager=$(ensure_package_manager)
   case "${configure_docker_package_manager}" in
-    apt-get)
+    apt)
       if [ -f /etc/apt/sources.list.d/docker.list ] || [ -f /etc/apt/sources.list.d/docker.sources ]; then
         return 0
       fi
@@ -105,7 +105,7 @@ configure_docker_runtime() {
   configure_docker_runtime_package_manager=$(ensure_package_manager)
   case "${configure_docker_runtime_package_manager}" in
     brew) log_warn "Open Docker Desktop once so the engine daemon starts" ;;
-    apt-get | pacman)
+    apt | pacman)
       use_sudo systemctl enable --now docker.service
       use_sudo usermod -aG docker "$(id -un)"
       log_warn "Log out + back in for the 'docker' group membership to take effect"
