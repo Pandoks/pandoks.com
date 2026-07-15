@@ -20,8 +20,6 @@ package_upgrade: true
 ssh_pwauth: false
 disable_root: true
 
-bootcmd: []
-
 users:
   - name: pandoks
     gecos: 'Admin User'
@@ -30,7 +28,9 @@ users:
     shell: /bin/bash
 
 packages:
+  - ca-certificates
   - curl
+  - nftables
 
 write_files:
   - path: /etc/ssh/sshd_config
@@ -86,7 +86,16 @@ write_files:
 runcmd:
   - systemctl enable nftables
   - nft -f /etc/nftables.conf
-  - curl -fsSL https://tailscale.com/install.sh | sh
+  - |
+    . /etc/os-release
+    install -m 0755 -d /usr/share/keyrings
+    curl -fsSL "https://pkgs.tailscale.com/stable/ubuntu/$VERSION_CODENAME.noarmor.gpg" \
+      -o /usr/share/keyrings/tailscale-archive-keyring.gpg
+    curl -fsSL "https://pkgs.tailscale.com/stable/ubuntu/$VERSION_CODENAME.tailscale-keyring.list" \
+      -o /etc/apt/sources.list.d/tailscale.list
+    apt-get update
+    apt-get install -y tailscale tailscale-archive-keyring
+    systemctl enable --now tailscaled
   - |
     tailscale up --ssh \
       --authkey "${REGISTRATION_TAILNET_AUTH_KEY}" \

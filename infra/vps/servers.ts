@@ -6,7 +6,7 @@ import { backupBucket, s3Endpoint } from '../storage';
 
 const cloudInitConfig = readFileSync(`${process.cwd()}/infra/vps/cloud-config.yaml`, 'utf8');
 
-const deleteServerFromTailnet = new $util.ResourceHook(
+export const deleteServerFromTailnet = new $util.ResourceHook(
   'DeleteServerFromTailnet',
   async (serverOutput) => {
     const outputs = serverOutput.oldOutputs as {

@@ -1,0 +1,134 @@
+#cloud-config
+# env variables:
+# REGISTRATION_TAILNET_AUTH_KEY
+# TAILSCALE_HOSTNAME
+package_update: true
+package_upgrade: true
+ssh_pwauth: false
+disable_root: true
+
+users:
+  - name: pandoks
+    gecos: 'Admin User'
+    groups: [sudo]
+    sudo: 'ALL=(ALL) NOPASSWD:ALL'
+    shell: /bin/bash
+
+packages:
+  - ca-certificates
+  - curl
+  - extrepo
+  - git
+  - iptables
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/99-pandoks.conf
+    owner: root:root
+    permissions: '0644'
+    content: |
+      PubkeyAuthentication yes
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      ChallengeResponseAuthentication no
+      PermitRootLogin no
+      AllowUsers pandoks
+  - path: /usr/local/sbin/pandoks-firewall
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/bin/sh
+      set -eu
+
+      iptables -N PANDOKS_INPUT 2>/dev/null || true
+      iptables -F PANDOKS_INPUT
+      iptables -A PANDOKS_INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+      iptables -A PANDOKS_INPUT -i lo -j ACCEPT
+      iptables -A PANDOKS_INPUT -i tailscale0 -j ACCEPT
+      iptables -A PANDOKS_INPUT -p udp --dport 41641 -j ACCEPT
+      iptables -A PANDOKS_INPUT -j DROP
+      iptables -C INPUT -j PANDOKS_INPUT 2>/dev/null || iptables -I INPUT 1 -j PANDOKS_INPUT
+
+      ip6tables -N PANDOKS_INPUT 2>/dev/null || true
+      ip6tables -F PANDOKS_INPUT
+      ip6tables -A PANDOKS_INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+      ip6tables -A PANDOKS_INPUT -i lo -j ACCEPT
+      ip6tables -A PANDOKS_INPUT -i tailscale0 -j ACCEPT
+      ip6tables -A PANDOKS_INPUT -p udp --dport 41641 -j ACCEPT
+      ip6tables -A PANDOKS_INPUT -p ipv6-icmp -j ACCEPT
+      ip6tables -A PANDOKS_INPUT -j DROP
+      ip6tables -C INPUT -j PANDOKS_INPUT 2>/dev/null || ip6tables -I INPUT 1 -j PANDOKS_INPUT
+
+      public_interface=$(ip -4 route show default | awk 'NR == 1 { print $5 }')
+      iptables -N PANDOKS_DOCKER 2>/dev/null || true
+      iptables -F PANDOKS_DOCKER
+      iptables -A PANDOKS_DOCKER -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+      iptables -A PANDOKS_DOCKER -i tailscale0 -j ACCEPT
+      if [ -n "${public_interface}" ]; then
+        iptables -A PANDOKS_DOCKER -i "${public_interface}" -j DROP
+      fi
+      iptables -A PANDOKS_DOCKER -j RETURN
+      iptables -C DOCKER-USER -j PANDOKS_DOCKER 2>/dev/null || iptables -I DOCKER-USER 1 -j PANDOKS_DOCKER
+
+      if ip6tables -nL DOCKER-USER >/dev/null 2>&1; then
+        public_interface_v6=$(ip -6 route show default | awk 'NR == 1 { print $5 }')
+        ip6tables -N PANDOKS_DOCKER 2>/dev/null || true
+        ip6tables -F PANDOKS_DOCKER
+        ip6tables -A PANDOKS_DOCKER -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+        ip6tables -A PANDOKS_DOCKER -i tailscale0 -j ACCEPT
+        if [ -n "${public_interface_v6}" ]; then
+          ip6tables -A PANDOKS_DOCKER -i "${public_interface_v6}" -j DROP
+        fi
+        ip6tables -A PANDOKS_DOCKER -j RETURN
+        ip6tables -C DOCKER-USER -j PANDOKS_DOCKER 2>/dev/null || ip6tables -I DOCKER-USER 1 -j PANDOKS_DOCKER
+      fi
+  - path: /etc/systemd/system/docker.service.d/10-pandoks-firewall.conf
+    owner: root:root
+    permissions: '0644'
+    content: |
+      [Service]
+      ExecStartPost=/usr/local/sbin/pandoks-firewall
+
+runcmd:
+  - |
+    extrepo enable mise
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    chmod a+r /etc/apt/keyrings/docker.asc
+    . /etc/os-release
+    cat > /etc/apt/sources.list.d/docker.sources <<EOF
+    Types: deb
+    URIs: https://download.docker.com/linux/ubuntu
+    Suites: $VERSION_CODENAME
+    Components: stable
+    Architectures: $(dpkg --print-architecture)
+    Signed-By: /etc/apt/keyrings/docker.asc
+    EOF
+    install -m 0755 -d /usr/share/keyrings
+    curl -fsSL "https://pkgs.tailscale.com/stable/ubuntu/$VERSION_CODENAME.noarmor.gpg" \
+      -o /usr/share/keyrings/tailscale-archive-keyring.gpg
+    curl -fsSL "https://pkgs.tailscale.com/stable/ubuntu/$VERSION_CODENAME.tailscale-keyring.list" \
+      -o /etc/apt/sources.list.d/tailscale.list
+    apt-get update
+    apt-get install -y mise tailscale tailscale-archive-keyring
+  - |
+    install -d -o pandoks -g pandoks /home/pandoks/src
+    if [ ! -d /home/pandoks/src/pandoks.com/.git ]; then
+      sudo -u pandoks -H git clone --depth=1 https://github.com/Pandoks/pandoks.com.git \
+        /home/pandoks/src/pandoks.com
+    fi
+    sudo -u pandoks -H bash -lc 'cd /home/pandoks/src/pandoks.com && \
+      mise trust && \
+      MISE_SYSTEM_PACKAGES_MANAGERS=apt mise bootstrap --yes --update && \
+      MISE_SYSTEM_PACKAGES_MANAGERS=apt mise bootstrap packages upgrade --yes'
+  - |
+    systemctl daemon-reload
+    systemctl enable tailscaled docker
+    systemctl start tailscaled
+    systemctl restart docker
+    usermod -aG docker pandoks
+  - |
+    tailscale up --ssh \
+      --authkey "${REGISTRATION_TAILNET_AUTH_KEY}" \
+      --hostname "${TAILSCALE_HOSTNAME}" \
+      --accept-dns=false
+  - /usr/local/sbin/pandoks-firewall
