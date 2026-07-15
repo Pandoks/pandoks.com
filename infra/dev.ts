@@ -35,12 +35,12 @@ new sst.x.DevCommand('K3dDependencyRestart', {
   }
 });
 
-if ($app.stage === 'pandoks') {
-  const tailscaleHostname = 'pandoks-dev-box';
+if ($app.stage !== 'production') {
+  const tailscaleHostname = `${$app.stage}-dev-box`;
   const registrationTailnetAuthKey = new tailscale.TailnetKey(
     'HetznerDevBoxTailnetRegistrationAuthKey',
     {
-      description: 'hcloud pandoks dev box registration',
+      description: `hcloud ${$app.stage} dev box registration`,
       reusable: false,
       expiry: 1800,
       preauthorized: true,
