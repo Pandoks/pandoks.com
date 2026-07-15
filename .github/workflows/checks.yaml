@@ -131,7 +131,9 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: packages/valkey/reconciler/go.mod
-          cache-dependency-path: packages/valkey/reconciler/go.sum
+          cache-dependency-path: |
+            apps/push-worker/go.sum
+            packages/valkey/reconciler/go.sum
 
       - uses: ./.github/actions/setup-mise
         with:
@@ -153,7 +155,9 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: packages/valkey/reconciler/go.mod
-          cache-dependency-path: packages/valkey/reconciler/go.sum
+          cache-dependency-path: |
+            apps/push-worker/go.sum
+            packages/valkey/reconciler/go.sum
 
       - uses: ./.github/actions/setup-mise
         with:

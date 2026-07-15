@@ -5,9 +5,13 @@ paths:
   - '**/go.sum'
 ---
 
-# Code style — Go (`packages/valkey/reconciler`)
+# Code style — Go
 
 Plain stdlib Go. No third-party logger, no fancy frameworks.
+
+The long-running `apps/push-worker` service uses standard-library `slog`,
+small provider interfaces, constructor dependency injection, and flat files in
+one package. Keep provider-specific APNs/FCM behavior out of the SQS loop.
 
 ## CLI shape
 

@@ -118,7 +118,7 @@ func (client *APNsClient) Send(ctx context.Context, job APNsJob) error {
 	if err != nil {
 		return fmt.Errorf("send APNs request: %w", err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 
 	if response.StatusCode == http.StatusOK {
 		_, _ = io.Copy(io.Discard, response.Body)
@@ -129,7 +129,17 @@ func (client *APNsClient) Send(ctx context.Context, job APNsJob) error {
 		Reason string `json:"reason"`
 	}
 	_ = json.NewDecoder(io.LimitReader(response.Body, 4096)).Decode(&rejection)
-	return fmt.Errorf("apns rejected notification: %d %s", response.StatusCode, rejection.Reason)
+	rejectionError := fmt.Errorf(
+		"apns rejected notification: %d %s",
+		response.StatusCode,
+		rejection.Reason,
+	)
+	switch rejection.Reason {
+	case "BadDeviceToken", "DeviceTokenNotForTopic", "Unregistered":
+		return newPermanentError(rejectionError)
+	default:
+		return rejectionError
+	}
 }
 
 func (client *APNsClient) providerToken() (string, error) {

@@ -118,16 +118,18 @@ func (job FCMJob) validate() error {
 	if (job.FID == "") == (job.Token == "") {
 		return errors.New("fcm requires exactly one fid or token")
 	}
-	if job.Android == nil {
-		return nil
+	if job.Android != nil {
+		if job.Android.Priority != "" &&
+			job.Android.Priority != "normal" &&
+			job.Android.Priority != "high" {
+			return errors.New("fcm android priority must be normal or high")
+		}
+		if job.Android.TTLSeconds < 0 {
+			return errors.New("fcm android ttlSeconds cannot be negative")
+		}
 	}
-	if job.Android.Priority != "" &&
-		job.Android.Priority != "normal" &&
-		job.Android.Priority != "high" {
-		return errors.New("fcm android priority must be normal or high")
-	}
-	if job.Android.TTLSeconds < 0 {
-		return errors.New("fcm android ttlSeconds cannot be negative")
+	if job.Notification == nil && len(job.Data) == 0 {
+		return errors.New("fcm notification or data is required")
 	}
 	return nil
 }

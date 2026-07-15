@@ -110,6 +110,11 @@ func TestDecodeJobRejectsInvalidJobs(t *testing.T) {
 			want: "ttlSeconds",
 		},
 		{
+			name: "FCM content missing",
+			body: `{"id":"1","provider":"fcm","fcm":{"fid":"x"}}`,
+			want: "notification or data",
+		},
+		{
 			name: "unknown field",
 			body: `{"id":"1","provider":"fcm","fcm":{"fid":"x"},"extra":true}`,
 			want: "unknown field",

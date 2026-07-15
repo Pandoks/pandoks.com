@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 
 export const secrets = {
   Stage: new sst.Secret('StageName', 'dev'), // Automatically set during deploy
@@ -8,6 +8,11 @@ export const secrets = {
   },
   aws: {
     Region: new sst.Secret('AwsRegion', 'us-west-1')
+  },
+  apple: {
+    PushNotificationApnsKey: new sst.Secret('ApplePushNotificationApnsKey', 'Placeholder'),
+    PushNotificationKeyId: new sst.Secret('ApplePushNotificationKeyId', 'B2MH5U84TX'),
+    PushNotificationTeamId: new sst.Secret('ApplePushNotificationTeamId', '36PW35T7W5')
   },
   cloudflare: {
     ApiKey: new sst.Secret('CloudflareApiKey'),
@@ -21,6 +26,14 @@ export const secrets = {
   personal: {
     KwokPhoneNumber: new sst.Secret('KwokPhoneNumber'),
     MichellePhoneNumber: new sst.Secret('MichellePhoneNumber')
+  },
+  push: {
+    QueueUrl: new sst.Secret('PushQueueUrl', 'Placeholder'), // Automatically set during deploy
+    AwsAccessKeyId: new sst.Secret('PushWorkerAwsAccessKeyId', 'Placeholder'), // Automatically set during deploy
+    AwsSecretAccessKey: new sst.Secret('PushWorkerAwsSecretAccessKey', 'Placeholder'), // Automatically set during deploy
+    FirebaseProjectId: new sst.Secret('FirebaseProjectId', 'Placeholder'), // Automatically set during deploy
+    FirebaseServiceAccountJson: new sst.Secret('FirebaseServiceAccountJson', 'Placeholder'), // Automatically set during deploy
+    FirebaseGoogleServicesJson: new sst.Secret('FirebaseGoogleServicesJson', 'Placeholder') // Automatically set during deploy
   },
   twilio: {
     PhoneNumber: new sst.Secret('TwilioPhoneNumber'),
@@ -84,8 +97,14 @@ export const secrets = {
 
 export function setSecret(secretName: $util.Input<string>, secretValue: $util.Input<string>) {
   $resolve([secretName, secretValue]).apply(([name, value]) => {
-    execSync(`sst secret set ${name} --stage ${$app.stage} ${value}`, {
+    const result = spawnSync('sst', ['secret', 'set', name, value, '--stage', $app.stage], {
       stdio: 'inherit'
     });
+    if (result.error) {
+      throw result.error;
+    }
+    if (result.status !== 0) {
+      throw new Error(`sst secret set ${name} exited with status ${result.status}`);
+    }
   });
 }

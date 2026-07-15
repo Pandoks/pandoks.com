@@ -13,6 +13,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 )
 
+const defaultDeliveryTimeout = 30 * time.Second
+
 type SQSClient interface {
 	ReceiveMessage(
 		context.Context,
@@ -28,6 +30,27 @@ type SQSClient interface {
 
 type JobSender interface {
 	Send(context.Context, Job) error
+}
+
+type permanentError struct {
+	err error
+}
+
+func newPermanentError(err error) error {
+	return permanentError{err: err}
+}
+
+func (err permanentError) Error() string {
+	return err.err.Error()
+}
+
+func (err permanentError) Unwrap() error {
+	return err.err
+}
+
+func isPermanent(err error) bool {
+	var target permanentError
+	return errors.As(err, &target)
 }
 
 type APNsSender interface {
@@ -55,18 +78,20 @@ func (dispatcher Dispatcher) Send(ctx context.Context, job Job) error {
 }
 
 type Worker struct {
-	queue    SQSClient
-	queueURL string
-	sender   JobSender
-	logger   *slog.Logger
+	queue           SQSClient
+	queueURL        string
+	sender          JobSender
+	logger          *slog.Logger
+	deliveryTimeout time.Duration
 }
 
 func NewWorker(queue SQSClient, queueURL string, sender JobSender, logger *slog.Logger) *Worker {
 	return &Worker{
-		queue:    queue,
-		queueURL: queueURL,
-		sender:   sender,
-		logger:   logger,
+		queue:           queue,
+		queueURL:        queueURL,
+		sender:          sender,
+		logger:          logger,
+		deliveryTimeout: defaultDeliveryTimeout,
 	}
 }
 
@@ -109,9 +134,11 @@ func (worker *Worker) poll(ctx context.Context) error {
 		go func() {
 			job, err := DecodeJob([]byte(aws.ToString(message.Body)))
 			if err == nil {
-				err = worker.sender.Send(ctx, job)
+				deliveryContext, cancel := context.WithTimeout(ctx, worker.deliveryTimeout)
+				err = worker.sender.Send(deliveryContext, job)
+				cancel()
 			}
-			if err != nil {
+			if err != nil && !isPermanent(err) {
 				worker.logger.Error(
 					"push failed",
 					"messageId", aws.ToString(message.MessageId),
@@ -128,12 +155,22 @@ func (worker *Worker) poll(ctx context.Context) error {
 				results <- result{}
 				return
 			}
-			worker.logger.Info(
-				"push delivered",
-				"jobId", job.ID,
-				"provider", job.Provider,
-				"messageId", aws.ToString(message.MessageId),
-			)
+			if err != nil {
+				worker.logger.Warn(
+					"push rejected permanently",
+					"jobId", job.ID,
+					"provider", job.Provider,
+					"messageId", aws.ToString(message.MessageId),
+					"error", err,
+				)
+			} else {
+				worker.logger.Info(
+					"push delivered",
+					"jobId", job.ID,
+					"provider", job.Provider,
+					"messageId", aws.ToString(message.MessageId),
+				)
+			}
 			results <- result{entry: &types.DeleteMessageBatchRequestEntry{
 				Id:            aws.String(strconv.Itoa(index)),
 				ReceiptHandle: message.ReceiptHandle,

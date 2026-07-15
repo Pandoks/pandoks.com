@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
@@ -33,7 +34,7 @@ func TestWorkerPollDeletesOnlySuccessfulMessages(t *testing.T) {
 				Body: aws.String(`{
                   "id":"fcm-fails",
                   "provider":"fcm",
-                  "fcm":{"fid":"installation"}
+                  "fcm":{"fid":"installation","data":{"test":"true"}}
                 }`),
 			},
 			{
@@ -93,6 +94,25 @@ func TestWorkerPollDispatchesConcurrently(t *testing.T) {
 	}
 }
 
+func TestWorkerPollDeletesPermanentFailures(t *testing.T) {
+	t.Parallel()
+
+	queue := &fakeSQS{messages: []types.Message{
+		fcmQueueMessage("message-1", "receipt-1", "unregistered"),
+	}}
+	sender := &fakeJobSender{fail: map[string]error{
+		"unregistered": newPermanentError(errors.New("device is unregistered")),
+	}}
+	worker := NewWorker(queue, "queue-url", sender, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+
+	if err := worker.poll(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.deleted) != 1 || aws.ToString(queue.deleted[0].ReceiptHandle) != "receipt-1" {
+		t.Fatalf("deleted = %#v", queue.deleted)
+	}
+}
+
 func TestWorkerRunStopsOnCancellation(t *testing.T) {
 	t.Parallel()
 
@@ -110,6 +130,27 @@ func TestWorkerRunStopsOnCancellation(t *testing.T) {
 	cancel()
 	if err := worker.Run(ctx); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestWorkerPollTimesOutDelivery(t *testing.T) {
+	t.Parallel()
+
+	queue := &fakeSQS{messages: []types.Message{
+		fcmQueueMessage("message-1", "receipt-1", "slow"),
+	}}
+	sender := &contextSender{timedOut: make(chan bool, 1)}
+	worker := NewWorker(queue, "queue-url", sender, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	worker.deliveryTimeout = 10 * time.Millisecond
+
+	if err := worker.poll(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if timedOut := <-sender.timedOut; !timedOut {
+		t.Fatal("delivery context did not time out")
+	}
+	if len(queue.deleted) != 0 {
+		t.Fatalf("deleted = %#v", queue.deleted)
 	}
 }
 
@@ -185,6 +226,21 @@ type blockingSender struct {
 	release chan struct{}
 }
 
+type contextSender struct {
+	timedOut chan bool
+}
+
+func (sender *contextSender) Send(ctx context.Context, _ Job) error {
+	select {
+	case <-ctx.Done():
+		sender.timedOut <- errors.Is(ctx.Err(), context.DeadlineExceeded)
+		return ctx.Err()
+	case <-time.After(time.Second):
+		sender.timedOut <- false
+		return errors.New("delivery context was not cancelled")
+	}
+}
+
 func newBlockingSender() *blockingSender {
 	return &blockingSender{
 		started: make(chan struct{}, 2),
@@ -223,7 +279,7 @@ func fcmQueueMessage(messageID, receipt, jobID string) types.Message {
 		Body: aws.String(`{
           "id":"` + jobID + `",
           "provider":"fcm",
-          "fcm":{"fid":"installation"}
+          "fcm":{"fid":"installation","data":{"test":"true"}}
         }`),
 	}
 }

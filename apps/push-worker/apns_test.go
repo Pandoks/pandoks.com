@@ -137,6 +137,9 @@ func TestAPNsClientReturnsRejection(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "400 BadDeviceToken") {
 		t.Fatalf("error = %v", err)
 	}
+	if !isPermanent(err) {
+		t.Fatalf("error should be permanent: %v", err)
+	}
 }
 
 func testAPNsPrivateKey(t *testing.T) []byte {

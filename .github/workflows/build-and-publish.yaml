@@ -22,6 +22,10 @@ on:
         description: 'Image · valkey-reconciler'
         type: boolean
         default: false
+      push-worker:
+        description: 'Image · push-worker'
+        type: boolean
+        default: false
       argocd-sst-plugin:
         description: 'Image · argocd-sst-plugin'
         type: boolean
@@ -81,6 +85,8 @@ jobs:
               - 'packages/valkey/**'
             valkey-reconciler:
               - 'packages/valkey/reconciler/**'
+            push-worker:
+              - 'apps/push-worker/**'
             argocd-sst-plugin:
               - 'packages/argocd/**'
             clickhouse:
@@ -111,6 +117,7 @@ jobs:
             {"name":"pgbackrest","path":"./packages/postgres/pgbackrest/Dockerfile"},
             {"name":"valkey","path":"./packages/valkey/Dockerfile"},
             {"name":"valkey-reconciler","path":"./packages/valkey/reconciler/Dockerfile"},
+            {"name":"push-worker","path":"./apps/push-worker/Dockerfile"},
             {"name":"argocd-sst-plugin","path":"./packages/argocd/Dockerfile"},
             {"name":"clickhouse","path":"./packages/clickhouse/clickhouse/Dockerfile"},
             {"name":"clickhouse-keeper","path":"./packages/clickhouse/keeper/Dockerfile"},

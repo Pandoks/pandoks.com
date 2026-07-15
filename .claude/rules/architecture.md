@@ -5,7 +5,7 @@ Area-specific architecture details live in `.claude/rules/gotchas/*.md` and
 `.claude/rules/conventions/*.md`.
 
 Single SST 4 app (`sst.config.ts:5`, `name: 'personal'`) drives AWS,
-Cloudflare, Hetzner, GitHub, Tailscale. Two stages: `production` and
+Cloudflare, Google Cloud/Firebase, Hetzner, GitHub, Tailscale. Two stages: `production` and
 `pandoks` (per-user dev).
 
 `infra/sandbox/` and `apps/functions/src/sandbox/` exist as `.gitkeep`-only
@@ -25,6 +25,7 @@ sst.config.ts ─┬─ infra/*.ts                 IaC: AWS, CF, GH, Hetzner, Ta
 apps/
   web/             SvelteKit 2 + Svelte 5 static site → Cloudflare Pages (PWA)
   functions/       AWS Lambda handlers (Node 24)
+  push-worker/     Go SQS consumer → APNs + FCM, deployed to production K3s
   desktop-template Electron + SvelteKit template (excluded from CI)
   example/         Kubernetes manifest demo (excluded from CI)
 
@@ -55,6 +56,7 @@ see `sst.config.ts:22`).
 | `infra/website.ts`       | `PersonalWebsite` Cloudflare Pages project (`:14`), prod-only block `:13-end`. `DevWebsite` SST DevCommand at `:4-11`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `infra/aws.ts`           | AWS provider helpers. `US_WEST_2_REGION` + `usWest2Provider` (`aws.Provider`, `:3-4`) for pinning resources to us-west-2 (consumed by `infra/runner/**` + the runner buckets); `defaultAwsRegion` from `aws.getRegion()` (`:6-7`), auto-synced into the `AwsRegion` secret via `setSecret()` (`:8-12`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `infra/storage.ts`       | `BackupBucket` on Cloudflare R2 (`:4`); `runnerCacheBucket`/`runnerArtifactsBucket` (`sst.aws.Bucket`, ids `RunnerCacheStore`/`RunnerArtifactsStore`, `:18, 26`) — AWS S3, pinned to **us-west-2** via `{ provider: usWest2Provider }` (co-located with the runners). `s3Endpoint` R2 host string (`:16`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `infra/push.ts`          | Production SQS + DLQ, narrow K3s worker credentials, Firebase project/Android app/FCM sender, and GitHub-to-Google Workload Identity Federation. Generated runtime values are synchronized to SST secrets.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `infra/cloudflare.ts`    | Origin TLS cert for Hetzner (15-year validity, `:74-82`). LB DNS records (dev only, `:16-37`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `infra/github.ts`        | OIDC AWS role (`:59`), prod-only action secrets, Tailscale CI OAuth (`:110`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `infra/tailscale.ts`     | Tailnet ACL — overwrites globally (`:14`), k8s operator OAuth (`:54`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
@@ -91,6 +93,9 @@ see `sst.config.ts:22`).
   Idempotent because `scheduleName()` is deterministic
   (`text-reminder.ts:22-26`) and create→ConflictException→update
   (`text-reminder.ts:50-72`).
+- **Mobile push**: producer → SQS Standard queue → `apps/push-worker` long
+  poll → APNs or FCM. Successes are batch-deleted; failures are retried by SQS
+  and move to the DLQ after five receives.
 
 For full per-flow traces, see `.claude/rules/gotchas/*.md`.
 
@@ -103,6 +108,7 @@ For full per-flow traces, see `.claude/rules/gotchas/*.md`.
 | EventBridge Scheduler `text-scheduler[-dev]`      | Per-phone SMS reminder schedules (`infra/api.ts:45-47`)                                          |
 | Notion blog DB `20f1bb259e4b804ba24be1ceebf4c761` | Blog source of truth (`infra/api.ts:9-11`, the `Notion` Linkable)                                |
 | SST secrets                                       | All credentials in a nested namespace (`infra/secrets.ts`); `sst-env.d.ts` is the typed manifest |
+| AWS SQS `push-production`                         | APNs and FCM delivery jobs; failures redrive to `push-dlq-production`                            |
 
 ## Cluster overview
 
@@ -140,3 +146,5 @@ For full per-flow traces, see `.claude/rules/gotchas/*.md`.
 - **ArgoCD root**: `Application/prod-cluster` at
   `k3s/overlays/prod/argocd.yaml:47-68`; CMP at
   `packages/argocd/argocd-plugin.yaml`.
+- **Push worker**: `apps/push-worker/main.go`; production manifest at
+  `apps/push-worker/kube/push-worker.yaml`; cloud resources at `infra/push.ts`.

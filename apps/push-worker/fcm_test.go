@@ -3,6 +3,8 @@ package main
 import (
 	"testing"
 	"time"
+
+	"firebase.google.com/go/v4/messaging"
 )
 
 func TestFCMMessageUsesInstallationID(t *testing.T) {
@@ -22,8 +24,8 @@ func TestFCMMessageUsesInstallationID(t *testing.T) {
 		},
 	})
 
-	if message.Fid != "installation-id" || message.Token != "" {
-		t.Fatalf("targets = fid:%q token:%q", message.Fid, message.Token)
+	if message.Fid != "installation-id" || legacyToken(message) != "" {
+		t.Fatalf("targets = fid:%q token:%q", message.Fid, legacyToken(message))
 	}
 	if message.Notification.Title != "Focus" || message.Notification.Body != "Five minutes left" {
 		t.Fatalf("notification = %#v", message.Notification)
@@ -43,10 +45,14 @@ func TestFCMMessageSupportsLegacyRegistrationToken(t *testing.T) {
 	t.Parallel()
 
 	message := toFCMMessage(FCMJob{Token: "registration-token"})
-	if message.Token != "registration-token" || message.Fid != "" {
-		t.Fatalf("targets = fid:%q token:%q", message.Fid, message.Token)
+	if legacyToken(message) != "registration-token" || message.Fid != "" {
+		t.Fatalf("targets = fid:%q token:%q", message.Fid, legacyToken(message))
 	}
 	if message.Notification != nil || message.Android != nil {
 		t.Fatalf("unexpected optional config: %#v", message)
 	}
+}
+
+func legacyToken(message *messaging.Message) string {
+	return message.Token //nolint:staticcheck // Kept while FCM accepts legacy registration tokens.
 }

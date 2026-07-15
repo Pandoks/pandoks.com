@@ -27,7 +27,11 @@ func NewFCMClient(ctx context.Context, projectID string) (*FCMClient, error) {
 
 func (client *FCMClient) Send(ctx context.Context, job FCMJob) error {
 	if _, err := client.client.Send(ctx, toFCMMessage(job)); err != nil {
-		return fmt.Errorf("send FCM message: %w", err)
+		sendError := fmt.Errorf("send FCM message: %w", err)
+		if messaging.IsUnregistered(err) {
+			return newPermanentError(sendError)
+		}
+		return sendError
 	}
 	return nil
 }
