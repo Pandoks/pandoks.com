@@ -15,15 +15,16 @@ Once you have created your `.env` files, run this from the root of the monorepo 
 development:
 
 ```sh
-pnpm bootstrap all   # one-time: install every dependency listed below (see script for per-OS details)
+./scripts/bootstrap/main.sh all   # one-time: installs mise, then every dependency listed below
+eval "$(mise activate "$(basename "$SHELL")")"
 pnpm install
 pnpm sso
 ```
 
-`pnpm bootstrap` supports macOS (via Homebrew), Ubuntu/Debian (apt), and Arch (pacman). It assumes only
-that `git` is installed and the repo is cloned. It has three subcommands: `all` (the default —
-installs everything), `check` (inventory installed versions and flag drift from the pins), and
-`help`.
+The bootstrap script supports macOS (via Homebrew), Ubuntu/Debian (apt), and Arch (pacman). It
+assumes only that `git` is installed and the repo is cloned. It has three subcommands: `all` (the
+default — installs everything), `check` (inventory installed versions and flag drift from the
+pins), and `help`. After the first run, the equivalent `pnpm bootstrap` commands are available.
 
 > [!NOTE]
 > AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while
@@ -31,7 +32,7 @@ installs everything), `check` (inventory installed versions and flag drift from 
 <details>
   <summary>Dependencies</summary>
   <p>
-    All installed by <code>pnpm bootstrap all</code>: it bootstraps
+    All installed by <code>./scripts/bootstrap/main.sh all</code>: it bootstraps
     <a href="https://mise.jdx.dev/">mise</a> (wiring the shell rc with
     <code>mise activate</code> so mise always wins PATH resolution), runs
     <code>mise bootstrap</code> (system packages through apt, Homebrew, or pacman; shell activation;
@@ -63,7 +64,7 @@ installs everything), `check` (inventory installed versions and flag drift from 
 
 ```sh
 # the short version:
-pnpm bootstrap all
+./scripts/bootstrap/main.sh all
 ```
 
 </details>

@@ -18,7 +18,7 @@ install_mise() {
   fi
   PATH="${HOME}/.local/share/mise/shims:${PATH}"
   export PATH # exposes mise for the rest of the script after initial install
-  log_ok "mise $(mise version)"
+  log_ok "mise $(CDPATH='' cd / && mise version)"
 }
 
 bootstrap_with_mise() {
@@ -107,8 +107,10 @@ configure_docker_runtime() {
     brew) log_warn "Open Docker Desktop once so the engine daemon starts" ;;
     apt | pacman)
       use_sudo systemctl enable --now docker.service
-      use_sudo usermod -aG docker "$(id -un)"
-      log_warn "Log out + back in for the 'docker' group membership to take effect"
+      if ! id -nG 2> /dev/null | grep -qw docker; then
+        use_sudo usermod -aG docker "$(id -un)"
+        log_warn "Log out + back in for the 'docker' group membership to take effect"
+      fi
       ;;
   esac
   log_ok "Docker installed: $(docker --version)"
