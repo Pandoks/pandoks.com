@@ -7,6 +7,8 @@ package_upgrade: true
 ssh_pwauth: false
 disable_root: true
 
+bootcmd: []
+
 users:
   - name: pandoks
     gecos: 'Admin User'
