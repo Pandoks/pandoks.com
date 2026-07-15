@@ -30,9 +30,7 @@ users:
     shell: /bin/bash
 
 packages:
-  - ca-certificates
   - curl
-  - nftables
 
 write_files:
   - path: /etc/ssh/sshd_config
@@ -89,7 +87,6 @@ runcmd:
   - systemctl enable nftables
   - nft -f /etc/nftables.conf
   - curl -fsSL https://tailscale.com/install.sh | sh
-  - systemctl enable --now tailscaled
   - |
     tailscale up --ssh \
       --authkey "${REGISTRATION_TAILNET_AUTH_KEY}" \
