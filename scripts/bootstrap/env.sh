@@ -67,7 +67,8 @@ ensure_package_manager() { # Outputs: package manager ID (brew | apt | pacman)
     esac
   } 1>&2
 
-  ensure_package_manager_package_manager=$(detect_package_manager)
+  ensure_package_manager_package_manager=$(detect_package_manager) \
+    || die "No supported package manager found for $(get_os)"
   is_supported_package_manager "${ensure_package_manager_package_manager}" || exit 1
   BOOTSTRAP_PACKAGE_MANAGER="${ensure_package_manager_package_manager}"
   printf '%s' "${BOOTSTRAP_PACKAGE_MANAGER}"

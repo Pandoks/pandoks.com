@@ -36,15 +36,19 @@ get_os() {
 #######################################
 # Detect the available package manager for the current system.
 # Outputs:
-#   Package Manager ID: brew | apt | dnf | yum | pacman | apk | unknown
+#   Package Manager ID: brew | apt | dnf | yum | pacman | apk
+# Returns:
+#   0 if a package manager is found, 1 otherwise
 #######################################
 detect_package_manager() {
   case "$(get_os)" in
     macos)
-      command -v brew > /dev/null 2>&1 && echo "brew" || echo "unknown"
+      command -v brew > /dev/null 2>&1 || return 1
+      echo "brew"
       ;;
     debian)
-      command -v apt-get > /dev/null 2>&1 && echo "apt" || echo "unknown"
+      command -v apt-get > /dev/null 2>&1 || return 1
+      echo "apt"
       ;;
     fedora | rhel)
       if command -v dnf > /dev/null 2>&1; then
@@ -52,14 +56,16 @@ detect_package_manager() {
       elif command -v yum > /dev/null 2>&1; then
         echo "yum"
       else
-        echo "unknown"
+        return 1
       fi
       ;;
     arch)
-      command -v pacman > /dev/null 2>&1 && echo "pacman" || echo "unknown"
+      command -v pacman > /dev/null 2>&1 || return 1
+      echo "pacman"
       ;;
     alpine)
-      command -v apk > /dev/null 2>&1 && echo "apk" || echo "unknown"
+      command -v apk > /dev/null 2>&1 || return 1
+      echo "apk"
       ;;
     linux)
       if command -v apt-get > /dev/null 2>&1; then
@@ -75,12 +81,10 @@ detect_package_manager() {
       elif command -v brew > /dev/null 2>&1; then
         echo "brew"
       else
-        echo "unknown"
+        return 1
       fi
       ;;
-    *)
-      echo "unknown"
-      ;;
+    *) return 1 ;;
   esac
 }
 
