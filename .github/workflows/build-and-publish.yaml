@@ -164,6 +164,15 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Compute immutable image tag
+        id: revision
+        env:
+          IMAGE_NAME: ${{ matrix.image.name }}
+        run: |
+          if [[ "${IMAGE_NAME}" == "push-worker" ]]; then
+            echo "tag=tree-$(git rev-parse HEAD:apps/push-worker)" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Run Hadolint
         uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5 # v3.3.0
         with:
@@ -185,6 +194,7 @@ jobs:
             type=ref,event=branch
             type=raw,value=ref-{{branch}}-{{sha}}
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ steps.revision.outputs.tag }},enable=${{ steps.revision.outputs.tag != '' }}
 
       - name: Build image
         uses: docker/build-push-action@v7

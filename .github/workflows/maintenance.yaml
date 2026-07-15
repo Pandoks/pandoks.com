@@ -49,14 +49,14 @@ jobs:
       OWNER: ${{ github.repository_owner }}
       PACKAGE: ${{ matrix.package }}
     steps:
-      - name: Prune old ref-main-<sha> versions for ${{ matrix.package }} (keep newest 30)
+      - name: Prune old immutable versions for ${{ matrix.package }} (keep newest 30)
         shell: bash
         run: |
           api="/users/${OWNER,,}/packages/container/${PACKAGE//\//%2F}/versions"
           gh api --paginate --slurp "${api}" | jq -r '
               add
               | map(select(.metadata.container.tags
-                  | (length == 1) and (.[0] | test("^ref-main-[a-f0-9]{40}$"))))
+                  | any(test("^(ref-main|tree)-[a-f0-9]{40}$"))))
               | sort_by(.created_at) | reverse | .[30:][] | .id' \
             | xargs -rI{} gh api --method DELETE "${api}/{}"
 

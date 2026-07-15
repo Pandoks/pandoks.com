@@ -41,10 +41,10 @@ paths:
   `argocd` but its ghcr/CI image name is `argocd-sst-plugin`** (the only
   package where dev tag ≠ ghcr name).
 - **Push worker image**: production uses
-  `ghcr.io/pandoks/push-worker:ref-main-<last-worker-commit>`, computed by
-  `cmd_deploy_compute_vars()` from the last commit touching
-  `apps/push-worker`. This makes worker-only changes roll out without making
-  unrelated monorepo commits reference an image that was never built.
+  `ghcr.io/pandoks/push-worker:tree-<apps/push-worker-tree-hash>`, computed by
+  both CI and `cmd_deploy_compute_vars()` from the directory's Git tree. This
+  survives merge-strategy SHA changes, rolls out worker content changes, and
+  leaves unrelated monorepo commits on the last published worker image.
 - **Helm OCI charts**: `oci://ghcr.io/<owner>/charts/<name>`
   (`.github/workflows/build-and-publish.yaml:265` — `helm push … oci://…`).
 - **Dockerfile build context is repo root** for every image.
