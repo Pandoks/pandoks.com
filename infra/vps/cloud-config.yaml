@@ -88,16 +88,8 @@ write_files:
 runcmd:
   - systemctl enable nftables
   - nft -f /etc/nftables.conf
-  - |
-    . /etc/os-release
-    install -m 0755 -d /usr/share/keyrings
-    curl -fsSL "https://pkgs.tailscale.com/stable/ubuntu/$VERSION_CODENAME.noarmor.gpg" \
-      -o /usr/share/keyrings/tailscale-archive-keyring.gpg
-    curl -fsSL "https://pkgs.tailscale.com/stable/ubuntu/$VERSION_CODENAME.tailscale-keyring.list" \
-      -o /etc/apt/sources.list.d/tailscale.list
-    apt-get update
-    apt-get install -y tailscale tailscale-archive-keyring
-    systemctl enable --now tailscaled
+  - curl -fsSL https://tailscale.com/install.sh | sh
+  - systemctl enable --now tailscaled
   - |
     tailscale up --ssh \
       --authkey "${REGISTRATION_TAILNET_AUTH_KEY}" \
