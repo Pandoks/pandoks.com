@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { renderCloudInit } from './cloud-init';
 import { tailscaleAcl } from './tailscale';
 import { deleteServerFromTailnet } from './vps/servers';
 import { inboundFirewall } from './vps/vps';
@@ -56,9 +57,7 @@ if ($app.stage !== 'production') {
       TAILSCALE_HOSTNAME: tailscaleHostname
     };
 
-    return cloudInitConfig.replace(/\$\{([A-Z0-9_]+)\}/g, (_, name: string) =>
-      name in environment ? environment[name as keyof typeof environment] : ''
-    );
+    return renderCloudInit(cloudInitConfig, environment);
   });
 
   new hcloud.Server(

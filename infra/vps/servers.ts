@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { renderCloudInit } from '../cloud-init';
 import { deleteTailscaleDevices, tailscaleAcl } from '../tailscale';
 import { isProduction, STAGE_NAME } from '../dns';
 import { secrets } from '../secrets';
@@ -169,9 +170,7 @@ export function createServers(
           S3_ACCESS_KEY,
           S3_SECRET_KEY
         };
-        return cloudInitConfig.replace(/\$\{([A-Z0-9_]+)\}/g, (_, capture: string) =>
-          capture in environments ? (environments[capture as keyof typeof environments] ?? '') : ''
-        );
+        return renderCloudInit(cloudInitConfig, environments);
       }
     );
 
