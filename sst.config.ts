@@ -15,7 +15,11 @@ export default $config({
         cloudflare: '6.15.0',
         github: '6.12.1',
         hcloud: { token: process.env.HCLOUD_TOKEN, version: '1.32.1' },
-        tailscale: { apiKey: process.env.TAILSCALE_API_KEY, version: '0.27.0' }
+        tailscale: {
+          oauthClientId: process.env.TAILSCALE_OAUTH_CLIENT_ID,
+          oauthClientSecret: process.env.TAILSCALE_OAUTH_CLIENT_SECRET,
+          version: '0.27.0'
+        }
       }
     };
   },

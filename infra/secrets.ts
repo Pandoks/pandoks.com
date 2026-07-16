@@ -43,7 +43,8 @@ export const secrets = {
     K3sToken: new sst.Secret('HetznerK3sToken')
   },
   tailscale: {
-    ApiKey: new sst.Secret('TailscaleApiKey')
+    OauthClientId: new sst.Secret('TailscaleOauthClientId'),
+    OauthClientSecret: new sst.Secret('TailscaleOauthClientSecret')
   },
   k8s: {
     tailscale: {
