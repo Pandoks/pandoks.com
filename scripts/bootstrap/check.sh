@@ -2,6 +2,7 @@
 
 MISE_SHIMS_DIR="${HOME}/.local/share/mise/shims"
 MISE_INSTALLS_DIR="${HOME}/.local/share/mise/installs"
+BOOTSTRAP_MISE_BIN=""
 
 check_report() {
   check_report_level="$1"
@@ -13,22 +14,11 @@ check_report() {
   esac
 }
 
-mise_bin() {
-  command -v mise 2> /dev/null && return 0
-  for mise_bin_dir in $(required_path_dirs); do
-    if [ -x "${mise_bin_dir}/mise" ]; then
-      printf '%s' "${mise_bin_dir}/mise"
-      return 0
-    fi
-  done
-  return 1
-}
-
 check_mise_wiring() {
   if command -v mise > /dev/null 2>&1; then
     check_report ok "mise on PATH"
   else
-    check_report warn "mise installed at $(dirname "$1") — not on PATH (source your rc)"
+    check_report warn "mise installed at $(dirname "${BOOTSTRAP_MISE_BIN}") — not on PATH (source your rc)"
     return 1
   fi
 
@@ -47,9 +37,7 @@ check_mise_wiring() {
 }
 
 check_mise_tools() {
-  check_mise_tools_mise="$1" # mise binary path
-
-  check_mise_tools_inventory=$(cd "${REPO_ROOT}" && "${check_mise_tools_mise}" ls --local 2> /dev/null)
+  check_mise_tools_inventory=$("${BOOTSTRAP_MISE_BIN}" -C "${REPO_ROOT}" ls --local 2> /dev/null)
   if [ -z "${check_mise_tools_inventory}" ]; then
     check_report fail "mise can't read mise.toml (untrusted config? run mise trust / pnpm bootstrap all)"
     return 1
@@ -72,7 +60,6 @@ check_mise_tools() {
 }
 
 check_mise_packages() {
-  check_mise_packages_mise="$1"
   check_mise_packages_package_manager=$(detect_package_manager) || {
     check_report fail "no supported system package manager found"
     return 1
@@ -82,11 +69,9 @@ check_mise_packages() {
     return 1
   }
 
-  if (
-    cd "${REPO_ROOT}"
-    MISE_SYSTEM_PACKAGES_MANAGERS="${check_mise_packages_managers}" \
-      "${check_mise_packages_mise}" bootstrap packages status --missing > /dev/null 2>&1
-  ); then
+  if MISE_SYSTEM_PACKAGES_MANAGERS="${check_mise_packages_managers}" \
+    "${BOOTSTRAP_MISE_BIN}" -C "${REPO_ROOT}" \
+    bootstrap packages status --missing > /dev/null 2>&1; then
     check_report ok "all mise.toml system packages installed"
     return 0
   fi
@@ -109,7 +94,8 @@ check_mise_managed_tools() {
       "${check_mise_managed_tools_shim}" | "${MISE_INSTALLS_DIR}/"*) continue ;;
     esac
 
-    if (cd "${REPO_ROOT}" && "$1" which "${check_mise_managed_tools_name}" > /dev/null 2>&1); then
+    if "${BOOTSTRAP_MISE_BIN}" -C "${REPO_ROOT}" \
+      which "${check_mise_managed_tools_name}" > /dev/null 2>&1; then
       check_report fail "shadowed: ${check_mise_managed_tools_name} resolves to ${check_mise_managed_tools_at}"
       check_mise_managed_tools_bad=1
     fi
