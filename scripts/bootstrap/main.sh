@@ -40,6 +40,7 @@ install_packages() {
   esac
 }
 
+GLOBAL=0
 RELOAD=0
 main() {
   [ $# -ge 1 ] || usage 0
@@ -48,6 +49,7 @@ main() {
 
   for arg in "$@"; do
     case "${arg}" in
+      --global) GLOBAL=1 ;;
       --reload) RELOAD=1 ;;
       -*)
         log_error "Unknown option '${arg}'"
@@ -55,6 +57,11 @@ main() {
         ;;
     esac
   done
+
+  if [ "${GLOBAL}" -eq 1 ] && [ "${cmd}" != all ]; then
+    log_error "--global is only valid with 'all'"
+    usage 1
+  fi
 
   case "${cmd}" in
     all) cmd_bootstrap_all ;;
