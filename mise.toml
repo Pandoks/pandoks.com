@@ -18,9 +18,31 @@ actionlint = "1.7.12"
 golangci-lint = "2.12.2"
 "go:golang.org/x/vuln/cmd/govulncheck" = "1.3.0"
 jq = "1.8.1"
+claude-code = "2.1.210"
+codex = "0.144.4"
+
+[bootstrap.packages]
+"apt:openssl" = "latest"
+"apt:apache2-utils" = "latest"
+"apt:docker-ce" = "latest"
+"apt:docker-ce-cli" = "latest"
+"apt:containerd.io" = "latest"
+"apt:docker-buildx-plugin" = "latest"
+"apt:docker-compose-plugin" = "latest"
+"brew:openssl@3" = "latest"
+"brew-cask:docker-desktop" = "latest"
+"pacman:openssl" = "latest"
+"pacman:apache" = "latest"
+"pacman:docker" = "latest"
+"pacman:docker-compose" = "latest"
+"pacman:docker-buildx" = "latest"
+
+[bootstrap.mise_shell_activate]
+bashrc = "activate"
+zshrc = "activate"
 
 [settings]
-python.uv_venv_auto = true # auto-activate uv-created .venvs (uv.lock projects)
+python.uv_venv_auto = "source" # auto-activate uv-created .venvs (uv.lock projects)
 
 [env]
 # uv resolves interpreters from PATH (mise's python) instead of downloading its own

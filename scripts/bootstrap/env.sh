@@ -1,39 +1,19 @@
 # shellcheck shell=sh
 
-append_shell_rc() {
-  append_shell_rc_line="$1" # Line to add
+BOOTSTRAP_PACKAGE_MANAGER=""
 
-  if [ -z "${SHELL:-}" ]; then
-    log_warn "SHELL not set — add this to your rc file manually: ${append_shell_rc_line}"
-    return 0
-  fi
-
-  append_shell_rc_shell=$(get_shell 2> /dev/null) || {
-    log_warn "Could not detect shell — add manually: ${append_shell_rc_line}"
-    return 0
-  }
-  is_supported_shell "${append_shell_rc_shell}" 2> /dev/null || {
-    log_warn "Unsupported shell — add manually: ${append_shell_rc_line}"
-    return 0
-  }
-  append_shell_rc_file=$(get_shell_rc_file "${append_shell_rc_shell}" 2> /dev/null) || {
-    log_warn "Could not resolve rc file — add manually: ${append_shell_rc_line}"
-    return 0
-  }
-
-  [ -f "${append_shell_rc_file}" ] || touch "${append_shell_rc_file}"
-  if ! grep -Fqx "${append_shell_rc_line}" "${append_shell_rc_file}"; then
-    printf '%s\n' "${append_shell_rc_line}" >> "${append_shell_rc_file}"
-    return 0
-  fi
-  return 1 # already present (not fail in traditional sense)
+mise_package_managers_for() {
+  case "$1" in
+    apt) printf 'apt' ;;
+    brew) printf 'brew,brew-cask' ;;
+    pacman) printf 'pacman' ;;
+    *) return 1 ;;
+  esac
 }
 
-BOOTSTRAP_PACKAGE_MANAGER_CACHE=""
-
-ensure_package_manager() { # Outputs: package manager name (brew | apt-get | pacman)
-  if [ -n "${BOOTSTRAP_PACKAGE_MANAGER_CACHE}" ]; then
-    printf '%s' "${BOOTSTRAP_PACKAGE_MANAGER_CACHE}"
+ensure_package_manager() { # Outputs: package manager ID (brew | apt | pacman)
+  if [ -n "${BOOTSTRAP_PACKAGE_MANAGER}" ]; then
+    printf '%s' "${BOOTSTRAP_PACKAGE_MANAGER}"
     return 0
   fi
 
@@ -87,10 +67,11 @@ ensure_package_manager() { # Outputs: package manager name (brew | apt-get | pac
     esac
   } 1>&2
 
-  ensure_package_manager_package_manager=$(get_package_manager)
+  ensure_package_manager_package_manager=$(detect_package_manager) \
+    || die "No supported package manager found for $(get_os)"
   is_supported_package_manager "${ensure_package_manager_package_manager}" || exit 1
-  BOOTSTRAP_PACKAGE_MANAGER_CACHE="${ensure_package_manager_package_manager}"
-  printf '%s' "${BOOTSTRAP_PACKAGE_MANAGER_CACHE}"
+  BOOTSTRAP_PACKAGE_MANAGER="${ensure_package_manager_package_manager}"
+  printf '%s' "${BOOTSTRAP_PACKAGE_MANAGER}"
 }
 
 # fetches/installs signing key apt needs to trust third party repos (so we can install packages from them)

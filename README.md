@@ -15,15 +15,16 @@ Once you have created your `.env` files, run this from the root of the monorepo 
 development:
 
 ```sh
-pnpm bootstrap all   # one-time: install every dependency listed below (see script for per-OS details)
+./scripts/bootstrap/main.sh all   # one-time: installs mise, then every dependency listed below
+eval "$(mise activate "$(basename "$SHELL")")"
 pnpm install
 pnpm sso
 ```
 
-`pnpm bootstrap` supports macOS (via Homebrew), Ubuntu/Debian (apt), and Arch (pacman). It assumes only
-that `git` is installed and the repo is cloned. It has three subcommands: `all` (the default —
-installs everything), `check` (inventory installed versions and flag drift from the pins), and
-`help`.
+The bootstrap script supports macOS (via Homebrew), Ubuntu/Debian (apt), and Arch (pacman). It
+assumes only that `git` is installed and the repo is cloned. It has three subcommands: `all` (the
+default — installs everything), `check` (inventory installed versions and flag drift from the
+pins), and `help`. After the first run, the equivalent `pnpm bootstrap` commands are available.
 
 > [!NOTE]
 > AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while
@@ -31,12 +32,13 @@ installs everything), `check` (inventory installed versions and flag drift from 
 <details>
   <summary>Dependencies</summary>
   <p>
-    All installed by <code>pnpm bootstrap all</code>: it bootstraps
+    All installed by <code>./scripts/bootstrap/main.sh all</code>: it bootstraps
     <a href="https://mise.jdx.dev/">mise</a> (wiring the shell rc with
     <code>mise activate</code> so mise always wins PATH resolution), runs
-    <code>mise install</code> (every version-shaped tool, declared in <code>mise.toml</code>),
-    then handles the system pieces (Docker, openssl/htpasswd, the AWS config). Listed here for
-    reference / manual installs.
+    <code>mise bootstrap</code> (system packages through apt, Homebrew, or pacman; shell activation;
+    and every version-shaped tool declared in <code>mise.toml</code>), then upgrades the declared
+    system packages. The bootstrap script also writes the AWS config. Listed here for reference /
+    manual installs.
   </p>
   <ul>
     <li>
@@ -44,10 +46,10 @@ installs everything), `check` (inventory installed versions and flag drift from 
       native mise manager): Node, pnpm (bootstrap; <code>packageManager</code> is the authority),
       Go (bootstrap; <code>go.work</code>'s directive rules via GOTOOLCHAIN), kubectl (cluster
       truth stays <code>KUBECTL_VERSION</code> in <code>packages/argocd/Dockerfile</code>; ±1
-      minor skew tolerated and drift-checked), helm, k3d, kubeconform, awscli v2, jq, Python 3.14
-      + uv (uv resolves mise's interpreter via <code>UV_PYTHON_PREFERENCE=system</code>; uv owns
-      project deps/venvs), and the whole lint/format toolchain: shellcheck, shfmt, hadolint,
-      actionlint, golangci-lint, govulncheck.
+      minor skew tolerated and drift-checked), helm, k3d, kubeconform, awscli v2, jq, Claude Code,
+      Codex, Python 3.14 + uv (uv resolves mise's interpreter via
+      <code>UV_PYTHON_PREFERENCE=system</code>; uv owns project deps/venvs), and the whole
+      lint/format toolchain: shellcheck, shfmt, hadolint, actionlint, golangci-lint, govulncheck.
     </li>
     <li>
       <a href="https://pnpm.io/">pnpm</a> ≥ v11 — mise installs a bootstrap copy; the
@@ -55,14 +57,14 @@ installs everything), `check` (inventory installed versions and flag drift from 
       self-switches to it via <code>manage-package-manager-versions</code> — corepack is removed
       from node 25+)
     </li>
-    <li><a href="https://docs.docker.com/get-docker/">Docker</a> >= v20 — system platform, installed by setup, not mise</li>
-    <li><a href="https://www.openssl.org/">openssl</a> >= v3 (used by <code>infra/cloudflare.ts</code> for the 15-year origin TLS cert) and <a href="https://httpd.apache.org/docs/current/programs/htpasswd.html">htpasswd</a> (bcrypt hasher for the <code>${VAR | bcrypt}</code> template filter in <code>pnpm cluster deploy</code>; ships with macOS, <code>apache2-utils</code> on Debian, <code>apache</code> on Arch) — system packages</li>
+    <li><a href="https://docs.docker.com/get-docker/">Docker</a> >= v20 — system platform declared in <code>mise.toml</code>'s <code>[bootstrap.packages]</code> and installed through the native package manager</li>
+    <li><a href="https://www.openssl.org/">openssl</a> >= v3 (used by <code>infra/cloudflare.ts</code> for the 15-year origin TLS cert) and <a href="https://httpd.apache.org/docs/current/programs/htpasswd.html">htpasswd</a> (bcrypt hasher for the <code>${VAR | bcrypt}</code> template filter in <code>pnpm cluster deploy</code>; ships with macOS, <code>apache2-utils</code> on Debian, <code>apache</code> on Arch) — system packages declared in <code>[bootstrap.packages]</code></li>
     <li><a href="https://tailscale.com/download">Tailscale</a> — only required for production cluster access (<code>sudo tailscale configure kubeconfig prod-cluster</code>); not installed by <code>pnpm bootstrap</code>, install manually if you need prod access</li>
   </ul>
 
 ```sh
 # the short version:
-brew install mise && mise install
+./scripts/bootstrap/main.sh all
 ```
 
 </details>

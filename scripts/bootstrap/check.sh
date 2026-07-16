@@ -66,8 +66,32 @@ check_mise_tools() {
 
   printf '%s\n' "${check_mise_tools_missing}" | while read -r check_mise_tools_name; do
     [ -n "${check_mise_tools_name}" ] \
-      && check_report fail "${check_mise_tools_name} pinned in mise.toml but not installed (run mise install)"
+      && check_report fail "${check_mise_tools_name} pinned in mise.toml but not installed (run pnpm bootstrap all)"
   done
+  return 1
+}
+
+check_mise_packages() {
+  check_mise_packages_mise="$1"
+  check_mise_packages_package_manager=$(detect_package_manager) || {
+    check_report fail "no supported system package manager found"
+    return 1
+  }
+  check_mise_packages_managers=$(mise_package_managers_for "${check_mise_packages_package_manager}") || {
+    check_report fail "no supported mise system package manager found"
+    return 1
+  }
+
+  if (
+    cd "${REPO_ROOT}"
+    MISE_SYSTEM_PACKAGES_MANAGERS="${check_mise_packages_managers}" \
+      "${check_mise_packages_mise}" bootstrap packages status --missing > /dev/null 2>&1
+  ); then
+    check_report ok "all mise.toml system packages installed"
+    return 0
+  fi
+
+  check_report fail "mise.toml system packages missing (run pnpm bootstrap all)"
   return 1
 }
 
@@ -126,6 +150,7 @@ cmd_bootstrap_check() {
     fi
 
     check_mise_tools "${cmd_bootstrap_check_mise}" || cmd_bootstrap_check_failed=1
+    check_mise_packages "${cmd_bootstrap_check_mise}" || cmd_bootstrap_check_failed=1
 
     if [ "${cmd_bootstrap_check_wired}" -eq 1 ]; then
       check_mise_managed_tools "${cmd_bootstrap_check_mise}" || cmd_bootstrap_check_failed=1
