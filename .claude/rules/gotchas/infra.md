@@ -44,7 +44,7 @@ manually import` comment at `sst.config.ts:22` is load-bearing.
   credential via Custom scopes with a tag that `tagOwners` grants
   ownership of every IaC-managed tag.
 - **Raw Tailscale API calls can't use the client secret directly** —
-  exchange it first: `tailscaleApiToken` (`infra/tailscale.ts:92-109`)
+  exchange it first: `tailscaleApiToken` (`infra/tailscale.ts:88-111`)
   POSTs client credentials to `/api/v2/oauth/token` for a 1-hour Bearer
   token; `deleteTailscaleDevices` (`:111`) consumes it. Reuse that
   helper for any new direct `api.tailscale.com` call.

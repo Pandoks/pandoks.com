@@ -85,7 +85,13 @@ $resolve([
   }
 );
 
-async function tailscaleApiToken(clientId: string, clientSecret: string): Promise<string> {
+async function tailscaleApiToken({
+  clientId,
+  clientSecret
+}: {
+  clientId: string;
+  clientSecret: string;
+}): Promise<string> {
   const response = await fetch('https://api.tailscale.com/api/v2/oauth/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -109,7 +115,7 @@ export function deleteTailscaleDevices(...deviceIds: string[]) {
     secrets.tailscale.OauthClientId.value,
     secrets.tailscale.OauthClientSecret.value
   ]).apply(async ([clientId, clientSecret]) => {
-    const accessToken = await tailscaleApiToken(clientId, clientSecret);
+    const accessToken = await tailscaleApiToken({ clientId, clientSecret });
     return await Promise.all(
       deviceIds.map(async (deviceId) => {
         try {

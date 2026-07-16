@@ -55,7 +55,7 @@ tagless — see `gotchas/infra.md`) — the one
 credential IaC can't create; its secret never expires. The provider
 exchanges it for 1-hour API tokens per run (`sst.config.ts:18-22`), and
 `deleteTailscaleDevices` does the same exchange for its raw API calls
-(`infra/tailscale.ts:92-109`).
+(`infra/tailscale.ts:88-111`).
 
 ## Dev (SST)
 
