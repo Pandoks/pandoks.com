@@ -18,9 +18,11 @@ users:
 
 packages:
   - curl
+  - extrepo
+  - git
 
 write_files:
-  - path: /etc/ssh/sshd_config.d/99-pandoks.conf
+  - path: /etc/ssh/sshd_config
     owner: root:root
     permissions: '0644'
     content: |
@@ -30,6 +32,8 @@ write_files:
       ChallengeResponseAuthentication no
       PermitRootLogin no
       AllowUsers pandoks
+      Subsystem sftp internal-sftp
+      UsePAM yes
   - path: /etc/nftables.conf
     owner: root:root
     permissions: '0755'
@@ -68,6 +72,10 @@ write_files:
 runcmd:
   - systemctl enable nftables
   - nft -f /etc/nftables.conf
+  - |
+    extrepo enable mise
+    apt-get update
+    apt-get install -y mise
   - curl -fsSL https://tailscale.com/install.sh | sh
   - |
     tailscale up --ssh \
