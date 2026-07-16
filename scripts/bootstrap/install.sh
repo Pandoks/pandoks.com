@@ -156,9 +156,7 @@ cmd_bootstrap_all() {
   install_mise
   configure_docker_package_source
   bootstrap_with_mise
-  if [ "${GLOBAL}" -eq 1 ]; then
-    install_mise_tools_globally
-  fi
+  install_mise_tools_globally
   configure_docker_runtime
   install_aws_config
 

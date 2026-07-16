@@ -15,27 +15,28 @@ Once you have created your `.env` files, run this from the root of the monorepo 
 development:
 
 ```sh
-./scripts/bootstrap/main.sh all --global # recommended: includes the required global CLIs
+./scripts/bootstrap/main.sh all
 eval "$(mise activate "$(basename "$SHELL")")"
 pnpm install
 pnpm sso
 ```
 
-`aws-cli` and `jq` are used by `pnpm sso` and the cluster scripts, so fresh machines should use
-`--global`. Omit the flag only if you already install and manage the global tools yourself; the
-custom table is then ignored. Add `--reload` to either form to restart an interactive shell
-immediately instead of running the `eval` command separately:
+Add `--reload` to restart an interactive shell immediately instead of running the `eval` command
+separately:
 
 ```sh
-./scripts/bootstrap/main.sh all --global --reload
+./scripts/bootstrap/main.sh all --reload
 ```
 
 The bootstrap script supports macOS (via Homebrew), Ubuntu/Debian (apt), and Arch (pacman). It
 assumes only that `git` is installed and the repo is cloned. It has three subcommands: `all` (the
-default — installs `[tools]` with repository-local mise activation), `check` (inventory installed
-versions and flag drift from the declarations), and `help`. `all --global` additionally installs
-`[_.global_tools]` into the current user's global mise config without replacing unrelated global
-settings. After the first run, the equivalent `pnpm bootstrap` commands are available.
+default — installs `[tools]` with repository-local mise activation and `[_.global_tools]` in the
+current user's global mise config), `check` (inventory installed versions and flag drift from the
+declarations), and `help`. Existing unrelated global settings are preserved. After the first run,
+the equivalent `pnpm bootstrap` commands are available.
+
+When mise is available, `pnpm install` first runs `mise install` so a new worktree installs any
+missing `[tools]` versions without rerunning the full machine bootstrap.
 
 > [!NOTE]
 > AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while
@@ -48,10 +49,9 @@ settings. After the first run, the equivalent `pnpm bootstrap` commands are avai
     <code>mise activate</code> so mise always wins PATH resolution), runs
     <code>mise bootstrap</code> (system packages through apt, Homebrew, or pacman; shell activation;
     and every version-shaped tool declared in <code>mise.toml</code>), then upgrades the declared
-    system packages. With <code>--global</code>, it also installs the custom
-    <code>[_.global_tools]</code> table into <code>~/.config/mise/config.toml</code> for the current
-    user. Without the flag, that table is ignored. The bootstrap script also writes the AWS config.
-    Listed here for reference / manual installs.
+    system packages and installs the custom <code>[_.global_tools]</code> table into
+    <code>~/.config/mise/config.toml</code> for the current user. The bootstrap script also writes
+    the AWS config. Listed here for reference / manual installs.
   </p>
   <ul>
     <li>
@@ -66,8 +66,8 @@ settings. After the first run, the equivalent `pnpm bootstrap` commands are avai
       lint/format toolchain: shellcheck, shfmt, hadolint, actionlint, golangci-lint, govulncheck.
     </li>
     <li>
-      <b>Via global mise</b> (<code>[_.global_tools]</code>, installed only with
-      <code>--global</code>): awscli v2, jq, Claude Code, Codex, and GitHub CLI.
+      <b>Via global mise</b> (<code>[_.global_tools]</code>): awscli v2, jq, Claude Code, Codex, and
+      GitHub CLI.
     </li>
     <li>
       <a href="https://pnpm.io/">pnpm</a> ≥ v11 — mise installs a bootstrap copy; the
@@ -81,10 +81,7 @@ settings. After the first run, the equivalent `pnpm bootstrap` commands are avai
   </ul>
 
 ```sh
-# fresh machine (recommended):
-./scripts/bootstrap/main.sh all --global
-
-# only if you already manage [_.global_tools] yourself:
+# the short version:
 ./scripts/bootstrap/main.sh all
 ```
 
