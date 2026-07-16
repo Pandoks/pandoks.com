@@ -25,6 +25,36 @@ manually import` comment at `sst.config.ts:22` is load-bearing.
   `infra/tailscale.ts:10` compounds this — destroying the SST stage
   wipes the ACL too.
 
+## Tailscale root OAuth client (tagless)
+
+- **The provider authenticates as a manually-created OAuth client** —
+  `TAILSCALE_OAUTH_CLIENT_ID`/`TAILSCALE_OAUTH_CLIENT_SECRET` env →
+  `sst.config.ts:18-22`. It's the one credential IaC cannot create for
+  itself (chicken-and-egg); made once in the admin console (Trust
+  credentials → Credential → OAuth, scopes "All - Read & Write",
+  no tags). The client secret never expires — do NOT replace it with an
+  API access token, those hard-expire at ≤90 days and killed CI once
+  (the diff-sst 401, 2026-07-11).
+- **Tagless is deliberate and verified.** The tag-ownership rule
+  ("created keys must carry tags owned by the credential's tags") is
+  tied to tagged credentials; a tagless all-scope credential creates
+  tagged keys/clients freely — verified empirically 2026-07-12 by
+  creating + deleting a `tag:hetzner` auth key with it. If Tailscale
+  ever tightens this and creations start 403ing on tags, recreate the
+  credential via Custom scopes with a tag that `tagOwners` grants
+  ownership of every IaC-managed tag.
+- **Raw Tailscale API calls can't use the client secret directly** —
+  exchange it first: `tailscaleApiToken` (`infra/tailscale.ts:88-111`)
+  POSTs client credentials to `/api/v2/oauth/token` for a 1-hour Bearer
+  token; `deleteTailscaleDevices` (`:111`) consumes it. Reuse that
+  helper for any new direct `api.tailscale.com` call.
+- **The same pair must be seeded as SST secrets**
+  (`TailscaleOauthClientId`/`TailscaleOauthClientSecret`,
+  `infra/secrets.ts:45-48`) for the hooks, AND lives in `.env.<stage>`
+  for the provider — two plumbing paths, one credential.
+  `infra/github.ts:105-114` mirrors the SST secrets into the GH action
+  secrets CI reads.
+
 ## Hetzner cluster
 
 - **Single-region by design.** Networks are region-locked
