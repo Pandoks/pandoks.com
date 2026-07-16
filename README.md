@@ -15,15 +15,16 @@ Once you have created your `.env` files, run this from the root of the monorepo 
 development:
 
 ```sh
-./scripts/bootstrap/main.sh all --global # also install aws-cli and the other optional global tools
+./scripts/bootstrap/main.sh all --global # recommended: includes the required global CLIs
 eval "$(mise activate "$(basename "$SHELL")")"
 pnpm install
 pnpm sso
 ```
 
-If you already install those global tools yourself, omit `--global`; the custom table is then
-ignored. Add `--reload` to either form to restart an interactive shell immediately instead of
-running the `eval` command separately:
+`aws-cli` and `jq` are used by `pnpm sso` and the cluster scripts, so fresh machines should use
+`--global`. Omit the flag only if you already install and manage the global tools yourself; the
+custom table is then ignored. Add `--reload` to either form to restart an interactive shell
+immediately instead of running the `eval` command separately:
 
 ```sh
 ./scripts/bootstrap/main.sh all --global --reload
@@ -80,11 +81,11 @@ settings. After the first run, the equivalent `pnpm bootstrap` commands are avai
   </ul>
 
 ```sh
-# the short version:
-./scripts/bootstrap/main.sh all
-
-# or also install [_.global_tools] for the current user:
+# fresh machine (recommended):
 ./scripts/bootstrap/main.sh all --global
+
+# only if you already manage [_.global_tools] yourself:
+./scripts/bootstrap/main.sh all
 ```
 
 </details>
