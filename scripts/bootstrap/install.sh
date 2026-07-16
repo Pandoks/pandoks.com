@@ -18,7 +18,7 @@ install_mise() {
   fi
   PATH="${HOME}/.local/share/mise/shims:${PATH}"
   export PATH # exposes mise for the rest of the script after initial install
-  log_ok "mise $(CDPATH='' cd / && mise version)"
+  log_ok "mise $(mise --no-config version)"
 }
 
 bootstrap_with_mise() {
@@ -26,13 +26,30 @@ bootstrap_with_mise() {
   bootstrap_with_mise_package_managers=$(mise_package_managers_for "$(ensure_package_manager)") \
     || die "No supported mise system package manager found"
   (
-    cd "${REPO_ROOT}"
     export MISE_SYSTEM_PACKAGES_MANAGERS="${bootstrap_with_mise_package_managers}"
-    mise trust > /dev/null 2>&1
-    mise bootstrap --yes --update
-    mise bootstrap packages upgrade --yes
+    mise -C "${REPO_ROOT}" trust > /dev/null 2>&1
+    mise -C "${REPO_ROOT}" bootstrap --yes --update
+    mise -C "${REPO_ROOT}" bootstrap packages upgrade --yes
   ) || die "mise bootstrap failed"
   log_ok "mise bootstrap complete"
+}
+
+install_global_tools() {
+  log_step "Installing global tools for the current user"
+  (
+    entries=$(mise config get --file "${REPO_ROOT}/mise.toml" _.global_tools 2> /dev/null)
+    [ -n "${entries}" ] || exit 0
+
+    while IFS= read -r entry; do
+      tool=${entry%% = *}
+      version=${entry#* = \"}
+      version=${version%\"}
+      mise --no-config use --global --pin --yes "${tool}@${version}" || exit 1
+    done << EOF
+${entries}
+EOF
+  ) || die "Global mise tool installation failed"
+  log_ok "global tools available for $(id -un)"
 }
 
 install_aws_config() {
@@ -139,6 +156,7 @@ cmd_bootstrap_all() {
   install_mise
   configure_docker_package_source
   bootstrap_with_mise
+  install_global_tools
   configure_docker_runtime
   install_aws_config
 

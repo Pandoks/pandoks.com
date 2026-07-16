@@ -22,6 +22,7 @@
     "fix": "./scripts/fix/main.sh",
     "check:infra": "tsc -p .",
     "check": "pnpm -r --if-present check && pnpm check:infra",
+    "preinstall": "./scripts/bootstrap/main.sh all",
     "postinstall": "sst install"
   },
   "devDependencies": {
