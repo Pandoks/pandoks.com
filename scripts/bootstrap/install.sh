@@ -34,8 +34,8 @@ bootstrap_with_mise() {
   log_ok "mise bootstrap complete"
 }
 
-install_mise_tools_globally() {
-  log_step "Installing mise tools globally for the current user"
+install_global_tools() {
+  log_step "Installing global tools for the current user"
   (
     entries=$(mise config get --file "${REPO_ROOT}/mise.toml" _.global_tools 2> /dev/null)
     [ -n "${entries}" ] || exit 0
@@ -49,7 +49,7 @@ install_mise_tools_globally() {
 ${entries}
 EOF
   ) || die "Global mise tool installation failed"
-  log_ok "mise tools available globally for $(id -un)"
+  log_ok "global tools available for $(id -un)"
 }
 
 install_aws_config() {
@@ -156,7 +156,7 @@ cmd_bootstrap_all() {
   install_mise
   configure_docker_package_source
   bootstrap_with_mise
-  install_mise_tools_globally
+  install_global_tools
   configure_docker_runtime
   install_aws_config
 
