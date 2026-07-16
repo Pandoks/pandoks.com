@@ -18,7 +18,6 @@ users:
 
 packages:
   - curl
-  - git
 
 write_files:
   - path: /etc/ssh/sshd_config.d/99-pandoks.conf
@@ -75,11 +74,3 @@ runcmd:
       --authkey "${REGISTRATION_TAILNET_AUTH_KEY}" \
       --hostname "${TAILSCALE_HOSTNAME}" \
       --accept-dns=false
-  - |
-    install -d -o pandoks -g pandoks /home/pandoks/src
-    if [ ! -d /home/pandoks/src/pandoks.com/.git ]; then
-      sudo -u pandoks -H git clone --depth=1 https://github.com/Pandoks/pandoks.com.git \
-        /home/pandoks/src/pandoks.com
-    fi
-    sudo -u pandoks -H bash -lc \
-      'cd /home/pandoks/src/pandoks.com && ./scripts/bootstrap/main.sh all'
