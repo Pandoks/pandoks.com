@@ -35,8 +35,8 @@ current user's global mise config), `check` (inventory installed versions and fl
 declarations), and `help`. Existing unrelated global settings are preserved. After the first run,
 the equivalent `pnpm bootstrap` commands are available.
 
-When mise is available, `pnpm install` first runs `mise install` so a new worktree installs any
-missing `[tools]` versions without rerunning the full machine bootstrap.
+`pnpm install` first runs the full bootstrap, installing missing dependencies and updating local
+tools, global tools, and system packages to the versions declared in `mise.toml`.
 
 > [!NOTE]
 > AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while

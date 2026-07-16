@@ -22,7 +22,7 @@
     "fix": "./scripts/fix/main.sh",
     "check:infra": "tsc -p .",
     "check": "pnpm -r --if-present check && pnpm check:infra",
-    "preinstall": "if command -v mise > /dev/null 2>&1; then mise install; fi",
+    "preinstall": "./scripts/bootstrap/main.sh all",
     "postinstall": "sst install"
   },
   "devDependencies": {
