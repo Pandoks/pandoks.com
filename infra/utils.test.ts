@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { renderCloudInit } from './utils';
 
-test('renders cloud-init environment placeholders', () => {
+void test('renders cloud-init environment placeholders', () => {
   const config = [
     'host: ${HOST}',
     'token: ${TOKEN}',
