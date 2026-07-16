@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { renderCloudInit } from './cloud-init';
 import { tailscaleAcl } from './tailscale';
+import { renderCloudInit } from './utils';
 import { deleteServerFromTailnet } from './vps/servers';
 import { inboundFirewall } from './vps/vps';
 
@@ -36,7 +36,7 @@ new sst.x.DevCommand('K3dDependencyRestart', {
   }
 });
 
-if ($app.stage !== 'production') {
+if ($app.stage === 'pandoks') {
   const tailscaleHostname = `${$app.stage}-dev-box`;
   const registrationTailnetAuthKey = new tailscale.TailnetKey(
     'HetznerDevBoxTailnetRegistrationAuthKey',

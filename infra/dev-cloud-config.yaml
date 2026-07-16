@@ -20,6 +20,7 @@ packages:
   - curl
   - extrepo
   - git
+  - nftables
 
 write_files:
   - path: /etc/ssh/sshd_config

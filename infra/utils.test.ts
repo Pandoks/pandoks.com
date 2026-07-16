@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { renderCloudInit } from './cloud-init';
+import { renderCloudInit } from './utils';
 
 test('renders cloud-init environment placeholders', () => {
   const config = [

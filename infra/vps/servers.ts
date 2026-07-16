@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
-import { renderCloudInit } from '../cloud-init';
 import { deleteTailscaleDevices, tailscaleAcl } from '../tailscale';
 import { isProduction, STAGE_NAME } from '../dns';
 import { secrets } from '../secrets';
 import { backupBucket, s3Endpoint } from '../storage';
+import { renderCloudInit } from '../utils';
 
 const cloudInitConfig = readFileSync(`${process.cwd()}/infra/vps/cloud-config.yaml`, 'utf8');
 
