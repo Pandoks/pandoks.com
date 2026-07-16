@@ -15,16 +15,26 @@ Once you have created your `.env` files, run this from the root of the monorepo 
 development:
 
 ```sh
-./scripts/bootstrap/main.sh all   # one-time: installs mise, then every dependency listed below
+./scripts/bootstrap/main.sh all --global # also install aws-cli and the other optional global tools
 eval "$(mise activate "$(basename "$SHELL")")"
 pnpm install
 pnpm sso
 ```
 
+If you already install those global tools yourself, omit `--global`; the custom table is then
+ignored. Add `--reload` to either form to restart an interactive shell immediately instead of
+running the `eval` command separately:
+
+```sh
+./scripts/bootstrap/main.sh all --global --reload
+```
+
 The bootstrap script supports macOS (via Homebrew), Ubuntu/Debian (apt), and Arch (pacman). It
 assumes only that `git` is installed and the repo is cloned. It has three subcommands: `all` (the
-default — installs everything), `check` (inventory installed versions and flag drift from the
-pins), and `help`. After the first run, the equivalent `pnpm bootstrap` commands are available.
+default — installs `[tools]` with repository-local mise activation), `check` (inventory installed
+versions and flag drift from the declarations), and `help`. `all --global` additionally installs
+`[_.global_tools]` into the current user's global mise config without replacing unrelated global
+settings. After the first run, the equivalent `pnpm bootstrap` commands are available.
 
 > [!NOTE]
 > AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while
@@ -37,19 +47,26 @@ pins), and `help`. After the first run, the equivalent `pnpm bootstrap` commands
     <code>mise activate</code> so mise always wins PATH resolution), runs
     <code>mise bootstrap</code> (system packages through apt, Homebrew, or pacman; shell activation;
     and every version-shaped tool declared in <code>mise.toml</code>), then upgrades the declared
-    system packages. The bootstrap script also writes the AWS config. Listed here for reference /
-    manual installs.
+    system packages. With <code>--global</code>, it also installs the custom
+    <code>[_.global_tools]</code> table into <code>~/.config/mise/config.toml</code> for the current
+    user. Without the flag, that table is ignored. The bootstrap script also writes the AWS config.
+    Listed here for reference / manual installs.
   </p>
   <ul>
     <li>
-      <b>Via mise</b> (<code>mise.toml</code> — every tool an exact pin, Renovate-bumped via its
-      native mise manager): Node, pnpm (bootstrap; <code>packageManager</code> is the authority),
+      <b>Via mise</b> (<code>[tools]</code> in <code>mise.toml</code> — exact pins are
+      Renovate-bumped via its native mise manager): Node, pnpm (bootstrap;
+      <code>packageManager</code> is the authority),
       Go (bootstrap; <code>go.work</code>'s directive rules via GOTOOLCHAIN), kubectl (cluster
       truth stays <code>KUBECTL_VERSION</code> in <code>packages/argocd/Dockerfile</code>; ±1
-      minor skew tolerated and drift-checked), helm, k3d, kubeconform, awscli v2, jq, Claude Code,
-      Codex, Python 3.14 + uv (uv resolves mise's interpreter via
+      minor skew tolerated and drift-checked), helm, k3d, kubeconform, Python 3.14 + uv (uv resolves
+      mise's interpreter via
       <code>UV_PYTHON_PREFERENCE=system</code>; uv owns project deps/venvs), and the whole
       lint/format toolchain: shellcheck, shfmt, hadolint, actionlint, golangci-lint, govulncheck.
+    </li>
+    <li>
+      <b>Via global mise</b> (<code>[_.global_tools]</code>, installed only with
+      <code>--global</code>): awscli v2, jq, Claude Code, Codex, and GitHub CLI.
     </li>
     <li>
       <a href="https://pnpm.io/">pnpm</a> ≥ v11 — mise installs a bootstrap copy; the
@@ -65,6 +82,9 @@ pins), and `help`. After the first run, the equivalent `pnpm bootstrap` commands
 ```sh
 # the short version:
 ./scripts/bootstrap/main.sh all
+
+# or also install [_.global_tools] for the current user:
+./scripts/bootstrap/main.sh all --global
 ```
 
 </details>

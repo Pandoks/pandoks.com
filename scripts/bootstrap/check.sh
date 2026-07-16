@@ -66,7 +66,7 @@ check_mise_tools() {
 
   printf '%s\n' "${check_mise_tools_missing}" | while read -r check_mise_tools_name; do
     [ -n "${check_mise_tools_name}" ] \
-      && check_report fail "${check_mise_tools_name} pinned in mise.toml but not installed (run pnpm bootstrap all)"
+      && check_report fail "${check_mise_tools_name} declared in mise.toml but not installed (run pnpm bootstrap all)"
   done
   return 1
 }

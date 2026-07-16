@@ -1,5 +1,5 @@
 name: Setup mise tools
-description: Install pinned tools from mise.toml via jdx/mise-action, with the trusted-config-path and mise version pin applied once.
+description: Install declared tools from mise.toml via jdx/mise-action, with the trusted-config-path and mise version pin applied once.
 
 inputs:
   tools:
