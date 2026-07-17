@@ -15,6 +15,7 @@ cmd_deploy_compute_vars() {
       cmd_deploy_compute_vars_is_local="true"
       cmd_deploy_compute_vars_image_registry="local-registry:5000"
       cmd_deploy_compute_vars_image_tag="latest"
+      cmd_deploy_compute_vars_push_worker_image_tag="latest"
       ;;
     prod | dev)
       cmd_deploy_compute_vars_is_local="false"
@@ -29,6 +30,18 @@ cmd_deploy_compute_vars() {
           ;;
         prod) cmd_deploy_compute_vars_image_tag="latest" ;;
       esac
+      cmd_deploy_compute_vars_push_worker_image_tag="latest"
+      if [ "${cmd_deploy_compute_vars_env}" = "prod" ]; then
+        cmd_deploy_compute_vars_push_worker_app_tree=$(
+          git -C "${REPO_ROOT}" rev-parse HEAD:apps/push-worker
+        )
+        cmd_deploy_compute_vars_push_worker_queue_tree=$(
+          git -C "${REPO_ROOT}" rev-parse HEAD:packages/queueworker
+        )
+        cmd_deploy_compute_vars_push_worker_image_tag="tree-\
+${cmd_deploy_compute_vars_push_worker_app_tree}-\
+${cmd_deploy_compute_vars_push_worker_queue_tree}"
+      fi
       ;;
   esac
 
@@ -36,10 +49,12 @@ cmd_deploy_compute_vars() {
     --arg IsLocal "${cmd_deploy_compute_vars_is_local}" \
     --arg ImageRegistry "${cmd_deploy_compute_vars_image_registry}" \
     --arg ImageTag "${cmd_deploy_compute_vars_image_tag}" \
+    --arg PushWorkerImageTag "${cmd_deploy_compute_vars_push_worker_image_tag}" \
     '{
       IsLocal: $IsLocal,
       ImageRegistry: $ImageRegistry,
-      ImageTag: $ImageTag
+      ImageTag: $ImageTag,
+      PushWorkerImageTag: $PushWorkerImageTag
     }'
 }
 

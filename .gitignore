@@ -28,6 +28,7 @@ playwright*/
 
 # sst
 .sst
+gha-creds-*.json
 
 # Only pnpm
 package-lock.json

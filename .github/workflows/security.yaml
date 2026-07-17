@@ -35,6 +35,7 @@ jobs:
           filters: |
             k3s:
               - 'k3s/**'
+              - 'apps/push-worker/kube/**'
 
   scan-published-images:
     # NOTE: we don't scan charts because the only issues are misconfigs, not CVEs.
@@ -52,6 +53,7 @@ jobs:
           - pgbackrest
           - valkey
           - valkey-reconciler
+          - push-worker
           - argocd-sst-plugin
           - clickhouse
           - clickhouse-keeper
@@ -118,6 +120,24 @@ jobs:
         with:
           sarif_file: trivy-k3s.sarif
           category: trivy-k3s
+
+      - name: Scan push worker manifests with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: config
+          scan-ref: apps/push-worker/kube
+          scanners: misconfig
+          trivy-config: trivy.yaml
+          trivyignores: .trivyignore.yaml
+          format: sarif
+          output: trivy-push-worker.sarif
+
+      - name: Upload push worker SARIF to GitHub Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-push-worker.sarif
+          category: trivy-push-worker
 
   security-pass:
     needs:

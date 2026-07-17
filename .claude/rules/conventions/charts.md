@@ -1,6 +1,6 @@
 ---
 paths:
-  - 'packages/**/Dockerfile'
+  - '**/Dockerfile'
   - 'packages/**/chart/**'
   - 'packages/**/*.yaml'
   - 'k3s/**/*.yaml'
@@ -28,21 +28,27 @@ paths:
     ghcr, NOT the local k3d registry** — `dev:push` to `localhost:12345`
     only feeds `deploy local`.
   - `env=prod` → registry `ghcr.io/pandoks`, tag `latest`.
-- **Prod images**: `ghcr.io/pandoks/<name>:latest`. Package images are
+- **Prod package images**: `ghcr.io/pandoks/<name>:latest`. Package images are
   injected through the `${ImageRegistry}/<name>:${ImageTag}` template
   vars above, so they DO resolve to `:latest` in prod — the Renovate
   "never `:latest`" rule (`k3s.md`) governs a different surface:
   **hand-written `image:` lines in `apps/**/kube/**` app manifests**,
   not these templated package images. The CI image matrix
-  is **8 images** (patroni, pgbackrest, valkey, valkey-reconciler,
-  argocd-sst-plugin, clickhouse, clickhouse-keeper, clickhouse-backup) —
+  is **9 images** (patroni, pgbackrest, valkey, valkey-reconciler,
+  push-worker, argocd-sst-plugin, clickhouse, clickhouse-keeper,
+  clickhouse-backup) —
   more than the 4 paths-filter trigger roots. **`argocd`'s dev tag is
   `argocd` but its ghcr/CI image name is `argocd-sst-plugin`** (the only
   package where dev tag ≠ ghcr name).
+- **Push worker image**: production uses
+  `ghcr.io/pandoks/push-worker:tree-<app-tree>-<queueworker-tree>`, computed by
+  both CI and `cmd_deploy_compute_vars()` from the app and shared runner Git
+  trees. This survives merge-strategy SHA changes, rolls out either worker
+  input, and leaves unrelated monorepo commits on the last published image.
 - **Helm OCI charts**: `oci://ghcr.io/<owner>/charts/<name>`
-  (`.github/workflows/build-and-publish.yaml:265` — `helm push … oci://…`).
-- **Dockerfile build context is repo root** for every package.
-  `.github/workflows/build-and-publish.yaml:185` sets `context: .` with the
+  (`.github/workflows/build-and-publish.yaml:281` — `helm push … oci://…`).
+- **Dockerfile build context is repo root** for every image.
+  `.github/workflows/build-and-publish.yaml:203` sets `context: .` with the
   warning `# WARN: all dockerfiles should have a context of the root of
 the repo`. Dockerfiles reach into `../../...` paths. Confirmed at
   `packages/argocd/Dockerfile:35` (`COPY
