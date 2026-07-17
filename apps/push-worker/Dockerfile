@@ -2,10 +2,15 @@ FROM --platform=$BUILDPLATFORM golang:1.26.5-trixie AS builder
 
 WORKDIR /src
 
-COPY apps/push-worker/go.mod apps/push-worker/go.sum ./
+COPY packages/queueworker/go.mod packages/queueworker/go.sum packages/queueworker/
+COPY apps/push-worker/go.mod apps/push-worker/go.sum apps/push-worker/
+WORKDIR /src/apps/push-worker
 RUN go mod download
 
-COPY apps/push-worker ./
+WORKDIR /src
+COPY packages/queueworker packages/queueworker
+COPY apps/push-worker apps/push-worker
+WORKDIR /src/apps/push-worker
 RUN go test ./...
 
 ARG TARGETOS

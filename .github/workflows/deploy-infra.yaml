@@ -10,6 +10,7 @@ on:
       - '!apps/desktop-template/**'
       - '!apps/example/**'
       - 'packages/svelte/**'
+      - 'packages/queueworker/**'
       - 'k3s/**'
       - 'scripts/cluster/**'
   workflow_dispatch:
@@ -57,6 +58,7 @@ jobs:
             kubernetes:
               - 'k3s/**'
               - 'apps/push-worker/**'
+              - 'packages/queueworker/**'
               - 'scripts/cluster/**'
 
   deploy-sst:

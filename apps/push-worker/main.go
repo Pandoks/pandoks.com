@@ -6,10 +6,13 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"queueworker"
 	"syscall"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+
+	sqsqueue "queueworker/sqs"
 )
 
 func main() {
@@ -41,14 +44,15 @@ func run() error {
 	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	worker := NewWorker(
-		sqs.NewFromConfig(awsConfig),
-		workerConfig.QueueURL,
-		Dispatcher{APNs: apnsClient, FCM: fcmClient},
-		logger,
+	queue := sqsqueue.New(sqs.NewFromConfig(awsConfig), workerConfig.QueueURL)
+	handler := NewPushHandler(Dispatcher{APNs: apnsClient, FCM: fcmClient}, logger)
+	runner := queueworker.New(
+		queue,
+		handler,
+		queueworker.Options{Logger: logger},
 	)
 	logger.Info("push worker started")
-	if err := worker.Run(ctx); err != nil {
+	if err := runner.Run(ctx); err != nil {
 		return err
 	}
 	logger.Info("push worker stopped")

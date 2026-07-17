@@ -30,6 +30,7 @@ apps/
   example/         Kubernetes manifest demo (excluded from CI)
 
 packages/
+  queueworker/     Transport-neutral Go queue runner + SQS adapter
   svelte/          @pandoks.com/svelte shared UI lib (workspace dep)
   postgres/        Patroni + PgBackRest + helm chart → ghcr.io image+chart
   valkey/          Valkey + Go reconciler + helm chart
@@ -93,9 +94,10 @@ see `sst.config.ts:22`).
   Idempotent because `scheduleName()` is deterministic
   (`text-reminder.ts:22-26`) and create→ConflictException→update
   (`text-reminder.ts:50-72`).
-- **Mobile push**: producer → SQS Standard queue → `apps/push-worker` long
-  poll → APNs or FCM. Successes are batch-deleted; failures are retried by SQS
-  and move to the DLQ after five receives.
+- **Mobile push**: producer → SQS Standard queue adapter →
+  `packages/queueworker` runner → `apps/push-worker` handler → APNs or FCM.
+  Successes and permanent failures are batch-deleted; retryable failures remain
+  for SQS redelivery and move to the DLQ after five receives.
 
 For full per-flow traces, see `.claude/rules/gotchas/*.md`.
 

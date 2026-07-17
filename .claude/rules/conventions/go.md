@@ -9,9 +9,12 @@ paths:
 
 Plain stdlib Go. No third-party logger, no fancy frameworks.
 
-The long-running `apps/push-worker` service uses standard-library `slog`,
-small provider interfaces, constructor dependency injection, and flat files in
-one package. Keep provider-specific APNs/FCM behavior out of the SQS loop.
+`packages/queueworker` owns transport-neutral queue consumption: bounded
+concurrency, handler timeouts, cancellation, acknowledgment, retry/discard,
+and generic `slog` events. Its `sqs` subpackage is the current transport
+adapter. `apps/push-worker` owns job decoding, provider dispatch, APNs/FCM
+clients, configuration, and push-specific logs. Keep provider types out of the
+shared package and AWS SDK types out of the runner.
 
 ## CLI shape
 

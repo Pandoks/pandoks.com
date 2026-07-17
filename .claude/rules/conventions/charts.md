@@ -41,14 +41,14 @@ paths:
   `argocd` but its ghcr/CI image name is `argocd-sst-plugin`** (the only
   package where dev tag ≠ ghcr name).
 - **Push worker image**: production uses
-  `ghcr.io/pandoks/push-worker:tree-<apps/push-worker-tree-hash>`, computed by
-  both CI and `cmd_deploy_compute_vars()` from the directory's Git tree. This
-  survives merge-strategy SHA changes, rolls out worker content changes, and
-  leaves unrelated monorepo commits on the last published worker image.
+  `ghcr.io/pandoks/push-worker:tree-<app-tree>-<queueworker-tree>`, computed by
+  both CI and `cmd_deploy_compute_vars()` from the app and shared runner Git
+  trees. This survives merge-strategy SHA changes, rolls out either worker
+  input, and leaves unrelated monorepo commits on the last published image.
 - **Helm OCI charts**: `oci://ghcr.io/<owner>/charts/<name>`
-  (`.github/workflows/build-and-publish.yaml:265` — `helm push … oci://…`).
+  (`.github/workflows/build-and-publish.yaml:281` — `helm push … oci://…`).
 - **Dockerfile build context is repo root** for every image.
-  `.github/workflows/build-and-publish.yaml:185` sets `context: .` with the
+  `.github/workflows/build-and-publish.yaml:203` sets `context: .` with the
   warning `# WARN: all dockerfiles should have a context of the root of
 the repo`. Dockerfiles reach into `../../...` paths. Confirmed at
   `packages/argocd/Dockerfile:35` (`COPY

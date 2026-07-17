@@ -133,6 +133,7 @@ jobs:
           go-version-file: packages/valkey/reconciler/go.mod
           cache-dependency-path: |
             apps/push-worker/go.sum
+            packages/queueworker/go.sum
             packages/valkey/reconciler/go.sum
 
       - uses: ./.github/actions/setup-mise
@@ -157,6 +158,7 @@ jobs:
           go-version-file: packages/valkey/reconciler/go.mod
           cache-dependency-path: |
             apps/push-worker/go.sum
+            packages/queueworker/go.sum
             packages/valkey/reconciler/go.sum
 
       - uses: ./.github/actions/setup-mise

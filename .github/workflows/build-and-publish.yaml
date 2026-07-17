@@ -87,6 +87,7 @@ jobs:
               - 'packages/valkey/reconciler/**'
             push-worker:
               - 'apps/push-worker/**'
+              - 'packages/queueworker/**'
             argocd-sst-plugin:
               - 'packages/argocd/**'
             clickhouse:
@@ -170,7 +171,7 @@ jobs:
           IMAGE_NAME: ${{ matrix.image.name }}
         run: |
           if [[ "${IMAGE_NAME}" == "push-worker" ]]; then
-            echo "tag=tree-$(git rev-parse HEAD:apps/push-worker)" >> "${GITHUB_OUTPUT}"
+            echo "tag=tree-$(git rev-parse HEAD:apps/push-worker)-$(git rev-parse HEAD:packages/queueworker)" >> "${GITHUB_OUTPUT}"
           fi
 
       - name: Run Hadolint

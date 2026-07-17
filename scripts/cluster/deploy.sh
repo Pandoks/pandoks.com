@@ -32,8 +32,15 @@ cmd_deploy_compute_vars() {
       esac
       cmd_deploy_compute_vars_push_worker_image_tag="latest"
       if [ "${cmd_deploy_compute_vars_env}" = "prod" ]; then
-        cmd_deploy_compute_vars_push_worker_tree=$(git -C "${REPO_ROOT}" rev-parse HEAD:apps/push-worker)
-        cmd_deploy_compute_vars_push_worker_image_tag="tree-${cmd_deploy_compute_vars_push_worker_tree}"
+        cmd_deploy_compute_vars_push_worker_app_tree=$(
+          git -C "${REPO_ROOT}" rev-parse HEAD:apps/push-worker
+        )
+        cmd_deploy_compute_vars_push_worker_queue_tree=$(
+          git -C "${REPO_ROOT}" rev-parse HEAD:packages/queueworker
+        )
+        cmd_deploy_compute_vars_push_worker_image_tag="tree-\
+${cmd_deploy_compute_vars_push_worker_app_tree}-\
+${cmd_deploy_compute_vars_push_worker_queue_tree}"
       fi
       ;;
   esac
