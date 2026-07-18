@@ -39,8 +39,6 @@ export const secrets = {
     }
   },
   ovh: {
-    Endpoint: new sst.Secret('OvhEndpoint', 'ovh-us'),
-    ApplicationKey: new sst.Secret('OvhApplicationKey'),
     ApplicationSecret: new sst.Secret('OvhApplicationSecret'),
     ConsumerKey: new sst.Secret('OvhConsumerKey'),
     CloudProjectService: new sst.Secret('OvhCloudProjectService'),

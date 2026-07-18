@@ -14,10 +14,9 @@ export default $config({
         },
         cloudflare: '6.15.0',
         github: '6.12.1',
-        // NOTE: sst resolves this key to the @ovhcloud/pulumi-ovh npm package. the global stays `ovh`
         'ovhcloud/pulumi-ovh': {
-          endpoint: process.env.OVH_ENDPOINT,
-          applicationKey: process.env.OVH_APPLICATION_KEY,
+          endpoint: 'ovh-us',
+          applicationKey: 'edf9a4672d28e3c7',
           applicationSecret: process.env.OVH_APPLICATION_SECRET,
           consumerKey: process.env.OVH_CONSUMER_KEY,
           version: '2.17.0'

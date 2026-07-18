@@ -11,20 +11,6 @@ const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironme
   environment: isProduction ? 'production' : 'dev'
 });
 
-new github.ActionsEnvironmentSecret('GithubOvhEndpoint', {
-  repository: githubRepoName,
-  environment: githubEnvironment.environment,
-  secretName: 'OVH_ENDPOINT',
-  plaintextValue: secrets.ovh.Endpoint.value
-});
-
-new github.ActionsEnvironmentSecret('GithubOvhApplicationKey', {
-  repository: githubRepoName,
-  environment: githubEnvironment.environment,
-  secretName: 'OVH_APPLICATION_KEY',
-  plaintextValue: secrets.ovh.ApplicationKey.value
-});
-
 new github.ActionsEnvironmentSecret('GithubOvhApplicationSecret', {
   repository: githubRepoName,
   environment: githubEnvironment.environment,
