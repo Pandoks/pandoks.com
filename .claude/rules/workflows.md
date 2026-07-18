@@ -66,6 +66,9 @@ Production topology is controlled by four independent values:
 Dedicated pools additionally require live, authenticated catalog selections in
 `OVH_DEDICATED_SERVER_PLAN`, `OVH_DEDICATED_DATACENTER`,
 `OVH_DEDICATED_ORDER_REGION`, and `OVH_DEDICATED_PLAN_OPTIONS`.
+`OVH_UNPROTECTED_NODE_LOGICAL_NAME` is the non-secret, single-node protection
+override used only by the two-deploy scale-down procedure. It cannot unprotect
+a lower-index or multiple nodes.
 
 Before committing or applying a non-zero dedicated count, validate the current
 OVH cart, set the validated catalog values and intended count locally, and run
@@ -79,9 +82,11 @@ an authenticated preview:
 balancers after Public Cloud compute reaches zero. Follow
 `infra/cluster/README.md` for preview review, scale-up, Public Cloud-to-dedicated
 migration, manual drain/scale-down, etcd quorum, bootstrap immutability, and
-console recovery. Cluster hosts have no provider SSH key; administrator access
-is Tailscale SSH only. The separate, manually managed VPS-4 procedure is
-`scripts/dev-vps/README.md`.
+console recovery. Scale-down always targets `count - 1`: deploy once with all
+counts unchanged and the exact logical-name override, then reduce one count,
+review/delete that resource, and clear the override. Cluster hosts have no
+provider SSH key; administrator access is Tailscale SSH only. The separate,
+manually managed VPS-4 procedure is `scripts/dev-vps/README.md`.
 
 ## Dev (SST)
 

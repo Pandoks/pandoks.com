@@ -72,9 +72,13 @@ manually import` comment at `sst.config.ts:34` is load-bearing.
   preview before a non-zero dedicated count is committed or applied. The exact
   preview, scale, migration, drain, and recovery procedure is
   `infra/cluster/README.md`.
-- **Downsizing is always manual.** Drain and delete the exact Kubernetes node
-  first; for a control plane, remove its etcd member and verify quorum. Only
-  then remove protection for that resource and reduce its pool count.
+- **Downsizing is highest-index and two-deploy only.** Derive the `count - 1`
+  hostname/logical name from `infra/cluster/README.md`. For a control plane:
+  snapshot, verify membership/endpoint health from a survivor, drain, stop k3s
+  on the target, remove its exact etcd member, delete the Kubernetes node, and
+  re-check odd quorum. Then deploy once with counts unchanged and
+  `OVH_UNPROTECTED_NODE_LOGICAL_NAME` set to that exact highest-index logical
+  name; reduce that pool by one in a second deploy; clear the override.
 - **Production bootstrap inputs are immutable for existing machines.**
   Public Cloud `userData` and dedicated reinstall customization are ignored.
   Rebuild one node at a time; never force a dedicated reinstall to roll out
@@ -101,7 +105,10 @@ manually import` comment at `sst.config.ts:34` is load-bearing.
 ## Protection
 
 - **Production resources are `protect: true`** (`sst.config.ts:7`). OVH
-  instances also set `protect: isProduction`. Delete fails by design.
+  cluster compute remains protected unless the exact single-node
+  `OVH_UNPROTECTED_NODE_LOGICAL_NAME` matches the current highest index in its
+  pool. Both the dedicated server and its reinstall task use that same
+  protection decision. There is no wildcard or all-node bypass.
 
 ## SST refresh exit code
 

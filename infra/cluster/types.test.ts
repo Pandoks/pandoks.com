@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  getPoolScaleDownTarget,
+  getUnprotectedNodeWarning,
+  isClusterNodeProtected,
+  NODE_POOL_IDENTITIES,
   normalizeNodePools,
   parseDedicatedPlanOptions,
   parseNodeCount,
@@ -162,4 +166,80 @@ test('parses count overrides and dedicated plan options', () => {
   assert.throws(() => parseNodeCount('-1', 0), /non-negative integer/);
   assert.deepEqual(parseDedicatedPlanOptions('[]'), []);
   assert.throws(() => parseDedicatedPlanOptions('{"planCode":"x"}'), /must be a JSON array/);
+});
+
+test('defines the exact identity prefixes for all four pools', () => {
+  assert.deepEqual(NODE_POOL_IDENTITIES, {
+    'cloud-control-plane': {
+      logicalNamePrefix: 'OvhControlPlaneServer',
+      hostnamePrefix: 'control-plane-server'
+    },
+    'cloud-workers': {
+      logicalNamePrefix: 'OvhWorkerServer',
+      hostnamePrefix: 'worker-server'
+    },
+    'dedicated-control-plane': {
+      logicalNamePrefix: 'OvhDedicatedControlPlaneServer',
+      hostnamePrefix: 'dedicated-control-plane-server'
+    },
+    'dedicated-workers': {
+      logicalNamePrefix: 'OvhDedicatedWorkerServer',
+      hostnamePrefix: 'dedicated-worker-server'
+    }
+  });
+});
+
+test('scale-down target is always the highest declared pool index', () => {
+  assert.deepEqual(getPoolScaleDownTarget({ ...dedicatedControlPlane, count: 3 }, 'prod'), {
+    index: 2,
+    logicalName: 'OvhDedicatedControlPlaneServer2',
+    hostname: 'prod-ovh-dedicated-control-plane-server-2'
+  });
+  assert.throws(
+    () => getPoolScaleDownTarget({ ...dedicatedControlPlane, count: 0 }, 'prod'),
+    /has no node to remove/
+  );
+});
+
+test('production protection allows only an exact logical-name match', () => {
+  const nodes = normalizeNodePools(
+    [
+      {
+        ...cloudControlPlane,
+        name: 'cloud-workers',
+        role: 'worker',
+        count: 3,
+        privateIpStart: 50
+      },
+      cloudControlPlane
+    ],
+    'prod',
+    '10.0.1.0/24'
+  ).nodes;
+  const lowerIndex = nodes.find((node) => node.logicalName === 'OvhWorkerServer1');
+  const highestIndex = nodes.find((node) => node.logicalName === 'OvhWorkerServer2');
+  assert.ok(lowerIndex);
+  assert.ok(highestIndex);
+  assert.equal(isClusterNodeProtected(highestIndex, 'OvhWorkerServer2', true), false);
+  assert.equal(isClusterNodeProtected(lowerIndex, 'OvhWorkerServer1', true), true);
+  assert.equal(isClusterNodeProtected(highestIndex, '', true), true);
+  assert.equal(isClusterNodeProtected(highestIndex, 'OvhWorkerServer2', false), false);
+});
+
+test('warns when the requested unprotected node is absent', () => {
+  const nodes = normalizeNodePools(
+    [{ ...cloudControlPlane, count: 2 }],
+    'prod',
+    '10.0.1.0/24'
+  ).nodes;
+  assert.equal(getUnprotectedNodeWarning(nodes, ''), undefined);
+  assert.equal(getUnprotectedNodeWarning(nodes, 'OvhControlPlaneServer1'), undefined);
+  assert.match(
+    getUnprotectedNodeWarning(nodes, 'OvhControlPlaneServer0') ?? '',
+    /does not match a currently declared highest-index node/
+  );
+  assert.match(
+    getUnprotectedNodeWarning(nodes, 'OvhControlPlaneServer2') ?? '',
+    /OVH_UNPROTECTED_NODE_LOGICAL_NAME=OvhControlPlaneServer2 does not match a currently declared highest-index node/
+  );
 });

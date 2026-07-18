@@ -6,6 +6,8 @@ import { createClusterNetwork } from './network';
 import { createDedicatedNode } from './providers/dedicated';
 import { createPublicCloudNode, type ClusterNode } from './providers/public-cloud';
 import {
+  getUnprotectedNodeWarning,
+  isClusterNodeProtected,
   normalizeNodePools,
   parseDedicatedPlanOptions,
   parseNodeCount,
@@ -19,6 +21,7 @@ const GATEWAY_MODEL = 's';
 const LOAD_BALANCER_FLAVOR = 'small';
 const LOAD_BALANCER_ALGORITHM = 'leastConnections';
 const INGRESS_LOAD_BALANCERS_PER_GROUP = 1;
+const UNPROTECTED_NODE_LOGICAL_NAME = process.env.OVH_UNPROTECTED_NODE_LOGICAL_NAME?.trim() ?? '';
 
 const NODE_POOLS: readonly NodePool[] = [
   {
@@ -75,6 +78,13 @@ const topology = normalizeNodePools(NODE_POOLS, STAGE_NAME, NETWORK_CIDR);
 for (const warning of topology.warnings) {
   console.warn(warning);
 }
+const unprotectedNodeWarning = getUnprotectedNodeWarning(
+  topology.nodes,
+  UNPROTECTED_NODE_LOGICAL_NAME
+);
+if (unprotectedNodeWarning) {
+  console.warn(unprotectedNodeWarning);
+}
 
 const network = createClusterNetwork({
   region: REGION,
@@ -125,6 +135,7 @@ export const clusterNodes: ClusterNode[] = topology.nodes.map((spec) => {
       },
       network,
       apiAddress,
+      protect: isClusterNodeProtected(spec, UNPROTECTED_NODE_LOGICAL_NAME, isProduction),
       ...catalog
     });
   }
@@ -134,7 +145,8 @@ export const clusterNodes: ClusterNode[] = topology.nodes.map((spec) => {
       pool: spec.pool
     },
     network,
-    apiAddress
+    apiAddress,
+    protect: isClusterNodeProtected(spec, UNPROTECTED_NODE_LOGICAL_NAME, isProduction)
   });
 });
 

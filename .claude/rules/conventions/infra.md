@@ -127,6 +127,12 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
   SSH only; cluster traffic stays on vRack and console/rescue is the recovery
   path. Production bootstrap inputs are immutable for existing nodes, so never
   force a dedicated reinstall to roll out `bootstrap.sh`.
+- **Scale-down protection has one exact override.**
+  `OVH_UNPROTECTED_NODE_LOGICAL_NAME` is honored only when it exactly matches
+  the current `count - 1` node in one pool. Keep counts unchanged and deploy the
+  override once, then reduce that pool by one and deploy the exact deletion,
+  then clear it. Lower-index, missing, wildcard, and broad values leave all
+  declared production nodes protected; missing matches emit a warning.
 - The manually managed VPS-4 is not cluster capacity or an SST resource. Its
   runbook is `scripts/dev-vps/README.md`.
 

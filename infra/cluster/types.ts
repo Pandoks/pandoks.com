@@ -1,8 +1,13 @@
 export type NodeProvider = 'public-cloud' | 'dedicated';
 export type NodeRole = 'control-plane' | 'worker';
+export type NodePoolName =
+  | 'cloud-control-plane'
+  | 'cloud-workers'
+  | 'dedicated-control-plane'
+  | 'dedicated-workers';
 
 type NodePoolBase = {
-  name: 'cloud-control-plane' | 'cloud-workers' | 'dedicated-control-plane' | 'dedicated-workers';
+  name: NodePoolName;
   provider: NodeProvider;
   role: NodeRole;
   count: number;
@@ -93,19 +98,70 @@ export type TopologyResult = {
   warnings: string[];
 };
 
-const POOL_RESOURCE_PREFIX: Readonly<Record<NodePool['name'], string>> = {
-  'cloud-control-plane': 'OvhControlPlaneServer',
-  'cloud-workers': 'OvhWorkerServer',
-  'dedicated-control-plane': 'OvhDedicatedControlPlaneServer',
-  'dedicated-workers': 'OvhDedicatedWorkerServer'
-};
+export const NODE_POOL_IDENTITIES = {
+  'cloud-control-plane': {
+    logicalNamePrefix: 'OvhControlPlaneServer',
+    hostnamePrefix: 'control-plane-server'
+  },
+  'cloud-workers': {
+    logicalNamePrefix: 'OvhWorkerServer',
+    hostnamePrefix: 'worker-server'
+  },
+  'dedicated-control-plane': {
+    logicalNamePrefix: 'OvhDedicatedControlPlaneServer',
+    hostnamePrefix: 'dedicated-control-plane-server'
+  },
+  'dedicated-workers': {
+    logicalNamePrefix: 'OvhDedicatedWorkerServer',
+    hostnamePrefix: 'dedicated-worker-server'
+  }
+} as const satisfies Readonly<
+  Record<NodePoolName, { logicalNamePrefix: string; hostnamePrefix: string }>
+>;
 
-const POOL_HOST_PREFIX: Readonly<Record<NodePool['name'], string>> = {
-  'cloud-control-plane': 'control-plane-server',
-  'cloud-workers': 'worker-server',
-  'dedicated-control-plane': 'dedicated-control-plane-server',
-  'dedicated-workers': 'dedicated-worker-server'
-};
+export function getPoolScaleDownTarget(
+  pool: NodePool,
+  stage: string
+): { index: number; logicalName: string; hostname: string } {
+  if (pool.count < 1) {
+    throw new Error(`Node pool ${pool.name} has no node to remove`);
+  }
+  const index = pool.count - 1;
+  const identity = NODE_POOL_IDENTITIES[pool.name];
+  return {
+    index,
+    logicalName: `${identity.logicalNamePrefix}${index}`,
+    hostname: `${stage}-ovh-${identity.hostnamePrefix}-${index}`
+  };
+}
+
+export function isClusterNodeProtected(
+  node: Pick<ClusterNodeSpec, 'logicalName' | 'pool' | 'poolIndex'>,
+  unprotectedLogicalName: string,
+  isProduction: boolean
+): boolean {
+  const isHighestIndex = node.poolIndex === node.pool.count - 1;
+  return isProduction && (!isHighestIndex || node.logicalName !== unprotectedLogicalName);
+}
+
+export function getUnprotectedNodeWarning(
+  nodes: readonly Pick<ClusterNodeSpec, 'logicalName' | 'pool' | 'poolIndex'>[],
+  unprotectedLogicalName: string
+): string | undefined {
+  if (
+    !unprotectedLogicalName ||
+    nodes.some(
+      (node) =>
+        node.logicalName === unprotectedLogicalName && node.poolIndex === node.pool.count - 1
+    )
+  ) {
+    return undefined;
+  }
+  return (
+    `OVH_UNPROTECTED_NODE_LOGICAL_NAME=${unprotectedLogicalName} does not match a currently ` +
+    'declared highest-index node; clear it after the targeted deletion is complete'
+  );
+}
 
 function parse24Cidr(cidr: string): string {
   const match = /^(\d{1,3}\.\d{1,3}\.\d{1,3})\.0\/24$/.exec(cidr);
@@ -157,6 +213,7 @@ export function normalizeNodePools(
       throw new Error(`Duplicate node pool name: ${pool.name}`);
     }
     names.add(pool.name);
+    const identity = NODE_POOL_IDENTITIES[pool.name];
 
     for (let poolIndex = 0; poolIndex < pool.count; poolIndex += 1) {
       const hostOctet = pool.privateIpStart + poolIndex;
@@ -173,8 +230,8 @@ export function normalizeNodePools(
       nodes.push({
         pool,
         poolIndex,
-        logicalName: `${POOL_RESOURCE_PREFIX[pool.name]}${poolIndex}`,
-        hostname: `${stage}-ovh-${POOL_HOST_PREFIX[pool.name]}-${poolIndex}`,
+        logicalName: `${identity.logicalNamePrefix}${poolIndex}`,
+        hostname: `${stage}-ovh-${identity.hostnamePrefix}-${poolIndex}`,
         privateIp,
         role: pool.role,
         provider: pool.provider,

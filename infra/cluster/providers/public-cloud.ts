@@ -17,6 +17,7 @@ export function createPublicCloudNode(args: {
   apiAddress: $util.Input<string>;
   flavorId: string;
   imageId: string;
+  protect: boolean;
 }): ClusterNode {
   const bootstrap = createNodeBootstrap({
     node: args.spec,
@@ -49,7 +50,7 @@ export function createPublicCloudNode(args: {
     },
     {
       ignoreChanges: isProduction ? ['userData'] : [],
-      protect: isProduction,
+      protect: args.protect,
       hooks: { afterDelete: [deleteServerFromTailnet] }
     }
   );

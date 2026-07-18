@@ -16,7 +16,8 @@ paths:
   dedicated nodes; non-production defaults all four to zero. When total count
   is zero, stale OVH cluster Tailnet entries are reclaimed. Use
   `infra/cluster/README.md` for preview, scaling, migration, drain, etcd quorum,
-  and recovery.
+  targeted two-deploy unprotect, and recovery. Scale-down can remove only the
+  selected pool's `count - 1` node.
 
 ## HAProxy
 

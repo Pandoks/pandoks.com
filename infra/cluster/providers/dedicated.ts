@@ -8,6 +8,7 @@ export function createDedicatedNode(args: {
   spec: ClusterNodeSpec & { pool: DedicatedNodePool };
   network: ClusterNetwork;
   apiAddress: $util.Input<string>;
+  protect: boolean;
 }): ClusterNode {
   const server = new ovh.dedicated.Server(
     args.spec.logicalName,
@@ -34,7 +35,7 @@ export function createDedicatedNode(args: {
       planOptions: args.spec.pool.planOptions
     },
     {
-      protect: isProduction,
+      protect: args.protect,
       hooks: { afterDelete: [deleteServerFromTailnet] }
     }
   );
@@ -83,7 +84,7 @@ export function createDedicatedNode(args: {
     {
       dependsOn: [attachment, bootstrap.tailnetKey],
       ignoreChanges: isProduction ? ['os', 'customizations', 'storages'] : [],
-      protect: isProduction
+      protect: args.protect
     }
   );
 

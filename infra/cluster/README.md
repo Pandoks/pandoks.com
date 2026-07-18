@@ -23,6 +23,7 @@ OVH_CLOUD_CONTROL_PLANE_COUNT=1
 OVH_CLOUD_WORKER_COUNT=0
 OVH_DEDICATED_CONTROL_PLANE_COUNT=0
 OVH_DEDICATED_WORKER_COUNT=0
+OVH_UNPROTECTED_NODE_LOGICAL_NAME=
 OVH_DEDICATED_SERVER_PLAN=
 OVH_DEDICATED_DATACENTER=
 OVH_DEDICATED_ORDER_REGION=
@@ -83,25 +84,232 @@ balancers.
 
 ## Scale down
 
-For each intended node:
+Scale-down can remove only the highest-index node in one pool. For a pool count
+of `N`, the only valid target index is `N - 1`. Never use this procedure to
+remove an arbitrary lower index; restore or replace that node first.
+
+| Pool                      | Count variable                      | Production hostname prefix                 | Logical-resource prefix          |
+| ------------------------- | ----------------------------------- | ------------------------------------------ | -------------------------------- |
+| `cloud-control-plane`     | `OVH_CLOUD_CONTROL_PLANE_COUNT`     | `prod-ovh-control-plane-server-`           | `OvhControlPlaneServer`          |
+| `cloud-workers`           | `OVH_CLOUD_WORKER_COUNT`            | `prod-ovh-worker-server-`                  | `OvhWorkerServer`                |
+| `dedicated-control-plane` | `OVH_DEDICATED_CONTROL_PLANE_COUNT` | `prod-ovh-dedicated-control-plane-server-` | `OvhDedicatedControlPlaneServer` |
+| `dedicated-workers`       | `OVH_DEDICATED_WORKER_COUNT`        | `prod-ovh-dedicated-worker-server-`        | `OvhDedicatedWorkerServer`       |
+
+Choose one table row. Set `POOL_NAME` and `POOL_COUNT` to that pool's exact
+current `.env.production` value; do not decrement it yet:
 
 ```sh
-kubectl get nodes -o custom-columns=NAME:.metadata.name --no-headers
-printf "Exact node to remove: "
-read -r NODE_NAME
+POOL_NAME=dedicated-control-plane
+POOL_COUNT=3
+
+case "${POOL_NAME}" in
+  cloud-control-plane)
+    COUNT_VARIABLE=OVH_CLOUD_CONTROL_PLANE_COUNT
+    NODE_PREFIX=prod-ovh-control-plane-server-
+    LOGICAL_PREFIX=OvhControlPlaneServer
+    ;;
+  cloud-workers)
+    COUNT_VARIABLE=OVH_CLOUD_WORKER_COUNT
+    NODE_PREFIX=prod-ovh-worker-server-
+    LOGICAL_PREFIX=OvhWorkerServer
+    ;;
+  dedicated-control-plane)
+    COUNT_VARIABLE=OVH_DEDICATED_CONTROL_PLANE_COUNT
+    NODE_PREFIX=prod-ovh-dedicated-control-plane-server-
+    LOGICAL_PREFIX=OvhDedicatedControlPlaneServer
+    ;;
+  dedicated-workers)
+    COUNT_VARIABLE=OVH_DEDICATED_WORKER_COUNT
+    NODE_PREFIX=prod-ovh-dedicated-worker-server-
+    LOGICAL_PREFIX=OvhDedicatedWorkerServer
+    ;;
+  *)
+    printf '%s\n' "Unsupported pool"
+    exit 1
+    ;;
+esac
+
+case "${POOL_COUNT}" in
+  ''|*[!0-9]*|0)
+    printf '%s\n' "POOL_COUNT must be the current positive count"
+    exit 1
+    ;;
+esac
+
+grep -Fx "${COUNT_VARIABLE}=${POOL_COUNT}" .env.production
+TARGET_INDEX=$((POOL_COUNT - 1))
+NODE_NAME="${NODE_PREFIX}${TARGET_INDEX}"
+LOGICAL_NAME="${LOGICAL_PREFIX}${TARGET_INDEX}"
+printf 'NODE_NAME=%s\nLOGICAL_NAME=%s\n' "${NODE_NAME}" "${LOGICAL_NAME}"
+kubectl get node "${NODE_NAME}" -o wide
+printf 'Confirm by typing %s: ' "${LOGICAL_NAME}"
+read -r CONFIRMED_LOGICAL_NAME
+[ "${CONFIRMED_LOGICAL_NAME}" = "${LOGICAL_NAME}" ]
+TARGET_INTERNAL_IP="$(
+  kubectl get node "${NODE_NAME}" \
+    -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}'
+)"
+case "${TARGET_INTERNAL_IP}" in
+  10.0.1.*) ;;
+  *)
+    printf '%s\n' "Target InternalIP is outside 10.0.1.0/24"
+    exit 1
+    ;;
+esac
+```
+
+This derives both names from the selected pool's current highest index. If the
+`grep`, node lookup, logical-name confirmation, or InternalIP check fails, stop.
+
+### Remove a worker target
+
+Workers have no embedded-etcd member. Drain and delete only the derived node:
+
+```sh
 kubectl drain "${NODE_NAME}" --ignore-daemonsets --delete-emptydir-data
 kubectl delete node "${NODE_NAME}"
 ```
 
-For a control-plane node, take and verify a current etcd snapshot, remove the
-etcd member, and verify the remaining members still have quorum before reducing
-its pool count. Never remove enough control-plane members to leave fewer than
-three or an even final member count.
+Continue with the two-step targeted unprotect procedure below.
 
-Production resources are protected. Remove protection only for the exact node
-that has already been drained and removed. Run another authenticated `sst diff`
-and reduce only that node's pool count; reject unrelated replacements or
-deletions.
+### Remove a control-plane target
+
+Perform these steps from a surviving control plane unless a step explicitly
+names the target. Install `etcdctl` on the survivor first by following the
+official [K3s etcdctl guide](https://docs.k3s.io/advanced#using-etcdctl). K3s
+does not bundle it. The guide specifies the K3s-managed CA, client certificate,
+and key paths used below.
+
+On the survivor, set the same derived `NODE_NAME` and `TARGET_INTERNAL_IP`, take
+the snapshot first, and define a certificate-authenticated local client:
+
+```sh
+sudo k3s etcd-snapshot save --name "pre-remove-${NODE_NAME}-$(date -u +%Y%m%dT%H%M%SZ)"
+sudo k3s etcd-snapshot ls
+
+etcdctl_k3s() {
+  sudo etcdctl \
+    --endpoints=https://127.0.0.1:2379 \
+    --cacert=/var/lib/rancher/k3s/server/tls/etcd/server-ca.crt \
+    --cert=/var/lib/rancher/k3s/server/tls/etcd/client.crt \
+    --key=/var/lib/rancher/k3s/server/tls/etcd/client.key \
+    "$@"
+}
+```
+
+List membership and verify every endpoint before disrupting the target. The
+post-removal member count must be odd and at least three:
+
+```sh
+etcdctl_k3s member list
+etcdctl_k3s --write-out=table endpoint status --cluster
+etcdctl_k3s endpoint health --cluster
+MEMBER_COUNT_BEFORE="$(etcdctl_k3s member list | wc -l | tr -d '[:space:]')"
+EXPECTED_MEMBER_COUNT=$((MEMBER_COUNT_BEFORE - 1))
+[ "${EXPECTED_MEMBER_COUNT}" -ge 3 ]
+[ $((EXPECTED_MEMBER_COUNT % 2)) -eq 1 ]
+```
+
+Back on the administrator machine, drain the exact target, then enter it through
+Tailscale and stop k3s:
+
+```sh
+kubectl drain "${NODE_NAME}" --ignore-daemonsets --delete-emptydir-data
+tailscale ssh "pandoks@${NODE_NAME}"
+sudo systemctl stop k3s
+exit
+```
+
+On the surviving control plane, list members again. Enter only the hexadecimal
+member ID whose row contains the exact peer URL
+`https://${TARGET_INTERNAL_IP}:2380`; the two checks fail closed on another ID
+or peer URL:
+
+```sh
+etcdctl_k3s member list
+printf 'Member ID for peer https://%s:2380: ' "${TARGET_INTERNAL_IP}"
+read -r MEMBER_ID
+case "${MEMBER_ID}" in
+  ''|*[!0-9a-fA-F]*)
+    printf '%s\n' "Invalid etcd member ID"
+    exit 1
+    ;;
+esac
+MEMBER_ROW="$(
+  etcdctl_k3s member list |
+    grep -E "^${MEMBER_ID}(:|,)"
+)"
+printf '%s\n' "${MEMBER_ROW}" |
+  grep -F "https://${TARGET_INTERNAL_IP}:2380"
+etcdctl_k3s member remove "${MEMBER_ID}"
+```
+
+Back on the administrator machine, delete the exact Kubernetes node. Then
+return to the surviving control plane and re-check membership, endpoint status,
+health, the expected count, and odd quorum:
+
+```sh
+kubectl delete node "${NODE_NAME}"
+
+etcdctl_k3s member list
+etcdctl_k3s --write-out=table endpoint status --cluster
+MEMBER_COUNT_AFTER="$(etcdctl_k3s member list | wc -l | tr -d '[:space:]')"
+etcdctl_k3s endpoint health --cluster
+[ "${MEMBER_COUNT_AFTER}" -eq "${EXPECTED_MEMBER_COUNT}" ]
+[ "${MEMBER_COUNT_AFTER}" -ge 3 ]
+[ $((MEMBER_COUNT_AFTER % 2)) -eq 1 ]
+```
+
+Do not continue unless all commands succeed. The etcd project also documents
+that membership changes must be sequential and require a healthy quorum in its
+[runtime reconfiguration guide](https://etcd.io/docs/v3.5/op-guide/runtime-configuration/#cluster-reconfiguration-operations).
+
+### Two-step targeted unprotect and deletion
+
+Production scale-down uses an auditable two-deploy transition. There is no
+manual state-editing or all-nodes bypass.
+
+Keep all four pool counts unchanged for the first deploy. Set only the exact
+derived logical name in `.env.production`. For the example target derived
+above, the line is:
+
+```dotenv
+OVH_UNPROTECTED_NODE_LOGICAL_NAME=OvhDedicatedControlPlaneServer2
+```
+
+Use the exact `LOGICAL_NAME` printed and confirmed for the selected pool, not
+the example value or a shell placeholder.
+
+Run a preview and deploy once:
+
+```sh
+./node_modules/.bin/sst diff --stage production
+./node_modules/.bin/sst deploy --stage production
+```
+
+The preview must contain no deletion and must change protection only for
+`${LOGICAL_NAME}`. A dedicated target also updates
+`${LOGICAL_NAME}Install`. Reject any other node protection change.
+
+Reduce only the selected pool count by exactly one for the second deploy while
+keeping `OVH_UNPROTECTED_NODE_LOGICAL_NAME` unchanged. Run another preview. The warning that the
+override “does not match a currently declared highest-index node” is expected
+in this second step because the highest-index node is no longer declared:
+
+```sh
+./node_modules/.bin/sst diff --stage production
+```
+
+The preview must delete `${LOGICAL_NAME}` and only its exact derived resources,
+plus the expected load-balancer membership update. Reject a preview that deletes
+a different node logical resource or index. Apply only that reviewed deletion:
+
+```sh
+./node_modules/.bin/sst deploy --stage production
+```
+
+Clear `OVH_UNPROTECTED_NODE_LOGICAL_NAME`, run a final preview, and require no
+further deletion or replacement before ending the procedure.
 
 ## Bootstrap changes
 
