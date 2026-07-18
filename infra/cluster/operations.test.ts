@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
@@ -30,6 +31,55 @@ const topologyValidator = readFileSync('scripts/cluster/validate-topology-env.sh
 function shellIntegerConstant(source: string, name: string): number {
   const match = new RegExp(`^${name}=(\\d+)$`, 'm').exec(source);
   assert.ok(match, `missing exact shell constant ${name}`);
+  return Number(match[1]);
+}
+
+type TopologyCounts = {
+  cloudControlPlanes: number;
+  cloudWorkers: number;
+  dedicatedControlPlanes: number;
+  dedicatedWorkers: number;
+};
+
+function nodesForTopology(counts: TopologyCounts) {
+  const nodes: Array<{
+    provider: 'public-cloud' | 'dedicated';
+    role: 'control-plane' | 'worker';
+    ingress: true;
+  }> = [];
+  for (const [provider, role, count] of [
+    ['public-cloud', 'control-plane', counts.cloudControlPlanes],
+    ['public-cloud', 'worker', counts.cloudWorkers],
+    ['dedicated', 'control-plane', counts.dedicatedControlPlanes],
+    ['dedicated', 'worker', counts.dedicatedWorkers]
+  ] as const) {
+    for (let index = 0; index < count; index += 1) {
+      nodes.push({ provider, role, ingress: true });
+    }
+  }
+  return nodes;
+}
+
+function reportShellDhcpDemand(counts: TopologyCounts): number {
+  const output = execFileSync('sh', ['scripts/cluster/validate-topology-env.sh'], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: {
+      PATH: process.env.PATH ?? '',
+      OVH_TOPOLOGY_VALIDATOR_REPORT: '1',
+      OVH_CLOUD_CONTROL_PLANE_COUNT: String(counts.cloudControlPlanes),
+      OVH_CLOUD_WORKER_COUNT: String(counts.cloudWorkers),
+      OVH_DEDICATED_CONTROL_PLANE_COUNT: String(counts.dedicatedControlPlanes),
+      OVH_DEDICATED_WORKER_COUNT: String(counts.dedicatedWorkers),
+      OVH_DEDICATED_SERVER_PLAN: 'test-plan',
+      OVH_DEDICATED_DATACENTER: 'test-datacenter',
+      OVH_DEDICATED_ORDER_REGION: 'test-region',
+      OVH_DEDICATED_PLAN_OPTIONS:
+        '[{"duration":"P1M","planCode":"ram","pricingMode":"default","quantity":1}]'
+    }
+  });
+  const match = /^dhcp-allocation-demand=(\d+)$/m.exec(output);
+  assert.ok(match, `validator did not emit a parseable DHCP demand report: ${output}`);
   return Number(match[1]);
 }
 
@@ -247,6 +297,33 @@ void test('topology validation and load balancers share capacity constants and d
     7 + shellNetworkConsumers + 1 + Math.ceil(10 / shellMemberCapacity) * shellIngressMultiplier;
   assert.equal(getClusterDhcpAllocationDemand(representativeNodes), mirroredDemand);
   assert.equal(mirroredDemand, 11);
+});
+
+void test('the POSIX topology validator reports the same DHCP demand as the TypeScript topology', () => {
+  const representativeAndBoundaryTopologies: TopologyCounts[] = [
+    { cloudControlPlanes: 0, cloudWorkers: 0, dedicatedControlPlanes: 0, dedicatedWorkers: 0 },
+    { cloudControlPlanes: 3, cloudWorkers: 4, dedicatedControlPlanes: 2, dedicatedWorkers: 1 },
+    { cloudControlPlanes: 12, cloudWorkers: 50, dedicatedControlPlanes: 13, dedicatedWorkers: 55 }
+  ];
+
+  for (const counts of representativeAndBoundaryTopologies) {
+    assert.equal(
+      reportShellDhcpDemand(counts),
+      getClusterDhcpAllocationDemand(nodesForTopology(counts)),
+      `shell demand diverged for ${JSON.stringify(counts)}`
+    );
+  }
+
+  assert.throws(
+    () =>
+      reportShellDhcpDemand({
+        cloudControlPlanes: 13,
+        cloudWorkers: 50,
+        dedicatedControlPlanes: 13,
+        dedicatedWorkers: 55
+      }),
+    /single private API load balancer supports at most 25 control-plane members/
+  );
 });
 
 void test('cluster monitoring matches the single-cloud-control-plane default', () => {

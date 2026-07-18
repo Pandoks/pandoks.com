@@ -103,3 +103,10 @@ if [ -n "${OVH_DEDICATED_PLAN_OPTIONS-}" ]; then
     exit 1
   fi
 fi
+
+# This is deliberately opt-in and reports only derived, non-secret capacity
+# data so the TypeScript topology contract tests can exercise the same POSIX
+# arithmetic as CI. It does not bypass any validation above.
+if [ "${OVH_TOPOLOGY_VALIDATOR_REPORT-}" = 1 ]; then
+  printf 'dhcp-allocation-demand=%s\n' "${DHCP_ALLOCATION_DEMAND}"
+fi

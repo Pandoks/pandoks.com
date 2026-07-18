@@ -466,7 +466,7 @@ else
   elif [ "${KEY_DETACHED}" = true ]; then
     report_partial_completion
   else
-    fail 'The primary state record could not be removed and remains managed; do not continue.'
+    fail 'The primary remains managed because its state record could not be removed. Re-run this cleanup helper to validate and retry safely.'
   fi
 fi
 

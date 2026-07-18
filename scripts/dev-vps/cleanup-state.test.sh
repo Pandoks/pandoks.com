@@ -104,6 +104,9 @@ case "$1:$2" in
     ;;
   diff:--stage)
     printf '%s\n' 'attempt:diff' >> "${SST_LOG}"
+    if [ "${FAKE_SST_FAIL_DIFF:-}" = 1 ]; then
+      exit 43
+    fi
     printf '%s' "${FAKE_SST_DIFF:-}"
     ;;
   *) exit 98 ;;
@@ -117,6 +120,7 @@ run_cleanup() {
   action="$3"
   diff_text="${4:-}"
   fail_remove_name="${5:-}"
+  fail_diff="${6:-}"
   output="${TMP_ROOT}/output-${fixture}-${action}"
   state_file="${TMP_ROOT}/state-${fixture}.json"
   audit_file="${TMP_ROOT}/audit-${fixture}-${action}"
@@ -127,6 +131,7 @@ run_cleanup() {
     FAKE_SST_STATE="${state_file}" \
     FAKE_SST_DIFF="${diff_text}" \
     FAKE_SST_FAIL_REMOVE_NAME="${fail_remove_name}" \
+    FAKE_SST_FAIL_DIFF="${fail_diff}" \
     DEV_VPS_CLEANUP_TEST_MODE=1 \
     DEV_VPS_CLEANUP_SST_BIN="${FAKE_SST}" \
     DEV_VPS_CLEANUP_TEST_IDENTIFIERS="${identities}" \
@@ -273,6 +278,7 @@ test "$(grep -c 'OvhDevBox$' "${SST_LOG}" || true)" -eq 0 \
 if run_cleanup ovh-instance 'i-123:service-123' retained-detach '' OvhDevBox; then
   fail 'primary-removal failure was accepted'
 fi
+
 grep -qx 'success:remove:OvhDevBoxTailnetRegistrationAuthKey' "${SST_LOG}" \
   || fail 'primary-removal failure did not preserve successful key detachment'
 grep -qx 'attempt:remove:OvhDevBox' "${SST_LOG}" \
@@ -287,6 +293,47 @@ grep -qi 'primary remains managed' "${TMP_ROOT}/output-ovh-instance-retained-det
   || fail 'partial completion did not describe the managed primary'
 if grep -qi 'no state was changed' "${TMP_ROOT}/output-ovh-instance-retained-detach"; then
   fail 'partial completion incorrectly reported no state change'
+fi
+
+if run_cleanup ovh-vps 'vps-123' retained-detach '' OvhDevBox; then
+  fail 'primary-only removal failure was accepted'
+fi
+grep -qx 'attempt:remove:OvhDevBox' "${SST_LOG}" \
+  || fail 'primary-only removal failure was not attempted'
+test "$(grep -c '^success:remove:' "${SST_LOG}" || true)" -eq 0 \
+  || fail 'primary-only removal failure recorded a successful mutation'
+test "$(grep -c '^attempt:diff' "${SST_LOG}" || true)" -eq 0 \
+  || fail 'primary-only removal failure attempted an unnecessary final diff'
+grep -qi 'primary remains managed' "${TMP_ROOT}/output-ovh-vps-retained-detach" \
+  || fail 'primary-only removal failure did not describe the managed primary'
+grep -qi 'retry safely' "${TMP_ROOT}/output-ovh-vps-retained-detach" \
+  || fail 'primary-only removal failure did not provide safe retry guidance'
+if grep -qi 'cleanup completed' "${TMP_ROOT}/output-ovh-vps-retained-detach"; then
+  fail 'primary-only removal failure incorrectly reported success'
+fi
+
+if run_cleanup ovh-instance 'i-123:service-123' retained-detach '' OvhDevBox 1; then
+  fail 'primary-removal plus final-diff failure was accepted'
+fi
+grep -qx 'success:remove:OvhDevBoxTailnetRegistrationAuthKey' "${SST_LOG}" \
+  || fail 'partial failure did not preserve successful key detachment'
+grep -qx 'attempt:remove:OvhDevBox' "${SST_LOG}" \
+  || fail 'partial failure did not attempt the primary removal'
+test "$(grep -c '^success:remove:OvhDevBox$' "${SST_LOG}" || true)" -eq 0 \
+  || fail 'partial failure recorded the failed primary removal as successful'
+grep -qx 'attempt:diff' "${SST_LOG}" \
+  || fail 'partial failure did not attempt a final diff'
+grep -qi 'partial completion' "${TMP_ROOT}/output-ovh-instance-retained-detach" \
+  || fail 'partial failure did not report partial completion'
+grep -qi 'diff could not be captured' "${TMP_ROOT}/output-ovh-instance-retained-detach" \
+  || fail 'partial failure did not report final-diff capture failure'
+grep -qi 'do not apply' "${TMP_ROOT}/output-ovh-instance-retained-detach" \
+  || fail 'partial failure did not prohibit applying SST'
+grep -qi 'retry the remaining primary record safely' "${TMP_ROOT}/output-ovh-instance-retained-detach" \
+  || fail 'partial failure did not provide retry guidance'
+if grep -qi -e 'no state was changed' -e 'cleanup completed' \
+  "${TMP_ROOT}/output-ovh-instance-retained-detach"; then
+  fail 'partial failure incorrectly reported no state change or success'
 fi
 
 if run_cleanup key-only '' retained-detach; then
