@@ -41,7 +41,7 @@ export default $config({
       import('./infra/github'),
       import('./infra/website'),
       import('./infra/tailscale'),
-      import('./infra/vps/vps'),
+      import('./infra/cluster/cluster'),
       import('./infra/kubernetes'),
       import('./infra/dev'),
       import('./infra/runner/runner')

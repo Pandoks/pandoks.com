@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { EXAMPLE_DOMAIN, STAGE_NAME, cloudflareZoneId, isProduction } from './dns';
-import { controlPlaneLoadBalancers, workerLoadBalancers } from './vps/vps';
+import { publicIngressLoadBalancers } from './cluster/cluster';
 import { secrets } from './secrets';
 
 const cloudflareIpRequest = await fetch('https://api.cloudflare.com/client/v4/ips');
@@ -11,7 +11,7 @@ export const cloudflareIps = (await cloudflareIpRequest.json()) as {
   success: boolean;
 };
 
-const publicLoadBalancers = [...workerLoadBalancers, ...controlPlaneLoadBalancers];
+const publicLoadBalancers = publicIngressLoadBalancers;
 
 if (publicLoadBalancers.length && !isProduction) {
   // NOTE: no AAAA records because openstack floating ips are ipv4 only
@@ -28,9 +28,9 @@ if (publicLoadBalancers.length && !isProduction) {
   }
 }
 
-const openSslConfigPath = resolve('infra/vps/vps.openssl.conf');
-const certificateSigningRequestPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.csr`);
-const certificateKeyPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.key`);
+const openSslConfigPath = resolve('infra/cluster/cluster.openssl.conf');
+const certificateSigningRequestPath = resolve(`infra/cluster/cluster.origin.${STAGE_NAME}.csr`);
+const certificateKeyPath = resolve(`infra/cluster/cluster.origin.${STAGE_NAME}.key`);
 
 let needToSetCertificateSecret = false;
 if (!existsSync(certificateSigningRequestPath)) {
