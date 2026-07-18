@@ -8,6 +8,7 @@ import { createPublicCloudNode, type ClusterNode } from './providers/public-clou
 import {
   getUnprotectedNodeWarning,
   isClusterNodeProtected,
+  CLUSTER_ADDRESS_PLAN,
   normalizeNodePools,
   parseDedicatedPlanOptions,
   parseNodeCount,
@@ -30,7 +31,7 @@ const NODE_POOLS: readonly NodePool[] = [
     role: 'control-plane',
     count: parseNodeCount(process.env.OVH_CLOUD_CONTROL_PLANE_COUNT, isProduction ? 1 : 0),
     ingress: true,
-    privateIpStart: 10,
+    privateIpStart: CLUSTER_ADDRESS_PLAN['cloud-control-plane'].start,
     flavor: 'b3-8',
     image: 'Ubuntu 24.04',
     region: REGION
@@ -41,7 +42,7 @@ const NODE_POOLS: readonly NodePool[] = [
     role: 'worker',
     count: parseNodeCount(process.env.OVH_CLOUD_WORKER_COUNT, 0),
     ingress: true,
-    privateIpStart: 50,
+    privateIpStart: CLUSTER_ADDRESS_PLAN['cloud-workers'].start,
     flavor: 'b3-8',
     image: 'Ubuntu 24.04',
     region: REGION
@@ -52,7 +53,7 @@ const NODE_POOLS: readonly NodePool[] = [
     role: 'control-plane',
     count: parseNodeCount(process.env.OVH_DEDICATED_CONTROL_PLANE_COUNT, 0),
     ingress: true,
-    privateIpStart: 30,
+    privateIpStart: CLUSTER_ADDRESS_PLAN['dedicated-control-plane'].start,
     plan: process.env.OVH_DEDICATED_SERVER_PLAN?.trim() ?? '',
     operatingSystem: 'ubuntu2404-server_64',
     datacenter: process.env.OVH_DEDICATED_DATACENTER?.trim() ?? '',
@@ -65,7 +66,7 @@ const NODE_POOLS: readonly NodePool[] = [
     role: 'worker',
     count: parseNodeCount(process.env.OVH_DEDICATED_WORKER_COUNT, 0),
     ingress: true,
-    privateIpStart: 100,
+    privateIpStart: CLUSTER_ADDRESS_PLAN['dedicated-workers'].start,
     plan: process.env.OVH_DEDICATED_SERVER_PLAN?.trim() ?? '',
     operatingSystem: 'ubuntu2404-server_64',
     datacenter: process.env.OVH_DEDICATED_DATACENTER?.trim() ?? '',

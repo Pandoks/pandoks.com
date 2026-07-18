@@ -73,7 +73,7 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
 - **Prefer `$resolve([...]).apply(...)` over chained `.apply`** when
   multiple outputs need to settle together —
   `infra/tailscale.ts:63-91`, `infra/kubernetes.ts:38-50`,
-  `infra/cloudflare.ts:73-81`.
+  `infra/cloudflare.ts:79-87`.
 
 ## Secret naming
 
@@ -103,7 +103,8 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
 - **SST resource string IDs are PascalCase**: `ApiRouter`,
   `NotionWebhookHandler`, `TextSms`, `ScheduleTextGroup`,
   `ScheduleInvokeTextRole`, `OvhK3sPrivateNetwork`,
-  `OvhOriginCloudflareCaCertificate`.
+  `OvhOriginCloudflareCaCertificate` (aliased from
+  `HetznerOriginCloudflareCaCertificate`).
 - **Stage names lowercase**: `production`, `pandoks`. `STAGE_NAME`
   derives to `'prod'` / `'dev'` (`infra/dns.ts:9`). Inside CI, the
   `SST_STAGE` env defaults to `'production'`
@@ -119,6 +120,15 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
   `OVH_CLOUD_PROJECT_SERVICE` is required for the vRack project attachment,
   private network, subnet, gateway, and load balancers even when all compute is
   dedicated.
+- **The vRack `/24` has fixed owners.** Neutron/DHCP owns `.2-.99`, MetalLB
+  owns `.100-.149`, dedicated control planes own `.150-.199`, and dedicated
+  workers own `.200-.254`. Change `CLUSTER_ADDRESS_PLAN`, the subnet, MetalLB,
+  monitoring endpoints, and their contract tests together.
+- **Origin TLS keeps its deployed legacy identities.**
+  `secrets.k8s.OriginTlsKey` and `.OriginTlsCrt` deliberately create
+  `HetznerOriginTlsKey` and `HetznerOriginTlsCrt`; the OVH-named Cloudflare
+  certificate aliases `HetznerOriginCloudflareCaCertificate`. This reuses the
+  active secret values and certificate across the provider migration.
 - **Never enable a dedicated pool from copied catalog values.** Validate its
   plan, datacenter, order region, and required options against the live
   authenticated OVH cart, then set the intended count locally and review an

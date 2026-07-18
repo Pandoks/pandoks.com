@@ -51,7 +51,7 @@ if (!existsSync(certificateSigningRequestPath)) {
     ],
     { stdio: 'inherit' }
   );
-  secrets.k8s.OvhOriginTlsKey.name.apply((secretName) => {
+  secrets.k8s.OriginTlsKey.name.apply((secretName) => {
     execFileSync(
       '/bin/sh',
       ['-lc', `sst secret set ${secretName} --stage ${$app.stage} < ${certificateKeyPath}`],
@@ -62,15 +62,21 @@ if (!existsSync(certificateSigningRequestPath)) {
 }
 
 const certificateSigningRequest = readFileSync(certificateSigningRequestPath);
-const ovhOriginCert = new cloudflare.OriginCaCertificate('OvhOriginCloudflareCaCertificate', {
-  hostnames: [EXAMPLE_DOMAIN],
-  requestType: 'origin-rsa',
-  csr: certificateSigningRequest.toString(),
-  requestedValidity: 5475 // 15 years
-});
+const ovhOriginCert = new cloudflare.OriginCaCertificate(
+  'OvhOriginCloudflareCaCertificate',
+  {
+    hostnames: [EXAMPLE_DOMAIN],
+    requestType: 'origin-rsa',
+    csr: certificateSigningRequest.toString(),
+    requestedValidity: 5475 // 15 years
+  },
+  {
+    aliases: [{ name: 'HetznerOriginCloudflareCaCertificate' }]
+  }
+);
 
 if (needToSetCertificateSecret) {
-  $resolve([ovhOriginCert.certificate, secrets.k8s.OvhOriginTlsCrt.name]).apply(
+  $resolve([ovhOriginCert.certificate, secrets.k8s.OriginTlsCrt.name]).apply(
     ([certificate, secretName]) => {
       execFileSync(
         '/bin/sh',

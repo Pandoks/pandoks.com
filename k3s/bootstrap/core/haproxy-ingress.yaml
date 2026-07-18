@@ -35,6 +35,7 @@ spec:
             targetPort: https
             nodePort: 30443
       config:
+        use-proxy-protocol: "true"
         use-forwarded-headers: "true"
         forwarded-for-header: "X-Forwarded-For"
       stats:

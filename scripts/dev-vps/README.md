@@ -73,7 +73,9 @@ Export state before changing it:
 jq -r '
   .deployment.resources[]
   | select(
-      (.urn | endswith("::OvhDevBox"))
+      (.urn | endswith("::HetznerDevBox"))
+      or (.urn | endswith("::HetznerDevBoxTailnetRegistrationAuthKey"))
+      or (.urn | endswith("::OvhDevBox"))
       or (.urn | endswith("::OvhDevBoxTailnetRegistrationAuthKey"))
     )
   | [.urn, .type, (.protect // false)]
@@ -84,11 +86,22 @@ jq -r '
 This output intentionally does not print any registration-key value. Do not
 print, copy, or put a registration-key value in shell history.
 
-First check the exact logical-name presence of the primary and registration-key
-records. This decision tree prints no resource ID or registration-key value.
-It fails closed if either logical name is ambiguous:
+Two exact state identity families may exist: the merge-base Hetzner resources
+(`HetznerDevBox`, `HetznerDevBoxTailnetRegistrationAuthKey`) or the intermediate
+OVH resources (`OvhDevBox`, `OvhDevBoxTailnetRegistrationAuthKey`). The
+following decision tree selects at most one family without printing a physical
+ID or key value. If both HetznerDevBox and OvhDevBox families are represented,
+or if any exact logical name is duplicated, do not continue.
 
 ```sh
+HETZNER_DEV_BOX_COUNT="$(jq '
+  [.deployment.resources[] | select(.urn | endswith("::HetznerDevBox"))] | length
+' /tmp/pandoks-state-before-dev-vps-cleanup.json)"
+HETZNER_DEV_BOX_KEY_COUNT="$(jq '
+  [.deployment.resources[]
+   | select(.urn | endswith("::HetznerDevBoxTailnetRegistrationAuthKey"))]
+  | length
+' /tmp/pandoks-state-before-dev-vps-cleanup.json)"
 OVH_DEV_BOX_COUNT="$(jq '
   [.deployment.resources[] | select(.urn | endswith("::OvhDevBox"))] | length
 ' /tmp/pandoks-state-before-dev-vps-cleanup.json)"
@@ -98,147 +111,203 @@ OVH_DEV_BOX_KEY_COUNT="$(jq '
   | length
 ' /tmp/pandoks-state-before-dev-vps-cleanup.json)"
 
-case "${OVH_DEV_BOX_COUNT}:${OVH_DEV_BOX_KEY_COUNT}" in
-  "0:0")
-    printf '%s\n' "Neither OvhDevBox state record is present; no cleanup is needed. Continue to the final diff."
-    unset OVH_DEV_BOX_COUNT OVH_DEV_BOX_KEY_COUNT
+case "${HETZNER_DEV_BOX_COUNT}:${HETZNER_DEV_BOX_KEY_COUNT}:${OVH_DEV_BOX_COUNT}:${OVH_DEV_BOX_KEY_COUNT}" in
+  "0:0:0:0")
+    DEV_BOX_COUNT=0
+    DEV_BOX_KEY_COUNT=0
+    DEV_BOX_LOGICAL_NAME=
+    DEV_BOX_KEY_LOGICAL_NAME=
+    DEV_BOX_FAMILY=
+    printf '%s\n' "No historical dev-box state record is present; continue to the final diff."
     ;;
-  "0:1")
-    printf '%s\n' "Only the OvhDevBox registration-key state record is present; removing the orphaned record."
-    if ./node_modules/.bin/sst state remove OvhDevBoxTailnetRegistrationAuthKey --stage pandoks; then
-      printf '%s\n' "The orphaned registration-key state record was removed. Continue directly to the final diff."
-    else
-      printf '%s\n' "The orphaned registration-key state record could not be removed; do not continue."
-      unset OVH_DEV_BOX_COUNT OVH_DEV_BOX_KEY_COUNT
-      exit 1
-    fi
-    unset OVH_DEV_BOX_COUNT OVH_DEV_BOX_KEY_COUNT
+  "0:1:0:0" | "1:0:0:0" | "1:1:0:0")
+    DEV_BOX_COUNT="${HETZNER_DEV_BOX_COUNT}"
+    DEV_BOX_KEY_COUNT="${HETZNER_DEV_BOX_KEY_COUNT}"
+    DEV_BOX_LOGICAL_NAME=HetznerDevBox
+    DEV_BOX_KEY_LOGICAL_NAME=HetznerDevBoxTailnetRegistrationAuthKey
+    DEV_BOX_FAMILY=hetzner
     ;;
-  "1:0" | "1:1")
+  "0:0:0:1" | "0:0:1:0" | "0:0:1:1")
+    DEV_BOX_COUNT="${OVH_DEV_BOX_COUNT}"
+    DEV_BOX_KEY_COUNT="${OVH_DEV_BOX_KEY_COUNT}"
+    DEV_BOX_LOGICAL_NAME=OvhDevBox
+    DEV_BOX_KEY_LOGICAL_NAME=OvhDevBoxTailnetRegistrationAuthKey
+    DEV_BOX_FAMILY=ovh
     ;;
   *)
-    printf '%s\n' "OvhDevBox state records are ambiguous; do not continue."
+    printf '%s\n' "Historical dev-box state records are mixed or ambiguous; do not continue."
+    unset HETZNER_DEV_BOX_COUNT HETZNER_DEV_BOX_KEY_COUNT
     unset OVH_DEV_BOX_COUNT OVH_DEV_BOX_KEY_COUNT
     exit 1
     ;;
 esac
+unset HETZNER_DEV_BOX_COUNT HETZNER_DEV_BOX_KEY_COUNT
+unset OVH_DEV_BOX_COUNT OVH_DEV_BOX_KEY_COUNT
+
+if [ "${DEV_BOX_COUNT}" -eq 0 ] && [ "${DEV_BOX_KEY_COUNT}" -eq 1 ]; then
+  printf '%s\n' "Only one exact registration-key state record is present; removing that orphaned record."
+  if ./node_modules/.bin/sst state remove "${DEV_BOX_KEY_LOGICAL_NAME}" --stage pandoks; then
+    DEV_BOX_KEY_COUNT=0
+    printf '%s\n' "The orphaned registration-key state record was removed."
+  else
+    printf '%s\n' "The orphaned registration-key state record could not be removed; do not continue."
+    exit 1
+  fi
+fi
 ```
 
-If the primary record was absent (`0:0` or `0:1`), do not run either primary
-detach/delete branch below; continue directly to the final diff after the
-orphaned-key removal, if any. If the primary record was present (`1:0` or
-`1:1`), run this type-aware identity gate before either detach/delete branch.
-It uses the exported Pulumi resource's `type`, `id`, and, for a Public Cloud
-instance, `inputs.serviceName`. It prints no ID or service value and removes
-entered values from the shell after comparison:
+If `DEV_BOX_COUNT` is zero, do not run either primary detach/delete branch
+below. If it is one, run this type-aware identity gate first. It verifies the
+selected family's provider type and physical ID. For an OVH Public Cloud
+instance it also verifies `inputs.serviceName`. The gate prints no ID or service
+value and removes entered values from the shell after comparison.
 
-For a historical `ovh.cloudproject.Instance` (`ovh:CloudProject/instance:Instance`
-in exported state), obtain both the Public Cloud instance ID/UUID and the
-separate Public Cloud project/service ID from the OVH Control Panel. For an
-`ovh.vps.Vps` order (`ovh:Vps/vps:Vps` in exported state), obtain the VPS
-service name/ID that identifies that VPS. Any other type or any mismatch stops
-the procedure.
+For `HetznerDevBox`, the only accepted type is
+`hcloud:index/server:Server`; obtain that server's numeric ID from the Hetzner
+Control Panel. For `OvhDevBox`, the accepted types remain
+`ovh:CloudProject/instance:Instance` and
+`ovh:Vps/vps:Vps`; obtain the corresponding IDs from the OVH Control Panel. Any
+cross-family provider type, unsupported type, or mismatch stops the procedure.
 
 ```sh
-OVH_DEV_BOX_TYPE="$(jq -r '
-  [.deployment.resources[] | select(.urn | endswith("::OvhDevBox"))]
+DEV_BOX_IDENTITY_VERIFIED=false
+if [ "${DEV_BOX_COUNT}" -eq 1 ]; then
+DEV_BOX_TYPE="$(jq -r --arg logical "${DEV_BOX_LOGICAL_NAME}" '
+  [.deployment.resources[] | select(.urn | endswith("::" + $logical))]
   | if length == 1 then .[0].type else empty end
 ' /tmp/pandoks-state-before-dev-vps-cleanup.json)"
 
-case "${OVH_DEV_BOX_TYPE}" in
-  "ovh:CloudProject/instance:Instance")
+case "${DEV_BOX_FAMILY}:${DEV_BOX_TYPE}" in
+  "hetzner:hcloud:index/server:Server")
+    printf "Expected Hetzner server ID from Control Panel: "
+    read -r EXPECTED_SERVER_ID
+    if jq -e \
+      --arg logical "${DEV_BOX_LOGICAL_NAME}" \
+      --arg expected "${EXPECTED_SERVER_ID}" '
+        any(
+          .deployment.resources[];
+          (.urn | endswith("::" + $logical))
+          and (.type == "hcloud:index/server:Server")
+          and (.id == $expected)
+        )
+      ' /tmp/pandoks-state-before-dev-vps-cleanup.json > /dev/null; then
+      DEV_BOX_IDENTITY_VERIFIED=true
+      printf '%s\n' "HetznerDevBox physical server ID matches exported state."
+    else
+      printf '%s\n' "HetznerDevBox physical server ID does not match exported state; do not continue."
+      unset EXPECTED_SERVER_ID DEV_BOX_TYPE
+      exit 1
+    fi
+    unset EXPECTED_SERVER_ID
+    ;;
+  "ovh:ovh:CloudProject/instance:Instance")
     printf "Expected OVH Public Cloud instance ID/UUID from Control Panel: "
     read -r EXPECTED_INSTANCE_ID
     printf "Expected OVH Public Cloud project/service ID from Control Panel: "
     read -r EXPECTED_PROJECT_SERVICE_ID
     if jq -e \
+      --arg logical "${DEV_BOX_LOGICAL_NAME}" \
       --arg instance "${EXPECTED_INSTANCE_ID}" \
       --arg project "${EXPECTED_PROJECT_SERVICE_ID}" '
         any(
           .deployment.resources[];
-          (.urn | endswith("::OvhDevBox"))
+          (.urn | endswith("::" + $logical))
           and (.type == "ovh:CloudProject/instance:Instance")
           and (.id == $instance)
           and (.inputs.serviceName == $project)
         )
-      ' /tmp/pandoks-state-before-dev-vps-cleanup.json >/dev/null; then
+      ' /tmp/pandoks-state-before-dev-vps-cleanup.json > /dev/null; then
+      DEV_BOX_IDENTITY_VERIFIED=true
       printf '%s\n' "OvhDevBox instance and project/service IDs match exported state."
     else
       printf '%s\n' "OvhDevBox instance or project/service ID does not match exported state; do not continue."
-      unset EXPECTED_INSTANCE_ID EXPECTED_PROJECT_SERVICE_ID OVH_DEV_BOX_TYPE
+      unset EXPECTED_INSTANCE_ID EXPECTED_PROJECT_SERVICE_ID DEV_BOX_TYPE
       exit 1
     fi
     unset EXPECTED_INSTANCE_ID EXPECTED_PROJECT_SERVICE_ID
     ;;
-  "ovh:Vps/vps:Vps")
+  "ovh:ovh:Vps/vps:Vps")
     printf "Expected OVH VPS service name/ID from Control Panel: "
     read -r EXPECTED_VPS_SERVICE_ID
-    if jq -e --arg expected "${EXPECTED_VPS_SERVICE_ID}" '
-      any(
-        .deployment.resources[];
-        (.urn | endswith("::OvhDevBox"))
-        and (.type == "ovh:Vps/vps:Vps")
-        and (.id == $expected)
-      )
-    ' /tmp/pandoks-state-before-dev-vps-cleanup.json >/dev/null; then
+    if jq -e \
+      --arg logical "${DEV_BOX_LOGICAL_NAME}" \
+      --arg expected "${EXPECTED_VPS_SERVICE_ID}" '
+        any(
+          .deployment.resources[];
+          (.urn | endswith("::" + $logical))
+          and (.type == "ovh:Vps/vps:Vps")
+          and (.id == $expected)
+        )
+      ' /tmp/pandoks-state-before-dev-vps-cleanup.json > /dev/null; then
+      DEV_BOX_IDENTITY_VERIFIED=true
       printf '%s\n' "OvhDevBox VPS service name/ID matches exported state."
     else
       printf '%s\n' "OvhDevBox VPS service name/ID does not match exported state; do not continue."
-      unset EXPECTED_VPS_SERVICE_ID OVH_DEV_BOX_TYPE
+      unset EXPECTED_VPS_SERVICE_ID DEV_BOX_TYPE
       exit 1
     fi
     unset EXPECTED_VPS_SERVICE_ID
     ;;
   *)
-    printf '%s\n' "OvhDevBox resource type is unsupported or ambiguous; do not continue."
-    unset OVH_DEV_BOX_TYPE
+    printf '%s\n' "Selected dev-box provider type is unsupported, cross-family, or ambiguous; do not continue."
+    unset DEV_BOX_TYPE
     exit 1
     ;;
 esac
-unset OVH_DEV_BOX_TYPE
+unset DEV_BOX_TYPE
+fi
+[ "${DEV_BOX_COUNT}" -eq 0 ] || [ "${DEV_BOX_IDENTITY_VERIFIED}" = true ]
 ```
 
 If the gate does not report a match, do not run either detach/delete branch.
 
 Only after the identity gate reports a match and the keep/delete decision is
-confirmed, if the `OvhDevBox` row identifies the VPS-4 that you are retaining
+confirmed, if the selected row identifies the server that you are retaining
 manually, detach its state record without deleting the physical service:
 
 ```sh
-./node_modules/.bin/sst state remove OvhDevBox --stage pandoks
+[ "${DEV_BOX_IDENTITY_VERIFIED}" = true ]
+./node_modules/.bin/sst state remove "${DEV_BOX_LOGICAL_NAME}" --stage pandoks
 ```
 
-Only if the initial exact presence check was `1:1`, confirm that its related
-`OvhDevBoxTailnetRegistrationAuthKey` row belongs to this old dev-box
-configuration, then detach that state record as well. Do not print or copy the
-key value:
+Only if `DEV_BOX_KEY_COUNT` is one, confirm that the selected family's
+registration-key row belongs to this old dev-box configuration, then detach
+that state record as well. Do not print or copy the key value:
 
 ```sh
-./node_modules/.bin/sst state remove OvhDevBoxTailnetRegistrationAuthKey --stage pandoks
+[ "${DEV_BOX_IDENTITY_VERIFIED}" = true ]
+[ "${DEV_BOX_KEY_COUNT}" -eq 1 ]
+./node_modules/.bin/sst state remove "${DEV_BOX_KEY_LOGICAL_NAME}" --stage pandoks
 ```
 
-Only after the identity gate reports a match, if the `OvhDevBox` row identifies
-an obsolete Public Cloud instance or failed VPS order, confirm its service ID
-in the OVH Control Panel, delete that exact provider resource there, and only
-then remove its stale state reference:
+Alternatively, only after the same identity gate reports a match, if the
+selected row identifies an obsolete Hetzner server, OVH Public Cloud instance,
+or failed OVH VPS order, delete that exact physical provider resource in its
+Control Panel and only then remove its stale state reference:
 
 ```sh
-./node_modules/.bin/sst state remove OvhDevBox --stage pandoks
+[ "${DEV_BOX_IDENTITY_VERIFIED}" = true ]
+./node_modules/.bin/sst state remove "${DEV_BOX_LOGICAL_NAME}" --stage pandoks
 ```
 
-Only if the initial exact presence check was `1:1`, confirm that a related
-`OvhDevBoxTailnetRegistrationAuthKey` row belongs to the obsolete configuration,
-then remove that stale state reference without printing or copying its key
-value:
+Only if `DEV_BOX_KEY_COUNT` is one, confirm that the selected family's key row
+belongs to that obsolete configuration, then remove the stale key reference:
 
 ```sh
-./node_modules/.bin/sst state remove OvhDevBoxTailnetRegistrationAuthKey --stage pandoks
+[ "${DEV_BOX_IDENTITY_VERIFIED}" = true ]
+[ "${DEV_BOX_KEY_COUNT}" -eq 1 ]
+./node_modules/.bin/sst state remove "${DEV_BOX_KEY_LOGICAL_NAME}" --stage pandoks
 ```
 
-Never run `sst state remove OvhDevBox` until the identity gate reports a match
-and the keep/delete decision is confirmed. Remove the registration-key record
-only in the confirmed `1:1` primary-resource branch, or in the exact `0:1`
-orphaned-key branch above.
+Never remove a primary state record until the selected family's identity gate
+reports a match and the keep/delete decision is confirmed. Remove a key record
+only with its one confirmed primary family or as the exact key-only orphan
+handled by the decision tree. Clear the shell variables when finished:
+
+```sh
+unset DEV_BOX_COUNT DEV_BOX_KEY_COUNT DEV_BOX_LOGICAL_NAME
+unset DEV_BOX_KEY_LOGICAL_NAME DEV_BOX_FAMILY DEV_BOX_IDENTITY_VERIFIED
+```
 
 Finally:
 
@@ -246,8 +315,9 @@ Finally:
 ./node_modules/.bin/sst diff --stage pandoks
 ```
 
-The diff must contain no creation, replacement, or deletion for either
-`OvhDevBox` or `OvhDevBoxTailnetRegistrationAuthKey`.
+The diff must contain no creation, replacement, or deletion for
+`HetznerDevBox`, `HetznerDevBoxTailnetRegistrationAuthKey`, `OvhDevBox`, or
+`OvhDevBoxTailnetRegistrationAuthKey`.
 
 ## Recovery
 

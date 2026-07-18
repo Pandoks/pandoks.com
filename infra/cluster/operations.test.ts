@@ -7,6 +7,17 @@ const publicCloud = readFileSync('infra/cluster/providers/public-cloud.ts', 'utf
 const dedicated = readFileSync('infra/cluster/providers/dedicated.ts', 'utf8');
 const envExample = readFileSync('.env.example', 'utf8');
 const runbook = readFileSync('infra/cluster/README.md', 'utf8');
+const secrets = readFileSync('infra/secrets.ts', 'utf8');
+const cloudflare = readFileSync('infra/cloudflare.ts', 'utf8');
+const credentials = readFileSync('k3s/base/core/credentials.yaml', 'utf8');
+const network = readFileSync('infra/cluster/network.ts', 'utf8');
+const metalLb = readFileSync('k3s/base/core/metallb.yaml', 'utf8');
+const loadBalancers = readFileSync('infra/cluster/load-balancers.ts', 'utf8');
+const ingress = readFileSync('k3s/bootstrap/core/haproxy-ingress.yaml', 'utf8');
+const checksWorkflow = readFileSync('.github/workflows/checks.yaml', 'utf8');
+const deployWorkflow = readFileSync('.github/workflows/deploy-infra.yaml', 'utf8');
+const devVpsRunbook = readFileSync('scripts/dev-vps/README.md', 'utf8');
+const topologyValidator = readFileSync('scripts/cluster/validate-topology-env.sh', 'utf8');
 
 void test('passes exact per-node protection through both provider adapters', () => {
   assert.match(cluster, /OVH_UNPROTECTED_NODE_LOGICAL_NAME/);
@@ -101,4 +112,102 @@ void test('runbook orders control-plane etcd removal commands safely', () => {
   assert.ok(remove < deleteNode);
   assert.ok(deleteNode < memberListAfter);
   assert.ok(memberListAfter < healthAfter);
+});
+
+void test('retains legacy origin TLS state identities and aligned Kubernetes placeholders', () => {
+  assert.match(
+    secrets,
+    /OriginTlsKey:\s*new sst\.Secret\('HetznerOriginTlsKey',\s*'No Origin Tls Key Set'\)/
+  );
+  assert.match(
+    secrets,
+    /OriginTlsCrt:\s*new sst\.Secret\('HetznerOriginTlsCrt',\s*'No Origin Tls Cert Set'\)/
+  );
+  assert.doesNotMatch(secrets, /new sst\.Secret\('OvhOriginTls(?:Key|Crt)'/);
+  assert.match(cloudflare, /secrets\.k8s\.OriginTlsKey/);
+  assert.match(cloudflare, /secrets\.k8s\.OriginTlsCrt/);
+  assert.match(
+    cloudflare,
+    /aliases:\s*\[\s*\{\s*name:\s*'HetznerOriginCloudflareCaCertificate'\s*\}\s*\]/
+  );
+  assert.match(credentials, /\$\{HetznerOriginTlsCrt \| base64\}/);
+  assert.match(credentials, /\$\{HetznerOriginTlsKey \| base64\}/);
+  assert.doesNotMatch(credentials, /\$\{OvhOriginTls/);
+  assert.match(runbook, /intentional legacy.*HetznerOriginTlsKey/is);
+  assert.match(runbook, /HetznerOriginCloudflareCaCertificate/);
+});
+
+void test('keeps network, node pools, and MetalLB on one non-overlapping address plan', () => {
+  assert.match(network, /CLUSTER_ADDRESS_PLAN\.dhcp\.start/);
+  assert.match(network, /CLUSTER_ADDRESS_PLAN\.dhcp\.end/);
+  assert.match(cluster, /CLUSTER_ADDRESS_PLAN\['cloud-control-plane'\]\.start/);
+  assert.match(cluster, /CLUSTER_ADDRESS_PLAN\['cloud-workers'\]\.start/);
+  assert.match(cluster, /CLUSTER_ADDRESS_PLAN\['dedicated-control-plane'\]\.start/);
+  assert.match(cluster, /CLUSTER_ADDRESS_PLAN\['dedicated-workers'\]\.start/);
+  assert.match(metalLb, /10\.0\.1\.100-10\.0\.1\.149/);
+  assert.doesNotMatch(metalLb, /10\.0\.1\.100-10\.0\.1\.200/);
+  assert.match(runbook, /DHCP.*\.2-.99/is);
+  assert.match(runbook, /MetalLB.*\.100-.149/is);
+  assert.match(runbook, /dedicated control-plane.*\.150-.199/is);
+  assert.match(runbook, /dedicated worker.*\.200-.254/is);
+  for (const [name, maximum] of [
+    ['OVH_CLOUD_CONTROL_PLANE_COUNT', 40],
+    ['OVH_CLOUD_WORKER_COUNT', 50],
+    ['OVH_DEDICATED_CONTROL_PLANE_COUNT', 50],
+    ['OVH_DEDICATED_WORKER_COUNT', 55]
+  ] as const) {
+    assert.match(topologyValidator, new RegExp(`validate_count ${name} .* ${maximum}`));
+  }
+});
+
+void test('enables PROXY v2 on both OVH load balancers and HAProxy Ingress', () => {
+  assert.match(loadBalancers, /protocol:\s*'proxyV2'/);
+  assert.match(ingress, /use-proxy-protocol:\s*"true"/);
+});
+
+void test('maps and validates topology variables before both CI SST commands', () => {
+  const topologyVariables = [
+    'OVH_CLOUD_CONTROL_PLANE_COUNT',
+    'OVH_CLOUD_WORKER_COUNT',
+    'OVH_DEDICATED_CONTROL_PLANE_COUNT',
+    'OVH_DEDICATED_WORKER_COUNT',
+    'OVH_DEDICATED_SERVER_PLAN',
+    'OVH_DEDICATED_DATACENTER',
+    'OVH_DEDICATED_ORDER_REGION',
+    'OVH_DEDICATED_PLAN_OPTIONS'
+  ];
+
+  for (const workflow of [checksWorkflow, deployWorkflow]) {
+    for (const variable of topologyVariables) {
+      assert.match(workflow, new RegExp(`${variable}: \\\${\\{ vars\\.${variable} \\}\\}`));
+    }
+    assert.match(workflow, /scripts\/cluster\/validate-topology-env\.sh/);
+    assert.doesNotMatch(workflow, /OVH_UNPROTECTED_NODE_LOGICAL_NAME:\s*\$\{\{/);
+  }
+
+  assert.ok(
+    checksWorkflow.indexOf('scripts/cluster/validate-topology-env.sh') <
+      checksWorkflow.indexOf('pnpm sst diff --stage production')
+  );
+  assert.ok(
+    deployWorkflow.indexOf('scripts/cluster/validate-topology-env.sh') <
+      deployWorkflow.indexOf('pnpm sst refresh --stage "$SST_STAGE"')
+  );
+  assert.match(runbook, /GitHub environment variables/);
+});
+
+void test('dev cleanup supports exact Hetzner and OVH identity families without mixing them', () => {
+  for (const logicalName of [
+    'HetznerDevBox',
+    'HetznerDevBoxTailnetRegistrationAuthKey',
+    'OvhDevBox',
+    'OvhDevBoxTailnetRegistrationAuthKey'
+  ]) {
+    assert.match(devVpsRunbook, new RegExp(`endswith\\("\\\\?::${logicalName}"\\)`));
+  }
+  assert.match(devVpsRunbook, /both HetznerDevBox and OvhDevBox.*do not continue/is);
+  assert.match(devVpsRunbook, /DEV_BOX_LOGICAL_NAME/);
+  assert.match(devVpsRunbook, /DEV_BOX_KEY_LOGICAL_NAME/);
+  assert.match(devVpsRunbook, /HetznerDevBox.*hcloud:index\/server:Server/is);
+  assert.match(devVpsRunbook, /The diff must contain no.*HetznerDevBox.*OvhDevBox/is);
 });

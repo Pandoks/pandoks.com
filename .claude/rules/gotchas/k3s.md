@@ -58,12 +58,12 @@ phases. Applying overlay first = silent CRD-missing failures.
 
 ## Per-environment specifics
 
-| Env       | MetalLB pool                                                            | etcd IPs                  | Tailscale operator | ArgoCD App-of-Apps                     |
-| --------- | ----------------------------------------------------------------------- | ------------------------- | ------------------ | -------------------------------------- |
-| `local`   | `172.30.100.1-172.30.100.200` (`k3s/overlays/local/dev-patch.yaml:1-8`) | `172.30.0.4-6` (k3d)      | ❌                 | ❌                                     |
-| `dev`     | (no inbound; cluster-overlay only)                                      | (cluster overlay)         | ✅ (via cluster/)  | ❌                                     |
-| `prod`    | `10.0.1.100-10.0.1.200` (`k3s/base/core/metallb.yaml:1-9`)              | OVH CP IPs (`10.0.1.10+`) | ✅                 | ✅ (`overlays/prod/argocd.yaml:47-69`) |
-| `cluster` | (intermediate overlay — not deployed directly; `dev`/`prod` include it) |                           |                    |                                        |
+| Env       | MetalLB pool                                                            | etcd IPs                               | Tailscale operator | ArgoCD App-of-Apps                     |
+| --------- | ----------------------------------------------------------------------- | -------------------------------------- | ------------------ | -------------------------------------- |
+| `local`   | `172.30.100.1-172.30.100.200` (`k3s/overlays/local/dev-patch.yaml:1-8`) | `172.30.0.4-6` (k3d)                   | ❌                 | ❌                                     |
+| `dev`     | (no inbound; cluster-overlay only)                                      | (cluster overlay)                      | ✅ (via cluster/)  | ❌                                     |
+| `prod`    | `10.0.1.100-10.0.1.149` (`k3s/base/core/metallb.yaml:1-9`)              | Cloud `.10-.49`, dedicated `.150-.199` | ✅                 | ✅ (`overlays/prod/argocd.yaml:47-69`) |
+| `cluster` | (intermediate overlay — not deployed directly; `dev`/`prod` include it) |                                        |                    |                                        |
 
 The `overlays/cluster/` overlay is the shared parent for `dev` and
 `prod` — it carries the Tailscale operator HelmChart, the
@@ -97,7 +97,8 @@ The CLI renders manifests through `scripts/lib/template.sh` after
    returns every `Resource.X.value` as a flat JSON object
    (`KwokPhoneNumber`, `GithubPersonalAccessToken`,
    `MainMainPostgresSuperuserPassword`,
-   `KubernetesGrafanaAdminPassword`, `OvhOriginTlsCrt`, etc.).
+   `KubernetesGrafanaAdminPassword`, `HetznerOriginTlsCrt`, etc.). The
+   origin TLS names intentionally remain legacy-named during the OVH migration.
 2. **Computed vars** (`scripts/cluster/deploy.sh:35-43`) —
    `${ImageRegistry}`, `${ImageTag}`, `${IsLocal}`.
 
@@ -179,8 +180,8 @@ vs. example-noise:
      makes every pod in the namespace pull from ghcr without needing
      `imagePullSecrets` in the podspec. Skip if no `ghcr-auth`.
    - `Secret/cloudflare-origin-tls` of type `kubernetes.io/tls` with
-     `tls.crt: ${OvhOriginTlsCrt | base64}` and
-     `tls.key: ${OvhOriginTlsKey | base64}` — required for HAProxy
+     `tls.crt: ${HetznerOriginTlsCrt | base64}` and
+     `tls.key: ${HetznerOriginTlsKey | base64}` — required for HAProxy
      TLS termination (Cloudflare is in Full Strict mode, so the origin
      must present a cert).
 6. **App-specific SA only if the app needs operator-style RBAC** (like

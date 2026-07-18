@@ -6,6 +6,20 @@ export type NodePoolName =
   | 'dedicated-control-plane'
   | 'dedicated-workers';
 
+export const CLUSTER_ADDRESS_PLAN = {
+  dhcp: { start: 2, end: 99 },
+  metalLb: { start: 100, end: 149 },
+  'cloud-control-plane': { start: 10, end: 49 },
+  'cloud-workers': { start: 50, end: 99 },
+  'dedicated-control-plane': { start: 150, end: 199 },
+  'dedicated-workers': { start: 200, end: 254 }
+} as const satisfies Readonly<Record<'dhcp' | 'metalLb' | NodePoolName, AddressRange>>;
+
+type AddressRange = {
+  start: number;
+  end: number;
+};
+
 type NodePoolBase = {
   name: NodePoolName;
   provider: NodeProvider;
@@ -223,6 +237,23 @@ export function normalizeNodePools(
       if (hostOctet < 2 || hostOctet > 254) {
         throw new Error(
           `Node pool ${pool.name} allocates an address outside ${cidr}: ${hostOctet}`
+        );
+      }
+      if (
+        hostOctet >= CLUSTER_ADDRESS_PLAN.metalLb.start &&
+        hostOctet <= CLUSTER_ADDRESS_PLAN.metalLb.end
+      ) {
+        throw new Error(
+          `Node pool ${pool.name} cannot allocate ${subnetPrefix}.${hostOctet} from the ` +
+            `MetalLB range ${subnetPrefix}.${CLUSTER_ADDRESS_PLAN.metalLb.start}-` +
+            `${subnetPrefix}.${CLUSTER_ADDRESS_PLAN.metalLb.end}`
+        );
+      }
+      const allocation = CLUSTER_ADDRESS_PLAN[pool.name];
+      if (hostOctet < allocation.start || hostOctet > allocation.end) {
+        throw new Error(
+          `Node pool ${pool.name} allocation ${subnetPrefix}.${allocation.start}-` +
+            `${subnetPrefix}.${allocation.end} cannot include ${subnetPrefix}.${hostOctet}`
         );
       }
       const privateIp = `${subnetPrefix}.${hostOctet}`;

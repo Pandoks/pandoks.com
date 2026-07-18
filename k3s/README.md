@@ -111,7 +111,8 @@ kubectl --context <tailscale-context> get pods
 
 To expose the cluster's services to the public internet, use ingress
 controllers. SST provisions OVH public ingress load balancers on the shared
-private network and sends traffic to cluster nodes over vRack.
+private network and sends PROXY v2 traffic to cluster nodes over vRack. The
+HAProxy Ingress chart enables `use-proxy-protocol` to decode that transport.
 
 ### HAProxy Ingress Controller
 
@@ -177,7 +178,7 @@ overlays because etcd endpoints are environment-specific.
 ```
 k3s/base/core/namespaces.yaml          → monitoring namespace
 k3s/overlays/dev/prom-grafana.yaml     → HelmChart with k3d control plane IPs (172.30.0.4-6)
-k3s/overlays/prod/prom-grafana.yaml    → HelmChart with OVH IPs (10.0.1.10+)
+k3s/overlays/prod/prom-grafana.yaml    → HelmChart with active OVH control-plane IPs
 k3s/templates/monitoring.yaml          → Grafana secrets (SST template)
 ```
 
@@ -187,6 +188,10 @@ k3s embedded etcd requires `--etcd-expose-metrics` flag to expose metrics on por
 
 - **k3d**: Set via `--k3s-arg "--etcd-expose-metrics@server:*"` in `scripts/cluster/k3d.sh`
 - **OVHcloud**: Set by `infra/cluster/bootstrap.sh`
+
+OVH Public Cloud control planes use `10.0.1.10-49`; dedicated control planes
+use `10.0.1.150-199`. Keep the environment's explicit etcd endpoint list
+aligned with the active members from both ranges.
 
 The kube-prometheus-stack `kubeEtcd.endpoints` must list control plane IPs explicitly because
 k3s doesn't create pods with `component=etcd` labels (embedded etcd).

@@ -38,6 +38,47 @@ non-zero dedicated count, validate the current authenticated catalog, set the
 validated values and intended count locally, and run an authenticated
 `sst diff`. Never copy catalog values from an old preview or this runbook.
 
+The private `/24` is partitioned so each owner has a disjoint allocation:
+
+- Neutron DHCP, Public Cloud fixed ports, gateway, and load-balancer VIPs:
+  `.2-.99` (cloud control planes use `.10-.49`; cloud workers use `.50-.99`);
+- MetalLB services: `.100-.149`;
+- dedicated control-plane nodes: `.150-.199`;
+- dedicated worker nodes: `.200-.254`.
+
+Pool validation rejects a count that would cross its allocation boundary.
+OVH's public ingress load balancer sends PROXY v2 to node port `30443`, and
+HAProxy Ingress has `use-proxy-protocol: "true"` so both ends of that transport
+remain aligned.
+
+For CI, configure these non-secret GitHub environment variables in both the
+`production` and `dev` environments:
+
+- all four `OVH_*_COUNT` variables;
+- `OVH_DEDICATED_SERVER_PLAN`;
+- `OVH_DEDICATED_DATACENTER`;
+- `OVH_DEDICATED_ORDER_REGION`;
+- `OVH_DEDICATED_PLAN_OPTIONS`.
+
+All four counts must be present non-negative integers within their address
+capacity: cloud control plane `0-40`, cloud workers `0-50`, dedicated control
+plane `0-50`, and dedicated workers `0-55`. Dedicated catalog values may be
+empty when both dedicated counts are zero; otherwise CI requires all four and
+validates the plan-options JSON shape before SST starts.
+`OVH_UNPROTECTED_NODE_LOGICAL_NAME` is intentionally not a persistent GitHub
+environment variable. Set it only for the deliberate, operator-run scale-down
+procedure below.
+
+## TLS migration identity
+
+The certificate files moved from `infra/vps/` to `infra/cluster/`, but the
+intentional legacy identities `HetznerOriginTlsKey` and
+`HetznerOriginTlsCrt` remain the deployed SST secret names. The Cloudflare certificate resource
+`OvhOriginCloudflareCaCertificate` aliases the exact deployed
+`HetznerOriginCloudflareCaCertificate` identity. Those legacy names preserve
+the existing stage values and certificate; do not rename, reseed, regenerate,
+or replace them during the OVH migration.
+
 ## Preview
 
 ```sh
@@ -50,8 +91,8 @@ cart.
 
 Reject a preview that replaces `OvhK3sVrack`, `OvhK3sPrivateNetwork`,
 `OvhK3sSubnet`, `OvhK3sGateway`, existing protected compute, Cloudflare DNS, or
-the origin certificate. A compute-only migration must retain the Public Cloud
-network and load balancers.
+the aliased origin certificate. A compute-only migration must retain the Public
+Cloud network, load balancers, and both legacy-named origin TLS secrets.
 
 ## Scale up
 

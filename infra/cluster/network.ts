@@ -1,5 +1,6 @@
 import { isProduction, STAGE_NAME } from '../dns';
 import { requireOvhCloudProjectService } from '../ovh';
+import { CLUSTER_ADDRESS_PLAN } from './types';
 
 export type ClusterNetwork = {
   cidr: string;
@@ -57,8 +58,8 @@ export function createClusterNetwork(args: {
     networkId: privateNetwork.id,
     region: args.region,
     network: args.cidr,
-    start: `${subnetPrefix}.2`,
-    end: `${subnetPrefix}.254`,
+    start: `${subnetPrefix}.${CLUSTER_ADDRESS_PLAN.dhcp.start}`,
+    end: `${subnetPrefix}.${CLUSTER_ADDRESS_PLAN.dhcp.end}`,
     dhcp: true
   });
 

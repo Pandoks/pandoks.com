@@ -29,7 +29,7 @@ const dedicatedControlPlane = {
   role: 'control-plane',
   count: 2,
   ingress: true,
-  privateIpStart: 30,
+  privateIpStart: 150,
   plan: '24rise01',
   operatingSystem: 'ubuntu2404-server_64',
   datacenter: 'bhs',
@@ -77,13 +77,13 @@ void test('normalizes mixed pools with stable legacy Public Cloud identities', (
       {
         logicalName: 'OvhDedicatedControlPlaneServer0',
         hostname: 'prod-ovh-dedicated-control-plane-server-0',
-        privateIp: '10.0.1.30',
+        privateIp: '10.0.1.150',
         bootstrapCandidate: false
       },
       {
         logicalName: 'OvhDedicatedControlPlaneServer1',
         hostname: 'prod-ovh-dedicated-control-plane-server-1',
-        privateIp: '10.0.1.31',
+        privateIp: '10.0.1.151',
         bootstrapCandidate: false
       }
     ]
@@ -121,7 +121,14 @@ void test('rejects workers without a control plane', () => {
   assert.throws(
     () =>
       normalizeNodePools(
-        [{ ...cloudControlPlane, name: 'cloud-workers', role: 'worker' }],
+        [
+          {
+            ...cloudControlPlane,
+            name: 'cloud-workers',
+            role: 'worker',
+            privateIpStart: 50
+          }
+        ],
         'prod',
         '10.0.1.0/24'
       ),
@@ -136,7 +143,7 @@ void test('rejects duplicate pool names', () => {
   );
 });
 
-void test('rejects overlapping address ranges', () => {
+void test('rejects cross-pool address-range drift before IPs can overlap', () => {
   assert.throws(
     () =>
       normalizeNodePools(
@@ -144,7 +151,65 @@ void test('rejects overlapping address ranges', () => {
         'prod',
         '10.0.1.0/24'
       ),
-    /Duplicate private IP/
+    /dedicated-control-plane allocation/
+  );
+});
+
+void test('keeps Public Cloud nodes inside the Neutron-managed DHCP allocation', () => {
+  assert.throws(
+    () =>
+      normalizeNodePools([{ ...cloudControlPlane, privateIpStart: 150 }], 'prod', '10.0.1.0/24'),
+    /cloud-control-plane allocation/
+  );
+});
+
+void test('keeps dedicated nodes outside DHCP and MetalLB allocations', () => {
+  assert.throws(
+    () =>
+      normalizeNodePools(
+        [{ ...dedicatedControlPlane, count: 1, privateIpStart: 50 }],
+        'prod',
+        '10.0.1.0/24'
+      ),
+    /dedicated-control-plane allocation/
+  );
+  assert.throws(
+    () =>
+      normalizeNodePools(
+        [{ ...dedicatedControlPlane, count: 1, privateIpStart: 100 }],
+        'prod',
+        '10.0.1.0/24'
+      ),
+    /MetalLB/
+  );
+  assert.throws(
+    () =>
+      normalizeNodePools([{ ...cloudControlPlane, privateIpStart: 100 }], 'prod', '10.0.1.0/24'),
+    /MetalLB/
+  );
+});
+
+void test('rejects pool counts that overflow their reserved address allocation', () => {
+  assert.throws(
+    () =>
+      normalizeNodePools(
+        [{ ...dedicatedControlPlane, count: 51, privateIpStart: 150 }],
+        'prod',
+        '10.0.1.0/24'
+      ),
+    /dedicated-control-plane allocation.*150.*199/
+  );
+});
+
+void test('rejects an address range outside the configured IPv4 /24', () => {
+  assert.throws(
+    () =>
+      normalizeNodePools(
+        [{ ...dedicatedControlPlane, count: 1, privateIpStart: 255 }],
+        'prod',
+        '10.0.1.0/24'
+      ),
+    /outside 10\.0\.1\.0\/24/
   );
 });
 
