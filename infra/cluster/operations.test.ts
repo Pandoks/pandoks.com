@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import {
+  CLUSTER_ADDRESS_PLAN,
+  CLUSTER_INGRESS_LOAD_BALANCERS_PER_GROUP,
+  CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY,
+  CLUSTER_NETWORK_DHCP_CONSUMERS,
+  getClusterDhcpAllocationDemand
+} from './types.ts';
 
 const cluster = readFileSync('infra/cluster/cluster.ts', 'utf8');
 const publicCloud = readFileSync('infra/cluster/providers/public-cloud.ts', 'utf8');
@@ -19,6 +26,12 @@ const deployWorkflow = readFileSync('.github/workflows/deploy-infra.yaml', 'utf8
 const devVpsRunbook = readFileSync('scripts/dev-vps/README.md', 'utf8');
 const devVpsCleanup = readFileSync('scripts/dev-vps/cleanup-state.sh', 'utf8');
 const topologyValidator = readFileSync('scripts/cluster/validate-topology-env.sh', 'utf8');
+
+function shellIntegerConstant(source: string, name: string): number {
+  const match = new RegExp(`^${name}=(\\d+)$`, 'm').exec(source);
+  assert.ok(match, `missing exact shell constant ${name}`);
+  return Number(match[1]);
+}
 
 void test('passes exact per-node protection through both provider adapters', () => {
   assert.match(cluster, /OVH_UNPROTECTED_NODE_LOGICAL_NAME/);
@@ -162,23 +175,93 @@ void test('keeps network, node pools, and MetalLB on one non-overlapping address
 });
 
 void test('topology validation and load balancers share capacity constants and demand formula', () => {
+  assert.deepEqual(CLUSTER_ADDRESS_PLAN, {
+    dhcp: { start: 2, end: 99 },
+    metalLb: { start: 100, end: 149 },
+    'cloud-control-plane': { start: 10, end: 49 },
+    'cloud-workers': { start: 50, end: 99 },
+    'dedicated-control-plane': { start: 150, end: 199 },
+    'dedicated-workers': { start: 200, end: 254 }
+  });
+  assert.equal(CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY, 25);
+  assert.equal(CLUSTER_INGRESS_LOAD_BALANCERS_PER_GROUP, 1);
+  assert.equal(CLUSTER_NETWORK_DHCP_CONSUMERS, 2);
   assert.match(loadBalancers, /CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY/);
   assert.doesNotMatch(loadBalancers, /MEMBER_CAPACITY\s*=\s*25/);
-  assert.match(topologyValidator, /CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY=25/);
-  assert.match(topologyValidator, /CLUSTER_NETWORK_DHCP_CONSUMERS=2/);
+  const shellMemberCapacity = shellIntegerConstant(
+    topologyValidator,
+    'CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY'
+  );
+  const shellIngressMultiplier = shellIntegerConstant(
+    topologyValidator,
+    'CLUSTER_INGRESS_LOAD_BALANCERS_PER_GROUP'
+  );
+  const shellNetworkConsumers = shellIntegerConstant(
+    topologyValidator,
+    'CLUSTER_NETWORK_DHCP_CONSUMERS'
+  );
+  const shellDhcpCapacity = shellIntegerConstant(topologyValidator, 'DHCP_ALLOCATION_CAPACITY');
+  assert.equal(shellMemberCapacity, CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY);
+  assert.equal(shellIngressMultiplier, CLUSTER_INGRESS_LOAD_BALANCERS_PER_GROUP);
+  assert.equal(shellNetworkConsumers, CLUSTER_NETWORK_DHCP_CONSUMERS);
+  assert.equal(
+    shellDhcpCapacity,
+    CLUSTER_ADDRESS_PLAN.dhcp.end - CLUSTER_ADDRESS_PLAN.dhcp.start + 1
+  );
+  for (const [name, maximum] of [
+    ['OVH_CLOUD_CONTROL_PLANE_COUNT', 40],
+    ['OVH_CLOUD_WORKER_COUNT', 50],
+    ['OVH_DEDICATED_CONTROL_PLANE_COUNT', 50],
+    ['OVH_DEDICATED_WORKER_COUNT', 55]
+  ] as const) {
+    assert.match(topologyValidator, new RegExp(`validate_count ${name} .* ${maximum}`));
+  }
   assert.match(topologyValidator, /PUBLIC_CLOUD_FIXED_IPS=/);
   assert.match(topologyValidator, /PRIVATE_API_VIPS=/);
   assert.match(topologyValidator, /PUBLIC_INGRESS_VIPS=/);
   assert.match(topologyValidator, /DHCP_ALLOCATION_DEMAND=/);
-  assert.match(topologyValidator, /DHCP_ALLOCATION_CAPACITY=98/);
+
+  const representativeNodes = [
+    ...Array.from({ length: 3 }, () => ({
+      provider: 'public-cloud' as const,
+      role: 'control-plane' as const,
+      ingress: true
+    })),
+    ...Array.from({ length: 4 }, () => ({
+      provider: 'public-cloud' as const,
+      role: 'worker' as const,
+      ingress: true
+    })),
+    ...Array.from({ length: 2 }, () => ({
+      provider: 'dedicated' as const,
+      role: 'control-plane' as const,
+      ingress: true
+    })),
+    {
+      provider: 'dedicated' as const,
+      role: 'worker' as const,
+      ingress: true
+    }
+  ];
+  const mirroredDemand =
+    7 + shellNetworkConsumers + 1 + Math.ceil(10 / shellMemberCapacity) * shellIngressMultiplier;
+  assert.equal(getClusterDhcpAllocationDemand(representativeNodes), mirroredDemand);
+  assert.equal(mirroredDemand, 11);
 });
 
-void test('cluster monitoring includes active endpoints from both control-plane families', () => {
+void test('cluster monitoring matches the single-cloud-control-plane default', () => {
   const monitoring = readFileSync('k3s/overlays/cluster/prom-etcd-config.yaml', 'utf8');
-  assert.match(monitoring, /^\s*- 10\.0\.1\.150$/m);
-  assert.match(monitoring, /^\s*- 10\.0\.1\.151$/m);
-  assert.match(monitoring, /^\s*- 10\.0\.1\.152$/m);
-  assert.doesNotMatch(monitoring, /uncomment when adding control-plane/);
+  assert.match(cluster, /OVH_CLOUD_CONTROL_PLANE_COUNT,\s*isProduction \? 1 : 0/);
+  assert.equal(
+    cluster.match(
+      /parseNodeCount\(process\.env\.OVH_(?:CLOUD_WORKER|DEDICATED_[A-Z_]+)_COUNT, 0\)/g
+    )?.length,
+    3
+  );
+  assert.match(monitoring, /^\s*- 10\.0\.1\.10$/m);
+  assert.doesNotMatch(monitoring, /^\s*- 10\.0\.1\.(?:11|12|15[0-9])$/m);
+  assert.match(runbook, /kubeEtcd.*exact active control-plane IPs/is);
+  assert.match(runbook, /operator pre-deploy step/i);
 });
 
 void test('enables PROXY v2 on both OVH load balancers and HAProxy Ingress', () => {

@@ -76,6 +76,20 @@ SST starts.
 environment variable. Set it only for the deliberate, operator-run scale-down
 procedure below.
 
+## Update etcd monitoring endpoints
+
+The checked-in `kubeEtcd.endpoints` inventory in
+`k3s/overlays/cluster/prom-etcd-config.yaml` is honest for the default production
+topology only: one cloud control plane at `10.0.1.10`. As an operator pre-deploy
+step for every non-default topology, including any dedicated control plane,
+replace that list with the exact active control-plane IPs from the normalized
+address plan. Remove endpoints for control planes being deleted before deploying
+the overlay; never activate placeholder or planned addresses.
+
+This is an **operator pre-deploy step**. Verify the edited list against the
+intended control-plane pool counts before running the cluster deployment. This
+inventory is intentionally explicit and is not generated dynamically by SST.
+
 ## TLS migration identity
 
 The certificate files moved from `infra/vps/` to `infra/cluster/`, but the

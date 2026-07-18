@@ -81,6 +81,11 @@ orphan without a primary record after the operator types `orphan-remove`, and
 rejects a final diff mentioning any of the four historical resource names. Do
 not run ad-hoc `sst state remove` commands.
 
+If registration-key detachment succeeds but primary detachment fails, the helper
+reports partial completion, captures a private final diff when possible, and
+exits. Do not apply that diff. Re-run the same helper: it will re-export state,
+validate the remaining primary identity, and retry only that primary record.
+
 ## Recovery
 
 If Tailscale fails before lockdown, continue in the still-open OVH console.

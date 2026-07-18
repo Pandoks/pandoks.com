@@ -42,6 +42,45 @@ make_state() {
     invalid-key)
       printf '%s\n' '{"deployment":{"resources":[{"urn":"urn:pulumi:pandoks::app::ovh:Vps/vps:Vps::OvhDevBox","type":"ovh:Vps/vps:Vps","id":"vps-123"},{"urn":"urn:pulumi:pandoks::app::random:index/key:Key::OvhDevBoxTailnetRegistrationAuthKey","type":"random:index/key:Key","id":"key-o"}]}}'
       ;;
+    missing-id)
+      printf '%s\n' '{"deployment":{"resources":[{"urn":"urn:pulumi:pandoks::app::ovh:Vps/vps:Vps::OvhDevBox","type":"ovh:Vps/vps:Vps"}]}}'
+      ;;
+    empty-id)
+      printf '%s\n' '{"deployment":{"resources":[{"urn":"urn:pulumi:pandoks::app::ovh:Vps/vps:Vps::OvhDevBox","type":"ovh:Vps/vps:Vps","id":"  "}]}}'
+      ;;
+    null-id)
+      printf '%s\n' '{"deployment":{"resources":[{"urn":"urn:pulumi:pandoks::app::ovh:Vps/vps:Vps::OvhDevBox","type":"ovh:Vps/vps:Vps","id":null}]}}'
+      ;;
+    object-id)
+      printf '%s\n' '{"deployment":{"resources":[{"urn":"urn:pulumi:pandoks::app::ovh:Vps/vps:Vps::OvhDevBox","type":"ovh:Vps/vps:Vps","id":{"value":"vps-123"}}]}}'
+      ;;
+    array-id)
+      printf '%s\n' '{"deployment":{"resources":[{"urn":"urn:pulumi:pandoks::app::ovh:Vps/vps:Vps::OvhDevBox","type":"ovh:Vps/vps:Vps","id":["vps-123"]}]}}'
+      ;;
+    boolean-id)
+      printf '%s\n' '{"deployment":{"resources":[{"urn":"urn:pulumi:pandoks::app::ovh:Vps/vps:Vps::OvhDevBox","type":"ovh:Vps/vps:Vps","id":true}]}}'
+      ;;
+    missing-service)
+      printf '%s\n' '{"deployment":{"resources":[{"urn":"urn:pulumi:pandoks::app::ovh:CloudProject/instance:Instance::OvhDevBox","type":"ovh:CloudProject/instance:Instance","id":"i-123","inputs":{}}]}}'
+      ;;
+    empty-service)
+      printf '%s\n' '{"deployment":{"resources":[{"urn":"urn:pulumi:pandoks::app::ovh:CloudProject/instance:Instance::OvhDevBox","type":"ovh:CloudProject/instance:Instance","id":"i-123","inputs":{"serviceName":"  "}}]}}'
+      ;;
+    object-service)
+      printf '%s\n' '{"deployment":{"resources":[{"urn":"urn:pulumi:pandoks::app::ovh:CloudProject/instance:Instance::OvhDevBox","type":"ovh:CloudProject/instance:Instance","id":"i-123","inputs":{"serviceName":{"value":"service-123"}}}]}}'
+      ;;
+    null-service)
+      printf '%s\n' '{"deployment":{"resources":[{"urn":"urn:pulumi:pandoks::app::ovh:CloudProject/instance:Instance::OvhDevBox","type":"ovh:CloudProject/instance:Instance","id":"i-123","inputs":{"serviceName":null}}]}}'
+      ;;
+    array-service)
+      printf '%s\n' '{"deployment":{"resources":[{"urn":"urn:pulumi:pandoks::app::ovh:CloudProject/instance:Instance::OvhDevBox","type":"ovh:CloudProject/instance:Instance","id":"i-123","inputs":{"serviceName":["service-123"]}}]}}'
+      ;;
+    boolean-service)
+      printf '%s\n' '{"deployment":{"resources":[{"urn":"urn:pulumi:pandoks::app::ovh:CloudProject/instance:Instance::OvhDevBox","type":"ovh:CloudProject/instance:Instance","id":"i-123","inputs":{"serviceName":true}}]}}'
+      ;;
+    numeric-instance)
+      printf '%s\n' '{"deployment":{"resources":[{"urn":"urn:pulumi:pandoks::app::ovh:CloudProject/instance:Instance::OvhDevBox","type":"ovh:CloudProject/instance:Instance","id":123,"inputs":{"serviceName":456}}]}}'
+      ;;
     *)
       fail "unknown fixture ${name}"
       ;;
@@ -56,8 +95,17 @@ cat > "${FAKE_SST}" << 'EOF'
 set -eu
 case "$1:$2" in
   state:export) cat "${FAKE_SST_STATE}" ;;
-  state:remove) printf '%s\n' "$3" >> "${SST_LOG}" ;;
-  diff:--stage) printf '%s' "${FAKE_SST_DIFF:-}" ;;
+  state:remove)
+    printf 'attempt:remove:%s\n' "$3" >> "${SST_LOG}"
+    if [ "${FAKE_SST_FAIL_REMOVE_NAME:-}" = "$3" ]; then
+      exit 42
+    fi
+    printf 'success:remove:%s\n' "$3" >> "${SST_LOG}"
+    ;;
+  diff:--stage)
+    printf '%s\n' 'attempt:diff' >> "${SST_LOG}"
+    printf '%s' "${FAKE_SST_DIFF:-}"
+    ;;
   *) exit 98 ;;
 esac
 EOF
@@ -68,6 +116,7 @@ run_cleanup() {
   identities="$2"
   action="$3"
   diff_text="${4:-}"
+  fail_remove_name="${5:-}"
   output="${TMP_ROOT}/output-${fixture}-${action}"
   state_file="${TMP_ROOT}/state-${fixture}.json"
   audit_file="${TMP_ROOT}/audit-${fixture}-${action}"
@@ -77,6 +126,7 @@ run_cleanup() {
   if TMPDIR="${TMP_ROOT}" \
     FAKE_SST_STATE="${state_file}" \
     FAKE_SST_DIFF="${diff_text}" \
+    FAKE_SST_FAIL_REMOVE_NAME="${fail_remove_name}" \
     DEV_VPS_CLEANUP_TEST_MODE=1 \
     DEV_VPS_CLEANUP_SST_BIN="${FAKE_SST}" \
     DEV_VPS_CLEANUP_TEST_IDENTIFIERS="${identities}" \
@@ -94,7 +144,8 @@ if run_cleanup none '' retained-detach OvhDevBox; then
 fi
 
 if run_cleanup none '' retained-detach; then
-  test ! -s "${SST_LOG}" || fail 'empty state attempted a mutation'
+  test "$(grep -c '^attempt:remove:' "${SST_LOG}" || true)" -eq 0 \
+    || fail 'empty state attempted a mutation'
 else
   fail 'empty state failed'
 fi
@@ -119,12 +170,19 @@ test ! -s "${SST_LOG}" || fail 'cross-provider primary type removed state'
 if run_cleanup invalid-key 'vps-123' retained-detach; then
   fail 'unexpected registration-key type was accepted'
 fi
-test ! -s "${SST_LOG}" || fail 'unexpected registration-key type removed state'
+test "$(grep -c '^attempt:remove:' "${SST_LOG}" || true)" -eq 0 \
+  || fail 'unexpected registration-key type removed state'
 
 if run_cleanup hetzner 'h-123' retained-detach; then
-  test "$(wc -l < "${SST_LOG}")" -eq 2 || fail 'Hetzner cleanup removed an unexpected name'
-  grep -qx 'HetznerDevBox' "${SST_LOG}" || fail 'Hetzner primary was not detached'
-  grep -qx 'HetznerDevBoxTailnetRegistrationAuthKey' "${SST_LOG}" || fail 'Hetzner key was not detached'
+  test "$(grep -c '^success:remove:' "${SST_LOG}")" -eq 2 \
+    || fail 'Hetzner cleanup removed an unexpected name'
+  grep -qx 'success:remove:HetznerDevBox' "${SST_LOG}" \
+    || fail 'Hetzner primary was not detached'
+  grep -qx 'success:remove:HetznerDevBoxTailnetRegistrationAuthKey' "${SST_LOG}" \
+    || fail 'Hetzner key was not detached'
+  test "$(sed -n '1p' "${SST_LOG}")" = \
+    'attempt:remove:HetznerDevBoxTailnetRegistrationAuthKey' \
+    || fail 'Hetzner key was not attempted before the primary'
   grep -q 'retained-manual-service' "${TMP_ROOT}/output-hetzner-retained-detach" \
     || fail 'retained detach action was not explicit'
 else
@@ -132,35 +190,116 @@ else
 fi
 
 if run_cleanup ovh-instance 'i-123:service-123' retained-detach; then
-  test "$(wc -l < "${SST_LOG}")" -eq 2 || fail 'OVH instance cleanup removed an unexpected name'
-  grep -qx 'OvhDevBox' "${SST_LOG}" || fail 'OVH instance primary was not detached'
-  grep -qx 'OvhDevBoxTailnetRegistrationAuthKey' "${SST_LOG}" || fail 'OVH instance key was not detached'
+  test "$(grep -c '^success:remove:' "${SST_LOG}")" -eq 2 \
+    || fail 'OVH instance cleanup removed an unexpected name'
+  grep -qx 'success:remove:OvhDevBox' "${SST_LOG}" \
+    || fail 'OVH instance primary was not detached'
+  grep -qx 'success:remove:OvhDevBoxTailnetRegistrationAuthKey' "${SST_LOG}" \
+    || fail 'OVH instance key was not detached'
 else
   fail 'OVH instance cleanup failed'
 fi
 
 if run_cleanup ovh-vps 'vps-123' already-deleted-stale; then
-  test "$(wc -l < "${SST_LOG}")" -eq 1 || fail 'OVH VPS cleanup removed an unexpected name'
-  grep -qx 'OvhDevBox' "${SST_LOG}" || fail 'OVH VPS primary was not removed'
+  test "$(grep -c '^success:remove:' "${SST_LOG}")" -eq 1 \
+    || fail 'OVH VPS cleanup removed an unexpected name'
+  grep -qx 'success:remove:OvhDevBox' "${SST_LOG}" || fail 'OVH VPS primary was not removed'
   grep -q 'already-deleted-stale' "${TMP_ROOT}/output-ovh-vps-already-deleted-stale" \
     || fail 'stale removal action was not explicit'
 else
   fail 'OVH VPS cleanup failed'
 fi
 
-if run_cleanup ovh-instance 'wrong:service-123' retained-detach; then
-  fail 'mismatched identity was accepted'
+for mismatch_case in \
+  'hetzner|wrong|wrong Hetzner server ID' \
+  'ovh-vps|wrong|wrong OVH VPS service ID' \
+  'ovh-instance|wrong:service-123|wrong OVH instance ID' \
+  'ovh-instance|i-123:wrong|wrong OVH project/service ID' \
+  'hetzner||empty entered Hetzner ID' \
+  'ovh-vps||empty entered OVH VPS ID' \
+  'ovh-instance|:service-123|empty entered OVH instance ID' \
+  'ovh-instance|i-123:|empty entered OVH project/service ID'; do
+  fixture="${mismatch_case%%|*}"
+  remainder="${mismatch_case#*|}"
+  identities="${remainder%%|*}"
+  description="${remainder#*|}"
+  if run_cleanup "${fixture}" "${identities}" retained-detach; then
+    fail "${description} was accepted"
+  fi
+  test "$(grep -c '^attempt:remove:' "${SST_LOG}" || true)" -eq 0 \
+    || fail "${description} attempted a mutation"
+done
+
+for invalid_fixture in \
+  missing-id empty-id null-id object-id array-id boolean-id \
+  missing-service empty-service object-service null-service array-service boolean-service; do
+  if run_cleanup "${invalid_fixture}" 'i-123:service-123' retained-detach; then
+    fail "${invalid_fixture} exported identity was accepted"
+  fi
+  test "$(grep -c '^attempt:remove:' "${SST_LOG}" || true)" -eq 0 \
+    || fail "${invalid_fixture} exported identity attempted a mutation"
+done
+
+if run_cleanup numeric-instance '123:456' retained-detach; then
+  grep -qx 'success:remove:OvhDevBox' "${SST_LOG}" \
+    || fail 'numeric scalar identities did not normalize to strings'
+else
+  fail 'numeric scalar exported identities were rejected'
 fi
-test ! -s "${SST_LOG}" || fail 'mismatched identity removed state'
+
+if run_cleanup ovh-vps 'vps-123' ''; then
+  fail 'empty cleanup action was accepted'
+fi
+test "$(grep -c '^attempt:remove:' "${SST_LOG}" || true)" -eq 0 \
+  || fail 'empty cleanup action attempted a mutation'
+
+if run_cleanup key-only '' ''; then
+  fail 'empty orphan confirmation was accepted'
+fi
+test "$(grep -c '^attempt:remove:' "${SST_LOG}" || true)" -eq 0 \
+  || fail 'empty orphan confirmation attempted a mutation'
+
+if run_cleanup ovh-instance 'i-123:service-123' retained-detach '' \
+  OvhDevBoxTailnetRegistrationAuthKey; then
+  fail 'key-removal failure was accepted'
+fi
+grep -qx 'attempt:remove:OvhDevBoxTailnetRegistrationAuthKey' "${SST_LOG}" \
+  || fail 'key-removal failure was not attempted'
+test "$(grep -c '^success:remove:' "${SST_LOG}" || true)" -eq 0 \
+  || fail 'key-removal failure recorded a successful mutation'
+test "$(grep -c 'OvhDevBox$' "${SST_LOG}" || true)" -eq 0 \
+  || fail 'primary was attempted after key-removal failure'
+
+if run_cleanup ovh-instance 'i-123:service-123' retained-detach '' OvhDevBox; then
+  fail 'primary-removal failure was accepted'
+fi
+grep -qx 'success:remove:OvhDevBoxTailnetRegistrationAuthKey' "${SST_LOG}" \
+  || fail 'primary-removal failure did not preserve successful key detachment'
+grep -qx 'attempt:remove:OvhDevBox' "${SST_LOG}" \
+  || fail 'primary-removal failure was not attempted'
+test "$(grep -c '^success:remove:OvhDevBox$' "${SST_LOG}" || true)" -eq 0 \
+  || fail 'failed primary removal was recorded as successful'
+grep -qx 'attempt:diff' "${SST_LOG}" \
+  || fail 'partial completion did not capture a final diff'
+grep -qi 'partial completion' "${TMP_ROOT}/output-ovh-instance-retained-detach" \
+  || fail 'partial completion was not reported'
+grep -qi 'primary remains managed' "${TMP_ROOT}/output-ovh-instance-retained-detach" \
+  || fail 'partial completion did not describe the managed primary'
+if grep -qi 'no state was changed' "${TMP_ROOT}/output-ovh-instance-retained-detach"; then
+  fail 'partial completion incorrectly reported no state change'
+fi
 
 if run_cleanup key-only '' retained-detach; then
   fail 'key-only orphan was removed without explicit orphan confirmation'
 fi
-test ! -s "${SST_LOG}" || fail 'unconfirmed key-only orphan removed state'
+test "$(grep -c '^attempt:remove:' "${SST_LOG}" || true)" -eq 0 \
+  || fail 'unconfirmed key-only orphan removed state'
 
 if run_cleanup key-only '' orphan-remove; then
-  test "$(wc -l < "${SST_LOG}")" -eq 1 || fail 'key-only cleanup removed an unexpected name'
-  grep -qx 'OvhDevBoxTailnetRegistrationAuthKey' "${SST_LOG}" || fail 'key-only orphan was not removed'
+  test "$(grep -c '^success:remove:' "${SST_LOG}")" -eq 1 \
+    || fail 'key-only cleanup removed an unexpected name'
+  grep -qx 'success:remove:OvhDevBoxTailnetRegistrationAuthKey' "${SST_LOG}" \
+    || fail 'key-only orphan was not removed'
 else
   fail 'key-only orphan cleanup failed'
 fi
@@ -177,7 +316,9 @@ if find "${TMP_ROOT}" -maxdepth 1 -name 'pandoks-dev-vps-error.*' -print | grep 
   fail 'error temporary file was not cleaned up'
 fi
 
-if grep -R -E 'h-123|i-123|service-123|vps-123|secret-[ho]' "${TMP_ROOT}"/output-*; then
+if grep -R -E \
+  'h-123|i-123|service-123|vps-(123|456)|key-[ho]($|[^[:alnum:]-])|secret-[ho]|wrong' \
+  "${TMP_ROOT}"/output-*; then
   fail 'cleanup output exposed an identifier or registration key'
 fi
 

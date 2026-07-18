@@ -1,6 +1,6 @@
-# OVH control plane nodes on private network 10.0.1.0/24
-# Public Cloud control planes use .10-.49; dedicated control planes use .150-.199
-# Keep this explicit inventory synchronized with the active control planes.
+# Default production topology: one Public Cloud control plane at 10.0.1.10.
+# Before deploying any other topology, replace this explicit inventory with the
+# exact active control-plane private IPs as documented in the cluster runbook.
 apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
 metadata:
@@ -12,11 +12,6 @@ spec:
       enabled: true
       endpoints:
         - 10.0.1.10
-        - 10.0.1.11
-        - 10.0.1.12
-        - 10.0.1.150
-        - 10.0.1.151
-        - 10.0.1.152
       service:
         enabled: true
         port: 2381

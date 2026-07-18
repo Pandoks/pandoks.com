@@ -135,21 +135,75 @@ resource_count() {
   ' "${STATE_FILE}"
 }
 
-resource_field() {
+resource_scalar_field() {
   logical_name="$1"
   field="$2"
   jq -er --arg suffix "::${logical_name}" --arg field "${field}" '
+    def normalized_scalar:
+      if type == "string" then
+        gsub("^\\s+|\\s+$"; "")
+      elif type == "number" then
+        tostring
+      else
+        empty
+      end;
     [.deployment.resources[]? | select(.urn | endswith($suffix))]
     | if length == 1 then .[0][$field] else empty end
+    | normalized_scalar
+    | select(length > 0)
+    | select(explode | all(. >= 32 and . != 127))
   ' "${STATE_FILE}"
 }
 
-resource_service_name() {
+resource_scalar_service_name() {
   logical_name="$1"
   jq -er --arg suffix "::${logical_name}" '
+    def normalized_scalar:
+      if type == "string" then
+        gsub("^\\s+|\\s+$"; "")
+      elif type == "number" then
+        tostring
+      else
+        empty
+      end;
     [.deployment.resources[]? | select(.urn | endswith($suffix))]
     | if length == 1 then .[0].inputs.serviceName else empty end
+    | normalized_scalar
+    | select(length > 0)
+    | select(explode | all(. >= 32 and . != 127))
   ' "${STATE_FILE}"
+}
+
+require_resource_field() {
+  logical_name="$1"
+  field="$2"
+  if required_value="$(resource_scalar_field "${logical_name}" "${field}")"; then
+    printf '%s' "${required_value}"
+  else
+    fail 'A required exported state identity field is missing or invalid; no state was changed.'
+  fi
+}
+
+require_resource_service_name() {
+  logical_name="$1"
+  if required_value="$(resource_scalar_service_name "${logical_name}")"; then
+    printf '%s' "${required_value}"
+  else
+    fail 'A required exported state identity field is missing or invalid; no state was changed.'
+  fi
+}
+
+normalize_entered_identity() {
+  entered_value="$1"
+  if normalized_value="$(printf '%s' "${entered_value}" | jq -Rer '
+    gsub("^\\s+|\\s+$"; "")
+    | select(length > 0)
+    | select(explode | all(. >= 32 and . != 127))
+  ')"; then
+    printf '%s' "${normalized_value}"
+  else
+    fail 'A required identity confirmation was empty or invalid; no state was changed.'
+  fi
 }
 
 HETZNER_PRIMARY_COUNT="$(resource_count HetznerDevBox)"
@@ -202,7 +256,7 @@ else
 fi
 
 if [ "${KEY_COUNT}" = 1 ]; then
-  KEY_TYPE="$(resource_field "${KEY_NAME}" type)"
+  KEY_TYPE="$(require_resource_field "${KEY_NAME}" type)"
   if [ "${KEY_TYPE}" = 'tailscale:index/tailnetKey:TailnetKey' ]; then
     :
   else
@@ -211,6 +265,25 @@ if [ "${KEY_COUNT}" = 1 ]; then
 else
   :
 fi
+
+capture_final_diff() {
+  "${SST_BIN}" diff --stage "${STAGE}" > "${DIFF_FILE}" 2> "${ERROR_FILE}"
+}
+
+report_partial_completion() {
+  if capture_final_diff; then
+    printf '%s\n' \
+      'Partial completion: the registration-key state record was detached, but the primary remains managed.' \
+      'A final SST diff was captured privately. Do not apply it.' \
+      'Re-run this cleanup helper to validate and retry the remaining primary record safely.' >&2
+  else
+    printf '%s\n' \
+      'Partial completion: the registration-key state record was detached, but the primary remains managed.' \
+      'The final SST diff could not be captured. Do not apply SST.' \
+      'Restore provider access, then re-run this cleanup helper to validate and retry the remaining primary record safely.' >&2
+  fi
+  exit 1
+}
 
 read_hidden() {
   prompt="$1"
@@ -317,8 +390,9 @@ if [ "${PRIMARY_COUNT}" = 0 ]; then
     fail 'No primary record is present but cleanup state is inconsistent; no state was changed.'
   fi
 else
-  PRIMARY_TYPE="$(resource_field "${PRIMARY_NAME}" type)"
+  PRIMARY_TYPE="$(require_resource_field "${PRIMARY_NAME}" type)"
   if [ "${FAMILY}" = hetzner ] && [ "${PRIMARY_TYPE}" = 'hcloud:index/server:Server' ]; then
+    STATE_PRIMARY_ID="$(require_resource_field "${PRIMARY_NAME}" id)"
     if [ "${TEST_MODE}" = 1 ]; then
       test_identity_values
       ENTERED_PRIMARY_ID="${TEST_IDENTIFIERS}"
@@ -327,13 +401,15 @@ else
       ENTERED_PRIMARY_ID="${REPLY}"
       REPLY=''
     fi
-    STATE_PRIMARY_ID="$(resource_field "${PRIMARY_NAME}" id)"
+    ENTERED_PRIMARY_ID="$(normalize_entered_identity "${ENTERED_PRIMARY_ID}")"
     if [ "${ENTERED_PRIMARY_ID}" = "${STATE_PRIMARY_ID}" ]; then
       :
     else
       fail 'The confirmed physical identity does not match exported state; no state was changed.'
     fi
   elif [ "${FAMILY}" = ovh ] && [ "${PRIMARY_TYPE}" = 'ovh:CloudProject/instance:Instance' ]; then
+    STATE_INSTANCE_ID="$(require_resource_field "${PRIMARY_NAME}" id)"
+    STATE_SERVICE_ID="$(require_resource_service_name "${PRIMARY_NAME}")"
     if [ "${TEST_MODE}" = 1 ]; then
       test_identity_values
       ENTERED_INSTANCE_ID="${TEST_IDENTIFIERS%%:*}"
@@ -346,14 +422,15 @@ else
       ENTERED_SERVICE_ID="${REPLY}"
       REPLY=''
     fi
-    STATE_INSTANCE_ID="$(resource_field "${PRIMARY_NAME}" id)"
-    STATE_SERVICE_ID="$(resource_service_name "${PRIMARY_NAME}")"
+    ENTERED_INSTANCE_ID="$(normalize_entered_identity "${ENTERED_INSTANCE_ID}")"
+    ENTERED_SERVICE_ID="$(normalize_entered_identity "${ENTERED_SERVICE_ID}")"
     if [ "${ENTERED_INSTANCE_ID}" = "${STATE_INSTANCE_ID}" ] && [ "${ENTERED_SERVICE_ID}" = "${STATE_SERVICE_ID}" ]; then
       :
     else
       fail 'The confirmed physical identity does not match exported state; no state was changed.'
     fi
   elif [ "${FAMILY}" = ovh ] && [ "${PRIMARY_TYPE}" = 'ovh:Vps/vps:Vps' ]; then
+    STATE_PRIMARY_ID="$(require_resource_field "${PRIMARY_NAME}" id)"
     if [ "${TEST_MODE}" = 1 ]; then
       test_identity_values
       ENTERED_PRIMARY_ID="${TEST_IDENTIFIERS}"
@@ -362,7 +439,7 @@ else
       ENTERED_PRIMARY_ID="${REPLY}"
       REPLY=''
     fi
-    STATE_PRIMARY_ID="$(resource_field "${PRIMARY_NAME}" id)"
+    ENTERED_PRIMARY_ID="$(normalize_entered_identity "${ENTERED_PRIMARY_ID}")"
     if [ "${ENTERED_PRIMARY_ID}" = "${STATE_PRIMARY_ID}" ]; then
       :
     else
@@ -374,24 +451,26 @@ else
 
   choose_action
 
-  if "${SST_BIN}" state remove "${PRIMARY_NAME}" --stage "${STAGE}" > /dev/null 2> "${ERROR_FILE}"; then
-    :
-  else
-    fail 'The primary state record could not be removed; do not continue.'
-  fi
-
   if [ "${KEY_COUNT}" = 1 ]; then
     if "${SST_BIN}" state remove "${KEY_NAME}" --stage "${STAGE}" > /dev/null 2> "${ERROR_FILE}"; then
-      :
+      KEY_DETACHED=true
     else
-      fail 'The registration-key state record could not be removed; do not continue.'
+      fail 'The registration-key state record could not be removed; the primary was not attempted.'
     fi
   else
+    KEY_DETACHED=false
+  fi
+
+  if "${SST_BIN}" state remove "${PRIMARY_NAME}" --stage "${STAGE}" > /dev/null 2> "${ERROR_FILE}"; then
     :
+  elif [ "${KEY_DETACHED}" = true ]; then
+    report_partial_completion
+  else
+    fail 'The primary state record could not be removed and remains managed; do not continue.'
   fi
 fi
 
-if "${SST_BIN}" diff --stage "${STAGE}" > "${DIFF_FILE}" 2> "${ERROR_FILE}"; then
+if capture_final_diff; then
   :
 else
   fail 'SST diff failed after cleanup; no apply should be run.'
