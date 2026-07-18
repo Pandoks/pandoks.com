@@ -72,7 +72,10 @@ Export state before changing it:
   > /tmp/pandoks-state-before-dev-vps-cleanup.json
 jq -r '
   .deployment.resources[]
-  | select(.urn | contains("OvhDevBox"))
+  | select(
+      (.urn | endswith("::OvhDevBox"))
+      or (.urn | endswith("::OvhDevBoxTailnetRegistrationAuthKey"))
+    )
   | [.urn, .type, (.protect // false)]
   | @tsv
 ' /tmp/pandoks-state-before-dev-vps-cleanup.json
@@ -81,12 +84,53 @@ jq -r '
 This output intentionally does not print any registration-key value. Do not
 print, copy, or put a registration-key value in shell history.
 
-If there are no rows, no state cleanup is needed.
+First check the exact logical-name presence of the primary and registration-key
+records. This decision tree prints no resource ID or registration-key value.
+It fails closed if either logical name is ambiguous:
 
-If an `OvhDevBox` row is present, run this type-aware identity gate before
-either detach/delete branch. It uses the exported Pulumi resource's `type`,
-`id`, and, for a Public Cloud instance, `inputs.serviceName`. It prints no ID
-or service value and removes entered values from the shell after comparison:
+```sh
+OVH_DEV_BOX_COUNT="$(jq '
+  [.deployment.resources[] | select(.urn | endswith("::OvhDevBox"))] | length
+' /tmp/pandoks-state-before-dev-vps-cleanup.json)"
+OVH_DEV_BOX_KEY_COUNT="$(jq '
+  [.deployment.resources[]
+   | select(.urn | endswith("::OvhDevBoxTailnetRegistrationAuthKey"))]
+  | length
+' /tmp/pandoks-state-before-dev-vps-cleanup.json)"
+
+case "${OVH_DEV_BOX_COUNT}:${OVH_DEV_BOX_KEY_COUNT}" in
+  "0:0")
+    printf '%s\n' "Neither OvhDevBox state record is present; no cleanup is needed. Continue to the final diff."
+    unset OVH_DEV_BOX_COUNT OVH_DEV_BOX_KEY_COUNT
+    ;;
+  "0:1")
+    printf '%s\n' "Only the OvhDevBox registration-key state record is present; removing the orphaned record."
+    if ./node_modules/.bin/sst state remove OvhDevBoxTailnetRegistrationAuthKey --stage pandoks; then
+      printf '%s\n' "The orphaned registration-key state record was removed. Continue directly to the final diff."
+    else
+      printf '%s\n' "The orphaned registration-key state record could not be removed; do not continue."
+      unset OVH_DEV_BOX_COUNT OVH_DEV_BOX_KEY_COUNT
+      exit 1
+    fi
+    unset OVH_DEV_BOX_COUNT OVH_DEV_BOX_KEY_COUNT
+    ;;
+  "1:0" | "1:1")
+    ;;
+  *)
+    printf '%s\n' "OvhDevBox state records are ambiguous; do not continue."
+    unset OVH_DEV_BOX_COUNT OVH_DEV_BOX_KEY_COUNT
+    exit 1
+    ;;
+esac
+```
+
+If the primary record was absent (`0:0` or `0:1`), do not run either primary
+detach/delete branch below; continue directly to the final diff after the
+orphaned-key removal, if any. If the primary record was present (`1:0` or
+`1:1`), run this type-aware identity gate before either detach/delete branch.
+It uses the exported Pulumi resource's `type`, `id`, and, for a Public Cloud
+instance, `inputs.serviceName`. It prints no ID or service value and removes
+entered values from the shell after comparison:
 
 For a historical `ovh.cloudproject.Instance` (`ovh:CloudProject/instance:Instance`
 in exported state), obtain both the Public Cloud instance ID/UUID and the
@@ -156,22 +200,6 @@ unset OVH_DEV_BOX_TYPE
 
 If the gate does not report a match, do not run either detach/delete branch.
 
-Check separately for the registration-key resource by logical name only; this
-does not inspect or print a key value:
-
-```sh
-if jq -e '
-  any(
-    .deployment.resources[];
-    .urn | endswith("::OvhDevBoxTailnetRegistrationAuthKey")
-  )
-' /tmp/pandoks-state-before-dev-vps-cleanup.json >/dev/null; then
-  printf '%s\n' "OvhDevBoxTailnetRegistrationAuthKey state record is present."
-else
-  printf '%s\n' "OvhDevBoxTailnetRegistrationAuthKey state record is absent."
-fi
-```
-
 Only after the identity gate reports a match and the keep/delete decision is
 confirmed, if the `OvhDevBox` row identifies the VPS-4 that you are retaining
 manually, detach its state record without deleting the physical service:
@@ -180,10 +208,10 @@ manually, detach its state record without deleting the physical service:
 ./node_modules/.bin/sst state remove OvhDevBox --stage pandoks
 ```
 
-Only if the separate presence check reports that its related
-`OvhDevBoxTailnetRegistrationAuthKey` row is present, confirm that it belongs
-to this old dev-box configuration, then detach that state record as well. Do
-not print or copy the key value:
+Only if the initial exact presence check was `1:1`, confirm that its related
+`OvhDevBoxTailnetRegistrationAuthKey` row belongs to this old dev-box
+configuration, then detach that state record as well. Do not print or copy the
+key value:
 
 ```sh
 ./node_modules/.bin/sst state remove OvhDevBoxTailnetRegistrationAuthKey --stage pandoks
@@ -198,17 +226,19 @@ then remove its stale state reference:
 ./node_modules/.bin/sst state remove OvhDevBox --stage pandoks
 ```
 
-Only if the separate presence check reports that a related
-`OvhDevBoxTailnetRegistrationAuthKey` row is present, confirm it belongs to the
-obsolete configuration, then remove that stale state reference without printing
-or copying its key value:
+Only if the initial exact presence check was `1:1`, confirm that a related
+`OvhDevBoxTailnetRegistrationAuthKey` row belongs to the obsolete configuration,
+then remove that stale state reference without printing or copying its key
+value:
 
 ```sh
 ./node_modules/.bin/sst state remove OvhDevBoxTailnetRegistrationAuthKey --stage pandoks
 ```
 
-Never run either `sst state remove` command until the identity gate reports a
-match and the keep/delete decision is confirmed.
+Never run `sst state remove OvhDevBox` until the identity gate reports a match
+and the keep/delete decision is confirmed. Remove the registration-key record
+only in the confirmed `1:1` primary-resource branch, or in the exact `0:1`
+orphaned-key branch above.
 
 Finally:
 
