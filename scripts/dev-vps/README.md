@@ -1,7 +1,8 @@
 # OVH VPS-4 development host
 
-SST does not purchase or manage this VPS. Purchase or reinstall VPS-4 with
-Ubuntu 24.04 in the OVH Control Panel.
+After the SST state cleanup in this runbook, SST does not purchase or manage
+this VPS. Purchase or reinstall VPS-4 with Ubuntu 24.04 in the OVH Control
+Panel.
 
 ## Initial console setup
 
@@ -72,30 +73,50 @@ Export state before changing it:
 jq -r '
   .deployment.resources[]
   | select(.urn | contains("OvhDevBox"))
-  | [.urn, .type, (.id // ""), (.protect // false)]
+  | [.urn, .type, (.protect // false)]
   | @tsv
 ' /tmp/pandoks-state-before-dev-vps-cleanup.json
 ```
 
-If there is no row, no state cleanup is needed.
+This output intentionally does not print any registration-key value. Do not
+print, copy, or put a registration-key value in shell history.
 
-If the row identifies the VPS-4 that you are retaining manually, detach it
-without deleting the physical service:
+If there are no rows, no state cleanup is needed.
 
-```sh
-./node_modules/.bin/sst state remove OvhDevBox --stage pandoks
-```
-
-If the row identifies an obsolete Public Cloud instance or failed VPS order,
-confirm its service ID in the OVH Control Panel, delete that exact provider
-resource there, and only then remove the stale state reference:
+After confirming the `OvhDevBox` resource ID and keep/delete decision, if its
+row identifies the VPS-4 that you are retaining manually, detach its state
+record without deleting the physical service:
 
 ```sh
 ./node_modules/.bin/sst state remove OvhDevBox --stage pandoks
 ```
 
-Never run `sst state remove OvhDevBox` until the resource ID and the keep/delete
-decision are confirmed.
+If its related `OvhDevBoxTailnetRegistrationAuthKey` row is present, confirm
+that it belongs to this old dev-box configuration, then detach that state record
+as well. Do not print or copy the key value:
+
+```sh
+./node_modules/.bin/sst state remove OvhDevBoxTailnetRegistrationAuthKey --stage pandoks
+```
+
+If the `OvhDevBox` row identifies an obsolete Public Cloud instance or failed
+VPS order, confirm its service ID in the OVH Control Panel, delete that exact
+provider resource there, and only then remove its stale state reference:
+
+```sh
+./node_modules/.bin/sst state remove OvhDevBox --stage pandoks
+```
+
+If a related `OvhDevBoxTailnetRegistrationAuthKey` row is present, confirm it
+belongs to the obsolete configuration, then remove that stale state reference
+without printing or copying its key value:
+
+```sh
+./node_modules/.bin/sst state remove OvhDevBoxTailnetRegistrationAuthKey --stage pandoks
+```
+
+Never run either `sst state remove` command until the resource IDs and the
+keep/delete decision are confirmed.
 
 Finally:
 
@@ -103,7 +124,8 @@ Finally:
 ./node_modules/.bin/sst diff --stage pandoks
 ```
 
-The diff must contain no dev-box creation, replacement, or deletion.
+The diff must contain no creation, replacement, or deletion for either
+`OvhDevBox` or `OvhDevBoxTailnetRegistrationAuthKey`.
 
 ## Recovery
 
