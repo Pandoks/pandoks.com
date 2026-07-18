@@ -1,8 +1,17 @@
-export const OVH_CLOUD_PROJECT_SERVICE = process.env.OVH_CLOUD_PROJECT_SERVICE ?? '';
+export const OVH_CLOUD_PROJECT_SERVICE = process.env.OVH_CLOUD_PROJECT_SERVICE?.trim() ?? '';
+
+export function requireOvhCloudProjectService(): string {
+  if (!OVH_CLOUD_PROJECT_SERVICE) {
+    throw new Error(
+      'OVH_CLOUD_PROJECT_SERVICE is required for the cluster network and load balancers'
+    );
+  }
+  return OVH_CLOUD_PROJECT_SERVICE;
+}
 
 export async function getFlavorId(region: string, flavorName: string): Promise<string> {
   const flavorsResult = await ovh.cloudproject.getFlavors({
-    serviceName: OVH_CLOUD_PROJECT_SERVICE,
+    serviceName: requireOvhCloudProjectService(),
     region,
     nameFilter: flavorName
   });
@@ -15,7 +24,7 @@ export async function getFlavorId(region: string, flavorName: string): Promise<s
 
 export async function getImageId(region: string, imageName: string): Promise<string> {
   const imagesResult = await ovh.cloudproject.getImages({
-    serviceName: OVH_CLOUD_PROJECT_SERVICE,
+    serviceName: requireOvhCloudProjectService(),
     region,
     osType: 'linux'
   });
@@ -28,7 +37,7 @@ export async function getImageId(region: string, imageName: string): Promise<str
 
 export async function getLoadBalancerFlavorId(region: string, flavorName: string): Promise<string> {
   const flavorsResult = await ovh.cloudproject.getLoadBalancerFlavors({
-    serviceName: OVH_CLOUD_PROJECT_SERVICE,
+    serviceName: requireOvhCloudProjectService(),
     regionName: region
   });
   const flavor = flavorsResult.flavors.find(
