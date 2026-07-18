@@ -12,6 +12,15 @@ fail() {
   exit 1
 }
 
+assert_sst_log() {
+  expected="$1"
+  description="$2"
+  expected_log="${TMP_ROOT}/expected-sst.log"
+
+  printf '%s\n' "${expected}" > "${expected_log}"
+  cmp -s "${expected_log}" "${SST_LOG}" || fail "${description}"
+}
+
 make_state() {
   name="$1"
   case "${name}" in
@@ -279,14 +288,12 @@ if run_cleanup ovh-instance 'i-123:service-123' retained-detach '' OvhDevBox; th
   fail 'primary-removal failure was accepted'
 fi
 
-grep -qx 'success:remove:OvhDevBoxTailnetRegistrationAuthKey' "${SST_LOG}" \
-  || fail 'primary-removal failure did not preserve successful key detachment'
-grep -qx 'attempt:remove:OvhDevBox' "${SST_LOG}" \
-  || fail 'primary-removal failure was not attempted'
-test "$(grep -c '^success:remove:OvhDevBox$' "${SST_LOG}" || true)" -eq 0 \
-  || fail 'failed primary removal was recorded as successful'
-grep -qx 'attempt:diff' "${SST_LOG}" \
-  || fail 'partial completion did not capture a final diff'
+assert_sst_log \
+  'attempt:remove:OvhDevBoxTailnetRegistrationAuthKey
+success:remove:OvhDevBoxTailnetRegistrationAuthKey
+attempt:remove:OvhDevBox
+attempt:diff' \
+  'primary-removal failure did not record exactly the key, primary, and final-diff sequence'
 grep -qi 'partial completion' "${TMP_ROOT}/output-ovh-instance-retained-detach" \
   || fail 'partial completion was not reported'
 grep -qi 'primary remains managed' "${TMP_ROOT}/output-ovh-instance-retained-detach" \
@@ -298,12 +305,8 @@ fi
 if run_cleanup ovh-vps 'vps-123' retained-detach '' OvhDevBox; then
   fail 'primary-only removal failure was accepted'
 fi
-grep -qx 'attempt:remove:OvhDevBox' "${SST_LOG}" \
-  || fail 'primary-only removal failure was not attempted'
-test "$(grep -c '^success:remove:' "${SST_LOG}" || true)" -eq 0 \
-  || fail 'primary-only removal failure recorded a successful mutation'
-test "$(grep -c '^attempt:diff' "${SST_LOG}" || true)" -eq 0 \
-  || fail 'primary-only removal failure attempted an unnecessary final diff'
+assert_sst_log 'attempt:remove:OvhDevBox' \
+  'primary-only removal failure did not record exactly one primary-removal attempt'
 grep -qi 'primary remains managed' "${TMP_ROOT}/output-ovh-vps-retained-detach" \
   || fail 'primary-only removal failure did not describe the managed primary'
 grep -qi 'retry safely' "${TMP_ROOT}/output-ovh-vps-retained-detach" \
@@ -315,14 +318,12 @@ fi
 if run_cleanup ovh-instance 'i-123:service-123' retained-detach '' OvhDevBox 1; then
   fail 'primary-removal plus final-diff failure was accepted'
 fi
-grep -qx 'success:remove:OvhDevBoxTailnetRegistrationAuthKey' "${SST_LOG}" \
-  || fail 'partial failure did not preserve successful key detachment'
-grep -qx 'attempt:remove:OvhDevBox' "${SST_LOG}" \
-  || fail 'partial failure did not attempt the primary removal'
-test "$(grep -c '^success:remove:OvhDevBox$' "${SST_LOG}" || true)" -eq 0 \
-  || fail 'partial failure recorded the failed primary removal as successful'
-grep -qx 'attempt:diff' "${SST_LOG}" \
-  || fail 'partial failure did not attempt a final diff'
+assert_sst_log \
+  'attempt:remove:OvhDevBoxTailnetRegistrationAuthKey
+success:remove:OvhDevBoxTailnetRegistrationAuthKey
+attempt:remove:OvhDevBox
+attempt:diff' \
+  'partial failure did not record exactly the key, primary, and final-diff sequence'
 grep -qi 'partial completion' "${TMP_ROOT}/output-ovh-instance-retained-detach" \
   || fail 'partial failure did not report partial completion'
 grep -qi 'diff could not be captured' "${TMP_ROOT}/output-ovh-instance-retained-detach" \
