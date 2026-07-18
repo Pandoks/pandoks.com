@@ -83,40 +83,84 @@ print, copy, or put a registration-key value in shell history.
 
 If there are no rows, no state cleanup is needed.
 
-After confirming the `OvhDevBox` resource ID and keep/delete decision, if its
-row identifies the VPS-4 that you are retaining manually, detach its state
-record without deleting the physical service:
+If an `OvhDevBox` row is present, run this identity gate before either
+detach/delete branch. Enter the expected OVH service ID from the Control Panel;
+the command compares it only to the exact `OvhDevBox` resource ID, prints no ID
+value, and removes the entered value from the shell after the comparison:
+
+```sh
+printf "Expected OVH service ID from OVH Control Panel: "
+read -r EXPECTED_OVH_SERVICE_ID
+if jq -e --arg expected "${EXPECTED_OVH_SERVICE_ID}" '
+  any(
+    .deployment.resources[];
+    (.urn | endswith("::OvhDevBox")) and (.id == $expected)
+  )
+' /tmp/pandoks-state-before-dev-vps-cleanup.json >/dev/null; then
+  printf '%s\n' "OvhDevBox service ID matches exported state."
+else
+  printf '%s\n' "OvhDevBox service ID does not match exported state; do not continue."
+  unset EXPECTED_OVH_SERVICE_ID
+  exit 1
+fi
+unset EXPECTED_OVH_SERVICE_ID
+```
+
+If the gate does not report a match, do not run either detach/delete branch.
+
+Check separately for the registration-key resource by logical name only; this
+does not inspect or print a key value:
+
+```sh
+if jq -e '
+  any(
+    .deployment.resources[];
+    .urn | endswith("::OvhDevBoxTailnetRegistrationAuthKey")
+  )
+' /tmp/pandoks-state-before-dev-vps-cleanup.json >/dev/null; then
+  printf '%s\n' "OvhDevBoxTailnetRegistrationAuthKey state record is present."
+else
+  printf '%s\n' "OvhDevBoxTailnetRegistrationAuthKey state record is absent."
+fi
+```
+
+Only after the identity gate reports a match and the keep/delete decision is
+confirmed, if the `OvhDevBox` row identifies the VPS-4 that you are retaining
+manually, detach its state record without deleting the physical service:
 
 ```sh
 ./node_modules/.bin/sst state remove OvhDevBox --stage pandoks
 ```
 
-If its related `OvhDevBoxTailnetRegistrationAuthKey` row is present, confirm
-that it belongs to this old dev-box configuration, then detach that state record
-as well. Do not print or copy the key value:
+Only if the separate presence check reports that its related
+`OvhDevBoxTailnetRegistrationAuthKey` row is present, confirm that it belongs
+to this old dev-box configuration, then detach that state record as well. Do
+not print or copy the key value:
 
 ```sh
 ./node_modules/.bin/sst state remove OvhDevBoxTailnetRegistrationAuthKey --stage pandoks
 ```
 
-If the `OvhDevBox` row identifies an obsolete Public Cloud instance or failed
-VPS order, confirm its service ID in the OVH Control Panel, delete that exact
-provider resource there, and only then remove its stale state reference:
+Only after the identity gate reports a match, if the `OvhDevBox` row identifies
+an obsolete Public Cloud instance or failed VPS order, confirm its service ID
+in the OVH Control Panel, delete that exact provider resource there, and only
+then remove its stale state reference:
 
 ```sh
 ./node_modules/.bin/sst state remove OvhDevBox --stage pandoks
 ```
 
-If a related `OvhDevBoxTailnetRegistrationAuthKey` row is present, confirm it
-belongs to the obsolete configuration, then remove that stale state reference
-without printing or copying its key value:
+Only if the separate presence check reports that a related
+`OvhDevBoxTailnetRegistrationAuthKey` row is present, confirm it belongs to the
+obsolete configuration, then remove that stale state reference without printing
+or copying its key value:
 
 ```sh
 ./node_modules/.bin/sst state remove OvhDevBoxTailnetRegistrationAuthKey --stage pandoks
 ```
 
-Never run either `sst state remove` command until the resource IDs and the
-keep/delete decision are confirmed.
+Never run either `sst state remove` command until the identity gate reports a
+match and the keep/delete decision is confirmed.
 
 Finally:
 
