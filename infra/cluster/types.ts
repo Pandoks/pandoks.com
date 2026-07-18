@@ -39,26 +39,29 @@ export function parseNodeCount(value: string | undefined, fallback: number): num
   return parsed;
 }
 
+function isDedicatedPlanOption(value: unknown): value is DedicatedPlanOption {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const option = value as Record<string, unknown>;
+  return (
+    typeof option.duration === 'string' &&
+    typeof option.planCode === 'string' &&
+    typeof option.pricingMode === 'string' &&
+    typeof option.quantity === 'number' &&
+    Number.isInteger(option.quantity) &&
+    option.quantity >= 1
+  );
+}
+
 export function parseDedicatedPlanOptions(value: string | undefined): DedicatedPlanOption[] {
   const parsed: unknown = JSON.parse(value?.trim() || '[]');
   if (!Array.isArray(parsed)) {
     throw new Error('OVH_DEDICATED_PLAN_OPTIONS must be a JSON array');
   }
-  return parsed.map((option, index) => {
-    if (
-      typeof option !== 'object' ||
-      option === null ||
-      !('duration' in option) ||
-      !('planCode' in option) ||
-      !('pricingMode' in option) ||
-      !('quantity' in option) ||
-      typeof option.duration !== 'string' ||
-      typeof option.planCode !== 'string' ||
-      typeof option.pricingMode !== 'string' ||
-      typeof option.quantity !== 'number' ||
-      !Number.isInteger(option.quantity) ||
-      option.quantity < 1
-    ) {
+  return (parsed as unknown[]).map((option, index) => {
+    if (!isDedicatedPlanOption(option)) {
       throw new Error(`OVH_DEDICATED_PLAN_OPTIONS[${index}] has an invalid shape`);
     }
     return {

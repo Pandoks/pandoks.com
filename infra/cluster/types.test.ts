@@ -37,7 +37,7 @@ const dedicatedControlPlane = {
   planOptions: []
 } satisfies NodePool;
 
-test('normalizes mixed pools with stable legacy Public Cloud identities', () => {
+void test('normalizes mixed pools with stable legacy Public Cloud identities', () => {
   const result = normalizeNodePools(
     [
       cloudControlPlane,
@@ -91,7 +91,7 @@ test('normalizes mixed pools with stable legacy Public Cloud identities', () => 
   assert.equal(result.warnings.length, 0);
 });
 
-test('chooses dedicated as bootstrap candidate when Public Cloud count is zero', () => {
+void test('chooses dedicated as bootstrap candidate when Public Cloud count is zero', () => {
   const result = normalizeNodePools(
     [{ ...dedicatedControlPlane, count: 1 }],
     'prod',
@@ -100,7 +100,7 @@ test('chooses dedicated as bootstrap candidate when Public Cloud count is zero',
   assert.equal(result.nodes[0]?.bootstrapCandidate, true);
 });
 
-test('resource identity is independent of pool ordering', () => {
+void test('resource identity is independent of pool ordering', () => {
   const first = normalizeNodePools(
     [cloudControlPlane, dedicatedControlPlane],
     'prod',
@@ -117,7 +117,7 @@ test('resource identity is independent of pool ordering', () => {
   );
 });
 
-test('rejects workers without a control plane', () => {
+void test('rejects workers without a control plane', () => {
   assert.throws(
     () =>
       normalizeNodePools(
@@ -129,14 +129,14 @@ test('rejects workers without a control plane', () => {
   );
 });
 
-test('rejects duplicate pool names', () => {
+void test('rejects duplicate pool names', () => {
   assert.throws(
     () => normalizeNodePools([cloudControlPlane, cloudControlPlane], 'prod', '10.0.1.0/24'),
     /Duplicate node pool name/
   );
 });
 
-test('rejects overlapping address ranges', () => {
+void test('rejects overlapping address ranges', () => {
   assert.throws(
     () =>
       normalizeNodePools(
@@ -148,27 +148,37 @@ test('rejects overlapping address ranges', () => {
   );
 });
 
-test('rejects an enabled dedicated pool without catalog settings', () => {
+void test('rejects an enabled dedicated pool without catalog settings', () => {
   assert.throws(
     () => normalizeNodePools([{ ...dedicatedControlPlane, plan: '' }], 'prod', '10.0.1.0/24'),
     /requires plan/
   );
 });
 
-test('warns for a non-HA embedded-etcd control plane', () => {
+void test('warns for a non-HA embedded-etcd control plane', () => {
   const result = normalizeNodePools([cloudControlPlane], 'prod', '10.0.1.0/24');
   assert.match(result.warnings[0] ?? '', /odd control-plane count of at least 3/);
 });
 
-test('parses count overrides and dedicated plan options', () => {
+void test('parses count overrides and dedicated plan options', () => {
   assert.equal(parseNodeCount('', 3), 3);
   assert.equal(parseNodeCount('2', 0), 2);
   assert.throws(() => parseNodeCount('-1', 0), /non-negative integer/);
   assert.deepEqual(parseDedicatedPlanOptions('[]'), []);
+  assert.deepEqual(
+    parseDedicatedPlanOptions(
+      '[{"duration":"P1M","planCode":"server","pricingMode":"default","quantity":1}]'
+    ),
+    [{ duration: 'P1M', planCode: 'server', pricingMode: 'default', quantity: 1 }]
+  );
   assert.throws(() => parseDedicatedPlanOptions('{"planCode":"x"}'), /must be a JSON array/);
+  assert.throws(
+    () => parseDedicatedPlanOptions('[{"duration":"P1M","quantity":0}]'),
+    /invalid shape/
+  );
 });
 
-test('defines the exact identity prefixes for all four pools', () => {
+void test('defines the exact identity prefixes for all four pools', () => {
   assert.deepEqual(NODE_POOL_IDENTITIES, {
     'cloud-control-plane': {
       logicalNamePrefix: 'OvhControlPlaneServer',
@@ -189,7 +199,7 @@ test('defines the exact identity prefixes for all four pools', () => {
   });
 });
 
-test('scale-down target is always the highest declared pool index', () => {
+void test('scale-down target is always the highest declared pool index', () => {
   assert.deepEqual(getPoolScaleDownTarget({ ...dedicatedControlPlane, count: 3 }, 'prod'), {
     index: 2,
     logicalName: 'OvhDedicatedControlPlaneServer2',
@@ -201,7 +211,7 @@ test('scale-down target is always the highest declared pool index', () => {
   );
 });
 
-test('production protection allows only an exact logical-name match', () => {
+void test('production protection allows only an exact logical-name match', () => {
   const nodes = normalizeNodePools(
     [
       {
@@ -226,7 +236,7 @@ test('production protection allows only an exact logical-name match', () => {
   assert.equal(isClusterNodeProtected(highestIndex, 'OvhWorkerServer2', false), false);
 });
 
-test('warns when the requested unprotected node is absent', () => {
+void test('warns when the requested unprotected node is absent', () => {
   const nodes = normalizeNodePools(
     [{ ...cloudControlPlane, count: 2 }],
     'prod',

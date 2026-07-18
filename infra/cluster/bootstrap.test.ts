@@ -28,13 +28,13 @@ const environment = {
   S3_SECRET_KEY: 'secret'
 } as const;
 
-test('shell-quotes every bootstrap environment value', () => {
+void test('shell-quotes every bootstrap environment value', () => {
   const rendered = renderBootstrapEnvironment(environment);
   assert.match(rendered, /^STAGE_NAME='prod'$/m);
   assert.match(rendered, /^K3S_TOKEN='token-with-'"'"'quote'$/m);
 });
 
-test('cloud-init embeds the environment, script, and systemd unit as base64', () => {
+void test('cloud-init embeds the environment, script, and systemd unit as base64', () => {
   const cloudInit = renderCloudInitTransport('#!/bin/sh\nprintf "bootstrap\\n"\n', environment);
   assert.match(cloudInit, /^#cloud-config/m);
   assert.doesNotMatch(cloudInit, /tskey-auth-test/);
@@ -43,7 +43,7 @@ test('cloud-init embeds the environment, script, and systemd unit as base64', ()
   writeFileSync('/tmp/ovh-cluster-cloud-config.yaml', cloudInit);
 });
 
-test('dedicated transport installs the same script and unit', () => {
+void test('dedicated transport installs the same script and unit', () => {
   const postInstall = Buffer.from(
     renderDedicatedTransport('#!/bin/sh\nprintf "bootstrap\\n"\n', environment),
     'base64'

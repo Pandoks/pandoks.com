@@ -8,18 +8,18 @@ const dedicated = readFileSync('infra/cluster/providers/dedicated.ts', 'utf8');
 const envExample = readFileSync('.env.example', 'utf8');
 const runbook = readFileSync('infra/cluster/README.md', 'utf8');
 
-test('passes exact per-node protection through both provider adapters', () => {
+void test('passes exact per-node protection through both provider adapters', () => {
   assert.match(cluster, /OVH_UNPROTECTED_NODE_LOGICAL_NAME/);
   assert.match(cluster, /protect: isClusterNodeProtected\(/);
   assert.equal(publicCloud.match(/protect: args\.protect/g)?.length, 1);
   assert.equal(dedicated.match(/protect: args\.protect/g)?.length, 2);
 });
 
-test('declares the non-secret targeted unprotect control', () => {
+void test('declares the non-secret targeted unprotect control', () => {
   assert.match(envExample, /^OVH_UNPROTECTED_NODE_LOGICAL_NAME=$/m);
 });
 
-test('runbook maps all pools and derives only the highest-index target', () => {
+void test('runbook maps all pools and derives only the highest-index target', () => {
   for (const mapping of [
     [
       'cloud-control-plane',
@@ -48,7 +48,7 @@ test('runbook maps all pools and derives only the highest-index target', () => {
   assert.doesNotMatch(runbook, /read -r (NODE_NAME|LOGICAL_NAME)/);
 });
 
-test('runbook documents the exact two-step unprotect transition', () => {
+void test('runbook documents the exact two-step unprotect transition', () => {
   assert.match(runbook, /OVH_UNPROTECTED_NODE_LOGICAL_NAME=OvhDedicatedControlPlaneServer2/);
   assert.match(runbook, /Keep all four pool counts unchanged/);
   assert.match(runbook, /Reduce only the selected pool count by exactly one/);
@@ -56,7 +56,7 @@ test('runbook documents the exact two-step unprotect transition', () => {
   assert.match(runbook, /Clear `OVH_UNPROTECTED_NODE_LOGICAL_NAME`/);
 });
 
-test('runbook stops the exact worker agent before deleting its node', () => {
+void test('runbook stops the exact worker agent before deleting its node', () => {
   const start = runbook.indexOf('### Remove a worker target');
   const end = runbook.indexOf('### Remove a control-plane target');
   const targetedUnprotect = runbook.indexOf('### Two-step targeted unprotect and deletion');
@@ -78,7 +78,7 @@ test('runbook stops the exact worker agent before deleting its node', () => {
   assert.ok(start + deleteNode < targetedUnprotect);
 });
 
-test('runbook orders control-plane etcd removal commands safely', () => {
+void test('runbook orders control-plane etcd removal commands safely', () => {
   const start = runbook.indexOf('### Remove a control-plane target');
   const end = runbook.indexOf('### Two-step targeted unprotect and deletion');
   assert.ok(start >= 0 && end > start);
