@@ -21,7 +21,6 @@ const NETWORK_CIDR = '10.0.1.0/24';
 const GATEWAY_MODEL = 's';
 const LOAD_BALANCER_FLAVOR = 'small';
 const LOAD_BALANCER_ALGORITHM = 'leastConnections';
-const INGRESS_LOAD_BALANCERS_PER_GROUP = 1;
 const UNPROTECTED_NODE_LOGICAL_NAME = process.env.OVH_UNPROTECTED_NODE_LOGICAL_NAME?.trim() ?? '';
 
 const NODE_POOLS: readonly NodePool[] = [
@@ -101,8 +100,7 @@ const loadBalancers = createClusterLoadBalancers({
   network,
   region: REGION,
   flavorId: loadBalancerFlavorId,
-  algorithm: LOAD_BALANCER_ALGORITHM,
-  ingressLoadBalancersPerGroup: INGRESS_LOAD_BALANCERS_PER_GROUP
+  algorithm: LOAD_BALANCER_ALGORITHM
 });
 
 if (topology.nodes.length > 0 && !loadBalancers.apiAddress) {

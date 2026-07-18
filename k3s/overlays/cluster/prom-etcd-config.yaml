@@ -1,6 +1,6 @@
 # OVH control plane nodes on private network 10.0.1.0/24
 # Public Cloud control planes use .10-.49; dedicated control planes use .150-.199
-# (infra/cluster/cluster.ts). Keep endpoints in sync with the active control planes.
+# Keep this explicit inventory synchronized with the active control planes.
 apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
 metadata:
@@ -12,12 +12,11 @@ spec:
       enabled: true
       endpoints:
         - 10.0.1.10
-        - 10.0.1.11  # uncomment when adding control-plane-1
-        - 10.0.1.12  # uncomment when adding control-plane-2
-        # Replace or extend the list with active dedicated control planes:
-        # - 10.0.1.150
-        # - 10.0.1.151
-        # - 10.0.1.152
+        - 10.0.1.11
+        - 10.0.1.12
+        - 10.0.1.150
+        - 10.0.1.151
+        - 10.0.1.152
       service:
         enabled: true
         port: 2381

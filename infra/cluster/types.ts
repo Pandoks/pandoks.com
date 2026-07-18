@@ -15,6 +15,13 @@ export const CLUSTER_ADDRESS_PLAN = {
   'dedicated-workers': { start: 200, end: 254 }
 } as const satisfies Readonly<Record<'dhcp' | 'metalLb' | NodePoolName, AddressRange>>;
 
+export const CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY = 25;
+export const CLUSTER_INGRESS_LOAD_BALANCERS_PER_GROUP = 1;
+// Reserve one DHCP-pool address for the subnet's DHCP service port and one for
+// the gateway/router port. This is intentionally conservative and is included
+// even for an empty compute topology because the shared network still exists.
+export const CLUSTER_NETWORK_DHCP_CONSUMERS = 2;
+
 type AddressRange = {
   start: number;
   end: number;
@@ -279,6 +286,24 @@ export function normalizeNodePools(
   if (nodes.length > 0 && controlPlanes.length === 0) {
     throw new Error('Cluster nodes require at least one control-plane node');
   }
+  const dhcpAllocationCapacity =
+    CLUSTER_ADDRESS_PLAN.dhcp.end - CLUSTER_ADDRESS_PLAN.dhcp.start + 1;
+  const dhcpAllocationDemand = getClusterDhcpAllocationDemand(nodes);
+  if (dhcpAllocationDemand > dhcpAllocationCapacity) {
+    throw new Error(
+      `Cluster topology requires ${dhcpAllocationDemand} Neutron DHCP allocation addresses, ` +
+        `but ${cidr} provides ${dhcpAllocationCapacity} in ` +
+        `${subnetPrefix}.${CLUSTER_ADDRESS_PLAN.dhcp.start}-` +
+        `${subnetPrefix}.${CLUSTER_ADDRESS_PLAN.dhcp.end}`
+    );
+  }
+  if (controlPlanes.length > CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY) {
+    throw new Error(
+      `The single private API load balancer supports at most ` +
+        `${CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY} control-plane members; configured ` +
+        `${controlPlanes.length}`
+    );
+  }
   if (controlPlanes[0]) {
     controlPlanes[0].bootstrapCandidate = true;
   }
@@ -291,4 +316,17 @@ export function normalizeNodePools(
   }
 
   return { nodes, warnings };
+}
+
+export function getClusterDhcpAllocationDemand(
+  nodes: readonly Pick<ClusterNodeSpec, 'provider' | 'role' | 'ingress'>[]
+): number {
+  const publicCloudFixedIps = nodes.filter((node) => node.provider === 'public-cloud').length;
+  const privateApiVips = nodes.some((node) => node.role === 'control-plane') ? 1 : 0;
+  const ingressNodes = nodes.filter((node) => node.ingress).length;
+  const publicIngressVips =
+    Math.ceil(ingressNodes / CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY) *
+    CLUSTER_INGRESS_LOAD_BALANCERS_PER_GROUP;
+
+  return publicCloudFixedIps + CLUSTER_NETWORK_DHCP_CONSUMERS + privateApiVips + publicIngressVips;
 }

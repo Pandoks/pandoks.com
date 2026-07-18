@@ -1,9 +1,11 @@
 import { STAGE_NAME } from '../dns';
 import { requireOvhCloudProjectService } from '../ovh';
 import type { ClusterNetwork } from './network';
-import type { ClusterNodeSpec } from './types';
-
-const MEMBER_CAPACITY = 25;
+import {
+  CLUSTER_INGRESS_LOAD_BALANCERS_PER_GROUP,
+  CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY,
+  type ClusterNodeSpec
+} from './types';
 
 export type ClusterLoadBalancers = {
   api: ovh.cloudproject.LoadBalancer | undefined;
@@ -25,7 +27,6 @@ export function createClusterLoadBalancers(args: {
   region: string;
   flavorId: string;
   algorithm: string;
-  ingressLoadBalancersPerGroup: number;
 }): ClusterLoadBalancers {
   const serviceName = requireOvhCloudProjectService();
   const controlPlanes = args.nodes.filter((node) => node.role === 'control-plane');
@@ -67,10 +68,14 @@ export function createClusterLoadBalancers(args: {
         });
 
   const ingressCount =
-    Math.ceil(ingressNodes.length / MEMBER_CAPACITY) * args.ingressLoadBalancersPerGroup;
+    Math.ceil(ingressNodes.length / CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY) *
+    CLUSTER_INGRESS_LOAD_BALANCERS_PER_GROUP;
   const publicIngress = Array.from({ length: ingressCount }, (_, index) => {
-    const group = Math.floor(index / args.ingressLoadBalancersPerGroup);
-    const groupNodes = ingressNodes.slice(group * MEMBER_CAPACITY, (group + 1) * MEMBER_CAPACITY);
+    const group = Math.floor(index / CLUSTER_INGRESS_LOAD_BALANCERS_PER_GROUP);
+    const groupNodes = ingressNodes.slice(
+      group * CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY,
+      (group + 1) * CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY
+    );
     const logicalName =
       index === 0
         ? 'OvhK3sPublicControlPlaneLoadBalancer0'

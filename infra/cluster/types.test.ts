@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY,
+  getClusterDhcpAllocationDemand,
   getPoolScaleDownTarget,
   getUnprotectedNodeWarning,
   isClusterNodeProtected,
@@ -198,6 +200,79 @@ void test('rejects pool counts that overflow their reserved address allocation',
         '10.0.1.0/24'
       ),
     /dedicated-control-plane allocation.*150.*199/
+  );
+});
+
+void test('accepts the largest mixed topology within API and DHCP aggregate capacity', () => {
+  const result = normalizeNodePools(
+    [
+      { ...cloudControlPlane, count: 12 },
+      {
+        ...cloudControlPlane,
+        name: 'cloud-workers',
+        role: 'worker',
+        count: 50,
+        privateIpStart: 50
+      },
+      { ...dedicatedControlPlane, count: 13 },
+      {
+        ...dedicatedControlPlane,
+        name: 'dedicated-workers',
+        role: 'worker',
+        count: 55,
+        privateIpStart: 200
+      }
+    ],
+    'prod',
+    '10.0.1.0/24'
+  );
+
+  assert.equal(CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY, 25);
+  assert.equal(result.nodes.length, 130);
+  assert.equal(getClusterDhcpAllocationDemand(result.nodes), 71);
+});
+
+void test('rejects more control planes than the single private API load balancer can serve', () => {
+  assert.throws(
+    () =>
+      normalizeNodePools(
+        [
+          { ...cloudControlPlane, count: 13 },
+          { ...dedicatedControlPlane, count: 13 }
+        ],
+        'prod',
+        '10.0.1.0/24'
+      ),
+    /single private API load balancer.*25 control-plane/i
+  );
+});
+
+void test('rejects the former 40/50/50/55 maximum combination', () => {
+  assert.throws(
+    () =>
+      normalizeNodePools(
+        [
+          { ...cloudControlPlane, count: 40 },
+          {
+            ...cloudControlPlane,
+            name: 'cloud-workers',
+            role: 'worker',
+            count: 50,
+            privateIpStart: 50
+          },
+          { ...dedicatedControlPlane, count: 50 },
+          {
+            ...dedicatedControlPlane,
+            name: 'dedicated-workers',
+            role: 'worker',
+            count: 55,
+            privateIpStart: 200
+          }
+        ],
+        'prod',
+        '10.0.1.0/24'
+      ),
+    /requires 101 Neutron DHCP allocation addresses.*provides 98/i
   );
 });
 

@@ -46,7 +46,12 @@ The private `/24` is partitioned so each owner has a disjoint allocation:
 - dedicated control-plane nodes: `.150-.199`;
 - dedicated worker nodes: `.200-.254`.
 
-Pool validation rejects a count that would cross its allocation boundary.
+Pool validation rejects a count that would cross its allocation boundary, an
+aggregate DHCP demand above the 98 addresses in `.2-.99`, or more than 25 total
+control planes because the private API load balancer is intentionally
+unsharded. Aggregate demand counts every Public Cloud fixed IP, two conservative
+network reservations (DHCP service and gateway/router ports), one private API
+VIP when control planes exist, and one public ingress VIP per 25 ingress nodes.
 OVH's public ingress load balancer sends PROXY v2 to node port `30443`, and
 HAProxy Ingress has `use-proxy-protocol: "true"` so both ends of that transport
 remain aligned.
@@ -60,11 +65,13 @@ For CI, configure these non-secret GitHub environment variables in both the
 - `OVH_DEDICATED_ORDER_REGION`;
 - `OVH_DEDICATED_PLAN_OPTIONS`.
 
-All four counts must be present non-negative integers within their address
+All four counts must be present non-negative integers within their pool address
 capacity: cloud control plane `0-40`, cloud workers `0-50`, dedicated control
-plane `0-50`, and dedicated workers `0-55`. Dedicated catalog values may be
-empty when both dedicated counts are zero; otherwise CI requires all four and
-validates the plan-options JSON shape before SST starts.
+plane `0-50`, and dedicated workers `0-55`. The aggregate and API limits above
+still apply. A non-empty `OVH_DEDICATED_PLAN_OPTIONS` value is always validated,
+even while both dedicated counts are zero. Dedicated catalog values may be empty
+only when both dedicated counts are zero; otherwise CI requires all four before
+SST starts.
 `OVH_UNPROTECTED_NODE_LOGICAL_NAME` is intentionally not a persistent GitHub
 environment variable. Set it only for the deliberate, operator-run scale-down
 procedure below.

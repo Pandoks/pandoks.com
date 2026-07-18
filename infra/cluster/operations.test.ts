@@ -17,6 +17,7 @@ const ingress = readFileSync('k3s/bootstrap/core/haproxy-ingress.yaml', 'utf8');
 const checksWorkflow = readFileSync('.github/workflows/checks.yaml', 'utf8');
 const deployWorkflow = readFileSync('.github/workflows/deploy-infra.yaml', 'utf8');
 const devVpsRunbook = readFileSync('scripts/dev-vps/README.md', 'utf8');
+const devVpsCleanup = readFileSync('scripts/dev-vps/cleanup-state.sh', 'utf8');
 const topologyValidator = readFileSync('scripts/cluster/validate-topology-env.sh', 'utf8');
 
 void test('passes exact per-node protection through both provider adapters', () => {
@@ -160,6 +161,26 @@ void test('keeps network, node pools, and MetalLB on one non-overlapping address
   }
 });
 
+void test('topology validation and load balancers share capacity constants and demand formula', () => {
+  assert.match(loadBalancers, /CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY/);
+  assert.doesNotMatch(loadBalancers, /MEMBER_CAPACITY\s*=\s*25/);
+  assert.match(topologyValidator, /CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY=25/);
+  assert.match(topologyValidator, /CLUSTER_NETWORK_DHCP_CONSUMERS=2/);
+  assert.match(topologyValidator, /PUBLIC_CLOUD_FIXED_IPS=/);
+  assert.match(topologyValidator, /PRIVATE_API_VIPS=/);
+  assert.match(topologyValidator, /PUBLIC_INGRESS_VIPS=/);
+  assert.match(topologyValidator, /DHCP_ALLOCATION_DEMAND=/);
+  assert.match(topologyValidator, /DHCP_ALLOCATION_CAPACITY=98/);
+});
+
+void test('cluster monitoring includes active endpoints from both control-plane families', () => {
+  const monitoring = readFileSync('k3s/overlays/cluster/prom-etcd-config.yaml', 'utf8');
+  assert.match(monitoring, /^\s*- 10\.0\.1\.150$/m);
+  assert.match(monitoring, /^\s*- 10\.0\.1\.151$/m);
+  assert.match(monitoring, /^\s*- 10\.0\.1\.152$/m);
+  assert.doesNotMatch(monitoring, /uncomment when adding control-plane/);
+});
+
 void test('enables PROXY v2 on both OVH load balancers and HAProxy Ingress', () => {
   assert.match(loadBalancers, /protocol:\s*'proxyV2'/);
   assert.match(ingress, /use-proxy-protocol:\s*"true"/);
@@ -196,18 +217,26 @@ void test('maps and validates topology variables before both CI SST commands', (
   assert.match(runbook, /GitHub environment variables/);
 });
 
-void test('dev cleanup supports exact Hetzner and OVH identity families without mixing them', () => {
+void test('dev cleanup script fails closed for exact Hetzner and OVH identity families', () => {
   for (const logicalName of [
     'HetznerDevBox',
     'HetznerDevBoxTailnetRegistrationAuthKey',
     'OvhDevBox',
     'OvhDevBoxTailnetRegistrationAuthKey'
   ]) {
-    assert.match(devVpsRunbook, new RegExp(`endswith\\("\\\\?::${logicalName}"\\)`));
+    assert.match(devVpsCleanup, new RegExp(`resource_count ${logicalName}`));
+    assert.match(devVpsCleanup, new RegExp(`-e ${logicalName}`));
   }
-  assert.match(devVpsRunbook, /both HetznerDevBox and OvhDevBox.*do not continue/is);
-  assert.match(devVpsRunbook, /DEV_BOX_LOGICAL_NAME/);
-  assert.match(devVpsRunbook, /DEV_BOX_KEY_LOGICAL_NAME/);
-  assert.match(devVpsRunbook, /HetznerDevBox.*hcloud:index\/server:Server/is);
-  assert.match(devVpsRunbook, /The diff must contain no.*HetznerDevBox.*OvhDevBox/is);
+  assert.match(devVpsCleanup, /mix Hetzner and OVH families/);
+  assert.match(devVpsCleanup, /hcloud:index\/server:Server/);
+  assert.match(devVpsCleanup, /ovh:CloudProject\/instance:Instance/);
+  assert.match(devVpsCleanup, /ovh:Vps\/vps:Vps/);
+  assert.match(devVpsCleanup, /cd "\$\{REPOSITORY_ROOT\}"/);
+  assert.match(devVpsCleanup, /stty -g < \/dev\/tty/);
+  assert.match(devVpsCleanup, /stty -echo < \/dev\/tty/);
+  assert.match(devVpsCleanup, /stty "\$\{TTY_STATE\}" < \/dev\/tty/);
+  assert.match(devVpsCleanup, /retained-detach/);
+  assert.match(devVpsCleanup, /already-deleted-stale/);
+  assert.match(devVpsRunbook, /only authorized cleanup procedure/);
+  assert.doesNotMatch(devVpsRunbook, /^\s*(?:\.\/node_modules\/\.bin\/)?sst state remove/m);
 });
