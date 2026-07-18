@@ -83,27 +83,75 @@ print, copy, or put a registration-key value in shell history.
 
 If there are no rows, no state cleanup is needed.
 
-If an `OvhDevBox` row is present, run this identity gate before either
-detach/delete branch. Enter the expected OVH service ID from the Control Panel;
-the command compares it only to the exact `OvhDevBox` resource ID, prints no ID
-value, and removes the entered value from the shell after the comparison:
+If an `OvhDevBox` row is present, run this type-aware identity gate before
+either detach/delete branch. It uses the exported Pulumi resource's `type`,
+`id`, and, for a Public Cloud instance, `inputs.serviceName`. It prints no ID
+or service value and removes entered values from the shell after comparison:
+
+For a historical `ovh.cloudproject.Instance` (`ovh:CloudProject/instance:Instance`
+in exported state), obtain both the Public Cloud instance ID/UUID and the
+separate Public Cloud project/service ID from the OVH Control Panel. For an
+`ovh.vps.Vps` order (`ovh:Vps/vps:Vps` in exported state), obtain the VPS
+service name/ID that identifies that VPS. Any other type or any mismatch stops
+the procedure.
 
 ```sh
-printf "Expected OVH service ID from OVH Control Panel: "
-read -r EXPECTED_OVH_SERVICE_ID
-if jq -e --arg expected "${EXPECTED_OVH_SERVICE_ID}" '
-  any(
-    .deployment.resources[];
-    (.urn | endswith("::OvhDevBox")) and (.id == $expected)
-  )
-' /tmp/pandoks-state-before-dev-vps-cleanup.json >/dev/null; then
-  printf '%s\n' "OvhDevBox service ID matches exported state."
-else
-  printf '%s\n' "OvhDevBox service ID does not match exported state; do not continue."
-  unset EXPECTED_OVH_SERVICE_ID
-  exit 1
-fi
-unset EXPECTED_OVH_SERVICE_ID
+OVH_DEV_BOX_TYPE="$(jq -r '
+  [.deployment.resources[] | select(.urn | endswith("::OvhDevBox"))]
+  | if length == 1 then .[0].type else empty end
+' /tmp/pandoks-state-before-dev-vps-cleanup.json)"
+
+case "${OVH_DEV_BOX_TYPE}" in
+  "ovh:CloudProject/instance:Instance")
+    printf "Expected OVH Public Cloud instance ID/UUID from Control Panel: "
+    read -r EXPECTED_INSTANCE_ID
+    printf "Expected OVH Public Cloud project/service ID from Control Panel: "
+    read -r EXPECTED_PROJECT_SERVICE_ID
+    if jq -e \
+      --arg instance "${EXPECTED_INSTANCE_ID}" \
+      --arg project "${EXPECTED_PROJECT_SERVICE_ID}" '
+        any(
+          .deployment.resources[];
+          (.urn | endswith("::OvhDevBox"))
+          and (.type == "ovh:CloudProject/instance:Instance")
+          and (.id == $instance)
+          and (.inputs.serviceName == $project)
+        )
+      ' /tmp/pandoks-state-before-dev-vps-cleanup.json >/dev/null; then
+      printf '%s\n' "OvhDevBox instance and project/service IDs match exported state."
+    else
+      printf '%s\n' "OvhDevBox instance or project/service ID does not match exported state; do not continue."
+      unset EXPECTED_INSTANCE_ID EXPECTED_PROJECT_SERVICE_ID OVH_DEV_BOX_TYPE
+      exit 1
+    fi
+    unset EXPECTED_INSTANCE_ID EXPECTED_PROJECT_SERVICE_ID
+    ;;
+  "ovh:Vps/vps:Vps")
+    printf "Expected OVH VPS service name/ID from Control Panel: "
+    read -r EXPECTED_VPS_SERVICE_ID
+    if jq -e --arg expected "${EXPECTED_VPS_SERVICE_ID}" '
+      any(
+        .deployment.resources[];
+        (.urn | endswith("::OvhDevBox"))
+        and (.type == "ovh:Vps/vps:Vps")
+        and (.id == $expected)
+      )
+    ' /tmp/pandoks-state-before-dev-vps-cleanup.json >/dev/null; then
+      printf '%s\n' "OvhDevBox VPS service name/ID matches exported state."
+    else
+      printf '%s\n' "OvhDevBox VPS service name/ID does not match exported state; do not continue."
+      unset EXPECTED_VPS_SERVICE_ID OVH_DEV_BOX_TYPE
+      exit 1
+    fi
+    unset EXPECTED_VPS_SERVICE_ID
+    ;;
+  *)
+    printf '%s\n' "OvhDevBox resource type is unsupported or ambiguous; do not continue."
+    unset OVH_DEV_BOX_TYPE
+    exit 1
+    ;;
+esac
+unset OVH_DEV_BOX_TYPE
 ```
 
 If the gate does not report a match, do not run either detach/delete branch.
