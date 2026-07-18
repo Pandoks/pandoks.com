@@ -97,7 +97,7 @@ The `deploy` command renders templates with these substitutions before applying:
 ./scripts/cluster/main.sh k3d deps down
 ```
 
-### Cloud Cluster (Hetzner via Tailscale)
+### Cloud Cluster (OVHcloud via Tailscale)
 
 ```sh
 # Switch to the cloud cluster context

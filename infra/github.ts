@@ -11,11 +11,39 @@ const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironme
   environment: isProduction ? 'production' : 'dev'
 });
 
-new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
+new github.ActionsEnvironmentSecret('GithubOvhEndpoint', {
   repository: githubRepoName,
   environment: githubEnvironment.environment,
-  secretName: 'HCLOUD_TOKEN',
-  plaintextValue: secrets.hetzner.ApiKey.value
+  secretName: 'OVH_ENDPOINT',
+  plaintextValue: secrets.ovh.Endpoint.value
+});
+
+new github.ActionsEnvironmentSecret('GithubOvhApplicationKey', {
+  repository: githubRepoName,
+  environment: githubEnvironment.environment,
+  secretName: 'OVH_APPLICATION_KEY',
+  plaintextValue: secrets.ovh.ApplicationKey.value
+});
+
+new github.ActionsEnvironmentSecret('GithubOvhApplicationSecret', {
+  repository: githubRepoName,
+  environment: githubEnvironment.environment,
+  secretName: 'OVH_APPLICATION_SECRET',
+  plaintextValue: secrets.ovh.ApplicationSecret.value
+});
+
+new github.ActionsEnvironmentSecret('GithubOvhConsumerKey', {
+  repository: githubRepoName,
+  environment: githubEnvironment.environment,
+  secretName: 'OVH_CONSUMER_KEY',
+  plaintextValue: secrets.ovh.ConsumerKey.value
+});
+
+new github.ActionsEnvironmentSecret('GithubOvhCloudProjectService', {
+  repository: githubRepoName,
+  environment: githubEnvironment.environment,
+  secretName: 'OVH_CLOUD_PROJECT_SERVICE',
+  plaintextValue: secrets.ovh.CloudProjectService.value
 });
 
 if (isProduction) {

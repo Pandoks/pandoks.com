@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { deleteTailscaleDevices, tailscaleAcl } from '../tailscale';
 import { isProduction, STAGE_NAME } from '../dns';
+import { OVH_CLOUD_PROJECT_SERVICE } from '../ovh';
 import { secrets } from '../secrets';
 import { backupBucket, s3Endpoint } from '../storage';
 import { renderCloudInit } from '../utils';
@@ -11,19 +12,18 @@ export const deleteServerFromTailnet = new $util.ResourceHook(
   'DeleteServerFromTailnet',
   async (serverOutput) => {
     const outputs = serverOutput.oldOutputs as {
-      labels: $util.Unwrap<hcloud.Server['labels']>;
+      name: $util.Unwrap<ovh.cloudproject.Instance['name']>;
     };
-    const serverLabels = outputs.labels ?? {};
+    // NOTE: instance names double as tailscale hostnames so the hook can find the devices
+    const serverName = outputs.name ?? '';
 
-    const devices = await tailscale.getDevices({
-      namePrefix: `${serverLabels['tailscale'] ?? ''}`
-    });
-    const serverHetznerDevices = devices.devices.filter(
-      (device) => device.tags.includes('tag:hetzner') && device.tags.includes(`tag:${STAGE_NAME}`)
+    const devices = await tailscale.getDevices({ namePrefix: serverName });
+    const serverOvhDevices = devices.devices.filter(
+      (device) => device.tags.includes('tag:ovh') && device.tags.includes(`tag:${STAGE_NAME}`)
     );
-    if (serverHetznerDevices.length > 0) {
+    if (serverOvhDevices.length > 0) {
       const deletedDevices = deleteTailscaleDevices(
-        ...serverHetznerDevices.map((device) => device.nodeId)
+        ...serverOvhDevices.map((device) => device.nodeId)
       );
       deletedDevices.apply((deletedDevices) => {
         const deletedDeviceIds = deletedDevices
@@ -34,7 +34,7 @@ export const deleteServerFromTailnet = new $util.ResourceHook(
           .map((device) => device.deviceId);
         if (deletedDeviceIds.length) {
           console.log(
-            `Deleted Tailscale devices:\n${serverHetznerDevices
+            `Deleted Tailscale devices:\n${serverOvhDevices
               .filter((device) => deletedDeviceIds.includes(device.nodeId))
               .map((device) => device.name)
               .join('\n')}`
@@ -42,7 +42,7 @@ export const deleteServerFromTailnet = new $util.ResourceHook(
         }
         if (failedToDeleteDeviceIds.length) {
           console.log(
-            `Failed to delete Tailscale devices:\n${serverHetznerDevices
+            `Failed to delete Tailscale devices:\n${serverOvhDevices
               .filter((device) => failedToDeleteDeviceIds.includes(device.nodeId))
               .map((device) => device.name)
               .join('\n')}`
@@ -57,19 +57,16 @@ export function createServers(
   serverArgs: {
     type: 'control-plane' | 'worker';
     serverCount: number;
-    network: { network: hcloud.Network; subnet: hcloud.NetworkSubnet };
-    startingOctet: number;
-    loadBalancersPerNode: number;
-    loadBalancers: { loadbalancer: hcloud.LoadBalancer; network: hcloud.LoadBalancerNetwork }[];
+    ips: string[];
+    network: { networkId: $util.Output<string>; subnetId: $util.Output<string>; cidr: string };
   },
-  hcloudServerArgs: {
-    type: string;
-    image: string;
-    location: string;
-    firewalls: hcloud.Firewall[];
+  ovhInstanceArgs: {
+    flavorId: string;
+    imageId: string;
+    region: string;
   },
-  bootstrap: { ip: $util.Input<string> | undefined; server: hcloud.Server | undefined }
-): { tailscaleHostnames: string[]; servers: hcloud.Server[] } {
+  bootstrap: { ip: string | undefined; server: ovh.cloudproject.Instance | undefined }
+): { tailscaleHostnames: string[]; servers: ovh.cloudproject.Instance[] } {
   if (serverArgs.serverCount < 1) {
     return { tailscaleHostnames: [], servers: [] };
   } else if (serverArgs.type === 'control-plane' && serverArgs.serverCount > 10) {
@@ -79,58 +76,38 @@ export function createServers(
   }
 
   const tailscaleHostnames: string[] = [];
-  const servers: hcloud.Server[] = [];
+  const servers: ovh.cloudproject.Instance[] = [];
 
   const nodeResourceName = serverArgs.type === 'control-plane' ? 'ControlPlane' : 'Worker';
-
-  const placementGroups =
-    serverArgs.type === 'control-plane'
-      ? [
-          new hcloud.PlacementGroup('HetznerControlPlanePlacementGroup', {
-            name: 'control-plane',
-            type: 'spread'
-          })
-        ]
-      : Array.from({ length: Math.ceil(serverArgs.serverCount / 10) }).map((_, i) => {
-          return new hcloud.PlacementGroup(`HetznerWorkerPlacementGroup${i}`, {
-            name: `workers-${i}`,
-            type: 'spread'
-          });
-        });
 
   for (let i = 0; i < serverArgs.serverCount; i++) {
     const serverRole: 'bootstrap' | 'server' | 'worker' =
       serverArgs.type === 'control-plane' ? (i === 0 ? 'bootstrap' : 'server') : 'worker';
 
-    const ip = serverArgs.network.subnet.ipRange.apply(
-      (ipRange) => `${ipRange.split('.').slice(0, 3).join('.')}.${serverArgs.startingOctet + i}`
-    );
+    const ip = serverArgs.ips[i];
     const clusterTailscaleHostname = `${STAGE_NAME}-cluster`;
     if (serverRole === 'bootstrap') {
       bootstrap.ip = ip;
     }
 
     const registrationTailnetAuthKey = new tailscale.TailnetKey(
-      `Hetzner${nodeResourceName}Server${i}TailnetRegistrationAuthKey`,
+      `Ovh${nodeResourceName}Server${i}TailnetRegistrationAuthKey`,
       {
-        description: `hcloud ${serverArgs.type} ${i} node reg`,
+        description: `ovh ${serverArgs.type} ${i} node reg`,
         reusable: false,
         expiry: 1800, // 30 minutes
         preauthorized: true,
-        tags: ['tag:hetzner', `tag:${STAGE_NAME}`, `tag:${serverArgs.type}`]
+        tags: ['tag:ovh', `tag:${STAGE_NAME}`, `tag:${serverArgs.type}`]
       },
       { dependsOn: [tailscaleAcl] }
     );
 
-    const tailscaleHostname = `${STAGE_NAME}-hetzner-${serverArgs.type}-server-${i}`;
+    const tailscaleHostname = `${STAGE_NAME}-ovh-${serverArgs.type}-server-${i}`;
     tailscaleHostnames.push(tailscaleHostname);
 
     const userData = $resolve([
       secrets.Stage.value,
-      serverArgs.network.subnet.ipRange,
-      secrets.hetzner.K3sToken.value,
-      ip,
-      bootstrap.ip,
+      secrets.ovh.K3sToken.value,
       registrationTailnetAuthKey.key,
       secrets.k8s.tailscale.OauthClientId.value,
       secrets.k8s.tailscale.OauthClientSecret.value,
@@ -141,10 +118,7 @@ export function createServers(
     ]).apply(
       ([
         STAGE_NAME,
-        PRIVATE_IP_RANGE,
         K3S_TOKEN,
-        NODE_IP,
-        bootstrapIp,
         REGISTRATION_TAILNET_AUTH_KEY,
         KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID,
         KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET,
@@ -155,10 +129,10 @@ export function createServers(
       ]) => {
         const environments = {
           STAGE_NAME,
-          PRIVATE_IP_RANGE,
+          PRIVATE_IP_RANGE: serverArgs.network.cidr,
           K3S_TOKEN,
-          SERVER_API: `https://${bootstrapIp}:6443`,
-          NODE_IP,
+          SERVER_API: `https://${bootstrap.ip}:6443`,
+          NODE_IP: ip,
           ROLE: serverRole,
           TAILSCALE_HOSTNAME: tailscaleHostname,
           REGISTRATION_TAILNET_AUTH_KEY,
@@ -178,23 +152,22 @@ export function createServers(
       (resource) => resource !== undefined
     );
 
-    const server = new hcloud.Server(
-      `Hetzner${nodeResourceName}Server${i}`,
+    const server = new ovh.cloudproject.Instance(
+      `Ovh${nodeResourceName}Server${i}`,
       {
-        name: `${STAGE_NAME}-${serverArgs.type}-server-${i}`,
-        serverType: hcloudServerArgs.type,
-        image: hcloudServerArgs.image,
-        location: hcloudServerArgs.location,
-        placementGroupId: placementGroups[Math.floor(i / 10)].id.apply((id) => parseInt(id)),
-        deleteProtection: isProduction,
-        rebuildProtection: isProduction,
-        firewallIds: hcloudServerArgs.firewalls.map((firewall) =>
-          firewall.id.apply((id) => parseInt(id))
-        ),
-        networks: [{ networkId: serverArgs.network.network.id.apply((id) => parseInt(id)), ip }],
-        publicNets: [{ ipv4Enabled: true, ipv6Enabled: true }],
-        shutdownBeforeDeletion: true,
-        labels: { tailscale: tailscaleHostname },
+        serviceName: OVH_CLOUD_PROJECT_SERVICE,
+        name: tailscaleHostname,
+        region: ovhInstanceArgs.region,
+        billingPeriod: 'hourly',
+        flavor: { flavorId: ovhInstanceArgs.flavorId },
+        bootFrom: { imageId: ovhInstanceArgs.imageId },
+        network: {
+          public: true,
+          private: {
+            ip,
+            network: { id: serverArgs.network.networkId, subnetId: serverArgs.network.subnetId }
+          }
+        },
         userData
       },
       {
@@ -208,24 +181,6 @@ export function createServers(
     );
     bootstrap.server = bootstrap.server ?? server;
     servers.push(server);
-  }
-
-  for (const [index, server] of servers.entries()) {
-    const groupIndex = Math.floor(index / 25);
-    for (let j = 0; j < serverArgs.loadBalancersPerNode; j++) {
-      const loadBalancerIndex = groupIndex * serverArgs.loadBalancersPerNode + j;
-      const { loadbalancer, network } = serverArgs.loadBalancers[loadBalancerIndex];
-      new hcloud.LoadBalancerTarget(
-        `HetznerK3s${nodeResourceName}LoadBalancer${loadBalancerIndex}Target${index}`,
-        {
-          loadBalancerId: loadbalancer.id.apply((id) => parseInt(id)),
-          type: 'server',
-          serverId: server.id.apply((id) => parseInt(id)),
-          usePrivateIp: true
-        },
-        { dependsOn: [network] }
-      );
-    }
   }
 
   return { tailscaleHostnames, servers };

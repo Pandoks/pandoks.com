@@ -11,8 +11,8 @@ area is being edited.
 - **Minimize comments.** Default to zero. Only write one for non-obvious
   WHY: hidden constraints, invariants, intentional crashes, workarounds
   for specific bugs. Bare comments are fine — most live comments in the
-  repo are unprefixed (e.g., `infra/vps/vps.ts:1, 8, 14, 24`,
-  `infra/secrets.ts:60`, `apps/functions/src/api/notion/gh-blog-sync.ts:4`).
+  repo are unprefixed (e.g., `infra/vps/vps.ts:16, 18, 23`,
+  `infra/secrets.ts:69`, `apps/functions/src/api/notion/gh-blog-sync.ts:4`).
   Use `NOTE:` / `WARNING:` / `TODO:` prefixes only when the comment is a
   load-bearing safety rail or an operator instruction that a future
   reader needs to spot at a glance — the bar is "would skipping this
@@ -21,7 +21,7 @@ area is being edited.
     `// WARNING: a change to this will overwrite the ACL on all stages`
   - `apps/functions/src/api/notion/webhook.ts:92-94` —
     `// WARNING: Handlers MUST be idempotent`
-  - `sst.config.ts:22` —
+  - `sst.config.ts:34` —
     `// NOTE: for some reason, dynamic imports don't work well`
   - `TODO:` is equally valid for an operator action or an
     upstream-blocker note (no live example in the tree right now — the

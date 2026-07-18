@@ -14,7 +14,14 @@ export default $config({
         },
         cloudflare: '6.15.0',
         github: '6.12.1',
-        hcloud: { token: process.env.HCLOUD_TOKEN, version: '1.32.1' },
+        // NOTE: sst resolves this key to the @ovhcloud/pulumi-ovh npm package. the global stays `ovh`
+        'ovhcloud/pulumi-ovh': {
+          endpoint: process.env.OVH_ENDPOINT,
+          applicationKey: process.env.OVH_APPLICATION_KEY,
+          applicationSecret: process.env.OVH_APPLICATION_SECRET,
+          consumerKey: process.env.OVH_CONSUMER_KEY,
+          version: '2.17.0'
+        },
         tailscale: {
           oauthClientId: process.env.TAILSCALE_OAUTH_CLIENT_ID,
           oauthClientSecret: process.env.TAILSCALE_OAUTH_CLIENT_SECRET,

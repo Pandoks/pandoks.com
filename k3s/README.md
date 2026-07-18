@@ -5,7 +5,7 @@ are not hosted in this cluster are hosted either in AWS or Cloudflare usually fo
 applications. For databases, it is better to used a managed database as it reduces the operational
 overhead.
 
-As it stands, the cluster is hosted on Hetzner VPS's.
+As it stands, the cluster is hosted on OVHcloud Public Cloud instances.
 
 ## Directory Structure
 
@@ -113,7 +113,7 @@ the VPS's.
 ### HAProxy Ingress Controller
 
 `base/helm-charts/haproxy-ingress.yaml` is a helm chart that installs the HAProxy ingress controller and
-also configures `NodePort` services to expose to the Hetzner load balancer. Ports `30000-32767` are
+also configures `NodePort` services to expose to the OVH load balancer. Ports `30000-32767` are
 reserved ports just for `nodePort` services. The cluster is entirely in a private network so we only
 expose services via the load balancer which is exposed to the public internet but is also connected
 to the private network.
@@ -174,7 +174,7 @@ overlays because etcd endpoints are environment-specific.
 ```
 k3s/base/core/namespaces.yaml          → monitoring namespace
 k3s/overlays/dev/prom-grafana.yaml     → HelmChart with k3d control plane IPs (172.30.0.4-6)
-k3s/overlays/prod/prom-grafana.yaml    → HelmChart with Hetzner IPs (10.0.1.10+)
+k3s/overlays/prod/prom-grafana.yaml    → HelmChart with OVH IPs (10.0.1.10+)
 k3s/templates/monitoring.yaml          → Grafana secrets (SST template)
 ```
 
@@ -183,7 +183,7 @@ k3s/templates/monitoring.yaml          → Grafana secrets (SST template)
 k3s embedded etcd requires `--etcd-expose-metrics` flag to expose metrics on port 2381:
 
 - **k3d**: Set via `--k3s-arg "--etcd-expose-metrics@server:*"` in `scripts/cluster/k3d.sh`
-- **Hetzner**: Set in `infra/vps/cloud-config.yaml`
+- **OVHcloud**: Set in `infra/vps/cloud-config.yaml`
 
 The kube-prometheus-stack `kubeEtcd.endpoints` must list control plane IPs explicitly because
 k3s doesn't create pods with `component=etcd` labels (embedded etcd).

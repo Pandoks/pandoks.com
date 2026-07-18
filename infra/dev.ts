@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
+import { getFlavorId, getImageId, OVH_CLOUD_PROJECT_SERVICE } from './ovh';
 import { tailscaleAcl } from './tailscale';
 import { renderCloudInit } from './utils';
 import { deleteServerFromTailnet } from './vps/servers';
-import { inboundFirewall } from './vps/vps';
 
 new sst.x.DevCommand('DevInit', {
   dev: {
@@ -39,13 +39,13 @@ new sst.x.DevCommand('K3dDependencyRestart', {
 if ($app.stage === 'pandoks') {
   const tailscaleHostname = `${$app.stage}-dev-box`;
   const registrationTailnetAuthKey = new tailscale.TailnetKey(
-    'HetznerDevBoxTailnetRegistrationAuthKey',
+    'OvhDevBoxTailnetRegistrationAuthKey',
     {
-      description: `hcloud ${$app.stage} dev box registration`,
+      description: `ovh ${$app.stage} dev box registration`,
       reusable: false,
       expiry: 1800,
       preauthorized: true,
-      tags: ['tag:hetzner', 'tag:dev']
+      tags: ['tag:ovh', 'tag:dev']
     },
     { dependsOn: [tailscaleAcl] }
   );
@@ -60,17 +60,17 @@ if ($app.stage === 'pandoks') {
     return renderCloudInit(cloudInitConfig, environment);
   });
 
-  new hcloud.Server(
-    'HetznerDevBox',
+  const devBoxRegion = 'US-WEST-OR-1';
+  new ovh.cloudproject.Instance(
+    'OvhDevBox',
     {
+      serviceName: OVH_CLOUD_PROJECT_SERVICE,
       name: tailscaleHostname,
-      serverType: 'cpx11',
-      image: 'ubuntu-24.04',
-      location: 'hil',
-      publicNets: [{ ipv4Enabled: true, ipv6Enabled: true }],
-      firewallIds: [inboundFirewall.id.apply((id) => parseInt(id))],
-      shutdownBeforeDeletion: true,
-      labels: { tailscale: tailscaleHostname },
+      region: devBoxRegion,
+      billingPeriod: 'hourly',
+      flavor: { flavorId: await getFlavorId(devBoxRegion, 'd2-4') },
+      bootFrom: { imageId: await getImageId(devBoxRegion, 'Ubuntu 24.04') },
+      network: { public: true },
       userData
     },
     {

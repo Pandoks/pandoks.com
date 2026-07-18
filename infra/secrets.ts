@@ -38,9 +38,13 @@ export const secrets = {
       Password: new sst.Secret('OxylabsWebUnblockerPassword')
     }
   },
-  hetzner: {
-    ApiKey: new sst.Secret('HetznerApiKey'),
-    K3sToken: new sst.Secret('HetznerK3sToken')
+  ovh: {
+    Endpoint: new sst.Secret('OvhEndpoint', 'ovh-us'),
+    ApplicationKey: new sst.Secret('OvhApplicationKey'),
+    ApplicationSecret: new sst.Secret('OvhApplicationSecret'),
+    ConsumerKey: new sst.Secret('OvhConsumerKey'),
+    CloudProjectService: new sst.Secret('OvhCloudProjectService'),
+    K3sToken: new sst.Secret('OvhK3sToken')
   },
   tailscale: {
     OauthClientId: new sst.Secret('TailscaleOauthClientId'),
@@ -58,8 +62,8 @@ export const secrets = {
     grafana: {
       AdminPassword: new sst.Secret('KubernetesGrafanaAdminPassword', 'password')
     },
-    HetznerOriginTlsKey: new sst.Secret('HetznerOriginTlsKey', 'No Origin Tls Key Set'), // Automatically set during deploy
-    HetznerOriginTlsCrt: new sst.Secret('HetznerOriginTlsCrt', 'No Origin Tls Cert Set'), // Automatically set during deploy
+    OvhOriginTlsKey: new sst.Secret('OvhOriginTlsKey', 'No Origin Tls Key Set'), // Automatically set during deploy
+    OvhOriginTlsCrt: new sst.Secret('OvhOriginTlsCrt', 'No Origin Tls Cert Set'), // Automatically set during deploy
     main: {
       // namespace
       // NOTE: sst Secret names are named '<namespace><db-name><resource><var>' (ie. MainMainPostgresSuperuserPassword)

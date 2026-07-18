@@ -47,13 +47,14 @@ matching the local username (`pandoks`). Production always needs
 `--stage production` explicitly.
 
 Required envs (`.env.example`): `CLOUDFLARE_API_TOKEN`,
-`CLOUDFLARE_DEFAULT_ACCOUNT_ID`, `HCLOUD_TOKEN`,
+`CLOUDFLARE_DEFAULT_ACCOUNT_ID`, `OVH_ENDPOINT`, `OVH_APPLICATION_KEY`,
+`OVH_APPLICATION_SECRET`, `OVH_CONSUMER_KEY`, `OVH_CLOUD_PROJECT_SERVICE`,
 `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_CLIENT_SECRET`,
 `GITHUB_TOKEN`. The Tailscale pair is the manually-created root OAuth
 client (admin console → Trust credentials, "All - Read & Write",
 tagless — see `gotchas/infra.md`) — the one
 credential IaC can't create; its secret never expires. The provider
-exchanges it for 1-hour API tokens per run (`sst.config.ts:18-22`), and
+exchanges it for 1-hour API tokens per run (`sst.config.ts:25-29`), and
 `deleteTailscaleDevices` does the same exchange for its raw API calls
 (`infra/tailscale.ts:88-111`).
 
@@ -180,13 +181,13 @@ sudo kubectl annotate application prod-cluster \
 ```
 
 Then wait for ArgoCD sync (CI's loop is in
-`.github/workflows/deploy-infra.yaml:145-162`).
+`.github/workflows/deploy-infra.yaml:140-157`).
 
 ## CI workflows
 
 | File                     | Triggers                                                                                                                                                                    | Does                                                                                                                                                                                                                                                                                                                                                                                         |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `deploy-infra.yaml`      | push to main on `infra/**`, `apps/**` (excl. `desktop-template`/`example`), `packages/svelte/**`, `k3s/**`, `scripts/cluster/**`; manual dispatch (`stage`/`deploy` inputs) | Install, AWS OIDC, `pnpm sst refresh` (`continue-on-error: true`, `:98-102`), `pnpm sst deploy`. On success: Tailscale + ArgoCD `refresh=hard` + sync-wait loop (60×5s, `:151-162`). Skips kubernetes step if no `prod-cluster` Tailnet peer (`:133-140`). Each job uses `concurrency: { cancel-in-progress: false }`.                                                                       |
+| `deploy-infra.yaml`      | push to main on `infra/**`, `apps/**` (excl. `desktop-template`/`example`), `packages/svelte/**`, `k3s/**`, `scripts/cluster/**`; manual dispatch (`stage`/`deploy` inputs) | Install, AWS OIDC, `pnpm sst refresh` (`continue-on-error: true`, `:93-97`), `pnpm sst deploy`. On success: Tailscale + ArgoCD `refresh=hard` + sync-wait loop (60×5s, `:144-157`). Skips kubernetes step if no `prod-cluster` Tailnet peer (`:123-130`). Each job uses `concurrency: { cancel-in-progress: false }`.                                                                        |
 | `sync-notion.yaml`       | `workflow_dispatch` only (fired by `NotionWebhookHandler` Lambda via GitHub API)                                                                                            | Install, AWS OIDC, run `pnpm sst shell --stage production -- pnpm -r --if-present run sync:notion`. Opens a PR (`peter-evans/create-pull-request@v8`) under branch `auto/notion-sync` with content under `apps/web/*`.                                                                                                                                                                       |
 | `checks.yaml`            | push to main, PR to main                                                                                                                                                    | paths-filter dispatches per-language jobs (prettier, eslint, golangci, shfmt+shellcheck, hadolint, helm+kubeconform, actionlint, renovate-config-validator, `pnpm check:infra` via `infra` filter). Tool-only jobs (shell/helm) provision via `jdx/mise-action` reading `mise.toml` and invoke the dispatcher scripts directly (no pnpm). Each job runs only when its file patterns changed. |
 | `tests.yaml`             | push to main, PR to main                                                                                                                                                    | paths-filter per-app: web (vitest + playwright), desktop-template, svelte package, valkey reconciler (go test). Each gated by `apps/web/**`-style globs.                                                                                                                                                                                                                                     |

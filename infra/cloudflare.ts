@@ -14,6 +14,7 @@ export const cloudflareIps = (await cloudflareIpRequest.json()) as {
 const publicLoadBalancers = [...workerLoadBalancers, ...controlPlaneLoadBalancers];
 
 if (publicLoadBalancers.length && !isProduction) {
+  // NOTE: no AAAA records because openstack floating ips are ipv4 only
   for (const [i, loadBalancer] of publicLoadBalancers.entries()) {
     new cloudflare.DnsRecord(`ExampleDomainLoadBalancer${i}Ipv4`, {
       name: EXAMPLE_DOMAIN,
@@ -21,17 +22,8 @@ if (publicLoadBalancers.length && !isProduction) {
       type: 'A',
       proxied: true,
       ttl: 1,
-      comment: 'hetzner k3s',
-      content: loadBalancer.loadbalancer.ipv4
-    });
-    new cloudflare.DnsRecord(`ExampleDomainLoadBalancer${i}Ipv6`, {
-      name: EXAMPLE_DOMAIN,
-      zoneId: cloudflareZoneId,
-      type: 'AAAA',
-      proxied: true,
-      ttl: 1,
-      comment: 'hetzner k3s',
-      content: loadBalancer.loadbalancer.ipv6
+      comment: 'ovh k3s',
+      content: loadBalancer.floatingIp.apply((floatingIp) => floatingIp.ip)
     });
   }
 }
@@ -59,7 +51,7 @@ if (!existsSync(certificateSigningRequestPath)) {
     ],
     { stdio: 'inherit' }
   );
-  secrets.k8s.HetznerOriginTlsKey.name.apply((secretName) => {
+  secrets.k8s.OvhOriginTlsKey.name.apply((secretName) => {
     execFileSync(
       '/bin/sh',
       ['-lc', `sst secret set ${secretName} --stage ${$app.stage} < ${certificateKeyPath}`],
@@ -70,18 +62,15 @@ if (!existsSync(certificateSigningRequestPath)) {
 }
 
 const certificateSigningRequest = readFileSync(certificateSigningRequestPath);
-const hetznerOriginCert = new cloudflare.OriginCaCertificate(
-  'HetznerOriginCloudflareCaCertificate',
-  {
-    hostnames: [EXAMPLE_DOMAIN],
-    requestType: 'origin-rsa',
-    csr: certificateSigningRequest.toString(),
-    requestedValidity: 5475 // 15 years
-  }
-);
+const ovhOriginCert = new cloudflare.OriginCaCertificate('OvhOriginCloudflareCaCertificate', {
+  hostnames: [EXAMPLE_DOMAIN],
+  requestType: 'origin-rsa',
+  csr: certificateSigningRequest.toString(),
+  requestedValidity: 5475 // 15 years
+});
 
 if (needToSetCertificateSecret) {
-  $resolve([hetznerOriginCert.certificate, secrets.k8s.HetznerOriginTlsCrt.name]).apply(
+  $resolve([ovhOriginCert.certificate, secrets.k8s.OvhOriginTlsCrt.name]).apply(
     ([certificate, secretName]) => {
       execFileSync(
         '/bin/sh',

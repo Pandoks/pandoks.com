@@ -11,10 +11,10 @@ paths:
 
 ## Dynamic imports
 
-- **Dynamic imports break SST.** `sst.config.ts:24-38` keeps the literal
+- **Dynamic imports break SST.** `sst.config.ts:35-49` keeps the literal
   `await Promise.all([import('./infra/...')])` list. The
   `// NOTE: for some reason, dynamic imports don't work well so just
-manually import` comment at `sst.config.ts:22` is load-bearing.
+manually import` comment at `sst.config.ts:34` is load-bearing.
 
 ## Tailscale ACL
 
@@ -29,7 +29,7 @@ manually import` comment at `sst.config.ts:22` is load-bearing.
 
 - **The provider authenticates as a manually-created OAuth client** —
   `TAILSCALE_OAUTH_CLIENT_ID`/`TAILSCALE_OAUTH_CLIENT_SECRET` env →
-  `sst.config.ts:18-22`. It's the one credential IaC cannot create for
+  `sst.config.ts:25-29`. It's the one credential IaC cannot create for
   itself (chicken-and-egg); made once in the admin console (Trust
   credentials → Credential → OAuth, scopes "All - Read & Write",
   no tags). The client secret never expires — do NOT replace it with an
@@ -39,7 +39,7 @@ manually import` comment at `sst.config.ts:22` is load-bearing.
   ("created keys must carry tags owned by the credential's tags") is
   tied to tagged credentials; a tagless all-scope credential creates
   tagged keys/clients freely — verified empirically 2026-07-12 by
-  creating + deleting a `tag:hetzner` auth key with it. If Tailscale
+  creating + deleting a tagged (`tag:ovh`-style) auth key with it. If Tailscale
   ever tightens this and creations start 403ing on tags, recreate the
   credential via Custom scopes with a tag that `tagOwners` grants
   ownership of every IaC-managed tag.
@@ -50,45 +50,53 @@ manually import` comment at `sst.config.ts:22` is load-bearing.
   helper for any new direct `api.tailscale.com` call.
 - **The same pair must be seeded as SST secrets**
   (`TailscaleOauthClientId`/`TailscaleOauthClientSecret`,
-  `infra/secrets.ts:45-48`) for the hooks, AND lives in `.env.<stage>`
+  `infra/secrets.ts:49-52`) for the hooks, AND lives in `.env.<stage>`
   for the provider — two plumbing paths, one credential.
-  `infra/github.ts:105-114` mirrors the SST secrets into the GH action
+  `infra/github.ts:133-142` mirrors the SST secrets into the GH action
   secrets CI reads.
 
-## Hetzner cluster
+## OVH cluster
 
-- **Single-region by design.** Networks are region-locked
-  (`infra/vps/vps.ts:24-35`). Multi-region requires multiple clusters +
+- **Single-region by design.** The private network, subnet, gateway and
+  load balancers are all pinned to one `REGION`
+  (`infra/vps/vps.ts:33-43`). Multi-region requires multiple clusters +
   Cloudflare DNS steering.
-- **Servers can only be upsized.** `infra/vps/vps.ts:13` — disk size must
-  monotonically grow. The constraint NOTE lives in `vps.ts`, but the
-  actual `hcloud.Server` resource (its `serverType`/`image`/`location`)
-  is built in the sibling `infra/vps/servers.ts:182-188` by
-  `createServers()` (`:55`); that file also owns the
-  `DeleteServerFromTailnet` `$util.ResourceHook` (`:10`) that reclaims a
+- **Instances can't be resized in place.** `infra/vps/vps.ts:19` — nearly
+  every `ovh.cloudproject.Instance` field forces a replacement, so a
+  flavor bump recreates the server (drain first). The constraint NOTE
+  lives in `vps.ts`, but the actual `ovh.cloudproject.Instance` resource
+  is built in the sibling `infra/vps/servers.ts:155-179` by
+  `createServers()` (`:56`); that file also owns the
+  `DeleteServerFromTailnet` `$util.ResourceHook` (`:11`) that reclaims a
   destroyed node's Tailnet entry, and reads `infra/vps/cloud-config.yaml`
-  (`:7`). But the literal VALUES are stage-switched module consts back in
-  `vps.ts` — `SERVER_TYPE` (`vps.ts:14`, `ccx13` prod / `cx23` dev),
-  `SERVER_IMAGE` (`:18`, `ubuntu-24.04`), `LOCATION` (`:19`, `hil` prod /
-  `fsn1` dev) — passed into `createServers()` at `vps.ts:106-108, 123-125`.
-  So: change the resource SHAPE in `servers.ts`, change the type/image/
-  region VALUES in `vps.ts`.
-- **Downsizing requires manual drain.** `infra/vps/vps.ts:8`: must
+  (`:9`). But the literal VALUES are stage-switched module consts back in
+  `vps.ts` — `SERVER_FLAVOR` (`vps.ts:20`, `b3-8` prod / `d2-4` dev),
+  `SERVER_IMAGE` (`:24`, `Ubuntu 24.04`), `REGION` (`:27`,
+  `US-WEST-OR-1` prod / `US-EAST-VA-1` dev) — resolved to ids by the
+  `infra/ovh.ts` lookups at `vps.ts:70-71, 86-88` and passed into
+  `createServers()` at `vps.ts:148-152, 162-166`. So: change the
+  resource SHAPE in `servers.ts`, change the flavor/image/region VALUES
+  in `vps.ts`.
+- **US regions need an OVHcloud US account** (`ovh-us` endpoint, NOTE at
+  `vps.ts:25-26`) — swap `REGION` to EU codes + `ovh-eu` if the account
+  is an EU one. Instance names double as Tailscale hostnames so the
+  delete hook can find the devices (`infra/vps/servers.ts:17-19`).
+- **Downsizing requires manual drain.** `infra/vps/vps.ts:14`: must
   `kubectl drain && kubectl delete node` first. Pulumi scaling node count
   down does not drain k8s.
-- **Tailnet reclaim when count==0.** `infra/vps/vps.ts:131-164`
+- **Tailnet reclaim when count==0.** `infra/vps/vps.ts:170-203`
   auto-deletes Tailscale devices tagged `tag:k8s` + `tag:<stage>` when both
   `CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT == 0`. Bumping counts will
   bring the cluster up — but ArgoCD App-of-Apps then takes over.
-- **Current counts are 0** in both stages (`infra/vps/vps.ts:9, 11`).
+- **Current counts are 0** in both stages (`infra/vps/vps.ts:15, 17`).
 
 ## TLS / Cloudflare origin cert
 
-- **CSR is generated locally** in `infra/cloudflare.ts:45-62`. When
+- **CSR is generated locally** in `infra/cloudflare.ts:36-53`. When
   `infra/vps/vps.origin.<stage>.csr` is missing, the file is recreated
   via `execFileSync('openssl', [...])`. The key is piped into
-  `sst secret set` via `/bin/sh -lc` at `infra/cloudflare.ts:63-69`
-  (stdin redirect, `< keyPath`); the cert later goes in via `:85-93`
+  `sst secret set` via `/bin/sh -lc` at `infra/cloudflare.ts:54-60`
+  (stdin redirect, `< keyPath`); the cert later goes in via `:73-81`
   (heredoc, `<<'EOF' ... EOF`). Never as a process arg. The CSR + key
   paths are stage-suffixed: `vps.origin.dev.csr` and
   `vps.origin.prod.csr` already exist in `infra/vps/`. **Don't delete
@@ -96,13 +104,13 @@ manually import` comment at `sst.config.ts:22` is load-bearing.
 
 ## Protection
 
-- **Production resources are `protect: true`** (`sst.config.ts:7`). Hetzner
-  servers also set `protect: isProduction`. Delete fails by design.
+- **Production resources are `protect: true`** (`sst.config.ts:7`). OVH
+  instances also set `protect: isProduction`. Delete fails by design.
 
 ## SST refresh exit code
 
 - **`sst refresh` exit-code bug.**
-  `.github/workflows/deploy-infra.yaml:98-102` carries
+  `.github/workflows/deploy-infra.yaml:93-97` carries
   `continue-on-error: true` with a `# TODO` link to
   `https://github.com/anomalyco/sst/issues/6713`. Don't replicate in
   other jobs.
@@ -121,7 +129,7 @@ manually import` comment at `sst.config.ts:22` is load-bearing.
 
 - **Deploy jobs use `cancel-in-progress: false`**
   (`.github/workflows/deploy-infra.yaml:62-64` deploy-sst,
-  `:108-110` deploy-kubernetes) — concurrent deploys queue, don't cancel.
+  `:103-105` deploy-kubernetes) — concurrent deploys queue, don't cancel.
 - **Notion blog rebuild via `sync-notion.yaml`**, not a separate
   `deploy-web.yaml`. The `NotionWebhookHandler` Lambda fans out to
   `handleNotionBlogSync` (`apps/functions/src/api/notion/gh-blog-sync.ts:7`)

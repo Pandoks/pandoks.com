@@ -32,12 +32,12 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         {
           action: 'check',
           src: ['autogroup:member'],
-          dst: ['autogroup:self', 'tag:hetzner'],
+          dst: ['autogroup:self', 'tag:ovh'],
           users: ['autogroup:nonroot', 'root']
         }
       ],
       tagOwners: {
-        'tag:hetzner': ['pandoks@github'],
+        'tag:ovh': ['pandoks@github'],
         'tag:k8s-operator': ['tag:k8s-operator'],
         'tag:k8s': ['tag:k8s-operator'],
         'tag:control-plane': ['pandoks@github'],
