@@ -87,7 +87,7 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
   (`notion`, `personal`, `twilio`, `oxylabs`, `ovh`, `tailscale`,
   `cloudflare`, `github`, `aws`) use **bare PascalCase resource names**
   without the namespace prefix: `KwokPhoneNumber`, `NotionApiKey`,
-  `TwilioPhoneNumber`, `OvhApplicationKey`. The k8s tree adds the prefix
+  `TwilioPhoneNumber`, `OvhApplicationSecret`. The k8s tree adds the prefix
   because two databases (`mainPostgres`, `mainValkey`,
   `mainClickhouse`) share property names like `AdminPassword`.
 - **A brand-new non-derived `sst.Secret` must be seeded once** via
@@ -108,6 +108,27 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
   derives to `'prod'` / `'dev'` (`infra/dns.ts:9`). Inside CI, the
   `SST_STAGE` env defaults to `'production'`
   (`.github/workflows/deploy-infra.yaml:39`).
+
+## OVH hybrid cluster
+
+- **Topology and four independent pools live in
+  `infra/cluster/cluster.ts`.** Host hardening and k3s setup live in
+  `infra/cluster/bootstrap.sh`; scale, migration, drain, reinstall-safety, and
+  recovery procedures live in `infra/cluster/README.md`.
+- **The Public Cloud project is permanent shared infrastructure.**
+  `OVH_CLOUD_PROJECT_SERVICE` is required for the vRack project attachment,
+  private network, subnet, gateway, and load balancers even when all compute is
+  dedicated.
+- **Never enable a dedicated pool from copied catalog values.** Validate its
+  plan, datacenter, order region, and required options against the live
+  authenticated OVH cart, then set the intended count locally and review an
+  authenticated `sst diff` before committing or applying it.
+- **Cluster hosts have no provider SSH key.** Administrator access is Tailscale
+  SSH only; cluster traffic stays on vRack and console/rescue is the recovery
+  path. Production bootstrap inputs are immutable for existing nodes, so never
+  force a dedicated reinstall to roll out `bootstrap.sh`.
+- The manually managed VPS-4 is not cluster capacity or an SST resource. Its
+  runbook is `scripts/dev-vps/README.md`.
 
 ## Subprocess IaC
 

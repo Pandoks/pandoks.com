@@ -1,5 +1,6 @@
 # OVH control plane nodes on private network 10.0.1.0/24
-# IPs start at octet 10: control-plane-0=.10, control-plane-1=.11, etc. (/infra/vps/vps.ts)
+# Public Cloud control planes start at .10; dedicated control planes start at .30
+# (infra/cluster/cluster.ts). Keep endpoints in sync with the active control planes.
 apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
 metadata:

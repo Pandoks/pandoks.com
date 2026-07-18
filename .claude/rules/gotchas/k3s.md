@@ -256,14 +256,12 @@ When adding a new cluster app you must add explicit DNS:
   `infra/cloudflare.ts:16`, mirroring the `ExampleDomainLoadBalancer…`
   shape with `name: '<app>.dev.pandoks.com'`.
 - **Prod hostname (`<app>.pandoks.com`)** — **no precedent yet in
-  `infra/`.** The prod node-count is currently 0
-  (`infra/vps/vps.ts:9, 11`), so no prod LB exists to point a record
-  at. When prod cluster nodes are first brought up, the prod DNS pattern
-  has to be defined — likely a sibling `if (publicLoadBalancers.length
-&& isProduction)` block in `infra/cloudflare.ts` with the same
-  per-app record shape but without the dev hostname. Flag this to the
-  user when adding the first prod cluster app; do not invent the
-  pattern silently.
+  `infra/`.** `infra/cloudflare.ts` only creates cluster DNS inside
+  `if (publicLoadBalancers.length && !isProduction)`. Define the prod pattern
+  explicitly before the first prod cluster app, likely with a sibling
+  `if (publicLoadBalancers.length && isProduction)` block and the same per-app
+  record shape without the dev hostname. Flag this to the user; do not invent
+  the pattern silently.
 
 **Cloudflare-Pages-fronted subdomains** (web apps, not cluster
 services): the pattern is `infra/website.ts:43-49` —

@@ -47,8 +47,8 @@ matching the local username (`pandoks`). Production always needs
 `--stage production` explicitly.
 
 Required envs (`.env.example`): `CLOUDFLARE_API_TOKEN`,
-`CLOUDFLARE_DEFAULT_ACCOUNT_ID`, `OVH_ENDPOINT`, `OVH_APPLICATION_KEY`,
-`OVH_APPLICATION_SECRET`, `OVH_CONSUMER_KEY`, `OVH_CLOUD_PROJECT_SERVICE`,
+`CLOUDFLARE_DEFAULT_ACCOUNT_ID`, `OVH_APPLICATION_SECRET`, `OVH_CONSUMER_KEY`,
+`OVH_CLOUD_PROJECT_SERVICE`,
 `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_CLIENT_SECRET`,
 `GITHUB_TOKEN`. The Tailscale pair is the manually-created root OAuth
 client (admin console → Trust credentials, "All - Read & Write",
@@ -57,6 +57,31 @@ credential IaC can't create; its secret never expires. The provider
 exchanges it for 1-hour API tokens per run (`sst.config.ts:25-29`), and
 `deleteTailscaleDevices` does the same exchange for its raw API calls
 (`infra/tailscale.ts:88-111`).
+
+## OVH cluster operations
+
+Production topology is controlled by four independent values:
+`OVH_CLOUD_CONTROL_PLANE_COUNT`, `OVH_CLOUD_WORKER_COUNT`,
+`OVH_DEDICATED_CONTROL_PLANE_COUNT`, and `OVH_DEDICATED_WORKER_COUNT`.
+Dedicated pools additionally require live, authenticated catalog selections in
+`OVH_DEDICATED_SERVER_PLAN`, `OVH_DEDICATED_DATACENTER`,
+`OVH_DEDICATED_ORDER_REGION`, and `OVH_DEDICATED_PLAN_OPTIONS`.
+
+Before committing or applying a non-zero dedicated count, validate the current
+OVH cart, set the validated catalog values and intended count locally, and run
+an authenticated preview:
+
+```sh
+./node_modules/.bin/sst diff --stage production
+```
+
+`OVH_CLOUD_PROJECT_SERVICE` remains required for the shared network and load
+balancers after Public Cloud compute reaches zero. Follow
+`infra/cluster/README.md` for preview review, scale-up, Public Cloud-to-dedicated
+migration, manual drain/scale-down, etcd quorum, bootstrap immutability, and
+console recovery. Cluster hosts have no provider SSH key; administrator access
+is Tailscale SSH only. The separate, manually managed VPS-4 procedure is
+`scripts/dev-vps/README.md`.
 
 ## Dev (SST)
 

@@ -59,48 +59,44 @@ manually import` comment at `sst.config.ts:34` is load-bearing.
 
 - **Single-region by design.** The private network, subnet, gateway and
   load balancers are all pinned to one `REGION`
-  (`infra/vps/vps.ts:33-43`). Multi-region requires multiple clusters +
+  (`infra/cluster/cluster.ts`). Multi-region requires multiple clusters +
   Cloudflare DNS steering.
-- **Instances can't be resized in place.** `infra/vps/vps.ts:19` — nearly
-  every `ovh.cloudproject.Instance` field forces a replacement, so a
-  flavor bump recreates the server (drain first). The constraint NOTE
-  lives in `vps.ts`, but the actual `ovh.cloudproject.Instance` resource
-  is built in the sibling `infra/vps/servers.ts:155-179` by
-  `createServers()` (`:56`); that file also owns the
-  `DeleteServerFromTailnet` `$util.ResourceHook` (`:11`) that reclaims a
-  destroyed node's Tailnet entry, and reads `infra/vps/cloud-config.yaml`
-  (`:9`). But the literal VALUES are stage-switched module consts back in
-  `vps.ts` — `SERVER_FLAVOR` (`vps.ts:20`, `b3-8` prod / `d2-4` dev),
-  `SERVER_IMAGE` (`:24`, `Ubuntu 24.04`), `REGION` (`:27`,
-  `US-WEST-OR-1` prod / `US-EAST-VA-1` dev) — resolved to ids by the
-  `infra/ovh.ts` lookups at `vps.ts:70-71, 86-88` and passed into
-  `createServers()` at `vps.ts:148-152, 162-166`. So: change the
-  resource SHAPE in `servers.ts`, change the flavor/image/region VALUES
-  in `vps.ts`.
-- **US regions need an OVHcloud US account** (`ovh-us` endpoint, NOTE at
-  `vps.ts:25-26`) — swap `REGION` to EU codes + `ovh-eu` if the account
-  is an EU one. Instance names double as Tailscale hostnames so the
-  delete hook can find the devices (`infra/vps/servers.ts:17-19`).
-- **Downsizing requires manual drain.** `infra/vps/vps.ts:14`: must
-  `kubectl drain && kubectl delete node` first. Pulumi scaling node count
-  down does not drain k8s.
-- **Tailnet reclaim when count==0.** `infra/vps/vps.ts:170-203`
-  auto-deletes Tailscale devices tagged `tag:k8s` + `tag:<stage>` when both
-  `CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT == 0`. Bumping counts will
-  bring the cluster up — but ArgoCD App-of-Apps then takes over.
-- **Current counts are 0** in both stages (`infra/vps/vps.ts:15, 17`).
+- **The Public Cloud project remains required with dedicated compute.**
+  `infra/cluster/network.ts` and `load-balancers.ts` use
+  `OVH_CLOUD_PROJECT_SERVICE` for the vRack attachment, private network,
+  subnet, gateway, load balancers, and floating IPs. Never remove the project
+  as part of a compute-only migration.
+- **Four independent pools are configured in `infra/cluster/cluster.ts`.**
+  Dedicated plan, datacenter, order-region, and option values must be validated
+  against the live authenticated catalog, then reviewed in an authenticated
+  preview before a non-zero dedicated count is committed or applied. The exact
+  preview, scale, migration, drain, and recovery procedure is
+  `infra/cluster/README.md`.
+- **Downsizing is always manual.** Drain and delete the exact Kubernetes node
+  first; for a control plane, remove its etcd member and verify quorum. Only
+  then remove protection for that resource and reduce its pool count.
+- **Production bootstrap inputs are immutable for existing machines.**
+  Public Cloud `userData` and dedicated reinstall customization are ignored.
+  Rebuild one node at a time; never force a dedicated reinstall to roll out
+  `infra/cluster/bootstrap.sh`.
+- **No provider SSH keys.** Administrator SSH uses Tailscale only, cluster
+  traffic uses vRack, and the OVH console/rescue environment is the fallback.
+- **Tailnet reclaim when total count is zero.**
+  `infra/cluster/cluster.ts` deletes stale devices tagged `tag:ovh`,
+  `tag:<stage>`, and a cluster role. Per-node deletion is handled by
+  `DeleteServerFromTailnet` in `infra/cluster/bootstrap.ts`.
 
 ## TLS / Cloudflare origin cert
 
-- **CSR is generated locally** in `infra/cloudflare.ts:36-53`. When
-  `infra/vps/vps.origin.<stage>.csr` is missing, the file is recreated
+- **CSR is generated locally** in `infra/cloudflare.ts`. When
+  `infra/cluster/cluster.origin.<stage>.csr` is missing, the file is recreated
   via `execFileSync('openssl', [...])`. The key is piped into
-  `sst secret set` via `/bin/sh -lc` at `infra/cloudflare.ts:54-60`
-  (stdin redirect, `< keyPath`); the cert later goes in via `:73-81`
-  (heredoc, `<<'EOF' ... EOF`). Never as a process arg. The CSR + key
-  paths are stage-suffixed: `vps.origin.dev.csr` and
-  `vps.origin.prod.csr` already exist in `infra/vps/`. **Don't delete
-  those files casually.**
+  `sst secret set` via `/bin/sh -lc`
+  (stdin redirect, `< keyPath`); the cert later goes in via a heredoc
+  (`<<'EOF' ... EOF`). Never as a process arg. The CSR + key
+  paths are stage-suffixed: `cluster.origin.dev.csr` and
+  `cluster.origin.prod.csr` already exist in `infra/cluster/`. **Don't
+  delete those files casually.**
 
 ## Protection
 

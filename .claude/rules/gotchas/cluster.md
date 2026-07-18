@@ -11,17 +11,19 @@ paths:
 
 ## Cluster state
 
-- **Cluster size is currently 0** in `infra/vps/vps.ts:9, 11`. Code
-  reclaims stale Tailnet entries when count is zero
-  (`infra/vps/vps.ts:131-164`). Bumping counts brings the cluster up, but
-  ArgoCD App-of-Apps then takes over.
+- **Four independent pools are defined in `infra/cluster/cluster.ts`.**
+  Production defaults to one Public Cloud control-plane and zero workers or
+  dedicated nodes; non-production defaults all four to zero. When total count
+  is zero, stale OVH cluster Tailnet entries are reclaimed. Use
+  `infra/cluster/README.md` for preview, scaling, migration, drain, etcd quorum,
+  and recovery.
 
 ## HAProxy
 
 - **Proxy-protocol must stay on.**
-  `infra/vps/load-balancers.ts:49` — flag is on to validate Cloudflare
-  IPs; setting it false hides the client IP behind the LB private IP and
-  breaks Cloudflare attribution.
+  `infra/cluster/load-balancers.ts` configures the public ingress pool as
+  `proxyV2`; changing it to plain TCP hides the client IP behind the LB private
+  IP and breaks Cloudflare attribution.
 
 ## Tailscale operator
 

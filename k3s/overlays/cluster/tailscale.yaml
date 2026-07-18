@@ -4,7 +4,7 @@ metadata:
   name: tailscale
 
 ---
-# WARNING: make sure to match it with /infra/vps/cloud-config.yaml's tailscale bootstrap
+# WARNING: make sure to match infra/cluster/bootstrap.sh's Tailscale bootstrap
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
 metadata:
@@ -25,7 +25,7 @@ spec:
         - operator-config
 
 ---
-# WARNING: make sure to match it with /infra/vps/cloud-config.yaml's tailscale bootstrap
+# WARNING: make sure to match infra/cluster/bootstrap.sh's Tailscale bootstrap
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:

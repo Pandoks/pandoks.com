@@ -5,7 +5,9 @@ are not hosted in this cluster are hosted either in AWS or Cloudflare usually fo
 applications. For databases, it is better to used a managed database as it reduces the operational
 overhead.
 
-As it stands, the cluster is hosted on OVHcloud Public Cloud instances.
+The production cluster can combine OVHcloud Public Cloud instances and
+dedicated servers on one vRack network. See `infra/cluster/README.md` for
+topology and operations.
 
 ## Directory Structure
 
@@ -58,8 +60,10 @@ Or step by step:
 
 ## Production
 
-Production clusters are provisioned via Pulumi with cloud-config that bootstraps k3s + tailscale.
-The tailscale operator provides secure access to the cluster API without needing SSH tunnels.
+Production nodes are provisioned by SST/Pulumi. Public Cloud nodes use
+cloud-init and dedicated nodes use an install customization; both render the
+shared `infra/cluster/bootstrap.sh` host hardening and k3s setup. The Tailscale
+operator provides secure access to the cluster API without SSH tunnels.
 
 ```sh
 # Connect via tailscale (cluster appears as <stage>-cluster in your tailnet)
@@ -84,8 +88,8 @@ kubectl config get-contexts
 kubectl config use-context <context-name>
 ```
 
-**NOTE:** `k3d` is setup to use port 6444 for the local k3s cluster api so that it doesn't conflict
-with the remote k3s through ssh tunneling.
+**NOTE:** `k3d` is setup to use port 6444 for the local k3s cluster API so that it doesn't conflict
+with the remote k3s API over Tailscale.
 
 You'll also see in `scripts/cluster/k3d.sh` that we forward port 30080 in _docker_ to port 8080 on the
 machine (`localhost`). This is because `k3d` runs k3s inside of docker and we need to expose the
@@ -105,10 +109,9 @@ kubectl --context <tailscale-context> get pods
 
 ## Public Exposure
 
-To expose the cluster's services to the public internet, you need to use ingress controllers. Load
-balancers should only be used for external services that are in the same private network as the
-cluster. Basically, services that are not in the cluster but they're in the same private network as
-the VPS's.
+To expose the cluster's services to the public internet, use ingress
+controllers. SST provisions OVH public ingress load balancers on the shared
+private network and sends traffic to cluster nodes over vRack.
 
 ### HAProxy Ingress Controller
 
@@ -183,7 +186,7 @@ k3s/templates/monitoring.yaml          → Grafana secrets (SST template)
 k3s embedded etcd requires `--etcd-expose-metrics` flag to expose metrics on port 2381:
 
 - **k3d**: Set via `--k3s-arg "--etcd-expose-metrics@server:*"` in `scripts/cluster/k3d.sh`
-- **OVHcloud**: Set in `infra/vps/cloud-config.yaml`
+- **OVHcloud**: Set by `infra/cluster/bootstrap.sh`
 
 The kube-prometheus-stack `kubeEtcd.endpoints` must list control plane IPs explicitly because
 k3s doesn't create pods with `component=etcd` labels (embedded etcd).
