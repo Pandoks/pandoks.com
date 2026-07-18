@@ -163,10 +163,28 @@ This derives both names from the selected pool's current highest index. If the
 
 ### Remove a worker target
 
-Workers have no embedded-etcd member. Drain and delete only the derived node:
+Workers have no embedded-etcd member. Drain only the derived node, enter that
+exact host over Tailscale as the `pandoks` administrator, and stop its agent as
+documented by the official
+[K3s stopping guide](https://docs.k3s.io/upgrades/killall):
 
 ```sh
 kubectl drain "${NODE_NAME}" --ignore-daemonsets --delete-emptydir-data
+tailscale ssh "pandoks@${NODE_NAME}"
+sudo systemctl stop k3s-agent || exit 1
+AGENT_STATE="$(sudo systemctl is-active k3s-agent || true)"
+[ "${AGENT_STATE}" = inactive ] || {
+  printf 'k3s-agent state is %s; aborting\n' "${AGENT_STATE}" >&2
+  exit 1
+}
+exit
+```
+
+Do not continue unless the stop command succeeded and the service state was
+exactly `inactive`. Back on the administrator machine, delete the same derived
+Kubernetes node:
+
+```sh
 kubectl delete node "${NODE_NAME}"
 ```
 

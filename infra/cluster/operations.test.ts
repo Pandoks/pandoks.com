@@ -56,6 +56,28 @@ test('runbook documents the exact two-step unprotect transition', () => {
   assert.match(runbook, /Clear `OVH_UNPROTECTED_NODE_LOGICAL_NAME`/);
 });
 
+test('runbook stops the exact worker agent before deleting its node', () => {
+  const start = runbook.indexOf('### Remove a worker target');
+  const end = runbook.indexOf('### Remove a control-plane target');
+  const targetedUnprotect = runbook.indexOf('### Two-step targeted unprotect and deletion');
+  assert.ok(start >= 0 && end > start && targetedUnprotect > end);
+  const section = runbook.slice(start, end);
+  const drain = section.indexOf('kubectl drain "${NODE_NAME}"');
+  const tailscale = section.indexOf('tailscale ssh "pandoks@${NODE_NAME}"');
+  const stop = section.indexOf('sudo systemctl stop k3s-agent');
+  const inspect = section.indexOf('AGENT_STATE="$(sudo systemctl is-active k3s-agent || true)"');
+  const inactive = section.indexOf('[ "${AGENT_STATE}" = inactive ]');
+  const deleteNode = section.indexOf('kubectl delete node "${NODE_NAME}"');
+
+  assert.ok(drain >= 0);
+  assert.ok(drain < tailscale);
+  assert.ok(tailscale < stop);
+  assert.ok(stop < inspect);
+  assert.ok(inspect < inactive);
+  assert.ok(inactive < deleteNode);
+  assert.ok(start + deleteNode < targetedUnprotect);
+});
+
 test('runbook orders control-plane etcd removal commands safely', () => {
   const start = runbook.indexOf('### Remove a control-plane target');
   const end = runbook.indexOf('### Two-step targeted unprotect and deletion');
