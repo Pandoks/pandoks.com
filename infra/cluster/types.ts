@@ -71,7 +71,7 @@ export type DedicatedNodePool = NodePoolBase & {
   operatingSystem: string;
   datacenter: string;
   orderRegion: string;
-  planOptions: readonly DedicatedPlanOption[];
+  planOptions: DedicatedPlanOption[];
 };
 
 export type NodePool = PublicCloudNodePool | DedicatedNodePool;
