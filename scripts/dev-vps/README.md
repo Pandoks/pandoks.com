@@ -2,7 +2,8 @@
 
 After the SST state cleanup in this runbook, SST does not purchase or manage
 this VPS. Purchase or reinstall VPS-4 with Ubuntu 24.04 in the OVH Control
-Panel.
+Panel. `setup.sh` only configures and hardens that existing host; it does not
+order, reinstall, resize, or delete the VPS.
 
 ## Initial console setup
 

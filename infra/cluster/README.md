@@ -5,10 +5,14 @@ vRack network. Cluster traffic uses the vRack network. Tailscale is only for
 administrator SSH and Kubernetes API access.
 
 The OVH Public Cloud project remains required even when every compute node is a
-dedicated server. It owns the project attachment, private network, subnet,
-gateway, private API load balancer, public ingress load balancers, and floating
-IPs. Do not remove `OVH_CLOUD_PROJECT_SERVICE` or cancel the Public Cloud
-project when migrating compute to dedicated servers.
+dedicated server. `OVH_CLOUD_PROJECT_SERVICE` is the non-secret ID of an
+existing Public Cloud project, not an API credential. This stack consumes that
+project; creating one with the provider is a separate billable bootstrap design
+that requires current subsidiary, payment, and order-plan inputs. The existing
+project owns the vRack attachment, private network, subnet, gateway, private API
+load balancer, public ingress load balancers, and floating IPs. Do not remove
+the project ID or cancel the Public Cloud project when migrating compute to
+dedicated servers.
 
 Cluster nodes receive no provider SSH key and public SSH is not an access path.
 Administration uses Tailscale SSH as `pandoks`; recovery uses the OVH console or
@@ -58,12 +62,11 @@ for the deliberate scale-down procedure below.
 ## Update etcd monitoring endpoints
 
 The checked-in `kubeEtcd.endpoints` inventory in
-`k3s/overlays/cluster/prom-etcd-config.yaml` is honest for the default production
-topology only: one cloud control plane at `10.0.1.10`. As an operator pre-deploy
-step for every non-default topology, including any dedicated control plane,
-replace that list with the exact active control-plane IPs from the normalized
-address plan. Remove endpoints for control planes being deleted before deploying
-the overlay; never activate placeholder or planned addresses.
+`k3s/overlays/cluster/prom-etcd-config.yaml` is `[]` because both checked-in
+stage configurations currently have zero control planes. Before deploying a
+non-empty topology, replace `[]` with its exact active control-plane IPs from
+the normalized address plan. Remove endpoints for control planes being deleted
+before deploying the overlay; never activate placeholder or planned addresses.
 
 This is an **operator pre-deploy step**. Verify the edited list against the
 intended control-plane pool counts before running the cluster deployment. This
@@ -131,12 +134,12 @@ Scale-down can remove only the highest-index node in one pool. For a pool count
 of `N`, the only valid target index is `N - 1`. Never use this procedure to
 remove an arbitrary lower index; restore or replace that node first.
 
-| Pool                      | Count variable                      | Production hostname prefix                 | Logical-resource prefix          |
-| ------------------------- | ----------------------------------- | ------------------------------------------ | -------------------------------- |
+| Pool                      | Count variable               | Production hostname prefix                 | Logical-resource prefix          |
+| ------------------------- | ---------------------------- | ------------------------------------------ | -------------------------------- |
 | `cloud-control-plane`     | `cloudControlPlaneCount`     | `prod-ovh-control-plane-server-`           | `OvhControlPlaneServer`          |
 | `cloud-workers`           | `cloudWorkerCount`           | `prod-ovh-worker-server-`                  | `OvhWorkerServer`                |
 | `dedicated-control-plane` | `dedicatedControlPlaneCount` | `prod-ovh-dedicated-control-plane-server-` | `OvhDedicatedControlPlaneServer` |
-| `dedicated-workers`       | `dedicatedWorkerCount`        | `prod-ovh-dedicated-worker-server-`        | `OvhDedicatedWorkerServer`       |
+| `dedicated-workers`       | `dedicatedWorkerCount`       | `prod-ovh-dedicated-worker-server-`        | `OvhDedicatedWorkerServer`       |
 
 Choose one table row. Set `POOL_NAME` and `POOL_COUNT` to that pool's exact
 current value in `PRODUCTION_CLUSTER_CONFIG`; do not decrement it yet:
@@ -210,7 +213,8 @@ esac
 ```
 
 This derives both names from the selected pool's current highest index. If the
-`grep`, node lookup, logical-name confirmation, or InternalIP check fails, stop.
+configuration lookup, node lookup, logical-name confirmation, or InternalIP
+check fails, stop.
 
 ### Remove a worker target
 

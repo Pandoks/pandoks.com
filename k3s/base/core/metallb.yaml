@@ -5,6 +5,8 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
+    # .150-.254 is reserved for dedicated cluster nodes; the old .100-.200
+    # service range would overlap those node allocations.
     - 10.0.1.100-10.0.1.149
 
 ---

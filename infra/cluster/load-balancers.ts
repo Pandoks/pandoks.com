@@ -106,6 +106,8 @@ export function createClusterLoadBalancers(args: {
             protocol: 'tcp',
             pool: {
               algorithm: args.algorithm,
+              // Must change with HAProxy Ingress use-proxy-protocol: the sender
+              // and receiver must either both use PROXY v2 or both stop using it.
               protocol: 'proxyV2',
               members: members(groupNodes, 30443),
               healthMonitor: {
