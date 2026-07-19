@@ -19,7 +19,6 @@ const dedicated = readFileSync('infra/cluster/providers/dedicated.ts', 'utf8');
 const envExample = readFileSync('.env.example', 'utf8');
 const secrets = readFileSync('infra/secrets.ts', 'utf8');
 const githubInfra = readFileSync('infra/github.ts', 'utf8');
-const ovhHelpers = readFileSync('infra/ovh.ts', 'utf8');
 const cloudflare = readFileSync('infra/cloudflare.ts', 'utf8');
 const credentials = readFileSync('k3s/base/core/credentials.yaml', 'utf8');
 const certManager = readFileSync('k3s/base/core/cert-manager.yaml', 'utf8');
@@ -315,22 +314,26 @@ void test('shares account-scoped OVH credentials through repository secrets', ()
 });
 
 void test('creates the US Public Cloud project in Pulumi and threads its generated ID', () => {
-  assert.match(ovhHelpers, /new ovh\.cloudproject\.Project\(\s*'OvhPublicCloudProject'/s);
-  assert.match(ovhHelpers, /deletionProtection:\s*args\.protect/);
-  assert.match(ovhHelpers, /ovhSubsidiary:\s*'US'/);
-  assert.match(
-    ovhHelpers,
-    /plan:\s*\{\s*duration:\s*'P1M',\s*planCode:\s*'project',\s*pricingMode:\s*'default'\s*\}/s
-  );
-  assert.match(ovhHelpers, /\{\s*protect:\s*args\.protect\s*\}\s*\)/s);
-  assert.doesNotMatch(ovhHelpers, /OVH_CLOUD_PROJECT_SERVICE|process\.env/);
-
+  assert.equal(existsSync('infra/ovh.ts'), false);
+  assert.match(cluster, /new ovh\.cloudproject\.Project\(\s*'OvhPublicCloudProject'/s);
+  assert.match(cluster, /deletionProtection:\s*isProduction/);
+  assert.match(cluster, /ovhSubsidiary:\s*'US'/);
   assert.match(
     cluster,
-    /createOvhCloudProject\(\{\s*stageName:\s*STAGE_NAME,\s*protect:\s*isProduction/s
+    /plan:\s*\{\s*duration:\s*'P1M',\s*planCode:\s*'project',\s*pricingMode:\s*'default'\s*\}/s
   );
+  assert.match(cluster, /\{\s*protect:\s*isProduction\s*\}\s*\)/s);
+  assert.doesNotMatch(cluster, /OVH_CLOUD_PROJECT_SERVICE|process\.env/);
+
   assert.match(cluster, /createClusterNetwork\(\{\s*serviceName:\s*cloudProject\.projectId,/s);
   assert.match(cluster, /CloudProjectId:\s*cloudProject\.projectId/s);
+  assert.match(cluster, /ovh\.cloudproject\s*\.getLoadBalancerFlavorsOutput\(/s);
+  assert.match(cluster, /ovh\.cloudproject\s*\.getFlavorsOutput\(/s);
+  assert.match(cluster, /ovh\.cloudproject\s*\.getImagesOutput\(/s);
+  assert.doesNotMatch(
+    cluster,
+    /createOvhCloudProject|getFlavorId|getImageId|getLoadBalancerFlavorId/
+  );
   assert.match(network, /serviceName:\s*\$util\.Input<string>/);
   assert.match(network, /projectId:\s*args\.serviceName/);
   assert.match(loadBalancers, /serviceName\s*=\s*args\.network\.serviceName/);
@@ -418,7 +421,7 @@ void test('production stack orders an annual protected dev VPS-4 with only stand
 });
 
 void test('zero-node stages keep an empty Public Cloud project without cluster resources', () => {
-  assert.match(cluster, /const cloudProject = createOvhCloudProject\(/);
+  assert.match(cluster, /const cloudProject = new ovh\.cloudproject\.Project\(/);
   assert.match(cluster, /const network =\s*clusterNodeCount > 0\s*\?\s*createClusterNetwork\(/s);
   assert.match(
     secrets,
