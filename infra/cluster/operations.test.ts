@@ -25,6 +25,7 @@ const bootstrap = readFileSync('infra/cluster/bootstrap.ts', 'utf8');
 const bootstrapScript = readFileSync('infra/cluster/bootstrap.sh', 'utf8');
 const checksWorkflow = readFileSync('.github/workflows/checks.yaml', 'utf8');
 const deployWorkflow = readFileSync('.github/workflows/deploy-infra.yaml', 'utf8');
+const dev = readFileSync('infra/dev.ts', 'utf8');
 const devVpsRunbook = readFileSync('scripts/dev-vps/README.md', 'utf8');
 const devVpsCleanup = readFileSync('scripts/dev-vps/cleanup-state.sh', 'utf8');
 const devVpsSetup = readFileSync('scripts/dev-vps/setup.sh', 'utf8');
@@ -328,6 +329,25 @@ void test('manual VPS setup accepts only Ubuntu 24.04 and reports the detected r
   );
   assert.match(devVpsSetup, /requires Ubuntu 24\.04/);
   assert.match(devVpsSetup, /ID=%s VERSION_ID=%s/);
+});
+
+void test('dev stage orders a protected VPS-4 while guest setup stays manual', () => {
+  assert.match(dev, /if \(\$app\.stage === 'pandoks'\)/);
+  assert.match(dev, /new ovh\.vps\.Vps\(\s*'OvhDevVps4'/s);
+  assert.match(dev, /planCode:\s*'vps-2027-model4'/);
+  assert.match(dev, /label:\s*'vps_datacenter',\s*value:\s*'US-WEST-OR'/s);
+  assert.match(dev, /label:\s*'vps_os',\s*value:\s*'Ubuntu 24\.04'/s);
+  assert.match(dev, /planCode:\s*'option-linux'/);
+  assert.match(dev, /planCode:\s*'option-auto-backup-2027-1-model4'/);
+  assert.match(dev, /planCode:\s*'option-storage-local-2027-model4'/);
+  assert.match(dev, /doNotSendPassword:\s*false/);
+  assert.doesNotMatch(dev, /publicSshKey|imageId|cloud-init|userData/i);
+  assert.match(dev, /\{\s*protect:\s*true\s*\}\s*\)/s);
+  assert.match(devVpsRunbook, /SST provisions and lifecycle-manages the VPS-4 subscription/);
+  assert.match(
+    devVpsRunbook,
+    /setup\.sh.*does not order,\s*reinstall, resize, or delete the VPS/is
+  );
 });
 
 void test('dev cleanup script fails closed for exact Hetzner and OVH identity families', () => {

@@ -1,6 +1,49 @@
-// The development host is an operator-purchased, manually lifecycle-managed
-// OVH VPS-4. This module registers local commands only; it provisions no VPS,
-// Public Cloud instance, Tailscale key, or cloud-init.
+// Pulumi owns only the dev VPS subscription. Guest setup and hardening remain
+// the explicit console/Tailscale procedure in scripts/dev-vps/README.md.
+if ($app.stage === 'pandoks') {
+  new ovh.vps.Vps(
+    'OvhDevVps4',
+    {
+      displayName: 'pandoks-dev-box',
+      doNotSendPassword: false,
+      ovhSubsidiary: 'US',
+      plans: [
+        {
+          duration: 'P1M',
+          planCode: 'vps-2027-model4',
+          pricingMode: 'default',
+          quantity: 1,
+          configurations: [
+            { label: 'vps_datacenter', value: 'US-WEST-OR' },
+            { label: 'vps_os', value: 'Ubuntu 24.04' }
+          ]
+        }
+      ],
+      planOptions: [
+        {
+          duration: 'P1M',
+          planCode: 'option-linux',
+          pricingMode: 'default',
+          quantity: 1
+        },
+        {
+          duration: 'P1M',
+          planCode: 'option-auto-backup-2027-1-model4',
+          pricingMode: 'default',
+          quantity: 1
+        },
+        {
+          duration: 'P1M',
+          planCode: 'option-storage-local-2027-model4',
+          pricingMode: 'default',
+          quantity: 1
+        }
+      ]
+    },
+    { protect: true }
+  );
+}
+
 new sst.x.DevCommand('DevInit', {
   dev: {
     title: 'InitDev',

@@ -87,8 +87,9 @@ migration, manual drain/scale-down, etcd quorum, bootstrap immutability, and
 console recovery. Scale-down always targets `count - 1`: deploy once with all
 counts unchanged and the exact logical-name override, then reduce one count,
 review/delete that resource, and clear the override. Cluster hosts have no
-provider SSH key; administrator access is Tailscale SSH only. The separate,
-manually managed VPS-4 procedure is `scripts/dev-vps/README.md`.
+provider SSH key; administrator access is Tailscale SSH only. The separate dev
+VPS-4 subscription is provisioned by SST, while its guest setup remains manual
+in `scripts/dev-vps/README.md`.
 
 ## Dev (SST)
 

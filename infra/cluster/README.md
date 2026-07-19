@@ -411,6 +411,7 @@ Do not remove the failed node from SST until its OVH service ID and Kubernetes
 membership are understood. Do not reinstall a dedicated server merely to retry
 bootstrap; diagnose it from the console or rescue environment first.
 
-The manually managed development VPS is separate from this cluster. Its setup,
-lockdown, state cleanup, and recovery procedure is in
+The IaC-provisioned development VPS-4 is separate from this cluster. Its guest
+setup and lockdown remain manual; provisioning, legacy state cleanup, and
+recovery procedures are in
 [`scripts/dev-vps/README.md`](../../scripts/dev-vps/README.md).

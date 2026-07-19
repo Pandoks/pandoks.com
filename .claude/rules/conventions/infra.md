@@ -143,8 +143,9 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
   override once, then reduce that pool by one and deploy the exact deletion,
   then clear it. Lower-index, missing, wildcard, and broad values leave all
   declared production nodes protected; missing matches emit a warning.
-- The manually managed VPS-4 is not cluster capacity or an SST resource. Its
-  runbook is `scripts/dev-vps/README.md`.
+- The dev VPS-4 subscription is an SST resource only in the `pandoks` stage and
+  is not cluster capacity. Its guest setup remains manual; follow
+  `scripts/dev-vps/README.md`.
 
 ## Subprocess IaC
 

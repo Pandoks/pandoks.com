@@ -1,9 +1,28 @@
 # OVH VPS-4 development host
 
-After the SST state cleanup in this runbook, SST does not purchase or manage
-this VPS. Purchase or reinstall VPS-4 with Ubuntu 24.04 in the OVH Control
-Panel. `setup.sh` only configures and hardens that existing host; it does not
-order, reinstall, resize, or delete the VPS.
+SST provisions and lifecycle-manages the VPS-4 subscription declared in
+`infra/dev.ts` for the `pandoks` stage. The code orders the monthly VPS-4 plan
+in `US-WEST-OR` with Ubuntu 24.04, standard daily backup, and no provider SSH
+key. The Pulumi resource is protected against accidental replacement or
+deletion.
+
+`setup.sh` configures and hardens the delivered host; it does not order,
+reinstall, resize, or delete the VPS. There is intentionally no cloud-init or
+automated guest bootstrap.
+
+## Provision the subscription
+
+Review the billable order, then apply it:
+
+```sh
+pnpm sst diff --stage pandoks
+pnpm sst deploy --stage pandoks
+```
+
+Do not approve the deployment unless the diff contains exactly one
+`OvhDevVps4` using the intended VPS-4 plan and location. Changing the plan,
+location, or OS can replace or reinstall a manually configured host; review
+those changes through an authenticated diff first.
 
 ## Initial console setup
 
@@ -64,7 +83,11 @@ nc -vz -w 5 "${VPS_PUBLIC_IP}" 22
 The connection must fail. Never save the entered address as an application
 secret.
 
-## SST state cleanup
+## Legacy SST state cleanup
+
+Run this section only before the first `OvhDevVps4` deployment and only if the
+diff reports a historical `HetznerDevBox`, `OvhDevBox`, or registration-key
+resource. Do not use it for the current `OvhDevVps4`.
 
 The checked-in helper is the only authorized cleanup procedure:
 
