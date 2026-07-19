@@ -7,9 +7,10 @@ backup, local system storage, and no provider SSH key. It does not order
 Premium backup, snapshots, or additional storage. The Pulumi resource is
 protected against accidental replacement or deletion.
 
-`setup.sh` configures and hardens the delivered host; it does not order,
-reinstall, resize, or delete the VPS. There is intentionally no cloud-init or
-automated guest bootstrap.
+Guest OS configuration is intentionally outside IaC. There is no cloud-init,
+user-data, or repository-owned guest setup helper. The operator manually owns
+account creation, Tailscale enrollment, SSH and firewall hardening, package
+installation, and recovery through the OVH console.
 
 Because the non-production cluster currently has zero nodes, this VPS order
 does not require an OVH Public Cloud project or k3s token. The OVH application
@@ -50,7 +51,7 @@ tailscale up \
 Open the printed Tailscale login URL and approve the device. Keep the OVH
 console open.
 
-## Prepare over Tailscale
+## Finish guest setup manually
 
 From another terminal, prove that the private path works:
 
@@ -58,22 +59,28 @@ From another terminal, prove that the private path works:
 tailscale ssh root@pandoks-dev-box
 ```
 
-Clone this repository using your normal GitHub authentication, then run:
+Complete the one-time host setup through the OVH console and Tailscale. The
+required end state is:
 
-```sh
-cd pandoks.com
-sudo scripts/dev-vps/setup.sh prepare
-exit
-tailscale ssh pandoks@pandoks-dev-box
-cd pandoks.com
-sudo scripts/dev-vps/setup.sh verify-tailscale
-sudo scripts/dev-vps/setup.sh lockdown
-sudo scripts/dev-vps/setup.sh status
-pnpm bootstrap all
-```
+- a `pandoks` administrator account with sudo access;
+- working Tailscale SSH as `pandoks`;
+- disabled password authentication and root SSH;
+- a persistent default-deny inbound firewall that permits SSH only through
+  `tailscale0` and permits direct Tailscale UDP traffic on port `41641`;
+- the repository cloned using the operator's normal GitHub authentication and
+  its tool bootstrap completed.
 
 Do not close the original OVH console until the second
 `tailscale ssh pandoks@pandoks-dev-box` succeeds after lockdown.
+
+Verify the final state manually:
+
+```sh
+tailscale ssh pandoks@pandoks-dev-box
+tailscale status
+sudo nft list ruleset
+sudo sshd -T | grep -E '^(passwordauthentication|permitrootlogin|allowusers) '
+```
 
 ## Verify the public interface
 
@@ -127,10 +134,5 @@ systemctl restart tailscaled
 tailscale status
 ```
 
-Repair Tailscale, prove `tailscale ssh pandoks@pandoks-dev-box`, then rerun:
-
-```sh
-cd pandoks.com
-sudo scripts/dev-vps/setup.sh verify-tailscale
-sudo scripts/dev-vps/setup.sh lockdown
-```
+Repair Tailscale, prove `tailscale ssh pandoks@pandoks-dev-box`, then manually
+reapply and verify the intended SSH and firewall configuration.

@@ -270,9 +270,6 @@ jobs:
       - name: Test dev VPS cleanup
         run: sh scripts/dev-vps/cleanup-state.test.sh
 
-      - name: Test dev VPS setup
-        run: sh scripts/dev-vps/setup.test.sh
-
   # ─── SST ──────────────────────────────────────────────────────────────
   diff-sst:
     runs-on: ubuntu-latest

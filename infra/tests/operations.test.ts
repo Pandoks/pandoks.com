@@ -33,7 +33,6 @@ const deployWorkflow = readFileSync('.github/workflows/deploy-infra.yaml', 'utf8
 const dev = readFileSync('infra/dev.ts', 'utf8');
 const devVpsRunbook = readFileSync('scripts/dev-vps/README.md', 'utf8');
 const devVpsCleanup = readFileSync('scripts/dev-vps/cleanup-state.sh', 'utf8');
-const devVpsSetup = readFileSync('scripts/dev-vps/setup.sh', 'utf8');
 const website = readFileSync('infra/website.ts', 'utf8');
 const mise = readFileSync('mise.toml', 'utf8');
 const renovate = JSON.parse(readFileSync('renovate.json', 'utf8')) as {
@@ -420,28 +419,22 @@ void test('active cluster rules describe code-owned zero topology and CI contrac
   assert.doesNotMatch(rules, /OVH_UNPROTECTED_NODE_LOGICAL_NAME/);
 });
 
-void test('CI runs all infra safety checks for manual VPS changes', () => {
+void test('CI runs infra and legacy-state safety checks for VPS changes', () => {
   assert.match(checksWorkflow, /infra:\n(?:\s+- .*\n)*\s+- 'scripts\/dev-vps\/\*\*'/);
+  assert.match(checksWorkflow, /infra:\n(?:\s+- .*\n)*\s+- 'tsconfig\.json'/);
   for (const [name, command] of [
     ['Typecheck infra', 'pnpm check:infra'],
     ['Test infra', 'pnpm test:infra'],
-    ['Test dev VPS cleanup', 'sh scripts/dev-vps/cleanup-state.test.sh'],
-    ['Test dev VPS setup', 'sh scripts/dev-vps/setup.test.sh']
+    ['Test dev VPS cleanup', 'sh scripts/dev-vps/cleanup-state.test.sh']
   ]) {
     assert.match(
       checksWorkflow,
       new RegExp(`- name: ${name}\\n\\s+run: ${command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`)
     );
   }
-});
-
-void test('manual VPS setup accepts only Ubuntu 26.04 and reports the detected release', () => {
-  assert.match(
-    devVpsSetup,
-    /\[ "\$\{detected_id\}" != "ubuntu" \] \|\| \[ "\$\{detected_version\}" != "26\.04" \]/
-  );
-  assert.match(devVpsSetup, /requires Ubuntu 26\.04/);
-  assert.match(devVpsSetup, /ID=%s VERSION_ID=%s/);
+  assert.doesNotMatch(checksWorkflow, /scripts\/dev-vps\/setup(?:\.test)?\.sh/);
+  assert.equal(existsSync('scripts/dev-vps/setup.sh'), false);
+  assert.equal(existsSync('scripts/dev-vps/setup.test.sh'), false);
 });
 
 void test('dev stage orders an annual protected VPS-4 with only standard options', () => {
@@ -463,10 +456,8 @@ void test('dev stage orders an annual protected VPS-4 with only standard options
   assert.match(devVpsRunbook, /SST provisions and lifecycle-manages the VPS-4 subscription/);
   assert.match(devVpsRunbook, /Ubuntu 26\.04/);
   assert.match(devVpsRunbook, /12-month upfront pricing/);
-  assert.match(
-    devVpsRunbook,
-    /setup\.sh.*does not order,\s*reinstall, resize, or delete the VPS/is
-  );
+  assert.match(devVpsRunbook, /Guest OS configuration is intentionally outside IaC/);
+  assert.doesNotMatch(devVpsRunbook, /setup(?:\.test)?\.sh/);
 });
 
 void test('zero-node dev VPS does not require Public Cloud or k3s-only inputs', () => {
