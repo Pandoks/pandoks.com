@@ -38,29 +38,35 @@ Before committing or applying a non-zero dedicated count, validate the current
 authenticated catalog and run an authenticated `sst diff`. Never copy catalog
 values from an old preview or this runbook.
 
-The private `/24` is partitioned so each owner has a disjoint allocation:
+The private network is one `/16`; the third octet partitions allocation by
+owner while every node remains directly reachable inside the same subnet:
 
-- Neutron DHCP, Public Cloud fixed ports, gateway, and load-balancer VIPs:
-  `.2-.99` (cloud control planes use `.10-.49`; cloud workers use `.50-.99`);
-- MetalLB services: `.100-.149`;
-- dedicated control-plane nodes: `.150-.199`;
-- dedicated worker nodes: `.200-.254`.
+```text
+10.0.0.x              OVH/Neutron infrastructure
+10.0.1.x              Public Cloud control planes
+10.0.2.x              Public Cloud workers
+10.0.3.x              Dedicated control planes
+10.0.4.x              Dedicated workers
+10.0.5.x              MetalLB services
+10.0.6.x-10.0.255.x   Reserved
+```
 
-Pool validation rejects a count that would cross its allocation boundary, an
-aggregate DHCP demand above the 98 addresses in `.2-.99`, or more than 25 total
-control planes because the private API load balancer is intentionally
-unsharded. Aggregate demand counts every Public Cloud fixed IP, two conservative
-network reservations (DHCP service and gateway/router ports), one private API
-VIP when control planes exist, and one public ingress VIP per 25 ingress nodes.
+Neutron automatically allocates only `10.0.0.2-10.0.0.254`. Public Cloud
+ports request their role-owned fixed IPs explicitly; dedicated nodes configure
+the same `/16` statically. Pool validation rejects a count above the 254
+addresses in a role block or more than 25 total control planes because the
+private API load balancer is intentionally unsharded. Infrastructure demand
+counts two conservative network reservations (DHCP service and gateway/router
+ports), one private API VIP when control planes exist, and one public ingress
+VIP per 25 ingress nodes.
 OVH's public ingress load balancer sends PROXY v2 to node port `30443`, and
 HAProxy Ingress has `use-proxy-protocol: "true"` so both ends of that transport
 remain aligned.
 
 Do not configure topology fields in GitHub environments. The TypeScript
 configuration is the only topology source. All four counts must be non-negative
-integers within their pool address capacity: cloud control plane `0-40`, cloud
-workers `0-50`, dedicated control plane `0-50`, and dedicated workers
-`0-55`. The aggregate and API limits above still apply.
+integers no greater than `254`. The aggregate control-plane and infrastructure
+limits above still apply.
 Production node resources use `protect: isProduction`: every production node is
 protected and every non-production node is unprotected. Protection has no
 environment-variable override.
@@ -111,7 +117,7 @@ exactly once. Apply only after the diff contains additions and expected
 load-balancer member updates.
 
 After apply, wait for every new node to become Ready and verify its InternalIP is
-in `10.0.1.0/24`:
+in `10.0.0.0/16` and in the role-owned block above:
 
 ```sh
 kubectl get nodes -o wide
@@ -123,7 +129,8 @@ kubectl get nodes -o wide
    an odd quorum of at least three after the Public Cloud control-plane nodes
    are removed.
 2. Deploy and wait for every new node to become Ready.
-3. Verify `kubectl get nodes -o wide` uses `10.0.1.0/24` internal addresses.
+3. Verify `kubectl get nodes -o wide` uses `10.0.0.0/16` internal addresses in
+   the role-owned blocks above.
 4. Verify `k3s etcd-snapshot ls` and etcd member health.
 5. Add dedicated workers and verify workloads.
 6. Drain and remove one Public Cloud node at a time by following the scale-down
@@ -210,9 +217,9 @@ TARGET_INTERNAL_IP="$(
     -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}'
 )"
 case "${TARGET_INTERNAL_IP}" in
-  10.0.1.*) ;;
+  10.0.*.*) ;;
   *)
-    printf '%s\n' "Target InternalIP is outside 10.0.1.0/24"
+    printf '%s\n' "Target InternalIP is outside 10.0.0.0/16"
     exit 1
     ;;
 esac

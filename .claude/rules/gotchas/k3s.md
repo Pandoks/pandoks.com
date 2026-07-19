@@ -62,7 +62,7 @@ phases. Applying overlay first = silent CRD-missing failures.
 | --------- | ----------------------------------------------------------------------- | -------------------------------------- | ------------------ | -------------------------------------- |
 | `local`   | `172.30.100.1-172.30.100.200` (`k3s/overlays/local/dev-patch.yaml:1-8`) | `172.30.0.4-6` (k3d)                   | ❌                 | ❌                                     |
 | `dev`     | (no inbound; cluster-overlay only)                                      | (cluster overlay)                      | ✅ (via cluster/)  | ❌                                     |
-| `prod`    | `10.0.1.100-10.0.1.149` (`k3s/base/core/metallb.yaml:1-9`)              | Cloud `.10-.49`, dedicated `.150-.199` | ✅                 | ✅ (`overlays/prod/argocd.yaml:47-69`) |
+| `prod`    | `10.0.5.1-10.0.5.254` (`k3s/base/core/metallb.yaml:1-9`)                | Cloud `10.0.1.x`, dedicated `10.0.3.x` | ✅                 | ✅ (`overlays/prod/argocd.yaml:47-69`) |
 | `cluster` | (intermediate overlay — not deployed directly; `dev`/`prod` include it) |                                        |                    |                                        |
 
 The `overlays/cluster/` overlay is the shared parent for `dev` and

@@ -121,10 +121,11 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
   to the vRack project attachment, private network, subnet, gateway, and load
   balancers even when all compute is dedicated. Production deletion protection
   must remain enabled.
-- **The vRack `/24` has fixed owners.** Neutron/DHCP owns `.2-.99`, MetalLB
-  owns `.100-.149`, dedicated control planes own `.150-.199`, and dedicated
-  workers own `.200-.254`. Change `CLUSTER_ADDRESS_PLAN`, the subnet, MetalLB,
-  monitoring endpoints, and their contract tests together.
+- **The vRack `10.0.0.0/16` has fixed third-octet owners.** Neutron
+  infrastructure uses `.0`, Public Cloud control planes `.1`, Public Cloud
+  workers `.2`, dedicated control planes `.3`, dedicated workers `.4`, and
+  MetalLB `.5`; `.6-.255` is reserved. Change `CLUSTER_ADDRESS_PLAN`, the
+  subnet, MetalLB, monitoring endpoints, and their contract tests together.
 - **Origin TLS keeps its deployed legacy identities.**
   `secrets.k8s.OriginTlsKey` and `.OriginTlsCrt` deliberately create
   `HetznerOriginTlsKey` and `HetznerOriginTlsCrt`; the OVH-named Cloudflare

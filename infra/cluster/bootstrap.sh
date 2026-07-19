@@ -70,6 +70,7 @@ interface_for_ip() {
 configure_private_network() {
   if [ "${NETWORK_MODE}" = "static" ]; then
     VRACK_INTERFACE="$(retry 60 5 interface_for_mac "${VRACK_MAC}")"
+    NETWORK_PREFIX_LENGTH="${NETWORK_CIDR##*/}"
     cat > /etc/netplan/60-k3s-vrack.yaml << EOF
 network:
   version: 2
@@ -79,7 +80,7 @@ network:
         macaddress: ${VRACK_MAC}
       set-name: vrack0
       addresses:
-        - ${NODE_IP}/24
+        - ${NODE_IP}/${NETWORK_PREFIX_LENGTH}
 EOF
     chmod 0600 /etc/netplan/60-k3s-vrack.yaml
     netplan apply

@@ -6,26 +6,46 @@ export type NodePoolName =
   | 'dedicated-control-plane'
   | 'dedicated-workers';
 
-export const CLUSTER_ADDRESS_PLAN = {
-  dhcp: { start: 2, end: 99 },
-  metalLb: { start: 100, end: 149 },
-  'cloud-control-plane': { start: 10, end: 49 },
-  'cloud-workers': { start: 50, end: 99 },
-  'dedicated-control-plane': { start: 150, end: 199 },
-  'dedicated-workers': { start: 200, end: 254 }
-} as const satisfies Readonly<Record<'dhcp' | 'metalLb' | NodePoolName, AddressRange>>;
-
-export const CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY = 25;
-export const CLUSTER_INGRESS_LOAD_BALANCERS_PER_GROUP = 1;
-// Reserve one DHCP-pool address for the subnet's DHCP service port and one for
-// the gateway/router port. This is intentionally conservative and is included
-// even for an empty compute topology because the shared network still exists.
-export const CLUSTER_NETWORK_DHCP_CONSUMERS = 2;
-
 type AddressRange = {
+  thirdOctet: number;
   start: number;
   end: number;
 };
+
+type ReservedAddressRange = {
+  startThirdOctet: number;
+  endThirdOctet: number;
+};
+
+export const CLUSTER_NETWORK_CIDR = '10.0.0.0/16';
+
+// 10.0.0.x              OVH/Neutron infrastructure
+// 10.0.1.x              Public Cloud control planes
+// 10.0.2.x              Public Cloud workers
+// 10.0.3.x              Dedicated control planes
+// 10.0.4.x              Dedicated workers
+// 10.0.5.x              MetalLB services
+// 10.0.6.x-10.0.255.x   Reserved
+export const CLUSTER_ADDRESS_PLAN = {
+  infrastructure: { thirdOctet: 0, start: 2, end: 254 },
+  'cloud-control-plane': { thirdOctet: 1, start: 1, end: 254 },
+  'cloud-workers': { thirdOctet: 2, start: 1, end: 254 },
+  'dedicated-control-plane': { thirdOctet: 3, start: 1, end: 254 },
+  'dedicated-workers': { thirdOctet: 4, start: 1, end: 254 },
+  metalLb: { thirdOctet: 5, start: 1, end: 254 },
+  reserved: { startThirdOctet: 6, endThirdOctet: 255 }
+} as const satisfies Readonly<
+  Record<'infrastructure' | 'metalLb' | NodePoolName, AddressRange> & {
+    reserved: ReservedAddressRange;
+  }
+>;
+
+export const CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY = 25;
+export const CLUSTER_INGRESS_LOAD_BALANCERS_PER_GROUP = 1;
+// Reserve one infrastructure address for the subnet's DHCP service port and one for
+// the gateway/router port. This is intentionally conservative and is included
+// even for an empty compute topology because the shared network still exists.
+export const CLUSTER_NETWORK_INFRASTRUCTURE_CONSUMERS = 2;
 
 type NodePoolBase = {
   name: NodePoolName;
@@ -33,7 +53,6 @@ type NodePoolBase = {
   role: NodeRole;
   count: number;
   ingress: boolean;
-  privateIpStart: number;
 };
 
 export type PublicCloudNodePool = NodePoolBase & {
@@ -115,25 +134,33 @@ export function getPoolScaleDownTarget(
   };
 }
 
-function parse24Cidr(cidr: string): string {
-  const match = /^(\d{1,3}\.\d{1,3}\.\d{1,3})\.0\/24$/.exec(cidr);
+function parse16Cidr(cidr: string): string {
+  const match = /^(\d{1,3})\.(\d{1,3})\.0\.0\/16$/.exec(cidr);
   if (!match) {
-    throw new Error(`Cluster CIDR must be an IPv4 /24 ending in .0: ${cidr}`);
+    throw new Error(`Cluster CIDR must be an IPv4 /16 ending in .0.0: ${cidr}`);
   }
-  for (const octet of match[1].split('.').map(Number)) {
+  for (const octet of match.slice(1).map(Number)) {
     if (octet < 0 || octet > 255) {
       throw new Error(`Cluster CIDR contains an invalid octet: ${cidr}`);
     }
   }
-  return match[1];
+  return `${match[1]}.${match[2]}`;
+}
+
+export function formatClusterIp(cidr: string, thirdOctet: number, hostOctet: number): string {
+  const networkPrefix = parse16Cidr(cidr);
+  if (!Number.isInteger(thirdOctet) || thirdOctet < 0 || thirdOctet > 255) {
+    throw new Error(`Cluster IP has an invalid third octet: ${thirdOctet}`);
+  }
+  if (!Number.isInteger(hostOctet) || hostOctet < 1 || hostOctet > 254) {
+    throw new Error(`Cluster IP has an invalid host octet: ${hostOctet}`);
+  }
+  return `${networkPrefix}.${thirdOctet}.${hostOctet}`;
 }
 
 function validatePool(pool: NodePool): void {
   if (!Number.isInteger(pool.count) || pool.count < 0) {
     throw new Error(`Node pool ${pool.name} count must be a non-negative integer`);
-  }
-  if (!Number.isInteger(pool.privateIpStart)) {
-    throw new Error(`Node pool ${pool.name} privateIpStart must be an integer`);
   }
   if (pool.provider === 'dedicated' && pool.count > 0) {
     for (const [name, value] of [
@@ -154,7 +181,7 @@ export function normalizeNodePools(
   stage: string,
   cidr: string
 ): TopologyResult {
-  const subnetPrefix = parse24Cidr(cidr);
+  parse16Cidr(cidr);
   const names = new Set<string>();
   const ips = new Set<string>();
   const nodes: ClusterNodeSpec[] = [];
@@ -166,32 +193,19 @@ export function normalizeNodePools(
     }
     names.add(pool.name);
     const identity = NODE_POOL_IDENTITIES[pool.name];
+    const allocation = CLUSTER_ADDRESS_PLAN[pool.name];
+    const allocationStart = formatClusterIp(cidr, allocation.thirdOctet, allocation.start);
+    const allocationEnd = formatClusterIp(cidr, allocation.thirdOctet, allocation.end);
+    const allocationCapacity = allocation.end - allocation.start + 1;
+    if (pool.count > allocationCapacity) {
+      throw new Error(
+        `Node pool ${pool.name} allocation count ${pool.count} exceeds ` +
+          `${allocationStart}-${allocationEnd}`
+      );
+    }
 
     for (let poolIndex = 0; poolIndex < pool.count; poolIndex += 1) {
-      const hostOctet = pool.privateIpStart + poolIndex;
-      if (hostOctet < 2 || hostOctet > 254) {
-        throw new Error(
-          `Node pool ${pool.name} allocates an address outside ${cidr}: ${hostOctet}`
-        );
-      }
-      if (
-        hostOctet >= CLUSTER_ADDRESS_PLAN.metalLb.start &&
-        hostOctet <= CLUSTER_ADDRESS_PLAN.metalLb.end
-      ) {
-        throw new Error(
-          `Node pool ${pool.name} cannot allocate ${subnetPrefix}.${hostOctet} from the ` +
-            `MetalLB range ${subnetPrefix}.${CLUSTER_ADDRESS_PLAN.metalLb.start}-` +
-            `${subnetPrefix}.${CLUSTER_ADDRESS_PLAN.metalLb.end}`
-        );
-      }
-      const allocation = CLUSTER_ADDRESS_PLAN[pool.name];
-      if (hostOctet < allocation.start || hostOctet > allocation.end) {
-        throw new Error(
-          `Node pool ${pool.name} allocation ${subnetPrefix}.${allocation.start}-` +
-            `${subnetPrefix}.${allocation.end} cannot include ${subnetPrefix}.${hostOctet}`
-        );
-      }
-      const privateIp = `${subnetPrefix}.${hostOctet}`;
+      const privateIp = formatClusterIp(cidr, allocation.thirdOctet, allocation.start + poolIndex);
       if (ips.has(privateIp)) {
         throw new Error(`Duplicate private IP: ${privateIp}`);
       }
@@ -214,15 +228,24 @@ export function normalizeNodePools(
   if (nodes.length > 0 && controlPlanes.length === 0) {
     throw new Error('Cluster nodes require at least one control-plane node');
   }
-  const dhcpAllocationCapacity =
-    CLUSTER_ADDRESS_PLAN.dhcp.end - CLUSTER_ADDRESS_PLAN.dhcp.start + 1;
-  const dhcpAllocationDemand = getClusterDhcpAllocationDemand(nodes);
-  if (dhcpAllocationDemand > dhcpAllocationCapacity) {
+  const infrastructureAllocationCapacity =
+    CLUSTER_ADDRESS_PLAN.infrastructure.end - CLUSTER_ADDRESS_PLAN.infrastructure.start + 1;
+  const infrastructureAllocationDemand = getClusterInfrastructureAllocationDemand(nodes);
+  if (infrastructureAllocationDemand > infrastructureAllocationCapacity) {
+    const infrastructureStart = formatClusterIp(
+      cidr,
+      CLUSTER_ADDRESS_PLAN.infrastructure.thirdOctet,
+      CLUSTER_ADDRESS_PLAN.infrastructure.start
+    );
+    const infrastructureEnd = formatClusterIp(
+      cidr,
+      CLUSTER_ADDRESS_PLAN.infrastructure.thirdOctet,
+      CLUSTER_ADDRESS_PLAN.infrastructure.end
+    );
     throw new Error(
-      `Cluster topology requires ${dhcpAllocationDemand} Neutron DHCP allocation addresses, ` +
-        `but ${cidr} provides ${dhcpAllocationCapacity} in ` +
-        `${subnetPrefix}.${CLUSTER_ADDRESS_PLAN.dhcp.start}-` +
-        `${subnetPrefix}.${CLUSTER_ADDRESS_PLAN.dhcp.end}`
+      `Cluster topology requires ${infrastructureAllocationDemand} Neutron infrastructure ` +
+        `addresses, but ${cidr} provides ${infrastructureAllocationCapacity} in ` +
+        `${infrastructureStart}-${infrastructureEnd}`
     );
   }
   if (controlPlanes.length > CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY) {
@@ -246,15 +269,14 @@ export function normalizeNodePools(
   return { nodes, warnings };
 }
 
-export function getClusterDhcpAllocationDemand(
+export function getClusterInfrastructureAllocationDemand(
   nodes: readonly Pick<ClusterNodeSpec, 'provider' | 'role' | 'ingress'>[]
 ): number {
-  const publicCloudFixedIps = nodes.filter((node) => node.provider === 'public-cloud').length;
   const privateApiVips = nodes.some((node) => node.role === 'control-plane') ? 1 : 0;
   const ingressNodes = nodes.filter((node) => node.ingress).length;
   const publicIngressVips =
     Math.ceil(ingressNodes / CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY) *
     CLUSTER_INGRESS_LOAD_BALANCERS_PER_GROUP;
 
-  return publicCloudFixedIps + CLUSTER_NETWORK_DHCP_CONSUMERS + privateApiVips + publicIngressVips;
+  return CLUSTER_NETWORK_INFRASTRUCTURE_CONSUMERS + privateApiVips + publicIngressVips;
 }

@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  CLUSTER_ADDRESS_PLAN,
   CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY,
-  getClusterDhcpAllocationDemand,
+  CLUSTER_NETWORK_CIDR,
+  CLUSTER_NETWORK_INFRASTRUCTURE_CONSUMERS,
+  formatClusterIp,
+  getClusterInfrastructureAllocationDemand,
   getPoolScaleDownTarget,
   NODE_POOL_IDENTITIES,
   normalizeNodePools,
@@ -15,7 +19,6 @@ const cloudControlPlane = {
   role: 'control-plane',
   count: 1,
   ingress: true,
-  privateIpStart: 10,
   flavor: 'b3-8',
   image: 'Ubuntu 24.04',
   region: 'US-WEST-OR-1'
@@ -27,7 +30,6 @@ const dedicatedControlPlane = {
   role: 'control-plane',
   count: 2,
   ingress: true,
-  privateIpStart: 150,
   plan: '24rise01',
   operatingSystem: 'ubuntu2404-server_64',
   datacenter: 'bhs',
@@ -35,7 +37,28 @@ const dedicatedControlPlane = {
   planOptions: []
 } satisfies NodePool;
 
-void test('normalizes mixed pools with stable legacy Public Cloud identities', () => {
+void test('owns the /16 and every current third-octet allocation in code', () => {
+  assert.equal(CLUSTER_NETWORK_CIDR, '10.0.0.0/16');
+  assert.deepEqual(CLUSTER_ADDRESS_PLAN, {
+    infrastructure: { thirdOctet: 0, start: 2, end: 254 },
+    'cloud-control-plane': { thirdOctet: 1, start: 1, end: 254 },
+    'cloud-workers': { thirdOctet: 2, start: 1, end: 254 },
+    'dedicated-control-plane': { thirdOctet: 3, start: 1, end: 254 },
+    'dedicated-workers': { thirdOctet: 4, start: 1, end: 254 },
+    metalLb: { thirdOctet: 5, start: 1, end: 254 },
+    reserved: { startThirdOctet: 6, endThirdOctet: 255 }
+  });
+});
+
+void test('formats addresses from the configured /16 without duplicating prefixes', () => {
+  assert.equal(formatClusterIp(CLUSTER_NETWORK_CIDR, 0, 2), '10.0.0.2');
+  assert.equal(formatClusterIp(CLUSTER_NETWORK_CIDR, 5, 254), '10.0.5.254');
+  assert.throws(() => formatClusterIp('10.0.1.0/24', 1, 1), /IPv4 \/16 ending in \.0\.0/);
+  assert.throws(() => formatClusterIp(CLUSTER_NETWORK_CIDR, 256, 1), /invalid third octet/);
+  assert.throws(() => formatClusterIp(CLUSTER_NETWORK_CIDR, 1, 256), /invalid host octet/);
+});
+
+void test('normalizes mixed pools into role-owned third-octet address blocks', () => {
   const result = normalizeNodePools(
     [
       cloudControlPlane,
@@ -43,13 +66,18 @@ void test('normalizes mixed pools with stable legacy Public Cloud identities', (
         ...cloudControlPlane,
         name: 'cloud-workers',
         role: 'worker',
-        count: 1,
-        privateIpStart: 50
+        count: 1
       },
-      dedicatedControlPlane
+      dedicatedControlPlane,
+      {
+        ...dedicatedControlPlane,
+        name: 'dedicated-workers',
+        role: 'worker',
+        count: 1
+      }
     ],
     'prod',
-    '10.0.1.0/24'
+    CLUSTER_NETWORK_CIDR
   );
 
   assert.deepEqual(
@@ -63,25 +91,31 @@ void test('normalizes mixed pools with stable legacy Public Cloud identities', (
       {
         logicalName: 'OvhControlPlaneServer0',
         hostname: 'prod-ovh-control-plane-server-0',
-        privateIp: '10.0.1.10',
+        privateIp: '10.0.1.1',
         bootstrapCandidate: true
       },
       {
         logicalName: 'OvhWorkerServer0',
         hostname: 'prod-ovh-worker-server-0',
-        privateIp: '10.0.1.50',
+        privateIp: '10.0.2.1',
         bootstrapCandidate: false
       },
       {
         logicalName: 'OvhDedicatedControlPlaneServer0',
         hostname: 'prod-ovh-dedicated-control-plane-server-0',
-        privateIp: '10.0.1.150',
+        privateIp: '10.0.3.1',
         bootstrapCandidate: false
       },
       {
         logicalName: 'OvhDedicatedControlPlaneServer1',
         hostname: 'prod-ovh-dedicated-control-plane-server-1',
-        privateIp: '10.0.1.151',
+        privateIp: '10.0.3.2',
+        bootstrapCandidate: false
+      },
+      {
+        logicalName: 'OvhDedicatedWorkerServer0',
+        hostname: 'prod-ovh-dedicated-worker-server-0',
+        privateIp: '10.0.4.1',
         bootstrapCandidate: false
       }
     ]
@@ -93,7 +127,7 @@ void test('chooses dedicated as bootstrap candidate when Public Cloud count is z
   const result = normalizeNodePools(
     [{ ...dedicatedControlPlane, count: 1 }],
     'prod',
-    '10.0.1.0/24'
+    CLUSTER_NETWORK_CIDR
   );
   assert.equal(result.nodes[0]?.bootstrapCandidate, true);
 });
@@ -102,12 +136,12 @@ void test('resource identity is independent of pool ordering', () => {
   const first = normalizeNodePools(
     [cloudControlPlane, dedicatedControlPlane],
     'prod',
-    '10.0.1.0/24'
+    CLUSTER_NETWORK_CIDR
   );
   const second = normalizeNodePools(
     [dedicatedControlPlane, cloudControlPlane],
     'prod',
-    '10.0.1.0/24'
+    CLUSTER_NETWORK_CIDR
   );
   assert.deepEqual(
     new Set(first.nodes.map((node) => node.logicalName)),
@@ -123,12 +157,11 @@ void test('rejects workers without a control plane', () => {
           {
             ...cloudControlPlane,
             name: 'cloud-workers',
-            role: 'worker',
-            privateIpStart: 50
+            role: 'worker'
           }
         ],
         'prod',
-        '10.0.1.0/24'
+        CLUSTER_NETWORK_CIDR
       ),
     /at least one control-plane node/
   );
@@ -136,70 +169,32 @@ void test('rejects workers without a control plane', () => {
 
 void test('rejects duplicate pool names', () => {
   assert.throws(
-    () => normalizeNodePools([cloudControlPlane, cloudControlPlane], 'prod', '10.0.1.0/24'),
+    () => normalizeNodePools([cloudControlPlane, cloudControlPlane], 'prod', CLUSTER_NETWORK_CIDR),
     /Duplicate node pool name/
   );
 });
 
-void test('rejects cross-pool address-range drift before IPs can overlap', () => {
+void test('rejects a count that overflows one third-octet allocation', () => {
   assert.throws(
     () =>
       normalizeNodePools(
-        [cloudControlPlane, { ...dedicatedControlPlane, count: 2, privateIpStart: 10 }],
+        [
+          cloudControlPlane,
+          {
+            ...dedicatedControlPlane,
+            name: 'dedicated-workers',
+            role: 'worker',
+            count: 255
+          }
+        ],
         'prod',
-        '10.0.1.0/24'
+        CLUSTER_NETWORK_CIDR
       ),
-    /dedicated-control-plane allocation/
+    /dedicated-workers allocation.*10\.0\.4\.1-10\.0\.4\.254/
   );
 });
 
-void test('keeps Public Cloud nodes inside the Neutron-managed DHCP allocation', () => {
-  assert.throws(
-    () =>
-      normalizeNodePools([{ ...cloudControlPlane, privateIpStart: 150 }], 'prod', '10.0.1.0/24'),
-    /cloud-control-plane allocation/
-  );
-});
-
-void test('keeps dedicated nodes outside DHCP and MetalLB allocations', () => {
-  assert.throws(
-    () =>
-      normalizeNodePools(
-        [{ ...dedicatedControlPlane, count: 1, privateIpStart: 50 }],
-        'prod',
-        '10.0.1.0/24'
-      ),
-    /dedicated-control-plane allocation/
-  );
-  assert.throws(
-    () =>
-      normalizeNodePools(
-        [{ ...dedicatedControlPlane, count: 1, privateIpStart: 100 }],
-        'prod',
-        '10.0.1.0/24'
-      ),
-    /MetalLB/
-  );
-  assert.throws(
-    () =>
-      normalizeNodePools([{ ...cloudControlPlane, privateIpStart: 100 }], 'prod', '10.0.1.0/24'),
-    /MetalLB/
-  );
-});
-
-void test('rejects pool counts that overflow their reserved address allocation', () => {
-  assert.throws(
-    () =>
-      normalizeNodePools(
-        [{ ...dedicatedControlPlane, count: 51, privateIpStart: 150 }],
-        'prod',
-        '10.0.1.0/24'
-      ),
-    /dedicated-control-plane allocation.*150.*199/
-  );
-});
-
-void test('accepts the largest mixed topology within API and DHCP aggregate capacity', () => {
+void test('accepts the largest addressable worker pools with 25 total control planes', () => {
   const result = normalizeNodePools(
     [
       { ...cloudControlPlane, count: 12 },
@@ -207,25 +202,24 @@ void test('accepts the largest mixed topology within API and DHCP aggregate capa
         ...cloudControlPlane,
         name: 'cloud-workers',
         role: 'worker',
-        count: 50,
-        privateIpStart: 50
+        count: 254
       },
       { ...dedicatedControlPlane, count: 13 },
       {
         ...dedicatedControlPlane,
         name: 'dedicated-workers',
         role: 'worker',
-        count: 55,
-        privateIpStart: 200
+        count: 254
       }
     ],
     'prod',
-    '10.0.1.0/24'
+    CLUSTER_NETWORK_CIDR
   );
 
   assert.equal(CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY, 25);
-  assert.equal(result.nodes.length, 130);
-  assert.equal(getClusterDhcpAllocationDemand(result.nodes), 71);
+  assert.equal(result.nodes.length, 533);
+  assert.equal(result.nodes.at(-1)?.privateIp, '10.0.4.254');
+  assert.equal(getClusterInfrastructureAllocationDemand(result.nodes), 25);
 });
 
 void test('rejects more control planes than the single private API load balancer can serve', () => {
@@ -237,63 +231,62 @@ void test('rejects more control planes than the single private API load balancer
           { ...dedicatedControlPlane, count: 13 }
         ],
         'prod',
-        '10.0.1.0/24'
+        CLUSTER_NETWORK_CIDR
       ),
     /single private API load balancer.*25 control-plane/i
   );
 });
 
-void test('rejects the former 40/50/50/55 maximum combination', () => {
+void test('rejects a CIDR that is not an aligned IPv4 /16', () => {
   assert.throws(
-    () =>
-      normalizeNodePools(
-        [
-          { ...cloudControlPlane, count: 40 },
-          {
-            ...cloudControlPlane,
-            name: 'cloud-workers',
-            role: 'worker',
-            count: 50,
-            privateIpStart: 50
-          },
-          { ...dedicatedControlPlane, count: 50 },
-          {
-            ...dedicatedControlPlane,
-            name: 'dedicated-workers',
-            role: 'worker',
-            count: 55,
-            privateIpStart: 200
-          }
-        ],
-        'prod',
-        '10.0.1.0/24'
-      ),
-    /requires 101 Neutron DHCP allocation addresses.*provides 98/i
+    () => normalizeNodePools([cloudControlPlane], 'prod', '10.0.1.0/24'),
+    /IPv4 \/16 ending in \.0\.0/
   );
-});
-
-void test('rejects an address range outside the configured IPv4 /24', () => {
   assert.throws(
-    () =>
-      normalizeNodePools(
-        [{ ...dedicatedControlPlane, count: 1, privateIpStart: 255 }],
-        'prod',
-        '10.0.1.0/24'
-      ),
-    /outside 10\.0\.1\.0\/24/
+    () => normalizeNodePools([cloudControlPlane], 'prod', '10.0.1.0/16'),
+    /IPv4 \/16 ending in \.0\.0/
   );
 });
 
 void test('rejects an enabled dedicated pool without catalog settings', () => {
   assert.throws(
-    () => normalizeNodePools([{ ...dedicatedControlPlane, plan: '' }], 'prod', '10.0.1.0/24'),
+    () =>
+      normalizeNodePools([{ ...dedicatedControlPlane, plan: '' }], 'prod', CLUSTER_NETWORK_CIDR),
     /requires plan/
   );
 });
 
 void test('warns for a non-HA embedded-etcd control plane', () => {
-  const result = normalizeNodePools([cloudControlPlane], 'prod', '10.0.1.0/24');
+  const result = normalizeNodePools([cloudControlPlane], 'prod', CLUSTER_NETWORK_CIDR);
   assert.match(result.warnings[0] ?? '', /odd control-plane count of at least 3/);
+});
+
+void test('counts only automatically allocated infrastructure addresses', () => {
+  const representativeNodes = [
+    ...Array.from({ length: 3 }, () => ({
+      provider: 'public-cloud' as const,
+      role: 'control-plane' as const,
+      ingress: true
+    })),
+    ...Array.from({ length: 4 }, () => ({
+      provider: 'public-cloud' as const,
+      role: 'worker' as const,
+      ingress: true
+    })),
+    ...Array.from({ length: 2 }, () => ({
+      provider: 'dedicated' as const,
+      role: 'control-plane' as const,
+      ingress: true
+    })),
+    {
+      provider: 'dedicated' as const,
+      role: 'worker' as const,
+      ingress: true
+    }
+  ];
+
+  assert.equal(CLUSTER_NETWORK_INFRASTRUCTURE_CONSUMERS, 2);
+  assert.equal(getClusterInfrastructureAllocationDemand(representativeNodes), 4);
 });
 
 void test('defines the exact identity prefixes for all four pools', () => {

@@ -1,5 +1,5 @@
 import { STAGE_NAME, isProduction } from '../utils';
-import { CLUSTER_ADDRESS_PLAN } from './types';
+import { CLUSTER_ADDRESS_PLAN, formatClusterIp } from './types';
 
 export type ClusterNetwork = {
   cidr: string;
@@ -52,14 +52,21 @@ export function createClusterNetwork(args: {
     { dependsOn: [cloudProjectAttachment] }
   );
 
-  const subnetPrefix = args.cidr.split('.').slice(0, 3).join('.');
   const subnet = new ovh.cloudproject.NetworkPrivateSubnet('OvhK3sSubnet', {
     serviceName: args.serviceName,
     networkId: privateNetwork.id,
     region: args.region,
     network: args.cidr,
-    start: `${subnetPrefix}.${CLUSTER_ADDRESS_PLAN.dhcp.start}`,
-    end: `${subnetPrefix}.${CLUSTER_ADDRESS_PLAN.dhcp.end}`,
+    start: formatClusterIp(
+      args.cidr,
+      CLUSTER_ADDRESS_PLAN.infrastructure.thirdOctet,
+      CLUSTER_ADDRESS_PLAN.infrastructure.start
+    ),
+    end: formatClusterIp(
+      args.cidr,
+      CLUSTER_ADDRESS_PLAN.infrastructure.thirdOctet,
+      CLUSTER_ADDRESS_PLAN.infrastructure.end
+    ),
     dhcp: true
   });
 

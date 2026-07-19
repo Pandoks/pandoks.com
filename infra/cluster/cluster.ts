@@ -7,14 +7,13 @@ import { createDedicatedNode } from './providers/dedicated';
 import { createPublicCloudNode, type ClusterNode } from './providers/public-cloud';
 import { getClusterStageConfig, shouldProvisionClusterInfrastructure } from './config';
 import {
-  CLUSTER_ADDRESS_PLAN,
+  CLUSTER_NETWORK_CIDR,
   normalizeNodePools,
   type NodePool,
   type PublicCloudNodePool
 } from './types';
 
 const REGION = 'US-WEST-OR-1';
-const NETWORK_CIDR = '10.0.1.0/24';
 const GATEWAY_MODEL = 's';
 const LOAD_BALANCER_FLAVOR = 'small';
 const LOAD_BALANCER_ALGORITHM = 'leastConnections';
@@ -31,7 +30,6 @@ const NODE_POOLS: readonly NodePool[] = [
     role: 'control-plane',
     count: CLUSTER_CONFIG.cloudControlPlaneCount,
     ingress: true,
-    privateIpStart: CLUSTER_ADDRESS_PLAN['cloud-control-plane'].start,
     flavor: 'b3-8',
     image: 'Ubuntu 24.04',
     region: REGION
@@ -42,7 +40,6 @@ const NODE_POOLS: readonly NodePool[] = [
     role: 'worker',
     count: CLUSTER_CONFIG.cloudWorkerCount,
     ingress: true,
-    privateIpStart: CLUSTER_ADDRESS_PLAN['cloud-workers'].start,
     flavor: 'b3-8',
     image: 'Ubuntu 24.04',
     region: REGION
@@ -53,7 +50,6 @@ const NODE_POOLS: readonly NodePool[] = [
     role: 'control-plane',
     count: CLUSTER_CONFIG.dedicatedControlPlaneCount,
     ingress: true,
-    privateIpStart: CLUSTER_ADDRESS_PLAN['dedicated-control-plane'].start,
     plan: CLUSTER_CONFIG.dedicatedPlan,
     operatingSystem: 'ubuntu2404-server_64',
     datacenter: CLUSTER_CONFIG.dedicatedDatacenter,
@@ -66,7 +62,6 @@ const NODE_POOLS: readonly NodePool[] = [
     role: 'worker',
     count: CLUSTER_CONFIG.dedicatedWorkerCount,
     ingress: true,
-    privateIpStart: CLUSTER_ADDRESS_PLAN['dedicated-workers'].start,
     plan: CLUSTER_CONFIG.dedicatedPlan,
     operatingSystem: 'ubuntu2404-server_64',
     datacenter: CLUSTER_CONFIG.dedicatedDatacenter,
@@ -75,7 +70,7 @@ const NODE_POOLS: readonly NodePool[] = [
   }
 ];
 
-const topology = normalizeNodePools(NODE_POOLS, STAGE_NAME, NETWORK_CIDR);
+const topology = normalizeNodePools(NODE_POOLS, STAGE_NAME, CLUSTER_NETWORK_CIDR);
 for (const warning of topology.warnings) {
   console.warn(warning);
 }
@@ -90,7 +85,7 @@ const network = cloudProject
   ? createClusterNetwork({
       serviceName: cloudProject.projectId,
       region: REGION,
-      cidr: NETWORK_CIDR,
+      cidr: CLUSTER_NETWORK_CIDR,
       gatewayModel: GATEWAY_MODEL
     })
   : undefined;

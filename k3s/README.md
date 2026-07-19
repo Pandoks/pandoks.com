@@ -189,8 +189,8 @@ k3s embedded etcd requires `--etcd-expose-metrics` flag to expose metrics on por
 - **k3d**: Set via `--k3s-arg "--etcd-expose-metrics@server:*"` in `scripts/cluster/k3d.sh`
 - **OVHcloud**: Set by `infra/cluster/bootstrap.sh`
 
-OVH Public Cloud control planes use `10.0.1.10-49`; dedicated control planes
-use `10.0.1.150-199`. Keep the environment's explicit etcd endpoint list
+OVH Public Cloud control planes use `10.0.1.1-10.0.1.254`; dedicated control
+planes use `10.0.3.1-10.0.3.254`. Keep the environment's explicit etcd endpoint list
 aligned with the active members from both ranges.
 
 The kube-prometheus-stack `kubeEtcd.endpoints` must list control plane IPs explicitly because

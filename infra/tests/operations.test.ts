@@ -6,11 +6,13 @@ import {
   CLUSTER_ADDRESS_PLAN,
   CLUSTER_INGRESS_LOAD_BALANCERS_PER_GROUP,
   CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY,
-  CLUSTER_NETWORK_DHCP_CONSUMERS,
-  getClusterDhcpAllocationDemand
+  CLUSTER_NETWORK_CIDR,
+  CLUSTER_NETWORK_INFRASTRUCTURE_CONSUMERS,
+  getClusterInfrastructureAllocationDemand
 } from '../cluster/types.ts';
 
 const cluster = readFileSync('infra/cluster/cluster.ts', 'utf8');
+const clusterTypes = readFileSync('infra/cluster/types.ts', 'utf8');
 const publicCloud = readFileSync('infra/cluster/providers/public-cloud.ts', 'utf8');
 const dedicated = readFileSync('infra/cluster/providers/dedicated.ts', 'utf8');
 const envExample = readFileSync('.env.example', 'utf8');
@@ -239,32 +241,41 @@ void test('retains legacy origin TLS state identities and aligned Kubernetes pla
 });
 
 void test('keeps network, node pools, and MetalLB on one non-overlapping address plan', () => {
-  assert.match(network, /CLUSTER_ADDRESS_PLAN\.dhcp\.start/);
-  assert.match(network, /CLUSTER_ADDRESS_PLAN\.dhcp\.end/);
-  assert.match(cluster, /CLUSTER_ADDRESS_PLAN\['cloud-control-plane'\]\.start/);
-  assert.match(cluster, /CLUSTER_ADDRESS_PLAN\['cloud-workers'\]\.start/);
-  assert.match(cluster, /CLUSTER_ADDRESS_PLAN\['dedicated-control-plane'\]\.start/);
-  assert.match(cluster, /CLUSTER_ADDRESS_PLAN\['dedicated-workers'\]\.start/);
-  assert.match(metalLb, /10\.0\.1\.100-10\.0\.1\.149/);
-  assert.doesNotMatch(metalLb, /10\.0\.1\.100-10\.0\.1\.200/);
-  assert.match(runbook, /DHCP.*\.2-.99/is);
-  assert.match(runbook, /MetalLB.*\.100-.149/is);
-  assert.match(runbook, /dedicated control-plane.*\.150-.199/is);
-  assert.match(runbook, /dedicated worker.*\.200-.254/is);
+  assert.equal(CLUSTER_NETWORK_CIDR, '10.0.0.0/16');
+  assert.match(network, /CLUSTER_ADDRESS_PLAN\.infrastructure\.thirdOctet/);
+  assert.match(network, /CLUSTER_ADDRESS_PLAN\.infrastructure\.start/);
+  assert.match(network, /CLUSTER_ADDRESS_PLAN\.infrastructure\.end/);
+  assert.match(network, /formatClusterIp/);
+  assert.match(cluster, /normalizeNodePools\(NODE_POOLS, STAGE_NAME, CLUSTER_NETWORK_CIDR\)/);
+  assert.doesNotMatch(cluster, /privateIpStart/);
+  assert.match(metalLb, /10\.0\.5\.1-10\.0\.5\.254/);
+  assert.match(runbook, /10\.0\.0\.x.*OVH\/Neutron infrastructure/);
+  assert.match(runbook, /10\.0\.1\.x.*Public Cloud control planes/);
+  assert.match(runbook, /10\.0\.2\.x.*Public Cloud workers/);
+  assert.match(runbook, /10\.0\.3\.x.*Dedicated control planes/);
+  assert.match(runbook, /10\.0\.4\.x.*Dedicated workers/);
+  assert.match(runbook, /10\.0\.5\.x.*MetalLB services/);
+  assert.match(runbook, /10\.0\.6\.x.*10\.0\.255\.x.*Reserved/);
+  assert.match(clusterTypes, /10\.0\.0\.x\s+OVH\/Neutron infrastructure/);
+  assert.match(clusterTypes, /10\.0\.6\.x-10\.0\.255\.x\s+Reserved/);
+  assert.match(bootstrapScript, /NETWORK_PREFIX_LENGTH="\$\{NETWORK_CIDR##\*\/\}"/);
+  assert.match(bootstrapScript, /\$\{NODE_IP\}\/\$\{NETWORK_PREFIX_LENGTH\}/);
+  assert.doesNotMatch(bootstrapScript, /\$\{NODE_IP\}\/24/);
 });
 
 void test('topology validation and load balancers share capacity constants and demand formula', () => {
   assert.deepEqual(CLUSTER_ADDRESS_PLAN, {
-    dhcp: { start: 2, end: 99 },
-    metalLb: { start: 100, end: 149 },
-    'cloud-control-plane': { start: 10, end: 49 },
-    'cloud-workers': { start: 50, end: 99 },
-    'dedicated-control-plane': { start: 150, end: 199 },
-    'dedicated-workers': { start: 200, end: 254 }
+    infrastructure: { thirdOctet: 0, start: 2, end: 254 },
+    'cloud-control-plane': { thirdOctet: 1, start: 1, end: 254 },
+    'cloud-workers': { thirdOctet: 2, start: 1, end: 254 },
+    'dedicated-control-plane': { thirdOctet: 3, start: 1, end: 254 },
+    'dedicated-workers': { thirdOctet: 4, start: 1, end: 254 },
+    metalLb: { thirdOctet: 5, start: 1, end: 254 },
+    reserved: { startThirdOctet: 6, endThirdOctet: 255 }
   });
   assert.equal(CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY, 25);
   assert.equal(CLUSTER_INGRESS_LOAD_BALANCERS_PER_GROUP, 1);
-  assert.equal(CLUSTER_NETWORK_DHCP_CONSUMERS, 2);
+  assert.equal(CLUSTER_NETWORK_INFRASTRUCTURE_CONSUMERS, 2);
   assert.match(loadBalancers, /CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY/);
   assert.doesNotMatch(loadBalancers, /MEMBER_CAPACITY\s*=\s*25/);
   const representativeNodes = [
@@ -289,7 +300,7 @@ void test('topology validation and load balancers share capacity constants and d
       ingress: true
     }
   ];
-  assert.equal(getClusterDhcpAllocationDemand(representativeNodes), 11);
+  assert.equal(getClusterInfrastructureAllocationDemand(representativeNodes), 4);
 });
 
 void test('cluster monitoring matches the disabled default topology', () => {
