@@ -128,25 +128,25 @@ void test('keeps the Pages and mise Node versions synchronized through Renovate'
   );
 });
 
-void test('retains legacy origin TLS state identities and aligned Kubernetes placeholders', () => {
+void test('uses OVH origin TLS secret identities and aligned Kubernetes placeholders', () => {
   assert.match(
     secrets,
-    /OriginTlsKey:\s*new sst\.Secret\('HetznerOriginTlsKey',\s*'No Origin Tls Key Set'\)/
+    /OriginTlsKey:\s*new sst\.Secret\('OvhOriginTlsKey',\s*'No Origin Tls Key Set'\)/
   );
   assert.match(
     secrets,
-    /OriginTlsCrt:\s*new sst\.Secret\('HetznerOriginTlsCrt',\s*'No Origin Tls Cert Set'\)/
+    /OriginTlsCrt:\s*new sst\.Secret\('OvhOriginTlsCrt',\s*'No Origin Tls Cert Set'\)/
   );
-  assert.doesNotMatch(secrets, /new sst\.Secret\('OvhOriginTls(?:Key|Crt)'/);
+  assert.doesNotMatch(secrets, /new sst\.Secret\('HetznerOriginTls(?:Key|Crt)'/);
   assert.match(cloudflare, /secrets\.k8s\.OriginTlsKey/);
   assert.match(cloudflare, /secrets\.k8s\.OriginTlsCrt/);
   assert.match(
     cloudflare,
     /aliases:\s*\[\s*\{\s*name:\s*'HetznerOriginCloudflareCaCertificate'\s*\}\s*\]/
   );
-  assert.match(credentials, /\$\{HetznerOriginTlsCrt \| base64\}/);
-  assert.match(credentials, /\$\{HetznerOriginTlsKey \| base64\}/);
-  assert.doesNotMatch(credentials, /\$\{OvhOriginTls/);
+  assert.match(credentials, /\$\{OvhOriginTlsCrt \| base64\}/);
+  assert.match(credentials, /\$\{OvhOriginTlsKey \| base64\}/);
+  assert.doesNotMatch(credentials, /\$\{HetznerOriginTls/);
 });
 
 void test('keeps network, node pools, and MetalLB on one non-overlapping address plan', () => {

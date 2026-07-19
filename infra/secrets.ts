@@ -66,9 +66,8 @@ export const secrets = {
     grafana: {
       AdminPassword: new sst.Secret('KubernetesGrafanaAdminPassword', 'password')
     },
-    // Keep the deployed logical names so existing stage values survive the provider migration.
-    OriginTlsKey: new sst.Secret('HetznerOriginTlsKey', 'No Origin Tls Key Set'), // Automatically set during deploy
-    OriginTlsCrt: new sst.Secret('HetznerOriginTlsCrt', 'No Origin Tls Cert Set'), // Automatically set during deploy
+    OriginTlsKey: new sst.Secret('OvhOriginTlsKey', 'No Origin Tls Key Set'), // Automatically set during deploy
+    OriginTlsCrt: new sst.Secret('OvhOriginTlsCrt', 'No Origin Tls Cert Set'), // Automatically set during deploy
     main: {
       // namespace
       // NOTE: sst Secret names are named '<namespace><db-name><resource><var>' (ie. MainMainPostgresSuperuserPassword)
