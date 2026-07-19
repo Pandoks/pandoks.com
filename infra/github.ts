@@ -1,7 +1,8 @@
-import { cloudflareAccountId, isProduction, STAGE_NAME } from './dns';
+import { cloudflareAccountId } from './dns';
 import { defaultAwsRegion } from './aws';
 import { secrets } from './secrets';
 import { tailscaleAcl } from './tailscale';
+import { STAGE_NAME, isProduction } from './utils';
 
 export const githubOrg = 'Pandoks';
 export const githubRepoName = 'pandoks.com';

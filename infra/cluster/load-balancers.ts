@@ -1,4 +1,4 @@
-import { STAGE_NAME } from '../dns';
+import { STAGE_NAME } from '../utils';
 import type { ClusterNetwork } from './network';
 import {
   CLUSTER_INGRESS_LOAD_BALANCERS_PER_GROUP,

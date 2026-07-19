@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { US_WEST_2_REGION, usWest2Provider } from '../aws';
-import { STAGE_NAME } from '../dns';
+import { STAGE_NAME } from '../utils';
 
 // WARNING: version must be bumped when AMI changes to rebuild
 const VERSION = '1.0.3';

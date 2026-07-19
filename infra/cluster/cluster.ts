@@ -1,4 +1,4 @@
-import { isProduction, STAGE_NAME } from '../dns';
+import { STAGE_NAME, isProduction } from '../utils';
 import { createOvhCloudProject, getFlavorId, getImageId, getLoadBalancerFlavorId } from '../ovh';
 import { deleteTailscaleDevices } from '../tailscale';
 import { createClusterLoadBalancers } from './load-balancers';

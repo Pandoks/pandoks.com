@@ -1,4 +1,4 @@
-import { isProduction } from '../../dns';
+import { isProduction } from '../../utils';
 import { createNodeBootstrap, deleteServerFromTailnet } from '../bootstrap';
 import type { ClusterNetwork } from '../network';
 import type { ClusterNodeSpec, DedicatedNodePool } from '../types';

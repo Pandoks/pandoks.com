@@ -244,10 +244,10 @@ not switch back to floating tags.
 
 ## SST stages
 
-| Stage        | Notes                                                                                                                                      |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `production` | `isProduction=true`, `STAGE_NAME='prod'`, `domain='pandoks.com'`, prod-only resources on (`infra/dns.ts:3, 5, 9`).                         |
-| `pandoks`    | Dev / personal stage (defaults to local username). `domain='dev.pandoks.com'`. No `pandoks`-gated resources currently exist in `infra/**`. |
+| Stage        | Notes                                                                                                                               |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `production` | `isProduction=true`, `STAGE_NAME='prod'`, `domain='pandoks.com'`, prod-only resources on (`infra/utils.ts`).                        |
+| `pandoks`    | Dev / personal stage (defaults to local username). `domain='dev.pandoks.com'`; provisions the protected dev VPS-4 (`infra/dev.ts`). |
 
 `StageName` and `AwsRegion` are auto-synced into SST secrets
-(`infra/dns.ts:11-15` and `:22-27` respectively).
+(`infra/dns.ts` and `infra/aws.ts` respectively).

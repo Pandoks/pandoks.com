@@ -1,4 +1,6 @@
-if ($app.stage === 'pandoks') {
+import { isPandoks } from './utils';
+
+if (isPandoks) {
   new ovh.vps.Vps(
     'OvhDevVps',
     {

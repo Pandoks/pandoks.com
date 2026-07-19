@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { deleteTailscaleDevices, tailscaleAcl } from '../tailscale';
-import { STAGE_NAME } from '../dns';
+import { STAGE_NAME } from '../utils';
 import { secrets } from '../secrets';
 import { backupBucket, s3Endpoint } from '../storage';
 import {

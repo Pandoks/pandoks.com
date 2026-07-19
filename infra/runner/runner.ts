@@ -1,4 +1,4 @@
-import { STAGE_NAME } from '../dns';
+import { STAGE_NAME } from '../utils';
 import { secrets } from '../secrets';
 import { runnerArtifactsBucket, runnerCacheBucket } from '../storage';
 import { usWest2Provider } from '../aws';

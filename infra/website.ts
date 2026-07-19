@@ -1,5 +1,6 @@
-import { cloudflareAccountId, cloudflareZoneId, domain, isProduction } from './dns';
+import { cloudflareAccountId, cloudflareZoneId } from './dns';
 import { githubOrg, githubRepoName } from './github';
+import { domain, isProduction } from './utils';
 
 new sst.x.DevCommand('DevWebsite', {
   dev: {

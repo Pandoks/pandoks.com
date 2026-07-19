@@ -1,6 +1,6 @@
 import stringify from 'json-stringify-pretty-compact';
 import { secrets, setSecret } from './secrets';
-import { STAGE_NAME } from './dns';
+import { STAGE_NAME } from './utils';
 
 new tailscale.TailnetSettings('TailscaleSettings', {
   httpsEnabled: true

@@ -29,7 +29,7 @@ Taste rules that survive `prettier --check`. Lint-mechanical surface is in
   (`apps/functions/src/api/notion/text-reminder.ts:15-16`,
   `apps/functions/src/text.ts:4`,
   `apps/functions/src/api/notion/webhook.ts:8`).
-- **Booleans prefix-style**: `isProduction` (`infra/dns.ts:3`),
+- **Booleans prefix-style**: `isProduction` (`infra/utils.ts:3`),
   `isFullPage` from `@notionhq/client`, `hasPosts` from
   `apps/web/vite/globals`.
 - **Lambda handlers named `<verb>Handler`**:

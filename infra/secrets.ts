@@ -1,8 +1,8 @@
 import { execSync } from 'node:child_process';
 import { getClusterNodeCount, getClusterStageConfig } from './cluster/config';
+import { APP_STAGE, isProduction } from './utils';
 
-const isProductionStage = $app.stage === 'production';
-const clusterConfig = getClusterStageConfig(isProductionStage);
+const clusterConfig = getClusterStageConfig(isProduction);
 const clusterHasNodes = getClusterNodeCount(clusterConfig) > 0;
 const DISABLED_CLUSTER_PLACEHOLDER = 'unused-disabled-cluster';
 const k3sTokenPlaceholder = clusterHasNodes ? undefined : DISABLED_CLUSTER_PLACEHOLDER;
@@ -94,7 +94,7 @@ export const secrets = {
 
 export function setSecret(secretName: $util.Input<string>, secretValue: $util.Input<string>) {
   $resolve([secretName, secretValue]).apply(([name, value]) => {
-    execSync(`sst secret set ${name} --stage ${$app.stage} ${value}`, {
+    execSync(`sst secret set ${name} --stage ${APP_STAGE} ${value}`, {
       stdio: 'inherit'
     });
   });

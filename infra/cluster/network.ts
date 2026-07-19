@@ -1,4 +1,4 @@
-import { isProduction, STAGE_NAME } from '../dns';
+import { STAGE_NAME, isProduction } from '../utils';
 import { CLUSTER_ADDRESS_PLAN } from './types';
 
 export type ClusterNetwork = {
