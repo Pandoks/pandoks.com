@@ -30,6 +30,11 @@ const devVpsRunbook = readFileSync('scripts/dev-vps/README.md', 'utf8');
 const devVpsCleanup = readFileSync('scripts/dev-vps/cleanup-state.sh', 'utf8');
 const devVpsSetup = readFileSync('scripts/dev-vps/setup.sh', 'utf8');
 const website = readFileSync('infra/website.ts', 'utf8');
+const mise = readFileSync('mise.toml', 'utf8');
+const renovate = JSON.parse(readFileSync('renovate.json', 'utf8')) as {
+  customManagers?: Array<Record<string, unknown>>;
+  packageRules?: Array<Record<string, unknown>>;
+};
 const activeClusterRules = [
   readFileSync('.claude/rules/workflows.md', 'utf8'),
   readFileSync('.claude/rules/architecture.md', 'utf8'),
@@ -47,13 +52,44 @@ void test('declares the non-secret targeted unprotect control', () => {
   assert.match(envExample, /^OVH_UNPROTECTED_NODE_LOGICAL_NAME=$/m);
 });
 
-void test('pins Node 24.18.0 for preview and production Pages builds', () => {
-  assert.match(website, /const PAGES_NODE_VERSION = '24\.18\.0'/);
+void test('keeps the Pages and mise Node versions synchronized through Renovate', () => {
+  const miseNodeVersion = mise.match(/^node = "([^"]+)"$/m)?.[1];
+  const pagesNodeVersion = website.match(/const PAGES_NODE_VERSION = '([^']+)'/)?.[1];
+  assert.ok(miseNodeVersion);
+  assert.equal(pagesNodeVersion, miseNodeVersion);
   assert.match(website, /preview:\s*\{\s*envVars:\s*pagesBuildEnvironment\s*\}/s);
   assert.match(website, /production:\s*\{\s*envVars:\s*pagesBuildEnvironment\s*\}/s);
   assert.match(
     website,
     /NODE_VERSION:\s*\{\s*type:\s*'plain_text',\s*value:\s*PAGES_NODE_VERSION\s*\}/s
+  );
+
+  assert.deepEqual(
+    renovate.customManagers?.find(
+      (manager) => manager.description === 'Track the Cloudflare Pages Node version alongside mise'
+    ),
+    {
+      customType: 'regex',
+      description: 'Track the Cloudflare Pages Node version alongside mise',
+      managerFilePatterns: ['/^infra\\/website\\.ts$/'],
+      matchStrings: ["const PAGES_NODE_VERSION = '(?<currentValue>[\\d.]+)';"],
+      depNameTemplate: 'node',
+      datasourceTemplate: 'node-version',
+      versioningTemplate: 'node'
+    }
+  );
+  assert.deepEqual(
+    renovate.packageRules?.find(
+      (rule) => rule.description === 'Update the mise and Cloudflare Pages Node pins together'
+    ),
+    {
+      description: 'Update the mise and Cloudflare Pages Node pins together',
+      matchDatasources: ['node-version'],
+      matchDepNames: ['node'],
+      matchFileNames: ['mise.toml', 'infra/website.ts'],
+      groupName: 'Node.js runtime',
+      minimumGroupSize: 2
+    }
   );
 });
 

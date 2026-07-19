@@ -41,6 +41,15 @@
       ],
       "registryUrlTemplate": "https://ghcr.io",
       "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Track the Cloudflare Pages Node version alongside mise",
+      "managerFilePatterns": ["/^infra\\/website\\.ts$/"],
+      "matchStrings": ["const PAGES_NODE_VERSION = '(?<currentValue>[\\d.]+)';"],
+      "depNameTemplate": "node",
+      "datasourceTemplate": "node-version",
+      "versioningTemplate": "node"
     }
   ],
   "packageRules": [
@@ -52,6 +61,14 @@
       "description": "Group all kubectl pins into one PR — kubectl's depNames differ across managers so copies don't auto-coalesce, and the bump needs a manual KUBECTL_SHA256 edit that shouldn't block the all-minor-patch group.",
       "matchDepNames": ["kubectl", "kubernetes/kubernetes"],
       "groupName": "kubectl"
+    },
+    {
+      "description": "Update the mise and Cloudflare Pages Node pins together",
+      "matchDatasources": ["node-version"],
+      "matchDepNames": ["node"],
+      "matchFileNames": ["mise.toml", "infra/website.ts"],
+      "groupName": "Node.js runtime",
+      "minimumGroupSize": 2
     }
   ],
   "vulnerabilityAlerts": {
