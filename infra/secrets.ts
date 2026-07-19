@@ -1,6 +1,6 @@
 import { execSync } from 'node:child_process';
 import { getClusterNodeCount, getClusterStageConfig } from './cluster/config';
-import { APP_STAGE, isProduction } from './utils';
+import { isProduction } from './utils';
 
 const clusterConfig = getClusterStageConfig(isProduction);
 const clusterHasNodes = getClusterNodeCount(clusterConfig) > 0;
@@ -94,7 +94,7 @@ export const secrets = {
 
 export function setSecret(secretName: $util.Input<string>, secretValue: $util.Input<string>) {
   $resolve([secretName, secretValue]).apply(([name, value]) => {
-    execSync(`sst secret set ${name} --stage ${APP_STAGE} ${value}`, {
+    execSync(`sst secret set ${name} --stage ${$app.stage} ${value}`, {
       stdio: 'inherit'
     });
   });

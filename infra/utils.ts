@@ -1,8 +1,4 @@
-export const APP_STAGE = $app.stage;
-
-export const isProduction = APP_STAGE === 'production';
-
-export const isPandoks = APP_STAGE === 'pandoks';
+export const isProduction = $app.stage === 'production';
 
 export const domain = isProduction ? 'pandoks.com' : 'dev.pandoks.com';
 

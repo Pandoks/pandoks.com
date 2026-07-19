@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { cloudflareZoneId } from './dns';
 import { publicIngressLoadBalancers } from './cluster/cluster';
 import { secrets } from './secrets';
-import { APP_STAGE, EXAMPLE_DOMAIN, STAGE_NAME, isProduction } from './utils';
+import { EXAMPLE_DOMAIN, STAGE_NAME, isProduction } from './utils';
 
 const cloudflareIpRequest = await fetch('https://api.cloudflare.com/client/v4/ips');
 export const cloudflareIps = (await cloudflareIpRequest.json()) as {
@@ -55,7 +55,7 @@ if (!existsSync(certificateSigningRequestPath)) {
   secrets.k8s.OriginTlsKey.name.apply((secretName) => {
     execFileSync(
       '/bin/sh',
-      ['-lc', `sst secret set ${secretName} --stage ${APP_STAGE} < ${certificateKeyPath}`],
+      ['-lc', `sst secret set ${secretName} --stage ${$app.stage} < ${certificateKeyPath}`],
       { stdio: 'inherit' }
     );
   });
@@ -81,7 +81,7 @@ if (needToSetCertificateSecret) {
     ([certificate, secretName]) => {
       execFileSync(
         '/bin/sh',
-        ['-lc', `sst secret set ${secretName} --stage ${APP_STAGE} <<'EOF'\n${certificate}EOF`],
+        ['-lc', `sst secret set ${secretName} --stage ${$app.stage} <<'EOF'\n${certificate}EOF`],
         { stdio: 'inherit' }
       );
     }

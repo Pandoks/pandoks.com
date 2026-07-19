@@ -56,21 +56,22 @@ void test('centralizes shared stage helpers in infra/utils.ts', () => {
   assert.ok(existsSync(utilsPath), `${utilsPath} must own the shared stage helpers`);
   const utils = readFileSync(utilsPath, 'utf8');
 
-  assert.match(utils, /export const APP_STAGE = \$app\.stage/);
-  assert.match(utils, /export const isProduction = APP_STAGE === 'production'/);
-  assert.match(utils, /export const isPandoks = APP_STAGE === 'pandoks'/);
+  assert.match(utils, /export const isProduction = \$app\.stage === 'production'/);
   assert.match(utils, /export const domain = isProduction \? 'pandoks\.com' : 'dev\.pandoks\.com'/);
   assert.match(utils, /export const EXAMPLE_DOMAIN = 'example\.pandoks\.com'/);
   assert.match(utils, /export const STAGE_NAME = isProduction \? 'prod' : 'dev'/);
 
   for (const path of typescriptFiles('infra')) {
-    if (path === utilsPath || path.startsWith('infra/tests/')) continue;
+    if (path.startsWith('infra/tests/')) continue;
     assert.doesNotMatch(
       readFileSync(path, 'utf8'),
-      /\$app\.stage/,
-      `${path} must consume the shared stage helpers`
+      /\b(?:APP_STAGE|isPandoks)\b/,
+      `${path} must use isProduction or $app.stage directly`
     );
   }
+
+  assert.match(cloudflare, /--stage \$\{\$app\.stage\}/);
+  assert.match(secrets, /--stage \$\{\$app\.stage\}/);
 });
 
 void test('protects cluster resources only according to the deployment stage', () => {
@@ -433,8 +434,7 @@ void test('manual VPS setup accepts only Ubuntu 26.04 and reports the detected r
 });
 
 void test('dev stage orders an annual protected VPS-4 with only standard options', () => {
-  assert.match(dev, /import \{ isPandoks \} from '\.\/utils'/);
-  assert.match(dev, /if \(isPandoks\)/);
+  assert.match(dev, /if \(\$app\.stage === 'pandoks'\)/);
   assert.match(dev, /new ovh\.vps\.Vps\(\s*'OvhDevVps'/s);
   assert.match(dev, /planCode:\s*'vps-2027-model4'/);
   assert.match(dev, /label:\s*'vps_datacenter',\s*value:\s*'US-WEST-OR'/s);
