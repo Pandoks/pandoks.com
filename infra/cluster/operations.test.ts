@@ -25,6 +25,7 @@ const checksWorkflow = readFileSync('.github/workflows/checks.yaml', 'utf8');
 const deployWorkflow = readFileSync('.github/workflows/deploy-infra.yaml', 'utf8');
 const devVpsRunbook = readFileSync('scripts/dev-vps/README.md', 'utf8');
 const devVpsCleanup = readFileSync('scripts/dev-vps/cleanup-state.sh', 'utf8');
+const website = readFileSync('infra/website.ts', 'utf8');
 
 void test('passes exact per-node protection through both provider adapters', () => {
   assert.match(cluster, /OVH_UNPROTECTED_NODE_LOGICAL_NAME/);
@@ -35,6 +36,16 @@ void test('passes exact per-node protection through both provider adapters', () 
 
 void test('declares the non-secret targeted unprotect control', () => {
   assert.match(envExample, /^OVH_UNPROTECTED_NODE_LOGICAL_NAME=$/m);
+});
+
+void test('pins Node 24.18.0 for preview and production Pages builds', () => {
+  assert.match(website, /const PAGES_NODE_VERSION = '24\.18\.0'/);
+  assert.match(website, /preview:\s*\{\s*envVars:\s*pagesBuildEnvironment\s*\}/s);
+  assert.match(website, /production:\s*\{\s*envVars:\s*pagesBuildEnvironment\s*\}/s);
+  assert.match(
+    website,
+    /NODE_VERSION:\s*\{\s*type:\s*'plain_text',\s*value:\s*PAGES_NODE_VERSION\s*\}/s
+  );
 });
 
 void test('runbook maps all pools and derives only the highest-index target', () => {
