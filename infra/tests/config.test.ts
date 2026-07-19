@@ -3,7 +3,6 @@ import test from 'node:test';
 import {
   NON_PRODUCTION_CLUSTER_CONFIG,
   PRODUCTION_CLUSTER_CONFIG,
-  getClusterStageConfig,
   shouldProvisionClusterInfrastructure
 } from '../cluster/config.ts';
 
@@ -20,12 +19,10 @@ const emptyConfig = {
 
 void test('keeps production compute disabled until code review enables it', () => {
   assert.deepEqual(PRODUCTION_CLUSTER_CONFIG, emptyConfig);
-  assert.equal(getClusterStageConfig(true), PRODUCTION_CLUSTER_CONFIG);
 });
 
 void test('keeps non-production compute disabled until code review enables it', () => {
   assert.deepEqual(NON_PRODUCTION_CLUSTER_CONFIG, emptyConfig);
-  assert.equal(getClusterStageConfig(false), NON_PRODUCTION_CLUSTER_CONFIG);
 });
 
 void test('skips only empty non-production cluster infrastructure', () => {

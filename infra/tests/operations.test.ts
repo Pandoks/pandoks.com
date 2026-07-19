@@ -12,6 +12,7 @@ import {
 } from '../cluster/types.ts';
 
 const cluster = readFileSync('infra/cluster/cluster.ts', 'utf8');
+const clusterConfigModule = readFileSync('infra/cluster/config.ts', 'utf8');
 const clusterTypes = readFileSync('infra/cluster/types.ts', 'utf8');
 const publicCloud = readFileSync('infra/cluster/providers/public-cloud.ts', 'utf8');
 const dedicated = readFileSync('infra/cluster/providers/dedicated.ts', 'utf8');
@@ -242,7 +243,12 @@ void test('topology validation and load balancers share capacity constants and d
 
 void test('cluster monitoring matches the disabled default topology', () => {
   const monitoring = readFileSync('k3s/overlays/cluster/prom-etcd-config.yaml', 'utf8');
-  assert.match(cluster, /getClusterStageConfig\(isProduction\)/);
+  assert.match(
+    cluster,
+    /export const clusterConfig = isProduction\s*\?\s*PRODUCTION_CLUSTER_CONFIG\s*:\s*NON_PRODUCTION_CLUSTER_CONFIG/
+  );
+  assert.doesNotMatch(clusterConfigModule, /getClusterStageConfig/);
+  assert.doesNotMatch(cluster, /getClusterStageConfig|\bCLUSTER_CONFIG\b/);
   assert.doesNotMatch(cluster, /process\.env\.OVH_(?:CLOUD|DEDICATED)_/);
   assert.match(monitoring, /^\s*endpoints:\s*\[\]\s*$/m);
 });
@@ -406,7 +412,7 @@ void test('production stack orders an annual protected dev VPS-4 with only stand
 void test('zero-node dev VPS does not require Public Cloud or k3s-only inputs', () => {
   assert.match(
     cluster,
-    /shouldProvisionClusterInfrastructure\(\s*isProduction,\s*CLUSTER_CONFIG\s*\)/s
+    /shouldProvisionClusterInfrastructure\(\s*isProduction,\s*clusterConfig\s*\)/s
   );
   assert.match(cluster, /const cloudProject = provisionClusterInfrastructure\s*\?/s);
   assert.match(cluster, /const network = cloudProject\s*\?\s*createClusterNetwork\(/s);

@@ -33,10 +33,6 @@ export const NON_PRODUCTION_CLUSTER_CONFIG: ClusterStageConfig = {
   dedicatedPlanOptions: []
 };
 
-export function getClusterStageConfig(isProduction: boolean): ClusterStageConfig {
-  return isProduction ? PRODUCTION_CLUSTER_CONFIG : NON_PRODUCTION_CLUSTER_CONFIG;
-}
-
 export function getClusterNodeCount(config: ClusterStageConfig): number {
   return (
     config.cloudControlPlaneCount +
