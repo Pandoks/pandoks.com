@@ -1,4 +1,5 @@
 import { STAGE_NAME, isProduction } from '../utils';
+import type { GatewayModel } from './config';
 import { CLUSTER_ADDRESS_PLAN, formatClusterIp } from './types';
 
 export type ClusterNetwork = {
@@ -15,7 +16,7 @@ export function createClusterNetwork(args: {
   serviceName: $util.Input<string>;
   region: string;
   cidr: string;
-  gatewayModel: string;
+  gatewayModel: GatewayModel;
 }): ClusterNetwork {
   const vrack = new ovh.vrack.Vrack(
     'OvhK3sVrack',

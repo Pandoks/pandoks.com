@@ -1,4 +1,5 @@
 import { STAGE_NAME } from '../utils';
+import type { LoadBalancerAlgorithm } from './config';
 import type { ClusterNetwork } from './network';
 import {
   CLUSTER_INGRESS_LOAD_BALANCERS_PER_GROUP,
@@ -25,7 +26,7 @@ export function createClusterLoadBalancers(args: {
   network: ClusterNetwork;
   region: string;
   flavorId: $util.Input<string>;
-  algorithm: string;
+  algorithm: LoadBalancerAlgorithm;
 }): ClusterLoadBalancers {
   const serviceName = args.network.serviceName;
   const controlPlanes = args.nodes.filter((node) => node.role === 'control-plane');
