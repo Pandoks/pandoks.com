@@ -15,32 +15,28 @@ import {
 } from './config';
 import { CLUSTER_NETWORK_CIDR, normalizeNodePools, type PublicCloudNodePool } from './types';
 
-export const shouldProvisionClusterInfrastructure = isProduction || clusterNodeCount > 0;
-
 const topology = normalizeNodePools(NODE_POOLS, STAGE_NAME, CLUSTER_NETWORK_CIDR);
 for (const warning of topology.warnings) {
   console.warn(warning);
 }
 
-const cloudProject = shouldProvisionClusterInfrastructure
-  ? createOvhCloudProject({
-      stageName: STAGE_NAME,
-      protect: isProduction
-    })
-  : undefined;
-const network = cloudProject
-  ? createClusterNetwork({
-      serviceName: cloudProject.projectId,
-      region: REGION,
-      cidr: CLUSTER_NETWORK_CIDR,
-      gatewayModel: GATEWAY_MODEL
-    })
-  : undefined;
+const cloudProject = createOvhCloudProject({
+  stageName: STAGE_NAME,
+  protect: isProduction
+});
+const network =
+  clusterNodeCount > 0
+    ? createClusterNetwork({
+        serviceName: cloudProject.projectId,
+        region: REGION,
+        cidr: CLUSTER_NETWORK_CIDR,
+        gatewayModel: GATEWAY_MODEL
+      })
+    : undefined;
 
-const loadBalancerFlavorId =
-  topology.nodes.length && cloudProject
-    ? getLoadBalancerFlavorId(cloudProject.projectId, REGION, LOAD_BALANCER_FLAVOR)
-    : '';
+const loadBalancerFlavorId = topology.nodes.length
+  ? getLoadBalancerFlavorId(cloudProject.projectId, REGION, LOAD_BALANCER_FLAVOR)
+  : '';
 const loadBalancers = network
   ? createClusterLoadBalancers({
       nodes: topology.nodes,
@@ -69,9 +65,6 @@ const publicCloudCatalog = new Map<
 >();
 for (const pool of publicCloudPools) {
   if (pool.count > 0) {
-    if (!cloudProject) {
-      throw new Error('Public Cloud nodes require the managed Public Cloud project');
-    }
     publicCloudCatalog.set(pool.name, {
       flavorId: getFlavorId(cloudProject.projectId, pool.region, pool.flavor),
       imageId: getImageId(cloudProject.projectId, pool.region, pool.image)
@@ -125,7 +118,7 @@ if (clusterNodes.length === 0) {
 
 export const publicIngressLoadBalancers = loadBalancers.publicIngress;
 export const outputs = {
-  CloudProjectId: cloudProject?.projectId ?? '',
+  CloudProjectId: cloudProject.projectId,
   ...Object.fromEntries(
     publicIngressLoadBalancers.map((loadBalancer, index): [string, $util.Output<string>] => [
       `IngressLoadBalancer${index}`,

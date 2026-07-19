@@ -251,10 +251,7 @@ void test('cluster monitoring matches the disabled default topology', () => {
     clusterConfigModule,
     /export const clusterNodeCount = NODE_POOLS\.reduce\(\(total, pool\) => total \+ pool\.count, 0\)/
   );
-  assert.match(
-    cluster,
-    /export const shouldProvisionClusterInfrastructure =\s*isProduction \|\| clusterNodeCount > 0/
-  );
+  assert.doesNotMatch(cluster, /shouldProvisionClusterInfrastructure/);
   assert.doesNotMatch(clusterConfigModule, /getClusterStageConfig|getClusterNodeCount/);
   assert.doesNotMatch(
     cluster,
@@ -333,7 +330,7 @@ void test('creates the US Public Cloud project in Pulumi and threads its generat
     /createOvhCloudProject\(\{\s*stageName:\s*STAGE_NAME,\s*protect:\s*isProduction/s
   );
   assert.match(cluster, /createClusterNetwork\(\{\s*serviceName:\s*cloudProject\.projectId,/s);
-  assert.match(cluster, /CloudProjectId:\s*cloudProject\?\.projectId\s*\?\?\s*''/s);
+  assert.match(cluster, /CloudProjectId:\s*cloudProject\.projectId/s);
   assert.match(network, /serviceName:\s*\$util\.Input<string>/);
   assert.match(network, /projectId:\s*args\.serviceName/);
   assert.match(loadBalancers, /serviceName\s*=\s*args\.network\.serviceName/);
@@ -420,9 +417,9 @@ void test('production stack orders an annual protected dev VPS-4 with only stand
   assert.match(dev, /\{\s*protect:\s*true\s*\}\s*\)/s);
 });
 
-void test('zero-node dev VPS does not require Public Cloud or k3s-only inputs', () => {
-  assert.match(cluster, /const cloudProject = shouldProvisionClusterInfrastructure\s*\?/s);
-  assert.match(cluster, /const network = cloudProject\s*\?\s*createClusterNetwork\(/s);
+void test('zero-node stages keep an empty Public Cloud project without cluster resources', () => {
+  assert.match(cluster, /const cloudProject = createOvhCloudProject\(/);
+  assert.match(cluster, /const network =\s*clusterNodeCount > 0\s*\?\s*createClusterNetwork\(/s);
   assert.match(
     secrets,
     /ApplicationSecret:\s*new sst\.Secret\(\s*'OvhApplicationSecret',\s*process\.env\.OVH_APPLICATION_SECRET\s*\)/s
