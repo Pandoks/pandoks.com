@@ -1,7 +1,7 @@
 {
   "extends": "./.sst/platform/tsconfig.json",
   "compilerOptions": {
-    "allowImportingTsExtensions": true,
+    "allowImportingTsExtensions": true, // used for test files in infra/tests
     "noEmit": true,
     "types": ["node"],
     "downlevelIteration": null
