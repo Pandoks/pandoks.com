@@ -21,11 +21,19 @@ const network = readFileSync('infra/cluster/network.ts', 'utf8');
 const metalLb = readFileSync('k3s/base/core/metallb.yaml', 'utf8');
 const loadBalancers = readFileSync('infra/cluster/load-balancers.ts', 'utf8');
 const ingress = readFileSync('k3s/bootstrap/core/haproxy-ingress.yaml', 'utf8');
+const bootstrap = readFileSync('infra/cluster/bootstrap.ts', 'utf8');
+const bootstrapScript = readFileSync('infra/cluster/bootstrap.sh', 'utf8');
 const checksWorkflow = readFileSync('.github/workflows/checks.yaml', 'utf8');
 const deployWorkflow = readFileSync('.github/workflows/deploy-infra.yaml', 'utf8');
 const devVpsRunbook = readFileSync('scripts/dev-vps/README.md', 'utf8');
 const devVpsCleanup = readFileSync('scripts/dev-vps/cleanup-state.sh', 'utf8');
+const devVpsSetup = readFileSync('scripts/dev-vps/setup.sh', 'utf8');
 const website = readFileSync('infra/website.ts', 'utf8');
+const activeClusterRules = [
+  readFileSync('.claude/rules/workflows.md', 'utf8'),
+  readFileSync('.claude/rules/architecture.md', 'utf8'),
+  readFileSync('.claude/rules/gotchas/cluster.md', 'utf8')
+];
 
 void test('passes exact per-node protection through both provider adapters', () => {
   assert.match(cluster, /OVH_UNPROTECTED_NODE_LOGICAL_NAME/);
@@ -255,6 +263,71 @@ void test('keeps topology in code and credentials in both CI SST environments', 
   assert.match(envExample, /^OVH_UNPROTECTED_NODE_LOGICAL_NAME=$/m);
   assert.match(runbook, /infra\/cluster\/config\.ts/);
   assert.doesNotMatch(runbook, /GitHub environment variables/);
+});
+
+void test('deletes only the exact hostname returned by a Tailscale prefix query', () => {
+  const query = bootstrap.indexOf('tailscale.getDevices({ namePrefix: hostname })');
+  const exactHostname = bootstrap.indexOf('device.hostname === hostname', query);
+  const nodeIds = bootstrap.indexOf('matching.map((device) => device.nodeId)', query);
+
+  assert.ok(query >= 0);
+  assert.ok(exactHostname > query);
+  assert.ok(nodeIds > exactHostname);
+});
+
+void test('pins every k3s installer invocation to the approved exact release', () => {
+  assert.match(bootstrapScript, /^K3S_VERSION='v1\.36\.2\+k3s1'$/m);
+  assert.equal(bootstrapScript.match(/^K3S_VERSION=/gm)?.length, 1);
+  assert.equal(bootstrapScript.match(/export INSTALL_K3S_VERSION="\$\{K3S_VERSION\}"/g)?.length, 1);
+
+  const installer = bootstrapScript.match(/download_k3s_installer\(\) \{(?<body>[\s\S]*?)^\}/m)
+    ?.groups?.body;
+  assert.ok(installer);
+  assert.match(installer, /export INSTALL_K3S_VERSION="\$\{K3S_VERSION\}"/);
+});
+
+void test('active cluster rules describe code-owned zero topology and CI contracts', () => {
+  const deletedTopologyVariables =
+    /OVH_(?:CLOUD_(?:CONTROL_PLANE|WORKER)_COUNT|DEDICATED_(?:CONTROL_PLANE_COUNT|WORKER_COUNT|SERVER_PLAN|DATACENTER|ORDER_REGION|PLAN_OPTIONS))/;
+
+  for (const rules of activeClusterRules) {
+    assert.doesNotMatch(rules, deletedTopologyVariables);
+    assert.doesNotMatch(rules, /scripts\/cluster\/validate-topology-env\.sh/);
+    assert.doesNotMatch(rules, /production defaults to one/i);
+  }
+
+  const rules = activeClusterRules.join('\n');
+  assert.match(rules, /infra\/cluster\/config\.ts/);
+  assert.match(rules, /PRODUCTION_CLUSTER_CONFIG/);
+  assert.match(rules, /NON_PRODUCTION_CLUSTER_CONFIG/);
+  assert.match(rules, /both currently\s+set all four counts to zero/i);
+  assert.match(rules, /dedicated catalog fields[\s\S]*stage object[\s\S]*counts become non-zero/i);
+  assert.match(rules, /OVH credentials[\s\S]*project ID[\s\S]*TypeScript topology contracts/i);
+  assert.match(rules, /OVH_UNPROTECTED_NODE_LOGICAL_NAME[\s\S]*temporary operator-only/i);
+});
+
+void test('CI runs all infra safety checks for manual VPS changes', () => {
+  assert.match(checksWorkflow, /infra:\n(?:\s+- .*\n)*\s+- 'scripts\/dev-vps\/\*\*'/);
+  for (const [name, command] of [
+    ['Typecheck infra', 'pnpm check:infra'],
+    ['Test infra', 'pnpm test:infra'],
+    ['Test dev VPS cleanup', 'sh scripts/dev-vps/cleanup-state.test.sh'],
+    ['Test dev VPS setup', 'sh scripts/dev-vps/setup.test.sh']
+  ]) {
+    assert.match(
+      checksWorkflow,
+      new RegExp(`- name: ${name}\\n\\s+run: ${command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`)
+    );
+  }
+});
+
+void test('manual VPS setup accepts only Ubuntu 24.04 and reports the detected release', () => {
+  assert.match(
+    devVpsSetup,
+    /\[ "\$\{detected_id\}" != "ubuntu" \] \|\| \[ "\$\{detected_version\}" != "24\.04" \]/
+  );
+  assert.match(devVpsSetup, /requires Ubuntu 24\.04/);
+  assert.match(devVpsSetup, /ID=%s VERSION_ID=%s/);
 });
 
 void test('dev cleanup script fails closed for exact Hetzner and OVH identity families', () => {

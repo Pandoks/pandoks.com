@@ -107,11 +107,14 @@ For full per-flow traces, see `.claude/rules/gotchas/*.md`.
 
 ## Cluster overview
 
-- Four independent counts in `infra/cluster/cluster.ts` select Public Cloud or
-  dedicated control-plane/worker capacity. Production defaults to one Public
-  Cloud control-plane and zero in the other pools; non-production defaults all
-  four to zero. When the total is zero, stale OVH cluster Tailnet entries for
-  the stage are reclaimed.
+- Topology and catalog selection live in `infra/cluster/config.ts`.
+  `PRODUCTION_CLUSTER_CONFIG` and `NON_PRODUCTION_CLUSTER_CONFIG` both currently
+  set all four counts to zero. Dedicated catalog fields are filled only in the
+  selected stage object when its dedicated counts become non-zero. When the
+  total is zero, stale OVH cluster Tailnet entries for the stage are reclaimed.
+- CI retains OVH credentials and project ID and runs the TypeScript topology
+  contracts. `OVH_UNPROTECTED_NODE_LOGICAL_NAME` is a temporary operator-only
+  scale-down override, never persistent topology configuration.
 - The vRack, Public Cloud private network/subnet/gateway, and load balancers are
   shared by both compute providers. `OVH_CLOUD_PROJECT_SERVICE` remains
   required when all compute is dedicated.

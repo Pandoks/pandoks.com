@@ -21,8 +21,11 @@ require_ubuntu() {
   if [ "${TEST_MODE}" -eq 0 ]; then
     # shellcheck disable=SC1091
     . /etc/os-release
-    if [ "${ID}" != "ubuntu" ]; then
-      printf "This setup supports Ubuntu only; found %s.\n" "${ID}" >&2
+    detected_id="${ID:-unknown}"
+    detected_version="${VERSION_ID:-unknown}"
+    if [ "${detected_id}" != "ubuntu" ] || [ "${detected_version}" != "24.04" ]; then
+      printf "This setup requires Ubuntu 24.04; found ID=%s VERSION_ID=%s.\n" \
+        "${detected_id}" "${detected_version}" >&2
       exit 1
     fi
   fi

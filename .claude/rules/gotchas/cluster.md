@@ -11,13 +11,16 @@ paths:
 
 ## Cluster state
 
-- **Four independent pools are defined in `infra/cluster/cluster.ts`.**
-  Production defaults to one Public Cloud control-plane and zero workers or
-  dedicated nodes; non-production defaults all four to zero. When total count
-  is zero, stale OVH cluster Tailnet entries are reclaimed. Use
-  `infra/cluster/README.md` for preview, scaling, migration, drain, etcd quorum,
-  targeted two-deploy unprotect, and recovery. Scale-down can remove only the
-  selected pool's `count - 1` node.
+- **Topology and catalog selection live in `infra/cluster/config.ts`.**
+  `PRODUCTION_CLUSTER_CONFIG` and `NON_PRODUCTION_CLUSTER_CONFIG` both currently
+  set all four counts to zero. Fill dedicated catalog fields only in the
+  selected stage object when its dedicated counts become non-zero. CI retains
+  OVH credentials and project ID and runs the TypeScript topology contracts.
+  `OVH_UNPROTECTED_NODE_LOGICAL_NAME` is a temporary operator-only scale-down
+  override. When total count is zero, stale OVH cluster Tailnet entries are
+  reclaimed. Use `infra/cluster/README.md` for preview, scaling, migration,
+  drain, etcd quorum, targeted two-deploy unprotect, and recovery. Scale-down
+  can remove only the selected pool's `count - 1` node.
 
 ## HAProxy
 

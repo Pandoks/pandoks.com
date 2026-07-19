@@ -7,6 +7,7 @@ ENV_FILE=/etc/pandoks/cluster.env
 DONE_FILE=/var/lib/pandoks/cluster-bootstrap.complete
 TAILSCALE_INSTALL=/tmp/tailscale-install.sh
 K3S_INSTALL=/tmp/k3s-install.sh
+K3S_VERSION='v1.36.2+k3s1'
 
 log() {
   printf "pandoks-bootstrap: %s\n" "$*"
@@ -151,6 +152,7 @@ api_ready() {
 }
 
 download_k3s_installer() {
+  export INSTALL_K3S_VERSION="${K3S_VERSION}"
   curl -sfL https://get.k3s.io -o "${K3S_INSTALL}"
   chmod 0755 "${K3S_INSTALL}"
 }

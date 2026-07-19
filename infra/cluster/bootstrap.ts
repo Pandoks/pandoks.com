@@ -23,7 +23,10 @@ export const deleteServerFromTailnet = new $util.ResourceHook(
     if (!hostname) return;
     const devices = await tailscale.getDevices({ namePrefix: hostname });
     const matching = devices.devices.filter(
-      (device) => device.tags.includes('tag:ovh') && device.tags.includes(`tag:${STAGE_NAME}`)
+      (device) =>
+        device.hostname === hostname &&
+        device.tags.includes('tag:ovh') &&
+        device.tags.includes(`tag:${STAGE_NAME}`)
     );
     if (matching.length) {
       deleteTailscaleDevices(...matching.map((device) => device.nodeId));
