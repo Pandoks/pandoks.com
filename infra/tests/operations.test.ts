@@ -345,7 +345,23 @@ void test('keeps topology and the Public Cloud project in code and only credenti
   assert.doesNotMatch(githubInfra, /GithubOvhCloudProjectService|OVH_CLOUD_PROJECT_SERVICE/);
   assert.doesNotMatch(envExample, /OVH_UNPROTECTED_NODE_LOGICAL_NAME/);
   assert.match(runbook, /infra\/cluster\/config\.ts/);
-  assert.doesNotMatch(runbook, /GitHub environment variables/);
+  assert.doesNotMatch(runbook, /GitHub environment/i);
+});
+
+void test('shares account-scoped OVH credentials through repository secrets', () => {
+  assert.doesNotMatch(githubInfra, /RepositoryEnvironment|ActionsEnvironmentSecret/);
+  assert.match(
+    githubInfra,
+    /if \(isProduction\) \{[\s\S]*new github\.ActionsSecret\('GithubOvhApplicationSecret', \{[\s\S]*secretName:\s*'OVH_APPLICATION_SECRET'/
+  );
+  assert.match(
+    githubInfra,
+    /if \(isProduction\) \{[\s\S]*new github\.ActionsSecret\('GithubOvhConsumerKey', \{[\s\S]*secretName:\s*'OVH_CONSUMER_KEY'/
+  );
+
+  for (const workflow of [checksWorkflow, deployWorkflow]) {
+    assert.doesNotMatch(workflow, /^\s+environment:/m);
+  }
 });
 
 void test('creates the US Public Cloud project in Pulumi and threads its generated ID', () => {
@@ -432,8 +448,9 @@ void test('CI runs infra checks for VPS IaC changes without dev VPS helper paths
   assert.doesNotMatch(checksWorkflow, /scripts\/dev-vps/);
 });
 
-void test('dev stage orders an annual protected VPS-4 with only standard options', () => {
-  assert.match(dev, /if \(\$app\.stage === 'pandoks'\)/);
+void test('production stack orders an annual protected dev VPS-4 with only standard options', () => {
+  assert.match(dev, /import \{ isProduction \} from '\.\/utils'/);
+  assert.match(dev, /if \(isProduction\)/);
   assert.match(dev, /new ovh\.vps\.Vps\(\s*'OvhDevVps'/s);
   assert.match(dev, /planCode:\s*'vps-2027-model4'/);
   assert.match(dev, /label:\s*'vps_datacenter',\s*value:\s*'US-WEST-OR'/s);

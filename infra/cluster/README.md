@@ -63,10 +63,10 @@ OVH's public ingress load balancer sends PROXY v2 to node port `30443`, and
 HAProxy Ingress has `use-proxy-protocol: "true"` so both ends of that transport
 remain aligned.
 
-Do not configure topology fields in GitHub environments. The TypeScript
-configuration is the only topology source. All four counts must be non-negative
-integers no greater than `254`. The aggregate control-plane and infrastructure
-limits above still apply.
+Do not configure topology fields in GitHub Actions. The TypeScript configuration
+is the only topology source. All four counts must be non-negative integers no
+greater than `254`. The aggregate control-plane and infrastructure limits above
+still apply.
 Production node resources use `protect: isProduction`: every production node is
 protected and every non-production node is unprotected. Protection has no
 environment-variable override.

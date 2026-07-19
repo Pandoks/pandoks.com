@@ -269,7 +269,6 @@ jobs:
   # ─── SST ──────────────────────────────────────────────────────────────
   diff-sst:
     runs-on: ubuntu-latest
-    environment: production
     env:
       GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

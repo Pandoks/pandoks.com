@@ -7,25 +7,6 @@ import { STAGE_NAME, isProduction } from './utils';
 export const githubOrg = 'Pandoks';
 export const githubRepoName = 'pandoks.com';
 
-const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
-  repository: githubRepoName,
-  environment: isProduction ? 'production' : 'dev'
-});
-
-new github.ActionsEnvironmentSecret('GithubOvhApplicationSecret', {
-  repository: githubRepoName,
-  environment: githubEnvironment.environment,
-  secretName: 'OVH_APPLICATION_SECRET',
-  plaintextValue: secrets.ovh.ApplicationSecret.value
-});
-
-new github.ActionsEnvironmentSecret('GithubOvhConsumerKey', {
-  repository: githubRepoName,
-  environment: githubEnvironment.environment,
-  secretName: 'OVH_CONSUMER_KEY',
-  plaintextValue: secrets.ovh.ConsumerKey.value
-});
-
 if (isProduction) {
   new github.BranchProtection('GithubMainBranchProtection', {
     repositoryId: githubRepoName,
@@ -39,6 +20,18 @@ if (isProduction) {
     allowsDeletions: false,
     allowsForcePushes: false,
     enforceAdmins: false
+  });
+
+  new github.ActionsSecret('GithubOvhApplicationSecret', {
+    repository: githubRepoName,
+    secretName: 'OVH_APPLICATION_SECRET',
+    plaintextValue: secrets.ovh.ApplicationSecret.value
+  });
+
+  new github.ActionsSecret('GithubOvhConsumerKey', {
+    repository: githubRepoName,
+    secretName: 'OVH_CONSUMER_KEY',
+    plaintextValue: secrets.ovh.ConsumerKey.value
   });
 
   new github.ActionsSecret('GithubGithubAccessToken', {
