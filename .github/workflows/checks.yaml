@@ -77,7 +77,6 @@ jobs:
               - '.renovaterc.json5'
             infra:
               - 'infra/**'
-              - 'scripts/dev-vps/**'
               - 'sst.config.ts'
               - 'tsconfig.json'
               - 'package.json'

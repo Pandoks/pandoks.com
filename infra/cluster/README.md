@@ -390,7 +390,3 @@ journalctl -u pandoks-cluster-bootstrap.service
 Do not remove the failed node from SST until its OVH service ID and Kubernetes
 membership are understood. Do not reinstall a dedicated server merely to retry
 bootstrap; diagnose it from the console or rescue environment first.
-
-The IaC-provisioned development VPS-4 is separate from this cluster. Its guest
-setup and lockdown remain manual; provisioning and recovery procedures are in
-[`scripts/dev-vps/README.md`](../../scripts/dev-vps/README.md).

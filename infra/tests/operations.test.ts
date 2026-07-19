@@ -31,7 +31,6 @@ const bootstrapScript = readFileSync('infra/cluster/bootstrap.sh', 'utf8');
 const checksWorkflow = readFileSync('.github/workflows/checks.yaml', 'utf8');
 const deployWorkflow = readFileSync('.github/workflows/deploy-infra.yaml', 'utf8');
 const dev = readFileSync('infra/dev.ts', 'utf8');
-const devVpsRunbook = readFileSync('scripts/dev-vps/README.md', 'utf8');
 const website = readFileSync('infra/website.ts', 'utf8');
 const mise = readFileSync('mise.toml', 'utf8');
 const renovate = JSON.parse(readFileSync('renovate.json', 'utf8')) as {
@@ -418,8 +417,8 @@ void test('active cluster rules describe code-owned zero topology and CI contrac
   assert.doesNotMatch(rules, /OVH_UNPROTECTED_NODE_LOGICAL_NAME/);
 });
 
-void test('CI runs infra checks for VPS changes without one-off helper scripts', () => {
-  assert.match(checksWorkflow, /infra:\n(?:\s+- .*\n)*\s+- 'scripts\/dev-vps\/\*\*'/);
+void test('CI runs infra checks for VPS IaC changes without dev VPS helper paths', () => {
+  assert.match(checksWorkflow, /infra:\n(?:\s+- .*\n)*\s+- 'infra\/\*\*'/);
   assert.match(checksWorkflow, /infra:\n(?:\s+- .*\n)*\s+- 'tsconfig\.json'/);
   for (const [name, command] of [
     ['Typecheck infra', 'pnpm check:infra'],
@@ -430,11 +429,7 @@ void test('CI runs infra checks for VPS changes without one-off helper scripts',
       new RegExp(`- name: ${name}\\n\\s+run: ${command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`)
     );
   }
-  assert.doesNotMatch(checksWorkflow, /scripts\/dev-vps\/(?:setup|cleanup-state)/);
-  assert.equal(existsSync('scripts/dev-vps/setup.sh'), false);
-  assert.equal(existsSync('scripts/dev-vps/setup.test.sh'), false);
-  assert.equal(existsSync('scripts/dev-vps/cleanup-state.sh'), false);
-  assert.equal(existsSync('scripts/dev-vps/cleanup-state.test.sh'), false);
+  assert.doesNotMatch(checksWorkflow, /scripts\/dev-vps/);
 });
 
 void test('dev stage orders an annual protected VPS-4 with only standard options', () => {
@@ -453,12 +448,6 @@ void test('dev stage orders an annual protected VPS-4 with only standard options
   assert.match(dev, /doNotSendPassword:\s*false/);
   assert.doesNotMatch(dev, /publicSshKey|imageId|cloud-init|userData/i);
   assert.match(dev, /\{\s*protect:\s*true\s*\}\s*\)/s);
-  assert.match(devVpsRunbook, /SST provisions and lifecycle-manages the VPS-4 subscription/);
-  assert.match(devVpsRunbook, /Ubuntu 26\.04/);
-  assert.match(devVpsRunbook, /12-month upfront pricing/);
-  assert.match(devVpsRunbook, /Guest OS configuration is intentionally outside IaC/);
-  assert.doesNotMatch(devVpsRunbook, /setup(?:\.test)?\.sh/);
-  assert.doesNotMatch(devVpsRunbook, /cleanup-state/);
 });
 
 void test('zero-node dev VPS does not require Public Cloud or k3s-only inputs', () => {
@@ -482,5 +471,4 @@ void test('zero-node dev VPS does not require Public Cloud or k3s-only inputs', 
     secrets,
     /K3sToken:\s*new sst\.Secret\(\s*'OvhK3sToken',\s*k3sTokenPlaceholder\s*\)/s
   );
-  assert.match(devVpsRunbook, /does not require an OVH Public Cloud project or k3s token/i);
 });
