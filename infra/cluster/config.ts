@@ -32,19 +32,3 @@ export const NON_PRODUCTION_CLUSTER_CONFIG: ClusterStageConfig = {
   dedicatedOrderRegion: '',
   dedicatedPlanOptions: []
 };
-
-export function getClusterNodeCount(config: ClusterStageConfig): number {
-  return (
-    config.cloudControlPlaneCount +
-    config.cloudWorkerCount +
-    config.dedicatedControlPlaneCount +
-    config.dedicatedWorkerCount
-  );
-}
-
-export function shouldProvisionClusterInfrastructure(
-  isProduction: boolean,
-  config: ClusterStageConfig
-): boolean {
-  return isProduction || getClusterNodeCount(config) > 0;
-}

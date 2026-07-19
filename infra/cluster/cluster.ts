@@ -5,11 +5,7 @@ import { createClusterLoadBalancers } from './load-balancers';
 import { createClusterNetwork } from './network';
 import { createDedicatedNode } from './providers/dedicated';
 import { createPublicCloudNode, type ClusterNode } from './providers/public-cloud';
-import {
-  NON_PRODUCTION_CLUSTER_CONFIG,
-  PRODUCTION_CLUSTER_CONFIG,
-  shouldProvisionClusterInfrastructure
-} from './config';
+import { NON_PRODUCTION_CLUSTER_CONFIG, PRODUCTION_CLUSTER_CONFIG } from './config';
 import {
   CLUSTER_NETWORK_CIDR,
   normalizeNodePools,
@@ -24,10 +20,12 @@ const LOAD_BALANCER_ALGORITHM = 'leastConnections';
 export const clusterConfig = isProduction
   ? PRODUCTION_CLUSTER_CONFIG
   : NON_PRODUCTION_CLUSTER_CONFIG;
-const provisionClusterInfrastructure = shouldProvisionClusterInfrastructure(
-  isProduction,
-  clusterConfig
-);
+export const clusterNodeCount =
+  clusterConfig.cloudControlPlaneCount +
+  clusterConfig.cloudWorkerCount +
+  clusterConfig.dedicatedControlPlaneCount +
+  clusterConfig.dedicatedWorkerCount;
+export const shouldProvisionClusterInfrastructure = isProduction || clusterNodeCount > 0;
 
 const NODE_POOLS: readonly NodePool[] = [
   {
@@ -81,7 +79,7 @@ for (const warning of topology.warnings) {
   console.warn(warning);
 }
 
-const cloudProject = provisionClusterInfrastructure
+const cloudProject = shouldProvisionClusterInfrastructure
   ? createOvhCloudProject({
       stageName: STAGE_NAME,
       protect: isProduction

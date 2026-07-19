@@ -247,7 +247,18 @@ void test('cluster monitoring matches the disabled default topology', () => {
     cluster,
     /export const clusterConfig = isProduction\s*\?\s*PRODUCTION_CLUSTER_CONFIG\s*:\s*NON_PRODUCTION_CLUSTER_CONFIG/
   );
-  assert.doesNotMatch(clusterConfigModule, /getClusterStageConfig/);
+  assert.match(
+    cluster,
+    /export const clusterNodeCount =\s*clusterConfig\.cloudControlPlaneCount \+\s*clusterConfig\.cloudWorkerCount \+\s*clusterConfig\.dedicatedControlPlaneCount \+\s*clusterConfig\.dedicatedWorkerCount/
+  );
+  assert.match(
+    cluster,
+    /export const shouldProvisionClusterInfrastructure =\s*isProduction \|\| clusterNodeCount > 0/
+  );
+  assert.doesNotMatch(
+    clusterConfigModule,
+    /getClusterStageConfig|getClusterNodeCount|shouldProvisionClusterInfrastructure/
+  );
   assert.doesNotMatch(cluster, /getClusterStageConfig|\bCLUSTER_CONFIG\b/);
   assert.doesNotMatch(cluster, /process\.env\.OVH_(?:CLOUD|DEDICATED)_/);
   assert.match(monitoring, /^\s*endpoints:\s*\[\]\s*$/m);
@@ -410,11 +421,7 @@ void test('production stack orders an annual protected dev VPS-4 with only stand
 });
 
 void test('zero-node dev VPS does not require Public Cloud or k3s-only inputs', () => {
-  assert.match(
-    cluster,
-    /shouldProvisionClusterInfrastructure\(\s*isProduction,\s*clusterConfig\s*\)/s
-  );
-  assert.match(cluster, /const cloudProject = provisionClusterInfrastructure\s*\?/s);
+  assert.match(cluster, /const cloudProject = shouldProvisionClusterInfrastructure\s*\?/s);
   assert.match(cluster, /const network = cloudProject\s*\?\s*createClusterNetwork\(/s);
   assert.match(
     secrets,

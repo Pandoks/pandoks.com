@@ -1,10 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
-  NON_PRODUCTION_CLUSTER_CONFIG,
-  PRODUCTION_CLUSTER_CONFIG,
-  shouldProvisionClusterInfrastructure
-} from '../cluster/config.ts';
+import { NON_PRODUCTION_CLUSTER_CONFIG, PRODUCTION_CLUSTER_CONFIG } from '../cluster/config.ts';
 
 const emptyConfig = {
   cloudControlPlaneCount: 0,
@@ -23,16 +19,4 @@ void test('keeps production compute disabled until code review enables it', () =
 
 void test('keeps non-production compute disabled until code review enables it', () => {
   assert.deepEqual(NON_PRODUCTION_CLUSTER_CONFIG, emptyConfig);
-});
-
-void test('skips only empty non-production cluster infrastructure', () => {
-  assert.equal(shouldProvisionClusterInfrastructure(true, PRODUCTION_CLUSTER_CONFIG), true);
-  assert.equal(shouldProvisionClusterInfrastructure(false, NON_PRODUCTION_CLUSTER_CONFIG), false);
-  assert.equal(
-    shouldProvisionClusterInfrastructure(false, {
-      ...NON_PRODUCTION_CLUSTER_CONFIG,
-      cloudWorkerCount: 1
-    }),
-    true
-  );
 });
