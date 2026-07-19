@@ -1,10 +1,11 @@
 # OVH VPS-4 development host
 
 SST provisions and lifecycle-manages the VPS-4 subscription declared in
-`infra/dev.ts` for the `pandoks` stage. The code orders the monthly VPS-4 plan
-in `US-WEST-OR` with Ubuntu 24.04, standard daily backup, and no provider SSH
-key. The Pulumi resource is protected against accidental replacement or
-deletion.
+`infra/dev.ts` for the `pandoks` stage. The code orders the VPS-4 plan using
+12-month upfront pricing in `US-WEST-OR` with Ubuntu 26.04, standard daily
+backup, local system storage, and no provider SSH key. It does not order
+Premium backup, snapshots, or additional storage. The Pulumi resource is
+protected against accidental replacement or deletion.
 
 `setup.sh` configures and hardens the delivered host; it does not order,
 reinstall, resize, or delete the VPS. There is intentionally no cloud-init or
@@ -24,7 +25,7 @@ pnpm sst deploy --stage pandoks
 ```
 
 Do not approve the deployment unless the diff contains exactly one
-`OvhDevVps4` using the intended VPS-4 plan and location. Changing the plan,
+`OvhDevVps` using the intended VPS-4 plan and location. Changing the plan,
 location, or OS can replace or reinstall a manually configured host; review
 those changes through an authenticated diff first.
 
@@ -89,9 +90,9 @@ secret.
 
 ## Legacy SST state cleanup
 
-Run this section only before the first `OvhDevVps4` deployment and only if the
+Run this section only before the first `OvhDevVps` deployment and only if the
 diff reports a historical `HetznerDevBox`, `OvhDevBox`, or registration-key
-resource. Do not use it for the current `OvhDevVps4`.
+resource. Do not use it for the current `OvhDevVps`.
 
 The checked-in helper is the only authorized cleanup procedure:
 

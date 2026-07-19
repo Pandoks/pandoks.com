@@ -1,8 +1,6 @@
-// Pulumi owns only the dev VPS subscription. Guest setup and hardening remain
-// the explicit console/Tailscale procedure in scripts/dev-vps/README.md.
 if ($app.stage === 'pandoks') {
   new ovh.vps.Vps(
-    'OvhDevVps4',
+    'OvhDevVps',
     {
       displayName: 'pandoks-dev-box',
       doNotSendPassword: false,
@@ -11,11 +9,11 @@ if ($app.stage === 'pandoks') {
         {
           duration: 'P1M',
           planCode: 'vps-2027-model4',
-          pricingMode: 'default',
+          pricingMode: 'upfront12',
           quantity: 1,
           configurations: [
             { label: 'vps_datacenter', value: 'US-WEST-OR' },
-            { label: 'vps_os', value: 'Ubuntu 24.04' }
+            { label: 'vps_os', value: 'Ubuntu 26.04' }
           ]
         }
       ],
@@ -23,19 +21,19 @@ if ($app.stage === 'pandoks') {
         {
           duration: 'P1M',
           planCode: 'option-linux',
-          pricingMode: 'default',
+          pricingMode: 'upfront12',
           quantity: 1
         },
         {
           duration: 'P1M',
           planCode: 'option-auto-backup-2027-1-model4',
-          pricingMode: 'default',
+          pricingMode: 'upfront12',
           quantity: 1
         },
         {
           duration: 'P1M',
           planCode: 'option-storage-local-2027-model4',
-          pricingMode: 'default',
+          pricingMode: 'upfront12',
           quantity: 1
         }
       ]

@@ -358,28 +358,34 @@ void test('CI runs all infra safety checks for manual VPS changes', () => {
   }
 });
 
-void test('manual VPS setup accepts only Ubuntu 24.04 and reports the detected release', () => {
+void test('manual VPS setup accepts only Ubuntu 26.04 and reports the detected release', () => {
   assert.match(
     devVpsSetup,
-    /\[ "\$\{detected_id\}" != "ubuntu" \] \|\| \[ "\$\{detected_version\}" != "24\.04" \]/
+    /\[ "\$\{detected_id\}" != "ubuntu" \] \|\| \[ "\$\{detected_version\}" != "26\.04" \]/
   );
-  assert.match(devVpsSetup, /requires Ubuntu 24\.04/);
+  assert.match(devVpsSetup, /requires Ubuntu 26\.04/);
   assert.match(devVpsSetup, /ID=%s VERSION_ID=%s/);
 });
 
-void test('dev stage orders a protected VPS-4 while guest setup stays manual', () => {
+void test('dev stage orders an annual protected VPS-4 with only standard options', () => {
   assert.match(dev, /if \(\$app\.stage === 'pandoks'\)/);
-  assert.match(dev, /new ovh\.vps\.Vps\(\s*'OvhDevVps4'/s);
+  assert.match(dev, /new ovh\.vps\.Vps\(\s*'OvhDevVps'/s);
   assert.match(dev, /planCode:\s*'vps-2027-model4'/);
   assert.match(dev, /label:\s*'vps_datacenter',\s*value:\s*'US-WEST-OR'/s);
-  assert.match(dev, /label:\s*'vps_os',\s*value:\s*'Ubuntu 24\.04'/s);
+  assert.match(dev, /label:\s*'vps_os',\s*value:\s*'Ubuntu 26\.04'/s);
   assert.match(dev, /planCode:\s*'option-linux'/);
   assert.match(dev, /planCode:\s*'option-auto-backup-2027-1-model4'/);
   assert.match(dev, /planCode:\s*'option-storage-local-2027-model4'/);
+  assert.equal((dev.match(/duration:\s*'P1M'/g) ?? []).length, 4);
+  assert.equal((dev.match(/pricingMode:\s*'upfront12'/g) ?? []).length, 4);
+  assert.doesNotMatch(dev, /pricingMode:\s*'default'/);
+  assert.doesNotMatch(dev, /option-(?:auto-backup-2027-7|snapshot|additional-disk)/);
   assert.match(dev, /doNotSendPassword:\s*false/);
   assert.doesNotMatch(dev, /publicSshKey|imageId|cloud-init|userData/i);
   assert.match(dev, /\{\s*protect:\s*true\s*\}\s*\)/s);
   assert.match(devVpsRunbook, /SST provisions and lifecycle-manages the VPS-4 subscription/);
+  assert.match(devVpsRunbook, /Ubuntu 26\.04/);
+  assert.match(devVpsRunbook, /12-month upfront pricing/);
   assert.match(
     devVpsRunbook,
     /setup\.sh.*does not order,\s*reinstall, resize, or delete the VPS/is
