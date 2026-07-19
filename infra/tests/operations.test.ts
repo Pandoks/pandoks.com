@@ -16,7 +16,6 @@ const clusterTypes = readFileSync('infra/cluster/types.ts', 'utf8');
 const publicCloud = readFileSync('infra/cluster/providers/public-cloud.ts', 'utf8');
 const dedicated = readFileSync('infra/cluster/providers/dedicated.ts', 'utf8');
 const envExample = readFileSync('.env.example', 'utf8');
-const runbook = readFileSync('infra/cluster/README.md', 'utf8');
 const secrets = readFileSync('infra/secrets.ts', 'utf8');
 const githubInfra = readFileSync('infra/github.ts', 'utf8');
 const ovhHelpers = readFileSync('infra/ovh.ts', 'utf8');
@@ -26,8 +25,8 @@ const network = readFileSync('infra/cluster/network.ts', 'utf8');
 const metalLb = readFileSync('k3s/base/core/metallb.yaml', 'utf8');
 const loadBalancers = readFileSync('infra/cluster/load-balancers.ts', 'utf8');
 const ingress = readFileSync('k3s/bootstrap/core/haproxy-ingress.yaml', 'utf8');
-const bootstrap = readFileSync('infra/cluster/bootstrap.ts', 'utf8');
-const bootstrapScript = readFileSync('infra/cluster/bootstrap.sh', 'utf8');
+const bootstrap = readFileSync('infra/cluster/providers/bootstrap.ts', 'utf8');
+const bootstrapScript = readFileSync('infra/cluster/providers/bootstrap.sh', 'utf8');
 const checksWorkflow = readFileSync('.github/workflows/checks.yaml', 'utf8');
 const deployWorkflow = readFileSync('.github/workflows/deploy-infra.yaml', 'utf8');
 const dev = readFileSync('infra/dev.ts', 'utf8');
@@ -129,91 +128,6 @@ void test('keeps the Pages and mise Node versions synchronized through Renovate'
   );
 });
 
-void test('runbook maps all pools and derives only the highest-index target', () => {
-  for (const mapping of [
-    [
-      'cloud-control-plane',
-      'cloudControlPlaneCount',
-      'prod-ovh-control-plane-server-',
-      'OvhControlPlaneServer'
-    ],
-    ['cloud-workers', 'cloudWorkerCount', 'prod-ovh-worker-server-', 'OvhWorkerServer'],
-    [
-      'dedicated-control-plane',
-      'dedicatedControlPlaneCount',
-      'prod-ovh-dedicated-control-plane-server-',
-      'OvhDedicatedControlPlaneServer'
-    ],
-    [
-      'dedicated-workers',
-      'dedicatedWorkerCount',
-      'prod-ovh-dedicated-worker-server-',
-      'OvhDedicatedWorkerServer'
-    ]
-  ]) {
-    const cells = mapping.map((value) => `\\s*\\\`${value}\\\`\\s*`).join('\\|');
-    assert.match(runbook, new RegExp(`\\|${cells}\\|`));
-  }
-  assert.match(runbook, /TARGET_INDEX=\$\(\(POOL_COUNT - 1\)\)/);
-  assert.doesNotMatch(runbook, /read -r (NODE_NAME|LOGICAL_NAME)/);
-});
-
-void test('runbook documents the stage-only production protection boundary', () => {
-  assert.match(runbook, /Production node resources use `protect: isProduction`/);
-  assert.match(runbook, /Every production node\s+remains protected/);
-  assert.match(runbook, /There is no\s+environment-variable bypass/);
-  assert.match(runbook, /Do not lower\s+the pool count or deploy the deletion/);
-  assert.match(runbook, /separate reviewed IaC change/i);
-  assert.doesNotMatch(runbook, /OVH_UNPROTECTED_NODE_LOGICAL_NAME/);
-});
-
-void test('runbook stops the exact worker agent before deleting its node', () => {
-  const start = runbook.indexOf('### Remove a worker target');
-  const end = runbook.indexOf('### Remove a control-plane target');
-  const protectionBoundary = runbook.indexOf('### Production protection boundary');
-  assert.ok(start >= 0 && end > start && protectionBoundary > end);
-  const section = runbook.slice(start, end);
-  const drain = section.indexOf('kubectl drain "${NODE_NAME}"');
-  const tailscale = section.indexOf('tailscale ssh "pandoks@${NODE_NAME}"');
-  const stop = section.indexOf('sudo systemctl stop k3s-agent');
-  const inspect = section.indexOf('AGENT_STATE="$(sudo systemctl is-active k3s-agent || true)"');
-  const inactive = section.indexOf('[ "${AGENT_STATE}" = inactive ]');
-  const deleteNode = section.indexOf('kubectl delete node "${NODE_NAME}"');
-
-  assert.ok(drain >= 0);
-  assert.ok(drain < tailscale);
-  assert.ok(tailscale < stop);
-  assert.ok(stop < inspect);
-  assert.ok(inspect < inactive);
-  assert.ok(inactive < deleteNode);
-  assert.ok(start + deleteNode < protectionBoundary);
-});
-
-void test('runbook orders control-plane etcd removal commands safely', () => {
-  const start = runbook.indexOf('### Remove a control-plane target');
-  const end = runbook.indexOf('### Production protection boundary');
-  assert.ok(start >= 0 && end > start);
-  const section = runbook.slice(start, end);
-  const snapshot = section.indexOf('sudo k3s etcd-snapshot save');
-  const memberListBefore = section.indexOf('etcdctl_k3s member list');
-  const healthBefore = section.indexOf('etcdctl_k3s endpoint health --cluster');
-  const drain = section.indexOf('kubectl drain "${NODE_NAME}"');
-  const stop = section.indexOf('sudo systemctl stop k3s');
-  const remove = section.indexOf('etcdctl_k3s member remove "${MEMBER_ID}"');
-  const deleteNode = section.indexOf('kubectl delete node "${NODE_NAME}"');
-  const memberListAfter = section.lastIndexOf('etcdctl_k3s member list');
-  const healthAfter = section.lastIndexOf('etcdctl_k3s endpoint health --cluster');
-
-  assert.ok(snapshot < memberListBefore);
-  assert.ok(memberListBefore < healthBefore);
-  assert.ok(healthBefore < drain);
-  assert.ok(drain < stop);
-  assert.ok(stop < remove);
-  assert.ok(remove < deleteNode);
-  assert.ok(deleteNode < memberListAfter);
-  assert.ok(memberListAfter < healthAfter);
-});
-
 void test('retains legacy origin TLS state identities and aligned Kubernetes placeholders', () => {
   assert.match(
     secrets,
@@ -233,8 +147,6 @@ void test('retains legacy origin TLS state identities and aligned Kubernetes pla
   assert.match(credentials, /\$\{HetznerOriginTlsCrt \| base64\}/);
   assert.match(credentials, /\$\{HetznerOriginTlsKey \| base64\}/);
   assert.doesNotMatch(credentials, /\$\{OvhOriginTls/);
-  assert.match(runbook, /intentional legacy.*HetznerOriginTlsKey/is);
-  assert.match(runbook, /HetznerOriginCloudflareCaCertificate/);
 });
 
 void test('keeps network, node pools, and MetalLB on one non-overlapping address plan', () => {
@@ -246,13 +158,6 @@ void test('keeps network, node pools, and MetalLB on one non-overlapping address
   assert.match(cluster, /normalizeNodePools\(NODE_POOLS, STAGE_NAME, CLUSTER_NETWORK_CIDR\)/);
   assert.doesNotMatch(cluster, /privateIpStart/);
   assert.match(metalLb, /10\.0\.5\.1-10\.0\.5\.254/);
-  assert.match(runbook, /10\.0\.0\.x.*OVH\/Neutron infrastructure/);
-  assert.match(runbook, /10\.0\.1\.x.*Public Cloud control planes/);
-  assert.match(runbook, /10\.0\.2\.x.*Public Cloud workers/);
-  assert.match(runbook, /10\.0\.3\.x.*Dedicated control planes/);
-  assert.match(runbook, /10\.0\.4\.x.*Dedicated workers/);
-  assert.match(runbook, /10\.0\.5\.x.*MetalLB services/);
-  assert.match(runbook, /10\.0\.6\.x.*10\.0\.255\.x.*Reserved/);
   assert.match(clusterTypes, /10\.0\.0\.x\s+OVH\/Neutron infrastructure/);
   assert.match(clusterTypes, /10\.0\.6\.x-10\.0\.255\.x\s+Reserved/);
   assert.match(bootstrapScript, /NETWORK_PREFIX_LENGTH="\$\{NETWORK_CIDR##\*\/\}"/);
@@ -305,8 +210,6 @@ void test('cluster monitoring matches the disabled default topology', () => {
   assert.match(cluster, /getClusterStageConfig\(isProduction\)/);
   assert.doesNotMatch(cluster, /process\.env\.OVH_(?:CLOUD|DEDICATED)_/);
   assert.match(monitoring, /^\s*endpoints:\s*\[\]\s*$/m);
-  assert.match(runbook, /kubeEtcd.*exact active control-plane IPs/is);
-  assert.match(runbook, /operator pre-deploy step/i);
 });
 
 void test('enables PROXY v2 on both OVH load balancers and HAProxy Ingress', () => {
@@ -344,8 +247,6 @@ void test('keeps topology and the Public Cloud project in code and only credenti
   assert.doesNotMatch(secrets, /CloudProjectService|OVH_CLOUD_PROJECT_SERVICE/);
   assert.doesNotMatch(githubInfra, /GithubOvhCloudProjectService|OVH_CLOUD_PROJECT_SERVICE/);
   assert.doesNotMatch(envExample, /OVH_UNPROTECTED_NODE_LOGICAL_NAME/);
-  assert.match(runbook, /infra\/cluster\/config\.ts/);
-  assert.doesNotMatch(runbook, /GitHub environment/i);
 });
 
 void test('shares account-scoped OVH credentials through repository secrets', () => {

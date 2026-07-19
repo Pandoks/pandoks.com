@@ -114,8 +114,7 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
 
 - **Topology and four independent pools live in
   `infra/cluster/cluster.ts`.** Host hardening and k3s setup live in
-  `infra/cluster/bootstrap.sh`; scale, migration, drain, reinstall-safety, and
-  recovery procedures live in `infra/cluster/README.md`.
+  `infra/cluster/providers/bootstrap.sh`.
 - **The Public Cloud project is permanent shared infrastructure.**
   `ovh.cloudproject.Project` creates it, and its `projectId` is passed directly
   to the vRack project attachment, private network, subnet, gateway, and load
@@ -144,9 +143,8 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
   non-production node is unprotected. There is no environment-variable bypass.
   Production scale-down requires a separate reviewed IaC change scoped to the
   exact derived highest-index resource.
-- The dev VPS-4 subscription is an SST resource only in the `pandoks` stage and
-  is not cluster capacity. Its guest setup remains manual; follow
-  `scripts/dev-vps/README.md`.
+- The dev VPS-4 subscription is an SST resource only in production and is not
+  cluster capacity. Its guest setup remains manual.
 
 ## Subprocess IaC
 

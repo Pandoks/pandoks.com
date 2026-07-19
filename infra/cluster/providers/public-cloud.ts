@@ -1,5 +1,5 @@
 import { isProduction } from '../../utils';
-import { createNodeBootstrap, deleteServerFromTailnet } from '../bootstrap';
+import { createNodeBootstrap, deleteServerFromTailnet } from './bootstrap';
 import type { ClusterNetwork } from '../network';
 import type { ClusterNodeSpec, PublicCloudNodePool } from '../types';
 
@@ -45,7 +45,7 @@ export function createPublicCloudNode(args: {
           }
         }
       },
-      userData: bootstrap.cloudInit
+      userData: bootstrap.script
     },
     {
       ignoreChanges: isProduction ? ['userData'] : [],

@@ -3,7 +3,8 @@
 
 set -eu
 
-ENV_FILE=/etc/pandoks/cluster.env
+# PANDOKS_BOOTSTRAP_ENVIRONMENT
+
 DONE_FILE=/var/lib/pandoks/cluster-bootstrap.complete
 TAILSCALE_INSTALL=/tmp/tailscale-install.sh
 K3S_INSTALL=/tmp/k3s-install.sh
@@ -144,7 +145,7 @@ configure_tailscale() {
       --hostname="${NODE_NAME}" \
       --accept-dns=false
   fi
-  sed -i '/^REGISTRATION_TAILNET_AUTH_KEY=/d' "${ENV_FILE}"
+  unset REGISTRATION_TAILNET_AUTH_KEY
 }
 
 api_ready() {

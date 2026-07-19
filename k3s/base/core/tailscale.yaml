@@ -1,4 +1,4 @@
-# WARNING: make sure to match infra/cluster/bootstrap.sh's secret creation
+# WARNING: make sure to match infra/cluster/providers/bootstrap.sh's secret creation
 # NOTE: Only needed in production - the tailscale operator is not installed in dev
 apiVersion: v1
 kind: Secret

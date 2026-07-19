@@ -1,54 +1,55 @@
 import assert from 'node:assert/strict';
-import { writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
-import {
-  renderBootstrapEnvironment,
-  renderCloudInitTransport,
-  renderDedicatedTransport
-} from '../cluster/bootstrap-render.ts';
 
-const environment = {
-  STAGE_NAME: 'prod',
-  NODE_NAME: 'prod-ovh-control-plane-server-0',
-  NODE_IP: '10.0.1.1',
-  NETWORK_CIDR: '10.0.0.0/16',
-  NETWORK_MODE: 'dhcp',
-  VRACK_MAC: '',
-  ROLE: 'control-plane',
-  BOOTSTRAP_CANDIDATE: 'true',
-  SERVER_API: 'https://10.0.0.4:6443',
-  K3S_TOKEN: "token-with-'quote",
-  REGISTRATION_TAILNET_AUTH_KEY: 'tskey-auth-test',
-  KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID: 'client-id',
-  KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET: 'client-secret',
-  KUBERNETES_TAILSCALE_HOSTNAME: 'prod-cluster',
-  S3_HOST: 'example.r2.cloudflarestorage.com',
-  BACKUP_BUCKET: 'backup',
-  S3_ACCESS_KEY: 'access',
-  S3_SECRET_KEY: 'secret'
-} as const;
+const bootstrapPath = 'infra/cluster/providers/bootstrap.ts';
+const bootstrapScriptPath = 'infra/cluster/providers/bootstrap.sh';
 
-void test('shell-quotes every bootstrap environment value', () => {
-  const rendered = renderBootstrapEnvironment(environment);
-  assert.match(rendered, /^STAGE_NAME='prod'$/m);
-  assert.match(rendered, /^K3S_TOKEN='token-with-'"'"'quote'$/m);
+void test('uses one shared shell bootstrap for public cloud and dedicated servers', () => {
+  assert.ok(existsSync(bootstrapPath), `${bootstrapPath} must exist`);
+  assert.ok(existsSync(bootstrapScriptPath), `${bootstrapScriptPath} must exist`);
+
+  const bootstrap = readFileSync(bootstrapPath, 'utf8');
+  const bootstrapScript = readFileSync(bootstrapScriptPath, 'utf8');
+  const publicCloud = readFileSync('infra/cluster/providers/public-cloud.ts', 'utf8');
+  const dedicated = readFileSync('infra/cluster/providers/dedicated.ts', 'utf8');
+
+  assert.match(bootstrapScript, /^#!\/bin\/sh\n/);
+  assert.match(bootstrapScript, /^# PANDOKS_BOOTSTRAP_ENVIRONMENT$/m);
+  assert.match(bootstrap, /function renderBootstrapScript\(/);
+  assert.match(bootstrap, /const script = \$resolve\(/);
+  assert.match(bootstrap, /return \{\s*script,\s*tailnetKey\s*\}/s);
+  assert.doesNotMatch(bootstrap, /const payload|=>\s*\$resolve\(/);
+  assert.doesNotMatch(bootstrap, /cloudInit|dedicatedPostInstall|systemdUnit/);
+
+  assert.match(publicCloud, /userData:\s*bootstrap\.script/);
+  assert.match(
+    dedicated,
+    /postInstallationScript:\s*bootstrap\.script\.apply\(\(script\) =>\s*Buffer\.from\(script\)\.toString\('base64'\)\s*\)/s
+  );
+
+  assert.equal(existsSync('infra/cluster/bootstrap.ts'), false);
+  assert.equal(existsSync('infra/cluster/bootstrap.sh'), false);
+  assert.equal(existsSync('infra/cluster/bootstrap-render.ts'), false);
+  assert.equal(existsSync('infra/cluster/cloud-config.yaml'), false);
 });
 
-void test('cloud-init embeds the environment, script, and systemd unit as base64', () => {
-  const cloudInit = renderCloudInitTransport('#!/bin/sh\nprintf "bootstrap\\n"\n', environment);
-  assert.match(cloudInit, /^#cloud-config/m);
-  assert.doesNotMatch(cloudInit, /tskey-auth-test/);
-  assert.match(cloudInit, /encoding: b64/);
-  assert.match(cloudInit, /pandoks-cluster-bootstrap\.service/);
-  writeFileSync('/tmp/ovh-cluster-cloud-config.yaml', cloudInit);
-});
+void test('injects every per-node value as a safely quoted exported variable', () => {
+  assert.ok(existsSync(bootstrapPath), `${bootstrapPath} must exist`);
+  const bootstrap = readFileSync(bootstrapPath, 'utf8');
 
-void test('dedicated transport installs the same script and unit', () => {
-  const postInstall = Buffer.from(
-    renderDedicatedTransport('#!/bin/sh\nprintf "bootstrap\\n"\n', environment),
-    'base64'
-  ).toString();
-  assert.match(postInstall, /^#!\/bin\/sh/m);
-  assert.match(postInstall, /pandoks-cluster-bootstrap\.service/);
-  assert.doesNotMatch(postInstall, /tskey-auth-test/);
+  assert.doesNotMatch(bootstrap, /type BootstrapEnvironment|renderBootstrapEnvironment/);
+  assert.match(
+    bootstrap,
+    /function renderBootstrapScript\(\s*environment: Readonly<Record<string, string>>\s*\)/
+  );
+  assert.match(
+    bootstrap,
+    /\.map\(\(\[name, value\]\) => `export \$\{name\}=\$\{shellQuote\(value\)\}`\)/
+  );
+  assert.match(bootstrap, /value\.replaceAll\("'", `'"'"'`\)/);
+  assert.match(
+    bootstrap,
+    /bootstrapScript\.replace\(\s*BOOTSTRAP_ENVIRONMENT_MARKER,\s*Object\.entries\(environment\)[\s\S]*?\.join\('\\n'\)\s*\)/
+  );
 });

@@ -6,8 +6,8 @@ applications. For databases, it is better to used a managed database as it reduc
 overhead.
 
 The production cluster can combine OVHcloud Public Cloud instances and
-dedicated servers on one vRack network. See `infra/cluster/README.md` for
-topology and operations.
+dedicated servers on one vRack network. Its topology is configured in
+`infra/cluster/config.ts`.
 
 ## Directory Structure
 
@@ -61,9 +61,10 @@ Or step by step:
 ## Production
 
 Production nodes are provisioned by SST/Pulumi. Public Cloud nodes use
-cloud-init and dedicated nodes use an install customization; both render the
-shared `infra/cluster/bootstrap.sh` host hardening and k3s setup. The Tailscale
-operator provides secure access to the cluster API without SSH tunnels.
+user data and dedicated nodes use a post-install customization; both execute
+the shared `infra/cluster/providers/bootstrap.sh` host hardening and k3s setup.
+The Tailscale operator provides secure access to the cluster API without SSH
+tunnels.
 
 ```sh
 # Connect via tailscale (cluster appears as <stage>-cluster in your tailnet)
@@ -187,7 +188,7 @@ k3s/templates/monitoring.yaml          → Grafana secrets (SST template)
 k3s embedded etcd requires `--etcd-expose-metrics` flag to expose metrics on port 2381:
 
 - **k3d**: Set via `--k3s-arg "--etcd-expose-metrics@server:*"` in `scripts/cluster/k3d.sh`
-- **OVHcloud**: Set by `infra/cluster/bootstrap.sh`
+- **OVHcloud**: Set by `infra/cluster/providers/bootstrap.sh`
 
 OVH Public Cloud control planes use `10.0.1.1-10.0.1.254`; dedicated control
 planes use `10.0.3.1-10.0.3.254`. Keep the environment's explicit etcd endpoint list

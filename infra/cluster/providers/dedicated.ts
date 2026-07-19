@@ -1,5 +1,5 @@
 import { isProduction } from '../../utils';
-import { createNodeBootstrap, deleteServerFromTailnet } from '../bootstrap';
+import { createNodeBootstrap, deleteServerFromTailnet } from './bootstrap';
 import type { ClusterNetwork } from '../network';
 import type { ClusterNodeSpec, DedicatedNodePool } from '../types';
 import type { ClusterNode } from './public-cloud';
@@ -77,7 +77,9 @@ export function createDedicatedNode(args: {
       os: args.spec.pool.operatingSystem,
       customizations: {
         hostname: args.spec.hostname,
-        postInstallationScript: bootstrap.dedicatedPostInstall,
+        postInstallationScript: bootstrap.script.apply((script) =>
+          Buffer.from(script).toString('base64')
+        ),
         postInstallationScriptExtension: 'sh'
       }
     },

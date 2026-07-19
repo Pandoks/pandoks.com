@@ -80,14 +80,12 @@ stage object, and run an authenticated preview:
 ```
 
 The protected Pulumi-managed Public Cloud project remains required for the
-shared network and load balancers after Public Cloud compute reaches zero. Follow
-`infra/cluster/README.md` for preview review, scale-up, Public Cloud-to-dedicated
-migration, manual drain/scale-down, etcd quorum, bootstrap immutability, and
-console recovery. Scale-down always targets `count - 1`; production deletion
-requires a separate reviewed IaC change scoped to that exact resource before
-the count is reduced. Cluster hosts have no provider SSH key; administrator
-access is Tailscale SSH only. The separate dev VPS-4 subscription is provisioned
-by SST, while its guest setup remains manual in `scripts/dev-vps/README.md`.
+shared network and load balancers after Public Cloud compute reaches zero.
+Scale-down always targets `count - 1`; production deletion requires a separate
+reviewed IaC change scoped to that exact resource before the count is reduced.
+Cluster hosts have no provider SSH key; administrator access is Tailscale SSH
+only. The separate dev VPS-4 subscription is provisioned by SST, while its guest
+setup remains manual.
 
 ## Dev (SST)
 

@@ -19,10 +19,9 @@ paths:
   its generated ID directly. CI runs the TypeScript topology contracts.
   Cluster resources use `protect: isProduction`: production nodes are protected
   and non-production nodes are not. When total count is zero, stale OVH cluster
-  Tailnet entries are reclaimed. Use `infra/cluster/README.md` for preview,
-  scaling, migration, drain, etcd quorum, the production protection boundary,
-  and recovery. Scale-down can target only the selected pool's `count - 1`
-  node and requires a separate reviewed IaC unprotect change in production.
+  Tailnet entries are reclaimed. Scale-down can target only the selected pool's
+  `count - 1` node and requires a separate reviewed IaC unprotect change in
+  production.
 
 ## HAProxy
 

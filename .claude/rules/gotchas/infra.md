@@ -69,11 +69,9 @@ manually import` comment at `sst.config.ts:34` is load-bearing.
 - **Four independent pools are configured in `infra/cluster/cluster.ts`.**
   Dedicated plan, datacenter, order-region, and option values must be validated
   against the live authenticated catalog, then reviewed in an authenticated
-  preview before a non-zero dedicated count is committed or applied. The exact
-  preview, scale, migration, drain, and recovery procedure is
-  `infra/cluster/README.md`.
+  preview before a non-zero dedicated count is committed or applied.
 - **Downsizing is highest-index and separately reviewed.** Derive the `count - 1`
-  hostname/logical name from `infra/cluster/README.md`. For a control plane:
+  hostname/logical name from the selected pool configuration. For a control plane:
   snapshot, verify membership/endpoint health from a survivor, drain, stop k3s
   on the target, remove its exact etcd member, delete the Kubernetes node, and
   re-check odd quorum. Production resources use `protect: isProduction`; stop
@@ -82,13 +80,13 @@ manually import` comment at `sst.config.ts:34` is load-bearing.
 - **Production bootstrap inputs are immutable for existing machines.**
   Public Cloud `userData` and dedicated reinstall customization are ignored.
   Rebuild one node at a time; never force a dedicated reinstall to roll out
-  `infra/cluster/bootstrap.sh`.
+  `infra/cluster/providers/bootstrap.sh`.
 - **No provider SSH keys.** Administrator SSH uses Tailscale only, cluster
   traffic uses vRack, and the OVH console/rescue environment is the fallback.
 - **Tailnet reclaim when total count is zero.**
   `infra/cluster/cluster.ts` deletes stale devices tagged `tag:ovh`,
   `tag:<stage>`, and a cluster role. Per-node deletion is handled by
-  `DeleteServerFromTailnet` in `infra/cluster/bootstrap.ts`.
+  `DeleteServerFromTailnet` in `infra/cluster/providers/bootstrap.ts`.
 
 ## TLS / Cloudflare origin cert
 
