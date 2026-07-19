@@ -43,15 +43,19 @@ const activeClusterRules = [
   readFileSync('.claude/rules/gotchas/cluster.md', 'utf8')
 ];
 
-void test('passes exact per-node protection through both provider adapters', () => {
-  assert.match(cluster, /OVH_UNPROTECTED_NODE_LOGICAL_NAME/);
-  assert.match(cluster, /protect: isClusterNodeProtected\(/);
+void test('protects cluster resources only according to the deployment stage', () => {
+  assert.doesNotMatch(
+    cluster,
+    /OVH_UNPROTECTED_NODE_LOGICAL_NAME|getUnprotectedNodeWarning|isClusterNodeProtected/
+  );
+  assert.match(cluster, /createPublicCloudNode\(\{[\s\S]*?protect: isProduction,/);
+  assert.match(cluster, /createDedicatedNode\(\{[\s\S]*?protect: isProduction\s*\}\);/);
   assert.equal(publicCloud.match(/protect: args\.protect/g)?.length, 1);
   assert.equal(dedicated.match(/protect: args\.protect/g)?.length, 2);
 });
 
-void test('declares the non-secret targeted unprotect control', () => {
-  assert.match(envExample, /^OVH_UNPROTECTED_NODE_LOGICAL_NAME=$/m);
+void test('does not expose a production-protection bypass in the environment', () => {
+  assert.doesNotMatch(envExample, /OVH_UNPROTECTED_NODE_LOGICAL_NAME/);
 });
 
 void test('keeps the Pages and mise Node versions synchronized through Renovate', () => {
@@ -124,19 +128,20 @@ void test('runbook maps all pools and derives only the highest-index target', ()
   assert.doesNotMatch(runbook, /read -r (NODE_NAME|LOGICAL_NAME)/);
 });
 
-void test('runbook documents the exact two-step unprotect transition', () => {
-  assert.match(runbook, /OVH_UNPROTECTED_NODE_LOGICAL_NAME=OvhDedicatedControlPlaneServer2/);
-  assert.match(runbook, /Keep all four pool counts unchanged/);
-  assert.match(runbook, /Reduce only the selected pool count by exactly one/);
-  assert.match(runbook, /does not match a currently declared highest-index node/);
-  assert.match(runbook, /Clear `OVH_UNPROTECTED_NODE_LOGICAL_NAME`/);
+void test('runbook documents the stage-only production protection boundary', () => {
+  assert.match(runbook, /Production node resources use `protect: isProduction`/);
+  assert.match(runbook, /Every production node\s+remains protected/);
+  assert.match(runbook, /There is no\s+environment-variable bypass/);
+  assert.match(runbook, /Do not lower\s+the pool count or deploy the deletion/);
+  assert.match(runbook, /separate reviewed IaC change/i);
+  assert.doesNotMatch(runbook, /OVH_UNPROTECTED_NODE_LOGICAL_NAME/);
 });
 
 void test('runbook stops the exact worker agent before deleting its node', () => {
   const start = runbook.indexOf('### Remove a worker target');
   const end = runbook.indexOf('### Remove a control-plane target');
-  const targetedUnprotect = runbook.indexOf('### Two-step targeted unprotect and deletion');
-  assert.ok(start >= 0 && end > start && targetedUnprotect > end);
+  const protectionBoundary = runbook.indexOf('### Production protection boundary');
+  assert.ok(start >= 0 && end > start && protectionBoundary > end);
   const section = runbook.slice(start, end);
   const drain = section.indexOf('kubectl drain "${NODE_NAME}"');
   const tailscale = section.indexOf('tailscale ssh "pandoks@${NODE_NAME}"');
@@ -151,12 +156,12 @@ void test('runbook stops the exact worker agent before deleting its node', () =>
   assert.ok(stop < inspect);
   assert.ok(inspect < inactive);
   assert.ok(inactive < deleteNode);
-  assert.ok(start + deleteNode < targetedUnprotect);
+  assert.ok(start + deleteNode < protectionBoundary);
 });
 
 void test('runbook orders control-plane etcd removal commands safely', () => {
   const start = runbook.indexOf('### Remove a control-plane target');
-  const end = runbook.indexOf('### Two-step targeted unprotect and deletion');
+  const end = runbook.indexOf('### Production protection boundary');
   assert.ok(start >= 0 && end > start);
   const section = runbook.slice(start, end);
   const snapshot = section.indexOf('sudo k3s etcd-snapshot save');
@@ -290,7 +295,7 @@ void test('keeps topology and the Public Cloud project in code and only credenti
     assert.match(workflow, /OVH_APPLICATION_SECRET:\s*\$\{\{ secrets\.OVH_APPLICATION_SECRET \}\}/);
     assert.match(workflow, /OVH_CONSUMER_KEY:\s*\$\{\{ secrets\.OVH_CONSUMER_KEY \}\}/);
     assert.doesNotMatch(workflow, /OVH_CLOUD_PROJECT_SERVICE/);
-    assert.doesNotMatch(workflow, /OVH_UNPROTECTED_NODE_LOGICAL_NAME:\s*\$\{\{/);
+    assert.doesNotMatch(workflow, /OVH_UNPROTECTED_NODE_LOGICAL_NAME/);
   }
 
   for (const variable of topologyVariables) {
@@ -299,7 +304,7 @@ void test('keeps topology and the Public Cloud project in code and only credenti
   assert.doesNotMatch(envExample, /OVH_CLOUD_PROJECT_SERVICE/);
   assert.doesNotMatch(secrets, /CloudProjectService|OVH_CLOUD_PROJECT_SERVICE/);
   assert.doesNotMatch(githubInfra, /GithubOvhCloudProjectService|OVH_CLOUD_PROJECT_SERVICE/);
-  assert.match(envExample, /^OVH_UNPROTECTED_NODE_LOGICAL_NAME=$/m);
+  assert.doesNotMatch(envExample, /OVH_UNPROTECTED_NODE_LOGICAL_NAME/);
   assert.match(runbook, /infra\/cluster\/config\.ts/);
   assert.doesNotMatch(runbook, /GitHub environment variables/);
 });
@@ -369,7 +374,8 @@ void test('active cluster rules describe code-owned zero topology and CI contrac
     rules,
     /OVH credentials[\s\S]*Public Cloud project[\s\S]*TypeScript topology contracts/i
   );
-  assert.match(rules, /OVH_UNPROTECTED_NODE_LOGICAL_NAME[\s\S]*temporary operator-only/i);
+  assert.match(rules, /production[\s\S]*protect: isProduction[\s\S]*non-production/i);
+  assert.doesNotMatch(rules, /OVH_UNPROTECTED_NODE_LOGICAL_NAME/);
 });
 
 void test('CI runs all infra safety checks for manual VPS changes', () => {

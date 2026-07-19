@@ -17,11 +17,12 @@ paths:
   selected stage object when its dedicated counts become non-zero. CI retains
   only the OVH credentials; Pulumi creates the Public Cloud project and passes
   its generated ID directly. CI runs the TypeScript topology contracts.
-  `OVH_UNPROTECTED_NODE_LOGICAL_NAME` is a temporary operator-only scale-down
-  override. When total count is zero, stale OVH cluster Tailnet entries are
-  reclaimed. Use `infra/cluster/README.md` for preview, scaling, migration,
-  drain, etcd quorum, targeted two-deploy unprotect, and recovery. Scale-down
-  can remove only the selected pool's `count - 1` node.
+  Cluster resources use `protect: isProduction`: production nodes are protected
+  and non-production nodes are not. When total count is zero, stale OVH cluster
+  Tailnet entries are reclaimed. Use `infra/cluster/README.md` for preview,
+  scaling, migration, drain, etcd quorum, the production protection boundary,
+  and recovery. Scale-down can target only the selected pool's `count - 1`
+  node and requires a separate reviewed IaC unprotect change in production.
 
 ## HAProxy
 

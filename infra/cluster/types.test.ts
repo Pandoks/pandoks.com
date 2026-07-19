@@ -4,8 +4,6 @@ import {
   CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY,
   getClusterDhcpAllocationDemand,
   getPoolScaleDownTarget,
-  getUnprotectedNodeWarning,
-  isClusterNodeProtected,
   NODE_POOL_IDENTITIES,
   normalizeNodePools,
   type NodePool
@@ -328,48 +326,5 @@ void test('scale-down target is always the highest declared pool index', () => {
   assert.throws(
     () => getPoolScaleDownTarget({ ...dedicatedControlPlane, count: 0 }, 'prod'),
     /has no node to remove/
-  );
-});
-
-void test('production protection allows only an exact logical-name match', () => {
-  const nodes = normalizeNodePools(
-    [
-      {
-        ...cloudControlPlane,
-        name: 'cloud-workers',
-        role: 'worker',
-        count: 3,
-        privateIpStart: 50
-      },
-      cloudControlPlane
-    ],
-    'prod',
-    '10.0.1.0/24'
-  ).nodes;
-  const lowerIndex = nodes.find((node) => node.logicalName === 'OvhWorkerServer1');
-  const highestIndex = nodes.find((node) => node.logicalName === 'OvhWorkerServer2');
-  assert.ok(lowerIndex);
-  assert.ok(highestIndex);
-  assert.equal(isClusterNodeProtected(highestIndex, 'OvhWorkerServer2', true), false);
-  assert.equal(isClusterNodeProtected(lowerIndex, 'OvhWorkerServer1', true), true);
-  assert.equal(isClusterNodeProtected(highestIndex, '', true), true);
-  assert.equal(isClusterNodeProtected(highestIndex, 'OvhWorkerServer2', false), false);
-});
-
-void test('warns when the requested unprotected node is absent', () => {
-  const nodes = normalizeNodePools(
-    [{ ...cloudControlPlane, count: 2 }],
-    'prod',
-    '10.0.1.0/24'
-  ).nodes;
-  assert.equal(getUnprotectedNodeWarning(nodes, ''), undefined);
-  assert.equal(getUnprotectedNodeWarning(nodes, 'OvhControlPlaneServer1'), undefined);
-  assert.match(
-    getUnprotectedNodeWarning(nodes, 'OvhControlPlaneServer0') ?? '',
-    /does not match a currently declared highest-index node/
-  );
-  assert.match(
-    getUnprotectedNodeWarning(nodes, 'OvhControlPlaneServer2') ?? '',
-    /OVH_UNPROTECTED_NODE_LOGICAL_NAME=OvhControlPlaneServer2 does not match a currently declared highest-index node/
   );
 });

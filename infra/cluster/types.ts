@@ -115,34 +115,6 @@ export function getPoolScaleDownTarget(
   };
 }
 
-export function isClusterNodeProtected(
-  node: Pick<ClusterNodeSpec, 'logicalName' | 'pool' | 'poolIndex'>,
-  unprotectedLogicalName: string,
-  isProduction: boolean
-): boolean {
-  const isHighestIndex = node.poolIndex === node.pool.count - 1;
-  return isProduction && (!isHighestIndex || node.logicalName !== unprotectedLogicalName);
-}
-
-export function getUnprotectedNodeWarning(
-  nodes: readonly Pick<ClusterNodeSpec, 'logicalName' | 'pool' | 'poolIndex'>[],
-  unprotectedLogicalName: string
-): string | undefined {
-  if (
-    !unprotectedLogicalName ||
-    nodes.some(
-      (node) =>
-        node.logicalName === unprotectedLogicalName && node.poolIndex === node.pool.count - 1
-    )
-  ) {
-    return undefined;
-  }
-  return (
-    `OVH_UNPROTECTED_NODE_LOGICAL_NAME=${unprotectedLogicalName} does not match a currently ` +
-    'declared highest-index node; clear it after the targeted deletion is complete'
-  );
-}
-
 function parse24Cidr(cidr: string): string {
   const match = /^(\d{1,3}\.\d{1,3}\.\d{1,3})\.0\/24$/.exec(cidr);
   if (!match) {

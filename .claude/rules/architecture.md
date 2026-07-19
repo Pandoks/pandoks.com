@@ -114,8 +114,8 @@ For full per-flow traces, see `.claude/rules/gotchas/*.md`.
   total is zero, stale OVH cluster Tailnet entries for the stage are reclaimed.
 - CI retains only the OVH credentials and runs the TypeScript topology
   contracts. Pulumi creates the Public Cloud project and passes its generated
-  ID directly. `OVH_UNPROTECTED_NODE_LOGICAL_NAME` is a temporary operator-only
-  scale-down override, never persistent topology configuration.
+  ID directly. Cluster resources use `protect: isProduction`, so production
+  resources are protected and non-production resources are not.
 - The vRack, Public Cloud private network/subnet/gateway, and load balancers are
   shared by both compute providers. The protected Pulumi-managed Public Cloud
   project remains required when all compute is dedicated.

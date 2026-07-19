@@ -61,8 +61,9 @@ configuration is the only topology source. All four counts must be non-negative
 integers within their pool address capacity: cloud control plane `0-40`, cloud
 workers `0-50`, dedicated control plane `0-50`, and dedicated workers
 `0-55`. The aggregate and API limits above still apply.
-`OVH_UNPROTECTED_NODE_LOGICAL_NAME` is intentionally operator-only. Set it only
-for the deliberate scale-down procedure below.
+Production node resources use `protect: isProduction`: every production node is
+protected and every non-production node is unprotected. Protection has no
+environment-variable override.
 
 ## Update etcd monitoring endpoints
 
@@ -125,9 +126,10 @@ kubectl get nodes -o wide
 3. Verify `kubectl get nodes -o wide` uses `10.0.1.0/24` internal addresses.
 4. Verify `k3s etcd-snapshot ls` and etcd member health.
 5. Add dedicated workers and verify workloads.
-6. Drain and remove one Public Cloud node at a time.
-7. Reduce only the matching count in `infra/cluster/config.ts` for each node
-   already removed.
+6. Drain and remove one Public Cloud node at a time by following the scale-down
+   procedure below.
+7. Stop at the production protection boundary. Do not reduce the matching count
+   until a separate reviewed IaC change safely unprotects that exact resource.
 
 Keep the Pulumi-managed Public Cloud project after the Public Cloud compute
 counts reach zero. Dedicated nodes still use its network and load balancers.
@@ -247,7 +249,7 @@ Kubernetes node:
 kubectl delete node "${NODE_NAME}"
 ```
 
-Continue with the two-step targeted unprotect procedure below.
+Continue with the production protection boundary below.
 
 ### Remove a control-plane target
 
@@ -341,54 +343,21 @@ Do not continue unless all commands succeed. The etcd project also documents
 that membership changes must be sequential and require a healthy quorum in its
 [runtime reconfiguration guide](https://etcd.io/docs/v3.5/op-guide/runtime-configuration/#cluster-reconfiguration-operations).
 
-### Two-step targeted unprotect and deletion
+### Production protection boundary
 
-Production scale-down uses an auditable two-deploy transition. There is no
-manual state-editing or all-nodes bypass.
+Production node resources use `protect: isProduction`. Every production node
+remains protected, while non-production nodes are not protected. There is no
+environment-variable bypass.
 
-Keep all four pool counts unchanged for the first deploy. Set only the exact
-derived logical name in the operator environment. For the example target derived
-above, the line is:
+After completing the Kubernetes and etcd removal steps above, stop. Do not lower
+the pool count or deploy the deletion: the current stage-only policy
+intentionally blocks production resource deletion.
 
-```dotenv
-OVH_UNPROTECTED_NODE_LOGICAL_NAME=OvhDedicatedControlPlaneServer2
-```
-
-Use the exact `LOGICAL_NAME` printed and confirmed for the selected pool, not
-the example value or a shell placeholder.
-
-Run a preview and deploy once:
-
-```sh
-./node_modules/.bin/sst diff --stage production
-./node_modules/.bin/sst deploy --stage production
-```
-
-The preview must contain no deletion and must change protection only for
-`${LOGICAL_NAME}`. A dedicated target also updates
-`${LOGICAL_NAME}Install`. Reject any other node protection change.
-
-Reduce only the selected pool count by exactly one in
-`infra/cluster/config.ts` for the second deploy while keeping
-`OVH_UNPROTECTED_NODE_LOGICAL_NAME` unchanged. Run another preview. The warning
-that the override “does not match a currently declared highest-index node” is
-expected in this second step because the highest-index node is no longer
-declared:
-
-```sh
-./node_modules/.bin/sst diff --stage production
-```
-
-The preview must delete `${LOGICAL_NAME}` and only its exact derived resources,
-plus the expected load-balancer membership update. Reject a preview that deletes
-a different node logical resource or index. Apply only that reviewed deletion:
-
-```sh
-./node_modules/.bin/sst deploy --stage production
-```
-
-Clear `OVH_UNPROTECTED_NODE_LOGICAL_NAME`, run a final preview, and require no
-further deletion or replacement before ending the procedure.
+Finishing a production infrastructure deletion requires a separate reviewed IaC
+change that deliberately unprotects only the exact derived logical resource.
+Preview that change and reject any unrelated protection change before reducing
+the selected pool count by exactly one. Do not add a persistent environment
+escape hatch or disable protection for every production node.
 
 ## Bootstrap changes
 

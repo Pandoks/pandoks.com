@@ -68,9 +68,8 @@ become non-zero.
 CI retains only the OVH credentials and runs the TypeScript topology contracts
 through `pnpm test:infra`; it does not source topology from CI variables.
 Pulumi creates the Public Cloud project and passes its generated ID directly.
-`OVH_UNPROTECTED_NODE_LOGICAL_NAME` remains a temporary operator-only scale-down
-override. Do not configure it as a persistent CI variable; it cannot unprotect
-a lower-index or multiple nodes.
+Cluster resources use `protect: isProduction`: production nodes are protected
+and non-production nodes are not. There is no environment-variable bypass.
 
 Before committing or applying a non-zero dedicated count, validate the current
 OVH cart, fill the validated catalog values and intended count in the selected
@@ -84,12 +83,11 @@ The protected Pulumi-managed Public Cloud project remains required for the
 shared network and load balancers after Public Cloud compute reaches zero. Follow
 `infra/cluster/README.md` for preview review, scale-up, Public Cloud-to-dedicated
 migration, manual drain/scale-down, etcd quorum, bootstrap immutability, and
-console recovery. Scale-down always targets `count - 1`: deploy once with all
-counts unchanged and the exact logical-name override, then reduce one count,
-review/delete that resource, and clear the override. Cluster hosts have no
-provider SSH key; administrator access is Tailscale SSH only. The separate dev
-VPS-4 subscription is provisioned by SST, while its guest setup remains manual
-in `scripts/dev-vps/README.md`.
+console recovery. Scale-down always targets `count - 1`; production deletion
+requires a separate reviewed IaC change scoped to that exact resource before
+the count is reduced. Cluster hosts have no provider SSH key; administrator
+access is Tailscale SSH only. The separate dev VPS-4 subscription is provisioned
+by SST, while its guest setup remains manual in `scripts/dev-vps/README.md`.
 
 ## Dev (SST)
 
