@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
@@ -26,62 +25,6 @@ const checksWorkflow = readFileSync('.github/workflows/checks.yaml', 'utf8');
 const deployWorkflow = readFileSync('.github/workflows/deploy-infra.yaml', 'utf8');
 const devVpsRunbook = readFileSync('scripts/dev-vps/README.md', 'utf8');
 const devVpsCleanup = readFileSync('scripts/dev-vps/cleanup-state.sh', 'utf8');
-const topologyValidator = readFileSync('scripts/cluster/validate-topology-env.sh', 'utf8');
-
-function shellIntegerConstant(source: string, name: string): number {
-  const match = new RegExp(`^${name}=(\\d+)$`, 'm').exec(source);
-  assert.ok(match, `missing exact shell constant ${name}`);
-  return Number(match[1]);
-}
-
-type TopologyCounts = {
-  cloudControlPlanes: number;
-  cloudWorkers: number;
-  dedicatedControlPlanes: number;
-  dedicatedWorkers: number;
-};
-
-function nodesForTopology(counts: TopologyCounts) {
-  const nodes: Array<{
-    provider: 'public-cloud' | 'dedicated';
-    role: 'control-plane' | 'worker';
-    ingress: true;
-  }> = [];
-  for (const [provider, role, count] of [
-    ['public-cloud', 'control-plane', counts.cloudControlPlanes],
-    ['public-cloud', 'worker', counts.cloudWorkers],
-    ['dedicated', 'control-plane', counts.dedicatedControlPlanes],
-    ['dedicated', 'worker', counts.dedicatedWorkers]
-  ] as const) {
-    for (let index = 0; index < count; index += 1) {
-      nodes.push({ provider, role, ingress: true });
-    }
-  }
-  return nodes;
-}
-
-function reportShellDhcpDemand(counts: TopologyCounts): number {
-  const output = execFileSync('sh', ['scripts/cluster/validate-topology-env.sh'], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: {
-      PATH: process.env.PATH ?? '',
-      OVH_TOPOLOGY_VALIDATOR_REPORT: '1',
-      OVH_CLOUD_CONTROL_PLANE_COUNT: String(counts.cloudControlPlanes),
-      OVH_CLOUD_WORKER_COUNT: String(counts.cloudWorkers),
-      OVH_DEDICATED_CONTROL_PLANE_COUNT: String(counts.dedicatedControlPlanes),
-      OVH_DEDICATED_WORKER_COUNT: String(counts.dedicatedWorkers),
-      OVH_DEDICATED_SERVER_PLAN: 'test-plan',
-      OVH_DEDICATED_DATACENTER: 'test-datacenter',
-      OVH_DEDICATED_ORDER_REGION: 'test-region',
-      OVH_DEDICATED_PLAN_OPTIONS:
-        '[{"duration":"P1M","planCode":"ram","pricingMode":"default","quantity":1}]'
-    }
-  });
-  const match = /^dhcp-allocation-demand=(\d+)$/m.exec(output);
-  assert.ok(match, `validator did not emit a parseable DHCP demand report: ${output}`);
-  return Number(match[1]);
-}
 
 void test('passes exact per-node protection through both provider adapters', () => {
   assert.match(cluster, /OVH_UNPROTECTED_NODE_LOGICAL_NAME/);
@@ -98,20 +41,20 @@ void test('runbook maps all pools and derives only the highest-index target', ()
   for (const mapping of [
     [
       'cloud-control-plane',
-      'OVH_CLOUD_CONTROL_PLANE_COUNT',
+      'cloudControlPlaneCount',
       'prod-ovh-control-plane-server-',
       'OvhControlPlaneServer'
     ],
-    ['cloud-workers', 'OVH_CLOUD_WORKER_COUNT', 'prod-ovh-worker-server-', 'OvhWorkerServer'],
+    ['cloud-workers', 'cloudWorkerCount', 'prod-ovh-worker-server-', 'OvhWorkerServer'],
     [
       'dedicated-control-plane',
-      'OVH_DEDICATED_CONTROL_PLANE_COUNT',
+      'dedicatedControlPlaneCount',
       'prod-ovh-dedicated-control-plane-server-',
       'OvhDedicatedControlPlaneServer'
     ],
     [
       'dedicated-workers',
-      'OVH_DEDICATED_WORKER_COUNT',
+      'dedicatedWorkerCount',
       'prod-ovh-dedicated-worker-server-',
       'OvhDedicatedWorkerServer'
     ]
@@ -214,14 +157,6 @@ void test('keeps network, node pools, and MetalLB on one non-overlapping address
   assert.match(runbook, /MetalLB.*\.100-.149/is);
   assert.match(runbook, /dedicated control-plane.*\.150-.199/is);
   assert.match(runbook, /dedicated worker.*\.200-.254/is);
-  for (const [name, maximum] of [
-    ['OVH_CLOUD_CONTROL_PLANE_COUNT', 40],
-    ['OVH_CLOUD_WORKER_COUNT', 50],
-    ['OVH_DEDICATED_CONTROL_PLANE_COUNT', 50],
-    ['OVH_DEDICATED_WORKER_COUNT', 55]
-  ] as const) {
-    assert.match(topologyValidator, new RegExp(`validate_count ${name} .* ${maximum}`));
-  }
 });
 
 void test('topology validation and load balancers share capacity constants and demand formula', () => {
@@ -238,39 +173,6 @@ void test('topology validation and load balancers share capacity constants and d
   assert.equal(CLUSTER_NETWORK_DHCP_CONSUMERS, 2);
   assert.match(loadBalancers, /CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY/);
   assert.doesNotMatch(loadBalancers, /MEMBER_CAPACITY\s*=\s*25/);
-  const shellMemberCapacity = shellIntegerConstant(
-    topologyValidator,
-    'CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY'
-  );
-  const shellIngressMultiplier = shellIntegerConstant(
-    topologyValidator,
-    'CLUSTER_INGRESS_LOAD_BALANCERS_PER_GROUP'
-  );
-  const shellNetworkConsumers = shellIntegerConstant(
-    topologyValidator,
-    'CLUSTER_NETWORK_DHCP_CONSUMERS'
-  );
-  const shellDhcpCapacity = shellIntegerConstant(topologyValidator, 'DHCP_ALLOCATION_CAPACITY');
-  assert.equal(shellMemberCapacity, CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY);
-  assert.equal(shellIngressMultiplier, CLUSTER_INGRESS_LOAD_BALANCERS_PER_GROUP);
-  assert.equal(shellNetworkConsumers, CLUSTER_NETWORK_DHCP_CONSUMERS);
-  assert.equal(
-    shellDhcpCapacity,
-    CLUSTER_ADDRESS_PLAN.dhcp.end - CLUSTER_ADDRESS_PLAN.dhcp.start + 1
-  );
-  for (const [name, maximum] of [
-    ['OVH_CLOUD_CONTROL_PLANE_COUNT', 40],
-    ['OVH_CLOUD_WORKER_COUNT', 50],
-    ['OVH_DEDICATED_CONTROL_PLANE_COUNT', 50],
-    ['OVH_DEDICATED_WORKER_COUNT', 55]
-  ] as const) {
-    assert.match(topologyValidator, new RegExp(`validate_count ${name} .* ${maximum}`));
-  }
-  assert.match(topologyValidator, /PUBLIC_CLOUD_FIXED_IPS=/);
-  assert.match(topologyValidator, /PRIVATE_API_VIPS=/);
-  assert.match(topologyValidator, /PUBLIC_INGRESS_VIPS=/);
-  assert.match(topologyValidator, /DHCP_ALLOCATION_DEMAND=/);
-
   const representativeNodes = [
     ...Array.from({ length: 3 }, () => ({
       provider: 'public-cloud' as const,
@@ -293,37 +195,7 @@ void test('topology validation and load balancers share capacity constants and d
       ingress: true
     }
   ];
-  const mirroredDemand =
-    7 + shellNetworkConsumers + 1 + Math.ceil(10 / shellMemberCapacity) * shellIngressMultiplier;
-  assert.equal(getClusterDhcpAllocationDemand(representativeNodes), mirroredDemand);
-  assert.equal(mirroredDemand, 11);
-});
-
-void test('the POSIX topology validator reports the same DHCP demand as the TypeScript topology', () => {
-  const representativeAndBoundaryTopologies: TopologyCounts[] = [
-    { cloudControlPlanes: 0, cloudWorkers: 0, dedicatedControlPlanes: 0, dedicatedWorkers: 0 },
-    { cloudControlPlanes: 3, cloudWorkers: 4, dedicatedControlPlanes: 2, dedicatedWorkers: 1 },
-    { cloudControlPlanes: 12, cloudWorkers: 50, dedicatedControlPlanes: 13, dedicatedWorkers: 55 }
-  ];
-
-  for (const counts of representativeAndBoundaryTopologies) {
-    assert.equal(
-      reportShellDhcpDemand(counts),
-      getClusterDhcpAllocationDemand(nodesForTopology(counts)),
-      `shell demand diverged for ${JSON.stringify(counts)}`
-    );
-  }
-
-  assert.throws(
-    () =>
-      reportShellDhcpDemand({
-        cloudControlPlanes: 13,
-        cloudWorkers: 50,
-        dedicatedControlPlanes: 13,
-        dedicatedWorkers: 55
-      }),
-    /single private API load balancer supports at most 25 control-plane members/
-  );
+  assert.equal(getClusterDhcpAllocationDemand(representativeNodes), 11);
 });
 
 void test('cluster monitoring matches the disabled default topology', () => {
@@ -340,7 +212,7 @@ void test('enables PROXY v2 on both OVH load balancers and HAProxy Ingress', () 
   assert.match(ingress, /use-proxy-protocol:\s*"true"/);
 });
 
-void test('maps and validates topology variables before both CI SST commands', () => {
+void test('keeps topology in code and credentials in both CI SST environments', () => {
   const topologyVariables = [
     'OVH_CLOUD_CONTROL_PLANE_COUNT',
     'OVH_CLOUD_WORKER_COUNT',
@@ -354,21 +226,24 @@ void test('maps and validates topology variables before both CI SST commands', (
 
   for (const workflow of [checksWorkflow, deployWorkflow]) {
     for (const variable of topologyVariables) {
-      assert.match(workflow, new RegExp(`${variable}: \\\${\\{ vars\\.${variable} \\}\\}`));
+      assert.doesNotMatch(workflow, new RegExp(variable));
     }
-    assert.match(workflow, /scripts\/cluster\/validate-topology-env\.sh/);
+    assert.doesNotMatch(workflow, /scripts\/cluster\/validate-topology-env\.sh/);
+    assert.match(workflow, /OVH_APPLICATION_SECRET:\s*\$\{\{ secrets\.OVH_APPLICATION_SECRET \}\}/);
+    assert.match(workflow, /OVH_CONSUMER_KEY:\s*\$\{\{ secrets\.OVH_CONSUMER_KEY \}\}/);
+    assert.match(
+      workflow,
+      /OVH_CLOUD_PROJECT_SERVICE:\s*\$\{\{ secrets\.OVH_CLOUD_PROJECT_SERVICE \}\}/
+    );
     assert.doesNotMatch(workflow, /OVH_UNPROTECTED_NODE_LOGICAL_NAME:\s*\$\{\{/);
   }
 
-  assert.ok(
-    checksWorkflow.indexOf('scripts/cluster/validate-topology-env.sh') <
-      checksWorkflow.indexOf('pnpm sst diff --stage production')
-  );
-  assert.ok(
-    deployWorkflow.indexOf('scripts/cluster/validate-topology-env.sh') <
-      deployWorkflow.indexOf('pnpm sst refresh --stage "$SST_STAGE"')
-  );
-  assert.match(runbook, /GitHub environment variables/);
+  for (const variable of topologyVariables) {
+    assert.doesNotMatch(envExample, new RegExp(`^${variable}=`, 'm'));
+  }
+  assert.match(envExample, /^OVH_UNPROTECTED_NODE_LOGICAL_NAME=$/m);
+  assert.match(runbook, /infra\/cluster\/config\.ts/);
+  assert.doesNotMatch(runbook, /GitHub environment variables/);
 });
 
 void test('dev cleanup script fails closed for exact Hetzner and OVH identity families', () => {

@@ -16,27 +16,18 @@ rescue environment. The vRack is for cluster traffic, not administrator SSH.
 
 ## Configure node pools
 
-Set stage-specific values in `.env.production`:
+Topology is stage-owned in `infra/cluster/config.ts`. Update
+`PRODUCTION_CLUSTER_CONFIG` for production and `NON_PRODUCTION_CLUSTER_CONFIG`
+for every other stage. All four pool counts are currently zero in both
+configurations.
 
-```dotenv
-OVH_CLOUD_CONTROL_PLANE_COUNT=1
-OVH_CLOUD_WORKER_COUNT=0
-OVH_DEDICATED_CONTROL_PLANE_COUNT=0
-OVH_DEDICATED_WORKER_COUNT=0
-OVH_UNPROTECTED_NODE_LOGICAL_NAME=
-OVH_DEDICATED_SERVER_PLAN=
-OVH_DEDICATED_DATACENTER=
-OVH_DEDICATED_ORDER_REGION=
-OVH_DEDICATED_PLAN_OPTIONS=[]
-```
-
-The four counts are independent. Dedicated catalog values may remain empty only
-while both dedicated counts are zero. Get the exact plan, datacenter, region,
-and required options from the live OVH order cart for the offer being enabled.
-Catalog values are not durable defaults. Before committing or applying a
-non-zero dedicated count, validate the current authenticated catalog, set the
-validated values and intended count locally, and run an authenticated
-`sst diff`. Never copy catalog values from an old preview or this runbook.
+The four counts are independent. When a dedicated count becomes non-zero, fill
+in that same TypeScript object with the exact current dedicated catalog fields
+for the offer being enabled. Get the plan, datacenter, region, and required
+options from the live OVH order cart; catalog values are not durable defaults.
+Before committing or applying a non-zero dedicated count, validate the current
+authenticated catalog and run an authenticated `sst diff`. Never copy catalog
+values from an old preview or this runbook.
 
 The private `/24` is partitioned so each owner has a disjoint allocation:
 
@@ -56,25 +47,13 @@ OVH's public ingress load balancer sends PROXY v2 to node port `30443`, and
 HAProxy Ingress has `use-proxy-protocol: "true"` so both ends of that transport
 remain aligned.
 
-For CI, configure these non-secret GitHub environment variables in both the
-`production` and `dev` environments:
-
-- all four `OVH_*_COUNT` variables;
-- `OVH_DEDICATED_SERVER_PLAN`;
-- `OVH_DEDICATED_DATACENTER`;
-- `OVH_DEDICATED_ORDER_REGION`;
-- `OVH_DEDICATED_PLAN_OPTIONS`.
-
-All four counts must be present non-negative integers within their pool address
-capacity: cloud control plane `0-40`, cloud workers `0-50`, dedicated control
-plane `0-50`, and dedicated workers `0-55`. The aggregate and API limits above
-still apply. A non-empty `OVH_DEDICATED_PLAN_OPTIONS` value is always validated,
-even while both dedicated counts are zero. Dedicated catalog values may be empty
-only when both dedicated counts are zero; otherwise CI requires all four before
-SST starts.
-`OVH_UNPROTECTED_NODE_LOGICAL_NAME` is intentionally not a persistent GitHub
-environment variable. Set it only for the deliberate, operator-run scale-down
-procedure below.
+Do not configure topology fields in GitHub environments. The TypeScript
+configuration is the only topology source. All four counts must be non-negative
+integers within their pool address capacity: cloud control plane `0-40`, cloud
+workers `0-50`, dedicated control plane `0-50`, and dedicated workers
+`0-55`. The aggregate and API limits above still apply.
+`OVH_UNPROTECTED_NODE_LOGICAL_NAME` is intentionally operator-only. Set it only
+for the deliberate scale-down procedure below.
 
 ## Update etcd monitoring endpoints
 
@@ -117,9 +96,10 @@ Cloud network, load balancers, and both legacy-named origin TLS secrets.
 
 ## Scale up
 
-Increase one pool count and run `sst diff`. A new dedicated node is ordered
-without an OS, attached to vRack, then installed exactly once. Apply only after
-the diff contains additions and expected load-balancer member updates.
+Increase one pool count in `infra/cluster/config.ts` and run `sst diff`. A new
+dedicated node is ordered without an OS, attached to vRack, then installed
+exactly once. Apply only after the diff contains additions and expected
+load-balancer member updates.
 
 After apply, wait for every new node to become Ready and verify its InternalIP is
 in `10.0.1.0/24`:
@@ -138,7 +118,8 @@ kubectl get nodes -o wide
 4. Verify `k3s etcd-snapshot ls` and etcd member health.
 5. Add dedicated workers and verify workloads.
 6. Drain and remove one Public Cloud node at a time.
-7. Reduce only the count for each node already removed.
+7. Reduce only the matching count in `infra/cluster/config.ts` for each node
+   already removed.
 
 Keep `OVH_CLOUD_PROJECT_SERVICE` and the Public Cloud project after the Public
 Cloud compute counts reach zero. Dedicated nodes still use its network and load
@@ -152,13 +133,13 @@ remove an arbitrary lower index; restore or replace that node first.
 
 | Pool                      | Count variable                      | Production hostname prefix                 | Logical-resource prefix          |
 | ------------------------- | ----------------------------------- | ------------------------------------------ | -------------------------------- |
-| `cloud-control-plane`     | `OVH_CLOUD_CONTROL_PLANE_COUNT`     | `prod-ovh-control-plane-server-`           | `OvhControlPlaneServer`          |
-| `cloud-workers`           | `OVH_CLOUD_WORKER_COUNT`            | `prod-ovh-worker-server-`                  | `OvhWorkerServer`                |
-| `dedicated-control-plane` | `OVH_DEDICATED_CONTROL_PLANE_COUNT` | `prod-ovh-dedicated-control-plane-server-` | `OvhDedicatedControlPlaneServer` |
-| `dedicated-workers`       | `OVH_DEDICATED_WORKER_COUNT`        | `prod-ovh-dedicated-worker-server-`        | `OvhDedicatedWorkerServer`       |
+| `cloud-control-plane`     | `cloudControlPlaneCount`     | `prod-ovh-control-plane-server-`           | `OvhControlPlaneServer`          |
+| `cloud-workers`           | `cloudWorkerCount`           | `prod-ovh-worker-server-`                  | `OvhWorkerServer`                |
+| `dedicated-control-plane` | `dedicatedControlPlaneCount` | `prod-ovh-dedicated-control-plane-server-` | `OvhDedicatedControlPlaneServer` |
+| `dedicated-workers`       | `dedicatedWorkerCount`        | `prod-ovh-dedicated-worker-server-`        | `OvhDedicatedWorkerServer`       |
 
 Choose one table row. Set `POOL_NAME` and `POOL_COUNT` to that pool's exact
-current `.env.production` value; do not decrement it yet:
+current value in `PRODUCTION_CLUSTER_CONFIG`; do not decrement it yet:
 
 ```sh
 POOL_NAME=dedicated-control-plane
@@ -166,22 +147,22 @@ POOL_COUNT=3
 
 case "${POOL_NAME}" in
   cloud-control-plane)
-    COUNT_VARIABLE=OVH_CLOUD_CONTROL_PLANE_COUNT
+    COUNT_PROPERTY=cloudControlPlaneCount
     NODE_PREFIX=prod-ovh-control-plane-server-
     LOGICAL_PREFIX=OvhControlPlaneServer
     ;;
   cloud-workers)
-    COUNT_VARIABLE=OVH_CLOUD_WORKER_COUNT
+    COUNT_PROPERTY=cloudWorkerCount
     NODE_PREFIX=prod-ovh-worker-server-
     LOGICAL_PREFIX=OvhWorkerServer
     ;;
   dedicated-control-plane)
-    COUNT_VARIABLE=OVH_DEDICATED_CONTROL_PLANE_COUNT
+    COUNT_PROPERTY=dedicatedControlPlaneCount
     NODE_PREFIX=prod-ovh-dedicated-control-plane-server-
     LOGICAL_PREFIX=OvhDedicatedControlPlaneServer
     ;;
   dedicated-workers)
-    COUNT_VARIABLE=OVH_DEDICATED_WORKER_COUNT
+    COUNT_PROPERTY=dedicatedWorkerCount
     NODE_PREFIX=prod-ovh-dedicated-worker-server-
     LOGICAL_PREFIX=OvhDedicatedWorkerServer
     ;;
@@ -198,7 +179,15 @@ case "${POOL_COUNT}" in
     ;;
 esac
 
-grep -Fx "${COUNT_VARIABLE}=${POOL_COUNT}" .env.production
+CONFIGURED_POOL_COUNT="$(
+  node --input-type=module -e '
+    import { PRODUCTION_CLUSTER_CONFIG } from "./infra/cluster/config.ts";
+    const value = PRODUCTION_CLUSTER_CONFIG[process.argv[1]];
+    if (!Number.isInteger(value)) process.exit(1);
+    process.stdout.write(String(value));
+  ' "${COUNT_PROPERTY}"
+)"
+[ "${CONFIGURED_POOL_COUNT}" = "${POOL_COUNT}" ]
 TARGET_INDEX=$((POOL_COUNT - 1))
 NODE_NAME="${NODE_PREFIX}${TARGET_INDEX}"
 LOGICAL_NAME="${LOGICAL_PREFIX}${TARGET_INDEX}"
@@ -350,7 +339,7 @@ Production scale-down uses an auditable two-deploy transition. There is no
 manual state-editing or all-nodes bypass.
 
 Keep all four pool counts unchanged for the first deploy. Set only the exact
-derived logical name in `.env.production`. For the example target derived
+derived logical name in the operator environment. For the example target derived
 above, the line is:
 
 ```dotenv
@@ -371,10 +360,12 @@ The preview must contain no deletion and must change protection only for
 `${LOGICAL_NAME}`. A dedicated target also updates
 `${LOGICAL_NAME}Install`. Reject any other node protection change.
 
-Reduce only the selected pool count by exactly one for the second deploy while
-keeping `OVH_UNPROTECTED_NODE_LOGICAL_NAME` unchanged. Run another preview. The warning that the
-override “does not match a currently declared highest-index node” is expected
-in this second step because the highest-index node is no longer declared:
+Reduce only the selected pool count by exactly one in
+`infra/cluster/config.ts` for the second deploy while keeping
+`OVH_UNPROTECTED_NODE_LOGICAL_NAME` unchanged. Run another preview. The warning
+that the override “does not match a currently declared highest-index node” is
+expected in this second step because the highest-index node is no longer
+declared:
 
 ```sh
 ./node_modules/.bin/sst diff --stage production
