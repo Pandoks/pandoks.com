@@ -10,6 +10,10 @@ deletion.
 reinstall, resize, or delete the VPS. There is intentionally no cloud-init or
 automated guest bootstrap.
 
+Because the non-production cluster currently has zero nodes, this VPS order
+does not require an OVH Public Cloud project or k3s token. The OVH application
+secret and consumer key are still required to authorize the VPS order.
+
 ## Provision the subscription
 
 Review the billable order, then apply it:

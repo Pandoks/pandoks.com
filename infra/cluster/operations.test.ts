@@ -350,6 +350,32 @@ void test('dev stage orders a protected VPS-4 while guest setup stays manual', (
   );
 });
 
+void test('zero-node dev VPS does not require Public Cloud or k3s-only inputs', () => {
+  assert.match(
+    cluster,
+    /shouldProvisionClusterInfrastructure\(\s*isProduction,\s*CLUSTER_CONFIG\s*\)/s
+  );
+  assert.match(cluster, /provisionClusterInfrastructure\s*\?\s*createClusterNetwork\(/s);
+  assert.match(
+    secrets,
+    /ApplicationSecret:\s*new sst\.Secret\(\s*'OvhApplicationSecret',\s*process\.env\.OVH_APPLICATION_SECRET\s*\)/s
+  );
+  assert.match(
+    secrets,
+    /ConsumerKey:\s*new sst\.Secret\(\s*'OvhConsumerKey',\s*process\.env\.OVH_CONSUMER_KEY\s*\)/s
+  );
+  assert.match(secrets, /const DISABLED_CLUSTER_PLACEHOLDER = 'unused-disabled-cluster'/);
+  assert.match(
+    secrets,
+    /CloudProjectService:\s*new sst\.Secret\(\s*'OvhCloudProjectService',\s*cloudProjectServicePlaceholder\s*\)/s
+  );
+  assert.match(
+    secrets,
+    /K3sToken:\s*new sst\.Secret\(\s*'OvhK3sToken',\s*k3sTokenPlaceholder\s*\)/s
+  );
+  assert.match(devVpsRunbook, /does not require an OVH Public Cloud project or k3s token/i);
+});
+
 void test('dev cleanup script fails closed for exact Hetzner and OVH identity families', () => {
   for (const logicalName of [
     'HetznerDevBox',

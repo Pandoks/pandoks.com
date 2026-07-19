@@ -5,7 +5,7 @@ import { createClusterLoadBalancers } from './load-balancers';
 import { createClusterNetwork } from './network';
 import { createDedicatedNode } from './providers/dedicated';
 import { createPublicCloudNode, type ClusterNode } from './providers/public-cloud';
-import { getClusterStageConfig } from './config';
+import { getClusterStageConfig, shouldProvisionClusterInfrastructure } from './config';
 import {
   getUnprotectedNodeWarning,
   isClusterNodeProtected,
@@ -22,6 +22,10 @@ const LOAD_BALANCER_FLAVOR = 'small';
 const LOAD_BALANCER_ALGORITHM = 'leastConnections';
 const UNPROTECTED_NODE_LOGICAL_NAME = process.env.OVH_UNPROTECTED_NODE_LOGICAL_NAME?.trim() ?? '';
 const CLUSTER_CONFIG = getClusterStageConfig(isProduction);
+const provisionClusterInfrastructure = shouldProvisionClusterInfrastructure(
+  isProduction,
+  CLUSTER_CONFIG
+);
 
 const NODE_POOLS: readonly NodePool[] = [
   {
@@ -86,22 +90,30 @@ if (unprotectedNodeWarning) {
   console.warn(unprotectedNodeWarning);
 }
 
-const network = createClusterNetwork({
-  region: REGION,
-  cidr: NETWORK_CIDR,
-  gatewayModel: GATEWAY_MODEL
-});
+const network = provisionClusterInfrastructure
+  ? createClusterNetwork({
+      region: REGION,
+      cidr: NETWORK_CIDR,
+      gatewayModel: GATEWAY_MODEL
+    })
+  : undefined;
 
 const loadBalancerFlavorId = topology.nodes.length
   ? await getLoadBalancerFlavorId(REGION, LOAD_BALANCER_FLAVOR)
   : '';
-const loadBalancers = createClusterLoadBalancers({
-  nodes: topology.nodes,
-  network,
-  region: REGION,
-  flavorId: loadBalancerFlavorId,
-  algorithm: LOAD_BALANCER_ALGORITHM
-});
+const loadBalancers = network
+  ? createClusterLoadBalancers({
+      nodes: topology.nodes,
+      network,
+      region: REGION,
+      flavorId: loadBalancerFlavorId,
+      algorithm: LOAD_BALANCER_ALGORITHM
+    })
+  : {
+      api: undefined,
+      apiAddress: undefined,
+      publicIngress: []
+    };
 
 if (topology.nodes.length > 0 && !loadBalancers.apiAddress) {
   throw new Error('A non-empty cluster requires the private API load balancer');
@@ -122,6 +134,9 @@ for (const pool of publicCloudPools) {
 }
 
 export const clusterNodes: ClusterNode[] = topology.nodes.map((spec) => {
+  if (!network) {
+    throw new Error('A non-empty cluster requires shared cluster infrastructure');
+  }
   if (spec.pool.provider === 'public-cloud') {
     const catalog = publicCloudCatalog.get(spec.pool.name);
     if (!catalog) {
