@@ -5,13 +5,12 @@ import { createClusterLoadBalancers } from './load-balancers';
 import { createClusterNetwork } from './network';
 import { createDedicatedNode } from './providers/dedicated';
 import { createPublicCloudNode, type ClusterNode } from './providers/public-cloud';
+import { getClusterStageConfig } from './config';
 import {
   getUnprotectedNodeWarning,
   isClusterNodeProtected,
   CLUSTER_ADDRESS_PLAN,
   normalizeNodePools,
-  parseDedicatedPlanOptions,
-  parseNodeCount,
   type NodePool,
   type PublicCloudNodePool
 } from './types';
@@ -22,13 +21,14 @@ const GATEWAY_MODEL = 's';
 const LOAD_BALANCER_FLAVOR = 'small';
 const LOAD_BALANCER_ALGORITHM = 'leastConnections';
 const UNPROTECTED_NODE_LOGICAL_NAME = process.env.OVH_UNPROTECTED_NODE_LOGICAL_NAME?.trim() ?? '';
+const CLUSTER_CONFIG = getClusterStageConfig(isProduction);
 
 const NODE_POOLS: readonly NodePool[] = [
   {
     name: 'cloud-control-plane',
     provider: 'public-cloud',
     role: 'control-plane',
-    count: parseNodeCount(process.env.OVH_CLOUD_CONTROL_PLANE_COUNT, isProduction ? 1 : 0),
+    count: CLUSTER_CONFIG.cloudControlPlaneCount,
     ingress: true,
     privateIpStart: CLUSTER_ADDRESS_PLAN['cloud-control-plane'].start,
     flavor: 'b3-8',
@@ -39,7 +39,7 @@ const NODE_POOLS: readonly NodePool[] = [
     name: 'cloud-workers',
     provider: 'public-cloud',
     role: 'worker',
-    count: parseNodeCount(process.env.OVH_CLOUD_WORKER_COUNT, 0),
+    count: CLUSTER_CONFIG.cloudWorkerCount,
     ingress: true,
     privateIpStart: CLUSTER_ADDRESS_PLAN['cloud-workers'].start,
     flavor: 'b3-8',
@@ -50,27 +50,27 @@ const NODE_POOLS: readonly NodePool[] = [
     name: 'dedicated-control-plane',
     provider: 'dedicated',
     role: 'control-plane',
-    count: parseNodeCount(process.env.OVH_DEDICATED_CONTROL_PLANE_COUNT, 0),
+    count: CLUSTER_CONFIG.dedicatedControlPlaneCount,
     ingress: true,
     privateIpStart: CLUSTER_ADDRESS_PLAN['dedicated-control-plane'].start,
-    plan: process.env.OVH_DEDICATED_SERVER_PLAN?.trim() ?? '',
+    plan: CLUSTER_CONFIG.dedicatedPlan,
     operatingSystem: 'ubuntu2404-server_64',
-    datacenter: process.env.OVH_DEDICATED_DATACENTER?.trim() ?? '',
-    orderRegion: process.env.OVH_DEDICATED_ORDER_REGION?.trim() ?? '',
-    planOptions: parseDedicatedPlanOptions(process.env.OVH_DEDICATED_PLAN_OPTIONS)
+    datacenter: CLUSTER_CONFIG.dedicatedDatacenter,
+    orderRegion: CLUSTER_CONFIG.dedicatedOrderRegion,
+    planOptions: CLUSTER_CONFIG.dedicatedPlanOptions
   },
   {
     name: 'dedicated-workers',
     provider: 'dedicated',
     role: 'worker',
-    count: parseNodeCount(process.env.OVH_DEDICATED_WORKER_COUNT, 0),
+    count: CLUSTER_CONFIG.dedicatedWorkerCount,
     ingress: true,
     privateIpStart: CLUSTER_ADDRESS_PLAN['dedicated-workers'].start,
-    plan: process.env.OVH_DEDICATED_SERVER_PLAN?.trim() ?? '',
+    plan: CLUSTER_CONFIG.dedicatedPlan,
     operatingSystem: 'ubuntu2404-server_64',
-    datacenter: process.env.OVH_DEDICATED_DATACENTER?.trim() ?? '',
-    orderRegion: process.env.OVH_DEDICATED_ORDER_REGION?.trim() ?? '',
-    planOptions: parseDedicatedPlanOptions(process.env.OVH_DEDICATED_PLAN_OPTIONS)
+    datacenter: CLUSTER_CONFIG.dedicatedDatacenter,
+    orderRegion: CLUSTER_CONFIG.dedicatedOrderRegion,
+    planOptions: CLUSTER_CONFIG.dedicatedPlanOptions
   }
 ];
 

@@ -50,50 +50,6 @@ export type DedicatedPlanOption = {
   quantity: number;
 };
 
-export function parseNodeCount(value: string | undefined, fallback: number): number {
-  const normalized = value?.trim();
-  if (!normalized) return fallback;
-  const parsed = Number(normalized);
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    throw new Error('Node count must be a non-negative integer');
-  }
-  return parsed;
-}
-
-function isDedicatedPlanOption(value: unknown): value is DedicatedPlanOption {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-
-  const option = value as Record<string, unknown>;
-  return (
-    typeof option.duration === 'string' &&
-    typeof option.planCode === 'string' &&
-    typeof option.pricingMode === 'string' &&
-    typeof option.quantity === 'number' &&
-    Number.isInteger(option.quantity) &&
-    option.quantity >= 1
-  );
-}
-
-export function parseDedicatedPlanOptions(value: string | undefined): DedicatedPlanOption[] {
-  const parsed: unknown = JSON.parse(value?.trim() || '[]');
-  if (!Array.isArray(parsed)) {
-    throw new Error('OVH_DEDICATED_PLAN_OPTIONS must be a JSON array');
-  }
-  return (parsed as unknown[]).map((option, index) => {
-    if (!isDedicatedPlanOption(option)) {
-      throw new Error(`OVH_DEDICATED_PLAN_OPTIONS[${index}] has an invalid shape`);
-    }
-    return {
-      duration: option.duration,
-      planCode: option.planCode,
-      pricingMode: option.pricingMode,
-      quantity: option.quantity
-    };
-  });
-}
-
 export type DedicatedNodePool = NodePoolBase & {
   provider: 'dedicated';
   plan: string;

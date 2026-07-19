@@ -326,17 +326,11 @@ void test('the POSIX topology validator reports the same DHCP demand as the Type
   );
 });
 
-void test('cluster monitoring matches the single-cloud-control-plane default', () => {
+void test('cluster monitoring matches the disabled default topology', () => {
   const monitoring = readFileSync('k3s/overlays/cluster/prom-etcd-config.yaml', 'utf8');
-  assert.match(cluster, /OVH_CLOUD_CONTROL_PLANE_COUNT,\s*isProduction \? 1 : 0/);
-  assert.equal(
-    cluster.match(
-      /parseNodeCount\(process\.env\.OVH_(?:CLOUD_WORKER|DEDICATED_[A-Z_]+)_COUNT, 0\)/g
-    )?.length,
-    3
-  );
-  assert.match(monitoring, /^\s*- 10\.0\.1\.10$/m);
-  assert.doesNotMatch(monitoring, /^\s*- 10\.0\.1\.(?:11|12|15[0-9])$/m);
+  assert.match(cluster, /getClusterStageConfig\(isProduction\)/);
+  assert.doesNotMatch(cluster, /process\.env\.OVH_(?:CLOUD|DEDICATED)_/);
+  assert.match(monitoring, /^\s*endpoints:\s*\[\]\s*$/m);
   assert.match(runbook, /kubeEtcd.*exact active control-plane IPs/is);
   assert.match(runbook, /operator pre-deploy step/i);
 });

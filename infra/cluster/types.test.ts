@@ -8,8 +8,6 @@ import {
   isClusterNodeProtected,
   NODE_POOL_IDENTITIES,
   normalizeNodePools,
-  parseDedicatedPlanOptions,
-  parseNodeCount,
   type NodePool
 } from './types.ts';
 
@@ -298,24 +296,6 @@ void test('rejects an enabled dedicated pool without catalog settings', () => {
 void test('warns for a non-HA embedded-etcd control plane', () => {
   const result = normalizeNodePools([cloudControlPlane], 'prod', '10.0.1.0/24');
   assert.match(result.warnings[0] ?? '', /odd control-plane count of at least 3/);
-});
-
-void test('parses count overrides and dedicated plan options', () => {
-  assert.equal(parseNodeCount('', 3), 3);
-  assert.equal(parseNodeCount('2', 0), 2);
-  assert.throws(() => parseNodeCount('-1', 0), /non-negative integer/);
-  assert.deepEqual(parseDedicatedPlanOptions('[]'), []);
-  assert.deepEqual(
-    parseDedicatedPlanOptions(
-      '[{"duration":"P1M","planCode":"server","pricingMode":"default","quantity":1}]'
-    ),
-    [{ duration: 'P1M', planCode: 'server', pricingMode: 'default', quantity: 1 }]
-  );
-  assert.throws(() => parseDedicatedPlanOptions('{"planCode":"x"}'), /must be a JSON array/);
-  assert.throws(
-    () => parseDedicatedPlanOptions('[{"duration":"P1M","quantity":0}]'),
-    /invalid shape/
-  );
 });
 
 void test('defines the exact identity prefixes for all four pools', () => {

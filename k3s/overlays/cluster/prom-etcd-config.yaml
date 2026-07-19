@@ -1,6 +1,5 @@
-# Default production topology: one Public Cloud control plane at 10.0.1.10.
-# Before deploying any other topology, replace this explicit inventory with the
-# exact active control-plane private IPs as documented in the cluster runbook.
+# The default topology has no control planes. Before deployment, replace this
+# inventory with the exact active control-plane private IPs in the cluster runbook.
 apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
 metadata:
@@ -10,8 +9,7 @@ spec:
   valuesContent: |-
     kubeEtcd:
       enabled: true
-      endpoints:
-        - 10.0.1.10
+      endpoints: []
       service:
         enabled: true
         port: 2381
