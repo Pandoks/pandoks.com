@@ -39,6 +39,28 @@ patroni:
   shards: 1
   replicasPerShard: 3 # NOTE: replicasPerShard = primary (1) + replicas (n - 1)
   image: ghcr.io/pandoks/patroni:latest@sha256:ea705a1d123ccb1fc57b9c4d3993879a23e7bf814e1f0479b5df94900eb56fbb
+  parameters:
+    # NOTE: dcs parameters only apply when bootstrapping a fresh cluster — change a running
+    # cluster with `patronictl edit-config` (these can't be set per-node, only via dcs)
+    dcs:
+      max_connections: 100
+      max_locks_per_transaction: 64
+      max_worker_processes: 20
+      max_wal_senders: 20
+      max_replication_slots: 20
+      wal_keep_size: 16384MB
+      max_slot_wal_keep_size: 16384MB
+      max_wal_size: 4GB
+      min_wal_size: 1GB
+      wal_compression: 'on'
+    # local parameters apply per-node on helm upgrade via rolling restart
+    local:
+      shared_buffers: 128MB
+      effective_cache_size: 4GB
+      work_mem: 4MB
+      maintenance_work_mem: 64MB
+      max_parallel_workers: 8
+      max_parallel_workers_per_gather: 2
   resources:
     patroni: {}
     pgbackrest: {}
