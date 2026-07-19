@@ -21,6 +21,17 @@ const githubInfra = readFileSync('infra/github.ts', 'utf8');
 const ovhHelpers = readFileSync('infra/ovh.ts', 'utf8');
 const cloudflare = readFileSync('infra/cloudflare.ts', 'utf8');
 const credentials = readFileSync('k3s/base/core/credentials.yaml', 'utf8');
+const certManager = readFileSync('k3s/base/core/cert-manager.yaml', 'utf8');
+const clusterOriginTlsPath = 'k3s/overlays/cluster/origin-tls.yaml';
+const clusterOriginTls = existsSync(clusterOriginTlsPath)
+  ? readFileSync(clusterOriginTlsPath, 'utf8')
+  : '';
+const clusterOriginTlsPatchPath = 'k3s/overlays/cluster/origin-tls-patch.yaml';
+const clusterOriginTlsPatch = existsSync(clusterOriginTlsPatchPath)
+  ? readFileSync(clusterOriginTlsPatchPath, 'utf8')
+  : '';
+const clusterKustomization = readFileSync('k3s/overlays/cluster/kustomization.yaml', 'utf8');
+const exampleApp = readFileSync('apps/example/kube/example.yaml', 'utf8');
 const network = readFileSync('infra/cluster/network.ts', 'utf8');
 const metalLb = readFileSync('k3s/base/core/metallb.yaml', 'utf8');
 const loadBalancers = readFileSync('infra/cluster/load-balancers.ts', 'utf8');
@@ -68,7 +79,6 @@ void test('centralizes shared stage helpers in infra/utils.ts', () => {
     );
   }
 
-  assert.match(cloudflare, /--stage \$\{\$app\.stage\}/);
   assert.match(secrets, /--stage \$\{\$app\.stage\}/);
 });
 
@@ -128,25 +138,50 @@ void test('keeps the Pages and mise Node versions synchronized through Renovate'
   );
 });
 
-void test('uses OVH origin TLS secret identities and aligned Kubernetes placeholders', () => {
+void test('delegates origin TLS issuance and rotation to cert-manager', () => {
+  assert.doesNotMatch(secrets, /OriginTls(?:Key|Crt)|OvhOriginTls|HetznerOriginTls/);
+  assert.doesNotMatch(cloudflare, /OriginCaCertificate|cluster\.origin|cluster\.openssl|OriginTls/);
+  assert.doesNotMatch(credentials, /tls\.(?:crt|key):/);
+  assert.doesNotMatch(credentials, /cloudflare-dns-api-token/);
+
   assert.match(
-    secrets,
-    /OriginTlsKey:\s*new sst\.Secret\('OvhOriginTlsKey',\s*'No Origin Tls Key Set'\)/
+    certManager,
+    /kind:\s*Certificate[\s\S]*name:\s*cloudflare-origin-tls[\s\S]*namespace:\s*example/
   );
   assert.match(
-    secrets,
-    /OriginTlsCrt:\s*new sst\.Secret\('OvhOriginTlsCrt',\s*'No Origin Tls Cert Set'\)/
+    certManager,
+    /secretName:\s*cloudflare-origin-tls[\s\S]*dnsNames:\s*\n\s*-\s*example\.pandoks\.com[\s\S]*name:\s*internal-ca-issuer/
   );
-  assert.doesNotMatch(secrets, /new sst\.Secret\('HetznerOriginTls(?:Key|Crt)'/);
-  assert.match(cloudflare, /secrets\.k8s\.OriginTlsKey/);
-  assert.match(cloudflare, /secrets\.k8s\.OriginTlsCrt/);
+  assert.match(certManager, /privateKey:\s*\n\s*rotationPolicy:\s*Always/);
+
+  assert.match(clusterKustomization, /-\s*origin-tls\.yaml/);
+  assert.match(clusterKustomization, /path:\s*origin-tls-patch\.yaml/);
+  assert.match(clusterOriginTls, /server:\s*https:\/\/acme-v02\.api\.letsencrypt\.org\/directory/);
   assert.match(
-    cloudflare,
-    /aliases:\s*\[\s*\{\s*name:\s*'HetznerOriginCloudflareCaCertificate'\s*\}\s*\]/
+    clusterOriginTls,
+    /privateKeySecretRef:\s*\n\s*name:\s*letsencrypt-production-account-key/
   );
-  assert.match(credentials, /\$\{OvhOriginTlsCrt \| base64\}/);
-  assert.match(credentials, /\$\{OvhOriginTlsKey \| base64\}/);
-  assert.doesNotMatch(credentials, /\$\{HetznerOriginTls/);
+  assert.match(
+    clusterOriginTls,
+    /kind:\s*Secret[\s\S]*name:\s*cloudflare-dns-api-token[\s\S]*namespace:\s*cert-manager[\s\S]*api-token:\s*\$\{CloudflareApiKey \| quote\}/
+  );
+  assert.match(
+    clusterOriginTls,
+    /apiTokenSecretRef:\s*\n\s*name:\s*cloudflare-dns-api-token\s*\n\s*key:\s*api-token/
+  );
+  assert.match(
+    clusterOriginTlsPatch,
+    /kind:\s*Certificate[\s\S]*name:\s*cloudflare-origin-tls[\s\S]*issuerRef:\s*\n\s*name:\s*letsencrypt-production/
+  );
+  assert.equal(exampleApp.match(/secretName:\s*cloudflare-origin-tls/g)?.length, 2);
+
+  for (const path of [
+    'infra/cluster/cluster.openssl.conf',
+    'infra/cluster/cluster.origin.dev.csr',
+    'infra/cluster/cluster.origin.prod.csr'
+  ]) {
+    assert.equal(existsSync(path), false, `${path} must be removed`);
+  }
 });
 
 void test('keeps network, node pools, and MetalLB on one non-overlapping address plan', () => {
@@ -383,10 +418,7 @@ void test('zero-node dev VPS does not require Public Cloud or k3s-only inputs', 
     secrets,
     /ConsumerKey:\s*new sst\.Secret\(\s*'OvhConsumerKey',\s*process\.env\.OVH_CONSUMER_KEY\s*\)/s
   );
-  assert.match(secrets, /const DISABLED_CLUSTER_PLACEHOLDER = 'unused-disabled-cluster'/);
+  assert.doesNotMatch(secrets, /DISABLED_CLUSTER_PLACEHOLDER|k3sTokenPlaceholder/);
   assert.doesNotMatch(secrets, /CloudProjectService|OVH_CLOUD_PROJECT_SERVICE/);
-  assert.match(
-    secrets,
-    /K3sToken:\s*new sst\.Secret\(\s*'OvhK3sToken',\s*k3sTokenPlaceholder\s*\)/s
-  );
+  assert.match(secrets, /K3sToken:\s*new sst\.Secret\(\s*'OvhK3sToken',\s*'Placeholder'\s*\)/s);
 });

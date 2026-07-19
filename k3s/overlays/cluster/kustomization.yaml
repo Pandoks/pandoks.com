@@ -3,6 +3,9 @@ kind: Kustomization
 resources:
   - ../../base
   - tailscale.yaml
+  - origin-tls.yaml
   - https://github.com/rancher/system-upgrade-controller/releases/latest/download/system-upgrade-controller.yaml
   - cluster-upgrade-plan.yaml
   - prom-etcd-config.yaml
+patches:
+  - path: origin-tls-patch.yaml

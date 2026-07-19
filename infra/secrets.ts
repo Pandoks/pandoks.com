@@ -59,8 +59,6 @@ export const secrets = {
     grafana: {
       AdminPassword: new sst.Secret('KubernetesGrafanaAdminPassword', 'password')
     },
-    OriginTlsKey: new sst.Secret('OvhOriginTlsKey', 'No Origin Tls Key Set'), // Automatically set during deploy
-    OriginTlsCrt: new sst.Secret('OvhOriginTlsCrt', 'No Origin Tls Cert Set'), // Automatically set during deploy
     main: {
       // namespace
       // NOTE: sst Secret names are named '<namespace><db-name><resource><var>' (ie. MainMainPostgresSuperuserPassword)
