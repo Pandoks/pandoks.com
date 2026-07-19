@@ -32,7 +32,6 @@ const checksWorkflow = readFileSync('.github/workflows/checks.yaml', 'utf8');
 const deployWorkflow = readFileSync('.github/workflows/deploy-infra.yaml', 'utf8');
 const dev = readFileSync('infra/dev.ts', 'utf8');
 const devVpsRunbook = readFileSync('scripts/dev-vps/README.md', 'utf8');
-const devVpsCleanup = readFileSync('scripts/dev-vps/cleanup-state.sh', 'utf8');
 const website = readFileSync('infra/website.ts', 'utf8');
 const mise = readFileSync('mise.toml', 'utf8');
 const renovate = JSON.parse(readFileSync('renovate.json', 'utf8')) as {
@@ -419,22 +418,23 @@ void test('active cluster rules describe code-owned zero topology and CI contrac
   assert.doesNotMatch(rules, /OVH_UNPROTECTED_NODE_LOGICAL_NAME/);
 });
 
-void test('CI runs infra and legacy-state safety checks for VPS changes', () => {
+void test('CI runs infra checks for VPS changes without one-off helper scripts', () => {
   assert.match(checksWorkflow, /infra:\n(?:\s+- .*\n)*\s+- 'scripts\/dev-vps\/\*\*'/);
   assert.match(checksWorkflow, /infra:\n(?:\s+- .*\n)*\s+- 'tsconfig\.json'/);
   for (const [name, command] of [
     ['Typecheck infra', 'pnpm check:infra'],
-    ['Test infra', 'pnpm test:infra'],
-    ['Test dev VPS cleanup', 'sh scripts/dev-vps/cleanup-state.test.sh']
+    ['Test infra', 'pnpm test:infra']
   ]) {
     assert.match(
       checksWorkflow,
       new RegExp(`- name: ${name}\\n\\s+run: ${command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`)
     );
   }
-  assert.doesNotMatch(checksWorkflow, /scripts\/dev-vps\/setup(?:\.test)?\.sh/);
+  assert.doesNotMatch(checksWorkflow, /scripts\/dev-vps\/(?:setup|cleanup-state)/);
   assert.equal(existsSync('scripts/dev-vps/setup.sh'), false);
   assert.equal(existsSync('scripts/dev-vps/setup.test.sh'), false);
+  assert.equal(existsSync('scripts/dev-vps/cleanup-state.sh'), false);
+  assert.equal(existsSync('scripts/dev-vps/cleanup-state.test.sh'), false);
 });
 
 void test('dev stage orders an annual protected VPS-4 with only standard options', () => {
@@ -458,6 +458,7 @@ void test('dev stage orders an annual protected VPS-4 with only standard options
   assert.match(devVpsRunbook, /12-month upfront pricing/);
   assert.match(devVpsRunbook, /Guest OS configuration is intentionally outside IaC/);
   assert.doesNotMatch(devVpsRunbook, /setup(?:\.test)?\.sh/);
+  assert.doesNotMatch(devVpsRunbook, /cleanup-state/);
 });
 
 void test('zero-node dev VPS does not require Public Cloud or k3s-only inputs', () => {
@@ -482,28 +483,4 @@ void test('zero-node dev VPS does not require Public Cloud or k3s-only inputs', 
     /K3sToken:\s*new sst\.Secret\(\s*'OvhK3sToken',\s*k3sTokenPlaceholder\s*\)/s
   );
   assert.match(devVpsRunbook, /does not require an OVH Public Cloud project or k3s token/i);
-});
-
-void test('dev cleanup script fails closed for exact Hetzner and OVH identity families', () => {
-  for (const logicalName of [
-    'HetznerDevBox',
-    'HetznerDevBoxTailnetRegistrationAuthKey',
-    'OvhDevBox',
-    'OvhDevBoxTailnetRegistrationAuthKey'
-  ]) {
-    assert.match(devVpsCleanup, new RegExp(`resource_count ${logicalName}`));
-    assert.match(devVpsCleanup, new RegExp(`-e ${logicalName}`));
-  }
-  assert.match(devVpsCleanup, /mix Hetzner and OVH families/);
-  assert.match(devVpsCleanup, /hcloud:index\/server:Server/);
-  assert.match(devVpsCleanup, /ovh:CloudProject\/instance:Instance/);
-  assert.match(devVpsCleanup, /ovh:Vps\/vps:Vps/);
-  assert.match(devVpsCleanup, /cd "\$\{REPOSITORY_ROOT\}"/);
-  assert.match(devVpsCleanup, /stty -g < \/dev\/tty/);
-  assert.match(devVpsCleanup, /stty -echo < \/dev\/tty/);
-  assert.match(devVpsCleanup, /stty "\$\{TTY_STATE\}" < \/dev\/tty/);
-  assert.match(devVpsCleanup, /retained-detach/);
-  assert.match(devVpsCleanup, /already-deleted-stale/);
-  assert.match(devVpsRunbook, /only authorized cleanup procedure/);
-  assert.doesNotMatch(devVpsRunbook, /^\s*(?:\.\/node_modules\/\.bin\/)?sst state remove/m);
 });

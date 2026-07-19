@@ -267,9 +267,6 @@ jobs:
       - name: Test infra
         run: pnpm test:infra
 
-      - name: Test dev VPS cleanup
-        run: sh scripts/dev-vps/cleanup-state.test.sh
-
   # ─── SST ──────────────────────────────────────────────────────────────
   diff-sst:
     runs-on: ubuntu-latest

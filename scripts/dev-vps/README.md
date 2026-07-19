@@ -95,33 +95,6 @@ nc -vz -w 5 "${VPS_PUBLIC_IP}" 22
 The connection must fail. Never save the entered address as an application
 secret.
 
-## Legacy SST state cleanup
-
-Run this section only before the first `OvhDevVps` deployment and only if the
-diff reports a historical `HetznerDevBox`, `OvhDevBox`, or registration-key
-resource. Do not use it for the current `OvhDevVps`.
-
-The checked-in helper is the only authorized cleanup procedure:
-
-```sh
-scripts/dev-vps/cleanup-state.sh
-```
-
-It privately exports state through the repository's local SST binary, accepts
-exactly one historical family (Hetzner or OVH), rejects duplicates, mixed state,
-and cross-provider types, and never prints an ID or registration key. It asks
-for physical identifiers with terminal echo disabled, verifies them before any
-state removal, makes the operator explicitly distinguish a retained manual
-service from an already-deleted stale resource, handles only an exact key-only
-orphan without a primary record after the operator types `orphan-remove`, and
-rejects a final diff mentioning any of the four historical resource names. Do
-not run ad-hoc `sst state remove` commands.
-
-If registration-key detachment succeeds but primary detachment fails, the helper
-reports partial completion, captures a private final diff when possible, and
-exits. Do not apply that diff. Re-run the same helper: it will re-export state,
-validate the remaining primary identity, and retry only that primary record.
-
 ## Recovery
 
 If Tailscale fails before lockdown, continue in the still-open OVH console.
