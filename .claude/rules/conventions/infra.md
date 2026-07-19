@@ -117,9 +117,10 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
   `infra/cluster/bootstrap.sh`; scale, migration, drain, reinstall-safety, and
   recovery procedures live in `infra/cluster/README.md`.
 - **The Public Cloud project is permanent shared infrastructure.**
-  `OVH_CLOUD_PROJECT_SERVICE` is required for the vRack project attachment,
-  private network, subnet, gateway, and load balancers even when all compute is
-  dedicated.
+  `ovh.cloudproject.Project` creates it, and its `projectId` is passed directly
+  to the vRack project attachment, private network, subnet, gateway, and load
+  balancers even when all compute is dedicated. Production deletion protection
+  must remain enabled.
 - **The vRack `/24` has fixed owners.** Neutron/DHCP owns `.2-.99`, MetalLB
   owns `.100-.149`, dedicated control planes own `.150-.199`, and dedicated
   workers own `.200-.254`. Change `CLUSTER_ADDRESS_PLAN`, the subnet, MetalLB,

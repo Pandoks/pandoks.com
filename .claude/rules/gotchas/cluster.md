@@ -15,7 +15,8 @@ paths:
   `PRODUCTION_CLUSTER_CONFIG` and `NON_PRODUCTION_CLUSTER_CONFIG` both currently
   set all four counts to zero. Fill dedicated catalog fields only in the
   selected stage object when its dedicated counts become non-zero. CI retains
-  OVH credentials and project ID and runs the TypeScript topology contracts.
+  only the OVH credentials; Pulumi creates the Public Cloud project and passes
+  its generated ID directly. CI runs the TypeScript topology contracts.
   `OVH_UNPROTECTED_NODE_LOGICAL_NAME` is a temporary operator-only scale-down
   override. When total count is zero, stale OVH cluster Tailnet entries are
   reclaimed. Use `infra/cluster/README.md` for preview, scaling, migration,

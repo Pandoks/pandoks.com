@@ -1,5 +1,5 @@
 import { isProduction, STAGE_NAME } from '../dns';
-import { getFlavorId, getImageId, getLoadBalancerFlavorId } from '../ovh';
+import { createOvhCloudProject, getFlavorId, getImageId, getLoadBalancerFlavorId } from '../ovh';
 import { deleteTailscaleDevices } from '../tailscale';
 import { createClusterLoadBalancers } from './load-balancers';
 import { createClusterNetwork } from './network';
@@ -90,17 +90,25 @@ if (unprotectedNodeWarning) {
   console.warn(unprotectedNodeWarning);
 }
 
-const network = provisionClusterInfrastructure
+const cloudProject = provisionClusterInfrastructure
+  ? createOvhCloudProject({
+      stageName: STAGE_NAME,
+      protect: isProduction
+    })
+  : undefined;
+const network = cloudProject
   ? createClusterNetwork({
+      serviceName: cloudProject.projectId,
       region: REGION,
       cidr: NETWORK_CIDR,
       gatewayModel: GATEWAY_MODEL
     })
   : undefined;
 
-const loadBalancerFlavorId = topology.nodes.length
-  ? await getLoadBalancerFlavorId(REGION, LOAD_BALANCER_FLAVOR)
-  : '';
+const loadBalancerFlavorId =
+  topology.nodes.length && cloudProject
+    ? getLoadBalancerFlavorId(cloudProject.projectId, REGION, LOAD_BALANCER_FLAVOR)
+    : '';
 const loadBalancers = network
   ? createClusterLoadBalancers({
       nodes: topology.nodes,
@@ -123,12 +131,18 @@ const apiAddress = loadBalancers.apiAddress ?? $output('');
 const publicCloudPools = NODE_POOLS.filter(
   (pool): pool is PublicCloudNodePool => pool.provider === 'public-cloud'
 );
-const publicCloudCatalog = new Map<string, { flavorId: string; imageId: string }>();
+const publicCloudCatalog = new Map<
+  string,
+  { flavorId: $util.Input<string>; imageId: $util.Input<string> }
+>();
 for (const pool of publicCloudPools) {
   if (pool.count > 0) {
+    if (!cloudProject) {
+      throw new Error('Public Cloud nodes require the managed Public Cloud project');
+    }
     publicCloudCatalog.set(pool.name, {
-      flavorId: await getFlavorId(pool.region, pool.flavor),
-      imageId: await getImageId(pool.region, pool.image)
+      flavorId: getFlavorId(cloudProject.projectId, pool.region, pool.flavor),
+      imageId: getImageId(cloudProject.projectId, pool.region, pool.image)
     });
   }
 }
@@ -178,9 +192,12 @@ if (clusterNodes.length === 0) {
 }
 
 export const publicIngressLoadBalancers = loadBalancers.publicIngress;
-export const outputs = Object.fromEntries(
-  publicIngressLoadBalancers.map((loadBalancer, index): [string, $util.Output<string>] => [
-    `IngressLoadBalancer${index}`,
-    loadBalancer.floatingIp.apply((floatingIp) => floatingIp.ip)
-  ])
-);
+export const outputs = {
+  CloudProjectId: cloudProject?.projectId ?? '',
+  ...Object.fromEntries(
+    publicIngressLoadBalancers.map((loadBalancer, index): [string, $util.Output<string>] => [
+      `IngressLoadBalancer${index}`,
+      loadBalancer.floatingIp.apply((floatingIp) => floatingIp.ip)
+    ])
+  )
+};

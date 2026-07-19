@@ -62,10 +62,10 @@ manually import` comment at `sst.config.ts:34` is load-bearing.
   (`infra/cluster/cluster.ts`). Multi-region requires multiple clusters +
   Cloudflare DNS steering.
 - **The Public Cloud project remains required with dedicated compute.**
-  `infra/cluster/network.ts` and `load-balancers.ts` use
-  `OVH_CLOUD_PROJECT_SERVICE` for the vRack attachment, private network,
-  subnet, gateway, load balancers, and floating IPs. Never remove the project
-  as part of a compute-only migration.
+  `infra/cluster/cluster.ts` creates it with `ovh.cloudproject.Project` and
+  passes its generated `projectId` to the vRack attachment, private network,
+  subnet, gateway, load balancers, and floating IPs. Never unprotect or remove
+  the project as part of a compute-only migration.
 - **Four independent pools are configured in `infra/cluster/cluster.ts`.**
   Dedicated plan, datacenter, order-region, and option values must be validated
   against the live authenticated catalog, then reviewed in an authenticated

@@ -1,50 +1,80 @@
-export const OVH_CLOUD_PROJECT_SERVICE = process.env.OVH_CLOUD_PROJECT_SERVICE?.trim() ?? '';
-
-export function requireOvhCloudProjectService(): string {
-  if (!OVH_CLOUD_PROJECT_SERVICE) {
-    throw new Error(
-      'OVH_CLOUD_PROJECT_SERVICE is required for the cluster network and load balancers'
-    );
-  }
-  return OVH_CLOUD_PROJECT_SERVICE;
-}
-
-export async function getFlavorId(region: string, flavorName: string): Promise<string> {
-  const flavorsResult = await ovh.cloudproject.getFlavors({
-    serviceName: requireOvhCloudProjectService(),
-    region,
-    nameFilter: flavorName
-  });
-  const flavor = flavorsResult.flavors.at(0);
-  if (!flavor) {
-    throw new Error(`Flavor ${flavorName} isn't available in ${region}`);
-  }
-  return flavor.id;
-}
-
-export async function getImageId(region: string, imageName: string): Promise<string> {
-  const imagesResult = await ovh.cloudproject.getImages({
-    serviceName: requireOvhCloudProjectService(),
-    region,
-    osType: 'linux'
-  });
-  const image = imagesResult.images.find((availableImage) => availableImage.name === imageName);
-  if (!image) {
-    throw new Error(`Image ${imageName} isn't available in ${region}`);
-  }
-  return image.id;
-}
-
-export async function getLoadBalancerFlavorId(region: string, flavorName: string): Promise<string> {
-  const flavorsResult = await ovh.cloudproject.getLoadBalancerFlavors({
-    serviceName: requireOvhCloudProjectService(),
-    regionName: region
-  });
-  const flavor = flavorsResult.flavors.find(
-    (availableFlavor) => availableFlavor.name === flavorName
+export function createOvhCloudProject(args: {
+  stageName: string;
+  protect: boolean;
+}): ovh.cloudproject.Project {
+  return new ovh.cloudproject.Project(
+    'OvhPublicCloudProject',
+    {
+      deletionProtection: args.protect,
+      description: `Pandoks ${args.stageName} Public Cloud project`,
+      ovhSubsidiary: 'US',
+      plan: {
+        duration: 'P1M',
+        planCode: 'project',
+        pricingMode: 'default'
+      }
+    },
+    { protect: args.protect }
   );
-  if (!flavor) {
-    throw new Error(`Load balancer flavor ${flavorName} isn't available in ${region}`);
-  }
-  return flavor.id;
+}
+
+export function getFlavorId(
+  serviceName: $util.Input<string>,
+  region: string,
+  flavorName: string
+): $util.Output<string> {
+  return ovh.cloudproject
+    .getFlavorsOutput({
+      serviceName,
+      region,
+      nameFilter: flavorName
+    })
+    .apply((flavorsResult) => {
+      const flavor = flavorsResult.flavors.at(0);
+      if (!flavor) {
+        throw new Error(`Flavor ${flavorName} isn't available in ${region}`);
+      }
+      return flavor.id;
+    });
+}
+
+export function getImageId(
+  serviceName: $util.Input<string>,
+  region: string,
+  imageName: string
+): $util.Output<string> {
+  return ovh.cloudproject
+    .getImagesOutput({
+      serviceName,
+      region,
+      osType: 'linux'
+    })
+    .apply((imagesResult) => {
+      const image = imagesResult.images.find((availableImage) => availableImage.name === imageName);
+      if (!image) {
+        throw new Error(`Image ${imageName} isn't available in ${region}`);
+      }
+      return image.id;
+    });
+}
+
+export function getLoadBalancerFlavorId(
+  serviceName: $util.Input<string>,
+  region: string,
+  flavorName: string
+): $util.Output<string> {
+  return ovh.cloudproject
+    .getLoadBalancerFlavorsOutput({
+      serviceName,
+      regionName: region
+    })
+    .apply((flavorsResult) => {
+      const flavor = flavorsResult.flavors.find(
+        (availableFlavor) => availableFlavor.name === flavorName
+      );
+      if (!flavor) {
+        throw new Error(`Load balancer flavor ${flavorName} isn't available in ${region}`);
+      }
+      return flavor.id;
+    });
 }

@@ -25,13 +25,6 @@ new github.ActionsEnvironmentSecret('GithubOvhConsumerKey', {
   plaintextValue: secrets.ovh.ConsumerKey.value
 });
 
-new github.ActionsEnvironmentSecret('GithubOvhCloudProjectService', {
-  repository: githubRepoName,
-  environment: githubEnvironment.environment,
-  secretName: 'OVH_CLOUD_PROJECT_SERVICE',
-  plaintextValue: secrets.ovh.CloudProjectService.value
-});
-
 if (isProduction) {
   new github.BranchProtection('GithubMainBranchProtection', {
     repositoryId: githubRepoName,

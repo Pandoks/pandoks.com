@@ -1,9 +1,9 @@
 import { isProduction, STAGE_NAME } from '../dns';
-import { requireOvhCloudProjectService } from '../ovh';
 import { CLUSTER_ADDRESS_PLAN } from './types';
 
 export type ClusterNetwork = {
   cidr: string;
+  serviceName: $util.Input<string>;
   vrack: ovh.vrack.Vrack;
   privateNetwork: ovh.cloudproject.NetworkPrivate;
   subnet: ovh.cloudproject.NetworkPrivateSubnet;
@@ -12,11 +12,11 @@ export type ClusterNetwork = {
 };
 
 export function createClusterNetwork(args: {
+  serviceName: $util.Input<string>;
   region: string;
   cidr: string;
   gatewayModel: string;
 }): ClusterNetwork {
-  const serviceName = requireOvhCloudProjectService();
   const vrack = new ovh.vrack.Vrack(
     'OvhK3sVrack',
     {
@@ -36,7 +36,7 @@ export function createClusterNetwork(args: {
     'OvhK3sVrackCloudProject',
     {
       serviceName: vrack.serviceName,
-      projectId: serviceName
+      projectId: args.serviceName
     },
     { dependsOn: [vrack] }
   );
@@ -44,7 +44,7 @@ export function createClusterNetwork(args: {
   const privateNetwork = new ovh.cloudproject.NetworkPrivate(
     'OvhK3sPrivateNetwork',
     {
-      serviceName,
+      serviceName: args.serviceName,
       name: `k3s-private-${STAGE_NAME}-network`,
       regions: [args.region],
       vlanId: 0
@@ -54,7 +54,7 @@ export function createClusterNetwork(args: {
 
   const subnetPrefix = args.cidr.split('.').slice(0, 3).join('.');
   const subnet = new ovh.cloudproject.NetworkPrivateSubnet('OvhK3sSubnet', {
-    serviceName,
+    serviceName: args.serviceName,
     networkId: privateNetwork.id,
     region: args.region,
     network: args.cidr,
@@ -72,7 +72,7 @@ export function createClusterNetwork(args: {
   });
 
   const gateway = new ovh.cloudproject.Gateway('OvhK3sGateway', {
-    serviceName,
+    serviceName: args.serviceName,
     name: `k3s-${STAGE_NAME}-gateway`,
     model: args.gatewayModel,
     region: args.region,
@@ -82,6 +82,7 @@ export function createClusterNetwork(args: {
 
   return {
     cidr: args.cidr,
+    serviceName: args.serviceName,
     vrack,
     privateNetwork,
     subnet,

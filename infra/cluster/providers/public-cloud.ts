@@ -1,5 +1,4 @@
 import { isProduction } from '../../dns';
-import { requireOvhCloudProjectService } from '../../ovh';
 import { createNodeBootstrap, deleteServerFromTailnet } from '../bootstrap';
 import type { ClusterNetwork } from '../network';
 import type { ClusterNodeSpec, PublicCloudNodePool } from '../types';
@@ -15,8 +14,8 @@ export function createPublicCloudNode(args: {
   spec: ClusterNodeSpec & { pool: PublicCloudNodePool };
   network: ClusterNetwork;
   apiAddress: $util.Input<string>;
-  flavorId: string;
-  imageId: string;
+  flavorId: $util.Input<string>;
+  imageId: $util.Input<string>;
   protect: boolean;
 }): ClusterNode {
   const bootstrap = createNodeBootstrap({
@@ -30,7 +29,7 @@ export function createPublicCloudNode(args: {
   const instance = new ovh.cloudproject.Instance(
     args.spec.logicalName,
     {
-      serviceName: requireOvhCloudProjectService(),
+      serviceName: args.network.serviceName,
       name: args.spec.hostname,
       region: args.spec.pool.region,
       billingPeriod: 'hourly',

@@ -1,19 +1,10 @@
 import { execSync } from 'node:child_process';
-import {
-  getClusterNodeCount,
-  getClusterStageConfig,
-  shouldProvisionClusterInfrastructure
-} from './cluster/config';
+import { getClusterNodeCount, getClusterStageConfig } from './cluster/config';
 
 const isProductionStage = $app.stage === 'production';
 const clusterConfig = getClusterStageConfig(isProductionStage);
 const clusterHasNodes = getClusterNodeCount(clusterConfig) > 0;
 const DISABLED_CLUSTER_PLACEHOLDER = 'unused-disabled-cluster';
-const cloudProjectServicePlaceholder =
-  process.env.OVH_CLOUD_PROJECT_SERVICE ??
-  (shouldProvisionClusterInfrastructure(isProductionStage, clusterConfig)
-    ? undefined
-    : DISABLED_CLUSTER_PLACEHOLDER);
 const k3sTokenPlaceholder = clusterHasNodes ? undefined : DISABLED_CLUSTER_PLACEHOLDER;
 
 export const secrets = {
@@ -57,7 +48,6 @@ export const secrets = {
   ovh: {
     ApplicationSecret: new sst.Secret('OvhApplicationSecret', process.env.OVH_APPLICATION_SECRET),
     ConsumerKey: new sst.Secret('OvhConsumerKey', process.env.OVH_CONSUMER_KEY),
-    CloudProjectService: new sst.Secret('OvhCloudProjectService', cloudProjectServicePlaceholder),
     K3sToken: new sst.Secret('OvhK3sToken', k3sTokenPlaceholder)
   },
   tailscale: {

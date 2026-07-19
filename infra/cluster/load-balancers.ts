@@ -1,5 +1,4 @@
 import { STAGE_NAME } from '../dns';
-import { requireOvhCloudProjectService } from '../ovh';
 import type { ClusterNetwork } from './network';
 import {
   CLUSTER_INGRESS_LOAD_BALANCERS_PER_GROUP,
@@ -25,10 +24,10 @@ export function createClusterLoadBalancers(args: {
   nodes: readonly ClusterNodeSpec[];
   network: ClusterNetwork;
   region: string;
-  flavorId: string;
+  flavorId: $util.Input<string>;
   algorithm: string;
 }): ClusterLoadBalancers {
-  const serviceName = requireOvhCloudProjectService();
+  const serviceName = args.network.serviceName;
   const controlPlanes = args.nodes.filter((node) => node.role === 'control-plane');
   const ingressNodes = args.nodes.filter((node) => node.ingress);
 

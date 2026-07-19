@@ -5,14 +5,19 @@ vRack network. Cluster traffic uses the vRack network. Tailscale is only for
 administrator SSH and Kubernetes API access.
 
 The OVH Public Cloud project remains required even when every compute node is a
-dedicated server. `OVH_CLOUD_PROJECT_SERVICE` is the non-secret ID of an
-existing Public Cloud project, not an API credential. This stack consumes that
-project; creating one with the provider is a separate billable bootstrap design
-that requires current subsidiary, payment, and order-plan inputs. The existing
-project owns the vRack attachment, private network, subnet, gateway, private API
-load balancer, public ingress load balancers, and floating IPs. Do not remove
-the project ID or cancel the Public Cloud project when migrating compute to
-dedicated servers.
+dedicated server. The stack creates and lifecycle-manages the project with
+`ovh.cloudproject.Project`; its generated `projectId` is passed directly to the
+vRack attachment, private network, subnet, gateway, private API load balancer,
+public ingress load balancers, floating IPs, and Public Cloud instances. It is
+not an environment variable or credential. Production enables both OVH
+deletion protection and Pulumi resource protection for the project. Do not
+cancel or unprotect the project when migrating compute to dedicated servers.
+
+The US project order uses the current no-cost `project` catalog plan with
+monthly duration and default pricing. A default OVH payment method is still
+required for the order workflow. The deployed `CloudProjectId` SST output is
+the generated project ID for operator visibility; consumers inside the stack
+use the Pulumi output directly.
 
 Cluster nodes receive no provider SSH key and public SSH is not an access path.
 Administration uses Tailscale SSH as `pandoks`; recovery uses the OVH console or
@@ -124,9 +129,8 @@ kubectl get nodes -o wide
 7. Reduce only the matching count in `infra/cluster/config.ts` for each node
    already removed.
 
-Keep `OVH_CLOUD_PROJECT_SERVICE` and the Public Cloud project after the Public
-Cloud compute counts reach zero. Dedicated nodes still use its network and load
-balancers.
+Keep the Pulumi-managed Public Cloud project after the Public Cloud compute
+counts reach zero. Dedicated nodes still use its network and load balancers.
 
 ## Scale down
 

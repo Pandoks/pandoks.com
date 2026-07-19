@@ -15,6 +15,8 @@ const dedicated = readFileSync('infra/cluster/providers/dedicated.ts', 'utf8');
 const envExample = readFileSync('.env.example', 'utf8');
 const runbook = readFileSync('infra/cluster/README.md', 'utf8');
 const secrets = readFileSync('infra/secrets.ts', 'utf8');
+const githubInfra = readFileSync('infra/github.ts', 'utf8');
+const ovhHelpers = readFileSync('infra/ovh.ts', 'utf8');
 const cloudflare = readFileSync('infra/cloudflare.ts', 'utf8');
 const credentials = readFileSync('k3s/base/core/credentials.yaml', 'utf8');
 const network = readFileSync('infra/cluster/network.ts', 'utf8');
@@ -268,7 +270,7 @@ void test('enables PROXY v2 on both OVH load balancers and HAProxy Ingress', () 
   assert.match(ingress, /use-proxy-protocol:\s*"true"/);
 });
 
-void test('keeps topology in code and credentials in both CI SST environments', () => {
+void test('keeps topology and the Public Cloud project in code and only credentials in CI', () => {
   const topologyVariables = [
     'OVH_CLOUD_CONTROL_PLANE_COUNT',
     'OVH_CLOUD_WORKER_COUNT',
@@ -287,19 +289,43 @@ void test('keeps topology in code and credentials in both CI SST environments', 
     assert.doesNotMatch(workflow, /scripts\/cluster\/validate-topology-env\.sh/);
     assert.match(workflow, /OVH_APPLICATION_SECRET:\s*\$\{\{ secrets\.OVH_APPLICATION_SECRET \}\}/);
     assert.match(workflow, /OVH_CONSUMER_KEY:\s*\$\{\{ secrets\.OVH_CONSUMER_KEY \}\}/);
-    assert.match(
-      workflow,
-      /OVH_CLOUD_PROJECT_SERVICE:\s*\$\{\{ secrets\.OVH_CLOUD_PROJECT_SERVICE \}\}/
-    );
+    assert.doesNotMatch(workflow, /OVH_CLOUD_PROJECT_SERVICE/);
     assert.doesNotMatch(workflow, /OVH_UNPROTECTED_NODE_LOGICAL_NAME:\s*\$\{\{/);
   }
 
   for (const variable of topologyVariables) {
     assert.doesNotMatch(envExample, new RegExp(`^${variable}=`, 'm'));
   }
+  assert.doesNotMatch(envExample, /OVH_CLOUD_PROJECT_SERVICE/);
+  assert.doesNotMatch(secrets, /CloudProjectService|OVH_CLOUD_PROJECT_SERVICE/);
+  assert.doesNotMatch(githubInfra, /GithubOvhCloudProjectService|OVH_CLOUD_PROJECT_SERVICE/);
   assert.match(envExample, /^OVH_UNPROTECTED_NODE_LOGICAL_NAME=$/m);
   assert.match(runbook, /infra\/cluster\/config\.ts/);
   assert.doesNotMatch(runbook, /GitHub environment variables/);
+});
+
+void test('creates the US Public Cloud project in Pulumi and threads its generated ID', () => {
+  assert.match(ovhHelpers, /new ovh\.cloudproject\.Project\(\s*'OvhPublicCloudProject'/s);
+  assert.match(ovhHelpers, /deletionProtection:\s*args\.protect/);
+  assert.match(ovhHelpers, /ovhSubsidiary:\s*'US'/);
+  assert.match(
+    ovhHelpers,
+    /plan:\s*\{\s*duration:\s*'P1M',\s*planCode:\s*'project',\s*pricingMode:\s*'default'\s*\}/s
+  );
+  assert.match(ovhHelpers, /\{\s*protect:\s*args\.protect\s*\}\s*\)/s);
+  assert.doesNotMatch(ovhHelpers, /OVH_CLOUD_PROJECT_SERVICE|process\.env/);
+
+  assert.match(
+    cluster,
+    /createOvhCloudProject\(\{\s*stageName:\s*STAGE_NAME,\s*protect:\s*isProduction/s
+  );
+  assert.match(cluster, /createClusterNetwork\(\{\s*serviceName:\s*cloudProject\.projectId,/s);
+  assert.match(cluster, /CloudProjectId:\s*cloudProject\?\.projectId\s*\?\?\s*''/s);
+  assert.match(network, /serviceName:\s*\$util\.Input<string>/);
+  assert.match(network, /projectId:\s*args\.serviceName/);
+  assert.match(loadBalancers, /serviceName\s*=\s*args\.network\.serviceName/);
+  assert.match(loadBalancers, /flavorId:\s*\$util\.Input<string>/);
+  assert.match(publicCloud, /serviceName:\s*args\.network\.serviceName/);
 });
 
 void test('deletes only the exact hostname returned by a Tailscale prefix query', () => {
@@ -339,7 +365,10 @@ void test('active cluster rules describe code-owned zero topology and CI contrac
   assert.match(rules, /NON_PRODUCTION_CLUSTER_CONFIG/);
   assert.match(rules, /both currently\s+set all four counts to zero/i);
   assert.match(rules, /dedicated catalog fields[\s\S]*stage object[\s\S]*counts become non-zero/i);
-  assert.match(rules, /OVH credentials[\s\S]*project ID[\s\S]*TypeScript topology contracts/i);
+  assert.match(
+    rules,
+    /OVH credentials[\s\S]*Public Cloud project[\s\S]*TypeScript topology contracts/i
+  );
   assert.match(rules, /OVH_UNPROTECTED_NODE_LOGICAL_NAME[\s\S]*temporary operator-only/i);
 });
 
@@ -397,7 +426,8 @@ void test('zero-node dev VPS does not require Public Cloud or k3s-only inputs', 
     cluster,
     /shouldProvisionClusterInfrastructure\(\s*isProduction,\s*CLUSTER_CONFIG\s*\)/s
   );
-  assert.match(cluster, /provisionClusterInfrastructure\s*\?\s*createClusterNetwork\(/s);
+  assert.match(cluster, /const cloudProject = provisionClusterInfrastructure\s*\?/s);
+  assert.match(cluster, /const network = cloudProject\s*\?\s*createClusterNetwork\(/s);
   assert.match(
     secrets,
     /ApplicationSecret:\s*new sst\.Secret\(\s*'OvhApplicationSecret',\s*process\.env\.OVH_APPLICATION_SECRET\s*\)/s
@@ -407,10 +437,7 @@ void test('zero-node dev VPS does not require Public Cloud or k3s-only inputs', 
     /ConsumerKey:\s*new sst\.Secret\(\s*'OvhConsumerKey',\s*process\.env\.OVH_CONSUMER_KEY\s*\)/s
   );
   assert.match(secrets, /const DISABLED_CLUSTER_PLACEHOLDER = 'unused-disabled-cluster'/);
-  assert.match(
-    secrets,
-    /CloudProjectService:\s*new sst\.Secret\(\s*'OvhCloudProjectService',\s*cloudProjectServicePlaceholder\s*\)/s
-  );
+  assert.doesNotMatch(secrets, /CloudProjectService|OVH_CLOUD_PROJECT_SERVICE/);
   assert.match(
     secrets,
     /K3sToken:\s*new sst\.Secret\(\s*'OvhK3sToken',\s*k3sTokenPlaceholder\s*\)/s
