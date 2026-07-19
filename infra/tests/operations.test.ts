@@ -244,22 +244,22 @@ void test('topology validation and load balancers share capacity constants and d
 void test('cluster monitoring matches the disabled default topology', () => {
   const monitoring = readFileSync('k3s/overlays/cluster/prom-etcd-config.yaml', 'utf8');
   assert.match(
-    cluster,
+    clusterConfigModule,
     /export const clusterConfig = isProduction\s*\?\s*PRODUCTION_CLUSTER_CONFIG\s*:\s*NON_PRODUCTION_CLUSTER_CONFIG/
   );
   assert.match(
-    cluster,
-    /export const clusterNodeCount =\s*clusterConfig\.cloudControlPlaneCount \+\s*clusterConfig\.cloudWorkerCount \+\s*clusterConfig\.dedicatedControlPlaneCount \+\s*clusterConfig\.dedicatedWorkerCount/
+    clusterConfigModule,
+    /export const clusterNodeCount = NODE_POOLS\.reduce\(\(total, pool\) => total \+ pool\.count, 0\)/
   );
   assert.match(
     cluster,
     /export const shouldProvisionClusterInfrastructure =\s*isProduction \|\| clusterNodeCount > 0/
   );
+  assert.doesNotMatch(clusterConfigModule, /getClusterStageConfig|getClusterNodeCount/);
   assert.doesNotMatch(
-    clusterConfigModule,
-    /getClusterStageConfig|getClusterNodeCount|shouldProvisionClusterInfrastructure/
+    cluster,
+    /getClusterStageConfig|\bCLUSTER_CONFIG\b|PRODUCTION_CLUSTER_CONFIG|NON_PRODUCTION_CLUSTER_CONFIG/
   );
-  assert.doesNotMatch(cluster, /getClusterStageConfig|\bCLUSTER_CONFIG\b/);
   assert.doesNotMatch(cluster, /process\.env\.OVH_(?:CLOUD|DEDICATED)_/);
   assert.match(monitoring, /^\s*endpoints:\s*\[\]\s*$/m);
 });

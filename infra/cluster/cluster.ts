@@ -5,74 +5,17 @@ import { createClusterLoadBalancers } from './load-balancers';
 import { createClusterNetwork } from './network';
 import { createDedicatedNode } from './providers/dedicated';
 import { createPublicCloudNode, type ClusterNode } from './providers/public-cloud';
-import { NON_PRODUCTION_CLUSTER_CONFIG, PRODUCTION_CLUSTER_CONFIG } from './config';
 import {
-  CLUSTER_NETWORK_CIDR,
-  normalizeNodePools,
-  type NodePool,
-  type PublicCloudNodePool
-} from './types';
+  GATEWAY_MODEL,
+  LOAD_BALANCER_ALGORITHM,
+  LOAD_BALANCER_FLAVOR,
+  NODE_POOLS,
+  REGION,
+  clusterNodeCount
+} from './config';
+import { CLUSTER_NETWORK_CIDR, normalizeNodePools, type PublicCloudNodePool } from './types';
 
-const REGION = 'US-WEST-OR-1';
-const GATEWAY_MODEL = 's';
-const LOAD_BALANCER_FLAVOR = 'small';
-const LOAD_BALANCER_ALGORITHM = 'leastConnections';
-export const clusterConfig = isProduction
-  ? PRODUCTION_CLUSTER_CONFIG
-  : NON_PRODUCTION_CLUSTER_CONFIG;
-export const clusterNodeCount =
-  clusterConfig.cloudControlPlaneCount +
-  clusterConfig.cloudWorkerCount +
-  clusterConfig.dedicatedControlPlaneCount +
-  clusterConfig.dedicatedWorkerCount;
 export const shouldProvisionClusterInfrastructure = isProduction || clusterNodeCount > 0;
-
-const NODE_POOLS: readonly NodePool[] = [
-  {
-    name: 'cloud-control-plane',
-    provider: 'public-cloud',
-    role: 'control-plane',
-    count: clusterConfig.cloudControlPlaneCount,
-    ingress: true,
-    flavor: 'b3-8',
-    image: 'Ubuntu 24.04',
-    region: REGION
-  },
-  {
-    name: 'cloud-workers',
-    provider: 'public-cloud',
-    role: 'worker',
-    count: clusterConfig.cloudWorkerCount,
-    ingress: true,
-    flavor: 'b3-8',
-    image: 'Ubuntu 24.04',
-    region: REGION
-  },
-  {
-    name: 'dedicated-control-plane',
-    provider: 'dedicated',
-    role: 'control-plane',
-    count: clusterConfig.dedicatedControlPlaneCount,
-    ingress: true,
-    plan: clusterConfig.dedicatedPlan,
-    operatingSystem: 'ubuntu2404-server_64',
-    datacenter: clusterConfig.dedicatedDatacenter,
-    orderRegion: clusterConfig.dedicatedOrderRegion,
-    planOptions: clusterConfig.dedicatedPlanOptions
-  },
-  {
-    name: 'dedicated-workers',
-    provider: 'dedicated',
-    role: 'worker',
-    count: clusterConfig.dedicatedWorkerCount,
-    ingress: true,
-    plan: clusterConfig.dedicatedPlan,
-    operatingSystem: 'ubuntu2404-server_64',
-    datacenter: clusterConfig.dedicatedDatacenter,
-    orderRegion: clusterConfig.dedicatedOrderRegion,
-    planOptions: clusterConfig.dedicatedPlanOptions
-  }
-];
 
 const topology = normalizeNodePools(NODE_POOLS, STAGE_NAME, CLUSTER_NETWORK_CIDR);
 for (const warning of topology.warnings) {

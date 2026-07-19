@@ -1,4 +1,10 @@
-import type { DedicatedPlanOption } from './types';
+import { isProduction } from '../utils';
+import type { DedicatedPlanOption, NodePool } from './types';
+
+export const REGION = 'US-WEST-OR-1';
+export const GATEWAY_MODEL = 's';
+export const LOAD_BALANCER_FLAVOR = 'small';
+export const LOAD_BALANCER_ALGORITHM = 'leastConnections';
 
 export type ClusterStageConfig = {
   cloudControlPlaneCount: number;
@@ -32,3 +38,56 @@ export const NON_PRODUCTION_CLUSTER_CONFIG: ClusterStageConfig = {
   dedicatedOrderRegion: '',
   dedicatedPlanOptions: []
 };
+
+export const clusterConfig = isProduction
+  ? PRODUCTION_CLUSTER_CONFIG
+  : NON_PRODUCTION_CLUSTER_CONFIG;
+
+export const NODE_POOLS: readonly NodePool[] = [
+  {
+    name: 'cloud-control-plane',
+    provider: 'public-cloud',
+    role: 'control-plane',
+    count: clusterConfig.cloudControlPlaneCount,
+    ingress: true,
+    flavor: 'b3-8',
+    image: 'Ubuntu 24.04',
+    region: REGION
+  },
+  {
+    name: 'cloud-workers',
+    provider: 'public-cloud',
+    role: 'worker',
+    count: clusterConfig.cloudWorkerCount,
+    ingress: true,
+    flavor: 'b3-8',
+    image: 'Ubuntu 24.04',
+    region: REGION
+  },
+  {
+    name: 'dedicated-control-plane',
+    provider: 'dedicated',
+    role: 'control-plane',
+    count: clusterConfig.dedicatedControlPlaneCount,
+    ingress: true,
+    plan: clusterConfig.dedicatedPlan,
+    operatingSystem: 'ubuntu2404-server_64',
+    datacenter: clusterConfig.dedicatedDatacenter,
+    orderRegion: clusterConfig.dedicatedOrderRegion,
+    planOptions: clusterConfig.dedicatedPlanOptions
+  },
+  {
+    name: 'dedicated-workers',
+    provider: 'dedicated',
+    role: 'worker',
+    count: clusterConfig.dedicatedWorkerCount,
+    ingress: true,
+    plan: clusterConfig.dedicatedPlan,
+    operatingSystem: 'ubuntu2404-server_64',
+    datacenter: clusterConfig.dedicatedDatacenter,
+    orderRegion: clusterConfig.dedicatedOrderRegion,
+    planOptions: clusterConfig.dedicatedPlanOptions
+  }
+];
+
+export const clusterNodeCount = NODE_POOLS.reduce((total, pool) => total + pool.count, 0);
