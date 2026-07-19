@@ -7,7 +7,7 @@ import {
   NODE_POOL_IDENTITIES,
   normalizeNodePools,
   type NodePool
-} from './types.ts';
+} from '../cluster/types.ts';
 
 const cloudControlPlane = {
   name: 'cloud-control-plane',

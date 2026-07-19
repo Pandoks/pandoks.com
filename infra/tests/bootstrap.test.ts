@@ -5,7 +5,7 @@ import {
   renderBootstrapEnvironment,
   renderCloudInitTransport,
   renderDedicatedTransport
-} from './bootstrap-render.ts';
+} from '../cluster/bootstrap-render.ts';
 
 const environment = {
   STAGE_NAME: 'prod',

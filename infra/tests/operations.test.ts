@@ -7,7 +7,7 @@ import {
   CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY,
   CLUSTER_NETWORK_DHCP_CONSUMERS,
   getClusterDhcpAllocationDemand
-} from './types.ts';
+} from '../cluster/types.ts';
 
 const cluster = readFileSync('infra/cluster/cluster.ts', 'utf8');
 const publicCloud = readFileSync('infra/cluster/providers/public-cloud.ts', 'utf8');

@@ -5,7 +5,7 @@ import {
   PRODUCTION_CLUSTER_CONFIG,
   getClusterStageConfig,
   shouldProvisionClusterInfrastructure
-} from './config.ts';
+} from '../cluster/config.ts';
 
 const emptyConfig = {
   cloudControlPlaneCount: 0,
