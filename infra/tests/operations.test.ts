@@ -186,6 +186,7 @@ void test('keeps network, node pools, and MetalLB on one non-overlapping address
     /ovh\.cloudproject\.(?:NetworkPrivate|NetworkPrivateSubnet|Gateway)/
   );
   assert.match(network, /cidr:\s*'10\.0\.0\.0\/16'/);
+  assert.match(network, /gatewayIp:\s*'10\.0\.0\.1'/);
   assert.match(
     network,
     /allocationPools:\s*\[\s*\{\s*start:\s*'10\.0\.0\.2',\s*end:\s*'10\.0\.0\.254'\s*\}\s*\]/s

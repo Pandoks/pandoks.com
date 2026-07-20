@@ -58,7 +58,8 @@ export function createClusterNetwork(projectId: $util.Input<string>): ClusterNet
     name: `k3s-${STAGE_NAME}-subnet`,
     region: REGION,
     cidr: '10.0.0.0/16',
-    // NOTE: 10.0.0.1 is reserved for Gateway.
+    gatewayIp: '10.0.0.1',
+    // Keep every third-octet block on host numbers .1-.254.
     allocationPools: [{ start: '10.0.0.2', end: '10.0.0.254' }],
     dhcpEnabled: true
   });
