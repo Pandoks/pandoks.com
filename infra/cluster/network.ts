@@ -2,10 +2,9 @@ import { STAGE_NAME, isProduction } from '../utils';
 import { GATEWAY_MODEL, REGION } from './config';
 
 export type ClusterNetwork = {
-  cidr: $util.Output<string>;
-  projectId: $util.Input<string>;
+  projectId: $util.Output<string>;
   vrack: ovh.vrack.Vrack;
-  networkId: $util.Output<string>;
+  network: ovh.CloudNetworkPrivateVrack;
   subnet: ovh.CloudNetworkPrivateVrackSubnet;
   gateway: ovh.CloudGateway;
 };
@@ -63,6 +62,8 @@ export function createClusterNetwork(projectId: $util.Input<string>): ClusterNet
     allocationPools: [{ start: '10.0.0.2', end: '10.0.0.254' }],
     dhcpEnabled: true
   });
+
+  // allows for public internet access
   const gateway = new ovh.CloudGateway('OvhK3sGateway', {
     serviceName: projectId,
     name: `k3s-${STAGE_NAME}-gateway`,
@@ -72,10 +73,9 @@ export function createClusterNetwork(projectId: $util.Input<string>): ClusterNet
   });
 
   return {
-    cidr: subnet.cidr,
-    projectId,
+    projectId: $output(projectId),
     vrack,
-    networkId: privateNetwork.id,
+    network: privateNetwork,
     subnet,
     gateway
   };
