@@ -12,8 +12,6 @@ export const CLUSTER_NETWORK = {
   metalLb: '10.0.5.1-10.0.5.254'
 } as const;
 
-export const CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY = 25;
-
 type NodePoolBase = {
   name: string;
   role: 'control-plane' | 'worker';
@@ -120,13 +118,6 @@ export function buildClusterPlan(pools: readonly NodePool[], stage: string) {
   const controlPlanes = nodes.filter((node) => node.pool.role === 'control-plane');
   if (nodes.length > 0 && controlPlanes.length === 0) {
     throw new Error('Cluster nodes require at least one control-plane node');
-  }
-  if (controlPlanes.length > CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY) {
-    throw new Error(
-      `The single private API load balancer supports at most ` +
-        `${CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY} control-plane members; configured ` +
-        `${controlPlanes.length}`
-    );
   }
   if (controlPlanes[0]) {
     controlPlanes[0].bootstrapCandidate = true;

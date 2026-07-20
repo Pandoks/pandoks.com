@@ -60,13 +60,10 @@ if (topology.nodes.length === 0) {
   }
 }
 
-export const publicIngressLoadBalancers = loadBalancers?.publicIngress ?? [];
+export const publicIngressLoadBalancer = loadBalancers?.publicIngress;
 export const outputs = {
   CloudProjectId: cloudProject.projectId,
-  ...Object.fromEntries(
-    publicIngressLoadBalancers.map((loadBalancer, index): [string, $util.Output<string>] => [
-      `IngressLoadBalancer${index}`,
-      loadBalancer.floatingIp.apply((floatingIp) => floatingIp.ip)
-    ])
-  )
+  ...(publicIngressLoadBalancer && {
+    IngressLoadBalancer: publicIngressLoadBalancer.floatingIp.apply((floatingIp) => floatingIp.ip)
+  })
 };

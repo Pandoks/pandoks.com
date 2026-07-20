@@ -1,7 +1,7 @@
 import { STAGE_NAME } from '../utils';
 import { LOAD_BALANCER_ALGORITHM, LOAD_BALANCER_FLAVOR, REGION } from './config';
 import type { ClusterNetwork } from './network';
-import { CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY, type ClusterNodeSpec } from './topology';
+import type { ClusterNodeSpec } from './topology';
 
 function members(nodes: readonly ClusterNodeSpec[], port: number) {
   return nodes.map((node) => ({
@@ -58,57 +58,37 @@ export function createClusterLoadBalancers(args: {
   });
 
   const ingressNodes = args.nodes.filter((node) => node.pool.ingress);
-  const publicIngress = Array.from(
-    { length: Math.ceil(ingressNodes.length / CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY) },
-    (_, index) => {
-      const groupNodes = ingressNodes.slice(
-        index * CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY,
-        (index + 1) * CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY
-      );
-      const logicalName =
-        index === 0
-          ? 'OvhK3sPublicControlPlaneLoadBalancer0'
-          : `OvhK3sPublicIngressLoadBalancer${index}`;
-
-      return new ovh.cloudproject.LoadBalancer(
-        logicalName,
-        {
-          serviceName: args.network.serviceName,
-          name: `k3s-public-${STAGE_NAME}-ingress-${index}`,
-          regionName: REGION,
-          flavorId,
-          network: {
-            private: {
-              network: {
-                id: args.network.openstackNetworkId,
-                subnetId: args.network.subnet.id
-              },
-              floatingIpCreate: {
-                description: `k3s-public-${STAGE_NAME}-ingress-${index}`
-              },
-              gateway: { id: args.network.gateway.id }
-            }
-          },
-          listeners: [
-            {
-              port: 443,
-              protocol: 'tcp',
-              pool: {
-                algorithm: LOAD_BALANCER_ALGORITHM,
-                // Must match HAProxy Ingress use-proxy-protocol.
-                protocol: 'proxyV2',
-                members: members(groupNodes, 30443),
-                healthMonitor: { monitorType: 'tcp', delay: 10, timeout: 3, maxRetries: 3 }
-              }
-            }
-          ]
+  const publicIngress = new ovh.cloudproject.LoadBalancer('OvhK3sPublicIngressLoadBalancer', {
+    serviceName: args.network.serviceName,
+    name: `k3s-public-${STAGE_NAME}-ingress`,
+    regionName: REGION,
+    flavorId,
+    network: {
+      private: {
+        network: {
+          id: args.network.openstackNetworkId,
+          subnetId: args.network.subnet.id
         },
-        index === 0
-          ? undefined
-          : { aliases: [{ name: `OvhK3sPublicWorkerLoadBalancer${index - 1}` }] }
-      );
-    }
-  );
+        floatingIpCreate: {
+          description: `k3s-public-${STAGE_NAME}-ingress`
+        },
+        gateway: { id: args.network.gateway.id }
+      }
+    },
+    listeners: [
+      {
+        port: 443,
+        protocol: 'tcp',
+        pool: {
+          algorithm: LOAD_BALANCER_ALGORITHM,
+          // Must match HAProxy Ingress use-proxy-protocol.
+          protocol: 'proxyV2',
+          members: members(ingressNodes, 30443),
+          healthMonitor: { monitorType: 'tcp', delay: 10, timeout: 3, maxRetries: 3 }
+        }
+      }
+    ]
+  });
 
   return { apiAddress: api.vipAddress, publicIngress };
 }

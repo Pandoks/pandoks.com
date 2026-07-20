@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
-import { CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY, CLUSTER_NETWORK } from '../cluster/topology.ts';
+import { CLUSTER_NETWORK } from '../cluster/topology.ts';
 
 const cluster = readFileSync('infra/cluster/cluster.ts', 'utf8');
 const clusterConfigModule = readFileSync('infra/cluster/config.ts', 'utf8');
@@ -193,10 +193,14 @@ void test('keeps network, node pools, and MetalLB on one non-overlapping address
   assert.doesNotMatch(bootstrapScript, /\$\{NODE_IP\}\/24/);
 });
 
-void test('topology validation and load balancers share their member capacity', () => {
-  assert.equal(CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY, 25);
-  assert.match(loadBalancers, /CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY/);
-  assert.doesNotMatch(loadBalancers, /INGRESS_LOAD_BALANCERS_PER_GROUP|MEMBER_CAPACITY\s*=\s*25/);
+void test('uses one load balancer per traffic plane without an invented member cap', () => {
+  assert.equal(loadBalancers.match(/new ovh\.cloudproject\.LoadBalancer/g)?.length, 2);
+  assert.doesNotMatch(clusterTopology, /LOAD_BALANCER_MEMBER_CAPACITY|control-plane members/);
+  assert.doesNotMatch(loadBalancers, /LOAD_BALANCER_MEMBER_CAPACITY|Math\.ceil|\.slice\(/);
+  assert.match(loadBalancers, /members:\s*members\(ingressNodes,\s*30443\)/);
+  assert.match(cluster, /export const publicIngressLoadBalancer = loadBalancers\?\.publicIngress/);
+  assert.doesNotMatch(cluster, /publicIngressLoadBalancers/);
+  assert.match(cloudflare, /if \(publicIngressLoadBalancer && !isProduction\)/);
 });
 
 void test('cluster monitoring matches the disabled default topology', () => {

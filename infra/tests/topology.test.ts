@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY,
   CLUSTER_NETWORK,
   buildClusterPlan,
   getPoolScaleDownTarget,
@@ -180,10 +179,10 @@ void test('rejects invalid cluster shapes', () => {
   );
 });
 
-void test('accepts the maximum supported topology', () => {
+void test('accepts every address available to the configured node pools', () => {
   const result = buildClusterPlan(
     [
-      { ...cloudControlPlane, count: 12 },
+      { ...cloudControlPlane, count: 254 },
       {
         ...cloudControlPlane,
         name: 'cloud-workers',
@@ -191,7 +190,7 @@ void test('accepts the maximum supported topology', () => {
         count: 254,
         subnet: 2
       },
-      { ...dedicatedControlPlane, count: 13 },
+      { ...dedicatedControlPlane, count: 254 },
       {
         ...dedicatedControlPlane,
         name: 'dedicated-workers',
@@ -203,23 +202,19 @@ void test('accepts the maximum supported topology', () => {
     'prod'
   );
 
-  assert.equal(CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY, 25);
-  assert.equal(result.nodes.length, 533);
+  assert.equal(result.nodes.length, 1016);
   assert.equal(result.nodes.at(-1)?.privateIp, '10.0.4.254');
 });
 
-void test('rejects more control planes than the private API load balancer supports', () => {
-  assert.throws(
-    () =>
-      buildClusterPlan(
-        [
-          { ...cloudControlPlane, count: 13 },
-          { ...dedicatedControlPlane, count: 13 }
-        ],
-        'prod'
-      ),
-    /single private API load balancer.*25 control-plane/i
+void test('does not impose a made-up load balancer limit on cluster topology', () => {
+  const result = buildClusterPlan(
+    [
+      { ...cloudControlPlane, count: 13 },
+      { ...dedicatedControlPlane, count: 13 }
+    ],
+    'prod'
   );
+  assert.equal(result.nodes.length, 26);
 });
 
 void test('validates dedicated catalog settings and embedded-etcd HA', () => {
