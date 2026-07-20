@@ -1,11 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
-  CLUSTER_NETWORK,
-  buildClusterPlan,
-  getPoolScaleDownTarget,
-  type NodePool
-} from '../cluster/topology.ts';
+import { buildClusterPlan, getPoolScaleDownTarget, type NodePool } from '../cluster/topology.ts';
 
 const cloudControlPlane = {
   name: 'cloud-control-plane',
@@ -36,15 +31,6 @@ const dedicatedControlPlane = {
   orderRegion: 'canada',
   planOptions: []
 } satisfies NodePool;
-
-void test('owns the private network allocation in one value', () => {
-  assert.deepEqual(CLUSTER_NETWORK, {
-    cidr: '10.0.0.0/16',
-    dhcpStart: '10.0.0.2',
-    dhcpEnd: '10.0.0.254',
-    metalLb: '10.0.5.1-10.0.5.254'
-  });
-});
 
 void test('builds stable identities and role-owned addresses for mixed providers', () => {
   const result = buildClusterPlan(

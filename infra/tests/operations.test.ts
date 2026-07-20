@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
-import { CLUSTER_NETWORK } from '../cluster/topology.ts';
 
 const cluster = readFileSync('infra/cluster/cluster.ts', 'utf8');
 const clusterConfigModule = readFileSync('infra/cluster/config.ts', 'utf8');
@@ -179,8 +178,15 @@ void test('delegates origin TLS issuance and rotation to cert-manager', () => {
 });
 
 void test('keeps network, node pools, and MetalLB on one non-overlapping address plan', () => {
-  assert.equal(CLUSTER_NETWORK.cidr, '10.0.0.0/16');
-  assert.equal(CLUSTER_NETWORK.metalLb, '10.0.5.1-10.0.5.254');
+  const clusterNetwork = {
+    cidr: '10.0.0.0/16',
+    dhcpStart: '10.0.0.2',
+    dhcpEnd: '10.0.0.254',
+    metalLb: '10.0.5.1-10.0.5.254'
+  };
+  for (const [name, value] of Object.entries(clusterNetwork)) {
+    assert.ok(network.includes(`${name}: '${value}'`));
+  }
   assert.match(network, /new ovh\.CloudNetworkPrivateVrack\(/);
   assert.match(network, /new ovh\.CloudNetworkPrivateVrackSubnet\(/);
   assert.match(network, /new ovh\.CloudGateway\(/);
@@ -195,9 +201,9 @@ void test('keeps network, node pools, and MetalLB on one non-overlapping address
   );
   assert.match(network, /dhcpEnabled:\s*true/);
   assert.match(cluster, /buildClusterPlan\(NODE_POOLS, STAGE_NAME\)/);
-  assert.match(metalLb, new RegExp(CLUSTER_NETWORK.metalLb.replaceAll('.', '\\.')));
-  assert.match(clusterTopology, /10\.0\.0\.x\s+OVH\/Neutron infrastructure/);
-  assert.match(clusterTopology, /10\.0\.6-255\.x\s+Reserved/);
+  assert.match(metalLb, new RegExp(clusterNetwork.metalLb.replaceAll('.', '\\.')));
+  assert.match(network, /10\.0\.0\.x\s+OVH\/Neutron infrastructure/);
+  assert.match(network, /10\.0\.6-255\.x\s+Reserved/);
   assert.match(bootstrapScript, /NETWORK_PREFIX_LENGTH="\$\{NETWORK_CIDR##\*\/\}"/);
   assert.match(bootstrapScript, /\$\{NODE_IP\}\/\$\{NETWORK_PREFIX_LENGTH\}/);
   assert.doesNotMatch(bootstrapScript, /\$\{NODE_IP\}\/24/);

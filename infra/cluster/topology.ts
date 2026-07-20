@@ -1,17 +1,3 @@
-// 10.0.0.x            OVH/Neutron infrastructure
-// 10.0.1.x            Public Cloud control planes
-// 10.0.2.x            Public Cloud workers
-// 10.0.3.x            Dedicated control planes
-// 10.0.4.x            Dedicated workers
-// 10.0.5.x            MetalLB services
-// 10.0.6-255.x        Reserved
-export const CLUSTER_NETWORK = {
-  cidr: '10.0.0.0/16',
-  dhcpStart: '10.0.0.2',
-  dhcpEnd: '10.0.0.254',
-  metalLb: '10.0.5.1-10.0.5.254'
-} as const;
-
 type NodePoolBase = {
   name: string;
   role: 'control-plane' | 'worker';
