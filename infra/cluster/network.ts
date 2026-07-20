@@ -59,7 +59,7 @@ export function createClusterNetwork(projectId: $util.Input<string>): ClusterNet
     region: REGION,
     cidr: '10.0.0.0/16',
     gatewayIp: '10.0.0.1',
-    // Keep every third-octet block on host numbers .1-.254.
+    // Keep 10.0.N.x role blocks /24-compatible for future splits without readdressing.
     allocationPools: [{ start: '10.0.0.2', end: '10.0.0.254' }],
     dhcpEnabled: true
   });
