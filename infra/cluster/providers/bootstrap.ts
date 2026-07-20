@@ -49,7 +49,7 @@ export const deleteServerFromTailnet = new $util.ResourceHook(
 export function createNodeBootstrap(args: {
   node: ClusterNodeSpec;
   apiAddress: $util.Input<string>;
-  networkCidr: string;
+  networkCidr: $util.Input<string>;
   networkMode: 'dhcp' | 'static';
   vrackMac?: $util.Input<string>;
   dependsOn: $util.Resource[];
@@ -74,6 +74,7 @@ export function createNodeBootstrap(args: {
 
   const script = $resolve([
     args.apiAddress,
+    args.networkCidr,
     args.vrackMac ?? '',
     secrets.ovh.K3sToken.value,
     tailnetKey.key,
@@ -86,6 +87,7 @@ export function createNodeBootstrap(args: {
   ]).apply(
     ([
       apiAddress,
+      networkCidr,
       vrackMac,
       k3sToken,
       registrationKey,
@@ -100,7 +102,7 @@ export function createNodeBootstrap(args: {
         STAGE_NAME,
         NODE_NAME: args.node.hostname,
         NODE_IP: args.node.privateIp,
-        NETWORK_CIDR: args.networkCidr,
+        NETWORK_CIDR: networkCidr,
         NETWORK_MODE: args.networkMode,
         VRACK_MAC: vrackMac,
         ROLE: args.node.pool.role,

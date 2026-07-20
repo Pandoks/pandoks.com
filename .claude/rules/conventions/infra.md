@@ -123,9 +123,9 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
 - **The vRack `10.0.0.0/16` has fixed third-octet owners.** Neutron
   infrastructure uses `.0`, Public Cloud control planes `.1`, Public Cloud
   workers `.2`, dedicated control planes `.3`, dedicated workers `.4`, and
-  MetalLB `.5`; `.6-.255` is reserved. Change `infra/cluster/network.ts`'s
-  `CLUSTER_NETWORK`, the pool subnets, subnet, MetalLB, monitoring endpoints, and
-  their contract tests together.
+  MetalLB `.5`; `.6-.255` is reserved. Change `infra/cluster/network.ts`'s subnet
+  CIDR and allocation pool, the node-pool subnets, MetalLB, monitoring endpoints,
+  and their contract tests together.
 - **Origin TLS keeps its deployed legacy identities.**
   `secrets.k8s.OriginTlsKey` and `.OriginTlsCrt` deliberately create
   `HetznerOriginTlsKey` and `HetznerOriginTlsCrt`; the OVH-named Cloudflare

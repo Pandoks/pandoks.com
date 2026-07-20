@@ -2,7 +2,7 @@ import { STAGE_NAME, isProduction } from '../utils';
 import { GATEWAY_MODEL, REGION } from './config';
 
 export type ClusterNetwork = {
-  cidr: string;
+  cidr: $util.Output<string>;
   projectId: $util.Input<string>;
   vrack: ovh.vrack.Vrack;
   networkId: $util.Output<string>;
@@ -10,20 +10,17 @@ export type ClusterNetwork = {
   gateway: ovh.CloudGateway;
 };
 
-// 10.0.0.x            OVH/Neutron infrastructure
-// 10.0.1.x            Public Cloud control planes
-// 10.0.2.x            Public Cloud workers
-// 10.0.3.x            Dedicated control planes
-// 10.0.4.x            Dedicated workers
-// 10.0.5.x            MetalLB services
-// 10.0.6-255.x        Reserved
-const CLUSTER_NETWORK = {
-  cidr: '10.0.0.0/16',
-  dhcpStart: '10.0.0.2',
-  dhcpEnd: '10.0.0.254',
-  metalLb: '10.0.5.1-10.0.5.254'
-} as const;
-
+/**
+ * Subnet CIDRs
+ *
+ * 10.0.0.x            OVH/Neutron infrastructure
+ * 10.0.1.x            Public Cloud control planes
+ * 10.0.2.x            Public Cloud workers
+ * 10.0.3.x            Dedicated control planes
+ * 10.0.4.x            Dedicated workers
+ * 10.0.5.x            MetalLB services
+ * 10.0.6-255.x        Reserved
+ */
 export function createClusterNetwork(projectId: $util.Input<string>): ClusterNetwork {
   const vrack = new ovh.vrack.Vrack(
     'OvhK3sVrack',
@@ -60,8 +57,9 @@ export function createClusterNetwork(projectId: $util.Input<string>): ClusterNet
     networkId: privateNetwork.id,
     name: `k3s-${STAGE_NAME}-subnet`,
     region: REGION,
-    cidr: CLUSTER_NETWORK.cidr,
-    allocationPools: [{ start: CLUSTER_NETWORK.dhcpStart, end: CLUSTER_NETWORK.dhcpEnd }],
+    cidr: '10.0.0.0/16',
+    // NOTE: 10.0.0.1 is reserved for Gateway.
+    allocationPools: [{ start: '10.0.0.2', end: '10.0.0.254' }],
     dhcpEnabled: true
   });
   const gateway = new ovh.CloudGateway('OvhK3sGateway', {
@@ -73,7 +71,7 @@ export function createClusterNetwork(projectId: $util.Input<string>): ClusterNet
   });
 
   return {
-    cidr: CLUSTER_NETWORK.cidr,
+    cidr: subnet.cidr,
     projectId,
     vrack,
     networkId: privateNetwork.id,

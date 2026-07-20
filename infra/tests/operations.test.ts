@@ -178,15 +178,6 @@ void test('delegates origin TLS issuance and rotation to cert-manager', () => {
 });
 
 void test('keeps network, node pools, and MetalLB on one non-overlapping address plan', () => {
-  const clusterNetwork = {
-    cidr: '10.0.0.0/16',
-    dhcpStart: '10.0.0.2',
-    dhcpEnd: '10.0.0.254',
-    metalLb: '10.0.5.1-10.0.5.254'
-  };
-  for (const [name, value] of Object.entries(clusterNetwork)) {
-    assert.ok(network.includes(`${name}: '${value}'`));
-  }
   assert.match(network, /new ovh\.CloudNetworkPrivateVrack\(/);
   assert.match(network, /new ovh\.CloudNetworkPrivateVrackSubnet\(/);
   assert.match(network, /new ovh\.CloudGateway\(/);
@@ -194,14 +185,14 @@ void test('keeps network, node pools, and MetalLB on one non-overlapping address
     network,
     /ovh\.cloudproject\.(?:NetworkPrivate|NetworkPrivateSubnet|Gateway)/
   );
-  assert.match(network, /cidr:\s*CLUSTER_NETWORK\.cidr/);
+  assert.match(network, /cidr:\s*'10\.0\.0\.0\/16'/);
   assert.match(
     network,
-    /allocationPools:\s*\[\s*\{\s*start:\s*CLUSTER_NETWORK\.dhcpStart,\s*end:\s*CLUSTER_NETWORK\.dhcpEnd\s*\}\s*\]/s
+    /allocationPools:\s*\[\s*\{\s*start:\s*'10\.0\.0\.2',\s*end:\s*'10\.0\.0\.254'\s*\}\s*\]/s
   );
   assert.match(network, /dhcpEnabled:\s*true/);
   assert.match(cluster, /buildClusterPlan\(NODE_POOLS, STAGE_NAME\)/);
-  assert.match(metalLb, new RegExp(clusterNetwork.metalLb.replaceAll('.', '\\.')));
+  assert.match(metalLb, /10\.0\.5\.1-10\.0\.5\.254/);
   assert.match(network, /10\.0\.0\.x\s+OVH\/Neutron infrastructure/);
   assert.match(network, /10\.0\.6-255\.x\s+Reserved/);
   assert.match(bootstrapScript, /NETWORK_PREFIX_LENGTH="\$\{NETWORK_CIDR##\*\/\}"/);
