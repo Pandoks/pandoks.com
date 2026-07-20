@@ -187,7 +187,7 @@ void test('keeps network, node pools, and MetalLB on one non-overlapping address
   assert.match(cluster, /buildClusterPlan\(NODE_POOLS, STAGE_NAME\)/);
   assert.match(metalLb, new RegExp(CLUSTER_NETWORK.metalLb.replaceAll('.', '\\.')));
   assert.match(clusterTopology, /10\.0\.0\.x\s+OVH\/Neutron infrastructure/);
-  assert.match(clusterTopology, /10\.0\.6\.x-\.255\.x\s+Reserved/);
+  assert.match(clusterTopology, /10\.0\.6-255\.x\s+Reserved/);
   assert.match(bootstrapScript, /NETWORK_PREFIX_LENGTH="\$\{NETWORK_CIDR##\*\/\}"/);
   assert.match(bootstrapScript, /\$\{NODE_IP\}\/\$\{NETWORK_PREFIX_LENGTH\}/);
   assert.doesNotMatch(bootstrapScript, /\$\{NODE_IP\}\/24/);

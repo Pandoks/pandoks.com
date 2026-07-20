@@ -1,17 +1,15 @@
-const NETWORK_PREFIX = '10.0';
-
 // 10.0.0.x            OVH/Neutron infrastructure
 // 10.0.1.x            Public Cloud control planes
 // 10.0.2.x            Public Cloud workers
 // 10.0.3.x            Dedicated control planes
 // 10.0.4.x            Dedicated workers
 // 10.0.5.x            MetalLB services
-// 10.0.6.x-.255.x     Reserved
+// 10.0.6-255.x        Reserved
 export const CLUSTER_NETWORK = {
-  cidr: `${NETWORK_PREFIX}.0.0/16`,
-  dhcpStart: `${NETWORK_PREFIX}.0.2`,
-  dhcpEnd: `${NETWORK_PREFIX}.0.254`,
-  metalLb: `${NETWORK_PREFIX}.5.1-${NETWORK_PREFIX}.5.254`
+  cidr: '10.0.0.0/16',
+  dhcpStart: '10.0.0.2',
+  dhcpEnd: '10.0.0.254',
+  metalLb: '10.0.5.1-10.0.5.254'
 } as const;
 
 export const CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY = 25;
@@ -102,12 +100,12 @@ export function buildClusterPlan(pools: readonly NodePool[], stage: string) {
     if (pool.count > 254) {
       throw new Error(
         `Node pool ${pool.name} count ${pool.count} exceeds ` +
-          `${NETWORK_PREFIX}.${pool.subnet}.1-${NETWORK_PREFIX}.${pool.subnet}.254`
+          `10.0.${pool.subnet}.1-10.0.${pool.subnet}.254`
       );
     }
 
     for (let poolIndex = 0; poolIndex < pool.count; poolIndex += 1) {
-      const privateIp = `${NETWORK_PREFIX}.${pool.subnet}.${poolIndex + 1}`;
+      const privateIp = `10.0.${pool.subnet}.${poolIndex + 1}`;
       nodes.push({
         pool,
         poolIndex,
