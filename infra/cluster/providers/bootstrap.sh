@@ -231,7 +231,7 @@ EOF
     --from-literal=operator-config="$(
       cat << EOF
 operatorConfig:
-  hostname: "${KUBERNETES_TAILSCALE_HOSTNAME}"
+  hostname: "${STAGE_NAME}-cluster"
   defaultTags:
     - tag:k8s-operator
     - tag:k8s

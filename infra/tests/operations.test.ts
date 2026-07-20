@@ -2,18 +2,11 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
-import {
-  CLUSTER_ADDRESS_PLAN,
-  CLUSTER_INGRESS_LOAD_BALANCERS_PER_GROUP,
-  CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY,
-  CLUSTER_NETWORK_CIDR,
-  CLUSTER_NETWORK_INFRASTRUCTURE_CONSUMERS,
-  getClusterInfrastructureAllocationDemand
-} from '../cluster/types.ts';
+import { CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY, CLUSTER_NETWORK } from '../cluster/topology.ts';
 
 const cluster = readFileSync('infra/cluster/cluster.ts', 'utf8');
 const clusterConfigModule = readFileSync('infra/cluster/config.ts', 'utf8');
-const clusterTypes = readFileSync('infra/cluster/types.ts', 'utf8');
+const clusterTopology = readFileSync('infra/cluster/topology.ts', 'utf8');
 const publicCloud = readFileSync('infra/cluster/providers/public-cloud.ts', 'utf8');
 const dedicated = readFileSync('infra/cluster/providers/dedicated.ts', 'utf8');
 const envExample = readFileSync('.env.example', 'utf8');
@@ -87,8 +80,9 @@ void test('protects cluster resources only according to the deployment stage', (
     cluster,
     /OVH_UNPROTECTED_NODE_LOGICAL_NAME|getUnprotectedNodeWarning|isClusterNodeProtected/
   );
-  assert.match(cluster, /createPublicCloudNode\(\{[\s\S]*?protect: isProduction,/);
-  assert.match(cluster, /createDedicatedNode\(\{[\s\S]*?protect: isProduction\s*\}\);/);
+  assert.match(cluster, /const args = \{[\s\S]*?protect: isProduction[\s\S]*?\};/);
+  assert.match(cluster, /createPublicCloudNodes\(\{ \.\.\.args, pool \}\)/);
+  assert.match(cluster, /createDedicatedNodes\(\{ \.\.\.args, pool \}\)/);
   assert.equal(publicCloud.match(/protect: args\.protect/g)?.length, 1);
   assert.equal(dedicated.match(/protect: args\.protect/g)?.length, 2);
 });
@@ -185,59 +179,24 @@ void test('delegates origin TLS issuance and rotation to cert-manager', () => {
 });
 
 void test('keeps network, node pools, and MetalLB on one non-overlapping address plan', () => {
-  assert.equal(CLUSTER_NETWORK_CIDR, '10.0.0.0/16');
-  assert.match(network, /CLUSTER_ADDRESS_PLAN\.infrastructure\.thirdOctet/);
-  assert.match(network, /CLUSTER_ADDRESS_PLAN\.infrastructure\.start/);
-  assert.match(network, /CLUSTER_ADDRESS_PLAN\.infrastructure\.end/);
-  assert.match(network, /formatClusterIp/);
-  assert.match(cluster, /normalizeNodePools\(NODE_POOLS, STAGE_NAME, CLUSTER_NETWORK_CIDR\)/);
-  assert.doesNotMatch(cluster, /privateIpStart/);
-  assert.match(metalLb, /10\.0\.5\.1-10\.0\.5\.254/);
-  assert.match(clusterTypes, /10\.0\.0\.x\s+OVH\/Neutron infrastructure/);
-  assert.match(clusterTypes, /10\.0\.6\.x-10\.0\.255\.x\s+Reserved/);
+  assert.equal(CLUSTER_NETWORK.cidr, '10.0.0.0/16');
+  assert.equal(CLUSTER_NETWORK.metalLb, '10.0.5.1-10.0.5.254');
+  assert.match(network, /network:\s*CLUSTER_NETWORK\.cidr/);
+  assert.match(network, /start:\s*CLUSTER_NETWORK\.dhcpStart/);
+  assert.match(network, /end:\s*CLUSTER_NETWORK\.dhcpEnd/);
+  assert.match(cluster, /buildClusterPlan\(NODE_POOLS, STAGE_NAME\)/);
+  assert.match(metalLb, new RegExp(CLUSTER_NETWORK.metalLb.replaceAll('.', '\\.')));
+  assert.match(clusterTopology, /10\.0\.0\.x\s+OVH\/Neutron infrastructure/);
+  assert.match(clusterTopology, /10\.0\.6\.x-\.255\.x\s+Reserved/);
   assert.match(bootstrapScript, /NETWORK_PREFIX_LENGTH="\$\{NETWORK_CIDR##\*\/\}"/);
   assert.match(bootstrapScript, /\$\{NODE_IP\}\/\$\{NETWORK_PREFIX_LENGTH\}/);
   assert.doesNotMatch(bootstrapScript, /\$\{NODE_IP\}\/24/);
 });
 
-void test('topology validation and load balancers share capacity constants and demand formula', () => {
-  assert.deepEqual(CLUSTER_ADDRESS_PLAN, {
-    infrastructure: { thirdOctet: 0, start: 2, end: 254 },
-    'cloud-control-plane': { thirdOctet: 1, start: 1, end: 254 },
-    'cloud-workers': { thirdOctet: 2, start: 1, end: 254 },
-    'dedicated-control-plane': { thirdOctet: 3, start: 1, end: 254 },
-    'dedicated-workers': { thirdOctet: 4, start: 1, end: 254 },
-    metalLb: { thirdOctet: 5, start: 1, end: 254 },
-    reserved: { startThirdOctet: 6, endThirdOctet: 255 }
-  });
+void test('topology validation and load balancers share their member capacity', () => {
   assert.equal(CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY, 25);
-  assert.equal(CLUSTER_INGRESS_LOAD_BALANCERS_PER_GROUP, 1);
-  assert.equal(CLUSTER_NETWORK_INFRASTRUCTURE_CONSUMERS, 2);
   assert.match(loadBalancers, /CLUSTER_LOAD_BALANCER_MEMBER_CAPACITY/);
-  assert.doesNotMatch(loadBalancers, /MEMBER_CAPACITY\s*=\s*25/);
-  const representativeNodes = [
-    ...Array.from({ length: 3 }, () => ({
-      provider: 'public-cloud' as const,
-      role: 'control-plane' as const,
-      ingress: true
-    })),
-    ...Array.from({ length: 4 }, () => ({
-      provider: 'public-cloud' as const,
-      role: 'worker' as const,
-      ingress: true
-    })),
-    ...Array.from({ length: 2 }, () => ({
-      provider: 'dedicated' as const,
-      role: 'control-plane' as const,
-      ingress: true
-    })),
-    {
-      provider: 'dedicated' as const,
-      role: 'worker' as const,
-      ingress: true
-    }
-  ];
-  assert.equal(getClusterInfrastructureAllocationDemand(representativeNodes), 4);
+  assert.doesNotMatch(loadBalancers, /INGRESS_LOAD_BALANCERS_PER_GROUP|MEMBER_CAPACITY\s*=\s*25/);
 });
 
 void test('cluster monitoring matches the disabled default topology', () => {
@@ -246,10 +205,7 @@ void test('cluster monitoring matches the disabled default topology', () => {
     clusterConfigModule,
     /export const clusterConfig = isProduction\s*\?\s*PRODUCTION_CLUSTER_CONFIG\s*:\s*NON_PRODUCTION_CLUSTER_CONFIG/
   );
-  assert.match(
-    clusterConfigModule,
-    /export const clusterNodeCount = NODE_POOLS\.reduce\(\(total, pool\) => total \+ pool\.count, 0\)/
-  );
+  assert.match(cluster, /topology\.nodes\.length > 0/);
   assert.doesNotMatch(cluster, /shouldProvisionClusterInfrastructure/);
   assert.doesNotMatch(clusterConfigModule, /getClusterStageConfig|getClusterNodeCount/);
   assert.doesNotMatch(
@@ -325,19 +281,18 @@ void test('creates the US Public Cloud project in Pulumi and threads its generat
   assert.match(cluster, /\{\s*protect:\s*isProduction\s*\}\s*\)/s);
   assert.doesNotMatch(cluster, /OVH_CLOUD_PROJECT_SERVICE|process\.env/);
 
-  assert.match(cluster, /createClusterNetwork\(\{\s*serviceName:\s*cloudProject\.projectId,/s);
+  assert.match(cluster, /createClusterNetwork\(cloudProject\.projectId\)/);
   assert.match(cluster, /CloudProjectId:\s*cloudProject\.projectId/s);
-  assert.match(cluster, /ovh\.cloudproject\s*\.getLoadBalancerFlavorsOutput\(/s);
-  assert.match(cluster, /ovh\.cloudproject\s*\.getFlavorsOutput\(/s);
-  assert.match(cluster, /ovh\.cloudproject\s*\.getImagesOutput\(/s);
+  assert.match(loadBalancers, /ovh\.cloudproject\s*\.getLoadBalancerFlavorsOutput\(/s);
+  assert.match(publicCloud, /ovh\.cloudproject\s*\.getFlavorsOutput\(/s);
+  assert.match(publicCloud, /ovh\.cloudproject\s*\.getImagesOutput\(/s);
   assert.doesNotMatch(
     cluster,
     /createOvhCloudProject|getFlavorId|getImageId|getLoadBalancerFlavorId/
   );
   assert.match(network, /serviceName:\s*\$util\.Input<string>/);
-  assert.match(network, /projectId:\s*args\.serviceName/);
-  assert.match(loadBalancers, /serviceName\s*=\s*args\.network\.serviceName/);
-  assert.match(loadBalancers, /flavorId:\s*\$util\.Input<string>/);
+  assert.match(network, /projectId:\s*serviceName/);
+  assert.match(loadBalancers, /serviceName:\s*args\.network\.serviceName/);
   assert.match(publicCloud, /serviceName:\s*args\.network\.serviceName/);
 });
 
@@ -422,7 +377,10 @@ void test('production stack orders an annual protected dev VPS-4 with only stand
 
 void test('zero-node stages keep an empty Public Cloud project without cluster resources', () => {
   assert.match(cluster, /const cloudProject = new ovh\.cloudproject\.Project\(/);
-  assert.match(cluster, /const network =\s*clusterNodeCount > 0\s*\?\s*createClusterNetwork\(/s);
+  assert.match(
+    cluster,
+    /const network =\s*topology\.nodes\.length > 0\s*\?\s*createClusterNetwork\(/s
+  );
   assert.match(
     secrets,
     /ApplicationSecret:\s*new sst\.Secret\(\s*'OvhApplicationSecret',\s*process\.env\.OVH_APPLICATION_SECRET\s*\)/s

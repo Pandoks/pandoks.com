@@ -3,7 +3,7 @@ import { deleteTailscaleDevices, tailscaleAcl } from '../../tailscale';
 import { STAGE_NAME } from '../../utils';
 import { secrets } from '../../secrets';
 import { backupBucket, s3Endpoint } from '../../storage';
-import type { ClusterNodeSpec } from '../types';
+import type { ClusterNodeSpec } from '../topology';
 
 const bootstrapScript = readFileSync(
   `${process.cwd()}/infra/cluster/providers/bootstrap.sh`,
@@ -53,10 +53,7 @@ export function createNodeBootstrap(args: {
   networkMode: 'dhcp' | 'static';
   vrackMac?: $util.Input<string>;
   dependsOn: $util.Resource[];
-}): {
-  script: $util.Output<string>;
-  tailnetKey: tailscale.TailnetKey;
-} {
+}) {
   const tailnetKey = new tailscale.TailnetKey(
     `${args.node.logicalName}TailnetRegistrationAuthKey`,
     {
@@ -67,8 +64,8 @@ export function createNodeBootstrap(args: {
       tags: [
         'tag:ovh',
         `tag:${STAGE_NAME}`,
-        `tag:${args.node.role}`,
-        `tag:${args.node.provider}`,
+        `tag:${args.node.pool.role}`,
+        `tag:${args.node.pool.provider}`,
         `tag:${args.node.pool.name}`
       ]
     },
@@ -78,7 +75,6 @@ export function createNodeBootstrap(args: {
   const script = $resolve([
     args.apiAddress,
     args.vrackMac ?? '',
-    secrets.Stage.value,
     secrets.ovh.K3sToken.value,
     tailnetKey.key,
     secrets.k8s.tailscale.OauthClientId.value,
@@ -91,7 +87,6 @@ export function createNodeBootstrap(args: {
     ([
       apiAddress,
       vrackMac,
-      stageName,
       k3sToken,
       registrationKey,
       operatorClientId,
@@ -102,20 +97,19 @@ export function createNodeBootstrap(args: {
       backupSecretKey
     ]) =>
       renderBootstrapScript({
-        STAGE_NAME: stageName,
+        STAGE_NAME,
         NODE_NAME: args.node.hostname,
         NODE_IP: args.node.privateIp,
         NETWORK_CIDR: args.networkCidr,
         NETWORK_MODE: args.networkMode,
         VRACK_MAC: vrackMac,
-        ROLE: args.node.role,
+        ROLE: args.node.pool.role,
         BOOTSTRAP_CANDIDATE: String(args.node.bootstrapCandidate),
         SERVER_API: `https://${apiAddress}:6443`,
         K3S_TOKEN: k3sToken,
         REGISTRATION_TAILNET_AUTH_KEY: registrationKey,
         KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID: operatorClientId,
         KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET: operatorClientSecret,
-        KUBERNETES_TAILSCALE_HOSTNAME: `${stageName}-cluster`,
         S3_HOST: backupEndpoint,
         BACKUP_BUCKET: bucketName,
         S3_ACCESS_KEY: backupAccessKey,
@@ -123,5 +117,5 @@ export function createNodeBootstrap(args: {
       })
   );
 
-  return { script, tailnetKey };
+  return script;
 }

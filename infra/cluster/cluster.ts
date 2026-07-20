@@ -1,23 +1,14 @@
 import { STAGE_NAME, isProduction } from '../utils';
 import { deleteTailscaleDevices } from '../tailscale';
+import { NODE_POOLS } from './config';
 import { createClusterLoadBalancers } from './load-balancers';
 import { createClusterNetwork } from './network';
-import { createDedicatedNode } from './providers/dedicated';
-import { createPublicCloudNode, type ClusterNode } from './providers/public-cloud';
-import {
-  GATEWAY_MODEL,
-  LOAD_BALANCER_ALGORITHM,
-  LOAD_BALANCER_FLAVOR,
-  NODE_POOLS,
-  REGION,
-  clusterNodeCount
-} from './config';
-import { CLUSTER_NETWORK_CIDR, normalizeNodePools, type PublicCloudNodePool } from './types';
+import { createDedicatedNodes } from './providers/dedicated';
+import { createPublicCloudNodes } from './providers/public-cloud';
+import { buildClusterPlan } from './topology';
 
-const topology = normalizeNodePools(NODE_POOLS, STAGE_NAME, CLUSTER_NETWORK_CIDR);
-for (const warning of topology.warnings) {
-  console.warn(warning);
-}
+const topology = buildClusterPlan(NODE_POOLS, STAGE_NAME);
+for (const warning of topology.warnings) console.warn(warning);
 
 const cloudProject = new ovh.cloudproject.Project(
   'OvhPublicCloudProject',
@@ -33,127 +24,30 @@ const cloudProject = new ovh.cloudproject.Project(
   },
   { protect: isProduction }
 );
+
 const network =
-  clusterNodeCount > 0
-    ? createClusterNetwork({
-        serviceName: cloudProject.projectId,
-        region: REGION,
-        cidr: CLUSTER_NETWORK_CIDR,
-        gatewayModel: GATEWAY_MODEL
-      })
-    : undefined;
+  topology.nodes.length > 0 ? createClusterNetwork(cloudProject.projectId) : undefined;
+const loadBalancers = network && createClusterLoadBalancers({ nodes: topology.nodes, network });
 
-const loadBalancerFlavorId = topology.nodes.length
-  ? ovh.cloudproject
-      .getLoadBalancerFlavorsOutput({
-        serviceName: cloudProject.projectId,
-        regionName: REGION
-      })
-      .apply((flavorsResult) => {
-        const flavor = flavorsResult.flavors.find(
-          (availableFlavor) => availableFlavor.name === LOAD_BALANCER_FLAVOR
-        );
-        if (!flavor) {
-          throw new Error(
-            `Load balancer flavor ${LOAD_BALANCER_FLAVOR} isn't available in ${REGION}`
-          );
-        }
-        return flavor.id;
-      })
-  : '';
-const loadBalancers = network
-  ? createClusterLoadBalancers({
-      nodes: topology.nodes,
+if (network && loadBalancers) {
+  for (const pool of NODE_POOLS) {
+    const nodes = topology.nodes.filter((node) => node.pool === pool);
+    if (nodes.length === 0) continue;
+    const args = {
+      nodes,
       network,
-      region: REGION,
-      flavorId: loadBalancerFlavorId,
-      algorithm: LOAD_BALANCER_ALGORITHM
-    })
-  : {
-      api: undefined,
-      apiAddress: undefined,
-      publicIngress: []
+      apiAddress: loadBalancers.apiAddress,
+      protect: isProduction
     };
-
-if (topology.nodes.length > 0 && !loadBalancers.apiAddress) {
-  throw new Error('A non-empty cluster requires the private API load balancer');
-}
-
-const apiAddress = loadBalancers.apiAddress ?? $output('');
-const publicCloudPools = NODE_POOLS.filter(
-  (pool): pool is PublicCloudNodePool => pool.provider === 'public-cloud'
-);
-const publicCloudCatalog = new Map<
-  string,
-  { flavorId: $util.Input<string>; imageId: $util.Input<string> }
->();
-for (const pool of publicCloudPools) {
-  if (pool.count > 0) {
-    publicCloudCatalog.set(pool.name, {
-      flavorId: ovh.cloudproject
-        .getFlavorsOutput({
-          serviceName: cloudProject.projectId,
-          region: pool.region,
-          nameFilter: pool.flavor
-        })
-        .apply((flavorsResult) => {
-          const flavor = flavorsResult.flavors.at(0);
-          if (!flavor) {
-            throw new Error(`Flavor ${pool.flavor} isn't available in ${pool.region}`);
-          }
-          return flavor.id;
-        }),
-      imageId: ovh.cloudproject
-        .getImagesOutput({
-          serviceName: cloudProject.projectId,
-          region: pool.region,
-          osType: 'linux'
-        })
-        .apply((imagesResult) => {
-          const image = imagesResult.images.find(
-            (availableImage) => availableImage.name === pool.image
-          );
-          if (!image) {
-            throw new Error(`Image ${pool.image} isn't available in ${pool.region}`);
-          }
-          return image.id;
-        })
-    });
-  }
-}
-
-export const clusterNodes: ClusterNode[] = topology.nodes.map((spec) => {
-  if (!network) {
-    throw new Error('A non-empty cluster requires shared cluster infrastructure');
-  }
-  if (spec.pool.provider === 'public-cloud') {
-    const catalog = publicCloudCatalog.get(spec.pool.name);
-    if (!catalog) {
-      throw new Error(`Missing Public Cloud catalog for ${spec.pool.name}`);
+    if (pool.provider === 'public-cloud') {
+      createPublicCloudNodes({ ...args, pool });
+    } else {
+      createDedicatedNodes({ ...args, pool });
     }
-    return createPublicCloudNode({
-      spec: {
-        ...spec,
-        pool: spec.pool
-      },
-      network,
-      apiAddress,
-      protect: isProduction,
-      ...catalog
-    });
   }
-  return createDedicatedNode({
-    spec: {
-      ...spec,
-      pool: spec.pool
-    },
-    network,
-    apiAddress,
-    protect: isProduction
-  });
-});
+}
 
-if (clusterNodes.length === 0) {
+if (topology.nodes.length === 0) {
   const devices = await tailscale.getDevices({ namePrefix: STAGE_NAME });
   const stale = devices.devices.filter(
     (device) =>
@@ -166,7 +60,7 @@ if (clusterNodes.length === 0) {
   }
 }
 
-export const publicIngressLoadBalancers = loadBalancers.publicIngress;
+export const publicIngressLoadBalancers = loadBalancers?.publicIngress ?? [];
 export const outputs = {
   CloudProjectId: cloudProject.projectId,
   ...Object.fromEntries(

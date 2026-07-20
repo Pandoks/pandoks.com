@@ -18,15 +18,17 @@ void test('uses one shared shell bootstrap for public cloud and dedicated server
   assert.match(bootstrapScript, /^# PANDOKS_BOOTSTRAP_ENVIRONMENT$/m);
   assert.match(bootstrap, /function renderBootstrapScript\(/);
   assert.match(bootstrap, /const script = \$resolve\(/);
-  assert.match(bootstrap, /return \{\s*script,\s*tailnetKey\s*\}/s);
+  assert.match(bootstrap, /return script/);
   assert.doesNotMatch(bootstrap, /const payload|=>\s*\$resolve\(/);
+  assert.doesNotMatch(bootstrap, /secrets\.Stage|KUBERNETES_TAILSCALE_HOSTNAME/);
   assert.doesNotMatch(bootstrap, /cloudInit|dedicatedPostInstall|systemdUnit/);
 
-  assert.match(publicCloud, /userData:\s*bootstrap\.script/);
+  assert.match(publicCloud, /userData:\s*bootstrap/);
   assert.match(
     dedicated,
-    /postInstallationScript:\s*bootstrap\.script\.apply\(\(script\) =>\s*Buffer\.from\(script\)\.toString\('base64'\)\s*\)/s
+    /postInstallationScript:\s*bootstrap\.apply\(\(script\) =>\s*Buffer\.from\(script\)\.toString\('base64'\)\s*\)/s
   );
+  assert.match(bootstrapScript, /hostname:\s*"\$\{STAGE_NAME\}-cluster"/);
 
   assert.equal(existsSync('infra/cluster/bootstrap.ts'), false);
   assert.equal(existsSync('infra/cluster/bootstrap.sh'), false);

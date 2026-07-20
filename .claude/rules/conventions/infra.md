@@ -113,7 +113,7 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
 ## OVH hybrid cluster
 
 - **Topology and four independent pools live in
-  `infra/cluster/cluster.ts`.** Host hardening and k3s setup live in
+  `infra/cluster/config.ts`.** Host hardening and k3s setup live in
   `infra/cluster/providers/bootstrap.sh`.
 - **The Public Cloud project is permanent shared infrastructure.**
   `ovh.cloudproject.Project` creates it, and its `projectId` is passed directly
@@ -123,7 +123,7 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
 - **The vRack `10.0.0.0/16` has fixed third-octet owners.** Neutron
   infrastructure uses `.0`, Public Cloud control planes `.1`, Public Cloud
   workers `.2`, dedicated control planes `.3`, dedicated workers `.4`, and
-  MetalLB `.5`; `.6-.255` is reserved. Change `CLUSTER_ADDRESS_PLAN`, the
+  MetalLB `.5`; `.6-.255` is reserved. Change `CLUSTER_NETWORK`, the pool subnets,
   subnet, MetalLB, monitoring endpoints, and their contract tests together.
 - **Origin TLS keeps its deployed legacy identities.**
   `secrets.k8s.OriginTlsKey` and `.OriginTlsCrt` deliberately create

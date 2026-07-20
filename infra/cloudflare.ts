@@ -8,11 +8,9 @@ export const cloudflareIps = (await cloudflareIpRequest.json()) as {
   success: boolean;
 };
 
-const publicLoadBalancers = publicIngressLoadBalancers;
-
-if (publicLoadBalancers.length && !isProduction) {
+if (publicIngressLoadBalancers.length && !isProduction) {
   // NOTE: no AAAA records because openstack floating ips are ipv4 only
-  for (const [i, loadBalancer] of publicLoadBalancers.entries()) {
+  for (const [i, loadBalancer] of publicIngressLoadBalancers.entries()) {
     new cloudflare.DnsRecord(`ExampleDomainLoadBalancer${i}Ipv4`, {
       name: EXAMPLE_DOMAIN,
       zoneId: cloudflareZoneId,

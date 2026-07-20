@@ -1,63 +1,71 @@
-import { isProduction } from '../../utils';
 import { createNodeBootstrap, deleteServerFromTailnet } from './bootstrap';
 import type { ClusterNetwork } from '../network';
-import type { ClusterNodeSpec, PublicCloudNodePool } from '../types';
+import type { ClusterNodeSpec, PublicCloudNodePool } from '../topology';
 
-export type ClusterNode = {
-  spec: ClusterNodeSpec;
-  privateIp: $util.Output<string>;
-  resource: $util.CustomResource;
-  readiness: $util.Resource;
-};
-
-export function createPublicCloudNode(args: {
-  spec: ClusterNodeSpec & { pool: PublicCloudNodePool };
+export function createPublicCloudNodes(args: {
+  pool: PublicCloudNodePool;
+  nodes: readonly ClusterNodeSpec[];
   network: ClusterNetwork;
   apiAddress: $util.Input<string>;
-  flavorId: $util.Input<string>;
-  imageId: $util.Input<string>;
   protect: boolean;
-}): ClusterNode {
-  const bootstrap = createNodeBootstrap({
-    node: args.spec,
-    apiAddress: args.apiAddress,
-    networkCidr: args.network.cidr,
-    networkMode: 'dhcp',
-    dependsOn: [args.network.privateNetwork, args.network.subnet]
-  });
-
-  const instance = new ovh.cloudproject.Instance(
-    args.spec.logicalName,
-    {
+}) {
+  const flavorId = ovh.cloudproject
+    .getFlavorsOutput({
       serviceName: args.network.serviceName,
-      name: args.spec.hostname,
-      region: args.spec.pool.region,
-      billingPeriod: 'hourly',
-      flavor: { flavorId: args.flavorId },
-      bootFrom: { imageId: args.imageId },
-      network: {
-        public: true,
-        private: {
-          ip: args.spec.privateIp,
-          network: {
-            id: args.network.openstackNetworkId,
-            subnetId: args.network.subnet.id
-          }
-        }
-      },
-      userData: bootstrap.script
-    },
-    {
-      ignoreChanges: isProduction ? ['userData'] : [],
-      protect: args.protect,
-      hooks: { afterDelete: [deleteServerFromTailnet] }
-    }
-  );
+      region: args.pool.region,
+      nameFilter: args.pool.flavor
+    })
+    .apply((result) => {
+      const flavor = result.flavors.at(0);
+      if (!flavor) throw new Error(`Flavor ${args.pool.flavor} isn't available`);
+      return flavor.id;
+    });
+  const imageId = ovh.cloudproject
+    .getImagesOutput({
+      serviceName: args.network.serviceName,
+      region: args.pool.region,
+      osType: 'linux'
+    })
+    .apply((result) => {
+      const image = result.images.find(({ name }) => name === args.pool.image);
+      if (!image) throw new Error(`Image ${args.pool.image} isn't available`);
+      return image.id;
+    });
 
-  return {
-    spec: args.spec,
-    privateIp: $output(args.spec.privateIp),
-    resource: instance,
-    readiness: instance
-  };
+  for (const node of args.nodes) {
+    const bootstrap = createNodeBootstrap({
+      node,
+      apiAddress: args.apiAddress,
+      networkCidr: args.network.cidr,
+      networkMode: 'dhcp',
+      dependsOn: [args.network.subnet]
+    });
+    new ovh.cloudproject.Instance(
+      node.logicalName,
+      {
+        serviceName: args.network.serviceName,
+        name: node.hostname,
+        region: args.pool.region,
+        billingPeriod: 'hourly',
+        flavor: { flavorId },
+        bootFrom: { imageId },
+        network: {
+          public: true,
+          private: {
+            ip: node.privateIp,
+            network: {
+              id: args.network.openstackNetworkId,
+              subnetId: args.network.subnet.id
+            }
+          }
+        },
+        userData: bootstrap
+      },
+      {
+        ignoreChanges: args.protect ? ['userData'] : [],
+        protect: args.protect,
+        hooks: { afterDelete: [deleteServerFromTailnet] }
+      }
+    );
+  }
 }

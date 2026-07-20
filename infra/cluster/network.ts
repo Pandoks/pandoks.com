@@ -1,23 +1,17 @@
 import { STAGE_NAME, isProduction } from '../utils';
-import type { GatewayModel } from './config';
-import { CLUSTER_ADDRESS_PLAN, formatClusterIp } from './types';
+import { GATEWAY_MODEL, REGION } from './config';
+import { CLUSTER_NETWORK } from './topology';
 
 export type ClusterNetwork = {
   cidr: string;
   serviceName: $util.Input<string>;
   vrack: ovh.vrack.Vrack;
-  privateNetwork: ovh.cloudproject.NetworkPrivate;
   subnet: ovh.cloudproject.NetworkPrivateSubnet;
   openstackNetworkId: $util.Output<string>;
   gateway: ovh.cloudproject.Gateway;
 };
 
-export function createClusterNetwork(args: {
-  serviceName: $util.Input<string>;
-  region: string;
-  cidr: string;
-  gatewayModel: GatewayModel;
-}): ClusterNetwork {
+export function createClusterNetwork(serviceName: $util.Input<string>): ClusterNetwork {
   const vrack = new ovh.vrack.Vrack(
     'OvhK3sVrack',
     {
@@ -32,67 +26,48 @@ export function createClusterNetwork(args: {
     },
     { protect: isProduction }
   );
-
-  const cloudProjectAttachment = new ovh.vrack.CloudProject(
+  const attachment = new ovh.vrack.CloudProject(
     'OvhK3sVrackCloudProject',
-    {
-      serviceName: vrack.serviceName,
-      projectId: args.serviceName
-    },
+    { serviceName: vrack.serviceName, projectId: serviceName },
     { dependsOn: [vrack] }
   );
-
   const privateNetwork = new ovh.cloudproject.NetworkPrivate(
     'OvhK3sPrivateNetwork',
     {
-      serviceName: args.serviceName,
+      serviceName,
       name: `k3s-private-${STAGE_NAME}-network`,
-      regions: [args.region],
+      regions: [REGION],
       vlanId: 0
     },
-    { dependsOn: [cloudProjectAttachment] }
+    { dependsOn: [attachment] }
   );
-
   const subnet = new ovh.cloudproject.NetworkPrivateSubnet('OvhK3sSubnet', {
-    serviceName: args.serviceName,
+    serviceName,
     networkId: privateNetwork.id,
-    region: args.region,
-    network: args.cidr,
-    start: formatClusterIp(
-      args.cidr,
-      CLUSTER_ADDRESS_PLAN.infrastructure.thirdOctet,
-      CLUSTER_ADDRESS_PLAN.infrastructure.start
-    ),
-    end: formatClusterIp(
-      args.cidr,
-      CLUSTER_ADDRESS_PLAN.infrastructure.thirdOctet,
-      CLUSTER_ADDRESS_PLAN.infrastructure.end
-    ),
+    region: REGION,
+    network: CLUSTER_NETWORK.cidr,
+    start: CLUSTER_NETWORK.dhcpStart,
+    end: CLUSTER_NETWORK.dhcpEnd,
     dhcp: true
   });
-
   const openstackNetworkId = privateNetwork.regionsAttributes.apply((attributes) => {
-    const region = attributes.find((value) => value.region === args.region);
-    if (!region) {
-      throw new Error(`Private network is missing region ${args.region}`);
-    }
+    const region = attributes.find((value) => value.region === REGION);
+    if (!region) throw new Error(`Private network is missing region ${REGION}`);
     return region.openstackid;
   });
-
   const gateway = new ovh.cloudproject.Gateway('OvhK3sGateway', {
-    serviceName: args.serviceName,
+    serviceName,
     name: `k3s-${STAGE_NAME}-gateway`,
-    model: args.gatewayModel,
-    region: args.region,
+    model: GATEWAY_MODEL,
+    region: REGION,
     networkId: openstackNetworkId,
     subnetId: subnet.id
   });
 
   return {
-    cidr: args.cidr,
-    serviceName: args.serviceName,
+    cidr: CLUSTER_NETWORK.cidr,
+    serviceName,
     vrack,
-    privateNetwork,
     subnet,
     openstackNetworkId,
     gateway

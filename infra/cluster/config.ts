@@ -1,16 +1,16 @@
 import { isProduction } from '../utils';
-import type { DedicatedPlanOption, NodePool } from './types';
+import type { DedicatedPlanOption, NodePool } from './topology';
 
-export type GatewayModel = 's' | 'm' | 'l' | 'xl' | '2xl' | '3xl';
-export type LoadBalancerFlavor = 'small' | 'medium' | 'large' | 'xl';
-export type LoadBalancerAlgorithm = 'leastConnections' | 'roundRobin' | 'sourceIP';
+type GatewayModel = 's' | 'm' | 'l' | 'xl' | '2xl' | '3xl';
+type LoadBalancerFlavor = 'small' | 'medium' | 'large' | 'xl';
+type LoadBalancerAlgorithm = 'leastConnections' | 'roundRobin' | 'sourceIP';
 
 export const REGION = 'US-WEST-OR-1';
 export const GATEWAY_MODEL: GatewayModel = 's';
 export const LOAD_BALANCER_FLAVOR: LoadBalancerFlavor = 'small';
 export const LOAD_BALANCER_ALGORITHM: LoadBalancerAlgorithm = 'leastConnections';
 
-export type ClusterStageConfig = {
+type ClusterStageConfig = {
   cloudControlPlaneCount: number;
   cloudWorkerCount: number;
   dedicatedControlPlaneCount: number;
@@ -54,6 +54,9 @@ export const NODE_POOLS: readonly NodePool[] = [
     role: 'control-plane',
     count: clusterConfig.cloudControlPlaneCount,
     ingress: true,
+    subnet: 1,
+    logicalNamePrefix: 'OvhControlPlaneServer',
+    hostnamePrefix: 'control-plane-server',
     flavor: 'b3-8',
     image: 'Ubuntu 24.04',
     region: REGION
@@ -64,6 +67,9 @@ export const NODE_POOLS: readonly NodePool[] = [
     role: 'worker',
     count: clusterConfig.cloudWorkerCount,
     ingress: true,
+    subnet: 2,
+    logicalNamePrefix: 'OvhWorkerServer',
+    hostnamePrefix: 'worker-server',
     flavor: 'b3-8',
     image: 'Ubuntu 24.04',
     region: REGION
@@ -74,6 +80,9 @@ export const NODE_POOLS: readonly NodePool[] = [
     role: 'control-plane',
     count: clusterConfig.dedicatedControlPlaneCount,
     ingress: true,
+    subnet: 3,
+    logicalNamePrefix: 'OvhDedicatedControlPlaneServer',
+    hostnamePrefix: 'dedicated-control-plane-server',
     plan: clusterConfig.dedicatedPlan,
     operatingSystem: 'ubuntu2404-server_64',
     datacenter: clusterConfig.dedicatedDatacenter,
@@ -86,6 +95,9 @@ export const NODE_POOLS: readonly NodePool[] = [
     role: 'worker',
     count: clusterConfig.dedicatedWorkerCount,
     ingress: true,
+    subnet: 4,
+    logicalNamePrefix: 'OvhDedicatedWorkerServer',
+    hostnamePrefix: 'dedicated-worker-server',
     plan: clusterConfig.dedicatedPlan,
     operatingSystem: 'ubuntu2404-server_64',
     datacenter: clusterConfig.dedicatedDatacenter,
@@ -93,5 +105,3 @@ export const NODE_POOLS: readonly NodePool[] = [
     planOptions: clusterConfig.dedicatedPlanOptions
   }
 ];
-
-export const clusterNodeCount = NODE_POOLS.reduce((total, pool) => total + pool.count, 0);
