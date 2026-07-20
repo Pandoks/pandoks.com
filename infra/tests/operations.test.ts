@@ -181,9 +181,19 @@ void test('delegates origin TLS issuance and rotation to cert-manager', () => {
 void test('keeps network, node pools, and MetalLB on one non-overlapping address plan', () => {
   assert.equal(CLUSTER_NETWORK.cidr, '10.0.0.0/16');
   assert.equal(CLUSTER_NETWORK.metalLb, '10.0.5.1-10.0.5.254');
-  assert.match(network, /network:\s*CLUSTER_NETWORK\.cidr/);
-  assert.match(network, /start:\s*CLUSTER_NETWORK\.dhcpStart/);
-  assert.match(network, /end:\s*CLUSTER_NETWORK\.dhcpEnd/);
+  assert.match(network, /new ovh\.CloudNetworkPrivateVrack\(/);
+  assert.match(network, /new ovh\.CloudNetworkPrivateVrackSubnet\(/);
+  assert.match(network, /new ovh\.CloudGateway\(/);
+  assert.doesNotMatch(
+    network,
+    /ovh\.cloudproject\.(?:NetworkPrivate|NetworkPrivateSubnet|Gateway)/
+  );
+  assert.match(network, /cidr:\s*CLUSTER_NETWORK\.cidr/);
+  assert.match(
+    network,
+    /allocationPools:\s*\[\s*\{\s*start:\s*CLUSTER_NETWORK\.dhcpStart,\s*end:\s*CLUSTER_NETWORK\.dhcpEnd\s*\}\s*\]/s
+  );
+  assert.match(network, /dhcpEnabled:\s*true/);
   assert.match(cluster, /buildClusterPlan\(NODE_POOLS, STAGE_NAME\)/);
   assert.match(metalLb, new RegExp(CLUSTER_NETWORK.metalLb.replaceAll('.', '\\.')));
   assert.match(clusterTopology, /10\.0\.0\.x\s+OVH\/Neutron infrastructure/);
@@ -294,10 +304,10 @@ void test('creates the US Public Cloud project in Pulumi and threads its generat
     cluster,
     /createOvhCloudProject|getFlavorId|getImageId|getLoadBalancerFlavorId/
   );
-  assert.match(network, /serviceName:\s*\$util\.Input<string>/);
-  assert.match(network, /projectId:\s*serviceName/);
-  assert.match(loadBalancers, /serviceName:\s*args\.network\.serviceName/);
-  assert.match(publicCloud, /serviceName:\s*args\.network\.serviceName/);
+  assert.match(network, /projectId:\s*\$util\.Input<string>/);
+  assert.match(network, /projectId/);
+  assert.match(loadBalancers, /serviceName:\s*args\.network\.projectId/);
+  assert.match(publicCloud, /serviceName:\s*args\.network\.projectId/);
 });
 
 void test('deletes only the exact hostname returned by a Tailscale prefix query', () => {

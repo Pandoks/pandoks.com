@@ -1,12 +1,12 @@
 import { isProduction } from '../utils';
 import type { DedicatedPlanOption, NodePool } from './topology';
 
-type GatewayModel = 's' | 'm' | 'l' | 'xl' | '2xl' | '3xl';
+type GatewayModel = 'S' | 'M' | 'L' | 'XL' | '2XL' | '3XL';
 type LoadBalancerFlavor = 'small' | 'medium' | 'large' | 'xl';
 type LoadBalancerAlgorithm = 'leastConnections' | 'roundRobin' | 'sourceIP';
 
 export const REGION = 'US-WEST-OR-1';
-export const GATEWAY_MODEL: GatewayModel = 's';
+export const GATEWAY_MODEL: GatewayModel = 'S';
 export const LOAD_BALANCER_FLAVOR: LoadBalancerFlavor = 'small';
 export const LOAD_BALANCER_ALGORITHM: LoadBalancerAlgorithm = 'leastConnections';
 

@@ -17,7 +17,7 @@ export function createClusterLoadBalancers(args: {
 }) {
   const flavorId = ovh.cloudproject
     .getLoadBalancerFlavorsOutput({
-      serviceName: args.network.serviceName,
+      serviceName: args.network.projectId,
       regionName: REGION
     })
     .apply((result) => {
@@ -31,14 +31,14 @@ export function createClusterLoadBalancers(args: {
     });
   const controlPlanes = args.nodes.filter((node) => node.pool.role === 'control-plane');
   const api = new ovh.cloudproject.LoadBalancer('OvhK3sPrivateApiLoadBalancer', {
-    serviceName: args.network.serviceName,
+    serviceName: args.network.projectId,
     name: `k3s-private-${STAGE_NAME}-api`,
     regionName: REGION,
     flavorId,
     network: {
       private: {
         network: {
-          id: args.network.openstackNetworkId,
+          id: args.network.networkId,
           subnetId: args.network.subnet.id
         }
       }
@@ -59,14 +59,14 @@ export function createClusterLoadBalancers(args: {
 
   const ingressNodes = args.nodes.filter((node) => node.pool.ingress);
   const publicIngress = new ovh.cloudproject.LoadBalancer('OvhK3sPublicIngressLoadBalancer', {
-    serviceName: args.network.serviceName,
+    serviceName: args.network.projectId,
     name: `k3s-public-${STAGE_NAME}-ingress`,
     regionName: REGION,
     flavorId,
     network: {
       private: {
         network: {
-          id: args.network.openstackNetworkId,
+          id: args.network.networkId,
           subnetId: args.network.subnet.id
         },
         floatingIpCreate: {

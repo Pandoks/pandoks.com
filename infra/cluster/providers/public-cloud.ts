@@ -11,7 +11,7 @@ export function createPublicCloudNodes(args: {
 }) {
   const flavorId = ovh.cloudproject
     .getFlavorsOutput({
-      serviceName: args.network.serviceName,
+      serviceName: args.network.projectId,
       region: args.pool.region,
       nameFilter: args.pool.flavor
     })
@@ -22,7 +22,7 @@ export function createPublicCloudNodes(args: {
     });
   const imageId = ovh.cloudproject
     .getImagesOutput({
-      serviceName: args.network.serviceName,
+      serviceName: args.network.projectId,
       region: args.pool.region,
       osType: 'linux'
     })
@@ -43,7 +43,7 @@ export function createPublicCloudNodes(args: {
     new ovh.cloudproject.Instance(
       node.logicalName,
       {
-        serviceName: args.network.serviceName,
+        serviceName: args.network.projectId,
         name: node.hostname,
         region: args.pool.region,
         billingPeriod: 'hourly',
@@ -54,7 +54,7 @@ export function createPublicCloudNodes(args: {
           private: {
             ip: node.privateIp,
             network: {
-              id: args.network.openstackNetworkId,
+              id: args.network.networkId,
               subnetId: args.network.subnet.id
             }
           }

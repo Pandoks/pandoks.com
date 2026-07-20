@@ -42,7 +42,7 @@ void test('keeps non-production compute disabled until code review enables it', 
 
 void test('owns the shared OVH topology settings in the cluster configuration', () => {
   assert.equal(REGION, 'US-WEST-OR-1');
-  assert.equal(GATEWAY_MODEL, 's');
+  assert.equal(GATEWAY_MODEL, 'S');
   assert.equal(LOAD_BALANCER_FLAVOR, 'small');
   assert.equal(LOAD_BALANCER_ALGORITHM, 'leastConnections');
   assert.deepEqual(
