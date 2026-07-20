@@ -14,7 +14,7 @@ const cloudProject = new ovh.cloudproject.Project(
   'OvhPublicCloudProject',
   {
     deletionProtection: isProduction,
-    description: `Pandoks ${STAGE_NAME} Public Cloud project`,
+    description: `${STAGE_NAME.capitalize()} Public Cloud project`,
     ovhSubsidiary: 'US',
     plan: {
       duration: 'P1M',
