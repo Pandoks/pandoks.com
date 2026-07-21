@@ -1,5 +1,5 @@
 import { secrets, setSecret } from './secrets';
-import { STAGE_NAME } from './utils';
+import { EXAMPLE_DOMAIN, STAGE_NAME } from './utils';
 
 secrets.Stage.value.apply((stageName) => {
   if (stageName !== STAGE_NAME) {
@@ -13,6 +13,8 @@ export const awsAccountId = awsAccountIdentityJson.accountId;
 const cloudflareZone = await cloudflare.getZone({ filter: { name: 'pandoks.com' } });
 export const cloudflareAccountId = cloudflareZone.account.id;
 export const cloudflareZoneId = cloudflareZone.id;
+
+new sst.Linkable('ExampleDomain', { properties: { value: EXAMPLE_DOMAIN } });
 
 const cloudflareIpRequest = await fetch('https://api.cloudflare.com/client/v4/ips');
 const cloudflareIpResponse = (await cloudflareIpRequest.json()) as {

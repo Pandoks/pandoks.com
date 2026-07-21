@@ -5,6 +5,7 @@ import test from 'node:test';
 
 const cluster = readFileSync('infra/cluster/cluster.ts', 'utf8');
 const clusterConfigModule = readFileSync('infra/cluster/config.ts', 'utf8');
+const dns = readFileSync('infra/dns.ts', 'utf8');
 const publicCloud = readFileSync('infra/cluster/providers/public-cloud.ts', 'utf8');
 const dedicated = readFileSync('infra/cluster/providers/dedicated.ts', 'utf8');
 const envExample = readFileSync('.env.example', 'utf8');
@@ -58,7 +59,7 @@ void test('centralizes shared stage helpers in infra/utils.ts', () => {
 
   assert.match(utils, /export const isProduction = \$app\.stage === 'production'/);
   assert.match(utils, /export const domain = isProduction \? 'pandoks\.com' : 'dev\.pandoks\.com'/);
-  assert.match(utils, /export const EXAMPLE_DOMAIN = 'example\.pandoks\.com'/);
+  assert.match(utils, /export const EXAMPLE_DOMAIN = `example\.\$\{domain\}`/);
   assert.match(utils, /export const STAGE_NAME = isProduction \? 'prod' : 'dev'/);
 
   for (const path of typescriptFiles('infra')) {
@@ -142,7 +143,7 @@ void test('delegates origin TLS issuance and rotation to cert-manager', () => {
   );
   assert.match(
     certManager,
-    /secretName:\s*cloudflare-origin-tls[\s\S]*dnsNames:\s*\n\s*-\s*example\.pandoks\.com[\s\S]*name:\s*internal-ca-issuer/
+    /secretName:\s*cloudflare-origin-tls[\s\S]*dnsNames:\s*\n\s*-\s*\$\{ExampleDomain\}[\s\S]*name:\s*internal-ca-issuer/
   );
   assert.match(certManager, /privateKey:\s*\n\s*rotationPolicy:\s*Always/);
 
@@ -227,6 +228,19 @@ void test('keeps the control-plane endpoint private and independently scales pub
   assert.match(cloudflare, /new cloudflare\.LoadBalancerMonitor/);
   assert.match(cloudflare, /new cloudflare\.LoadBalancerPool/);
   assert.match(cloudflare, /new cloudflare\.LoadBalancer/);
+});
+
+void test('routes each deployed stage through its matching example hostname', () => {
+  assert.match(
+    dns,
+    /new sst\.Linkable\(\s*'ExampleDomain',\s*\{\s*properties:\s*\{\s*value:\s*EXAMPLE_DOMAIN\s*\}\s*\}\s*\)/s
+  );
+  assert.match(cloudflare, /if \(publicIngress\) \{/);
+  assert.doesNotMatch(cloudflare, /!isProduction/);
+  assert.equal(certManager.match(/\$\{ExampleDomain\}/g)?.length, 1);
+  assert.equal(exampleApp.match(/\$\{ExampleDomain\}/g)?.length, 4);
+  assert.doesNotMatch(certManager, /example\.pandoks\.com/);
+  assert.doesNotMatch(exampleApp, /example\.pandoks\.com/);
 });
 
 void test('cluster monitoring matches the disabled default topology', () => {

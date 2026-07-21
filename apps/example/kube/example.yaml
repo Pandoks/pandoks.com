@@ -12,10 +12,10 @@ spec:
   # is set to Full (strict) mode, meaning that all requests that pass through cloudflare must be terminated (TLS)
   tls:
     - hosts:
-        - example.pandoks.com
+        - ${ExampleDomain}
       secretName: cloudflare-origin-tls
   rules:
-    - host: example.pandoks.com
+    - host: ${ExampleDomain}
       http:
         paths:
           - path: /
@@ -64,10 +64,10 @@ spec:
   ingressClassName: haproxy
   tls:
     - hosts:
-        - example.pandoks.com
+        - ${ExampleDomain}
       secretName: cloudflare-origin-tls
   rules:
-    - host: example.pandoks.com
+    - host: ${ExampleDomain}
       http:
         paths:
           - path: /slug

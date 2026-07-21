@@ -43,7 +43,7 @@ metadata:
 spec:
   secretName: cloudflare-origin-tls
   dnsNames:
-    - example.pandoks.com
+    - ${ExampleDomain}
   privateKey:
     rotationPolicy: Always
   issuerRef:

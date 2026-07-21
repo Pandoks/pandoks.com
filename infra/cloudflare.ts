@@ -1,8 +1,8 @@
 import { cloudflareAccountId, cloudflareZoneId } from './dns';
 import { publicIngress } from './cluster/cluster';
-import { EXAMPLE_DOMAIN, isProduction } from './utils';
+import { EXAMPLE_DOMAIN } from './utils';
 
-if (publicIngress && !isProduction) {
+if (publicIngress) {
   if (publicIngress.mode === 'cloudflare') {
     const monitor = new cloudflare.LoadBalancerMonitor('ExampleDomainIngressMonitor', {
       accountId: cloudflareAccountId,
