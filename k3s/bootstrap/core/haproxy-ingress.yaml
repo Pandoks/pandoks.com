@@ -27,7 +27,6 @@ spec:
         enabled: true
       kind: DaemonSet
       daemonset:
-        # Exposes HAProxy on every node for direct Cloudflare and OVH load-balancer traffic.
         useHostPort: true
       service:
         httpPorts:
