@@ -8,11 +8,7 @@ import { createDedicatedNodes } from './providers/dedicated';
 import { createPublicCloudNodes } from './providers/public-cloud';
 import { buildClusterPlan } from './topology';
 
-const topology = buildClusterPlan(
-  NODE_POOLS,
-  STAGE_NAME,
-  clusterConfig.publicIngressLoadBalancerCount
-);
+const topology = buildClusterPlan(NODE_POOLS, STAGE_NAME, clusterConfig.loadBalancerCount);
 for (const warning of topology.warnings) console.warn(warning);
 
 const cloudProject = new ovh.cloudproject.Project(

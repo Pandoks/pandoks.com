@@ -1,9 +1,27 @@
+// Stable partitions within the single OVH 10.0.0.0/16 subnet:
+// 10.0.0.x        OVH/Neutron infrastructure
+// 10.0.1.x        Public Cloud control planes
+// 10.0.2.x        Public Cloud workers
+// 10.0.3.x        Dedicated control planes
+// 10.0.4.x        Dedicated workers
+// 10.0.5.x        MetalLB services
+// 10.0.6-255.x    Reserved for future pools
+// Never renumber or reuse an existing entry: pool order and count changes must
+// not readdress nodes.
+const NODE_POOL_ADDRESS_BLOCKS = {
+  'cloud-control-plane': 1,
+  'cloud-workers': 2,
+  'dedicated-control-plane': 3,
+  'dedicated-workers': 4
+} as const;
+
+type NodePoolName = keyof typeof NODE_POOL_ADDRESS_BLOCKS;
+
 type NodePoolBase = {
-  name: string;
+  name: NodePoolName;
   role: 'control-plane' | 'worker';
   count: number;
   ingress: boolean;
-  subnet: number;
   logicalNamePrefix: string;
   hostnamePrefix: string;
 };
@@ -58,12 +76,6 @@ function validatePool(pool: NodePool): void {
   if (!Number.isInteger(pool.count) || pool.count < 0) {
     throw new Error(`Node pool ${pool.name} count must be a non-negative integer`);
   }
-  if (!Number.isInteger(pool.subnet) || pool.subnet < 1 || pool.subnet > 255) {
-    throw new Error(`Node pool ${pool.name} subnet must be an integer from 1 to 255`);
-  }
-  if (pool.subnet === 5) {
-    throw new Error(`Node pool ${pool.name} subnet 5 is reserved for MetalLB`);
-  }
   if (pool.provider === 'dedicated' && pool.count > 0) {
     for (const [name, value] of [
       ['plan', pool.plan],
@@ -88,7 +100,6 @@ export function buildClusterPlan(
   }
 
   const names = new Set<string>();
-  const subnets = new Set<number>();
   const nodes: ClusterNodeSpec[] = [];
 
   for (const pool of pools) {
@@ -97,19 +108,19 @@ export function buildClusterPlan(
       throw new Error(`Duplicate node pool name: ${pool.name}`);
     }
     names.add(pool.name);
-    if (subnets.has(pool.subnet)) {
-      throw new Error(`Duplicate node pool subnet: ${pool.subnet}`);
+    const addressBlock = NODE_POOL_ADDRESS_BLOCKS[pool.name];
+    if (!addressBlock) {
+      throw new Error(`Unknown node pool: ${pool.name}`);
     }
-    subnets.add(pool.subnet);
     if (pool.count > 254) {
       throw new Error(
         `Node pool ${pool.name} count ${pool.count} exceeds ` +
-          `10.0.${pool.subnet}.1-10.0.${pool.subnet}.254`
+          `10.0.${addressBlock}.1-10.0.${addressBlock}.254`
       );
     }
 
     for (let poolIndex = 0; poolIndex < pool.count; poolIndex += 1) {
-      const privateIp = `10.0.${pool.subnet}.${poolIndex + 1}`;
+      const privateIp = `10.0.${addressBlock}.${poolIndex + 1}`;
       nodes.push({
         pool,
         poolIndex,

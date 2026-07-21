@@ -21,11 +21,15 @@ const {
 } = await jiti.import<typeof ClusterConfigModule>('../cluster/config.ts');
 
 const emptyConfig = {
-  cloudControlPlaneCount: 0,
-  cloudWorkerCount: 0,
-  dedicatedControlPlaneCount: 0,
-  dedicatedWorkerCount: 0,
-  publicIngressLoadBalancerCount: 0,
+  cloud: {
+    controlPlaneCount: 0,
+    workerCount: 0
+  },
+  dedicated: {
+    controlPlane: 0,
+    worker: 0
+  },
+  loadBalancerCount: 0,
   dedicatedPlan: '',
   dedicatedDatacenter: '',
   dedicatedOrderRegion: '',
@@ -46,12 +50,11 @@ void test('owns the shared OVH topology settings in the cluster configuration', 
   assert.equal(GATEWAY_MODEL, 'S');
   assert.equal(LOAD_BALANCER_FLAVOR, 'small');
   assert.equal(LOAD_BALANCER_ALGORITHM, 'leastConnections');
-  assert.equal(clusterConfig.publicIngressLoadBalancerCount, 0);
+  assert.equal(clusterConfig.loadBalancerCount, 0);
   assert.deepEqual(
-    NODE_POOLS.map(({ name, count, subnet, logicalNamePrefix, hostnamePrefix }) => ({
+    NODE_POOLS.map(({ name, count, logicalNamePrefix, hostnamePrefix }) => ({
       name,
       count,
-      subnet,
       logicalNamePrefix,
       hostnamePrefix
     })),
@@ -59,28 +62,24 @@ void test('owns the shared OVH topology settings in the cluster configuration', 
       {
         name: 'cloud-control-plane',
         count: 0,
-        subnet: 1,
         logicalNamePrefix: 'OvhControlPlaneServer',
         hostnamePrefix: 'control-plane-server'
       },
       {
         name: 'cloud-workers',
         count: 0,
-        subnet: 2,
         logicalNamePrefix: 'OvhWorkerServer',
         hostnamePrefix: 'worker-server'
       },
       {
         name: 'dedicated-control-plane',
         count: 0,
-        subnet: 3,
         logicalNamePrefix: 'OvhDedicatedControlPlaneServer',
         hostnamePrefix: 'dedicated-control-plane-server'
       },
       {
         name: 'dedicated-workers',
         count: 0,
-        subnet: 4,
         logicalNamePrefix: 'OvhDedicatedWorkerServer',
         hostnamePrefix: 'dedicated-worker-server'
       }

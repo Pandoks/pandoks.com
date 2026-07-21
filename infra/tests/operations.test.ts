@@ -26,6 +26,7 @@ const clusterOriginTlsPatch = existsSync(clusterOriginTlsPatchPath)
 const clusterKustomization = readFileSync('k3s/overlays/cluster/kustomization.yaml', 'utf8');
 const exampleApp = readFileSync('apps/example/kube/example.yaml', 'utf8');
 const network = readFileSync('infra/cluster/network.ts', 'utf8');
+const topologySource = readFileSync('infra/cluster/topology.ts', 'utf8');
 const metalLb = readFileSync('k3s/base/core/metallb.yaml', 'utf8');
 const loadBalancers = readFileSync('infra/cluster/load-balancers.ts', 'utf8');
 const ingress = readFileSync('k3s/bootstrap/core/haproxy-ingress.yaml', 'utf8');
@@ -215,11 +216,11 @@ void test('keeps network, node pools, and MetalLB on one non-overlapping address
   assert.match(network, /dhcpEnabled:\s*true/);
   assert.match(
     cluster,
-    /buildClusterPlan\(\s*NODE_POOLS,\s*STAGE_NAME,\s*clusterConfig\.publicIngressLoadBalancerCount\s*\)/s
+    /buildClusterPlan\(\s*NODE_POOLS,\s*STAGE_NAME,\s*clusterConfig\.loadBalancerCount\s*\)/s
   );
   assert.match(metalLb, /10\.0\.5\.1-10\.0\.5\.254/);
-  assert.match(network, /10\.0\.0\.x\s+OVH\/Neutron infrastructure/);
-  assert.match(network, /10\.0\.6-255\.x\s+Reserved/);
+  assert.match(topologySource, /10\.0\.0\.x\s+OVH\/Neutron infrastructure/);
+  assert.match(topologySource, /10\.0\.6-255\.x\s+Reserved for future pools/);
   assert.match(bootstrapScript, /NETWORK_PREFIX_LENGTH="\$\{NETWORK_CIDR##\*\/\}"/);
   assert.match(bootstrapScript, /\$\{NODE_IP\}\/\$\{NETWORK_PREFIX_LENGTH\}/);
   assert.doesNotMatch(bootstrapScript, /\$\{NODE_IP\}\/24/);
@@ -261,7 +262,7 @@ void test('independently scales public ingress load balancers', () => {
   );
   assert.match(loadBalancers, /members:\s*members\(ingressNodes,\s*443\)/);
   assert.doesNotMatch(loadBalancers, /protocol:\s*'proxyV2'/);
-  assert.match(cluster, /publicIngressLoadBalancerCount/);
+  assert.match(cluster, /loadBalancerCount/);
   assert.match(cluster, /export const publicIngress/);
   assert.match(cloudflare, /publicIngress\.mode === 'cloudflare'/);
   assert.match(cloudflare, /new cloudflare\.LoadBalancerMonitor/);

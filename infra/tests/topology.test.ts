@@ -8,7 +8,6 @@ const cloudControlPlane = {
   role: 'control-plane',
   count: 1,
   ingress: true,
-  subnet: 1,
   logicalNamePrefix: 'OvhControlPlaneServer',
   hostnamePrefix: 'control-plane-server',
   flavor: 'b3-8',
@@ -22,7 +21,6 @@ const dedicatedControlPlane = {
   role: 'control-plane',
   count: 2,
   ingress: true,
-  subnet: 3,
   logicalNamePrefix: 'OvhDedicatedControlPlaneServer',
   hostnamePrefix: 'dedicated-control-plane-server',
   plan: '24rise01',
@@ -32,29 +30,29 @@ const dedicatedControlPlane = {
   planOptions: []
 } satisfies NodePool;
 
+const cloudWorkers = (count: number) =>
+  ({
+    ...cloudControlPlane,
+    name: 'cloud-workers',
+    role: 'worker',
+    count,
+    logicalNamePrefix: 'OvhWorkerServer',
+    hostnamePrefix: 'worker-server'
+  }) satisfies NodePool;
+
+const dedicatedWorkers = (count: number) =>
+  ({
+    ...dedicatedControlPlane,
+    name: 'dedicated-workers',
+    role: 'worker',
+    count,
+    logicalNamePrefix: 'OvhDedicatedWorkerServer',
+    hostnamePrefix: 'dedicated-worker-server'
+  }) satisfies NodePool;
+
 void test('builds stable identities and role-owned addresses for mixed providers', () => {
   const result = buildClusterPlan(
-    [
-      cloudControlPlane,
-      {
-        ...cloudControlPlane,
-        name: 'cloud-workers',
-        role: 'worker',
-        subnet: 2,
-        logicalNamePrefix: 'OvhWorkerServer',
-        hostnamePrefix: 'worker-server'
-      },
-      dedicatedControlPlane,
-      {
-        ...dedicatedControlPlane,
-        name: 'dedicated-workers',
-        role: 'worker',
-        count: 1,
-        subnet: 4,
-        logicalNamePrefix: 'OvhDedicatedWorkerServer',
-        hostnamePrefix: 'dedicated-worker-server'
-      }
-    ],
+    [cloudControlPlane, cloudWorkers(1), dedicatedControlPlane, dedicatedWorkers(1)],
     'prod',
     1
   );
@@ -122,13 +120,53 @@ void test('uses a direct API target for one control plane and an OVH VIP for mul
   assert.equal(buildClusterPlan([], 'prod', 0).privateApi.mode, 'none');
 });
 
-void test('resource identity is independent of pool ordering', () => {
+void test('resource identity and private IP are independent of pool ordering', () => {
   const first = buildClusterPlan([cloudControlPlane, dedicatedControlPlane], 'prod', 1);
   const second = buildClusterPlan([dedicatedControlPlane, cloudControlPlane], 'prod', 1);
   assert.deepEqual(
-    new Set(first.nodes.map((node) => node.logicalName)),
-    new Set(second.nodes.map((node) => node.logicalName))
+    new Map(first.nodes.map((node) => [node.logicalName, node.privateIp])),
+    new Map(second.nodes.map((node) => [node.logicalName, node.privateIp]))
   );
+});
+
+void test('count changes only add or remove the highest indexes in that pool', () => {
+  const one = buildClusterPlan([cloudControlPlane, cloudWorkers(1)], 'prod', 1);
+  const three = buildClusterPlan([cloudControlPlane, cloudWorkers(3)], 'prod', 1);
+
+  assert.deepEqual(
+    one.nodes.map(({ logicalName, privateIp }) => ({ logicalName, privateIp })),
+    three.nodes.slice(0, 2).map(({ logicalName, privateIp }) => ({ logicalName, privateIp }))
+  );
+  assert.deepEqual(
+    three.nodes.slice(2).map(({ logicalName, privateIp }) => ({ logicalName, privateIp })),
+    [
+      { logicalName: 'OvhWorkerServer1', privateIp: '10.0.2.2' },
+      { logicalName: 'OvhWorkerServer2', privateIp: '10.0.2.3' }
+    ]
+  );
+});
+
+void test('removing and re-adding a pool does not renumber unrelated pools', () => {
+  const allPools = [cloudControlPlane, cloudWorkers(2), dedicatedControlPlane] as const;
+  const before = buildClusterPlan(allPools, 'prod', 1);
+  const withoutCloudWorkers = buildClusterPlan(
+    [cloudControlPlane, dedicatedControlPlane],
+    'prod',
+    1
+  );
+  const after = buildClusterPlan(allPools, 'prod', 1);
+  const identities = (nodes: typeof before.nodes) =>
+    new Map(nodes.map((node) => [node.logicalName, node.privateIp]));
+
+  assert.deepEqual(
+    identities(withoutCloudWorkers.nodes),
+    new Map([
+      ['OvhControlPlaneServer0', '10.0.1.1'],
+      ['OvhDedicatedControlPlaneServer0', '10.0.3.1'],
+      ['OvhDedicatedControlPlaneServer1', '10.0.3.2']
+    ])
+  );
+  assert.deepEqual(identities(after.nodes), identities(before.nodes));
 });
 
 void test('rejects invalid cluster shapes', () => {
@@ -154,8 +192,7 @@ void test('rejects invalid cluster shapes', () => {
             ...dedicatedControlPlane,
             name: 'dedicated-workers',
             role: 'worker',
-            count: 255,
-            subnet: 4
+            count: 255
           }
         ],
         'prod',
@@ -166,24 +203,11 @@ void test('rejects invalid cluster shapes', () => {
   assert.throws(
     () =>
       buildClusterPlan(
-        [
-          cloudControlPlane,
-          {
-            ...dedicatedControlPlane,
-            name: 'dedicated-workers',
-            role: 'worker',
-            count: 1,
-            subnet: 1
-          }
-        ],
+        [{ ...cloudControlPlane, name: 'unregistered-pool' } as unknown as NodePool],
         'prod',
-        1
+        0
       ),
-    /Duplicate node pool subnet/
-  );
-  assert.throws(
-    () => buildClusterPlan([{ ...cloudControlPlane, subnet: 5 }], 'prod', 0),
-    /reserved for MetalLB/
+    /Unknown node pool: unregistered-pool/
   );
 });
 
@@ -191,21 +215,9 @@ void test('accepts every address available to the configured node pools', () => 
   const result = buildClusterPlan(
     [
       { ...cloudControlPlane, count: 254 },
-      {
-        ...cloudControlPlane,
-        name: 'cloud-workers',
-        role: 'worker',
-        count: 254,
-        subnet: 2
-      },
+      cloudWorkers(254),
       { ...dedicatedControlPlane, count: 254 },
-      {
-        ...dedicatedControlPlane,
-        name: 'dedicated-workers',
-        role: 'worker',
-        count: 254,
-        subnet: 4
-      }
+      dedicatedWorkers(254)
     ],
     'prod',
     1

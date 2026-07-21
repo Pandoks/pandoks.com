@@ -9,17 +9,6 @@ export type ClusterNetwork = {
   gateway: ovh.CloudGateway;
 };
 
-/**
- * Subnet CIDRs
- *
- * 10.0.0.x            OVH/Neutron infrastructure
- * 10.0.1.x            Public Cloud control planes
- * 10.0.2.x            Public Cloud workers
- * 10.0.3.x            Dedicated control planes
- * 10.0.4.x            Dedicated workers
- * 10.0.5.x            MetalLB services
- * 10.0.6-255.x        Reserved
- */
 export function createClusterNetwork(projectId: $util.Input<string>): ClusterNetwork {
   const vrack = new ovh.vrack.Vrack(
     'OvhK3sVrack',
@@ -58,7 +47,7 @@ export function createClusterNetwork(projectId: $util.Input<string>): ClusterNet
     region: REGION,
     cidr: '10.0.0.0/16',
     gatewayIp: '10.0.0.1',
-    // Keep 10.0.N.x role blocks /24-compatible for future splits without readdressing.
+    // Node partitions are stable and assigned by NODE_POOL_ADDRESS_BLOCKS in topology.ts.
     allocationPools: [{ start: '10.0.0.2', end: '10.0.0.254' }],
     dhcpEnabled: true
   });

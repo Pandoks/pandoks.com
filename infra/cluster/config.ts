@@ -10,37 +10,48 @@ export const GATEWAY_MODEL: GatewayModel = 'S';
 export const LOAD_BALANCER_FLAVOR: LoadBalancerFlavor = 'small';
 export const LOAD_BALANCER_ALGORITHM: LoadBalancerAlgorithm = 'leastConnections';
 
-type ClusterStageConfig = {
-  cloudControlPlaneCount: number;
-  cloudWorkerCount: number;
-  dedicatedControlPlaneCount: number;
-  dedicatedWorkerCount: number;
-  // 0 for one direct node, 1 for one OVH LB, 2+ for OVH LBs behind Cloudflare.
-  publicIngressLoadBalancerCount: number;
+type ClusterConfig = {
+  cloud: {
+    controlPlaneCount: number;
+    workerCount: number;
+  };
+  dedicated: {
+    controlPlane: number;
+    worker: number;
+  };
+  loadBalancerCount: number;
   dedicatedPlan: string;
   dedicatedDatacenter: string;
   dedicatedOrderRegion: string;
   dedicatedPlanOptions: DedicatedPlanOption[];
 };
 
-export const PRODUCTION_CLUSTER_CONFIG: ClusterStageConfig = {
-  cloudControlPlaneCount: 0,
-  cloudWorkerCount: 0,
-  dedicatedControlPlaneCount: 0,
-  dedicatedWorkerCount: 0,
-  publicIngressLoadBalancerCount: 0,
+export const PRODUCTION_CLUSTER_CONFIG: ClusterConfig = {
+  cloud: {
+    controlPlaneCount: 0,
+    workerCount: 0
+  },
+  dedicated: {
+    controlPlane: 0,
+    worker: 0
+  },
+  loadBalancerCount: 0,
   dedicatedPlan: '',
   dedicatedDatacenter: '',
   dedicatedOrderRegion: '',
   dedicatedPlanOptions: []
 };
 
-export const NON_PRODUCTION_CLUSTER_CONFIG: ClusterStageConfig = {
-  cloudControlPlaneCount: 0,
-  cloudWorkerCount: 0,
-  dedicatedControlPlaneCount: 0,
-  dedicatedWorkerCount: 0,
-  publicIngressLoadBalancerCount: 0,
+export const NON_PRODUCTION_CLUSTER_CONFIG: ClusterConfig = {
+  cloud: {
+    controlPlaneCount: 0,
+    workerCount: 0
+  },
+  dedicated: {
+    controlPlane: 0,
+    worker: 0
+  },
+  loadBalancerCount: 0,
   dedicatedPlan: '',
   dedicatedDatacenter: '',
   dedicatedOrderRegion: '',
@@ -56,9 +67,8 @@ export const NODE_POOLS: readonly NodePool[] = [
     name: 'cloud-control-plane',
     provider: 'public-cloud',
     role: 'control-plane',
-    count: clusterConfig.cloudControlPlaneCount,
+    count: clusterConfig.cloud.controlPlaneCount,
     ingress: true,
-    subnet: 1,
     logicalNamePrefix: 'OvhControlPlaneServer',
     hostnamePrefix: 'control-plane-server',
     flavor: 'b3-8',
@@ -69,9 +79,8 @@ export const NODE_POOLS: readonly NodePool[] = [
     name: 'cloud-workers',
     provider: 'public-cloud',
     role: 'worker',
-    count: clusterConfig.cloudWorkerCount,
+    count: clusterConfig.cloud.workerCount,
     ingress: true,
-    subnet: 2,
     logicalNamePrefix: 'OvhWorkerServer',
     hostnamePrefix: 'worker-server',
     flavor: 'b3-8',
@@ -82,9 +91,8 @@ export const NODE_POOLS: readonly NodePool[] = [
     name: 'dedicated-control-plane',
     provider: 'dedicated',
     role: 'control-plane',
-    count: clusterConfig.dedicatedControlPlaneCount,
+    count: clusterConfig.dedicated.controlPlane,
     ingress: true,
-    subnet: 3,
     logicalNamePrefix: 'OvhDedicatedControlPlaneServer',
     hostnamePrefix: 'dedicated-control-plane-server',
     plan: clusterConfig.dedicatedPlan,
@@ -97,9 +105,8 @@ export const NODE_POOLS: readonly NodePool[] = [
     name: 'dedicated-workers',
     provider: 'dedicated',
     role: 'worker',
-    count: clusterConfig.dedicatedWorkerCount,
+    count: clusterConfig.dedicated.worker,
     ingress: true,
-    subnet: 4,
     logicalNamePrefix: 'OvhDedicatedWorkerServer',
     hostnamePrefix: 'dedicated-worker-server',
     plan: clusterConfig.dedicatedPlan,
