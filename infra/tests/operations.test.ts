@@ -6,6 +6,7 @@ import test from 'node:test';
 const cluster = readFileSync('infra/cluster/cluster.ts', 'utf8');
 const clusterConfigModule = readFileSync('infra/cluster/config.ts', 'utf8');
 const dns = readFileSync('infra/dns.ts', 'utf8');
+const utils = readFileSync('infra/utils.ts', 'utf8');
 const publicCloud = readFileSync('infra/cluster/providers/public-cloud.ts', 'utf8');
 const dedicated = readFileSync('infra/cluster/providers/dedicated.ts', 'utf8');
 const envExample = readFileSync('.env.example', 'utf8');
@@ -55,7 +56,6 @@ function typescriptFiles(directory: string): string[] {
 void test('centralizes shared stage helpers in infra/utils.ts', () => {
   const utilsPath = 'infra/utils.ts';
   assert.ok(existsSync(utilsPath), `${utilsPath} must own the shared stage helpers`);
-  const utils = readFileSync(utilsPath, 'utf8');
 
   assert.match(utils, /export const isProduction = \$app\.stage === 'production'/);
   assert.match(utils, /export const domain = isProduction \? 'pandoks\.com' : 'dev\.pandoks\.com'/);
@@ -204,18 +204,36 @@ void test('keeps network, node pools, and MetalLB on one non-overlapping address
   assert.doesNotMatch(bootstrapScript, /\$\{NODE_IP\}\/24/);
 });
 
-void test('keeps the control-plane endpoint private and independently scales public ingress', () => {
+void test('uses stable DNS and provisions the private API load balancer only for HA', () => {
+  assert.match(utils, /export const K3S_API_HOSTNAME = `k3s-api\.\$\{domain\}`/);
+  assert.match(loadBalancers, /privateApi:\s*PrivateApiPlan/);
+  assert.match(
+    loadBalancers,
+    /const api =\s*args\.privateApi\.mode === 'ovh'\s*\?\s*new ovh\.cloudproject\.LoadBalancer/s
+  );
   const privateApi = loadBalancers.match(
     /const api = new ovh\.cloudproject\.LoadBalancer\([\s\S]*?\n\s*const ingressNodes/
   )?.[0];
-  assert.ok(privateApi);
-  assert.doesNotMatch(privateApi, /floatingIpCreate|gateway:/);
+  assert.equal(privateApi, undefined, 'the private API load balancer must not be unconditional');
   assert.equal(
     loadBalancers.match(/'OvhK3sPrivateApiLoadBalancer'/g)?.length,
     1,
-    'the control plane needs one stable private registration endpoint'
+    'HA needs at most one private API load balancer'
   );
   assert.match(loadBalancers, /allowedCidrs:\s*\['10\.0\.0\.0\/16'\]/);
+  assert.match(
+    loadBalancers,
+    /const apiTarget = api\?\.vipAddress \?\? args\.privateApi\.nodes\[0\]\?\.privateIp/
+  );
+  assert.match(
+    cluster,
+    /new cloudflare\.DnsRecord\(\s*'OvhK3sPrivateApiDnsRecord',[\s\S]*?name:\s*K3S_API_HOSTNAME[\s\S]*?content:\s*loadBalancers\.apiTarget[\s\S]*?proxied:\s*false/s
+  );
+  assert.match(cluster, /privateApiDnsRecord\.id\.apply\(\(\) => K3S_API_HOSTNAME\)/);
+  assert.match(cluster, /apiAddress:\s*privateApiHostname/);
+});
+
+void test('independently scales public ingress load balancers', () => {
   assert.match(
     loadBalancers,
     /Array\.from\(\s*\{ length: args\.publicIngress\.loadBalancerCount \}/s

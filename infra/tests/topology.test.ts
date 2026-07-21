@@ -107,6 +107,21 @@ void test('chooses the first available control plane as bootstrap candidate', ()
   assert.equal(result.nodes[0]?.bootstrapCandidate, true);
 });
 
+void test('uses a direct API target for one control plane and an OVH VIP for multiple', () => {
+  const direct = buildClusterPlan([cloudControlPlane], 'prod', 0);
+  assert.equal(direct.privateApi.mode, 'direct');
+  assert.deepEqual(direct.privateApi.nodes, [direct.nodes[0]]);
+
+  const balanced = buildClusterPlan([cloudControlPlane, dedicatedControlPlane], 'prod', 1);
+  assert.equal(balanced.privateApi.mode, 'ovh');
+  assert.deepEqual(
+    balanced.privateApi.nodes.map(({ privateIp }) => privateIp),
+    ['10.0.1.1', '10.0.3.1', '10.0.3.2']
+  );
+
+  assert.equal(buildClusterPlan([], 'prod', 0).privateApi.mode, 'none');
+});
+
 void test('resource identity is independent of pool ordering', () => {
   const first = buildClusterPlan([cloudControlPlane, dedicatedControlPlane], 'prod', 1);
   const second = buildClusterPlan([dedicatedControlPlane, cloudControlPlane], 'prod', 1);

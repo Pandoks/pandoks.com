@@ -49,6 +49,11 @@ export type PublicIngressPlan = {
   loadBalancerCount: number;
 };
 
+export type PrivateApiPlan = {
+  mode: 'none' | 'direct' | 'ovh';
+  nodes: readonly ClusterNodeSpec[];
+};
+
 function validatePool(pool: NodePool): void {
   if (!Number.isInteger(pool.count) || pool.count < 0) {
     throw new Error(`Node pool ${pool.name} count must be a non-negative integer`);
@@ -125,6 +130,11 @@ export function buildClusterPlan(
     controlPlanes[0].bootstrapCandidate = true;
   }
 
+  const privateApi: PrivateApiPlan = {
+    mode: controlPlanes.length === 0 ? 'none' : controlPlanes.length === 1 ? 'direct' : 'ovh',
+    nodes: controlPlanes
+  };
+
   const ingressNodes = nodes.filter((node) => node.pool.ingress);
   if (ingressNodes.length === 0 && publicIngressLoadBalancerCount !== 0) {
     throw new Error('no ingress nodes requires publicIngressLoadBalancerCount to be 0');
@@ -156,7 +166,7 @@ export function buildClusterPlan(
       `Embedded-etcd HA recommends an odd control-plane count of at least 3; configured ${controlPlanes.length}`
     );
   }
-  return { nodes, warnings, publicIngress };
+  return { nodes, warnings, privateApi, publicIngress };
 }
 
 // Retained for the documented future highest-index-first scale-down workflow.

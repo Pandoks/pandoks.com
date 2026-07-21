@@ -3,6 +3,7 @@ export const isProduction = $app.stage === 'production';
 export const domain = isProduction ? 'pandoks.com' : 'dev.pandoks.com';
 
 export const EXAMPLE_DOMAIN = `example.${domain}`;
+export const K3S_API_HOSTNAME = `k3s-api.${domain}`;
 
 export const STAGE_NAME = isProduction ? 'prod' : 'dev';
 

@@ -1,5 +1,6 @@
-import { STAGE_NAME, isProduction } from '../utils';
+import { cloudflareZoneId } from '../dns';
 import { deleteTailscaleDevices } from '../tailscale';
+import { K3S_API_HOSTNAME, STAGE_NAME, isProduction } from '../utils';
 import { NODE_POOLS, clusterConfig } from './config';
 import { createClusterLoadBalancers } from './load-balancers';
 import { createClusterNetwork } from './network';
@@ -34,24 +35,38 @@ const network =
 const loadBalancers =
   network &&
   createClusterLoadBalancers({
-    nodes: topology.nodes,
     network,
+    privateApi: topology.privateApi,
     publicIngress: topology.publicIngress
   });
+const privateApiDnsRecord =
+  loadBalancers &&
+  new cloudflare.DnsRecord('OvhK3sPrivateApiDnsRecord', {
+    name: K3S_API_HOSTNAME,
+    zoneId: cloudflareZoneId,
+    type: 'A',
+    content: loadBalancers.apiTarget,
+    proxied: false,
+    ttl: 60,
+    comment: 'private ovh k3s api'
+  });
+const privateApiHostname = privateApiDnsRecord
+  ? privateApiDnsRecord.id.apply(() => K3S_API_HOSTNAME)
+  : undefined;
 
 const provisionedNodes: Array<{
   node: (typeof topology.nodes)[number];
   publicIp: $util.Output<string>;
 }> = [];
 
-if (network && loadBalancers) {
+if (network && loadBalancers && privateApiHostname) {
   for (const pool of NODE_POOLS) {
     const nodes = topology.nodes.filter((node) => node.pool === pool);
     if (nodes.length === 0) continue;
     const args = {
       nodes,
       network,
-      apiAddress: loadBalancers.apiAddress,
+      apiAddress: privateApiHostname,
       protect: isProduction
     };
     if (pool.provider === 'public-cloud') {
