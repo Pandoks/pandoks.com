@@ -15,6 +15,8 @@ type ClusterStageConfig = {
   cloudWorkerCount: number;
   dedicatedControlPlaneCount: number;
   dedicatedWorkerCount: number;
+  // 0 for one direct node, 1 for one OVH LB, 2+ for OVH LBs behind Cloudflare.
+  publicIngressLoadBalancerCount: number;
   dedicatedPlan: string;
   dedicatedDatacenter: string;
   dedicatedOrderRegion: string;
@@ -26,6 +28,7 @@ export const PRODUCTION_CLUSTER_CONFIG: ClusterStageConfig = {
   cloudWorkerCount: 0,
   dedicatedControlPlaneCount: 0,
   dedicatedWorkerCount: 0,
+  publicIngressLoadBalancerCount: 0,
   dedicatedPlan: '',
   dedicatedDatacenter: '',
   dedicatedOrderRegion: '',
@@ -37,6 +40,7 @@ export const NON_PRODUCTION_CLUSTER_CONFIG: ClusterStageConfig = {
   cloudWorkerCount: 0,
   dedicatedControlPlaneCount: 0,
   dedicatedWorkerCount: 0,
+  publicIngressLoadBalancerCount: 0,
   dedicatedPlan: '',
   dedicatedDatacenter: '',
   dedicatedOrderRegion: '',

@@ -95,12 +95,21 @@ EOF
 }
 
 configure_firewall() {
+  CLOUDFLARE_IPV4_SET=''
+  CLOUDFLARE_INGRESS_RULE=''
+  if [ "${DIRECT_INGRESS}" = "true" ]; then
+    CLOUDFLARE_IPV4_SET="set cloudflare_ipv4 { type ipv4_addr; flags interval; elements = { ${CLOUDFLARE_IPV4_CIDRS} }; }"
+    CLOUDFLARE_INGRESS_RULE='ip saddr @cloudflare_ipv4 tcp dport { 80, 443 } accept comment "Cloudflare web ingress"'
+  fi
+
   cat > /etc/nftables.conf << EOF
 #!/usr/sbin/nft -f
 
 flush ruleset
 
 table inet filter {
+  ${CLOUDFLARE_IPV4_SET}
+
   chain input {
     type filter hook input priority -100; policy drop;
 
@@ -111,6 +120,7 @@ table inet filter {
     iifname "cni0" accept comment "k3s CNI"
     iifname "flannel.1" accept comment "k3s Flannel"
     iifname "${VRACK_INTERFACE}" ip saddr ${NETWORK_CIDR} accept comment "OVH vRack"
+    ${CLOUDFLARE_INGRESS_RULE}
     udp dport 41641 accept comment "Direct Tailscale"
     ip6 nexthdr ipv6-icmp accept comment "Required ICMPv6"
     limit rate 5/minute counter log prefix "nft-drop: "

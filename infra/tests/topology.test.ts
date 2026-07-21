@@ -55,7 +55,8 @@ void test('builds stable identities and role-owned addresses for mixed providers
         hostnamePrefix: 'dedicated-worker-server'
       }
     ],
-    'prod'
+    'prod',
+    1
   );
 
   assert.deepEqual(
@@ -102,13 +103,13 @@ void test('builds stable identities and role-owned addresses for mixed providers
 });
 
 void test('chooses the first available control plane as bootstrap candidate', () => {
-  const result = buildClusterPlan([{ ...dedicatedControlPlane, count: 1 }], 'prod');
+  const result = buildClusterPlan([{ ...dedicatedControlPlane, count: 1 }], 'prod', 0);
   assert.equal(result.nodes[0]?.bootstrapCandidate, true);
 });
 
 void test('resource identity is independent of pool ordering', () => {
-  const first = buildClusterPlan([cloudControlPlane, dedicatedControlPlane], 'prod');
-  const second = buildClusterPlan([dedicatedControlPlane, cloudControlPlane], 'prod');
+  const first = buildClusterPlan([cloudControlPlane, dedicatedControlPlane], 'prod', 1);
+  const second = buildClusterPlan([dedicatedControlPlane, cloudControlPlane], 'prod', 1);
   assert.deepEqual(
     new Set(first.nodes.map((node) => node.logicalName)),
     new Set(second.nodes.map((node) => node.logicalName))
@@ -118,11 +119,15 @@ void test('resource identity is independent of pool ordering', () => {
 void test('rejects invalid cluster shapes', () => {
   assert.throws(
     () =>
-      buildClusterPlan([{ ...cloudControlPlane, name: 'cloud-workers', role: 'worker' }], 'prod'),
+      buildClusterPlan(
+        [{ ...cloudControlPlane, name: 'cloud-workers', role: 'worker' }],
+        'prod',
+        0
+      ),
     /at least one control-plane node/
   );
   assert.throws(
-    () => buildClusterPlan([cloudControlPlane, cloudControlPlane], 'prod'),
+    () => buildClusterPlan([cloudControlPlane, cloudControlPlane], 'prod', 1),
     /Duplicate node pool name/
   );
   assert.throws(
@@ -138,7 +143,8 @@ void test('rejects invalid cluster shapes', () => {
             subnet: 4
           }
         ],
-        'prod'
+        'prod',
+        1
       ),
     /dedicated-workers.*10\.0\.4\.1-10\.0\.4\.254/
   );
@@ -155,12 +161,13 @@ void test('rejects invalid cluster shapes', () => {
             subnet: 1
           }
         ],
-        'prod'
+        'prod',
+        1
       ),
     /Duplicate node pool subnet/
   );
   assert.throws(
-    () => buildClusterPlan([{ ...cloudControlPlane, subnet: 5 }], 'prod'),
+    () => buildClusterPlan([{ ...cloudControlPlane, subnet: 5 }], 'prod', 0),
     /reserved for MetalLB/
   );
 });
@@ -185,7 +192,8 @@ void test('accepts every address available to the configured node pools', () => 
         subnet: 4
       }
     ],
-    'prod'
+    'prod',
+    1
   );
 
   assert.equal(result.nodes.length, 1016);
@@ -198,20 +206,55 @@ void test('does not impose a made-up load balancer limit on cluster topology', (
       { ...cloudControlPlane, count: 13 },
       { ...dedicatedControlPlane, count: 13 }
     ],
-    'prod'
+    'prod',
+    1
   );
   assert.equal(result.nodes.length, 26);
 });
 
 void test('validates dedicated catalog settings and embedded-etcd HA', () => {
   assert.throws(
-    () => buildClusterPlan([{ ...dedicatedControlPlane, plan: '' }], 'prod'),
+    () => buildClusterPlan([{ ...dedicatedControlPlane, plan: '' }], 'prod', 1),
     /requires plan/
   );
   assert.match(
-    buildClusterPlan([cloudControlPlane], 'prod').warnings[0] ?? '',
+    buildClusterPlan([cloudControlPlane], 'prod', 0).warnings[0] ?? '',
     /odd control-plane count of at least 3/
   );
+});
+
+void test('routes one ingress node directly and forbids a public load balancer', () => {
+  const plan = buildClusterPlan([cloudControlPlane], 'dev', 0);
+  assert.equal(plan.publicIngress.mode, 'direct');
+  assert.equal(plan.publicIngress.nodes[0]?.directIngress, true);
+  assert.throws(
+    () => buildClusterPlan([cloudControlPlane], 'dev', 1),
+    /one ingress node requires publicIngressLoadBalancerCount to be 0/
+  );
+});
+
+void test('uses direct DNS for one OVH ingress load balancer and Cloudflare for multiple', () => {
+  const pools = [cloudControlPlane, dedicatedControlPlane];
+  assert.equal(buildClusterPlan(pools, 'prod', 1).publicIngress.mode, 'ovh');
+  assert.equal(buildClusterPlan(pools, 'prod', 2).publicIngress.mode, 'cloudflare');
+  assert.equal(buildClusterPlan(pools, 'prod', 3).publicIngress.loadBalancerCount, 3);
+});
+
+void test('rejects invalid public ingress load balancer counts', () => {
+  const pools = [cloudControlPlane, dedicatedControlPlane];
+  assert.throws(
+    () => buildClusterPlan(pools, 'prod', 0),
+    /multiple ingress nodes require at least one public ingress load balancer/
+  );
+  assert.throws(
+    () => buildClusterPlan(pools, 'prod', 1.5),
+    /publicIngressLoadBalancerCount must be a non-negative integer/
+  );
+  assert.throws(
+    () => buildClusterPlan([], 'dev', 1),
+    /no ingress nodes requires publicIngressLoadBalancerCount to be 0/
+  );
+  assert.equal(buildClusterPlan([], 'dev', 0).publicIngress.mode, 'none');
 });
 
 void test('keeps the scale-down identity template for future operations', () => {

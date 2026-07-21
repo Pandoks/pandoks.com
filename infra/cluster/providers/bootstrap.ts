@@ -3,6 +3,7 @@ import { deleteTailscaleDevices, tailscaleAcl } from '../../tailscale';
 import { STAGE_NAME } from '../../utils';
 import { secrets } from '../../secrets';
 import { backupBucket, s3Endpoint } from '../../storage';
+import { cloudflareIpv4Cidrs } from '../../dns';
 import type { ClusterNodeSpec } from '../topology';
 
 const bootstrapScript = readFileSync(
@@ -107,6 +108,8 @@ export function createNodeBootstrap(args: {
         VRACK_MAC: vrackMac,
         ROLE: args.node.pool.role,
         BOOTSTRAP_CANDIDATE: String(args.node.bootstrapCandidate),
+        DIRECT_INGRESS: String(args.node.directIngress),
+        CLOUDFLARE_IPV4_CIDRS: cloudflareIpv4Cidrs.join(', '),
         SERVER_API: `https://${apiAddress}:6443`,
         K3S_TOKEN: k3sToken,
         REGISTRATION_TAILNET_AUTH_KEY: registrationKey,

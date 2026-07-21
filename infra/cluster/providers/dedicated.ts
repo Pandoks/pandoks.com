@@ -9,6 +9,7 @@ export function createDedicatedNodes(args: {
   apiAddress: $util.Input<string>;
   protect: boolean;
 }) {
+  const provisioned: Array<{ node: ClusterNodeSpec; publicIp: $util.Output<string> }> = [];
   for (const node of args.nodes) {
     const server = new ovh.dedicated.Server(
       node.logicalName,
@@ -55,7 +56,7 @@ export function createDedicatedNodes(args: {
     const bootstrap = createNodeBootstrap({
       node,
       apiAddress: args.apiAddress,
-      networkCidr: args.network.cidr,
+      networkCidr: args.network.subnet.cidr,
       networkMode: 'static',
       vrackMac: vrackVni.apply((vni) => vni.nics[0]),
       dependsOn: [server, attachment]
@@ -79,5 +80,8 @@ export function createDedicatedNodes(args: {
         protect: args.protect
       }
     );
+    provisioned.push({ node, publicIp: server.ip });
   }
+
+  return provisioned;
 }

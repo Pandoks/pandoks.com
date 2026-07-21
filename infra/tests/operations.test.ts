@@ -5,7 +5,6 @@ import test from 'node:test';
 
 const cluster = readFileSync('infra/cluster/cluster.ts', 'utf8');
 const clusterConfigModule = readFileSync('infra/cluster/config.ts', 'utf8');
-const clusterTopology = readFileSync('infra/cluster/topology.ts', 'utf8');
 const publicCloud = readFileSync('infra/cluster/providers/public-cloud.ts', 'utf8');
 const dedicated = readFileSync('infra/cluster/providers/dedicated.ts', 'utf8');
 const envExample = readFileSync('.env.example', 'utf8');
@@ -192,7 +191,10 @@ void test('keeps network, node pools, and MetalLB on one non-overlapping address
     /allocationPools:\s*\[\s*\{\s*start:\s*'10\.0\.0\.2',\s*end:\s*'10\.0\.0\.254'\s*\}\s*\]/s
   );
   assert.match(network, /dhcpEnabled:\s*true/);
-  assert.match(cluster, /buildClusterPlan\(NODE_POOLS, STAGE_NAME\)/);
+  assert.match(
+    cluster,
+    /buildClusterPlan\(\s*NODE_POOLS,\s*STAGE_NAME,\s*clusterConfig\.publicIngressLoadBalancerCount\s*\)/s
+  );
   assert.match(metalLb, /10\.0\.5\.1-10\.0\.5\.254/);
   assert.match(network, /10\.0\.0\.x\s+OVH\/Neutron infrastructure/);
   assert.match(network, /10\.0\.6-255\.x\s+Reserved/);
@@ -201,14 +203,30 @@ void test('keeps network, node pools, and MetalLB on one non-overlapping address
   assert.doesNotMatch(bootstrapScript, /\$\{NODE_IP\}\/24/);
 });
 
-void test('uses one load balancer per traffic plane without an invented member cap', () => {
-  assert.equal(loadBalancers.match(/new ovh\.cloudproject\.LoadBalancer/g)?.length, 2);
-  assert.doesNotMatch(clusterTopology, /LOAD_BALANCER_MEMBER_CAPACITY|control-plane members/);
-  assert.doesNotMatch(loadBalancers, /LOAD_BALANCER_MEMBER_CAPACITY|Math\.ceil|\.slice\(/);
-  assert.match(loadBalancers, /members:\s*members\(ingressNodes,\s*30443\)/);
-  assert.match(cluster, /export const publicIngressLoadBalancer = loadBalancers\?\.publicIngress/);
-  assert.doesNotMatch(cluster, /publicIngressLoadBalancers/);
-  assert.match(cloudflare, /if \(publicIngressLoadBalancer && !isProduction\)/);
+void test('keeps the control-plane endpoint private and independently scales public ingress', () => {
+  const privateApi = loadBalancers.match(
+    /const api = new ovh\.cloudproject\.LoadBalancer\([\s\S]*?\n\s*const ingressNodes/
+  )?.[0];
+  assert.ok(privateApi);
+  assert.doesNotMatch(privateApi, /floatingIpCreate|gateway:/);
+  assert.equal(
+    loadBalancers.match(/'OvhK3sPrivateApiLoadBalancer'/g)?.length,
+    1,
+    'the control plane needs one stable private registration endpoint'
+  );
+  assert.match(loadBalancers, /allowedCidrs:\s*\['10\.0\.0\.0\/16'\]/);
+  assert.match(
+    loadBalancers,
+    /Array\.from\(\s*\{ length: args\.publicIngress\.loadBalancerCount \}/s
+  );
+  assert.match(loadBalancers, /members:\s*members\(ingressNodes,\s*443\)/);
+  assert.doesNotMatch(loadBalancers, /protocol:\s*'proxyV2'/);
+  assert.match(cluster, /publicIngressLoadBalancerCount/);
+  assert.match(cluster, /export const publicIngress/);
+  assert.match(cloudflare, /publicIngress\.mode === 'cloudflare'/);
+  assert.match(cloudflare, /new cloudflare\.LoadBalancerMonitor/);
+  assert.match(cloudflare, /new cloudflare\.LoadBalancerPool/);
+  assert.match(cloudflare, /new cloudflare\.LoadBalancer/);
 });
 
 void test('cluster monitoring matches the disabled default topology', () => {
@@ -228,9 +246,13 @@ void test('cluster monitoring matches the disabled default topology', () => {
   assert.match(monitoring, /^\s*endpoints:\s*\[\]\s*$/m);
 });
 
-void test('enables PROXY v2 on both OVH load balancers and HAProxy Ingress', () => {
-  assert.match(loadBalancers, /protocol:\s*'proxyV2'/);
-  assert.match(ingress, /use-proxy-protocol:\s*"true"/);
+void test('supports direct Cloudflare HTTPS without exposing the Kubernetes API', () => {
+  assert.match(ingress, /useHostPort:\s*true/);
+  assert.doesNotMatch(ingress, /use-proxy-protocol/);
+  assert.match(bootstrap, /DIRECT_INGRESS/);
+  assert.match(bootstrapScript, /CLOUDFLARE_IPV4_CIDRS/);
+  assert.match(bootstrapScript, /tcp dport \{ 80, 443 \}/);
+  assert.doesNotMatch(bootstrapScript, /tcp dport 6443 accept comment "Public/);
 });
 
 void test('keeps topology and the Public Cloud project in code and only credentials in CI', () => {

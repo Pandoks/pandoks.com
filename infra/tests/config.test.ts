@@ -25,6 +25,7 @@ const emptyConfig = {
   cloudWorkerCount: 0,
   dedicatedControlPlaneCount: 0,
   dedicatedWorkerCount: 0,
+  publicIngressLoadBalancerCount: 0,
   dedicatedPlan: '',
   dedicatedDatacenter: '',
   dedicatedOrderRegion: '',
@@ -45,6 +46,7 @@ void test('owns the shared OVH topology settings in the cluster configuration', 
   assert.equal(GATEWAY_MODEL, 'S');
   assert.equal(LOAD_BALANCER_FLAVOR, 'small');
   assert.equal(LOAD_BALANCER_ALGORITHM, 'leastConnections');
+  assert.equal(clusterConfig.publicIngressLoadBalancerCount, 0);
   assert.deepEqual(
     NODE_POOLS.map(({ name, count, subnet, logicalNamePrefix, hostnamePrefix }) => ({
       name,

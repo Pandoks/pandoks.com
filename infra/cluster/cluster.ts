@@ -1,13 +1,17 @@
 import { STAGE_NAME, isProduction } from '../utils';
 import { deleteTailscaleDevices } from '../tailscale';
-import { NODE_POOLS } from './config';
+import { NODE_POOLS, clusterConfig } from './config';
 import { createClusterLoadBalancers } from './load-balancers';
 import { createClusterNetwork } from './network';
 import { createDedicatedNodes } from './providers/dedicated';
 import { createPublicCloudNodes } from './providers/public-cloud';
 import { buildClusterPlan } from './topology';
 
-const topology = buildClusterPlan(NODE_POOLS, STAGE_NAME);
+const topology = buildClusterPlan(
+  NODE_POOLS,
+  STAGE_NAME,
+  clusterConfig.publicIngressLoadBalancerCount
+);
 for (const warning of topology.warnings) console.warn(warning);
 
 const cloudProject = new ovh.cloudproject.Project(
@@ -27,7 +31,18 @@ const cloudProject = new ovh.cloudproject.Project(
 
 const network =
   topology.nodes.length > 0 ? createClusterNetwork(cloudProject.projectId) : undefined;
-const loadBalancers = network && createClusterLoadBalancers({ nodes: topology.nodes, network });
+const loadBalancers =
+  network &&
+  createClusterLoadBalancers({
+    nodes: topology.nodes,
+    network,
+    publicIngress: topology.publicIngress
+  });
+
+const provisionedNodes: Array<{
+  node: (typeof topology.nodes)[number];
+  publicIp: $util.Output<string>;
+}> = [];
 
 if (network && loadBalancers) {
   for (const pool of NODE_POOLS) {
@@ -40,9 +55,9 @@ if (network && loadBalancers) {
       protect: isProduction
     };
     if (pool.provider === 'public-cloud') {
-      createPublicCloudNodes({ ...args, pool });
+      provisionedNodes.push(...createPublicCloudNodes({ ...args, pool }));
     } else {
-      createDedicatedNodes({ ...args, pool });
+      provisionedNodes.push(...createDedicatedNodes({ ...args, pool }));
     }
   }
 }
@@ -60,10 +75,22 @@ if (topology.nodes.length === 0) {
   }
 }
 
-export const publicIngressLoadBalancer = loadBalancers?.publicIngress;
+export const publicIngress = (() => {
+  if (!loadBalancers || topology.publicIngress.mode === 'none') return;
+  if (topology.publicIngress.mode === 'direct') {
+    const target = provisionedNodes.find(({ node }) => node === topology.publicIngress.nodes[0]);
+    if (!target) throw new Error('Direct public ingress node was not provisioned');
+    return { mode: 'direct' as const, origins: [{ address: target.publicIp }] };
+  }
+  return {
+    mode: topology.publicIngress.mode,
+    origins: loadBalancers.publicIngress.map((loadBalancer) => ({
+      address: loadBalancer.floatingIp.apply((floatingIp) => floatingIp.ip)
+    }))
+  };
+})();
+
 export const outputs = {
   CloudProjectId: cloudProject.projectId,
-  ...(publicIngressLoadBalancer && {
-    IngressLoadBalancer: publicIngressLoadBalancer.floatingIp.apply((floatingIp) => floatingIp.ip)
-  })
+  ...(publicIngress && { IngressOrigins: publicIngress.origins.map(({ address }) => address) })
 };

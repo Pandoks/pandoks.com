@@ -40,6 +40,13 @@ export type ClusterNodeSpec = {
   hostname: string;
   privateIp: string;
   bootstrapCandidate: boolean;
+  directIngress: boolean;
+};
+
+export type PublicIngressPlan = {
+  mode: 'none' | 'direct' | 'ovh' | 'cloudflare';
+  nodes: readonly ClusterNodeSpec[];
+  loadBalancerCount: number;
 };
 
 function validatePool(pool: NodePool): void {
@@ -66,7 +73,15 @@ function validatePool(pool: NodePool): void {
   }
 }
 
-export function buildClusterPlan(pools: readonly NodePool[], stage: string) {
+export function buildClusterPlan(
+  pools: readonly NodePool[],
+  stage: string,
+  publicIngressLoadBalancerCount: number
+) {
+  if (!Number.isInteger(publicIngressLoadBalancerCount) || publicIngressLoadBalancerCount < 0) {
+    throw new Error('publicIngressLoadBalancerCount must be a non-negative integer');
+  }
+
   const names = new Set<string>();
   const subnets = new Set<number>();
   const nodes: ClusterNodeSpec[] = [];
@@ -96,7 +111,8 @@ export function buildClusterPlan(pools: readonly NodePool[], stage: string) {
         logicalName: `${pool.logicalNamePrefix}${poolIndex}`,
         hostname: `${stage}-ovh-${pool.hostnamePrefix}-${poolIndex}`,
         privateIp,
-        bootstrapCandidate: false
+        bootstrapCandidate: false,
+        directIngress: false
       });
     }
   }
@@ -109,13 +125,38 @@ export function buildClusterPlan(pools: readonly NodePool[], stage: string) {
     controlPlanes[0].bootstrapCandidate = true;
   }
 
+  const ingressNodes = nodes.filter((node) => node.pool.ingress);
+  if (ingressNodes.length === 0 && publicIngressLoadBalancerCount !== 0) {
+    throw new Error('no ingress nodes requires publicIngressLoadBalancerCount to be 0');
+  }
+  if (ingressNodes.length === 1 && publicIngressLoadBalancerCount !== 0) {
+    throw new Error('one ingress node requires publicIngressLoadBalancerCount to be 0');
+  }
+  if (ingressNodes.length > 1 && publicIngressLoadBalancerCount === 0) {
+    throw new Error('multiple ingress nodes require at least one public ingress load balancer');
+  }
+  if (ingressNodes.length === 1) ingressNodes[0].directIngress = true;
+
+  const publicIngress: PublicIngressPlan = {
+    mode:
+      ingressNodes.length === 0
+        ? 'none'
+        : ingressNodes.length === 1
+          ? 'direct'
+          : publicIngressLoadBalancerCount === 1
+            ? 'ovh'
+            : 'cloudflare',
+    nodes: ingressNodes,
+    loadBalancerCount: publicIngressLoadBalancerCount
+  };
+
   const warnings: string[] = [];
   if (controlPlanes.length > 0 && (controlPlanes.length < 3 || controlPlanes.length % 2 === 0)) {
     warnings.push(
       `Embedded-etcd HA recommends an odd control-plane count of at least 3; configured ${controlPlanes.length}`
     );
   }
-  return { nodes, warnings };
+  return { nodes, warnings, publicIngress };
 }
 
 // Retained for the documented future highest-index-first scale-down workflow.

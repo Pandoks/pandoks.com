@@ -1,7 +1,8 @@
 import { STAGE_NAME } from '../utils';
+import { cloudflareIpv4Cidrs } from '../dns';
 import { LOAD_BALANCER_ALGORITHM, LOAD_BALANCER_FLAVOR, REGION } from './config';
 import type { ClusterNetwork } from './network';
-import type { ClusterNodeSpec } from './topology';
+import type { ClusterNodeSpec, PublicIngressPlan } from './topology';
 
 function members(nodes: readonly ClusterNodeSpec[], port: number) {
   return nodes.map((node) => ({
@@ -14,8 +15,9 @@ function members(nodes: readonly ClusterNodeSpec[], port: number) {
 export function createClusterLoadBalancers(args: {
   nodes: readonly ClusterNodeSpec[];
   network: ClusterNetwork;
+  publicIngress: PublicIngressPlan;
 }) {
-  const flavorId = ovh.cloudproject
+  const loadBalancerFlavorId = ovh.cloudproject
     .getLoadBalancerFlavorsOutput({
       serviceName: args.network.projectId,
       regionName: REGION
@@ -29,16 +31,17 @@ export function createClusterLoadBalancers(args: {
       }
       return flavor.id;
     });
+
   const controlPlanes = args.nodes.filter((node) => node.pool.role === 'control-plane');
   const api = new ovh.cloudproject.LoadBalancer('OvhK3sPrivateApiLoadBalancer', {
     serviceName: args.network.projectId,
     name: `k3s-private-${STAGE_NAME}-api`,
     regionName: REGION,
-    flavorId,
+    flavorId: loadBalancerFlavorId,
     network: {
       private: {
         network: {
-          id: args.network.networkId,
+          id: args.network.network.id,
           subnetId: args.network.subnet.id
         }
       }
@@ -47,6 +50,8 @@ export function createClusterLoadBalancers(args: {
       {
         port: 6443,
         protocol: 'tcp',
+        // The API VIP has no floating IP and only accepts private vRack clients.
+        allowedCidrs: ['10.0.0.0/16'],
         pool: {
           algorithm: LOAD_BALANCER_ALGORITHM,
           protocol: 'tcp',
@@ -57,37 +62,40 @@ export function createClusterLoadBalancers(args: {
     ]
   });
 
-  const ingressNodes = args.nodes.filter((node) => node.pool.ingress);
-  const publicIngress = new ovh.cloudproject.LoadBalancer('OvhK3sPublicIngressLoadBalancer', {
-    serviceName: args.network.projectId,
-    name: `k3s-public-${STAGE_NAME}-ingress`,
-    regionName: REGION,
-    flavorId,
-    network: {
-      private: {
-        network: {
-          id: args.network.networkId,
-          subnetId: args.network.subnet.id
-        },
-        floatingIpCreate: {
-          description: `k3s-public-${STAGE_NAME}-ingress`
-        },
-        gateway: { id: args.network.gateway.id }
-      }
-    },
-    listeners: [
-      {
-        port: 443,
-        protocol: 'tcp',
-        pool: {
-          algorithm: LOAD_BALANCER_ALGORITHM,
-          // Must match HAProxy Ingress use-proxy-protocol.
-          protocol: 'proxyV2',
-          members: members(ingressNodes, 30443),
-          healthMonitor: { monitorType: 'tcp', delay: 10, timeout: 3, maxRetries: 3 }
+  const ingressNodes = args.publicIngress.nodes;
+  const publicIngress = Array.from({ length: args.publicIngress.loadBalancerCount }, (_, index) => {
+    const suffix = index === 0 ? '' : String(index);
+    const resourceName = `OvhK3sPublicIngressLoadBalancer${suffix}`;
+    const name = `k3s-public-${STAGE_NAME}-ingress${index === 0 ? '' : `-${index}`}`;
+    return new ovh.cloudproject.LoadBalancer(resourceName, {
+      serviceName: args.network.projectId,
+      name,
+      regionName: REGION,
+      flavorId: loadBalancerFlavorId,
+      network: {
+        private: {
+          network: {
+            id: args.network.network.id,
+            subnetId: args.network.subnet.id
+          },
+          floatingIpCreate: { description: name },
+          gateway: { id: args.network.gateway.id }
         }
-      }
-    ]
+      },
+      listeners: [
+        {
+          port: 443,
+          protocol: 'tcp',
+          allowedCidrs: cloudflareIpv4Cidrs,
+          pool: {
+            algorithm: LOAD_BALANCER_ALGORITHM,
+            protocol: 'tcp',
+            members: members(ingressNodes, 443),
+            healthMonitor: { monitorType: 'tcp', delay: 10, timeout: 3, maxRetries: 3 }
+          }
+        }
+      ]
+    });
   });
 
   return { apiAddress: api.vipAddress, publicIngress };

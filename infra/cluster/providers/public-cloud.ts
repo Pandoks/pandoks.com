@@ -9,6 +9,7 @@ export function createPublicCloudNodes(args: {
   apiAddress: $util.Input<string>;
   protect: boolean;
 }) {
+  const provisioned: Array<{ node: ClusterNodeSpec; publicIp: $util.Output<string> }> = [];
   const flavorId = ovh.cloudproject
     .getFlavorsOutput({
       serviceName: args.network.projectId,
@@ -36,11 +37,11 @@ export function createPublicCloudNodes(args: {
     const bootstrap = createNodeBootstrap({
       node,
       apiAddress: args.apiAddress,
-      networkCidr: args.network.cidr,
+      networkCidr: args.network.subnet.cidr,
       networkMode: 'dhcp',
       dependsOn: [args.network.subnet]
     });
-    new ovh.cloudproject.Instance(
+    const instance = new ovh.cloudproject.Instance(
       node.logicalName,
       {
         serviceName: args.network.projectId,
@@ -54,7 +55,7 @@ export function createPublicCloudNodes(args: {
           private: {
             ip: node.privateIp,
             network: {
-              id: args.network.networkId,
+              id: args.network.network.id,
               subnetId: args.network.subnet.id
             }
           }
@@ -67,5 +68,13 @@ export function createPublicCloudNodes(args: {
         hooks: { afterDelete: [deleteServerFromTailnet] }
       }
     );
+    const publicIp = instance.addresses.apply((addresses) => {
+      const address = addresses.find(({ ip, version }) => version === 4 && ip !== node.privateIp);
+      if (!address) throw new Error(`Public IPv4 address unavailable for ${node.hostname}`);
+      return address.ip;
+    });
+    provisioned.push({ node, publicIp });
   }
+
+  return provisioned;
 }

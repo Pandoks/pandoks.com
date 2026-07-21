@@ -25,6 +25,9 @@ spec:
       ingressClassResource:
         enabled: true
       kind: DaemonSet
+      daemonset:
+        # Lets Cloudflare reach a single node directly without a paid load balancer.
+        useHostPort: true
       service:
         httpPorts:
           - port: 80
@@ -35,9 +38,6 @@ spec:
             targetPort: https
             nodePort: 30443
       config:
-        # Must change with the OVH ingress pool protocol: HAProxy must expect
-        # PROXY v2 exactly when the load balancer sends it.
-        use-proxy-protocol: "true"
         use-forwarded-headers: "true"
         forwarded-for-header: "X-Forwarded-For"
       stats:
