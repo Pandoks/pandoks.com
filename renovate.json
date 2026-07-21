@@ -50,11 +50,21 @@
       "depNameTemplate": "node",
       "datasourceTemplate": "node-version",
       "versioningTemplate": "node"
+    },
+    {
+      "customType": "regex",
+      "description": "Track Helm chart versions in K3s HelmChart resources",
+      "managerFilePatterns": ["/^k3s/.+\\.ya?ml$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+) registryUrl=(?<registryUrl>\\S+)\\s+version:\\s*(?<currentValue>\\S+)"
+      ],
+      "versioningTemplate": "semver"
     }
   ],
   "packageRules": [
     {
-      "matchManagers": ["helm-values", "helmv3"],
+      "matchManagers": ["helm-values", "helmv3", "custom.regex"],
+      "matchDatasources": ["helm"],
       "groupName": "helm charts"
     },
     {

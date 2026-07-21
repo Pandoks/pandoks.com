@@ -200,8 +200,8 @@ k3s doesn't create pods with `component=etcd` labels (embedded etcd).
 ### Grafana Datasource Provisioning
 
 Grafana uses the default sidecar-based provisioning. Earlier versions had a race condition
-(REQ_SKIP_INIT bug) but this was fixed in Grafana helm chart 10.5.8 (included in
-kube-prometheus-stack 80.14.4+).
+(REQ_SKIP_INIT bug) but this was fixed in Grafana helm chart 10.5.8 and is included in the pinned
+kube-prometheus-stack chart.
 
 ### Updating Helm Values
 
