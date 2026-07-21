@@ -5,7 +5,7 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-    # MetalLB owns 10.0.5.x; cluster nodes use the separate 10.0.1.x-10.0.4.x blocks.
+    # MetalLB owns 10.0.5.x (check infra/cluster/network.ts)
     - 10.0.5.1-10.0.5.254
 
 ---
