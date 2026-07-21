@@ -1,17 +1,22 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:best-practices", ":semanticCommits", "group:allNonMajor", "group:allDigest"],
+  "extends": [
+    "config:best-practices",
+    ":preserveSemverRanges",
+    ":semanticCommits",
+    "group:allNonMajor",
+    "group:allDigest",
+    "customManagers:dockerfileVersions"
+  ],
   "labels": ["dependencies"],
   "assignees": ["pandoks"],
   "minimumReleaseAge": "7 days",
   "dependencyDashboardTitle": "[renovate] 🤖 outdated dependencies (DON'T DELETE)",
   "dependencyDashboardLabels": ["dependencies"],
-  "dependencyDashboardAutoclose": false,
   "dependencyDashboardOSVVulnerabilitySummary": "unresolved",
   "osvVulnerabilityAlerts": true,
   "prConcurrentLimit": 5,
   "prHourlyLimit": 0,
-  "rangeStrategy": "pin",
   "postUpdateOptions": ["pnpmDedupe", "gomodTidy"],
   "customManagers": [
     {
@@ -25,25 +30,6 @@
     },
     {
       "customType": "regex",
-      "description": "Track kubectl version in the argocd image (binary fetched from dl.k8s.io). KUBECTL_SHA256 must be updated by hand on each bump — Renovate cannot compute binary checksums, and the stale SHA fails the argocd image build on the PR branch until fixed.",
-      "managerFilePatterns": ["/(^|/)packages/argocd/Dockerfile$/"],
-      "matchStrings": [
-        "# renovate: datasource=(?<datasource>[a-z-]+) packageName=(?<packageName>[^\\s]+)\\s+ARG KUBECTL_VERSION=(?<currentValue>v[\\d.]+)"
-      ],
-      "versioningTemplate": "semver"
-    },
-    {
-      "customType": "regex",
-      "description": "Bump `version:` pins annotated with a trailing `# renovate: datasource=... packageName=...` comment.",
-      "managerFilePatterns": ["/^apps/.+/kube/.+\\.ya?ml$/"],
-      "matchStrings": [
-        "version:\\s*(?<currentValue>\\S+)\\s*#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)\\s+packageName=(?<packageName>[^\\s]+)"
-      ],
-      "registryUrlTemplate": "https://ghcr.io",
-      "versioningTemplate": "semver"
-    },
-    {
-      "customType": "regex",
       "description": "Track the Cloudflare Pages Node version alongside mise",
       "managerFilePatterns": ["/^infra\\/website\\.ts$/"],
       "matchStrings": ["const PAGES_NODE_VERSION = '(?<currentValue>[\\d.]+)';"],
@@ -53,8 +39,8 @@
     },
     {
       "customType": "regex",
-      "description": "Track Helm chart versions in K3s HelmChart resources",
-      "managerFilePatterns": ["/^k3s/.+\\.ya?ml$/"],
+      "description": "Track annotated HelmChart versions",
+      "managerFilePatterns": ["/^(?:apps|k3s)/.+\\.ya?ml$/"],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+) registryUrl=(?<registryUrl>\\S+)\\s+version:\\s*(?<currentValue>\\S+)"
       ],
@@ -63,26 +49,22 @@
   ],
   "packageRules": [
     {
-      "matchManagers": ["helm-values", "helmv3", "custom.regex"],
       "matchDatasources": ["helm"],
       "groupName": "helm charts"
     },
     {
-      "description": "Group all kubectl pins into one PR — kubectl's depNames differ across managers so copies don't auto-coalesce, and the bump needs a manual KUBECTL_SHA256 edit that shouldn't block the all-minor-patch group.",
-      "matchDepNames": ["kubectl", "kubernetes/kubernetes"],
-      "groupName": "kubectl"
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["pandoks/charts/**"],
+      "groupName": "helm charts",
+      "pinDigests": false
     },
     {
-      "description": "Update the mise and Cloudflare Pages Node pins together",
-      "matchDatasources": ["node-version"],
-      "matchDepNames": ["node"],
-      "matchFileNames": ["mise.toml", "infra/website.ts"],
-      "groupName": "Node.js runtime",
-      "minimumGroupSize": 2
+      "description": "Keep kubectl updates separate because KUBECTL_SHA256 must be updated manually.",
+      "matchDepNames": ["kubectl"],
+      "groupName": "kubectl"
     }
   ],
   "vulnerabilityAlerts": {
-    "labels": ["security"],
-    "schedule": ["at any time"]
+    "labels": ["security"]
   }
 }

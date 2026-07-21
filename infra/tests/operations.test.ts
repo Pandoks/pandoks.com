@@ -37,6 +37,7 @@ const dev = readFileSync('infra/dev.ts', 'utf8');
 const website = readFileSync('infra/website.ts', 'utf8');
 const mise = readFileSync('mise.toml', 'utf8');
 const renovate = JSON.parse(readFileSync('renovate.json', 'utf8')) as {
+  extends?: string[];
   customManagers?: Array<Record<string, unknown>>;
   packageRules?: Array<Record<string, unknown>>;
 };
@@ -116,17 +117,37 @@ void test('keeps the Pages and mise Node versions synchronized through Renovate'
       versioningTemplate: 'node'
     }
   );
+});
+
+void test('keeps Renovate extraction minimal and OCI Helm chart updates tag-only', () => {
+  assert.ok(renovate.extends?.includes(':preserveSemverRanges'));
+  assert.ok(renovate.extends?.includes('customManagers:dockerfileVersions'));
+  assert.equal(renovate.customManagers?.length, 3);
   assert.deepEqual(
-    renovate.packageRules?.find(
-      (rule) => rule.description === 'Update the mise and Cloudflare Pages Node pins together'
+    renovate.customManagers?.find(
+      (manager) => manager.description === 'Track annotated HelmChart versions'
     ),
     {
-      description: 'Update the mise and Cloudflare Pages Node pins together',
-      matchDatasources: ['node-version'],
-      matchDepNames: ['node'],
-      matchFileNames: ['mise.toml', 'infra/website.ts'],
-      groupName: 'Node.js runtime',
-      minimumGroupSize: 2
+      customType: 'regex',
+      description: 'Track annotated HelmChart versions',
+      managerFilePatterns: ['/^(?:apps|k3s)/.+\\.ya?ml$/'],
+      matchStrings: [
+        '# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+) registryUrl=(?<registryUrl>\\S+)\\s+version:\\s*(?<currentValue>\\S+)'
+      ],
+      versioningTemplate: 'semver'
+    }
+  );
+  assert.deepEqual(
+    renovate.packageRules?.find(
+      (rule) =>
+        Array.isArray(rule.matchPackageNames) &&
+        rule.matchPackageNames.includes('pandoks/charts/**')
+    ),
+    {
+      matchDatasources: ['docker'],
+      matchPackageNames: ['pandoks/charts/**'],
+      groupName: 'helm charts',
+      pinDigests: false
     }
   );
 });
