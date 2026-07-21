@@ -8,4 +8,15 @@ resources:
   - cluster-upgrade-plan.yaml
   - prom-etcd-config.yaml
 patches:
-  - path: origin-tls-patch.yaml
+  - target:
+      group: networking.k8s.io
+      version: v1
+      kind: Ingress
+      namespace: example
+    patch: |-
+      - op: add
+        path: /spec/tls
+        value:
+          - hosts:
+              - ${ExampleDomain}
+            secretName: cloudflare-origin-tls

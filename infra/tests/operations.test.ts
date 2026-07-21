@@ -20,9 +20,6 @@ const clusterOriginTls = existsSync(clusterOriginTlsPath)
   ? readFileSync(clusterOriginTlsPath, 'utf8')
   : '';
 const clusterOriginTlsPatchPath = 'k3s/overlays/cluster/origin-tls-patch.yaml';
-const clusterOriginTlsPatch = existsSync(clusterOriginTlsPatchPath)
-  ? readFileSync(clusterOriginTlsPatchPath, 'utf8')
-  : '';
 const clusterKustomization = readFileSync('k3s/overlays/cluster/kustomization.yaml', 'utf8');
 const exampleApp = readFileSync('apps/example/kube/example.yaml', 'utf8');
 const network = readFileSync('infra/cluster/network.ts', 'utf8');
@@ -153,24 +150,35 @@ void test('keeps Renovate extraction minimal and OCI Helm chart updates tag-only
   );
 });
 
-void test('delegates origin TLS issuance and rotation to cert-manager', () => {
+void test('keeps local k3d web ingress HTTP-only', () => {
+  assert.match(certManager, /name:\s*internal-ca-issuer/);
+  assert.doesNotMatch(certManager, /name:\s*cloudflare-origin-tls/);
+  assert.doesNotMatch(exampleApp, /^\s*tls:/m);
+  assert.doesNotMatch(exampleApp, /cloudflare-origin-tls/);
+  assert.equal(existsSync(clusterOriginTlsPatchPath), false);
+});
+
+void test('delegates cluster origin TLS issuance and rotation to cert-manager', () => {
   assert.doesNotMatch(secrets, /OriginTls(?:Key|Crt)|OvhOriginTls|HetznerOriginTls/);
   assert.doesNotMatch(cloudflare, /OriginCaCertificate|cluster\.origin|cluster\.openssl|OriginTls/);
   assert.doesNotMatch(credentials, /tls\.(?:crt|key):/);
   assert.doesNotMatch(credentials, /cloudflare-dns-api-token/);
 
   assert.match(
-    certManager,
+    clusterOriginTls,
     /kind:\s*Certificate[\s\S]*name:\s*cloudflare-origin-tls[\s\S]*namespace:\s*example/
   );
   assert.match(
-    certManager,
-    /secretName:\s*cloudflare-origin-tls[\s\S]*dnsNames:\s*\n\s*-\s*\$\{ExampleDomain\}[\s\S]*name:\s*internal-ca-issuer/
+    clusterOriginTls,
+    /secretName:\s*cloudflare-origin-tls[\s\S]*dnsNames:\s*\n\s*-\s*\$\{ExampleDomain\}[\s\S]*name:\s*letsencrypt-production/
   );
-  assert.match(certManager, /privateKey:\s*\n\s*rotationPolicy:\s*Always/);
+  assert.match(clusterOriginTls, /privateKey:\s*\n\s*rotationPolicy:\s*Always/);
 
   assert.match(clusterKustomization, /-\s*origin-tls\.yaml/);
-  assert.match(clusterKustomization, /path:\s*origin-tls-patch\.yaml/);
+  assert.match(
+    clusterKustomization,
+    /kind:\s*Ingress[\s\S]*namespace:\s*example[\s\S]*path:\s*\/spec\/tls[\s\S]*secretName:\s*cloudflare-origin-tls/
+  );
   assert.match(clusterOriginTls, /server:\s*https:\/\/acme-v02\.api\.letsencrypt\.org\/directory/);
   assert.match(
     clusterOriginTls,
@@ -184,12 +192,6 @@ void test('delegates origin TLS issuance and rotation to cert-manager', () => {
     clusterOriginTls,
     /apiTokenSecretRef:\s*\n\s*name:\s*cloudflare-dns-api-token\s*\n\s*key:\s*api-token/
   );
-  assert.match(
-    clusterOriginTlsPatch,
-    /kind:\s*Certificate[\s\S]*name:\s*cloudflare-origin-tls[\s\S]*issuerRef:\s*\n\s*name:\s*letsencrypt-production/
-  );
-  assert.equal(exampleApp.match(/secretName:\s*cloudflare-origin-tls/g)?.length, 2);
-
   for (const path of [
     'infra/cluster/cluster.openssl.conf',
     'infra/cluster/cluster.origin.dev.csr',
@@ -277,8 +279,9 @@ void test('routes each deployed stage through its matching example hostname', ()
   );
   assert.match(cloudflare, /if \(publicIngress\) \{/);
   assert.doesNotMatch(cloudflare, /!isProduction/);
-  assert.equal(certManager.match(/\$\{ExampleDomain\}/g)?.length, 1);
-  assert.equal(exampleApp.match(/\$\{ExampleDomain\}/g)?.length, 4);
+  assert.equal(clusterOriginTls.match(/\$\{ExampleDomain\}/g)?.length, 1);
+  assert.equal(clusterKustomization.match(/\$\{ExampleDomain\}/g)?.length, 1);
+  assert.equal(exampleApp.match(/\$\{ExampleDomain\}/g)?.length, 2);
   assert.doesNotMatch(certManager, /example\.pandoks\.com/);
   assert.doesNotMatch(exampleApp, /example\.pandoks\.com/);
 });
