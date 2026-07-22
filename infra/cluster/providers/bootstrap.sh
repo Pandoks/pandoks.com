@@ -169,10 +169,20 @@ download_k3s_installer() {
   chmod 0755 "${K3S_INSTALL}"
 }
 
+run_k3s_installer() {
+  set -- "$@" \
+    --node-label="pandoks.com/workload=${WORKLOAD}" \
+    --node-label="pandoks.com/public-ingress=${PUBLIC_INGRESS}"
+  if [ "${WORKLOAD}" = "database" ]; then
+    set -- "$@" --node-taint="pandoks.com/workload=database:NoSchedule"
+  fi
+  K3S_TOKEN="${K3S_TOKEN}" sh "${K3S_INSTALL}" "$@"
+}
+
 install_control_plane() {
   download_k3s_installer
   if [ "${BOOTSTRAP_CANDIDATE}" = "true" ] && ! api_ready; then
-    K3S_TOKEN="${K3S_TOKEN}" sh "${K3S_INSTALL}" server \
+    run_k3s_installer server \
       --cluster-init \
       --disable=traefik \
       --disable=servicelb \
@@ -192,7 +202,7 @@ install_control_plane() {
       --etcd-snapshot-retention=5
   else
     retry 120 5 api_ready
-    K3S_TOKEN="${K3S_TOKEN}" sh "${K3S_INSTALL}" server \
+    run_k3s_installer server \
       --server="${SERVER_API}" \
       --disable=traefik \
       --disable=servicelb \
@@ -217,7 +227,7 @@ install_control_plane() {
 install_worker() {
   retry 120 5 api_ready
   download_k3s_installer
-  K3S_TOKEN="${K3S_TOKEN}" sh "${K3S_INSTALL}" agent \
+  run_k3s_installer agent \
     --server="${SERVER_API}" \
     --node-ip="${NODE_IP}" \
     --flannel-iface="${VRACK_INTERFACE}"

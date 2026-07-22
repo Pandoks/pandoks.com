@@ -13,8 +13,8 @@ paths:
 
 - **Topology and catalog selection live in `infra/cluster/config.ts`.**
   `PRODUCTION_CLUSTER_CONFIG` and `NON_PRODUCTION_CLUSTER_CONFIG` both currently
-  set all four counts to zero. Fill dedicated catalog fields only in the
-  selected stage object when its dedicated counts become non-zero. CI retains
+  set every pool count to zero. Fill dedicated catalog fields only for an
+  enabled dedicated pool. CI retains
   only the OVH credentials; Pulumi creates the Public Cloud project and passes
   its generated ID directly. CI runs the TypeScript topology contracts.
   Cluster resources use `protect: isProduction`: production nodes are protected

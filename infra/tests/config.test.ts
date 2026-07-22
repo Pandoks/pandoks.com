@@ -10,6 +10,10 @@ Object.defineProperty(globalThis, '$app', {
 
 const jiti = createJiti(import.meta.url);
 const {
+  CLOUD_IMAGE,
+  DEDICATED_DATACENTER,
+  DEDICATED_OPERATING_SYSTEM,
+  DEDICATED_ORDER_REGION,
   GATEWAY_MODEL,
   LOAD_BALANCER_ALGORITHM,
   LOAD_BALANCER_FLAVOR,
@@ -21,19 +25,62 @@ const {
 } = await jiti.import<typeof ClusterConfigModule>('../cluster/config.ts');
 
 const emptyConfig = {
-  cloud: {
-    controlPlaneCount: 0,
-    workerCount: 0
-  },
-  dedicated: {
-    controlPlane: 0,
-    worker: 0
-  },
-  loadBalancerCount: 0,
-  dedicatedPlan: '',
-  dedicatedDatacenter: '',
-  dedicatedOrderRegion: '',
-  dedicatedPlanOptions: []
+  cloud: [
+    {
+      name: 'cloud-control-plane',
+      role: 'control-plane',
+      workload: 'general',
+      count: 0,
+      publicIngress: true,
+      machineType: 'b3-8'
+    },
+    {
+      name: 'cloud-workers',
+      role: 'worker',
+      workload: 'general',
+      count: 0,
+      publicIngress: true,
+      machineType: 'b3-8'
+    },
+    {
+      name: 'cloud-database',
+      role: 'worker',
+      workload: 'database',
+      count: 0,
+      publicIngress: false,
+      machineType: 'b3-8'
+    }
+  ],
+  dedicated: [
+    {
+      name: 'dedicated-control-plane',
+      role: 'control-plane',
+      workload: 'general',
+      count: 0,
+      publicIngress: true,
+      machineType: '',
+      planOptions: []
+    },
+    {
+      name: 'dedicated-workers',
+      role: 'worker',
+      workload: 'general',
+      count: 0,
+      publicIngress: true,
+      machineType: '',
+      planOptions: []
+    },
+    {
+      name: 'dedicated-database',
+      role: 'worker',
+      workload: 'database',
+      count: 0,
+      publicIngress: false,
+      machineType: '',
+      planOptions: []
+    }
+  ],
+  loadBalancerCount: 0
 };
 
 void test('keeps production compute disabled until code review enables it', () => {
@@ -47,41 +94,78 @@ void test('keeps non-production compute disabled until code review enables it', 
 
 void test('owns the shared OVH topology settings in the cluster configuration', () => {
   assert.equal(REGION, 'US-WEST-OR-1');
+  assert.equal(CLOUD_IMAGE, 'Ubuntu 26.04');
+  assert.equal(DEDICATED_OPERATING_SYSTEM, 'ubuntu2604-server_64');
+  assert.equal(DEDICATED_DATACENTER, '');
+  assert.equal(DEDICATED_ORDER_REGION, '');
   assert.equal(GATEWAY_MODEL, 'S');
   assert.equal(LOAD_BALANCER_FLAVOR, 'small');
   assert.equal(LOAD_BALANCER_ALGORITHM, 'leastConnections');
   assert.equal(clusterConfig.loadBalancerCount, 0);
   assert.deepEqual(
-    NODE_POOLS.map(({ name, count, logicalNamePrefix, hostnamePrefix }) => ({
+    NODE_POOLS.map(({ name, provider, role, workload, count, publicIngress, machineType }) => ({
       name,
+      provider,
+      role,
+      workload,
       count,
-      logicalNamePrefix,
-      hostnamePrefix
+      publicIngress,
+      machineType
     })),
     [
       {
         name: 'cloud-control-plane',
+        provider: 'public-cloud',
+        role: 'control-plane',
+        workload: 'general',
         count: 0,
-        logicalNamePrefix: 'OvhControlPlaneServer',
-        hostnamePrefix: 'control-plane-server'
+        publicIngress: true,
+        machineType: 'b3-8'
       },
       {
         name: 'cloud-workers',
+        provider: 'public-cloud',
+        role: 'worker',
+        workload: 'general',
         count: 0,
-        logicalNamePrefix: 'OvhWorkerServer',
-        hostnamePrefix: 'worker-server'
+        publicIngress: true,
+        machineType: 'b3-8'
+      },
+      {
+        name: 'cloud-database',
+        provider: 'public-cloud',
+        role: 'worker',
+        workload: 'database',
+        count: 0,
+        publicIngress: false,
+        machineType: 'b3-8'
       },
       {
         name: 'dedicated-control-plane',
+        provider: 'dedicated',
+        role: 'control-plane',
+        workload: 'general',
         count: 0,
-        logicalNamePrefix: 'OvhDedicatedControlPlaneServer',
-        hostnamePrefix: 'dedicated-control-plane-server'
+        publicIngress: true,
+        machineType: ''
       },
       {
         name: 'dedicated-workers',
+        provider: 'dedicated',
+        role: 'worker',
+        workload: 'general',
         count: 0,
-        logicalNamePrefix: 'OvhDedicatedWorkerServer',
-        hostnamePrefix: 'dedicated-worker-server'
+        publicIngress: true,
+        machineType: ''
+      },
+      {
+        name: 'dedicated-database',
+        provider: 'dedicated',
+        role: 'worker',
+        workload: 'database',
+        count: 0,
+        publicIngress: false,
+        machineType: ''
       }
     ]
   );

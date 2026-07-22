@@ -14,11 +14,11 @@ export function createPublicCloudNodes(args: {
     .getFlavorsOutput({
       serviceName: args.network.projectId,
       region: args.pool.region,
-      nameFilter: args.pool.flavor
+      nameFilter: args.pool.machineType
     })
     .apply((result) => {
       const flavor = result.flavors.at(0);
-      if (!flavor) throw new Error(`Flavor ${args.pool.flavor} isn't available`);
+      if (!flavor) throw new Error(`Machine type ${args.pool.machineType} isn't available`);
       return flavor.id;
     });
   const imageId = ovh.cloudproject

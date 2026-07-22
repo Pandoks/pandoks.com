@@ -102,9 +102,7 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
 
 - **SST resource string IDs are PascalCase**: `ApiRouter`,
   `NotionWebhookHandler`, `TextSms`, `ScheduleTextGroup`,
-  `ScheduleInvokeTextRole`, `OvhK3sPrivateNetwork`,
-  `OvhOriginCloudflareCaCertificate` (aliased from
-  `HetznerOriginCloudflareCaCertificate`).
+  `ScheduleInvokeTextRole`, `OvhK3sPrivateNetwork`.
 - **Stage names lowercase**: `production`, `pandoks`. `STAGE_NAME`
   derives to `'prod'` / `'dev'` (`infra/dns.ts:9`). Inside CI, the
   `SST_STAGE` env defaults to `'production'`
@@ -112,8 +110,10 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
 
 ## OVH hybrid cluster
 
-- **Topology and four independent pools live in
-  `infra/cluster/config.ts`.** Host hardening and k3s setup live in
+- **Topology and provider-specific pool arrays live in
+  `infra/cluster/config.ts`.** Each pool declares its stable name, Kubernetes
+  role/workload, count, public-ingress eligibility, and machine type. Host
+  hardening and k3s setup live in
   `infra/cluster/providers/bootstrap.sh`.
 - **The Public Cloud project is permanent shared infrastructure.**
   `ovh.cloudproject.Project` creates it, and its `projectId` is passed directly
@@ -122,15 +122,14 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
   must remain enabled.
 - **The vRack `10.0.0.0/16` has fixed third-octet owners.** Neutron
   infrastructure uses `.0`, Public Cloud control planes `.1`, Public Cloud
-  workers `.2`, dedicated control planes `.3`, dedicated workers `.4`, and
-  MetalLB `.5`; `.6-.255` is reserved. Change `infra/cluster/network.ts`'s subnet
-  CIDR and allocation pool, the node-pool subnets, MetalLB, monitoring endpoints,
-  and their contract tests together.
-- **Origin TLS keeps its deployed legacy identities.**
-  `secrets.k8s.OriginTlsKey` and `.OriginTlsCrt` deliberately create
-  `HetznerOriginTlsKey` and `HetznerOriginTlsCrt`; the OVH-named Cloudflare
-  certificate aliases `HetznerOriginCloudflareCaCertificate`. This reuses the
-  active secret values and certificate across the provider migration.
+  workers `.2`, dedicated control planes `.3`, dedicated workers `.4`, MetalLB
+  `.5`, Public Cloud database workers `.6`, and dedicated database workers `.7`;
+  `.8-.255` is reserved. Change `infra/cluster/network.ts`'s subnet CIDR and
+  allocation pool, the node-pool subnets, MetalLB, monitoring endpoints, and
+  their contract tests together.
+- **Origin TLS is owned by cert-manager.** The cluster overlay creates the
+  Let's Encrypt issuer and `Certificate`; its generated Kubernetes Secret is
+  referenced by ingress. Do not restore SST certificate/key secrets.
 - **Never enable a dedicated pool from copied catalog values.** Validate its
   plan, datacenter, order region, and required options against the live
   authenticated OVH cart, then set the intended count locally and review an

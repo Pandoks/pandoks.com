@@ -61,9 +61,8 @@ exchanges it for 1-hour API tokens per run (`sst.config.ts:25-29`), and
 
 Topology and catalog selection are code-owned in `infra/cluster/config.ts`.
 `PRODUCTION_CLUSTER_CONFIG` and `NON_PRODUCTION_CLUSTER_CONFIG` both currently
-set all four counts to zero. Dedicated catalog fields belong only in the
-selected stage object and are filled there only when its dedicated counts
-become non-zero.
+set every pool count to zero. Dedicated catalog fields are filled only for an
+enabled dedicated pool.
 
 CI retains only the OVH credentials and runs the TypeScript topology contracts
 through `pnpm test:infra`; it does not source topology from CI variables.

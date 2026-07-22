@@ -26,6 +26,8 @@ spec:
       ingressClassResource:
         enabled: true
       kind: DaemonSet
+      nodeSelector:
+        pandoks.com/public-ingress: "true"
       daemonset:
         useHostPort: true
       service:

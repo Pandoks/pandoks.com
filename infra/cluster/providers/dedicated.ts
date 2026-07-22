@@ -20,7 +20,7 @@ export function createDedicatedNodes(args: {
         plans: [
           {
             duration: 'P1M',
-            planCode: args.pool.plan,
+            planCode: args.pool.machineType,
             pricingMode: 'default',
             quantity: 1,
             configurations: [

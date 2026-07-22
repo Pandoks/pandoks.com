@@ -5,30 +5,59 @@
 // 10.0.3.x        Dedicated control planes
 // 10.0.4.x        Dedicated workers
 // 10.0.5.x        MetalLB services
-// 10.0.6-255.x    Reserved for future pools
+// 10.0.6.x        Public Cloud database workers
+// 10.0.7.x        Dedicated database workers
+// 10.0.8-255.x    Reserved for future pools
 // Never renumber or reuse an existing entry: pool order and count changes must
 // not readdress nodes.
-const NODE_POOL_ADDRESS_BLOCKS = {
-  'cloud-control-plane': 1,
-  'cloud-workers': 2,
-  'dedicated-control-plane': 3,
-  'dedicated-workers': 4
+const NODE_POOL_IDENTITIES = {
+  'cloud-control-plane': {
+    addressBlock: 1,
+    logicalNamePrefix: 'OvhControlPlaneServer',
+    hostnamePrefix: 'control-plane-server'
+  },
+  'cloud-workers': {
+    addressBlock: 2,
+    logicalNamePrefix: 'OvhWorkerServer',
+    hostnamePrefix: 'worker-server'
+  },
+  'dedicated-control-plane': {
+    addressBlock: 3,
+    logicalNamePrefix: 'OvhDedicatedControlPlaneServer',
+    hostnamePrefix: 'dedicated-control-plane-server'
+  },
+  'dedicated-workers': {
+    addressBlock: 4,
+    logicalNamePrefix: 'OvhDedicatedWorkerServer',
+    hostnamePrefix: 'dedicated-worker-server'
+  },
+  'cloud-database': {
+    addressBlock: 6,
+    logicalNamePrefix: 'OvhDatabaseServer',
+    hostnamePrefix: 'database-server'
+  },
+  'dedicated-database': {
+    addressBlock: 7,
+    logicalNamePrefix: 'OvhDedicatedDatabaseServer',
+    hostnamePrefix: 'dedicated-database-server'
+  }
 } as const;
 
-type NodePoolName = keyof typeof NODE_POOL_ADDRESS_BLOCKS;
+export type NodePoolName = keyof typeof NODE_POOL_IDENTITIES;
+export type NodeRole = 'control-plane' | 'worker';
+export type Workload = 'general' | 'database';
 
 type NodePoolBase = {
   name: NodePoolName;
-  role: 'control-plane' | 'worker';
+  role: NodeRole;
+  workload: Workload;
   count: number;
-  ingress: boolean;
-  logicalNamePrefix: string;
-  hostnamePrefix: string;
+  publicIngress: boolean;
+  machineType: string;
 };
 
 export type PublicCloudNodePool = NodePoolBase & {
   provider: 'public-cloud';
-  flavor: string;
   image: string;
   region: string;
 };
@@ -42,7 +71,6 @@ export type DedicatedPlanOption = {
 
 export type DedicatedNodePool = NodePoolBase & {
   provider: 'dedicated';
-  plan: string;
   operatingSystem: string;
   datacenter: string;
   orderRegion: string;
@@ -76,9 +104,17 @@ function validatePool(pool: NodePool): void {
   if (!Number.isInteger(pool.count) || pool.count < 0) {
     throw new Error(`Node pool ${pool.name} count must be a non-negative integer`);
   }
+  if (pool.workload === 'database' && pool.publicIngress) {
+    throw new Error(`Node pool ${pool.name} database workload requires publicIngress to be false`);
+  }
+  if (pool.workload === 'database' && pool.role !== 'worker') {
+    throw new Error(`Node pool ${pool.name} database workload requires the worker role`);
+  }
+  if (pool.count > 0 && !pool.machineType.trim()) {
+    throw new Error(`Enabled node pool ${pool.name} requires machineType`);
+  }
   if (pool.provider === 'dedicated' && pool.count > 0) {
     for (const [name, value] of [
-      ['plan', pool.plan],
       ['operatingSystem', pool.operatingSystem],
       ['datacenter', pool.datacenter],
       ['orderRegion', pool.orderRegion]
@@ -108,10 +144,11 @@ export function buildClusterPlan(
       throw new Error(`Duplicate node pool name: ${pool.name}`);
     }
     names.add(pool.name);
-    const addressBlock = NODE_POOL_ADDRESS_BLOCKS[pool.name];
-    if (!addressBlock) {
+    const identity = NODE_POOL_IDENTITIES[pool.name];
+    if (!identity) {
       throw new Error(`Unknown node pool: ${pool.name}`);
     }
+    const { addressBlock, hostnamePrefix, logicalNamePrefix } = identity;
     if (pool.count > 254) {
       throw new Error(
         `Node pool ${pool.name} count ${pool.count} exceeds ` +
@@ -124,8 +161,8 @@ export function buildClusterPlan(
       nodes.push({
         pool,
         poolIndex,
-        logicalName: `${pool.logicalNamePrefix}${poolIndex}`,
-        hostname: `${stage}-ovh-${pool.hostnamePrefix}-${poolIndex}`,
+        logicalName: `${logicalNamePrefix}${poolIndex}`,
+        hostname: `${stage}-ovh-${hostnamePrefix}-${poolIndex}`,
         privateIp,
         bootstrapCandidate: false,
         directIngress: false
@@ -146,7 +183,7 @@ export function buildClusterPlan(
     nodes: controlPlanes
   };
 
-  const ingressNodes = nodes.filter((node) => node.pool.ingress);
+  const ingressNodes = nodes.filter((node) => node.pool.publicIngress);
   if (ingressNodes.length === 0 && publicIngressLoadBalancerCount !== 0) {
     throw new Error('no ingress nodes requires publicIngressLoadBalancerCount to be 0');
   }
@@ -185,10 +222,11 @@ export function getPoolScaleDownTarget(pool: NodePool, stage: string) {
   if (pool.count < 1) {
     throw new Error(`Node pool ${pool.name} has no node to remove`);
   }
+  const { hostnamePrefix, logicalNamePrefix } = NODE_POOL_IDENTITIES[pool.name];
   const index = pool.count - 1;
   return {
     index,
-    logicalName: `${pool.logicalNamePrefix}${index}`,
-    hostname: `${stage}-ovh-${pool.hostnamePrefix}-${index}`
+    logicalName: `${logicalNamePrefix}${index}`,
+    hostname: `${stage}-ovh-${hostnamePrefix}-${index}`
   };
 }

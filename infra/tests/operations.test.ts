@@ -222,7 +222,9 @@ void test('keeps network, node pools, and MetalLB on one non-overlapping address
   );
   assert.match(metalLb, /10\.0\.5\.1-10\.0\.5\.254/);
   assert.match(topologySource, /10\.0\.0\.x\s+OVH\/Neutron infrastructure/);
-  assert.match(topologySource, /10\.0\.6-255\.x\s+Reserved for future pools/);
+  assert.match(topologySource, /10\.0\.6\.x\s+Public Cloud database workers/);
+  assert.match(topologySource, /10\.0\.7\.x\s+Dedicated database workers/);
+  assert.match(topologySource, /10\.0\.8-255\.x\s+Reserved for future pools/);
   assert.match(bootstrapScript, /NETWORK_PREFIX_LENGTH="\$\{NETWORK_CIDR##\*\/\}"/);
   assert.match(bootstrapScript, /\$\{NODE_IP\}\/\$\{NETWORK_PREFIX_LENGTH\}/);
   assert.doesNotMatch(bootstrapScript, /\$\{NODE_IP\}\/24/);
@@ -305,11 +307,35 @@ void test('cluster monitoring matches the disabled default topology', () => {
 
 void test('supports direct Cloudflare HTTPS without exposing the Kubernetes API', () => {
   assert.match(ingress, /useHostPort:\s*true/);
+  assert.match(ingress, /nodeSelector:\s*\n\s*pandoks\.com\/public-ingress:\s*['"]true['"]/);
   assert.doesNotMatch(ingress, /use-proxy-protocol/);
   assert.match(bootstrap, /DIRECT_INGRESS/);
   assert.match(bootstrapScript, /CLOUDFLARE_IPV4_CIDRS/);
   assert.match(bootstrapScript, /tcp dport \{ 80, 443 \}/);
   assert.doesNotMatch(bootstrapScript, /tcp dport 6443 accept comment "Public/);
+});
+
+void test('prefers database workloads on database nodes without breaking single-node clusters', () => {
+  const databaseTemplates = [
+    'packages/postgres/chart/templates/patroni.yaml',
+    'packages/valkey/chart/templates/valkey.yaml',
+    'packages/clickhouse/chart/templates/clickhouse.yaml',
+    'packages/clickhouse/chart/templates/keeper.yaml'
+  ];
+
+  for (const path of databaseTemplates) {
+    const template = readFileSync(path, 'utf8');
+    assert.match(template, /tolerations:[\s\S]*?key:\s*pandoks\.com\/workload/);
+    assert.match(template, /value:\s*database/);
+    assert.match(template, /effect:\s*NoSchedule/);
+    assert.match(template, /nodeAffinity:/);
+    assert.match(template, /preferredDuringSchedulingIgnoredDuringExecution:/);
+    assert.match(template, /weight:\s*100/);
+    const nodeAffinity = template.match(/nodeAffinity:(?<body>[\s\S]*?)\n\s*podAntiAffinity:/)
+      ?.groups?.body;
+    assert.ok(nodeAffinity);
+    assert.doesNotMatch(nodeAffinity, /requiredDuringSchedulingIgnoredDuringExecution/);
+  }
 });
 
 void test('keeps topology and the Public Cloud project in code and only credentials in CI', () => {
@@ -422,8 +448,8 @@ void test('active cluster rules describe code-owned zero topology and CI contrac
   assert.match(rules, /infra\/cluster\/config\.ts/);
   assert.match(rules, /PRODUCTION_CLUSTER_CONFIG/);
   assert.match(rules, /NON_PRODUCTION_CLUSTER_CONFIG/);
-  assert.match(rules, /both currently\s+set all four counts to zero/i);
-  assert.match(rules, /dedicated catalog fields[\s\S]*stage object[\s\S]*counts become non-zero/i);
+  assert.match(rules, /both currently\s+set every pool count to zero/i);
+  assert.match(rules, /dedicated catalog fields[\s\S]*enabled dedicated pool/i);
   assert.match(
     rules,
     /OVH credentials[\s\S]*Public Cloud project[\s\S]*TypeScript topology contracts/i

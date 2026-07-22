@@ -6,11 +6,10 @@ const cloudControlPlane = {
   name: 'cloud-control-plane',
   provider: 'public-cloud',
   role: 'control-plane',
+  workload: 'general',
   count: 1,
-  ingress: true,
-  logicalNamePrefix: 'OvhControlPlaneServer',
-  hostnamePrefix: 'control-plane-server',
-  flavor: 'b3-8',
+  publicIngress: true,
+  machineType: 'b3-8',
   image: 'Ubuntu 24.04',
   region: 'US-WEST-OR-1'
 } satisfies NodePool;
@@ -19,11 +18,10 @@ const dedicatedControlPlane = {
   name: 'dedicated-control-plane',
   provider: 'dedicated',
   role: 'control-plane',
+  workload: 'general',
   count: 2,
-  ingress: true,
-  logicalNamePrefix: 'OvhDedicatedControlPlaneServer',
-  hostnamePrefix: 'dedicated-control-plane-server',
-  plan: '24rise01',
+  publicIngress: true,
+  machineType: '24rise01',
   operatingSystem: 'ubuntu2404-server_64',
   datacenter: 'bhs',
   orderRegion: 'canada',
@@ -35,9 +33,7 @@ const cloudWorkers = (count: number) =>
     ...cloudControlPlane,
     name: 'cloud-workers',
     role: 'worker',
-    count,
-    logicalNamePrefix: 'OvhWorkerServer',
-    hostnamePrefix: 'worker-server'
+    count
   }) satisfies NodePool;
 
 const dedicatedWorkers = (count: number) =>
@@ -45,9 +41,7 @@ const dedicatedWorkers = (count: number) =>
     ...dedicatedControlPlane,
     name: 'dedicated-workers',
     role: 'worker',
-    count,
-    logicalNamePrefix: 'OvhDedicatedWorkerServer',
-    hostnamePrefix: 'dedicated-worker-server'
+    count
   }) satisfies NodePool;
 
 void test('builds stable identities and role-owned addresses for mixed providers', () => {
@@ -209,6 +203,23 @@ void test('rejects invalid cluster shapes', () => {
       ),
     /Unknown node pool: unregistered-pool/
   );
+  assert.throws(
+    () =>
+      buildClusterPlan(
+        [
+          cloudControlPlane,
+          {
+            ...cloudWorkers(1),
+            name: 'cloud-database',
+            workload: 'database',
+            publicIngress: true
+          }
+        ],
+        'prod',
+        1
+      ),
+    /database workload requires publicIngress to be false/
+  );
 });
 
 void test('accepts every address available to the configured node pools', () => {
@@ -241,13 +252,28 @@ void test('does not impose a made-up load balancer limit on cluster topology', (
 
 void test('validates dedicated catalog settings and embedded-etcd HA', () => {
   assert.throws(
-    () => buildClusterPlan([{ ...dedicatedControlPlane, plan: '' }], 'prod', 1),
-    /requires plan/
+    () => buildClusterPlan([{ ...dedicatedControlPlane, machineType: '' }], 'prod', 1),
+    /requires machineType/
   );
   assert.match(
     buildClusterPlan([cloudControlPlane], 'prod', 0).warnings[0] ?? '',
     /odd control-plane count of at least 3/
   );
+});
+
+void test('keeps database pools private while preserving workload placement metadata', () => {
+  const database = {
+    ...cloudWorkers(1),
+    name: 'cloud-database',
+    workload: 'database',
+    publicIngress: false,
+    machineType: 'r3-16'
+  } satisfies NodePool;
+  const plan = buildClusterPlan([cloudControlPlane, database], 'prod', 0);
+
+  assert.equal(plan.nodes[1]?.privateIp, '10.0.6.1');
+  assert.equal(plan.nodes[1]?.pool.workload, 'database');
+  assert.deepEqual(plan.publicIngress.nodes, [plan.nodes[0]]);
 });
 
 void test('routes one ingress node directly and forbids a public load balancer', () => {

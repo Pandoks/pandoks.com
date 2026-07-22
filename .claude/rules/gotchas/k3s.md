@@ -97,8 +97,8 @@ The CLI renders manifests through `scripts/lib/template.sh` after
    returns every `Resource.X.value` as a flat JSON object
    (`KwokPhoneNumber`, `GithubPersonalAccessToken`,
    `MainMainPostgresSuperuserPassword`,
-   `KubernetesGrafanaAdminPassword`, `HetznerOriginTlsCrt`, etc.). The
-   origin TLS names intentionally remain legacy-named during the OVH migration.
+   `KubernetesGrafanaAdminPassword`, etc.). Origin TLS is issued inside the
+   cluster by cert-manager and is not an SST secret.
 2. **Computed vars** (`scripts/cluster/deploy.sh:35-43`) —
    `${ImageRegistry}`, `${ImageTag}`, `${IsLocal}`.
 
@@ -179,11 +179,9 @@ vs. example-noise:
    - `ServiceAccount/default` with `imagePullSecrets: [ghcr-auth]` —
      makes every pod in the namespace pull from ghcr without needing
      `imagePullSecrets` in the podspec. Skip if no `ghcr-auth`.
-   - `Secret/cloudflare-origin-tls` of type `kubernetes.io/tls` with
-     `tls.crt: ${HetznerOriginTlsCrt | base64}` and
-     `tls.key: ${HetznerOriginTlsKey | base64}` — required for HAProxy
-     TLS termination (Cloudflare is in Full Strict mode, so the origin
-     must present a cert).
+   - Origin TLS is not part of this credentials pattern. The cluster overlay's
+     cert-manager `Certificate` writes `Secret/cloudflare-origin-tls`, which
+     ingress uses for TLS termination.
 6. **App-specific SA only if the app needs operator-style RBAC** (like
    `k3s/base/core/postgres.yaml:55` — `# NOTE: you need one service
 account per namespace`). Most apps don't — the `default` SA from

@@ -55,3 +55,14 @@ void test('injects every per-node value as a safely quoted exported variable', (
     /bootstrapScript\.replace\(\s*BOOTSTRAP_ENVIRONMENT_MARKER,\s*Object\.entries\(environment\)[\s\S]*?\.join\('\\n'\)\s*\)/
   );
 });
+
+void test('registers workload and public-ingress placement metadata with k3s', () => {
+  const bootstrap = readFileSync(bootstrapPath, 'utf8');
+  const bootstrapScript = readFileSync(bootstrapScriptPath, 'utf8');
+
+  assert.match(bootstrap, /WORKLOAD:\s*args\.node\.pool\.workload/);
+  assert.match(bootstrap, /PUBLIC_INGRESS:\s*String\(args\.node\.pool\.publicIngress\)/);
+  assert.match(bootstrapScript, /--node-label="pandoks\.com\/workload=\$\{WORKLOAD\}"/);
+  assert.match(bootstrapScript, /--node-label="pandoks\.com\/public-ingress=\$\{PUBLIC_INGRESS\}"/);
+  assert.match(bootstrapScript, /--node-taint="pandoks\.com\/workload=database:NoSchedule"/);
+});

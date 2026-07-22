@@ -107,6 +107,8 @@ export function createNodeBootstrap(args: {
         NETWORK_MODE: args.networkMode,
         VRACK_MAC: vrackMac,
         ROLE: args.node.pool.role,
+        WORKLOAD: args.node.pool.workload,
+        PUBLIC_INGRESS: String(args.node.pool.publicIngress),
         BOOTSTRAP_CANDIDATE: String(args.node.bootstrapCandidate),
         DIRECT_INGRESS: String(args.node.directIngress),
         CLOUDFLARE_IPV4_CIDRS: cloudflareIpv4Cidrs.join(', '),
