@@ -223,7 +223,10 @@ void test('keeps network, node pools, and MetalLB on one non-overlapping address
   assert.match(clusterDeploy, /scripts\/cluster\/config\.ts"\s*\\\s*\n\s*region/);
   assert.match(clusterDeploy, /Cluster template variables were not fully substituted/);
   assert.match(topologySource, /\.0 OVH\/Neutron, \.1 cloud control planes, \.2 cloud workers/);
-  assert.match(topologySource, /\.6 cloud databases, \.7 dedicated databases, \.8-\.255 reserved/);
+  assert.match(
+    topologySource,
+    /\.6 cloud databases, \.7 dedicated databases, \.8 IP Load Balancing NAT, \.9-\.255 reserved/
+  );
   assert.match(bootstrapScript, /NETWORK_PREFIX_LENGTH="\$\{NETWORK_CIDR##\*\/\}"/);
   assert.match(bootstrapScript, /\$\{NODE_IP\}\/\$\{NETWORK_PREFIX_LENGTH\}/);
   assert.doesNotMatch(bootstrapScript, /\$\{NODE_IP\}\/24/);
@@ -269,6 +272,47 @@ void test('independently scales public ingress load balancers', () => {
   assert.match(cloudflare, /new cloudflare\.LoadBalancerMonitor/);
   assert.match(cloudflare, /new cloudflare\.LoadBalancerPool/);
   assert.match(cloudflare, /new cloudflare\.LoadBalancer/);
+});
+
+void test('supports a quoted Dedicated IP Load Balancing service through vRack', () => {
+  assert.match(loadBalancers, /export function createIpLoadBalancingIngress/);
+  assert.match(loadBalancers, /ovh\.iploadbalancing\.getIpLoadBalancingOutput/);
+  assert.match(loadBalancers, /loadBalancer\.vrackEligibility\.apply/);
+  assert.match(loadBalancers, /loadBalancer\.zones\.apply/);
+  assert.match(loadBalancers, /new ovh\.vrack\.IpLoadbalancing/);
+  assert.match(loadBalancers, /new ovh\.iploadbalancing\.VrackNetwork/);
+  assert.match(loadBalancers, /natIp:\s*region\.natIp/);
+  assert.match(loadBalancers, /new ovh\.iploadbalancing\.TcpFarm/);
+  assert.match(loadBalancers, /new ovh\.iploadbalancing\.TcpFarmServer/);
+  assert.match(loadBalancers, /address:\s*node\.privateIp/);
+  assert.match(loadBalancers, /new ovh\.iploadbalancing\.TcpFrontend/);
+  assert.match(loadBalancers, /allowedSources:\s*cloudflareIpv4Cidrs/);
+  assert.match(loadBalancers, /new ovh\.iploadbalancing\.Refresh/);
+  assert.match(
+    loadBalancers,
+    /new \$util\.ResourceHook\(\s*'RefreshUsIpLoadBalancingAfterDelete'/s
+  );
+  assert.match(
+    loadBalancers,
+    /new \$util\.ResourceHook\(\s*'RefreshEuIpLoadBalancingAfterDelete'/s
+  );
+  assert.match(loadBalancers, /hooks:\s*\{ afterDelete: \[refreshAfterDelete\] \}/);
+  assert.match(
+    loadBalancers,
+    /const ipLoadBalancingRefreshQueues = new Map<string, Promise<void>>/
+  );
+  assert.match(loadBalancers, /queueIpLoadBalancingRefresh\('us', serviceName\)/);
+  assert.match(loadBalancers, /queueIpLoadBalancingRefresh\('eu', serviceName\)/);
+  assert.match(loadBalancers, /request<\{ id: number \}>\('POST', `\$\{path\}\/refresh`\)/);
+  assert.match(loadBalancers, /const refreshConfiguration = JSON\.stringify/);
+  assert.match(loadBalancers, /keepers:\s*\[\s*refreshConfiguration,\s*\.\.\.resourceIds\s*\]/s);
+  assert.match(loadBalancers, /return refresh\.id\.apply\(\(\) => loadBalancer\.ipv4\)/);
+  assert.match(cluster, /createIpLoadBalancingIngress/);
+  assert.match(cluster, /for \(const plan of topology\.ipLoadBalancing\)/);
+  assert.match(
+    cluster,
+    /ingressOrigins\.push\(\{ address: createIpLoadBalancingIngress\(\{ plan, networks \}\) \}\)/
+  );
 });
 
 void test('routes each deployed stage through its matching example hostname', () => {

@@ -42,6 +42,7 @@ void test('defines four disabled regional cluster templates for every stage', ()
       assert.equal(region.loadBalancerCount, 0);
       assert.ok([...region.cloud, ...region.dedicated].every(({ count }) => count === 0));
     }
+    assert.deepEqual(config.publicIngress, { type: 'public-cloud', flavor: 'small' });
   }
 });
 
@@ -104,9 +105,17 @@ void test('owns stable regional network and k3s address spaces in pure configura
 
 void test('separates the current US account from dormant EU provider credentials', () => {
   assert.deepEqual(OVH_ACCOUNTS, {
-    us: { endpoint: 'ovh-us', subsidiary: 'US' },
+    us: {
+      endpoint: 'ovh-us',
+      apiRoot: 'https://api.us.ovhcloud.com/1.0',
+      subsidiary: 'US',
+      applicationKey: 'edf9a4672d28e3c7',
+      applicationSecretEnvironment: 'OVH_APPLICATION_SECRET',
+      consumerKeyEnvironment: 'OVH_CONSUMER_KEY'
+    },
     eu: {
       endpoint: 'ovh-eu',
+      apiRoot: 'https://eu.api.ovh.com/1.0',
       subsidiary: '',
       applicationKeyEnvironment: 'OVH_EU_APPLICATION_KEY',
       applicationSecretEnvironment: 'OVH_EU_APPLICATION_SECRET',

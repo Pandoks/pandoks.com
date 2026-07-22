@@ -17,6 +17,18 @@ export type DedicatedPlanOption = {
   quantity: number;
 };
 
+export type LoadBalancerFlavor = 'small' | 'medium' | 'large' | 'xl';
+
+export type IpLoadBalancingServiceConfig = {
+  account: OvhAccountId;
+  serviceName: string;
+  zones: Partial<Record<ClusterRegionId, string>>;
+};
+
+export type PublicIngressConfig =
+  | { type: 'public-cloud'; flavor: LoadBalancerFlavor }
+  | { type: 'ip-load-balancing'; services: readonly IpLoadBalancingServiceConfig[] };
+
 type PoolConfig = {
   name: NodePoolName;
   role: NodeRole;
@@ -50,10 +62,12 @@ export type RegionalClusterConfig = {
   loadBalancerCount: number;
 };
 
-export type ClusterConfig = { regions: readonly RegionalClusterConfig[] };
+export type ClusterConfig = {
+  regions: readonly RegionalClusterConfig[];
+  publicIngress: PublicIngressConfig;
+};
 
 type GatewayModel = 'S' | 'M' | 'L' | 'XL' | '2XL' | '3XL';
-type LoadBalancerFlavor = 'small' | 'medium' | 'large' | 'xl';
 type LoadBalancerAlgorithm = 'leastConnections' | 'roundRobin' | 'sourceIP';
 
 export const GATEWAY_MODEL: GatewayModel = 'S';
@@ -61,9 +75,17 @@ export const LOAD_BALANCER_FLAVOR: LoadBalancerFlavor = 'small';
 export const LOAD_BALANCER_ALGORITHM: LoadBalancerAlgorithm = 'leastConnections';
 
 export const OVH_ACCOUNTS = {
-  us: { endpoint: 'ovh-us', subsidiary: 'US' },
+  us: {
+    endpoint: 'ovh-us',
+    apiRoot: 'https://api.us.ovhcloud.com/1.0',
+    subsidiary: 'US',
+    applicationKey: 'edf9a4672d28e3c7',
+    applicationSecretEnvironment: 'OVH_APPLICATION_SECRET',
+    consumerKeyEnvironment: 'OVH_CONSUMER_KEY'
+  },
   eu: {
     endpoint: 'ovh-eu',
+    apiRoot: 'https://eu.api.ovh.com/1.0',
     subsidiary: '',
     applicationKeyEnvironment: 'OVH_EU_APPLICATION_KEY',
     applicationSecretEnvironment: 'OVH_EU_APPLICATION_SECRET',
@@ -200,8 +222,15 @@ function regions(): RegionalClusterConfig[] {
   ];
 }
 
-export const PRODUCTION_CLUSTER_CONFIG: ClusterConfig = { regions: regions() };
-export const NON_PRODUCTION_CLUSTER_CONFIG: ClusterConfig = { regions: regions() };
+function clusterConfig(): ClusterConfig {
+  return {
+    regions: regions(),
+    publicIngress: { type: 'public-cloud', flavor: LOAD_BALANCER_FLAVOR }
+  };
+}
+
+export const PRODUCTION_CLUSTER_CONFIG = clusterConfig();
+export const NON_PRODUCTION_CLUSTER_CONFIG = clusterConfig();
 
 export const CLUSTER_CONFIGS = {
   production: PRODUCTION_CLUSTER_CONFIG,

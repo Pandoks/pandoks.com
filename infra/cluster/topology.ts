@@ -2,8 +2,12 @@ import type {
   ClusterConfig,
   ClusterRegionId,
   DedicatedPlanOption,
+  IpLoadBalancingServiceConfig,
+  LoadBalancerFlavor,
   NodePoolName,
   NodeRole,
+  OvhAccountId,
+  PublicIngressConfig,
   RegionalClusterConfig,
   Workload
 } from './config.ts';
@@ -11,7 +15,7 @@ import type {
 // Every regional /16 keeps the same stable role-owned third-octet layout:
 // .0 OVH/Neutron, .1 cloud control planes, .2 cloud workers,
 // .3 dedicated control planes, .4 dedicated workers, .5 MetalLB,
-// .6 cloud databases, .7 dedicated databases, .8-.255 reserved.
+// .6 cloud databases, .7 dedicated databases, .8 IP Load Balancing NAT, .9-.255 reserved.
 const NODE_POOL_IDENTITIES = {
   'cloud-control-plane': {
     addressBlock: 1,
@@ -81,9 +85,10 @@ export type ClusterNodeSpec = {
 };
 
 export type PublicIngressPlan = {
-  mode: 'none' | 'direct' | 'ovh' | 'cloudflare';
+  mode: 'none' | 'direct' | 'ovh' | 'cloudflare' | 'ip-load-balancing';
   nodes: readonly ClusterNodeSpec[];
   loadBalancerCount: number;
+  flavor?: LoadBalancerFlavor;
 };
 
 export type PrivateApiPlan = {
@@ -108,6 +113,15 @@ export type RegionalClusterPlan = {
   warnings: string[];
   privateApi: PrivateApiPlan;
   publicIngress: PublicIngressPlan;
+};
+
+export type IpLoadBalancingPlan = {
+  config: IpLoadBalancingServiceConfig;
+  regions: readonly {
+    cluster: RegionalClusterPlan;
+    zone: string;
+    natIp: string;
+  }[];
 };
 
 const REGION_RESOURCE_PREFIX: Record<ClusterRegionId, string> = {
@@ -241,7 +255,8 @@ function validatePool(pool: NodePool, config: RegionalClusterConfig): void {
 export function buildRegionalClusterPlan(
   config: RegionalClusterConfig,
   stage: string,
-  domain: string
+  domain: string,
+  publicIngressConfig: PublicIngressConfig = { type: 'public-cloud', flavor: 'small' }
 ): RegionalClusterPlan {
   validateRegion(config);
   const clusterIdentity = identity(config, stage, domain);
@@ -276,27 +291,36 @@ export function buildRegionalClusterPlan(
     nodes: controlPlanes
   };
   const ingressNodes = nodes.filter(({ pool }) => pool.publicIngress);
-  if (ingressNodes.length < 2 && config.loadBalancerCount !== 0) {
-    throw new Error(
-      `${ingressNodes.length === 0 ? 'no' : 'one'} ingress node requires loadBalancerCount to be 0`
-    );
+  if (publicIngressConfig.type === 'ip-load-balancing') {
+    if (config.loadBalancerCount !== 0) {
+      throw new Error('IP Load Balancing requires loadBalancerCount to be 0');
+    }
+  } else {
+    if (ingressNodes.length < 2 && config.loadBalancerCount !== 0) {
+      throw new Error(
+        `${ingressNodes.length === 0 ? 'no' : 'one'} ingress node requires loadBalancerCount to be 0`
+      );
+    }
+    if (ingressNodes.length > 1 && config.loadBalancerCount === 0) {
+      throw new Error('multiple ingress nodes require at least one load balancer');
+    }
+    if (ingressNodes.length === 1) ingressNodes[0].directIngress = true;
   }
-  if (ingressNodes.length > 1 && config.loadBalancerCount === 0) {
-    throw new Error('multiple ingress nodes require at least one load balancer');
-  }
-  if (ingressNodes.length === 1) ingressNodes[0].directIngress = true;
 
   const publicIngress: PublicIngressPlan = {
     mode:
       ingressNodes.length === 0
         ? 'none'
-        : ingressNodes.length === 1
-          ? 'direct'
-          : config.loadBalancerCount === 1
-            ? 'ovh'
-            : 'cloudflare',
+        : publicIngressConfig.type === 'ip-load-balancing'
+          ? 'ip-load-balancing'
+          : ingressNodes.length === 1
+            ? 'direct'
+            : config.loadBalancerCount === 1
+              ? 'ovh'
+              : 'cloudflare',
     nodes: ingressNodes,
-    loadBalancerCount: config.loadBalancerCount
+    loadBalancerCount: config.loadBalancerCount,
+    ...(publicIngressConfig.type === 'public-cloud' && { flavor: publicIngressConfig.flavor })
   };
   const warnings: string[] = [];
   if (controlPlanes.length > 0 && (controlPlanes.length < 3 || controlPlanes.length % 2 === 0)) {
@@ -340,7 +364,7 @@ export function buildClusterTopology(config: ClusterConfig, stage: string, domai
   const plans = config.regions.map((region) => {
     if (ids.has(region.id)) throw new Error(`Duplicate cluster region: ${region.id}`);
     ids.add(region.id);
-    return buildRegionalClusterPlan(region, stage, domain);
+    return buildRegionalClusterPlan(region, stage, domain, config.publicIngress);
   });
   const enabled = plans.filter(({ config: region }) => region.enabled);
   for (const plan of enabled) {
@@ -359,7 +383,49 @@ export function buildClusterTopology(config: ClusterConfig, stage: string, domai
   unique(enabled, 'networkCidr');
   unique(enabled, 'podCidr');
   unique(enabled, 'serviceCidr');
-  return { regions: enabled };
+
+  const ipLoadBalancing: IpLoadBalancingPlan[] = [];
+  if (config.publicIngress.type === 'ip-load-balancing') {
+    const services = new Map<OvhAccountId, IpLoadBalancingServiceConfig>();
+    for (const service of config.publicIngress.services) {
+      if (services.has(service.account)) {
+        throw new Error(`Duplicate IP Load Balancing service for OVH account ${service.account}`);
+      }
+      if (!service.serviceName.trim()) {
+        throw new Error(
+          `IP Load Balancing service for OVH account ${service.account} requires serviceName`
+        );
+      }
+      services.set(service.account, service);
+    }
+    for (const plan of enabled) {
+      if (plan.publicIngress.nodes.length === 0) continue;
+      const service = services.get(plan.config.account);
+      if (!service) {
+        throw new Error(
+          `Cluster region ${plan.config.id} requires an IP Load Balancing service for OVH account ${plan.config.account}`
+        );
+      }
+      if (!service.zones[plan.config.id]?.trim()) {
+        throw new Error(
+          `IP Load Balancing service ${service.serviceName} requires an IP Load Balancing zone for region ${plan.config.id}`
+        );
+      }
+    }
+    for (const service of services.values()) {
+      const regions = enabled
+        .filter(
+          (plan) => plan.config.account === service.account && plan.publicIngress.nodes.length > 0
+        )
+        .map((cluster) => ({
+          cluster,
+          zone: service.zones[cluster.config.id]!,
+          natIp: `10.${networkOctet(cluster.config)}.8.0/24`
+        }));
+      if (regions.length > 0) ipLoadBalancing.push({ config: service, regions });
+    }
+  }
+  return { regions: enabled, ipLoadBalancing };
 }
 
 export function getGlobalPublicIngressMode(originCount: number) {

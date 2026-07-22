@@ -124,7 +124,7 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
   infrastructure uses `.0`, Public Cloud control planes `.1`, Public Cloud
   workers `.2`, dedicated control planes `.3`, dedicated workers `.4`, MetalLB
   `.5`, Public Cloud database workers `.6`, and dedicated database workers `.7`;
-  `.8-.255` is reserved. Change `infra/cluster/network.ts`'s subnet CIDR and
+  `.8` is reserved for IP Load Balancing NAT and `.9-.255` is reserved. Change `infra/cluster/network.ts`'s subnet CIDR and
   allocation pool, the node-pool subnets, MetalLB, monitoring endpoints, and
   their contract tests together.
 - **Origin TLS is owned by cert-manager.** The cluster overlay creates the

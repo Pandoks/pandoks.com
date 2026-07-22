@@ -5,10 +5,11 @@ import {
   NON_PRODUCTION_CLUSTER_CONFIG,
   OVH_ACCOUNTS,
   PRODUCTION_CLUSTER_CONFIG,
+  type ClusterRegionId,
   type OvhAccountId
 } from './config';
-import { createClusterLoadBalancers } from './load-balancers';
-import { createClusterNetwork, type ClusterFoundation } from './network';
+import { createClusterLoadBalancers, createIpLoadBalancingIngress } from './load-balancers';
+import { createClusterNetwork, type ClusterFoundation, type ClusterNetwork } from './network';
 import { createDedicatedNodes } from './providers/dedicated';
 import { createPublicCloudNodes } from './providers/public-cloud';
 import { buildClusterTopology, getGlobalPublicIngressMode, regionalResourceName } from './topology';
@@ -101,10 +102,12 @@ if (enabledAccounts.has('eu') && euProject && euProvider) {
 }
 
 const ingressOrigins: Array<{ address: $util.Output<string> }> = [];
+const networks = new Map<ClusterRegionId, ClusterNetwork>();
 for (const cluster of topology.regions) {
   const foundation = foundations[cluster.config.account];
   if (!foundation) throw new Error(`Missing OVH ${cluster.config.account} account foundation`);
   const network = createClusterNetwork(foundation, cluster);
+  networks.set(cluster.config.id, network);
   if (cluster.nodes.length === 0) continue;
 
   const loadBalancers = createClusterLoadBalancers({ network, cluster });
@@ -141,13 +144,17 @@ for (const cluster of topology.regions) {
     const target = provisionedNodes.find(({ node }) => node === cluster.publicIngress.nodes[0]);
     if (!target) throw new Error(`Direct ingress node was not provisioned in ${cluster.config.id}`);
     ingressOrigins.push({ address: target.publicIp });
-  } else {
+  } else if (cluster.publicIngress.mode !== 'ip-load-balancing') {
     ingressOrigins.push(
       ...loadBalancers.publicIngress.map((loadBalancer) => ({
         address: loadBalancer.floatingIp.apply((floatingIp) => floatingIp.ip)
       }))
     );
   }
+}
+
+for (const plan of topology.ipLoadBalancing) {
+  ingressOrigins.push({ address: createIpLoadBalancingIngress({ plan, networks }) });
 }
 
 if (topology.regions.every(({ nodes }) => nodes.length === 0)) {

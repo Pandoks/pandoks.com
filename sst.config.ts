@@ -1,4 +1,6 @@
 /// <reference path="./.sst/platform/config.d.ts" />
+import { OVH_ACCOUNTS } from './infra/cluster/config';
+
 export default $config({
   app(input) {
     return {
@@ -16,7 +18,7 @@ export default $config({
         github: '6.12.1',
         'ovhcloud/pulumi-ovh': {
           endpoint: 'ovh-us',
-          applicationKey: 'edf9a4672d28e3c7',
+          applicationKey: OVH_ACCOUNTS.us.applicationKey,
           applicationSecret: process.env.OVH_APPLICATION_SECRET,
           consumerKey: process.env.OVH_CONSUMER_KEY,
           version: '2.17.0'

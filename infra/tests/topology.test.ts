@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   PRODUCTION_CLUSTER_CONFIG,
   type ClusterConfig,
+  type PublicIngressConfig,
   type RegionalClusterConfig
 } from '../cluster/config.ts';
 import {
@@ -57,6 +58,15 @@ function region(
     })),
     loadBalancerCount: args.loadBalancers ?? (ingressNodes > 1 ? 1 : 0)
   };
+}
+
+const publicCloudIngress: PublicIngressConfig = { type: 'public-cloud', flavor: 'small' };
+
+function config(
+  regions: readonly RegionalClusterConfig[],
+  publicIngress: PublicIngressConfig = publicCloudIngress
+): ClusterConfig {
+  return { regions, publicIngress };
 }
 
 void test('preserves every existing US-West identity and address', () => {
@@ -155,7 +165,7 @@ void test('qualifies future regional identities and keeps their address space in
 void test('builds independent plans and rejects duplicate regional address identities', () => {
   const west = region();
   const east = region({ id: 'us-east' });
-  const topology = buildClusterTopology({ regions: [west, east] }, 'prod', 'pandoks.com');
+  const topology = buildClusterTopology(config([west, east]), 'prod', 'pandoks.com');
   assert.deepEqual(
     topology.regions.map(({ config, nodes }) => [config.id, nodes[0]?.privateIp]),
     [
@@ -165,24 +175,22 @@ void test('builds independent plans and rejects duplicate regional address ident
   );
 
   assert.throws(
-    () => buildClusterTopology({ regions: [west, west] }, 'prod', 'pandoks.com'),
+    () => buildClusterTopology(config([west, west]), 'prod', 'pandoks.com'),
     /Duplicate cluster region: us-west/
   );
   assert.throws(
     () =>
       buildClusterTopology(
-        {
-          regions: [
-            west,
-            {
-              ...east,
-              networkCidr: west.networkCidr,
-              gatewayIp: west.gatewayIp,
-              allocationPool: west.allocationPool,
-              metalLbRange: west.metalLbRange
-            }
-          ]
-        },
+        config([
+          west,
+          {
+            ...east,
+            networkCidr: west.networkCidr,
+            gatewayIp: west.gatewayIp,
+            allocationPool: west.allocationPool,
+            metalLbRange: west.metalLbRange
+          }
+        ]),
         'prod',
         'pandoks.com'
       ),
@@ -190,11 +198,7 @@ void test('builds independent plans and rejects duplicate regional address ident
   );
   assert.throws(
     () =>
-      buildClusterTopology(
-        { regions: [west, { ...east, vlanId: west.vlanId }] },
-        'prod',
-        'pandoks.com'
-      ),
+      buildClusterTopology(config([west, { ...east, vlanId: west.vlanId }]), 'prod', 'pandoks.com'),
     /Duplicate VLAN 0 for OVH account us/
   );
 });
@@ -207,17 +211,15 @@ void test('keeps disabled templates inert and rejects hidden compute', () => {
   assert.throws(
     () =>
       buildClusterTopology(
-        {
-          regions: [
-            {
-              ...disabled,
-              cloud: disabled.cloud.map((pool, index) => ({
-                ...pool,
-                count: index === 0 ? 1 : 0
-              }))
-            }
-          ]
-        },
+        config([
+          {
+            ...disabled,
+            cloud: disabled.cloud.map((pool, index) => ({
+              ...pool,
+              count: index === 0 ? 1 : 0
+            }))
+          }
+        ]),
         'prod',
         'pandoks.com'
       ),
@@ -283,6 +285,122 @@ void test('keeps private API and public ingress decisions local to each cluster'
     'pandoks.com'
   );
   assert.equal(cloudflare.publicIngress.mode, 'cloudflare');
+});
+
+void test('plans one Dedicated IP Load Balancing service across its account regions', () => {
+  const west = { ...region({ controlPlanes: 1, workers: 1 }), loadBalancerCount: 0 };
+  const east = {
+    ...region({ id: 'us-east', controlPlanes: 1, workers: 1 }),
+    loadBalancerCount: 0
+  };
+  const publicIngress: PublicIngressConfig = {
+    type: 'ip-load-balancing',
+    services: [
+      {
+        account: 'us',
+        serviceName: 'loadbalancer-dedicated-us',
+        zones: { 'us-west': 'HIL', 'us-east': 'VIN' }
+      }
+    ]
+  };
+
+  const topology = buildClusterTopology(config([west, east], publicIngress), 'prod', 'pandoks.com');
+
+  assert.deepEqual(
+    topology.regions.map(({ config: regional, publicIngress: ingress }) => [
+      regional.id,
+      ingress.mode,
+      ingress.loadBalancerCount
+    ]),
+    [
+      ['us-west', 'ip-load-balancing', 0],
+      ['us-east', 'ip-load-balancing', 0]
+    ]
+  );
+  assert.deepEqual(
+    topology.ipLoadBalancing.map(({ config: service, regions }) => ({
+      account: service.account,
+      serviceName: service.serviceName,
+      regions: regions.map(({ cluster, zone, natIp }) => ({
+        id: cluster.config.id,
+        zone,
+        natIp
+      }))
+    })),
+    [
+      {
+        account: 'us',
+        serviceName: 'loadbalancer-dedicated-us',
+        regions: [
+          { id: 'us-west', zone: 'HIL', natIp: '10.0.8.0/24' },
+          { id: 'us-east', zone: 'VIN', natIp: '10.1.8.0/24' }
+        ]
+      }
+    ]
+  );
+});
+
+void test('rejects incomplete Dedicated IP Load Balancing configuration', () => {
+  const west = { ...region({ controlPlanes: 1, workers: 1 }), loadBalancerCount: 0 };
+  const dedicated = (
+    services: Extract<PublicIngressConfig, { type: 'ip-load-balancing' }>['services']
+  ) => ({ type: 'ip-load-balancing', services }) as const;
+
+  assert.throws(
+    () => buildClusterTopology(config([west], dedicated([])), 'prod', 'pandoks.com'),
+    /requires an IP Load Balancing service for OVH account us/
+  );
+  assert.throws(
+    () =>
+      buildClusterTopology(
+        config([west], dedicated([{ account: 'us', serviceName: ' ', zones: {} }])),
+        'prod',
+        'pandoks.com'
+      ),
+    /requires serviceName/
+  );
+  assert.throws(
+    () =>
+      buildClusterTopology(
+        config(
+          [west],
+          dedicated([
+            { account: 'us', serviceName: 'loadbalancer-us-1', zones: {} },
+            { account: 'us', serviceName: 'loadbalancer-us-2', zones: {} }
+          ])
+        ),
+        'prod',
+        'pandoks.com'
+      ),
+    /Duplicate IP Load Balancing service for OVH account us/
+  );
+  assert.throws(
+    () =>
+      buildClusterTopology(
+        config([west], dedicated([{ account: 'us', serviceName: 'loadbalancer-us', zones: {} }])),
+        'prod',
+        'pandoks.com'
+      ),
+    /requires an IP Load Balancing zone for region us-west/
+  );
+  assert.throws(
+    () =>
+      buildClusterTopology(
+        config(
+          [{ ...west, loadBalancerCount: 1 }],
+          dedicated([
+            {
+              account: 'us',
+              serviceName: 'loadbalancer-us',
+              zones: { 'us-west': 'HIL' }
+            }
+          ])
+        ),
+        'prod',
+        'pandoks.com'
+      ),
+    /IP Load Balancing requires loadBalancerCount to be 0/
+  );
 });
 
 void test('chooses global Cloudflare routing from the aggregate origin count', () => {
@@ -352,15 +470,21 @@ void test('validates regional CIDRs, gateway, allocation pool, and MetalLB range
 void test('requires unique pod and service CIDRs across enabled clusters', () => {
   const west = region();
   const east = region({ id: 'us-east' });
-  const config = (overrides: Partial<RegionalClusterConfig>): ClusterConfig => ({
-    regions: [west, { ...east, ...overrides }]
+  const topologyConfig = (overrides: Partial<RegionalClusterConfig>): ClusterConfig => ({
+    regions: [west, { ...east, ...overrides }],
+    publicIngress: publicCloudIngress
   });
   assert.throws(
-    () => buildClusterTopology(config({ podCidr: west.podCidr }), 'prod', 'pandoks.com'),
+    () => buildClusterTopology(topologyConfig({ podCidr: west.podCidr }), 'prod', 'pandoks.com'),
     /Duplicate pod CIDR/
   );
   assert.throws(
-    () => buildClusterTopology(config({ serviceCidr: west.serviceCidr }), 'prod', 'pandoks.com'),
+    () =>
+      buildClusterTopology(
+        topologyConfig({ serviceCidr: west.serviceCidr }),
+        'prod',
+        'pandoks.com'
+      ),
     /Duplicate service CIDR/
   );
 });
