@@ -108,6 +108,11 @@ jobs:
       (needs.deploy-sst.result == 'success' || needs.deploy-sst.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - uses: ./.github/actions/setup-node-pnpm
+
       - name: Setup Tailscale
         uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8 # v4
         with:
@@ -115,39 +120,39 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci,tag:prod
 
-      - name: Configure kubeconfig
+      - name: Sync enabled regional clusters
         run: |
-          PEERS=$(sudo tailscale status --peers) || { echo "tailscale status failed"; exit 1; }
-          if ! echo "$PEERS" | grep -q prod-cluster; then
-            echo "No cluster found — skipping deployment"
-            echo "SKIP_DEPLOY=true" >> "$GITHUB_ENV"
+          REGIONS=$(node scripts/cluster/config.ts enabled production)
+          if [ "$(jq length <<<"$REGIONS")" -eq 0 ]; then
+            echo "No regional clusters enabled — skipping deployment"
             exit 0
           fi
-          sudo tailscale configure kubeconfig prod-cluster
-
-      - name: Trigger ArgoCD Sync
-        if: env.SKIP_DEPLOY != 'true'
-        run: |
-          sudo kubectl annotate application prod-cluster \
-            argocd.argoproj.io/refresh=hard \
-            --overwrite \
-            --namespace argocd
-
-      - name: Wait for ArgoCD Sync
-        if: env.SKIP_DEPLOY != 'true'
-        run: |
-          for _ in {1..60}; do
-            STATUS=$(sudo kubectl get application prod-cluster -n argocd -o jsonpath='{.status.sync.status}')
-            if [ "${STATUS}" = "Synced" ]; then
-              echo "Sync successful"
-              exit 0
+          PEERS=$(sudo tailscale status --peers) || { echo "tailscale status failed"; exit 1; }
+          while IFS=$'\t' read -r REGION OPERATOR; do
+            if ! grep -Fqw "$OPERATOR" <<<"$PEERS"; then
+              echo "$REGION cluster not found — skipping"
+              continue
             fi
-            ERROR=$(sudo kubectl get application prod-cluster -n argocd -o jsonpath='{.status.conditions[?(@.type=="ComparisonError")].message}')
-            if [ -n "$ERROR" ]; then
-              echo "Sync failed: ${ERROR}"
+            sudo tailscale configure kubeconfig "$OPERATOR"
+            sudo kubectl annotate application prod-cluster \
+              argocd.argoproj.io/refresh=hard \
+              --overwrite \
+              --namespace argocd
+            for _ in {1..60}; do
+              STATUS=$(sudo kubectl get application prod-cluster -n argocd -o jsonpath='{.status.sync.status}')
+              if [ "$STATUS" = "Synced" ]; then
+                echo "$REGION sync successful"
+                break
+              fi
+              ERROR=$(sudo kubectl get application prod-cluster -n argocd -o jsonpath='{.status.conditions[?(@.type=="ComparisonError")].message}')
+              if [ -n "$ERROR" ]; then
+                echo "$REGION sync failed: $ERROR"
+                exit 1
+              fi
+              sleep 5
+            done
+            if [ "$STATUS" != "Synced" ]; then
+              echo "$REGION sync timed out"
               exit 1
             fi
-            sleep 5
-          done
-          echo "Timed out waiting for sync"
-          exit 1
+          done < <(jq -r '.[] | [.id, .operatorHostname] | @tsv' <<<"$REGIONS")

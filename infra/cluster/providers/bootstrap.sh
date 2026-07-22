@@ -70,9 +70,10 @@ interface_for_ip() {
 
 configure_private_network() {
   if [ "${NETWORK_MODE}" = "static" ]; then
-    VRACK_INTERFACE="$(retry 60 5 interface_for_mac "${VRACK_MAC}")"
+    retry 60 5 interface_for_mac "${VRACK_MAC}" > /dev/null
     NETWORK_PREFIX_LENGTH="${NETWORK_CIDR##*/}"
-    cat > /etc/netplan/60-k3s-vrack.yaml << EOF
+    if [ "${VRACK_VLAN_ID}" = "0" ]; then
+      cat > /etc/netplan/60-k3s-vrack.yaml << EOF
 network:
   version: 2
   ethernets:
@@ -83,9 +84,28 @@ network:
       addresses:
         - ${NODE_IP}/${NETWORK_PREFIX_LENGTH}
 EOF
+      VRACK_INTERFACE=vrack0
+    else
+      cat > /etc/netplan/60-k3s-vrack.yaml << EOF
+network:
+  version: 2
+  ethernets:
+    vrack:
+      match:
+        macaddress: ${VRACK_MAC}
+      set-name: vrack0
+      dhcp4: false
+  vlans:
+    vrack0.${VRACK_VLAN_ID}:
+      id: ${VRACK_VLAN_ID}
+      link: vrack
+      addresses:
+        - ${NODE_IP}/${NETWORK_PREFIX_LENGTH}
+EOF
+      VRACK_INTERFACE="vrack0.${VRACK_VLAN_ID}"
+    fi
     chmod 0600 /etc/netplan/60-k3s-vrack.yaml
     netplan apply
-    VRACK_INTERFACE=vrack0
   else
     VRACK_INTERFACE="$(retry 60 5 interface_for_ip)"
   fi
@@ -186,6 +206,8 @@ install_control_plane() {
       --cluster-init \
       --disable=traefik \
       --disable=servicelb \
+      --cluster-cidr="${CLUSTER_POD_CIDR}" \
+      --service-cidr="${CLUSTER_SERVICE_CIDR}" \
       --node-ip="${NODE_IP}" \
       --advertise-address="${NODE_IP}" \
       --tls-san="${NODE_IP}" \
@@ -197,7 +219,7 @@ install_control_plane() {
       --etcd-s3-bucket="${BACKUP_BUCKET}" \
       --etcd-s3-access-key="${S3_ACCESS_KEY}" \
       --etcd-s3-secret-key="${S3_SECRET_KEY}" \
-      --etcd-s3-folder=kubernetes/etcd \
+      --etcd-s3-folder="${ETCD_BACKUP_FOLDER}" \
       --etcd-snapshot-schedule-cron="0 */6 * * *" \
       --etcd-snapshot-retention=5
   else
@@ -206,6 +228,8 @@ install_control_plane() {
       --server="${SERVER_API}" \
       --disable=traefik \
       --disable=servicelb \
+      --cluster-cidr="${CLUSTER_POD_CIDR}" \
+      --service-cidr="${CLUSTER_SERVICE_CIDR}" \
       --node-ip="${NODE_IP}" \
       --advertise-address="${NODE_IP}" \
       --tls-san="${NODE_IP}" \
@@ -217,7 +241,7 @@ install_control_plane() {
       --etcd-s3-bucket="${BACKUP_BUCKET}" \
       --etcd-s3-access-key="${S3_ACCESS_KEY}" \
       --etcd-s3-secret-key="${S3_SECRET_KEY}" \
-      --etcd-s3-folder=kubernetes/etcd \
+      --etcd-s3-folder="${ETCD_BACKUP_FOLDER}" \
       --etcd-snapshot-schedule-cron="0 */6 * * *" \
       --etcd-snapshot-retention=5
   fi
@@ -239,6 +263,15 @@ install_cluster_resources() {
   export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
   retry 120 5 kubectl --request-timeout=5s get --raw=/readyz
 
+  for namespace in argocd tailscale; do
+    kubectl create namespace "${namespace}" \
+      --dry-run=client -o yaml | kubectl apply --server-side -f -
+  done
+  kubectl create configmap pandoks-cluster \
+    --namespace argocd \
+    --from-literal=region="${CLUSTER_REGION}" \
+    --dry-run=client -o yaml | kubectl apply --server-side -f -
+
   kubectl create secret generic tailscale \
     --namespace kube-system \
     --from-literal=tailscale-oauth="$(
@@ -251,16 +284,13 @@ EOF
     --from-literal=operator-config="$(
       cat << EOF
 operatorConfig:
-  hostname: "${STAGE_NAME}-cluster"
+  hostname: "${CLUSTER_OPERATOR_HOSTNAME}"
   defaultTags:
     - tag:k8s-operator
     - tag:k8s
     - tag:${STAGE_NAME}
 EOF
     )" \
-    --dry-run=client -o yaml | kubectl apply --server-side -f -
-
-  kubectl create namespace tailscale \
     --dry-run=client -o yaml | kubectl apply --server-side -f -
 
   kubectl apply --server-side -f - << 'EOF'

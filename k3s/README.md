@@ -5,9 +5,10 @@ are not hosted in this cluster are hosted either in AWS or Cloudflare usually fo
 applications. For databases, it is better to used a managed database as it reduces the operational
 overhead.
 
-The production cluster can combine OVHcloud Public Cloud instances and
-dedicated servers on one vRack network. Its topology is configured in
-`infra/cluster/config.ts`.
+Each regional production cluster can combine OVHcloud Public Cloud instances
+and dedicated servers. `infra/cluster/config.ts` defines independent templates
+for US West, US East, Europe, and Asia; all are currently disabled with zero
+nodes. Regional clusters do not share a Kubernetes control plane.
 
 ## Directory Structure
 
@@ -71,10 +72,10 @@ tunnels.
 kubectl --context <tailscale-context> get pods
 
 # Install base infrastructure (helm charts + CRDs)
-./scripts/cluster/main.sh deploy prod --bootstrap
+./scripts/cluster/main.sh deploy prod --region us-west --bootstrap
 
 # Deploy prod overlay (system-upgrade controller; SST secrets substituted inline)
-./scripts/cluster/main.sh deploy prod
+./scripts/cluster/main.sh deploy prod --region us-west
 ```
 
 ## k9s
@@ -110,10 +111,11 @@ kubectl --context <tailscale-context> get pods
 
 ## Public Exposure
 
-To expose the cluster's services to the public internet, use ingress
-controllers. SST provisions OVH public ingress load balancers on the shared
-private network and sends PROXY v2 traffic to cluster nodes over vRack. The
-HAProxy Ingress chart enables `use-proxy-protocol` to decode that transport.
+To expose services publicly, mark eligible pools with `publicIngress`. One
+eligible node is used directly; multiple nodes use one or more regional OVH
+load balancers. Cloudflare proxies one origin directly and creates global load
+balancing when two or more regional origins exist. Database pools remain
+private and applications are routed internally by Kubernetes Services.
 
 ### HAProxy Ingress Controller
 
@@ -190,9 +192,14 @@ k3s embedded etcd requires `--etcd-expose-metrics` flag to expose metrics on por
 - **k3d**: Set via `--k3s-arg "--etcd-expose-metrics@server:*"` in `scripts/cluster/k3d.sh`
 - **OVHcloud**: Set by `infra/cluster/providers/bootstrap.sh`
 
-OVH Public Cloud control planes use `10.0.1.1-10.0.1.254`; dedicated control
-planes use `10.0.3.1-10.0.3.254`. Keep the environment's explicit etcd endpoint list
-aligned with the active members from both ranges.
+Within each regional `10.<region>.0.0/16`, Public Cloud control planes use
+`.1.1-.1.254` and dedicated control planes use `.3.1-.3.254`. Keep each
+cluster's explicit etcd endpoint list aligned with its active members.
+
+Flannel only connects pods inside one cluster. Cross-region pod/service
+connectivity (for example, Cilium Cluster Mesh) and database replication are a
+separate rollout; the unique regional pod/service CIDRs reserve that future
+path without forcing readdressing.
 
 The kube-prometheus-stack `kubeEtcd.endpoints` must list control plane IPs explicitly because
 k3s doesn't create pods with `component=etcd` labels (embedded etcd).

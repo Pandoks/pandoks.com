@@ -41,7 +41,7 @@ options. Package scripts in `package.json` are wired directly to
 `deploy` applies environment-specific kustomize paths to the cluster:
 
 ```sh
-./scripts/cluster/main.sh deploy <local|dev|prod> [--bootstrap] [--stage <STAGE>] [--dry-run] [--kubeconfig <PATH>] [--quiet]
+./scripts/cluster/main.sh deploy <local|dev|prod> [--bootstrap] [--stage <STAGE>] [--region <REGION>] [--dry-run] [--kubeconfig <PATH>] [--quiet]
 ```
 
 Without `--bootstrap`, deploys the **overlay** at `k3s/overlays/<env>`. With
@@ -60,6 +60,7 @@ deploy a fresh cluster end-to-end, run `deploy <env> --bootstrap` first, then
 | -------------- | ---------------------------------------------------------------------------------------------------- |
 | `--bootstrap`  | Apply `k3s/bootstrap/<env>` (helm charts + CRD providers) and wait for CRDs.                         |
 | `--stage`      | SST stage to fetch secrets from (default: SST's default stage; forced to `production` for prod env). |
+| `--region`     | Regional cluster config to render (default: `us-west`; ignored for local).                           |
 | `--dry-run`    | Render templates without applying.                                                                   |
 | `--kubeconfig` | Kubeconfig file for kubectl operations.                                                              |
 | `--quiet`/`-q` | Suppress status messages, output only YAML (for CI/CD).                                              |
@@ -71,13 +72,14 @@ is applied (unless using `--dry-run`).
 
 The `deploy` command renders templates with these substitutions before applying:
 
-| Variable                | Description                                  |
-| ----------------------- | -------------------------------------------- |
-| `${ImageRegistry}`      | Container registry (local-registry or GHCR). |
-| `${ImageTag}`           | Image tag (latest or branch name).           |
-| `${IsLocal}`            | `'true'` or `'false'` for conditional logic. |
-| `${<SST Resource>}`     | Any SST resource by name.                    |
-| `${<Secret> \| base64}` | Base64 encode a secret value.                |
+| Variable                 | Description                                  |
+| ------------------------ | -------------------------------------------- |
+| `${ImageRegistry}`       | Container registry (local-registry or GHCR). |
+| `${ImageTag}`            | Image tag (latest or branch name).           |
+| `${IsLocal}`             | `'true'` or `'false'` for conditional logic. |
+| `${ClusterMetalLbRange}` | Region-owned MetalLB service range.          |
+| `${<SST Resource>}`      | Any SST resource by name.                    |
+| `${<Secret> \| base64}`  | Base64 encode a secret value.                |
 
 ## Examples
 
@@ -104,8 +106,8 @@ The `deploy` command renders templates with these substitutions before applying:
 kubectl config use-context <tailscale-context>
 
 # Two-step deploy on a fresh cluster
-./scripts/cluster/main.sh deploy prod --bootstrap
-./scripts/cluster/main.sh deploy prod
+./scripts/cluster/main.sh deploy prod --region us-west --bootstrap
+./scripts/cluster/main.sh deploy prod --region us-west
 
 # Re-apply just the overlay (no bootstrap) on subsequent deploys
 ./scripts/cluster/main.sh deploy prod

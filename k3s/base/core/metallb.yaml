@@ -5,8 +5,7 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-    # MetalLB owns 10.0.5.x (check infra/cluster/network.ts)
-    - 10.0.5.1-10.0.5.254
+    - ${ClusterMetalLbRange}
 
 ---
 apiVersion: metallb.io/v1beta1

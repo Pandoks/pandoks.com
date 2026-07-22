@@ -1,71 +1,62 @@
-import { STAGE_NAME, isProduction } from '../utils';
-import { GATEWAY_MODEL, REGION } from './config';
+import { GATEWAY_MODEL } from './config';
+import { regionalResourceName, type RegionalClusterPlan } from './topology';
+
+export type ClusterFoundation = {
+  projectId: $util.Output<string>;
+  subsidiary: string;
+  vrack: ovh.vrack.Vrack;
+  attachment: ovh.vrack.CloudProject;
+  provider?: ovh.Provider;
+};
 
 export type ClusterNetwork = {
-  projectId: $util.Output<string>;
-  vrack: ovh.vrack.Vrack;
+  foundation: ClusterFoundation;
   network: ovh.CloudNetworkPrivateVrack;
   subnet: ovh.CloudNetworkPrivateVrackSubnet;
   gateway: ovh.CloudGateway;
 };
 
-export function createClusterNetwork(projectId: $util.Input<string>): ClusterNetwork {
-  const vrack = new ovh.vrack.Vrack(
-    'OvhK3sVrack',
-    {
-      ovhSubsidiary: 'US',
-      name: `k3s-${STAGE_NAME}`,
-      description: `k3s ${STAGE_NAME} private network`,
-      plan: {
-        duration: 'P1M',
-        planCode: 'vrack',
-        pricingMode: 'default'
-      }
-    },
-    { protect: isProduction }
-  );
-  const attachment = new ovh.vrack.CloudProject('OvhK3sVrackCloudProject', {
-    serviceName: vrack.serviceName,
-    projectId
-  });
-
+export function createClusterNetwork(
+  foundation: ClusterFoundation,
+  cluster: RegionalClusterPlan
+): ClusterNetwork {
+  const { config, identity } = cluster;
+  const provider = foundation.provider ? { provider: foundation.provider } : {};
   const privateNetwork = new ovh.CloudNetworkPrivateVrack(
-    'OvhK3sPrivateNetwork',
+    regionalResourceName('OvhK3sPrivateNetwork', config.id),
     {
-      serviceName: projectId,
-      name: `k3s-private-${STAGE_NAME}-network`,
-      description: `k3s ${STAGE_NAME} private network`,
-      region: REGION,
-      vlanId: 0
+      serviceName: foundation.projectId,
+      name: `k3s-private-${identity.namePrefix}-network`,
+      description: `k3s ${identity.namePrefix} private network`,
+      region: config.publicCloudRegion,
+      vlanId: config.vlanId
     },
-    { dependsOn: [attachment] }
+    { dependsOn: [foundation.attachment], ...provider }
   );
-  const subnet = new ovh.CloudNetworkPrivateVrackSubnet('OvhK3sSubnet', {
-    serviceName: projectId,
-    networkId: privateNetwork.id,
-    name: `k3s-${STAGE_NAME}-subnet`,
-    region: REGION,
-    cidr: '10.0.0.0/16',
-    gatewayIp: '10.0.0.1',
-    // Node partitions are stable and assigned by NODE_POOL_ADDRESS_BLOCKS in topology.ts.
-    allocationPools: [{ start: '10.0.0.2', end: '10.0.0.254' }],
-    dhcpEnabled: true
-  });
-
-  // allows for public internet access
-  const gateway = new ovh.CloudGateway('OvhK3sGateway', {
-    serviceName: projectId,
-    name: `k3s-${STAGE_NAME}-gateway`,
-    region: REGION,
-    externalGateway: { enabled: true, model: GATEWAY_MODEL },
-    subnetIds: [subnet.id]
-  });
-
-  return {
-    projectId: $output(projectId),
-    vrack,
-    network: privateNetwork,
-    subnet,
-    gateway
-  };
+  const subnet = new ovh.CloudNetworkPrivateVrackSubnet(
+    regionalResourceName('OvhK3sSubnet', config.id),
+    {
+      serviceName: foundation.projectId,
+      networkId: privateNetwork.id,
+      name: `k3s-${identity.namePrefix}-subnet`,
+      region: config.publicCloudRegion,
+      cidr: config.networkCidr,
+      gatewayIp: config.gatewayIp,
+      allocationPools: [config.allocationPool],
+      dhcpEnabled: true
+    },
+    provider
+  );
+  const gateway = new ovh.CloudGateway(
+    regionalResourceName('OvhK3sGateway', config.id),
+    {
+      serviceName: foundation.projectId,
+      name: `k3s-${identity.namePrefix}-gateway`,
+      region: config.publicCloudRegion,
+      externalGateway: { enabled: true, model: GATEWAY_MODEL },
+      subnetIds: [subnet.id]
+    },
+    provider
+  );
+  return { foundation, network: privateNetwork, subnet, gateway };
 }

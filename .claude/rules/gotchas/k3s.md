@@ -109,20 +109,20 @@ Filters supported by `template_substitute` (`scripts/lib/template.sh:9-23`):
 - `${VAR | quote}` — YAML-safe single-quote with doubling.
 - `${VAR | bcrypt}` — htpasswd-style hash.
 
-Unrecognized `${...}` patterns pass through unchanged — easy to miss a
-typo since rendering won't fail. Always grep for your new variable in
-the rendered output during dry-run.
+Unrecognized `${...}` patterns pass through unchanged. Regional `${Cluster*}`
+variables fail the deploy render explicitly; always inspect other new variables
+in dry-run output.
 
 ## ArgoCD App-of-Apps (prod only)
 
 `k3s/overlays/prod/argocd.yaml:47-69` defines the `prod-cluster`
 Application that watches `k3s/overlays/prod` via the
-`kustomize-sst-render-v1.0` CMP. The CMP sidecar
+`kustomize-sst-render-v1.1` CMP. The CMP sidecar
 (`ghcr.io/pandoks/argocd-sst-plugin:main`,
 `packages/argocd/argocd-plugin.yaml`) runs:
 
 ```sh
-sh ./scripts/cluster/main.sh deploy prod --dry-run --quiet
+sh ./scripts/cluster/main.sh deploy prod --region "${CLUSTER_REGION:-us-west}" --dry-run --quiet
 ```
 
 inside the repo-server pod. Implications:

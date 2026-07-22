@@ -1,58 +1,73 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildClusterPlan, getPoolScaleDownTarget, type NodePool } from '../cluster/topology.ts';
+import {
+  PRODUCTION_CLUSTER_CONFIG,
+  type ClusterConfig,
+  type RegionalClusterConfig
+} from '../cluster/config.ts';
+import {
+  buildClusterTopology,
+  buildRegionalClusterPlan,
+  getGlobalPublicIngressMode,
+  getPoolScaleDownTarget
+} from '../cluster/topology.ts';
 
-const cloudControlPlane = {
-  name: 'cloud-control-plane',
-  provider: 'public-cloud',
-  role: 'control-plane',
-  workload: 'general',
-  count: 1,
-  publicIngress: true,
-  machineType: 'b3-8',
-  image: 'Ubuntu 24.04',
-  region: 'US-WEST-OR-1'
-} satisfies NodePool;
+function region(
+  args: {
+    id?: RegionalClusterConfig['id'];
+    controlPlanes?: number;
+    workers?: number;
+    dedicatedControlPlanes?: number;
+    dedicatedWorkers?: number;
+    databases?: number;
+    loadBalancers?: number;
+  } = {}
+): RegionalClusterConfig {
+  const id = args.id ?? 'us-west';
+  const base = PRODUCTION_CLUSTER_CONFIG.regions.find((value) => value.id === id)!;
+  const ingressNodes =
+    (args.controlPlanes ?? 1) +
+    (args.workers ?? 0) +
+    (args.dedicatedControlPlanes ?? 0) +
+    (args.dedicatedWorkers ?? 0);
+  return {
+    ...base,
+    enabled: true,
+    publicCloudRegion: base.publicCloudRegion || 'EU-WEST-PAR',
+    dedicatedDatacenter: 'bhs',
+    dedicatedCatalogRegion: 'canada',
+    cloud: base.cloud.map((pool) => ({
+      ...pool,
+      count:
+        pool.name === 'cloud-control-plane'
+          ? (args.controlPlanes ?? 1)
+          : pool.name === 'cloud-workers'
+            ? (args.workers ?? 0)
+            : (args.databases ?? 0)
+    })),
+    dedicated: base.dedicated.map((pool) => ({
+      ...pool,
+      count:
+        pool.name === 'dedicated-control-plane'
+          ? (args.dedicatedControlPlanes ?? 0)
+          : pool.name === 'dedicated-workers'
+            ? (args.dedicatedWorkers ?? 0)
+            : 0,
+      machineType: '24rise01'
+    })),
+    loadBalancerCount: args.loadBalancers ?? (ingressNodes > 1 ? 1 : 0)
+  };
+}
 
-const dedicatedControlPlane = {
-  name: 'dedicated-control-plane',
-  provider: 'dedicated',
-  role: 'control-plane',
-  workload: 'general',
-  count: 2,
-  publicIngress: true,
-  machineType: '24rise01',
-  operatingSystem: 'ubuntu2404-server_64',
-  datacenter: 'bhs',
-  orderRegion: 'canada',
-  planOptions: []
-} satisfies NodePool;
-
-const cloudWorkers = (count: number) =>
-  ({
-    ...cloudControlPlane,
-    name: 'cloud-workers',
-    role: 'worker',
-    count
-  }) satisfies NodePool;
-
-const dedicatedWorkers = (count: number) =>
-  ({
-    ...dedicatedControlPlane,
-    name: 'dedicated-workers',
-    role: 'worker',
-    count
-  }) satisfies NodePool;
-
-void test('builds stable identities and role-owned addresses for mixed providers', () => {
-  const result = buildClusterPlan(
-    [cloudControlPlane, cloudWorkers(1), dedicatedControlPlane, dedicatedWorkers(1)],
+void test('preserves every existing US-West identity and address', () => {
+  const plan = buildRegionalClusterPlan(
+    region({ controlPlanes: 1, workers: 1, dedicatedControlPlanes: 2, dedicatedWorkers: 1 }),
     'prod',
-    1
+    'pandoks.com'
   );
 
   assert.deepEqual(
-    result.nodes.map(({ logicalName, hostname, privateIp, bootstrapCandidate }) => ({
+    plan.nodes.map(({ logicalName, hostname, privateIp, bootstrapCandidate }) => ({
       logicalName,
       hostname,
       privateIp,
@@ -91,233 +106,261 @@ void test('builds stable identities and role-owned addresses for mixed providers
       }
     ]
   );
-  assert.deepEqual(result.warnings, []);
+  assert.deepEqual(plan.identity, {
+    resourcePrefix: '',
+    namePrefix: 'prod',
+    apiHostname: 'k3s-api.pandoks.com',
+    operatorHostname: 'prod-cluster',
+    tokenSecretName: 'OvhK3sToken',
+    etcdBackupFolder: 'kubernetes/etcd'
+  });
 });
 
-void test('chooses the first available control plane as bootstrap candidate', () => {
-  const result = buildClusterPlan([{ ...dedicatedControlPlane, count: 1 }], 'prod', 0);
-  assert.equal(result.nodes[0]?.bootstrapCandidate, true);
-});
-
-void test('uses a direct API target for one control plane and an OVH VIP for multiple', () => {
-  const direct = buildClusterPlan([cloudControlPlane], 'prod', 0);
-  assert.equal(direct.privateApi.mode, 'direct');
-  assert.deepEqual(direct.privateApi.nodes, [direct.nodes[0]]);
-
-  const balanced = buildClusterPlan([cloudControlPlane, dedicatedControlPlane], 'prod', 1);
-  assert.equal(balanced.privateApi.mode, 'ovh');
-  assert.deepEqual(
-    balanced.privateApi.nodes.map(({ privateIp }) => privateIp),
-    ['10.0.1.1', '10.0.3.1', '10.0.3.2']
+void test('qualifies future regional identities and keeps their address space independent', () => {
+  const plan = buildRegionalClusterPlan(
+    region({ id: 'us-east', controlPlanes: 1, workers: 1 }),
+    'prod',
+    'pandoks.com'
   );
 
-  assert.equal(buildClusterPlan([], 'prod', 0).privateApi.mode, 'none');
-});
-
-void test('resource identity and private IP are independent of pool ordering', () => {
-  const first = buildClusterPlan([cloudControlPlane, dedicatedControlPlane], 'prod', 1);
-  const second = buildClusterPlan([dedicatedControlPlane, cloudControlPlane], 'prod', 1);
   assert.deepEqual(
-    new Map(first.nodes.map((node) => [node.logicalName, node.privateIp])),
-    new Map(second.nodes.map((node) => [node.logicalName, node.privateIp]))
-  );
-});
-
-void test('count changes only add or remove the highest indexes in that pool', () => {
-  const one = buildClusterPlan([cloudControlPlane, cloudWorkers(1)], 'prod', 1);
-  const three = buildClusterPlan([cloudControlPlane, cloudWorkers(3)], 'prod', 1);
-
-  assert.deepEqual(
-    one.nodes.map(({ logicalName, privateIp }) => ({ logicalName, privateIp })),
-    three.nodes.slice(0, 2).map(({ logicalName, privateIp }) => ({ logicalName, privateIp }))
-  );
-  assert.deepEqual(
-    three.nodes.slice(2).map(({ logicalName, privateIp }) => ({ logicalName, privateIp })),
+    plan.nodes.map(({ logicalName, hostname, privateIp }) => ({
+      logicalName,
+      hostname,
+      privateIp
+    })),
     [
-      { logicalName: 'OvhWorkerServer1', privateIp: '10.0.2.2' },
-      { logicalName: 'OvhWorkerServer2', privateIp: '10.0.2.3' }
+      {
+        logicalName: 'OvhUsEastControlPlaneServer0',
+        hostname: 'prod-us-east-ovh-control-plane-server-0',
+        privateIp: '10.1.1.1'
+      },
+      {
+        logicalName: 'OvhUsEastWorkerServer0',
+        hostname: 'prod-us-east-ovh-worker-server-0',
+        privateIp: '10.1.2.1'
+      }
     ]
   );
+  assert.deepEqual(plan.identity, {
+    resourcePrefix: 'UsEast',
+    namePrefix: 'prod-us-east',
+    apiHostname: 'k3s-api.us-east.pandoks.com',
+    operatorHostname: 'prod-us-east-cluster',
+    tokenSecretName: 'OvhUsEastK3sToken',
+    etcdBackupFolder: 'kubernetes/etcd/us-east'
+  });
 });
 
-void test('removing and re-adding a pool does not renumber unrelated pools', () => {
-  const allPools = [cloudControlPlane, cloudWorkers(2), dedicatedControlPlane] as const;
-  const before = buildClusterPlan(allPools, 'prod', 1);
-  const withoutCloudWorkers = buildClusterPlan(
-    [cloudControlPlane, dedicatedControlPlane],
-    'prod',
-    1
-  );
-  const after = buildClusterPlan(allPools, 'prod', 1);
-  const identities = (nodes: typeof before.nodes) =>
-    new Map(nodes.map((node) => [node.logicalName, node.privateIp]));
-
+void test('builds independent plans and rejects duplicate regional address identities', () => {
+  const west = region();
+  const east = region({ id: 'us-east' });
+  const topology = buildClusterTopology({ regions: [west, east] }, 'prod', 'pandoks.com');
   assert.deepEqual(
-    identities(withoutCloudWorkers.nodes),
-    new Map([
-      ['OvhControlPlaneServer0', '10.0.1.1'],
-      ['OvhDedicatedControlPlaneServer0', '10.0.3.1'],
-      ['OvhDedicatedControlPlaneServer1', '10.0.3.2']
-    ])
+    topology.regions.map(({ config, nodes }) => [config.id, nodes[0]?.privateIp]),
+    [
+      ['us-west', '10.0.1.1'],
+      ['us-east', '10.1.1.1']
+    ]
   );
-  assert.deepEqual(identities(after.nodes), identities(before.nodes));
-});
 
-void test('rejects invalid cluster shapes', () => {
+  assert.throws(
+    () => buildClusterTopology({ regions: [west, west] }, 'prod', 'pandoks.com'),
+    /Duplicate cluster region: us-west/
+  );
   assert.throws(
     () =>
-      buildClusterPlan(
-        [{ ...cloudControlPlane, name: 'cloud-workers', role: 'worker' }],
+      buildClusterTopology(
+        {
+          regions: [
+            west,
+            {
+              ...east,
+              networkCidr: west.networkCidr,
+              gatewayIp: west.gatewayIp,
+              allocationPool: west.allocationPool,
+              metalLbRange: west.metalLbRange
+            }
+          ]
+        },
         'prod',
-        0
+        'pandoks.com'
       ),
+    /Duplicate network CIDR/
+  );
+  assert.throws(
+    () =>
+      buildClusterTopology(
+        { regions: [west, { ...east, vlanId: west.vlanId }] },
+        'prod',
+        'pandoks.com'
+      ),
+    /Duplicate VLAN 0 for OVH account us/
+  );
+});
+
+void test('keeps disabled templates inert and rejects hidden compute', () => {
+  const disabled = PRODUCTION_CLUSTER_CONFIG.regions[0];
+  const topology = buildClusterTopology(PRODUCTION_CLUSTER_CONFIG, 'prod', 'pandoks.com');
+  assert.deepEqual(topology.regions, []);
+
+  assert.throws(
+    () =>
+      buildClusterTopology(
+        {
+          regions: [
+            {
+              ...disabled,
+              cloud: disabled.cloud.map((pool, index) => ({
+                ...pool,
+                count: index === 0 ? 1 : 0
+              }))
+            }
+          ]
+        },
+        'prod',
+        'pandoks.com'
+      ),
+    /Disabled cluster region us-west requires every node and load balancer count to be 0/
+  );
+});
+
+void test('requires provider and dedicated catalog locations only when used', () => {
+  assert.throws(
+    () =>
+      buildRegionalClusterPlan(
+        { ...region({ id: 'eu' }), publicCloudRegion: '' },
+        'prod',
+        'pandoks.com'
+      ),
+    /Enabled cluster region eu requires publicCloudRegion/
+  );
+  assert.throws(
+    () =>
+      buildRegionalClusterPlan(
+        { ...region({ dedicatedControlPlanes: 1 }), dedicatedDatacenter: '' },
+        'prod',
+        'pandoks.com'
+      ),
+    /dedicatedDatacenter/
+  );
+});
+
+void test('keeps pool identities stable across ordering and count changes', () => {
+  const one = region({ workers: 1 });
+  const three = region({ workers: 3 });
+  const reordered = { ...three, cloud: [...three.cloud].reverse() };
+  const first = buildRegionalClusterPlan(one, 'prod', 'pandoks.com');
+  const expanded = buildRegionalClusterPlan(three, 'prod', 'pandoks.com');
+  const shuffled = buildRegionalClusterPlan(reordered, 'prod', 'pandoks.com');
+
+  assert.deepEqual(
+    first.nodes.map(({ logicalName, privateIp }) => ({ logicalName, privateIp })),
+    expanded.nodes.slice(0, 2).map(({ logicalName, privateIp }) => ({ logicalName, privateIp }))
+  );
+  assert.deepEqual(
+    new Map(expanded.nodes.map((node) => [node.logicalName, node.privateIp])),
+    new Map(shuffled.nodes.map((node) => [node.logicalName, node.privateIp]))
+  );
+});
+
+void test('keeps private API and public ingress decisions local to each cluster', () => {
+  const direct = buildRegionalClusterPlan(region(), 'prod', 'pandoks.com');
+  assert.equal(direct.privateApi.mode, 'direct');
+  assert.equal(direct.publicIngress.mode, 'direct');
+
+  const balanced = buildRegionalClusterPlan(
+    region({ controlPlanes: 3, workers: 1, loadBalancers: 1 }),
+    'prod',
+    'pandoks.com'
+  );
+  assert.equal(balanced.privateApi.mode, 'ovh');
+  assert.equal(balanced.publicIngress.mode, 'ovh');
+
+  const cloudflare = buildRegionalClusterPlan(
+    region({ controlPlanes: 3, workers: 1, loadBalancers: 2 }),
+    'prod',
+    'pandoks.com'
+  );
+  assert.equal(cloudflare.publicIngress.mode, 'cloudflare');
+});
+
+void test('chooses global Cloudflare routing from the aggregate origin count', () => {
+  assert.equal(getGlobalPublicIngressMode(0), 'none');
+  assert.equal(getGlobalPublicIngressMode(1), 'direct');
+  assert.equal(getGlobalPublicIngressMode(2), 'cloudflare');
+  assert.equal(getGlobalPublicIngressMode(20), 'cloudflare');
+});
+
+void test('rejects invalid regional cluster and load balancer shapes', () => {
+  assert.throws(
+    () => buildRegionalClusterPlan(region({ controlPlanes: 0, workers: 1 }), 'prod', 'pandoks.com'),
     /at least one control-plane node/
   );
   assert.throws(
-    () => buildClusterPlan([cloudControlPlane, cloudControlPlane], 'prod', 1),
-    /Duplicate node pool name/
+    () => buildRegionalClusterPlan(region({ loadBalancers: 1 }), 'prod', 'pandoks.com'),
+    /one ingress node requires loadBalancerCount to be 0/
   );
   assert.throws(
     () =>
-      buildClusterPlan(
-        [
-          cloudControlPlane,
-          {
-            ...dedicatedControlPlane,
-            name: 'dedicated-workers',
-            role: 'worker',
-            count: 255
-          }
-        ],
+      buildRegionalClusterPlan(
+        region({ controlPlanes: 1, workers: 1, loadBalancers: 0 }),
         'prod',
-        1
+        'pandoks.com'
       ),
-    /dedicated-workers.*10\.0\.4\.1-10\.0\.4\.254/
+    /multiple ingress nodes require at least one load balancer/
   );
   assert.throws(
-    () =>
-      buildClusterPlan(
-        [{ ...cloudControlPlane, name: 'unregistered-pool' } as unknown as NodePool],
-        'prod',
-        0
-      ),
-    /Unknown node pool: unregistered-pool/
-  );
-  assert.throws(
-    () =>
-      buildClusterPlan(
-        [
-          cloudControlPlane,
-          {
-            ...cloudWorkers(1),
-            name: 'cloud-database',
-            workload: 'database',
-            publicIngress: true
-          }
-        ],
-        'prod',
-        1
-      ),
-    /database workload requires publicIngress to be false/
+    () => buildRegionalClusterPlan({ ...region(), loadBalancerCount: 1.5 }, 'prod', 'pandoks.com'),
+    /loadBalancerCount must be a non-negative integer/
   );
 });
 
-void test('accepts every address available to the configured node pools', () => {
-  const result = buildClusterPlan(
-    [
-      { ...cloudControlPlane, count: 254 },
-      cloudWorkers(254),
-      { ...dedicatedControlPlane, count: 254 },
-      dedicatedWorkers(254)
-    ],
-    'prod',
-    1
-  );
-
-  assert.equal(result.nodes.length, 1016);
-  assert.equal(result.nodes.at(-1)?.privateIp, '10.0.4.254');
+void test('keeps database pools private and assigns their reserved block', () => {
+  const plan = buildRegionalClusterPlan(region({ databases: 1 }), 'prod', 'pandoks.com');
+  const database = plan.nodes.find(({ pool }) => pool.name === 'cloud-database');
+  assert.equal(database?.privateIp, '10.0.6.1');
+  assert.equal(database?.pool.workload, 'database');
+  assert.equal(database?.pool.publicIngress, false);
 });
 
-void test('does not impose a made-up load balancer limit on cluster topology', () => {
-  const result = buildClusterPlan(
-    [
-      { ...cloudControlPlane, count: 13 },
-      { ...dedicatedControlPlane, count: 13 }
-    ],
-    'prod',
-    1
-  );
-  assert.equal(result.nodes.length, 26);
+void test('warns for non-HA embedded etcd and retains scale-down identity', () => {
+  const plan = buildRegionalClusterPlan(region({ workers: 2 }), 'prod', 'pandoks.com');
+  assert.match(plan.warnings[0] ?? '', /odd control-plane count of at least 3/);
+  const workers = plan.nodePools.find(({ name }) => name === 'cloud-workers')!;
+  assert.deepEqual(getPoolScaleDownTarget(workers, plan.config, 'prod'), {
+    index: 1,
+    logicalName: 'OvhWorkerServer1',
+    hostname: 'prod-ovh-worker-server-1'
+  });
 });
 
-void test('validates dedicated catalog settings and embedded-etcd HA', () => {
-  assert.throws(
-    () => buildClusterPlan([{ ...dedicatedControlPlane, machineType: '' }], 'prod', 1),
-    /requires machineType/
-  );
-  assert.match(
-    buildClusterPlan([cloudControlPlane], 'prod', 0).warnings[0] ?? '',
-    /odd control-plane count of at least 3/
-  );
+void test('validates regional CIDRs, gateway, allocation pool, and MetalLB range', () => {
+  const base = region();
+  for (const [field, value] of [
+    ['networkCidr', '10.0.0.0/24'],
+    ['gatewayIp', '10.9.0.1'],
+    ['metalLbRange', '10.9.5.1-10.9.5.254']
+  ] as const) {
+    assert.throws(
+      () => buildRegionalClusterPlan({ ...base, [field]: value }, 'prod', 'pandoks.com'),
+      new RegExp(field)
+    );
+  }
 });
 
-void test('keeps database pools private while preserving workload placement metadata', () => {
-  const database = {
-    ...cloudWorkers(1),
-    name: 'cloud-database',
-    workload: 'database',
-    publicIngress: false,
-    machineType: 'r3-16'
-  } satisfies NodePool;
-  const plan = buildClusterPlan([cloudControlPlane, database], 'prod', 0);
-
-  assert.equal(plan.nodes[1]?.privateIp, '10.0.6.1');
-  assert.equal(plan.nodes[1]?.pool.workload, 'database');
-  assert.deepEqual(plan.publicIngress.nodes, [plan.nodes[0]]);
-});
-
-void test('routes one ingress node directly and forbids a public load balancer', () => {
-  const plan = buildClusterPlan([cloudControlPlane], 'dev', 0);
-  assert.equal(plan.publicIngress.mode, 'direct');
-  assert.equal(plan.publicIngress.nodes[0]?.directIngress, true);
-  assert.throws(
-    () => buildClusterPlan([cloudControlPlane], 'dev', 1),
-    /one ingress node requires publicIngressLoadBalancerCount to be 0/
-  );
-});
-
-void test('uses direct DNS for one OVH ingress load balancer and Cloudflare for multiple', () => {
-  const pools = [cloudControlPlane, dedicatedControlPlane];
-  assert.equal(buildClusterPlan(pools, 'prod', 1).publicIngress.mode, 'ovh');
-  assert.equal(buildClusterPlan(pools, 'prod', 2).publicIngress.mode, 'cloudflare');
-  assert.equal(buildClusterPlan(pools, 'prod', 3).publicIngress.loadBalancerCount, 3);
-});
-
-void test('rejects invalid public ingress load balancer counts', () => {
-  const pools = [cloudControlPlane, dedicatedControlPlane];
-  assert.throws(
-    () => buildClusterPlan(pools, 'prod', 0),
-    /multiple ingress nodes require at least one public ingress load balancer/
-  );
-  assert.throws(
-    () => buildClusterPlan(pools, 'prod', 1.5),
-    /publicIngressLoadBalancerCount must be a non-negative integer/
-  );
-  assert.throws(
-    () => buildClusterPlan([], 'dev', 1),
-    /no ingress nodes requires publicIngressLoadBalancerCount to be 0/
-  );
-  assert.equal(buildClusterPlan([], 'dev', 0).publicIngress.mode, 'none');
-});
-
-void test('keeps the scale-down identity template for future operations', () => {
-  assert.deepEqual(getPoolScaleDownTarget({ ...dedicatedControlPlane, count: 3 }, 'prod'), {
-    index: 2,
-    logicalName: 'OvhDedicatedControlPlaneServer2',
-    hostname: 'prod-ovh-dedicated-control-plane-server-2'
+void test('requires unique pod and service CIDRs across enabled clusters', () => {
+  const west = region();
+  const east = region({ id: 'us-east' });
+  const config = (overrides: Partial<RegionalClusterConfig>): ClusterConfig => ({
+    regions: [west, { ...east, ...overrides }]
   });
   assert.throws(
-    () => getPoolScaleDownTarget({ ...dedicatedControlPlane, count: 0 }, 'prod'),
-    /has no node to remove/
+    () => buildClusterTopology(config({ podCidr: west.podCidr }), 'prod', 'pandoks.com'),
+    /Duplicate pod CIDR/
+  );
+  assert.throws(
+    () => buildClusterTopology(config({ serviceCidr: west.serviceCidr }), 'prod', 'pandoks.com'),
+    /Duplicate service CIDR/
   );
 });

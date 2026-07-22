@@ -1,18 +1,21 @@
-import { isProduction } from '../utils';
-import type { DedicatedPlanOption, NodePool, NodePoolName, NodeRole, Workload } from './topology';
+export type ClusterRegionId = 'us-west' | 'us-east' | 'eu' | 'asia';
+export type OvhAccountId = 'us' | 'eu';
+export type NodePoolName =
+  | 'cloud-control-plane'
+  | 'cloud-workers'
+  | 'cloud-database'
+  | 'dedicated-control-plane'
+  | 'dedicated-workers'
+  | 'dedicated-database';
+export type NodeRole = 'control-plane' | 'worker';
+export type Workload = 'general' | 'database';
 
-type GatewayModel = 'S' | 'M' | 'L' | 'XL' | '2XL' | '3XL';
-type LoadBalancerFlavor = 'small' | 'medium' | 'large' | 'xl';
-type LoadBalancerAlgorithm = 'leastConnections' | 'roundRobin' | 'sourceIP';
-
-export const REGION = 'US-WEST-OR-1';
-export const CLOUD_IMAGE = 'Ubuntu 26.04';
-export const DEDICATED_OPERATING_SYSTEM = 'ubuntu2604-server_64';
-export const DEDICATED_DATACENTER = '';
-export const DEDICATED_ORDER_REGION = '';
-export const GATEWAY_MODEL: GatewayModel = 'S';
-export const LOAD_BALANCER_FLAVOR: LoadBalancerFlavor = 'small';
-export const LOAD_BALANCER_ALGORITHM: LoadBalancerAlgorithm = 'leastConnections';
+export type DedicatedPlanOption = {
+  duration: string;
+  planCode: string;
+  pricingMode: string;
+  quantity: number;
+};
 
 type PoolConfig = {
   name: NodePoolName;
@@ -24,101 +27,183 @@ type PoolConfig = {
 };
 
 export type CloudPoolConfig = PoolConfig;
-export type DedicatedPoolConfig = PoolConfig & {
-  planOptions: DedicatedPlanOption[];
-};
+export type DedicatedPoolConfig = PoolConfig & { planOptions: DedicatedPlanOption[] };
 
-export type ClusterConfig = {
+export type RegionalClusterConfig = {
+  id: ClusterRegionId;
+  account: OvhAccountId;
+  enabled: boolean;
+  publicCloudRegion: string;
+  cloudImage: string;
+  dedicatedOperatingSystem: string;
+  dedicatedDatacenter: string;
+  dedicatedCatalogRegion: string;
+  vlanId: number;
+  networkCidr: string;
+  gatewayIp: string;
+  allocationPool: { start: string; end: string };
+  podCidr: string;
+  serviceCidr: string;
+  metalLbRange: string;
   cloud: readonly CloudPoolConfig[];
   dedicated: readonly DedicatedPoolConfig[];
   loadBalancerCount: number;
 };
 
-const CLOUD_POOLS = [
-  {
-    name: 'cloud-control-plane',
-    role: 'control-plane',
-    workload: 'general',
-    count: 0,
-    publicIngress: true,
-    machineType: 'b3-8'
-  },
-  {
-    name: 'cloud-workers',
-    role: 'worker',
-    workload: 'general',
-    count: 0,
-    publicIngress: true,
-    machineType: 'b3-8'
-  },
-  {
-    name: 'cloud-database',
-    role: 'worker',
-    workload: 'database',
-    count: 0,
-    publicIngress: false,
-    machineType: 'b3-8'
+export type ClusterConfig = { regions: readonly RegionalClusterConfig[] };
+
+type GatewayModel = 'S' | 'M' | 'L' | 'XL' | '2XL' | '3XL';
+type LoadBalancerFlavor = 'small' | 'medium' | 'large' | 'xl';
+type LoadBalancerAlgorithm = 'leastConnections' | 'roundRobin' | 'sourceIP';
+
+export const GATEWAY_MODEL: GatewayModel = 'S';
+export const LOAD_BALANCER_FLAVOR: LoadBalancerFlavor = 'small';
+export const LOAD_BALANCER_ALGORITHM: LoadBalancerAlgorithm = 'leastConnections';
+
+export const OVH_ACCOUNTS = {
+  us: { endpoint: 'ovh-us', subsidiary: 'US' },
+  eu: {
+    endpoint: 'ovh-eu',
+    subsidiary: '',
+    applicationKeyEnvironment: 'OVH_EU_APPLICATION_KEY',
+    applicationSecretEnvironment: 'OVH_EU_APPLICATION_SECRET',
+    consumerKeyEnvironment: 'OVH_EU_CONSUMER_KEY'
   }
-] satisfies readonly CloudPoolConfig[];
+} as const;
 
-const DEDICATED_POOLS = [
-  {
-    name: 'dedicated-control-plane',
-    role: 'control-plane',
-    workload: 'general',
-    count: 0,
-    publicIngress: true,
-    machineType: '',
-    planOptions: []
-  },
-  {
-    name: 'dedicated-workers',
-    role: 'worker',
-    workload: 'general',
-    count: 0,
-    publicIngress: true,
-    machineType: '',
-    planOptions: []
-  },
-  {
-    name: 'dedicated-database',
-    role: 'worker',
-    workload: 'database',
-    count: 0,
-    publicIngress: false,
-    machineType: '',
-    planOptions: []
-  }
-] satisfies readonly DedicatedPoolConfig[];
+function pools() {
+  return {
+    cloud: [
+      {
+        name: 'cloud-control-plane',
+        role: 'control-plane',
+        workload: 'general',
+        count: 0,
+        publicIngress: true,
+        machineType: 'b3-8'
+      },
+      {
+        name: 'cloud-workers',
+        role: 'worker',
+        workload: 'general',
+        count: 0,
+        publicIngress: true,
+        machineType: 'b3-8'
+      },
+      {
+        name: 'cloud-database',
+        role: 'worker',
+        workload: 'database',
+        count: 0,
+        publicIngress: false,
+        machineType: 'b3-8'
+      }
+    ] satisfies CloudPoolConfig[],
+    dedicated: [
+      {
+        name: 'dedicated-control-plane',
+        role: 'control-plane',
+        workload: 'general',
+        count: 0,
+        publicIngress: true,
+        machineType: '',
+        planOptions: []
+      },
+      {
+        name: 'dedicated-workers',
+        role: 'worker',
+        workload: 'general',
+        count: 0,
+        publicIngress: true,
+        machineType: '',
+        planOptions: []
+      },
+      {
+        name: 'dedicated-database',
+        role: 'worker',
+        workload: 'database',
+        count: 0,
+        publicIngress: false,
+        machineType: '',
+        planOptions: []
+      }
+    ] satisfies DedicatedPoolConfig[]
+  };
+}
 
-export const PRODUCTION_CLUSTER_CONFIG: ClusterConfig = {
-  cloud: CLOUD_POOLS,
-  dedicated: DEDICATED_POOLS,
-  loadBalancerCount: 0
-};
+function regions(): RegionalClusterConfig[] {
+  const shared = {
+    enabled: false,
+    cloudImage: 'Ubuntu 26.04',
+    dedicatedOperatingSystem: 'ubuntu2604-server_64',
+    dedicatedDatacenter: '',
+    dedicatedCatalogRegion: '',
+    loadBalancerCount: 0
+  } as const;
+  return [
+    {
+      ...shared,
+      ...pools(),
+      id: 'us-west',
+      account: 'us',
+      publicCloudRegion: 'US-WEST-OR-1',
+      vlanId: 0,
+      networkCidr: '10.0.0.0/16',
+      gatewayIp: '10.0.0.1',
+      allocationPool: { start: '10.0.0.2', end: '10.0.0.254' },
+      podCidr: '10.42.0.0/16',
+      serviceCidr: '10.43.0.0/16',
+      metalLbRange: '10.0.5.1-10.0.5.254'
+    },
+    {
+      ...shared,
+      ...pools(),
+      id: 'us-east',
+      account: 'us',
+      publicCloudRegion: 'US-EAST-VA-1',
+      vlanId: 101,
+      networkCidr: '10.1.0.0/16',
+      gatewayIp: '10.1.0.1',
+      allocationPool: { start: '10.1.0.2', end: '10.1.0.254' },
+      podCidr: '10.44.0.0/16',
+      serviceCidr: '10.45.0.0/16',
+      metalLbRange: '10.1.5.1-10.1.5.254'
+    },
+    {
+      ...shared,
+      ...pools(),
+      id: 'eu',
+      account: 'eu',
+      publicCloudRegion: '',
+      vlanId: 102,
+      networkCidr: '10.2.0.0/16',
+      gatewayIp: '10.2.0.1',
+      allocationPool: { start: '10.2.0.2', end: '10.2.0.254' },
+      podCidr: '10.46.0.0/16',
+      serviceCidr: '10.47.0.0/16',
+      metalLbRange: '10.2.5.1-10.2.5.254'
+    },
+    {
+      ...shared,
+      ...pools(),
+      id: 'asia',
+      account: 'eu',
+      publicCloudRegion: '',
+      vlanId: 103,
+      networkCidr: '10.3.0.0/16',
+      gatewayIp: '10.3.0.1',
+      allocationPool: { start: '10.3.0.2', end: '10.3.0.254' },
+      podCidr: '10.48.0.0/16',
+      serviceCidr: '10.49.0.0/16',
+      metalLbRange: '10.3.5.1-10.3.5.254'
+    }
+  ];
+}
 
-export const NON_PRODUCTION_CLUSTER_CONFIG: ClusterConfig = {
-  cloud: CLOUD_POOLS,
-  dedicated: DEDICATED_POOLS,
-  loadBalancerCount: 0
-};
+export const PRODUCTION_CLUSTER_CONFIG: ClusterConfig = { regions: regions() };
+export const NON_PRODUCTION_CLUSTER_CONFIG: ClusterConfig = { regions: regions() };
 
-export const clusterConfig = isProduction
-  ? PRODUCTION_CLUSTER_CONFIG
-  : NON_PRODUCTION_CLUSTER_CONFIG;
-
-export const NODE_POOLS: readonly NodePool[] = [
-  ...clusterConfig.cloud.map((pool) => ({
-    ...pool,
-    provider: 'public-cloud' as const,
-    image: CLOUD_IMAGE,
-    region: REGION
-  })),
-  ...clusterConfig.dedicated.map((pool) => ({
-    ...pool,
-    provider: 'dedicated' as const,
-    operatingSystem: DEDICATED_OPERATING_SYSTEM,
-    datacenter: DEDICATED_DATACENTER,
-    orderRegion: DEDICATED_ORDER_REGION
-  }))
-];
+export const CLUSTER_CONFIGS = {
+  production: PRODUCTION_CLUSTER_CONFIG,
+  nonProduction: NON_PRODUCTION_CLUSTER_CONFIG
+} as const;

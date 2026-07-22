@@ -1,8 +1,9 @@
 import { createNodeBootstrap, deleteServerFromTailnet } from './bootstrap';
 import type { ClusterNetwork } from '../network';
-import type { ClusterNodeSpec, DedicatedNodePool } from '../topology';
+import type { ClusterNodeSpec, DedicatedNodePool, RegionalClusterPlan } from '../topology';
 
 export function createDedicatedNodes(args: {
+  cluster: RegionalClusterPlan;
   pool: DedicatedNodePool;
   nodes: readonly ClusterNodeSpec[];
   network: ClusterNetwork;
@@ -10,12 +11,14 @@ export function createDedicatedNodes(args: {
   protect: boolean;
 }) {
   const provisioned: Array<{ node: ClusterNodeSpec; publicIp: $util.Output<string> }> = [];
+  const provider = args.network.foundation.provider;
+  const providerOptions = provider ? { provider } : {};
   for (const node of args.nodes) {
     const server = new ovh.dedicated.Server(
       node.logicalName,
       {
         displayName: node.hostname,
-        ovhSubsidiary: 'US',
+        ovhSubsidiary: args.network.foundation.subsidiary,
         preventInstallOnCreate: true,
         plans: [
           {
@@ -34,10 +37,11 @@ export function createDedicatedNodes(args: {
       },
       {
         protect: args.protect,
+        ...providerOptions,
         hooks: { afterDelete: [deleteServerFromTailnet] }
       }
     );
-    const details = ovh.getServerOutput({ serviceName: server.serviceName });
+    const details = ovh.getServerOutput({ serviceName: server.serviceName }, providerOptions);
     const vrackVni = details.vnis.apply((vnis) => {
       const vni = vnis.find((value) => value.enabled && value.mode === 'vrack');
       if (!vni?.nics[0]) {
@@ -48,12 +52,13 @@ export function createDedicatedNodes(args: {
     const attachment = new ovh.vrack.DedicatedServerInterface(
       `${node.logicalName}VrackInterface`,
       {
-        serviceName: args.network.vrack.serviceName,
+        serviceName: args.network.foundation.vrack.serviceName,
         interfaceId: vrackVni.apply((vni) => vni.uuid)
       },
-      { dependsOn: [server, args.network.vrack] }
+      { dependsOn: [server, args.network.foundation.vrack], ...providerOptions }
     );
     const bootstrap = createNodeBootstrap({
+      cluster: args.cluster,
       node,
       apiAddress: args.apiAddress,
       networkCidr: args.network.subnet.cidr,
@@ -77,7 +82,8 @@ export function createDedicatedNodes(args: {
       {
         dependsOn: [attachment],
         ignoreChanges: args.protect ? ['os', 'customizations', 'storages'] : [],
-        protect: args.protect
+        protect: args.protect,
+        ...providerOptions
       }
     );
     provisioned.push({ node, publicIp: server.ip });

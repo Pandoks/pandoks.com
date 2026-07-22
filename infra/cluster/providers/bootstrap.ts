@@ -4,7 +4,7 @@ import { STAGE_NAME } from '../../utils';
 import { secrets } from '../../secrets';
 import { backupBucket, s3Endpoint } from '../../storage';
 import { cloudflareIpv4Cidrs } from '../../dns';
-import type { ClusterNodeSpec } from '../topology';
+import type { ClusterNodeSpec, RegionalClusterPlan } from '../topology';
 
 const bootstrapScript = readFileSync(
   `${process.cwd()}/infra/cluster/providers/bootstrap.sh`,
@@ -48,6 +48,7 @@ export const deleteServerFromTailnet = new $util.ResourceHook(
 );
 
 export function createNodeBootstrap(args: {
+  cluster: RegionalClusterPlan;
   node: ClusterNodeSpec;
   apiAddress: $util.Input<string>;
   networkCidr: $util.Input<string>;
@@ -77,7 +78,7 @@ export function createNodeBootstrap(args: {
     args.apiAddress,
     args.networkCidr,
     args.vrackMac ?? '',
-    secrets.ovh.K3sToken.value,
+    secrets.ovh.K3sTokens[args.cluster.config.id].value,
     tailnetKey.key,
     secrets.k8s.tailscale.OauthClientId.value,
     secrets.k8s.tailscale.OauthClientSecret.value,
@@ -101,6 +102,12 @@ export function createNodeBootstrap(args: {
     ]) =>
       renderBootstrapScript({
         STAGE_NAME,
+        CLUSTER_REGION: args.cluster.config.id,
+        CLUSTER_OPERATOR_HOSTNAME: args.cluster.identity.operatorHostname,
+        CLUSTER_POD_CIDR: args.cluster.config.podCidr,
+        CLUSTER_SERVICE_CIDR: args.cluster.config.serviceCidr,
+        ETCD_BACKUP_FOLDER: args.cluster.identity.etcdBackupFolder,
+        VRACK_VLAN_ID: String(args.cluster.config.vlanId),
         NODE_NAME: args.node.hostname,
         NODE_IP: args.node.privateIp,
         NETWORK_CIDR: networkCidr,

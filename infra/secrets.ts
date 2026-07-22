@@ -41,7 +41,12 @@ export const secrets = {
   ovh: {
     ApplicationSecret: new sst.Secret('OvhApplicationSecret', process.env.OVH_APPLICATION_SECRET),
     ConsumerKey: new sst.Secret('OvhConsumerKey', process.env.OVH_CONSUMER_KEY),
-    K3sToken: new sst.Secret('OvhK3sToken', 'Placeholder')
+    K3sTokens: {
+      'us-west': new sst.Secret('OvhK3sToken', 'Placeholder'),
+      'us-east': new sst.Secret('OvhUsEastK3sToken', 'Placeholder'),
+      eu: new sst.Secret('OvhEuK3sToken', 'Placeholder'),
+      asia: new sst.Secret('OvhAsiaK3sToken', 'Placeholder')
+    }
   },
   tailscale: {
     OauthClientId: new sst.Secret('TailscaleOauthClientId'),

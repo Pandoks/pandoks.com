@@ -28,7 +28,7 @@ void test('uses one shared shell bootstrap for public cloud and dedicated server
     dedicated,
     /postInstallationScript:\s*bootstrap\.apply\(\(script\) =>\s*Buffer\.from\(script\)\.toString\('base64'\)\s*\)/s
   );
-  assert.match(bootstrapScript, /hostname:\s*"\$\{STAGE_NAME\}-cluster"/);
+  assert.match(bootstrapScript, /hostname:\s*"\$\{CLUSTER_OPERATOR_HOSTNAME\}"/);
 
   assert.equal(existsSync('infra/cluster/bootstrap.ts'), false);
   assert.equal(existsSync('infra/cluster/bootstrap.sh'), false);
@@ -65,4 +65,38 @@ void test('registers workload and public-ingress placement metadata with k3s', (
   assert.match(bootstrapScript, /--node-label="pandoks\.com\/workload=\$\{WORKLOAD\}"/);
   assert.match(bootstrapScript, /--node-label="pandoks\.com\/public-ingress=\$\{PUBLIC_INGRESS\}"/);
   assert.match(bootstrapScript, /--node-taint="pandoks\.com\/workload=database:NoSchedule"/);
+});
+
+void test('injects independent regional k3s identity and critical server networks', () => {
+  const bootstrap = readFileSync(bootstrapPath, 'utf8');
+  const bootstrapScript = readFileSync(bootstrapScriptPath, 'utf8');
+
+  for (const value of [
+    'CLUSTER_REGION',
+    'CLUSTER_OPERATOR_HOSTNAME',
+    'CLUSTER_POD_CIDR',
+    'CLUSTER_SERVICE_CIDR',
+    'ETCD_BACKUP_FOLDER',
+    'VRACK_VLAN_ID'
+  ]) {
+    assert.match(bootstrap, new RegExp(`${value}:`));
+  }
+  assert.equal(bootstrapScript.match(/--cluster-cidr="\$\{CLUSTER_POD_CIDR\}"/g)?.length, 2);
+  assert.equal(bootstrapScript.match(/--service-cidr="\$\{CLUSTER_SERVICE_CIDR\}"/g)?.length, 2);
+  assert.equal(bootstrapScript.match(/--etcd-s3-folder="\$\{ETCD_BACKUP_FOLDER\}"/g)?.length, 2);
+  assert.match(
+    bootstrapScript,
+    /kubectl create configmap pandoks-cluster[\s\S]*--from-literal=region="\$\{CLUSTER_REGION\}"/
+  );
+});
+
+void test('keeps VLAN 0 untagged and configures future dedicated VLAN interfaces', () => {
+  const bootstrapScript = readFileSync(bootstrapScriptPath, 'utf8');
+  assert.match(bootstrapScript, /if \[ "\$\{VRACK_VLAN_ID\}" = "0" \]; then/);
+  assert.match(bootstrapScript, /set-name: vrack0/);
+  assert.match(bootstrapScript, /vlans:[\s\S]*vrack0\.\$\{VRACK_VLAN_ID\}:/);
+  assert.match(bootstrapScript, /id: \$\{VRACK_VLAN_ID\}/);
+  assert.match(bootstrapScript, /link: vrack\n/);
+  assert.doesNotMatch(bootstrapScript, /link: vrack0/);
+  assert.match(bootstrapScript, /VRACK_INTERFACE="vrack0\.\$\{VRACK_VLAN_ID\}"/);
 });

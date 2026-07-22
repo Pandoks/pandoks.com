@@ -13,8 +13,8 @@ paths:
 
 - **Topology and catalog selection live in `infra/cluster/config.ts`.**
   `PRODUCTION_CLUSTER_CONFIG` and `NON_PRODUCTION_CLUSTER_CONFIG` both currently
-  set every pool count to zero. Fill dedicated catalog fields only for an
-  enabled dedicated pool. CI retains
+  define four disabled regions and set every pool count to zero. Fill dedicated
+  catalog fields only for an enabled dedicated pool. CI retains
   only the OVH credentials; Pulumi creates the Public Cloud project and passes
   its generated ID directly. CI runs the TypeScript topology contracts.
   Cluster resources use `protect: isProduction`: production nodes are protected
@@ -23,12 +23,17 @@ paths:
   `count - 1` node and requires a separate reviewed IaC unprotect change in
   production.
 
-## HAProxy
+## Regional networking
 
-- **Proxy-protocol must stay on.**
-  `infra/cluster/load-balancers.ts` configures the public ingress pool as
-  `proxyV2`; changing it to plain TCP hides the client IP behind the LB private
-  IP and breaks Cloudflare attribution.
+- **Clusters are independent.** US West/East use the `ovh-us` account. EU/Asia
+  templates require verified `ovh-eu` credentials, subsidiary, provider region,
+  and dedicated catalog values before enabling. Each cluster owns unique node,
+  pod, service, and MetalLB CIDRs. Flannel does not provide cross-cluster
+  pod/service connectivity; Cilium Cluster Mesh and database replication are a
+  separate rollout.
+- **Do not stretch a managed Gateway/LB subnet across regions.** OVH supports
+  vRack/VLAN extension, but its managed Gateway and Load Balancer require the
+  single-region private networks modeled here.
 
 ## Tailscale operator
 
@@ -38,10 +43,10 @@ paths:
 ## ArgoCD CMP
 
 - **The CMP renders via the cluster CLI** — `argocd-plugin.yaml` calls
-  `sh ./scripts/cluster/main.sh deploy prod --dry-run --quiet` inside the
-  repo-server pod (see `packages/argocd/argocd-plugin.yaml`). If the CLI
-  signature changes, the CMP breaks silently. **Version-bump
-  `argocd-sst-plugin` image after CLI changes.**
+  `deploy prod --region "$CLUSTER_REGION" --dry-run --quiet` inside the
+  repo-server pod. The optional `argocd/pandoks-cluster` ConfigMap value defaults
+  to `us-west` for compatibility. If the CLI contract changes, update and bump
+  the CMP schema name together.
 
 ## Kustomize quirks
 
@@ -82,11 +87,12 @@ root of the repo`). Never use the package dir as context.
   flags, env tags, and template variables — keep it in sync with
   `scripts/cluster/usage.sh` when adding options.
 
-## Manual cluster deploy skip
+## Regional deploy skip
 
-- `.github/workflows/deploy-infra.yaml:133-140` sets `SKIP_DEPLOY=true`
-  when no `prod-cluster` Tailnet peer is visible. Since both node counts
-  are currently 0, this is the normal path.
+- `.github/workflows/deploy-infra.yaml` reads enabled production regions from
+  `scripts/cluster/config.ts`, then independently syncs each visible regional
+  Tailscale operator. With every region disabled, the job exits successfully
+  without contacting a cluster.
 
 ## ghcr image lifecycle
 

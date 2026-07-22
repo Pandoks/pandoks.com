@@ -57,16 +57,17 @@ manually import` comment at `sst.config.ts:34` is load-bearing.
 
 ## OVH cluster
 
-- **Single-region by design.** The private network, subnet, gateway and
-  load balancers are all pinned to one `REGION`
-  (`infra/cluster/cluster.ts`). Multi-region requires multiple clusters +
-  Cloudflare DNS steering.
+- **One independent cluster per region.** `infra/cluster/config.ts` has stable
+  slots for US West, US East, Europe, and Asia. Regional private networks keep
+  managed Gateways/LBs supported; Cloudflare steers application traffic across
+  the enabled regional origins. US West retains its existing logical names,
+  VLAN 0, and 10.0.0.0/16 addresses.
 - **The Public Cloud project remains required with dedicated compute.**
   `infra/cluster/cluster.ts` creates it with `ovh.cloudproject.Project` and
   passes its generated `projectId` to the vRack attachment, private network,
   subnet, gateway, load balancers, and floating IPs. Never unprotect or remove
   the project as part of a compute-only migration.
-- **Four independent pools are configured in `infra/cluster/cluster.ts`.**
+- **Regional pool arrays are configured in `infra/cluster/config.ts`.**
   Dedicated plan, datacenter, order-region, and option values must be validated
   against the live authenticated catalog, then reviewed in an authenticated
   preview before a non-zero dedicated count is committed or applied.
@@ -87,6 +88,9 @@ manually import` comment at `sst.config.ts:34` is load-bearing.
   `infra/cluster/cluster.ts` deletes stale devices tagged `tag:ovh`,
   `tag:<stage>`, and a cluster role. Per-node deletion is handled by
   `DeleteServerFromTailnet` in `infra/cluster/providers/bootstrap.ts`.
+- **EU/Asia are intentionally dormant.** They require an explicit `ovh-eu`
+  provider/account, credentials, subsidiary, and live catalog/region values.
+  Never copy US catalog identifiers into those templates.
 
 ## TLS / Cloudflare origin cert
 

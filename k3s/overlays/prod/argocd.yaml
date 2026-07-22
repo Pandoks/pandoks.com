@@ -16,6 +16,12 @@ spec:
           securityContext:
             readOnlyRootFilesystem: true
           env:
+            - name: CLUSTER_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: pandoks-cluster
+                  key: region
+                  optional: true
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
@@ -57,7 +63,7 @@ spec:
     targetRevision: main
     path: k3s/overlays/prod
     plugin:
-      name: kustomize-sst-render-v1.0
+      name: kustomize-sst-render-v1.1
   destination:
     server: https://kubernetes.default.svc
   syncPolicy:
