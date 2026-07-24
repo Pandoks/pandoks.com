@@ -60,7 +60,7 @@ deploy a fresh cluster end-to-end, run `deploy <env> --bootstrap` first, then
 | -------------- | ---------------------------------------------------------------------------------------------------- |
 | `--bootstrap`  | Apply `k3s/bootstrap/<env>` (helm charts + CRD providers) and wait for CRDs.                         |
 | `--stage`      | SST stage to fetch secrets from (default: SST's default stage; forced to `production` for prod env). |
-| `--region`     | Regional cluster config to render (default: `us-west`; ignored for local).                           |
+| `--region`     | Cluster name from `infra/cluster/config.ts` to render (default: `us-west`; ignored for local).       |
 | `--dry-run`    | Render templates without applying.                                                                   |
 | `--kubeconfig` | Kubeconfig file for kubectl operations.                                                              |
 | `--quiet`/`-q` | Suppress status messages, output only YAML (for CI/CD).                                              |
