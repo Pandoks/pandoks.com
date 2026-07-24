@@ -1,7 +1,3 @@
-// NOTE: the OVH Pulumi provider types every region/datacenter as a plain string, so these
-// unions are the typed vocabulary. The US subsidiary only exposes US Public Cloud regions;
-// dedicated servers order globally. Validate catalog values against the live authenticated
-// cart before setting a non-zero count.
 export type PublicCloudRegion = 'US-WEST-OR-1' | 'US-EAST-VA-1';
 export type DedicatedDatacenter =
   | 'vin' // Vint Hill, Virginia, USA
