@@ -1,3 +1,38 @@
+export const GATEWAY_MODEL: GatewayModel = 'S';
+export const LOAD_BALANCER_FLAVOR = 'small';
+export const LOAD_BALANCER_ALGORITHM: LoadBalancerAlgorithm = 'leastConnections';
+
+export const OVH_ACCOUNT = {
+  endpoint: 'ovh-us',
+  apiRoot: 'https://api.us.ovhcloud.com/1.0',
+  subsidiary: 'US',
+  applicationKey: 'edf9a4672d28e3c7',
+  applicationSecretEnvironment: 'OVH_APPLICATION_SECRET',
+  consumerKeyEnvironment: 'OVH_CONSUMER_KEY'
+} as const;
+
+function clusterConfig(): ClusterConfig {
+  return {
+    clusters: [],
+    interconnect: { vlanId: 4000, cidr: '172.16.0.0/12' },
+    publicIngress: { type: 'public-cloud', flavor: LOAD_BALANCER_FLAVOR }
+  };
+}
+
+export const PRODUCTION_CLUSTER_CONFIG = clusterConfig();
+export const NON_PRODUCTION_CLUSTER_CONFIG = clusterConfig();
+
+export const CLUSTER_CONFIGS = {
+  production: PRODUCTION_CLUSTER_CONFIG,
+  nonProduction: NON_PRODUCTION_CLUSTER_CONFIG
+} as const;
+
+// NOTE: the OVH Pulumi provider types every region/catalog field as a plain string, so these
+// unions are the typed vocabulary. Closed unions cover stable OVH vocabulary; Catalog<...>
+// fields stay open — their literals are autocomplete hints, not validation. Validate catalog
+// values against the live authenticated cart before setting a non-zero count.
+type Catalog<Known extends string> = Known | (string & Record<never, never>);
+
 export type PublicCloudRegion = 'US-WEST-OR-1' | 'US-EAST-VA-1';
 export type DedicatedDatacenter =
   | 'vin' // Vint Hill, Virginia, USA
@@ -15,31 +50,46 @@ export type DedicatedDatacenter =
   | 'sgp' // Singapore
   | 'syd' // Sydney, Australia
   | 'ynm'; // Mumbai, India
+export type DedicatedOrderRegion = Catalog<'usa' | 'canada' | 'europe' | 'apac'>;
+export type DedicatedOperatingSystem = Catalog<'ubuntu2604-server_64'>;
+export type PublicCloudFlavor = Catalog<
+  | 'b3-8' // general purpose
+  | 'b3-16'
+  | 'b3-32'
+  | 'b3-64'
+  | 'c3-8' // CPU optimized
+  | 'c3-16'
+  | 'r3-16' // RAM optimized
+  | 'r3-32'
+>;
+export type PublicCloudImage = Catalog<'Ubuntu 26.04' | 'Ubuntu 24.04' | 'Debian 12'>;
+export type PlanDuration = Catalog<'P1M'>;
+export type PlanPricingMode = Catalog<'default' | 'upfront12'>;
 export type NodeRole = 'control-plane' | 'worker';
 export type TaintEffect = 'NoSchedule' | 'PreferNoSchedule' | 'NoExecute';
 
 export type NodeTaint = { key: string; value: string; effect: TaintEffect };
 
 export type DedicatedPlanOption = {
-  duration: string;
+  duration: PlanDuration;
   planCode: string;
-  pricingMode: string;
+  pricingMode: PlanPricingMode;
   quantity: number;
 };
 
 export type PublicCloudServer = {
   type: 'public-cloud';
   region: PublicCloudRegion;
-  flavor: string;
-  image: string;
+  flavor: PublicCloudFlavor;
+  image: PublicCloudImage;
 };
 
 export type DedicatedServer = {
   type: 'dedicated';
   datacenter: DedicatedDatacenter;
-  planCode: string;
-  operatingSystem: string;
-  orderRegion: string;
+  planCode: string; // always from the live cart; no stable vocabulary
+  operatingSystem: DedicatedOperatingSystem;
+  orderRegion: DedicatedOrderRegion;
   planOptions: DedicatedPlanOption[];
 };
 
@@ -101,32 +151,3 @@ export type ClusterConfig = {
 
 type GatewayModel = 'S' | 'M' | 'L' | 'XL' | '2XL' | '3XL';
 type LoadBalancerAlgorithm = 'leastConnections' | 'roundRobin' | 'sourceIP';
-
-export const GATEWAY_MODEL: GatewayModel = 'S';
-export const LOAD_BALANCER_FLAVOR = 'small';
-export const LOAD_BALANCER_ALGORITHM: LoadBalancerAlgorithm = 'leastConnections';
-
-export const OVH_ACCOUNT = {
-  endpoint: 'ovh-us',
-  apiRoot: 'https://api.us.ovhcloud.com/1.0',
-  subsidiary: 'US',
-  applicationKey: 'edf9a4672d28e3c7',
-  applicationSecretEnvironment: 'OVH_APPLICATION_SECRET',
-  consumerKeyEnvironment: 'OVH_CONSUMER_KEY'
-} as const;
-
-function clusterConfig(): ClusterConfig {
-  return {
-    clusters: [],
-    interconnect: { vlanId: 4000, cidr: '172.16.0.0/12' },
-    publicIngress: { type: 'public-cloud', flavor: LOAD_BALANCER_FLAVOR }
-  };
-}
-
-export const PRODUCTION_CLUSTER_CONFIG = clusterConfig();
-export const NON_PRODUCTION_CLUSTER_CONFIG = clusterConfig();
-
-export const CLUSTER_CONFIGS = {
-  production: PRODUCTION_CLUSTER_CONFIG,
-  nonProduction: NON_PRODUCTION_CLUSTER_CONFIG
-} as const;
