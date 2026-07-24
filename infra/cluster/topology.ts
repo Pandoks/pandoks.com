@@ -4,7 +4,6 @@ import type {
   ClusterSpec,
   DedicatedPlanOption,
   DerivedNetwork,
-  InterconnectConfig,
   IpLoadBalancingServiceConfig,
   NodeRole,
   NodeTaint,
@@ -45,6 +44,12 @@ const PUBLIC_CLOUD_REGIONS: Partial<Record<ClusterRegion, PublicCloudRegion>> = 
   hil: 'US-WEST-OR-1',
   vin: 'US-EAST-VA-1'
 };
+
+// The cross-cluster VLAN every interconnect-opted pool joins: one L2 domain over the
+// vRack, cluster <i> owning the 172.(16+i).x.y slice.
+const INTERCONNECT = { vlanId: 4000, cidr: '172.16.0.0/12' };
+
+const DEFAULT_PUBLIC_INGRESS: PublicIngressConfig = { type: 'public-cloud', flavor: 'small' };
 
 const DEDICATED_ORDER_REGIONS: Record<ClusterRegion, 'usa' | 'canada' | 'europe' | 'apac'> = {
   vin: 'usa',
@@ -125,7 +130,9 @@ export type ClusterIdentity = {
   etcdBackupFolder: string;
 };
 
-export type InterconnectPlan = InterconnectConfig & {
+export type InterconnectPlan = {
+  vlanId: number;
+  cidr: string;
   prefixLength: number;
 };
 
@@ -199,23 +206,23 @@ function identity(spec: ClusterSpec, stage: string, domain: string): ClusterIden
   };
 }
 
-function parseInterconnect(interconnect: InterconnectConfig): InterconnectPlan {
-  const match = /^(\d{1,3})\.(\d{1,3})\.0\.0\/12$/.exec(interconnect.cidr);
+function parseInterconnect(): InterconnectPlan {
+  const match = /^(\d{1,3})\.(\d{1,3})\.0\.0\/12$/.exec(INTERCONNECT.cidr);
   if (!match || Number(match[2]) % 16 !== 0 || Number(match[1]) > 255 || Number(match[2]) > 240) {
     throw new Error('Interconnect cidr must be an a.b.0.0/12 network with b a multiple of 16');
   }
   if (
-    !Number.isInteger(interconnect.vlanId) ||
-    interconnect.vlanId < 1 ||
-    interconnect.vlanId > 4096
+    !Number.isInteger(INTERCONNECT.vlanId) ||
+    INTERCONNECT.vlanId < 1 ||
+    INTERCONNECT.vlanId > 4096
   ) {
     throw new Error('Interconnect vlanId must be an integer from 1 to 4096');
   }
-  return { ...interconnect, prefixLength: 12 };
+  return { ...INTERCONNECT, prefixLength: 12 };
 }
 
 function interconnectAddress(
-  interconnect: InterconnectConfig,
+  interconnect: InterconnectPlan,
   index: number,
   addressBlock: number,
   hostIndex: number
@@ -338,13 +345,12 @@ export function buildClusterPlan(
   spec: ClusterSpec,
   stage: string,
   domain: string,
-  publicIngressConfig: PublicIngressConfig = { type: 'public-cloud', flavor: 'small' },
-  interconnectConfig: InterconnectConfig = { vlanId: 4000, cidr: '172.16.0.0/12' }
+  publicIngressConfig: PublicIngressConfig = DEFAULT_PUBLIC_INGRESS
 ): ClusterPlan {
   validateNetworkIndexes();
   const index = networkIndex(spec.region);
   const network = deriveNetwork(spec);
-  const interconnect = parseInterconnect(interconnectConfig);
+  const interconnect = parseInterconnect();
   if (interconnect.vlanId === network.vlanId) {
     throw new Error(`Cluster ${spec.region} vlanId collides with the interconnect VLAN`);
   }
@@ -454,11 +460,12 @@ function unique(plans: readonly ClusterPlan[], field: 'networkCidr' | 'podCidr' 
 }
 
 export function buildClusterTopology(config: ClusterConfig, stage: string, domain: string) {
+  const publicIngress = config.publicIngress ?? DEFAULT_PUBLIC_INGRESS;
   const regions = new Set<ClusterRegion>();
   const clusters = config.clusters.map((spec) => {
     if (regions.has(spec.region)) throw new Error(`Duplicate cluster region: ${spec.region}`);
     regions.add(spec.region);
-    return buildClusterPlan(spec, stage, domain, config.publicIngress, config.interconnect);
+    return buildClusterPlan(spec, stage, domain, publicIngress);
   });
   const vlans = new Set<number>();
   for (const plan of clusters) {
@@ -472,9 +479,9 @@ export function buildClusterTopology(config: ClusterConfig, stage: string, domai
   unique(clusters, 'serviceCidr');
 
   const ipLoadBalancing: IpLoadBalancingPlan[] = [];
-  if (config.publicIngress.type === 'ip-load-balancing') {
+  if (publicIngress.type === 'ip-load-balancing') {
     const serviceNames = new Set<string>();
-    for (const service of config.publicIngress.services) {
+    for (const service of publicIngress.services) {
       if (!service.serviceName.trim()) {
         throw new Error('IP Load Balancing services require serviceName');
       }
@@ -492,7 +499,7 @@ export function buildClusterTopology(config: ClusterConfig, stage: string, domai
     }
     for (const plan of clusters) {
       if (plan.publicIngress.nodes.length === 0) continue;
-      const matches = config.publicIngress.services.filter((service) =>
+      const matches = publicIngress.services.filter((service) =>
         service.zones[plan.config.region]?.trim()
       );
       if (matches.length !== 1) {
@@ -501,7 +508,7 @@ export function buildClusterTopology(config: ClusterConfig, stage: string, domai
         );
       }
     }
-    for (const service of config.publicIngress.services) {
+    for (const service of publicIngress.services) {
       const serviceClusters = clusters
         .filter(
           (plan) => plan.publicIngress.nodes.length > 0 && service.zones[plan.config.region]?.trim()

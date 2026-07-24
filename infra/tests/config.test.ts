@@ -16,9 +16,7 @@ const configs = [PRODUCTION_CLUSTER_CONFIG, NON_PRODUCTION_CLUSTER_CONFIG];
 
 void test('starts every stage with zero declared clusters and shared defaults', () => {
   for (const config of configs) {
-    assert.deepEqual(config.clusters, []);
-    assert.deepEqual(config.interconnect, { vlanId: 4000, cidr: '172.16.0.0/12' });
-    assert.deepEqual(config.publicIngress, { type: 'public-cloud', flavor: 'small' });
+    assert.deepEqual(config, { clusters: [] });
   }
 });
 

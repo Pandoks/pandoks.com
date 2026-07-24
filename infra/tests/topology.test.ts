@@ -82,14 +82,8 @@ function cluster(
   };
 }
 
-const publicCloudIngress: PublicIngressConfig = { type: 'public-cloud', flavor: 'small' };
-const interconnect = { vlanId: 4000, cidr: '172.16.0.0/12' };
-
-function config(
-  clusters: ClusterSpec[],
-  publicIngress: PublicIngressConfig = publicCloudIngress
-): ClusterConfig {
-  return { clusters, interconnect, publicIngress };
+function config(clusters: ClusterSpec[], publicIngress?: PublicIngressConfig): ClusterConfig {
+  return { clusters, publicIngress };
 }
 
 void test('permanently allocates a network index to every OVH datacenter', () => {

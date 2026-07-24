@@ -23,13 +23,7 @@ function stage(value: string): { config: ClusterConfig; name: 'prod' | 'dev' } {
 const [command = '', stageName = '', clusterRegion = ''] = process.argv.slice(2);
 const selected = stage(stageName);
 const plan = (cluster: ClusterConfig['clusters'][number]) =>
-  buildClusterPlan(
-    cluster,
-    selected.name,
-    'unused.invalid',
-    selected.config.publicIngress,
-    selected.config.interconnect
-  );
+  buildClusterPlan(cluster, selected.name, 'unused.invalid', selected.config.publicIngress);
 
 if (command === 'enabled') {
   console.log(

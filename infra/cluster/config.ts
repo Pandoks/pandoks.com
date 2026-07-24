@@ -4,15 +4,11 @@ export const LOAD_BALANCER_ALGORITHM: 'leastConnections' | 'roundRobin' | 'sourc
   'leastConnections';
 
 export const PRODUCTION_CLUSTER_CONFIG: ClusterConfig = {
-  clusters: [],
-  interconnect: { vlanId: 4000, cidr: '172.16.0.0/12' },
-  publicIngress: { type: 'public-cloud', flavor: LOAD_BALANCER_FLAVOR }
+  clusters: []
 };
 
 export const NON_PRODUCTION_CLUSTER_CONFIG: ClusterConfig = {
-  clusters: [],
-  interconnect: { vlanId: 4000, cidr: '172.16.0.0/12' },
-  publicIngress: { type: 'public-cloud', flavor: LOAD_BALANCER_FLAVOR }
+  clusters: []
 };
 
 /**
@@ -20,8 +16,7 @@ export const NON_PRODUCTION_CLUSTER_CONFIG: ClusterConfig = {
  */
 export type ClusterConfig = {
   clusters: ClusterSpec[];
-  interconnect: InterconnectConfig;
-  publicIngress: PublicIngressConfig;
+  publicIngress?: PublicIngressConfig; // defaults to OVH cloud LBs; set to switch products
 };
 
 export type ClusterSpec = {
@@ -92,8 +87,8 @@ export type PublicCloudServer = {
 
 export type DedicatedServer = {
   type: 'dedicated';
-  // NOTE: plan codes have no stable vocabulary (yearly generations, per-market suffixes) —
-  // list them: https://api.us.ovhcloud.com/1.0/order/catalog/public/baremetalServers?ovhSubsidiary=US
+  // WARNING: plan codes have no stable vocabulary (yearly generations, per-market suffixes)
+  // https://api.us.ovhcloud.com/1.0/order/catalog/public/baremetalServers?ovhSubsidiary=US
   // (plans[].planCode; valid planOptions live in each plan's addonFamilies)
   planCode: string;
   operatingSystem:
@@ -124,11 +119,6 @@ export type PublicIngressConfig =
 export type IpLoadBalancingServiceConfig = {
   serviceName: string;
   zones: Record<string, string>;
-};
-
-export type InterconnectConfig = {
-  vlanId: number;
-  cidr: string;
 };
 
 export type DerivedNetwork = {
