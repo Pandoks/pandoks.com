@@ -2,9 +2,9 @@ import { execSync } from 'node:child_process';
 import { NON_PRODUCTION_CLUSTER_CONFIG, PRODUCTION_CLUSTER_CONFIG } from './cluster/config';
 import { clusterTokenSecretName } from './cluster/topology';
 
-const clusterNames = new Set(
+const clusterRegions = new Set(
   [...PRODUCTION_CLUSTER_CONFIG.clusters, ...NON_PRODUCTION_CLUSTER_CONFIG.clusters].map(
-    ({ name }) => name
+    ({ region }) => region
   )
 );
 
@@ -50,9 +50,9 @@ export const secrets = {
     ApplicationSecret: new sst.Secret('OvhApplicationSecret', process.env.OVH_APPLICATION_SECRET),
     ConsumerKey: new sst.Secret('OvhConsumerKey', process.env.OVH_CONSUMER_KEY),
     K3sTokens: Object.fromEntries(
-      [...clusterNames].map((name) => [
-        name,
-        new sst.Secret(clusterTokenSecretName(name), 'Placeholder')
+      [...clusterRegions].map((region) => [
+        region,
+        new sst.Secret(clusterTokenSecretName(region), 'Placeholder')
       ])
     ) as Record<string, sst.Secret>
   },

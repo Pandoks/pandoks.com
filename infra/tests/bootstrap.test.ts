@@ -87,8 +87,8 @@ void test('injects independent cluster k3s identity and critical server networks
   ]) {
     assert.match(bootstrap, new RegExp(`${value}:`));
   }
-  assert.match(bootstrap, /CLUSTER_REGION:\s*args\.cluster\.config\.name/);
-  assert.match(bootstrap, /secrets\.ovh\.K3sTokens\[args\.cluster\.config\.name\]/);
+  assert.match(bootstrap, /CLUSTER_REGION:\s*args\.cluster\.config\.region/);
+  assert.match(bootstrap, /secrets\.ovh\.K3sTokens\[args\.cluster\.config\.region\]/);
   assert.equal(bootstrapScript.match(/--cluster-cidr="\$\{CLUSTER_POD_CIDR\}"/g)?.length, 2);
   assert.equal(bootstrapScript.match(/--service-cidr="\$\{CLUSTER_SERVICE_CIDR\}"/g)?.length, 2);
   assert.equal(bootstrapScript.match(/--etcd-s3-folder="\$\{ETCD_BACKUP_FOLDER\}"/g)?.length, 2);

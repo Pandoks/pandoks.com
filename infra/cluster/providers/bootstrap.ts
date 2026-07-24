@@ -73,9 +73,9 @@ export function createNodeBootstrap(args: {
     },
     { dependsOn: [tailscaleAcl, ...args.dependsOn] }
   );
-  const k3sToken = secrets.ovh.K3sTokens[args.cluster.config.name];
+  const k3sToken = secrets.ovh.K3sTokens[args.cluster.config.region];
   if (!k3sToken) {
-    throw new Error(`Missing K3s token secret for cluster ${args.cluster.config.name}`);
+    throw new Error(`Missing K3s token secret for cluster ${args.cluster.config.region}`);
   }
   const nodeLabels = Object.entries({
     ...args.node.pool.labels,
@@ -116,7 +116,7 @@ export function createNodeBootstrap(args: {
     ]) =>
       renderBootstrapScript({
         STAGE_NAME,
-        CLUSTER_REGION: args.cluster.config.name,
+        CLUSTER_REGION: args.cluster.config.region,
         CLUSTER_OPERATOR_HOSTNAME: args.cluster.identity.operatorHostname,
         CLUSTER_POD_CIDR: args.cluster.network.podCidr,
         CLUSTER_SERVICE_CIDR: args.cluster.network.serviceCidr,

@@ -61,14 +61,15 @@ exchanges it for 1-hour API tokens per run (`sst.config.ts:25-29`), and
 
 Topology is code-owned in `infra/cluster/config.ts` as generic primitives:
 `PRODUCTION_CLUSTER_CONFIG` and `NON_PRODUCTION_CLUSTER_CONFIG` both currently
-declare zero clusters. A cluster is a free-form `ClusterSpec` array entry
-(`name` + `networkIndex` + `pools`); adding one appends an entry — there are no
-fixed regional slots and no `enabled` flag. Each pool picks its OVH product via
+declare zero clusters. A cluster is a `ClusterSpec` array entry (`region` +
+`pools`), one cluster per region; adding one appends an entry plus, for a new
+region, a `CLUSTER_NETWORK_INDEXES` allocation. There is no `enabled` flag. Each pool picks its OVH product via
 the `server` union (`public-cloud` flavor/region/image vs `dedicated`
 planCode/datacenter/os/planOptions) and carries raw Kubernetes `labels` and
 `taints` for placement (e.g. `pandoks.com/workload=database` + NoSchedule).
 All addressing (VLAN, `10.<i>.0.0/16`, gateway, pod/service CIDRs, MetalLB
-`10.<i>.200.x`) derives from `networkIndex`; per-cluster `network` overrides
+`10.<i>.200.x`) derives from the region's `CLUSTER_NETWORK_INDEXES` entry;
+per-cluster `network` overrides
 exist but are rarely needed. Dedicated pools may opt into the cross-cluster
 interconnect VLAN (`interconnect: true`); Public Cloud instances cannot (single
 private NIC).
@@ -92,7 +93,7 @@ The protected Pulumi-managed Public Cloud project remains required as the
 single US account foundation even when compute is dedicated-only. Everything
 runs under the one `ovh-us` account and one vRack; declared clusters own
 independent networks, K3s CIDRs, tokens, API endpoints, and MetalLB ranges,
-all derived from `networkIndex`.
+all derived from the region's `CLUSTER_NETWORK_INDEXES` entry.
 Scale-down always targets `count - 1`; production deletion requires a separate
 reviewed IaC change scoped to that exact resource before the count is reduced.
 Cluster hosts have no provider SSH key; administrator access is Tailscale SSH

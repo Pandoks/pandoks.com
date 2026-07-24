@@ -62,7 +62,7 @@ void test('models clusters as free-form primitives instead of fixed regional slo
       planOptions: []
     }
   };
-  const cluster: ClusterSpec = { name: 'anywhere', networkIndex: 3, pools: [pool, swapped] };
+  const cluster: ClusterSpec = { region: 'asia', pools: [pool, swapped] };
   const ingress: PublicIngressConfig = { type: 'public-cloud', flavor: 'runtime-catalog-flavor' };
   assert.equal(cluster.pools[0].server.type, 'public-cloud');
   assert.equal(cluster.pools[1].server.type, 'dedicated');

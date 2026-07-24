@@ -232,7 +232,7 @@ void test('keeps network, node pools, and MetalLB on one derived address plan', 
 
 void test('uses stable DNS and provisions the private API load balancer only for HA', () => {
   assert.doesNotMatch(utils, /K3S_API_HOSTNAME/);
-  assert.match(topologySource, /apiHostname: `k3s-api\.\$\{spec\.name\}\.\$\{domain\}`/);
+  assert.match(topologySource, /apiHostname: `k3s-api\.\$\{spec\.region\}\.\$\{domain\}`/);
   assert.match(loadBalancers, /const \{ config, identity, network, privateApi, publicIngress \}/);
   assert.match(
     loadBalancers,
@@ -505,7 +505,7 @@ void test('active cluster rules describe code-owned empty topology and CI contra
   assert.match(rules, /PRODUCTION_CLUSTER_CONFIG/);
   assert.match(rules, /NON_PRODUCTION_CLUSTER_CONFIG/);
   assert.match(rules, /declare zero clusters/i);
-  assert.match(rules, /networkIndex/);
+  assert.match(rules, /CLUSTER_NETWORK_INDEXES/);
   assert.match(rules, /labels[\s\S]*taints/i);
   assert.match(rules, /live authenticated/i);
   assert.match(
@@ -566,5 +566,5 @@ void test('empty stages keep an empty Public Cloud project without cluster resou
   assert.doesNotMatch(secrets, /DISABLED_CLUSTER_PLACEHOLDER|k3sTokenPlaceholder/);
   assert.doesNotMatch(secrets, /CloudProjectService|OVH_CLOUD_PROJECT_SERVICE/);
   assert.match(secrets, /K3sTokens: Object\.fromEntries\(/);
-  assert.match(secrets, /clusterTokenSecretName\(name\)/);
+  assert.match(secrets, /clusterTokenSecretName\(region\)/);
 });

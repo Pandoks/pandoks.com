@@ -57,12 +57,12 @@ const networks = new Map<string, ClusterNetwork>();
 for (const cluster of topology.clusters) {
   if (!foundation) throw new Error('Missing OVH account foundation');
   const network = createClusterNetwork(foundation, cluster);
-  networks.set(cluster.config.name, network);
+  networks.set(cluster.config.region, network);
   if (cluster.nodes.length === 0) continue;
 
   const loadBalancers = createClusterLoadBalancers({ network, cluster });
   const privateApiDnsRecord = new cloudflare.DnsRecord(
-    clusterResourceName('OvhK3sPrivateApiDnsRecord', cluster.config.name),
+    clusterResourceName('OvhK3sPrivateApiDnsRecord', cluster.config.region),
     {
       name: cluster.identity.apiHostname,
       zoneId: cloudflareZoneId,
@@ -70,7 +70,7 @@ for (const cluster of topology.clusters) {
       content: loadBalancers.apiTarget,
       proxied: false,
       ttl: 60,
-      comment: `private ovh k3s api ${cluster.config.name}`
+      comment: `private ovh k3s api ${cluster.config.region}`
     }
   );
   const apiAddress = privateApiDnsRecord.id.apply(() => cluster.identity.apiHostname);
@@ -93,7 +93,7 @@ for (const cluster of topology.clusters) {
   if (cluster.publicIngress.mode === 'direct') {
     const target = provisionedNodes.find(({ node }) => node === cluster.publicIngress.nodes[0]);
     if (!target) {
-      throw new Error(`Direct ingress node was not provisioned in ${cluster.config.name}`);
+      throw new Error(`Direct ingress node was not provisioned in ${cluster.config.region}`);
     }
     ingressOrigins.push({ address: target.publicIp });
   } else if (cluster.publicIngress.mode !== 'ip-load-balancing') {
@@ -126,6 +126,6 @@ export const publicIngress =
 
 export const outputs = {
   CloudProjectId: cloudProject.projectId,
-  EnabledClusters: topology.clusters.map(({ config }) => config.name),
+  EnabledClusters: topology.clusters.map(({ config }) => config.region),
   ...(publicIngress && { IngressOrigins: publicIngress.origins.map(({ address }) => address) })
 };

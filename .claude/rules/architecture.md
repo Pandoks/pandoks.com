@@ -109,8 +109,8 @@ For full per-flow traces, see `.claude/rules/gotchas/*.md`.
 
 - Topology lives in `infra/cluster/config.ts` as generic primitives.
   `PRODUCTION_CLUSTER_CONFIG` and `NON_PRODUCTION_CLUSTER_CONFIG` both currently
-  declare zero clusters. A cluster is a free-form array entry (`name`,
-  `networkIndex`, `pools`); each pool mixes OVH products via the `server`
+  declare zero clusters. A cluster is an array entry (`region`, `pools`), one
+  per region; each pool mixes OVH products via the `server`
   union (public-cloud vs dedicated) and carries raw Kubernetes labels/taints.
   When no clusters declare nodes, stale OVH cluster Tailnet entries for the
   stage are reclaimed.
@@ -121,7 +121,8 @@ For full per-flow traces, see `.claude/rules/gotchas/*.md`.
 - Everything runs under the single US OVH account: one stage project/vRack
   foundation. Each declared cluster has a separate single-region private
   network, subnet, gateway, K3s pod/service CIDRs, MetalLB range, token, and
-  API DNS name — all derived from its `networkIndex` (`10.<i>.0.0/16`, VLAN
+  API DNS name — all derived from its region's `CLUSTER_NETWORK_INDEXES`
+  entry (`10.<i>.0.0/16`, VLAN
   `<i>`, pods `10.<42+2i>`, MetalLB `10.<i>.200.x`). This keeps managed
   Gateway/LB usage within OVH's supported single-region network topology.
   Dedicated pools can opt into a shared cross-cluster interconnect VLAN

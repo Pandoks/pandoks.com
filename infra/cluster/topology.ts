@@ -1,14 +1,16 @@
-import type {
-  ClusterConfig,
-  ClusterSpec,
-  DedicatedPlanOption,
-  DerivedNetwork,
-  InterconnectConfig,
-  IpLoadBalancingServiceConfig,
-  NodeRole,
-  NodeTaint,
-  PublicCloudRegion,
-  PublicIngressConfig
+import {
+  CLUSTER_NETWORK_INDEXES,
+  type ClusterConfig,
+  type ClusterRegion,
+  type ClusterSpec,
+  type DedicatedPlanOption,
+  type DerivedNetwork,
+  type InterconnectConfig,
+  type IpLoadBalancingServiceConfig,
+  type NodeRole,
+  type NodeTaint,
+  type PublicCloudRegion,
+  type PublicIngressConfig
 } from './config.ts';
 
 // Every cluster /16 keeps the same derived third-octet layout:
@@ -113,23 +115,45 @@ export function pascalCase(value: string): string {
     .join('');
 }
 
-export function clusterResourceName(name: string, clusterName: string): string {
-  return name.replace(/^Ovh/, `Ovh${pascalCase(clusterName)}`);
+export function clusterResourceName(name: string, region: string): string {
+  return name.replace(/^Ovh/, `Ovh${pascalCase(region)}`);
 }
 
-export function clusterTokenSecretName(clusterName: string): string {
-  return `Ovh${pascalCase(clusterName)}K3sToken`;
+export function clusterTokenSecretName(region: string): string {
+  return `Ovh${pascalCase(region)}K3sToken`;
+}
+
+export function networkIndex(region: ClusterRegion): number {
+  const index = CLUSTER_NETWORK_INDEXES[region];
+  if (index === undefined) throw new Error(`Unknown cluster region: ${region as string}`);
+  return index;
+}
+
+function validateNetworkIndexes(): void {
+  const indexes = new Set<number>();
+  for (const [region, index] of Object.entries(CLUSTER_NETWORK_INDEXES)) {
+    if (!NAME_PATTERN.test(region)) {
+      throw new Error(`Cluster region ${region} must be lowercase kebab-case`);
+    }
+    if (!Number.isInteger(index) || index < 0 || index > MAX_NETWORK_INDEX) {
+      throw new Error(
+        `Cluster region ${region} network index must be an integer from 0 to ${MAX_NETWORK_INDEX}`
+      );
+    }
+    if (indexes.has(index)) throw new Error(`Duplicate cluster network index: ${index}`);
+    indexes.add(index);
+  }
 }
 
 function identity(spec: ClusterSpec, stage: string, domain: string): ClusterIdentity {
-  const namePrefix = `${stage}-${spec.name}`;
+  const namePrefix = `${stage}-${spec.region}`;
   return {
-    resourcePrefix: pascalCase(spec.name),
+    resourcePrefix: pascalCase(spec.region),
     namePrefix,
-    apiHostname: `k3s-api.${spec.name}.${domain}`,
+    apiHostname: `k3s-api.${spec.region}.${domain}`,
     operatorHostname: `${namePrefix}-cluster`,
-    tokenSecretName: clusterTokenSecretName(spec.name),
-    etcdBackupFolder: `kubernetes/etcd/${spec.name}`
+    tokenSecretName: clusterTokenSecretName(spec.region),
+    etcdBackupFolder: `kubernetes/etcd/${spec.region}`
   };
 }
 
@@ -150,12 +174,12 @@ function parseInterconnect(interconnect: InterconnectConfig): InterconnectPlan {
 
 function interconnectAddress(
   interconnect: InterconnectConfig,
-  networkIndex: number,
+  index: number,
   addressBlock: number,
   hostIndex: number
 ): string {
   const [first = '0', second = '0'] = interconnect.cidr.split('/')[0].split('.');
-  return `${first}.${Number(second) + networkIndex}.${addressBlock}.${hostIndex}`;
+  return `${first}.${Number(second) + index}.${addressBlock}.${hostIndex}`;
 }
 
 function validateKeyValue(kind: string, pool: string, key: string, value: string): void {
@@ -165,27 +189,21 @@ function validateKeyValue(kind: string, pool: string, key: string, value: string
 }
 
 function deriveNetwork(spec: ClusterSpec): DerivedNetwork {
-  if (!Number.isInteger(spec.networkIndex) || spec.networkIndex < 0) {
-    throw new Error(`Cluster ${spec.name} networkIndex must be a non-negative integer`);
-  }
-  if (spec.networkIndex > MAX_NETWORK_INDEX) {
-    throw new Error(`Cluster ${spec.name} networkIndex cannot exceed ${MAX_NETWORK_INDEX}`);
-  }
-  const index = spec.networkIndex;
+  const index = networkIndex(spec.region);
   const poolRegions = new Set(
     spec.pools.flatMap(({ server }) => (server.type === 'public-cloud' ? [server.region] : []))
   );
   if (poolRegions.size > 1) {
-    throw new Error(`Cluster ${spec.name} public cloud pools must share one region`);
+    throw new Error(`Cluster ${spec.region} public cloud pools must share one region`);
   }
   const poolRegion = [...poolRegions][0];
   if (spec.publicCloudRegion && poolRegion && spec.publicCloudRegion !== poolRegion) {
-    throw new Error(`Cluster ${spec.name} publicCloudRegion conflicts with its pool region`);
+    throw new Error(`Cluster ${spec.region} publicCloudRegion conflicts with its pool region`);
   }
   const publicCloudRegion = spec.publicCloudRegion ?? poolRegion;
   if (!publicCloudRegion) {
     throw new Error(
-      `Cluster ${spec.name} requires publicCloudRegion when no public cloud pool declares one`
+      `Cluster ${spec.region} requires publicCloudRegion when no public cloud pool declares one`
     );
   }
   const derived: DerivedNetwork = {
@@ -200,7 +218,7 @@ function deriveNetwork(spec: ClusterSpec): DerivedNetwork {
   };
   const network = { ...derived, ...spec.network };
   if (!Number.isInteger(network.vlanId) || network.vlanId < 0 || network.vlanId > 4096) {
-    throw new Error(`Cluster ${spec.name} vlanId must be an integer from 0 to 4096`);
+    throw new Error(`Cluster ${spec.region} vlanId must be an integer from 0 to 4096`);
   }
   for (const [field, cidr] of [
     ['networkCidr', network.networkCidr],
@@ -208,7 +226,7 @@ function deriveNetwork(spec: ClusterSpec): DerivedNetwork {
     ['serviceCidr', network.serviceCidr]
   ] as const) {
     if (!/^10\.\d{1,3}\.0\.0\/16$/.test(cidr)) {
-      throw new Error(`Cluster ${spec.name} ${field} must be a 10.x.0.0/16`);
+      throw new Error(`Cluster ${spec.region} ${field} must be a 10.x.0.0/16`);
     }
   }
   return network;
@@ -216,7 +234,7 @@ function deriveNetwork(spec: ClusterSpec): DerivedNetwork {
 
 function nodePools(spec: ClusterSpec): NodePool[] {
   if (spec.pools.length >= METAL_LB_OCTET) {
-    throw new Error(`Cluster ${spec.name} cannot declare more than ${METAL_LB_OCTET - 1} pools`);
+    throw new Error(`Cluster ${spec.region} cannot declare more than ${METAL_LB_OCTET - 1} pools`);
   }
   const names = new Set<string>();
   return spec.pools.map((pool, position) => {
@@ -293,17 +311,16 @@ export function buildClusterPlan(
   publicIngressConfig: PublicIngressConfig = { type: 'public-cloud', flavor: 'small' },
   interconnectConfig: InterconnectConfig = { vlanId: 4000, cidr: '172.16.0.0/12' }
 ): ClusterPlan {
-  if (!NAME_PATTERN.test(spec.name)) {
-    throw new Error(`Cluster name ${spec.name} must be lowercase kebab-case`);
-  }
+  validateNetworkIndexes();
+  const index = networkIndex(spec.region);
   const network = deriveNetwork(spec);
   const interconnect = parseInterconnect(interconnectConfig);
   if (interconnect.vlanId === network.vlanId) {
-    throw new Error(`Cluster ${spec.name} vlanId collides with the interconnect VLAN`);
+    throw new Error(`Cluster ${spec.region} vlanId collides with the interconnect VLAN`);
   }
   const loadBalancerCount = spec.loadBalancerCount ?? 0;
   if (!Number.isInteger(loadBalancerCount) || loadBalancerCount < 0) {
-    throw new Error(`Cluster ${spec.name} loadBalancerCount must be a non-negative integer`);
+    throw new Error(`Cluster ${spec.region} loadBalancerCount must be a non-negative integer`);
   }
   const clusterIdentity = identity(spec, stage, domain);
   const pools = nodePools(spec);
@@ -320,12 +337,7 @@ export function buildClusterPlan(
         hostname: `${clusterIdentity.namePrefix}-ovh-${pool.name}-server-${poolIndex}`,
         privateIp: `10.${octet}.${pool.addressBlock}.${poolIndex + 1}`,
         ...(pool.interconnect && {
-          interconnectIp: interconnectAddress(
-            interconnect,
-            spec.networkIndex,
-            pool.addressBlock,
-            poolIndex + 1
-          )
+          interconnectIp: interconnectAddress(interconnect, index, pool.addressBlock, poolIndex + 1)
         }),
         bootstrapCandidate: false,
         directIngress: false
@@ -335,7 +347,7 @@ export function buildClusterPlan(
 
   const controlPlanes = nodes.filter(({ pool }) => pool.role === 'control-plane');
   if (nodes.length > 0 && controlPlanes.length === 0) {
-    throw new Error(`Cluster ${spec.name} nodes require at least one control-plane node`);
+    throw new Error(`Cluster ${spec.region} nodes require at least one control-plane node`);
   }
   if (controlPlanes[0]) controlPlanes[0].bootstrapCandidate = true;
 
@@ -412,15 +424,10 @@ function unique(plans: readonly ClusterPlan[], field: 'networkCidr' | 'podCidr' 
 }
 
 export function buildClusterTopology(config: ClusterConfig, stage: string, domain: string) {
-  const names = new Set<string>();
-  const networkIndexes = new Set<number>();
+  const regions = new Set<ClusterRegion>();
   const clusters = config.clusters.map((spec) => {
-    if (names.has(spec.name)) throw new Error(`Duplicate cluster: ${spec.name}`);
-    names.add(spec.name);
-    if (networkIndexes.has(spec.networkIndex)) {
-      throw new Error(`Duplicate cluster networkIndex: ${spec.networkIndex}`);
-    }
-    networkIndexes.add(spec.networkIndex);
+    if (regions.has(spec.region)) throw new Error(`Duplicate cluster region: ${spec.region}`);
+    regions.add(spec.region);
     return buildClusterPlan(spec, stage, domain, config.publicIngress, config.interconnect);
   });
   const vlans = new Set<number>();
@@ -445,10 +452,10 @@ export function buildClusterTopology(config: ClusterConfig, stage: string, domai
         throw new Error(`Duplicate IP Load Balancing service: ${service.serviceName}`);
       }
       serviceNames.add(service.serviceName);
-      for (const zoneCluster of Object.keys(service.zones)) {
-        if (!names.has(zoneCluster)) {
+      for (const zoneRegion of Object.keys(service.zones)) {
+        if (!regions.has(zoneRegion as ClusterRegion)) {
           throw new Error(
-            `IP Load Balancing service ${service.serviceName} references unknown cluster ${zoneCluster}`
+            `IP Load Balancing service ${service.serviceName} references unknown cluster ${zoneRegion}`
           );
         }
       }
@@ -456,23 +463,23 @@ export function buildClusterTopology(config: ClusterConfig, stage: string, domai
     for (const plan of clusters) {
       if (plan.publicIngress.nodes.length === 0) continue;
       const matches = config.publicIngress.services.filter((service) =>
-        service.zones[plan.config.name]?.trim()
+        service.zones[plan.config.region]?.trim()
       );
       if (matches.length !== 1) {
         throw new Error(
-          `Cluster ${plan.config.name} requires exactly one IP Load Balancing zone across services`
+          `Cluster ${plan.config.region} requires exactly one IP Load Balancing zone across services`
         );
       }
     }
     for (const service of config.publicIngress.services) {
       const serviceClusters = clusters
         .filter(
-          (plan) => plan.publicIngress.nodes.length > 0 && service.zones[plan.config.name]?.trim()
+          (plan) => plan.publicIngress.nodes.length > 0 && service.zones[plan.config.region]?.trim()
         )
         .map((cluster) => ({
           cluster,
-          zone: service.zones[cluster.config.name],
-          natIp: `10.${cluster.config.networkIndex}.${NAT_OCTET}.0/24`
+          zone: service.zones[cluster.config.region],
+          natIp: `10.${networkIndex(cluster.config.region)}.${NAT_OCTET}.0/24`
         }));
       if (serviceClusters.length > 0) {
         ipLoadBalancing.push({ config: service, clusters: serviceClusters });

@@ -13,8 +13,9 @@ paths:
 
 - **Topology lives in `infra/cluster/config.ts` as generic primitives.**
   `PRODUCTION_CLUSTER_CONFIG` and `NON_PRODUCTION_CLUSTER_CONFIG` both currently
-  declare zero clusters. A cluster is a free-form entry (`name`,
-  `networkIndex`, `pools`); pools mix Public Cloud and dedicated via the
+  declare zero clusters. A cluster is an entry (`region`, `pools`), one per
+  region with its index allocated in `CLUSTER_NETWORK_INDEXES`; pools mix
+  Public Cloud and dedicated via the
   `server` union and use raw labels/taints for placement. Fill dedicated
   catalog fields only for a pool with a non-zero count, validated against the
   live authenticated cart. CI retains only the OVH credentials; Pulumi creates
@@ -31,7 +32,8 @@ paths:
 - **Clusters are independent under one US account.** Every cluster runs on the
   single `ovh-us` account and one global vRack; non-US clusters are
   dedicated-only (US Public Cloud regions are US-only). Each cluster owns
-  unique node, pod, service, and MetalLB CIDRs derived from `networkIndex`.
+  unique node, pod, service, and MetalLB CIDRs derived from the region's
+  `CLUSTER_NETWORK_INDEXES` entry.
   Flannel does not provide cross-cluster pod/service connectivity; dedicated
   pools with `interconnect: true` share a cross-cluster VLAN for private L3
   (e.g. database replication), while app-level wiring is a separate rollout.

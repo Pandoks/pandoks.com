@@ -21,7 +21,7 @@ export function createClusterNetwork(
 ): ClusterNetwork {
   const { config, identity, network } = cluster;
   const privateNetwork = new ovh.CloudNetworkPrivateVrack(
-    clusterResourceName('OvhK3sPrivateNetwork', config.name),
+    clusterResourceName('OvhK3sPrivateNetwork', config.region),
     {
       serviceName: foundation.projectId,
       name: `k3s-private-${identity.namePrefix}-network`,
@@ -32,7 +32,7 @@ export function createClusterNetwork(
     { dependsOn: [foundation.attachment] }
   );
   const subnet = new ovh.CloudNetworkPrivateVrackSubnet(
-    clusterResourceName('OvhK3sSubnet', config.name),
+    clusterResourceName('OvhK3sSubnet', config.region),
     {
       serviceName: foundation.projectId,
       networkId: privateNetwork.id,
@@ -44,7 +44,7 @@ export function createClusterNetwork(
       dhcpEnabled: true
     }
   );
-  const gateway = new ovh.CloudGateway(clusterResourceName('OvhK3sGateway', config.name), {
+  const gateway = new ovh.CloudGateway(clusterResourceName('OvhK3sGateway', config.region), {
     serviceName: foundation.projectId,
     name: `k3s-${identity.namePrefix}-gateway`,
     region: network.publicCloudRegion,

@@ -20,7 +20,7 @@ function stage(value: string): { config: ClusterConfig; name: 'prod' | 'dev' } {
   return fail(`Unknown cluster stage: ${value}`);
 }
 
-const [command = '', stageName = '', clusterName = ''] = process.argv.slice(2);
+const [command = '', stageName = '', clusterRegion = ''] = process.argv.slice(2);
 const selected = stage(stageName);
 const plan = (cluster: ClusterConfig['clusters'][number]) =>
   buildClusterPlan(
@@ -35,19 +35,19 @@ if (command === 'enabled') {
   console.log(
     JSON.stringify(
       selected.config.clusters.map((cluster) => ({
-        id: cluster.name,
+        id: cluster.region,
         operatorHostname: plan(cluster).identity.operatorHostname
       }))
     )
   );
 } else if (command === 'region') {
-  const cluster = selected.config.clusters.find(({ name }) => name === clusterName);
-  if (!cluster) fail(`Unknown cluster: ${clusterName}`);
+  const cluster = selected.config.clusters.find(({ region }) => region === clusterRegion);
+  if (!cluster) fail(`Unknown cluster: ${clusterRegion}`);
   const clusterPlan = plan(cluster);
   console.log(
     JSON.stringify({
       ClusterMetalLbRange: clusterPlan.network.metalLbRange,
-      ClusterRegion: cluster.name,
+      ClusterRegion: cluster.region,
       ClusterOperatorHostname: clusterPlan.identity.operatorHostname
     })
   );

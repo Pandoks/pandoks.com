@@ -111,7 +111,8 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
 ## OVH hybrid cluster
 
 - **Topology lives in `infra/cluster/config.ts` as free-form primitives.**
-  Each cluster entry declares `name`, `networkIndex`, and one `pools` array;
+  Each cluster entry declares its `region` (index allocated permanently in
+  `CLUSTER_NETWORK_INDEXES`) and one `pools` array;
   each pool declares its name, Kubernetes role, count, raw `labels`/`taints`,
   public-ingress eligibility, optional dedicated-only `interconnect`, and its
   OVH product via the `server` union. Host hardening and k3s setup live in

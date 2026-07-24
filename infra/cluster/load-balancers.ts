@@ -43,7 +43,7 @@ export function createClusterLoadBalancers(args: {
   const api =
     privateApi.mode === 'ovh'
       ? new ovh.cloudproject.LoadBalancer(
-          clusterResourceName('OvhK3sPrivateApiLoadBalancer', config.name),
+          clusterResourceName('OvhK3sPrivateApiLoadBalancer', config.region),
           {
             serviceName: args.network.foundation.projectId,
             name: `k3s-private-${identity.namePrefix}-api`,
@@ -71,13 +71,13 @@ export function createClusterLoadBalancers(args: {
         )
       : undefined;
   const apiTarget = api?.vipAddress ?? privateApi.nodes[0]?.privateIp;
-  if (!apiTarget) throw new Error(`Cluster ${config.name} has no control-plane API target`);
+  if (!apiTarget) throw new Error(`Cluster ${config.region} has no control-plane API target`);
 
   const ingress = Array.from({ length: publicIngress.loadBalancerCount }, (_, index) => {
     const suffix = index === 0 ? '' : String(index);
     const resourceName = clusterResourceName(
       `OvhK3sPublicIngressLoadBalancer${suffix}`,
-      config.name
+      config.region
     );
     const name = `k3s-public-${identity.namePrefix}-ingress${index === 0 ? '' : `-${index}`}`;
     return new ovh.cloudproject.LoadBalancer(resourceName, {
@@ -236,9 +236,9 @@ export function createIpLoadBalancingIngress(args: {
 }) {
   const firstCluster = args.plan.clusters[0];
   if (!firstCluster) throw new Error('IP Load Balancing requires at least one cluster');
-  const firstNetwork = args.networks.get(firstCluster.cluster.config.name);
+  const firstNetwork = args.networks.get(firstCluster.cluster.config.region);
   if (!firstNetwork) {
-    throw new Error(`Missing cluster network for ${firstCluster.cluster.config.name}`);
+    throw new Error(`Missing cluster network for ${firstCluster.cluster.config.region}`);
   }
 
   const stagedResourceOptions = {
@@ -284,7 +284,7 @@ export function createIpLoadBalancingIngress(args: {
   const refreshConfiguration = JSON.stringify({
     serviceName: args.plan.config.serviceName,
     clusters: args.plan.clusters.map(({ cluster, zone, natIp }) => ({
-      name: cluster.config.name,
+      name: cluster.config.region,
       displayName: `k3s-${cluster.identity.namePrefix}`,
       subnet: cluster.network.networkCidr,
       vlan: cluster.network.vlanId,
@@ -302,8 +302,8 @@ export function createIpLoadBalancingIngress(args: {
   const resourceIds: $util.Output<string>[] = [];
 
   for (const { cluster, zone: clusterZone, natIp } of args.plan.clusters) {
-    const network = args.networks.get(cluster.config.name);
-    if (!network) throw new Error(`Missing cluster network for ${cluster.config.name}`);
+    const network = args.networks.get(cluster.config.region);
+    if (!network) throw new Error(`Missing cluster network for ${cluster.config.region}`);
     const zone = loadBalancer.zones.apply((zones) => {
       if (!zones.includes(clusterZone)) {
         throw new Error(
@@ -313,7 +313,7 @@ export function createIpLoadBalancingIngress(args: {
       return clusterZone;
     });
     const vrackNetwork = new ovh.iploadbalancing.VrackNetwork(
-      clusterResourceName('OvhK3sIpLoadBalancingVrackNetwork', cluster.config.name),
+      clusterResourceName('OvhK3sIpLoadBalancingVrackNetwork', cluster.config.region),
       {
         serviceName,
         displayName: `k3s-${cluster.identity.namePrefix}`,
@@ -328,7 +328,7 @@ export function createIpLoadBalancingIngress(args: {
     );
     resourceIds.push(vrackNetwork.id);
     const farm = new ovh.iploadbalancing.TcpFarm(
-      clusterResourceName('OvhK3sIpLoadBalancingFarm', cluster.config.name),
+      clusterResourceName('OvhK3sIpLoadBalancingFarm', cluster.config.region),
       {
         serviceName,
         displayName: `k3s-${cluster.identity.namePrefix}`,
@@ -354,7 +354,7 @@ export function createIpLoadBalancingIngress(args: {
       resourceIds.push(backend.id);
     }
     const frontend = new ovh.iploadbalancing.TcpFrontend(
-      clusterResourceName('OvhK3sIpLoadBalancingFrontend', cluster.config.name),
+      clusterResourceName('OvhK3sIpLoadBalancingFrontend', cluster.config.region),
       {
         serviceName,
         displayName: `k3s-${cluster.identity.namePrefix}`,

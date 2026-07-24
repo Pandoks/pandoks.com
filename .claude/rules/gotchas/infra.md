@@ -63,10 +63,12 @@ manually import` comment at `sst.config.ts:34` is load-bearing.
 
 ## OVH cluster
 
-- **Clusters are free-form declarations.** `infra/cluster/config.ts` holds a
-  `clusters` array; both stage configs currently declare zero clusters. Each
-  entry derives its whole address plan (VLAN, `10.<i>.0.0/16`, pod/service
-  CIDRs, MetalLB range) from its `networkIndex`. Per-cluster single-region
+- **One cluster per region, index from the map.** `infra/cluster/config.ts`
+  holds a `clusters` array; both stage configs currently declare zero clusters.
+  Each entry derives its whole address plan (VLAN, `10.<i>.0.0/16`, pod/service
+  CIDRs, MetalLB range) from its region's permanent `CLUSTER_NETWORK_INDEXES`
+  entry; for a temporary side-by-side rebuild add a scratch key such as
+  `'us-west-v2'`. Per-cluster single-region
   private networks keep managed Gateways/LBs supported; Cloudflare steers
   application traffic across the declared origins. Pool order is
   address-significant — append pools, never reorder live ones.

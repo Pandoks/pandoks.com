@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type {
-  ClusterConfig,
-  ClusterSpec,
-  DedicatedServer,
-  NodePoolConfig,
-  PublicCloudServer,
-  PublicIngressConfig
+import {
+  CLUSTER_NETWORK_INDEXES,
+  type ClusterConfig,
+  type ClusterRegion,
+  type ClusterSpec,
+  type DedicatedServer,
+  type NodePoolConfig,
+  type PublicCloudServer,
+  type PublicIngressConfig
 } from '../cluster/config.ts';
 import {
   buildClusterPlan,
@@ -34,8 +36,7 @@ const dedicatedServer: DedicatedServer = {
 
 function cluster(
   args: {
-    name?: string;
-    networkIndex?: number;
+    region?: ClusterRegion;
     controlPlanes?: number;
     workers?: number;
     databases?: number;
@@ -46,8 +47,7 @@ function cluster(
 ): ClusterSpec {
   const ingressNodes = (args.controlPlanes ?? 1) + (args.workers ?? 0);
   return {
-    name: args.name ?? 'us-west',
-    networkIndex: args.networkIndex ?? 0,
+    region: args.region ?? 'us-west',
     pools: args.pools ?? [
       {
         name: 'control-plane',
@@ -95,7 +95,16 @@ function config(
   return { clusters, interconnect, publicIngress };
 }
 
-void test('derives every address and identity from the cluster name and network index', () => {
+void test('permanently maps every cluster region to its network index', () => {
+  assert.deepEqual(CLUSTER_NETWORK_INDEXES, {
+    'us-west': 0,
+    'us-east': 1,
+    europe: 2,
+    asia: 3
+  });
+});
+
+void test('derives every address and identity from the cluster region alone', () => {
   const plan = buildClusterPlan(cluster({ controlPlanes: 1, workers: 1 }), 'prod', 'pandoks.com');
 
   assert.deepEqual(plan.network, {
@@ -141,9 +150,9 @@ void test('derives every address and identity from the cluster name and network 
   assert.equal(clusterTokenSecretName('us-west'), 'OvhUsWestK3sToken');
 });
 
-void test('keeps every derived cluster address space independent by network index', () => {
+void test('keeps every mapped region address space independent', () => {
   const plan = buildClusterPlan(
-    cluster({ name: 'tokyo', networkIndex: 3, controlPlanes: 1 }),
+    cluster({ region: 'asia', controlPlanes: 1 }),
     'prod',
     'pandoks.com'
   );
@@ -153,16 +162,20 @@ void test('keeps every derived cluster address space independent by network inde
   assert.equal(plan.network.serviceCidr, '10.49.0.0/16');
   assert.equal(plan.network.metalLbRange, '10.3.200.1-10.3.200.254');
   assert.equal(plan.nodes[0]?.privateIp, '10.3.1.1');
-  assert.equal(plan.identity.operatorHostname, 'prod-tokyo-cluster');
+  assert.equal(plan.identity.operatorHostname, 'prod-asia-cluster');
 });
 
-void test('bounds the network index and validates names', () => {
+void test('rejects unmapped regions and invalid pool names', () => {
   assert.throws(
-    () => buildClusterPlan(cluster({ networkIndex: 16 }), 'prod', 'pandoks.com'),
-    /networkIndex cannot exceed 15/
+    () =>
+      buildClusterPlan({ ...cluster(), region: 'moon' as ClusterRegion }, 'prod', 'pandoks.com'),
+    /Unknown cluster region: moon/
   );
+  const invalid = cluster({
+    pools: [{ name: 'Bad_Name', role: 'control-plane', count: 1, server: publicCloudServer }]
+  });
   assert.throws(
-    () => buildClusterPlan(cluster({ name: 'Bad_Name' }), 'prod', 'pandoks.com'),
+    () => buildClusterPlan(invalid, 'prod', 'pandoks.com'),
     /must be lowercase kebab-case/
   );
 });
@@ -190,8 +203,7 @@ void test('honors explicit network overrides while validating their shapes', () 
 
 void test('requires a public cloud region and keeps pool regions consistent', () => {
   const dedicatedOnly: ClusterSpec = {
-    name: 'frankfurt',
-    networkIndex: 2,
+    region: 'europe',
     pools: [{ name: 'control-plane', role: 'control-plane', count: 1, server: dedicatedServer }]
   };
   assert.throws(
@@ -240,7 +252,7 @@ void test('passes raw labels and taints through and rejects unencodable values',
 
 void test('assigns interconnect addresses to dedicated pools and rejects public cloud ones', () => {
   const plan = buildClusterPlan(
-    cluster({ name: 'us-east', networkIndex: 1, dedicatedDatabases: 2 }),
+    cluster({ region: 'us-east', dedicatedDatabases: 2 }),
     'prod',
     'pandoks.com'
   );
@@ -273,12 +285,12 @@ void test('assigns interconnect addresses to dedicated pools and rejects public 
   );
 });
 
-void test('builds independent plans and rejects duplicate cluster identities', () => {
+void test('builds independent plans and rejects duplicate or colliding clusters', () => {
   const west = cluster();
-  const east = cluster({ name: 'us-east', networkIndex: 1 });
+  const east = cluster({ region: 'us-east' });
   const topology = buildClusterTopology(config([west, east]), 'prod', 'pandoks.com');
   assert.deepEqual(
-    topology.clusters.map(({ config: spec, nodes }) => [spec.name, nodes[0]?.privateIp]),
+    topology.clusters.map(({ config: spec, nodes }) => [spec.region, nodes[0]?.privateIp]),
     [
       ['us-west', '10.0.1.1'],
       ['us-east', '10.1.1.1']
@@ -287,11 +299,7 @@ void test('builds independent plans and rejects duplicate cluster identities', (
 
   assert.throws(
     () => buildClusterTopology(config([west, west]), 'prod', 'pandoks.com'),
-    /Duplicate cluster: us-west/
-  );
-  assert.throws(
-    () => buildClusterTopology(config([west, { ...east, networkIndex: 0 }]), 'prod', 'pandoks.com'),
-    /Duplicate cluster networkIndex: 0/
+    /Duplicate cluster region: us-west/
   );
   assert.throws(
     () =>
@@ -373,10 +381,10 @@ void test('keeps private API and public ingress decisions local to each cluster'
   assert.equal(cloudflare.publicIngress.mode, 'cloudflare');
 });
 
-void test('plans one Dedicated IP Load Balancing service across clusters by name', () => {
+void test('plans one Dedicated IP Load Balancing service across clusters by region', () => {
   const west = { ...cluster({ controlPlanes: 1, workers: 1 }), loadBalancerCount: 0 };
   const east = {
-    ...cluster({ name: 'us-east', networkIndex: 1, controlPlanes: 1, workers: 1 }),
+    ...cluster({ region: 'us-east', controlPlanes: 1, workers: 1 }),
     loadBalancerCount: 0
   };
   const publicIngress: PublicIngressConfig = {
@@ -393,7 +401,7 @@ void test('plans one Dedicated IP Load Balancing service across clusters by name
 
   assert.deepEqual(
     topology.clusters.map(({ config: spec, publicIngress: ingress }) => [
-      spec.name,
+      spec.region,
       ingress.mode,
       ingress.loadBalancerCount
     ]),
@@ -406,7 +414,7 @@ void test('plans one Dedicated IP Load Balancing service across clusters by name
     topology.ipLoadBalancing.map(({ config: service, clusters }) => ({
       serviceName: service.serviceName,
       clusters: clusters.map(({ cluster: plan, zone, natIp }) => ({
-        name: plan.config.name,
+        region: plan.config.region,
         zone,
         natIp
       }))
@@ -415,8 +423,8 @@ void test('plans one Dedicated IP Load Balancing service across clusters by name
       {
         serviceName: 'loadbalancer-dedicated-us',
         clusters: [
-          { name: 'us-west', zone: 'HIL', natIp: '10.0.254.0/24' },
-          { name: 'us-east', zone: 'VIN', natIp: '10.1.254.0/24' }
+          { region: 'us-west', zone: 'HIL', natIp: '10.0.254.0/24' },
+          { region: 'us-east', zone: 'VIN', natIp: '10.1.254.0/24' }
         ]
       }
     ]
