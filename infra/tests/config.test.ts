@@ -2,14 +2,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
-  GATEWAY_MODEL,
   LOAD_BALANCER_ALGORITHM,
   LOAD_BALANCER_FLAVOR,
   NON_PRODUCTION_CLUSTER_CONFIG,
   PRODUCTION_CLUSTER_CONFIG,
   type ClusterSpec,
-  type NodePoolConfig,
-  type PublicIngressConfig
+  type NodePoolConfig
 } from '../cluster/config.ts';
 
 const configs = [PRODUCTION_CLUSTER_CONFIG, NON_PRODUCTION_CLUSTER_CONFIG];
@@ -26,7 +24,6 @@ void test('keeps the cluster configuration pure and free of stage helpers', () =
 });
 
 void test('holds no account data and keeps only cluster-shaped constants', () => {
-  assert.equal(GATEWAY_MODEL, 'S');
   assert.equal(LOAD_BALANCER_FLAVOR, 'small');
   assert.equal(LOAD_BALANCER_ALGORITHM, 'leastConnections');
 
@@ -39,7 +36,6 @@ void test('models clusters as free-form primitives instead of fixed regional slo
   assert.doesNotMatch(source, /ClusterRegionKey|OvhAccountKey|NodePoolName|type Workload|enabled:/);
   assert.match(source, /export type PublicCloudRegion/);
   assert.match(source, /export type ClusterRegion/);
-  assert.match(source, /type: 'public-cloud'; flavor: string/);
 
   const pool: NodePoolConfig = {
     name: 'database',
@@ -59,8 +55,6 @@ void test('models clusters as free-form primitives instead of fixed regional slo
     }
   };
   const cluster: ClusterSpec = { region: 'sgp', pools: [pool, swapped] };
-  const ingress: PublicIngressConfig = { type: 'public-cloud', flavor: 'runtime-catalog-flavor' };
   assert.equal(cluster.pools[0].server.type, 'public-cloud');
   assert.equal(cluster.pools[1].server.type, 'dedicated');
-  assert.equal(ingress.type, 'public-cloud');
 });

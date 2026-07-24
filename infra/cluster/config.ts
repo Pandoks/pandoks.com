@@ -1,4 +1,3 @@
-export const GATEWAY_MODEL: 'S' | 'M' | 'L' | 'XL' | '2XL' | '3XL' = 'S';
 export const LOAD_BALANCER_FLAVOR = 'small';
 export const LOAD_BALANCER_ALGORITHM: 'leastConnections' | 'roundRobin' | 'sourceIP' =
   'leastConnections';
@@ -16,14 +15,12 @@ export const NON_PRODUCTION_CLUSTER_CONFIG: ClusterConfig = {
  */
 export type ClusterConfig = {
   clusters: ClusterSpec[];
-  publicIngress?: PublicIngressConfig; // defaults to OVH cloud LBs; set to switch products
 };
 
 export type ClusterSpec = {
   region: ClusterRegion;
   pools: NodePoolConfig[];
   network?: Partial<DerivedNetwork>;
-  loadBalancerCount?: number;
 };
 
 // WARNING: pool order is address-significant (each pool owns the third octet at its array
@@ -110,15 +107,6 @@ export type DedicatedPlanOption = {
   planCode: string;
   pricingMode: 'default' | 'upfront12' | 'upfront24';
   quantity: number;
-};
-
-export type PublicIngressConfig =
-  | { type: 'public-cloud'; flavor: string }
-  | { type: 'ip-load-balancing'; services: readonly IpLoadBalancingServiceConfig[] };
-
-export type IpLoadBalancingServiceConfig = {
-  serviceName: string;
-  zones: Record<string, string>;
 };
 
 export type DerivedNetwork = {

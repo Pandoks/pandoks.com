@@ -6,8 +6,7 @@ import type {
   ClusterSpec,
   DedicatedServer,
   NodePoolConfig,
-  PublicCloudServer,
-  PublicIngressConfig
+  PublicCloudServer
 } from '../cluster/config.ts';
 import {
   CLUSTER_NETWORK_INDEXES,
@@ -38,11 +37,9 @@ function cluster(
     workers?: number;
     databases?: number;
     dedicatedDatabases?: number;
-    loadBalancers?: number;
     pools?: NodePoolConfig[];
   } = {}
 ): ClusterSpec {
-  const ingressNodes = (args.controlPlanes ?? 1) + (args.workers ?? 0);
   return {
     region: args.region ?? 'hil',
     pools: args.pools ?? [
@@ -77,13 +74,12 @@ function cluster(
         interconnect: true,
         server: dedicatedServer
       }
-    ],
-    loadBalancerCount: args.loadBalancers ?? (ingressNodes > 1 ? 1 : 0)
+    ]
   };
 }
 
-function config(clusters: ClusterSpec[], publicIngress?: PublicIngressConfig): ClusterConfig {
-  return { clusters, publicIngress };
+function config(clusters: ClusterSpec[]): ClusterConfig {
+  return { clusters };
 }
 
 void test('permanently allocates a network index to every OVH datacenter', () => {
@@ -330,7 +326,6 @@ void test('builds independent plans and rejects duplicate or colliding clusters'
 void test('keeps empty stages inert', () => {
   const topology = buildClusterTopology(config([]), 'prod', 'pandoks.com');
   assert.deepEqual(topology.clusters, []);
-  assert.deepEqual(topology.ipLoadBalancing, []);
 });
 
 void test('requires catalog values only for pools with live nodes', () => {
@@ -358,132 +353,22 @@ void test('requires catalog values only for pools with live nodes', () => {
   );
 });
 
-void test('keeps private API and public ingress decisions local to each cluster', () => {
+void test('keeps the private API decision local and exposes every ingress node', () => {
   const direct = buildClusterPlan(cluster(), 'prod', 'pandoks.com');
   assert.equal(direct.privateApi.mode, 'direct');
-  assert.equal(direct.publicIngress.mode, 'direct');
+  assert.deepEqual(
+    direct.ingressNodes.map(({ hostname }) => hostname),
+    ['prod-hil-ovh-control-plane-server-0']
+  );
 
   const balanced = buildClusterPlan(
-    cluster({ controlPlanes: 3, workers: 1, loadBalancers: 1 }),
+    cluster({ controlPlanes: 3, workers: 2 }),
     'prod',
     'pandoks.com'
   );
   assert.equal(balanced.privateApi.mode, 'ovh');
-  assert.equal(balanced.publicIngress.mode, 'ovh');
-
-  const cloudflare = buildClusterPlan(
-    cluster({ controlPlanes: 3, workers: 1, loadBalancers: 2 }),
-    'prod',
-    'pandoks.com'
-  );
-  assert.equal(cloudflare.publicIngress.mode, 'cloudflare');
-});
-
-void test('plans one Dedicated IP Load Balancing service across clusters by region', () => {
-  const west = { ...cluster({ controlPlanes: 1, workers: 1 }), loadBalancerCount: 0 };
-  const east = {
-    ...cluster({ region: 'vin', controlPlanes: 1, workers: 1 }),
-    loadBalancerCount: 0
-  };
-  const publicIngress: PublicIngressConfig = {
-    type: 'ip-load-balancing',
-    services: [
-      {
-        serviceName: 'loadbalancer-dedicated-us',
-        zones: { hil: 'HIL', vin: 'VIN' }
-      }
-    ]
-  };
-
-  const topology = buildClusterTopology(config([west, east], publicIngress), 'prod', 'pandoks.com');
-
-  assert.deepEqual(
-    topology.clusters.map(({ config: spec, publicIngress: ingress }) => [
-      spec.region,
-      ingress.mode,
-      ingress.loadBalancerCount
-    ]),
-    [
-      ['hil', 'ip-load-balancing', 0],
-      ['vin', 'ip-load-balancing', 0]
-    ]
-  );
-  assert.deepEqual(
-    topology.ipLoadBalancing.map(({ config: service, clusters }) => ({
-      serviceName: service.serviceName,
-      clusters: clusters.map(({ cluster: plan, zone, natIp }) => ({
-        region: plan.config.region,
-        zone,
-        natIp
-      }))
-    })),
-    [
-      {
-        serviceName: 'loadbalancer-dedicated-us',
-        clusters: [
-          { region: 'hil', zone: 'HIL', natIp: '10.1.254.0/24' },
-          { region: 'vin', zone: 'VIN', natIp: '10.0.254.0/24' }
-        ]
-      }
-    ]
-  );
-});
-
-void test('rejects incomplete Dedicated IP Load Balancing configuration', () => {
-  const west = { ...cluster({ controlPlanes: 1, workers: 1 }), loadBalancerCount: 0 };
-  const dedicated = (
-    services: Extract<PublicIngressConfig, { type: 'ip-load-balancing' }>['services']
-  ) => ({ type: 'ip-load-balancing', services }) as const;
-
-  assert.throws(
-    () => buildClusterTopology(config([west], dedicated([])), 'prod', 'pandoks.com'),
-    /requires exactly one IP Load Balancing zone/
-  );
-  assert.throws(
-    () =>
-      buildClusterTopology(
-        config([west], dedicated([{ serviceName: ' ', zones: {} }])),
-        'prod',
-        'pandoks.com'
-      ),
-    /require serviceName/
-  );
-  assert.throws(
-    () =>
-      buildClusterTopology(
-        config(
-          [west],
-          dedicated([
-            { serviceName: 'loadbalancer-us', zones: { hil: 'HIL' } },
-            { serviceName: 'loadbalancer-us', zones: {} }
-          ])
-        ),
-        'prod',
-        'pandoks.com'
-      ),
-    /Duplicate IP Load Balancing service: loadbalancer-us/
-  );
-  assert.throws(
-    () =>
-      buildClusterTopology(
-        config([west], dedicated([{ serviceName: 'loadbalancer-us', zones: { moon: 'HIL' } }])),
-        'prod',
-        'pandoks.com'
-      ),
-    /references unknown cluster moon/
-  );
-  assert.throws(
-    () =>
-      buildClusterTopology(
-        config(
-          [{ ...west, loadBalancerCount: 1 }],
-          dedicated([{ serviceName: 'loadbalancer-us', zones: { hil: 'HIL' } }])
-        ),
-        'prod',
-        'pandoks.com'
-      ),
-    /IP Load Balancing requires loadBalancerCount to be 0/
-  );
+  assert.equal(balanced.ingressNodes.length, 5);
+  assert.ok(balanced.ingressNodes.every(({ pool }) => pool.publicIngress));
 });
 
 void test('chooses global Cloudflare routing from the aggregate origin count', () => {
@@ -493,27 +378,10 @@ void test('chooses global Cloudflare routing from the aggregate origin count', (
   assert.equal(getGlobalPublicIngressMode(20), 'cloudflare');
 });
 
-void test('rejects invalid cluster and load balancer shapes', () => {
+void test('rejects invalid cluster shapes', () => {
   assert.throws(
     () => buildClusterPlan(cluster({ controlPlanes: 0, workers: 1 }), 'prod', 'pandoks.com'),
     /at least one control-plane node/
-  );
-  assert.throws(
-    () => buildClusterPlan(cluster({ loadBalancers: 1 }), 'prod', 'pandoks.com'),
-    /one ingress node requires loadBalancerCount to be 0/
-  );
-  assert.throws(
-    () =>
-      buildClusterPlan(
-        cluster({ controlPlanes: 1, workers: 1, loadBalancers: 0 }),
-        'prod',
-        'pandoks.com'
-      ),
-    /multiple ingress nodes require at least one load balancer/
-  );
-  assert.throws(
-    () => buildClusterPlan({ ...cluster(), loadBalancerCount: 1.5 }, 'prod', 'pandoks.com'),
-    /loadBalancerCount must be a non-negative integer/
   );
   assert.throws(
     () =>

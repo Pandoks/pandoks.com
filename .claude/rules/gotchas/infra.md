@@ -17,10 +17,8 @@ paths:
 manually import` comment at `sst.config.ts:34` is load-bearing.
 - **No top-level imports in `sst.config.ts`.** The `$config` header must stay
   import-free; provider literals (the OVH `applicationKey`) are hardcoded there
-  only. Infra code reads them back at runtime via
-  `$app.providers?.['ovhcloud/pulumi-ovh']` (the signed IPLB refresh calls in
-  `infra/cluster/load-balancers.ts`) and gets the account subsidiary from
-  `ovh.me.getMeOutput()`. Contract test in `infra/tests/operations.test.ts`.
+  only. Infra code gets the account subsidiary from `ovh.me.getMeOutput()`.
+  Contract test in `infra/tests/operations.test.ts`.
 
 ## Tailscale ACL
 
@@ -71,13 +69,14 @@ manually import` comment at `sst.config.ts:34` is load-bearing.
   permanently pre-allocates an index per datacenter — never renumber it. A
   side-by-side rebuild in the same datacenter is not expressible; rebuild via a
   neighboring datacenter instead. Per-cluster single-region
-  private networks keep managed Gateways/LBs supported; Cloudflare steers
-  application traffic across the declared origins. Pool order is
+  private networks keep the managed private-API LB supported; public web
+  ingress is Cloudflare-direct to the ingress nodes' public IPs (no OVH public
+  LBs, IPLB, or gateways). Pool order is
   address-significant — append pools, never reorder live ones.
 - **The Public Cloud project remains required with dedicated compute.**
   `infra/cluster/cluster.ts` creates it with `ovh.cloudproject.Project` and
   passes its generated `projectId` to the vRack attachment, private network,
-  subnet, gateway, load balancers, and floating IPs. Never unprotect or remove
+  subnet, and the private-API load balancer. Never unprotect or remove
   the project as part of a compute-only migration.
 - **Pools are configured per cluster in `infra/cluster/config.ts`.** A pool's
   `server` union picks the OVH product; its `labels`/`taints` drive Kubernetes

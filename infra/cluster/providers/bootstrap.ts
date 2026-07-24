@@ -137,7 +137,7 @@ export function createNodeBootstrap(args: {
           args.node.interconnectIp && interconnect ? String(interconnect.prefixLength) : '',
         INTERCONNECT_CIDR: args.node.interconnectIp && interconnect ? interconnect.cidr : '',
         BOOTSTRAP_CANDIDATE: String(args.node.bootstrapCandidate),
-        DIRECT_INGRESS: String(args.node.directIngress),
+        DIRECT_INGRESS: String(args.node.pool.publicIngress),
         CLOUDFLARE_IPV4_CIDRS: cloudflareIpv4Cidrs.join(', '),
         SERVER_API: `https://${apiAddress}:6443`,
         K3S_TOKEN: k3sTokenValue,

@@ -1,4 +1,3 @@
-import { GATEWAY_MODEL } from './config';
 import { clusterResourceName, type ClusterPlan } from './topology';
 
 export type ClusterFoundation = {
@@ -12,7 +11,6 @@ export type ClusterNetwork = {
   foundation: ClusterFoundation;
   network: ovh.CloudNetworkPrivateVrack;
   subnet: ovh.CloudNetworkPrivateVrackSubnet;
-  gateway: ovh.CloudGateway;
 };
 
 export function createClusterNetwork(
@@ -44,12 +42,5 @@ export function createClusterNetwork(
       dhcpEnabled: true
     }
   );
-  const gateway = new ovh.CloudGateway(clusterResourceName('OvhK3sGateway', config.region), {
-    serviceName: foundation.projectId,
-    name: `k3s-${identity.namePrefix}-gateway`,
-    region: network.publicCloudRegion,
-    externalGateway: { enabled: true, model: GATEWAY_MODEL },
-    subnetIds: [subnet.id]
-  });
-  return { foundation, network: privateNetwork, subnet, gateway };
+  return { foundation, network: privateNetwork, subnet };
 }

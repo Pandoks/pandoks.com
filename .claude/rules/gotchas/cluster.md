@@ -38,10 +38,12 @@ paths:
   Flannel does not provide cross-cluster pod/service connectivity; dedicated
   pools with `interconnect: true` share a cross-cluster VLAN for private L3
   (e.g. database replication), while app-level wiring is a separate rollout.
-- **Do not stretch a managed Gateway/LB subnet across regions.** OVH supports
-  vRack/VLAN extension, but its managed Gateway and Load Balancer require the
-  single-region private networks modeled here. The interconnect VLAN carries
-  no managed products — only raw dedicated-server VLAN subinterfaces.
+- **Do not stretch a managed LB subnet across regions.** OVH supports
+  vRack/VLAN extension, but its managed Load Balancer (the private k3s API LB)
+  requires the single-region private networks modeled here. The interconnect
+  VLAN carries no managed products — only raw dedicated-server VLAN
+  subinterfaces. Public web ingress uses no OVH products at all: Cloudflare
+  fronts the ingress nodes' public IPs directly.
 
 ## Tailscale operator
 

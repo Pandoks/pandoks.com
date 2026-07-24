@@ -124,15 +124,16 @@ For full per-flow traces, see `.claude/rules/gotchas/*.md`.
   network, subnet, gateway, K3s pod/service CIDRs, MetalLB range, token, and
   API DNS name — all derived from its region's `CLUSTER_NETWORK_INDEXES`
   entry (`10.<i>.0.0/16`, VLAN
-  `<i>`, pods `10.<42+2i>`, MetalLB `10.<i>.200.x`). This keeps managed
-  Gateway/LB usage within OVH's supported single-region network topology.
+  `<i>`, pods `10.<42+2i>`, MetalLB `10.<i>.200.x`). The only OVH load
+  balancer is the per-cluster private k3s API LB for HA control planes.
   Dedicated pools can opt into a shared cross-cluster interconnect VLAN
   (default 4000, `172.16.0.0/12`, node IPs `172.<16+i>.<pool>.<n>`) for
   private cross-region traffic such as database replication; Public Cloud
   instances cannot join it (single private NIC).
-- HAProxy uses host ports 80/443 on nodes marked for public ingress. A single
-  origin goes directly behind proxied Cloudflare DNS; multiple origins use the
-  regional OVH LBs and one global Cloudflare Load Balancer.
+- HAProxy uses host ports 80/443 on nodes marked for public ingress. Every
+  ingress node's public IP is a Cloudflare origin directly: a single origin is
+  a proxied DNS record, multiple origins become one health-checked Cloudflare
+  Load Balancer (no OVH public LBs or IPLB).
 - ArgoCD App-of-Apps `prod-cluster` (`k3s/overlays/prod/argocd.yaml:47-68`)
   watches `k3s/overlays/prod` via `kustomize-sst-render-v1.1`. The regional
   ConfigMap supplies `--region` so every independent cluster renders its own

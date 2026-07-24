@@ -4,18 +4,15 @@ import type {
   ClusterSpec,
   DedicatedPlanOption,
   DerivedNetwork,
-  IpLoadBalancingServiceConfig,
   NodeRole,
   NodeTaint,
-  PublicCloudRegion,
-  PublicIngressConfig
+  PublicCloudRegion
 } from './config.ts';
 
 // Every cluster /16 keeps the same derived third-octet layout:
 // .0 OVH/Neutron, .1-.199 node pools in declaration order, .200 MetalLB,
-// .254 IP Load Balancing NAT, the rest reserved.
+// .201-.255 reserved.
 const METAL_LB_OCTET = 200;
-const NAT_OCTET = 254;
 const MAX_NETWORK_INDEX = 15;
 const MAX_POOL_COUNT = 254;
 const NAME_PATTERN = /^[a-z][a-z0-9-]*[a-z0-9]$/;
@@ -48,8 +45,6 @@ const PUBLIC_CLOUD_REGIONS: Partial<Record<ClusterRegion, PublicCloudRegion>> = 
 // The cross-cluster VLAN every interconnect-opted pool joins: one L2 domain over the
 // vRack, cluster <i> owning the 172.(16+i).x.y slice.
 const INTERCONNECT = { vlanId: 4000, cidr: '172.16.0.0/12' };
-
-const DEFAULT_PUBLIC_INGRESS: PublicIngressConfig = { type: 'public-cloud', flavor: 'small' };
 
 const DEDICATED_ORDER_REGIONS: Record<ClusterRegion, 'usa' | 'canada' | 'europe' | 'apac'> = {
   vin: 'usa',
@@ -106,14 +101,6 @@ export type ClusterNodeSpec = {
   privateIp: string;
   interconnectIp?: string;
   bootstrapCandidate: boolean;
-  directIngress: boolean;
-};
-
-export type PublicIngressPlan = {
-  mode: 'none' | 'direct' | 'ovh' | 'cloudflare' | 'ip-load-balancing';
-  nodes: readonly ClusterNodeSpec[];
-  loadBalancerCount: number;
-  flavor?: string;
 };
 
 export type PrivateApiPlan = {
@@ -143,18 +130,9 @@ export type ClusterPlan = {
   interconnect?: InterconnectPlan;
   nodePools: readonly NodePool[];
   nodes: ClusterNodeSpec[];
+  ingressNodes: readonly ClusterNodeSpec[];
   warnings: string[];
   privateApi: PrivateApiPlan;
-  publicIngress: PublicIngressPlan;
-};
-
-export type IpLoadBalancingPlan = {
-  config: IpLoadBalancingServiceConfig;
-  clusters: readonly {
-    cluster: ClusterPlan;
-    zone: string;
-    natIp: string;
-  }[];
 };
 
 export function pascalCase(value: string): string {
@@ -341,22 +319,13 @@ function nodePools(spec: ClusterSpec): NodePool[] {
   });
 }
 
-export function buildClusterPlan(
-  spec: ClusterSpec,
-  stage: string,
-  domain: string,
-  publicIngressConfig: PublicIngressConfig = DEFAULT_PUBLIC_INGRESS
-): ClusterPlan {
+export function buildClusterPlan(spec: ClusterSpec, stage: string, domain: string): ClusterPlan {
   validateNetworkIndexes();
   const index = networkIndex(spec.region);
   const network = deriveNetwork(spec);
   const interconnect = parseInterconnect();
   if (interconnect.vlanId === network.vlanId) {
     throw new Error(`Cluster ${spec.region} vlanId collides with the interconnect VLAN`);
-  }
-  const loadBalancerCount = spec.loadBalancerCount ?? 0;
-  if (!Number.isInteger(loadBalancerCount) || loadBalancerCount < 0) {
-    throw new Error(`Cluster ${spec.region} loadBalancerCount must be a non-negative integer`);
   }
   const clusterIdentity = identity(spec, stage, domain);
   const pools = nodePools(spec);
@@ -375,8 +344,7 @@ export function buildClusterPlan(
         ...(pool.interconnect && {
           interconnectIp: interconnectAddress(interconnect, index, pool.addressBlock, poolIndex + 1)
         }),
-        bootstrapCandidate: false,
-        directIngress: false
+        bootstrapCandidate: false
       });
     }
   }
@@ -392,37 +360,6 @@ export function buildClusterPlan(
     nodes: controlPlanes
   };
   const ingressNodes = nodes.filter(({ pool }) => pool.publicIngress);
-  if (publicIngressConfig.type === 'ip-load-balancing') {
-    if (loadBalancerCount !== 0) {
-      throw new Error('IP Load Balancing requires loadBalancerCount to be 0');
-    }
-  } else {
-    if (ingressNodes.length < 2 && loadBalancerCount !== 0) {
-      throw new Error(
-        `${ingressNodes.length === 0 ? 'no' : 'one'} ingress node requires loadBalancerCount to be 0`
-      );
-    }
-    if (ingressNodes.length > 1 && loadBalancerCount === 0) {
-      throw new Error('multiple ingress nodes require at least one load balancer');
-    }
-    if (ingressNodes.length === 1) ingressNodes[0].directIngress = true;
-  }
-
-  const publicIngress: PublicIngressPlan = {
-    mode:
-      ingressNodes.length === 0
-        ? 'none'
-        : publicIngressConfig.type === 'ip-load-balancing'
-          ? 'ip-load-balancing'
-          : ingressNodes.length === 1
-            ? 'direct'
-            : loadBalancerCount === 1
-              ? 'ovh'
-              : 'cloudflare',
-    nodes: ingressNodes,
-    loadBalancerCount,
-    ...(publicIngressConfig.type === 'public-cloud' && { flavor: publicIngressConfig.flavor })
-  };
   const warnings: string[] = [];
   if (controlPlanes.length > 0 && (controlPlanes.length < 3 || controlPlanes.length % 2 === 0)) {
     warnings.push(
@@ -436,9 +373,9 @@ export function buildClusterPlan(
     ...(usesInterconnect && { interconnect }),
     nodePools: pools,
     nodes,
+    ingressNodes,
     warnings,
-    privateApi,
-    publicIngress
+    privateApi
   };
 }
 
@@ -460,12 +397,11 @@ function unique(plans: readonly ClusterPlan[], field: 'networkCidr' | 'podCidr' 
 }
 
 export function buildClusterTopology(config: ClusterConfig, stage: string, domain: string) {
-  const publicIngress = config.publicIngress ?? DEFAULT_PUBLIC_INGRESS;
   const regions = new Set<ClusterRegion>();
   const clusters = config.clusters.map((spec) => {
     if (regions.has(spec.region)) throw new Error(`Duplicate cluster region: ${spec.region}`);
     regions.add(spec.region);
-    return buildClusterPlan(spec, stage, domain, publicIngress);
+    return buildClusterPlan(spec, stage, domain);
   });
   const vlans = new Set<number>();
   for (const plan of clusters) {
@@ -478,52 +414,7 @@ export function buildClusterTopology(config: ClusterConfig, stage: string, domai
   unique(clusters, 'podCidr');
   unique(clusters, 'serviceCidr');
 
-  const ipLoadBalancing: IpLoadBalancingPlan[] = [];
-  if (publicIngress.type === 'ip-load-balancing') {
-    const serviceNames = new Set<string>();
-    for (const service of publicIngress.services) {
-      if (!service.serviceName.trim()) {
-        throw new Error('IP Load Balancing services require serviceName');
-      }
-      if (serviceNames.has(service.serviceName)) {
-        throw new Error(`Duplicate IP Load Balancing service: ${service.serviceName}`);
-      }
-      serviceNames.add(service.serviceName);
-      for (const zoneRegion of Object.keys(service.zones)) {
-        if (!regions.has(zoneRegion as ClusterRegion)) {
-          throw new Error(
-            `IP Load Balancing service ${service.serviceName} references unknown cluster ${zoneRegion}`
-          );
-        }
-      }
-    }
-    for (const plan of clusters) {
-      if (plan.publicIngress.nodes.length === 0) continue;
-      const matches = publicIngress.services.filter((service) =>
-        service.zones[plan.config.region]?.trim()
-      );
-      if (matches.length !== 1) {
-        throw new Error(
-          `Cluster ${plan.config.region} requires exactly one IP Load Balancing zone across services`
-        );
-      }
-    }
-    for (const service of publicIngress.services) {
-      const serviceClusters = clusters
-        .filter(
-          (plan) => plan.publicIngress.nodes.length > 0 && service.zones[plan.config.region]?.trim()
-        )
-        .map((cluster) => ({
-          cluster,
-          zone: service.zones[cluster.config.region],
-          natIp: `10.${networkIndex(cluster.config.region)}.${NAT_OCTET}.0/24`
-        }));
-      if (serviceClusters.length > 0) {
-        ipLoadBalancing.push({ config: service, clusters: serviceClusters });
-      }
-    }
-  }
-  return { clusters, ipLoadBalancing };
+  return { clusters };
 }
 
 export function getGlobalPublicIngressMode(originCount: number) {

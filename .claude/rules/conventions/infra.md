@@ -120,13 +120,13 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
   `infra/cluster/providers/bootstrap.sh`.
 - **The Public Cloud project is permanent shared infrastructure.**
   `ovh.cloudproject.Project` creates it, and its `projectId` is passed directly
-  to the vRack project attachment, private network, subnet, gateway, and load
-  balancers even when all compute is dedicated. Production deletion protection
-  must remain enabled.
+  to the vRack project attachment, private network, subnet, and the private-API
+  load balancer even when all compute is dedicated. Production deletion
+  protection must remain enabled.
 - **Each cluster `10.<i>.0.0/16` has derived third-octet owners.** Neutron
   infrastructure uses `.0`, node pools own `.1`-`.199` in declaration order
   (pool at array position `p` owns `.p+1`; node `n` is host `.n+1`), MetalLB
-  owns `.200`, `.254` is IP Load Balancing NAT, and the rest is reserved. The
+  owns `.200`, and `.201`-`.255` is reserved. The
   derivation lives in `infra/cluster/topology.ts`; pool order is
   address-significant, so append pools rather than reorder. The interconnect
   VLAN mirrors the same layout at `172.<16+i>.<pool>.<n>`.
