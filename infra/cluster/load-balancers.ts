@@ -4,9 +4,8 @@ import {
   LOAD_BALANCER_ALGORITHM,
   LOAD_BALANCER_FLAVOR,
   OVH_ACCOUNTS,
-  type ClusterRegionId,
-  type LoadBalancerFlavor,
-  type OvhAccountId
+  type ClusterRegionKey,
+  type OvhAccountKey
 } from './config';
 import type { ClusterNetwork } from './network';
 import {
@@ -42,7 +41,7 @@ export function createClusterLoadBalancers(args: {
           invokeOptions
         )
       : undefined;
-  const flavorId = (name: LoadBalancerFlavor) =>
+  const flavorId = (name: string) =>
     flavors!.apply((result) => {
       const flavor = result.flavors.find((candidate) => candidate.name === name);
       if (!flavor) {
@@ -139,7 +138,7 @@ const wait = (milliseconds: number) =>
     setTimeout(resolve, milliseconds);
   });
 
-async function refreshIpLoadBalancing(accountId: OvhAccountId, serviceName: string) {
+async function refreshIpLoadBalancing(accountId: OvhAccountKey, serviceName: string) {
   const account = OVH_ACCOUNTS[accountId];
   const applicationKey =
     'applicationKey' in account
@@ -209,7 +208,7 @@ async function refreshIpLoadBalancing(accountId: OvhAccountId, serviceName: stri
 
 const ipLoadBalancingRefreshQueues = new Map<string, Promise<void>>();
 
-function queueIpLoadBalancingRefresh(accountId: OvhAccountId, serviceName: string) {
+function queueIpLoadBalancingRefresh(accountId: OvhAccountKey, serviceName: string) {
   const key = `${accountId}:${serviceName}`;
   const previous = ipLoadBalancingRefreshQueues.get(key) ?? Promise.resolve();
   const refresh = previous
@@ -243,7 +242,7 @@ const refreshEuIpLoadBalancingAfterDelete = new $util.ResourceHook(
 
 export function createIpLoadBalancingIngress(args: {
   plan: IpLoadBalancingPlan;
-  networks: ReadonlyMap<ClusterRegionId, ClusterNetwork>;
+  networks: ReadonlyMap<ClusterRegionKey, ClusterNetwork>;
 }) {
   const firstRegion = args.plan.regions[0];
   if (!firstRegion) throw new Error('IP Load Balancing requires at least one cluster region');

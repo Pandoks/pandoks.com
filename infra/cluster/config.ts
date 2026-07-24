@@ -1,5 +1,5 @@
-export type ClusterRegionId = 'us-west' | 'us-east' | 'eu' | 'asia';
-export type OvhAccountId = 'us' | 'eu';
+export type ClusterRegionKey = 'us-west' | 'us-east' | 'eu' | 'asia';
+export type OvhAccountKey = 'us' | 'eu';
 export type NodePoolName =
   | 'cloud-control-plane'
   | 'cloud-workers'
@@ -17,16 +17,14 @@ export type DedicatedPlanOption = {
   quantity: number;
 };
 
-export type LoadBalancerFlavor = 'small' | 'medium' | 'large' | 'xl';
-
 export type IpLoadBalancingServiceConfig = {
-  account: OvhAccountId;
+  account: OvhAccountKey;
   serviceName: string;
-  zones: Partial<Record<ClusterRegionId, string>>;
+  zones: Partial<Record<ClusterRegionKey, string>>;
 };
 
 export type PublicIngressConfig =
-  | { type: 'public-cloud'; flavor: LoadBalancerFlavor }
+  | { type: 'public-cloud'; flavor: string }
   | { type: 'ip-load-balancing'; services: readonly IpLoadBalancingServiceConfig[] };
 
 type PoolConfig = {
@@ -42,8 +40,8 @@ export type CloudPoolConfig = PoolConfig;
 export type DedicatedPoolConfig = PoolConfig & { planOptions: DedicatedPlanOption[] };
 
 export type RegionalClusterConfig = {
-  id: ClusterRegionId;
-  account: OvhAccountId;
+  id: ClusterRegionKey;
+  account: OvhAccountKey;
   enabled: boolean;
   publicCloudRegion: string;
   cloudImage: string;
@@ -71,7 +69,7 @@ type GatewayModel = 'S' | 'M' | 'L' | 'XL' | '2XL' | '3XL';
 type LoadBalancerAlgorithm = 'leastConnections' | 'roundRobin' | 'sourceIP';
 
 export const GATEWAY_MODEL: GatewayModel = 'S';
-export const LOAD_BALANCER_FLAVOR: LoadBalancerFlavor = 'small';
+export const LOAD_BALANCER_FLAVOR = 'small';
 export const LOAD_BALANCER_ALGORITHM: LoadBalancerAlgorithm = 'leastConnections';
 
 export const OVH_ACCOUNTS = {

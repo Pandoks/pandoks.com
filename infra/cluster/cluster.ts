@@ -5,8 +5,8 @@ import {
   NON_PRODUCTION_CLUSTER_CONFIG,
   OVH_ACCOUNTS,
   PRODUCTION_CLUSTER_CONFIG,
-  type ClusterRegionId,
-  type OvhAccountId
+  type ClusterRegionKey,
+  type OvhAccountKey
 } from './config';
 import { createClusterLoadBalancers, createIpLoadBalancingIngress } from './load-balancers';
 import { createClusterNetwork, type ClusterFoundation, type ClusterNetwork } from './network';
@@ -64,7 +64,7 @@ if (enabledAccounts.has('eu')) {
 }
 
 function createFoundation(
-  accountId: OvhAccountId,
+  accountId: OvhAccountKey,
   project: ovh.cloudproject.Project,
   provider?: ovh.Provider
 ): ClusterFoundation {
@@ -95,14 +95,14 @@ function createFoundation(
   };
 }
 
-const foundations: Partial<Record<OvhAccountId, ClusterFoundation>> = {};
+const foundations: Partial<Record<OvhAccountKey, ClusterFoundation>> = {};
 if (enabledAccounts.has('us')) foundations.us = createFoundation('us', cloudProject);
 if (enabledAccounts.has('eu') && euProject && euProvider) {
   foundations.eu = createFoundation('eu', euProject, euProvider);
 }
 
 const ingressOrigins: Array<{ address: $util.Output<string> }> = [];
-const networks = new Map<ClusterRegionId, ClusterNetwork>();
+const networks = new Map<ClusterRegionKey, ClusterNetwork>();
 for (const cluster of topology.regions) {
   const foundation = foundations[cluster.config.account];
   if (!foundation) throw new Error(`Missing OVH ${cluster.config.account} account foundation`);

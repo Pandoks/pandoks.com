@@ -1,12 +1,11 @@
 import type {
   ClusterConfig,
-  ClusterRegionId,
+  ClusterRegionKey,
   DedicatedPlanOption,
   IpLoadBalancingServiceConfig,
-  LoadBalancerFlavor,
   NodePoolName,
   NodeRole,
-  OvhAccountId,
+  OvhAccountKey,
   PublicIngressConfig,
   RegionalClusterConfig,
   Workload
@@ -88,7 +87,7 @@ export type PublicIngressPlan = {
   mode: 'none' | 'direct' | 'ovh' | 'cloudflare' | 'ip-load-balancing';
   nodes: readonly ClusterNodeSpec[];
   loadBalancerCount: number;
-  flavor?: LoadBalancerFlavor;
+  flavor?: string;
 };
 
 export type PrivateApiPlan = {
@@ -124,14 +123,14 @@ export type IpLoadBalancingPlan = {
   }[];
 };
 
-const REGION_RESOURCE_PREFIX: Record<ClusterRegionId, string> = {
+const REGION_RESOURCE_PREFIX: Record<ClusterRegionKey, string> = {
   'us-west': '',
   'us-east': 'UsEast',
   eu: 'Eu',
   asia: 'Asia'
 };
 
-export function regionalResourceName(name: string, regionId: ClusterRegionId): string {
+export function regionalResourceName(name: string, regionId: ClusterRegionKey): string {
   const prefix = REGION_RESOURCE_PREFIX[regionId];
   return prefix ? name.replace(/^Ovh/, `Ovh${prefix}`) : name;
 }
@@ -360,7 +359,7 @@ function unique(
 }
 
 export function buildClusterTopology(config: ClusterConfig, stage: string, domain: string) {
-  const ids = new Set<ClusterRegionId>();
+  const ids = new Set<ClusterRegionKey>();
   const plans = config.regions.map((region) => {
     if (ids.has(region.id)) throw new Error(`Duplicate cluster region: ${region.id}`);
     ids.add(region.id);
@@ -386,7 +385,7 @@ export function buildClusterTopology(config: ClusterConfig, stage: string, domai
 
   const ipLoadBalancing: IpLoadBalancingPlan[] = [];
   if (config.publicIngress.type === 'ip-load-balancing') {
-    const services = new Map<OvhAccountId, IpLoadBalancingServiceConfig>();
+    const services = new Map<OvhAccountKey, IpLoadBalancingServiceConfig>();
     for (const service of config.publicIngress.services) {
       if (services.has(service.account)) {
         throw new Error(`Duplicate IP Load Balancing service for OVH account ${service.account}`);

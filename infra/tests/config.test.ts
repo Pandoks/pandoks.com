@@ -7,7 +7,10 @@ import {
   LOAD_BALANCER_FLAVOR,
   NON_PRODUCTION_CLUSTER_CONFIG,
   OVH_ACCOUNTS,
-  PRODUCTION_CLUSTER_CONFIG
+  PRODUCTION_CLUSTER_CONFIG,
+  type ClusterRegionKey,
+  type OvhAccountKey,
+  type PublicIngressConfig
 } from '../cluster/config.ts';
 
 const configs = [PRODUCTION_CLUSTER_CONFIG, NON_PRODUCTION_CLUSTER_CONFIG];
@@ -125,4 +128,24 @@ void test('separates the current US account from dormant EU provider credentials
   assert.equal(GATEWAY_MODEL, 'S');
   assert.equal(LOAD_BALANCER_FLAVOR, 'small');
   assert.equal(LOAD_BALANCER_ALGORITHM, 'leastConnections');
+});
+
+void test('distinguishes configured keys from runtime OVH catalog values', () => {
+  const region: ClusterRegionKey = 'us-west';
+  const account: OvhAccountKey = 'us';
+  const ingress: PublicIngressConfig = {
+    type: 'public-cloud',
+    flavor: 'future-runtime-catalog-flavor'
+  };
+
+  assert.equal(ingress.type, 'public-cloud');
+  assert.deepEqual(
+    [region, account, ingress.flavor],
+    ['us-west', 'us', 'future-runtime-catalog-flavor']
+  );
+  const source = readFileSync('infra/cluster/config.ts', 'utf8');
+  assert.doesNotMatch(source, /ClusterRegionId|OvhAccountId|type LoadBalancerFlavor/);
+  assert.match(source, /export type ClusterRegionKey/);
+  assert.match(source, /export type OvhAccountKey/);
+  assert.match(source, /type: 'public-cloud'; flavor: string/);
 });
