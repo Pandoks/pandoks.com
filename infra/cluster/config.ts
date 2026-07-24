@@ -27,10 +27,9 @@ export const CLUSTER_CONFIGS = {
   nonProduction: NON_PRODUCTION_CLUSTER_CONFIG
 } as const;
 
-// NOTE: the OVH Pulumi provider types every region/catalog field as a plain string, so these
-// unions are the typed vocabulary. Closed unions cover stable OVH vocabulary; Catalog<...>
-// fields stay open — their literals are autocomplete hints, not validation. Validate catalog
-// values against the live authenticated cart before setting a non-zero count.
+/**
+ * TYPES
+ */
 type Catalog<Known extends string> = Known | (string & Record<never, never>);
 
 export type PublicCloudRegion = 'US-WEST-OR-1' | 'US-EAST-VA-1';
