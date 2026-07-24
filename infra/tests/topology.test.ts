@@ -343,29 +343,90 @@ void test('requires catalog values only for pools with live nodes', () => {
   );
 });
 
-void test('keeps the private API decision local and exposes every ingress node', () => {
-  const direct = buildClusterPlan(cluster(), 'prod', 'pandoks.com');
-  assert.equal(direct.privateApi.mode, 'direct');
-  assert.deepEqual(
-    direct.ingressNodes.map(({ hostname }) => hostname),
-    ['prod-hil-ovh-control-plane-server-0']
-  );
+// privateApi.mode is what cluster.ts obeys: only 'ovh' creates an OVH load balancer.
+void test('creates a private API load balancer only for multi-node control planes', () => {
+  const empty = buildClusterPlan(cluster({ controlPlanes: 0 }), 'prod', 'pandoks.com');
+  assert.equal(empty.privateApi.mode, 'none');
+  assert.deepEqual(empty.privateApi.nodes, []);
 
-  const balanced = buildClusterPlan(
-    cluster({ controlPlanes: 3, workers: 2 }),
+  const single = buildClusterPlan(cluster({ controlPlanes: 1 }), 'prod', 'pandoks.com');
+  assert.equal(single.privateApi.mode, 'direct');
+  assert.equal(single.privateApi.nodes.length, 1);
+
+  for (const controlPlanes of [2, 3, 5]) {
+    const plan = buildClusterPlan(cluster({ controlPlanes }), 'prod', 'pandoks.com');
+    assert.equal(plan.privateApi.mode, 'ovh');
+    assert.equal(plan.privateApi.nodes.length, controlPlanes);
+  }
+});
+
+void test('pools only control-plane nodes behind the private API', () => {
+  const plan = buildClusterPlan(
+    cluster({ controlPlanes: 3, workers: 2, databases: 1 }),
     'prod',
     'pandoks.com'
   );
-  assert.equal(balanced.privateApi.mode, 'ovh');
-  assert.equal(balanced.ingressNodes.length, 5);
-  assert.ok(balanced.ingressNodes.every(({ pool }) => pool.publicIngress));
+  assert.ok(plan.privateApi.nodes.every(({ pool }) => pool.role === 'control-plane'));
+  assert.deepEqual(
+    plan.privateApi.nodes.map(({ privateIp }) => privateIp),
+    ['10.1.1.1', '10.1.1.2', '10.1.1.3']
+  );
 });
 
-void test('chooses global Cloudflare routing from the aggregate origin count', () => {
-  assert.equal(getGlobalPublicIngressMode(0), 'none');
-  assert.equal(getGlobalPublicIngressMode(1), 'direct');
-  assert.equal(getGlobalPublicIngressMode(2), 'cloudflare');
-  assert.equal(getGlobalPublicIngressMode(20), 'cloudflare');
+void test('exposes exactly the public-ingress nodes as Cloudflare origins', () => {
+  const plan = buildClusterPlan(
+    cluster({ controlPlanes: 3, workers: 2, databases: 1, dedicatedDatabases: 1 }),
+    'prod',
+    'pandoks.com'
+  );
+  assert.equal(plan.nodes.length, 7);
+  assert.deepEqual(
+    plan.ingressNodes.map(({ hostname }) => hostname),
+    [
+      'prod-hil-ovh-control-plane-server-0',
+      'prod-hil-ovh-control-plane-server-1',
+      'prod-hil-ovh-control-plane-server-2',
+      'prod-hil-ovh-workers-server-0',
+      'prod-hil-ovh-workers-server-1'
+    ]
+  );
+  assert.ok(plan.ingressNodes.every(({ pool }) => pool.taints.length === 0));
+
+  const none = buildClusterPlan(
+    cluster({
+      pools: [{ name: 'control-plane', role: 'control-plane', count: 1, server: publicCloudServer }]
+    }),
+    'prod',
+    'pandoks.com'
+  );
+  assert.deepEqual(none.ingressNodes, []);
+});
+
+// getGlobalPublicIngressMode drives infra/cloudflare.ts: 'direct' is a proxied A
+// record, 'cloudflare' is the health-checked Cloudflare Load Balancer.
+void test('aggregates origins across clusters into one Cloudflare routing decision', () => {
+  const originCount = (specs: ClusterSpec[]) =>
+    buildClusterTopology(specs, 'prod', 'pandoks.com').clusters.flatMap(
+      ({ ingressNodes }) => ingressNodes
+    ).length;
+
+  assert.equal(originCount([]), 0);
+  assert.equal(getGlobalPublicIngressMode(originCount([])), 'none');
+
+  const oneOrigin = originCount([cluster({ controlPlanes: 1 })]);
+  assert.equal(oneOrigin, 1);
+  assert.equal(getGlobalPublicIngressMode(oneOrigin), 'direct');
+
+  const acrossClusters = originCount([
+    cluster({ controlPlanes: 1 }),
+    cluster({ region: 'vin', controlPlanes: 1 })
+  ]);
+  assert.equal(acrossClusters, 2);
+  assert.equal(getGlobalPublicIngressMode(acrossClusters), 'cloudflare');
+
+  const withinCluster = originCount([cluster({ controlPlanes: 3, workers: 2 })]);
+  assert.equal(withinCluster, 5);
+  assert.equal(getGlobalPublicIngressMode(withinCluster), 'cloudflare');
 });
 
 void test('rejects invalid cluster shapes', () => {
@@ -392,4 +453,187 @@ void test('warns for non-HA embedded etcd and retains scale-down identity', () =
     logicalName: 'OvhHilWorkersServer1',
     hostname: 'prod-hil-ovh-workers-server-1'
   });
+});
+
+// End-to-end: one realistic mixed config, asserting every value a downstream
+// consumer reads (bootstrap env, secrets, the deploy CLI, and both providers).
+void test('translates a mixed multi-region config into every consumed value', () => {
+  const topology = buildClusterTopology(
+    [
+      {
+        region: 'hil',
+        pools: [
+          {
+            name: 'control-plane',
+            role: 'control-plane',
+            count: 3,
+            publicIngress: true,
+            server: { type: 'public-cloud', flavor: 'b3-8', image: 'Ubuntu 26.04' }
+          },
+          {
+            name: 'gpu',
+            role: 'worker',
+            count: 1,
+            labels: { 'pandoks.com/workload': 'gpu' },
+            taints: [{ key: 'pandoks.com/workload', value: 'gpu', effect: 'NoSchedule' }],
+            server: { type: 'public-cloud', flavor: 'l40s-90', image: 'Ubuntu 26.04' }
+          },
+          {
+            name: 'database',
+            role: 'worker',
+            count: 1,
+            labels: { 'pandoks.com/workload': 'database' },
+            taints: [{ key: 'pandoks.com/workload', value: 'database', effect: 'NoSchedule' }],
+            interconnect: true,
+            server: {
+              type: 'dedicated',
+              planCode: '24rise01',
+              operatingSystem: 'ubuntu2604-server_64',
+              planOptions: [
+                { duration: 'P1M', planCode: 'ram-64g', pricingMode: 'default', quantity: 1 }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        region: 'sgp',
+        pools: [
+          {
+            name: 'control-plane',
+            role: 'control-plane',
+            count: 1,
+            publicIngress: true,
+            server: {
+              type: 'dedicated',
+              planCode: '24rise01',
+              operatingSystem: 'ubuntu2604-server_64',
+              planOptions: []
+            }
+          }
+        ]
+      }
+    ],
+    'prod',
+    'pandoks.com'
+  );
+
+  const [hil, sgp] = topology.clusters;
+
+  // infra/cluster/providers/bootstrap.ts reads these per node.
+  assert.deepEqual(
+    {
+      CLUSTER_REGION: hil.config.region,
+      CLUSTER_OPERATOR_HOSTNAME: hil.identity.operatorHostname,
+      CLUSTER_POD_CIDR: hil.network.podCidr,
+      CLUSTER_SERVICE_CIDR: hil.network.serviceCidr,
+      ETCD_BACKUP_FOLDER: hil.identity.etcdBackupFolder,
+      VRACK_VLAN_ID: String(hil.network.vlanId)
+    },
+    {
+      CLUSTER_REGION: 'hil',
+      CLUSTER_OPERATOR_HOSTNAME: 'prod-hil-cluster',
+      CLUSTER_POD_CIDR: '10.44.0.0/16',
+      CLUSTER_SERVICE_CIDR: '10.45.0.0/16',
+      ETCD_BACKUP_FOLDER: 'kubernetes/etcd/hil',
+      VRACK_VLAN_ID: '1'
+    }
+  );
+
+  const gpu = hil.nodes.find(({ pool }) => pool.name === 'gpu')!;
+  assert.equal(gpu.hostname, 'prod-hil-ovh-gpu-server-0');
+  assert.equal(gpu.privateIp, '10.1.2.1');
+  assert.equal(gpu.interconnectIp, undefined);
+  assert.equal(
+    Object.entries({ ...gpu.pool.labels, 'pandoks.com/public-ingress': String(false) })
+      .map(([key, value]) => `${key}=${value}`)
+      .join(','),
+    'pandoks.com/workload=gpu,pandoks.com/public-ingress=false'
+  );
+  assert.equal(
+    gpu.pool.taints.map(({ key, value, effect }) => `${key}=${value}:${effect}`).join(','),
+    'pandoks.com/workload=gpu:NoSchedule'
+  );
+
+  // infra/cluster/providers/public-cloud.ts + dedicated.ts read these per pool.
+  const gpuPool = hil.nodePools.find(({ name }) => name === 'gpu')!;
+  assert.deepEqual(
+    gpuPool.provider === 'public-cloud'
+      ? {
+          provider: gpuPool.provider,
+          region: gpuPool.region,
+          flavor: gpuPool.flavor,
+          image: gpuPool.image
+        }
+      : {},
+    {
+      provider: 'public-cloud',
+      region: 'US-WEST-OR-1',
+      flavor: 'l40s-90',
+      image: 'Ubuntu 26.04'
+    }
+  );
+  const databasePool = hil.nodePools.find(({ name }) => name === 'database')!;
+  assert.deepEqual(
+    databasePool.provider === 'dedicated'
+      ? {
+          provider: databasePool.provider,
+          datacenter: databasePool.datacenter,
+          orderRegion: databasePool.orderRegion,
+          planCode: databasePool.planCode,
+          operatingSystem: databasePool.operatingSystem,
+          planOptions: databasePool.planOptions
+        }
+      : {},
+    {
+      provider: 'dedicated',
+      datacenter: 'hil',
+      orderRegion: 'usa',
+      planCode: '24rise01',
+      operatingSystem: 'ubuntu2604-server_64',
+      planOptions: [{ duration: 'P1M', planCode: 'ram-64g', pricingMode: 'default', quantity: 1 }]
+    }
+  );
+
+  // The interconnect pool joins the cross-cluster VLAN; sgp lands in its own slice.
+  const database = hil.nodes.find(({ pool }) => pool.name === 'database')!;
+  assert.equal(database.interconnectIp, '172.17.3.1');
+  assert.deepEqual(hil.interconnect, { vlanId: 4000, cidr: '172.16.0.0/12', prefixLength: 12 });
+  assert.equal(sgp.interconnect, undefined);
+
+  // infra/secrets.ts derives one k3s token secret per declared region.
+  assert.deepEqual(
+    topology.clusters.map(({ config }) => clusterTokenSecretName(config.region)),
+    ['OvhHilK3sToken', 'OvhSgpK3sToken']
+  );
+
+  // scripts/cluster/config.ts emits these for the k3s template render.
+  assert.deepEqual(
+    topology.clusters.map(({ config, identity, network }) => ({
+      ClusterMetalLbRange: network.metalLbRange,
+      ClusterRegion: config.region,
+      ClusterOperatorHostname: identity.operatorHostname
+    })),
+    [
+      {
+        ClusterMetalLbRange: '10.1.200.1-10.1.200.254',
+        ClusterRegion: 'hil',
+        ClusterOperatorHostname: 'prod-hil-cluster'
+      },
+      {
+        ClusterMetalLbRange: '10.12.200.1-10.12.200.254',
+        ClusterRegion: 'sgp',
+        ClusterOperatorHostname: 'prod-sgp-cluster'
+      }
+    ]
+  );
+
+  // infra/cluster/cluster.ts: HA control plane gets an OVH LB, single one does not;
+  // every ingress node becomes a Cloudflare origin.
+  assert.equal(hil.privateApi.mode, 'ovh');
+  assert.equal(sgp.privateApi.mode, 'direct');
+  assert.equal(sgp.network.publicCloudRegion, 'US-WEST-OR-1');
+  const origins = topology.clusters.flatMap(({ ingressNodes }) => ingressNodes);
+  assert.equal(origins.length, 4);
+  assert.equal(getGlobalPublicIngressMode(origins.length), 'cloudflare');
 });
