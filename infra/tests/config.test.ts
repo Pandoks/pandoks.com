@@ -30,7 +30,6 @@ void test('keeps the cluster configuration pure and free of stage helpers', () =
 
 void test('collapses to the single US OVH account', () => {
   assert.deepEqual(OVH_ACCOUNT, {
-    endpoint: 'ovh-us',
     apiRoot: 'https://api.us.ovhcloud.com/1.0',
     subsidiary: 'US',
     applicationKey: 'edf9a4672d28e3c7',
