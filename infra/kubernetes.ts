@@ -1,4 +1,5 @@
-import { awsAccountId, isProduction } from './dns';
+import { awsAccountId } from './dns';
+import { isProduction } from './utils';
 import { defaultAwsRegion } from './aws';
 import { secrets, setSecret } from './secrets';
 

@@ -11,17 +11,37 @@ paths:
 
 ## Cluster state
 
-- **Cluster size is currently 0** in `infra/vps/vps.ts:9, 11`. Code
-  reclaims stale Tailnet entries when count is zero
-  (`infra/vps/vps.ts:131-164`). Bumping counts brings the cluster up, but
-  ArgoCD App-of-Apps then takes over.
+- **Topology lives in `infra/cluster/config.ts` as generic primitives.**
+  `PRODUCTION_CLUSTER_CONFIG` and `NON_PRODUCTION_CLUSTER_CONFIG` both currently
+  declare zero clusters. A cluster is an entry (`region`, `pools`), one per
+  OVH datacenter, with every datacenter's network index pre-allocated in
+  `CLUSTER_NETWORK_INDEXES` (`infra/cluster/topology.ts`); pools mix
+  Public Cloud (only in `hil`/`vin`) and dedicated via the
+  `server` union and use raw labels/taints for placement. Fill dedicated
+  catalog fields only for a pool with a non-zero count, validated against the
+  live authenticated cart. CI retains only the OVH credentials; Pulumi creates
+  the Public Cloud project and passes its generated ID directly. CI runs the
+  TypeScript topology contracts.
+  Cluster resources use `protect: isProduction`: production nodes are protected
+  and non-production nodes are not. When no nodes are declared, stale OVH
+  cluster Tailnet entries are reclaimed. Scale-down can target only the
+  selected pool's `count - 1` node and requires a separate reviewed IaC
+  unprotect change in production.
 
-## HAProxy
+## Regional networking
 
-- **Proxy-protocol must stay on.**
-  `infra/vps/load-balancers.ts:49` — flag is on to validate Cloudflare
-  IPs; setting it false hides the client IP behind the LB private IP and
-  breaks Cloudflare attribution.
+- **Clusters are independent under one US account.** Every cluster runs on the
+  single `ovh-us` account and one global vRack; non-US clusters are
+  dedicated-only (US Public Cloud regions are US-only). Each cluster owns
+  unique node, pod, service, and MetalLB CIDRs derived from the region's
+  `CLUSTER_NETWORK_INDEXES` entry.
+  Flannel does not provide cross-cluster pod/service connectivity; dedicated
+  pools with `interconnect: true` share a cross-cluster VLAN for private L3
+  (e.g. database replication), while app-level wiring is a separate rollout.
+- **Do not stretch a managed Gateway/LB subnet across regions.** OVH supports
+  vRack/VLAN extension, but its managed Gateway and Load Balancer require the
+  single-region private networks modeled here. The interconnect VLAN carries
+  no managed products — only raw dedicated-server VLAN subinterfaces.
 
 ## Tailscale operator
 
@@ -31,10 +51,10 @@ paths:
 ## ArgoCD CMP
 
 - **The CMP renders via the cluster CLI** — `argocd-plugin.yaml` calls
-  `sh ./scripts/cluster/main.sh deploy prod --dry-run --quiet` inside the
-  repo-server pod (see `packages/argocd/argocd-plugin.yaml`). If the CLI
-  signature changes, the CMP breaks silently. **Version-bump
-  `argocd-sst-plugin` image after CLI changes.**
+  `deploy prod --region "$CLUSTER_REGION" --dry-run --quiet` inside the
+  repo-server pod. The optional `argocd/pandoks-cluster` ConfigMap value defaults
+  to `hil` for compatibility. If the CLI contract changes, update and bump
+  the CMP schema name together.
 
 ## Kustomize quirks
 
@@ -75,11 +95,12 @@ root of the repo`). Never use the package dir as context.
   flags, env tags, and template variables — keep it in sync with
   `scripts/cluster/usage.sh` when adding options.
 
-## Manual cluster deploy skip
+## Regional deploy skip
 
-- `.github/workflows/deploy-infra.yaml:133-140` sets `SKIP_DEPLOY=true`
-  when no `prod-cluster` Tailnet peer is visible. Since both node counts
-  are currently 0, this is the normal path.
+- `.github/workflows/deploy-infra.yaml` reads enabled production regions from
+  `scripts/cluster/config.ts`, then independently syncs each visible regional
+  Tailscale operator. With every region disabled, the job exits successfully
+  without contacting a cluster.
 
 ## ghcr image lifecycle
 

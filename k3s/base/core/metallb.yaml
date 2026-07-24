@@ -5,7 +5,7 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-    - 10.0.1.100-10.0.1.200
+    - ${ClusterMetalLbRange}
 
 ---
 apiVersion: metallb.io/v1beta1

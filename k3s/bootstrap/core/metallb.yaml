@@ -12,10 +12,13 @@ metadata:
 spec:
   repo: https://metallb.github.io/metallb
   chart: *name
-  version: 0.15.3
+  # renovate: datasource=helm depName=metallb registryUrl=https://metallb.github.io/metallb
+  version: 0.16.1
   targetNamespace: *namespace
   createNamespace: true
   valuesContent: |-
     speaker:
       frr:
-        enabled: true
+        enabled: false
+    frrk8s:
+      enabled: false

@@ -1,5 +1,6 @@
 import { usWest2Provider } from './aws';
-import { cloudflareAccountId, STAGE_NAME } from './dns';
+import { cloudflareAccountId } from './dns';
+import { STAGE_NAME } from './utils';
 
 export const backupBucket = new sst.cloudflare.Bucket('BackupBucket', {
   transform: {

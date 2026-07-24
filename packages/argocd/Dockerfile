@@ -22,7 +22,7 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2
     && ./aws/install \
     && rm -rf awscliv2.zip aws
 
-# renovate: datasource=github-releases packageName=kubernetes/kubernetes
+# renovate: datasource=github-tags depName=kubectl packageName=kubernetes/kubernetes versioning=semver
 ARG KUBECTL_VERSION=v1.36.2
 ARG KUBECTL_SHA256=1e9045ec32bea85da43de85f0065358529ea7c7a152eca78154fba5b58c27d82
 RUN curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \

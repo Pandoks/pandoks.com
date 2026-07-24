@@ -127,7 +127,20 @@ spec:
         app: *app
         cluster-name: *cluster-name
     spec:
+      tolerations:
+        - key: pandoks.com/workload
+          operator: Equal
+          value: database
+          effect: NoSchedule
       affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: pandoks.com/workload
+                    operator: In
+                    values: [database]
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:

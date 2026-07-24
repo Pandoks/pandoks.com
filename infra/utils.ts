@@ -1,6 +1,17 @@
-export function renderCloudInit(
-  config: string,
-  environment: Readonly<Record<string, string | undefined>>
-): string {
-  return config.replace(/\$\{([A-Z0-9_]+)\}/g, (_, name: string) => environment[name] ?? '');
+export const isProduction = $app.stage === 'production';
+
+export const domain = isProduction ? 'pandoks.com' : 'dev.pandoks.com';
+
+export const EXAMPLE_DOMAIN = `example.${domain}`;
+
+export const STAGE_NAME = isProduction ? 'prod' : 'dev';
+
+declare global {
+  interface String {
+    capitalize(): string;
+  }
 }
+
+String.prototype.capitalize = function () {
+  return this.charAt(0).toUpperCase() + this.slice(1);
+};

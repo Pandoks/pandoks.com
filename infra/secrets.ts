@@ -1,4 +1,12 @@
 import { execSync } from 'node:child_process';
+import { NON_PRODUCTION_CLUSTER_CONFIG, PRODUCTION_CLUSTER_CONFIG } from './cluster/config';
+import { clusterTokenSecretName } from './cluster/topology';
+
+const clusterRegions = new Set(
+  [...PRODUCTION_CLUSTER_CONFIG.clusters, ...NON_PRODUCTION_CLUSTER_CONFIG.clusters].map(
+    ({ region }) => region
+  )
+);
 
 export const secrets = {
   Stage: new sst.Secret('StageName', 'dev'), // Automatically set during deploy
@@ -38,9 +46,15 @@ export const secrets = {
       Password: new sst.Secret('OxylabsWebUnblockerPassword')
     }
   },
-  hetzner: {
-    ApiKey: new sst.Secret('HetznerApiKey'),
-    K3sToken: new sst.Secret('HetznerK3sToken')
+  ovh: {
+    ApplicationSecret: new sst.Secret('OvhApplicationSecret', process.env.OVH_APPLICATION_SECRET),
+    ConsumerKey: new sst.Secret('OvhConsumerKey', process.env.OVH_CONSUMER_KEY),
+    K3sTokens: Object.fromEntries(
+      [...clusterRegions].map((region) => [
+        region,
+        new sst.Secret(clusterTokenSecretName(region), 'Placeholder')
+      ])
+    ) as Record<string, sst.Secret>
   },
   tailscale: {
     OauthClientId: new sst.Secret('TailscaleOauthClientId'),
@@ -58,8 +72,6 @@ export const secrets = {
     grafana: {
       AdminPassword: new sst.Secret('KubernetesGrafanaAdminPassword', 'password')
     },
-    HetznerOriginTlsKey: new sst.Secret('HetznerOriginTlsKey', 'No Origin Tls Key Set'), // Automatically set during deploy
-    HetznerOriginTlsCrt: new sst.Secret('HetznerOriginTlsCrt', 'No Origin Tls Cert Set'), // Automatically set during deploy
     main: {
       // namespace
       // NOTE: sst Secret names are named '<namespace><db-name><resource><var>' (ie. MainMainPostgresSuperuserPassword)

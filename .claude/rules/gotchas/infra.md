@@ -11,10 +11,16 @@ paths:
 
 ## Dynamic imports
 
-- **Dynamic imports break SST.** `sst.config.ts:24-38` keeps the literal
+- **Dynamic imports break SST.** `sst.config.ts:35-49` keeps the literal
   `await Promise.all([import('./infra/...')])` list. The
   `// NOTE: for some reason, dynamic imports don't work well so just
-manually import` comment at `sst.config.ts:22` is load-bearing.
+manually import` comment at `sst.config.ts:34` is load-bearing.
+- **No top-level imports in `sst.config.ts`.** The `$config` header must stay
+  import-free; provider literals (the OVH `applicationKey`) are hardcoded there
+  only. Infra code reads them back at runtime via
+  `$app.providers?.['ovhcloud/pulumi-ovh']` (the signed IPLB refresh calls in
+  `infra/cluster/load-balancers.ts`) and gets the account subsidiary from
+  `ovh.me.getMeOutput()`. Contract test in `infra/tests/operations.test.ts`.
 
 ## Tailscale ACL
 
@@ -29,7 +35,7 @@ manually import` comment at `sst.config.ts:22` is load-bearing.
 
 - **The provider authenticates as a manually-created OAuth client** —
   `TAILSCALE_OAUTH_CLIENT_ID`/`TAILSCALE_OAUTH_CLIENT_SECRET` env →
-  `sst.config.ts:18-22`. It's the one credential IaC cannot create for
+  `sst.config.ts:25-29`. It's the one credential IaC cannot create for
   itself (chicken-and-egg); made once in the admin console (Trust
   credentials → Credential → OAuth, scopes "All - Read & Write",
   no tags). The client secret never expires — do NOT replace it with an
@@ -39,7 +45,7 @@ manually import` comment at `sst.config.ts:22` is load-bearing.
   ("created keys must carry tags owned by the credential's tags") is
   tied to tagged credentials; a tagless all-scope credential creates
   tagged keys/clients freely — verified empirically 2026-07-12 by
-  creating + deleting a `tag:hetzner` auth key with it. If Tailscale
+  creating + deleting a tagged (`tag:ovh`-style) auth key with it. If Tailscale
   ever tightens this and creations start 403ing on tags, recreate the
   credential via Custom scopes with a tag that `tagOwners` grants
   ownership of every IaC-managed tag.
@@ -50,59 +56,87 @@ manually import` comment at `sst.config.ts:22` is load-bearing.
   helper for any new direct `api.tailscale.com` call.
 - **The same pair must be seeded as SST secrets**
   (`TailscaleOauthClientId`/`TailscaleOauthClientSecret`,
-  `infra/secrets.ts:45-48`) for the hooks, AND lives in `.env.<stage>`
+  `infra/secrets.ts:57-61`) for the hooks, AND lives in `.env.<stage>`
   for the provider — two plumbing paths, one credential.
-  `infra/github.ts:105-114` mirrors the SST secrets into the GH action
+  `infra/github.ts:133-142` mirrors the SST secrets into the GH action
   secrets CI reads.
 
-## Hetzner cluster
+## OVH cluster
 
-- **Single-region by design.** Networks are region-locked
-  (`infra/vps/vps.ts:24-35`). Multi-region requires multiple clusters +
-  Cloudflare DNS steering.
-- **Servers can only be upsized.** `infra/vps/vps.ts:13` — disk size must
-  monotonically grow. The constraint NOTE lives in `vps.ts`, but the
-  actual `hcloud.Server` resource (its `serverType`/`image`/`location`)
-  is built in the sibling `infra/vps/servers.ts:182-188` by
-  `createServers()` (`:55`); that file also owns the
-  `DeleteServerFromTailnet` `$util.ResourceHook` (`:10`) that reclaims a
-  destroyed node's Tailnet entry, and reads `infra/vps/cloud-config.yaml`
-  (`:7`). But the literal VALUES are stage-switched module consts back in
-  `vps.ts` — `SERVER_TYPE` (`vps.ts:14`, `ccx13` prod / `cx23` dev),
-  `SERVER_IMAGE` (`:18`, `ubuntu-24.04`), `LOCATION` (`:19`, `hil` prod /
-  `fsn1` dev) — passed into `createServers()` at `vps.ts:106-108, 123-125`.
-  So: change the resource SHAPE in `servers.ts`, change the type/image/
-  region VALUES in `vps.ts`.
-- **Downsizing requires manual drain.** `infra/vps/vps.ts:8`: must
-  `kubectl drain && kubectl delete node` first. Pulumi scaling node count
-  down does not drain k8s.
-- **Tailnet reclaim when count==0.** `infra/vps/vps.ts:131-164`
-  auto-deletes Tailscale devices tagged `tag:k8s` + `tag:<stage>` when both
-  `CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT == 0`. Bumping counts will
-  bring the cluster up — but ArgoCD App-of-Apps then takes over.
-- **Current counts are 0** in both stages (`infra/vps/vps.ts:9, 11`).
+- **One cluster per OVH datacenter.** `infra/cluster/config.ts` holds a
+  `clusters` array; both stage configs currently declare zero clusters. A
+  cluster's `region` is an OVH datacenter code, and its whole address plan
+  (VLAN, `10.<i>.0.0/16`, pod/service CIDRs, MetalLB range) derives from the
+  hidden `CLUSTER_NETWORK_INDEXES` map in `infra/cluster/topology.ts`, which
+  permanently pre-allocates an index per datacenter — never renumber it. A
+  side-by-side rebuild in the same datacenter is not expressible; rebuild via a
+  neighboring datacenter instead. Per-cluster single-region
+  private networks keep managed Gateways/LBs supported; Cloudflare steers
+  application traffic across the declared origins. Pool order is
+  address-significant — append pools, never reorder live ones.
+- **The Public Cloud project remains required with dedicated compute.**
+  `infra/cluster/cluster.ts` creates it with `ovh.cloudproject.Project` and
+  passes its generated `projectId` to the vRack attachment, private network,
+  subnet, gateway, load balancers, and floating IPs. Never unprotect or remove
+  the project as part of a compute-only migration.
+- **Pools are configured per cluster in `infra/cluster/config.ts`.** A pool's
+  `server` union picks the OVH product; its `labels`/`taints` drive Kubernetes
+  placement generically (the DB charts key off `pandoks.com/workload=database`).
+  Dedicated plan, datacenter, order-region, and option values must be validated
+  against the live authenticated catalog, then reviewed in an authenticated
+  preview before a non-zero dedicated count is committed or applied.
+- **Interconnect is dedicated-only.** `interconnect: true` on a dedicated pool
+  joins the node to the shared cross-cluster VLAN via an OS VLAN subinterface;
+  the topology layer rejects it on Public Cloud pools because
+  `ovh.cloudproject.Instance` supports exactly one private NIC and Neutron
+  drops foreign VLAN tags.
+- **Downsizing is highest-index and separately reviewed.** Derive the `count - 1`
+  hostname/logical name from the selected pool configuration. For a control plane:
+  snapshot, verify membership/endpoint health from a survivor, drain, stop k3s
+  on the target, remove its exact etcd member, delete the Kubernetes node, and
+  re-check odd quorum. Production resources use `protect: isProduction`; stop
+  before lowering the count. A separate reviewed IaC change must unprotect only
+  the exact derived resource before its infrastructure deletion.
+- **Production bootstrap inputs are immutable for existing machines.**
+  Public Cloud `userData` and dedicated reinstall customization are ignored.
+  Rebuild one node at a time; never force a dedicated reinstall to roll out
+  `infra/cluster/providers/bootstrap.sh`.
+- **No provider SSH keys.** Administrator SSH uses Tailscale only, cluster
+  traffic uses vRack, and the OVH console/rescue environment is the fallback.
+- **Tailnet reclaim when total count is zero.**
+  `infra/cluster/cluster.ts` deletes stale devices tagged `tag:ovh`,
+  `tag:<stage>`, and a cluster role. Per-node deletion is handled by
+  `DeleteServerFromTailnet` in `infra/cluster/providers/bootstrap.ts`.
+- **Single US account only.** The `ovh-eu` account machinery was removed:
+  vRack can never bridge the US/EU subsidiaries, and the US account can order
+  dedicated servers in EU/Asia datacenters, so non-US clusters are
+  dedicated-only under `ovh-us`. Public Cloud is available only in
+  `US-WEST-OR-1`/`US-EAST-VA-1`.
 
 ## TLS / Cloudflare origin cert
 
-- **CSR is generated locally** in `infra/cloudflare.ts:45-62`. When
-  `infra/vps/vps.origin.<stage>.csr` is missing, the file is recreated
+- **CSR is generated locally** in `infra/cloudflare.ts`. When
+  `infra/cluster/cluster.origin.<stage>.csr` is missing, the file is recreated
   via `execFileSync('openssl', [...])`. The key is piped into
-  `sst secret set` via `/bin/sh -lc` at `infra/cloudflare.ts:63-69`
-  (stdin redirect, `< keyPath`); the cert later goes in via `:85-93`
-  (heredoc, `<<'EOF' ... EOF`). Never as a process arg. The CSR + key
-  paths are stage-suffixed: `vps.origin.dev.csr` and
-  `vps.origin.prod.csr` already exist in `infra/vps/`. **Don't delete
-  those files casually.**
+  `sst secret set` via `/bin/sh -lc`
+  (stdin redirect, `< keyPath`); the cert later goes in via a heredoc
+  (`<<'EOF' ... EOF`). Never as a process arg. The CSR + key
+  paths are stage-suffixed: `cluster.origin.dev.csr` and
+  `cluster.origin.prod.csr` already exist in `infra/cluster/`. **Don't
+  delete those files casually.**
 
 ## Protection
 
-- **Production resources are `protect: true`** (`sst.config.ts:7`). Hetzner
-  servers also set `protect: isProduction`. Delete fails by design.
+- **Production resources are `protect: true`** (`sst.config.ts:7`). OVH
+  cluster compute uses `protect: isProduction`, so every production node remains
+  protected and non-production nodes are unprotected. Both the dedicated server
+  and its reinstall task use the same stage-only decision. There is no
+  environment-variable bypass.
 
 ## SST refresh exit code
 
 - **`sst refresh` exit-code bug.**
-  `.github/workflows/deploy-infra.yaml:98-102` carries
+  `.github/workflows/deploy-infra.yaml:93-97` carries
   `continue-on-error: true` with a `# TODO` link to
   `https://github.com/anomalyco/sst/issues/6713`. Don't replicate in
   other jobs.
@@ -121,7 +155,7 @@ manually import` comment at `sst.config.ts:22` is load-bearing.
 
 - **Deploy jobs use `cancel-in-progress: false`**
   (`.github/workflows/deploy-infra.yaml:62-64` deploy-sst,
-  `:108-110` deploy-kubernetes) — concurrent deploys queue, don't cancel.
+  `:103-105` deploy-kubernetes) — concurrent deploys queue, don't cancel.
 - **Notion blog rebuild via `sync-notion.yaml`**, not a separate
   `deploy-web.yaml`. The `NotionWebhookHandler` Lambda fans out to
   `handleNotionBlogSync` (`apps/functions/src/api/notion/gh-blog-sync.ts:7`)

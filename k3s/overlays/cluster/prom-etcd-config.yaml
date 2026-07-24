@@ -1,5 +1,5 @@
-# Hetzner control plane nodes on private network 10.0.1.0/24
-# IPs start at octet 10: control-plane-0=.10, control-plane-1=.11, etc. (/infra/vps/vps.ts)
+# The default topology has no control planes. Before deployment, replace this
+# inventory with the exact active control-plane private IPs in the cluster runbook.
 apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
 metadata:
@@ -9,10 +9,7 @@ spec:
   valuesContent: |-
     kubeEtcd:
       enabled: true
-      endpoints:
-        - 10.0.1.10
-        - 10.0.1.11  # uncomment when adding control-plane-1
-        - 10.0.1.12  # uncomment when adding control-plane-2
+      endpoints: []
       service:
         enabled: true
         port: 2381

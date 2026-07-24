@@ -58,12 +58,12 @@ phases. Applying overlay first = silent CRD-missing failures.
 
 ## Per-environment specifics
 
-| Env       | MetalLB pool                                                            | etcd IPs                      | Tailscale operator | ArgoCD App-of-Apps                     |
-| --------- | ----------------------------------------------------------------------- | ----------------------------- | ------------------ | -------------------------------------- |
-| `local`   | `172.30.100.1-172.30.100.200` (`k3s/overlays/local/dev-patch.yaml:1-8`) | `172.30.0.4-6` (k3d)          | ❌                 | ❌                                     |
-| `dev`     | (no inbound; cluster-overlay only)                                      | (cluster overlay)             | ✅ (via cluster/)  | ❌                                     |
-| `prod`    | `10.0.1.100-10.0.1.200` (`k3s/base/core/metallb.yaml:1-9`)              | Hetzner CP IPs (`10.0.1.10+`) | ✅                 | ✅ (`overlays/prod/argocd.yaml:47-69`) |
-| `cluster` | (intermediate overlay — not deployed directly; `dev`/`prod` include it) |                               |                    |                                        |
+| Env       | MetalLB pool                                                            | etcd IPs                               | Tailscale operator | ArgoCD App-of-Apps                     |
+| --------- | ----------------------------------------------------------------------- | -------------------------------------- | ------------------ | -------------------------------------- |
+| `local`   | `172.30.100.1-172.30.100.200` (`k3s/overlays/local/dev-patch.yaml:1-8`) | `172.30.0.4-6` (k3d)                   | ❌                 | ❌                                     |
+| `dev`     | (no inbound; cluster-overlay only)                                      | (cluster overlay)                      | ✅ (via cluster/)  | ❌                                     |
+| `prod`    | `10.0.5.1-10.0.5.254` (`k3s/base/core/metallb.yaml:1-9`)                | Cloud `10.0.1.x`, dedicated `10.0.3.x` | ✅                 | ✅ (`overlays/prod/argocd.yaml:47-69`) |
+| `cluster` | (intermediate overlay — not deployed directly; `dev`/`prod` include it) |                                        |                    |                                        |
 
 The `overlays/cluster/` overlay is the shared parent for `dev` and
 `prod` — it carries the Tailscale operator HelmChart, the
@@ -97,7 +97,8 @@ The CLI renders manifests through `scripts/lib/template.sh` after
    returns every `Resource.X.value` as a flat JSON object
    (`KwokPhoneNumber`, `GithubPersonalAccessToken`,
    `MainMainPostgresSuperuserPassword`,
-   `KubernetesGrafanaAdminPassword`, `HetznerOriginTlsCrt`, etc.).
+   `KubernetesGrafanaAdminPassword`, etc.). Origin TLS is issued inside the
+   cluster by cert-manager and is not an SST secret.
 2. **Computed vars** (`scripts/cluster/deploy.sh:35-43`) —
    `${ImageRegistry}`, `${ImageTag}`, `${IsLocal}`.
 
@@ -108,20 +109,20 @@ Filters supported by `template_substitute` (`scripts/lib/template.sh:9-23`):
 - `${VAR | quote}` — YAML-safe single-quote with doubling.
 - `${VAR | bcrypt}` — htpasswd-style hash.
 
-Unrecognized `${...}` patterns pass through unchanged — easy to miss a
-typo since rendering won't fail. Always grep for your new variable in
-the rendered output during dry-run.
+Unrecognized `${...}` patterns pass through unchanged. Regional `${Cluster*}`
+variables fail the deploy render explicitly; always inspect other new variables
+in dry-run output.
 
 ## ArgoCD App-of-Apps (prod only)
 
 `k3s/overlays/prod/argocd.yaml:47-69` defines the `prod-cluster`
 Application that watches `k3s/overlays/prod` via the
-`kustomize-sst-render-v1.0` CMP. The CMP sidecar
+`kustomize-sst-render-v1.2` CMP. The CMP sidecar
 (`ghcr.io/pandoks/argocd-sst-plugin:main`,
 `packages/argocd/argocd-plugin.yaml`) runs:
 
 ```sh
-sh ./scripts/cluster/main.sh deploy prod --dry-run --quiet
+sh ./scripts/cluster/main.sh deploy prod --region "${CLUSTER_REGION:-hil}" --dry-run --quiet
 ```
 
 inside the repo-server pod. Implications:
@@ -178,11 +179,9 @@ vs. example-noise:
    - `ServiceAccount/default` with `imagePullSecrets: [ghcr-auth]` —
      makes every pod in the namespace pull from ghcr without needing
      `imagePullSecrets` in the podspec. Skip if no `ghcr-auth`.
-   - `Secret/cloudflare-origin-tls` of type `kubernetes.io/tls` with
-     `tls.crt: ${HetznerOriginTlsCrt | base64}` and
-     `tls.key: ${HetznerOriginTlsKey | base64}` — required for HAProxy
-     TLS termination (Cloudflare is in Full Strict mode, so the origin
-     must present a cert).
+   - Origin TLS is not part of this credentials pattern. The cluster overlay's
+     cert-manager `Certificate` writes `Secret/cloudflare-origin-tls`, which
+     ingress uses for TLS termination.
 6. **App-specific SA only if the app needs operator-style RBAC** (like
    `k3s/base/core/postgres.yaml:55` — `# NOTE: you need one service
 account per namespace`). Most apps don't — the `default` SA from
@@ -256,14 +255,12 @@ When adding a new cluster app you must add explicit DNS:
   `infra/cloudflare.ts:16`, mirroring the `ExampleDomainLoadBalancer…`
   shape with `name: '<app>.dev.pandoks.com'`.
 - **Prod hostname (`<app>.pandoks.com`)** — **no precedent yet in
-  `infra/`.** The prod node-count is currently 0
-  (`infra/vps/vps.ts:9, 11`), so no prod LB exists to point a record
-  at. When prod cluster nodes are first brought up, the prod DNS pattern
-  has to be defined — likely a sibling `if (publicLoadBalancers.length
-&& isProduction)` block in `infra/cloudflare.ts` with the same
-  per-app record shape but without the dev hostname. Flag this to the
-  user when adding the first prod cluster app; do not invent the
-  pattern silently.
+  `infra/`.** `infra/cloudflare.ts` only creates cluster DNS inside
+  `if (publicLoadBalancers.length && !isProduction)`. Define the prod pattern
+  explicitly before the first prod cluster app, likely with a sibling
+  `if (publicLoadBalancers.length && isProduction)` block and the same per-app
+  record shape without the dev hostname. Flag this to the user; do not invent
+  the pattern silently.
 
 **Cloudflare-Pages-fronted subdomains** (web apps, not cluster
 services): the pattern is `infra/website.ts:43-49` —
@@ -335,7 +332,7 @@ sqlite-backed):
   under namespace `main` — provision a dedicated DB + user inside that
   namespace and pass `DATABASE_URL` to the app via a `Secret`.
 - **PVC storage class**: k3d ships with `local-path` (default). Prod
-  Hetzner clusters need their own storage class declared before
+  OVH clusters need their own storage class declared before
   PVCs work — no precedent yet in `k3s/base/`. **Flag this to the
   user before shipping a prod stateful app** and document the chosen
   storage class here.
@@ -350,7 +347,7 @@ sqlite-backed):
 Some secrets are operator-set via `pnpm sst secret set <Name>`
 (e.g., `KwokPhoneNumber`, `NotionApiKey`); others are
 auto-generated during deploy via the `setSecret()` helper at
-`infra/secrets.ts:81`. Real auto-gen examples:
+`infra/secrets.ts:98`. Real auto-gen examples:
 
 - `infra/cloudflare.ts:63-69, 85-93` — TLS key + cert generated via
   `openssl`, piped into `sst secret set` via stdin.

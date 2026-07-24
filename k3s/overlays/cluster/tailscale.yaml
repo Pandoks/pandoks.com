@@ -4,7 +4,7 @@ metadata:
   name: tailscale
 
 ---
-# WARNING: make sure to match it with /infra/vps/cloud-config.yaml's tailscale bootstrap
+# WARNING: make sure to match infra/cluster/providers/bootstrap.sh's Tailscale bootstrap
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
 metadata:
@@ -13,7 +13,8 @@ metadata:
 spec:
   repo: https://pkgs.tailscale.com/helmcharts
   chart: tailscale-operator
-  version: 1.92.5
+  # renovate: datasource=helm depName=tailscale-operator registryUrl=https://pkgs.tailscale.com/helmcharts
+  version: 1.98.9
   targetNamespace: tailscale
   valuesContent: |-
     apiServerProxyConfig:
@@ -25,7 +26,7 @@ spec:
         - operator-config
 
 ---
-# WARNING: make sure to match it with /infra/vps/cloud-config.yaml's tailscale bootstrap
+# WARNING: make sure to match infra/cluster/providers/bootstrap.sh's Tailscale bootstrap
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:

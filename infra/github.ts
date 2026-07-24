@@ -1,22 +1,11 @@
-import { cloudflareAccountId, isProduction, STAGE_NAME } from './dns';
+import { cloudflareAccountId } from './dns';
 import { defaultAwsRegion } from './aws';
 import { secrets } from './secrets';
 import { tailscaleAcl } from './tailscale';
+import { STAGE_NAME, isProduction } from './utils';
 
 export const githubOrg = 'Pandoks';
 export const githubRepoName = 'pandoks.com';
-
-const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
-  repository: githubRepoName,
-  environment: isProduction ? 'production' : 'dev'
-});
-
-new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
-  repository: githubRepoName,
-  environment: githubEnvironment.environment,
-  secretName: 'HCLOUD_TOKEN',
-  plaintextValue: secrets.hetzner.ApiKey.value
-});
 
 if (isProduction) {
   new github.BranchProtection('GithubMainBranchProtection', {
@@ -31,6 +20,18 @@ if (isProduction) {
     allowsDeletions: false,
     allowsForcePushes: false,
     enforceAdmins: false
+  });
+
+  new github.ActionsSecret('GithubOvhApplicationSecret', {
+    repository: githubRepoName,
+    secretName: 'OVH_APPLICATION_SECRET',
+    plaintextValue: secrets.ovh.ApplicationSecret.value
+  });
+
+  new github.ActionsSecret('GithubOvhConsumerKey', {
+    repository: githubRepoName,
+    secretName: 'OVH_CONSUMER_KEY',
+    plaintextValue: secrets.ovh.ConsumerKey.value
   });
 
   new github.ActionsSecret('GithubGithubAccessToken', {

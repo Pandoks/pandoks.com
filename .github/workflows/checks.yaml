@@ -77,6 +77,7 @@ jobs:
               - '.renovaterc.json5'
             infra:
               - 'infra/**'
+              - 'scripts/cluster/config.ts'
               - 'sst.config.ts'
               - 'tsconfig.json'
               - 'package.json'
@@ -263,15 +264,18 @@ jobs:
       - name: Typecheck infra
         run: pnpm check:infra
 
+      - name: Test infra
+        run: pnpm test:infra
+
   # ─── SST ──────────────────────────────────────────────────────────────
   diff-sst:
     runs-on: ubuntu-latest
-    environment: production
     env:
       GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_DEFAULT_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
-      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+      OVH_APPLICATION_SECRET: ${{ secrets.OVH_APPLICATION_SECRET }}
+      OVH_CONSUMER_KEY: ${{ secrets.OVH_CONSUMER_KEY }}
       TAILSCALE_OAUTH_CLIENT_ID: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
       TAILSCALE_OAUTH_CLIENT_SECRET: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
     steps:

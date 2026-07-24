@@ -12,7 +12,8 @@ metadata:
 spec:
   repo: https://argoproj.github.io/argo-helm
   chart: argo-cd
-  version: 9.3.4
+  # renovate: datasource=helm depName=argo-cd registryUrl=https://argoproj.github.io/argo-helm
+  version: 10.1.4
   targetNamespace: argocd
   valuesContent: |-
     configs:

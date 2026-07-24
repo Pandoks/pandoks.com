@@ -46,6 +46,7 @@ cmd_deploy_compute_vars() {
 cmd_deploy_get_template_vars() {
   cmd_deploy_get_template_vars_env="$1"       # local|dev|prod
   cmd_deploy_get_template_vars_stage="${2:-}" # --stage <stage> equivalent
+  cmd_deploy_get_template_vars_region="${3:-hil}"
 
   if [ -n "${cmd_deploy_get_template_vars_stage}" ]; then
     log_status "Fetching SST resources for stage '${cmd_deploy_get_template_vars_stage}'..."
@@ -61,9 +62,18 @@ cmd_deploy_get_template_vars() {
   log_status "SST resources fetched"
 
   cmd_deploy_get_template_vars_computed=$(cmd_deploy_compute_vars "${cmd_deploy_get_template_vars_env}")
+  if [ "${cmd_deploy_get_template_vars_env}" = "local" ]; then
+    cmd_deploy_get_template_vars_region_json='{}'
+  else
+    cmd_deploy_get_template_vars_region_json=$(node "${REPO_ROOT}/scripts/cluster/config.ts" \
+      region "${cmd_deploy_get_template_vars_env}" "${cmd_deploy_get_template_vars_region}") || return 1
+  fi
 
-  printf '%s' "${cmd_deploy_get_template_vars_sst}" \
-    | jq --argjson computed "${cmd_deploy_get_template_vars_computed}" '. + $computed'
+  jq -n \
+    --argjson resources "${cmd_deploy_get_template_vars_sst}" \
+    --argjson computed "${cmd_deploy_get_template_vars_computed}" \
+    --argjson region "${cmd_deploy_get_template_vars_region_json}" \
+    '$resources + $computed + $region'
 }
 
 cmd_deploy_render_templated_yaml() {
@@ -142,6 +152,7 @@ cmd_deploy() {
   cmd_deploy_dry_run=false
   cmd_deploy_is_bootstrap=false
   cmd_deploy_stage=""
+  cmd_deploy_region="hil"
   while [ $# -gt 0 ]; do
     case "$1" in
       --dry-run)
@@ -157,6 +168,13 @@ cmd_deploy() {
           die "Missing value for --stage"
         fi
         cmd_deploy_stage="$2"
+        shift 2
+        ;;
+      --region)
+        if [ $# -lt 2 ]; then
+          die "Missing value for --region"
+        fi
+        cmd_deploy_region="$2"
         shift 2
         ;;
       --kubeconfig)
@@ -206,9 +224,16 @@ cmd_deploy() {
     fi
   fi
 
-  cmd_deploy_template_vars=$(cmd_deploy_get_template_vars "${cmd_deploy_env}" "${cmd_deploy_stage}") || return 1
+  cmd_deploy_template_vars=$(cmd_deploy_get_template_vars \
+    "${cmd_deploy_env}" "${cmd_deploy_stage}" "${cmd_deploy_region}") || return 1
 
   cmd_deploy_rendered=$(cmd_deploy_render_templated_yaml "${cmd_deploy_kustomize_path}" "${cmd_deploy_template_vars}" "${cmd_deploy_is_bootstrap}")
+  # This intentionally detects an unexpanded template token.
+  # shellcheck disable=SC2016
+  if printf '%s' "${cmd_deploy_rendered}" | grep -q '\${Cluster'; then
+    log_error "Cluster template variables were not fully substituted"
+    return 1
+  fi
 
   if [ "${cmd_deploy_dry_run}" = "true" ]; then
     if [ "${QUIET}" = "false" ]; then

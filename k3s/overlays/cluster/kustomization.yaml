@@ -3,6 +3,20 @@ kind: Kustomization
 resources:
   - ../../base
   - tailscale.yaml
+  - origin-tls.yaml
   - https://github.com/rancher/system-upgrade-controller/releases/latest/download/system-upgrade-controller.yaml
   - cluster-upgrade-plan.yaml
   - prom-etcd-config.yaml
+patches:
+  - target:
+      group: networking.k8s.io
+      version: v1
+      kind: Ingress
+      namespace: example
+    patch: |-
+      - op: add
+        path: /spec/tls
+        value:
+          - hosts:
+              - ${ExampleDomain}
+            secretName: cloudflare-origin-tls
