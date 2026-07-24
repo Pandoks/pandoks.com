@@ -30,9 +30,6 @@ export const CLUSTER_CONFIGS = {
 /**
  * TYPES
  */
-// NOTE: the OVH Pulumi provider types every region/catalog field as a plain string, so these
-// closed unions are the typed vocabulary. When adopting a value that isn't listed yet, verify
-// it against the live authenticated catalog (cart / API), then extend the union.
 export type PublicCloudRegion = 'US-WEST-OR-1' | 'US-EAST-VA-1';
 export type DedicatedDatacenter =
   | 'vin' // Vint Hill, Virginia, USA
