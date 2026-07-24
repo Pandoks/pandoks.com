@@ -105,6 +105,21 @@ EOF
       VRACK_INTERFACE="vrack0.${VRACK_VLAN_ID}"
     fi
     chmod 0600 /etc/netplan/60-k3s-vrack.yaml
+    if [ -n "${INTERCONNECT_VLAN_ID}" ]; then
+      cat > /etc/netplan/61-k3s-interconnect.yaml << EOF
+network:
+  version: 2
+  vlans:
+    vrack0.${INTERCONNECT_VLAN_ID}:
+      id: ${INTERCONNECT_VLAN_ID}
+      link: vrack
+      addresses:
+        - ${INTERCONNECT_IP}/${INTERCONNECT_PREFIX_LENGTH}
+EOF
+      chmod 0600 /etc/netplan/61-k3s-interconnect.yaml
+      INTERCONNECT_INTERFACE="vrack0.${INTERCONNECT_VLAN_ID}"
+      export INTERCONNECT_INTERFACE
+    fi
     netplan apply
   else
     VRACK_INTERFACE="$(retry 60 5 interface_for_ip)"
@@ -112,14 +127,22 @@ EOF
   export VRACK_INTERFACE
   ip link show "${VRACK_INTERFACE}" > /dev/null
   ip -4 addr show dev "${VRACK_INTERFACE}" | grep -q "${NODE_IP}/"
+  if [ -n "${INTERCONNECT_INTERFACE:-}" ]; then
+    ip link show "${INTERCONNECT_INTERFACE}" > /dev/null
+    ip -4 addr show dev "${INTERCONNECT_INTERFACE}" | grep -q "${INTERCONNECT_IP}/"
+  fi
 }
 
 configure_firewall() {
   CLOUDFLARE_IPV4_SET=''
   CLOUDFLARE_INGRESS_RULE=''
+  INTERCONNECT_RULE=''
   if [ "${DIRECT_INGRESS}" = "true" ]; then
     CLOUDFLARE_IPV4_SET="set cloudflare_ipv4 { type ipv4_addr; flags interval; elements = { ${CLOUDFLARE_IPV4_CIDRS} }; }"
     CLOUDFLARE_INGRESS_RULE='ip saddr @cloudflare_ipv4 tcp dport { 80, 443 } accept comment "Cloudflare web ingress"'
+  fi
+  if [ -n "${INTERCONNECT_INTERFACE:-}" ]; then
+    INTERCONNECT_RULE="iifname \"${INTERCONNECT_INTERFACE}\" ip saddr ${INTERCONNECT_CIDR} accept comment \"Cluster interconnect\""
   fi
 
   cat > /etc/nftables.conf << EOF
@@ -140,6 +163,7 @@ table inet filter {
     iifname "cni0" accept comment "k3s CNI"
     iifname "flannel.1" accept comment "k3s Flannel"
     iifname "${VRACK_INTERFACE}" ip saddr ${NETWORK_CIDR} accept comment "OVH vRack"
+    ${INTERCONNECT_RULE}
     ${CLOUDFLARE_INGRESS_RULE}
     udp dport 41641 accept comment "Direct Tailscale"
     ip6 nexthdr ipv6-icmp accept comment "Required ICMPv6"
@@ -190,11 +214,19 @@ download_k3s_installer() {
 }
 
 run_k3s_installer() {
-  set -- "$@" \
-    --node-label="pandoks.com/workload=${WORKLOAD}" \
-    --node-label="pandoks.com/public-ingress=${PUBLIC_INGRESS}"
-  if [ "${WORKLOAD}" = "database" ]; then
-    set -- "$@" --node-taint="pandoks.com/workload=database:NoSchedule"
+  if [ -n "${NODE_LABELS}" ]; then
+    IFS=','
+    for run_k3s_installer_label in ${NODE_LABELS}; do
+      set -- "$@" --node-label="${run_k3s_installer_label}"
+    done
+    unset IFS
+  fi
+  if [ -n "${NODE_TAINTS}" ]; then
+    IFS=','
+    for run_k3s_installer_taint in ${NODE_TAINTS}; do
+      set -- "$@" --node-taint="${run_k3s_installer_taint}"
+    done
+    unset IFS
   fi
   K3S_TOKEN="${K3S_TOKEN}" sh "${K3S_INSTALL}" "$@"
 }

@@ -1,22 +1,16 @@
 import { cloudflareZoneId } from '../dns';
 import { deleteTailscaleDevices } from '../tailscale';
 import { STAGE_NAME, domain, isProduction } from '../utils';
-import {
-  NON_PRODUCTION_CLUSTER_CONFIG,
-  OVH_ACCOUNTS,
-  PRODUCTION_CLUSTER_CONFIG,
-  type ClusterRegionKey,
-  type OvhAccountKey
-} from './config';
+import { NON_PRODUCTION_CLUSTER_CONFIG, OVH_ACCOUNT, PRODUCTION_CLUSTER_CONFIG } from './config';
 import { createClusterLoadBalancers, createIpLoadBalancingIngress } from './load-balancers';
 import { createClusterNetwork, type ClusterFoundation, type ClusterNetwork } from './network';
 import { createDedicatedNodes } from './providers/dedicated';
 import { createPublicCloudNodes } from './providers/public-cloud';
-import { buildClusterTopology, getGlobalPublicIngressMode, regionalResourceName } from './topology';
+import { buildClusterTopology, clusterResourceName, getGlobalPublicIngressMode } from './topology';
 
 const clusterConfig = isProduction ? PRODUCTION_CLUSTER_CONFIG : NON_PRODUCTION_CLUSTER_CONFIG;
 const topology = buildClusterTopology(clusterConfig, STAGE_NAME, domain);
-for (const { warnings } of topology.regions) {
+for (const { warnings } of topology.clusters) {
   for (const warning of warnings) console.warn(warning);
 }
 
@@ -25,94 +19,48 @@ const cloudProject = new ovh.cloudproject.Project(
   {
     deletionProtection: isProduction,
     description: `${STAGE_NAME.capitalize()} Public Cloud project`,
-    ovhSubsidiary: OVH_ACCOUNTS.us.subsidiary,
+    ovhSubsidiary: OVH_ACCOUNT.subsidiary,
     plan: { duration: 'P1M', planCode: 'project', pricingMode: 'default' }
   },
   { protect: isProduction }
 );
 
-function requiredEnvironment(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`Enabled OVH account requires ${name}`);
-  return value;
-}
-
-const enabledAccounts = new Set(topology.regions.map(({ config }) => config.account));
-let euProvider: ovh.Provider | undefined;
-let euProject: ovh.cloudproject.Project | undefined;
-if (enabledAccounts.has('eu')) {
-  const account = OVH_ACCOUNTS.eu;
-  if (!account.subsidiary) {
-    throw new Error('Enabled OVH EU regions require a verified OVH subsidiary in config.ts');
-  }
-  euProvider = new ovh.Provider('OvhEuProvider', {
-    endpoint: account.endpoint,
-    applicationKey: requiredEnvironment(account.applicationKeyEnvironment),
-    applicationSecret: requiredEnvironment(account.applicationSecretEnvironment),
-    consumerKey: requiredEnvironment(account.consumerKeyEnvironment)
-  });
-  euProject = new ovh.cloudproject.Project(
-    'OvhEuPublicCloudProject',
-    {
-      deletionProtection: isProduction,
-      description: `${STAGE_NAME.capitalize()} EU Public Cloud project`,
-      ovhSubsidiary: account.subsidiary,
-      plan: { duration: 'P1M', planCode: 'project', pricingMode: 'default' }
-    },
-    { protect: isProduction, provider: euProvider }
-  );
-}
-
-function createFoundation(
-  accountId: OvhAccountKey,
-  project: ovh.cloudproject.Project,
-  provider?: ovh.Provider
-): ClusterFoundation {
-  const account = OVH_ACCOUNTS[accountId];
-  const regionId = accountId === 'us' ? 'us-west' : 'eu';
-  const options = { protect: isProduction, ...(provider && { provider }) };
+function createFoundation(project: ovh.cloudproject.Project): ClusterFoundation {
   const vrack = new ovh.vrack.Vrack(
-    regionalResourceName('OvhK3sVrack', regionId),
+    'OvhK3sVrack',
     {
-      ovhSubsidiary: account.subsidiary,
-      name: `k3s-${accountId === 'us' ? '' : `${accountId}-`}${STAGE_NAME}`,
-      description: `k3s ${STAGE_NAME} ${accountId} private networks`,
+      ovhSubsidiary: OVH_ACCOUNT.subsidiary,
+      name: `k3s-${STAGE_NAME}`,
+      description: `k3s ${STAGE_NAME} private networks`,
       plan: { duration: 'P1M', planCode: 'vrack', pricingMode: 'default' }
     },
-    options
+    { protect: isProduction }
   );
-  const attachment = new ovh.vrack.CloudProject(
-    regionalResourceName('OvhK3sVrackCloudProject', regionId),
-    { serviceName: vrack.serviceName, projectId: project.projectId },
-    provider ? { provider } : {}
-  );
+  const attachment = new ovh.vrack.CloudProject('OvhK3sVrackCloudProject', {
+    serviceName: vrack.serviceName,
+    projectId: project.projectId
+  });
   return {
     projectId: project.projectId,
-    subsidiary: account.subsidiary,
+    subsidiary: OVH_ACCOUNT.subsidiary,
     vrack,
-    attachment,
-    ...(provider && { provider })
+    attachment
   };
 }
 
-const foundations: Partial<Record<OvhAccountKey, ClusterFoundation>> = {};
-if (enabledAccounts.has('us')) foundations.us = createFoundation('us', cloudProject);
-if (enabledAccounts.has('eu') && euProject && euProvider) {
-  foundations.eu = createFoundation('eu', euProject, euProvider);
-}
+const foundation = topology.clusters.length > 0 ? createFoundation(cloudProject) : undefined;
 
 const ingressOrigins: Array<{ address: $util.Output<string> }> = [];
-const networks = new Map<ClusterRegionKey, ClusterNetwork>();
-for (const cluster of topology.regions) {
-  const foundation = foundations[cluster.config.account];
-  if (!foundation) throw new Error(`Missing OVH ${cluster.config.account} account foundation`);
+const networks = new Map<string, ClusterNetwork>();
+for (const cluster of topology.clusters) {
+  if (!foundation) throw new Error('Missing OVH account foundation');
   const network = createClusterNetwork(foundation, cluster);
-  networks.set(cluster.config.id, network);
+  networks.set(cluster.config.name, network);
   if (cluster.nodes.length === 0) continue;
 
   const loadBalancers = createClusterLoadBalancers({ network, cluster });
   const privateApiDnsRecord = new cloudflare.DnsRecord(
-    regionalResourceName('OvhK3sPrivateApiDnsRecord', cluster.config.id),
+    clusterResourceName('OvhK3sPrivateApiDnsRecord', cluster.config.name),
     {
       name: cluster.identity.apiHostname,
       zoneId: cloudflareZoneId,
@@ -120,7 +68,7 @@ for (const cluster of topology.regions) {
       content: loadBalancers.apiTarget,
       proxied: false,
       ttl: 60,
-      comment: `private ovh k3s api ${cluster.config.id}`
+      comment: `private ovh k3s api ${cluster.config.name}`
     }
   );
   const apiAddress = privateApiDnsRecord.id.apply(() => cluster.identity.apiHostname);
@@ -142,7 +90,9 @@ for (const cluster of topology.regions) {
 
   if (cluster.publicIngress.mode === 'direct') {
     const target = provisionedNodes.find(({ node }) => node === cluster.publicIngress.nodes[0]);
-    if (!target) throw new Error(`Direct ingress node was not provisioned in ${cluster.config.id}`);
+    if (!target) {
+      throw new Error(`Direct ingress node was not provisioned in ${cluster.config.name}`);
+    }
     ingressOrigins.push({ address: target.publicIp });
   } else if (cluster.publicIngress.mode !== 'ip-load-balancing') {
     ingressOrigins.push(
@@ -157,7 +107,7 @@ for (const plan of topology.ipLoadBalancing) {
   ingressOrigins.push({ address: createIpLoadBalancingIngress({ plan, networks }) });
 }
 
-if (topology.regions.every(({ nodes }) => nodes.length === 0)) {
+if (topology.clusters.every(({ nodes }) => nodes.length === 0)) {
   const devices = await tailscale.getDevices({ namePrefix: STAGE_NAME });
   const stale = devices.devices.filter(
     (device) =>
@@ -174,7 +124,6 @@ export const publicIngress =
 
 export const outputs = {
   CloudProjectId: cloudProject.projectId,
-  EnabledClusterRegions: topology.regions.map(({ config }) => config.id),
-  ...(euProject && { EuCloudProjectId: euProject.projectId }),
+  EnabledClusters: topology.clusters.map(({ config }) => config.name),
   ...(publicIngress && { IngressOrigins: publicIngress.origins.map(({ address }) => address) })
 };

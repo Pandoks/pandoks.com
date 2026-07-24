@@ -4,7 +4,7 @@ import { STAGE_NAME } from '../../utils';
 import { secrets } from '../../secrets';
 import { backupBucket, s3Endpoint } from '../../storage';
 import { cloudflareIpv4Cidrs } from '../../dns';
-import type { ClusterNodeSpec, RegionalClusterPlan } from '../topology';
+import type { ClusterNodeSpec, ClusterPlan } from '../topology';
 
 const bootstrapScript = readFileSync(
   `${process.cwd()}/infra/cluster/providers/bootstrap.sh`,
@@ -48,7 +48,7 @@ export const deleteServerFromTailnet = new $util.ResourceHook(
 );
 
 export function createNodeBootstrap(args: {
-  cluster: RegionalClusterPlan;
+  cluster: ClusterPlan;
   node: ClusterNodeSpec;
   apiAddress: $util.Input<string>;
   networkCidr: $util.Input<string>;
@@ -73,12 +73,26 @@ export function createNodeBootstrap(args: {
     },
     { dependsOn: [tailscaleAcl, ...args.dependsOn] }
   );
+  const k3sToken = secrets.ovh.K3sTokens[args.cluster.config.name];
+  if (!k3sToken) {
+    throw new Error(`Missing K3s token secret for cluster ${args.cluster.config.name}`);
+  }
+  const nodeLabels = Object.entries({
+    ...args.node.pool.labels,
+    'pandoks.com/public-ingress': String(args.node.pool.publicIngress)
+  })
+    .map(([key, value]) => `${key}=${value}`)
+    .join(',');
+  const nodeTaints = args.node.pool.taints
+    .map(({ key, value, effect }) => `${key}=${value}:${effect}`)
+    .join(',');
+  const interconnect = args.cluster.interconnect;
 
   const script = $resolve([
     args.apiAddress,
     args.networkCidr,
     args.vrackMac ?? '',
-    secrets.ovh.K3sTokens[args.cluster.config.id].value,
+    k3sToken.value,
     tailnetKey.key,
     secrets.k8s.tailscale.OauthClientId.value,
     secrets.k8s.tailscale.OauthClientSecret.value,
@@ -91,7 +105,7 @@ export function createNodeBootstrap(args: {
       apiAddress,
       networkCidr,
       vrackMac,
-      k3sToken,
+      k3sTokenValue,
       registrationKey,
       operatorClientId,
       operatorClientSecret,
@@ -102,25 +116,31 @@ export function createNodeBootstrap(args: {
     ]) =>
       renderBootstrapScript({
         STAGE_NAME,
-        CLUSTER_REGION: args.cluster.config.id,
+        CLUSTER_REGION: args.cluster.config.name,
         CLUSTER_OPERATOR_HOSTNAME: args.cluster.identity.operatorHostname,
-        CLUSTER_POD_CIDR: args.cluster.config.podCidr,
-        CLUSTER_SERVICE_CIDR: args.cluster.config.serviceCidr,
+        CLUSTER_POD_CIDR: args.cluster.network.podCidr,
+        CLUSTER_SERVICE_CIDR: args.cluster.network.serviceCidr,
         ETCD_BACKUP_FOLDER: args.cluster.identity.etcdBackupFolder,
-        VRACK_VLAN_ID: String(args.cluster.config.vlanId),
+        VRACK_VLAN_ID: String(args.cluster.network.vlanId),
         NODE_NAME: args.node.hostname,
         NODE_IP: args.node.privateIp,
         NETWORK_CIDR: networkCidr,
         NETWORK_MODE: args.networkMode,
         VRACK_MAC: vrackMac,
         ROLE: args.node.pool.role,
-        WORKLOAD: args.node.pool.workload,
-        PUBLIC_INGRESS: String(args.node.pool.publicIngress),
+        NODE_LABELS: nodeLabels,
+        NODE_TAINTS: nodeTaints,
+        INTERCONNECT_VLAN_ID:
+          args.node.interconnectIp && interconnect ? String(interconnect.vlanId) : '',
+        INTERCONNECT_IP: args.node.interconnectIp ?? '',
+        INTERCONNECT_PREFIX_LENGTH:
+          args.node.interconnectIp && interconnect ? String(interconnect.prefixLength) : '',
+        INTERCONNECT_CIDR: args.node.interconnectIp && interconnect ? interconnect.cidr : '',
         BOOTSTRAP_CANDIDATE: String(args.node.bootstrapCandidate),
         DIRECT_INGRESS: String(args.node.directIngress),
         CLOUDFLARE_IPV4_CIDRS: cloudflareIpv4Cidrs.join(', '),
         SERVER_API: `https://${apiAddress}:6443`,
-        K3S_TOKEN: k3sToken,
+        K3S_TOKEN: k3sTokenValue,
         REGISTRATION_TAILNET_AUTH_KEY: registrationKey,
         KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID: operatorClientId,
         KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET: operatorClientSecret,

@@ -1,14 +1,28 @@
-export type ClusterRegionKey = 'us-west' | 'us-east' | 'eu' | 'asia';
-export type OvhAccountKey = 'us' | 'eu';
-export type NodePoolName =
-  | 'cloud-control-plane'
-  | 'cloud-workers'
-  | 'cloud-database'
-  | 'dedicated-control-plane'
-  | 'dedicated-workers'
-  | 'dedicated-database';
+// NOTE: the OVH Pulumi provider types every region/datacenter as a plain string, so these
+// unions are the typed vocabulary. The US subsidiary only exposes US Public Cloud regions;
+// dedicated servers order globally. Validate catalog values against the live authenticated
+// cart before setting a non-zero count.
+export type PublicCloudRegion = 'US-WEST-OR-1' | 'US-EAST-VA-1';
+export type DedicatedDatacenter =
+  | 'vin'
+  | 'hil'
+  | 'bhs'
+  | 'tor'
+  | 'gra'
+  | 'rbx'
+  | 'sbg'
+  | 'par'
+  | 'fra'
+  | 'lon'
+  | 'waw'
+  | 'mil'
+  | 'sgp'
+  | 'syd'
+  | 'ynm';
 export type NodeRole = 'control-plane' | 'worker';
-export type Workload = 'general' | 'database';
+export type TaintEffect = 'NoSchedule' | 'PreferNoSchedule' | 'NoExecute';
+
+export type NodeTaint = { key: string; value: string; effect: TaintEffect };
 
 export type DedicatedPlanOption = {
   duration: string;
@@ -17,37 +31,40 @@ export type DedicatedPlanOption = {
   quantity: number;
 };
 
-export type IpLoadBalancingServiceConfig = {
-  account: OvhAccountKey;
-  serviceName: string;
-  zones: Partial<Record<ClusterRegionKey, string>>;
+export type PublicCloudServer = {
+  type: 'public-cloud';
+  region: PublicCloudRegion;
+  flavor: string;
+  image: string;
 };
 
-export type PublicIngressConfig =
-  | { type: 'public-cloud'; flavor: string }
-  | { type: 'ip-load-balancing'; services: readonly IpLoadBalancingServiceConfig[] };
+export type DedicatedServer = {
+  type: 'dedicated';
+  datacenter: DedicatedDatacenter;
+  planCode: string;
+  operatingSystem: string;
+  orderRegion: string;
+  planOptions: DedicatedPlanOption[];
+};
 
-type PoolConfig = {
-  name: NodePoolName;
+// WARNING: pool order is address-significant (each pool owns the third octet at its array
+// position + 1). Append new pools; never remove or reorder existing ones with live nodes.
+export type NodePoolConfig = {
+  name: string;
   role: NodeRole;
-  workload: Workload;
   count: number;
-  publicIngress: boolean;
-  machineType: string;
+  labels?: Record<string, string>;
+  taints?: NodeTaint[];
+  publicIngress?: boolean;
+  // NOTE: interconnect requires a dedicated server pool. Public Cloud instances support a
+  // single private NIC and Neutron drops foreign VLAN tags, so they cannot join the
+  // cross-cluster VLAN.
+  interconnect?: boolean;
+  server: PublicCloudServer | DedicatedServer;
 };
 
-export type CloudPoolConfig = PoolConfig;
-export type DedicatedPoolConfig = PoolConfig & { planOptions: DedicatedPlanOption[] };
-
-export type RegionalClusterConfig = {
-  id: ClusterRegionKey;
-  account: OvhAccountKey;
-  enabled: boolean;
-  publicCloudRegion: string;
-  cloudImage: string;
-  dedicatedOperatingSystem: string;
-  dedicatedDatacenter: string;
-  dedicatedCatalogRegion: string;
+export type DerivedNetwork = {
+  publicCloudRegion: PublicCloudRegion;
   vlanId: number;
   networkCidr: string;
   gatewayIp: string;
@@ -55,13 +72,34 @@ export type RegionalClusterConfig = {
   podCidr: string;
   serviceCidr: string;
   metalLbRange: string;
-  cloud: readonly CloudPoolConfig[];
-  dedicated: readonly DedicatedPoolConfig[];
-  loadBalancerCount: number;
+};
+
+export type ClusterSpec = {
+  name: string;
+  networkIndex: number;
+  pools: NodePoolConfig[];
+  publicCloudRegion?: PublicCloudRegion;
+  network?: Partial<DerivedNetwork>;
+  loadBalancerCount?: number;
+};
+
+export type IpLoadBalancingServiceConfig = {
+  serviceName: string;
+  zones: Record<string, string>;
+};
+
+export type PublicIngressConfig =
+  | { type: 'public-cloud'; flavor: string }
+  | { type: 'ip-load-balancing'; services: readonly IpLoadBalancingServiceConfig[] };
+
+export type InterconnectConfig = {
+  vlanId: number;
+  cidr: string;
 };
 
 export type ClusterConfig = {
-  regions: readonly RegionalClusterConfig[];
+  clusters: ClusterSpec[];
+  interconnect: InterconnectConfig;
   publicIngress: PublicIngressConfig;
 };
 
@@ -72,157 +110,19 @@ export const GATEWAY_MODEL: GatewayModel = 'S';
 export const LOAD_BALANCER_FLAVOR = 'small';
 export const LOAD_BALANCER_ALGORITHM: LoadBalancerAlgorithm = 'leastConnections';
 
-export const OVH_ACCOUNTS = {
-  us: {
-    endpoint: 'ovh-us',
-    apiRoot: 'https://api.us.ovhcloud.com/1.0',
-    subsidiary: 'US',
-    applicationKey: 'edf9a4672d28e3c7',
-    applicationSecretEnvironment: 'OVH_APPLICATION_SECRET',
-    consumerKeyEnvironment: 'OVH_CONSUMER_KEY'
-  },
-  eu: {
-    endpoint: 'ovh-eu',
-    apiRoot: 'https://eu.api.ovh.com/1.0',
-    subsidiary: '',
-    applicationKeyEnvironment: 'OVH_EU_APPLICATION_KEY',
-    applicationSecretEnvironment: 'OVH_EU_APPLICATION_SECRET',
-    consumerKeyEnvironment: 'OVH_EU_CONSUMER_KEY'
-  }
+export const OVH_ACCOUNT = {
+  endpoint: 'ovh-us',
+  apiRoot: 'https://api.us.ovhcloud.com/1.0',
+  subsidiary: 'US',
+  applicationKey: 'edf9a4672d28e3c7',
+  applicationSecretEnvironment: 'OVH_APPLICATION_SECRET',
+  consumerKeyEnvironment: 'OVH_CONSUMER_KEY'
 } as const;
-
-function pools() {
-  return {
-    cloud: [
-      {
-        name: 'cloud-control-plane',
-        role: 'control-plane',
-        workload: 'general',
-        count: 0,
-        publicIngress: true,
-        machineType: 'b3-8'
-      },
-      {
-        name: 'cloud-workers',
-        role: 'worker',
-        workload: 'general',
-        count: 0,
-        publicIngress: true,
-        machineType: 'b3-8'
-      },
-      {
-        name: 'cloud-database',
-        role: 'worker',
-        workload: 'database',
-        count: 0,
-        publicIngress: false,
-        machineType: 'b3-8'
-      }
-    ] satisfies CloudPoolConfig[],
-    dedicated: [
-      {
-        name: 'dedicated-control-plane',
-        role: 'control-plane',
-        workload: 'general',
-        count: 0,
-        publicIngress: true,
-        machineType: '',
-        planOptions: []
-      },
-      {
-        name: 'dedicated-workers',
-        role: 'worker',
-        workload: 'general',
-        count: 0,
-        publicIngress: true,
-        machineType: '',
-        planOptions: []
-      },
-      {
-        name: 'dedicated-database',
-        role: 'worker',
-        workload: 'database',
-        count: 0,
-        publicIngress: false,
-        machineType: '',
-        planOptions: []
-      }
-    ] satisfies DedicatedPoolConfig[]
-  };
-}
-
-function regions(): RegionalClusterConfig[] {
-  const shared = {
-    enabled: false,
-    cloudImage: 'Ubuntu 26.04',
-    dedicatedOperatingSystem: 'ubuntu2604-server_64',
-    dedicatedDatacenter: '',
-    dedicatedCatalogRegion: '',
-    loadBalancerCount: 0
-  } as const;
-  return [
-    {
-      ...shared,
-      ...pools(),
-      id: 'us-west',
-      account: 'us',
-      publicCloudRegion: 'US-WEST-OR-1',
-      vlanId: 0,
-      networkCidr: '10.0.0.0/16',
-      gatewayIp: '10.0.0.1',
-      allocationPool: { start: '10.0.0.2', end: '10.0.0.254' },
-      podCidr: '10.42.0.0/16',
-      serviceCidr: '10.43.0.0/16',
-      metalLbRange: '10.0.5.1-10.0.5.254'
-    },
-    {
-      ...shared,
-      ...pools(),
-      id: 'us-east',
-      account: 'us',
-      publicCloudRegion: 'US-EAST-VA-1',
-      vlanId: 101,
-      networkCidr: '10.1.0.0/16',
-      gatewayIp: '10.1.0.1',
-      allocationPool: { start: '10.1.0.2', end: '10.1.0.254' },
-      podCidr: '10.44.0.0/16',
-      serviceCidr: '10.45.0.0/16',
-      metalLbRange: '10.1.5.1-10.1.5.254'
-    },
-    {
-      ...shared,
-      ...pools(),
-      id: 'eu',
-      account: 'eu',
-      publicCloudRegion: '',
-      vlanId: 102,
-      networkCidr: '10.2.0.0/16',
-      gatewayIp: '10.2.0.1',
-      allocationPool: { start: '10.2.0.2', end: '10.2.0.254' },
-      podCidr: '10.46.0.0/16',
-      serviceCidr: '10.47.0.0/16',
-      metalLbRange: '10.2.5.1-10.2.5.254'
-    },
-    {
-      ...shared,
-      ...pools(),
-      id: 'asia',
-      account: 'eu',
-      publicCloudRegion: '',
-      vlanId: 103,
-      networkCidr: '10.3.0.0/16',
-      gatewayIp: '10.3.0.1',
-      allocationPool: { start: '10.3.0.2', end: '10.3.0.254' },
-      podCidr: '10.48.0.0/16',
-      serviceCidr: '10.49.0.0/16',
-      metalLbRange: '10.3.5.1-10.3.5.254'
-    }
-  ];
-}
 
 function clusterConfig(): ClusterConfig {
   return {
-    regions: regions(),
+    clusters: [],
+    interconnect: { vlanId: 4000, cidr: '172.16.0.0/12' },
     publicIngress: { type: 'public-cloud', flavor: LOAD_BALANCER_FLAVOR }
   };
 }

@@ -1,4 +1,12 @@
 import { execSync } from 'node:child_process';
+import { NON_PRODUCTION_CLUSTER_CONFIG, PRODUCTION_CLUSTER_CONFIG } from './cluster/config';
+import { clusterTokenSecretName } from './cluster/topology';
+
+const clusterNames = new Set(
+  [...PRODUCTION_CLUSTER_CONFIG.clusters, ...NON_PRODUCTION_CLUSTER_CONFIG.clusters].map(
+    ({ name }) => name
+  )
+);
 
 export const secrets = {
   Stage: new sst.Secret('StageName', 'dev'), // Automatically set during deploy
@@ -41,12 +49,12 @@ export const secrets = {
   ovh: {
     ApplicationSecret: new sst.Secret('OvhApplicationSecret', process.env.OVH_APPLICATION_SECRET),
     ConsumerKey: new sst.Secret('OvhConsumerKey', process.env.OVH_CONSUMER_KEY),
-    K3sTokens: {
-      'us-west': new sst.Secret('OvhK3sToken', 'Placeholder'),
-      'us-east': new sst.Secret('OvhUsEastK3sToken', 'Placeholder'),
-      eu: new sst.Secret('OvhEuK3sToken', 'Placeholder'),
-      asia: new sst.Secret('OvhAsiaK3sToken', 'Placeholder')
-    }
+    K3sTokens: Object.fromEntries(
+      [...clusterNames].map((name) => [
+        name,
+        new sst.Secret(clusterTokenSecretName(name), 'Placeholder')
+      ])
+    ) as Record<string, sst.Secret>
   },
   tailscale: {
     OauthClientId: new sst.Secret('TailscaleOauthClientId'),

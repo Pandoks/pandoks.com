@@ -58,7 +58,7 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
 
 ## Secret-drift auto-set helper
 
-- **`setSecret()` at `infra/secrets.ts:90`.** Pattern:
+- **`setSecret()` at `infra/secrets.ts:98`.** Pattern:
 
   ```ts
   secrets.X.value.apply((current) => {
@@ -79,9 +79,9 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
 
 - **Nested namespace in `infra/secrets.ts` but flat PascalCase resource
   names**: `secrets.k8s.main.mainPostgres.SuperuserPassword` → resource
-  ID `MainMainPostgresSuperuserPassword` (`infra/secrets.ts:69-71`).
+  ID `MainMainPostgresSuperuserPassword` (`infra/secrets.ts:77-79`).
   The naming convention is captured in a load-bearing inline comment at
-  `infra/secrets.ts:69`.
+  `infra/secrets.ts:77`.
 - **Pattern (k8s subtree only)**: `<namespace><db-name><resource><var>`.
   Outside `secrets.k8s.*`, top-level secrets in flat namespaces
   (`notion`, `personal`, `twilio`, `oxylabs`, `ovh`, `tailscale`,
@@ -110,23 +110,24 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
 
 ## OVH hybrid cluster
 
-- **Topology and provider-specific pool arrays live in
-  `infra/cluster/config.ts`.** Each pool declares its stable name, Kubernetes
-  role/workload, count, public-ingress eligibility, and machine type. Host
-  hardening and k3s setup live in
+- **Topology lives in `infra/cluster/config.ts` as free-form primitives.**
+  Each cluster entry declares `name`, `networkIndex`, and one `pools` array;
+  each pool declares its name, Kubernetes role, count, raw `labels`/`taints`,
+  public-ingress eligibility, optional dedicated-only `interconnect`, and its
+  OVH product via the `server` union. Host hardening and k3s setup live in
   `infra/cluster/providers/bootstrap.sh`.
 - **The Public Cloud project is permanent shared infrastructure.**
   `ovh.cloudproject.Project` creates it, and its `projectId` is passed directly
   to the vRack project attachment, private network, subnet, gateway, and load
   balancers even when all compute is dedicated. Production deletion protection
   must remain enabled.
-- **The vRack `10.0.0.0/16` has fixed third-octet owners.** Neutron
-  infrastructure uses `.0`, Public Cloud control planes `.1`, Public Cloud
-  workers `.2`, dedicated control planes `.3`, dedicated workers `.4`, MetalLB
-  `.5`, Public Cloud database workers `.6`, and dedicated database workers `.7`;
-  `.8` is reserved for IP Load Balancing NAT and `.9-.255` is reserved. Change `infra/cluster/network.ts`'s subnet CIDR and
-  allocation pool, the node-pool subnets, MetalLB, monitoring endpoints, and
-  their contract tests together.
+- **Each cluster `10.<i>.0.0/16` has derived third-octet owners.** Neutron
+  infrastructure uses `.0`, node pools own `.1`-`.199` in declaration order
+  (pool at array position `p` owns `.p+1`; node `n` is host `.n+1`), MetalLB
+  owns `.200`, `.254` is IP Load Balancing NAT, and the rest is reserved. The
+  derivation lives in `infra/cluster/topology.ts`; pool order is
+  address-significant, so append pools rather than reorder. The interconnect
+  VLAN mirrors the same layout at `172.<16+i>.<pool>.<n>`.
 - **Origin TLS is owned by cert-manager.** The cluster overlay creates the
   Let's Encrypt issuer and `Certificate`; its generated Kubernetes Secret is
   referenced by ingress. Do not restore SST certificate/key secrets.
@@ -149,7 +150,7 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
 ## Subprocess IaC
 
 - **`execSync` / `execFileSync` for sub-process effects**:
-  - `setSecret()` shells out to `sst secret set` (`infra/secrets.ts:92`).
+  - `setSecret()` shells out to `sst secret set` (`infra/secrets.ts:100`).
   - `infra/cloudflare.ts:36-81` shells out to `openssl` to generate the
     CSR, then `execFileSync('/bin/sh', ['-lc', 'sst secret set ... < <keyfile>'])`
     pipes the private key into `sst secret set` via stdin redirection

@@ -1,9 +1,9 @@
 import { createNodeBootstrap, deleteServerFromTailnet } from './bootstrap';
 import type { ClusterNetwork } from '../network';
-import type { ClusterNodeSpec, PublicCloudNodePool, RegionalClusterPlan } from '../topology';
+import type { ClusterNodeSpec, ClusterPlan, PublicCloudNodePool } from '../topology';
 
 export function createPublicCloudNodes(args: {
-  cluster: RegionalClusterPlan;
+  cluster: ClusterPlan;
   pool: PublicCloudNodePool;
   nodes: readonly ClusterNodeSpec[];
   network: ClusterNetwork;
@@ -11,31 +11,23 @@ export function createPublicCloudNodes(args: {
   protect: boolean;
 }) {
   const provisioned: Array<{ node: ClusterNodeSpec; publicIp: $util.Output<string> }> = [];
-  const provider = args.network.foundation.provider;
-  const providerOptions = provider ? { provider } : {};
   const flavorId = ovh.cloudproject
-    .getFlavorsOutput(
-      {
-        serviceName: args.network.foundation.projectId,
-        region: args.pool.region,
-        nameFilter: args.pool.machineType
-      },
-      providerOptions
-    )
+    .getFlavorsOutput({
+      serviceName: args.network.foundation.projectId,
+      region: args.pool.region,
+      nameFilter: args.pool.flavor
+    })
     .apply((result) => {
       const flavor = result.flavors.at(0);
-      if (!flavor) throw new Error(`Machine type ${args.pool.machineType} isn't available`);
+      if (!flavor) throw new Error(`Flavor ${args.pool.flavor} isn't available`);
       return flavor.id;
     });
   const imageId = ovh.cloudproject
-    .getImagesOutput(
-      {
-        serviceName: args.network.foundation.projectId,
-        region: args.pool.region,
-        osType: 'linux'
-      },
-      providerOptions
-    )
+    .getImagesOutput({
+      serviceName: args.network.foundation.projectId,
+      region: args.pool.region,
+      osType: 'linux'
+    })
     .apply((result) => {
       const image = result.images.find(({ name }) => name === args.pool.image);
       if (!image) throw new Error(`Image ${args.pool.image} isn't available`);
@@ -75,7 +67,6 @@ export function createPublicCloudNodes(args: {
       {
         ignoreChanges: args.protect ? ['userData'] : [],
         protect: args.protect,
-        ...providerOptions,
         hooks: { afterDelete: [deleteServerFromTailnet] }
       }
     );

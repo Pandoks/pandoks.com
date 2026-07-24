@@ -12,7 +12,7 @@ area is being edited.
   WHY: hidden constraints, invariants, intentional crashes, workarounds
   for specific bugs. Bare comments are fine — most live comments in the
   repo are unprefixed (e.g., `infra/cluster/cluster.ts`,
-  `infra/secrets.ts:69`, `apps/functions/src/api/notion/gh-blog-sync.ts:4`).
+  `infra/secrets.ts:77`, `apps/functions/src/api/notion/gh-blog-sync.ts:4`).
   Use `NOTE:` / `WARNING:` / `TODO:` prefixes only when the comment is a
   load-bearing safety rail or an operator instruction that a future
   reader needs to spot at a glance — the bar is "would skipping this

@@ -50,27 +50,36 @@ manually import` comment at `sst.config.ts:34` is load-bearing.
   helper for any new direct `api.tailscale.com` call.
 - **The same pair must be seeded as SST secrets**
   (`TailscaleOauthClientId`/`TailscaleOauthClientSecret`,
-  `infra/secrets.ts:49-52`) for the hooks, AND lives in `.env.<stage>`
+  `infra/secrets.ts:57-61`) for the hooks, AND lives in `.env.<stage>`
   for the provider — two plumbing paths, one credential.
   `infra/github.ts:133-142` mirrors the SST secrets into the GH action
   secrets CI reads.
 
 ## OVH cluster
 
-- **One independent cluster per region.** `infra/cluster/config.ts` has stable
-  slots for US West, US East, Europe, and Asia. Regional private networks keep
-  managed Gateways/LBs supported; Cloudflare steers application traffic across
-  the enabled regional origins. US West retains its existing logical names,
-  VLAN 0, and 10.0.0.0/16 addresses.
+- **Clusters are free-form declarations.** `infra/cluster/config.ts` holds a
+  `clusters` array; both stage configs currently declare zero clusters. Each
+  entry derives its whole address plan (VLAN, `10.<i>.0.0/16`, pod/service
+  CIDRs, MetalLB range) from its `networkIndex`. Per-cluster single-region
+  private networks keep managed Gateways/LBs supported; Cloudflare steers
+  application traffic across the declared origins. Pool order is
+  address-significant — append pools, never reorder live ones.
 - **The Public Cloud project remains required with dedicated compute.**
   `infra/cluster/cluster.ts` creates it with `ovh.cloudproject.Project` and
   passes its generated `projectId` to the vRack attachment, private network,
   subnet, gateway, load balancers, and floating IPs. Never unprotect or remove
   the project as part of a compute-only migration.
-- **Regional pool arrays are configured in `infra/cluster/config.ts`.**
+- **Pools are configured per cluster in `infra/cluster/config.ts`.** A pool's
+  `server` union picks the OVH product; its `labels`/`taints` drive Kubernetes
+  placement generically (the DB charts key off `pandoks.com/workload=database`).
   Dedicated plan, datacenter, order-region, and option values must be validated
   against the live authenticated catalog, then reviewed in an authenticated
   preview before a non-zero dedicated count is committed or applied.
+- **Interconnect is dedicated-only.** `interconnect: true` on a dedicated pool
+  joins the node to the shared cross-cluster VLAN via an OS VLAN subinterface;
+  the topology layer rejects it on Public Cloud pools because
+  `ovh.cloudproject.Instance` supports exactly one private NIC and Neutron
+  drops foreign VLAN tags.
 - **Downsizing is highest-index and separately reviewed.** Derive the `count - 1`
   hostname/logical name from the selected pool configuration. For a control plane:
   snapshot, verify membership/endpoint health from a survivor, drain, stop k3s
@@ -88,9 +97,11 @@ manually import` comment at `sst.config.ts:34` is load-bearing.
   `infra/cluster/cluster.ts` deletes stale devices tagged `tag:ovh`,
   `tag:<stage>`, and a cluster role. Per-node deletion is handled by
   `DeleteServerFromTailnet` in `infra/cluster/providers/bootstrap.ts`.
-- **EU/Asia are intentionally dormant.** They require an explicit `ovh-eu`
-  provider/account, credentials, subsidiary, and live catalog/region values.
-  Never copy US catalog identifiers into those templates.
+- **Single US account only.** The `ovh-eu` account machinery was removed:
+  vRack can never bridge the US/EU subsidiaries, and the US account can order
+  dedicated servers in EU/Asia datacenters, so non-US clusters are
+  dedicated-only under `ovh-us`. Public Cloud is available only in
+  `US-WEST-OR-1`/`US-EAST-VA-1`.
 
 ## TLS / Cloudflare origin cert
 

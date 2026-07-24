@@ -8,24 +8,12 @@ function run(...args: string[]): string {
   }).trim();
 }
 
-void test('returns one regional render source without depending on SST globals', () => {
-  assert.deepEqual(JSON.parse(run('region', 'production', 'us-east')), {
-    ClusterMetalLbRange: '10.1.5.1-10.1.5.254',
-    ClusterRegion: 'us-east',
-    ClusterOperatorHostname: 'prod-us-east-cluster'
-  });
-  assert.deepEqual(JSON.parse(run('region', 'non-production', 'us-west')), {
-    ClusterMetalLbRange: '10.0.5.1-10.0.5.254',
-    ClusterRegion: 'us-west',
-    ClusterOperatorHostname: 'dev-cluster'
-  });
-});
-
-void test('reports only enabled clusters for deployment workflow discovery', () => {
+void test('reports every declared cluster for deployment workflow discovery', () => {
   assert.deepEqual(JSON.parse(run('enabled', 'production')), []);
+  assert.deepEqual(JSON.parse(run('enabled', 'non-production')), []);
 });
 
-void test('rejects unknown stages, regions, and commands', () => {
+void test('rejects unknown stages, clusters, and commands', () => {
   for (const args of [
     ['region', 'production', 'moon'],
     ['region', 'staging', 'us-west'],
@@ -35,6 +23,6 @@ void test('rejects unknown stages, regions, and commands', () => {
       encoding: 'utf8'
     });
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /Unknown (?:cluster region|cluster stage|command)/);
+    assert.match(result.stderr, /Unknown (?:cluster|cluster stage|command)/);
   }
 });

@@ -59,30 +59,40 @@ exchanges it for 1-hour API tokens per run (`sst.config.ts:25-29`), and
 
 ## OVH cluster operations
 
-Topology and catalog selection are code-owned in `infra/cluster/config.ts`.
+Topology is code-owned in `infra/cluster/config.ts` as generic primitives:
 `PRODUCTION_CLUSTER_CONFIG` and `NON_PRODUCTION_CLUSTER_CONFIG` both currently
-define four disabled regional templates and set every pool count to zero.
-Dedicated catalog fields are filled only for an enabled dedicated pool.
+declare zero clusters. A cluster is a free-form `ClusterSpec` array entry
+(`name` + `networkIndex` + `pools`); adding one appends an entry — there are no
+fixed regional slots and no `enabled` flag. Each pool picks its OVH product via
+the `server` union (`public-cloud` flavor/region/image vs `dedicated`
+planCode/datacenter/os/planOptions) and carries raw Kubernetes `labels` and
+`taints` for placement (e.g. `pandoks.com/workload=database` + NoSchedule).
+All addressing (VLAN, `10.<i>.0.0/16`, gateway, pod/service CIDRs, MetalLB
+`10.<i>.200.x`) derives from `networkIndex`; per-cluster `network` overrides
+exist but are rarely needed. Dedicated pools may opt into the cross-cluster
+interconnect VLAN (`interconnect: true`); Public Cloud instances cannot (single
+private NIC).
 
-CI retains only the OVH credentials and runs the TypeScript topology contracts
-through `pnpm test:infra`; it does not source topology from CI variables.
-Pulumi creates the Public Cloud project and passes its generated ID directly.
+CI retains only the OVH credentials; Pulumi creates the Public Cloud project
+and passes its generated ID directly; CI runs the TypeScript topology contracts
+through `pnpm test:infra`. It does not source topology from CI variables.
 Cluster resources use `protect: isProduction`: production nodes are protected
 and non-production nodes are not. There is no environment-variable bypass.
 
-Before committing or applying a non-zero dedicated count, validate the current
-OVH cart, fill the validated catalog values and intended count in the selected
-stage object, and run an authenticated preview:
+Before committing or applying a non-zero dedicated count, validate the plan,
+datacenter, order region, and options against the live authenticated OVH cart,
+fill the validated values in the pool's `server` block, and run an
+authenticated preview:
 
 ```sh
 ./node_modules/.bin/sst diff --stage production
 ```
 
-The protected Pulumi-managed Public Cloud project remains required for the
-US account foundation after Public Cloud compute reaches zero. Enabled regions
-own independent networks, K3s CIDRs, tokens, API endpoints, and MetalLB ranges.
-US West/East use `ovh-us`; EU/Asia require a configured `ovh-eu` account before
-they can be enabled.
+The protected Pulumi-managed Public Cloud project remains required as the
+single US account foundation even when compute is dedicated-only. Everything
+runs under the one `ovh-us` account and one vRack; declared clusters own
+independent networks, K3s CIDRs, tokens, API endpoints, and MetalLB ranges,
+all derived from `networkIndex`.
 Scale-down always targets `count - 1`; production deletion requires a separate
 reviewed IaC change scoped to that exact resource before the count is reduced.
 Cluster hosts have no provider SSH key; administrator access is Tailscale SSH
@@ -205,17 +215,20 @@ by the Notion webhook handler through GitHub's API).
 ## Deploy — Kubernetes (manual)
 
 ```sh
-sudo tailscale configure kubeconfig prod-cluster
+sudo tailscale configure kubeconfig prod-<cluster>-cluster   # operator hostname, e.g. prod-us-west-cluster
 
 sudo kubectl annotate application prod-cluster \
   argocd.argoproj.io/refresh=hard --overwrite --namespace argocd
 ```
 
 Then wait for ArgoCD sync (CI's loop is in
-`.github/workflows/deploy-infra.yaml:149-166`).
+`.github/workflows/deploy-infra.yaml:149-166`). The ArgoCD Application name
+stays `prod-cluster`; the Tailscale operator hostname is uniformly
+`<stage>-<cluster-name>-cluster`.
 
-For another region, use its configured operator hostname (for example,
-`prod-us-east-cluster`) and pass `--region us-east` to manual deploy commands.
+For another cluster, use its operator hostname (for example,
+`prod-us-east-cluster`) and pass `--region us-east` (the cluster name) to
+manual deploy commands.
 
 ## CI workflows
 

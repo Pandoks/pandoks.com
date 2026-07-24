@@ -56,18 +56,24 @@ void test('injects every per-node value as a safely quoted exported variable', (
   );
 });
 
-void test('registers workload and public-ingress placement metadata with k3s', () => {
+void test('registers raw pool labels and taints with k3s', () => {
   const bootstrap = readFileSync(bootstrapPath, 'utf8');
   const bootstrapScript = readFileSync(bootstrapScriptPath, 'utf8');
 
-  assert.match(bootstrap, /WORKLOAD:\s*args\.node\.pool\.workload/);
-  assert.match(bootstrap, /PUBLIC_INGRESS:\s*String\(args\.node\.pool\.publicIngress\)/);
-  assert.match(bootstrapScript, /--node-label="pandoks\.com\/workload=\$\{WORKLOAD\}"/);
-  assert.match(bootstrapScript, /--node-label="pandoks\.com\/public-ingress=\$\{PUBLIC_INGRESS\}"/);
-  assert.match(bootstrapScript, /--node-taint="pandoks\.com\/workload=database:NoSchedule"/);
+  assert.doesNotMatch(bootstrap, /WORKLOAD|PUBLIC_INGRESS:/);
+  assert.match(bootstrap, /NODE_LABELS:\s*nodeLabels/);
+  assert.match(bootstrap, /NODE_TAINTS:\s*nodeTaints/);
+  assert.match(
+    bootstrap,
+    /'pandoks\.com\/public-ingress':\s*String\(args\.node\.pool\.publicIngress\)/
+  );
+  assert.match(bootstrap, /\$\{key\}=\$\{value\}:\$\{effect\}/);
+  assert.match(bootstrapScript, /--node-label="\$\{run_k3s_installer_label\}"/);
+  assert.match(bootstrapScript, /--node-taint="\$\{run_k3s_installer_taint\}"/);
+  assert.doesNotMatch(bootstrapScript, /pandoks\.com\/workload=\$\{WORKLOAD\}/);
 });
 
-void test('injects independent regional k3s identity and critical server networks', () => {
+void test('injects independent cluster k3s identity and critical server networks', () => {
   const bootstrap = readFileSync(bootstrapPath, 'utf8');
   const bootstrapScript = readFileSync(bootstrapScriptPath, 'utf8');
 
@@ -81,6 +87,8 @@ void test('injects independent regional k3s identity and critical server network
   ]) {
     assert.match(bootstrap, new RegExp(`${value}:`));
   }
+  assert.match(bootstrap, /CLUSTER_REGION:\s*args\.cluster\.config\.name/);
+  assert.match(bootstrap, /secrets\.ovh\.K3sTokens\[args\.cluster\.config\.name\]/);
   assert.equal(bootstrapScript.match(/--cluster-cidr="\$\{CLUSTER_POD_CIDR\}"/g)?.length, 2);
   assert.equal(bootstrapScript.match(/--service-cidr="\$\{CLUSTER_SERVICE_CIDR\}"/g)?.length, 2);
   assert.equal(bootstrapScript.match(/--etcd-s3-folder="\$\{ETCD_BACKUP_FOLDER\}"/g)?.length, 2);
@@ -90,7 +98,7 @@ void test('injects independent regional k3s identity and critical server network
   );
 });
 
-void test('keeps VLAN 0 untagged and configures future dedicated VLAN interfaces', () => {
+void test('keeps VLAN 0 untagged and configures dedicated VLAN interfaces', () => {
   const bootstrapScript = readFileSync(bootstrapScriptPath, 'utf8');
   assert.match(bootstrapScript, /if \[ "\$\{VRACK_VLAN_ID\}" = "0" \]; then/);
   assert.match(bootstrapScript, /set-name: vrack0/);
@@ -99,4 +107,26 @@ void test('keeps VLAN 0 untagged and configures future dedicated VLAN interfaces
   assert.match(bootstrapScript, /link: vrack\n/);
   assert.doesNotMatch(bootstrapScript, /link: vrack0/);
   assert.match(bootstrapScript, /VRACK_INTERFACE="vrack0\.\$\{VRACK_VLAN_ID\}"/);
+});
+
+void test('joins dedicated interconnect pools to the cross-cluster VLAN', () => {
+  const bootstrap = readFileSync(bootstrapPath, 'utf8');
+  const bootstrapScript = readFileSync(bootstrapScriptPath, 'utf8');
+
+  for (const value of [
+    'INTERCONNECT_VLAN_ID',
+    'INTERCONNECT_IP',
+    'INTERCONNECT_PREFIX_LENGTH',
+    'INTERCONNECT_CIDR'
+  ]) {
+    assert.match(bootstrap, new RegExp(`${value}:`));
+  }
+  assert.match(bootstrapScript, /61-k3s-interconnect\.yaml/);
+  assert.match(bootstrapScript, /vrack0\.\$\{INTERCONNECT_VLAN_ID\}:/);
+  assert.match(bootstrapScript, /\$\{INTERCONNECT_IP\}\/\$\{INTERCONNECT_PREFIX_LENGTH\}/);
+  assert.match(bootstrapScript, /INTERCONNECT_INTERFACE="vrack0\.\$\{INTERCONNECT_VLAN_ID\}"/);
+  assert.match(
+    bootstrapScript,
+    /iifname \\"\$\{INTERCONNECT_INTERFACE\}\\" ip saddr \$\{INTERCONNECT_CIDR\} accept/
+  );
 });

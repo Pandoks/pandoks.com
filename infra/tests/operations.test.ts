@@ -205,7 +205,7 @@ void test('delegates cluster origin TLS issuance and rotation to cert-manager', 
   }
 });
 
-void test('keeps network, node pools, and MetalLB on one non-overlapping address plan', () => {
+void test('keeps network, node pools, and MetalLB on one derived address plan', () => {
   assert.match(network, /new ovh\.CloudNetworkPrivateVrack\(/);
   assert.match(network, /new ovh\.CloudNetworkPrivateVrackSubnet\(/);
   assert.match(network, /new ovh\.CloudGateway\(/);
@@ -213,20 +213,18 @@ void test('keeps network, node pools, and MetalLB on one non-overlapping address
     network,
     /ovh\.cloudproject\.(?:NetworkPrivate|NetworkPrivateSubnet|Gateway)/
   );
-  assert.match(network, /cidr:\s*config\.networkCidr/);
-  assert.match(network, /gatewayIp:\s*config\.gatewayIp/);
-  assert.match(network, /allocationPools:\s*\[config\.allocationPool\]/);
+  assert.match(network, /cidr:\s*network\.networkCidr/);
+  assert.match(network, /gatewayIp:\s*network\.gatewayIp/);
+  assert.match(network, /allocationPools:\s*\[network\.allocationPool\]/);
   assert.match(network, /dhcpEnabled:\s*true/);
   assert.match(cluster, /buildClusterTopology\(clusterConfig, STAGE_NAME, domain\)/);
   assert.match(metalLb, /\$\{ClusterMetalLbRange\}/);
-  assert.match(clusterConfigCli, /ClusterMetalLbRange:\s*region\.metalLbRange/);
+  assert.match(clusterConfigCli, /ClusterMetalLbRange:\s*clusterPlan\.network\.metalLbRange/);
   assert.match(clusterDeploy, /scripts\/cluster\/config\.ts"\s*\\\s*\n\s*region/);
   assert.match(clusterDeploy, /Cluster template variables were not fully substituted/);
-  assert.match(topologySource, /\.0 OVH\/Neutron, \.1 cloud control planes, \.2 cloud workers/);
-  assert.match(
-    topologySource,
-    /\.6 cloud databases, \.7 dedicated databases, \.8 IP Load Balancing NAT, \.9-\.255 reserved/
-  );
+  assert.match(topologySource, /\.0 OVH\/Neutron, \.1-\.199 node pools in declaration order/);
+  assert.match(topologySource, /\.200 MetalLB/);
+  assert.match(topologySource, /\.254 IP Load Balancing NAT/);
   assert.match(bootstrapScript, /NETWORK_PREFIX_LENGTH="\$\{NETWORK_CIDR##\*\/\}"/);
   assert.match(bootstrapScript, /\$\{NODE_IP\}\/\$\{NETWORK_PREFIX_LENGTH\}/);
   assert.doesNotMatch(bootstrapScript, /\$\{NODE_IP\}\/24/);
@@ -234,8 +232,8 @@ void test('keeps network, node pools, and MetalLB on one non-overlapping address
 
 void test('uses stable DNS and provisions the private API load balancer only for HA', () => {
   assert.doesNotMatch(utils, /K3S_API_HOSTNAME/);
-  assert.match(topologySource, /apiHostname:\s*isWest \? `k3s-api\.\$\{domain\}`/);
-  assert.match(loadBalancers, /const \{ config, identity, privateApi, publicIngress \}/);
+  assert.match(topologySource, /apiHostname: `k3s-api\.\$\{spec\.name\}\.\$\{domain\}`/);
+  assert.match(loadBalancers, /const \{ config, identity, network, privateApi, publicIngress \}/);
   assert.match(
     loadBalancers,
     /const api =\s*privateApi\.mode === 'ovh'\s*\?\s*new ovh\.cloudproject\.LoadBalancer/s
@@ -249,14 +247,14 @@ void test('uses stable DNS and provisions the private API load balancer only for
     1,
     'HA needs at most one private API load balancer'
   );
-  assert.match(loadBalancers, /allowedCidrs:\s*\[config\.networkCidr\]/);
+  assert.match(loadBalancers, /allowedCidrs:\s*\[network\.networkCidr\]/);
   assert.match(
     loadBalancers,
     /const apiTarget = api\?\.vipAddress \?\? privateApi\.nodes\[0\]\?\.privateIp/
   );
   assert.match(
     cluster,
-    /new cloudflare\.DnsRecord\([\s\S]*?regionalResourceName\('OvhK3sPrivateApiDnsRecord',[\s\S]*?name:\s*cluster\.identity\.apiHostname[\s\S]*?content:\s*loadBalancers\.apiTarget[\s\S]*?proxied:\s*false/s
+    /new cloudflare\.DnsRecord\([\s\S]*?clusterResourceName\('OvhK3sPrivateApiDnsRecord',[\s\S]*?name:\s*cluster\.identity\.apiHostname[\s\S]*?content:\s*loadBalancers\.apiTarget[\s\S]*?proxied:\s*false/s
   );
   assert.match(cluster, /privateApiDnsRecord\.id\.apply\(\(\) => cluster\.identity\.apiHostname\)/);
   assert.match(cluster, /const args = \{ cluster, nodes, network, apiAddress/);
@@ -281,28 +279,24 @@ void test('supports a quoted Dedicated IP Load Balancing service through vRack',
   assert.match(loadBalancers, /loadBalancer\.zones\.apply/);
   assert.match(loadBalancers, /new ovh\.vrack\.IpLoadbalancing/);
   assert.match(loadBalancers, /new ovh\.iploadbalancing\.VrackNetwork/);
-  assert.match(loadBalancers, /natIp:\s*region\.natIp/);
+  assert.match(loadBalancers, /natIp/);
   assert.match(loadBalancers, /new ovh\.iploadbalancing\.TcpFarm/);
   assert.match(loadBalancers, /new ovh\.iploadbalancing\.TcpFarmServer/);
   assert.match(loadBalancers, /address:\s*node\.privateIp/);
   assert.match(loadBalancers, /new ovh\.iploadbalancing\.TcpFrontend/);
   assert.match(loadBalancers, /allowedSources:\s*cloudflareIpv4Cidrs/);
   assert.match(loadBalancers, /new ovh\.iploadbalancing\.Refresh/);
-  assert.match(
+  assert.match(loadBalancers, /new \$util\.ResourceHook\(\s*'RefreshIpLoadBalancingAfterDelete'/s);
+  assert.doesNotMatch(
     loadBalancers,
-    /new \$util\.ResourceHook\(\s*'RefreshUsIpLoadBalancingAfterDelete'/s
+    /RefreshUsIpLoadBalancingAfterDelete|RefreshEuIpLoadBalancingAfterDelete/
   );
-  assert.match(
-    loadBalancers,
-    /new \$util\.ResourceHook\(\s*'RefreshEuIpLoadBalancingAfterDelete'/s
-  );
-  assert.match(loadBalancers, /hooks:\s*\{ afterDelete: \[refreshAfterDelete\] \}/);
+  assert.match(loadBalancers, /hooks:\s*\{ afterDelete: \[refreshIpLoadBalancingAfterDelete\] \}/);
   assert.match(
     loadBalancers,
     /const ipLoadBalancingRefreshQueues = new Map<string, Promise<void>>/
   );
-  assert.match(loadBalancers, /queueIpLoadBalancingRefresh\('us', serviceName\)/);
-  assert.match(loadBalancers, /queueIpLoadBalancingRefresh\('eu', serviceName\)/);
+  assert.match(loadBalancers, /queueIpLoadBalancingRefresh\(serviceName\)/);
   assert.match(loadBalancers, /request<\{ id: number \}>\('POST', `\$\{path\}\/refresh`\)/);
   assert.match(loadBalancers, /const refreshConfiguration = JSON\.stringify/);
   assert.match(loadBalancers, /keepers:\s*\[\s*refreshConfiguration,\s*\.\.\.resourceIds\s*\]/s);
@@ -329,15 +323,15 @@ void test('routes each deployed stage through its matching example hostname', ()
   assert.doesNotMatch(exampleApp, /example\.pandoks\.com/);
 });
 
-void test('cluster monitoring matches the disabled default topology', () => {
+void test('cluster monitoring matches the empty default topology', () => {
   const monitoring = readFileSync('k3s/overlays/cluster/prom-etcd-config.yaml', 'utf8');
   assert.doesNotMatch(clusterConfigModule, /\$app|\.\.\/utils/);
-  assert.match(clusterConfigModule, /enabled:\s*false/g);
+  assert.match(clusterConfigModule, /clusters: \[\]/);
   assert.match(
     cluster,
     /const clusterConfig = isProduction\s*\?\s*PRODUCTION_CLUSTER_CONFIG\s*:\s*NON_PRODUCTION_CLUSTER_CONFIG/
   );
-  assert.match(cluster, /for \(const cluster of topology\.regions\)/);
+  assert.match(cluster, /for \(const cluster of topology\.clusters\)/);
   assert.doesNotMatch(cluster, /shouldProvisionClusterInfrastructure/);
   assert.doesNotMatch(cluster, /process\.env\.OVH_(?:CLOUD|DEDICATED)_/);
   assert.match(monitoring, /^\s*endpoints:\s*\[\]\s*$/m);
@@ -351,6 +345,7 @@ void test('supports direct Cloudflare HTTPS without exposing the Kubernetes API'
   assert.match(ingress, /nodeSelector:\s*\n\s*pandoks\.com\/public-ingress:\s*['"]true['"]/);
   assert.doesNotMatch(ingress, /use-proxy-protocol/);
   assert.match(bootstrap, /DIRECT_INGRESS/);
+  assert.match(bootstrap, /'pandoks\.com\/public-ingress'/);
   assert.match(bootstrapScript, /CLOUDFLARE_IPV4_CIDRS/);
   assert.match(bootstrapScript, /tcp dport \{ 80, 443 \}/);
   assert.doesNotMatch(bootstrapScript, /tcp dport 6443 accept comment "Public/);
@@ -406,6 +401,7 @@ void test('keeps topology and the Public Cloud project in code and only credenti
     assert.doesNotMatch(envExample, new RegExp(`^${variable}=`, 'm'));
   }
   assert.doesNotMatch(envExample, /OVH_CLOUD_PROJECT_SERVICE/);
+  assert.doesNotMatch(envExample, /OVH_EU_/);
   assert.doesNotMatch(secrets, /CloudProjectService|OVH_CLOUD_PROJECT_SERVICE/);
   assert.doesNotMatch(githubInfra, /GithubOvhCloudProjectService|OVH_CLOUD_PROJECT_SERVICE/);
   assert.doesNotMatch(envExample, /OVH_UNPROTECTED_NODE_LOGICAL_NAME/);
@@ -431,7 +427,7 @@ void test('creates the US Public Cloud project in Pulumi and threads its generat
   assert.equal(existsSync('infra/ovh.ts'), false);
   assert.match(cluster, /new ovh\.cloudproject\.Project\(\s*'OvhPublicCloudProject'/s);
   assert.match(cluster, /deletionProtection:\s*isProduction/);
-  assert.match(cluster, /ovhSubsidiary:\s*OVH_ACCOUNTS\.us\.subsidiary/);
+  assert.match(cluster, /ovhSubsidiary:\s*OVH_ACCOUNT\.subsidiary/);
   assert.match(
     cluster,
     /plan:\s*\{\s*duration:\s*'P1M',\s*planCode:\s*'project',\s*pricingMode:\s*'default'\s*\}/s
@@ -439,10 +435,13 @@ void test('creates the US Public Cloud project in Pulumi and threads its generat
   assert.match(cluster, /\{\s*protect:\s*isProduction\s*\}\s*\)/s);
   assert.doesNotMatch(cluster, /OVH_CLOUD_PROJECT_SERVICE/);
 
-  assert.match(cluster, /foundations\.us = createFoundation\('us', cloudProject\)/);
+  assert.match(
+    cluster,
+    /const foundation = topology\.clusters\.length > 0 \? createFoundation\(cloudProject\) : undefined/
+  );
   assert.match(cluster, /createClusterNetwork\(foundation, cluster\)/);
   assert.match(cluster, /CloudProjectId:\s*cloudProject\.projectId/s);
-  assert.match(loadBalancers, /ovh\.cloudproject\s*\.getLoadBalancerFlavorsOutput\(/s);
+  assert.match(loadBalancers, /ovh\.cloudproject\.getLoadBalancerFlavorsOutput\(/);
   assert.match(publicCloud, /ovh\.cloudproject\s*\.getFlavorsOutput\(/s);
   assert.match(publicCloud, /ovh\.cloudproject\s*\.getImagesOutput\(/s);
   assert.doesNotMatch(
@@ -452,6 +451,14 @@ void test('creates the US Public Cloud project in Pulumi and threads its generat
   assert.match(network, /projectId:\s*\$util\.Output<string>/);
   assert.match(loadBalancers, /serviceName:\s*args\.network\.foundation\.projectId/);
   assert.match(publicCloud, /serviceName:\s*args\.network\.foundation\.projectId/);
+});
+
+void test('drops the dormant EU account machinery for the single-account topology', () => {
+  for (const source of [cluster, clusterConfigModule, loadBalancers, secrets]) {
+    assert.doesNotMatch(source, /OVH_ACCOUNTS|euProvider|euProject|OVH_EU_/);
+  }
+  assert.match(cluster, /OVH_ACCOUNT\.subsidiary/);
+  assert.doesNotMatch(cluster, /regionalResourceName|ClusterRegionKey|OvhAccountKey/);
 });
 
 void test('deletes only the exact hostname returned by a Tailscale prefix query', () => {
@@ -475,7 +482,7 @@ void test('pins every k3s installer invocation to the approved exact release', (
   assert.match(installer, /export INSTALL_K3S_VERSION="\$\{K3S_VERSION\}"/);
 });
 
-void test('active cluster rules describe code-owned zero topology and CI contracts', () => {
+void test('active cluster rules describe code-owned empty topology and CI contracts', () => {
   const deletedTopologyVariables =
     /OVH_(?:CLOUD_(?:CONTROL_PLANE|WORKER)_COUNT|DEDICATED_(?:CONTROL_PLANE_COUNT|WORKER_COUNT|SERVER_PLAN|DATACENTER|ORDER_REGION|PLAN_OPTIONS))/;
 
@@ -489,8 +496,10 @@ void test('active cluster rules describe code-owned zero topology and CI contrac
   assert.match(rules, /infra\/cluster\/config\.ts/);
   assert.match(rules, /PRODUCTION_CLUSTER_CONFIG/);
   assert.match(rules, /NON_PRODUCTION_CLUSTER_CONFIG/);
-  assert.match(rules, /both currently[\s\S]*set every pool count to zero/i);
-  assert.match(rules, /dedicated catalog fields[\s\S]*enabled dedicated pool/i);
+  assert.match(rules, /declare zero clusters/i);
+  assert.match(rules, /networkIndex/);
+  assert.match(rules, /labels[\s\S]*taints/i);
+  assert.match(rules, /live authenticated/i);
   assert.match(
     rules,
     /OVH credentials[\s\S]*Public Cloud project[\s\S]*TypeScript topology contracts/i
@@ -534,10 +543,9 @@ void test('production stack orders an annual protected dev VPS-4 with only stand
   assert.match(dev, /\{\s*protect:\s*true\s*\}\s*\)/s);
 });
 
-void test('zero-node stages keep an empty Public Cloud project without cluster resources', () => {
+void test('empty stages keep an empty Public Cloud project without cluster resources', () => {
   assert.match(cluster, /const cloudProject = new ovh\.cloudproject\.Project\(/);
-  assert.match(cluster, /const enabledAccounts = new Set\(topology\.regions/);
-  assert.match(cluster, /for \(const cluster of topology\.regions\)/);
+  assert.match(cluster, /for \(const cluster of topology\.clusters\)/);
   assert.match(cluster, /const network = createClusterNetwork\(foundation, cluster\)/);
   assert.match(
     secrets,
@@ -549,7 +557,6 @@ void test('zero-node stages keep an empty Public Cloud project without cluster r
   );
   assert.doesNotMatch(secrets, /DISABLED_CLUSTER_PLACEHOLDER|k3sTokenPlaceholder/);
   assert.doesNotMatch(secrets, /CloudProjectService|OVH_CLOUD_PROJECT_SERVICE/);
-  assert.match(secrets, /K3sTokens:\s*\{/);
-  assert.match(secrets, /'us-west':\s*new sst\.Secret\('OvhK3sToken', 'Placeholder'\)/);
-  assert.match(secrets, /'us-east':\s*new sst\.Secret\('OvhUsEastK3sToken', 'Placeholder'\)/);
+  assert.match(secrets, /K3sTokens: Object\.fromEntries\(/);
+  assert.match(secrets, /clusterTokenSecretName\(name\)/);
 });

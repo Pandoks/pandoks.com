@@ -11,29 +11,34 @@ paths:
 
 ## Cluster state
 
-- **Topology and catalog selection live in `infra/cluster/config.ts`.**
+- **Topology lives in `infra/cluster/config.ts` as generic primitives.**
   `PRODUCTION_CLUSTER_CONFIG` and `NON_PRODUCTION_CLUSTER_CONFIG` both currently
-  define four disabled regions and set every pool count to zero. Fill dedicated
-  catalog fields only for an enabled dedicated pool. CI retains
-  only the OVH credentials; Pulumi creates the Public Cloud project and passes
-  its generated ID directly. CI runs the TypeScript topology contracts.
+  declare zero clusters. A cluster is a free-form entry (`name`,
+  `networkIndex`, `pools`); pools mix Public Cloud and dedicated via the
+  `server` union and use raw labels/taints for placement. Fill dedicated
+  catalog fields only for a pool with a non-zero count, validated against the
+  live authenticated cart. CI retains only the OVH credentials; Pulumi creates
+  the Public Cloud project and passes its generated ID directly. CI runs the
+  TypeScript topology contracts.
   Cluster resources use `protect: isProduction`: production nodes are protected
-  and non-production nodes are not. When total count is zero, stale OVH cluster
-  Tailnet entries are reclaimed. Scale-down can target only the selected pool's
-  `count - 1` node and requires a separate reviewed IaC unprotect change in
-  production.
+  and non-production nodes are not. When no nodes are declared, stale OVH
+  cluster Tailnet entries are reclaimed. Scale-down can target only the
+  selected pool's `count - 1` node and requires a separate reviewed IaC
+  unprotect change in production.
 
 ## Regional networking
 
-- **Clusters are independent.** US West/East use the `ovh-us` account. EU/Asia
-  templates require verified `ovh-eu` credentials, subsidiary, provider region,
-  and dedicated catalog values before enabling. Each cluster owns unique node,
-  pod, service, and MetalLB CIDRs. Flannel does not provide cross-cluster
-  pod/service connectivity; Cilium Cluster Mesh and database replication are a
-  separate rollout.
+- **Clusters are independent under one US account.** Every cluster runs on the
+  single `ovh-us` account and one global vRack; non-US clusters are
+  dedicated-only (US Public Cloud regions are US-only). Each cluster owns
+  unique node, pod, service, and MetalLB CIDRs derived from `networkIndex`.
+  Flannel does not provide cross-cluster pod/service connectivity; dedicated
+  pools with `interconnect: true` share a cross-cluster VLAN for private L3
+  (e.g. database replication), while app-level wiring is a separate rollout.
 - **Do not stretch a managed Gateway/LB subnet across regions.** OVH supports
   vRack/VLAN extension, but its managed Gateway and Load Balancer require the
-  single-region private networks modeled here.
+  single-region private networks modeled here. The interconnect VLAN carries
+  no managed products — only raw dedicated-server VLAN subinterfaces.
 
 ## Tailscale operator
 

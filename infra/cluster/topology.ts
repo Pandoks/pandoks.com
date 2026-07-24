@@ -1,72 +1,48 @@
 import type {
   ClusterConfig,
-  ClusterRegionKey,
+  ClusterSpec,
   DedicatedPlanOption,
+  DerivedNetwork,
+  InterconnectConfig,
   IpLoadBalancingServiceConfig,
-  NodePoolName,
   NodeRole,
-  OvhAccountKey,
-  PublicIngressConfig,
-  RegionalClusterConfig,
-  Workload
+  NodeTaint,
+  PublicCloudRegion,
+  PublicIngressConfig
 } from './config.ts';
 
-// Every regional /16 keeps the same stable role-owned third-octet layout:
-// .0 OVH/Neutron, .1 cloud control planes, .2 cloud workers,
-// .3 dedicated control planes, .4 dedicated workers, .5 MetalLB,
-// .6 cloud databases, .7 dedicated databases, .8 IP Load Balancing NAT, .9-.255 reserved.
-const NODE_POOL_IDENTITIES = {
-  'cloud-control-plane': {
-    addressBlock: 1,
-    logicalNamePrefix: 'ControlPlaneServer',
-    hostnamePrefix: 'control-plane-server'
-  },
-  'cloud-workers': {
-    addressBlock: 2,
-    logicalNamePrefix: 'WorkerServer',
-    hostnamePrefix: 'worker-server'
-  },
-  'dedicated-control-plane': {
-    addressBlock: 3,
-    logicalNamePrefix: 'DedicatedControlPlaneServer',
-    hostnamePrefix: 'dedicated-control-plane-server'
-  },
-  'dedicated-workers': {
-    addressBlock: 4,
-    logicalNamePrefix: 'DedicatedWorkerServer',
-    hostnamePrefix: 'dedicated-worker-server'
-  },
-  'cloud-database': {
-    addressBlock: 6,
-    logicalNamePrefix: 'DatabaseServer',
-    hostnamePrefix: 'database-server'
-  },
-  'dedicated-database': {
-    addressBlock: 7,
-    logicalNamePrefix: 'DedicatedDatabaseServer',
-    hostnamePrefix: 'dedicated-database-server'
-  }
-} as const;
+// Every cluster /16 keeps the same derived third-octet layout:
+// .0 OVH/Neutron, .1-.199 node pools in declaration order, .200 MetalLB,
+// .254 IP Load Balancing NAT, the rest reserved.
+const METAL_LB_OCTET = 200;
+const NAT_OCTET = 254;
+const MAX_NETWORK_INDEX = 15;
+const MAX_POOL_COUNT = 254;
+const NAME_PATTERN = /^[a-z][a-z0-9-]*[a-z0-9]$/;
 
 type NodePoolBase = {
-  name: NodePoolName;
+  name: string;
   role: NodeRole;
-  workload: Workload;
   count: number;
+  labels: Record<string, string>;
+  taints: NodeTaint[];
   publicIngress: boolean;
-  machineType: string;
+  interconnect: boolean;
+  addressBlock: number;
 };
 
 export type PublicCloudNodePool = NodePoolBase & {
   provider: 'public-cloud';
+  region: PublicCloudRegion;
+  flavor: string;
   image: string;
-  region: string;
 };
 
 export type DedicatedNodePool = NodePoolBase & {
   provider: 'dedicated';
-  operatingSystem: string;
   datacenter: string;
+  planCode: string;
+  operatingSystem: string;
   orderRegion: string;
   planOptions: DedicatedPlanOption[];
 };
@@ -79,6 +55,7 @@ export type ClusterNodeSpec = {
   logicalName: string;
   hostname: string;
   privateIp: string;
+  interconnectIp?: string;
   bootstrapCandidate: boolean;
   directIngress: boolean;
 };
@@ -95,7 +72,7 @@ export type PrivateApiPlan = {
   nodes: readonly ClusterNodeSpec[];
 };
 
-export type RegionalClusterIdentity = {
+export type ClusterIdentity = {
   resourcePrefix: string;
   namePrefix: string;
   apiHostname: string;
@@ -104,9 +81,15 @@ export type RegionalClusterIdentity = {
   etcdBackupFolder: string;
 };
 
-export type RegionalClusterPlan = {
-  config: RegionalClusterConfig;
-  identity: RegionalClusterIdentity;
+export type InterconnectPlan = InterconnectConfig & {
+  prefixLength: number;
+};
+
+export type ClusterPlan = {
+  config: ClusterSpec;
+  identity: ClusterIdentity;
+  network: DerivedNetwork;
+  interconnect?: InterconnectPlan;
   nodePools: readonly NodePool[];
   nodes: ClusterNodeSpec[];
   warnings: string[];
@@ -116,163 +99,234 @@ export type RegionalClusterPlan = {
 
 export type IpLoadBalancingPlan = {
   config: IpLoadBalancingServiceConfig;
-  regions: readonly {
-    cluster: RegionalClusterPlan;
+  clusters: readonly {
+    cluster: ClusterPlan;
     zone: string;
     natIp: string;
   }[];
 };
 
-const REGION_RESOURCE_PREFIX: Record<ClusterRegionKey, string> = {
-  'us-west': '',
-  'us-east': 'UsEast',
-  eu: 'Eu',
-  asia: 'Asia'
-};
-
-export function regionalResourceName(name: string, regionId: ClusterRegionKey): string {
-  const prefix = REGION_RESOURCE_PREFIX[regionId];
-  return prefix ? name.replace(/^Ovh/, `Ovh${prefix}`) : name;
+export function pascalCase(value: string): string {
+  return value
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('');
 }
 
-function identity(config: RegionalClusterConfig, stage: string, domain: string) {
-  const isWest = config.id === 'us-west';
-  const namePrefix = isWest ? stage : `${stage}-${config.id}`;
+export function clusterResourceName(name: string, clusterName: string): string {
+  return name.replace(/^Ovh/, `Ovh${pascalCase(clusterName)}`);
+}
+
+export function clusterTokenSecretName(clusterName: string): string {
+  return `Ovh${pascalCase(clusterName)}K3sToken`;
+}
+
+function identity(spec: ClusterSpec, stage: string, domain: string): ClusterIdentity {
+  const namePrefix = `${stage}-${spec.name}`;
   return {
-    resourcePrefix: REGION_RESOURCE_PREFIX[config.id],
+    resourcePrefix: pascalCase(spec.name),
     namePrefix,
-    apiHostname: isWest ? `k3s-api.${domain}` : `k3s-api.${config.id}.${domain}`,
+    apiHostname: `k3s-api.${spec.name}.${domain}`,
     operatorHostname: `${namePrefix}-cluster`,
-    tokenSecretName: isWest ? 'OvhK3sToken' : `Ovh${REGION_RESOURCE_PREFIX[config.id]}K3sToken`,
-    etcdBackupFolder: isWest ? 'kubernetes/etcd' : `kubernetes/etcd/${config.id}`
-  } satisfies RegionalClusterIdentity;
+    tokenSecretName: clusterTokenSecretName(spec.name),
+    etcdBackupFolder: `kubernetes/etcd/${spec.name}`
+  };
 }
 
-function networkOctet(config: RegionalClusterConfig): number {
-  const match = /^10\.(\d{1,3})\.0\.0\/16$/.exec(config.networkCidr);
-  const value = Number(match?.[1]);
-  if (!match || value > 255) {
-    throw new Error(`Cluster region ${config.id} networkCidr must be a 10.x.0.0/16`);
-  }
-  if (config.gatewayIp !== `10.${value}.0.1`) {
-    throw new Error(`Cluster region ${config.id} gatewayIp must be 10.${value}.0.1`);
+function parseInterconnect(interconnect: InterconnectConfig): InterconnectPlan {
+  const match = /^(\d{1,3})\.(\d{1,3})\.0\.0\/12$/.exec(interconnect.cidr);
+  if (!match || Number(match[2]) % 16 !== 0 || Number(match[1]) > 255 || Number(match[2]) > 240) {
+    throw new Error('Interconnect cidr must be an a.b.0.0/12 network with b a multiple of 16');
   }
   if (
-    config.allocationPool.start !== `10.${value}.0.2` ||
-    config.allocationPool.end !== `10.${value}.0.254`
+    !Number.isInteger(interconnect.vlanId) ||
+    interconnect.vlanId < 1 ||
+    interconnect.vlanId > 4096
   ) {
-    throw new Error(`Cluster region ${config.id} allocationPool must own .0.2-.0.254`);
+    throw new Error('Interconnect vlanId must be an integer from 1 to 4096');
   }
-  if (config.metalLbRange !== `10.${value}.5.1-10.${value}.5.254`) {
-    throw new Error(`Cluster region ${config.id} metalLbRange must own .5.1-.5.254`);
-  }
-  return value;
+  return { ...interconnect, prefixLength: 12 };
 }
 
-function validateRegion(config: RegionalClusterConfig): void {
-  if (!Number.isInteger(config.vlanId) || config.vlanId < 0 || config.vlanId > 4096) {
-    throw new Error(`Cluster region ${config.id} vlanId must be an integer from 0 to 4096`);
-  }
-  networkOctet(config);
-  for (const [name, cidr] of [
-    ['podCidr', config.podCidr],
-    ['serviceCidr', config.serviceCidr]
-  ] as const) {
-    if (!/^10\.(?:\d{1,3})\.0\.0\/16$/.test(cidr)) {
-      throw new Error(`Cluster region ${config.id} ${name} must be a 10.x.0.0/16`);
-    }
-  }
+function interconnectAddress(
+  interconnect: InterconnectConfig,
+  networkIndex: number,
+  addressBlock: number,
+  hostIndex: number
+): string {
+  const [first = '0', second = '0'] = interconnect.cidr.split('/')[0].split('.');
+  return `${first}.${Number(second) + networkIndex}.${addressBlock}.${hostIndex}`;
+}
 
-  const counts = [...config.cloud, ...config.dedicated].map(({ count }) => count);
-  if (!config.enabled && [...counts, config.loadBalancerCount].some((count) => count !== 0)) {
+function validateKeyValue(kind: string, pool: string, key: string, value: string): void {
+  if (!key.trim() || /[\s,]/.test(key) || /[\s,]/.test(value)) {
+    throw new Error(`Node pool ${pool} ${kind} keys and values cannot contain spaces or commas`);
+  }
+}
+
+function deriveNetwork(spec: ClusterSpec): DerivedNetwork {
+  if (!Number.isInteger(spec.networkIndex) || spec.networkIndex < 0) {
+    throw new Error(`Cluster ${spec.name} networkIndex must be a non-negative integer`);
+  }
+  if (spec.networkIndex > MAX_NETWORK_INDEX) {
+    throw new Error(`Cluster ${spec.name} networkIndex cannot exceed ${MAX_NETWORK_INDEX}`);
+  }
+  const index = spec.networkIndex;
+  const poolRegions = new Set(
+    spec.pools.flatMap(({ server }) => (server.type === 'public-cloud' ? [server.region] : []))
+  );
+  if (poolRegions.size > 1) {
+    throw new Error(`Cluster ${spec.name} public cloud pools must share one region`);
+  }
+  const poolRegion = [...poolRegions][0];
+  if (spec.publicCloudRegion && poolRegion && spec.publicCloudRegion !== poolRegion) {
+    throw new Error(`Cluster ${spec.name} publicCloudRegion conflicts with its pool region`);
+  }
+  const publicCloudRegion = spec.publicCloudRegion ?? poolRegion;
+  if (!publicCloudRegion) {
     throw new Error(
-      `Disabled cluster region ${config.id} requires every node and load balancer count to be 0`
+      `Cluster ${spec.name} requires publicCloudRegion when no public cloud pool declares one`
     );
   }
-  if (config.enabled && !config.publicCloudRegion.trim()) {
-    throw new Error(`Enabled cluster region ${config.id} requires publicCloudRegion`);
+  const derived: DerivedNetwork = {
+    publicCloudRegion,
+    vlanId: index,
+    networkCidr: `10.${index}.0.0/16`,
+    gatewayIp: `10.${index}.0.1`,
+    allocationPool: { start: `10.${index}.0.2`, end: `10.${index}.0.254` },
+    podCidr: `10.${42 + 2 * index}.0.0/16`,
+    serviceCidr: `10.${43 + 2 * index}.0.0/16`,
+    metalLbRange: `10.${index}.${METAL_LB_OCTET}.1-10.${index}.${METAL_LB_OCTET}.254`
+  };
+  const network = { ...derived, ...spec.network };
+  if (!Number.isInteger(network.vlanId) || network.vlanId < 0 || network.vlanId > 4096) {
+    throw new Error(`Cluster ${spec.name} vlanId must be an integer from 0 to 4096`);
   }
-  if (!Number.isInteger(config.loadBalancerCount) || config.loadBalancerCount < 0) {
-    throw new Error(`Cluster region ${config.id} loadBalancerCount must be a non-negative integer`);
+  for (const [field, cidr] of [
+    ['networkCidr', network.networkCidr],
+    ['podCidr', network.podCidr],
+    ['serviceCidr', network.serviceCidr]
+  ] as const) {
+    if (!/^10\.\d{1,3}\.0\.0\/16$/.test(cidr)) {
+      throw new Error(`Cluster ${spec.name} ${field} must be a 10.x.0.0/16`);
+    }
   }
+  return network;
 }
 
-function nodePools(config: RegionalClusterConfig): NodePool[] {
-  const pools: NodePool[] = [
-    ...config.cloud.map((pool) => ({
-      ...pool,
-      provider: 'public-cloud' as const,
-      image: config.cloudImage,
-      region: config.publicCloudRegion
-    })),
-    ...config.dedicated.map((pool) => ({
-      ...pool,
-      provider: 'dedicated' as const,
-      operatingSystem: config.dedicatedOperatingSystem,
-      datacenter: config.dedicatedDatacenter,
-      orderRegion: config.dedicatedCatalogRegion
-    }))
-  ];
-  const byName = new Map<NodePoolName, NodePool>();
-  for (const pool of pools) {
-    if (byName.has(pool.name)) throw new Error(`Duplicate node pool name: ${pool.name}`);
-    byName.set(pool.name, pool);
+function nodePools(spec: ClusterSpec): NodePool[] {
+  if (spec.pools.length >= METAL_LB_OCTET) {
+    throw new Error(`Cluster ${spec.name} cannot declare more than ${METAL_LB_OCTET - 1} pools`);
   }
-  return (Object.keys(NODE_POOL_IDENTITIES) as NodePoolName[]).flatMap((name) => {
-    const pool = byName.get(name);
-    return pool ? [pool] : [];
+  const names = new Set<string>();
+  return spec.pools.map((pool, position) => {
+    if (!NAME_PATTERN.test(pool.name)) {
+      throw new Error(`Node pool name ${pool.name} must be lowercase kebab-case`);
+    }
+    if (names.has(pool.name)) throw new Error(`Duplicate node pool name: ${pool.name}`);
+    names.add(pool.name);
+    if (!Number.isInteger(pool.count) || pool.count < 0) {
+      throw new Error(`Node pool ${pool.name} count must be a non-negative integer`);
+    }
+    if (pool.count > MAX_POOL_COUNT) {
+      throw new Error(`Node pool ${pool.name} count cannot exceed ${MAX_POOL_COUNT}`);
+    }
+    for (const [key, value] of Object.entries(pool.labels ?? {})) {
+      validateKeyValue('label', pool.name, key, value);
+    }
+    for (const taint of pool.taints ?? []) {
+      validateKeyValue('taint', pool.name, taint.key, taint.value);
+    }
+    const base: NodePoolBase = {
+      name: pool.name,
+      role: pool.role,
+      count: pool.count,
+      labels: pool.labels ?? {},
+      taints: pool.taints ?? [],
+      publicIngress: pool.publicIngress ?? false,
+      interconnect: pool.interconnect ?? false,
+      addressBlock: position + 1
+    };
+    if (pool.server.type === 'public-cloud') {
+      if (base.interconnect) {
+        throw new Error(
+          `Node pool ${pool.name} cannot join the interconnect: Public Cloud instances support a single private NIC`
+        );
+      }
+      if (pool.count > 0 && (!pool.server.flavor.trim() || !pool.server.image.trim())) {
+        throw new Error(`Enabled node pool ${pool.name} requires flavor and image`);
+      }
+      return {
+        ...base,
+        provider: 'public-cloud',
+        region: pool.server.region,
+        flavor: pool.server.flavor,
+        image: pool.server.image
+      };
+    }
+    if (
+      pool.count > 0 &&
+      (!pool.server.planCode.trim() ||
+        !pool.server.operatingSystem.trim() ||
+        !pool.server.orderRegion.trim())
+    ) {
+      throw new Error(
+        `Enabled dedicated pool ${pool.name} requires planCode, operatingSystem, and orderRegion`
+      );
+    }
+    return {
+      ...base,
+      provider: 'dedicated',
+      datacenter: pool.server.datacenter,
+      planCode: pool.server.planCode,
+      operatingSystem: pool.server.operatingSystem,
+      orderRegion: pool.server.orderRegion,
+      planOptions: pool.server.planOptions
+    };
   });
 }
 
-function validatePool(pool: NodePool, config: RegionalClusterConfig): void {
-  if (!Number.isInteger(pool.count) || pool.count < 0) {
-    throw new Error(`Node pool ${pool.name} count must be a non-negative integer`);
-  }
-  if (pool.count > 254) throw new Error(`Node pool ${pool.name} count cannot exceed 254`);
-  if (pool.workload === 'database' && pool.publicIngress) {
-    throw new Error(`Node pool ${pool.name} database workload requires publicIngress to be false`);
-  }
-  if (pool.workload === 'database' && pool.role !== 'worker') {
-    throw new Error(`Node pool ${pool.name} database workload requires the worker role`);
-  }
-  if (pool.count > 0 && !pool.machineType.trim()) {
-    throw new Error(`Enabled node pool ${pool.name} requires machineType`);
-  }
-  if (pool.provider === 'dedicated' && pool.count > 0) {
-    if (!config.dedicatedDatacenter.trim()) {
-      throw new Error(`Enabled dedicated pool ${pool.name} requires dedicatedDatacenter`);
-    }
-    if (!config.dedicatedCatalogRegion.trim()) {
-      throw new Error(`Enabled dedicated pool ${pool.name} requires dedicatedCatalogRegion`);
-    }
-    if (!pool.operatingSystem.trim()) {
-      throw new Error(`Enabled dedicated pool ${pool.name} requires operatingSystem`);
-    }
-  }
-}
-
-export function buildRegionalClusterPlan(
-  config: RegionalClusterConfig,
+export function buildClusterPlan(
+  spec: ClusterSpec,
   stage: string,
   domain: string,
-  publicIngressConfig: PublicIngressConfig = { type: 'public-cloud', flavor: 'small' }
-): RegionalClusterPlan {
-  validateRegion(config);
-  const clusterIdentity = identity(config, stage, domain);
-  const normalizedPools = nodePools(config);
+  publicIngressConfig: PublicIngressConfig = { type: 'public-cloud', flavor: 'small' },
+  interconnectConfig: InterconnectConfig = { vlanId: 4000, cidr: '172.16.0.0/12' }
+): ClusterPlan {
+  if (!NAME_PATTERN.test(spec.name)) {
+    throw new Error(`Cluster name ${spec.name} must be lowercase kebab-case`);
+  }
+  const network = deriveNetwork(spec);
+  const interconnect = parseInterconnect(interconnectConfig);
+  if (interconnect.vlanId === network.vlanId) {
+    throw new Error(`Cluster ${spec.name} vlanId collides with the interconnect VLAN`);
+  }
+  const loadBalancerCount = spec.loadBalancerCount ?? 0;
+  if (!Number.isInteger(loadBalancerCount) || loadBalancerCount < 0) {
+    throw new Error(`Cluster ${spec.name} loadBalancerCount must be a non-negative integer`);
+  }
+  const clusterIdentity = identity(spec, stage, domain);
+  const pools = nodePools(spec);
+  const octet = Number(/^10\.(\d{1,3})\./.exec(network.networkCidr)![1]);
   const nodes: ClusterNodeSpec[] = [];
-  const secondOctet = networkOctet(config);
+  const usesInterconnect = pools.some((pool) => pool.interconnect && pool.count > 0);
 
-  for (const pool of normalizedPools) {
-    validatePool(pool, config);
-    const poolIdentity = NODE_POOL_IDENTITIES[pool.name];
+  for (const pool of pools) {
     for (let poolIndex = 0; poolIndex < pool.count; poolIndex += 1) {
       nodes.push({
         pool,
         poolIndex,
-        logicalName: `Ovh${clusterIdentity.resourcePrefix}${poolIdentity.logicalNamePrefix}${poolIndex}`,
-        hostname: `${clusterIdentity.namePrefix}-ovh-${poolIdentity.hostnamePrefix}-${poolIndex}`,
-        privateIp: `10.${secondOctet}.${poolIdentity.addressBlock}.${poolIndex + 1}`,
+        logicalName: `Ovh${clusterIdentity.resourcePrefix}${pascalCase(pool.name)}Server${poolIndex}`,
+        hostname: `${clusterIdentity.namePrefix}-ovh-${pool.name}-server-${poolIndex}`,
+        privateIp: `10.${octet}.${pool.addressBlock}.${poolIndex + 1}`,
+        ...(pool.interconnect && {
+          interconnectIp: interconnectAddress(
+            interconnect,
+            spec.networkIndex,
+            pool.addressBlock,
+            poolIndex + 1
+          )
+        }),
         bootstrapCandidate: false,
         directIngress: false
       });
@@ -281,7 +335,7 @@ export function buildRegionalClusterPlan(
 
   const controlPlanes = nodes.filter(({ pool }) => pool.role === 'control-plane');
   if (nodes.length > 0 && controlPlanes.length === 0) {
-    throw new Error(`Cluster region ${config.id} nodes require at least one control-plane node`);
+    throw new Error(`Cluster ${spec.name} nodes require at least one control-plane node`);
   }
   if (controlPlanes[0]) controlPlanes[0].bootstrapCandidate = true;
 
@@ -291,16 +345,16 @@ export function buildRegionalClusterPlan(
   };
   const ingressNodes = nodes.filter(({ pool }) => pool.publicIngress);
   if (publicIngressConfig.type === 'ip-load-balancing') {
-    if (config.loadBalancerCount !== 0) {
+    if (loadBalancerCount !== 0) {
       throw new Error('IP Load Balancing requires loadBalancerCount to be 0');
     }
   } else {
-    if (ingressNodes.length < 2 && config.loadBalancerCount !== 0) {
+    if (ingressNodes.length < 2 && loadBalancerCount !== 0) {
       throw new Error(
         `${ingressNodes.length === 0 ? 'no' : 'one'} ingress node requires loadBalancerCount to be 0`
       );
     }
-    if (ingressNodes.length > 1 && config.loadBalancerCount === 0) {
+    if (ingressNodes.length > 1 && loadBalancerCount === 0) {
       throw new Error('multiple ingress nodes require at least one load balancer');
     }
     if (ingressNodes.length === 1) ingressNodes[0].directIngress = true;
@@ -314,11 +368,11 @@ export function buildRegionalClusterPlan(
           ? 'ip-load-balancing'
           : ingressNodes.length === 1
             ? 'direct'
-            : config.loadBalancerCount === 1
+            : loadBalancerCount === 1
               ? 'ovh'
               : 'cloudflare',
     nodes: ingressNodes,
-    loadBalancerCount: config.loadBalancerCount,
+    loadBalancerCount,
     ...(publicIngressConfig.type === 'public-cloud' && { flavor: publicIngressConfig.flavor })
   };
   const warnings: string[] = [];
@@ -328,9 +382,11 @@ export function buildRegionalClusterPlan(
     );
   }
   return {
-    config,
+    config: spec,
     identity: clusterIdentity,
-    nodePools: normalizedPools,
+    network,
+    ...(usesInterconnect && { interconnect }),
+    nodePools: pools,
     nodes,
     warnings,
     privateApi,
@@ -338,13 +394,10 @@ export function buildRegionalClusterPlan(
   };
 }
 
-function unique(
-  plans: readonly RegionalClusterPlan[],
-  field: 'networkCidr' | 'podCidr' | 'serviceCidr'
-) {
+function unique(plans: readonly ClusterPlan[], field: 'networkCidr' | 'podCidr' | 'serviceCidr') {
   const seen = new Set<string>();
   for (const plan of plans) {
-    const value = plan.config[field];
+    const value = plan.network[field];
     if (seen.has(value)) {
       const label =
         field === 'networkCidr'
@@ -359,72 +412,74 @@ function unique(
 }
 
 export function buildClusterTopology(config: ClusterConfig, stage: string, domain: string) {
-  const ids = new Set<ClusterRegionKey>();
-  const plans = config.regions.map((region) => {
-    if (ids.has(region.id)) throw new Error(`Duplicate cluster region: ${region.id}`);
-    ids.add(region.id);
-    return buildRegionalClusterPlan(region, stage, domain, config.publicIngress);
-  });
-  const enabled = plans.filter(({ config: region }) => region.enabled);
-  for (const plan of enabled) {
-    const duplicateVlan = enabled.find(
-      (other) =>
-        other !== plan &&
-        other.config.account === plan.config.account &&
-        other.config.vlanId === plan.config.vlanId
-    );
-    if (duplicateVlan) {
-      throw new Error(
-        `Duplicate VLAN ${plan.config.vlanId} for OVH account ${plan.config.account}`
-      );
+  const names = new Set<string>();
+  const networkIndexes = new Set<number>();
+  const clusters = config.clusters.map((spec) => {
+    if (names.has(spec.name)) throw new Error(`Duplicate cluster: ${spec.name}`);
+    names.add(spec.name);
+    if (networkIndexes.has(spec.networkIndex)) {
+      throw new Error(`Duplicate cluster networkIndex: ${spec.networkIndex}`);
     }
+    networkIndexes.add(spec.networkIndex);
+    return buildClusterPlan(spec, stage, domain, config.publicIngress, config.interconnect);
+  });
+  const vlans = new Set<number>();
+  for (const plan of clusters) {
+    if (vlans.has(plan.network.vlanId)) {
+      throw new Error(`Duplicate VLAN ${plan.network.vlanId}`);
+    }
+    vlans.add(plan.network.vlanId);
   }
-  unique(enabled, 'networkCidr');
-  unique(enabled, 'podCidr');
-  unique(enabled, 'serviceCidr');
+  unique(clusters, 'networkCidr');
+  unique(clusters, 'podCidr');
+  unique(clusters, 'serviceCidr');
 
   const ipLoadBalancing: IpLoadBalancingPlan[] = [];
   if (config.publicIngress.type === 'ip-load-balancing') {
-    const services = new Map<OvhAccountKey, IpLoadBalancingServiceConfig>();
+    const serviceNames = new Set<string>();
     for (const service of config.publicIngress.services) {
-      if (services.has(service.account)) {
-        throw new Error(`Duplicate IP Load Balancing service for OVH account ${service.account}`);
-      }
       if (!service.serviceName.trim()) {
-        throw new Error(
-          `IP Load Balancing service for OVH account ${service.account} requires serviceName`
-        );
+        throw new Error('IP Load Balancing services require serviceName');
       }
-      services.set(service.account, service);
+      if (serviceNames.has(service.serviceName)) {
+        throw new Error(`Duplicate IP Load Balancing service: ${service.serviceName}`);
+      }
+      serviceNames.add(service.serviceName);
+      for (const zoneCluster of Object.keys(service.zones)) {
+        if (!names.has(zoneCluster)) {
+          throw new Error(
+            `IP Load Balancing service ${service.serviceName} references unknown cluster ${zoneCluster}`
+          );
+        }
+      }
     }
-    for (const plan of enabled) {
+    for (const plan of clusters) {
       if (plan.publicIngress.nodes.length === 0) continue;
-      const service = services.get(plan.config.account);
-      if (!service) {
+      const matches = config.publicIngress.services.filter((service) =>
+        service.zones[plan.config.name]?.trim()
+      );
+      if (matches.length !== 1) {
         throw new Error(
-          `Cluster region ${plan.config.id} requires an IP Load Balancing service for OVH account ${plan.config.account}`
-        );
-      }
-      if (!service.zones[plan.config.id]?.trim()) {
-        throw new Error(
-          `IP Load Balancing service ${service.serviceName} requires an IP Load Balancing zone for region ${plan.config.id}`
+          `Cluster ${plan.config.name} requires exactly one IP Load Balancing zone across services`
         );
       }
     }
-    for (const service of services.values()) {
-      const regions = enabled
+    for (const service of config.publicIngress.services) {
+      const serviceClusters = clusters
         .filter(
-          (plan) => plan.config.account === service.account && plan.publicIngress.nodes.length > 0
+          (plan) => plan.publicIngress.nodes.length > 0 && service.zones[plan.config.name]?.trim()
         )
         .map((cluster) => ({
           cluster,
-          zone: service.zones[cluster.config.id]!,
-          natIp: `10.${networkOctet(cluster.config)}.8.0/24`
+          zone: service.zones[cluster.config.name],
+          natIp: `10.${cluster.config.networkIndex}.${NAT_OCTET}.0/24`
         }));
-      if (regions.length > 0) ipLoadBalancing.push({ config: service, regions });
+      if (serviceClusters.length > 0) {
+        ipLoadBalancing.push({ config: service, clusters: serviceClusters });
+      }
     }
   }
-  return { regions: enabled, ipLoadBalancing };
+  return { clusters, ipLoadBalancing };
 }
 
 export function getGlobalPublicIngressMode(originCount: number) {
@@ -432,18 +487,14 @@ export function getGlobalPublicIngressMode(originCount: number) {
 }
 
 // Retained for the documented future highest-index-first scale-down workflow.
-export function getPoolScaleDownTarget(
-  pool: NodePool,
-  config: RegionalClusterConfig,
-  stage: string
-) {
+export function getPoolScaleDownTarget(plan: ClusterPlan, poolName: string) {
+  const pool = plan.nodePools.find(({ name }) => name === poolName);
+  if (!pool) throw new Error(`Unknown node pool: ${poolName}`);
   if (pool.count < 1) throw new Error(`Node pool ${pool.name} has no node to remove`);
-  const poolIdentity = NODE_POOL_IDENTITIES[pool.name];
-  const clusterIdentity = identity(config, stage, 'unused.invalid');
   const index = pool.count - 1;
   return {
     index,
-    logicalName: `Ovh${clusterIdentity.resourcePrefix}${poolIdentity.logicalNamePrefix}${index}`,
-    hostname: `${clusterIdentity.namePrefix}-ovh-${poolIdentity.hostnamePrefix}-${index}`
+    logicalName: `Ovh${plan.identity.resourcePrefix}${pascalCase(pool.name)}Server${index}`,
+    hostname: `${plan.identity.namePrefix}-ovh-${pool.name}-server-${index}`
   };
 }

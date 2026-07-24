@@ -6,146 +6,74 @@ import {
   LOAD_BALANCER_ALGORITHM,
   LOAD_BALANCER_FLAVOR,
   NON_PRODUCTION_CLUSTER_CONFIG,
-  OVH_ACCOUNTS,
+  OVH_ACCOUNT,
   PRODUCTION_CLUSTER_CONFIG,
-  type ClusterRegionKey,
-  type OvhAccountKey,
+  type ClusterSpec,
+  type NodePoolConfig,
   type PublicIngressConfig
 } from '../cluster/config.ts';
 
 const configs = [PRODUCTION_CLUSTER_CONFIG, NON_PRODUCTION_CLUSTER_CONFIG];
 
-void test('defines four disabled regional cluster templates for every stage', () => {
+void test('starts every stage with zero declared clusters and shared defaults', () => {
   for (const config of configs) {
-    assert.deepEqual(
-      config.regions.map(({ id, account, enabled, publicCloudRegion }) => ({
-        id,
-        account,
-        enabled,
-        publicCloudRegion
-      })),
-      [
-        {
-          id: 'us-west',
-          account: 'us',
-          enabled: false,
-          publicCloudRegion: 'US-WEST-OR-1'
-        },
-        {
-          id: 'us-east',
-          account: 'us',
-          enabled: false,
-          publicCloudRegion: 'US-EAST-VA-1'
-        },
-        { id: 'eu', account: 'eu', enabled: false, publicCloudRegion: '' },
-        { id: 'asia', account: 'eu', enabled: false, publicCloudRegion: '' }
-      ]
-    );
-    for (const region of config.regions) {
-      assert.equal(region.loadBalancerCount, 0);
-      assert.ok([...region.cloud, ...region.dedicated].every(({ count }) => count === 0));
-    }
+    assert.deepEqual(config.clusters, []);
+    assert.deepEqual(config.interconnect, { vlanId: 4000, cidr: '172.16.0.0/12' });
     assert.deepEqual(config.publicIngress, { type: 'public-cloud', flavor: 'small' });
   }
 });
 
-void test('owns stable regional network and k3s address spaces in pure configuration', () => {
-  assert.deepEqual(
-    PRODUCTION_CLUSTER_CONFIG.regions.map(
-      ({ id, vlanId, networkCidr, gatewayIp, podCidr, serviceCidr, metalLbRange }) => ({
-        id,
-        vlanId,
-        networkCidr,
-        gatewayIp,
-        podCidr,
-        serviceCidr,
-        metalLbRange
-      })
-    ),
-    [
-      {
-        id: 'us-west',
-        vlanId: 0,
-        networkCidr: '10.0.0.0/16',
-        gatewayIp: '10.0.0.1',
-        podCidr: '10.42.0.0/16',
-        serviceCidr: '10.43.0.0/16',
-        metalLbRange: '10.0.5.1-10.0.5.254'
-      },
-      {
-        id: 'us-east',
-        vlanId: 101,
-        networkCidr: '10.1.0.0/16',
-        gatewayIp: '10.1.0.1',
-        podCidr: '10.44.0.0/16',
-        serviceCidr: '10.45.0.0/16',
-        metalLbRange: '10.1.5.1-10.1.5.254'
-      },
-      {
-        id: 'eu',
-        vlanId: 102,
-        networkCidr: '10.2.0.0/16',
-        gatewayIp: '10.2.0.1',
-        podCidr: '10.46.0.0/16',
-        serviceCidr: '10.47.0.0/16',
-        metalLbRange: '10.2.5.1-10.2.5.254'
-      },
-      {
-        id: 'asia',
-        vlanId: 103,
-        networkCidr: '10.3.0.0/16',
-        gatewayIp: '10.3.0.1',
-        podCidr: '10.48.0.0/16',
-        serviceCidr: '10.49.0.0/16',
-        metalLbRange: '10.3.5.1-10.3.5.254'
-      }
-    ]
-  );
-
+void test('keeps the cluster configuration pure and free of stage helpers', () => {
   const source = readFileSync('infra/cluster/config.ts', 'utf8');
   assert.doesNotMatch(source, /\$app|\.\.\/utils|isProduction/);
 });
 
-void test('separates the current US account from dormant EU provider credentials', () => {
-  assert.deepEqual(OVH_ACCOUNTS, {
-    us: {
-      endpoint: 'ovh-us',
-      apiRoot: 'https://api.us.ovhcloud.com/1.0',
-      subsidiary: 'US',
-      applicationKey: 'edf9a4672d28e3c7',
-      applicationSecretEnvironment: 'OVH_APPLICATION_SECRET',
-      consumerKeyEnvironment: 'OVH_CONSUMER_KEY'
-    },
-    eu: {
-      endpoint: 'ovh-eu',
-      apiRoot: 'https://eu.api.ovh.com/1.0',
-      subsidiary: '',
-      applicationKeyEnvironment: 'OVH_EU_APPLICATION_KEY',
-      applicationSecretEnvironment: 'OVH_EU_APPLICATION_SECRET',
-      consumerKeyEnvironment: 'OVH_EU_CONSUMER_KEY'
-    }
+void test('collapses to the single US OVH account', () => {
+  assert.deepEqual(OVH_ACCOUNT, {
+    endpoint: 'ovh-us',
+    apiRoot: 'https://api.us.ovhcloud.com/1.0',
+    subsidiary: 'US',
+    applicationKey: 'edf9a4672d28e3c7',
+    applicationSecretEnvironment: 'OVH_APPLICATION_SECRET',
+    consumerKeyEnvironment: 'OVH_CONSUMER_KEY'
   });
   assert.equal(GATEWAY_MODEL, 'S');
   assert.equal(LOAD_BALANCER_FLAVOR, 'small');
   assert.equal(LOAD_BALANCER_ALGORITHM, 'leastConnections');
+
+  const source = readFileSync('infra/cluster/config.ts', 'utf8');
+  assert.doesNotMatch(source, /OVH_ACCOUNTS|ovh-eu|OVH_EU_/);
 });
 
-void test('distinguishes configured keys from runtime OVH catalog values', () => {
-  const region: ClusterRegionKey = 'us-west';
-  const account: OvhAccountKey = 'us';
-  const ingress: PublicIngressConfig = {
-    type: 'public-cloud',
-    flavor: 'future-runtime-catalog-flavor'
-  };
-
-  assert.equal(ingress.type, 'public-cloud');
-  assert.deepEqual(
-    [region, account, ingress.flavor],
-    ['us-west', 'us', 'future-runtime-catalog-flavor']
-  );
+void test('models clusters as free-form primitives instead of fixed regional slots', () => {
   const source = readFileSync('infra/cluster/config.ts', 'utf8');
-  assert.doesNotMatch(source, /ClusterRegionId|OvhAccountId|type LoadBalancerFlavor/);
-  assert.match(source, /export type ClusterRegionKey/);
-  assert.match(source, /export type OvhAccountKey/);
+  assert.doesNotMatch(source, /ClusterRegionKey|OvhAccountKey|NodePoolName|type Workload|enabled:/);
+  assert.match(source, /export type PublicCloudRegion/);
+  assert.match(source, /export type DedicatedDatacenter/);
   assert.match(source, /type: 'public-cloud'; flavor: string/);
+
+  const pool: NodePoolConfig = {
+    name: 'database',
+    role: 'worker',
+    count: 1,
+    labels: { 'pandoks.com/workload': 'database' },
+    taints: [{ key: 'pandoks.com/workload', value: 'database', effect: 'NoSchedule' }],
+    server: { type: 'public-cloud', region: 'US-WEST-OR-1', flavor: 'b3-8', image: 'Ubuntu 26.04' }
+  };
+  const swapped: NodePoolConfig = {
+    ...pool,
+    server: {
+      type: 'dedicated',
+      datacenter: 'vin',
+      planCode: 'future-catalog-plan',
+      operatingSystem: 'ubuntu2604-server_64',
+      orderRegion: 'usa',
+      planOptions: []
+    }
+  };
+  const cluster: ClusterSpec = { name: 'anywhere', networkIndex: 3, pools: [pool, swapped] };
+  const ingress: PublicIngressConfig = { type: 'public-cloud', flavor: 'runtime-catalog-flavor' };
+  assert.equal(cluster.pools[0].server.type, 'public-cloud');
+  assert.equal(cluster.pools[1].server.type, 'dedicated');
+  assert.equal(ingress.type, 'public-cloud');
 });

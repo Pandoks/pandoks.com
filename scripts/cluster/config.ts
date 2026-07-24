@@ -3,7 +3,7 @@ import {
   PRODUCTION_CLUSTER_CONFIG,
   type ClusterConfig
 } from '../../infra/cluster/config.ts';
-import { buildRegionalClusterPlan } from '../../infra/cluster/topology.ts';
+import { buildClusterPlan } from '../../infra/cluster/topology.ts';
 
 function fail(message: string): never {
   console.error(message);
@@ -20,31 +20,35 @@ function stage(value: string): { config: ClusterConfig; name: 'prod' | 'dev' } {
   return fail(`Unknown cluster stage: ${value}`);
 }
 
-const [command = '', stageName = '', regionId = ''] = process.argv.slice(2);
+const [command = '', stageName = '', clusterName = ''] = process.argv.slice(2);
 const selected = stage(stageName);
-const plan = (region: ClusterConfig['regions'][number]) =>
-  buildRegionalClusterPlan(region, selected.name, 'unused.invalid');
+const plan = (cluster: ClusterConfig['clusters'][number]) =>
+  buildClusterPlan(
+    cluster,
+    selected.name,
+    'unused.invalid',
+    selected.config.publicIngress,
+    selected.config.interconnect
+  );
 
 if (command === 'enabled') {
   console.log(
     JSON.stringify(
-      selected.config.regions
-        .filter(({ enabled }) => enabled)
-        .map((region) => ({
-          id: region.id,
-          operatorHostname: plan(region).identity.operatorHostname
-        }))
+      selected.config.clusters.map((cluster) => ({
+        id: cluster.name,
+        operatorHostname: plan(cluster).identity.operatorHostname
+      }))
     )
   );
 } else if (command === 'region') {
-  const region = selected.config.regions.find(({ id }) => id === regionId);
-  if (!region) fail(`Unknown cluster region: ${regionId}`);
-  const regionalPlan = plan(region);
+  const cluster = selected.config.clusters.find(({ name }) => name === clusterName);
+  if (!cluster) fail(`Unknown cluster: ${clusterName}`);
+  const clusterPlan = plan(cluster);
   console.log(
     JSON.stringify({
-      ClusterMetalLbRange: region.metalLbRange,
-      ClusterRegion: region.id,
-      ClusterOperatorHostname: regionalPlan.identity.operatorHostname
+      ClusterMetalLbRange: clusterPlan.network.metalLbRange,
+      ClusterRegion: cluster.name,
+      ClusterOperatorHostname: clusterPlan.identity.operatorHostname
     })
   );
 } else {
