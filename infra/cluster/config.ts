@@ -2,21 +2,13 @@ export const LOAD_BALANCER_FLAVOR = 'small';
 export const LOAD_BALANCER_ALGORITHM: 'leastConnections' | 'roundRobin' | 'sourceIP' =
   'leastConnections';
 
-export const PRODUCTION_CLUSTER_CONFIG: ClusterConfig = {
-  clusters: []
-};
+export const PRODUCTION_CLUSTER_CONFIG: ClusterSpec[] = [];
 
-export const NON_PRODUCTION_CLUSTER_CONFIG: ClusterConfig = {
-  clusters: []
-};
+export const NON_PRODUCTION_CLUSTER_CONFIG: ClusterSpec[] = [];
 
 /**
  * TYPES
  */
-export type ClusterConfig = {
-  clusters: ClusterSpec[];
-};
-
 export type ClusterSpec = {
   region: ClusterRegion;
   pools: NodePoolConfig[];

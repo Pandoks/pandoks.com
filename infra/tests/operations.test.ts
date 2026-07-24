@@ -295,7 +295,7 @@ void test('routes each deployed stage through its matching example hostname', ()
 void test('cluster monitoring matches the empty default topology', () => {
   const monitoring = readFileSync('k3s/overlays/cluster/prom-etcd-config.yaml', 'utf8');
   assert.doesNotMatch(clusterConfigModule, /\$app|\.\.\/utils/);
-  assert.match(clusterConfigModule, /clusters: \[\]/);
+  assert.match(clusterConfigModule, /CLUSTER_CONFIG: ClusterSpec\[\] = \[\]/);
   assert.match(
     cluster,
     /const clusterConfig = isProduction\s*\?\s*PRODUCTION_CLUSTER_CONFIG\s*:\s*NON_PRODUCTION_CLUSTER_CONFIG/

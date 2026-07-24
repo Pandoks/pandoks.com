@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type {
-  ClusterConfig,
   ClusterRegion,
   ClusterSpec,
   DedicatedServer,
@@ -76,10 +75,6 @@ function cluster(
       }
     ]
   };
-}
-
-function config(clusters: ClusterSpec[]): ClusterConfig {
-  return { clusters };
 }
 
 void test('permanently allocates a network index to every OVH datacenter', () => {
@@ -290,7 +285,7 @@ void test('derives dedicated placement from the region and assigns interconnect 
 void test('builds independent plans and rejects duplicate or colliding clusters', () => {
   const west = cluster();
   const east = cluster({ region: 'vin' });
-  const topology = buildClusterTopology(config([west, east]), 'prod', 'pandoks.com');
+  const topology = buildClusterTopology([west, east], 'prod', 'pandoks.com');
   assert.deepEqual(
     topology.clusters.map(({ config: spec, nodes }) => [spec.region, nodes[0]?.privateIp]),
     [
@@ -300,22 +295,17 @@ void test('builds independent plans and rejects duplicate or colliding clusters'
   );
 
   assert.throws(
-    () => buildClusterTopology(config([west, west]), 'prod', 'pandoks.com'),
+    () => buildClusterTopology([west, west], 'prod', 'pandoks.com'),
     /Duplicate cluster region: hil/
   );
   assert.throws(
-    () =>
-      buildClusterTopology(
-        config([west, { ...east, network: { vlanId: 1 } }]),
-        'prod',
-        'pandoks.com'
-      ),
+    () => buildClusterTopology([west, { ...east, network: { vlanId: 1 } }], 'prod', 'pandoks.com'),
     /Duplicate VLAN 1/
   );
   assert.throws(
     () =>
       buildClusterTopology(
-        config([west, { ...east, network: { podCidr: '10.44.0.0/16' } }]),
+        [west, { ...east, network: { podCidr: '10.44.0.0/16' } }],
         'prod',
         'pandoks.com'
       ),
@@ -324,7 +314,7 @@ void test('builds independent plans and rejects duplicate or colliding clusters'
 });
 
 void test('keeps empty stages inert', () => {
-  const topology = buildClusterTopology(config([]), 'prod', 'pandoks.com');
+  const topology = buildClusterTopology([], 'prod', 'pandoks.com');
   assert.deepEqual(topology.clusters, []);
 });
 

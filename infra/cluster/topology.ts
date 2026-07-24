@@ -1,5 +1,4 @@
 import type {
-  ClusterConfig,
   ClusterRegion,
   ClusterSpec,
   DedicatedPlanOption,
@@ -396,9 +395,9 @@ function unique(plans: readonly ClusterPlan[], field: 'networkCidr' | 'podCidr' 
   }
 }
 
-export function buildClusterTopology(config: ClusterConfig, stage: string, domain: string) {
+export function buildClusterTopology(specs: ClusterSpec[], stage: string, domain: string) {
   const regions = new Set<ClusterRegion>();
-  const clusters = config.clusters.map((spec) => {
+  const clusters = specs.map((spec) => {
     if (regions.has(spec.region)) throw new Error(`Duplicate cluster region: ${spec.region}`);
     regions.add(spec.region);
     return buildClusterPlan(spec, stage, domain);

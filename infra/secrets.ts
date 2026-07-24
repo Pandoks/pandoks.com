@@ -3,9 +3,7 @@ import { NON_PRODUCTION_CLUSTER_CONFIG, PRODUCTION_CLUSTER_CONFIG } from './clus
 import { clusterTokenSecretName } from './cluster/topology';
 
 const clusterRegions = new Set(
-  [...PRODUCTION_CLUSTER_CONFIG.clusters, ...NON_PRODUCTION_CLUSTER_CONFIG.clusters].map(
-    ({ region }) => region
-  )
+  [...PRODUCTION_CLUSTER_CONFIG, ...NON_PRODUCTION_CLUSTER_CONFIG].map(({ region }) => region)
 );
 
 export const secrets = {

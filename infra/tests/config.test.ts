@@ -14,7 +14,7 @@ const configs = [PRODUCTION_CLUSTER_CONFIG, NON_PRODUCTION_CLUSTER_CONFIG];
 
 void test('starts every stage with zero declared clusters and shared defaults', () => {
   for (const config of configs) {
-    assert.deepEqual(config, { clusters: [] });
+    assert.deepEqual(config, []);
   }
 });
 
