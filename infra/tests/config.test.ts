@@ -6,7 +6,6 @@ import {
   LOAD_BALANCER_ALGORITHM,
   LOAD_BALANCER_FLAVOR,
   NON_PRODUCTION_CLUSTER_CONFIG,
-  OVH_ACCOUNT,
   PRODUCTION_CLUSTER_CONFIG,
   type ClusterSpec,
   type NodePoolConfig,
@@ -28,20 +27,13 @@ void test('keeps the cluster configuration pure and free of stage helpers', () =
   assert.doesNotMatch(source, /\$app|\.\.\/utils|isProduction/);
 });
 
-void test('collapses to the single US OVH account', () => {
-  assert.deepEqual(OVH_ACCOUNT, {
-    apiRoot: 'https://api.us.ovhcloud.com/1.0',
-    subsidiary: 'US',
-    applicationKey: 'edf9a4672d28e3c7',
-    applicationSecretEnvironment: 'OVH_APPLICATION_SECRET',
-    consumerKeyEnvironment: 'OVH_CONSUMER_KEY'
-  });
+void test('holds no account data and keeps only cluster-shaped constants', () => {
   assert.equal(GATEWAY_MODEL, 'S');
   assert.equal(LOAD_BALANCER_FLAVOR, 'small');
   assert.equal(LOAD_BALANCER_ALGORITHM, 'leastConnections');
 
   const source = readFileSync('infra/cluster/config.ts', 'utf8');
-  assert.doesNotMatch(source, /OVH_ACCOUNTS|ovh-eu|OVH_EU_/);
+  assert.doesNotMatch(source, /OVH_ACCOUNT|ovh-eu|OVH_EU_|applicationKey|subsidiary/);
 });
 
 void test('models clusters as free-form primitives instead of fixed regional slots', () => {

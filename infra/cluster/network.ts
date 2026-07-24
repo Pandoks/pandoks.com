@@ -3,7 +3,7 @@ import { clusterResourceName, type ClusterPlan } from './topology';
 
 export type ClusterFoundation = {
   projectId: $util.Output<string>;
-  subsidiary: string;
+  subsidiary: $util.Output<string>;
   vrack: ovh.vrack.Vrack;
   attachment: ovh.vrack.CloudProject;
 };

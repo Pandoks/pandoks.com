@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { cloudflareIpv4Cidrs } from '../dns';
-import { LOAD_BALANCER_ALGORITHM, LOAD_BALANCER_FLAVOR, OVH_ACCOUNT } from './config';
+import { LOAD_BALANCER_ALGORITHM, LOAD_BALANCER_FLAVOR } from './config';
 import type { ClusterNetwork } from './network';
 import {
   clusterResourceName,
@@ -121,20 +121,43 @@ const wait = (milliseconds: number) =>
     setTimeout(resolve, milliseconds);
   });
 
+const OVH_API_ROOTS: Record<string, string> = {
+  'ovh-us': 'https://api.us.ovhcloud.com/1.0',
+  'ovh-eu': 'https://eu.api.ovh.com/1.0',
+  'ovh-ca': 'https://ca.api.ovh.com/1.0'
+};
+
+// The raw signed API calls reuse the credentials sst.config.ts hands the OVH provider.
+function ovhProviderConfig() {
+  const provider = $app.providers?.['ovhcloud/pulumi-ovh'] as
+    | string
+    | undefined
+    | {
+        endpoint?: string;
+        applicationKey?: string;
+        applicationSecret?: string;
+        consumerKey?: string;
+      };
+  if (!provider || typeof provider === 'string') {
+    throw new Error('Missing ovhcloud/pulumi-ovh provider configuration');
+  }
+  return provider;
+}
+
 async function refreshIpLoadBalancing(serviceName: string) {
-  const applicationKey = OVH_ACCOUNT.applicationKey;
-  const applicationSecret = process.env[OVH_ACCOUNT.applicationSecretEnvironment];
-  const consumerKey = process.env[OVH_ACCOUNT.consumerKeyEnvironment];
+  const { endpoint, applicationKey, applicationSecret, consumerKey } = ovhProviderConfig();
+  const apiRoot = OVH_API_ROOTS[endpoint ?? ''];
+  if (!apiRoot) throw new Error(`Unsupported OVH endpoint: ${endpoint}`);
   if (!applicationKey || !applicationSecret || !consumerKey) {
     throw new Error(`Missing OVH credentials needed to refresh ${serviceName}`);
   }
 
-  const timeResponse = await fetch(`${OVH_ACCOUNT.apiRoot}/auth/time`);
+  const timeResponse = await fetch(`${apiRoot}/auth/time`);
   if (!timeResponse.ok) throw new Error(`Unable to read OVH API time: ${timeResponse.status}`);
   const timeOffset = Number(await timeResponse.text()) - Math.floor(Date.now() / 1000);
   if (!Number.isFinite(timeOffset)) throw new Error('OVH API returned an invalid timestamp');
   const request = async <Result>(method: 'GET' | 'POST', path: string): Promise<Result> => {
-    const url = `${OVH_ACCOUNT.apiRoot}${path}`;
+    const url = `${apiRoot}${path}`;
     const timestamp = String(Math.floor(Date.now() / 1000) + timeOffset);
     const signature = createHash('sha1')
       .update(`${applicationSecret}+${consumerKey}+${method}+${url}++${timestamp}`)

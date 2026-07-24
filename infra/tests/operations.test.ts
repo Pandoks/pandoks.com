@@ -427,7 +427,8 @@ void test('creates the US Public Cloud project in Pulumi and threads its generat
   assert.equal(existsSync('infra/ovh.ts'), false);
   assert.match(cluster, /new ovh\.cloudproject\.Project\(\s*'OvhPublicCloudProject'/s);
   assert.match(cluster, /deletionProtection:\s*isProduction/);
-  assert.match(cluster, /ovhSubsidiary:\s*OVH_ACCOUNT\.subsidiary/);
+  assert.match(cluster, /const account = ovh\.me\.getMeOutput\(\)/);
+  assert.match(cluster, /ovhSubsidiary:\s*account\.ovhSubsidiary/);
   assert.match(
     cluster,
     /plan:\s*\{\s*duration:\s*'P1M',\s*planCode:\s*'project',\s*pricingMode:\s*'default'\s*\}/s
@@ -453,18 +454,18 @@ void test('creates the US Public Cloud project in Pulumi and threads its generat
   assert.match(publicCloud, /serviceName:\s*args\.network\.foundation\.projectId/);
 });
 
-void test('keeps sst.config.ts import-free with hardcoded provider literals', () => {
+void test('keeps sst.config.ts import-free and reads provider config back at runtime', () => {
   const sstConfig = readFileSync('sst.config.ts', 'utf8');
   assert.doesNotMatch(sstConfig, /^import /m);
   assert.match(sstConfig, /applicationKey: 'edf9a4672d28e3c7'/);
-  assert.match(clusterConfigModule, /applicationKey: 'edf9a4672d28e3c7'/);
+  assert.match(loadBalancers, /\$app\.providers\?\.\['ovhcloud\/pulumi-ovh'\]/);
 });
 
 void test('drops the dormant EU account machinery for the single-account topology', () => {
   for (const source of [cluster, clusterConfigModule, loadBalancers, secrets]) {
-    assert.doesNotMatch(source, /OVH_ACCOUNTS|euProvider|euProject|OVH_EU_/);
+    assert.doesNotMatch(source, /OVH_ACCOUNT|euProvider|euProject|OVH_EU_/);
   }
-  assert.match(cluster, /OVH_ACCOUNT\.subsidiary/);
+  assert.match(cluster, /account\.ovhSubsidiary/);
   assert.doesNotMatch(cluster, /regionalResourceName|ClusterRegionKey|OvhAccountKey/);
 });
 

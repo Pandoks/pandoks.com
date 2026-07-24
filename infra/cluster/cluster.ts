@@ -1,7 +1,7 @@
 import { cloudflareZoneId } from '../dns';
 import { deleteTailscaleDevices } from '../tailscale';
 import { STAGE_NAME, domain, isProduction } from '../utils';
-import { NON_PRODUCTION_CLUSTER_CONFIG, OVH_ACCOUNT, PRODUCTION_CLUSTER_CONFIG } from './config';
+import { NON_PRODUCTION_CLUSTER_CONFIG, PRODUCTION_CLUSTER_CONFIG } from './config';
 import { createClusterLoadBalancers, createIpLoadBalancingIngress } from './load-balancers';
 import { createClusterNetwork, type ClusterFoundation, type ClusterNetwork } from './network';
 import { createDedicatedNodes } from './providers/dedicated';
@@ -14,12 +14,14 @@ for (const { warnings } of topology.clusters) {
   for (const warning of warnings) console.warn(warning);
 }
 
+const account = ovh.me.getMeOutput();
+
 const cloudProject = new ovh.cloudproject.Project(
   'OvhPublicCloudProject',
   {
     deletionProtection: isProduction,
     description: `${STAGE_NAME.capitalize()} Public Cloud project`,
-    ovhSubsidiary: OVH_ACCOUNT.subsidiary,
+    ovhSubsidiary: account.ovhSubsidiary,
     plan: { duration: 'P1M', planCode: 'project', pricingMode: 'default' }
   },
   { protect: isProduction }
@@ -29,7 +31,7 @@ function createFoundation(project: ovh.cloudproject.Project): ClusterFoundation 
   const vrack = new ovh.vrack.Vrack(
     'OvhK3sVrack',
     {
-      ovhSubsidiary: OVH_ACCOUNT.subsidiary,
+      ovhSubsidiary: account.ovhSubsidiary,
       name: `k3s-${STAGE_NAME}`,
       description: `k3s ${STAGE_NAME} private networks`,
       plan: { duration: 'P1M', planCode: 'vrack', pricingMode: 'default' }
@@ -42,7 +44,7 @@ function createFoundation(project: ovh.cloudproject.Project): ClusterFoundation 
   });
   return {
     projectId: project.projectId,
-    subsidiary: OVH_ACCOUNT.subsidiary,
+    subsidiary: account.ovhSubsidiary,
     vrack,
     attachment
   };
