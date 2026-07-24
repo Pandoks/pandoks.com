@@ -2,7 +2,6 @@ import type {
   ClusterConfig,
   ClusterRegion,
   ClusterSpec,
-  DedicatedOrderRegion,
   DedicatedPlanOption,
   DerivedNetwork,
   InterconnectConfig,
@@ -47,7 +46,7 @@ const PUBLIC_CLOUD_REGIONS: Partial<Record<ClusterRegion, PublicCloudRegion>> = 
   vin: 'US-EAST-VA-1'
 };
 
-const DEDICATED_ORDER_REGIONS: Record<ClusterRegion, DedicatedOrderRegion> = {
+const DEDICATED_ORDER_REGIONS: Record<ClusterRegion, 'usa' | 'canada' | 'europe' | 'apac'> = {
   vin: 'usa',
   hil: 'usa',
   bhs: 'canada',

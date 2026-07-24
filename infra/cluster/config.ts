@@ -1,6 +1,7 @@
-export const GATEWAY_MODEL: GatewayModel = 'S';
+export const GATEWAY_MODEL: 'S' | 'M' | 'L' | 'XL' | '2XL' | '3XL' = 'S';
 export const LOAD_BALANCER_FLAVOR = 'small';
-export const LOAD_BALANCER_ALGORITHM: LoadBalancerAlgorithm = 'leastConnections';
+export const LOAD_BALANCER_ALGORITHM: 'leastConnections' | 'roundRobin' | 'sourceIP' =
+  'leastConnections';
 
 export const PRODUCTION_CLUSTER_CONFIG: ClusterConfig = {
   clusters: [],
@@ -22,10 +23,6 @@ export type ClusterConfig = {
   interconnect: InterconnectConfig;
   publicIngress: PublicIngressConfig;
 };
-
-// One cluster per OVH datacenter; the region determines everything both products
-// need (Public Cloud region, dedicated datacenter, order region, address plan).
-export type ClusterRegion = DedicatedDatacenter;
 
 export type ClusterSpec = {
   region: ClusterRegion;
@@ -52,21 +49,53 @@ export type NodePoolConfig = {
 
 export type PublicCloudServer = {
   type: 'public-cloud';
-  flavor: PublicCloudFlavor;
-  image: PublicCloudImage;
+  flavor: // general purpose
+    | 'b3-8'
+    | 'b3-16'
+    | 'b3-32'
+    | 'b3-64'
+    | 'b3-128'
+    | 'b3-256'
+    | 'b3-512'
+    // CPU optimized
+    | 'c3-4'
+    | 'c3-8'
+    | 'c3-16'
+    | 'c3-32'
+    | 'c3-64'
+    | 'c3-128'
+    | 'c3-256'
+    // RAM optimized
+    | 'r3-16'
+    | 'r3-32'
+    | 'r3-64'
+    | 'r3-128'
+    | 'r3-256'
+    | 'r3-512';
+  image: 'Ubuntu 26.04' | 'Ubuntu 24.04' | 'Ubuntu 22.04' | 'Debian 12';
 };
 
 export type DedicatedServer = {
   type: 'dedicated';
   planCode: string; // always from the live cart; no stable vocabulary
-  operatingSystem: DedicatedOperatingSystem;
+  operatingSystem:
+    | 'ubuntu2604-server_64' // Ubuntu Server 26.04 LTS
+    | 'ubuntu2404-server_64' // Ubuntu Server 24.04 LTS
+    | 'ubuntu2204-server_64' // Ubuntu Server 22.04 LTS
+    | 'debian12_64' // Debian 12 (Bookworm)
+    | 'debian13_64' // Debian 13 (Trixie)
+    | 'rocky9_64' // Rocky Linux 9
+    | 'alma9_64' // AlmaLinux 9
+    | 'byolinux_64'; // Bring Your Own Linux image
   planOptions: DedicatedPlanOption[];
 };
 
 export type DedicatedPlanOption = {
-  duration: PlanDuration;
+  // NOTE: baremetal duration and pricingMode travel as pairs in the cart:
+  // P1M+default (monthly), P1Y+upfront12 (year upfront), P2Y+upfront24 (2 years upfront)
+  duration: 'P1M' | 'P1Y' | 'P2Y';
   planCode: string;
-  pricingMode: PlanPricingMode;
+  pricingMode: 'default' | 'upfront12' | 'upfront24';
   quantity: number;
 };
 
@@ -95,12 +124,17 @@ export type DerivedNetwork = {
   metalLbRange: string;
 };
 
-export type NodeTaint = { key: string; value: string; effect: TaintEffect };
+export type NodeTaint = {
+  key: string;
+  value: string;
+  effect: 'NoSchedule' | 'PreferNoSchedule' | 'NoExecute';
+};
 
 export type NodeRole = 'control-plane' | 'worker';
-export type TaintEffect = 'NoSchedule' | 'PreferNoSchedule' | 'NoExecute';
 export type PublicCloudRegion = 'US-WEST-OR-1' | 'US-EAST-VA-1';
-export type DedicatedDatacenter =
+// One cluster per OVH datacenter; the region determines everything both products
+// need (Public Cloud region, dedicated datacenter, order region, address plan).
+export type ClusterRegion =
   | 'vin' // Vint Hill, Virginia, USA
   | 'hil' // Hillsboro, Oregon, USA
   | 'bhs' // Beauharnois, Canada
@@ -116,44 +150,3 @@ export type DedicatedDatacenter =
   | 'sgp' // Singapore
   | 'syd' // Sydney, Australia
   | 'ynm'; // Mumbai, India
-export type DedicatedOrderRegion = 'usa' | 'canada' | 'europe' | 'apac';
-export type DedicatedOperatingSystem =
-  | 'ubuntu2604-server_64' // Ubuntu Server 26.04 LTS
-  | 'ubuntu2404-server_64' // Ubuntu Server 24.04 LTS
-  | 'ubuntu2204-server_64' // Ubuntu Server 22.04 LTS
-  | 'debian12_64' // Debian 12 (Bookworm)
-  | 'debian13_64' // Debian 13 (Trixie)
-  | 'rocky9_64' // Rocky Linux 9
-  | 'alma9_64' // AlmaLinux 9
-  | 'byolinux_64'; // Bring Your Own Linux image
-export type PublicCloudFlavor =
-  // general purpose
-  | 'b3-8'
-  | 'b3-16'
-  | 'b3-32'
-  | 'b3-64'
-  | 'b3-128'
-  | 'b3-256'
-  | 'b3-512'
-  // CPU optimized
-  | 'c3-4'
-  | 'c3-8'
-  | 'c3-16'
-  | 'c3-32'
-  | 'c3-64'
-  | 'c3-128'
-  | 'c3-256'
-  // RAM optimized
-  | 'r3-16'
-  | 'r3-32'
-  | 'r3-64'
-  | 'r3-128'
-  | 'r3-256'
-  | 'r3-512';
-export type PublicCloudImage = 'Ubuntu 26.04' | 'Ubuntu 24.04' | 'Ubuntu 22.04' | 'Debian 12';
-// NOTE: baremetal duration and pricingMode travel as pairs in the cart:
-// P1M+default (monthly), P1Y+upfront12 (year upfront), P2Y+upfront24 (2 years upfront)
-export type PlanDuration = 'P1M' | 'P1Y' | 'P2Y';
-export type PlanPricingMode = 'default' | 'upfront12' | 'upfront24';
-type GatewayModel = 'S' | 'M' | 'L' | 'XL' | '2XL' | '3XL';
-type LoadBalancerAlgorithm = 'leastConnections' | 'roundRobin' | 'sourceIP';

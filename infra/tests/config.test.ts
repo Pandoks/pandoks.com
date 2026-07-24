@@ -40,7 +40,7 @@ void test('models clusters as free-form primitives instead of fixed regional slo
   const source = readFileSync('infra/cluster/config.ts', 'utf8');
   assert.doesNotMatch(source, /ClusterRegionKey|OvhAccountKey|NodePoolName|type Workload|enabled:/);
   assert.match(source, /export type PublicCloudRegion/);
-  assert.match(source, /export type DedicatedDatacenter/);
+  assert.match(source, /export type ClusterRegion/);
   assert.match(source, /type: 'public-cloud'; flavor: string/);
 
   const pool: NodePoolConfig = {
