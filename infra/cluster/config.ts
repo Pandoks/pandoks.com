@@ -92,7 +92,10 @@ export type PublicCloudServer = {
 
 export type DedicatedServer = {
   type: 'dedicated';
-  planCode: string; // always from the live cart; no stable vocabulary
+  // NOTE: plan codes have no stable vocabulary (yearly generations, per-market suffixes) —
+  // list them: https://api.us.ovhcloud.com/1.0/order/catalog/public/baremetalServers?ovhSubsidiary=US
+  // (plans[].planCode; valid planOptions live in each plan's addonFamilies)
+  planCode: string;
   operatingSystem:
     | 'ubuntu2604-server_64' // Ubuntu Server 26.04 LTS
     | 'ubuntu2404-server_64' // Ubuntu Server 24.04 LTS
