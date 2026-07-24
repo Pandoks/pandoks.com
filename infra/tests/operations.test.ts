@@ -453,6 +453,13 @@ void test('creates the US Public Cloud project in Pulumi and threads its generat
   assert.match(publicCloud, /serviceName:\s*args\.network\.foundation\.projectId/);
 });
 
+void test('keeps sst.config.ts import-free with hardcoded provider literals', () => {
+  const sstConfig = readFileSync('sst.config.ts', 'utf8');
+  assert.doesNotMatch(sstConfig, /^import /m);
+  assert.match(sstConfig, /applicationKey: 'edf9a4672d28e3c7'/);
+  assert.match(clusterConfigModule, /applicationKey: 'edf9a4672d28e3c7'/);
+});
+
 void test('drops the dormant EU account machinery for the single-account topology', () => {
   for (const source of [cluster, clusterConfigModule, loadBalancers, secrets]) {
     assert.doesNotMatch(source, /OVH_ACCOUNTS|euProvider|euProject|OVH_EU_/);

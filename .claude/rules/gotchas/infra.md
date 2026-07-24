@@ -15,6 +15,11 @@ paths:
   `await Promise.all([import('./infra/...')])` list. The
   `// NOTE: for some reason, dynamic imports don't work well so just
 manually import` comment at `sst.config.ts:34` is load-bearing.
+- **No top-level imports in `sst.config.ts`.** The `$config` header must stay
+  import-free; provider literals (the OVH `applicationKey`) are hardcoded
+  there AND in `OVH_ACCOUNT` (`infra/cluster/config.ts`) for the signed IPLB
+  refresh calls — change both together. Contract test in
+  `infra/tests/operations.test.ts`.
 
 ## Tailscale ACL
 
