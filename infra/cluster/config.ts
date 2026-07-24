@@ -82,8 +82,9 @@ export type PublicCloudFlavor =
   | 'r3-256'
   | 'r3-512';
 export type PublicCloudImage = 'Ubuntu 26.04' | 'Ubuntu 24.04' | 'Ubuntu 22.04' | 'Debian 12';
-// commitment is expressed by pricingMode, not duration: cart durations stay P1M
-export type PlanDuration = 'P1M';
+// NOTE: baremetal duration and pricingMode travel as pairs in the cart:
+// P1M+default (monthly), P1Y+upfront12 (year upfront), P2Y+upfront24 (2 years upfront)
+export type PlanDuration = 'P1M' | 'P1Y' | 'P2Y';
 export type PlanPricingMode = 'default' | 'upfront12' | 'upfront24';
 export type NodeRole = 'control-plane' | 'worker';
 export type TaintEffect = 'NoSchedule' | 'PreferNoSchedule' | 'NoExecute';
