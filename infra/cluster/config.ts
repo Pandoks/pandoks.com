@@ -2,16 +2,6 @@ export const GATEWAY_MODEL: GatewayModel = 'S';
 export const LOAD_BALANCER_FLAVOR = 'small';
 export const LOAD_BALANCER_ALGORITHM: LoadBalancerAlgorithm = 'leastConnections';
 
-// One cluster per region; each region permanently owns its network index (VLAN,
-// 10.<i>.0.0/16, pod/service CIDRs, MetalLB, interconnect slice all derive from it).
-// For a temporary side-by-side rebuild, add a scratch entry like 'us-west-v2'.
-export const CLUSTER_NETWORK_INDEXES = {
-  'us-west': 0,
-  'us-east': 1,
-  europe: 2,
-  asia: 3
-} as const;
-
 export const PRODUCTION_CLUSTER_CONFIG: ClusterConfig = {
   clusters: [],
   interconnect: { vlanId: 4000, cidr: '172.16.0.0/12' },
@@ -33,12 +23,13 @@ export type ClusterConfig = {
   publicIngress: PublicIngressConfig;
 };
 
-export type ClusterRegion = keyof typeof CLUSTER_NETWORK_INDEXES;
+// One cluster per OVH datacenter; the region determines everything both products
+// need (Public Cloud region, dedicated datacenter, order region, address plan).
+export type ClusterRegion = DedicatedDatacenter;
 
 export type ClusterSpec = {
   region: ClusterRegion;
   pools: NodePoolConfig[];
-  publicCloudRegion?: PublicCloudRegion;
   network?: Partial<DerivedNetwork>;
   loadBalancerCount?: number;
 };
@@ -61,17 +52,14 @@ export type NodePoolConfig = {
 
 export type PublicCloudServer = {
   type: 'public-cloud';
-  region: PublicCloudRegion;
   flavor: PublicCloudFlavor;
   image: PublicCloudImage;
 };
 
 export type DedicatedServer = {
   type: 'dedicated';
-  datacenter: DedicatedDatacenter;
   planCode: string; // always from the live cart; no stable vocabulary
   operatingSystem: DedicatedOperatingSystem;
-  orderRegion: DedicatedOrderRegion;
   planOptions: DedicatedPlanOption[];
 };
 

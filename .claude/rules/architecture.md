@@ -110,7 +110,8 @@ For full per-flow traces, see `.claude/rules/gotchas/*.md`.
 - Topology lives in `infra/cluster/config.ts` as generic primitives.
   `PRODUCTION_CLUSTER_CONFIG` and `NON_PRODUCTION_CLUSTER_CONFIG` both currently
   declare zero clusters. A cluster is an array entry (`region`, `pools`), one
-  per region; each pool mixes OVH products via the `server`
+  per OVH datacenter (`region` is a datacenter code like `hil`/`vin`/`sgp`);
+  each pool mixes OVH products via the `server`
   union (public-cloud vs dedicated) and carries raw Kubernetes labels/taints.
   When no clusters declare nodes, stale OVH cluster Tailnet entries for the
   stage are reclaimed.

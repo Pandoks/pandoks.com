@@ -62,14 +62,18 @@ exchanges it for 1-hour API tokens per run (`sst.config.ts:25-29`), and
 Topology is code-owned in `infra/cluster/config.ts` as generic primitives:
 `PRODUCTION_CLUSTER_CONFIG` and `NON_PRODUCTION_CLUSTER_CONFIG` both currently
 declare zero clusters. A cluster is a `ClusterSpec` array entry (`region` +
-`pools`), one cluster per region; adding one appends an entry plus, for a new
-region, a `CLUSTER_NETWORK_INDEXES` allocation. There is no `enabled` flag. Each pool picks its OVH product via
-the `server` union (`public-cloud` flavor/region/image vs `dedicated`
-planCode/datacenter/os/planOptions) and carries raw Kubernetes `labels` and
+`pools`), one cluster per region, where `region` is an OVH datacenter code
+(`hil`, `vin`, `gra`, `sgp`, ...). There is no `enabled` flag. The region
+determines everything both products need: Public Cloud pools are only valid in
+`hil`/`vin` (auto-mapped to `US-WEST-OR-1`/`US-EAST-VA-1`) and dedicated pools
+inherit their datacenter and order region. Each pool picks its OVH product via
+the `server` union (`public-cloud` flavor/image vs `dedicated`
+planCode/os/planOptions) and carries raw Kubernetes `labels` and
 `taints` for placement (e.g. `pandoks.com/workload=database` + NoSchedule).
 All addressing (VLAN, `10.<i>.0.0/16`, gateway, pod/service CIDRs, MetalLB
-`10.<i>.200.x`) derives from the region's `CLUSTER_NETWORK_INDEXES` entry;
-per-cluster `network` overrides
+`10.<i>.200.x`) derives from the region's `CLUSTER_NETWORK_INDEXES` entry —
+a hidden map in `infra/cluster/topology.ts` that permanently pre-allocates an
+index to every OVH datacenter; per-cluster `network` overrides
 exist but are rarely needed. Dedicated pools may opt into the cross-cluster
 interconnect VLAN (`interconnect: true`); Public Cloud instances cannot (single
 private NIC).
@@ -216,7 +220,7 @@ by the Notion webhook handler through GitHub's API).
 ## Deploy — Kubernetes (manual)
 
 ```sh
-sudo tailscale configure kubeconfig prod-<cluster>-cluster   # operator hostname, e.g. prod-us-west-cluster
+sudo tailscale configure kubeconfig prod-<region>-cluster   # operator hostname, e.g. prod-hil-cluster
 
 sudo kubectl annotate application prod-cluster \
   argocd.argoproj.io/refresh=hard --overwrite --namespace argocd
@@ -228,7 +232,7 @@ stays `prod-cluster`; the Tailscale operator hostname is uniformly
 `<stage>-<cluster-name>-cluster`.
 
 For another cluster, use its operator hostname (for example,
-`prod-us-east-cluster`) and pass `--region us-east` (the cluster name) to
+`prod-vin-cluster`) and pass `--region vin` (the OVH datacenter code) to
 manual deploy commands.
 
 ## CI workflows

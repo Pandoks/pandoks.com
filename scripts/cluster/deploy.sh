@@ -46,7 +46,7 @@ cmd_deploy_compute_vars() {
 cmd_deploy_get_template_vars() {
   cmd_deploy_get_template_vars_env="$1"       # local|dev|prod
   cmd_deploy_get_template_vars_stage="${2:-}" # --stage <stage> equivalent
-  cmd_deploy_get_template_vars_region="${3:-us-west}"
+  cmd_deploy_get_template_vars_region="${3:-hil}"
 
   if [ -n "${cmd_deploy_get_template_vars_stage}" ]; then
     log_status "Fetching SST resources for stage '${cmd_deploy_get_template_vars_stage}'..."
@@ -152,7 +152,7 @@ cmd_deploy() {
   cmd_deploy_dry_run=false
   cmd_deploy_is_bootstrap=false
   cmd_deploy_stage=""
-  cmd_deploy_region="us-west"
+  cmd_deploy_region="hil"
   while [ $# -gt 0 ]; do
     case "$1" in
       --dry-run)

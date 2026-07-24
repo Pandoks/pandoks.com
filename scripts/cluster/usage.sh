@@ -101,7 +101,7 @@ usage_deploy() {
   printf "      SST stage to fetch secrets from (default: SST's default stage;\n" >&2
   printf "      forced to 'production' for the prod environment)\n\n" >&2
   printf "  %b--region%b <REGION>\n" "${YELLOW}" "${NORMAL}" >&2
-  printf "      Cluster name from infra/cluster/config.ts (default: us-west)\n\n" >&2
+  printf "      Cluster region from infra/cluster/config.ts (default: hil)\n\n" >&2
   printf "  %b--dry-run%b\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      Show rendered YAML without applying to cluster\n\n" >&2
   printf "  %b--kubeconfig%b <PATH>\n" "${YELLOW}" "${NORMAL}" >&2

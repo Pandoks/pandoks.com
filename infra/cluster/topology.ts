@@ -1,16 +1,16 @@
-import {
-  CLUSTER_NETWORK_INDEXES,
-  type ClusterConfig,
-  type ClusterRegion,
-  type ClusterSpec,
-  type DedicatedPlanOption,
-  type DerivedNetwork,
-  type InterconnectConfig,
-  type IpLoadBalancingServiceConfig,
-  type NodeRole,
-  type NodeTaint,
-  type PublicCloudRegion,
-  type PublicIngressConfig
+import type {
+  ClusterConfig,
+  ClusterRegion,
+  ClusterSpec,
+  DedicatedOrderRegion,
+  DedicatedPlanOption,
+  DerivedNetwork,
+  InterconnectConfig,
+  IpLoadBalancingServiceConfig,
+  NodeRole,
+  NodeTaint,
+  PublicCloudRegion,
+  PublicIngressConfig
 } from './config.ts';
 
 // Every cluster /16 keeps the same derived third-octet layout:
@@ -21,6 +21,49 @@ const NAT_OCTET = 254;
 const MAX_NETWORK_INDEX = 15;
 const MAX_POOL_COUNT = 254;
 const NAME_PATTERN = /^[a-z][a-z0-9-]*[a-z0-9]$/;
+
+// Every OVH datacenter permanently owns a network index; the whole address plan
+// derives from it, so entries must never be renumbered.
+export const CLUSTER_NETWORK_INDEXES: Record<ClusterRegion, number> = {
+  vin: 0,
+  hil: 1,
+  bhs: 2,
+  tor: 3,
+  gra: 4,
+  rbx: 5,
+  sbg: 6,
+  par: 7,
+  fra: 8,
+  lon: 9,
+  waw: 10,
+  mil: 11,
+  sgp: 12,
+  syd: 13,
+  ynm: 14
+};
+
+const PUBLIC_CLOUD_REGIONS: Partial<Record<ClusterRegion, PublicCloudRegion>> = {
+  hil: 'US-WEST-OR-1',
+  vin: 'US-EAST-VA-1'
+};
+
+const DEDICATED_ORDER_REGIONS: Record<ClusterRegion, DedicatedOrderRegion> = {
+  vin: 'usa',
+  hil: 'usa',
+  bhs: 'canada',
+  tor: 'canada',
+  gra: 'europe',
+  rbx: 'europe',
+  sbg: 'europe',
+  par: 'europe',
+  fra: 'europe',
+  lon: 'europe',
+  waw: 'europe',
+  mil: 'europe',
+  sgp: 'apac',
+  syd: 'apac',
+  ynm: 'apac'
+};
 
 type NodePoolBase = {
   name: string;
@@ -124,8 +167,8 @@ export function clusterTokenSecretName(region: string): string {
 }
 
 export function networkIndex(region: ClusterRegion): number {
-  const index = CLUSTER_NETWORK_INDEXES[region];
-  if (index === undefined) throw new Error(`Unknown cluster region: ${region as string}`);
+  const index: number | undefined = CLUSTER_NETWORK_INDEXES[region];
+  if (index === undefined) throw new Error(`Unknown cluster region: ${region}`);
   return index;
 }
 
@@ -190,22 +233,11 @@ function validateKeyValue(kind: string, pool: string, key: string, value: string
 
 function deriveNetwork(spec: ClusterSpec): DerivedNetwork {
   const index = networkIndex(spec.region);
-  const poolRegions = new Set(
-    spec.pools.flatMap(({ server }) => (server.type === 'public-cloud' ? [server.region] : []))
-  );
-  if (poolRegions.size > 1) {
-    throw new Error(`Cluster ${spec.region} public cloud pools must share one region`);
-  }
-  const poolRegion = [...poolRegions][0];
-  if (spec.publicCloudRegion && poolRegion && spec.publicCloudRegion !== poolRegion) {
-    throw new Error(`Cluster ${spec.region} publicCloudRegion conflicts with its pool region`);
-  }
-  const publicCloudRegion = spec.publicCloudRegion ?? poolRegion;
-  if (!publicCloudRegion) {
-    throw new Error(
-      `Cluster ${spec.region} requires publicCloudRegion when no public cloud pool declares one`
-    );
-  }
+  // Dedicated-only regions still need a home for their Neutron network objects;
+  // default to the geographically closer US Public Cloud region.
+  const publicCloudRegion =
+    PUBLIC_CLOUD_REGIONS[spec.region] ??
+    (DEDICATED_ORDER_REGIONS[spec.region] === 'apac' ? 'US-WEST-OR-1' : 'US-EAST-VA-1');
   const derived: DerivedNetwork = {
     publicCloudRegion,
     vlanId: index,
@@ -271,34 +303,33 @@ function nodePools(spec: ClusterSpec): NodePool[] {
           `Node pool ${pool.name} cannot join the interconnect: Public Cloud instances support a single private NIC`
         );
       }
+      const region = PUBLIC_CLOUD_REGIONS[spec.region];
+      if (!region) {
+        throw new Error(
+          `Cluster ${spec.region} cannot host public cloud pools: no Public Cloud region in that datacenter`
+        );
+      }
       if (pool.count > 0 && (!pool.server.flavor.trim() || !pool.server.image.trim())) {
         throw new Error(`Enabled node pool ${pool.name} requires flavor and image`);
       }
       return {
         ...base,
         provider: 'public-cloud',
-        region: pool.server.region,
+        region,
         flavor: pool.server.flavor,
         image: pool.server.image
       };
     }
-    if (
-      pool.count > 0 &&
-      (!pool.server.planCode.trim() ||
-        !pool.server.operatingSystem.trim() ||
-        !pool.server.orderRegion.trim())
-    ) {
-      throw new Error(
-        `Enabled dedicated pool ${pool.name} requires planCode, operatingSystem, and orderRegion`
-      );
+    if (pool.count > 0 && (!pool.server.planCode.trim() || !pool.server.operatingSystem.trim())) {
+      throw new Error(`Enabled dedicated pool ${pool.name} requires planCode and operatingSystem`);
     }
     return {
       ...base,
       provider: 'dedicated',
-      datacenter: pool.server.datacenter,
+      datacenter: spec.region,
       planCode: pool.server.planCode,
       operatingSystem: pool.server.operatingSystem,
-      orderRegion: pool.server.orderRegion,
+      orderRegion: DEDICATED_ORDER_REGIONS[spec.region],
       planOptions: pool.server.planOptions
     };
   });

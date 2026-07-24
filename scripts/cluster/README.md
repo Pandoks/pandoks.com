@@ -60,7 +60,7 @@ deploy a fresh cluster end-to-end, run `deploy <env> --bootstrap` first, then
 | -------------- | ---------------------------------------------------------------------------------------------------- |
 | `--bootstrap`  | Apply `k3s/bootstrap/<env>` (helm charts + CRD providers) and wait for CRDs.                         |
 | `--stage`      | SST stage to fetch secrets from (default: SST's default stage; forced to `production` for prod env). |
-| `--region`     | Cluster name from `infra/cluster/config.ts` to render (default: `us-west`; ignored for local).       |
+| `--region`     | Cluster region (OVH datacenter code) to render (default: `hil`; ignored for local).                   |
 | `--dry-run`    | Render templates without applying.                                                                   |
 | `--kubeconfig` | Kubeconfig file for kubectl operations.                                                              |
 | `--quiet`/`-q` | Suppress status messages, output only YAML (for CI/CD).                                              |
@@ -106,8 +106,8 @@ The `deploy` command renders templates with these substitutions before applying:
 kubectl config use-context <tailscale-context>
 
 # Two-step deploy on a fresh cluster
-./scripts/cluster/main.sh deploy prod --region us-west --bootstrap
-./scripts/cluster/main.sh deploy prod --region us-west
+./scripts/cluster/main.sh deploy prod --region hil --bootstrap
+./scripts/cluster/main.sh deploy prod --region hil
 
 # Re-apply just the overlay (no bootstrap) on subsequent deploys
 ./scripts/cluster/main.sh deploy prod

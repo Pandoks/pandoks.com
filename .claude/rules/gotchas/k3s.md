@@ -117,12 +117,12 @@ in dry-run output.
 
 `k3s/overlays/prod/argocd.yaml:47-69` defines the `prod-cluster`
 Application that watches `k3s/overlays/prod` via the
-`kustomize-sst-render-v1.1` CMP. The CMP sidecar
+`kustomize-sst-render-v1.2` CMP. The CMP sidecar
 (`ghcr.io/pandoks/argocd-sst-plugin:main`,
 `packages/argocd/argocd-plugin.yaml`) runs:
 
 ```sh
-sh ./scripts/cluster/main.sh deploy prod --region "${CLUSTER_REGION:-us-west}" --dry-run --quiet
+sh ./scripts/cluster/main.sh deploy prod --region "${CLUSTER_REGION:-hil}" --dry-run --quiet
 ```
 
 inside the repo-server pod. Implications:

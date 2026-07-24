@@ -49,20 +49,18 @@ void test('models clusters as free-form primitives instead of fixed regional slo
     count: 1,
     labels: { 'pandoks.com/workload': 'database' },
     taints: [{ key: 'pandoks.com/workload', value: 'database', effect: 'NoSchedule' }],
-    server: { type: 'public-cloud', region: 'US-WEST-OR-1', flavor: 'b3-8', image: 'Ubuntu 26.04' }
+    server: { type: 'public-cloud', flavor: 'b3-8', image: 'Ubuntu 26.04' }
   };
   const swapped: NodePoolConfig = {
     ...pool,
     server: {
       type: 'dedicated',
-      datacenter: 'vin',
       planCode: 'future-catalog-plan',
       operatingSystem: 'ubuntu2604-server_64',
-      orderRegion: 'usa',
       planOptions: []
     }
   };
-  const cluster: ClusterSpec = { region: 'asia', pools: [pool, swapped] };
+  const cluster: ClusterSpec = { region: 'sgp', pools: [pool, swapped] };
   const ingress: PublicIngressConfig = { type: 'public-cloud', flavor: 'runtime-catalog-flavor' };
   assert.equal(cluster.pools[0].server.type, 'public-cloud');
   assert.equal(cluster.pools[1].server.type, 'dedicated');

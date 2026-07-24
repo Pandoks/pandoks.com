@@ -335,7 +335,7 @@ void test('cluster monitoring matches the empty default topology', () => {
   assert.doesNotMatch(cluster, /shouldProvisionClusterInfrastructure/);
   assert.doesNotMatch(cluster, /process\.env\.OVH_(?:CLOUD|DEDICATED)_/);
   assert.match(monitoring, /^\s*endpoints:\s*\[\]\s*$/m);
-  assert.match(argocdPlugin, /--region "\$\{CLUSTER_REGION:-us-west\}"/);
+  assert.match(argocdPlugin, /--region "\$\{CLUSTER_REGION:-hil\}"/);
   assert.match(productionArgocd, /name:\s*CLUSTER_REGION[\s\S]*optional:\s*true/);
   assert.match(deployWorkflow, /config\.ts enabled production/);
 });

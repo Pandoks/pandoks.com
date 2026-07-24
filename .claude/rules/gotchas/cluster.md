@@ -14,8 +14,9 @@ paths:
 - **Topology lives in `infra/cluster/config.ts` as generic primitives.**
   `PRODUCTION_CLUSTER_CONFIG` and `NON_PRODUCTION_CLUSTER_CONFIG` both currently
   declare zero clusters. A cluster is an entry (`region`, `pools`), one per
-  region with its index allocated in `CLUSTER_NETWORK_INDEXES`; pools mix
-  Public Cloud and dedicated via the
+  OVH datacenter, with every datacenter's network index pre-allocated in
+  `CLUSTER_NETWORK_INDEXES` (`infra/cluster/topology.ts`); pools mix
+  Public Cloud (only in `hil`/`vin`) and dedicated via the
   `server` union and use raw labels/taints for placement. Fill dedicated
   catalog fields only for a pool with a non-zero count, validated against the
   live authenticated cart. CI retains only the OVH credentials; Pulumi creates
@@ -52,7 +53,7 @@ paths:
 - **The CMP renders via the cluster CLI** — `argocd-plugin.yaml` calls
   `deploy prod --region "$CLUSTER_REGION" --dry-run --quiet` inside the
   repo-server pod. The optional `argocd/pandoks-cluster` ConfigMap value defaults
-  to `us-west` for compatibility. If the CLI contract changes, update and bump
+  to `hil` for compatibility. If the CLI contract changes, update and bump
   the CMP schema name together.
 
 ## Kustomize quirks
