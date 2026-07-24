@@ -71,7 +71,22 @@ export type PublicCloudServer = {
     | 'r3-64'
     | 'r3-128'
     | 'r3-256'
-    | 'r3-512';
+    | 'r3-512'
+    // GPU: Tesla V100S
+    | 't2-45'
+    | 't2-90'
+    | 't2-180'
+    | 't2-le-45'
+    | 't2-le-90'
+    | 't2-le-180'
+    // GPU: NVIDIA L4
+    | 'l4-90'
+    | 'l4-180'
+    | 'l4-360'
+    // GPU: NVIDIA L40S
+    | 'l40s-90'
+    | 'l40s-180'
+    | 'l40s-360';
   image: 'Ubuntu 26.04' | 'Ubuntu 24.04' | 'Ubuntu 22.04' | 'Debian 12';
 };
 
