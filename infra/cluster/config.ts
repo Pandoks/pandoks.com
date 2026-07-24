@@ -30,8 +30,9 @@ export const CLUSTER_CONFIGS = {
 /**
  * TYPES
  */
-type Catalog<Known extends string> = Known | (string & Record<never, never>);
-
+// NOTE: the OVH Pulumi provider types every region/catalog field as a plain string, so these
+// closed unions are the typed vocabulary. When adopting a value that isn't listed yet, verify
+// it against the live authenticated catalog (cart / API), then extend the union.
 export type PublicCloudRegion = 'US-WEST-OR-1' | 'US-EAST-VA-1';
 export type DedicatedDatacenter =
   | 'vin' // Vint Hill, Virginia, USA
@@ -49,21 +50,43 @@ export type DedicatedDatacenter =
   | 'sgp' // Singapore
   | 'syd' // Sydney, Australia
   | 'ynm'; // Mumbai, India
-export type DedicatedOrderRegion = Catalog<'usa' | 'canada' | 'europe' | 'apac'>;
-export type DedicatedOperatingSystem = Catalog<'ubuntu2604-server_64'>;
-export type PublicCloudFlavor = Catalog<
-  | 'b3-8' // general purpose
+export type DedicatedOrderRegion = 'usa' | 'canada' | 'europe' | 'apac';
+export type DedicatedOperatingSystem =
+  | 'ubuntu2604-server_64' // Ubuntu Server 26.04 LTS
+  | 'ubuntu2404-server_64' // Ubuntu Server 24.04 LTS
+  | 'ubuntu2204-server_64' // Ubuntu Server 22.04 LTS
+  | 'debian12_64' // Debian 12 (Bookworm)
+  | 'debian13_64' // Debian 13 (Trixie)
+  | 'rocky9_64' // Rocky Linux 9
+  | 'alma9_64' // AlmaLinux 9
+  | 'byolinux_64'; // Bring Your Own Linux image
+export type PublicCloudFlavor =
+  // general purpose
+  | 'b3-8'
   | 'b3-16'
   | 'b3-32'
   | 'b3-64'
-  | 'c3-8' // CPU optimized
+  | 'b3-128'
+  | 'b3-256'
+  | 'b3-512'
+  // CPU optimized
+  | 'c3-4'
+  | 'c3-8'
   | 'c3-16'
-  | 'r3-16' // RAM optimized
+  | 'c3-32'
+  | 'c3-64'
+  | 'c3-128'
+  | 'c3-256'
+  // RAM optimized
+  | 'r3-16'
   | 'r3-32'
->;
-export type PublicCloudImage = Catalog<'Ubuntu 26.04' | 'Ubuntu 24.04' | 'Debian 12'>;
-export type PlanDuration = Catalog<'P1M'>;
-export type PlanPricingMode = Catalog<'default' | 'upfront12'>;
+  | 'r3-64'
+  | 'r3-128'
+  | 'r3-256'
+  | 'r3-512';
+export type PublicCloudImage = 'Ubuntu 26.04' | 'Ubuntu 24.04' | 'Ubuntu 22.04' | 'Debian 12';
+export type PlanDuration = 'P1M';
+export type PlanPricingMode = 'default' | 'upfront12';
 export type NodeRole = 'control-plane' | 'worker';
 export type TaintEffect = 'NoSchedule' | 'PreferNoSchedule' | 'NoExecute';
 
