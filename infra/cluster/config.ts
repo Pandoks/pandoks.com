@@ -3,7 +3,6 @@ export const LOAD_BALANCER_FLAVOR = 'small';
 export const LOAD_BALANCER_ALGORITHM: LoadBalancerAlgorithm = 'leastConnections';
 
 export const OVH_ACCOUNT = {
-  endpoint: 'ovh-us',
   apiRoot: 'https://api.us.ovhcloud.com/1.0',
   subsidiary: 'US',
   applicationKey: 'edf9a4672d28e3c7',
@@ -11,21 +10,17 @@ export const OVH_ACCOUNT = {
   consumerKeyEnvironment: 'OVH_CONSUMER_KEY'
 } as const;
 
-function clusterConfig(): ClusterConfig {
-  return {
-    clusters: [],
-    interconnect: { vlanId: 4000, cidr: '172.16.0.0/12' },
-    publicIngress: { type: 'public-cloud', flavor: LOAD_BALANCER_FLAVOR }
-  };
-}
+export const PRODUCTION_CLUSTER_CONFIG: ClusterConfig = {
+  clusters: [],
+  interconnect: { vlanId: 4000, cidr: '172.16.0.0/12' },
+  publicIngress: { type: 'public-cloud', flavor: LOAD_BALANCER_FLAVOR }
+};
 
-export const PRODUCTION_CLUSTER_CONFIG = clusterConfig();
-export const NON_PRODUCTION_CLUSTER_CONFIG = clusterConfig();
-
-export const CLUSTER_CONFIGS = {
-  production: PRODUCTION_CLUSTER_CONFIG,
-  nonProduction: NON_PRODUCTION_CLUSTER_CONFIG
-} as const;
+export const NON_PRODUCTION_CLUSTER_CONFIG: ClusterConfig = {
+  clusters: [],
+  interconnect: { vlanId: 4000, cidr: '172.16.0.0/12' },
+  publicIngress: { type: 'public-cloud', flavor: LOAD_BALANCER_FLAVOR }
+};
 
 /**
  * TYPES
