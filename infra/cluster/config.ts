@@ -4,21 +4,21 @@
 // cart before setting a non-zero count.
 export type PublicCloudRegion = 'US-WEST-OR-1' | 'US-EAST-VA-1';
 export type DedicatedDatacenter =
-  | 'vin'
-  | 'hil'
-  | 'bhs'
-  | 'tor'
-  | 'gra'
-  | 'rbx'
-  | 'sbg'
-  | 'par'
-  | 'fra'
-  | 'lon'
-  | 'waw'
-  | 'mil'
-  | 'sgp'
-  | 'syd'
-  | 'ynm';
+  | 'vin' // Vint Hill, Virginia, USA
+  | 'hil' // Hillsboro, Oregon, USA
+  | 'bhs' // Beauharnois, Canada
+  | 'tor' // Toronto, Canada
+  | 'gra' // Gravelines, France
+  | 'rbx' // Roubaix, France
+  | 'sbg' // Strasbourg, France
+  | 'par' // Paris, France
+  | 'fra' // Frankfurt, Germany
+  | 'lon' // London, United Kingdom
+  | 'waw' // Warsaw, Poland
+  | 'mil' // Milan, Italy
+  | 'sgp' // Singapore
+  | 'syd' // Sydney, Australia
+  | 'ynm'; // Mumbai, India
 export type NodeRole = 'control-plane' | 'worker';
 export type TaintEffect = 'NoSchedule' | 'PreferNoSchedule' | 'NoExecute';
 
