@@ -124,12 +124,13 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
   load balancer even when all compute is dedicated. Production deletion
   protection must remain enabled.
 - **Each cluster `10.<i>.0.0/16` has derived third-octet owners.** Neutron
-  infrastructure uses `.0`, node pools own `.1`-`.199` in declaration order
-  (pool at array position `p` owns `.p+1`; node `n` is host `.n+1`), MetalLB
-  owns `.200`, and `.201`-`.255` is reserved. The
-  derivation lives in `infra/cluster/topology.ts`; pool order is
-  address-significant, so append pools rather than reorder. The interconnect
-  VLAN mirrors the same layout at `172.<16+i>.<pool>.<n>`.
+  infrastructure uses `.0`, node pools own `.1`-`.199` (the octet is an FNV-1a
+  hash of the pool NAME, so declaration order is irrelevant and inserting a
+  pool never moves another pool's nodes; node `n` is host `.n+1`), MetalLB owns
+  `.200`, and `.201`-`.255` is reserved. The derivation lives in
+  `infra/cluster/topology.ts`; a hash collision between two pool names throws
+  at build time (rename one), and renaming a pool with live nodes moves them.
+  The interconnect VLAN mirrors the same layout at `172.<16+i>.<pool>.<n>`.
 - **Origin TLS is owned by cert-manager.** The cluster overlay creates the
   Let's Encrypt issuer and `Certificate`; its generated Kubernetes Secret is
   referenced by ingress. Do not restore SST certificate/key secrets.

@@ -9,7 +9,7 @@ import type {
 } from './config.ts';
 
 // Every cluster /16 keeps the same derived third-octet layout:
-// .0 OVH/Neutron, .1-.199 node pools in declaration order, .200 MetalLB,
+// .0 OVH/Neutron, .1-.199 node pools (hashed from the pool name), .200 MetalLB,
 // .201-.255 reserved.
 const METAL_LB_OCTET = 200;
 const MAX_NETWORK_INDEX = 15;
@@ -208,6 +208,16 @@ function interconnectAddress(
   return `${first}.${Number(second) + index}.${addressBlock}.${hostIndex}`;
 }
 
+// A pool's third octet is derived from its name so declaration order never moves a
+// node's address. Collisions are rejected at build time: rename the pool.
+function poolAddressBlock(name: string): number {
+  let hash = 2166136261;
+  for (const character of name) {
+    hash = Math.imul(hash ^ character.charCodeAt(0), 16777619) >>> 0;
+  }
+  return (hash % (METAL_LB_OCTET - 1)) + 1;
+}
+
 function validateKeyValue(kind: string, pool: string, key: string, value: string): void {
   if (!key.trim() || /[\s,]/.test(key) || /[\s,]/.test(value)) {
     throw new Error(`Node pool ${pool} ${kind} keys and values cannot contain spaces or commas`);
@@ -221,7 +231,7 @@ function deriveNetwork(spec: ClusterSpec): DerivedNetwork {
   const publicCloudRegion =
     PUBLIC_CLOUD_REGIONS[spec.region] ??
     (DEDICATED_ORDER_REGIONS[spec.region] === 'apac' ? 'US-WEST-OR-1' : 'US-EAST-VA-1');
-  const derived: DerivedNetwork = {
+  return {
     publicCloudRegion,
     vlanId: index,
     networkCidr: `10.${index}.0.0/16`,
@@ -231,20 +241,6 @@ function deriveNetwork(spec: ClusterSpec): DerivedNetwork {
     serviceCidr: `10.${43 + 2 * index}.0.0/16`,
     metalLbRange: `10.${index}.${METAL_LB_OCTET}.1-10.${index}.${METAL_LB_OCTET}.254`
   };
-  const network = { ...derived, ...spec.network };
-  if (!Number.isInteger(network.vlanId) || network.vlanId < 0 || network.vlanId > 4096) {
-    throw new Error(`Cluster ${spec.region} vlanId must be an integer from 0 to 4096`);
-  }
-  for (const [field, cidr] of [
-    ['networkCidr', network.networkCidr],
-    ['podCidr', network.podCidr],
-    ['serviceCidr', network.serviceCidr]
-  ] as const) {
-    if (!/^10\.\d{1,3}\.0\.0\/16$/.test(cidr)) {
-      throw new Error(`Cluster ${spec.region} ${field} must be a 10.x.0.0/16`);
-    }
-  }
-  return network;
 }
 
 function nodePools(spec: ClusterSpec): NodePool[] {
@@ -252,7 +248,8 @@ function nodePools(spec: ClusterSpec): NodePool[] {
     throw new Error(`Cluster ${spec.region} cannot declare more than ${METAL_LB_OCTET - 1} pools`);
   }
   const names = new Set<string>();
-  return spec.pools.map((pool, position) => {
+  const addressBlocks = new Map<number, string>();
+  return spec.pools.map((pool) => {
     if (!NAME_PATTERN.test(pool.name)) {
       throw new Error(`Node pool name ${pool.name} must be lowercase kebab-case`);
     }
@@ -270,6 +267,14 @@ function nodePools(spec: ClusterSpec): NodePool[] {
     for (const taint of pool.taints ?? []) {
       validateKeyValue('taint', pool.name, taint.key, taint.value);
     }
+    const addressBlock = poolAddressBlock(pool.name);
+    const collision = addressBlocks.get(addressBlock);
+    if (collision) {
+      throw new Error(
+        `Node pools ${collision} and ${pool.name} derive the same address block; rename one`
+      );
+    }
+    addressBlocks.set(addressBlock, pool.name);
     const base: NodePoolBase = {
       name: pool.name,
       role: pool.role,
@@ -278,7 +283,7 @@ function nodePools(spec: ClusterSpec): NodePool[] {
       taints: pool.taints ?? [],
       publicIngress: pool.publicIngress ?? false,
       interconnect: pool.interconnect ?? false,
-      addressBlock: position + 1
+      addressBlock
     };
     if (pool.server.type === 'public-cloud') {
       if (base.interconnect) {

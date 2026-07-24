@@ -12,11 +12,10 @@ export const NON_PRODUCTION_CLUSTER_CONFIG: ClusterSpec[] = [];
 export type ClusterSpec = {
   region: ClusterRegion;
   pools: NodePoolConfig[];
-  network?: Partial<DerivedNetwork>;
 };
 
-// WARNING: pool order is address-significant (each pool owns the third octet at its array
-// position + 1). Append new pools; never remove or reorder existing ones with live nodes.
+// NOTE: a pool's addresses derive from its name, so renaming a pool with live nodes
+// moves them; declaration order is irrelevant.
 export type NodePoolConfig = {
   name: string;
   role: NodeRole;

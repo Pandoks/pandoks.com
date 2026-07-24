@@ -222,9 +222,11 @@ void test('keeps network, node pools, and MetalLB on one derived address plan', 
   assert.match(clusterConfigCli, /ClusterMetalLbRange:\s*clusterPlan\.network\.metalLbRange/);
   assert.match(clusterDeploy, /scripts\/cluster\/config\.ts"\s*\\\s*\n\s*region/);
   assert.match(clusterDeploy, /Cluster template variables were not fully substituted/);
-  assert.match(topologySource, /\.0 OVH\/Neutron, \.1-\.199 node pools in declaration order/);
+  assert.match(topologySource, /\.1-\.199 node pools \(hashed from the pool name\)/);
   assert.match(topologySource, /\.200 MetalLB/);
   assert.match(topologySource, /\.201-\.255 reserved/);
+  assert.match(topologySource, /function poolAddressBlock/);
+  assert.doesNotMatch(topologySource, /spec\.network/);
   assert.match(bootstrapScript, /NETWORK_PREFIX_LENGTH="\$\{NETWORK_CIDR##\*\/\}"/);
   assert.match(bootstrapScript, /\$\{NODE_IP\}\/\$\{NETWORK_PREFIX_LENGTH\}/);
   assert.doesNotMatch(bootstrapScript, /\$\{NODE_IP\}\/24/);

@@ -121,13 +121,13 @@ void test('derives every address and identity from the cluster region alone', ()
       {
         logicalName: 'OvhHilControlPlaneServer0',
         hostname: 'prod-hil-ovh-control-plane-server-0',
-        privateIp: '10.1.1.1',
+        privateIp: '10.1.100.1',
         bootstrapCandidate: true
       },
       {
         logicalName: 'OvhHilWorkersServer0',
         hostname: 'prod-hil-ovh-workers-server-0',
-        privateIp: '10.1.2.1',
+        privateIp: '10.1.103.1',
         bootstrapCandidate: false
       }
     ]
@@ -155,7 +155,7 @@ void test('keeps every region address space independent', () => {
   assert.equal(plan.network.podCidr, '10.42.0.0/16');
   assert.equal(plan.network.serviceCidr, '10.43.0.0/16');
   assert.equal(plan.network.metalLbRange, '10.0.200.1-10.0.200.254');
-  assert.equal(plan.nodes[0]?.privateIp, '10.0.1.1');
+  assert.equal(plan.nodes[0]?.privateIp, '10.0.100.1');
   assert.equal(plan.identity.operatorHostname, 'prod-vin-cluster');
 });
 
@@ -174,25 +174,43 @@ void test('rejects unmapped regions and invalid pool names', () => {
   );
 });
 
-void test('honors explicit network overrides while validating their shapes', () => {
-  const plan = buildClusterPlan(
-    { ...cluster(), network: { vlanId: 7, metalLbRange: '10.1.5.1-10.1.5.254' } },
+void test('derives pool addresses from names, not declaration order', () => {
+  const ordered = buildClusterPlan(
+    cluster({ controlPlanes: 1, workers: 1, databases: 1 }),
     'prod',
     'pandoks.com'
   );
-  assert.equal(plan.network.vlanId, 7);
-  assert.equal(plan.network.metalLbRange, '10.1.5.1-10.1.5.254');
-  assert.equal(plan.network.networkCidr, '10.1.0.0/16');
-
-  assert.throws(
-    () =>
-      buildClusterPlan(
-        { ...cluster(), network: { podCidr: '192.168.0.0/24' } },
-        'prod',
-        'pandoks.com'
-      ),
-    /podCidr must be a 10\.x\.0\.0\/16/
+  const shuffled = buildClusterPlan(
+    {
+      ...cluster({ controlPlanes: 1, workers: 1, databases: 1 }),
+      pools: [...cluster({ controlPlanes: 1, workers: 1, databases: 1 }).pools].reverse()
+    },
+    'prod',
+    'pandoks.com'
   );
+  assert.deepEqual(
+    new Map(ordered.nodes.map(({ hostname, privateIp }) => [hostname, privateIp])),
+    new Map(shuffled.nodes.map(({ hostname, privateIp }) => [hostname, privateIp]))
+  );
+
+  // Adding a pool never moves an existing pool's addresses.
+  const grown = buildClusterPlan(
+    {
+      ...cluster({ controlPlanes: 1, workers: 1, databases: 1 }),
+      pools: [
+        { name: 'analytics', role: 'worker', count: 1, server: publicCloudServer },
+        ...cluster({ controlPlanes: 1, workers: 1, databases: 1 }).pools
+      ]
+    },
+    'prod',
+    'pandoks.com'
+  );
+  for (const node of ordered.nodes) {
+    assert.equal(
+      grown.nodes.find(({ hostname }) => hostname === node.hostname)?.privateIp,
+      node.privateIp
+    );
+  }
 });
 
 void test('places dedicated-only regions and rejects public cloud pools outside hil/vin', () => {
@@ -222,7 +240,7 @@ void test('passes raw labels and taints through and rejects unencodable values',
   assert.deepEqual(database?.pool.taints, [
     { key: 'pandoks.com/workload', value: 'database', effect: 'NoSchedule' }
   ]);
-  assert.equal(database?.privateIp, '10.1.3.1');
+  assert.equal(database?.privateIp, '10.1.146.1');
 
   const invalid = cluster({
     pools: [
@@ -259,8 +277,8 @@ void test('derives dedicated placement from the region and assigns interconnect 
       .filter(({ pool }) => pool.interconnect)
       .map(({ hostname, interconnectIp }) => ({ hostname, interconnectIp })),
     [
-      { hostname: 'prod-vin-ovh-dedicated-database-server-0', interconnectIp: '172.16.4.1' },
-      { hostname: 'prod-vin-ovh-dedicated-database-server-1', interconnectIp: '172.16.4.2' }
+      { hostname: 'prod-vin-ovh-dedicated-database-server-0', interconnectIp: '172.16.138.1' },
+      { hostname: 'prod-vin-ovh-dedicated-database-server-1', interconnectIp: '172.16.138.2' }
     ]
   );
   assert.ok(plan.nodes.every(({ pool, interconnectIp }) => pool.interconnect || !interconnectIp));
@@ -289,27 +307,14 @@ void test('builds independent plans and rejects duplicate or colliding clusters'
   assert.deepEqual(
     topology.clusters.map(({ config: spec, nodes }) => [spec.region, nodes[0]?.privateIp]),
     [
-      ['hil', '10.1.1.1'],
-      ['vin', '10.0.1.1']
+      ['hil', '10.1.100.1'],
+      ['vin', '10.0.100.1']
     ]
   );
 
   assert.throws(
     () => buildClusterTopology([west, west], 'prod', 'pandoks.com'),
     /Duplicate cluster region: hil/
-  );
-  assert.throws(
-    () => buildClusterTopology([west, { ...east, network: { vlanId: 1 } }], 'prod', 'pandoks.com'),
-    /Duplicate VLAN 1/
-  );
-  assert.throws(
-    () =>
-      buildClusterTopology(
-        [west, { ...east, network: { podCidr: '10.44.0.0/16' } }],
-        'prod',
-        'pandoks.com'
-      ),
-    /Duplicate pod CIDR/
   );
 });
 
@@ -369,7 +374,7 @@ void test('pools only control-plane nodes behind the private API', () => {
   assert.ok(plan.privateApi.nodes.every(({ pool }) => pool.role === 'control-plane'));
   assert.deepEqual(
     plan.privateApi.nodes.map(({ privateIp }) => privateIp),
-    ['10.1.1.1', '10.1.1.2', '10.1.1.3']
+    ['10.1.100.1', '10.1.100.2', '10.1.100.3']
   );
 });
 
@@ -542,7 +547,7 @@ void test('translates a mixed multi-region config into every consumed value', ()
 
   const gpu = hil.nodes.find(({ pool }) => pool.name === 'gpu')!;
   assert.equal(gpu.hostname, 'prod-hil-ovh-gpu-server-0');
-  assert.equal(gpu.privateIp, '10.1.2.1');
+  assert.equal(gpu.privateIp, '10.1.59.1');
   assert.equal(gpu.interconnectIp, undefined);
   assert.equal(
     Object.entries({ ...gpu.pool.labels, 'pandoks.com/public-ingress': String(false) })
@@ -597,7 +602,7 @@ void test('translates a mixed multi-region config into every consumed value', ()
 
   // The interconnect pool joins the cross-cluster VLAN; sgp lands in its own slice.
   const database = hil.nodes.find(({ pool }) => pool.name === 'database')!;
-  assert.equal(database.interconnectIp, '172.17.3.1');
+  assert.equal(database.interconnectIp, '172.17.146.1');
   assert.deepEqual(hil.interconnect, { vlanId: 4000, cidr: '172.16.0.0/12', prefixLength: 12 });
   assert.equal(sgp.interconnect, undefined);
 
