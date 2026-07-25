@@ -1,0 +1,384 @@
+#!/bin/sh
+# shellcheck shell=sh
+
+set -eu
+
+# PANDOKS_BOOTSTRAP_ENVIRONMENT
+
+DONE_FILE=/var/lib/pandoks/cluster-bootstrap.complete
+TAILSCALE_INSTALL=/tmp/tailscale-install.sh
+K3S_INSTALL=/tmp/k3s-install.sh
+K3S_VERSION='v1.36.2+k3s1'
+
+log() {
+  printf "pandoks-bootstrap: %s\n" "$*"
+}
+
+retry() {
+  retry_attempts="$1"
+  retry_delay="$2"
+  shift 2
+  retry_index=1
+  while ! "$@"; do
+    if [ "${retry_index}" -ge "${retry_attempts}" ]; then
+      return 1
+    fi
+    retry_index=$((retry_index + 1))
+    sleep "${retry_delay}"
+  done
+}
+
+install_packages() {
+  apt-get update
+  DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    ca-certificates curl nftables sudo
+}
+
+configure_admin() {
+  if ! id pandoks > /dev/null 2>&1; then
+    useradd --create-home --shell /bin/bash --groups sudo pandoks
+  fi
+  install -d -m 0755 /etc/sudoers.d /etc/ssh/sshd_config.d
+  printf "pandoks ALL=(ALL) NOPASSWD:ALL\n" > /etc/sudoers.d/pandoks
+  chmod 0440 /etc/sudoers.d/pandoks
+  cat > /etc/ssh/sshd_config.d/99-pandoks.conf << 'EOF'
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+ChallengeResponseAuthentication no
+PermitRootLogin no
+AllowUsers pandoks
+EOF
+  sshd -t
+  systemctl reload ssh
+}
+
+interface_for_mac() {
+  expected_mac="$(printf "%s" "$1" | tr '[:upper:]' '[:lower:]')"
+  for address_file in /sys/class/net/*/address; do
+    if [ "$(cat "${address_file}")" = "${expected_mac}" ]; then
+      basename "$(dirname "${address_file}")"
+      return 0
+    fi
+  done
+  return 1
+}
+
+interface_for_ip() {
+  ip -o -4 addr show \
+    | awk -v expected="${NODE_IP}/" '$4 ~ "^" expected { print $2; exit }'
+}
+
+configure_private_network() {
+  if [ "${NETWORK_MODE}" = "static" ]; then
+    retry 60 5 interface_for_mac "${VRACK_MAC}" > /dev/null
+    NETWORK_PREFIX_LENGTH="${NETWORK_CIDR##*/}"
+    if [ "${VRACK_VLAN_ID}" = "0" ]; then
+      cat > /etc/netplan/60-k3s-vrack.yaml << EOF
+network:
+  version: 2
+  ethernets:
+    vrack:
+      match:
+        macaddress: ${VRACK_MAC}
+      set-name: vrack0
+      addresses:
+        - ${NODE_IP}/${NETWORK_PREFIX_LENGTH}
+EOF
+      VRACK_INTERFACE=vrack0
+    else
+      cat > /etc/netplan/60-k3s-vrack.yaml << EOF
+network:
+  version: 2
+  ethernets:
+    vrack:
+      match:
+        macaddress: ${VRACK_MAC}
+      set-name: vrack0
+      dhcp4: false
+  vlans:
+    vrack0.${VRACK_VLAN_ID}:
+      id: ${VRACK_VLAN_ID}
+      link: vrack
+      addresses:
+        - ${NODE_IP}/${NETWORK_PREFIX_LENGTH}
+EOF
+      VRACK_INTERFACE="vrack0.${VRACK_VLAN_ID}"
+    fi
+    chmod 0600 /etc/netplan/60-k3s-vrack.yaml
+    if [ -n "${INTERCONNECT_VLAN_ID}" ]; then
+      cat > /etc/netplan/61-k3s-interconnect.yaml << EOF
+network:
+  version: 2
+  vlans:
+    vrack0.${INTERCONNECT_VLAN_ID}:
+      id: ${INTERCONNECT_VLAN_ID}
+      link: vrack
+      addresses:
+        - ${INTERCONNECT_IP}/${INTERCONNECT_PREFIX_LENGTH}
+EOF
+      chmod 0600 /etc/netplan/61-k3s-interconnect.yaml
+      INTERCONNECT_INTERFACE="vrack0.${INTERCONNECT_VLAN_ID}"
+      export INTERCONNECT_INTERFACE
+    fi
+    netplan apply
+  else
+    VRACK_INTERFACE="$(retry 60 5 interface_for_ip)"
+  fi
+  export VRACK_INTERFACE
+  ip link show "${VRACK_INTERFACE}" > /dev/null
+  ip -4 addr show dev "${VRACK_INTERFACE}" | grep -q "${NODE_IP}/"
+  if [ -n "${INTERCONNECT_INTERFACE:-}" ]; then
+    ip link show "${INTERCONNECT_INTERFACE}" > /dev/null
+    ip -4 addr show dev "${INTERCONNECT_INTERFACE}" | grep -q "${INTERCONNECT_IP}/"
+  fi
+}
+
+configure_firewall() {
+  CLOUDFLARE_IPV4_SET=''
+  CLOUDFLARE_INGRESS_RULE=''
+  INTERCONNECT_RULE=''
+  if [ "${DIRECT_INGRESS}" = "true" ]; then
+    CLOUDFLARE_IPV4_SET="set cloudflare_ipv4 { type ipv4_addr; flags interval; elements = { ${CLOUDFLARE_IPV4_CIDRS} }; }"
+    CLOUDFLARE_INGRESS_RULE='ip saddr @cloudflare_ipv4 tcp dport { 80, 443 } accept comment "Cloudflare web ingress"'
+  fi
+  if [ -n "${INTERCONNECT_INTERFACE:-}" ]; then
+    INTERCONNECT_RULE="iifname \"${INTERCONNECT_INTERFACE}\" ip saddr ${INTERCONNECT_CIDR} accept comment \"Cluster interconnect\""
+  fi
+
+  cat > /etc/nftables.conf << EOF
+#!/usr/sbin/nft -f
+
+flush ruleset
+
+table inet filter {
+  ${CLOUDFLARE_IPV4_SET}
+
+  chain input {
+    type filter hook input priority -100; policy drop;
+
+    ct state established,related accept comment "Return traffic"
+    ct state invalid drop comment "Invalid packets"
+    iifname "lo" accept comment "Loopback"
+    iifname "tailscale0" tcp dport 22 accept comment "Tailscale SSH"
+    iifname "cni0" accept comment "k3s CNI"
+    iifname "flannel.1" accept comment "k3s Flannel"
+    iifname "${VRACK_INTERFACE}" ip saddr ${NETWORK_CIDR} accept comment "OVH vRack"
+    ${INTERCONNECT_RULE}
+    ${CLOUDFLARE_INGRESS_RULE}
+    udp dport 41641 accept comment "Direct Tailscale"
+    ip6 nexthdr ipv6-icmp accept comment "Required ICMPv6"
+    limit rate 5/minute counter log prefix "nft-drop: "
+    counter drop
+  }
+
+  chain forward {
+    type filter hook forward priority filter; policy accept;
+  }
+
+  chain output {
+    type filter hook output priority filter; policy accept;
+  }
+}
+EOF
+  chmod 0755 /etc/nftables.conf
+  nft --check --file /etc/nftables.conf
+  systemctl enable nftables
+  nft --file /etc/nftables.conf
+}
+
+configure_tailscale() {
+  if ! command -v tailscale > /dev/null 2>&1; then
+    curl -fsSL https://tailscale.com/install.sh -o "${TAILSCALE_INSTALL}"
+    sh "${TAILSCALE_INSTALL}"
+    rm -f "${TAILSCALE_INSTALL}"
+  fi
+  if ! tailscale ip -4 > /dev/null 2>&1; then
+    tailscale up \
+      --ssh \
+      --auth-key="${REGISTRATION_TAILNET_AUTH_KEY}" \
+      --hostname="${NODE_NAME}" \
+      --accept-dns=false
+  fi
+  unset REGISTRATION_TAILNET_AUTH_KEY
+}
+
+api_ready() {
+  curl --connect-timeout 3 --max-time 5 --silent --show-error --fail \
+    --insecure "${SERVER_API}/readyz" > /dev/null
+}
+
+download_k3s_installer() {
+  export INSTALL_K3S_VERSION="${K3S_VERSION}"
+  curl -sfL https://get.k3s.io -o "${K3S_INSTALL}"
+  chmod 0755 "${K3S_INSTALL}"
+}
+
+run_k3s_installer() {
+  if [ -n "${NODE_LABELS}" ]; then
+    IFS=','
+    for run_k3s_installer_label in ${NODE_LABELS}; do
+      set -- "$@" --node-label="${run_k3s_installer_label}"
+    done
+    unset IFS
+  fi
+  if [ -n "${NODE_TAINTS}" ]; then
+    IFS=','
+    for run_k3s_installer_taint in ${NODE_TAINTS}; do
+      set -- "$@" --node-taint="${run_k3s_installer_taint}"
+    done
+    unset IFS
+  fi
+  K3S_TOKEN="${K3S_TOKEN}" sh "${K3S_INSTALL}" "$@"
+}
+
+install_control_plane() {
+  download_k3s_installer
+  if [ "${BOOTSTRAP_CANDIDATE}" = "true" ] && ! api_ready; then
+    run_k3s_installer server \
+      --cluster-init \
+      --disable=traefik \
+      --disable=servicelb \
+      --cluster-cidr="${CLUSTER_POD_CIDR}" \
+      --service-cidr="${CLUSTER_SERVICE_CIDR}" \
+      --node-ip="${NODE_IP}" \
+      --advertise-address="${NODE_IP}" \
+      --tls-san="${NODE_IP}" \
+      --tls-san="$(printf "%s" "${SERVER_API}" | sed -e 's#^https://##' -e 's#:6443$##')" \
+      --flannel-iface="${VRACK_INTERFACE}" \
+      --etcd-expose-metrics \
+      --etcd-s3 \
+      --etcd-s3-endpoint="${S3_HOST}" \
+      --etcd-s3-bucket="${BACKUP_BUCKET}" \
+      --etcd-s3-access-key="${S3_ACCESS_KEY}" \
+      --etcd-s3-secret-key="${S3_SECRET_KEY}" \
+      --etcd-s3-folder="${ETCD_BACKUP_FOLDER}" \
+      --etcd-snapshot-schedule-cron="0 */6 * * *" \
+      --etcd-snapshot-retention=5
+  else
+    retry 120 5 api_ready
+    run_k3s_installer server \
+      --server="${SERVER_API}" \
+      --disable=traefik \
+      --disable=servicelb \
+      --cluster-cidr="${CLUSTER_POD_CIDR}" \
+      --service-cidr="${CLUSTER_SERVICE_CIDR}" \
+      --node-ip="${NODE_IP}" \
+      --advertise-address="${NODE_IP}" \
+      --tls-san="${NODE_IP}" \
+      --tls-san="$(printf "%s" "${SERVER_API}" | sed -e 's#^https://##' -e 's#:6443$##')" \
+      --flannel-iface="${VRACK_INTERFACE}" \
+      --etcd-expose-metrics \
+      --etcd-s3 \
+      --etcd-s3-endpoint="${S3_HOST}" \
+      --etcd-s3-bucket="${BACKUP_BUCKET}" \
+      --etcd-s3-access-key="${S3_ACCESS_KEY}" \
+      --etcd-s3-secret-key="${S3_SECRET_KEY}" \
+      --etcd-s3-folder="${ETCD_BACKUP_FOLDER}" \
+      --etcd-snapshot-schedule-cron="0 */6 * * *" \
+      --etcd-snapshot-retention=5
+  fi
+  rm -f "${K3S_INSTALL}"
+}
+
+install_worker() {
+  retry 120 5 api_ready
+  download_k3s_installer
+  run_k3s_installer agent \
+    --server="${SERVER_API}" \
+    --node-ip="${NODE_IP}" \
+    --flannel-iface="${VRACK_INTERFACE}"
+  rm -f "${K3S_INSTALL}"
+}
+
+install_cluster_resources() {
+  [ "${BOOTSTRAP_CANDIDATE}" = "true" ] || return 0
+  export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+  retry 120 5 kubectl --request-timeout=5s get --raw=/readyz
+
+  for namespace in argocd tailscale; do
+    kubectl create namespace "${namespace}" \
+      --dry-run=client -o yaml | kubectl apply --server-side -f -
+  done
+  kubectl create configmap pandoks-cluster \
+    --namespace argocd \
+    --from-literal=region="${CLUSTER_REGION}" \
+    --dry-run=client -o yaml | kubectl apply --server-side -f -
+
+  kubectl create secret generic tailscale \
+    --namespace kube-system \
+    --from-literal=tailscale-oauth="$(
+      cat << EOF
+oauth:
+  clientId: "${KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID}"
+  clientSecret: "${KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET}"
+EOF
+    )" \
+    --from-literal=operator-config="$(
+      cat << EOF
+operatorConfig:
+  hostname: "${CLUSTER_OPERATOR_HOSTNAME}"
+  defaultTags:
+    - tag:k8s-operator
+    - tag:k8s
+    - tag:${STAGE_NAME}
+EOF
+    )" \
+    --dry-run=client -o yaml | kubectl apply --server-side -f -
+
+  kubectl apply --server-side -f - << 'EOF'
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: tailscale-operator
+  namespace: kube-system
+spec:
+  repo: https://pkgs.tailscale.com/helmcharts
+  chart: tailscale-operator
+  version: 1.92.5
+  targetNamespace: tailscale
+  valuesContent: |-
+    apiServerProxyConfig:
+      mode: "true"
+  valuesSecrets:
+    - name: tailscale
+      keys:
+        - tailscale-oauth
+        - operator-config
+EOF
+
+  kubectl create clusterrolebinding pandoks \
+    --user='Pandoks@github' \
+    --clusterrole=cluster-admin \
+    --dry-run=client -o yaml | kubectl apply --server-side -f -
+}
+
+main() {
+  if [ -f "${DONE_FILE}" ]; then
+    log "already complete"
+    exit 0
+  fi
+  install -d -m 0700 /var/lib/pandoks
+  install_packages
+  configure_admin
+  configure_private_network
+  configure_firewall
+  configure_tailscale
+
+  if ! systemctl is-active --quiet k3s \
+    && ! systemctl is-active --quiet k3s-agent; then
+    if [ "${ROLE}" = "control-plane" ]; then
+      install_control_plane
+    else
+      install_worker
+    fi
+  fi
+
+  if [ "${ROLE}" = "control-plane" ]; then
+    install_cluster_resources
+  fi
+
+  : > "${DONE_FILE}"
+  log "complete"
+}
+
+main "$@"

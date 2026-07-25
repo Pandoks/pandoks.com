@@ -14,7 +14,13 @@ export default $config({
         },
         cloudflare: '6.15.0',
         github: '6.12.1',
-        hcloud: { token: process.env.HCLOUD_TOKEN, version: '1.32.1' },
+        'ovhcloud/pulumi-ovh': {
+          endpoint: 'ovh-us',
+          applicationKey: 'edf9a4672d28e3c7',
+          applicationSecret: process.env.OVH_APPLICATION_SECRET,
+          consumerKey: process.env.OVH_CONSUMER_KEY,
+          version: '2.17.0'
+        },
         tailscale: {
           oauthClientId: process.env.TAILSCALE_OAUTH_CLIENT_ID,
           oauthClientSecret: process.env.TAILSCALE_OAUTH_CLIENT_SECRET,
@@ -35,7 +41,7 @@ export default $config({
       import('./infra/github'),
       import('./infra/website'),
       import('./infra/tailscale'),
-      import('./infra/vps/vps'),
+      import('./infra/cluster/cluster'),
       import('./infra/kubernetes'),
       import('./infra/dev'),
       import('./infra/runner/runner')

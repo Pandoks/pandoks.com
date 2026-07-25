@@ -1,8 +1,48 @@
-import { readFileSync } from 'node:fs';
-import { tailscaleAcl } from './tailscale';
-import { renderCloudInit } from './utils';
-import { deleteServerFromTailnet } from './vps/servers';
-import { inboundFirewall } from './vps/vps';
+import { isProduction } from './utils';
+
+if (isProduction) {
+  new ovh.vps.Vps(
+    'OvhDevVps',
+    {
+      displayName: 'pandoks-dev-box',
+      doNotSendPassword: false,
+      ovhSubsidiary: 'US',
+      plans: [
+        {
+          duration: 'P1M',
+          planCode: 'vps-2027-model4',
+          pricingMode: 'upfront12',
+          quantity: 1,
+          configurations: [
+            { label: 'vps_datacenter', value: 'US-WEST-OR' },
+            { label: 'vps_os', value: 'Ubuntu 26.04' }
+          ]
+        }
+      ],
+      planOptions: [
+        {
+          duration: 'P1M',
+          planCode: 'option-linux',
+          pricingMode: 'upfront12',
+          quantity: 1
+        },
+        {
+          duration: 'P1M',
+          planCode: 'option-auto-backup-2027-1-model4',
+          pricingMode: 'upfront12',
+          quantity: 1
+        },
+        {
+          duration: 'P1M',
+          planCode: 'option-storage-local-2027-model4',
+          pricingMode: 'upfront12',
+          quantity: 1
+        }
+      ]
+    },
+    { protect: true }
+  );
+}
 
 new sst.x.DevCommand('DevInit', {
   dev: {
@@ -35,50 +75,5 @@ new sst.x.DevCommand('K3dDependencyRestart', {
     autostart: false
   }
 });
-
-if ($app.stage === 'pandoks') {
-  const tailscaleHostname = `${$app.stage}-dev-box`;
-  const registrationTailnetAuthKey = new tailscale.TailnetKey(
-    'HetznerDevBoxTailnetRegistrationAuthKey',
-    {
-      description: `hcloud ${$app.stage} dev box registration`,
-      reusable: false,
-      expiry: 1800,
-      preauthorized: true,
-      tags: ['tag:hetzner', 'tag:dev']
-    },
-    { dependsOn: [tailscaleAcl] }
-  );
-
-  const cloudInitConfig = readFileSync(`${process.cwd()}/infra/dev-cloud-config.yaml`, 'utf8');
-  const userData = registrationTailnetAuthKey.key.apply((key) => {
-    const environment = {
-      REGISTRATION_TAILNET_AUTH_KEY: key,
-      TAILSCALE_HOSTNAME: tailscaleHostname
-    };
-
-    return renderCloudInit(cloudInitConfig, environment);
-  });
-
-  new hcloud.Server(
-    'HetznerDevBox',
-    {
-      name: tailscaleHostname,
-      serverType: 'cpx11',
-      image: 'ubuntu-24.04',
-      location: 'hil',
-      publicNets: [{ ipv4Enabled: true, ipv6Enabled: true }],
-      firewallIds: [inboundFirewall.id.apply((id) => parseInt(id))],
-      shutdownBeforeDeletion: true,
-      labels: { tailscale: tailscaleHostname },
-      userData
-    },
-    {
-      hooks: {
-        afterDelete: [deleteServerFromTailnet]
-      }
-    }
-  );
-}
 
 export {};

@@ -1,6 +1,6 @@
 import { secrets } from './secrets';
-import { domain, isProduction } from './dns';
 import { githubOrg, githubRepoName } from './github';
+import { domain, isProduction } from './utils';
 
 const apiDomain = `api.${domain}`;
 export const nodeVersion = 'nodejs24.x';

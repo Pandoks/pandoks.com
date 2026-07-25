@@ -5,7 +5,10 @@ are not hosted in this cluster are hosted either in AWS or Cloudflare usually fo
 applications. For databases, it is better to used a managed database as it reduces the operational
 overhead.
 
-As it stands, the cluster is hosted on Hetzner VPS's.
+Each regional production cluster can combine OVHcloud Public Cloud instances
+and dedicated servers. `infra/cluster/config.ts` defines independent templates
+for US West, US East, Europe, and Asia; all are currently disabled with zero
+nodes. Regional clusters do not share a Kubernetes control plane.
 
 ## Directory Structure
 
@@ -58,18 +61,21 @@ Or step by step:
 
 ## Production
 
-Production clusters are provisioned via Pulumi with cloud-config that bootstraps k3s + tailscale.
-The tailscale operator provides secure access to the cluster API without needing SSH tunnels.
+Production nodes are provisioned by SST/Pulumi. Public Cloud nodes use
+user data and dedicated nodes use a post-install customization; both execute
+the shared `infra/cluster/providers/bootstrap.sh` host hardening and k3s setup.
+The Tailscale operator provides secure access to the cluster API without SSH
+tunnels.
 
 ```sh
 # Connect via tailscale (cluster appears as <stage>-cluster in your tailnet)
 kubectl --context <tailscale-context> get pods
 
 # Install base infrastructure (helm charts + CRDs)
-./scripts/cluster/main.sh deploy prod --bootstrap
+./scripts/cluster/main.sh deploy prod --region us-west --bootstrap
 
 # Deploy prod overlay (system-upgrade controller; SST secrets substituted inline)
-./scripts/cluster/main.sh deploy prod
+./scripts/cluster/main.sh deploy prod --region us-west
 ```
 
 ## k9s
@@ -84,8 +90,8 @@ kubectl config get-contexts
 kubectl config use-context <context-name>
 ```
 
-**NOTE:** `k3d` is setup to use port 6444 for the local k3s cluster api so that it doesn't conflict
-with the remote k3s through ssh tunneling.
+**NOTE:** `k3d` is setup to use port 6444 for the local k3s cluster API so that it doesn't conflict
+with the remote k3s API over Tailscale.
 
 You'll also see in `scripts/cluster/k3d.sh` that we forward port 30080 in _docker_ to port 8080 on the
 machine (`localhost`). This is because `k3d` runs k3s inside of docker and we need to expose the
@@ -105,15 +111,16 @@ kubectl --context <tailscale-context> get pods
 
 ## Public Exposure
 
-To expose the cluster's services to the public internet, you need to use ingress controllers. Load
-balancers should only be used for external services that are in the same private network as the
-cluster. Basically, services that are not in the cluster but they're in the same private network as
-the VPS's.
+To expose services publicly, mark eligible pools with `publicIngress`. One
+eligible node is used directly; multiple nodes use one or more regional OVH
+load balancers. Cloudflare proxies one origin directly and creates global load
+balancing when two or more regional origins exist. Database pools remain
+private and applications are routed internally by Kubernetes Services.
 
 ### HAProxy Ingress Controller
 
 `base/helm-charts/haproxy-ingress.yaml` is a helm chart that installs the HAProxy ingress controller and
-also configures `NodePort` services to expose to the Hetzner load balancer. Ports `30000-32767` are
+also configures `NodePort` services to expose to the OVH load balancer. Ports `30000-32767` are
 reserved ports just for `nodePort` services. The cluster is entirely in a private network so we only
 expose services via the load balancer which is exposed to the public internet but is also connected
 to the private network.
@@ -174,7 +181,7 @@ overlays because etcd endpoints are environment-specific.
 ```
 k3s/base/core/namespaces.yaml          → monitoring namespace
 k3s/overlays/dev/prom-grafana.yaml     → HelmChart with k3d control plane IPs (172.30.0.4-6)
-k3s/overlays/prod/prom-grafana.yaml    → HelmChart with Hetzner IPs (10.0.1.10+)
+k3s/overlays/prod/prom-grafana.yaml    → HelmChart with active OVH control-plane IPs
 k3s/templates/monitoring.yaml          → Grafana secrets (SST template)
 ```
 
@@ -183,7 +190,16 @@ k3s/templates/monitoring.yaml          → Grafana secrets (SST template)
 k3s embedded etcd requires `--etcd-expose-metrics` flag to expose metrics on port 2381:
 
 - **k3d**: Set via `--k3s-arg "--etcd-expose-metrics@server:*"` in `scripts/cluster/k3d.sh`
-- **Hetzner**: Set in `infra/vps/cloud-config.yaml`
+- **OVHcloud**: Set by `infra/cluster/providers/bootstrap.sh`
+
+Within each regional `10.<region>.0.0/16`, Public Cloud control planes use
+`.1.1-.1.254` and dedicated control planes use `.3.1-.3.254`. Keep each
+cluster's explicit etcd endpoint list aligned with its active members.
+
+Flannel only connects pods inside one cluster. Cross-region pod/service
+connectivity (for example, Cilium Cluster Mesh) and database replication are a
+separate rollout; the unique regional pod/service CIDRs reserve that future
+path without forcing readdressing.
 
 The kube-prometheus-stack `kubeEtcd.endpoints` must list control plane IPs explicitly because
 k3s doesn't create pods with `component=etcd` labels (embedded etcd).
@@ -191,8 +207,8 @@ k3s doesn't create pods with `component=etcd` labels (embedded etcd).
 ### Grafana Datasource Provisioning
 
 Grafana uses the default sidecar-based provisioning. Earlier versions had a race condition
-(REQ_SKIP_INIT bug) but this was fixed in Grafana helm chart 10.5.8 (included in
-kube-prometheus-stack 80.14.4+).
+(REQ_SKIP_INIT bug) but this was fixed in Grafana helm chart 10.5.8 and is included in the pinned
+kube-prometheus-stack chart.
 
 ### Updating Helm Values
 

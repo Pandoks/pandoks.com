@@ -53,8 +53,10 @@ expo-env.d.ts
 
 # AI
 .codex
+.agent/artifacts/
 .claude/plans
 .claude/artifacts/
+docs/superpowers/
 
 # Worktrees
 .worktrees

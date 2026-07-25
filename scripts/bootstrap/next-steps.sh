@@ -18,7 +18,7 @@ print_next_steps() {
     | grep -q .; then
     show_bootstrap_header
     # shellcheck disable=SC2016
-    log_warn "  ${print_next_steps_step}. cp .env.example .env.\$(whoami) and fill in CLOUDFLARE_*, HCLOUD_*, TAILSCALE_*, GITHUB_TOKEN"
+    log_warn "  ${print_next_steps_step}. cp .env.example .env.\$(whoami) and fill in CLOUDFLARE_*, OVH_*, TAILSCALE_*, GITHUB_TOKEN"
     print_next_steps_step=$((print_next_steps_step + 1))
   fi
 

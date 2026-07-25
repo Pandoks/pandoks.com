@@ -5,7 +5,8 @@ metadata:
   namespace: kube-system
 spec:
   chart: oci://${ImageRegistry}/charts/clickhouse
-  version: 0.1.0 # renovate: datasource=docker packageName=pandoks/charts/clickhouse
+  # renovate: datasource=docker depName=pandoks/charts/clickhouse registryUrl=https://ghcr.io
+  version: 0.1.0
   targetNamespace: &namespace main
   createNamespace: true
   failurePolicy: abort

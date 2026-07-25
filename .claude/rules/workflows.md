@@ -47,15 +47,62 @@ matching the local username (`pandoks`). Production always needs
 `--stage production` explicitly.
 
 Required envs (`.env.example`): `CLOUDFLARE_API_TOKEN`,
-`CLOUDFLARE_DEFAULT_ACCOUNT_ID`, `HCLOUD_TOKEN`,
+`CLOUDFLARE_DEFAULT_ACCOUNT_ID`, `OVH_APPLICATION_SECRET`, `OVH_CONSUMER_KEY`,
 `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_CLIENT_SECRET`,
 `GITHUB_TOKEN`. The Tailscale pair is the manually-created root OAuth
 client (admin console → Trust credentials, "All - Read & Write",
 tagless — see `gotchas/infra.md`) — the one
 credential IaC can't create; its secret never expires. The provider
-exchanges it for 1-hour API tokens per run (`sst.config.ts:18-22`), and
+exchanges it for 1-hour API tokens per run (`sst.config.ts:25-29`), and
 `deleteTailscaleDevices` does the same exchange for its raw API calls
 (`infra/tailscale.ts:88-111`).
+
+## OVH cluster operations
+
+Topology is code-owned in `infra/cluster/config.ts` as generic primitives:
+`PRODUCTION_CLUSTER_CONFIG` and `NON_PRODUCTION_CLUSTER_CONFIG` both currently
+declare zero clusters. A cluster is a `ClusterSpec` array entry (`region` +
+`pools`), one cluster per region, where `region` is an OVH datacenter code
+(`hil`, `vin`, `gra`, `sgp`, ...). There is no `enabled` flag. The region
+determines everything both products need: Public Cloud pools are only valid in
+`hil`/`vin` (auto-mapped to `US-WEST-OR-1`/`US-EAST-VA-1`) and dedicated pools
+inherit their datacenter and order region. Each pool picks its OVH product via
+the `server` union (`public-cloud` flavor/image vs `dedicated`
+planCode/os/planOptions) and carries raw Kubernetes `labels` and
+`taints` for placement (e.g. `pandoks.com/workload=database` + NoSchedule).
+All addressing (VLAN, `10.<i>.0.0/16`, gateway, pod/service CIDRs, MetalLB
+`10.<i>.200.x`) derives from the region's `CLUSTER_NETWORK_INDEXES` entry —
+a hidden map in `infra/cluster/topology.ts` that permanently pre-allocates an
+index to every OVH datacenter; per-cluster `network` overrides
+exist but are rarely needed. Dedicated pools may opt into the cross-cluster
+interconnect VLAN (`interconnect: true`); Public Cloud instances cannot (single
+private NIC).
+
+CI retains only the OVH credentials; Pulumi creates the Public Cloud project
+and passes its generated ID directly; CI runs the TypeScript topology contracts
+through `pnpm test:infra`. It does not source topology from CI variables.
+Cluster resources use `protect: isProduction`: production nodes are protected
+and non-production nodes are not. There is no environment-variable bypass.
+
+Before committing or applying a non-zero dedicated count, validate the plan,
+datacenter, order region, and options against the live authenticated OVH cart,
+fill the validated values in the pool's `server` block, and run an
+authenticated preview:
+
+```sh
+./node_modules/.bin/sst diff --stage production
+```
+
+The protected Pulumi-managed Public Cloud project remains required as the
+single US account foundation even when compute is dedicated-only. Everything
+runs under the one `ovh-us` account and one vRack; declared clusters own
+independent networks, K3s CIDRs, tokens, API endpoints, and MetalLB ranges,
+all derived from the region's `CLUSTER_NETWORK_INDEXES` entry.
+Scale-down always targets `count - 1`; production deletion requires a separate
+reviewed IaC change scoped to that exact resource before the count is reduced.
+Cluster hosts have no provider SSH key; administrator access is Tailscale SSH
+only. The separate dev VPS-4 subscription is provisioned by SST, while its guest
+setup remains manual.
 
 ## Dev (SST)
 
@@ -90,7 +137,7 @@ Cluster CLI subcommands (`scripts/cluster/main.sh`, `usage.sh`):
 ```sh
 pnpm run cluster k3d {up|down|start|stop|restart|deps {up|down|restart}}
 pnpm run cluster deploy {local|dev|prod} [--bootstrap] [--stage NAME]
-                                          [--dry-run] [--kubeconfig PATH]
+                                          [--region REGION] [--dry-run] [--kubeconfig PATH]
                                           [--quiet|-q]
 ```
 
@@ -173,27 +220,33 @@ by the Notion webhook handler through GitHub's API).
 ## Deploy — Kubernetes (manual)
 
 ```sh
-sudo tailscale configure kubeconfig prod-cluster
+sudo tailscale configure kubeconfig prod-<region>-cluster   # operator hostname, e.g. prod-hil-cluster
 
 sudo kubectl annotate application prod-cluster \
   argocd.argoproj.io/refresh=hard --overwrite --namespace argocd
 ```
 
 Then wait for ArgoCD sync (CI's loop is in
-`.github/workflows/deploy-infra.yaml:145-162`).
+`.github/workflows/deploy-infra.yaml:149-166`). The ArgoCD Application name
+stays `prod-cluster`; the Tailscale operator hostname is uniformly
+`<stage>-<cluster-name>-cluster`.
+
+For another cluster, use its operator hostname (for example,
+`prod-vin-cluster`) and pass `--region vin` (the OVH datacenter code) to
+manual deploy commands.
 
 ## CI workflows
 
-| File                     | Triggers                                                                                                                                                                    | Does                                                                                                                                                                                                                                                                                                                                                                                         |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `deploy-infra.yaml`      | push to main on `infra/**`, `apps/**` (excl. `desktop-template`/`example`), `packages/svelte/**`, `k3s/**`, `scripts/cluster/**`; manual dispatch (`stage`/`deploy` inputs) | Install, AWS OIDC, `pnpm sst refresh` (`continue-on-error: true`, `:98-102`), `pnpm sst deploy`. On success: Tailscale + ArgoCD `refresh=hard` + sync-wait loop (60×5s, `:151-162`). Skips kubernetes step if no `prod-cluster` Tailnet peer (`:133-140`). Each job uses `concurrency: { cancel-in-progress: false }`.                                                                       |
-| `sync-notion.yaml`       | `workflow_dispatch` only (fired by `NotionWebhookHandler` Lambda via GitHub API)                                                                                            | Install, AWS OIDC, run `pnpm sst shell --stage production -- pnpm -r --if-present run sync:notion`. Opens a PR (`peter-evans/create-pull-request@v8`) under branch `auto/notion-sync` with content under `apps/web/*`.                                                                                                                                                                       |
-| `checks.yaml`            | push to main, PR to main                                                                                                                                                    | paths-filter dispatches per-language jobs (prettier, eslint, golangci, shfmt+shellcheck, hadolint, helm+kubeconform, actionlint, renovate-config-validator, `pnpm check:infra` via `infra` filter). Tool-only jobs (shell/helm) provision via `jdx/mise-action` reading `mise.toml` and invoke the dispatcher scripts directly (no pnpm). Each job runs only when its file patterns changed. |
-| `tests.yaml`             | push to main, PR to main                                                                                                                                                    | paths-filter per-app: web (vitest + playwright), desktop-template, svelte package, valkey reconciler (go test). Each gated by `apps/web/**`-style globs.                                                                                                                                                                                                                                     |
-| `security.yaml`          | push to main, PR to main, daily 17:00 UTC cron, manual dispatch                                                                                                             | Trivy scans on **published** images (not pre-build) plus config-scan on `k3s/**`. Findings upload to GitHub code-scanning.                                                                                                                                                                                                                                                                   |
-| `build-and-publish.yaml` | push to `packages/{postgres,valkey,argocd,clickhouse}/**`; branch create; manual dispatch                                                                                   | paths-filter detects changes (skipped on `workflow_dispatch` → all rebuild). Matrix builds each Dockerfile **from repo-root context** (`context: .` at `:185`), pushes to `ghcr.io/<owner>/<image>` with SLSA attestation, tags main builds as `ref-main-<sha>` (#57). Matrix packages charts to `oci://ghcr.io/<owner>/charts`.                                                             |
-| `branch-cleanup.yaml`    | `on: delete` (branch deletion)                                                                                                                                              | Three matrix jobs: delete Cloudflare Pages previews for the deleted branch, then delete GHCR image tags (`ref-<branch>-*`) for all 8 image packages, then delete GHCR chart tags (suffix `-<branch>`) for the 3 charts.                                                                                                                                                                      |
-| `maintenance.yaml`       | daily 05:00 UTC cron + manual dispatch                                                                                                                                      | Two jobs: (1) Renovate via `renovatebot/github-action`; (2) `cleanup-packages` matrix — for each of 11 ghcr packages, keeps newest 30 `ref-main-<sha>` tags and prunes orphan untagged versions (preserves manifest children + provenance attestations).                                                                                                                                     |
+| File                     | Triggers                                                                                                                                                                    | Does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `deploy-infra.yaml`      | push to main on `infra/**`, `apps/**` (excl. `desktop-template`/`example`), `packages/svelte/**`, `k3s/**`, `scripts/cluster/**`; manual dispatch (`stage`/`deploy` inputs) | Install, AWS OIDC, `pnpm sst refresh` (`continue-on-error: true`, `:104-106`), `pnpm sst deploy`. On success: Tailscale + ArgoCD `refresh=hard` + sync-wait loop (60×5s, `:149-166`). Skips kubernetes step if no `prod-cluster` Tailnet peer (`:131-139`). Each job uses `concurrency: { cancel-in-progress: false }`.                                                                                                                                                                                                                                                                    |
+| `sync-notion.yaml`       | `workflow_dispatch` only (fired by `NotionWebhookHandler` Lambda via GitHub API)                                                                                            | Install, AWS OIDC, run `pnpm sst shell --stage production -- pnpm -r --if-present run sync:notion`. Opens a PR (`peter-evans/create-pull-request@v8`) under branch `auto/notion-sync` with content under `apps/web/*`.                                                                                                                                                                                                                                                                                                                                                                     |
+| `checks.yaml`            | push to main, PR to main                                                                                                                                                    | paths-filter dispatches per-language jobs (prettier, eslint, golangci, shfmt+shellcheck, hadolint, helm+kubeconform, actionlint, renovate-config-validator). The `infra` filter includes manual VPS scripts and runs the infra typecheck, TypeScript topology contracts, and both manual VPS shell suites. The SST diff job retains only OVH credentials; Pulumi supplies the managed project ID. Tool-only jobs (shell/helm) provision via `jdx/mise-action` reading `mise.toml` and invoke the dispatcher scripts directly (no pnpm). Each job runs only when its file patterns changed. |
+| `tests.yaml`             | push to main, PR to main                                                                                                                                                    | paths-filter per-app: web (vitest + playwright), desktop-template, svelte package, valkey reconciler (go test). Each gated by `apps/web/**`-style globs.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `security.yaml`          | push to main, PR to main, daily 17:00 UTC cron, manual dispatch                                                                                                             | Trivy scans on **published** images (not pre-build) plus config-scan on `k3s/**`. Findings upload to GitHub code-scanning.                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `build-and-publish.yaml` | push to `packages/{postgres,valkey,argocd,clickhouse}/**`; branch create; manual dispatch                                                                                   | paths-filter detects changes (skipped on `workflow_dispatch` → all rebuild). Matrix builds each Dockerfile **from repo-root context** (`context: .` at `:185`), pushes to `ghcr.io/<owner>/<image>` with SLSA attestation, tags main builds as `ref-main-<sha>` (#57). Matrix packages charts to `oci://ghcr.io/<owner>/charts`.                                                                                                                                                                                                                                                           |
+| `branch-cleanup.yaml`    | `on: delete` (branch deletion)                                                                                                                                              | Three matrix jobs: delete Cloudflare Pages previews for the deleted branch, then delete GHCR image tags (`ref-<branch>-*`) for all 8 image packages, then delete GHCR chart tags (suffix `-<branch>`) for the 3 charts.                                                                                                                                                                                                                                                                                                                                                                    |
+| `maintenance.yaml`       | daily 05:00 UTC cron + manual dispatch                                                                                                                                      | Two jobs: (1) Renovate via `renovatebot/github-action`; (2) `cleanup-packages` matrix — for each of 11 ghcr packages, keeps newest 30 `ref-main-<sha>` tags and prunes orphan untagged versions (preserves manifest children + provenance attestations).                                                                                                                                                                                                                                                                                                                                   |
 
 Core actions pinned to v6: `actions/checkout@v6`, `actions/setup-node@v6`,
 `aws-actions/configure-aws-credentials@v6`, `pnpm/action-setup@v6`,
@@ -212,10 +265,10 @@ not switch back to floating tags.
 
 ## SST stages
 
-| Stage        | Notes                                                                                                                                      |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `production` | `isProduction=true`, `STAGE_NAME='prod'`, `domain='pandoks.com'`, prod-only resources on (`infra/dns.ts:3, 5, 9`).                         |
-| `pandoks`    | Dev / personal stage (defaults to local username). `domain='dev.pandoks.com'`. No `pandoks`-gated resources currently exist in `infra/**`. |
+| Stage        | Notes                                                                                                                               |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `production` | `isProduction=true`, `STAGE_NAME='prod'`, `domain='pandoks.com'`, prod-only resources on (`infra/utils.ts`).                        |
+| `pandoks`    | Dev / personal stage (defaults to local username). `domain='dev.pandoks.com'`; provisions the protected dev VPS-4 (`infra/dev.ts`). |
 
 `StageName` and `AwsRegion` are auto-synced into SST secrets
-(`infra/dns.ts:11-15` and `:22-27` respectively).
+(`infra/dns.ts` and `infra/aws.ts` respectively).

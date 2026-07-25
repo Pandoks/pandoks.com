@@ -1,5 +1,6 @@
-import { cloudflareAccountId, cloudflareZoneId, domain, isProduction } from './dns';
+import { cloudflareAccountId, cloudflareZoneId } from './dns';
 import { githubOrg, githubRepoName } from './github';
+import { domain, isProduction } from './utils';
 
 new sst.x.DevCommand('DevWebsite', {
   dev: {
@@ -11,6 +12,14 @@ new sst.x.DevCommand('DevWebsite', {
 });
 
 if (isProduction) {
+  const PAGES_NODE_VERSION = '24.18.0';
+  const pagesBuildEnvironment = {
+    NODE_VERSION: {
+      type: 'plain_text',
+      value: PAGES_NODE_VERSION
+    }
+  };
+
   const personalStaticWebsite = new cloudflare.PagesProject('PersonalWebsite', {
     accountId: cloudflareAccountId,
     name: 'pandoks',
@@ -30,6 +39,14 @@ if (isProduction) {
       destinationDir: 'apps/web/build',
       rootDir: '',
       buildCaching: true
+    },
+    deploymentConfigs: {
+      preview: {
+        envVars: pagesBuildEnvironment
+      },
+      production: {
+        envVars: pagesBuildEnvironment
+      }
     }
   });
   new cloudflare.PagesDomain('PersonalWebsiteDomain', {

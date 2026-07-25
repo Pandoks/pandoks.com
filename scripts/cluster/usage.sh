@@ -100,6 +100,8 @@ usage_deploy() {
   printf "  %b--stage%b <STAGE>\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      SST stage to fetch secrets from (default: SST's default stage;\n" >&2
   printf "      forced to 'production' for the prod environment)\n\n" >&2
+  printf "  %b--region%b <REGION>\n" "${YELLOW}" "${NORMAL}" >&2
+  printf "      Cluster region from infra/cluster/config.ts (default: hil)\n\n" >&2
   printf "  %b--dry-run%b\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      Show rendered YAML without applying to cluster\n\n" >&2
   printf "  %b--kubeconfig%b <PATH>\n" "${YELLOW}" "${NORMAL}" >&2
@@ -111,6 +113,7 @@ usage_deploy() {
   printf "  \${ImageRegistry}     - Container registry (local or GHCR)\n" >&2
   printf "  \${ImageTag}          - Image tag (latest or branch name)\n" >&2
   printf "  \${IsLocal}           - 'true' or 'false' for conditional logic\n" >&2
+  printf "  \${ClusterMetalLbRange} - Region-owned MetalLB address range\n" >&2
   printf "  \${<SST Resource>}    - Any SST resource by name\n" >&2
   printf "  \${<Secret> | base64} - Base64 encode a secret value\n\n" >&2
 
