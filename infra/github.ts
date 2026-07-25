@@ -33,6 +33,18 @@ if (isProduction) {
     enforceAdmins: false
   });
 
+  new github.ActionsSecret('GithubOvhApplicationSecret', {
+    repository: githubRepoName,
+    secretName: 'OVH_APPLICATION_SECRET',
+    plaintextValue: secrets.ovh.ApplicationSecret.value
+  });
+
+  new github.ActionsSecret('GithubOvhConsumerKey', {
+    repository: githubRepoName,
+    secretName: 'OVH_CONSUMER_KEY',
+    plaintextValue: secrets.ovh.ConsumerKey.value
+  });
+
   new github.ActionsSecret('GithubGithubAccessToken', {
     repository: githubRepoName,
     secretName: 'GH_TOKEN',

@@ -48,6 +48,7 @@ matching the local username (`pandoks`). Production always needs
 
 Required envs (`.env.example`): `CLOUDFLARE_API_TOKEN`,
 `CLOUDFLARE_DEFAULT_ACCOUNT_ID`, `HCLOUD_TOKEN`,
+`OVH_APPLICATION_SECRET`, `OVH_CONSUMER_KEY`,
 `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_CLIENT_SECRET`,
 `GITHUB_TOKEN`. The Tailscale pair is the manually-created root OAuth
 client (admin console → Trust credentials, "All - Read & Write",
