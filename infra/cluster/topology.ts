@@ -9,12 +9,12 @@ import type {
 } from './config.ts';
 
 // Every cluster /16 keeps the same derived third-octet layout:
-// .0 OVH/Neutron, .1-.199 node pools (hashed from the pool name), .200 MetalLB,
+// .0 OVH/Neutron, .1-.199 node pools (hashed from the pool id), .200 MetalLB,
 // .201-.255 reserved.
 const METAL_LB_OCTET = 200;
 const MAX_NETWORK_INDEX = 15;
 const MAX_POOL_COUNT = 254;
-const NAME_PATTERN = /^[a-z][a-z0-9-]*[a-z0-9]$/;
+const ID_PATTERN = /^[a-z][a-z0-9-]*[a-z0-9]$/;
 
 // Every OVH datacenter permanently owns a network index; the whole address plan
 // derives from it, so entries must never be renumbered.
@@ -64,7 +64,7 @@ const DEDICATED_ORDER_REGIONS: Record<ClusterRegion, 'usa' | 'canada' | 'europe'
 };
 
 type NodePoolBase = {
-  name: string;
+  id: string;
   role: NodeRole;
   count: number;
   labels: Record<string, string>;
@@ -158,7 +158,7 @@ export function networkIndex(region: ClusterRegion): number {
 function validateNetworkIndexes(): void {
   const indexes = new Set<number>();
   for (const [region, index] of Object.entries(CLUSTER_NETWORK_INDEXES)) {
-    if (!NAME_PATTERN.test(region)) {
+    if (!ID_PATTERN.test(region)) {
       throw new Error(`Cluster region ${region} must be lowercase kebab-case`);
     }
     if (!Number.isInteger(index) || index < 0 || index > MAX_NETWORK_INDEX) {
@@ -208,11 +208,11 @@ function interconnectAddress(
   return `${first}.${Number(second) + index}.${addressBlock}.${hostIndex}`;
 }
 
-// A pool's third octet is derived from its name so declaration order never moves a
+// A pool's third octet is derived from its id so declaration order never moves a
 // node's address. Collisions are rejected at build time: rename the pool.
-function poolAddressBlock(name: string): number {
+function poolAddressBlock(id: string): number {
   let hash = 2166136261;
-  for (const character of name) {
+  for (const character of id) {
     hash = Math.imul(hash ^ character.charCodeAt(0), 16777619) >>> 0;
   }
   return (hash % (METAL_LB_OCTET - 1)) + 1;
@@ -247,36 +247,36 @@ function nodePools(spec: ClusterSpec): NodePool[] {
   if (spec.pools.length >= METAL_LB_OCTET) {
     throw new Error(`Cluster ${spec.region} cannot declare more than ${METAL_LB_OCTET - 1} pools`);
   }
-  const names = new Set<string>();
+  const ids = new Set<string>();
   const addressBlocks = new Map<number, string>();
   return spec.pools.map((pool) => {
-    if (!NAME_PATTERN.test(pool.name)) {
-      throw new Error(`Node pool name ${pool.name} must be lowercase kebab-case`);
+    if (!ID_PATTERN.test(pool.id)) {
+      throw new Error(`Node pool id ${pool.id} must be lowercase kebab-case`);
     }
-    if (names.has(pool.name)) throw new Error(`Duplicate node pool name: ${pool.name}`);
-    names.add(pool.name);
+    if (ids.has(pool.id)) throw new Error(`Duplicate node pool id: ${pool.id}`);
+    ids.add(pool.id);
     if (!Number.isInteger(pool.count) || pool.count < 0) {
-      throw new Error(`Node pool ${pool.name} count must be a non-negative integer`);
+      throw new Error(`Node pool ${pool.id} count must be a non-negative integer`);
     }
     if (pool.count > MAX_POOL_COUNT) {
-      throw new Error(`Node pool ${pool.name} count cannot exceed ${MAX_POOL_COUNT}`);
+      throw new Error(`Node pool ${pool.id} count cannot exceed ${MAX_POOL_COUNT}`);
     }
     for (const [key, value] of Object.entries(pool.labels ?? {})) {
-      validateKeyValue('label', pool.name, key, value);
+      validateKeyValue('label', pool.id, key, value);
     }
     for (const taint of pool.taints ?? []) {
-      validateKeyValue('taint', pool.name, taint.key, taint.value);
+      validateKeyValue('taint', pool.id, taint.key, taint.value);
     }
-    const addressBlock = poolAddressBlock(pool.name);
+    const addressBlock = poolAddressBlock(pool.id);
     const collision = addressBlocks.get(addressBlock);
     if (collision) {
       throw new Error(
-        `Node pools ${collision} and ${pool.name} derive the same address block; rename one`
+        `Node pools ${collision} and ${pool.id} derive the same address block; rename one`
       );
     }
-    addressBlocks.set(addressBlock, pool.name);
+    addressBlocks.set(addressBlock, pool.id);
     const base: NodePoolBase = {
-      name: pool.name,
+      id: pool.id,
       role: pool.role,
       count: pool.count,
       labels: pool.labels ?? {},
@@ -288,7 +288,7 @@ function nodePools(spec: ClusterSpec): NodePool[] {
     if (pool.server.type === 'public-cloud') {
       if (base.interconnect) {
         throw new Error(
-          `Node pool ${pool.name} cannot join the interconnect: Public Cloud instances support a single private NIC`
+          `Node pool ${pool.id} cannot join the interconnect: Public Cloud instances support a single private NIC`
         );
       }
       const region = PUBLIC_CLOUD_REGIONS[spec.region];
@@ -298,7 +298,7 @@ function nodePools(spec: ClusterSpec): NodePool[] {
         );
       }
       if (pool.count > 0 && (!pool.server.flavor.trim() || !pool.server.image.trim())) {
-        throw new Error(`Enabled node pool ${pool.name} requires flavor and image`);
+        throw new Error(`Enabled node pool ${pool.id} requires flavor and image`);
       }
       return {
         ...base,
@@ -309,7 +309,7 @@ function nodePools(spec: ClusterSpec): NodePool[] {
       };
     }
     if (pool.count > 0 && (!pool.server.planCode.trim() || !pool.server.operatingSystem.trim())) {
-      throw new Error(`Enabled dedicated pool ${pool.name} requires planCode and operatingSystem`);
+      throw new Error(`Enabled dedicated pool ${pool.id} requires planCode and operatingSystem`);
     }
     return {
       ...base,
@@ -342,8 +342,8 @@ export function buildClusterPlan(spec: ClusterSpec, stage: string, domain: strin
       nodes.push({
         pool,
         poolIndex,
-        logicalName: `Ovh${clusterIdentity.resourcePrefix}${pascalCase(pool.name)}Server${poolIndex}`,
-        hostname: `${clusterIdentity.namePrefix}-ovh-${pool.name}-server-${poolIndex}`,
+        logicalName: `Ovh${clusterIdentity.resourcePrefix}${pascalCase(pool.id)}Server${poolIndex}`,
+        hostname: `${clusterIdentity.namePrefix}-ovh-${pool.id}-server-${poolIndex}`,
         privateIp: `10.${octet}.${pool.addressBlock}.${poolIndex + 1}`,
         ...(pool.interconnect && {
           interconnectIp: interconnectAddress(interconnect, index, pool.addressBlock, poolIndex + 1)
@@ -426,14 +426,14 @@ export function getGlobalPublicIngressMode(originCount: number) {
 }
 
 // Retained for the documented future highest-index-first scale-down workflow.
-export function getPoolScaleDownTarget(plan: ClusterPlan, poolName: string) {
-  const pool = plan.nodePools.find(({ name }) => name === poolName);
-  if (!pool) throw new Error(`Unknown node pool: ${poolName}`);
-  if (pool.count < 1) throw new Error(`Node pool ${pool.name} has no node to remove`);
+export function getPoolScaleDownTarget(plan: ClusterPlan, poolId: string) {
+  const pool = plan.nodePools.find(({ id }) => id === poolId);
+  if (!pool) throw new Error(`Unknown node pool: ${poolId}`);
+  if (pool.count < 1) throw new Error(`Node pool ${pool.id} has no node to remove`);
   const index = pool.count - 1;
   return {
     index,
-    logicalName: `Ovh${plan.identity.resourcePrefix}${pascalCase(pool.name)}Server${index}`,
-    hostname: `${plan.identity.namePrefix}-ovh-${pool.name}-server-${index}`
+    logicalName: `Ovh${plan.identity.resourcePrefix}${pascalCase(pool.id)}Server${index}`,
+    hostname: `${plan.identity.namePrefix}-ovh-${pool.id}-server-${index}`
   };
 }

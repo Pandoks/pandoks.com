@@ -71,8 +71,9 @@ manually import` comment at `sst.config.ts:34` is load-bearing.
   neighboring datacenter instead. Per-cluster single-region
   private networks keep the managed private-API LB supported; public web
   ingress is Cloudflare-direct to the ingress nodes' public IPs (no OVH public
-  LBs, IPLB, or gateways). Pool addresses hash from the pool NAME, so
-  declaration order never matters — but renaming a live pool moves its nodes.
+  LBs, IPLB, or gateways). Pool addresses hash from the pool `id`, so
+  declaration order never matters — but changing a live pool's `id` rebuilds
+  its nodes.
 - **The Public Cloud project remains required with dedicated compute.**
   `infra/cluster/cluster.ts` creates it with `ovh.cloudproject.Project` and
   passes its generated `projectId` to the vRack attachment, private network,

@@ -38,7 +38,7 @@ void test('models clusters as free-form primitives instead of fixed regional slo
   assert.match(source, /export type ClusterRegion/);
 
   const pool: NodePoolConfig = {
-    name: 'database',
+    id: 'database',
     role: 'worker',
     count: 1,
     labels: { 'pandoks.com/workload': 'database' },

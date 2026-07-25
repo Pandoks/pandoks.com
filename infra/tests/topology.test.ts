@@ -43,21 +43,21 @@ function cluster(
     region: args.region ?? 'hil',
     pools: args.pools ?? [
       {
-        name: 'control-plane',
+        id: 'control-plane',
         role: 'control-plane',
         count: args.controlPlanes ?? 1,
         publicIngress: true,
         server: publicCloudServer
       },
       {
-        name: 'workers',
+        id: 'workers',
         role: 'worker',
         count: args.workers ?? 0,
         publicIngress: true,
         server: publicCloudServer
       },
       {
-        name: 'database',
+        id: 'database',
         role: 'worker',
         count: args.databases ?? 0,
         labels: { 'pandoks.com/workload': 'database' },
@@ -65,7 +65,7 @@ function cluster(
         server: publicCloudServer
       },
       {
-        name: 'dedicated-database',
+        id: 'dedicated-database',
         role: 'worker',
         count: args.dedicatedDatabases ?? 0,
         labels: { 'pandoks.com/workload': 'database' },
@@ -159,14 +159,14 @@ void test('keeps every region address space independent', () => {
   assert.equal(plan.identity.operatorHostname, 'prod-vin-cluster');
 });
 
-void test('rejects unmapped regions and invalid pool names', () => {
+void test('rejects unmapped regions and invalid pool ids', () => {
   assert.throws(
     () =>
       buildClusterPlan({ ...cluster(), region: 'moon' as ClusterRegion }, 'prod', 'pandoks.com'),
     /Unknown cluster region: moon/
   );
   const invalid = cluster({
-    pools: [{ name: 'Bad_Name', role: 'control-plane', count: 1, server: publicCloudServer }]
+    pools: [{ id: 'Bad_Name', role: 'control-plane', count: 1, server: publicCloudServer }]
   });
   assert.throws(
     () => buildClusterPlan(invalid, 'prod', 'pandoks.com'),
@@ -174,7 +174,7 @@ void test('rejects unmapped regions and invalid pool names', () => {
   );
 });
 
-void test('derives pool addresses from names, not declaration order', () => {
+void test('derives pool addresses from ids, not declaration order', () => {
   const ordered = buildClusterPlan(
     cluster({ controlPlanes: 1, workers: 1, databases: 1 }),
     'prod',
@@ -198,7 +198,7 @@ void test('derives pool addresses from names, not declaration order', () => {
     {
       ...cluster({ controlPlanes: 1, workers: 1, databases: 1 }),
       pools: [
-        { name: 'analytics', role: 'worker', count: 1, server: publicCloudServer },
+        { id: 'analytics', role: 'worker', count: 1, server: publicCloudServer },
         ...cluster({ controlPlanes: 1, workers: 1, databases: 1 }).pools
       ]
     },
@@ -216,7 +216,7 @@ void test('derives pool addresses from names, not declaration order', () => {
 void test('places dedicated-only regions and rejects public cloud pools outside hil/vin', () => {
   const dedicatedOnly = (region: ClusterRegion): ClusterSpec => ({
     region,
-    pools: [{ name: 'control-plane', role: 'control-plane', count: 1, server: dedicatedServer }]
+    pools: [{ id: 'control-plane', role: 'control-plane', count: 1, server: dedicatedServer }]
   });
   assert.equal(
     buildClusterPlan(dedicatedOnly('gra'), 'prod', 'pandoks.com').network.publicCloudRegion,
@@ -235,7 +235,7 @@ void test('places dedicated-only regions and rejects public cloud pools outside 
 
 void test('passes raw labels and taints through and rejects unencodable values', () => {
   const plan = buildClusterPlan(cluster({ databases: 1 }), 'prod', 'pandoks.com');
-  const database = plan.nodes.find(({ pool }) => pool.name === 'database');
+  const database = plan.nodes.find(({ pool }) => pool.id === 'database');
   assert.deepEqual(database?.pool.labels, { 'pandoks.com/workload': 'database' });
   assert.deepEqual(database?.pool.taints, [
     { key: 'pandoks.com/workload', value: 'database', effect: 'NoSchedule' }
@@ -245,7 +245,7 @@ void test('passes raw labels and taints through and rejects unencodable values',
   const invalid = cluster({
     pools: [
       {
-        name: 'control-plane',
+        id: 'control-plane',
         role: 'control-plane',
         count: 1,
         labels: { 'pandoks.com/bad': 'a,b' },
@@ -265,7 +265,7 @@ void test('derives dedicated placement from the region and assigns interconnect 
     'prod',
     'pandoks.com'
   );
-  const dedicated = plan.nodePools.find(({ name }) => name === 'dedicated-database');
+  const dedicated = plan.nodePools.find(({ id }) => id === 'dedicated-database');
   assert.equal(dedicated?.provider, 'dedicated');
   if (dedicated?.provider === 'dedicated') {
     assert.equal(dedicated.datacenter, 'vin');
@@ -286,7 +286,7 @@ void test('derives dedicated placement from the region and assigns interconnect 
   const invalid = cluster({
     pools: [
       {
-        name: 'control-plane',
+        id: 'control-plane',
         role: 'control-plane',
         count: 1,
         interconnect: true,
@@ -327,7 +327,7 @@ void test('requires catalog values only for pools with live nodes', () => {
   const inert = cluster({
     pools: [
       {
-        name: 'dedicated-workers',
+        id: 'dedicated-workers',
         role: 'worker',
         count: 0,
         server: { ...dedicatedServer, planCode: '' }
@@ -399,7 +399,7 @@ void test('exposes exactly the public-ingress nodes as Cloudflare origins', () =
 
   const none = buildClusterPlan(
     cluster({
-      pools: [{ name: 'control-plane', role: 'control-plane', count: 1, server: publicCloudServer }]
+      pools: [{ id: 'control-plane', role: 'control-plane', count: 1, server: publicCloudServer }]
     }),
     'prod',
     'pandoks.com'
@@ -446,7 +446,7 @@ void test('rejects invalid cluster shapes', () => {
         'prod',
         'pandoks.com'
       ),
-    /Duplicate node pool name/
+    /Duplicate node pool id/
   );
 });
 
@@ -469,14 +469,14 @@ void test('translates a mixed multi-region config into every consumed value', ()
         region: 'hil',
         pools: [
           {
-            name: 'control-plane',
+            id: 'control-plane',
             role: 'control-plane',
             count: 3,
             publicIngress: true,
             server: { type: 'public-cloud', flavor: 'b3-8', image: 'Ubuntu 26.04' }
           },
           {
-            name: 'gpu',
+            id: 'gpu',
             role: 'worker',
             count: 1,
             labels: { 'pandoks.com/workload': 'gpu' },
@@ -484,7 +484,7 @@ void test('translates a mixed multi-region config into every consumed value', ()
             server: { type: 'public-cloud', flavor: 'l40s-90', image: 'Ubuntu 26.04' }
           },
           {
-            name: 'database',
+            id: 'database',
             role: 'worker',
             count: 1,
             labels: { 'pandoks.com/workload': 'database' },
@@ -505,7 +505,7 @@ void test('translates a mixed multi-region config into every consumed value', ()
         region: 'sgp',
         pools: [
           {
-            name: 'control-plane',
+            id: 'control-plane',
             role: 'control-plane',
             count: 1,
             publicIngress: true,
@@ -545,7 +545,7 @@ void test('translates a mixed multi-region config into every consumed value', ()
     }
   );
 
-  const gpu = hil.nodes.find(({ pool }) => pool.name === 'gpu')!;
+  const gpu = hil.nodes.find(({ pool }) => pool.id === 'gpu')!;
   assert.equal(gpu.hostname, 'prod-hil-ovh-gpu-server-0');
   assert.equal(gpu.privateIp, '10.1.59.1');
   assert.equal(gpu.interconnectIp, undefined);
@@ -561,7 +561,7 @@ void test('translates a mixed multi-region config into every consumed value', ()
   );
 
   // infra/cluster/providers/public-cloud.ts + dedicated.ts read these per pool.
-  const gpuPool = hil.nodePools.find(({ name }) => name === 'gpu')!;
+  const gpuPool = hil.nodePools.find(({ id }) => id === 'gpu')!;
   assert.deepEqual(
     gpuPool.provider === 'public-cloud'
       ? {
@@ -578,7 +578,7 @@ void test('translates a mixed multi-region config into every consumed value', ()
       image: 'Ubuntu 26.04'
     }
   );
-  const databasePool = hil.nodePools.find(({ name }) => name === 'database')!;
+  const databasePool = hil.nodePools.find(({ id }) => id === 'database')!;
   assert.deepEqual(
     databasePool.provider === 'dedicated'
       ? {
@@ -601,7 +601,7 @@ void test('translates a mixed multi-region config into every consumed value', ()
   );
 
   // The interconnect pool joins the cross-cluster VLAN; sgp lands in its own slice.
-  const database = hil.nodes.find(({ pool }) => pool.name === 'database')!;
+  const database = hil.nodes.find(({ pool }) => pool.id === 'database')!;
   assert.equal(database.interconnectIp, '172.17.146.1');
   assert.deepEqual(hil.interconnect, { vlanId: 4000, cidr: '172.16.0.0/12', prefixLength: 12 });
   assert.equal(sgp.interconnect, undefined);

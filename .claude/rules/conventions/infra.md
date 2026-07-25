@@ -114,7 +114,7 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
   Each cluster entry declares its `region` (an OVH datacenter code; every
   datacenter's index is pre-allocated in `CLUSTER_NETWORK_INDEXES` in
   `infra/cluster/topology.ts`) and one `pools` array;
-  each pool declares its name, Kubernetes role, count, raw `labels`/`taints`,
+  each pool declares its `id`, Kubernetes role, count, raw `labels`/`taints`,
   public-ingress eligibility, optional dedicated-only `interconnect`, and its
   OVH product via the `server` union. Host hardening and k3s setup live in
   `infra/cluster/providers/bootstrap.sh`.
@@ -125,11 +125,12 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
   protection must remain enabled.
 - **Each cluster `10.<i>.0.0/16` has derived third-octet owners.** Neutron
   infrastructure uses `.0`, node pools own `.1`-`.199` (the octet is an FNV-1a
-  hash of the pool NAME, so declaration order is irrelevant and inserting a
+  hash of the pool `id`, so declaration order is irrelevant and inserting a
   pool never moves another pool's nodes; node `n` is host `.n+1`), MetalLB owns
   `.200`, and `.201`-`.255` is reserved. The derivation lives in
-  `infra/cluster/topology.ts`; a hash collision between two pool names throws
-  at build time (rename one), and renaming a pool with live nodes moves them.
+  `infra/cluster/topology.ts`; a hash collision between two pool ids throws
+  at build time (rename one), and changing a live pool's `id` rebuilds its
+  nodes (hostnames, logical names, and addresses all derive from it).
   The interconnect VLAN mirrors the same layout at `172.<16+i>.<pool>.<n>`.
 - **Origin TLS is owned by cert-manager.** The cluster overlay creates the
   Let's Encrypt issuer and `Certificate`; its generated Kubernetes Secret is

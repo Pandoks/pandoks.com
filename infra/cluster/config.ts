@@ -14,10 +14,11 @@ export type ClusterSpec = {
   pools: NodePoolConfig[];
 };
 
-// NOTE: a pool's addresses derive from its name, so renaming a pool with live nodes
-// moves them; declaration order is irrelevant.
 export type NodePoolConfig = {
-  name: string;
+  // WARNING: id is the pool's stable identity — hostnames, logical resource names, and
+  // private addresses all derive from it. Changing it on a live pool rebuilds every node
+  // in it. Declaration order is irrelevant.
+  id: string;
   role: NodeRole;
   count: number;
   labels?: Record<string, string>;

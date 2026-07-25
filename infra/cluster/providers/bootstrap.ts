@@ -59,7 +59,7 @@ export function createNodeBootstrap(args: {
   const tailnetKey = new tailscale.TailnetKey(
     `${args.node.logicalName}TailnetRegistrationAuthKey`,
     {
-      description: `ovh ${args.node.pool.name} ${args.node.poolIndex} registration`,
+      description: `ovh ${args.node.pool.id} ${args.node.poolIndex} registration`,
       reusable: false,
       expiry: 1800,
       preauthorized: true,
@@ -68,7 +68,7 @@ export function createNodeBootstrap(args: {
         `tag:${STAGE_NAME}`,
         `tag:${args.node.pool.role}`,
         `tag:${args.node.pool.provider}`,
-        `tag:${args.node.pool.name}`
+        `tag:${args.node.pool.id}`
       ]
     },
     { dependsOn: [tailscaleAcl, ...args.dependsOn] }
