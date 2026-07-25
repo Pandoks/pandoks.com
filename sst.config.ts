@@ -11,8 +11,6 @@ export default $config({
         cloudflare: '6.15.0',
         github: '6.12.1',
         hcloud: '1.32.1',
-        // NOTE: config set here lands under '@ovhcloud/pulumi-ovh:*' (SST namespaces by package
-        // name) but the provider reads 'ovh:*', so credentials come from the OVH_* env vars
         '@ovhcloud/pulumi-ovh': '2.17.0',
         tailscale: '0.27.0'
       }
