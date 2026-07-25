@@ -53,7 +53,7 @@ manually import` comment at `sst.config.ts:22` is load-bearing.
   (`TailscaleOauthClientId`/`TailscaleOauthClientSecret`,
   `infra/secrets.ts:45-48`) for the hooks, AND lives in `.env.<stage>`
   for the provider — two plumbing paths, one credential.
-  `infra/github.ts:105-114` mirrors the SST secrets into the GH action
+  `infra/github.ts:117-126` mirrors the SST secrets into the GH action
   secrets CI reads.
 
 ## Hetzner cluster
@@ -103,7 +103,7 @@ manually import` comment at `sst.config.ts:22` is load-bearing.
 ## SST refresh exit code
 
 - **`sst refresh` exit-code bug.**
-  `.github/workflows/deploy-infra.yaml:98-102` carries
+  `.github/workflows/deploy-infra.yaml:91-95` carries
   `continue-on-error: true` with a `# TODO` link to
   `https://github.com/anomalyco/sst/issues/6713`. Don't replicate in
   other jobs.
@@ -122,7 +122,7 @@ manually import` comment at `sst.config.ts:22` is load-bearing.
 
 - **Deploy jobs use `cancel-in-progress: false`**
   (`.github/workflows/deploy-infra.yaml:62-64` deploy-sst,
-  `:108-110` deploy-kubernetes) — concurrent deploys queue, don't cancel.
+  `:101-103` deploy-kubernetes) — concurrent deploys queue, don't cancel.
 - **Notion blog rebuild via `sync-notion.yaml`**, not a separate
   `deploy-web.yaml`. The `NotionWebhookHandler` Lambda fans out to
   `handleNotionBlogSync` (`apps/functions/src/api/notion/gh-blog-sync.ts:7`)
