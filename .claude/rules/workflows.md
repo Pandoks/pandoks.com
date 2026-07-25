@@ -54,7 +54,8 @@ Required envs (`.env.example`): `CLOUDFLARE_API_TOKEN`,
 client (admin console → Trust credentials, "All - Read & Write",
 tagless — see `gotchas/infra.md`) — the one
 credential IaC can't create; its secret never expires. The provider
-exchanges it for 1-hour API tokens per run (`sst.config.ts:18-22`), and
+exchanges it for 1-hour API tokens per run (read straight from the
+environment — `sst.config.ts:17` pins the version only), and
 `deleteTailscaleDevices` does the same exchange for its raw API calls
 (`infra/tailscale.ts:88-111`).
 

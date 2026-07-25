@@ -28,8 +28,9 @@ manually import` comment at `sst.config.ts:22` is load-bearing.
 ## Tailscale root OAuth client (tagless)
 
 - **The provider authenticates as a manually-created OAuth client** —
-  `TAILSCALE_OAUTH_CLIENT_ID`/`TAILSCALE_OAUTH_CLIENT_SECRET` env →
-  `sst.config.ts:18-22`. It's the one credential IaC cannot create for
+  `TAILSCALE_OAUTH_CLIENT_ID`/`TAILSCALE_OAUTH_CLIENT_SECRET` env, read
+  by the provider itself (`sst.config.ts:17` pins the version only).
+  It's the one credential IaC cannot create for
   itself (chicken-and-egg); made once in the admin console (Trust
   credentials → Credential → OAuth, scopes "All - Read & Write",
   no tags). The client secret never expires — do NOT replace it with an

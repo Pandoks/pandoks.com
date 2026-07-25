@@ -1,13 +1,6 @@
 import { isProduction } from './dns';
 
 if (isProduction) {
-  const ovhProvider = new ovh.Provider('Ovh', {
-    endpoint: 'ovh-us',
-    applicationKey: 'edf9a4672d28e3c7',
-    applicationSecret: process.env.OVH_APPLICATION_SECRET,
-    consumerKey: process.env.OVH_CONSUMER_KEY
-  });
-
   new ovh.vps.Vps(
     'OvhDevVps',
     {
@@ -47,7 +40,7 @@ if (isProduction) {
         }
       ]
     },
-    { protect: true, provider: ovhProvider }
+    { protect: true }
   );
 }
 

@@ -7,22 +7,14 @@ export default $config({
       protect: ['production'].includes(input?.stage),
       home: 'aws',
       providers: {
-        aws: {
-          region: 'us-west-1',
-          profile:
-            process.env.GITHUB_ACTIONS || process.env.AWS_ACCESS_KEY_ID ? undefined : 'Personal'
-        },
+        aws: { region: 'us-west-1' },
         cloudflare: '6.15.0',
         github: '6.12.1',
-        hcloud: { token: process.env.HCLOUD_TOKEN, version: '1.32.1' },
-        // NOTE: config here lands under '@ovhcloud/pulumi-ovh:*' but the provider reads 'ovh:*',
-        // so credentials must come from an explicit ovh.Provider (infra/dev.ts)
+        hcloud: '1.32.1',
+        // NOTE: config set here lands under '@ovhcloud/pulumi-ovh:*' (SST namespaces by package
+        // name) but the provider reads 'ovh:*', so credentials come from the OVH_* env vars
         '@ovhcloud/pulumi-ovh': '2.17.0',
-        tailscale: {
-          oauthClientId: process.env.TAILSCALE_OAUTH_CLIENT_ID,
-          oauthClientSecret: process.env.TAILSCALE_OAUTH_CLIENT_SECRET,
-          version: '0.27.0'
-        }
+        tailscale: '0.27.0'
       }
     };
   },
