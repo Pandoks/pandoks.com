@@ -1,16 +1,6 @@
 import { isProduction } from './dns';
-import { secrets } from './secrets';
 
 if (isProduction) {
-  // NOTE: config in sst.config.ts's providers block lands under '@ovhcloud/pulumi-ovh:*' while
-  // the provider reads 'ovh:*', so OVH credentials only bind through an explicit provider
-  const ovhProvider = new ovh.Provider('Ovh', {
-    endpoint: 'ovh-us',
-    applicationKey: 'edf9a4672d28e3c7',
-    applicationSecret: secrets.ovh.ApplicationSecret.value,
-    consumerKey: secrets.ovh.ConsumerKey.value
-  });
-
   new ovh.vps.Vps(
     'OvhDevVps',
     {
@@ -50,7 +40,7 @@ if (isProduction) {
         }
       ]
     },
-    { protect: true, provider: ovhProvider }
+    { protect: true }
   );
 }
 
