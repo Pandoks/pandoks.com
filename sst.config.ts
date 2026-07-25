@@ -7,7 +7,11 @@ export default $config({
       protect: ['production'].includes(input?.stage),
       home: 'aws',
       providers: {
-        aws: { region: 'us-west-1' },
+        aws: {
+          region: 'us-west-1',
+          profile:
+            process.env.GITHUB_ACTIONS || process.env.AWS_ACCESS_KEY_ID ? undefined : 'Personal'
+        },
         cloudflare: '6.15.0',
         github: '6.12.1',
         hcloud: '1.32.1',

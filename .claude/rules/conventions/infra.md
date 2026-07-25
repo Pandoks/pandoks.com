@@ -34,21 +34,21 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
 
 ## Region / non-default provider override
 
-- **App default region is `us-west-1`** (`sst.config.ts:10`, the `aws`
+- **App default region is `us-west-1`** (`sst.config.ts:11`, the `aws`
   provider block). Resources land there unless explicitly handed a
   different provider.
-- **Provider credentials come from the environment, not the `providers`
-  block.** Every provider reads its own env vars (`AWS_PROFILE`,
-  `CLOUDFLARE_API_TOKEN`, `GITHUB_TOKEN`, `HCLOUD_TOKEN`, `OVH_*`,
-  `TAILSCALE_OAUTH_CLIENT_*`), so entries in `sst.config.ts:9-18` pin
-  versions only. Passing a credential there is at best redundant and, for
-  any provider whose npm package name differs from its Pulumi config
-  namespace, silently inert: SST namespaces the config by the key you
+- **OVH credentials bind through an explicit `ovh.Provider`, never the
+  `providers` block.** SST namespaces provider config by the key you
   wrote, so `'@ovhcloud/pulumi-ovh': { applicationKey }` emits
   `@ovhcloud/pulumi-ovh:applicationKey` while the provider reads
-  `ovh:applicationKey`. A bare `ovh:` key is not an option — SST resolves
-  it against `@sst-provider/ovh`, `@pulumi/ovh`, `@pulumiverse/ovh`,
-  `pulumi-ovh`, `@ovh`, `ovh` and fails with `provider ovh not found`.
+  `ovh:applicationKey` — the credential is silently dropped and the client
+  fails with `both application_key and application_secret must be given`.
+  A bare `ovh:` key is not an option either: SST resolves it against
+  `@sst-provider/ovh`, `@pulumi/ovh`, `@pulumiverse/ovh`, `pulumi-ovh`,
+  `@ovh`, `ovh` and fails with `provider ovh not found`. So the entry pins
+  the version only and `infra/dev.ts` builds `ovh.Provider` with the
+  endpoint/application key as literals and the secret pair from
+  `secrets.ovh.*`. Every OVH resource takes `{ provider }`.
 - **To pin a resource to another region, pass `{ provider: usWest2Provider }`
   as the 3rd constructor arg** — the shared `aws.Provider` is defined once in
   `infra/aws.ts:4` (`usWest2Provider`, region `US_WEST_2_REGION` `:3`) and
