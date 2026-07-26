@@ -48,19 +48,27 @@ matching the local username (`pandoks`). Production always needs
 
 Required envs (`.env.example`): `CLOUDFLARE_API_TOKEN`,
 `CLOUDFLARE_DEFAULT_ACCOUNT_ID`, `HCLOUD_TOKEN`,
+`OVH_APPLICATION_SECRET`, `OVH_CONSUMER_KEY`,
 `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_CLIENT_SECRET`,
 `GITHUB_TOKEN`. The Tailscale pair is the manually-created root OAuth
 client (admin console → Trust credentials, "All - Read & Write",
 tagless — see `gotchas/infra.md`) — the one
 credential IaC can't create; its secret never expires. The provider
 exchanges it for 1-hour API tokens per run (read straight from the
-environment — `sst.config.ts:19` pins the version only), and
+environment — `sst.config.ts:24` pins the version only), and
 `deleteTailscaleDevices` does the same exchange for its raw API calls
 (`infra/tailscale.ts:88-111`).
 
-OVH takes no env vars: `OvhApplicationSecret` and `OvhConsumerKey` are
-seeded once with `pnpm sst secret set <Name> --stage <stage>` and read
-back by the explicit `ovh.Provider` in `infra/dev.ts`.
+The OVH pair is read straight from the environment too, by the provider's
+own `OVH_APPLICATION_SECRET` / `OVH_CONSUMER_KEY` fallbacks — the
+`sst.config.ts:18-23` entry holds only the non-secret `endpoint` /
+`applicationKey` literals (and needs `package: '@ovhcloud/pulumi-ovh'` to
+reach the `ovh:` config namespace — see `gotchas/infra.md`). The same pair
+is ALSO seeded as SST secrets (`OvhApplicationSecret` / `OvhConsumerKey`,
+`pnpm sst secret set <Name> --stage <stage>`) — not for the provider, but
+so `infra/github.ts:60-70` can mirror them into the GitHub Actions secrets
+CI reads (`.github/workflows/deploy-infra.yaml:74-75`). Same two-path
+plumbing as the Tailscale pair.
 
 ## Dev (SST)
 

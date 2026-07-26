@@ -350,7 +350,7 @@ sqlite-backed):
 Some secrets are operator-set via `pnpm sst secret set <Name>`
 (e.g., `KwokPhoneNumber`, `NotionApiKey`); others are
 auto-generated during deploy via the `setSecret()` helper at
-`infra/secrets.ts:81`. Real auto-gen examples:
+`infra/secrets.ts:90`. Real auto-gen examples:
 
 - `infra/cloudflare.ts:63-69, 85-93` — TLS key + cert generated via
   `openssl`, piped into `sst secret set` via stdin.
