@@ -14,12 +14,14 @@ export default $config({
         },
         cloudflare: '6.15.0',
         github: '6.12.1',
-        hcloud: { token: process.env.HCLOUD_TOKEN, version: '1.32.1' },
-        tailscale: {
-          oauthClientId: process.env.TAILSCALE_OAUTH_CLIENT_ID,
-          oauthClientSecret: process.env.TAILSCALE_OAUTH_CLIENT_SECRET,
-          version: '0.27.0'
-        }
+        hcloud: '1.32.1',
+        ovh: {
+          package: '@ovhcloud/pulumi-ovh',
+          endpoint: 'ovh-us',
+          applicationKey: 'edf9a4672d28e3c7',
+          version: '2.17.0'
+        },
+        tailscale: '0.27.0'
       }
     };
   },

@@ -57,6 +57,18 @@ if (isProduction) {
     plaintextValue: cloudflareAccountId
   });
 
+  new github.ActionsSecret('GithubOvhApplicationSecret', {
+    repository: githubRepoName,
+    secretName: 'OVH_APPLICATION_SECRET',
+    plaintextValue: secrets.ovh.ApplicationSecret.value
+  });
+
+  new github.ActionsSecret('GithubOvhConsumerKey', {
+    repository: githubRepoName,
+    secretName: 'OVH_CONSUMER_KEY',
+    plaintextValue: secrets.ovh.ConsumerKey.value
+  });
+
   const githubAWSOidcProvider = new aws.iam.OpenIdConnectProvider('AWSGithubActionsOidc', {
     url: 'https://token.actions.githubusercontent.com',
     clientIdLists: ['sts.amazonaws.com']
