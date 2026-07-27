@@ -40,7 +40,11 @@ if (isProduction) {
         }
       ]
     },
-    { protect: true }
+    {
+      protect: true,
+      import: 'vps-54c42746.vps.ovh.us',
+      ignoreChanges: ['plans', 'ovhSubsidiary']
+    }
   );
 }
 
