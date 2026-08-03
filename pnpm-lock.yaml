@@ -204,8 +204,8 @@ importers:
         specifier: ^6.0.2
         version: 6.0.2
       undici:
-        specifier: ^8.0.0
-        version: 8.3.0
+        specifier: ^8.9.0
+        version: 8.9.0
     devDependencies:
       '@types/aws-lambda':
         specifier: ^8.10.161
@@ -4643,8 +4643,12 @@ packages:
     resolution: {integrity: sha512-xXnp4kTyor2Zq+J1FfPI6Eq3ew5h6Vl0F/8d9XU5zZQf1tX9s2Su1/3PiMmUANFULpmksxkClamIZcaUqryHsQ==}
     engines: {node: '>=20.18.1'}
 
-  undici@8.3.0:
-    resolution: {integrity: sha512-TkUDgb6tl7KOGZ+7e8E3d2FYgUQgF6z5YypqjWmixVQSQERFcVrVg0ySADm2LVLRh5ljAaHTCR5Fmz3Q34rB7Q==}
+  undici@7.29.0:
+    resolution: {integrity: sha512-IDxfleLmmbSskfWSUATiN1nfn2rDuvnMOqb5CWR92iIfojA0Ud+ulOAAEQ57LPr9rWmsreUyf5lwyao+7GNNVw==}
+    engines: {node: '>=20.18.1'}
+
+  undici@8.9.0:
+    resolution: {integrity: sha512-aWZpUj7XoGonMClx4gdDRfgBjqeA+F473aDmROQQbM9n6PRfK/u1q/a0X4wMTgcHfT8H6fpbt98PFuDUwFg2YA==}
     engines: {node: '>=22.19.0'}
 
   unique-filename@2.0.1:
@@ -5611,7 +5615,7 @@ snapshots:
       semver: 7.8.5
       sumchecker: 3.0.1
     optionalDependencies:
-      undici: 7.25.0
+      undici: 7.29.0
     transitivePeerDependencies:
       - supports-color
 
@@ -9631,7 +9635,10 @@ snapshots:
 
   undici@7.25.0: {}
 
-  undici@8.3.0: {}
+  undici@7.29.0:
+    optional: true
+
+  undici@8.9.0: {}
 
   unique-filename@2.0.1:
     dependencies:
