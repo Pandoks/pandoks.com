@@ -136,6 +136,14 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "OvhApplicationSecret": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "OvhConsumerKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "OxylabsResidentialPassword": {
       "type": "sst.sst.Secret"
       "value": string

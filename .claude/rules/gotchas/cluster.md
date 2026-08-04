@@ -111,7 +111,7 @@ root of the repo`). Never use the package dir as context.
 
 ## Manual cluster deploy skip
 
-- `.github/workflows/deploy-infra.yaml:133-140` sets `SKIP_DEPLOY=true`
+- `.github/workflows/deploy-infra.yaml:122-127` sets `SKIP_DEPLOY=true`
   when no `prod-cluster` Tailnet peer is visible. Since both node counts
   are currently 0, this is the normal path.
 
