@@ -8,7 +8,8 @@ networks:
 
 services:
   s3:
-    image: localstack/localstack
+    # NOTE: last community release line — newer tags hard-exit without a license token
+    image: localstack/localstack:4.14.0
     container_name: s3
     restart: always
     ports:
@@ -20,9 +21,12 @@ services:
       - AWS_SECRET_ACCESS_KEY=testsecret
       - BACKUP_BUCKET=database
       - PERSISTENCE=1
-      - DATA_DIR=/var/lib/localstack/data
     networks:
-      - local-network
+      local-network:
+        # NOTE: static IP so k3d pods can reach localstack without hairpin NAT or
+        # docker DNS (blocked on some hosts); .254 stays clear of node auto-assign
+        # (.2+) and the MetalLB pool (172.30.100.x)
+        ipv4_address: 172.30.0.254
     volumes:
       - ./data/localstack:/var/lib/localstack
     entrypoint:

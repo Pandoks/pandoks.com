@@ -5,7 +5,7 @@ FROM postgres:18-trixie
 RUN rm -f /usr/local/bin/gosu \
   && apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
   gettext-base=0.23.1-2 \
-  pgbackrest=2.58.0-1.pgdg13+1 \
+  pgbackrest=2.59.0-1.pgdg13+1 \
   && rm -rf /var/lib/apt/lists/*
 
 COPY ./packages/postgres/pgbackrest/entrypoint.sh /usr/local/bin/entrypoint.sh
