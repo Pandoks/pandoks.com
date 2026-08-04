@@ -127,7 +127,10 @@ spec:
         app: *app
         cluster-name: *cluster-name
       annotations:
-        checksum/config: {{ tpl ($.Files.Get "files/patroni.yaml") $ | sha256sum }}
+        # NOTE: dcs parameters are excluded — the dcs-sync hook applies them live, no pod roll
+        {{- $chkVals := deepCopy $.Values }}
+        {{- $_ := set $chkVals.patroni.parameters "dcs" dict }}
+        checksum/config: {{ tpl ($.Files.Get "files/patroni.yaml") (dict "Values" $chkVals "Template" $.Template) | sha256sum }}
     spec:
       affinity:
         podAntiAffinity:

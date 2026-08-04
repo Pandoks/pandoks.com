@@ -1,0 +1,66 @@
+{{- if .Values.patroni.parameters.dcs }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: patroni-{{ .Values.db }}-dcs-sync
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: dcs-sync
+          image: {{ .Values.patroni.image }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          command:
+            - python3
+            - -c
+            - |
+              import base64, json, os, time, urllib.request
+
+              params = json.loads(os.environ['DCS_PARAMETERS'])
+              body = json.dumps({'postgresql': {'parameters': params}}).encode()
+              auth = base64.b64encode(('patroni:' + os.environ['PATRONI_PASSWORD']).encode()).decode()
+              headers = {'Content-Type': 'application/json', 'Authorization': 'Basic ' + auth}
+              deadline = time.monotonic() + 120
+              for shard in range(int(os.environ['SHARDS'])):
+                  url = 'http://patroni-%s-shard-%d.%s.svc.cluster.local:8008/config' % (
+                      os.environ['DB'], shard, os.environ['NAMESPACE'])
+                  while True:
+                      try:
+                          req = urllib.request.Request(url, data=body, headers=headers, method='PATCH')
+                          with urllib.request.urlopen(req, timeout=10) as res:
+                              print('%s: %d' % (url, res.status), flush=True)
+                              break
+                      except Exception as e:
+                          if time.monotonic() > deadline:
+                              raise SystemExit('%s: %s' % (url, e))
+                          print('%s: retrying: %s' % (url, e), flush=True)
+                          time.sleep(5)
+          env:
+            - name: DB
+              value: {{ .Values.db }}
+            - name: NAMESPACE
+              value: {{ .Values.namespace }}
+            - name: SHARDS
+              value: {{ .Values.patroni.shards | quote }}
+            - name: DCS_PARAMETERS
+              value: {{ .Values.patroni.parameters.dcs | toJson | quote }}
+            - name: PATRONI_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.credentials.secret }}
+                  key: {{ .Values.credentials.dataKeys.patroniPassword }}
+{{- end }}
