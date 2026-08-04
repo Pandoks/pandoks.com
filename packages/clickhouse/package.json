@@ -14,6 +14,7 @@
     "dev:push:clickhouse": "docker push localhost:12345/clickhouse:latest",
     "dev:push:keeper": "docker push localhost:12345/clickhouse-keeper:latest",
     "dev:push:backup": "docker push localhost:12345/clickhouse-backup:latest",
-    "dev:push:helm": "helm push clickhouse-*.tgz oci://localhost:12345/charts"
+    "dev:push:helm": "helm push clickhouse-*.tgz oci://localhost:12345/charts --plain-http",
+    "test:cluster": "sh ./test/cluster.sh"
   }
 }

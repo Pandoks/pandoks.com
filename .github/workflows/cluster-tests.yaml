@@ -1,0 +1,105 @@
+name: Cluster Tests
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: cluster-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      postgres: ${{ steps.filter.outputs.postgres }}
+      valkey: ${{ steps.filter.outputs.valkey }}
+      clickhouse: ${{ steps.filter.outputs.clickhouse }}
+      harness: ${{ steps.filter.outputs.harness }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - id: filter
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4
+        with:
+          filters: |
+            postgres:
+              - 'packages/postgres/**'
+            valkey:
+              - 'packages/valkey/**'
+            clickhouse:
+              - 'packages/clickhouse/**'
+            harness:
+              - 'scripts/cluster/**'
+              - 'scripts/lib/**'
+              - 'docker-compose.yaml'
+              - '.github/workflows/cluster-tests.yaml'
+
+  cluster-tests:
+    needs: detect-changes
+    if: |
+      needs.detect-changes.outputs.postgres == 'true' ||
+      needs.detect-changes.outputs.valkey == 'true' ||
+      needs.detect-changes.outputs.clickhouse == 'true' ||
+      needs.detect-changes.outputs.harness == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: k3d kubectl helm
+
+      - name: Start dependencies and k3d cluster
+        run: |
+          pnpm cluster k3d deps up
+          pnpm cluster k3d up
+
+      - name: Build and push postgres images
+        if: needs.detect-changes.outputs.postgres == 'true' || needs.detect-changes.outputs.harness == 'true'
+        run: |
+          pnpm --filter @pandoks.com/postgres run docker:build
+          pnpm --filter @pandoks.com/postgres run dev:push
+
+      - name: Build and push valkey images
+        if: needs.detect-changes.outputs.valkey == 'true' || needs.detect-changes.outputs.harness == 'true'
+        run: |
+          pnpm --filter @pandoks.com/valkey run docker:build
+          pnpm --filter @pandoks.com/valkey run dev:push
+
+      - name: Build and push clickhouse images
+        if: needs.detect-changes.outputs.clickhouse == 'true' || needs.detect-changes.outputs.harness == 'true'
+        run: |
+          pnpm --filter @pandoks.com/clickhouse run docker:build
+          pnpm --filter @pandoks.com/clickhouse run dev:push
+
+      - name: Run postgres cluster tests
+        if: needs.detect-changes.outputs.postgres == 'true' || needs.detect-changes.outputs.harness == 'true'
+        run: ./scripts/cluster/main.sh test postgres
+
+      - name: Run valkey cluster tests
+        if: needs.detect-changes.outputs.valkey == 'true' || needs.detect-changes.outputs.harness == 'true'
+        run: ./scripts/cluster/main.sh test valkey
+
+      - name: Run clickhouse cluster tests
+        if: needs.detect-changes.outputs.clickhouse == 'true' || needs.detect-changes.outputs.harness == 'true'
+        run: ./scripts/cluster/main.sh test clickhouse
+
+  cluster-tests-pass:
+    needs:
+      - cluster-tests
+    if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "ok"

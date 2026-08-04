@@ -16,10 +16,11 @@ options. Package scripts in `package.json` are wired directly to
 
 ## Top-Level Commands
 
-| Command  | Description                                       |
-| -------- | ------------------------------------------------- |
-| `k3d`    | Manage the local k3d cluster and dependencies.    |
-| `deploy` | Deploy environment overlay (local, dev, or prod). |
+| Command  | Description                                                |
+| -------- | ---------------------------------------------------------- |
+| `k3d`    | Manage the local k3d cluster and dependencies.             |
+| `deploy` | Deploy environment overlay (local, dev, or prod).          |
+| `test`   | Run database package test suites on the local k3d cluster. |
 
 ## k3d Subcommands
 
@@ -78,6 +79,39 @@ The `deploy` command renders templates with these substitutions before applying:
 | `${IsLocal}`            | `'true'` or `'false'` for conditional logic. |
 | `${<SST Resource>}`     | Any SST resource by name.                    |
 | `${<Secret> \| base64}` | Base64 encode a secret value.                |
+
+## test
+
+`test` runs the per-package cluster test suites (`packages/<pkg>/test/cluster.sh`)
+against the local k3d cluster:
+
+```sh
+./scripts/cluster/main.sh test <postgres|valkey|clickhouse|all> [--keep]
+```
+
+Each suite helm-installs its chart directly from `packages/<pkg>/chart` into an
+isolated `test-<pkg>` namespace with hand-created secrets — no SST/AWS
+credentials are needed (unlike `deploy`). Before the suites run, the command
+performs idempotent shared prep: cert-manager (+ the internal CA chain from
+`k3s/base/core/cert-manager.yaml`), the ServiceMonitor CRD, the `monitoring` and
+`main` namespaces, and the postgres/valkey ClusterRoles.
+
+Prerequisites (the command errors with a hint if missing):
+
+```sh
+./scripts/cluster/main.sh k3d deps up   # localstack (s3 backups)
+./scripts/cluster/main.sh k3d up        # 6-node k3d cluster
+pnpm docker:build && pnpm dev:push      # images in the k3d registry
+```
+
+| Option   | Description                                                                                        |
+| -------- | -------------------------------------------------------------------------------------------------- |
+| `--keep` | Leave test releases/namespaces in place after a passing run (failures always leave them in place). |
+
+Suites share helpers from `scripts/lib/test.sh` (`test_assert`, `test_wait_for`,
+`test_pod_fingerprint`, …). CI runs the same suites via
+`.github/workflows/cluster-tests.yaml`, building and testing only the packages
+whose paths changed.
 
 ## Examples
 

@@ -92,15 +92,24 @@ pnpm run cluster k3d {up|down|start|stop|restart|deps {up|down|restart}}
 pnpm run cluster deploy {local|dev|prod} [--bootstrap] [--stage NAME]
                                           [--dry-run] [--kubeconfig PATH]
                                           [--quiet|-q]
+pnpm run cluster test {postgres|valkey|clickhouse|all} [--keep]
 ```
 
-Zero-arg invocation prints help; there is no `all` subcommand. `deploy prod`
+`cluster test` runs the per-package suites at `packages/<pkg>/test/cluster.sh`
+(each exposed as a `test:cluster` package script) against the local k3d
+cluster. It needs the cluster + deps up and images pushed
+(`pnpm docker:build && pnpm dev:push`) but NO SST/AWS credentials — suites
+helm-install charts directly from `packages/<pkg>/chart`. `--keep` leaves
+passing suites' releases/namespaces in place; failures always leave them.
+
+Zero-arg invocation prints help; there is no top-level `all` subcommand
+(`test all` is a target of `test`, not a dispatcher default). `deploy prod`
 auto-overrides the SST stage to `production`
 (`scripts/cluster/deploy.sh:182` — `[ "${cmd_deploy_env}" = "prod" ] && cmd_deploy_stage="production"`).
 
 > Root `README.md` and `k3s/README.md` reference `cluster sst-apply` /
 > `cluster sync` / `cluster setup` — **those subcommands don't exist in the
-> current CLI**. Only `k3d` and `deploy` are dispatched.
+> current CLI**. Only `k3d`, `deploy`, and `test` are dispatched.
 
 ## Build
 
@@ -157,6 +166,10 @@ pnpm --filter @pandoks.com/svelte run test
 `apps/web/vite.config.ts:30-55` defines two vitest projects (`client`
 jsdom, `server` node) — single `pnpm test:unit` runs both.
 
+Cluster/e2e tests for the database packages run via
+`pnpm run cluster test {postgres|valkey|clickhouse|all}` (see the cluster CLI
+section above); CI runs them in `cluster-tests.yaml`.
+
 ## Deploy — SST
 
 ```sh
@@ -190,6 +203,7 @@ Then wait for ArgoCD sync (CI's loop is in
 | `sync-notion.yaml`       | `workflow_dispatch` only (fired by `NotionWebhookHandler` Lambda via GitHub API)                                                                                            | Install, AWS OIDC, run `pnpm sst shell --stage production -- pnpm -r --if-present run sync:notion`. Opens a PR (`peter-evans/create-pull-request@v8`) under branch `auto/notion-sync` with content under `apps/web/*`.                                                                                                                                                                       |
 | `checks.yaml`            | push to main, PR to main                                                                                                                                                    | paths-filter dispatches per-language jobs (prettier, eslint, golangci, shfmt+shellcheck, hadolint, helm+kubeconform, actionlint, renovate-config-validator, `pnpm check:infra` via `infra` filter). Tool-only jobs (shell/helm) provision via `jdx/mise-action` reading `mise.toml` and invoke the dispatcher scripts directly (no pnpm). Each job runs only when its file patterns changed. |
 | `tests.yaml`             | push to main, PR to main                                                                                                                                                    | paths-filter per-app: web (vitest + playwright), desktop-template, svelte package, valkey reconciler (go test). Each gated by `apps/web/**`-style globs.                                                                                                                                                                                                                                     |
+| `cluster-tests.yaml`     | push to main, PR to main                                                                                                                                                    | paths-filter per database package (`packages/{postgres,valkey,clickhouse}/**`) plus a `harness` filter (`scripts/cluster/**`, `scripts/lib/**`, `docker-compose.yaml`, the workflow itself) that runs all three. Single `cluster-tests` job (`timeout-minutes: 45`): setup-node-pnpm + setup-mise (`k3d kubectl helm`), `pnpm cluster k3d deps up && pnpm cluster k3d up`, then per changed package `docker:build`/`dev:push` and `./scripts/cluster/main.sh test <pkg>` sequentially on one shared cluster. `cluster-tests-pass` aggregator for branch protection.                            |
 | `security.yaml`          | push to main, PR to main, daily 17:00 UTC cron, manual dispatch                                                                                                             | Trivy scans on **published** images (not pre-build) plus config-scan on `k3s/**`. Findings upload to GitHub code-scanning.                                                                                                                                                                                                                                                                   |
 | `build-and-publish.yaml` | push to `packages/{postgres,valkey,argocd,clickhouse}/**`; branch create; manual dispatch                                                                                   | paths-filter detects changes (skipped on `workflow_dispatch` → all rebuild). Matrix builds each Dockerfile **from repo-root context** (`context: .` at `:185`), pushes to `ghcr.io/<owner>/<image>` with SLSA attestation, tags main builds as `ref-main-<sha>` (#57). Matrix packages charts to `oci://ghcr.io/<owner>/charts`.                                                             |
 | `branch-cleanup.yaml`    | `on: delete` (branch deletion)                                                                                                                                              | Three matrix jobs: delete Cloudflare Pages previews for the deleted branch, then delete GHCR image tags (`ref-<branch>-*`) for all 8 image packages, then delete GHCR chart tags (suffix `-<branch>`) for the 3 charts.                                                                                                                                                                      |

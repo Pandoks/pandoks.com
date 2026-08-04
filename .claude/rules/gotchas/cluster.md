@@ -2,9 +2,13 @@
 paths:
   - 'k3s/**'
   - 'scripts/cluster/**'
+  - 'scripts/lib/test.sh'
   - 'packages/argocd/**'
+  - 'packages/*/test/**'
+  - 'docker-compose.yaml'
   - '.github/workflows/build-and-publish.yaml'
   - '.github/workflows/deploy-infra.yaml'
+  - '.github/workflows/cluster-tests.yaml'
 ---
 
 # Gotchas — k3s + scripts + database packages
@@ -54,8 +58,28 @@ paths:
 account per namespace` — when adding new app namespaces, mirror the SA
   setup.
 
+## LocalStack (docker-compose `s3` service)
+
+- **Image is pinned to the 4.x community line** (`docker-compose.yaml` —
+  `localstack/localstack:4.14.0`). Every later tag (2026.x+) hard-exits at
+  startup demanding a `LOCALSTACK_AUTH_TOKEN` — the free community builds
+  ended after 4.x. A Renovate rule caps it at `<5` (`renovate.json` —
+  `allowedVersions` for `localstack/localstack`); don't "upgrade" past it.
+- **The `s3` container has a static IP** (`172.30.0.254` on `pandoks-net`).
+  k3d pods must reach it by that IP: `host.k3d.internal:4566` (hairpin NAT to
+  the published port) is blocked on some docker hosts, and docker-DNS names
+  like `s3` don't resolve from pods. The chart-default `host.k3d.internal`
+  values still work where hairpin is allowed; the test suites override
+  `s3.host`/`s3.endpoint` to the static IP.
+
 ## Charts / builds
 
+- **apt/apk version pins in package Dockerfiles go stale upstream** — pgdg
+  and Alpine delete superseded package versions, so an untouched Dockerfile
+  can stop building at any time (Renovate doesn't manage distro-package
+  pins). The failing image build is the signal; refresh by querying the base
+  image: `docker run --rm <base> sh -c 'apt-get update >/dev/null;
+apt-cache policy <pkg>'` (or `apk policy <pkg>`).
 - **Dockerfile build context is repo root** for every package
   (`.github/workflows/build-and-publish.yaml:185` —
   `context: .  # WARN: all dockerfiles should have a context of the
@@ -70,10 +94,20 @@ root of the repo`). Never use the package dir as context.
 
 ## CLI subcommands
 
-- **Only `k3d` and `deploy` exist** (`scripts/cluster/main.sh:23-30`).
+- **Only `k3d`, `deploy`, and `test` exist** (`scripts/cluster/main.sh:25-33`).
   `scripts/cluster/README.md` is the canonical reference for subcommand
   flags, env tags, and template variables — keep it in sync with
   `scripts/cluster/usage.sh` when adding options.
+- **`test` never uses `cluster deploy`** (`scripts/cluster/test.sh`) — deploy
+  needs SST/AWS creds; suites helm-install charts straight from
+  `packages/<pkg>/chart` with hand-created secrets into `test-<pkg>`
+  namespaces. Shared prep (cert-manager + internal CA, ServiceMonitor CRD,
+  `monitoring`/`main` namespaces, postgres/valkey ClusterRoles) is idempotent.
+  Per-package suites live at `packages/<pkg>/test/cluster.sh` (`test:cluster`
+  scripts), shared helpers in `scripts/lib/test.sh`. Avoid `jq` in these
+  scripts — CI's `jdx/mise-action` installs only `[tools]`, and `jq` is a
+  `[_.global_tools]` pin; use `kubectl -o jsonpath` (in-pod `python3` for
+  JSON, e.g. `patronictl list -f json`).
 
 ## Manual cluster deploy skip
 
