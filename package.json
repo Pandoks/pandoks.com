@@ -22,6 +22,7 @@
     "fix": "./scripts/fix/main.sh",
     "check:infra": "tsc -p .",
     "check": "pnpm -r --if-present check && pnpm check:infra",
+    "preinstall": "./scripts/bootstrap/main.sh all",
     "postinstall": "sst install"
   },
   "devDependencies": {
@@ -38,7 +39,7 @@
     "globals": "^17.6.0",
     "jiti": "^2.7.0",
     "json-stringify-pretty-compact": "^4.0.0",
-    "portless": "^0.13.0",
+    "portless": "^0.15.0",
     "prettier": "^3.8.3",
     "prettier-plugin-svelte": "^4.1.0",
     "prettier-plugin-tailwindcss": "^0.8.0",
@@ -47,6 +48,6 @@
     "typescript-eslint": "^8.60.0"
   },
   "dependencies": {
-    "sst": "^4.15.2"
+    "sst": "^4.17.0"
   }
 }

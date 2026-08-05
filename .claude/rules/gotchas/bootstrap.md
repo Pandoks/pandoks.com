@@ -4,15 +4,15 @@
 per-developer state to `$HOME`, including a literal AWS config. The same
 script also backs the Claude Code SessionStart hook
 (`.claude/hooks/startup.sh` execs `main.sh all`), so it runs in Claude Code
-Cloud too — see the shims row and the `cmd_setup_all` env-file block below.
+Cloud too — see the shims row and the `cmd_bootstrap_all` env-file block below.
 
 ## mise owns every version-shaped tool
 
-- `cmd_setup_all` = `ensure_package_manager` → `install_mise` → a
+- `cmd_bootstrap_all` = `ensure_package_manager` → `install_mise` → a
   fork/join: `install_mise_tools` (`mise trust` + `mise install`
   against the root `mise.toml`; downloads direct, no brew/apt) runs
   **concurrently** with the package-manager track
-  (`install_swift_format` → `install_docker` → `install_system_tools`
+  (`install_docker` → `install_system_tools`
   — serialized among themselves; dpkg/brew locks don't tolerate
   concurrent invocations), `install_aws_config` (pure file write) runs
   inline. Track logs buffer to temp files and replay in order; either
@@ -50,7 +50,7 @@ activate zsh|bash)"` (plus a `~/.local/bin` prepend on curl installs,
   fallbacks, not conflicts). Non-interactive shells (SessionStart hook,
   CI, `su -c`) never read the rc anyway and get shims directly:
   `required_path_dirs` (`env.sh`) lists the shims dir,
-  `populate_proper_pathing` prepends it inside `cmd_setup_all`, the
+  `populate_proper_pathing` prepends it inside `cmd_bootstrap_all`, the
   Claude Code Cloud env-file block writes the same dirs to
   `CLAUDE_ENV_FILE`, and CI uses `jdx/mise-action`. No shims line lives
   in any rc file.
@@ -62,10 +62,6 @@ activate zsh|bash)"` (plus a `~/.local/bin` prepend on curl installs,
   can't meaningfully drift. This replaces corepack, which is REMOVED
   from node 25+ (bundled only through node 24). pnpm is listed BEFORE
   node in mise.toml so its dir precedes node's corepack shim on PATH.
-- **swift-format is NOT in the mise registry** (verified 2026-06-11) —
-  it's a brew formula, installed by `install_swift_format` (macOS-only;
-  iOS development requires Xcode anyway). If it ever lands in the
-  registry, fold it into mise.toml and delete that installer.
 
 ## AWS config is hardcoded to Pandoks\_ org
 
@@ -103,14 +99,14 @@ Sourced in `main.sh` in order: `env.sh` before `install.sh` (the
 installers call `ensure_package_manager` and `append_shell_rc`; the
 check calls `required_path_dirs`).
 
-| File            | Contains                                                                                                                                                                                                                                                                                                       |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `main.sh`       | Dispatcher + `use_sudo`, `log_step`, `install_packages` (the trivial helpers)                                                                                                                                                                                                                                  |
-| `usage.sh`      | Help text (3 commands: `all` (default), `check`, `help`)                                                                                                                                                                                                                                                       |
-| `env.sh`        | `append_shell_rc`, `ensure_package_manager`, `fetch_pgp_key`, `required_path_dirs` (mise shims + `~/.local/bin`), `populate_proper_pathing` |
-| `install.sh`    | `install_mise`, `install_mise_tools`, `install_swift_format`, `install_docker`, `install_system_tools` (openssl/htpasswd), `install_aws_config`, `maybe_reload_shell` (post-install hint / `--reload` exec), `cmd_setup_all` (`--reload` parse + concurrent fork/join + cloud env-file write)                  |
-| `check.sh`      | `check_report` + `mise_bin` + `cmd_setup_check`                                                                                                                                                                                                                                                                |
-| `next-steps.sh` | `print_next_steps` + `show_bootstrap_header` — bootstrap todos + OS reminders                                                                                                                                                                                                                                  |
+| File            | Contains                                                                                                                                                                                                                                                                              |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `main.sh`       | Dispatcher + `use_sudo`, `log_step`, `install_packages` (the trivial helpers)                                                                                                                                                                                                         |
+| `usage.sh`      | Help text (3 commands: `all`, `check`, `help`)                                                                                                                                                                                                                                        |
+| `env.sh`        | `append_shell_rc`, `ensure_package_manager`, `fetch_pgp_key`, `required_path_dirs` (mise shims + `~/.local/bin`), `populate_proper_pathing`                                                                                                                                           |
+| `install.sh`    | `install_mise`, `install_mise_tools`, `install_docker`, `install_system_tools` (openssl/htpasswd), `install_aws_config`, `reload_or_hint` (post-install hint / `--reload` exec), `stream_track`, `cmd_bootstrap_all` (`--reload` parse + concurrent fork/join + cloud env-file write) |
+| `check.sh`      | `check_report` + `mise_bin` + `cmd_bootstrap_check`                                                                                                                                                                                                                                   |
+| `next-steps.sh` | `print_next_steps` + `show_bootstrap_header` — bootstrap todos + OS reminders                                                                                                                                                                                                         |
 
 ## CLI surface
 
@@ -127,22 +123,22 @@ exception was removed); the SessionStart hook passes `all` explicitly
 all`. It is NOT named `setup` because **pnpm ships a builtin
 `pnpm setup` command** (configures pnpm's own home dir) that shadows a
 same-named script for ANY argument — verified on pnpm 11.5.1: with a
-`"setup"` script present, `pnpm setup all` silently ran the *builtin*
+`"setup"` script present, `pnpm setup all` silently ran the _builtin_
 (`Already up to date … using pnpm v11.5.1`), never the script, and
 `pnpm setup all --reload` hard-errored `Unknown option: 'reload'` from
 pnpm's own parser. `pnpm run setup …` would force the script, but the
 bare form is the trap. A non-colliding name (`bootstrap`) passes every
 arg straight through — `pnpm bootstrap all --reload` works with no
 `run`, no `--`. **Don't rename it back to `setup`.** (The script
-*directory* is `scripts/bootstrap/` — renamed from `scripts/setup/`
+_directory_ is `scripts/bootstrap/` — renamed from `scripts/setup/`
 in lockstep with the npm script.)
 
 ## `all` post-install shell wiring (a child can't reload its parent)
 
-`install_mise` appends the `mise activate` line on a fresh wire and sets
-`SETUP_MISE_RC_ADDED=1` (`append_shell_rc` returns 0 only when it
-actually wrote). At the very end `cmd_setup_all` calls
-`maybe_reload_shell`:
+`install_mise` appends the `mise activate` line on a fresh wire and
+returns 0 only then (`append_shell_rc` returns 0 only when it actually
+wrote); `cmd_bootstrap_all` captures that as `rc_added`. At the very
+end `cmd_bootstrap_all` calls `reload_or_hint`:
 
 - **Default** — if the rc was just wired, print the one-liner
   (`eval "$(mise activate <shell>)"`) to load mise into the CURRENT
@@ -154,16 +150,16 @@ actually wrote). At the very end `cmd_setup_all` calls
   hook or CI (no tty) it silently falls back to the hint, so a login
   shell never hangs waiting for input. Verified in Docker: non-tty
   `--reload` skips the exec and prints the hint.
-- **Re-run / already wired** — `SETUP_MISE_RC_ADDED=0`, so
-  `maybe_reload_shell` is a no-op (no hint, no reload).
+- **Re-run / already wired** — `rc_added` is 0, so
+  `reload_or_hint` prints no hint (and without `--reload`, does nothing).
 
-`exec` must be the LAST thing `cmd_setup_all` does (it never returns) —
+`exec` must be the LAST thing `cmd_bootstrap_all` does (it never returns) —
 it sits after the Claude Code Cloud env-file block.
 
-## `setup check` semantics
+## `bootstrap check` semantics
 
-`cmd_setup_check` trusts mise for versions and audits everything mise
-can't see. Five sequential checks (~0.1s total, no per-tool version
+`cmd_bootstrap_check` trusts mise for versions and audits everything mise
+can't see. Four sequential checks (~0.1s total, no per-tool version
 probes):
 
 1. **mise + wiring on PATH** — `mise_bin` finds the binary even off
@@ -173,13 +169,13 @@ installed`. Wiring counts as either the shims dir string-matched in
    `$PATH` or `MISE_SHELL` set (`mise activate` strips the shims dir
    and prepends real tool dirs, so activate'd shells pass via the env
    marker).
-2. **Pinned tools installed** — one `mise ls --current` (run from
-   `REPO_ROOT`, captured once); missing rows carry `(missing)` in
-   field 3 (`awk '$3 == "(missing)"'`), and the same capture provides
-   the tool count — no second mise call. Each missing tool is a `✗`.
-   On Linux, `cocoapods` is filtered out (macOS-gated in the mise
-   registry — never installed there, verified in the Ubuntu container
-   test).
+2. **Pinned tools installed** — one `mise ls --local` (run from
+   `REPO_ROOT`, captured once; `--local` and not `--current`, which
+   would drag in a developer's global `~/.config/mise` pins and fail
+   the repo check on unrelated tools); missing rows carry `(missing)`
+   in field 3 (`awk '$3 == "(missing)"'`), and the same capture
+   provides the tool count — no second mise call. Each missing tool
+   is a `✗`.
 3. **Shadow sweep** — every entry in the shims dir must resolve via
    mise (its own shim, or a `…/mise/installs/…` path in activate'd
    shells). A tool that resolves elsewhere is flagged only if
@@ -189,8 +185,7 @@ resolves to <path>`. Skipped when unwired (everything would be
    noise). **This is the check's whole reason to exist independently
    of `mise ls`** — mise's own view is green even when PATH
    resolution is broken.
-4. **Non-mise tools, presence-only** — docker/openssl/htpasswd, plus
-   swift-format on Darwin only.
+4. **Non-mise tools, presence-only** — docker/openssl/htpasswd.
 
 `⚠` and `✗` both exit non-zero. The old per-tool version-drift probes
 (node/pnpm/go/aws/helm/kubectl) were all deleted deliberately: with

@@ -55,8 +55,13 @@ export const secrets = {
     ApiKey: new sst.Secret('HetznerApiKey'),
     K3sToken: new sst.Secret('HetznerK3sToken')
   },
+  ovh: {
+    ApplicationSecret: new sst.Secret('OvhApplicationSecret'),
+    ConsumerKey: new sst.Secret('OvhConsumerKey')
+  },
   tailscale: {
-    ApiKey: new sst.Secret('TailscaleApiKey')
+    OauthClientId: new sst.Secret('TailscaleOauthClientId'),
+    OauthClientSecret: new sst.Secret('TailscaleOauthClientSecret')
   },
   k8s: {
     tailscale: {

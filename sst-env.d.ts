@@ -136,6 +136,14 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "OvhApplicationSecret": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "OvhConsumerKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "OxylabsResidentialPassword": {
       "type": "sst.sst.Secret"
       "value": string
@@ -164,7 +172,11 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
-    "TailscaleApiKey": {
+    "TailscaleOauthClientId": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "TailscaleOauthClientSecret": {
       "type": "sst.sst.Secret"
       "value": string
     }

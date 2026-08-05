@@ -16,7 +16,7 @@ Three pins are bootstraps with an external authority: **go** —
 mise-pin drift is harmless. **gcloud** — local bootstrap authentication for
 Google/Firebase IaC; CI uses Google Workload Identity Federation. **kubectl** — the prod pin is
 `KUBECTL_VERSION` in `packages/argocd/Dockerfile`; clients tolerate ±1
-minor and `setup check` flags drift outside that. **pnpm** — the
+minor and Renovate's `kubectl` group PR keeps the two copies in sync. **pnpm** — the
 `packageManager` pin in `package.json:4` is the authority (pnpm ≥10
 self-switches to it — the post-corepack mechanism; corepack is removed
 from node 25+). java is `zulu-17` (the Android Gradle pin — this
@@ -37,7 +37,7 @@ pnpm run sso          # AWS SSO; 12-hour validity
 `pnpm run sso` is `aws sso login --sso-session=Pandoks_ --use-device-code --no-browser`
 (`package.json:11`). The `~/.aws/config` file (including the
 `[sso-session Pandoks_]` block and per-account profiles) is written by
-the AWS-config heredoc in `install_aws_config` (`scripts/bootstrap/install.sh:130-152`) — see
+the AWS-config heredoc in `install_aws_config` (`scripts/bootstrap/install.sh:88-122`) — see
 `gotchas/bootstrap.md` for the maintenance rule (the heredoc is hardcoded
 to the Pandoks\_ org and must be updated in lockstep with any AWS
 Identity Center / profile / account-ID change).
@@ -49,8 +49,28 @@ matching the local username (`pandoks`). Production always needs
 `--stage production` explicitly.
 
 Required envs (`.env.example`): `CLOUDFLARE_API_TOKEN`,
-`CLOUDFLARE_DEFAULT_ACCOUNT_ID`, `HCLOUD_TOKEN`, `TAILSCALE_API_KEY`,
-`GITHUB_TOKEN`.
+`CLOUDFLARE_DEFAULT_ACCOUNT_ID`, `HCLOUD_TOKEN`,
+`OVH_APPLICATION_SECRET`, `OVH_CONSUMER_KEY`,
+`TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_CLIENT_SECRET`,
+`GITHUB_TOKEN`. The Tailscale pair is the manually-created root OAuth
+client (admin console → Trust credentials, "All - Read & Write",
+tagless — see `gotchas/infra.md`) — the one
+credential IaC can't create; its secret never expires. The provider
+exchanges it for 1-hour API tokens per run (read straight from the
+environment — `sst.config.ts:24` pins the version only), and
+`deleteTailscaleDevices` does the same exchange for its raw API calls
+(`infra/tailscale.ts:88-111`).
+
+The OVH pair is read straight from the environment too, by the provider's
+own `OVH_APPLICATION_SECRET` / `OVH_CONSUMER_KEY` fallbacks — the
+`sst.config.ts:18-23` entry holds only the non-secret `endpoint` /
+`applicationKey` literals (and needs `package: '@ovhcloud/pulumi-ovh'` to
+reach the `ovh:` config namespace — see `gotchas/infra.md`). The same pair
+is ALSO seeded as SST secrets (`OvhApplicationSecret` / `OvhConsumerKey`,
+`pnpm sst secret set <Name> --stage <stage>`) — not for the provider, but
+so `infra/github.ts:60-70` can mirror them into the GitHub Actions secrets
+CI reads (`.github/workflows/deploy-infra.yaml:74-75`). Same two-path
+plumbing as the Tailscale pair.
 
 ## Dev (SST)
 
@@ -182,7 +202,7 @@ sudo kubectl annotate application prod-cluster \
 ```
 
 Then wait for ArgoCD sync (CI's loop is in
-`.github/workflows/deploy-infra.yaml:145-162`).
+`.github/workflows/deploy-infra.yaml:141-155`).
 
 ## CI workflows
 

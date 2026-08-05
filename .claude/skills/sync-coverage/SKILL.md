@@ -80,7 +80,8 @@ A `paths:` glob matching a file but the body never naming the pattern is still *
 ### 3b. New-dependency scan (setup script + README wiring)
 
 A new OS-level tool/dependency the project now relies on is a special kind of
-MISSING-COVERAGE: it must be **installed by `pnpm setup`** and **listed in the
+MISSING-COVERAGE: it must be **installed by `pnpm bootstrap all`** (a `mise.toml`
+pin or a bootstrap installer) and **listed in the
 dependency README**, or fresh machines break. Detect and wire it in.
 
 **Detect** — a new external tool is in play if the diff (or current code) does any of:
@@ -92,31 +93,29 @@ dependency README**, or fresh machines break. Detect and wire it in.
 - references a tool in `scripts/cluster/**` or a template filter (like `htpasswd`
   for `${VAR | bcrypt}`) that the setup script doesn't yet install.
 
-Cross-check the candidate against the tools `scripts/bootstrap/` already handles:
+Cross-check the candidate against the tools the bootstrap already handles:
 
 ```sh
-# Tools the setup script installs / inventories today:
-grep -hoE "'[a-z0-9-]+\|" scripts/bootstrap/check.sh | tr -d "'|"     # the 19-tool inventory
-grep -rhoE 'install_packages (brew|apt-get|pacman) [a-z0-9 @-]+' scripts/bootstrap/install.sh
+# Tools declared in mise.toml + the system tools the bootstrap installs/inventories:
+grep -E '^"?[a-z0-9:./_-]+"? *=' mise.toml
+grep -hoE 'install_packages (brew|apt-get|pacman) [a-z0-9 @-]+' scripts/bootstrap/install.sh
+grep -n 'check_system_tools_list=' scripts/bootstrap/check.sh
 ```
 
 If the tool is genuinely new (not in that set, not a default-OS builtin like
 `git`/`curl`/`sed`), it is a **NEW-DEPENDENCY** finding.
 
 **Wire it in** (apply when programmatic / user-approved — same gate as MISSING-COVERAGE).
-A new dependency has up to four touchpoints in `scripts/bootstrap/`:
 
-1. **Installer** — add it to the right `install_<group>` function's `brew` /
-   `apt-get|pacman` cases (`install_quality` for linters/formatters,
-   `install_cluster` for k8s tooling, or a tool-specific installer). If it's
-   not in apt/pacman repos, use the `install_release_binary` helper (GitHub
-   release) or a vendor installer, mirroring `hadolint`/`k3d`/`helm`.
-2. **Inventory** — add a `'<name>|<name> --version'` spec to the `cmd_setup_check`
-   list in `check.sh` so `setup check` reports it.
-3. **Fast-path guard** — add it to the relevant `all_present ...` call (or
-   `pinned_tool_ok` if version-pinned) so the installer short-circuits when present.
-4. **Pin drift** (only if a specific version is required) — add a case to
-   `check_pin_drift` (use `check_major_match` if the rule is "major must match").
+1. **Version-shaped tool in the mise registry** (the default) — add an exact
+   pin to `mise.toml`'s `[tools]`. No installer or check edit needed:
+   `install_mise_tools` installs it and `bootstrap check` inventories it via
+   `mise ls --current`.
+2. **System tool mise can't manage** (daemons, OS packages) — add it to
+   `install_system_tools` (or a tool-specific installer, mirroring
+   `install_docker`) in `scripts/bootstrap/install.sh`, AND to
+   `check_system_tools_list` in `scripts/bootstrap/check.sh` so
+   `bootstrap check` reports it.
 
 **Then update the README dependency list.** The root `README.md` has a
 `<details><summary>Dependencies</summary>` block (an `<li>` per tool + a
@@ -125,7 +124,7 @@ purpose. Also add it to the "Required tools" line in
 `.claude/rules/workflows.md` if that rule is in scope.
 
 **Verify** — after wiring, run `pnpm lint shell` (shellcheck) + `sh -n` on the
-edited scripts, and `pnpm setup check 2>&1 | grep <tool>` to confirm the new
+edited scripts, and `pnpm bootstrap check 2>&1 | grep <tool>` to confirm the new
 inventory line resolves.
 
 Report each as a `### NEW-DEPENDENCY` block naming the tool, where it's used, and
@@ -159,13 +158,13 @@ Emit a one-line status per rule:
 
 ### 6. Drift categories (reference table)
 
-| Category             | Signal                                                                       | Fix                                                                     |
-| -------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| **DEAD**             | File no longer exists or cited symbol removed                                | Delete the citation or rewrite around current state                     |
-| **STALE**            | File exists, cited symbol moved >5 lines                                     | Update line number in the rule                                          |
-| **CONTRADICTED**     | Code now does the opposite of what the rule says                             | Surface to user — could be drift OR a bug in the new code               |
-| **GLOB-MISMATCH**    | `paths:` glob matches zero files OR matches files the rule doesn't describe  | Adjust the `paths:` list                                                |
-| **MISSING-COVERAGE** | Code surface (handler dir, package, sandbox module) with no rule covering it | Propose a new rule file or extend an existing one                       |
+| Category             | Signal                                                                           | Fix                                                                     |
+| -------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| **DEAD**             | File no longer exists or cited symbol removed                                    | Delete the citation or rewrite around current state                     |
+| **STALE**            | File exists, cited symbol moved >5 lines                                         | Update line number in the rule                                          |
+| **CONTRADICTED**     | Code now does the opposite of what the rule says                                 | Surface to user — could be drift OR a bug in the new code               |
+| **GLOB-MISMATCH**    | `paths:` glob matches zero files OR matches files the rule doesn't describe      | Adjust the `paths:` list                                                |
+| **MISSING-COVERAGE** | Code surface (handler dir, package, sandbox module) with no rule covering it     | Propose a new rule file or extend an existing one                       |
 | **NEW-DEPENDENCY**   | A new external tool the code now calls that `scripts/bootstrap/` doesn't install | Wire into the installer + `check.sh` inventory + README deps list (§3b) |
 
 ### 6. Cross-check with universal invariants

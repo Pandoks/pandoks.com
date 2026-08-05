@@ -11,10 +11,10 @@ paths:
 
 ## Dynamic imports
 
-- **Dynamic imports break SST.** `sst.config.ts:24-38` keeps the literal
+- **Dynamic imports break SST.** `sst.config.ts:30-44` keeps the literal
   `await Promise.all([import('./infra/...')])` list. The
   `// NOTE: for some reason, dynamic imports don't work well so just
-manually import` comment at `sst.config.ts:22` is load-bearing.
+manually import` comment at `sst.config.ts:29` is load-bearing.
 
 ## Tailscale ACL
 
@@ -24,6 +24,73 @@ manually import` comment at `sst.config.ts:22` is load-bearing.
   edits as a global rollout. `resetAclOnDestroy: true` at
   `infra/tailscale.ts:10` compounds this — destroying the SST stage
   wipes the ACL too.
+
+## Tailscale root OAuth client (tagless)
+
+- **The provider authenticates as a manually-created OAuth client** —
+  `TAILSCALE_OAUTH_CLIENT_ID`/`TAILSCALE_OAUTH_CLIENT_SECRET` env, read
+  by the provider itself (`sst.config.ts:24` pins the version only).
+  It's the one credential IaC cannot create for
+  itself (chicken-and-egg); made once in the admin console (Trust
+  credentials → Credential → OAuth, scopes "All - Read & Write",
+  no tags). The client secret never expires — do NOT replace it with an
+  API access token, those hard-expire at ≤90 days and killed CI once
+  (the diff-sst 401, 2026-07-11).
+- **Tagless is deliberate and verified.** The tag-ownership rule
+  ("created keys must carry tags owned by the credential's tags") is
+  tied to tagged credentials; a tagless all-scope credential creates
+  tagged keys/clients freely — verified empirically 2026-07-12 by
+  creating + deleting a `tag:hetzner` auth key with it. If Tailscale
+  ever tightens this and creations start 403ing on tags, recreate the
+  credential via Custom scopes with a tag that `tagOwners` grants
+  ownership of every IaC-managed tag.
+- **Raw Tailscale API calls can't use the client secret directly** —
+  exchange it first: `tailscaleApiToken` (`infra/tailscale.ts:88-111`)
+  POSTs client credentials to `/api/v2/oauth/token` for a 1-hour Bearer
+  token; `deleteTailscaleDevices` (`:111`) consumes it. Reuse that
+  helper for any new direct `api.tailscale.com` call.
+- **The same pair must be seeded as SST secrets**
+  (`TailscaleOauthClientId`/`TailscaleOauthClientSecret`,
+  `infra/secrets.ts:49-52`) for the hooks, AND lives in `.env.<stage>`
+  for the provider — two plumbing paths, one credential.
+  `infra/github.ts:117-126` mirrors the SST secrets into the GH action
+  secrets CI reads.
+
+## OVH dev box
+
+- **Credentials arrive on two channels, and the config key is a trap.**
+  `sst.config.ts:18-23` carries only the non-secret halves (`endpoint`,
+  `applicationKey`) and needs `package: '@ovhcloud/pulumi-ovh'` for them to
+  land in the `ovh:` namespace the provider actually reads; the secret pair
+  comes from the `OVH_APPLICATION_SECRET` / `OVH_CONSUMER_KEY` env vars
+  (`.env.example:10-11` locally, `deploy-infra.yaml:74-75` in CI, mirrored
+  into GitHub by `infra/github.ts:60-70`). Two failure signatures when the
+  key is wrong: `both application_key and application_secret must be given`
+  (config emitted under `@ovhcloud/pulumi-ovh:`, provider read `ovh:`) and
+  `provider ovh not found` (bare `ovh:` key with no `package` field). Full
+  reasoning in `conventions/infra.md`.
+- **The "dev box" is prod-only.** `infra/dev.ts:3` gates it on
+  `isProduction`, so it exists in `production` and nowhere else — the
+  `pandoks` dev stage gets no VPS. It replaced a
+  `$app.stage === 'pandoks'` `hcloud.Server` dev box, deleted along with
+  `infra/dev-cloud-config.yaml`; don't resurrect that. `renderCloudInit`
+  (`infra/utils.ts:1`) now has exactly one consumer,
+  `infra/vps/servers.ts:173`.
+- **`ovh.vps.Vps` has no userData/cloud-init field** — guest setup is
+  manual, unlike the Hetzner nodes. `doNotSendPassword: false`
+  (`infra/dev.ts:8`) is the provider default spelled out: OVH sets a root
+  password and emails it. Swapping to key-based bootstrap means
+  `publicSshKey`, which the provider requires be paired with `imageId` —
+  and `imageId` doubles as the reinstall trigger, so it is not a drop-in
+  addition to a live box.
+- **Order shape lives in `plans`/`planOptions`, not top-level fields.**
+  Datacenter and OS are `{ label, value }` configuration pairs inside the
+  plan (`infra/dev.ts:16-19`: `vps_datacenter` `US-WEST-OR`, `vps_os`
+  `Ubuntu 26.04`), and each option (`option-linux`, auto-backup, local
+  storage) is its own entry (`infra/dev.ts:22-41`). Every entry is
+  `duration: 'P1M'` + `pricingMode: 'upfront12'` — a prepaid year, which is
+  why the resource carries `protect: true` (`infra/dev.ts:43`) and destroy
+  fails by design.
 
 ## Hetzner cluster
 
@@ -72,7 +139,7 @@ manually import` comment at `sst.config.ts:22` is load-bearing.
 ## SST refresh exit code
 
 - **`sst refresh` exit-code bug.**
-  `.github/workflows/deploy-infra.yaml:98-102` carries
+  `.github/workflows/deploy-infra.yaml:91-95` carries
   `continue-on-error: true` with a `# TODO` link to
   `https://github.com/anomalyco/sst/issues/6713`. Don't replicate in
   other jobs.
@@ -91,7 +158,7 @@ manually import` comment at `sst.config.ts:22` is load-bearing.
 
 - **Deploy jobs use `cancel-in-progress: false`**
   (`.github/workflows/deploy-infra.yaml:62-64` deploy-sst,
-  `:108-110` deploy-kubernetes) — concurrent deploys queue, don't cancel.
+  `:101-103` deploy-kubernetes) — concurrent deploys queue, don't cancel.
 - **Notion blog rebuild via `sync-notion.yaml`**, not a separate
   `deploy-web.yaml`. The `NotionWebhookHandler` Lambda fans out to
   `handleNotionBlogSync` (`apps/functions/src/api/notion/gh-blog-sync.ts:7`)

@@ -57,7 +57,7 @@ Verbose, but necessary.
   See `scripts/cluster/main.sh:19`, `scripts/cluster/deploy.sh:129`,
   `scripts/cluster/k3d.sh:106`.
 - **No exceptions** — `scripts/bootstrap/main.sh` is help-by-default too
-  (`usage 0` on zero args, `bootstrap/main.sh:44`; it does have an `all`
+  (`usage 0` on zero args, `bootstrap/main.sh:45`; it does have an `all`
   subcommand). Unattended callers pass the subcommand explicitly: the
   Claude Code SessionStart hook execs `main.sh all`
   (`.claude/hooks/startup.sh:3`). The decision rule: dispatchers never
