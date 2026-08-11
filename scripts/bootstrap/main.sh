@@ -10,18 +10,21 @@ readonly REPO_ROOT
 . "${REPO_ROOT}/scripts/lib/font.sh"
 . "${REPO_ROOT}/scripts/lib/log.sh"
 . "${REPO_ROOT}/scripts/lib/os.sh"
-. "${SCRIPT_DIR}/usage.sh"
 . "${SCRIPT_DIR}/env.sh"
 . "${SCRIPT_DIR}/install.sh"
 . "${SCRIPT_DIR}/check.sh"
 . "${SCRIPT_DIR}/next-steps.sh"
 
-use_sudo() {
-  if [ "$(id -u)" -eq 0 ]; then
-    "$@"
-  else
-    sudo "$@"
-  fi
+usage() {
+  printf "%bUsage:%b %s [command]\n\n" "${BOLD}" "${NORMAL}" "$0" >&2
+  printf "Install the repository-local toolchain without changing global packages or config.\n\n" >&2
+
+  printf "%bCommands:%b\n" "${BOLD}" "${NORMAL}" >&2
+  printf "  %ball%b    Install [tools] from mise.toml; warn about missing global prerequisites\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bcheck%b  Verify repo tools, PATH wiring, and global prerequisites; exit non-zero on any problem\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bhelp%b   Show this help\n\n" "${GREEN}" "${NORMAL}" >&2
+
+  exit "${1:-0}"
 }
 
 log_step() {
