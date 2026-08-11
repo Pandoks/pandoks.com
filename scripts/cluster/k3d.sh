@@ -19,12 +19,12 @@ cmd_k3d_up() {
   fi
 
   echo "Fetching latest stable k3s version..."
-  cmd_k3d_up_k3s_version=$(curl -sL https://update.k3s.io/v1-release/channels | jq -r '.data[] | select(.id == "stable") | .latest')
+  cmd_k3d_up_k3s_version=$(k3d version list k3s --limit 1)
   if [ -z "${cmd_k3d_up_k3s_version}" ]; then
     log_error "Failed to fetch latest k3s version"
     return 1
   fi
-  cmd_k3d_up_k3s_image="rancher/k3s:$(echo "${cmd_k3d_up_k3s_version}" | tr '+' '-')"
+  cmd_k3d_up_k3s_image="rancher/k3s:${cmd_k3d_up_k3s_version}"
   echo "Using k3s image: ${cmd_k3d_up_k3s_image}"
 
   echo "Creating k3d cluster 'local-cluster' on network 'pandoks-net'..."
