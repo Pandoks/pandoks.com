@@ -36,7 +36,7 @@ k3s/
 ## Two-phase deploy
 
 The cluster CLI picks the kustomize path from the `--bootstrap` flag
-(`scripts/cluster/deploy.sh:184-188`):
+(`scripts/cluster/deploy.sh:207-211`):
 
 ```
 --bootstrap ✓  →  k3s/bootstrap/<env>   (CRDs + helm charts; wait for CRDs)
@@ -98,7 +98,7 @@ The CLI renders manifests through `scripts/lib/template.sh` after
    (`KwokPhoneNumber`, `GithubPersonalAccessToken`,
    `MainMainPostgresSuperuserPassword`,
    `KubernetesGrafanaAdminPassword`, `HetznerOriginTlsCrt`, etc.).
-2. **Computed vars** (`scripts/cluster/deploy.sh:35-43`) —
+2. **Computed vars** (`scripts/cluster/deploy.sh:48-56`) —
    `${ImageRegistry}`, `${ImageTag}`, `${IsLocal}`.
 
 Filters supported by `template_substitute` (`scripts/lib/template.sh:9-23`):
@@ -165,7 +165,7 @@ vs. example-noise:
 3. **Add `- ../../../apps/<name>/kube`** to
    `k3s/base/apps/kustomization.yaml`. The cross-traversal needs
    `--load-restrictor LoadRestrictionsNone` (the CLI passes it
-   automatically at `scripts/cluster/deploy.sh:79`).
+   automatically at `scripts/cluster/deploy.sh:99`).
 4. **Add the namespace** to `k3s/base/core/namespaces.yaml`.
 5. **Add per-namespace credentials** to `k3s/base/core/credentials.yaml`
    following the canonical 3-block pattern from
@@ -403,7 +403,7 @@ than bumping by hand to keep the audit trail.
 LoadRestrictionsNone`. The CLI does this; raw `kubectl apply -k`
    will fail with `security; file is not in or below`.
 2. **k3d API port is 6444**, not 6443 — avoids SSH-tunnel conflict
-   with remote prod (`scripts/cluster/k3d.sh:37`).
+   with remote prod (`scripts/cluster/k3d.sh:65`).
 3. **Tailscale operator is prod-only**
    (`k3s/base/core/tailscale.yaml:2`). Don't reference its CRDs from
    any base/ or local-overlay manifest — they won't exist on k3d.
@@ -414,7 +414,7 @@ LoadRestrictionsNone`. The CLI does this; raw `kubectl apply -k`
 5. **Renderer is silent on unknown `${VAR}`** — typos pass through.
    Dry-run + grep is mandatory when introducing new variables.
 6. **Production `--stage` is forced to `production`**
-   (`scripts/cluster/deploy.sh:182` — `[ "${cmd_deploy_env}" = "prod" ] && cmd_deploy_stage="production"`)
+   (`scripts/cluster/deploy.sh:205` — `[ "${cmd_deploy_env}" = "prod" ] && cmd_deploy_stage="production"`)
    — `deploy prod --stage anything` is overridden. By design, prevents
    leaking dev secrets to prod.
 7. **HelmChart upgrade quirk** above — quietly skips chart upgrades on

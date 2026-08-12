@@ -16,11 +16,11 @@ paths:
   `packages/postgres/package.json:13-15`,
   `packages/argocd/package.json:8-9`) via `pnpm -r --if-present dev:push`.
   `localhost:12345` is the **host-side** push port of the k3d registry
-  (`scripts/cluster/k3d.sh:35` — `--registry-create local-registry:12345`);
+  (`scripts/cluster/k3d.sh:64` — `--registry-create local-registry:12345`);
   **inside the cluster** the same registry is reached as
   `local-registry:5000`.
 - **`${ImageRegistry}` / `${ImageTag}` resolve per DEPLOY ENV, not
-  per local-vs-remote** (`scripts/cluster/deploy.sh:13-33`):
+  per local-vs-remote** (`scripts/cluster/deploy.sh:26-46`):
   - `env=local` → registry `local-registry:5000`, tag `latest`. The
     in-cluster k3d registry — **the ONLY env that pulls from k3d.**
   - `env=dev` → registry `ghcr.io/pandoks`, tag = branch name (or
@@ -47,5 +47,5 @@ paths:
 the repo`. Dockerfiles reach into `../../...` paths. Confirmed at
   `packages/argocd/Dockerfile:35` (`COPY
 packages/argocd/argocd-plugin.yaml ...`).
-- **k3d API port is 6444**, not 6443 (`scripts/cluster/k3d.sh:36`), to
+- **k3d API port is 6444**, not 6443 (`scripts/cluster/k3d.sh:65`), to
   avoid conflicting with the remote prod cluster's port over SSH.

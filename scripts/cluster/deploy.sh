@@ -7,6 +7,19 @@ log_status() {
   printf "%s\n" "$*" >&2
 }
 
+wait_for_crd() {
+  wait_for_crd_name="$1"
+  wait_for_crd_timeout="${2:-120}"
+
+  while ! kubectl get crd "${wait_for_crd_name}" > /dev/null 2>&1; do
+    if [ "${wait_for_crd_timeout}" -le 0 ]; then
+      die "Timed out waiting for ${wait_for_crd_name}"
+    fi
+    sleep 2
+    wait_for_crd_timeout=$((wait_for_crd_timeout - 2))
+  done
+}
+
 cmd_deploy_compute_vars() {
   cmd_deploy_compute_vars_env="$1"
 
@@ -52,7 +65,14 @@ cmd_deploy_get_template_vars() {
   else
     log_status "Fetching SST resources..."
   fi
-  cmd_deploy_get_template_vars_sst=$(get_sst_resources "${cmd_deploy_get_template_vars_stage}")
+  # SST changes to the project root unless invoked from a pnpm workspace.
+  if [ -n "${cmd_deploy_get_template_vars_stage}" ]; then
+    cmd_deploy_get_template_vars_sst=$(pnpm sst shell \
+      --stage "${cmd_deploy_get_template_vars_stage}" \
+      node scripts/lib/sst-resources.ts)
+  else
+    cmd_deploy_get_template_vars_sst=$(pnpm sst shell node scripts/lib/sst-resources.ts)
+  fi
   if [ -z "${cmd_deploy_get_template_vars_sst}" ]; then
     log_error "Failed to fetch SST resources. Make sure you're authenticated with SST."
     printf "Try running: %bpnpm sso%b.\n" "${BOLD}" "${NORMAL}" >&2
@@ -163,7 +183,10 @@ cmd_deploy() {
         if [ $# -lt 2 ]; then
           die "Missing value for --kubeconfig"
         fi
-        KUBECONFIG="$(validate_and_get_absolute_kubeconfig_path "$2")"
+        cmd_deploy_kubeconfig="$2"
+        [ -f "${cmd_deploy_kubeconfig}" ] || die "kubeconfig not found: ${cmd_deploy_kubeconfig}"
+        cmd_deploy_kubeconfig_dir="$(cd "$(dirname "${cmd_deploy_kubeconfig}")" && pwd)"
+        KUBECONFIG="${cmd_deploy_kubeconfig_dir}/$(basename "${cmd_deploy_kubeconfig}")"
         export KUBECONFIG
         printf "%bUsing kubeconfig:%b %s\n" "${BOLD}" "${NORMAL}" "${KUBECONFIG}" >&2
         shift 2

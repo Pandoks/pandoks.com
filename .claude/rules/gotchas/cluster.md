@@ -41,11 +41,11 @@ paths:
 - **`k3s/base/apps/kustomization.yaml`** must be applied with
   `kubectl apply --load-restrictor LoadRestrictionsNone` — it
   path-traverses (`../../../apps/example/kube`). The deploy CLI passes
-  the flag automatically (`scripts/cluster/deploy.sh:79`).
+  the flag automatically (`scripts/cluster/deploy.sh:99`).
 
 ## k3d
 
-- **k3d API port is 6444**, not 6443 (`scripts/cluster/k3d.sh:37`) — so
+- **k3d API port is 6444**, not 6443 (`scripts/cluster/k3d.sh:65`) — so
   it doesn't conflict with the remote prod cluster's port over SSH.
 
 ## Namespaces
@@ -70,7 +70,7 @@ root of the repo`). Never use the package dir as context.
 
 ## CLI subcommands
 
-- **Only `k3d` and `deploy` exist** (`scripts/cluster/main.sh:23-30`).
+- **Only `k3d` and `deploy` exist** (`scripts/cluster/main.sh:22-30`).
   `scripts/cluster/README.md` is the canonical reference for subcommand
   flags, env tags, and template variables — keep it in sync with
   `scripts/cluster/usage.sh` when adding options.
