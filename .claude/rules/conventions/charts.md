@@ -20,7 +20,7 @@ paths:
   **inside the cluster** the same registry is reached as
   `local-registry:5000`.
 - **`${ImageRegistry}` / `${ImageTag}` resolve per DEPLOY ENV, not
-  per local-vs-remote** (`scripts/cluster/deploy.sh:26-46`):
+  per local-vs-remote** (`scripts/cluster/deploy.sh:13-33`):
   - `env=local` → registry `local-registry:5000`, tag `latest`. The
     in-cluster k3d registry — **the ONLY env that pulls from k3d.**
   - `env=dev` → registry `ghcr.io/pandoks`, tag = branch name (or

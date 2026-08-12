@@ -41,7 +41,7 @@ paths:
 - **`k3s/base/apps/kustomization.yaml`** must be applied with
   `kubectl apply --load-restrictor LoadRestrictionsNone` — it
   path-traverses (`../../../apps/example/kube`). The deploy CLI passes
-  the flag automatically (`scripts/cluster/deploy.sh:92`).
+  the flag automatically (`scripts/cluster/deploy.sh:79`).
 
 ## k3d
 
@@ -70,7 +70,7 @@ root of the repo`). Never use the package dir as context.
 
 ## CLI subcommands
 
-- **Only `k3d` and `deploy` exist** (`scripts/cluster/main.sh:23-31`).
+- **Only `k3d` and `deploy` exist** (`scripts/cluster/main.sh:24-32`).
   `scripts/cluster/README.md` is the canonical reference for subcommand
   flags, env tags, and template variables — keep it in sync with
   `scripts/cluster/usage.sh` when adding options.

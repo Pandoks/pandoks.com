@@ -17,30 +17,30 @@ variant, `binary_next_line`, `switch_case_indent`, `space_redirects`, no
 
 - **`#!/bin/sh` only on `main.sh`** (`scripts/cluster/main.sh:1`).
 - **Every sourced helper starts with `# shellcheck shell=sh`** and has no
-  `set -eu`. Confirmed: `scripts/lib/{font,log,sst,template}.sh:1` and
+  `set -eu`. Confirmed: `scripts/lib/{font,kubernetes,log,sst,template}.sh:1` and
   `scripts/cluster/{usage,k3d,deploy}.sh:1`.
 - **`scripts/lib/` library inventory** (what each sourced lib provides):
   - `font.sh` — ANSI formatting constants (`:5-12`).
   - `log.sh` — `log_error`/`log_ok`/`log_warn` + `die` (`log_error` then
     `exit 1`).
+  - `kubernetes.sh` — reusable CRD readiness polling through `wait_for_crd()`.
   - `sst.sh` — reusable SST resource loading through `get_sst_resources()`.
   - `template.sh` — `${VAR | filter}` substitution
     (`template_substitute()` `:32`, `apply_template_filter_to_value()`
     `:9`, `yaml_safe_value()` `:3`).
 
 Cluster-only helpers stay with their sole consumer: `k3d.sh` owns Docker
-Compose dependency commands; `deploy.sh` owns CRD waiting and kubeconfig
-validation. SST helpers remain in `scripts/lib/sst.sh` for reuse outside
-cluster deployment.
+Compose dependency commands and `deploy.sh` owns kubeconfig validation. Shared
+Kubernetes and SST helpers remain in `scripts/lib/` for reuse.
 
 ## Function-prefixed locals
 
 POSIX sh has no `local`, so every helper prefixes its variables with the
 function name to dodge global pollution:
 
-- `cmd_deploy_compute_vars_env` (`scripts/cluster/deploy.sh:24`).
+- `cmd_deploy_compute_vars_env` (`scripts/cluster/deploy.sh:11`).
 - `cmd_deploy_compute_vars_image_registry`
-  (`scripts/cluster/deploy.sh:29`).
+  (`scripts/cluster/deploy.sh:16`).
 - `cmd_k3d_up_k3s_version` (`scripts/cluster/k3d.sh:51`).
 - `template_substitute_pattern_content` (`scripts/lib/template.sh:43`).
 
@@ -50,14 +50,14 @@ Verbose, but necessary.
 
 - Zero-arg invocation prints usage and exits via `usage <code>`; never
   run-all on bare invocation. **No `all` subcommand.**
-  See `scripts/cluster/main.sh:18`, `scripts/cluster/deploy.sh:141`,
+  See `scripts/cluster/main.sh:19`, `scripts/cluster/deploy.sh:128`,
   `scripts/cluster/k3d.sh:135`.
 
 ## Status output
 
 - **`log_status`** at `scripts/cluster/deploy.sh:5-8` — `printf` to stderr,
   gated by `QUIET` flag set by `--quiet`/`-q`
-  (`scripts/cluster/deploy.sh:187-189`).
+  (`scripts/cluster/deploy.sh:174-176`).
 
 ## ANSI colors
 
@@ -69,8 +69,8 @@ Verbose, but necessary.
   `printf "%bError:%b ...\n" "${RED}" "${NORMAL}" >&2` — now wrapped in
   the shared `log_error()` helper (`scripts/lib/log.sh:4`) + `die()`
   (`scripts/lib/log.sh:15`, which `log_error`s then `exit 1`s). Callers
-  use the helpers, e.g. `scripts/cluster/deploy.sh:70, 150, 193, 207`
-  (`log_error`) and `:16, 170, 177, 180` (`die`). The raw inline form
+  use the helpers, e.g. `scripts/cluster/deploy.sh:57, 137, 180, 194`
+  (`log_error`) and `:157, 164, 167` (`die`). The raw inline form
   survives only in `scripts/lib/template.sh`, which predates the helper.
 
 ## Confirmation prompts for destructive ops
@@ -81,12 +81,12 @@ read -r response
 [ "${response}" != "y" ] && return 0
 ```
 
-See `scripts/cluster/deploy.sh:211-222`.
+See `scripts/cluster/deploy.sh:198-209`.
 
 ## Arg validation
 
 - **Validate args at top of every subcommand**, error to stderr + exit 1
-  if unknown (`scripts/cluster/deploy.sh:146-153, 192-195`,
+  if unknown (`scripts/cluster/deploy.sh:133-140, 179-182`,
   `scripts/cluster/k3d.sh:140-151`).
 
 ## Comment policy

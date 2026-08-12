@@ -106,7 +106,7 @@ pnpm run cluster deploy {local|dev|prod} [--bootstrap] [--stage NAME]
 
 Zero-arg invocation prints help; there is no `all` subcommand. `deploy prod`
 auto-overrides the SST stage to `production`
-(`scripts/cluster/deploy.sh:198` — `[ "${cmd_deploy_env}" = "prod" ] && cmd_deploy_stage="production"`).
+(`scripts/cluster/deploy.sh:185` — `[ "${cmd_deploy_env}" = "prod" ] && cmd_deploy_stage="production"`).
 
 > Root `README.md` and `k3s/README.md` reference `cluster sst-apply` /
 > `cluster sync` / `cluster setup` — **those subcommands don't exist in the
