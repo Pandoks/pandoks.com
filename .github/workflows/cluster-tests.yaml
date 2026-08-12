@@ -19,10 +19,7 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      postgres: ${{ steps.filter.outputs.postgres }}
-      valkey: ${{ steps.filter.outputs.valkey }}
-      clickhouse: ${{ steps.filter.outputs.clickhouse }}
-      harness: ${{ steps.filter.outputs.harness }}
+      packages: ${{ steps.matrix.outputs.packages }}
 
     steps:
       - uses: actions/checkout@v6
@@ -38,20 +35,34 @@ jobs:
             clickhouse:
               - 'packages/clickhouse/**'
             harness:
+              - 'packages/testkit/**'
               - 'scripts/cluster/**'
               - 'scripts/lib/**'
               - 'docker-compose.yaml'
               - '.github/workflows/cluster-tests.yaml'
 
+      - id: matrix
+        run: |
+          if [ "${{ steps.filter.outputs.harness }}" = "true" ]; then
+            packages='["postgres","valkey","clickhouse"]'
+          else
+            list=""
+            [ "${{ steps.filter.outputs.postgres }}" = "true" ] && list="${list}\"postgres\","
+            [ "${{ steps.filter.outputs.valkey }}" = "true" ] && list="${list}\"valkey\","
+            [ "${{ steps.filter.outputs.clickhouse }}" = "true" ] && list="${list}\"clickhouse\","
+            packages="[${list%,}]"
+          fi
+          echo "packages=${packages}" >> "$GITHUB_OUTPUT"
+
   cluster-tests:
     needs: detect-changes
-    if: |
-      needs.detect-changes.outputs.postgres == 'true' ||
-      needs.detect-changes.outputs.valkey == 'true' ||
-      needs.detect-changes.outputs.clickhouse == 'true' ||
-      needs.detect-changes.outputs.harness == 'true'
+    if: needs.detect-changes.outputs.packages != '[]'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.detect-changes.outputs.packages) }}
     steps:
       - uses: actions/checkout@v6
 
@@ -76,35 +87,13 @@ jobs:
           pnpm cluster k3d deps up
           pnpm cluster k3d up
 
-      - name: Build and push postgres images
-        if: needs.detect-changes.outputs.postgres == 'true' || needs.detect-changes.outputs.harness == 'true'
+      - name: Build and push ${{ matrix.package }} images
         run: |
-          pnpm --filter @pandoks.com/postgres run docker:build
-          pnpm --filter @pandoks.com/postgres run dev:push
+          pnpm --filter @pandoks.com/${{ matrix.package }} run docker:build
+          pnpm --filter @pandoks.com/${{ matrix.package }} run dev:push
 
-      - name: Build and push valkey images
-        if: needs.detect-changes.outputs.valkey == 'true' || needs.detect-changes.outputs.harness == 'true'
-        run: |
-          pnpm --filter @pandoks.com/valkey run docker:build
-          pnpm --filter @pandoks.com/valkey run dev:push
-
-      - name: Build and push clickhouse images
-        if: needs.detect-changes.outputs.clickhouse == 'true' || needs.detect-changes.outputs.harness == 'true'
-        run: |
-          pnpm --filter @pandoks.com/clickhouse run docker:build
-          pnpm --filter @pandoks.com/clickhouse run dev:push
-
-      - name: Run postgres cluster tests
-        if: needs.detect-changes.outputs.postgres == 'true' || needs.detect-changes.outputs.harness == 'true'
-        run: ./scripts/cluster/main.sh test postgres
-
-      - name: Run valkey cluster tests
-        if: needs.detect-changes.outputs.valkey == 'true' || needs.detect-changes.outputs.harness == 'true'
-        run: ./scripts/cluster/main.sh test valkey
-
-      - name: Run clickhouse cluster tests
-        if: needs.detect-changes.outputs.clickhouse == 'true' || needs.detect-changes.outputs.harness == 'true'
-        run: ./scripts/cluster/main.sh test clickhouse
+      - name: Run ${{ matrix.package }} cluster tests
+        run: ./scripts/cluster/main.sh test ${{ matrix.package }}
 
   cluster-tests-pass:
     needs:
