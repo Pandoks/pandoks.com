@@ -104,15 +104,16 @@ Prerequisites (the command errors with a hint if missing):
 pnpm docker:build && pnpm dev:push      # images in the k3d registry
 ```
 
-| Option   | Description                                                                                        |
-| -------- | -------------------------------------------------------------------------------------------------- |
-| `--keep` | Leave test releases/namespaces in place after a passing run (failures always leave them in place). |
+| Option       | Description                                                                                        |
+| ------------ | -------------------------------------------------------------------------------------------------- |
+| `--keep`     | Leave test releases/namespaces in place after a passing run (failures always leave them in place). |
+| `--parallel` | With `all`: run suites concurrently on the shared cluster (needs CPU headroom; output buffered).   |
 
 Suites are plain `go test` on client-go, sharing the `packages/testkit` harness
 module (`Connect` pins the kubeconfig context to k3d, `WaitFor`/`Assert*`,
 `Fingerprint` for zero-churn checks, in-pod `Exec`, helm wrappers). CI runs the
-same suites via `.github/workflows/cluster-tests.yaml`, building and testing
-only the packages whose paths changed.
+same suites via `.github/workflows/cluster-tests.yaml` as a matrix job per
+changed package — each on its own runner with its own k3d cluster.
 
 ## Examples
 
