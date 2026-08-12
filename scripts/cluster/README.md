@@ -82,8 +82,8 @@ The `deploy` command renders templates with these substitutions before applying:
 
 ## test
 
-`test` runs the per-package cluster test suites (`packages/<pkg>/test/cluster.sh`)
-against the local k3d cluster:
+`test` runs the per-package cluster test suites (Go tests at
+`packages/<pkg>/test/cluster_test.go`) against the local k3d cluster:
 
 ```sh
 ./scripts/cluster/main.sh test <postgres|valkey|clickhouse|all> [--keep]
@@ -108,10 +108,11 @@ pnpm docker:build && pnpm dev:push      # images in the k3d registry
 | -------- | -------------------------------------------------------------------------------------------------- |
 | `--keep` | Leave test releases/namespaces in place after a passing run (failures always leave them in place). |
 
-Suites share helpers from `scripts/lib/test.sh` (`test_assert`, `test_wait_for`,
-`test_pod_fingerprint`, …). CI runs the same suites via
-`.github/workflows/cluster-tests.yaml`, building and testing only the packages
-whose paths changed.
+Suites are plain `go test` on client-go, sharing the `packages/testkit` harness
+module (`Connect` pins the kubeconfig context to k3d, `WaitFor`/`Assert*`,
+`Fingerprint` for zero-churn checks, in-pod `Exec`, helm wrappers). CI runs the
+same suites via `.github/workflows/cluster-tests.yaml`, building and testing
+only the packages whose paths changed.
 
 ## Examples
 

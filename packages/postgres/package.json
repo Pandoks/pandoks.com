@@ -13,6 +13,6 @@
     "dev:push:patroni": "docker push localhost:12345/patroni:latest",
     "dev:push:pgbackrest": "docker push localhost:12345/pgbackrest:latest",
     "dev:push:helm": "helm push postgres-*.tgz oci://localhost:12345/charts --plain-http",
-    "test:cluster": "sh ./test/cluster.sh"
+    "test:cluster": "go test -C ./test -v -count=1 -timeout 40m ."
   }
 }

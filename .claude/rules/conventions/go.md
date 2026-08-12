@@ -5,9 +5,16 @@ paths:
   - '**/go.sum'
 ---
 
-# Code style — Go (`packages/valkey/reconciler`)
+# Code style — Go
 
-Plain stdlib Go. No third-party logger, no fancy frameworks.
+Plain stdlib Go. No third-party logger, no fancy frameworks. Lives in
+`packages/valkey/reconciler` (the CLI conventions below), plus the cluster-test
+surface: `packages/testkit` (shared harness module — client-go + apimachinery
+only; helm via the binary) and `packages/{postgres,valkey,clickhouse}/test`
+(integration suites; each `replace`s `testkit`, all registered in `go.work` so
+`pnpm lint go` fans out to them). Test-framework decision: plain `go test` +
+client-go — e2e-framework/terratest were evaluated and rejected (both wrap the
+helm binary anyway; their env/feature model fights ordered stateful scenarios).
 
 ## CLI shape
 

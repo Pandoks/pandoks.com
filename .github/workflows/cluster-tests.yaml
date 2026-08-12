@@ -61,6 +61,16 @@ jobs:
         with:
           tools: k3d kubectl helm
 
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: packages/testkit/go.mod
+          cache-dependency-path: |
+            packages/testkit/go.sum
+            packages/postgres/test/go.sum
+            packages/valkey/test/go.sum
+            packages/clickhouse/test/go.sum
+
       - name: Start dependencies and k3d cluster
         run: |
           pnpm cluster k3d deps up

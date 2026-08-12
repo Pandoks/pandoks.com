@@ -2,7 +2,7 @@
 paths:
   - 'k3s/**'
   - 'scripts/cluster/**'
-  - 'scripts/lib/test.sh'
+  - 'packages/testkit/**'
   - 'packages/argocd/**'
   - 'packages/*/test/**'
   - 'docker-compose.yaml'
@@ -102,12 +102,15 @@ root of the repo`). Never use the package dir as context.
   needs SST/AWS creds; suites helm-install charts straight from
   `packages/<pkg>/chart` with hand-created secrets into `test-<pkg>`
   namespaces. Shared prep (cert-manager + internal CA, ServiceMonitor CRD,
-  `monitoring`/`main` namespaces, postgres/valkey ClusterRoles) is idempotent.
-  Per-package suites live at `packages/<pkg>/test/cluster.sh` (`test:cluster`
-  scripts), shared helpers in `scripts/lib/test.sh`. Avoid `jq` in these
-  scripts — CI's `jdx/mise-action` installs only `[tools]`, and `jq` is a
-  `[_.global_tools]` pin; use `kubectl -o jsonpath` (in-pod `python3` for
-  JSON, e.g. `patronictl list -f json`).
+  `monitoring`/`main` namespaces, postgres/valkey ClusterRoles) is idempotent
+  shell in `test.sh`; the suites themselves are **Go tests** at
+  `packages/<pkg>/test/cluster_test.go` (`test:cluster` = `go test -C ./test`)
+  built on the shared `packages/testkit` module (client-go; helm via the
+  binary; in-pod exec for psql/valkey-cli/clickhouse-client; Patroni REST via
+  the API-server pod proxy). Each suite module `replace`s `testkit` and is
+  listed in `go.work`, so `pnpm lint go` covers them. Ordered scenarios use
+  `testkit.Step` — a failed step aborts the suite; failures (and `--keep`,
+  via the `TEST_KEEP` env) leave resources in place.
 
 ## Manual cluster deploy skip
 

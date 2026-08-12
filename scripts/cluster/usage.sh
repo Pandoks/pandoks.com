@@ -74,7 +74,7 @@ usage_test() {
   printf "  1. Verifies the k3d cluster and localstack dependencies are running\n" >&2
   printf "  2. Installs shared test dependencies (cert-manager + internal CA,\n" >&2
   printf "     ServiceMonitor CRD, namespaces, database ClusterRoles) — idempotent\n" >&2
-  printf "  3. Runs each package's test/cluster.sh suite in its own namespace\n\n" >&2
+  printf "  3. Runs each package's Go test suite (test/cluster_test.go) in its own namespace\n\n" >&2
 
   printf "Suites helm-install charts directly from packages/<pkg>/chart with\n" >&2
   printf "hand-created secrets — no SST/AWS credentials needed. Images must be\n" >&2

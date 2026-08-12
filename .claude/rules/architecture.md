@@ -34,6 +34,7 @@ packages/
   valkey/          Valkey + Go reconciler + helm chart
   clickhouse/      ClickHouse + Keeper + backup + helm chart
   argocd/          ArgoCD CMP: kustomize-sst-render plugin
+  testkit/         Go harness for the k8s cluster test suites (client-go)
 
 k3s/
   base/            Shared apps + core + monitoring kustomization

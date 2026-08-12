@@ -14,6 +14,6 @@
     "dev:push:helm": "helm push valkey-*.tgz oci://localhost:12345/charts --plain-http",
     "dev:push:reconciler": "docker push localhost:12345/valkey-reconciler:latest",
     "test": "go test -C ./reconciler -v ./...",
-    "test:cluster": "sh ./test/cluster.sh"
+    "test:cluster": "go test -C ./test -v -count=1 -timeout 40m ."
   }
 }

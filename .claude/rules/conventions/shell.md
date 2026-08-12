@@ -15,15 +15,12 @@ variant, `binary_next_line`, `switch_case_indent`, `space_redirects`, no
 
 ## File header
 
-- **`#!/bin/sh` only on entry-point scripts**: dispatcher `main.sh`s
-  (`scripts/cluster/main.sh:1`) and the per-package cluster test suites
-  (`packages/{postgres,valkey,clickhouse}/test/cluster.sh:1`, run via
-  `test:cluster` package scripts). Everything else is a sourced library.
+- **`#!/bin/sh` only on `main.sh`** (`scripts/cluster/main.sh:1`).
 - **Every sourced library starts with `# shellcheck shell=sh`** and contains
   only function definitions — no `set -eu`, no top-level state.
   Confirmed: `scripts/lib/font.sh:1`, `scripts/lib/sst.sh:1`,
   `scripts/lib/template.sh:1`, `scripts/lib/kubernetes.sh:1`,
-  `scripts/lib/log.sh:1`, `scripts/lib/os.sh:1`, `scripts/lib/test.sh:1`,
+  `scripts/lib/log.sh:1`, `scripts/lib/os.sh:1`,
   `scripts/cluster/usage.sh:1`, `scripts/cluster/k3d.sh:1`,
   `scripts/cluster/deploy.sh:1`, `scripts/cluster/test.sh:1`.
 - **`scripts/lib/` library inventory** (what each sourced lib provides):
@@ -39,11 +36,8 @@ variant, `binary_next_line`, `switch_case_indent`, `space_redirects`, no
     `pnpm sst shell [--stage X] node scripts/lib/sst-resources.ts`.
   - `kubernetes.sh` — `wait_for_crd()` (`:3`, polls `kubectl get crd`
     with timeout) + `validate_and_get_absolute_kubeconfig_path()` (`:21`).
-  - `test.sh` — cluster-test harness: `test_suite`/`test_case`,
-    `test_assert[_eq|_ne]`, `test_wait_for` (poll-until-timeout),
-    `test_pod_fingerprint` (name+UID+restartCounts for zero-churn
-    assertions), `test_delete_namespace`, `test_finish` (EXIT trap:
-    summary + conditional `test_cleanup`, honoring `TEST_KEEP`).
+    (The cluster-test harness is NOT shell — it's the `packages/testkit`
+    Go module; `scripts/cluster/test.sh` only does prep + dispatch.)
 
 ## Function-prefixed locals
 
