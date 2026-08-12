@@ -44,6 +44,7 @@ jobs:
               - 'packages/valkey/reconciler/**'
             push-worker:
               - 'apps/push-worker/**'
+              - 'apps/workers/**'
               - 'packages/queueworker/**'
 
   test-web:
@@ -122,10 +123,15 @@ jobs:
           go-version-file: apps/push-worker/go.mod
           cache-dependency-path: |
             apps/push-worker/go.sum
+            apps/workers/go.sum
             packages/queueworker/go.sum
 
       - name: Test shared queue worker
         working-directory: packages/queueworker
+        run: go test -race ./...
+
+      - name: Test queue runtime and examples
+        working-directory: apps/workers
         run: go test -race ./...
 
       - name: Test push worker

@@ -35,6 +35,10 @@ func TestLoadConfig(t *testing.T) {
 	if string(config.APNs.PrivateKey) != "private-key" {
 		t.Fatal("private key was not loaded")
 	}
+	if config.Queue.Transport != "sqs" ||
+		config.Queue.SQS.QueueURL != "https://sqs.example/queue" {
+		t.Fatalf("queue config = %#v", config.Queue)
+	}
 }
 
 func TestLoadConfigUsesAPNsSandboxOutsideProduction(t *testing.T) {

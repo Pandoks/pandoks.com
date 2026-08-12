@@ -66,8 +66,8 @@ func NewPushHandler(sender JobSender, logger *slog.Logger) *PushHandler {
 	return &PushHandler{sender: sender, logger: logger}
 }
 
-func (handler *PushHandler) Handle(ctx context.Context, body []byte) error {
-	job, err := DecodeJob(body)
+func (handler *PushHandler) Handle(ctx context.Context, message queueworker.Message) error {
+	job, err := DecodeJob(message.Body())
 	if err != nil {
 		handler.logger.Warn("push rejected permanently", "error", err)
 		return queueworker.Discard(err)

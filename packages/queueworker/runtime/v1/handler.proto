@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package pandoks.queueworker.runtime.v1;
+
+option go_package = "queueworker/runtime/v1;runtimev1";
+
+enum Outcome {
+  OUTCOME_UNSPECIFIED = 0;
+  OUTCOME_SUCCESS = 1;
+  OUTCOME_RETRY = 2;
+  OUTCOME_DISCARD = 3;
+}
+
+message HandleRequest {
+  string id = 1;
+  bytes body = 2;
+  int32 attempt = 3;
+}
+
+message Publication {
+  string id = 1;
+  bytes body = 2;
+}
+
+message HandleResponse {
+  Outcome outcome = 1;
+  repeated Publication publications = 2;
+  string error = 3;
+}
+
+service Handler {
+  rpc Handle(HandleRequest) returns (HandleResponse);
+}

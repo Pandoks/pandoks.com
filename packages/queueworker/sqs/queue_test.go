@@ -5,6 +5,7 @@ import (
 	"queueworker"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awssqs "github.com/aws/aws-sdk-go-v2/service/sqs"
@@ -21,7 +22,10 @@ func TestQueueReceivesDeliveriesWithLongPolling(t *testing.T) {
 		ReceiptHandle: aws.String("receipt-1"),
 		Body:          aws.String("body-1"),
 	}}}
-	queue := sqsqueue.New(client, "queue-url")
+	queue, err := sqsqueue.New(client, "queue-url")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	messages, err := queue.Receive(context.Background())
 	if err != nil {
@@ -48,13 +52,16 @@ func TestQueueAcknowledgesByReceiptHandle(t *testing.T) {
 		{MessageId: aws.String("first"), ReceiptHandle: aws.String("receipt-1")},
 		{MessageId: aws.String("second"), ReceiptHandle: aws.String("receipt-2")},
 	}}
-	queue := sqsqueue.New(client, "queue-url")
+	queue, err := sqsqueue.New(client, "queue-url")
+	if err != nil {
+		t.Fatal(err)
+	}
 	messages, err := queue.Receive(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := queue.Acknowledge(context.Background(), messages); err != nil {
+	if err := queue.Settle(context.Background(), queueworker.Settlement{Acknowledge: messages}); err != nil {
 		t.Fatal(err)
 	}
 	if got := client.deleteInput.Entries; len(got) != 2 ||
@@ -84,13 +91,16 @@ func TestQueueReportsPartialAcknowledgmentFailures(t *testing.T) {
 			Message: aws.String("try again"),
 		}}},
 	}
-	queue := sqsqueue.New(client, "queue-url")
+	queue, err := sqsqueue.New(client, "queue-url")
+	if err != nil {
+		t.Fatal(err)
+	}
 	messages, err := queue.Receive(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = queue.Acknowledge(context.Background(), messages)
+	err = queue.Settle(context.Background(), queueworker.Settlement{Acknowledge: messages})
 	if err == nil {
 		t.Fatal("Acknowledge returned nil for a partial batch failure")
 	}
@@ -99,18 +109,75 @@ func TestQueueReportsPartialAcknowledgmentFailures(t *testing.T) {
 func TestQueueRejectsForeignMessages(t *testing.T) {
 	t.Parallel()
 
-	queue := sqsqueue.New(&fakeClient{}, "queue-url")
-	err := queue.Acknowledge(context.Background(), []queueworker.Message{foreignMessage{}})
+	queue, err := sqsqueue.New(&fakeClient{}, "queue-url")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = queue.Settle(context.Background(), queueworker.Settlement{
+		Acknowledge: []queueworker.Message{foreignMessage{}},
+	})
 	if err == nil {
-		t.Fatal("Acknowledge returned nil for a foreign message")
+		t.Fatal("Settle returned nil for a foreign message")
+	}
+}
+
+func TestQueueRetriesImmediatelyWhenConfigured(t *testing.T) {
+	t.Parallel()
+
+	delay := time.Duration(0)
+	client := &fakeClient{messages: []types.Message{{
+		MessageId:     aws.String("message-1"),
+		ReceiptHandle: aws.String("receipt-1"),
+	}}}
+	options := sqsqueue.DefaultOptions()
+	options.RetryDelay = &delay
+	queue, err := sqsqueue.New(client, "queue-url", options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	messages, err := queue.Receive(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := queue.Settle(context.Background(), queueworker.Settlement{Retry: messages}); err != nil {
+		t.Fatal(err)
+	}
+	if client.visibilityInput == nil ||
+		client.visibilityInput.Entries[0].VisibilityTimeout != 0 ||
+		aws.ToString(client.visibilityInput.Entries[0].ReceiptHandle) != "receipt-1" {
+		t.Fatalf("visibility input = %#v", client.visibilityInput)
 	}
 }
 
 type fakeClient struct {
-	messages     []types.Message
-	receiveInput *awssqs.ReceiveMessageInput
-	deleteInput  *awssqs.DeleteMessageBatchInput
-	deleteOutput *awssqs.DeleteMessageBatchOutput
+	messages        []types.Message
+	receiveInput    *awssqs.ReceiveMessageInput
+	deleteInput     *awssqs.DeleteMessageBatchInput
+	deleteOutput    *awssqs.DeleteMessageBatchOutput
+	visibilityInput *awssqs.ChangeMessageVisibilityBatchInput
+	sendInput       *awssqs.SendMessageBatchInput
+	sendOutput      *awssqs.SendMessageBatchOutput
+}
+
+func (client *fakeClient) ChangeMessageVisibilityBatch(
+	_ context.Context,
+	input *awssqs.ChangeMessageVisibilityBatchInput,
+	_ ...func(*awssqs.Options),
+) (*awssqs.ChangeMessageVisibilityBatchOutput, error) {
+	client.visibilityInput = input
+	return &awssqs.ChangeMessageVisibilityBatchOutput{}, nil
+}
+
+func (client *fakeClient) SendMessageBatch(
+	_ context.Context,
+	input *awssqs.SendMessageBatchInput,
+	_ ...func(*awssqs.Options),
+) (*awssqs.SendMessageBatchOutput, error) {
+	client.sendInput = input
+	if client.sendOutput != nil {
+		return client.sendOutput, nil
+	}
+	return &awssqs.SendMessageBatchOutput{}, nil
 }
 
 func (client *fakeClient) ReceiveMessage(

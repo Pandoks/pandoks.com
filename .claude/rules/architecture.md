@@ -25,12 +25,13 @@ sst.config.ts ─┬─ infra/*.ts                 IaC: AWS, CF, GH, Hetzner, Ta
 apps/
   web/             SvelteKit 2 + Svelte 5 static site → Cloudflare Pages (PWA)
   functions/       AWS Lambda handlers (Node 24)
-  push-worker/     Go SQS consumer → APNs + FCM, deployed to production K3s
+  push-worker/     Go queue consumer → APNs + FCM, deployed to production K3s
+  workers/         Generic queue runtime + Go/Python/TypeScript worker examples
   desktop-template Electron + SvelteKit template (excluded from CI)
   example/         Kubernetes manifest demo (excluded from CI)
 
 packages/
-  queueworker/     Transport-neutral Go queue runner + SQS adapter
+  queueworker/     Queue runner/publisher + SQS, Valkey, Cloudflare adapters
   svelte/          @pandoks.com/svelte shared UI lib (workspace dep)
   postgres/        Patroni + PgBackRest + helm chart → ghcr.io image+chart
   valkey/          Valkey + Go reconciler + helm chart
@@ -98,6 +99,10 @@ see `sst.config.ts:29`).
   `packages/queueworker` runner → `apps/push-worker` handler → APNs or FCM.
   Successes and permanent failures are batch-deleted; retryable failures remain
   for SQS redelivery and move to the DLQ after five receives.
+- **Generic pipeline**: input adapter → `packages/queueworker` runner → embedded
+  Go handler or `apps/workers/queue-runtime` gRPC handler → output adapter. The
+  runtime publishes downstream output before acknowledging the source. SQS,
+  Valkey Streams, and Cloudflare Queues are runtime-selectable adapters.
 
 For full per-flow traces, see `.claude/rules/gotchas/*.md`.
 

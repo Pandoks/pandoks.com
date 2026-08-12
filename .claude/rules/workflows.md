@@ -155,8 +155,9 @@ Per-workspace `check`:
 - `apps/functions`: `tsc --noEmit` (`apps/functions/package.json:6`).
 - `packages/valkey`: Go tests run from `packages/valkey/reconciler`; no
   per-workspace `check` script — Go linting runs via `pnpm lint go`.
-- `packages/queueworker` and `apps/push-worker`: `go test -race` from each
-  module; the root `go.work` includes both for monorepo linting.
+- `packages/queueworker`, `apps/workers`, and `apps/push-worker`: `go test
+-race` from each module; the root `go.work` includes all three for monorepo
+  linting.
 - Root: `pnpm check:infra` (`tsc -p .` at repo root) typechecks
   `infra/**` + `sst.config.ts`.
 
@@ -170,6 +171,7 @@ pnpm --filter @pandoks.com/desktop-template run test
 pnpm --filter @pandoks.com/svelte run test
 # packages/valkey: go test from packages/valkey/reconciler
 # packages/queueworker: go test -race from packages/queueworker
+# apps/workers: go test -race from apps/workers
 # apps/push-worker: go test -race from apps/push-worker
 ```
 

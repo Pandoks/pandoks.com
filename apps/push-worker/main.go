@@ -7,12 +7,8 @@ import (
 	"os"
 	"os/signal"
 	"queueworker"
+	"queueworker/adapter"
 	"syscall"
-
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/sqs"
-
-	sqsqueue "queueworker/sqs"
 )
 
 func main() {
@@ -30,10 +26,6 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	awsConfig, err := config.LoadDefaultConfig(ctx)
-	if err != nil {
-		return fmt.Errorf("load AWS configuration: %w", err)
-	}
 	apnsClient, err := NewAPNsClient(workerConfig.APNs)
 	if err != nil {
 		return err
@@ -44,7 +36,15 @@ func run() error {
 	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	queue := sqsqueue.New(sqs.NewFromConfig(awsConfig), workerConfig.QueueURL)
+	queue, err := adapter.Open(ctx, workerConfig.Queue)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := queue.Close(); err != nil {
+			logger.Error("close queue adapter", "error", err)
+		}
+	}()
 	handler := NewPushHandler(Dispatcher{APNs: apnsClient, FCM: fcmClient}, logger)
 	runner := queueworker.New(
 		queue,

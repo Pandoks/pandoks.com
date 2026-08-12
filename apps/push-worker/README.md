@@ -1,12 +1,20 @@
 # Push worker
 
-The push worker consumes notification jobs from SQS and sends them directly to Apple Push Notification service (APNs) or Firebase Cloud Messaging (FCM). It has no HTTP server or database.
+The push worker consumes notification jobs through the shared queue adapter and
+sends them directly to Apple Push Notification service (APNs) or Firebase Cloud
+Messaging (FCM). Production currently selects SQS; Valkey Streams and Cloudflare
+Queues can be selected with `QUEUE_INPUT_*` settings. It has no HTTP server or
+database.
 
 ```text
-app/backend -> SQS -> push-worker -> APNs or FCM -> device
+app/backend -> queue adapter -> push-worker -> APNs or FCM -> device
 ```
 
-SQS is a Standard queue with long polling, a dead-letter queue, and a five-attempt redrive policy. The app composes the SQS adapter and shared runner in `packages/queueworker` with its push-specific handler and APNs/FCM senders. One worker pod receives up to ten jobs at a time. Successful and permanently invalid messages are acknowledged as a batch; retryable failures remain for SQS to redeliver.
+The current production SQS queue is Standard with long polling, a dead-letter
+queue, and a five-attempt redrive policy. The app composes the environment-selected
+adapter and shared runner in `packages/queueworker` with its push-specific handler
+and APNs/FCM senders. Successful and permanently invalid messages are
+acknowledged; retryable failures remain for the adapter to redeliver.
 
 ## Bootstrap
 

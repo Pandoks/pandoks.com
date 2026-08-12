@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"queueworker/adapter"
 )
 
 const (
@@ -12,7 +13,7 @@ const (
 )
 
 type Config struct {
-	QueueURL          string
+	Queue             adapter.Config
 	FirebaseProjectID string
 	APNs              APNsConfig
 }
@@ -25,7 +26,6 @@ func loadConfig(
 	getenv func(string) string,
 	readFile func(string) ([]byte, error),
 ) (Config, error) {
-	queueURL := getenv("SQS_QUEUE_URL")
 	firebaseProjectID := getenv("FIREBASE_PROJECT_ID")
 	teamID := getenv("APNS_TEAM_ID")
 	keyID := getenv("APNS_KEY_ID")
@@ -33,7 +33,6 @@ func loadConfig(
 	stage := getenv("STAGE")
 
 	required := map[string]string{
-		"SQS_QUEUE_URL":         queueURL,
 		"FIREBASE_PROJECT_ID":   firebaseProjectID,
 		"APNS_TEAM_ID":          teamID,
 		"APNS_KEY_ID":           keyID,
@@ -44,6 +43,23 @@ func loadConfig(
 		if value == "" {
 			return Config{}, fmt.Errorf("%s is required", name)
 		}
+	}
+	queueConfig, err := adapter.LoadConfig("QUEUE_INPUT_", func(name string) (string, bool) {
+		if configured := getenv(name); configured != "" {
+			return configured, true
+		}
+		switch name {
+		case "QUEUE_INPUT_TRANSPORT":
+			return adapter.TransportSQS, true
+		case "QUEUE_INPUT_SQS_QUEUE_URL":
+			if legacy := getenv("SQS_QUEUE_URL"); legacy != "" {
+				return legacy, true
+			}
+		}
+		return "", false
+	})
+	if err != nil {
+		return Config{}, err
 	}
 
 	privateKey, err := readFile(privateKeyPath)
@@ -63,7 +79,7 @@ func loadConfig(
 	}
 
 	return Config{
-		QueueURL:          queueURL,
+		Queue:             queueConfig,
 		FirebaseProjectID: firebaseProjectID,
 		APNs: APNsConfig{
 			TeamID:     teamID,

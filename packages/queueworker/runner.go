@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"runtime/debug"
 	"time"
 )
 
@@ -11,6 +12,7 @@ const (
 	defaultConcurrency    = 10
 	defaultHandlerTimeout = 30 * time.Second
 	defaultPollErrorDelay = time.Second
+	defaultSettleTimeout  = 10 * time.Second
 )
 
 type Message interface {
@@ -18,25 +20,42 @@ type Message interface {
 	Body() []byte
 }
 
+type attemptedMessage interface {
+	Attempts() int
+}
+
+func Attempts(message Message) int {
+	if attempted, ok := message.(attemptedMessage); ok && attempted.Attempts() > 0 {
+		return attempted.Attempts()
+	}
+	return 1
+}
+
 type Queue interface {
 	Receive(context.Context) ([]Message, error)
-	Acknowledge(context.Context, []Message) error
+	Settle(context.Context, Settlement) error
 }
 
 type Handler interface {
-	Handle(context.Context, []byte) error
+	Handle(context.Context, Message) error
 }
 
-type HandlerFunc func(context.Context, []byte) error
+type HandlerFunc func(context.Context, Message) error
 
-func (handler HandlerFunc) Handle(ctx context.Context, body []byte) error {
-	return handler(ctx, body)
+func (handler HandlerFunc) Handle(ctx context.Context, message Message) error {
+	return handler(ctx, message)
+}
+
+type Settlement struct {
+	Acknowledge []Message
+	Retry       []Message
 }
 
 type Options struct {
 	Concurrency    int
 	HandlerTimeout time.Duration
 	PollErrorDelay time.Duration
+	SettleTimeout  time.Duration
 	Logger         *slog.Logger
 }
 
@@ -46,6 +65,7 @@ type Runner struct {
 	concurrency    int
 	handlerTimeout time.Duration
 	pollErrorDelay time.Duration
+	settleTimeout  time.Duration
 	logger         *slog.Logger
 }
 
@@ -59,6 +79,9 @@ func New(queue Queue, handler Handler, options Options) *Runner {
 	if options.PollErrorDelay <= 0 {
 		options.PollErrorDelay = defaultPollErrorDelay
 	}
+	if options.SettleTimeout <= 0 {
+		options.SettleTimeout = defaultSettleTimeout
+	}
 	if options.Logger == nil {
 		options.Logger = slog.Default()
 	}
@@ -68,6 +91,7 @@ func New(queue Queue, handler Handler, options Options) *Runner {
 		concurrency:    options.Concurrency,
 		handlerTimeout: options.HandlerTimeout,
 		pollErrorDelay: options.PollErrorDelay,
+		settleTimeout:  options.SettleTimeout,
 		logger:         options.Logger,
 	}
 }
@@ -86,14 +110,18 @@ func (runner *Runner) Run(ctx context.Context) error {
 			continue
 		}
 
-		acknowledged := runner.process(ctx, messages)
-		if len(acknowledged) == 0 {
+		settlement := runner.process(ctx, messages)
+		if len(settlement.Acknowledge) == 0 && len(settlement.Retry) == 0 {
 			continue
 		}
-		if err := runner.queue.Acknowledge(ctx, acknowledged); err != nil {
+		settleContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), runner.settleTimeout)
+		err = runner.queue.Settle(settleContext, settlement)
+		cancel()
+		if err != nil {
 			runner.logger.Error(
-				"queue acknowledge failed",
-				"count", len(acknowledged),
+				"queue settlement failed",
+				"acknowledge_count", len(settlement.Acknowledge),
+				"retry_count", len(settlement.Retry),
 				"error", err,
 			)
 		}
@@ -101,12 +129,12 @@ func (runner *Runner) Run(ctx context.Context) error {
 	return nil
 }
 
-func (runner *Runner) process(ctx context.Context, messages []Message) []Message {
+func (runner *Runner) process(ctx context.Context, messages []Message) Settlement {
 	if len(messages) == 0 {
-		return nil
+		return Settlement{}
 	}
 
-	acknowledge := make([]bool, len(messages))
+	actions := make([]bool, len(messages))
 	jobs := make(chan int)
 	workers := min(runner.concurrency, len(messages))
 	done := make(chan struct{}, workers)
@@ -115,15 +143,13 @@ func (runner *Runner) process(ctx context.Context, messages []Message) []Message
 			defer func() { done <- struct{}{} }()
 			for index := range jobs {
 				message := messages[index]
-				handlerContext, cancel := context.WithTimeout(ctx, runner.handlerTimeout)
-				err := runner.handler.Handle(handlerContext, message.Body())
-				cancel()
+				err := runner.handle(ctx, message)
 
 				switch {
 				case err == nil:
-					acknowledge[index] = true
+					actions[index] = true
 				case isDiscard(err):
-					acknowledge[index] = true
+					actions[index] = true
 					runner.logger.Warn(
 						"queue message discarded",
 						"message_id", message.ID(),
@@ -147,13 +173,35 @@ func (runner *Runner) process(ctx context.Context, messages []Message) []Message
 		<-done
 	}
 
-	result := make([]Message, 0, len(messages))
+	settlement := Settlement{
+		Acknowledge: make([]Message, 0, len(messages)),
+		Retry:       make([]Message, 0, len(messages)),
+	}
 	for index, message := range messages {
-		if acknowledge[index] {
-			result = append(result, message)
+		if actions[index] {
+			settlement.Acknowledge = append(settlement.Acknowledge, message)
+		} else {
+			settlement.Retry = append(settlement.Retry, message)
 		}
 	}
-	return result
+	return settlement
+}
+
+func (runner *Runner) handle(ctx context.Context, message Message) (err error) {
+	handlerContext, cancel := context.WithTimeout(ctx, runner.handlerTimeout)
+	defer cancel()
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			runner.logger.Error(
+				"queue handler panicked",
+				"message_id", message.ID(),
+				"panic", recovered,
+				"stack", string(debug.Stack()),
+			)
+			err = errors.New("queue handler panicked")
+		}
+	}()
+	return runner.handler.Handle(handlerContext, message)
 }
 
 type discardError struct {

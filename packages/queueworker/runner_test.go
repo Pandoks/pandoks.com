@@ -24,8 +24,8 @@ func TestRunnerAcknowledgesSuccessAndDiscardOnly(t *testing.T) {
 		acknowledged: make(chan []queueworker.Message, 1),
 		cancel:       cancel,
 	}
-	runner := queueworker.New(queue, queueworker.HandlerFunc(func(_ context.Context, body []byte) error {
-		switch string(body) {
+	runner := queueworker.New(queue, queueworker.HandlerFunc(func(_ context.Context, message queueworker.Message) error {
+		switch string(message.Body()) {
 		case "retry":
 			return errors.New("temporary failure")
 		case "discard":
@@ -63,7 +63,7 @@ func TestRunnerBoundsConcurrency(t *testing.T) {
 	}
 	started := make(chan struct{}, 3)
 	release := make(chan struct{})
-	runner := queueworker.New(queue, queueworker.HandlerFunc(func(context.Context, []byte) error {
+	runner := queueworker.New(queue, queueworker.HandlerFunc(func(context.Context, queueworker.Message) error {
 		started <- struct{}{}
 		<-release
 		return nil
@@ -99,7 +99,7 @@ func TestRunnerTimesOutHandlers(t *testing.T) {
 		cancel:       cancel,
 	}
 	timedOut := make(chan bool, 1)
-	runner := queueworker.New(queue, queueworker.HandlerFunc(func(ctx context.Context, _ []byte) error {
+	runner := queueworker.New(queue, queueworker.HandlerFunc(func(ctx context.Context, _ queueworker.Message) error {
 		<-ctx.Done()
 		timedOut <- errors.Is(ctx.Err(), context.DeadlineExceeded)
 		cancel()
@@ -112,10 +112,9 @@ func TestRunnerTimesOutHandlers(t *testing.T) {
 	if !<-timedOut {
 		t.Fatal("handler context did not reach its deadline")
 	}
-	select {
-	case acknowledged := <-queue.acknowledged:
+	acknowledged := <-queue.acknowledged
+	if len(acknowledged) != 0 {
 		t.Fatalf("acknowledged = %#v, want none", acknowledged)
-	default:
 	}
 }
 
@@ -124,7 +123,7 @@ func TestRunnerRetriesReceiveErrorsUntilCancellation(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	queue := &failingQueue{cancel: cancel}
-	runner := queueworker.New(queue, queueworker.HandlerFunc(func(context.Context, []byte) error {
+	runner := queueworker.New(queue, queueworker.HandlerFunc(func(context.Context, queueworker.Message) error {
 		return nil
 	}), queueworker.Options{PollErrorDelay: time.Millisecond, Logger: discardLogger()})
 
@@ -133,6 +132,47 @@ func TestRunnerRetriesReceiveErrorsUntilCancellation(t *testing.T) {
 	}
 	if queue.receives != 2 {
 		t.Fatalf("receives = %d, want 2", queue.receives)
+	}
+}
+
+func TestRunnerSettlesCompletedWorkAfterCancellation(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	queue := &cancellationQueue{message: fakeMessage{id: "completed"}}
+	runner := queueworker.New(queue, queueworker.HandlerFunc(func(context.Context, queueworker.Message) error {
+		cancel()
+		return nil
+	}), queueworker.Options{SettleTimeout: time.Second, Logger: discardLogger()})
+
+	if err := runner.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if queue.settleErr != nil {
+		t.Fatalf("settlement context error = %v", queue.settleErr)
+	}
+	if len(queue.acknowledged) != 1 || queue.acknowledged[0].ID() != "completed" {
+		t.Fatalf("acknowledged = %#v", queue.acknowledged)
+	}
+}
+
+func TestRunnerRetriesPanickingHandlers(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	queue := &retryQueue{
+		message: fakeMessage{id: "panic"},
+		cancel:  cancel,
+	}
+	runner := queueworker.New(queue, queueworker.HandlerFunc(func(context.Context, queueworker.Message) error {
+		panic("boom")
+	}), queueworker.Options{Logger: discardLogger()})
+
+	if err := runner.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(queue.retried) != 1 || queue.retried[0].ID() != "panic" {
+		t.Fatalf("retried = %#v", queue.retried)
 	}
 }
 
@@ -165,8 +205,8 @@ func (queue *fakeQueue) Receive(ctx context.Context) ([]queueworker.Message, err
 	return nil, ctx.Err()
 }
 
-func (queue *fakeQueue) Acknowledge(_ context.Context, messages []queueworker.Message) error {
-	queue.acknowledged <- messages
+func (queue *fakeQueue) Settle(_ context.Context, settlement queueworker.Settlement) error {
+	queue.acknowledged <- settlement.Acknowledge
 	queue.cancel()
 	return nil
 }
@@ -184,7 +224,31 @@ func (queue *failingQueue) Receive(context.Context) ([]queueworker.Message, erro
 	return nil, errors.New("queue unavailable")
 }
 
-func (*failingQueue) Acknowledge(context.Context, []queueworker.Message) error { return nil }
+func (*failingQueue) Settle(context.Context, queueworker.Settlement) error { return nil }
+
+type cancellationQueue struct {
+	message      queueworker.Message
+	received     bool
+	acknowledged []queueworker.Message
+	settleErr    error
+}
+
+func (queue *cancellationQueue) Receive(context.Context) ([]queueworker.Message, error) {
+	if queue.received {
+		return nil, errors.New("unexpected second receive")
+	}
+	queue.received = true
+	return []queueworker.Message{queue.message}, nil
+}
+
+func (queue *cancellationQueue) Settle(
+	ctx context.Context,
+	settlement queueworker.Settlement,
+) error {
+	queue.settleErr = ctx.Err()
+	queue.acknowledged = append(queue.acknowledged, settlement.Acknowledge...)
+	return nil
+}
 
 func discardLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))

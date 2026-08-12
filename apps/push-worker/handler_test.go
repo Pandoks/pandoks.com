@@ -120,8 +120,11 @@ func (queue *oneMessageQueue) Receive(ctx context.Context) ([]queueworker.Messag
 	return nil, ctx.Err()
 }
 
-func (queue *oneMessageQueue) Acknowledge(context.Context, []queueworker.Message) error {
-	queue.acknowledged = true
+func (queue *oneMessageQueue) Settle(
+	_ context.Context,
+	settlement queueworker.Settlement,
+) error {
+	queue.acknowledged = len(settlement.Acknowledge) != 0
 	queue.cancel()
 	return nil
 }
