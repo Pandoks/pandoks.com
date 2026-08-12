@@ -35,6 +35,12 @@ bootstrap_with_mise() {
 }
 
 install_global_tools() {
+  # dev-workstation conveniences (claude-code, codex, ...) — CI provisions repo
+  # tools via jdx/mise-action and must not depend on these installing cleanly
+  if [ -n "${CI:-}" ]; then
+    log_ok "skipping global tools in CI"
+    return 0
+  fi
   log_step "Installing global tools for the current user"
   (
     entries=$(mise config get --file "${REPO_ROOT}/mise.toml" _.global_tools 2> /dev/null)
