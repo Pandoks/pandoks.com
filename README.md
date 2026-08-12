@@ -15,8 +15,7 @@ Install the host dependencies yourself before setting up the repository:
 
 - [Git](https://git-scm.com/downloads) and [mise](https://mise.jdx.dev/installing-mise.html)
 - [Docker](https://docs.docker.com/get-docker/)
-- [OpenSSL](https://www.openssl.org/) and
-  [htpasswd](https://httpd.apache.org/docs/current/programs/htpasswd.html)
+- [OpenSSL](https://www.openssl.org/)
 - [Tailscale](https://tailscale.com/download), only for production cluster access
 
 Then run this from the root of the monorepo:
@@ -60,7 +59,7 @@ configuration. After pnpm is available, `pnpm run tools:install` is a convenienc
       from node 25+)
     </li>
     <li><a href="https://docs.docker.com/get-docker/">Docker</a> >= v20 — install and configure it globally using Docker's platform instructions</li>
-    <li><a href="https://www.openssl.org/">openssl</a> >= v3 (used by <code>infra/cloudflare.ts</code> for the 15-year origin TLS cert) and <a href="https://httpd.apache.org/docs/current/programs/htpasswd.html">htpasswd</a> (bcrypt hasher for the <code>${VAR | bcrypt}</code> template filter in <code>pnpm cluster deploy</code>; ships with macOS, <code>apache2-utils</code> on Debian, <code>apache</code> on Arch) — install both globally through the native package manager</li>
+    <li><a href="https://www.openssl.org/">openssl</a> >= v3 — used by <code>infra/cloudflare.ts</code> to generate the key and CSR for the 15-year origin TLS certificate; install it through the native package manager</li>
     <li><a href="https://tailscale.com/download">Tailscale</a> — only required for production cluster access (<code>sudo tailscale configure kubeconfig prod-cluster</code>); install it manually if you need prod access</li>
   </ul>
 

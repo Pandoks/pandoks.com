@@ -89,8 +89,8 @@ be documented in the README. Detect and wire it in.
   (e.g. a new `command -v <tool>`, a `<tool> ...` call in `scripts/**`,
   `.github/workflows/**`, a `package.json` script, or an SST `$ <tool>` shell-out);
 - adds a `<tool>` to a `brew install` / `apt-get install` / `pacman -S` line anywhere;
-- references a tool in `scripts/cluster/**` or a template filter (like `htpasswd`
-  for `${VAR | bcrypt}`) that the dependency documentation doesn't cover.
+- references a tool in `scripts/cluster/**` or a template filter that the dependency
+  documentation doesn't cover.
 
 Cross-check the candidate against the managed and host-tool lists:
 

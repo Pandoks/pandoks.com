@@ -18,7 +18,7 @@ minor and Renovate's `kubectl` group PR keeps the two copies in sync.
 authority (pnpm ≥10 self-switches to it — the post-corepack mechanism;
 corepack is removed from node 25+). Python pairs with uv (mise =
 interpreter, uv = project deps; `UV_PYTHON_PREFERENCE=system` in mise's
-`[env]`). Outside mise: Docker ≥ v20 and openssl/htpasswd (system packages),
+`[env]`). Outside mise: Docker ≥ v20 and openssl (system packages),
 plus Git and mise itself. Tailscale is required only for production cluster
 access. These host dependencies and all user configuration are documented in
 `README.md`; no repository script installs, configures, or inventories them.
