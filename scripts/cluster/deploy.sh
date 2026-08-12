@@ -163,10 +163,7 @@ cmd_deploy() {
         if [ $# -lt 2 ]; then
           die "Missing value for --kubeconfig"
         fi
-        cmd_deploy_kubeconfig="$2"
-        [ -f "${cmd_deploy_kubeconfig}" ] || die "kubeconfig not found: ${cmd_deploy_kubeconfig}"
-        cmd_deploy_kubeconfig_dir="$(cd "$(dirname "${cmd_deploy_kubeconfig}")" && pwd)"
-        KUBECONFIG="${cmd_deploy_kubeconfig_dir}/$(basename "${cmd_deploy_kubeconfig}")"
+        KUBECONFIG="$(validate_and_get_absolute_kubeconfig_path "$2")"
         export KUBECONFIG
         printf "%bUsing kubeconfig:%b %s\n" "${BOLD}" "${NORMAL}" "${KUBECONFIG}" >&2
         shift 2

@@ -36,7 +36,7 @@ k3s/
 ## Two-phase deploy
 
 The cluster CLI picks the kustomize path from the `--bootstrap` flag
-(`scripts/cluster/deploy.sh:187-191`):
+(`scripts/cluster/deploy.sh:184-188`):
 
 ```
 --bootstrap ✓  →  k3s/bootstrap/<env>   (CRDs + helm charts; wait for CRDs)
@@ -414,7 +414,7 @@ LoadRestrictionsNone`. The CLI does this; raw `kubectl apply -k`
 5. **Renderer is silent on unknown `${VAR}`** — typos pass through.
    Dry-run + grep is mandatory when introducing new variables.
 6. **Production `--stage` is forced to `production`**
-   (`scripts/cluster/deploy.sh:185` — `[ "${cmd_deploy_env}" = "prod" ] && cmd_deploy_stage="production"`)
+   (`scripts/cluster/deploy.sh:182` — `[ "${cmd_deploy_env}" = "prod" ] && cmd_deploy_stage="production"`)
    — `deploy prod --stage anything` is overridden. By design, prevents
    leaking dev secrets to prod.
 7. **HelmChart upgrade quirk** above — quietly skips chart upgrades on
