@@ -47,9 +47,33 @@ cmd_test_run_suite() {
   pnpm -C "${REPO_ROOT}" --filter "@pandoks.com/${1}" run test:cluster
 }
 
+# Suites are namespace-isolated, so they can share the cluster concurrently;
+# each suite's output buffers to a file and replays in order.
+cmd_test_run_parallel() {
+  cmd_test_run_parallel_dir=$(mktemp -d)
+  cmd_test_run_parallel_pids=""
+  for cmd_test_run_parallel_pkg in postgres valkey clickhouse; do
+    pnpm -C "${REPO_ROOT}" --filter "@pandoks.com/${cmd_test_run_parallel_pkg}" run test:cluster \
+      > "${cmd_test_run_parallel_dir}/${cmd_test_run_parallel_pkg}.log" 2>&1 &
+    cmd_test_run_parallel_pids="${cmd_test_run_parallel_pids} $!"
+  done
+  cmd_test_run_parallel_status=0
+  for cmd_test_run_parallel_pid in ${cmd_test_run_parallel_pids}; do
+    wait "${cmd_test_run_parallel_pid}" || cmd_test_run_parallel_status=1
+  done
+  for cmd_test_run_parallel_pkg in postgres valkey clickhouse; do
+    printf "\n"
+    echo "=== ${cmd_test_run_parallel_pkg} suite output ==="
+    cat "${cmd_test_run_parallel_dir}/${cmd_test_run_parallel_pkg}.log"
+  done
+  rm -rf "${cmd_test_run_parallel_dir}"
+  return "${cmd_test_run_parallel_status}"
+}
+
 cmd_test() {
   [ $# -ge 1 ] || usage_test 1
   cmd_test_target=""
+  cmd_test_parallel=0
   TEST_KEEP=0
 
   while [ $# -gt 0 ]; do
@@ -62,6 +86,7 @@ cmd_test() {
         cmd_test_target="$1"
         ;;
       --keep) TEST_KEEP=1 ;;
+      --parallel) cmd_test_parallel=1 ;;
       help | --help | -h) usage_test ;;
       *)
         log_error "Unknown test argument '$1'"
@@ -77,9 +102,13 @@ cmd_test() {
   cmd_test_prep
 
   if [ "${cmd_test_target}" = "all" ]; then
-    cmd_test_run_suite postgres
-    cmd_test_run_suite valkey
-    cmd_test_run_suite clickhouse
+    if [ "${cmd_test_parallel}" = "1" ]; then
+      cmd_test_run_parallel
+    else
+      cmd_test_run_suite postgres
+      cmd_test_run_suite valkey
+      cmd_test_run_suite clickhouse
+    fi
   else
     cmd_test_run_suite "${cmd_test_target}"
   fi

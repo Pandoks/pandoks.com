@@ -90,6 +90,10 @@ usage_test() {
   printf "  %b--keep%b\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      Leave test releases and namespaces in place after a passing run\n" >&2
   printf "      (failed runs always leave resources for inspection)\n\n" >&2
+  printf "  %b--parallel%b\n" "${YELLOW}" "${NORMAL}" >&2
+  printf "      With 'all': run the suites concurrently on the shared cluster\n" >&2
+  printf "      (namespace-isolated; needs CPU headroom — suite output is\n" >&2
+  printf "      buffered and replayed in order)\n\n" >&2
 
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %s test all\n" "$0" >&2
