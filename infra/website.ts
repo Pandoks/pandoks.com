@@ -30,6 +30,18 @@ if (isProduction) {
       destinationDir: 'apps/web/build',
       rootDir: '',
       buildCaching: true
+    },
+    deploymentConfigs: {
+      preview: {
+        envVars: {
+          NODE_VERSION: { type: 'plain_text', value: '24.18.0' }
+        }
+      },
+      production: {
+        envVars: {
+          NODE_VERSION: { type: 'plain_text', value: '24.18.0' }
+        }
+      }
     }
   });
   new cloudflare.PagesDomain('PersonalWebsiteDomain', {
