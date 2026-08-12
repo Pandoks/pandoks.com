@@ -13,7 +13,7 @@ apply_template_filter_to_value() {
   # shellcheck disable=SC2016
   case "${apply_template_filter_to_value_filter_name}" in
     base64) printf '%s' "${apply_template_filter_to_value_value}" | base64 -w0 ;;
-    bcrypt) pnpm exec bcrypt "${apply_template_filter_to_value_value}" 10 | sed 's/^\$2b\$/\$2a\$/' ;;
+    bcrypt) pnpm bcrypt "${apply_template_filter_to_value_value}" 10 | sed 's/^\$2b\$/\$2a\$/' ;;
     quote) yaml_safe_value "${apply_template_filter_to_value_value}" ;;
     *)
       printf "%bError:%b Unknown template filter: %s\n" "${RED}" "${NORMAL}" "${apply_template_filter_to_value_filter_name}" >&2
