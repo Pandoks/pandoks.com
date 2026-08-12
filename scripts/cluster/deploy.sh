@@ -65,14 +65,7 @@ cmd_deploy_get_template_vars() {
   else
     log_status "Fetching SST resources..."
   fi
-  # SST changes to the project root unless invoked from a pnpm workspace.
-  if [ -n "${cmd_deploy_get_template_vars_stage}" ]; then
-    cmd_deploy_get_template_vars_sst=$(pnpm sst shell \
-      --stage "${cmd_deploy_get_template_vars_stage}" \
-      node scripts/lib/sst-resources.ts)
-  else
-    cmd_deploy_get_template_vars_sst=$(pnpm sst shell node scripts/lib/sst-resources.ts)
-  fi
+  cmd_deploy_get_template_vars_sst=$(get_sst_resources "${cmd_deploy_get_template_vars_stage}")
   if [ -z "${cmd_deploy_get_template_vars_sst}" ]; then
     log_error "Failed to fetch SST resources. Make sure you're authenticated with SST."
     printf "Try running: %bpnpm sso%b.\n" "${BOLD}" "${NORMAL}" >&2
