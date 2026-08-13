@@ -49,7 +49,7 @@ paths:
 
 ## k3d
 
-- **k3d API port is 6444**, not 6443 (`scripts/cluster/k3d.sh:37`) — so
+- **k3d API port is 6444**, not 6443 (`scripts/cluster/k3d.sh:65`) — so
   it doesn't conflict with the remote prod cluster's port over SSH.
 
 ## Namespaces

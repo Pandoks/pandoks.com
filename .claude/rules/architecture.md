@@ -137,7 +137,7 @@ For full per-flow traces, see `.claude/rules/gotchas/*.md`.
   `apps/web/vite.config.ts:13`). Notion sync script
   `apps/web/scripts/notion.ts` runs on `sync-notion.yaml` workflow.
 - **CLI**: `scripts/cluster/main.sh:20-37`. Subcommands: `k3d`
-  (`scripts/cluster/k3d.sh:106`), `deploy` (`scripts/cluster/deploy.sh:128`),
+  (`scripts/cluster/k3d.sh:135`), `deploy` (`scripts/cluster/deploy.sh:128`),
   `test` (`scripts/cluster/test.sh:50`).
 - **ArgoCD root**: `Application/prod-cluster` at
   `k3s/overlays/prod/argocd.yaml:47-68`; CMP at

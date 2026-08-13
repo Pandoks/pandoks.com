@@ -10,6 +10,8 @@ new sst.x.DevCommand('DevWebsite', {
   }
 });
 
+const NODE_VERSION = '24.18.0';
+
 if (isProduction) {
   const personalStaticWebsite = new cloudflare.PagesProject('PersonalWebsite', {
     accountId: cloudflareAccountId,
@@ -30,6 +32,18 @@ if (isProduction) {
       destinationDir: 'apps/web/build',
       rootDir: '',
       buildCaching: true
+    },
+    deploymentConfigs: {
+      preview: {
+        envVars: {
+          NODE_VERSION: { type: 'plain_text', value: NODE_VERSION }
+        }
+      },
+      production: {
+        envVars: {
+          NODE_VERSION: { type: 'plain_text', value: NODE_VERSION }
+        }
+      }
     }
   });
   new cloudflare.PagesDomain('PersonalWebsiteDomain', {
