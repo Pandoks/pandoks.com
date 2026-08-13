@@ -4,7 +4,10 @@ networks:
     driver: bridge
     ipam:
       config:
+        # NOTE: explicit gateway — newer docker engines leave it unset for
+        # subnet-only configs and k3d refuses networks without one
         - subnet: 172.30.0.0/16
+          gateway: 172.30.0.1
 
 services:
   s3:
