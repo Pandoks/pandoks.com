@@ -44,17 +44,12 @@ Then run this from the root of the monorepo:
 
 ```sh
 mise install
-eval "$(mise activate "$(basename "$SHELL")")"
-cp .env.example ".env.$(whoami)"
-# Fill in .env.<stage> and configure the `personal` SSO session in ~/.aws/config.
-SST_STAGE="$(whoami)" pnpm install
+pnpm install
 pnpm sso
 ```
 
-`mise install` installs only the tools pinned in `mise.toml`. It does not install or configure the
-host dependencies above, activate mise in future shells, create environment files, or manage AWS
-configuration. After pnpm is available, `pnpm run tools:install` is a convenience alias for rerunning
-`mise install --yes`.
+Configure the `personal` SSO session in `~/.aws/config` before running `pnpm sso`. `pnpm install`
+also runs `sst install` through the repository's `postinstall` script.
 
 > [!NOTE]
 > AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while
