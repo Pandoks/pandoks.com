@@ -8,8 +8,8 @@
     "pnpm": ">=11"
   },
   "scripts": {
-    "sso": "aws sso login --sso-session=Pandoks_ --use-device-code --no-browser",
-    "bootstrap": "./scripts/bootstrap/main.sh",
+    "sso": "aws sso login --sso-session=personal --use-device-code --no-browser",
+    "tools:install": "mise install --yes",
     "cluster": "./scripts/cluster/main.sh",
     "dev": "sst dev",
     "dev:init": "pnpm cluster k3d deps up && pnpm cluster k3d up && pnpm docker:build && pnpm dev:push && pnpm cluster deploy dev --bootstrap && pnpm cluster deploy dev",
@@ -22,7 +22,6 @@
     "fix": "./scripts/fix/main.sh",
     "check:infra": "tsc -p .",
     "check": "pnpm -r --if-present check && pnpm check:infra",
-    "preinstall": "./scripts/bootstrap/main.sh all",
     "postinstall": "sst install"
   },
   "devDependencies": {
@@ -30,6 +29,7 @@
     "@eslint/compat": "^2.1.0",
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.9.1",
+    "bcryptjs": "3.0.3",
     "eslint": "^10.4.0",
     "eslint-plugin-expo": "^1.0.3",
     "eslint-plugin-react-hooks": "^7.1.1",

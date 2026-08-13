@@ -10,6 +10,7 @@ export default $config({
         aws: {
           region: 'us-west-1',
           profile:
+            // profiles in ~/.aws/config
             process.env.GITHUB_ACTIONS || process.env.AWS_ACCESS_KEY_ID ? undefined : 'Personal'
         },
         cloudflare: '6.15.0',

@@ -5,6 +5,9 @@ go = "1.26.5"
 java = "zulu-17.66.19.0"
 uv = "0.11.19"
 python = "3.14.6"
+aws-cli = "2.36.20"
+gh = "2.97.0"
+jq = "1.8.2"
 
 gcloud = "576.0.0"
 helm = "4.2.2"
@@ -24,33 +27,6 @@ ktlint = "1.8.0"
 swiftlint = "0.63.3"
 ruby = "3.4.9"
 cocoapods = "1.16.2"
-
-[_.global_tools]
-aws-cli = "latest"
-gh = "2.96.0"
-jq = "latest"
-claude-code = "latest"
-codex = "latest"
-
-[bootstrap.packages]
-"apt:openssl" = "latest"
-"apt:apache2-utils" = "latest"
-"apt:docker-ce" = "latest"
-"apt:docker-ce-cli" = "latest"
-"apt:containerd.io" = "latest"
-"apt:docker-buildx-plugin" = "latest"
-"apt:docker-compose-plugin" = "latest"
-"brew:openssl@3" = "latest"
-"brew-cask:docker-desktop" = "latest"
-"pacman:openssl" = "latest"
-"pacman:apache" = "latest"
-"pacman:docker" = "latest"
-"pacman:docker-compose" = "latest"
-"pacman:docker-buildx" = "latest"
-
-[bootstrap.mise_shell_activate]
-bashrc = "activate"
-zshrc = "activate"
 
 [settings]
 python.uv_venv_auto = "source" # auto-activate uv-created .venvs (uv.lock projects)

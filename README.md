@@ -1,91 +1,57 @@
-# Pandoks 🐼
+<div align="center">
+  <a href="https://pandoks.com">
+    <img src="./apps/web/static/favicon/favicon.svg" alt="Pandoks" width="96" height="96">
+  </a>
 
-All things that are related to Pandoks runs on this monorepo. Over time, some of these will branch
-off into their own repos, but for now, they are all here.
+  <h1>Pandoks</h1>
+
+  <p>
+    Everything Pandoks, in one monorepo.<br>
+    Applications, infrastructure, clusters, automation, and development tooling.
+  </p>
+
+  <p>
+    <a href="https://github.com/Pandoks/pandoks.com/actions/workflows/checks.yaml"><img src="https://github.com/Pandoks/pandoks.com/actions/workflows/checks.yaml/badge.svg" alt="Checks"></a>
+    <a href="https://github.com/Pandoks/pandoks.com/actions/workflows/tests.yaml"><img src="https://github.com/Pandoks/pandoks.com/actions/workflows/tests.yaml/badge.svg" alt="Tests"></a>
+    <a href="https://github.com/Pandoks/pandoks.com/actions/workflows/security.yaml"><img src="https://github.com/Pandoks/pandoks.com/actions/workflows/security.yaml/badge.svg" alt="Security"></a>
+  </p>
+
+  <p>
+    <img src="https://img.shields.io/badge/Node.js-24-5FA04E?logo=nodedotjs&logoColor=white" alt="Node.js 24">
+    <img src="https://img.shields.io/badge/pnpm-11-F69220?logo=pnpm&logoColor=white" alt="pnpm 11">
+    <img src="https://img.shields.io/badge/toolchain-mise-8B5CF6" alt="Managed with mise">
+  </p>
+
+  <p>
+    <a href="#getting-started">Getting Started</a> ·
+    <a href="#local-kubernetes-cluster">Local Kubernetes</a> ·
+    <a href="#development">Development</a>
+  </p>
+</div>
 
 # Getting Started
 
-Look at [.env.example](/.env.example) and create `.env.<stage>` files. During _development_, you'll
-want to use the `.env.<dev-stage>` file where `<dev-stage>` is your local machine's username.
-[`sst`](https://sst.dev/) will automatically use the `.env.<dev-stage>` file if you don't specify a
-`--stage` flag. During _production_, you'll want to use the `.env.production` file. You'll also have
-to specify a `--stage production` flag.
+1. Install these dependencies before setting up the repository:
 
-Once you have created your `.env` files, run this from the root of the monorepo to set it up for
-development:
+- [Git](https://git-scm.com/downloads) and [mise](https://mise.jdx.dev/installing-mise.html)
+- [Docker](https://docs.docker.com/get-docker/)
+- [OpenSSL](https://www.openssl.org/)
+- [Tailscale](https://tailscale.com/download), only for production cluster access
+
+2. Setup `.env.<stage>`. Take a look at [.env.example](/.env.example) as a reference.
+
+3. Setup the repository:
 
 ```sh
-./scripts/bootstrap/main.sh all
-eval "$(mise activate "$(basename "$SHELL")")"
+mise install
 pnpm install
-pnpm sso
 ```
 
-Add `--reload` to restart an interactive shell immediately instead of running the `eval` command
-separately:
-
-```sh
-./scripts/bootstrap/main.sh all --reload
-```
-
-The bootstrap script supports macOS (via Homebrew), Ubuntu/Debian (apt), and Arch (pacman). It
-assumes only that `git` is installed and the repo is cloned. It has three subcommands: `all` (the
-default — installs `[tools]` with repository-local mise activation and `[_.global_tools]` in the
-current user's global mise config), `check` (inventory installed versions and flag drift from the
-declarations), and `help`. Existing unrelated global settings are preserved. After the first run,
-the equivalent `pnpm bootstrap` commands are available.
-
-`pnpm install` first runs the full bootstrap, installing missing dependencies and updating local
-tools, global tools, and system packages to the versions declared in `mise.toml`.
+4. Configure AWS SSO session in `~/.aws/config`. `pnpm sso` points to sso session `personal`, but
+   you can change it to whatever you want in `package.json`.
 
 > [!NOTE]
 > AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while
-
-<details>
-  <summary>Dependencies</summary>
-  <p>
-    All installed by <code>./scripts/bootstrap/main.sh all</code>: it bootstraps
-    <a href="https://mise.jdx.dev/">mise</a> (wiring the shell rc with
-    <code>mise activate</code> so mise always wins PATH resolution), runs
-    <code>mise bootstrap</code> (system packages through apt, Homebrew, or pacman; shell activation;
-    and every version-shaped tool declared in <code>mise.toml</code>), then upgrades the declared
-    system packages and installs the custom <code>[_.global_tools]</code> table into
-    <code>~/.config/mise/config.toml</code> for the current user. The bootstrap script also writes
-    the AWS config. Listed here for reference / manual installs.
-  </p>
-  <ul>
-    <li>
-      <b>Via mise</b> (<code>[tools]</code> in <code>mise.toml</code> — exact pins are
-      Renovate-bumped via its native mise manager): Node, pnpm (bootstrap;
-      <code>packageManager</code> is the authority),
-      Go (bootstrap; <code>go.work</code>'s directive rules via GOTOOLCHAIN), kubectl (cluster
-      truth stays <code>KUBECTL_VERSION</code> in <code>packages/argocd/Dockerfile</code>; ±1
-      minor skew tolerated and drift-checked), helm, k3d, kubeconform, Python 3.14 + uv (uv resolves
-      mise's interpreter via
-      <code>UV_PYTHON_PREFERENCE=system</code>; uv owns project deps/venvs), and the whole
-      lint/format toolchain: shellcheck, shfmt, hadolint, actionlint, golangci-lint, govulncheck.
-    </li>
-    <li>
-      <b>Via global mise</b> (<code>[_.global_tools]</code>): awscli v2, jq, Claude Code, Codex, and
-      GitHub CLI.
-    </li>
-    <li>
-      <a href="https://pnpm.io/">pnpm</a> ≥ v11 — mise installs a bootstrap copy; the
-      <code>packageManager</code> pin in <code>package.json</code> stays the authority (pnpm
-      self-switches to it via <code>manage-package-manager-versions</code> — corepack is removed
-      from node 25+)
-    </li>
-    <li><a href="https://docs.docker.com/get-docker/">Docker</a> >= v20 — system platform declared in <code>mise.toml</code>'s <code>[bootstrap.packages]</code> and installed through the native package manager</li>
-    <li><a href="https://www.openssl.org/">openssl</a> >= v3 (used by <code>infra/cloudflare.ts</code> for the 15-year origin TLS cert) and <a href="https://httpd.apache.org/docs/current/programs/htpasswd.html">htpasswd</a> (bcrypt hasher for the <code>${VAR | bcrypt}</code> template filter in <code>pnpm cluster deploy</code>; ships with macOS, <code>apache2-utils</code> on Debian, <code>apache</code> on Arch) — system packages declared in <code>[bootstrap.packages]</code></li>
-    <li><a href="https://tailscale.com/download">Tailscale</a> — only required for production cluster access (<code>sudo tailscale configure kubeconfig prod-cluster</code>); not installed by <code>pnpm bootstrap</code>, install manually if you need prod access</li>
-  </ul>
-
-```sh
-# the short version:
-./scripts/bootstrap/main.sh all
-```
-
-</details>
 
 ## Local Kubernetes Cluster
 
