@@ -187,6 +187,13 @@ jobs:
       - name: Run ShellCheck
         run: ./scripts/lint/main.sh shell
 
+      - name: Test image cohort and shell failure handling
+        run: |
+          sh ./scripts/cluster/image-cohort.test.sh
+          dash ./scripts/cluster/deploy-shell.test.sh
+          bash ./scripts/cluster/deploy-shell.test.sh
+          bash --posix ./scripts/cluster/deploy-shell.test.sh
+
   # ─── Helm ─────────────────────────────────────────────────────────────
   lint-helm:
     needs: detect-changes

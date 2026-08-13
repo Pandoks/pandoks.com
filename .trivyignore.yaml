@@ -1,33 +1,38 @@
 vulnerabilities:
-  # Go stdlib + x/net CVEs in kubectl (argocd image). kubectl v1.36.2 builds on Go 1.26.4 with
-  # x/net v0.49.0; these need Go 1.26.5 / x/net 0.55.0. Unreachable: kubectl only talks to the
-  # cluster API. Drop once a kubectl built on Go 1.26.5+ and x/net 0.55.0+ lands (likely v1.36.3);
+  # kubectl v1.36.3 builds on fixed Go 1.26.5 but still vendors x/net v0.49.0 and x/text v0.33.0.
+  # These parser/network CVEs are not exposed as services: kubectl talks to the configured cluster
+  # API and processes operator-controlled manifests. Drop when Kubernetes ships newer modules;
   # expired_at forces re-review otherwise.
   - id: CVE-2026-25681
     paths:
       - usr/local/bin/kubectl
     statement: x/net/html XSS; kubectl parses no untrusted HTML
-    expired_at: 2026-08-12
+    expired_at: 2026-11-10
   - id: CVE-2026-27136
     paths:
       - usr/local/bin/kubectl
     statement: x/net/html parsing-bypass XSS; kubectl parses no untrusted HTML
-    expired_at: 2026-08-12
+    expired_at: 2026-11-10
   - id: CVE-2026-33814
     paths:
       - usr/local/bin/kubectl
     statement: x/net http2 SETTINGS-frame DoS needs a malicious server; kubectl talks only to in-cluster API
-    expired_at: 2026-08-12
+    expired_at: 2026-11-10
   - id: CVE-2026-39821
     paths:
       - usr/local/bin/kubectl
     statement: x/net/idna Punycode privilege escalation; kubectl resolves hosts from kubeconfig only
-    expired_at: 2026-08-12
-  - id: CVE-2026-39822
+    expired_at: 2026-11-10
+  - id: CVE-2026-46600
     paths:
       - usr/local/bin/kubectl
-    statement: os.Root symlink traversal; kubectl does not open untrusted directory trees
-    expired_at: 2026-08-12
+    statement: x/net DNS parser DoS requires malformed DNS input; kubectl uses operator-selected cluster endpoints
+    expired_at: 2026-11-10
+  - id: CVE-2026-56852
+    paths:
+      - usr/local/bin/kubectl
+    statement: x/text invalid UTF-8 DoS is limited to operator-controlled manifests and cluster responses
+    expired_at: 2026-11-10
 
 misconfigurations:
   # KSV-0109 false positive: flags `password:`/`secret:`-named keys in these ConfigMaps, but the

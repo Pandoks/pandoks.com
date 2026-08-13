@@ -41,7 +41,7 @@ options. Package scripts in `package.json` are wired directly to
 `deploy` applies environment-specific kustomize paths to the cluster:
 
 ```sh
-./scripts/cluster/main.sh deploy <local|dev|prod> [--bootstrap] [--stage <STAGE>] [--dry-run] [--kubeconfig <PATH>] [--quiet]
+./scripts/cluster/main.sh deploy <local|dev|prod> [--bootstrap] [--stage <STAGE>] [--branch <BRANCH>] [--dry-run] [--kubeconfig <PATH>] [--quiet]
 ```
 
 Without `--bootstrap`, deploys the **overlay** at `k3s/overlays/<env>`. With
@@ -50,34 +50,56 @@ Without `--bootstrap`, deploys the **overlay** at `k3s/overlays/<env>`. With
 deploy a fresh cluster end-to-end, run `deploy <env> --bootstrap` first, then
 `deploy <env>` again without the flag.
 
-| Environment | Description                                                                                                       |
-| ----------- | ----------------------------------------------------------------------------------------------------------------- |
-| `local`     | Local k3d cluster. ImageRegistry: `local-registry:5000`, ImageTag: `latest`.                                      |
-| `dev`       | Dev cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: branch name (or `latest` on main/master).          |
-| `prod`      | Production cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: `latest`. SST stage forced to `production`. |
+| Environment | Description                                                                                                                                    |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `local`     | Local k3d cluster. ImageRegistry: `local-registry:5000`, ImageTag: `latest`.                                                                   |
+| `dev`       | Dev cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: newest complete immutable branch cohort.                                        |
+| `prod`      | Production cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: newest complete immutable main cohort. SST stage forced to `production`. |
 
-| Option         | Description                                                                                          |
-| -------------- | ---------------------------------------------------------------------------------------------------- |
-| `--bootstrap`  | Apply `k3s/bootstrap/<env>` (helm charts + CRD providers) and wait for CRDs.                         |
-| `--stage`      | SST stage to fetch secrets from (default: SST's default stage; forced to `production` for prod env). |
-| `--dry-run`    | Render templates without applying.                                                                   |
-| `--kubeconfig` | Kubeconfig file for kubectl operations.                                                              |
-| `--quiet`/`-q` | Suppress status messages, output only YAML (for CI/CD).                                              |
+| Option         | Description                                                                                                   |
+| -------------- | ------------------------------------------------------------------------------------------------------------- |
+| `--bootstrap`  | Apply `k3s/bootstrap/<env>` (helm charts + CRD providers) and wait for CRDs.                                  |
+| `--stage`      | SST stage to fetch secrets from (default: SST's default stage; forced to `production` for prod env).          |
+| `--branch`     | Source branch whose published images dev should use; defaults to the attached branch; non-bootstrap dev only. |
+| `--dry-run`    | Render templates without applying.                                                                            |
+| `--kubeconfig` | Kubeconfig file for kubectl operations.                                                                       |
+| `--quiet`/`-q` | Suppress status messages, output only YAML (for CI/CD).                                                       |
 
 You will be prompted to confirm the destination kubectl context before anything
 is applied (unless using `--dry-run`).
+
+Remote deploys require network access to `origin` and public GHCR, including
+during `--dry-run`. The deploy lists each package's registry tags once, then
+selects the newest run-attempt-specific ref with a completion marker and the
+same tag on all eight package images. Registry reads are anonymously authorized;
+the command does not use `gh` or retained Actions history. Failed, cancelled,
+and partial matrices never publish a marker. A failed-job rerun promotes the
+newest successful staging ref for each image into a fresh complete cohort, so
+successful first-attempt legs do not need to rebuild. The converged images can
+come from different attempts and moving OS repository snapshots, but all use
+the same source commit; only a definitive registry 404 permits fallback, while
+auth/transient failures stop promotion. During dev-tag migration
+only, the exact origin branch SHA may select the preceding canonical 40-character
+form or its immutable 7-/40-character legacy form when it cannot collide with
+either key scheme of a surviving branch. `--bootstrap` does not resolve package
+images because bootstrap manifests do not consume `${ImageTag}`.
+Each registry request retries transient failures, and the command fails closed
+instead of reading past 10,000 tags per package. The `pandoks` owner and
+anonymous pull-token flow are repository-specific; making these packages
+private requires authenticated registry reads first.
 
 ### Template Variables
 
 The `deploy` command renders templates with these substitutions before applying:
 
-| Variable                | Description                                  |
-| ----------------------- | -------------------------------------------- |
-| `${ImageRegistry}`      | Container registry (local-registry or GHCR). |
-| `${ImageTag}`           | Image tag (latest or branch name).           |
-| `${IsLocal}`            | `'true'` or `'false'` for conditional logic. |
-| `${<SST Resource>}`     | Any SST resource by name.                    |
-| `${<Secret> \| base64}` | Base64 encode a secret value.                |
+| Variable                | Description                                                                               |
+| ----------------------- | ----------------------------------------------------------------------------------------- |
+| `${ImageRegistry}`      | Container registry (local-registry or GHCR).                                              |
+| `${ImageTag}`           | Immutable `ref-<branch-key>-<sha12>-<run-id>-<attempt>` cohort tag (or `latest` locally). |
+| `${IsLocal}`            | `'true'` or `'false'` for conditional logic.                                              |
+| `${UseProxyProtocol}`   | `'true'` only for the prod Hetzner load balancer.                                         |
+| `${<SST Resource>}`     | Any SST resource by name.                                                                 |
+| `${<Secret> \| base64}` | Base64 encode a secret value.                                                             |
 
 ## Examples
 
@@ -89,8 +111,8 @@ The `deploy` command renders templates with these substitutions before applying:
 ./scripts/cluster/main.sh k3d up
 
 # Deploy in two steps: bootstrap (helm charts + CRDs), then overlay
-./scripts/cluster/main.sh deploy dev --bootstrap
-./scripts/cluster/main.sh deploy dev
+./scripts/cluster/main.sh deploy local --bootstrap
+./scripts/cluster/main.sh deploy local
 
 # Tear down everything
 ./scripts/cluster/main.sh k3d down

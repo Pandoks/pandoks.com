@@ -8,6 +8,7 @@ readonly SCRIPT_DIR
 readonly REPO_ROOT
 
 . "${REPO_ROOT}/scripts/lib/font.sh"
+. "${REPO_ROOT}/scripts/lib/branch-tag.sh"
 . "${REPO_ROOT}/scripts/lib/log.sh"
 . "${REPO_ROOT}/scripts/lib/sst.sh"
 . "${REPO_ROOT}/scripts/lib/template.sh"

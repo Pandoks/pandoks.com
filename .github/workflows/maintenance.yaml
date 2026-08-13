@@ -48,16 +48,32 @@ jobs:
       OWNER: ${{ github.repository_owner }}
       PACKAGE: ${{ matrix.package }}
     steps:
-      - name: Prune old ref-main-<sha> versions for ${{ matrix.package }} (keep newest 30)
+      - name: Delete stale unmarked image attempts for ${{ matrix.package }}
+        if: ${{ !startsWith(matrix.package, 'charts/') }}
         shell: bash
         run: |
-          api="/users/${OWNER,,}/packages/container/${PACKAGE//\//%2F}/versions"
-          gh api --paginate --slurp "${api}" | jq -r '
-              add
-              | map(select(.metadata.container.tags
-                  | (length == 1) and (.[0] | test("^ref-main-[a-f0-9]{40}$"))))
-              | sort_by(.created_at) | reverse | .[30:][] | .id' \
-            | xargs -rI{} gh api --method DELETE "${api}/{}"
+          api="/users/${OWNER,,}/packages/container/${PACKAGE}/versions"
+          marker_api="/users/${OWNER,,}/packages/container/valkey/versions"
+          all=$(gh api --paginate --slurp "${api}" | jq 'add')
+          markers=$(gh api --paginate --slurp "${marker_api}" \
+            | jq -c '[add[] | .metadata.container.tags[]? | select(startswith("ok-ref-")) | ltrimstr("ok-")] | unique')
+          cutoff=$(date -u -d '14 days ago' '+%Y-%m-%dT%H:%M:%SZ')
+          ids=$(jq -r --arg cutoff "${cutoff}" --argjson markers "${markers}" '
+            def attempt_ref: test("^(try-)?ref-.+-[0-9a-f]{12}-[0-9]+-[0-9]+$");
+            def cohort: ltrimstr("try-");
+            .[]
+            | select(.updated_at < $cutoff)
+            | (.metadata.container.tags // []) as $tags
+            | [$tags[] | select(attempt_ref)] as $attempts
+            | select(($attempts | length) > 0)
+            | select(all($attempts[]; cohort as $c | $markers | index($c) | not))
+            | select(all($tags[]; attempt_ref))
+            | .id' <<<"${all}")
+          while read -r id; do
+            [ -n "${id}" ] || continue
+            echo "Deleting stale unmarked ${PACKAGE} attempt version ${id}"
+            gh api --method DELETE "${api}/${id}"
+          done <<<"${ids}"
 
       - name: Delete orphan untagged versions for ${{ matrix.package }}
         shell: bash
