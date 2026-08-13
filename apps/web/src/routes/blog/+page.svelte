@@ -1,7 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
-  import { getBlogBoundaries } from '$lib/blog-navigation';
   import { getVimState } from '$lib/vim.svelte.js';
   import { Badge } from '@pandoks.com/svelte/shadcn/badge';
   import { getSlugFromBlogTitle } from '$lib/utils';
@@ -9,9 +8,8 @@
   let activeBlogIndex: number | undefined = $state();
 
   function syncBodyBoundaries() {
-    const boundaries = getBlogBoundaries(activeBlogIndex, __BLOG_TITLES__.length);
-    vimState.bodyTop = boundaries.bodyTop;
-    vimState.bodyBottom = boundaries.bodyBottom;
+    vimState.bodyTop = activeBlogIndex === 0;
+    vimState.bodyBottom = activeBlogIndex === __BLOG_TITLES__.length - 1;
   }
 
   const vimState = getVimState()
