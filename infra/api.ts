@@ -1,5 +1,5 @@
 import { secrets } from './secrets';
-import { domain, isProduction } from './dns';
+import { createCloudflareDns, domain, isProduction } from './dns';
 import { githubOrg, githubRepoName } from './github';
 
 const apiDomain = `api.${domain}`;
@@ -13,7 +13,7 @@ const notion = new sst.Linkable('Notion', {
 export const apiRouter = new sst.aws.Router('ApiRouter', {
   domain: {
     name: apiDomain,
-    dns: sst.cloudflare.dns()
+    dns: createCloudflareDns()
   }
 });
 

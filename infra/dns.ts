@@ -20,3 +20,21 @@ export const awsAccountId = awsAccountIdentityJson.accountId;
 const cloudflareZone = await cloudflare.getZone({ filter: { name: 'pandoks.com' } });
 export const cloudflareAccountId = cloudflareZone.account.id;
 export const cloudflareZoneId = cloudflareZone.id;
+
+export function createCloudflareDns() {
+  return sst.cloudflare.dns({
+    transform: {
+      record(args) {
+        const record = args;
+        record.name = $output(record.name).apply(trimTrailingDot);
+        if (record.content) {
+          record.content = $output(record.content).apply(trimTrailingDot);
+        }
+      }
+    }
+  });
+}
+
+function trimTrailingDot(value: string) {
+  return value.replace(/\.$/, '');
+}
