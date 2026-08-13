@@ -13,6 +13,9 @@
   "prHourlyLimit": 0,
   "rangeStrategy": "pin",
   "postUpdateOptions": ["pnpmDedupe", "gomodTidy"],
+  "kubernetes": {
+    "managerFilePatterns": ["/^apps\\/.+\\/kube\\/.+\\.ya?ml$/"]
+  },
   "customManagers": [
     {
       "customType": "regex",
@@ -29,6 +32,15 @@
       "managerFilePatterns": ["/(^|/)packages/argocd/Dockerfile$/"],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z-]+) packageName=(?<packageName>[^\\s]+)\\s+ARG KUBECTL_VERSION=(?<currentValue>v[\\d.]+)"
+      ],
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Track AWS CLI in the argocd image. AWS_CLI_SHA256 must be updated by hand on each bump; a stale checksum fails the image build.",
+      "managerFilePatterns": ["/(^|/)packages/argocd/Dockerfile$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) packageName=(?<packageName>[^\\s]+)\\s+ARG AWS_CLI_VERSION=(?<currentValue>[\\d.]+)"
       ],
       "versioningTemplate": "semver"
     },

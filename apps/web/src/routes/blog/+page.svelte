@@ -1,65 +1,65 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
+  import { getBlogBoundaries, hasBlogNavigation } from '$lib/blog-navigation';
   import { getVimState } from '$lib/vim.svelte.js';
   import { Badge } from '@pandoks.com/svelte/shadcn/badge';
   import { getSlugFromBlogTitle } from '$lib/utils';
 
   let activeBlogIndex: number | undefined = $state();
-  const vimState = getVimState()
-    .setBodyHandler((e) => {
-      switch (e.key) {
-        case 'j':
-          if (activeBlogIndex === __BLOG_TITLES__.length - 2) {
-            // NOTE: You want to set bottom to true on the second to last item because once you've
-            // reached the last item, you want the vim state to take over
-            vimState.bodyBottom = true;
-          }
-          activeBlogIndex!++;
-          if (__BLOG_TITLES__.length > 1) {
-            vimState.bodyTop = false;
-          }
-          return;
-        case 'k':
-          if (activeBlogIndex === 1) {
-            // NOTE: same note as above but now you're going up
-            vimState.bodyTop = true;
-          }
 
-          activeBlogIndex!--;
-          if (__BLOG_TITLES__.length > 1) {
-            vimState.bodyBottom = false;
-          }
-          return;
-        case 'Enter':
-          if (activeBlogIndex !== undefined) {
-            const post = __BLOG_TITLES__[activeBlogIndex];
-            if (post) {
-              vimState.active = 'none';
-              void goto(resolve('/blog/[title]', { title: getSlugFromBlogTitle(post) }));
+  function syncBodyBoundaries() {
+    const boundaries = getBlogBoundaries(activeBlogIndex, __BLOG_TITLES__.length);
+    vimState.bodyTop = boundaries.bodyTop;
+    vimState.bodyBottom = boundaries.bodyBottom;
+  }
+
+  const vimState = getVimState();
+  if (!hasBlogNavigation(__BLOG_TITLES__.length)) {
+    vimState.clearBody();
+  } else {
+    vimState
+      .setBodyHandler((e) => {
+        switch (e.key) {
+          case 'j':
+            if (activeBlogIndex === undefined || activeBlogIndex >= __BLOG_TITLES__.length - 1) {
+              return;
             }
-          }
-          return;
-      }
-    })
-    .setInitBodyState((e: KeyboardEvent) => {
-      if (e.key === 'j') {
-        activeBlogIndex = 0;
-        if (__BLOG_TITLES__.length > 1) {
-          vimState.bodyBottom = false;
+            activeBlogIndex++;
+            syncBodyBoundaries();
+            return;
+          case 'k':
+            if (activeBlogIndex === undefined || activeBlogIndex <= 0) {
+              return;
+            }
+            activeBlogIndex--;
+            syncBodyBoundaries();
+            return;
+          case 'Enter':
+            if (activeBlogIndex !== undefined) {
+              const post = __BLOG_TITLES__[activeBlogIndex];
+              if (post) {
+                vimState.active = 'none';
+                void goto(resolve('/blog/[title]', { title: getSlugFromBlogTitle(post) }));
+              }
+            }
+            return;
         }
-      }
-      if (e.key === 'k') {
-        activeBlogIndex = __BLOG_TITLES__.length - 1;
-        vimState.bodyBottom = true;
-        if (__BLOG_TITLES__.length > 1) {
-          vimState.bodyTop = false;
+      })
+      .setInitBodyState((e: KeyboardEvent) => {
+        if (e.key === 'j') {
+          activeBlogIndex = 0;
+          syncBodyBoundaries();
         }
-      }
-    })
-    .setResetBodyState(() => {
-      activeBlogIndex = undefined;
-    });
+        if (e.key === 'k') {
+          activeBlogIndex = __BLOG_TITLES__.length - 1;
+          syncBodyBoundaries();
+        }
+      })
+      .setResetBodyState(() => {
+        activeBlogIndex = undefined;
+      });
+  }
 </script>
 
 {#if __BLOG_TITLES__.length}

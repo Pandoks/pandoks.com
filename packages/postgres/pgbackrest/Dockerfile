@@ -1,11 +1,12 @@
-FROM postgres:18-trixie
+FROM postgres:18-trixie@sha256:a02db8cac496f15b094798a38254f14d6e00741f709360e5e00bb6668ea31636
 
 # gosu is bundled in the base image but never invoked by our entrypoint;
 # remove it to drop the (unreachable) Go stdlib CVEs in its static binary
+# hadolint ignore=DL3008
 RUN rm -f /usr/local/bin/gosu \
   && apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
-  gettext-base=0.23.1-2 \
-  pgbackrest=2.58.0-1.pgdg13+1 \
+  gettext-base \
+  pgbackrest \
   && rm -rf /var/lib/apt/lists/*
 
 COPY ./packages/postgres/pgbackrest/entrypoint.sh /usr/local/bin/entrypoint.sh

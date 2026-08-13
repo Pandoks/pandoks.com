@@ -1,4 +1,4 @@
-FROM golang:1.26.5-trixie AS builder
+FROM golang:1.26.5-trixie@sha256:98988b42f3293b627bf07c884ff17181a59501769cd8c06c7ba901e0ce2c9853 AS builder
 
 WORKDIR /src
 COPY packages/valkey/reconciler/go.mod packages/valkey/reconciler/go.sum ./
@@ -12,7 +12,7 @@ ENV GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0
 
 RUN go build -trimpath -buildvcs=false -ldflags="-s -w" -o /out/valkey-reconciler ./main.go
 
-FROM valkey/valkey:9-alpine@sha256:a35428eba9043cc0b79dbe54100f0c92784f2de00ad09b01182bfb1c5c83d1bd
+FROM valkey/valkey:9-alpine@sha256:ee91f7a174ac4d6a6b0685b3a60e321f0a9dbbb691f9b0e285be2ba1d1be8328
 
 USER root
 RUN apk upgrade --no-cache

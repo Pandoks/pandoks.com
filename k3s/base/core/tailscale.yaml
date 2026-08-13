@@ -1,5 +1,5 @@
 # WARNING: make sure to match it with /infra/vps/cloud-config.yaml's secret creation
-# NOTE: Only needed in production - the tailscale operator is not installed in dev
+# NOTE: Used by both dev and prod through the shared cluster overlay
 apiVersion: v1
 kind: Secret
 metadata:

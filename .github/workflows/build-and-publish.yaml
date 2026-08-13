@@ -6,36 +6,8 @@ permissions:
 on:
   workflow_dispatch:
     inputs:
-      patroni:
-        description: 'Image · patroni'
-        type: boolean
-        default: false
-      pgbackrest:
-        description: 'Image · pgbackrest'
-        type: boolean
-        default: false
-      valkey:
-        description: 'Image · valkey'
-        type: boolean
-        default: false
-      valkey-reconciler:
-        description: 'Image · valkey-reconciler'
-        type: boolean
-        default: false
-      argocd-sst-plugin:
-        description: 'Image · argocd-sst-plugin'
-        type: boolean
-        default: false
-      clickhouse:
-        description: 'Image · clickhouse'
-        type: boolean
-        default: false
-      clickhouse-keeper:
-        description: 'Image · clickhouse-keeper'
-        type: boolean
-        default: false
-      clickhouse-backup:
-        description: 'Image · clickhouse-backup'
+      images:
+        description: 'All deployable images'
         type: boolean
         default: false
       postgres-chart:
@@ -73,28 +45,32 @@ jobs:
         uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4
         with:
           filters: |
-            patroni:
+            cohort:
               - 'packages/postgres/patroni/**'
-            pgbackrest:
               - 'packages/postgres/pgbackrest/**'
-            valkey:
-              - 'packages/valkey/**'
-            valkey-reconciler:
+              - 'packages/valkey/Dockerfile'
+              - 'packages/valkey/entrypoint.sh'
               - 'packages/valkey/reconciler/**'
-            argocd-sst-plugin:
               - 'packages/argocd/**'
-            clickhouse:
               - 'packages/clickhouse/clickhouse/**'
-            clickhouse-keeper:
               - 'packages/clickhouse/keeper/**'
-            clickhouse-backup:
               - 'packages/clickhouse/backup/**'
+              - 'package.json'
+              - '.github/workflows/build-and-publish.yaml'
+              - 'scripts/lib/branch-tag.sh'
+              - 'scripts/lib/ghcr.sh'
+              - 'trivy.yaml'
+              - '.trivyignore.yaml'
 
       - id: chart-changes
         if: github.event_name != 'workflow_dispatch'
         uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4
         with:
           filters: |
+            scan-all:
+              - '.github/workflows/build-and-publish.yaml'
+              - 'trivy.yaml'
+              - '.trivyignore.yaml'
             postgres:
               - 'packages/postgres/chart/**'
             valkey:
@@ -104,7 +80,7 @@ jobs:
 
       - id: set-image-matrix
         env:
-          DISPATCH: ${{ toJSON(inputs) }}
+          DISPATCH_IMAGES: ${{ inputs.images || false }}
         run: |
           all='[
             {"name":"patroni","path":"./packages/postgres/patroni/Dockerfile"},
@@ -116,13 +92,37 @@ jobs:
             {"name":"clickhouse-keeper","path":"./packages/clickhouse/keeper/Dockerfile"},
             {"name":"clickhouse-backup","path":"./packages/clickhouse/backup/Dockerfile"}
           ]'
+          publish=false
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            selected=$(jq -c 'to_entries | map(select(.value == true) | .key)' <<<"${DISPATCH}")
-          else
-            selected='${{ steps.image-changes.outputs.changes || '[]' }}'
+            publish="${DISPATCH_IMAGES}"
+          elif [[ "${{ steps.image-changes.outputs.cohort }}" == "true" ]]; then
+            publish=true
           fi
-          images=$(jq -c --argjson sel "${selected}" 'map(select(.name as $n | $sel | index($n)))' <<<"${all}")
+          images='[]'
+          if [[ "${publish}" == "true" ]]; then
+            images=$(jq -c . <<<"${all}")
+          fi
           echo "images=${images}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify deployable image cohort
+        env:
+          IMAGES: ${{ steps.set-image-matrix.outputs.images }}
+        run: |
+          expected='[
+            {"name":"argocd-sst-plugin","path":"./packages/argocd/Dockerfile"},
+            {"name":"clickhouse","path":"./packages/clickhouse/clickhouse/Dockerfile"},
+            {"name":"clickhouse-backup","path":"./packages/clickhouse/backup/Dockerfile"},
+            {"name":"clickhouse-keeper","path":"./packages/clickhouse/keeper/Dockerfile"},
+            {"name":"patroni","path":"./packages/postgres/patroni/Dockerfile"},
+            {"name":"pgbackrest","path":"./packages/postgres/pgbackrest/Dockerfile"},
+            {"name":"valkey","path":"./packages/valkey/Dockerfile"},
+            {"name":"valkey-reconciler","path":"./packages/valkey/reconciler/Dockerfile"}
+          ]'
+          if ! jq -e --argjson expected "${expected}" \
+            'length == 0 or (sort_by(.name, .path) == $expected)' <<<"${IMAGES}" > /dev/null; then
+            echo "Image publishing must select either zero or the exact eight-image cohort" >&2
+            exit 1
+          fi
 
       - id: set-chart-matrix
         env:
@@ -135,10 +135,14 @@ jobs:
           ]'
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             selected=$(jq -c 'to_entries | map(select(.value == true and (.key | endswith("-chart"))) | .key | sub("-chart$"; ""))' <<<"${DISPATCH}")
+            scan_all=false
           else
             selected='${{ steps.chart-changes.outputs.changes || '[]' }}'
+            scan_all='${{ steps.chart-changes.outputs.scan-all || 'false' }}'
           fi
-          charts=$(jq -c --argjson sel "${selected}" 'map(select(.name as $n | $sel | index($n)))' <<<"${all}")
+          charts=$(jq -c --argjson sel "${selected}" --argjson scan_all "${scan_all}" '
+            map(. + {publish: (.name as $n | $sel | index($n) != null)})
+            | map(select($scan_all or .publish))' <<<"${all}")
           echo "charts=${charts}" >> "${GITHUB_OUTPUT}"
 
   build-publish-images:
@@ -151,6 +155,7 @@ jobs:
       id-token: write
       attestations: write
     strategy:
+      fail-fast: false
       matrix:
         image: ${{ fromJSON(needs.detect-changes.outputs.images) }}
 
@@ -169,15 +174,27 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Compute branch tag
+        id: branch-tag
+        env:
+          BRANCH: ${{ github.ref_name }} # WARNING: do not inline this (security risk)
+          COMMIT_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          . ./scripts/lib/branch-tag.sh
+          key=$(branch_tag "${BRANCH}")
+          value=$(image_cohort_staging_tag "${key}" "${COMMIT_SHA}" "${RUN_ID}" "${RUN_ATTEMPT}")
+          [[ -n "${value}" ]]
+          echo "value=${value}" >> "${GITHUB_OUTPUT}"
+
       - uses: docker/metadata-action@v6
         id: meta
         with:
           # NOTE: github.repository includes the owner/org (ghcr.io/<owner/org>/repo-name)
           images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image.name }}
           tags: |
-            type=ref,event=branch
-            type=raw,value=ref-{{branch}}-{{sha}}
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ steps.branch-tag.outputs.value }}
 
       - name: Build image
         uses: docker/build-push-action@v7
@@ -246,26 +263,90 @@ jobs:
         with:
           tools: helm
 
+      - name: Package Helm Chart
+        run: helm package "${{ matrix.chart.path }}"
+
       - name: Login to GHCR
+        if: github.ref_name == github.event.repository.default_branch && matrix.chart.publish
         run: |
           echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Package and Push Helm Chart
+      - name: Push Helm Chart
+        if: github.ref_name == github.event.repository.default_branch && matrix.chart.publish
         env:
           OWNER: ${{ github.repository_owner }}
-          BRANCH: ${{ github.ref_name }} # WARNING: do not inline this (security risk)
         run: |
-          version_arg=()
-          if [[ "${BRANCH}" != "${{ github.event.repository.default_branch }}" ]]; then
-            version_arg=(--version "$(yq .version "${{ matrix.chart.path }}/Chart.yaml")-${BRANCH//\//-}")
-          fi
-          helm package "${{ matrix.chart.path }}" "${version_arg[@]}"
           helm push "${{ matrix.chart.name }}"-*.tgz "oci://ghcr.io/${OWNER,,}/charts"
+
+  mark-image-cohort:
+    needs:
+      - detect-changes
+      - build-publish-images
+    if: needs.detect-changes.outputs.images != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish complete cohort marker
+        env:
+          BRANCH: ${{ github.ref_name }} # WARNING: do not inline this (security risk)
+          COMMIT_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          OWNER: ${{ github.repository_owner }}
+          IS_DEFAULT_BRANCH: ${{ github.ref_name == github.event.repository.default_branch }}
+        run: |
+          . ./scripts/lib/branch-tag.sh
+          . ./scripts/lib/ghcr.sh
+          key=$(branch_tag "${BRANCH}")
+          tag=$(image_cohort_tag "${key}" "${COMMIT_SHA}" "${RUN_ID}" "${RUN_ATTEMPT}")
+          owner=${OWNER,,}
+          images='patroni pgbackrest valkey valkey-reconciler argocd-sst-plugin clickhouse clickhouse-keeper clickhouse-backup'
+          for image in ${images}; do
+            token=$(curl -fsS --retry 3 --retry-all-errors \
+              --connect-timeout 10 --max-time 30 \
+              "https://ghcr.io/token?scope=repository:${owner}/${image}:pull" \
+              | jq -er .token)
+            if ! source_tag=$(ghcr_find_image_staging_tag \
+              "${owner}/${image}" "${key}" "${COMMIT_SHA}" \
+              "${RUN_ID}" "${RUN_ATTEMPT}" "${token}"); then
+              echo "No successful staging ref exists for ${image} in workflow run ${RUN_ID}" >&2
+              exit 1
+            fi
+            docker buildx imagetools create \
+              --tag "ghcr.io/${owner}/${image}:${tag}" \
+              "ghcr.io/${owner}/${image}:${source_tag}"
+          done
+          for image in ${images}; do
+            docker buildx imagetools inspect "ghcr.io/${owner}/${image}:${tag}" > /dev/null
+          done
+          if [[ "${IS_DEFAULT_BRANCH}" == "true" ]]; then
+            for image in ${images}; do
+              docker buildx imagetools create \
+                --tag "ghcr.io/${owner}/${image}:latest" \
+                "ghcr.io/${owner}/${image}:${tag}"
+            done
+          fi
+          marker=$(image_cohort_marker_tag "${tag}")
+          docker buildx imagetools create \
+            --tag "ghcr.io/${owner}/valkey:${marker}" \
+            "ghcr.io/${owner}/valkey:${tag}"
 
   build-and-publish-pass:
     needs:
       - build-publish-images
       - build-publish-charts
+      - mark-image-cohort
     if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-latest
     steps:

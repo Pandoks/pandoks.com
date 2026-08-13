@@ -1,7 +1,7 @@
 {
   "name": "pandoks.com",
   "version": "1.0.0",
-  "packageManager": "pnpm@11.5.1+sha512.93f7b57422ea7068257235b4c16eb60762eb68e1dc23723199cc739043ea9be2c4143274a399d8c6defa2b1176226d9ca1c4b63482d6200c1a8fbaa78c1d1485",
+  "packageManager": "pnpm@11.21.0+sha512.521705bce689924eac72f5a3587122f362689ef6571e55ba80076fd637c11132ecffada26fad4ea79c485bfddbfd3d5a2a5b05805a77e893de71ec8a6cca3bb1",
   "type": "module",
   "engines": {
     "node": ">=24",
@@ -12,7 +12,7 @@
     "tools:install": "mise install --yes",
     "cluster": "./scripts/cluster/main.sh",
     "dev": "sst dev",
-    "dev:init": "pnpm cluster k3d deps up && pnpm cluster k3d up && pnpm docker:build && pnpm dev:push && pnpm cluster deploy dev --bootstrap && pnpm cluster deploy dev",
+    "dev:init": "pnpm cluster k3d deps up && pnpm cluster k3d up && pnpm docker:build && pnpm dev:push && pnpm cluster deploy local --bootstrap && pnpm cluster deploy local",
     "dev:destroy": "pnpm cluster k3d down && pnpm cluster k3d deps down",
     "dev:push": "pnpm -r --if-present dev:push",
     "docker:build": "pnpm -r --if-present docker:build",
@@ -22,7 +22,7 @@
     "fix": "./scripts/fix/main.sh",
     "check:infra": "tsc -p .",
     "check": "pnpm -r --if-present check && pnpm check:infra",
-    "postinstall": "sst install"
+    "postinstall": "[ \"${PANDOKS_INSTALL_MODE:-}\" = dependencies ] || sst install"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260522.1",
