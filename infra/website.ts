@@ -10,6 +10,8 @@ new sst.x.DevCommand('DevWebsite', {
   }
 });
 
+const NODE_VERSION = '24.18.0';
+
 if (isProduction) {
   const personalStaticWebsite = new cloudflare.PagesProject('PersonalWebsite', {
     accountId: cloudflareAccountId,
@@ -34,12 +36,12 @@ if (isProduction) {
     deploymentConfigs: {
       preview: {
         envVars: {
-          NODE_VERSION: { type: 'plain_text', value: '24.18.0' }
+          NODE_VERSION: { type: 'plain_text', value: NODE_VERSION }
         }
       },
       production: {
         envVars: {
-          NODE_VERSION: { type: 'plain_text', value: '24.18.0' }
+          NODE_VERSION: { type: 'plain_text', value: NODE_VERSION }
         }
       }
     }
