@@ -5,7 +5,10 @@
 
   <h1>Pandoks</h1>
 
-  <p>Everything behind <a href="https://pandoks.com">pandoks.com</a>, built in one monorepo.</p>
+  <p>
+    Everything Pandoks, in one monorepo.<br>
+    Applications, infrastructure, clusters, automation, and development tooling.
+  </p>
 
   <p>
     <a href="https://github.com/Pandoks/pandoks.com/actions/workflows/checks.yaml"><img src="https://github.com/Pandoks/pandoks.com/actions/workflows/checks.yaml/badge.svg" alt="Checks"></a>
