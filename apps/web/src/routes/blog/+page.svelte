@@ -1,7 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
-  import { getBlogBoundaries, hasBlogNavigation } from '$lib/blog-navigation';
+  import { getBlogBoundaries } from '$lib/blog-navigation';
   import { getVimState } from '$lib/vim.svelte.js';
   import { Badge } from '@pandoks.com/svelte/shadcn/badge';
   import { getSlugFromBlogTitle } from '$lib/utils';
@@ -14,52 +14,47 @@
     vimState.bodyBottom = boundaries.bodyBottom;
   }
 
-  const vimState = getVimState();
-  if (!hasBlogNavigation(__BLOG_TITLES__.length)) {
-    vimState.clearBody();
-  } else {
-    vimState
-      .setBodyHandler((e) => {
-        switch (e.key) {
-          case 'j':
-            if (activeBlogIndex === undefined || activeBlogIndex >= __BLOG_TITLES__.length - 1) {
-              return;
-            }
-            activeBlogIndex++;
-            syncBodyBoundaries();
+  const vimState = getVimState()
+    .setBodyHandler((e) => {
+      switch (e.key) {
+        case 'j':
+          if (activeBlogIndex === undefined || activeBlogIndex >= __BLOG_TITLES__.length - 1) {
             return;
-          case 'k':
-            if (activeBlogIndex === undefined || activeBlogIndex <= 0) {
-              return;
-            }
-            activeBlogIndex--;
-            syncBodyBoundaries();
-            return;
-          case 'Enter':
-            if (activeBlogIndex !== undefined) {
-              const post = __BLOG_TITLES__[activeBlogIndex];
-              if (post) {
-                vimState.active = 'none';
-                void goto(resolve('/blog/[title]', { title: getSlugFromBlogTitle(post) }));
-              }
-            }
-            return;
-        }
-      })
-      .setInitBodyState((e: KeyboardEvent) => {
-        if (e.key === 'j') {
-          activeBlogIndex = 0;
+          }
+          activeBlogIndex++;
           syncBodyBoundaries();
-        }
-        if (e.key === 'k') {
-          activeBlogIndex = __BLOG_TITLES__.length - 1;
+          return;
+        case 'k':
+          if (activeBlogIndex === undefined || activeBlogIndex <= 0) {
+            return;
+          }
+          activeBlogIndex--;
           syncBodyBoundaries();
-        }
-      })
-      .setResetBodyState(() => {
-        activeBlogIndex = undefined;
-      });
-  }
+          return;
+        case 'Enter':
+          if (activeBlogIndex !== undefined) {
+            const post = __BLOG_TITLES__[activeBlogIndex];
+            if (post) {
+              vimState.active = 'none';
+              void goto(resolve('/blog/[title]', { title: getSlugFromBlogTitle(post) }));
+            }
+          }
+          return;
+      }
+    })
+    .setInitBodyState((e: KeyboardEvent) => {
+      if (e.key === 'j') {
+        activeBlogIndex = 0;
+        syncBodyBoundaries();
+      }
+      if (e.key === 'k') {
+        activeBlogIndex = __BLOG_TITLES__.length - 1;
+        syncBodyBoundaries();
+      }
+    })
+    .setResetBodyState(() => {
+      activeBlogIndex = undefined;
+    });
 </script>
 
 {#if __BLOG_TITLES__.length}
