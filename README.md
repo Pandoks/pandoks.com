@@ -31,25 +31,24 @@
 
 # Getting Started
 
-Look at [.env.example](/.env.example) and create `.env.<stage>` files.
-
-Install the host dependencies yourself before setting up the repository:
+1. Install these dependencies before setting up the repository:
 
 - [Git](https://git-scm.com/downloads) and [mise](https://mise.jdx.dev/installing-mise.html)
 - [Docker](https://docs.docker.com/get-docker/)
 - [OpenSSL](https://www.openssl.org/)
 - [Tailscale](https://tailscale.com/download), only for production cluster access
 
-Then run this from the root of the monorepo:
+2. Setup `.env.<stage>`. Take a look at [.env.example](/.env.example) as a reference.
+
+3. Setup the repository:
 
 ```sh
 mise install
 pnpm install
-pnpm sso
 ```
 
-Configure the `personal` SSO session in `~/.aws/config` before running `pnpm sso`. `pnpm install`
-also runs `sst install` through the repository's `postinstall` script.
+4. Configure AWS SSO session in `~/.aws/config`. `pnpm sso` points to sso session `personal`, but
+   you can change it to whatever you want in `package.json`.
 
 > [!NOTE]
 > AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while
