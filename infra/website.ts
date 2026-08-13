@@ -25,7 +25,6 @@ if (isProduction) {
         productionBranch: 'main',
         prCommentsEnabled: true,
         pathIncludes: [
-          '.node-version',
           'apps/web/*',
           'package.json',
           'packages/svelte/*',
