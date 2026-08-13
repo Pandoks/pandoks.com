@@ -5,9 +5,19 @@ paths:
   - '**/go.sum'
 ---
 
-# Code style — Go (`packages/valkey/reconciler`)
+# Code style — Go
 
 Plain stdlib Go. No third-party logger, no fancy frameworks.
+
+`packages/queueworker` owns transport-neutral queue consumption and publishing:
+bounded concurrency, handler timeouts, cancellation, acknowledgment,
+retry/discard, and generic `slog` events. Its `sqs`, `valkey`, and `cloudflare`
+subpackages own transport behavior; `adapter` selects one from environment
+configuration. `apps/workers/queue-runtime` exposes the versioned gRPC handler
+contract to non-Go workers. `apps/push-worker` owns job decoding, provider
+dispatch, APNs/FCM clients, configuration, and push-specific logs. Keep
+provider types out of the shared package and transport SDK types out of the
+runner.
 
 ## CLI shape
 

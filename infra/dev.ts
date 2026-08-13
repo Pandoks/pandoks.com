@@ -1,3 +1,53 @@
+import { isProduction } from './dns';
+
+if (isProduction) {
+  new ovh.vps.Vps(
+    'OvhDevVps',
+    {
+      displayName: 'pandoks-dev-box',
+      doNotSendPassword: false,
+      ovhSubsidiary: 'US',
+      plans: [
+        {
+          duration: 'P1M',
+          planCode: 'vps-2027-model4',
+          pricingMode: 'upfront12',
+          quantity: 1,
+          configurations: [
+            { label: 'vps_datacenter', value: 'US-WEST-OR' },
+            { label: 'vps_os', value: 'Ubuntu 26.04' }
+          ]
+        }
+      ],
+      planOptions: [
+        {
+          duration: 'P1M',
+          planCode: 'option-linux',
+          pricingMode: 'upfront12',
+          quantity: 1
+        },
+        {
+          duration: 'P1M',
+          planCode: 'option-auto-backup-2027-1-model4',
+          pricingMode: 'upfront12',
+          quantity: 1
+        },
+        {
+          duration: 'P1M',
+          planCode: 'option-storage-local-2027-model4',
+          pricingMode: 'upfront12',
+          quantity: 1
+        }
+      ]
+    },
+    {
+      protect: true,
+      import: 'vps-54c42746.vps.ovh.us',
+      ignoreChanges: ['plans', 'ovhSubsidiary']
+    }
+  );
+}
+
 new sst.x.DevCommand('DevInit', {
   dev: {
     title: 'InitDev',

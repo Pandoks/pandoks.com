@@ -26,17 +26,46 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
   Note: `NotionWebhookHandler` (`infra/api.ts:61`) is **unconditional**
   — not a prod-only example, deploys in every stage.
 - **Sandbox imports go in the literal `Promise.all` list** at
-  `sst.config.ts:24-38`. When re-adding sandbox files under
+  `sst.config.ts:30-44`. When re-adding sandbox files under
   `infra/sandbox/<name>.ts`, gate **inside** the sandbox file with
   `if ($app.stage === 'pandoks') { ... }` rather than at the
   `sst.config.ts` import site — keeps the import list literal
-  (dynamic imports break SST per `sst.config.ts:22`).
+  (dynamic imports break SST per `sst.config.ts:29`).
 
 ## Region / non-default provider override
 
 - **App default region is `us-west-1`** (`sst.config.ts:11`, the `aws`
   provider block). Resources land there unless explicitly handed a
   different provider.
+- **OVH binds through the `package`-keyed provider entry**
+  (`sst.config.ts:18-23`), not the npm package name and not an explicit
+  `ovh.Provider`. SST namespaces provider config by the key you wrote, so
+  `'@ovhcloud/pulumi-ovh': { applicationKey }` emits
+  `@ovhcloud/pulumi-ovh:applicationKey` while the provider reads
+  `ovh:applicationKey` — the credential is silently dropped and the client
+  fails with `both application_key and application_secret must be given`.
+  A bare `ovh:` key alone is not an option either: SST resolves it against
+  `@sst-provider/ovh`, `@pulumi/ovh`, `@pulumiverse/ovh`, `pulumi-ovh`,
+  `@ovh`, `ovh` and fails with `provider ovh not found`. The shape that
+  works is `ovh: { package: '@ovhcloud/pulumi-ovh', ... }` — SST's `package`
+  field decouples the npm package from the config namespace (sst's Go
+  source, not this repo: `pkg/project/install.go:229-241` installs it,
+  `pkg/project/run.go:306` skips it when emitting `--config`). It is
+  undocumented on sst.dev.
+- **Nothing secret goes in that entry.** `app()` runs before `sst.Secret`
+  values exist, and everything in the block is passed on the pulumi command
+  line, where it lands in `.sst/log/sst.log`. So only the non-secret halves
+  are literals there (`endpoint: 'ovh-us'`, `applicationKey`); the secret
+  pair rides the provider's own env fallbacks `OVH_APPLICATION_SECRET` /
+  `OVH_CONSUMER_KEY` (config-key ↔ env mapping is documented in the
+  installed provider's `README.md`) — `.env.<stage>` locally
+  (`.env.example:10-11`), GitHub Actions secrets in CI
+  (`.github/workflows/deploy-infra.yaml:74-75`, mirrored from
+  `secrets.ovh.*` by `infra/github.ts:60-70`).
+- **OVH resources take no `{ provider }`** — `infra/dev.ts:43` passes
+  `{ protect: true }` only. `secrets.ovh.*` (`infra/secrets.ts:45-48`)
+  now exists solely to feed the GitHub Actions mirror; it no longer
+  reaches the provider directly.
 - **To pin a resource to another region, pass `{ provider: usWest2Provider }`
   as the 3rd constructor arg** — the shared `aws.Provider` is defined once in
   `infra/aws.ts:4` (`usWest2Provider`, region `US_WEST_2_REGION` `:3`) and
@@ -58,7 +87,7 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
 
 ## Secret-drift auto-set helper
 
-- **`setSecret()` at `infra/secrets.ts:81`.** Pattern:
+- **`setSecret()` at `infra/secrets.ts:90`.** Pattern:
 
   ```ts
   secrets.X.value.apply((current) => {
@@ -79,9 +108,9 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
 
 - **Nested namespace in `infra/secrets.ts` but flat PascalCase resource
   names**: `secrets.k8s.main.mainPostgres.SuperuserPassword` → resource
-  ID `MainMainPostgresSuperuserPassword` (`infra/secrets.ts:61-67`).
+  ID `MainMainPostgresSuperuserPassword` (`infra/secrets.ts:70-76`).
   The naming convention is captured in a load-bearing inline comment at
-  `infra/secrets.ts:60`.
+  `infra/secrets.ts:69`.
 - **Pattern (k8s subtree only)**: `<namespace><db-name><resource><var>`.
   Outside `secrets.k8s.*`, top-level secrets in flat namespaces
   (`notion`, `personal`, `twilio`, `oxylabs`, `hetzner`, `tailscale`,
@@ -96,7 +125,7 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
   auto-populate. A new secret with no value fails the deploy.
 - A new top-level `infra/<feature>.ts` is **auto-covered** by the
   existing `infra/**` paths filter (`deploy-infra.yaml:8, 54`,
-  `checks.yaml:88`) — no workflow glob edit needed when adding one.
+  `checks.yaml:78`) — no workflow glob edit needed when adding one.
 
 ## Resource ID + stage naming
 
@@ -112,7 +141,7 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
 ## Subprocess IaC
 
 - **`execSync` / `execFileSync` for sub-process effects**:
-  - `setSecret()` shells out to `sst secret set` (`infra/secrets.ts:83`).
+  - `setSecret()` shells out to `sst secret set` (`infra/secrets.ts:92`).
   - `infra/cloudflare.ts:44-92` shells out to `openssl` to generate the
     CSR, then `execFileSync('/bin/sh', ['-lc', 'sst secret set ... < <keyfile>'])`
     pipes the private key into `sst secret set` via stdin redirection
@@ -128,7 +157,7 @@ minutes)` for fixed intervals, `cron(M H D-of-M M D-of-W Y)` (with `?`
   `if (isProduction) { ... }` or `if ($app.stage === 'pandoks') { ... }`
   guard. Put the cron file under `infra/<feature>.ts` (or
   `infra/sandbox/<feature>.ts` for pandoks-only experiments) and add it
-  to the `Promise.all` list in `sst.config.ts:24-38`.
+  to the `Promise.all` list in `sst.config.ts:30-44`.
 - Cron handlers are Lambdas, so the cron file should hold the
   `sst.aws.Function` + `sst.aws.CronV2` pair, not the handler code.
   Handler implementation lives under `apps/functions/src/` (see
@@ -147,7 +176,7 @@ minutes)` for fixed intervals, `cron(M H D-of-M M D-of-W Y)` (with `?`
 
 ## Dynamic-import constraint
 
-- **`sst.config.ts:24-38` MUST keep the literal `await Promise.all([import('./infra/...')])`
+- **`sst.config.ts:30-44` MUST keep the literal `await Promise.all([import('./infra/...')])`
   list**. Dynamic-string imports break SST. The `// NOTE: for some
 reason, dynamic imports don't work well so just manually import`
-  comment at `:22` is load-bearing.
+  comment at `:29` is load-bearing.

@@ -23,12 +23,13 @@ jobs:
       desktop: ${{ steps.filter.outputs.desktop }}
       svelte: ${{ steps.filter.outputs.svelte }}
       valkey-reconciler: ${{ steps.filter.outputs.valkey-reconciler }}
+      push-worker: ${{ steps.filter.outputs.push-worker }}
 
     steps:
       - uses: actions/checkout@v6
 
       - id: filter
-        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4
         with:
           filters: |
             web:
@@ -41,6 +42,10 @@ jobs:
               - 'packages/svelte/**'
             valkey-reconciler:
               - 'packages/valkey/reconciler/**'
+            push-worker:
+              - 'apps/push-worker/**'
+              - 'apps/workers/**'
+              - 'packages/queueworker/**'
 
   test-web:
     needs: detect-changes
@@ -105,12 +110,41 @@ jobs:
       - name: Run tests
         run: pnpm --filter @pandoks.com/valkey test
 
+  test-push-worker:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.push-worker == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: apps/push-worker/go.mod
+          cache-dependency-path: |
+            apps/push-worker/go.sum
+            apps/workers/go.sum
+            packages/queueworker/go.sum
+
+      - name: Test shared queue worker
+        working-directory: packages/queueworker
+        run: go test -race ./...
+
+      - name: Test queue runtime and examples
+        working-directory: apps/workers
+        run: go test -race ./...
+
+      - name: Test push worker
+        working-directory: apps/push-worker
+        run: go test -race ./...
+
   tests-pass:
     needs:
       - test-web
       - test-desktop
       - test-svelte-pkg
       - test-valkey-reconciler
+      - test-push-worker
     if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-latest
     steps:

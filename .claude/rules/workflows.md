@@ -6,40 +6,38 @@ Mirrors `.github/workflows/*.yaml` exactly.
 ## Required tools
 
 Declared in `mise.toml`, installed by [mise](https://mise.jdx.dev/)
-(`pnpm bootstrap all` bootstraps mise then runs `mise install`; bare
-`pnpm bootstrap` just prints help — the script is `bootstrap`, NOT
-`setup`, because pnpm's builtin `setup` command shadows that name).
-Every entry is
-an exact pinned literal Renovate bumps through its native mise manager.
+(`mise install`, or `pnpm run tools:install` after pnpm is available). Every
+`[tools]` entry is an exact pinned literal Renovate bumps through its native
+mise manager.
 Three pins are bootstraps with an external authority: **go** —
 `go.work`'s directive rules; GOTOOLCHAIN auto-runs what it demands, so
-mise-pin drift is harmless. **kubectl** — the prod pin is
+mise-pin drift is harmless. **gcloud** — local bootstrap authentication for
+Google/Firebase IaC; CI uses Google Workload Identity Federation. **kubectl** — the prod pin is
 `KUBECTL_VERSION` in `packages/argocd/Dockerfile`; clients tolerate ±1
-minor and `setup check` flags drift outside that. **pnpm** — the
+minor and Renovate's `kubectl` group PR keeps the two copies in sync. **pnpm** — the
 `packageManager` pin in `package.json:4` is the authority (pnpm ≥10
 self-switches to it — the post-corepack mechanism; corepack is removed
 from node 25+). java is `zulu-17` (the Android Gradle pin — this
 replaced `scripts/lib/jdk.sh`). Python pairs with uv (mise =
 interpreter, uv = project deps; `UV_PYTHON_PREFERENCE=system` in mise's
-`[env]`). Outside mise: Docker ≥ v20 and openssl/htpasswd (system
-packages), swift-format (not in the mise registry — brew, macOS-only).
+`[env]`). Outside mise: Docker ≥ v20 and openssl (system packages),
+plus Git and mise itself. Tailscale is required only for production cluster
+access. These host dependencies and all user configuration are documented in
+`README.md`; no repository script installs, configures, or inventories them.
 CI provisions per-job subsets via SHA-pinned `jdx/mise-action` with
 `install_args`.
 
 ## Install
 
 ```sh
-pnpm install          # auto-runs `sst install` via postinstall (package.json:24)
+mise install          # install the repository toolchain from mise.toml
+SST_STAGE="$(whoami)" pnpm install # auto-runs `sst install` via postinstall
 pnpm run sso          # AWS SSO; 12-hour validity
 ```
 
-`pnpm run sso` is `aws sso login --sso-session=Pandoks_ --use-device-code --no-browser`
-(`package.json:11`). The `~/.aws/config` file (including the
-`[sso-session Pandoks_]` block and per-account profiles) is written by
-the AWS-config heredoc in `install_aws_config` (`scripts/bootstrap/install.sh:130-152`) — see
-`gotchas/bootstrap.md` for the maintenance rule (the heredoc is hardcoded
-to the Pandoks\_ org and must be updated in lockstep with any AWS
-Identity Center / profile / account-ID change).
+`pnpm run sso` is `aws sso login --sso-session=personal --use-device-code --no-browser`
+(`package.json:11`). Developers configure `~/.aws/config` themselves.
+The repository never creates or manages AWS configuration.
 
 ## Env files
 
@@ -48,8 +46,28 @@ matching the local username (`pandoks`). Production always needs
 `--stage production` explicitly.
 
 Required envs (`.env.example`): `CLOUDFLARE_API_TOKEN`,
-`CLOUDFLARE_DEFAULT_ACCOUNT_ID`, `HCLOUD_TOKEN`, `TAILSCALE_API_KEY`,
-`GITHUB_TOKEN`.
+`CLOUDFLARE_DEFAULT_ACCOUNT_ID`, `HCLOUD_TOKEN`,
+`OVH_APPLICATION_SECRET`, `OVH_CONSUMER_KEY`,
+`TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_CLIENT_SECRET`,
+`GITHUB_TOKEN`. The Tailscale pair is the manually-created root OAuth
+client (admin console → Trust credentials, "All - Read & Write",
+tagless — see `gotchas/infra.md`) — the one
+credential IaC can't create; its secret never expires. The provider
+exchanges it for 1-hour API tokens per run (read straight from the
+environment — `sst.config.ts:24` pins the version only), and
+`deleteTailscaleDevices` does the same exchange for its raw API calls
+(`infra/tailscale.ts:88-111`).
+
+The OVH pair is read straight from the environment too, by the provider's
+own `OVH_APPLICATION_SECRET` / `OVH_CONSUMER_KEY` fallbacks — the
+`sst.config.ts:18-23` entry holds only the non-secret `endpoint` /
+`applicationKey` literals (and needs `package: '@ovhcloud/pulumi-ovh'` to
+reach the `ovh:` config namespace — see `gotchas/infra.md`). The same pair
+is ALSO seeded as SST secrets (`OvhApplicationSecret` / `OvhConsumerKey`,
+`pnpm sst secret set <Name> --stage <stage>`) — not for the provider, but
+so `infra/github.ts:60-70` can mirror them into the GitHub Actions secrets
+CI reads (`.github/workflows/deploy-infra.yaml:74-75`). Same two-path
+plumbing as the Tailscale pair.
 
 ## Dev (SST)
 
@@ -134,6 +152,9 @@ Per-workspace `check`:
 - `apps/functions`: `tsc --noEmit` (`apps/functions/package.json:6`).
 - `packages/valkey`: Go tests run from `packages/valkey/reconciler`; no
   per-workspace `check` script — Go linting runs via `pnpm lint go`.
+- `packages/queueworker`, `apps/workers`, and `apps/push-worker`: `go test
+-race` from each module; the root `go.work` includes all three for monorepo
+  linting.
 - Root: `pnpm check:infra` (`tsc -p .` at repo root) typechecks
   `infra/**` + `sst.config.ts`.
 
@@ -146,6 +167,9 @@ pnpm --filter @pandoks.com/web run test            # `pnpm run /^test:/` → vit
 pnpm --filter @pandoks.com/desktop-template run test
 pnpm --filter @pandoks.com/svelte run test
 # packages/valkey: go test from packages/valkey/reconciler
+# packages/queueworker: go test -race from packages/queueworker
+# apps/workers: go test -race from apps/workers
+# apps/push-worker: go test -race from apps/push-worker
 ```
 
 `apps/web/vite.config.ts:30-55` defines two vitest projects (`client`
@@ -159,6 +183,9 @@ pnpm sst deploy --stage production --target PersonalWebsite   # web only
 pnpm sst refresh --stage production                           # state refresh
 pnpm sst secret set <Name> --stage <stage>
 ```
+
+The first Firebase deployment also needs `gcloud auth application-default
+login`; subsequent GitHub deployments use short-lived Google OIDC credentials.
 
 `deploy-infra.yaml` deploys the full SST stack. Web rebuilds for Notion
 content changes happen via `sync-notion.yaml` (`workflow_dispatch`, fired
@@ -174,18 +201,18 @@ sudo kubectl annotate application prod-cluster \
 ```
 
 Then wait for ArgoCD sync (CI's loop is in
-`.github/workflows/deploy-infra.yaml:145-162`).
+`.github/workflows/deploy-infra.yaml:141-155`).
 
 ## CI workflows
 
 | File                     | Triggers                                                                                                                                                                    | Does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `deploy-infra.yaml`      | push to main on `infra/**`, `apps/**` (excl. `desktop-template`/`example`), `packages/svelte/**`, `k3s/**`, `scripts/cluster/**`; manual dispatch (`stage`/`deploy` inputs) | Install, AWS OIDC, `pnpm sst refresh` (`continue-on-error: true`, `:98-102`), `pnpm sst deploy`. On success: Tailscale + ArgoCD `refresh=hard` + sync-wait loop (60×5s, `:151-162`). Skips kubernetes step if no `prod-cluster` Tailnet peer (`:133-140`). Each job uses `concurrency: { cancel-in-progress: false }`.                                                                                                                                                                     |
+| `deploy-infra.yaml`      | push to main on `infra/**`, `apps/**` (excl. `desktop-template`/`example`), `packages/svelte/**`, `k3s/**`, `scripts/cluster/**`; manual dispatch (`stage`/`deploy` inputs) | Install, AWS OIDC, Google Workload Identity Federation, `pnpm sst refresh`, `pnpm sst deploy`. On success: Tailscale + ArgoCD refresh + sync-wait. Push worker manifests trigger both SST and Kubernetes deployment.                                                                                                                                                                                                                                                                       |
 | `sync-notion.yaml`       | `workflow_dispatch` only (fired by `NotionWebhookHandler` Lambda via GitHub API)                                                                                            | Install, AWS OIDC, run `pnpm sst shell --stage production -- pnpm -r --if-present run sync:notion`. Opens a PR (`peter-evans/create-pull-request@v8`) under branch `auto/notion-sync` with content under `apps/web/*`.                                                                                                                                                                                                                                                                     |
 | `checks.yaml`            | push to main, PR to main                                                                                                                                                    | paths-filter dispatches per-language jobs (prettier, eslint, golangci, shfmt+shellcheck, swiftlint+swift-format (`checks-swift`, macOS runner), ktlint (`checks-kotlin`), hadolint, helm+kubeconform, actionlint, renovate-config-validator, `pnpm check:infra` via `infra` filter). Tool-only jobs (shell/swift/kotlin/helm) provision via `jdx/mise-action` reading `mise.toml` and invoke the dispatcher scripts directly (no pnpm). Each job runs only when its file patterns changed. |
-| `tests.yaml`             | push to main, PR to main                                                                                                                                                    | paths-filter per-app: web (vitest + playwright), desktop-template, svelte package, valkey reconciler (go test). Each gated by `apps/web/**`-style globs.                                                                                                                                                                                                                                                                                                                                   |
-| `security.yaml`          | push to main, PR to main, daily 17:00 UTC cron, manual dispatch                                                                                                             | Trivy scans on **published** images (not pre-build) plus config-scan on `k3s/**`. Findings upload to GitHub code-scanning.                                                                                                                                                                                                                                                                                                                                                                 |
-| `build-and-publish.yaml` | push to `packages/{postgres,valkey,argocd,clickhouse}/**`; branch create; manual dispatch                                                                                   | paths-filter detects changes (skipped on `workflow_dispatch` → all rebuild). Matrix builds each Dockerfile **from repo-root context** (`context: .` at `:185`), pushes to `ghcr.io/<owner>/<image>` with SLSA attestation, tags main builds as `ref-main-<sha>` (#57). Matrix packages charts to `oci://ghcr.io/<owner>/charts`.                                                                                                                                                           |
+| `tests.yaml`             | push to main, PR to main                                                                                                                                                    | paths-filter per-app: web (vitest + playwright), desktop-template, svelte package, valkey reconciler, and push worker (`go test -race`).                                                                                                                                                                                                                                                                                                                                                   |
+| `security.yaml`          | push to main, PR to main, daily 17:00 UTC cron, manual dispatch                                                                                                             | Trivy scans on **published** images plus config scans on `k3s/**` and push-worker manifests. Findings upload to GitHub code-scanning.                                                                                                                                                                                                                                                                                                                                                      |
+| `build-and-publish.yaml` | pushes to all branches; manual dispatch                                                                                                                                     | paths-filter detects image/chart changes. Matrix builds each Dockerfile from repo-root context, including `apps/push-worker/Dockerfile`, scans it, pushes it to GHCR with an attestation, and packages charts.                                                                                                                                                                                                                                                                             |
 | `branch-cleanup.yaml`    | `on: delete` (branch deletion)                                                                                                                                              | Three matrix jobs: delete Cloudflare Pages previews for the deleted branch, then delete GHCR image tags (`ref-<branch>-*`) for all 8 image packages, then delete GHCR chart tags (suffix `-<branch>`) for the 3 charts.                                                                                                                                                                                                                                                                    |
 | `maintenance.yaml`       | daily 05:00 UTC cron + manual dispatch                                                                                                                                      | Two jobs: (1) Renovate via `renovatebot/github-action`; (2) `cleanup-packages` matrix — for each of 11 ghcr packages, keeps newest 30 `ref-main-<sha>` tags and prunes orphan untagged versions (preserves manifest children + provenance attestations).                                                                                                                                                                                                                                   |
 

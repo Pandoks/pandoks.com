@@ -44,6 +44,7 @@ jobs:
           - pgbackrest
           - valkey
           - valkey-reconciler
+          - push-worker
           - argocd-sst-plugin
           - clickhouse
           - clickhouse-keeper

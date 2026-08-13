@@ -3,10 +3,11 @@ import { deleteTailscaleDevices, tailscaleAcl } from '../tailscale';
 import { isProduction, STAGE_NAME } from '../dns';
 import { secrets } from '../secrets';
 import { backupBucket, s3Endpoint } from '../storage';
+import { renderCloudInit } from '../utils';
 
 const cloudInitConfig = readFileSync(`${process.cwd()}/infra/vps/cloud-config.yaml`, 'utf8');
 
-const deleteServerFromTailnet = new $util.ResourceHook(
+export const deleteServerFromTailnet = new $util.ResourceHook(
   'DeleteServerFromTailnet',
   async (serverOutput) => {
     const outputs = serverOutput.oldOutputs as {
@@ -169,9 +170,7 @@ export function createServers(
           S3_ACCESS_KEY,
           S3_SECRET_KEY
         };
-        return cloudInitConfig.replace(/\$\{([A-Z0-9_]+)\}/g, (_, capture: string) =>
-          capture in environments ? (environments[capture as keyof typeof environments] ?? '') : ''
-        );
+        return renderCloudInit(cloudInitConfig, environments);
       }
     );
 
