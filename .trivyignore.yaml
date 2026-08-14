@@ -1,10 +1,11 @@
 vulnerabilities:
-  # x/net CVEs in kubectl (argocd image). As of 2026-08-14 the latest kubectl v1.36.3 builds on
-  # Go 1.26.5 (clears the stdlib CVE-2026-39822) but still pins x/net v0.49.0; these need
-  # x/net 0.55.0 (GO-2026-5029/5030/5026; GO-2026-4918 needs 0.53.0) and CVE-2026-39821 also
-  # needs Go 1.26.6. release-1.36 HEAD already carries x/net v0.56.0, so the next patch release
-  # (v1.36.4) should clear the set. Unreachable: kubectl only talks to the cluster API. Drop once
-  # a kubectl built on Go 1.26.6+ and x/net 0.55.0+ lands; expired_at forces re-review otherwise.
+  # Go stdlib + x/net + x/text CVEs in kubectl (argocd image). As of 2026-08-14 the latest kubectl
+  # v1.36.3 builds on Go 1.26.5 with x/net v0.49.0 and x/text v0.33.0; these need x/net 0.56.0
+  # (GO-2026-5029/5030/5026 need 0.55.0, CVE-2026-46600 needs 0.56.0), x/text 0.39.0
+  # (CVE-2026-56852), and Go 1.26.6 (CVE-2026-39821/46600 stdlib). release-1.36 HEAD already
+  # carries x/net v0.56.0, so the next patch release (v1.36.4) should clear the set. Unreachable:
+  # kubectl only talks to the cluster API. Drop once a kubectl built on Go 1.26.6+, x/net 0.56.0+
+  # and x/text 0.39.0+ lands; expired_at forces re-review otherwise.
   - id: CVE-2026-25681
     paths:
       - usr/local/bin/kubectl
@@ -24,6 +25,16 @@ vulnerabilities:
     paths:
       - usr/local/bin/kubectl
     statement: x/net/idna Punycode privilege escalation; kubectl resolves hosts from kubeconfig only
+    expired_at: 2026-11-12
+  - id: CVE-2026-46600
+    paths:
+      - usr/local/bin/kubectl
+    statement: x/net dnsmessage DoS via invalid DNS records; kubectl resolves hosts from kubeconfig only
+    expired_at: 2026-11-12
+  - id: CVE-2026-56852
+    paths:
+      - usr/local/bin/kubectl
+    statement: x/text DoS via invalid UTF-8; kubectl processes trusted cluster API output only
     expired_at: 2026-11-12
 
 misconfigurations:
