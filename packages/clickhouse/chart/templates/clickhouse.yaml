@@ -1,6 +1,15 @@
-{{- $objectStorageEnabled := or (eq .Values.storage.mode "object") (eq .Values.storage.mode "mixed") -}}
-{{- $objectStorageDefault := eq .Values.storage.mode "object" -}}
+{{- $storageMode := .Values.storage.mode -}}
+{{- if not (has $storageMode (list "local" "object" "mixed")) -}}
+{{- fail "storage.mode must be one of: local, object, mixed" -}}
+{{- end -}}
+{{- $objectStorageEnabled := or (eq $storageMode "object") (eq $storageMode "mixed") -}}
+{{- $objectStorageDefault := eq $storageMode "object" -}}
 {{- $objectStorageCacheEnabled := and $objectStorageEnabled (ne (toString .Values.storage.object.cacheSize) "0") -}}
+{{- if $objectStorageEnabled -}}
+{{- $_ := required "storage.object.endpoint is required when storage.mode is object or mixed" .Values.storage.object.endpoint -}}
+{{- $_ := required "storage.object.bucket is required when storage.mode is object or mixed" .Values.storage.object.bucket -}}
+{{- $_ := required "storage.object.credentialsSecret is required when storage.mode is object or mixed" .Values.storage.object.credentialsSecret -}}
+{{- end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:

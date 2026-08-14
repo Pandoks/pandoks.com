@@ -76,6 +76,10 @@ pnpm cluster deploy dev --bootstrap  # First-time: install helm charts + CRDs
 pnpm cluster deploy dev              # Apply environment overlay
 ```
 
+The Compose dependency is a local Garage S3-compatible store at `http://localhost:4566`. It creates
+the `database` bucket with the development-only access key
+`GK00000000000000000000000000000000` and a secret key of 64 zeroes.
+
 To tear down the cluster:
 
 ```sh

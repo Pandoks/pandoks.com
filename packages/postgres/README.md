@@ -84,7 +84,7 @@ graph TB
 - **Automated schedules** - full, differential, and incremental backups
 - **Point-in-time recovery** - restore to any moment
 - **Encryption** - AES-256-CBC for all backups
-- **S3-compatible storage** - works with AWS S3, MinIO, LocalStack
+- **S3-compatible storage** - works with AWS S3, Cloudflare R2, and Garage
 
 ## Users & Permissions
 

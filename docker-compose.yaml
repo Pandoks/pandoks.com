@@ -8,32 +8,24 @@ networks:
 
 services:
   s3:
-    # LocalStack 2026.03+ requires an auth token; keep local development token-free.
-    image: localstack/localstack:4.14.0@sha256:3ebc37595918b8accb852f8048fef2aff047d465167edd655528065b07bc364a
+    image: dxflrs/garage:v2.3.0@sha256:866bd13ed2038ba7e7190e840482bc27234c4afaf77be8cfa439ae088c1e4690
     container_name: s3
     restart: always
+    command: /garage server --single-node --default-bucket
     ports:
-      - 4566:4566
+      - 4566:3900
     environment:
-      - SERVICES=s3
-      - AWS_DEFAULT_REGION=us-west-1
-      - AWS_ACCESS_KEY_ID=test
-      - AWS_SECRET_ACCESS_KEY=testsecret
-      - BACKUP_BUCKET=database
-      - PERSISTENCE=1
-      - DATA_DIR=/var/lib/localstack/data
+      GARAGE_DEFAULT_ACCESS_KEY: GK00000000000000000000000000000000
+      GARAGE_DEFAULT_SECRET_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+      GARAGE_DEFAULT_BUCKET: database
     networks:
       - local-network
     volumes:
-      - ./data/localstack:/var/lib/localstack
-    entrypoint:
-      - sh
-      - -c
-      - |
-        mkdir -p /etc/localstack/init/ready.d
-        cat > /etc/localstack/init/ready.d/s3.sh << 'EOF'
-        #!/bin/sh
-        awslocal s3 mb s3://$$BACKUP_BUCKET || true
-        EOF
-        chmod +x /etc/localstack/init/ready.d/s3.sh
-        exec docker-entrypoint.sh
+      - ./data/garage:/var/lib/garage
+      - ./garage.toml:/etc/garage.toml:ro
+    healthcheck:
+      test: ['CMD', '/garage', 'status']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
