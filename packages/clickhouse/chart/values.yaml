@@ -20,9 +20,10 @@ clickhouse:
       memory: 4Gi
 
 # storage configures where MergeTree tables store their data. Modes are local
-# (SSD only), object (object storage by default), and mixed (per-table opt-in).
+# (SSD only), object (object storage by default on a new deployment), and mixed
+# (per-table opt-in; use this mode when migrating existing local tables).
 storage:
-  mode: local
+  mode: local # local | object | mixed
   object:
     endpoint: ''
     region: auto
@@ -63,4 +64,4 @@ backup:
 
 s3:
   region: us-west-1
-  endpoint: http://host.k3d.internal:4566
+  endpoint: http://s3:3900

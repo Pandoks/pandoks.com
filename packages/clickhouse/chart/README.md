@@ -55,8 +55,15 @@ SETTINGS storage_policy = 'object';
 ```
 
 Set `storage.object.cacheSize` to `"0"` to read directly from object storage
-without a local filesystem cache. Changing storage mode does not migrate
-existing tables.
+without a local filesystem cache.
+
+`object` is safe for a new deployment. Do not switch an existing deployment
+from `local` or `mixed` directly to `object`: ClickHouse does not migrate local
+parts automatically, and those tables will fail to attach because the new
+default policy does not contain the local disk. Use `mixed`, create a replacement
+table with `storage_policy = 'object'`, copy and validate the data, then swap the
+tables. ClickHouse rejects directly changing a local table to this chart's
+`object` policy because that policy intentionally excludes the local volume.
 
 The `/var/lib/clickhouse` volume remains required. Self-hosted ClickHouse keeps
 object mappings and table metadata there, while the optional cache uses the same
