@@ -1,6 +1,35 @@
 # shellcheck shell=sh
 
-. "$(dirname "$0")/deps.sh"
+cmd_deps() {
+  [ $# -ge 1 ] || usage_deps 1
+  cmd_deps_subcmd="$1"
+  shift
+  [ $# -eq 0 ] || die "Unexpected argument for deps ${cmd_deps_subcmd}: $1"
+
+  case "${cmd_deps_subcmd}" in
+    up)
+      echo "Starting docker compose dependencies..."
+      docker compose -f ./docker-compose.yaml -p deps up -d
+      log_ok "docker compose dependencies started"
+      ;;
+    down)
+      echo "Stopping docker compose dependencies..."
+      docker compose -f ./docker-compose.yaml -p deps down
+      log_ok "docker compose dependencies stopped"
+      ;;
+    restart)
+      echo "Restarting docker compose dependencies..."
+      docker compose -f ./docker-compose.yaml -p deps down
+      docker compose -f ./docker-compose.yaml -p deps up -d
+      log_ok "docker compose dependencies restarted"
+      ;;
+    help | --help | -h) usage_deps ;;
+    *)
+      log_error "Unknown deps subcommand '${cmd_deps_subcmd}'"
+      usage_deps 1
+      ;;
+  esac
+}
 
 cmd_k3d_up() {
   if [ $# -gt 0 ]; then
@@ -19,12 +48,12 @@ cmd_k3d_up() {
   fi
 
   echo "Fetching latest stable k3s version..."
-  cmd_k3d_up_k3s_version=$(curl -sL https://update.k3s.io/v1-release/channels | jq -r '.data[] | select(.id == "stable") | .latest')
+  cmd_k3d_up_k3s_version=$(k3d version list k3s --limit 1)
   if [ -z "${cmd_k3d_up_k3s_version}" ]; then
     log_error "Failed to fetch latest k3s version"
     return 1
   fi
-  cmd_k3d_up_k3s_image="rancher/k3s:$(echo "${cmd_k3d_up_k3s_version}" | tr '+' '-')"
+  cmd_k3d_up_k3s_image="rancher/k3s:${cmd_k3d_up_k3s_version}"
   echo "Using k3s image: ${cmd_k3d_up_k3s_image}"
 
   echo "Creating k3d cluster 'local-cluster' on network 'pandoks-net'..."

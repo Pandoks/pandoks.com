@@ -6,11 +6,9 @@ Mirrors `.github/workflows/*.yaml` exactly.
 ## Required tools
 
 Declared in `mise.toml`, installed by [mise](https://mise.jdx.dev/)
-(`pnpm bootstrap all` bootstraps mise then runs `mise install`; bare
-`pnpm bootstrap` just prints help — the script is `bootstrap`, NOT
-`setup`, because pnpm's builtin `setup` command shadows that name).
-Every entry is
-an exact pinned literal Renovate bumps through its native mise manager.
+(`mise install`, or `pnpm run tools:install` after pnpm is available). Every
+`[tools]` entry is an exact pinned literal Renovate bumps through its native
+mise manager.
 Three pins are bootstraps with an external authority: **go** —
 `go.work`'s directive rules; GOTOOLCHAIN auto-runs what it demands, so
 mise-pin drift is harmless. **kubectl** — the prod pin is
@@ -20,25 +18,24 @@ minor and Renovate's `kubectl` group PR keeps the two copies in sync.
 authority (pnpm ≥10 self-switches to it — the post-corepack mechanism;
 corepack is removed from node 25+). Python pairs with uv (mise =
 interpreter, uv = project deps; `UV_PYTHON_PREFERENCE=system` in mise's
-`[env]`). Outside mise: Docker ≥ v20 and openssl/htpasswd (system
-packages).
+`[env]`). Outside mise: Docker ≥ v20 and openssl (system packages),
+plus Git and mise itself. Tailscale is required only for production cluster
+access. These host dependencies and all user configuration are documented in
+`README.md`; no repository script installs, configures, or inventories them.
 CI provisions per-job subsets via SHA-pinned `jdx/mise-action` with
 `install_args`.
 
 ## Install
 
 ```sh
-pnpm install          # auto-runs `sst install` via postinstall (package.json:24)
+mise install          # install the repository toolchain from mise.toml
+SST_STAGE="$(whoami)" pnpm install # auto-runs `sst install` via postinstall
 pnpm run sso          # AWS SSO; 12-hour validity
 ```
 
-`pnpm run sso` is `aws sso login --sso-session=Pandoks_ --use-device-code --no-browser`
-(`package.json:11`). The `~/.aws/config` file (including the
-`[sso-session Pandoks_]` block and per-account profiles) is written by
-the AWS-config heredoc in `install_aws_config` (`scripts/bootstrap/install.sh:88-122`) — see
-`gotchas/bootstrap.md` for the maintenance rule (the heredoc is hardcoded
-to the Pandoks\_ org and must be updated in lockstep with any AWS
-Identity Center / profile / account-ID change).
+`pnpm run sso` is `aws sso login --sso-session=personal --use-device-code --no-browser`
+(`package.json:11`). Developers configure `~/.aws/config` themselves.
+The repository never creates or manages AWS configuration.
 
 ## Env files
 
