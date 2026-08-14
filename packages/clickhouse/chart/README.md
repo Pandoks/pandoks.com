@@ -2,12 +2,17 @@
 
 ## R2 or S3-compatible MergeTree storage
 
-Object storage is opt-in. When enabled, the chart configures an `r2` storage
-policy backed by the provider's S3-compatible endpoint. Each replica writes to
-its own prefix:
+Set `storage.mode` to choose where MergeTree tables store their data:
+
+- `local`: use the local SSD only (default).
+- `object`: make S3-compatible object storage the default for new tables.
+- `mixed`: keep the local SSD as the default and expose an `object` policy for
+  individual tables.
+
+The chart automatically gives each replica its own prefix:
 
 ```text
-<endpoint>/<bucket>/<path>/<cluster>/<shard>/<replica>/
+<endpoint>/<bucket>/clickhouse/<namespace>/<cluster>/<shard>/<replica>/
 ```
 
 Create a bucket-scoped Kubernetes Secret before installing the chart:
@@ -19,32 +24,24 @@ metadata:
   name: clickhouse-object-storage-creds
 type: Opaque
 stringData:
-  S3_ACCESS_KEY: replace-me
-  S3_SECRET_KEY: replace-me
+  AWS_ACCESS_KEY_ID: replace-me
+  AWS_SECRET_ACCESS_KEY: replace-me
 ```
 
 Configure the chart:
 
 ```yaml
-objectStorage:
-  enabled: true
-  endpoint: https://<account-id>.r2.cloudflarestorage.com
-  region: auto
-  bucket: clickhouse
-  path: data
-  makeDefault: false
-  credentials:
-    secret: clickhouse-object-storage-creds
-    dataKeys:
-      accessKey: S3_ACCESS_KEY
-      secretKey: S3_SECRET_KEY
-  cache:
-    enabled: true
-    path: /var/lib/clickhouse/disks/r2_cache/
-    maxSize: 10Gi
+storage:
+  mode: object
+  object:
+    endpoint: https://<account-id>.r2.cloudflarestorage.com
+    region: auto
+    bucket: clickhouse
+    credentialsSecret: clickhouse-object-storage-creds
+    cacheSize: 10Gi
 ```
 
-With `makeDefault: false`, opt individual tables into object storage:
+With `storage.mode: mixed`, opt individual tables into object storage:
 
 ```sql
 CREATE TABLE events
@@ -54,11 +51,12 @@ CREATE TABLE events
 )
 ENGINE = MergeTree
 ORDER BY timestamp
-SETTINGS storage_policy = 'r2';
+SETTINGS storage_policy = 'object';
 ```
 
-`makeDefault: true` applies the policy to newly-created MergeTree tables. It
-does not migrate existing tables.
+Set `storage.object.cacheSize` to `"0"` to read directly from object storage
+without a local filesystem cache. Changing storage mode does not migrate
+existing tables.
 
 The `/var/lib/clickhouse` volume remains required. Self-hosted ClickHouse keeps
 object mappings and table metadata there, while the optional cache uses the same

@@ -1,3 +1,6 @@
+{{- $objectStorageEnabled := or (eq .Values.storage.mode "object") (eq .Values.storage.mode "mixed") -}}
+{{- $objectStorageDefault := eq .Values.storage.mode "object" -}}
+{{- $objectStorageCacheEnabled := and $objectStorageEnabled (ne (toString .Values.storage.object.cacheSize) "0") -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -6,33 +9,33 @@ metadata:
 data:
   config.yaml: |
 {{ .Files.Get "files/config.yaml" | indent 4 }}
-{{ if .Values.objectStorage.enabled }}
+{{ if $objectStorageEnabled }}
     storage_configuration:
       disks:
-        r2:
+        object:
           type: object_storage
           object_storage_type: s3
           metadata_type: local
-          endpoint: '${CLICKHOUSE_OBJECT_STORAGE_ENDPOINT}/${CLICKHOUSE_OBJECT_STORAGE_BUCKET}/${CLICKHOUSE_OBJECT_STORAGE_PATH}/${CLUSTER_NAME}/${SHARD_ID}/${REPLICA_ID}/'
+          endpoint: '${CLICKHOUSE_OBJECT_STORAGE_ENDPOINT}/${CLICKHOUSE_OBJECT_STORAGE_BUCKET}/clickhouse/${NAMESPACE}/${CLUSTER_NAME}/${SHARD_ID}/${REPLICA_ID}/'
           region: '${CLICKHOUSE_OBJECT_STORAGE_REGION}'
-          access_key_id: '${CLICKHOUSE_OBJECT_STORAGE_ACCESS_KEY}'
-          secret_access_key: '${CLICKHOUSE_OBJECT_STORAGE_SECRET_KEY}'
-{{ if .Values.objectStorage.cache.enabled }}
-        r2_cache:
+          access_key_id: '${AWS_ACCESS_KEY_ID}'
+          secret_access_key: '${AWS_SECRET_ACCESS_KEY}'
+{{ if $objectStorageCacheEnabled }}
+        object_cache:
           type: cache
-          disk: r2
-          path: {{ .Values.objectStorage.cache.path | quote }}
-          max_size: {{ .Values.objectStorage.cache.maxSize | quote }}
+          disk: object
+          path: /var/lib/clickhouse/disks/object_cache/
+          max_size: {{ .Values.storage.object.cacheSize | quote }}
 {{ end }}
       policies:
-        r2:
+        object:
           volumes:
             main:
-              disk: {{ ternary "r2_cache" "r2" .Values.objectStorage.cache.enabled }}
-{{ if .Values.objectStorage.makeDefault }}
+              disk: {{ ternary "object_cache" "object" $objectStorageCacheEnabled }}
+{{ if $objectStorageDefault }}
 
     merge_tree:
-      storage_policy: r2
+      storage_policy: object
 {{ end }}
 {{ end }}
 
@@ -109,7 +112,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: {{ printf "%s:%s" ($.Files.Get "files/config.yaml") (toJson $.Values.objectStorage) | sha256sum }}
+        checksum/config: {{ printf "%s:%s" ($.Files.Get "files/config.yaml") (toJson $.Values.storage) | sha256sum }}
         checksum/users: {{ $.Files.Get "files/users.yaml" | sha256sum }}
       labels:
         app: *app
@@ -173,25 +176,23 @@ spec:
                 secretKeyRef:
                   name: *creds-secret
                   key: {{ $.Values.credentials.dataKeys.clientPassword }}
-{{- if $.Values.objectStorage.enabled }}
+{{- if $objectStorageEnabled }}
             - name: CLICKHOUSE_OBJECT_STORAGE_ENDPOINT
-              value: {{ trimSuffix "/" $.Values.objectStorage.endpoint | quote }}
+              value: {{ trimSuffix "/" $.Values.storage.object.endpoint | quote }}
             - name: CLICKHOUSE_OBJECT_STORAGE_REGION
-              value: {{ $.Values.objectStorage.region | quote }}
+              value: {{ $.Values.storage.object.region | quote }}
             - name: CLICKHOUSE_OBJECT_STORAGE_BUCKET
-              value: {{ $.Values.objectStorage.bucket | quote }}
-            - name: CLICKHOUSE_OBJECT_STORAGE_PATH
-              value: {{ trimAll "/" $.Values.objectStorage.path | quote }}
-            - name: CLICKHOUSE_OBJECT_STORAGE_ACCESS_KEY
+              value: {{ $.Values.storage.object.bucket | quote }}
+            - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: &object-storage-secret {{ $.Values.objectStorage.credentials.secret }}
-                  key: {{ $.Values.objectStorage.credentials.dataKeys.accessKey }}
-            - name: CLICKHOUSE_OBJECT_STORAGE_SECRET_KEY
+                  name: &object-storage-secret {{ $.Values.storage.object.credentialsSecret }}
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
                   name: *object-storage-secret
-                  key: {{ $.Values.objectStorage.credentials.dataKeys.secretKey }}
+                  key: AWS_SECRET_ACCESS_KEY
 {{- end }}
           volumeMounts:
             - name: &data data
