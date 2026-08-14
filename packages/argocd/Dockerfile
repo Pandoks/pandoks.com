@@ -5,7 +5,7 @@ FROM node:24.16.0-slim@sha256:2c87ef9bd3c6a3bd4b472b4bec2ce9d16354b0c574f736c476
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
     && apt-get update && apt-get install -y --no-install-recommends \
     bash=5.2.15-2+b13 \
-    curl=7.88.1-10+deb12u14 \
+    curl=7.88.1-10+deb12u15 \
     jq=1.6-2.1+deb12u2 \
     git=1:2.39.5-0+deb12u3 \
     unzip=6.0-28 \
