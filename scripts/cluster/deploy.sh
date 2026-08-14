@@ -7,177 +7,29 @@ log_status() {
   printf "%s\n" "$*" >&2
 }
 
-cmd_deploy_ghcr_tags() {
-  cmd_deploy_ghcr_tags_image="$1"
-  cmd_deploy_ghcr_tags_token=$(curl -fsS --retry 3 --retry-all-errors \
-    --connect-timeout 10 --max-time 30 \
-    "https://ghcr.io/token?scope=repository:pandoks/${cmd_deploy_ghcr_tags_image}:pull" \
-    | jq -er .token) || die "Unable to obtain a GHCR pull token for ${cmd_deploy_ghcr_tags_image}"
-  cmd_deploy_ghcr_tags_last=""
-  cmd_deploy_ghcr_tags_page=0
-  while :; do
-    cmd_deploy_ghcr_tags_page=$((cmd_deploy_ghcr_tags_page + 1))
-    [ "${cmd_deploy_ghcr_tags_page}" -le 10 ] \
-      || die "GHCR tag listing reached the 10000-tag cap for ${cmd_deploy_ghcr_tags_image}; refusing to guess whether more tags exist"
-    cmd_deploy_ghcr_tags_response=$(printf 'header = "Authorization: Bearer %s"\n' \
-      "${cmd_deploy_ghcr_tags_token}" \
-      | curl -fsS --retry 3 --retry-all-errors --connect-timeout 10 --max-time 30 \
-        --config - --get \
-        --data-urlencode n=1000 \
-        --data-urlencode "last=${cmd_deploy_ghcr_tags_last}" \
-        "https://ghcr.io/v2/pandoks/${cmd_deploy_ghcr_tags_image}/tags/list") \
-      || die "Unable to list GHCR tags for ${cmd_deploy_ghcr_tags_image}"
-    printf '%s' "${cmd_deploy_ghcr_tags_response}" | jq -r '.tags[]?'
-    cmd_deploy_ghcr_tags_count=$(printf '%s' "${cmd_deploy_ghcr_tags_response}" | jq '(.tags // []) | length')
-    [ "${cmd_deploy_ghcr_tags_count}" -eq 1000 ] || break
-    cmd_deploy_ghcr_tags_next=$(printf '%s' "${cmd_deploy_ghcr_tags_response}" | jq -er '.tags[-1]')
-    [ "${cmd_deploy_ghcr_tags_next}" != "${cmd_deploy_ghcr_tags_last}" ] \
-      || die "GHCR tag pagination did not advance for ${cmd_deploy_ghcr_tags_image}"
-    cmd_deploy_ghcr_tags_last="${cmd_deploy_ghcr_tags_next}"
-  done
-}
-
-cmd_deploy_load_image_tags() {
-  cmd_deploy_image_tags=""
-  for cmd_deploy_load_image_tags_image in \
-    patroni pgbackrest valkey valkey-reconciler argocd-sst-plugin \
-    clickhouse clickhouse-keeper clickhouse-backup; do
-    cmd_deploy_load_image_tags_tags=$(cmd_deploy_ghcr_tags "${cmd_deploy_load_image_tags_image}")
-    while IFS= read -r cmd_deploy_load_image_tags_tag; do
-      [ -n "${cmd_deploy_load_image_tags_tag}" ] || continue
-      cmd_deploy_image_tags="${cmd_deploy_image_tags}${cmd_deploy_load_image_tags_image}	${cmd_deploy_load_image_tags_tag}
-"
-    done << EOF
-${cmd_deploy_load_image_tags_tags}
-EOF
-  done
-}
-
-cmd_deploy_ghcr_tag_complete() {
-  cmd_deploy_ghcr_tag_complete_tag="$1"
-  cmd_deploy_ghcr_tag_complete_found=0
-  for cmd_deploy_ghcr_tag_complete_image in \
-    patroni pgbackrest valkey valkey-reconciler argocd-sst-plugin \
-    clickhouse clickhouse-keeper clickhouse-backup; do
-    if printf '%b' "${cmd_deploy_image_tags}" \
-      | awk -F '\t' -v image="${cmd_deploy_ghcr_tag_complete_image}" \
-        -v tag="${cmd_deploy_ghcr_tag_complete_tag}" \
-        '$1 == image && $2 == tag { found = 1 } END { exit !found }'; then
-      cmd_deploy_ghcr_tag_complete_found=$((cmd_deploy_ghcr_tag_complete_found + 1))
-    fi
-  done
-  [ "${cmd_deploy_ghcr_tag_complete_found}" -eq 8 ]
-}
-
-cmd_deploy_ghcr_tag_exists() {
-  cmd_deploy_ghcr_tag_exists_image="$1"
-  cmd_deploy_ghcr_tag_exists_tag="$2"
-  printf '%b' "${cmd_deploy_image_tags}" \
-    | awk -F '\t' -v image="${cmd_deploy_ghcr_tag_exists_image}" \
-      -v tag="${cmd_deploy_ghcr_tag_exists_tag}" \
-      '$1 == image && $2 == tag { found = 1 } END { exit !found }'
-}
-
-cmd_deploy_validate_image_cohort() {
-  cmd_deploy_validate_image_cohort_key="$1"
-  cmd_deploy_validate_image_cohort_tag="$2"
-  image_cohort_tag_is_valid_for_key \
-    "${cmd_deploy_validate_image_cohort_key}" "${cmd_deploy_validate_image_cohort_tag}" \
-    || die "Invalid immutable image cohort ref"
-  cmd_deploy_load_image_tags
-  cmd_deploy_ghcr_tag_complete "${cmd_deploy_validate_image_cohort_tag}" \
-    || die "Image cohort ref is not present on all eight package images"
-  cmd_deploy_ghcr_tag_exists \
-    valkey "$(image_cohort_marker_tag "${cmd_deploy_validate_image_cohort_tag}")" \
-    || die "Image cohort ref has no completion marker"
-}
-
-cmd_deploy_find_image_cohort() {
-  cmd_deploy_find_image_cohort_key="$1"
-  cmd_deploy_find_image_cohort_candidates=$(printf '%b' "${cmd_deploy_image_tags}" \
-    | awk -F '\t' '$1 == "valkey" { print $2 }' \
-    | while IFS= read -r cmd_deploy_find_image_cohort_marker; do
-      case "${cmd_deploy_find_image_cohort_marker}" in
-        ok-ref-*) ;;
-        *) continue ;;
-      esac
-      cmd_deploy_find_image_cohort_tag=${cmd_deploy_find_image_cohort_marker#ok-}
-      if image_cohort_tag_is_valid_for_key \
-        "${cmd_deploy_find_image_cohort_key}" "${cmd_deploy_find_image_cohort_tag}"; then
-        cmd_deploy_find_image_cohort_suffix=${cmd_deploy_find_image_cohort_tag##*-}
-        cmd_deploy_find_image_cohort_without_attempt=${cmd_deploy_find_image_cohort_tag%-*}
-        cmd_deploy_find_image_cohort_run_id=${cmd_deploy_find_image_cohort_without_attempt##*-}
-        printf '%s\t%s\t%s\n' \
-          "${cmd_deploy_find_image_cohort_run_id}" \
-          "${cmd_deploy_find_image_cohort_suffix}" \
-          "${cmd_deploy_find_image_cohort_tag}"
-      fi
-    done | sort -t "$(printf '\t')" -k1,1nr -k2,2nr | cut -f3)
-
-  while IFS= read -r cmd_deploy_find_image_cohort_tag; do
-    [ -n "${cmd_deploy_find_image_cohort_tag}" ] || continue
-    if cmd_deploy_ghcr_tag_complete "${cmd_deploy_find_image_cohort_tag}"; then
-      printf '%s\n' "${cmd_deploy_find_image_cohort_tag}"
-      return 0
-    fi
-  done << EOF
-${cmd_deploy_find_image_cohort_candidates}
-EOF
-  return 1
-}
-
-cmd_deploy_find_legacy_image_cohort() {
-  cmd_deploy_find_legacy_image_cohort_tag="$1"
-  cmd_deploy_ghcr_tag_complete "${cmd_deploy_find_legacy_image_cohort_tag}" || return 1
-  printf '%s\n' "${cmd_deploy_find_legacy_image_cohort_tag}"
+cmd_deploy_validate_image_tag() {
+  cmd_deploy_validate_image_tag_value="$1"
+  [ -n "${cmd_deploy_validate_image_tag_value}" ] \
+    && [ "${#cmd_deploy_validate_image_tag_value}" -le 128 ] \
+    || return 1
+  case "${cmd_deploy_validate_image_tag_value}" in
+    [A-Za-z0-9_]*) ;;
+    *) return 1 ;;
+  esac
+  case "${cmd_deploy_validate_image_tag_value}" in
+    *[!A-Za-z0-9_.-]*) return 1 ;;
+  esac
 }
 
 cmd_deploy_remote_image_tag() {
   cmd_deploy_remote_image_tag_branch="$1"
-  cmd_deploy_remote_image_tag_allow_legacy="$2"
   cmd_deploy_remote_image_tag_remote_refs=$(git ls-remote --heads origin) \
-    || die "Unable to enumerate origin branches before selecting image tags"
-  cmd_deploy_remote_image_tag_branches=$(printf '%s\n' "${cmd_deploy_remote_image_tag_remote_refs}" \
-    | sed 's|^[^[:space:]]*[[:space:]]refs/heads/||')
+    || die "Unable to enumerate origin branches before selecting an image tag"
   cmd_deploy_remote_image_tag_sha=$(printf '%s\n' "${cmd_deploy_remote_image_tag_remote_refs}" \
     | awk -v ref="refs/heads/${cmd_deploy_remote_image_tag_branch}" '$2 == ref { print $1; exit }')
   [ "${#cmd_deploy_remote_image_tag_sha}" -eq 40 ] \
     || die "Source branch is not published on origin: ${cmd_deploy_remote_image_tag_branch}"
-  cmd_deploy_load_image_tags
-
-  cmd_deploy_remote_image_tag_key=$(branch_tag "${cmd_deploy_remote_image_tag_branch}")
-  if ! printf '%s\n' "${cmd_deploy_remote_image_tag_branches}" \
-    | image_branch_tag_is_unique "${cmd_deploy_remote_image_tag_branch}" "${cmd_deploy_remote_image_tag_key}"; then
-    die "Canonical image key ${cmd_deploy_remote_image_tag_key} collides with another origin branch"
-  fi
-  if cmd_deploy_find_image_cohort "${cmd_deploy_remote_image_tag_key}"; then
-    return 0
-  fi
-
-  if [ "${cmd_deploy_remote_image_tag_allow_legacy}" = "true" ]; then
-    cmd_deploy_remote_image_tag_prior="ref-${cmd_deploy_remote_image_tag_key}-${cmd_deploy_remote_image_tag_sha}"
-    if cmd_deploy_find_legacy_image_cohort "${cmd_deploy_remote_image_tag_prior}"; then
-      log_warn "Using the preceding immutable canonical image format; republish the branch to migrate"
-      return 0
-    fi
-    cmd_deploy_remote_image_tag_legacy=$(legacy_image_branch_tag "${cmd_deploy_remote_image_tag_branch}")
-    if ! printf '%s\n' "${cmd_deploy_remote_image_tag_branches}" \
-      | image_branch_tag_is_unique "${cmd_deploy_remote_image_tag_branch}" "${cmd_deploy_remote_image_tag_legacy}"; then
-      die "Legacy image key ${cmd_deploy_remote_image_tag_legacy} collides with another origin branch; republish this branch's cohort"
-    fi
-    cmd_deploy_remote_image_tag_legacy_full="ref-${cmd_deploy_remote_image_tag_legacy}-${cmd_deploy_remote_image_tag_sha}"
-    if cmd_deploy_find_legacy_image_cohort "${cmd_deploy_remote_image_tag_legacy_full}"; then
-      log_warn "Using a transitional immutable legacy image cohort; republish the branch to migrate"
-      return 0
-    fi
-    cmd_deploy_remote_image_tag_legacy_short="ref-${cmd_deploy_remote_image_tag_legacy}-$(printf '%s' "${cmd_deploy_remote_image_tag_sha}" | cut -c1-7)"
-    if cmd_deploy_find_legacy_image_cohort "${cmd_deploy_remote_image_tag_legacy_short}"; then
-      log_warn "Using a transitional immutable legacy image cohort; republish the branch to migrate"
-      return 0
-    fi
-  fi
-
-  die "No marked complete immutable GHCR image cohort exists for branch ${cmd_deploy_remote_image_tag_branch}"
+  branch_tag "${cmd_deploy_remote_image_tag_branch}"
 }
 
 cmd_deploy_compute_vars() {
@@ -207,15 +59,15 @@ cmd_deploy_compute_vars() {
               return 1
             fi
             cmd_deploy_compute_vars_image_tag=$(cmd_deploy_remote_image_tag \
-              "${cmd_deploy_compute_vars_branch}" true) || return 1
+              "${cmd_deploy_compute_vars_branch}") || return 1
             ;;
           prod)
             if [ -n "${PANDOKS_IMAGE_TAG:-}" ]; then
-              cmd_deploy_validate_image_cohort main "${PANDOKS_IMAGE_TAG}" \
-                || return 1
+              cmd_deploy_validate_image_tag "${PANDOKS_IMAGE_TAG}" \
+                || die "Invalid PANDOKS_IMAGE_TAG"
               cmd_deploy_compute_vars_image_tag="${PANDOKS_IMAGE_TAG}"
             else
-              cmd_deploy_compute_vars_image_tag=$(cmd_deploy_remote_image_tag main false) \
+              cmd_deploy_compute_vars_image_tag=$(cmd_deploy_remote_image_tag main) \
                 || return 1
             fi
             cmd_deploy_compute_vars_use_proxy_protocol="true"
@@ -225,8 +77,8 @@ cmd_deploy_compute_vars() {
       ;;
   esac
 
-  if [ -z "${cmd_deploy_compute_vars_image_tag:-}" ]; then
-    log_error "Image tag resolution returned an empty value"
+  if ! cmd_deploy_validate_image_tag "${cmd_deploy_compute_vars_image_tag:-}"; then
+    log_error "Image tag resolution returned an invalid value"
     return 1
   fi
 

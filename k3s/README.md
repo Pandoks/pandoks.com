@@ -55,23 +55,22 @@ Or step by step:
 
 ## Development cluster
 
-`deploy dev` pulls the newest marked immutable eight-image cohort from GHCR
-for one published source branch. Non-default branch keys use
+`deploy dev` uses the most recently promoted image set for one published source
+branch. Non-default branch keys use
 `b-<bounded-source-branch-slug>-<stable-hash>`; `main` and `master` are
-unchanged. Pass `--branch <name>` from a detached checkout. Remote deploys need
-network access to `origin` and public GHCR, including with `--dry-run`; prod
-resolves the same way against `main`.
+unchanged. Pass `--branch <name>` from a detached checkout. The build workflow
+builds only changed images and advances the shared branch key only after every
+selected build succeeds. Remote deploys need access to `origin`, including
+with `--dry-run`; prod uses the `main` tag.
 
 ## Production
 
 Production clusters are provisioned via Pulumi with cloud-config that bootstraps k3s + tailscale.
 The tailscale operator provides secure access to the cluster API without needing SSH tunnels.
 
-For the one-time immutable-cohort migration, merge the workflow changes and
-wait for the main `Build and Publish` run to publish its completion marker
-before the first prod deploy. The deploy fails closed when no marker exists;
-the first marked deploy replaces the old mutable `:main` CMP sidecar and passes
-its exact cohort tag through `PANDOKS_IMAGE_TAG`.
+After merging image changes, wait for `Build and Publish` to finish before
+deploying. A failed selected image leaves `main` and `latest` unchanged. Argo CD
+passes the promoted `main` tag through `PANDOKS_IMAGE_TAG`.
 
 ```sh
 # Connect via tailscale (cluster appears as <stage>-cluster in your tailnet)

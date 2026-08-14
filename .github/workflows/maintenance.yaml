@@ -48,30 +48,23 @@ jobs:
       OWNER: ${{ github.repository_owner }}
       PACKAGE: ${{ matrix.package }}
     steps:
-      - name: Delete stale unmarked image attempts for ${{ matrix.package }}
+      - name: Delete stale unpromoted image builds for ${{ matrix.package }}
         if: ${{ !startsWith(matrix.package, 'charts/') }}
         shell: bash
         run: |
           api="/users/${OWNER,,}/packages/container/${PACKAGE}/versions"
-          marker_api="/users/${OWNER,,}/packages/container/valkey/versions"
           all=$(gh api --paginate --slurp "${api}" | jq 'add')
-          markers=$(gh api --paginate --slurp "${marker_api}" \
-            | jq -c '[add[] | .metadata.container.tags[]? | select(startswith("ok-ref-")) | ltrimstr("ok-")] | unique')
           cutoff=$(date -u -d '14 days ago' '+%Y-%m-%dT%H:%M:%SZ')
-          ids=$(jq -r --arg cutoff "${cutoff}" --argjson markers "${markers}" '
-            def attempt_ref: test("^(try-)?ref-.+-[0-9a-f]{12}-[0-9]+-[0-9]+$");
-            def cohort: ltrimstr("try-");
+          ids=$(jq -r --arg cutoff "${cutoff}" '
             .[]
             | select(.updated_at < $cutoff)
             | (.metadata.container.tags // []) as $tags
-            | [$tags[] | select(attempt_ref)] as $attempts
-            | select(($attempts | length) > 0)
-            | select(all($attempts[]; cohort as $c | $markers | index($c) | not))
-            | select(all($tags[]; attempt_ref))
+            | select(($tags | length) > 0)
+            | select(all($tags[]; startswith("build-ref-")))
             | .id' <<<"${all}")
           while read -r id; do
             [ -n "${id}" ] || continue
-            echo "Deleting stale unmarked ${PACKAGE} attempt version ${id}"
+            echo "Deleting stale unpromoted ${PACKAGE} build ${id}"
             gh api --method DELETE "${api}/${id}"
           done <<<"${ids}"
 

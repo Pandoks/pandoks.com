@@ -64,37 +64,17 @@ jobs:
         run: |
           . ./scripts/lib/branch-tag.sh
           api="/users/${OWNER,,}/packages/container/${PACKAGE}/versions"
-          branches=$(gh api --paginate "/repos/${{ github.repository }}/branches?per_page=100" --jq '.[].name')
-          canonical_key=$(branch_tag "${BRANCH}")
-          legacy_key=$(legacy_image_branch_tag "${BRANCH}")
-          tag_prefix="ref-${canonical_key}-"
-          staging_tag_prefix="try-${tag_prefix}"
-          legacy_tag_prefix="ref-${legacy_key}-"
-          canonical_safe=false
-          legacy_safe=false
-          if printf '%s\n' "${branches}" | image_branch_tag_is_unique "${BRANCH}" "${canonical_key}"; then
-            canonical_safe=true
-          fi
-          if printf '%s\n' "${branches}" | image_branch_tag_is_unique "${BRANCH}" "${legacy_key}"; then
-            legacy_safe=true
-          fi
+          key=$(branch_tag "${BRANCH}")
+          ref_prefix="ref-${key}-"
+          build_prefix="build-${ref_prefix}"
           ids=$(gh api --paginate --slurp "${api}" \
-            | jq -r --arg p "${tag_prefix}" --arg staging "${staging_tag_prefix}" \
-                --arg legacy "${legacy_tag_prefix}" \
-                --argjson canonical_safe "${canonical_safe}" --argjson legacy_safe "${legacy_safe}" '
-                def exact_canonical_image_ref($prefix):
-                  startswith($prefix) and (.[($prefix | length):]
-                    | test("^([0-9a-f]{40}|[0-9a-f]{12}-[0-9]+-[0-9]+)$"));
-                def exact_legacy_image_ref($prefix):
-                  startswith($prefix) and (.[($prefix | length):] | test("^([0-9a-f]{7}|[0-9a-f]{40})$"));
+            | jq -r --arg key "${key}" --arg ref "${ref_prefix}" --arg build "${build_prefix}" '
                 add | .[]
                 | select((.metadata.container.tags // []) | any(
-                    ($canonical_safe and exact_canonical_image_ref($p))
-                    or ($canonical_safe and exact_canonical_image_ref($staging))
-                    or ($legacy_safe and exact_legacy_image_ref($legacy))))
+                    . == $key or startswith($ref) or startswith($build)))
                 | .id')
           if [ -z "${ids}" ]; then
-            echo "No ${PACKAGE} versions with an exact ${tag_prefix}<cohort-id> tag; nothing to delete."
+            echo "No ${PACKAGE} versions for ${key}; nothing to delete."
             exit 0
           fi
           while read -r id; do
@@ -131,28 +111,14 @@ jobs:
         run: |
           . ./scripts/lib/branch-tag.sh
           api="/users/${OWNER,,}/packages/container/charts%2F${CHART}/versions"
-          branches=$(gh api --paginate "/repos/${{ github.repository }}/branches?per_page=100" --jq '.[].name')
-          canonical_key=$(branch_tag "${BRANCH}")
-          legacy_key=$(legacy_chart_branch_tag "${BRANCH}")
-          tag_suffix="-${canonical_key}"
-          legacy_tag_suffix="-${legacy_key}"
-          canonical_safe=false
-          legacy_safe=false
-          if printf '%s\n' "${branches}" | chart_branch_tag_is_unique "${BRANCH}" "${canonical_key}"; then
-            canonical_safe=true
-          fi
-          if printf '%s\n' "${branches}" | chart_branch_tag_is_unique "${BRANCH}" "${legacy_key}"; then
-            legacy_safe=true
-          fi
+          key=$(branch_tag "${BRANCH}")
+          tag_suffix="-${key}"
           ids=$(gh api --paginate --slurp "${api}" \
-            | jq -r --arg s "${tag_suffix}" --arg legacy "${legacy_tag_suffix}" \
-                --argjson canonical_safe "${canonical_safe}" --argjson legacy_safe "${legacy_safe}" '
+            | jq -r --arg suffix "${tag_suffix}" '
                 def exact_chart_version($suffix):
                   endswith($suffix) and (rtrimstr($suffix) | test("^[0-9]+\\.[0-9]+\\.[0-9]+$"));
                 add | .[]
-                | select((.metadata.container.tags // []) | any(
-                    ($canonical_safe and exact_chart_version($s))
-                    or ($legacy_safe and exact_chart_version($legacy))))
+                | select((.metadata.container.tags // []) | any(exact_chart_version($suffix)))
                 | .id')
           if [ -z "${ids}" ]; then
             echo "No ${CHART} chart versions with exact suffix ${tag_suffix}; nothing to delete."

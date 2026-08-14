@@ -82,14 +82,14 @@ usage_deploy() {
   printf "  %bdev%b\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Deploy to dev cloud cluster with:\n" >&2
   printf "        - ImageRegistry: ghcr.io/pandoks\n" >&2
-  printf "        - ImageTag: ref-<branch-key>-<sha12>-<run-id>-<attempt> from a complete cohort\n" >&2
-  printf "        - Requires origin and public GHCR network access, including dry-run\n" >&2
+  printf "        - ImageTag: readable b-<branch-slug>-<stable-hash> key\n" >&2
+  printf "        - Requires origin network access, including dry-run\n" >&2
   printf "        - IsLocal: false\n\n" >&2
   printf "  %bprod%b\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Deploy to production cloud cluster with:\n" >&2
   printf "        - ImageRegistry: ghcr.io/pandoks\n" >&2
-  printf "        - ImageTag: immutable ref-main-<sha12>-<run-id>-<attempt> from a complete cohort\n" >&2
-  printf "        - Requires origin and public GHCR network access, including dry-run\n" >&2
+  printf "        - ImageTag: main (or an explicitly supplied PANDOKS_IMAGE_TAG)\n" >&2
+  printf "        - Requires origin network access, including dry-run\n" >&2
   printf "        - IsLocal: false\n" >&2
   printf "        - SST stage forced to 'production'\n\n" >&2
 
@@ -99,14 +99,14 @@ usage_deploy() {
   printf "      the overlay (k3s/overlays/<env>). Installs helm charts / CRD providers\n" >&2
   printf "      and waits for CRDs. Run this first on a fresh cluster, then run deploy\n" >&2
   printf "      again without --bootstrap to apply the overlay. Bootstrap does not\n" >&2
-  printf "      resolve or require a published package-image cohort.\n\n" >&2
+  printf "      resolve or require a published package-image tag.\n\n" >&2
   printf "  %b--stage%b <STAGE>\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      SST stage to fetch secrets from (default: SST's default stage;\n" >&2
   printf "      forced to 'production' for the prod environment)\n\n" >&2
   printf "  %b--branch%b <BRANCH>\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      Dev source branch whose published images should be deployed. Defaults\n" >&2
   printf "      to the attached branch; required explicitly from detached HEAD. The\n" >&2
-  printf "      branch must exist on origin and have one complete eight-image tag set.\n" >&2
+  printf "      branch must exist on origin and have a promoted branch image tag.\n" >&2
   printf "      Valid only for a non-bootstrap dev deployment.\n\n" >&2
   printf "  %b--dry-run%b\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      Show rendered YAML without applying to cluster\n\n" >&2
@@ -117,7 +117,7 @@ usage_deploy() {
 
   printf "%bTemplate Variables:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  \${ImageRegistry}     - Container registry (local or GHCR)\n" >&2
-  printf "  \${ImageTag}          - Immutable remote cohort ref (latest only for local)\n" >&2
+  printf "  \${ImageTag}          - Promoted remote branch key (latest only for local)\n" >&2
   printf "  \${UseProxyProtocol}  - true only for the prod Hetzner load balancer\n" >&2
   printf "  \${IsLocal}           - 'true' or 'false' for conditional logic\n" >&2
   printf "  \${<SST Resource>}    - Any SST resource by name\n" >&2
