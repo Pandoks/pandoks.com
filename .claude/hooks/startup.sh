@@ -1,3 +1,7 @@
 #!/bin/sh
 
-exec "${CLAUDE_PROJECT_DIR}/scripts/bootstrap/main.sh" all 1>&2
+set -eu
+
+cd "${CLAUDE_PROJECT_DIR}" || exit 1
+export MISE_TRUSTED_CONFIG_PATHS="${CLAUDE_PROJECT_DIR}"
+exec mise install --yes 1>&2

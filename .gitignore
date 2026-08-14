@@ -55,6 +55,7 @@ expo-env.d.ts
 .codex
 .claude/plans
 .claude/artifacts/
+.agent/artifacts/
 
 # Worktrees
 .worktrees

@@ -6,11 +6,9 @@ Mirrors `.github/workflows/*.yaml` exactly.
 ## Required tools
 
 Declared in `mise.toml`, installed by [mise](https://mise.jdx.dev/)
-(`pnpm bootstrap all` bootstraps mise then runs `mise install`; bare
-`pnpm bootstrap` just prints help — the script is `bootstrap`, NOT
-`setup`, because pnpm's builtin `setup` command shadows that name).
-Every entry is
-an exact pinned literal Renovate bumps through its native mise manager.
+(`mise install`, or `pnpm run tools:install` after pnpm is available). Every
+`[tools]` entry is an exact pinned literal Renovate bumps through its native
+mise manager.
 Three pins are bootstraps with an external authority: **go** —
 `go.work`'s directive rules; GOTOOLCHAIN auto-runs what it demands, so
 mise-pin drift is harmless. **kubectl** — the prod pin is
@@ -20,25 +18,24 @@ minor and Renovate's `kubectl` group PR keeps the two copies in sync.
 authority (pnpm ≥10 self-switches to it — the post-corepack mechanism;
 corepack is removed from node 25+). Python pairs with uv (mise =
 interpreter, uv = project deps; `UV_PYTHON_PREFERENCE=system` in mise's
-`[env]`). Outside mise: Docker ≥ v20 and openssl/htpasswd (system
-packages).
+`[env]`). Outside mise: Docker ≥ v20 and openssl (system packages),
+plus Git and mise itself. Tailscale is required only for production cluster
+access. These host dependencies and all user configuration are documented in
+`README.md`; no repository script installs, configures, or inventories them.
 CI provisions per-job subsets via SHA-pinned `jdx/mise-action` with
 `install_args`.
 
 ## Install
 
 ```sh
-pnpm install          # auto-runs `sst install` via postinstall (package.json:24)
+mise install          # install the repository toolchain from mise.toml
+SST_STAGE="$(whoami)" pnpm install # auto-runs `sst install` via postinstall
 pnpm run sso          # AWS SSO; 12-hour validity
 ```
 
-`pnpm run sso` is `aws sso login --sso-session=Pandoks_ --use-device-code --no-browser`
-(`package.json:11`). The `~/.aws/config` file (including the
-`[sso-session Pandoks_]` block and per-account profiles) is written by
-the AWS-config heredoc in `install_aws_config` (`scripts/bootstrap/install.sh:88-122`) — see
-`gotchas/bootstrap.md` for the maintenance rule (the heredoc is hardcoded
-to the Pandoks\_ org and must be updated in lockstep with any AWS
-Identity Center / profile / account-ID change).
+`pnpm run sso` is `aws sso login --sso-session=personal --use-device-code --no-browser`
+(`package.json:11`). Developers configure `~/.aws/config` themselves.
+The repository never creates or manages AWS configuration.
 
 ## Env files
 
@@ -48,14 +45,27 @@ matching the local username (`pandoks`). Production always needs
 
 Required envs (`.env.example`): `CLOUDFLARE_API_TOKEN`,
 `CLOUDFLARE_DEFAULT_ACCOUNT_ID`, `HCLOUD_TOKEN`,
+`OVH_APPLICATION_SECRET`, `OVH_CONSUMER_KEY`,
 `TAILSCALE_OAUTH_CLIENT_ID`, `TAILSCALE_OAUTH_CLIENT_SECRET`,
 `GITHUB_TOKEN`. The Tailscale pair is the manually-created root OAuth
 client (admin console → Trust credentials, "All - Read & Write",
 tagless — see `gotchas/infra.md`) — the one
 credential IaC can't create; its secret never expires. The provider
-exchanges it for 1-hour API tokens per run (`sst.config.ts:18-22`), and
+exchanges it for 1-hour API tokens per run (read straight from the
+environment — `sst.config.ts:24` pins the version only), and
 `deleteTailscaleDevices` does the same exchange for its raw API calls
 (`infra/tailscale.ts:88-111`).
+
+The OVH pair is read straight from the environment too, by the provider's
+own `OVH_APPLICATION_SECRET` / `OVH_CONSUMER_KEY` fallbacks — the
+`sst.config.ts:18-23` entry holds only the non-secret `endpoint` /
+`applicationKey` literals (and needs `package: '@ovhcloud/pulumi-ovh'` to
+reach the `ovh:` config namespace — see `gotchas/infra.md`). The same pair
+is ALSO seeded as SST secrets (`OvhApplicationSecret` / `OvhConsumerKey`,
+`pnpm sst secret set <Name> --stage <stage>`) — not for the provider, but
+so `infra/github.ts:60-70` can mirror them into the GitHub Actions secrets
+CI reads (`.github/workflows/deploy-infra.yaml:74-75`). Same two-path
+plumbing as the Tailscale pair.
 
 ## Dev (SST)
 
@@ -180,13 +190,13 @@ sudo kubectl annotate application prod-cluster \
 ```
 
 Then wait for ArgoCD sync (CI's loop is in
-`.github/workflows/deploy-infra.yaml:145-162`).
+`.github/workflows/deploy-infra.yaml:141-155`).
 
 ## CI workflows
 
 | File                     | Triggers                                                                                                                                                                    | Does                                                                                                                                                                                                                                                                                                                                                                                         |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `deploy-infra.yaml`      | push to main on `infra/**`, `apps/**` (excl. `desktop-template`/`example`), `packages/svelte/**`, `k3s/**`, `scripts/cluster/**`; manual dispatch (`stage`/`deploy` inputs) | Install, AWS OIDC, `pnpm sst refresh` (`continue-on-error: true`, `:98-102`), `pnpm sst deploy`. On success: Tailscale + ArgoCD `refresh=hard` + sync-wait loop (60×5s, `:151-162`). Skips kubernetes step if no `prod-cluster` Tailnet peer (`:133-140`). Each job uses `concurrency: { cancel-in-progress: false }`.                                                                       |
+| `deploy-infra.yaml`      | push to main on `infra/**`, `apps/**` (excl. `desktop-template`/`example`), `packages/svelte/**`, `k3s/**`, `scripts/cluster/**`; manual dispatch (`stage`/`deploy` inputs) | Install, AWS OIDC, `pnpm sst refresh` (`continue-on-error: true`, `:91-95`), `pnpm sst deploy`. On success: Tailscale + ArgoCD `refresh=hard` + sync-wait loop (60×5s, `:141-155`). Skips kubernetes step if no `prod-cluster` Tailnet peer (`:122-127`). Each job uses `concurrency: { cancel-in-progress: false }`.                                                                        |
 | `sync-notion.yaml`       | `workflow_dispatch` only (fired by `NotionWebhookHandler` Lambda via GitHub API)                                                                                            | Install, AWS OIDC, run `pnpm sst shell --stage production -- pnpm -r --if-present run sync:notion`. Opens a PR (`peter-evans/create-pull-request@v8`) under branch `auto/notion-sync` with content under `apps/web/*`.                                                                                                                                                                       |
 | `checks.yaml`            | push to main, PR to main                                                                                                                                                    | paths-filter dispatches per-language jobs (prettier, eslint, golangci, shfmt+shellcheck, hadolint, helm+kubeconform, actionlint, renovate-config-validator, `pnpm check:infra` via `infra` filter). Tool-only jobs (shell/helm) provision via `jdx/mise-action` reading `mise.toml` and invoke the dispatcher scripts directly (no pnpm). Each job runs only when its file patterns changed. |
 | `tests.yaml`             | push to main, PR to main                                                                                                                                                    | paths-filter per-app: web (vitest + playwright), desktop-template, svelte package, valkey reconciler (go test). Each gated by `apps/web/**`-style globs.                                                                                                                                                                                                                                     |
