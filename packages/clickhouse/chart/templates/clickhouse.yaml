@@ -6,6 +6,35 @@ metadata:
 data:
   config.yaml: |
 {{ .Files.Get "files/config.yaml" | indent 4 }}
+{{ if .Values.objectStorage.enabled }}
+    storage_configuration:
+      disks:
+        r2:
+          type: object_storage
+          object_storage_type: s3
+          metadata_type: local
+          endpoint: '${CLICKHOUSE_OBJECT_STORAGE_ENDPOINT}/${CLICKHOUSE_OBJECT_STORAGE_BUCKET}/${CLICKHOUSE_OBJECT_STORAGE_PATH}/${CLUSTER_NAME}/${SHARD_ID}/${REPLICA_ID}/'
+          region: '${CLICKHOUSE_OBJECT_STORAGE_REGION}'
+          access_key_id: '${CLICKHOUSE_OBJECT_STORAGE_ACCESS_KEY}'
+          secret_access_key: '${CLICKHOUSE_OBJECT_STORAGE_SECRET_KEY}'
+{{ if .Values.objectStorage.cache.enabled }}
+        r2_cache:
+          type: cache
+          disk: r2
+          path: {{ .Values.objectStorage.cache.path | quote }}
+          max_size: {{ .Values.objectStorage.cache.maxSize | quote }}
+{{ end }}
+      policies:
+        r2:
+          volumes:
+            main:
+              disk: {{ ternary "r2_cache" "r2" .Values.objectStorage.cache.enabled }}
+{{ if .Values.objectStorage.makeDefault }}
+
+    merge_tree:
+      storage_policy: r2
+{{ end }}
+{{ end }}
 
 ---
 apiVersion: v1
@@ -79,6 +108,9 @@ spec:
       shard: &shard {{ $shardIndex | quote }}
   template:
     metadata:
+      annotations:
+        checksum/config: {{ printf "%s:%s" ($.Files.Get "files/config.yaml") (toJson $.Values.objectStorage) | sha256sum }}
+        checksum/users: {{ $.Files.Get "files/users.yaml" | sha256sum }}
       labels:
         app: *app
         shard: *shard
@@ -141,6 +173,26 @@ spec:
                 secretKeyRef:
                   name: *creds-secret
                   key: {{ $.Values.credentials.dataKeys.clientPassword }}
+{{- if $.Values.objectStorage.enabled }}
+            - name: CLICKHOUSE_OBJECT_STORAGE_ENDPOINT
+              value: {{ trimSuffix "/" $.Values.objectStorage.endpoint | quote }}
+            - name: CLICKHOUSE_OBJECT_STORAGE_REGION
+              value: {{ $.Values.objectStorage.region | quote }}
+            - name: CLICKHOUSE_OBJECT_STORAGE_BUCKET
+              value: {{ $.Values.objectStorage.bucket | quote }}
+            - name: CLICKHOUSE_OBJECT_STORAGE_PATH
+              value: {{ trimAll "/" $.Values.objectStorage.path | quote }}
+            - name: CLICKHOUSE_OBJECT_STORAGE_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: &object-storage-secret {{ $.Values.objectStorage.credentials.secret }}
+                  key: {{ $.Values.objectStorage.credentials.dataKeys.accessKey }}
+            - name: CLICKHOUSE_OBJECT_STORAGE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: *object-storage-secret
+                  key: {{ $.Values.objectStorage.credentials.dataKeys.secretKey }}
+{{- end }}
           volumeMounts:
             - name: &data data
               mountPath: /var/lib/clickhouse
