@@ -1,14 +1,8 @@
-{{- $storageMode := .Values.storage.mode -}}
-{{- if not (has $storageMode (list "local" "object" "mixed")) -}}
-{{- fail "storage.mode must be one of: local, object, mixed" -}}
-{{- end -}}
-{{- $objectStorageEnabled := or (eq $storageMode "object") (eq $storageMode "mixed") -}}
-{{- $objectStorageDefault := eq $storageMode "object" -}}
+{{- $objectStorageEnabled := ne (trim .Values.storage.object.endpoint) "" -}}
 {{- $objectStorageCacheEnabled := and $objectStorageEnabled (ne (toString .Values.storage.object.cacheSize) "0") -}}
 {{- if $objectStorageEnabled -}}
-{{- $_ := required "storage.object.endpoint is required when storage.mode is object or mixed" .Values.storage.object.endpoint -}}
-{{- $_ := required "storage.object.bucket is required when storage.mode is object or mixed" .Values.storage.object.bucket -}}
-{{- $_ := required "storage.object.credentialsSecret is required when storage.mode is object or mixed" .Values.storage.object.credentialsSecret -}}
+{{- $_ := required "storage.object.bucket is required when storage.object.endpoint is set" .Values.storage.object.bucket -}}
+{{- $_ := required "storage.object.credentialsSecret is required when storage.object.endpoint is set" .Values.storage.object.credentialsSecret -}}
 {{- end -}}
 apiVersion: v1
 kind: ConfigMap
@@ -18,8 +12,8 @@ metadata:
 data:
   config.yaml: |
 {{ .Files.Get "files/config.yaml" | indent 4 }}
-{{ if $objectStorageEnabled }}
     storage_configuration:
+{{ if $objectStorageEnabled }}
       disks:
         object:
           type: object_storage
@@ -36,17 +30,23 @@ data:
           path: /var/lib/clickhouse/disks/object_cache/
           max_size: {{ .Values.storage.object.cacheSize | quote }}
 {{ end }}
+{{ end }}
       policies:
+        tiered:
+          volumes:
+            default:
+              disk: default
+{{ if $objectStorageEnabled }}
+            object:
+              disk: {{ ternary "object_cache" "object" $objectStorageCacheEnabled }}
         object:
           volumes:
             main:
               disk: {{ ternary "object_cache" "object" $objectStorageCacheEnabled }}
-{{ if $objectStorageDefault }}
+{{ end }}
 
     merge_tree:
-      storage_policy: object
-{{ end }}
-{{ end }}
+      storage_policy: tiered
 
 ---
 apiVersion: v1

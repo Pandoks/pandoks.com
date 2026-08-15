@@ -2,12 +2,9 @@
 
 ## R2 or S3-compatible MergeTree storage
 
-Set `storage.mode` to choose where MergeTree tables store their data:
-
-- `local`: use the local SSD only (default).
-- `object`: make S3-compatible object storage the default for new tables.
-- `mixed`: keep the local SSD as the default and expose an `object` policy for
-  individual tables.
+MergeTree tables use a `tiered` storage policy. With no object endpoint, the
+policy contains only the local SSD. Adding an endpoint makes object storage
+available as a second volume; it does not move any data automatically.
 
 The chart automatically gives each replica its own prefix:
 
@@ -32,7 +29,6 @@ Configure the chart:
 
 ```yaml
 storage:
-  mode: object
   object:
     endpoint: https://<account-id>.r2.cloudflarestorage.com
     region: auto
@@ -41,7 +37,33 @@ storage:
     cacheSize: 10Gi
 ```
 
-With `storage.mode: mixed`, opt individual tables into object storage:
+Cloudflare R2 uses `region: auto`. For AWS S3, set the bucket's actual region.
+The credentials stay in the Kubernetes Secret; Helm values contain only its
+name.
+
+After adding object storage, move a partition to it explicitly:
+
+```sql
+ALTER TABLE events
+MOVE PARTITION 202608 TO VOLUME 'object';
+```
+
+Move it back to local SSD with:
+
+```sql
+ALTER TABLE events
+MOVE PARTITION 202608 TO VOLUME 'default';
+```
+
+Use a table TTL when older data should move automatically:
+
+```sql
+ALTER TABLE events
+MODIFY TTL timestamp + INTERVAL 30 DAY TO VOLUME 'object';
+```
+
+The optional strict `object` policy writes a new table directly to object
+storage:
 
 ```sql
 CREATE TABLE events
@@ -57,13 +79,9 @@ SETTINGS storage_policy = 'object';
 Set `storage.object.cacheSize` to `"0"` to read directly from object storage
 without a local filesystem cache.
 
-`object` is safe for a new deployment. Do not switch an existing deployment
-from `local` or `mixed` directly to `object`: ClickHouse does not migrate local
-parts automatically, and those tables will fail to attach because the new
-default policy does not contain the local disk. Use `mixed`, create a replacement
-table with `storage_policy = 'object'`, copy and validate the data, then swap the
-tables. ClickHouse rejects directly changing a local table to this chart's
-`object` policy because that policy intentionally excludes the local volume.
+Do not remove the endpoint while any active part uses the `object` disk or any
+table uses the strict `object` policy. Move those parts back to the `default`
+volume first; otherwise ClickHouse will refuse to attach the affected tables.
 
 The `/var/lib/clickhouse` volume remains required. Self-hosted ClickHouse keeps
 object mappings and table metadata there, while the optional cache uses the same

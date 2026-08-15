@@ -19,13 +19,14 @@ clickhouse:
       cpu: 2000m
       memory: 4Gi
 
-# storage configures where MergeTree tables store their data. Modes are local
-# (SSD only), object (object storage by default on a new deployment), and mixed
-# (per-table opt-in; use this mode when migrating existing local tables).
+# MergeTree tables always use a tiered policy. Without an object endpoint, that
+# policy contains only local SSD. Setting an endpoint adds object storage as a
+# second volume; data moves only through explicit ClickHouse SQL or TTL rules.
 storage:
-  mode: local # local | object | mixed
   object:
+    # Leave endpoint empty for local-only storage.
     endpoint: ''
+    # Cloudflare R2 uses auto. For AWS S3, use the bucket's actual region.
     region: auto
     bucket: ''
     credentialsSecret: ''
