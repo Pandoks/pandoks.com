@@ -1,8 +1,9 @@
 vulnerabilities:
-  # kubectl v1.36.3 builds on fixed Go 1.26.5 but still vendors x/net v0.49.0 and x/text v0.33.0.
-  # These parser/network CVEs are not exposed as services: kubectl talks to the configured cluster
-  # API and processes operator-controlled manifests. Drop when Kubernetes ships newer modules;
-  # expired_at forces re-review otherwise.
+  # kubectl v1.36.3 is the latest stable release but is still compiled with Go 1.26.5 and vendors
+  # x/net v0.49.0 and x/text v0.33.0. These parser/network CVEs are not exposed as services:
+  # kubectl talks to the configured cluster API and processes operator-controlled manifests. Drop
+  # when Kubernetes ships a stable kubectl compiled with fixed dependencies; expired_at forces
+  # re-review otherwise.
   - id: CVE-2026-25681
     paths:
       - usr/local/bin/kubectl
@@ -32,6 +33,36 @@ vulnerabilities:
     paths:
       - usr/local/bin/kubectl
     statement: x/text invalid UTF-8 DoS is limited to operator-controlled manifests and cluster responses
+    expired_at: 2026-11-10
+  - id: CVE-2026-33818
+    paths:
+      - usr/local/bin/kubectl
+    statement: encoding/asn1 recursion DoS is limited to operator-controlled manifests and cluster responses
+    expired_at: 2026-11-10
+  - id: CVE-2026-56853
+    paths:
+      - usr/local/bin/kubectl
+    statement: cleartext HTTP/2 DoS requires a malicious endpoint; kubectl uses operator-selected cluster APIs
+    expired_at: 2026-11-10
+  - id: CVE-2026-56858
+    paths:
+      - usr/local/bin/kubectl
+    statement: html/template XSS is unreachable because kubectl does not render untrusted HTML templates
+    expired_at: 2026-11-10
+  - id: CVE-2026-56859
+    paths:
+      - usr/local/bin/kubectl
+    statement: XML recursion DoS is limited to operator-controlled manifests and cluster responses
+    expired_at: 2026-11-10
+  - id: CVE-2026-56860
+    paths:
+      - usr/local/bin/kubectl
+    statement: net/url path DoS requires input from an operator-selected cluster or manifest
+    expired_at: 2026-11-10
+  - id: CVE-2026-56862
+    paths:
+      - usr/local/bin/kubectl
+    statement: TLS KeyUpdate DoS requires a malicious endpoint; kubectl uses operator-selected cluster APIs
     expired_at: 2026-11-10
 
 misconfigurations:
