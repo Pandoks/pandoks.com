@@ -76,20 +76,17 @@ usage_deploy() {
   printf "%bEnvironments:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %blocal%b\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Deploy to local k3d cluster with:\n" >&2
-  printf "        - ImageRegistry: local-registry:5000\n" >&2
-  printf "        - ImageTag: latest\n" >&2
+  printf "        - Package images: local-registry:5000/<name>:latest\n" >&2
   printf "        - IsLocal: true\n\n" >&2
   printf "  %bdev%b\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Deploy to dev cloud cluster with:\n" >&2
-  printf "        - ImageRegistry: ghcr.io/pandoks\n" >&2
-  printf "        - ImageTag: readable b-<branch-slug>-<stable-hash> key\n" >&2
-  printf "        - Requires origin network access, including dry-run\n" >&2
+  printf "        - Branch images pinned to their GHCR digests\n" >&2
+  printf "        - Production-lock fallback for each unchanged image\n" >&2
+  printf "        - Requires origin and public GHCR access, including dry-run\n" >&2
   printf "        - IsLocal: false\n\n" >&2
   printf "  %bprod%b\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Deploy to production cloud cluster with:\n" >&2
-  printf "        - ImageRegistry: ghcr.io/pandoks\n" >&2
-  printf "        - ImageTag: main (or an explicitly supplied PANDOKS_IMAGE_TAG)\n" >&2
-  printf "        - Requires origin network access, including dry-run\n" >&2
+  printf "        - Package images pinned by k3s/images.lock.json\n" >&2
   printf "        - IsLocal: false\n" >&2
   printf "        - SST stage forced to 'production'\n\n" >&2
 
@@ -106,7 +103,8 @@ usage_deploy() {
   printf "  %b--branch%b <BRANCH>\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      Dev source branch whose published images should be deployed. Defaults\n" >&2
   printf "      to the attached branch; required explicitly from detached HEAD. The\n" >&2
-  printf "      branch must exist on origin and have a promoted branch image tag.\n" >&2
+  printf "      branch must exist on origin. Images without its branch tag fall back\n" >&2
+  printf "      individually to the committed production lock.\n" >&2
   printf "      Valid only for a non-bootstrap dev deployment.\n\n" >&2
   printf "  %b--dry-run%b\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      Show rendered YAML without applying to cluster\n\n" >&2
@@ -116,8 +114,8 @@ usage_deploy() {
   printf "      Suppress status messages, output only YAML (for CI/CD)\n\n" >&2
 
   printf "%bTemplate Variables:%b\n" "${BOLD}" "${NORMAL}" >&2
-  printf "  \${ImageRegistry}     - Container registry (local or GHCR)\n" >&2
-  printf "  \${ImageTag}          - Promoted remote branch key (latest only for local)\n" >&2
+  printf "  \${ImageRegistry}     - Container registry used for Helm charts\n" >&2
+  printf "  \${<Name>Image}       - Exact reference for one package image\n" >&2
   printf "  \${UseProxyProtocol}  - true only for the prod Hetzner load balancer\n" >&2
   printf "  \${IsLocal}           - 'true' or 'false' for conditional logic\n" >&2
   printf "  \${<SST Resource>}    - Any SST resource by name\n" >&2

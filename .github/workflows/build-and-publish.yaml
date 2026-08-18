@@ -64,6 +64,8 @@ jobs:
     outputs:
       images: ${{ steps.set-image-matrix.outputs.images }}
       charts: ${{ steps.set-chart-matrix.outputs.charts }}
+      moving-tag: ${{ steps.image-tags.outputs.moving }}
+      immutable-tag: ${{ steps.image-tags.outputs.immutable }}
 
     steps:
       - uses: actions/checkout@v6
@@ -75,7 +77,6 @@ jobs:
           filters: |
             scan-all:
               - '.github/workflows/build-and-publish.yaml'
-              - 'scripts/lib/branch-tag.sh'
               - 'trivy.yaml'
               - '.trivyignore.yaml'
             patroni:
@@ -162,6 +163,46 @@ jobs:
             | map(select($scan_all or .publish))' <<<"${all}")
           echo "charts=${charts}" >> "${GITHUB_OUTPUT}"
 
+      - name: Compute conventional image tags
+        id: image-tags
+        shell: bash
+        env:
+          BRANCH: ${{ github.ref_name }} # WARNING: do not inline this (security risk)
+          COMMIT_SHA: ${{ github.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          short_sha=${COMMIT_SHA:0:12}
+          if [[ "${BRANCH}" == "${DEFAULT_BRANCH}" ]]; then
+            moving=latest
+            immutable="sha-${short_sha}"
+          else
+            moving=$(printf '%s' "${BRANCH}" \
+              | tr '[:upper:]' '[:lower:]' \
+              | sed -E 's/[^a-z0-9._-]+/-/g' \
+              | cut -c1-63)
+            [[ "${moving}" =~ ^[a-z0-9_][a-z0-9_.-]*$ ]] \
+              || { echo "Branch cannot form a valid image tag: ${BRANCH}" >&2; exit 1; }
+            immutable="${moving}-sha-${short_sha}"
+
+            remote_branches=$(git ls-remote --heads origin) \
+              || { echo "Unable to enumerate origin branches" >&2; exit 1; }
+            collision=$(while IFS= read -r candidate; do
+                  [[ "${candidate}" == "${BRANCH}" ]] && continue
+                  candidate_tag=$(printf '%s' "${candidate}" \
+                    | tr '[:upper:]' '[:lower:]' \
+                    | sed -E 's/[^a-z0-9._-]+/-/g' \
+                    | cut -c1-63)
+                  if [[ "${candidate_tag}" == "${moving}" ]]; then
+                    printf '%s\n' "${candidate}"
+                    break
+                  fi
+                done < <(awk '{sub("refs/heads/", "", $2); print $2}' <<<"${remote_branches}"))
+            [[ -z "${collision}" ]] \
+              || { echo "Image tag collision: ${BRANCH} and ${collision} both normalize to ${moving}" >&2; exit 1; }
+          fi
+          echo "moving=${moving}" >> "${GITHUB_OUTPUT}"
+          echo "immutable=${immutable}" >> "${GITHUB_OUTPUT}"
+
   build-publish-images:
     needs: detect-changes
     if: needs.detect-changes.outputs.images != '[]'
@@ -191,24 +232,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compute candidate tag
-        id: image-tag
-        env:
-          BRANCH: ${{ github.ref_name }} # WARNING: do not inline this (security risk)
-          COMMIT_SHA: ${{ github.sha }}
-        run: |
-          . ./scripts/lib/branch-tag.sh
-          key=$(branch_tag "${BRANCH}")
-          ref=$(image_ref_tag "${key}" "${COMMIT_SHA}")
-          echo "value=build-${ref}" >> "${GITHUB_OUTPUT}"
-
       - uses: docker/metadata-action@v6
         id: meta
         with:
           # NOTE: github.repository includes the owner/org (ghcr.io/<owner/org>/repo-name)
           images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image.name }}
           tags: |
-            type=raw,value=${{ steps.image-tag.outputs.value }}
+            type=raw,value=${{ needs.detect-changes.outputs.moving-tag }}
+            type=raw,value=${{ needs.detect-changes.outputs.immutable-tag }}
 
       - name: Build image
         uses: docker/build-push-action@v7
@@ -292,63 +323,11 @@ jobs:
         run: |
           helm push "${{ matrix.chart.name }}"-*.tgz "oci://ghcr.io/${OWNER,,}/charts"
 
-  promote-images:
+  build-and-publish-pass:
     needs:
       - detect-changes
       - build-publish-images
-    if: needs.detect-changes.outputs.images != '[]'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Promote the successful image set
-        env:
-          BRANCH: ${{ github.ref_name }} # WARNING: do not inline this (security risk)
-          COMMIT_SHA: ${{ github.sha }}
-          OWNER: ${{ github.repository_owner }}
-          SELECTED: ${{ needs.detect-changes.outputs.images }}
-          IS_DEFAULT_BRANCH: ${{ github.ref_name == github.event.repository.default_branch }}
-        run: |
-          . ./scripts/lib/branch-tag.sh
-          key=$(branch_tag "${BRANCH}")
-          ref=$(image_ref_tag "${key}" "${COMMIT_SHA}")
-          owner=${OWNER,,}
-          images='patroni pgbackrest valkey valkey-reconciler argocd-sst-plugin clickhouse clickhouse-keeper clickhouse-backup'
-
-          for image in ${images}; do
-            repository="ghcr.io/${owner}/${image}"
-            if jq -e --arg image "${image}" 'any(.name == $image)' <<<"${SELECTED}" > /dev/null; then
-              source="${repository}:build-${ref}"
-            elif docker buildx imagetools inspect "${repository}:${key}" > /dev/null 2>&1; then
-              source="${repository}:${key}"
-            else
-              source="${repository}:latest"
-            fi
-
-            tags=(--tag "${repository}:${key}" --tag "${repository}:${ref}")
-            if [[ "${IS_DEFAULT_BRANCH}" == "true" ]]; then
-              tags+=(--tag "${repository}:latest")
-            fi
-            docker buildx imagetools create \
-              "${tags[@]}" \
-              "${source}"
-          done
-
-  build-and-publish-pass:
-    needs:
-      - build-publish-images
       - build-publish-charts
-      - promote-images
     if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-latest
     steps:

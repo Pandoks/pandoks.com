@@ -50,11 +50,11 @@ Without `--bootstrap`, deploys the **overlay** at `k3s/overlays/<env>`. With
 deploy a fresh cluster end-to-end, run `deploy <env> --bootstrap` first, then
 `deploy <env>` again without the flag.
 
-| Environment | Description                                                                                                     |
-| ----------- | --------------------------------------------------------------------------------------------------------------- |
-| `local`     | Local k3d cluster. ImageRegistry: `local-registry:5000`, ImageTag: `latest`.                                    |
-| `dev`       | Dev cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: readable branch key.                             |
-| `prod`      | Production cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: `main`. SST stage forced to `production`. |
+| Environment | Description                                                                                              |
+| ----------- | -------------------------------------------------------------------------------------------------------- |
+| `local`     | Uses each package's `local-registry:5000/<name>:latest` image.                                           |
+| `dev`       | Pins each available branch image by digest and falls back per image to the production lock.              |
+| `prod`      | Pins every package to its committed digest in `k3s/images.lock.json`; SST stage is forced to production. |
 
 | Option         | Description                                                                                                   |
 | -------------- | ------------------------------------------------------------------------------------------------------------- |
@@ -68,28 +68,27 @@ deploy a fresh cluster end-to-end, run `deploy <env> --bootstrap` first, then
 You will be prompted to confirm the destination kubectl context before anything
 is applied (unless using `--dry-run`).
 
-Remote dev deploys verify that the requested source branch exists on `origin`,
-then use its readable, collision-resistant branch key. The image workflow
-builds and scans only changed images. If every selected image succeeds, one
-promotion job advances the shared branch key and creates a readable
-`ref-<branch-key>-<sha12>` snapshot across all eight images; unchanged images
-retain the branch's previous image or inherit `latest` on its first build. A
-failed selected build leaves the deployable branch key unchanged. `main` also
-advances `latest`. `--bootstrap` does not resolve package images because
-bootstrap manifests do not consume `${ImageTag}`.
+Remote dev deploys verify that the requested source branch exists on `origin`.
+The image workflow builds and scans only changed images. Each successful
+feature build publishes a moving `<branch>` tag and an immutable
+`<branch>-sha-<sha12>` tag; each successful main build publishes `latest` and
+`sha-<sha12>`. Dev resolves every available branch tag to an exact digest and
+uses the production lock for images unchanged on that branch. Production reads
+only the committed lock. `--bootstrap` does not query GHCR because bootstrap
+manifests consume no package images.
 
 ### Template Variables
 
 The `deploy` command renders templates with these substitutions before applying:
 
-| Variable                | Description                                                      |
-| ----------------------- | ---------------------------------------------------------------- |
-| `${ImageRegistry}`      | Container registry (local-registry or GHCR).                     |
-| `${ImageTag}`           | Readable remote branch key (`main` in prod) or `latest` locally. |
-| `${IsLocal}`            | `'true'` or `'false'` for conditional logic.                     |
-| `${UseProxyProtocol}`   | `'true'` only for the prod Hetzner load balancer.                |
-| `${<SST Resource>}`     | Any SST resource by name.                                        |
-| `${<Secret> \| base64}` | Base64 encode a secret value.                                    |
+| Variable                | Description                                                    |
+| ----------------------- | -------------------------------------------------------------- |
+| `${ImageRegistry}`      | Container registry used for Helm charts.                       |
+| `${<PackageName>Image}` | Exact image reference for one package, normally digest-pinned. |
+| `${IsLocal}`            | `'true'` or `'false'` for conditional logic.                   |
+| `${UseProxyProtocol}`   | `'true'` only for the prod Hetzner load balancer.              |
+| `${<SST Resource>}`     | Any SST resource by name.                                      |
+| `${<Secret> \| base64}` | Base64 encode a secret value.                                  |
 
 ## Examples
 

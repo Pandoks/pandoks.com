@@ -55,22 +55,24 @@ Or step by step:
 
 ## Development cluster
 
-`deploy dev` uses the most recently promoted image set for one published source
-branch. Non-default branch keys use
-`b-<bounded-source-branch-slug>-<stable-hash>`; `main` and `master` are
-unchanged. Pass `--branch <name>` from a detached checkout. The build workflow
-builds only changed images and advances the shared branch key only after every
-selected build succeeds. Remote deploys need access to `origin`, including
-with `--dry-run`; prod uses the `main` tag.
+`deploy dev` resolves each package image independently. If that image has a
+moving tag for the requested source branch, deploy pins its current digest;
+otherwise it falls back to the production digest in `images.lock.json`. Pass
+`--branch <name>` from a detached checkout. Branch names are normalized to a
+lowercase, 63-character Docker tag (`feature/cache-fix` becomes
+`feature-cache-fix`). Remote dev deploys need access to `origin` and public
+GHCR, including with `--dry-run`.
 
 ## Production
 
 Production clusters are provisioned via Pulumi with cloud-config that bootstraps k3s + tailscale.
 The tailscale operator provides secure access to the cluster API without needing SSH tunnels.
 
-After merging image changes, wait for `Build and Publish` to finish before
-deploying. A failed selected image leaves `main` and `latest` unchanged. Argo CD
-passes the promoted `main` tag through `PANDOKS_IMAGE_TAG`.
+After merging image changes, `Build and Publish` advances `latest` only for the
+images that changed. Renovate then proposes a reviewable update to
+`images.lock.json`; merging that lock PR promotes the exact digests to
+production. Argo CD renders those committed digests, so production never
+deploys a mutable tag.
 
 ```sh
 # Connect via tailscale (cluster appears as <stage>-cluster in your tailnet)

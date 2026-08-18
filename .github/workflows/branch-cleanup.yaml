@@ -5,6 +5,47 @@ on:
 permissions: {}
 
 jobs:
+  prepare:
+    if: github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.branch.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Resolve the deleted branch tag
+        id: branch
+        shell: bash
+        env:
+          BRANCH: ${{ github.event.ref }} # WARNING: do not inline this (security risk)
+        run: |
+          tag=$(printf '%s' "${BRANCH}" \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed -E 's/[^a-z0-9._-]+/-/g' \
+            | cut -c1-63)
+          [[ "${tag}" =~ ^[a-z0-9_][a-z0-9_.-]*$ ]] \
+            || { echo "Deleted branch cannot form a valid image tag: ${BRANCH}" >&2; exit 1; }
+
+          remote_branches=$(git ls-remote --heads origin) \
+            || { echo "Unable to enumerate surviving origin branches" >&2; exit 1; }
+          collision=$(while IFS= read -r candidate; do
+              candidate_tag=$(printf '%s' "${candidate}" \
+                | tr '[:upper:]' '[:lower:]' \
+                | sed -E 's/[^a-z0-9._-]+/-/g' \
+                | cut -c1-63)
+              if [[ "${candidate_tag}" == "${tag}" ]]; then
+                printf '%s\n' "${candidate}"
+                break
+              fi
+            done < <(awk '{sub("refs/heads/", "", $2); print $2}' <<<"${remote_branches}"))
+          [[ -z "${collision}" ]] \
+            || { echo "Refusing cleanup: ${BRANCH} and ${collision} normalize to ${tag}" >&2; exit 1; }
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+
   cleanup-cloudflare-previews:
     if: github.event.ref_type == 'branch'
     runs-on: ubuntu-latest
@@ -33,6 +74,7 @@ jobs:
 
   cleanup-ghcr-images:
     if: github.event.ref_type == 'branch'
+    needs: prepare
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -50,82 +92,30 @@ jobs:
           - clickhouse-keeper
           - clickhouse-backup
     steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-
       - name: Delete GHCR versions for deleted branch
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GH_PACKAGE_MANAGEMENT_TOKEN }}
           OWNER: ${{ github.repository_owner }}
           PACKAGE: ${{ matrix.name }}
-          BRANCH: ${{ github.event.ref }} # WARNING: do not inline this (security risk)
+          BRANCH_TAG: ${{ needs.prepare.outputs.tag }}
         run: |
-          . ./scripts/lib/branch-tag.sh
           api="/users/${OWNER,,}/packages/container/${PACKAGE}/versions"
-          key=$(branch_tag "${BRANCH}")
-          ref_prefix="ref-${key}-"
-          build_prefix="build-${ref_prefix}"
-          ids=$(gh api --paginate --slurp "${api}" \
-            | jq -r --arg key "${key}" --arg ref "${ref_prefix}" --arg build "${build_prefix}" '
-                add | .[]
-                | select((.metadata.container.tags // []) | any(
-                    . == $key or startswith($ref) or startswith($build)))
-                | .id')
+          versions=$(gh api --paginate --slurp "${api}" | jq 'add')
+          ids=$(jq -r --arg branch "${BRANCH_TAG}" '
+            def owned:
+              . == $branch
+              or (startswith($branch + "-sha-") and (.[($branch | length) + 5:] | test("^[0-9a-f]{12}$")));
+            .[]
+            | (.metadata.container.tags // []) as $tags
+            | select(($tags | length) > 0 and all($tags[]; owned))
+            | .id' <<<"${versions}")
           if [ -z "${ids}" ]; then
-            echo "No ${PACKAGE} versions for ${key}; nothing to delete."
+            echo "No exclusively branch-owned ${PACKAGE} versions for ${BRANCH_TAG}; nothing to delete."
             exit 0
           fi
           while read -r id; do
             [ -z "${id}" ] && continue
             echo "Deleting ${PACKAGE} version ${id}"
-            gh api --method DELETE "${api}/${id}"
-          done <<<"${ids}"
-
-  cleanup-ghcr-charts:
-    if: github.event.ref_type == 'branch'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        chart:
-          - postgres
-          - valkey
-          - clickhouse
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-
-      - name: Delete GHCR chart versions for deleted branch
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GH_PACKAGE_MANAGEMENT_TOKEN }}
-          OWNER: ${{ github.repository_owner }}
-          CHART: ${{ matrix.chart }}
-          BRANCH: ${{ github.event.ref }} # WARNING: do not inline this (security risk)
-        run: |
-          . ./scripts/lib/branch-tag.sh
-          api="/users/${OWNER,,}/packages/container/charts%2F${CHART}/versions"
-          key=$(branch_tag "${BRANCH}")
-          tag_suffix="-${key}"
-          ids=$(gh api --paginate --slurp "${api}" \
-            | jq -r --arg suffix "${tag_suffix}" '
-                def exact_chart_version($suffix):
-                  endswith($suffix) and (rtrimstr($suffix) | test("^[0-9]+\\.[0-9]+\\.[0-9]+$"));
-                add | .[]
-                | select((.metadata.container.tags // []) | any(exact_chart_version($suffix)))
-                | .id')
-          if [ -z "${ids}" ]; then
-            echo "No ${CHART} chart versions with exact suffix ${tag_suffix}; nothing to delete."
-            exit 0
-          fi
-          while read -r id; do
-            [ -z "${id}" ] && continue
-            echo "Deleting ${CHART} chart version ${id}"
             gh api --method DELETE "${api}/${id}"
           done <<<"${ids}"

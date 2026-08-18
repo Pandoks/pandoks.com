@@ -53,6 +53,15 @@
       ],
       "registryUrlTemplate": "https://ghcr.io",
       "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Propose reviewable production image digest updates after Build and Publish advances an image's latest tag.",
+      "managerFilePatterns": ["/^k3s/images\\.lock\\.json$/"],
+      "matchStrings": [
+        "\"[^\"]+\":\\s*\"(?<depName>ghcr\\.io/pandoks/[^:\"]+):(?<currentValue>latest)@(?<currentDigest>sha256:[a-f0-9]{64})\""
+      ],
+      "datasourceTemplate": "docker"
     }
   ],
   "packageRules": [
@@ -64,6 +73,12 @@
       "description": "Group all kubectl pins into one PR — kubectl's depNames differ across managers so copies don't auto-coalesce, and the bump needs a manual KUBECTL_SHA256 edit that shouldn't block the all-minor-patch group.",
       "matchDepNames": ["kubectl", "kubernetes/kubernetes"],
       "groupName": "kubectl"
+    },
+    {
+      "description": "Promote successful package images together in one reviewable GitOps lock update.",
+      "matchFileNames": ["k3s/images.lock.json"],
+      "groupName": "production images",
+      "minimumReleaseAge": "0 days"
     }
   ],
   "vulnerabilityAlerts": {

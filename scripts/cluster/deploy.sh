@@ -7,29 +7,112 @@ log_status() {
   printf "%s\n" "$*" >&2
 }
 
-cmd_deploy_validate_image_tag() {
-  cmd_deploy_validate_image_tag_value="$1"
-  [ -n "${cmd_deploy_validate_image_tag_value}" ] \
-    && [ "${#cmd_deploy_validate_image_tag_value}" -le 128 ] \
-    || return 1
-  case "${cmd_deploy_validate_image_tag_value}" in
-    [A-Za-z0-9_]*) ;;
+cmd_deploy_branch_tag() {
+  cmd_deploy_branch_tag_branch="$1"
+  cmd_deploy_branch_tag_value=$(printf '%s' "${cmd_deploy_branch_tag_branch}" \
+    | LC_ALL=C tr '[:upper:]' '[:lower:]' \
+    | LC_ALL=C sed 's/[^a-z0-9._-][^a-z0-9._-]*/-/g' \
+    | LC_ALL=C cut -c1-63)
+  case "${cmd_deploy_branch_tag_value}" in
+    [a-z0-9_]*) ;;
     *) return 1 ;;
   esac
-  case "${cmd_deploy_validate_image_tag_value}" in
-    *[!A-Za-z0-9_.-]*) return 1 ;;
-  esac
+  printf '%s\n' "${cmd_deploy_branch_tag_value}"
 }
 
-cmd_deploy_remote_image_tag() {
-  cmd_deploy_remote_image_tag_branch="$1"
-  cmd_deploy_remote_image_tag_remote_refs=$(git ls-remote --heads origin) \
+cmd_deploy_remote_branch_tag() {
+  cmd_deploy_remote_branch_tag_branch="$1"
+  cmd_deploy_remote_branch_tag_remote_refs=$(git ls-remote --heads origin) \
     || die "Unable to enumerate origin branches before selecting an image tag"
-  cmd_deploy_remote_image_tag_sha=$(printf '%s\n' "${cmd_deploy_remote_image_tag_remote_refs}" \
-    | awk -v ref="refs/heads/${cmd_deploy_remote_image_tag_branch}" '$2 == ref { print $1; exit }')
-  [ "${#cmd_deploy_remote_image_tag_sha}" -eq 40 ] \
-    || die "Source branch is not published on origin: ${cmd_deploy_remote_image_tag_branch}"
-  branch_tag "${cmd_deploy_remote_image_tag_branch}"
+  cmd_deploy_remote_branch_tag_sha=$(printf '%s\n' "${cmd_deploy_remote_branch_tag_remote_refs}" \
+    | awk -v ref="refs/heads/${cmd_deploy_remote_branch_tag_branch}" '$2 == ref { print $1; exit }')
+  [ "${#cmd_deploy_remote_branch_tag_sha}" -eq 40 ] \
+    || die "Source branch is not published on origin: ${cmd_deploy_remote_branch_tag_branch}"
+  cmd_deploy_branch_tag "${cmd_deploy_remote_branch_tag_branch}" \
+    || die "Source branch cannot form a valid image tag: ${cmd_deploy_remote_branch_tag_branch}"
+}
+
+cmd_deploy_registry_digest() {
+  cmd_deploy_registry_digest_image="$1"
+  cmd_deploy_registry_digest_tag="$2"
+  cmd_deploy_registry_digest_repo="pandoks/${cmd_deploy_registry_digest_image}"
+  cmd_deploy_registry_digest_token=$(curl --retry 3 --retry-all-errors -fsSL \
+    "https://ghcr.io/token?scope=repository:${cmd_deploy_registry_digest_repo}:pull" \
+    | jq -er '.token') || return 1
+  cmd_deploy_registry_digest_headers=$(mktemp)
+  cmd_deploy_registry_digest_status=$(curl --retry 3 --retry-all-errors -sS \
+    -o /dev/null -D "${cmd_deploy_registry_digest_headers}" -w '%{http_code}' \
+    -H "Authorization: Bearer ${cmd_deploy_registry_digest_token}" \
+    -H 'Accept: application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json' \
+    "https://ghcr.io/v2/${cmd_deploy_registry_digest_repo}/manifests/${cmd_deploy_registry_digest_tag}") \
+    || {
+      rm -f "${cmd_deploy_registry_digest_headers}"
+      return 1
+    }
+  if [ "${cmd_deploy_registry_digest_status}" = "404" ]; then
+    rm -f "${cmd_deploy_registry_digest_headers}"
+    return 2
+  elif [ "${cmd_deploy_registry_digest_status}" != "200" ]; then
+    log_error "GHCR returned ${cmd_deploy_registry_digest_status} for ${cmd_deploy_registry_digest_image}:${cmd_deploy_registry_digest_tag}"
+    rm -f "${cmd_deploy_registry_digest_headers}"
+    return 1
+  fi
+  cmd_deploy_registry_digest_value=$(tr -d '\r' < "${cmd_deploy_registry_digest_headers}" \
+    | awk 'tolower($1) == "docker-content-digest:" { print $2; exit }')
+  rm -f "${cmd_deploy_registry_digest_headers}"
+  case "${cmd_deploy_registry_digest_value}" in
+    sha256:*[!a-f0-9]* | '') return 1 ;;
+  esac
+  [ "${#cmd_deploy_registry_digest_value}" -eq 71 ] || return 1
+  printf '%s\n' "${cmd_deploy_registry_digest_value}"
+}
+
+cmd_deploy_locked_images() {
+  cmd_deploy_locked_images_file="${REPO_ROOT}/k3s/images.lock.json"
+  jq -e '
+    keys == [
+      "argocd-sst-plugin", "clickhouse", "clickhouse-backup", "clickhouse-keeper",
+      "patroni", "pgbackrest", "valkey", "valkey-reconciler"
+    ]
+    and all(to_entries[]; . as $entry
+      | $entry.value
+      | test("^ghcr\\.io/pandoks/" + $entry.key + ":latest@sha256:[a-f0-9]{64}$"))
+  ' "${cmd_deploy_locked_images_file}" > /dev/null \
+    || die "Invalid production image lock: ${cmd_deploy_locked_images_file}"
+  jq -c . "${cmd_deploy_locked_images_file}"
+}
+
+cmd_deploy_images() {
+  cmd_deploy_images_env="$1"
+  cmd_deploy_images_branch="${2:-}"
+  cmd_deploy_images_locked=$(cmd_deploy_locked_images) || return 1
+
+  if [ "${cmd_deploy_images_env}" = "local" ]; then
+    printf '%s' "${cmd_deploy_images_locked}" \
+      | jq -c 'with_entries(.value = "local-registry:5000/" + .key + ":latest")'
+    return
+  elif [ "${cmd_deploy_images_env}" = "prod" ] || [ -z "${cmd_deploy_images_branch}" ]; then
+    printf '%s\n' "${cmd_deploy_images_locked}"
+    return
+  fi
+
+  cmd_deploy_images_tag=$(cmd_deploy_remote_branch_tag "${cmd_deploy_images_branch}") || return 1
+  cmd_deploy_images_resolved='{}'
+  for cmd_deploy_images_name in $(printf '%s' "${cmd_deploy_images_locked}" | jq -r 'keys[]'); do
+    if cmd_deploy_images_digest=$(cmd_deploy_registry_digest \
+      "${cmd_deploy_images_name}" "${cmd_deploy_images_tag}"); then
+      cmd_deploy_images_ref="ghcr.io/pandoks/${cmd_deploy_images_name}@${cmd_deploy_images_digest}"
+    else
+      cmd_deploy_images_status=$?
+      [ "${cmd_deploy_images_status}" -eq 2 ] || return 1
+      cmd_deploy_images_ref=$(printf '%s' "${cmd_deploy_images_locked}" \
+        | jq -er --arg name "${cmd_deploy_images_name}" '.[$name]') || return 1
+    fi
+    cmd_deploy_images_resolved=$(printf '%s' "${cmd_deploy_images_resolved}" \
+      | jq -c --arg name "${cmd_deploy_images_name}" --arg ref "${cmd_deploy_images_ref}" \
+        '. + {($name): $ref}') || return 1
+  done
+  printf '%s\n' "${cmd_deploy_images_resolved}"
 }
 
 cmd_deploy_compute_vars() {
@@ -42,57 +125,38 @@ cmd_deploy_compute_vars() {
     local)
       cmd_deploy_compute_vars_is_local="true"
       cmd_deploy_compute_vars_image_registry="local-registry:5000"
-      cmd_deploy_compute_vars_image_tag="latest"
       ;;
     prod | dev)
       cmd_deploy_compute_vars_is_local="false"
       cmd_deploy_compute_vars_image_registry="ghcr.io/pandoks"
       if [ "${cmd_deploy_compute_vars_is_bootstrap}" = "true" ]; then
-        cmd_deploy_compute_vars_image_tag="bootstrap-unused"
         [ "${cmd_deploy_compute_vars_env}" = "prod" ] \
           && cmd_deploy_compute_vars_use_proxy_protocol="true"
-      else
-        case "${cmd_deploy_compute_vars_env}" in
-          dev)
-            if [ -z "${cmd_deploy_compute_vars_branch}" ]; then
-              log_error "A source branch is required for dev image selection"
-              return 1
-            fi
-            cmd_deploy_compute_vars_image_tag=$(cmd_deploy_remote_image_tag \
-              "${cmd_deploy_compute_vars_branch}") || return 1
-            ;;
-          prod)
-            if [ -n "${PANDOKS_IMAGE_TAG:-}" ]; then
-              cmd_deploy_validate_image_tag "${PANDOKS_IMAGE_TAG}" \
-                || die "Invalid PANDOKS_IMAGE_TAG"
-              cmd_deploy_compute_vars_image_tag="${PANDOKS_IMAGE_TAG}"
-            else
-              cmd_deploy_compute_vars_image_tag=$(cmd_deploy_remote_image_tag main) \
-                || return 1
-            fi
-            cmd_deploy_compute_vars_use_proxy_protocol="true"
-            ;;
-        esac
+      elif [ "${cmd_deploy_compute_vars_env}" = "dev" ] \
+        && [ -z "${cmd_deploy_compute_vars_branch}" ]; then
+        log_error "A source branch is required for dev image selection"
+        return 1
+      elif [ "${cmd_deploy_compute_vars_env}" = "prod" ]; then
+        cmd_deploy_compute_vars_use_proxy_protocol="true"
       fi
       ;;
   esac
 
-  if ! cmd_deploy_validate_image_tag "${cmd_deploy_compute_vars_image_tag:-}"; then
-    log_error "Image tag resolution returned an invalid value"
-    return 1
-  fi
+  cmd_deploy_compute_vars_images=$(cmd_deploy_images \
+    "${cmd_deploy_compute_vars_env}" "${cmd_deploy_compute_vars_branch}") || return 1
 
-  jq -n \
+  printf '%s' "${cmd_deploy_compute_vars_images}" | jq \
     --arg IsLocal "${cmd_deploy_compute_vars_is_local}" \
     --arg ImageRegistry "${cmd_deploy_compute_vars_image_registry}" \
-    --arg ImageTag "${cmd_deploy_compute_vars_image_tag}" \
     --arg UseProxyProtocol "${cmd_deploy_compute_vars_use_proxy_protocol}" \
-    '{
-      IsLocal: $IsLocal,
-      ImageRegistry: $ImageRegistry,
-      ImageTag: $ImageTag,
-      UseProxyProtocol: $UseProxyProtocol
-    }'
+    'def image_variable:
+      split("-") | map((.[0:1] | ascii_upcase) + .[1:]) | join("") + "Image";
+    with_entries(.key |= image_variable)
+    + {
+        IsLocal: $IsLocal,
+        ImageRegistry: $ImageRegistry,
+        UseProxyProtocol: $UseProxyProtocol
+      }'
 }
 
 cmd_deploy_get_template_vars() {

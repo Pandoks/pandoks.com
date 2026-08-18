@@ -15,5 +15,5 @@ spec:
     namespace: *namespace
     credentials.secret: postgres-main-creds
     backup.path: kubernetes/main/postgres
-    backup.image: ${ImageRegistry}/pgbackrest:${ImageTag}
-    patroni.image: ${ImageRegistry}/patroni:${ImageTag}
+    backup.image: ${PgbackrestImage}
+    patroni.image: ${PatroniImage}
