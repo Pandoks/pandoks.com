@@ -71,11 +71,13 @@ is applied (unless using `--dry-run`).
 Remote dev deploys verify that the requested source branch exists on `origin`.
 The image workflow builds and scans only changed images. Each successful
 feature build publishes a moving `<branch>` tag and an immutable
-`<branch>-sha-<sha12>` tag; each successful main build publishes `latest` and
-`sha-<sha12>`. Dev resolves every available branch tag to an exact digest and
-uses the production lock for images unchanged on that branch. Production reads
-only the committed lock. `--bootstrap` does not query GHCR because bootstrap
-manifests consume no package images.
+global `sha-<sha12>` tag; each successful main build publishes `latest` and the
+same global SHA format. Dev resolves every available branch tag to an exact
+digest and uses the production lock for images unchanged on that branch.
+Production reads only the committed lock. Scheduled maintenance preserves live
+branch heads, `latest`, locked production digests, every image newer than 30
+days, and the newest 10 SHA images per package. `--bootstrap` does not query
+GHCR because bootstrap manifests consume no package images.
 
 ### Template Variables
 

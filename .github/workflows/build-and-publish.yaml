@@ -172,9 +172,9 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           short_sha=${COMMIT_SHA:0:12}
+          immutable="sha-${short_sha}"
           if [[ "${BRANCH}" == "${DEFAULT_BRANCH}" ]]; then
             moving=latest
-            immutable="sha-${short_sha}"
           else
             moving=$(printf '%s' "${BRANCH}" \
               | tr '[:upper:]' '[:lower:]' \
@@ -182,7 +182,6 @@ jobs:
               | cut -c1-63)
             [[ "${moving}" =~ ^[a-z0-9_][a-z0-9_.-]*$ ]] \
               || { echo "Branch cannot form a valid image tag: ${BRANCH}" >&2; exit 1; }
-            immutable="${moving}-sha-${short_sha}"
 
             remote_branches=$(git ls-remote --heads origin) \
               || { echo "Unable to enumerate origin branches" >&2; exit 1; }
