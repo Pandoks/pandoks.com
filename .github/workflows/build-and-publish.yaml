@@ -65,7 +65,6 @@ jobs:
       images: ${{ steps.set-image-matrix.outputs.images }}
       charts: ${{ steps.set-chart-matrix.outputs.charts }}
       moving-tag: ${{ steps.image-tags.outputs.moving }}
-      immutable-tag: ${{ steps.image-tags.outputs.immutable }}
 
     steps:
       - uses: actions/checkout@v6
@@ -77,6 +76,7 @@ jobs:
           filters: |
             scan-all:
               - '.github/workflows/build-and-publish.yaml'
+              - 'scripts/ci/build-and-publish.sh'
               - 'trivy.yaml'
               - '.trivyignore.yaml'
             patroni:
@@ -108,6 +108,7 @@ jobs:
           filters: |
             scan-all:
               - '.github/workflows/build-and-publish.yaml'
+              - 'scripts/ci/build-and-publish.sh'
               - 'trivy.yaml'
               - '.trivyignore.yaml'
             postgres:
@@ -117,90 +118,31 @@ jobs:
             clickhouse:
               - 'packages/clickhouse/chart/**'
 
-      - id: set-image-matrix
+      - name: Select image builds
+        id: set-image-matrix
         env:
+          EVENT_NAME: ${{ github.event_name }}
           DISPATCH: ${{ toJSON(inputs) }}
-        run: |
-          all='[
-            {"name":"patroni","path":"./packages/postgres/patroni/Dockerfile"},
-            {"name":"pgbackrest","path":"./packages/postgres/pgbackrest/Dockerfile"},
-            {"name":"valkey","path":"./packages/valkey/Dockerfile"},
-            {"name":"valkey-reconciler","path":"./packages/valkey/reconciler/Dockerfile"},
-            {"name":"argocd-sst-plugin","path":"./packages/argocd/Dockerfile"},
-            {"name":"clickhouse","path":"./packages/clickhouse/clickhouse/Dockerfile"},
-            {"name":"clickhouse-keeper","path":"./packages/clickhouse/keeper/Dockerfile"},
-            {"name":"clickhouse-backup","path":"./packages/clickhouse/backup/Dockerfile"}
-          ]'
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            selected=$(jq -c 'to_entries | map(select(.value == true and (.key | endswith("-chart") | not)) | .key)' <<<"${DISPATCH}")
-          elif [[ "${{ steps.image-changes.outputs.scan-all }}" == "true" ]]; then
-            selected=$(jq -c 'map(.name)' <<<"${all}")
-          else
-            selected='${{ steps.image-changes.outputs.changes || '[]' }}'
-          fi
-          images=$(jq -c --argjson selected "${selected}" \
-            'map(select(.name as $name | $selected | index($name)))' <<<"${all}")
-          echo "images=${images}" >> "${GITHUB_OUTPUT}"
+          CHANGES: ${{ steps.image-changes.outputs.changes || '[]' }}
+          SCAN_ALL: ${{ steps.image-changes.outputs.scan-all || 'false' }}
+        run: scripts/ci/build-and-publish.sh image-matrix >> "${GITHUB_OUTPUT}"
 
-      - id: set-chart-matrix
+      - name: Select chart builds
+        id: set-chart-matrix
         env:
+          EVENT_NAME: ${{ github.event_name }}
           DISPATCH: ${{ toJSON(inputs) }}
-        run: |
-          all='[
-            {"name":"postgres","path":"./packages/postgres/chart"},
-            {"name":"valkey","path":"./packages/valkey/chart"},
-            {"name":"clickhouse","path":"./packages/clickhouse/chart"}
-          ]'
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            selected=$(jq -c 'to_entries | map(select(.value == true and (.key | endswith("-chart"))) | .key | sub("-chart$"; ""))' <<<"${DISPATCH}")
-            scan_all=false
-          else
-            selected='${{ steps.chart-changes.outputs.changes || '[]' }}'
-            scan_all='${{ steps.chart-changes.outputs.scan-all || 'false' }}'
-          fi
-          charts=$(jq -c --argjson sel "${selected}" --argjson scan_all "${scan_all}" '
-            map(. + {publish: (.name as $n | $sel | index($n) != null)})
-            | map(select($scan_all or .publish))' <<<"${all}")
-          echo "charts=${charts}" >> "${GITHUB_OUTPUT}"
+          CHANGES: ${{ steps.chart-changes.outputs.changes || '[]' }}
+          SCAN_ALL: ${{ steps.chart-changes.outputs.scan-all || 'false' }}
+        run: scripts/ci/build-and-publish.sh chart-matrix >> "${GITHUB_OUTPUT}"
 
-      - name: Compute conventional image tags
+      - name: Validate moving image tag
         id: image-tags
         shell: bash
         env:
           BRANCH: ${{ github.ref_name }} # WARNING: do not inline this (security risk)
-          COMMIT_SHA: ${{ github.sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: |
-          short_sha=${COMMIT_SHA:0:12}
-          immutable="sha-${short_sha}"
-          if [[ "${BRANCH}" == "${DEFAULT_BRANCH}" ]]; then
-            moving=latest
-          else
-            moving=$(printf '%s' "${BRANCH}" \
-              | tr '[:upper:]' '[:lower:]' \
-              | sed -E 's/[^a-z0-9._-]+/-/g' \
-              | cut -c1-63)
-            [[ "${moving}" =~ ^[a-z0-9_][a-z0-9_.-]*$ ]] \
-              || { echo "Branch cannot form a valid image tag: ${BRANCH}" >&2; exit 1; }
-
-            remote_branches=$(git ls-remote --heads origin) \
-              || { echo "Unable to enumerate origin branches" >&2; exit 1; }
-            collision=$(while IFS= read -r candidate; do
-                  [[ "${candidate}" == "${BRANCH}" ]] && continue
-                  candidate_tag=$(printf '%s' "${candidate}" \
-                    | tr '[:upper:]' '[:lower:]' \
-                    | sed -E 's/[^a-z0-9._-]+/-/g' \
-                    | cut -c1-63)
-                  if [[ "${candidate_tag}" == "${moving}" ]]; then
-                    printf '%s\n' "${candidate}"
-                    break
-                  fi
-                done < <(awk '{sub("refs/heads/", "", $2); print $2}' <<<"${remote_branches}"))
-            [[ -z "${collision}" ]] \
-              || { echo "Image tag collision: ${BRANCH} and ${collision} both normalize to ${moving}" >&2; exit 1; }
-          fi
-          echo "moving=${moving}" >> "${GITHUB_OUTPUT}"
-          echo "immutable=${immutable}" >> "${GITHUB_OUTPUT}"
+        run: scripts/ci/build-and-publish.sh image-tag >> "${GITHUB_OUTPUT}"
 
   build-publish-images:
     needs: detect-changes
@@ -233,12 +175,14 @@ jobs:
 
       - uses: docker/metadata-action@v6
         id: meta
+        env:
+          DOCKER_METADATA_SHORT_SHA_LENGTH: 12
         with:
           # NOTE: github.repository includes the owner/org (ghcr.io/<owner/org>/repo-name)
           images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image.name }}
           tags: |
             type=raw,value=${{ needs.detect-changes.outputs.moving-tag }}
-            type=raw,value=${{ needs.detect-changes.outputs.immutable-tag }}
+            type=sha
 
       - name: Build image
         uses: docker/build-push-action@v7
