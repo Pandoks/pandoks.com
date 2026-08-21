@@ -1,4 +1,5 @@
-#!/bin/sh
+#!/bin/bash
+# shellcheck shell=bash
 
 set -eu
 
@@ -15,12 +16,32 @@ usage() {
   exit "${1:-0}"
 }
 
-normalize_branch_tag() {
-  normalize_branch_tag_branch="$1"
-  printf '%s' "${normalize_branch_tag_branch}" \
+normalize_moving_tag() {
+  normalize_moving_tag_branch="$1"
+
+  normalize_moving_tag_value=$(printf '%s' "${normalize_moving_tag_branch}" \
     | tr '[:upper:]' '[:lower:]' \
     | sed 's/[^a-z0-9._-][^a-z0-9._-]*/-/g' \
-    | cut -c1-63
+    | cut -c1-63)
+
+  case "${normalize_moving_tag_value}" in
+    '' | [!a-z0-9_]* | *[!a-z0-9_.-]*)
+      die "Branch cannot form a valid image tag: ${normalize_moving_tag_branch}"
+      ;;
+    latest | sha-*)
+      die "Branch maps to reserved image tag: ${normalize_moving_tag_value}"
+      ;;
+    *) ;;
+  esac
+
+  printf "%s\n" "${normalize_moving_tag_value}"
+}
+
+remote_branches() {
+  remote_branches_refs=$(git -C "${REPO_ROOT}" ls-remote --heads origin) \
+    || die "Unable to enumerate origin branches"
+  printf '%s\n' "${remote_branches_refs}" \
+    | awk '{sub("refs/heads/", "", $2); print $2}'
 }
 
 cmd_filters() {
@@ -94,44 +115,39 @@ cmd_matrix() {
   printf '%s\n' "${cmd_matrix_value}"
 }
 
-cmd_image_tag() {
-  cmd_image_tag_branch="$1"
-  cmd_image_tag_default_branch="$2"
+cmd_moving_tag() {
+  cmd_moving_tag_current_branch="$1"
+  cmd_moving_tag_default_branch="$2"
+  [ -n "${cmd_moving_tag_current_branch}" ] || die "Branch is required"
+  [ -n "${cmd_moving_tag_default_branch}" ] || die "Default branch is required"
 
-  [ -n "${cmd_image_tag_branch}" ] || die "Branch is required"
-  [ -n "${cmd_image_tag_default_branch}" ] || die "Default branch is required"
-
-  if [ "${cmd_image_tag_branch}" = "${cmd_image_tag_default_branch}" ]; then
+  if [ "${cmd_moving_tag_current_branch}" = "${cmd_moving_tag_default_branch}" ]; then
     printf "latest\n"
     return
   fi
 
-  cmd_image_tag_moving=$(normalize_branch_tag "${cmd_image_tag_branch}")
-  case "${cmd_image_tag_moving}" in
-    '' | [!a-z0-9_]* | *[!a-z0-9_.-]*)
-      die "Branch cannot form a valid image tag: ${cmd_image_tag_branch}"
-      ;;
-    *) ;;
-  esac
+  cmd_moving_tag_normalized_tag=$(normalize_moving_tag "${cmd_moving_tag_current_branch}")
+  cmd_moving_tag_branches=$(remote_branches)
+  cmd_moving_tag_origin_branch_found=false
 
-  cmd_image_tag_remote_branches=$(git ls-remote --heads origin) \
-    || die "Unable to enumerate origin branches"
-  cmd_image_tag_candidates=$(printf '%s\n' "${cmd_image_tag_remote_branches}" \
-    | awk '{sub("refs/heads/", "", $2); print $2}')
-
-  while IFS= read -r cmd_image_tag_candidate; do
-    [ -n "${cmd_image_tag_candidate}" ] || continue
-    [ "${cmd_image_tag_candidate}" = "${cmd_image_tag_branch}" ] && continue
-
-    cmd_image_tag_candidate_tag=$(normalize_branch_tag "${cmd_image_tag_candidate}")
-    if [ "${cmd_image_tag_candidate_tag}" = "${cmd_image_tag_moving}" ]; then
-      die "Image tag collision: ${cmd_image_tag_branch} and ${cmd_image_tag_candidate} both normalize to ${cmd_image_tag_moving}"
+  while IFS= read -r cmd_moving_tag_branch_candidate; do
+    if [ -z "${cmd_moving_tag_branch_candidate}" ] \
+      || [ "${cmd_moving_tag_branch_candidate}" = "${cmd_moving_tag_default_branch}" ]; then
+      continue
+    elif [ "${cmd_moving_tag_branch_candidate}" = "${cmd_moving_tag_current_branch}" ]; then
+      cmd_moving_tag_origin_branch_found=true
+      continue
     fi
-  done << EOF
-${cmd_image_tag_candidates}
-EOF
 
-  printf "%s\n" "${cmd_image_tag_moving}"
+    cmd_moving_tag_branch_candidate_moving_tag=$(normalize_moving_tag "${cmd_moving_tag_branch_candidate}")
+    if [ "${cmd_moving_tag_branch_candidate_moving_tag}" = "${cmd_moving_tag_normalized_tag}" ]; then
+      die "Image tag collision: ${cmd_moving_tag_current_branch} and ${cmd_moving_tag_branch_candidate} both normalize to ${cmd_moving_tag_normalized_tag}"
+    fi
+  done <<< "${cmd_moving_tag_branches}"
+
+  [ "${cmd_moving_tag_origin_branch_found}" = "true" ] \
+    || die "Source branch is not published on origin: ${cmd_moving_tag_current_branch}"
+  printf "%s\n" "${cmd_moving_tag_normalized_tag}"
 }
 
 main() {
@@ -160,9 +176,13 @@ main() {
       [ $# -eq 2 ] || usage 1
       cmd_matrix "$1" "charts" "$2"
       ;;
-    image-tag)
+    moving-tag)
       [ $# -eq 2 ] || usage 1
-      cmd_image_tag "$@"
+      cmd_moving_tag "$@"
+      ;;
+    live-moving-tags)
+      [ $# -eq 1 ] || usage 1
+      cmd_live_moving_tags "$1"
       ;;
     help | --help | -h)
       [ $# -eq 0 ] || usage 1

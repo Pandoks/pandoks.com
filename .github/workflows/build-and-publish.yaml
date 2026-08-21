@@ -69,80 +69,120 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Define build catalog
+        id: build-catalog
+        shell: bash
+        run: |
+          catalog='{
+            "rebuild-all": [
+              ".github/workflows/build-and-publish.yaml",
+              "scripts/ci/build-and-publish.sh",
+              "trivy.yaml",
+              ".trivyignore.yaml"
+            ],
+            "images": [
+              {
+                "name": "patroni",
+                "path": "./packages/postgres/patroni/Dockerfile",
+                "watch": ["packages/postgres/patroni/**"]
+              },
+              {
+                "name": "pgbackrest",
+                "path": "./packages/postgres/pgbackrest/Dockerfile",
+                "watch": ["packages/postgres/pgbackrest/**"]
+              },
+              {
+                "name": "valkey",
+                "path": "./packages/valkey/Dockerfile",
+                "watch": [
+                  "packages/valkey/Dockerfile",
+                  "packages/valkey/entrypoint.sh"
+                ]
+              },
+              {
+                "name": "valkey-reconciler",
+                "path": "./packages/valkey/reconciler/Dockerfile",
+                "watch": ["packages/valkey/reconciler/**"]
+              },
+              {
+                "name": "argocd-sst-plugin",
+                "path": "./packages/argocd/Dockerfile",
+                "watch": [
+                  "packages/argocd/**",
+                  "package.json",
+                  "pnpm-lock.yaml",
+                  "pnpm-workspace.yaml",
+                  "mise.toml"
+                ]
+              },
+              {
+                "name": "clickhouse",
+                "path": "./packages/clickhouse/clickhouse/Dockerfile",
+                "watch": ["packages/clickhouse/clickhouse/**"]
+              },
+              {
+                "name": "clickhouse-keeper",
+                "path": "./packages/clickhouse/keeper/Dockerfile",
+                "watch": ["packages/clickhouse/keeper/**"]
+              },
+              {
+                "name": "clickhouse-backup",
+                "path": "./packages/clickhouse/backup/Dockerfile",
+                "watch": ["packages/clickhouse/backup/**"]
+              }
+            ],
+            "charts": [
+              {"name":"postgres","path":"./packages/postgres/chart","watch":["packages/postgres/chart/**"]},
+              {"name":"valkey","path":"./packages/valkey/chart","watch":["packages/valkey/chart/**"]},
+              {"name":"clickhouse","path":"./packages/clickhouse/chart","watch":["packages/clickhouse/chart/**"]}
+            ]
+          }'
+          catalog=$(jq -c . <<< "${catalog}")
+          image_filters=$(scripts/ci/build-and-publish.sh image-filters "${catalog}")
+          chart_filters=$(scripts/ci/build-and-publish.sh chart-filters "${catalog}")
+          {
+            printf "catalog=%s\n" "${catalog}"
+            printf "image-filters=%s\n" "${image_filters}"
+            printf "chart-filters=%s\n" "${chart_filters}"
+          } >> "${GITHUB_OUTPUT}"
+
       - id: image-changes
         if: github.event_name != 'workflow_dispatch'
         uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4
         with:
-          filters: |
-            scan-all:
-              - '.github/workflows/build-and-publish.yaml'
-              - 'scripts/ci/build-and-publish.sh'
-              - 'trivy.yaml'
-              - '.trivyignore.yaml'
-            patroni:
-              - 'packages/postgres/patroni/**'
-            pgbackrest:
-              - 'packages/postgres/pgbackrest/**'
-            valkey:
-              - 'packages/valkey/Dockerfile'
-              - 'packages/valkey/entrypoint.sh'
-            valkey-reconciler:
-              - 'packages/valkey/reconciler/**'
-            argocd-sst-plugin:
-              - 'packages/argocd/**'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'mise.toml'
-            clickhouse:
-              - 'packages/clickhouse/clickhouse/**'
-            clickhouse-keeper:
-              - 'packages/clickhouse/keeper/**'
-            clickhouse-backup:
-              - 'packages/clickhouse/backup/**'
+          filters: ${{ steps.build-catalog.outputs.image-filters }}
 
       - id: chart-changes
         if: github.event_name != 'workflow_dispatch'
         uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4
         with:
-          filters: |
-            scan-all:
-              - '.github/workflows/build-and-publish.yaml'
-              - 'scripts/ci/build-and-publish.sh'
-              - 'trivy.yaml'
-              - '.trivyignore.yaml'
-            postgres:
-              - 'packages/postgres/chart/**'
-            valkey:
-              - 'packages/valkey/chart/**'
-            clickhouse:
-              - 'packages/clickhouse/chart/**'
+          filters: ${{ steps.build-catalog.outputs.chart-filters }}
 
-      - name: Select image builds
+      - name: Create image matrix
         id: set-image-matrix
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          DISPATCH: ${{ toJSON(inputs) }}
-          CHANGES: ${{ steps.image-changes.outputs.changes || '[]' }}
-          SCAN_ALL: ${{ steps.image-changes.outputs.scan-all || 'false' }}
-        run: scripts/ci/build-and-publish.sh image-matrix >> "${GITHUB_OUTPUT}"
+        run: |
+          images=$(scripts/ci/build-and-publish.sh image-matrix \
+            '${{ steps.build-catalog.outputs.catalog }}' \
+            '${{ github.event_name == 'workflow_dispatch' && toJSON(inputs) || steps.image-changes.outputs.changes || '[]' }}')
+          printf "images=%s\n" "${images}" >> "${GITHUB_OUTPUT}"
 
-      - name: Select chart builds
+      - name: Create chart matrix
         id: set-chart-matrix
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          DISPATCH: ${{ toJSON(inputs) }}
-          CHANGES: ${{ steps.chart-changes.outputs.changes || '[]' }}
-          SCAN_ALL: ${{ steps.chart-changes.outputs.scan-all || 'false' }}
-        run: scripts/ci/build-and-publish.sh chart-matrix >> "${GITHUB_OUTPUT}"
+        run: |
+          charts=$(scripts/ci/build-and-publish.sh chart-matrix \
+            '${{ steps.build-catalog.outputs.catalog }}' \
+            '${{ github.event_name == 'workflow_dispatch' && toJSON(inputs) || steps.chart-changes.outputs.changes || '[]' }}')
+          printf "charts=%s\n" "${charts}" >> "${GITHUB_OUTPUT}"
 
       - name: Validate moving image tag
         id: image-tags
         shell: bash
         env:
-          BRANCH: ${{ github.ref_name }} # WARNING: do not inline this (security risk)
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: scripts/ci/build-and-publish.sh image-tag >> "${GITHUB_OUTPUT}"
+        run: |
+          moving=$(scripts/ci/build-and-publish.sh moving-tag \
+            "${GITHUB_REF_NAME}" "${DEFAULT_BRANCH}")
+          printf "moving=%s\n" "${moving}" >> "${GITHUB_OUTPUT}"
 
   build-publish-images:
     needs: detect-changes
