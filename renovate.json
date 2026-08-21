@@ -13,6 +13,9 @@
   "prHourlyLimit": 0,
   "rangeStrategy": "pin",
   "postUpdateOptions": ["pnpmDedupe", "gomodTidy"],
+  "kubernetes": {
+    "managerFilePatterns": ["/^apps\\/.+\\/kube\\/.+\\.ya?ml$/"]
+  },
   "customManagers": [
     {
       "customType": "regex",
@@ -34,6 +37,15 @@
     },
     {
       "customType": "regex",
+      "description": "Track AWS CLI in the argocd image. AWS_CLI_SHA256 must be updated by hand on each bump; a stale checksum fails the image build.",
+      "managerFilePatterns": ["/(^|/)packages/argocd/Dockerfile$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) packageName=(?<packageName>[^\\s]+)\\s+ARG AWS_CLI_VERSION=(?<currentValue>[\\d.]+)"
+      ],
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
       "description": "Bump `version:` pins annotated with a trailing `# renovate: datasource=... packageName=...` comment.",
       "managerFilePatterns": ["/^apps/.+/kube/.+\\.ya?ml$/"],
       "matchStrings": [
@@ -41,6 +53,15 @@
       ],
       "registryUrlTemplate": "https://ghcr.io",
       "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Propose reviewable production image digest updates after Build and Publish advances an image's latest tag.",
+      "managerFilePatterns": ["/^k3s/images\\.lock\\.json$/"],
+      "matchStrings": [
+        "\"[^\"]+\":\\s*\"(?<depName>ghcr\\.io/pandoks/[^:\"]+):(?<currentValue>latest)@(?<currentDigest>sha256:[a-f0-9]{64})\""
+      ],
+      "datasourceTemplate": "docker"
     }
   ],
   "packageRules": [
@@ -52,6 +73,12 @@
       "description": "Group all kubectl pins into one PR — kubectl's depNames differ across managers so copies don't auto-coalesce, and the bump needs a manual KUBECTL_SHA256 edit that shouldn't block the all-minor-patch group.",
       "matchDepNames": ["kubectl", "kubernetes/kubernetes"],
       "groupName": "kubectl"
+    },
+    {
+      "description": "Promote successful package images together in one reviewable GitOps lock update.",
+      "matchFileNames": ["k3s/images.lock.json"],
+      "groupName": "production images",
+      "minimumReleaseAge": "0 days"
     }
   ],
   "vulnerabilityAlerts": {

@@ -6,30 +6,28 @@
   import { getSlugFromBlogTitle } from '$lib/utils';
 
   let activeBlogIndex: number | undefined = $state();
+
+  function syncBodyBoundaries() {
+    vimState.bodyTop = activeBlogIndex === 0;
+    vimState.bodyBottom = activeBlogIndex === __BLOG_TITLES__.length - 1;
+  }
+
   const vimState = getVimState()
     .setBodyHandler((e) => {
       switch (e.key) {
         case 'j':
-          if (activeBlogIndex === __BLOG_TITLES__.length - 2) {
-            // NOTE: You want to set bottom to true on the second to last item because once you've
-            // reached the last item, you want the vim state to take over
-            vimState.bodyBottom = true;
+          if (activeBlogIndex === undefined || activeBlogIndex >= __BLOG_TITLES__.length - 1) {
+            return;
           }
-          activeBlogIndex!++;
-          if (__BLOG_TITLES__.length > 1) {
-            vimState.bodyTop = false;
-          }
+          activeBlogIndex++;
+          syncBodyBoundaries();
           return;
         case 'k':
-          if (activeBlogIndex === 1) {
-            // NOTE: same note as above but now you're going up
-            vimState.bodyTop = true;
+          if (activeBlogIndex === undefined || activeBlogIndex <= 0) {
+            return;
           }
-
-          activeBlogIndex!--;
-          if (__BLOG_TITLES__.length > 1) {
-            vimState.bodyBottom = false;
-          }
+          activeBlogIndex--;
+          syncBodyBoundaries();
           return;
         case 'Enter':
           if (activeBlogIndex !== undefined) {
@@ -45,16 +43,11 @@
     .setInitBodyState((e: KeyboardEvent) => {
       if (e.key === 'j') {
         activeBlogIndex = 0;
-        if (__BLOG_TITLES__.length > 1) {
-          vimState.bodyBottom = false;
-        }
+        syncBodyBoundaries();
       }
       if (e.key === 'k') {
         activeBlogIndex = __BLOG_TITLES__.length - 1;
-        vimState.bodyBottom = true;
-        if (__BLOG_TITLES__.length > 1) {
-          vimState.bodyTop = false;
-        }
+        syncBodyBoundaries();
       }
     })
     .setResetBodyState(() => {

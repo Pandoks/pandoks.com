@@ -13,8 +13,8 @@ spec:
   set:
     name: main
     namespace: *namespace
-    image: ${ImageRegistry}/valkey:${ImageTag}
-    cluster.reconcilerImage: ${ImageRegistry}/valkey-reconciler:${ImageTag}
+    image: ${ValkeyImage}
+    cluster.reconcilerImage: ${ValkeyReconcilerImage}
     cluster.masters: 1
     cluster.replicasPerMaster: 0
     credentials.secret: valkey-main-creds

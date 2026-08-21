@@ -10,12 +10,28 @@ spec:
     command: [sh, -c]
     args:
       - |
-        cd "$(git rev-parse --show-toplevel)"
-        pnpm install --frozen-lockfile
-        pnpm sst install
+        repo_root=$PWD
+        while [ "${repo_root}" != / ] && [ ! -f "${repo_root}/pnpm-workspace.yaml" ]; do
+          repo_root=$(dirname "${repo_root}")
+        done
+        [ -f "${repo_root}/pnpm-workspace.yaml" ] || {
+          echo "Unable to locate the repository root from ${PWD}" >&2
+          exit 1
+        }
+        cd "${repo_root}"
+        pnpm install --frozen-lockfile --ignore-scripts --store-dir /tmp/pnpm-store
+        pnpm sst install --stage production
   generate:
     command: [sh, -c]
     args:
       - |
-        cd "$(git rev-parse --show-toplevel)"
+        repo_root=$PWD
+        while [ "${repo_root}" != / ] && [ ! -f "${repo_root}/pnpm-workspace.yaml" ]; do
+          repo_root=$(dirname "${repo_root}")
+        done
+        [ -f "${repo_root}/pnpm-workspace.yaml" ] || {
+          echo "Unable to locate the repository root from ${PWD}" >&2
+          exit 1
+        }
+        cd "${repo_root}"
         sh ./scripts/cluster/main.sh deploy prod --dry-run --quiet

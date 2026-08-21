@@ -72,8 +72,8 @@ pnpm dev:init
 # Or step by step:
 pnpm cluster k3d deps up             # Start docker compose dependencies
 pnpm cluster k3d up                  # Create k3d cluster
-pnpm cluster deploy dev --bootstrap  # First-time: install helm charts + CRDs
-pnpm cluster deploy dev              # Apply environment overlay
+pnpm cluster deploy local --bootstrap  # First-time: install helm charts + CRDs
+pnpm cluster deploy local              # Apply local overlay
 ```
 
 To tear down the cluster:

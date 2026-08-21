@@ -11,11 +11,15 @@ spec:
         runAsUser: 999
       containers:
         - name: kustomize-sst-render
-          image: ghcr.io/pandoks/argocd-sst-plugin:main
+          image: ${ArgocdSstPluginImage}
           command: [/var/run/argocd/argocd-cmp-server]
           securityContext:
             readOnlyRootFilesystem: true
           env:
+            - name: HOME
+              value: /tmp
+            - name: PANDOKS_INSTALL_MODE
+              value: dependencies
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:

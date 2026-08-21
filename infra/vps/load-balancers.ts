@@ -45,7 +45,7 @@ export function createLoadBalancers(
       protocol: 'tcp',
       listenPort: 443,
       destinationPort: 30443,
-      // NOTE: needed to validate all requests are coming from Cloudflare (false will only show load balancer's private network ip)
+      // NOTE: preserve the Cloudflare edge IP; HAProxy must enable use-proxy-protocol in prod.
       proxyprotocol: true,
       healthCheck: {
         protocol: 'tcp',

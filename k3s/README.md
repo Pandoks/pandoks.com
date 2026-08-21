@@ -11,23 +11,20 @@ As it stands, the cluster is hosted on Hetzner VPS's.
 
 ```
 k3s/
-  base/                      # Shared foundation (dev + prod)
-    kustomization.yaml       # Includes helm-charts + core + apps
-    helm-charts/             # MetalLB, cert-manager, HAProxy, Prometheus/Grafana
-    core/                    # IPAddressPool, cert-manager issuers, namespaces
-    apps/                    # References to packages/*/kube
+  base/                      # Shared resources for every environment
+    core/                    # Credentials, RBAC, pools, issuers, and namespaces
+    apps/                    # References to apps/*/kube
+    monitoring/              # Shared Grafana dashboard ConfigMaps
+  bootstrap/                 # CRDs and HelmChart resources applied first
+    core/                    # MetalLB, cert-manager, HAProxy, Prometheus/Grafana
+    local/                   # Core bootstrap only
+    dev/                     # Core + system-upgrade-controller CRD
+    prod/                    # Core + ArgoCD + system-upgrade-controller CRD
   overlays/
-    dev/                     # Dev-specific config
-      kustomization.yaml     # base + patches
-      dev-patch.yaml         # MetalLB IP for docker network (172.30.100.1-172.30.100.200)
-    prod/                    # Prod-specific config
-      kustomization.yaml     # base + tailscale + system-upgrade
-      tailscale.yaml         # Tailscale operator + ClusterRoleBinding
-      cluster-upgrade-plan.yaml  # System upgrade plans for auto-updates
-  templates/                 # SST secret templates (envsubst)
-    monitoring.yaml          # Grafana secrets
-    apps.yaml                # App secrets (ghcr, postgres, valkey, clickhouse)
-    tailscale.yaml           # Tailscale OAuth secrets (prod only)
+    cluster/                 # Shared remote overlay: Tailscale, upgrades, etcd metrics
+    local/                   # k3d MetalLB/app patches and local etcd endpoints
+    dev/                     # Cluster overlay + dev bootstrap
+    prod/                    # Cluster overlay + prod bootstrap + ArgoCD App-of-Apps
 ```
 
 ## Local Development
@@ -50,16 +47,32 @@ Or step by step:
 ./scripts/cluster/main.sh k3d up
 
 # Install base infrastructure (helm charts + CRDs)
-./scripts/cluster/main.sh deploy dev --bootstrap
+./scripts/cluster/main.sh deploy local --bootstrap
 
-# Deploy dev overlay (MetalLB IP patch + app patches; SST secrets substituted inline)
-./scripts/cluster/main.sh deploy dev
+# Deploy local overlay (MetalLB IP patch + app patches; SST secrets substituted inline)
+./scripts/cluster/main.sh deploy local
 ```
+
+## Development cluster
+
+`deploy dev` resolves each package image independently. If that image has a
+moving tag for the requested source branch, deploy pins its current digest;
+otherwise it falls back to the production digest in `images.lock.json`. Pass
+`--branch <name>` from a detached checkout. Branch names are normalized to a
+lowercase, 63-character Docker tag (`feature/cache-fix` becomes
+`feature-cache-fix`). Remote dev deploys need access to `origin` and public
+GHCR, including with `--dry-run`.
 
 ## Production
 
 Production clusters are provisioned via Pulumi with cloud-config that bootstraps k3s + tailscale.
 The tailscale operator provides secure access to the cluster API without needing SSH tunnels.
+
+After merging image changes, `Build and Publish` advances `latest` only for the
+images that changed. Renovate then proposes a reviewable update to
+`images.lock.json`; merging that lock PR promotes the exact digests to
+production. Argo CD renders those committed digests, so production never
+deploys a mutable tag.
 
 ```sh
 # Connect via tailscale (cluster appears as <stage>-cluster in your tailnet)
@@ -112,7 +125,7 @@ the VPS's.
 
 ### HAProxy Ingress Controller
 
-`base/helm-charts/haproxy-ingress.yaml` is a helm chart that installs the HAProxy ingress controller and
+`bootstrap/core/haproxy-ingress.yaml` is a HelmChart that installs the HAProxy ingress controller and
 also configures `NodePort` services to expose to the Hetzner load balancer. Ports `30000-32767` are
 reserved ports just for `nodePort` services. The cluster is entirely in a private network so we only
 expose services via the load balancer which is exposed to the public internet but is also connected
@@ -166,16 +179,17 @@ spec:
 
 ## Monitoring (Prometheus + Grafana)
 
-The cluster uses kube-prometheus-stack for monitoring. The HelmChart is defined per-environment in
-overlays because etcd endpoints are environment-specific.
+The cluster uses kube-prometheus-stack for monitoring. Its shared HelmChart is in the bootstrap
+layer; environment overlays supply the different etcd endpoints through HelmChartConfig resources.
 
 ### Structure
 
 ```
-k3s/base/core/namespaces.yaml          → monitoring namespace
-k3s/overlays/dev/prom-grafana.yaml     → HelmChart with k3d control plane IPs (172.30.0.4-6)
-k3s/overlays/prod/prom-grafana.yaml    → HelmChart with Hetzner IPs (10.0.1.10+)
-k3s/templates/monitoring.yaml          → Grafana secrets (SST template)
+k3s/bootstrap/core/kube-prometheus-stack.yaml → shared HelmChart, Grafana secret, and configuration
+k3s/base/core/monitoring.yaml                  → Tailscale Service annotations
+k3s/base/monitoring/                           → shared Grafana dashboard ConfigMaps
+k3s/overlays/local/prom-etcd-config.yaml       → k3d etcd endpoints (172.30.0.4-6)
+k3s/overlays/cluster/prom-etcd-config.yaml     → Hetzner etcd endpoints (10.0.1.10+)
 ```
 
 ### etcd Metrics

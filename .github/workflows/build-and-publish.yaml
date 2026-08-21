@@ -64,82 +64,125 @@ jobs:
     outputs:
       images: ${{ steps.set-image-matrix.outputs.images }}
       charts: ${{ steps.set-chart-matrix.outputs.charts }}
+      moving-tag: ${{ steps.image-tags.outputs.moving }}
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Define build catalog
+        id: build-catalog
+        shell: bash
+        run: |
+          catalog='{
+            "rebuild-all": [
+              ".github/workflows/build-and-publish.yaml",
+              "scripts/ci/build-and-publish.sh",
+              "trivy.yaml",
+              ".trivyignore.yaml"
+            ],
+            "images": [
+              {
+                "name": "patroni",
+                "path": "./packages/postgres/patroni/Dockerfile",
+                "watch": ["packages/postgres/patroni/**"]
+              },
+              {
+                "name": "pgbackrest",
+                "path": "./packages/postgres/pgbackrest/Dockerfile",
+                "watch": ["packages/postgres/pgbackrest/**"]
+              },
+              {
+                "name": "valkey",
+                "path": "./packages/valkey/Dockerfile",
+                "watch": [
+                  "packages/valkey/Dockerfile",
+                  "packages/valkey/entrypoint.sh"
+                ]
+              },
+              {
+                "name": "valkey-reconciler",
+                "path": "./packages/valkey/reconciler/Dockerfile",
+                "watch": ["packages/valkey/reconciler/**"]
+              },
+              {
+                "name": "argocd-sst-plugin",
+                "path": "./packages/argocd/Dockerfile",
+                "watch": [
+                  "packages/argocd/**",
+                  "package.json",
+                  "pnpm-lock.yaml",
+                  "pnpm-workspace.yaml",
+                  "mise.toml"
+                ]
+              },
+              {
+                "name": "clickhouse",
+                "path": "./packages/clickhouse/clickhouse/Dockerfile",
+                "watch": ["packages/clickhouse/clickhouse/**"]
+              },
+              {
+                "name": "clickhouse-keeper",
+                "path": "./packages/clickhouse/keeper/Dockerfile",
+                "watch": ["packages/clickhouse/keeper/**"]
+              },
+              {
+                "name": "clickhouse-backup",
+                "path": "./packages/clickhouse/backup/Dockerfile",
+                "watch": ["packages/clickhouse/backup/**"]
+              }
+            ],
+            "charts": [
+              {"name":"postgres","path":"./packages/postgres/chart","watch":["packages/postgres/chart/**"]},
+              {"name":"valkey","path":"./packages/valkey/chart","watch":["packages/valkey/chart/**"]},
+              {"name":"clickhouse","path":"./packages/clickhouse/chart","watch":["packages/clickhouse/chart/**"]}
+            ]
+          }'
+          catalog=$(jq -c . <<< "${catalog}")
+          image_filters=$(scripts/ci/build-and-publish.sh image-filters "${catalog}")
+          chart_filters=$(scripts/ci/build-and-publish.sh chart-filters "${catalog}")
+          {
+            printf "catalog=%s\n" "${catalog}"
+            printf "image-filters=%s\n" "${image_filters}"
+            printf "chart-filters=%s\n" "${chart_filters}"
+          } >> "${GITHUB_OUTPUT}"
 
       - id: image-changes
         if: github.event_name != 'workflow_dispatch'
         uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4
         with:
-          filters: |
-            patroni:
-              - 'packages/postgres/patroni/**'
-            pgbackrest:
-              - 'packages/postgres/pgbackrest/**'
-            valkey:
-              - 'packages/valkey/**'
-            valkey-reconciler:
-              - 'packages/valkey/reconciler/**'
-            argocd-sst-plugin:
-              - 'packages/argocd/**'
-            clickhouse:
-              - 'packages/clickhouse/clickhouse/**'
-            clickhouse-keeper:
-              - 'packages/clickhouse/keeper/**'
-            clickhouse-backup:
-              - 'packages/clickhouse/backup/**'
+          filters: ${{ steps.build-catalog.outputs.image-filters }}
 
       - id: chart-changes
         if: github.event_name != 'workflow_dispatch'
         uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4
         with:
-          filters: |
-            postgres:
-              - 'packages/postgres/chart/**'
-            valkey:
-              - 'packages/valkey/chart/**'
-            clickhouse:
-              - 'packages/clickhouse/chart/**'
+          filters: ${{ steps.build-catalog.outputs.chart-filters }}
 
-      - id: set-image-matrix
-        env:
-          DISPATCH: ${{ toJSON(inputs) }}
+      - name: Create image matrix
+        id: set-image-matrix
         run: |
-          all='[
-            {"name":"patroni","path":"./packages/postgres/patroni/Dockerfile"},
-            {"name":"pgbackrest","path":"./packages/postgres/pgbackrest/Dockerfile"},
-            {"name":"valkey","path":"./packages/valkey/Dockerfile"},
-            {"name":"valkey-reconciler","path":"./packages/valkey/reconciler/Dockerfile"},
-            {"name":"argocd-sst-plugin","path":"./packages/argocd/Dockerfile"},
-            {"name":"clickhouse","path":"./packages/clickhouse/clickhouse/Dockerfile"},
-            {"name":"clickhouse-keeper","path":"./packages/clickhouse/keeper/Dockerfile"},
-            {"name":"clickhouse-backup","path":"./packages/clickhouse/backup/Dockerfile"}
-          ]'
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            selected=$(jq -c 'to_entries | map(select(.value == true) | .key)' <<<"${DISPATCH}")
-          else
-            selected='${{ steps.image-changes.outputs.changes || '[]' }}'
-          fi
-          images=$(jq -c --argjson sel "${selected}" 'map(select(.name as $n | $sel | index($n)))' <<<"${all}")
-          echo "images=${images}" >> "${GITHUB_OUTPUT}"
+          images=$(scripts/ci/build-and-publish.sh image-matrix \
+            '${{ steps.build-catalog.outputs.catalog }}' \
+            '${{ github.event_name == 'workflow_dispatch' && toJSON(inputs) || steps.image-changes.outputs.changes || '[]' }}')
+          printf "images=%s\n" "${images}" >> "${GITHUB_OUTPUT}"
 
-      - id: set-chart-matrix
-        env:
-          DISPATCH: ${{ toJSON(inputs) }}
+      - name: Create chart matrix
+        id: set-chart-matrix
         run: |
-          all='[
-            {"name":"postgres","path":"./packages/postgres/chart"},
-            {"name":"valkey","path":"./packages/valkey/chart"},
-            {"name":"clickhouse","path":"./packages/clickhouse/chart"}
-          ]'
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            selected=$(jq -c 'to_entries | map(select(.value == true and (.key | endswith("-chart"))) | .key | sub("-chart$"; ""))' <<<"${DISPATCH}")
-          else
-            selected='${{ steps.chart-changes.outputs.changes || '[]' }}'
-          fi
-          charts=$(jq -c --argjson sel "${selected}" 'map(select(.name as $n | $sel | index($n)))' <<<"${all}")
-          echo "charts=${charts}" >> "${GITHUB_OUTPUT}"
+          charts=$(scripts/ci/build-and-publish.sh chart-matrix \
+            '${{ steps.build-catalog.outputs.catalog }}' \
+            '${{ github.event_name == 'workflow_dispatch' && toJSON(inputs) || steps.chart-changes.outputs.changes || '[]' }}')
+          printf "charts=%s\n" "${charts}" >> "${GITHUB_OUTPUT}"
+
+      - name: Validate moving image tag
+        id: image-tags
+        shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          moving=$(scripts/ci/build-and-publish.sh moving-tag \
+            "${GITHUB_REF_NAME}" "${DEFAULT_BRANCH}")
+          printf "moving=%s\n" "${moving}" >> "${GITHUB_OUTPUT}"
 
   build-publish-images:
     needs: detect-changes
@@ -151,6 +194,7 @@ jobs:
       id-token: write
       attestations: write
     strategy:
+      fail-fast: false
       matrix:
         image: ${{ fromJSON(needs.detect-changes.outputs.images) }}
 
@@ -171,13 +215,14 @@ jobs:
 
       - uses: docker/metadata-action@v6
         id: meta
+        env:
+          DOCKER_METADATA_SHORT_SHA_LENGTH: 12
         with:
           # NOTE: github.repository includes the owner/org (ghcr.io/<owner/org>/repo-name)
           images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image.name }}
           tags: |
-            type=ref,event=branch
-            type=raw,value=ref-{{branch}}-{{sha}}
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ needs.detect-changes.outputs.moving-tag }}
+            type=sha
 
       - name: Build image
         uses: docker/build-push-action@v7
@@ -246,24 +291,24 @@ jobs:
         with:
           tools: helm
 
+      - name: Package Helm Chart
+        run: helm package "${{ matrix.chart.path }}"
+
       - name: Login to GHCR
+        if: github.ref_name == github.event.repository.default_branch && matrix.chart.publish
         run: |
           echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Package and Push Helm Chart
+      - name: Push Helm Chart
+        if: github.ref_name == github.event.repository.default_branch && matrix.chart.publish
         env:
           OWNER: ${{ github.repository_owner }}
-          BRANCH: ${{ github.ref_name }} # WARNING: do not inline this (security risk)
         run: |
-          version_arg=()
-          if [[ "${BRANCH}" != "${{ github.event.repository.default_branch }}" ]]; then
-            version_arg=(--version "$(yq .version "${{ matrix.chart.path }}/Chart.yaml")-${BRANCH//\//-}")
-          fi
-          helm package "${{ matrix.chart.path }}" "${version_arg[@]}"
           helm push "${{ matrix.chart.name }}"-*.tgz "oci://ghcr.io/${OWNER,,}/charts"
 
   build-and-publish-pass:
     needs:
+      - detect-changes
       - build-publish-images
       - build-publish-charts
     if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}

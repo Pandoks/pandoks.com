@@ -16,6 +16,6 @@ spec:
     credentials.secret: clickhouse-main-creds
     backup.bucket: ${BackupBucket}
     backup.path: kubernetes/main/clickhouse
-    clickhouse.image: ${ImageRegistry}/clickhouse:${ImageTag}
-    keeper.image: ${ImageRegistry}/clickhouse-keeper:${ImageTag}
-    backup.image: ${ImageRegistry}/clickhouse-backup:${ImageTag}
+    clickhouse.image: ${ClickhouseImage}
+    keeper.image: ${ClickhouseKeeperImage}
+    backup.image: ${ClickhouseBackupImage}

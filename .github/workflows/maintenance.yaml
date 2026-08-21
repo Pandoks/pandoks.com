@@ -27,6 +27,7 @@ jobs:
   cleanup-packages:
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       packages: write
     strategy:
       fail-fast: false
@@ -48,16 +49,70 @@ jobs:
       OWNER: ${{ github.repository_owner }}
       PACKAGE: ${{ matrix.package }}
     steps:
-      - name: Prune old ref-main-<sha> versions for ${{ matrix.package }} (keep newest 30)
+      - uses: actions/checkout@v6
+
+      - name: Discover live branch tags
+        id: branches
+        if: ${{ !startsWith(matrix.package, 'charts/') }}
         shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          api="/users/${OWNER,,}/packages/container/${PACKAGE//\//%2F}/versions"
-          gh api --paginate --slurp "${api}" | jq -r '
-              add
-              | map(select(.metadata.container.tags
-                  | (length == 1) and (.[0] | test("^ref-main-[a-f0-9]{40}$"))))
-              | sort_by(.created_at) | reverse | .[30:][] | .id' \
-            | xargs -rI{} gh api --method DELETE "${api}/{}"
+          remote=$(git ls-remote --heads origin) \
+            || { echo "Unable to enumerate live branches" >&2; exit 1; }
+          branches=$(awk '{sub("refs/heads/", "", $2); print $2}' <<<"${remote}")
+          tags=$(while IFS= read -r branch; do
+            [ "${branch}" = "${DEFAULT_BRANCH}" ] && continue
+            tag=$(printf '%s' "${branch}" \
+              | tr '[:upper:]' '[:lower:]' \
+              | sed -E 's/[^a-z0-9._-]+/-/g' \
+              | cut -c1-63)
+            [[ "${tag}" =~ ^[a-z0-9_][a-z0-9_.-]*$ ]] \
+              || { echo "Branch cannot form a valid image tag: ${branch}" >&2; exit 1; }
+            printf '%s\n' "${tag}"
+          done <<<"${branches}") || exit 1
+          duplicate=$(printf '%s\n' "${tags}" | sort | uniq -d | head -1)
+          [ -z "${duplicate}" ] \
+            || { echo "Multiple live branches normalize to ${duplicate}" >&2; exit 1; }
+          tags_json=$(printf '%s\n' "${tags}" | jq -Rsc 'split("\n") | map(select(length > 0))')
+          echo "tags=${tags_json}" >> "${GITHUB_OUTPUT}"
+
+      - name: Apply image retention policy to ${{ matrix.package }}
+        if: ${{ !startsWith(matrix.package, 'charts/') }}
+        shell: bash
+        env:
+          LIVE_TAGS: ${{ steps.branches.outputs.tags }}
+        run: |
+          api="/users/${OWNER,,}/packages/container/${PACKAGE}/versions"
+          all=$(gh api --paginate --slurp "${api}" | jq 'add')
+          cutoff=$(date -u -d '30 days ago' '+%Y-%m-%dT%H:%M:%SZ')
+          locked=$(jq -er --arg package "${PACKAGE}" '.[$package] | split("@")[1]' k3s/images.lock.json)
+          newest=$(jq -c '
+            [.[]
+              | select(any(.metadata.container.tags[]?; test("^sha-[0-9a-f]{12}$")))]
+            | sort_by(.created_at) | reverse | .[:10] | map(.id)' <<<"${all}")
+          ids=$(jq -r \
+            --arg cutoff "${cutoff}" \
+            --arg locked "${locked}" \
+            --argjson live "${LIVE_TAGS}" \
+            --argjson newest "${newest}" '
+              def has_live_tag($tags):
+                any($tags[]; . as $tag | $live | index($tag) != null);
+              .[]
+              | (.metadata.container.tags // []) as $tags
+              | select(($tags | length) > 0)
+              | select(.name != $locked)
+              | select(.created_at < $cutoff)
+              | .id as $id
+              | select(($newest | index($id)) == null)
+              | select(($tags | index("latest")) == null)
+              | select(has_live_tag($tags) | not)
+              | .id' <<<"${all}")
+          while read -r id; do
+            [ -n "${id}" ] || continue
+            echo "Deleting expired ${PACKAGE} image version ${id}"
+            gh api --method DELETE "${api}/${id}"
+          done <<<"${ids}"
 
       - name: Delete orphan untagged versions for ${{ matrix.package }}
         shell: bash
