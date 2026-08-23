@@ -5,7 +5,10 @@ trustedRegistries:
   - ghcr.io
   - quay.io
 
-ignored: []
+ignored:
+  # hadolint 2.15.x flags `USER root` in images that need root for apk setup; the runtime
+  # user is dropped afterwards. Revisit if a numeric-UID refactor lands.
+  - DL3066
 
 override:
   error: []
