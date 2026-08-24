@@ -42,8 +42,6 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${AWS_CLI_VERSION
     && ./aws/install \
     && rm -rf awscliv2.zip aws
 
-# Standalone pnpm binary (bundles its own Node, needs glibc >= 2.28; the bookworm runtime ships
-# 2.36). No corepack shim and no runtime downloads: renders run on a read-only filesystem.
 # renovate: datasource=docker packageName=ghcr.io/pnpm/pnpm
 COPY --from=ghcr.io/pnpm/pnpm:11.21.0@sha256:ff1b4619e8299734f35afb21bd2be18f51b7b6e49cd30fb14300fadeafe871da /opt/pnpm/pnpm /usr/local/bin/pnpm
 
