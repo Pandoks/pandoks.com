@@ -2,7 +2,6 @@ FROM postgres:18-trixie@sha256:a02db8cac496f15b094798a38254f14d6e00741f709360e5e
 
 # gosu is bundled in the base image but never invoked by our entrypoint;
 # remove it to drop the (unreachable) Go stdlib CVEs in its static binary
-# hadolint ignore=DL3008
 RUN rm -f /usr/local/bin/gosu \
   && apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
   gettext-base \
