@@ -4,17 +4,22 @@
 # exercises.
 FROM golang:1.26.6-trixie@sha256:ab563819a16cfe5faff0f96a8bb598fbb0e400ab2ac751996e60abcb23b106a3 AS kustomize-builder
 
-# renovate: datasource=github-tags packageName=kubernetes-sigs/kustomize
+# renovate: datasource=go packageName=sigs.k8s.io/kustomize/kustomize/v5
 ARG KUSTOMIZE_VERSION=v5.8.1
-RUN git clone --depth 1 --branch "kustomize/${KUSTOMIZE_VERSION}" https://github.com/kubernetes-sigs/kustomize /src/kustomize
-WORKDIR /src/kustomize/kustomize
 
 # kustomize's go.mod pins an x/text release with known advisories; force the current one.
 # renovate: datasource=go packageName=golang.org/x/text
 ARG X_TEXT_VERSION=v0.41.0
-RUN go get "golang.org/x/text@${X_TEXT_VERSION}" \
-    && go build -trimpath -ldflags="-s -w -X sigs.k8s.io/kustomize/api/provenance.version=${KUSTOMIZE_VERSION}" \
-    -o /out/kustomize .
+
+WORKDIR /src
+# CGO_ENABLED=0 keeps the binary static so the bookworm runtime base never has to match this
+# builder's newer glibc.
+RUN go mod init kustomize \
+    && go get "sigs.k8s.io/kustomize/kustomize/v5@${KUSTOMIZE_VERSION}" \
+    && go get "golang.org/x/text@${X_TEXT_VERSION}" \
+    && CGO_ENABLED=0 go build -trimpath \
+    -ldflags="-s -w -X sigs.k8s.io/kustomize/api/provenance.version=${KUSTOMIZE_VERSION}" \
+    -o /out/kustomize sigs.k8s.io/kustomize/kustomize/v5
 
 FROM node:24.16.0-slim@sha256:2c87ef9bd3c6a3bd4b472b4bec2ce9d16354b0c574f736c476489d09f560a203
 
