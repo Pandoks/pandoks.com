@@ -28,10 +28,20 @@
     },
     {
       "customType": "regex",
-      "description": "Track kubectl version in the argocd image (binary fetched from dl.k8s.io). KUBECTL_SHA256 must be updated by hand on each bump — Renovate cannot compute binary checksums, and the stale SHA fails the argocd image build on the PR branch until fixed.",
+      "description": "Track the kustomize release built from source in the argocd image (github tags are prefixed kustomize/v).",
       "managerFilePatterns": ["/(^|/)packages/argocd/Dockerfile$/"],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>[a-z-]+) packageName=(?<packageName>[^\\s]+)\\s+ARG KUBECTL_VERSION=(?<currentValue>v[\\d.]+)"
+        "# renovate: datasource=(?<datasource>[a-z-]+) packageName=(?<packageName>[^\\s]+)\\s+ARG KUSTOMIZE_VERSION=(?<currentValue>v[\\d.]+)"
+      ],
+      "extractVersionTemplate": "^kustomize/v(?<version>.+)$",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Track the x/text release forced into the argocd kustomize build (kustomize's own go.mod pins an older, vulnerable one).",
+      "managerFilePatterns": ["/(^|/)packages/argocd/Dockerfile$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) packageName=(?<packageName>[^\\s]+)\\s+ARG X_TEXT_VERSION=(?<currentValue>v[\\d.]+)"
       ],
       "versioningTemplate": "semver"
     },
@@ -68,11 +78,6 @@
     {
       "matchManagers": ["helm-values", "helmv3"],
       "groupName": "helm charts"
-    },
-    {
-      "description": "Group all kubectl pins into one PR — kubectl's depNames differ across managers so copies don't auto-coalesce, and the bump needs a manual KUBECTL_SHA256 edit that shouldn't block the all-minor-patch group.",
-      "matchDepNames": ["kubectl", "kubernetes/kubernetes"],
-      "groupName": "kubectl"
     },
     {
       "description": "Promote successful package images together in one reviewable GitOps lock update.",

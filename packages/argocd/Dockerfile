@@ -1,3 +1,21 @@
+# The CMP only renders manifests, so it runs kustomize — not kubectl. Build kustomize from source
+# on a current Go toolchain instead of shipping the official release binary (built on an old Go
+# toolchain) or kubectl (which vendors x/net): either ships Go advisory waves this image never
+# exercises.
+FROM golang:1.26.6-trixie@sha256:ab563819a16cfe5faff0f96a8bb598fbb0e400ab2ac751996e60abcb23b106a3 AS kustomize-builder
+
+# renovate: datasource=github-tags packageName=kubernetes-sigs/kustomize
+ARG KUSTOMIZE_VERSION=v5.8.1
+RUN git clone --depth 1 --branch "kustomize/${KUSTOMIZE_VERSION}" https://github.com/kubernetes-sigs/kustomize /src/kustomize
+WORKDIR /src/kustomize/kustomize
+
+# kustomize's go.mod pins an x/text release with known advisories; force the current one.
+# renovate: datasource=go packageName=golang.org/x/text
+ARG X_TEXT_VERSION=v0.41.0
+RUN go get "golang.org/x/text@${X_TEXT_VERSION}" \
+    && go build -trimpath -ldflags="-s -w -X sigs.k8s.io/kustomize/api/provenance.version=${KUSTOMIZE_VERSION}" \
+    -o /out/kustomize .
+
 FROM node:24.16.0-slim@sha256:2c87ef9bd3c6a3bd4b472b4bec2ce9d16354b0c574f736c476489d09f560a203
 
 # The argocd plugin invokes pnpm via corepack — never npm. Remove the bundled npm to drop its
@@ -35,13 +53,7 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${AWS_CLI_VERSION
     && ./aws/install \
     && rm -rf awscliv2.zip aws
 
-# renovate: datasource=github-releases packageName=kubernetes/kubernetes
-ARG KUBECTL_VERSION=v1.36.3
-ARG KUBECTL_SHA256=ebbd080e7c2e275093b55915722043257eb24004363e20acb3c4d71919f88336
-RUN curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
-    && echo "${KUBECTL_SHA256}  kubectl" | sha256sum -c - \
-    && chmod +x kubectl \
-    && mv kubectl /usr/local/bin/
+COPY --from=kustomize-builder /out/kustomize /usr/local/bin/kustomize
 
 RUN groupadd -g 999 argocd && useradd -u 999 -g 999 -m argocd
 

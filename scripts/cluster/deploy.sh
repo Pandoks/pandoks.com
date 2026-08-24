@@ -198,7 +198,7 @@ cmd_deploy_render_templated_yaml() {
   else
     log_status "Running kustomize on overlay..."
   fi
-  cmd_deploy_render_kustomize=$(kubectl kustomize "${cmd_deploy_render_kustomize_path}" --load-restrictor LoadRestrictionsNone)
+  cmd_deploy_render_kustomize=$(kustomize build "${cmd_deploy_render_kustomize_path}" --load-restrictor LoadRestrictionsNone)
 
   log_status "Substituting template variables..."
   template_substitute "${cmd_deploy_render_kustomize}" "${cmd_deploy_render_template_vars}"

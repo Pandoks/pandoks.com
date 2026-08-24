@@ -10,6 +10,7 @@ jq = "1.8.2"
 
 helm = "4.2.2"
 kubectl = "1.36.3"
+kustomize = "5.8.1"
 k9s = "0.51.0"
 k3d = "5.9.0"
 kubeconform = "0.8.0"
