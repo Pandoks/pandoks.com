@@ -1,19 +1,13 @@
-# The CMP only renders manifests, so it runs kustomize — not kubectl. Build kustomize from source
-# on a current Go toolchain instead of shipping the official release binary (built on an old Go
-# toolchain) or kubectl (which vendors x/net): either ships Go advisory waves this image never
-# exercises.
 FROM golang:1.26.6-trixie@sha256:ab563819a16cfe5faff0f96a8bb598fbb0e400ab2ac751996e60abcb23b106a3 AS kustomize-builder
 
 # renovate: datasource=go packageName=sigs.k8s.io/kustomize/kustomize/v5
 ARG KUSTOMIZE_VERSION=v5.8.1
-
-# kustomize's go.mod pins an x/text release with known advisories; force the current one.
+# NOTE: kustomize's go.mod pins an x/text release with known advisories; force the current one.
+# remove once kustomize has updated to a version that doesn't pin this anymore.
 # renovate: datasource=go packageName=golang.org/x/text
 ARG X_TEXT_VERSION=v0.41.0
 
 WORKDIR /src
-# CGO_ENABLED=0 keeps the binary static so the bookworm runtime base never has to match this
-# builder's newer glibc.
 RUN go mod init kustomize \
     && go get "sigs.k8s.io/kustomize/kustomize/v5@${KUSTOMIZE_VERSION}" \
     && go get "golang.org/x/text@${X_TEXT_VERSION}" \
@@ -23,8 +17,8 @@ RUN go mod init kustomize \
 
 FROM node:24.16.0-slim@sha256:2c87ef9bd3c6a3bd4b472b4bec2ce9d16354b0c574f736c476489d09f560a203
 
-# The argocd plugin invokes pnpm via corepack — never npm. Remove the bundled npm to drop its
-# vendored picomatch (CVE-2026-33671 ReDoS).
+# The plugin runs pnpm during every manifest render. Remove the bundled npm/npx — unused, and it
+# drops the vendored picomatch (CVE-2026-33671 ReDoS) from the image.
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
     && apt-get update && apt-get install -y --no-install-recommends \
     bash \
@@ -35,17 +29,7 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
     ca-certificates \
     libgnutls30 \
     apache2-utils \
-    && rm -rf /var/lib/apt/lists/* \
-    && corepack enable
-
-# Preload the repository's exact package-manager version. The CMP container has
-# a read-only root filesystem, so Corepack cannot populate a per-user cache at
-# manifest-generation time.
-ENV COREPACK_HOME=/opt/corepack
-COPY package.json /tmp/pandoks-package.json
-RUN corepack install --global "$(node -p "require('/tmp/pandoks-package.json').packageManager")" \
-    && rm /tmp/pandoks-package.json \
-    && chmod -R a+rX "${COREPACK_HOME}"
+    && rm -rf /var/lib/apt/lists/*
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -57,6 +41,11 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${AWS_CLI_VERSION
     && unzip awscliv2.zip \
     && ./aws/install \
     && rm -rf awscliv2.zip aws
+
+# Standalone pnpm binary (bundles its own Node, needs glibc >= 2.28; the bookworm runtime ships
+# 2.36). No corepack shim and no runtime downloads: renders run on a read-only filesystem.
+# renovate: datasource=docker packageName=ghcr.io/pnpm/pnpm
+COPY --from=ghcr.io/pnpm/pnpm:11.21.0@sha256:ff1b4619e8299734f35afb21bd2be18f51b7b6e49cd30fb14300fadeafe871da /opt/pnpm/pnpm /usr/local/bin/pnpm
 
 COPY --from=kustomize-builder /out/kustomize /usr/local/bin/kustomize
 
