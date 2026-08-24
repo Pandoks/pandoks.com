@@ -96,7 +96,7 @@ manually import` comment at `sst.config.ts:29` is load-bearing.
   (terraform-provider-ovh `ovh/order.go`) and the resource's `Update()` has
   no ordering path, so any diff on `planOptions` would replace the protected,
   prepaid VPS — hence `'planOptions'` in `ignoreChanges`
-  (`infra/dev.ts:49-55`). The `option-additional-disk-2027-200g` entry uses
+  (`infra/dev.ts:49-52`). The `option-additional-disk-2027-200g` entry uses
   `pricingMode: 'default'` because addon options carry no prepay discount
   across any pricing mode (verified in the OVH order catalog).
 

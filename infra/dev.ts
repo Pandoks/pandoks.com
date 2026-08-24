@@ -49,9 +49,6 @@ if (isProduction) {
     {
       protect: true,
       import: 'vps-54c42746.vps.ovh.us',
-      // WARNING: planOptions is ForceNew upstream (terraform-provider-ovh ovh/order.go) — a diff
-      // here would replace the VPS. Disk options are ordered by hand in the Control Panel;
-      // the list above only documents what the box has.
       ignoreChanges: ['plans', 'ovhSubsidiary', 'planOptions']
     }
   );
