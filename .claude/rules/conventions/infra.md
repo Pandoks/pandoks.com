@@ -62,7 +62,7 @@ How to add or modify resources in `infra/*.ts` and `sst.config.ts`.
   (`.env.example:10-11`), GitHub Actions secrets in CI
   (`.github/workflows/deploy-infra.yaml:74-75`, mirrored from
   `secrets.ovh.*` by `infra/github.ts:60-70`).
-- **OVH resources take no `{ provider }`** — `infra/dev.ts:43` passes
+- **OVH resources take no `{ provider }`** — `infra/dev.ts:50` passes
   `{ protect: true }` only. `secrets.ovh.*` (`infra/secrets.ts:45-48`)
   now exists solely to feed the GitHub Actions mirror; it no longer
   reaches the provider directly.

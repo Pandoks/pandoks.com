@@ -39,11 +39,9 @@ if (isProduction) {
           quantity: 1
         },
         {
-          // TODO: verify — replace with the planCode shown when ordering the additional disk
-          // in the Control Panel
           duration: 'P1M',
-          planCode: '<additional-disk-planCode>',
-          pricingMode: 'upfront12',
+          planCode: 'option-additional-disk-2027-200g',
+          pricingMode: 'default',
           quantity: 1
         }
       ]

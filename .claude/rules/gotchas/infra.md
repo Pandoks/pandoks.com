@@ -87,10 +87,18 @@ manually import` comment at `sst.config.ts:29` is load-bearing.
   Datacenter and OS are `{ label, value }` configuration pairs inside the
   plan (`infra/dev.ts:16-19`: `vps_datacenter` `US-WEST-OR`, `vps_os`
   `Ubuntu 26.04`), and each option (`option-linux`, auto-backup, local
-  storage) is its own entry (`infra/dev.ts:22-41`). Every entry is
-  `duration: 'P1M'` + `pricingMode: 'upfront12'` — a prepaid year, which is
-  why the resource carries `protect: true` (`infra/dev.ts:43`) and destroy
-  fails by design.
+  storage, additional disk) is its own entry (`infra/dev.ts:22-47`). The
+  original three are `duration: 'P1M'` + `pricingMode: 'upfront12'` — a
+  prepaid year, which is why the resource carries `protect: true`
+  (`infra/dev.ts:50`) and destroy fails by design.
+- **The additional disk is ordered by hand in the Control Panel and only
+  documented in code.** `plan_options` is ForceNew upstream
+  (terraform-provider-ovh `ovh/order.go`) and the resource's `Update()` has
+  no ordering path, so any diff on `planOptions` would replace the protected,
+  prepaid VPS — hence `'planOptions'` in `ignoreChanges`
+  (`infra/dev.ts:49-55`). The `option-additional-disk-2027-200g` entry uses
+  `pricingMode: 'default'` because addon options carry no prepay discount
+  across any pricing mode (verified in the OVH order catalog).
 
 ## Hetzner cluster
 
