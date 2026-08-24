@@ -6,13 +6,8 @@ trustedRegistries:
   - quay.io
 
 ignored:
-  # OS package versions are deliberately unpinned: base images are digest-pinned (verified,
-  # immutable), apt/apk version labels resolve against live mirrors that drop old versions within
-  # weeks, and the Dockerfiles upgrade packages before installing. Matches the docker-library
-  # official-image convention; OpenSSF Scorecard's Pinned-Dependencies check requires FROM digest
-  # pinning and verified downloads, not apt/apk version pins.
-  - DL3008 # apt-get install
-  - DL3018 # apk add
+  - DL3008 # apt-get version pin
+  - DL3018 # apk add version pin
 
 override:
   error: []
