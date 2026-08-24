@@ -37,13 +37,24 @@ if (isProduction) {
           planCode: 'option-storage-local-2027-model4',
           pricingMode: 'upfront12',
           quantity: 1
+        },
+        {
+          // TODO: verify — replace with the planCode shown when ordering the additional disk
+          // in the Control Panel
+          duration: 'P1M',
+          planCode: '<additional-disk-planCode>',
+          pricingMode: 'upfront12',
+          quantity: 1
         }
       ]
     },
     {
       protect: true,
       import: 'vps-54c42746.vps.ovh.us',
-      ignoreChanges: ['plans', 'ovhSubsidiary']
+      // WARNING: planOptions is ForceNew upstream (terraform-provider-ovh ovh/order.go) — a diff
+      // here would replace the VPS. Disk options are ordered by hand in the Control Panel;
+      // the list above only documents what the box has.
+      ignoreChanges: ['plans', 'ovhSubsidiary', 'planOptions']
     }
   );
 }
