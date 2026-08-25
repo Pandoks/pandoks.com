@@ -4,18 +4,18 @@ metadata:
   name: main-clickhouse-main-cluster
   namespace: kube-system
 spec:
-  chart: oci://${ImageRegistry}/charts/clickhouse
+  chart: oci://ghcr.io/pandoks/charts/clickhouse
   version: 0.1.0 # renovate: datasource=docker packageName=pandoks/charts/clickhouse
   targetNamespace: &namespace main
   createNamespace: true
   failurePolicy: abort
-  plainHTTP: ${IsLocal}
+  plainHTTP: false
   set:
     name: main
     namespace: *namespace
     credentials.secret: clickhouse-main-creds
     backup.bucket: ${BackupBucket}
     backup.path: kubernetes/main/clickhouse
-    clickhouse.image: ${ClickhouseImage}
-    keeper.image: ${ClickhouseKeeperImage}
-    backup.image: ${ClickhouseBackupImage}
+    clickhouse.image: ghcr.io/pandoks/clickhouse:latest@sha256:9c3bdb4117812ac7a46e583754c18d63d4e78f7f3dfb700c453670047f9417c8
+    keeper.image: ghcr.io/pandoks/clickhouse-keeper:latest@sha256:58a7240eb649c6a91d40e8941a77f15501685c93ac345b678a98ccb9dca4fda3
+    backup.image: ghcr.io/pandoks/clickhouse-backup:latest@sha256:692e2dff2618e55c182ebbe4fa2a723a18a1603caf1252fc8ff7d739c3993ce1
