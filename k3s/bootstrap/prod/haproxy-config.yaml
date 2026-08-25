@@ -1,0 +1,10 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: haproxy-ingress
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    controller:
+      config:
+        use-proxy-protocol: "true"

@@ -7,3 +7,4 @@ resources:
 patches:
   - path: dev-patch.yaml
   - path: ../../../apps/example/kube/dev-patch.yaml
+  - path: images-patch.yaml

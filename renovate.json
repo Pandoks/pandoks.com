@@ -76,7 +76,7 @@
     },
     {
       "description": "Promote successful package images together in one reviewable GitOps update.",
-      "matchManagers": ["regex"],
+      "matchManagers": ["custom.regex"],
       "groupName": "production images",
       "minimumReleaseAge": "0 days"
     }

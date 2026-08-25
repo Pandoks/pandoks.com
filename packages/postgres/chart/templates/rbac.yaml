@@ -1,4 +1,5 @@
 {{- range $shardIndex := until (int $.Values.patroni.shards) }}
+
 ---
 apiVersion: v1
 kind: ServiceAccount

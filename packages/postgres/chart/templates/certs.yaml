@@ -1,4 +1,5 @@
 {{- range $shardIndex := until (int $.Values.patroni.shards) }}
+
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate

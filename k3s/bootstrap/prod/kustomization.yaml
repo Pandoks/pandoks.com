@@ -3,4 +3,5 @@ kind: Kustomization
 resources:
   - ../core
   - argocd.yaml
+  - haproxy-config.yaml
   - https://github.com/rancher/system-upgrade-controller/releases/latest/download/crd.yaml
