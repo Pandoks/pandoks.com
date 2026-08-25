@@ -1,6 +1,6 @@
 name: example
 namespace: example
-image: ghcr.io/pandoks/valkey:latest@sha256:9a08d85039741706c5112c28ae0d4b5085004cd3ac547f77c0b6a87c230f1ab3
+image: ghcr.io/pandoks/valkey:latest@sha256:6d449d693921a31dd80d6f4373a3ec9e7869a6f2ea8a1a6800cbca618ba56e9a
 
 credentials:
   secret: valkey-example-creds
