@@ -28,18 +28,10 @@
     },
     {
       "customType": "regex",
-      "description": "Track the kustomize release built from source in the argocd image.",
+      "description": "Track the Go modules compiled into the argocd image: the kustomize release built from source, and the x/text release forced past kustomize's stale pin.",
       "managerFilePatterns": ["/(^|/)packages/argocd/Dockerfile$/"],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>[a-z-]+) packageName=(?<packageName>[^\\s]+)\\s+ARG KUSTOMIZE_VERSION=(?<currentValue>v[\\d.]+)"
-      ],
-      "versioningTemplate": "semver"
-    },
-    {
-      "customType": "regex",
-      "description": "Track the x/text release forced into the argocd kustomize build (kustomize's own go.mod pins an older, vulnerable one).",
-      "managerFilePatterns": ["/(^|/)packages/argocd/Dockerfile$/"],
-      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) packageName=(?<packageName>[^\\s]+)\\s+ARG KUSTOMIZE_VERSION=(?<currentValue>v[\\d.]+)",
         "# renovate: datasource=(?<datasource>[a-z-]+) packageName=(?<packageName>[^\\s]+)\\s+ARG X_TEXT_VERSION=(?<currentValue>v[\\d.]+)"
       ],
       "versioningTemplate": "semver"
