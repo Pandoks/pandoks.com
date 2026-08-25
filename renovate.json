@@ -14,7 +14,7 @@
   "rangeStrategy": "pin",
   "postUpdateOptions": ["pnpmDedupe", "gomodTidy"],
   "kubernetes": {
-    "managerFilePatterns": ["/^apps\\/.+\\/kube\\/.+\\.ya?ml$/"]
+    "managerFilePatterns": ["/^apps\\/.+\\/kube\\/example\\.ya?ml$/"]
   },
   "customManagers": [
     {
@@ -57,10 +57,14 @@
     },
     {
       "customType": "regex",
-      "description": "Propose reviewable production image digest updates after Build and Publish advances an image's latest tag.",
-      "managerFilePatterns": ["/^k3s/images\\.lock\\.json$/"],
+      "description": "Track inline digest pins of our package images in app manifests, the Argo CD plugin sidecar, and chart default values.",
+      "managerFilePatterns": [
+        "/^apps\\/.+\\/kube\\/.+\\.ya?ml$/",
+        "/^k3s\\/overlays\\/prod\\/argocd\\.yaml$/",
+        "/^packages\\/.+\\/chart\\/values\\.yaml$/"
+      ],
       "matchStrings": [
-        "\"[^\"]+\":\\s*\"(?<depName>ghcr\\.io/pandoks/[^:\"]+):(?<currentValue>latest)@(?<currentDigest>sha256:[a-f0-9]{64})\""
+        "(?<depName>ghcr\\.io/pandoks/[a-z0-9-]+):(?<currentValue>latest)@(?<currentDigest>sha256:[a-f0-9]{64})"
       ],
       "datasourceTemplate": "docker"
     }
@@ -71,8 +75,8 @@
       "groupName": "helm charts"
     },
     {
-      "description": "Promote successful package images together in one reviewable GitOps lock update.",
-      "matchFileNames": ["k3s/images.lock.json"],
+      "description": "Promote successful package images together in one reviewable GitOps update.",
+      "matchManagers": ["regex"],
       "groupName": "production images",
       "minimumReleaseAge": "0 days"
     }
