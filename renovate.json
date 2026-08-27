@@ -52,6 +52,13 @@
       "description": "Group all kubectl pins into one PR — kubectl's depNames differ across managers so copies don't auto-coalesce, and the bump needs a manual KUBECTL_SHA256 edit that shouldn't block the all-minor-patch group.",
       "matchDepNames": ["kubectl", "kubernetes/kubernetes"],
       "groupName": "kubectl"
+    },
+    {
+      "description": "Do not pin package.json engines.node — keep a range compatible with mise.toml",
+      "matchDepTypes": ["engines"],
+      "matchPackageNames": ["node"],
+      "rangeStrategy": "replace",
+      "enabled": false
     }
   ],
   "vulnerabilityAlerts": {
