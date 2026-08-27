@@ -26,7 +26,7 @@ jobs:
     outputs:
       k3s: ${{ steps.filter.outputs.k3s || github.event_name != 'pull_request' }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - id: filter
         if: github.event_name == 'pull_request'
@@ -57,7 +57,7 @@ jobs:
           - clickhouse-keeper
           - clickhouse-backup
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Compute image reference
         id: ref
@@ -99,7 +99,7 @@ jobs:
     if: needs.detect-changes.outputs.k3s == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Scan k3s manifests with Trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0

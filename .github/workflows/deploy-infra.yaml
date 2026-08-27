@@ -44,7 +44,7 @@ jobs:
       sst: ${{ github.event_name != 'workflow_dispatch' && steps.filter.outputs.sst || contains(fromJSON('["all","sst"]'), inputs.deploy) }}
       kubernetes: ${{ github.event_name != 'workflow_dispatch' && steps.filter.outputs.kubernetes || contains(fromJSON('["all","kubernetes"]'), inputs.deploy) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
         if: github.event_name != 'workflow_dispatch'
         id: filter
@@ -78,7 +78,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - uses: ./.github/actions/setup-node-pnpm
 
