@@ -1,3 +1,9 @@
+{{- $objectStorageEnabled := ne (trim .Values.storage.object.endpoint) "" -}}
+{{- $objectStorageCacheEnabled := and $objectStorageEnabled (ne (toString .Values.storage.object.cacheSize) "0") -}}
+{{- if $objectStorageEnabled -}}
+{{- $_ := required "storage.object.bucket is required when storage.object.endpoint is set" .Values.storage.object.bucket -}}
+{{- $_ := required "storage.object.credentialsSecret is required when storage.object.endpoint is set" .Values.storage.object.credentialsSecret -}}
+{{- end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -6,6 +12,41 @@ metadata:
 data:
   config.yaml: |
 {{ .Files.Get "files/config.yaml" | indent 4 }}
+    storage_configuration:
+{{ if $objectStorageEnabled }}
+      disks:
+        object:
+          type: object_storage
+          object_storage_type: s3
+          metadata_type: local
+          endpoint: '${CLICKHOUSE_OBJECT_STORAGE_ENDPOINT}/${CLICKHOUSE_OBJECT_STORAGE_BUCKET}/clickhouse/${NAMESPACE}/${CLUSTER_NAME}/${SHARD_ID}/${REPLICA_ID}/'
+          region: '${CLICKHOUSE_OBJECT_STORAGE_REGION}'
+          access_key_id: '${AWS_ACCESS_KEY_ID}'
+          secret_access_key: '${AWS_SECRET_ACCESS_KEY}'
+{{ if $objectStorageCacheEnabled }}
+        object_cache:
+          type: cache
+          disk: object
+          path: /var/lib/clickhouse/disks/object_cache/
+          max_size: {{ .Values.storage.object.cacheSize | quote }}
+{{ end }}
+{{ end }}
+      policies:
+        tiered:
+          volumes:
+            default:
+              disk: default
+{{ if $objectStorageEnabled }}
+            object:
+              disk: {{ ternary "object_cache" "object" $objectStorageCacheEnabled }}
+        object:
+          volumes:
+            main:
+              disk: {{ ternary "object_cache" "object" $objectStorageCacheEnabled }}
+{{ end }}
+
+    merge_tree:
+      storage_policy: tiered
 
 ---
 apiVersion: v1
@@ -79,6 +120,9 @@ spec:
       shard: &shard {{ $shardIndex | quote }}
   template:
     metadata:
+      annotations:
+        checksum/config: {{ printf "%s:%s" ($.Files.Get "files/config.yaml") (toJson $.Values.storage) | sha256sum }}
+        checksum/users: {{ $.Files.Get "files/users.yaml" | sha256sum }}
       labels:
         app: *app
         shard: *shard
@@ -141,6 +185,24 @@ spec:
                 secretKeyRef:
                   name: *creds-secret
                   key: {{ $.Values.credentials.dataKeys.clientPassword }}
+{{- if $objectStorageEnabled }}
+            - name: CLICKHOUSE_OBJECT_STORAGE_ENDPOINT
+              value: {{ trimSuffix "/" $.Values.storage.object.endpoint | quote }}
+            - name: CLICKHOUSE_OBJECT_STORAGE_REGION
+              value: {{ $.Values.storage.object.region | quote }}
+            - name: CLICKHOUSE_OBJECT_STORAGE_BUCKET
+              value: {{ $.Values.storage.object.bucket | quote }}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: &object-storage-secret {{ $.Values.storage.object.credentialsSecret }}
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: *object-storage-secret
+                  key: AWS_SECRET_ACCESS_KEY
+{{- end }}
           volumeMounts:
             - name: &data data
               mountPath: /var/lib/clickhouse
