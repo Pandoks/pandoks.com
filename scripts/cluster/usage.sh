@@ -11,6 +11,9 @@ usage() {
   printf "  %bdeploy%b          Deploy environment overlay to cluster\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Usage: deploy <local|dev|prod> [--bootstrap] [--stage <STAGE>] [--dry-run]\n\n" >&2
 
+  printf "  %btest%b            Run database package test suites on the local k3d cluster\n" "${GREEN}" "${NORMAL}" >&2
+  printf "      Usage: test <postgres|valkey|clickhouse|all> [--keep]\n\n" >&2
+
   printf "Run '%s <command> --help' for more information on a command.\n\n" "$0" >&2
 
   exit "${1:-0}"
@@ -60,6 +63,41 @@ usage_deps() {
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %s k3d deps up\n" "$0" >&2
   printf "  %s k3d deps down\n\n" "$0" >&2
+
+  exit "${1:-0}"
+}
+
+usage_test() {
+  printf "%bUsage:%b %s test <postgres|valkey|clickhouse|all> [options]\n\n" "${BOLD}" "${NORMAL}" "$0" >&2
+  printf "Run database package cluster test suites against the local k3d cluster.\n\n" >&2
+  printf "This command:\n" >&2
+  printf "  1. Verifies the k3d cluster and localstack dependencies are running\n" >&2
+  printf "  2. Installs shared test dependencies (cert-manager + internal CA,\n" >&2
+  printf "     ServiceMonitor CRD, namespaces, database ClusterRoles) — idempotent\n" >&2
+  printf "  3. Runs each package's Go test suite (test/cluster_test.go) in its own namespace\n\n" >&2
+
+  printf "Suites helm-install charts directly from packages/<pkg>/chart with\n" >&2
+  printf "hand-created secrets — no SST/AWS credentials needed. Images must be\n" >&2
+  printf "pushed to the k3d registry first: pnpm docker:build && pnpm dev:push\n\n" >&2
+
+  printf "%bTargets:%b\n" "${BOLD}" "${NORMAL}" >&2
+  printf "  %bpostgres%b      Patroni install, config semantics, failover, scaling\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bvalkey%b        Cluster init, failover, master scaling\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bclickhouse%b    Keeper quorum, replication, recovery, backup\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %ball%b           All suites sequentially\n\n" "${GREEN}" "${NORMAL}" >&2
+
+  printf "%bOptions:%b\n" "${BOLD}" "${NORMAL}" >&2
+  printf "  %b--keep%b\n" "${YELLOW}" "${NORMAL}" >&2
+  printf "      Leave test releases and namespaces in place after a passing run\n" >&2
+  printf "      (failed runs always leave resources for inspection)\n\n" >&2
+  printf "  %b--parallel%b\n" "${YELLOW}" "${NORMAL}" >&2
+  printf "      With 'all': run the suites concurrently on the shared cluster\n" >&2
+  printf "      (namespace-isolated; needs CPU headroom — suite output is\n" >&2
+  printf "      buffered and replayed in order)\n\n" >&2
+
+  printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
+  printf "  %s test all\n" "$0" >&2
+  printf "  %s test postgres --keep\n\n" "$0" >&2
 
   exit "${1:-0}"
 }

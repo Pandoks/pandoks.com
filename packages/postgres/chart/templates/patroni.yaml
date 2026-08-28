@@ -5,7 +5,7 @@ metadata:
   namespace: {{ .Values.namespace }}
 data:
   patroni.yaml: |
-{{ .Files.Get "files/patroni.yaml" | indent 4 }}
+{{ tpl (.Files.Get "files/patroni.yaml") . | indent 4 }}
 
 ---
 apiVersion: v1
@@ -126,6 +126,11 @@ spec:
       labels:
         app: *app
         cluster-name: *cluster-name
+      annotations:
+        # NOTE: dcs parameters are excluded — the dcs-sync hook applies them live, no pod roll
+        {{- $chkVals := deepCopy $.Values }}
+        {{- $_ := set $chkVals.patroni.parameters "dcs" dict }}
+        checksum/config: {{ tpl ($.Files.Get "files/patroni.yaml") (dict "Values" $chkVals "Template" $.Template) | sha256sum }}
     spec:
       affinity:
         podAntiAffinity:

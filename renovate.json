@@ -52,6 +52,11 @@
       "description": "Group all kubectl pins into one PR — kubectl's depNames differ across managers so copies don't auto-coalesce, and the bump needs a manual KUBECTL_SHA256 edit that shouldn't block the all-minor-patch group.",
       "matchDepNames": ["kubectl", "kubernetes/kubernetes"],
       "groupName": "kubectl"
+    },
+    {
+      "description": "LocalStack 4.x is the last community line — every later tag hard-exits without a license token, so never propose those bumps.",
+      "matchDepNames": ["localstack/localstack"],
+      "allowedVersions": "<5"
     }
   ],
   "vulnerabilityAlerts": {

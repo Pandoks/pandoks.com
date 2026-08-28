@@ -15,6 +15,7 @@ readonly REPO_ROOT
 . "${SCRIPT_DIR}/usage.sh"
 . "${SCRIPT_DIR}/k3d.sh"
 . "${SCRIPT_DIR}/deploy.sh"
+. "${SCRIPT_DIR}/test.sh"
 
 main() {
   [ $# -ge 1 ] || usage 1
@@ -24,6 +25,7 @@ main() {
   case "${cmd}" in
     k3d) cmd_k3d "$@" ;;
     deploy) cmd_deploy "$@" ;;
+    test) cmd_test "$@" ;;
     help | --help | -h) usage ;;
     *)
       log_error "Unknown command '${cmd}'"

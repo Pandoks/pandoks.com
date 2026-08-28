@@ -18,7 +18,7 @@ variant, `binary_next_line`, `switch_case_indent`, `space_redirects`, no
 - **`#!/bin/sh` only on `main.sh`** (`scripts/cluster/main.sh:1`).
 - **Every sourced helper starts with `# shellcheck shell=sh`** and has no
   `set -eu`. Confirmed: `scripts/lib/{font,kubernetes,log,sst,template}.sh:1` and
-  `scripts/cluster/{usage,k3d,deploy}.sh:1`.
+  `scripts/cluster/{usage,k3d,deploy,test}.sh:1`.
 - **`scripts/lib/` library inventory** (what each sourced lib provides):
   - `font.sh` — ANSI formatting constants (`:5-12`).
   - `log.sh` — `log_error`/`log_ok`/`log_warn` + `die` (`log_error` then
@@ -32,7 +32,9 @@ variant, `binary_next_line`, `switch_case_indent`, `space_redirects`, no
 
 Cluster-only helpers stay with their sole consumer: `k3d.sh` owns Docker
 Compose dependency commands. Shared Kubernetes and SST helpers remain in
-`scripts/lib/` for reuse.
+`scripts/lib/` for reuse. (The cluster-test harness is NOT shell — it's the
+`packages/testkit` Go module; `scripts/cluster/test.sh` only does prep +
+dispatch.)
 
 ## Function-prefixed locals
 
@@ -50,9 +52,11 @@ Verbose, but necessary.
 ## Help-by-default dispatchers
 
 - Zero-arg invocation prints usage and exits via `usage <code>`; never
-  run-all on bare invocation. **No `all` subcommand.**
-  See `scripts/cluster/main.sh:19`, `scripts/cluster/deploy.sh:128`,
-  `scripts/cluster/k3d.sh:135`.
+  run-all on bare invocation. **No top-level `all` subcommand.**
+  See `scripts/cluster/main.sh:21`, `scripts/cluster/deploy.sh:128`,
+  `scripts/cluster/k3d.sh:135`. (`cluster test all` is an explicit
+  TARGET of `test` — `scripts/cluster/test.sh` still prints usage on
+  zero args; the rule bans defaulting, not the word.)
 
 ## Status output
 

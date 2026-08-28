@@ -1,0 +1,104 @@
+name: Cluster Tests
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: cluster-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.matrix.outputs.packages }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - id: filter
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4
+        with:
+          filters: |
+            postgres:
+              - 'packages/postgres/**'
+            valkey:
+              - 'packages/valkey/**'
+            clickhouse:
+              - 'packages/clickhouse/**'
+            harness:
+              - 'packages/testkit/**'
+              - 'scripts/cluster/**'
+              - 'scripts/lib/**'
+              - 'docker-compose.yaml'
+              - '.github/workflows/cluster-tests.yaml'
+
+      - id: matrix
+        run: |
+          if [ "${{ steps.filter.outputs.harness }}" = "true" ]; then
+            packages='["postgres","valkey","clickhouse"]'
+          else
+            list=""
+            [ "${{ steps.filter.outputs.postgres }}" = "true" ] && list="${list}\"postgres\","
+            [ "${{ steps.filter.outputs.valkey }}" = "true" ] && list="${list}\"valkey\","
+            [ "${{ steps.filter.outputs.clickhouse }}" = "true" ] && list="${list}\"clickhouse\","
+            packages="[${list%,}]"
+          fi
+          echo "packages=${packages}" >> "$GITHUB_OUTPUT"
+
+  cluster-tests:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.packages != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.detect-changes.outputs.packages) }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: k3d kubectl helm
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: packages/testkit/go.mod
+          cache-dependency-path: |
+            packages/testkit/go.sum
+            packages/postgres/test/go.sum
+            packages/valkey/test/go.sum
+            packages/clickhouse/test/go.sum
+
+      - name: Start dependencies and k3d cluster
+        run: |
+          pnpm cluster k3d deps up
+          pnpm cluster k3d up
+
+      - name: Build and push ${{ matrix.package }} images
+        run: |
+          pnpm --filter @pandoks.com/${{ matrix.package }} run docker:build
+          pnpm --filter @pandoks.com/${{ matrix.package }} run dev:push
+
+      - name: Run ${{ matrix.package }} cluster tests
+        run: ./scripts/cluster/main.sh test ${{ matrix.package }}
+
+  cluster-tests-pass:
+    needs:
+      - cluster-tests
+    if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "ok"

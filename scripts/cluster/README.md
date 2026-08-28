@@ -16,10 +16,11 @@ options. Package scripts in `package.json` are wired directly to
 
 ## Top-Level Commands
 
-| Command  | Description                                       |
-| -------- | ------------------------------------------------- |
-| `k3d`    | Manage the local k3d cluster and dependencies.    |
-| `deploy` | Deploy environment overlay (local, dev, or prod). |
+| Command  | Description                                                |
+| -------- | ---------------------------------------------------------- |
+| `k3d`    | Manage the local k3d cluster and dependencies.             |
+| `deploy` | Deploy environment overlay (local, dev, or prod).          |
+| `test`   | Run database package test suites on the local k3d cluster. |
 
 ## k3d Subcommands
 
@@ -78,6 +79,41 @@ The `deploy` command renders templates with these substitutions before applying:
 | `${IsLocal}`            | `'true'` or `'false'` for conditional logic. |
 | `${<SST Resource>}`     | Any SST resource by name.                    |
 | `${<Secret> \| base64}` | Base64 encode a secret value.                |
+
+## test
+
+`test` runs the per-package cluster test suites (Go tests at
+`packages/<pkg>/test/cluster_test.go`) against the local k3d cluster:
+
+```sh
+./scripts/cluster/main.sh test <postgres|valkey|clickhouse|all> [--keep]
+```
+
+Each suite helm-installs its chart directly from `packages/<pkg>/chart` into an
+isolated `test-<pkg>` namespace with hand-created secrets — no SST/AWS
+credentials are needed (unlike `deploy`). Before the suites run, the command
+performs idempotent shared prep: cert-manager (+ the internal CA chain from
+`k3s/base/core/cert-manager.yaml`), the ServiceMonitor CRD, the `monitoring` and
+`main` namespaces, and the postgres/valkey ClusterRoles.
+
+Prerequisites (the command errors with a hint if missing):
+
+```sh
+./scripts/cluster/main.sh k3d deps up   # localstack (s3 backups)
+./scripts/cluster/main.sh k3d up        # 6-node k3d cluster
+pnpm docker:build && pnpm dev:push      # images in the k3d registry
+```
+
+| Option       | Description                                                                                        |
+| ------------ | -------------------------------------------------------------------------------------------------- |
+| `--keep`     | Leave test releases/namespaces in place after a passing run (failures always leave them in place). |
+| `--parallel` | With `all`: run suites concurrently on the shared cluster (needs CPU headroom; output buffered).   |
+
+Suites are plain `go test` on client-go, sharing the `packages/testkit` harness
+module (`Connect` pins the kubeconfig context to k3d, `WaitFor`/`Assert*`,
+`Fingerprint` for zero-churn checks, in-pod `Exec`, helm wrappers). CI runs the
+same suites via `.github/workflows/cluster-tests.yaml` as a matrix job per
+changed package — each on its own runner with its own k3d cluster.
 
 ## Examples
 
