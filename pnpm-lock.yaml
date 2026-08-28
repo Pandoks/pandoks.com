@@ -37,7 +37,7 @@ importers:
         specifier: 3.0.3
         version: 3.0.3
       eslint:
-        specifier: ^10.4.0
+        specifier: ^10.9.0
         version: 10.9.0(jiti@2.7.0)
       eslint-plugin-svelte:
         specifier: ^3.19.0
@@ -58,7 +58,7 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0
       portless:
-        specifier: ^0.15.0
+        specifier: ^0.15.5
         version: 0.15.5
       prettier:
         specifier: ^3.8.3
@@ -76,7 +76,7 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
       typescript-eslint:
-        specifier: ^8.60.0
+        specifier: ^8.67.0
         version: 8.67.0(eslint@10.9.0(jiti@2.7.0))(typescript@6.0.3)
 
   apps/desktop-template:
@@ -149,8 +149,8 @@ importers:
         specifier: ^1.0.2
         version: 1.0.2
       electron:
-        specifier: ^42.2.0
-        version: 42.9.3
+        specifier: ^42.10.0
+        version: 42.10.1
       jsdom:
         specifier: ^30.0.1
         version: 30.0.1
@@ -181,22 +181,22 @@ importers:
   apps/functions:
     dependencies:
       '@aws-sdk/client-dynamodb':
-        specifier: ^3.1052.0
+        specifier: ^3.1116.0
         version: 3.1116.0
       '@aws-sdk/client-lambda':
-        specifier: ^3.1052.0
+        specifier: ^3.1116.0
         version: 3.1116.0
       '@aws-sdk/client-scheduler':
-        specifier: ^3.1052.0
+        specifier: ^3.1116.0
         version: 3.1116.0
       '@aws-sdk/client-sns':
-        specifier: ^3.1052.0
+        specifier: ^3.1116.0
         version: 3.1116.0
       '@aws-sdk/client-ssm':
-        specifier: ^3.1052.0
+        specifier: ^3.1116.0
         version: 3.1116.0
       '@aws-sdk/lib-dynamodb':
-        specifier: ^3.1052.0
+        specifier: ^3.1116.0
         version: 3.1116.0(@aws-sdk/client-dynamodb@3.1116.0)
       '@notionhq/client':
         specifier: ^5.22.0
@@ -309,7 +309,7 @@ importers:
         specifier: ^3.12.1
         version: 3.12.3
       '@lucide/svelte':
-        specifier: ^1.16.0
+        specifier: ^1.33.0
         version: 1.33.0(svelte@5.56.10(@typescript-eslint/types@8.67.0))
       '@playwright/test':
         specifier: ^1.60.0
@@ -2261,8 +2261,8 @@ packages:
     resolution: {integrity: sha512-j9ETcBGJaXxAY/b6UBpR7LZfjdU4BAO+yvr4ifqHEdyuc3UNCy91PDGkWKY5UQ4coHNYfnwFggrqD6QPeFGAlg==}
     engines: {node: '>=8.0.0'}
 
-  electron@42.9.3:
-    resolution: {integrity: sha512-REQUgPrCWOP0FajNcKCwwjkssirN+MVbemyd6bT+x51OVq58y6IqjtpA4vmm/KEzKXj2MIOebx/gF497CkRAPg==}
+  electron@42.10.1:
+    resolution: {integrity: sha512-ITc1HPeoDzsxCCaH6MFsN67Nq2nUiJf5N9pBWxzhUpFfKJF0IwiAkKT3emg1lPbvC4OfFE+Cdwe4vhgdOZ1YKg==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -7124,7 +7124,7 @@ snapshots:
       - supports-color
     optional: true
 
-  electron@42.9.3:
+  electron@42.10.1:
     dependencies:
       '@electron-internal/extract-zip': 1.0.5
       '@electron/get': 5.1.0
