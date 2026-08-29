@@ -37,13 +37,19 @@ if (isProduction) {
           planCode: 'option-storage-local-2027-model4',
           pricingMode: 'upfront12',
           quantity: 1
+        },
+        {
+          duration: 'P1M',
+          planCode: 'option-additional-disk-2027-200g',
+          pricingMode: 'default',
+          quantity: 1
         }
       ]
     },
     {
       protect: true,
       import: 'vps-54c42746.vps.ovh.us',
-      ignoreChanges: ['plans', 'ovhSubsidiary']
+      ignoreChanges: ['plans', 'ovhSubsidiary', 'planOptions']
     }
   );
 }
