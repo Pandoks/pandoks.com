@@ -16,7 +16,7 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
     {
       nodeAttrs: [
         {
-          target: ['autogroup:member'],
+          target: ['autogroup:member', 'tag:ovh'],
           attr: ['funnel']
         }
       ],
