@@ -14,6 +14,12 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
   overwriteExistingContent: true,
   acl: stringify(
     {
+      nodeAttrs: [
+        {
+          target: ['autogroup:member'],
+          attr: ['funnel']
+        }
+      ],
       grants: [
         { src: ['*'], dst: ['*'], ip: ['*'] },
         {
