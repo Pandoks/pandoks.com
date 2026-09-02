@@ -16,7 +16,7 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
     {
       nodeAttrs: [
         {
-          target: ['autogroup:member'],
+          target: ['tag:funnel'],
           attr: ['funnel']
         }
       ],
@@ -43,6 +43,7 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         }
       ],
       tagOwners: {
+        'tag:funnel': ['pandoks@github'],
         'tag:hetzner': ['pandoks@github'],
         'tag:ovh': ['pandoks@github'],
         'tag:k8s-operator': ['tag:k8s-operator'],
