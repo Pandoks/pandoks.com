@@ -19,7 +19,7 @@
     "shadcn": "pnpm dlx shadcn-svelte@latest add -c packages/svelte",
     "format": "./scripts/format/main.sh",
     "lint": "./scripts/lint/main.sh",
-    "test": "./scripts/test/main.sh",
+    "fix": "./scripts/fix/main.sh",
     "check:infra": "tsc -p .",
     "check": "pnpm -r --if-present check && pnpm check:infra",
     "postinstall": "sst install"
