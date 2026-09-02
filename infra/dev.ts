@@ -1,4 +1,5 @@
 import { isProduction } from './dns';
+import { tailscaleAcl } from './tailscale';
 
 if (isProduction) {
   new ovh.vps.Vps(
@@ -51,6 +52,16 @@ if (isProduction) {
       import: 'vps-54c42746.vps.ovh.us',
       ignoreChanges: ['plans', 'ovhSubsidiary', 'planOptions']
     }
+  );
+
+  const tailscaleDevice = tailscale.getDeviceOutput({ hostname: 'pandoks-dev-box' });
+  new tailscale.DeviceTags(
+    'OvhDevVpsTailscaleTags',
+    {
+      deviceId: tailscaleDevice.nodeId,
+      tags: ['tag:ovh', 'tag:funnel']
+    },
+    { dependsOn: [tailscaleAcl], retainOnDelete: true }
   );
 }
 
