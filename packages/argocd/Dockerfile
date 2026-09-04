@@ -13,6 +13,7 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
     ca-certificates \
     libgnutls30 \
     apache2-utils \
+    libexpat1 \
     && rm -rf /var/lib/apt/lists/* \
     && corepack enable
 
@@ -24,8 +25,8 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2
     && rm -rf awscliv2.zip aws
 
 # renovate: datasource=github-releases packageName=kubernetes/kubernetes
-ARG KUBECTL_VERSION=v1.36.4
-ARG KUBECTL_SHA256=8b8f088da2dab964f853b38464033b1be15ede2839eca751482357c45abdd05a
+ARG KUBECTL_VERSION=v1.37.0
+ARG KUBECTL_SHA256=6129359f4e1f3848a5572ccb0b26cf28b8ca08cef38c95a765b2f64a2c961a2f
 RUN curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
     && echo "${KUBECTL_SHA256}  kubectl" | sha256sum -c - \
     && chmod +x kubectl \
