@@ -13,6 +13,7 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
     ca-certificates \
     libgnutls30 \
     apache2-utils \
+    libexpat1 \
     && rm -rf /var/lib/apt/lists/* \
     && corepack enable
 
