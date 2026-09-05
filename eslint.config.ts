@@ -93,7 +93,7 @@ export default defineConfig([
           }
         }
       ],
-      'unicorn/no-array-for-each': 'error',
+      'unicorn/no-for-each': 'error',
       'unicorn/no-for-loop': 'error',
 
       curly: ['error', 'multi-line'],
