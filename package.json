@@ -1,7 +1,7 @@
 {
   "name": "pandoks.com",
   "version": "1.0.0",
-  "packageManager": "pnpm@11.25.0",
+  "packageManager": "pnpm@11.25.0+sha512-XN6SW08HX3Jetx+64YpC/+eEUkeJ8ZthxzHLhyHsKKruFg4BqNWvT+2ypCzb8wDv4j2zVrDUoXtNY+EfirfJVg==",
   "type": "module",
   "engines": {
     "node": ">=24",
