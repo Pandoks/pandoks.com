@@ -28,8 +28,8 @@
   },
   "devDependencies": {
     "@internationalized/date": "3.12.4",
-    "@lucide/svelte": "1.39.0",
-    "@playwright/test": "1.62.1",
+    "@lucide/svelte": "1.42.0",
+    "@playwright/test": "1.63.0",
     "@sveltejs/adapter-auto": "7.0.1",
     "@sveltejs/kit": "2.70.3",
     "@sveltejs/package": "2.5.8",
