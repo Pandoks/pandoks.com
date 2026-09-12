@@ -28,7 +28,7 @@
   },
   "devDependencies": {
     "@internationalized/date": "3.12.4",
-    "@lucide/svelte": "1.42.0",
+    "@lucide/svelte": "1.43.0",
     "@playwright/test": "1.63.0",
     "@sveltejs/adapter-auto": "7.0.1",
     "@sveltejs/kit": "2.70.3",
@@ -39,7 +39,7 @@
     "@tailwindcss/vite": "4.3.3",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/svelte": "5.4.2",
-    "bits-ui": "2.19.0",
+    "bits-ui": "2.19.1",
     "clsx": "2.1.1",
     "jsdom": "30.0.1",
     "svelte": "5.57.0",
