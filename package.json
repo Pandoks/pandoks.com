@@ -1,1 +1,51 @@
-FILE_PLACEHOLDER_PKG
+{
+  "name": "pandoks.com",
+  "version": "1.0.0",
+  "packageManager": "pnpm@11.25.0+sha512-XN6SW08HX3Jetx+64YpC/+eEUkeJ8ZthxzHLhyHsKKruFg4BqNWvT+2ypCzb8wDv4j2zVrDUoXtNY+EfirfJVg==",
+  "type": "module",
+  "engines": {
+    "node": ">=24",
+    "pnpm": ">=11.11.0"
+  },
+  "scripts": {
+    "sso": "aws sso login --sso-session=personal --use-device-code --no-browser",
+    "tools:install": "mise install --yes",
+    "cluster": "./scripts/cluster/main.sh",
+    "dev": "sst dev",
+    "dev:init": "pnpm cluster k3d deps up && pnpm cluster k3d up && pnpm docker:build && pnpm dev:push && pnpm cluster deploy dev --bootstrap && pnpm cluster deploy dev",
+    "dev:destroy": "pnpm cluster k3d down && pnpm cluster k3d deps down",
+    "dev:push": "pnpm -r --if-present dev:push",
+    "docker:build": "pnpm -r --if-present docker:build",
+    "shadcn": "pnpm dlx shadcn-svelte@latest add -c packages/svelte",
+    "format": "./scripts/format/main.sh",
+    "lint": "./scripts/lint/main.sh",
+    "fix": "./scripts/fix/main.sh",
+    "check:infra": "tsc -p .",
+    "check": "pnpm -r --if-present check && pnpm check:infra",
+    "postinstall": "sst install"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260910.1",
+    "@eslint/compat": "2.1.1",
+    "@eslint/js": "10.0.1",
+    "@types/node": "25.9.6",
+    "bcryptjs": "3.0.3",
+    "eslint": "10.10.0",
+    "eslint-plugin-svelte": "3.23.0",
+    "eslint-plugin-unicorn": "74.0.0",
+    "glob": "13.0.6",
+    "globals": "17.12.0",
+    "jiti": "2.7.0",
+    "json-stringify-pretty-compact": "4.0.0",
+    "portless": "0.15.6",
+    "prettier": "3.9.6",
+    "prettier-plugin-svelte": "4.1.1",
+    "prettier-plugin-tailwindcss": "0.8.1",
+    "svelte-eslint-parser": "1.8.1",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.70.0"
+  },
+  "dependencies": {
+    "sst": "4.17.1"
+  }
+}
