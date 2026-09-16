@@ -42,7 +42,7 @@ export default defineConfig([
       }
     },
     rules: {
-      'unicorn/prevent-abbreviations': [
+      'unicorn/name-replacements': [
         'error',
         {
           checkFilenames: false,
@@ -93,7 +93,7 @@ export default defineConfig([
           }
         }
       ],
-      'unicorn/no-array-for-each': 'error',
+      'unicorn/no-for-each': 'error',
       'unicorn/no-for-loop': 'error',
 
       curly: ['error', 'multi-line'],
@@ -202,7 +202,7 @@ export default defineConfig([
   {
     files: ['**/*.{test,spec}.ts', '**/*.svelte.{test,spec}.ts'],
     rules: {
-      'unicorn/prevent-abbreviations': 'off',
+      'unicorn/name-replacements': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/naming-convention': 'off'
     }
