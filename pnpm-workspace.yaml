@@ -8,6 +8,10 @@ publicHoistPattern:
   - electron
 enablePrePostScripts: false # supply-chain: block pre/post lifecycle scripts on `pnpm <script>`
 
+# pnpm 12 records packageManagerDependencies as a second YAML document by default;
+# ignore keeps a single-document lockfile (Codex/CI single-doc consumers).
+pmOnFail: ignore
+
 # supply-chain: dependency build-script allowlist (enablePrePostScript exceptions)
 allowBuilds:
   esbuild: true
