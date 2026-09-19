@@ -42,7 +42,7 @@
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/svelte": "5.4.2",
     "@types/electron-squirrel-startup": "1.0.2",
-    "electron": "44.3.0",
+    "electron": "44.4.1",
     "jsdom": "30.0.1",
     "svelte": "5.57.0",
     "svelte-check": "4.7.6",
@@ -50,7 +50,7 @@
     "typescript": "6.0.3",
     "vite": "8.3.0",
     "vite-plugin-static-copy": "4.1.1",
-    "vitest": "5.0.0"
+    "vitest": "5.0.1"
   },
   "dependencies": {
     "@pandoks.com/svelte": "workspace:*",
