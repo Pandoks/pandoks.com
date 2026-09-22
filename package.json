@@ -25,12 +25,12 @@
     "postinstall": "sst install"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20260918.1",
+    "@cloudflare/workers-types": "5.20260919.1",
     "@eslint/compat": "2.1.1",
     "@eslint/js": "10.0.1",
-    "@types/node": "25.9.7",
+    "@types/node": "25.9.8",
     "bcryptjs": "3.0.3",
-    "eslint": "10.10.0",
+    "eslint": "10.11.0",
     "eslint-plugin-svelte": "3.23.0",
     "eslint-plugin-unicorn": "75.0.0",
     "glob": "13.0.6",
