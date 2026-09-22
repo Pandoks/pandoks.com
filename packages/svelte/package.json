@@ -24,7 +24,7 @@
     "./svg/*": "./src/lib/svg/*"
   },
   "peerDependencies": {
-    "svelte": "5.57.0"
+    "svelte": "5.57.1"
   },
   "devDependencies": {
     "@internationalized/date": "3.12.4",
@@ -42,7 +42,7 @@
     "bits-ui": "2.19.2",
     "clsx": "2.1.1",
     "jsdom": "30.1.0",
-    "svelte": "5.57.0",
+    "svelte": "5.57.1",
     "svelte-check": "4.7.6",
     "tailwind-merge": "3.7.0",
     "tailwind-variants": "3.3.1",

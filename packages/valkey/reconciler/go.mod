@@ -3,7 +3,7 @@ module valkey/reconciler
 go 1.26.6
 
 require (
-	github.com/valkey-io/valkey-go v1.0.77
+	github.com/valkey-io/valkey-go v1.0.78
 	k8s.io/apimachinery v0.37.0
 	k8s.io/client-go v0.37.0
 )
