@@ -34,7 +34,7 @@ For local development, we use [k3d](https://k3d.io/) to create a local k3s clust
 To setup the cluster, run the following commands from the root of the project:
 
 ```sh
-pnpm dev:init
+pnpm local:init
 ```
 
 Or step by step:
@@ -46,6 +46,10 @@ Or step by step:
 # Create k3d cluster
 ./scripts/cluster/main.sh k3d up
 
+# Build and push local images/charts
+pnpm local:build
+pnpm local:push
+
 # Install base infrastructure (helm charts + CRDs)
 ./scripts/cluster/main.sh deploy local --bootstrap
 
@@ -55,28 +59,32 @@ Or step by step:
 
 ## Development cluster
 
-`deploy dev` resolves each package image independently. If that image has a
-moving tag for the requested source branch, deploy pins its current digest;
-otherwise it falls back to the production digest in `images.lock.json`. Pass
-`--branch <name>` from a detached checkout. Branch names are normalized to a
-lowercase, 63-character Docker tag (`feature/cache-fix` becomes
-`feature-cache-fix`). Remote dev deploys need access to `origin` and public
-GHCR, including with `--dry-run`.
+`deploy dev --branch <name>` renders `k3s/overlays/dev` once to discover the
+pinned package images, resolves each against the branch's moving GHCR tag, and
+applies the resolved digests through a generated temporary kustomize patch.
+HTTP 404 keeps the committed pin; other registry errors abort. Detached checkouts
+require `--branch`. Origin's default branch uses `latest`; other names become lowercase
+tags of at most 63 characters (`feature/cache-fix` becomes `feature-cache-fix`).
+Dev overlays need Bash, `origin`, and public GHCR, even in dry-run. Bootstrap skips
+image resolution.
 
 ## Production
 
 Production clusters are provisioned via Pulumi with cloud-config that bootstraps k3s + tailscale.
 The tailscale operator provides secure access to the cluster API without needing SSH tunnels.
 
-After merging image changes, `Build and Publish` advances `latest` only for the
-images that changed. Renovate then proposes a reviewable update to
-`images.lock.json`; merging that lock PR promotes the exact digests to
-production. Argo CD renders those committed digests, so production never
-deploys a mutable tag.
+Package image references are pinned inline as
+`ghcr.io/pandoks/<name>:latest@sha256:<digest>` in the app kube manifests, the
+Argo CD sidecar patch, and chart default values. After merging image changes,
+`Build and Publish` advances `latest` only for the images that changed.
+Renovate then proposes one reviewable "production images" PR updating those
+pins in place; merging it promotes the exact digests to production. Argo CD
+uses committed package-image digests; other containers may use tags.
 
 ```sh
-# Connect via tailscale (cluster appears as <stage>-cluster in your tailnet)
-kubectl --context <tailscale-context> get pods
+# Select the deployment context
+kubectl config use-context <tailscale-context>
+kubectl get pods
 
 # Install base infrastructure (helm charts + CRDs)
 ./scripts/cluster/main.sh deploy prod --bootstrap

@@ -50,16 +50,16 @@ if (isProduction) {
 
 new sst.x.DevCommand('DevInit', {
   dev: {
-    title: 'InitDev',
-    command: 'pnpm dev:init',
+    title: 'InitLocal',
+    command: 'pnpm local:init',
     autostart: false
   }
 });
 
 new sst.x.DevCommand('DevDestroy', {
   dev: {
-    title: 'DestroyDev',
-    command: 'pnpm dev:destroy',
+    title: 'DestroyLocal',
+    command: 'pnpm local:destroy',
     autostart: false
   }
 });

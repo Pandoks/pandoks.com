@@ -50,11 +50,11 @@ Without `--bootstrap`, deploys the **overlay** at `k3s/overlays/<env>`. With
 deploy a fresh cluster end-to-end, run `deploy <env> --bootstrap` first, then
 `deploy <env>` again without the flag.
 
-| Environment | Description                                                                                              |
-| ----------- | -------------------------------------------------------------------------------------------------------- |
-| `local`     | Uses each package's `local-registry:5000/<name>:latest` image.                                           |
-| `dev`       | Pins each available branch image by digest and falls back per image to the production lock.              |
-| `prod`      | Pins every package to its committed digest in `k3s/images.lock.json`; SST stage is forced to production. |
+| Environment | Description                                                                                                |
+| ----------- | ---------------------------------------------------------------------------------------------------------- |
+| `local`     | Rewrites charts and package images to `local-registry:5000` via the overlay patch in `k3s/overlays/local`. |
+| `dev`       | Pins branch builds; missing tags keep committed digests.                                                   |
+| `prod`      | Deploys [package-image digests](../../k3s/README.md#production) pinned in the manifests.                   |
 
 | Option         | Description                                                                                                   |
 | -------------- | ------------------------------------------------------------------------------------------------------------- |
@@ -100,6 +100,10 @@ The `deploy` command renders templates with these substitutions before applying:
 # Start dependencies and create the k3d cluster
 ./scripts/cluster/main.sh k3d deps up
 ./scripts/cluster/main.sh k3d up
+
+# Build and push local images/charts
+pnpm local:build
+pnpm local:push
 
 # Deploy in two steps: bootstrap (helm charts + CRDs), then overlay
 ./scripts/cluster/main.sh deploy local --bootstrap

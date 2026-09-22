@@ -67,11 +67,13 @@ To setup the local cluster, run this from the root of the monorepo:
 
 ```sh
 # Quick setup (all-in-one)
-pnpm dev:init
+pnpm local:init
 
 # Or step by step:
-pnpm cluster k3d deps up             # Start docker compose dependencies
-pnpm cluster k3d up                  # Create k3d cluster
+pnpm cluster k3d deps up               # Start docker compose dependencies
+pnpm cluster k3d up                    # Create k3d cluster
+pnpm local:build                       # Build local images/charts
+pnpm local:push                        # Push to the local registry
 pnpm cluster deploy local --bootstrap  # First-time: install helm charts + CRDs
 pnpm cluster deploy local              # Apply local overlay
 ```
@@ -79,7 +81,7 @@ pnpm cluster deploy local              # Apply local overlay
 To tear down the cluster:
 
 ```sh
-pnpm dev:destroy
+pnpm local:destroy
 ```
 
 See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI commands and [k3s/README.md](./k3s/README.md) for cluster architecture details.

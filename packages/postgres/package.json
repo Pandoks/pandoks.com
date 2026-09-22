@@ -4,14 +4,14 @@
   "type": "module",
   "sideEffects": false,
   "scripts": {
-    "build": "pnpm run /^build:/",
-    "docker:build": "pnpm build",
-    "build:patroni": "docker build -f ./patroni/Dockerfile ../../ -t localhost:12345/patroni:latest",
-    "build:pgbackrest": "docker build -f ./pgbackrest/Dockerfile ../../ -t localhost:12345/pgbackrest:latest",
-    "build:helm": "rm -f ./postgres-*.tgz && helm package ./chart",
-    "dev:push": "pnpm run /^dev:push:/",
-    "dev:push:patroni": "docker push localhost:12345/patroni:latest",
-    "dev:push:pgbackrest": "docker push localhost:12345/pgbackrest:latest",
-    "dev:push:helm": "helm push postgres-*.tgz oci://localhost:12345/charts"
+    "build": "pnpm local:build",
+    "local:build": "pnpm run /^local:build:/",
+    "local:build:patroni": "docker build -f ./patroni/Dockerfile ../../ -t localhost:12345/patroni:latest",
+    "local:build:pgbackrest": "docker build -f ./pgbackrest/Dockerfile ../../ -t localhost:12345/pgbackrest:latest",
+    "local:build:helm": "rm -f ./postgres-*.tgz && helm package ./chart",
+    "local:push": "pnpm run /^local:push:/",
+    "local:push:patroni": "docker push localhost:12345/patroni:latest",
+    "local:push:pgbackrest": "docker push localhost:12345/pgbackrest:latest",
+    "local:push:helm": "helm push postgres-*.tgz oci://localhost:12345/charts"
   }
 }
