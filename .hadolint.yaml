@@ -4,6 +4,7 @@ trustedRegistries:
   - docker.io
   - ghcr.io
   - quay.io
+  - registry.k8s.io
 
 ignored:
   - DL3008 # apt-get version pin
