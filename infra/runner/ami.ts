@@ -281,12 +281,11 @@ new aws.imagebuilder.LifecyclePolicy(
       }
     ],
     resourceSelection: {
-      // Content-derived patch versions change on every rebake; the wildcard keeps them all in scope.
       recipes: [
-        { name: runnerRecipeX86.name, semanticVersion: `${RECIPE_VERSION}.x` },
-        { name: runnerRecipeArm64.name, semanticVersion: `${RECIPE_VERSION}.x` },
-        { name: runnerRecipeGpuX86.name, semanticVersion: `${RECIPE_VERSION}.x` },
-        { name: runnerRecipeGpuArm64.name, semanticVersion: `${RECIPE_VERSION}.x` }
+        { name: runnerRecipeX86.name, semanticVersion: VERSION },
+        { name: runnerRecipeArm64.name, semanticVersion: VERSION },
+        { name: runnerRecipeGpuX86.name, semanticVersion: VERSION },
+        { name: runnerRecipeGpuArm64.name, semanticVersion: VERSION }
       ]
     }
   },

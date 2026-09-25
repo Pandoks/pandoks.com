@@ -198,6 +198,12 @@
       "separateMultipleMinor": true
     },
     {
+      "description": "Each runner AMI change rebakes four images (two on GPU instances), so batch those bumps monthly.",
+      "matchFileNames": ["infra/runner/ami.yaml"],
+      "groupName": "runner ami",
+      "schedule": ["* * 1 * *"]
+    },
+    {
       "description": "Docker registries often omit release timestamps, and the 7-day age gate would otherwise hold those updates (digest refreshes included) forever. Our own images and charts stay excluded: CI owns their pins.",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["!ghcr.io/pandoks/**", "!pandoks/charts/**"],
