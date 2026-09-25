@@ -2277,7 +2277,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(pgdog_clients{service=~\"{{ .Values.db }}-pgdog\"})",
+          "expr": "sum(pgdog_clients{service=~\"{{ include `postgres.pgdogService` . }}\"})",
           "legendFormat": "Active Clients",
           "range": true,
           "refId": "A"
@@ -2285,7 +2285,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(pgdog_cl_waiting{service=~\"{{ .Values.db }}-pgdog\"})",
+          "expr": "sum(pgdog_cl_waiting{service=~\"{{ include `postgres.pgdogService` . }}\"})",
           "legendFormat": "Clients Waiting",
           "range": true,
           "refId": "B"
@@ -2341,7 +2341,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(pgdog_sv_active{service=~\"{{ .Values.db }}-pgdog\"})",
+          "expr": "sum(pgdog_sv_active{service=~\"{{ include `postgres.pgdogService` . }}\"})",
           "legendFormat": "Server Active",
           "range": true,
           "refId": "A"
@@ -2349,7 +2349,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(pgdog_sv_idle{service=~\"{{ .Values.db }}-pgdog\"})",
+          "expr": "sum(pgdog_sv_idle{service=~\"{{ include `postgres.pgdogService` . }}\"})",
           "legendFormat": "Server Idle",
           "range": true,
           "refId": "B"
@@ -2357,7 +2357,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(pgdog_sv_idle_xact{service=~\"{{ .Values.db }}-pgdog\"})",
+          "expr": "sum(pgdog_sv_idle_xact{service=~\"{{ include `postgres.pgdogService` . }}\"})",
           "legendFormat": "Server Idle in Transaction",
           "range": true,
           "refId": "C"
@@ -2413,7 +2413,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "avg(pgdog_avg_query_time{service=~\"{{ .Values.db }}-pgdog\"}) / 1000000",
+          "expr": "avg(pgdog_avg_query_time{service=~\"{{ include `postgres.pgdogService` . }}\"}) / 1000000",
           "legendFormat": "Avg Query Time",
           "range": true,
           "refId": "A"
@@ -2421,7 +2421,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "avg(pgdog_avg_xact_time{service=~\"{{ .Values.db }}-pgdog\"}) / 1000000",
+          "expr": "avg(pgdog_avg_xact_time{service=~\"{{ include `postgres.pgdogService` . }}\"}) / 1000000",
           "legendFormat": "Avg Transaction Time",
           "range": true,
           "refId": "B"
@@ -2477,7 +2477,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pgdog_total_query_count{service=~\"{{ .Values.db }}-pgdog\"}[$__rate_interval]))",
+          "expr": "sum(rate(pgdog_total_query_count{service=~\"{{ include `postgres.pgdogService` . }}\"}[$__rate_interval]))",
           "legendFormat": "Queries/s",
           "range": true,
           "refId": "A"
@@ -2485,7 +2485,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pgdog_total_xact_count{service=~\"{{ .Values.db }}-pgdog\"}[$__rate_interval]))",
+          "expr": "sum(rate(pgdog_total_xact_count{service=~\"{{ include `postgres.pgdogService` . }}\"}[$__rate_interval]))",
           "legendFormat": "Transactions/s",
           "range": true,
           "refId": "B"
@@ -2541,7 +2541,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "max(pgdog_maxwait{service=~\"{{ .Values.db }}-pgdog\"}) / 1000000",
+          "expr": "max(pgdog_maxwait{service=~\"{{ include `postgres.pgdogService` . }}\"}) / 1000000",
           "legendFormat": "Max Wait Time",
           "range": true,
           "refId": "A"
@@ -2597,7 +2597,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pgdog_total_sent{service=~\"{{ .Values.db }}-pgdog\"}[$__rate_interval]))",
+          "expr": "sum(rate(pgdog_total_sent{service=~\"{{ include `postgres.pgdogService` . }}\"}[$__rate_interval]))",
           "legendFormat": "Bytes Sent",
           "range": true,
           "refId": "A"
@@ -2605,7 +2605,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pgdog_total_received{service=~\"{{ .Values.db }}-pgdog\"}[$__rate_interval]))",
+          "expr": "sum(rate(pgdog_total_received{service=~\"{{ include `postgres.pgdogService` . }}\"}[$__rate_interval]))",
           "legendFormat": "Bytes Received",
           "range": true,
           "refId": "B"
@@ -2661,7 +2661,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(pgdog_query_cache_hits{service=~\"{{ .Values.db }}-pgdog\"}) / clamp_min(sum(pgdog_query_cache_hits{service=~\"{{ .Values.db }}-pgdog\"}) + sum(pgdog_query_cache_misses{service=~\"{{ .Values.db }}-pgdog\"}), 1)",
+          "expr": "sum(pgdog_query_cache_hits{service=~\"{{ include `postgres.pgdogService` . }}\"}) / clamp_min(sum(pgdog_query_cache_hits{service=~\"{{ include `postgres.pgdogService` . }}\"}) + sum(pgdog_query_cache_misses{service=~\"{{ include `postgres.pgdogService` . }}\"}), 1)",
           "legendFormat": "Query Cache Hit Ratio",
           "range": true,
           "refId": "A"
@@ -2717,7 +2717,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(pgdog_errors{service=~\"{{ .Values.db }}-pgdog\"})",
+          "expr": "sum(pgdog_errors{service=~\"{{ include `postgres.pgdogService` . }}\"})",
           "legendFormat": "Errors",
           "range": true,
           "refId": "A"
@@ -2725,7 +2725,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(pgdog_out_of_sync{service=~\"{{ .Values.db }}-pgdog\"})",
+          "expr": "sum(pgdog_out_of_sync{service=~\"{{ include `postgres.pgdogService` . }}\"})",
           "legendFormat": "Out of Sync",
           "range": true,
           "refId": "B"

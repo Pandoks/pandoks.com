@@ -30,14 +30,16 @@ bootstrap: # how new clusters are created or replicas are initialized
         archive_timeout: 300
         wal_compression: on
         hot_standby: on
-        archive_mode: on
+        archive_mode: {{ if .Values.backup.enabled }}on{{ else }}off{{ end }}
         archive_command: 'pgbackrest --stanza=${STANZA} archive-push %p'
         # placeholders: %p = path of file to archive
         #               %f = file name only
         # e.g. 'test ! -f /mnt/server/archivedir/%f && cp %p /mnt/server/archivedir/%f'
+      {{- if .Values.backup.enabled }}
       recovery_conf:
         recovery_target_timeline: latest
         restore_command: 'pgbackrest --stanza=${STANZA} archive-get %f %p'
+      {{- end }}
       pg_hba:
         - 'local all all trust'
         - 'host all all 127.0.0.1/32 trust'
@@ -65,7 +67,9 @@ postgresql: # postgresql settings here don't need to restart the entire cluster
       username: replicator
       password: ${REPLICATION_PASSWORD}
   create_replica_methods:
+    {{- if .Values.backup.enabled }}
     - pgbackrest
+    {{- end }}
     - basebackup
   pgbackrest:
     command: 'pgbackrest --stanza=${STANZA} --delta restore'

@@ -27,3 +27,6 @@ hooks:
   backoffLimit: ~
   restartPolicy: OnFailure
   hookDeletePolicy: before-hook-creation,hook-succeeded
+
+monitoring:
+  namespace: monitoring
