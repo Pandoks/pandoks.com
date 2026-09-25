@@ -172,9 +172,9 @@
       "groupName": "sst providers"
     },
     {
-      "description": "Keep kubectl in mise and in the Argo renderer image on the same release.",
-      "matchDepNames": ["kubectl", "registry.k8s.io/kubectl"],
-      "groupName": "kubectl"
+      "description": "Keep kustomize in mise (local renders) and in the Argo renderer image on the same release.",
+      "matchDepNames": ["kustomize", "sigs.k8s.io/kustomize/kustomize/v5"],
+      "groupName": "kustomize"
     },
     {
       "description": "k3s patch releases (bug and security fixes) get their own PR.",
