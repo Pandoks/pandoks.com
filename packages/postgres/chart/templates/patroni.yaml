@@ -5,7 +5,7 @@ metadata:
   namespace: {{ .Values.namespace }}
 data:
   patroni.yaml: |
-{{ .Files.Get "files/patroni.yaml" | indent 4 }}
+{{ tpl (.Files.Get "files/patroni.yaml.tpl") . | indent 4 }}
 
 ---
 apiVersion: v1
@@ -28,6 +28,7 @@ data:
 {{ .Files.Get "files/pgbackrest-server.conf" | indent 4 }}
 
 {{- range $shardIndex := until (int $.Values.patroni.shards) }}
+
 ---
 # provides a stable ip for the primary
 apiVersion: v1
@@ -207,6 +208,8 @@ spec:
                 secretKeyRef:
                   name: *db-creds
                   key: {{ $.Values.credentials.dataKeys.patroniPassword }}
+            - name: BACKUP_ENABLED
+              value: {{ $.Values.backup.enabled | quote }}
             - name: BACKUP_BUCKET
               value: &backup-bucket {{ $.Values.backup.bucket }}
             - name: BACKUP_PATH
