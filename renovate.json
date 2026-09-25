@@ -56,6 +56,32 @@
     },
     {
       "customType": "regex",
+      "description": "Keep the k3s install version (VPS cloud-init) and the system-upgrade Plans on the same release; a Plan behind a freshly installed node would downgrade it.",
+      "managerFilePatterns": [
+        "/^infra\\/vps\\/cloud-config\\.yaml$/",
+        "/^k3s\\/overlays\\/cluster\\/cluster-upgrade-plan\\.yaml$/"
+      ],
+      "matchStrings": [
+        "INSTALL_K3S_VERSION=\"(?<currentValue>v\\d+\\.\\d+\\.\\d+\\+k3s\\d+)\"",
+        "version: (?<currentValue>v\\d+\\.\\d+\\.\\d+\\+k3s\\d+)"
+      ],
+      "depNameTemplate": "k3s-io/k3s",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\+k3s(?<build>\\d+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Track the pinned system-upgrade-controller release manifests.",
+      "managerFilePatterns": ["/^k3s\\/.+\\/kustomization\\.ya?ml$/"],
+      "matchStrings": [
+        "https://github\\.com/rancher/system-upgrade-controller/releases/download/(?<currentValue>v[\\d.]+)/"
+      ],
+      "depNameTemplate": "rancher/system-upgrade-controller",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
       "description": "Bump `version:` pins annotated with a trailing `# renovate: datasource=... packageName=...` comment.",
       "managerFilePatterns": ["/^apps/.+/kube/.+\\.ya?ml$/"],
       "matchStrings": [
@@ -74,6 +100,11 @@
       "description": "Group all kubectl pins into one PR — kubectl's depNames differ across managers so copies don't auto-coalesce, and the bump needs a manual KUBECTL_SHA256 edit that shouldn't block the all-minor-patch group.",
       "matchDepNames": ["kubectl", "kubernetes/kubernetes"],
       "groupName": "kubectl"
+    },
+    {
+      "description": "k3s bumps change the cluster's Kubernetes version; review them on their own instead of inside the all-non-major group.",
+      "matchPackageNames": ["k3s-io/k3s"],
+      "groupName": "k3s"
     },
     {
       "description": "Do not pin package.json engines.node — keep a range compatible with mise.toml",
