@@ -35,8 +35,6 @@ phases:
           commands:
             - curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
             - sudo DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs
-            # pnpm's current install guidance (corepack is a per-call Node shim and is dropped
-            # from the Node.js distribution in v25).
             - sudo npm install -g pnpm@12.5.1
 
       - name: InstallAwsCli
