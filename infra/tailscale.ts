@@ -14,6 +14,12 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
   overwriteExistingContent: true,
   acl: stringify(
     {
+      nodeAttrs: [
+        {
+          target: ['tag:funnel'],
+          attr: ['funnel']
+        }
+      ],
       grants: [
         { src: ['*'], dst: ['*'], ip: ['*'] },
         {
@@ -37,6 +43,7 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         }
       ],
       tagOwners: {
+        'tag:funnel': ['pandoks@github'],
         'tag:hetzner': ['pandoks@github'],
         'tag:ovh': ['pandoks@github'],
         'tag:k8s-operator': ['tag:k8s-operator'],

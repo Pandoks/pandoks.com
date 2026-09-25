@@ -79,6 +79,13 @@
       "matchManagers": ["custom.regex"],
       "groupName": "production images",
       "minimumReleaseAge": "0 days"
+    },
+    {
+      "description": "Do not pin package.json engines.node — keep a range compatible with mise.toml",
+      "matchDepTypes": ["engines"],
+      "matchPackageNames": ["node"],
+      "rangeStrategy": "replace",
+      "enabled": false
     }
   ],
   "vulnerabilityAlerts": {

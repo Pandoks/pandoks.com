@@ -29,6 +29,7 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
     ca-certificates \
     libgnutls30 \
     apache2-utils \
+    libexpat1 \
     && rm -rf /var/lib/apt/lists/*
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -43,7 +44,7 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${AWS_CLI_VERSION
     && rm -rf awscliv2.zip aws
 
 # renovate: datasource=docker packageName=ghcr.io/pnpm/pnpm
-COPY --from=ghcr.io/pnpm/pnpm:11.21.0@sha256:ff1b4619e8299734f35afb21bd2be18f51b7b6e49cd30fb14300fadeafe871da /opt/pnpm/pnpm /usr/local/bin/pnpm
+COPY --from=ghcr.io/pnpm/pnpm:12.5.1@sha256:0a4219f2ae582bce0e52073876c20e6387147f0809d8546744d87243797633ed /opt/pnpm/pnpm /usr/local/bin/pnpm
 
 COPY --from=kustomize-builder /out/kustomize /usr/local/bin/kustomize
 

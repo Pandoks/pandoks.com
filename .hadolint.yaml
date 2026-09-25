@@ -8,6 +8,9 @@ trustedRegistries:
 ignored:
   - DL3008 # apt-get version pin
   - DL3018 # apk add version pin
+  # hadolint 2.15.x flags `USER root` in images that need root for apk setup; the runtime
+  # user is dropped afterwards. Revisit if a numeric-UID refactor lands.
+  - DL3066
 
 override:
   error: []

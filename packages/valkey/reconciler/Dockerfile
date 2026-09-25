@@ -12,7 +12,7 @@ ENV GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0
 
 RUN go build -trimpath -buildvcs=false -ldflags="-s -w" -o /out/valkey-reconciler ./main.go
 
-FROM valkey/valkey:9-alpine@sha256:ee91f7a174ac4d6a6b0685b3a60e321f0a9dbbb691f9b0e285be2ba1d1be8328
+FROM valkey/valkey:9-alpine@sha256:a0dbf4c1d5708782907c10e2c72deff317518518b5288a58416981d9db95d30b
 
 USER root
 RUN apk upgrade --no-cache

@@ -1,11 +1,11 @@
 {
   "name": "pandoks.com",
   "version": "1.0.0",
-  "packageManager": "pnpm@11.21.0+sha512.521705bce689924eac72f5a3587122f362689ef6571e55ba80076fd637c11132ecffada26fad4ea79c485bfddbfd3d5a2a5b05805a77e893de71ec8a6cca3bb1",
+  "packageManager": "pnpm@12.5.1+sha512.e3f305bc784a2bc89f5ad3b6138889470fae8d2af5f36b61216ec91c2c3d64089775f9de38aac331044ea40f245cb0d5666392dfdf65824e1907ef6a2c62de5f",
   "type": "module",
   "engines": {
     "node": ">=24",
-    "pnpm": ">=11"
+    "pnpm": "12.5.1"
   },
   "scripts": {
     "sso": "aws sso login --sso-session=personal --use-device-code --no-browser",
@@ -25,27 +25,27 @@
     "postinstall": "[ \"${PANDOKS_INSTALL_MODE:-}\" = dependencies ] || sst install"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260522.1",
-    "@eslint/compat": "^2.1.0",
-    "@eslint/js": "^10.0.1",
-    "@types/node": "^25.9.1",
+    "@cloudflare/workers-types": "5.20260921.1",
+    "@eslint/compat": "2.1.1",
+    "@eslint/js": "10.0.1",
+    "@types/node": "25.9.8",
     "bcryptjs": "3.0.3",
-    "eslint": "^10.4.0",
-    "eslint-plugin-svelte": "^3.19.0",
-    "eslint-plugin-unicorn": "^64.0.0",
-    "glob": "^13.0.6",
-    "globals": "^17.6.0",
-    "jiti": "^2.7.0",
-    "json-stringify-pretty-compact": "^4.0.0",
-    "portless": "^0.15.0",
-    "prettier": "^3.8.3",
-    "prettier-plugin-svelte": "^4.1.0",
-    "prettier-plugin-tailwindcss": "^0.8.0",
-    "svelte-eslint-parser": "^1.7.0",
-    "typescript": "^6.0.3",
-    "typescript-eslint": "^8.60.0"
+    "eslint": "10.11.0",
+    "eslint-plugin-svelte": "3.23.0",
+    "eslint-plugin-unicorn": "76.0.0",
+    "glob": "13.0.6",
+    "globals": "17.12.0",
+    "jiti": "2.7.0",
+    "json-stringify-pretty-compact": "4.0.0",
+    "portless": "0.15.6",
+    "prettier": "3.9.8",
+    "prettier-plugin-svelte": "4.1.1",
+    "prettier-plugin-tailwindcss": "0.8.1",
+    "svelte-eslint-parser": "1.8.1",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.70.0"
   },
   "dependencies": {
-    "sst": "^4.17.0"
+    "sst": "4.17.1"
   }
 }
