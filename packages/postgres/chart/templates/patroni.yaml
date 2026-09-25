@@ -17,6 +17,8 @@ data:
   pgbackrest.conf: |
 {{ .Files.Get "files/pgbackrest.conf" | indent 4 }}
 
+{{- if .Values.backup.enabled }}
+
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -26,6 +28,7 @@ metadata:
 data:
   pgbackrest.conf: |
 {{ .Files.Get "files/pgbackrest-server.conf" | indent 4 }}
+{{- end }}
 
 {{- range $shardIndex := until (int $.Values.patroni.shards) }}
 
@@ -50,9 +53,11 @@ spec:
     - name: postgres
       port: 5432
       targetPort: 5432
+    {{- if $.Values.backup.enabled }}
     - name: pgbackrest
       port: 8432
       targetPort: 8432
+    {{- end }}
 
 ---
 # provides a stable ip for all replicas
@@ -75,9 +80,11 @@ spec:
     - name: postgres
       port: 5432
       targetPort: 5432
+    {{- if $.Values.backup.enabled }}
     - name: pgbackrest
       port: 8432
       targetPort: 8432
+    {{- end }}
 
 ---
 apiVersion: v1
@@ -210,6 +217,7 @@ spec:
                   key: {{ $.Values.credentials.dataKeys.patroniPassword }}
             - name: BACKUP_ENABLED
               value: {{ $.Values.backup.enabled | quote }}
+            {{- if $.Values.backup.enabled }}
             - name: BACKUP_BUCKET
               value: &backup-bucket {{ $.Values.backup.bucket }}
             - name: BACKUP_PATH
@@ -236,6 +244,7 @@ spec:
               value: &encryption-key {{ $.Values.backup.encryptionKey }}
             - name: BACKUP_HOST_COMMON_NAME
               value: &backup-host-common-name {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup
+            {{- end }}
             - name: STANZA
               value: *cluster-name
           {{- with $.Values.patroni.resources.patroni }}
@@ -261,6 +270,7 @@ spec:
               mountPath: /etc/pgbackrest
             - name: &patroni-tmp patroni-tmp
               mountPath: /tmp
+        {{- if $.Values.backup.enabled }}
         - name: pgbackrest
           image: {{ $.Values.backup.image }}
           securityContext:
@@ -331,6 +341,7 @@ spec:
               mountPath: *socket-mount
             - name: &pgbackrest-tmp pgbackrest-tmp
               mountPath: /tmp
+        {{- end }}
         - name: postgres-exporter
           image: quay.io/prometheuscommunity/postgres-exporter:v0.18.1
           securityContext:
@@ -393,14 +404,19 @@ spec:
           emptyDir: {}
         - name: *patroni-etc-pgbackrest
           emptyDir: {}
+        {{- if $.Values.backup.enabled }}
         - name: *sidecar-etc-pgbackrest
           emptyDir: {}
+        {{- end }}
         - name: *patroni-tmp
           emptyDir: {}
+        {{- if $.Values.backup.enabled }}
         - name: *pgbackrest-tmp
           emptyDir: {}
+        {{- end }}
         - name: *exporter-tmp
           emptyDir: {}
+        {{- if $.Values.backup.enabled }}
         - name: *tls
           projected:
             defaultMode: 0600
@@ -421,6 +437,7 @@ spec:
                       path: server.crt
                     - key: tls.key
                       path: server.key
+        {{- end }}
         - name: *socket
           emptyDir: {}
   volumeClaimTemplates:
