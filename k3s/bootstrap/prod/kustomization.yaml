@@ -3,4 +3,4 @@ kind: Kustomization
 resources:
   - ../core
   - argocd.yaml
-  - https://github.com/rancher/system-upgrade-controller/releases/latest/download/crd.yaml
+  - https://github.com/rancher/system-upgrade-controller/releases/download/v0.20.2/crd.yaml
