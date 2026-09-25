@@ -28,15 +28,6 @@
     },
     {
       "customType": "regex",
-      "description": "Track kubectl version in the argocd image (binary fetched from dl.k8s.io). KUBECTL_SHA256 must be updated by hand on each bump — Renovate cannot compute binary checksums, and the stale SHA fails the argocd image build on the PR branch until fixed.",
-      "managerFilePatterns": ["/(^|/)packages/argocd/Dockerfile$/"],
-      "matchStrings": [
-        "# renovate: datasource=(?<datasource>[a-z-]+) packageName=(?<packageName>[^\\s]+)\\s+ARG KUBECTL_VERSION=(?<currentValue>v[\\d.]+)"
-      ],
-      "versioningTemplate": "semver"
-    },
-    {
-      "customType": "regex",
       "description": "Track the Go modules compiled into the argocd image: the kustomize release built from source, and the x/text release forced past kustomize's stale pin.",
       "managerFilePatterns": ["/(^|/)packages/argocd/Dockerfile$/"],
       "matchStrings": [
@@ -47,12 +38,64 @@
     },
     {
       "customType": "regex",
-      "description": "Track AWS CLI in the argocd image. AWS_CLI_SHA256 must be updated by hand on each bump; a stale checksum fails the image build.",
-      "managerFilePatterns": ["/(^|/)packages/argocd/Dockerfile$/"],
-      "matchStrings": [
-        "# renovate: datasource=(?<datasource>[a-z-]+) packageName=(?<packageName>[^\\s]+)\\s+ARG AWS_CLI_VERSION=(?<currentValue>[\\d.]+)"
+      "description": "Track Helm charts installed through k3s HelmChart resources (cluster add-ons, the Tailscale operator in cloud-init, and PgDog).",
+      "managerFilePatterns": [
+        "/^k3s\\/.+\\.ya?ml$/",
+        "/^infra\\/vps\\/cloud-config\\.yaml$/",
+        "/^packages\\/[^/]+\\/chart\\/templates\\/.+\\.ya?ml$/"
       ],
-      "versioningTemplate": "semver"
+      "matchStrings": [
+        "repo: (?<registryUrl>https://\\S+)\\s+chart: (?<depName>[a-z0-9][a-z0-9-]*)\\s+version: (?<currentValue>\\S+)",
+        "name: &name (?<depName>[a-z0-9-]+)\\n[\\s\\S]*?repo: (?<registryUrl>https://\\S+)\\s+chart: \\*name\\s+version: (?<currentValue>\\S+)"
+      ],
+      "datasourceTemplate": "helm"
+    },
+    {
+      "customType": "regex",
+      "description": "Track literal images in chart templates (exporter sidecars).",
+      "managerFilePatterns": ["/^packages\\/[^/]+\\/chart\\/templates\\/.+\\.ya?ml$/"],
+      "matchStrings": [
+        "image: (?<depName>[a-z0-9.-]+(?:/[a-z0-9._-]+)+):(?<currentValue>[\\w.-]+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?"
+      ],
+      "datasourceTemplate": "docker",
+      "autoReplaceStringTemplate": "image: {{{depName}}}:{{{newValue}}}{{#if newDigest}}@{{{newDigest}}}{{/if}}"
+    },
+    {
+      "customType": "regex",
+      "description": "Track the Pulumi provider versions SST installs.",
+      "managerFilePatterns": ["/^sst\\.config\\.ts$/"],
+      "matchStrings": [
+        "\\n\\s+(?<depName>cloudflare|github|hcloud|tailscale): '(?<currentValue>[\\d.]+)'",
+        "package: '(?<packageName>@ovhcloud/pulumi-ovh)',[\\s\\S]*?version: '(?<currentValue>[\\d.]+)'"
+      ],
+      "depNameTemplate": "{{#if packageName}}{{{packageName}}}{{else}}@pulumi/{{{depName}}}{{/if}}",
+      "packageNameTemplate": "{{#if packageName}}{{{packageName}}}{{else}}@pulumi/{{{depName}}}{{/if}}",
+      "datasourceTemplate": "npm"
+    },
+    {
+      "customType": "regex",
+      "description": "Track the Node.js version Cloudflare Pages builds the website with.",
+      "managerFilePatterns": ["/^infra\\/website\\.ts$/"],
+      "matchStrings": ["const NODE_VERSION = '(?<currentValue>[\\d.]+)'"],
+      "depNameTemplate": "node",
+      "datasourceTemplate": "node-version"
+    },
+    {
+      "customType": "regex",
+      "description": "Track the Renovate image the checks workflow validates this config with.",
+      "managerFilePatterns": ["/^\\.github\\/workflows\\/checks\\.ya?ml$/"],
+      "matchStrings": [
+        "(?<depName>ghcr\\.io/renovatebot/renovate):(?<currentValue>\\d+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?"
+      ],
+      "datasourceTemplate": "docker",
+      "autoReplaceStringTemplate": "{{{depName}}}:{{{newValue}}}{{#if newDigest}}@{{{newDigest}}}{{/if}}"
+    },
+    {
+      "customType": "regex",
+      "description": "Track pnpm in the runner AMI; the recipe version follows the component contents, so a bump rebakes the AMIs.",
+      "managerFilePatterns": ["/^infra\\/runner\\/ami\\.yaml$/"],
+      "matchStrings": ["npm install -g (?<depName>pnpm)@(?<currentValue>[\\d.]+)"],
+      "datasourceTemplate": "npm"
     },
     {
       "customType": "regex",
@@ -97,14 +140,68 @@
       "groupName": "helm charts"
     },
     {
-      "description": "Group all kubectl pins into one PR — kubectl's depNames differ across managers so copies don't auto-coalesce, and the bump needs a manual KUBECTL_SHA256 edit that shouldn't block the all-minor-patch group.",
-      "matchDepNames": ["kubectl", "kubernetes/kubernetes"],
+      "description": "Each cluster add-on chart is its own rollout, so it gets its own PR instead of joining the all-non-major group.",
+      "matchDatasources": ["helm"],
+      "matchManagers": ["custom.regex"],
+      "groupName": null
+    },
+    {
+      "description": "PgDog tags its chart with two-part versions (v0.27) that Helm's semver versioning can't parse.",
+      "matchDatasources": ["helm"],
+      "matchPackageNames": ["pgdog"],
+      "versioning": "loose"
+    },
+    {
+      "description": "Helm doesn't upgrade CRDs, so major chart bumps need the chart's upgrade steps before merging.",
+      "matchDatasources": ["helm"],
+      "matchUpdateTypes": ["major"],
+      "prBodyNotes": [
+        "Read the chart's upgrade notes and apply any new CRDs before merging; Helm only installs CRDs on first install."
+      ]
+    },
+    {
+      "description": "Provider bumps can change infrastructure; review them with their SST diff instead of inside the all-non-major group.",
+      "matchPackageNames": [
+        "@pulumi/cloudflare",
+        "@pulumi/github",
+        "@pulumi/hcloud",
+        "@pulumi/tailscale",
+        "@ovhcloud/pulumi-ovh"
+      ],
+      "matchFileNames": ["sst.config.ts"],
+      "groupName": "sst providers"
+    },
+    {
+      "description": "Keep kubectl in mise and in the Argo renderer image on the same release.",
+      "matchDepNames": ["kubectl", "registry.k8s.io/kubectl"],
       "groupName": "kubectl"
     },
     {
-      "description": "k3s bumps change the cluster's Kubernetes version; review them on their own instead of inside the all-non-major group.",
+      "description": "k3s patch releases (bug and security fixes) get their own PR.",
       "matchPackageNames": ["k3s-io/k3s"],
+      "matchUpdateTypes": ["patch"],
       "groupName": "k3s"
+    },
+    {
+      "description": "k3s minor releases change the cluster's Kubernetes minor version. They wait for approval on the Dependency Dashboard and come one minor at a time, because Kubernetes can't skip minors.",
+      "matchPackageNames": ["k3s-io/k3s"],
+      "matchUpdateTypes": ["minor", "major"],
+      "dependencyDashboardApproval": true,
+      "prBodyNotes": [
+        "Check that k3s's [stable channel](https://update.k3s.io/v1-release/channels) has reached this minor, and read its [upgrade notes](https://docs.k3s.io/upgrades/manual). The Plans upgrade servers first, then agents."
+      ],
+      "groupName": "k3s minor"
+    },
+    {
+      "description": "Offer each k3s minor separately so an upgrade never skips one.",
+      "matchPackageNames": ["k3s-io/k3s"],
+      "separateMultipleMinor": true
+    },
+    {
+      "description": "Docker registries often omit release timestamps, and the 7-day age gate would otherwise hold those updates (digest refreshes included) forever. Our own images and charts stay excluded: CI owns their pins.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["!ghcr.io/pandoks/**", "!pandoks/charts/**"],
+      "minimumReleaseAgeBehaviour": "timestamp-optional"
     },
     {
       "description": "Do not pin package.json engines.node — keep a range compatible with mise.toml",

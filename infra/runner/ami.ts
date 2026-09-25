@@ -1,10 +1,12 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { US_WEST_2_REGION, usWest2Provider } from '../aws';
 import { STAGE_NAME } from '../dns';
 
-// WARNING: version must be bumped when AMI changes to rebuild
-const VERSION = '1.0.4';
+// Bump when the recipes in this file change (parent images, volumes, component lists). Component
+// contents are versioned automatically below; bump this too if a component reverts to an old state.
+const RECIPE_VERSION = '1.1';
 
 const bakeInstanceRole = new aws.iam.Role(
   'RunnerBakeInstanceRole',
@@ -48,6 +50,24 @@ function renderAmiTemplateYaml({
   }
   return data;
 }
+
+const runnerToolsData = renderAmiTemplateYaml({ file: 'ami.yaml' });
+const runnerGpuX86ToolsData = renderAmiTemplateYaml({
+  file: 'ami-gpu.yaml',
+  replacements: { CUDA_ARCH: 'x86_64' }
+});
+const runnerGpuArmToolsData = renderAmiTemplateYaml({
+  file: 'ami-gpu.yaml',
+  replacements: { CUDA_ARCH: 'sbsa' }
+});
+
+// Image Builder versions are immutable, so the patch number follows the component contents: a
+// Renovate bump in ami.yaml rebakes the AMIs without a hand-edited version. 7 hex digits stay under
+// Image Builder's 2^30 - 1 limit per version node.
+const componentsHash = createHash('sha256')
+  .update([runnerToolsData, runnerGpuX86ToolsData, runnerGpuArmToolsData].join('\0'))
+  .digest('hex');
+const VERSION = `${RECIPE_VERSION}.${parseInt(componentsHash.slice(0, 7), 16)}`;
 
 const ARCH_IMAGE_MAPPING = {
   x86: `arn:aws:imagebuilder:${US_WEST_2_REGION}:aws:image/ubuntu-server-24-lts-x86/x.x.x`,
@@ -114,7 +134,7 @@ const runnerToolsComponent = new aws.imagebuilder.Component(
     platform: 'Linux',
     version: VERSION,
     skipDestroy: true,
-    data: renderAmiTemplateYaml({ file: 'ami.yaml' })
+    data: runnerToolsData
   },
   { provider: usWest2Provider }
 );
@@ -125,7 +145,7 @@ const runnerGpuX86ToolsComponent = new aws.imagebuilder.Component(
     platform: 'Linux',
     version: VERSION,
     skipDestroy: true,
-    data: renderAmiTemplateYaml({ file: 'ami-gpu.yaml', replacements: { CUDA_ARCH: 'x86_64' } })
+    data: runnerGpuX86ToolsData
   },
   { provider: usWest2Provider }
 );
@@ -136,7 +156,7 @@ const runnerGpuArmToolsComponent = new aws.imagebuilder.Component(
     platform: 'Linux',
     version: VERSION,
     skipDestroy: true,
-    data: renderAmiTemplateYaml({ file: 'ami-gpu.yaml', replacements: { CUDA_ARCH: 'sbsa' } })
+    data: runnerGpuArmToolsData
   },
   { provider: usWest2Provider }
 );
@@ -261,11 +281,12 @@ new aws.imagebuilder.LifecyclePolicy(
       }
     ],
     resourceSelection: {
+      // Content-derived patch versions change on every rebake; the wildcard keeps them all in scope.
       recipes: [
-        { name: runnerRecipeX86.name, semanticVersion: VERSION },
-        { name: runnerRecipeArm64.name, semanticVersion: VERSION },
-        { name: runnerRecipeGpuX86.name, semanticVersion: VERSION },
-        { name: runnerRecipeGpuArm64.name, semanticVersion: VERSION }
+        { name: runnerRecipeX86.name, semanticVersion: `${RECIPE_VERSION}.x` },
+        { name: runnerRecipeArm64.name, semanticVersion: `${RECIPE_VERSION}.x` },
+        { name: runnerRecipeGpuX86.name, semanticVersion: `${RECIPE_VERSION}.x` },
+        { name: runnerRecipeGpuArm64.name, semanticVersion: `${RECIPE_VERSION}.x` }
       ]
     }
   },
