@@ -47,13 +47,7 @@ cmd_k3d_up() {
     return 1
   fi
 
-  # Match the remote clusters: use the k3s release the upgrade Plans pin (Renovate bumps it).
-  cmd_k3d_up_k3s_plan="${REPO_ROOT}/k3s/overlays/cluster/cluster-upgrade-plan.yaml"
-  cmd_k3d_up_k3s_version=$(sed -n 's/^  version: \(v[0-9.]*+k3s[0-9]*\)$/\1/p' "${cmd_k3d_up_k3s_plan}" | head -n 1)
-  if [ -z "${cmd_k3d_up_k3s_version}" ]; then
-    log_error "Could not read the k3s version from ${cmd_k3d_up_k3s_plan}"
-    return 1
-  fi
+  cmd_k3d_up_k3s_version="v1.36.4+k3s1"
   # Image tags spell the build metadata with "-" instead of "+".
   cmd_k3d_up_k3s_image="rancher/k3s:$(printf '%s' "${cmd_k3d_up_k3s_version}" | tr '+' '-')"
   echo "Using k3s image: ${cmd_k3d_up_k3s_image}"

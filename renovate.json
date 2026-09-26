@@ -10,6 +10,7 @@
   "labels": ["dependencies"],
   "assignees": ["pandoks"],
   "minimumReleaseAge": "7 days",
+  "minimumReleaseAgeBehaviour": "timestamp-optional",
   "dependencyDashboardTitle": "[renovate] 🤖 outdated dependencies (DON'T DELETE)",
   "dependencyDashboardLabels": ["dependencies"],
   "dependencyDashboardOSVVulnerabilitySummary": "unresolved",
@@ -19,12 +20,14 @@
   "rangeStrategy": "pin",
   "postUpdateOptions": ["pnpmDedupe", "gomodTidy"],
   "kubernetes": {
-    "managerFilePatterns": ["/^apps\\/.+\\/kube\\/.+\\.ya?ml$/"]
+    "managerFilePatterns": [
+      "/^apps\\/.+\\/kube\\/.+\\.ya?ml$/",
+      "/^packages\\/[^/]+\\/chart\\/templates\\/.+\\.ya?ml$/"
+    ]
   },
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Sync the `go` directive in go.work when go.mod is bumped (Renovate's gomod manager only handles go.mod)",
       "managerFilePatterns": ["/(^|/)go\\.work$/"],
       "matchStrings": ["(^|\\n)go (?<currentValue>[\\d.]+)\\s*(\\n|$)"],
       "depNameTemplate": "go",
@@ -33,7 +36,6 @@
     },
     {
       "customType": "regex",
-      "description": "Track Helm charts installed through k3s HelmChart resources (cluster add-ons, the Tailscale operator in cloud-init, and PgDog).",
       "managerFilePatterns": [
         "/^k3s\\/.+\\.ya?ml$/",
         "/^infra\\/vps\\/cloud-config\\.yaml$/",
@@ -47,29 +49,16 @@
     },
     {
       "customType": "regex",
-      "description": "Track literal images in chart templates (exporter sidecars).",
-      "managerFilePatterns": ["/^packages\\/[^/]+\\/chart\\/templates\\/.+\\.ya?ml$/"],
-      "matchStrings": [
-        "image: (?<depName>[a-z0-9.-]+(?:/[a-z0-9._-]+)+):(?<currentValue>[\\w.-]+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?"
-      ],
-      "datasourceTemplate": "docker",
-      "autoReplaceStringTemplate": "image: {{{depName}}}:{{{newValue}}}{{#if newDigest}}@{{{newDigest}}}{{/if}}"
-    },
-    {
-      "customType": "regex",
-      "description": "Track the Pulumi provider versions SST installs.",
       "managerFilePatterns": ["/^sst\\.config\\.ts$/"],
       "matchStrings": [
         "\\n\\s+(?<depName>cloudflare|github|hcloud|tailscale): '(?<currentValue>[\\d.]+)'",
         "package: '(?<packageName>@ovhcloud/pulumi-ovh)',[\\s\\S]*?version: '(?<currentValue>[\\d.]+)'"
       ],
       "depNameTemplate": "{{#if packageName}}{{{packageName}}}{{else}}@pulumi/{{{depName}}}{{/if}}",
-      "packageNameTemplate": "{{#if packageName}}{{{packageName}}}{{else}}@pulumi/{{{depName}}}{{/if}}",
       "datasourceTemplate": "npm"
     },
     {
       "customType": "regex",
-      "description": "Track the Node.js version Cloudflare Pages builds the website with.",
       "managerFilePatterns": ["/^infra\\/website\\.ts$/"],
       "matchStrings": ["const NODE_VERSION = '(?<currentValue>[\\d.]+)'"],
       "depNameTemplate": "node",
@@ -77,7 +66,6 @@
     },
     {
       "customType": "regex",
-      "description": "Track the Renovate image the checks workflow validates this config with.",
       "managerFilePatterns": ["/^\\.github\\/workflows\\/checks\\.ya?ml$/"],
       "matchStrings": [
         "(?<depName>ghcr\\.io/renovatebot/renovate):(?<currentValue>\\d+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?"
@@ -87,62 +75,49 @@
     },
     {
       "customType": "regex",
-      "description": "Track pnpm in the runner AMI; the recipe version follows the component contents, so a bump rebakes the AMIs.",
       "managerFilePatterns": ["/^infra\\/runner\\/ami\\.yaml$/"],
       "matchStrings": ["npm install -g (?<depName>pnpm)@(?<currentValue>[\\d.]+)"],
       "datasourceTemplate": "npm"
     },
     {
       "customType": "regex",
-      "description": "Keep the k3s install version (VPS cloud-init) and the system-upgrade Plans on the same release; a Plan behind a freshly installed node would downgrade it.",
       "managerFilePatterns": [
         "/^infra\\/vps\\/cloud-config\\.yaml$/",
-        "/^k3s\\/overlays\\/cluster\\/cluster-upgrade-plan\\.yaml$/"
+        "/^k3s\\/overlays\\/cluster\\/cluster-upgrade-plan\\.yaml$/",
+        "/^scripts\\/cluster\\/k3d\\.sh$/"
       ],
-      "matchStrings": [
-        "INSTALL_K3S_VERSION=\"(?<currentValue>v\\d+\\.\\d+\\.\\d+\\+k3s\\d+)\"",
-        "version: (?<currentValue>v\\d+\\.\\d+\\.\\d+\\+k3s\\d+)"
-      ],
+      "matchStrings": ["(?<currentValue>v\\d+\\.\\d+\\.\\d+\\+k3s\\d+)"],
       "depNameTemplate": "k3s-io/k3s",
       "datasourceTemplate": "github-releases"
     },
     {
       "customType": "regex",
-      "description": "Track the pinned system-upgrade-controller release manifests.",
       "managerFilePatterns": ["/^k3s\\/.+\\/kustomization\\.ya?ml$/"],
       "matchStrings": [
-        "https://github\\.com/rancher/system-upgrade-controller/releases/download/(?<currentValue>v[\\d.]+)/"
+        "https://github\\.com/(?<depName>[^/]+/[^/]+)/releases/download/(?<currentValue>[^/]+)/"
       ],
-      "depNameTemplate": "rancher/system-upgrade-controller",
       "datasourceTemplate": "github-releases"
     }
   ],
   "packageRules": [
     {
-      "description": "CI builds and pins our own images; Renovate leaves them alone.",
+      "description": "CI builds and pins our own images.",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["ghcr.io/pandoks/**"],
       "enabled": false
     },
     {
-      "description": "Docker registries often omit release timestamps; without this, the 7-day age gate would hold those updates (digest refreshes included) forever.",
-      "matchDatasources": ["docker"],
-      "minimumReleaseAgeBehaviour": "timestamp-optional"
-    },
-    {
-      "description": "Each cluster add-on chart is its own rollout, so it gets its own PR instead of joining the all-non-major group.",
+      "description": "Each cluster add-on chart is its own rollout.",
       "matchDatasources": ["helm"],
-      "matchManagers": ["custom.regex"],
       "groupName": null
     },
     {
-      "description": "PgDog tags its chart with two-part versions (v0.27) that Helm's semver versioning can't parse.",
+      "description": "PgDog's chart uses two-part versions (v0.27).",
       "matchDatasources": ["helm"],
       "matchPackageNames": ["pgdog"],
       "versioning": "loose"
     },
     {
-      "description": "Helm doesn't upgrade CRDs, so major chart bumps need the chart's upgrade steps before merging.",
       "matchDatasources": ["helm"],
       "matchUpdateTypes": ["major"],
       "prBodyNotes": [
@@ -150,18 +125,16 @@
       ]
     },
     {
-      "description": "Provider bumps can change infrastructure; review them with their SST diff instead of inside the all-non-major group.",
       "matchFileNames": ["sst.config.ts"],
       "groupName": "sst providers"
     },
     {
-      "description": "k3s bumps get their own PRs, one per minor, because Kubernetes can't skip minors.",
+      "description": "Kubernetes can't skip minors, so each k3s minor is its own PR.",
       "matchPackageNames": ["k3s-io/k3s"],
       "groupName": "k3s",
       "separateMultipleMinor": true
     },
     {
-      "description": "k3s minor releases change the cluster's Kubernetes minor version, so they wait for approval on the Dependency Dashboard.",
       "matchPackageNames": ["k3s-io/k3s"],
       "matchUpdateTypes": ["minor", "major"],
       "dependencyDashboardApproval": true,
@@ -170,20 +143,19 @@
       ]
     },
     {
-      "description": "Each runner AMI change rebakes four images (two on GPU instances), so batch those bumps monthly.",
+      "description": "Each runner AMI change rebakes four images, so batch them monthly.",
       "matchFileNames": ["infra/runner/ami.yaml"],
       "groupName": "runner ami",
       "schedule": ["* * 1 * *"]
     },
     {
-      "description": "Keep package.json engines.node as a range compatible with mise.toml.",
+      "description": "Keep engines.node a range.",
       "matchDepTypes": ["engines"],
       "matchPackageNames": ["node"],
       "enabled": false
     }
   ],
   "vulnerabilityAlerts": {
-    "labels": ["security"],
-    "schedule": ["at any time"]
+    "labels": ["security"]
   }
 }
