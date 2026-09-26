@@ -48,7 +48,6 @@ cmd_k3d_up() {
   fi
 
   cmd_k3d_up_k3s_version="v1.36.4+k3s1"
-  # Image tags spell the build metadata with "-" instead of "+".
   cmd_k3d_up_k3s_image="rancher/k3s:$(printf '%s' "${cmd_k3d_up_k3s_version}" | tr '+' '-')"
   echo "Using k3s image: ${cmd_k3d_up_k3s_image}"
 
