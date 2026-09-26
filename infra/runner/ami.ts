@@ -1,10 +1,19 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { US_WEST_2_REGION, usWest2Provider } from '../aws';
 import { STAGE_NAME } from '../dns';
 
-// WARNING: version must be bumped when AMI changes to rebuild
-const VERSION = '1.0.3';
+// Image Builder versions are immutable, so the version is a hash of the AMI sources and any change
+// rebakes the AMIs. Reverting to an earlier state reuses an existing version: bump the minor then.
+const sourceHash = createHash('sha256')
+  .update(
+    ['ami.ts', 'ami.yaml', 'ami-gpu.yaml']
+      .map((file) => readFileSync(join(process.cwd(), 'infra/runner', file), 'utf-8'))
+      .join('\0')
+  )
+  .digest('hex');
+const VERSION = `1.1.${parseInt(sourceHash.slice(0, 7), 16)}`;
 
 const bakeInstanceRole = new aws.iam.Role(
   'RunnerBakeInstanceRole',

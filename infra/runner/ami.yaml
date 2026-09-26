@@ -35,8 +35,7 @@ phases:
           commands:
             - curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
             - sudo DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs
-            - sudo corepack enable
-            - sudo corepack prepare pnpm@11.5.0 --activate
+            - sudo npm install -g pnpm@12.5.1
 
       - name: InstallAwsCli
         action: ExecuteBash
@@ -72,4 +71,4 @@ phases:
         action: ExecuteBash
         inputs:
           commands:
-            - which clang ninja ccache git python3 node corepack pnpm aws uv zstd
+            - which clang ninja ccache git python3 node pnpm aws uv zstd

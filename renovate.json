@@ -1,22 +1,33 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:best-practices", ":semanticCommits", "group:allNonMajor", "group:allDigest"],
+  "extends": [
+    "config:best-practices",
+    ":semanticCommits",
+    "group:allNonMajor",
+    "group:allDigest",
+    "customManagers:dockerfileVersions"
+  ],
   "labels": ["dependencies"],
   "assignees": ["pandoks"],
   "minimumReleaseAge": "7 days",
+  "minimumReleaseAgeBehaviour": "timestamp-optional",
   "dependencyDashboardTitle": "[renovate] 🤖 outdated dependencies (DON'T DELETE)",
   "dependencyDashboardLabels": ["dependencies"],
-  "dependencyDashboardAutoclose": false,
   "dependencyDashboardOSVVulnerabilitySummary": "unresolved",
   "osvVulnerabilityAlerts": true,
   "prConcurrentLimit": 5,
   "prHourlyLimit": 0,
   "rangeStrategy": "pin",
   "postUpdateOptions": ["pnpmDedupe", "gomodTidy"],
+  "kubernetes": {
+    "managerFilePatterns": [
+      "/^apps\\/.+\\/kube\\/.+\\.ya?ml$/",
+      "/^packages\\/[^/]+\\/chart\\/templates\\/.+\\.ya?ml$/"
+    ]
+  },
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Sync the `go` directive in go.work when go.mod is bumped (Renovate's gomod manager only handles go.mod)",
       "managerFilePatterns": ["/(^|/)go\\.work$/"],
       "matchStrings": ["(^|\\n)go (?<currentValue>[\\d.]+)\\s*(\\n|$)"],
       "depNameTemplate": "go",
@@ -25,44 +36,126 @@
     },
     {
       "customType": "regex",
-      "description": "Track kubectl version in the argocd image (binary fetched from dl.k8s.io). KUBECTL_SHA256 must be updated by hand on each bump — Renovate cannot compute binary checksums, and the stale SHA fails the argocd image build on the PR branch until fixed.",
-      "managerFilePatterns": ["/(^|/)packages/argocd/Dockerfile$/"],
-      "matchStrings": [
-        "# renovate: datasource=(?<datasource>[a-z-]+) packageName=(?<packageName>[^\\s]+)\\s+ARG KUBECTL_VERSION=(?<currentValue>v[\\d.]+)"
+      "managerFilePatterns": [
+        "/^k3s\\/.+\\.ya?ml$/",
+        "/^infra\\/vps\\/cloud-config\\.yaml$/",
+        "/^packages\\/[^/]+\\/chart\\/templates\\/.+\\.ya?ml$/"
       ],
-      "versioningTemplate": "semver"
+      "matchStrings": [
+        "repo: (?<registryUrl>https://\\S+)\\s+chart: (?<depName>[a-z0-9][a-z0-9-]*)\\s+version: (?<currentValue>\\S+)",
+        "name: &name (?<depName>[a-z0-9-]+)\\n[\\s\\S]*?repo: (?<registryUrl>https://\\S+)\\s+chart: \\*name\\s+version: (?<currentValue>\\S+)"
+      ],
+      "datasourceTemplate": "helm"
     },
     {
       "customType": "regex",
-      "description": "Bump `version:` pins annotated with a trailing `# renovate: datasource=... packageName=...` comment.",
-      "managerFilePatterns": ["/^apps/.+/kube/.+\\.ya?ml$/"],
+      "managerFilePatterns": ["/^sst\\.config\\.ts$/"],
       "matchStrings": [
-        "version:\\s*(?<currentValue>\\S+)\\s*#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)\\s+packageName=(?<packageName>[^\\s]+)"
+        "\\n\\s+(?<depName>cloudflare|github|hcloud|tailscale): '(?<currentValue>[\\d.]+)'",
+        "package: '(?<packageName>@ovhcloud/pulumi-ovh)',[\\s\\S]*?version: '(?<currentValue>[\\d.]+)'"
       ],
-      "registryUrlTemplate": "https://ghcr.io",
-      "versioningTemplate": "semver"
+      "depNameTemplate": "{{#if packageName}}{{{packageName}}}{{else}}@pulumi/{{{depName}}}{{/if}}",
+      "datasourceTemplate": "npm"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^infra\\/website\\.ts$/"],
+      "matchStrings": ["const NODE_VERSION = '(?<currentValue>[\\d.]+)'"],
+      "depNameTemplate": "node",
+      "datasourceTemplate": "node-version"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github\\/workflows\\/checks\\.ya?ml$/"],
+      "matchStrings": [
+        "(?<depName>ghcr\\.io/renovatebot/renovate):(?<currentValue>\\d+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?"
+      ],
+      "datasourceTemplate": "docker",
+      "autoReplaceStringTemplate": "{{{depName}}}:{{{newValue}}}{{#if newDigest}}@{{{newDigest}}}{{/if}}"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^infra\\/runner\\/ami\\.yaml$/"],
+      "matchStrings": ["npm install -g (?<depName>pnpm)@(?<currentValue>[\\d.]+)"],
+      "datasourceTemplate": "npm"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^infra\\/vps\\/cloud-config\\.yaml$/",
+        "/^k3s\\/overlays\\/cluster\\/cluster-upgrade-plan\\.yaml$/",
+        "/^scripts\\/cluster\\/k3d\\.sh$/"
+      ],
+      "matchStrings": ["(?<currentValue>v\\d+\\.\\d+\\.\\d+\\+k3s\\d+)"],
+      "depNameTemplate": "k3s-io/k3s",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^k3s\\/.+\\/kustomization\\.ya?ml$/"],
+      "matchStrings": [
+        "https://github\\.com/(?<depName>[^/]+/[^/]+)/releases/download/(?<currentValue>[^/]+)/"
+      ],
+      "datasourceTemplate": "github-releases"
     }
   ],
   "packageRules": [
     {
-      "matchManagers": ["helm-values", "helmv3"],
-      "groupName": "helm charts"
+      "description": "CI builds and pins our own images.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/pandoks/**"],
+      "enabled": false
     },
     {
-      "description": "Group all kubectl pins into one PR — kubectl's depNames differ across managers so copies don't auto-coalesce, and the bump needs a manual KUBECTL_SHA256 edit that shouldn't block the all-minor-patch group.",
-      "matchDepNames": ["kubectl", "kubernetes/kubernetes"],
-      "groupName": "kubectl"
+      "description": "Each cluster add-on chart is its own rollout.",
+      "matchDatasources": ["helm"],
+      "groupName": null
     },
     {
-      "description": "Do not pin package.json engines.node — keep a range compatible with mise.toml",
+      "description": "PgDog's chart uses two-part versions (v0.27).",
+      "matchDatasources": ["helm"],
+      "matchPackageNames": ["pgdog"],
+      "versioning": "loose"
+    },
+    {
+      "matchDatasources": ["helm"],
+      "matchUpdateTypes": ["major"],
+      "prBodyNotes": [
+        "Read the chart's upgrade notes and apply any new CRDs before merging; Helm only installs CRDs on first install."
+      ]
+    },
+    {
+      "matchFileNames": ["sst.config.ts"],
+      "groupName": "sst providers"
+    },
+    {
+      "description": "Kubernetes can't skip minors, so each k3s minor is its own PR.",
+      "matchPackageNames": ["k3s-io/k3s"],
+      "groupName": "k3s",
+      "separateMultipleMinor": true
+    },
+    {
+      "matchPackageNames": ["k3s-io/k3s"],
+      "matchUpdateTypes": ["minor", "major"],
+      "dependencyDashboardApproval": true,
+      "prBodyNotes": [
+        "Check that k3s's [stable channel](https://update.k3s.io/v1-release/channels) has reached this minor, and read its [upgrade notes](https://docs.k3s.io/upgrades/manual). The Plans upgrade servers first, then agents."
+      ]
+    },
+    {
+      "description": "Each runner AMI change rebakes four images, so batch them monthly.",
+      "matchFileNames": ["infra/runner/ami.yaml"],
+      "groupName": "runner ami",
+      "schedule": ["* * 1 * *"]
+    },
+    {
+      "description": "Keep engines.node a range.",
       "matchDepTypes": ["engines"],
       "matchPackageNames": ["node"],
-      "rangeStrategy": "replace",
       "enabled": false
     }
   ],
   "vulnerabilityAlerts": {
-    "labels": ["security"],
-    "schedule": ["at any time"]
+    "labels": ["security"]
   }
 }

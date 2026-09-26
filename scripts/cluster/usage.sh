@@ -68,7 +68,7 @@ usage_deploy() {
   printf "%bUsage:%b %s deploy <local|dev|prod> [options]\n\n" "${BOLD}" "${NORMAL}" "$0" >&2
   printf "Deploy environment overlay to cluster.\n\n" >&2
   printf "This command:\n" >&2
-  printf "  1. Runs kubectl kustomize on the specified target\n" >&2
+  printf "  1. Runs kustomize build on the specified target\n" >&2
   printf "  2. Substitutes SST secrets and computed variables\n" >&2
   printf "  3. Applies to the cluster with server-side apply\n" >&2
   printf "  4. Waits for CRDs to be established (bootstrap only)\n\n" >&2

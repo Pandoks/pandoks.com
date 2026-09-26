@@ -19,6 +19,17 @@ new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
 });
 
 if (isProduction) {
+  const githubChecksEnvironment = new github.RepositoryEnvironment('GithubChecksEnvironment', {
+    repository: githubRepoName,
+    environment: 'checks'
+  });
+  new github.ActionsEnvironmentSecret('GithubChecksHetznerApiKey', {
+    repository: githubRepoName,
+    environment: githubChecksEnvironment.environment,
+    secretName: 'HCLOUD_TOKEN',
+    plaintextValue: secrets.hetzner.ApiKey.value
+  });
+
   new github.BranchProtection('GithubMainBranchProtection', {
     repositoryId: githubRepoName,
     pattern: 'main',
