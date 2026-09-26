@@ -1,11 +1,11 @@
 {
   "name": "pandoks.com",
   "version": "1.0.0",
-  "packageManager": "pnpm@12.5.1+sha512.e3f305bc784a2bc89f5ad3b6138889470fae8d2af5f36b61216ec91c2c3d64089775f9de38aac331044ea40f245cb0d5666392dfdf65824e1907ef6a2c62de5f",
+  "packageManager": "pnpm@12.6.0",
   "type": "module",
   "engines": {
     "node": ">=24",
-    "pnpm": "12.5.1"
+    "pnpm": "12.6.0"
   },
   "scripts": {
     "sso": "aws sso login --sso-session=personal --use-device-code --no-browser",
@@ -25,7 +25,7 @@
     "postinstall": "sst install"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20260922.1",
+    "@cloudflare/workers-types": "5.20260923.1",
     "@eslint/compat": "2.1.1",
     "@eslint/js": "10.0.1",
     "@types/node": "25.9.8",
@@ -38,7 +38,7 @@
     "jiti": "2.7.0",
     "json-stringify-pretty-compact": "4.0.0",
     "portless": "0.15.6",
-    "prettier": "3.9.8",
+    "prettier": "3.9.9",
     "prettier-plugin-svelte": "4.1.1",
     "prettier-plugin-tailwindcss": "0.8.1",
     "svelte-eslint-parser": "1.8.1",
