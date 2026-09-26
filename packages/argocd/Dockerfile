@@ -17,8 +17,6 @@ RUN go mod init kustomize \
 
 FROM node:24.21.0-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6
 
-# The plugin runs pnpm during every manifest render. Remove the bundled npm/npx — unused, and it
-# drops the vendored picomatch (CVE-2026-33671 ReDoS) from the image.
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
     && apt-get update && apt-get install -y --no-install-recommends \
     bash \
