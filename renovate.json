@@ -1,12 +1,17 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:best-practices", ":semanticCommits", "group:allNonMajor", "group:allDigest"],
+  "extends": [
+    "config:best-practices",
+    ":semanticCommits",
+    "group:allNonMajor",
+    "group:allDigest",
+    "customManagers:dockerfileVersions"
+  ],
   "labels": ["dependencies"],
   "assignees": ["pandoks"],
   "minimumReleaseAge": "7 days",
   "dependencyDashboardTitle": "[renovate] 🤖 outdated dependencies (DON'T DELETE)",
   "dependencyDashboardLabels": ["dependencies"],
-  "dependencyDashboardAutoclose": false,
   "dependencyDashboardOSVVulnerabilitySummary": "unresolved",
   "osvVulnerabilityAlerts": true,
   "prConcurrentLimit": 5,
@@ -14,7 +19,7 @@
   "rangeStrategy": "pin",
   "postUpdateOptions": ["pnpmDedupe", "gomodTidy"],
   "kubernetes": {
-    "managerFilePatterns": ["/^apps\\/.+\\/kube\\/example\\.ya?ml$/"]
+    "managerFilePatterns": ["/^apps\\/.+\\/kube\\/.+\\.ya?ml$/"]
   },
   "customManagers": [
     {
@@ -25,16 +30,6 @@
       "depNameTemplate": "go",
       "datasourceTemplate": "golang-version",
       "versioningTemplate": "go-mod-directive"
-    },
-    {
-      "customType": "regex",
-      "description": "Track the Go modules compiled into the argocd image: the kustomize release built from source, and the x/text release forced past kustomize's stale pin.",
-      "managerFilePatterns": ["/(^|/)packages/argocd/Dockerfile$/"],
-      "matchStrings": [
-        "# renovate: datasource=(?<datasource>[a-z-]+) packageName=(?<packageName>[^\\s]+)\\s+ARG KUSTOMIZE_VERSION=(?<currentValue>v[\\d.]+)",
-        "# renovate: datasource=(?<datasource>[a-z-]+) packageName=(?<packageName>[^\\s]+)\\s+ARG X_TEXT_VERSION=(?<currentValue>v[\\d.]+)"
-      ],
-      "versioningTemplate": "semver"
     },
     {
       "customType": "regex",
@@ -109,8 +104,7 @@
         "version: (?<currentValue>v\\d+\\.\\d+\\.\\d+\\+k3s\\d+)"
       ],
       "depNameTemplate": "k3s-io/k3s",
-      "datasourceTemplate": "github-releases",
-      "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\+k3s(?<build>\\d+)$"
+      "datasourceTemplate": "github-releases"
     },
     {
       "customType": "regex",
@@ -120,24 +114,20 @@
         "https://github\\.com/rancher/system-upgrade-controller/releases/download/(?<currentValue>v[\\d.]+)/"
       ],
       "depNameTemplate": "rancher/system-upgrade-controller",
-      "datasourceTemplate": "github-releases",
-      "versioningTemplate": "semver"
-    },
-    {
-      "customType": "regex",
-      "description": "Bump `version:` pins annotated with a trailing `# renovate: datasource=... packageName=...` comment.",
-      "managerFilePatterns": ["/^apps/.+/kube/.+\\.ya?ml$/"],
-      "matchStrings": [
-        "version:\\s*(?<currentValue>\\S+)\\s*#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)\\s+packageName=(?<packageName>[^\\s]+)"
-      ],
-      "registryUrlTemplate": "https://ghcr.io",
-      "versioningTemplate": "semver"
+      "datasourceTemplate": "github-releases"
     }
   ],
   "packageRules": [
     {
-      "matchManagers": ["helm-values", "helmv3"],
-      "groupName": "helm charts"
+      "description": "CI builds and pins our own images; Renovate leaves them alone.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/pandoks/**"],
+      "enabled": false
+    },
+    {
+      "description": "Docker registries often omit release timestamps; without this, the 7-day age gate would hold those updates (digest refreshes included) forever.",
+      "matchDatasources": ["docker"],
+      "minimumReleaseAgeBehaviour": "timestamp-optional"
     },
     {
       "description": "Each cluster add-on chart is its own rollout, so it gets its own PR instead of joining the all-non-major group.",
@@ -161,41 +151,23 @@
     },
     {
       "description": "Provider bumps can change infrastructure; review them with their SST diff instead of inside the all-non-major group.",
-      "matchPackageNames": [
-        "@pulumi/cloudflare",
-        "@pulumi/github",
-        "@pulumi/hcloud",
-        "@pulumi/tailscale",
-        "@ovhcloud/pulumi-ovh"
-      ],
       "matchFileNames": ["sst.config.ts"],
       "groupName": "sst providers"
     },
     {
-      "description": "Keep kustomize in mise (local renders) and in the Argo renderer image on the same release.",
-      "matchDepNames": ["kustomize", "sigs.k8s.io/kustomize/kustomize/v5"],
-      "groupName": "kustomize"
-    },
-    {
-      "description": "k3s patch releases (bug and security fixes) get their own PR.",
+      "description": "k3s bumps get their own PRs, one per minor, because Kubernetes can't skip minors.",
       "matchPackageNames": ["k3s-io/k3s"],
-      "matchUpdateTypes": ["patch"],
-      "groupName": "k3s"
+      "groupName": "k3s",
+      "separateMultipleMinor": true
     },
     {
-      "description": "k3s minor releases change the cluster's Kubernetes minor version. They wait for approval on the Dependency Dashboard and come one minor at a time, because Kubernetes can't skip minors.",
+      "description": "k3s minor releases change the cluster's Kubernetes minor version, so they wait for approval on the Dependency Dashboard.",
       "matchPackageNames": ["k3s-io/k3s"],
       "matchUpdateTypes": ["minor", "major"],
       "dependencyDashboardApproval": true,
       "prBodyNotes": [
         "Check that k3s's [stable channel](https://update.k3s.io/v1-release/channels) has reached this minor, and read its [upgrade notes](https://docs.k3s.io/upgrades/manual). The Plans upgrade servers first, then agents."
-      ],
-      "groupName": "k3s minor"
-    },
-    {
-      "description": "Offer each k3s minor separately so an upgrade never skips one.",
-      "matchPackageNames": ["k3s-io/k3s"],
-      "separateMultipleMinor": true
+      ]
     },
     {
       "description": "Each runner AMI change rebakes four images (two on GPU instances), so batch those bumps monthly.",
@@ -204,16 +176,9 @@
       "schedule": ["* * 1 * *"]
     },
     {
-      "description": "Docker registries often omit release timestamps, and the 7-day age gate would otherwise hold those updates (digest refreshes included) forever. Our own images and charts stay excluded: CI owns their pins.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["!ghcr.io/pandoks/**", "!pandoks/charts/**"],
-      "minimumReleaseAgeBehaviour": "timestamp-optional"
-    },
-    {
-      "description": "Do not pin package.json engines.node — keep a range compatible with mise.toml",
+      "description": "Keep package.json engines.node as a range compatible with mise.toml.",
       "matchDepTypes": ["engines"],
       "matchPackageNames": ["node"],
-      "rangeStrategy": "replace",
       "enabled": false
     }
   ],

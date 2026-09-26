@@ -1,10 +1,10 @@
 FROM golang:1.26.6-trixie@sha256:ab563819a16cfe5faff0f96a8bb598fbb0e400ab2ac751996e60abcb23b106a3 AS kustomize-builder
 
-# renovate: datasource=go packageName=sigs.k8s.io/kustomize/kustomize/v5
+# renovate: datasource=go depName=kustomize packageName=sigs.k8s.io/kustomize/kustomize/v5
 ARG KUSTOMIZE_VERSION=v5.8.1
 # NOTE: kustomize's go.mod pins an x/text release with known advisories; force the current one.
 # remove once kustomize has updated to a version that doesn't pin this anymore.
-# renovate: datasource=go packageName=golang.org/x/text
+# renovate: datasource=go depName=golang.org/x/text
 ARG X_TEXT_VERSION=v0.41.0
 
 WORKDIR /src
