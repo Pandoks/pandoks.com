@@ -49,7 +49,9 @@ describe('line starts', () => {
     ':---:',
     '| --- |',
     ':tada:',
+    '**:tada:**',
     '[^1]:',
+    '[^long note]:',
     '<div>',
     '</details>',
     '<source>',
@@ -70,6 +72,24 @@ describe('line starts', () => {
     for (const width of widths) {
       const formatted = await formatMarkdown(contexts('\\'), width);
       expect(formatted.split('\n').filter((line) => line.endsWith('\\'))).toEqual([]);
+    }
+  });
+
+  it('never breaks inside footnote brackets', async () => {
+    for (const width of widths) {
+      const formatted = await formatMarkdown(contexts('[^long spaced note]'), width);
+      expect(formatted.split('\n').filter((line) => /\[\^[^\]]*$/.test(line))).toEqual([]);
+    }
+  });
+
+  it.each([
+    ['~~struck words [^1~~]: tail words', '[^1~~]:'],
+    ['*emphasis words :tada*: tail words', ':tada_:']
+  ])('checks the printed delimiters of %s', async (token, printed) => {
+    for (const width of widths) {
+      const formatted = await formatMarkdown(contexts(token), width);
+      expect(lineStarts(formatted).filter((line) => line.startsWith(printed))).toEqual([]);
+      expect(await formatMarkdown(formatted, width)).toBe(formatted);
     }
   });
 });

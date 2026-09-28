@@ -1,4 +1,4 @@
-import { doc, type AstPath, type ParserOptions, type Plugin, type Printer } from 'prettier';
+import { doc, type AstPath, type Doc, type Plugin, type Printer } from 'prettier';
 import {
   parsers as markdownParsers,
   printers as markdownPrinters
@@ -8,7 +8,6 @@ type MarkdownNode = {
   type: string;
   value?: string;
   children?: MarkdownNode[];
-  position?: { start: { offset: number } };
 };
 
 const astFormat = 'mdast-github';
@@ -26,8 +25,8 @@ const unsafeLineStart = new RegExp(
     String.raw`^(?:\x60{3,}|~{3,}|\$\$)`,
     String.raw`^(?:=+|:?-+:?|_+|\*+)(?:\s|$)`,
     String.raw`^\|`,
-    String.raw`^:[\w+-]+:`,
-    String.raw`^\[\^[^\]\s]+\]:`,
+    String.raw`^[*_~]*:[\w+-]+:`,
+    String.raw`^\[\^[^\]]+\]:`,
     String.raw`^<(?:script|pre|style|textarea)(?:[\s>]|$)`,
     String.raw`^<(?:!--|\?|![a-z]|!\[CDATA\[)`,
     String.raw`^</?(?:${htmlBlockTags})(?:[\s/>]|$)`
@@ -45,22 +44,60 @@ const isAfterAlertMarker = ({
   blockquote?.type === 'blockquote' &&
   blockquote.children?.[0] === paragraph;
 
-const nextLineStart = (
-  { index, ancestors: [sentence, parent] }: AstPath<MarkdownNode>,
-  { originalText }: ParserOptions<MarkdownNode>
-) => {
-  let text = '';
-  for (const node of sentence?.children?.slice((index ?? 0) + 1) ?? []) {
-    if (node.type === 'whitespace') return text;
-    text += node.value ?? '';
+const isUnsafeBreak = (before: string, after: string) =>
+  unsafeLineStart.test(after) ||
+  // GitHub garbles `[^…]` text that contains a line break, e.g. `[^a\nb]` renders as `[^]`
+  (/\[\^[^\]]*$/.test(before) && after.includes(']')) ||
+  /(?:^|[^\\])(?:\\\\)*\\$/.test(before);
+
+type Token = string | null | { parts: Doc[]; index: number; soft: boolean };
+
+const tokenize = (printed: Doc, tokens: Token[] = []): Token[] => {
+  if (typeof printed === 'string') {
+    tokens.push(printed);
+  } else if (Array.isArray(printed)) {
+    for (const part of printed) tokenize(part, tokens);
+  } else if (printed.type === 'fill') {
+    for (const [index, part] of printed.parts.entries()) {
+      if (
+        index % 2 === 1 &&
+        !Array.isArray(part) &&
+        typeof part === 'object' &&
+        part.type === 'line' &&
+        !part.hard
+      ) {
+        tokens.push({ parts: printed.parts, index, soft: Boolean(part.soft) });
+      } else {
+        tokenize(part, tokens);
+      }
+    }
+  } else if (printed.type === 'line') {
+    tokens.push(printed.hard ? null : printed.soft ? '' : ' ');
+  } else if (printed.type === 'if-break') {
+    tokenize(printed.flatContents, tokens);
+  } else if ('contents' in printed) {
+    tokenize(printed.contents, tokens);
   }
-  const siblings = parent?.children ?? [];
-  const offset = siblings[siblings.indexOf(sentence) + 1]?.position?.start.offset;
-  return offset === undefined ? text : text + originalText.slice(offset).split('\n', 1)[0];
+  return tokens;
 };
 
-const endsWithEscape = (node: MarkdownNode | null) =>
-  /(?:^|[^\\])(?:\\\\)*\\$/.test(node?.value ?? '');
+const joinTokens = (tokens: Token[]) =>
+  tokens.map((token) => (typeof token === 'string' ? token : token?.soft ? '' : ' ')).join('');
+
+// decide on the printed text so delimiters, escapes and emphasis styles match the output
+const keepUnsafeBreaksJoined = (printed: Doc) => {
+  const tokens = tokenize(printed);
+  let lineStart = 0;
+  for (const [index, token] of tokens.entries()) {
+    if (token === null) lineStart = index + 1;
+    if (!token || typeof token === 'string') continue;
+    const lineEnd = tokens.indexOf(null, index);
+    const before = joinTokens(tokens.slice(lineStart, index));
+    const after = joinTokens(tokens.slice(index + 1, lineEnd === -1 ? undefined : lineEnd));
+    if (isUnsafeBreak(before, after)) token.parts[token.index] = token.soft ? '' : ' ';
+  }
+  return printed;
+};
 
 export default {
   parsers: { markdown: { ...markdownParsers.markdown, astFormat } },
@@ -69,16 +106,12 @@ export default {
       ...mdast,
       print(path, options, print, args) {
         const { node } = path;
-        if (node.type !== 'whitespace' || options.proseWrap === 'preserve') {
-          return mdast.print(path, options, print, args);
-        }
-        if (isAfterAlertMarker(path)) {
+        if (options.proseWrap === 'preserve') return mdast.print(path, options, print, args);
+        if (node.type === 'whitespace' && isAfterAlertMarker(path)) {
           return node.value === '\n' ? doc.builders.hardline : ' ';
         }
-        if (unsafeLineStart.test(nextLineStart(path, options)) || endsWithEscape(path.previous)) {
-          return mdast.print(path, { ...options, proseWrap: 'never' }, print, args);
-        }
-        return mdast.print(path, options, print, args);
+        const printed = mdast.print(path, options, print, args);
+        return node.type === 'paragraph' ? keepUnsafeBreaksJoined(printed) : printed;
       }
     }
   }
