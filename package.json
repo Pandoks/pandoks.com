@@ -22,7 +22,7 @@
     "fix": "./scripts/fix/main.sh",
     "check:infra": "tsc -p .",
     "check": "pnpm -r --if-present check && pnpm check:infra",
-    "postinstall": "sst install"
+    "postinstall": "sst install --stage install"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260921.1",
