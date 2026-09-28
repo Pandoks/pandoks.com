@@ -18,7 +18,7 @@
 
   <p>
     <img src="https://img.shields.io/badge/Node.js-24-5FA04E?logo=nodedotjs&logoColor=white" alt="Node.js 24">
-    <img src="https://img.shields.io/badge/pnpm-11-F69220?logo=pnpm&logoColor=white" alt="pnpm 11">
+    <img src="https://img.shields.io/badge/pnpm-12-F69220?logo=pnpm&logoColor=white" alt="pnpm 12">
     <img src="https://img.shields.io/badge/toolchain-mise-8B5CF6" alt="Managed with mise">
   </p>
 
@@ -36,7 +36,7 @@
 - [Git](https://git-scm.com/downloads) and [mise](https://mise.jdx.dev/installing-mise.html)
 - [Docker](https://docs.docker.com/get-docker/)
 - [OpenSSL](https://www.openssl.org/)
-- [Tailscale](https://tailscale.com/download), only for production cluster access
+- [Tailscale](https://tailscale.com/download), only for cloud (dev/prod) cluster access
 
 2. Setup `.env.<stage>`. Take a look at [.env.example](/.env.example) as a reference.
 
@@ -70,10 +70,11 @@ To setup the local cluster, run this from the root of the monorepo:
 pnpm dev:init
 
 # Or step by step:
-pnpm cluster k3d deps up             # Start docker compose dependencies
-pnpm cluster k3d up                  # Create k3d cluster
-pnpm cluster deploy dev --bootstrap  # First-time: install helm charts + CRDs
-pnpm cluster deploy dev              # Apply environment overlay
+pnpm cluster k3d deps up               # Start docker compose dependencies
+pnpm cluster k3d up                    # Create k3d cluster
+pnpm docker:build && pnpm dev:push     # Build and push images/charts to the local registry
+pnpm cluster deploy local --bootstrap  # First-time: install helm charts + CRDs
+pnpm cluster deploy local              # Apply environment overlay
 ```
 
 To tear down the cluster:

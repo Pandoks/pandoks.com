@@ -2,33 +2,33 @@
 
 This is the k8s cluster that hosts most of the applications in this monorepo. The applications that
 are not hosted in this cluster are hosted either in AWS or Cloudflare usually for serverless
-applications. For databases, it is better to used a managed database as it reduces the operational
+applications. For databases, it is better to use a managed database as it reduces the operational
 overhead.
 
-As it stands, the cluster is hosted on Hetzner VPS's.
+As it stands, the dev and prod clusters are hosted on Hetzner VPS's.
 
 ## Directory Structure
 
 ```
 k3s/
-  base/                      # Shared foundation (dev + prod)
-    kustomization.yaml       # Includes helm-charts + core + apps
-    helm-charts/             # MetalLB, cert-manager, HAProxy, Prometheus/Grafana
-    core/                    # IPAddressPool, cert-manager issuers, namespaces
-    apps/                    # References to packages/*/kube
-  overlays/
-    dev/                     # Dev-specific config
-      kustomization.yaml     # base + patches
-      dev-patch.yaml         # MetalLB IP for docker network (172.30.100.1-172.30.100.200)
-    prod/                    # Prod-specific config
-      kustomization.yaml     # base + tailscale + system-upgrade
-      tailscale.yaml         # Tailscale operator + ClusterRoleBinding
-      cluster-upgrade-plan.yaml  # System upgrade plans for auto-updates
-  templates/                 # SST secret templates (envsubst)
-    monitoring.yaml          # Grafana secrets
-    apps.yaml                # App secrets (ghcr, postgres, valkey, clickhouse)
-    tailscale.yaml           # Tailscale OAuth secrets (prod only)
+  bootstrap/                 # Helm charts + CRD providers (deploy <env> --bootstrap)
+    core/                    # MetalLB, cert-manager, kube-prometheus-stack, HAProxy ingress
+    local/                   # core
+    dev/                     # core + system-upgrade-controller CRDs
+    prod/                    # core + ArgoCD + system-upgrade-controller CRDs
+  base/                      # Shared resources for every environment
+    core/                    # Namespaces, MetalLB pool, cert-manager issuers, credentials, RBAC
+    apps/                    # References to apps/*/kube
+    monitoring/              # HAProxy Grafana dashboards
+  overlays/                  # deploy <env> (includes base + bootstrap/<env>)
+    local/                   # k3d: MetalLB docker IPs, k3d etcd endpoints, apps/*/kube/dev-patch.yaml
+    cluster/                 # Shared by dev + prod: Tailscale operator, system upgrades, Hetzner etcd endpoints
+    dev/                     # cluster + bootstrap/dev
+    prod/                    # cluster + bootstrap/prod + ArgoCD SST plugin and Application
 ```
+
+SST secrets are substituted inline (`${Secret}`) by `pnpm cluster deploy`. See
+[scripts/cluster/README.md](../scripts/cluster/README.md) for the template variables.
 
 ## Local Development
 
@@ -49,28 +49,40 @@ Or step by step:
 # Create k3d cluster
 ./scripts/cluster/main.sh k3d up
 
-# Install base infrastructure (helm charts + CRDs)
-./scripts/cluster/main.sh deploy dev --bootstrap
+# Build and push images/helm charts to the local registry
+pnpm docker:build && pnpm dev:push
 
-# Deploy dev overlay (MetalLB IP patch + app patches; SST secrets substituted inline)
-./scripts/cluster/main.sh deploy dev
+# Install base infrastructure (helm charts + CRDs)
+./scripts/cluster/main.sh deploy local --bootstrap
+
+# Deploy local overlay (MetalLB IP patch + app dev patches; SST secrets substituted inline)
+./scripts/cluster/main.sh deploy local
 ```
 
-## Production
+## Cloud Clusters
 
-Production clusters are provisioned via Pulumi with cloud-config that bootstraps k3s + tailscale.
-The tailscale operator provides secure access to the cluster API without needing SSH tunnels.
+The dev and prod clusters are provisioned by SST (`infra/vps`) with cloud-config that bootstraps
+k3s + tailscale. The tailscale operator provides secure access to the cluster API without needing
+SSH tunnels.
 
 ```sh
 # Connect via tailscale (cluster appears as <stage>-cluster in your tailnet)
+tailscale configure kubeconfig <stage>-cluster
 kubectl --context <tailscale-context> get pods
 
 # Install base infrastructure (helm charts + CRDs)
-./scripts/cluster/main.sh deploy prod --bootstrap
+./scripts/cluster/main.sh deploy prod --bootstrap  # or dev
 
-# Deploy prod overlay (system-upgrade controller; SST secrets substituted inline)
-./scripts/cluster/main.sh deploy prod
+# Deploy overlay (tailscale operator + system-upgrade controller; SST secrets substituted inline)
+./scripts/cluster/main.sh deploy prod  # or dev
 ```
+
+### ArgoCD (prod)
+
+`bootstrap/prod` installs ArgoCD, and `overlays/prod/argocd.yaml` adds the `prod-cluster` Application
+and a repo-server sidecar (`packages/argocd`) that renders kustomize with SST secrets.
+Once the first `deploy prod` creates it, ArgoCD syncs `k3s/overlays/prod` from `main`. The
+`deploy-infra.yaml` workflow triggers a hard refresh when `k3s/**` or `scripts/cluster/**` changes.
 
 ## k9s
 
@@ -85,7 +97,7 @@ kubectl config use-context <context-name>
 ```
 
 **NOTE:** `k3d` is setup to use port 6444 for the local k3s cluster api so that it doesn't conflict
-with the remote k3s through ssh tunneling.
+with a remote k3s API forwarded to the default port 6443 (e.g. through SSH tunneling).
 
 You'll also see in `scripts/cluster/k3d.sh` that we forward port 30080 in _docker_ to port 8080 on the
 machine (`localhost`). This is because `k3d` runs k3s inside of docker and we need to expose the
@@ -93,9 +105,9 @@ ports that we're exposing from `NodePort` to the host machine. This also mimics 
 production clusters because the cluster is inside a private networks and the only thing that is
 exposed is through a load balancer that points into the private network at the forwarded port.
 
-### Production
+### Cloud Clusters
 
-Production clusters are accessed via Tailscale. The tailscale operator exposes the API server
+Cloud clusters are accessed via Tailscale. The tailscale operator exposes the API server
 to your tailnet:
 
 ```sh
@@ -112,7 +124,7 @@ the VPS's.
 
 ### HAProxy Ingress Controller
 
-`base/helm-charts/haproxy-ingress.yaml` is a helm chart that installs the HAProxy ingress controller and
+`bootstrap/core/haproxy-ingress.yaml` is a helm chart that installs the HAProxy ingress controller and
 also configures `NodePort` services to expose to the Hetzner load balancer. Ports `30000-32767` are
 reserved ports just for `nodePort` services. The cluster is entirely in a private network so we only
 expose services via the load balancer which is exposed to the public internet but is also connected
@@ -166,16 +178,17 @@ spec:
 
 ## Monitoring (Prometheus + Grafana)
 
-The cluster uses kube-prometheus-stack for monitoring. The HelmChart is defined per-environment in
-overlays because etcd endpoints are environment-specific.
+The cluster uses kube-prometheus-stack for monitoring. The HelmChart is shared, and each environment
+patches in its etcd endpoints with a `HelmChartConfig` because they're environment-specific.
 
 ### Structure
 
 ```
-k3s/base/core/namespaces.yaml          → monitoring namespace
-k3s/overlays/dev/prom-grafana.yaml     → HelmChart with k3d control plane IPs (172.30.0.4-6)
-k3s/overlays/prod/prom-grafana.yaml    → HelmChart with Hetzner IPs (10.0.1.10+)
-k3s/templates/monitoring.yaml          → Grafana secrets (SST template)
+k3s/bootstrap/core/kube-prometheus-stack.yaml  → monitoring namespace, Grafana secret, HelmChart
+k3s/overlays/local/prom-etcd-config.yaml       → HelmChartConfig with k3d control plane IPs (172.30.0.4-6)
+k3s/overlays/cluster/prom-etcd-config.yaml     → HelmChartConfig with Hetzner IPs (10.0.1.10+)
+k3s/base/core/monitoring.yaml                  → Grafana service exposed via Tailscale (<stage>-grafana)
+k3s/base/monitoring/                           → HAProxy Grafana dashboards
 ```
 
 ### etcd Metrics
@@ -200,5 +213,5 @@ k3s HelmChart CRD sometimes doesn't trigger upgrades. To force update:
 
 ```bash
 kubectl delete helmchart kube-prometheus-stack -n kube-system
-pnpm cluster deploy dev  # or prod
+pnpm cluster deploy local  # or dev/prod
 ```

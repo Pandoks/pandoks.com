@@ -89,8 +89,8 @@ The `deploy` command renders templates with these substitutions before applying:
 ./scripts/cluster/main.sh k3d up
 
 # Deploy in two steps: bootstrap (helm charts + CRDs), then overlay
-./scripts/cluster/main.sh deploy dev --bootstrap
-./scripts/cluster/main.sh deploy dev
+./scripts/cluster/main.sh deploy local --bootstrap
+./scripts/cluster/main.sh deploy local
 
 # Tear down everything
 ./scripts/cluster/main.sh k3d down
@@ -100,16 +100,20 @@ The `deploy` command renders templates with these substitutions before applying:
 ### Cloud Cluster (Hetzner via Tailscale)
 
 ```sh
-# Switch to the cloud cluster context
-kubectl config use-context <tailscale-context>
+# Switch to the cloud cluster context (<stage>-cluster in your tailnet)
+tailscale configure kubeconfig <stage>-cluster
 
-# Two-step deploy on a fresh cluster
+# Two-step deploy on a fresh cluster (use dev for the dev cluster)
 ./scripts/cluster/main.sh deploy prod --bootstrap
 ./scripts/cluster/main.sh deploy prod
 
 # Re-apply just the overlay (no bootstrap) on subsequent deploys
 ./scripts/cluster/main.sh deploy prod
 ```
+
+The first prod overlay deploy creates the `prod-cluster` ArgoCD Application, which then keeps prod
+in sync with `k3s/overlays/prod` on `main` (`deploy-infra.yaml` triggers a hard refresh when
+`k3s/**` or `scripts/cluster/**` changes).
 
 ### Preview Without Applying
 
