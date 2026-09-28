@@ -1,0 +1,17 @@
+{
+  "name": "@pandoks.com/prettier",
+  "version": "0.0.1",
+  "type": "module",
+  "exports": {
+    "./github-markdown": "./src/github-markdown.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "prettier": "3.9.9",
+    "typescript": "6.0.3",
+    "vitest": "5.0.1"
+  }
+}

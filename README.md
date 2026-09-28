@@ -82,7 +82,8 @@ To tear down the cluster:
 pnpm dev:destroy
 ```
 
-See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI commands and [k3s/README.md](./k3s/README.md) for cluster architecture details.
+See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI commands and
+[k3s/README.md](./k3s/README.md) for cluster architecture details.
 
 ## Development
 

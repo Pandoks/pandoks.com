@@ -3,12 +3,22 @@
   "singleQuote": true,
   "trailingComma": "none",
   "printWidth": 100,
-  "plugins": ["prettier-plugin-tailwindcss", "prettier-plugin-svelte"],
+  "plugins": [
+    "@pandoks.com/prettier/github-markdown",
+    "prettier-plugin-tailwindcss",
+    "prettier-plugin-svelte"
+  ],
   "overrides": [
     {
       "files": "*.md",
       "options": {
         "printWidth": 100,
+        "proseWrap": "always"
+      }
+    },
+    {
+      "files": ".github/**/*.md",
+      "options": {
         "proseWrap": "preserve"
       }
     },
