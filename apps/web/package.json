@@ -26,7 +26,7 @@
     "@sveltejs/adapter-static": "3.0.10",
     "@sveltejs/enhanced-img": "0.11.0",
     "@sveltejs/kit": "2.70.3",
-    "@sveltejs/vite-plugin-svelte": "7.3.0",
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
     "@tailwindcss/forms": "0.5.11",
     "@tailwindcss/typography": "0.5.20",
     "@tailwindcss/vite": "4.3.3",
@@ -42,8 +42,8 @@
     "svelte-check": "4.7.6",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
-    "vite": "8.3.0",
+    "vite": "8.3.1",
     "vite-plugin-static-copy": "4.1.1",
-    "vitest": "5.0.1"
+    "vitest": "5.0.2"
   }
 }
