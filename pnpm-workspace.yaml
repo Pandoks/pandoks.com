@@ -29,4 +29,4 @@ overrides:
   cookie: 1.1.1 # @sveltejs/kit@^0.6.x
   tmp: 0.2.7 # @electron-forge/cli → external-editor@^0.0.33; floor for GHSA-ph9p-34f9-6g65
   '@electron/node-gyp': 10.2.0-electron.2 # @electron-forge/cli → @electron/rebuild@3.7
-  sharp: 0.35.4 # @sveltejs/enhanced-img + vite-imagetools pin ^0.34.1; floor for GHSA-f88m-g3jw-g9cj
+  sharp: 0.35.5 # @sveltejs/enhanced-img + vite-imagetools pin ^0.34.1; floor for GHSA-f88m-g3jw-g9cj
