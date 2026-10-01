@@ -14,14 +14,12 @@ const HTML_BLOCK_TAGS =
 // line starts that change how GitHub renders a paragraph but prettier doesn't already avoid
 const UNSAFE_LINE_START = new RegExp(
   [
-    String.raw`^(?:\x60{3,}|~{3,}|\$\$)`,
+    String.raw`^(?:\x60{3,}|~{3,}|\$\$|[>|]|\{[{%]|<[!?])`,
     String.raw`^(?:=+|:?-+:?|_+|\*+)(?:[\s|]|$)`,
-    String.raw`^\|`,
     String.raw`^\**:[\w+-]+:`,
     String.raw`^\[\^[^\]]+\]:`,
-    String.raw`^\{[{%]`,
+    String.raw`^(?:\+|#{1,6}|0{0,8}1[.)])\s`,
     String.raw`^<(?:script|pre|style|textarea)(?:[\s>]|$)`,
-    String.raw`^<[!?]`,
     String.raw`^</?(?:${HTML_BLOCK_TAGS})(?:[\s/>]|$)`
   ].join('|'),
   'i'
@@ -41,19 +39,21 @@ const isAfterAlertMarker = ({ node, ancestors: [sentence, , blockquote] }: AstPa
   blockquote.children?.[0].children?.[0]?.children?.[1] === node &&
   ALERT_MARKER.test(sentence.children?.[0].value ?? '');
 
-const isUnsafeBreak = (paragraph: string, before: string, after: string) =>
+const isUnsafeBreak = (paragraph: string, before: string, after: string, quoted: boolean) =>
   LINK_DEFINITION.test(paragraph) ||
   BLOCK_LINE.test(before) ||
   UNSAFE_LINE_START.test(after) ||
-  // GitHub garbles `[^…]` text that contains a line break, e.g. `[^a\nb]` renders as `[^]`
-  (/\[\^(?:\[[^[\]]*\]|\[(?!\^)|[^[\]])*$/.test(before) && after.includes(']')) ||
+  // GitHub garbles `[^…]` text that contains a line break, e.g. `[^a\nb]` renders as `[^]`, and
+  // prettier prints reference labels from the source; wrapped in a blockquote they gain a `>` word
+  ((quoted ? /\[(?:\[[^[\]]*\]|[^[\]])*$/ : /\[\^(?:\[[^[\]]*\]|\[(?!\^)|[^[\]])*$/).test(before) &&
+    after.includes(']')) ||
   before.endsWith('\\');
 
 const flatText = (printed: Doc) =>
   doc.printer.printDocToString(doc.builders.group(printed), { printWidth: Infinity, tabWidth: 0 })
     .formatted;
 
-const keepUnsafeBreaksJoined = ({ parts }: doc.builders.Fill) => {
+const keepUnsafeBreaksJoined = ({ parts }: doc.builders.Fill, quoted: boolean) => {
   const texts = parts.map(flatText);
   const text = texts.join('');
   const joined: Doc[] = [''];
@@ -69,7 +69,7 @@ const keepUnsafeBreaksJoined = ({ parts }: doc.builders.Fill) => {
     } else if (texts[index] === '\n' || LIST_MARKER.test(before)) {
       joined.push(doc.builders.hardline, '');
       lineStart = offset;
-    } else if (isUnsafeBreak(paragraph, before, text.slice(offset))) {
+    } else if (isUnsafeBreak(paragraph, before, text.slice(offset), quoted)) {
       joined.push([joined.pop()!, texts[index]]);
     } else {
       joined.push(part, '');
@@ -87,23 +87,20 @@ export default {
         const embed = mdast.embed!(path, options);
         if (typeof embed !== 'function') return embed;
         return (textToDocument, ...rest) =>
-          embed(
-            (text, textOptions) => textToDocument(text, { ...textOptions, proseWrap: 'preserve' }),
-            ...rest
-          );
+          embed((text, next) => textToDocument(text, { ...next, proseWrap: 'preserve' }), ...rest);
       },
       print(path, options, print, args) {
         const { node } = path;
         if (node.type === 'whitespace' && isAfterAlertMarker(path)) {
           return node.value === '\n' ? doc.builders.hardline : node.value!;
         }
-        if (path.ancestors.some(({ type }) => type === 'heading')) {
+        if (node.type === 'definition' || path.ancestors.some(({ type }) => type === 'heading')) {
           return mdast.print(path, { ...options, proseWrap: 'preserve' }, print, args);
         }
         const printed = mdast.print(path, options, print, args);
-        return node.type === 'paragraph'
-          ? keepUnsafeBreaksJoined(printed as doc.builders.Fill)
-          : printed;
+        if (node.type !== 'paragraph') return printed;
+        const quoted = path.ancestors.some(({ type }) => type === 'blockquote');
+        return keepUnsafeBreaksJoined(printed as doc.builders.Fill, quoted);
       }
     }
   }

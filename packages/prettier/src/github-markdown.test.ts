@@ -65,9 +65,23 @@ describe('line breaks', () => {
     '<style x>',
     '<textarea',
     '<!-- x -->',
-    '<?php'
+    '<?php',
+    '>中'
   ])('never starts a line with %s', async (token) => {
     expect(await formatMarkdown(`lorem ipsum ${token}\n`)).toBe(`lorem\nipsum ${token}\n`);
+  });
+
+  it('never starts a list or heading inside a reference link', async () => {
+    const definition = '\n\n[a + # ###### 01. 000000001. 1) 21. 0000000001. b]: /u\n';
+    expect(
+      await formatMarkdown(`[a + # ###### 01. 000000001. 1) 21. 0000000001. b]${definition}`)
+    ).toBe(`[a + # ###### 01. 000000001. 1)\n21.\n0000000001.\nb]${definition}`);
+  });
+
+  it('never breaks inside a reference link or footnote in a blockquote', async () => {
+    expect(await formatMarkdown('> - [a b] [^c [] d]\n\n[a b]: /u\n')).toBe(
+      '> - [a b]\n>   [^c [] d]\n\n[a b]: /u\n'
+    );
   });
 
   it('never starts a line with an emoji shortcode after emphasis markers', async () => {
@@ -81,7 +95,8 @@ describe('line breaks', () => {
     '___ lorem  \n=== lorem\n',
     '$$ lorem $  \n$$$ lorem $\n',
     'a|b  \n:-- | --: tail\n',
-    '> [!NOTE]\n> *** lorem\n'
+    '> [!NOTE]\n> *** lorem\n',
+    'lorem  \n2. ---\n'
   ])('never leaves a block on its own line in %j', async (markdown) => {
     expect(await formatMarkdown(markdown)).toBe(markdown);
   });
@@ -112,11 +127,6 @@ describe('line breaks', () => {
     }
   );
 
-  it('does not force a break after a 2. marker', async () => {
-    const markdown = 'lorem  \n2. ---\n';
-    expect(await formatMarkdown(markdown, { printWidth: 80 })).toBe(markdown);
-  });
-
   it('never ends a line with an escaping backslash', async () => {
     expect(await formatMarkdown('\\ lorem\n')).toBe('\\ lorem\n');
   });
@@ -135,8 +145,8 @@ describe('line breaks', () => {
 
   it.each([
     [
-      '<1> $5 ~~a~~ [^a] [a b] :a `` _:+1:_ :: {x [^]: <pre_\n',
-      '<1>\n$5\n~~a~~\n[^a]\n[a\nb]\n:a\n``\n_:+1:_\n::\n{x\n[^]:\n<pre_\n'
+      '<1> $5 ~~a~~ [^a] [a b] :a `` _:+1:_ :: {x [^]: <pre_ ####### +b\n',
+      '<1>\n$5\n~~a~~\n[^a]\n[a\nb]\n:a\n``\n_:+1:_\n::\n{x\n[^]:\n<pre_\n#######\n+b\n'
     ],
     [
       '[]: b  \n`` c  \n$ c  \n2. c  \n<a b="x> c  \n[a] b]: c  \n```` `x` c\n',
@@ -148,13 +158,13 @@ describe('line breaks', () => {
 });
 
 describe('unwrapped blocks', () => {
-  it('does not wrap setext headings', async () => {
-    const markdown = 'lorem\n_a ```_\n===\n';
+  it('does not wrap setext headings or link reference definitions', async () => {
+    const markdown = 'lorem\n_a ```_\n===\n\n[a]: # "b c"\n';
     expect(await formatMarkdown(markdown)).toBe(markdown);
   });
 
   it('does not wrap embedded code', async () => {
-    const markdown = '```yaml\nkey: lorem tail\n```\n';
+    const markdown = '```yaml\nkey:\n  lorem ipsum\n  dolor\n```\n';
     expect(await formatMarkdown(markdown)).toBe(markdown);
   });
 });
