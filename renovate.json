@@ -21,8 +21,8 @@
   "postUpdateOptions": ["pnpmDedupe", "gomodTidy"],
   "kubernetes": {
     "managerFilePatterns": [
-      "/^apps\\/.+\\/kube\\/.+\\.ya?ml$/",
-      "/^packages\\/[^/]+\\/chart\\/templates\\/.+\\.ya?ml$/"
+      "/^apps/.+/kube/.+\\.ya?ml$/",
+      "/^packages/[^/]+/chart/templates/.+\\.ya?ml$/"
     ]
   },
   "customManagers": [
@@ -37,9 +37,9 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/^k3s\\/.+\\.ya?ml$/",
-        "/^infra\\/vps\\/cloud-config\\.yaml$/",
-        "/^packages\\/[^/]+\\/chart\\/templates\\/.+\\.ya?ml$/"
+        "/^k3s/.+\\.ya?ml$/",
+        "/^infra/vps/cloud-config\\.yaml$/",
+        "/^packages/[^/]+/chart/templates/.+\\.ya?ml$/"
       ],
       "matchStrings": [
         "repo: (?<registryUrl>https://\\S+)\\s+chart: (?<depName>[a-z0-9][a-z0-9-]*)\\s+version: (?<currentValue>\\S+)",
@@ -59,14 +59,14 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^infra\\/website\\.ts$/"],
+      "managerFilePatterns": ["/^infra/website\\.ts$/"],
       "matchStrings": ["const NODE_VERSION = '(?<currentValue>[\\d.]+)'"],
       "depNameTemplate": "node",
       "datasourceTemplate": "node-version"
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^\\.github\\/workflows\\/checks\\.ya?ml$/"],
+      "managerFilePatterns": ["/^\\.github/workflows/checks\\.ya?ml$/"],
       "matchStrings": [
         "(?<depName>ghcr\\.io/renovatebot/renovate):(?<currentValue>\\d+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?"
       ],
@@ -75,16 +75,16 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^infra\\/runner\\/ami\\.yaml$/"],
+      "managerFilePatterns": ["/^infra/runner/ami\\.yaml$/"],
       "matchStrings": ["npm install -g (?<depName>pnpm)@(?<currentValue>[\\d.]+)"],
       "datasourceTemplate": "npm"
     },
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/^infra\\/vps\\/cloud-config\\.yaml$/",
-        "/^k3s\\/overlays\\/cluster\\/cluster-upgrade-plan\\.yaml$/",
-        "/^scripts\\/cluster\\/k3d\\.sh$/"
+        "/^infra/vps/cloud-config\\.yaml$/",
+        "/^k3s/overlays/cluster/cluster-upgrade-plan\\.yaml$/",
+        "/^scripts/cluster/k3d\\.sh$/"
       ],
       "matchStrings": ["(?<currentValue>v\\d+\\.\\d+\\.\\d+\\+k3s\\d+)"],
       "depNameTemplate": "k3s-io/k3s",
@@ -92,7 +92,7 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^k3s\\/.+\\/kustomization\\.ya?ml$/"],
+      "managerFilePatterns": ["/^k3s/.+/kustomization\\.ya?ml$/"],
       "matchStrings": [
         "https://github\\.com/(?<depName>[^/]+/[^/]+)/releases/download/(?<currentValue>[^/]+)/"
       ],
@@ -101,10 +101,10 @@
   ],
   "packageRules": [
     {
-      "description": "CI builds and pins our own images.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["ghcr.io/pandoks/**"],
-      "enabled": false
+      "description": "Merging a refresh rebuilds Valkey, which changes its digest again.",
+      "matchPackageNames": ["ghcr.io/pandoks/valkey"],
+      "groupName": "valkey image",
+      "dependencyDashboardApproval": true
     },
     {
       "description": "Each cluster add-on chart is its own rollout.",
@@ -113,7 +113,6 @@
     },
     {
       "description": "PgDog's chart uses two-part versions (v0.27).",
-      "matchDatasources": ["helm"],
       "matchPackageNames": ["pgdog"],
       "versioning": "loose"
     },
