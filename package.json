@@ -28,6 +28,7 @@
     "@cloudflare/workers-types": "5.20260927.1",
     "@eslint/compat": "2.1.1",
     "@eslint/js": "10.0.1",
+    "@pandoks.com/prettier": "workspace:*",
     "@types/node": "25.9.8",
     "bcryptjs": "3.0.3",
     "eslint": "10.11.0",
