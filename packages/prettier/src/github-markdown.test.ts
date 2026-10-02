@@ -54,8 +54,6 @@ describe('line breaks', () => {
     '| --- |',
     ':-1:',
     '[^ab]:',
-    '{{ x }}',
-    '{% x %}',
     '</DETAILS>',
     '<table x>',
     '<hr/>',
@@ -102,8 +100,9 @@ describe('line breaks', () => {
   });
 
   it('never leaves a liquid tag on its own line', async () => {
-    expect(await formatMarkdown('lorem  \n{{\u2028}} tail ipsum  \n{%%} tail  \n{a} tail\n')).toBe(
-      'lorem  \n{{\u2028}} tail\nipsum  \n{%%} tail  \n{a}\ntail\n'
+    const markdown = 'lorem {{ x }}  \n{{\u2028}} tail ipsum {% x %}  \n{%%} tail  \n{a} tail\n';
+    expect(await formatMarkdown(markdown)).toBe(
+      'lorem {{ x }}  \n{{\u2028}} tail\nipsum {% x %}  \n{%%} tail  \n{a}\ntail\n'
     );
   });
 
