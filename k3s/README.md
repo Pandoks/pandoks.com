@@ -87,16 +87,16 @@ kubectl config use-context <context-name>
 **NOTE:** `k3d` is setup to use port 6444 for the local k3s cluster api so that it doesn't conflict
 with the remote k3s through ssh tunneling.
 
-You'll also see in `scripts/cluster/k3d.sh` that we forward port 30080 in _docker_ to port 8080 on the
-machine (`localhost`). This is because `k3d` runs k3s inside of docker and we need to expose the
+You'll also see in `scripts/cluster/k3d.sh` that we forward port 30080 in _docker_ to port 8080 on
+the machine (`localhost`). This is because `k3d` runs k3s inside of docker and we need to expose the
 ports that we're exposing from `NodePort` to the host machine. This also mimics the behavior of
 production clusters because the cluster is inside a private networks and the only thing that is
 exposed is through a load balancer that points into the private network at the forwarded port.
 
 ### Production
 
-Production clusters are accessed via Tailscale. The tailscale operator exposes the API server
-to your tailnet:
+Production clusters are accessed via Tailscale. The tailscale operator exposes the API server to
+your tailnet:
 
 ```sh
 k9s --context <tailscale-context>
@@ -112,11 +112,11 @@ the VPS's.
 
 ### HAProxy Ingress Controller
 
-`base/helm-charts/haproxy-ingress.yaml` is a helm chart that installs the HAProxy ingress controller and
-also configures `NodePort` services to expose to the Hetzner load balancer. Ports `30000-32767` are
-reserved ports just for `nodePort` services. The cluster is entirely in a private network so we only
-expose services via the load balancer which is exposed to the public internet but is also connected
-to the private network.
+`base/helm-charts/haproxy-ingress.yaml` is a helm chart that installs the HAProxy ingress controller
+and also configures `NodePort` services to expose to the Hetzner load balancer. Ports `30000-32767`
+are reserved ports just for `nodePort` services. The cluster is entirely in a private network so we
+only expose services via the load balancer which is exposed to the public internet but is also
+connected to the private network.
 
 Example `Ingress` resource:
 
@@ -185,8 +185,8 @@ k3s embedded etcd requires `--etcd-expose-metrics` flag to expose metrics on por
 - **k3d**: Set via `--k3s-arg "--etcd-expose-metrics@server:*"` in `scripts/cluster/k3d.sh`
 - **Hetzner**: Set in `infra/vps/cloud-config.yaml`
 
-The kube-prometheus-stack `kubeEtcd.endpoints` must list control plane IPs explicitly because
-k3s doesn't create pods with `component=etcd` labels (embedded etcd).
+The kube-prometheus-stack `kubeEtcd.endpoints` must list control plane IPs explicitly because k3s
+doesn't create pods with `component=etcd` labels (embedded etcd).
 
 ### Grafana Datasource Provisioning
 

@@ -1,8 +1,8 @@
 # Cluster CLI
 
-This directory contains the shell-based CLI used for managing local k3d clusters,
-shared dependencies, and Kubernetes resources during development. All commands are
-POSIX-compliant `sh` scripts—no Bash-specific features are required.
+This directory contains the shell-based CLI used for managing local k3d clusters, shared
+dependencies, and Kubernetes resources during development. All commands are POSIX-compliant `sh`
+scripts—no Bash-specific features are required.
 
 ## Entry Point
 
@@ -10,9 +10,9 @@ POSIX-compliant `sh` scripts—no Bash-specific features are required.
 ./scripts/cluster/main.sh <command> [subcommand] [options]
 ```
 
-Use `help`, `--help`, or `-h` with any command/subcommand to view detailed
-options. Package scripts in `package.json` are wired directly to
-`./scripts/cluster/main.sh`, so you can invoke everything via `pnpm` as well.
+Use `help`, `--help`, or `-h` with any command/subcommand to view detailed options. Package scripts
+in `package.json` are wired directly to `./scripts/cluster/main.sh`, so you can invoke everything
+via `pnpm` as well.
 
 ## Top-Level Commands
 
@@ -44,11 +44,10 @@ options. Package scripts in `package.json` are wired directly to
 ./scripts/cluster/main.sh deploy <local|dev|prod> [--bootstrap] [--stage <STAGE>] [--dry-run] [--kubeconfig <PATH>] [--quiet]
 ```
 
-Without `--bootstrap`, deploys the **overlay** at `k3s/overlays/<env>`. With
-`--bootstrap`, deploys the **bootstrap layer** at `k3s/bootstrap/<env>` instead
-(helm charts, CRDs, base resources). The two are separate kustomize paths — to
-deploy a fresh cluster end-to-end, run `deploy <env> --bootstrap` first, then
-`deploy <env>` again without the flag.
+Without `--bootstrap`, deploys the **overlay** at `k3s/overlays/<env>`. With `--bootstrap`, deploys
+the **bootstrap layer** at `k3s/bootstrap/<env>` instead (helm charts, CRDs, base resources). The
+two are separate kustomize paths — to deploy a fresh cluster end-to-end, run
+`deploy <env> --bootstrap` first, then `deploy <env>` again without the flag.
 
 | Environment | Description                                                                                                       |
 | ----------- | ----------------------------------------------------------------------------------------------------------------- |
@@ -64,8 +63,8 @@ deploy a fresh cluster end-to-end, run `deploy <env> --bootstrap` first, then
 | `--kubeconfig` | Kubeconfig file for kubectl operations.                                                              |
 | `--quiet`/`-q` | Suppress status messages, output only YAML (for CI/CD).                                              |
 
-You will be prompted to confirm the destination kubectl context before anything
-is applied (unless using `--dry-run`).
+You will be prompted to confirm the destination kubectl context before anything is applied (unless
+using `--dry-run`).
 
 ### Template Variables
 
@@ -120,5 +119,5 @@ kubectl config use-context <tailscale-context>
 
 ---
 
-If you add new commands or options, update `usage.sh` so help output stays
-accurate, and document anything notable here for future contributors.
+If you add new commands or options, update `usage.sh` so help output stays accurate, and document
+anything notable here for future contributors.
