@@ -33,6 +33,10 @@ const LIST_MARKER = /^(?:[*+]|1[.)])$/;
 // the paragraph so far mustn't end like a link reference definition
 const LINK_DEFINITION =
   /^\[(?:\\.|[^\\\]])+\]:[ \t\n]*(?:(?:<(?:\\.|[^\\>])*>|[^ \t\n]+)(?:[ \t\n]+["'(].*["')])?)?$/s;
+// GitHub garbles `[^…]` text that contains a line break, e.g. `[^a\nb]` renders as `[^]`
+const OPEN_FOOTNOTE = /\[\^(?:\[[^[\]]*\]|\[(?!\^)|[^[\]])*$/;
+// prettier prints reference labels from the source; wrapped in a blockquote they gain a `>` word
+const OPEN_LABEL = /\[(?:\[[^[\]]*\]|[^[\]])*$/;
 
 const isAfterAlertMarker = ({ node, ancestors: [sentence, , blockquote] }: AstPath<MarkdownNode>) =>
   blockquote.type === 'blockquote' &&
@@ -43,10 +47,7 @@ const isUnsafeBreak = (paragraph: string, before: string, after: string, quoted:
   LINK_DEFINITION.test(paragraph) ||
   BLOCK_LINE.test(before) ||
   UNSAFE_LINE_START.test(after) ||
-  // GitHub garbles `[^…]` text that contains a line break, e.g. `[^a\nb]` renders as `[^]`, and
-  // prettier prints reference labels from the source; wrapped in a blockquote they gain a `>` word
-  ((quoted ? /\[(?:\[[^[\]]*\]|[^[\]])*$/ : /\[\^(?:\[[^[\]]*\]|\[(?!\^)|[^[\]])*$/).test(before) &&
-    after.includes(']')) ||
+  (after.includes(']') && (quoted ? OPEN_LABEL : OPEN_FOOTNOTE).test(before.replace(/\\./g, ''))) ||
   before.endsWith('\\');
 
 const flatText = (printed: Doc) =>

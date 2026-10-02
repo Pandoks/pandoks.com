@@ -79,8 +79,8 @@ describe('line breaks', () => {
   });
 
   it('never breaks inside a reference link or footnote in a blockquote', async () => {
-    expect(await formatMarkdown('> - [a b] [^c [] d]\n\n[a b]: /u\n')).toBe(
-      '> - [a b]\n>   [^c [] d]\n\n[a b]: /u\n'
+    expect(await formatMarkdown('> - [a\\] b\\] c] [^d [] e]\n\n[a\\] b\\] c]: /u\n')).toBe(
+      '> - [a\\] b\\] c]\n>   [^d [] e]\n\n[a\\] b\\] c]: /u\n'
     );
   });
 
