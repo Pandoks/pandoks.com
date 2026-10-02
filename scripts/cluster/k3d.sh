@@ -47,8 +47,7 @@ cmd_k3d_up() {
     return 1
   fi
 
-  cmd_k3d_up_k3s_version="v1.36.4+k3s1"
-  cmd_k3d_up_k3s_image="rancher/k3s:$(printf '%s' "${cmd_k3d_up_k3s_version}" | tr '+' '-')"
+  cmd_k3d_up_k3s_image="rancher/k3s:$(echo 'v1.36.4+k3s1' | tr '+' '-')"
   echo "Using k3s image: ${cmd_k3d_up_k3s_image}"
 
   echo "Creating k3d cluster 'local-cluster' on network 'pandoks-net'..."
