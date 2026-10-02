@@ -1,6 +1,7 @@
 # PostgreSQL High-Availability Cluster
 
-Production-ready PostgreSQL cluster with automatic failover, connection pooling, sharding, and continuous backups.
+Production-ready PostgreSQL cluster with automatic failover, connection pooling, sharding, and
+continuous backups.
 
 ## Architecture
 
@@ -96,7 +97,8 @@ graph TB
 | `replicator` | Streaming replication  | Replication only                    |
 | `patroni`    | Patroni REST API       | Health checks, failover             |
 
-**Security Note:** The `postgres` superuser can only connect locally (from within the pod). Use `admin` for remote privileged access and `client` for applications.
+**Security Note:** The `postgres` superuser can only connect locally (from within the pod). Use
+`admin` for remote privileged access and `client` for applications.
 
 ## Quick Start
 
@@ -230,7 +232,8 @@ kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
 
 ### Point-in-Time Recovery (PITR)
 
-PITR allows you to restore a shard to any specific moment in time. This is useful for recovering from accidental data deletion or corruption.
+PITR allows you to restore a shard to any specific moment in time. This is useful for recovering
+from accidental data deletion or corruption.
 
 #### Step 1: Identify Target Time
 
@@ -354,14 +357,19 @@ kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
 
 #### PITR Notes
 
-- **Per-shard recovery**: Each shard has independent backups. You can recover one shard without affecting others.
-- **Replica rebuilding**: After PITR, replicas will automatically rebuild from the restored primary via pgbackrest or basebackup.
-- **Timeline changes**: PITR creates a new timeline. The `recovery_target_timeline: latest` setting in Patroni ensures replicas follow the new timeline.
-- **Data consistency**: For sharded tables, recovering one shard to a different point in time may cause cross-shard inconsistencies. Plan accordingly.
+- **Per-shard recovery**: Each shard has independent backups. You can recover one shard without
+  affecting others.
+- **Replica rebuilding**: After PITR, replicas will automatically rebuild from the restored primary
+  via pgbackrest or basebackup.
+- **Timeline changes**: PITR creates a new timeline. The `recovery_target_timeline: latest` setting
+  in Patroni ensures replicas follow the new timeline.
+- **Data consistency**: For sharded tables, recovering one shard to a different point in time may
+  cause cross-shard inconsistencies. Plan accordingly.
 
 ### Scaling Shards
 
-Shards can be added or removed to scale the cluster horizontally. This requires careful data migration to maintain consistency.
+Shards can be added or removed to scale the cluster horizontally. This requires careful data
+migration to maintain consistency.
 
 #### Adding Shards (Scale Up)
 
@@ -383,7 +391,8 @@ Apply the change:
 kubectl apply -f kube/main/main.yaml
 ```
 
-This creates the new shard (`myapp-shard-3`) with its own StatefulSet, services, and backup cronjobs.
+This creates the new shard (`myapp-shard-3`) with its own StatefulSet, services, and backup
+cronjobs.
 
 **Step 2: Verify New Shard**
 
@@ -436,7 +445,8 @@ COMMIT;
 # Export all data, truncate all shards, re-insert via pgdog
 ```
 
-**Note:** PgDog uses consistent hashing. Adding shards changes which shard owns each key. Without rebalancing, queries for existing data may route to the wrong (empty) shard.
+**Note:** PgDog uses consistent hashing. Adding shards changes which shard owns each key. Without
+rebalancing, queries for existing data may route to the wrong (empty) shard.
 
 #### Removing Shards (Scale Down)
 
@@ -556,7 +566,8 @@ patroni:
   replicasPerShard: 2 # Reduce from 3 to 2
 ```
 
-Kubernetes will terminate the excess pods. No data migration needed since replicas are read-only copies.
+Kubernetes will terminate the excess pods. No data migration needed since replicas are read-only
+copies.
 
 ### Test Sharding
 
@@ -581,7 +592,8 @@ done
 
 ### Cluster Won't Start After Deletion
 
-When you delete and recreate the cluster, stale DCS endpoints may prevent Patroni from bootstrapping:
+When you delete and recreate the cluster, stale DCS endpoints may prevent Patroni from
+bootstrapping:
 
 ```
 waiting for leader to bootstrap

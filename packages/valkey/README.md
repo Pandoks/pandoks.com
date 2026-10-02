@@ -39,17 +39,17 @@ spec:
 
 ### Scaling
 
-It is recommended to scale up the cluster by adding more masters as reading from replicas is not standard.
-Replicas are generally only used for HA and are rarely used for reading. This is because the cluster
-auto shards the slots across the masters so the benefits of reading from replicas are lost when there
-are many masters. You tend to only need 1-2 replicas per master. Replicas also usually contain
-stale data because they're not completely syned with the masters.
+It is recommended to scale up the cluster by adding more masters as reading from replicas is not
+standard. Replicas are generally only used for HA and are rarely used for reading. This is because
+the cluster auto shards the slots across the masters so the benefits of reading from replicas are
+lost when there are many masters. You tend to only need 1-2 replicas per master. Replicas also
+usually contain stale data because they're not completely syned with the masters.
 
 ### Local Development
 
-If you want to develop locally, you'll need to patch your Helm chart yaml declarations in each namespaced
-directory's `dev-patch.yaml`. If you have multiple valkey clusters, you put all of the patches in the
-same file:
+If you want to develop locally, you'll need to patch your Helm chart yaml declarations in each
+namespaced directory's `dev-patch.yaml`. If you have multiple valkey clusters, you put all of the
+patches in the same file:
 
 ```yaml
 # kube/<namespace>/dev-patch.yaml
@@ -75,15 +75,15 @@ _If you haven't already, remember to add all `dev-patch.yaml` files in the
 
 #### Images & Helm Charts
 
-You'll have to build and push the chart at least once before the local k3d cluster can access the local
-images/helm chart via the local registry that are used in the `dev-patch.yaml` declarations:
+You'll have to build and push the chart at least once before the local k3d cluster can access the
+local images/helm chart via the local registry that are used in the `dev-patch.yaml` declarations:
 
 ```sh
 pnpm build && pnpm dev:push
 ```
 
-If you make a change to the images or helm template run the build and push commands to make the changes
-accessible to the local k3d cluster:
+If you make a change to the images or helm template run the build and push commands to make the
+changes accessible to the local k3d cluster:
 
 | Command                    | Description                                                           |
 | -------------------------- | --------------------------------------------------------------------- |
@@ -98,9 +98,10 @@ accessible to the local k3d cluster:
 
 ## Configuration
 
-There are two configuration files that are used by the valkey cluster: `valkey.conf` and `users.acl`.
-They are both templated so that `envsubst` can be used to inject secrets into the configuration files
-via env variables. All clusters use the same templated configuration files via config maps.
+There are two configuration files that are used by the valkey cluster: `valkey.conf` and
+`users.acl`. They are both templated so that `envsubst` can be used to inject secrets into the
+configuration files via env variables. All clusters use the same templated configuration files via
+config maps.
 
 The `valkey.conf` file is used to configure the valkey cluster. The `users.acl` file is used to
 configure the users that can access the cluster.
@@ -109,14 +110,15 @@ configure the users that can access the cluster.
 
 [valkey.conf](./valkey.conf) is used to configure the valkey cluster.
 
-For more information about the configuration options, visit [valkey.io/topics/configuration](https://valkey.io/topics/valkey.conf/).
+For more information about the configuration options, visit
+[valkey.io/topics/configuration](https://valkey.io/topics/valkey.conf/).
 
 ### users.acl
 
 [users.acl](./users.acl) is used to configure the users that can access the cluster.
 
-For better security practices, we use multiple users to access the cluster. We have an **admin** user
-and a **client** user:
+For better security practices, we use multiple users to access the cluster. We have an **admin**
+user and a **client** user:
 
 | User   | Description                          | Permissions                                      |
 | ------ | ------------------------------------ | ------------------------------------------------ |
@@ -125,7 +127,8 @@ and a **client** user:
 
 _The **client** user doesn't have dangerous permissions like `FLUSHALL`, `CONFIG`, etc._
 
-For more information about the permissions, visit [valkey.io/topics/acl](https://valkey.io/topics/acl/).
+For more information about the permissions, visit
+[valkey.io/topics/acl](https://valkey.io/topics/acl/).
 
 #### Permissions Cheat Sheet
 
