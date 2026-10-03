@@ -1,5 +1,7 @@
 db: example
 namespace: example
+monitoringNamespace: monitoring
+pgdogReleaseName: '' # default <db>-pgdog; must be unique in kube-system
 
 credentials:
   secret: postgres-example-creds
@@ -11,6 +13,7 @@ credentials:
     patroniPassword: PATRONI_PASSWORD
 
 backup:
+  enabled: true # set before the cluster is first created; Patroni keeps archive settings in its DCS
   credentials:
     secret: backup-bucket-creds
     dataKeys:

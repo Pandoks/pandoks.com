@@ -1,5 +1,6 @@
 name: example
 namespace: example
+monitoringNamespace: monitoring
 
 credentials:
   secret: clickhouse-example-creds
@@ -31,6 +32,7 @@ keeper:
       memory: 4Gi
 
 backup:
+  enabled: true
   credentials:
     secret: backup-bucket-creds
     dataKeys:
