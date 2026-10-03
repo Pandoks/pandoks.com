@@ -1,5 +1,7 @@
 db: example
 namespace: example
+monitoringNamespace: monitoring
+pgdogReleaseName: '' # default <db>-pgdog; must be unique in kube-system
 
 credentials:
   secret: postgres-example-creds
@@ -11,7 +13,7 @@ credentials:
     patroniPassword: PATRONI_PASSWORD
 
 backup:
-  enabled: true
+  enabled: true # set before the cluster is first created; Patroni keeps archive settings in its DCS
   credentials:
     secret: backup-bucket-creds
     dataKeys:
@@ -47,7 +49,6 @@ patroni:
 
 # https://github.com/pgdogdev/helm/blob/main/values.yaml
 pgdog:
-  releaseName: ''
   replicas: 2
   workers: 2
   defaultPoolSize: 15
@@ -55,6 +56,3 @@ pgdog:
   lsnCheckInterval: 1000
   loadBalancingStrategy: least_active_connections
   readWriteSplit: include_primary_if_replica_banned
-
-monitoring:
-  namespace: monitoring

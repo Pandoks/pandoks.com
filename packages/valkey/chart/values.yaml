@@ -1,5 +1,6 @@
 name: example
 namespace: example
+monitoringNamespace: monitoring
 image: ghcr.io/pandoks/valkey:latest@sha256:da0b51d171e30361a48f4d5cc03968d9994e74d5e1d811705c4904bc967cb100
 
 credentials:
@@ -27,6 +28,3 @@ hooks:
   backoffLimit: ~
   restartPolicy: OnFailure
   hookDeletePolicy: before-hook-creation,hook-succeeded
-
-monitoring:
-  namespace: monitoring
