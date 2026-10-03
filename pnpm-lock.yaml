@@ -22,8 +22,8 @@ importers:
         version: 4.17.1
     devDependencies:
       '@cloudflare/workers-types':
-        specifier: 5.20260929.1
-        version: 5.20260929.1
+        specifier: 5.20260930.1
+        version: 5.20260930.1
       '@eslint/compat':
         specifier: 2.1.1
         version: 2.1.1(eslint@10.11.0(jiti@2.7.0)(supports-color@8.1.1))
@@ -152,8 +152,8 @@ importers:
         specifier: 1.0.2
         version: 1.0.2
       electron:
-        specifier: 44.4.5
-        version: 44.4.5(supports-color@8.1.1)
+        specifier: 44.5.1
+        version: 44.5.1(supports-color@8.1.1)
       jsdom:
         specifier: 30.1.1
         version: 30.1.1
@@ -184,26 +184,26 @@ importers:
   apps/functions:
     dependencies:
       '@aws-sdk/client-dynamodb':
-        specifier: 3.1142.0
-        version: 3.1142.0
+        specifier: 3.1143.0
+        version: 3.1143.0
       '@aws-sdk/client-lambda':
-        specifier: 3.1142.0
-        version: 3.1142.0
+        specifier: 3.1143.0
+        version: 3.1143.0
       '@aws-sdk/client-scheduler':
-        specifier: 3.1142.0
-        version: 3.1142.0
+        specifier: 3.1143.0
+        version: 3.1143.0
       '@aws-sdk/client-sns':
-        specifier: 3.1142.0
-        version: 3.1142.0
+        specifier: 3.1143.0
+        version: 3.1143.0
       '@aws-sdk/client-ssm':
-        specifier: 3.1142.0
-        version: 3.1142.0
+        specifier: 3.1143.0
+        version: 3.1143.0
       '@aws-sdk/lib-dynamodb':
-        specifier: 3.1142.0
-        version: 3.1142.0(@aws-sdk/client-dynamodb@3.1142.0)
+        specifier: 3.1143.0
+        version: 3.1143.0(@aws-sdk/client-dynamodb@3.1143.0)
       '@notionhq/client':
-        specifier: 5.26.0
-        version: 5.26.0
+        specifier: 5.27.0
+        version: 5.27.0
       sst:
         specifier: 4.17.1
         version: 4.17.1
@@ -228,8 +228,8 @@ importers:
         version: 11.12.0
     devDependencies:
       '@notionhq/client':
-        specifier: 5.26.0
-        version: 5.26.0
+        specifier: 5.27.0
+        version: 5.27.0
       '@playwright/test':
         specifier: 1.63.0
         version: 1.63.0
@@ -324,8 +324,8 @@ importers:
         specifier: 3.12.4
         version: 3.12.4
       '@lucide/svelte':
-        specifier: 1.48.0
-        version: 1.48.0(svelte@5.57.1(@typescript-eslint/types@8.70.0))
+        specifier: 1.49.0
+        version: 1.49.0(svelte@5.57.1(@typescript-eslint/types@8.70.0))
       '@playwright/test':
         specifier: 1.63.0
         version: 1.63.0
@@ -408,24 +408,24 @@ packages:
     resolution: {integrity: sha512-NT4s3yZLjovPpliRpTvdsdzyPjqRqiCZj9MxnarBihbaY5MbAG7DWAJcrLlhmC7xKTNCXsTELcqB8YsqpLnUFQ==}
     engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0}
 
-  '@aws-sdk/client-dynamodb@3.1142.0':
-    resolution: {integrity: sha512-/p+qS8o18FMVlGQmA85zeUtG+vw1vN1TjfOoQzvD1VvZXWgicp2D771mlvuMdQ/QBVPcjwHbYD3e2TBefw6FSw==}
+  '@aws-sdk/client-dynamodb@3.1143.0':
+    resolution: {integrity: sha512-RdYbxmUxsBOIhr5H4ySqLqEpYwJEtpw4M4xdBv8liYIn1dO2OozSYU0oDyIev/zFdpAkJgE8GC9KLi7vl9K9wA==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/client-lambda@3.1142.0':
-    resolution: {integrity: sha512-ghWus+szEAkqCAHELHLRmev/k8EaTIhuSStsqcGIugHgPy6wePMS5OC+jkC1JBTLb9CooMEzAt6MLYLc/EvnIg==}
+  '@aws-sdk/client-lambda@3.1143.0':
+    resolution: {integrity: sha512-Kr5EIlD5Zqfrt30RZzRcxJ0uC2CX8RYQoGRPHuiAOLOKY4XOLmHaXBG6QidXkW+zafFjEtcOpOjLt3+CcjmdfQ==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/client-scheduler@3.1142.0':
-    resolution: {integrity: sha512-u9uZPj/i14MFOWOUmh56BxfjoAJJFFXg1cnbML3ljufa4osp9BRfAMTPhhgO5G5UlR3LUhorJmkctbo7UTfc1w==}
+  '@aws-sdk/client-scheduler@3.1143.0':
+    resolution: {integrity: sha512-VCA/kNBJeCzdXExEPqxvcMcZs2poYXULuEZGhavuEOakY5RQXNUNlAxYdfVCwlUNgVWYFuAjDzI91795mgh2cQ==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/client-sns@3.1142.0':
-    resolution: {integrity: sha512-/PeDZ0vv5+l1PErznVtCBgA1TZtAiFNHY2kP7EKeLYfPjTLINUKBvDqm2Kvl6RgE/ulYFfttbC7D+rZP7aZcDA==}
+  '@aws-sdk/client-sns@3.1143.0':
+    resolution: {integrity: sha512-HrsSAr9c0qWTg8ZF0nRnyjtt3Sjc/5232ggnzOTNbpO9q2Qklbl18EKDiltEmF+j3Yeui1ma/YZ+E/FYvhjmAQ==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/client-ssm@3.1142.0':
-    resolution: {integrity: sha512-Z1OHRppaMMVVqLsg2+fzCTw7WtEWcusvUh1RKnHfFWjazMC8VBqbJmewtGFXO14w5oq7ruaygWcFHRltCkZhLQ==}
+  '@aws-sdk/client-ssm@3.1143.0':
+    resolution: {integrity: sha512-81mVfzoWd+vRYakDsrgx1z1Nz6aThR4l+fevo44LBoCWlWWk9qkJ28aEmyB1wH7QsuQ4oIeVGWbfdJg8s1bZZg==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/core@3.978.1':
@@ -472,11 +472,11 @@ packages:
     resolution: {integrity: sha512-8q1ICxcDjHId3bBryuu/j+1L9y5/3uQnwzLDt5j2ElcjZSoWmFtymdJy7OjLrluSMe0Z4mq5bcH4fxBXvlEHfw==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/lib-dynamodb@3.1142.0':
-    resolution: {integrity: sha512-Kb9FNPHXibkI58mWtBxXCM29dBY9Wbe83sWq8poVzZ/7xuiuRVQ4N3x0KEX7WVHC0FG5t3iW/ysRZxAV4RK76A==}
+  '@aws-sdk/lib-dynamodb@3.1143.0':
+    resolution: {integrity: sha512-/gYe6Cpf/+MwaCla5DfCxDWw0AMqPK5BBBMtcFopW/F6YOJDlim+CA0de48Tw8wTjhdNhHF18KNGvAeC8h0hlA==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
-      '@aws-sdk/client-dynamodb': ^3.1142.0
+      '@aws-sdk/client-dynamodb': ^3.1143.0
 
   '@aws-sdk/middleware-endpoint-discovery@3.972.31':
     resolution: {integrity: sha512-JqOIXupzP6cpAmCCmuEaacbXo/bVCcg1NkglCJC6q4wDAvJO09qIs7POf50JNzmhOhWPtfXvzgWxb5nMQl8QiA==}
@@ -538,8 +538,8 @@ packages:
   '@cacheable/utils@2.5.0':
     resolution: {integrity: sha512-buipgOVDkkPXNR5+xBpDw7Zk2n1EvU7qBJCNUcL7rhQ//kfpOXPAvQ511Os0vpLYJ1pZnvudNytkQt2hst3wqA==}
 
-  '@cloudflare/workers-types@5.20260929.1':
-    resolution: {integrity: sha512-VlkFyzSqv2LeMK92eyyfnNvSTW4Nu37cR8T8OM4FF2xcNCsGy8/BxcNk9Jr4ZV0PlmKsCKvS49CfRZTVKBseUw==}
+  '@cloudflare/workers-types@5.20260930.1':
+    resolution: {integrity: sha512-ZUHwK/kG4GD6owwHY+Le+QYq/LO+R0f8b51cE3+IXe4bcKefKWIVYYqsUrKwSTo9su1LSIxKEfqui4r7LrxU1Q==}
 
   '@csstools/color-helpers@6.1.1':
     resolution: {integrity: sha512-gLNsunvwf3mCi5u5o46/Z/JcJMnhbHSaZ69rkgPzNM3J4s8hWwpPUQB6/tt0EDFyCiWzxANlx+2LJwpYj4zS1w==}
@@ -1236,8 +1236,8 @@ packages:
     peerDependencies:
       '@inquirer/prompts': '>= 3 < 8'
 
-  '@lucide/svelte@1.48.0':
-    resolution: {integrity: sha512-bLimVDjehxu3fpu9XEUpqEkBk2sJAHAT2sVcLHhlM70EdNsXuj9ZnYENWv5xgw3+05h4i5TirAxTiTgnZZf8gw==}
+  '@lucide/svelte@1.49.0':
+    resolution: {integrity: sha512-RFH6Vx7dj6hshcBa1qJ0nKAWwkh385jJbDwF1WVg7yflC89310BsA55SEmJnaSRfr03dAyZMMLUC1EMGBu0Z0Q==}
     peerDependencies:
       svelte: ^5
 
@@ -1261,8 +1261,8 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@notionhq/client@5.26.0':
-    resolution: {integrity: sha512-Oc3438nQ5YmZkVO7YJG8fcTYl0V46CirdCvO33azZ9f7ZfD2rsHE4fUVANJiBB9Xf1sqpCs82nd8oKPxeXLmMg==}
+  '@notionhq/client@5.27.0':
+    resolution: {integrity: sha512-JnkLtAzSDrEnvtZ8dQ5L4KO+xyL5g01xK5qmKTmhJ5KFY8LWsMyFG033vHCj0mFcsz9thAMjfcAQz/SWxiexag==}
     engines: {node: '>=18'}
 
   '@npmcli/fs@2.1.2':
@@ -2436,8 +2436,8 @@ packages:
     resolution: {integrity: sha512-j9ETcBGJaXxAY/b6UBpR7LZfjdU4BAO+yvr4ifqHEdyuc3UNCy91PDGkWKY5UQ4coHNYfnwFggrqD6QPeFGAlg==}
     engines: {node: '>=8.0.0'}
 
-  electron@44.4.5:
-    resolution: {integrity: sha512-SjgoaeYsSWZfJzubgQU7juvuXMTvn6/e1gAHdGFA/yuMbpF+I+skYqIJ6DdXBXHeWbkbpNpmwZCTpiivtlWZSw==}
+  electron@44.5.1:
+    resolution: {integrity: sha512-lx7AYoFIiyvEvgvpyWO9kOC60xtNPpiPZAth6Fmg9NutzpCAMLwpUlaBY2EXfZyIgUdzEmLMj9KvK0Vrokl1yQ==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -5018,7 +5018,7 @@ snapshots:
       is-potential-custom-element-name: 1.0.1
       lru-cache: 11.5.3
 
-  '@aws-sdk/client-dynamodb@3.1142.0':
+  '@aws-sdk/client-dynamodb@3.1143.0':
     dependencies:
       '@aws-sdk/core': 3.978.1
       '@aws-sdk/credential-provider-node': 3.972.84
@@ -5031,7 +5031,7 @@ snapshots:
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
-  '@aws-sdk/client-lambda@3.1142.0':
+  '@aws-sdk/client-lambda@3.1143.0':
     dependencies:
       '@aws-sdk/core': 3.978.1
       '@aws-sdk/credential-provider-node': 3.972.84
@@ -5042,7 +5042,7 @@ snapshots:
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
-  '@aws-sdk/client-scheduler@3.1142.0':
+  '@aws-sdk/client-scheduler@3.1143.0':
     dependencies:
       '@aws-sdk/core': 3.978.1
       '@aws-sdk/credential-provider-node': 3.972.84
@@ -5053,7 +5053,7 @@ snapshots:
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
-  '@aws-sdk/client-sns@3.1142.0':
+  '@aws-sdk/client-sns@3.1143.0':
     dependencies:
       '@aws-sdk/core': 3.978.1
       '@aws-sdk/credential-provider-node': 3.972.84
@@ -5064,7 +5064,7 @@ snapshots:
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
-  '@aws-sdk/client-ssm@3.1142.0':
+  '@aws-sdk/client-ssm@3.1143.0':
     dependencies:
       '@aws-sdk/core': 3.978.1
       '@aws-sdk/credential-provider-node': 3.972.84
@@ -5182,11 +5182,11 @@ snapshots:
       mnemonist: 0.38.3
       tslib: 2.8.1
 
-  '@aws-sdk/lib-dynamodb@3.1142.0(@aws-sdk/client-dynamodb@3.1142.0)':
+  '@aws-sdk/lib-dynamodb@3.1143.0(@aws-sdk/client-dynamodb@3.1143.0)':
     dependencies:
-      '@aws-sdk/client-dynamodb': 3.1142.0
+      '@aws-sdk/client-dynamodb': 3.1143.0
       '@aws-sdk/core': 3.978.1
-      '@aws-sdk/util-dynamodb': 3.996.9(@aws-sdk/client-dynamodb@3.1142.0)
+      '@aws-sdk/util-dynamodb': 3.996.9(@aws-sdk/client-dynamodb@3.1143.0)
       '@smithy/core': 3.35.0
       '@smithy/types': 4.19.0
       tslib: 2.8.1
@@ -5231,9 +5231,9 @@ snapshots:
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
-  '@aws-sdk/util-dynamodb@3.996.9(@aws-sdk/client-dynamodb@3.1142.0)':
+  '@aws-sdk/util-dynamodb@3.996.9(@aws-sdk/client-dynamodb@3.1143.0)':
     dependencies:
-      '@aws-sdk/client-dynamodb': 3.1142.0
+      '@aws-sdk/client-dynamodb': 3.1143.0
       tslib: 2.8.1
 
   '@aws-sdk/xml-builder@3.972.41':
@@ -5243,7 +5243,7 @@ snapshots:
 
   '@aws/durable-execution-sdk-js@1.0.2':
     dependencies:
-      '@aws-sdk/client-lambda': 3.1142.0
+      '@aws-sdk/client-lambda': 3.1143.0
 
   '@aws/lambda-invoke-store@0.3.0': {}
 
@@ -5273,7 +5273,7 @@ snapshots:
       hashery: 1.5.1
       keyv: 5.6.0
 
-  '@cloudflare/workers-types@5.20260929.1': {}
+  '@cloudflare/workers-types@5.20260930.1': {}
 
   '@csstools/color-helpers@6.1.1': {}
 
@@ -6173,7 +6173,7 @@ snapshots:
       '@inquirer/prompts': 6.0.1
       '@inquirer/type': 1.5.5
 
-  '@lucide/svelte@1.48.0(svelte@5.57.1(@typescript-eslint/types@8.70.0))':
+  '@lucide/svelte@1.49.0(svelte@5.57.1(@typescript-eslint/types@8.70.0))':
     dependencies:
       svelte: 5.57.1(@typescript-eslint/types@8.70.0)
 
@@ -6198,7 +6198,7 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.3
 
-  '@notionhq/client@5.26.0': {}
+  '@notionhq/client@5.27.0': {}
 
   '@npmcli/fs@2.1.2':
     dependencies:
@@ -7438,7 +7438,7 @@ snapshots:
       - supports-color
     optional: true
 
-  electron@44.4.5(supports-color@8.1.1):
+  electron@44.5.1(supports-color@8.1.1):
     dependencies:
       '@electron-internal/extract-zip': 1.0.5
       '@electron/get': 5.1.0(supports-color@8.1.1)
