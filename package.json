@@ -1,11 +1,11 @@
 {
   "name": "pandoks.com",
   "version": "1.0.0",
-  "packageManager": "pnpm@12.8.1+sha512.f64ba907507f5ceafe06c8d38e6052d0179444580ec1279ddd5bfc11cb48aa8a2644b66598e07e761da84872a9fc57d5f902b87fa49d024198d558612aabbe45",
+  "packageManager": "pnpm@12.8.2+sha512.a5941679663d952c5f0ecc38ba98af98b4dc01b95780354f6894f2f873973cef2f7e2989d7db3ee5393938ae21f62fe06bcdf685d475ddad829a62095d2b8b11",
   "type": "module",
   "engines": {
     "node": ">=24",
-    "pnpm": "12.8.1"
+    "pnpm": "12.8.2"
   },
   "scripts": {
     "sso": "aws sso login --sso-session=personal --use-device-code --no-browser",
@@ -25,7 +25,7 @@
     "postinstall": "sst install"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20260930.1",
+    "@cloudflare/workers-types": "5.20261001.1",
     "@eslint/compat": "2.1.1",
     "@eslint/js": "10.0.1",
     "@pandoks.com/prettier": "workspace:*",
@@ -35,7 +35,7 @@
     "eslint-plugin-svelte": "3.23.0",
     "eslint-plugin-unicorn": "76.0.0",
     "glob": "13.0.6",
-    "globals": "17.12.0",
+    "globals": "17.13.0",
     "jiti": "2.7.0",
     "json-stringify-pretty-compact": "4.0.0",
     "portless": "0.15.6",
