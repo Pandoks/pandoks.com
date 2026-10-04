@@ -20,6 +20,11 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
           attr: ['funnel']
         }
       ],
+      autoApprovers: {
+        services: {
+          'svc:cliproxyapi': ['tag:ovh']
+        }
+      },
       grants: [
         { src: ['*'], dst: ['*'], ip: ['*'] },
         {

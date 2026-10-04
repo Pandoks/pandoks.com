@@ -18,7 +18,7 @@ export const deleteServerFromTailnet = new $util.ResourceHook(
     const devices = await tailscale.getDevices({
       namePrefix: `${serverLabels['tailscale'] ?? ''}`
     });
-    const serverHetznerDevices = devices.devices.filter(
+    const serverHetznerDevices = (devices.devices ?? []).filter(
       (device) => device.tags.includes('tag:hetzner') && device.tags.includes(`tag:${STAGE_NAME}`)
     );
     if (serverHetznerDevices.length > 0) {

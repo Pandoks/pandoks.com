@@ -1,4 +1,5 @@
 import { isProduction } from './dns';
+import { tailscaleAcl } from './tailscale';
 
 if (isProduction) {
   new ovh.vps.Vps(
@@ -51,6 +52,18 @@ if (isProduction) {
       import: 'vps-54c42746.vps.ovh.us',
       ignoreChanges: ['plans', 'ovhSubsidiary', 'planOptions']
     }
+  );
+
+  // NOTE: pandoks-dev-box hosts this with `tailscale serve --service=svc:cliproxyapi --https=443`
+  new tailscale.Service(
+    'CliproxyapiTailscaleService',
+    {
+      name: 'svc:cliproxyapi',
+      comment: 'CLIProxyAPI on pandoks-dev-box',
+      ports: ['tcp:443'],
+      tags: ['tag:ovh']
+    },
+    { dependsOn: [tailscaleAcl] }
   );
 }
 
