@@ -54,14 +54,15 @@ if (isProduction) {
     }
   );
 
-  // NOTE: pandoks-dev-box hosts this with `tailscale serve --service=svc:cliproxyapi --https=443`
+  // NOTE: pandoks-dev-box (tagged tag:cliproxyapi) hosts this with
+  // `tailscale serve --service=svc:cliproxyapi --https=443`
   new tailscale.Service(
     'CliproxyapiTailscaleService',
     {
       name: 'svc:cliproxyapi',
       comment: 'CLIProxyAPI on pandoks-dev-box',
       ports: ['tcp:443'],
-      tags: ['tag:ovh']
+      tags: ['tag:cliproxyapi']
     },
     { dependsOn: [tailscaleAcl] }
   );

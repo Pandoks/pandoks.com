@@ -22,7 +22,7 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
       ],
       autoApprovers: {
         services: {
-          'svc:cliproxyapi': ['tag:ovh']
+          'svc:cliproxyapi': ['tag:cliproxyapi']
         }
       },
       grants: [
@@ -57,7 +57,8 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         'tag:worker': ['pandoks@github'],
         'tag:dev': ['pandoks@github', 'tag:k8s-operator'],
         'tag:prod': ['pandoks@github', 'tag:k8s-operator'],
-        'tag:ci': ['pandoks@github']
+        'tag:ci': ['pandoks@github'],
+        'tag:cliproxyapi': ['pandoks@github']
       }
     },
     { maxLength: 80, indent: 2 }
