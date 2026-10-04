@@ -54,7 +54,6 @@ if (isProduction) {
     }
   );
 
-  // NOTE: DeviceTags replaces the device's full tag set, so every tag it needs must be listed
   const devTailscaleDevice = tailscale.getDeviceOutput({ hostname: 'pandoks-dev-box' });
   new tailscale.DeviceTags(
     'OvhDevVpsTailscaleTags',
