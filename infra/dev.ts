@@ -54,8 +54,18 @@ if (isProduction) {
     }
   );
 
-  // NOTE: pandoks-dev-box (tagged tag:cliproxyapi) hosts this with
-  // `tailscale serve --service=svc:cliproxyapi --https=443`
+  // NOTE: DeviceTags replaces the device's full tag set, so every tag it needs must be listed
+  const devTailscaleDevice = tailscale.getDeviceOutput({ hostname: 'pandoks-dev-box' });
+  new tailscale.DeviceTags(
+    'OvhDevVpsTailscaleTags',
+    {
+      deviceId: devTailscaleDevice.nodeId,
+      tags: ['tag:funnel', 'tag:ovh', 'tag:cliproxyapi']
+    },
+    { dependsOn: [tailscaleAcl] }
+  );
+
+  // NOTE: pandoks-dev-box hosts this with `tailscale serve --service=svc:cliproxyapi --https=443`
   new tailscale.Service(
     'CliproxyapiTailscaleService',
     {
