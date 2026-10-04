@@ -21,7 +21,7 @@
     "highlight.js": "11.12.0"
   },
   "devDependencies": {
-    "@notionhq/client": "5.26.0",
+    "@notionhq/client": "5.27.0",
     "@playwright/test": "1.63.0",
     "@sveltejs/adapter-static": "3.0.10",
     "@sveltejs/enhanced-img": "0.11.0",
