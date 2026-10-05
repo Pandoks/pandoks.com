@@ -17,14 +17,12 @@ RUN go mod init kustomize \
 FROM node:24.21.0-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6
 
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
-    && apt-get update && apt-get install -y --no-install-recommends \
+    && apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     bash \
     jq \
     git \
     ca-certificates \
-    libgnutls30 \
     apache2-utils \
-    libexpat1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/pnpm/pnpm:12.8.1@sha256:44cfd11d75b901dc7a83a16812d9134e4bf9d82f6b0eb28af6d666ebbf0fb4fb /opt/pnpm/pnpm /usr/local/bin/pnpm
