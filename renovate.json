@@ -49,6 +49,15 @@
     },
     {
       "customType": "regex",
+      "managerFilePatterns": ["/^apps/.+/kube/.+\\.ya?ml$/"],
+      "matchStrings": [
+        "chart: oci://(?:\\$\\{ImageRegistry\\}|ghcr\\.io/pandoks)/(?<depName>charts/[a-z0-9-]+)\\s+version: (?<currentValue>\\S+)"
+      ],
+      "packageNameTemplate": "ghcr.io/pandoks/{{{depName}}}",
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
       "managerFilePatterns": ["/^sst\\.config\\.ts$/"],
       "matchStrings": [
         "\\n\\s+(?<depName>cloudflare|github|hcloud|tailscale): '(?<currentValue>[\\d.]+)'",
@@ -110,6 +119,12 @@
       "description": "Each cluster add-on chart is its own rollout.",
       "matchDatasources": ["helm"],
       "groupName": null
+    },
+    {
+      "description": "Our app charts too, and a chart's `version:` can't carry a digest.",
+      "matchPackageNames": ["ghcr.io/pandoks/charts/**"],
+      "groupName": null,
+      "pinDigests": false
     },
     {
       "description": "PgDog's chart uses two-part versions (v0.27).",
