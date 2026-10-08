@@ -70,7 +70,9 @@ graph TB
 - **3 pods per shard** (1 primary + 2 replicas, configurable) with streaming replication
 - **Leader election** via Kubernetes endpoints
 - **Automatic recovery** from node failures
-- **Extensions** - pg_cron, pgvector, PostGIS, and pg_stat_statements are installed
+- **Extensions** - pg_cron, pgvector, PostGIS, and pg_stat_statements are available in the image.
+  Fresh bootstrap attempts to create `pg_stat_statements` in the application database; create the
+  other extensions in the target database as needed.
 
 ### PgDog (Connection Pooling & Sharding)
 
@@ -98,13 +100,17 @@ graph TB
 
 ## Users & Permissions
 
-| User         | Purpose               | Access                                           |
+| User         | Purpose               | Intended access                                  |
 | ------------ | --------------------- | ------------------------------------------------ |
 | `postgres`   | Superuser             | Full access, remote logins only to `postgres` db |
 | `admin`      | Schema management     | CREATE/ALTER/DROP in `public`, remote access     |
 | `client`     | Application queries   | SELECT/INSERT/UPDATE/DELETE                      |
 | `replicator` | Streaming replication | Replication only                                 |
 | `patroni`    | Patroni REST API      | Health checks, failover                          |
+
+The initializer applies schema, table, sequence, and default privileges in `postgres`, not the
+application database. Configure grants and ownership in the application database, including default
+privileges for the role that creates tables, before using `admin` or `client` there.
 
 **Security Note:** Remote logins (pod network only) to the application database are limited to
 `admin` and `client` (see `pg_hba` in [patroni.yaml](./chart/files/patroni.yaml)). Use `admin` for
@@ -222,7 +228,7 @@ spec:
 postgresql://client:CLIENT_PASSWORD@myapp-pgdog:6432/myapp
 
 # Using psql from a pod
-kubectl exec -it deployment/myapp -- \
+kubectl exec -it -n myapp deployment/myapp -- \
   psql -h myapp-pgdog -p 6432 -U client -d myapp
 ```
 
@@ -239,7 +245,7 @@ kubectl exec -it -n myapp patroni-myapp-shard-0-0 -c patroni -- \
 ### Check Cluster Status
 
 ```bash
-# Check all shards
+# Check shard 0 (repeat for each shard)
 kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
   patronictl -c /etc/patroni/patroni.yaml list
 
@@ -294,7 +300,7 @@ kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
 
 The recovery point must be:
 
-- After the oldest backup's start time
+- After the oldest backup's completion time
 - Before the latest WAL archive timestamp
 - In ISO 8601 format: `YYYY-MM-DD HH:MM:SS+TZ`
 
@@ -426,8 +432,10 @@ spec:
     patroni.shards: 4 # Was 3, now 4
 ```
 
-Redeploy with `pnpm cluster deploy <env>` (prod syncs from `main` through ArgoCD). This creates the
-new shard (`myapp-shard-3`) with its own StatefulSet, services, certificates, and backup cronjobs.
+For `local` or `dev`, redeploy with `pnpm cluster deploy <env> --stage your-stage`. Replace `<env>`
+with `local` or `dev` and `your-stage` with your personal SST stage (for example, `pandoks`). Prod
+syncs from `main` through ArgoCD. This creates the new shard (`myapp-shard-3`) with its own
+StatefulSet, services, certificates, and backup cronjobs.
 
 **Step 2: Verify New Shard**
 

@@ -10,9 +10,9 @@ scripts—no Bash-specific features are required.
 ./scripts/cluster/main.sh <command> [subcommand] [options]
 ```
 
-Use `help`, `--help`, or `-h` with any command/subcommand to view detailed options. Package scripts
-in `package.json` are wired directly to `./scripts/cluster/main.sh`, so you can invoke everything
-via `pnpm` as well.
+Use `help`, `--help`, or `-h` at the top level or with `k3d`, `k3d deps`, or `deploy` to view
+detailed options. Package scripts in `package.json` are wired directly to
+`./scripts/cluster/main.sh`, so you can invoke everything via `pnpm` as well.
 
 ## Top-Level Commands
 
@@ -61,7 +61,7 @@ two are separate kustomize paths — to deploy a fresh cluster end-to-end, run
 | `--stage`      | SST stage to fetch secrets from (default: SST's default stage; forced to `production` for prod env). |
 | `--dry-run`    | Render templates without applying.                                                                   |
 | `--kubeconfig` | Kubeconfig file for kubectl operations.                                                              |
-| `--quiet`/`-q` | Suppress status messages, output only YAML (for CI/CD).                                              |
+| `--quiet`/`-q` | Suppress status messages; with `--dry-run`, output only YAML.                                        |
 
 You will be prompted to confirm the destination kubectl context before anything is applied (unless
 using `--dry-run`).
@@ -90,6 +90,9 @@ the deployment environment, not the SST stage.
 ./scripts/cluster/main.sh k3d deps up
 ./scripts/cluster/main.sh k3d up
 
+# Build and push images/charts to the local registry
+pnpm docker:build && pnpm dev:push
+
 # Deploy in two steps: bootstrap (helm charts + CRDs), then overlay
 ./scripts/cluster/main.sh deploy local --stage your-stage --bootstrap
 ./scripts/cluster/main.sh deploy local --stage your-stage
@@ -102,8 +105,8 @@ the deployment environment, not the SST stage.
 ### Cloud Cluster (Hetzner via Tailscale)
 
 ```sh
-# Switch to the cloud cluster context (<stage>-cluster in your tailnet)
-tailscale configure kubeconfig <stage>-cluster
+# Switch to the prod cluster context in your tailnet
+tailscale configure kubeconfig prod-cluster
 
 # Two-step deploy on a fresh cluster
 ./scripts/cluster/main.sh deploy prod --bootstrap
@@ -113,7 +116,8 @@ tailscale configure kubeconfig <stage>-cluster
 ./scripts/cluster/main.sh deploy prod
 ```
 
-For dev, use `deploy dev --stage your-stage` in both steps, keeping `--bootstrap` on the first.
+For dev, connect to `dev-cluster` and use `deploy dev --stage your-stage` in both steps, keeping
+`--bootstrap` on the first.
 
 The first prod overlay deploy creates the `prod-cluster` ArgoCD Application, which then keeps prod
 in sync with `k3s/overlays/prod` on `main` (`deploy-infra.yaml` triggers a hard refresh when
