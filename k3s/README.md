@@ -34,10 +34,11 @@ SST secrets are substituted inline (`${Secret}`) by `pnpm cluster deploy`. See
 
 For local development, we use [k3d](https://k3d.io/) to create a local k3s cluster.
 
-To setup the cluster, run the following commands from the root of the project:
+To setup the cluster, run the following commands from the root of the project. Replace `your-stage`
+with your personal SST stage (for example, `pandoks`):
 
 ```sh
-pnpm dev:init
+SST_STAGE=your-stage pnpm dev:init
 ```
 
 Or step by step:
@@ -53,10 +54,10 @@ Or step by step:
 pnpm docker:build && pnpm dev:push
 
 # Install base infrastructure (helm charts + CRDs)
-./scripts/cluster/main.sh deploy local --bootstrap
+./scripts/cluster/main.sh deploy local --stage your-stage --bootstrap
 
 # Deploy local overlay (MetalLB IP patch + app dev patches; SST secrets substituted inline)
-./scripts/cluster/main.sh deploy local
+./scripts/cluster/main.sh deploy local --stage your-stage
 ```
 
 ## Cloud Clusters
@@ -71,11 +72,13 @@ tailscale configure kubeconfig <stage>-cluster
 kubectl --context <tailscale-context> get pods
 
 # Install base infrastructure (helm charts + CRDs)
-./scripts/cluster/main.sh deploy prod --bootstrap  # or dev
+./scripts/cluster/main.sh deploy prod --bootstrap
 
 # Deploy overlay (tailscale operator + system-upgrade controller; SST secrets substituted inline)
-./scripts/cluster/main.sh deploy prod  # or dev
+./scripts/cluster/main.sh deploy prod
 ```
+
+For dev, use `deploy dev --stage your-stage` in both commands, keeping `--bootstrap` on the first.
 
 ### ArgoCD (prod)
 
@@ -213,5 +216,5 @@ k3s HelmChart CRD sometimes doesn't trigger upgrades. To force update:
 
 ```bash
 kubectl delete helmchart kube-prometheus-stack -n kube-system
-pnpm cluster deploy local  # or dev/prod
+pnpm cluster deploy local --stage your-stage  # or dev/prod
 ```

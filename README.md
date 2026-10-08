@@ -63,18 +63,19 @@ the cloud. _Because we're using k3d, which puts an entire Kubernetes cluster ins
 containers, not everything is one to one with the production cluster. ie. networking, registries,
 etc_
 
-To setup the local cluster, run this from the root of the monorepo:
+To setup the local cluster, run this from the root of the monorepo. Replace `your-stage` with your
+personal SST stage (for example, `pandoks`):
 
 ```sh
 # Quick setup (all-in-one)
-pnpm dev:init
+SST_STAGE=your-stage pnpm dev:init
 
 # Or step by step:
 pnpm cluster k3d deps up               # Start docker compose dependencies
 pnpm cluster k3d up                    # Create k3d cluster
 pnpm docker:build && pnpm dev:push     # Build and push images/charts to the local registry
-pnpm cluster deploy local --bootstrap  # First-time: install helm charts + CRDs
-pnpm cluster deploy local              # Apply environment overlay
+pnpm cluster deploy local --stage your-stage --bootstrap  # First-time: install helm charts + CRDs
+pnpm cluster deploy local --stage your-stage # Apply environment overlay
 ```
 
 To tear down the cluster:
@@ -92,5 +93,5 @@ For things that are not deployed to Kubernetes, they are managed by `sst`. To ru
 server, run this from the root of the monorepo:
 
 ```sh
-pnpm dev # assuming that you are still verified via SSO
+pnpm dev --stage your-stage # assuming that you are still verified via SSO
 ```

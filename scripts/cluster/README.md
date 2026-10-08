@@ -82,14 +82,17 @@ The `deploy` command renders templates with these substitutions before applying:
 
 ### Local k3d Cluster
 
+Replace `your-stage` with your personal SST stage (for example, `pandoks`); `local` and `dev` select
+the deployment environment, not the SST stage.
+
 ```sh
 # Start dependencies and create the k3d cluster
 ./scripts/cluster/main.sh k3d deps up
 ./scripts/cluster/main.sh k3d up
 
 # Deploy in two steps: bootstrap (helm charts + CRDs), then overlay
-./scripts/cluster/main.sh deploy local --bootstrap
-./scripts/cluster/main.sh deploy local
+./scripts/cluster/main.sh deploy local --stage your-stage --bootstrap
+./scripts/cluster/main.sh deploy local --stage your-stage
 
 # Tear down everything
 ./scripts/cluster/main.sh k3d down
@@ -102,13 +105,15 @@ The `deploy` command renders templates with these substitutions before applying:
 # Switch to the cloud cluster context (<stage>-cluster in your tailnet)
 tailscale configure kubeconfig <stage>-cluster
 
-# Two-step deploy on a fresh cluster (use dev for the dev cluster)
+# Two-step deploy on a fresh cluster
 ./scripts/cluster/main.sh deploy prod --bootstrap
 ./scripts/cluster/main.sh deploy prod
 
 # Re-apply just the overlay (no bootstrap) on subsequent deploys
 ./scripts/cluster/main.sh deploy prod
 ```
+
+For dev, use `deploy dev --stage your-stage` in both steps, keeping `--bootstrap` on the first.
 
 The first prod overlay deploy creates the `prod-cluster` ArgoCD Application, which then keeps prod
 in sync with `k3s/overlays/prod` on `main` (`deploy-infra.yaml` triggers a hard refresh when

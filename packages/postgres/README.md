@@ -401,8 +401,18 @@ kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
 
 ### Scaling Shards
 
-Shards can be added or removed to scale the cluster horizontally. This requires careful data
-migration to maintain consistency.
+PgDog uses PostgreSQL's hash partition functions, so changing `patroni.shards` changes routing for
+existing keys. Adding empty shards or moving only a removed shard's rows is not enough.
+
+**Before either procedure**, stop application reads and writes, including background jobs, and
+export the schema, data, and sequence state from every existing shard to storage outside the
+cluster. Verify the export is complete and restorable before changing `patroni.shards`; keep traffic
+stopped through reloading and validation below.
+
+PgDog's [online resharding](https://docs.pgdog.dev/features/sharding/resharding/) is a separate
+process requiring a new destination cluster and `schema_admin` users with replication permissions.
+This chart does not provision those, and its default two PgDog replicas do not support the
+documented single-instance automatic cutover. The procedures below use downtime.
 
 #### Adding Shards (Scale Up)
 
@@ -433,25 +443,31 @@ kubectl exec -n myapp patroni-myapp-shard-3-0 -c patroni -- \
 **Step 3: Restart PgDog**
 
 The chart regenerates PgDog's `databases` from `patroni.shards`, but PgDog pods don't restart on
-config changes:
+config changes. Wait for the PgDog HelmChart update to finish and confirm the generated
+configuration lists the new shard set before restarting:
 
 ```bash
 kubectl rollout restart deploy/myapp-pgdog -n myapp
+kubectl rollout status deploy/myapp-pgdog -n myapp
 ```
 
-**Step 4: Move Existing Data**
+Confirm every serving PgDog instance uses the new shard set before reloading data.
 
-PgDog shards with PostgreSQL's hash partition functions, not consistent hashing, so changing the
-shard count changes which shard owns most keys. New shards start empty, and until rows are moved,
-queries for existing keys can route to a shard that doesn't have them. Use PgDog's
-[resharding](https://docs.pgdog.dev/features/sharding/resharding/) (logical replication into a new
-set of shards; `wal_level` is already `logical`) or export the data and re-insert it through PgDog
-during downtime.
+**Step 4: Reload and Validate Data**
+
+Ensure the schema matches the export on every destination shard. Added shards may restore old
+backups, so clear old application table data on all destination shards before reloading to avoid
+duplicate or stale rows. Re-insert the complete exported data through PgDog with the new shard count
+and the configured sharding keys. Preserve unsharded and replicated tables and restore sequence
+state as appropriate for the schema.
+
+Before resuming application traffic, verify row counts against the export, key-based reads and
+writes through PgDog, and that replicas have caught up. Keep the export until validation succeeds.
 
 #### Removing Shards (Scale Down)
 
-Removing a shard drops it from PgDog's routing, so move its rows onto the remaining shards first
-(same options as [Step 4](#adding-shards-scale-up) above).
+Export every shard with application traffic stopped as described above before lowering the shard
+count. Removing shards changes routing for keys on the retained shards too.
 
 **Step 1: Update Helm Values**
 
@@ -461,9 +477,16 @@ spec:
     patroni.shards: 3 # Was 4, now 3
 ```
 
-Redeploy and restart PgDog as above.
+Redeploy, verify the remaining shards are healthy, and follow Step 3 above to restart PgDog and
+verify its new routing before reloading. Keep application traffic stopped.
 
-**Step 2: Clean Up Leftover Resources**
+**Step 2: Reload and Validate Data**
+
+Clear old table data on the remaining shards, re-insert the complete export through PgDog, and
+restore sequence state and validate as in [Adding Shards](#adding-shards-scale-up), Step 4. Resume
+application traffic only after validation succeeds.
+
+**Step 3: Clean Up Leftover Resources**
 
 Helm deletes the removed shard's StatefulSet, services, certificates, and backup cronjobs on
 upgrade. Patroni's endpoints, cert-manager's TLS secrets, and the PVCs are left behind:
