@@ -1,7 +1,7 @@
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
 metadata:
-  name: {{ .Values.db }}-pgdog
+  name: {{ .Values.pgdogReleaseName | default (printf "%s-pgdog" .Values.db) }}
   namespace: kube-system
 spec:
   repo: https://helm.pgdog.dev
