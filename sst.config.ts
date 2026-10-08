@@ -22,7 +22,7 @@ export default $config({
           applicationKey: 'edf9a4672d28e3c7',
           version: '2.17.0'
         },
-        tailscale: '0.27.0'
+        tailscale: '0.29.1'
       }
     };
   },

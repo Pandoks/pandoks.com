@@ -6,9 +6,9 @@ automatically. When you add a new top-level category, remember to add it to the 
 `package.json` in this package.
 
 > [!IMPORTANT]
-> Instead of using `$lib`, use `@lib` instead. This is so that you can reference this
-> package in `svelte.config.js` in other packages. If you were to use `$lib`, other packages would
-> look into their own `$lib` instead of this package which may not contain the necessary code.
+> Instead of using `$lib`, use `@lib` instead. This is so that you can reference this package in
+> `svelte.config.js` in other packages. If you were to use `$lib`, other packages would look into
+> their own `$lib` instead of this package which may not contain the necessary code.
 
 This component library houses all the `shadcn-svelte` components (add more with
 `pnpm shadcn <component>` from the repo root), shared styles, and SVGs.

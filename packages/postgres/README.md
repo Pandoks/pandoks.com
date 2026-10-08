@@ -1,6 +1,7 @@
 # PostgreSQL High-Availability Cluster
 
-Production-ready PostgreSQL cluster with automatic failover, connection pooling, sharding, and continuous backups.
+Production-ready PostgreSQL cluster with automatic failover, connection pooling, sharding, and
+continuous backups.
 
 ## Architecture
 
@@ -114,7 +115,8 @@ schema changes and `client` for applications.
 The chart expects these to already be in the cluster (all provided by [k3s](/k3s/README.md)):
 
 - `patroni` ClusterRole from [k3s/base/core/postgres.yaml](/k3s/base/core/postgres.yaml)
-- `internal-ca-issuer` ClusterIssuer from [k3s/base/core/cert-manager.yaml](/k3s/base/core/cert-manager.yaml)
+- `internal-ca-issuer` ClusterIssuer from
+  [k3s/base/core/cert-manager.yaml](/k3s/base/core/cert-manager.yaml)
 - Prometheus Operator CRDs for the `ServiceMonitor`s
 
 ## Quick Start
@@ -274,7 +276,8 @@ kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
 
 ### Point-in-Time Recovery (PITR)
 
-PITR allows you to restore a shard to any specific moment in time. This is useful for recovering from accidental data deletion or corruption.
+PITR allows you to restore a shard to any specific moment in time. This is useful for recovering
+from accidental data deletion or corruption.
 
 #### Step 1: Identify Target Time
 
@@ -309,8 +312,8 @@ kubectl wait --for=delete pod -l cluster-name=myapp-shard-0 -n myapp --timeout=1
 
 #### Step 3: Prepare a Recovery Pod
 
-Create a temporary pod from the StatefulSet's `patroni` container so it has the same env, config, and
-volumes, with pod 0's PVCs mounted:
+Create a temporary pod from the StatefulSet's `patroni` container so it has the same env, config,
+and volumes, with pod 0's PVCs mounted:
 
 ```bash
 kubectl get statefulset patroni-myapp-shard-0 -n myapp -o json | jq '. as $sts | {
@@ -387,14 +390,19 @@ kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
 
 #### PITR Notes
 
-- **Per-shard recovery**: Each shard has independent backups. You can recover one shard without affecting others.
-- **Replica rebuilding**: After PITR, replicas will automatically rebuild from the restored primary via pgbackrest or basebackup.
-- **Timeline changes**: PITR creates a new timeline. The `recovery_target_timeline: latest` setting in Patroni ensures replicas follow the new timeline.
-- **Data consistency**: For sharded tables, recovering one shard to a different point in time may cause cross-shard inconsistencies. Plan accordingly.
+- **Per-shard recovery**: Each shard has independent backups. You can recover one shard without
+  affecting others.
+- **Replica rebuilding**: After PITR, replicas will automatically rebuild from the restored primary
+  via pgbackrest or basebackup.
+- **Timeline changes**: PITR creates a new timeline. The `recovery_target_timeline: latest` setting
+  in Patroni ensures replicas follow the new timeline.
+- **Data consistency**: For sharded tables, recovering one shard to a different point in time may
+  cause cross-shard inconsistencies. Plan accordingly.
 
 ### Scaling Shards
 
-Shards can be added or removed to scale the cluster horizontally. This requires careful data migration to maintain consistency.
+Shards can be added or removed to scale the cluster horizontally. This requires careful data
+migration to maintain consistency.
 
 #### Adding Shards (Scale Up)
 
@@ -442,8 +450,8 @@ during downtime.
 
 #### Removing Shards (Scale Down)
 
-Removing a shard drops it from PgDog's routing, so move its rows onto the remaining shards first (same
-options as [Step 4](#adding-shards-scale-up) above).
+Removing a shard drops it from PgDog's routing, so move its rows onto the remaining shards first
+(same options as [Step 4](#adding-shards-scale-up) above).
 
 **Step 1: Update Helm Values**
 
@@ -457,8 +465,8 @@ Redeploy and restart PgDog as above.
 
 **Step 2: Clean Up Leftover Resources**
 
-Helm deletes the removed shard's StatefulSet, services, certificates, and backup cronjobs on upgrade.
-Patroni's endpoints, cert-manager's TLS secrets, and the PVCs are left behind:
+Helm deletes the removed shard's StatefulSet, services, certificates, and backup cronjobs on
+upgrade. Patroni's endpoints, cert-manager's TLS secrets, and the PVCs are left behind:
 
 ```bash
 # Delete Patroni endpoints
@@ -516,7 +524,8 @@ done
 
 ### Cluster Won't Start After Deletion
 
-When you delete and recreate the cluster, stale DCS endpoints may prevent Patroni from bootstrapping:
+When you delete and recreate the cluster, stale DCS endpoints may prevent Patroni from
+bootstrapping:
 
 ```
 waiting for leader to bootstrap
@@ -577,8 +586,8 @@ pgdog:
 ## Local Development
 
 Local k3d clusters pull the images and chart from the local registry (`localhost:12345` on your
-machine, `local-registry:5000` inside the cluster). Build and push them at least once, and again after
-changing them:
+machine, `local-registry:5000` inside the cluster). Build and push them at least once, and again
+after changing them:
 
 | Command                    | Description                                                     |
 | -------------------------- | --------------------------------------------------------------- |
@@ -644,7 +653,8 @@ changing them:
 
 ## Security
 
-1. **Superuser stays off app databases** - `postgres` can only log in remotely to the `postgres` database
+1. **Superuser stays off app databases** - `postgres` can only log in remotely to the `postgres`
+   database
 2. **TLS for backups** - All backup traffic is encrypted
 3. **Encrypted backups** - AES-256-CBC encryption at rest
 4. **Least privilege** - Applications use `client` user with limited permissions
