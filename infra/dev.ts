@@ -59,7 +59,7 @@ if (isProduction) {
     'OvhDevVpsTailscaleTags',
     {
       deviceId: devTailscaleDevice.nodeId,
-      tags: ['tag:funnel', 'tag:ovh', 'tag:cliproxyapi']
+      tags: ['tag:funnel', 'tag:ovh', 'tag:cliproxyapi', 'tag:ssh']
     },
     { dependsOn: [tailscaleAcl] }
   );
