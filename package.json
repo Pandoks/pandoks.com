@@ -12,7 +12,7 @@
     "tools:install": "mise install --yes",
     "cluster": "./scripts/cluster/main.sh",
     "dev": "sst dev",
-    "dev:init": "pnpm cluster k3d deps up && pnpm cluster k3d up && pnpm docker:build && pnpm dev:push && pnpm cluster deploy dev --bootstrap && pnpm cluster deploy dev",
+    "dev:init": "pnpm cluster k3d deps up && pnpm cluster k3d up && pnpm docker:build && pnpm dev:push && pnpm cluster deploy local --bootstrap && pnpm cluster deploy local",
     "dev:destroy": "pnpm cluster k3d down && pnpm cluster k3d deps down",
     "dev:push": "pnpm -r --if-present dev:push",
     "docker:build": "pnpm -r --if-present docker:build",
@@ -22,7 +22,7 @@
     "test": "./scripts/test/main.sh",
     "check:infra": "tsc -p .",
     "check": "pnpm -r --if-present check && pnpm check:infra",
-    "postinstall": "sst install"
+    "postinstall": "sst install --stage install"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261005.1",
