@@ -12,6 +12,8 @@ spec:
       containers:
         - name: kustomize-sst-render
           image: ghcr.io/pandoks/argocd-sst-plugin:main
+          # The mutable tag must be re-pulled on restart, or a node keeps serving a cached old renderer.
+          imagePullPolicy: Always
           command: [/var/run/argocd/argocd-cmp-server]
           securityContext:
             readOnlyRootFilesystem: true
