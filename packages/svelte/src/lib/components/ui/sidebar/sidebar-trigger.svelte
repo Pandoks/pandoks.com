@@ -18,7 +18,7 @@
 </script>
 
 <Button
-  bind:ref={ref}
+  bind:ref
   data-sidebar="trigger"
   data-slot="sidebar-trigger"
   variant="ghost"
