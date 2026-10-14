@@ -1,11 +1,11 @@
 {
   "name": "pandoks.com",
   "version": "1.0.0",
-  "packageManager": "pnpm@12.10.1+sha512.ba40a37eb1a370d60fea8c4cf1d364c13bcccef518e98ad2bcee954f539d38da37458e58261a3fa55e06523450ea0ffff9f497b135be41f2c15c1642bacace6c",
+  "packageManager": "pnpm@12.11.2+sha512.25a51652a196785af5f28bda6dfe8dc582ebefa4ac1d180221ce1390231c5fb76637822ea4b6e4633ce74acdcb0a77f725af11bad38177fdeddaee818a955cb9",
   "type": "module",
   "engines": {
     "node": ">=24",
-    "pnpm": "12.10.1"
+    "pnpm": "12.11.2"
   },
   "scripts": {
     "sso": "aws sso login --sso-session=personal --use-device-code --no-browser",
@@ -25,28 +25,28 @@
     "postinstall": "sst install --stage install"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20261008.1",
+    "@cloudflare/workers-types": "5.20261011.1",
     "@eslint/compat": "2.1.1",
     "@eslint/js": "10.0.1",
     "@pandoks.com/prettier": "workspace:*",
     "@types/node": "25.9.9",
     "bcryptjs": "3.0.3",
     "eslint": "10.12.0",
-    "eslint-plugin-svelte": "3.23.0",
+    "eslint-plugin-svelte": "3.23.1",
     "eslint-plugin-unicorn": "76.0.0",
     "glob": "13.0.6",
     "globals": "17.13.0",
     "jiti": "2.7.0",
     "json-stringify-pretty-compact": "4.0.0",
     "portless": "0.15.7",
-    "prettier": "3.9.9",
+    "prettier": "3.9.10",
     "prettier-plugin-svelte": "4.1.1",
     "prettier-plugin-tailwindcss": "0.8.1",
-    "svelte-eslint-parser": "1.8.1",
+    "svelte-eslint-parser": "1.9.0",
     "typescript": "6.0.3",
     "typescript-eslint": "8.71.1"
   },
   "dependencies": {
-    "sst": "4.17.1"
+    "sst": "4.17.2"
   }
 }
