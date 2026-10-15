@@ -48,7 +48,7 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         },
         {
           action: 'accept',
-          src: ['tag:ssh'],
+          src: ['autogroup:member', 'autogroup:tagged'],
           dst: ['tag:ssh'],
           users: ['autogroup:nonroot', 'root']
         }
