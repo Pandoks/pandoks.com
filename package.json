@@ -25,7 +25,7 @@
     "postinstall": "sst install --stage install"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20261011.1",
+    "@cloudflare/workers-types": "5.20261013.1",
     "@eslint/compat": "2.1.1",
     "@eslint/js": "10.0.1",
     "@pandoks.com/prettier": "workspace:*",
@@ -44,7 +44,7 @@
     "prettier-plugin-tailwindcss": "0.8.1",
     "svelte-eslint-parser": "1.9.0",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.71.1"
+    "typescript-eslint": "8.71.2"
   },
   "dependencies": {
     "sst": "4.17.2"
