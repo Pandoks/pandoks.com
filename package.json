@@ -1,11 +1,11 @@
 {
   "name": "pandoks.com",
   "version": "1.0.0",
-  "packageManager": "pnpm@12.11.2+sha512.25a51652a196785af5f28bda6dfe8dc582ebefa4ac1d180221ce1390231c5fb76637822ea4b6e4633ce74acdcb0a77f725af11bad38177fdeddaee818a955cb9",
+  "packageManager": "pnpm@12.13.0+sha512.1e55719bf26e809dce5c5084fdebaa64efb3da9038ae5d68a9f8a68311f1a45841c8c3b76a37298c3b66f6bcc80409a9b7f33c78a7168a3e90fb65a5d8235ae4",
   "type": "module",
   "engines": {
     "node": ">=24",
-    "pnpm": "12.11.2"
+    "pnpm": "12.13.0"
   },
   "scripts": {
     "sso": "aws sso login --sso-session=personal --use-device-code --no-browser",
@@ -25,7 +25,7 @@
     "postinstall": "sst install --stage install"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20261013.1",
+    "@cloudflare/workers-types": "5.20261014.1",
     "@eslint/compat": "2.1.1",
     "@eslint/js": "10.0.1",
     "@pandoks.com/prettier": "workspace:*",
@@ -38,7 +38,7 @@
     "globals": "17.13.0",
     "jiti": "2.7.0",
     "json-stringify-pretty-compact": "4.0.0",
-    "portless": "0.15.7",
+    "portless": "0.15.8",
     "prettier": "3.9.10",
     "prettier-plugin-svelte": "4.1.1",
     "prettier-plugin-tailwindcss": "0.8.1",
