@@ -22,8 +22,8 @@ importers:
         version: 4.17.2
     devDependencies:
       '@cloudflare/workers-types':
-        specifier: 5.20261013.1
-        version: 5.20261013.1
+        specifier: 5.20261014.1
+        version: 5.20261014.1
       '@eslint/compat':
         specifier: 2.1.1
         version: 2.1.1(eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1))
@@ -61,8 +61,8 @@ importers:
         specifier: 4.0.0
         version: 4.0.0
       portless:
-        specifier: 0.15.7
-        version: 0.15.7
+        specifier: 0.15.8
+        version: 0.15.8
       prettier:
         specifier: 3.9.10
         version: 3.9.10
@@ -152,8 +152,8 @@ importers:
         specifier: 1.0.2
         version: 1.0.2
       electron:
-        specifier: 44.7.0
-        version: 44.7.0(supports-color@8.1.1)
+        specifier: 44.7.2
+        version: 44.7.2(supports-color@8.1.1)
       jsdom:
         specifier: 30.1.2
         version: 30.1.2
@@ -184,23 +184,23 @@ importers:
   apps/functions:
     dependencies:
       '@aws-sdk/client-dynamodb':
-        specifier: 3.1150.0
-        version: 3.1150.0
+        specifier: 3.1151.0
+        version: 3.1151.0
       '@aws-sdk/client-lambda':
-        specifier: 3.1150.0
-        version: 3.1150.0
+        specifier: 3.1151.0
+        version: 3.1151.0
       '@aws-sdk/client-scheduler':
-        specifier: 3.1150.0
-        version: 3.1150.0
+        specifier: 3.1151.0
+        version: 3.1151.0
       '@aws-sdk/client-sns':
-        specifier: 3.1150.0
-        version: 3.1150.0
+        specifier: 3.1151.0
+        version: 3.1151.0
       '@aws-sdk/client-ssm':
-        specifier: 3.1150.0
-        version: 3.1150.0
+        specifier: 3.1151.0
+        version: 3.1151.0
       '@aws-sdk/lib-dynamodb':
-        specifier: 3.1150.0
-        version: 3.1150.0(@aws-sdk/client-dynamodb@3.1150.0)
+        specifier: 3.1151.0
+        version: 3.1151.0(@aws-sdk/client-dynamodb@3.1151.0)
       '@notionhq/client':
         specifier: 5.27.0
         version: 5.27.0
@@ -324,8 +324,8 @@ importers:
         specifier: 3.12.4
         version: 3.12.4
       '@lucide/svelte':
-        specifier: 1.56.0
-        version: 1.56.0(svelte@5.57.2(@typescript-eslint/types@8.71.2))
+        specifier: 1.57.0
+        version: 1.57.0(svelte@5.57.2(@typescript-eslint/types@8.71.2))
       '@playwright/test':
         specifier: 1.64.0
         version: 1.64.0
@@ -408,24 +408,24 @@ packages:
     resolution: {integrity: sha512-YnVzxDxLaqL0t7Q4wfcgHZjg55Wm6y5EaO7Bhu3q9J7wq/8iw3PhsnWiOQhYekx4VexnbkgWpTT6n+QIV7kczw==}
     engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0}
 
-  '@aws-sdk/client-dynamodb@3.1150.0':
-    resolution: {integrity: sha512-04ysWG8zKrFM4e550/OEb3Pu+yE3cgppKIPwY7kS5xV4MFGW0S3hSD+1+ocWyw1Rb1UusaJCkcDHKZEdIO3dRw==}
+  '@aws-sdk/client-dynamodb@3.1151.0':
+    resolution: {integrity: sha512-kWsWKCbL/53ABtNTUSJLLicEG4xE2CAXllPIp8iq8LDafxjAp/dZa82/z0s2eHpDGnbImjXBCYjhOZBGlFf/qQ==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/client-lambda@3.1150.0':
-    resolution: {integrity: sha512-bld3mYojcpYmUgXJhmwJkMPnTQcqPHOiB7JJV620g5S0Iwc1gbm4WtmR2yrEqwnMM+OngdubbLmP0wtFtSFNBQ==}
+  '@aws-sdk/client-lambda@3.1151.0':
+    resolution: {integrity: sha512-3COCzJ/pzg9i8/8UzLIS3Dm2UcdCAbPQf38OXQHJfVk42ewRlHexwilqublZIIONZgw7hqGvsaq5V5I6Acdbrw==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/client-scheduler@3.1150.0':
-    resolution: {integrity: sha512-bOGeSGryFnGQGafTkM4myPhKktvDAN4dNmR9vWKHyYeG5GRwoYN6VxYQtoOcMaotOybPei0nyzieAVDT5mXNgQ==}
+  '@aws-sdk/client-scheduler@3.1151.0':
+    resolution: {integrity: sha512-53RmUsfPAAp3N/zgTotfCbI4R3c0fE7WgMH7VviNerreo1y6wskmZ+A4ZT5Ea39aNuHM2fTzRVV2EoW0TxPfIw==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/client-sns@3.1150.0':
-    resolution: {integrity: sha512-MuNxDLDbjNp3pK9rdrdMBNLx5vwGxBG+qawvV5Z7zg7+RtouKC0DLKcQ7ONAm/9thwpmGh5FpVwkLSd5fgjWCA==}
+  '@aws-sdk/client-sns@3.1151.0':
+    resolution: {integrity: sha512-wYvVqK/ekEFutNUSUcfYaVdyHGpgsIbVMqGGnhBSbsgD2Og4dIo3rKsbkwI1J/ojGrDsEsXsvCD8Br9vqZtr1g==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/client-ssm@3.1150.0':
-    resolution: {integrity: sha512-0omOdO3UWj8WC8KEIzeou7jWAqfr9zyQ47v68wwt3o24BjcnHkwSIIiLxNURiTdgO6t5pzGcazaSTJTpTvFIIg==}
+  '@aws-sdk/client-ssm@3.1151.0':
+    resolution: {integrity: sha512-2oWUPpTNF7/8v67uyzAA17RIQrJkX/8Xa6WsGwbla7UNg2n37Jp9X24lGyjbiIQhL/HlsIlI4b3Umt1dfrAgUQ==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/core@3.978.3':
@@ -472,11 +472,11 @@ packages:
     resolution: {integrity: sha512-8q1ICxcDjHId3bBryuu/j+1L9y5/3uQnwzLDt5j2ElcjZSoWmFtymdJy7OjLrluSMe0Z4mq5bcH4fxBXvlEHfw==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/lib-dynamodb@3.1150.0':
-    resolution: {integrity: sha512-L0HWyaQPr3ETjosWFznWyB0cRJ6qoVehWjgLESgauiPlB9QBWOgC4R3q4AD+FalGppcHF0YlI9Mv9BFxRHJaBg==}
+  '@aws-sdk/lib-dynamodb@3.1151.0':
+    resolution: {integrity: sha512-TxgzF6qWmvuVxoARzvsR/fI3EssFfI3cMCOCRgmvJVX7QsYHm8qFDui2zYv22pPbDz8g1BvPY5TrQfBab8DV/g==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
-      '@aws-sdk/client-dynamodb': ^3.1150.0
+      '@aws-sdk/client-dynamodb': ^3.1151.0
 
   '@aws-sdk/middleware-endpoint-discovery@3.972.32':
     resolution: {integrity: sha512-SshKt+B6n8Nn7EHs8aRs1Ye+GJmgeX0lq1lIIV7R5tRZdTGBMzO+nXqvWMTxfN5UmNYYfSBRJbbwbl0xevusFg==}
@@ -538,8 +538,8 @@ packages:
   '@cacheable/utils@2.5.0':
     resolution: {integrity: sha512-buipgOVDkkPXNR5+xBpDw7Zk2n1EvU7qBJCNUcL7rhQ//kfpOXPAvQ511Os0vpLYJ1pZnvudNytkQt2hst3wqA==}
 
-  '@cloudflare/workers-types@5.20261013.1':
-    resolution: {integrity: sha512-0SfkM/MA+oSIAzFFmjr0wZLH54oeCtugaOn8GpJDBnerQiML+rOPq2W6j6bBGE51o+N4DOd0tvMruLmkAQzlpw==}
+  '@cloudflare/workers-types@5.20261014.1':
+    resolution: {integrity: sha512-eGvDG17vu/BmQPOGWFgG1M7iPnW3c17Ykf2qi80JBkPI9f/GYl+5IC2XnZfrwf/CQXZICFgyX/l0+pc1bLbp+g==}
 
   '@csstools/color-helpers@6.1.2':
     resolution: {integrity: sha512-grhRy3OKmniaAEKXMjua5z/EODX0MSqBGjunw8+j/3HQjOnahs2AGhvEOIYVUWcU6ScApbhLhVrQTX8XqrMrow==}
@@ -1078,8 +1078,8 @@ packages:
     peerDependencies:
       '@inquirer/prompts': '>= 3 < 8'
 
-  '@lucide/svelte@1.56.0':
-    resolution: {integrity: sha512-YzbcmneHmPog3wAdXSl7oORgJhFc6klu8rRLMmm5uXwPQ8B0740c7dcNd3oJ72nCPvlbCW1XEmsWa4I0SDIogw==}
+  '@lucide/svelte@1.57.0':
+    resolution: {integrity: sha512-KWO10Jo80+Rd/JGBQkVcwkF1czJH+CwjHtfjZzLfRsmcI42YuMai3SCiRtdo5+3yo7fhT3oHKHaSBvN8GHEVpQ==}
     peerDependencies:
       svelte: ^5
 
@@ -2275,8 +2275,8 @@ packages:
     resolution: {integrity: sha512-j9ETcBGJaXxAY/b6UBpR7LZfjdU4BAO+yvr4ifqHEdyuc3UNCy91PDGkWKY5UQ4coHNYfnwFggrqD6QPeFGAlg==}
     engines: {node: '>=8.0.0'}
 
-  electron@44.7.0:
-    resolution: {integrity: sha512-aUq9/zLAAFYc+a9gy6cd0C3Y/N/RmovLCD8TV8LhIzNhuND6HEgsu96jJz9cbAxvckSPv+Trf2PKEjktoZgFkw==}
+  electron@44.7.2:
+    resolution: {integrity: sha512-u3Pbz0Hi1sSSwBMz2v8LiagsfUG4QURPUe/qphM+g4THKP8o4BYdnuboyhlLO8HIC/KfV5rvltyacbP4jEq9yw==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -3732,8 +3732,8 @@ packages:
     resolution: {integrity: sha512-Nc3IT5yHzflTfbjgqWcCPpo7DaKy4FnpB0l/zCAW0Tc7jxAiuqSxHasntB3D7887LSrA93kDJ9IXovxJYxyLCA==}
     engines: {node: '>=4'}
 
-  portless@0.15.7:
-    resolution: {integrity: sha512-fffMnzfwU/0chJmOMmeAOjFouRsZUmdJagxdqE4DATLw83ssAnHX4BzvNqOI5vBgsuvWLX5ZLg63bzs7zdVFNw==}
+  portless@0.15.8:
+    resolution: {integrity: sha512-kzGoG4xLsEytczl7O/COZaBwSAOKsWsZDxHv7/iFHKIC0X71OonpgbsQw58CGO29RklIHIx6yLM31TJMnTtPEw==}
     engines: {node: '>=24'}
     os: [darwin, linux, win32]
     hasBin: true
@@ -4841,7 +4841,7 @@ snapshots:
       is-potential-custom-element-name: 1.0.1
       lru-cache: 11.5.3
 
-  '@aws-sdk/client-dynamodb@3.1150.0':
+  '@aws-sdk/client-dynamodb@3.1151.0':
     dependencies:
       '@aws-sdk/core': 3.978.3
       '@aws-sdk/credential-provider-node': 3.972.86
@@ -4854,7 +4854,7 @@ snapshots:
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
-  '@aws-sdk/client-lambda@3.1150.0':
+  '@aws-sdk/client-lambda@3.1151.0':
     dependencies:
       '@aws-sdk/core': 3.978.3
       '@aws-sdk/credential-provider-node': 3.972.86
@@ -4865,7 +4865,7 @@ snapshots:
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
-  '@aws-sdk/client-scheduler@3.1150.0':
+  '@aws-sdk/client-scheduler@3.1151.0':
     dependencies:
       '@aws-sdk/core': 3.978.3
       '@aws-sdk/credential-provider-node': 3.972.86
@@ -4876,7 +4876,7 @@ snapshots:
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
-  '@aws-sdk/client-sns@3.1150.0':
+  '@aws-sdk/client-sns@3.1151.0':
     dependencies:
       '@aws-sdk/core': 3.978.3
       '@aws-sdk/credential-provider-node': 3.972.86
@@ -4887,7 +4887,7 @@ snapshots:
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
-  '@aws-sdk/client-ssm@3.1150.0':
+  '@aws-sdk/client-ssm@3.1151.0':
     dependencies:
       '@aws-sdk/core': 3.978.3
       '@aws-sdk/credential-provider-node': 3.972.86
@@ -5005,11 +5005,11 @@ snapshots:
       mnemonist: 0.38.3
       tslib: 2.8.1
 
-  '@aws-sdk/lib-dynamodb@3.1150.0(@aws-sdk/client-dynamodb@3.1150.0)':
+  '@aws-sdk/lib-dynamodb@3.1151.0(@aws-sdk/client-dynamodb@3.1151.0)':
     dependencies:
-      '@aws-sdk/client-dynamodb': 3.1150.0
+      '@aws-sdk/client-dynamodb': 3.1151.0
       '@aws-sdk/core': 3.978.3
-      '@aws-sdk/util-dynamodb': 3.996.9(@aws-sdk/client-dynamodb@3.1150.0)
+      '@aws-sdk/util-dynamodb': 3.996.9(@aws-sdk/client-dynamodb@3.1151.0)
       '@smithy/core': 3.35.2
       '@smithy/types': 4.19.0
       tslib: 2.8.1
@@ -5054,9 +5054,9 @@ snapshots:
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
-  '@aws-sdk/util-dynamodb@3.996.9(@aws-sdk/client-dynamodb@3.1150.0)':
+  '@aws-sdk/util-dynamodb@3.996.9(@aws-sdk/client-dynamodb@3.1151.0)':
     dependencies:
-      '@aws-sdk/client-dynamodb': 3.1150.0
+      '@aws-sdk/client-dynamodb': 3.1151.0
       tslib: 2.8.1
 
   '@aws-sdk/xml-builder@3.972.41':
@@ -5066,7 +5066,7 @@ snapshots:
 
   '@aws/durable-execution-sdk-js@1.0.2':
     dependencies:
-      '@aws-sdk/client-lambda': 3.1150.0
+      '@aws-sdk/client-lambda': 3.1151.0
 
   '@aws/lambda-invoke-store@0.3.0': {}
 
@@ -5096,7 +5096,7 @@ snapshots:
       hashery: 1.5.1
       keyv: 5.6.0
 
-  '@cloudflare/workers-types@5.20261013.1': {}
+  '@cloudflare/workers-types@5.20261014.1': {}
 
   '@csstools/color-helpers@6.1.2': {}
 
@@ -5892,7 +5892,7 @@ snapshots:
       '@inquirer/prompts': 6.0.1
       '@inquirer/type': 1.5.5
 
-  '@lucide/svelte@1.56.0(svelte@5.57.2(@typescript-eslint/types@8.71.2))':
+  '@lucide/svelte@1.57.0(svelte@5.57.2(@typescript-eslint/types@8.71.2))':
     dependencies:
       svelte: 5.57.2(@typescript-eslint/types@8.71.2)
 
@@ -7153,7 +7153,7 @@ snapshots:
       - supports-color
     optional: true
 
-  electron@44.7.0(supports-color@8.1.1):
+  electron@44.7.2(supports-color@8.1.1):
     dependencies:
       '@electron-internal/extract-zip': 1.0.5
       '@electron/get': 5.1.0(supports-color@8.1.1)
@@ -8552,7 +8552,7 @@ snapshots:
 
   pluralize@8.0.0: {}
 
-  portless@0.15.7: {}
+  portless@0.15.8: {}
 
   postcss-load-config@3.1.4(postcss@8.5.30):
     dependencies:
