@@ -177,43 +177,44 @@ Before calling infra, cluster, or tooling work done, check:
 - Review and fix loops cover correctness, least code, style match, tests, and docs, and stop when a
   full round finds nothing.
 - Babysitting: poll checks and comments newer than the last push, fix real bot findings, dismiss
-  false positives with a written reason, and resolve threads you addressed. If Codex skipped a push
-  (it skips merge-only pushes), comment `@codex review`. Stop when the bots are green on the latest
-  commit.
+  false positives with a written reason, and resolve threads you addressed. If a review bot skipped
+  the latest push, request a review with the comment command it advertises on the PR. Stop when CI
+  passes and every review bot has reviewed the latest commit with nothing left unhandled.
 
 ## Code Review Rules
 
+Treat each change below as a high-severity finding that blocks merge, and a real secret as critical.
 Lint and formatting belong to CI. Don't ask for comments, fallbacks, retries, or hardening for cases
 that can't happen, or for compatibility code for old data or deploy order during a rollout.
 
-- P1: a new way to change production outside the `main` deploy, such as production commands added to
+- A new way to change production outside the `main` deploy, such as production commands added to
   scripts or workflows, weakened `protect` or `retain`, or stage checks that confuse production with
   other stages. The existing `deploy-infra.yaml` dispatch and `pnpm cluster deploy prod` recovery
   paths are intended; new callers of them aren't, except local `--dry-run` previews, tests that stub
   SST and `kubectl`, and Argo Applications in the `prod` overlay that render `main`. Safe path:
   `isProduction` in `infra/` and the `prod` overlay in `k3s/`.
-- P1: a new pin (a version or digest added where none was, not a bump) that Renovate can't update,
-  or a new third-party download or image with no version (`releases/latest`, `:latest`). Exceptions:
-  a chart's own `version:` in `Chart.yaml` and an `appVersion` that sets no image tag or download,
+- A new pin (a version or digest added where none was, not a bump) that Renovate can't update, or a
+  new third-party download or image with no version (`releases/latest`, `:latest`). Exceptions: a
+  chart's own `version:` in `Chart.yaml` and an `appVersion` that sets no image tag or download,
   `apk` and `apt` pins hadolint requires, server OS images like `ubuntu-24.04`, and vendor install
-  scripts or generators like `tailscale.com/install.sh` and `shadcn-svelte@latest`. Also P1: a
-  version bump missing one of its synced copies, like a `Chart.yaml` bump without the `apps/*/kube`
+  scripts or generators like `tailscale.com/install.sh` and `shadcn-svelte@latest`. Also a version
+  bump missing one of its synced copies, like a `Chart.yaml` bump without the `apps/*/kube`
   manifests using it. Safe path: a native Renovate manager (`helm-values` updates image strings
   under any `values.yaml` key ending in `image`; none matches raw manifests in `k3s/` or
   `apps/*/kube`) or a `# renovate:` comment a `renovate.json` custom manager matches; checksums
   Renovate can't compute are bumped by hand with their version.
-- P1: an attacker-controlled `${{ }}` value, like a branch name or PR title, in `run:` instead of
+- An attacker-controlled `${{ }}` value, like a branch name or PR title, in `run:` instead of
   `env:`.
-- P0: a real secret value in code, manifests, values, logs, or workflow output. References like
+- A real secret value in code, manifests, values, logs, or workflow output. References like
   `sst.Secret` names, `${...}` placeholders, and `${{ secrets.* }}` are fine.
-- P1: a swallowed failure in CI checks, scans, builds, or deploys, such as `|| true`, ignored exit
+- A swallowed failure in CI checks, scans, builds, or deploys, such as `|| true`, ignored exit
   codes, Trivy `exit-code: '0'`, or `continue-on-error`. Safe path: let the step fail. Intended
   exceptions: a known upstream bug with a `TODO:` linking the issue (like `sst refresh` in
   `deploy-infra.yaml`) and the best-effort `rollout status ... || true` waits in
   `scripts/cluster/deploy.sh`. Lint suppressions like `# hadolint ignore=` aren't swallowed
   failures.
-- P1: missing wiring, because the thing silently never gets built, tested, deployed, or scanned, and
-  a skipped path-filtered job still passes its required check:
+- Missing wiring, because the thing silently never gets built, tested, deployed, or scanned, and a
+  skipped path-filtered job still passes its required check:
   - a new `infra/` module outside `sst.config.ts`'s import graph;
   - a new app `kube/` directory missing from `k3s/base/apps`;
   - a new `${...}` manifest placeholder with no matching SST resource or computed variable in
