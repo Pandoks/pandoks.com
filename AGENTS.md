@@ -77,9 +77,10 @@ on code to satisfy it.
 ## How changes ship
 
 - **Pull requests** run `checks.yaml`, `tests.yaml`, `security.yaml`, and `build-and-publish.yaml`
-  (branch-tagged images and charts in GHCR), plus `sst diff --stage production` and a Cloudflare
-  Pages preview of `apps/web`. The required checks are the aggregates `checks-pass`, `tests-pass`,
-  `security-pass`, and `build-and-publish-pass`.
+  (branch-tagged images and charts in GHCR), plus `sst diff --stage production`, a Cloudflare Pages
+  preview of `apps/web`, and `claude-review.yaml` (one Claude Code `/code-review` per PR, as inline
+  comments). The required checks are the aggregates `checks-pass`, `tests-pass`, `security-pass`,
+  and `build-and-publish-pass`.
 - **Merging to `main`** runs `deploy-infra.yaml`, which runs `sst deploy --stage production` for
   changes to `infra/`, `apps/` (except `desktop-template` and `example`), or `packages/svelte/`.
   Cloudflare Pages builds `apps/web` itself when a change matches `pathIncludes` in
