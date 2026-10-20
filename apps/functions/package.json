@@ -12,10 +12,10 @@
     "@aws-sdk/client-sns": "3.1152.0",
     "@aws-sdk/client-ssm": "3.1152.0",
     "@aws-sdk/lib-dynamodb": "3.1152.0",
-    "@notionhq/client": "5.27.0",
+    "@notionhq/client": "5.27.1",
     "sst": "4.17.2",
     "twilio": "6.2.0",
-    "undici": "8.12.1"
+    "undici": "8.12.2"
   },
   "devDependencies": {
     "@types/aws-lambda": "8.10.164"
