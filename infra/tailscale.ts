@@ -43,7 +43,7 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         {
           action: 'check',
           src: ['autogroup:member'],
-          dst: ['autogroup:self', 'tag:hetzner', 'tag:ovh'],
+          dst: ['autogroup:self', 'tag:hetzner', 'tag:ovh', 'tag:latitude'],
           users: ['autogroup:nonroot', 'root']
         },
         {
@@ -57,10 +57,12 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         'tag:funnel': ['pandoks@github'],
         'tag:hetzner': ['pandoks@github'],
         'tag:ovh': ['pandoks@github'],
+        'tag:latitude': ['pandoks@github'],
         'tag:k8s-operator': ['tag:k8s-operator'],
         'tag:k8s': ['tag:k8s-operator'],
         'tag:control-plane': ['pandoks@github'],
         'tag:worker': ['pandoks@github'],
+        'tag:database': ['pandoks@github'],
         'tag:dev': ['pandoks@github', 'tag:k8s-operator'],
         'tag:prod': ['pandoks@github', 'tag:k8s-operator'],
         'tag:ci': ['pandoks@github'],
