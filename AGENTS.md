@@ -18,8 +18,9 @@ with `@lib`, not `$lib`.
   deploy order during a rollout, which I fix by hand once.
 - Scripts take explicit arguments, not env vars, except values the platform injects (provider
   credentials, SST-linked resources).
-- My chat message wins over this file. If a rule here or a lint, type, test, or scan check fights
-  the task, ask before breaking, suppressing, or relaxing it, or piling on code to satisfy it.
+- My chat message wins over this file, except hazard 1. If a rule here or a lint, type, test, or
+  scan check fights the task, ask before breaking, suppressing, or relaxing it, or piling on code to
+  satisfy it.
 - When I ask only for commands, reply with only the commands in a code block, even ones you may not
   run yourself.
 
@@ -107,6 +108,9 @@ checkout. The SST CLI is `pnpm sst`.
 - Before calling work done, run format, lint, type, and test commands for every language and package
   you touched, even for a one-line change, and report a configured checker exclusion only when it
   skips something you touched.
+- Docs: when a change makes docs wrong or adds a command, package, CI check, or convention, tersely
+  update whatever it affects: `README.md`, `k3s/README.md`, `scripts/cluster/README.md`, usage text,
+  package READMEs, and this file.
 - Fixtures and rendered YAML alone don't make a change tested. Fix scan and CI fallout your change
   causes; report failures that were already there separately instead of fixing them in the same
   change.
@@ -124,9 +128,7 @@ Before calling infra, cluster, or tooling work done, check:
 - **Wiring and pins:** the wiring and Renovate rules under Code Review Rules. New pins are exact
   versions (`pnpm add -E`). Pin each copy of a shared version and let Renovate sync them; never read
   or symlink one from another. Gate risky bumps behind Dependency Dashboard approval instead of
-  leaving them untracked.
-- **Docs:** tersely update whatever the change makes wrong: `README.md`, `k3s/README.md`,
-  `scripts/cluster/README.md`, usage text, package READMEs, and this file.
+  disabling or capping them.
 
 ## Code style
 
@@ -151,18 +153,19 @@ Before calling infra, cluster, or tooling work done, check:
   declarations with destructured parameters. `Promise.all` instead of awaiting in loops.
 - **Go:** justify every `#nosec` or `//nolint` inline.
 - **Containers and manifests:** pin Dockerfile bases, third-party images, and chart defaults as
-  `image:tag@sha256:…` in files a Renovate manager matches; no image lock files. Raw manifests in
-  `k3s/` and `apps/*/kube` aren't matched yet, so add a `kubernetes` `managerFilePatterns` entry to
-  `renovate.json` before pinning an image there. First-party images in `apps/*/kube` stay
-  `${ImageRegistry}/<img>:${ImageTag}`. Prefer copying official binaries from official images. Use
-  `.yaml`. In Helm values, use `~` for unset and an `# options:` comment listing the choices.
+  `image:tag@sha256:…` in files a Renovate manager matches; no image lock files. Images in raw
+  manifests in `k3s/` and `apps/*/kube` aren't matched yet, so add a `kubernetes`
+  `managerFilePatterns` entry to `renovate.json` before pinning an image there. First-party images
+  in `apps/*/kube` stay `${ImageRegistry}/<img>:${ImageTag}`. Prefer copying official binaries from
+  official images. Use `.yaml`. In Helm values, use `~` for unset and an `# options:` comment
+  listing the choices.
 
 ## Git and pull requests
 
-- Stage, commit, push, or open a PR only when asked. Once asked to push to a PR, commit and push its
-  follow-up fixes there without asking again. A check waiting on my approval doesn't hold an
-  asked-for PR; open it and list the pending check. Never rewrite pushed history; leave merging to
-  me.
+- Stage (`git rm` included), commit, push, or open a PR only when asked. Once asked to push to a PR,
+  commit and push its follow-up fixes there without asking again. A check waiting on my approval
+  doesn't hold an asked-for PR; open it and list the pending check. Never rewrite pushed history;
+  leave merging to me.
 - Commits and PR titles: Conventional Commits as `type(scope): short lowercase summary`, like
   `update(cluster): drop unused flag`. PRs are squash-merged, so the title is the commit that lands.
 - Descriptions are short: what changes and how to use or verify it, describing the current diff, not
