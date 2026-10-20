@@ -157,8 +157,8 @@ Before calling infra, cluster, or tooling work done, check:
   manifests in `k3s/` and `apps/*/kube` aren't matched yet, so add a `kubernetes`
   `managerFilePatterns` entry to `renovate.json` before pinning an image there. First-party images
   in `apps/*/kube` stay `${ImageRegistry}/<img>:${ImageTag}`. Prefer copying official binaries from
-  official images. Use `.yaml`. In Helm values, use `~` for unset and an `# options:` comment
-  listing the choices.
+  official images. Use `.yaml`. Default unset or off-by-default `values.yaml` options to `~` (no
+  `enabled` switch) under an `# options:` comment listing the choices.
 
 ## Git and pull requests
 
