@@ -42,6 +42,7 @@ spec:
     credentials.secret: <secret name>
     credentials.dataKeys.adminPassword: <key for admin password in secret>
     credentials.dataKeys.clientPassword: <key for client password in secret>
+    nodeSelector.role: db # dedicated database nodes; add a matching toleration if they're tainted
 ```
 
 The chart expects the `valkey-reconciler` ClusterRole from

@@ -17,10 +17,17 @@ cluster:
 # options: rdb,aof | rdb | aof | ~
 persistence: ~
 
+# NOTE: no CPU limit; throttling adds latency spikes
 resources:
-  limits:
+  requests:
     cpu: 1000m
     memory: 1Gi
+  limits:
+    memory: 1Gi
+
+# Dedicated database nodes, e.g. { role: db } with a matching NoSchedule toleration
+nodeSelector: ~
+tolerations: ~
 
 hooks:
   ttlSecondsAfterFinished: ~

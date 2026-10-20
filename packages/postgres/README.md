@@ -194,6 +194,7 @@ spec:
     patroni.image: ${ImageRegistry}/patroni:${ImageTag}
     patroni.shards: 1
     patroni.replicasPerShard: 3
+    nodeSelector.role: db # dedicated database nodes; add a matching toleration if they're tainted
 ```
 
 Add the file to `apps/myapp/kube/kustomization.yaml` and `apps/myapp/kube` to

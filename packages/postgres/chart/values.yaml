@@ -44,6 +44,11 @@ patroni:
     pgbackrest: {}
     postgresExporter: {}
 
+# Dedicated database nodes for Patroni (PgDog stays with the apps), e.g. { role: db } with a matching
+# NoSchedule toleration
+nodeSelector: ~
+tolerations: ~
+
 # https://github.com/pgdogdev/helm/blob/main/values.yaml
 pgdog:
   replicas: 2
