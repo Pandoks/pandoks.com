@@ -34,9 +34,11 @@ with `@lib`, not `$lib`.
    refreshes, syncs, and restarts included. If production needs a manual fix, even when I say ship
    now, propose the exact command, target, and effect, then wait.
 2. **Deploying a stage by accident.** Pass `--stage <stage>` (or `SST_STAGE`) to every `sst` and
-   `pnpm cluster deploy` command; mine is `pandoks`. Use `pnpm --filter web dev` for the site; if
-   the portless proxy isn't running or the name is taken, rerun with `PORTLESS=0` rather than
-   starting the proxy or passing `--force`. `sst diff` evaluates `infra/`: on any stage it can write
+   `pnpm cluster deploy` command; mine is `pandoks`. For the site, run `pnpm exec portless doctor`
+   before `pnpm --filter web dev`, which can start a missing proxy with `sudo`; if doctor reports a
+   problem, give me its fix instead of starting the proxy or working around it with `PORTLESS=0`,
+   `--force`, or `sudo`. If portless says the name is taken, this checkout's server is already
+   running at `pnpm exec portless get web`. `sst diff` evaluates `infra/`: on any stage it can write
    secrets, and with zero nodes it deletes Tailscale devices tagged for that stage's cluster;
    personal stages share the `dev` names. Tell me those effects and run `sst diff` only once I
    accept them; run `sst deploy` or `pnpm dev` (`sst dev`) only when I ask. If SST reports missing
