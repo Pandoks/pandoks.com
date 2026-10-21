@@ -6,23 +6,6 @@ new tailscale.TailnetSettings('TailscaleSettings', {
   httpsEnabled: true
 });
 
-// Exclude tag:grokbot from the catch-all grant and tag:ssh SSH rule: Tailscale has no deny
-// rules, and * / autogroup:tagged would include it. Add new tags here unless restricted like grokbot.
-const trustedTags = [
-  'tag:funnel',
-  'tag:hetzner',
-  'tag:ovh',
-  'tag:k8s-operator',
-  'tag:k8s',
-  'tag:control-plane',
-  'tag:worker',
-  'tag:dev',
-  'tag:prod',
-  'tag:ci',
-  'tag:cliproxyapi',
-  'tag:ssh'
-];
-
 export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
   resetAclOnDestroy: true,
   // NOTE: overwriteExistingContent is set to true so it works in all stages. we do this because the
@@ -42,17 +25,8 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
           'svc:cliproxyapi': ['tag:cliproxyapi']
         }
       },
-      hosts: {
-        // untagged shared box (T3 Code MCP via Tailscale Serve on :443 -> 127.0.0.1:3773)
-        'grok-box': '100.120.114.92/32'
-      },
       grants: [
-        // `*` replaced so tag:grokbot is excluded; autogroup:member + autogroup:shared + trustedTags
-        // preserves prior access for everything else.
-        { src: ['autogroup:member', 'autogroup:shared', ...trustedTags], dst: ['*'], ip: ['*'] },
-        // Grok Bot connector: only the T3 Code MCP on the shared box. Tailscale Serve terminates
-        // HTTPS on :443 and proxies to 127.0.0.1:3773; 3773 itself is loopback-only so it is not granted.
-        { src: ['tag:grokbot'], dst: ['grok-box'], ip: ['tcp:443'] },
+        { src: ['*'], dst: ['*'], ip: ['*'] },
         {
           src: ['tag:ci'],
           dst: ['tag:k8s-operator'],
@@ -74,22 +48,11 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         },
         {
           action: 'accept',
-          // tag:grokbot must not get SSH.
-          src: ['autogroup:member', ...trustedTags],
+          src: ['autogroup:member', 'autogroup:tagged'],
           dst: ['tag:ssh'],
           users: ['autogroup:nonroot', 'root']
         }
       ],
-      // guardrail: tag:grokbot may only reach grok-box:443 (100.116.252.21 = pandoks-dev-box)
-      tests: [
-        {
-          src: 'tag:grokbot',
-          proto: 'tcp',
-          accept: ['grok-box:443'],
-          deny: ['grok-box:22', '100.116.252.21:22']
-        }
-      ],
-      sshTests: [{ src: 'tag:grokbot', dst: ['tag:ssh'], deny: ['root'] }],
       tagOwners: {
         'tag:funnel': ['pandoks@github'],
         'tag:hetzner': ['pandoks@github'],
