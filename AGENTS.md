@@ -3,9 +3,10 @@
 Pandoks.com is a personal monorepo: apps, infrastructure, Kubernetes manifests, reusable packages,
 and the scripts that tie them together. [SST](https://sst.dev/) manages all infrastructure
 (`sst.config.ts`, `infra/`). AWS and Cloudflare run what needs high availability, rented machines
-run raw compute (the cluster IaC in `infra/vps/` targets Hetzner and is moving to OVH), and
-Tailscale plus GitHub handle access and automation. The cluster runs K3s, managed with Kustomize and
-ArgoCD. We stay close to the metal and use as few providers and managed services as possible.
+run raw compute (the cluster IaC in `infra/vps/` targets Hetzner, with OVHcloud and Latitude.sh
+templates behind `PROVIDER` in `infra/vps/vps.ts`), and Tailscale plus GitHub handle access and
+automation. The cluster runs K3s, managed with Kustomize and ArgoCD. We stay close to the metal and
+use as few providers and managed services as possible.
 
 ## A note from Pandoks
 

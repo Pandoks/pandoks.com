@@ -6,6 +6,9 @@
 # K3S_TOKEN
 # SERVER_API
 # NODE_IP
+# PRIVATE_INTERFACE (private network interface for flannel and the firewall)
+# PRIVATE_NETPLAN (base64 netplan for the private interface, empty when the provider configures it)
+# K3S_AGENT_ARGS (for worker)
 # TAILSCALE_HOSTNAME
 # REGISTRATION_TAILNET_AUTH_KEY
 # KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID (for bootstrap)
@@ -64,7 +67,7 @@ write_files:
           iifname "tailscale0" accept comment "Tailscale interface"
           iifname "cni0" accept comment "K3s CNI bridge"
           iifname "flannel.1" accept comment "K3s Flannel"
-          iifname "enp7s0" ip saddr ${PRIVATE_IP_RANGE} accept comment "Private network"
+          iifname "${PRIVATE_INTERFACE}" ip saddr ${PRIVATE_IP_RANGE} accept comment "Private network"
 
           udp dport 41641 accept comment "Tailscale"
 
@@ -84,6 +87,12 @@ write_files:
       }
 
 runcmd:
+  - |
+    if [ -n "${PRIVATE_NETPLAN}" ]; then
+      printf '%s' "${PRIVATE_NETPLAN}" | base64 -d > /etc/netplan/60-private.yaml
+      chmod 600 /etc/netplan/60-private.yaml
+      netplan apply
+    fi
   - systemctl enable nftables
   - nft -f /etc/nftables.conf
   - curl -fsSL https://tailscale.com/install.sh | sh
@@ -102,7 +111,7 @@ runcmd:
           --node-ip="${NODE_IP}" \
           --advertise-address="${NODE_IP}" \
           --tls-san="${NODE_IP}" \
-          --flannel-iface=enp7s0 \
+          --flannel-iface=${PRIVATE_INTERFACE} \
           --etcd-expose-metrics \
           --etcd-s3 \
           --etcd-s3-endpoint="${S3_HOST}" \
@@ -177,7 +186,7 @@ runcmd:
           --node-ip="${NODE_IP}" \
           --advertise-address="${NODE_IP}" \
           --tls-san="${NODE_IP}" \
-          --flannel-iface=enp7s0 \
+          --flannel-iface=${PRIVATE_INTERFACE} \
           --etcd-expose-metrics \
           --etcd-s3 \
           --etcd-s3-endpoint="${S3_HOST}" \
@@ -192,5 +201,5 @@ runcmd:
         K3S_TOKEN="${K3S_TOKEN}" sh -s - agent \
           --server="${SERVER_API}" \
           --node-ip="${NODE_IP}" \
-          --flannel-iface=enp7s0
+          --flannel-iface=${PRIVATE_INTERFACE} ${K3S_AGENT_ARGS}
     fi

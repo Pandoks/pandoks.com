@@ -5,7 +5,8 @@ are not hosted in this cluster are hosted either in AWS or Cloudflare usually fo
 applications. For databases, it is better to use a managed database as it reduces the operational
 overhead.
 
-As it stands, the dev and prod clusters are hosted on Hetzner VPS's.
+As it stands, the dev and prod clusters are hosted on Hetzner VPS's. `infra/vps` can also build them
+on OVHcloud or Latitude.sh bare metal.
 
 ## Directory Structure
 
@@ -65,6 +66,13 @@ pnpm docker:build && pnpm dev:push
 The dev and prod clusters are provisioned by SST (`infra/vps`) with cloud-config that bootstraps
 k3s + tailscale. The tailscale operator provides secure access to the cluster API without needing
 SSH tunnels.
+
+`PROVIDER` and the node counts at the top of `infra/vps/vps.ts` pick where the cluster runs
+(`hetzner`, `ovh`, or `latitude`); plans, locations, and private network settings sit at the top of
+`infra/vps/<provider>.ts`. Database nodes join with the `role=db` label and `role=db:NoSchedule`
+taint, so pin the database charts with `nodeSelector.role: db` and a matching toleration. Latitude
+reads its API token from `LATITUDESH_AUTH_TOKEN`. Public ingress is still Hetzner's load balancers;
+OVHcloud and Latitude clusters have none yet.
 
 ```sh
 # Connect via tailscale (cluster appears as <stage>-cluster in your tailnet)
