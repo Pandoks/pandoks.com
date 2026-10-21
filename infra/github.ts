@@ -69,12 +69,6 @@ if (isProduction) {
     plaintextValue: secrets.ovh.ConsumerKey.value
   });
 
-  new github.ActionsSecret('GithubAnthropicApiKey', {
-    repository: githubRepoName,
-    secretName: 'ANTHROPIC_API_KEY',
-    plaintextValue: secrets.anthropic.ApiKey.value
-  });
-
   const githubAWSOidcProvider = new aws.iam.OpenIdConnectProvider('AWSGithubActionsOidc', {
     url: 'https://token.actions.githubusercontent.com',
     clientIdLists: ['sts.amazonaws.com']

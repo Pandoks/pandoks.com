@@ -22,9 +22,19 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: anthropics/claude-code-action@e4a6faad497d33dbc7144135c75e41f82f0bf6c0 # v1.0.255
+      - uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4.2.0
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      # NOTE: cliproxyapi pools the Max accounts' API credits and doesn't check client keys, but the
+      # action requires one.
+      - uses: anthropics/claude-code-action@e4a6faad497d33dbc7144135c75e41f82f0bf6c0 # v1.0.255
+        env:
+          ANTHROPIC_BASE_URL: https://cliproxyapi.tailb2c81d.ts.net
+        with:
+          anthropic_api_key: cliproxyapi
           allowed_bots: pandoks-grok
           classify_inline_comments: false
           prompt: /code-review --comment ${{ github.event.pull_request.number }}
