@@ -44,9 +44,7 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
       },
       hosts: {
         // untagged shared box (T3 Code MCP via Tailscale Serve on :443 -> 127.0.0.1:3773)
-        'grok-box': '100.120.114.92/32',
-        // Jason's MacBook Pro (Tailscale name Pandoks-MacBook-Pro / personal-m1-max, tag:ssh)
-        'jason-mbp': '100.67.19.11/32'
+        'grok-box': '100.120.114.92/32'
       },
       grants: [
         // `*` replaced so tag:grokbot is excluded; autogroup:member + autogroup:shared + trustedTags
@@ -55,8 +53,6 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         // Grok Bot connector: only the T3 Code MCP on the shared box. Tailscale Serve terminates
         // HTTPS on :443 and proxies to 127.0.0.1:3773; 3773 itself is loopback-only so it is not granted.
         { src: ['tag:grokbot'], dst: ['grok-box'], ip: ['tcp:443'] },
-        // Jason's Mac also serves T3 Code (/mcp) on :443 via Tailscale Serve. Uncomment to allow.
-        // { src: ['tag:grokbot'], dst: ['jason-mbp'], ip: ['tcp:443'] },
         {
           src: ['tag:ci'],
           dst: ['tag:k8s-operator'],
@@ -84,20 +80,13 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
           users: ['autogroup:nonroot', 'root']
         }
       ],
-      // guardrail: tag:grokbot may only reach grok-box:443 (100.116.252.21 = pandoks-dev-box, 100.90.249.97 = sieve-macbook-air)
+      // guardrail: tag:grokbot may only reach grok-box:443 (100.116.252.21 = pandoks-dev-box)
       tests: [
         {
           src: 'tag:grokbot',
           proto: 'tcp',
           accept: ['grok-box:443'],
-          deny: [
-            'grok-box:3773',
-            'grok-box:22',
-            'jason-mbp:443',
-            '100.116.252.21:22',
-            '100.116.252.21:443',
-            '100.90.249.97:443'
-          ]
+          deny: ['grok-box:22', '100.116.252.21:22']
         }
       ],
       sshTests: [{ src: 'tag:grokbot', dst: ['tag:ssh'], deny: ['root'] }],
