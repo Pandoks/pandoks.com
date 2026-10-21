@@ -34,12 +34,13 @@ with `@lib`, not `$lib`.
    refreshes, syncs, and restarts included. If production needs a manual fix, even when I say ship
    now, propose the exact command, target, and effect, then wait.
 2. **Deploying a stage by accident.** Pass `--stage <stage>` (or `SST_STAGE`) to every `sst` and
-   `pnpm cluster deploy` command; mine is `pandoks`. Use `PORTLESS=0 pnpm --filter web dev` for the
-   site (the portless proxy needs sudo, so leave it to me). `sst diff` evaluates `infra/`: on any
-   stage it can write secrets, and with zero nodes it deletes Tailscale devices tagged for that
-   stage's cluster; personal stages share the `dev` names. Tell me those effects and run `sst diff`
-   only once I accept them; run `sst deploy` or `pnpm dev` (`sst dev`) only when I ask. If SST
-   reports missing or expired AWS credentials, ask me to run `pnpm sso`.
+   `pnpm cluster deploy` command; mine is `pandoks`. Use `pnpm --filter web dev` for the site; if
+   the portless proxy isn't running or the name is taken, rerun with `PORTLESS=0` rather than
+   starting the proxy or passing `--force`. `sst diff` evaluates `infra/`: on any stage it can write
+   secrets, and with zero nodes it deletes Tailscale devices tagged for that stage's cluster;
+   personal stages share the `dev` names. Tell me those effects and run `sst diff` only once I
+   accept them; run `sst deploy` or `pnpm dev` (`sst dev`) only when I ask. If SST reports missing
+   or expired AWS credentials, ask me to run `pnpm sso`.
 3. **Editing my checkout from an experiment.** Use absolute paths in experiment copies;
    `mise exec -C <dir>` runs inside `<dir>`, so never point it at my checkout. Leave my staged and
    unstaged changes alone.
