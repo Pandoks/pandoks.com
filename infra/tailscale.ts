@@ -65,8 +65,7 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         'tag:prod': ['pandoks@github', 'tag:k8s-operator'],
         'tag:ci': ['pandoks@github'],
         'tag:cliproxyapi': ['pandoks@github'],
-        'tag:ssh': ['pandoks@github'],
-        'tag:grokbot': ['pandoks@github']
+        'tag:ssh': ['pandoks@github']
       }
     },
     { maxLength: 80, indent: 2 }
