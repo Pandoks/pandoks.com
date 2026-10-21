@@ -24,7 +24,7 @@ jobs:
 
       - uses: anthropics/claude-code-action@e4a6faad497d33dbc7144135c75e41f82f0bf6c0 # v1.0.255
         with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           allowed_bots: pandoks-grok
           classify_inline_comments: false
           prompt: /code-review --comment ${{ github.event.pull_request.number }}

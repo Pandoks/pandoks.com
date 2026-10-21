@@ -51,7 +51,7 @@ export const secrets = {
     OauthClientSecret: new sst.Secret('TailscaleOauthClientSecret')
   },
   anthropic: {
-    ClaudeCodeOauthToken: new sst.Secret('AnthropicClaudeCodeOauthToken')
+    ApiKey: new sst.Secret('AnthropicApiKey')
   },
   k8s: {
     tailscale: {

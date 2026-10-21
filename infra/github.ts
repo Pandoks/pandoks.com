@@ -69,10 +69,10 @@ if (isProduction) {
     plaintextValue: secrets.ovh.ConsumerKey.value
   });
 
-  new github.ActionsSecret('GithubClaudeCodeOauthToken', {
+  new github.ActionsSecret('GithubAnthropicApiKey', {
     repository: githubRepoName,
-    secretName: 'CLAUDE_CODE_OAUTH_TOKEN',
-    plaintextValue: secrets.anthropic.ClaudeCodeOauthToken.value
+    secretName: 'ANTHROPIC_API_KEY',
+    plaintextValue: secrets.anthropic.ApiKey.value
   });
 
   const githubAWSOidcProvider = new aws.iam.OpenIdConnectProvider('AWSGithubActionsOidc', {
