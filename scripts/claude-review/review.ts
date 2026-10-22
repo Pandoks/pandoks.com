@@ -1,28 +1,24 @@
-import { execFileSync } from 'node:child_process';
 import { appendFile, readFile } from 'node:fs/promises';
 import { createSdkMcpServer, query, tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 
 type PullRequestEvent = {
-  pull_request: { number: number; base: { sha: string }; head: { sha: string } };
+  pull_request: { number: number; head: { sha: string } };
   repository: { url: string };
 };
 
+const [, , cwd] = process.argv;
+if (!cwd) throw new Error('Usage: node scripts/claude-review/review.ts <pr checkout>');
 const {
-  GITHUB_EVENT_PATH: eventPath = '',
-  GITHUB_STEP_SUMMARY: summaryPath = '',
-  GITHUB_WORKSPACE: cwd,
+  GITHUB_EVENT_PATH: eventPath,
+  GITHUB_STEP_SUMMARY: summaryPath,
   GH_TOKEN: token
 } = process.env;
 const { pull_request: pullRequest, repository } = JSON.parse(
-  await readFile(eventPath, 'utf8')
+  await readFile(eventPath!, 'utf8')
 ) as PullRequestEvent;
 const pr = pullRequest.number;
-// NOTE: From the base branch, so a PR can't rewrite its own review rules.
-const agentsMd = execFileSync('git', ['show', `${pullRequest.base.sha}:AGENTS.md`], {
-  cwd,
-  encoding: 'utf8'
-});
+const agentsMd = await readFile('AGENTS.md', 'utf8');
 
 // NOTE: Same name and inputs as claude-code-action's tool, which /code-review --comment looks for.
 const inlineComment = tool(
@@ -109,10 +105,7 @@ for await (const message of query({
       'mcp__github_inline_comment__create_inline_comment',
       `Bash(gh pr diff ${pr}:*)`,
       `Bash(gh pr view ${pr}:*)`,
-      `Bash(gh pr comment ${pr}:*)`,
-      'Bash(git diff:*)',
-      'Bash(git log:*)',
-      'Bash(git show:*)'
+      `Bash(gh pr comment ${pr}:*)`
     ]
   }
 })) {
@@ -122,7 +115,7 @@ for await (const message of query({
 console.log(JSON.stringify(result, null, 2));
 if (result) {
   await appendFile(
-    summaryPath,
+    summaryPath!,
     `## Claude review\n\n${result.subtype === 'success' ? result.result : result.subtype}\n\n` +
       `$${result.total_cost_usd.toFixed(2)}, ${result.num_turns} turns, ${Math.round(result.duration_ms / 1000)}s\n`
   );

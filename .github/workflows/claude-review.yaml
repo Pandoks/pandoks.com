@@ -22,9 +22,19 @@ jobs:
     if: ${{ !github.event.pull_request.draft && (github.event.pull_request.user.type != 'Bot' || github.event.pull_request.user.login == 'pandoks-grok[bot]') }}
     runs-on: ubuntu-latest
     steps:
+      # NOTE: The review script, its dependencies, and AGENTS.md come from the base branch, so a PR
+      # can't change what runs with the claude[bot] token on the tailnet. The PR goes in pr/.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr
           persist-credentials: false
 
       - uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4.2.0
@@ -32,20 +42,6 @@ jobs:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
-
-      - name: Read node version from mise.toml
-        id: mise-node
-        run: echo "version=$(sed -n -E 's/^node[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' mise.toml)" >> "$GITHUB_OUTPUT"
-
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: ${{ steps.mise-node.outputs.version }}
-          cache: 'pnpm'
-
-      # NOTE: Only this package, without lifecycle scripts, so the PR's install scripts don't run on the tailnet.
-      - run: pnpm install --frozen-lockfile --ignore-scripts --filter claude-review
 
       # NOTE: Anthropic only issues a claude[bot] token when this file matches the default branch, so a
       # PR that changes it posts as github-actions[bot].
@@ -56,7 +52,7 @@ jobs:
           response=$(curl -sS -X POST -H "Authorization: Bearer ${oidc}" -H 'Content-Type: application/json' \
             -d '{"permissions":{"contents":"read","pull_requests":"write"}}' \
             https://api.anthropic.com/api/github/github-app-token-exchange)
-          token=$(jq -r '.token // empty' <<<"${response}")
+          token=$(jq -r '.token // empty' <<<"${response}") || { echo "${response}"; exit 1; }
           if [[ -n "${token}" ]]; then
             echo "::add-mask::${token}"
             echo "token=${token}" >> "$GITHUB_OUTPUT"
@@ -67,7 +63,7 @@ jobs:
             exit 1
           fi
 
-      - run: node scripts/claude-review/review.ts
+      - run: node scripts/claude-review/review.ts pr
         env:
           ANTHROPIC_BASE_URL: https://cliproxyapi-ci.tailb2c81d.ts.net
           ANTHROPIC_API_KEY: cliproxyapi
