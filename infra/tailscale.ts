@@ -22,7 +22,8 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
       ],
       autoApprovers: {
         services: {
-          'svc:cliproxyapi': ['tag:cliproxyapi']
+          'svc:cliproxyapi': ['tag:cliproxyapi'],
+          'svc:cliproxyapi-ci': ['tag:cliproxyapi']
         }
       },
       grants: [
