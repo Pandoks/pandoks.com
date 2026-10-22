@@ -24,7 +24,6 @@ export default defineConfig([
       sourceType: 'module',
       globals: { ...globals.browser, ...globals.node },
       parserOptions: {
-        // NOTE: `project` lints ~5x faster than `projectService` here: https://github.com/typescript-eslint/typescript-eslint/issues/9571
         project: [
           './tsconfig.json',
           './tsconfig.eslint.json',
