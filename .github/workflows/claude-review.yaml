@@ -23,20 +23,13 @@ jobs:
     if: ${{ !github.event.pull_request.draft && (github.event.pull_request.user.type != 'Bot' || github.event.pull_request.user.login == 'pandoks-grok[bot]') }}
     runs-on: ubuntu-latest
     steps:
-      # NOTE: The review script, its dependencies, and AGENTS.md come from the base branch, so a PR
-      # can't change what runs with the claude[bot] token on the tailnet. The PR goes in pr/.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.base.sha }}
-          persist-credentials: false
-
-      - uses: ./.github/actions/setup-node-pnpm
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-          path: pr
+          fetch-depth: 0
           persist-credentials: false
+
+      - uses: ./.github/actions/setup-node-pnpm
 
       - uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4.2.0
         with:
@@ -64,7 +57,7 @@ jobs:
             exit 1
           fi
 
-      - run: node scripts/claude-review/review.ts pr
+      - run: node scripts/claude-review/review.ts
         env:
           ANTHROPIC_BASE_URL: https://cliproxyapi-ci.tailb2c81d.ts.net
           ANTHROPIC_API_KEY: cliproxyapi

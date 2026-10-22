@@ -7,8 +7,6 @@ type PullRequestEvent = {
   repository: { url: string };
 };
 
-const [, , cwd] = process.argv;
-if (!cwd) throw new Error('Usage: node scripts/claude-review/review.ts <pr checkout>');
 const {
   GITHUB_EVENT_PATH: eventPath,
   GITHUB_STEP_SUMMARY: summaryPath,
@@ -18,7 +16,7 @@ const { pull_request: pullRequest, repository } = JSON.parse(
   await readFile(eventPath!, 'utf8')
 ) as PullRequestEvent;
 const pr = pullRequest.number;
-const agentsMd = await readFile('AGENTS.md', 'utf8');
+const agentsMd = await readFile('scripts/claude-review/agents.md', 'utf8');
 
 // NOTE: Same name and inputs as claude-code-action's tool, which /code-review --comment looks for.
 const inlineComment = tool(
@@ -81,32 +79,19 @@ const inlineComment = tool(
 
 let result;
 for await (const message of query({
-  prompt: `/code-review --comment ${pr}`,
+  prompt: `/code-review xhigh --comment ${pr}`,
   options: {
-    cwd,
+    model: 'claude-opus-5-5',
+    effort: 'xhigh',
     systemPrompt: { type: 'preset', preset: 'claude_code', append: agentsMd },
-    tools: { type: 'preset', preset: 'claude_code' },
-    // NOTE: No setting sources or other MCP servers, so a PR can't add hooks, permissions, skills,
-    // or servers through .claude/ or .mcp.json.
-    settingSources: [],
-    strictMcpConfig: true,
-    maxBudgetUsd: 5,
+    permissionMode: 'bypassPermissions',
+    allowDangerouslySkipPermissions: true,
     mcpServers: {
       github_inline_comment: createSdkMcpServer({
         name: 'github_inline_comment',
         tools: [inlineComment]
       })
-    },
-    allowedTools: [
-      'Agent',
-      'Read',
-      'Grep',
-      'Glob',
-      'mcp__github_inline_comment__create_inline_comment',
-      `Bash(gh pr diff ${pr}:*)`,
-      `Bash(gh pr view ${pr}:*)`,
-      `Bash(gh pr comment ${pr}:*)`
-    ]
+    }
   }
 })) {
   if (message.type === 'result') result = message;
