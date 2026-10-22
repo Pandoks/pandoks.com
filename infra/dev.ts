@@ -76,7 +76,6 @@ if (isProduction) {
     { dependsOn: [tailscaleAcl] }
   );
 
-  // NOTE: thinkpad-t470 hosts this with `tailscale serve --service=svc:cliproxyapi-ci --https=443`
   new tailscale.Service(
     'CliproxyapiCiTailscaleService',
     {
