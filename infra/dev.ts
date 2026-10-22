@@ -75,7 +75,6 @@ if (isProduction) {
     },
     { dependsOn: [tailscaleAcl] }
   );
-
   new tailscale.Service(
     'CliproxyapiCiTailscaleService',
     {
