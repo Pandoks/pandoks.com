@@ -130,7 +130,7 @@ if (isProduction) {
     {
       description: `${STAGE_NAME} github ci`,
       scopes: ['devices:core', 'auth_keys'],
-      tags: ['tag:ci', `tag:${STAGE_NAME}`]
+      tags: ['tag:ci']
     },
     { dependsOn: [tailscaleAcl] }
   );
