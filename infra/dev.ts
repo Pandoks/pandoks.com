@@ -75,6 +75,18 @@ if (isProduction) {
     },
     { dependsOn: [tailscaleAcl] }
   );
+
+  // NOTE: thinkpad-t470 hosts this with `tailscale serve --service=svc:cliproxyapi-ci --https=443`
+  new tailscale.Service(
+    'CliproxyapiCiTailscaleService',
+    {
+      name: 'svc:cliproxyapi-ci',
+      comment: 'CLIProxyAPI with Console API keys only, for claude-review.yaml',
+      ports: ['tcp:443'],
+      tags: ['tag:cliproxyapi']
+    },
+    { dependsOn: [tailscaleAcl] }
+  );
 }
 
 new sst.x.DevCommand('DevInit', {
