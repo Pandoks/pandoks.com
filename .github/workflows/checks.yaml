@@ -56,6 +56,7 @@ jobs:
               - '**/*.jsx'
               - '**/*.svelte'
               - 'eslint.config.ts'
+              - 'tsconfig.eslint.json'
               - 'package.json'
               - 'pnpm-lock.yaml'
             go:
