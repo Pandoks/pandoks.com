@@ -5,7 +5,6 @@ on:
     types:
       - opened
       - ready_for_review
-      - synchronize
     branches:
       - main
 
@@ -13,9 +12,13 @@ permissions:
   contents: read
   pull-requests: write
 
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   review:
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ !github.event.pull_request.draft && (github.event.pull_request.user.type != 'Bot' || github.event.pull_request.user.login == 'pandoks-grok[bot]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -26,40 +29,11 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
-      - name: Install Claude Agent SDK
-        run: npm install --no-save --prefix "$RUNNER_TEMP/sdk" @anthropic-ai/claude-agent-sdk@0.3.308
+      - run: npm ci --prefix .github/claude-review
 
-      - name: Review
+      - run: node .github/claude-review/review.mjs
         env:
           ANTHROPIC_BASE_URL: https://cliproxyapi-ci.tailb2c81d.ts.net
           ANTHROPIC_API_KEY: cliproxyapi
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          cat > "$RUNNER_TEMP/sdk/review.mjs" <<'EOF'
-          import { query } from '@anthropic-ai/claude-agent-sdk';
-
-          let result;
-          for await (const message of query({
-            prompt: `/code-review --comment ${process.env.PR_NUMBER}`,
-            options: {
-              cwd: process.env.GITHUB_WORKSPACE,
-              settingSources: ['project'],
-              allowedTools: [
-                'Read',
-                'Grep',
-                'Glob',
-                'Write(//tmp/**)',
-                'Bash(gh pr diff:*)',
-                'Bash(gh pr view:*)',
-                'Bash(gh api:*)'
-              ]
-            }
-          })) {
-            if (message.type === 'system') console.log(`system ${message.subtype ?? ''}`);
-            if (message.type === 'result') result = message;
-          }
-          console.log(JSON.stringify(result, null, 2));
-          if (!result || result.is_error || result.subtype !== 'success') process.exit(1);
-          EOF
-          node "$RUNNER_TEMP/sdk/review.mjs"
