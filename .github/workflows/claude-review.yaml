@@ -29,9 +29,9 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
-      - run: npm ci --prefix .github/claude-review
+      - uses: ./.github/actions/setup-node-pnpm
 
-      - run: node .github/claude-review/review.mjs
+      - run: node scripts/claude-review/review.js
         env:
           ANTHROPIC_BASE_URL: https://cliproxyapi-ci.tailb2c81d.ts.net
           ANTHROPIC_API_KEY: cliproxyapi
