@@ -28,8 +28,6 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
-      # NOTE: cliproxyapi-ci pools the Max accounts' API credits and doesn't check client keys, but
-      # the action requires one.
       - uses: anthropics/claude-code-action@e4a6faad497d33dbc7144135c75e41f82f0bf6c0 # v1.0.255
         env:
           ANTHROPIC_BASE_URL: https://cliproxyapi-ci.tailb2c81d.ts.net
