@@ -5,14 +5,13 @@ on:
     types:
       - opened
       - ready_for_review
+      - synchronize
     branches:
       - main
 
 permissions:
   contents: read
-  pull-requests: read
-  issues: read
-  id-token: write
+  pull-requests: write
 
 jobs:
   review:
@@ -27,12 +26,40 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
-      - uses: anthropics/claude-code-action@e4a6faad497d33dbc7144135c75e41f82f0bf6c0 # v1.0.255
+      - name: Install Claude Agent SDK
+        run: npm install --no-save --prefix "$RUNNER_TEMP/sdk" @anthropic-ai/claude-agent-sdk@0.3.308
+
+      - name: Review
         env:
           ANTHROPIC_BASE_URL: https://cliproxyapi-ci.tailb2c81d.ts.net
-        with:
-          anthropic_api_key: cliproxyapi
-          allowed_bots: pandoks-grok
-          classify_inline_comments: false
-          prompt: /code-review --comment ${{ github.event.pull_request.number }}
-          claude_args: '--allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*)"'
+          ANTHROPIC_API_KEY: cliproxyapi
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          cat > "$RUNNER_TEMP/sdk/review.mjs" <<'EOF'
+          import { query } from '@anthropic-ai/claude-agent-sdk';
+
+          let result;
+          for await (const message of query({
+            prompt: `/code-review --comment ${process.env.PR_NUMBER}`,
+            options: {
+              cwd: process.env.GITHUB_WORKSPACE,
+              settingSources: ['project'],
+              allowedTools: [
+                'Read',
+                'Grep',
+                'Glob',
+                'Write(//tmp/**)',
+                'Bash(gh pr diff:*)',
+                'Bash(gh pr view:*)',
+                'Bash(gh api:*)'
+              ]
+            }
+          })) {
+            if (message.type === 'system') console.log(`system ${message.subtype ?? ''}`);
+            if (message.type === 'result') result = message;
+          }
+          console.log(JSON.stringify(result, null, 2));
+          if (!result || result.is_error || result.subtype !== 'success') process.exit(1);
+          EOF
+          node "$RUNNER_TEMP/sdk/review.mjs"
