@@ -11,6 +11,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  id-token: write
 
 concurrency:
   group: claude-review-${{ github.event.pull_request.number }}
@@ -21,7 +22,20 @@ jobs:
     if: ${{ !github.event.pull_request.draft && (github.event.pull_request.user.type != 'Bot' || github.event.pull_request.user.login == 'pandoks-grok[bot]') }}
     runs-on: ubuntu-latest
     steps:
+      # NOTE: The review script, its dependencies, and AGENTS.md come from the base branch, so a PR
+      # can't change what runs with the claude[bot] token on the tailnet. The PR goes in pr/.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr
+          persist-credentials: false
 
       - uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4.2.0
         with:
@@ -29,12 +43,34 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
-      - uses: ./.github/actions/setup-node-pnpm
+      # NOTE: Anthropic only issues a claude[bot] token when this file matches the default branch, so a
+      # PR that changes it posts as github-actions[bot].
+      - name: Get claude[bot] token
+        id: claude-app
+        run: |
+          oidc=$(curl -sSf -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=claude-code-github-action" | jq -r .value)
+          response=$(curl -sS -X POST -H "Authorization: Bearer ${oidc}" -H 'Content-Type: application/json' \
+            -d '{"permissions":{"contents":"read","pull_requests":"write"}}' \
+            https://api.anthropic.com/api/github/github-app-token-exchange)
+          token=$(jq -r '.token // empty' <<<"${response}") || { echo "${response}"; exit 1; }
+          if [[ -n "${token}" ]]; then
+            echo "::add-mask::${token}"
+            echo "token=${token}" >> "$GITHUB_OUTPUT"
+          elif [[ $(jq -r .error.details.error_code <<<"${response}") == workflow_content_mismatch ]]; then
+            echo "::notice::claude-review.yaml differs from the default branch, so this review posts as github-actions[bot]"
+          else
+            echo "${response}"
+            exit 1
+          fi
 
-      - run: node scripts/claude-review/review.js
+      - run: node scripts/claude-review/review.ts pr
         env:
           ANTHROPIC_BASE_URL: https://cliproxyapi-ci.tailb2c81d.ts.net
           ANTHROPIC_API_KEY: cliproxyapi
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ steps.claude-app.outputs.token || github.token }}
+
+      - name: Revoke claude[bot] token
+        if: ${{ always() && steps.claude-app.outputs.token }}
+        run: 'curl -sSf -X DELETE -H "Authorization: Bearer ${TOKEN}" https://api.github.com/installation/token'
+        env:
+          TOKEN: ${{ steps.claude-app.outputs.token }}

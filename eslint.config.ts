@@ -24,20 +24,12 @@ export default defineConfig([
       sourceType: 'module',
       globals: { ...globals.browser, ...globals.node },
       parserOptions: {
-        projectService: {
-          allowDefaultProject: [
-            'eslint.config.ts',
-            '*/*/forge.config.ts',
-            '*/*/svelte.config.js',
-            '*/*/playwright.config.ts',
-            '*/*/vitest-setup-client.ts',
-            '*/*/vite.main.config.ts',
-            '*/*/vite.preload.config.ts',
-            '*/*/e2e/*.test.ts',
-            'scripts/*/*.{js,ts}'
-          ],
-          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 25
-        },
+        project: [
+          './tsconfig.json',
+          './tsconfig.eslint.json',
+          './apps/*/tsconfig.json',
+          './packages/*/tsconfig.json'
+        ],
         tsconfigRootDir: import.meta.dirname
       }
     },
