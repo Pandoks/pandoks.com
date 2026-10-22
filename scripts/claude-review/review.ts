@@ -16,7 +16,7 @@ const { pull_request: pullRequest, repository } = JSON.parse(
   await readFile(eventPath!, 'utf8')
 ) as PullRequestEvent;
 const pr = pullRequest.number;
-const agentsMd = await readFile('scripts/claude-review/agents.md', 'utf8');
+const agentsMd = await readFile('scripts/claude-review/AGENTS.md', 'utf8');
 
 // NOTE: Same name and inputs as claude-code-action's tool, which /code-review --comment looks for.
 const inlineComment = tool(
