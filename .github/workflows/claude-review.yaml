@@ -1,6 +1,5 @@
 name: Claude Review
 
-# NOTE: Once per PR because /code-review re-posts every unfixed finding on each run.
 on:
   pull_request:
     types:
