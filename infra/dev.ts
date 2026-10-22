@@ -79,7 +79,7 @@ if (isProduction) {
     'CliproxyapiCiTailscaleService',
     {
       name: 'svc:cliproxyapi-ci',
-      comment: 'CLIProxyAPI with Console API keys only, for claude-review.yaml',
+      comment: 'CLIProxyAPI with Console API keys only',
       ports: ['tcp:443'],
       tags: ['tag:cliproxyapi']
     },
