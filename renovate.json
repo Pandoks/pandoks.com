@@ -54,6 +54,15 @@
       "groupName": "kubectl"
     },
     {
+      "description": "Keep the actions pinned in claude-review.yaml out of the all-minor-patch group — claude-code-action skips its review on any PR that changes that file, and it releases almost daily.",
+      "matchPackageNames": [
+        "anthropics/claude-code-action",
+        "actions/checkout",
+        "tailscale/github-action"
+      ],
+      "groupName": "claude-review actions"
+    },
+    {
       "description": "Do not pin package.json engines.node — keep a range compatible with mise.toml",
       "matchDepTypes": ["engines"],
       "matchPackageNames": ["node"],

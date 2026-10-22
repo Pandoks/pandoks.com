@@ -60,8 +60,9 @@ with `@lib`, not `$lib`.
 ## How changes ship
 
 - PRs run `checks.yaml`, `tests.yaml`, `security.yaml`, and `build-and-publish.yaml` (branch-tagged
-  GHCR images and charts), and a Cloudflare Pages preview of `apps/web`. Required checks are the
-  `*-pass` aggregates.
+  GHCR images and charts), a Cloudflare Pages preview of `apps/web`, and `claude-review.yaml` (one
+  Claude Code `/code-review` per PR, as inline comments). Required checks are the `*-pass`
+  aggregates.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `infra/`, `apps/`
   (except `desktop-template` and `example`), and `packages/svelte/`, plus an Argo hard refresh only
   for `k3s/` and `scripts/cluster/` changes. Pages builds `apps/web` when a change matches
