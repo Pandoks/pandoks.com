@@ -9,7 +9,7 @@ export function unicodeRange(chars: Set<string>): string {
   const ranges: [number, number][] = [];
   for (const codepoint of codepoints) {
     const last = ranges.at(-1);
-    if (last && codepoint === last[1] + 1) last[1] = codepoint;
+    if (last && codepoint <= last[1] + 2) last[1] = codepoint;
     else ranges.push([codepoint, codepoint]);
   }
   return ranges
