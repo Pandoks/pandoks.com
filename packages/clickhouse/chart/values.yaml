@@ -29,9 +29,10 @@ keeper:
     limits:
       memory: 4Gi
 
-# Dedicated database nodes for ClickHouse and Keeper, e.g. { role: db } with a matching NoSchedule
-# toleration
+# Dedicated database nodes for ClickHouse and Keeper
+# options: { role: db } | ~
 nodeSelector: ~
+# options: [{ key: role, operator: Equal, value: db, effect: NoSchedule }] | ~
 tolerations: ~
 
 backup:

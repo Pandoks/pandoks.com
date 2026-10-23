@@ -42,12 +42,33 @@ spec:
     credentials.secret: <secret name>
     credentials.dataKeys.adminPassword: <key for admin password in secret>
     credentials.dataKeys.clientPassword: <key for client password in secret>
-    nodeSelector.role: db # dedicated database nodes; add a matching toleration if they're tainted
 ```
 
 The chart expects the `valkey-reconciler` ClusterRole from
 [k3s/base/core/valkey.yaml](/k3s/base/core/valkey.yaml) and the Prometheus Operator CRDs (for its
 `ServiceMonitor`) to already be in the cluster.
+
+To pin Valkey to the dedicated database nodes (label and taint `role=db`), patch the HelmChart in
+the cloud overlay, since local k3d has no such nodes. Put the patch in the app's
+`cluster-patch.yaml` and add it to the `patches` in
+[k3s/overlays/cluster/kustomization.yaml](/k3s/overlays/cluster/kustomization.yaml), which `dev` and
+`prod` share:
+
+```yaml
+# apps/<app>/kube/cluster-patch.yaml
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: <namespace>-valkey-<name>-cluster
+  namespace: kube-system
+spec:
+  set:
+    nodeSelector.role: db
+    tolerations[0].key: role
+    tolerations[0].operator: Equal
+    tolerations[0].value: db
+    tolerations[0].effect: NoSchedule
+```
 
 ### Scaling
 
