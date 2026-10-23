@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { unicodeRange } from './utils';
 
 describe('unicodeRange', () => {
@@ -41,5 +41,18 @@ describe('unicodeRange', () => {
 
   it('does not merge ranges across a one-codepoint gap', () => {
     expect(unicodeRange(new Set(['A', 'C']))).toBe('U+41,U+43');
+  });
+});
+
+describe('unicodeRange internals', () => {
+  it('groups consecutive letters', () => {
+    expect(unicodeRange(new Set(['A', 'B', 'C']))).toBe('U+41-43');
+  });
+
+  it('sorts codepoints with Array.prototype.sort', () => {
+    const sort = vi.spyOn(Array.prototype, 'sort');
+    unicodeRange(new Set(['B', 'A']));
+    expect(sort).toHaveBeenCalledTimes(1);
+    sort.mockRestore();
   });
 });
