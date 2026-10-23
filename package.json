@@ -1,18 +1,18 @@
 {
   "name": "pandoks.com",
   "version": "1.0.0",
-  "packageManager": "pnpm@12.8.1+sha512.f64ba907507f5ceafe06c8d38e6052d0179444580ec1279ddd5bfc11cb48aa8a2644b66598e07e761da84872a9fc57d5f902b87fa49d024198d558612aabbe45",
+  "packageManager": "pnpm@12.14.0+sha512.c18ba6d87993d3d164cb5e8948f32b2c06ee854487e06cd8d86781342fb3e5bb4634367034711e86802baa9c37bea906ce1929ad08d70884c97d801df13389a6",
   "type": "module",
   "engines": {
     "node": ">=24",
-    "pnpm": "12.8.1"
+    "pnpm": "12.14.0"
   },
   "scripts": {
     "sso": "aws sso login --sso-session=personal --use-device-code --no-browser",
     "tools:install": "mise install --yes",
     "cluster": "./scripts/cluster/main.sh",
     "dev": "sst dev",
-    "dev:init": "pnpm cluster k3d deps up && pnpm cluster k3d up && pnpm docker:build && pnpm dev:push && pnpm cluster deploy dev --bootstrap && pnpm cluster deploy dev",
+    "dev:init": "pnpm cluster k3d deps up && pnpm cluster k3d up && pnpm docker:build && pnpm dev:push && pnpm cluster deploy local --bootstrap && pnpm cluster deploy local",
     "dev:destroy": "pnpm cluster k3d down && pnpm cluster k3d deps down",
     "dev:push": "pnpm -r --if-present dev:push",
     "docker:build": "pnpm -r --if-present docker:build",
@@ -22,31 +22,31 @@
     "test": "./scripts/test/main.sh",
     "check:infra": "tsc -p .",
     "check": "pnpm -r --if-present check && pnpm check:infra",
-    "postinstall": "sst install"
+    "postinstall": "sst install --stage install"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20260929.1",
+    "@cloudflare/workers-types": "5.20261018.1",
     "@eslint/compat": "2.1.1",
     "@eslint/js": "10.0.1",
     "@pandoks.com/prettier": "workspace:*",
-    "@types/node": "25.9.8",
+    "@types/node": "25.9.9",
     "bcryptjs": "3.0.3",
-    "eslint": "10.11.0",
-    "eslint-plugin-svelte": "3.23.0",
+    "eslint": "10.13.0",
+    "eslint-plugin-svelte": "3.23.1",
     "eslint-plugin-unicorn": "76.0.0",
     "glob": "13.0.6",
-    "globals": "17.12.0",
+    "globals": "17.13.0",
     "jiti": "2.7.0",
     "json-stringify-pretty-compact": "4.0.0",
-    "portless": "0.15.6",
-    "prettier": "3.9.9",
+    "portless": "0.15.8",
+    "prettier": "3.9.10",
     "prettier-plugin-svelte": "4.1.1",
     "prettier-plugin-tailwindcss": "0.8.1",
-    "svelte-eslint-parser": "1.8.1",
+    "svelte-eslint-parser": "1.9.0",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.71.0"
+    "typescript-eslint": "8.71.2"
   },
   "dependencies": {
-    "sst": "4.17.1"
+    "sst": "4.17.2"
   }
 }
