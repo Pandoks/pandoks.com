@@ -41,8 +41,6 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
-      # NOTE: Anthropic only issues a claude[bot] token when this file matches the default branch, so a
-      # PR that changes it posts as github-actions[bot].
       - name: Get claude[bot] token
         id: claude-app
         run: |
