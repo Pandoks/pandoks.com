@@ -20,6 +20,12 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
           attr: ['funnel']
         }
       ],
+      autoApprovers: {
+        services: {
+          'svc:cliproxyapi': ['tag:cliproxyapi'],
+          'svc:cliproxyapi-ci': ['tag:cliproxyapi']
+        }
+      },
       grants: [
         { src: ['*'], dst: ['*'], ip: ['*'] },
         {
@@ -40,6 +46,12 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
           src: ['autogroup:member'],
           dst: ['autogroup:self', 'tag:hetzner', 'tag:ovh'],
           users: ['autogroup:nonroot', 'root']
+        },
+        {
+          action: 'accept',
+          src: ['autogroup:member', 'autogroup:tagged'],
+          dst: ['tag:ssh'],
+          users: ['autogroup:nonroot', 'root']
         }
       ],
       tagOwners: {
@@ -52,7 +64,9 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         'tag:worker': ['pandoks@github'],
         'tag:dev': ['pandoks@github', 'tag:k8s-operator'],
         'tag:prod': ['pandoks@github', 'tag:k8s-operator'],
-        'tag:ci': ['pandoks@github']
+        'tag:ci': ['pandoks@github'],
+        'tag:cliproxyapi': ['pandoks@github'],
+        'tag:ssh': ['pandoks@github']
       }
     },
     { maxLength: 80, indent: 2 }

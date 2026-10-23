@@ -129,9 +129,9 @@ const { tailscaleHostnames: _workerTailscaleHostnames, servers: _workerServers }
 );
 
 if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
-  const devices = await tailscale.getDevices({ namePrefix: `${STAGE_NAME}` });
+  const { devices = [] } = await tailscale.getDevices({ namePrefix: `${STAGE_NAME}` });
 
-  const kubernetesDevices = devices.devices.filter(
+  const kubernetesDevices = devices.filter(
     (device) => device.tags.includes('tag:k8s') && device.tags.includes(`tag:${STAGE_NAME}`)
   );
   if (kubernetesDevices.length > 0) {

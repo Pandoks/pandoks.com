@@ -41,7 +41,7 @@
     <enhanced:img class="mx-auto mb-4 rounded-xs" src={block.picture} alt="A thousand words" />
   {:else if block.type === 'code'}
     <pre
-      class="bg-highlight scrollbar-thin mb-4 overflow-x-auto rounded-xs p-4"
+      class="bg-highlight mb-4 scrollbar-thin overflow-x-auto rounded-xs p-4"
       style="scrollbar-width: thin;">
       <code class="font-mono text-xs lg:text-sm">
         {@html hljs.highlight(block.code, { language: block.language }).value}

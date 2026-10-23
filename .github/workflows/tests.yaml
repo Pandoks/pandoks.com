@@ -22,6 +22,7 @@ jobs:
       web: ${{ steps.filter.outputs.web }}
       desktop: ${{ steps.filter.outputs.desktop }}
       svelte: ${{ steps.filter.outputs.svelte }}
+      prettier: ${{ steps.filter.outputs.prettier }}
       valkey-reconciler: ${{ steps.filter.outputs.valkey-reconciler }}
 
     steps:
@@ -39,6 +40,8 @@ jobs:
               - 'packages/svelte/**'
             svelte:
               - 'packages/svelte/**'
+            prettier:
+              - 'packages/prettier/**'
             valkey-reconciler:
               - 'packages/valkey/reconciler/**'
 
@@ -87,6 +90,18 @@ jobs:
       - name: Run svelte package tests
         run: pnpm --filter @pandoks.com/svelte test
 
+  test-prettier-pkg:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.prettier == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - name: Run prettier package tests
+        run: pnpm --filter @pandoks.com/prettier test
+
   test-valkey-reconciler:
     needs: detect-changes
     if: needs.detect-changes.outputs.valkey-reconciler == 'true'
@@ -110,6 +125,7 @@ jobs:
       - test-web
       - test-desktop
       - test-svelte-pkg
+      - test-prettier-pkg
       - test-valkey-reconciler
     if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-latest
