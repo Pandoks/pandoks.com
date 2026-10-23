@@ -61,7 +61,8 @@ with `@lib`, not `$lib`.
 
 - PRs run `checks.yaml`, `tests.yaml`, `security.yaml`, and `build-and-publish.yaml` (branch-tagged
   GHCR images and charts), a Cloudflare Pages preview of `apps/web`, and `claude-review.yaml` (one
-  Agent SDK `/code-review` per PR, as inline comments). Required checks are the `*-pass` aggregates.
+  Agent SDK `/code-review` per PR, posted as one review with inline comments). Required checks are
+  the `*-pass` aggregates.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `infra/`, `apps/`
   (except `desktop-template` and `example`), and `packages/svelte/`, plus an Argo hard refresh only
   for `k3s/` and `scripts/cluster/` changes. Pages builds `apps/web` when a change matches
@@ -80,6 +81,10 @@ are unpinned globals; run repo commands, `kubectl` included, as `mise exec -- <c
 checkout. The SST CLI is `pnpm sst`.
 
 - `pnpm format <js|go|shell|all>` writes; `pnpm format check <...>` checks.
+- Manage agent skills only with the skills CLI, for Claude Code, Codex, and opencode:
+  `pnpm dlx skills add <source> -s <skill> -a claude-code codex opencode`, and
+  `pnpm dlx skills update -p`. It writes `.agents/skills`, the `.claude/skills` symlinks, and
+  `skills-lock.json`.
 - `pnpm lint <js|go|helm|docker|shell|actions|all>`; `js` needs `.sst/platform` from `pnpm install`,
   or `infra/` shows hundreds of false type errors.
 - `pnpm check` type-checks every package, `infra/`, and `sst.config.ts`.
