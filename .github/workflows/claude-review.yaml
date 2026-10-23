@@ -60,8 +60,8 @@ jobs:
             exit 1
           fi
 
-      - name: Install reviewer memory
-        run: install -D -m 644 scripts/claude-review/CLAUDE.md ~/.claude/CLAUDE.md
+      - name: Debug home claude dir
+        run: ls -la ~/.claude || echo "no ~/.claude"
 
       # NOTE: The reviewer reads untrusted PR text, so its process must not see the OIDC request vars.
       - name: Review with Claude
@@ -71,6 +71,19 @@ jobs:
           ANTHROPIC_API_KEY: cliproxyapi
           GH_TOKEN: ${{ steps.claude-app.outputs.token || github.token }}
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1'
+          CLAUDE_CONFIG_DIR: ${{ github.workspace }}/scripts/claude-review
+
+      - name: Debug config dir
+        if: ${{ always() }}
+        run: |
+          ls -la ~/.claude || echo "no ~/.claude"
+          find scripts/claude-review -type f | sort
+          echo "transcripts containing the rules:"
+          grep -rl "Separate verified from inferred" scripts/claude-review/projects || echo none
+          echo "transcripts total:"
+          find scripts/claude-review/projects -name '*.jsonl' | wc -l
+          echo "review mentions of config files:"
+          grep -rhoE "\.claude\.json|scripts/claude-review/(projects|sessions|backups)" scripts/claude-review/projects | sort | uniq -c || true
 
       - name: Delete pending review
         if: ${{ cancelled() || failure() }}
