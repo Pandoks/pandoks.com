@@ -108,7 +108,6 @@ const inlineComment = tool(
       .describe('LEFT for old code, RIGHT for new code')
   },
   async ({ path, body, line, startLine, side }) => {
-    commentCalls++;
     const { data } = await requestGithub<{
       data: { addPullRequestReviewThread: { thread: { id: string } | null } };
     }>({
@@ -174,9 +173,12 @@ try {
         subagentModels[parentId] ??= message.message.model;
       }
       for (const block of message.message.content) {
-        if (block.type === 'tool_use' && block.name === 'Agent') {
+        if (block.type !== 'tool_use') continue;
+        if (block.name === 'Agent') {
           agentCalls[block.id] = { effort: (block.input as { effort?: string }).effort, parentId };
         }
+        // NOTE: The SDK rejects calls whose input fails the schema before the handler runs.
+        if (block.name === 'mcp__github_inline_comment__create_inline_comment') commentCalls++;
       }
     }
     // NOTE: The forked /code-review is the task without a tool_use_id, and its failure still ends
