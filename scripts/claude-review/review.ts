@@ -74,6 +74,9 @@ const review = await requestGithub<{ id: number; node_id: string }>({
   body: { commit_id: event.pull_request.head.sha }
 });
 
+let commentCalls = 0;
+let commentsAdded = 0;
+
 // NOTE: Same name and inputs as claude-code-action's tool, which /code-review --comment looks for.
 const inlineComment = tool(
   'create_inline_comment',
@@ -105,6 +108,7 @@ const inlineComment = tool(
       .describe('LEFT for old code, RIGHT for new code')
   },
   async ({ path, body, line, startLine, side }) => {
+    commentCalls++;
     const { data } = await requestGithub<{
       data: { addPullRequestReviewThread: { thread: { id: string } | null } };
     }>({
@@ -129,6 +133,7 @@ const inlineComment = tool(
     if (!data.addPullRequestReviewThread.thread) {
       throw new Error(`GitHub added no comment: ${JSON.stringify(data)}`);
     }
+    commentsAdded++;
     return { content: [{ type: 'text', text: 'Added the comment to the pending review' }] };
   }
 );
@@ -150,7 +155,6 @@ try {
     options: {
       model: MODEL,
       effort: EFFORT,
-      systemPrompt: { type: 'preset', preset: 'claude_code' },
       permissionMode: 'bypassPermissions',
       allowDangerouslySkipPermissions: true,
       forwardSubagentText: true,
@@ -164,8 +168,8 @@ try {
   })) {
     if (message.type === 'assistant') {
       const parentId = message.parent_tool_use_id;
-      // NOTE: Background subagents stream live, so their messages can arrive before the forked
-      // review's Agent call that started them.
+      // NOTE: Background tasks are disabled, but a subagent continued with SendMessage still runs in
+      // the background, so its messages can arrive before its Agent call.
       if (parentId && message.message.model !== '<synthetic>') {
         subagentModels[parentId] ??= message.message.model;
       }
@@ -210,7 +214,8 @@ try {
     await appendFile(
       process.env.GITHUB_STEP_SUMMARY!,
       `## Claude review\n\n${text}${footer}\n\n` +
-        `$${result.total_cost_usd.toFixed(2)}, ${Math.round(result.duration_ms / 1000)}s\n`
+        `$${result.total_cost_usd.toFixed(2)}, ${Math.round(result.duration_ms / 1000)}s, ` +
+        `${commentCalls - commentsAdded} of ${commentCalls} inline comment calls failed\n`
     );
   }
   await requestGithub({
@@ -222,6 +227,7 @@ try {
 
 if (
   reviewFailed ||
+  (commentCalls && !commentsAdded) ||
   !result ||
   result.is_error ||
   result.subtype !== 'success' ||
