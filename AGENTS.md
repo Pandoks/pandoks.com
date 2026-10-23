@@ -159,11 +159,11 @@ Before calling infra, cluster, or tooling work done, check:
 - **Go:** justify every `#nosec` or `//nolint` inline.
 - **Containers and manifests:** pin Dockerfile bases, third-party images, and chart defaults as
   `image:tag@sha256:…` in files a Renovate manager matches; no image lock files. Images in raw
-  manifests in `k3s/` and `apps/*/kube` aren't matched yet, so add a `kubernetes`
-  `managerFilePatterns` entry to `renovate.json` before pinning an image there. First-party images
-  in `apps/*/kube` stay `${ImageRegistry}/<img>:${ImageTag}`. Prefer copying official binaries from
-  official images. Use `.yaml`. Default unset or off-by-default `values.yaml` options to `~` (no
-  `enabled` switch) under an `# options:` comment listing the choices.
+  manifests in `k3s/` aren't matched yet, so add a `kubernetes` `managerFilePatterns` entry to
+  `renovate.json` before pinning an image there. First-party images in `apps/*/kube` stay
+  `${ImageRegistry}/<img>:${ImageTag}`. Prefer copying official binaries from official images. Use
+  `.yaml`. Default unset or off-by-default `values.yaml` options to `~` (no `enabled` switch) under
+  an `# options:` comment listing the choices.
 
 ## Git and pull requests
 
@@ -208,9 +208,9 @@ that can't happen, or for compatibility code for old data or deploy order during
   scripts or generators like `tailscale.com/install.sh` and `shadcn-svelte@latest`. Also a version
   bump missing one of its synced copies, like a `Chart.yaml` bump without the `apps/*/kube`
   manifests using it. Safe path: a native Renovate manager (`helm-values` updates image strings
-  under any `values.yaml` key ending in `image`; none matches raw manifests in `k3s/` or
-  `apps/*/kube`) or a `# renovate:` comment a `renovate.json` custom manager matches; checksums
-  Renovate can't compute are bumped by hand with their version.
+  under any `values.yaml` key ending in `image`, `kubernetes` those in `apps/*/kube` and chart
+  templates; none matches raw manifests in `k3s/`) or a `# renovate:` comment a `renovate.json`
+  custom manager matches; checksums Renovate can't compute are bumped by hand with their version.
 - An attacker-controlled `${{ }}` value, like a branch name or PR title, in `run:` instead of
   `env:`.
 - A real secret value in code, manifests, values, logs, or workflow output. References like

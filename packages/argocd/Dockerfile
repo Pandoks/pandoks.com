@@ -14,7 +14,7 @@ RUN go mod init kustomize \
     && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" \
     -o /out/kustomize sigs.k8s.io/kustomize/kustomize/v5
 
-FROM node:24.21.0-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6
+FROM node:24.22.0-slim@sha256:91acba91b842bec0bf7ea6f5e09c644c7ccad72c4996ed9616d861d1c7cd60d4
 
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
     && apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
@@ -25,7 +25,7 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
     apache2-utils \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/pnpm/pnpm:12.8.1@sha256:44cfd11d75b901dc7a83a16812d9134e4bf9d82f6b0eb28af6d666ebbf0fb4fb /opt/pnpm/pnpm /usr/local/bin/pnpm
+COPY --from=ghcr.io/pnpm/pnpm:12.14.0@sha256:71202ae73719148f6b6e129ca1e9fa3ceabbc9a037dc34800715606f2b5290a1 /opt/pnpm/pnpm /usr/local/bin/pnpm
 
 COPY --from=kustomize-builder /out/kustomize /usr/local/bin/kustomize
 
