@@ -16,7 +16,7 @@ const { pull_request: pullRequest, repository } = JSON.parse(
   await readFile(eventPath!, 'utf8')
 ) as PullRequestEvent;
 const pr = pullRequest.number;
-const agentsMd = await readFile('scripts/claude-review/AGENTS.md', 'utf8');
+const claudeMd = await readFile('scripts/claude-review/CLAUDE.md', 'utf8');
 const model = 'claude-opus-5-5';
 const effort = 'xhigh';
 const headers = {
@@ -95,7 +95,7 @@ for await (const message of query({
   options: {
     model,
     effort,
-    systemPrompt: { type: 'preset', preset: 'claude_code', append: agentsMd },
+    systemPrompt: { type: 'preset', preset: 'claude_code', append: claudeMd },
     permissionMode: 'bypassPermissions',
     allowDangerouslySkipPermissions: true,
     forwardSubagentText: true,
