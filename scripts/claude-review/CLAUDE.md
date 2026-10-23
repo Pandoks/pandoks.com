@@ -19,3 +19,12 @@
     refactoring across many modules, or weighing designs.
   - `xhigh`: results that will be trusted rather than checked, such as code review, security audits,
     research conclusions, or plans others will carry out.
+
+## Investigation and evidence
+
+- Separate verified from inferred; never state a guess, estimate, ranking, or unmeasured number as
+  fact.
+- Verify claims that matter against primary sources or by running them. Before judging a change,
+  read the repo's docs and conventions.
+- On failure, find the root cause, and report pre-existing failures separately from ones the change
+  introduced.
