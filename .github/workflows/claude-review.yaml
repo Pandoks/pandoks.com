@@ -51,13 +51,16 @@ jobs:
             https://api.anthropic.com/api/github/github-app-token-exchange)
           if token=$(jq -er '.token // .app_token' <<<"${response}"); then
             echo "::add-mask::${token}"
-            echo "token=${token}" >> "$GITHUB_OUTPUT"
+            echo "token=${token}" >> "${GITHUB_OUTPUT}"
           elif [[ $(jq -r .error.details.error_code <<<"${response}") == workflow_content_mismatch ]]; then
             echo "::notice::claude-review.yaml differs from the default branch, so this review posts as github-actions[bot]"
           else
             echo "${response}"
             exit 1
           fi
+
+      - name: Install reviewer memory
+        run: install -D -m 644 scripts/claude-review/CLAUDE.md ~/.claude/CLAUDE.md
 
       # NOTE: The reviewer reads untrusted PR text, so its process must not see the OIDC request vars.
       - name: Review with Claude
@@ -66,6 +69,7 @@ jobs:
           ANTHROPIC_BASE_URL: https://cliproxyapi-ci.tailb2c81d.ts.net
           ANTHROPIC_API_KEY: cliproxyapi
           GH_TOKEN: ${{ steps.claude-app.outputs.token || github.token }}
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1'
 
       - name: Revoke claude[bot] token
         if: ${{ always() && steps.claude-app.outputs.token }}

@@ -14,7 +14,6 @@ type PullRequestEvent = {
 
 const MODEL = 'claude-opus-5-5';
 const EFFORT = 'xhigh';
-const CLAUDE_MD = await readFile('scripts/claude-review/CLAUDE.md', 'utf8');
 
 const event = JSON.parse(
   await readFile(process.env.GITHUB_EVENT_PATH!, 'utf8')
@@ -37,7 +36,9 @@ async function requestGithub<ResponseBody>({
 }) {
   const response = await fetch(url, { method, headers, body: body && JSON.stringify(body) });
   if (!response.ok) throw new Error(`GitHub returned ${response.status}: ${await response.text()}`);
-  return (await response.json()) as ResponseBody;
+  const json = (await response.json()) as { errors?: unknown[] };
+  if (json.errors) throw new Error(`GitHub returned errors: ${JSON.stringify(json.errors)}`);
+  return json as ResponseBody;
 }
 
 function formatModelLabel({ model, effort }: { model: string; effort: string }) {
@@ -48,8 +49,7 @@ function formatModelLabel({ model, effort }: { model: string; effort: string }) 
 // NOTE: A cancelled run or failed submit leaves the token's pending review behind, and GitHub
 // allows one per user per PR.
 const pendingReviews = await requestGithub<{
-  data?: { repository: { pullRequest: { reviews: { nodes: { databaseId: number }[] } } } };
-  errors?: unknown[];
+  data: { repository: { pullRequest: { reviews: { nodes: { databaseId: number }[] } } } };
 }>({
   method: 'POST',
   url: process.env.GITHUB_GRAPHQL_URL!,
@@ -63,10 +63,7 @@ const pendingReviews = await requestGithub<{
     }
   }
 });
-if (pendingReviews.errors) {
-  throw new Error(`Pending review lookup failed: ${JSON.stringify(pendingReviews.errors)}`);
-}
-const pendingReview = pendingReviews.data!.repository.pullRequest.reviews.nodes[0];
+const pendingReview = pendingReviews.data.repository.pullRequest.reviews.nodes[0];
 if (pendingReview) {
   await requestGithub({ method: 'DELETE', url: `${pullUrl}/reviews/${pendingReview.databaseId}` });
 }
@@ -108,9 +105,8 @@ const inlineComment = tool(
       .describe('LEFT for old code, RIGHT for new code')
   },
   async ({ path, body, line, startLine, side }) => {
-    const { data, errors } = await requestGithub<{
-      data?: { addPullRequestReviewThread?: { thread: { id: string } | null } };
-      errors?: unknown[];
+    const { data } = await requestGithub<{
+      data: { addPullRequestReviewThread: { thread: { id: string } | null } };
     }>({
       method: 'POST',
       url: process.env.GITHUB_GRAPHQL_URL!,
@@ -130,8 +126,8 @@ const inlineComment = tool(
       }
     });
     // NOTE: GitHub returns a null thread without errors for some lines it can't comment on.
-    if (errors || !data?.addPullRequestReviewThread?.thread) {
-      throw new Error(`GitHub added no comment: ${JSON.stringify(errors ?? data)}`);
+    if (!data.addPullRequestReviewThread.thread) {
+      throw new Error(`GitHub added no comment: ${JSON.stringify(data)}`);
     }
     return { content: [{ type: 'text', text: 'Added the comment to the pending review' }] };
   }
@@ -154,7 +150,7 @@ try {
     options: {
       model: MODEL,
       effort: EFFORT,
-      systemPrompt: { type: 'preset', preset: 'claude_code', append: CLAUDE_MD },
+      systemPrompt: { type: 'preset', preset: 'claude_code' },
       permissionMode: 'bypassPermissions',
       allowDangerouslySkipPermissions: true,
       forwardSubagentText: true,
