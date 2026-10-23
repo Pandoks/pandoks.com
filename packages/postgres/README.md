@@ -637,37 +637,40 @@ after changing them:
 
 ### Values
 
-| Key                             | Description                                 | Default                                                     |
-| ------------------------------- | ------------------------------------------- | ----------------------------------------------------------- |
-| `db`                            | Database name                               | `example`                                                   |
-| `namespace`                     | Kubernetes namespace                        | `example`                                                   |
-| `credentials.secret`            | Database credentials secret                 | `postgres-example-creds`                                    |
-| `credentials.dataKeys.*`        | Password keys in that secret                | `SUPERUSER_PASSWORD`, `ADMIN_PASSWORD`, etc.                |
-| `backup.credentials.secret`     | S3 credentials secret                       | `backup-bucket-creds`                                       |
-| `backup.credentials.dataKeys.*` | Access/secret keys in that secret           | `S3_ACCESS_KEY`, `S3_SECRET_KEY`                            |
-| `backup.bucket`                 | S3 bucket                                   | `backups`                                                   |
-| `backup.path`                   | Path in the bucket                          | `kubernetes/examples/postgres`                              |
-| `backup.encryptionKey`          | pgBackRest cipher passphrase                | `openssl-rand-hex-32` (placeholder, override it)            |
-| `backup.image`                  | pgBackRest image                            | `ghcr.io/pandoks/pgbackrest:latest`                         |
-| `backup.schedules.full`         | Full backup cron                            | `0 2 * * 0` (Sunday 2 AM)                                   |
-| `backup.schedules.diff`         | Diff backup cron                            | `0 2 * * 3,6` (Wed/Sat)                                     |
-| `backup.schedules.incr`         | Incr backup cron                            | `0 2 * * 1,2,4,5`                                           |
-| `backup.retention.full`         | Full backups to keep                        | `4`                                                         |
-| `backup.retention.diff`         | Diff backups to keep                        | `2`                                                         |
-| `s3.region`                     | S3 region                                   | `us-west-1`                                                 |
-| `s3.host`                       | S3 endpoint                                 | `host.k3d.internal:4566` (LocalStack from `docker-compose`) |
-| `s3.tls`                        | Verify S3 TLS (`y`/`n`)                     | `n`                                                         |
-| `s3.uriStyle`                   | S3 URI style                                | `path`                                                      |
-| `patroni.shards`                | Number of shards                            | `1`                                                         |
-| `patroni.replicasPerShard`      | Pods per shard (1 primary + n - 1 replicas) | `3`                                                         |
-| `patroni.image`                 | Patroni image                               | `ghcr.io/pandoks/patroni:latest`                            |
-| `patroni.resources.*`           | `patroni`, `pgbackrest`, `postgresExporter` | `{}`                                                        |
-| `pgdog.*`                       | Passed through to the [PgDog chart][pgdog]  | See below                                                   |
-| `pgdog.replicas`                | PgDog replicas                              | `2`                                                         |
-| `pgdog.workers`                 | PgDog worker threads                        | `2`                                                         |
-| `pgdog.defaultPoolSize`         | Server connections per pool                 | `15`                                                        |
-| `pgdog.loadBalancingStrategy`   | Load balancing                              | `least_active_connections`                                  |
-| `pgdog.readWriteSplit`          | Read/write routing                          | `include_primary_if_replica_banned`                         |
+| Key                             | Description                                        | Default                                                     |
+| ------------------------------- | -------------------------------------------------- | ----------------------------------------------------------- |
+| `db`                            | Database name                                      | `example`                                                   |
+| `namespace`                     | Kubernetes namespace                               | `example`                                                   |
+| `monitoringNamespace`           | ServiceMonitors and dashboard ConfigMaps           | `monitoring`                                                |
+| `credentials.secret`            | Database credentials secret                        | `postgres-example-creds`                                    |
+| `credentials.dataKeys.*`        | Password keys in that secret                       | `SUPERUSER_PASSWORD`, `ADMIN_PASSWORD`, etc.                |
+| `backup.enabled`                | Backups and WAL archiving; set before first create | `true`                                                      |
+| `backup.credentials.secret`     | S3 credentials secret                              | `backup-bucket-creds`                                       |
+| `backup.credentials.dataKeys.*` | Access/secret keys in that secret                  | `S3_ACCESS_KEY`, `S3_SECRET_KEY`                            |
+| `backup.bucket`                 | S3 bucket                                          | `backups`                                                   |
+| `backup.path`                   | Path in the bucket                                 | `kubernetes/examples/postgres`                              |
+| `backup.encryptionKey`          | pgBackRest cipher passphrase                       | `openssl-rand-hex-32` (placeholder, override it)            |
+| `backup.image`                  | pgBackRest image                                   | `ghcr.io/pandoks/pgbackrest:latest`                         |
+| `backup.schedules.full`         | Full backup cron                                   | `0 2 * * 0` (Sunday 2 AM)                                   |
+| `backup.schedules.diff`         | Diff backup cron                                   | `0 2 * * 3,6` (Wed/Sat)                                     |
+| `backup.schedules.incr`         | Incr backup cron                                   | `0 2 * * 1,2,4,5`                                           |
+| `backup.retention.full`         | Full backups to keep                               | `4`                                                         |
+| `backup.retention.diff`         | Diff backups to keep                               | `2`                                                         |
+| `s3.region`                     | S3 region                                          | `us-west-1`                                                 |
+| `s3.host`                       | S3 endpoint                                        | `host.k3d.internal:4566` (LocalStack from `docker-compose`) |
+| `s3.tls`                        | Verify S3 TLS (`y`/`n`)                            | `n`                                                         |
+| `s3.uriStyle`                   | S3 URI style                                       | `path`                                                      |
+| `patroni.shards`                | Number of shards                                   | `1`                                                         |
+| `patroni.replicasPerShard`      | Pods per shard (1 primary + n - 1 replicas)        | `3`                                                         |
+| `patroni.image`                 | Patroni image                                      | `ghcr.io/pandoks/patroni:latest`                            |
+| `patroni.resources.*`           | `patroni`, `pgbackrest`, `postgresExporter`        | `{}`                                                        |
+| `pgdogReleaseName`              | PgDog release name, unique in kube-system          | `<db>-pgdog`                                                |
+| `pgdog.*`                       | Passed through to the [PgDog chart][pgdog]         | See below                                                   |
+| `pgdog.replicas`                | PgDog replicas                                     | `2`                                                         |
+| `pgdog.workers`                 | PgDog worker threads                               | `2`                                                         |
+| `pgdog.defaultPoolSize`         | Server connections per pool                        | `15`                                                        |
+| `pgdog.loadBalancingStrategy`   | Load balancing                                     | `least_active_connections`                                  |
+| `pgdog.readWriteSplit`          | Read/write routing                                 | `include_primary_if_replica_banned`                         |
 
 [pgdog]: https://github.com/pgdogdev/helm/blob/main/values.yaml
 
