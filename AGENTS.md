@@ -82,8 +82,9 @@ checkout. The SST CLI is `pnpm sst`.
 
 - `pnpm format <js|go|shell|all>` writes; `pnpm format check <...>` checks.
 - Manage agent skills only with the skills CLI, for Claude Code, Codex, and opencode:
-  `npx skills add <source> -s <skill> -a claude-code codex opencode`, and `npx skills update -p`. It
-  writes `.agents/skills`, the `.claude/skills` symlinks, and `skills-lock.json`.
+  `pnpm dlx skills add <source> -s <skill> -a claude-code codex opencode`, and
+  `pnpm dlx skills update -p`. It writes `.agents/skills`, the `.claude/skills` symlinks, and
+  `skills-lock.json`.
 - `pnpm lint <js|go|helm|docker|shell|actions|all>`; `js` needs `.sst/platform` from `pnpm install`,
   or `infra/` shows hundreds of false type errors.
 - `pnpm check` type-checks every package, `infra/`, and `sst.config.ts`.
