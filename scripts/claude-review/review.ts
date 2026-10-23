@@ -46,8 +46,8 @@ function formatModelLabel({ model, effort }: { model: string; effort: string }) 
   return `${family[0].toUpperCase()}${family.slice(1)} ${major}.${minor} ${effort}`;
 }
 
-// NOTE: A cancelled run or failed submit leaves the token's pending review behind, and GitHub
-// allows one per user per PR.
+// NOTE: A runner that dies before the cleanup step leaves the token's pending review behind, and
+// GitHub allows one per user per PR.
 const pendingReviews = await requestGithub<{
   data: { repository: { pullRequest: { reviews: { nodes: { fullDatabaseId: string }[] } } } };
 }>({
