@@ -17,6 +17,14 @@ const { pull_request: pullRequest, repository } = JSON.parse(
 ) as PullRequestEvent;
 const pr = pullRequest.number;
 const agentsMd = await readFile('scripts/claude-review/AGENTS.md', 'utf8');
+const model = 'claude-opus-5-5';
+const effort = 'xhigh';
+const headers = {
+  Accept: 'application/vnd.github+json',
+  Authorization: `Bearer ${token}`,
+  'X-GitHub-Api-Version': '2022-11-28'
+};
+const posted: { id: number; body: string }[] = [];
 
 // NOTE: Same name and inputs as claude-code-action's tool, which /code-review --comment looks for.
 const inlineComment = tool(
@@ -56,11 +64,7 @@ const inlineComment = tool(
     }
     const response = await fetch(`${repository.url}/pulls/${pr}/comments`, {
       method: 'POST',
-      headers: {
-        Accept: 'application/vnd.github+json',
-        Authorization: `Bearer ${token}`,
-        'X-GitHub-Api-Version': '2022-11-28'
-      },
+      headers,
       body: JSON.stringify({
         body,
         commit_id: pullRequest.head.sha,
@@ -70,22 +74,31 @@ const inlineComment = tool(
         ...(startLine === undefined ? {} : { start_line: startLine, start_side: side })
       })
     });
-    const text = response.ok
-      ? `Posted ${((await response.json()) as { html_url: string }).html_url}`
-      : `GitHub returned ${response.status}: ${await response.text()}`;
-    return { content: [{ type: 'text', text }], isError: !response.ok };
+    if (!response.ok) {
+      return {
+        content: [
+          { type: 'text', text: `GitHub returned ${response.status}: ${await response.text()}` }
+        ],
+        isError: true
+      };
+    }
+    const comment = (await response.json()) as { id: number; html_url: string };
+    posted.push({ id: comment.id, body });
+    return { content: [{ type: 'text', text: `Posted ${comment.html_url}` }] };
   }
 );
 
+const subagents = new Map<string, { model?: string; effort: string }>();
 let result;
 for await (const message of query({
   prompt: `/code-review xhigh --comment ${pr}`,
   options: {
-    model: 'claude-opus-5-5',
-    effort: 'xhigh',
+    model,
+    effort,
     systemPrompt: { type: 'preset', preset: 'claude_code', append: agentsMd },
     permissionMode: 'bypassPermissions',
     allowDangerouslySkipPermissions: true,
+    forwardSubagentText: true,
     mcpServers: {
       github_inline_comment: createSdkMcpServer({
         name: 'github_inline_comment',
@@ -94,14 +107,52 @@ for await (const message of query({
     }
   }
 })) {
+  if (message.type === 'assistant') {
+    const parent = message.parent_tool_use_id
+      ? subagents.get(message.parent_tool_use_id)
+      : undefined;
+    if (parent) parent.model = message.message.model;
+    for (const block of message.message.content) {
+      if (block.type === 'tool_use' && block.name === 'Agent') {
+        // NOTE: A subagent without an effort runs at its parent's.
+        const input = block.input as { effort?: string };
+        subagents.set(block.id, { effort: input.effort ?? parent?.effort ?? effort });
+      }
+    }
+  }
   if (message.type === 'result') result = message;
+}
+
+const label = (id: string, level: string) => {
+  const [, family, major, minor] = /^claude-(\w+)-(\d+)-(\d+)/.exec(id)!;
+  return `${family[0].toUpperCase()}${family.slice(1)} ${major}.${minor} ${level}`;
+};
+const counts = new Map<string, number>();
+for (const subagent of subagents.values()) {
+  if (!subagent.model) continue;
+  const key = label(subagent.model, subagent.effort);
+  counts.set(key, (counts.get(key) ?? 0) + 1);
+}
+const footer =
+  `\n\n---\n${label(model, effort)}` +
+  (counts.size
+    ? ` managing subagents:\n${[...counts].map(([key, count]) => `- ${count}x ${key}`).join('\n')}`
+    : '');
+// NOTE: Comments get the footer after the run, so it counts subagents started after they posted.
+for (const { id, body } of posted) {
+  const response = await fetch(`${repository.url}/pulls/comments/${id}`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify({ body: body + footer })
+  });
+  if (!response.ok) throw new Error(`GitHub returned ${response.status}: ${await response.text()}`);
 }
 
 console.log(JSON.stringify(result, null, 2));
 if (result) {
   await appendFile(
     summaryPath!,
-    `## Claude review\n\n${result.subtype === 'success' ? result.result : result.subtype}\n\n` +
+    `## Claude review\n\n${result.subtype === 'success' ? result.result : result.subtype}${footer}\n\n` +
       `$${result.total_cost_usd.toFixed(2)}, ${result.num_turns} turns, ${Math.round(result.duration_ms / 1000)}s\n`
   );
 }
