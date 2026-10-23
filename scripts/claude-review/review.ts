@@ -7,11 +7,6 @@ import {
 } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 
-// WARNING: The reviewer reads untrusted PR text, so it must not mint an OIDC token to exchange for
-// a broader claude[bot] token.
-delete process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
-delete process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
-
 type PullRequestEvent = {
   pull_request: { number: number; head: { sha: string } };
   repository: { url: string };
@@ -31,10 +26,10 @@ const headers = {
   'X-GitHub-Api-Version': '2022-11-28'
 };
 
-async function postGithub<Response>({ url, body }: { url: string; body: object }) {
+async function postGithub<ResponseBody>({ url, body }: { url: string; body: object }) {
   const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
   if (!response.ok) throw new Error(`GitHub returned ${response.status}: ${await response.text()}`);
-  return (await response.json()) as Response;
+  return (await response.json()) as ResponseBody;
 }
 
 function formatModelLabel({ model, effort }: { model: string; effort: string }) {
@@ -107,7 +102,14 @@ const inlineComment = tool(
 );
 
 const subagentModels: Record<string, string> = {};
-const subagentEfforts: Record<string, string> = {};
+const agentCalls: Record<string, { effort?: string; parentId: string | null }> = {};
+
+// NOTE: A subagent without an effort runs at its parent's.
+function resolveEffort({ toolUseId }: { toolUseId: string | null }): string {
+  const call = toolUseId ? agentCalls[toolUseId] : undefined;
+  return call ? (call.effort ?? resolveEffort({ toolUseId: call.parentId })) : EFFORT;
+}
+
 let reviewFailed = false;
 let result: SDKResultMessage | undefined;
 try {
@@ -130,16 +132,14 @@ try {
   })) {
     if (message.type === 'assistant') {
       const parentId = message.parent_tool_use_id;
-      // NOTE: A subagent's messages can arrive before the forked review's Agent call that started it.
+      // NOTE: Background subagents stream live, so their messages can arrive before the forked
+      // review's Agent call that started them.
       if (parentId && message.message.model !== '<synthetic>') {
         subagentModels[parentId] ??= message.message.model;
       }
       for (const block of message.message.content) {
         if (block.type === 'tool_use' && block.name === 'Agent') {
-          // NOTE: A subagent without an effort runs at its parent's.
-          const input = block.input as { effort?: string };
-          subagentEfforts[block.id] =
-            input.effort ?? (parentId ? subagentEfforts[parentId] : undefined) ?? EFFORT;
+          agentCalls[block.id] = { effort: (block.input as { effort?: string }).effort, parentId };
         }
       }
     }
@@ -160,10 +160,10 @@ try {
   }
 } finally {
   const counts = new Map<string, number>();
-  for (const [id, effort] of Object.entries(subagentEfforts)) {
+  for (const id of Object.keys(agentCalls)) {
     const model = subagentModels[id];
     if (!model) continue;
-    const label = formatModelLabel({ model, effort });
+    const label = formatModelLabel({ model, effort: resolveEffort({ toolUseId: id }) });
     counts.set(label, (counts.get(label) ?? 0) + 1);
   }
   const footer =
@@ -172,10 +172,6 @@ try {
       ? ` managing subagents:\n${[...counts].map(([label, count]) => `- ${count}x ${label}`).join('\n')}`
       : '');
   const text = result?.subtype === 'success' ? result.result : (result?.subtype ?? 'No result');
-  await postGithub({
-    url: `${pullUrl}/reviews/${review.id}/events`,
-    body: { event: 'COMMENT', body: text + footer }
-  });
 
   console.log(JSON.stringify(result, null, 2));
   if (result) {
@@ -185,6 +181,10 @@ try {
         `$${result.total_cost_usd.toFixed(2)}, ${Math.round(result.duration_ms / 1000)}s\n`
     );
   }
+  await postGithub({
+    url: `${pullUrl}/reviews/${review.id}/events`,
+    body: { event: 'COMMENT', body: text + footer }
+  });
 }
 
 if (
