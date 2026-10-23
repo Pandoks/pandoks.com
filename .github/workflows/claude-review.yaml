@@ -72,6 +72,22 @@ jobs:
           GH_TOKEN: ${{ steps.claude-app.outputs.token || github.token }}
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1'
 
+      - name: Delete pending review
+        if: ${{ cancelled() || failure() }}
+        run: |
+          review=$(gh api graphql -f owner="${OWNER}" -f name="${NAME}" -F number="${NUMBER}" \
+            -f query="${QUERY}" \
+            --jq '.data.repository.pullRequest.reviews.nodes[0].fullDatabaseId // empty')
+          if [[ -n "${review}" ]]; then
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/pulls/${NUMBER}/reviews/${review}"
+          fi
+        env:
+          GH_TOKEN: ${{ steps.claude-app.outputs.token || github.token }}
+          OWNER: ${{ github.repository_owner }}
+          NAME: ${{ github.event.repository.name }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          QUERY: 'query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) { reviews(states: [PENDING], first: 1) { nodes { fullDatabaseId } } } } }'
+
       - name: Revoke claude[bot] token
         if: ${{ always() && steps.claude-app.outputs.token }}
         run: 'curl -sSf -X DELETE -H "Authorization: Bearer ${TOKEN}" https://api.github.com/installation/token'
