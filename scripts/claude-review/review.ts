@@ -26,8 +26,16 @@ const headers = {
   'X-GitHub-Api-Version': '2022-11-28'
 };
 
-async function postGithub<ResponseBody>({ url, body }: { url: string; body: object }) {
-  const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+async function requestGithub<ResponseBody>({
+  method,
+  url,
+  body
+}: {
+  method: string;
+  url: string;
+  body?: object;
+}) {
+  const response = await fetch(url, { method, headers, body: body && JSON.stringify(body) });
   if (!response.ok) throw new Error(`GitHub returned ${response.status}: ${await response.text()}`);
   return (await response.json()) as ResponseBody;
 }
@@ -37,7 +45,18 @@ function formatModelLabel({ model, effort }: { model: string; effort: string }) 
   return `${family[0].toUpperCase()}${family.slice(1)} ${major}.${minor} ${effort}`;
 }
 
-const review = await postGithub<{ id: number; node_id: string }>({
+// NOTE: A cancelled run or failed submit leaves the token's pending review behind, and GitHub
+// allows one per user per PR.
+const reviews = await requestGithub<{ id: number; state: string }[]>({
+  method: 'GET',
+  url: `${pullUrl}/reviews?per_page=100`
+});
+for (const { id } of reviews.filter(({ state }) => state === 'PENDING')) {
+  await requestGithub({ method: 'DELETE', url: `${pullUrl}/reviews/${id}` });
+}
+
+const review = await requestGithub<{ id: number; node_id: string }>({
+  method: 'POST',
   url: `${pullUrl}/reviews`,
   body: { commit_id: event.pull_request.head.sha }
 });
@@ -73,10 +92,11 @@ const inlineComment = tool(
       .describe('LEFT for old code, RIGHT for new code')
   },
   async ({ path, body, line, startLine, side }) => {
-    const { data, errors } = await postGithub<{
+    const { data, errors } = await requestGithub<{
       data?: { addPullRequestReviewThread?: { thread: { id: string } | null } };
       errors?: unknown[];
     }>({
+      method: 'POST',
       url: process.env.GITHUB_GRAPHQL_URL!,
       body: {
         query:
@@ -181,7 +201,8 @@ try {
         `$${result.total_cost_usd.toFixed(2)}, ${Math.round(result.duration_ms / 1000)}s\n`
     );
   }
-  await postGithub({
+  await requestGithub({
+    method: 'POST',
     url: `${pullUrl}/reviews/${review.id}/events`,
     body: { event: 'COMMENT', body: text + footer }
   });
