@@ -9,7 +9,7 @@ import { z } from 'zod';
 
 type PullRequestEvent = {
   pull_request: { number: number; head: { sha: string } };
-  repository: { url: string };
+  repository: { url: string; name: string; owner: { login: string } };
 };
 
 const MODEL = 'claude-opus-5-5';
@@ -47,12 +47,28 @@ function formatModelLabel({ model, effort }: { model: string; effort: string }) 
 
 // NOTE: A cancelled run or failed submit leaves the token's pending review behind, and GitHub
 // allows one per user per PR.
-const reviews = await requestGithub<{ id: number; state: string }[]>({
-  method: 'GET',
-  url: `${pullUrl}/reviews?per_page=100`
+const pendingReviews = await requestGithub<{
+  data?: { repository: { pullRequest: { reviews: { nodes: { databaseId: number }[] } } } };
+  errors?: unknown[];
+}>({
+  method: 'POST',
+  url: process.env.GITHUB_GRAPHQL_URL!,
+  body: {
+    query:
+      'query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) { reviews(states: [PENDING], first: 1) { nodes { databaseId } } } } }',
+    variables: {
+      owner: event.repository.owner.login,
+      name: event.repository.name,
+      number: event.pull_request.number
+    }
+  }
 });
-for (const { id } of reviews.filter(({ state }) => state === 'PENDING')) {
-  await requestGithub({ method: 'DELETE', url: `${pullUrl}/reviews/${id}` });
+if (pendingReviews.errors) {
+  throw new Error(`Pending review lookup failed: ${JSON.stringify(pendingReviews.errors)}`);
+}
+const pendingReview = pendingReviews.data!.repository.pullRequest.reviews.nodes[0];
+if (pendingReview) {
+  await requestGithub({ method: 'DELETE', url: `${pullUrl}/reviews/${pendingReview.databaseId}` });
 }
 
 const review = await requestGithub<{ id: number; node_id: string }>({
