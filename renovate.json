@@ -148,16 +148,9 @@
       ]
     },
     {
-      "description": "Each runner AMI change rebakes four images, so batch them monthly.",
-      "matchFileNames": ["infra/runner/ami.yaml"],
-      "groupName": "runner ami",
-      "schedule": ["* * 1 * *"]
-    },
-    {
       "description": "Every pnpm copy, the runner AMI's included, moves in one PR.",
       "matchPackageNames": ["pnpm", "ghcr.io/pnpm/pnpm"],
-      "groupName": "pnpm",
-      "schedule": ["at any time"]
+      "groupName": "pnpm"
     },
     {
       "description": "Keep the actions pinned in claude-review.yaml out of the all-minor-patch group — claude-code-action skips its review on any PR that changes that file, and it releases almost daily.",
