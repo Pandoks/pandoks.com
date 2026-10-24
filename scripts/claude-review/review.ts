@@ -3,6 +3,7 @@ import {
   createSdkMcpServer,
   query,
   tool,
+  type EffortLevel,
   type SDKResultMessage
 } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
@@ -12,8 +13,8 @@ type PullRequestEvent = {
   repository: { url: string; name: string; owner: { login: string } };
 };
 
-const MODEL = 'claude-opus-5-5';
-const EFFORT = 'xhigh';
+const MODEL = process.env.ANTHROPIC_MODEL ?? 'claude-opus-5-5';
+const EFFORT = (process.env.CLAUDE_CODE_EFFORT_LEVEL ?? 'xhigh') as EffortLevel;
 
 const event = JSON.parse(
   await readFile(process.env.GITHUB_EVENT_PATH!, 'utf8')
@@ -153,7 +154,7 @@ let reviewFailed = false;
 let result: SDKResultMessage | undefined;
 try {
   for await (const message of query({
-    prompt: `/code-review xhigh --comment ${event.pull_request.number}`,
+    prompt: `/code-review ${EFFORT} --comment ${event.pull_request.number}`,
     options: {
       model: MODEL,
       effort: EFFORT,
