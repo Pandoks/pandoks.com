@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getVimState } from '$lib/vim.svelte';
+  import { getVimState } from '#lib/vim.svelte.js';
   import instagram from '@pandoks.com/svelte/svg/instagram.svg?raw';
   import tiktok from '@pandoks.com/svelte/svg/tiktok.svg?raw';
   import github from '@pandoks.com/svelte/svg/github.svg?raw';

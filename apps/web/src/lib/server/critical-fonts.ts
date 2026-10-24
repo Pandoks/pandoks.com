@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import subsetFont from 'subset-font';
 import { parse, type HTMLElement, NodeType, type TextNode } from 'node-html-parser';
-import { FONTS, FONT_FAMILIES, type FontKey } from '$lib/fonts';
-import { unicodeRange } from '$lib/utils';
+import { FONTS, FONT_FAMILIES, type FontKey } from '#lib/fonts.js';
+import { unicodeRange } from '#lib/utils.js';
 
 const FONTS_DIR = resolve(process.cwd(), '../../packages/svelte/static/fonts');
 
