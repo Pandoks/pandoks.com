@@ -50,32 +50,6 @@ function formatModelLabel({ model, effort }: { model: string; effort: string }) 
   return `${family[0].toUpperCase()}${family.slice(1)} ${major}.${minor} ${effort}`;
 }
 
-// NOTE: A runner that dies before the cleanup step leaves the token's pending review behind, and
-// GitHub allows one per user per PR.
-const pendingReview = (
-  await requestGithub<{
-    data: { repository: { pullRequest: { reviews: { nodes: { fullDatabaseId: string }[] } } } };
-  }>({
-    method: 'POST',
-    url: process.env.GITHUB_GRAPHQL_URL!,
-    body: {
-      query:
-        'query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) { reviews(states: [PENDING], first: 1) { nodes { fullDatabaseId } } } } }',
-      variables: {
-        owner: event.repository.owner.login,
-        name: event.repository.name,
-        number: event.pull_request.number
-      }
-    }
-  })
-).data.repository.pullRequest.reviews.nodes[0];
-if (pendingReview) {
-  await requestGithub({
-    method: 'DELETE',
-    url: `${pullUrl}/reviews/${pendingReview.fullDatabaseId}`
-  });
-}
-
 const review = await requestGithub<{ id: number; node_id: string }>({
   method: 'POST',
   url: `${pullUrl}/reviews`,
