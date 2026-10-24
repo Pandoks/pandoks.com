@@ -1,6 +1,7 @@
 packages:
   - apps/*
   - packages/*
+  - scripts/claude-review
 
 engineStrict: true
 nodeLinker: hoisted # needed for electron
