@@ -1,29 +1,32 @@
 import { appendFile, readFile } from 'node:fs/promises';
+import { parseArgs } from 'node:util';
 import {
   createSdkMcpServer,
   query,
   tool,
+  type EffortLevel,
   type SDKResultMessage
 } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 
 type PullRequestEvent = {
   pull_request: { number: number; head: { sha: string } };
-  repository: { url: string; name: string; owner: { login: string } };
+  repository: { url: string };
 };
 
-const MODEL = 'claude-opus-5-5';
-const EFFORT = 'xhigh';
+const { values } = parseArgs({
+  options: {
+    model: { type: 'string', default: 'claude-opus-5-5' },
+    effort: { type: 'string', default: 'xhigh' }
+  }
+});
+const MODEL = values.model;
+const EFFORT = values.effort as EffortLevel;
 
 const event = JSON.parse(
   await readFile(process.env.GITHUB_EVENT_PATH!, 'utf8')
 ) as PullRequestEvent;
 const pullUrl = `${event.repository.url}/pulls/${event.pull_request.number}`;
-const headers = {
-  Accept: 'application/vnd.github+json',
-  Authorization: `Bearer ${process.env.GH_TOKEN!}`,
-  'X-GitHub-Api-Version': '2022-11-28'
-};
 
 async function requestGithub<ResponseBody>({
   method,
@@ -34,7 +37,15 @@ async function requestGithub<ResponseBody>({
   url: string;
   body?: object;
 }) {
-  const response = await fetch(url, { method, headers, body: body && JSON.stringify(body) });
+  const response = await fetch(url, {
+    method,
+    headers: {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${process.env.GH_TOKEN!}`,
+      'X-GitHub-Api-Version': '2022-11-28'
+    },
+    body: body && JSON.stringify(body)
+  });
   if (!response.ok) throw new Error(`GitHub returned ${response.status}: ${await response.text()}`);
   const json = (await response.json()) as { errors?: unknown[] };
   if (json.errors) throw new Error(`GitHub returned errors: ${JSON.stringify(json.errors)}`);
@@ -44,31 +55,6 @@ async function requestGithub<ResponseBody>({
 function formatModelLabel({ model, effort }: { model: string; effort: string }) {
   const [, family, major, minor] = /^claude-(\w+)-(\d+)-(\d+)/.exec(model)!;
   return `${family[0].toUpperCase()}${family.slice(1)} ${major}.${minor} ${effort}`;
-}
-
-// NOTE: A runner that dies before the cleanup step leaves the token's pending review behind, and
-// GitHub allows one per user per PR.
-const pendingReviews = await requestGithub<{
-  data: { repository: { pullRequest: { reviews: { nodes: { fullDatabaseId: string }[] } } } };
-}>({
-  method: 'POST',
-  url: process.env.GITHUB_GRAPHQL_URL!,
-  body: {
-    query:
-      'query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) { reviews(states: [PENDING], first: 1) { nodes { fullDatabaseId } } } } }',
-    variables: {
-      owner: event.repository.owner.login,
-      name: event.repository.name,
-      number: event.pull_request.number
-    }
-  }
-});
-const pendingReview = pendingReviews.data.repository.pullRequest.reviews.nodes[0];
-if (pendingReview) {
-  await requestGithub({
-    method: 'DELETE',
-    url: `${pullUrl}/reviews/${pendingReview.fullDatabaseId}`
-  });
 }
 
 const review = await requestGithub<{ id: number; node_id: string }>({
@@ -153,7 +139,7 @@ let reviewFailed = false;
 let result: SDKResultMessage | undefined;
 try {
   for await (const message of query({
-    prompt: `/code-review xhigh --comment ${event.pull_request.number}`,
+    prompt: `/code-review ${EFFORT} --comment ${event.pull_request.number}`,
     options: {
       model: MODEL,
       effort: EFFORT,

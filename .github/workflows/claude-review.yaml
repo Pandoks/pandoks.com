@@ -60,7 +60,7 @@ jobs:
             exit 1
           fi
 
-      # NOTE: The reviewer reads untrusted PR text, so its process must not see the OIDC request vars.
+      # WARNING: The reviewer reads untrusted PR text, so its process must not see the OIDC request vars.
       - name: Review with Claude
         run: exec env -u ACTIONS_ID_TOKEN_REQUEST_URL -u ACTIONS_ID_TOKEN_REQUEST_TOKEN node scripts/claude-review/review.ts
         env:
