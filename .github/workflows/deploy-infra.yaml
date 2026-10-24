@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - 'sst.config.ts'
       - 'infra/**'
       - 'apps/**'
       - '!apps/desktop-template/**'
@@ -51,6 +52,7 @@ jobs:
         with:
           filters: |
             sst:
+              - 'sst.config.ts'
               - 'infra/**'
               - 'apps/!(desktop-template|example)/**'
               - 'packages/svelte/**'
