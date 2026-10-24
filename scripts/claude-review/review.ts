@@ -1,4 +1,5 @@
 import { appendFile, readFile } from 'node:fs/promises';
+import { parseArgs } from 'node:util';
 import {
   createSdkMcpServer,
   query,
@@ -10,11 +11,17 @@ import { z } from 'zod';
 
 type PullRequestEvent = {
   pull_request: { number: number; head: { sha: string } };
-  repository: { url: string; name: string; owner: { login: string } };
+  repository: { url: string };
 };
 
-const MODEL = process.env.ANTHROPIC_MODEL ?? 'claude-opus-5-5';
-const EFFORT = (process.env.CLAUDE_CODE_EFFORT_LEVEL ?? 'xhigh') as EffortLevel;
+const { values } = parseArgs({
+  options: {
+    model: { type: 'string', default: 'claude-opus-5-5' },
+    effort: { type: 'string', default: 'xhigh' }
+  }
+});
+const MODEL = values.model;
+const EFFORT = values.effort as EffortLevel;
 
 const event = JSON.parse(
   await readFile(process.env.GITHUB_EVENT_PATH!, 'utf8')
