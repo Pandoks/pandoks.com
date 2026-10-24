@@ -1,3 +1,4 @@
+{{- if $.Values.backup.enabled }}
 {{- range $shardIndex := until (int $.Values.patroni.shards) }}
 ---
 apiVersion: cert-manager.io/v1
@@ -38,4 +39,5 @@ spec:
     name: internal-ca-issuer
     kind: ClusterIssuer
     group: cert-manager.io
+{{- end }}
 {{- end }}

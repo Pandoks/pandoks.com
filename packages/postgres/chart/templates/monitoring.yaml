@@ -1,8 +1,12 @@
+{{- /* PgDog Service name, mirroring the pgdog chart's fullname rule. */}}
+{{- $release := .Values.pgdogReleaseName | default (printf "%s-pgdog" .Values.db) }}
+{{- $name := .Values.pgdog.nameOverride | default "pgdog" }}
+{{- $pgdog := .Values.pgdog.fullnameOverride | default (ternary $release (printf "%s-%s" $release $name) (contains $name $release)) | trunc 63 | trimSuffix "-" }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: patroni-{{ .Values.db }}
-  namespace: monitoring
+  namespace: {{ .Values.monitoringNamespace }}
   labels:
     app.kubernetes.io/name: patroni
     database: {{ .Values.db }}
@@ -25,7 +29,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: postgres-{{ .Values.db }}
-  namespace: monitoring
+  namespace: {{ .Values.monitoringNamespace }}
   labels:
     app.kubernetes.io/name: postgres
     database: {{ .Values.db }}
@@ -49,9 +53,9 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: grafana-dashboard-postgres-{{ .Values.namespace }}-{{ .Values.db }}
-  namespace: monitoring
+  namespace: {{ .Values.monitoringNamespace }}
   labels:
     grafana_dashboard: "1"
 data:
   postgres-{{ .Values.namespace }}-{{ .Values.db }}.json: |
-{{ tpl (.Files.Get "files/grafana-dashboard.json") . | indent 4 }}
+{{ tpl (.Files.Get "files/grafana-dashboard.json" | replace "service=~" `namespace=\"{{ .Values.namespace }}\", service=~` | replace "{{ .Values.db }}-pgdog" $pgdog) . | indent 4 }}

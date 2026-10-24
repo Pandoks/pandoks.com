@@ -23,6 +23,8 @@ for v in \
   ENCRYPTION_KEY \
   BACKUP_HOST_COMMON_NAME \
   STANZA; do
+  # backup.enabled=false omits the backup and S3 env vars.
+  case "$v" in BACKUP_* | S3_* | ENCRYPTION_KEY) [ -n "${BACKUP_BUCKET+set}" ] || continue ;; esac
   eval ": \${$v:?Missing $v}"
 done
 
