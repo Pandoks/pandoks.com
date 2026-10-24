@@ -1,6 +1,6 @@
 name: example
 namespace: example
-monitoringNamespace: monitoring
+monitoringNamespace: monitoring # ServiceMonitors and dashboards; releases sharing a name must differ
 
 credentials:
   secret: clickhouse-example-creds
