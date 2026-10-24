@@ -76,6 +76,7 @@ jobs:
               - '.renovaterc'
               - '.renovaterc.json'
               - '.renovaterc.json5'
+              - '.github/workflows/checks.yaml'
             infra:
               - 'infra/**'
               - 'sst.config.ts'
@@ -225,12 +226,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Validate renovate.json
-        run: >
-          docker run --rm
-          -v "${{ github.workspace }}:/repo" -w /repo
-          --entrypoint renovate-config-validator
-          ghcr.io/renovatebot/renovate:43
-          --strict --no-global renovate.json
+        uses: docker://ghcr.io/renovatebot/renovate:43@sha256:3b72fc4274c56f65f53dcd4dcbed3143289358e0a2d96f7af215e6cf1923e5f6
+        with:
+          entrypoint: renovate-config-validator
+          args: --strict --no-global renovate.json
 
   # ─── Workspace checks ─────────────────────────────────────────────────
   workspace-check:
