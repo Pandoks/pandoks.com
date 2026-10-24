@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { PageData } from './$types';
-  import type { RichText } from '$lib/blog/types';
-  import { hljs } from '$lib/highlight';
+  import type { RichText } from '#lib/blog/types.js';
+  import { hljs } from '#lib/highlight.js';
 
   const { data }: { data: PageData } = $props();
 

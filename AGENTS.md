@@ -4,7 +4,7 @@ Personal monorepo. SST (`sst.config.ts`, `infra/`) manages all infrastructure: A
 for what needs high availability, rented machines (Hetzner in `infra/vps/`, moving to OVH) for raw
 compute; the cluster is K3s with Kustomize and ArgoCD. `apps/desktop-template` and `apps/example`
 are templates, but `apps/example/kube` is in every overlay, prod included. Import `packages/svelte`
-with `@lib`, not `$lib`.
+with `@lib`, not `#lib`.
 
 ## Principles
 

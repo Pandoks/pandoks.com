@@ -1,3 +1,5 @@
+import adapter from '@sveltejs/adapter-static';
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
 import { svelteTesting } from '@testing-library/svelte/vite';
 import { enhancedImages } from '@sveltejs/enhanced-img';
@@ -13,7 +15,15 @@ export default defineConfig({
     hideBlogWhenEmpty(),
     tailwindcss(),
     enhancedImages(),
-    sveltekit(),
+    sveltekit({
+      preprocess: vitePreprocess(),
+      adapter: adapter(),
+      alias: {
+        '@lib': '../../packages/svelte/src/lib',
+        '@lib/*': '../../packages/svelte/src/lib/*'
+      },
+      paths: { relative: false }
+    }),
     viteStaticCopy({
       // don't point to static directory, point to finished build directory (static -> / after build)
       targets: [

@@ -1,3 +1,5 @@
+import adapter from '@sveltejs/adapter-static';
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
 import { svelteTesting } from '@testing-library/svelte/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
@@ -7,7 +9,14 @@ import { viteStaticCopy } from 'vite-plugin-static-copy';
 export default defineConfig({
   plugins: [
     tailwindcss(),
-    sveltekit(),
+    sveltekit({
+      preprocess: vitePreprocess(),
+      adapter: adapter({ pages: '.vite/renderer/main_window' }),
+      alias: {
+        '@lib': '../../packages/svelte/src/lib',
+        '@lib/*': '../../packages/svelte/src/lib/*'
+      }
+    }),
     viteStaticCopy({
       // don't point to static directory, point to finished build directory (static -> / after build)
       targets: [

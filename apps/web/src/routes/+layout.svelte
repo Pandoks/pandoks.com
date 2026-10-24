@@ -4,8 +4,8 @@
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { onMount } from 'svelte';
-  import { setVimState } from '$lib/vim.svelte';
-  import { FONTS } from '$lib/fonts';
+  import { setVimState } from '#lib/vim.svelte.js';
+  import { FONTS } from '#lib/fonts.js';
   import type { Snippet } from 'svelte';
 
   const { children }: { children: Snippet } = $props();
