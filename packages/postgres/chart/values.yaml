@@ -1,7 +1,8 @@
 db: example
 namespace: example
 monitoringNamespace: monitoring # ServiceMonitors and dashboards; releases sharing a db must differ
-pgdogReleaseName: ~ # default <db>-pgdog; must be unique in kube-system
+# options: <release name, unique in kube-system> | ~ (<db>-pgdog)
+pgdogReleaseName: ~
 
 credentials:
   secret: postgres-example-creds
