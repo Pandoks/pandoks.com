@@ -53,9 +53,9 @@ with `@lib`, not `$lib`.
    `printf 'y\n' | mise exec -- pnpm cluster deploy local --stage <stage> --kubeconfig "$(mise exec -- k3d kubeconfig write local-cluster)"`.
 5. **Leaking secrets.** `.env.<stage>` files, `sst.Secret` values, and
    `pnpm cluster deploy --dry-run` output are real credentials: never print, commit, or paste them,
-   and inspect manifests with `kubectl kustomize`. New secrets go in `infra/secrets.ts`; one without
-   a value fails every deploy and diff of its stage, CI's production diff included, so set yours
-   with `pnpm sst secret set <Name> <value> --stage <stage>` and ask me to set production's.
+   and inspect manifests with `kustomize build`. New secrets go in `infra/secrets.ts`; one without a
+   value fails every deploy and diff of its stage, CI's production diff included, so set yours with
+   `pnpm sst secret set <Name> <value> --stage <stage>` and ask me to set production's.
 
 ## How changes ship
 
@@ -91,7 +91,7 @@ checkout. The SST CLI is `pnpm sst`.
   filter and the shell and Docker format and lint commands see only tracked files, so check new
   files with the file-level tools and `pnpm --filter <package> --if-present check`.
 - Render without a cluster:
-  `kubectl kustomize k3s/overlays/<local|dev|prod> --load-restrictor LoadRestrictionsNone`.
+  `kustomize build k3s/overlays/<local|dev|prod> --load-restrictor LoadRestrictionsNone`.
 - Local cluster: `pnpm cluster k3d deps up`, `pnpm cluster k3d up` (hazard 4),
   `pnpm docker:build && pnpm dev:push`, then hazard 4's deploy, once with `--bootstrap` on a fresh
   cluster and again without. `pnpm dev:destroy` tears it down. See `scripts/cluster/README.md` and
@@ -204,13 +204,13 @@ that can't happen, or for compatibility code for old data or deploy order during
 - A new pin (a version or digest added where none was, not a bump) that Renovate can't update, or a
   new third-party download or image with no version (`releases/latest`, `:latest`). Exceptions: a
   chart's own `version:` in `Chart.yaml` and an `appVersion` that sets no image tag or download,
-  `apk` and `apt` pins hadolint requires, server OS images like `ubuntu-24.04`, and vendor install
-  scripts or generators like `tailscale.com/install.sh` and `shadcn-svelte@latest`. Also a version
-  bump missing one of its synced copies, like a `Chart.yaml` bump without the `apps/*/kube`
-  manifests using it. Safe path: a native Renovate manager (`helm-values` updates image strings
-  under any `values.yaml` key ending in `image`, `kubernetes` those in `apps/*/kube` and chart
-  templates; none matches raw manifests in `k3s/`) or a `# renovate:` comment a `renovate.json`
-  custom manager matches; checksums Renovate can't compute are bumped by hand with their version.
+  server OS images like `ubuntu-24.04`, and vendor install scripts or generators like
+  `tailscale.com/install.sh` and `shadcn-svelte@latest`. Also a version bump missing one of its
+  synced copies, like a `Chart.yaml` bump without the `apps/*/kube` manifests using it. Safe path: a
+  native Renovate manager (`helm-values` updates image strings under any `values.yaml` key ending in
+  `image`, `kubernetes` those in `apps/*/kube` and chart templates; none matches raw manifests in
+  `k3s/`) or a `# renovate:` comment a `renovate.json` custom manager matches; checksums Renovate
+  can't compute are bumped by hand with their version.
 - An attacker-controlled `${{ }}` value, like a branch name or PR title, in `run:` instead of
   `env:`.
 - A real secret value in code, manifests, values, logs, or workflow output. References like

@@ -75,15 +75,6 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^\\.github/workflows/checks\\.ya?ml$/"],
-      "matchStrings": [
-        "(?<depName>ghcr\\.io/renovatebot/renovate):(?<currentValue>\\d+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?"
-      ],
-      "datasourceTemplate": "docker",
-      "autoReplaceStringTemplate": "{{{depName}}}:{{{newValue}}}{{#if newDigest}}@{{{newDigest}}}{{/if}}"
-    },
-    {
-      "customType": "regex",
       "managerFilePatterns": ["/^infra/runner/ami\\.yaml$/"],
       "matchStrings": ["npm install -g (?<depName>pnpm)@(?<currentValue>[\\d.]+)"],
       "datasourceTemplate": "npm"

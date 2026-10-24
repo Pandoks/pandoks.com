@@ -2,8 +2,8 @@ FROM golang:1.26.10-trixie@sha256:909771fef53e3dcb0950255f0c9a8b4728c3b841e61509
 
 # renovate: datasource=go depName=kustomize packageName=sigs.k8s.io/kustomize/kustomize/v5
 ARG KUSTOMIZE_VERSION=v5.8.1
-# NOTE: kustomize's go.mod pins an x/text release with known advisories; force the current one.
-# remove once kustomize has updated to a version that doesn't pin this anymore.
+# TODO: drop X_TEXT_VERSION and its go get at kustomize v5.8.2, which requires x/text v0.42.0:
+# https://github.com/kubernetes-sigs/kustomize/releases/tag/kustomize%2Fv5.8.2
 # renovate: datasource=go depName=golang.org/x/text
 ARG X_TEXT_VERSION=v0.41.0
 
