@@ -20,11 +20,6 @@ const event = JSON.parse(
   await readFile(process.env.GITHUB_EVENT_PATH!, 'utf8')
 ) as PullRequestEvent;
 const pullUrl = `${event.repository.url}/pulls/${event.pull_request.number}`;
-const headers = {
-  Accept: 'application/vnd.github+json',
-  Authorization: `Bearer ${process.env.GH_TOKEN!}`,
-  'X-GitHub-Api-Version': '2022-11-28'
-};
 
 async function requestGithub<ResponseBody>({
   method,
@@ -35,7 +30,15 @@ async function requestGithub<ResponseBody>({
   url: string;
   body?: object;
 }) {
-  const response = await fetch(url, { method, headers, body: body && JSON.stringify(body) });
+  const response = await fetch(url, {
+    method,
+    headers: {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${process.env.GH_TOKEN!}`,
+      'X-GitHub-Api-Version': '2022-11-28'
+    },
+    body: body && JSON.stringify(body)
+  });
   if (!response.ok) throw new Error(`GitHub returned ${response.status}: ${await response.text()}`);
   const json = (await response.json()) as { errors?: unknown[] };
   if (json.errors) throw new Error(`GitHub returned errors: ${JSON.stringify(json.errors)}`);
@@ -49,22 +52,23 @@ function formatModelLabel({ model, effort }: { model: string; effort: string }) 
 
 // NOTE: A runner that dies before the cleanup step leaves the token's pending review behind, and
 // GitHub allows one per user per PR.
-const pendingReviews = await requestGithub<{
-  data: { repository: { pullRequest: { reviews: { nodes: { fullDatabaseId: string }[] } } } };
-}>({
-  method: 'POST',
-  url: process.env.GITHUB_GRAPHQL_URL!,
-  body: {
-    query:
-      'query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) { reviews(states: [PENDING], first: 1) { nodes { fullDatabaseId } } } } }',
-    variables: {
-      owner: event.repository.owner.login,
-      name: event.repository.name,
-      number: event.pull_request.number
+const pendingReview = (
+  await requestGithub<{
+    data: { repository: { pullRequest: { reviews: { nodes: { fullDatabaseId: string }[] } } } };
+  }>({
+    method: 'POST',
+    url: process.env.GITHUB_GRAPHQL_URL!,
+    body: {
+      query:
+        'query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) { reviews(states: [PENDING], first: 1) { nodes { fullDatabaseId } } } } }',
+      variables: {
+        owner: event.repository.owner.login,
+        name: event.repository.name,
+        number: event.pull_request.number
+      }
     }
-  }
-});
-const pendingReview = pendingReviews.data.repository.pullRequest.reviews.nodes[0];
+  })
+).data.repository.pullRequest.reviews.nodes[0];
 if (pendingReview) {
   await requestGithub({
     method: 'DELETE',
