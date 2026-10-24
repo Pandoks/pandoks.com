@@ -157,6 +157,7 @@ try {
     options: {
       model: MODEL,
       effort: EFFORT,
+      additionalDirectories: ['scripts/claude-review'],
       permissionMode: 'bypassPermissions',
       allowDangerouslySkipPermissions: true,
       forwardSubagentText: true,
