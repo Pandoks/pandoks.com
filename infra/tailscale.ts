@@ -48,10 +48,17 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
           users: ['autogroup:nonroot', 'root']
         },
         {
-          action: 'accept',
-          src: ['autogroup:member', 'autogroup:tagged'],
+          action: 'check',
+          src: ['autogroup:member'],
           dst: ['tag:ssh'],
-          users: ['autogroup:nonroot', 'root']
+          users: ['autogroup:nonroot']
+        },
+        // NOTE: tailscale doesn't allow check mode from tagged devices
+        {
+          action: 'accept',
+          src: ['autogroup:tagged'],
+          dst: ['tag:ssh'],
+          users: ['autogroup:nonroot']
         }
       ],
       tagOwners: {
