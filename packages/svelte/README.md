@@ -6,9 +6,9 @@ automatically. When you add a new top-level category, remember to add it to the 
 `package.json` in this package.
 
 > [!IMPORTANT]
-> Use `@lib`, not `#lib`, to import from this package. This package and every app alias `@lib` to
-> `src/lib` here in their `vite.config.ts`, and `components.json` makes `shadcn-svelte` generate
-> `@lib` imports.
+> Apps import this package by name (`@pandoks.com/svelte/...`) through its `exports`. Inside this
+> package, import with `#lib/...` and explicit file extensions (the `imports` map in
+> `package.json`), which `components.json` makes `shadcn-svelte` generate.
 
 This component library houses all the `shadcn-svelte` components (add more with
 `pnpm shadcn <component>` from the repo root), shared styles, and SVGs.

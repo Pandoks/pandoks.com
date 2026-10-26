@@ -10,8 +10,7 @@ export default defineConfig({
     tailwindcss(),
     sveltekit({
       preprocess: vitePreprocess(),
-      adapter: adapter(),
-      alias: { '@lib': './src/lib', '@lib/*': './src/lib/*' }
+      adapter: adapter()
     })
   ],
   test: {

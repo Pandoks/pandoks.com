@@ -23,6 +23,10 @@
     "./styles/*": "./src/lib/styles/*.css",
     "./svg/*": "./src/lib/svg/*"
   },
+  "imports": {
+    "#lib": "./src/lib/index.js",
+    "#lib/*": "./src/lib/*"
+  },
   "peerDependencies": {
     "svelte": "5.57.2"
   },

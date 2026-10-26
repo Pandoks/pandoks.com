@@ -11,11 +11,7 @@ export default defineConfig({
     tailwindcss(),
     sveltekit({
       preprocess: vitePreprocess(),
-      adapter: adapter({ pages: '.vite/renderer/main_window' }),
-      alias: {
-        '@lib': '../../packages/svelte/src/lib',
-        '@lib/*': '../../packages/svelte/src/lib/*'
-      }
+      adapter: adapter({ pages: '.vite/renderer/main_window' })
     }),
     viteStaticCopy({
       // don't point to static directory, point to finished build directory (static -> / after build)

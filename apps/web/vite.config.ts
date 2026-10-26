@@ -18,10 +18,6 @@ export default defineConfig({
     sveltekit({
       preprocess: vitePreprocess(),
       adapter: adapter(),
-      alias: {
-        '@lib': '../../packages/svelte/src/lib',
-        '@lib/*': '../../packages/svelte/src/lib/*'
-      },
       paths: { relative: false }
     }),
     viteStaticCopy({
