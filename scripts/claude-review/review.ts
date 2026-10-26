@@ -66,7 +66,7 @@ const review = await requestGithub<{ id: number; node_id: string }>({
 let commentCalls = 0;
 let commentsAdded = 0;
 
-// NOTE: Same name and inputs as claude-code-action's tool, which /code-review --comment looks for.
+// NOTE: Mirrors claude-code-action's tool, which /code-review --comment calls.
 const inlineComment = tool(
   'create_inline_comment',
   'Create an inline comment on a specific line or lines in a PR file',
@@ -117,7 +117,7 @@ const inlineComment = tool(
         }
       }
     });
-    // NOTE: GitHub returns a null thread without errors for some lines it can't comment on.
+    // NOTE: GitHub returns a null thread, not an error, for some lines it can't comment on.
     if (!data.addPullRequestReviewThread.thread) {
       throw new Error(`GitHub added no comment: ${JSON.stringify(data)}`);
     }
@@ -157,8 +157,8 @@ try {
   })) {
     if (message.type === 'assistant') {
       const parentId = message.parent_tool_use_id;
-      // NOTE: Background tasks are disabled, but a subagent continued with SendMessage still runs in
-      // the background, so its messages can arrive before its Agent call.
+      // NOTE: A subagent resumed with SendMessage runs in the background, so its messages can
+      // arrive before its Agent call.
       if (parentId && message.message.model !== '<synthetic>') {
         subagentModels[parentId] ??= message.message.model;
       }
@@ -167,12 +167,12 @@ try {
         if (block.name === 'Agent') {
           agentCalls[block.id] = { effort: (block.input as { effort?: string }).effort, parentId };
         }
-        // NOTE: The SDK rejects calls whose input fails the schema before the handler runs.
+        // NOTE: Counted here because the SDK rejects invalid input before the handler runs.
         if (block.name === 'mcp__github_inline_comment__create_inline_comment') commentCalls++;
       }
     }
-    // NOTE: The forked /code-review is the task without a tool_use_id, and its failure still ends
-    // in a success result.
+    // NOTE: The forked /code-review is the task with no tool_use_id, and its failure still ends in
+    // a success result.
     if (
       message.type === 'system' &&
       message.subtype === 'task_notification' &&
