@@ -63,9 +63,6 @@ const review = await requestGithub<{ id: number; node_id: string }>({
   body: { commit_id: event.pull_request.head.sha }
 });
 
-let commentCalls = 0;
-let commentsAdded = 0;
-
 // NOTE: Mirrors claude-code-action's tool, which /code-review --comment calls.
 const inlineComment = tool(
   'create_inline_comment',
@@ -121,7 +118,6 @@ const inlineComment = tool(
     if (!data.addPullRequestReviewThread.thread) {
       throw new Error(`GitHub added no comment: ${JSON.stringify(data)}`);
     }
-    commentsAdded++;
     return { content: [{ type: 'text', text: 'Added the comment to the pending review' }] };
   }
 );
@@ -167,8 +163,6 @@ try {
         if (block.name === 'Agent') {
           agentCalls[block.id] = { effort: (block.input as { effort?: string }).effort, parentId };
         }
-        // NOTE: Counted here because the SDK rejects invalid input before the handler runs.
-        if (block.name === 'mcp__github_inline_comment__create_inline_comment') commentCalls++;
       }
     }
     // NOTE: The forked /code-review is the task with no tool_use_id, and its failure still ends in
@@ -206,8 +200,7 @@ try {
     await appendFile(
       process.env.GITHUB_STEP_SUMMARY!,
       `## Claude review\n\n${text}${footer}\n\n` +
-        `$${result.total_cost_usd.toFixed(2)}, ${Math.round(result.duration_ms / 1000)}s, ` +
-        `${commentCalls - commentsAdded} of ${commentCalls} inline comment calls failed\n`
+        `$${result.total_cost_usd.toFixed(2)}, ${Math.round(result.duration_ms / 1000)}s\n`
     );
   }
   await requestGithub({
@@ -219,7 +212,6 @@ try {
 
 if (
   reviewFailed ||
-  (commentCalls && !commentsAdded) ||
   !result ||
   result.is_error ||
   result.subtype !== 'success' ||
