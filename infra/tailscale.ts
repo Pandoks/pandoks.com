@@ -44,7 +44,13 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         {
           action: 'check',
           src: ['autogroup:member'],
-          dst: ['autogroup:self', 'tag:hetzner', 'tag:ovh'],
+          dst: ['autogroup:self'],
+          users: ['autogroup:nonroot', 'root']
+        },
+        {
+          action: 'check',
+          src: ['pandoks@github'],
+          dst: ['tag:hetzner', 'tag:ovh'],
           users: ['autogroup:nonroot', 'root']
         },
         {
