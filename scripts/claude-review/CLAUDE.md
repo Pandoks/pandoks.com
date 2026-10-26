@@ -28,3 +28,7 @@
   read the repo's docs and conventions.
 - On failure, find the root cause, and report pre-existing failures separately from ones the change
   introduced.
+
+## Tests
+
+- When the PR adds, changes, or deletes tests, use the test-audit skill to review them.
