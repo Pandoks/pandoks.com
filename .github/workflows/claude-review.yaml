@@ -15,7 +15,6 @@ permissions:
 
 concurrency:
   group: claude-review-${{ github.ref }}
-  cancel-in-progress: false
 
 jobs:
   review:
@@ -61,16 +60,22 @@ jobs:
 
       # WARNING: The reviewer reads untrusted PR text, so its process must not see the OIDC request vars.
       - name: Review with Claude
-        run: exec env -u ACTIONS_ID_TOKEN_REQUEST_URL -u ACTIONS_ID_TOKEN_REQUEST_TOKEN node scripts/claude-review/review.ts
         env:
           ANTHROPIC_BASE_URL: https://cliproxyapi-ci.tailb2c81d.ts.net
           ANTHROPIC_API_KEY: cliproxyapi
           GH_TOKEN: ${{ steps.claude-app.outputs.token || github.token }}
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1'
           CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
+        run: exec env -u ACTIONS_ID_TOKEN_REQUEST_URL -u ACTIONS_ID_TOKEN_REQUEST_TOKEN node scripts/claude-review/review.ts
 
       - name: Delete pending review
         if: ${{ cancelled() || failure() }}
+        env:
+          GH_TOKEN: ${{ steps.claude-app.outputs.token || github.token }}
+          OWNER: ${{ github.repository_owner }}
+          NAME: ${{ github.event.repository.name }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          QUERY: 'query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) { reviews(states: [PENDING], first: 1) { nodes { fullDatabaseId } } } } }'
         run: |
           review=$(gh api graphql -f owner="${OWNER}" -f name="${NAME}" -F number="${NUMBER}" \
             -f query="${QUERY}" \
@@ -78,15 +83,9 @@ jobs:
           if [[ -n "${review}" ]]; then
             gh api -X DELETE "repos/${GITHUB_REPOSITORY}/pulls/${NUMBER}/reviews/${review}"
           fi
-        env:
-          GH_TOKEN: ${{ steps.claude-app.outputs.token || github.token }}
-          OWNER: ${{ github.repository_owner }}
-          NAME: ${{ github.event.repository.name }}
-          NUMBER: ${{ github.event.pull_request.number }}
-          QUERY: 'query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) { reviews(states: [PENDING], first: 1) { nodes { fullDatabaseId } } } } }'
 
       - name: Revoke claude[bot] token
         if: ${{ always() && steps.claude-app.outputs.token }}
-        run: 'curl -sSf -X DELETE -H "Authorization: Bearer ${TOKEN}" https://api.github.com/installation/token'
         env:
           TOKEN: ${{ steps.claude-app.outputs.token }}
+        run: 'curl -sSf -X DELETE -H "Authorization: Bearer ${TOKEN}" https://api.github.com/installation/token'

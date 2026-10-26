@@ -4,7 +4,6 @@ import {
   createSdkMcpServer,
   query,
   tool,
-  type EffortLevel,
   type SDKResultMessage
 } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
@@ -21,7 +20,7 @@ const { values } = parseArgs({
   }
 });
 const MODEL = values.model;
-const EFFORT = values.effort as EffortLevel;
+const EFFORT = values.effort;
 
 const event = JSON.parse(
   await readFile(process.env.GITHUB_EVENT_PATH!, 'utf8')
@@ -41,8 +40,7 @@ async function requestGithub<ResponseBody>({
     method,
     headers: {
       Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${process.env.GH_TOKEN!}`,
-      'X-GitHub-Api-Version': '2022-11-28'
+      Authorization: `Bearer ${process.env.GH_TOKEN!}`
     },
     body: body && JSON.stringify(body)
   });
@@ -53,7 +51,9 @@ async function requestGithub<ResponseBody>({
 }
 
 function formatModelLabel({ model, effort }: { model: string; effort: string }) {
-  const [, family, major, minor] = /^claude-(\w+)-(\d+)-(\d+)/.exec(model)!;
+  const match = /^claude-(\w+)-(\d+)-(\d+)/.exec(model);
+  if (!match) return `${model} ${effort}`;
+  const [, family, major, minor] = match;
   return `${family[0].toUpperCase()}${family.slice(1)} ${major}.${minor} ${effort}`;
 }
 
@@ -79,19 +79,19 @@ const inlineComment = tool(
       ),
     line: z
       .number()
-      .int()
-      .positive()
-      .describe('Line number, or the end line of a multi-line comment'),
+      .nonnegative()
+      .optional()
+      .describe('Line number for single-line comments (required if startLine is not provided)'),
     startLine: z
       .number()
-      .int()
-      .positive()
+      .nonnegative()
       .optional()
-      .describe('Start line for multi-line comments'),
+      .describe('Start line for multi-line comments (use with line parameter for the end line)'),
     side: z
       .enum(['LEFT', 'RIGHT'])
+      .optional()
       .default('RIGHT')
-      .describe('LEFT for old code, RIGHT for new code')
+      .describe('Side of the diff to comment on: LEFT (old code) or RIGHT (new code)')
   },
   async ({ path, body, line, startLine, side }) => {
     const { data } = await requestGithub<{
@@ -138,10 +138,13 @@ try {
     prompt: `/code-review ${EFFORT} --comment ${event.pull_request.number}`,
     options: {
       model: MODEL,
-      effort: EFFORT,
       additionalDirectories: ['scripts/claude-review'],
-      permissionMode: 'bypassPermissions',
-      allowDangerouslySkipPermissions: true,
+      permissionMode: 'dontAsk',
+      allowedTools: [
+        'mcp__github_inline_comment__create_inline_comment',
+        'Bash(gh pr diff:*)',
+        'Bash(gh pr view:*)'
+      ],
       forwardSubagentText: true,
       mcpServers: {
         github_inline_comment: createSdkMcpServer({
