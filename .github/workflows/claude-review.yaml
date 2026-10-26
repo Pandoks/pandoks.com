@@ -73,12 +73,10 @@ jobs:
         if: ${{ cancelled() || failure() }}
         env:
           GH_TOKEN: ${{ steps.claude-app.outputs.token || github.token }}
-          OWNER: ${{ github.repository_owner }}
-          NAME: ${{ github.event.repository.name }}
           NUMBER: ${{ github.event.pull_request.number }}
           QUERY: 'query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) { reviews(states: [PENDING], first: 1) { nodes { fullDatabaseId } } } } }'
         run: |
-          review=$(gh api graphql -f owner="${OWNER}" -f name="${NAME}" -F number="${NUMBER}" \
+          review=$(gh api graphql -F owner='{owner}' -F name='{repo}' -F number="${NUMBER}" \
             -f query="${QUERY}" \
             --jq '.data.repository.pullRequest.reviews.nodes[0].fullDatabaseId // empty')
           if [[ -n "${review}" ]]; then

@@ -1,9 +1,8 @@
 ## Agents
 
-- For each agent you start, choose its model and effort from the work it will do, within your own
-  provider. Split jobs whose parts would get different choices, such as running benchmarks and
-  writing up the results. The examples show the reasoning; they aren't a complete list.
-- Model: the one you're running on. Claude agents instead choose between:
+- For each agent you start, choose its model and effort from the work it will do. Split jobs whose
+  parts would get different choices. The examples show the reasoning; they aren't a complete list.
+- Model: choose between:
   - Haiku 5.5, at the effort the scale below gives (`xhigh` included), when the work has a right
     answer that careful work can reach, even if it's long, hard, or trusted without checking.
   - Opus 5.5 for judgment calls without a right answer (writing people will rely on included), for
@@ -24,8 +23,8 @@
 
 - Separate verified from inferred; never state a guess, estimate, ranking, or unmeasured number as
   fact.
-- Verify claims that matter against primary sources or by running them. Before judging a change,
-  read the repo's docs and conventions.
+- Verify claims that matter against primary sources. Before judging a change, read the repo's docs
+  and conventions.
 - On failure, find the root cause, and report pre-existing failures separately from ones the change
   introduced.
 

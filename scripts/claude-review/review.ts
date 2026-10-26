@@ -162,8 +162,7 @@ try {
         subagentModels[parentId] ??= message.message.model;
       }
       for (const block of message.message.content) {
-        if (block.type !== 'tool_use') continue;
-        if (block.name === 'Agent') {
+        if (block.type === 'tool_use' && block.name === 'Agent') {
           subagentCalls[block.id] = {
             effort: (block.input as { effort?: string }).effort,
             parentId
