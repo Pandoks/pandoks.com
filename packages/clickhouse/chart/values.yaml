@@ -11,12 +11,12 @@ clickhouse:
   image: ghcr.io/pandoks/clickhouse:latest@sha256:9c3bdb4117812ac7a46e583754c18d63d4e78f7f3dfb700c453670047f9417c8
   shards: 1
   replicasPerShard: 2
+  # NOTE: no CPU limits here or on keeper; throttling stalls queries and Raft heartbeats
   resources:
     requests:
       cpu: 250m
       memory: 512Mi
     limits:
-      cpu: 2000m
       memory: 4Gi
 
 keeper:
@@ -27,8 +27,13 @@ keeper:
       cpu: 100m
       memory: 256Mi
     limits:
-      cpu: 2000m
       memory: 4Gi
+
+# Dedicated database nodes for ClickHouse and Keeper
+# options: { role: db } | ~
+nodeSelector: ~
+# options: [{ key: role, operator: Equal, value: db, effect: NoSchedule }] | ~
+tolerations: ~
 
 backup:
   credentials:
