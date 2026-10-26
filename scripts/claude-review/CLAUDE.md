@@ -24,8 +24,8 @@
 
 - Separate verified from inferred; never state a guess, estimate, ranking, or unmeasured number as
   fact.
-- Verify claims that matter against primary sources or by running them. Before judging a change,
-  read the repo's docs and conventions.
+- Verify claims that matter against primary sources. Before judging a change, read the repo's docs
+  and conventions.
 - On failure, find the root cause, and report pre-existing failures separately from ones the change
   introduced.
 
