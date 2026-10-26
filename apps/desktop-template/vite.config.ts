@@ -1,5 +1,4 @@
 import adapter from '@sveltejs/adapter-static';
-import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
 import { svelteTesting } from '@testing-library/svelte/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
@@ -10,7 +9,6 @@ export default defineConfig({
   plugins: [
     tailwindcss(),
     sveltekit({
-      preprocess: vitePreprocess(),
       adapter: adapter({ pages: '.vite/renderer/main_window' })
     }),
     viteStaticCopy({

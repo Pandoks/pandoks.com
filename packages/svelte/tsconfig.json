@@ -1,6 +1,7 @@
 {
   "extends": "$app/tsconfig",
   "compilerOptions": {
+    "types": ["$app/types", "node"],
     "sourceMap": true,
     "strict": true
   },

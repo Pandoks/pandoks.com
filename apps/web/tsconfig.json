@@ -1,6 +1,7 @@
 {
   "extends": "$app/tsconfig",
   "compilerOptions": {
+    "types": ["$app/types", "node"],
     "sourceMap": true,
     "strict": true,
     "noUncheckedIndexedAccess": true,
@@ -9,18 +10,5 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": [
-    "vite.config.js",
-    "vite.config.ts",
-    "src/**/*.js",
-    "src/**/*.ts",
-    "src/**/*.svelte",
-    "test/**/*.js",
-    "test/**/*.ts",
-    "test/**/*.svelte",
-    "tests/**/*.js",
-    "tests/**/*.ts",
-    "tests/**/*.svelte",
-    "scripts/**/*.ts"
-  ]
+  "include": ["src", "scripts", "vite.config.ts"]
 }

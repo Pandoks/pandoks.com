@@ -1,5 +1,4 @@
 import adapter from '@sveltejs/adapter-static';
-import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
 import { svelteTesting } from '@testing-library/svelte/vite';
 import { enhancedImages } from '@sveltejs/enhanced-img';
@@ -16,7 +15,6 @@ export default defineConfig({
     tailwindcss(),
     enhancedImages(),
     sveltekit({
-      preprocess: vitePreprocess(),
       adapter: adapter(),
       paths: { relative: false }
     }),
