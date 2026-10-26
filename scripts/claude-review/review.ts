@@ -123,12 +123,12 @@ const inlineComment = tool(
 );
 
 const subagentModels: Record<string, string> = {};
-const agentCalls: Record<string, { effort?: string; parentId: string | null }> = {};
+const subagentCalls: Record<string, { effort?: string; parentId: string | null }> = {};
 
 // NOTE: A subagent without an effort runs at its parent's.
-function resolveEffort({ toolUseId }: { toolUseId: string | null }): string {
-  const call = toolUseId ? agentCalls[toolUseId] : undefined;
-  return call ? (call.effort ?? resolveEffort({ toolUseId: call.parentId })) : EFFORT;
+function resolveSubagentEffort({ toolUseId }: { toolUseId: string | null }): string {
+  const call = toolUseId ? subagentCalls[toolUseId] : undefined;
+  return call ? (call.effort ?? resolveSubagentEffort({ toolUseId: call.parentId })) : EFFORT;
 }
 
 let reviewFailed = false;
@@ -161,7 +161,10 @@ try {
       for (const block of message.message.content) {
         if (block.type !== 'tool_use') continue;
         if (block.name === 'Agent') {
-          agentCalls[block.id] = { effort: (block.input as { effort?: string }).effort, parentId };
+          subagentCalls[block.id] = {
+            effort: (block.input as { effort?: string }).effort,
+            parentId
+          };
         }
       }
     }
@@ -181,17 +184,17 @@ try {
     }
   }
 } finally {
-  const counts = new Map<string, number>();
-  for (const id of Object.keys(agentCalls)) {
+  const subagentCounts = new Map<string, number>();
+  for (const id of Object.keys(subagentCalls)) {
     const model = subagentModels[id];
     if (!model) continue;
-    const label = formatModelLabel({ model, effort: resolveEffort({ toolUseId: id }) });
-    counts.set(label, (counts.get(label) ?? 0) + 1);
+    const label = formatModelLabel({ model, effort: resolveSubagentEffort({ toolUseId: id }) });
+    subagentCounts.set(label, (subagentCounts.get(label) ?? 0) + 1);
   }
   const footer =
     `\n\n---\n${formatModelLabel({ model: MODEL, effort: EFFORT })}` +
-    (counts.size
-      ? ` managing subagents:\n${[...counts].map(([label, count]) => `- ${count}x ${label}`).join('\n')}`
+    (subagentCounts.size
+      ? ` managing subagents:\n${[...subagentCounts].map(([label, count]) => `- ${count}x ${label}`).join('\n')}`
       : '');
   const text = result?.subtype === 'success' ? result.result : (result?.subtype ?? 'No result');
 
