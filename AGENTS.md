@@ -28,11 +28,11 @@ with `@lib`, not `$lib`.
 
 1. **Changing production by hand.** Production (the SST `production` stage and the prod cluster)
    changes when `main` does. Read it to diagnose, but change it no other way: no SST command against
-   it, not even `sst diff` (CI already diffs production on every PR), no `pnpm cluster deploy prod`,
-   not even `--dry-run`, no `gh workflow run deploy-infra.yaml` (its stage defaults to `production`,
-   and its Kubernetes job hard-refreshes prod on any stage), and no `kubectl` write to prod, Argo
-   refreshes, syncs, and restarts included. If production needs a manual fix, even when I say ship
-   now, propose the exact command, target, and effect, then wait.
+   it, not even `sst diff`, no `pnpm cluster deploy prod`, not even `--dry-run`, no
+   `gh workflow run deploy-infra.yaml` (its stage defaults to `production`, and its Kubernetes job
+   hard-refreshes prod on any stage), and no `kubectl` write to prod, Argo refreshes, syncs, and
+   restarts included. If production needs a manual fix, even when I say ship now, propose the exact
+   command, target, and effect, then wait.
 2. **Deploying a stage by accident.** Pass `--stage <stage>` (or `SST_STAGE`) to every `sst` and
    `pnpm cluster deploy` command; mine is `pandoks`. For the site, run `pnpm exec portless doctor`
    before `pnpm --filter web dev`, which can start a missing proxy with `sudo`; if doctor prints a

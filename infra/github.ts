@@ -8,7 +8,8 @@ export const githubRepoName = 'pandoks.com';
 
 const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
   repository: githubRepoName,
-  environment: isProduction ? 'production' : 'dev'
+  environment: isProduction ? 'production' : 'dev',
+  deploymentBranchPolicy: { protectedBranches: true, customBranchPolicies: false }
 });
 
 new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
@@ -87,10 +88,12 @@ if (isProduction) {
           Action: 'sts:AssumeRoleWithWebIdentity',
           Condition: {
             StringEquals: {
-              'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com'
-            },
-            StringLike: {
-              'token.actions.githubusercontent.com:sub': 'repo:Pandoks/*'
+              'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
+              'token.actions.githubusercontent.com:sub': [
+                `repo:${githubOrg}/${githubRepoName}:environment:production`,
+                `repo:${githubOrg}/${githubRepoName}:environment:dev`,
+                `repo:${githubOrg}/${githubRepoName}:ref:refs/heads/main`
+              ]
             }
           }
         }
