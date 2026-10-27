@@ -9,7 +9,7 @@ export const githubRepoName = 'pandoks.com';
 const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
   repository: githubRepoName,
   environment: isProduction ? 'production' : 'dev',
-  // NOTE: the AWS role trusts this environment, so only main may use it.
+  // NOTE: AWS trusts every job in this environment, so only protected branches get it.
   deploymentBranchPolicy: isProduction
     ? { protectedBranches: true, customBranchPolicies: false }
     : undefined
