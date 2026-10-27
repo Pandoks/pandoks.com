@@ -11,7 +11,7 @@ spec:
         runAsUser: 999
       containers:
         - name: kustomize-sst-render
-          image: ghcr.io/pandoks/argocd-sst-plugin:main
+          image: ghcr.io/pandoks/argocd-sst-plugin:main@sha256:d48d15c179593b5f5296960959392afceaacba198720c43447d0dca0febca6a7
           command: [/var/run/argocd/argocd-cmp-server]
           securityContext:
             readOnlyRootFilesystem: true

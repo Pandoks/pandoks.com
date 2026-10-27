@@ -13,6 +13,7 @@
   "prHourlyLimit": 0,
   "rangeStrategy": "pin",
   "postUpdateOptions": ["pnpmDedupe", "gomodTidy"],
+  "kubernetes": { "managerFilePatterns": ["/^k3s/overlays/prod/argocd\\.yaml$/"] },
   "customManagers": [
     {
       "customType": "regex",
