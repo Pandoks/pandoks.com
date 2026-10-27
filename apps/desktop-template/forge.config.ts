@@ -17,8 +17,8 @@ const config: ForgeConfig = {
   outDir: 'build',
   rebuildConfig: {},
   hooks: {
-    // NOTE: VitePlugin builds the renderer with Vite's `build()`, which skips the `buildApp` hook
-    // where SvelteKit 3 runs its SSR build, prerender, and adapter, so build and copy it here.
+    // TODO: drop this hook once VitePlugin builds renderers with `buildApp`. Its `build()` skips
+    // that step, which is where SvelteKit 3 runs its SSR build, prerender, and adapter.
     packageAfterCopy: async (_forgeConfig, buildPath) => {
       await (await createBuilder()).buildApp();
       await cp('.vite/renderer/main_window', path.join(buildPath, '.vite/renderer/main_window'), {
