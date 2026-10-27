@@ -6,6 +6,22 @@ new tailscale.TailnetSettings('TailscaleSettings', {
   httpsEnabled: true
 });
 
+const tagOwners = {
+  'tag:funnel': ['pandoks@github'],
+  'tag:hetzner': ['pandoks@github'],
+  'tag:ovh': ['pandoks@github'],
+  'tag:k8s-operator': ['tag:k8s-operator'],
+  'tag:k8s': ['tag:k8s-operator'],
+  'tag:control-plane': ['pandoks@github'],
+  'tag:worker': ['pandoks@github'],
+  'tag:dev': ['pandoks@github', 'tag:k8s-operator'],
+  'tag:prod': ['pandoks@github', 'tag:k8s-operator'],
+  'tag:ci': ['pandoks@github'],
+  'tag:ci-review': ['pandoks@github'],
+  'tag:cliproxyapi': ['pandoks@github'],
+  'tag:ssh': ['pandoks@github']
+};
+
 export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
   resetAclOnDestroy: true,
   // NOTE: overwriteExistingContent is set to true so it works in all stages. we do this because the
@@ -27,7 +43,16 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         }
       },
       grants: [
-        { src: ['*'], dst: ['*'], ip: ['*'] },
+        // NOTE: claude-review runs untrusted PR code, so tag:ci-review only reaches its proxy.
+        {
+          src: [
+            'autogroup:member',
+            ...Object.keys(tagOwners).filter((tag) => tag !== 'tag:ci-review')
+          ],
+          dst: ['*'],
+          ip: ['*']
+        },
+        { src: ['tag:ci-review'], dst: ['svc:cliproxyapi-ci'], ip: ['tcp:443'] },
         {
           src: ['tag:ci'],
           dst: ['tag:k8s-operator'],
@@ -67,20 +92,13 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
           users: ['autogroup:nonroot']
         }
       ],
-      tagOwners: {
-        'tag:funnel': ['pandoks@github'],
-        'tag:hetzner': ['pandoks@github'],
-        'tag:ovh': ['pandoks@github'],
-        'tag:k8s-operator': ['tag:k8s-operator'],
-        'tag:k8s': ['tag:k8s-operator'],
-        'tag:control-plane': ['pandoks@github'],
-        'tag:worker': ['pandoks@github'],
-        'tag:dev': ['pandoks@github', 'tag:k8s-operator'],
-        'tag:prod': ['pandoks@github', 'tag:k8s-operator'],
-        'tag:ci': ['pandoks@github'],
-        'tag:cliproxyapi': ['pandoks@github'],
-        'tag:ssh': ['pandoks@github']
-      }
+      tagOwners,
+      tests: [
+        {
+          src: 'tag:ci-review',
+          deny: ['tag:prod:443', 'tag:k8s-operator:443', 'tag:cliproxyapi:22', 'tag:hetzner:22']
+        }
+      ]
     },
     { maxLength: 80, indent: 2 }
   )

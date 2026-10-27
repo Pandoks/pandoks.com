@@ -99,6 +99,9 @@ jobs:
       needs.detect-changes.outputs.kubernetes == 'true' &&
       (needs.deploy-sst.result == 'success' || needs.deploy-sst.result == 'skipped')
     runs-on: ubuntu-latest
+    environment:
+      name: production
+      deployment: false
     steps:
       - name: Setup Tailscale
         uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4.2.0

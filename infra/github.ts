@@ -141,15 +141,38 @@ if (isProduction) {
     },
     { dependsOn: [tailscaleAcl] }
   );
-  new github.ActionsSecret('GithubActionsTailscaleOauthClientId', {
+  new github.ActionsEnvironmentSecret('GithubActionsTailscaleOauthClientId', {
     repository: githubRepoName,
+    environment: githubEnvironment.environment,
     secretName: 'TS_OAUTH_CLIENT_ID',
     plaintextValue: githubActionsOauthClient.id
   });
-  new github.ActionsSecret('GithubActionsTailscaleOauthSecret', {
+  new github.ActionsEnvironmentSecret('GithubActionsTailscaleOauthSecret', {
     repository: githubRepoName,
+    environment: githubEnvironment.environment,
     secretName: 'TS_OAUTH_SECRET',
     plaintextValue: githubActionsOauthClient.key
+  });
+
+  // NOTE: pull request jobs get these, so tag:ci-review can only reach svc:cliproxyapi-ci.
+  const githubReviewOauthClient = new tailscale.OauthClient(
+    `${STAGE_NAME}TailscaleGithubReviewOauthClient`,
+    {
+      description: `${STAGE_NAME} github claude review`,
+      scopes: ['devices:core', 'auth_keys'],
+      tags: ['tag:ci-review']
+    },
+    { dependsOn: [tailscaleAcl] }
+  );
+  new github.ActionsSecret('GithubReviewTailscaleOauthClientId', {
+    repository: githubRepoName,
+    secretName: 'TS_REVIEW_OAUTH_CLIENT_ID',
+    plaintextValue: githubReviewOauthClient.id
+  });
+  new github.ActionsSecret('GithubReviewTailscaleOauthSecret', {
+    repository: githubRepoName,
+    secretName: 'TS_REVIEW_OAUTH_SECRET',
+    plaintextValue: githubReviewOauthClient.key
   });
 
   // NOTE: Renovate handles the security-PRs, and reads dependabot alerts.
