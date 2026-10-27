@@ -68,8 +68,8 @@ with `@lib`, not `$lib`.
   for `k3s/` and `scripts/cluster/` changes. Pages builds `apps/web` when a change matches
   `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod` renders but
   never prunes: a deleted resource stays in prod until pruned by hand.
-- Every non-production stage gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
-  environment, so two non-production stages collide.
+- Every non-production stage gets `STAGE_NAME` `dev` and `dev.pandoks.com`, so two non-production
+  stages collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
   staging tier, promotion step, or per-PR cluster.
 

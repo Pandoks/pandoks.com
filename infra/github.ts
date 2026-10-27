@@ -6,20 +6,20 @@ import { tailscaleAcl } from './tailscale';
 export const githubOrg = 'Pandoks';
 export const githubRepoName = 'pandoks.com';
 
-const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
-  repository: githubRepoName,
-  environment: isProduction ? 'production' : 'dev',
-  deploymentBranchPolicy: { protectedBranches: true, customBranchPolicies: false }
-});
-
-new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
-  repository: githubRepoName,
-  environment: githubEnvironment.environment,
-  secretName: 'HCLOUD_TOKEN',
-  plaintextValue: secrets.hetzner.ApiKey.value
-});
-
 if (isProduction) {
+  const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
+    repository: githubRepoName,
+    environment: 'production',
+    deploymentBranchPolicy: { protectedBranches: true, customBranchPolicies: false }
+  });
+
+  new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
+    repository: githubRepoName,
+    environment: githubEnvironment.environment,
+    secretName: 'HCLOUD_TOKEN',
+    plaintextValue: secrets.hetzner.ApiKey.value
+  });
+
   new github.BranchProtection('GithubMainBranchProtection', {
     repositoryId: githubRepoName,
     pattern: 'main',
