@@ -95,10 +95,7 @@ if (isProduction) {
           Condition: {
             StringEquals: {
               'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-              'token.actions.githubusercontent.com:sub': [
-                `repo:${githubOrg}/${githubRepoName}:environment:production`,
-                `repo:${githubOrg}/${githubRepoName}:ref:refs/heads/main`
-              ]
+              'token.actions.githubusercontent.com:sub': `repo:${githubOrg}/${githubRepoName}:environment:production`
             }
           }
         }
