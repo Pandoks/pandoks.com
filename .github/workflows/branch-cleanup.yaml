@@ -8,9 +8,6 @@ jobs:
   cleanup-cloudflare-previews:
     if: github.event.ref_type == 'branch'
     runs-on: ubuntu-latest
-    environment:
-      name: production
-      deployment: false
     steps:
       - name: Delete Cloudflare Pages previews for deleted branch
         shell: bash
@@ -37,9 +34,6 @@ jobs:
   cleanup-ghcr-images:
     if: github.event.ref_type == 'branch'
     runs-on: ubuntu-latest
-    environment:
-      name: production
-      deployment: false
     permissions:
       packages: write
     strategy:
@@ -83,9 +77,6 @@ jobs:
   cleanup-ghcr-charts:
     if: github.event.ref_type == 'branch'
     runs-on: ubuntu-latest
-    environment:
-      name: production
-      deployment: false
     permissions:
       packages: write
     strategy:

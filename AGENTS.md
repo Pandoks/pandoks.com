@@ -68,19 +68,13 @@ with `@lib`, not `$lib`.
   for `k3s/` and `scripts/cluster/` changes. Pages builds `apps/web` when a change matches
   `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod` renders but
   never prunes: a deleted resource stays in prod until pruned by hand.
-- A job that uses production secrets or AWS runs in `environment: production` (with
-  `deployment: false` unless it deploys), and CI secrets in `infra/github.ts` other than
-  `TS_REVIEW_OAUTH_*` are `ActionsEnvironmentSecret`s on it; anywhere else the secret is silently
-  empty and the AWS role refuses the job, which nothing catches until it runs on `main`.
-  `TS_REVIEW_OAUTH_*` reach pull request jobs, so `tag:ci-review` may only reach
-  `svc:cliproxyapi-ci`.
-- Every non-production stage gets `STAGE_NAME` `dev` and `dev.pandoks.com`, so two non-production
-  stages collide.
+- Every non-production stage gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
+  environment, so two non-production stages collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
   staging tier, promotion step, or per-PR cluster.
-- PRs get no infra diff: `sst diff` needs the stage passphrase, which decrypts every secret, so it
-  never runs with production credentials outside `main`. Bring it back as a diff of the dev stage
-  with dev-only credentials once dev deploys from CI.
+- PRs get no infra diff: `sst diff` needs the stage passphrase, which decrypts every secret, and the
+  AWS role trusts only `main` and the `production` environment, which only `main` may use. Bring the
+  diff back as a diff of the dev stage with dev-only credentials once dev deploys from CI.
 
 ## Commands
 

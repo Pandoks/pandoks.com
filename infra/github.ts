@@ -6,20 +6,23 @@ import { tailscaleAcl } from './tailscale';
 export const githubOrg = 'Pandoks';
 export const githubRepoName = 'pandoks.com';
 
+const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
+  repository: githubRepoName,
+  environment: isProduction ? 'production' : 'dev',
+  // NOTE: the AWS role trusts this environment, so only main may use it.
+  deploymentBranchPolicy: isProduction
+    ? { protectedBranches: true, customBranchPolicies: false }
+    : undefined
+});
+
+new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
+  repository: githubRepoName,
+  environment: githubEnvironment.environment,
+  secretName: 'HCLOUD_TOKEN',
+  plaintextValue: secrets.hetzner.ApiKey.value
+});
+
 if (isProduction) {
-  const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
-    repository: githubRepoName,
-    environment: 'production',
-    deploymentBranchPolicy: { protectedBranches: true, customBranchPolicies: false }
-  });
-
-  new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
-    repository: githubRepoName,
-    environment: githubEnvironment.environment,
-    secretName: 'HCLOUD_TOKEN',
-    plaintextValue: secrets.hetzner.ApiKey.value
-  });
-
   new github.BranchProtection('GithubMainBranchProtection', {
     repositoryId: githubRepoName,
     pattern: 'main',
@@ -34,44 +37,38 @@ if (isProduction) {
     enforceAdmins: false
   });
 
-  new github.ActionsEnvironmentSecret('GithubGithubAccessToken', {
+  new github.ActionsSecret('GithubGithubAccessToken', {
     repository: githubRepoName,
-    environment: githubEnvironment.environment,
     secretName: 'GH_TOKEN',
     plaintextValue: secrets.github.PersonalAccessToken.value
   });
 
-  new github.ActionsEnvironmentSecret('GithubGithubPackageManagementToken', {
+  new github.ActionsSecret('GithubGithubPackageManagementToken', {
     repository: githubRepoName,
-    environment: githubEnvironment.environment,
     secretName: 'GH_PACKAGE_MANAGEMENT_TOKEN',
     plaintextValue: secrets.github.PackageManagementToken.value
   });
 
-  new github.ActionsEnvironmentSecret('GithubCloudflareApiToken', {
+  new github.ActionsSecret('GithubCloudflareApiToken', {
     repository: githubRepoName,
-    environment: githubEnvironment.environment,
     secretName: 'CLOUDFLARE_API_TOKEN',
     plaintextValue: secrets.cloudflare.ApiKey.value
   });
 
-  new github.ActionsEnvironmentSecret('GithubCloudflareAccountId', {
+  new github.ActionsSecret('GithubCloudflareAccountId', {
     repository: githubRepoName,
-    environment: githubEnvironment.environment,
     secretName: 'CLOUDFLARE_DEFAULT_ACCOUNT_ID',
     plaintextValue: cloudflareAccountId
   });
 
-  new github.ActionsEnvironmentSecret('GithubOvhApplicationSecret', {
+  new github.ActionsSecret('GithubOvhApplicationSecret', {
     repository: githubRepoName,
-    environment: githubEnvironment.environment,
     secretName: 'OVH_APPLICATION_SECRET',
     plaintextValue: secrets.ovh.ApplicationSecret.value
   });
 
-  new github.ActionsEnvironmentSecret('GithubOvhConsumerKey', {
+  new github.ActionsSecret('GithubOvhConsumerKey', {
     repository: githubRepoName,
-    environment: githubEnvironment.environment,
     secretName: 'OVH_CONSUMER_KEY',
     plaintextValue: secrets.ovh.ConsumerKey.value
   });
@@ -95,7 +92,10 @@ if (isProduction) {
           Condition: {
             StringEquals: {
               'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-              'token.actions.githubusercontent.com:sub': `repo:${githubOrg}/${githubRepoName}:environment:production`
+              'token.actions.githubusercontent.com:sub': [
+                `repo:${githubOrg}/${githubRepoName}:environment:production`,
+                `repo:${githubOrg}/${githubRepoName}:ref:refs/heads/main`
+              ]
             }
           }
         }
@@ -119,15 +119,13 @@ if (isProduction) {
     value: defaultAwsRegion
   });
 
-  new github.ActionsEnvironmentSecret('GithubTailscaleOauthClientId', {
+  new github.ActionsSecret('GithubTailscaleOauthClientId', {
     repository: githubRepoName,
-    environment: githubEnvironment.environment,
     secretName: 'TAILSCALE_OAUTH_CLIENT_ID',
     plaintextValue: secrets.tailscale.OauthClientId.value
   });
-  new github.ActionsEnvironmentSecret('GithubTailscaleOauthClientSecret', {
+  new github.ActionsSecret('GithubTailscaleOauthClientSecret', {
     repository: githubRepoName,
-    environment: githubEnvironment.environment,
     secretName: 'TAILSCALE_OAUTH_CLIENT_SECRET',
     plaintextValue: secrets.tailscale.OauthClientSecret.value
   });
@@ -141,38 +139,15 @@ if (isProduction) {
     },
     { dependsOn: [tailscaleAcl] }
   );
-  new github.ActionsEnvironmentSecret('GithubActionsTailscaleOauthClientId', {
+  new github.ActionsSecret('GithubActionsTailscaleOauthClientId', {
     repository: githubRepoName,
-    environment: githubEnvironment.environment,
     secretName: 'TS_OAUTH_CLIENT_ID',
     plaintextValue: githubActionsOauthClient.id
   });
-  new github.ActionsEnvironmentSecret('GithubActionsTailscaleOauthSecret', {
+  new github.ActionsSecret('GithubActionsTailscaleOauthSecret', {
     repository: githubRepoName,
-    environment: githubEnvironment.environment,
     secretName: 'TS_OAUTH_SECRET',
     plaintextValue: githubActionsOauthClient.key
-  });
-
-  // NOTE: pull request jobs get these, so tag:ci-review can only reach svc:cliproxyapi-ci.
-  const githubReviewOauthClient = new tailscale.OauthClient(
-    `${STAGE_NAME}TailscaleGithubReviewOauthClient`,
-    {
-      description: `${STAGE_NAME} github claude review`,
-      scopes: ['devices:core', 'auth_keys'],
-      tags: ['tag:ci-review']
-    },
-    { dependsOn: [tailscaleAcl] }
-  );
-  new github.ActionsSecret('GithubReviewTailscaleOauthClientId', {
-    repository: githubRepoName,
-    secretName: 'TS_REVIEW_OAUTH_CLIENT_ID',
-    plaintextValue: githubReviewOauthClient.id
-  });
-  new github.ActionsSecret('GithubReviewTailscaleOauthSecret', {
-    repository: githubRepoName,
-    secretName: 'TS_REVIEW_OAUTH_SECRET',
-    plaintextValue: githubReviewOauthClient.key
   });
 
   // NOTE: Renovate handles the security-PRs, and reads dependabot alerts.
