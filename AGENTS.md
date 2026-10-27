@@ -72,9 +72,8 @@ with `@lib`, not `$lib`.
   environment, so two non-production stages collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
   staging tier, promotion step, or per-PR cluster.
-- PRs get no infra diff: `sst diff` needs the stage passphrase, which decrypts every secret, and the
-  AWS role trusts only `main` and the `production` environment, which only `main` may use. Bring the
-  diff back as a diff of the dev stage with dev-only credentials once dev deploys from CI.
+- PRs get no infra diff: `sst diff` decrypts every secret, so never run it with production
+  credentials off `main`.
 
 ## Commands
 
