@@ -1,9 +1,9 @@
 <script lang="ts">
-  import type { PageData } from './$types';
+  import type { PageData, PageProps } from './$types';
   import type { RichText } from '#lib/blog/types.js';
   import { hljs } from '#lib/highlight.js';
 
-  const { data }: { data: PageData } = $props();
+  const { data }: PageProps = $props();
 
   type Block = PageData['blocks'][number];
 </script>

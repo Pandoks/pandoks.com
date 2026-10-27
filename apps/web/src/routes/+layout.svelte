@@ -6,9 +6,9 @@
   import { onMount } from 'svelte';
   import { setVimState } from '#lib/vim.svelte.js';
   import { FONTS } from '#lib/fonts.js';
-  import type { Snippet } from 'svelte';
+  import type { LayoutProps } from './$types';
 
-  const { children }: { children: Snippet } = $props();
+  const { children }: LayoutProps = $props();
 
   onMount(() => {
     for (const [key, { file, family, weight, style }] of Object.entries(FONTS)) {
