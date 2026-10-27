@@ -78,6 +78,9 @@ with `@lib`, not `$lib`.
   stages collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
   staging tier, promotion step, or per-PR cluster.
+- PRs get no infra diff: `sst diff` needs the stage passphrase, which decrypts every secret, so it
+  never runs with production credentials outside `main`. Bring it back as a diff of the dev stage
+  with dev-only credentials once dev deploys from CI.
 
 ## Commands
 
