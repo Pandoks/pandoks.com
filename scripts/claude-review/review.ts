@@ -164,8 +164,10 @@ try {
       }
       for (const block of message.message.content) {
         if (block.type === 'tool_use' && block.name === 'Agent') {
+          const input = block.input as { effort?: string; subagent_type?: string };
+          // NOTE: A fork ignores effort and runs at its parent's.
           subagentCalls[block.id] = {
-            effort: (block.input as { effort?: string }).effort,
+            effort: input.subagent_type === 'fork' ? undefined : input.effort,
             parentId
           };
         }
