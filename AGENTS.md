@@ -68,6 +68,10 @@ with `@lib`, not `$lib`.
   for `k3s/` and `scripts/cluster/` changes. Pages builds `apps/web` when a change matches
   `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod` renders but
   never prunes: a deleted resource stays in prod until pruned by hand.
+- A job that uses production secrets or AWS runs in `environment: production` (with
+  `deployment: false` unless it deploys), and CI secrets in `infra/github.ts` are
+  `ActionsEnvironmentSecret`s on it; anywhere else the secret is silently empty and the AWS role
+  refuses the job, which nothing catches until it runs on `main`.
 - Every non-production stage gets `STAGE_NAME` `dev` and `dev.pandoks.com`, so two non-production
   stages collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
