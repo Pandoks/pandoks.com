@@ -40,7 +40,8 @@ async function requestGithub<ResponseBody>({
     method,
     headers: {
       Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${process.env.GH_TOKEN!}`
+      Authorization: `Bearer ${process.env.GH_TOKEN!}`,
+      'X-GitHub-Api-Version': '2026-03-10'
     },
     body: body && JSON.stringify(body)
   });

@@ -80,11 +80,11 @@ jobs:
             -f query="${QUERY}" \
             --jq '.data.repository.pullRequest.reviews.nodes[0].fullDatabaseId // empty')
           if [[ -n "${review}" ]]; then
-            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/pulls/${NUMBER}/reviews/${review}"
+            gh api -X DELETE -H 'X-GitHub-Api-Version: 2026-03-10' "repos/${GITHUB_REPOSITORY}/pulls/${NUMBER}/reviews/${review}"
           fi
 
       - name: Revoke claude[bot] token
         if: ${{ always() && steps.claude-app.outputs.token }}
         env:
           TOKEN: ${{ steps.claude-app.outputs.token }}
-        run: 'curl -sSf -X DELETE -H "Authorization: Bearer ${TOKEN}" https://api.github.com/installation/token'
+        run: 'curl -sSf -X DELETE -H "Authorization: Bearer ${TOKEN}" -H "X-GitHub-Api-Version: 2026-03-10" https://api.github.com/installation/token'
