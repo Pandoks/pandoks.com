@@ -29,10 +29,10 @@ with `@lib`, not `$lib`.
 1. **Changing production by hand.** Production (the SST `production` stage and the prod cluster)
    changes when `main` does. Read it to diagnose, but change it no other way: no SST command against
    it, not even `sst diff`, no `pnpm cluster deploy prod`, not even `--dry-run`, no
-   `gh workflow run deploy-infra.yaml` (its stage defaults to `production`, and its Kubernetes job
-   hard-refreshes prod on any stage), and no `kubectl` write to prod, Argo refreshes, syncs, and
-   restarts included. If production needs a manual fix, even when I say ship now, propose the exact
-   command, target, and effect, then wait.
+   `gh workflow run deploy-infra.yaml` (it deploys `production`, and its Kubernetes job
+   hard-refreshes prod), and no `kubectl` write to prod, Argo refreshes, syncs, and restarts
+   included. If production needs a manual fix, even when I say ship now, propose the exact command,
+   target, and effect, then wait.
 2. **Deploying a stage by accident.** Pass `--stage <stage>` (or `SST_STAGE`) to every `sst` and
    `pnpm cluster deploy` command; mine is `pandoks`. For the site, run `pnpm exec portless doctor`
    before `pnpm --filter web dev`, which can start a missing proxy with `sudo`; if doctor prints a
@@ -54,8 +54,8 @@ with `@lib`, not `$lib`.
 5. **Leaking secrets.** `.env.<stage>` files, `sst.Secret` values, and
    `pnpm cluster deploy --dry-run` output are real credentials: never print, commit, or paste them,
    and inspect manifests with `kubectl kustomize`. New secrets go in `infra/secrets.ts`; one without
-   a value fails every deploy and diff of its stage, CI's production diff included, so set yours
-   with `pnpm sst secret set <Name> <value> --stage <stage>` and ask me to set production's.
+   a value fails every deploy and diff of its stage, so set yours with
+   `pnpm sst secret set <Name> <value> --stage <stage>` and ask me to set production's.
 
 ## How changes ship
 

@@ -34,38 +34,44 @@ if (isProduction) {
     enforceAdmins: false
   });
 
-  new github.ActionsSecret('GithubGithubAccessToken', {
+  new github.ActionsEnvironmentSecret('GithubGithubAccessToken', {
     repository: githubRepoName,
+    environment: githubEnvironment.environment,
     secretName: 'GH_TOKEN',
     plaintextValue: secrets.github.PersonalAccessToken.value
   });
 
-  new github.ActionsSecret('GithubGithubPackageManagementToken', {
+  new github.ActionsEnvironmentSecret('GithubGithubPackageManagementToken', {
     repository: githubRepoName,
+    environment: githubEnvironment.environment,
     secretName: 'GH_PACKAGE_MANAGEMENT_TOKEN',
     plaintextValue: secrets.github.PackageManagementToken.value
   });
 
-  new github.ActionsSecret('GithubCloudflareApiToken', {
+  new github.ActionsEnvironmentSecret('GithubCloudflareApiToken', {
     repository: githubRepoName,
+    environment: githubEnvironment.environment,
     secretName: 'CLOUDFLARE_API_TOKEN',
     plaintextValue: secrets.cloudflare.ApiKey.value
   });
 
-  new github.ActionsSecret('GithubCloudflareAccountId', {
+  new github.ActionsEnvironmentSecret('GithubCloudflareAccountId', {
     repository: githubRepoName,
+    environment: githubEnvironment.environment,
     secretName: 'CLOUDFLARE_DEFAULT_ACCOUNT_ID',
     plaintextValue: cloudflareAccountId
   });
 
-  new github.ActionsSecret('GithubOvhApplicationSecret', {
+  new github.ActionsEnvironmentSecret('GithubOvhApplicationSecret', {
     repository: githubRepoName,
+    environment: githubEnvironment.environment,
     secretName: 'OVH_APPLICATION_SECRET',
     plaintextValue: secrets.ovh.ApplicationSecret.value
   });
 
-  new github.ActionsSecret('GithubOvhConsumerKey', {
+  new github.ActionsEnvironmentSecret('GithubOvhConsumerKey', {
     repository: githubRepoName,
+    environment: githubEnvironment.environment,
     secretName: 'OVH_CONSUMER_KEY',
     plaintextValue: secrets.ovh.ConsumerKey.value
   });
@@ -91,7 +97,6 @@ if (isProduction) {
               'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
               'token.actions.githubusercontent.com:sub': [
                 `repo:${githubOrg}/${githubRepoName}:environment:production`,
-                `repo:${githubOrg}/${githubRepoName}:environment:dev`,
                 `repo:${githubOrg}/${githubRepoName}:ref:refs/heads/main`
               ]
             }
@@ -117,13 +122,15 @@ if (isProduction) {
     value: defaultAwsRegion
   });
 
-  new github.ActionsSecret('GithubTailscaleOauthClientId', {
+  new github.ActionsEnvironmentSecret('GithubTailscaleOauthClientId', {
     repository: githubRepoName,
+    environment: githubEnvironment.environment,
     secretName: 'TAILSCALE_OAUTH_CLIENT_ID',
     plaintextValue: secrets.tailscale.OauthClientId.value
   });
-  new github.ActionsSecret('GithubTailscaleOauthClientSecret', {
+  new github.ActionsEnvironmentSecret('GithubTailscaleOauthClientSecret', {
     repository: githubRepoName,
+    environment: githubEnvironment.environment,
     secretName: 'TAILSCALE_OAUTH_CLIENT_SECRET',
     plaintextValue: secrets.tailscale.OauthClientSecret.value
   });

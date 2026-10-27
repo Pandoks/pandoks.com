@@ -10,6 +10,9 @@ permissions: {}
 jobs:
   renovate:
     runs-on: ubuntu-latest
+    environment:
+      name: production
+      deployment: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -26,6 +29,9 @@ jobs:
 
   cleanup-packages:
     runs-on: ubuntu-latest
+    environment:
+      name: production
+      deployment: false
     permissions:
       packages: write
     strategy:
