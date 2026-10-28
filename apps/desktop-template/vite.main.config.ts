@@ -8,6 +8,7 @@ export default defineConfig({
       formats: ['es'],
       entry: 'electron/main.ts',
       fileName: 'main'
-    }
+    },
+    rolldownOptions: { platform: 'node' }
   }
 });
