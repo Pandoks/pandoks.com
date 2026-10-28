@@ -42,8 +42,7 @@
         "/^packages/[^/]+/chart/templates/.+\\.ya?ml$/"
       ],
       "matchStrings": [
-        "repo: (?<registryUrl>https://\\S+)\\s+chart: (?<depName>[a-z0-9][a-z0-9-]*)\\s+version: (?<currentValue>\\S+)",
-        "name: &name (?<depName>[a-z0-9-]+)\\n[\\s\\S]*?repo: (?<registryUrl>https://\\S+)\\s+chart: \\*name\\s+version: (?<currentValue>\\S+)"
+        "repo: (?<registryUrl>https://\\S+)\\s+chart: (?<depName>[a-z0-9][a-z0-9-]*)\\s+version: (?<currentValue>\\S+)"
       ],
       "datasourceTemplate": "helm"
     },
@@ -51,7 +50,7 @@
       "customType": "regex",
       "managerFilePatterns": ["/^apps/.+/kube/.+\\.ya?ml$/"],
       "matchStrings": [
-        "chart: oci://(?:\\$\\{ImageRegistry\\}|ghcr\\.io/pandoks)/(?<depName>charts/[a-z0-9-]+)\\s+version: (?<currentValue>\\S+)"
+        "chart: oci://\\$\\{ImageRegistry\\}/(?<depName>charts/[a-z0-9-]+)\\s+version: (?<currentValue>\\S+)"
       ],
       "packageNameTemplate": "ghcr.io/pandoks/{{{depName}}}",
       "datasourceTemplate": "docker"
@@ -109,7 +108,10 @@
     {
       "description": "Each cluster add-on chart is its own rollout.",
       "matchDatasources": ["helm"],
-      "groupName": null
+      "groupName": null,
+      "prBodyNotes": [
+        "{{#if isMajor}}Read the chart's upgrade notes and apply any new CRDs before merging; Helm only installs CRDs on first install.{{/if}}"
+      ]
     },
     {
       "description": "Our app charts too, and a chart's `version:` can't carry a digest.",
@@ -121,13 +123,6 @@
       "description": "PgDog's chart uses two-part versions (v0.27).",
       "matchPackageNames": ["pgdog"],
       "versioning": "loose"
-    },
-    {
-      "matchDatasources": ["helm"],
-      "matchUpdateTypes": ["major"],
-      "prBodyNotes": [
-        "Read the chart's upgrade notes and apply any new CRDs before merging; Helm only installs CRDs on first install."
-      ]
     },
     {
       "matchFileNames": ["sst.config.ts"],

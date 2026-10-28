@@ -11,7 +11,7 @@ metadata:
   namespace: kube-system
 spec:
   repo: https://charts.jetstack.io
-  chart: *name
+  chart: cert-manager
   version: v1.19.2
   targetNamespace: *name
   createNamespace: true
