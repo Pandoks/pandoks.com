@@ -4,7 +4,7 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "main": ".vite/build/main.js",
+  "main": ".vite/build/main.cjs",
   "scripts": {
     "start": "electron-forge start",
     "dev": "portless run --name desktop-template vite dev",
@@ -18,7 +18,7 @@
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "test": "pnpm run test:unit && pnpm run test:e2e",
     "test:unit": "vitest run",
-    "test:e2e": "electron-forge package && playwright test",
+    "test:e2e": "vite build && electron-forge package && playwright test",
     "shadcn": "pnpm dlx shadcn-svelte@latest add -c ../../packages/svelte"
   },
   "devDependencies": {
