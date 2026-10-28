@@ -200,6 +200,28 @@ Add the file to `apps/myapp/kube/kustomization.yaml` and `apps/myapp/kube` to
 [k3s/base/apps/kustomization.yaml](/k3s/base/apps/kustomization.yaml). See
 [apps/example/kube/postgres.yaml](/apps/example/kube/postgres.yaml) for a full example.
 
+To pin Patroni to the dedicated database nodes (label and taint `role=db`), patch the HelmChart in
+the cloud overlay, since local k3d has no such nodes. Put the patch in the app's
+`cluster-patch.yaml` and add it to the `patches` in
+[k3s/overlays/cluster/kustomization.yaml](/k3s/overlays/cluster/kustomization.yaml), which `dev` and
+`prod` share:
+
+```yaml
+# apps/myapp/kube/cluster-patch.yaml
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: myapp-postgres-myapp-cluster
+  namespace: kube-system
+spec:
+  set:
+    nodeSelector.role: db
+    tolerations[0].key: role
+    tolerations[0].operator: Equal
+    tolerations[0].value: db
+    tolerations[0].effect: NoSchedule
+```
+
 ### 3. Configure Sharding (Optional)
 
 To enable sharding, add sharded tables configuration:

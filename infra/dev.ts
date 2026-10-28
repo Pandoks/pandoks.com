@@ -75,6 +75,16 @@ if (isProduction) {
     },
     { dependsOn: [tailscaleAcl] }
   );
+  new tailscale.Service(
+    'CliproxyapiCiTailscaleService',
+    {
+      name: 'svc:cliproxyapi-ci',
+      comment: 'CLIProxyAPI with Console API keys only',
+      ports: ['tcp:443'],
+      tags: ['tag:cliproxyapi']
+    },
+    { dependsOn: [tailscaleAcl] }
+  );
 }
 
 new sst.x.DevCommand('DevInit', {

@@ -4,11 +4,11 @@
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { onMount } from 'svelte';
-  import { setVimState } from '$lib/vim.svelte';
-  import { FONTS } from '$lib/fonts';
-  import type { Snippet } from 'svelte';
+  import { setVimState } from '#lib/vim.svelte.js';
+  import { FONTS } from '#lib/fonts.js';
+  import type { LayoutProps } from './$types';
 
-  const { children }: { children: Snippet } = $props();
+  const { children }: LayoutProps = $props();
 
   onMount(() => {
     for (const [key, { file, family, weight, style }] of Object.entries(FONTS)) {

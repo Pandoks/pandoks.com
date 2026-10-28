@@ -8,7 +8,11 @@ export const githubRepoName = 'pandoks.com';
 
 const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
   repository: githubRepoName,
-  environment: isProduction ? 'production' : 'dev'
+  environment: isProduction ? 'production' : 'dev',
+  // NOTE: AWS trusts every job in this environment, so only protected branches get it.
+  deploymentBranchPolicy: isProduction
+    ? { protectedBranches: true, customBranchPolicies: false }
+    : undefined
 });
 
 new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
@@ -87,10 +91,11 @@ if (isProduction) {
           Action: 'sts:AssumeRoleWithWebIdentity',
           Condition: {
             StringEquals: {
-              'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com'
-            },
-            StringLike: {
-              'token.actions.githubusercontent.com:sub': 'repo:Pandoks/*'
+              'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
+              'token.actions.githubusercontent.com:sub': [
+                `repo:${githubOrg}/${githubRepoName}:environment:production`,
+                `repo:${githubOrg}/${githubRepoName}:ref:refs/heads/main`
+              ]
             }
           }
         }
@@ -130,7 +135,7 @@ if (isProduction) {
     {
       description: `${STAGE_NAME} github ci`,
       scopes: ['devices:core', 'auth_keys'],
-      tags: ['tag:ci', `tag:${STAGE_NAME}`]
+      tags: ['tag:ci']
     },
     { dependsOn: [tailscaleAcl] }
   );
