@@ -2,7 +2,6 @@ name: Checks
 
 permissions:
   contents: read
-  id-token: write
 
 on:
   pull_request:
@@ -212,7 +211,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Run actionlint
-        uses: reviewdog/action-actionlint@3cbf14efd750961dba35fccbf00f9e14028cb1f5 # v1.80.2
+        uses: reviewdog/action-actionlint@419a49378266e892f40c773b4f2fc6de9aa87499 # v1.80.4
         with:
           fail_level: info
 
@@ -264,33 +263,6 @@ jobs:
       - name: Typecheck infra
         run: pnpm check:infra
 
-  # ─── SST ──────────────────────────────────────────────────────────────
-  diff-sst:
-    runs-on: ubuntu-latest
-    environment: production
-    env:
-      GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_DEFAULT_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
-      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
-      OVH_APPLICATION_SECRET: ${{ secrets.OVH_APPLICATION_SECRET }}
-      OVH_CONSUMER_KEY: ${{ secrets.OVH_CONSUMER_KEY }}
-      TAILSCALE_OAUTH_CLIENT_ID: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
-      TAILSCALE_OAUTH_CLIENT_SECRET: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: ./.github/actions/setup-node-pnpm
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
-
-      - name: Diff SST
-        run: pnpm sst diff --stage production
-
   checks-pass:
     needs:
       - format-js
@@ -304,7 +276,6 @@ jobs:
       - validate-renovate
       - workspace-check
       - check-infra
-      - diff-sst
     if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-latest
     steps:
