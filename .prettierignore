@@ -10,3 +10,6 @@ packages/*/chart/templates/*.yaml
 
 # SST
 sst-env.d.ts
+
+# Skills
+.agents/skills

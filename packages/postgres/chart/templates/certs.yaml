@@ -4,10 +4,10 @@
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: &name patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+  name: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
   namespace: {{ $.Values.namespace }}
 spec:
-  commonName: *name
+  commonName: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
   secretName: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}-tls
   dnsNames:
     - patroni-{{ $.Values.db }}-primary-shard-{{ $shardIndex }}.{{ $.Values.namespace }}.svc.cluster.local
@@ -24,10 +24,10 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: &name {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup
+  name: {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup
   namespace: {{ $.Values.namespace }}
 spec:
-  commonName: *name
+  commonName: {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup
   secretName: {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup-tls
   dnsNames:
     - patroni-{{ $.Values.db }}-primary-shard-{{ $shardIndex }}.{{ $.Values.namespace }}.svc.cluster.local

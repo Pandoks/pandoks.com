@@ -3,8 +3,8 @@
 Personal monorepo. SST (`sst.config.ts`, `infra/`) manages all infrastructure: AWS and Cloudflare
 for what needs high availability, rented machines (Hetzner in `infra/vps/`, moving to OVH) for raw
 compute; the cluster is K3s with Kustomize and ArgoCD. `apps/desktop-template` and `apps/example`
-are templates, but `apps/example/kube` is in every overlay, prod included. Import `packages/svelte`
-with `@lib`, not `$lib`.
+are templates, but `apps/example/kube` is in every overlay, prod included. Apps import
+`packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it, use `#lib`.
 
 ## Principles
 
@@ -28,11 +28,11 @@ with `@lib`, not `$lib`.
 
 1. **Changing production by hand.** Production (the SST `production` stage and the prod cluster)
    changes when `main` does. Read it to diagnose, but change it no other way: no SST command against
-   it, not even `sst diff` (CI already diffs production on every PR), no `pnpm cluster deploy prod`,
-   not even `--dry-run`, no `gh workflow run deploy-infra.yaml` (its stage defaults to `production`,
-   and its Kubernetes job hard-refreshes prod on any stage), and no `kubectl` write to prod, Argo
-   refreshes, syncs, and restarts included. If production needs a manual fix, even when I say ship
-   now, propose the exact command, target, and effect, then wait.
+   it, not even `sst diff`, no `pnpm cluster deploy prod`, not even `--dry-run`, no
+   `gh workflow run deploy-infra.yaml` (it deploys `production`, and its Kubernetes job
+   hard-refreshes prod), and no `kubectl` write to prod, Argo refreshes, syncs, and restarts
+   included. If production needs a manual fix, even when I say ship now, propose the exact command,
+   target, and effect, then wait.
 2. **Deploying a stage by accident.** Pass `--stage <stage>` (or `SST_STAGE`) to every `sst` and
    `pnpm cluster deploy` command; mine is `pandoks`. For the site, run `pnpm exec portless doctor`
    before `pnpm --filter web dev`, which can start a missing proxy with `sudo`; if doctor prints a
@@ -53,25 +53,27 @@ with `@lib`, not `$lib`.
    `printf 'y\n' | mise exec -- pnpm cluster deploy local --stage <stage> --kubeconfig "$(mise exec -- k3d kubeconfig write local-cluster)"`.
 5. **Leaking secrets.** `.env.<stage>` files, `sst.Secret` values, and
    `pnpm cluster deploy --dry-run` output are real credentials: never print, commit, or paste them,
-   and inspect manifests with `kubectl kustomize`. New secrets go in `infra/secrets.ts`; one without
-   a value fails every deploy and diff of its stage, CI's production diff included, so set yours
-   with `pnpm sst secret set <Name> <value> --stage <stage>` and ask me to set production's.
+   and inspect manifests with `kustomize build`. New secrets go in `infra/secrets.ts`; one without a
+   value fails every deploy and diff of its stage, so set yours with
+   `pnpm sst secret set <Name> <value> --stage <stage>` and ask me to set production's.
 
 ## How changes ship
 
 - PRs run `checks.yaml`, `tests.yaml`, `security.yaml`, and `build-and-publish.yaml` (branch-tagged
   GHCR images and charts), a Cloudflare Pages preview of `apps/web`, and `claude-review.yaml` (one
-  Claude Code `/code-review` per PR, as inline comments). Required checks are the `*-pass`
-  aggregates.
-- Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `infra/`, `apps/`
-  (except `desktop-template` and `example`), and `packages/svelte/`, plus an Argo hard refresh only
-  for `k3s/` and `scripts/cluster/` changes. Pages builds `apps/web` when a change matches
-  `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod` renders but
-  never prunes: a deleted resource stays in prod until pruned by hand.
+  Agent SDK `/code-review` per PR, posted as one review with inline comments). Required checks are
+  the `*-pass` aggregates.
+- Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
+  `infra/`, `apps/` (except `desktop-template` and `example`), and `packages/svelte/`, plus an Argo
+  hard refresh only for `k3s/` and `scripts/cluster/` changes. Pages builds `apps/web` when a change
+  matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod`
+  renders but never prunes: a deleted resource stays in prod until pruned by hand.
 - Every non-production stage gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
   environment, so two non-production stages collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
   staging tier, promotion step, or per-PR cluster.
+- PRs get no infra diff: `sst diff` decrypts every secret, so never run it with production
+  credentials off `main`.
 
 ## Commands
 
@@ -81,6 +83,9 @@ are unpinned globals; run repo commands, `kubectl` included, as `mise exec -- <c
 checkout. The SST CLI is `pnpm sst`.
 
 - `pnpm format <js|go|shell|all>` writes; `pnpm format check <...>` checks.
+- Manage agent skills only with the skills CLI, for Claude Code, Codex, and opencode:
+  `pnpm dlx skills add <source> -s <skill> -a claude-code codex opencode`, and
+  `pnpm dlx skills update -p`.
 - `pnpm lint <js|go|helm|docker|shell|actions|all>`; `js` needs `.sst/platform` from `pnpm install`,
   or `infra/` shows hundreds of false type errors.
 - `pnpm check` type-checks every package, `infra/`, and `sst.config.ts`.
@@ -91,7 +96,7 @@ checkout. The SST CLI is `pnpm sst`.
   filter and the shell and Docker format and lint commands see only tracked files, so check new
   files with the file-level tools and `pnpm --filter <package> --if-present check`.
 - Render without a cluster:
-  `kubectl kustomize k3s/overlays/<local|dev|prod> --load-restrictor LoadRestrictionsNone`.
+  `kustomize build k3s/overlays/<local|dev|prod> --load-restrictor LoadRestrictionsNone`.
 - Local cluster: `pnpm cluster k3d deps up`, `pnpm cluster k3d up` (hazard 4),
   `pnpm docker:build && pnpm dev:push`, then hazard 4's deploy, once with `--bootstrap` on a fresh
   cluster and again without. `pnpm dev:destroy` tears it down. See `scripts/cluster/README.md` and
@@ -159,11 +164,12 @@ Before calling infra, cluster, or tooling work done, check:
 - **Go:** justify every `#nosec` or `//nolint` inline.
 - **Containers and manifests:** pin Dockerfile bases, third-party images, and chart defaults as
   `image:tag@sha256:…` in files a Renovate manager matches; no image lock files. Images in raw
-  manifests in `k3s/` and `apps/*/kube` aren't matched yet, so add a `kubernetes`
-  `managerFilePatterns` entry to `renovate.json` before pinning an image there. First-party images
-  in `apps/*/kube` stay `${ImageRegistry}/<img>:${ImageTag}`. Prefer copying official binaries from
-  official images. Use `.yaml`. Default unset or off-by-default `values.yaml` options to `~` (no
-  `enabled` switch) under an `# options:` comment listing the choices.
+  manifests in `k3s/` aren't matched yet, so add a `kubernetes` `managerFilePatterns` entry to
+  `renovate.json` before pinning an image there. First-party images in `apps/*/kube` stay
+  `${ImageRegistry}/<img>:${ImageTag}`. Prefer copying official binaries from official images. Use
+  `.yaml`, with anchors only for values that must stay equal. Default unset or off-by-default
+  `values.yaml` options to `~` (no `enabled` switch) under an `# options:` comment listing the
+  choices.
 
 ## Git and pull requests
 
@@ -204,13 +210,13 @@ that can't happen, or for compatibility code for old data or deploy order during
 - A new pin (a version or digest added where none was, not a bump) that Renovate can't update, or a
   new third-party download or image with no version (`releases/latest`, `:latest`). Exceptions: a
   chart's own `version:` in `Chart.yaml` and an `appVersion` that sets no image tag or download,
-  `apk` and `apt` pins hadolint requires, server OS images like `ubuntu-24.04`, and vendor install
-  scripts or generators like `tailscale.com/install.sh` and `shadcn-svelte@latest`. Also a version
-  bump missing one of its synced copies, like a `Chart.yaml` bump without the `apps/*/kube`
-  manifests using it. Safe path: a native Renovate manager (`helm-values` updates image strings
-  under any `values.yaml` key ending in `image`; none matches raw manifests in `k3s/` or
-  `apps/*/kube`) or a `# renovate:` comment a `renovate.json` custom manager matches; checksums
-  Renovate can't compute are bumped by hand with their version.
+  server OS images like `ubuntu-24.04`, and vendor install scripts or generators like
+  `tailscale.com/install.sh` and `shadcn-svelte@latest`. Also a version bump missing one of its
+  synced copies, like a `Chart.yaml` bump without the `apps/*/kube` manifests using it. Safe path: a
+  native Renovate manager (`helm-values` updates image strings under any `values.yaml` key ending in
+  `image`, `kubernetes` those in `apps/*/kube` and chart templates; none matches raw manifests in
+  `k3s/`) or a `# renovate:` comment a `renovate.json` custom manager matches; checksums Renovate
+  can't compute are bumped by hand with their version.
 - An attacker-controlled `${{ }}` value, like a branch name or PR title, in `run:` instead of
   `env:`.
 - A real secret value in code, manifests, values, logs, or workflow output. References like

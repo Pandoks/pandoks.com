@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - 'sst.config.ts'
       - 'infra/**'
       - 'apps/**'
       - '!apps/desktop-template/**'
@@ -14,13 +15,6 @@ on:
       - 'scripts/cluster/**'
   workflow_dispatch:
     inputs:
-      stage:
-        description: 'SST stage'
-        type: choice
-        default: production
-        options:
-          - production
-          - pandoks
       deploy:
         description: 'What to deploy'
         type: choice
@@ -33,9 +27,6 @@ on:
 permissions:
   id-token: write
   contents: read
-
-env:
-  SST_STAGE: ${{ github.event.inputs.stage || 'production' }}
 
 jobs:
   detect-changes:
@@ -51,6 +42,7 @@ jobs:
         with:
           filters: |
             sst:
+              - 'sst.config.ts'
               - 'infra/**'
               - 'apps/!(desktop-template|example)/**'
               - 'packages/svelte/**'
@@ -65,7 +57,7 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.sst == 'true'
     runs-on: ubuntu-latest
-    environment: ${{ (github.event.inputs.stage || 'production') == 'production' && 'production' || 'dev' }}
+    environment: production
     env:
       GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -92,10 +84,10 @@ jobs:
       # https://github.com/anomalyco/sst/issues/6713
       - name: Refresh sst state
         continue-on-error: true
-        run: pnpm sst refresh --stage "$SST_STAGE"
+        run: pnpm sst refresh --stage production
 
       - name: Deploy SST
-        run: pnpm sst deploy --stage "$SST_STAGE"
+        run: pnpm sst deploy --stage production
 
   deploy-kubernetes:
     concurrency:
