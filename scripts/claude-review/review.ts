@@ -1,0 +1,229 @@
+import { appendFile, readFile } from 'node:fs/promises';
+import { parseArgs } from 'node:util';
+import {
+  createSdkMcpServer,
+  query,
+  tool,
+  type SDKResultMessage
+} from '@anthropic-ai/claude-agent-sdk';
+import { z } from 'zod';
+
+type PullRequestEvent = {
+  pull_request: { number: number; head: { sha: string } };
+  repository: { url: string };
+};
+
+const { values } = parseArgs({
+  options: {
+    model: { type: 'string', default: 'claude-opus-5-5' },
+    effort: { type: 'string', default: 'xhigh' }
+  }
+});
+const MODEL = values.model;
+const EFFORT = values.effort;
+
+const event = JSON.parse(
+  await readFile(process.env.GITHUB_EVENT_PATH!, 'utf8')
+) as PullRequestEvent;
+const pullUrl = `${event.repository.url}/pulls/${event.pull_request.number}`;
+
+async function requestGithub<ResponseBody>({
+  method,
+  url,
+  body
+}: {
+  method: string;
+  url: string;
+  body?: object;
+}) {
+  const response = await fetch(url, {
+    method,
+    headers: {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${process.env.GH_TOKEN!}`,
+      'X-GitHub-Api-Version': '2026-03-10'
+    },
+    body: body && JSON.stringify(body)
+  });
+  if (!response.ok) throw new Error(`GitHub returned ${response.status}: ${await response.text()}`);
+  const json = (await response.json()) as { errors?: unknown[] };
+  if (json.errors) throw new Error(`GitHub returned errors: ${JSON.stringify(json.errors)}`);
+  return json as ResponseBody;
+}
+
+function formatModelLabel({ model, effort }: { model: string; effort: string }) {
+  const match = /^claude-(\w+)-(\d+)-(\d+)/.exec(model);
+  if (!match) return `${model} ${effort}`;
+  const [, family, major, minor] = match;
+  return `${family[0].toUpperCase()}${family.slice(1)} ${major}.${minor} ${effort}`;
+}
+
+const review = await requestGithub<{ id: number; node_id: string }>({
+  method: 'POST',
+  url: `${pullUrl}/reviews`,
+  body: { commit_id: event.pull_request.head.sha }
+});
+
+// NOTE: Mirrors claude-code-action's tool, which /code-review --comment calls.
+const inlineComment = tool(
+  'create_inline_comment',
+  'Create an inline comment on a specific line or lines in a PR file',
+  {
+    path: z.string().describe("The file path to comment on (e.g., 'src/index.js')"),
+    body: z
+      .string()
+      .describe(
+        'The comment text (supports markdown and GitHub code suggestion blocks). ' +
+          'For code suggestions, use: ```suggestion\\nreplacement code\\n```. ' +
+          'IMPORTANT: The suggestion block will REPLACE the ENTIRE line range (single line or startLine to line). ' +
+          'Ensure the replacement is syntactically complete and valid - it must work as a drop-in replacement for the selected lines.'
+      ),
+    line: z
+      .number()
+      .nonnegative()
+      .optional()
+      .describe('Line number for single-line comments (required if startLine is not provided)'),
+    startLine: z
+      .number()
+      .nonnegative()
+      .optional()
+      .describe('Start line for multi-line comments (use with line parameter for the end line)'),
+    side: z
+      .enum(['LEFT', 'RIGHT'])
+      .optional()
+      .default('RIGHT')
+      .describe('Side of the diff to comment on: LEFT (old code) or RIGHT (new code)')
+  },
+  async ({ path, body, line, startLine, side }) => {
+    const { data } = await requestGithub<{
+      data: { addPullRequestReviewThread: { thread: { id: string } | null } };
+    }>({
+      method: 'POST',
+      url: process.env.GITHUB_GRAPHQL_URL!,
+      body: {
+        query:
+          'mutation($input: AddPullRequestReviewThreadInput!) { addPullRequestReviewThread(input: $input) { thread { id } } }',
+        variables: {
+          input: {
+            pullRequestReviewId: review.node_id,
+            path,
+            body,
+            line,
+            side,
+            ...(startLine === undefined ? {} : { startLine, startSide: side })
+          }
+        }
+      }
+    });
+    // NOTE: GitHub returns a null thread, not an error, for some lines it can't comment on.
+    if (!data.addPullRequestReviewThread.thread) {
+      throw new Error(`GitHub added no comment: ${JSON.stringify(data)}`);
+    }
+    return { content: [{ type: 'text', text: 'Added the comment to the pending review' }] };
+  }
+);
+
+const subagentModels: Record<string, string> = {};
+const subagentCalls: Record<string, { effort?: string; parentId: string | null }> = {};
+
+// NOTE: A subagent without an effort runs at its parent's.
+function resolveSubagentEffort({ toolUseId }: { toolUseId: string | null }): string {
+  const call = toolUseId ? subagentCalls[toolUseId] : undefined;
+  return call ? (call.effort ?? resolveSubagentEffort({ toolUseId: call.parentId })) : EFFORT;
+}
+
+let reviewFailed = false;
+let result: SDKResultMessage | undefined;
+try {
+  for await (const message of query({
+    prompt: `/code-review ${EFFORT} --comment ${event.pull_request.number}`,
+    options: {
+      model: MODEL,
+      additionalDirectories: ['scripts/claude-review'],
+      permissionMode: 'dontAsk',
+      allowedTools: [
+        'mcp__github_inline_comment__create_inline_comment',
+        'Bash(gh pr diff:*)',
+        'Bash(gh pr view:*)'
+      ],
+      forwardSubagentText: true,
+      mcpServers: {
+        github_inline_comment: createSdkMcpServer({
+          name: 'github_inline_comment',
+          tools: [inlineComment]
+        })
+      }
+    }
+  })) {
+    if (message.type === 'assistant') {
+      const parentId = message.parent_tool_use_id;
+      // NOTE: A subagent resumed with SendMessage runs in the background, so its messages can
+      // arrive before its Agent call.
+      if (parentId && message.message.model !== '<synthetic>') {
+        subagentModels[parentId] ??= message.message.model;
+      }
+      for (const block of message.message.content) {
+        if (block.type === 'tool_use' && block.name === 'Agent') {
+          const input = block.input as { effort?: string; subagent_type?: string };
+          // NOTE: A fork ignores effort and runs at its parent's.
+          subagentCalls[block.id] = {
+            effort: input.subagent_type === 'fork' ? undefined : input.effort,
+            parentId
+          };
+        }
+      }
+    }
+    // NOTE: The forked /code-review is the task with no tool_use_id, and its failure still ends in
+    // a success result.
+    if (
+      message.type === 'system' &&
+      message.subtype === 'task_notification' &&
+      !message.tool_use_id &&
+      message.status === 'failed'
+    ) {
+      reviewFailed = true;
+    }
+    if (message.type === 'result') {
+      result = message;
+      break;
+    }
+  }
+} finally {
+  const subagentCounts = new Map<string, number>();
+  for (const id of Object.keys(subagentCalls)) {
+    const model = subagentModels[id];
+    if (!model) continue;
+    const label = formatModelLabel({ model, effort: resolveSubagentEffort({ toolUseId: id }) });
+    subagentCounts.set(label, (subagentCounts.get(label) ?? 0) + 1);
+  }
+  const footer =
+    `\n\n---\n${formatModelLabel({ model: MODEL, effort: EFFORT })}` +
+    (subagentCounts.size
+      ? ` managing subagents:\n${[...subagentCounts].map(([label, count]) => `- ${count}x ${label}`).join('\n')}`
+      : '');
+  const text = result?.subtype === 'success' ? result.result : (result?.subtype ?? 'No result');
+
+  console.log(JSON.stringify(result, null, 2));
+  if (result) {
+    await appendFile(
+      process.env.GITHUB_STEP_SUMMARY!,
+      `## Claude review\n\n${text}${footer}\n\n` +
+        `$${result.total_cost_usd.toFixed(2)}, ${Math.round(result.duration_ms / 1000)}s\n`
+    );
+  }
+  await requestGithub({
+    method: 'POST',
+    url: `${pullUrl}/reviews/${review.id}/events`,
+    body: { event: 'COMMENT', body: text + footer }
+  });
+}
+
+if (
+  reviewFailed ||
+  !result ||
+  result.is_error ||
+  result.subtype !== 'success' ||
+  !result.total_cost_usd
+) {
+  process.exit(1);
+}

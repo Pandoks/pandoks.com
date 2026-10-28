@@ -1,9 +1,9 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
-  import { getVimState } from '$lib/vim.svelte.js';
+  import { getVimState } from '#lib/vim.svelte.js';
   import { Badge } from '@pandoks.com/svelte/shadcn/badge';
-  import { getSlugFromBlogTitle } from '$lib/utils';
+  import { getSlugFromBlogTitle } from '#lib/utils.js';
 
   let activeBlogIndex: number | undefined = $state();
 

@@ -12,7 +12,6 @@
   "include": [
     "eslint.config.ts",
     "*/*/forge.config.ts",
-    "*/*/svelte.config.js",
     "*/*/playwright.config.ts",
     "*/*/vitest-setup-client.ts",
     "*/*/vite.main.config.ts",
