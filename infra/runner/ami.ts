@@ -4,8 +4,7 @@ import { join } from 'node:path';
 import { US_WEST_2_REGION, usWest2Provider } from '../aws';
 import { STAGE_NAME } from '../dns';
 
-// Image Builder versions are immutable, so the version is a hash of the AMI sources and any change
-// rebakes the AMIs. Reverting to an earlier state reuses an existing version: bump the minor then.
+// WARNING: reverting these files reuses an existing (immutable) version, so bump the minor.
 const sources = ['ami.ts', 'ami.yaml', 'ami-gpu.yaml'].map((file) =>
   readFileSync(join(process.cwd(), 'infra/runner', file), 'utf-8')
 );
