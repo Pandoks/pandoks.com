@@ -1,7 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { Picture } from '@sveltejs/enhanced-img';
 import type { EntryGenerator, PageLoad } from './$types';
-import type { Post } from '$lib/blog/types';
+import type { Post } from '#lib/blog/types.js';
 
 export const prerender = true;
 
