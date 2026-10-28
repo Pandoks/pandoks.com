@@ -167,8 +167,9 @@ Before calling infra, cluster, or tooling work done, check:
   manifests in `k3s/` aren't matched yet, so add a `kubernetes` `managerFilePatterns` entry to
   `renovate.json` before pinning an image there. First-party images in `apps/*/kube` stay
   `${ImageRegistry}/<img>:${ImageTag}`. Prefer copying official binaries from official images. Use
-  `.yaml`. Default unset or off-by-default `values.yaml` options to `~` (no `enabled` switch) under
-  an `# options:` comment listing the choices.
+  `.yaml`, with anchors only for values that must stay equal. Default unset or off-by-default
+  `values.yaml` options to `~` (no `enabled` switch) under an `# options:` comment listing the
+  choices.
 
 ## Git and pull requests
 
