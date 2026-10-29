@@ -126,7 +126,6 @@ export function createServers(
     tailscaleHostnames.push(tailscaleHostname);
 
     const userData = $resolve([
-      secrets.Stage.value,
       serverArgs.network.subnet.ipRange,
       secrets.hetzner.K3sToken.value,
       ip,
@@ -140,7 +139,6 @@ export function createServers(
       secrets.cloudflare.BackupSecretKey.value
     ]).apply(
       ([
-        STAGE_NAME,
         PRIVATE_IP_RANGE,
         K3S_TOKEN,
         NODE_IP,

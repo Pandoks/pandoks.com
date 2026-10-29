@@ -55,15 +55,15 @@ deploy_wait_for_crds() {
   printf "%b  cert-manager CRDs established%b\n" "${GREEN}" "${NORMAL}"
 
   echo "Waiting for cert-manager deployments..."
-  kubectl -n cert-manager rollout status deploy/cert-manager --timeout=300s
-  kubectl -n cert-manager rollout status deploy/cert-manager-webhook --timeout=300s
-  kubectl -n cert-manager rollout status deploy/cert-manager-cainjector --timeout=300s
+  wait_for_rollout cert-manager cert-manager 300
+  wait_for_rollout cert-manager cert-manager-webhook 300
+  wait_for_rollout cert-manager cert-manager-cainjector 300
   printf "%b  cert-manager deployments established%b\n" "${GREEN}" "${NORMAL}"
 
   echo "Waiting for MetalLB CRDs..."
   wait_for_crd "ipaddresspools.metallb.io" 120
   wait_for_crd "l2advertisements.metallb.io" 120
-  kubectl -n metallb-system rollout status deploy/metallb-controller --timeout=300s
+  wait_for_rollout metallb-system metallb-controller 300
   printf "%b  MetalLB CRDs established%b\n" "${GREEN}" "${NORMAL}"
 
   echo "Waiting for Prometheus Operator CRDs..."
@@ -73,8 +73,8 @@ deploy_wait_for_crds() {
   if [ "${deploy_wait_for_crds_env}" = "prod" ]; then
     echo "Waiting for ArgoCD..."
     wait_for_crd "applications.argoproj.io" 180
-    kubectl -n argocd rollout status deploy/argocd-repo-server --timeout=300s
-    kubectl -n argocd rollout status deploy/argocd-server --timeout=300s
+    wait_for_rollout argocd argocd-repo-server 300
+    wait_for_rollout argocd argocd-server 300
     printf "%b  ArgoCD established%b\n" "${GREEN}" "${NORMAL}"
   fi
 
@@ -102,6 +102,7 @@ cmd_deploy() {
   cmd_deploy_dry_run=false
   cmd_deploy_is_bootstrap=false
   cmd_deploy_stage=""
+  cmd_deploy_kubeconfig=""
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -122,9 +123,7 @@ cmd_deploy() {
       --kubeconfig)
         [ $# -ge 2 ] || die "Missing value for --kubeconfig"
 
-        KUBECONFIG="$(validate_and_get_absolute_kubeconfig_path "$2")"
-        export KUBECONFIG
-        printf "%bUsing kubeconfig:%b %s\n" "${BOLD}" "${NORMAL}" "${KUBECONFIG}" >&2
+        cmd_deploy_kubeconfig="$2"
         shift 2
         ;;
       --quiet | -q)
@@ -139,6 +138,12 @@ cmd_deploy() {
     esac
   done
   [ "${cmd_deploy_env}" = "prod" ] && cmd_deploy_stage="production"
+
+  if [ -n "${cmd_deploy_kubeconfig}" ]; then
+    KUBECONFIG="$(validate_and_get_absolute_kubeconfig_path "${cmd_deploy_kubeconfig}")"
+    export KUBECONFIG
+    log_info --quiet="${QUIET}" "Using kubeconfig: ${KUBECONFIG}"
+  fi
 
   if [ "${cmd_deploy_is_bootstrap}" = "true" ]; then
     cmd_deploy_kustomize_path="${REPO_ROOT}/k3s/bootstrap/${cmd_deploy_env}"

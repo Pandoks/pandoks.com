@@ -4,7 +4,6 @@
   "type": "module",
   "sideEffects": false,
   "scripts": {
-    "build": "pnpm local:build",
     "local:build": "pnpm run /^local:build:/",
     "local:build:clickhouse": "docker build -f ./clickhouse/Dockerfile ../../ -t localhost:12345/clickhouse:latest",
     "local:build:keeper": "docker build -f ./keeper/Dockerfile ../../ -t localhost:12345/clickhouse-keeper:latest",

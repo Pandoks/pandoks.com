@@ -4,7 +4,6 @@
   "type": "module",
   "sideEffects": false,
   "scripts": {
-    "build": "pnpm local:build",
     "local:build": "pnpm run /^local:build:/",
     "local:build:patroni": "docker build -f ./patroni/Dockerfile ../../ -t localhost:12345/patroni:latest",
     "local:build:pgbackrest": "docker build -f ./pgbackrest/Dockerfile ../../ -t localhost:12345/pgbackrest:latest",

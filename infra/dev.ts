@@ -87,7 +87,7 @@ if (isProduction) {
   );
 }
 
-new sst.x.DevCommand('DevInit', {
+new sst.x.DevCommand('LocalInit', {
   dev: {
     title: 'InitLocal',
     command: 'pnpm local:init',
@@ -95,7 +95,7 @@ new sst.x.DevCommand('DevInit', {
   }
 });
 
-new sst.x.DevCommand('DevDestroy', {
+new sst.x.DevCommand('LocalDestroy', {
   dev: {
     title: 'DestroyLocal',
     command: 'pnpm local:destroy',
