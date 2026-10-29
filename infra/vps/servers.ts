@@ -63,7 +63,7 @@ export function createNodeUserData({
     {
       description: `${PROVIDER_KEY_DESCRIPTIONS[provider]} ${type} ${index} node reg`,
       reusable: false,
-      expiry: 1800, // 30 minutes
+      expiry: 86400, // 1 day, since bare metal can take hours to deliver
       preauthorized: true,
       tags: [`tag:${provider}`, `tag:${STAGE_NAME}`, `tag:${type}`]
     },

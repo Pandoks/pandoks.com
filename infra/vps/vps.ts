@@ -9,6 +9,7 @@ import { NODE_IP_STARTS, type NodeCounts, type Provider } from './servers';
 
 // NOTE: plans, locations, and network settings live at the top of each provider's file
 const PROVIDER: Provider = isProduction ? 'hetzner' : 'hetzner'; // options: hetzner | ovh | latitude
+// NOTE: switch providers through a zero-node deploy, which removes the old `<stage>-cluster` proxy
 // NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
 const CONTROL_PLANE_NODE_COUNT = isProduction ? 0 : 0;
 const WORKER_NODE_COUNT = isProduction ? 0 : 0;

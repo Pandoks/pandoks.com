@@ -192,12 +192,16 @@ export function createOvhCluster(nodeCounts: NodeCounts) {
           hooks: { afterDelete: [deleteServerFromTailnet] }
         }
       );
-      new ovh.vrack.DedicatedServerInterface(`Ovh${NODE_RESOURCE_NAMES[type]}Server${i}Vrack`, {
-        serviceName: VRACK,
-        interfaceId: ovh
-          .getServerOutput({ serviceName: server.serviceName })
-          .enabledVrackVnis.apply((vnis) => vnis[0])
-      });
+      new ovh.vrack.DedicatedServerInterface(
+        `Ovh${NODE_RESOURCE_NAMES[type]}Server${i}Vrack`,
+        {
+          serviceName: VRACK,
+          interfaceId: ovh
+            .getServerOutput({ serviceName: server.serviceName })
+            .enabledVrackVnis.apply((vnis) => vnis[0])
+        },
+        { protect: isProduction }
+      );
       nodes.push(server);
     }
   }

@@ -62,11 +62,16 @@ export function createLatitudeCluster(nodeCounts: NodeCounts) {
         privateInterface: PRIVATE_INTERFACE,
         privateNetplan
       });
-      const latitudeUserData = new latitudesh.UserData(`${nodeResourceName}UserData`, {
-        project: project.id,
-        description: tailscaleHostname,
-        content: userData.apply((content) => Buffer.from(content).toString('base64'))
-      });
+      // NOTE: servers read user data only at install, so new content replaces the server
+      const latitudeUserData = new latitudesh.UserData(
+        `${nodeResourceName}UserData`,
+        {
+          project: project.id,
+          description: tailscaleHostname,
+          content: userData.apply((content) => Buffer.from(content).toString('base64'))
+        },
+        { replaceOnChanges: ['content'] }
+      );
       const server = new latitudesh.Server(
         nodeResourceName,
         {
@@ -81,14 +86,17 @@ export function createLatitudeCluster(nodeCounts: NodeCounts) {
         {
           dependsOn: servers.slice(0, 1),
           ignoreChanges: isProduction ? ['userData'] : [],
+          replaceOnChanges: ['userData'],
+          deleteBeforeReplace: true,
           protect: isProduction,
           hooks: { afterDelete: [deleteServerFromTailnet] }
         }
       );
-      new latitudesh.VlanAssignment(`${nodeResourceName}Vlan`, {
-        serverId: server.id,
-        virtualNetworkId: virtualNetwork.id
-      });
+      new latitudesh.VlanAssignment(
+        `${nodeResourceName}Vlan`,
+        { serverId: server.id, virtualNetworkId: virtualNetwork.id },
+        { protect: isProduction }
+      );
       servers.push(server);
     }
   }
