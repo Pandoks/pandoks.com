@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { deleteTailscaleDevices, tailscaleAcl } from '../tailscale';
 import { STAGE_NAME } from '../dns';
@@ -56,12 +57,64 @@ export function createNodeUserData({
   privateNetplan: $util.Input<string>;
 }): { userData: $util.Output<string>; tailscaleHostname: string } {
   const role = type === 'control-plane' ? (index === 0 ? 'bootstrap' : 'server') : 'worker';
-  const tailscaleHostname = `${STAGE_NAME}-${provider}-${type}-server-${index}`;
+  const tailscaleHostname = `${STAGE_NAME}-${provider}-${type}-${index}`;
+
+  const renderUserData = (registrationTailnetAuthKey: $util.Input<string>) =>
+    $resolve([
+      secrets.Stage.value,
+      secrets.hetzner.K3sToken.value,
+      privateNetplan,
+      registrationTailnetAuthKey,
+      secrets.k8s.tailscale.OauthClientId.value,
+      secrets.k8s.tailscale.OauthClientSecret.value,
+      s3Endpoint,
+      backupBucket.name,
+      secrets.cloudflare.BackupAccessKey.value,
+      secrets.cloudflare.BackupSecretKey.value
+    ]).apply(
+      ([
+        STAGE_NAME,
+        K3S_TOKEN,
+        PRIVATE_NETPLAN,
+        REGISTRATION_TAILNET_AUTH_KEY,
+        KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID,
+        KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET,
+        S3_HOST,
+        BACKUP_BUCKET,
+        S3_ACCESS_KEY,
+        S3_SECRET_KEY
+      ]) =>
+        renderCloudInit(cloudInitConfig, {
+          STAGE_NAME,
+          PRIVATE_IP_RANGE,
+          K3S_TOKEN,
+          SERVER_API: `https://${getNodeIp({ type: 'control-plane', index: 0 })}:6443`,
+          NODE_IP: getNodeIp({ type, index }),
+          PRIVATE_INTERFACE: privateInterface,
+          PRIVATE_NETPLAN,
+          K3S_AGENT_ARGS:
+            type === 'database' ? '--node-label=role=db --node-taint=role=db:NoSchedule' : '',
+          ROLE: role,
+          TAILSCALE_HOSTNAME: tailscaleHostname,
+          REGISTRATION_TAILNET_AUTH_KEY,
+          KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID,
+          KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET,
+          KUBERNETES_TAILSCALE_HOSTNAME: `${STAGE_NAME}-cluster`,
+          S3_HOST,
+          BACKUP_BUCKET,
+          S3_ACCESS_KEY,
+          S3_SECRET_KEY
+        })
+    );
 
   const registrationTailnetAuthKey = new tailscale.TailnetKey(
     `${PROVIDER_RESOURCE_NAMES[provider]}${NODE_RESOURCE_NAMES[type]}Server${index}TailnetRegistrationAuthKey`,
     {
-      description: `${PROVIDER_KEY_DESCRIPTIONS[provider]} ${type} ${index} node reg`,
+      // NOTE: the hash swaps in a fresh single-use key whenever new user data rebuilds the node
+      description: renderUserData('').apply(
+        (userData) =>
+          `${PROVIDER_KEY_DESCRIPTIONS[provider]} ${type} ${index} node reg ${createHash('sha256').update(userData).digest('hex').slice(0, 8)}`
+      ),
       reusable: false,
       expiry: 86400, // 1 day, since bare metal can take hours to deliver
       preauthorized: true,
@@ -69,53 +122,7 @@ export function createNodeUserData({
     },
     { dependsOn: [tailscaleAcl] }
   );
-
-  const userData = $resolve([
-    secrets.Stage.value,
-    secrets.hetzner.K3sToken.value,
-    privateNetplan,
-    registrationTailnetAuthKey.key,
-    secrets.k8s.tailscale.OauthClientId.value,
-    secrets.k8s.tailscale.OauthClientSecret.value,
-    s3Endpoint,
-    backupBucket.name,
-    secrets.cloudflare.BackupAccessKey.value,
-    secrets.cloudflare.BackupSecretKey.value
-  ]).apply(
-    ([
-      STAGE_NAME,
-      K3S_TOKEN,
-      PRIVATE_NETPLAN,
-      REGISTRATION_TAILNET_AUTH_KEY,
-      KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID,
-      KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET,
-      S3_HOST,
-      BACKUP_BUCKET,
-      S3_ACCESS_KEY,
-      S3_SECRET_KEY
-    ]) =>
-      renderCloudInit(cloudInitConfig, {
-        STAGE_NAME,
-        PRIVATE_IP_RANGE,
-        K3S_TOKEN,
-        SERVER_API: `https://${getNodeIp({ type: 'control-plane', index: 0 })}:6443`,
-        NODE_IP: getNodeIp({ type, index }),
-        PRIVATE_INTERFACE: privateInterface,
-        PRIVATE_NETPLAN,
-        K3S_AGENT_ARGS:
-          type === 'database' ? '--node-label=role=db --node-taint=role=db:NoSchedule' : '',
-        ROLE: role,
-        TAILSCALE_HOSTNAME: tailscaleHostname,
-        REGISTRATION_TAILNET_AUTH_KEY,
-        KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID,
-        KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET,
-        KUBERNETES_TAILSCALE_HOSTNAME: `${STAGE_NAME}-cluster`,
-        S3_HOST,
-        BACKUP_BUCKET,
-        S3_ACCESS_KEY,
-        S3_SECRET_KEY
-      })
-  );
+  const userData = renderUserData(registrationTailnetAuthKey.key);
 
   return { userData, tailscaleHostname };
 }
@@ -141,7 +148,9 @@ export function createTailnetCleanupHook({
     const { devices = [] } = await tailscale.getDevices({ namePrefix: tailscaleHostname ?? '' });
     const serverDevices = devices.filter(
       (device) =>
-        device.tags.includes(`tag:${provider}`) && device.tags.includes(`tag:${STAGE_NAME}`)
+        device.hostname === tailscaleHostname &&
+        device.tags.includes(`tag:${provider}`) &&
+        device.tags.includes(`tag:${STAGE_NAME}`)
     );
     if (serverDevices.length > 0) {
       const deletedDevices = deleteTailscaleDevices(

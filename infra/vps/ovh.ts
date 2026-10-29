@@ -187,7 +187,7 @@ export function createOvhCluster(nodeCounts: NodeCounts) {
         },
         {
           dependsOn: nodes.slice(0, 1),
-          ignoreChanges: isProduction ? ['customizations'] : [],
+          ignoreChanges: isProduction ? ['os', 'customizations'] : [],
           protect: isProduction,
           hooks: { afterDelete: [deleteServerFromTailnet] }
         }
