@@ -148,21 +148,19 @@
       "groupName": "pnpm"
     },
     {
-      "description": "The Expo SDK pins these; upgrade them together with `npx expo install expo@<sdk> --fix`.",
-      "matchFileNames": ["apps/mobile-template/package.json"],
+      "description": "The Expo SDK pins these, react and react-native exactly; upgrade them together with `pnpm expo install expo@<sdk> --fix`.",
       "matchPackageNames": [
         "expo",
         "expo-*",
         "@expo/*",
         "jest-expo",
         "react",
-        "react-dom",
         "@types/react",
         "react-native",
         "react-native-*",
         "@react-native/*"
       ],
-      "matchUpdateTypes": ["minor", "major"],
+      "groupName": "expo sdk",
       "dependencyDashboardApproval": true
     },
     {
