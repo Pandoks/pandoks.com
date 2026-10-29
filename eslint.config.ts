@@ -5,6 +5,7 @@ import { defineConfig } from 'eslint/config';
 import tseslint from 'typescript-eslint';
 import unicorn from 'eslint-plugin-unicorn';
 import svelte from 'eslint-plugin-svelte';
+import reactHooks from 'eslint-plugin-react-hooks';
 import svelteParser from 'svelte-eslint-parser';
 import globals from 'globals';
 
@@ -120,6 +121,7 @@ export default defineConfig([
           format: ['camelCase', 'UPPER_CASE'],
           leadingUnderscore: 'allow'
         },
+        { selector: 'function', format: ['camelCase', 'PascalCase'] },
         { selector: 'typeLike', format: ['PascalCase'] },
         { selector: 'enumMember', format: ['PascalCase'] },
         { selector: 'import', format: null },
@@ -188,6 +190,9 @@ export default defineConfig([
       'svelte/require-each-key': 'off'
     }
   },
+
+  // REACT RULES
+  { files: ['**/*.tsx'], ...reactHooks.configs.flat.recommended },
 
   // TEST RULES
   {

@@ -21,6 +21,7 @@ jobs:
     outputs:
       web: ${{ steps.filter.outputs.web }}
       desktop: ${{ steps.filter.outputs.desktop }}
+      mobile-template: ${{ steps.filter.outputs.mobile-template }}
       svelte: ${{ steps.filter.outputs.svelte }}
       prettier: ${{ steps.filter.outputs.prettier }}
       valkey-reconciler: ${{ steps.filter.outputs.valkey-reconciler }}
@@ -38,6 +39,8 @@ jobs:
             desktop:
               - 'apps/desktop-template/**'
               - 'packages/svelte/**'
+            mobile-template:
+              - 'apps/mobile-template/**'
             svelte:
               - 'packages/svelte/**'
             prettier:
@@ -74,6 +77,24 @@ jobs:
 
       - name: Run desktop tests
         run: xvfb-run -a pnpm --filter @pandoks.com/desktop-template test
+
+  test-mobile-template:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.mobile-template == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - name: Run mobile unit tests
+        run: pnpm --filter @pandoks.com/mobile-template test:unit
+
+      - name: Generate native projects
+        run: pnpm --filter @pandoks.com/mobile-template exec expo prebuild --no-install
+
+      - name: Bundle iOS and Android JS
+        run: pnpm --filter @pandoks.com/mobile-template exec expo export
 
   test-svelte-pkg:
     needs: detect-changes
@@ -124,6 +145,7 @@ jobs:
     needs:
       - test-web
       - test-desktop
+      - test-mobile-template
       - test-svelte-pkg
       - test-prettier-pkg
       - test-valkey-reconciler

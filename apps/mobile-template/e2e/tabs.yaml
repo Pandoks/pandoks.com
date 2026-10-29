@@ -1,0 +1,8 @@
+appId: com.pandoks.mobiletemplate
+---
+- launchApp
+- assertVisible: Inbox
+- tapOn: Device
+- assertVisible: Color scheme
+- tapOn: Home
+- assertVisible: Inbox
