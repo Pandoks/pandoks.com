@@ -67,6 +67,3 @@ apps/web/static/blog-images
 # Local development
 /data
 /k3dconfig.yaml
-
-# Wrangler
-.wrangler

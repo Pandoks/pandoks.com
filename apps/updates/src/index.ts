@@ -80,7 +80,10 @@ async function respondWithPart({ name, body }: { name: string; body: Manifest | 
 async function signBody(body: string) {
   const privateKey = await crypto.subtle.importKey(
     'pkcs8',
-    Uint8Array.fromBase64(Resource.UpdatesSigningKey.value.replaceAll(/-----[^-]+-----|\s/g, '')),
+    Uint8Array.from(
+      atob(Resource.UpdatesSigningKey.value.replaceAll(/-----[^-]+-----|\s/g, '')),
+      (character) => character.charCodeAt(0)
+    ),
     { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
     false,
     ['sign']
@@ -90,5 +93,5 @@ async function signBody(body: string) {
     privateKey,
     new TextEncoder().encode(body)
   );
-  return new Uint8Array(signature).toBase64();
+  return btoa(String.fromCharCode(...new Uint8Array(signature)));
 }

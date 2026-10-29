@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
     "check": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -12,7 +11,6 @@
     "sst": "4.17.2"
   },
   "devDependencies": {
-    "vitest": "5.0.5",
-    "wrangler": "4.155.0"
+    "vitest": "5.0.5"
   }
 }

@@ -6,12 +6,6 @@ and assets from R2, and signs every manifest and directive with RSA-SHA256. SST 
 `infra/updates.ts` to `https://updates.pandoks.com` (production) and
 `https://updates.dev.pandoks.com` (every other stage).
 
-| Request                                             | Response                                                                                                             |
-| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `GET /<slug>` with the expo-updates headers         | Signed `multipart/mixed` manifest, `noUpdateAvailable`, or `rollBackToEmbedded`; `cache-control: private, max-age=0` |
-| `GET /assets/<sha256>`                              | Content-addressed asset with `cache-control: public, max-age=31536000, immutable`, cached at the edge                |
-| Nothing published for that channel/runtime/platform | `404`                                                                                                                |
-
 R2 (`<prod|dev>-updates`) holds `assets/<base64url sha256>` and one latest
 `updates/<slug>/<channel>/<runtime-version>/<ios|android>.json` per platform, which is either a
 manifest or a rollback directive.
@@ -41,7 +35,7 @@ Commit `certificate.crt` in the app (`*.pem` is gitignored) and configure `app.j
     "slug": "<slug>",
     "runtimeVersion": "1.0.0",
     "updates": {
-      "url": "https://updates.pandoks.com/<slug>",
+      "url": "https://updates.dev.pandoks.com/<slug>",
       "requestHeaders": { "expo-channel-name": "production" },
       "codeSigningCertificate": "./certificate.crt",
       "codeSigningMetadata": { "keyid": "main", "alg": "rsa-v1_5-sha256" }
@@ -49,10 +43,6 @@ Commit `certificate.crt` in the app (`*.pem` is gitignored) and configure `app.j
   }
 }
 ```
-
-expo-updates sends `expo-platform`, `expo-runtime-version`, `expo-protocol-version: 1`,
-`expo-expect-signature`, `expo-current-update-id`, and `expo-embedded-update-id` itself; the
-`expo-channel-name` request header picks the channel and sets `Updates.channel`.
 
 ## Publish and roll back
 
@@ -65,18 +55,8 @@ pnpm updates publish dev apps/<app> production 1.0.0 ios android
 pnpm updates rollback dev apps/<app> production 1.0.0 ios android
 ```
 
-`dev` uploads with `wrangler`, so it needs `CLOUDFLARE_API_TOKEN` or `pnpm exec wrangler login`.
+Both need `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_DEFAULT_ACCOUNT_ID`, as in `.env.<stage>`. They
+publish to dev only; production updates will be published by CI from `main` (later PR).
 
-## Local development
-
-Serve local R2 on `http://127.0.0.1:8787` (point a Release build's `updates.url` there), then
-publish with `local` instead of `dev`:
-
-```sh
-pnpm --filter @pandoks.com/updates dev --ip 127.0.0.1 \
-  --var "SST_RESOURCE_UpdatesSigningKey:$(jq -cRs '{ value: . }' private-key.pem)"
-pnpm updates publish local apps/<app> production 1.0.0 ios
-```
-
-`pnpm --filter @pandoks.com/updates test` runs the same Worker and checks its responses and
-signatures.
+`pnpm --filter @pandoks.com/updates test` runs the Worker's handler against an in-memory bucket and
+checks its responses and signatures.

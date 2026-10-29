@@ -91,7 +91,7 @@ checkout. The SST CLI is `pnpm sst`.
 - `pnpm check` type-checks every package, `infra/`, and `sst.config.ts`.
 - Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, and `desktop-template`;
   `pnpm --filter <package> test` for `prettier`, `valkey`, and `updates`.
-- Expo OTA updates: `pnpm updates <publish|rollback> <local|dev> ...`; see `apps/updates/README.md`.
+- Expo OTA updates: `pnpm updates <publish|rollback> dev ...`; see `apps/updates/README.md`.
 - Scoped: `pnpm exec prettier --check <files>`, `pnpm exec eslint [--fix] <files>`, `shellcheck`,
   `shfmt -d`, `hadolint`, `actionlint`, `pnpm --filter "...[origin/main]" --if-present check`. That
   filter and the shell and Docker format and lint commands see only tracked files, so check new

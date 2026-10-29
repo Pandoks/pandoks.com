@@ -1,9 +1,0 @@
-// Local `wrangler dev` only; SST deploys the Worker with the same bindings from infra/updates.ts.
-{
-  "name": "updates",
-  "main": "src/index.ts",
-  "compatibility_date": "2026-07-30",
-  "compatibility_flags": ["nodejs_compat"],
-  "r2_buckets": [{ "binding": "UpdatesBucket", "bucket_name": "dev-updates" }],
-  "vars": { "SST_RESOURCE_App": "{\"name\":\"personal\",\"stage\":\"local\"}" }
-}
