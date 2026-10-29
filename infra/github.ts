@@ -73,6 +73,12 @@ if (isProduction) {
     plaintextValue: secrets.ovh.ConsumerKey.value
   });
 
+  new github.ActionsSecret('GithubLatitudeAuthToken', {
+    repository: githubRepoName,
+    secretName: 'LATITUDESH_AUTH_TOKEN',
+    plaintextValue: secrets.latitude.AuthToken.value
+  });
+
   const githubAWSOidcProvider = new aws.iam.OpenIdConnectProvider('AWSGithubActionsOidc', {
     url: 'https://token.actions.githubusercontent.com',
     clientIdLists: ['sts.amazonaws.com']

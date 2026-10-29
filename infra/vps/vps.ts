@@ -1,134 +1,61 @@
 // WARNING: resources that hold data like servers, volumes, etc. should be protected by the
 // `protect` option in production. This is to prevent accidental deletion of resources.
 import { isProduction, STAGE_NAME } from '../dns';
-import { createServers } from './servers';
-import { createLoadBalancers } from './load-balancers';
 import { deleteTailscaleDevices } from '../tailscale';
+import { createLatitudeCluster, type LatitudeServer } from './latitude';
+import { ADVANCE_1_SERVER, ADVANCE_5_SERVER, createOvhCluster, type OvhServer } from './ovh';
+import type { NodePool } from './servers';
 
-// NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
-const CONTROL_PLANE_NODE_COUNT = isProduction ? 0 : 0;
-const CONTROL_PLANE_HOST_START_OCTET = 10; // starts at 10.0.1.<CONTROL_PLANE_HOST_START_OCTET>
-const WORKER_NODE_COUNT = isProduction ? 0 : 0;
-const WORKER_HOST_START_OCTET = 20; // starts at 10.0.1.<WORKER_HOST_START_OCTET> 20 allows for 10 control plane nodes
-// NOTE: servers can only be upgraded, not downgraded because disk size needs to be >= than the previous type
-const SERVER_TYPE = isProduction ? 'ccx13' : 'cx23';
-const LOAD_BALANCERS_PER_NODE = isProduction ? 1 : 0;
-const LOAD_BALANCER_TYPE = isProduction ? 'lb11' : 'lb11';
-const LOAD_BALANCER_ALGORITHM = 'least_connections'; // round_robin, least_connections
-const SERVER_IMAGE = 'ubuntu-24.04';
-const LOCATION = isProduction ? 'hil' : 'fsn1';
-const NETWORK_ZONE = isProduction ? 'us-west' : 'eu-central';
+type Cluster =
+  | { provider: 'ovh'; pools: NodePool<OvhServer>[] }
+  | { provider: 'latitude'; pools: NodePool<LatitudeServer>[] };
 
-const loadBalancerServerCapacity = 25;
-
-/**
- * NOTE: Hetzner doesn't allow you to connect servers from different regions in the same network.
- * Networks are only created in a single region. If you want to have multiple reigions to reduce latency,
- * you need to create multiple clusters and networks in different regions. You don't need to connect them
- * via a VPN or through the public internet.
- *
- * To have multiple regions work, look into Cloudflare DNS load balancers. You can steer traffic based
- * off of "geo steering" or "proximity/latency". This costs extra, so stay in one region until latency
- * is an issue.
- *
- * You'll probably want to rename a bunch of the resources and variable names when you do.
- */
-const privateNetwork = new hcloud.Network('HetznerK3sPrivateNetwork', {
-  name: `k3s-private-${STAGE_NAME}-network`,
-  ipRange: '10.0.0.0/8'
-});
-const subnet = new hcloud.NetworkSubnet('HetznerK3sSubnet', {
-  networkId: privateNetwork.id.apply((id) => parseInt(id)),
-  type: 'cloud',
-  ipRange: '10.0.1.0/24',
-  networkZone: NETWORK_ZONE
-});
-export const inboundFirewall = new hcloud.Firewall('HetznerInboundFirewall', {
-  name: 'inbound',
-  rules: [
-    {
-      direction: 'in',
-      protocol: 'udp',
-      port: '41641',
-      description: 'tailscale',
-      sourceIps: ['0.0.0.0/0', '::/0']
+// NOTE: each pool orders `count` identical servers; locations and network settings live at the top
+// of each provider's file. The database charts schedule onto nodes labeled and tainted role=db
+// NOTE: switch providers through a zero-node deploy, which removes the old `<stage>-cluster` proxy
+// NOTE: if you want to downsize a pool, remember to manually drain and remove its highest-index nodes with `kubectl drain` & `kubectl delete node`
+const CLUSTER: Cluster = isProduction
+  ? {
+      provider: 'ovh',
+      pools: [
+        { name: 'control-plane', role: 'control-plane', count: 0, server: { flavor: 'd2-4' } },
+        { name: 'worker', role: 'worker', count: 0, server: ADVANCE_1_SERVER },
+        {
+          name: 'database',
+          role: 'worker',
+          count: 0,
+          server: ADVANCE_5_SERVER,
+          labels: { role: 'db' },
+          taints: ['role=db:NoSchedule']
+        }
+      ]
     }
-  ]
-});
+  : {
+      provider: 'ovh',
+      pools: [
+        { name: 'control-plane', role: 'control-plane', count: 0, server: { flavor: 'd2-8' } },
+        { name: 'worker', role: 'worker', count: 0, server: { flavor: 'd2-8' } },
+        {
+          name: 'database',
+          role: 'worker',
+          count: 0,
+          server: ADVANCE_1_SERVER,
+          labels: { role: 'db' },
+          taints: ['role=db:NoSchedule']
+        }
+      ]
+    };
 
-const controlPlaneLoadBalancerCount =
-  Math.ceil(CONTROL_PLANE_NODE_COUNT / loadBalancerServerCapacity) * LOAD_BALANCERS_PER_NODE;
-export const controlPlaneLoadBalancers = createLoadBalancers(
-  {
-    type: 'control-plane',
-    loadBalancerCount: controlPlaneLoadBalancerCount,
-    network: privateNetwork
-  },
-  {
-    type: LOAD_BALANCER_TYPE,
-    location: LOCATION,
-    algorithm: LOAD_BALANCER_ALGORITHM
-  }
-);
+function createCluster(cluster: Cluster) {
+  if (cluster.provider === 'ovh') return createOvhCluster(cluster.pools);
+  return createLatitudeCluster(cluster.pools);
+}
 
-const workerLoadBalancerCount =
-  Math.ceil(WORKER_NODE_COUNT / loadBalancerServerCapacity) * LOAD_BALANCERS_PER_NODE;
-
-export const workerLoadBalancers = createLoadBalancers(
-  {
-    type: 'worker',
-    loadBalancerCount: workerLoadBalancerCount,
-    network: privateNetwork
-  },
-  {
-    type: LOAD_BALANCER_TYPE,
-    location: LOCATION,
-    algorithm: LOAD_BALANCER_ALGORITHM
-  }
-);
-
-const bootstrapServer: { ip: string | undefined; server: hcloud.Server | undefined } = {
-  ip: undefined,
-  server: undefined
-};
-
-const { tailscaleHostnames: _controlPlaneTailscaleHostnames, servers: _controlPlaneServers } =
-  createServers(
-    {
-      type: 'control-plane',
-      serverCount: CONTROL_PLANE_NODE_COUNT,
-      network: { network: privateNetwork, subnet },
-      startingOctet: CONTROL_PLANE_HOST_START_OCTET,
-      loadBalancersPerNode: LOAD_BALANCERS_PER_NODE,
-      loadBalancers: controlPlaneLoadBalancers
-    },
-    {
-      type: SERVER_TYPE,
-      image: SERVER_IMAGE,
-      location: LOCATION,
-      firewalls: [inboundFirewall]
-    },
-    bootstrapServer
-  );
-const { tailscaleHostnames: _workerTailscaleHostnames, servers: _workerServers } = createServers(
-  {
-    type: 'worker',
-    serverCount: WORKER_NODE_COUNT,
-    network: { network: privateNetwork, subnet },
-    startingOctet: WORKER_HOST_START_OCTET,
-    loadBalancersPerNode: LOAD_BALANCERS_PER_NODE,
-    loadBalancers: workerLoadBalancers
-  },
-  {
-    type: SERVER_TYPE,
-    image: SERVER_IMAGE,
-    location: LOCATION,
-    firewalls: [inboundFirewall]
-  },
-  bootstrapServer
-);
-
-if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
+// NOTE: a stage without nodes creates nothing at its provider, so it deploys before that provider's
+// account settings are filled in
+if (CLUSTER.pools.some((pool) => pool.count > 0)) {
+  createCluster(CLUSTER);
+} else {
   const { devices = [] } = await tailscale.getDevices({ namePrefix: `${STAGE_NAME}` });
 
   const kubernetesDevices = devices.filter(
@@ -164,19 +91,3 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
     });
   }
 }
-
-const publicLoadBalancerOutputs = Object.fromEntries(
-  // NOTE: we have to hard code the name because indecies can't be pulumi inputs/outputs
-  [
-    ...controlPlaneLoadBalancers.map((lb, i): [string, $util.Output<string>] => [
-      `ControlPlaneLoadBalancer${i}`,
-      lb.loadbalancer.ipv4
-    ]),
-    ...workerLoadBalancers.map((lb, i): [string, $util.Output<string>] => [
-      `WorkerLoadBalancer${i}`,
-      lb.loadbalancer.ipv4
-    ])
-  ]
-);
-
-export const outputs = { ...publicLoadBalancerOutputs };

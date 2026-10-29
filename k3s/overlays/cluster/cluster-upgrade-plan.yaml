@@ -44,6 +44,11 @@ spec:
     matchExpressions:
       - key: node-role.kubernetes.io/control-plane
         operator: DoesNotExist
+  tolerations:
+    - key: role
+      operator: Equal
+      value: db
+      effect: NoSchedule
   prepare:
     args:
       - prepare
