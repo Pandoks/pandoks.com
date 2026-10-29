@@ -1,6 +1,6 @@
 {{- range $shardIndex := until (int $.Values.patroni.shards) }}
   {{- range $type, $schedule := $.Values.backup.schedules }}
-    {{- if $schedule }}
+    {{- if and $.Values.backup.enabled $schedule }}
 ---
 {{ include "pgbackrest.cronjob" (dict "context" $ "type" $type "schedule" $schedule "shardIndex" $shardIndex) }}
     {{- end }}

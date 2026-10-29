@@ -95,11 +95,11 @@ metadata:
   name: root-example
   namespace: example
   labels:
-    app: &app root
+    app: root
 spec:
   type: ClusterIP
   selector:
-    app: *app
+    app: root
   ports:
     - name: http
       port: 80
@@ -113,11 +113,11 @@ metadata:
   name: slug-example
   namespace: example
   labels:
-    app: &app slug
+    app: slug
 spec:
   type: ClusterIP
   selector:
-    app: *app
+    app: slug
   ports:
     - name: http
       port: 80
@@ -131,12 +131,12 @@ metadata:
   name: root-example
   namespace: example
   labels:
-    app: &app root
+    app: root
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: *app
+      app: &app root
   template:
     metadata:
       labels:
@@ -209,12 +209,12 @@ metadata:
   name: slug-example
   namespace: example
   labels:
-    app: &app slug
+    app: slug
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: *app
+      app: &app slug
   template:
     metadata:
       labels:
