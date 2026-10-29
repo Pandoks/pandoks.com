@@ -87,6 +87,9 @@ jobs:
 
       - uses: ./.github/actions/setup-node-pnpm
 
+      - name: Check Expo SDK versions
+        run: pnpm --filter @pandoks.com/mobile-template exec expo install --check
+
       - name: Run mobile unit tests
         run: pnpm --filter @pandoks.com/mobile-template test:unit
 
