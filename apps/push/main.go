@@ -116,7 +116,7 @@ func run(ctx context.Context, listener net.Listener) error {
 		database: database,
 		apns:     apns,
 		fcm:      fcm,
-		wake:     make(chan struct{}, 1),
+		wake:     make(chan struct{}, jobWorkers),
 		sends:    make(chan struct{}, sendConcurrency),
 	}
 

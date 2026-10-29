@@ -14,7 +14,7 @@ import (
 
 const (
 	jobWorkers       = 16
-	apiConnections   = 16
+	apiConnections   = 4
 	recipientsPerJob = 500
 	sendConcurrency  = 1000
 	pollInterval     = time.Second
@@ -49,7 +49,7 @@ type result struct {
 }
 
 // enqueue stores the notification as jobs of at most recipientsPerJob recipients, so a fan-out
-// spreads across every worker, and wakes the workers of every replica.
+// spreads across every worker, and wakes a worker of this replica.
 func (service *service) enqueue(ctx context.Context, request notification) (int64, error) {
 	var jobs []notification
 	for userIDs := range slices.Chunk(request.UserIDs, recipientsPerJob) {
@@ -74,13 +74,17 @@ func (service *service) enqueue(ctx context.Context, request notification) (int6
 		  INSERT INTO push_jobs (notification_id, send_at, job)
 		  SELECT notification.id, coalesce($1, now()), job FROM notification, unnest($2::jsonb[]) AS job
 		)
-		SELECT notification.id FROM notification, pg_notify('push_jobs', '')`,
-		sendAt, jobs,
-	).Scan(&id)
+		SELECT notification.id, CASE WHEN $3 THEN pg_notify('push_jobs', '') END FROM notification`,
+		// NOTE: NOTIFY serializes every notifying commit, so only a fan-out wakes the other replicas
+		sendAt, jobs, len(jobs) > 1,
+	).Scan(&id, nil)
+	if err == nil {
+		service.wakeWorker()
+	}
 	return id, err
 }
 
-// listen wakes a worker for every inserted job, and every pollInterval for jobs coming due.
+// listen wakes a worker for every fan-out, and every pollInterval for jobs coming due.
 func (service *service) listen(ctx context.Context) {
 	for ctx.Err() == nil {
 		err := service.waitForJobs(ctx)

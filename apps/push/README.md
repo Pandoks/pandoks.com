@@ -6,8 +6,9 @@ is reachable only inside the cluster at `http://push.main.svc.cluster.local`.
 ```mermaid
 graph LR
     Caller[In-cluster caller] -->|HTTP| API[push API]
-    API -->|devices, jobs + NOTIFY| Postgres[(Postgres<br/>push_devices, push_jobs)]
-    Postgres -->|LISTEN wakes, SKIP LOCKED claims| Workers[push workers]
+    API -->|devices, jobs| Postgres[(Postgres<br/>push_devices, push_jobs)]
+    API -->|wakes| Workers[push workers]
+    Postgres -->|NOTIFY on fan-out, SKIP LOCKED claims| Workers
     Workers -->|HTTP/2| APNs[APNs production / sandbox]
     Workers -->|HTTP/2| FCM
 ```
