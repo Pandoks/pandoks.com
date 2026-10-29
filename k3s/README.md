@@ -67,8 +67,8 @@ k3s + tailscale. The tailscale operator provides secure access to the cluster AP
 SSH tunnels.
 
 ```sh
-# Connect via tailscale (cluster appears as <stage>-cluster in your tailnet)
-tailscale configure kubeconfig <stage>-cluster
+# Connect via tailscale (<STAGE_NAME>-cluster: prod, preview for stage dev, dev for personal stages)
+tailscale configure kubeconfig <STAGE_NAME>-cluster
 kubectl --context <tailscale-context> get pods
 
 # Install base infrastructure (helm charts + CRDs)
