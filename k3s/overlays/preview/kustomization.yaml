@@ -49,14 +49,6 @@ replacements:
           index: 0
       - select:
           kind: HelmChart
-          name: .*postgres.*
-        fieldPaths:
-          - spec.set.[pgdog.releaseName]
-        options:
-          delimiter: '-'
-          index: 0
-      - select:
-          kind: HelmChart
           name: .*(postgres|clickhouse).*
         fieldPaths:
           - spec.set.[backup.path]

@@ -3,6 +3,3 @@ namespace:
     path: spec/targetNamespace
   - kind: HelmChart
     path: spec/set/namespace
-  - kind: HelmChart
-    path: spec/set/monitoring.namespace
-    create: true
