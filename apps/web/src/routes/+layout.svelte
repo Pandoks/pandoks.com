@@ -102,6 +102,7 @@
       <button
         type="button"
         onclick={() => void yankAddress(ticker, address)}
+        onkeypress={(e) => e.key === 'Enter' && e.stopPropagation()}
         onmousedown={(e) => e.preventDefault()}
         onpointermove={moveSpotlight}
         class={`cursor-copy from-neutral-300 bg-clip-text text-left break-all transition-colors forced-color-adjust-none select-none hover:bg-radial-[circle_2.5rem_at_var(--spotlight-x)_var(--spotlight-y)] ${yankedTicker === ticker ? 'text-foreground duration-0 forced-colors:text-[CanvasText]' : 'text-transparent duration-1000 focus-visible:text-neutral-300'}`}

@@ -15,3 +15,18 @@ test('clicking a wallet yanks its full address', async ({ page, context }) => {
   expect(copied).toMatch(/^\S+$/);
   await expect(wallet).toHaveText(`xmr ${copied}`);
 });
+
+test('enter on a focused wallet yanks without vim navigating', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.goto('/', { waitUntil: 'networkidle' });
+  const wallet = page.getByRole('button', { name: /^xmr / });
+  await wallet.focus();
+  await page.keyboard.press('l');
+  await page.keyboard.press('l');
+  await expect(page.getByRole('link', { name: 'Socials' })).toHaveClass(/bg-highlight/);
+  await page.keyboard.press('Enter');
+
+  await expect(wallet).toHaveClass(/text-foreground/);
+  await expect(wallet).toHaveClass(/text-transparent/);
+  await expect(page).toHaveURL('/');
+});
