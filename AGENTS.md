@@ -67,9 +67,10 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
   deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
   `infra/`, `apps/` (except `desktop-template` and `example`), and `packages/svelte/`, plus an Argo
-  hard refresh only for `k3s/` and `scripts/cluster/` changes. Pages builds `apps/web` when a change
-  matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod`
-  renders but never prunes: a deleted resource stays in prod until pruned by hand.
+  hard refresh only for `k3s/`, `apps/*/kube/`, and `scripts/cluster/` changes. Pages builds
+  `apps/web` when a change matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything
+  `k3s/overlays/prod` renders but never prunes: a deleted resource stays in prod until pruned by
+  hand.
 - Every non-production stage gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
   environment, so two non-production stages collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no

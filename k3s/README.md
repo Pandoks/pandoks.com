@@ -17,7 +17,7 @@ k3s/
     dev/                     # core + system-upgrade-controller CRDs
     prod/                    # core + ArgoCD + system-upgrade-controller CRDs
   base/                      # Shared resources for every environment
-    core/                    # Namespaces, MetalLB pool, cert-manager issuers, credentials, RBAC
+    core/                    # MetalLB pool, cert-manager issuers, shared ClusterRoles, Tailscale and ArgoCD credentials
     apps/                    # References to apps/*/kube
     monitoring/              # HAProxy Grafana dashboards
   overlays/                  # deploy <env> (includes base + bootstrap/<env>)
@@ -85,7 +85,8 @@ For dev, use `deploy dev --stage your-stage` in both commands, keeping `--bootst
 `bootstrap/prod` installs ArgoCD, and `overlays/prod/argocd.yaml` adds the `prod-cluster`
 Application and a repo-server sidecar (`packages/argocd`) that renders kustomize with SST secrets.
 Once the first `deploy prod` creates it, ArgoCD syncs `k3s/overlays/prod` from `main`. The
-`deploy-infra.yaml` workflow triggers a hard refresh when `k3s/**` or `scripts/cluster/**` changes.
+`deploy-infra.yaml` workflow triggers a hard refresh when `k3s/**`, `apps/*/kube/**`, or
+`scripts/cluster/**` changes.
 
 ## k9s
 
