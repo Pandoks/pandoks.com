@@ -11,6 +11,31 @@ import globals from 'globals';
 
 const gitignorePath = fileURLToPath(new URL('.gitignore', import.meta.url));
 
+const NAMING_CONVENTIONS = [
+  {
+    selector: 'default',
+    format: ['camelCase'],
+    leadingUnderscore: 'allowDouble',
+    trailingUnderscore: 'allowDouble'
+  },
+  {
+    selector: 'variable',
+    format: ['camelCase', 'UPPER_CASE', 'PascalCase'],
+    leadingUnderscore: 'allowSingleOrDouble',
+    trailingUnderscore: 'allowDouble'
+  },
+  {
+    selector: 'parameter',
+    format: ['camelCase', 'UPPER_CASE'],
+    leadingUnderscore: 'allow'
+  },
+  { selector: 'typeLike', format: ['PascalCase'] },
+  { selector: 'enumMember', format: ['PascalCase'] },
+  { selector: 'import', format: null },
+  { selector: 'objectLiteralProperty', format: null },
+  { selector: 'typeProperty', format: null }
+];
+
 export default defineConfig([
   includeIgnoreFile(gitignorePath),
   { ignores: ['sst.config.ts', '**/sst-env.d.ts', '**/.svelte-kit/'] },
@@ -102,32 +127,7 @@ export default defineConfig([
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }
       ],
 
-      '@typescript-eslint/naming-convention': [
-        'error',
-        {
-          selector: 'default',
-          format: ['camelCase'],
-          leadingUnderscore: 'allowDouble',
-          trailingUnderscore: 'allowDouble'
-        },
-        {
-          selector: 'variable',
-          format: ['camelCase', 'UPPER_CASE', 'PascalCase'],
-          leadingUnderscore: 'allowSingleOrDouble',
-          trailingUnderscore: 'allowDouble'
-        },
-        {
-          selector: 'parameter',
-          format: ['camelCase', 'UPPER_CASE'],
-          leadingUnderscore: 'allow'
-        },
-        { selector: 'function', format: ['camelCase', 'PascalCase'] },
-        { selector: 'typeLike', format: ['PascalCase'] },
-        { selector: 'enumMember', format: ['PascalCase'] },
-        { selector: 'import', format: null },
-        { selector: 'objectLiteralProperty', format: null },
-        { selector: 'typeProperty', format: null }
-      ]
+      '@typescript-eslint/naming-convention': ['error', ...NAMING_CONVENTIONS]
     }
   },
 
@@ -193,6 +193,16 @@ export default defineConfig([
 
   // REACT RULES
   { files: ['**/*.tsx'], ...reactHooks.configs.flat.recommended },
+  {
+    files: ['**/*.tsx'],
+    rules: {
+      '@typescript-eslint/naming-convention': [
+        'error',
+        ...NAMING_CONVENTIONS,
+        { selector: 'function', format: ['camelCase', 'PascalCase'] }
+      ]
+    }
+  },
 
   // TEST RULES
   {
