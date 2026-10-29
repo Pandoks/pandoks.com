@@ -221,7 +221,7 @@ jobs:
           printf 'Shared dev infrastructure now follows PR #%s, source %s.\n' "$PREVIEW_NUMBER" "$SOURCE_REVISION" >> "$GITHUB_STEP_SUMMARY"
 
   build-and-publish-pass:
-    needs: [images, charts]
+    needs: [images, charts, publish]
     if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
     runs-on: ubuntu-latest
     steps:
