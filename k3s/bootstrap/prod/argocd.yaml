@@ -12,7 +12,7 @@ metadata:
 spec:
   repo: https://argoproj.github.io/argo-helm
   chart: argo-cd
-  version: 9.3.4
+  version: 9.7.1
   targetNamespace: argocd
   valuesContent: |-
     configs:
