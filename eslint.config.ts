@@ -31,8 +31,7 @@ export default defineConfig([
           './packages/*/tsconfig.json'
         ],
         // TODO: https://github.com/typescript-eslint/typescript-eslint/issues/9504
-        // extraFileExtensions turns off single-run programs, so set it everywhere or .ts files build a
-        // second set of programs beside the .svelte watch programs
+        // global so .ts and .svelte files share one program per tsconfig
         extraFileExtensions: ['.svelte'],
         tsconfigRootDir: import.meta.dirname
       }
