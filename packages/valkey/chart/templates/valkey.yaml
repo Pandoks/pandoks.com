@@ -167,7 +167,7 @@ spec:
             successThreshold: 1
             failureThreshold: 3
         - name: prometheus-exporter
-          image: oliver006/redis_exporter:v1.80.1
+          image: oliver006/redis_exporter:v1.80.1@sha256:bac9872da2b48e6eebbffb11517a5dcda59958eda51e1e4231eeb5dd516b4a5f
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false

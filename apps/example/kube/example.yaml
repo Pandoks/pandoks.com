@@ -144,7 +144,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: ghcr.io/nginxinc/nginx-unprivileged:1.27-alpine
+          image: ghcr.io/nginxinc/nginx-unprivileged:1.27-alpine@sha256:e234d4f7e346c098f7b22245690372382aded5be988611eb2c53ae62231eece7
           ports:
             - containerPort: 8080
           readinessProbe:
@@ -165,7 +165,7 @@ spec:
             - name: conf
               mountPath: /etc/nginx/conf.d
         - name: config
-          image: busybox:1.36
+          image: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
           command: ['/bin/sh', '-c']
           args:
             - |
@@ -222,7 +222,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: ghcr.io/nginxinc/nginx-unprivileged:1.27-alpine
+          image: ghcr.io/nginxinc/nginx-unprivileged:1.27-alpine@sha256:e234d4f7e346c098f7b22245690372382aded5be988611eb2c53ae62231eece7
           ports:
             - containerPort: 8080
           readinessProbe:
@@ -243,7 +243,7 @@ spec:
             - name: conf
               mountPath: /etc/nginx/conf.d
         - name: config
-          image: busybox:1.36
+          image: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
           command: ['/bin/sh', '-c']
           args:
             - |
