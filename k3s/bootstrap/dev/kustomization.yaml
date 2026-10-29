@@ -1,4 +1,5 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - ../cluster
+  - ../core
+  - https://github.com/rancher/system-upgrade-controller/releases/download/v0.20.2/crd.yaml

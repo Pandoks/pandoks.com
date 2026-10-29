@@ -70,9 +70,9 @@ usage_deploy() {
 
   printf "%bEnvironments:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %blocal%b      Local registry images/charts; SST's default stage\n" "${GREEN}" "${NORMAL}" >&2
-  printf "  %bdev%b        Shared preview infrastructure; SST stage dev\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bdev%b        Dev cluster; declared image pins; SST's default stage\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bprod%b       Production cluster; declared image pins; SST stage production\n\n" "${GREEN}" "${NORMAL}" >&2
-  printf "Argo deploys opted-in PR previews and successful main builds to production.\n" >&2
+  printf "Argo deploys successful main builds to production.\n" >&2
   printf "Use this command for bootstrap, local work, and manual recovery.\n\n" >&2
 
   printf "%bOptions:%b\n" "${BOLD}" "${NORMAL}" >&2
@@ -80,7 +80,7 @@ usage_deploy() {
   printf "      Apply k3s/bootstrap/<env>; wait for Established CRDs and rollouts.\n" >&2
   printf "      Run once on a fresh cluster, then apply the full overlay.\n\n" >&2
   printf "  %b--stage%b <STAGE>\n" "${YELLOW}" "${NORMAL}" >&2
-  printf "      SST stage (local: SST default; dev/preview: dev; prod: forced production).\n\n" >&2
+  printf "      SST stage (local/dev: SST default; prod: forced production).\n\n" >&2
   printf "  %b--dry-run%b\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      Render YAML; skip confirmation, apply, and waits.\n\n" >&2
   printf "  %b--kubeconfig%b <PATH>\n" "${YELLOW}" "${NORMAL}" >&2
@@ -88,7 +88,6 @@ usage_deploy() {
   printf "  %b--quiet%b, %b-q%b\n" "${YELLOW}" "${NORMAL}" "${YELLOW}" "${NORMAL}" >&2
   printf "      Hide info logs and the dry-run heading. Prompts and errors remain visible.\n\n" >&2
 
-  printf "Argo also uses deploy preview --dry-run; previews cannot bootstrap or apply directly.\n" >&2
   printf "Renders need SST and standalone Kustomize; pinned remote resources need network access.\n" >&2
   printf "Image versions come from manifests; deploy does not build or query a registry.\n\n" >&2
 
