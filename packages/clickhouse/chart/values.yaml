@@ -36,6 +36,7 @@ nodeSelector: ~
 tolerations: ~
 
 backup:
+  enabled: true
   credentials:
     secret: backup-bucket-creds
     dataKeys:
