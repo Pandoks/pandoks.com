@@ -54,31 +54,12 @@
       ],
       "registryUrlTemplate": "https://ghcr.io",
       "versioningTemplate": "semver"
-    },
-    {
-      "customType": "regex",
-      "description": "Track inline digest pins of our package images in app manifests, the Argo CD plugin sidecar, and chart default values.",
-      "managerFilePatterns": [
-        "/^apps\\/.+\\/kube\\/.+\\.ya?ml$/",
-        "/^k3s\\/overlays\\/prod\\/argocd\\.yaml$/",
-        "/^packages\\/.+\\/chart\\/values\\.yaml$/"
-      ],
-      "matchStrings": [
-        "(?<depName>ghcr\\.io/pandoks/[a-z0-9-]+):(?<currentValue>latest)@(?<currentDigest>sha256:[a-f0-9]{64})"
-      ],
-      "datasourceTemplate": "docker"
     }
   ],
   "packageRules": [
     {
       "matchManagers": ["helm-values", "helmv3"],
       "groupName": "helm charts"
-    },
-    {
-      "description": "Promote successful package images together in one reviewable GitOps update.",
-      "matchManagers": ["custom.regex"],
-      "groupName": "production images",
-      "minimumReleaseAge": "0 days"
     },
     {
       "description": "Do not pin package.json engines.node — keep a range compatible with mise.toml",

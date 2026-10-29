@@ -1,6 +1,10 @@
-name: Branch Deletion Cleanup
+name: Preview Cleanup
+
 on:
   delete:
+  pull_request_target:
+    branches: [main]
+    types: [closed, unlabeled]
 
 permissions: {}
 
@@ -30,3 +34,26 @@ jobs:
           done
           [ ${#ids[@]} -eq 0 ] && exit 0
           printf '%s\n' "${ids[@]}" | xargs -I{} curl -fsS -X DELETE -H "Authorization: Bearer ${TOKEN}" "${api}/{}?force=true"
+
+  cleanup-preview-ref:
+    if: github.event_name == 'pull_request_target' && (github.event.action == 'closed' || github.event.label.name == 'preview')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PREVIEW_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Remove the closed or opted-out preview release ref
+        run: |
+          current=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PREVIEW_NUMBER")
+          if jq -e '.state == "open" and any(.labels[]; .name == "preview")' <<<"$current" >/dev/null; then
+            exit 0
+          fi
+          ref="heads/deploy/preview-$PREVIEW_NUMBER"
+          exists=$(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/$ref" --jq ".[] | select(.ref == \"refs/$ref\") | .ref")
+          [ -z "$exists" ] || gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/$ref"

@@ -14,7 +14,7 @@ metadata:
   namespace: kube-system # the helm chart controller that k3s uses needs to be in the kube-system namespace
 spec:
   chart: oci://ghcr.io/pandoks/charts/valkey
-  version: 0.1.0
+  version: 0.1.1
   targetNamespace: &namespace <namespace>
   createNamespace: true
   failurePolicy: abort
@@ -47,36 +47,32 @@ stale data because they're not completely syned with the masters.
 
 ### Local Development
 
-If you want to develop locally, you'll need to patch your Helm chart yaml declarations in each namespaced
-directory's `dev-patch.yaml`. If you have multiple valkey clusters, you put all of the patches in the
-same file:
+For local development, the [local overlay](/k3s/overlays/local/kustomization.yaml) overrides
+images with `images:`; [charts-patch.yaml](/k3s/overlays/local/charts-patch.yaml) selects the chart registry.
+If your valkey chart needs extra local-only tweaks (like hook behavior), add a patch for it in
+`k3s/overlays/local`:
 
 ```yaml
-# kube/<namespace>/dev-patch.yaml
+# k3s/overlays/local/<your>-patch.yaml
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
 metadata:
-  name: <namespace>-valkey-<name>-cluster
+  name: main-valkey-main-cluster
   namespace: kube-system
 spec:
-  chart: oci://local-registry:5000/charts/valkey
-  plainHTTP: true
   set:
-    image: local-registry:5000/valkey:latest
-    cluster.reconcilerImage: local-registry:5000/valkey-reconciler:latest
     hooks.restartPolicy: Never
     hooks.backoffLimit: 0
     hooks.ttlSecondsAfterFinished: 86400 # 24 hours
     hooks.hookDeletePolicy: before-hook-creation
 ```
 
-_If you haven't already, remember to add all `dev-patch.yaml` files in the
-[/k3s/dev/kustomization.yaml](/k3s/dev/kustomization.yaml) file._
+_Register any new patch file under `patches:` in the
+[/k3s/overlays/local/kustomization.yaml](/k3s/overlays/local/kustomization.yaml) file._
 
 #### Images & Helm Charts
 
-You'll have to build and push the chart at least once before the local k3d cluster can access the local
-images/helm chart via the local registry that are used in the `dev-patch.yaml` declarations:
+Build and push the images and chart before deploying the local overlay:
 
 ```sh
 pnpm local:build && pnpm local:push

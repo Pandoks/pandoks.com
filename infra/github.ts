@@ -1,14 +1,13 @@
-import { cloudflareAccountId, isProduction, STAGE_NAME } from './dns';
+import { cloudflareAccountId, isProduction, isDev } from './dns';
 import { defaultAwsRegion } from './aws';
 import { secrets } from './secrets';
-import { tailscaleAcl } from './tailscale';
 
 export const githubOrg = 'Pandoks';
 export const githubRepoName = 'pandoks.com';
 
 const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
   repository: githubRepoName,
-  environment: isProduction ? 'production' : 'dev'
+  environment: isProduction ? 'production' : isDev ? 'preview' : 'dev'
 });
 
 new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
@@ -19,6 +18,17 @@ new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
 });
 
 if (isProduction) {
+  const githubChecksEnvironment = new github.RepositoryEnvironment('GithubChecksEnvironment', {
+    repository: githubRepoName,
+    environment: 'checks'
+  });
+  new github.ActionsEnvironmentSecret('GithubChecksHetznerApiKey', {
+    repository: githubRepoName,
+    environment: githubChecksEnvironment.environment,
+    secretName: 'HCLOUD_TOKEN',
+    plaintextValue: secrets.hetzner.ApiKey.value
+  });
+
   new github.BranchProtection('GithubMainBranchProtection', {
     repositoryId: githubRepoName,
     pattern: 'main',
@@ -37,12 +47,6 @@ if (isProduction) {
     repository: githubRepoName,
     secretName: 'GH_TOKEN',
     plaintextValue: secrets.github.PersonalAccessToken.value
-  });
-
-  new github.ActionsSecret('GithubGithubPackageManagementToken', {
-    repository: githubRepoName,
-    secretName: 'GH_PACKAGE_MANAGEMENT_TOKEN',
-    plaintextValue: secrets.github.PackageManagementToken.value
   });
 
   new github.ActionsSecret('GithubCloudflareApiToken', {
@@ -123,26 +127,6 @@ if (isProduction) {
     repository: githubRepoName,
     secretName: 'TAILSCALE_OAUTH_CLIENT_SECRET',
     plaintextValue: secrets.tailscale.OauthClientSecret.value
-  });
-
-  const githubActionsOauthClient = new tailscale.OauthClient(
-    `${STAGE_NAME}TailscaleGithubActionsOauthClient`,
-    {
-      description: `${STAGE_NAME} github ci`,
-      scopes: ['devices:core', 'auth_keys'],
-      tags: ['tag:ci', `tag:${STAGE_NAME}`]
-    },
-    { dependsOn: [tailscaleAcl] }
-  );
-  new github.ActionsSecret('GithubActionsTailscaleOauthClientId', {
-    repository: githubRepoName,
-    secretName: 'TS_OAUTH_CLIENT_ID',
-    plaintextValue: githubActionsOauthClient.id
-  });
-  new github.ActionsSecret('GithubActionsTailscaleOauthSecret', {
-    repository: githubRepoName,
-    secretName: 'TS_OAUTH_SECRET',
-    plaintextValue: githubActionsOauthClient.key
   });
 
   // NOTE: Renovate handles the security-PRs, and reads dependabot alerts.

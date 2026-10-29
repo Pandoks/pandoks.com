@@ -11,25 +11,28 @@ As it stands, the cluster is hosted on Hetzner VPS's.
 
 ```
 k3s/
-  base/                      # Shared resources for every environment
-    core/                    # Credentials, RBAC, pools, issuers, and namespaces
-    apps/                    # References to apps/*/kube
-    monitoring/              # Shared Grafana dashboard ConfigMaps
-  bootstrap/                 # CRDs and HelmChart resources applied first
+  base/                      # App resources, shared core, dashboards, custom image fields
+  bootstrap/
     core/                    # MetalLB, cert-manager, HAProxy, Prometheus/Grafana
-    local/                   # Core bootstrap only
-    dev/                     # Core + system-upgrade-controller CRD
-    prod/                    # Core + ArgoCD + system-upgrade-controller CRD
+    local/                   # Core bootstrap for k3d
+    cluster/                 # Core + Argo CD + upgrade-controller CRD
+    dev/                     # Shared dev bootstrap and public ingress
+    prod/                    # Production bootstrap and public ingress
+  components/images/         # Native Kustomize image pins
   overlays/
-    cluster/                 # Shared remote overlay: Tailscale, upgrades, etcd metrics
-    local/                   # k3d MetalLB/app patches and local etcd endpoints
-    dev/                     # Cluster overlay + dev bootstrap
-    prod/                    # Cluster overlay + prod bootstrap + ArgoCD App-of-Apps
+    cluster/                 # Shared remote controllers, monitoring, node upgrades
+    local/                   # Full local stack and registry overrides
+    dev/                     # Shared infrastructure and preview ApplicationSet
+    preview/                 # Per-PR apps/databases; namespace set in the prepared Git ref
+    prod/                    # Production infrastructure and apps
 ```
 
 ## Local Development
 
 For local development, we use [k3d](https://k3d.io/) to create a local k3s cluster.
+Package images use the `images:` overrides in
+[`overlays/local/kustomization.yaml`](overlays/local/kustomization.yaml);
+[`charts-patch.yaml`](overlays/local/charts-patch.yaml) selects the local chart registry.
 
 To setup the cluster, run the following commands from the root of the project:
 
@@ -57,41 +60,78 @@ pnpm local:push
 ./scripts/cluster/main.sh deploy local
 ```
 
-## Development cluster
+## Previews and production
 
-`deploy dev --branch <name>` renders `k3s/overlays/dev` once to discover the
-pinned package images, resolves each against the branch's moving GHCR tag, and
-applies the resolved digests through a generated temporary kustomize patch.
-HTTP 404 keeps the committed pin; other registry errors abort. Detached checkouts
-require `--branch`. Origin's default branch uses `latest`; other names become lowercase
-tags of at most 63 characters (`feature/cache-fix` becomes `feature-cache-fix`).
-Dev overlays need Bash, `origin`, and public GHCR, even in dry-run. Bootstrap skips
-image resolution.
+One dev cluster hosts PR previews; production runs in a separate cluster. Add the `preview` label
+to a same-repository PR targeting `main` to opt in. CI builds its images/charts, waits for Checks, Tests, and Security,
+then writes its source and exact image/chart versions to `deploy/preview-<PR>`.
+Argo's ApplicationSet deploys that ref to namespace `preview-<PR>` at
+`https://preview-<PR>.pandoks.com`. Closing the PR or removing the label deletes its resources,
+including databases and data. Its Git ref is deleted; published registry artifacts are retained.
+Preview backups are disabled.
 
-## Production
+Shared controllers, MetalLB, ingress, monitoring, and upgrades are deployed once from `deploy/dev`.
+A successful opted-in PR that changes shared infrastructure updates it for every preview. The last
+successful infrastructure update wins. The first preview seeds `deploy/dev`; afterward, app-only
+PRs leave it alone. Closing a PR does not revert shared infrastructure. Labels never provision hardware.
+Successful `main` builds publish `deploy/production` for automatic production sync; there is no
+staging promotion step. CI publishes Git refs; Argo renders and applies them.
 
-Production clusters are provisioned via Pulumi with cloud-config that bootstraps k3s + tailscale.
-The tailscale operator provides secure access to the cluster API without needing SSH tunnels.
+All remote overlays use the image pins in
+[`components/images/kustomization.yaml`](components/images/kustomization.yaml).
+Kustomize matches values at the fields in [`base/image-fields.yaml`](base/image-fields.yaml).
+Add new images to the CI build matrix, shared pins, and local overrides. Deploy never queries a
+registry or generates image patches. Each prepared ref includes `SOURCE_REVISION` for traceability.
 
-Package image references are pinned inline as
-`ghcr.io/pandoks/<name>:latest@sha256:<digest>` in the app kube manifests, the
-Argo CD sidecar patch, and chart default values. After merging image changes,
-`Build and Publish` advances `latest` only for the images that changed.
-Renovate then proposes one reviewable "production images" PR updating those
-pins in place; merging it promotes the exact digests to production. Argo CD
-uses committed package-image digests; other containers may use tags.
+### Bootstrap and manual recovery
+
+**Deploy Infrastructure** runs SST stage `production` on `main` pushes that touch SST code; run it
+manually for `dev` or a specific revision. Configure node counts and stage credentials first; they remain zero. Build a labeled PR (or `main` for production)
+to prepare the deployment refs, then bootstrap from the corresponding checkout:
 
 ```sh
-# Select the deployment context
-kubectl config use-context <tailscale-context>
-kubectl get pods
-
-# Install base infrastructure (helm charts + CRDs)
-./scripts/cluster/main.sh deploy prod --bootstrap
-
-# Deploy prod overlay (system-upgrade controller; SST secrets substituted inline)
-./scripts/cluster/main.sh deploy prod
+git fetch origin deploy/dev
+git worktree add --detach ../dev-bootstrap FETCH_HEAD
+cd ../dev-bootstrap
+pnpm install --frozen-lockfile
+kubectl config use-context <preview-cluster-context>
+pnpm cluster deploy dev --bootstrap
+pnpm cluster deploy dev
 ```
+
+For production, use `deploy/production`, its context, and `deploy prod`. These checkouts include the
+newly built renderer image. Manual deploys confirm the selected context; they never switch it.
+Bootstrap waits for CRDs and controllers. Argo uses `deploy <env> --dry-run --quiet` to render the same
+manifests without applying. The internal `preview` target requires `--dry-run` and cannot bootstrap.
+
+```sh
+pnpm cluster deploy dev --dry-run --quiet > rendered.yaml
+```
+
+### Stage identities
+
+| SST stage                      | Resource prefix | GitHub environment | CLI target                    |
+| ------------------------------ | --------------- | ------------------ | ----------------------------- |
+| `production`                   | `prod`          | `production`       | `prod`                        |
+| `dev`                          | `preview`       | `preview`          | `dev` / render-only `preview` |
+| Personal stage, e.g. `pandoks` | `dev`           | `dev`              | `local --stage pandoks`       |
+
+Shared dev uses the `preview` prefix to preserve existing personal-stage and production identities.
+Its Tailscale hostname is `preview-cluster`. Argo credentials can read only their own SST stage;
+CI needs no Kubernetes credentials. Apply the production SST configuration to create the `checks`
+GitHub environment for SST diffs. Existing clusters need the new prepared overlay applied once;
+Git changes do not automatically remove old resources while remote infrastructure pruning is disabled.
+
+Preview ingress uses the shared dev cluster's public ingress and a wildcard `*.pandoks.com`
+DNS/origin certificate. The dev stage provisions no public load balancer yet, so previews go live
+with the OVH migration. First-level preview names work with Cloudflare Universal SSL; explicit production and
+personal DNS records keep their existing routing.
+
+### Versioned cluster upgrades
+
+The upgrade controller and K3s Plan versions are pinned in Git. Update the shared bootstrap/overlay
+controller URLs together.
+Dev upgrades immediately; production keeps its weekend maintenance window.
 
 ## k9s
 
@@ -114,9 +154,9 @@ ports that we're exposing from `NodePort` to the host machine. This also mimics 
 production clusters because the cluster is inside a private networks and the only thing that is
 exposed is through a load balancer that points into the private network at the forwarded port.
 
-### Production
+### Remote clusters
 
-Production clusters are accessed via Tailscale. The tailscale operator exposes the API server
+Dev and production are accessed via Tailscale. The tailscale operator exposes the API server
 to your tailnet:
 
 ```sh

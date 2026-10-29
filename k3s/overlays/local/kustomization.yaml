@@ -7,4 +7,26 @@ resources:
 patches:
   - path: dev-patch.yaml
   - path: ../../../apps/example/kube/dev-patch.yaml
-  - path: images-patch.yaml
+  - path: charts-patch.yaml
+images:
+  - name: ghcr.io/pandoks/clickhouse
+    newName: local-registry:5000/clickhouse
+    newTag: latest
+  - name: ghcr.io/pandoks/clickhouse-backup
+    newName: local-registry:5000/clickhouse-backup
+    newTag: latest
+  - name: ghcr.io/pandoks/clickhouse-keeper
+    newName: local-registry:5000/clickhouse-keeper
+    newTag: latest
+  - name: ghcr.io/pandoks/patroni
+    newName: local-registry:5000/patroni
+    newTag: latest
+  - name: ghcr.io/pandoks/pgbackrest
+    newName: local-registry:5000/pgbackrest
+    newTag: latest
+  - name: ghcr.io/pandoks/valkey
+    newName: local-registry:5000/valkey
+    newTag: latest
+  - name: ghcr.io/pandoks/valkey-reconciler
+    newName: local-registry:5000/valkey-reconciler
+    newTag: latest

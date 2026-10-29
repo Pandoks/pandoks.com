@@ -10,28 +10,19 @@ spec:
     command: [sh, -c]
     args:
       - |
-        repo_root=$PWD
-        while [ "${repo_root}" != / ] && [ ! -f "${repo_root}/pnpm-workspace.yaml" ]; do
-          repo_root=$(dirname "${repo_root}")
-        done
-        [ -f "${repo_root}/pnpm-workspace.yaml" ] || {
-          echo "Unable to locate the repository root from ${PWD}" >&2
-          exit 1
-        }
-        cd "${repo_root}"
+        cd ../../..
+        [ -f pnpm-workspace.yaml ] || { echo "Expected k3s/overlays/<env>" >&2; exit 1; }
+        case "${ARGOCD_ENV_DEPLOY_ENV:-prod}" in
+          dev | preview) render_stage=dev ;;
+          prod) render_stage=production ;;
+          *) echo "Unsupported deployment environment" >&2; exit 1 ;;
+        esac
         pnpm install --frozen-lockfile --ignore-scripts --store-dir /tmp/pnpm-store
-        pnpm sst install --stage production
+        pnpm sst install --stage "${render_stage}"
   generate:
     command: [sh, -c]
     args:
       - |
-        repo_root=$PWD
-        while [ "${repo_root}" != / ] && [ ! -f "${repo_root}/pnpm-workspace.yaml" ]; do
-          repo_root=$(dirname "${repo_root}")
-        done
-        [ -f "${repo_root}/pnpm-workspace.yaml" ] || {
-          echo "Unable to locate the repository root from ${PWD}" >&2
-          exit 1
-        }
-        cd "${repo_root}"
-        sh ./scripts/cluster/main.sh deploy prod --dry-run --quiet
+        cd ../../..
+        [ -f pnpm-workspace.yaml ] || { echo "Expected k3s/overlays/<env>" >&2; exit 1; }
+        sh ./scripts/cluster/main.sh deploy "${ARGOCD_ENV_DEPLOY_ENV:-prod}" --dry-run --quiet

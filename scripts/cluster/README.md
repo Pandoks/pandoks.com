@@ -1,8 +1,8 @@
 # Cluster CLI
 
 This directory contains the shell-based CLI used for managing local k3d clusters,
-shared dependencies, and Kubernetes resources during development. All commands are
-POSIX-compliant `sh` scripts—no Bash-specific features are required.
+shared dependencies, and Kubernetes resources. The cluster
+scripts use POSIX `sh`.
 
 ## Entry Point
 
@@ -41,56 +41,51 @@ options. Package scripts in `package.json` are wired directly to
 `deploy` applies environment-specific kustomize paths to the cluster:
 
 ```sh
-./scripts/cluster/main.sh deploy <local|dev|prod> [--bootstrap] [--stage <STAGE>] [--branch <BRANCH>] [--dry-run] [--kubeconfig <PATH>] [--quiet]
+./scripts/cluster/main.sh deploy <local|dev|prod> [--bootstrap] [--stage <STAGE>] [--dry-run] [--kubeconfig <PATH>] [--quiet]
 ```
 
-Without `--bootstrap`, deploys the **overlay** at `k3s/overlays/<env>`. With
-`--bootstrap`, deploys the **bootstrap layer** at `k3s/bootstrap/<env>` instead
-(helm charts, CRDs, base resources). The two are separate kustomize paths — to
-deploy a fresh cluster end-to-end, run `deploy <env> --bootstrap` first, then
-`deploy <env>` again without the flag.
+Deploy uses `k3s/overlays/<env>` by default. On a fresh cluster, run `--bootstrap`
+first, then deploy without it. Overlays include bootstrap resources but skip bootstrap waits.
 
-| Environment | Description                                                                                                |
-| ----------- | ---------------------------------------------------------------------------------------------------------- |
-| `local`     | Rewrites charts and package images to `local-registry:5000` via the overlay patch in `k3s/overlays/local`. |
-| `dev`       | Pins branch builds; missing tags keep committed digests.                                                   |
-| `prod`      | Deploys [package-image digests](../../k3s/README.md#production) pinned in the manifests.                   |
+| Environment | Description                                                       |
+| ----------- | ----------------------------------------------------------------- |
+| `local`     | Local images/charts; SST's default stage.                         |
+| `dev`       | Shared preview infrastructure; SST stage `dev`.                   |
+| `preview`   | Argo's render-only target for a prepared PR ref; SST stage `dev`. |
+| `prod`      | Production cluster; declared image pins; SST stage `production`.  |
 
-| Option         | Description                                                                                                   |
-| -------------- | ------------------------------------------------------------------------------------------------------------- |
-| `--bootstrap`  | Apply `k3s/bootstrap/<env>` (helm charts + CRD providers) and wait for CRDs.                                  |
-| `--stage`      | SST stage to fetch secrets from (default: SST's default stage; forced to `production` for prod env).          |
-| `--branch`     | Source branch whose published images dev should use; defaults to the attached branch; non-bootstrap dev only. |
-| `--dry-run`    | Render templates without applying.                                                                            |
-| `--kubeconfig` | Kubeconfig file for kubectl operations.                                                                       |
-| `--quiet`/`-q` | Suppress status messages, output only YAML (for CI/CD).                                                       |
+| Option         | Description                                                                     |
+| -------------- | ------------------------------------------------------------------------------- |
+| `--bootstrap`  | Apply bootstrap resources; wait for CRDs and rollouts; unavailable for preview. |
+| `--stage`      | Override the SST stage; prod always uses `production`.                          |
+| `--dry-run`    | Render YAML; skip confirmation, apply, and waits.                               |
+| `--kubeconfig` | Kubeconfig file for kubectl.                                                    |
+| `--quiet`/`-q` | Hide info logs and the dry-run heading.                                         |
 
-You will be prompted to confirm the destination kubectl context before anything
-is applied (unless using `--dry-run`).
+Options can be combined. `preview` requires `--dry-run` and cannot bootstrap. The selected
+kubeconfig/context chooses the actual cluster; manual deploys ask for confirmation.
+`--dry-run --quiet` prints only YAML.
 
-Remote dev deploys verify that the requested source branch exists on `origin`.
-The image workflow builds and scans only changed images. Each successful
-feature build publishes a moving `<branch>` tag and an immutable
-global `sha-<sha12>` tag; each successful main build publishes `latest` and the
-same global SHA format. Dev resolves every available branch tag to an exact
-digest and uses the production lock for images unchanged on that branch.
-Production reads only the committed lock. Scheduled maintenance preserves live
-branch heads, `latest`, locked production digests, every image newer than 30
-days, and the newest 10 SHA images per package. `--bootstrap` does not query
-GHCR because bootstrap manifests consume no package images.
+Renders need SST and standalone Kustomize; pinned remote resources need network access.
+Images are declared in Kustomize; deploy does not build images or query registries.
+Bootstrap failures stop the command. Dev/prod also wait for Argo CD and upgrade CRDs.
+
+CI builds images/charts and publishes prepared Git refs; Argo uses this CLI to render them.
+Same-repository PRs targeting `main` with the `preview` label deploy automatically to dev; successful `main` builds deploy to production.
+Manual commands handle bootstrap and recovery; see [the remote workflow](../../k3s/README.md).
 
 ### Template Variables
 
 The `deploy` command renders templates with these substitutions before applying:
 
-| Variable                | Description                                                    |
-| ----------------------- | -------------------------------------------------------------- |
-| `${ImageRegistry}`      | Container registry used for Helm charts.                       |
-| `${<PackageName>Image}` | Exact image reference for one package, normally digest-pinned. |
-| `${IsLocal}`            | `'true'` or `'false'` for conditional logic.                   |
-| `${UseProxyProtocol}`   | `'true'` only for the prod Hetzner load balancer.              |
-| `${<SST Resource>}`     | Any SST resource by name.                                      |
-| `${<Secret> \| base64}` | Base64 encode a secret value.                                  |
+| Variable                | Description                          |
+| ----------------------- | ------------------------------------ |
+| `${<SST Resource>}`     | Exported SST value by resource name. |
+| `${<Secret> \| quote}`  | Quote a secret value.                |
+| `${<Secret> \| base64}` | Base64 encode a secret value.        |
+
+SST exports `value`, falling back to `name`; resources with neither are omitted.
+Rendering fails if a referenced SST value is missing or empty.
 
 ## Examples
 
@@ -114,25 +109,32 @@ pnpm local:push
 ./scripts/cluster/main.sh k3d deps down
 ```
 
-### Cloud Cluster (Hetzner via Tailscale)
+### Remote Cluster (Hetzner via Tailscale)
+
+Provision SST stage `dev` (manual) or `production` (automatic from `main`) with Deploy Infrastructure, then use a checkout of
+`deploy/dev` or `deploy/production` for bootstrap. Shared dev uses the `preview` resource prefix
+and Tailscale hostname `preview-cluster`, preserving personal SST stages' existing names.
 
 ```sh
 # Switch to the cloud cluster context
 kubectl config use-context <tailscale-context>
 
-# Two-step deploy on a fresh cluster
-./scripts/cluster/main.sh deploy prod --bootstrap
-./scripts/cluster/main.sh deploy prod
-
-# Re-apply just the overlay (no bootstrap) on subsequent deploys
-./scripts/cluster/main.sh deploy prod
+# Two-step deploy on a fresh dev cluster (use prod for production)
+./scripts/cluster/main.sh deploy dev --bootstrap
+./scripts/cluster/main.sh deploy dev
 ```
 
-### Preview Without Applying
+### Render Without Applying
 
 ```sh
 ./scripts/cluster/main.sh deploy prod --dry-run
 ./scripts/cluster/main.sh deploy prod --bootstrap --dry-run
+
+# On a prepared deploy/preview-123 checkout
+./scripts/cluster/main.sh deploy preview --dry-run --quiet
+
+# Save YAML-only stdout; errors go to stderr
+./scripts/cluster/main.sh deploy prod --dry-run --quiet > rendered.yaml
 ```
 
 ---

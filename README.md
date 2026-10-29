@@ -36,7 +36,7 @@
 - [Git](https://git-scm.com/downloads) and [mise](https://mise.jdx.dev/installing-mise.html)
 - [Docker](https://docs.docker.com/get-docker/)
 - [OpenSSL](https://www.openssl.org/)
-- [Tailscale](https://tailscale.com/download), only for production cluster access
+- [Tailscale](https://tailscale.com/download), for dev and production cluster access
 
 2. Setup `.env.<stage>`. Take a look at [.env.example](/.env.example) as a reference.
 
@@ -85,6 +85,11 @@ pnpm local:destroy
 ```
 
 See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI commands and [k3s/README.md](./k3s/README.md) for cluster architecture details.
+
+Remote clusters are shared dev and production. Add the `preview` label to a same-repository PR
+targeting `main` to deploy its apps and databases into a separate namespace on dev; closing it or removing the label deletes the preview.
+Shared infrastructure changes affect every preview. Successful `main` builds deploy to production
+through Argo CD, and `main` changes to SST code deploy the `production` stage. Labels do not provision hardware; see [the cluster workflow](./k3s/README.md).
 
 ## Development
 

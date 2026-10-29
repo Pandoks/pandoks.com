@@ -11,6 +11,7 @@ credentials:
     patroniPassword: PATRONI_PASSWORD
 
 backup:
+  enabled: true
   credentials:
     secret: backup-bucket-creds
     dataKeys:
@@ -46,6 +47,7 @@ patroni:
 
 # https://github.com/pgdogdev/helm/blob/main/values.yaml
 pgdog:
+  releaseName: ''
   replicas: 2
   workers: 2
   defaultPoolSize: 15
@@ -53,3 +55,6 @@ pgdog:
   lsnCheckInterval: 1000
   loadBalancingStrategy: least_active_connections
   readWriteSplit: include_primary_if_replica_banned
+
+monitoring:
+  namespace: monitoring
