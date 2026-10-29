@@ -2,14 +2,11 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: valkey-{{ .Values.name }}
-  namespace: {{ .Values.monitoringNamespace }}
+  namespace: {{ .Values.namespace }}
   labels:
     app.kubernetes.io/name: valkey
     database: {{ .Values.name }}
 spec:
-  namespaceSelector:
-    matchNames:
-      - {{ .Values.namespace }}
   selector:
     matchLabels:
       app.kubernetes.io/name: valkey
@@ -25,7 +22,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: grafana-dashboard-valkey-{{ .Values.namespace }}-{{ .Values.name }}
-  namespace: {{ .Values.monitoringNamespace }}
+  namespace: {{ .Values.namespace }}
   labels:
     grafana_dashboard: "1"
 data:

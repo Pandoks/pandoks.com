@@ -1,6 +1,5 @@
 db: example
 namespace: example
-monitoringNamespace: monitoring # ServiceMonitors and dashboards; releases sharing a db must differ
 # options: <release name, unique in kube-system> | ~ (<db>-pgdog)
 pgdogReleaseName: ~
 

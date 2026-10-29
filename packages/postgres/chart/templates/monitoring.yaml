@@ -6,14 +6,11 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: patroni-{{ .Values.db }}
-  namespace: {{ .Values.monitoringNamespace }}
+  namespace: {{ .Values.namespace }}
   labels:
     app.kubernetes.io/name: patroni
     database: {{ .Values.db }}
 spec:
-  namespaceSelector:
-    matchNames:
-      - {{ .Values.namespace }}
   selector:
     matchLabels:
       app.kubernetes.io/name: patroni
@@ -29,14 +26,11 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: postgres-{{ .Values.db }}
-  namespace: {{ .Values.monitoringNamespace }}
+  namespace: {{ .Values.namespace }}
   labels:
     app.kubernetes.io/name: postgres
     database: {{ .Values.db }}
 spec:
-  namespaceSelector:
-    matchNames:
-      - {{ .Values.namespace }}
   selector:
     matchLabels:
       app.kubernetes.io/name: patroni
@@ -53,7 +47,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: grafana-dashboard-postgres-{{ .Values.namespace }}-{{ .Values.db }}
-  namespace: {{ .Values.monitoringNamespace }}
+  namespace: {{ .Values.namespace }}
   labels:
     grafana_dashboard: "1"
 data:
