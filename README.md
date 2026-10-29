@@ -75,7 +75,7 @@ pnpm cluster k3d deps up               # Start docker compose dependencies
 pnpm cluster k3d up                    # Create k3d cluster
 pnpm local:build && pnpm local:push    # Build and push images/charts to the local registry
 pnpm cluster deploy local --stage your-stage --bootstrap  # First-time: install helm charts + CRDs
-pnpm cluster deploy local --stage your-stage # Apply environment overlay
+pnpm cluster deploy local --stage your-stage              # Apply local overlay
 ```
 
 To tear down the cluster:
@@ -86,6 +86,9 @@ pnpm local:destroy
 
 See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI commands and
 [k3s/README.md](./k3s/README.md) for cluster architecture details.
+
+Successful `main` builds deploy to production through Argo CD, and `main` changes to SST code deploy
+the `production` stage; see [the cluster workflow](./k3s/README.md).
 
 ## Development
 

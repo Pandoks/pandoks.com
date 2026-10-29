@@ -26,20 +26,7 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
           'svc:cliproxyapi-ci': ['tag:cliproxyapi']
         }
       },
-      grants: [
-        { src: ['*'], dst: ['*'], ip: ['*'] },
-        {
-          src: ['tag:ci'],
-          dst: ['tag:k8s-operator'],
-          app: {
-            'tailscale.com/cap/kubernetes': [
-              {
-                impersonate: { groups: ['argocd-deployer'] }
-              }
-            ]
-          }
-        }
-      ],
+      grants: [{ src: ['*'], dst: ['*'], ip: ['*'] }],
       ssh: [
         {
           action: 'check',
@@ -76,6 +63,7 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         'tag:control-plane': ['pandoks@github'],
         'tag:worker': ['pandoks@github'],
         'tag:dev': ['pandoks@github', 'tag:k8s-operator'],
+        'tag:preview': ['pandoks@github', 'tag:k8s-operator'],
         'tag:prod': ['pandoks@github', 'tag:k8s-operator'],
         'tag:ci': ['pandoks@github'],
         'tag:cliproxyapi': ['pandoks@github'],

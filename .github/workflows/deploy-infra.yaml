@@ -1,5 +1,6 @@
 name: Deploy Infrastructure
 
+# Main deploys production SST; other stages deploy locally. Argo CD delivers Kubernetes from deploy/* refs.
 on:
   push:
     branches:
@@ -7,55 +8,24 @@ on:
     paths:
       - 'sst.config.ts'
       - 'infra/**'
+      - 'pnpm-lock.yaml'
       - 'apps/**'
       - '!apps/desktop-template/**'
       - '!apps/example/**'
       - 'packages/svelte/**'
-      - 'k3s/**'
-      - 'scripts/cluster/**'
   workflow_dispatch:
-    inputs:
-      deploy:
-        description: 'What to deploy'
-        type: choice
-        default: all
-        options:
-          - all
-          - sst
-          - kubernetes
 
 permissions:
   id-token: write
   contents: read
 
-jobs:
-  detect-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      sst: ${{ github.event_name != 'workflow_dispatch' && steps.filter.outputs.sst || contains(fromJSON('["all","sst"]'), inputs.deploy) }}
-      kubernetes: ${{ github.event_name != 'workflow_dispatch' && steps.filter.outputs.kubernetes || contains(fromJSON('["all","kubernetes"]'), inputs.deploy) }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
-        if: github.event_name != 'workflow_dispatch'
-        id: filter
-        with:
-          filters: |
-            sst:
-              - 'sst.config.ts'
-              - 'infra/**'
-              - 'apps/!(desktop-template|example)/**'
-              - 'packages/svelte/**'
-            kubernetes:
-              - 'k3s/**'
-              - 'scripts/cluster/**'
+concurrency:
+  group: deploy-infrastructure
+  cancel-in-progress: false
 
+jobs:
   deploy-sst:
-    concurrency:
-      group: deploy-sst
-      cancel-in-progress: false
-    needs: detect-changes
-    if: needs.detect-changes.outputs.sst == 'true'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
     env:
@@ -69,8 +39,7 @@ jobs:
       TAILSCALE_OAUTH_CLIENT_SECRET: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: ./.github/actions/setup-node-pnpm
 
@@ -82,66 +51,9 @@ jobs:
 
       # TODO: remove continue-on-error after sst fixes refresh exit code bug
       # https://github.com/anomalyco/sst/issues/6713
-      - name: Refresh sst state
+      - name: Refresh SST state
         continue-on-error: true
         run: pnpm sst refresh --stage production
 
       - name: Deploy SST
         run: pnpm sst deploy --stage production
-
-  deploy-kubernetes:
-    concurrency:
-      group: deploy-kubernetes
-      cancel-in-progress: false
-    needs:
-      - detect-changes
-      - deploy-sst
-    if: |
-      always() &&
-      needs.detect-changes.outputs.kubernetes == 'true' &&
-      (needs.deploy-sst.result == 'success' || needs.deploy-sst.result == 'skipped')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Setup Tailscale
-        uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4.2.0
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
-
-      - name: Configure kubeconfig
-        run: |
-          PEERS=$(sudo tailscale status --peers) || { echo "tailscale status failed"; exit 1; }
-          if ! echo "$PEERS" | grep -q prod-cluster; then
-            echo "No cluster found — skipping deployment"
-            echo "SKIP_DEPLOY=true" >> "$GITHUB_ENV"
-            exit 0
-          fi
-          sudo tailscale configure kubeconfig prod-cluster
-
-      - name: Trigger ArgoCD Sync
-        if: env.SKIP_DEPLOY != 'true'
-        run: |
-          sudo kubectl annotate application prod-cluster \
-            argocd.argoproj.io/refresh=hard \
-            --overwrite \
-            --namespace argocd
-
-      - name: Wait for ArgoCD Sync
-        if: env.SKIP_DEPLOY != 'true'
-        run: |
-          for _ in {1..60}; do
-            STATUS=$(sudo kubectl get application prod-cluster -n argocd -o jsonpath='{.status.sync.status}')
-            if [ "${STATUS}" = "Synced" ]; then
-              echo "Sync successful"
-              exit 0
-            fi
-            ERROR=$(sudo kubectl get application prod-cluster -n argocd -o jsonpath='{.status.conditions[?(@.type=="ComparisonError")].message}')
-            if [ -n "$ERROR" ]; then
-              echo "Sync failed: ${ERROR}"
-              exit 1
-            fi
-            sleep 5
-          done
-          echo "Timed out waiting for sync"
-          exit 1

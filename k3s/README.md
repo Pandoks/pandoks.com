@@ -11,20 +11,18 @@ As it stands, the dev and prod clusters are hosted on Hetzner VPS's.
 
 ```
 k3s/
-  bootstrap/                 # Helm charts + CRD providers (deploy <env> --bootstrap)
-    core/                    # MetalLB, cert-manager, kube-prometheus-stack, HAProxy ingress
-    local/                   # core
-    dev/                     # core + system-upgrade-controller CRDs
-    prod/                    # core + ArgoCD + system-upgrade-controller CRDs
-  base/                      # Shared resources for every environment
-    core/                    # Namespaces, MetalLB pool, cert-manager issuers, credentials, RBAC
-    apps/                    # References to apps/*/kube
-    monitoring/              # HAProxy Grafana dashboards
-  overlays/                  # deploy <env> (includes base + bootstrap/<env>)
-    local/                   # k3d: MetalLB docker IPs, k3d etcd endpoints, apps/*/kube/dev-patch.yaml
-    cluster/                 # Shared by dev + prod: Tailscale operator, system upgrades, Hetzner etcd endpoints
-    dev/                     # cluster + bootstrap/dev
-    prod/                    # cluster + bootstrap/prod + ArgoCD SST plugin and Application
+  base/                      # App resources, shared core, dashboards, custom image fields
+  bootstrap/
+    core/                    # MetalLB, cert-manager, HAProxy, Prometheus/Grafana
+    local/                   # Core bootstrap for k3d
+    dev/                     # Core + upgrade-controller CRD
+    prod/                    # Core + Argo CD + upgrade-controller CRD
+  components/images/         # Native Kustomize image pins
+  overlays/
+    cluster/                 # Shared remote base, controllers, monitoring, node upgrades
+    local/                   # Full local stack and registry overrides
+    dev/                     # Dev cluster
+    prod/                    # Production cluster, Argo CD Application and renderer
 ```
 
 SST secrets are substituted inline (`${Secret}`) by `pnpm cluster deploy`. See
@@ -32,7 +30,10 @@ SST secrets are substituted inline (`${Secret}`) by `pnpm cluster deploy`. See
 
 ## Local Development
 
-For local development, we use [k3d](https://k3d.io/) to create a local k3s cluster.
+For local development, we use [k3d](https://k3d.io/) to create a local k3s cluster. Package images
+use the `images:` overrides in
+[`overlays/local/kustomization.yaml`](overlays/local/kustomization.yaml);
+[`charts-patch.yaml`](overlays/local/charts-patch.yaml) selects the local chart registry.
 
 To setup the cluster, run the following commands from the root of the project. Replace `your-stage`
 with your personal SST stage (for example, `pandoks`):
@@ -56,36 +57,63 @@ pnpm local:build && pnpm local:push
 # Install base infrastructure (helm charts + CRDs)
 ./scripts/cluster/main.sh deploy local --stage your-stage --bootstrap
 
-# Deploy local overlay (MetalLB IP patch + app dev patches; SST secrets substituted inline)
+# Deploy local overlay (MetalLB IP patch + app patches; SST secrets substituted inline)
 ./scripts/cluster/main.sh deploy local --stage your-stage
 ```
 
-## Cloud Clusters
+## Production
 
-The dev and prod clusters are provisioned by SST (`infra/vps`) with cloud-config that bootstraps
-k3s + tailscale. The tailscale operator provides secure access to the cluster API without needing
-SSH tunnels.
+Successful `main` builds publish `deploy/production`: CI builds the images and charts, waits for
+Checks, Tests, and Security on that commit, then writes its source and exact image/chart versions to
+the ref. Argo syncs production from it; there is no staging promotion step. CI publishes Git refs;
+Argo renders and applies them.
+
+All remote overlays use the image pins in
+[`components/images/kustomization.yaml`](components/images/kustomization.yaml). Kustomize matches
+values at the fields in [`base/image-fields.yaml`](base/image-fields.yaml). Add new images to the CI
+build matrix, shared pins, and local overrides. Deploy never queries a registry or generates image
+patches. Each deployment ref includes `SOURCE_REVISION` for traceability.
+
+### Bootstrap and manual recovery
+
+**Deploy Infrastructure** runs SST stage `production` on `main` pushes that touch SST code. CI
+deploys no other stage; deploy `dev` locally with `pnpm sst deploy --stage dev`. Configure node
+counts and stage credentials first; they remain zero. Bootstrap dev from a checkout of `main`:
 
 ```sh
-# Connect via tailscale (cluster appears as <stage>-cluster in your tailnet)
-tailscale configure kubeconfig <stage>-cluster
-kubectl --context <tailscale-context> get pods
-
-# Install base infrastructure (helm charts + CRDs)
-./scripts/cluster/main.sh deploy prod --bootstrap
-
-# Deploy overlay (tailscale operator + system-upgrade controller; SST secrets substituted inline)
-./scripts/cluster/main.sh deploy prod
+kubectl config use-context <preview-cluster-context>
+pnpm cluster deploy dev --stage dev --bootstrap
+pnpm cluster deploy dev --stage dev
 ```
 
-For dev, use `deploy dev --stage your-stage` in both commands, keeping `--bootstrap` on the first.
+For production, bootstrap from a checkout of `deploy/production`
+(`git fetch origin deploy/production`), which holds the built image pins and renderer, with its
+context and `deploy prod`. Manual deploys confirm the selected context; they never switch it.
+Bootstrap waits for CRDs and controllers. Argo uses `deploy prod --dry-run --quiet` to render the
+same manifests without applying.
 
-### ArgoCD (prod)
+```sh
+pnpm cluster deploy dev --stage dev --dry-run --quiet > rendered.yaml
+```
 
-`bootstrap/prod` installs ArgoCD, and `overlays/prod/argocd.yaml` adds the `prod-cluster`
-Application and a repo-server sidecar (`packages/argocd`) that renders kustomize with SST secrets.
-Once the first `deploy prod` creates it, ArgoCD syncs `k3s/overlays/prod` from `main`. The
-`deploy-infra.yaml` workflow triggers a hard refresh when `k3s/**` or `scripts/cluster/**` changes.
+### Stage identities
+
+| SST stage                      | Resource prefix | CLI target              |
+| ------------------------------ | --------------- | ----------------------- |
+| `production`                   | `prod`          | `prod`                  |
+| `dev`                          | `preview`       | `dev --stage dev`       |
+| Personal stage, e.g. `pandoks` | `dev`           | `local --stage pandoks` |
+
+Shared dev uses the `preview` prefix to preserve existing personal-stage and production identities.
+Its Tailscale hostname is `preview-cluster`. Argo credentials can read only their own SST stage; CI
+needs no Kubernetes credentials, and AWS trusts only the `production` GitHub environment and `main`.
+Existing clusters need the new overlay applied once; Git changes do not automatically remove old
+resources while remote infrastructure pruning is disabled.
+
+### Versioned cluster upgrades
+
+The upgrade controller and K3s Plan versions are pinned in Git. Update the shared bootstrap/overlay
+controller URLs together. Both clusters upgrade only in the weekend maintenance window.
 
 ## k9s
 
@@ -108,9 +136,9 @@ ports that we're exposing from `NodePort` to the host machine. This also mimics 
 production clusters because the cluster is inside a private networks and the only thing that is
 exposed is through a load balancer that points into the private network at the forwarded port.
 
-### Cloud Clusters
+### Remote clusters
 
-Cloud clusters are accessed via Tailscale. The tailscale operator exposes the API server to your
+Dev and production are accessed via Tailscale. The tailscale operator exposes the API server to your
 tailnet:
 
 ```sh
@@ -127,7 +155,7 @@ the VPS's.
 
 ### HAProxy Ingress Controller
 
-`bootstrap/core/haproxy-ingress.yaml` is a helm chart that installs the HAProxy ingress controller
+`bootstrap/core/haproxy-ingress.yaml` is a HelmChart that installs the HAProxy ingress controller
 and also configures `NodePort` services to expose to the Hetzner load balancer. Ports `30000-32767`
 are reserved ports just for `nodePort` services. The cluster is entirely in a private network so we
 only expose services via the load balancer which is exposed to the public internet but is also
@@ -181,17 +209,17 @@ spec:
 
 ## Monitoring (Prometheus + Grafana)
 
-The cluster uses kube-prometheus-stack for monitoring. The HelmChart is shared, and each environment
-patches in its etcd endpoints with a `HelmChartConfig` because they're environment-specific.
+The cluster uses kube-prometheus-stack for monitoring. Its shared HelmChart is in the bootstrap
+layer; environment overlays supply the different etcd endpoints through HelmChartConfig resources.
 
 ### Structure
 
 ```
-k3s/bootstrap/core/kube-prometheus-stack.yaml  → monitoring namespace, Grafana secret, HelmChart
-k3s/overlays/local/prom-etcd-config.yaml       → HelmChartConfig with k3d control plane IPs (172.30.0.4-6)
-k3s/overlays/cluster/prom-etcd-config.yaml     → HelmChartConfig with Hetzner IPs (10.0.1.10+)
-k3s/base/core/monitoring.yaml                  → Grafana service exposed via Tailscale (<stage>-grafana)
-k3s/base/monitoring/                           → HAProxy Grafana dashboards
+k3s/bootstrap/core/kube-prometheus-stack.yaml → shared HelmChart, Grafana secret, and configuration
+k3s/base/core/monitoring.yaml                  → Tailscale Service annotations
+k3s/base/monitoring/                           → shared Grafana dashboard ConfigMaps
+k3s/overlays/local/prom-etcd-config.yaml       → k3d etcd endpoints (172.30.0.4-6)
+k3s/overlays/cluster/prom-etcd-config.yaml     → Hetzner etcd endpoints (10.0.1.10+)
 ```
 
 ### etcd Metrics

@@ -4,16 +4,16 @@ metadata:
   name: main-postgres-main-cluster
   namespace: kube-system
 spec:
-  chart: oci://${ImageRegistry}/charts/postgres
+  chart: oci://ghcr.io/pandoks/charts/postgres
   version: 0.1.1
   targetNamespace: &namespace main
   createNamespace: true
   failurePolicy: abort
-  plainHTTP: ${IsLocal}
+  plainHTTP: false
   set:
     db: main
     namespace: *namespace
     credentials.secret: postgres-main-creds
     backup.path: kubernetes/main/postgres
-    backup.image: ${ImageRegistry}/pgbackrest:${ImageTag}
-    patroni.image: ${ImageRegistry}/patroni:${ImageTag}
+    backup.image: ghcr.io/pandoks/pgbackrest
+    patroni.image: ghcr.io/pandoks/patroni

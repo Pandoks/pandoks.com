@@ -129,9 +129,10 @@ The chart expects these to already be in the cluster (all provided by [k3s](/k3s
 
 ### 1. Create Secrets
 
-The database secret is also mounted by PgDog, so it needs a `users.toml` key. Add both secrets to
-[k3s/base/core/credentials.yaml](/k3s/base/core/credentials.yaml). The `${...}` values are SST
-secrets defined in [infra/secrets.ts](/infra/secrets.ts).
+The database secret is also mounted by PgDog, so it needs a `users.toml` key. Declare the `myapp`
+Namespace in the app's `namespaces.yaml` and add both secrets to its `credentials.yaml`, each listed
+in the app's `kustomization.yaml` (see [apps/example/kube](/apps/example/kube)). The `${...}` values
+are SST secrets defined in [infra/secrets.ts](/infra/secrets.ts).
 
 ```yaml
 apiVersion: v1
@@ -179,19 +180,19 @@ metadata:
   name: myapp-postgres-myapp-cluster
   namespace: kube-system
 spec:
-  chart: oci://${ImageRegistry}/charts/postgres
+  chart: oci://ghcr.io/pandoks/charts/postgres
   version: 0.1.1
   targetNamespace: &namespace myapp
   createNamespace: true
   failurePolicy: abort
-  plainHTTP: ${IsLocal}
+  plainHTTP: false
   set:
     db: myapp
     namespace: *namespace
     credentials.secret: postgres-myapp-creds
     backup.path: kubernetes/myapp/postgres
-    backup.image: ${ImageRegistry}/pgbackrest:${ImageTag}
-    patroni.image: ${ImageRegistry}/patroni:${ImageTag}
+    backup.image: ghcr.io/pandoks/pgbackrest
+    patroni.image: ghcr.io/pandoks/patroni
     patroni.shards: 1
     patroni.replicasPerShard: 3
 ```

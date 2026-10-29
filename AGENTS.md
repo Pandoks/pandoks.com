@@ -29,10 +29,9 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
 1. **Changing production by hand.** Production (the SST `production` stage and the prod cluster)
    changes when `main` does. Read it to diagnose, but change it no other way: no SST command against
    it, not even `sst diff`, no `pnpm cluster deploy prod`, not even `--dry-run`, no
-   `gh workflow run deploy-infra.yaml` (it deploys `production`, and its Kubernetes job
-   hard-refreshes prod), and no `kubectl` write to prod, Argo refreshes, syncs, and restarts
-   included. If production needs a manual fix, even when I say ship now, propose the exact command,
-   target, and effect, then wait.
+   `gh workflow run deploy-infra.yaml` (it deploys `production`), no push to `deploy/production`,
+   and no `kubectl` write to prod, Argo refreshes, syncs, and restarts included. If production needs
+   a manual fix, even when I say ship now, propose the exact command, target, and effect, then wait.
 2. **Deploying a stage by accident.** Pass `--stage <stage>` (or `SST_STAGE`) to every `sst` and
    `pnpm cluster deploy` command; mine is `pandoks`. For the site, run `pnpm exec portless doctor`
    before `pnpm --filter web dev`, which can start a missing proxy with `sudo`; if doctor prints a
@@ -59,21 +58,28 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
 
 ## How changes ship
 
-- PRs run `checks.yaml`, `tests.yaml`, `security.yaml`, and `build-and-publish.yaml` (branch-tagged
-  GHCR images and charts), a Cloudflare Pages preview of `apps/web`, and `claude-review.yaml` (one
-  Agent SDK `/code-review` per PR, posted as one review with inline comments). Required checks are
-  the `*-pass` aggregates.
-- GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
-  deleted branch's versions and untagged orphans are deleted.
+- PRs run `checks.yaml`, `tests.yaml`, `security.yaml`, and `build-and-publish.yaml` (builds images
+  and charts; publishes them only from `main`), a Cloudflare Pages preview of `apps/web`, and
+  `claude-review.yaml` (one Agent SDK `/code-review` per PR, posted as one review with inline
+  comments). Required checks are the `*-pass` aggregates.
+- GHCR keeps every `main` image and chart version, since chart defaults and `deploy/production` pin
+  their digests. Only a deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
-  `infra/`, `apps/` (except `desktop-template` and `example`), and `packages/svelte/`, plus an Argo
-  hard refresh only for `k3s/` and `scripts/cluster/` changes. Pages builds `apps/web` when a change
+  `infra/`, `pnpm-lock.yaml`, `apps/` (except `desktop-template` and `example`), and
+  `packages/svelte/`. Once Checks, Tests, and Security pass, `build-and-publish.yaml` writes the
+  commit and exact image digests to `deploy/production`. Pages builds `apps/web` when a change
   matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod`
-  renders but never prunes: a deleted resource stays in prod until pruned by hand.
-- Every non-production stage gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
-  environment, so two non-production stages collide.
-- Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
-  staging tier, promotion step, or per-PR cluster.
+  renders from `deploy/production` but never prunes: a deleted resource stays in prod until pruned
+  by hand.
+- The shared `dev` stage (`isSharedDev` in `infra/dns.ts`) gets `STAGE_NAME` `preview` and
+  `preview.pandoks.com`. Every other non-production stage gets `STAGE_NAME` `dev` and
+  `dev.pandoks.com`, so two personal stages collide. All non-production stages share the `dev`
+  GitHub environment, which AWS doesn't trust.
+- Stage `dev` owns proxied `*.pandoks.com` records and origin cert, because Universal SSL covers
+  only first-level preview hosts. Once it has load balancers, any `pandoks.com` host without its own
+  record reaches the dev cluster, which holds that cert's key.
+- Labeled PR previews are planned, not built. Keep two cloud clusters, prod and dev: no staging
+  tier, promotion step, or per-PR cluster.
 - PRs get no infra diff: `sst diff` decrypts every secret, so never run it with production
   credentials off `main`.
 
@@ -92,7 +98,8 @@ checkout. The SST CLI is `pnpm sst`.
   or `infra/` shows hundreds of false type errors.
 - `pnpm check` type-checks every package, `infra/`, and `sst.config.ts`.
 - Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, and `desktop-template`;
-  `pnpm --filter <package> test` for `prettier` and `valkey`.
+  `pnpm --filter <package> test` for `prettier` and `valkey`;
+  `python3 -B -m unittest discover -s scripts/ci/tests` for `scripts/ci`.
 - Scoped: `pnpm exec prettier --check <files>`, `pnpm exec eslint [--fix] <files>`, `shellcheck`,
   `shfmt -d`, `hadolint`, `actionlint`, `pnpm --filter "...[origin/main]" --if-present check`. That
   filter and the shell and Docker format and lint commands see only tracked files, so check new
@@ -136,7 +143,7 @@ checkout. The SST CLI is `pnpm sst`.
 Before calling infra, cluster, or tooling work done, check:
 
 - **Environments:** no per-environment commands; local k3d, dev, and prod differ only in overlays,
-  variables, and `isProduction` branches.
+  variables, and `isProduction` or `isSharedDev` branches.
 - **Wiring and pins:** the wiring and Renovate rules under Code Review Rules. New pins are exact
   versions (`pnpm add -E`). Pin each copy of a shared version and let Renovate sync them; never read
   or symlink one from another. Gate risky bumps behind Dependency Dashboard approval instead of
@@ -167,11 +174,12 @@ Before calling infra, cluster, or tooling work done, check:
 - **Containers and manifests:** pin Dockerfile bases, third-party images, and chart defaults as
   `image:tag@sha256:…` in files a Renovate manager matches; no image lock files. Images in raw
   manifests in `k3s/` aren't matched yet, so add a `kubernetes` `managerFilePatterns` entry to
-  `renovate.json` before pinning an image there. First-party images in `apps/*/kube` stay
-  `${ImageRegistry}/<img>:${ImageTag}`. Prefer copying official binaries from official images. Use
-  `.yaml`, with anchors only for values that must stay equal. Default unset or off-by-default
-  `values.yaml` options to `~` (no `enabled` switch) under an `# options:` comment listing the
-  choices.
+  `renovate.json` before pinning an image there. First-party images in `apps/*/kube` are bare
+  `ghcr.io/pandoks/<img>` names: `k3s/components/images` pins their digests for remote overlays, and
+  the local overlay's `images:` points them at the local registry. Prefer copying official binaries
+  from official images. Use `.yaml`, with anchors only for values that must stay equal. Default
+  unset or off-by-default `values.yaml` options to `~` (no `enabled` switch) under an `# options:`
+  comment listing the choices.
 
 ## Git and pull requests
 
@@ -207,8 +215,9 @@ that can't happen, or for compatibility code for old data or deploy order during
   scripts or workflows, weakened `protect` or `retain`, or stage checks that confuse production with
   other stages. The existing `deploy-infra.yaml` dispatch and `pnpm cluster deploy prod` recovery
   paths are intended; new callers of them aren't, except local `--dry-run` previews, tests that stub
-  SST and `kubectl`, and Argo Applications in the `prod` overlay that render `main`. Safe path:
-  `isProduction` in `infra/` and the `prod` overlay in `k3s/`.
+  SST and `kubectl`, and Argo Applications in the `prod` overlay that render `deploy/production`,
+  which only `build-and-publish.yaml` on `main` writes. Safe path: `isProduction` in `infra/` and
+  the `prod` overlay in `k3s/`.
 - A new pin (a version or digest added where none was, not a bump) that Renovate can't update, or a
   new third-party download or image with no version (`releases/latest`, `:latest`). Exceptions: a
   chart's own `version:` in `Chart.yaml` and an `appVersion` that sets no image tag or download,
@@ -225,20 +234,18 @@ that can't happen, or for compatibility code for old data or deploy order during
   `sst.Secret` names, `${...}` placeholders, and `${{ secrets.* }}` are fine.
 - A swallowed failure in CI checks, scans, builds, or deploys, such as `|| true`, ignored exit
   codes, Trivy `exit-code: '0'`, or `continue-on-error`. Safe path: let the step fail. Intended
-  exceptions: a known upstream bug with a `TODO:` linking the issue (like `sst refresh` in
-  `deploy-infra.yaml`) and the best-effort `rollout status ... || true` waits in
-  `scripts/cluster/deploy.sh`. Lint suppressions like `# hadolint ignore=` aren't swallowed
-  failures.
+  exception: a known upstream bug with a `TODO:` linking the issue (like `sst refresh` in
+  `deploy-infra.yaml`). Lint suppressions like `# hadolint ignore=` aren't swallowed failures.
 - Missing wiring, because the thing silently never gets built, tested, deployed, or scanned, and a
   skipped path-filtered job still passes its required check:
   - a new `infra/` module outside `sst.config.ts`'s import graph;
   - a new app `kube/` directory missing from `k3s/base/apps`;
-  - a new `${...}` manifest placeholder with no matching SST resource or computed variable in
-    `scripts/cluster/deploy.sh`, which `pnpm cluster deploy` and Argo apply as literal text (fine
-    for shell variables in embedded scripts);
+  - a new `${...}` manifest placeholder with no matching SST resource, which fails every render of
+    its overlay (write shell variables in embedded scripts as `$var`);
   - a new first-party image or chart missing from `build-and-publish.yaml`'s path filters or matrix,
     or from the `branch-cleanup.yaml` and `maintenance.yaml` matrices, or a new first-party image
-    missing from the `security.yaml` scan;
+    missing from `k3s/components/images`, the local overlay's `images:`, or the `security.yaml`
+    scan;
   - a new tested package missing its filter and job in `tests.yaml`, a new CI job missing from its
     `*-pass` aggregate's `needs` (scheduled-only jobs excepted), or a new aggregate missing from
     `requiredStatusChecks` in `infra/github.ts`;

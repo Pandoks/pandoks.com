@@ -4,3 +4,5 @@ resources:
   - ../cluster
   - ../../bootstrap/prod
   - argocd.yaml
+components:
+  - ../../components/images

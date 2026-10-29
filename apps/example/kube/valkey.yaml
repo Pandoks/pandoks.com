@@ -4,17 +4,17 @@ metadata:
   name: main-valkey-main-cluster
   namespace: kube-system
 spec:
-  chart: oci://${ImageRegistry}/charts/valkey
+  chart: oci://ghcr.io/pandoks/charts/valkey
   version: 0.1.1
   targetNamespace: &namespace main
   createNamespace: true
   failurePolicy: abort
-  plainHTTP: ${IsLocal}
+  plainHTTP: false
   set:
     name: main
     namespace: *namespace
-    image: ${ImageRegistry}/valkey:${ImageTag}
-    cluster.reconcilerImage: ${ImageRegistry}/valkey-reconciler:${ImageTag}
+    image: ghcr.io/pandoks/valkey
+    cluster.reconcilerImage: ghcr.io/pandoks/valkey-reconciler
     cluster.masters: 1
     cluster.replicasPerMaster: 0
     credentials.secret: valkey-main-creds

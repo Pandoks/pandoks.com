@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+configurations:
+  - ../../base/image-fields.yaml
+images:
+  - name: ghcr.io/pandoks/argocd-sst-plugin
+    digest: sha256:6ac47427d21c400c77c85cf2570e288ca03672b6d560619fa05901689b9bd7a8
+  - name: ghcr.io/pandoks/clickhouse
+    digest: sha256:9c3bdb4117812ac7a46e583754c18d63d4e78f7f3dfb700c453670047f9417c8
+  - name: ghcr.io/pandoks/clickhouse-backup
+    digest: sha256:692e2dff2618e55c182ebbe4fa2a723a18a1603caf1252fc8ff7d739c3993ce1
+  - name: ghcr.io/pandoks/clickhouse-keeper
+    digest: sha256:58a7240eb649c6a91d40e8941a77f15501685c93ac345b678a98ccb9dca4fda3
+  - name: ghcr.io/pandoks/patroni
+    digest: sha256:ea705a1d123ccb1fc57b9c4d3993879a23e7bf814e1f0479b5df94900eb56fbb
+  - name: ghcr.io/pandoks/pgbackrest
+    digest: sha256:875fd9038f6f32777ce3f9f86fc33e0c4ac36c9bf70035db508d9d402456f25a
+  - name: ghcr.io/pandoks/valkey
+    digest: sha256:6d449d693921a31dd80d6f4373a3ec9e7869a6f2ea8a1a6800cbca618ba56e9a
+  - name: ghcr.io/pandoks/valkey-reconciler
+    digest: sha256:dcc64f2671be7921dc12a19b834c4c494963b8a90af3e58463578373446ce713

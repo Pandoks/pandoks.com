@@ -13,19 +13,20 @@ metadata:
   name: <namespace>-valkey-<name>-cluster
   namespace: kube-system # the helm chart controller that k3s uses needs to be in the kube-system namespace
 spec:
-  chart: oci://${ImageRegistry}/charts/valkey
+  chart: oci://ghcr.io/pandoks/charts/valkey
   version: 0.1.1
   targetNamespace: &namespace <namespace>
   createNamespace: true
   failurePolicy: abort
-  plainHTTP: ${IsLocal}
+  plainHTTP: false
   set:
     namespace: *namespace
     field: string value
 ```
 
-`${ImageRegistry}`, `${ImageTag}`, and `${IsLocal}` are substituted by `pnpm cluster deploy`, so the
-same manifest pulls from `local-registry:5000` locally and `ghcr.io/pandoks` in the cloud. See
+Manifests name `ghcr.io/pandoks` images and charts. Remote overlays pin image digests from
+[k3s/components/images](/k3s/components/images/kustomization.yaml), and the local overlay points
+images and charts at `local-registry:5000`. See
 [apps/example/kube/valkey.yaml](/apps/example/kube/valkey.yaml) for a full example.
 
 The default values are in [values.yaml](./chart/values.yaml). The common values to set are:
@@ -35,8 +36,8 @@ spec:
   set:
     name: <name>
     namespace: <namespace>
-    image: ${ImageRegistry}/valkey:${ImageTag}
-    cluster.reconcilerImage: ${ImageRegistry}/valkey-reconciler:${ImageTag}
+    image: ghcr.io/pandoks/valkey
+    cluster.reconcilerImage: ghcr.io/pandoks/valkey-reconciler
     persistence: ~ # No persistence by default (options: rdb,aof | rdb | aof | ~)
     cluster.masters: <number of masters>
     cluster.replicasPerMaster: <number of replicas per master>
@@ -85,16 +86,17 @@ ones.
 
 ### Local Development
 
-The registry and tag are templated, so local patches only need to make the hook jobs fail fast and
-stick around for debugging. Put them in the app's `dev-patch.yaml`. If you have multiple valkey
-clusters, you put all of the patches in the same file:
+For local development, the [local overlay](/k3s/overlays/local/kustomization.yaml) overrides images
+with `images:`; [charts-patch.yaml](/k3s/overlays/local/charts-patch.yaml) selects the chart
+registry. If your valkey chart needs extra local-only tweaks (like hook behavior), add a patch for
+it in `k3s/overlays/local`:
 
 ```yaml
-# apps/<app>/kube/dev-patch.yaml
+# k3s/overlays/local/<your>-patch.yaml
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
 metadata:
-  name: <namespace>-valkey-<name>-cluster
+  name: main-valkey-main-cluster
   namespace: kube-system
 spec:
   set:
@@ -104,14 +106,13 @@ spec:
     hooks.hookDeletePolicy: before-hook-creation
 ```
 
-_If you haven't already, remember to add all `dev-patch.yaml` files to the `patches` in the
+_Register any new patch file under `patches:` in the
 [/k3s/overlays/local/kustomization.yaml](/k3s/overlays/local/kustomization.yaml) file._
 
 #### Images & Helm Charts
 
-You'll have to build and push the images and chart at least once before the local k3d cluster can
-pull them from the local registry (`localhost:12345` on your machine, `local-registry:5000` inside
-the cluster):
+Build and push the images and chart at least once before the local k3d cluster can pull them from
+the local registry (`localhost:12345` on your machine, `local-registry:5000` inside the cluster):
 
 ```sh
 pnpm local:build && pnpm local:push

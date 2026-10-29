@@ -66,63 +66,44 @@ usage_deps() {
 
 usage_deploy() {
   printf "%bUsage:%b %s deploy <local|dev|prod> [options]\n\n" "${BOLD}" "${NORMAL}" "$0" >&2
-  printf "Deploy environment overlay to cluster.\n\n" >&2
-  printf "This command:\n" >&2
-  printf "  1. Runs kustomize build on the specified target\n" >&2
-  printf "  2. Substitutes SST secrets and computed variables\n" >&2
-  printf "  3. Applies to the cluster with server-side apply\n" >&2
-  printf "  4. Waits for CRDs to be established (bootstrap only)\n\n" >&2
+  printf "Render Kustomize, substitute SST values, and apply to the selected kubectl context.\n\n" >&2
 
   printf "%bEnvironments:%b\n" "${BOLD}" "${NORMAL}" >&2
-  printf "  %blocal%b\n" "${GREEN}" "${NORMAL}" >&2
-  printf "      Deploy to local k3d cluster with:\n" >&2
-  printf "        - ImageRegistry: local-registry:5000\n" >&2
-  printf "        - ImageTag: latest\n" >&2
-  printf "        - IsLocal: true\n\n" >&2
-  printf "  %bdev%b\n" "${GREEN}" "${NORMAL}" >&2
-  printf "      Deploy to dev cloud cluster with:\n" >&2
-  printf "        - ImageRegistry: ghcr.io/pandoks\n" >&2
-  printf "        - ImageTag: <branch-name> (or 'latest' on main/master)\n" >&2
-  printf "        - IsLocal: false\n\n" >&2
-  printf "  %bprod%b\n" "${GREEN}" "${NORMAL}" >&2
-  printf "      Deploy to production cloud cluster with:\n" >&2
-  printf "        - ImageRegistry: ghcr.io/pandoks\n" >&2
-  printf "        - ImageTag: latest\n" >&2
-  printf "        - IsLocal: false\n" >&2
-  printf "        - SST stage forced to 'production'\n\n" >&2
+  printf "  %blocal%b      Local registry images/charts; SST's default stage\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bdev%b        Dev cluster; declared image pins; SST's default stage\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bprod%b       Production cluster; declared image pins; SST stage production\n\n" "${GREEN}" "${NORMAL}" >&2
+  printf "Argo deploys successful main builds to production.\n" >&2
+  printf "Use this command for bootstrap, local work, and manual recovery.\n\n" >&2
 
   printf "%bOptions:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %b--bootstrap%b\n" "${YELLOW}" "${NORMAL}" >&2
-  printf "      Apply the bootstrap kustomize path (k3s/bootstrap/<env>) instead of\n" >&2
-  printf "      the overlay (k3s/overlays/<env>). Installs helm charts / CRD providers\n" >&2
-  printf "      and waits for CRDs. Run this first on a fresh cluster, then run deploy\n" >&2
-  printf "      again without --bootstrap to apply the overlay.\n\n" >&2
+  printf "      Apply k3s/bootstrap/<env>; wait for Established CRDs and rollouts.\n" >&2
+  printf "      Run once on a fresh cluster, then apply the full overlay.\n\n" >&2
   printf "  %b--stage%b <STAGE>\n" "${YELLOW}" "${NORMAL}" >&2
-  printf "      SST stage to fetch secrets from (default: SST's default stage;\n" >&2
-  printf "      forced to 'production' for the prod environment)\n\n" >&2
+  printf "      SST stage (local/dev: SST default; prod: forced production).\n\n" >&2
   printf "  %b--dry-run%b\n" "${YELLOW}" "${NORMAL}" >&2
-  printf "      Show rendered YAML without applying to cluster\n\n" >&2
+  printf "      Render YAML; skip confirmation, apply, and waits.\n\n" >&2
   printf "  %b--kubeconfig%b <PATH>\n" "${YELLOW}" "${NORMAL}" >&2
-  printf "      Kubeconfig file for kubectl operations\n\n" >&2
+  printf "      Kubeconfig for kubectl operations.\n\n" >&2
   printf "  %b--quiet%b, %b-q%b\n" "${YELLOW}" "${NORMAL}" "${YELLOW}" "${NORMAL}" >&2
-  printf "      Suppress status messages, output only YAML (for CI/CD)\n\n" >&2
+  printf "      Hide info logs and the dry-run heading. Prompts and errors remain visible.\n\n" >&2
+
+  printf "Renders need SST and standalone Kustomize; pinned remote resources need network access.\n" >&2
+  printf "Image versions come from manifests; deploy does not build or query a registry.\n\n" >&2
 
   printf "%bTemplate Variables:%b\n" "${BOLD}" "${NORMAL}" >&2
-  printf "  \${ImageRegistry}     - Container registry (local or GHCR)\n" >&2
-  printf "  \${ImageTag}          - Image tag (latest or branch name)\n" >&2
-  printf "  \${IsLocal}           - 'true' or 'false' for conditional logic\n" >&2
-  printf "  \${<SST Resource>}    - Any SST resource by name\n" >&2
-  printf "  \${<Secret> | base64} - Base64 encode a secret value\n\n" >&2
+  printf "  \${<SST Resource>}    Exported SST value by resource name\n" >&2
+  printf "  \${<Secret> | quote}  Quote a secret for YAML\n" >&2
+  printf "  \${<Secret> | base64} Base64 encode a secret\n" >&2
+  printf "Missing or empty referenced SST values stop rendering.\n\n" >&2
 
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
-  printf "  # First-time cluster setup (bootstrap, then overlay):\n" >&2
+  printf "  %s deploy local --bootstrap\n" "$0" >&2
+  printf "  %s deploy local\n" "$0" >&2
   printf "  %s deploy dev --bootstrap\n" "$0" >&2
-  printf "  %s deploy dev\n\n" "$0" >&2
-  printf "  # Regular deployments:\n" >&2
   printf "  %s deploy dev\n" "$0" >&2
-  printf "  %s deploy dev --dry-run\n" "$0" >&2
-  printf "  %s deploy prod\n" "$0" >&2
-  printf "  %s deploy prod --kubeconfig ~/.kube/prod-config\n\n" "$0" >&2
+  printf "  %s deploy prod --kubeconfig ~/.kube/prod-config\n" "$0" >&2
+  printf "  %s deploy dev --dry-run --quiet > rendered.yaml\n\n" "$0" >&2
 
   exit "${1:-0}"
 }

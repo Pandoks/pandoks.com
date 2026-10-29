@@ -1,8 +1,7 @@
 # Cluster CLI
 
 This directory contains the shell-based CLI used for managing local k3d clusters, shared
-dependencies, and Kubernetes resources during development. All commands are POSIX-compliant `sh`
-scripts—no Bash-specific features are required.
+dependencies, and Kubernetes resources. The cluster scripts use POSIX `sh`.
 
 ## Entry Point
 
@@ -44,39 +43,46 @@ detailed options. Package scripts in `package.json` are wired directly to
 ./scripts/cluster/main.sh deploy <local|dev|prod> [--bootstrap] [--stage <STAGE>] [--dry-run] [--kubeconfig <PATH>] [--quiet]
 ```
 
-Without `--bootstrap`, deploys the **overlay** at `k3s/overlays/<env>`. With `--bootstrap`, deploys
-the **bootstrap layer** at `k3s/bootstrap/<env>` instead (helm charts, CRDs, base resources). The
-two are separate kustomize paths — to deploy a fresh cluster end-to-end, run
-`deploy <env> --bootstrap` first, then `deploy <env>` again without the flag.
+Deploy uses `k3s/overlays/<env>` by default. On a fresh cluster, run `--bootstrap` first, then
+deploy without it. Overlays include bootstrap resources but skip bootstrap waits.
 
-| Environment | Description                                                                                                       |
-| ----------- | ----------------------------------------------------------------------------------------------------------------- |
-| `local`     | Local k3d cluster. ImageRegistry: `local-registry:5000`, ImageTag: `latest`.                                      |
-| `dev`       | Dev cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: branch name (or `latest` on main/master).          |
-| `prod`      | Production cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: `latest`. SST stage forced to `production`. |
+| Environment | Description                                                      |
+| ----------- | ---------------------------------------------------------------- |
+| `local`     | Local images/charts; SST's default stage.                        |
+| `dev`       | Dev cluster; declared image pins; SST's default stage.           |
+| `prod`      | Production cluster; declared image pins; SST stage `production`. |
 
-| Option         | Description                                                                                          |
-| -------------- | ---------------------------------------------------------------------------------------------------- |
-| `--bootstrap`  | Apply `k3s/bootstrap/<env>` (helm charts + CRD providers) and wait for CRDs.                         |
-| `--stage`      | SST stage to fetch secrets from (default: SST's default stage; forced to `production` for prod env). |
-| `--dry-run`    | Render templates without applying.                                                                   |
-| `--kubeconfig` | Kubeconfig file for kubectl operations.                                                              |
-| `--quiet`/`-q` | Suppress status messages; with `--dry-run`, output only YAML.                                        |
+| Option         | Description                                            |
+| -------------- | ------------------------------------------------------ |
+| `--bootstrap`  | Apply bootstrap resources; wait for CRDs and rollouts. |
+| `--stage`      | Override the SST stage; prod always uses `production`. |
+| `--dry-run`    | Render YAML; skip confirmation, apply, and waits.      |
+| `--kubeconfig` | Kubeconfig file for kubectl.                           |
+| `--quiet`/`-q` | Hide info logs and the dry-run heading.                |
 
-You will be prompted to confirm the destination kubectl context before anything is applied (unless
-using `--dry-run`).
+Options can be combined. The selected kubeconfig/context chooses the actual cluster; manual deploys
+ask for confirmation. `--dry-run --quiet` prints only YAML.
+
+Renders need SST and standalone Kustomize; pinned remote resources need network access. Images are
+declared in Kustomize; deploy does not build images or query registries. Bootstrap failures stop the
+command. Dev/prod also wait for upgrade CRDs, and prod for Argo CD.
+
+CI builds images/charts and publishes `deploy/production` from successful `main` builds; Argo uses
+this CLI to render it. Manual commands handle bootstrap and recovery; see
+[the remote workflow](../../k3s/README.md).
 
 ### Template Variables
 
 The `deploy` command renders templates with these substitutions before applying:
 
-| Variable                | Description                                  |
-| ----------------------- | -------------------------------------------- |
-| `${ImageRegistry}`      | Container registry (local-registry or GHCR). |
-| `${ImageTag}`           | Image tag (latest or branch name).           |
-| `${IsLocal}`            | `'true'` or `'false'` for conditional logic. |
-| `${<SST Resource>}`     | Any SST resource by name.                    |
-| `${<Secret> \| base64}` | Base64 encode a secret value.                |
+| Variable                | Description                          |
+| ----------------------- | ------------------------------------ |
+| `${<SST Resource>}`     | Exported SST value by resource name. |
+| `${<Secret> \| quote}`  | Quote a secret value.                |
+| `${<Secret> \| base64}` | Base64 encode a secret value.        |
+
+SST exports `value`, falling back to `name`; resources with neither are omitted. Rendering fails if
+a referenced SST value is missing or empty.
 
 ## Examples
 
@@ -102,32 +108,30 @@ pnpm local:build && pnpm local:push
 ./scripts/cluster/main.sh k3d deps down
 ```
 
-### Cloud Cluster (Hetzner via Tailscale)
+### Remote Cluster (Hetzner via Tailscale)
+
+Provision SST stage `dev` locally (`pnpm sst deploy --stage dev`) or `production` (Deploy
+Infrastructure, automatic from `main`). Production bootstraps from a checkout of
+`deploy/production`. Shared dev uses the `preview` resource prefix and Tailscale hostname
+`preview-cluster`, preserving personal SST stages' existing names.
 
 ```sh
-# Switch to the prod cluster context in your tailnet
-tailscale configure kubeconfig prod-cluster
+# Switch to the shared dev cluster context in your tailnet (prod-cluster for production)
+tailscale configure kubeconfig preview-cluster
 
-# Two-step deploy on a fresh cluster
-./scripts/cluster/main.sh deploy prod --bootstrap
-./scripts/cluster/main.sh deploy prod
-
-# Re-apply just the overlay (no bootstrap) on subsequent deploys
-./scripts/cluster/main.sh deploy prod
+# Two-step deploy on a fresh dev cluster (use prod for production)
+./scripts/cluster/main.sh deploy dev --stage dev --bootstrap
+./scripts/cluster/main.sh deploy dev --stage dev
 ```
 
-For dev, connect to `dev-cluster` and use `deploy dev --stage your-stage` in both steps, keeping
-`--bootstrap` on the first.
-
-The first prod overlay deploy creates the `prod-cluster` ArgoCD Application, which then keeps prod
-in sync with `k3s/overlays/prod` on `main` (`deploy-infra.yaml` triggers a hard refresh when
-`k3s/**` or `scripts/cluster/**` changes).
-
-### Preview Without Applying
+### Render Without Applying
 
 ```sh
 ./scripts/cluster/main.sh deploy prod --dry-run
 ./scripts/cluster/main.sh deploy prod --bootstrap --dry-run
+
+# Save YAML-only stdout; errors go to stderr
+./scripts/cluster/main.sh deploy prod --dry-run --quiet > rendered.yaml
 ```
 
 ---
