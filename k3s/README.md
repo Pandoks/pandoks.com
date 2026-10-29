@@ -51,9 +51,8 @@ Or step by step:
 # Create k3d cluster
 ./scripts/cluster/main.sh k3d up
 
-# Build and push local images/charts
-pnpm local:build
-pnpm local:push
+# Build and push images/helm charts to the local registry
+pnpm local:build && pnpm local:push
 
 # Install base infrastructure (helm charts + CRDs)
 ./scripts/cluster/main.sh deploy local --stage your-stage --bootstrap
