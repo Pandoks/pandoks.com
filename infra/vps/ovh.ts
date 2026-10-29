@@ -215,6 +215,4 @@ export function createOvhCluster(pools: NodePool<OvhServer>[]) {
     );
     nodeResources.push(dedicatedServer);
   }
-
-  return { controlPlaneLoadBalancers: [], workerLoadBalancers: [] };
 }

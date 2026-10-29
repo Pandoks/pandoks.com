@@ -5,8 +5,8 @@ are not hosted in this cluster are hosted either in AWS or Cloudflare usually fo
 applications. For databases, it is better to use a managed database as it reduces the operational
 overhead.
 
-As it stands, the dev and prod clusters are hosted on Hetzner VPS's. `infra/vps` can also build them
-on OVHcloud or Latitude.sh bare metal.
+`infra/vps` builds the dev and prod clusters on OVHcloud VMs and bare metal or on Latitude.sh bare
+metal. Both stages have no nodes yet.
 
 ## Directory Structure
 
@@ -23,7 +23,7 @@ k3s/
     monitoring/              # HAProxy Grafana dashboards
   overlays/                  # deploy <env> (includes base + bootstrap/<env>)
     local/                   # k3d: MetalLB docker IPs, k3d etcd endpoints, apps/*/kube/dev-patch.yaml
-    cluster/                 # Shared by dev + prod: Tailscale operator, system upgrades, Hetzner etcd endpoints
+    cluster/                 # Shared by dev + prod: Tailscale operator, system upgrades, etcd endpoints
     dev/                     # cluster + bootstrap/dev
     prod/                    # cluster + bootstrap/prod + ArgoCD SST plugin and Application
 ```
@@ -67,16 +67,15 @@ The dev and prod clusters are provisioned by SST (`infra/vps`) with cloud-config
 k3s + tailscale. The tailscale operator provides secure access to the cluster API without needing
 SSH tunnels.
 
-`CLUSTER` at the top of `infra/vps/vps.ts` defines each stage's cluster: a provider (`hetzner`,
-`ovh`, or `latitude`) and pools of identical servers, each with a name, a role, a count, the
-provider's server (a Hetzner server type, an OVHcloud VM flavor or bare metal plan, or a Latitude
-plan), and optional node labels and taints. Locations and private network settings sit at the top of
-`infra/vps/<provider>.ts`. The control plane takes 10.0.1.10-19, and each worker pool takes the
-10.0.N.0/24 hashed from its name, so renaming a pool rebuilds it. The `database` pool joins with the
-`role=db` label and `role=db:NoSchedule` taint, so pin the database charts with
-`nodeSelector.role: db` and a matching toleration. Latitude reads its API token from
-`LATITUDESH_AUTH_TOKEN`. Public ingress is still Hetzner's load balancers; OVHcloud and Latitude
-clusters have none yet.
+`CLUSTER` at the top of `infra/vps/vps.ts` defines each stage's cluster: a provider (`ovh` or
+`latitude`) and pools of identical servers, each with a name, a role, a count, the provider's server
+(an OVHcloud VM flavor or bare metal plan, or a Latitude plan), and optional node labels and taints.
+Locations and private network settings sit at the top of `infra/vps/<provider>.ts`. The control
+plane takes 10.0.1.10-19, and each worker pool takes the 10.0.N.0/24 hashed from its name, so
+renaming a pool rebuilds it. The `database` pool joins with the `role=db` label and
+`role=db:NoSchedule` taint, so pin the database charts with `nodeSelector.role: db` and a matching
+toleration. Latitude reads its API token from `LATITUDESH_AUTH_TOKEN`. A stage with no nodes creates
+nothing at its provider. Neither provider has public ingress yet.
 
 ```sh
 # Connect via tailscale (cluster appears as <stage>-cluster in your tailnet)
@@ -140,10 +139,9 @@ the VPS's.
 ### HAProxy Ingress Controller
 
 `bootstrap/core/haproxy-ingress.yaml` is a helm chart that installs the HAProxy ingress controller
-and also configures `NodePort` services to expose to the Hetzner load balancer. Ports `30000-32767`
-are reserved ports just for `nodePort` services. The cluster is entirely in a private network so we
-only expose services via the load balancer which is exposed to the public internet but is also
-connected to the private network.
+and also configures `NodePort` services for public traffic. Ports `30000-32767` are reserved ports
+just for `nodePort` services, and the nodes' firewall drops them on public interfaces, so public
+traffic needs a way in that OVHcloud and Latitude clusters don't have yet.
 
 Example `Ingress` resource:
 
@@ -201,7 +199,7 @@ patches in its etcd endpoints with a `HelmChartConfig` because they're environme
 ```
 k3s/bootstrap/core/kube-prometheus-stack.yaml  → monitoring namespace, Grafana secret, HelmChart
 k3s/overlays/local/prom-etcd-config.yaml       → HelmChartConfig with k3d control plane IPs (172.30.0.4-6)
-k3s/overlays/cluster/prom-etcd-config.yaml     → HelmChartConfig with Hetzner IPs (10.0.1.10+)
+k3s/overlays/cluster/prom-etcd-config.yaml     → HelmChartConfig with control plane IPs (10.0.1.10+)
 k3s/base/core/monitoring.yaml                  → Grafana service exposed via Tailscale (<stage>-grafana)
 k3s/base/monitoring/                           → HAProxy Grafana dashboards
 ```
@@ -211,7 +209,7 @@ k3s/base/monitoring/                           → HAProxy Grafana dashboards
 k3s embedded etcd requires `--etcd-expose-metrics` flag to expose metrics on port 2381:
 
 - **k3d**: Set via `--k3s-arg "--etcd-expose-metrics@server:*"` in `scripts/cluster/k3d.sh`
-- **Hetzner**: Set in `infra/vps/cloud-config.yaml`
+- **Cloud clusters**: Set in `infra/vps/cloud-config.yaml`
 
 The kube-prometheus-stack `kubeEtcd.endpoints` must list control plane IPs explicitly because k3s
 doesn't create pods with `component=etcd` labels (embedded etcd).

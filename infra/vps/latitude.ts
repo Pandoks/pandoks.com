@@ -90,6 +90,4 @@ export function createLatitudeCluster(pools: NodePool<LatitudeServer>[]) {
     );
     servers.push(server);
   }
-
-  return { controlPlaneLoadBalancers: [], workerLoadBalancers: [] };
 }

@@ -102,7 +102,7 @@ pnpm docker:build && pnpm dev:push
 ./scripts/cluster/main.sh k3d deps down
 ```
 
-### Cloud Cluster (Hetzner via Tailscale)
+### Cloud Cluster (via Tailscale)
 
 ```sh
 # Switch to the prod cluster context in your tailnet

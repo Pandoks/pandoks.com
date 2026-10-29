@@ -8,7 +8,7 @@ import { renderCloudInit } from '../utils';
 
 const cloudInitConfig = readFileSync(`${process.cwd()}/infra/vps/cloud-config.yaml`, 'utf8');
 
-export type Provider = 'hetzner' | 'ovh' | 'latitude';
+export type Provider = 'ovh' | 'latitude';
 
 /**
  * Identical nodes ordered from one provider. Hostnames, resource names, and worker IPs derive from
@@ -30,20 +30,14 @@ export type ClusterNode<Server> = {
   resourceName: string;
 };
 
-// NOTE: 10.0.0.x is the provider's (gateway, load balancers, DHCP), 10.0.1.10-19 the control
-// plane's, 10.0.1.100-200 MetalLB's, and 10.0.<hash of its name>.x each worker pool's
+// NOTE: 10.0.0.x is the provider's (OVHcloud's DHCP), 10.0.1.10-19 the control plane's,
+// 10.0.1.100-200 MetalLB's, and 10.0.<hash of its name>.x each worker pool's
 export const PRIVATE_IP_RANGE = '10.0.0.0/16';
 const CONTROL_PLANE_IP_START = 10;
 const MAX_CONTROL_PLANE_NODES = 10;
 const PROVIDER_RESOURCE_NAMES: Record<Provider, string> = {
-  hetzner: 'Hetzner',
   ovh: 'Ovh',
   latitude: 'Latitude'
-};
-const PROVIDER_KEY_DESCRIPTIONS: Record<Provider, string> = {
-  hetzner: 'hcloud',
-  ovh: 'ovh',
-  latitude: 'latitude'
 };
 
 function getPrivateIp(thirdOctet: number, lastOctet: number) {
@@ -206,7 +200,7 @@ export function createNodeUserData<Server>({
       // NOTE: the hash swaps in a fresh single-use key whenever new user data rebuilds the node
       description: renderUserData('').apply(
         (userData) =>
-          `${PROVIDER_KEY_DESCRIPTIONS[provider]} ${pool.name} ${index} node reg ${createHash('sha256').update(userData).digest('hex').slice(0, 8)}`
+          `${provider} ${pool.name} ${index} node reg ${createHash('sha256').update(userData).digest('hex').slice(0, 8)}`
       ),
       reusable: false,
       expiry: 86400, // 1 day, since bare metal can take hours to deliver
