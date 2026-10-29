@@ -54,9 +54,20 @@ write_files:
     content: |
       #!/usr/sbin/nft -f
 
-      flush ruleset
+      # NOTE: an owned table instead of `flush ruleset`, so reloading nftables never wipes k3s's rules
+      table inet pandoks
+      delete table inet pandoks
 
-      table inet filter {
+      table inet pandoks {
+        # NOTE: NodePort traffic is DNAT'd in prerouting and never reaches the input chain
+        chain prerouting {
+          type filter hook prerouting priority dstnat - 10; policy accept;
+
+          ct state established,related accept comment "Return traffic"
+          iifname { "lo", "tailscale0", "cni0", "flannel.1", "${PRIVATE_INTERFACE}" } accept comment "Internal interfaces"
+          tcp dport 30000-32767 counter drop comment "Public NodePorts"
+        }
+
         chain input {
           type filter hook input priority -100; policy drop;
 
