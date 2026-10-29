@@ -9,8 +9,9 @@ config plugins in `app.json`. Builds run locally, with no EAS.
 Run from this directory:
 
 ```sh
-mise exec -- pnpm ios       # build and run on an iOS simulator
-mise exec -- pnpm android   # build and run on an Android emulator
+mise install    # Ruby, CocoaPods, Java, and Maestro from this app's mise.toml
+pnpm ios        # build and run on an iOS simulator
+pnpm android    # build and run on an Android emulator
 pnpm test:unit
-mise exec -- pnpm test:e2e  # Maestro flows in e2e/, against the running app
+pnpm test:e2e   # Maestro flows in e2e/, against the running app
 ```
