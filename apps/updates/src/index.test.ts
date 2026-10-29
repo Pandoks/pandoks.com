@@ -86,17 +86,14 @@ async function readSignedPart(response: Response) {
   };
 }
 
-test('serves the latest manifest signed, with absolute asset URLs', async () => {
+test('serves the latest manifest signed', async () => {
   const response = await requestUpdate({ 'expo-platform': 'ios' });
   expect(response.status).toBe(200);
   expect(response.headers.get('expo-protocol-version')).toBe('1');
   expect(response.headers.get('cache-control')).toBe('private, max-age=0');
   const part = await readSignedPart(response);
   expect(part.name).toBe('manifest');
-  expect(part.body).toEqual({
-    ...MANIFEST,
-    launchAsset: { ...MANIFEST.launchAsset, url: `${WORKER_URL}/assets/${ASSET_HASH}` }
-  });
+  expect(part.body).toEqual(MANIFEST);
 });
 
 test('serves assets matching their manifest hash with immutable caching', async () => {

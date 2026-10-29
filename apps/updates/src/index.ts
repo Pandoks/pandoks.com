@@ -1,6 +1,6 @@
 import { Resource } from 'sst/resource';
 
-type Manifest = { id: string; launchAsset: { url: string }; assets: { url: string }[] };
+type Manifest = { id: string };
 type Directive = { type: string; parameters?: Record<string, string> };
 
 export default {
@@ -44,10 +44,6 @@ async function serveUpdate({ request, app }: { request: Request; app: string }) 
     return respondWithPart({ name: 'directive', body: { type: 'noUpdateAvailable' } });
   }
   if ('type' in update) return respondWithPart({ name: 'directive', body: update });
-
-  for (const asset of [update.launchAsset, ...update.assets]) {
-    asset.url = new URL(asset.url, request.url).href;
-  }
   return respondWithPart({ name: 'manifest', body: update });
 }
 
