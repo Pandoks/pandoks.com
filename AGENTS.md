@@ -62,7 +62,9 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
   and charts; publishes them only for `preview`-labeled PRs), a Cloudflare Pages preview of
   `apps/web`, and `claude-review.yaml` (one Agent SDK `/code-review` per PR, posted as one review
   with inline comments). Required checks are the `*-pass` aggregates.
-- GHCR keeps every image and chart version: chart defaults pin digests, so never prune it.
+- GHCR keeps every `main` image and chart version, since chart defaults and `deploy/production` pin
+  their digests. Only a closed or unlabeled preview's versions, a deleted branch's versions, and
+  untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
   `infra/`, `pnpm-lock.yaml`, `apps/` (except `desktop-template` and `example`), and
   `packages/svelte/`. Once Checks, Tests, and Security pass, `build-and-publish.yaml` writes the
@@ -244,8 +246,9 @@ that can't happen, or for compatibility code for old data or deploy order during
   - a new `${...}` manifest placeholder with no matching SST resource, which fails every render of
     its overlay (write shell variables in embedded scripts as `$var`);
   - a new first-party image or chart missing from `build-and-publish.yaml`'s path filters or matrix,
-    or a new first-party image missing from `k3s/components/images`, the local overlay's `images:`,
-    or the `security.yaml` scan;
+    or from the `branch-cleanup.yaml` and `maintenance.yaml` matrices, or a new first-party image
+    missing from `k3s/components/images`, the local overlay's `images:`, or the `security.yaml`
+    scan;
   - a new tested package missing its filter and job in `tests.yaml`, a new CI job missing from its
     `*-pass` aggregate's `needs` (scheduled-only jobs excepted), or a new aggregate missing from
     `requiredStatusChecks` in `infra/github.ts`;
