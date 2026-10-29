@@ -70,8 +70,8 @@ a same-repository PR targeting `main` to opt in. CI builds its images/charts, wa
 Tests, and Security, then writes its source and exact image/chart versions to `deploy/preview-<PR>`.
 Argo's ApplicationSet deploys that ref to namespace `preview-<PR>` at
 `https://preview-<PR>.pandoks.com`. Closing the PR or removing the label deletes its resources,
-including databases and data. Its Git ref is deleted; published registry artifacts are retained.
-Preview backups are disabled.
+including databases and data, its Git ref, and its `pr-<PR>` images and `0.0.0-pr.<PR>.*` charts in
+GHCR, except image digests `deploy/dev` still pins. Preview backups are disabled.
 
 Shared controllers, MetalLB, ingress, monitoring, and upgrades are deployed once from `deploy/dev`.
 A successful opted-in PR that changes shared infrastructure updates it for every preview. The last

@@ -48,7 +48,11 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       PREVIEW_NUMBER: ${{ github.event.pull_request.number }}
     steps:
-      - name: Remove the closed or opted-out preview release ref
+      - name: Remove the closed or opted-out preview's release ref and GHCR versions
+        shell: bash
+        env:
+          PACKAGES_TOKEN: ${{ secrets.GH_PACKAGE_MANAGEMENT_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
         run: |
           current=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PREVIEW_NUMBER")
           if jq -e '.state == "open" and any(.labels[]; .name == "preview")' <<<"$current" >/dev/null; then
@@ -57,6 +61,26 @@ jobs:
           ref="heads/deploy/preview-$PREVIEW_NUMBER"
           exists=$(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/$ref" --jq ".[] | select(.ref == \"refs/$ref\") | .ref")
           [ -z "$exists" ] || gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/$ref"
+
+          # NOTE: closing a PR doesn't revert deploy/dev, so keep the image digests it still pins.
+          pinned=''
+          dev=$(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/heads/deploy/dev" --jq '.[] | select(.ref == "refs/heads/deploy/dev") | .ref')
+          if [ -n "$dev" ]; then
+            pinned=$(gh api "repos/$GITHUB_REPOSITORY/contents/k3s/components/images/kustomization.yaml?ref=deploy/dev" --jq .content \
+              | base64 -d | grep -o 'sha256:[0-9a-f]\{64\}')
+          fi
+          export GH_TOKEN="$PACKAGES_TOKEN"
+          for package in patroni pgbackrest valkey valkey-reconciler argocd-sst-plugin clickhouse clickhouse-keeper clickhouse-backup \
+            charts/postgres charts/valkey charts/clickhouse; do
+            api="/users/${OWNER,,}/packages/container/${package//\//%2F}/versions"
+            gh api --paginate --slurp "$api" \
+              | jq -r --arg image "pr-$PREVIEW_NUMBER" --arg chart "0.0.0-pr.$PREVIEW_NUMBER." --arg pinned "$pinned" '
+                  add | .[]
+                  | select(any(.metadata.container.tags[]; . == $image or startswith($chart)))
+                  | select(.name as $digest | $pinned | contains($digest) | not)
+                  | .id' \
+              | xargs -rI{} gh api --method DELETE "$api/{}"
+          done
 
   cleanup-ghcr-images:
     if: github.event.ref_type == 'branch'
