@@ -30,8 +30,9 @@ export default defineConfig([
           './apps/*/tsconfig.json',
           './packages/*/tsconfig.json'
         ],
-        // NOTE: set for every file, not only .svelte, so typescript-eslint builds each program once
-        // instead of rebuilding it whenever the extensions change between files (~40% slower lint)
+        // TODO: https://github.com/typescript-eslint/typescript-eslint/issues/9504
+        // extraFileExtensions turns off single-run programs, so set it everywhere or .ts files build a
+        // second set of programs beside the .svelte watch programs
         extraFileExtensions: ['.svelte'],
         tsconfigRootDir: import.meta.dirname
       }
