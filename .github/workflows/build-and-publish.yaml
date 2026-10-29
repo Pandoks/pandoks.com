@@ -182,7 +182,7 @@ jobs:
         run: scripts/ci/publish.sh "$RUNNER_TEMP/release-inputs"
 
   build-and-publish-pass:
-    needs: [images, charts]
+    needs: [images, charts, publish]
     if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
     runs-on: ubuntu-latest
     steps:

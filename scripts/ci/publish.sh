@@ -24,7 +24,10 @@ fi
 (cd k3s/components/images && kustomize edit set image "${images[@]}")
 
 for chart in postgres valkey clickhouse; do
-  [ "$(cat "$artifacts/$chart.version")" = "$CHART_VERSION" ]
+  [ "$(cat "$artifacts/$chart.version")" = "$CHART_VERSION" ] || {
+    echo "Chart $chart version mismatch; rerun all jobs." >&2
+    exit 1
+  }
   yq -i '.version = strenv(CHART_VERSION)' "packages/$chart/chart/Chart.yaml"
 done
 find apps k3s -name '*.yaml' -exec grep -l 'chart: oci://ghcr.io/pandoks/charts/' {} + | while IFS= read -r manifest; do
