@@ -76,18 +76,20 @@ cmd_publish() {
     cmd_publish_launch_asset="$(upload_asset \
       "${cmd_publish_export_dir}/$(jq -r --arg platform "${cmd_publish_platform}" '.fileMetadata[$platform].bundle' "${cmd_publish_export_dir}/metadata.json")" \
       application/javascript '')"
-    cmd_publish_assets="$(jq -r --arg platform "${cmd_publish_platform}" '.fileMetadata[$platform].assets[] | "\(.ext) \(.path)"' "${cmd_publish_export_dir}/metadata.json" \
-      | while read -r cmd_publish_extension cmd_publish_path; do
-        upload_asset "${cmd_publish_export_dir}/${cmd_publish_path}" \
-          "$(file --brief --mime-type "${cmd_publish_export_dir}/${cmd_publish_path}")" "${cmd_publish_extension}"
-      done | jq -s .)"
+    jq -r --arg platform "${cmd_publish_platform}" '.fileMetadata[$platform].assets[] | "\(.ext) \(.path)"' \
+      "${cmd_publish_export_dir}/metadata.json" > "${cmd_publish_export_dir}/${cmd_publish_platform}-assets.txt"
+    while read -r cmd_publish_extension cmd_publish_path; do
+      upload_asset "${cmd_publish_export_dir}/${cmd_publish_path}" \
+        "$(file --brief --mime-type "${cmd_publish_export_dir}/${cmd_publish_path}")" "${cmd_publish_extension}"
+    done < "${cmd_publish_export_dir}/${cmd_publish_platform}-assets.txt" \
+      > "${cmd_publish_export_dir}/${cmd_publish_platform}-assets.json"
 
     jq -n \
       --arg id "$(uuidgen | tr '[:upper:]' '[:lower:]')" \
       --arg createdAt "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" \
       --arg runtimeVersion "${RUNTIME_VERSION}" \
       --argjson launchAsset "${cmd_publish_launch_asset}" \
-      --argjson assets "${cmd_publish_assets}" \
+      --slurpfile assets "${cmd_publish_export_dir}/${cmd_publish_platform}-assets.json" \
       --slurpfile expoClient "${cmd_publish_export_dir}/expo-config.json" \
       '{ id: $id, createdAt: $createdAt, runtimeVersion: $runtimeVersion, launchAsset: $launchAsset,
         assets: $assets, metadata: {}, extra: { expoClient: $expoClient[0] } }' \
