@@ -117,7 +117,7 @@ the cluster):
 pnpm local:build && pnpm local:push
 ```
 
-`pnpm local:build && pnpm local:push` from the repo root does this for every package.
+Run the same command from the repo root to do this for every package.
 
 If you make a change to the images or helm template run the build and push commands to make the
 changes accessible to the local k3d cluster:

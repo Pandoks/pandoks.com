@@ -12,7 +12,7 @@
     "tools:install": "mise install --yes",
     "cluster": "./scripts/cluster/main.sh",
     "dev": "sst dev",
-    "local:init": "pnpm cluster k3d deps up && pnpm cluster k3d up && pnpm local:build && pnpm local:push && pnpm cluster deploy local --bootstrap && pnpm cluster deploy local",
+    "local:init": "pnpm cluster k3d deps up && pnpm cluster k3d up && pnpm local:build && pnpm local:push && pnpm cluster deploy local --bootstrap --kubeconfig \"$(k3d kubeconfig write local-cluster)\" && pnpm cluster deploy local --kubeconfig \"$(k3d kubeconfig write local-cluster)\"",
     "local:destroy": "pnpm cluster k3d down && pnpm cluster k3d deps down",
     "local:push": "pnpm -r --if-present local:push",
     "local:build": "pnpm -r --if-present local:build",
