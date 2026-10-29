@@ -87,8 +87,11 @@ export function getClusterNodes<Server>({
   const workerPoolOctets = new Map<number, string>();
   for (const pool of pools) {
     // NOTE: hostnames like prod-latitude-<name>-<index> must fit Latitude's 32 characters
-    if (!/^[a-z][a-z0-9-]{0,13}$/.test(pool.name)) {
-      throw new Error(`Pool name ${pool.name} must be up to 14 lowercase letters, digits, or -`);
+    // NOTE: words that start with a letter keep resource names distinct, like GpuWorkers
+    if (pool.name.length > 14 || !/^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)*$/.test(pool.name)) {
+      throw new Error(
+        `Pool name ${pool.name} must be up to 14 characters of lowercase words joined by single hyphens, like gpu-workers`
+      );
     }
     if (poolNames.has(pool.name)) {
       throw new Error(`Pool name ${pool.name} is used twice`);

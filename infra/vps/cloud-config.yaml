@@ -65,7 +65,7 @@ write_files:
 
           ct state established,related accept comment "Return traffic"
           iifname { "lo", "tailscale0", "cni0", "flannel.1", "${PRIVATE_INTERFACE}" } accept comment "Internal interfaces"
-          tcp dport 30000-32767 counter drop comment "Public NodePorts"
+          meta l4proto { tcp, udp } th dport 30000-32767 counter drop comment "Public NodePorts"
         }
 
         chain input {

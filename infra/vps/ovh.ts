@@ -35,6 +35,9 @@ const CLOUD_PROJECT = isProduction ? '' : '';
 const DATACENTER = isProduction ? 'hil' : 'hil'; // options: hil | vin
 const CLOUD_REGION = isProduction ? 'US-WEST-OR-1' : 'US-WEST-OR-1'; // options: US-WEST-OR-1 | US-EAST-VA-1
 const VM_IMAGE = 'Ubuntu 24.04';
+// NOTE: a Public Cloud SSH key's name; OVHcloud won't create a VM without one, though nodes are
+// reached over Tailscale SSH
+const VM_SSH_KEY = isProduction ? '' : '';
 const SERVER_OS = 'ubuntu2404-server_64';
 // NOTE: interface names differ by server range; read them with `ip link` on the first server
 const VM_PRIVATE_INTERFACE = 'ens4';
@@ -52,7 +55,14 @@ const deleteInstanceFromTailnet = createTailnetCleanupHook({
 });
 
 export function createOvhCluster(pools: NodePool<OvhServer>[]) {
-  const missing = Object.entries({ VRACK, CLOUD_PROJECT, SERVER_PRIVATE_INTERFACE })
+  const ordersVms = pools.some((pool) => pool.count > 0 && 'flavor' in pool.server);
+  const ordersBareMetal = pools.some((pool) => pool.count > 0 && 'planCode' in pool.server);
+  const missing = Object.entries({
+    VRACK,
+    CLOUD_PROJECT,
+    ...(ordersVms && { VM_SSH_KEY }),
+    ...(ordersBareMetal && { SERVER_PRIVATE_INTERFACE })
+  })
     .filter(([, value]) => !value)
     .map(([name]) => name);
   if (missing.length) {
@@ -126,6 +136,7 @@ export function createOvhCluster(pools: NodePool<OvhServer>[]) {
               })
             },
             bootFrom: { imageId },
+            sshKey: { name: VM_SSH_KEY },
             network: {
               public: true,
               private: {
