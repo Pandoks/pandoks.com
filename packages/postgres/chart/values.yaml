@@ -11,7 +11,7 @@ credentials:
     patroniPassword: PATRONI_PASSWORD
 
 backup:
-  enabled: true # set before the cluster is first created; Patroni keeps archive settings in its DCS
+  enabled: true # WARNING: set before first create; Patroni ignores later archive_mode changes
   credentials:
     secret: backup-bucket-creds
     dataKeys:
