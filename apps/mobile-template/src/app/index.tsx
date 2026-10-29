@@ -3,8 +3,6 @@ import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { Screen } from '../components/screen';
 
-const CARD_TITLES = ['Inbox', 'Today', 'Upcoming', 'Projects', 'Archive', 'Trash'];
-
 export default function HomeScreen() {
   const { width } = useWindowDimensions();
   const { colors } = useTheme();
@@ -14,7 +12,7 @@ export default function HomeScreen() {
   return (
     <Screen title="Home">
       <View style={styles.grid}>
-        {CARD_TITLES.map((cardTitle) => (
+        {['Inbox', 'Today', 'Upcoming', 'Projects', 'Archive', 'Trash'].map((cardTitle) => (
           <View key={cardTitle} testID="card" style={[styles.cell, { width: `${100 / columns}%` }]}>
             <View
               style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
