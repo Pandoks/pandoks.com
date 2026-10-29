@@ -25,6 +25,28 @@
     ...(__HAS_POSTS__ ? [{ path: '/blog', text: 'Blog' } as const] : [])
   ];
 
+  // TODO: real addresses
+  const wallets = [
+    { ticker: 'xmr', address: 'XMR_ADDRESS_STUB' },
+    { ticker: 'btc', address: 'BTC_ADDRESS_STUB' }
+  ];
+  let yankedTicker: string | undefined = $state();
+  let yankTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  async function yankAddress(ticker: string, address: string) {
+    await navigator.clipboard.writeText(address);
+    yankedTicker = ticker;
+    clearTimeout(yankTimeout);
+    yankTimeout = setTimeout(() => {
+      yankedTicker = undefined;
+    }, 1000);
+  }
+
+  function moveSpotlight(e: PointerEvent & { currentTarget: HTMLButtonElement }) {
+    e.currentTarget.style.setProperty('--spotlight-x', `${e.offsetX}px`);
+    e.currentTarget.style.setProperty('--spotlight-y', `${e.offsetY}px`);
+  }
+
   let activeNavIndex: number | undefined = $state();
   const vimState = setVimState()
     .setInitNavState(() => {
@@ -64,15 +86,30 @@
   });
 </script>
 
-<nav class="bg-background fixed flex w-full gap-2 rounded-br-xs p-2 text-sm xl:w-auto">
+<nav class="bg-background fixed z-10 flex w-full gap-2 rounded-br-xs p-2 text-sm xl:w-auto">
   {#each navLinks as { path, text }, index}
     {@render navLink(path, text, index)}
   {/each}
 </nav>
 
-<div class="flex min-h-dvh items-center justify-center">
-  <div class="pt-9 pb-12">
+<div class="relative flex min-h-dvh items-center justify-center">
+  <div class="pt-9 pb-24 md:pb-12">
     {@render children()}
+  </div>
+
+  <div class="absolute bottom-0 left-0 flex flex-col items-start p-2 font-mono text-xs">
+    {#each wallets as { ticker, address }}
+      <button
+        type="button"
+        onclick={() => void yankAddress(ticker, address)}
+        onmousedown={(e) => e.preventDefault()}
+        onpointermove={moveSpotlight}
+        class={`cursor-copy from-neutral-300 bg-clip-text text-left break-all transition-colors forced-color-adjust-none select-none hover:bg-radial-[circle_2.5rem_at_var(--spotlight-x)_var(--spotlight-y)] ${yankedTicker === ticker ? 'text-foreground duration-0 forced-colors:text-[CanvasText]' : 'text-transparent duration-1000 focus-visible:text-neutral-300'}`}
+      >
+        {ticker}
+        {address}
+      </button>
+    {/each}
   </div>
 </div>
 
