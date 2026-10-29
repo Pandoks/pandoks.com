@@ -4,7 +4,6 @@
   "type": "module",
   "sideEffects": false,
   "scripts": {
-    "build": "pnpm local:build",
     "local:build": "pnpm run /^local:build:/",
     "local:build:image": "docker build -f ./Dockerfile ../../ -t localhost:12345/valkey:latest",
     "local:build:reconciler": "docker build -f ./reconciler/Dockerfile ../../ -t localhost:12345/valkey-reconciler:latest",

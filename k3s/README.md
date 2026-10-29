@@ -16,8 +16,8 @@ k3s/
     core/                    # MetalLB, cert-manager, HAProxy, Prometheus/Grafana
     local/                   # Core bootstrap for k3d
     cluster/                 # Core + Argo CD + upgrade-controller CRD
-    dev/                     # Shared dev bootstrap and public ingress
-    prod/                    # Production bootstrap and public ingress
+    dev/                     # Shared dev bootstrap
+    prod/                    # Production bootstrap
   components/images/         # Native Kustomize image pins
   overlays/
     cluster/                 # Shared remote controllers, monitoring, node upgrades

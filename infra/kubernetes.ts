@@ -1,10 +1,12 @@
-import { awsAccountId, isProduction, isDev } from './dns';
+import { awsAccountId, isProduction, isSharedDev, STAGE_NAME } from './dns';
 import { defaultAwsRegion } from './aws';
 import { secrets, setSecret } from './secrets';
 
-if (isProduction || isDev) {
+const ARGOCD_CMP_USER_NAME = isProduction ? 'argo-cmp' : `argo-cmp-${STAGE_NAME}`;
+
+if (isProduction || isSharedDev) {
   const argocdUser = new aws.iam.User('ArgocdCmpUser', {
-    name: isProduction ? 'argo-cmp' : 'argo-cmp-preview'
+    name: ARGOCD_CMP_USER_NAME
   });
 
   const argocdAccessKey = new aws.iam.AccessKey('ArgocdCmpAccessKey', {
