@@ -59,11 +59,12 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
 ## How changes ship
 
 - PRs run `checks.yaml`, `tests.yaml`, `security.yaml`, and `build-and-publish.yaml` (builds images
-  and charts; publishes them only from `main`), a Cloudflare Pages preview of `apps/web`, and
-  `claude-review.yaml` (one Agent SDK `/code-review` per PR, posted as one review with inline
-  comments). Required checks are the `*-pass` aggregates.
+  and charts; publishes them only for `preview`-labeled PRs), a Cloudflare Pages preview of
+  `apps/web`, and `claude-review.yaml` (one Agent SDK `/code-review` per PR, posted as one review
+  with inline comments). Required checks are the `*-pass` aggregates.
 - GHCR keeps every `main` image and chart version, since chart defaults and `deploy/production` pin
-  their digests. Only a deleted branch's versions and untagged orphans are deleted.
+  their digests. Only a closed or unlabeled preview's versions, a deleted branch's versions, and
+  untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
   `infra/`, `pnpm-lock.yaml`, `apps/` (except `desktop-template` and `example`), and
   `packages/svelte/`. Once Checks, Tests, and Security pass, `build-and-publish.yaml` writes the
@@ -78,8 +79,10 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
 - Stage `dev` owns proxied `*.pandoks.com` records and origin cert, because Universal SSL covers
   only first-level preview hosts. Once it has load balancers, any `pandoks.com` host without its own
   record reaches the dev cluster, which holds that cert's key.
-- Labeled PR previews are planned, not built. Keep two cloud clusters, prod and dev: no staging
-  tier, promotion step, or per-PR cluster.
+- Same-repository PRs to `main` with the `preview` label deploy their apps and databases to
+  namespace `preview-<PR>` on the shared dev cluster from `deploy/preview-<PR>`; shared dev
+  infrastructure comes from `deploy/dev`. Keep two cloud clusters, prod and dev: no staging tier,
+  promotion step, or per-PR cluster.
 - PRs get no infra diff: `sst diff` decrypts every secret, so never run it with production
   credentials off `main`.
 

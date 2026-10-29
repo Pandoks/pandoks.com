@@ -1,0 +1,57 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# CI sets this once per release; replacements derive chart names and hostnames.
+namespace: preview
+resources:
+  - ../../base/apps
+components:
+  - ../../components/images
+configurations:
+  - namespace-fields.yaml
+patches:
+  - path: app-patch.yaml
+  - target:
+      kind: Ingress
+    patch: |-
+      - op: remove
+        path: /spec/rules/1
+      - op: replace
+        path: /spec/rules/0/host
+        value: preview.pandoks.com
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: preview.pandoks.com
+replacements:
+  - sourceValue: kube-system
+    targets:
+      - select:
+          kind: HelmChart
+        fieldPaths:
+          - metadata.namespace
+  - source:
+      kind: Namespace
+      fieldPath: metadata.name
+    targets:
+      - select:
+          kind: HelmChart
+        fieldPaths:
+          - metadata.name
+        options:
+          delimiter: '-'
+          index: 0
+      - select:
+          kind: Ingress
+        fieldPaths:
+          - spec.rules.0.host
+          - spec.tls.0.hosts.0
+        options:
+          delimiter: '.'
+          index: 0
+      - select:
+          kind: HelmChart
+          name: .*(postgres|clickhouse).*
+        fieldPaths:
+          - spec.set.[backup.path]
+        options:
+          delimiter: '/'
+          index: 1

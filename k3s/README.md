@@ -15,14 +15,16 @@ k3s/
   bootstrap/
     core/                    # MetalLB, cert-manager, HAProxy, Prometheus/Grafana
     local/                   # Core bootstrap for k3d
-    dev/                     # Core + upgrade-controller CRD
-    prod/                    # Core + Argo CD + upgrade-controller CRD
+    cluster/                 # Core + Argo CD + upgrade-controller CRD
+    dev/                     # Shared dev bootstrap
+    prod/                    # Production bootstrap
   components/images/         # Native Kustomize image pins
   overlays/
-    cluster/                 # Shared remote base, controllers, monitoring, node upgrades
+    cluster/                 # Shared remote controllers, monitoring, node upgrades
     local/                   # Full local stack and registry overrides
-    dev/                     # Dev cluster
-    prod/                    # Production cluster, Argo CD Application and renderer
+    dev/                     # Shared infrastructure and preview ApplicationSet
+    preview/                 # Per-PR apps/databases; namespace set in the prepared Git ref
+    prod/                    # Production infrastructure and apps
 ```
 
 SST secrets are substituted inline (`${Secret}`) by `pnpm cluster deploy`. See
@@ -61,59 +63,79 @@ pnpm local:build && pnpm local:push
 ./scripts/cluster/main.sh deploy local --stage your-stage
 ```
 
-## Production
+## Previews and production
 
-Successful `main` builds publish `deploy/production`: CI builds the images and charts, waits for
-Checks, Tests, and Security on that commit, then writes its source and exact image/chart versions to
-the ref. Argo syncs production from it; there is no staging promotion step. CI publishes Git refs;
-Argo renders and applies them.
+One dev cluster hosts PR previews; production runs in a separate cluster. Add the `preview` label to
+a same-repository PR targeting `main` to opt in. CI builds its images/charts, waits for Checks,
+Tests, and Security, then writes its source and exact image/chart versions to `deploy/preview-<PR>`.
+Argo's ApplicationSet deploys that ref to namespace `preview-<PR>` at
+`https://preview-<PR>.pandoks.com`. Closing the PR or removing the label deletes its resources,
+including databases and data, its Git ref, and its `pr-<PR>` images and `0.0.0-pr.<PR>.*` charts in
+GHCR, except image digests `deploy/dev` still pins. Preview backups are disabled.
+
+Shared controllers, MetalLB, ingress, monitoring, and upgrades are deployed once from `deploy/dev`.
+A successful opted-in PR that changes shared infrastructure updates it for every preview. The last
+successful infrastructure update wins. The first preview seeds `deploy/dev`; afterward, app-only PRs
+leave it alone. Closing a PR does not revert shared infrastructure. Labels never provision hardware.
+Successful `main` builds publish `deploy/production` for automatic production sync; there is no
+staging promotion step. CI publishes Git refs; Argo renders and applies them.
 
 All remote overlays use the image pins in
 [`components/images/kustomization.yaml`](components/images/kustomization.yaml). Kustomize matches
 values at the fields in [`base/image-fields.yaml`](base/image-fields.yaml). Add new images to the CI
 build matrix, shared pins, and local overrides. Deploy never queries a registry or generates image
-patches. Each deployment ref includes `SOURCE_REVISION` for traceability.
+patches. Each prepared ref includes `SOURCE_REVISION` for traceability.
 
 ### Bootstrap and manual recovery
 
 **Deploy Infrastructure** runs SST stage `production` on `main` pushes that touch SST code. CI
 deploys no other stage; deploy `dev` locally with `pnpm sst deploy --stage dev`. Configure node
-counts and stage credentials first; they remain zero. Bootstrap dev from a checkout of `main`:
+counts and stage credentials first; they remain zero. Build a labeled PR (or `main` for production)
+to prepare the deployment refs, then bootstrap from the corresponding checkout:
 
 ```sh
+git fetch origin deploy/dev
+git worktree add --detach ../dev-bootstrap FETCH_HEAD
+cd ../dev-bootstrap
+pnpm install --frozen-lockfile
 kubectl config use-context <preview-cluster-context>
-pnpm cluster deploy dev --stage dev --bootstrap
-pnpm cluster deploy dev --stage dev
+pnpm cluster deploy dev --bootstrap
+pnpm cluster deploy dev
 ```
 
-For production, bootstrap from a checkout of `deploy/production`
-(`git fetch origin deploy/production`), which holds the built image pins and renderer, with its
-context and `deploy prod`. Manual deploys confirm the selected context; they never switch it.
-Bootstrap waits for CRDs and controllers. Argo uses `deploy prod --dry-run --quiet` to render the
-same manifests without applying.
+For production, use `deploy/production`, its context, and `deploy prod`. These checkouts include the
+newly built renderer image. Manual deploys confirm the selected context; they never switch it.
+Bootstrap waits for CRDs and controllers. Argo uses `deploy <env> --dry-run --quiet` to render the
+same manifests without applying. The internal `preview` target requires `--dry-run` and cannot
+bootstrap.
 
 ```sh
-pnpm cluster deploy dev --stage dev --dry-run --quiet > rendered.yaml
+pnpm cluster deploy dev --dry-run --quiet > rendered.yaml
 ```
 
 ### Stage identities
 
-| SST stage                      | Resource prefix | CLI target              |
-| ------------------------------ | --------------- | ----------------------- |
-| `production`                   | `prod`          | `prod`                  |
-| `dev`                          | `preview`       | `dev --stage dev`       |
-| Personal stage, e.g. `pandoks` | `dev`           | `local --stage pandoks` |
+| SST stage                      | Resource prefix | CLI target                    |
+| ------------------------------ | --------------- | ----------------------------- |
+| `production`                   | `prod`          | `prod`                        |
+| `dev`                          | `preview`       | `dev` / render-only `preview` |
+| Personal stage, e.g. `pandoks` | `dev`           | `local --stage pandoks`       |
 
 Shared dev uses the `preview` prefix to preserve existing personal-stage and production identities.
 Its Tailscale hostname is `preview-cluster`. Argo credentials can read only their own SST stage; CI
 needs no Kubernetes credentials, and AWS trusts only the `production` GitHub environment and `main`.
-Existing clusters need the new overlay applied once; Git changes do not automatically remove old
-resources while remote infrastructure pruning is disabled.
+Existing clusters need the new prepared overlay applied once; Git changes do not automatically
+remove old resources while remote infrastructure pruning is disabled.
+
+Preview ingress uses the shared dev cluster's public ingress and a wildcard `*.pandoks.com`
+DNS/origin certificate. The dev stage provisions no public load balancer yet, so previews go live
+with the OVH migration. First-level preview names work with Cloudflare Universal SSL; explicit
+production and personal DNS records keep their existing routing.
 
 ### Versioned cluster upgrades
 
 The upgrade controller and K3s Plan versions are pinned in Git. Update the shared bootstrap/overlay
-controller URLs together. Both clusters upgrade only in the weekend maintenance window.
+controller URLs together. Dev upgrades immediately; production keeps its weekend maintenance window.
 
 ## k9s
 

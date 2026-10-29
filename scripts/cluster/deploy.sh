@@ -70,9 +70,11 @@ deploy_wait_for_crds() {
   wait_for_crd "servicemonitors.monitoring.coreos.com" 180
   printf "%b  Prometheus Operator CRDs established%b\n" "${GREEN}" "${NORMAL}"
 
-  if [ "${deploy_wait_for_crds_env}" = "prod" ]; then
+  if [ "${deploy_wait_for_crds_env}" != "local" ]; then
     echo "Waiting for ArgoCD..."
     wait_for_crd "applications.argoproj.io" 180
+    wait_for_crd "applicationsets.argoproj.io" 180
+    wait_for_rollout argocd argocd-applicationset-controller 300
     wait_for_rollout argocd argocd-repo-server 300
     wait_for_rollout argocd argocd-server 300
     printf "%b  ArgoCD established%b\n" "${GREEN}" "${NORMAL}"
@@ -91,10 +93,10 @@ cmd_deploy() {
   shift
 
   case "${cmd_deploy_env}" in
-    local | dev | prod) ;;
+    local | dev | preview | prod) ;;
     help | --help | -h) usage_deploy ;;
     *)
-      log_error "Unknown environment '${cmd_deploy_env}'. Use 'local', 'dev', or 'prod'"
+      log_error "Unknown environment '${cmd_deploy_env}'. Use 'local', 'dev', 'preview', or 'prod'"
       usage_deploy 1
       ;;
   esac
@@ -137,7 +139,16 @@ cmd_deploy() {
         ;;
     esac
   done
-  [ "${cmd_deploy_env}" = "prod" ] && cmd_deploy_stage="production"
+
+  case "${cmd_deploy_env}" in
+    preview)
+      [ "${cmd_deploy_dry_run}" = "true" ] || die "Preview is an Argo render target; use --dry-run"
+      [ "${cmd_deploy_is_bootstrap}" = "false" ] || die "Previews use the shared dev bootstrap"
+      cmd_deploy_stage="${cmd_deploy_stage:-dev}"
+      ;;
+    dev) cmd_deploy_stage="${cmd_deploy_stage:-dev}" ;;
+    prod) cmd_deploy_stage="production" ;;
+  esac
 
   if [ -n "${cmd_deploy_kubeconfig}" ]; then
     KUBECONFIG="$(validate_and_get_absolute_kubeconfig_path "${cmd_deploy_kubeconfig}")"
