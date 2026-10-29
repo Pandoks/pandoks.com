@@ -43,12 +43,6 @@ if (isProduction) {
     plaintextValue: secrets.github.PersonalAccessToken.value
   });
 
-  new github.ActionsSecret('GithubGithubPackageManagementToken', {
-    repository: githubRepoName,
-    secretName: 'GH_PACKAGE_MANAGEMENT_TOKEN',
-    plaintextValue: secrets.github.PackageManagementToken.value
-  });
-
   new github.ActionsSecret('GithubCloudflareApiToken', {
     repository: githubRepoName,
     secretName: 'CLOUDFLARE_API_TOKEN',
