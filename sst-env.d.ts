@@ -27,6 +27,10 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "GithubPackageManagementToken": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "GithubPersonalAccessToken": {
       "type": "sst.sst.Secret"
       "value": string

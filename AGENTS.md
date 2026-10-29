@@ -63,7 +63,8 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
   GHCR images and charts), a Cloudflare Pages preview of `apps/web`, and `claude-review.yaml` (one
   Agent SDK `/code-review` per PR, posted as one review with inline comments). Required checks are
   the `*-pass` aggregates.
-- GHCR keeps every image and chart version: chart defaults pin digests, so never prune it.
+- GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
+  deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
   `infra/`, `apps/` (except `desktop-template` and `example`), and `packages/svelte/`, plus an Argo
   hard refresh only for `k3s/` and `scripts/cluster/` changes. Pages builds `apps/web` when a change
@@ -236,7 +237,8 @@ that can't happen, or for compatibility code for old data or deploy order during
     `scripts/cluster/deploy.sh`, which `pnpm cluster deploy` and Argo apply as literal text (fine
     for shell variables in embedded scripts);
   - a new first-party image or chart missing from `build-and-publish.yaml`'s path filters or matrix,
-    or a new first-party image missing from the `security.yaml` scan;
+    or from the `branch-cleanup.yaml` and `maintenance.yaml` matrices, or a new first-party image
+    missing from the `security.yaml` scan;
   - a new tested package missing its filter and job in `tests.yaml`, a new CI job missing from its
     `*-pass` aggregate's `needs` (scheduled-only jobs excepted), or a new aggregate missing from
     `requiredStatusChecks` in `infra/github.ts`;
