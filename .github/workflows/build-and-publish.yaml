@@ -3,6 +3,7 @@ name: Build and Publish
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, labeled]
   push:
     branches: [main]
   workflow_dispatch:
@@ -12,14 +13,15 @@ permissions:
 
 env:
   SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-  PUBLISH: ${{ github.ref == 'refs/heads/main' }}
+  PUBLISH: ${{ github.ref == 'refs/heads/main' || (github.event.pull_request.head.repo.full_name == github.repository && contains(github.event.pull_request.labels.*.name, 'preview')) }}
 
 concurrency:
-  group: build-and-publish-${{ github.event.pull_request.number || github.ref }}
+  group: build-and-publish-${{ github.event.pull_request.number || github.ref }}-${{ github.event.action == 'labeled' && github.event.label.name != 'preview' && 'ignored-label' || 'build' }}
   cancel-in-progress: true
 
 jobs:
   images:
+    if: github.event.action != 'labeled' || github.event.label.name == 'preview'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -106,6 +108,7 @@ jobs:
           if-no-files-found: error
 
   charts:
+    if: github.event.action != 'labeled' || github.event.label.name == 'preview'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -147,17 +150,24 @@ jobs:
 
   publish:
     needs: [images, charts]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || (github.event.pull_request.head.repo.full_name == github.repository && contains(github.event.pull_request.labels.*.name, 'preview'))
     runs-on: ubuntu-latest
     concurrency:
-      group: release-production
+      group: release-${{ github.event.pull_request.number || 'production' }}
       cancel-in-progress: false
     permissions:
       contents: write
       actions: read
+      pull-requests: read
+    outputs:
+      revision: ${{ steps.release.outputs.revision }}
+      infrastructure: ${{ steps.release.outputs.infrastructure }}
     env:
       GH_TOKEN: ${{ github.token }}
+      PREVIEW_NUMBER: ${{ github.event.pull_request.number }}
+      BASE_REVISION: ${{ github.event.pull_request.base.sha }}
       CHART_VERSION: 0.0.0-ci.${{ github.run_id }}.${{ github.run_attempt }}
+      CHECK_EVENT: ${{ github.event_name == 'pull_request' && 'pull_request' || 'push' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -166,7 +176,7 @@ jobs:
       - name: Require successful checks for this source
         run: |
           for workflow in Checks Tests Security; do
-            run=$(gh run list --workflow "$workflow" --commit "$SOURCE_REVISION" --event push --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+            run=$(gh run list --workflow "$workflow" --commit "$SOURCE_REVISION" --event "$CHECK_EVENT" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
             [ -n "$run" ] || { echo "No $workflow run for $SOURCE_REVISION" >&2; exit 1; }
             gh run watch "$run" --exit-status
           done
@@ -179,7 +189,35 @@ jobs:
           merge-multiple: true
           path: ${{ runner.temp }}/release-inputs
       - name: Publish source and artifact pins for Argo CD
+        id: release
         run: scripts/ci/publish.sh "$RUNNER_TEMP/release-inputs"
+
+  shared-dev:
+    needs: publish
+    if: needs.publish.outputs.infrastructure == 'true'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-dev
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PREVIEW_NUMBER: ${{ github.event.pull_request.number }}
+      RELEASE_REVISION: ${{ needs.publish.outputs.revision }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.publish.outputs.revision }}
+          fetch-depth: 0
+      - name: Publish shared infrastructure changes once for the dev cluster
+        run: |
+          current=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PREVIEW_NUMBER")
+          jq -e --arg source "$SOURCE_REVISION" '.state == "open" and .head.sha == $source and any(.labels[]; .name == "preview")' <<<"$current" >/dev/null || exit 0
+          previous=$(git ls-remote origin refs/heads/deploy/dev | cut -f1)
+          git push --force-with-lease="refs/heads/deploy/dev:$previous" origin "$RELEASE_REVISION:refs/heads/deploy/dev"
+          printf 'Shared dev infrastructure now follows PR #%s, source %s.\n' "$PREVIEW_NUMBER" "$SOURCE_REVISION" >> "$GITHUB_STEP_SUMMARY"
 
   build-and-publish-pass:
     needs: [images, charts]

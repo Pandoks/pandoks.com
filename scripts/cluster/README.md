@@ -46,29 +46,32 @@ detailed options. Package scripts in `package.json` are wired directly to
 Deploy uses `k3s/overlays/<env>` by default. On a fresh cluster, run `--bootstrap` first, then
 deploy without it. Overlays include bootstrap resources but skip bootstrap waits.
 
-| Environment | Description                                                      |
-| ----------- | ---------------------------------------------------------------- |
-| `local`     | Local images/charts; SST's default stage.                        |
-| `dev`       | Dev cluster; declared image pins; SST's default stage.           |
-| `prod`      | Production cluster; declared image pins; SST stage `production`. |
+| Environment | Description                                                       |
+| ----------- | ----------------------------------------------------------------- |
+| `local`     | Local images/charts; SST's default stage.                         |
+| `dev`       | Shared preview infrastructure; SST stage `dev`.                   |
+| `preview`   | Argo's render-only target for a prepared PR ref; SST stage `dev`. |
+| `prod`      | Production cluster; declared image pins; SST stage `production`.  |
 
-| Option         | Description                                            |
-| -------------- | ------------------------------------------------------ |
-| `--bootstrap`  | Apply bootstrap resources; wait for CRDs and rollouts. |
-| `--stage`      | Override the SST stage; prod always uses `production`. |
-| `--dry-run`    | Render YAML; skip confirmation, apply, and waits.      |
-| `--kubeconfig` | Kubeconfig file for kubectl.                           |
-| `--quiet`/`-q` | Hide info logs and the dry-run heading.                |
+| Option         | Description                                                                     |
+| -------------- | ------------------------------------------------------------------------------- |
+| `--bootstrap`  | Apply bootstrap resources; wait for CRDs and rollouts; unavailable for preview. |
+| `--stage`      | Override the SST stage; prod always uses `production`.                          |
+| `--dry-run`    | Render YAML; skip confirmation, apply, and waits.                               |
+| `--kubeconfig` | Kubeconfig file for kubectl.                                                    |
+| `--quiet`/`-q` | Hide info logs and the dry-run heading.                                         |
 
-Options can be combined. The selected kubeconfig/context chooses the actual cluster; manual deploys
-ask for confirmation. `--dry-run --quiet` prints only YAML.
+Options can be combined. `preview` requires `--dry-run` and cannot bootstrap. The selected
+kubeconfig/context chooses the actual cluster; manual deploys ask for confirmation.
+`--dry-run --quiet` prints only YAML.
 
 Renders need SST and standalone Kustomize; pinned remote resources need network access. Images are
 declared in Kustomize; deploy does not build images or query registries. Bootstrap failures stop the
-command. Dev/prod also wait for upgrade CRDs, and prod for Argo CD.
+command. Dev/prod also wait for Argo CD and upgrade CRDs.
 
-CI builds images/charts and publishes `deploy/production` from successful `main` builds; Argo uses
-this CLI to render it. Manual commands handle bootstrap and recovery; see
+CI builds images/charts and publishes prepared Git refs; Argo uses this CLI to render them.
+Same-repository PRs targeting `main` with the `preview` label deploy automatically to dev;
+successful `main` builds deploy to production. Manual commands handle bootstrap and recovery; see
 [the remote workflow](../../k3s/README.md).
 
 ### Template Variables
@@ -112,8 +115,8 @@ pnpm local:push
 ### Remote Cluster (Hetzner via Tailscale)
 
 Provision SST stage `dev` locally (`pnpm sst deploy --stage dev`) or `production` (Deploy
-Infrastructure, automatic from `main`). Production bootstraps from a checkout of
-`deploy/production`. Shared dev uses the `preview` resource prefix and Tailscale hostname
+Infrastructure, automatic from `main`), then use a checkout of `deploy/dev` or `deploy/production`
+for bootstrap. Shared dev uses the `preview` resource prefix and Tailscale hostname
 `preview-cluster`, preserving personal SST stages' existing names.
 
 ```sh
@@ -121,8 +124,8 @@ Infrastructure, automatic from `main`). Production bootstraps from a checkout of
 tailscale configure kubeconfig preview-cluster
 
 # Two-step deploy on a fresh dev cluster (use prod for production)
-./scripts/cluster/main.sh deploy dev --stage dev --bootstrap
-./scripts/cluster/main.sh deploy dev --stage dev
+./scripts/cluster/main.sh deploy dev --bootstrap
+./scripts/cluster/main.sh deploy dev
 ```
 
 ### Render Without Applying
@@ -130,6 +133,9 @@ tailscale configure kubeconfig preview-cluster
 ```sh
 ./scripts/cluster/main.sh deploy prod --dry-run
 ./scripts/cluster/main.sh deploy prod --bootstrap --dry-run
+
+# On a prepared deploy/preview-123 checkout
+./scripts/cluster/main.sh deploy preview --dry-run --quiet
 
 # Save YAML-only stdout; errors go to stderr
 ./scripts/cluster/main.sh deploy prod --dry-run --quiet > rendered.yaml
