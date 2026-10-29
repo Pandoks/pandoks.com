@@ -63,6 +63,8 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
   GHCR images and charts), a Cloudflare Pages preview of `apps/web`, and `claude-review.yaml` (one
   Agent SDK `/code-review` per PR, posted as one review with inline comments). Required checks are
   the `*-pass` aggregates.
+- GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
+  deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
   `infra/`, `apps/` (except `desktop-template` and `example`), and `packages/svelte/`, plus an Argo
   hard refresh only for `k3s/` and `scripts/cluster/` changes. Pages builds `apps/web` when a change
