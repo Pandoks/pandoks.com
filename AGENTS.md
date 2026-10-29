@@ -98,8 +98,8 @@ checkout. The SST CLI is `pnpm sst`.
 - Render without a cluster:
   `kustomize build k3s/overlays/<local|dev|prod> --load-restrictor LoadRestrictionsNone`.
 - Local cluster: `pnpm cluster k3d deps up`, `pnpm cluster k3d up` (hazard 4),
-  `pnpm docker:build && pnpm dev:push`, then hazard 4's deploy, once with `--bootstrap` on a fresh
-  cluster and again without. `pnpm dev:destroy` tears it down. See `scripts/cluster/README.md` and
+  `pnpm local:build && pnpm local:push`, then hazard 4's deploy, once with `--bootstrap` on a fresh
+  cluster and again without. `pnpm local:destroy` tears it down. See `scripts/cluster/README.md` and
   `k3s/README.md`.
 
 ## Verifying

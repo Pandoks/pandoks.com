@@ -38,7 +38,7 @@ To setup the cluster, run the following commands from the root of the project. R
 with your personal SST stage (for example, `pandoks`):
 
 ```sh
-SST_STAGE=your-stage pnpm dev:init
+SST_STAGE=your-stage pnpm local:init
 ```
 
 Or step by step:
@@ -51,7 +51,7 @@ Or step by step:
 ./scripts/cluster/main.sh k3d up
 
 # Build and push images/helm charts to the local registry
-pnpm docker:build && pnpm dev:push
+pnpm local:build && pnpm local:push
 
 # Install base infrastructure (helm charts + CRDs)
 ./scripts/cluster/main.sh deploy local --stage your-stage --bootstrap
