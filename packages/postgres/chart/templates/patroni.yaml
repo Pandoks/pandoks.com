@@ -36,15 +36,15 @@ metadata:
   name: patroni-{{ $.Values.db }}-primary-shard-{{ $shardIndex }}
   namespace: {{ $.Values.namespace }}
   labels:
-    app: &app patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
-    cluster-name: &cluster-name {{ $.Values.db }}-shard-{{ $shardIndex }}
-    role: &role primary
+    app: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+    cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
+    role: primary
 spec:
   type: ClusterIP
   selector:
-    app: *app
-    cluster-name: *cluster-name
-    role: *role
+    app: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+    cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
+    role: primary
   ports:
     - name: postgres
       port: 5432
@@ -61,15 +61,15 @@ metadata:
   name: patroni-{{ $.Values.db }}-replicas-shard-{{ $shardIndex }}
   namespace: {{ $.Values.namespace }}
   labels:
-    app: &app patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
-    cluster-name: &cluster-name {{ $.Values.db }}-shard-{{ $shardIndex }}
-    role: &role replica
+    app: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+    cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
+    role: replica
 spec:
   type: ClusterIP
   selector:
-    app: *app
-    cluster-name: *cluster-name
-    role: *role
+    app: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+    cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
+    role: replica
   ports:
     - name: postgres
       port: 5432
@@ -82,18 +82,18 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: &name patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+  name: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
   namespace: {{ $.Values.namespace }}
   labels:
-    app: *name
+    app: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
     app.kubernetes.io/name: patroni
     database: {{ $.Values.db }}
-    cluster-name: &cluster-name {{ $.Values.db }}-shard-{{ $shardIndex }}
+    cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
 spec:
   clusterIP: None
   selector:
-    app: *name
-    cluster-name: *cluster-name
+    app: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+    cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
   ports:
     - name: postgres
       port: 5432
@@ -109,18 +109,18 @@ spec:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: &app patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+  name: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
   namespace: {{ $.Values.namespace }}
   labels:
-    app: *app
-    cluster-name: &cluster-name {{ $.Values.db }}-shard-{{ $shardIndex }}
+    app: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+    cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
 spec:
   replicas: {{ $.Values.patroni.replicasPerShard }}
   serviceName: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
   selector:
     matchLabels:
-      app: *app
-      cluster-name: *cluster-name
+      app: &app patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+      cluster-name: &cluster-name {{ $.Values.db }}-shard-{{ $shardIndex }}
   template:
     metadata:
       labels:

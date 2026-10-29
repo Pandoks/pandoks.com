@@ -3,6 +3,6 @@ kind: Kustomization
 resources:
   - ../../base
   - tailscale.yaml
-  - https://github.com/rancher/system-upgrade-controller/releases/latest/download/system-upgrade-controller.yaml
+  - https://github.com/rancher/system-upgrade-controller/releases/download/v0.20.2/system-upgrade-controller.yaml
   - cluster-upgrade-plan.yaml
   - prom-etcd-config.yaml

@@ -28,14 +28,14 @@ spec:
     app: clickhouse-keeper-{{ .Values.name }}
   ports:
     - name: client
-      port: &client-port 9181
-      targetPort: *client-port
+      port: 9181
+      targetPort: 9181
     - name: raft
-      port: &raft-port 9234
-      targetPort: *raft-port
+      port: 9234
+      targetPort: 9234
     - name: metrics
-      port: &metrics-port 9363
-      targetPort: *metrics-port
+      port: 9363
+      targetPort: 9363
 
 ---
 apiVersion: apps/v1
@@ -48,11 +48,11 @@ spec:
   replicas: {{ $keeperReplicas }}
   selector:
     matchLabels:
-      app: clickhouse-keeper-{{ .Values.name }}
+      app: &app clickhouse-keeper-{{ .Values.name }}
   template:
     metadata:
       labels:
-        app: &app clickhouse-keeper-{{ .Values.name }}
+        app: *app
     spec:
       {{- with .Values.nodeSelector }}
       nodeSelector:

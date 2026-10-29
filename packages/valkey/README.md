@@ -20,6 +20,7 @@ spec:
   failurePolicy: abort
   plainHTTP: ${IsLocal}
   set:
+    namespace: *namespace
     field: string value
 ```
 
