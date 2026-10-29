@@ -24,6 +24,7 @@ jobs:
       svelte: ${{ steps.filter.outputs.svelte }}
       prettier: ${{ steps.filter.outputs.prettier }}
       valkey-reconciler: ${{ steps.filter.outputs.valkey-reconciler }}
+      push: ${{ steps.filter.outputs.push }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -44,6 +45,8 @@ jobs:
               - 'packages/prettier/**'
             valkey-reconciler:
               - 'packages/valkey/reconciler/**'
+            push:
+              - 'apps/push/**'
 
   test-web:
     needs: detect-changes
@@ -120,6 +123,42 @@ jobs:
       - name: Run tests
         run: pnpm --filter @pandoks.com/valkey test
 
+  test-push:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.push == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-trixie@sha256:a02db8cac496f15b094798a38254f14d6e00741f709360e5e00bb6668ea31636
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 2s --health-retries 15
+      valkey:
+        image: valkey/valkey:9-alpine@sha256:48332870af354a799964c0012ae1194a0bf2bf894eb508f945810596dc2d8d11
+        ports:
+          - 6379:6379
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+      VALKEY_ADDRESS: localhost:6379
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: apps/push/go.mod
+          cache-dependency-path: apps/push/go.sum
+
+      - name: Run tests
+        run: pnpm --filter @pandoks.com/push test
+
   tests-pass:
     needs:
       - test-web
@@ -127,6 +166,7 @@ jobs:
       - test-svelte-pkg
       - test-prettier-pkg
       - test-valkey-reconciler
+      - test-push
     if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-latest
     steps:

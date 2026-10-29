@@ -4,3 +4,4 @@ resources:
   # k8s yamls are in the project roots (e.g., "../apps/<project>/kube.yaml")
   # NOTE: render with kustomize build --load-restrictor LoadRestrictionsNone
   - ../../../apps/example/kube
+  - ../../../apps/push/kube

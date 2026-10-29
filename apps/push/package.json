@@ -1,0 +1,11 @@
+{
+  "name": "@pandoks.com/push",
+  "description": "Push notification service",
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "local:build": "docker build -f ./Dockerfile ../../ -t localhost:12345/push:latest",
+    "local:push": "docker push localhost:12345/push:latest",
+    "test": "go test -race ./..."
+  }
+}

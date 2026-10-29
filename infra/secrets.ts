@@ -9,6 +9,14 @@ export const secrets = {
   aws: {
     Region: new sst.Secret('AwsRegion', 'us-west-1')
   },
+  apple: {
+    TeamId: new sst.Secret('AppleTeamId'),
+    ApnsKeyId: new sst.Secret('AppleApnsKeyId'),
+    ApnsKey: new sst.Secret('AppleApnsKey') // .p8 file contents
+  },
+  firebase: {
+    ServiceAccountJson: new sst.Secret('FirebaseServiceAccountJson')
+  },
   cloudflare: {
     ApiKey: new sst.Secret('CloudflareApiKey'),
     BackupAccessKey: new sst.Secret('CloudflareBackupAccessKey'),
