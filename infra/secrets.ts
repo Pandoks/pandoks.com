@@ -1,10 +1,7 @@
 import { execSync } from 'node:child_process';
 
 export const secrets = {
-  Stage: new sst.Secret(
-    'StageName',
-    $app.stage === 'production' ? 'prod' : $app.stage === 'dev' ? 'preview' : 'dev'
-  ), // Automatically set during deploy
+  Stage: new sst.Secret('StageName', 'dev'), // Automatically set during deploy
   notion: {
     ApiKey: new sst.Secret('NotionApiKey'),
     WebhookVerificationToken: new sst.Secret('NotionWebhookVerificationToken')

@@ -54,9 +54,7 @@ if (!existsSync(certificateSigningRequestPath)) {
       '-out',
       certificateSigningRequestPath,
       '-subj',
-      `/CN=${EXAMPLE_DOMAIN}`,
-      '-addext',
-      `subjectAltName=DNS:${EXAMPLE_DOMAIN}`
+      `/CN=${EXAMPLE_DOMAIN}`
     ],
     { stdio: 'inherit' }
   );

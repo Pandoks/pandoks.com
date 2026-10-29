@@ -68,9 +68,13 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
   hard refresh only for `k3s/` and `scripts/cluster/` changes. Pages builds `apps/web` when a change
   matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod`
   renders but never prunes: a deleted resource stays in prod until pruned by hand.
-- The shared `dev` stage gets `STAGE_NAME` `preview` and `preview.pandoks.com`. Every other
-  non-production stage gets `STAGE_NAME` `dev` and `dev.pandoks.com`, so two personal stages
-  collide. All non-production stages share the `dev` GitHub environment, which AWS doesn't trust.
+- The shared `dev` stage (`isSharedDev` in `infra/dns.ts`) gets `STAGE_NAME` `preview` and
+  `preview.pandoks.com`. Every other non-production stage gets `STAGE_NAME` `dev` and
+  `dev.pandoks.com`, so two personal stages collide. All non-production stages share the `dev`
+  GitHub environment, which AWS doesn't trust.
+- Stage `dev` owns proxied `*.pandoks.com` records and origin cert, because Universal SSL covers
+  only first-level preview hosts. Once it has load balancers, any `pandoks.com` host without its own
+  record reaches the dev cluster, which holds that cert's key.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
   staging tier, promotion step, or per-PR cluster.
 - PRs get no infra diff: `sst diff` decrypts every secret, so never run it with production
@@ -135,7 +139,7 @@ checkout. The SST CLI is `pnpm sst`.
 Before calling infra, cluster, or tooling work done, check:
 
 - **Environments:** no per-environment commands; local k3d, dev, and prod differ only in overlays,
-  variables, and `isProduction` branches.
+  variables, and `isProduction` or `isSharedDev` branches.
 - **Wiring and pins:** the wiring and Renovate rules under Code Review Rules. New pins are exact
   versions (`pnpm add -E`). Pin each copy of a shared version and let Renovate sync them; never read
   or symlink one from another. Gate risky bumps behind Dependency Dashboard approval instead of
