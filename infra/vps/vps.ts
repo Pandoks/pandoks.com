@@ -2,44 +2,60 @@
 // `protect` option in production. This is to prevent accidental deletion of resources.
 import { isProduction, STAGE_NAME } from '../dns';
 import { deleteTailscaleDevices } from '../tailscale';
-import { createHetznerCluster } from './hetzner';
-import { createLatitudeCluster } from './latitude';
-import { createOvhCluster } from './ovh';
-import { NODE_IP_STARTS, type NodeCounts, type Provider } from './servers';
+import { createHetznerCluster, type HetznerServer } from './hetzner';
+import { createLatitudeCluster, type LatitudeServer } from './latitude';
+import { createOvhCluster, type OvhServer } from './ovh';
+import type { NodePool } from './servers';
 
-// NOTE: plans, locations, and network settings live at the top of each provider's file
-const PROVIDER: Provider = isProduction ? 'hetzner' : 'hetzner'; // options: hetzner | ovh | latitude
+type Cluster =
+  | { provider: 'hetzner'; pools: NodePool<HetznerServer>[] }
+  | { provider: 'ovh'; pools: NodePool<OvhServer>[] }
+  | { provider: 'latitude'; pools: NodePool<LatitudeServer>[] };
+
+// NOTE: each pool orders `count` identical servers; locations and network settings live at the top
+// of each provider's file. The database charts schedule onto nodes labeled and tainted role=db
 // NOTE: switch providers through a zero-node deploy, which removes the old `<stage>-cluster` proxy
-// NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
-const CONTROL_PLANE_NODE_COUNT = isProduction ? 0 : 0;
-const WORKER_NODE_COUNT = isProduction ? 0 : 0;
-// NOTE: database nodes join with the role=db label and role=db:NoSchedule taint for the database charts
-const DATABASE_NODE_COUNT = isProduction ? 0 : 0;
+// NOTE: if you want to downsize a pool, remember to manually drain and remove its highest-index nodes with `kubectl drain` & `kubectl delete node`
+const CLUSTER: Cluster = isProduction
+  ? {
+      provider: 'hetzner',
+      pools: [
+        { name: 'control-plane', role: 'control-plane', count: 0, server: 'ccx13' },
+        { name: 'worker', role: 'worker', count: 0, server: 'ccx13' },
+        {
+          name: 'database',
+          role: 'worker',
+          count: 0,
+          server: 'ccx13',
+          labels: { role: 'db' },
+          taints: ['role=db:NoSchedule']
+        }
+      ]
+    }
+  : {
+      provider: 'hetzner',
+      pools: [
+        { name: 'control-plane', role: 'control-plane', count: 0, server: 'cx23' },
+        { name: 'worker', role: 'worker', count: 0, server: 'cx23' },
+        {
+          name: 'database',
+          role: 'worker',
+          count: 0,
+          server: 'cx23',
+          labels: { role: 'db' },
+          taints: ['role=db:NoSchedule']
+        }
+      ]
+    };
 
-const nodeCounts: NodeCounts = {
-  'control-plane': CONTROL_PLANE_NODE_COUNT,
-  worker: WORKER_NODE_COUNT,
-  database: DATABASE_NODE_COUNT
-};
-const nodeCapacities: NodeCounts = {
-  'control-plane': NODE_IP_STARTS.worker - NODE_IP_STARTS['control-plane'],
-  worker: NODE_IP_STARTS.database - NODE_IP_STARTS.worker,
-  database: 255 - NODE_IP_STARTS.database
-};
-for (const [type, count] of Object.entries(nodeCounts) as [keyof NodeCounts, number][]) {
-  if (count > nodeCapacities[type]) {
-    throw new Error(`You can only have ${nodeCapacities[type]} ${type} nodes. Currently: ${count}`);
-  }
+function createCluster(cluster: Cluster) {
+  if (cluster.provider === 'ovh') return createOvhCluster(cluster.pools);
+  if (cluster.provider === 'latitude') return createLatitudeCluster(cluster.pools);
+  return createHetznerCluster(cluster.pools);
 }
+export const { controlPlaneLoadBalancers, workerLoadBalancers } = createCluster(CLUSTER);
 
-const createCluster = {
-  hetzner: createHetznerCluster,
-  ovh: createOvhCluster,
-  latitude: createLatitudeCluster
-}[PROVIDER];
-export const { controlPlaneLoadBalancers, workerLoadBalancers } = createCluster(nodeCounts);
-
-if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT + DATABASE_NODE_COUNT === 0) {
+if (CLUSTER.pools.every((pool) => pool.count === 0)) {
   const { devices = [] } = await tailscale.getDevices({ namePrefix: `${STAGE_NAME}` });
 
   const kubernetesDevices = devices.filter(

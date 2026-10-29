@@ -8,7 +8,7 @@
 # NODE_IP
 # PRIVATE_INTERFACE (private network interface for flannel and the firewall)
 # PRIVATE_NETPLAN (base64 netplan for the private interface, empty when the provider configures it)
-# K3S_AGENT_ARGS (for worker)
+# K3S_NODE_ARGS (the pool's --node-label and --node-taint flags)
 # TAILSCALE_HOSTNAME
 # REGISTRATION_TAILNET_AUTH_KEY
 # KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID (for bootstrap)
@@ -131,7 +131,7 @@ runcmd:
           --etcd-s3-secret-key="${S3_SECRET_KEY}" \
           --etcd-s3-folder=kubernetes/etcd \
           --etcd-snapshot-schedule-cron="0 */6 * * *" \
-          --etcd-snapshot-retention=5
+          --etcd-snapshot-retention=5 ${K3S_NODE_ARGS}
 
       export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
       echo "Waiting for k3s to be ready..."
@@ -206,11 +206,11 @@ runcmd:
           --etcd-s3-secret-key="${S3_SECRET_KEY}" \
           --etcd-s3-folder=kubernetes/etcd \
           --etcd-snapshot-schedule-cron="0 */6 * * *" \
-          --etcd-snapshot-retention=5
+          --etcd-snapshot-retention=5 ${K3S_NODE_ARGS}
     else
       curl -sfL https://get.k3s.io | \
         INSTALL_K3S_VERSION="v1.36.5+k3s1" K3S_TOKEN="${K3S_TOKEN}" sh -s - agent \
           --server="${SERVER_API}" \
           --node-ip="${NODE_IP}" \
-          --flannel-iface=${PRIVATE_INTERFACE} ${K3S_AGENT_ARGS}
+          --flannel-iface=${PRIVATE_INTERFACE} ${K3S_NODE_ARGS}
     fi

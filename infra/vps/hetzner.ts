@@ -3,15 +3,17 @@ import { createLoadBalancers } from './load-balancers';
 import {
   createNodeUserData,
   createTailnetCleanupHook,
-  getNodeIp,
-  NODE_RESOURCE_NAMES,
+  getClusterNodes,
+  getPoolResourceName,
   PRIVATE_IP_RANGE,
-  type NodeCounts,
-  type NodeType
+  type ClusterNode,
+  type NodePool
 } from './servers';
 
-// NOTE: servers can only be upgraded, not downgraded because disk size needs to be >= than the previous type
-const SERVER_TYPE = isProduction ? 'ccx13' : 'cx23';
+// NOTE: a server type like cx23 or ccx13. Servers can only be upgraded, not downgraded, because
+// disk size needs to be >= than the previous type
+export type HetznerServer = string;
+
 const LOAD_BALANCERS_PER_NODE = isProduction ? 1 : 0;
 const LOAD_BALANCER_TYPE = isProduction ? 'lb11' : 'lb11';
 const LOAD_BALANCER_ALGORITHM = 'least_connections'; // round_robin, least_connections
@@ -41,17 +43,24 @@ const deleteServerFromTailnet = createTailnetCleanupHook({
  *
  * You'll probably want to rename a bunch of the resources and variable names when you do.
  */
-export function createHetznerCluster(nodeCounts: NodeCounts) {
+export function createHetznerCluster(pools: NodePool<HetznerServer>[]) {
+  const nodes = getClusterNodes({ provider: 'hetzner', pools });
+
   const privateNetwork = new hcloud.Network('HetznerK3sPrivateNetwork', {
     name: `k3s-private-${STAGE_NAME}-network`,
     ipRange: '10.0.0.0/8'
   });
-  const subnet = new hcloud.NetworkSubnet('HetznerK3sSubnet', {
-    networkId: privateNetwork.id.apply((id) => parseInt(id)),
-    type: 'cloud',
-    ipRange: PRIVATE_IP_RANGE,
-    networkZone: NETWORK_ZONE
-  });
+  // NOTE: Hetzner rejects overlapping subnets, so a new range must replace the old one in place
+  const subnet = new hcloud.NetworkSubnet(
+    'HetznerK3sSubnet',
+    {
+      networkId: privateNetwork.id.apply((id) => parseInt(id)),
+      type: 'cloud',
+      ipRange: PRIVATE_IP_RANGE,
+      networkZone: NETWORK_ZONE
+    },
+    { deleteBeforeReplace: true }
+  );
   const inboundFirewall = new hcloud.Firewall('HetznerInboundFirewall', {
     name: 'inbound',
     rules: [
@@ -65,120 +74,47 @@ export function createHetznerCluster(nodeCounts: NodeCounts) {
     ]
   });
 
-  const controlPlaneLoadBalancers = createLoadBalancers(
-    {
-      type: 'control-plane',
-      loadBalancerCount:
-        Math.ceil(nodeCounts['control-plane'] / loadBalancerServerCapacity) *
-        LOAD_BALANCERS_PER_NODE,
-      network: privateNetwork
-    },
-    { type: LOAD_BALANCER_TYPE, location: LOCATION, algorithm: LOAD_BALANCER_ALGORITHM }
-  );
-  const workerLoadBalancers = createLoadBalancers(
-    {
-      type: 'worker',
-      loadBalancerCount:
-        Math.ceil(nodeCounts.worker / loadBalancerServerCapacity) * LOAD_BALANCERS_PER_NODE,
-      network: privateNetwork
-    },
-    { type: LOAD_BALANCER_TYPE, location: LOCATION, algorithm: LOAD_BALANCER_ALGORITHM }
-  );
+  const placementGroups = new Map<string, hcloud.PlacementGroup>();
+  const nodeServers: { node: ClusterNode<HetznerServer>; server: hcloud.Server }[] = [];
+  for (const node of nodes) {
+    // NOTE: a spread placement group holds up to 10 servers
+    const placementGroupIndex = Math.floor(node.index / 10);
+    const placementGroupName = `${node.pool.name}-${placementGroupIndex}`;
+    const placementGroup =
+      placementGroups.get(placementGroupName) ??
+      new hcloud.PlacementGroup(
+        `Hetzner${getPoolResourceName(node.pool)}PlacementGroup${placementGroupIndex}`,
+        { name: placementGroupName, type: 'spread' }
+      );
+    placementGroups.set(placementGroupName, placementGroup);
 
-  const servers: hcloud.Server[] = [];
-  for (const type of ['control-plane', 'worker', 'database'] as const) {
-    servers.push(
-      ...createServers({
-        type,
-        serverCount: nodeCounts[type],
-        network: { network: privateNetwork, subnet },
-        firewalls: [inboundFirewall],
-        previousServer: servers.at(-1),
-        bootstrapServer: servers[0],
-        loadBalancers: type === 'control-plane' ? controlPlaneLoadBalancers : workerLoadBalancers
-      })
-    );
-  }
-
-  return { controlPlaneLoadBalancers, workerLoadBalancers };
-}
-
-function createServers({
-  type,
-  serverCount,
-  network,
-  firewalls,
-  previousServer,
-  bootstrapServer,
-  loadBalancers
-}: {
-  type: NodeType;
-  serverCount: number;
-  network: { network: hcloud.Network; subnet: hcloud.NetworkSubnet };
-  firewalls: hcloud.Firewall[];
-  previousServer: hcloud.Server | undefined;
-  bootstrapServer: hcloud.Server | undefined;
-  loadBalancers: ReturnType<typeof createLoadBalancers>;
-}): hcloud.Server[] {
-  if (serverCount < 1) {
-    return [];
-  }
-
-  const servers: hcloud.Server[] = [];
-  const nodeResourceName = NODE_RESOURCE_NAMES[type];
-
-  const placementGroups =
-    type === 'control-plane'
-      ? [
-          new hcloud.PlacementGroup('HetznerControlPlanePlacementGroup', {
-            name: 'control-plane',
-            type: 'spread'
-          })
-        ]
-      : Array.from({ length: Math.ceil(serverCount / 10) }).map((_, i) => {
-          return new hcloud.PlacementGroup(`Hetzner${nodeResourceName}PlacementGroup${i}`, {
-            name: `${type}s-${i}`,
-            type: 'spread'
-          });
-        });
-
-  for (let i = 0; i < serverCount; i++) {
-    const { userData, tailscaleHostname } = createNodeUserData({
+    const userData = createNodeUserData({
       provider: 'hetzner',
-      type,
-      index: i,
+      node,
       privateInterface: PRIVATE_INTERFACE,
       privateNetplan: ''
     });
-
-    const dependencies = [bootstrapServer, servers.at(-1) ?? previousServer].filter(
-      (resource) => resource !== undefined
-    );
-
     const server = new hcloud.Server(
-      `Hetzner${nodeResourceName}Server${i}`,
+      `Hetzner${node.resourceName}`,
       {
-        name: `${STAGE_NAME}-${type}-server-${i}`,
-        serverType: SERVER_TYPE,
+        name: node.hostname,
+        serverType: node.pool.server,
         image: SERVER_IMAGE,
         location: LOCATION,
-        placementGroupId: placementGroups[Math.floor(i / 10)].id.apply((id) => parseInt(id)),
+        placementGroupId: placementGroup.id.apply((id) => parseInt(id)),
         deleteProtection: isProduction,
         rebuildProtection: isProduction,
-        firewallIds: firewalls.map((firewall) => firewall.id.apply((id) => parseInt(id))),
-        networks: [
-          {
-            networkId: network.network.id.apply((id) => parseInt(id)),
-            ip: getNodeIp({ type, index: i })
-          }
-        ],
+        firewallIds: [inboundFirewall.id.apply((id) => parseInt(id))],
+        networks: [{ networkId: privateNetwork.id.apply((id) => parseInt(id)), ip: node.ip }],
         publicNets: [{ ipv4Enabled: true, ipv6Enabled: true }],
         shutdownBeforeDeletion: true,
-        labels: { tailscale: tailscaleHostname },
+        labels: { tailscale: node.hostname },
         userData
       },
       {
-        dependsOn: dependencies,
+        dependsOn: [subnet, nodeServers[0]?.server, nodeServers.at(-1)?.server].filter(
+          (dependency) => dependency !== undefined
+        ),
         ignoreChanges: isProduction ? ['userData'] : [],
         protect: isProduction,
         hooks: {
@@ -186,29 +122,48 @@ function createServers({
         }
       }
     );
-    servers.push(server);
+    nodeServers.push({ node, server });
   }
 
-  if (type === 'database') {
-    return servers;
-  }
-  for (const [index, server] of servers.entries()) {
-    const groupIndex = Math.floor(index / 25);
-    for (let j = 0; j < LOAD_BALANCERS_PER_NODE; j++) {
-      const loadBalancerIndex = groupIndex * LOAD_BALANCERS_PER_NODE + j;
-      const { loadbalancer, network } = loadBalancers[loadBalancerIndex];
-      new hcloud.LoadBalancerTarget(
-        `HetznerK3s${nodeResourceName}LoadBalancer${loadBalancerIndex}Target${index}`,
-        {
-          loadBalancerId: loadbalancer.id.apply((id) => parseInt(id)),
-          type: 'server',
-          serverId: server.id.apply((id) => parseInt(id)),
-          usePrivateIp: true
-        },
-        { dependsOn: [network] }
-      );
+  // NOTE: tainted worker pools, like databases, take no load balancer traffic
+  const loadBalancedServers = {
+    'control-plane': nodeServers.filter(({ node }) => node.pool.role === 'control-plane'),
+    worker: nodeServers.filter(
+      ({ node }) => node.pool.role === 'worker' && !node.pool.taints?.length
+    )
+  };
+  const [controlPlaneLoadBalancers, workerLoadBalancers] = (
+    ['control-plane', 'worker'] as const
+  ).map((type) => {
+    const loadBalancers = createLoadBalancers(
+      {
+        type,
+        loadBalancerCount:
+          Math.ceil(loadBalancedServers[type].length / loadBalancerServerCapacity) *
+          LOAD_BALANCERS_PER_NODE,
+        network: privateNetwork
+      },
+      { type: LOAD_BALANCER_TYPE, location: LOCATION, algorithm: LOAD_BALANCER_ALGORITHM }
+    );
+    for (const [index, { node, server }] of loadBalancedServers[type].entries()) {
+      const groupIndex = Math.floor(index / loadBalancerServerCapacity);
+      for (let j = 0; j < LOAD_BALANCERS_PER_NODE; j++) {
+        const loadBalancerIndex = groupIndex * LOAD_BALANCERS_PER_NODE + j;
+        const { loadbalancer, network } = loadBalancers[loadBalancerIndex];
+        new hcloud.LoadBalancerTarget(
+          `HetznerK3s${node.resourceName}LoadBalancer${loadBalancerIndex}Target`,
+          {
+            loadBalancerId: loadbalancer.id.apply((id) => parseInt(id)),
+            type: 'server',
+            serverId: server.id.apply((id) => parseInt(id)),
+            usePrivateIp: true
+          },
+          { dependsOn: [network] }
+        );
+      }
     }
-  }
+    return loadBalancers;
+  });
 
-  return servers;
+  return { controlPlaneLoadBalancers, workerLoadBalancers };
 }

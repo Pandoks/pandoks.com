@@ -76,7 +76,6 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         'tag:k8s': ['tag:k8s-operator'],
         'tag:control-plane': ['pandoks@github'],
         'tag:worker': ['pandoks@github'],
-        'tag:database': ['pandoks@github'],
         'tag:dev': ['pandoks@github', 'tag:k8s-operator'],
         'tag:prod': ['pandoks@github', 'tag:k8s-operator'],
         'tag:ci': ['pandoks@github'],

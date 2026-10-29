@@ -67,12 +67,16 @@ The dev and prod clusters are provisioned by SST (`infra/vps`) with cloud-config
 k3s + tailscale. The tailscale operator provides secure access to the cluster API without needing
 SSH tunnels.
 
-`PROVIDER` and the node counts at the top of `infra/vps/vps.ts` pick where the cluster runs
-(`hetzner`, `ovh`, or `latitude`); plans, locations, and private network settings sit at the top of
-`infra/vps/<provider>.ts`. Database nodes join with the `role=db` label and `role=db:NoSchedule`
-taint, so pin the database charts with `nodeSelector.role: db` and a matching toleration. Latitude
-reads its API token from `LATITUDESH_AUTH_TOKEN`. Public ingress is still Hetzner's load balancers;
-OVHcloud and Latitude clusters have none yet.
+`CLUSTER` at the top of `infra/vps/vps.ts` defines each stage's cluster: a provider (`hetzner`,
+`ovh`, or `latitude`) and pools of identical servers, each with a name, a role, a count, the
+provider's server (a Hetzner server type, an OVHcloud VM flavor or bare metal plan, or a Latitude
+plan), and optional node labels and taints. Locations and private network settings sit at the top of
+`infra/vps/<provider>.ts`. The control plane takes 10.0.1.10-19, and each worker pool takes the
+10.0.N.0/24 hashed from its name, so renaming a pool rebuilds it. The `database` pool joins with the
+`role=db` label and `role=db:NoSchedule` taint, so pin the database charts with
+`nodeSelector.role: db` and a matching toleration. Latitude reads its API token from
+`LATITUDESH_AUTH_TOKEN`. Public ingress is still Hetzner's load balancers; OVHcloud and Latitude
+clusters have none yet.
 
 ```sh
 # Connect via tailscale (cluster appears as <stage>-cluster in your tailnet)
