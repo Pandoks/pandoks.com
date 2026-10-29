@@ -223,10 +223,8 @@ that can't happen, or for compatibility code for old data or deploy order during
   `sst.Secret` names, `${...}` placeholders, and `${{ secrets.* }}` are fine.
 - A swallowed failure in CI checks, scans, builds, or deploys, such as `|| true`, ignored exit
   codes, Trivy `exit-code: '0'`, or `continue-on-error`. Safe path: let the step fail. Intended
-  exceptions: a known upstream bug with a `TODO:` linking the issue (like `sst refresh` in
-  `deploy-infra.yaml`) and the best-effort `rollout status ... || true` waits in
-  `scripts/cluster/deploy.sh`. Lint suppressions like `# hadolint ignore=` aren't swallowed
-  failures.
+  exception: a known upstream bug with a `TODO:` linking the issue (like `sst refresh` in
+  `deploy-infra.yaml`). Lint suppressions like `# hadolint ignore=` aren't swallowed failures.
 - Missing wiring, because the thing silently never gets built, tested, deployed, or scanned, and a
   skipped path-filtered job still passes its required check:
   - a new `infra/` module outside `sst.config.ts`'s import graph;

@@ -11,6 +11,9 @@ wait_for_crd() {
     sleep 2
     wait_for_crd_timeout=$((wait_for_crd_timeout - 2))
   done
+
+  kubectl wait --for=condition=Established "crd/${wait_for_crd_name}" \
+    --timeout="${wait_for_crd_timeout}s"
 }
 
 validate_and_get_absolute_kubeconfig_path() {
