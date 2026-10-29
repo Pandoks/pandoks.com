@@ -23,7 +23,7 @@ const providerTokenLifetime = 50 * time.Minute
 
 type apnsClient struct {
 	httpClient *http.Client
-	url        string
+	urls       map[string]string
 	keyID      string
 	teamID     string
 	key        *ecdsa.PrivateKey
@@ -33,7 +33,7 @@ type apnsClient struct {
 	tokenIssuedAt time.Time
 }
 
-func newAPNsClient(transport http.RoundTripper, apnsURL, keyID, teamID string, keyPEM []byte) (*apnsClient, error) {
+func newAPNsClient(transport http.RoundTripper, urls map[string]string, keyID, teamID string, keyPEM []byte) (*apnsClient, error) {
 	block, _ := pem.Decode(keyPEM)
 	if block == nil {
 		return nil, errors.New("APNS_KEY is not a PEM encoded .p8 key")
@@ -44,7 +44,7 @@ func newAPNsClient(transport http.RoundTripper, apnsURL, keyID, teamID string, k
 	}
 	return &apnsClient{
 		httpClient: &http.Client{Transport: transport, Timeout: 30 * time.Second},
-		url:        apnsURL,
+		urls:       urls,
 		keyID:      keyID,
 		teamID:     teamID,
 		key:        key.(*ecdsa.PrivateKey),
@@ -76,12 +76,12 @@ func (client *apnsClient) providerToken() (string, error) {
 	return client.token, nil
 }
 
-func (client *apnsClient) send(ctx context.Context, deviceToken, topic, pushType, priority string, payload []byte) result {
+func (client *apnsClient) send(ctx context.Context, environment, deviceToken, topic, pushType, priority string, payload []byte) result {
 	providerToken, err := client.providerToken()
 	if err != nil {
 		return result{outcome: failed, reason: err.Error()}
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, client.url+"/3/device/"+url.PathEscape(deviceToken), bytes.NewReader(payload))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, client.urls[environment]+"/3/device/"+url.PathEscape(deviceToken), bytes.NewReader(payload))
 	if err != nil {
 		return result{outcome: failed, reason: err.Error()}
 	}
@@ -105,6 +105,7 @@ func (client *apnsClient) send(ctx context.Context, deviceToken, topic, pushType
 	_ = json.NewDecoder(response.Body).Decode(&rejection)
 	reason := fmt.Sprintf("apns %d %s", response.StatusCode, rejection.Reason)
 	switch {
+	// NOTE: the token went to the host of its registered environment, so BadDeviceToken means it's invalid
 	case response.StatusCode == http.StatusGone || rejection.Reason == "BadDeviceToken":
 		return result{outcome: unregistered, reason: reason}
 	case response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= http.StatusInternalServerError:

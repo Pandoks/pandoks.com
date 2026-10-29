@@ -3,24 +3,21 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"slices"
-	"strconv"
 	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/valkey-io/valkey-go"
 )
 
 const (
-	jobStream        = "push:jobs"
-	jobGroup         = "push"
-	jobWorkers       = 32
-	staleJobAge      = 5 * time.Minute
+	jobWorkers       = 16
+	apiConnections   = 16
 	recipientsPerJob = 500
 	sendConcurrency  = 1000
-	scheduledBatch   = 100
+	pollInterval     = time.Second
 	maxAttempts      = 5
 )
 
@@ -40,6 +37,7 @@ type outcome int
 const (
 	delivered outcome = iota
 	unregistered
+	invalidArgument
 	retryable
 	failed
 )
@@ -50,154 +48,132 @@ type result struct {
 	retryAfter time.Duration
 }
 
-// enqueue splits the recipients into jobs so one fan-out spreads across every worker.
-func (service *service) enqueue(ctx context.Context, notification notification) error {
-	var commands valkey.Commands
-	addJob := func(userIDs, tokens []string) error {
-		job := notification
-		job.UserIDs, job.Tokens = userIDs, tokens
-		encoded, err := json.Marshal(job)
-		if err != nil {
-			return err
-		}
-		commands = append(commands, service.valkey.B().Xadd().Key(jobStream).Id("*").FieldValue().FieldValue("job", string(encoded)).Build())
-		return nil
+// enqueue stores the notification as jobs of at most recipientsPerJob recipients, so a fan-out
+// spreads across every worker, and wakes the workers of every replica.
+func (service *service) enqueue(ctx context.Context, request notification) (int64, error) {
+	var jobs []notification
+	for userIDs := range slices.Chunk(request.UserIDs, recipientsPerJob) {
+		job := request
+		job.UserIDs, job.Tokens = userIDs, nil
+		jobs = append(jobs, job)
 	}
-	for userIDs := range slices.Chunk(notification.UserIDs, recipientsPerJob) {
-		if err := addJob(userIDs, nil); err != nil {
-			return err
-		}
+	for tokens := range slices.Chunk(request.Tokens, recipientsPerJob) {
+		job := request
+		job.UserIDs, job.Tokens = nil, tokens
+		jobs = append(jobs, job)
 	}
-	for tokens := range slices.Chunk(notification.Tokens, recipientsPerJob) {
-		if err := addJob(nil, tokens); err != nil {
-			return err
-		}
+	var sendAt *time.Time
+	if !request.SendAt.IsZero() {
+		sendAt = &request.SendAt
 	}
-	for _, response := range service.valkey.DoMulti(ctx, commands...) {
-		if err := response.Error(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
-func (service *service) scheduleNotification(ctx context.Context, notification notification) (int64, error) {
 	var id int64
-	err := service.database.QueryRow(ctx,
-		`INSERT INTO push_scheduled_notifications (send_at, notification) VALUES ($1, $2) RETURNING id`,
-		notification.SendAt, notification,
+	err := service.database.QueryRow(ctx, `
+		WITH notification AS MATERIALIZED (SELECT nextval('push_notification_ids') AS id),
+		inserted AS (
+		  INSERT INTO push_jobs (notification_id, send_at, job)
+		  SELECT notification.id, coalesce($1, now()), job FROM notification, unnest($2::jsonb[]) AS job
+		)
+		SELECT notification.id FROM notification, pg_notify('push_jobs', '')`,
+		sendAt, jobs,
 	).Scan(&id)
 	return id, err
 }
 
-// schedule moves due notifications onto the job stream; SKIP LOCKED lets every replica run it.
-func (service *service) schedule(ctx context.Context) {
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
+// listen wakes a worker for every inserted job, and every pollInterval for jobs coming due.
+func (service *service) listen(ctx context.Context) {
+	for ctx.Err() == nil {
+		err := service.waitForJobs(ctx)
+		if ctx.Err() == nil {
+			slog.Error("listen for jobs", "error", err)
+			time.Sleep(pollInterval)
+		}
+	}
+}
+
+func (service *service) waitForJobs(ctx context.Context) error {
+	connection, err := pgx.Connect(ctx, "")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = connection.Close(context.WithoutCancel(ctx)) }()
+	if _, err := connection.Exec(ctx, "LISTEN push_jobs"); err != nil {
+		return err
+	}
+	for {
+		service.wakeWorker()
+		waitContext, cancel := context.WithTimeout(ctx, pollInterval)
+		_, err := connection.WaitForNotification(waitContext)
+		cancel()
+		if err != nil && (ctx.Err() != nil || waitContext.Err() == nil) {
+			return err
+		}
+	}
+}
+
+func (service *service) wakeWorker() {
+	select {
+	case service.wake <- struct{}{}:
+	default:
+	}
+}
+
+// work delivers due jobs until none are left, then waits to be woken.
+func (service *service) work(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-service.wake:
 		}
-		for {
-			var count int
-			err := pgx.BeginFunc(ctx, service.database, func(transaction pgx.Tx) error {
-				rows, _ := transaction.Query(ctx, `
-					DELETE FROM push_scheduled_notifications WHERE id IN (
-					  SELECT id FROM push_scheduled_notifications WHERE send_at <= now()
-					  ORDER BY send_at LIMIT $1 FOR UPDATE SKIP LOCKED
-					) RETURNING notification`, scheduledBatch)
-				notifications, err := pgx.CollectRows(rows, pgx.RowTo[notification])
-				if err != nil {
-					return err
-				}
-				for _, notification := range notifications {
-					if err := service.enqueue(ctx, notification); err != nil {
-						return err
-					}
-				}
-				count = len(notifications)
-				return nil
-			})
-			if err != nil && ctx.Err() == nil {
-				slog.Error("enqueue scheduled notifications", "error", err)
-			}
-			if err != nil || count < scheduledBatch {
-				break
-			}
+		// NOTE: a started job finishes during shutdown so its sends aren't repeated
+		for ctx.Err() == nil && service.deliverDueJob(context.WithoutCancel(ctx)) {
 		}
 	}
 }
 
-func createJobGroup(ctx context.Context, client valkey.Client) error {
-	err := client.Do(ctx, client.B().XgroupCreate().Key(jobStream).Group(jobGroup).Id("0").Mkstream().Build()).Error()
-	if valkey.IsValkeyBusyGroup(err) {
-		return nil
-	}
-	return err
-}
-
-// consume takes over jobs a dead consumer left pending, otherwise blocks for new ones.
-func (service *service) consume(ctx context.Context) {
-	for ctx.Err() == nil {
-		entries, err := service.claimJobs(ctx)
-		if err != nil {
-			if ctx.Err() == nil {
-				slog.Error("read jobs", "error", err)
-				// NOTE: Valkey without persistence loses the consumer group when it restarts
-				if err := createJobGroup(ctx, service.valkey); err != nil {
-					slog.Error("create job consumer group", "error", err)
-				}
-				time.Sleep(time.Second)
-			}
-			continue
-		}
-		// NOTE: a started job finishes during shutdown instead of waiting staleJobAge to be reclaimed
-		jobContext := context.WithoutCancel(ctx)
-		for _, entry := range entries {
-			if err := service.deliver(jobContext, entry.FieldValues["job"]); err != nil {
-				slog.Error("deliver job", "id", entry.ID, "error", err)
-				continue
-			}
-			for _, response := range service.valkey.DoMulti(jobContext,
-				service.valkey.B().Xack().Key(jobStream).Group(jobGroup).Id(entry.ID).Build(),
-				service.valkey.B().Xdel().Key(jobStream).Id(entry.ID).Build(),
-			) {
-				if err := response.Error(); err != nil {
-					slog.Error("acknowledge job", "id", entry.ID, "error", err)
-				}
-			}
-		}
-	}
-}
-
-func (service *service) claimJobs(ctx context.Context) ([]valkey.XRangeEntry, error) {
-	claimed, err := service.valkey.Do(ctx, service.valkey.B().Xautoclaim().Key(jobStream).Group(jobGroup).Consumer(service.consumer).
-		MinIdleTime(strconv.FormatInt(staleJobAge.Milliseconds(), 10)).Start("0-0").Count(1).Build()).ToArray()
+// deliverDueJob claims a due job and deletes it in the same transaction, so a crash before the
+// commit leaves the job to another worker.
+func (service *service) deliverDueJob(ctx context.Context) bool {
+	transaction, err := service.database.Begin(ctx)
 	if err != nil {
-		return nil, err
+		slog.Error("claim job", "error", err)
+		return false
 	}
-	entries, err := claimed[1].AsXRange()
-	if err != nil || len(entries) > 0 {
-		return entries, err
-	}
+	defer func() { _ = transaction.Rollback(ctx) }()
 
-	streams, err := service.valkey.Do(ctx, service.valkey.B().Xreadgroup().Group(jobGroup, service.consumer).
-		Count(1).Block(5000).Streams().Key(jobStream).Id(">").Build()).AsXRead()
-	if valkey.IsValkeyNil(err) {
-		return nil, nil
+	var (
+		jobID, notificationID int64
+		job                   notification
+	)
+	err = transaction.QueryRow(ctx,
+		`SELECT id, notification_id, job FROM push_jobs WHERE send_at <= now() ORDER BY send_at LIMIT 1 FOR UPDATE SKIP LOCKED`,
+	).Scan(&jobID, &notificationID, &job)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false
 	}
-	return streams[jobStream], err
+	if err != nil {
+		slog.Error("claim job", "error", err)
+		return false
+	}
+	service.wakeWorker()
+
+	if err := service.deliver(ctx, transaction, notificationID, job); err != nil {
+		slog.Error("deliver job", "id", jobID, "error", err)
+		return false
+	}
+	_, err = transaction.Exec(ctx, `DELETE FROM push_jobs WHERE id = $1`, jobID)
+	if err == nil {
+		err = transaction.Commit(ctx)
+	}
+	if err != nil {
+		slog.Error("finish job", "id", jobID, "error", err)
+	}
+	return true
 }
 
-func (service *service) deliver(ctx context.Context, encodedJob string) error {
+func (service *service) deliver(ctx context.Context, transaction pgx.Tx, notificationID int64, job notification) error {
 	startedAt := time.Now()
-	var job notification
-	if err := json.Unmarshal([]byte(encodedJob), &job); err != nil {
-		return err
-	}
-
 	kind, topic, priority := "device", job.App, "10"
 	switch job.PushType {
 	case "liveactivity":
@@ -205,11 +181,11 @@ func (service *service) deliver(ctx context.Context, encodedJob string) error {
 	case "background":
 		priority = "5"
 	}
-	rows, _ := service.database.Query(ctx,
-		`SELECT token, platform FROM push_devices WHERE app = $1 AND kind = $2 AND (user_id = ANY($3) OR token = ANY($4))`,
+	rows, _ := transaction.Query(ctx,
+		`SELECT token, platform, apns_environment FROM push_devices WHERE app = $1 AND kind = $2 AND (user_id = ANY($3) OR token = ANY($4))`,
 		job.App, kind, job.UserIDs, job.Tokens,
 	)
-	devices, err := pgx.CollectRows(rows, pgx.RowToStructByPos[struct{ Token, Platform string }])
+	devices, err := pgx.CollectRows(rows, pgx.RowToStructByPos[struct{ Token, Platform, APNsEnvironment string }])
 	if err != nil {
 		return err
 	}
@@ -218,7 +194,9 @@ func (service *service) deliver(ctx context.Context, encodedJob string) error {
 		mutex              sync.Mutex
 		sends              sync.WaitGroup
 		deliveredCount     int
+		fcmDelivered       bool
 		unregisteredTokens []string
+		invalidFCMTokens   []string
 		retryTokens        []string
 		retryAfter         time.Duration
 		failures           = map[string]int{}
@@ -232,7 +210,7 @@ func (service *service) deliver(ctx context.Context, encodedJob string) error {
 			defer func() { <-service.sends }()
 			var result result
 			if device.Platform == "ios" {
-				result = service.apns.send(ctx, device.Token, topic, job.PushType, priority, job.APNs)
+				result = service.apns.send(ctx, device.APNsEnvironment, device.Token, topic, job.PushType, priority, job.APNs)
 			} else {
 				result = service.fcm.send(ctx, device.Token, job.FCM)
 			}
@@ -242,8 +220,11 @@ func (service *service) deliver(ctx context.Context, encodedJob string) error {
 			switch result.outcome {
 			case delivered:
 				deliveredCount++
+				fcmDelivered = fcmDelivered || device.Platform == "android"
 			case unregistered:
 				unregisteredTokens = append(unregisteredTokens, device.Token)
+			case invalidArgument:
+				invalidFCMTokens = append(invalidFCMTokens, device.Token)
 			case retryable:
 				retryTokens = append(retryTokens, device.Token)
 				retryAfter = max(retryAfter, result.retryAfter)
@@ -256,20 +237,30 @@ func (service *service) deliver(ctx context.Context, encodedJob string) error {
 	}
 	sends.Wait()
 
-	if len(unregisteredTokens) > 0 {
-		// NOTE: a device that registered again after this job started keeps its token
-		_, err := service.database.Exec(ctx, `DELETE FROM push_devices WHERE token = ANY($1) AND updated_at < $2`, unregisteredTokens, startedAt)
-		if err != nil {
-			return err
-		}
+	// NOTE: another token taking the same FCM message proves the message valid, so the token is not
+	if fcmDelivered {
+		unregisteredTokens = append(unregisteredTokens, invalidFCMTokens...)
 	}
-	if len(retryTokens) > 0 && job.Attempt+1 < maxAttempts {
-		retry := job
-		retry.UserIDs, retry.Tokens, retry.Attempt = nil, retryTokens, job.Attempt+1
-		retry.SendAt = time.Now().Add(max(retryAfter, time.Second) << job.Attempt)
-		if _, err := service.scheduleNotification(ctx, retry); err != nil {
+	// NOTE: a bookkeeping error is logged instead of rolling back the job and repeating its sends
+	err = pgx.BeginFunc(ctx, transaction, func(savepoint pgx.Tx) error {
+		if len(unregisteredTokens) > 0 {
+			// NOTE: a device that registered again after this job started keeps its token
+			_, err := savepoint.Exec(ctx, `DELETE FROM push_devices WHERE token = ANY($1) AND updated_at < $2`, unregisteredTokens, startedAt)
+			if err != nil {
+				return err
+			}
+		}
+		if len(retryTokens) > 0 && job.Attempt+1 < maxAttempts {
+			retry := job
+			retry.UserIDs, retry.Tokens, retry.Attempt = nil, retryTokens, job.Attempt+1
+			_, err := savepoint.Exec(ctx, `INSERT INTO push_jobs (notification_id, send_at, job) VALUES ($1, $2, $3)`,
+				notificationID, time.Now().Add(max(retryAfter, time.Second)<<job.Attempt), retry)
 			return err
 		}
+		return nil
+	})
+	if err != nil {
+		slog.Error("record job results", "error", err)
 	}
 
 	slog.Info("delivered job",

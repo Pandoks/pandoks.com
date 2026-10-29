@@ -8,14 +8,16 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"net"
 	"net/http"
-	"os"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,11 +25,10 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/valkey-io/valkey-go"
 )
 
 type providerRequest struct {
-	provider      string
+	environment   string
 	authorization string
 	topic         string
 	pushType      string
@@ -35,17 +36,18 @@ type providerRequest struct {
 	body          map[string]any
 }
 
-// fakeProvider speaks the APNs and FCM HTTP/2 wire formats. Tokens starting with "gone-" are
-// unregistered and tokens starting with "busy-" are throttled on their first request.
+// fakeProvider speaks the APNs and FCM HTTP/2 wire formats over TLS. Tokens starting with "gone-"
+// are unregistered, "invalid-" are malformed FCM tokens, "busy-" are throttled on their first
+// request, "hang-" block their first request until release is closed, and "sandbox-" are valid
+// only on the sandbox APNs host while every other APNs token is valid only on production.
 type fakeProvider struct {
-	url              string
 	mutex            sync.Mutex
 	requests         map[string][]providerRequest
 	oauthTokenIssued int
+	release          chan struct{}
 }
 
-func startFakeProvider(t *testing.T, apnsPublicKey *ecdsa.PublicKey) *fakeProvider {
-	provider := &fakeProvider{requests: map[string][]providerRequest{}}
+func (provider *fakeProvider) serve(t *testing.T, apnsPublicKey *ecdsa.PublicKey, environment string) *httptest.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /3/device/{token}", func(writer http.ResponseWriter, request *http.Request) {
 		if !validProviderToken(strings.TrimPrefix(request.Header.Get("authorization"), "bearer "), apnsPublicKey) {
@@ -55,7 +57,7 @@ func startFakeProvider(t *testing.T, apnsPublicKey *ecdsa.PublicKey) *fakeProvid
 		}
 		token := request.PathValue("token")
 		attempt := provider.record(token, request, providerRequest{
-			provider:      "apns",
+			environment:   environment,
 			authorization: request.Header.Get("authorization"),
 			topic:         request.Header.Get("apns-topic"),
 			pushType:      request.Header.Get("apns-push-type"),
@@ -63,12 +65,17 @@ func startFakeProvider(t *testing.T, apnsPublicKey *ecdsa.PublicKey) *fakeProvid
 		})
 		writer.Header().Set("apns-id", "00000000-0000-0000-0000-00000000000"+strconv.Itoa(attempt%10))
 		switch {
+		case strings.HasPrefix(token, "sandbox-") != (environment == "sandbox"):
+			writer.WriteHeader(http.StatusBadRequest)
+			_, _ = writer.Write([]byte(`{"reason":"BadDeviceToken"}`))
 		case strings.HasPrefix(token, "gone-"):
 			writer.WriteHeader(http.StatusGone)
 			_, _ = writer.Write([]byte(`{"reason":"Unregistered","timestamp":1700000000000}`))
 		case strings.HasPrefix(token, "busy-") && attempt == 1:
 			writer.WriteHeader(http.StatusTooManyRequests)
 			_, _ = writer.Write([]byte(`{"reason":"TooManyRequests"}`))
+		case strings.HasPrefix(token, "hang-") && attempt == 1:
+			<-provider.release
 		}
 	})
 	mux.HandleFunc("POST /token", func(writer http.ResponseWriter, _ *http.Request) {
@@ -86,11 +93,14 @@ func startFakeProvider(t *testing.T, apnsPublicKey *ecdsa.PublicKey) *fakeProvid
 		var body map[string]any
 		_ = json.NewDecoder(request.Body).Decode(&body)
 		token := body["message"].(map[string]any)["token"].(string)
-		attempt := provider.record(token, request, providerRequest{provider: "fcm", body: body})
+		attempt := provider.record(token, request, providerRequest{body: body})
 		switch {
 		case strings.HasPrefix(token, "gone-"):
 			writer.WriteHeader(http.StatusNotFound)
 			_, _ = writer.Write([]byte(`{"error":{"code":404,"status":"NOT_FOUND","details":[{"@type":"type.googleapis.com/google.firebase.fcm.v1.FcmError","errorCode":"UNREGISTERED"}]}}`))
+		case strings.HasPrefix(token, "invalid-"):
+			writer.WriteHeader(http.StatusBadRequest)
+			_, _ = writer.Write([]byte(`{"error":{"code":400,"status":"INVALID_ARGUMENT","details":[{"@type":"type.googleapis.com/google.firebase.fcm.v1.FcmError","errorCode":"INVALID_ARGUMENT"}]}}`))
 		case strings.HasPrefix(token, "busy-") && attempt == 1:
 			writer.Header().Set("retry-after", "1")
 			writer.WriteHeader(http.StatusServiceUnavailable)
@@ -100,17 +110,11 @@ func startFakeProvider(t *testing.T, apnsPublicKey *ecdsa.PublicKey) *fakeProvid
 		}
 	})
 
-	server := &http.Server{Handler: mux, ReadHeaderTimeout: time.Second, Protocols: new(http.Protocols)}
-	server.Protocols.SetHTTP1(true)
-	server.Protocols.SetUnencryptedHTTP2(true)
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	go func() { _ = server.Serve(listener) }()
-	t.Cleanup(func() { _ = server.Close() })
-	provider.url = "http://" + listener.Addr().String()
-	return provider
+	server := httptest.NewUnstartedServer(mux)
+	server.EnableHTTP2 = true
+	server.StartTLS()
+	t.Cleanup(server.Close)
+	return server
 }
 
 func (provider *fakeProvider) record(token string, request *http.Request, providerRequest providerRequest) int {
@@ -162,27 +166,7 @@ func waitFor(t *testing.T, description string, condition func() bool) {
 	}
 }
 
-// TestPush runs the service against real Postgres (PG* env) and Valkey (VALKEY_ADDRESS).
-func TestPush(t *testing.T) {
-	apnsKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	apnsKeyDER, _ := x509.MarshalPKCS8PrivateKey(apnsKey)
-	fcmKey, _ := rsa.GenerateKey(rand.Reader, 2048)
-	fcmKeyDER, _ := x509.MarshalPKCS8PrivateKey(fcmKey)
-	provider := startFakeProvider(t, &apnsKey.PublicKey)
-	serviceAccount, _ := json.Marshal(map[string]string{
-		"type":         "service_account",
-		"project_id":   "test-project",
-		"private_key":  string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: fcmKeyDER})),
-		"client_email": "push@test-project.iam.gserviceaccount.com",
-		"token_uri":    provider.url + "/token",
-	})
-	t.Setenv("APNS_URL", provider.url)
-	t.Setenv("APNS_KEY_ID", "TESTKEYID1")
-	t.Setenv("APNS_TEAM_ID", "TESTTEAMID")
-	t.Setenv("APNS_KEY", string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: apnsKeyDER})))
-	t.Setenv("FCM_URL", provider.url)
-	t.Setenv("FCM_SERVICE_ACCOUNT", string(serviceAccount))
-
+func startService(t *testing.T) string {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -197,11 +181,6 @@ func TestPush(t *testing.T) {
 		}
 	})
 	api := "http://" + listener.Addr().String()
-	database, err := pgxpool.New(ctx, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(database.Close)
 	waitFor(t, "the API to start", func() bool {
 		response, err := http.Get(api + "/healthz")
 		if err == nil {
@@ -209,6 +188,48 @@ func TestPush(t *testing.T) {
 		}
 		return err == nil
 	})
+	return api
+}
+
+// TestPush runs the service against real Postgres (PG* env).
+func TestPush(t *testing.T) {
+	apnsKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	apnsKeyDER, _ := x509.MarshalPKCS8PrivateKey(apnsKey)
+	fcmKey, _ := rsa.GenerateKey(rand.Reader, 2048)
+	fcmKeyDER, _ := x509.MarshalPKCS8PrivateKey(fcmKey)
+	provider := &fakeProvider{requests: map[string][]providerRequest{}, release: make(chan struct{})}
+	production := provider.serve(t, &apnsKey.PublicKey, "production")
+	sandbox := provider.serve(t, &apnsKey.PublicKey, "sandbox")
+	trustedCertificates := x509.NewCertPool()
+	trustedCertificates.AddCert(production.Certificate())
+	// NOTE: run clones the default transport, so it trusts the fake providers' certificate
+	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{RootCAs: trustedCertificates, MinVersion: tls.VersionTLS12}
+
+	serviceAccount, _ := json.Marshal(map[string]string{
+		"type":         "service_account",
+		"project_id":   "test-project",
+		"private_key":  string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: fcmKeyDER})),
+		"client_email": "push@test-project.iam.gserviceaccount.com",
+		"token_uri":    production.URL + "/token",
+	})
+	t.Setenv("APNS_PRODUCTION_URL", production.URL)
+	t.Setenv("APNS_SANDBOX_URL", sandbox.URL)
+	t.Setenv("APNS_KEY_ID", "TESTKEYID1")
+	t.Setenv("APNS_TEAM_ID", "TESTTEAMID")
+	t.Setenv("APNS_KEY", string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: apnsKeyDER})))
+	t.Setenv("FCM_URL", production.URL)
+	t.Setenv("FCM_SERVICE_ACCOUNT", string(serviceAccount))
+
+	ctx := context.Background()
+	if err := migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	database, err := pgxpool.New(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(database.Close)
+	api := startService(t)
 
 	// Unique per run so reruns against the same database don't see old devices
 	app := "com.pandoks.test" + strconv.FormatInt(time.Now().UnixNano(), 36)
@@ -225,43 +246,76 @@ func TestPush(t *testing.T) {
 		_, _ = responseBody.ReadFrom(response.Body)
 		return response.StatusCode, responseBody.String()
 	}
-	register := func(token, platform, kind, userID string) {
+	register := func(token, platform, environment, kind, userID string) {
 		t.Helper()
-		status, body := call(http.MethodPut, "/devices/"+token+app, map[string]string{"platform": platform, "kind": kind, "app": app, "user_id": userID})
+		status, body := call(http.MethodPut, "/devices/"+token+app, map[string]string{
+			"platform": platform, "apns_environment": environment, "kind": kind, "app": app, "user_id": userID,
+		})
 		if status != http.StatusNoContent {
 			t.Fatalf("register %s: %d %s", token, status, body)
 		}
 	}
-	send := func(notification map[string]any) (int, string) {
+	send := func(notification map[string]any) string {
 		t.Helper()
 		notification["app"] = app
-		return call(http.MethodPost, "/notifications", notification)
+		status, body := call(http.MethodPost, "/notifications", notification)
+		if status != http.StatusCreated {
+			t.Fatalf("send: %d %s", status, body)
+		}
+		var created struct{ ID string }
+		_ = json.Unmarshal([]byte(body), &created)
+		return created.ID
 	}
-	alert := map[string]any{"push_type": "alert", "apns": map[string]any{"aps": map[string]any{"alert": "hi"}}, "fcm": map[string]any{"notification": map[string]any{"title": "hi"}}}
+	alert := func(recipients map[string]any) map[string]any {
+		recipients["push_type"] = "alert"
+		recipients["apns"] = map[string]any{"aps": map[string]any{"alert": "hi"}}
+		recipients["fcm"] = map[string]any{"notification": map[string]any{"title": "hi"}}
+		return recipients
+	}
 	deviceExists := func(token string) bool {
 		var exists bool
-		if err := database.QueryRow(context.Background(), `SELECT EXISTS (SELECT 1 FROM push_devices WHERE token = $1)`, token+app).Scan(&exists); err != nil {
+		if err := database.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM push_devices WHERE token = $1)`, token+app).Scan(&exists); err != nil {
 			t.Fatal(err)
 		}
 		return exists
 	}
+	jobsLeft := func(notificationID string) int {
+		var count int
+		if err := database.QueryRow(ctx, `SELECT count(*) FROM push_jobs WHERE notification_id = $1`, notificationID).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		return count
+	}
 	sentTo := func(token string) []providerRequest { return provider.requestsFor(token + app) }
 
-	t.Run("fans out to every device of the users and removes unregistered tokens", func(t *testing.T) {
-		register("ios-", "ios", "", "user-1")
-		register("android-", "android", "", "user-1")
-		register("live-", "ios", "liveactivity", "user-1")
-		register("gone-ios-", "ios", "", "user-2")
-		register("gone-android-", "android", "", "user-2")
-		alert["user_ids"] = []string{"user-1", "user-2"}
-		if status, body := send(alert); status != http.StatusAccepted {
-			t.Fatalf("send: %d %s", status, body)
+	t.Run("rejects devices without a kind or with the wrong APNs environment", func(t *testing.T) {
+		for _, device := range []map[string]string{
+			{"platform": "ios", "apns_environment": "production", "app": app, "user_id": "user-0"},
+			{"platform": "ios", "kind": "device", "app": app, "user_id": "user-0"},
+			{"platform": "android", "apns_environment": "sandbox", "kind": "device", "app": app, "user_id": "user-0"},
+		} {
+			if status, body := call(http.MethodPut, "/devices/rejected-"+app, device); status != http.StatusBadRequest {
+				t.Errorf("register %v: %d %s", device, status, body)
+			}
 		}
+	})
 
-		waitFor(t, "unregistered tokens to be removed", func() bool { return !deviceExists("gone-ios-") && !deviceExists("gone-android-") })
+	t.Run("fans out to every device of the users and removes unregistered tokens", func(t *testing.T) {
+		register("ios-", "ios", "production", "device", "user-1")
+		register("android-", "android", "", "device", "user-1")
+		register("live-", "ios", "production", "liveactivity", "user-1")
+		register("gone-ios-", "ios", "production", "device", "user-2")
+		register("gone-android-", "android", "", "device", "user-2")
+		register("invalid-android-", "android", "", "device", "user-2")
+		send(alert(map[string]any{"user_ids": []string{"user-1", "user-2"}}))
+
+		waitFor(t, "unregistered tokens to be removed", func() bool {
+			return !deviceExists("gone-ios-") && !deviceExists("gone-android-") && !deviceExists("invalid-android-")
+		})
 		waitFor(t, "delivery", func() bool { return len(sentTo("ios-")) == 1 && len(sentTo("android-")) == 1 })
 		apns := sentTo("ios-")[0]
-		if apns.topic != app || apns.pushType != "alert" || apns.priority != "10" || apns.body["aps"].(map[string]any)["alert"] != "hi" {
+		if apns.environment != "production" || apns.topic != app || apns.pushType != "alert" || apns.priority != "10" ||
+			apns.body["aps"].(map[string]any)["alert"] != "hi" {
 			t.Errorf("unexpected APNs request %+v", apns)
 		}
 		message := sentTo("android-")[0].body["message"].(map[string]any)
@@ -273,14 +327,35 @@ func TestPush(t *testing.T) {
 		}
 	})
 
+	t.Run("keeps FCM tokens rejected as invalid when no token proved the message valid", func(t *testing.T) {
+		register("invalid-only-", "android", "", "device", "user-3")
+		id := send(alert(map[string]any{"user_ids": []string{"user-3"}}))
+		waitFor(t, "the job to finish", func() bool { return jobsLeft(id) == 0 })
+		if len(sentTo("invalid-only-")) != 1 || !deviceExists("invalid-only-") {
+			t.Error("removed an FCM token that may have failed because of the message")
+		}
+	})
+
+	t.Run("sends iOS tokens to the APNs host of their environment", func(t *testing.T) {
+		register("sandbox-ios-", "ios", "sandbox", "device", "user-4")
+		register("sandbox-registered-as-production-", "ios", "production", "device", "user-4")
+		send(alert(map[string]any{"user_ids": []string{"user-4"}}))
+
+		waitFor(t, "the misregistered token to be removed", func() bool { return !deviceExists("sandbox-registered-as-production-") })
+		waitFor(t, "sandbox delivery", func() bool { return len(sentTo("sandbox-ios-")) == 1 })
+		if request := sentTo("sandbox-ios-")[0]; request.environment != "sandbox" || !deviceExists("sandbox-ios-") {
+			t.Errorf("sandbox token went to %s or was removed", request.environment)
+		}
+		if request := sentTo("sandbox-registered-as-production-")[0]; request.environment != "production" {
+			t.Errorf("production token went to %s", request.environment)
+		}
+	})
+
 	t.Run("sends live activities to the liveactivity topic", func(t *testing.T) {
-		status, body := send(map[string]any{
+		send(map[string]any{
 			"push_type": "liveactivity", "user_ids": []string{"user-1"},
 			"apns": map[string]any{"aps": map[string]any{"event": "update", "timestamp": 1, "content-state": map[string]any{}}},
 		})
-		if status != http.StatusAccepted {
-			t.Fatalf("send: %d %s", status, body)
-		}
 		waitFor(t, "live activity delivery", func() bool { return len(sentTo("live-")) == 1 })
 		if request := sentTo("live-")[0]; request.topic != app+".push-type.liveactivity" || request.pushType != "liveactivity" {
 			t.Errorf("unexpected live activity request %+v", request)
@@ -288,32 +363,18 @@ func TestPush(t *testing.T) {
 	})
 
 	t.Run("retries throttled sends", func(t *testing.T) {
-		register("busy-ios-", "ios", "", "user-3")
-		register("busy-android-", "android", "", "user-3")
-		alert["user_ids"] = []string{"user-3"}
-		if status, body := send(alert); status != http.StatusAccepted {
-			t.Fatalf("send: %d %s", status, body)
-		}
+		register("busy-ios-", "ios", "production", "device", "user-5")
+		register("busy-android-", "android", "", "device", "user-5")
+		send(alert(map[string]any{"user_ids": []string{"user-5"}}))
 		waitFor(t, "throttled sends to be retried", func() bool { return len(sentTo("busy-ios-")) == 2 && len(sentTo("busy-android-")) == 2 })
 	})
 
 	t.Run("sends scheduled notifications unless cancelled", func(t *testing.T) {
-		register("scheduled-", "ios", "", "user-4")
-		register("cancelled-", "ios", "", "user-5")
-		schedule := func(userID string) string {
-			alert["user_ids"] = []string{userID}
-			alert["send_at"] = time.Now().Add(2 * time.Second).Format(time.RFC3339Nano)
-			status, body := send(alert)
-			if status != http.StatusCreated {
-				t.Fatalf("schedule: %d %s", status, body)
-			}
-			var created struct{ ID string }
-			_ = json.Unmarshal([]byte(body), &created)
-			return created.ID
-		}
-		schedule("user-4")
-		cancelledID := schedule("user-5")
-		delete(alert, "send_at")
+		register("scheduled-", "ios", "production", "device", "user-6")
+		register("cancelled-", "ios", "production", "device", "user-7")
+		sendAt := time.Now().Add(2 * time.Second).Format(time.RFC3339Nano)
+		send(alert(map[string]any{"user_ids": []string{"user-6"}, "send_at": sendAt}))
+		cancelledID := send(alert(map[string]any{"user_ids": []string{"user-7"}, "send_at": sendAt}))
 		if status, _ := call(http.MethodDelete, "/notifications/"+cancelledID, nil); status != http.StatusNoContent {
 			t.Fatalf("cancel: %d", status)
 		}
@@ -330,26 +391,9 @@ func TestPush(t *testing.T) {
 		}
 	})
 
-	t.Run("recovers when Valkey loses the job stream", func(t *testing.T) {
-		valkeyClient, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{os.Getenv("VALKEY_ADDRESS")}, DisableCache: true})
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer valkeyClient.Close()
-		if err := valkeyClient.Do(ctx, valkeyClient.B().Del().Key(jobStream).Build()).Error(); err != nil {
-			t.Fatal(err)
-		}
-		register("restarted-", "ios", "", "user-6")
-		alert["user_ids"] = []string{"user-6"}
-		if status, body := send(alert); status != http.StatusAccepted {
-			t.Fatalf("send: %d %s", status, body)
-		}
-		waitFor(t, "delivery after the stream was lost", func() bool { return len(sentTo("restarted-")) == 1 })
-	})
-
 	t.Run("reuses provider credentials", func(t *testing.T) {
 		authorizations := map[string]bool{}
-		for _, token := range []string{"ios-", "live-", "busy-ios-", "scheduled-"} {
+		for _, token := range []string{"ios-", "live-", "busy-ios-", "scheduled-", "sandbox-ios-"} {
 			for _, request := range sentTo(token) {
 				authorizations[request.authorization] = true
 			}
@@ -359,5 +403,38 @@ func TestPush(t *testing.T) {
 		if len(authorizations) != 1 || provider.oauthTokenIssued != 1 {
 			t.Errorf("signed %d APNs tokens and fetched %d FCM tokens, want 1 each", len(authorizations), provider.oauthTokenIssued)
 		}
+	})
+
+	t.Run("delivers a fan-out exactly once across replicas", func(t *testing.T) {
+		startService(t)
+		var tokens []string
+		for index := range 3 * recipientsPerJob {
+			token := fmt.Sprintf("many-%d-", index)
+			register(token, "android", "", "device", "user-8")
+			tokens = append(tokens, token+app)
+		}
+		id := send(map[string]any{"push_type": "alert", "tokens": tokens, "fcm": map[string]any{"notification": map[string]any{"title": "hi"}}})
+		waitFor(t, "every job to finish", func() bool { return jobsLeft(id) == 0 })
+		for _, token := range tokens {
+			if requests := provider.requestsFor(token); len(requests) != 1 {
+				t.Fatalf("%s got %d requests", token, len(requests))
+			}
+		}
+	})
+
+	t.Run("redelivers a job whose worker died before committing", func(t *testing.T) {
+		register("hang-", "ios", "production", "device", "user-9")
+		id := send(alert(map[string]any{"user_ids": []string{"user-9"}}))
+		waitFor(t, "the first send", func() bool { return len(sentTo("hang-")) == 1 })
+		var terminated int
+		err := database.QueryRow(ctx, `
+			SELECT count(*) FILTER (WHERE pg_terminate_backend(pid)) FROM pg_stat_activity
+			WHERE datname = current_database() AND state = 'idle in transaction'`,
+		).Scan(&terminated)
+		if err != nil || terminated != 1 {
+			t.Fatalf("terminated %d connections: %v", terminated, err)
+		}
+		close(provider.release)
+		waitFor(t, "the job to be sent again and finish", func() bool { return len(sentTo("hang-")) == 2 && jobsLeft(id) == 0 })
 	})
 }

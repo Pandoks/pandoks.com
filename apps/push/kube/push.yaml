@@ -33,6 +33,32 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: migrate
+          image: ${ImageRegistry}/push:${ImageTag}
+          args:
+            - migrate
+          env:
+            # NOTE: not PgDog: LISTEN needs a session, which transaction pooling doesn't keep
+            - &pghost
+              name: PGHOST
+              value: patroni-main-primary-shard-0
+            - &pgdatabase
+              name: PGDATABASE
+              value: main
+            - name: PGUSER
+              value: admin
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-main-creds
+                  key: ADMIN_PASSWORD
+          securityContext: &containerSecurityContext
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
       containers:
         - name: push
           image: ${ImageRegistry}/push:${ImageTag}
@@ -42,30 +68,19 @@ spec:
             - secretRef:
                 name: push-creds
           env:
-            - name: PGHOST
-              value: main-pgdog
-            - name: PGPORT
-              value: '6432'
-            - name: PGDATABASE
-              value: main
+            - *pghost
+            - *pgdatabase
             - name: PGUSER
-              value: admin
+              value: client
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
                   name: postgres-main-creds
-                  key: ADMIN_PASSWORD
-            - name: VALKEY_ADDRESS
-              value: valkey-main-cluster:6379
-            - name: VALKEY_USERNAME
-              value: admin
-            - name: VALKEY_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: valkey-main-creds
-                  key: ADMIN_PASSWORD
-            - name: APNS_URL
+                  key: CLIENT_PASSWORD
+            - name: APNS_PRODUCTION_URL
               value: https://api.push.apple.com
+            - name: APNS_SANDBOX_URL
+              value: https://api.sandbox.push.apple.com
             - name: FCM_URL
               value: https://fcm.googleapis.com
           readinessProbe:
@@ -85,9 +100,4 @@ spec:
               memory: 64Mi
             limits:
               memory: 256Mi
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities:
-              drop:
-                - ALL
+          securityContext: *containerSecurityContext

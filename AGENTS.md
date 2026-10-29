@@ -64,10 +64,11 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
   Agent SDK `/code-review` per PR, posted as one review with inline comments). Required checks are
   the `*-pass` aggregates.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
-  `infra/`, `apps/` (except `desktop-template` and `example`), and `packages/svelte/`, plus an Argo
-  hard refresh only for `k3s/` and `scripts/cluster/` changes. Pages builds `apps/web` when a change
-  matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod`
-  renders but never prunes: a deleted resource stays in prod until pruned by hand.
+  `infra/`, `apps/` (except `desktop-template`, `example`, and `push`), and `packages/svelte/`, plus
+  an Argo hard refresh only for `k3s/` and `scripts/cluster/` changes. Pages builds `apps/web` when
+  a change matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything
+  `k3s/overlays/prod` renders but never prunes: a deleted resource stays in prod until pruned by
+  hand.
 - Every non-production stage gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
   environment, so two non-production stages collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
@@ -90,8 +91,8 @@ checkout. The SST CLI is `pnpm sst`.
   or `infra/` shows hundreds of false type errors.
 - `pnpm check` type-checks every package, `infra/`, and `sst.config.ts`.
 - Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, and `desktop-template`;
-  `pnpm --filter <package> test` for `prettier`, `valkey`, and `push` (needs Postgres and Valkey;
-  see `apps/push/README.md`).
+  `pnpm --filter <package> test` for `prettier`, `valkey`, and `push` (needs Postgres; see
+  `apps/push/README.md`).
 - Scoped: `pnpm exec prettier --check <files>`, `pnpm exec eslint [--fix] <files>`, `shellcheck`,
   `shfmt -d`, `hadolint`, `actionlint`, `pnpm --filter "...[origin/main]" --if-present check`. That
   filter and the shell and Docker format and lint commands see only tracked files, so check new

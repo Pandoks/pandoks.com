@@ -135,16 +135,11 @@ jobs:
         ports:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 2s --health-retries 15
-      valkey:
-        image: valkey/valkey:9-alpine@sha256:48332870af354a799964c0012ae1194a0bf2bf894eb508f945810596dc2d8d11
-        ports:
-          - 6379:6379
     env:
       PGHOST: localhost
       PGUSER: postgres
       PGPASSWORD: postgres
       PGDATABASE: postgres
-      VALKEY_ADDRESS: localhost:6379
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

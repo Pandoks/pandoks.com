@@ -20,29 +20,29 @@ func (service *service) routes() http.Handler {
 
 func (service *service) registerDevice(writer http.ResponseWriter, request *http.Request) {
 	var device struct {
-		Platform string `json:"platform"`
-		Kind     string `json:"kind"`
-		App      string `json:"app"`
-		UserID   string `json:"user_id"`
+		Platform        string `json:"platform"`
+		Kind            string `json:"kind"`
+		App             string `json:"app"`
+		UserID          string `json:"user_id"`
+		APNsEnvironment string `json:"apns_environment"`
 	}
 	if err := json.NewDecoder(request.Body).Decode(&device); err != nil {
 		http.Error(writer, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if device.Kind == "" {
-		device.Kind = "device"
-	}
-	if !slices.Contains([]string{"ios", "android"}, device.Platform) || !slices.Contains([]string{"device", "liveactivity"}, device.Kind) ||
-		device.App == "" || device.UserID == "" {
-		http.Error(writer, "platform must be ios or android, kind device or liveactivity, and app and user_id are required", http.StatusBadRequest)
+	validPlatform := (device.Platform == "ios" && slices.Contains([]string{"sandbox", "production"}, device.APNsEnvironment)) ||
+		(device.Platform == "android" && device.APNsEnvironment == "")
+	if !validPlatform || !slices.Contains([]string{"device", "liveactivity"}, device.Kind) || device.App == "" || device.UserID == "" {
+		http.Error(writer, "platform must be ios with apns_environment sandbox or production, or android without it; kind must be device or liveactivity; app and user_id are required", http.StatusBadRequest)
 		return
 	}
 
 	_, err := service.database.Exec(request.Context(), `
-		INSERT INTO push_devices (token, platform, kind, app, user_id) VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO push_devices (token, platform, kind, app, user_id, apns_environment) VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (token) DO UPDATE SET
-		  platform = excluded.platform, kind = excluded.kind, app = excluded.app, user_id = excluded.user_id, updated_at = now()`,
-		request.PathValue("token"), device.Platform, device.Kind, device.App, device.UserID,
+		  platform = excluded.platform, kind = excluded.kind, app = excluded.app, user_id = excluded.user_id,
+		  apns_environment = excluded.apns_environment, updated_at = now()`,
+		request.PathValue("token"), device.Platform, device.Kind, device.App, device.UserID, device.APNsEnvironment,
 	)
 	if err != nil {
 		internalError(writer, err)
@@ -76,15 +76,7 @@ func (service *service) sendNotification(writer http.ResponseWriter, request *ht
 		return
 	}
 
-	if notification.SendAt.IsZero() {
-		if err := service.enqueue(request.Context(), notification); err != nil {
-			internalError(writer, err)
-			return
-		}
-		writer.WriteHeader(http.StatusAccepted)
-		return
-	}
-	id, err := service.scheduleNotification(request.Context(), notification)
+	id, err := service.enqueue(request.Context(), notification)
 	if err != nil {
 		internalError(writer, err)
 		return
@@ -100,7 +92,8 @@ func (service *service) cancelNotification(writer http.ResponseWriter, request *
 		http.NotFound(writer, request)
 		return
 	}
-	deleted, err := service.database.Exec(request.Context(), `DELETE FROM push_scheduled_notifications WHERE id = $1`, id)
+	deleted, err := service.database.Exec(request.Context(), `
+		DELETE FROM push_jobs WHERE id IN (SELECT id FROM push_jobs WHERE notification_id = $1 FOR UPDATE SKIP LOCKED)`, id)
 	if err != nil {
 		internalError(writer, err)
 		return

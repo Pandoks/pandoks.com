@@ -19,23 +19,17 @@ type fcmClient struct {
 }
 
 func newFCMClient(transport http.RoundTripper, fcmURL string, serviceAccount []byte) (*fcmClient, error) {
-	config, err := google.JWTConfigFromJSON(serviceAccount, "https://www.googleapis.com/auth/firebase.messaging")
+	credentials, err := google.CredentialsFromJSONWithType(context.Background(), serviceAccount, google.ServiceAccount, "https://www.googleapis.com/auth/firebase.messaging")
 	if err != nil {
-		return nil, fmt.Errorf("parse FCM_SERVICE_ACCOUNT: %w", err)
-	}
-	var account struct {
-		ProjectID string `json:"project_id"`
-	}
-	if err := json.Unmarshal(serviceAccount, &account); err != nil {
 		return nil, fmt.Errorf("parse FCM_SERVICE_ACCOUNT: %w", err)
 	}
 	return &fcmClient{
 		// NOTE: the token source caches the OAuth2 access token until shortly before it expires
 		httpClient: &http.Client{
-			Transport: &oauth2.Transport{Source: config.TokenSource(context.Background()), Base: transport},
+			Transport: &oauth2.Transport{Source: credentials.TokenSource, Base: transport},
 			Timeout:   30 * time.Second,
 		},
-		sendURL: fcmURL + "/v1/projects/" + account.ProjectID + "/messages:send",
+		sendURL: fcmURL + "/v1/projects/" + credentials.ProjectID + "/messages:send",
 	}, nil
 }
 
@@ -77,8 +71,11 @@ func (client *fcmClient) send(ctx context.Context, deviceToken string, message j
 	retryAfterSeconds, _ := strconv.Atoi(response.Header.Get("retry-after"))
 	retryAfter := time.Duration(retryAfterSeconds) * time.Second
 	for _, detail := range rejection.Error.Details {
-		if detail.ErrorCode == "UNREGISTERED" {
+		switch detail.ErrorCode {
+		case "UNREGISTERED":
 			return result{outcome: unregistered, reason: reason}
+		case "INVALID_ARGUMENT":
+			return result{outcome: invalidArgument, reason: reason}
 		}
 	}
 	switch {
