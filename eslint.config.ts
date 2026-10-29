@@ -30,9 +30,7 @@ export default defineConfig([
           './apps/*/tsconfig.json',
           './packages/*/tsconfig.json'
         ],
-        // TODO: https://github.com/typescript-eslint/typescript-eslint/issues/9504
-        // global so .ts and .svelte files share one program per tsconfig
-        extraFileExtensions: ['.svelte'],
+        // TODO: https://github.com/typescript-eslint/typescript-eslint/issues/9504        extraFileExtensions: ['.svelte'],
         tsconfigRootDir: import.meta.dirname
       }
     },
