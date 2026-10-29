@@ -94,6 +94,9 @@ cmd_publish() {
       '{ id: $id, createdAt: $createdAt, runtimeVersion: $runtimeVersion, launchAsset: $launchAsset,
         assets: $assets, metadata: {}, extra: { expoClient: $expoClient[0] } }' \
       > "${cmd_publish_export_dir}/${cmd_publish_platform}.json"
+  done
+
+  for cmd_publish_platform in ${PLATFORMS}; do
     put_object "${UPDATE_PREFIX}/${cmd_publish_platform}.json" \
       "${cmd_publish_export_dir}/${cmd_publish_platform}.json" application/json
     log_ok "Published ${cmd_publish_platform} update to ${UPDATE_PREFIX}"
