@@ -148,7 +148,7 @@
       "groupName": "pnpm"
     },
     {
-      "description": "The Expo SDK pins these, react and react-native exactly; upgrade them together with `pnpm expo install expo@<sdk> --fix`.",
+      "description": "The Expo SDK pins these, react and react-native exactly; upgrade them together with `pnpm expo install expo@<sdk> --fix`, then remove the `~` Expo writes and run `pnpm install`.",
       "matchPackageNames": [
         "expo",
         "expo-*",
