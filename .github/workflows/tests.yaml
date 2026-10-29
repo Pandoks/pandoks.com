@@ -84,7 +84,7 @@ jobs:
         run: pnpm --filter @pandoks.com/desktop-template exec playwright install --with-deps chromium
 
       - name: Run desktop tests
-        run: pnpm --filter @pandoks.com/desktop-template test
+        run: xvfb-run -a pnpm --filter @pandoks.com/desktop-template test
 
   test-svelte-pkg:
     needs: detect-changes
