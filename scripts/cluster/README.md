@@ -99,9 +99,8 @@ the deployment environment, not the SST stage.
 ./scripts/cluster/main.sh k3d deps up
 ./scripts/cluster/main.sh k3d up
 
-# Build and push local images/charts
-pnpm local:build
-pnpm local:push
+# Build and push images/charts to the local registry
+pnpm local:build && pnpm local:push
 
 # Deploy in two steps: bootstrap (helm charts + CRDs), then overlay
 ./scripts/cluster/main.sh deploy local --stage your-stage --bootstrap
