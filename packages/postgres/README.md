@@ -685,7 +685,6 @@ after changing them:
 | `patroni.replicasPerShard`      | Pods per shard (1 primary + n - 1 replicas)        | `3`                                                         |
 | `patroni.image`                 | Patroni image                                      | `ghcr.io/pandoks/patroni:latest`                            |
 | `patroni.resources.*`           | `patroni`, `pgbackrest`, `postgresExporter`        | `{}`                                                        |
-| `pgdogReleaseName`              | PgDog release name, unique in kube-system          | `<db>-pgdog`                                                |
 | `pgdog.*`                       | Passed through to the [PgDog chart][pgdog]         | See below                                                   |
 | `pgdog.replicas`                | PgDog replicas                                     | `2`                                                         |
 | `pgdog.workers`                 | PgDog worker threads                               | `2`                                                         |

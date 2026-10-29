@@ -1,7 +1,5 @@
 db: example
 namespace: example
-# options: <release name, unique in kube-system> | ~ (<db>-pgdog)
-pgdogReleaseName: ~
 
 credentials:
   secret: postgres-example-creds
