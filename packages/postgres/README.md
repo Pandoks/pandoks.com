@@ -642,18 +642,18 @@ Local k3d clusters pull the images and chart from the local registry (`localhost
 machine, `local-registry:5000` inside the cluster). Build and push them at least once, and again
 after changing them:
 
-| Command                    | Description                                                     |
-| -------------------------- | --------------------------------------------------------------- |
-| `pnpm build:patroni`       | Builds the patroni docker image locally                         |
-| `pnpm build:pgbackrest`    | Builds the pgbackrest docker image locally                      |
-| `pnpm build:helm`          | Packages the helm chart into a `.tgz` locally                   |
-| `pnpm build`               | All of the build commands above                                 |
-| `pnpm dev:push:patroni`    | Pushes the patroni image to the local k3d registry              |
-| `pnpm dev:push:pgbackrest` | Pushes the pgbackrest image to the local k3d registry           |
-| `pnpm dev:push:helm`       | Pushes the helm chart package to the local k3d registry via oci |
-| `pnpm dev:push`            | All of the push commands above                                  |
+| Command                       | Description                                                     |
+| ----------------------------- | --------------------------------------------------------------- |
+| `pnpm local:build:patroni`    | Builds the patroni docker image locally                         |
+| `pnpm local:build:pgbackrest` | Builds the pgbackrest docker image locally                      |
+| `pnpm local:build:helm`       | Packages the helm chart into a `.tgz` locally                   |
+| `pnpm local:build`            | All of the build commands above                                 |
+| `pnpm local:push:patroni`     | Pushes the patroni image to the local k3d registry              |
+| `pnpm local:push:pgbackrest`  | Pushes the pgbackrest image to the local k3d registry           |
+| `pnpm local:push:helm`        | Pushes the helm chart package to the local k3d registry via oci |
+| `pnpm local:push`             | All of the push commands above                                  |
 
-`pnpm docker:build && pnpm dev:push` from the repo root does this for every package.
+`pnpm local:build && pnpm local:push` from the repo root does this for every package.
 
 ## Configuration Reference
 

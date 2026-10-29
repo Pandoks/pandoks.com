@@ -87,18 +87,18 @@ if (isProduction) {
   );
 }
 
-new sst.x.DevCommand('DevInit', {
+new sst.x.DevCommand('LocalInit', {
   dev: {
-    title: 'InitDev',
-    command: 'pnpm dev:init',
+    title: 'InitLocal',
+    command: 'pnpm local:init',
     autostart: false
   }
 });
 
-new sst.x.DevCommand('DevDestroy', {
+new sst.x.DevCommand('LocalDestroy', {
   dev: {
-    title: 'DestroyDev',
-    command: 'pnpm dev:destroy',
+    title: 'DestroyLocal',
+    command: 'pnpm local:destroy',
     autostart: false
   }
 });

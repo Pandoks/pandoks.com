@@ -4,16 +4,15 @@
   "type": "module",
   "sideEffects": false,
   "scripts": {
-    "build": "pnpm run /^build:/",
-    "docker:build": "pnpm build",
-    "build:clickhouse": "docker build -f ./clickhouse/Dockerfile ../../ -t localhost:12345/clickhouse:latest",
-    "build:keeper": "docker build -f ./keeper/Dockerfile ../../ -t localhost:12345/clickhouse-keeper:latest",
-    "build:backup": "docker build -f ./backup/Dockerfile ../../ -t localhost:12345/clickhouse-backup:latest",
-    "build:helm": "rm -f ./clickhouse-*.tgz && helm package ./chart",
-    "dev:push": "pnpm run /^dev:push:/",
-    "dev:push:clickhouse": "docker push localhost:12345/clickhouse:latest",
-    "dev:push:keeper": "docker push localhost:12345/clickhouse-keeper:latest",
-    "dev:push:backup": "docker push localhost:12345/clickhouse-backup:latest",
-    "dev:push:helm": "helm push clickhouse-*.tgz oci://localhost:12345/charts"
+    "local:build": "pnpm run /^local:build:/",
+    "local:build:clickhouse": "docker build -f ./clickhouse/Dockerfile ../../ -t localhost:12345/clickhouse:latest",
+    "local:build:keeper": "docker build -f ./keeper/Dockerfile ../../ -t localhost:12345/clickhouse-keeper:latest",
+    "local:build:backup": "docker build -f ./backup/Dockerfile ../../ -t localhost:12345/clickhouse-backup:latest",
+    "local:build:helm": "rm -f ./clickhouse-*.tgz && helm package ./chart",
+    "local:push": "pnpm run /^local:push:/",
+    "local:push:clickhouse": "docker push localhost:12345/clickhouse:latest",
+    "local:push:keeper": "docker push localhost:12345/clickhouse-keeper:latest",
+    "local:push:backup": "docker push localhost:12345/clickhouse-backup:latest",
+    "local:push:helm": "helm push clickhouse-*.tgz oci://localhost:12345/charts"
   }
 }
