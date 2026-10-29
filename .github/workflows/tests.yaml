@@ -24,6 +24,7 @@ jobs:
       svelte: ${{ steps.filter.outputs.svelte }}
       prettier: ${{ steps.filter.outputs.prettier }}
       valkey-reconciler: ${{ steps.filter.outputs.valkey-reconciler }}
+      updates: ${{ steps.filter.outputs.updates }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -44,6 +45,8 @@ jobs:
               - 'packages/prettier/**'
             valkey-reconciler:
               - 'packages/valkey/reconciler/**'
+            updates:
+              - 'apps/updates/**'
 
   test-web:
     needs: detect-changes
@@ -120,6 +123,18 @@ jobs:
       - name: Run tests
         run: pnpm --filter @pandoks.com/valkey test
 
+  test-updates:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.updates == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - name: Run updates tests
+        run: pnpm --filter @pandoks.com/updates test
+
   tests-pass:
     needs:
       - test-web
@@ -127,6 +142,7 @@ jobs:
       - test-svelte-pkg
       - test-prettier-pkg
       - test-valkey-reconciler
+      - test-updates
     if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-latest
     steps:

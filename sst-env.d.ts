@@ -200,6 +200,12 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "Updates": import("@cloudflare/workers-types").Service
+    "UpdatesBucket": import("@cloudflare/workers-types").R2Bucket
+    "UpdatesSigningKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
   }
 }
 
