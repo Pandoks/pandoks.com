@@ -60,22 +60,30 @@ spec:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: &app valkey-{{ .Values.name }}
+  name: valkey-{{ .Values.name }}
   namespace: {{ .Values.namespace }}
   labels:
-    app: *app
+    app: valkey-{{ .Values.name }}
 spec:
   serviceName: &service valkey-{{ .Values.name }}-headless
   podManagementPolicy: Parallel
   replicas: {{ add .Values.cluster.masters (mul .Values.cluster.masters .Values.cluster.replicasPerMaster) }}
   selector:
     matchLabels:
-      app: *app
+      app: &app valkey-{{ .Values.name }}
   template:
     metadata:
       labels:
         app: *app
     spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

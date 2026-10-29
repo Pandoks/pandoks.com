@@ -7,11 +7,11 @@ metadata:
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
 metadata:
-  name: &name haproxy-ingress
+  name: haproxy-ingress
   namespace: kube-system
 spec:
   repo: https://haproxy-ingress.github.io/charts
-  chart: *name
+  chart: haproxy-ingress
   version: 0.15.1
   targetNamespace: ingress-controller
   createNamespace: true

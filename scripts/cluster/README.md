@@ -1,8 +1,7 @@
 # Cluster CLI
 
-This directory contains the shell-based CLI used for managing local k3d clusters,
-shared dependencies, and Kubernetes resources. The cluster
-scripts use POSIX `sh`.
+This directory contains the shell-based CLI used for managing local k3d clusters, shared
+dependencies, and Kubernetes resources. The cluster scripts use POSIX `sh`.
 
 ## Entry Point
 
@@ -10,8 +9,8 @@ scripts use POSIX `sh`.
 ./scripts/cluster/main.sh <command> [subcommand] [options]
 ```
 
-Use `help`, `--help`, or `-h` with any command/subcommand to view detailed
-options. Package scripts in `package.json` are wired directly to
+Use `help`, `--help`, or `-h` at the top level or with `k3d`, `k3d deps`, or `deploy` to view
+detailed options. Package scripts in `package.json` are wired directly to
 `./scripts/cluster/main.sh`, so you can invoke everything via `pnpm` as well.
 
 ## Top-Level Commands
@@ -44,8 +43,8 @@ options. Package scripts in `package.json` are wired directly to
 ./scripts/cluster/main.sh deploy <local|dev|prod> [--bootstrap] [--stage <STAGE>] [--dry-run] [--kubeconfig <PATH>] [--quiet]
 ```
 
-Deploy uses `k3s/overlays/<env>` by default. On a fresh cluster, run `--bootstrap`
-first, then deploy without it. Overlays include bootstrap resources but skip bootstrap waits.
+Deploy uses `k3s/overlays/<env>` by default. On a fresh cluster, run `--bootstrap` first, then
+deploy without it. Overlays include bootstrap resources but skip bootstrap waits.
 
 | Environment | Description                                                       |
 | ----------- | ----------------------------------------------------------------- |
@@ -66,13 +65,14 @@ Options can be combined. `preview` requires `--dry-run` and cannot bootstrap. Th
 kubeconfig/context chooses the actual cluster; manual deploys ask for confirmation.
 `--dry-run --quiet` prints only YAML.
 
-Renders need SST and standalone Kustomize; pinned remote resources need network access.
-Images are declared in Kustomize; deploy does not build images or query registries.
-Bootstrap failures stop the command. Dev/prod also wait for Argo CD and upgrade CRDs.
+Renders need SST and standalone Kustomize; pinned remote resources need network access. Images are
+declared in Kustomize; deploy does not build images or query registries. Bootstrap failures stop the
+command. Dev/prod also wait for Argo CD and upgrade CRDs.
 
 CI builds images/charts and publishes prepared Git refs; Argo uses this CLI to render them.
-Same-repository PRs targeting `main` with the `preview` label deploy automatically to dev; successful `main` builds deploy to production.
-Manual commands handle bootstrap and recovery; see [the remote workflow](../../k3s/README.md).
+Same-repository PRs targeting `main` with the `preview` label deploy automatically to dev;
+successful `main` builds deploy to production. Manual commands handle bootstrap and recovery; see
+[the remote workflow](../../k3s/README.md).
 
 ### Template Variables
 
@@ -84,12 +84,15 @@ The `deploy` command renders templates with these substitutions before applying:
 | `${<Secret> \| quote}`  | Quote a secret value.                |
 | `${<Secret> \| base64}` | Base64 encode a secret value.        |
 
-SST exports `value`, falling back to `name`; resources with neither are omitted.
-Rendering fails if a referenced SST value is missing or empty.
+SST exports `value`, falling back to `name`; resources with neither are omitted. Rendering fails if
+a referenced SST value is missing or empty.
 
 ## Examples
 
 ### Local k3d Cluster
+
+Replace `your-stage` with your personal SST stage (for example, `pandoks`); `local` and `dev` select
+the deployment environment, not the SST stage.
 
 ```sh
 # Start dependencies and create the k3d cluster
@@ -101,8 +104,8 @@ pnpm local:build
 pnpm local:push
 
 # Deploy in two steps: bootstrap (helm charts + CRDs), then overlay
-./scripts/cluster/main.sh deploy local --bootstrap
-./scripts/cluster/main.sh deploy local
+./scripts/cluster/main.sh deploy local --stage your-stage --bootstrap
+./scripts/cluster/main.sh deploy local --stage your-stage
 
 # Tear down everything
 ./scripts/cluster/main.sh k3d down
@@ -111,13 +114,14 @@ pnpm local:push
 
 ### Remote Cluster (Hetzner via Tailscale)
 
-Provision SST stage `dev` (manual) or `production` (automatic from `main`) with Deploy Infrastructure, then use a checkout of
-`deploy/dev` or `deploy/production` for bootstrap. Shared dev uses the `preview` resource prefix
-and Tailscale hostname `preview-cluster`, preserving personal SST stages' existing names.
+Provision SST stage `dev` locally (`pnpm sst deploy --stage dev`) or `production` (Deploy
+Infrastructure, automatic from `main`), then use a checkout of `deploy/dev` or `deploy/production`
+for bootstrap. Shared dev uses the `preview` resource prefix and Tailscale hostname
+`preview-cluster`, preserving personal SST stages' existing names.
 
 ```sh
-# Switch to the cloud cluster context
-kubectl config use-context <tailscale-context>
+# Switch to the shared dev cluster context in your tailnet (prod-cluster for production)
+tailscale configure kubeconfig preview-cluster
 
 # Two-step deploy on a fresh dev cluster (use prod for production)
 ./scripts/cluster/main.sh deploy dev --bootstrap
@@ -139,5 +143,5 @@ kubectl config use-context <tailscale-context>
 
 ---
 
-If you add new commands or options, update `usage.sh` so help output stays
-accurate, and document anything notable here for future contributors.
+If you add new commands or options, update `usage.sh` so help output stays accurate, and document
+anything notable here for future contributors.

@@ -20,13 +20,38 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
           attr: ['funnel']
         }
       ],
+      autoApprovers: {
+        services: {
+          'svc:cliproxyapi': ['tag:cliproxyapi'],
+          'svc:cliproxyapi-ci': ['tag:cliproxyapi']
+        }
+      },
       grants: [{ src: ['*'], dst: ['*'], ip: ['*'] }],
       ssh: [
         {
           action: 'check',
           src: ['autogroup:member'],
-          dst: ['autogroup:self', 'tag:hetzner', 'tag:ovh'],
+          dst: ['autogroup:self'],
           users: ['autogroup:nonroot', 'root']
+        },
+        {
+          action: 'check',
+          src: ['pandoks@github'],
+          dst: ['tag:hetzner', 'tag:ovh'],
+          users: ['autogroup:nonroot', 'root']
+        },
+        {
+          action: 'check',
+          src: ['autogroup:member'],
+          dst: ['tag:ssh'],
+          users: ['autogroup:nonroot']
+        },
+        // NOTE: tailscale doesn't allow check mode from tagged devices
+        {
+          action: 'accept',
+          src: ['tag:ssh'],
+          dst: ['tag:ssh'],
+          users: ['autogroup:nonroot']
         }
       ],
       tagOwners: {
@@ -40,7 +65,9 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         'tag:dev': ['pandoks@github', 'tag:k8s-operator'],
         'tag:preview': ['pandoks@github', 'tag:k8s-operator'],
         'tag:prod': ['pandoks@github', 'tag:k8s-operator'],
-        'tag:ci': ['pandoks@github']
+        'tag:ci': ['pandoks@github'],
+        'tag:cliproxyapi': ['pandoks@github'],
+        'tag:ssh': ['pandoks@github']
       }
     },
     { maxLength: 80, indent: 2 }

@@ -1,0 +1,89 @@
+name: Claude Review
+
+on:
+  pull_request:
+    types:
+      - opened
+      - ready_for_review
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: claude-review-${{ github.ref }}
+
+jobs:
+  review:
+    if: >-
+      ${{
+        !github.event.pull_request.draft &&
+        (github.event.pull_request.user.type != 'Bot' ||
+          github.event.pull_request.user.login == 'pandoks-grok[bot]')
+      }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4.2.0
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Get claude[bot] token
+        id: claude-app
+        shell: bash
+        run: |
+          oidc=$(curl -sSf -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=claude-code-github-action" | jq -r .value)
+          response=$(curl -sS -X POST -H "Authorization: Bearer ${oidc}" -H 'Content-Type: application/json' \
+            -d '{"permissions":{"contents":"read","pull_requests":"write"}}' \
+            https://api.anthropic.com/api/github/github-app-token-exchange)
+          if token=$(jq -er '.token // .app_token' <<<"${response}"); then
+            echo "::add-mask::${token}"
+            echo "token=${token}" >> "${GITHUB_OUTPUT}"
+          elif [[ $(jq -r .error.details.error_code <<<"${response}") == workflow_content_mismatch ]]; then
+            echo "::notice::claude-review.yaml differs from the default branch, so this review posts as github-actions[bot]"
+          else
+            echo "${response}"
+            exit 1
+          fi
+
+      # WARNING: The reviewer reads untrusted PR text, so its process must not see the OIDC request vars.
+      - name: Review with Claude
+        env:
+          ANTHROPIC_BASE_URL: https://cliproxyapi-ci.tailb2c81d.ts.net
+          ANTHROPIC_API_KEY: cliproxyapi
+          GH_TOKEN: ${{ steps.claude-app.outputs.token || github.token }}
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1'
+          CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
+        run: exec env -u ACTIONS_ID_TOKEN_REQUEST_URL -u ACTIONS_ID_TOKEN_REQUEST_TOKEN node scripts/claude-review/review.ts
+
+      - name: Delete pending review
+        if: ${{ cancelled() || failure() }}
+        env:
+          GH_TOKEN: ${{ steps.claude-app.outputs.token || github.token }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          QUERY: 'query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) { reviews(states: [PENDING], first: 1) { nodes { fullDatabaseId } } } } }'
+        run: |
+          review=$(gh api graphql -F owner='{owner}' -F name='{repo}' -F number="${NUMBER}" \
+            -f query="${QUERY}" \
+            --jq '.data.repository.pullRequest.reviews.nodes[0].fullDatabaseId // empty')
+          if [[ -n "${review}" ]]; then
+            gh api -X DELETE -H 'X-GitHub-Api-Version: 2026-03-10' "repos/${GITHUB_REPOSITORY}/pulls/${NUMBER}/reviews/${review}"
+          fi
+
+      - name: Revoke claude[bot] token
+        if: ${{ always() && steps.claude-app.outputs.token }}
+        env:
+          TOKEN: ${{ steps.claude-app.outputs.token }}
+        run: 'curl -sSf -X DELETE -H "Authorization: Bearer ${TOKEN}" -H "X-GitHub-Api-Version: 2026-03-10" https://api.github.com/installation/token'

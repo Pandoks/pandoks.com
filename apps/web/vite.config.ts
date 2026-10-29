@@ -1,3 +1,4 @@
+import adapter from '@sveltejs/adapter-static';
 import tailwindcss from '@tailwindcss/vite';
 import { svelteTesting } from '@testing-library/svelte/vite';
 import { enhancedImages } from '@sveltejs/enhanced-img';
@@ -13,7 +14,10 @@ export default defineConfig({
     hideBlogWhenEmpty(),
     tailwindcss(),
     enhancedImages(),
-    sveltekit(),
+    sveltekit({
+      adapter: adapter(),
+      paths: { relative: false }
+    }),
     viteStaticCopy({
       // don't point to static directory, point to finished build directory (static -> / after build)
       targets: [

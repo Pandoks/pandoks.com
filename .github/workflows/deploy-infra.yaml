@@ -1,47 +1,34 @@
 name: Deploy Infrastructure
 
-# Main deploys production SST; dev is manual. The preview label only deploys Kubernetes workloads.
+# Main deploys production SST; other stages deploy locally. Argo CD delivers Kubernetes from deploy/* refs.
 on:
   push:
     branches:
       - main
     paths:
-      - 'infra/**'
       - 'sst.config.ts'
+      - 'infra/**'
       - 'pnpm-lock.yaml'
       - 'apps/**'
       - '!apps/desktop-template/**'
       - '!apps/example/**'
       - 'packages/svelte/**'
   workflow_dispatch:
-    inputs:
-      stage:
-        description: 'SST stage'
-        type: choice
-        default: dev
-        options:
-          - dev
-          - production
-      revision:
-        description: 'Source revision (default: main)'
-        type: string
-        required: false
 
 permissions:
   id-token: write
   contents: read
 
 concurrency:
-  group: deploy-infrastructure-${{ inputs.stage || 'production' }}
+  group: deploy-infrastructure
   cancel-in-progress: false
 
 jobs:
   deploy-sst:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    environment: ${{ inputs.stage == 'dev' && 'preview' || 'production' }}
+    environment: production
     env:
-      SST_STAGE: ${{ inputs.stage || 'production' }}
       GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_DEFAULT_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
@@ -53,8 +40,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.revision || github.sha }}
 
       - uses: ./.github/actions/setup-node-pnpm
 
@@ -68,7 +53,7 @@ jobs:
       # https://github.com/anomalyco/sst/issues/6713
       - name: Refresh SST state
         continue-on-error: true
-        run: pnpm sst refresh --stage "$SST_STAGE"
+        run: pnpm sst refresh --stage production
 
       - name: Deploy SST
-        run: pnpm sst deploy --stage "$SST_STAGE"
+        run: pnpm sst deploy --stage production
