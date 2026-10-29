@@ -1,4 +1,7 @@
+import { ModuleTemplate, ModuleTemplateView } from '@pandoks.com/react-native-module-template';
+import { useEvent } from 'expo';
 import { useTheme } from 'expo-router';
+import { useEffect } from 'react';
 import {
   Platform,
   StyleSheet,
@@ -16,13 +19,19 @@ export default function DeviceScreen() {
   const { width, height, fontScale } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const nativeChange = useEvent(ModuleTemplate, 'onChange');
+
+  useEffect(() => {
+    void ModuleTemplate.setValueAsync(`Sent at ${new Date().toLocaleTimeString()}`);
+  }, []);
 
   const rows = [
     ['Color scheme', colorScheme],
     ['Window', `${Math.round(width)} × ${Math.round(height)}`],
     ['Font scale', fontScale.toFixed(2)],
     ['Safe area', [insets.top, insets.right, insets.bottom, insets.left].map(Math.round).join(' ')],
-    ['Platform', `${Platform.OS} ${Platform.Version}`]
+    ['Platform', `${Platform.OS} ${Platform.Version}`],
+    ['Native greeting', ModuleTemplate.getGreeting()]
   ];
 
   return (
@@ -34,6 +43,10 @@ export default function DeviceScreen() {
             <Text style={[styles.value, { color: colors.text }]}>{value}</Text>
           </View>
         ))}
+        <View style={[styles.row, { borderColor: colors.border }]}>
+          <Text style={[styles.label, { color: colors.text }]}>Native event</Text>
+          <ModuleTemplateView text={nativeChange?.value ?? ''} style={styles.nativeView} />
+        </View>
       </View>
     </Screen>
   );
@@ -50,5 +63,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth
   },
   label: { fontSize: 17 },
-  value: { fontSize: 17, opacity: 0.6, fontVariant: ['tabular-nums'] }
+  value: { fontSize: 17, opacity: 0.6, fontVariant: ['tabular-nums'] },
+  nativeView: { flex: 1, height: 22 }
 });
