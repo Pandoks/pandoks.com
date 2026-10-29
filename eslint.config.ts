@@ -30,6 +30,9 @@ export default defineConfig([
           './apps/*/tsconfig.json',
           './packages/*/tsconfig.json'
         ],
+        // NOTE: set for every file, not only .svelte, so typescript-eslint builds each program once
+        // instead of rebuilding it whenever the extensions change between files (~40% slower lint)
+        extraFileExtensions: ['.svelte'],
         tsconfigRootDir: import.meta.dirname
       }
     },
@@ -133,10 +136,7 @@ export default defineConfig([
     files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],
     languageOptions: {
       parser: svelteParser,
-      parserOptions: {
-        parser: tseslint.parser,
-        extraFileExtensions: ['.svelte']
-      }
+      parserOptions: { parser: tseslint.parser }
     }
   },
   {
