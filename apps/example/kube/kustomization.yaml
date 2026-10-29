@@ -2,9 +2,8 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - clickhouse.yaml
+  - credentials.yaml
   - example.yaml
+  - namespaces.yaml
   - postgres.yaml
   - valkey.yaml
-  - credentials.yaml
-  - namespaces.yaml
-  - postgres-access.yaml

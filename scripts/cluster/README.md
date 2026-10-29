@@ -121,7 +121,7 @@ For dev, connect to `dev-cluster` and use `deploy dev --stage your-stage` in bot
 
 The first prod overlay deploy creates the `prod-cluster` ArgoCD Application, which then keeps prod
 in sync with `k3s/overlays/prod` on `main` (`deploy-infra.yaml` triggers a hard refresh when
-`k3s/**` or `scripts/cluster/**` changes).
+`k3s/**`, `apps/*/kube/**`, or `scripts/cluster/**` changes).
 
 ### Preview Without Applying
 
