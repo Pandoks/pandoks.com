@@ -25,7 +25,7 @@
     "postinstall": "sst install --stage install"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20261024.1",
+    "@cloudflare/workers-types": "5.20261025.1",
     "@eslint/compat": "2.1.1",
     "@eslint/js": "10.0.1",
     "@pandoks.com/prettier": "workspace:*",

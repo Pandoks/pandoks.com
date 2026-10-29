@@ -2,14 +2,11 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: patroni-{{ .Values.db }}
-  namespace: {{ .Values.monitoring.namespace }}
+  namespace: {{ .Values.namespace }}
   labels:
     app.kubernetes.io/name: patroni
     database: {{ .Values.db }}
 spec:
-  namespaceSelector:
-    matchNames:
-      - {{ .Values.namespace }}
   selector:
     matchLabels:
       app.kubernetes.io/name: patroni
@@ -25,14 +22,11 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: postgres-{{ .Values.db }}
-  namespace: {{ .Values.monitoring.namespace }}
+  namespace: {{ .Values.namespace }}
   labels:
     app.kubernetes.io/name: postgres
     database: {{ .Values.db }}
 spec:
-  namespaceSelector:
-    matchNames:
-      - {{ .Values.namespace }}
   selector:
     matchLabels:
       app.kubernetes.io/name: patroni
@@ -49,9 +43,9 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: grafana-dashboard-postgres-{{ .Values.namespace }}-{{ .Values.db }}
-  namespace: {{ .Values.monitoring.namespace }}
+  namespace: {{ .Values.namespace }}
   labels:
     grafana_dashboard: "1"
 data:
   postgres-{{ .Values.namespace }}-{{ .Values.db }}.json: |
-{{ tpl (.Files.Get "files/grafana-dashboard.json") . | indent 4 }}
+{{ tpl (.Files.Get "files/grafana-dashboard.json" | replace "service=~" `namespace=\"{{ .Values.namespace }}\", service=~`) . | indent 4 }}

@@ -2,44 +2,42 @@
 
 set -eu
 
-if [ "${BACKUP_ENABLED:-true}" = true ]; then
-  if pgbackrest --stanza="${STANZA}" info | grep "missing stanza path"; then
-    echo "Stanza '${STANZA}' does not exist. Creating..."
-    if pgbackrest --stanza="${STANZA}" stanza-create; then
-      echo "✓ Stanza '${STANZA}' created successfully."
-    else
-      echo "Failed to create stanza '${STANZA}'."
-      exit 1
-    fi
+if pgbackrest --stanza="${STANZA}" info | grep "missing stanza path"; then
+  echo "Stanza '${STANZA}' does not exist. Creating..."
+  if pgbackrest --stanza="${STANZA}" stanza-create; then
+    echo "✓ Stanza '${STANZA}' created successfully."
   else
-    echo "Stanza '${STANZA}' already exists. Skipping stanza creation."
+    echo "Failed to create stanza '${STANZA}'."
+    exit 1
   fi
-
-  echo "Checking for existing backup..."
-  set +e # TODO: test if this is needed
-  if pgbackrest --stanza="${STANZA}" info | grep -q "full backup"; then
-    echo "Full backup already exists. Restoring..."
-    pg_ctl stop -w -D /var/lib/postgresql/pgdata -m fast
-    if pgbackrest --stanza="${STANZA}" restore; then
-      echo "✓ Full backup restored successfully."
-    else
-      echo "Failed to restore full backup."
-      exit 1
-    fi
-    echo "Patching stanza..."
-    if pgbackrest --stanza="${STANZA}" --no-online stanza-upgrade; then
-      echo "✓ Stanza upgraded successfully."
-    else
-      echo "Failed to upgrade stanza."
-      exit 1
-    fi
-    pg_ctl start -w -D /var/lib/postgresql/pgdata
-    pg_ctl promote -w -D /var/lib/postgresql/pgdata
-    echo "Database ready..."
-    exit 0
-  fi
-  set -e
+else
+  echo "Stanza '${STANZA}' already exists. Skipping stanza creation."
 fi
+
+echo "Checking for existing backup..."
+set +e # TODO: test if this is needed
+if pgbackrest --stanza="${STANZA}" info | grep -q "full backup"; then
+  echo "Full backup already exists. Restoring..."
+  pg_ctl stop -w -D /var/lib/postgresql/pgdata -m fast
+  if pgbackrest --stanza="${STANZA}" restore; then
+    echo "✓ Full backup restored successfully."
+  else
+    echo "Failed to restore full backup."
+    exit 1
+  fi
+  echo "Patching stanza..."
+  if pgbackrest --stanza="${STANZA}" --no-online stanza-upgrade; then
+    echo "✓ Stanza upgraded successfully."
+  else
+    echo "Failed to upgrade stanza."
+    exit 1
+  fi
+  pg_ctl start -w -D /var/lib/postgresql/pgdata
+  pg_ctl promote -w -D /var/lib/postgresql/pgdata
+  echo "Database ready..."
+  exit 0
+fi
+set -e
 
 if psql -Atq -d postgres -c "SELECT 1 FROM pg_database WHERE datname='${POSTGRES_DB}'" | grep -q 1; then
   echo "Database '${POSTGRES_DB}' already exists. Skipping creation."
@@ -104,10 +102,8 @@ else
   fi
 fi
 
-if [ "${BACKUP_ENABLED:-true}" = true ]; then
-  if pgbackrest --stanza="${STANZA}" backup --type=full; then
-    echo "✓ Initial full backup created successfully. Replicas can now bootstrap."
-  else
-    echo "Warning: Failed to create initial backup. Replicas may fail to bootstrap."
-  fi
+if pgbackrest --stanza="${STANZA}" backup --type=full; then
+  echo "✓ Initial full backup created successfully. Replicas can now bootstrap."
+else
+  echo "Warning: Failed to create initial backup. Replicas may fail to bootstrap."
 fi
