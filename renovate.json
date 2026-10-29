@@ -100,6 +100,12 @@
   ],
   "packageRules": [
     {
+      "description": "scripts/ci/publish.sh pins first-party images per release, and the local overlay uses the local registry.",
+      "matchManagers": ["kustomize", "kubernetes"],
+      "matchPackageNames": ["ghcr.io/pandoks/**", "local-registry:5000/**"],
+      "enabled": false
+    },
+    {
       "description": "Merging a refresh rebuilds Valkey, which changes its digest again.",
       "matchPackageNames": ["ghcr.io/pandoks/valkey"],
       "groupName": "valkey image",
