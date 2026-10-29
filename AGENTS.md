@@ -68,8 +68,9 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
   hard refresh only for `k3s/` and `scripts/cluster/` changes. Pages builds `apps/web` when a change
   matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod`
   renders but never prunes: a deleted resource stays in prod until pruned by hand.
-- Every non-production stage gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
-  environment, so two non-production stages collide.
+- The shared `dev` stage gets `STAGE_NAME` `preview` and `preview.pandoks.com`. Every other
+  non-production stage gets `STAGE_NAME` `dev` and `dev.pandoks.com`, so two personal stages
+  collide. All non-production stages share the `dev` GitHub environment, which AWS doesn't trust.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
   staging tier, promotion step, or per-PR cluster.
 - PRs get no infra diff: `sst diff` decrypts every secret, so never run it with production

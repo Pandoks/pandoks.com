@@ -1,10 +1,10 @@
-import { awsAccountId, isProduction } from './dns';
+import { awsAccountId, isProduction, isDev } from './dns';
 import { defaultAwsRegion } from './aws';
 import { secrets, setSecret } from './secrets';
 
-if (isProduction) {
+if (isProduction || isDev) {
   const argocdUser = new aws.iam.User('ArgocdCmpUser', {
-    name: 'argo-cmp'
+    name: isProduction ? 'argo-cmp' : 'argo-cmp-preview'
   });
 
   const argocdAccessKey = new aws.iam.AccessKey('ArgocdCmpAccessKey', {
@@ -21,15 +21,15 @@ if (isProduction) {
           Action: ['ssm:GetParameter'],
           Resource: [
             `arn:aws:ssm:${defaultAwsRegion}:${awsAccountId}:parameter/sst/bootstrap`,
-            `arn:aws:ssm:${defaultAwsRegion}:${awsAccountId}:parameter/sst/passphrase/personal/production`
+            `arn:aws:ssm:${defaultAwsRegion}:${awsAccountId}:parameter/sst/passphrase/personal/${$app.stage}`
           ]
         },
         {
           Effect: 'Allow',
           Action: ['s3:GetObject'],
           Resource: [
-            'arn:aws:s3:::sst-state-*/app/personal/production.json',
-            'arn:aws:s3:::sst-state-*/passphrase/personal/production'
+            `arn:aws:s3:::sst-state-*/app/personal/${$app.stage}.json`,
+            `arn:aws:s3:::sst-state-*/passphrase/personal/${$app.stage}`
           ]
         }
       ]

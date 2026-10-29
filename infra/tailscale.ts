@@ -76,6 +76,7 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         'tag:control-plane': ['pandoks@github'],
         'tag:worker': ['pandoks@github'],
         'tag:dev': ['pandoks@github', 'tag:k8s-operator'],
+        'tag:preview': ['pandoks@github', 'tag:k8s-operator'],
         'tag:prod': ['pandoks@github', 'tag:k8s-operator'],
         'tag:ci': ['pandoks@github'],
         'tag:cliproxyapi': ['pandoks@github'],

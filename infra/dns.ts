@@ -1,12 +1,18 @@
 import { secrets, setSecret } from './secrets';
 
 export const isProduction = $app.stage === 'production';
+export const isDev = $app.stage === 'dev';
 
-export const domain = isProduction ? 'pandoks.com' : 'dev.pandoks.com';
+export const domain = isProduction
+  ? 'pandoks.com'
+  : isDev
+    ? 'preview.pandoks.com'
+    : 'dev.pandoks.com';
 
-export const EXAMPLE_DOMAIN = 'example.pandoks.com';
+export const EXAMPLE_DOMAIN = isDev ? '*.pandoks.com' : 'example.pandoks.com';
 
-export const STAGE_NAME = isProduction ? 'prod' : 'dev';
+// Keep existing production/personal identities; shared dev uses the preview prefix.
+export const STAGE_NAME = isProduction ? 'prod' : isDev ? 'preview' : 'dev';
 
 secrets.Stage.value.apply((stageName) => {
   if (stageName !== STAGE_NAME) {
