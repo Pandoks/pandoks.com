@@ -38,9 +38,9 @@ type providerRequest struct {
 
 // fakeProvider speaks the APNs and FCM HTTP/2 wire formats over TLS. Tokens starting with "gone-"
 // are unregistered, "invalid-" are malformed FCM tokens, "busy-" are throttled on their first
-// request, "hang-", "slow-", and "stuck-" block their first request until release, releaseSlow, and
-// releaseStuck are closed, and "sandbox-" are valid only on the sandbox APNs host while every other
-// APNs token is valid only on production.
+// request, "hang-", "slow-", "stuck-", and "burst-" block their first request until release,
+// releaseSlow, releaseStuck, and releaseBurst are closed, and "sandbox-" are valid only on the
+// sandbox APNs host while every other APNs token is valid only on production.
 type fakeProvider struct {
 	mutex            sync.Mutex
 	requests         map[string][]providerRequest
@@ -48,6 +48,7 @@ type fakeProvider struct {
 	release          chan struct{}
 	releaseSlow      chan struct{}
 	releaseStuck     chan struct{}
+	releaseBurst     chan struct{}
 }
 
 func (provider *fakeProvider) serve(t *testing.T, apnsPublicKey *ecdsa.PublicKey, environment string) *httptest.Server {
@@ -83,6 +84,8 @@ func (provider *fakeProvider) serve(t *testing.T, apnsPublicKey *ecdsa.PublicKey
 			<-provider.releaseSlow
 		case strings.HasPrefix(token, "stuck-") && attempt == 1:
 			<-provider.releaseStuck
+		case strings.HasPrefix(token, "burst-") && attempt == 1:
+			<-provider.releaseBurst
 		}
 	})
 	mux.HandleFunc("POST /token", func(writer http.ResponseWriter, _ *http.Request) {
@@ -204,7 +207,7 @@ func TestPush(t *testing.T) {
 	apnsKeyDER, _ := x509.MarshalPKCS8PrivateKey(apnsKey)
 	fcmKey, _ := rsa.GenerateKey(rand.Reader, 2048)
 	fcmKeyDER, _ := x509.MarshalPKCS8PrivateKey(fcmKey)
-	provider := &fakeProvider{requests: map[string][]providerRequest{}, release: make(chan struct{}), releaseSlow: make(chan struct{}), releaseStuck: make(chan struct{})}
+	provider := &fakeProvider{requests: map[string][]providerRequest{}, release: make(chan struct{}), releaseSlow: make(chan struct{}), releaseStuck: make(chan struct{}), releaseBurst: make(chan struct{})}
 	production := provider.serve(t, &apnsKey.PublicKey, "production")
 	sandbox := provider.serve(t, &apnsKey.PublicKey, "sandbox")
 	trustedCertificates := x509.NewCertPool()
@@ -434,7 +437,12 @@ func TestPush(t *testing.T) {
 		for index := range jobWorkers {
 			token := fmt.Sprintf("stuck-%d-", index)
 			register(token, "ios", "production", "device", "user-11")
-			stuckIDs = append(stuckIDs, send(alert(map[string]any{"tokens": []string{token + app}})))
+			// NOTE: unregistered tokens fill the job, so each stuck send holds a whole worker
+			tokens := []string{token + app}
+			for filler := range recipientsPerJob - 1 {
+				tokens = append(tokens, fmt.Sprintf("unregistered-%d", filler))
+			}
+			stuckIDs = append(stuckIDs, send(alert(map[string]any{"tokens": tokens})))
 		}
 		waitFor(t, "every worker to be stuck", func() bool {
 			for index := range jobWorkers {
@@ -461,6 +469,28 @@ func TestPush(t *testing.T) {
 		close(provider.releaseStuck)
 		for _, id := range stuckIDs {
 			waitFor(t, "the stuck jobs to finish", func() bool { return jobsLeft(id) == 0 })
+		}
+	})
+
+	t.Run("sends a burst of small notifications at once instead of one per worker", func(t *testing.T) {
+		sendAt := time.Now().Add(time.Second).Format(time.RFC3339Nano)
+		var ids []string
+		for index := range 4 * jobWorkers {
+			token := fmt.Sprintf("burst-%d-", index)
+			register(token, "ios", "production", "device", "user-14")
+			ids = append(ids, send(alert(map[string]any{"tokens": []string{token + app}, "send_at": sendAt})))
+		}
+		waitFor(t, "every send to be in flight", func() bool {
+			for index := range ids {
+				if len(sentTo(fmt.Sprintf("burst-%d-", index))) == 0 {
+					return false
+				}
+			}
+			return true
+		})
+		close(provider.releaseBurst)
+		for _, id := range ids {
+			waitFor(t, "the burst to finish", func() bool { return jobsLeft(id) == 0 })
 		}
 	})
 

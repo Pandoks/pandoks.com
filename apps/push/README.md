@@ -53,6 +53,12 @@ curl -X POST http://push.main.svc.cluster.local/notifications -d '{
   holds its job's row lock while sending and deletes the job when it commits, so delivery is at
   least once: a replica that dies mid-job leaves the job to another worker, which sends it again. A
   stopping replica starts no more sends and requeues the tokens it hasn't sent before committing.
+- A worker claims due jobs until it holds 500 recipients and starts each job's sends as soon as it
+  claims it, so a burst of small notifications goes out together while a fan-out's full jobs still
+  spread across replicas.
+- Each pod opens at most 5 Postgres connections: 3 workers hold one each for their batch, LISTEN
+  holds one, and the API always has the last one plus any idle worker's. A rollout overlaps up to 4
+  pods, so push stays within 20 of the 25 connections PgDog leaves free.
 - Database calls time out after 5 seconds, and `GET /readyz` fails while Postgres is unreachable.
 - APNs `429` and `5xx` and FCM `429` and `5xx` are retried a few times with exponential backoff that
   honors `Retry-After`.
