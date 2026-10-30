@@ -20,6 +20,7 @@ export default function DeviceScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const [storeUpdate, setStoreUpdate] = useState<StoreUpdate>();
+  const [storeUpdateError, setStoreUpdateError] = useState<string>();
 
   const rows = [
     ['Color scheme', colorScheme],
@@ -44,15 +45,21 @@ export default function DeviceScreen() {
             { borderColor: colors.border, opacity: pressed ? 0.5 : 1 }
           ]}
           onPress={async () => {
-            if (storeUpdate?.available) await StoreUpdates.startStoreUpdate('immediate');
-            else setStoreUpdate(await StoreUpdates.checkForStoreUpdate());
+            setStoreUpdateError(undefined);
+            try {
+              if (storeUpdate?.available) await StoreUpdates.startStoreUpdate('immediate');
+              else setStoreUpdate(await StoreUpdates.checkForStoreUpdate());
+            } catch (error) {
+              setStoreUpdateError((error as Error).message);
+            }
           }}
         >
           <Text style={[styles.label, { color: colors.primary }]}>
             {storeUpdate?.available ? 'Update' : 'Check for update'}
           </Text>
           <Text style={[styles.value, { color: colors.text }]}>
-            {storeUpdate && (storeUpdate.available ? storeUpdate.storeVersion : 'Up to date')}
+            {storeUpdateError ??
+              (storeUpdate && (storeUpdate.available ? storeUpdate.storeVersion : 'Up to date'))}
           </Text>
         </Pressable>
       </View>
