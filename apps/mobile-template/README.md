@@ -15,3 +15,20 @@ pnpm android    # build and run on an Android emulator
 pnpm test:unit
 pnpm test:e2e   # Maestro flows in e2e/, against the running app
 ```
+
+## Updates
+
+Release builds check `updates.pandoks.com` with `expo-updates` in the background on launch and apply
+a new update on the next launch. The runtime version is the native
+[fingerprint](https://docs.expo.dev/versions/latest/sdk/fingerprint/), so an update only reaches
+builds with the same native code, and `certificate.crt` verifies the `UpdatesSigningKey` signature.
+Merging JS changes to `main` publishes a production update from `deploy-infra.yaml`.
+
+To try a dev update, build against `updates.dev.pandoks.com`, change some JS, and publish:
+
+```sh
+export UPDATES_ENVIRONMENT=dev
+rm -rf ios && pnpm ios --configuration Release
+pnpm --dir ../.. updates publish dev apps/mobile-template production \
+  "$(pnpm exec expo-updates runtimeversion:resolve --platform ios | jq -r .runtimeVersion)" ios
+```

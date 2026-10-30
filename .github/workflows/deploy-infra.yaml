@@ -10,7 +10,6 @@ on:
       - 'apps/**'
       - '!apps/desktop-template/**'
       - '!apps/example/**'
-      - '!apps/mobile-template/**'
       - 'packages/svelte/**'
       - 'k3s/**'
       - 'scripts/cluster/**'
@@ -35,6 +34,7 @@ jobs:
     outputs:
       sst: ${{ github.event_name != 'workflow_dispatch' && steps.filter.outputs.sst || contains(fromJSON('["all","sst"]'), inputs.deploy) }}
       kubernetes: ${{ github.event_name != 'workflow_dispatch' && steps.filter.outputs.kubernetes || contains(fromJSON('["all","kubernetes"]'), inputs.deploy) }}
+      mobile-template: ${{ steps.filter.outputs.mobile-template }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
@@ -50,6 +50,9 @@ jobs:
             kubernetes:
               - 'k3s/**'
               - 'scripts/cluster/**'
+            mobile-template:
+              - 'apps/mobile-template/{app.json,app.config.ts,package.json}'
+              - 'apps/mobile-template/{assets,src/!(__tests__)}/**'
 
   deploy-sst:
     concurrency:
@@ -146,3 +149,30 @@ jobs:
           done
           echo "Timed out waiting for sync"
           exit 1
+
+  publish-mobile-template:
+    concurrency:
+      group: publish-mobile-template
+      cancel-in-progress: false
+    needs: detect-changes
+    if: needs.detect-changes.outputs.mobile-template == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_DEFAULT_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
+      EXPO_NO_TELEMETRY: 1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      # NOTE: fingerprint runtime versions differ per platform
+      - name: Publish production update
+        run: |
+          for platform in ios android; do
+            runtime_version="$(pnpm --dir apps/mobile-template exec expo-updates runtimeversion:resolve --platform "${platform}" | jq -r .runtimeVersion)"
+            pnpm updates publish production apps/mobile-template production "${runtime_version}" "${platform}"
+          done
