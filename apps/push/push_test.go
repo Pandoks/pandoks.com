@@ -310,6 +310,13 @@ func TestPush(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects notifications to both user_ids and tokens", func(t *testing.T) {
+		notification := alert(map[string]any{"app": app, "user_ids": []string{"user-0"}, "tokens": []string{"token-0"}})
+		if status, body := call(http.MethodPost, "/notifications", notification); status != http.StatusBadRequest {
+			t.Errorf("send: %d %s", status, body)
+		}
+	})
+
 	t.Run("fans out to every device of the users and removes unregistered tokens", func(t *testing.T) {
 		register("ios-", "ios", "production", "device", "user-1")
 		register("android-", "android", "", "device", "user-1")
@@ -468,17 +475,24 @@ func TestPush(t *testing.T) {
 			}
 			return true
 		})
-		register("woken-user-", "ios", "production", "device", "user-12")
-		register("woken-token-", "ios", "production", "device", "user-13")
+		register("woken-", "ios", "production", "device", "user-12")
 		startService(t)
+		// NOTE: one more user than a job holds makes a fan-out of two jobs
+		fanOut := func(userID string) []string {
+			userIDs := []string{userID}
+			for filler := range recipientsPerJob {
+				userIDs = append(userIDs, fmt.Sprintf("user-none-%d", filler))
+			}
+			return userIDs
+		}
 		// NOTE: without NOTIFY the new replica takes this on a poll, and the sleep lets the workers it woke go idle
-		firstID := send(alert(map[string]any{"user_ids": []string{"user-none"}, "tokens": []string{"none"}}))
+		firstID := send(alert(map[string]any{"user_ids": fanOut("user-none")}))
 		waitFor(t, "the new replica to take the first fan-out", func() bool { return jobsLeft(firstID) == 0 })
 		time.Sleep(pollInterval / 5)
 
 		sentAt := time.Now()
-		send(alert(map[string]any{"user_ids": []string{"user-12"}, "tokens": []string{"woken-token-" + app}}))
-		waitFor(t, "the other replica to deliver", func() bool { return len(sentTo("woken-user-")) == 1 && len(sentTo("woken-token-")) == 1 })
+		send(alert(map[string]any{"user_ids": fanOut("user-12")}))
+		waitFor(t, "the other replica to deliver", func() bool { return len(sentTo("woken-")) == 1 })
 		if elapsed := time.Since(sentAt); elapsed > pollInterval/2 {
 			t.Errorf("the other replica delivered after %s instead of being woken", elapsed)
 		}

@@ -29,9 +29,10 @@ graph LR
 - `push_type` is `alert`, `background`, or `liveactivity`. `liveactivity` sends only to
   `liveactivity` tokens with topic `<app>.push-type.liveactivity`; the others send only to `device`
   tokens. `background` sends with APNs priority 5.
-- A notification goes to every registered token of `user_ids` plus the registered `tokens`, now or
-  at `send_at`. `apns` is the APNs JSON payload sent as is, and `fcm` is the FCM v1 `message`
-  without `token`. iOS tokens are skipped without `apns` and Android tokens without `fcm`.
+- A notification goes to every registered token of `user_ids`, or to the registered `tokens`, now or
+  at `send_at`; it can't set both. `apns` is the APNs JSON payload sent as is, and `fcm` is the FCM
+  v1 `message` without `token`. iOS tokens are skipped without `apns` and Android tokens without
+  `fcm`.
 - Cancelling removes the parts of a notification no worker has taken yet.
 
 ```sh

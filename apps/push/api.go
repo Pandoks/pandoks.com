@@ -76,10 +76,11 @@ func (service *service) sendNotification(writer http.ResponseWriter, request *ht
 		var object map[string]json.RawMessage
 		return payload == nil || (json.Unmarshal(payload, &object) == nil && object != nil)
 	}
+	// NOTE: user_ids and tokens become separate jobs, so a token of one of the users would get it twice
 	if notification.App == "" || !slices.Contains([]string{"alert", "background", "liveactivity"}, notification.PushType) ||
-		len(notification.UserIDs)+len(notification.Tokens) == 0 || (notification.APNs == nil && notification.FCM == nil) ||
+		(len(notification.UserIDs) == 0) == (len(notification.Tokens) == 0) || (notification.APNs == nil && notification.FCM == nil) ||
 		!isObject(notification.APNs) || !isObject(notification.FCM) {
-		http.Error(writer, "app, push_type (alert, background, or liveactivity), user_ids or tokens, and an apns or fcm object are required", http.StatusBadRequest)
+		http.Error(writer, "app, push_type (alert, background, or liveactivity), either user_ids or tokens, and an apns or fcm object are required", http.StatusBadRequest)
 		return
 	}
 
