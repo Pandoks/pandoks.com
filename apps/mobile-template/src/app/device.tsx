@@ -21,7 +21,7 @@ export default function DeviceScreen() {
     ['Color scheme', colorScheme],
     ['Window', `${Math.round(width)} × ${Math.round(height)}`],
     ['Font scale', fontScale.toFixed(2)],
-    ['Safe area', `${insets.top} ${insets.right} ${insets.bottom} ${insets.left}`],
+    ['Safe area', [insets.top, insets.right, insets.bottom, insets.left].map(Math.round).join(' ')],
     ['Platform', `${Platform.OS} ${Platform.Version}`]
   ];
 
