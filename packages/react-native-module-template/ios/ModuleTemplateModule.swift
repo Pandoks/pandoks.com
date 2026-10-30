@@ -18,6 +18,9 @@ public class ModuleTemplateModule: Module {
       Prop("text") { (view: ModuleTemplateView, text: String) in
         view.label.text = text
       }
+      Prop("color") { (view: ModuleTemplateView, color: UIColor) in
+        view.label.textColor = color
+      }
     }
   }
 }

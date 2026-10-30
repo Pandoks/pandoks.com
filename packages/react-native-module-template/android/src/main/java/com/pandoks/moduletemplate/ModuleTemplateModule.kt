@@ -2,6 +2,7 @@ package com.pandoks.moduletemplate
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.view.Gravity
 import android.widget.TextView
 import expo.modules.kotlin.AppContext
@@ -30,6 +31,9 @@ class ModuleTemplateModule : Module() {
     View(ModuleTemplateView::class) {
       Prop("text") { view: ModuleTemplateView, text: String ->
         view.label.text = text
+      }
+      Prop("color") { view: ModuleTemplateView, color: Color ->
+        view.label.setTextColor(color.toArgb())
       }
     }
   }

@@ -1,5 +1,5 @@
 import { NativeModule, requireNativeModule, requireNativeView } from 'expo';
-import { type ViewProps } from 'react-native';
+import { type ColorValue, type ViewProps } from 'react-native';
 
 declare class ModuleTemplateModule extends NativeModule<{
   onChange: (event: { value: string }) => void;
@@ -10,4 +10,6 @@ declare class ModuleTemplateModule extends NativeModule<{
 
 export const ModuleTemplate = requireNativeModule<ModuleTemplateModule>('ModuleTemplate');
 
-export const ModuleTemplateView = requireNativeView<ViewProps & { text: string }>('ModuleTemplate');
+export const ModuleTemplateView = requireNativeView<
+  ViewProps & { text: string; color: ColorValue }
+>('ModuleTemplate');

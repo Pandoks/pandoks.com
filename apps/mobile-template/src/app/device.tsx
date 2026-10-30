@@ -45,7 +45,11 @@ export default function DeviceScreen() {
         ))}
         <View style={[styles.row, { borderColor: colors.border }]}>
           <Text style={[styles.label, { color: colors.text }]}>Native event</Text>
-          <ModuleTemplateView text={nativeChange?.value ?? ''} style={styles.nativeView} />
+          <ModuleTemplateView
+            text={nativeChange?.value ?? ''}
+            color={colors.text}
+            style={styles.nativeView}
+          />
         </View>
       </View>
     </Screen>
