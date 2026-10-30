@@ -43,6 +43,7 @@ const styles = StyleSheet.create({
   list: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   row: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
     gap: 16,
     padding: 16,
