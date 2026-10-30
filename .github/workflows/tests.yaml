@@ -41,6 +41,7 @@ jobs:
               - 'packages/svelte/**'
             mobile-template:
               - 'apps/mobile-template/**'
+              - 'packages/react-native-*/**'
             svelte:
               - 'packages/svelte/**'
             prettier:
