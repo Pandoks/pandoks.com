@@ -21,6 +21,7 @@ export default function DeviceScreen() {
   const { colors } = useTheme();
   const [storeUpdate, setStoreUpdate] = useState<StoreUpdate>();
   const [storeUpdateError, setStoreUpdateError] = useState<string>();
+  const [pending, setPending] = useState(false);
 
   const rows = [
     ['Color scheme', colorScheme],
@@ -43,17 +44,21 @@ export default function DeviceScreen() {
           </View>
         ))}
         <Pressable
+          disabled={pending}
           style={({ pressed }) => [
             styles.row,
             { borderColor: colors.border, opacity: pressed ? 0.5 : 1 }
           ]}
           onPress={async () => {
             setStoreUpdateError(undefined);
+            setPending(true);
             try {
               if (storeUpdate?.available) await StoreUpdates.startStoreUpdate('immediate');
               else setStoreUpdate(await StoreUpdates.checkForStoreUpdate());
             } catch (error) {
               setStoreUpdateError((error as Error).message);
+            } finally {
+              setPending(false);
             }
           }}
         >
