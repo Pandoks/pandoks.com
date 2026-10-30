@@ -30,4 +30,6 @@ To try a dev update, build against `updates.dev.pandoks.com`, change some JS, an
 export UPDATES_ENVIRONMENT=dev
 rm -rf ios && pnpm ios --configuration Release
 pnpm --dir ../.. updates publish dev apps/mobile-template production ios
+rm -rf android && pnpm android --variant release
+pnpm --dir ../.. updates publish dev apps/mobile-template production android
 ```
