@@ -2,7 +2,7 @@ import * as Application from 'expo-application';
 import * as Notifications from 'expo-notifications';
 import { router, type Href } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
 const CHANNEL_ID = 'default';
 
@@ -26,7 +26,15 @@ export function useNotificationPermission() {
   const [permission, setPermission] = useState<Notifications.NotificationPermissionsStatus>();
 
   useEffect(() => {
-    void Notifications.getPermissionsAsync().then(setPermission);
+    function readPermission() {
+      void Notifications.getPermissionsAsync().then(setPermission);
+    }
+
+    readPermission();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') readPermission();
+    });
+    return () => subscription.remove();
   }, []);
 
   async function requestPermission() {
