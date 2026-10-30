@@ -47,6 +47,8 @@ jobs:
               - 'packages/valkey/reconciler/**'
             push:
               - 'apps/push/**'
+              - 'go.work'
+              - 'go.work.sum'
 
   test-web:
     needs: detect-changes
