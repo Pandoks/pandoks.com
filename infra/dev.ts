@@ -59,19 +59,29 @@ if (isProduction) {
     'OvhDevVpsTailscaleTags',
     {
       deviceId: devTailscaleDevice.nodeId,
-      tags: ['tag:funnel', 'tag:ovh', 'tag:cliproxyapi', 'tag:ssh']
+      tags: ['tag:funnel', 'tag:ovh', 'tag:ssh']
     },
     { dependsOn: [tailscaleAcl] }
   );
 
-  // NOTE: pandoks-dev-box hosts this with `tailscale serve --service=svc:cliproxyapi --https=443`
+  const hubTailscaleDevice = tailscale.getDeviceOutput({ hostname: 'thinkpad-t470' });
+  new tailscale.DeviceTags(
+    'HubTailscaleTags',
+    {
+      deviceId: hubTailscaleDevice.nodeId,
+      tags: ['tag:hub', 'tag:ssh']
+    },
+    { dependsOn: [tailscaleAcl] }
+  );
+
+  // NOTE: the hub serves each of these with `tailscale serve --service=<name> --https=443`
   new tailscale.Service(
     'CliproxyapiTailscaleService',
     {
       name: 'svc:cliproxyapi',
-      comment: 'CLIProxyAPI on pandoks-dev-box',
+      comment: 'CLIProxyAPI on the homelab hub',
       ports: ['tcp:443'],
-      tags: ['tag:cliproxyapi']
+      tags: ['tag:hub']
     },
     { dependsOn: [tailscaleAcl] }
   );
@@ -81,7 +91,17 @@ if (isProduction) {
       name: 'svc:cliproxyapi-ci',
       comment: 'CLIProxyAPI with Console API keys only',
       ports: ['tcp:443'],
-      tags: ['tag:cliproxyapi']
+      tags: ['tag:hub']
+    },
+    { dependsOn: [tailscaleAcl] }
+  );
+  new tailscale.Service(
+    'BeszelTailscaleService',
+    {
+      name: 'svc:beszel',
+      comment: 'Beszel monitoring hub',
+      ports: ['tcp:443'],
+      tags: ['tag:hub']
     },
     { dependsOn: [tailscaleAcl] }
   );
