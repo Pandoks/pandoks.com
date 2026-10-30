@@ -317,11 +317,14 @@ func commitJobs(ctx context.Context, transaction pgx.Tx, startedAt time.Time, jo
 		requeued           []notification
 	)
 	requeue := func(job *claimedJob, sendAt time.Time, attempt int, tokens []string) {
-		next := job.notification
-		next.UserIDs, next.Tokens, next.Attempt = nil, tokens, attempt
-		notificationIDs = append(notificationIDs, job.notificationID)
-		sendAts = append(sendAts, sendAt)
-		requeued = append(requeued, next)
+		// NOTE: claimJob skips jobs over recipientsPerJob, and a job's users can have more devices
+		for chunk := range slices.Chunk(tokens, recipientsPerJob) {
+			next := job.notification
+			next.UserIDs, next.Tokens, next.Attempt = nil, chunk, attempt
+			notificationIDs = append(notificationIDs, job.notificationID)
+			sendAts = append(sendAts, sendAt)
+			requeued = append(requeued, next)
+		}
 	}
 	for _, job := range jobs {
 		// NOTE: another token taking the same FCM message proves the message valid, so the token is not
@@ -329,10 +332,8 @@ func commitJobs(ctx context.Context, transaction pgx.Tx, startedAt time.Time, jo
 			job.unregisteredTokens = append(job.unregisteredTokens, job.invalidFCMTokens...)
 		}
 		unregisteredTokens = append(unregisteredTokens, job.unregisteredTokens...)
-		if len(job.unsentTokens) > 0 {
-			requeue(job, time.Now(), job.Attempt, job.unsentTokens)
-		}
-		if len(job.retryTokens) > 0 && job.Attempt+1 < maxAttempts {
+		requeue(job, time.Now(), job.Attempt, job.unsentTokens)
+		if job.Attempt+1 < maxAttempts {
 			requeue(job, time.Now().Add(max(job.retryAfter, time.Second)<<job.Attempt), job.Attempt+1, job.retryTokens)
 		}
 	}

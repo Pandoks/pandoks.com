@@ -510,15 +510,17 @@ func TestPush(t *testing.T) {
 		waitFor(t, "the job to be sent again and finish", func() bool { return len(sentTo("hang-")) == 2 && jobsLeft(id) == 0 })
 	})
 	t.Run("requeues the sends a stopping replica hasn't started instead of repeating the job", func(t *testing.T) {
+		// NOTE: one more unsent device than a job holds
+		devices := sendConcurrency + recipientsPerJob + 1
 		_, err := database.Exec(ctx, `
 			INSERT INTO push_devices (token, platform, kind, app, user_id, apns_environment)
 			SELECT 'slow-' || i || $1, 'ios', 'device', $1, 'user-10', 'production' FROM generate_series(1, $2) AS i`,
-			app, sendConcurrency+recipientsPerJob)
+			app, devices)
 		if err != nil {
 			t.Fatal(err)
 		}
 		slowRequests := func() (requests []int) {
-			for index := range sendConcurrency + recipientsPerJob {
+			for index := range devices {
 				requests = append(requests, len(sentTo(fmt.Sprintf("slow-%d", index+1))))
 			}
 			return requests
@@ -539,7 +541,7 @@ func TestPush(t *testing.T) {
 			err := database.QueryRow(ctx, `SELECT coalesce(sum(jsonb_array_length(job->'tokens')), 0) FROM push_jobs WHERE notification_id = $1`, id).Scan(&requeued)
 			return err == nil && requeued > 0
 		})
-		if requeued != recipientsPerJob || started() != sendConcurrency {
+		if requeued != devices-sendConcurrency || started() != sendConcurrency {
 			t.Fatalf("requeued %d tokens after starting %d sends", requeued, started())
 		}
 
