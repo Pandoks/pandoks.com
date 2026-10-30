@@ -16,7 +16,7 @@ test('clicking a wallet yanks its full address', async ({ page, context }) => {
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   expect(copied).toMatch(/^\S+$/);
   await expect(wallet).toHaveText(`xmr ${copied}`);
-  await expect(page.getByRole('status')).toHaveText('copied');
+  await expect(page.getByRole('status')).toHaveText('xmr copied');
 });
 
 test('enter on a focused wallet yanks without vim navigating', async ({ page, context }) => {
