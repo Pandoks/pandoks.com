@@ -12,6 +12,6 @@
     "local:push:image": "docker push localhost:12345/valkey:latest",
     "local:push:helm": "helm push valkey-*.tgz oci://localhost:12345/charts",
     "local:push:reconciler": "docker push localhost:12345/valkey-reconciler:latest",
-    "test": "go test -C ./reconciler -v ./..."
+    "test": "GOWORK=off go test -C ./reconciler -v ./..."
   }
 }
