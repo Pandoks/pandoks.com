@@ -29,6 +29,5 @@ To try a dev update, build against `updates.dev.pandoks.com`, change some JS, an
 ```sh
 export UPDATES_ENVIRONMENT=dev
 rm -rf ios && pnpm ios --configuration Release
-pnpm --dir ../.. updates publish dev apps/mobile-template production \
-  "$(pnpm exec expo-updates runtimeversion:resolve --platform ios | jq -r .runtimeVersion)" ios
+pnpm --dir ../.. updates publish dev apps/mobile-template production ios
 ```

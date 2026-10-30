@@ -169,11 +169,5 @@ jobs:
 
       - uses: ./.github/actions/setup-node-pnpm
 
-      # NOTE: fingerprint runtime versions differ per platform
       - name: Publish production update
-        shell: bash
-        run: |
-          for platform in ios android; do
-            runtime_version="$(pnpm --dir apps/mobile-template exec expo-updates runtimeversion:resolve --platform "${platform}" | jq -r .runtimeVersion)"
-            pnpm updates publish production apps/mobile-template production "${runtime_version}" "${platform}"
-          done
+        run: pnpm updates publish production apps/mobile-template production ios android
