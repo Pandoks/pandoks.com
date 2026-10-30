@@ -42,7 +42,7 @@
               "displayName": "Focus",
               "description": "Your latest focus session",
               "ios": { "supportedFamilies": ["systemSmall"] },
-              "android": { "targetCellWidth": 2, "targetCellHeight": 2 }
+              "android": { "minWidth": 110, "targetCellWidth": 2, "targetCellHeight": 2 }
             }
           ]
         }
