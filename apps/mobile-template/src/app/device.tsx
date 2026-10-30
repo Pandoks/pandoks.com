@@ -39,12 +39,18 @@ export default function DeviceScreen() {
       <View style={[styles.list, { backgroundColor: colors.card, borderColor: colors.border }]}>
         {rows.map(([label, value]) => (
           <View key={label} style={[styles.row, { borderColor: colors.border }]}>
-            <Text style={[styles.label, { color: colors.text }]}>{label}</Text>
-            <Text style={[styles.value, { color: colors.text }]}>{value}</Text>
+            <Text dynamicTypeRamp="body" style={[styles.label, { color: colors.text }]}>
+              {label}
+            </Text>
+            <Text dynamicTypeRamp="body" style={[styles.value, { color: colors.text }]}>
+              {value}
+            </Text>
           </View>
         ))}
         <View style={[styles.row, { borderColor: colors.border }]}>
-          <Text style={[styles.label, { color: colors.text }]}>Native event</Text>
+          <Text dynamicTypeRamp="body" style={[styles.label, { color: colors.text }]}>
+            Native event
+          </Text>
           <ModuleTemplateView
             text={nativeChange?.value ?? ''}
             color={colors.text}
