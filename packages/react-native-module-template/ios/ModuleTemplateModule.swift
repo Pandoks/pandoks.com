@@ -28,6 +28,7 @@ class ModuleTemplateView: ExpoView {
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
     label.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    label.textAlignment = .right
     addSubview(label)
   }
 }

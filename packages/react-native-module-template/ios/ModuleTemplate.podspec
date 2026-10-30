@@ -1,12 +1,12 @@
-Pod::Spec.new do |s|
-  s.name             = 'ModuleTemplate'
-  s.version          = '0.0.1'
-  s.summary          = 'Expo module template'
-  s.author           = 'Pandoks_'
-  s.homepage         = 'https://github.com/Pandoks/pandoks.com'
-  s.platforms        = { :ios => '16.4' }
-  s.source           = { git: '' }
-  s.static_framework = true
-  s.dependency 'ExpoModulesCore'
-  s.source_files     = '**/*.swift'
+Pod::Spec.new do |spec|
+  spec.name             = 'ModuleTemplate'
+  spec.version          = '0.0.1'
+  spec.summary          = 'Expo module template'
+  spec.author           = 'Pandoks_'
+  spec.homepage         = 'https://github.com/Pandoks/pandoks.com'
+  spec.platforms        = { :ios => '16.4' }
+  spec.source           = { git: '' }
+  spec.static_framework = true
+  spec.dependency 'ExpoModulesCore'
+  spec.source_files     = '**/*.swift'
 end

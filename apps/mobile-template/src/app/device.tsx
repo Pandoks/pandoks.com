@@ -64,5 +64,5 @@ const styles = StyleSheet.create({
   },
   label: { fontSize: 17 },
   value: { fontSize: 17, opacity: 0.6, fontVariant: ['tabular-nums'] },
-  nativeView: { flex: 1, height: 22 }
+  nativeView: { flex: 1, height: 22, opacity: 0.6 }
 });

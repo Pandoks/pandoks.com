@@ -2,6 +2,7 @@ package com.pandoks.moduletemplate
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.view.Gravity
 import android.widget.TextView
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.modules.Module
@@ -36,7 +37,11 @@ class ModuleTemplateModule : Module() {
 
 class ModuleTemplateView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
   override val shouldUseAndroidLayout = true
-  val label = TextView(context)
+  val label = TextView(context).apply {
+    layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+    gravity = Gravity.END or Gravity.CENTER_VERTICAL
+    textSize = 17f
+  }
 
   init {
     addView(label)
