@@ -41,8 +41,16 @@
               "name": "FocusWidget",
               "displayName": "Focus",
               "description": "Your latest focus session",
-              "ios": { "supportedFamilies": ["systemSmall"] },
-              "android": { "minWidth": 110, "targetCellWidth": 2, "targetCellHeight": 2 }
+              "ios": {
+                "supportedFamilies": ["systemSmall"],
+                "initialLayout": "./src/widgets/focus-widget.tsx"
+              },
+              "android": {
+                "minWidth": 110,
+                "targetCellWidth": 2,
+                "targetCellHeight": 2,
+                "initialLayout": "./src/widgets/focus-widget.android.tsx"
+              }
             }
           ]
         }
