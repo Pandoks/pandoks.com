@@ -5,10 +5,11 @@ metadata:
   namespace: kube-system
 spec:
   chart: oci://${ImageRegistry}/charts/postgres
-  version: 0.1.1
+  version: 0.1.2
   targetNamespace: &namespace main
   createNamespace: true
   failurePolicy: abort
+  timeout: 30m # NOTE: the parameters Job waits for a new cluster to restore its backup
   plainHTTP: ${IsLocal}
   set:
     db: main

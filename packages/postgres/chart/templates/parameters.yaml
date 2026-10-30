@@ -1,0 +1,64 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: patroni-{{ .Values.db }}-parameters
+  namespace: {{ .Values.namespace }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade,post-rollback
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: parameters
+          image: {{ .Values.patroni.image }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          command:
+            - python3
+            - -c
+            - |
+              import base64, json, os, time, urllib.error, urllib.request
+
+              body = json.dumps({'postgresql': {'parameters': json.loads(os.environ['PARAMETERS'])}}).encode()
+              auth = base64.b64encode(('patroni:' + os.environ['PATRONI_PASSWORD']).encode()).decode()
+              for shard in range(int(os.environ['SHARDS'])):
+                  request = urllib.request.Request(
+                      'http://patroni-%s-shard-%d:8008/config' % (os.environ['DB'], shard),
+                      data=body,
+                      method='PATCH',
+                      headers={'Content-Type': 'application/json', 'Authorization': 'Basic ' + auth},
+                  )
+                  while True:
+                      try:
+                          urllib.request.urlopen(request, timeout=10).close()
+                          break
+                      except OSError as error:
+                          # NOTE: wait out members that are starting (no answer, or 503 before the config is in the DCS)
+                          # and concurrent config edits (409); any other rejection fails the job
+                          if isinstance(error, urllib.error.HTTPError) and error.code not in (409, 503):
+                              raise
+                          print('shard %d: %s, retrying' % (shard, error), flush=True)
+                          time.sleep(5)
+                  print('shard %d: updated' % shard, flush=True)
+          env:
+            - name: DB
+              value: {{ .Values.db }}
+            - name: SHARDS
+              value: {{ .Values.patroni.shards | quote }}
+            - name: PARAMETERS
+              value: {{ .Values.patroni.parameters | toJson | quote }}
+            - name: PATRONI_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.credentials.secret }}
+                  key: {{ .Values.credentials.dataKeys.patroniPassword }}

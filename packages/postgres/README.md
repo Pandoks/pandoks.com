@@ -180,10 +180,11 @@ metadata:
   namespace: kube-system
 spec:
   chart: oci://${ImageRegistry}/charts/postgres
-  version: 0.1.1
+  version: 0.1.2
   targetNamespace: &namespace myapp
   createNamespace: true
   failurePolicy: abort
+  timeout: 30m
   plainHTTP: ${IsLocal}
   set:
     db: myapp
@@ -285,6 +286,21 @@ kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
   --leader patroni-myapp-shard-0-0 \
   --candidate patroni-myapp-shard-0-1 \
   --force
+```
+
+### Change Postgres Settings
+
+Set `patroni.parameters` in the HelmChart. New clusters start with them, and after every install,
+upgrade and rollback a Job applies them to each shard. Helm waits for the Job, which waits for a new
+cluster to restore its backup, so a restore longer than the HelmChart's `timeout` fails the release,
+and `failurePolicy: abort` then holds every later upgrade until you fix it. Size `timeout` to your
+largest restore. Settings Postgres can reload, like `work_mem`, take effect within seconds. Ones
+that need a restart, like `shared_buffers`, show under `Pending restart` until you restart the shard
+in place:
+
+```bash
+kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
+  patronictl -c /etc/patroni/patroni.yaml restart myapp-shard-0 --pending --force
 ```
 
 ### Backup Operations
@@ -684,6 +700,7 @@ after changing them:
 | `patroni.shards`                | Number of shards                                   | `1`                                                         |
 | `patroni.replicasPerShard`      | Pods per shard (1 primary + n - 1 replicas)        | `3`                                                         |
 | `patroni.image`                 | Patroni image                                      | `ghcr.io/pandoks/patroni:latest`                            |
+| `patroni.parameters.*`          | Postgres settings, applied to running clusters     | `max_connections: 100`, `shared_buffers: 128MB`, etc.       |
 | `patroni.resources.*`           | `patroni`, `pgbackrest`, `postgresExporter`        | `{}`                                                        |
 | `pgdog.*`                       | Passed through to the [PgDog chart][pgdog]         | See below                                                   |
 | `pgdog.replicas`                | PgDog replicas                                     | `2`                                                         |
