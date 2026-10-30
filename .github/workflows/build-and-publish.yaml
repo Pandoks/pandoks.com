@@ -38,6 +38,10 @@ on:
         description: 'Image · clickhouse-backup'
         type: boolean
         default: false
+      push:
+        description: 'Image · push'
+        type: boolean
+        default: false
       postgres-chart:
         description: 'Chart · postgres'
         type: boolean
@@ -89,6 +93,8 @@ jobs:
               - 'packages/clickhouse/keeper/**'
             clickhouse-backup:
               - 'packages/clickhouse/backup/**'
+            push:
+              - 'apps/push/**'
 
       - id: chart-changes
         if: github.event_name != 'workflow_dispatch'
@@ -114,7 +120,8 @@ jobs:
             {"name":"argocd-sst-plugin","path":"./packages/argocd/Dockerfile"},
             {"name":"clickhouse","path":"./packages/clickhouse/clickhouse/Dockerfile"},
             {"name":"clickhouse-keeper","path":"./packages/clickhouse/keeper/Dockerfile"},
-            {"name":"clickhouse-backup","path":"./packages/clickhouse/backup/Dockerfile"}
+            {"name":"clickhouse-backup","path":"./packages/clickhouse/backup/Dockerfile"},
+            {"name":"push","path":"./apps/push/Dockerfile"}
           ]'
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             selected=$(jq -c 'to_entries | map(select(.value == true) | .key)' <<<"${DISPATCH}")

@@ -155,8 +155,9 @@ jobs:
 
       - name: Run govulncheck
         run: |
+          # NOTE: each module alone, as its image builds it, not with the workspace's versions
           for d in $(go list -m -f '{{.Dir}}'); do
-            (cd "$d" && govulncheck ./...)
+            (cd "$d" && GOWORK=off govulncheck ./...)
           done
 
   # ─── Shell ────────────────────────────────────────────────────────────
