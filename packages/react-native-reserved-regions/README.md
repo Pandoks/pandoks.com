@@ -22,10 +22,10 @@ const posture = usePosture(); // 'flat' | 'book' | 'tabletop'
 - The provider reads the regions synchronously on its first render and whenever the window resizes,
   so layouts don't jump a frame. Its native view then reports changes only when they happen: UIKit's
   `reservedRegions(kind:)` from `updateConstraints` and `layoutSubviews` on iOS 27.1 and later, and
-  Jetpack WindowManager's `FoldingFeature` plus display cutouts on Android. Earlier iOS versions
-  report no regions, and Android reads folds synchronously only from WindowManager Extensions level
-  9 (Android 16 QPR2); before that, it reuses WindowManager's last report, so the first render can
-  miss folds or show stale ones.
+  Jetpack WindowManager's `FoldingFeature` plus display cutouts on Android. Earlier iOS versions and
+  builds with an SDK older than Xcode 27.1 report no regions, and Android reads folds synchronously
+  only from WindowManager Extensions level 9 (Android 16 QPR2); before that, it reuses
+  WindowManager's last report, so the first render can miss folds or show stale ones.
 
 Mount one provider at the app's root. Test folds on an Android foldable emulator with
 `adb emu fold`, `adb emu unfold`, `adb emu sensor set hinge-angle0 90` for half-open, and

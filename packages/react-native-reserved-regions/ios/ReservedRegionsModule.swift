@@ -48,19 +48,21 @@ class ReservedRegionsView: ExpoView {
 
 extension UIView {
   func reservedRegionRecords() -> [[String: Any]] {
-    guard #available(iOS 27.1, *) else {
-      return []
-    }
-    let kinds: [(String, UIView.ReservedRegion.Kind)] = [("division", .division), ("occlusion", .occlusion)]
-    return kinds.flatMap { name, kind in
-      reservedRegions(kind: kind, options: .includeInactive).map { region in
-        let frame = convert(region.frame, to: nil)
-        return [
-          "kind": name,
-          "frame": ["x": frame.minX, "y": frame.minY, "width": frame.width, "height": frame.height],
-          "active": region.isActive
-        ]
+    #if canImport(UIKit, _version: 9127.0.85) // iOS 27.1 SDK
+    if #available(iOS 27.1, *) {
+      let kinds: [(String, UIView.ReservedRegion.Kind)] = [("division", .division), ("occlusion", .occlusion)]
+      return kinds.flatMap { name, kind in
+        reservedRegions(kind: kind, options: .includeInactive).map { region in
+          let frame = convert(region.frame, to: nil)
+          return [
+            "kind": name,
+            "frame": ["x": frame.minX, "y": frame.minY, "width": frame.width, "height": frame.height],
+            "active": region.isActive
+          ]
+        }
       }
     }
+    #endif
+    return []
   }
 }
