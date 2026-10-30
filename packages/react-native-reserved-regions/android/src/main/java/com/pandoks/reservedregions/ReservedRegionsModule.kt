@@ -21,16 +21,7 @@ class ReservedRegionsModule : Module() {
 
     Function("getRegions") {
       val activity = appContext.throwingActivity
-      // NOTE: older window extensions have no synchronous read, so the view's first event fills in
-      val folds = if (WindowSdkExtensions.getInstance().extensionVersion >= 9) {
-        WindowInfoTracker.getOrCreate(activity)
-          .getCurrentWindowLayoutInfo(activity)
-          .displayFeatures
-          .filterIsInstance<FoldingFeature>()
-      } else {
-        emptyList()
-      }
-      reservedRegions(activity, folds)
+      reservedRegions(activity, currentFolds(activity))
     }
 
     View(ReservedRegionsView::class) {
@@ -48,6 +39,8 @@ class ReservedRegionsView(context: Context, appContext: AppContext) : ExpoView(c
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
     val activity = appContext.throwingActivity
+    // NOTE: onLayout emits before the first layout info arrives, so start from the folds getRegions read
+    folds = currentFolds(activity)
     layoutInfoJob = appContext.mainQueue.launch {
       WindowInfoTracker.getOrCreate(activity).windowLayoutInfo(activity).collect { layoutInfo ->
         folds = layoutInfo.displayFeatures.filterIsInstance<FoldingFeature>()
@@ -73,6 +66,16 @@ class ReservedRegionsView(context: Context, appContext: AppContext) : ExpoView(c
       onRegionsChange(mapOf("regions" to current))
     }
   }
+}
+
+// NOTE: older window extensions have no synchronous read, so the view's first event fills in
+private fun currentFolds(activity: Activity) = if (WindowSdkExtensions.getInstance().extensionVersion >= 9) {
+  WindowInfoTracker.getOrCreate(activity)
+    .getCurrentWindowLayoutInfo(activity)
+    .displayFeatures
+    .filterIsInstance<FoldingFeature>()
+} else {
+  emptyList()
 }
 
 private fun reservedRegions(activity: Activity, folds: List<FoldingFeature>): List<Map<String, Any>> {
