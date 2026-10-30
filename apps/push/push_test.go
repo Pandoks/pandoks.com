@@ -38,13 +38,15 @@ type providerRequest struct {
 
 // fakeProvider speaks the APNs and FCM HTTP/2 wire formats over TLS. Tokens starting with "gone-"
 // are unregistered, "invalid-" are malformed FCM tokens, "busy-" are throttled on their first
-// request, "hang-" block their first request until release is closed, and "sandbox-" are valid
-// only on the sandbox APNs host while every other APNs token is valid only on production.
+// request, "hang-" and "slow-" block their first request until release and releaseSlow are closed,
+// and "sandbox-" are valid only on the sandbox APNs host while every other APNs token is valid only
+// on production.
 type fakeProvider struct {
 	mutex            sync.Mutex
 	requests         map[string][]providerRequest
 	oauthTokenIssued int
 	release          chan struct{}
+	releaseSlow      chan struct{}
 }
 
 func (provider *fakeProvider) serve(t *testing.T, apnsPublicKey *ecdsa.PublicKey, environment string) *httptest.Server {
@@ -76,6 +78,8 @@ func (provider *fakeProvider) serve(t *testing.T, apnsPublicKey *ecdsa.PublicKey
 			_, _ = writer.Write([]byte(`{"reason":"TooManyRequests"}`))
 		case strings.HasPrefix(token, "hang-") && attempt == 1:
 			<-provider.release
+		case strings.HasPrefix(token, "slow-") && attempt == 1:
+			<-provider.releaseSlow
 		}
 	})
 	mux.HandleFunc("POST /token", func(writer http.ResponseWriter, _ *http.Request) {
@@ -166,7 +170,7 @@ func waitFor(t *testing.T, description string, condition func() bool) {
 	}
 }
 
-func startService(t *testing.T) string {
+func startService(t *testing.T) (string, context.CancelFunc) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -188,7 +192,7 @@ func startService(t *testing.T) string {
 		}
 		return err == nil
 	})
-	return api
+	return api, cancel
 }
 
 // TestPush runs the service against real Postgres (PG* env).
@@ -197,7 +201,7 @@ func TestPush(t *testing.T) {
 	apnsKeyDER, _ := x509.MarshalPKCS8PrivateKey(apnsKey)
 	fcmKey, _ := rsa.GenerateKey(rand.Reader, 2048)
 	fcmKeyDER, _ := x509.MarshalPKCS8PrivateKey(fcmKey)
-	provider := &fakeProvider{requests: map[string][]providerRequest{}, release: make(chan struct{})}
+	provider := &fakeProvider{requests: map[string][]providerRequest{}, release: make(chan struct{}), releaseSlow: make(chan struct{})}
 	production := provider.serve(t, &apnsKey.PublicKey, "production")
 	sandbox := provider.serve(t, &apnsKey.PublicKey, "sandbox")
 	trustedCertificates := x509.NewCertPool()
@@ -229,7 +233,7 @@ func TestPush(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(database.Close)
-	api := startService(t)
+	api, stopService := startService(t)
 
 	// Unique per run so reruns against the same database don't see old devices
 	app := "com.pandoks.test" + strconv.FormatInt(time.Now().UnixNano(), 36)
@@ -436,5 +440,47 @@ func TestPush(t *testing.T) {
 		}
 		close(provider.release)
 		waitFor(t, "the job to be sent again and finish", func() bool { return len(sentTo("hang-")) == 2 && jobsLeft(id) == 0 })
+	})
+	t.Run("requeues the sends a stopping replica hasn't started instead of repeating the job", func(t *testing.T) {
+		_, err := database.Exec(ctx, `
+			INSERT INTO push_devices (token, platform, kind, app, user_id, apns_environment)
+			SELECT 'slow-' || i || $1, 'ios', 'device', $1, 'user-10', 'production' FROM generate_series(1, $2) AS i`,
+			app, sendConcurrency+recipientsPerJob)
+		if err != nil {
+			t.Fatal(err)
+		}
+		slowRequests := func() (requests []int) {
+			for index := range sendConcurrency + recipientsPerJob {
+				requests = append(requests, len(sentTo(fmt.Sprintf("slow-%d", index+1))))
+			}
+			return requests
+		}
+		started := func() (count int) {
+			for _, requests := range slowRequests() {
+				count += requests
+			}
+			return count
+		}
+		id := send(alert(map[string]any{"user_ids": []string{"user-10"}}))
+		waitFor(t, "every send slot to be taken", func() bool { return started() == sendConcurrency })
+
+		stopService()
+		close(provider.releaseSlow)
+		var requeued int
+		waitFor(t, "the unstarted sends to be requeued", func() bool {
+			err := database.QueryRow(ctx, `SELECT coalesce(sum(jsonb_array_length(job->'tokens')), 0) FROM push_jobs WHERE notification_id = $1`, id).Scan(&requeued)
+			return err == nil && requeued > 0
+		})
+		if requeued != recipientsPerJob || started() != sendConcurrency {
+			t.Fatalf("requeued %d tokens after starting %d sends", requeued, started())
+		}
+
+		startService(t)
+		waitFor(t, "the requeued job to finish", func() bool { return jobsLeft(id) == 0 })
+		for index, requests := range slowRequests() {
+			if requests != 1 {
+				t.Fatalf("slow-%d got %d requests", index+1, requests)
+			}
+		}
 	})
 }

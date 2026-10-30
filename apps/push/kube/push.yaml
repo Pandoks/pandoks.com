@@ -29,6 +29,8 @@ spec:
         app: *app
     spec:
       automountServiceAccountToken: false
+      # NOTE: longer than a job's 30s sends plus its database deadlines, so a stopping pod commits its jobs
+      terminationGracePeriodSeconds: 45
       securityContext:
         runAsNonRoot: true
         seccompProfile:
@@ -83,9 +85,10 @@ spec:
               value: https://api.sandbox.push.apple.com
             - name: FCM_URL
               value: https://fcm.googleapis.com
+          # NOTE: only readiness checks Postgres, so a failover takes pods out of the Service without restarting them
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: /readyz
               port: 8080
             periodSeconds: 5
           livenessProbe:

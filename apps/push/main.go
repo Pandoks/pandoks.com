@@ -91,6 +91,8 @@ func run(ctx context.Context, listener net.Listener) error {
 	}
 	// NOTE: every job worker holds a connection for its whole job
 	databaseConfig.MaxConns = jobWorkers + apiConnections
+	// NOTE: the pool dials in the background without the caller's deadline
+	databaseConfig.ConnConfig.ConnectTimeout = databaseTimeout
 	database, err := pgxpool.NewWithConfig(ctx, databaseConfig)
 	if err != nil {
 		return err

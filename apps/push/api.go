@@ -11,11 +11,16 @@ import (
 func (service *service) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(http.ResponseWriter, *http.Request) {})
+	mux.HandleFunc("GET /readyz", func(writer http.ResponseWriter, request *http.Request) {
+		if err := service.database.Ping(request.Context()); err != nil {
+			http.Error(writer, err.Error(), http.StatusServiceUnavailable)
+		}
+	})
 	mux.HandleFunc("PUT /devices/{token}", service.registerDevice)
 	mux.HandleFunc("DELETE /devices/{token}", service.unregisterDevice)
 	mux.HandleFunc("POST /notifications", service.sendNotification)
 	mux.HandleFunc("DELETE /notifications/{id}", service.cancelNotification)
-	return mux
+	return http.TimeoutHandler(mux, databaseTimeout, "")
 }
 
 func (service *service) registerDevice(writer http.ResponseWriter, request *http.Request) {

@@ -15,6 +15,7 @@ import (
 const (
 	jobWorkers       = 16
 	apiConnections   = 4
+	databaseTimeout  = 5 * time.Second
 	recipientsPerJob = 500
 	sendConcurrency  = 1000
 	pollInterval     = time.Second
@@ -96,12 +97,14 @@ func (service *service) listen(ctx context.Context) {
 }
 
 func (service *service) waitForJobs(ctx context.Context) error {
-	connection, err := pgx.Connect(ctx, "")
+	listenContext, cancel := context.WithTimeout(ctx, databaseTimeout)
+	defer cancel()
+	connection, err := pgx.Connect(listenContext, "")
 	if err != nil {
 		return err
 	}
 	defer func() { _ = connection.Close(context.WithoutCancel(ctx)) }()
-	if _, err := connection.Exec(ctx, "LISTEN push_jobs"); err != nil {
+	if _, err := connection.Exec(listenContext, "LISTEN push_jobs"); err != nil {
 		return err
 	}
 	for {
@@ -130,15 +133,16 @@ func (service *service) work(ctx context.Context) {
 			return
 		case <-service.wake:
 		}
-		// NOTE: a started job finishes during shutdown so its sends aren't repeated
-		for ctx.Err() == nil && service.deliverDueJob(context.WithoutCancel(ctx)) {
+		for ctx.Err() == nil && service.deliverDueJob(ctx) {
 		}
 	}
 }
 
 // deliverDueJob claims a due job and deletes it in the same transaction, so a crash before the
 // commit leaves the job to another worker.
-func (service *service) deliverDueJob(ctx context.Context) bool {
+func (service *service) deliverDueJob(shutdown context.Context) bool {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(shutdown), databaseTimeout)
+	defer cancel()
 	transaction, err := service.database.Begin(ctx)
 	if err != nil {
 		slog.Error("claim job", "error", err)
@@ -162,21 +166,16 @@ func (service *service) deliverDueJob(ctx context.Context) bool {
 	}
 	service.wakeWorker()
 
-	if err := service.deliver(ctx, transaction, notificationID, job); err != nil {
+	if err := service.deliver(ctx, shutdown, transaction, jobID, notificationID, job); err != nil {
 		slog.Error("deliver job", "id", jobID, "error", err)
 		return false
-	}
-	_, err = transaction.Exec(ctx, `DELETE FROM push_jobs WHERE id = $1`, jobID)
-	if err == nil {
-		err = transaction.Commit(ctx)
-	}
-	if err != nil {
-		slog.Error("finish job", "id", jobID, "error", err)
 	}
 	return true
 }
 
-func (service *service) deliver(ctx context.Context, transaction pgx.Tx, notificationID int64, job notification) error {
+// deliver stops starting sends once shutdown is done and requeues the rest, so a stopping replica
+// commits before it's killed instead of leaving the whole job to be sent again.
+func (service *service) deliver(ctx, shutdown context.Context, transaction pgx.Tx, jobID, notificationID int64, job notification) error {
 	startedAt := time.Now()
 	kind, topic, priority := "device", job.App, "10"
 	switch job.PushType {
@@ -202,21 +201,31 @@ func (service *service) deliver(ctx context.Context, transaction pgx.Tx, notific
 		unregisteredTokens []string
 		invalidFCMTokens   []string
 		retryTokens        []string
+		unsentTokens       []string
 		retryAfter         time.Duration
 		failures           = map[string]int{}
+		sendContext        = context.WithoutCancel(ctx)
 	)
-	for _, device := range devices {
+sendDevices:
+	for index, device := range devices {
 		if (device.Platform == "ios" && job.APNs == nil) || (device.Platform == "android" && job.FCM == nil) {
 			continue
 		}
-		service.sends <- struct{}{}
+		select {
+		case service.sends <- struct{}{}:
+		case <-shutdown.Done():
+			for _, unsent := range devices[index:] {
+				unsentTokens = append(unsentTokens, unsent.Token)
+			}
+			break sendDevices
+		}
 		sends.Go(func() {
 			defer func() { <-service.sends }()
 			var result result
 			if device.Platform == "ios" {
-				result = service.apns.send(ctx, device.APNsEnvironment, device.Token, topic, job.PushType, priority, job.APNs)
+				result = service.apns.send(sendContext, device.APNsEnvironment, device.Token, topic, job.PushType, priority, job.APNs)
 			} else {
-				result = service.fcm.send(ctx, device.Token, job.FCM)
+				result = service.fcm.send(sendContext, device.Token, job.FCM)
 			}
 
 			mutex.Lock()
@@ -241,6 +250,9 @@ func (service *service) deliver(ctx context.Context, transaction pgx.Tx, notific
 	}
 	sends.Wait()
 
+	ctx, cancel := context.WithTimeout(sendContext, databaseTimeout)
+	defer cancel()
+
 	// NOTE: another token taking the same FCM message proves the message valid, so the token is not
 	if fcmDelivered {
 		unregisteredTokens = append(unregisteredTokens, invalidFCMTokens...)
@@ -250,6 +262,14 @@ func (service *service) deliver(ctx context.Context, transaction pgx.Tx, notific
 		if len(unregisteredTokens) > 0 {
 			// NOTE: a device that registered again after this job started keeps its token
 			_, err := savepoint.Exec(ctx, `DELETE FROM push_devices WHERE token = ANY($1) AND updated_at < $2`, unregisteredTokens, startedAt)
+			if err != nil {
+				return err
+			}
+		}
+		if len(unsentTokens) > 0 {
+			requeued := job
+			requeued.UserIDs, requeued.Tokens = nil, unsentTokens
+			_, err := savepoint.Exec(ctx, `INSERT INTO push_jobs (notification_id, send_at, job) VALUES ($1, now(), $2)`, notificationID, requeued)
 			if err != nil {
 				return err
 			}
@@ -266,11 +286,17 @@ func (service *service) deliver(ctx context.Context, transaction pgx.Tx, notific
 	if err != nil {
 		slog.Error("record job results", "error", err)
 	}
+	if _, err := transaction.Exec(ctx, `DELETE FROM push_jobs WHERE id = $1`, jobID); err != nil {
+		return err
+	}
+	if err := transaction.Commit(ctx); err != nil {
+		return err
+	}
 
 	slog.Info("delivered job",
 		"app", job.App, "push_type", job.PushType, "attempt", job.Attempt, "devices", len(devices),
 		"delivered", deliveredCount, "unregistered", len(unregisteredTokens), "retrying", len(retryTokens),
-		"failures", failures, "duration", time.Since(startedAt).String(),
+		"requeued", len(unsentTokens), "failures", failures, "duration", time.Since(startedAt).String(),
 	)
 	return nil
 }

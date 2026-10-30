@@ -51,7 +51,9 @@ curl -X POST http://push.main.svc.cluster.local/notifications -d '{
 
 - A notification is split into jobs in Postgres so a fan-out spreads across every replica. A worker
   holds its job's row lock while sending and deletes the job when it commits, so delivery is at
-  least once: a replica that dies mid-job leaves the job to another worker, which sends it again.
+  least once: a replica that dies mid-job leaves the job to another worker, which sends it again. A
+  stopping replica starts no more sends and requeues the tokens it hasn't sent before committing.
+- Database calls time out after 5 seconds, and `GET /readyz` fails while Postgres is unreachable.
 - APNs `429` and `5xx` and FCM `429` and `5xx` are retried a few times with exponential backoff that
   honors `Retry-After`.
 - Tokens APNs reports as `410` or `BadDeviceToken` are deleted, and so are FCM tokens reported as
