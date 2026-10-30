@@ -113,9 +113,11 @@ function toProgressActivity(liveActivity: LiveActivity<ProgressActivityState>): 
 }
 
 export function startProgressActivity(state: ProgressActivityState): Promise<ProgressActivity> {
-  return Promise.resolve(
-    toProgressActivity(ProgressLiveActivity.start(state, undefined, new Date(state.endsAt)))
-  );
+  return new Promise((resolve) => {
+    resolve(
+      toProgressActivity(ProgressLiveActivity.start(state, undefined, new Date(state.endsAt)))
+    );
+  });
 }
 
 /** Running activities, including ones that outlived an earlier app process. */

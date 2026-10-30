@@ -57,3 +57,13 @@ test('ends activities left running by an earlier launch', async () => {
 
   expect(leftover.end).toHaveBeenCalled();
 });
+
+test('shows why a session could not start', async () => {
+  jest.mocked(startProgressActivity).mockRejectedValueOnce(new Error('Notifications are disabled'));
+  const user = userEvent.setup();
+  await renderRouter({ index: FocusScreen });
+
+  await user.press(screen.getByText('Start'));
+
+  expect(screen.getByText('Notifications are disabled')).toBeTruthy();
+});

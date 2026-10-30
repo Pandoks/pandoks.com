@@ -49,6 +49,7 @@ export default function FocusScreen() {
   const [now, setNow] = useState(Date.now);
   const [pushToken, setPushToken] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
 
   useEffect(() => {
     void getProgressActivities().then((activities) =>
@@ -90,6 +91,9 @@ export default function FocusScreen() {
         pushTokenSubscription: activity.addPushTokenListener(setPushToken)
       });
       showFocusing(state.endsAt);
+      setStartError(null);
+    } catch (error) {
+      setStartError(error instanceof Error ? error.message : String(error));
     } finally {
       setStarting(false);
     }
@@ -117,7 +121,9 @@ export default function FocusScreen() {
           {`${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, '0')}`}
         </Text>
         <Text style={[styles.caption, { color: colors.text }]}>
-          {session?.state.text ?? 'Follow it from the Lock Screen and the Focus widget.'}
+          {session?.state.text ??
+            startError ??
+            'Follow it from the Lock Screen and the Focus widget.'}
         </Text>
         <View style={styles.actions}>
           {session ? (
