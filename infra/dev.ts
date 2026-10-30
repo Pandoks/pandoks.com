@@ -59,29 +59,7 @@ if (isProduction) {
     'OvhDevVpsTailscaleTags',
     {
       deviceId: devTailscaleDevice.nodeId,
-      tags: ['tag:funnel', 'tag:ovh', 'tag:cliproxyapi', 'tag:ssh']
-    },
-    { dependsOn: [tailscaleAcl] }
-  );
-
-  // NOTE: pandoks-dev-box hosts this with `tailscale serve --service=svc:cliproxyapi --https=443`
-  new tailscale.Service(
-    'CliproxyapiTailscaleService',
-    {
-      name: 'svc:cliproxyapi',
-      comment: 'CLIProxyAPI on pandoks-dev-box',
-      ports: ['tcp:443'],
-      tags: ['tag:cliproxyapi']
-    },
-    { dependsOn: [tailscaleAcl] }
-  );
-  new tailscale.Service(
-    'CliproxyapiCiTailscaleService',
-    {
-      name: 'svc:cliproxyapi-ci',
-      comment: 'CLIProxyAPI with Console API keys only',
-      ports: ['tcp:443'],
-      tags: ['tag:cliproxyapi']
+      tags: ['tag:funnel', 'tag:ovh', 'tag:ssh']
     },
     { dependsOn: [tailscaleAcl] }
   );
