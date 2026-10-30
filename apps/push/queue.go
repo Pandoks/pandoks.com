@@ -142,7 +142,7 @@ func (service *service) waitForJobs(ctx context.Context) error {
 		waitContext, cancel := context.WithTimeout(ctx, pollInterval)
 		_, err := connection.Conn().WaitForNotification(waitContext)
 		cancel()
-		if err != nil && (ctx.Err() != nil || waitContext.Err() == nil) {
+		if err != nil && !errors.Is(err, context.DeadlineExceeded) {
 			return err
 		}
 	}

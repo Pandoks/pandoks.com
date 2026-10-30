@@ -415,6 +415,22 @@ func TestPush(t *testing.T) {
 		}
 	})
 
+	t.Run("listens again after losing its connection", func(t *testing.T) {
+		var terminated int
+		err := database.QueryRow(ctx, `
+			SELECT count(*) FILTER (WHERE pg_terminate_backend(pid, 5000)) FROM pg_stat_activity
+			WHERE datname = current_database() AND query = 'LISTEN push_jobs'`,
+		).Scan(&terminated)
+		if err != nil || terminated != 1 {
+			t.Fatalf("terminated %d connections: %v", terminated, err)
+		}
+		waitFor(t, "LISTEN to reconnect", func() bool {
+			var listening int
+			err := database.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND query = 'LISTEN push_jobs'`).Scan(&listening)
+			return err == nil && listening == 1
+		})
+	})
+
 	t.Run("delivers a fan-out exactly once across replicas", func(t *testing.T) {
 		startService(t)
 		var tokens []string
