@@ -2,18 +2,11 @@ import ExpoModulesCore
 import StoreKit
 
 public class StoreUpdatesModule: Module {
-  private var appStoreId: Int?
-
   public func definition() -> ModuleDefinition {
     Name("StoreUpdates")
 
     AsyncFunction("checkForStoreUpdate") { () async throws -> [String: Any] in
-      let url = URL(string: "https://itunes.apple.com/lookup?bundleId=\(Bundle.main.bundleIdentifier!)")!
-      let (data, _) = try await URLSession.shared.data(from: url)
-      guard let storeApp = try JSONDecoder().decode(LookupResponse.self, from: data).results.first else {
-        return ["available": false]
-      }
-      self.appStoreId = storeApp.trackId
+      guard let storeApp = try await lookUpStoreApp() else { return ["available": false] }
       let installedVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as! String
       let systemVersion = await UIDevice.current.systemVersion
       let available =
@@ -22,12 +15,29 @@ public class StoreUpdatesModule: Module {
       return ["available": available, "storeVersion": storeApp.version]
     }
 
-    AsyncFunction("startStoreUpdate") { (_: String) in
-      let productViewController = SKStoreProductViewController()
-      productViewController.loadProduct(withParameters: [SKStoreProductParameterITunesItemIdentifier: self.appStoreId!])
-      self.appContext?.utilities?.currentViewController()?.present(productViewController, animated: true)
-    }.runOnQueue(.main)
+    AsyncFunction("startStoreUpdate") { (_: String) async throws in
+      guard let storeApp = try await lookUpStoreApp() else {
+        throw Exception(name: "NotInAppStore", description: "This app isn't in the App Store")
+      }
+      await MainActor.run {
+        let productViewController = SKStoreProductViewController()
+        productViewController.loadProduct(withParameters: [SKStoreProductParameterITunesItemIdentifier: storeApp.trackId])
+        self.appContext?.utilities?.currentViewController()?.present(productViewController, animated: true)
+      }
+    }
   }
+}
+
+// NOTE: without a country, the lookup only searches the US store
+private func lookUpStoreApp() async throws -> StoreApp? {
+  var components = URLComponents(string: "https://itunes.apple.com/lookup")!
+  components.queryItems = [
+    URLQueryItem(name: "bundleId", value: Bundle.main.bundleIdentifier),
+    URLQueryItem(name: "country", value: Locale.current.region?.identifier),
+  ]
+  let request = URLRequest(url: components.url!, cachePolicy: .reloadIgnoringLocalCacheData)
+  let (data, _) = try await URLSession.shared.data(for: request)
+  return try JSONDecoder().decode(LookupResponse.self, from: data).results.first
 }
 
 private struct LookupResponse: Decodable {
