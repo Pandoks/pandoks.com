@@ -1,11 +1,17 @@
 import ExpoModulesCore
+import React
 
 public class ReservedRegionsModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ReservedRegions")
 
-    Function("getRegions") {
-      DispatchQueue.main.sync { Utilities.keyWindow()?.reservedRegionRecords() ?? [] }
+    Function("getRegions") { () -> [[String: Any]] in
+      var regions: [[String: Any]] = []
+      // NOTE: unlike DispatchQueue.main.sync, this still runs while React Native blocks main on JS
+      RCTUnsafeExecuteOnMainQueueSync {
+        MainActor.assumeIsolated { regions = Utilities.keyWindow()?.reservedRegionRecords() ?? [] }
+      }
+      return regions
     }
 
     View(ReservedRegionsView.self) {
