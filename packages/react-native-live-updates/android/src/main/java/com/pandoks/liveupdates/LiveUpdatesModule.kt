@@ -30,13 +30,17 @@ class LiveUpdatesModule : Module() {
       Name("LiveUpdates")
 
       AsyncFunction("start") { id: String, state: ProgressActivityState ->
-        check(NotificationManagerCompat.from(context()).areNotificationsEnabled()) { "Notifications are disabled" }
-        NotificationManagerCompat.from(context()).createNotificationChannel(
+        val notificationManager = NotificationManagerCompat.from(context())
+        notificationManager.createNotificationChannel(
           NotificationChannelCompat
             .Builder(CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_DEFAULT)
             .setName("Live updates")
             .build(),
         )
+        check(
+          notificationManager.areNotificationsEnabled() &&
+            notificationManager.getNotificationChannelCompat(CHANNEL_ID)?.importance != NotificationManagerCompat.IMPORTANCE_NONE,
+        ) { "Notifications are disabled" }
         post(context(), id, state)
       }
 
