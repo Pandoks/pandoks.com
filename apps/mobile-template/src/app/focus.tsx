@@ -6,7 +6,7 @@ import {
 import { type EventSubscription } from 'expo';
 import { useTheme } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Screen } from '../components/screen';
 import FocusWidget from '../widgets/focus-widget';
@@ -28,6 +28,18 @@ async function endSession(session: Session, title: string, endedAt: number) {
   session.pushTokenSubscription.remove();
   FocusWidget.updateSnapshot({ title, caption: `At ${formatTime(endedAt)}` });
   await session.activity.end();
+}
+
+function showFocusing(endsAt: number) {
+  const focusing = { title: 'Focusing', caption: `Until ${formatTime(endsAt)}` };
+  if (Platform.OS === 'android') {
+    FocusWidget.updateSnapshot(focusing);
+    return;
+  }
+  FocusWidget.updateTimeline([
+    { date: new Date(), props: focusing },
+    { date: new Date(endsAt), props: { title: 'Done', caption: `At ${formatTime(endsAt)}` } }
+  ]);
 }
 
 export default function FocusScreen() {
@@ -67,7 +79,7 @@ export default function FocusScreen() {
       state,
       pushTokenSubscription: activity.addPushTokenListener(setPushToken)
     });
-    FocusWidget.updateSnapshot({ title: 'Focusing', caption: `Until ${formatTime(state.endsAt)}` });
+    showFocusing(state.endsAt);
   }
 
   async function extend(current: Session) {
@@ -77,7 +89,7 @@ export default function FocusScreen() {
       endsAt: current.state.endsAt + EXTEND_MS
     };
     setSession({ ...current, state });
-    FocusWidget.updateSnapshot({ title: 'Focusing', caption: `Until ${formatTime(state.endsAt)}` });
+    showFocusing(state.endsAt);
     await current.activity.update(state);
   }
 
