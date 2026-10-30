@@ -47,12 +47,12 @@ Commit `certificate.crt` in the app (`*.pem` is gitignored) and configure `app.j
 ## Publish and roll back
 
 `publish` runs `expo export`, uploads the assets, and makes the export the latest update. `rollback`
-sends clients back to the update embedded in their build until the next `publish`. The runtime
-version must match the app's `runtimeVersion`:
+sends clients back to the update embedded in their build until the next `publish`. Both resolve each
+platform's runtime version with `expo-updates runtimeversion:resolve`:
 
 ```sh
-pnpm updates publish dev apps/<app> production 1.0.0 ios android
-pnpm updates rollback dev apps/<app> production 1.0.0 ios android
+pnpm updates publish dev apps/<app> production ios android
+pnpm updates rollback dev apps/<app> production ios android
 ```
 
 Both need `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_DEFAULT_ACCOUNT_ID`, as in `.env.<stage>`.

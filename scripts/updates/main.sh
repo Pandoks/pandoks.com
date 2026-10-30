@@ -12,7 +12,7 @@ readonly REPO_ROOT
 . "${REPO_ROOT}/scripts/lib/log.sh"
 
 usage() {
-  printf "%bUsage:%b pnpm updates <command> <dev|production> <app-dir> <channel> <runtime-version> <ios|android>...\n\n" "${BOLD}" "${NORMAL}" >&2
+  printf "%bUsage:%b pnpm updates <command> <dev|production> <app-dir> <channel> <ios|android>...\n\n" "${BOLD}" "${NORMAL}" >&2
   printf "Publish Expo over-the-air updates to the updates Worker's R2 bucket.\n\n" >&2
 
   printf "%bCommands:%b\n" "${BOLD}" "${NORMAL}" >&2
@@ -24,8 +24,8 @@ usage() {
   printf "  %bproduction%b prod-updates bucket (same credentials)\n\n" "${GREEN}" "${NORMAL}" >&2
 
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
-  printf "  pnpm updates publish dev apps/mobile production 1.0.0 ios android\n" >&2
-  printf "  pnpm updates rollback dev apps/mobile production 1.0.0 ios\n\n" >&2
+  printf "  pnpm updates publish dev apps/mobile production ios android\n" >&2
+  printf "  pnpm updates rollback dev apps/mobile production ios\n\n" >&2
 
   exit "${1:-0}"
 }
@@ -49,15 +49,21 @@ upload_asset() {
   upload_asset_content_type="$2"
   upload_asset_extension="$3"
 
-  upload_asset_hash="$(openssl dgst -sha256 -binary "${upload_asset_file}" | openssl base64 -A | tr '+/' '-_' | tr -d '=')"
+  upload_asset_hash="$(node -p 'crypto.createHash("sha256").update(fs.readFileSync(process.argv[1])).digest("base64url")' "${upload_asset_file}")"
+  upload_asset_key="$(node -p 'crypto.createHash("md5").update(fs.readFileSync(process.argv[1])).digest("hex")' "${upload_asset_file}")"
   put_object "assets/${upload_asset_hash}" "${upload_asset_file}" "${upload_asset_content_type}"
   jq -n \
     --arg hash "${upload_asset_hash}" \
-    --arg key "$(openssl dgst -md5 -r "${upload_asset_file}" | cut -d ' ' -f 1)" \
+    --arg key "${upload_asset_key}" \
     --arg contentType "${upload_asset_content_type}" \
     --arg extension "${upload_asset_extension}" \
     '{ hash: $hash, key: $key, contentType: $contentType, url: "/assets/\($hash)" }
       + if $extension == "" then {} else { fileExtension: ".\($extension)" } end'
+}
+
+resolve_runtime_version() {
+  resolve_runtime_version_output="$(pnpm --dir "${APP_DIR}" exec expo-updates runtimeversion:resolve --platform "$1")"
+  printf '%s' "${resolve_runtime_version_output}" | jq -r .runtimeVersion
 }
 
 cmd_publish() {
@@ -72,21 +78,23 @@ cmd_publish() {
   printf '%s' "${EXPO_CONFIG}" > "${cmd_publish_export_dir}/expo-config.json"
 
   for cmd_publish_platform in ${PLATFORMS}; do
-    cmd_publish_launch_asset="$(upload_asset \
-      "${cmd_publish_export_dir}/$(jq -r --arg platform "${cmd_publish_platform}" '.fileMetadata[$platform].bundle' "${cmd_publish_export_dir}/metadata.json")" \
-      application/javascript '')"
+    cmd_publish_runtime_version="$(resolve_runtime_version "${cmd_publish_platform}")"
+    cmd_publish_bundle="$(jq -r --arg platform "${cmd_publish_platform}" '.fileMetadata[$platform].bundle' "${cmd_publish_export_dir}/metadata.json")"
+    cmd_publish_launch_asset="$(upload_asset "${cmd_publish_export_dir}/${cmd_publish_bundle}" application/javascript '')"
     jq -r --arg platform "${cmd_publish_platform}" '.fileMetadata[$platform].assets[] | "\(.ext) \(.path)"' \
       "${cmd_publish_export_dir}/metadata.json" > "${cmd_publish_export_dir}/${cmd_publish_platform}-assets.txt"
     while read -r cmd_publish_extension cmd_publish_path; do
-      upload_asset "${cmd_publish_export_dir}/${cmd_publish_path}" \
-        "$(file --brief --mime-type "${cmd_publish_export_dir}/${cmd_publish_path}")" "${cmd_publish_extension}"
+      cmd_publish_content_type="$(file --brief --mime-type "${cmd_publish_export_dir}/${cmd_publish_path}")"
+      upload_asset "${cmd_publish_export_dir}/${cmd_publish_path}" "${cmd_publish_content_type}" "${cmd_publish_extension}"
     done < "${cmd_publish_export_dir}/${cmd_publish_platform}-assets.txt" \
       > "${cmd_publish_export_dir}/${cmd_publish_platform}-assets.json"
 
+    cmd_publish_id="$(node -p 'crypto.randomUUID()')"
+    cmd_publish_created_at="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
     jq -n \
-      --arg id "$(uuidgen | tr '[:upper:]' '[:lower:]')" \
-      --arg createdAt "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" \
-      --arg runtimeVersion "${RUNTIME_VERSION}" \
+      --arg id "${cmd_publish_id}" \
+      --arg createdAt "${cmd_publish_created_at}" \
+      --arg runtimeVersion "${cmd_publish_runtime_version}" \
       --argjson launchAsset "${cmd_publish_launch_asset}" \
       --slurpfile assets "${cmd_publish_export_dir}/${cmd_publish_platform}-assets.json" \
       --slurpfile expoClient "${cmd_publish_export_dir}/expo-config.json" \
@@ -96,9 +104,10 @@ cmd_publish() {
   done
 
   for cmd_publish_platform in ${PLATFORMS}; do
-    put_object "${UPDATE_PREFIX}/${cmd_publish_platform}.json" \
+    cmd_publish_runtime_version="$(jq -r .runtimeVersion "${cmd_publish_export_dir}/${cmd_publish_platform}.json")"
+    put_object "${UPDATE_PREFIX}/${cmd_publish_runtime_version}/${cmd_publish_platform}.json" \
       "${cmd_publish_export_dir}/${cmd_publish_platform}.json" application/json
-    log_ok "Published ${cmd_publish_platform} update to ${UPDATE_PREFIX}"
+    log_ok "Published ${cmd_publish_platform} update to ${UPDATE_PREFIX}/${cmd_publish_runtime_version}"
   done
 }
 
@@ -106,11 +115,18 @@ cmd_rollback() {
   cmd_rollback_directive="$(mktemp)"
   trap 'rm -f "${cmd_rollback_directive}"' EXIT
 
-  jq -n --arg commitTime "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" \
+  cmd_rollback_commit_time="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+  jq -n --arg commitTime "${cmd_rollback_commit_time}" \
     '{ type: "rollBackToEmbedded", parameters: { commitTime: $commitTime } }' > "${cmd_rollback_directive}"
+
+  set --
   for cmd_rollback_platform in ${PLATFORMS}; do
-    put_object "${UPDATE_PREFIX}/${cmd_rollback_platform}.json" "${cmd_rollback_directive}" application/json
-    log_ok "Rolled ${cmd_rollback_platform} back to the embedded update in ${UPDATE_PREFIX}"
+    cmd_rollback_runtime_version="$(resolve_runtime_version "${cmd_rollback_platform}")"
+    set -- "$@" "${UPDATE_PREFIX}/${cmd_rollback_runtime_version}/${cmd_rollback_platform}.json"
+  done
+  for cmd_rollback_key in "$@"; do
+    put_object "${cmd_rollback_key}" "${cmd_rollback_directive}" application/json
+    log_ok "Rolled ${cmd_rollback_key} back to the embedded update"
   done
 }
 
@@ -127,7 +143,7 @@ main() {
       usage 1
       ;;
   esac
-  [ $# -ge 5 ] || usage 1
+  [ $# -ge 4 ] || usage 1
 
   case "$1" in
     dev) main_bucket='dev-updates' ;;
@@ -139,8 +155,7 @@ main() {
   esac
   APP_DIR="$(CDPATH='' cd -- "$2" && pwd)"
   main_channel="$3"
-  RUNTIME_VERSION="$4"
-  shift 4
+  shift 3
   for main_platform in "$@"; do
     case "${main_platform}" in
       ios | android) ;;
@@ -150,8 +165,9 @@ main() {
   PLATFORMS="$*"
   OBJECTS_URL="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_DEFAULT_ACCOUNT_ID}/r2/buckets/${main_bucket}/objects"
   EXPO_CONFIG="$(pnpm --dir "${APP_DIR}" exec expo config --type public --json)"
-  UPDATE_PREFIX="updates/$(printf '%s' "${EXPO_CONFIG}" | jq -r .slug)/${main_channel}/${RUNTIME_VERSION}"
-  readonly APP_DIR RUNTIME_VERSION PLATFORMS OBJECTS_URL EXPO_CONFIG UPDATE_PREFIX
+  main_slug="$(printf '%s' "${EXPO_CONFIG}" | jq -r .slug)"
+  UPDATE_PREFIX="updates/${main_slug}/${main_channel}"
+  readonly APP_DIR PLATFORMS OBJECTS_URL EXPO_CONFIG UPDATE_PREFIX
 
   "cmd_${cmd}"
 }
