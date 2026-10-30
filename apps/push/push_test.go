@@ -554,12 +554,17 @@ func TestPush(t *testing.T) {
 		id := send(alert(map[string]any{"user_ids": []string{"user-9"}}))
 		waitFor(t, "the first send", func() bool { return len(sentTo("hang-")) == 1 })
 		var terminated int
-		err := database.QueryRow(ctx, `
-			SELECT count(*) FILTER (WHERE pg_terminate_backend(pid)) FROM pg_stat_activity
-			WHERE datname = current_database() AND state = 'idle in transaction'`,
-		).Scan(&terminated)
-		if err != nil || terminated != 1 {
-			t.Fatalf("terminated %d connections: %v", terminated, err)
+		// NOTE: polling workers are idle in a transaction for well under a second, the hung one for good
+		waitFor(t, "the hung worker's connection to be terminated", func() bool {
+			err := database.QueryRow(ctx, `
+				SELECT count(*) FILTER (WHERE pg_terminate_backend(pid)) FROM pg_stat_activity
+				WHERE datname = current_database() AND state = 'idle in transaction' AND query LIKE '%FROM push_jobs%'
+				  AND state_change < now() - interval '1 second'`,
+			).Scan(&terminated)
+			return err == nil && terminated > 0
+		})
+		if terminated != 1 {
+			t.Fatalf("terminated %d connections", terminated)
 		}
 		close(provider.release)
 		waitFor(t, "the job to be sent again and finish", func() bool { return len(sentTo("hang-")) == 2 && jobsLeft(id) == 0 })
