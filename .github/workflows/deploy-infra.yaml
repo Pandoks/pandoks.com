@@ -154,8 +154,13 @@ jobs:
     concurrency:
       group: publish-mobile-template
       cancel-in-progress: false
-    needs: detect-changes
-    if: needs.detect-changes.outputs.mobile-template == 'true'
+    needs:
+      - detect-changes
+      - deploy-sst
+    if: |
+      always() &&
+      needs.detect-changes.outputs.mobile-template == 'true' &&
+      (needs.deploy-sst.result == 'success' || needs.deploy-sst.result == 'skipped')
     runs-on: ubuntu-latest
     environment: production
     env:
@@ -164,8 +169,11 @@ jobs:
       EXPO_NO_TELEMETRY: 1
 
     steps:
+      # NOTE: concurrency doesn't keep push order, so every run publishes main's tip
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
 
       - uses: ./.github/actions/setup-node-pnpm
 
