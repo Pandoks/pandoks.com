@@ -3,6 +3,7 @@ package com.pandoks.storeupdates
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory
 import com.google.android.play.core.appupdate.AppUpdateOptions
 import com.google.android.play.core.install.InstallStateUpdatedListener
+import com.google.android.play.core.install.model.ActivityResult
 import com.google.android.play.core.install.model.AppUpdateType
 import com.google.android.play.core.install.model.InstallStatus
 import com.google.android.play.core.install.model.UpdateAvailability
@@ -13,6 +14,7 @@ import expo.modules.kotlin.modules.ModuleDefinition
 
 class StoreUpdatesModule : Module() {
   private val appUpdateManager by lazy { AppUpdateManagerFactory.create(appContext.reactContext!!) }
+  private var immediateUpdateStarted = false
 
   // NOTE: completing a flexible update installs it and restarts the app
   private val installListener = InstallStateUpdatedListener { installState ->
@@ -26,10 +28,27 @@ class StoreUpdatesModule : Module() {
 
     OnDestroy { appUpdateManager.unregisterListener(installListener) }
 
+    // NOTE: resumes updates stalled while the app was in the background
+    OnActivityEntersForeground {
+      appUpdateManager.appUpdateInfo.addOnSuccessListener { appUpdateInfo ->
+        if (appUpdateInfo.installStatus() == InstallStatus.DOWNLOADED) {
+          appUpdateManager.completeUpdate()
+        } else if (
+          immediateUpdateStarted &&
+          appUpdateInfo.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS
+        ) {
+          appUpdateManager.startUpdateFlow(
+            appUpdateInfo,
+            appContext.throwingActivity,
+            AppUpdateOptions.defaultOptions(AppUpdateType.IMMEDIATE)
+          )
+        }
+      }
+    }
+
     AsyncFunction("checkForStoreUpdate") { promise: Promise ->
       appUpdateManager.appUpdateInfo
         .addOnSuccessListener { appUpdateInfo ->
-          if (appUpdateInfo.installStatus() == InstallStatus.DOWNLOADED) appUpdateManager.completeUpdate()
           if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE) {
             promise.resolve(
               mapOf("available" to true, "storeVersion" to appUpdateInfo.availableVersionCode().toString())
@@ -43,6 +62,7 @@ class StoreUpdatesModule : Module() {
 
     AsyncFunction("startStoreUpdate") { mode: String, promise: Promise ->
       val updateType = if (mode == "immediate") AppUpdateType.IMMEDIATE else AppUpdateType.FLEXIBLE
+      immediateUpdateStarted = updateType == AppUpdateType.IMMEDIATE
       appUpdateManager.appUpdateInfo
         .onSuccessTask { appUpdateInfo ->
           appUpdateManager.startUpdateFlow(
@@ -51,7 +71,13 @@ class StoreUpdatesModule : Module() {
             AppUpdateOptions.defaultOptions(updateType)
           )
         }
-        .addOnSuccessListener { promise.resolve() }
+        .addOnSuccessListener { resultCode ->
+          if (resultCode == ActivityResult.RESULT_IN_APP_UPDATE_FAILED) {
+            promise.reject(CodedException("The Play update failed"))
+          } else {
+            promise.resolve()
+          }
+        }
         .addOnFailureListener { exception -> promise.reject(CodedException(exception)) }
     }
   }
