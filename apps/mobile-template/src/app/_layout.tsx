@@ -1,10 +1,26 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
 import { NativeTabs } from 'expo-router/native-tabs';
 import { NavigationBar } from 'expo-navigation-bar';
+import { useEffect } from 'react';
 import { Platform, StatusBar, useColorScheme } from 'react-native';
+import {
+  registerDevice,
+  useDevicePushToken,
+  useNotificationRouting
+} from '@pandoks.com/react-native-notifications';
+
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const { token } = useDevicePushToken();
+  useNotificationRouting();
+
+  useEffect(() => {
+    if (token && BACKEND_URL) {
+      void registerDevice({ backendUrl: BACKEND_URL, token });
+    }
+  }, [token]);
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
