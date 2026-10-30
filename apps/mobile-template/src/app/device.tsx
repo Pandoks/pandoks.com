@@ -60,7 +60,7 @@ function WatchRows({ watch }: { watch: NonNullable<typeof Watch> }) {
       watch.updateApplicationContext({ value: new Date().toLocaleTimeString() });
       setSendError(null);
     } catch (error) {
-      // NOTE: throws when no watch is paired or the watch app isn't installed
+      // NOTE: throws on iOS without a paired watch app, and on Android without the Wearable API
       setSendError(String(error));
     }
   }

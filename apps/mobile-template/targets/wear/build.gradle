@@ -1,0 +1,47 @@
+buildscript {
+  repositories {
+    mavenCentral()
+  }
+  dependencies {
+    classpath("org.jetbrains.kotlin:compose-compiler-gradle-plugin:${kotlinVersion}")
+  }
+}
+
+apply plugin: 'com.android.application'
+apply plugin: 'org.jetbrains.kotlin.android'
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'
+
+// NOTE: the Data Layer only connects apps with the phone app's ID and signing key
+evaluationDependsOn(':app')
+def phoneApp = project(':app').android
+
+android {
+  namespace 'com.pandoks.mobiletemplate.wear'
+  compileSdk rootProject.ext.compileSdkVersion
+
+  defaultConfig {
+    applicationId phoneApp.defaultConfig.applicationId
+    minSdk 30
+    targetSdk rootProject.ext.targetSdkVersion
+    // NOTE: Play needs version codes unique across form factors
+    versionCode 1_000_000_000 + phoneApp.defaultConfig.versionCode
+    versionName phoneApp.defaultConfig.versionName
+  }
+
+  buildTypes.configureEach { buildType ->
+    def phoneBuildType = phoneApp.buildTypes.getByName(buildType.name)
+    buildType.signingConfig = phoneBuildType.signingConfig
+    buildType.minifyEnabled = phoneBuildType.minifyEnabled
+    buildType.proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+  }
+
+  buildFeatures {
+    compose true
+  }
+}
+
+dependencies {
+  implementation 'androidx.activity:activity-compose:1.13.0'
+  implementation 'androidx.wear.compose:compose-material3:1.7.1'
+  implementation 'com.google.android.gms:play-services-wearable:20.0.1'
+}
