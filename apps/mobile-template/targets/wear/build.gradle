@@ -23,10 +23,16 @@ android {
     applicationId phoneApp.defaultConfig.applicationId
     minSdk 30
     targetSdk rootProject.ext.targetSdkVersion
+    // NOTE: Play needs version codes unique across form factors
+    versionCode 1_000_000_000 + phoneApp.defaultConfig.versionCode
+    versionName phoneApp.defaultConfig.versionName
   }
 
   buildTypes.configureEach { buildType ->
-    buildType.signingConfig = phoneApp.buildTypes.getByName(buildType.name).signingConfig
+    def phoneBuildType = phoneApp.buildTypes.getByName(buildType.name)
+    buildType.signingConfig = phoneBuildType.signingConfig
+    buildType.minifyEnabled = phoneBuildType.minifyEnabled
+    buildType.proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
   }
 
   buildFeatures {
