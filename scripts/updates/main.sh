@@ -5,16 +5,14 @@ set -eu
 
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname "$0")" && pwd)"
 REPO_ROOT="${SCRIPT_DIR}/../.."
-BUCKET='dev-updates'
 readonly SCRIPT_DIR
 readonly REPO_ROOT
-readonly BUCKET
 
 . "${REPO_ROOT}/scripts/lib/font.sh"
 . "${REPO_ROOT}/scripts/lib/log.sh"
 
 usage() {
-  printf "%bUsage:%b pnpm updates <command> dev <app-dir> <channel> <runtime-version> <ios|android>...\n\n" "${BOLD}" "${NORMAL}" >&2
+  printf "%bUsage:%b pnpm updates <command> <dev|production> <app-dir> <channel> <runtime-version> <ios|android>...\n\n" "${BOLD}" "${NORMAL}" >&2
   printf "Publish Expo over-the-air updates to the updates Worker's R2 bucket.\n\n" >&2
 
   printf "%bCommands:%b\n" "${BOLD}" "${NORMAL}" >&2
@@ -22,7 +20,8 @@ usage() {
   printf "  %brollback%b   Send clients back to the update embedded in their build\n\n" "${GREEN}" "${NORMAL}" >&2
 
   printf "%bEnvironments:%b\n" "${BOLD}" "${NORMAL}" >&2
-  printf "  %bdev%b        %s bucket (needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_DEFAULT_ACCOUNT_ID)\n\n" "${GREEN}" "${NORMAL}" "${BUCKET}" >&2
+  printf "  %bdev%b        dev-updates bucket (needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_DEFAULT_ACCOUNT_ID)\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bproduction%b prod-updates bucket (same credentials)\n\n" "${GREEN}" "${NORMAL}" >&2
 
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  pnpm updates publish dev apps/mobile production 1.0.0 ios android\n" >&2
@@ -130,10 +129,14 @@ main() {
   esac
   [ $# -ge 5 ] || usage 1
 
-  if [ "$1" != dev ]; then
-    log_error "Unknown environment '$1'. Use 'dev'"
-    usage 1
-  fi
+  case "$1" in
+    dev) main_bucket='dev-updates' ;;
+    production) main_bucket='prod-updates' ;;
+    *)
+      log_error "Unknown environment '$1'. Use 'dev' or 'production'"
+      usage 1
+      ;;
+  esac
   APP_DIR="$(CDPATH='' cd -- "$2" && pwd)"
   main_channel="$3"
   RUNTIME_VERSION="$4"
@@ -145,7 +148,7 @@ main() {
     esac
   done
   PLATFORMS="$*"
-  OBJECTS_URL="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_DEFAULT_ACCOUNT_ID}/r2/buckets/${BUCKET}/objects"
+  OBJECTS_URL="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_DEFAULT_ACCOUNT_ID}/r2/buckets/${main_bucket}/objects"
   EXPO_CONFIG="$(pnpm --dir "${APP_DIR}" exec expo config --type public --json)"
   UPDATE_PREFIX="updates/$(printf '%s' "${EXPO_CONFIG}" | jq -r .slug)/${main_channel}/${RUNTIME_VERSION}"
   readonly APP_DIR RUNTIME_VERSION PLATFORMS OBJECTS_URL EXPO_CONFIG UPDATE_PREFIX

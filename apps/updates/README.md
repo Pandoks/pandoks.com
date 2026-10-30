@@ -55,8 +55,8 @@ pnpm updates publish dev apps/<app> production 1.0.0 ios android
 pnpm updates rollback dev apps/<app> production 1.0.0 ios android
 ```
 
-Both need `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_DEFAULT_ACCOUNT_ID`, as in `.env.<stage>`. They
-publish to dev only; production updates will be published by CI from `main` (later PR).
+Both need `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_DEFAULT_ACCOUNT_ID`, as in `.env.<stage>`.
+Production is published only by CI from `main`.
 
 `pnpm --filter @pandoks.com/updates test` runs the Worker's handler against an in-memory bucket and
 checks its responses and signatures.
