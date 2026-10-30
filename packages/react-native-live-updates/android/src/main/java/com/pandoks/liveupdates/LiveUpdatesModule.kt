@@ -3,6 +3,7 @@ package com.pandoks.liveupdates
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.os.Build
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -77,7 +78,8 @@ class LiveUpdatesModule : Module() {
         .setContentTitle(state.title)
         .setContentText(state.text)
         .setContentIntent(openApp)
-        .setOngoing(true)
+        // NOTE: setTimeoutAfter needs Android 8+, so older notifications stay user-dismissible
+        .setOngoing(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
         .setOnlyAlertOnce(true)
         .setRequestPromotedOngoing(true)
         .setWhen(state.endsAt)

@@ -4,8 +4,8 @@ A progress activity with one API on both platforms: an iOS Live Activity (Lock S
 Island, through `expo-widgets`) and an Android Live Update (a promoted `ProgressStyle` notification
 on Android 16+, a plain ongoing progress notification before). The countdown runs on its own on
 both. iOS also fills the progress bar while the app is suspended and shows Done at `endsAt`, but
-only the app or an `end` push removes the activity. Android's bar moves only on `update`, and the
-system removes the notification at `endsAt`.
+only the app or an `end` push removes the activity. Android's bar moves only on `update`, and on
+Android 8+ the system removes the notification at `endsAt`; before that the user can dismiss it.
 
 The app needs the `expo-widgets` config plugin; set `enablePushNotifications` for iOS push tokens.
 
