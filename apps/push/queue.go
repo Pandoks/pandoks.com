@@ -79,12 +79,15 @@ type claimedJob struct {
 // spreads across every worker, and wakes a worker of this replica.
 func (service *service) enqueue(ctx context.Context, request notification) (int64, error) {
 	var jobs []notification
-	for userIDs := range slices.Chunk(request.UserIDs, recipientsPerJob) {
+	// NOTE: a recipient repeated in two jobs would get it twice
+	slices.Sort(request.UserIDs)
+	slices.Sort(request.Tokens)
+	for userIDs := range slices.Chunk(slices.Compact(request.UserIDs), recipientsPerJob) {
 		job := request
 		job.UserIDs, job.Tokens = userIDs, nil
 		jobs = append(jobs, job)
 	}
-	for tokens := range slices.Chunk(request.Tokens, recipientsPerJob) {
+	for tokens := range slices.Chunk(slices.Compact(request.Tokens), recipientsPerJob) {
 		job := request
 		job.UserIDs, job.Tokens = nil, tokens
 		jobs = append(jobs, job)

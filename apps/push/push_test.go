@@ -284,6 +284,14 @@ func TestPush(t *testing.T) {
 		recipients["fcm"] = map[string]any{"notification": map[string]any{"title": "hi"}}
 		return recipients
 	}
+	// NOTE: one more user than a job holds makes a fan-out of two jobs
+	fanOut := func(userID string) []string {
+		userIDs := []string{userID}
+		for filler := range recipientsPerJob {
+			userIDs = append(userIDs, fmt.Sprintf("user-none-%d", filler))
+		}
+		return userIDs
+	}
 	deviceExists := func(token string) bool {
 		var exists bool
 		if err := database.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM push_devices WHERE token = $1)`, token+app).Scan(&exists); err != nil {
@@ -402,6 +410,15 @@ func TestPush(t *testing.T) {
 		waitFor(t, "the job to be sent again and finish", func() bool { return len(sentTo("busy-requeue-")) == 2 && jobsLeft(id) == 0 })
 	})
 
+	t.Run("sends once to a user listed in two jobs", func(t *testing.T) {
+		register("repeated-", "ios", "production", "device", "user-17")
+		id := send(alert(map[string]any{"user_ids": append(fanOut("user-17"), "user-17")}))
+		waitFor(t, "the jobs to finish", func() bool { return jobsLeft(id) == 0 })
+		if requests := len(sentTo("repeated-")); requests != 1 {
+			t.Errorf("repeated- got %d requests", requests)
+		}
+	})
+
 	t.Run("sends scheduled notifications unless cancelled", func(t *testing.T) {
 		register("scheduled-", "ios", "production", "device", "user-6")
 		register("cancelled-", "ios", "production", "device", "user-7")
@@ -493,14 +510,6 @@ func TestPush(t *testing.T) {
 		})
 		register("woken-", "ios", "production", "device", "user-12")
 		startService(t)
-		// NOTE: one more user than a job holds makes a fan-out of two jobs
-		fanOut := func(userID string) []string {
-			userIDs := []string{userID}
-			for filler := range recipientsPerJob {
-				userIDs = append(userIDs, fmt.Sprintf("user-none-%d", filler))
-			}
-			return userIDs
-		}
 		// NOTE: without NOTIFY the new replica takes this on a poll, and the sleep lets the workers it woke go idle
 		firstID := send(alert(map[string]any{"user_ids": fanOut("user-none")}))
 		waitFor(t, "the new replica to take the first fan-out", func() bool { return jobsLeft(firstID) == 0 })
