@@ -42,6 +42,7 @@ expo-env.d.ts
 apps/*/ios/
 apps/*/android/
 apps/*/targets/*/Info.plist
+apps/*/targets/*/build/
 
 # Native
 .kotlin/

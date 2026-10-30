@@ -13,5 +13,5 @@ declare class WatchModule extends NativeModule<{
 
 const watchModule = requireOptionalNativeModule<WatchModule>('Watch');
 
-// NOTE: null on Android until Wear OS support and on iPads, which can't pair a watch
+// NOTE: null on iPads, which can't pair a watch
 export const Watch = watchModule?.isSupported ? watchModule : null;

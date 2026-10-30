@@ -23,6 +23,7 @@
       "expo-router",
       ["expo-navigation-bar", { "enforceContrast": false }],
       "@bacons/apple-targets",
+      ["@pandoks.com/react-native-watch", { "wearApp": "./targets/wear" }],
       [
         "expo-splash-screen",
         {
