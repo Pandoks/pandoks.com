@@ -70,6 +70,7 @@ class StoreUpdatesModule : Module() {
       preferences.edit().putBoolean("immediateUpdateStarted", updateType == AppUpdateType.IMMEDIATE).apply()
       appUpdateManager.appUpdateInfo
         .onSuccessTask { appUpdateInfo ->
+          check(appUpdateInfo.isUpdateTypeAllowed(updateType)) { "Play doesn't allow a $mode update now" }
           appUpdateManager.startUpdateFlow(
             appUpdateInfo,
             appContext.throwingActivity,
