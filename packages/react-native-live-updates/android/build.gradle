@@ -1,0 +1,19 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.pandoks.liveupdates'
+version = '0.0.1'
+
+android {
+  namespace 'com.pandoks.liveupdates'
+}
+
+repositories {
+  google()
+}
+
+dependencies {
+  implementation 'androidx.core:core:1.19.1'
+}
