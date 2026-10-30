@@ -25,7 +25,8 @@ builds with the same native code, and `certificate.crt` verifies the `UpdatesSig
 Merging JS changes to `main` publishes a production update from `deploy-infra.yaml`, so reverting
 them on `main` rolls production back.
 
-To try a dev update, build against `updates.dev.pandoks.com`, change some JS, and publish:
+To try a dev update, build against `updates.dev.pandoks.com`, change some JS, and publish from a
+non-production stage like `pandoks`:
 
 ```sh
 export UPDATES_ENVIRONMENT=dev
