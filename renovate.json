@@ -148,6 +148,39 @@
       "groupName": "pnpm"
     },
     {
+      "description": "The Expo SDK pins these, react and react-native exactly; upgrade them together with `pnpm expo install expo@<sdk> --fix`, then remove the `~` Expo writes, match the `react` override in pnpm-workspace.yaml, and run `pnpm install`.",
+      "matchPackageNames": [
+        "expo",
+        "expo-*",
+        "@expo/*",
+        "jest-expo",
+        "test-renderer",
+        "react",
+        "@types/react",
+        "react-native",
+        "react-native-*",
+        "@react-native/*"
+      ],
+      "groupName": "expo sdk",
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "`expo install --check` also holds these to the Expo SDK's versions in the Expo app and its packages.",
+      "matchFileNames": [
+        "apps/mobile-template/package.json",
+        "packages/react-native-*/package.json"
+      ],
+      "matchPackageNames": ["typescript", "jest", "@types/jest"],
+      "groupName": "expo sdk",
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "React Native's Android build supports JDK 17.",
+      "matchDepNames": ["java"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
       "description": "Keep engines.node a range.",
       "matchDepTypes": ["engines"],
       "matchPackageNames": ["node"],

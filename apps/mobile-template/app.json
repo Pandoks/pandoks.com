@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "Mobile Template",
+    "slug": "mobile-template",
+    "version": "0.0.1",
+    "platforms": ["ios", "android"],
+    "icon": "./assets/icon.png",
+    "scheme": "mobiletemplate",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.pandoks.mobiletemplate",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.pandoks.mobiletemplate",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      ["expo-navigation-bar", { "enforceContrast": false }],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/icon.png",
+          "imageWidth": 120,
+          "backgroundColor": "#F2F2F2",
+          "dark": { "backgroundColor": "#010101" }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
