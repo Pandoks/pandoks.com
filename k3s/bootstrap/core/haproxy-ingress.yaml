@@ -12,7 +12,7 @@ metadata:
 spec:
   repo: https://haproxy-ingress.github.io/charts
   chart: haproxy-ingress
-  version: 0.15.1
+  version: 0.16.2
   targetNamespace: ingress-controller
   createNamespace: true
   # NOTE: if you want to change the ports, look into dual service cutover for zero downtime.
