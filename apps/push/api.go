@@ -70,6 +70,8 @@ func (service *service) sendNotification(writer http.ResponseWriter, request *ht
 		http.Error(writer, err.Error(), http.StatusBadRequest)
 		return
 	}
+	// NOTE: attempt counts a queued job's retries and isn't the caller's to set
+	notification.Attempt = 0
 	isObject := func(payload json.RawMessage) bool {
 		var object map[string]json.RawMessage
 		return payload == nil || (json.Unmarshal(payload, &object) == nil && object != nil)

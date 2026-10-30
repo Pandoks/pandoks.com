@@ -372,10 +372,10 @@ func TestPush(t *testing.T) {
 		}
 	})
 
-	t.Run("retries throttled sends", func(t *testing.T) {
+	t.Run("retries throttled sends even when the caller sets attempt", func(t *testing.T) {
 		register("busy-ios-", "ios", "production", "device", "user-5")
 		register("busy-android-", "android", "", "device", "user-5")
-		send(alert(map[string]any{"user_ids": []string{"user-5"}}))
+		send(alert(map[string]any{"user_ids": []string{"user-5"}, "attempt": maxAttempts - 1}))
 		waitFor(t, "throttled sends to be retried", func() bool { return len(sentTo("busy-ios-")) == 2 && len(sentTo("busy-android-")) == 2 })
 	})
 
