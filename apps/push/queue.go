@@ -273,18 +273,22 @@ func (service *service) send(shutdown context.Context, sends *sync.WaitGroup, jo
 		if (device.Platform == "ios" && job.APNs == nil) || (device.Platform == "android" && job.FCM == nil) {
 			continue
 		}
-		select {
-		case service.sends <- struct{}{}:
-		case <-shutdown.Done():
-			for _, unsent := range devices[index:] {
-				job.unsentTokens = append(job.unsentTokens, unsent.Token)
+		// NOTE: checked first, since select picks at random once a send slot is free too
+		if shutdown.Err() == nil {
+			select {
+			case service.sends <- struct{}{}:
+				sends.Go(func() {
+					defer func() { <-service.sends }()
+					job.record(device, service.senders[device.Platform].send(context.WithoutCancel(shutdown), device, job.notification))
+				})
+				continue
+			case <-shutdown.Done():
 			}
-			return
 		}
-		sends.Go(func() {
-			defer func() { <-service.sends }()
-			job.record(device, service.senders[device.Platform].send(context.WithoutCancel(shutdown), device, job.notification))
-		})
+		for _, unsent := range devices[index:] {
+			job.unsentTokens = append(job.unsentTokens, unsent.Token)
+		}
+		return
 	}
 }
 
