@@ -8,6 +8,7 @@ import android.widget.TextView
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import expo.modules.kotlin.types.ColorCompat
 import expo.modules.kotlin.views.ExpoView
 
 class ModuleTemplateModule : Module() {
@@ -33,7 +34,7 @@ class ModuleTemplateModule : Module() {
         view.label.text = text
       }
       Prop("color") { view: ModuleTemplateView, color: Color ->
-        view.label.setTextColor(color.toArgb())
+        view.label.setTextColor(ColorCompat.toArgb(color))
       }
     }
   }
