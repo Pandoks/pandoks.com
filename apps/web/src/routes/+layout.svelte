@@ -25,10 +25,13 @@
     ...(__HAS_POSTS__ ? [{ path: '/blog', text: 'Blog' } as const] : [])
   ];
 
-  // TODO: real addresses
   const wallets = [
-    { ticker: 'xmr', address: 'XMR_ADDRESS_STUB' },
-    { ticker: 'btc', address: 'BTC_ADDRESS_STUB' }
+    {
+      ticker: 'xmr',
+      address:
+        '44isMdyhd2sBxn1Ph9se62fPsuYX55q9QBnYwgG3x1do8SFnxkA32ejdjR9py2s9xZeaFiaWw71CaGHADXUR2ijAT8V7XME'
+    },
+    { ticker: 'btc', address: 'bc1qjpv5538wmhsup0hcgqes4vs9kevtdg32l6853t' }
   ];
   let yankedTicker: string | undefined = $state();
   let yankTimeout: ReturnType<typeof setTimeout> | undefined;
