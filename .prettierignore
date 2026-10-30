@@ -7,8 +7,6 @@ bun.lockb
 
 # Helm
 packages/*/chart/templates/*.yaml
-# tpl-rendered (contains Go template syntax)
-packages/postgres/chart/files/patroni.yaml
 
 # SST
 sst-env.d.ts

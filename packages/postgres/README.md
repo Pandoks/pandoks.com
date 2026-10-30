@@ -287,6 +287,18 @@ kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
   --force
 ```
 
+### Change Postgres Settings
+
+Set `patroni.parameters` in the HelmChart. After every install and upgrade, a Job applies them to
+each shard. Settings Postgres can reload, like `work_mem`, take effect within seconds. Ones that
+need a restart, like `shared_buffers`, show under `Pending restart` until you restart the shard in
+place:
+
+```bash
+kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
+  patronictl -c /etc/patroni/patroni.yaml restart myapp-shard-0 --pending
+```
+
 ### Backup Operations
 
 ```bash
@@ -684,6 +696,7 @@ after changing them:
 | `patroni.shards`                | Number of shards                                   | `1`                                                         |
 | `patroni.replicasPerShard`      | Pods per shard (1 primary + n - 1 replicas)        | `3`                                                         |
 | `patroni.image`                 | Patroni image                                      | `ghcr.io/pandoks/patroni:latest`                            |
+| `patroni.parameters.*`          | Postgres settings, applied to running clusters     | `max_connections: 100`, `shared_buffers: 128MB`, etc.       |
 | `patroni.resources.*`           | `patroni`, `pgbackrest`, `postgresExporter`        | `{}`                                                        |
 | `pgdog.*`                       | Passed through to the [PgDog chart][pgdog]         | See below                                                   |
 | `pgdog.replicas`                | PgDog replicas                                     | `2`                                                         |
