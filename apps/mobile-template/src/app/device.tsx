@@ -55,9 +55,10 @@ export default function DeviceScreen() {
         {rows.map(([label, value]) => (
           <View key={label} style={[styles.row, { borderColor: colors.border }]}>
             <Text style={[styles.label, { color: colors.text }]}>{label}</Text>
+            {/* TODO: Android clips selectable text instead of truncating it: https://github.com/facebook/react-native/issues/48921 */}
             <Text
               style={[styles.value, { color: colors.text }]}
-              numberOfLines={1}
+              numberOfLines={Platform.OS === 'ios' ? 1 : undefined}
               ellipsizeMode="middle"
               selectable
             >
