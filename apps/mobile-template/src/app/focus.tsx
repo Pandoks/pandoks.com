@@ -47,6 +47,7 @@ export default function FocusScreen() {
   const [session, setSession] = useState<Session | null>(null);
   const [now, setNow] = useState(Date.now);
   const [pushToken, setPushToken] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
 
   useEffect(() => {
     if (!session) {
@@ -64,6 +65,7 @@ export default function FocusScreen() {
   }, [session]);
 
   async function start() {
+    setStarting(true);
     const startedAt = Date.now();
     const state = {
       title: 'Focus',
@@ -71,15 +73,19 @@ export default function FocusScreen() {
       startedAt,
       endsAt: startedAt + SESSION_MS
     };
-    const activity = await startProgressActivity(state);
-    setPushToken(null);
-    setNow(startedAt);
-    setSession({
-      activity,
-      state,
-      pushTokenSubscription: activity.addPushTokenListener(setPushToken)
-    });
-    showFocusing(state.endsAt);
+    try {
+      const activity = await startProgressActivity(state);
+      setPushToken(null);
+      setNow(startedAt);
+      setSession({
+        activity,
+        state,
+        pushTokenSubscription: activity.addPushTokenListener(setPushToken)
+      });
+      showFocusing(state.endsAt);
+    } finally {
+      setStarting(false);
+    }
   }
 
   async function extend(current: Session) {
@@ -130,6 +136,7 @@ export default function FocusScreen() {
           ) : (
             <Pressable
               accessibilityRole="button"
+              disabled={starting}
               style={[styles.button, { backgroundColor: colors.primary }]}
               onPress={start}
             >
@@ -137,7 +144,7 @@ export default function FocusScreen() {
             </Pressable>
           )}
         </View>
-        {pushToken && (
+        {session && pushToken && (
           <Text numberOfLines={1} style={[styles.caption, { color: colors.text }]}>
             {`Push token ${pushToken}`}
           </Text>
