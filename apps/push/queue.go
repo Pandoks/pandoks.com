@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	jobWorkers       = 6
+	jobWorkers       = 5
 	apiConnections   = 2
 	databaseTimeout  = 5 * time.Second
 	recipientsPerJob = 500

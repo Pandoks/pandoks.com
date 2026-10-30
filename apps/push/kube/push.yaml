@@ -20,6 +20,11 @@ metadata:
   namespace: main
 spec:
   replicas: 2
+  # NOTE: no surge pod, so a rollout stays within the Postgres connection budget
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: &app push
