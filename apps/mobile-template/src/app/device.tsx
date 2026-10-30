@@ -97,5 +97,5 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth
   },
   label: { fontSize: 17 },
-  value: { flexShrink: 1, fontSize: 17, opacity: 0.6, fontVariant: ['tabular-nums'] }
+  value: { fontSize: 17, opacity: 0.6, fontVariant: ['tabular-nums'] }
 });
