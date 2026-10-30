@@ -121,6 +121,7 @@
         >
       </div>
     {/each}
+    <span role="status" class="sr-only">{yankedTicker ? 'copied' : ''}</span>
   </div>
 </div>
 
