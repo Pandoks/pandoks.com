@@ -42,7 +42,7 @@ class WatchModule : Module() {
 
     OnDestroy {
       Wearable.getMessageClient(context).removeListener(messageListener)
-      Wearable.getCapabilityClient(context).removeListener(capabilityListener)
+      Wearable.getCapabilityClient(context).removeListener(capabilityListener, WATCH_CAPABILITY)
     }
 
     Function("updateApplicationContext") { applicationContext: Map<String, Any> ->
