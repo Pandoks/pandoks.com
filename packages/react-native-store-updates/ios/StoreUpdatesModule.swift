@@ -21,12 +21,14 @@ public class StoreUpdatesModule: Module {
       guard let storeApp = try await lookUpStoreApp() else {
         throw Exception(name: "NotInAppStore", description: "This app isn't in the App Store")
       }
-      await MainActor.run {
+      try await Task { @MainActor in
         let productViewController = SKStoreProductViewController()
         productViewController.delegate = self.productViewControllerDelegate
-        productViewController.loadProduct(withParameters: [SKStoreProductParameterITunesItemIdentifier: storeApp.trackId])
+        _ = try await productViewController.loadProduct(withParameters: [
+          SKStoreProductParameterITunesItemIdentifier: storeApp.trackId
+        ])
         self.appContext?.utilities?.currentViewController()?.present(productViewController, animated: true)
-      }
+      }.value
     }
   }
 }
@@ -37,13 +39,18 @@ private class ProductViewControllerDelegate: NSObject, SKStoreProductViewControl
   }
 }
 
-// NOTE: without a country, the lookup only searches the US store, and the
-// timestamp skips the CDN, which caches lookups for up to a day
+// NOTE: without a country, the lookup only searches the US store, and it takes the
+// storefront's alpha-3 code as alpha-2. The timestamp skips the CDN, which caches
+// lookups for up to a day
 private func lookUpStoreApp() async throws -> StoreApp? {
+  let storefrontCountryCode = await Storefront.current?.countryCode
   var components = URLComponents(string: "https://itunes.apple.com/lookup")!
   components.queryItems = [
     URLQueryItem(name: "bundleId", value: Bundle.main.bundleIdentifier),
-    URLQueryItem(name: "country", value: Locale.current.region?.identifier),
+    URLQueryItem(
+      name: "country",
+      value: storefrontCountryCode.flatMap { Locale(identifier: "und_\($0)").region?.identifier }
+    ),
     URLQueryItem(name: "timestamp", value: String(Date().timeIntervalSince1970)),
   ]
   let (data, _) = try await URLSession.shared.data(from: components.url!)
