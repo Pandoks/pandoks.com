@@ -7,7 +7,7 @@ export function Screen({ title, children }: { title: string; children: ReactNode
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
 
-  // NOTE: native tabs only auto-inset the initial iOS tab and the Android bottom edge
+  // NOTE: native tabs only auto-inset the first-shown iOS tab and Android's bottom; inset the rest
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"

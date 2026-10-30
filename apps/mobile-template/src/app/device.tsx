@@ -52,8 +52,11 @@ export default function DeviceScreen() {
   return (
     <Screen title="Device">
       <View style={listStyle}>
-        {rows.map(([label, value]) => (
-          <View key={label} style={[styles.row, { borderColor: colors.border }]}>
+        {rows.map(([label, value], index) => (
+          <View
+            key={label}
+            style={[styles.row, index === 0 && styles.firstRow, { borderColor: colors.border }]}
+          >
             <Text style={[styles.label, { color: colors.text }]}>{label}</Text>
             {/* TODO: Android clips selectable text instead of truncating it: https://github.com/facebook/react-native/issues/48921 */}
             <Text
@@ -68,13 +71,14 @@ export default function DeviceScreen() {
         ))}
       </View>
       <View style={listStyle}>
-        {actions.map(({ label, onPress }) => (
+        {actions.map(({ label, onPress }, index) => (
           <Pressable
             key={label}
             role="button"
             onPress={() => void onPress()}
             style={({ pressed }) => [
               styles.row,
+              index === 0 && styles.firstRow,
               { borderColor: colors.border, opacity: pressed ? 0.5 : 1 }
             ]}
           >
@@ -94,8 +98,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 16,
     padding: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth
+    borderTopWidth: StyleSheet.hairlineWidth
   },
+  firstRow: { borderTopWidth: 0 },
   label: { fontSize: 17 },
   value: { fontSize: 17, opacity: 0.6, fontVariant: ['tabular-nums'] }
 });
