@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"net"
 	"net/http"
@@ -39,10 +40,10 @@ type providerRequest struct {
 
 // fakeProvider speaks the APNs and FCM HTTP/2 wire formats over TLS. Tokens starting with "gone-"
 // are unregistered, "invalid-" are malformed FCM tokens, "busy-" are throttled on their first
-// request, "later-" FCM tokens are told to retry at an HTTP date an hour away, "hang-", "slow-",
-// "stuck-", and "burst-" block their first request until release, releaseSlow, releaseStuck, and
-// releaseBurst are closed, and "sandbox-" are valid only on the sandbox APNs host while every other
-// APNs token is valid only on production.
+// request, "reset-" have their first APNs request's stream reset, "later-" FCM tokens are told to
+// retry at an HTTP date an hour away, "hang-", "slow-", "stuck-", and "burst-" block their first
+// request until release, releaseSlow, releaseStuck, and releaseBurst are closed, and "sandbox-" are
+// valid only on the sandbox APNs host while every other APNs token is valid only on production.
 type fakeProvider struct {
 	mutex            sync.Mutex
 	requests         map[string][]providerRequest
@@ -80,6 +81,8 @@ func (provider *fakeProvider) serve(t *testing.T, apnsPublicKey *ecdsa.PublicKey
 		case strings.HasPrefix(token, "busy-") && attempt == 1:
 			writer.WriteHeader(http.StatusTooManyRequests)
 			_, _ = writer.Write([]byte(`{"reason":"TooManyRequests"}`))
+		case strings.HasPrefix(token, "reset-") && attempt == 1:
+			panic(http.ErrAbortHandler)
 		case strings.HasPrefix(token, "hang-") && attempt == 1:
 			<-provider.release
 		case strings.HasPrefix(token, "slow-") && attempt == 1:
@@ -181,6 +184,24 @@ func waitFor(t *testing.T, description string, condition func() bool) {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
+}
+
+// lockedBuffer collects logs written from every goroutine.
+type lockedBuffer struct {
+	mutex  sync.Mutex
+	buffer bytes.Buffer
+}
+
+func (logs *lockedBuffer) Write(line []byte) (int, error) {
+	logs.mutex.Lock()
+	defer logs.mutex.Unlock()
+	return logs.buffer.Write(line)
+}
+
+func (logs *lockedBuffer) String() string {
+	logs.mutex.Lock()
+	defer logs.mutex.Unlock()
+	return logs.buffer.String()
 }
 
 func startService(t *testing.T) (string, context.CancelFunc) {
@@ -438,6 +459,19 @@ func TestPush(t *testing.T) {
 		}
 		if status, _ := call(http.MethodDelete, "/notifications/"+id, nil); status != http.StatusNoContent {
 			t.Errorf("cancel: %d", status)
+		}
+	})
+
+	t.Run("keeps device tokens out of the logs when an APNs request fails in transport", func(t *testing.T) {
+		logs := &lockedBuffer{}
+		defaultLogger := slog.Default()
+		slog.SetDefault(slog.New(slog.NewTextHandler(logs, nil)))
+		t.Cleanup(func() { slog.SetDefault(defaultLogger) })
+		register("reset-", "ios", "production", "device", "user-21")
+		id := send(alert(map[string]any{"user_ids": []string{"user-21"}}))
+		waitFor(t, "the reset send to be retried", func() bool { return len(sentTo("reset-")) == 2 && jobsLeft(id) == 0 })
+		if !strings.Contains(logs.String(), "retrying=1") || strings.Contains(logs.String(), "reset-"+app) {
+			t.Errorf("didn't log the transport failure without its device token:\n%s", logs.String())
 		}
 	})
 

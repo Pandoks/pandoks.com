@@ -99,7 +99,8 @@ func (client *apnsClient) send(ctx context.Context, device device, job notificat
 
 	response, err := client.httpClient.Do(request)
 	if err != nil {
-		return result{outcome: retryable, reason: err.Error()}
+		// NOTE: unwrapped, since the url.Error's message holds the request URL and so the device token
+		return result{outcome: retryable, reason: errors.Unwrap(err).Error()}
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode == http.StatusOK {
