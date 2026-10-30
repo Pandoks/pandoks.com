@@ -32,6 +32,8 @@ class ModuleTemplateView: ExpoView {
     super.init(appContext: appContext)
     label.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     label.textAlignment = .right
+    label.font = UIFont.preferredFont(forTextStyle: .body)
+    label.adjustsFontForContentSizeCategory = true
     addSubview(label)
   }
 }
