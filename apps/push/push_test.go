@@ -39,9 +39,10 @@ type providerRequest struct {
 
 // fakeProvider speaks the APNs and FCM HTTP/2 wire formats over TLS. Tokens starting with "gone-"
 // are unregistered, "invalid-" are malformed FCM tokens, "busy-" are throttled on their first
-// request, "hang-", "slow-", "stuck-", and "burst-" block their first request until release,
-// releaseSlow, releaseStuck, and releaseBurst are closed, and "sandbox-" are valid only on the
-// sandbox APNs host while every other APNs token is valid only on production.
+// request, "later-" FCM tokens are told to retry at an HTTP date an hour away, "hang-", "slow-",
+// "stuck-", and "burst-" block their first request until release, releaseSlow, releaseStuck, and
+// releaseBurst are closed, and "sandbox-" are valid only on the sandbox APNs host while every other
+// APNs token is valid only on production.
 type fakeProvider struct {
 	mutex            sync.Mutex
 	requests         map[string][]providerRequest
@@ -114,6 +115,10 @@ func (provider *fakeProvider) serve(t *testing.T, apnsPublicKey *ecdsa.PublicKey
 			_, _ = writer.Write([]byte(`{"error":{"code":400,"status":"INVALID_ARGUMENT","details":[{"@type":"type.googleapis.com/google.firebase.fcm.v1.FcmError","errorCode":"INVALID_ARGUMENT"}]}}`))
 		case strings.HasPrefix(token, "busy-") && attempt == 1:
 			writer.Header().Set("retry-after", "1")
+			writer.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = writer.Write([]byte(`{"error":{"code":503,"status":"UNAVAILABLE"}}`))
+		case strings.HasPrefix(token, "later-"):
+			writer.Header().Set("retry-after", time.Now().Add(time.Hour).UTC().Format(http.TimeFormat))
 			writer.WriteHeader(http.StatusServiceUnavailable)
 			_, _ = writer.Write([]byte(`{"error":{"code":503,"status":"UNAVAILABLE"}}`))
 		default:
@@ -418,6 +423,21 @@ func TestPush(t *testing.T) {
 		waitFor(t, "the retry to finish", func() bool { return jobsLeft(id) == 0 })
 		if requests := len(sentTo("busy-moved-")); requests != 1 {
 			t.Errorf("sent user-18's notification to user-19's device: %d requests", requests)
+		}
+	})
+
+	t.Run("waits until the date FCM's Retry-After asks for", func(t *testing.T) {
+		register("later-", "android", "", "device", "user-20")
+		id := send(alert(map[string]any{"user_ids": []string{"user-20"}}))
+		var retryAt time.Time
+		waitFor(t, "the send to be requeued", func() bool {
+			return database.QueryRow(ctx, `SELECT send_at FROM push_jobs WHERE notification_id = $1 AND job ? 'tokens'`, id).Scan(&retryAt) == nil
+		})
+		if wait := time.Until(retryAt); wait < 50*time.Minute {
+			t.Errorf("requeued the retry %s out instead of the hour FCM asked for", wait)
+		}
+		if status, _ := call(http.MethodDelete, "/notifications/"+id, nil); status != http.StatusNoContent {
+			t.Errorf("cancel: %d", status)
 		}
 	})
 

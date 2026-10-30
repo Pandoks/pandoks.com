@@ -70,8 +70,13 @@ func (client *fcmClient) send(ctx context.Context, device device, job notificati
 	}
 	_ = json.NewDecoder(response.Body).Decode(&rejection)
 	reason := fmt.Sprintf("fcm %d %s", response.StatusCode, rejection.Error.Status)
-	retryAfterSeconds, _ := strconv.Atoi(response.Header.Get("retry-after"))
+	retryAfterHeader := response.Header.Get("retry-after")
+	retryAfterSeconds, _ := strconv.Atoi(retryAfterHeader)
 	retryAfter := time.Duration(retryAfterSeconds) * time.Second
+	// NOTE: Retry-After can also be an HTTP date
+	if retryAt, err := http.ParseTime(retryAfterHeader); err == nil {
+		retryAfter = time.Until(retryAt)
+	}
 	for _, detail := range rejection.Error.Details {
 		switch detail.ErrorCode {
 		case "UNREGISTERED":
