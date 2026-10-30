@@ -13,7 +13,9 @@ if (available) await StoreUpdates.startStoreUpdate('flexible'); // or 'immediate
   `storeVersion` is the Play version code. A flexible update installs and restarts the app once it
   downloads. It only works in builds installed from Play, such as
   [internal app sharing](https://support.google.com/googleplay/android-developer/answer/9844679).
-  `startStoreUpdate` resolves when the user cancels and rejects when the update fails.
+  `startStoreUpdate` resolves when the user cancels and rejects when the update fails. For a
+  flexible update it resolves once the user accepts the download, so a later download or install
+  failure isn't reported.
 - **iOS:** compares the installed version with the App Store's from the
   [iTunes lookup API](https://performance-partners.apple.com/search-api) for the App Store account's
   region, skipping versions that need a newer iOS, and opens the App Store page in the app,
