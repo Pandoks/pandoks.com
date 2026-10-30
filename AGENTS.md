@@ -67,9 +67,10 @@ inside it, use `#lib`.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
   `infra/`, `apps/` (except `desktop-template`, `mobile-template`, and `example`), and
   `packages/svelte/`, plus an Argo hard refresh only for `k3s/` and `scripts/cluster/` changes and a
-  production OTA update for `apps/mobile-template` JS changes. Pages builds `apps/web` when a change
-  matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod`
-  renders but never prunes: a deleted resource stays in prod until pruned by hand.
+  production OTA update for `apps/mobile-template` JS, `pnpm-lock.yaml`, and `pnpm-workspace.yaml`
+  changes. Pages builds `apps/web` when a change matches `pathIncludes` in `infra/website.ts`. Argo
+  auto-syncs everything `k3s/overlays/prod` renders but never prunes: a deleted resource stays in
+  prod until pruned by hand.
 - Every non-production stage gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
   environment, so two non-production stages collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no

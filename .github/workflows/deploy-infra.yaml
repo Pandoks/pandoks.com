@@ -5,6 +5,8 @@ on:
     branches:
       - main
     paths:
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
       - 'sst.config.ts'
       - 'infra/**'
       - 'apps/**'
@@ -51,6 +53,8 @@ jobs:
               - 'k3s/**'
               - 'scripts/cluster/**'
             mobile-template:
+              - 'pnpm-workspace.yaml'
+              - 'pnpm-lock.yaml'
               - 'apps/mobile-template/{app.json,app.config.ts,package.json}'
               - 'apps/mobile-template/{assets,src/!(__tests__)}/**'
 
