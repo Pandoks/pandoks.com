@@ -338,18 +338,15 @@ func commitJobs(ctx context.Context, transaction pgx.Tx, startedAt time.Time, jo
 		}
 	}
 
-	// NOTE: a bookkeeping error is logged instead of rolling back the jobs and repeating their sends
+	// NOTE: a failure rolls the jobs back to be sent again, since dropping it would lose their retries
 	if len(unregisteredTokens)+len(requeued) > 0 {
-		err := pgx.BeginFunc(ctx, transaction, func(savepoint pgx.Tx) error {
-			batch := &pgx.Batch{}
-			// NOTE: a device that registered again after its job started keeps its token
-			batch.Queue(`DELETE FROM push_devices WHERE token = ANY($1) AND updated_at < $2`, unregisteredTokens, startedAt)
-			batch.Queue(`INSERT INTO push_jobs (notification_id, send_at, job) SELECT * FROM unnest($1::bigint[], $2::timestamptz[], $3::jsonb[])`,
-				notificationIDs, sendAts, requeued)
-			return savepoint.SendBatch(ctx, batch).Close()
-		})
-		if err != nil {
-			slog.Error("record job results", "error", err)
+		batch := &pgx.Batch{}
+		// NOTE: a device that registered again after its job started keeps its token
+		batch.Queue(`DELETE FROM push_devices WHERE token = ANY($1) AND updated_at < $2`, unregisteredTokens, startedAt)
+		batch.Queue(`INSERT INTO push_jobs (notification_id, send_at, job) SELECT * FROM unnest($1::bigint[], $2::timestamptz[], $3::jsonb[])`,
+			notificationIDs, sendAts, requeued)
+		if err := transaction.SendBatch(ctx, batch).Close(); err != nil {
+			return err
 		}
 	}
 	if _, err := transaction.Exec(ctx, `DELETE FROM push_jobs WHERE id = ANY($1)`, jobIDs); err != nil {

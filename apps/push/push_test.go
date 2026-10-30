@@ -386,6 +386,17 @@ func TestPush(t *testing.T) {
 		waitFor(t, "throttled sends to be retried", func() bool { return len(sentTo("busy-ios-")) == 2 && len(sentTo("busy-android-")) == 2 })
 	})
 
+	t.Run("sends a job again when its retries fail to requeue", func(t *testing.T) {
+		register("busy-requeue-", "ios", "production", "device", "user-16")
+		// NOTE: fails the INSERT that requeues this token's retry
+		if _, err := database.Exec(ctx, fmt.Sprintf(`ALTER TABLE push_jobs ADD CONSTRAINT fail_requeue CHECK (NOT job->'tokens' ? '%s') NOT VALID`, "busy-requeue-"+app)); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _, _ = database.Exec(ctx, `ALTER TABLE push_jobs DROP CONSTRAINT fail_requeue`) })
+		id := send(alert(map[string]any{"user_ids": []string{"user-16"}}))
+		waitFor(t, "the job to be sent again and finish", func() bool { return len(sentTo("busy-requeue-")) == 2 && jobsLeft(id) == 0 })
+	})
+
 	t.Run("sends scheduled notifications unless cancelled", func(t *testing.T) {
 		register("scheduled-", "ios", "production", "device", "user-6")
 		register("cancelled-", "ios", "production", "device", "user-7")
