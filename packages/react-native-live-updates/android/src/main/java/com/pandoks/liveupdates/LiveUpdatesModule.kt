@@ -30,6 +30,7 @@ class LiveUpdatesModule : Module() {
       Name("LiveUpdates")
 
       AsyncFunction("start") { id: String, state: ProgressActivityState ->
+        check(NotificationManagerCompat.from(context()).areNotificationsEnabled()) { "Notifications are disabled" }
         NotificationManagerCompat.from(context()).createNotificationChannel(
           NotificationChannelCompat
             .Builder(CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_DEFAULT)
@@ -49,6 +50,7 @@ class LiveUpdatesModule : Module() {
       AsyncFunction("end") { id: String ->
         notificationManager().cancel(id, 0)
       }
+
     }
 
   private fun context() = requireNotNull(appContext.reactContext).applicationContext
