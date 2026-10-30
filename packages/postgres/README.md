@@ -180,7 +180,7 @@ metadata:
   namespace: kube-system
 spec:
   chart: oci://${ImageRegistry}/charts/postgres
-  version: 0.1.1
+  version: 0.1.2
   targetNamespace: &namespace myapp
   createNamespace: true
   failurePolicy: abort
@@ -289,14 +289,14 @@ kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
 
 ### Change Postgres Settings
 
-Set `patroni.parameters` in the HelmChart. After every install and upgrade, a Job applies them to
-each shard. Settings Postgres can reload, like `work_mem`, take effect within seconds. Ones that
-need a restart, like `shared_buffers`, show under `Pending restart` until you restart the shard in
-place:
+Set `patroni.parameters` in the HelmChart. New clusters start with them, and after every upgrade and
+rollback a Job applies them to each shard. Settings Postgres can reload, like `work_mem`, take
+effect within seconds. Ones that need a restart, like `shared_buffers`, show under `Pending restart`
+until you restart the shard in place:
 
 ```bash
 kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
-  patronictl -c /etc/patroni/patroni.yaml restart myapp-shard-0 --pending
+  patronictl -c /etc/patroni/patroni.yaml restart myapp-shard-0 --pending --force
 ```
 
 ### Backup Operations

@@ -4,14 +4,14 @@ metadata:
   name: patroni-{{ .Values.db }}-parameters
   namespace: {{ .Values.namespace }}
   annotations:
-    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook": post-upgrade,post-rollback
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
   backoffLimit: 0
-  activeDeadlineSeconds: 300
   template:
     spec:
       restartPolicy: Never
+      automountServiceAccountToken: false
       securityContext:
         seccompProfile:
           type: RuntimeDefault
@@ -38,14 +38,15 @@ spec:
                       method='PATCH',
                       headers={'Content-Type': 'application/json', 'Authorization': 'Basic ' + auth},
                   )
-                  # NOTE: wait out pods that are still starting; a rejected request fails the job
                   while True:
                       try:
                           urllib.request.urlopen(request, timeout=10).close()
                           break
-                      except urllib.error.HTTPError:
-                          raise
                       except OSError as error:
+                          # NOTE: wait out members that are starting (no answer, or 503 before the config is in the DCS)
+                          # and concurrent config edits (409); any other rejection fails the job
+                          if isinstance(error, urllib.error.HTTPError) and error.code not in (409, 503):
+                              raise
                           print('shard %d: %s, retrying' % (shard, error), flush=True)
                           time.sleep(5)
                   print('shard %d: updated' % shard, flush=True)

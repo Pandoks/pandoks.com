@@ -6,6 +6,11 @@ metadata:
 data:
   patroni.yaml: |
     {{- $config := .Files.Get "files/patroni.yaml" | replace "archive_mode: on" (ternary "archive_mode: on" "archive_mode: off" .Values.backup.enabled) | fromYaml }}
+    {{- range $name, $_ := .Values.patroni.parameters }}
+    {{- if hasKey $config.postgresql.parameters $name }}
+    {{- fail (printf "patroni.parameters.%s: files/patroni.yaml sets it per node, which overrides it" $name) }}
+    {{- end }}
+    {{- end }}
     {{- $_ := mergeOverwrite $config.bootstrap.dcs.postgresql.parameters .Values.patroni.parameters }}
 {{ toYaml $config | indent 4 }}
 

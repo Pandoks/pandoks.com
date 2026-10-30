@@ -41,7 +41,7 @@ patroni:
   replicasPerShard: 3 # NOTE: replicasPerShard = primary (1) + replicas (n - 1)
   image: ghcr.io/pandoks/patroni:latest@sha256:ea705a1d123ccb1fc57b9c4d3993879a23e7bf814e1f0479b5df94900eb56fbb
   # NOTE: new clusters start with these, and a Job applies them to running clusters after every
-  # install and upgrade. Ones that need a restart wait for `patronictl restart`, and a key removed
+  # upgrade and rollback. Ones that need a restart wait for `patronictl restart`, and a key removed
   # here keeps its last value
   parameters:
     max_connections: 100
