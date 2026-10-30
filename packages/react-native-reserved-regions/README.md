@@ -16,8 +16,9 @@ const posture = usePosture(); // 'flat' | 'book' | 'tabletop'
   around the region. `useReservedRegions` returns active regions; pass `{ includeInactive: true }`
   for the rest, such as a flat Android fold.
 - `usePosture` is `book` for an active vertical fold, `tabletop` for a horizontal one, and `flat`
-  otherwise. On Android a fold is active while half-open; iOS has no posture API, so it reads only
-  the fold's orientation.
+  otherwise. On Android a fold is active while half-open and a dual-screen hinge always, so a flat
+  dual-screen phone reads as `book`; iOS has no posture API, so it reads only the fold's
+  orientation.
 - The provider reads the regions synchronously on its first render and whenever the window resizes,
   so layouts don't jump a frame. Its native view then reports changes only when they happen: UIKit's
   `reservedRegions(kind:)` from `updateConstraints` and `layoutSubviews` on iOS 27.1 and later, and
