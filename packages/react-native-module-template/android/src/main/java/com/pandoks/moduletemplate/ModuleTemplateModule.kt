@@ -3,6 +3,7 @@ package com.pandoks.moduletemplate
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.text.TextUtils
 import android.view.Gravity
 import android.widget.TextView
 import expo.modules.kotlin.AppContext
@@ -46,6 +47,8 @@ class ModuleTemplateView(context: Context, appContext: AppContext) : ExpoView(co
     layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
     gravity = Gravity.END or Gravity.CENTER_VERTICAL
     textSize = 17f
+    maxLines = 1
+    ellipsize = TextUtils.TruncateAt.END
   }
 
   init {
