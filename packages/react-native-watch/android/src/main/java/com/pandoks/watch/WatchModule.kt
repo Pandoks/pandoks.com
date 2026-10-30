@@ -56,6 +56,7 @@ class WatchModule : Module() {
       }
       // NOTE: waits for Play services so failures throw like on iOS
       Tasks.await(Wearable.getDataClient(context).putDataItem(request.asPutDataRequest().setUrgent()))
+      Unit
     }
   }
 

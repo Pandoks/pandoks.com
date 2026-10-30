@@ -19,6 +19,7 @@ import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
 import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.wearable.DataClient
+import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataEventBuffer
 import com.google.android.gms.wearable.DataItem
 import com.google.android.gms.wearable.DataMap
@@ -77,7 +78,9 @@ class MainActivity : ComponentActivity(), DataClient.OnDataChangedListener {
   }
 
   override fun onDataChanged(dataEvents: DataEventBuffer) {
-    dataEvents.forEach { dataEvent -> show(dataEvent.dataItem) }
+    dataEvents
+      .filter { dataEvent -> dataEvent.type == DataEvent.TYPE_CHANGED }
+      .forEach { dataEvent -> show(dataEvent.dataItem) }
   }
 
   private fun show(dataItem: DataItem) {
