@@ -7,7 +7,7 @@ test('home page renders the human experience tagline', async ({ page }) => {
 
 test('clicking a wallet yanks its full address', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'networkidle' });
   const wallet = page.getByRole('button', { name: /^xmr / });
   await expect(wallet).toHaveCSS('color', 'rgba(0, 0, 0, 0)');
   await wallet.click();
