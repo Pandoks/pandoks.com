@@ -1,5 +1,6 @@
 package com.pandoks.storeupdates
 
+import android.content.Context
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory
 import com.google.android.play.core.appupdate.AppUpdateOptions
 import com.google.android.play.core.install.InstallStateUpdatedListener
@@ -14,7 +15,11 @@ import expo.modules.kotlin.modules.ModuleDefinition
 
 class StoreUpdatesModule : Module() {
   private val appUpdateManager by lazy { AppUpdateManagerFactory.create(appContext.reactContext!!) }
-  private var immediateUpdateStarted = false
+
+  // NOTE: persisted so an immediate update resumes after Play recreates the app
+  private val preferences by lazy {
+    appContext.reactContext!!.getSharedPreferences("store-updates", Context.MODE_PRIVATE)
+  }
 
   // NOTE: completing a flexible update installs it and restarts the app
   private val installListener = InstallStateUpdatedListener { installState ->
@@ -34,7 +39,7 @@ class StoreUpdatesModule : Module() {
         if (appUpdateInfo.installStatus() == InstallStatus.DOWNLOADED) {
           appUpdateManager.completeUpdate()
         } else if (
-          immediateUpdateStarted &&
+          preferences.getBoolean("immediateUpdateStarted", false) &&
           appUpdateInfo.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS
         ) {
           appUpdateManager.startUpdateFlow(
@@ -62,7 +67,7 @@ class StoreUpdatesModule : Module() {
 
     AsyncFunction("startStoreUpdate") { mode: String, promise: Promise ->
       val updateType = if (mode == "immediate") AppUpdateType.IMMEDIATE else AppUpdateType.FLEXIBLE
-      immediateUpdateStarted = updateType == AppUpdateType.IMMEDIATE
+      preferences.edit().putBoolean("immediateUpdateStarted", updateType == AppUpdateType.IMMEDIATE).apply()
       appUpdateManager.appUpdateInfo
         .onSuccessTask { appUpdateInfo ->
           appUpdateManager.startUpdateFlow(
