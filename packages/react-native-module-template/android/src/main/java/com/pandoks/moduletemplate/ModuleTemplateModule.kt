@@ -23,7 +23,7 @@ class ModuleTemplateModule : Module() {
       context.packageManager
         .getApplicationInfo(context.packageName, PackageManager.GET_META_DATA)
         .metaData
-        .getString("ModuleTemplateGreeting")
+        ?.getString("ModuleTemplateGreeting")
     }
 
     AsyncFunction("setValueAsync") { value: String ->
