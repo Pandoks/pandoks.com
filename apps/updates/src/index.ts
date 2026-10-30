@@ -3,6 +3,14 @@ import { Resource } from 'sst/resource';
 type Manifest = { id: string };
 type Directive = { type: string; parameters?: Record<string, string> };
 
+const PROTOCOL_HEADERS = {
+  'expo-protocol-version': '1',
+  'expo-sfv-version': '0',
+  'cache-control': 'private, max-age=0'
+};
+
+let signingKey: Promise<CryptoKey> | undefined;
+
 export default {
   async fetch(request, _env, context) {
     const { pathname } = new URL(request.url);
@@ -29,27 +37,31 @@ async function serveUpdate({ request, app }: { request: Request; app: string }) 
   const channel = request.headers.get('expo-channel-name');
   const runtimeVersion = request.headers.get('expo-runtime-version');
   const platform = request.headers.get('expo-platform');
+  if (!channel || !runtimeVersion || (platform !== 'ios' && platform !== 'android')) {
+    return new Response('Missing channel or runtime version, or unknown platform', { status: 400 });
+  }
   const latest = await Resource.UpdatesBucket.get(
     `updates/${app}/${channel}/${runtimeVersion}/${platform}.json`
   );
-  if (!latest) return new Response('No update for this runtime version', { status: 404 });
+  if (!latest) return new Response(null, { status: 204, headers: PROTOCOL_HEADERS });
 
   const update = await latest.json<Manifest | Directive>();
   const currentUpdateId = request.headers.get('expo-current-update-id');
-  const isRunningLatest =
-    'type' in update
-      ? currentUpdateId === request.headers.get('expo-embedded-update-id')
-      : currentUpdateId === update.id;
-  if (isRunningLatest) {
+  if ('type' in update) {
+    if (currentUpdateId === request.headers.get('expo-embedded-update-id')) {
+      return respondWithPart({ name: 'directive', body: { type: 'noUpdateAvailable' } });
+    }
+    return respondWithPart({ name: 'directive', body: update });
+  }
+  if (currentUpdateId === update.id) {
     return respondWithPart({ name: 'directive', body: { type: 'noUpdateAvailable' } });
   }
-  if ('type' in update) return respondWithPart({ name: 'directive', body: update });
   return respondWithPart({ name: 'manifest', body: update });
 }
 
 async function respondWithPart({ name, body }: { name: string; body: Manifest | Directive }) {
   const json = JSON.stringify(body);
-  const signature = await signBody(json);
+  const signature = await signBody({ body: json });
   const boundary = crypto.randomUUID();
   return new Response(
     [
@@ -62,19 +74,12 @@ async function respondWithPart({ name, body }: { name: string; body: Manifest | 
       `--${boundary}--`,
       ''
     ].join('\r\n'),
-    {
-      headers: {
-        'expo-protocol-version': '1',
-        'expo-sfv-version': '0',
-        'cache-control': 'private, max-age=0',
-        'content-type': `multipart/mixed; boundary=${boundary}`
-      }
-    }
+    { headers: { ...PROTOCOL_HEADERS, 'content-type': `multipart/mixed; boundary=${boundary}` } }
   );
 }
 
-async function signBody(body: string) {
-  const privateKey = await crypto.subtle.importKey(
+async function signBody({ body }: { body: string }) {
+  signingKey ??= crypto.subtle.importKey(
     'pkcs8',
     Uint8Array.from(
       atob(Resource.UpdatesSigningKey.value.replaceAll(/-----[^-]+-----|\s/g, '')),
@@ -86,7 +91,7 @@ async function signBody(body: string) {
   );
   const signature = await crypto.subtle.sign(
     'RSASSA-PKCS1-v1_5',
-    privateKey,
+    await signingKey,
     new TextEncoder().encode(body)
   );
   return btoa(String.fromCharCode(...new Uint8Array(signature)));

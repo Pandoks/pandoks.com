@@ -16,7 +16,7 @@ const MANIFEST = {
     hash: ASSET_HASH,
     key: 'bundle',
     contentType: 'application/javascript',
-    url: `/assets/${ASSET_HASH}`
+    url: `${WORKER_URL}/assets/${ASSET_HASH}`
   },
   assets: [],
   metadata: {},
@@ -96,12 +96,11 @@ test('serves the latest manifest signed', async () => {
   expect(part.body).toEqual(MANIFEST);
 });
 
-test('serves assets matching their manifest hash with immutable caching', async () => {
+test('serves assets by hash with immutable caching', async () => {
   const response = await fetchWorker(`/assets/${ASSET_HASH}`);
   expect(response.status).toBe(200);
   expect(response.headers.get('cache-control')).toBe('public, max-age=31536000, immutable');
-  const body = new Uint8Array(await response.arrayBuffer());
-  expect(createHash('sha256').update(body).digest('base64url')).toBe(ASSET_HASH);
+  expect(await response.text()).toBe(ASSET_BYTES);
 });
 
 test('tells a client already running the latest manifest that no update is available', async () => {
@@ -136,7 +135,13 @@ test('tells a client already on its embedded update that no update is available 
   });
 });
 
-test('returns 404 for a runtime version with nothing published', async () => {
+test('tells clients on a runtime version with nothing published that no update is available', async () => {
   const response = await requestUpdate({ 'expo-platform': 'ios', 'expo-runtime-version': '2.0.0' });
-  expect(response.status).toBe(404);
+  expect(response.status).toBe(204);
+  expect(response.headers.get('expo-protocol-version')).toBe('1');
+});
+
+test('rejects an unknown platform', async () => {
+  const response = await requestUpdate({ 'expo-platform': 'web' });
+  expect(response.status).toBe(400);
 });
