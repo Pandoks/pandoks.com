@@ -148,18 +148,26 @@
       "groupName": "pnpm"
     },
     {
-      "description": "The Expo SDK pins these, react and react-native exactly; upgrade them together with `pnpm expo install expo@<sdk> --fix`, then remove the `~` Expo writes and run `pnpm install`.",
+      "description": "The Expo SDK pins these, react and react-native exactly; upgrade them together with `pnpm expo install expo@<sdk> --fix`, then remove the `~` Expo writes, match the `react` override in pnpm-workspace.yaml, and run `pnpm install`.",
       "matchPackageNames": [
         "expo",
         "expo-*",
         "@expo/*",
         "jest-expo",
+        "test-renderer",
         "react",
         "@types/react",
         "react-native",
         "react-native-*",
         "@react-native/*"
       ],
+      "groupName": "expo sdk",
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "`expo install --check` also holds these to the Expo SDK's versions in the Expo app.",
+      "matchFileNames": ["apps/mobile-template/package.json"],
+      "matchPackageNames": ["typescript", "jest", "@types/jest"],
       "groupName": "expo sdk",
       "dependencyDashboardApproval": true
     },
