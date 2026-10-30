@@ -28,6 +28,7 @@ import (
 )
 
 type providerRequest struct {
+	at            time.Time
 	environment   string
 	authorization string
 	topic         string
@@ -134,6 +135,7 @@ func (provider *fakeProvider) record(token string, request *http.Request, provid
 	if providerRequest.body == nil {
 		_ = json.NewDecoder(request.Body).Decode(&providerRequest.body)
 	}
+	providerRequest.at = time.Now()
 	provider.mutex.Lock()
 	defer provider.mutex.Unlock()
 	provider.requests[token] = append(provider.requests[token], providerRequest)
@@ -379,11 +381,14 @@ func TestPush(t *testing.T) {
 		}
 	})
 
-	t.Run("retries throttled sends even when the caller sets attempt", func(t *testing.T) {
+	t.Run("retries throttled sends no sooner than FCM asks, whatever attempt the caller sets", func(t *testing.T) {
 		register("busy-ios-", "ios", "production", "device", "user-5")
 		register("busy-android-", "android", "", "device", "user-5")
 		send(alert(map[string]any{"user_ids": []string{"user-5"}, "attempt": maxAttempts - 1}))
 		waitFor(t, "throttled sends to be retried", func() bool { return len(sentTo("busy-ios-")) == 2 && len(sentTo("busy-android-")) == 2 })
+		if requests := sentTo("busy-android-"); requests[1].at.Sub(requests[0].at) < 10*time.Second {
+			t.Errorf("retried an FCM 503 after %s, before the 10s Firebase asks for", requests[1].at.Sub(requests[0].at))
+		}
 	})
 
 	t.Run("sends a job again when its retries fail to requeue", func(t *testing.T) {

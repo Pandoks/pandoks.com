@@ -85,7 +85,8 @@ func (client *fcmClient) send(ctx context.Context, device device, job notificati
 		// FCM asks for exponential backoff starting at one minute after QUOTA_EXCEEDED
 		return result{outcome: retryable, reason: reason, retryAfter: max(retryAfter, time.Minute)}
 	case response.StatusCode >= http.StatusInternalServerError:
-		return result{outcome: retryable, reason: reason, retryAfter: retryAfter}
+		// Firebase asks to wait at least 10 seconds before retrying
+		return result{outcome: retryable, reason: reason, retryAfter: max(retryAfter, 10*time.Second)}
 	default:
 		return result{outcome: failed, reason: reason}
 	}

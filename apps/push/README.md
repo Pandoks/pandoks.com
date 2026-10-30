@@ -61,8 +61,9 @@ curl -X POST http://push.main.svc.cluster.local/notifications -d '{
   holds one, and the API always has the last one plus any idle worker's. A rollout overlaps up to 4
   pods, so push stays within 20 of the 25 connections PgDog leaves free.
 - Database calls time out after 5 seconds, and `GET /readyz` fails while Postgres is unreachable.
-- APNs `429` and `5xx` and FCM `429` and `5xx` are retried a few times with exponential backoff that
-  honors FCM's `Retry-After`; APNs sends none.
+- APNs `429` and `5xx` and FCM `429` and `5xx` are retried 4 times with exponential backoff that
+  honors FCM's `Retry-After`; APNs sends none. As the providers ask, the first retry waits at least
+  15 minutes after an APNs `5xx`, a minute after an FCM `429`, and 10 seconds after an FCM `5xx`.
 - Tokens APNs reports as `410` or `BadDeviceToken` are deleted, and so are FCM tokens reported as
   `UNREGISTERED`, or as `INVALID_ARGUMENT` when another token took the same message. A device that
   registered again while the job ran keeps its token.

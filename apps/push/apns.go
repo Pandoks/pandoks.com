@@ -115,8 +115,11 @@ func (client *apnsClient) send(ctx context.Context, device device, job notificat
 	// NOTE: the token went to the host of its registered environment, so BadDeviceToken means it's invalid
 	case response.StatusCode == http.StatusGone || rejection.Reason == "BadDeviceToken":
 		return result{outcome: unregistered, reason: reason}
-	case response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= http.StatusInternalServerError:
+	case response.StatusCode == http.StatusTooManyRequests:
 		return result{outcome: retryable, reason: reason}
+	case response.StatusCode >= http.StatusInternalServerError:
+		// Apple asks to wait 15 minutes before retrying a 5xx
+		return result{outcome: retryable, reason: reason, retryAfter: 15 * time.Minute}
 	default:
 		return result{outcome: failed, reason: reason}
 	}
