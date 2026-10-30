@@ -7,7 +7,8 @@ import HomeScreen from '../app/index';
 
 let mockRegions: ReservedRegion[] = [];
 jest.mock('@pandoks.com/react-native-reserved-regions', () => ({
-  useReservedRegions: () => mockRegions
+  useReservedRegions: ({ includeInactive = false } = {}) =>
+    includeInactive ? mockRegions : mockRegions.filter((region) => region.active)
 }));
 
 // NOTE: the jest preset mocks View as a class whose instances share these methods
