@@ -1,4 +1,5 @@
 import {
+  getProgressActivities,
   startProgressActivity,
   type ProgressActivity,
   type ProgressActivityState
@@ -48,6 +49,12 @@ export default function FocusScreen() {
   const [now, setNow] = useState(Date.now);
   const [pushToken, setPushToken] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+
+  useEffect(() => {
+    void getProgressActivities().then((activities) =>
+      Promise.all(activities.map((activity) => activity.end()))
+    );
+  }, []);
 
   useEffect(() => {
     if (!session) {

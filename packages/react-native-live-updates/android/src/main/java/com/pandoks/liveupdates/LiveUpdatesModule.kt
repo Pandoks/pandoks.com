@@ -51,6 +51,12 @@ class LiveUpdatesModule : Module() {
         notificationManager().cancel(id, 0)
       }
 
+      AsyncFunction("activeIds") {
+        notificationManager()
+          .activeNotifications
+          .filter { notification -> notification.id == 0 && NotificationCompat.getChannelId(notification.notification) == CHANNEL_ID }
+          .map { notification -> notification.tag }
+      }
     }
 
   private fun context() = requireNotNull(appContext.reactContext).applicationContext

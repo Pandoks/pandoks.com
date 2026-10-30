@@ -8,6 +8,9 @@ only the app or an `end` push removes the activity. Android's bar moves only on 
 Android 8+ the system removes the notification at `endsAt`; before that the user can dismiss it.
 
 The app needs the `expo-widgets` config plugin; set `enablePushNotifications` for iOS push tokens.
+`startProgressActivity` rejects when the user turned off Live Activities or notifications.
+Activities outlive the app process, so `getProgressActivities()` returns the running ones (on
+Android 8+) to update or end after a relaunch.
 
 ```ts
 import { startProgressActivity } from '@pandoks.com/react-native-live-updates';

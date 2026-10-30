@@ -1,4 +1,5 @@
 import {
+  getProgressActivities,
   startProgressActivity,
   type ProgressActivity
 } from '@pandoks.com/react-native-live-updates';
@@ -7,7 +8,10 @@ import { renderRouter, screen } from 'expo-router/testing-library';
 
 import FocusScreen from '../app/focus';
 
-jest.mock('@pandoks.com/react-native-live-updates', () => ({ startProgressActivity: jest.fn() }));
+jest.mock('@pandoks.com/react-native-live-updates', () => ({
+  getProgressActivities: jest.fn(() => Promise.resolve([])),
+  startProgressActivity: jest.fn()
+}));
 jest.mock('../widgets/focus-widget', () => ({
   updateSnapshot: jest.fn(),
   updateTimeline: jest.fn()
@@ -43,4 +47,13 @@ test('hides the push token once the session stops', async () => {
   await user.press(screen.getByText('Stop'));
 
   expect(screen.queryByText('Push token activity-token')).toBeNull();
+});
+
+test('ends activities left running by an earlier launch', async () => {
+  const leftover = { ...activity, end: jest.fn(async () => {}) };
+  jest.mocked(getProgressActivities).mockResolvedValueOnce([leftover]);
+
+  await renderRouter({ index: FocusScreen });
+
+  expect(leftover.end).toHaveBeenCalled();
 });

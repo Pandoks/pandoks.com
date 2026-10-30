@@ -11,7 +11,7 @@ import {
   tint
 } from '@expo/ui/swift-ui/modifiers';
 import { type EventSubscription } from 'expo';
-import { createLiveActivity } from 'expo-widgets';
+import { createLiveActivity, type LiveActivity } from 'expo-widgets';
 
 export type ProgressActivityState = {
   title: string;
@@ -103,13 +103,22 @@ const ProgressLiveActivity = createLiveActivity<ProgressActivityState>(
   }
 );
 
-export function startProgressActivity(state: ProgressActivityState): Promise<ProgressActivity> {
-  const liveActivity = ProgressLiveActivity.start(state, undefined, new Date(state.endsAt));
-
-  return Promise.resolve({
+function toProgressActivity(liveActivity: LiveActivity<ProgressActivityState>): ProgressActivity {
+  return {
     update: (nextState) => liveActivity.update(nextState, new Date(nextState.endsAt)),
     end: () => liveActivity.end('immediate'),
     addPushTokenListener: (listener) =>
       liveActivity.addPushTokenListener(({ pushToken }) => listener(pushToken))
-  });
+  };
+}
+
+export function startProgressActivity(state: ProgressActivityState): Promise<ProgressActivity> {
+  return Promise.resolve(
+    toProgressActivity(ProgressLiveActivity.start(state, undefined, new Date(state.endsAt)))
+  );
+}
+
+/** Running activities, including ones that outlived an earlier app process. */
+export function getProgressActivities(): Promise<ProgressActivity[]> {
+  return Promise.resolve(ProgressLiveActivity.getInstances().map(toProgressActivity));
 }
