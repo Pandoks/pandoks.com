@@ -38,15 +38,16 @@ type providerRequest struct {
 
 // fakeProvider speaks the APNs and FCM HTTP/2 wire formats over TLS. Tokens starting with "gone-"
 // are unregistered, "invalid-" are malformed FCM tokens, "busy-" are throttled on their first
-// request, "hang-" and "slow-" block their first request until release and releaseSlow are closed,
-// and "sandbox-" are valid only on the sandbox APNs host while every other APNs token is valid only
-// on production.
+// request, "hang-", "slow-", and "stuck-" block their first request until release, releaseSlow, and
+// releaseStuck are closed, and "sandbox-" are valid only on the sandbox APNs host while every other
+// APNs token is valid only on production.
 type fakeProvider struct {
 	mutex            sync.Mutex
 	requests         map[string][]providerRequest
 	oauthTokenIssued int
 	release          chan struct{}
 	releaseSlow      chan struct{}
+	releaseStuck     chan struct{}
 }
 
 func (provider *fakeProvider) serve(t *testing.T, apnsPublicKey *ecdsa.PublicKey, environment string) *httptest.Server {
@@ -80,6 +81,8 @@ func (provider *fakeProvider) serve(t *testing.T, apnsPublicKey *ecdsa.PublicKey
 			<-provider.release
 		case strings.HasPrefix(token, "slow-") && attempt == 1:
 			<-provider.releaseSlow
+		case strings.HasPrefix(token, "stuck-") && attempt == 1:
+			<-provider.releaseStuck
 		}
 	})
 	mux.HandleFunc("POST /token", func(writer http.ResponseWriter, _ *http.Request) {
@@ -201,7 +204,7 @@ func TestPush(t *testing.T) {
 	apnsKeyDER, _ := x509.MarshalPKCS8PrivateKey(apnsKey)
 	fcmKey, _ := rsa.GenerateKey(rand.Reader, 2048)
 	fcmKeyDER, _ := x509.MarshalPKCS8PrivateKey(fcmKey)
-	provider := &fakeProvider{requests: map[string][]providerRequest{}, release: make(chan struct{}), releaseSlow: make(chan struct{})}
+	provider := &fakeProvider{requests: map[string][]providerRequest{}, release: make(chan struct{}), releaseSlow: make(chan struct{}), releaseStuck: make(chan struct{})}
 	production := provider.serve(t, &apnsKey.PublicKey, "production")
 	sandbox := provider.serve(t, &apnsKey.PublicKey, "sandbox")
 	trustedCertificates := x509.NewCertPool()
@@ -423,6 +426,41 @@ func TestPush(t *testing.T) {
 			if requests := provider.requestsFor(token); len(requests) != 1 {
 				t.Fatalf("%s got %d requests", token, len(requests))
 			}
+		}
+	})
+
+	t.Run("wakes another replica for a fan-out while every worker of this one is busy", func(t *testing.T) {
+		var stuckIDs []string
+		for index := range jobWorkers {
+			token := fmt.Sprintf("stuck-%d-", index)
+			register(token, "ios", "production", "device", "user-11")
+			stuckIDs = append(stuckIDs, send(alert(map[string]any{"tokens": []string{token + app}})))
+		}
+		waitFor(t, "every worker to be stuck", func() bool {
+			for index := range jobWorkers {
+				if len(sentTo(fmt.Sprintf("stuck-%d-", index))) == 0 {
+					return false
+				}
+			}
+			return true
+		})
+		register("woken-user-", "ios", "production", "device", "user-12")
+		register("woken-token-", "ios", "production", "device", "user-13")
+		startService(t)
+		// NOTE: without NOTIFY the new replica takes this on a poll, and the sleep lets the workers it woke go idle
+		firstID := send(alert(map[string]any{"user_ids": []string{"user-none"}, "tokens": []string{"none"}}))
+		waitFor(t, "the new replica to take the first fan-out", func() bool { return jobsLeft(firstID) == 0 })
+		time.Sleep(pollInterval / 5)
+
+		sentAt := time.Now()
+		send(alert(map[string]any{"user_ids": []string{"user-12"}, "tokens": []string{"woken-token-" + app}}))
+		waitFor(t, "the other replica to deliver", func() bool { return len(sentTo("woken-user-")) == 1 && len(sentTo("woken-token-")) == 1 })
+		if elapsed := time.Since(sentAt); elapsed > pollInterval/2 {
+			t.Errorf("the other replica delivered after %s instead of being woken", elapsed)
+		}
+		close(provider.releaseStuck)
+		for _, id := range stuckIDs {
+			waitFor(t, "the stuck jobs to finish", func() bool { return jobsLeft(id) == 0 })
 		}
 	})
 
