@@ -67,10 +67,10 @@ class StoreUpdatesModule : Module() {
 
     AsyncFunction("startStoreUpdate") { mode: String, promise: Promise ->
       val updateType = if (mode == "immediate") AppUpdateType.IMMEDIATE else AppUpdateType.FLEXIBLE
-      preferences.edit().putBoolean("immediateUpdateStarted", updateType == AppUpdateType.IMMEDIATE).apply()
       appUpdateManager.appUpdateInfo
         .onSuccessTask { appUpdateInfo ->
           check(appUpdateInfo.isUpdateTypeAllowed(updateType)) { "Play doesn't allow a $mode update now" }
+          preferences.edit().putBoolean("immediateUpdateStarted", updateType == AppUpdateType.IMMEDIATE).apply()
           appUpdateManager.startUpdateFlow(
             appUpdateInfo,
             appContext.throwingActivity,
