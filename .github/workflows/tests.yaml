@@ -40,6 +40,8 @@ jobs:
               - 'apps/desktop-template/**'
               - 'packages/svelte/**'
             mobile-template:
+              - 'pnpm-workspace.yaml'
+              - 'pnpm-lock.yaml'
               - 'apps/mobile-template/**'
             svelte:
               - 'packages/svelte/**'
