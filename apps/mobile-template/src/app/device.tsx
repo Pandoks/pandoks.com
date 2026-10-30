@@ -47,7 +47,7 @@ export default function DeviceScreen() {
           disabled={pending}
           style={({ pressed }) => [
             styles.row,
-            { borderColor: colors.border, opacity: pressed ? 0.5 : 1 }
+            { borderColor: colors.border, opacity: pending || pressed ? 0.5 : 1 }
           ]}
           onPress={async () => {
             setStoreUpdateError(undefined);
