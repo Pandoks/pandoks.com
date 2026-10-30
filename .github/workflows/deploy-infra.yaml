@@ -169,5 +169,11 @@ jobs:
 
       - uses: ./.github/actions/setup-node-pnpm
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
       - name: Publish production update
-        run: pnpm updates publish production apps/mobile-template production ios android
+        run: pnpm sst shell --stage production -- pnpm updates publish apps/mobile-template production ios android

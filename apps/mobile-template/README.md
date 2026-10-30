@@ -22,14 +22,15 @@ Release builds check `updates.pandoks.com` with `expo-updates` in the background
 a new update on the next launch. The runtime version is the native
 [fingerprint](https://docs.expo.dev/versions/latest/sdk/fingerprint/), so an update only reaches
 builds with the same native code, and `certificate.crt` verifies the `UpdatesSigningKey` signature.
-Merging JS changes to `main` publishes a production update from `deploy-infra.yaml`.
+Merging JS changes to `main` publishes a production update from `deploy-infra.yaml`, so reverting
+them on `main` rolls production back.
 
 To try a dev update, build against `updates.dev.pandoks.com`, change some JS, and publish:
 
 ```sh
 export UPDATES_ENVIRONMENT=dev
 rm -rf ios && pnpm ios --configuration Release
-pnpm --dir ../.. updates publish dev apps/mobile-template production ios
+pnpm --dir ../.. sst shell --stage <stage> -- pnpm updates publish apps/mobile-template production ios
 rm -rf android && pnpm android --variant release
-pnpm --dir ../.. updates publish dev apps/mobile-template production android
+pnpm --dir ../.. sst shell --stage <stage> -- pnpm updates publish apps/mobile-template production android
 ```
