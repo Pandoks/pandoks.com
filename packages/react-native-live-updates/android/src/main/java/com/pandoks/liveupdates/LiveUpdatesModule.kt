@@ -1,10 +1,11 @@
 package com.pandoks.liveupdates
 
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.records.Field
@@ -28,14 +29,20 @@ class LiveUpdatesModule : Module() {
       Name("LiveUpdates")
 
       AsyncFunction("start") { id: String, state: ProgressActivityState ->
-        notificationManager().createNotificationChannel(
-          NotificationChannel(CHANNEL_ID, "Live updates", NotificationManager.IMPORTANCE_DEFAULT),
+        NotificationManagerCompat.from(context()).createNotificationChannel(
+          NotificationChannelCompat
+            .Builder(CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_DEFAULT)
+            .setName("Live updates")
+            .build(),
         )
         post(context(), id, state)
       }
 
       AsyncFunction("update") { id: String, state: ProgressActivityState ->
-        post(context(), id, state)
+        // NOTE: users can dismiss ongoing notifications on Android 14+, and Live Updates must not repost them
+        if (notificationManager().activeNotifications.any { notification -> notification.tag == id && notification.id == 0 }) {
+          post(context(), id, state)
+        }
       }
 
       AsyncFunction("end") { id: String ->
