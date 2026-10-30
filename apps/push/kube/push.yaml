@@ -34,8 +34,8 @@ spec:
         app: *app
     spec:
       automountServiceAccountToken: false
-      # NOTE: longer than a job's 30s sends plus its database deadlines, so a stopping pod commits its jobs
-      terminationGracePeriodSeconds: 45
+      # NOTE: longer than the preStop sleep, a job's 30s sends, and its database deadlines, so a stopping pod commits its jobs
+      terminationGracePeriodSeconds: 50
       securityContext:
         runAsNonRoot: true
         seccompProfile:
@@ -90,12 +90,19 @@ spec:
               value: https://api.sandbox.push.apple.com
             - name: FCM_URL
               value: https://fcm.googleapis.com
+          # NOTE: keeps serving until the Service stops routing to the stopping pod
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5
           # NOTE: only readiness checks Postgres, so a failover takes pods out of the Service without restarting them
           readinessProbe:
             httpGet:
               path: /readyz
               port: 8080
             periodSeconds: 5
+            # NOTE: past the API's 5s database timeout, so a busy pool slows the probe instead of failing it
+            timeoutSeconds: 6
           livenessProbe:
             httpGet:
               path: /healthz
