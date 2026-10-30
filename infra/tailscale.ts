@@ -14,6 +14,18 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
   overwriteExistingContent: true,
   acl: stringify(
     {
+      nodeAttrs: [
+        {
+          target: ['tag:funnel'],
+          attr: ['funnel']
+        }
+      ],
+      autoApprovers: {
+        services: {
+          'svc:cliproxyapi': ['tag:cliproxyapi'],
+          'svc:cliproxyapi-ci': ['tag:cliproxyapi']
+        }
+      },
       grants: [
         { src: ['*'], dst: ['*'], ip: ['*'] },
         {
@@ -32,11 +44,31 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         {
           action: 'check',
           src: ['autogroup:member'],
-          dst: ['autogroup:self', 'tag:hetzner', 'tag:ovh'],
+          dst: ['autogroup:self'],
           users: ['autogroup:nonroot', 'root']
+        },
+        {
+          action: 'check',
+          src: ['pandoks@github'],
+          dst: ['tag:hetzner', 'tag:ovh'],
+          users: ['autogroup:nonroot', 'root']
+        },
+        {
+          action: 'check',
+          src: ['autogroup:member'],
+          dst: ['tag:ssh'],
+          users: ['autogroup:nonroot']
+        },
+        // NOTE: tailscale doesn't allow check mode from tagged devices
+        {
+          action: 'accept',
+          src: ['tag:ssh'],
+          dst: ['tag:ssh'],
+          users: ['autogroup:nonroot']
         }
       ],
       tagOwners: {
+        'tag:funnel': ['pandoks@github'],
         'tag:hetzner': ['pandoks@github'],
         'tag:ovh': ['pandoks@github'],
         'tag:k8s-operator': ['tag:k8s-operator'],
@@ -45,7 +77,9 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         'tag:worker': ['pandoks@github'],
         'tag:dev': ['pandoks@github', 'tag:k8s-operator'],
         'tag:prod': ['pandoks@github', 'tag:k8s-operator'],
-        'tag:ci': ['pandoks@github']
+        'tag:ci': ['pandoks@github'],
+        'tag:cliproxyapi': ['pandoks@github'],
+        'tag:ssh': ['pandoks@github']
       }
     },
     { maxLength: 80, indent: 2 }

@@ -11,9 +11,9 @@ jobs:
   renovate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: renovatebot/github-action@dd5302ec17783b2fc721b19ae7209b57b1587765 # v46.1.17
+      - uses: renovatebot/github-action@a63d9a7bc606f7336fd20b47f2f32259a35e6213 # v46.3.9
         with:
           token: ${{ secrets.GH_TOKEN }}
         env:
@@ -48,17 +48,6 @@ jobs:
       OWNER: ${{ github.repository_owner }}
       PACKAGE: ${{ matrix.package }}
     steps:
-      - name: Prune old ref-main-<sha> versions for ${{ matrix.package }} (keep newest 30)
-        shell: bash
-        run: |
-          api="/users/${OWNER,,}/packages/container/${PACKAGE//\//%2F}/versions"
-          gh api --paginate --slurp "${api}" | jq -r '
-              add
-              | map(select(.metadata.container.tags
-                  | (length == 1) and (.[0] | test("^ref-main-[a-f0-9]{40}$"))))
-              | sort_by(.created_at) | reverse | .[30:][] | .id' \
-            | xargs -rI{} gh api --method DELETE "${api}/{}"
-
       - name: Delete orphan untagged versions for ${{ matrix.package }}
         shell: bash
         run: |

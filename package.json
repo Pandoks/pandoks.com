@@ -1,51 +1,52 @@
 {
   "name": "pandoks.com",
   "version": "1.0.0",
-  "packageManager": "pnpm@11.5.1+sha512.93f7b57422ea7068257235b4c16eb60762eb68e1dc23723199cc739043ea9be2c4143274a399d8c6defa2b1176226d9ca1c4b63482d6200c1a8fbaa78c1d1485",
+  "packageManager": "pnpm@12.15.0+sha512.b3951d6d6ff4a9f13dc7cf56cd28d2b8eb37dbcc9c68e52e1e1191873ea9f82a017287ab50baadc5ccc494f036c67c0e47eb13608c2fa36f47711b61ea128e61",
   "type": "module",
   "engines": {
     "node": ">=24",
-    "pnpm": ">=11"
+    "pnpm": "12.15.0"
   },
   "scripts": {
     "sso": "aws sso login --sso-session=personal --use-device-code --no-browser",
     "tools:install": "mise install --yes",
     "cluster": "./scripts/cluster/main.sh",
     "dev": "sst dev",
-    "dev:init": "pnpm cluster k3d deps up && pnpm cluster k3d up && pnpm docker:build && pnpm dev:push && pnpm cluster deploy dev --bootstrap && pnpm cluster deploy dev",
-    "dev:destroy": "pnpm cluster k3d down && pnpm cluster k3d deps down",
-    "dev:push": "pnpm -r --if-present dev:push",
-    "docker:build": "pnpm -r --if-present docker:build",
+    "local:init": "pnpm cluster k3d deps up && pnpm cluster k3d up && pnpm local:build && pnpm local:push && pnpm cluster deploy local --bootstrap --kubeconfig \"$(k3d kubeconfig write local-cluster)\" && pnpm cluster deploy local --kubeconfig \"$(k3d kubeconfig write local-cluster)\"",
+    "local:destroy": "pnpm cluster k3d down && pnpm cluster k3d deps down",
+    "local:push": "pnpm -r --if-present local:push",
+    "local:build": "pnpm -r --if-present local:build",
     "shadcn": "pnpm dlx shadcn-svelte@latest add -c packages/svelte",
     "format": "./scripts/format/main.sh",
     "lint": "./scripts/lint/main.sh",
-    "fix": "./scripts/fix/main.sh",
+    "test": "./scripts/test/main.sh",
     "check:infra": "tsc -p .",
     "check": "pnpm -r --if-present check && pnpm check:infra",
-    "postinstall": "sst install"
+    "postinstall": "sst install --stage install"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260522.1",
-    "@eslint/compat": "^2.1.0",
-    "@eslint/js": "^10.0.1",
-    "@types/node": "^25.9.1",
+    "@cloudflare/workers-types": "5.20261025.1",
+    "@eslint/compat": "2.1.1",
+    "@eslint/js": "10.0.1",
+    "@pandoks.com/prettier": "workspace:*",
+    "@types/node": "25.9.9",
     "bcryptjs": "3.0.3",
-    "eslint": "^10.4.0",
-    "eslint-plugin-svelte": "^3.19.0",
-    "eslint-plugin-unicorn": "^64.0.0",
-    "glob": "^13.0.6",
-    "globals": "^17.6.0",
-    "jiti": "^2.7.0",
-    "json-stringify-pretty-compact": "^4.0.0",
-    "portless": "^0.15.0",
-    "prettier": "^3.8.3",
-    "prettier-plugin-svelte": "^4.1.0",
-    "prettier-plugin-tailwindcss": "^0.8.0",
-    "svelte-eslint-parser": "^1.7.0",
-    "typescript": "^6.0.3",
-    "typescript-eslint": "^8.60.0"
+    "eslint": "10.13.0",
+    "eslint-plugin-svelte": "3.23.1",
+    "eslint-plugin-unicorn": "76.0.0",
+    "glob": "13.0.6",
+    "globals": "17.13.0",
+    "jiti": "2.7.0",
+    "json-stringify-pretty-compact": "4.0.0",
+    "portless": "0.15.11",
+    "prettier": "3.9.10",
+    "prettier-plugin-svelte": "4.1.1",
+    "prettier-plugin-tailwindcss": "0.8.1",
+    "svelte-eslint-parser": "1.10.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.0"
   },
   "dependencies": {
-    "sst": "^4.17.0"
+    "sst": "4.17.2"
   }
 }

@@ -12,3 +12,6 @@ packages/postgres/chart/files/patroni.yaml
 
 # SST
 sst-env.d.ts
+
+# Skills
+.agents/skills

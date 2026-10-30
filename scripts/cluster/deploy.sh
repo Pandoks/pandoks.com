@@ -76,7 +76,7 @@ cmd_deploy_render_templated_yaml() {
   else
     log_status "Running kustomize on overlay..."
   fi
-  cmd_deploy_render_kustomize=$(kubectl kustomize "${cmd_deploy_render_kustomize_path}" --load-restrictor LoadRestrictionsNone)
+  cmd_deploy_render_kustomize=$(kustomize build "${cmd_deploy_render_kustomize_path}" --load-restrictor LoadRestrictionsNone)
 
   log_status "Substituting template variables..."
   template_substitute "${cmd_deploy_render_kustomize}" "${cmd_deploy_render_template_vars}"
@@ -112,11 +112,13 @@ cmd_deploy_wait_for_crds() {
   wait_for_crd "servicemonitors.monitoring.coreos.com" 180
   printf "%b  Prometheus Operator CRDs established%b\n" "${GREEN}" "${NORMAL}"
 
-  echo "Waiting for ArgoCD..."
-  wait_for_crd "applications.argoproj.io" 180
-  kubectl -n argocd rollout status deploy/argocd-repo-server --timeout=300s || true
-  kubectl -n argocd rollout status deploy/argocd-server --timeout=300s || true
-  printf "%b  ArgoCD established%b\n" "${GREEN}" "${NORMAL}"
+  if [ "${cmd_deploy_wait_for_crds_env}" = "prod" ]; then
+    echo "Waiting for ArgoCD..."
+    wait_for_crd "applications.argoproj.io" 180
+    kubectl -n argocd rollout status deploy/argocd-repo-server --timeout=300s || true
+    kubectl -n argocd rollout status deploy/argocd-server --timeout=300s || true
+    printf "%b  ArgoCD established%b\n" "${GREEN}" "${NORMAL}"
+  fi
 
   [ "${cmd_deploy_wait_for_crds_env}" = "local" ] && return 0
 

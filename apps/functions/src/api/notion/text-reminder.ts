@@ -92,8 +92,7 @@ export async function handleTextReminder(body: NotionWebhookEvent): Promise<void
     }
 
     let peopleProperty:
-      | Extract<PageObjectResponse['properties'][string], { type: 'people' }>
-      | undefined;
+      Extract<PageObjectResponse['properties'][string], { type: 'people' }> | undefined;
     for (const key of NAME_PROPERTY_KEYS) {
       const candidate = response.properties[key];
       if (candidate?.type === 'people') {
@@ -121,8 +120,7 @@ export async function handleTextReminder(body: NotionWebhookEvent): Promise<void
     }
 
     let titleProperty:
-      | Extract<PageObjectResponse['properties'][string], { type: 'title' }>
-      | undefined;
+      Extract<PageObjectResponse['properties'][string], { type: 'title' }> | undefined;
     for (const property of Object.values(response.properties)) {
       if (property.type === 'title') {
         titleProperty = property;

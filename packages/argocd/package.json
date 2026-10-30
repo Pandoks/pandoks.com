@@ -4,8 +4,7 @@
   "type": "module",
   "sideEffects": false,
   "scripts": {
-    "build": "pnpm docker:build",
-    "docker:build": "docker build -f ./Dockerfile ../../ -t localhost:12345/argocd:latest",
-    "dev:push": "docker push localhost:12345/argocd:latest"
+    "local:build": "docker build -f ./Dockerfile ../../ -t localhost:12345/argocd:latest",
+    "local:push": "docker push localhost:12345/argocd:latest"
   }
 }

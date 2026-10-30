@@ -11,6 +11,7 @@ credentials:
     patroniPassword: PATRONI_PASSWORD
 
 backup:
+  enabled: true # WARNING: set before first create; Patroni ignores later archive_mode changes
   credentials:
     secret: backup-bucket-creds
     dataKeys:
@@ -67,6 +68,12 @@ patroni:
     patroni: {}
     pgbackrest: {}
     postgresExporter: {}
+
+# Dedicated database nodes for Patroni (PgDog stays with the apps)
+# options: { role: db } | ~
+nodeSelector: ~
+# options: [{ key: role, operator: Equal, value: db, effect: NoSchedule }] | ~
+tolerations: ~
 
 # https://github.com/pgdogdev/helm/blob/main/values.yaml
 pgdog:

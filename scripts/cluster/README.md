@@ -1,8 +1,8 @@
 # Cluster CLI
 
-This directory contains the shell-based CLI used for managing local k3d clusters,
-shared dependencies, and Kubernetes resources during development. All commands are
-POSIX-compliant `sh` scripts—no Bash-specific features are required.
+This directory contains the shell-based CLI used for managing local k3d clusters, shared
+dependencies, and Kubernetes resources during development. All commands are POSIX-compliant `sh`
+scripts—no Bash-specific features are required.
 
 ## Entry Point
 
@@ -10,8 +10,8 @@ POSIX-compliant `sh` scripts—no Bash-specific features are required.
 ./scripts/cluster/main.sh <command> [subcommand] [options]
 ```
 
-Use `help`, `--help`, or `-h` with any command/subcommand to view detailed
-options. Package scripts in `package.json` are wired directly to
+Use `help`, `--help`, or `-h` at the top level or with `k3d`, `k3d deps`, or `deploy` to view
+detailed options. Package scripts in `package.json` are wired directly to
 `./scripts/cluster/main.sh`, so you can invoke everything via `pnpm` as well.
 
 ## Top-Level Commands
@@ -45,11 +45,10 @@ options. Package scripts in `package.json` are wired directly to
 ./scripts/cluster/main.sh deploy <local|dev|prod> [--bootstrap] [--stage <STAGE>] [--dry-run] [--kubeconfig <PATH>] [--quiet]
 ```
 
-Without `--bootstrap`, deploys the **overlay** at `k3s/overlays/<env>`. With
-`--bootstrap`, deploys the **bootstrap layer** at `k3s/bootstrap/<env>` instead
-(helm charts, CRDs, base resources). The two are separate kustomize paths — to
-deploy a fresh cluster end-to-end, run `deploy <env> --bootstrap` first, then
-`deploy <env>` again without the flag.
+Without `--bootstrap`, deploys the **overlay** at `k3s/overlays/<env>`. With `--bootstrap`, deploys
+the **bootstrap layer** at `k3s/bootstrap/<env>` instead (helm charts, CRDs, base resources). The
+two are separate kustomize paths — to deploy a fresh cluster end-to-end, run
+`deploy <env> --bootstrap` first, then `deploy <env>` again without the flag.
 
 | Environment | Description                                                                                                       |
 | ----------- | ----------------------------------------------------------------------------------------------------------------- |
@@ -63,10 +62,10 @@ deploy a fresh cluster end-to-end, run `deploy <env> --bootstrap` first, then
 | `--stage`      | SST stage to fetch secrets from (default: SST's default stage; forced to `production` for prod env). |
 | `--dry-run`    | Render templates without applying.                                                                   |
 | `--kubeconfig` | Kubeconfig file for kubectl operations.                                                              |
-| `--quiet`/`-q` | Suppress status messages, output only YAML (for CI/CD).                                              |
+| `--quiet`/`-q` | Suppress status messages; with `--dry-run`, output only YAML.                                        |
 
-You will be prompted to confirm the destination kubectl context before anything
-is applied (unless using `--dry-run`).
+You will be prompted to confirm the destination kubectl context before anything is applied (unless
+using `--dry-run`).
 
 ### Template Variables
 
@@ -119,14 +118,20 @@ changed package — each on its own runner with its own k3d cluster.
 
 ### Local k3d Cluster
 
+Replace `your-stage` with your personal SST stage (for example, `pandoks`); `local` and `dev` select
+the deployment environment, not the SST stage.
+
 ```sh
 # Start dependencies and create the k3d cluster
 ./scripts/cluster/main.sh k3d deps up
 ./scripts/cluster/main.sh k3d up
 
+# Build and push images/charts to the local registry
+pnpm local:build && pnpm local:push
+
 # Deploy in two steps: bootstrap (helm charts + CRDs), then overlay
-./scripts/cluster/main.sh deploy dev --bootstrap
-./scripts/cluster/main.sh deploy dev
+./scripts/cluster/main.sh deploy local --stage your-stage --bootstrap
+./scripts/cluster/main.sh deploy local --stage your-stage
 
 # Tear down everything
 ./scripts/cluster/main.sh k3d down
@@ -136,8 +141,8 @@ changed package — each on its own runner with its own k3d cluster.
 ### Cloud Cluster (Hetzner via Tailscale)
 
 ```sh
-# Switch to the cloud cluster context
-kubectl config use-context <tailscale-context>
+# Switch to the prod cluster context in your tailnet
+tailscale configure kubeconfig prod-cluster
 
 # Two-step deploy on a fresh cluster
 ./scripts/cluster/main.sh deploy prod --bootstrap
@@ -146,6 +151,13 @@ kubectl config use-context <tailscale-context>
 # Re-apply just the overlay (no bootstrap) on subsequent deploys
 ./scripts/cluster/main.sh deploy prod
 ```
+
+For dev, connect to `dev-cluster` and use `deploy dev --stage your-stage` in both steps, keeping
+`--bootstrap` on the first.
+
+The first prod overlay deploy creates the `prod-cluster` ArgoCD Application, which then keeps prod
+in sync with `k3s/overlays/prod` on `main` (`deploy-infra.yaml` triggers a hard refresh when
+`k3s/**` or `scripts/cluster/**` changes).
 
 ### Preview Without Applying
 
@@ -156,5 +168,5 @@ kubectl config use-context <tailscale-context>
 
 ---
 
-If you add new commands or options, update `usage.sh` so help output stays
-accurate, and document anything notable here for future contributors.
+If you add new commands or options, update `usage.sh` so help output stays accurate, and document
+anything notable here for future contributors.

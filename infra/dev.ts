@@ -1,4 +1,5 @@
 import { isProduction } from './dns';
+import { tailscaleAcl } from './tailscale';
 
 if (isProduction) {
   new ovh.vps.Vps(
@@ -37,29 +38,67 @@ if (isProduction) {
           planCode: 'option-storage-local-2027-model4',
           pricingMode: 'upfront12',
           quantity: 1
+        },
+        {
+          duration: 'P1M',
+          planCode: 'option-additional-disk-2027-200g',
+          pricingMode: 'default',
+          quantity: 1
         }
       ]
     },
     {
       protect: true,
       import: 'vps-54c42746.vps.ovh.us',
-      ignoreChanges: ['plans', 'ovhSubsidiary']
+      ignoreChanges: ['plans', 'ovhSubsidiary', 'planOptions']
     }
+  );
+
+  const devTailscaleDevice = tailscale.getDeviceOutput({ hostname: 'pandoks-dev-box' });
+  new tailscale.DeviceTags(
+    'OvhDevVpsTailscaleTags',
+    {
+      deviceId: devTailscaleDevice.nodeId,
+      tags: ['tag:funnel', 'tag:ovh', 'tag:cliproxyapi', 'tag:ssh']
+    },
+    { dependsOn: [tailscaleAcl] }
+  );
+
+  // NOTE: pandoks-dev-box hosts this with `tailscale serve --service=svc:cliproxyapi --https=443`
+  new tailscale.Service(
+    'CliproxyapiTailscaleService',
+    {
+      name: 'svc:cliproxyapi',
+      comment: 'CLIProxyAPI on pandoks-dev-box',
+      ports: ['tcp:443'],
+      tags: ['tag:cliproxyapi']
+    },
+    { dependsOn: [tailscaleAcl] }
+  );
+  new tailscale.Service(
+    'CliproxyapiCiTailscaleService',
+    {
+      name: 'svc:cliproxyapi-ci',
+      comment: 'CLIProxyAPI with Console API keys only',
+      ports: ['tcp:443'],
+      tags: ['tag:cliproxyapi']
+    },
+    { dependsOn: [tailscaleAcl] }
   );
 }
 
-new sst.x.DevCommand('DevInit', {
+new sst.x.DevCommand('LocalInit', {
   dev: {
-    title: 'InitDev',
-    command: 'pnpm dev:init',
+    title: 'InitLocal',
+    command: 'pnpm local:init',
     autostart: false
   }
 });
 
-new sst.x.DevCommand('DevDestroy', {
+new sst.x.DevCommand('LocalDestroy', {
   dev: {
-    title: 'DestroyDev',
-    command: 'pnpm dev:destroy',
+    title: 'DestroyLocal',
+    command: 'pnpm local:destroy',
     autostart: false
   }
 });

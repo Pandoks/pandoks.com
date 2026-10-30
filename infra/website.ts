@@ -24,7 +24,13 @@ if (isProduction) {
         repoName: githubRepoName,
         productionBranch: 'main',
         prCommentsEnabled: true,
-        pathIncludes: ['apps/web/*', 'packages/svelte/*', 'pnpm-lock.yaml', 'pnpm-workspace.yaml']
+        pathIncludes: [
+          'apps/web/*',
+          'package.json',
+          'packages/svelte/*',
+          'pnpm-lock.yaml',
+          'pnpm-workspace.yaml'
+        ]
       }
     },
     buildConfig: {

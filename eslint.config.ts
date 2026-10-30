@@ -24,25 +24,19 @@ export default defineConfig([
       sourceType: 'module',
       globals: { ...globals.browser, ...globals.node },
       parserOptions: {
-        projectService: {
-          allowDefaultProject: [
-            'eslint.config.ts',
-            '*/*/forge.config.ts',
-            '*/*/svelte.config.js',
-            '*/*/playwright.config.ts',
-            '*/*/vitest-setup-client.ts',
-            '*/*/vite.main.config.ts',
-            '*/*/vite.preload.config.ts',
-            '*/*/e2e/*.test.ts',
-            'scripts/*/*.{js,ts}'
-          ],
-          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 25
-        },
+        project: [
+          './tsconfig.json',
+          './tsconfig.eslint.json',
+          './apps/*/tsconfig.json',
+          './packages/*/tsconfig.json'
+        ],
+        // TODO: https://github.com/typescript-eslint/typescript-eslint/issues/9504
+        extraFileExtensions: ['.svelte'],
         tsconfigRootDir: import.meta.dirname
       }
     },
     rules: {
-      'unicorn/prevent-abbreviations': [
+      'unicorn/name-replacements': [
         'error',
         {
           checkFilenames: false,
@@ -93,7 +87,7 @@ export default defineConfig([
           }
         }
       ],
-      'unicorn/no-array-for-each': 'error',
+      'unicorn/no-for-each': 'error',
       'unicorn/no-for-loop': 'error',
 
       curly: ['error', 'multi-line'],
@@ -141,10 +135,7 @@ export default defineConfig([
     files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],
     languageOptions: {
       parser: svelteParser,
-      parserOptions: {
-        parser: tseslint.parser,
-        extraFileExtensions: ['.svelte']
-      }
+      parserOptions: { parser: tseslint.parser }
     }
   },
   {
@@ -202,7 +193,7 @@ export default defineConfig([
   {
     files: ['**/*.{test,spec}.ts', '**/*.svelte.{test,spec}.ts'],
     rules: {
-      'unicorn/prevent-abbreviations': 'off',
+      'unicorn/name-replacements': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/naming-convention': 'off'
     }

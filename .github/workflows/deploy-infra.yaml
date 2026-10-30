@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - 'sst.config.ts'
       - 'infra/**'
       - 'apps/**'
       - '!apps/desktop-template/**'
@@ -14,13 +15,6 @@ on:
       - 'scripts/cluster/**'
   workflow_dispatch:
     inputs:
-      stage:
-        description: 'SST stage'
-        type: choice
-        default: production
-        options:
-          - production
-          - pandoks
       deploy:
         description: 'What to deploy'
         type: choice
@@ -34,9 +28,6 @@ permissions:
   id-token: write
   contents: read
 
-env:
-  SST_STAGE: ${{ github.event.inputs.stage || 'production' }}
-
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
@@ -44,13 +35,14 @@ jobs:
       sst: ${{ github.event_name != 'workflow_dispatch' && steps.filter.outputs.sst || contains(fromJSON('["all","sst"]'), inputs.deploy) }}
       kubernetes: ${{ github.event_name != 'workflow_dispatch' && steps.filter.outputs.kubernetes || contains(fromJSON('["all","kubernetes"]'), inputs.deploy) }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         if: github.event_name != 'workflow_dispatch'
         id: filter
         with:
           filters: |
             sst:
+              - 'sst.config.ts'
               - 'infra/**'
               - 'apps/!(desktop-template|example)/**'
               - 'packages/svelte/**'
@@ -65,7 +57,7 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.sst == 'true'
     runs-on: ubuntu-latest
-    environment: ${{ (github.event.inputs.stage || 'production') == 'production' && 'production' || 'dev' }}
+    environment: production
     env:
       GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -78,12 +70,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: ./.github/actions/setup-node-pnpm
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
@@ -92,10 +84,10 @@ jobs:
       # https://github.com/anomalyco/sst/issues/6713
       - name: Refresh sst state
         continue-on-error: true
-        run: pnpm sst refresh --stage "$SST_STAGE"
+        run: pnpm sst refresh --stage production
 
       - name: Deploy SST
-        run: pnpm sst deploy --stage "$SST_STAGE"
+        run: pnpm sst deploy --stage production
 
   deploy-kubernetes:
     concurrency:
@@ -111,11 +103,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Setup Tailscale
-        uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8 # v4
+        uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4.2.0
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci,tag:prod
+          tags: tag:ci
 
       - name: Configure kubeconfig
         run: |

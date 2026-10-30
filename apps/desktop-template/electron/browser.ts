@@ -6,7 +6,7 @@ export const createBrowserWindow = () => {
     width: 800,
     height: 600,
     webPreferences: {
-      preload: path.join(import.meta.dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true
     }
@@ -19,7 +19,7 @@ export const createBrowserWindow = () => {
     });
   } else {
     void mainWindow.loadFile(
-      path.join(import.meta.dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`)
+      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`)
     );
   }
 };
