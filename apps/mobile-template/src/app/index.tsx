@@ -2,6 +2,7 @@ import { useReservedRegions } from '@pandoks.com/react-native-reserved-regions';
 import { useTheme } from 'expo-router';
 import { type ComponentRef, useLayoutEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Screen } from '../components/screen';
 
@@ -20,6 +21,9 @@ export default function HomeScreen() {
   const fold = useReservedRegions({ includeInactive: true }).find(
     (region) => region.kind === 'division' && region.frame.height > region.frame.width
   );
+
+  // NOTE: the screen pads the grid by the insets, so render again to measure when they change
+  useSafeAreaInsets();
 
   // NOTE: measuring synchronously before paint keeps cards off the fold from the first frame
   useLayoutEffect(() => {
