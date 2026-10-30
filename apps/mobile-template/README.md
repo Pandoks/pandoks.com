@@ -9,8 +9,9 @@ config plugins in `app.json`. Builds run locally, with no EAS.
 `targets/watch` is a SwiftUI watchOS app that
 [`@bacons/apple-targets`](https://github.com/EvanBacon/expo-apple-targets) adds at prebuild and
 embeds in the iOS app. It talks to the phone through
-[`packages/react-native-watch`](../../packages/react-native-watch); on a simulator, pair a watch
-with `xcrun simctl pair` first.
+[`packages/react-native-watch`](../../packages/react-native-watch). On simulators, pair a watch with
+`xcrun simctl pair` and install the built app's `Watch/watch.app` on it with `xcrun simctl install`.
+Device builds need your team ID in `ios.appleTeamId`, which the plugin applies to every target.
 
 Run from this directory:
 

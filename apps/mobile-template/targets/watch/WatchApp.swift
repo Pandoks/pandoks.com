@@ -9,6 +9,9 @@ struct WatchApp: App {
     WindowGroup {
       VStack(spacing: 12) {
         Text(phoneSession.valueFromPhone ?? "Nothing from phone")
+        if let sendError = phoneSession.sendError {
+          Text(sendError).font(.footnote).foregroundStyle(.red)
+        }
         Button("Send to phone") {
           phoneSession.send(Date.now.formatted(date: .omitted, time: .standard))
         }
@@ -20,6 +23,7 @@ struct WatchApp: App {
 @Observable
 final class PhoneSession: NSObject, WCSessionDelegate {
   var valueFromPhone: String?
+  var sendError: String?
 
   override init() {
     super.init()
@@ -28,7 +32,10 @@ final class PhoneSession: NSObject, WCSessionDelegate {
   }
 
   func send(_ value: String) {
-    WCSession.default.sendMessage(["value": value], replyHandler: nil)
+    sendError = nil
+    WCSession.default.sendMessage(["value": value], replyHandler: nil) { error in
+      DispatchQueue.main.async { self.sendError = error.localizedDescription }
+    }
   }
 
   func session(
