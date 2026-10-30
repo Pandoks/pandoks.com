@@ -410,6 +410,17 @@ func TestPush(t *testing.T) {
 		waitFor(t, "the job to be sent again and finish", func() bool { return len(sentTo("busy-requeue-")) == 2 && jobsLeft(id) == 0 })
 	})
 
+	t.Run("skips a retry to a token registered to another user meanwhile", func(t *testing.T) {
+		register("busy-moved-", "ios", "production", "device", "user-18")
+		id := send(alert(map[string]any{"user_ids": []string{"user-18"}}))
+		waitFor(t, "the first send", func() bool { return len(sentTo("busy-moved-")) == 1 })
+		register("busy-moved-", "ios", "production", "device", "user-19")
+		waitFor(t, "the retry to finish", func() bool { return jobsLeft(id) == 0 })
+		if requests := len(sentTo("busy-moved-")); requests != 1 {
+			t.Errorf("sent user-18's notification to user-19's device: %d requests", requests)
+		}
+	})
+
 	t.Run("sends once to a user listed in two jobs", func(t *testing.T) {
 		register("repeated-", "ios", "production", "device", "user-17")
 		id := send(alert(map[string]any{"user_ids": append(fanOut("user-17"), "user-17")}))

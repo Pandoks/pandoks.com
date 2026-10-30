@@ -37,8 +37,9 @@ CREATE TABLE IF NOT EXISTS push_jobs (
   notification_id bigint NOT NULL,
   send_at timestamptz NOT NULL,
   job jsonb NOT NULL,
-  -- NOTE: lets a claim skip jobs too big for its batch without reading their TOASTed job
-  recipients integer GENERATED ALWAYS AS (coalesce(jsonb_array_length(job->'user_ids'), 0) + coalesce(jsonb_array_length(job->'tokens'), 0)) STORED
+  -- NOTE: lets a claim skip jobs too big for its batch without reading their TOASTed job. A requeued
+  -- job sends to its tokens, and its user IDs only check who owns them.
+  recipients integer GENERATED ALWAYS AS (coalesce(jsonb_array_length(job->'tokens'), jsonb_array_length(job->'user_ids'))) STORED
 );
 CREATE INDEX IF NOT EXISTS push_jobs_send_at ON push_jobs (send_at);
 CREATE INDEX IF NOT EXISTS push_jobs_notification_id ON push_jobs (notification_id);

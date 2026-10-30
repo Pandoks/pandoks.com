@@ -62,6 +62,7 @@ type result struct {
 type claimedJob struct {
 	notification
 	id, notificationID int64
+	recipients         int
 	devices            int
 
 	mutex              sync.Mutex
@@ -211,7 +212,7 @@ func (service *service) deliverDueJobs(shutdown context.Context) bool {
 			service.wakeWorker()
 		}
 		jobs, jobIDs = append(jobs, job), append(jobIDs, job.id)
-		recipients += len(job.UserIDs) + len(job.Tokens)
+		recipients += job.recipients
 		service.send(shutdown, &sends, job, devices)
 	}
 	sends.Wait()
@@ -243,12 +244,12 @@ func claimJob(ctx context.Context, transaction pgx.Tx, claimedIDs []int64, maxRe
 	defer cancel()
 	job := &claimedJob{failures: map[string]int{}}
 	err := transaction.QueryRow(ctx, `
-		SELECT id, notification_id, job FROM push_jobs
+		SELECT id, notification_id, recipients, job FROM push_jobs
 		WHERE send_at <= now() AND id <> ALL($1) AND recipients <= $2
 		ORDER BY send_at LIMIT 1 FOR UPDATE SKIP LOCKED`,
 		// NOTE: SKIP LOCKED skips only other transactions' locks
 		claimedIDs, maxRecipients,
-	).Scan(&job.id, &job.notificationID, &job.notification)
+	).Scan(&job.id, &job.notificationID, &job.recipients, &job.notification)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -257,7 +258,8 @@ func claimJob(ctx context.Context, transaction pgx.Tx, claimedIDs []int64, maxRe
 		kind = "liveactivity"
 	}
 	rows, _ := transaction.Query(ctx,
-		`SELECT token, platform, apns_environment FROM push_devices WHERE app = $1 AND kind = $2 AND (user_id = ANY($3) OR token = ANY($4))`,
+		`SELECT token, platform, apns_environment FROM push_devices
+		WHERE app = $1 AND kind = $2 AND ($3::text[] IS NULL OR user_id = ANY($3)) AND ($4::text[] IS NULL OR token = ANY($4))`,
 		job.App, kind, job.UserIDs, job.Tokens,
 	)
 	devices, err := pgx.CollectRows(rows, pgx.RowToStructByPos[device])
@@ -326,8 +328,9 @@ func commitJobs(ctx context.Context, transaction pgx.Tx, startedAt time.Time, jo
 	requeue := func(job *claimedJob, sendAt time.Time, attempt int, tokens []string) {
 		// NOTE: claimJob skips jobs over recipientsPerJob, and a job's users can have more devices
 		for chunk := range slices.Chunk(tokens, recipientsPerJob) {
+			// NOTE: keeps the user IDs, so a token registered to another user meanwhile isn't sent
 			next := job.notification
-			next.UserIDs, next.Tokens, next.Attempt = nil, chunk, attempt
+			next.Tokens, next.Attempt = chunk, attempt
 			notificationIDs = append(notificationIDs, job.notificationID)
 			sendAts = append(sendAts, sendAt)
 			requeued = append(requeued, next)
