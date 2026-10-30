@@ -18,6 +18,8 @@ import (
 )
 
 const schema = `
+SELECT pg_advisory_xact_lock(hashtext('push_migrate'));
+
 CREATE TABLE IF NOT EXISTS push_devices (
   token text PRIMARY KEY,
   platform text NOT NULL,
