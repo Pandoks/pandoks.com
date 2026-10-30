@@ -1,0 +1,18 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+version = '0.0.1'
+
+android {
+  namespace 'com.pandoks.reservedregions'
+}
+
+repositories {
+  google()
+}
+
+dependencies {
+  implementation 'androidx.window:window:1.5.1'
+}
