@@ -258,31 +258,33 @@ sendDevices:
 		unregisteredTokens = append(unregisteredTokens, invalidFCMTokens...)
 	}
 	// NOTE: a bookkeeping error is logged instead of rolling back the job and repeating its sends
-	err = pgx.BeginFunc(ctx, transaction, func(savepoint pgx.Tx) error {
-		if len(unregisteredTokens) > 0 {
-			// NOTE: a device that registered again after this job started keeps its token
-			_, err := savepoint.Exec(ctx, `DELETE FROM push_devices WHERE token = ANY($1) AND updated_at < $2`, unregisteredTokens, startedAt)
-			if err != nil {
+	if len(unregisteredTokens)+len(unsentTokens)+len(retryTokens) > 0 {
+		err = pgx.BeginFunc(ctx, transaction, func(savepoint pgx.Tx) error {
+			if len(unregisteredTokens) > 0 {
+				// NOTE: a device that registered again after this job started keeps its token
+				_, err := savepoint.Exec(ctx, `DELETE FROM push_devices WHERE token = ANY($1) AND updated_at < $2`, unregisteredTokens, startedAt)
+				if err != nil {
+					return err
+				}
+			}
+			if len(unsentTokens) > 0 {
+				requeued := job
+				requeued.UserIDs, requeued.Tokens = nil, unsentTokens
+				_, err := savepoint.Exec(ctx, `INSERT INTO push_jobs (notification_id, send_at, job) VALUES ($1, now(), $2)`, notificationID, requeued)
+				if err != nil {
+					return err
+				}
+			}
+			if len(retryTokens) > 0 && job.Attempt+1 < maxAttempts {
+				retry := job
+				retry.UserIDs, retry.Tokens, retry.Attempt = nil, retryTokens, job.Attempt+1
+				_, err := savepoint.Exec(ctx, `INSERT INTO push_jobs (notification_id, send_at, job) VALUES ($1, $2, $3)`,
+					notificationID, time.Now().Add(max(retryAfter, time.Second)<<job.Attempt), retry)
 				return err
 			}
-		}
-		if len(unsentTokens) > 0 {
-			requeued := job
-			requeued.UserIDs, requeued.Tokens = nil, unsentTokens
-			_, err := savepoint.Exec(ctx, `INSERT INTO push_jobs (notification_id, send_at, job) VALUES ($1, now(), $2)`, notificationID, requeued)
-			if err != nil {
-				return err
-			}
-		}
-		if len(retryTokens) > 0 && job.Attempt+1 < maxAttempts {
-			retry := job
-			retry.UserIDs, retry.Tokens, retry.Attempt = nil, retryTokens, job.Attempt+1
-			_, err := savepoint.Exec(ctx, `INSERT INTO push_jobs (notification_id, send_at, job) VALUES ($1, $2, $3)`,
-				notificationID, time.Now().Add(max(retryAfter, time.Second)<<job.Attempt), retry)
-			return err
-		}
-		return nil
-	})
+			return nil
+		})
+	}
 	if err != nil {
 		slog.Error("record job results", "error", err)
 	}
