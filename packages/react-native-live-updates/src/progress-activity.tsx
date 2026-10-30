@@ -16,7 +16,7 @@ import { createLiveActivity } from 'expo-widgets';
 export type ProgressActivityState = {
   title: string;
   text: string;
-  /** Epoch ms. The system fills the progress bar from `startedAt` to `endsAt` without updates. */
+  /** Epoch ms. iOS fills the progress bar from `startedAt` to `endsAt` without updates. */
   startedAt: number;
   endsAt: number;
 };
@@ -30,13 +30,13 @@ export type ProgressActivity = {
 
 const ProgressLiveActivity = createLiveActivity<ProgressActivityState>(
   'ProgressActivity',
-  (state) => {
+  (state, environment) => {
     'widget';
     const accentColor = '#FF9F0A';
     const timerInterval = { lower: new Date(state.startedAt), upper: new Date(state.endsAt) };
     const countdown = (size: number, width: number) => (
       <Text
-        timerInterval={timerInterval}
+        timerInterval={environment.isStale ? undefined : timerInterval}
         modifiers={[
           font({ size, weight: 'semibold' }),
           monospacedDigit(),
@@ -44,7 +44,9 @@ const ProgressLiveActivity = createLiveActivity<ProgressActivityState>(
           multilineTextAlignment('trailing'),
           frame({ width, alignment: 'trailing' })
         ]}
-      />
+      >
+        Done
+      </Text>
     );
     const progress = (
       <ProgressView
@@ -53,8 +55,7 @@ const ProgressLiveActivity = createLiveActivity<ProgressActivityState>(
         modifiers={[progressViewStyle('linear'), tint(accentColor), labelsHidden()]}
       />
     );
-    // NOTE: one element shared across layout slots blanks the Dynamic Island
-    const icon = () => <Image systemName="timer" color={accentColor} />;
+    const icon = <Image systemName="timer" color={accentColor} />;
 
     return {
       banner: (
@@ -75,12 +76,12 @@ const ProgressLiveActivity = createLiveActivity<ProgressActivityState>(
           {progress}
         </VStack>
       ),
-      compactLeading: icon(),
+      compactLeading: icon,
       compactTrailing: countdown(15, 44),
-      minimal: icon(),
+      minimal: icon,
       expandedLeading: (
         <HStack spacing={6} modifiers={[padding({ leading: 8 })]}>
-          {icon()}
+          {icon}
           <Text modifiers={[font({ size: 17, weight: 'semibold' })]}>{state.title}</Text>
         </HStack>
       ),
@@ -103,10 +104,10 @@ const ProgressLiveActivity = createLiveActivity<ProgressActivityState>(
 );
 
 export function startProgressActivity(state: ProgressActivityState): Promise<ProgressActivity> {
-  const liveActivity = ProgressLiveActivity.start(state);
+  const liveActivity = ProgressLiveActivity.start(state, undefined, new Date(state.endsAt));
 
   return Promise.resolve({
-    update: (nextState) => liveActivity.update(nextState),
+    update: (nextState) => liveActivity.update(nextState, new Date(nextState.endsAt)),
     end: () => liveActivity.end('immediate'),
     addPushTokenListener: (listener) =>
       liveActivity.addPushTokenListener(({ pushToken }) => listener(pushToken))
