@@ -92,7 +92,9 @@ checkout. The SST CLI is `pnpm sst`.
   or `infra/` shows hundreds of false type errors.
 - `pnpm check` type-checks every package, `infra/`, and `sst.config.ts`.
 - Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, and `desktop-template`;
-  `pnpm --filter <package> test` for `prettier` and `valkey`.
+  `pnpm --filter <package> test` for `prettier`, `valkey`, and `updates`.
+- Expo OTA updates: `pnpm sst shell --stage <stage> -- pnpm updates <publish|rollback> ...`, and
+  production only from `deploy-infra.yaml` on `main`; see `apps/updates/README.md`.
 - Scoped: `pnpm exec prettier --check <files>`, `pnpm exec eslint [--fix] <files>`, `shellcheck`,
   `shfmt -d`, `hadolint`, `actionlint`, `pnpm --filter "...[origin/main]" --if-present check`. That
   filter and the shell and Docker format and lint commands see only tracked files, so check new

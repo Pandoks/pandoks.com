@@ -95,3 +95,5 @@ server, run this from the root of the monorepo:
 ```sh
 pnpm dev --stage your-stage # assuming that you are still verified via SSO
 ```
+
+Expo apps get over-the-air updates from [apps/updates](./apps/updates/README.md).
