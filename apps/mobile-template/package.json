@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@expo/metro-runtime": "58.0.15",
+    "@pandoks.com/react-native-module-template": "workspace:*",
     "expo": "58.0.21",
     "expo-linking": "58.0.15",
     "expo-navigation-bar": "58.0.4",
