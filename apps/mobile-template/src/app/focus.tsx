@@ -24,9 +24,9 @@ function formatTime(epochMs: number) {
   return new Date(epochMs).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-async function endSession(session: Session, title: string) {
+async function endSession(session: Session, title: string, endedAt: number) {
   session.pushTokenSubscription.remove();
-  FocusWidget.updateSnapshot({ title, caption: `At ${formatTime(Date.now())}` });
+  FocusWidget.updateSnapshot({ title, caption: `At ${formatTime(endedAt)}` });
   await session.activity.end();
 }
 
@@ -43,7 +43,7 @@ export default function FocusScreen() {
     const tick = setInterval(() => setNow(Date.now()), 1000);
     const finish = setTimeout(() => {
       setSession(null);
-      void endSession(session, 'Done');
+      void endSession(session, 'Done', session.state.endsAt);
     }, session.state.endsAt - Date.now());
     return () => {
       clearInterval(tick);
@@ -109,7 +109,7 @@ export default function FocusScreen() {
                 style={[styles.button, { backgroundColor: colors.border }]}
                 onPress={() => {
                   setSession(null);
-                  void endSession(session, 'Stopped');
+                  void endSession(session, 'Stopped', Date.now());
                 }}
               >
                 <Text style={[styles.buttonLabel, { color: colors.text }]}>Stop</Text>
