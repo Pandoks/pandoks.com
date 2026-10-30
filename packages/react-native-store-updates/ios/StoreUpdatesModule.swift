@@ -2,6 +2,8 @@ import ExpoModulesCore
 import StoreKit
 
 public class StoreUpdatesModule: Module {
+  private let productViewControllerDelegate = ProductViewControllerDelegate()
+
   public func definition() -> ModuleDefinition {
     Name("StoreUpdates")
 
@@ -21,6 +23,7 @@ public class StoreUpdatesModule: Module {
       }
       await MainActor.run {
         let productViewController = SKStoreProductViewController()
+        productViewController.delegate = self.productViewControllerDelegate
         productViewController.loadProduct(withParameters: [SKStoreProductParameterITunesItemIdentifier: storeApp.trackId])
         self.appContext?.utilities?.currentViewController()?.present(productViewController, animated: true)
       }
@@ -28,15 +31,22 @@ public class StoreUpdatesModule: Module {
   }
 }
 
-// NOTE: without a country, the lookup only searches the US store
+private class ProductViewControllerDelegate: NSObject, SKStoreProductViewControllerDelegate {
+  func productViewControllerDidFinish(_ viewController: SKStoreProductViewController) {
+    viewController.dismiss(animated: true)
+  }
+}
+
+// NOTE: without a country, the lookup only searches the US store, and the
+// timestamp skips the CDN, which caches lookups for up to a day
 private func lookUpStoreApp() async throws -> StoreApp? {
   var components = URLComponents(string: "https://itunes.apple.com/lookup")!
   components.queryItems = [
     URLQueryItem(name: "bundleId", value: Bundle.main.bundleIdentifier),
     URLQueryItem(name: "country", value: Locale.current.region?.identifier),
+    URLQueryItem(name: "timestamp", value: String(Date().timeIntervalSince1970)),
   ]
-  let request = URLRequest(url: components.url!, cachePolicy: .reloadIgnoringLocalCacheData)
-  let (data, _) = try await URLSession.shared.data(for: request)
+  let (data, _) = try await URLSession.shared.data(from: components.url!)
   return try JSONDecoder().decode(LookupResponse.self, from: data).results.first
 }
 
