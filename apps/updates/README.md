@@ -48,15 +48,18 @@ Commit `certificate.crt` in the app (`*.pem` is gitignored) and configure `app.j
 
 `publish` runs `expo export`, uploads the assets, and makes the export the latest update. `rollback`
 sends clients back to the update embedded in their build until the next `publish`. Both resolve each
-platform's runtime version with `expo-updates runtimeversion:resolve`:
+platform's runtime version with `expo-updates runtimeversion:resolve` and run under `sst shell`,
+which links the stage's `UpdatesBucket` and `Updates` Worker and loads `CLOUDFLARE_API_TOKEN` and
+`CLOUDFLARE_DEFAULT_ACCOUNT_ID` from `.env.<stage>`:
 
 ```sh
-pnpm updates publish dev apps/<app> production ios android
-pnpm updates rollback dev apps/<app> production ios android
+pnpm sst shell --stage <stage> -- pnpm updates publish apps/<app> production ios android
+pnpm sst shell --stage <stage> -- pnpm updates rollback apps/<app> production ios android
 ```
 
-Both need `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_DEFAULT_ACCOUNT_ID`, as in `.env.<stage>`.
-Production is published only by CI from `main`.
+Production changes only when `main` does, so only a `deploy-infra.yaml` job on `main` runs these
+with `--stage production`. To roll production back, revert the change on `main`; that job then
+publishes the reverted code as a new update.
 
 `pnpm --filter @pandoks.com/updates test` runs the Worker's handler against an in-memory bucket and
 checks its responses and signatures.
