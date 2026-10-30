@@ -25,6 +25,31 @@
     ...(__HAS_POSTS__ ? [{ path: '/blog', text: 'Blog' } as const] : [])
   ];
 
+  const wallets = [
+    {
+      ticker: 'xmr',
+      address:
+        '44isMdyhd2sBxn1Ph9se62fPsuYX55q9QBnYwgG3x1do8SFnxkA32ejdjR9py2s9xZeaFiaWw71CaGHADXUR2ijAT8V7XME'
+    },
+    { ticker: 'btc', address: 'bc1qjpv5538wmhsup0hcgqes4vs9kevtdg32l6853t' }
+  ];
+  let yankedTicker: string | undefined = $state();
+  let yankTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  async function yankAddress(ticker: string, address: string) {
+    await navigator.clipboard.writeText(address);
+    yankedTicker = ticker;
+    clearTimeout(yankTimeout);
+    yankTimeout = setTimeout(() => {
+      yankedTicker = undefined;
+    }, 1000);
+  }
+
+  function moveSpotlight(event: PointerEvent & { currentTarget: HTMLButtonElement }) {
+    event.currentTarget.style.setProperty('--spotlight-x', `${event.offsetX}px`);
+    event.currentTarget.style.setProperty('--spotlight-y', `${event.offsetY}px`);
+  }
+
   let activeNavIndex: number | undefined = $state();
   const vimState = setVimState()
     .setInitNavState(() => {
@@ -70,9 +95,34 @@
   {/each}
 </nav>
 
-<div class="flex min-h-dvh items-center justify-center">
-  <div class="pt-9 pb-12">
+<div class="flex min-h-dvh flex-col items-center">
+  <div class="my-auto pt-9 pb-12">
     {@render children()}
+  </div>
+
+  <div class="flex flex-col items-start self-start p-2 font-mono text-xs">
+    {#each wallets as { ticker, address }}
+      {@const yanked = yankedTicker === ticker}
+      <div class="flex gap-2">
+        <button
+          type="button"
+          onclick={() => void yankAddress(ticker, address)}
+          onkeypress={(event) => event.key === 'Enter' && event.stopPropagation()}
+          onmousedown={(event) => event.preventDefault()}
+          onpointermove={moveSpotlight}
+          class={`cursor-pointer from-neutral-300 bg-clip-text text-left break-all transition-colors forced-color-adjust-none select-none hover:bg-radial-[circle_2.5rem_at_var(--spotlight-x)_var(--spotlight-y)] ${yanked ? 'text-foreground duration-0 forced-colors:text-[CanvasText]' : 'text-transparent duration-1000 focus-visible:text-neutral-300 forced-colors:focus-visible:text-[CanvasText]'}`}
+        >
+          {ticker}
+          {address}
+        </button>
+        <span
+          aria-hidden="true"
+          class={`text-muted-foreground shrink-0 transition-opacity select-none ${yanked ? 'duration-0' : 'opacity-0 duration-1000'}`}
+          >copied</span
+        >
+      </div>
+    {/each}
+    <span role="status" class="sr-only">{yankedTicker ? `${yankedTicker} copied` : ''}</span>
   </div>
 </div>
 
