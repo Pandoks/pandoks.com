@@ -9,7 +9,7 @@ import {
   useNotificationRouting
 } from '@pandoks.com/react-native-notifications';
 
-const PUSH_SERVICE_URL = process.env.EXPO_PUBLIC_PUSH_SERVICE_URL;
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -17,8 +17,8 @@ export default function RootLayout() {
   useNotificationRouting();
 
   useEffect(() => {
-    if (token && PUSH_SERVICE_URL) {
-      void registerDevice({ serviceUrl: PUSH_SERVICE_URL, token, userId: 'template' });
+    if (token && BACKEND_URL) {
+      void registerDevice({ backendUrl: BACKEND_URL, token });
     }
   }, [token]);
 

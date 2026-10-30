@@ -39,12 +39,18 @@ export function useNotificationPermission() {
 
 /** Opens the Expo Router path in a tapped notification's `url` data. */
 export function useNotificationRouting() {
-  const lastResponse = Notifications.useLastNotificationResponse();
-
   useEffect(() => {
-    const url = lastResponse?.notification.request.content.data?.url;
-    if (url) router.push(url as Href);
-  }, [lastResponse]);
+    function openUrl(response: Notifications.NotificationResponse | null) {
+      const url = response?.notification.request.content.data?.url;
+      if (!url) return;
+      router.push(url as Href);
+      Notifications.clearLastNotificationResponse();
+    }
+
+    openUrl(Notifications.getLastNotificationResponse());
+    const subscription = Notifications.addNotificationResponseReceivedListener(openUrl);
+    return () => subscription.remove();
+  }, []);
 }
 
 export function useDevicePushToken() {
@@ -76,21 +82,20 @@ async function getApnsEnvironment() {
 }
 
 export async function registerDevice({
-  serviceUrl,
+  backendUrl,
   token,
-  userId
+  headers
 }: {
-  serviceUrl: string;
+  backendUrl: string;
   token: string;
-  userId: string;
+  headers?: Record<string, string>;
 }) {
-  const response = await fetch(`${serviceUrl}/devices/${token}`, {
+  const response = await fetch(`${backendUrl}/devices/${token}`, {
     method: 'PUT',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify({
       platform: Platform.OS,
       app: Application.applicationId,
-      user_id: userId,
       kind: 'device',
       apns_environment: Platform.OS === 'ios' ? await getApnsEnvironment() : undefined
     })
@@ -99,13 +104,15 @@ export async function registerDevice({
 }
 
 export async function unregisterDevice({
-  serviceUrl,
-  token
+  backendUrl,
+  token,
+  headers
 }: {
-  serviceUrl: string;
+  backendUrl: string;
   token: string;
+  headers?: Record<string, string>;
 }) {
-  const response = await fetch(`${serviceUrl}/devices/${token}`, { method: 'DELETE' });
+  const response = await fetch(`${backendUrl}/devices/${token}`, { method: 'DELETE', headers });
   if (!response.ok) throw new Error(`Unregistering the device failed with ${response.status}`);
 }
 

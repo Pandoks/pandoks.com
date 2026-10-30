@@ -11,23 +11,33 @@ Importing it shows notifications in the foreground and creates the Android `defa
 | `useNotificationPermission()`                         | `[permission, requestPermission]`                                      |
 | `useNotificationRouting()`                            | Opens a tapped notification's `url`; call in the root layout           |
 | `useDevicePushToken()`                                | `{ token, error }`, updated when the token changes                     |
-| `registerDevice({ serviceUrl, token, userId })`       | `PUT /devices/{token}`, with the APNs environment of the running build |
-| `unregisterDevice({ serviceUrl, token })`             | `DELETE /devices/{token}`                                              |
+| `registerDevice({ backendUrl, token, headers })`      | `PUT /devices/{token}`, with the APNs environment of the running build |
+| `unregisterDevice({ backendUrl, token, headers })`    | `DELETE /devices/{token}`                                              |
 | `scheduleNotification({ title, body, url, trigger })` | `trigger` is `{ date }`, `{ seconds }`, or daily `{ hour, minute }`    |
 
-Register again whenever the token changes:
+`backendUrl` is the app's authenticated backend, not the push service; it adds the signed-in user's
+`user_id` and forwards the request. Register again whenever the token changes:
 
 ```tsx
 const { token } = useDevicePushToken();
 useEffect(() => {
-  if (token) void registerDevice({ serviceUrl, token, userId });
-}, [token, userId]);
+  if (token) void registerDevice({ backendUrl, token, headers: { authorization } });
+}, [token, authorization]);
 ```
 
-Put the route in the APNs payload's `body` and in FCM's `data.body` as a JSON string:
+Put the route in the APNs payload's `body` and in FCM's `data.body` as a JSON string, and send
+Android notifications on the `default` channel:
 
 ```json
 { "aps": { "alert": { "title": "Hi" } }, "body": { "url": "/device" } }
+```
+
+```json
+{
+  "notification": { "title": "Hi" },
+  "android": { "notification": { "channel_id": "default" } },
+  "data": { "body": "{\"url\":\"/device\"}" }
+}
 ```
 
 ## Setup

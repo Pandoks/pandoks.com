@@ -8,7 +8,7 @@ config plugins in `app.json`. Builds run locally, with no EAS.
 
 The Device tab demos
 [@pandoks.com/react-native-notifications](/packages/react-native-notifications). Set
-`EXPO_PUBLIC_PUSH_SERVICE_URL` when building to register its push token with the push service.
+`EXPO_PUBLIC_BACKEND_URL` when building to register its push token with the app's backend.
 
 Run from this directory:
 
