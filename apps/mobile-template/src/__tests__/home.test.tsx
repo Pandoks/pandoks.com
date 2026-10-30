@@ -1,6 +1,6 @@
 import { type ReservedRegion } from '@pandoks.com/react-native-reserved-regions';
 import { type ComponentRef } from 'react';
-import { Dimensions, View } from 'react-native';
+import { Dimensions, type StyleProp, StyleSheet, View, type ViewStyle } from 'react-native';
 import { fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
 
 import HomeScreen from '../app/index';
@@ -19,15 +19,19 @@ beforeEach(() => {
 });
 
 test.each([
-  [390, '100%'],
-  [700, '50%'],
-  [1024, `${100 / 3}%`]
-])('lays out cards for a %dpt wide window at %s width', async (width, cardWidth) => {
+  [599, 1],
+  [600, 2],
+  [839, 2],
+  [840, 3]
+])('lays out a %dpt wide window in %d columns', async (width, columns) => {
   Dimensions.set({ window: { width, height: 800, scale: 2, fontScale: 1 } });
 
   await renderRouter({ index: HomeScreen });
 
-  expect(screen.getAllByTestId('card')[0]).toHaveStyle({ width: cardWidth });
+  const { width: cardWidth } = StyleSheet.flatten(
+    screen.getAllByTestId('card')[0].props.style as StyleProp<ViewStyle>
+  )!;
+  expect(100 / Number.parseFloat(String(cardWidth))).toBeCloseTo(columns);
 });
 
 test('splits the columns at a vertical fold so no card straddles it', async () => {

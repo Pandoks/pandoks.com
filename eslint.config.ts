@@ -192,7 +192,7 @@ export default defineConfig([
   },
 
   // REACT RULES
-  { files: ['**/*.tsx'], ...reactHooks.configs.flat.recommended },
+  { files: ['**/*.tsx', 'apps/mobile-template/**/*.ts'], ...reactHooks.configs.flat.recommended },
   {
     files: ['**/*.tsx'],
     rules: {
@@ -206,7 +206,7 @@ export default defineConfig([
 
   // TEST RULES
   {
-    files: ['**/*.{test,spec}.ts', '**/*.svelte.{test,spec}.ts'],
+    files: ['**/*.{test,spec}.{ts,tsx}', '**/*.svelte.{test,spec}.ts'],
     rules: {
       'unicorn/name-replacements': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
