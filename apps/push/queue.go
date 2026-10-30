@@ -244,7 +244,7 @@ func claimJob(ctx context.Context, transaction pgx.Tx, claimedIDs []int64, maxRe
 	job := &claimedJob{failures: map[string]int{}}
 	err := transaction.QueryRow(ctx, `
 		SELECT id, notification_id, job FROM push_jobs
-		WHERE send_at <= now() AND id <> ALL($1) AND coalesce(jsonb_array_length(job->'user_ids'), 0) + coalesce(jsonb_array_length(job->'tokens'), 0) <= $2
+		WHERE send_at <= now() AND id <> ALL($1) AND recipients <= $2
 		ORDER BY send_at LIMIT 1 FOR UPDATE SKIP LOCKED`,
 		// NOTE: SKIP LOCKED skips only other transactions' locks
 		claimedIDs, maxRecipients,
