@@ -1,7 +1,19 @@
-import { Dimensions } from 'react-native';
-import { renderRouter, screen } from 'expo-router/testing-library';
+import { type ReservedRegion } from '@pandoks.com/react-native-reserved-regions';
+import { type ComponentRef } from 'react';
+import { Dimensions, View } from 'react-native';
+import { renderRouter, screen, within } from 'expo-router/testing-library';
 
 import HomeScreen from '../app/index';
+
+let mockRegions: ReservedRegion[] = [];
+jest.mock('@pandoks.com/react-native-reserved-regions', () => ({
+  useReservedRegions: () => mockRegions
+}));
+
+beforeEach(() => {
+  mockRegions = [];
+  jest.restoreAllMocks();
+});
 
 test.each([
   [390, '100%'],
@@ -13,4 +25,28 @@ test.each([
   await renderRouter({ index: HomeScreen });
 
   expect(screen.getAllByTestId('card')[0]).toHaveStyle({ width: cardWidth });
+});
+
+test('splits the columns at a vertical fold so no card straddles it', async () => {
+  Dimensions.set({ window: { width: 852, height: 883, scale: 2, fontScale: 1 } });
+  mockRegions = [
+    { kind: 'division', frame: { x: 426, y: 0, width: 0, height: 883 }, active: false }
+  ];
+  // NOTE: the jest preset mocks View as a class whose instances share these methods
+  const viewPrototype = (View as unknown as { prototype: ComponentRef<typeof View> }).prototype;
+  jest
+    .spyOn(viewPrototype, 'measureInWindow')
+    .mockImplementation((callback) => callback(8, 100, 836, 400));
+
+  await renderRouter({ index: HomeScreen });
+
+  const [leftPane, rightPane] = screen.getAllByTestId('pane');
+  expect(leftPane).toHaveStyle({ width: 418 });
+  expect(screen.getAllByTestId('card')[0]).toHaveStyle({ width: '100%' });
+  for (const cardTitle of ['Inbox', 'Upcoming', 'Archive']) {
+    expect(within(leftPane).getByText(cardTitle)).toBeOnTheScreen();
+  }
+  for (const cardTitle of ['Today', 'Projects', 'Trash']) {
+    expect(within(rightPane).getByText(cardTitle)).toBeOnTheScreen();
+  }
 });
