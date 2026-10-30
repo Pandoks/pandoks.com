@@ -37,8 +37,11 @@ export default function DeviceScreen() {
   return (
     <Screen title="Device">
       <View style={[styles.list, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        {rows.map(([label, value]) => (
-          <View key={label} style={[styles.row, { borderColor: colors.border }]}>
+        {rows.map(([label, value], index) => (
+          <View
+            key={label}
+            style={[styles.row, index === 0 && styles.firstRow, { borderColor: colors.border }]}
+          >
             <Text dynamicTypeRamp="body" style={[styles.label, { color: colors.text }]}>
               {label}
             </Text>
@@ -70,8 +73,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 16,
     padding: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth
+    borderTopWidth: StyleSheet.hairlineWidth
   },
+  firstRow: { borderTopWidth: 0 },
   label: { fontSize: 17 },
   value: { fontSize: 17, opacity: 0.6, fontVariant: ['tabular-nums'] },
   nativeView: { flex: 1, opacity: 0.6 }
