@@ -44,8 +44,7 @@ CREATE INDEX IF NOT EXISTS push_jobs_notification_id ON push_jobs (notification_
 
 type service struct {
 	database *pgxpool.Pool
-	apns     *apnsClient
-	fcm      *fcmClient
+	senders  map[string]sender
 	wake     chan struct{}
 	sends    chan struct{}
 }
@@ -118,8 +117,7 @@ func run(ctx context.Context, listener net.Listener) error {
 
 	service := &service{
 		database: database,
-		apns:     apns,
-		fcm:      fcm,
+		senders:  map[string]sender{"ios": apns, "android": fcm},
 		wake:     make(chan struct{}, jobWorkers),
 		sends:    make(chan struct{}, sendConcurrency),
 	}

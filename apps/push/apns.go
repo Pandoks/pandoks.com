@@ -76,18 +76,25 @@ func (client *apnsClient) providerToken() (string, error) {
 	return client.token, nil
 }
 
-func (client *apnsClient) send(ctx context.Context, environment, deviceToken, topic, pushType, priority string, payload []byte) result {
+func (client *apnsClient) send(ctx context.Context, device device, job notification) result {
+	topic, priority := job.App, "10"
+	switch job.PushType {
+	case "liveactivity":
+		topic = job.App + ".push-type.liveactivity"
+	case "background":
+		priority = "5"
+	}
 	providerToken, err := client.providerToken()
 	if err != nil {
 		return result{outcome: failed, reason: err.Error()}
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, client.urls[environment]+"/3/device/"+url.PathEscape(deviceToken), bytes.NewReader(payload))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, client.urls[device.APNsEnvironment]+"/3/device/"+url.PathEscape(device.Token), bytes.NewReader(job.APNs))
 	if err != nil {
 		return result{outcome: failed, reason: err.Error()}
 	}
 	request.Header.Set("authorization", "bearer "+providerToken)
 	request.Header.Set("apns-topic", topic)
-	request.Header.Set("apns-push-type", pushType)
+	request.Header.Set("apns-push-type", job.PushType)
 	request.Header.Set("apns-priority", priority)
 
 	response, err := client.httpClient.Do(request)

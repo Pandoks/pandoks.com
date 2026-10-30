@@ -33,6 +33,13 @@ type notification struct {
 	Attempt  int             `json:"attempt,omitempty"`
 }
 
+type device struct{ Token, Platform, APNsEnvironment string }
+
+// sender delivers a notification to one device through its platform's provider.
+type sender interface {
+	send(ctx context.Context, device device, job notification) result
+}
+
 type outcome int
 
 const (
@@ -177,18 +184,15 @@ func (service *service) deliverDueJob(shutdown context.Context) bool {
 // commits before it's killed instead of leaving the whole job to be sent again.
 func (service *service) deliver(ctx, shutdown context.Context, transaction pgx.Tx, jobID, notificationID int64, job notification) error {
 	startedAt := time.Now()
-	kind, topic, priority := "device", job.App, "10"
-	switch job.PushType {
-	case "liveactivity":
-		kind, topic = "liveactivity", job.App+".push-type.liveactivity"
-	case "background":
-		priority = "5"
+	kind := "device"
+	if job.PushType == "liveactivity" {
+		kind = "liveactivity"
 	}
 	rows, _ := transaction.Query(ctx,
 		`SELECT token, platform, apns_environment FROM push_devices WHERE app = $1 AND kind = $2 AND (user_id = ANY($3) OR token = ANY($4))`,
 		job.App, kind, job.UserIDs, job.Tokens,
 	)
-	devices, err := pgx.CollectRows(rows, pgx.RowToStructByPos[struct{ Token, Platform, APNsEnvironment string }])
+	devices, err := pgx.CollectRows(rows, pgx.RowToStructByPos[device])
 	if err != nil {
 		return err
 	}
@@ -221,12 +225,7 @@ sendDevices:
 		}
 		sends.Go(func() {
 			defer func() { <-service.sends }()
-			var result result
-			if device.Platform == "ios" {
-				result = service.apns.send(sendContext, device.APNsEnvironment, device.Token, topic, job.PushType, priority, job.APNs)
-			} else {
-				result = service.fcm.send(sendContext, device.Token, job.FCM)
-			}
+			result := service.senders[device.Platform].send(sendContext, device, job)
 
 			mutex.Lock()
 			defer mutex.Unlock()

@@ -35,12 +35,12 @@ func newFCMClient(transport http.RoundTripper, fcmURL string, serviceAccount []b
 	}, nil
 }
 
-func (client *fcmClient) send(ctx context.Context, deviceToken string, message json.RawMessage) result {
+func (client *fcmClient) send(ctx context.Context, device device, job notification) result {
 	var fields map[string]any
-	if err := json.Unmarshal(message, &fields); err != nil {
+	if err := json.Unmarshal(job.FCM, &fields); err != nil {
 		return result{outcome: failed, reason: err.Error()}
 	}
-	fields["token"] = deviceToken
+	fields["token"] = device.Token
 	body, err := json.Marshal(map[string]any{"message": fields})
 	if err != nil {
 		return result{outcome: failed, reason: err.Error()}
