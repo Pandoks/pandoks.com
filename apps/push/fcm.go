@@ -19,7 +19,9 @@ type fcmClient struct {
 }
 
 func newFCMClient(transport http.RoundTripper, fcmURL string, serviceAccount []byte) (*fcmClient, error) {
-	credentials, err := google.CredentialsFromJSONWithType(context.Background(), serviceAccount, google.ServiceAccount, "https://www.googleapis.com/auth/firebase.messaging")
+	// NOTE: the token source fetches with the context's client, otherwise http.DefaultClient with no timeout
+	tokenContext := context.WithValue(context.Background(), oauth2.HTTPClient, &http.Client{Transport: transport, Timeout: 30 * time.Second})
+	credentials, err := google.CredentialsFromJSONWithType(tokenContext, serviceAccount, google.ServiceAccount, "https://www.googleapis.com/auth/firebase.messaging")
 	if err != nil {
 		return nil, fmt.Errorf("parse FCM_SERVICE_ACCOUNT: %w", err)
 	}
