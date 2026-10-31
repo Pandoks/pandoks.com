@@ -45,9 +45,16 @@
     }, 1000);
   }
 
-  function moveSpotlight(event: PointerEvent & { currentTarget: HTMLButtonElement }) {
-    event.currentTarget.style.setProperty('--spotlight-x', `${event.offsetX}px`);
-    event.currentTarget.style.setProperty('--spotlight-y', `${event.offsetY}px`);
+  let walletList: HTMLDivElement;
+
+  function moveSpotlight(event: PointerEvent) {
+    walletList.style.setProperty('--spotlight-x', `${event.clientX}px`);
+    walletList.style.setProperty('--spotlight-y', `${event.clientY}px`);
+  }
+
+  function hideSpotlight() {
+    walletList.style.removeProperty('--spotlight-x');
+    walletList.style.removeProperty('--spotlight-y');
   }
 
   let activeNavIndex: number | undefined = $state();
@@ -89,6 +96,9 @@
   });
 </script>
 
+<svelte:window onpointermove={moveSpotlight} />
+<svelte:body onpointerleave={hideSpotlight} />
+
 <nav class="bg-background fixed flex w-full gap-2 rounded-br-xs p-2 text-sm xl:w-auto">
   {#each navLinks as { path, text }, index}
     {@render navLink(path, text, index)}
@@ -100,7 +110,7 @@
     {@render children()}
   </div>
 
-  <div class="flex flex-col items-start self-start p-2 font-mono text-xs">
+  <div bind:this={walletList} class="flex flex-col items-start self-start p-2 font-mono text-xs">
     {#each wallets as { ticker, address }}
       {@const yanked = yankedTicker === ticker}
       <div class="flex gap-2">
@@ -109,8 +119,7 @@
           onclick={() => void yankAddress(ticker, address)}
           onkeypress={(event) => event.key === 'Enter' && event.stopPropagation()}
           onmousedown={(event) => event.preventDefault()}
-          onpointermove={moveSpotlight}
-          class={`cursor-pointer from-neutral-300 bg-clip-text text-left break-all transition-colors forced-color-adjust-none select-none hover:bg-radial-[circle_2.5rem_at_var(--spotlight-x)_var(--spotlight-y)] ${yanked ? 'text-foreground duration-0 forced-colors:text-[CanvasText]' : 'text-transparent duration-1000 focus-visible:text-neutral-300 forced-colors:focus-visible:text-[CanvasText]'}`}
+          class={`cursor-pointer from-neutral-300 bg-fixed bg-clip-text text-left break-all transition-colors forced-color-adjust-none select-none pointer-fine:bg-radial-[circle_2.5rem_at_var(--spotlight-x)_var(--spotlight-y)] ${yanked ? 'text-foreground duration-0 forced-colors:text-[CanvasText]' : 'text-transparent duration-1000 focus-visible:text-neutral-300 forced-colors:focus-visible:text-[CanvasText]'}`}
         >
           {ticker}
           {address}
