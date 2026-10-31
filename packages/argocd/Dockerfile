@@ -25,7 +25,7 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
     apache2-utils \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/pnpm/pnpm:12.15.0@sha256:d6148daf3ad2af8fa4ecd1aa06db73da32b2e37f63088987eea2fb375ee7f320 /opt/pnpm/pnpm /usr/local/bin/pnpm
+COPY --from=ghcr.io/pnpm/pnpm:12.17.0@sha256:172468925f0ca368313c09867081a43e298eaeb13dee8f7e4356bfad45dd8b15 /opt/pnpm/pnpm /usr/local/bin/pnpm
 
 COPY --from=kustomize-builder /out/kustomize /usr/local/bin/kustomize
 
