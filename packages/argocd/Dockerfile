@@ -1,16 +1,11 @@
-FROM golang:1.26.10-trixie@sha256:a050dcceee6eb9bf110151662dfac7662f3bec40927c7dee48731e3d92083d42 AS kustomize-builder
+FROM golang:1.27.3-trixie@sha256:c65ecfe613b539ac74c62a4c3b2c27e8f8a6076384c8f27e8a3c0f3be17cc385 AS kustomize-builder
 
 # renovate: datasource=go depName=kustomize packageName=sigs.k8s.io/kustomize/kustomize/v5
-ARG KUSTOMIZE_VERSION=v5.8.1
-# TODO: drop X_TEXT_VERSION and its go get at kustomize v5.8.2, which requires x/text v0.42.0:
-# https://github.com/kubernetes-sigs/kustomize/releases/tag/kustomize%2Fv5.8.2
-# renovate: datasource=go depName=golang.org/x/text
-ARG X_TEXT_VERSION=v0.41.0
+ARG KUSTOMIZE_VERSION=v5.8.3
 
 WORKDIR /src
 RUN go mod init kustomize \
     && go get "sigs.k8s.io/kustomize/kustomize/v5@${KUSTOMIZE_VERSION}" \
-    "golang.org/x/text@${X_TEXT_VERSION}" \
     && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" \
     -o /out/kustomize sigs.k8s.io/kustomize/kustomize/v5
 
