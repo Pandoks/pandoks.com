@@ -18,7 +18,8 @@ spec:
     configs:
       cm:
         timeout.reconciliation: 180s
-        # NOTE: helm-controller sets Failed only once the install Job exhausts its retries.
+        # NOTE: helm-controller sets Failed only once the install Job exhausts its retries (1000 by
+        # default), so this rarely fires; deploy-infra.yaml's job and rollout waits are the real gate.
         resource.customizations.health.helm.cattle.io_HelmChart: |
           hs = { status = "Healthy" }
           for _, condition in ipairs((obj.status or {}).conditions or {}) do

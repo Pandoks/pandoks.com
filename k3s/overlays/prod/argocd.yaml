@@ -93,3 +93,47 @@ roleRef:
   kind: ClusterRole
   name: argocd-application-annotator
   apiGroup: rbac.authorization.k8s.io
+
+---
+# deploy-infra.yaml waits on ArgoCD's own helm upgrade and rollouts
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argocd-rollout-watcher
+rules:
+  - apiGroups: ['apps']
+    resources: ['deployments', 'statefulsets']
+    verbs: ['get', 'list', 'watch']
+  - apiGroups: ['batch']
+    resources: ['jobs']
+    verbs: ['get', 'list', 'watch']
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argocd-deployer-rollout-watcher
+  namespace: argocd
+subjects:
+  - kind: Group
+    name: argocd-deployer
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: argocd-rollout-watcher
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argocd-deployer-rollout-watcher
+  namespace: kube-system
+subjects:
+  - kind: Group
+    name: argocd-deployer
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: argocd-rollout-watcher
+  apiGroup: rbac.authorization.k8s.io

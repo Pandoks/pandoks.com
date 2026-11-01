@@ -136,6 +136,7 @@ jobs:
           DEGRADED=0
           CHECKED_REVISION=""
           INCLUDES_SHA=false
+          SYNCED=false
           count_error() {
             ERRORS=$((ERRORS + 1))
             if [ "${ERRORS}" -ge 3 ]; then
@@ -184,7 +185,8 @@ jobs:
             if [ "${INCLUDES_SHA}" = "true" ]; then
               if [ "${SYNC}" = "Synced" ] && [ "${HEALTH}" = "Healthy" ]; then
                 echo "Synced and healthy at ${REVISION}, which includes ${GITHUB_SHA}"
-                exit 0
+                SYNCED=true
+                break
               fi
               if [ "${HEALTH}" = "Degraded" ]; then
                 DEGRADED=$((DEGRADED + 1))
@@ -197,5 +199,13 @@ jobs:
               fi
             fi
           done
-          echo "Timed out waiting for a synced, healthy revision that includes ${GITHUB_SHA} (revision: ${REVISION:-unknown}, includes it: ${INCLUDES_SHA}, sync: ${SYNC:-unknown}, health: ${HEALTH:-unknown})"
-          exit 1
+          if [ "${SYNCED}" != "true" ]; then
+            echo "Timed out waiting for a synced, healthy revision that includes ${GITHUB_SHA} (revision: ${REVISION:-unknown}, includes it: ${INCLUDES_SHA}, sync: ${SYNC:-unknown}, health: ${HEALTH:-unknown})"
+            exit 1
+          fi
+
+          # NOTE: helm-controller upgrades ArgoCD itself asynchronously, so Application health doesn't cover it.
+          sudo kubectl wait job/helm-install-argocd -n kube-system --for=condition=Complete --timeout=5m
+          sudo kubectl rollout status deployment/argocd-server -n argocd --timeout=5m
+          sudo kubectl rollout status deployment/argocd-repo-server -n argocd --timeout=5m
+          sudo kubectl rollout status statefulset/argocd-application-controller -n argocd --timeout=5m
