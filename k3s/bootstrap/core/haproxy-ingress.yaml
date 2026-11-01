@@ -25,11 +25,9 @@ spec:
       ingressClassResource:
         enabled: true
       kind: DaemonSet
-      # NOTE: the chart only renders the minAvailable PodDisruptionBudget when replicaCount > minAvailable;
-      # replicaCount is otherwise unused by the DaemonSet.
+      # NOTE: only makes the chart render the PDB; the DaemonSet ignores it
       replicaCount: 2
-      # NOTE: nodes only have internal IPs, so without this the Ingress status stays empty and Argo
-      # reports every Ingress as Progressing.
+      # NOTE: nodes have no external IP; keeps Ingress status set so Argo sees it Healthy
       extraArgs:
         report-node-internal-ip-address: "true"
       service:
