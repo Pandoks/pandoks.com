@@ -15,8 +15,10 @@ export const secrets = {
     BackupSecretKey: new sst.Secret('CloudflareBackupSecretKey')
   },
   deepinfra: {
-    ApiKey: new sst.Secret('DeepinfraApiKey'),
-    RedSnowWakeToken: new sst.Secret('RedSnowWakeToken')
+    // Only the production scaler reads these, so placeholders keep other stages' deploy/diff
+    // from failing; set production's real values with `pnpm sst secret set ... --stage production`.
+    ApiKey: new sst.Secret('DeepinfraApiKey', 'Placeholder'),
+    RedSnowWakeToken: new sst.Secret('RedSnowWakeToken', 'Placeholder')
   },
   github: {
     PersonalAccessToken: new sst.Secret('GithubPersonalAccessToken'),

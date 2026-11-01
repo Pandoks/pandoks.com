@@ -39,21 +39,25 @@ async function setInstances(deployId: string, min: number) {
   if (!response.ok) throw new Error(`PUT deploy/${deployId} ${response.status}`);
 }
 
-// Start the deployment: create it on first use, otherwise scale it up from zero.
 async function wake(): Promise<{ status: string; deploy_id: string }> {
   const existing = await findDeployment();
-  if (!existing) {
-    const response = await fetch(`${API}/deploy/llm`, {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ ...deployment, settings: { min_instances: 1, max_instances: 1 } })
-    });
-    if (!response.ok) throw new Error(`deploy/llm ${response.status}: ${await response.text()}`);
-    const created = (await response.json()) as Deployment;
-    return { status: created.status, deploy_id: created.deploy_id };
+  if (existing) {
+    if (existing.settings?.min_instances !== 1) await setInstances(existing.deploy_id, 1);
+    return { status: existing.status, deploy_id: existing.deploy_id };
   }
-  if (existing.settings?.min_instances !== 1) await setInstances(existing.deploy_id, 1);
-  return { status: existing.status, deploy_id: existing.deploy_id };
+  const response = await fetch(`${API}/deploy/llm`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ ...deployment, settings: { min_instances: 1, max_instances: 1 } })
+  });
+  if (!response.ok) {
+    // A concurrent wake may have created it between the list and this POST; adopt that one.
+    const raced = await findDeployment();
+    if (raced) return { status: raced.status, deploy_id: raced.deploy_id };
+    throw new Error(`deploy/llm ${response.status}: ${await response.text()}`);
+  }
+  const created = (await response.json()) as Deployment;
+  return { status: created.status, deploy_id: created.deploy_id };
 }
 
 // One vLLM engine line per ~10s, e.g.
@@ -147,20 +151,34 @@ async function sleepIfIdle(): Promise<string> {
   return 'idle, scaled to zero';
 }
 
+// Constant-time bearer check: /wake is on a public URL and each success bills GPUs. Comparing
+// fixed-length SHA-256 digests keeps the comparison constant-time regardless of the inputs.
+async function wakeTokenValid(header: string | null): Promise<boolean> {
+  if (!header) return false;
+  const encoder = new TextEncoder();
+  const [got, want] = await Promise.all([
+    crypto.subtle.digest('SHA-256', encoder.encode(header)),
+    crypto.subtle.digest('SHA-256', encoder.encode(`Bearer ${Resource.RedSnowWakeToken.value}`))
+  ]);
+  const a = new Uint8Array(got);
+  const b = new Uint8Array(want);
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+
 export default {
-  // POST /wake with the shared bearer token starts the deployment.
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (request.method !== 'POST' || url.pathname !== '/wake') {
       return new Response('not found', { status: 404 });
     }
-    if (request.headers.get('authorization') !== `Bearer ${Resource.RedSnowWakeToken.value}`) {
+    if (!(await wakeTokenValid(request.headers.get('authorization')))) {
       return new Response('unauthorized', { status: 401 });
     }
     return Response.json(await wake());
   },
 
-  // Cron (every 5 min) scales the deployment to zero once it has been idle.
   async scheduled(): Promise<void> {
     console.log(`red-snow idle check: ${await sleepIfIdle()}`);
   }
