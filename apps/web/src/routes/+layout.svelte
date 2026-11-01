@@ -110,7 +110,11 @@
   });
 </script>
 
-<svelte:window onpointermove={moveSpotlight} onscroll={updateSpotlight} />
+<svelte:window
+  onpointermove={moveSpotlight}
+  onscroll={updateSpotlight}
+  onresize={updateSpotlight}
+/>
 
 <nav class="bg-background fixed flex w-full gap-2 rounded-br-xs p-2 text-sm xl:w-auto">
   {#each navLinks as { path, text }, index}
