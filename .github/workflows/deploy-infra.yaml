@@ -132,37 +132,46 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # NOTE: Argo always deploys main, and a manual dispatch may run from another ref.
-          TARGET_SHA=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)
-          CHECKED_REVISION=""
-          DEADLINE=$((SECONDS + 600))
-          while [ "${SECONDS}" -lt "${DEADLINE}" ]; do
-            APP=$(sudo kubectl get application prod-cluster -n argocd \
-              -o jsonpath='{.metadata.annotations.argocd\.argoproj\.io/refresh}|{.status.sync.revision}|{.status.sync.status}|{.status.health.status}|{.status.operationState.operation.sync.revision}|{.status.operationState.phase}|{.status.conditions[?(@.type=="ComparisonError")].type}')
-            IFS='|' read -r REFRESH REVISION SYNC HEALTH OPERATION_REVISION PHASE ERROR <<< "${APP}"
+          target=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)
 
+          # NOTE: main may have moved on, so a newer revision that contains target also counts.
+          checked_revision=""
+          includes_target() {
+            if [ "$1" != "${checked_revision}" ]; then
+              checked_revision="$1"
+              comparison=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${target}...$1" --jq .status) || exit 1
+            fi
+            [ "${comparison}" = identical ] || [ "${comparison}" = ahead ]
+          }
+
+          deadline=$((SECONDS + 600))
+          while [ "${SECONDS}" -lt "${deadline}" ]; do
+            app=$(sudo kubectl get application prod-cluster -n argocd -o json)
+            revision=$(jq -r '.status.sync.revision // empty' <<<"${app}")
             # NOTE: Argo drops the refresh annotation with the first status written after the hard refresh.
-            if [ -z "${REFRESH}" ] && [ -n "${REVISION}" ]; then
-              # NOTE: main may have moved on, so a newer revision that contains TARGET_SHA also counts.
-              if [ "${REVISION}" != "${CHECKED_REVISION}" ]; then
-                CHECKED_REVISION="${REVISION}"
-                COMPARE=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${TARGET_SHA}...${REVISION}" --jq .status)
-              fi
+            state=$(jq -r '
+              .status as $status
+              | if .metadata.annotations["argocd.argoproj.io/refresh"] then "refreshing"
+                elif any($status.conditions[]?; .type == "ComparisonError")
+                  or ($status.operationState.operation.sync.revision == $status.sync.revision
+                    and ($status.operationState.phase | IN("Failed", "Error"))) then "failed"
+                elif $status.sync.status == "Synced" and $status.health.status == "Healthy" then "healthy"
+                else "waiting" end' <<<"${app}")
 
-              if [ "${COMPARE}" = identical ] || [ "${COMPARE}" = ahead ]; then
-                if [ -n "${ERROR}" ] || { [ "${OPERATION_REVISION}" = "${REVISION}" ] && [[ "${PHASE}" =~ ^(Failed|Error)$ ]]; }; then
-                  echo "Sync failed at ${REVISION}:"
-                  sudo kubectl get application prod-cluster -n argocd \
-                    -o jsonpath='{range .status.conditions[*]}{.message}{"\n"}{end}{.status.operationState.message}{"\n"}'
+            if [ "${state}" != refreshing ] && [ -n "${revision}" ] && includes_target "${revision}"; then
+              case "${state}" in
+                failed)
+                  echo "Sync failed at ${revision}:"
+                  jq -r '.status.conditions[]?.message, .status.operationState.message // empty' <<<"${app}"
                   exit 1
-                fi
-                if [ "${SYNC}" = Synced ] && [ "${HEALTH}" = Healthy ]; then
-                  echo "Synced and healthy at ${REVISION}"
+                  ;;
+                healthy)
+                  echo "Synced and healthy at ${revision}"
                   exit 0
-                fi
-              fi
+                  ;;
+              esac
             fi
             sleep 5
           done
-          echo "Timed out waiting for main (${TARGET_SHA}) to sync healthy: ${APP}"
+          echo "Timed out waiting for main (${target}) to sync healthy: ${state} at ${revision:-no revision}"
           exit 1
