@@ -129,19 +129,35 @@ jobs:
 
       - name: Wait for ArgoCD Sync
         if: env.SKIP_DEPLOY != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          for _ in {1..60}; do
-            STATUS=$(sudo kubectl get application prod-cluster -n argocd -o jsonpath='{.status.sync.status}')
-            if [ "${STATUS}" = "Synced" ]; then
-              echo "Sync successful"
-              exit 0
+          CHECKED_REVISION=""
+          for _ in {1..120}; do
+            APP=$(sudo kubectl get application prod-cluster -n argocd \
+              -o jsonpath='{.status.sync.revision}|{.status.sync.status}|{.status.health.status}|{.status.operationState.operation.sync.revision}|{.status.operationState.phase}|{.status.conditions[?(@.type=="ComparisonError")].message}')
+            IFS='|' read -r REVISION SYNC HEALTH OPERATION_REVISION PHASE ERROR <<< "${APP}"
+
+            # NOTE: main may have moved on, so a newer revision that contains GITHUB_SHA also counts.
+            if [ "${REVISION}" != "${CHECKED_REVISION}" ]; then
+              CHECKED_REVISION="${REVISION}"
+              COMPARE=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${GITHUB_SHA}...${REVISION}" --jq .status)
             fi
-            ERROR=$(sudo kubectl get application prod-cluster -n argocd -o jsonpath='{.status.conditions[?(@.type=="ComparisonError")].message}')
-            if [ -n "$ERROR" ]; then
-              echo "Sync failed: ${ERROR}"
-              exit 1
+
+            if [ "${COMPARE}" = identical ] || [ "${COMPARE}" = ahead ]; then
+              if [ -n "${ERROR}" ] || { [ "${OPERATION_REVISION}" = "${REVISION}" ] && [[ "${PHASE}" =~ ^(Failed|Error)$ ]]; }; then
+                echo "Sync failed at ${REVISION}: ${ERROR:-${PHASE}}"
+                exit 1
+              fi
+              if [ "${SYNC}" = Synced ] && [ "${HEALTH}" = Healthy ]; then
+                # NOTE: helm-controller upgrades ArgoCD itself asynchronously, so Application health doesn't cover it.
+                for RESOURCE in deployment/argocd-server deployment/argocd-repo-server statefulset/argocd-application-controller; do
+                  sudo kubectl rollout status "${RESOURCE}" -n argocd --timeout=5m
+                done
+                exit 0
+              fi
             fi
             sleep 5
           done
-          echo "Timed out waiting for sync"
+          echo "Timed out waiting for a synced, healthy revision that includes ${GITHUB_SHA}: ${APP}"
           exit 1

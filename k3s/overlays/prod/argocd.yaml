@@ -93,3 +93,30 @@ roleRef:
   kind: ClusterRole
   name: argocd-application-annotator
   apiGroup: rbac.authorization.k8s.io
+
+---
+# deploy-infra.yaml waits on ArgoCD's own rollouts
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argocd-rollout-reader
+  namespace: argocd
+rules:
+  - apiGroups: ['apps']
+    resources: ['deployments', 'statefulsets']
+    verbs: ['get', 'list', 'watch']
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argocd-deployer-rollout-reader
+  namespace: argocd
+subjects:
+  - kind: Group
+    name: argocd-deployer
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: argocd-rollout-reader
+  apiGroup: rbac.authorization.k8s.io
