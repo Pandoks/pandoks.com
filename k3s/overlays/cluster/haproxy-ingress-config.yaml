@@ -1,5 +1,5 @@
-# NOTE: the Hetzner load balancer sends the PROXY protocol (/infra/vps/load-balancers.ts), so every
-# connection to the http and https ports must carry it; k3d has no proxy in front, so it stays off there.
+# NOTE: only the Hetzner load balancer's 443 -> 30443 service sends the PROXY protocol
+# (/infra/vps/load-balancers.ts), so only the https bind expects it; 30080 stays plain HTTP.
 apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
 metadata:
@@ -9,4 +9,4 @@ spec:
   valuesContent: |-
     controller:
       config:
-        use-proxy-protocol: "true"
+        bind-https: ":443 accept-proxy"
