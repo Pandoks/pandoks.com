@@ -27,6 +27,10 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "DeepinfraApiKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
     "GithubPackageManagementToken": {
       "type": "sst.sst.Secret"
       "value": string
@@ -157,6 +161,10 @@ declare module "sst" {
       "value": string
     }
     "OxylabsWebUnblockerUsername": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "RedSnowWakeToken": {
       "type": "sst.sst.Secret"
       "value": string
     }

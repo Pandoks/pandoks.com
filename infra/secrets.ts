@@ -14,6 +14,10 @@ export const secrets = {
     BackupAccessKey: new sst.Secret('CloudflareBackupAccessKey'),
     BackupSecretKey: new sst.Secret('CloudflareBackupSecretKey')
   },
+  deepinfra: {
+    ApiKey: new sst.Secret('DeepinfraApiKey'),
+    RedSnowWakeToken: new sst.Secret('RedSnowWakeToken')
+  },
   github: {
     PersonalAccessToken: new sst.Secret('GithubPersonalAccessToken'),
     PackageManagementToken: new sst.Secret('GithubPackageManagementToken')

@@ -38,6 +38,7 @@ export default $config({
       import('./infra/github'),
       import('./infra/website'),
       import('./infra/tailscale'),
+      import('./infra/red-snow'),
       import('./infra/vps/vps'),
       import('./infra/kubernetes'),
       import('./infra/dev'),
