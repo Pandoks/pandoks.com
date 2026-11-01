@@ -95,11 +95,12 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 
 ---
-# deploy-infra.yaml waits on ArgoCD's own helm upgrade and rollouts
+# deploy-infra.yaml waits on ArgoCD's own rollouts
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
-  name: argocd-rollout-watcher
+  name: argocd-rollout-reader
+  namespace: argocd
 rules:
   - apiGroups: ['apps']
     resources: ['deployments', 'statefulsets']
@@ -109,40 +110,13 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: argocd-deployer-rollout-watcher
+  name: argocd-deployer-rollout-reader
   namespace: argocd
 subjects:
   - kind: Group
     name: argocd-deployer
     apiGroup: rbac.authorization.k8s.io
 roleRef:
-  kind: ClusterRole
-  name: argocd-rollout-watcher
-  apiGroup: rbac.authorization.k8s.io
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: argocd-helm-job-reader
-  namespace: kube-system
-rules:
-  - apiGroups: ['batch']
-    resources: ['jobs']
-    resourceNames: ['helm-install-argocd']
-    verbs: ['get']
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: argocd-deployer-helm-job-reader
-  namespace: kube-system
-subjects:
-  - kind: Group
-    name: argocd-deployer
-    apiGroup: rbac.authorization.k8s.io
-roleRef:
   kind: Role
-  name: argocd-helm-job-reader
+  name: argocd-rollout-reader
   apiGroup: rbac.authorization.k8s.io

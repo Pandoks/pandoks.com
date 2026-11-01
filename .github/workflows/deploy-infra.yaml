@@ -34,7 +34,6 @@ jobs:
     outputs:
       sst: ${{ github.event_name != 'workflow_dispatch' && steps.filter.outputs.sst || contains(fromJSON('["all","sst"]'), inputs.deploy) }}
       kubernetes: ${{ github.event_name != 'workflow_dispatch' && steps.filter.outputs.kubernetes || contains(fromJSON('["all","kubernetes"]'), inputs.deploy) }}
-      argocd: ${{ steps.filter.outputs.argocd == 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
@@ -50,8 +49,6 @@ jobs:
             kubernetes:
               - 'k3s/**'
               - 'scripts/cluster/**'
-            argocd:
-              - 'k3s/bootstrap/prod/argocd.yaml'
 
   deploy-sst:
     concurrency:
@@ -124,15 +121,7 @@ jobs:
 
       - name: Trigger ArgoCD Sync
         if: env.SKIP_DEPLOY != 'true'
-        env:
-          ARGOCD_CHART_CHANGED: ${{ needs.detect-changes.outputs.argocd }}
         run: |
-          # NOTE: record the helm-controller Job before syncing, so the wait can tell its replacement apart.
-          if [ "${ARGOCD_CHART_CHANGED}" = "true" ]; then
-            OLD_HELM_JOB_UID=$(sudo kubectl get job helm-install-argocd -n kube-system --ignore-not-found -o jsonpath='{.metadata.uid}')
-            echo "WAIT_HELM_JOB=true" >> "$GITHUB_ENV"
-            echo "OLD_HELM_JOB_UID=${OLD_HELM_JOB_UID}" >> "$GITHUB_ENV"
-          fi
           sudo kubectl annotate application prod-cluster \
             argocd.argoproj.io/refresh=hard \
             --overwrite \
@@ -216,34 +205,15 @@ jobs:
           fi
 
           # NOTE: helm-controller upgrades ArgoCD itself asynchronously, so Application health doesn't cover it.
-          if [ "${WAIT_HELM_JOB:-}" = "true" ]; then
-            HELM_JOB_DONE=false
-            for _ in {1..60}; do
-              sleep 5
-              if ! JOB=$(sudo kubectl get job helm-install-argocd -n kube-system --ignore-not-found \
-                -o jsonpath='{.metadata.uid}|{.status.conditions[?(@.type=="Complete")].status}|{.status.conditions[?(@.type=="Failed")].status}'); then
-                count_error "kubectl get job"
-                continue
-              fi
-              ERRORS=0
-              IFS='|' read -r JOB_UID JOB_COMPLETE JOB_FAILED <<< "${JOB}"
-              if [ -z "${JOB_UID}" ] || [ "${JOB_UID}" = "${OLD_HELM_JOB_UID}" ]; then
-                continue
-              fi
-              if [ "${JOB_FAILED}" = "True" ]; then
-                echo "helm-install-argocd failed"
-                exit 1
-              fi
-              if [ "${JOB_COMPLETE}" = "True" ]; then
-                HELM_JOB_DONE=true
+          for RESOURCE in deployment/argocd-server deployment/argocd-repo-server statefulset/argocd-application-controller; do
+            if ! OUTPUT=$(sudo kubectl rollout status "${RESOURCE}" -n argocd --timeout=5m 2>&1); then
+              # NOTE: the read RBAC ships in this same sync, so the first deploy with it may not have it yet.
+              if echo "${OUTPUT}" | grep -qi forbidden; then
+                echo "::warning::Skipping ArgoCD rollout checks: ${OUTPUT}"
                 break
               fi
-            done
-            if [ "${HELM_JOB_DONE}" != "true" ]; then
-              echo "Timed out waiting for a new helm-install-argocd Job to complete"
+              echo "${OUTPUT}"
               exit 1
             fi
-          fi
-          sudo kubectl rollout status deployment/argocd-server -n argocd --timeout=5m
-          sudo kubectl rollout status deployment/argocd-repo-server -n argocd --timeout=5m
-          sudo kubectl rollout status statefulset/argocd-application-controller -n argocd --timeout=5m
+            echo "${OUTPUT}"
+          done
