@@ -19,12 +19,19 @@ spec:
   # we want to let the helm chart manage the service so we don't have to worry about updates and breaking changes.
   # only when we're changing the ports (which should be once in a blue moon) will we then manually
   # manage the service so that we can do the dual service cutover, but then we'll change it back
-  # https://github.com/haproxy-ingress/charts/blob/release-0.14/haproxy-ingress/values.yaml
+  # https://github.com/haproxy-ingress/charts/blob/release-0.16/haproxy-ingress/values.yaml
   valuesContent: |-
     controller:
       ingressClassResource:
         enabled: true
       kind: DaemonSet
+      # NOTE: the chart only renders the minAvailable PodDisruptionBudget when replicaCount > minAvailable;
+      # replicaCount is otherwise unused by the DaemonSet.
+      replicaCount: 2
+      # NOTE: nodes only have internal IPs, so without this the Ingress status stays empty and Argo
+      # reports every Ingress as Progressing.
+      extraArgs:
+        report-node-internal-ip-address: "true"
       service:
         httpPorts:
           - port: 80
@@ -37,6 +44,7 @@ spec:
       config:
         use-forwarded-headers: "true"
         forwarded-for-header: "X-Forwarded-For"
+        balance-algorithm: roundrobin
       stats:
         enabled: true
       metrics:
