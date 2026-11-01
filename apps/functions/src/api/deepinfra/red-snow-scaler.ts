@@ -67,6 +67,13 @@ interface EngineSample {
   active: boolean;
 }
 
+// vLLM logs an engine line roughly every 10s whenever the engine is alive, idle or not.
+// A fresh line must be newer than this for the engine to count as "logging right now".
+const FRESH_SAMPLE_MS = 120_000;
+// Gap larger than this between consecutive samples means the engine stopped and restarted
+// (i.e. a scale-to-zero then wake), so the older samples predate the current instance.
+const MAX_SAMPLE_GAP_MS = 180_000;
+
 function parseEngineSamples(logText: string, now: number): EngineSample[] {
   const samples: EngineSample[] = [];
   for (const match of logText.matchAll(ENGINE_LINE)) {
@@ -93,14 +100,34 @@ function parseEngineSamples(logText: string, now: number): EngineSample[] {
     const active = Number(promptTps) > 0 || Number(genTps) > 0 || Number(running) > 0;
     samples.push({ at, active });
   }
-  return samples;
+  return samples.sort((a, b) => a.at - b.at);
 }
 
-// Idle = the engine has been logging for at least IDLE_MINUTES and nothing has run in that window.
-// No samples means the deployment is still loading (no engine yet), so never sleep then.
+// Idle = the current instance has been logging continuously for IDLE_MINUTES with nothing
+// running in that span. Walking back from the newest sample and stopping at the first gap
+// (a restart) ignores samples left over from before the last scale-to-zero, so a wake's
+// cold start is never cancelled by stale idle logs.
+function idleDurationMs(samples: EngineSample[], now: number): number | 'active' | 'not-logging' {
+  const newest = samples[samples.length - 1];
+  if (now - newest.at > FRESH_SAMPLE_MS) return 'not-logging';
+  // Start of the current instance's continuous run of samples.
+  let runStart = 0;
+  for (let i = samples.length - 1; i > 0; i--) {
+    if (samples[i].active) return 'active';
+    if (samples[i].at - samples[i - 1].at > MAX_SAMPLE_GAP_MS) {
+      runStart = i; // restart boundary: older samples belong to a previous instance
+      break;
+    }
+  }
+  if (runStart === 0 && samples[0].active) return 'active';
+  return now - samples[runStart].at;
+}
+
 async function sleepIfIdle(): Promise<string> {
   const target = await findDeployment();
   if (!target || target.settings?.min_instances === 0) return 'already off';
+  // Only a fully-loaded instance can be idle; downloading/deploying is the cold start, leave it.
+  if (target.status !== 'running') return `status ${target.status}, kept running`;
 
   const now = Date.now();
   const from = Math.floor((now - (IDLE_MINUTES + 5) * 60_000) / 1000);
@@ -110,16 +137,14 @@ async function sleepIfIdle(): Promise<string> {
   );
   if (!response.ok) throw new Error(`deployment_logs ${response.status}`);
   const samples = parseEngineSamples(await response.text(), now);
-  if (samples.length === 0) return 'loading, no engine samples';
+  if (samples.length === 0) return 'no engine samples, kept running';
 
-  const windowStart = now - IDLE_MINUTES * 60_000;
-  const activeRecently = samples.some((s) => s.at >= windowStart && s.active);
-  const oldestAgeMin = (now - Math.min(...samples.map((s) => s.at))) / 60_000;
-  if (!activeRecently && oldestAgeMin >= IDLE_MINUTES) {
-    await setInstances(target.deploy_id, 0);
-    return 'idle, scaled to zero';
-  }
-  return activeRecently ? 'active, kept running' : 'not idle long enough, kept running';
+  const idle = idleDurationMs(samples, now);
+  if (idle === 'active') return 'active, kept running';
+  if (idle === 'not-logging') return 'engine not logging, kept running';
+  if (idle < IDLE_MINUTES * 60_000) return 'not idle long enough, kept running';
+  await setInstances(target.deploy_id, 0);
+  return 'idle, scaled to zero';
 }
 
 export default {

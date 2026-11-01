@@ -16,7 +16,7 @@ let redSnowScalerUrl: $util.Output<string | undefined> | undefined;
 
 if (isProduction) {
   const scaler = new sst.cloudflare.Worker('RedSnowScaler', {
-    handler: 'apps/functions/src/api/deepinfra/red-snow-scaler.default',
+    handler: 'apps/functions/src/api/deepinfra/red-snow-scaler.ts',
     url: true,
     link: [secrets.deepinfra.ApiKey, secrets.deepinfra.RedSnowWakeToken]
   });
