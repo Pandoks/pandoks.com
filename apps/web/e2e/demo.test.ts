@@ -34,3 +34,15 @@ test('enter on a focused wallet yanks without vim navigating', async ({ page, co
   await expect(wallet).not.toHaveCSS('color', textColor);
   await expect(page).toHaveURL('/');
 });
+
+test('the wallet spotlight turns on only near the wallets', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'networkidle' });
+  const wallet = page.getByRole('button', { name: /^xmr / });
+  const box = await wallet.boundingBox();
+  if (!box) throw new Error('wallet not rendered');
+
+  await page.mouse.move(box.x + 20, box.y - 20);
+  await expect(wallet).toHaveCSS('background-image', /radial-gradient/);
+  await page.mouse.move(box.x + 20, box.y - 200);
+  await expect(wallet).toHaveCSS('background-image', 'none');
+});
