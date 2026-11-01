@@ -16,6 +16,8 @@ spec:
   targetNamespace: argocd
   valuesContent: |-
     configs:
+      cm:
+        timeout.reconciliation: 180s
       params:
         server.insecure: true
 
