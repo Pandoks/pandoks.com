@@ -16,7 +16,11 @@ RUN go mod init kustomize \
 
 FROM node:24.22.1-slim@sha256:be8204d4bd327363357f532187b752ff62759c31bedf98e9e18fc08c9cbd605c
 
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
+# renovate: datasource=npm depName=pnpm
+ARG PNPM_VERSION=12.16.1
+
+RUN npm install -g "pnpm@${PNPM_VERSION}" \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
     && apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     bash \
     jq \
@@ -24,8 +28,6 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
     ca-certificates \
     apache2-utils \
     && rm -rf /var/lib/apt/lists/*
-
-COPY --from=ghcr.io/pnpm/pnpm:12.16.1@sha256:33081d3d2c96ba582d316cfd630f0f43961d9c60ff919b50edd1835a1462976b /opt/pnpm/pnpm /usr/local/bin/pnpm
 
 COPY --from=kustomize-builder /out/kustomize /usr/local/bin/kustomize
 
