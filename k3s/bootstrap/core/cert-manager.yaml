@@ -16,4 +16,6 @@ spec:
   targetNamespace: cert-manager
   createNamespace: true
   valuesContent: |-
-    installCRDs: true
+    crds:
+      enabled: true
+      keep: true
