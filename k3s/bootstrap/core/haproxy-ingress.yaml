@@ -42,8 +42,8 @@ spec:
             targetPort: https
             nodePort: 30443
       config:
-        use-forwarded-headers: "true"
-        forwarded-for-header: "X-Forwarded-For"
+        # NOTE: keep the X-Forwarded-For sent by Cloudflare and append the connecting proxy.
+        forwardfor: update
         balance-algorithm: roundrobin
       stats:
         enabled: true

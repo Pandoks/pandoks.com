@@ -1,0 +1,12 @@
+# NOTE: the Hetzner load balancer sends the PROXY protocol (/infra/vps/load-balancers.ts), so every
+# connection to the http and https ports must carry it; k3d has no proxy in front, so it stays off there.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: haproxy-ingress
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    controller:
+      config:
+        use-proxy-protocol: "true"
