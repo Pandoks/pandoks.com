@@ -1,16 +1,11 @@
-FROM golang:1.26.10-trixie@sha256:909771fef53e3dcb0950255f0c9a8b4728c3b841e61509c7b29b098de7ee02d4 AS kustomize-builder
+FROM golang:1.27.3-trixie@sha256:c65ecfe613b539ac74c62a4c3b2c27e8f8a6076384c8f27e8a3c0f3be17cc385 AS kustomize-builder
 
 # renovate: datasource=go depName=kustomize packageName=sigs.k8s.io/kustomize/kustomize/v5
-ARG KUSTOMIZE_VERSION=v5.8.1
-# TODO: drop X_TEXT_VERSION and its go get at kustomize v5.8.2, which requires x/text v0.42.0:
-# https://github.com/kubernetes-sigs/kustomize/releases/tag/kustomize%2Fv5.8.2
-# renovate: datasource=go depName=golang.org/x/text
-ARG X_TEXT_VERSION=v0.41.0
+ARG KUSTOMIZE_VERSION=v5.8.3
 
 WORKDIR /src
 RUN go mod init kustomize \
     && go get "sigs.k8s.io/kustomize/kustomize/v5@${KUSTOMIZE_VERSION}" \
-    "golang.org/x/text@${X_TEXT_VERSION}" \
     && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" \
     -o /out/kustomize sigs.k8s.io/kustomize/kustomize/v5
 
@@ -25,7 +20,8 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
     apache2-utils \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/pnpm/pnpm:12.15.0@sha256:d6148daf3ad2af8fa4ecd1aa06db73da32b2e37f63088987eea2fb375ee7f320 /opt/pnpm/pnpm /usr/local/bin/pnpm
+COPY --from=ghcr.io/pnpm/pnpm:12.16.1@sha256:33081d3d2c96ba582d316cfd630f0f43961d9c60ff919b50edd1835a1462976b /opt/pnpm /opt/pnpm
+RUN for bin in pnpm pn pnpx pnx; do ln -s "/opt/pnpm/${bin}" "/usr/local/bin/${bin}"; done
 
 COPY --from=kustomize-builder /out/kustomize /usr/local/bin/kustomize
 
