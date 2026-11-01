@@ -1,7 +1,7 @@
 <script lang="ts">
   import '../app.css';
   import { page } from '$app/state';
-  import { goto } from '$app/navigation';
+  import { afterNavigate, goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { onMount } from 'svelte';
   import { setVimState } from '#lib/vim.svelte.js';
@@ -47,10 +47,30 @@
 
   let walletList: HTMLDivElement;
 
+  let mouseX = -Infinity;
+  let mouseY = -Infinity;
+
   function moveSpotlight(event: PointerEvent) {
-    if (event.pointerType !== 'mouse') return;
-    walletList.style.setProperty('--spotlight-x', `${event.clientX}px`);
-    walletList.style.setProperty('--spotlight-y', `${event.clientY}px`);
+    if (event.pointerType === 'touch') return;
+    mouseX = event.clientX;
+    mouseY = event.clientY;
+    updateSpotlight();
+  }
+
+  afterNavigate(updateSpotlight);
+
+  function updateSpotlight() {
+    if (mouseX === -Infinity) return;
+    const { left, right, top, bottom } = walletList.getBoundingClientRect();
+    const near =
+      mouseX > left - 40 && mouseX < right + 40 && mouseY > top - 40 && mouseY < bottom + 40;
+    if (!near) {
+      walletList.style.removeProperty('--spotlight-x');
+      walletList.style.removeProperty('--spotlight-y');
+      return;
+    }
+    walletList.style.setProperty('--spotlight-x', `${mouseX}px`);
+    walletList.style.setProperty('--spotlight-y', `${mouseY}px`);
   }
 
   let activeNavIndex: number | undefined = $state();
@@ -92,7 +112,11 @@
   });
 </script>
 
-<svelte:window onpointermove={moveSpotlight} />
+<svelte:window
+  onpointermove={moveSpotlight}
+  onscroll={updateSpotlight}
+  onresize={updateSpotlight}
+/>
 
 <nav class="bg-background fixed flex w-full gap-2 rounded-br-xs p-2 text-sm xl:w-auto">
   {#each navLinks as { path, text }, index}
@@ -114,7 +138,7 @@
           onclick={() => void yankAddress(ticker, address)}
           onkeypress={(event) => event.key === 'Enter' && event.stopPropagation()}
           onmousedown={(event) => event.preventDefault()}
-          class={`cursor-pointer from-neutral-300 bg-fixed bg-clip-text text-left break-all transition-colors forced-color-adjust-none select-none pointer-fine:[:root:hover_&]:bg-radial-[circle_2.5rem_at_var(--spotlight-x)_var(--spotlight-y)] ${yanked ? 'text-foreground duration-0 forced-colors:text-[CanvasText]' : 'text-transparent duration-1000 focus-visible:text-neutral-300 forced-colors:focus-visible:text-[CanvasText]'}`}
+          class={`cursor-pointer from-neutral-300 bg-fixed bg-clip-text text-left break-all transition-colors forced-color-adjust-none select-none pointer-fine:[:root:hover_&]:bg-radial-[circle_40px_at_var(--spotlight-x)_var(--spotlight-y)] ${yanked ? 'text-foreground duration-0 forced-colors:text-[CanvasText]' : 'text-transparent duration-1000 focus-visible:text-neutral-300 forced-colors:focus-visible:text-[CanvasText]'}`}
         >
           {ticker}
           {address}
