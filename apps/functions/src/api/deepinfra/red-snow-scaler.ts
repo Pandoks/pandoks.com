@@ -9,8 +9,23 @@ const IDLE_MS = 30 * 60_000;
 // Backstop: if activity pings never stop (e.g. a stuck client), scale down anyway. Longer than a
 // burst day; a genuinely continuous >12h session would be cut and need a fresh SessionStart /wake.
 const MAX_UPTIME_MS = 12 * 60 * 60_000;
+// Don't reconcile (delete+recreate) a deployment younger than this. DeepInfra's created_at is
+// strongly consistent, so this stops a concurrent /wake from deleting a deployment another just
+// created while Workers KV's specHash is still propagating (KV reads can be stale ~60s).
+const RECONCILE_MIN_AGE_MS = 20 * 60_000;
 
 const KV = Resource.RedSnowScalerState;
+
+// Activity writes are best-effort: Workers KV allows one write per key per second, so a SessionStart
+// /wake and a near-simultaneous /ping can collide. A dropped write is harmless (the next ping
+// refreshes it) and must never fail the request that performs it.
+async function touchActivity(now: number) {
+  try {
+    await KV.put('lastActivity', String(now));
+  } catch {
+    // ignore KV rate-limit / transient write errors
+  }
+}
 
 // Already gone: findDeployment skips these entirely (a `failed` one is still returned so wake can
 // replace it). DEAD adds `failed` for the race fallback, which must never adopt a dead deployment.
@@ -21,6 +36,7 @@ interface Deployment {
   deploy_id: string;
   model_name: string;
   status: string;
+  created_at?: string;
   settings: { min_instances: number; max_instances: number } | null;
 }
 
@@ -120,7 +136,7 @@ async function markRunning(now: number, hash: string) {
 async function wake(): Promise<{ status: string; deploy_id: string; reconciled?: boolean }> {
   const now = Date.now();
   const previousActivity = Number(await KV.get('lastActivity')) || 0;
-  await KV.put('lastActivity', String(now));
+  await touchActivity(now);
 
   const desired = await specHash();
   const existing = await findDeployment();
@@ -147,12 +163,18 @@ async function wake(): Promise<{ status: string; deploy_id: string; reconciled?:
     existing.settings?.min_instances === 0 ||
     now - previousActivity > IDLE_MS ||
     existing.status !== 'running';
-  if (applied !== desired && idle) {
+  // Age gate (DeepInfra's authoritative created_at) so a concurrent wake can't delete a deployment
+  // another one just created while KV's specHash is still propagating.
+  const oldEnough = now - Date.parse(existing.created_at ?? '') > RECONCILE_MIN_AGE_MS;
+  if (applied !== desired && idle && oldEnough) {
     const created = await recreate(now, existing.deploy_id, desired);
     return { status: created.status, deploy_id: created.deploy_id, reconciled: true };
   }
   if (appliedRaw === null) await KV.put('specHash', 'unknown');
-  if (existing.settings?.min_instances !== 1) {
+  if (existing.settings?.min_instances === 1) {
+    // Already up: make sure the backstop has a start time (an adopted deployment may lack one).
+    if (!(await KV.get('runningSince'))) await KV.put('runningSince', String(now));
+  } else {
     await setInstances(existing.deploy_id, 1);
     await KV.put('runningSince', String(now));
   }
@@ -209,7 +231,7 @@ export default {
       return new Response('unauthorized', { status: 401 });
     }
     if (route === '/ping') {
-      await KV.put('lastActivity', String(Date.now()));
+      await touchActivity(Date.now());
       return Response.json({ ok: true });
     }
     return Response.json(await wake());
