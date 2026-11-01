@@ -6,11 +6,14 @@ const FULL_NAME = `Pandoks/${deployment.model_name}`;
 const API = 'https://api.deepinfra.com';
 
 const IDLE_MS = 30 * 60_000;
-// Backstop: if activity pings never stop (a stuck client), scale down anyway. Longer than a
-// burst day so it never cuts off real use.
+// Backstop: if activity pings never stop (e.g. a stuck client), scale down anyway. Longer than a
+// burst day; a genuinely continuous >12h session would be cut and need a fresh SessionStart /wake.
 const MAX_UPTIME_MS = 12 * 60 * 60_000;
 
 const KV = Resource.RedSnowScalerState;
+
+// Statuses that mean the deployment is gone or dying, so findDeployment must not adopt one.
+const DEAD_STATUSES = new Set(['deleted', 'deleting', 'failed']);
 
 interface Deployment {
   deploy_id: string;
@@ -30,7 +33,7 @@ async function findDeployment(): Promise<Deployment | undefined> {
   const response = await fetch(`${API}/deploy/list`, { headers: authHeaders() });
   if (!response.ok) throw new Error(`deploy/list ${response.status}`);
   const deployments = (await response.json()) as Deployment[];
-  return deployments.find((d) => d.model_name === FULL_NAME && d.status !== 'deleted');
+  return deployments.find((d) => d.model_name === FULL_NAME && !DEAD_STATUSES.has(d.status));
 }
 
 async function setInstances(deployId: string, min: number) {
@@ -42,16 +45,18 @@ async function setInstances(deployId: string, min: number) {
   if (!response.ok) throw new Error(`PUT deploy/${deployId} ${response.status}`);
 }
 
-async function createDeployment(): Promise<Deployment> {
+async function createDeployment(excludeDeployId?: string): Promise<Deployment> {
   const response = await fetch(`${API}/deploy/llm`, {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({ ...deployment, settings: { min_instances: 1, max_instances: 1 } })
   });
   if (!response.ok) {
-    // A concurrent wake may have created it between the list and this POST; adopt that one.
+    // A concurrent wake may have created a live one between the list and this POST; adopt that.
+    // Never adopt the deployment we just deleted (a conflict from an async DELETE), or the reconcile
+    // would record the new spec as applied without the change ever shipping.
     const raced = await findDeployment();
-    if (raced) return raced;
+    if (raced && raced.deploy_id !== excludeDeployId) return raced;
     throw new Error(`deploy/llm ${response.status}: ${await response.text()}`);
   }
   return (await response.json()) as Deployment;
@@ -98,12 +103,15 @@ async function wake(): Promise<{ status: string; deploy_id: string; reconciled?:
 
   const applied = await KV.get('specHash');
   const idle = now - previousActivity > IDLE_MS || existing.status !== 'running';
-  if (applied !== desired && idle) {
+  // Only recreate when we have a recorded hash that differs; a missing record (KV reset or a
+  // manually-created deployment) is adopted without a destructive recreate.
+  if (applied !== null && applied !== desired && idle) {
     await deleteDeployment(existing.deploy_id);
-    const created = await createDeployment();
+    const created = await createDeployment(existing.deploy_id);
     await markRunning(now, desired);
     return { status: created.status, deploy_id: created.deploy_id, reconciled: true };
   }
+  if (applied === null) await KV.put('specHash', desired);
   if (existing.settings?.min_instances !== 1) {
     await setInstances(existing.deploy_id, 1);
     await markRunning(now, applied ?? desired);
