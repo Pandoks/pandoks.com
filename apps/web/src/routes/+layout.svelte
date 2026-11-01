@@ -51,7 +51,7 @@
   let mouseY = -Infinity;
 
   function moveSpotlight(event: PointerEvent) {
-    if (event.pointerType !== 'mouse') return;
+    if (event.pointerType === 'touch') return;
     mouseX = event.clientX;
     mouseY = event.clientY;
     updateSpotlight();
