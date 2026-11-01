@@ -3,11 +3,10 @@ import { secrets } from './secrets';
 
 // RED-SNOW (Blackfrost-AI GLM-5.3-Flash fine-tune) runs on a DeepInfra "Custom LLM"
 // deployment (2x H200, NVFP4, 1M context). DeepInfra has no SST/Pulumi provider, so the
-// deployment itself is created out-of-band with `pnpm red-snow up`; this module only owns
-// the autoscaler that toggles it.
+// deployment is created and toggled by the Worker here rather than as an IaC resource.
 //
 // A single Cloudflare Worker:
-//   - POST /wake (bearer-protected)  -> create the deployment or scale it to 1
+//   - POST /wake (bearer-protected)  -> create the deployment on first use, or scale it to 1
 //   - cron every 5 min               -> scale to 0 after it has been idle (see scaler source)
 //
 // Gated on production so only the `main` deploy owns the scaler: two stages sharing one

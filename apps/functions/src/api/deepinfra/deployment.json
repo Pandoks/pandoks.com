@@ -3,7 +3,10 @@
   "gpu": "H200-141GB",
   "num_gpus": 2,
   "max_batch_size": 64,
-  "hf": { "repo": "Blackfrost-AI/RED-SNOW-5.3-FLASH-NVFP4" },
+  "hf": {
+    "repo": "Blackfrost-AI/RED-SNOW-5.3-FLASH-NVFP4",
+    "revision": "8133f8ba249427a0dbe0ee197f8562d2ef109569"
+  },
   "standard_args": { "max_context_size": 1048576, "kv_cache_dtype": "fp8" },
   "extra_args": [
     "--enable-auto-tool-choice",

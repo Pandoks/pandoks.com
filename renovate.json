@@ -96,6 +96,14 @@
         "https://github\\.com/(?<depName>[^/]+/[^/]+)/releases/download/(?<currentValue>[^/]+)/"
       ],
       "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^apps/functions/src/api/deepinfra/deployment\\.json$/"],
+      "matchStrings": ["\"revision\": \"(?<currentDigest>[a-f0-9]{40})\""],
+      "depNameTemplate": "https://huggingface.co/Blackfrost-AI/RED-SNOW-5.3-FLASH-NVFP4",
+      "currentValueTemplate": "main",
+      "datasourceTemplate": "git-refs"
     }
   ],
   "packageRules": [
