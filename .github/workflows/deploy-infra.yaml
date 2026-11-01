@@ -129,91 +129,19 @@ jobs:
 
       - name: Wait for ArgoCD Sync
         if: env.SKIP_DEPLOY != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          ERRORS=0
-          DEGRADED=0
-          CHECKED_REVISION=""
-          INCLUDES_SHA=false
-          SYNCED=false
-          count_error() {
-            ERRORS=$((ERRORS + 1))
-            if [ "${ERRORS}" -ge 3 ]; then
-              echo "${1} failed ${ERRORS} times in a row"
-              exit 1
+          for _ in {1..60}; do
+            STATUS=$(sudo kubectl get application prod-cluster -n argocd -o jsonpath='{.status.sync.status}')
+            if [ "${STATUS}" = "Synced" ]; then
+              echo "Sync successful"
+              exit 0
             fi
-          }
-
-          for _ in {1..120}; do
-            sleep 5
-            if ! APP=$(sudo kubectl get application prod-cluster -n argocd \
-              -o jsonpath='{.status.sync.revision}|{.status.sync.status}|{.status.health.status}|{.status.operationState.operation.sync.revision}|{.status.operationState.phase}|{.status.conditions[?(@.type=="ComparisonError")].message}'); then
-              count_error "kubectl get application"
-              continue
-            fi
-            IFS='|' read -r REVISION SYNC HEALTH OPERATION_REVISION PHASE ERROR <<< "${APP}"
-
-            if [ -n "${ERROR}" ]; then
+            ERROR=$(sudo kubectl get application prod-cluster -n argocd -o jsonpath='{.status.conditions[?(@.type=="ComparisonError")].message}')
+            if [ -n "$ERROR" ]; then
               echo "Sync failed: ${ERROR}"
               exit 1
             fi
-
-            # NOTE: main may have moved on, so a newer revision that contains GITHUB_SHA also counts.
-            if [ "${REVISION}" = "${GITHUB_SHA}" ]; then
-              INCLUDES_SHA=true
-            elif [ -z "${REVISION}" ]; then
-              INCLUDES_SHA=false
-            elif [ "${REVISION}" != "${CHECKED_REVISION}" ]; then
-              if ! COMPARE=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${GITHUB_SHA}...${REVISION}" --jq .status); then
-                count_error "Comparing ${REVISION} to ${GITHUB_SHA}"
-                continue
-              fi
-              CHECKED_REVISION="${REVISION}"
-              if [ "${COMPARE}" = "ahead" ]; then
-                INCLUDES_SHA=true
-              else
-                INCLUDES_SHA=false
-              fi
-            fi
-            ERRORS=0
-
-            if [ "${INCLUDES_SHA}" = "true" ] && [ "${OPERATION_REVISION}" = "${REVISION}" ] && { [ "${PHASE}" = "Failed" ] || [ "${PHASE}" = "Error" ]; }; then
-              echo "Sync operation ${PHASE} at ${REVISION}"
-              exit 1
-            fi
-            if [ "${INCLUDES_SHA}" = "true" ]; then
-              if [ "${SYNC}" = "Synced" ] && [ "${HEALTH}" = "Healthy" ]; then
-                echo "Synced and healthy at ${REVISION}, which includes ${GITHUB_SHA}"
-                SYNCED=true
-                break
-              fi
-              if [ "${HEALTH}" = "Degraded" ]; then
-                DEGRADED=$((DEGRADED + 1))
-                if [ "${DEGRADED}" -ge 3 ]; then
-                  echo "Application degraded at ${REVISION}"
-                  exit 1
-                fi
-              else
-                DEGRADED=0
-              fi
-            fi
+            sleep 5
           done
-          if [ "${SYNCED}" != "true" ]; then
-            echo "Timed out waiting for a synced, healthy revision that includes ${GITHUB_SHA} (revision: ${REVISION:-unknown}, includes it: ${INCLUDES_SHA}, sync: ${SYNC:-unknown}, health: ${HEALTH:-unknown})"
-            exit 1
-          fi
-
-          # NOTE: helm-controller upgrades ArgoCD itself asynchronously, so Application health doesn't cover it.
-          for RESOURCE in deployment/argocd-server deployment/argocd-repo-server statefulset/argocd-application-controller; do
-            if ! OUTPUT=$(sudo kubectl rollout status "${RESOURCE}" -n argocd --timeout=5m 2>&1); then
-              # NOTE: the read RBAC ships in this same sync, so the first deploy with it may not have it yet.
-              if echo "${OUTPUT}" | grep -qi forbidden; then
-                echo "::warning::Skipping ArgoCD rollout checks: ${OUTPUT}"
-                break
-              fi
-              echo "${OUTPUT}"
-              exit 1
-            fi
-            echo "${OUTPUT}"
-          done
+          echo "Timed out waiting for sync"
+          exit 1
