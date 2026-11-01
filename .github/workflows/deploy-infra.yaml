@@ -130,18 +130,29 @@ jobs:
       - name: Wait for ArgoCD Sync
         if: env.SKIP_DEPLOY != 'true'
         run: |
-          for _ in {1..60}; do
-            STATUS=$(sudo kubectl get application prod-cluster -n argocd -o jsonpath='{.status.sync.status}')
-            if [ "${STATUS}" = "Synced" ]; then
-              echo "Sync successful"
-              exit 0
-            fi
+          for _ in {1..120}; do
+            IFS='|' read -r REVISION SYNC HEALTH OPERATION_REVISION PHASE < <(sudo kubectl get application prod-cluster -n argocd \
+              -o jsonpath='{.status.sync.revision}|{.status.sync.status}|{.status.health.status}|{.status.operationState.operation.sync.revision}|{.status.operationState.phase}{"\n"}')
             ERROR=$(sudo kubectl get application prod-cluster -n argocd -o jsonpath='{.status.conditions[?(@.type=="ComparisonError")].message}')
             if [ -n "$ERROR" ]; then
               echo "Sync failed: ${ERROR}"
               exit 1
             fi
+            if [ "${OPERATION_REVISION}" = "${GITHUB_SHA}" ] && { [ "${PHASE}" = "Failed" ] || [ "${PHASE}" = "Error" ]; }; then
+              echo "Sync operation ${PHASE}"
+              exit 1
+            fi
+            if [ "${REVISION}" = "${GITHUB_SHA}" ]; then
+              if [ "${SYNC}" = "Synced" ] && [ "${HEALTH}" = "Healthy" ]; then
+                echo "Synced and healthy at ${GITHUB_SHA}"
+                exit 0
+              fi
+              if [ "${HEALTH}" = "Degraded" ]; then
+                echo "Application degraded at ${GITHUB_SHA}"
+                exit 1
+              fi
+            fi
             sleep 5
           done
-          echo "Timed out waiting for sync"
+          echo "Timed out waiting for ${GITHUB_SHA} to sync healthy (revision: ${REVISION}, sync: ${SYNC}, health: ${HEALTH})"
           exit 1
