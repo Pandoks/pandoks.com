@@ -42,8 +42,7 @@ spec:
             targetPort: https
             nodePort: 30443
       config:
-        # NOTE: X-Forwarded-For keeps Cloudflare's value and ends with the Cloudflare edge address, so apps
-        # should read the client IP from CF-Connecting-IP.
+        # NOTE: client IP is in CF-Connecting-IP
         forwardfor: update
         balance-algorithm: roundrobin
       stats:
