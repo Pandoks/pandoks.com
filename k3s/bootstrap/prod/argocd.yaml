@@ -18,6 +18,16 @@ spec:
     configs:
       cm:
         timeout.reconciliation: 180s
+        # NOTE: helm-controller sets Failed only once the install Job exhausts its retries.
+        resource.customizations.health.helm.cattle.io_HelmChart: |
+          hs = { status = "Healthy" }
+          for _, condition in ipairs((obj.status or {}).conditions or {}) do
+            if condition.type == "Failed" and condition.status == "True" then
+              hs.status = "Degraded"
+              hs.message = condition.message
+            end
+          end
+          return hs
       params:
         server.insecure: true
 
