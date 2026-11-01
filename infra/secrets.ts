@@ -1,5 +1,8 @@
 import { execSync } from 'node:child_process';
 
+// Local copy to avoid a cycle with dns.ts, which imports this module.
+const IS_PRODUCTION = $app.stage === 'production';
+
 export const secrets = {
   Stage: new sst.Secret('StageName', 'dev'), // Automatically set during deploy
   notion: {
@@ -15,10 +18,12 @@ export const secrets = {
     BackupSecretKey: new sst.Secret('CloudflareBackupSecretKey')
   },
   deepinfra: {
-    // Only the production scaler reads these, so placeholders keep other stages' deploy/diff
-    // from failing; set production's real values with `pnpm sst secret set ... --stage production`.
-    ApiKey: new sst.Secret('DeepinfraApiKey', 'Placeholder'),
-    RedSnowWakeToken: new sst.Secret('RedSnowWakeToken', 'Placeholder')
+    // Only the production scaler reads these. Non-production stages get a placeholder so their
+    // deploy/diff doesn't fail; production has no fallback (a `Placeholder` wake token would be a
+    // valid credential for the public endpoint), so it must be set explicitly with
+    // `pnpm sst secret set ... --stage production`.
+    ApiKey: new sst.Secret('DeepinfraApiKey', IS_PRODUCTION ? undefined : 'Placeholder'),
+    RedSnowWakeToken: new sst.Secret('RedSnowWakeToken', IS_PRODUCTION ? undefined : 'Placeholder')
   },
   github: {
     PersonalAccessToken: new sst.Secret('GithubPersonalAccessToken'),
