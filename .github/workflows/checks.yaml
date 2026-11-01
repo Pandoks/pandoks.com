@@ -75,6 +75,7 @@ jobs:
               - '.github/actions/setup-mise/**'
             actions:
               - '.github/workflows/**'
+              - '.github/actions/**'
             renovate:
               - 'renovate.json'
               - 'renovate.json5'
