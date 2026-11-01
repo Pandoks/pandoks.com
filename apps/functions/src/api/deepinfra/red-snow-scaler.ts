@@ -74,6 +74,31 @@ async function deleteDeployment(deployId: string) {
   if (!response.ok) throw new Error(`DELETE deploy/${deployId} ${response.status}`);
 }
 
+// DeepInfra's DELETE can be asynchronous; wait until the id is gone so the follow-up create's POST
+// doesn't conflict on the still-occupied model name.
+async function waitUntilGone(deployId: string, timeoutMs = 90_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() <= deadline) {
+    const response = await fetch(`${API}/deploy/list`, { headers: authHeaders() });
+    if (!response.ok) throw new Error(`deploy/list ${response.status}`);
+    const deployments = (await response.json()) as Deployment[];
+    if (!deployments.some((d) => d.deploy_id === deployId && d.status !== 'deleted')) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+  }
+  throw new Error(`deploy ${deployId} still present after ${timeoutMs}ms`);
+}
+
+// Replace a deployment in place: delete, wait for it to clear, create fresh, record the new hash.
+async function recreate(now: number, oldDeployId: string, hash: string): Promise<Deployment> {
+  await deleteDeployment(oldDeployId);
+  await waitUntilGone(oldDeployId);
+  const created = await createDeployment(oldDeployId);
+  await markRunning(now, hash);
+  return created;
+}
+
 // Hash of the spec actually sent to DeepInfra, so a merged deployment.json change (including a
 // Renovate revision bump) is detectable against what is running.
 async function specHash(): Promise<string> {
@@ -107,9 +132,7 @@ async function wake(): Promise<{ status: string; deploy_id: string; reconciled?:
 
   // A failed deployment can't serve and blocks the name; replace it.
   if (existing.status === 'failed') {
-    await deleteDeployment(existing.deploy_id);
-    const created = await createDeployment(existing.deploy_id);
-    await markRunning(now, desired);
+    const created = await recreate(now, existing.deploy_id, desired);
     return { status: created.status, deploy_id: created.deploy_id, reconciled: true };
   }
 
@@ -118,11 +141,14 @@ async function wake(): Promise<{ status: string; deploy_id: string; reconciled?:
   // spec. The first wake still only scales up (no destructive recreate mid-use).
   const appliedRaw = await KV.get('specHash');
   const applied = appliedRaw ?? 'unknown';
-  const idle = now - previousActivity > IDLE_MS || existing.status !== 'running';
+  // A scaled-to-zero deployment serves nothing, so it's always safe to reconcile even if a racing
+  // /ping just refreshed lastActivity.
+  const idle =
+    existing.settings?.min_instances === 0 ||
+    now - previousActivity > IDLE_MS ||
+    existing.status !== 'running';
   if (applied !== desired && idle) {
-    await deleteDeployment(existing.deploy_id);
-    const created = await createDeployment(existing.deploy_id);
-    await markRunning(now, desired);
+    const created = await recreate(now, existing.deploy_id, desired);
     return { status: created.status, deploy_id: created.deploy_id, reconciled: true };
   }
   if (appliedRaw === null) await KV.put('specHash', 'unknown');

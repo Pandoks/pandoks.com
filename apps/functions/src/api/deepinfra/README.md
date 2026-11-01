@@ -63,19 +63,27 @@ api-keys:
           is-compat: true # keep thinking blocks that have no Anthropic signature
 ```
 
-Then run against your normal proxy. The `[1m]` suffix tells Claude Code the model has a 1M window;
-subagents drop it and read `CLAUDE_CODE_MAX_CONTEXT_TOKENS` for a smaller window:
+Run through a **RED-SNOW launcher** that scopes the scaler env and model to these sessions only —
+never set `RED_SNOW_SCALER_URL`/`RED_SNOW_WAKE_TOKEN` globally, or ordinary Claude Code sessions
+(any model, any project) would wake and bill the H200s. The `[1m]` suffix gives the main chat a 1M
+window; subagents drop it and read `CLAUDE_CODE_MAX_CONTEXT_TOKENS` for a smaller window.
 
 ```sh
-# main chat 1M, subagents 256k, both on the same deployment
-CLAUDE_CODE_SUBAGENT_MODEL=red-snow \
-CLAUDE_CODE_MAX_CONTEXT_TOKENS=262144 \
-  claude --model 'red-snow[1m]'
+# shell rc file: a launcher that only these sessions get
+red-snow() {
+  RED_SNOW_SCALER_URL="https://<worker>.workers.dev" \
+  RED_SNOW_WAKE_TOKEN="<token>" \
+  CLAUDE_CODE_SUBAGENT_MODEL=red-snow \
+  CLAUDE_CODE_MAX_CONTEXT_TOKENS=262144 \
+    claude --model 'red-snow[1m]' "$@"
+}
 ```
 
-Two Claude Code hooks in `~/.claude/settings.json` drive the lifecycle: `SessionStart` wakes the
-GPUs; `UserPromptSubmit` pings so an active session keeps them alive (the cron scales down 30 min
-after the last ping).
+Hooks in `~/.claude/settings.json` drive the lifecycle and are **guarded on
+`$RED_SNOW_SCALER_URL`**, so they are a no-op in sessions not started by the launcher.
+`SessionStart` wakes the GPUs; `UserPromptSubmit` and `PreToolUse` ping so both a new prompt and a
+long agentic turn (many tool calls in one turn) keep the deployment alive. The cron scales down 30
+min after the last ping.
 
 ```json
 {
@@ -85,7 +93,7 @@ after the last ping).
         "hooks": [
           {
             "type": "command",
-            "command": "curl -s -X POST \"$RED_SNOW_SCALER_URL/wake\" -H \"Authorization: Bearer $RED_SNOW_WAKE_TOKEN\" >/dev/null &"
+            "command": "if [ -n \"$RED_SNOW_SCALER_URL\" ]; then curl -s -X POST \"$RED_SNOW_SCALER_URL/wake\" -H \"Authorization: Bearer $RED_SNOW_WAKE_TOKEN\" >/dev/null 2>&1 & fi"
           }
         ]
       }
@@ -95,7 +103,17 @@ after the last ping).
         "hooks": [
           {
             "type": "command",
-            "command": "curl -s -X POST \"$RED_SNOW_SCALER_URL/ping\" -H \"Authorization: Bearer $RED_SNOW_WAKE_TOKEN\" >/dev/null &"
+            "command": "if [ -n \"$RED_SNOW_SCALER_URL\" ]; then curl -s -X POST \"$RED_SNOW_SCALER_URL/ping\" -H \"Authorization: Bearer $RED_SNOW_WAKE_TOKEN\" >/dev/null 2>&1 & fi"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -n \"$RED_SNOW_SCALER_URL\" ]; then curl -s -X POST \"$RED_SNOW_SCALER_URL/ping\" -H \"Authorization: Bearer $RED_SNOW_WAKE_TOKEN\" >/dev/null 2>&1 & fi"
           }
         ]
       }
