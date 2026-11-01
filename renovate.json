@@ -148,6 +148,11 @@
       "groupName": "pnpm"
     },
     {
+      "description": "ghcr.io pnpm tags have no release timestamp, so they skip minimumReleaseAge; approve once the npm copies reach the same version.",
+      "matchPackageNames": ["ghcr.io/pnpm/pnpm"],
+      "dependencyDashboardApproval": true
+    },
+    {
       "description": "Keep engines.node a range.",
       "matchDepTypes": ["engines"],
       "matchPackageNames": ["node"],

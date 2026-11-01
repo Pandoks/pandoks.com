@@ -25,7 +25,8 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
     apache2-utils \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/pnpm/pnpm:12.16.1@sha256:33081d3d2c96ba582d316cfd630f0f43961d9c60ff919b50edd1835a1462976b /opt/pnpm/pnpm /usr/local/bin/pnpm
+COPY --from=ghcr.io/pnpm/pnpm:12.16.1@sha256:33081d3d2c96ba582d316cfd630f0f43961d9c60ff919b50edd1835a1462976b /opt/pnpm /opt/pnpm
+RUN for bin in pnpm pn pnpx pnx; do ln -s "/opt/pnpm/${bin}" "/usr/local/bin/${bin}"; done
 
 COPY --from=kustomize-builder /out/kustomize /usr/local/bin/kustomize
 
