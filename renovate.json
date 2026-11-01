@@ -143,13 +143,9 @@
       ]
     },
     {
-      "description": "Every pnpm copy, the runner AMI's included, moves in one PR.",
+      "description": "Every pnpm copy, the runner AMI's included, moves in one PR. ghcr.io tags have no release timestamp, so they skip minimumReleaseAge; approve once the npm copies are in the PR too.",
       "matchPackageNames": ["pnpm", "ghcr.io/pnpm/pnpm"],
-      "groupName": "pnpm"
-    },
-    {
-      "description": "ghcr.io pnpm tags have no release timestamp, so they skip minimumReleaseAge; approve once the npm copies reach the same version.",
-      "matchPackageNames": ["ghcr.io/pnpm/pnpm"],
+      "groupName": "pnpm",
       "dependencyDashboardApproval": true
     },
     {
