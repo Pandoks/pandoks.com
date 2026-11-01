@@ -58,6 +58,7 @@
   }
 
   function updateSpotlight() {
+    if (mouseX === -Infinity) return;
     const { left, right, top, bottom } = walletList.getBoundingClientRect();
     const near =
       mouseX > left - 40 && mouseX < right + 40 && mouseY > top - 40 && mouseY < bottom + 40;
