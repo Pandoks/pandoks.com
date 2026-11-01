@@ -47,7 +47,6 @@
 
   let walletList: HTMLDivElement;
 
-  let spotlightOn = false;
   let mouseX = -Infinity;
   let mouseY = -Infinity;
 
@@ -63,14 +62,10 @@
     const near =
       mouseX > left - 40 && mouseX < right + 40 && mouseY > top - 40 && mouseY < bottom + 40;
     if (!near) {
-      if (spotlightOn) {
-        walletList.style.removeProperty('--spotlight-x');
-        walletList.style.removeProperty('--spotlight-y');
-        spotlightOn = false;
-      }
+      walletList.style.removeProperty('--spotlight-x');
+      walletList.style.removeProperty('--spotlight-y');
       return;
     }
-    spotlightOn = true;
     walletList.style.setProperty('--spotlight-x', `${mouseX}px`);
     walletList.style.setProperty('--spotlight-y', `${mouseY}px`);
   }
