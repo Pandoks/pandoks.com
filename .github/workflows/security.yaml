@@ -35,6 +35,7 @@ jobs:
           filters: |
             k3s:
               - 'k3s/**'
+              - '.github/workflows/security.yaml'
 
   scan-published-images:
     # NOTE: we don't scan charts because the only issues are misconfigs, not CVEs.

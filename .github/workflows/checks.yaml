@@ -62,11 +62,17 @@ jobs:
               - '**/*.go'
               - '**/go.mod'
               - '**/go.sum'
+              - 'mise.toml'
+              - '.github/actions/setup-mise/**'
             shell:
               - '**/*.sh'
               - '.shellcheckrc'
+              - 'mise.toml'
+              - '.github/actions/setup-mise/**'
             helm:
               - '**/chart/**'
+              - 'mise.toml'
+              - '.github/actions/setup-mise/**'
             actions:
               - '.github/workflows/**'
             renovate:
