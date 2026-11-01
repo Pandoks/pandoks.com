@@ -87,14 +87,6 @@ Application and a repo-server sidecar (`packages/argocd`) that renders kustomize
 Once the first `deploy prod` creates it, ArgoCD syncs `k3s/overlays/prod` from `main`. The
 `deploy-infra.yaml` workflow triggers a hard refresh when `k3s/**` or `scripts/cluster/**` changes.
 
-ArgoCD renders and upgrades itself, so if an `argo-cd` chart bump or plugin image breaks rendering,
-reverting on `main` never reaches the cluster. Recover by reverting on `main`, then having the owner
-apply it by hand from that checkout with `pnpm cluster deploy prod`. The chart ships ArgoCD's CRDs
-as templates, so a revert also downgrades them; prefer a fix forward when one is quick. The plugin
-image is the mutable `:main` tag, so reverting `packages/argocd` republishes it without changing the
-pod template; once that build finishes, the owner restarts the repo-server to pull it:
-`kubectl -n argocd rollout restart deployment/argocd-repo-server`.
-
 ## k9s
 
 ### Local Development
