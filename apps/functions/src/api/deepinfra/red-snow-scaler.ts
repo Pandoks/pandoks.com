@@ -12,7 +12,9 @@ const MAX_UPTIME_MS = 12 * 60 * 60_000;
 
 const KV = Resource.RedSnowScalerState;
 
-// Statuses that mean the deployment is gone or dying, so findDeployment must not adopt one.
+// Already gone: findDeployment skips these entirely (a `failed` one is still returned so wake can
+// replace it). DEAD adds `failed` for the race fallback, which must never adopt a dead deployment.
+const GONE_STATUSES = new Set(['deleted', 'deleting']);
 const DEAD_STATUSES = new Set(['deleted', 'deleting', 'failed']);
 
 interface Deployment {
@@ -33,7 +35,7 @@ async function findDeployment(): Promise<Deployment | undefined> {
   const response = await fetch(`${API}/deploy/list`, { headers: authHeaders() });
   if (!response.ok) throw new Error(`deploy/list ${response.status}`);
   const deployments = (await response.json()) as Deployment[];
-  return deployments.find((d) => d.model_name === FULL_NAME && !DEAD_STATUSES.has(d.status));
+  return deployments.find((d) => d.model_name === FULL_NAME && !GONE_STATUSES.has(d.status));
 }
 
 async function setInstances(deployId: string, min: number) {
@@ -56,7 +58,9 @@ async function createDeployment(excludeDeployId?: string): Promise<Deployment> {
     // Never adopt the deployment we just deleted (a conflict from an async DELETE), or the reconcile
     // would record the new spec as applied without the change ever shipping.
     const raced = await findDeployment();
-    if (raced && raced.deploy_id !== excludeDeployId) return raced;
+    if (raced && !DEAD_STATUSES.has(raced.status) && raced.deploy_id !== excludeDeployId) {
+      return raced;
+    }
     throw new Error(`deploy/llm ${response.status}: ${await response.text()}`);
   }
   return (await response.json()) as Deployment;
@@ -101,20 +105,30 @@ async function wake(): Promise<{ status: string; deploy_id: string; reconciled?:
     return { status: created.status, deploy_id: created.deploy_id };
   }
 
-  const applied = await KV.get('specHash');
-  const idle = now - previousActivity > IDLE_MS || existing.status !== 'running';
-  // Only recreate when we have a recorded hash that differs; a missing record (KV reset or a
-  // manually-created deployment) is adopted without a destructive recreate.
-  if (applied !== null && applied !== desired && idle) {
+  // A failed deployment can't serve and blocks the name; replace it.
+  if (existing.status === 'failed') {
     await deleteDeployment(existing.deploy_id);
     const created = await createDeployment(existing.deploy_id);
     await markRunning(now, desired);
     return { status: created.status, deploy_id: created.deploy_id, reconciled: true };
   }
-  if (applied === null) await KV.put('specHash', desired);
+
+  // A missing record (KV reset or a manually-created deployment) becomes a sentinel that differs
+  // from every real hash, so the next idle wake reconciles it instead of silently serving a stale
+  // spec. The first wake still only scales up (no destructive recreate mid-use).
+  const appliedRaw = await KV.get('specHash');
+  const applied = appliedRaw ?? 'unknown';
+  const idle = now - previousActivity > IDLE_MS || existing.status !== 'running';
+  if (applied !== desired && idle) {
+    await deleteDeployment(existing.deploy_id);
+    const created = await createDeployment(existing.deploy_id);
+    await markRunning(now, desired);
+    return { status: created.status, deploy_id: created.deploy_id, reconciled: true };
+  }
+  if (appliedRaw === null) await KV.put('specHash', 'unknown');
   if (existing.settings?.min_instances !== 1) {
     await setInstances(existing.deploy_id, 1);
-    await markRunning(now, applied ?? desired);
+    await KV.put('runningSince', String(now));
   }
   return { status: existing.status, deploy_id: existing.deploy_id };
 }
