@@ -20,14 +20,17 @@ spec:
         timeout.reconciliation: 180s
         # NOTE: helm-controller sets Failed only after 1000 Job retries, so this rarely fires.
         resource.customizations.health.helm.cattle.io_HelmChart: |
-          hs = { status = "Healthy" }
-          for _, condition in ipairs((obj.status or {}).conditions or {}) do
-            if condition.type == "Failed" and condition.status == "True" then
-              hs.status = "Degraded"
-              hs.message = condition.message
+          local health_status = { status = "Healthy" }
+          local helm_chart_status = obj.status or {}
+          local helm_chart_conditions = helm_chart_status.conditions or {}
+          for _, condition in ipairs(helm_chart_conditions) do
+            local helm_job_failed = condition.type == "Failed" and condition.status == "True"
+            if helm_job_failed then
+              health_status.status = "Degraded"
+              health_status.message = condition.message
             end
           end
-          return hs
+          return health_status
       params:
         server.insecure: true
 
