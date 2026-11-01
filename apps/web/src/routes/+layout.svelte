@@ -1,7 +1,7 @@
 <script lang="ts">
   import '../app.css';
   import { page } from '$app/state';
-  import { goto } from '$app/navigation';
+  import { afterNavigate, goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { onMount } from 'svelte';
   import { setVimState } from '#lib/vim.svelte.js';
@@ -56,6 +56,8 @@
     mouseY = event.clientY;
     updateSpotlight();
   }
+
+  afterNavigate(updateSpotlight);
 
   function updateSpotlight() {
     if (mouseX === -Infinity) return;
