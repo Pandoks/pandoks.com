@@ -5,9 +5,12 @@ import deployment from './deployment.json' with { type: 'json' };
 const FULL_NAME = `Pandoks/${deployment.model_name}`;
 const API = 'https://api.deepinfra.com';
 
-// Shut the GPUs off after this many minutes with no traffic. The 5-minute cron
-// (infra/red-snow.ts) is what calls scheduled(), so the real granularity is 5 min.
-const IDLE_MINUTES = 30;
+const IDLE_MS = 30 * 60_000;
+// Backstop: if activity pings never stop (a stuck client), scale down anyway. Longer than a
+// burst day so it never cuts off real use.
+const MAX_UPTIME_MS = 12 * 60 * 60_000;
+
+const KV = Resource.RedSnowScalerState;
 
 interface Deployment {
   deploy_id: string;
@@ -39,12 +42,7 @@ async function setInstances(deployId: string, min: number) {
   if (!response.ok) throw new Error(`PUT deploy/${deployId} ${response.status}`);
 }
 
-async function wake(): Promise<{ status: string; deploy_id: string }> {
-  const existing = await findDeployment();
-  if (existing) {
-    if (existing.settings?.min_instances !== 1) await setInstances(existing.deploy_id, 1);
-    return { status: existing.status, deploy_id: existing.deploy_id };
-  }
+async function createDeployment(): Promise<Deployment> {
   const response = await fetch(`${API}/deploy/llm`, {
     method: 'POST',
     headers: authHeaders(),
@@ -53,107 +51,90 @@ async function wake(): Promise<{ status: string; deploy_id: string }> {
   if (!response.ok) {
     // A concurrent wake may have created it between the list and this POST; adopt that one.
     const raced = await findDeployment();
-    if (raced) return { status: raced.status, deploy_id: raced.deploy_id };
+    if (raced) return raced;
     throw new Error(`deploy/llm ${response.status}: ${await response.text()}`);
   }
-  const created = (await response.json()) as Deployment;
-  return { status: created.status, deploy_id: created.deploy_id };
+  return (await response.json()) as Deployment;
 }
 
-// One vLLM engine line per ~10s, e.g.
-// "... INFO 11-01 06:52:36 [loggers.py:335] Engine 000: Avg prompt throughput: 0.0 tokens/s,
-//  Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, ..."
-const ENGINE_LINE =
-  /(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2}).*?Avg prompt throughput: ([\d.]+).*?Avg generation throughput: ([\d.]+).*?Running: (\d+) reqs/g;
-
-interface EngineSample {
-  at: number;
-  active: boolean;
+async function deleteDeployment(deployId: string) {
+  const response = await fetch(`${API}/deploy/${deployId}`, {
+    method: 'DELETE',
+    headers: authHeaders()
+  });
+  if (!response.ok) throw new Error(`DELETE deploy/${deployId} ${response.status}`);
 }
 
-// vLLM logs an engine line roughly every 10s whenever the engine is alive, idle or not.
-// A fresh line must be newer than this for the engine to count as "logging right now".
-const FRESH_SAMPLE_MS = 120_000;
-// Gap larger than this between consecutive samples means the engine stopped and restarted
-// (i.e. a scale-to-zero then wake), so the older samples predate the current instance.
-const MAX_SAMPLE_GAP_MS = 180_000;
+// Hash of the spec actually sent to DeepInfra, so a merged deployment.json change (including a
+// Renovate revision bump) is detectable against what is running.
+async function specHash(): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(JSON.stringify(deployment))
+  );
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
 
-function parseEngineSamples(logText: string, now: number): EngineSample[] {
-  const samples: EngineSample[] = [];
-  for (const match of logText.matchAll(ENGINE_LINE)) {
-    const [, month, day, hour, minute, second, promptTps, genTps, running] = match;
-    // Logs carry month-day only; assume the current year, rolling back one if that lands in the future.
-    let at = Date.UTC(
-      new Date(now).getUTCFullYear(),
-      Number(month) - 1,
-      Number(day),
-      Number(hour),
-      Number(minute),
-      Number(second)
-    );
-    if (at > now + 60_000) {
-      at = Date.UTC(
-        new Date(now).getUTCFullYear() - 1,
-        Number(month) - 1,
-        Number(day),
-        Number(hour),
-        Number(minute),
-        Number(second)
-      );
-    }
-    const active = Number(promptTps) > 0 || Number(genTps) > 0 || Number(running) > 0;
-    samples.push({ at, active });
+async function markRunning(now: number, hash: string) {
+  await KV.put('specHash', hash);
+  await KV.put('runningSince', String(now));
+}
+
+// Start the deployment and record activity. Create it on first use; if deployment.json changed
+// since it was created, recreate it (only when idle, so an active session is never dropped);
+// otherwise scale it up.
+async function wake(): Promise<{ status: string; deploy_id: string; reconciled?: boolean }> {
+  const now = Date.now();
+  const previousActivity = Number(await KV.get('lastActivity')) || 0;
+  await KV.put('lastActivity', String(now));
+
+  const desired = await specHash();
+  const existing = await findDeployment();
+  if (!existing) {
+    const created = await createDeployment();
+    await markRunning(now, desired);
+    return { status: created.status, deploy_id: created.deploy_id };
   }
-  return samples.sort((a, b) => a.at - b.at);
-}
 
-// Idle = the current instance has been logging continuously for IDLE_MINUTES with nothing
-// running in that span. Walking back from the newest sample and stopping at the first gap
-// (a restart) ignores samples left over from before the last scale-to-zero, so a wake's
-// cold start is never cancelled by stale idle logs.
-function idleDurationMs(samples: EngineSample[], now: number): number | 'active' | 'not-logging' {
-  const newest = samples[samples.length - 1];
-  if (now - newest.at > FRESH_SAMPLE_MS) return 'not-logging';
-  // Start of the current instance's continuous run of samples.
-  let runStart = 0;
-  for (let i = samples.length - 1; i > 0; i--) {
-    if (samples[i].active) return 'active';
-    if (samples[i].at - samples[i - 1].at > MAX_SAMPLE_GAP_MS) {
-      runStart = i; // restart boundary: older samples belong to a previous instance
-      break;
-    }
+  const applied = await KV.get('specHash');
+  const idle = now - previousActivity > IDLE_MS || existing.status !== 'running';
+  if (applied !== desired && idle) {
+    await deleteDeployment(existing.deploy_id);
+    const created = await createDeployment();
+    await markRunning(now, desired);
+    return { status: created.status, deploy_id: created.deploy_id, reconciled: true };
   }
-  if (runStart === 0 && samples[0].active) return 'active';
-  return now - samples[runStart].at;
+  if (existing.settings?.min_instances !== 1) {
+    await setInstances(existing.deploy_id, 1);
+    await markRunning(now, applied ?? desired);
+  }
+  return { status: existing.status, deploy_id: existing.deploy_id };
 }
 
+// Cron: scale to zero once activity has been quiet for IDLE_MS, with a hard uptime backstop.
 async function sleepIfIdle(): Promise<string> {
   const target = await findDeployment();
   if (!target || target.settings?.min_instances === 0) return 'already off';
-  // Only a fully-loaded instance can be idle; downloading/deploying is the cold start, leave it.
   if (target.status !== 'running') return `status ${target.status}, kept running`;
 
   const now = Date.now();
-  const from = Math.floor((now - (IDLE_MINUTES + 5) * 60_000) / 1000);
-  const response = await fetch(
-    `${API}/v1/deployment_logs/query?deploy_id=${target.deploy_id}&from=${from}&limit=1000`,
-    { headers: authHeaders() }
-  );
-  if (!response.ok) throw new Error(`deployment_logs ${response.status}`);
-  const samples = parseEngineSamples(await response.text(), now);
-  if (samples.length === 0) return 'no engine samples, kept running';
+  const lastActivity = Number(await KV.get('lastActivity')) || 0;
+  const runningSince = Number(await KV.get('runningSince')) || 0;
 
-  const idle = idleDurationMs(samples, now);
-  if (idle === 'active') return 'active, kept running';
-  if (idle === 'not-logging') return 'engine not logging, kept running';
-  if (idle < IDLE_MINUTES * 60_000) return 'not idle long enough, kept running';
-  await setInstances(target.deploy_id, 0);
-  return 'idle, scaled to zero';
+  if (now - lastActivity > IDLE_MS) {
+    await setInstances(target.deploy_id, 0);
+    return 'idle, scaled to zero';
+  }
+  if (runningSince && now - runningSince > MAX_UPTIME_MS) {
+    await setInstances(target.deploy_id, 0);
+    return 'max uptime reached, scaled to zero';
+  }
+  return 'active, kept running';
 }
 
-// Constant-time bearer check: /wake is on a public URL and each success bills GPUs. Comparing
+// Constant-time bearer check: the endpoints are public and each wake bills GPUs. Comparing
 // fixed-length SHA-256 digests keeps the comparison constant-time regardless of the inputs.
-async function wakeTokenValid(header: string | null): Promise<boolean> {
+async function tokenValid(header: string | null): Promise<boolean> {
   if (!header) return false;
   const encoder = new TextEncoder();
   const [got, want] = await Promise.all([
@@ -168,13 +149,20 @@ async function wakeTokenValid(header: string | null): Promise<boolean> {
 }
 
 export default {
+  // POST /wake  -> SessionStart: create/reconcile/scale-up and record activity.
+  // POST /ping  -> UserPromptSubmit: cheap heartbeat that just extends activity.
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    if (request.method !== 'POST' || url.pathname !== '/wake') {
+    const route = url.pathname;
+    if (request.method !== 'POST' || (route !== '/wake' && route !== '/ping')) {
       return new Response('not found', { status: 404 });
     }
-    if (!(await wakeTokenValid(request.headers.get('authorization')))) {
+    if (!(await tokenValid(request.headers.get('authorization')))) {
       return new Response('unauthorized', { status: 401 });
+    }
+    if (route === '/ping') {
+      await KV.put('lastActivity', String(Date.now()));
+      return Response.json({ ok: true });
     }
     return Response.json(await wake());
   },

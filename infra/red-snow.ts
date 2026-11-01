@@ -8,10 +8,13 @@ import { secrets } from './secrets';
 let redSnowScalerUrl: $util.Output<string | undefined> | undefined;
 
 if (isProduction) {
+  // Activity heartbeat, last-applied spec hash, and running-since timestamp for the scaler.
+  const scalerState = new sst.cloudflare.Kv('RedSnowScalerState');
+
   const scaler = new sst.cloudflare.Worker('RedSnowScaler', {
     handler: 'apps/functions/src/api/deepinfra/red-snow-scaler.ts',
     url: true,
-    link: [secrets.deepinfra.ApiKey, secrets.deepinfra.RedSnowWakeToken]
+    link: [scalerState, secrets.deepinfra.ApiKey, secrets.deepinfra.RedSnowWakeToken]
   });
 
   new cloudflare.WorkersCronTrigger('RedSnowScalerTrigger', {

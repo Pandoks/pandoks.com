@@ -164,6 +164,7 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "RedSnowScalerState": import("@cloudflare/workers-types").KVNamespace
     "RedSnowWakeToken": {
       "type": "sst.sst.Secret"
       "value": string
