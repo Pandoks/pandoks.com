@@ -84,4 +84,42 @@ if (isProduction) {
       }
     ]
   });
+
+  // honey-site: the stealth-stack benchmark (apps/honey) -- fingerprint
+  // stability, bot score, reCAPTCHA v3. Purely static (no build step); the
+  // page POSTs /collect, which is optional until a collection backend exists.
+  const honeyWebsite = new cloudflare.PagesProject('HoneyWebsite', {
+    accountId: cloudflareAccountId,
+    name: 'pandoks-honey',
+    productionBranch: 'main',
+    source: {
+      type: 'github',
+      config: {
+        owner: githubOrg,
+        repoName: githubRepoName,
+        productionBranch: 'main',
+        prCommentsEnabled: true,
+        pathIncludes: ['apps/honey/*']
+      }
+    },
+    buildConfig: {
+      buildCommand: ':',
+      destinationDir: 'apps/honey',
+      rootDir: '',
+      buildCaching: false
+    }
+  });
+  new cloudflare.PagesDomain('HoneyWebsiteDomain', {
+    accountId: cloudflareAccountId,
+    projectName: honeyWebsite.name,
+    name: $interpolate`honey.${domain}`
+  });
+  new cloudflare.DnsRecord('HoneyWebsiteDnsRecord', {
+    zoneId: cloudflareZoneId,
+    name: 'honey',
+    type: 'CNAME',
+    content: $interpolate`${honeyWebsite.name}.pages.dev`,
+    proxied: true,
+    ttl: 1
+  });
 }
