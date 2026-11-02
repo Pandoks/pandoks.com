@@ -166,9 +166,8 @@ elif [ -n "$CACHED_VERSION" ]; then
   # inherent to shallow Chromium checkouts). The major-version-keyed ccache
   # (see build.sh) still provides the cross-version COMPILE savings, which is
   # where the real cost lives anyway. Keep the rolling cache lean (depth-1).
-  git fetch --tags --depth 1 origin "refs/tags/$CHROMIUM_VERSION" || true
-  git checkout "tags/$CHROMIUM_VERSION" 2>/dev/null \
-    || echo "  (tag checkout skipped -- staying on fetched revision)"
+  git fetch --tags --depth 1 origin "refs/tags/$CHROMIUM_VERSION"
+  git checkout "tags/$CHROMIUM_VERSION"
   # gclient sync pulls the third-party submodule deltas implied by the
   # new src/DEPS. -j 4 to stay under chromium.googlesource.com's burst
   # rate limit (HTTP 429 RESOURCE_EXHAUSTED).
@@ -176,7 +175,16 @@ elif [ -n "$CACHED_VERSION" ]; then
   echo "$CHROMIUM_VERSION" > "$SENTINEL"
   CACHE_DIRTY=1
 else
-  echo "[3/3] freshly fetched checkout — recording version $CHROMIUM_VERSION"
+  # A fresh `fetch chromium` lands on the main-branch TIP, not the release
+  # tag -- the patch anchors are verified against the exact release, so pin
+  # the tree to the tag here too, or the edits drift (build 157-c2x-080211).
+  echo "[3/3] freshly fetched checkout — pinning to the $CHROMIUM_VERSION tag ..."
+  cd "$WORK/chromium/src"
+  git fetch --tags --depth 1 origin "refs/tags/$CHROMIUM_VERSION"
+  git checkout "tags/$CHROMIUM_VERSION"
+  cd "$WORK"
+  gclient sync -D --no-history --with_branch_heads -j 4
+  cd "$WORK"
   echo "$CHROMIUM_VERSION" > "$SENTINEL"
   CACHE_DIRTY=1
 fi
