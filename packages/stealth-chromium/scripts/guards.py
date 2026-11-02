@@ -48,6 +48,24 @@ GUARDS: dict[str, tuple[str, object]] = {
                      "return b ? b.level : 'no-api';})()", "0.55-0.95-band"),
     # screen
     "apex-screen": ("screen.width > 0", True),
+    # hardwareConcurrency coherence: a dedicated worker must report the same
+    # value as the main frame (the native spoof is shared via NavigatorBase)
+    "apex-hw-worker": ("(async()=>{const main=navigator.hardwareConcurrency;"
+                       "const src=URL.createObjectURL(new Blob(["
+                       "`postMessage(navigator.hardwareConcurrency)`],"
+                       "{type:'application/javascript'}));"
+                       "try{const w=new Worker(src);"
+                       "const v=await new Promise((res,rej)=>{"
+                       "w.onmessage=(e)=>res(e.data);"
+                       "w.onerror=()=>rej(new Error('err'));"
+                       "setTimeout(()=>rej(new Error('timeout')),3000);});"
+                       "w.terminate();return v===main;"
+                       "}catch(e){return 'worker-error';}})()", True),
+    # version-gate coherence: stable APIs shipped before the claimed version
+    "apex-computepressure": ("typeof ComputePressureObserver !== 'undefined'",
+                             True),
+    "apex-protected-audience": ("typeof navigator.joinAdInterestGroup "
+                                "!== 'undefined'", True),
     # v8 inspector leak
     "apex-v8-inspector": ("(()=>{const e=new Error('x');"
                           "console.debug(e); return 'done';})()", "done"),

@@ -30,22 +30,28 @@ async def _new_context(p, identity: Identity, *, headless: bool):
         headless=headless,
         args=flags,
     )
-    context = await browser.new_context(
-        locale=identity.locale,
-        timezone_id=identity.timezone,
-        geolocation={"latitude": identity.latitude,
-                     "longitude": identity.longitude},
-        permissions=["geolocation"],
-        viewport={"width": identity.viewport_width,
-                  "height": identity.viewport_height},
-        screen={"width": identity.screen_width,
-                "height": identity.screen_height},
-        device_scale_factor=identity.device_scale_factor,
-        is_mobile=False,
-        has_touch=False,
-        color_scheme="light",
-        extra_http_headers={"Accept-Language": identity.accept_language},
-    )
+    ctx_opts = {
+        "locale": identity.locale,
+        "timezone_id": identity.timezone,
+        "viewport": {"width": identity.viewport_width,
+                     "height": identity.viewport_height},
+        "screen": {"width": identity.screen_width,
+                   "height": identity.screen_height},
+        "device_scale_factor": identity.device_scale_factor,
+        "is_mobile": False,
+        "has_touch": False,
+        "color_scheme": "light",
+        "extra_http_headers": {"Accept-Language": identity.accept_language},
+    }
+    if identity.override_geolocation:
+        # geolocation is only granted + overridden when the identity asks for
+        # it (matched to the exit IP). A virgin profile sits at 'prompt' --
+        # terminal permission states on a never-visited site are an
+        # automation tell.
+        ctx_opts["geolocation"] = {"latitude": identity.latitude,
+                                   "longitude": identity.longitude}
+        ctx_opts["permissions"] = ["geolocation"]
+    context = await browser.new_context(**ctx_opts)
     return browser, context
 
 

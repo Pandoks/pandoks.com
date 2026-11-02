@@ -81,6 +81,18 @@ class PatchrightCore:
     async def open(self) -> None:
         idn = self.identity
         self._pw = await async_playwright().start()
+        from stealth_browser.fp_profiles import (pick_profile, fp_env,
+                                                 patched_chrome_path,
+                                                 real_display_size)
+        import os as _os
+        # The launch window must fit the REAL display: a window larger than
+        # the screen it is on is the impossible-geometry tell. The screen
+        # itself is never spoofed (no APEX_FP_SCREEN_* is sent) so the binary
+        # reports the real display natively and stays coherent.
+        real = real_display_size()
+        if real is not None:
+            idn.viewport_width = min(idn.viewport_width, real[0])
+            idn.viewport_height = min(idn.viewport_height, real[1])
         # Identity (timezone/locale) is set via the OS environment, NOT via
         # Playwright's context options: locale= / timezone_id= ride the CDP
         # Emulation.* domains, which are a verified detection surface
@@ -105,9 +117,6 @@ class PatchrightCore:
         # .start() ran above, so a later os.environ.update would NOT reach
         # the spawned Chrome. `env=` sets the child process environment
         # explicitly and reliably.
-        from stealth_browser.fp_profiles import (pick_profile, fp_env,
-                                                 patched_chrome_path)
-        import os as _os
         patched = patched_chrome_path()
         if patched is not None:
             launch_kwargs["executable_path"] = patched
@@ -128,10 +137,12 @@ class PatchrightCore:
         # Context options kept to the non-Emulation minimum: viewport/screen/
         # device_scale_factor/color_scheme also ride Emulation.*, so they are
         # NOT set -- the browser reports the real (Xvfb) display, which is
-        # truthful and coherent. Geolocation comes from the proxy's real IP.
+        # truthful and coherent. Permissions are NOT pre-granted: a virgin
+        # profile sits at 'prompt', and terminal (granted/denied) states on a
+        # never-visited site are an automation tell. Geolocation comes from
+        # the proxy's real IP.
         ctx_opts = dict(launch_kwargs)
         ctx_opts.update(
-            permissions=["geolocation", "notifications"],
             extra_http_headers={"Accept-Language": idn.accept_language},
         )
         if self.persistent:

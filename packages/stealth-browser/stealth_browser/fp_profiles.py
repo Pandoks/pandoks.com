@@ -1,7 +1,7 @@
 """Per-session fingerprint profiles for the apex-chromium patched binary.
 
 The apex-chromium build reads APEX_FP_* environment variables to spoof
-canvas / WebGL / audio / navigator / screen natively (see apex-chromium/).
+canvas / WebGL / audio / navigator natively (see apex-chromium/).
 This module picks a coherent profile per session and produces the env dict.
 
 A profile is a *real, internally-consistent device identity* -- every field
@@ -40,12 +40,7 @@ class FpProfile:
     device_memory: float   # navigator.deviceMemory (0.25..8, power of two)
     webgl_vendor: str
     webgl_renderer: str
-    screen_w: int
-    screen_h: int
-    avail_w: int
-    avail_h: int
     gpu_class: str = "apple"   # apple | nvidia | amd | intel
-    color_depth: int = 24
 
 
 # A pool of real, common device configurations. Each row is a genuine device
@@ -62,7 +57,6 @@ PROFILES: list[FpProfile] = [
         webgl_vendor="Google Inc. (Apple)",
         webgl_renderer="ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Pro, "
                        "Unspecified Version)",
-        screen_w=1512, screen_h=982, avail_w=1512, avail_h=944,
         gpu_class="apple",
     ),
     FpProfile(
@@ -72,7 +66,6 @@ PROFILES: list[FpProfile] = [
         webgl_vendor="Google Inc. (Apple)",
         webgl_renderer="ANGLE (Apple, ANGLE Metal Renderer: Apple M2, "
                        "Unspecified Version)",
-        screen_w=1470, screen_h=956, avail_w=1470, avail_h=918,
         gpu_class="apple",
     ),
     FpProfile(
@@ -82,7 +75,6 @@ PROFILES: list[FpProfile] = [
         webgl_vendor="Google Inc. (Apple)",
         webgl_renderer="ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Max, "
                        "Unspecified Version)",
-        screen_w=1728, screen_h=1117, avail_w=1728, avail_h=1079,
         gpu_class="apple",
     ),
     FpProfile(
@@ -92,7 +84,6 @@ PROFILES: list[FpProfile] = [
         webgl_vendor="Google Inc. (Apple)",
         webgl_renderer="ANGLE (Apple, ANGLE Metal Renderer: Apple M3, "
                        "Unspecified Version)",
-        screen_w=1512, screen_h=982, avail_w=1512, avail_h=944,
         gpu_class="apple",
     ),
     # --- Windows / NVIDIA (gpu_class="nvidia") ---
@@ -103,7 +94,6 @@ PROFILES: list[FpProfile] = [
         webgl_vendor="Google Inc. (NVIDIA)",
         webgl_renderer="ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002503) "
                        "Direct3D11 vs_5_0 ps_5_0, D3D11)",
-        screen_w=1920, screen_h=1080, avail_w=1920, avail_h=1040,
         gpu_class="nvidia",
     ),
     # --- Windows / Intel (gpu_class="intel") ---
@@ -114,7 +104,6 @@ PROFILES: list[FpProfile] = [
         webgl_vendor="Google Inc. (Intel)",
         webgl_renderer="ANGLE (Intel, Intel(R) Iris(R) Xe Graphics "
                        "(0x000046A6) Direct3D11 vs_5_0 ps_5_0, D3D11)",
-        screen_w=1920, screen_h=1080, avail_w=1920, avail_h=1032,
         gpu_class="intel",
     ),
     # --- Windows / AMD (gpu_class="amd") ---
@@ -125,7 +114,6 @@ PROFILES: list[FpProfile] = [
         webgl_vendor="Google Inc. (AMD)",
         webgl_renderer="ANGLE (AMD, AMD Radeon RX 6700 XT Direct3D11 "
                        "vs_5_0 ps_5_0, D3D11)",
-        screen_w=2560, screen_h=1440, avail_w=2560, avail_h=1400,
         gpu_class="amd",
     ),
 ]
@@ -183,6 +171,29 @@ def detect_host_gpu_class() -> str:
 
 # Cache the host GPU class once.
 _HOST_GPU_CLASS = detect_host_gpu_class()
+
+
+def real_display_size() -> tuple[int, int] | None:
+    """Best-effort real display size in logical pixels, or None.
+
+    The screen is never spoofed, so the launch window must fit the REAL
+    display -- a window larger than the screen it is on is the
+    impossible-geometry tell. Callers clamp the window size to this.
+    """
+    import platform as _plat
+    import re
+    import subprocess
+    if _plat.system() == "Linux":
+        # Xvfb: the -screen arg of the running server IS the display size.
+        try:
+            out = subprocess.run(["ps", "-eo", "args"], capture_output=True,
+                                 text=True, timeout=8).stdout
+        except Exception:  # noqa: BLE001
+            return None
+        m = re.search(r"-screen\s+\d+\s+(\d+)x(\d+)", out)
+        if m:
+            return (int(m.group(1)), int(m.group(2)))
+    return None
 
 
 def pick_profile_by_label(label_or_substring: str) -> FpProfile | None:
@@ -259,11 +270,11 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         "APEX_FP_WEBGPU_VENDOR": profile.gpu_class,
         "APEX_FP_WEBGPU_ARCH": ("arm64" if profile.gpu_class == "apple"
                                 else "x86_64"),
-        "APEX_FP_SCREEN_W": str(profile.screen_w),
-        "APEX_FP_SCREEN_H": str(profile.screen_h),
-        "APEX_FP_SCREEN_AVAIL_W": str(profile.avail_w),
-        "APEX_FP_SCREEN_AVAIL_H": str(profile.avail_h),
-        "APEX_FP_COLOR_DEPTH": str(profile.color_depth),
+        # The screen is NOT spoofed: a screen value that disagrees with the
+        # real window/display geometry is the impossible-geometry tell (a
+        # window larger than the screen it is on, a dpr its panel can't have).
+        # The binary reports the REAL screen natively, which is always
+        # coherent; real_display_size() clamps the launch window to fit it.
         "APEX_FP_BATTERY_LEVEL": str(battery_pct / 100.0),
         "APEX_FP_BATTERY_CHARGING": "0",
     }

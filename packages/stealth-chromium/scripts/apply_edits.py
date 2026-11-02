@@ -290,6 +290,32 @@ EDITS = [
                   "  }\n",
     },
 
+    # --- hardwareConcurrency: worker + iframe coherence ----------------
+    # NavigatorBase::hardwareConcurrency() is the SHARED implementation for
+    # Navigator (page + iframes) and WorkerNavigator (all workers). Upstream
+    # then lets probe::ApplyHardwareConcurrencyOverride (a DevTools
+    # per-ExecutionContext override) mutate the result -- but that override
+    # only applies to the probe sink it was set on, so a page-target-only CDP
+    # override diverges the main frame from workers. With the apex spoof on,
+    # the env value is authoritative on EVERY surface: return before the
+    # probe override.
+    {
+        "file": "third_party/blink/renderer/core/execution_context/"
+                "navigator_base.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-hw-concurrency-coherent",
+        "anchor": "  probe::ApplyHardwareConcurrencyOverride(\n"
+                  "      probe::ToCoreProbeSink(GetExecutionContext()), "
+                  "hardware_concurrency);",
+        "where": "before",
+        "inject": "  // apex-hw-concurrency-coherent: with the apex spoof on,\n"
+                  "  // the env value is authoritative on every surface (page,\n"
+                  "  // iframe, worker). Skip the per-context DevTools override\n"
+                  "  // so a page-target-only override cannot diverge workers.\n"
+                  "  if (apex_fp::Active())\n"
+                  "    return hardware_concurrency;\n",
+    },
+
     # --- Battery API: charging / level / times ------------------------
     {
         "file": "third_party/blink/renderer/modules/battery/battery_manager.cc",

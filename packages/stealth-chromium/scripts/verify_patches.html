@@ -177,6 +177,48 @@ if (navigator.getBattery) {
       cdpDetected ? 'bad' : 'ok');
 })();
 
+// hardwareConcurrency coherence: a dedicated worker must report the SAME
+// value as the main frame. The native spoof is shared via NavigatorBase, so a
+// worker leaking the real core count (main vs worker mismatch) means the
+// spoof did not reach every surface.
+(async function () {
+  const main = navigator.hardwareConcurrency;
+  const src = URL.createObjectURL(new Blob(
+      ['postMessage(navigator.hardwareConcurrency)'],
+      {type: 'application/javascript'}));
+  try {
+    const w = new Worker(src);
+    const worker = await new Promise((res, rej) => {
+      w.onmessage = (e) => res(e.data);
+      w.onerror = () => rej(new Error('worker load failed'));
+      setTimeout(() => rej(new Error('worker timeout')), 3000);
+    });
+    w.terminate();
+    row('hardwareConcurrency main vs worker',
+        'main=' + main + ' worker=' + worker,
+        worker === main ? 'ok' : 'bad');
+  } catch (e) {
+    row('hardwareConcurrency main vs worker', 'error: ' + e, 'bad');
+  } finally {
+    URL.revokeObjectURL(src);
+  }
+})();
+
+// Version-gate coherence: the UA is the engine's REAL version, so every
+// stable API shipped before that version must exist. A build missing its
+// version-gated APIs is a fingerprint mismatch.
+(function () {
+  const checks = [
+    ['ComputePressureObserver', typeof ComputePressureObserver !== 'undefined'],
+    ['navigator.joinAdInterestGroup',
+     typeof navigator.joinAdInterestGroup !== 'undefined'],
+  ];
+  const missing = checks.filter(([, ok]) => !ok).map(([n]) => n);
+  row('version-gated APIs present',
+      missing.length === 0 ? 'all present' : 'MISSING: ' + missing.join(', '),
+      missing.length === 0 ? 'ok' : 'bad');
+})();
+
 row('--- verdict ---',
     document.querySelectorAll('.bad').length === 0
       ? 'ALL CLEAN -- patches present, zero JS-visible tampering'

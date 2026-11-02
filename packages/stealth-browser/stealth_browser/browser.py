@@ -233,12 +233,9 @@ class StealthBrowser:
         if idn.override_geolocation:
             await self._safe(tab, cdp.emulation.set_geolocation_override(
                 latitude=idn.latitude, longitude=idn.longitude, accuracy=80))
-        # Grant notifications so the permissions/Notification pair is coherent.
-        # A fresh headless-y profile leaving Notification = 'denied' is one of
-        # CreepJS's "like headless" signals (the permissions-bug check).
-        await self._safe(tab, cdp.browser.grant_permissions(
-            permissions=[cdp.browser.PermissionType.NOTIFICATIONS],
-        ))
+        # Permissions are NOT pre-granted: a virgin profile sits at 'prompt',
+        # and terminal (granted/denied) states on a never-visited site are an
+        # automation tell (the Permissions API is a standard probe).
         # NOTE on WebGL in containers: a GPU-less container renders WebGL via
         # SwiftShader. We do NOT patch the WebGL renderer string in JS --
         # CreepJS specifically detects such patches (and the toString masking
