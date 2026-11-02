@@ -134,19 +134,17 @@ jobs:
         run: |
           target=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)
 
-          deadline=$((SECONDS + 600))
-          while [ "${SECONDS}" -lt "${deadline}" ]; do
+          while [ "${SECONDS}" -lt 600 ]; do
             app=$(sudo kubectl get application prod-cluster -n argocd -o json)
             revision=$(jq -r .status.sync.revision <<<"${app}")
             # NOTE: Argo drops the refresh annotation with the first status written after the hard refresh.
             state=$(jq -r '
-              .status as $status
-              | if .metadata.annotations["argocd.argoproj.io/refresh"] then "refreshing"
-                elif any($status.conditions[]?; .type == "ComparisonError")
-                  or ($status.operationState.operation.sync.revision == $status.sync.revision
-                    and ($status.operationState.phase | IN("Failed", "Error"))) then "failed"
-                elif $status.sync.status == "Synced" and $status.health.status == "Healthy" then "healthy"
-                else "waiting" end' <<<"${app}")
+              if .metadata.annotations["argocd.argoproj.io/refresh"] then "refreshing"
+              elif any(.status.conditions[]?; .type == "ComparisonError")
+                or (.status.operationState.operation.sync.revision == .status.sync.revision
+                  and (.status.operationState.phase | IN("Failed", "Error"))) then "failed"
+              elif .status.sync.status == "Synced" and .status.health.status == "Healthy" then "healthy"
+              else "waiting" end' <<<"${app}")
 
             if [ "${state}" = failed ] || [ "${state}" = healthy ]; then
               # NOTE: main may have moved on, so a newer revision that contains target also counts.
