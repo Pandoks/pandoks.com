@@ -450,6 +450,28 @@ EDITS = [
             '        }\n'
         ),
     },
+    # --- chrome.app: gone from web pages (matches real Chrome 156+) -----
+    # ('app' in window.chrome) is a one-line deterministic distinguisher.
+    # Verified anchor (Chromium 157): in NativeExtensionBindingsSystem's
+    # UpdateBindingsForContext, the is_webpage path installs a lazy
+    # chrome.app accessor from the hard-coded kWebAvailableFeatures list.
+    # Gate the loop body on apex_fp::Active() so no chrome.app accessor is
+    # ever installed on a web page's chrome object. Extension contexts take
+    # the non-webpage path and keep chrome.app.
+    {
+        "file": "extensions/renderer/native_extension_bindings_system.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-chrome-app-gone",
+        "anchor": "    for (std::string_view feature_name : "
+                  "kWebAvailableFeatures) {\n"
+                  "      if (context->GetAvailability(feature_name)."
+                  "is_available()) {\n",
+        "where": "after",
+        "inject": "        // apex-chrome-app-gone: real Chrome 156+ no\n"
+                  "        // longer exposes chrome.app on web pages.\n"
+                  "        if (feature_name == \"app\" && "
+                  "apex_fp::Active()) continue;\n",
+    },
 ]
 
 
