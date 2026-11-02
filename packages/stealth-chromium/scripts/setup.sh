@@ -106,6 +106,25 @@ else
   echo "[2/3] Chromium checkout already present locally, skipping fetch"
 fi
 
+# The anchor set is the contract between the patches and the pinned source.
+# A rolling cache can carry a tree from an earlier run at the WRONG revision
+# (e.g. a run that recorded the sentinel before the tag pin existed -- that
+# is exactly what poisoned build c2x-v6: the drifted c2x-080211 tree was
+# cached, and every later build restored it and skipped the pin). Verify the
+# anchors on whatever tree we now have; if they don't match the pinned
+# release, force the checkout + sync.
+if [ -d "$WORK/chromium/src" ] \
+     && ! APEX_CHROMIUM_WORK="$WORK" python3 "$APEX_ROOT/scripts/apply_edits.py" --check >/dev/null 2>&1; then
+  echo "[2/3] tree fails the anchor check -- pinning to $CHROMIUM_VERSION ..."
+  cd "$WORK/chromium/src"
+  git fetch --tags --depth 1 origin "refs/tags/$CHROMIUM_VERSION"
+  git checkout "tags/$CHROMIUM_VERSION"
+  cd "$WORK"
+  gclient sync -D --no-history --with_branch_heads -j 4
+  echo "$CHROMIUM_VERSION" > "$SENTINEL"
+  CACHE_DIRTY=1
+fi
+
 # 2.5 — install Chromium's system build dependencies. Always runs because the
 # AMI is Ubuntu base (no Chromium-specific packages baked in) and even
 # cache-hit builds land on a fresh EC2 with no system pkgs from prior runs.
