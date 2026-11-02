@@ -27,13 +27,15 @@ if [ ! -d "$WORK/depot_tools" ]; then
   git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 fi
 export PATH="$WORK/depot_tools:$PATH"
-# The runner runs as root: depot_tools refuses to self-init/update ("Running
-# depot tools as root is sad") unless DEPOT_TOOLS_UPDATE=0, and a FRESH clone
-# is unbootstrapped (python3_bin_reldir.txt missing). Bypass the root check
-# and run the explicit bootstrap; fail hard if the env still isn't usable.
+# The runner runs as root with no $HOME: depot_tools refuses to self-init
+# ("Running depot tools as root is sad" / "Can't resolve $HOME") and a FRESH
+# clone is unbootstrapped (python3_bin_reldir.txt missing). Set HOME, bypass
+# the auto-update root check, run the explicit bootstrap (it's a bash script),
+# then hard-fail if gclient is still unusable.
 export DEPOT_TOOLS_UPDATE=0
+export HOME="${HOME:-/root}"
 echo "[1.5/3] bootstrapping depot_tools ..."
-python3 "$WORK/depot_tools/ensure_bootstrap" || \
+bash "$WORK/depot_tools/ensure_bootstrap" || \
   "$WORK/depot_tools/update_depot_tools" || true
 "$WORK/depot_tools/gclient" --version >/dev/null
 
