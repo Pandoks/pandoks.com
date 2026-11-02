@@ -48,3 +48,15 @@ has produced a patched Chromium binary, point at it with
 `APEX_CHROME_PATH=/path/to/patched/Chromium` -- the service reads that
 env var and switches to the patched binary, activating the C++
 fingerprint patches.
+
+## Persistent profiles
+
+A named profile (`persistent: "<name>"` on session create) keeps
+cookies/localStorage/history under its on-disk dir across sessions. A profile
+created before round 2026-11-02 may carry baked-in permission grants from
+sessions that pre-granted `geolocation`/`notifications` at context creation;
+the browser legitimately never re-prompts for an already-granted permission,
+so such a profile reports terminal states forever. The driver no longer
+pre-grants anything -- profiles created after this change start at `prompt`
+-- but an **existing named profile needs a one-time reset** (delete its
+on-disk dir) once, to shed the baked-in grants.

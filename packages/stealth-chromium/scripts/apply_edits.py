@@ -75,25 +75,17 @@ EDITS = [
                   "    return;\n"
                   "  }\n",
     },
-    # --- WebRTC: force no non-proxied UDP ------------------------------
-    # Inserted BEFORE the policy switch: when apex is active, force the
-    # no-leak config and rewrite the policy var to kDisableNonProxiedUdp so
-    # the switch (which still runs) reaffirms it. This avoids an invalid
-    # statement-before-first-case and keeps the switch well-formed.
-    {
-        "file": "third_party/blink/renderer/modules/peerconnection/"
-                "peer_connection_dependency_factory.cc",
-        "header": '#include "apex_fingerprint.h"',
-        "marker": "apex-webrtc-noleak",
-        "anchor": "      switch (webrtc_ip_handling_policy) {\n",
-        "where": "before",
-        "inject": "      // apex-webrtc-noleak: never let WebRTC leak the real IP\n"
-                  "      if (apex_fp::Active()) {\n"
-                  "        webrtc_ip_handling_policy =\n"
-                  "            mojom::blink::WebRtcIpHandlingPolicy::"
-                  "kDisableNonProxiedUdp;\n"
-                  "      }\n",
-    },
+    # --- WebRTC: default (mDNS-obfuscated) candidate gathering ---------
+    # NOTE: an earlier edit here forced webrtc_ip_handling_policy =
+    # kDisableNonProxiedUdp when apex was active ("never leak the real IP").
+    # It backfired: that policy drops ALL host candidates, so ICE produced
+    # zero candidates (round-2 F12) while real desktop Chrome always emits
+    # host candidates (mDNS .local names). Default candidate gathering with
+    # mDNS obfuscation IS the no-leak mechanism: host candidates carry only
+    # obfuscated .local names (the LAN IPs never reach the page) and srflx
+    # carries the WAN IP -- exactly what a real user behind a proxy exposes.
+    # The forced-policy edit is removed; no binary change is needed for
+    # WebRTC.
     # --- V8 inspector: suppress console preview prototype walk ----------
     {
         "file": "v8/src/inspector/v8-console-message.cc",

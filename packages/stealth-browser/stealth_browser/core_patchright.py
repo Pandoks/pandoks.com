@@ -82,17 +82,8 @@ class PatchrightCore:
         idn = self.identity
         self._pw = await async_playwright().start()
         from stealth_browser.fp_profiles import (pick_profile, fp_env,
-                                                 patched_chrome_path,
-                                                 real_display_size)
+                                                 patched_chrome_path)
         import os as _os
-        # The launch window must fit the REAL display: a window larger than
-        # the screen it is on is the impossible-geometry tell. The screen
-        # itself is never spoofed (no APEX_FP_SCREEN_* is sent) so the binary
-        # reports the real display natively and stays coherent.
-        real = real_display_size()
-        if real is not None:
-            idn.viewport_width = min(idn.viewport_width, real[0])
-            idn.viewport_height = min(idn.viewport_height, real[1])
         # Identity (timezone/locale) is set via the OS environment, NOT via
         # Playwright's context options: locale= / timezone_id= ride the CDP
         # Emulation.* domains, which are a verified detection surface
@@ -136,15 +127,23 @@ class PatchrightCore:
             launch_kwargs["proxy"] = proxy
         # Context options kept to the non-Emulation minimum: viewport/screen/
         # device_scale_factor/color_scheme also ride Emulation.*, so they are
-        # NOT set -- the browser reports the real (Xvfb) display, which is
-        # truthful and coherent. Permissions are NOT pre-granted: a virgin
-        # profile sits at 'prompt', and terminal (granted/denied) states on a
-        # never-visited site are an automation tell. Geolocation comes from
-        # the proxy's real IP.
-        ctx_opts = dict(launch_kwargs)
-        ctx_opts.update(
-            extra_http_headers={"Accept-Language": idn.accept_language},
-        )
+        # NOT set -- the browser reports the real display. The two context
+        # options below are the exception, with the reasons:
+        # no_viewport: patchright force-emulates its default 1280x720
+        # viewport (innerWidth/Height AND screen) on every page unless
+        # explicitly disabled. A real outer (the OS window) next to an
+        # emulated inner/screen is the impossible-geometry tell (round-2 F9:
+        # outer 960x540 < inner 1512x859). With it off, every page reports
+        # the real window's inner/outer and the real screen -- coherent by
+        # construction. In the container chrome_launch_flags sizes the window
+        # to the Xvfb screen instead (outer >= inner still holds there).
+        # Permissions are NOT pre-granted: a virgin profile sits at 'prompt',
+        # and terminal (granted/denied) states on a never-visited site are an
+        # automation tell. Geolocation comes from the proxy's real IP.
+        ctx_opts = {
+            "no_viewport": True,
+            "extra_http_headers": {"Accept-Language": idn.accept_language},
+        }
         if self.persistent:
             # a named, on-disk profile: cookies/localStorage/history persist
             # across sessions. It keeps its own fingerprint coherence by
@@ -153,11 +152,12 @@ class PatchrightCore:
             # 136 only ignores it on the default profile).
             port = random.randint(41000, 49999)
             self.cdp_endpoint = f"http://127.0.0.1:{port}"
-            ctx_opts["args"] = list(ctx_opts["args"]) + [
+            launch_opts = dict(launch_kwargs, **ctx_opts)
+            launch_opts["args"] = list(launch_opts["args"]) + [
                 f"--remote-debugging-port={port}",
             ]
             self._context = await self._pw.chromium.launch_persistent_context(
-                self.persistent, **ctx_opts)
+                self.persistent, **launch_opts)
             self._browser = None
             self._page = self._context.pages[-1] if self._context.pages \
                 else await self._context.new_page()

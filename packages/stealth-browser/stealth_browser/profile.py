@@ -19,6 +19,8 @@ import platform
 import shutil
 from dataclasses import dataclass, field
 
+from stealth_browser.fp_profiles import real_display_size
+
 
 def chrome_path() -> str:
     """Resolve the real Google Chrome executable for this environment.
@@ -218,12 +220,8 @@ def chrome_launch_flags(identity: Identity, *, headless: bool,
         # stable, real-user-ish rendering
         "--disable-features=IsolateOrigins,site-per-process,Translate",
         "--disable-popup-blocking",
-        # WebRTC: never expose the local/interface IPs via STUN past the
-        # proxy (the top network-identity leak in real usage)
-        "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
         # keep the GPU on -- a real machine has WebGL; SwiftShader looks fake
         f"--lang={identity.locale}",
-        f"--window-size={identity.viewport_width},{identity.viewport_height}",
     ]
     if in_container():
         # Required to run Chrome (headful, on Xvfb) inside a container:
@@ -233,6 +231,25 @@ def chrome_launch_flags(identity: Identity, *, headless: bool,
         #  --disable-dev-shm-usage -- containers give /dev/shm only ~64MB;
         #                         without this Chrome crashes on big pages.
         flags += ["--no-sandbox", "--disable-dev-shm-usage"]
+        # Geometry in the container: the window must fit the Xvfb screen AND
+        # real Chrome always reports outer >= inner (the frame chrome is
+        # outside the viewport). Sizing the window to the screen keeps
+        # inner <= outer == screen coherent; no driver ever emulates a
+        # conflicting viewport (see core_patchright's no_viewport).
+        real = real_display_size()
+        if real is not None:
+            flags.append(f"--window-size={real[0]},{real[1]}")
+        else:
+            flags.append(
+                f"--window-size={identity.viewport_width},"
+                f"{identity.viewport_height}")
+        # WebRTC: the no-leak policy is set ONLY in the container. On the
+        # real display this flag zeroes out ALL host candidates (no mDNS, no
+        # IPs -- round-2 F12); default candidate gathering is the no-leak
+        # mechanism (host candidates are mDNS .local names that never carry
+        # the LAN IPs; srflx carries the WAN IP, like any real user behind a
+        # proxy).
+        flags.append("--force-webrtc-ip-handling-policy=disable_non_proxied_udp")
         # WebGL: a container has no GPU. Without help Chrome disables WebGL
         # entirely (renderer = null -- a dead headless tell). We route WebGL
         # through ANGLE's GL backend on top of Mesa's llvmpipe (installed in
