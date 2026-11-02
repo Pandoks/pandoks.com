@@ -212,6 +212,41 @@ async def _route(req: Request) -> bytes:
         result = await manager.do_fetch(m.group(1), spec)
         return _json_response(200, result)
 
+    # Plain tier: browserless mass scraping. curl_cffi impersonates real
+    # Chrome's exact TLS (JA3/JA4) + HTTP/2 settings + header order, so the
+    # request looks like Chrome at the network layer for ~1000x less cost
+    # than a browser session. Stateless -- no session id. Handles every
+    # target that doesn't run a JS challenge; escalate to a browser session
+    # only when a target does.
+    if req.method == "POST" and p == "/fetch-plain":
+        spec = req.json()
+        url = spec.get("url")
+        if not url:
+            raise ServiceError(400, "missing 'url'")
+
+        def _plain_fetch() -> dict:
+            from curl_cffi import requests as cr
+            kwargs = {"impersonate": spec.get("impersonate", "chrome")}
+            if spec.get("method") and spec["method"].upper() != "GET":
+                kwargs["method"] = spec["method"].upper()
+            if spec.get("body"):
+                kwargs["data"] = spec["body"].encode()
+            if spec.get("headers"):
+                kwargs["headers"] = spec["headers"]
+            if spec.get("timeout_ms"):
+                kwargs["timeout"] = spec["timeout_ms"] / 1000
+            r = cr.request(kwargs.get("method", "GET").lower(), url, **{
+                k: v for k, v in kwargs.items()
+                if k not in ("method", "impersonate", "timeout_ms")})
+            return {"status": r.status_code,
+                    "url": str(r.url),
+                    "body": r.text[:50000],
+                    "impersonate": kwargs["impersonate"]}
+
+        result = await asyncio.get_event_loop().run_in_executor(
+            None, _plain_fetch)
+        return _json_response(200, result)
+
     m = re.match(r"^/sessions/([^/]+)/screenshot$", p)
     if req.method == "GET" and m:
         png = await manager.screenshot(m.group(1))

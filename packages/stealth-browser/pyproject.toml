@@ -7,6 +7,7 @@ dependencies = [
     "nodriver>=0.40",
     "patchright>=1.52",
     "mcp>=1.2,<2",
+    "curl_cffi>=0.13",
     "playwright>=1.52",
 ]
 
