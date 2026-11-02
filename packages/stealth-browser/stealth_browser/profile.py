@@ -218,6 +218,9 @@ def chrome_launch_flags(identity: Identity, *, headless: bool,
         # stable, real-user-ish rendering
         "--disable-features=IsolateOrigins,site-per-process,Translate",
         "--disable-popup-blocking",
+        # WebRTC: never expose the local/interface IPs via STUN past the
+        # proxy (the top network-identity leak in real usage)
+        "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
         # keep the GPU on -- a real machine has WebGL; SwiftShader looks fake
         f"--lang={identity.locale}",
         f"--window-size={identity.viewport_width},{identity.viewport_height}",

@@ -32,7 +32,8 @@ class ServiceError(Exception):
         self.message = message
 
 
-def _make_core(headless: bool, proxy=None, profile_label: str | None = None):
+def _make_core(headless: bool, proxy=None, profile_label: str | None = None,
+               persistent: str | None = None):
     """Build a core for the configured backend (APEX_CORE env var).
 
     `proxy` is an optional ProxyConfig overriding the env-var default.
@@ -40,6 +41,8 @@ def _make_core(headless: bool, proxy=None, profile_label: str | None = None):
     "rtx 3060", exact label, etc.) -- substring-matched against the
     fp_profiles registry. Falls through to host-coherent random when None
     or not matched.
+    `persistent` names an on-disk profile (cookies/localStorage persist
+    across sessions); None means a fresh ephemeral profile.
     """
     backend = os.environ.get("APEX_CORE", "nodriver").lower()
     identity = Identity()
@@ -51,7 +54,8 @@ def _make_core(headless: bool, proxy=None, profile_label: str | None = None):
         os.environ["APEX_PROFILE"] = profile_label
     try:
         if backend == "patchright":
-            return PatchrightCore(identity, headless=headless, proxy=proxy)
+            return PatchrightCore(identity, headless=headless, proxy=proxy,
+                                  persistent=persistent)
         if backend == "nodriver":
             return NodriverCore(identity, headless=headless, proxy=proxy)
         raise ServiceError(500, f"unknown APEX_CORE: {backend!r}")
@@ -88,7 +92,8 @@ class SessionManager:
 
     async def create(self, headless: bool = False, proxy=None,
                      parent_sid: str | None = None,
-                     profile_label: str | None = None) -> dict:
+                     profile_label: str | None = None,
+                     persistent: str | None = None) -> dict:
         """Create one isolated session.
 
         `proxy` is an optional ProxyConfig built from the request body via
@@ -103,12 +108,21 @@ class SessionManager:
         if len(self._sessions) >= self.max_sessions:
             raise ServiceError(
                 429, f"session limit reached ({self.max_sessions})")
+        if persistent is not None:
+            # a profile dir can only back one live session at a time
+            for s in self._sessions.values():
+                if s.core.persistent == persistent:
+                    raise ServiceError(
+                        409, f"profile '{persistent}' is already in use")
+            if not persistent.replace("-", "").replace("_", "").isalnum():
+                raise ServiceError(400, "profile name must be a slug")
         parent_state = None
         if parent_sid is not None:
             parent = self._get(parent_sid)
             async with parent.lock:
                 parent_state = await parent.core.dump_state()
-        core = _make_core(headless, proxy=proxy, profile_label=profile_label)
+        core = _make_core(headless, proxy=proxy, profile_label=profile_label,
+                          persistent=persistent)
         await core.open()
         if parent_state:
             await core.restore_state(parent_state)

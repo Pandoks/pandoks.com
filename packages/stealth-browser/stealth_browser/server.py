@@ -152,10 +152,14 @@ async def _route(req: Request) -> bytes:
         # specific device persona per request -- the Browserbase-style
         # "give me a Windows desktop" UX.
         profile_label = body.get("profile")
+        # Optional `persistent`: a profile name (a slug). The session's
+        # cookies/localStorage/history persist under /profiles/<name> across
+        # restarts, so a session can stay logged in like a real device.
+        persistent = body.get("persistent")
         created = await manager.create(
             headless=bool(body.get("headless")),
             proxy=proxy, parent_sid=parent_sid,
-            profile_label=profile_label)
+            profile_label=profile_label, persistent=persistent)
         return _json_response(201, created)
 
     m = re.match(r"^/sessions/([^/]+)/navigate$", p)
@@ -238,7 +242,8 @@ async def _handle(reader: asyncio.StreamReader,
         except ServiceError as e:
             out = _json_response(e.status, {"error": e.message})
         except Exception as e:  # noqa: BLE001
-            print(f"[server] unhandled: {type(e).__name__}: {e}")
+            import traceback
+            print(f"[server] unhandled: {traceback.format_exc()}")
             out = _json_response(500, {"error": str(e)})
         writer.write(out)
         await writer.drain()
@@ -254,7 +259,8 @@ async def _handle(reader: asyncio.StreamReader,
 
 async def main() -> None:
     manager.start()
-    server = await asyncio.start_server(_handle, "127.0.0.1", PORT)
+    server = await asyncio.start_server(
+        _handle, os.environ.get("HOST", "127.0.0.1"), PORT)
     print(f"[server] apex stealth Chrome service ({BACKEND}) on :{PORT}")
 
     stop = asyncio.Event()

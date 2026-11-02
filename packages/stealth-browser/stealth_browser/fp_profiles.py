@@ -254,6 +254,11 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         "APEX_FP_DEVICE_MEMORY": str(profile.device_memory),
         "APEX_FP_WEBGL_VENDOR": profile.webgl_vendor,
         "APEX_FP_WEBGL_RENDERER": profile.webgl_renderer,
+        # WebGPU adapter info uses the persona gpu_class, which maps directly
+        # to the org-id strings WebGPU reports ("apple"/"intel"/"nvidia"/"amd")
+        "APEX_FP_WEBGPU_VENDOR": profile.gpu_class,
+        "APEX_FP_WEBGPU_ARCH": ("arm64" if profile.gpu_class == "apple"
+                                else "x86_64"),
         "APEX_FP_SCREEN_W": str(profile.screen_w),
         "APEX_FP_SCREEN_H": str(profile.screen_h),
         "APEX_FP_SCREEN_AVAIL_W": str(profile.avail_w),

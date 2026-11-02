@@ -6,15 +6,18 @@ leak, HeadlessChrome UA, navigator.webdriver) but still performs a Playwright
 CDP handshake -- the variant the four-way benchmark exists to measure against
 the nodriver core.
 
-Identity coherence (timezone/locale/geo) is applied via new_context options,
-mirroring stealth-browser/runner_patchright.py.
+Identity coherence (timezone/locale) is applied via the OS environment
+(TZ/LANG/LC_ALL on launch), NOT via CDP Emulation overrides -- those are a
+verified detection surface. Rendering uses the real (Xvfb) display directly.
 """
 
 from __future__ import annotations
 
+import random
 
 from patchright.async_api import async_playwright
 
+from stealth_browser.human_patchright import PatchrightHuman
 from stealth_browser.profile import Identity, chrome_launch_flags
 from stealth_browser.proxy import from_env as proxy_from_env
 
@@ -26,13 +29,18 @@ class PatchrightCore:
 
     def __init__(self, identity: Identity | None = None,
                  *, headless: bool = False, use_proxy: bool = True,
-                 proxy=None):
+                 proxy=None, persistent: str | None = None):
         self.identity = identity or Identity()
         self.headless = headless
+        # a name under the profiles volume (e.g. /profiles/<name>) that makes
+        # the session's cookies/localStorage persist across restarts
+        self.persistent = persistent
+        self.cdp_endpoint: str | None = None
         self._pw = None
         self._browser = None
         self._context = None
         self._page = None
+        self._human = None
         # explicit per-session ProxyConfig wins; env is the fallback.
         self._proxy = (proxy if proxy is not None
                        else (proxy_from_env() if use_proxy else None))
@@ -40,15 +48,24 @@ class PatchrightCore:
     @property
     def profile(self) -> dict:
         idn = self.identity
-        return {
+        d = {
             "backend": self.backend,
             "timezone": idn.timezone,
             "locale": idn.locale,
             "platform": idn.platform_name,
-            "viewport": {"width": idn.viewport_width,
-                         "height": idn.viewport_height},
+            "rendering": "real display (no Emulation override)",
             "proxy": {"active": self._proxy is not None},
         }
+        if self.persistent:
+            d["persistent"] = self.persistent
+            d["cdp"] = self.cdp_endpoint
+        return d
+
+    def _human(self):
+        """Lazily build the human-input driver for the current page."""
+        if self._human is None or self._human.page is not self._page:
+            self._human = PatchrightHuman(self._page)
+        return self._human
 
     def _proxy_dict(self) -> dict | None:
         """Translate a ProxyConfig into Playwright's proxy option shape."""
@@ -64,6 +81,17 @@ class PatchrightCore:
     async def open(self) -> None:
         idn = self.identity
         self._pw = await async_playwright().start()
+        # Identity (timezone/locale) is set via the OS environment, NOT via
+        # Playwright's context options: locale= / timezone_id= ride the CDP
+        # Emulation.* domains, which are a verified detection surface
+        # (rebrowser's sensitive-methods list). Chrome reads TZ and LANG
+        # natively, so the same coherence with zero Emulation traffic.
+        # The same env= caveat as below applies: it must go via launch(env=).
+        identity_env = {
+            "TZ": idn.timezone,
+            "LANG": idn.locale.replace("-", "_") + ".UTF-8",
+            "LC_ALL": idn.locale.replace("-", "_") + ".UTF-8",
+        }
         launch_kwargs: dict = {
             "channel": "chrome",  # real Google Chrome, not bundled Chromium
             "headless": self.headless,
@@ -72,12 +100,13 @@ class PatchrightCore:
         # use the apex-chromium patched binary when available so the C++
         # fingerprint patches are active for this variant too.
         #
-        # The APEX_FP_* fingerprint config MUST be passed via launch(env=...):
-        # Playwright's driver subprocess froze its environment when
-        # async_playwright().start() ran above, so a later os.environ.update
-        # would NOT reach the spawned Chrome. `env=` sets the child process
-        # environment explicitly and reliably.
-        from fp_profiles import (pick_profile, fp_env, patched_chrome_path)
+        # The env config MUST be passed via launch(env=...): Playwright's
+        # driver subprocess froze its environment when async_playwright()
+        # .start() ran above, so a later os.environ.update would NOT reach
+        # the spawned Chrome. `env=` sets the child process environment
+        # explicitly and reliably.
+        from stealth_browser.fp_profiles import (pick_profile, fp_env,
+                                                 patched_chrome_path)
         import os as _os
         patched = patched_chrome_path()
         if patched is not None:
@@ -85,41 +114,58 @@ class PatchrightCore:
             launch_kwargs.pop("channel", None)  # explicit path overrides channel
             self._fp_profile = pick_profile()
             self._fp_seed = __import__("random").getrandbits(32)
-            # full child env = inherited env + the APEX_FP_* overrides
+            # full child env = inherited env + APEX_FP_* overrides + identity
             launch_kwargs["env"] = {
                 **_os.environ,
+                **identity_env,
                 **fp_env(self._fp_profile, self._fp_seed),
             }
+        else:
+            launch_kwargs["env"] = {**_os.environ, **identity_env}
         proxy = self._proxy_dict()
         if proxy is not None:
             launch_kwargs["proxy"] = proxy
-        self._browser = await self._pw.chromium.launch(**launch_kwargs)
-        self._context = await self._browser.new_context(
-            locale=idn.locale,
-            timezone_id=idn.timezone,
-            geolocation={"latitude": idn.latitude, "longitude": idn.longitude},
+        # Context options kept to the non-Emulation minimum: viewport/screen/
+        # device_scale_factor/color_scheme also ride Emulation.*, so they are
+        # NOT set -- the browser reports the real (Xvfb) display, which is
+        # truthful and coherent. Geolocation comes from the proxy's real IP.
+        ctx_opts = dict(launch_kwargs)
+        ctx_opts.update(
             permissions=["geolocation", "notifications"],
-            viewport={"width": idn.viewport_width,
-                      "height": idn.viewport_height},
-            screen={"width": idn.screen_width, "height": idn.screen_height},
-            device_scale_factor=idn.device_scale_factor,
-            is_mobile=False,
-            has_touch=False,
-            color_scheme="light",
             extra_http_headers={"Accept-Language": idn.accept_language},
         )
+        if self.persistent:
+            # a named, on-disk profile: cookies/localStorage/history persist
+            # across sessions. It keeps its own fingerprint coherence by
+            # inheriting the same identity launch options on relaunch.
+            # The debug port is safe on a non-default user-data-dir (Chrome
+            # 136 only ignores it on the default profile).
+            port = random.randint(41000, 49999)
+            self.cdp_endpoint = f"http://127.0.0.1:{port}"
+            ctx_opts["args"] = list(ctx_opts["args"]) + [
+                f"--remote-debugging-port={port}",
+            ]
+            self._context = await self._pw.chromium.launch_persistent_context(
+                self.persistent, **ctx_opts)
+            self._browser = None
+            self._page = self._context.pages[-1] if self._context.pages \
+                else await self._context.new_page()
+            return
+        self.cdp_endpoint = None
+        self._browser = await self._pw.chromium.launch(**launch_kwargs)
+        self._context = await self._browser.new_context(**ctx_opts)
         self._page = await self._context.new_page()
 
     async def navigate(self, url: str) -> dict:
+        await self._flush_pending_origins()
         resp = await self._page.goto(
             url, wait_until="domcontentloaded", timeout=45000)
         # light human motion -- detectors flag inert sessions
         try:
-            await self._page.mouse.move(220, 180, steps=12)
-            await self._page.mouse.move(640, 420, steps=18)
-            await self._page.mouse.wheel(0, 240)
-            await self._page.wait_for_timeout(400)
-            await self._page.mouse.wheel(0, -120)
+            await self._human().move_to(220, 180)
+            await self._human().move_to(640, 420)
+            await self._human().scroll(240)
+            await self._human().dwell(0.3, 0.7)
         except Exception:  # noqa: BLE001
             pass
         return {
@@ -133,14 +179,17 @@ class PatchrightCore:
         return await self._page.evaluate(expression)
 
     async def click(self, selector: str) -> None:
-        await self._page.click(selector)
+        # human-like: curve in, dwell, press-hold-release (not one instant
+        # isTrusted-shaped jump)
+        await self._human().click(selector)
 
     async def type_text(self, selector: str, text: str) -> None:
-        await self._page.fill(selector, "")
-        await self._page.type(selector, text, delay=80)
+        # human-like: click into the field, then type with variable timing
+        await self._human().type_into(selector, text)
 
     async def scroll(self, amount: int) -> None:
-        await self._page.mouse.wheel(0, amount)
+        # human-like: several variable wheel ticks, not one jump
+        await self._human().scroll(amount)
 
     async def screenshot(self) -> bytes:
         return await self._page.screenshot(type="png")
@@ -194,6 +243,3 @@ class PatchrightCore:
             except Exception:  # noqa: BLE001 - best-effort
                 continue
         self._pending_origins = []
-        if self._pw is not None:
-            await self._pw.stop()
-        self._pw = self._browser = self._context = self._page = None
