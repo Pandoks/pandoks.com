@@ -60,3 +60,12 @@ so such a profile reports terminal states forever. The driver no longer
 pre-grants anything -- profiles created after this change start at `prompt`
 -- but an **existing named profile needs a one-time reset** (delete its
 on-disk dir) once, to shed the baked-in grants.
+
+## MCP server
+
+`stealth-mcp` (stdio) exposes the service to AI agents as MCP tools:
+`stealth_create` / `stealth_navigate` / `stealth_click` / `stealth_type` /
+`stealth_eval` / `stealth_text` / `stealth_fetch` / `stealth_screenshot` /
+`stealth_close`. Point it at the service with `STEALTH_BROWSER_URL`
+(default `http://127.0.0.1:8089`). The agent manages one session implicitly;
+`stealth_create(persistent="<name>")` binds it to an identity profile.

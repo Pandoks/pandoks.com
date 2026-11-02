@@ -6,6 +6,7 @@ requires-python = ">=3.11,<3.14"
 dependencies = [
     "nodriver>=0.40",
     "patchright>=1.52",
+    "mcp>=1.2,<2",
     "playwright>=1.52",
 ]
 
@@ -13,6 +14,7 @@ dependencies = [
 # `stealth-browser` from a terminal starts the HTTP service.
 # Wires the [tool.uv]/[project.scripts] entry to stealth_browser.server.run_server.
 stealth-browser = "stealth_browser.server:run_server"
+stealth-mcp = "stealth_browser.mcp_server:main"
 
 [tool.uv]
 package = true
