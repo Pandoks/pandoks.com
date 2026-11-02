@@ -51,10 +51,12 @@ permissions:
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
-  # The dev-builder SFN is the only one with the AMI + launch templates wired up.
-  # In future when we have a prod-builder pipeline, switch this conditionally.
-  SFN_ARN: arn:aws:states:us-west-1:343487555569:stateMachine:dev-builder
-  ARTIFACTS_BUCKET: personal-pandoks-builderartifactsbucketbucket-oawuxubt
+  # The runner SFN (infra/runner) is the general-purpose job runner on main;
+  # input shape {id, ref, command, instanceType, marketType} is compatible.
+  # NOTE: verify the ARN against live state on the next deploy (unverified
+  # without AWS creds at rewire time). The artifacts bucket is resolved at
+  # runtime (SST names it, so there is no stable literal to hardcode).
+  SFN_ARN: arn:aws:states:us-west-2:343487555569:stateMachine:dev-runner
 
 jobs:
   trigger-build:
@@ -94,6 +96,20 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Resolve runner artifacts bucket
+        id: buckets
+        run: |
+          set -euo pipefail
+          # The runner's buckets are SST-named (no stable literal); find the
+          # artifacts bucket by its resource-id fragment.
+          bucket=$(aws s3api list-buckets --query 'Buckets[].Name' --output text \
+            | tr '\t' '\n' | grep -i 'runner.*artifact' | head -1)
+          if [ -z "$bucket" ]; then
+            echo "no runner artifacts bucket found" >&2
+            exit 1
+          fi
+          echo "name=$bucket" >> "$GITHUB_OUTPUT"
 
       - name: Start SFN execution
         id: start
@@ -145,6 +161,7 @@ jobs:
         env:
           EXECUTION_ARN: ${{ steps.start.outputs.execution_arn }}
           BUILD_ID: ${{ steps.start.outputs.build_id }}
+          ARTIFACTS_BUCKET: ${{ steps.buckets.outputs.name }}
         run: |
           set -euo pipefail
           # Poll for up to 180 minutes (cold major-version bump worst case).
@@ -183,6 +200,7 @@ jobs:
         env:
           CHROMIUM_VERSION: ${{ steps.version.outputs.version }}
           BUILD_ID: ${{ steps.start.outputs.build_id }}
+          ARTIFACTS_BUCKET: ${{ steps.buckets.outputs.name }}
         run: |
           {
             echo "## ✅ Patched Chromium ${CHROMIUM_VERSION} built"

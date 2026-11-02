@@ -12,8 +12,9 @@ Run by scripts/apply.sh after the chromium_src overlays are installed.
 Idempotent: every edit is tagged with an `// apex:` marker and skipped if the
 marker is already present.
 
-Usage:  APEX_CHROMIUM_WORK=/path python3 apply_edits.py [--check]
-  --check : verify every anchor is findable, change nothing (dry run).
+Usage:  APEX_CHROMIUM_WORK=/path python3 apply_edits.py [--check] [--verify]
+  --check  : verify every anchor is findable, change nothing (dry run).
+  --verify : post-apply gate -- every marker must be present in the tree.
 """
 
 from __future__ import annotations
@@ -410,6 +411,27 @@ EDITS = [
                   "    em_height_descent_ *= f;\n"
                   "  }\n",
     },
+    # WebGPU adapter info: report the persona GPU instead of the host GPU so
+    # navigator.gpu adapter info is identity-coherent with the WebGL strings
+    # (the adapter handle itself stays real, so limits/features stay native).
+    {
+        "file": "third_party/blink/renderer/modules/webgpu/gpu_adapter.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-webgpu-identity",
+        "anchor": ("  description_ = String::FromUtf8(info.device);\n"
+                   "  driver_ = String::FromUtf8(info.description);\n"),
+        "where": "after",
+        "inject": (
+            '        {  // apex-webgpu-identity\n'
+            '          if (apex_fp::HasOverride("APEX_FP_WEBGPU_VENDOR"))\n'
+            '            vendor_ = String::FromUtf8(\n'
+            '                apex_fp::EnvStr("APEX_FP_WEBGPU_VENDOR"));\n'
+            '          if (apex_fp::HasOverride("APEX_FP_WEBGPU_ARCH"))\n'
+            '            architecture_ = String::FromUtf8(\n'
+            '                apex_fp::EnvStr("APEX_FP_WEBGPU_ARCH"));\n'
+            '        }\n'
+        ),
+    },
 ]
 
 
@@ -468,8 +490,39 @@ def apply_one(edit: dict, check: bool) -> tuple[bool, str]:
     return True, f"applied: {edit['marker']}"
 
 
+def verify_applied() -> int:
+    """Post-apply gate: every marker must exist in its target file.
+
+    Catches silent partial application (apply run interrupted, manual edits
+    to the tree, anchor shifting without failing). Camoufox-style governance:
+    a build with any missing marker must not proceed.
+    """
+    missing = 0
+    for edit in EDITS:
+        path = SRC / edit["file"]
+        marker = edit.get("marker")
+        try:
+            text = path.read_text()
+        except OSError:
+            print(f"  MISS {edit['file']}: file not found")
+            missing += 1
+            continue
+        if marker not in text:
+            print(f"  MISS {edit['file']}: marker {marker!r} absent")
+            missing += 1
+    if missing:
+        print(f"{missing} marker(s) absent -- apply is incomplete. Re-run "
+              f"apply_edits.py.")
+        return 1
+    print(f"all {len(EDITS)} markers present")
+    return 0
+
+
 def main() -> int:
     check = "--check" in sys.argv
+    verify = "--verify" in sys.argv
+    if verify:
+        return verify_applied()
     if not SRC.exists():
         print(f"ERROR: no checkout at {SRC}")
         return 1

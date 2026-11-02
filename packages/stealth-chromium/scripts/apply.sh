@@ -42,6 +42,7 @@ for dir in \
   "third_party/blink/renderer/modules/font_access" \
   "third_party/blink/renderer/platform/fonts" \
   "third_party/blink/renderer/platform/graphics" \
+  "third_party/blink/renderer/modules/webgpu" \
   "v8/src/inspector" ; do
   mkdir -p "$SRC/$dir"
   cp "$FP_H" "$SRC/$dir/apex_fingerprint.h"
@@ -96,6 +97,12 @@ APEX_CHROMIUM_WORK="$WORK" python3 "$APEX_ROOT/scripts/apply_edits.py" || {
   echo "    !! some anchors not found -- Chromium drifted."
   echo "       run: APEX_CHROMIUM_WORK='$WORK' python3 scripts/apply_edits.py --check"
   echo "       then re-fit the failing anchors in apply_edits.py's EDITS list."
+  exit 1
+}
+# post-apply gate: every marker must actually be in the tree, else the build
+# would silently produce a stock-behaving binary.
+APEX_CHROMIUM_WORK="$WORK" python3 "$APEX_ROOT/scripts/apply_edits.py" --verify || {
+  echo "    !! apply is incomplete (markers absent) -- see above."
   exit 1
 }
 

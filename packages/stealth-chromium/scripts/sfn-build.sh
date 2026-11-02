@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Entrypoint invoked by the BuilderStateMachine on a freshly-launched EC2
 # instance. The SFN clones the repo into /opt/repo and then calls this script
-# from packages/stealth-chromium. Environment provided by the SFN:
-#   BUILD_ID                  -- SFN execution id, used in artifact key
-#   BUILDER_CACHE_BUCKET      -- S3 bucket for chromium-src + ccache tarballs
-#   BUILDER_ARTIFACTS_BUCKET  -- S3 bucket for the patched binary output
+# from packages/stealth-chromium. Environment provided by the runner:
+#   RUNNER_JOB_ID                  -- SFN execution id, used in artifact key
+#   RUNNER_CACHE_BUCKET      -- S3 bucket for chromium-src + ccache tarballs
+#   RUNNER_ARTIFACTS_BUCKET  -- S3 bucket for the patched binary output
 #
 # What this script does:
 #   1. mount /build on a fresh ext4 fs if a spare NVMe device exists (faster
@@ -17,24 +17,24 @@
 #      operator can diagnose without re-running.
 set -euo pipefail
 
-: "${BUILD_ID:?BUILD_ID must be set by the SFN}"
-: "${BUILDER_CACHE_BUCKET:?BUILDER_CACHE_BUCKET must be set by the SFN}"
-: "${BUILDER_ARTIFACTS_BUCKET:?BUILDER_ARTIFACTS_BUCKET must be set by the SFN}"
+: "${RUNNER_JOB_ID:?RUNNER_JOB_ID must be set by the SFN}"
+: "${RUNNER_CACHE_BUCKET:?RUNNER_CACHE_BUCKET must be set by the SFN}"
+: "${RUNNER_ARTIFACTS_BUCKET:?RUNNER_ARTIFACTS_BUCKET must be set by the SFN}"
 
 PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-LOG_FILE="/tmp/stealth-chromium-build-${BUILD_ID}.log"
+LOG_FILE="/tmp/stealth-chromium-build-${RUNNER_JOB_ID}.log"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
 echo "=== sfn-build start ==="
-echo " build id      : $BUILD_ID"
-echo " cache bucket  : $BUILDER_CACHE_BUCKET"
-echo " artifacts     : $BUILDER_ARTIFACTS_BUCKET"
+echo " build id      : $RUNNER_JOB_ID"
+echo " cache bucket  : $RUNNER_CACHE_BUCKET"
+echo " artifacts     : $RUNNER_ARTIFACTS_BUCKET"
 echo " package root  : $PKG_ROOT"
 date -u +"%Y-%m-%dT%H:%M:%SZ"
 
 cleanup_on_failure() {
   echo "=== sfn-build FAILED -- uploading diagnostics ==="
-  local s3_prefix="s3://${BUILDER_ARTIFACTS_BUCKET}/${BUILD_ID}"
+  local s3_prefix="s3://${RUNNER_ARTIFACTS_BUCKET}/${RUNNER_JOB_ID}"
   # 1. The 1MB log tail — sometimes contains the error, sometimes not (siso's
   #    success-step chatter is dense; on a big compile failure the actual
   #    error gets pushed past the 1MB window by thousands of "F CXX ..."
@@ -116,20 +116,20 @@ for entry in "${WHITELIST[@]}"; do
 done
 tar -c -C "$OUT_DIR" "${TAR_INCLUDES[@]}" \
   | zstd -19 --long=27 -T0 -o "$ARTIFACT"
-KEY="${BUILD_ID}/chromium-${CHROMIUM_VERSION}.tar.zst"
-echo "[upload] s3://${BUILDER_ARTIFACTS_BUCKET}/${KEY}"
-aws s3 cp "$ARTIFACT" "s3://${BUILDER_ARTIFACTS_BUCKET}/${KEY}" \
-  --metadata "chromium-version=${CHROMIUM_VERSION},build-id=${BUILD_ID}"
+KEY="${RUNNER_JOB_ID}/chromium-${CHROMIUM_VERSION}.tar.zst"
+echo "[upload] s3://${RUNNER_ARTIFACTS_BUCKET}/${KEY}"
+aws s3 cp "$ARTIFACT" "s3://${RUNNER_ARTIFACTS_BUCKET}/${KEY}" \
+  --metadata "chromium-version=${CHROMIUM_VERSION},build-id=${RUNNER_JOB_ID}"
 
 # also a small manifest the operator can curl to find the artifact
 MANIFEST="$(jq -n \
   --arg ver "$CHROMIUM_VERSION" \
-  --arg bid "$BUILD_ID" \
+  --arg bid "$RUNNER_JOB_ID" \
   --arg key "$KEY" \
   --arg size "$(stat -c%s "$ARTIFACT")" \
   '{version: $ver, buildId: $bid, key: $key, sizeBytes: ($size|tonumber)}')"
 echo "$MANIFEST" \
-  | aws s3 cp - "s3://${BUILDER_ARTIFACTS_BUCKET}/${BUILD_ID}/manifest.json" \
+  | aws s3 cp - "s3://${RUNNER_ARTIFACTS_BUCKET}/${RUNNER_JOB_ID}/manifest.json" \
       --content-type application/json
 
 trap - ERR

@@ -1,0 +1,84 @@
+<!doctype html>
+<!-- Honey site: the permanent measurable benchmark for the stealth stack.
+
+     Serves three measurable signals:
+       1. FingerprintJS visitor-id  -- stability across browser restarts
+          (should be IDENTICAL for a persistent profile, DIFFERENT for a
+          fresh/ephemeral one).
+       2. FingerprintJS BotD score  -- the open-source bot score (0 = human).
+       3. reCAPTCHA v3 score        -- the numeric 0..1 human score from
+          Google's own behavioral detector (the production signal we can
+          optimize against; replace SITE_KEY with the real key on deploy).
+
+     Every run POSTs the result to /collect (wired server-side later); the
+     page also shows the values inline so a human can eyeball a run. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>apex honey site</title>
+<script src="https://www.google.com/recaptcha/api.js?render=RECAPTCHA_SITE_KEY"></script>
+<script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@4/dist/fp.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/botd@1/dist/botd.min.js"></script>
+<style>
+  body { font: 14px/1.6 system-ui, sans-serif; max-width: 640px; margin: 2rem auto; }
+  table { border-collapse: collapse; width: 100%; }
+  td { border: 1px solid #ccc; padding: 4px 8px; }
+  td:first-child { font-weight: 600; }
+</style>
+</head>
+<body>
+<h1>apex honey site</h1>
+<p>visit-id stability is the signal: a persistent profile must show the same
+<code>visitorId</code> on every load; a fresh one must not.</p>
+<table id="out"><tr><td>loading…</td><td></td></tr></table>
+<script>
+async function main() {
+  const fp = await FingerprintJS.load();
+  const result = await fp.get();
+  let botScore = "botd-error";
+  try {
+    const botd = await BotD.load();
+    botScore = await botd.detect();
+  } catch (e) { /* keep the error string */ }
+  let captchaScore = "not-run";
+  try {
+    captchaScore = await new Promise((res) => {
+      grecaptcha.ready(() => {
+        grecaptcha.execute("RECAPTCHA_SITE_KEY", { action: "honey" })
+          .then((token) => res("token:" + token.slice(0, 24) + "…"));
+      });
+    });
+    // server-side verifies the token and reads the numeric score
+  } catch (e) { captchaScore = "captcha-error:" + e.message; }
+
+  const rows = [
+    ["visitorId", result.visitorId],
+    ["bot score", typeof botScore === "object" ? JSON.stringify(botScore) : botScore],
+    ["recaptcha token", captchaScore],
+    ["UA", navigator.userAgent],
+    ["platform", navigator.platform],
+    ["languages", navigator.languages.join(",")],
+    ["timezone", Intl.DateTimeFormat().resolvedOptions().timeZone],
+    ["hardwareConcurrency", navigator.hardwareConcurrency],
+    ["deviceMemory", navigator.deviceMemory],
+    ["screen", screen.width + "x" + screen.height],
+    ["webgl", (() => { const c = document.createElement("canvas");
+      const g = c.getContext("webgl");
+      if (!g) return "none";
+      const ext = g.getExtension("WEBGL_debug_renderer_info");
+      return ext ? g.getParameter(ext.UNMASKED_RENDERER_WEBGL) : "no-ext"; })()],
+    ["webdriver", navigator.webdriver],
+  ];
+  const out = document.getElementById("out");
+  out.innerHTML = "";
+  for (const [k, v] of rows) {
+    out.insertAdjacentHTML("beforeend", "<tr><td>" + k + "</td><td>" + String(v) + "</td></tr>");
+  }
+  fetch("/collect", { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ts: Date.now(), rows: Object.fromEntries(rows) }) })
+    .catch(() => { /* collect endpoint optional */ });
+}
+main();
+</script>
+</body>
+</html>
