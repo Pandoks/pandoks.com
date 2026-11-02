@@ -13,13 +13,47 @@ verified detection surface. Rendering uses the real (Xvfb) display directly.
 
 from __future__ import annotations
 
+import json
+import os
 import random
+import shutil
+import tempfile
 
 from patchright.async_api import async_playwright
 
 from stealth_browser.human_patchright import PatchrightHuman
 from stealth_browser.profile import Identity, chrome_launch_flags
 from stealth_browser.proxy import from_env as proxy_from_env
+
+
+def _seed_profile_prefs(profile_dir: str) -> None:
+    """Pre-seed the profile Preferences with the fingerprint-stability prefs.
+
+    The real-display binary is Helium (a Chromium fork). Its built-in
+    anti-fingerprinting noise randomizes navigator.hardwareConcurrency per
+    renderer and injects WebAudio jitter, so the same render gives a different
+    hash every time (round-3 F18/F22) -- both are off-switchable only via the
+    profile prefs, not the command line. The WebRTC IP-handling pref restores
+    real-Chrome candidate gathering: Helium's ungoogled-chromium WebRTC
+    restriction patch hides local IPs so hard that ICE emits ZERO candidates
+    (round-3 F19). Helium prefs are inert in the container's stealth-chromium
+    build, so the same seed is harmless there.
+    """
+    default_dir = os.path.join(profile_dir, "Default")
+    os.makedirs(default_dir, exist_ok=True)
+    path = os.path.join(default_dir, "Preferences")
+    prefs: dict = {}
+    if os.path.exists(path):
+        try:
+            with open(path) as f:
+                prefs = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            prefs = {}
+    helium = prefs.setdefault("helium", {})
+    helium.setdefault("noise", {})["enabled"] = False
+    prefs.setdefault("webrtc", {})["ip_handling_policy"] = "default"
+    with open(path, "w") as f:
+        json.dump(prefs, f)
 
 
 class PatchrightCore:
@@ -41,6 +75,8 @@ class PatchrightCore:
         self._context = None
         self._page = None
         self._human = None
+        # temp user-data-dir backing non-persistent sessions (removed on close)
+        self._profile_dir: str | None = None
         # explicit per-session ProxyConfig wins; env is the fallback.
         self._proxy = (proxy if proxy is not None
                        else (proxy_from_env() if use_proxy else None))
@@ -144,28 +180,33 @@ class PatchrightCore:
             "no_viewport": True,
             "extra_http_headers": {"Accept-Language": idn.accept_language},
         }
+        # Every session launches through launch_persistent_context against a
+        # profile dir we control, so the fingerprint-stability prefs
+        # (_seed_profile_prefs) are pre-seeded before Chrome reads them. A
+        # non-persistent session gets a fresh throwaway dir (same lifetime as
+        # patchright's built-in temp profile); a persistent one reuses the
+        # named path. Both keep cookies/localStorage living only inside the
+        # session.
         if self.persistent:
-            # a named, on-disk profile: cookies/localStorage/history persist
-            # across sessions. It keeps its own fingerprint coherence by
-            # inheriting the same identity launch options on relaunch.
-            # The debug port is safe on a non-default user-data-dir (Chrome
-            # 136 only ignores it on the default profile).
-            port = random.randint(41000, 49999)
-            self.cdp_endpoint = f"http://127.0.0.1:{port}"
-            launch_opts = dict(launch_kwargs, **ctx_opts)
-            launch_opts["args"] = list(launch_opts["args"]) + [
-                f"--remote-debugging-port={port}",
-            ]
-            self._context = await self._pw.chromium.launch_persistent_context(
-                self.persistent, **launch_opts)
-            self._browser = None
-            self._page = self._context.pages[-1] if self._context.pages \
-                else await self._context.new_page()
-            return
-        self.cdp_endpoint = None
-        self._browser = await self._pw.chromium.launch(**launch_kwargs)
-        self._context = await self._browser.new_context(**ctx_opts)
-        self._page = await self._context.new_page()
+            profile_dir = self.persistent
+            self._profile_dir = None
+        else:
+            profile_dir = tempfile.mkdtemp(prefix="stealth-session-")
+            self._profile_dir = profile_dir
+        _seed_profile_prefs(profile_dir)
+        # a named profile keeps its own CDP endpoint for attach/debug, like
+        # any real device that stays reachable
+        port = random.randint(41000, 49999)
+        self.cdp_endpoint = f"http://127.0.0.1:{port}"
+        launch_opts = dict(launch_kwargs, **ctx_opts)
+        launch_opts["args"] = list(launch_opts["args"]) + [
+            f"--remote-debugging-port={port}",
+        ]
+        self._context = await self._pw.chromium.launch_persistent_context(
+            profile_dir, **launch_opts)
+        self._browser = None
+        self._page = self._context.pages[-1] if self._context.pages \
+            else await self._context.new_page()
 
     async def navigate(self, url: str) -> dict:
         await self._flush_pending_origins()
@@ -187,7 +228,42 @@ class PatchrightCore:
         }
 
     async def eval_js(self, expression: str):
-        return await self._page.evaluate(expression)
+        return await self._eval_js_cdp(expression)
+
+    async def _eval_js_cdp(self, expression: str):
+        """Evaluate in the page via CDP Runtime.evaluate.
+
+        Playwright's page.evaluate wraps the expression in a driver function
+        and evaluates it with Runtime.callFunctionOn, which leaks a wrapper
+        frame into Error.stack: 'eval at evaluate (:403:30), <anonymous>:N'
+        (round-3 F21). Raw Runtime.evaluate reports the clean
+        'at <anonymous>:1:1' a real Chrome eval shows. returnByValue +
+        awaitPromise keep the page.evaluate semantics (serializable result,
+        awaited promises). Falls back to page.evaluate on any protocol error.
+        """
+        session = await self._context.new_cdp_session(self._page)
+        try:
+            r = await session.send("Runtime.evaluate", {
+                "expression": expression,
+                "returnByValue": True,
+                "awaitPromise": True,
+                "userGesture": True,
+            })
+        except Exception:  # noqa: BLE001 - fall back to the wrapper eval
+            return await self._page.evaluate(expression)
+        finally:
+            try:
+                await session.detach()
+            except Exception:  # noqa: BLE001
+                pass
+        if r.get("exceptionDetails"):
+            raise RuntimeError(
+                r["exceptionDetails"].get("exception", {}).get(
+                    "description", "eval failed"))
+        res = r.get("result", {})
+        if res.get("type") == "undefined":
+            return None
+        return res.get("value")
 
     async def click(self, selector: str) -> None:
         # human-like: curve in, dwell, press-hold-release (not one instant
@@ -216,6 +292,9 @@ class PatchrightCore:
             await self._context.close()
         if self._browser is not None:
             await self._browser.close()
+        if self._profile_dir is not None:
+            shutil.rmtree(self._profile_dir, ignore_errors=True)
+            self._profile_dir = None
 
     # ----- session-clone (shared-login multi-session) --------------------
     # The key use case: caller logs in via session A (one human-like flow),
