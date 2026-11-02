@@ -178,12 +178,34 @@ measured against an old local binary, not the cloud-built `.215`.
 2. **Bump to Chromium 149** + `apply_edits.py --check` for anchor drift +
    rebuild. The 148→149 bump is the natural forcing function to do #1 too.
 3. **Close the Clark gaps** (see competitive section). Quick wins first:
-   `navigator.connection` spoof, `storage.estimate()` quota, launcher hygiene.
+   `storage.estimate()` quota, launcher hygiene. (`navigator.connection`
+   spoof dropped: round-4 verification proved our values already match real
+   Chrome on this host — see below.)
 4. **No `apps/stealth-browser/` deploy yet** — the Python service has no k8s
    deployment. When ready it becomes a `kube/` overlay over a Docker image of
    this package. Don't add it unless asked.
 5. **No Python lint dispatcher** — `scripts/{lint,format}/main.sh` have no `py`
    subcommand. Add `ruff` when you want repo-wide Python linting.
+
+### Verified-real ground truth (round 4, 2026-11-02)
+
+Probed against real Google Chrome 156.0.8078.80 (stable, kept at
+`/var/tmp/real-chrome/`) on this host — headless + headful, after a real
+navigation and on about:blank. These three round-4 low findings are NOT
+defects; our values match real Chrome exactly, so patching them would DIVERGE:
+
+- `chrome.csi` / `chrome.loadTimes` are bare functions with no enumerable
+  properties in real Chrome 156 (the object-with-timing shape is old Chrome).
+- `performance.memory.jsHeapSizeLimit` = 4395630592 after navigation on this
+  64 GB host (the 4294705152 canonical is the low-RAM value); on about:blank
+  `performance.memory` is `{}` in real Chrome too.
+- `navigator.connection` = {4g, rtt:0, downlink ~1.6} after real traffic —
+  real Chrome wobbles downlink the same (1.6-1.75) and reports rtt=0.
+
+Also learned: real Chrome 156 exposes NO `chrome.app` on web pages (object is
+just `[loadTimes, csi]`); our `app` overlay (F16, round 3) is extra — low
+severity, flag to the defense if they weigh shape. Probe script kept at
+`/var/tmp/real-chrome/probe.py` / `probe_blank.py`.
 
 ---
 
