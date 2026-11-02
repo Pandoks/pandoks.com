@@ -27,12 +27,15 @@ if [ ! -d "$WORK/depot_tools" ]; then
   git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 fi
 export PATH="$WORK/depot_tools:$PATH"
-# a FRESH clone is not bootstrapped (no python3_bin_reldir.txt) -- gclient/fetch
-# abort with "need to initialize depot_tools". update_depot_tools is the
-# canonical init (idempotent on an already-bootstrapped copy).
+# The runner runs as root: depot_tools refuses to self-init/update ("Running
+# depot tools as root is sad") unless DEPOT_TOOLS_UPDATE=0, and a FRESH clone
+# is unbootstrapped (python3_bin_reldir.txt missing). Bypass the root check
+# and run the explicit bootstrap; fail hard if the env still isn't usable.
+export DEPOT_TOOLS_UPDATE=0
 echo "[1.5/3] bootstrapping depot_tools ..."
-"$WORK/depot_tools/update_depot_tools" >/dev/null 2>&1 \
-  || "$WORK/depot_tools/gclient" --version >/dev/null 2>&1
+python3 "$WORK/depot_tools/ensure_bootstrap" || \
+  "$WORK/depot_tools/update_depot_tools" || true
+"$WORK/depot_tools/gclient" --version >/dev/null
 
 # 2. Chromium checkout — ROLLING cache strategy.
 #
