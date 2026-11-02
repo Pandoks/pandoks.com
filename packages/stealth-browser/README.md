@@ -69,3 +69,10 @@ on-disk dir) once, to shed the baked-in grants.
 `stealth_close`. Point it at the service with `STEALTH_BROWSER_URL`
 (default `http://127.0.0.1:8089`). The agent manages one session implicitly;
 `stealth_create(persistent="<name>")` binds it to an identity profile.
+
+## Plain tier
+
+`POST /fetch-plain` (stateless, no session): mass-scraping requests through
+`curl_cffi` impersonating real Chrome's TLS/HTTP-2/header order. ~1000x
+cheaper than a browser session; escalate to a browser session only when the
+target challenges (403/challenge page).
