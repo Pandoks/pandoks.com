@@ -176,6 +176,37 @@ int main() {
     CHECK(a != c, "device id differs for different salt (mic vs camera)");
   }
 
+  {
+    // Canvas-farbling helpers (Mix64 / EnvU64 / CanvasKey): the v2 canvas
+    // lock keys off these, so their behaviour is part of the contract.
+    const uint64_t m1 = apex_fp::Mix64(1), m2 = apex_fp::Mix64(1);
+    const uint64_t m3 = apex_fp::Mix64(2);
+    CHECK(m1 == m2, "Mix64 is deterministic");
+    CHECK(m1 != m3, "Mix64 avalanche: different input -> different output");
+    setenv("APEX_FP_U64TEST", "18446744073709551616", 1);  // 2^64: overflows
+    CHECK(apex_fp::EnvU64("APEX_FP_U64TEST", 0) == 0,  // > u64 max -> fallback
+          "EnvU64 overflow guard: > 2^64-1 parses to fallback");
+    setenv("APEX_FP_U64TEST", "18446744073709551615", 1);  // 2^64-1: fits
+    CHECK(apex_fp::EnvU64("APEX_FP_U64TEST", 0) == 18446744073709551615ull,
+          "EnvU64 parses u64 max exactly");
+    setenv("APEX_FP_U64TEST", "bad1x", 1);
+    CHECK(apex_fp::EnvU64("APEX_FP_U64TEST", 7) == 7,
+          "EnvU64 non-numeric -> fallback");
+    // CanvasKey: with an explicit key env it returns it; without, the fallback
+    // is Mix64(seed) and must be non-zero for a non-zero seed (the mask gate
+    // keys on key != 0).
+    setenv("APEX_FP_CANVAS_KEY", "12345678901234567890", 1);
+    setenv("APEX_FP_SEED", "0", 1);
+    CHECK(apex_fp::CanvasKey() == 12345678901234567890ull,
+          "CanvasKey returns the explicit APEX_FP_CANVAS_KEY");
+    unsetenv("APEX_FP_CANVAS_KEY");
+    setenv("APEX_FP_SEED", "4242", 1);
+    CHECK(apex_fp::CanvasKey() == apex_fp::Mix64(4242ull),
+          "CanvasKey fallback is Mix64(Seed())");
+    CHECK(apex_fp::CanvasKey() != 0, "fallback CanvasKey is non-zero");
+    unsetenv("APEX_FP_U64TEST");
+  }
+
   std::printf("\n%s (%d failure%s)\n",
               failures == 0 ? "ALL PASS" : "FAILURES",
               failures, failures == 1 ? "" : "s");

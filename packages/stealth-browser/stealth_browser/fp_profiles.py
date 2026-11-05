@@ -16,6 +16,7 @@ the patches do not exist, so the env vars are simply ignored.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import random
 from dataclasses import dataclass, field
@@ -298,11 +299,21 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         battery_level = str(rng.randint(55, 95) / 100.0)
         battery_charging = "0"
     webgpu_arch = profile.webgpu_arch or WEBGPU_ARCH_BY_CLASS[profile.gpu_class]
+    # Canvas farbling key: 64 bits, stable per persona. Real canvas hashes are
+    # stable for hundreds of days, so the persona's canvas hash must NOT change
+    # between sessions; derive it from the persona label. (The C++ fallback --
+    # the 32-bit session seed -- is brute-forceable from one attacker-drawn
+    # canvas, so this variable must always be emitted.)
+    canvas_key = int.from_bytes(
+        hashlib.sha256(f"apex-canvas:{profile.label}".encode()).digest()[:8],
+        "big",
+    )
     return {
         "APEX_FP_ACTIVE": "1",
         "APEX_FP_SEED": str(seed & 0xFFFFFFFF),
         "APEX_FP_PLATFORM": profile.platform,
         "APEX_FP_UA_PLATFORM": profile.ua_platform,
+        "APEX_FP_CANVAS_KEY": str(canvas_key),
         "APEX_FP_UA_ARCH": UA_ARCH_BY_PLATFORM[profile.platform],
         "APEX_FP_UA_PLATFORM_VERSION": UA_PLATFORM_VERSION_BY_PLATFORM[profile.platform],
         "APEX_FP_HW_CONCURRENCY": str(profile.hw_concurrency),

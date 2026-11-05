@@ -51,9 +51,20 @@ SRC = WORK / "chromium" / "src"
 # wrapped in UNSAFE_BUFFERS with its invariant stated. The span covers exactly
 # the bytes GL / Skia wrote -- (apex_h - 1) full strides plus one unpadded
 # final row -- which is the size the upstream validators already require.
+# Canvas farbling v2: a DENSE, content-keyed LSB lock. For every textured,
+# non-transparent interior pixel, the low bit of R/G/B is OVERWRITTEN with a
+# bit of Mix64(key ^ H(3x3 window high-7-bits + alpha)). Properties (simulated
+# in /var/tmp/apex-farbling-sim): subtraction recovers only 7/8 bits per byte
+# (the attacker learns which bits were locked, never what they were); majority
+# vote over k sessions stays at ~49.9% wrong LSBs for every k (voting cannot
+# work because the locked bit is a function of the content); get->put->get
+# round-trips are exact (the key reads only bits the mask never writes); sub-rect
+# reads equal the full read. DENSITY IS THE SECURITY PARAMETER: every textured
+# interior pixel is locked; a sparse variant is byte-exact recoverable by
+# majority vote (k>=5).
 _RGBA_NOISE_LOOP = (
-    "      const uint32_t apex_seed = apex_fp::Seed();\n"
-    "      if (apex_seed != 0 && apex_w >= 3u && apex_h >= 3u &&\n"
+    "      const uint64_t apex_key = apex_fp::CanvasKey();\n"
+    "      if (apex_key != 0 && apex_w >= 3u && apex_h >= 3u &&\n"
     "          apex_stride >= apex_w * 4u) {\n"
     "        // SAFETY: caller-validated 8-bit RGBA/BGRA buffer of apex_h\n"
     "        // rows apex_stride bytes apart; last row >= apex_w * 4 bytes.\n"
@@ -62,31 +73,44 @@ _RGBA_NOISE_LOOP = (
     "        auto apex_at = [&](size_t ax, size_t ay) {\n"
     "          return apex_buf.subspan(ay * apex_stride + ax * 4u, 4u);\n"
     "        };\n"
-    "        apex_fp::Mulberry32 apex_rng(apex_seed);\n"
+    "        // Channel order canonicalised to R,G,B so getImageData (RGBA) and\n"
+    "        // the encode path (N32 may be BGRA) lock the SAME logical bits.\n"
+    "        // apex_bgra is bound by the inject (false for getImageData /\n"
+    "        // readPixels -- the gates already guarantee RGBA order there).\n"
+    "        const size_t apex_c0 = apex_bgra ? 2u : 0u;\n"
+    "        const size_t apex_c2 = apex_bgra ? 0u : 2u;\n"
     "        for (size_t ay = 1; ay + 1 < apex_h; ++ay) {\n"
     "          for (size_t ax = 1; ax + 1 < apex_w; ++ax) {\n"
-    "            if (apex_rng.NextDouble() >= 0.003) continue;\n"
     "            base::span<uint8_t> apex_p = apex_at(ax, ay);\n"
     "            if (apex_p[3] == 0) continue;  // transparent: untouched\n"
+    "            // Uniform test on the HIGH 7 bits + alpha. A solid fill is\n"
+    "            // uniform in full bytes, hence in hi7; testing hi7 (not full\n"
+    "            // bytes) makes the decision invariant under the mask itself,\n"
+    "            // which is what makes re-reads a fixpoint.\n"
     "            bool apex_uniform = true;\n"
-    "            for (size_t ady = 0; ady < 3u && apex_uniform; ++ady) {\n"
+    "            uint64_t apex_hv = 0xcbf29ce484222325ull;  // FNV-1a basis\n"
+    "            for (size_t ady = 0; ady < 3u; ++ady) {\n"
     "              for (size_t adx = 0; adx < 3u; ++adx) {\n"
     "                base::span<uint8_t> apex_n =\n"
     "                    apex_at(ax + adx - 1u, ay + ady - 1u);\n"
-    "                if (apex_n[0] != apex_p[0] || apex_n[1] != apex_p[1] ||\n"
-    "                    apex_n[2] != apex_p[2] || apex_n[3] != apex_p[3]) {\n"
-    "                  apex_uniform = false;\n"
-    "                  break;\n"
+    "                for (size_t ac : {apex_c0, size_t{1}, apex_c2}) {  // R,G,B\n"
+    "                  const uint8_t apex_hi = apex_n[ac] & 0xFEu;\n"
+    "                  if (apex_hi != (apex_p[ac] & 0xFEu)) apex_uniform = false;\n"
+    "                  apex_hv = (apex_hv ^ apex_hi) * 0x100000001b3ull;\n"
     "                }\n"
+    "                if (apex_n[3] != apex_p[3]) apex_uniform = false;\n"
+    "                apex_hv = (apex_hv ^ apex_n[3]) * 0x100000001b3ull;\n"
     "              }\n"
     "            }\n"
     "            if (apex_uniform) continue;  // solid fill: untouched\n"
-    "            for (size_t ac = 0; ac < 3u; ++ac) {  // bytes 0..2, not A\n"
-    "              const int apex_d = (apex_rng.NextDouble() < 0.5) ? -1 : 1;\n"
-    "              const int apex_v = static_cast<int>(apex_p[ac]) + apex_d;\n"
-    "              apex_p[ac] = static_cast<uint8_t>(\n"
-    "                  apex_v < 0 ? 0 : (apex_v > 255 ? 255 : apex_v));\n"
-    "            }\n"
+    "            const uint64_t apex_k = apex_fp::Mix64(apex_key ^ apex_hv);\n"
+    "            const uint64_t apex_bits = apex_k >> 32;\n"
+    "            apex_p[apex_c0] =\n"
+    "                (apex_p[apex_c0] & 0xFEu) | uint8_t(apex_bits & 1u);\n"
+    "            apex_p[1] =\n"
+    "                (apex_p[1] & 0xFEu) | uint8_t((apex_bits >> 1) & 1u);\n"
+    "            apex_p[apex_c2] =\n"
+    "                (apex_p[apex_c2] & 0xFEu) | uint8_t((apex_bits >> 2) & 1u);\n"
     "          }\n"
     "        }\n"
     "      }\n"
@@ -272,6 +296,7 @@ EDITS = [
                   "      const size_t apex_h =\n"
                   "          static_cast<size_t>(image_data_pixmap.height());\n"
                   "      const size_t apex_stride = image_data_pixmap.rowBytes();\n"
+                  "      const bool apex_bgra = false;  // gate: kRGBA_8888 only\n"
                   + _RGBA_NOISE_LOOP +
                   "    }\n",
     },
@@ -309,6 +334,8 @@ EDITS = [
                   "      const size_t apex_h = "
                   "static_cast<size_t>(pixmap_.height());\n"
                   "      const size_t apex_stride = pixmap_.rowBytes();\n"
+                  "      const bool apex_bgra =\n"
+                  "          (pixmap_.colorType() == kBGRA_8888_SkColorType);\n"
                   + _RGBA_NOISE_LOOP +
                   "    }\n",
     },
@@ -597,6 +624,7 @@ EDITS = [
                   "                    static_cast<size_t>(apex_pack.alignment) *\n"
                   "                    static_cast<size_t>(apex_pack.alignment)\n"
                   "              : 0u;\n"
+                  "      const bool apex_bgra = false;  // gate: GL_RGBA only\n"
                   + _RGBA_NOISE_LOOP +
                   "    }\n",
     },

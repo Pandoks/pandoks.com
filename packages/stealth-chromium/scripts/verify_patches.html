@@ -69,6 +69,67 @@ row('canvas toDataURL stable in-session', h1 === h2 ? 'YES (deterministic)' : 'N
     h1 === h2 ? 'ok' : 'bad');
 row('canvas hash (sample chars)', h1.slice(22, 70));
 
+// --- canvas farbling v2 integrity ---------------------------------------
+// The content-keyed LSB lock must be: a FIXPOINT under re-read (no round-trip
+// drift), coordinate-free (sub-rect == the slice of the full read), and
+// coherent between the getImageData path and the encode path.
+function hashBytes(u8) {  // FNV-1a over the byte array
+  let h = 0x811c9dc5n;
+  for (const b of u8) {
+    h ^= BigInt(b);
+    h = (h * 0x01000193n) & 0xffffffffffffffffn;
+  }
+  return h.toString(16);
+}
+{
+  const c = document.createElement('canvas');
+  c.width = 220; c.height = 30;
+  const x = c.getContext('2d');
+  x.fillStyle = '#069';
+  x.fillText('apex-v2', 2, 20);
+  x.fillRect(10, 10, 50, 8);
+  const g1 = x.getImageData(0, 0, 220, 30);
+  x.putImageData(g1, 0, 0);
+  const g2 = x.getImageData(0, 0, 220, 30);
+  const fx = hashBytes(g1.data) === hashBytes(g2.data);
+  row('canvas get->put->get fixpoint', fx ? 'YES (no drift)' : 'NO (drift!)',
+      fx ? 'ok' : 'bad');
+  const sub = x.getImageData(31, 7, 100, 50);
+  const full = x.getImageData(0, 0, 220, 30);
+  let subOK = true;
+  for (let yy = 1; yy < 49 && subOK; ++yy) {
+    for (let xx = 1; xx < 99 && subOK; ++xx) {
+      const si = (yy * 100 + xx) * 4;
+      const fi = ((7 + yy) * 220 + (31 + xx)) * 4;
+      for (let b = 0; b < 4; ++b) {
+        if (sub.data[si + b] !== full.data[fi + b]) { subOK = false; break; }
+      }
+    }
+  }
+  row('canvas sub-rect == full-read slice',
+      subOK ? 'YES (coordinate-free)' : 'NO (positional!)', subOK ? 'ok' : 'bad');
+  // encode path (toDataURL, lossless PNG) must equal getImageData on an
+  // opaque canvas: one verdict for both paths, or the mask is inconsistent.
+  const oc = document.createElement('canvas');
+  oc.width = 64; oc.height = 64;
+  const ox = oc.getContext('2d');
+  ox.fillStyle = '#f60'; ox.fillRect(0, 0, 64, 64);
+  ox.fillStyle = '#123'; ox.fillRect(10, 10, 30, 30);
+  const od = ox.getImageData(0, 0, 64, 64);
+  const img = new Image();
+  img.onload = () => {
+    const d2 = document.createElement('canvas');
+    d2.width = 64; d2.height = 64;
+    const d2x = d2.getContext('2d');
+    d2x.drawImage(img, 0, 0);
+    const dd = d2x.getImageData(0, 0, 64, 64);
+    const agree = hashBytes(od.data) === hashBytes(dd.data);
+    row('canvas toDataURL pixels == getImageData',
+        agree ? 'YES (paths coherent)' : 'NO', agree ? 'ok' : 'bad');
+  };
+  img.src = oc.toDataURL('image/png');
+}
+
 // --- the decisive check: toString integrity -----------------------------
 // A C++ patch leaves the JS getter pristine. A JS shim would show a different
 // toString. Every row here MUST say "native code".

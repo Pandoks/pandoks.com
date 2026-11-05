@@ -161,6 +161,43 @@ class Mulberry32 {
 // The session seed (0 means "no seed set" -> callers should skip noise).
 inline uint32_t Seed() { return EnvU32("APEX_FP_SEED", 0); }
 
+// 64-bit avalanche mix (the splitmix64 finalizer). Used to derive the canvas
+// mask key and the per-block lock bits. Pure integer math -- no //base, no
+// libc, so this header stays includable from V8-includable code.
+inline uint64_t Mix64(uint64_t x) {
+  x += 0x9E3779B97F4A7C15ull;
+  x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ull;
+  x = (x ^ (x >> 27)) * 0x94D049BB133111EBull;
+  return x ^ (x >> 31);
+}
+
+// 64-bit variant of EnvU32 (the u32 parse overflows past 4G, so this parses
+// the decimal text with its own guard).
+inline uint64_t EnvU64(const char* name, uint64_t fallback) {
+  std::string s = EnvStr(name);
+  if (s.empty()) return fallback;
+  uint64_t acc = 0;
+  for (char c : s) {
+    if (c < '0' || c > '9') return fallback;
+    const uint64_t before = acc;
+    acc = acc * 10u + static_cast<uint64_t>(c - '0');
+    if (acc < before) return fallback;  // overflow guard
+  }
+  return acc;
+}
+
+// Canvas farbling key: stable per persona (real canvas hashes are stable for
+// hundreds of days, so a persona whose canvas hash changes between sessions
+// is itself a signal). APEX_FP_CANVAS_KEY supplies 64 bits. Fallback is the
+// 32-bit session seed -- still content-keyed and irreversible per byte, but
+// brute-forceable from one attacker-drawn canvas in ~13 core-hours, so the
+// persona layer should always set the 64-bit key.
+inline uint64_t CanvasKey() {
+  uint64_t k = EnvU64("APEX_FP_CANVAS_KEY", 0);
+  if (k == 0) k = Mix64(static_cast<uint64_t>(Seed()));
+  return k;
+}
+
 // Per-eTLD+1 (top-level site) seed derived from the session seed and the
 // site's registrable domain. Brave's farbling model -- so the same apex
 // session presents a DIFFERENT canvas/audio/WebGL noise pattern on each
