@@ -22,7 +22,8 @@ public class WatchModule: Module {
       }
     }
 
-    Function("updateApplicationContext") { (context: [String: Any]) in
+    AsyncFunction("updateApplicationContext") { (context: [String: Any]) in
+      await self.sessionDelegate.waitForActivation()
       try WCSession.default.updateApplicationContext(context)
     }
   }
@@ -30,9 +31,24 @@ public class WatchModule: Module {
 
 class WatchSessionDelegate: NSObject, WCSessionDelegate {
   weak var module: WatchModule?
+  private let activationLock = NSLock()
+  private var activationWaiters: [CheckedContinuation<Void, Never>] = []
 
   init(module: WatchModule) {
     self.module = module
+  }
+
+  // NOTE: sends fail until the session activates, at launch and while switching watches
+  func waitForActivation() async {
+    await withCheckedContinuation { continuation in
+      activationLock.withLock {
+        if WCSession.default.activationState == .activated {
+          continuation.resume()
+        } else {
+          activationWaiters.append(continuation)
+        }
+      }
+    }
   }
 
   // NOTE: both read empty before activation, and activating doesn't count as a change
@@ -40,6 +56,10 @@ class WatchSessionDelegate: NSObject, WCSessionDelegate {
     _ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState,
     error: Error?
   ) {
+    activationLock.withLock {
+      activationWaiters.forEach { $0.resume() }
+      activationWaiters.removeAll()
+    }
     module?.sendEvent("onReachabilityChange", ["isReachable": session.isReachable])
     module?.sendEvent("onApplicationContext", session.receivedApplicationContext)
   }

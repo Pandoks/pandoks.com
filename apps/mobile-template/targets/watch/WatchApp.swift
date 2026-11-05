@@ -15,6 +15,7 @@ struct WatchApp: App {
         Button("Send to phone") {
           phoneSession.send(Date.now.formatted(date: .omitted, time: .standard))
         }
+        .disabled(!phoneSession.isActivated)
       }
     }
   }
@@ -22,6 +23,7 @@ struct WatchApp: App {
 
 @Observable
 final class PhoneSession: NSObject, WCSessionDelegate {
+  var isActivated = false
   var valueFromPhone: String?
   var sendError: String?
 
@@ -44,6 +46,7 @@ final class PhoneSession: NSObject, WCSessionDelegate {
     _ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState,
     error: Error?
   ) {
+    DispatchQueue.main.async { self.isActivated = activationState == .activated }
     show(session.receivedApplicationContext)
   }
 

@@ -59,12 +59,12 @@ function WatchRows({ watch }: { watch: NonNullable<typeof Watch> }) {
   );
   const [sendError, setSendError] = useState<string | null>(null);
 
-  function sendToWatch() {
+  async function sendToWatch() {
     try {
-      watch.updateApplicationContext({ value: new Date().toLocaleTimeString() });
+      await watch.updateApplicationContext({ value: new Date().toLocaleTimeString() });
       setSendError(null);
     } catch (error) {
-      // NOTE: throws on iOS without a paired watch app, and on Android without the Wearable API
+      // NOTE: rejects on iOS without a paired watch app, and on Android without the Wearable API
       setSendError(String(error));
     }
   }

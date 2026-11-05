@@ -9,7 +9,7 @@ declare class WatchModule extends NativeModule<{
   readonly isSupported: boolean;
   readonly isReachable: boolean;
   readonly receivedApplicationContext: WatchPayload;
-  updateApplicationContext(context: WatchPayload): void;
+  updateApplicationContext(context: WatchPayload): Promise<void>;
 }
 
 const watchModule = requireOptionalNativeModule<WatchModule>('Watch');
