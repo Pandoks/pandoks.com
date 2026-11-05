@@ -91,7 +91,11 @@ jobs:
 
       - uses: ./.github/actions/setup-node-pnpm
 
+      # NOTE: offline checks against the installed SDK's bundledNativeModules.json, so new Expo patch
+      # releases inside Renovate's minimumReleaseAge don't fail every PR
       - name: Check Expo SDK versions
+        env:
+          EXPO_OFFLINE: '1'
         run: pnpm --filter @pandoks.com/mobile-template exec expo install --check
 
       - name: Run mobile unit tests
