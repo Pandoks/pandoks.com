@@ -1,5 +1,5 @@
 import { isProduction } from './dns';
-import { tailscaleAcl } from './tailscale';
+import { hubTailscaleServices, tailscaleAcl } from './tailscale';
 
 if (isProduction) {
   new ovh.vps.Vps(
@@ -74,47 +74,13 @@ if (isProduction) {
     { dependsOn: [tailscaleAcl] }
   );
 
-  // NOTE: the hub serves each of these with `tailscale serve --service=<name> --https=443`
-  new tailscale.Service(
-    'CliproxyapiTailscaleService',
-    {
-      name: 'svc:cliproxyapi',
-      comment: 'CLIProxyAPI on the homelab hub',
-      ports: ['tcp:443'],
-      tags: ['tag:hub']
-    },
-    { dependsOn: [tailscaleAcl] }
-  );
-  new tailscale.Service(
-    'CliproxyapiCiTailscaleService',
-    {
-      name: 'svc:cliproxyapi-ci',
-      comment: 'CLIProxyAPI with Console API keys only',
-      ports: ['tcp:443'],
-      tags: ['tag:hub']
-    },
-    { dependsOn: [tailscaleAcl] }
-  );
-  new tailscale.Service(
-    'BeszelTailscaleService',
-    {
-      name: 'svc:beszel',
-      comment: 'Beszel monitoring hub',
-      ports: ['tcp:443'],
-      tags: ['tag:hub']
-    },
-    { dependsOn: [tailscaleAcl] }
-  );
-  new tailscale.Service(
-    'ArtexTailscaleService',
-    {
-      name: 'svc:artex',
-      comment: 'ARTEX on the homelab hub',
-      ports: ['tcp:443'],
-      tags: ['tag:hub']
-    },
-    { dependsOn: [tailscaleAcl] }
-  );
+  for (const { name, comment } of hubTailscaleServices) {
+    new tailscale.Service(
+      `${name.replace(/(?:^|-)(.)/g, (_, char: string) => char.toUpperCase())}TailscaleService`,
+      { name: `svc:${name}`, comment, ports: ['tcp:443'], tags: ['tag:hub'] },
+      { dependsOn: [tailscaleAcl] }
+    );
+  }
 }
 
 new sst.x.DevCommand('LocalInit', {
