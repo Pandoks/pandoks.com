@@ -127,7 +127,8 @@ jobs:
       - test-svelte-pkg
       - test-prettier-pkg
       - test-valkey-reconciler
-    if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
-      - run: echo "ok"
+      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1

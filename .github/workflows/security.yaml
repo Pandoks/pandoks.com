@@ -123,7 +123,8 @@ jobs:
   security-pass:
     needs:
       - scan-k3s-config
-    if: ${{ always() && !cancelled() && github.event_name == 'pull_request' && !contains(needs.*.result, 'failure') }}
+    if: ${{ always() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
-      - run: echo "ok"
+      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1

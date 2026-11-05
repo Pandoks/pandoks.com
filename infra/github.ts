@@ -6,13 +6,16 @@ import { tailscaleAcl } from './tailscale';
 export const githubOrg = 'Pandoks';
 export const githubRepoName = 'pandoks.com';
 
+const GITHUB_ACTIONS_APP_ID = 15368;
+// NOTE: AWS trusts every job in the production environment, so only main gets it.
+const DEPLOYMENT_BRANCH_POLICY = isProduction
+  ? { protectedBranches: false, customBranchPolicies: true }
+  : undefined;
+
 const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
   repository: githubRepoName,
   environment: isProduction ? 'production' : 'dev',
-  // NOTE: AWS trusts every job in this environment, so only main gets it.
-  deploymentBranchPolicy: isProduction
-    ? { protectedBranches: false, customBranchPolicies: true }
-    : undefined
+  deploymentBranchPolicy: DEPLOYMENT_BRANCH_POLICY
 });
 
 new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
@@ -39,13 +42,14 @@ if (isProduction) {
       deletion: true,
       nonFastForward: true,
       pullRequest: { allowedMergeMethods: ['squash'] },
+      // NOTE: No bypass: rename a required check by adding the new name, then dropping the old.
       requiredStatusChecks: {
         requiredChecks: [
           'checks-pass',
           'security-pass',
           'tests-pass',
           'build-and-publish-pass'
-        ].map((context) => ({ context }))
+        ].map((context) => ({ context, integrationId: GITHUB_ACTIONS_APP_ID }))
       }
     }
   });
