@@ -9,6 +9,7 @@ export default createWidget<FocusWidgetProps>(
   (props, environment) => {
     'widget';
     const isDark = environment.colorScheme === 'dark';
+    const shown = props.next && Date.now() >= props.next.date ? props.next : props;
     return (
       <Column
         verticalArrangement="bottom"
@@ -18,10 +19,10 @@ export default createWidget<FocusWidgetProps>(
           FOCUS
         </Text>
         <Text color={isDark ? '#FFFFFF' : '#000000'} style={{ fontSize: 22, fontWeight: 'bold' }}>
-          {props.title}
+          {shown.title}
         </Text>
         <Text color="#8E8E93" style={{ fontSize: 13 }}>
-          {props.caption}
+          {shown.caption}
         </Text>
       </Column>
     );

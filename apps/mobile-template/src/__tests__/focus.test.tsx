@@ -3,7 +3,7 @@ import {
   startProgressActivity,
   type ProgressActivity
 } from '@pandoks.com/react-native-live-updates';
-import { userEvent } from '@testing-library/react-native';
+import { act, userEvent } from '@testing-library/react-native';
 import { renderRouter, screen } from 'expo-router/testing-library';
 
 import FocusScreen from '../app/focus';
@@ -47,6 +47,20 @@ test('hides the push token once the session stops', async () => {
   await user.press(screen.getByText('Stop'));
 
   expect(screen.queryByText('Push token activity-token')).toBeNull();
+});
+
+test('ends a finished session with its final state so iOS keeps showing Done', async () => {
+  jest.useFakeTimers();
+  const finished = { ...activity, end: jest.fn(async () => {}) };
+  jest.mocked(startProgressActivity).mockResolvedValueOnce(finished);
+  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+  await renderRouter({ index: FocusScreen });
+
+  await user.press(screen.getByText('Start'));
+  await act(() => jest.advanceTimersByTimeAsync(30_000));
+
+  expect(finished.end).toHaveBeenCalledWith(expect.objectContaining({ title: 'Focus' }));
+  jest.useRealTimers();
 });
 
 test('ends activities left running by an earlier launch', async () => {

@@ -25,21 +25,27 @@ function formatTime(epochMs: number) {
   return new Date(epochMs).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-async function endSession(session: Session, title: string, endedAt: number) {
+async function endSession(
+  session: Session,
+  title: string,
+  endedAt: number,
+  finalState?: ProgressActivityState
+) {
   session.pushTokenSubscription.remove();
   FocusWidget.updateSnapshot({ title, caption: `At ${formatTime(endedAt)}` });
-  await session.activity.end();
+  await session.activity.end(finalState);
 }
 
 function showFocusing(endsAt: number) {
   const focusing = { title: 'Focusing', caption: `Until ${formatTime(endsAt)}` };
+  const done = { title: 'Done', caption: `At ${formatTime(endsAt)}` };
   if (Platform.OS === 'android') {
-    FocusWidget.updateSnapshot(focusing);
+    FocusWidget.updateSnapshot({ ...focusing, next: { date: endsAt, ...done } });
     return;
   }
   FocusWidget.updateTimeline([
     { date: new Date(), props: focusing },
-    { date: new Date(endsAt), props: { title: 'Done', caption: `At ${formatTime(endsAt)}` } }
+    { date: new Date(endsAt), props: done }
   ]);
 }
 
@@ -64,7 +70,7 @@ export default function FocusScreen() {
     const tick = setInterval(() => setNow(Date.now()), 1000);
     const finish = setTimeout(() => {
       setSession(null);
-      void endSession(session, 'Done', session.state.endsAt);
+      void endSession(session, 'Done', session.state.endsAt, session.state);
     }, session.state.endsAt - Date.now());
     return () => {
       clearInterval(tick);

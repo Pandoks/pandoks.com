@@ -23,7 +23,11 @@ export type ProgressActivityState = {
 
 export type ProgressActivity = {
   update(state: ProgressActivityState): Promise<void>;
-  end(): Promise<void>;
+  /**
+   * Without `finalState` the activity disappears now. iOS keeps showing `finalState` (Done once
+   * `endsAt` passed) until the system dismisses it; Android removes the notification either way.
+   */
+  end(finalState?: ProgressActivityState): Promise<void>;
   /** iOS: the ActivityKit token for `liveactivity` pushes; Android Live Updates have none. */
   addPushTokenListener(listener: (pushToken: string) => void): EventSubscription;
 };
@@ -34,9 +38,10 @@ const ProgressLiveActivity = createLiveActivity<ProgressActivityState>(
     'widget';
     const accentColor = '#FF9F0A';
     const timerInterval = { lower: new Date(state.startedAt), upper: new Date(state.endsAt) };
+    const isDone = environment.isStale || Date.now() >= state.endsAt;
     const countdown = (size: number, width: number) => (
       <Text
-        timerInterval={environment.isStale ? undefined : timerInterval}
+        timerInterval={isDone ? undefined : timerInterval}
         modifiers={[
           font({ size, weight: 'semibold' }),
           monospacedDigit(),
@@ -106,7 +111,8 @@ const ProgressLiveActivity = createLiveActivity<ProgressActivityState>(
 function toProgressActivity(liveActivity: LiveActivity<ProgressActivityState>): ProgressActivity {
   return {
     update: (nextState) => liveActivity.update(nextState, new Date(nextState.endsAt)),
-    end: () => liveActivity.end('immediate'),
+    end: (finalState) =>
+      finalState ? liveActivity.end('default', finalState) : liveActivity.end('immediate'),
     addPushTokenListener: (listener) =>
       liveActivity.addPushTokenListener(({ pushToken }) => listener(pushToken))
   };

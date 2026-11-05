@@ -2,7 +2,12 @@ import { Text, VStack } from '@expo/ui/swift-ui';
 import { containerBackground, font, foregroundStyle, frame } from '@expo/ui/swift-ui/modifiers';
 import { createWidget } from 'expo-widgets';
 
-export type FocusWidgetProps = { title: string; caption: string };
+export type FocusWidgetProps = {
+  title: string;
+  caption: string;
+  /** Android: props to show from `date` (epoch ms), since Android widgets have no timeline. */
+  next?: { date: number; title: string; caption: string };
+};
 
 export default createWidget<FocusWidgetProps>(
   'FocusWidget',

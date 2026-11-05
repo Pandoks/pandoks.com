@@ -2,7 +2,10 @@ package com.pandoks.liveupdates
 
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.appwidget.AppWidgetManager
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
@@ -22,6 +25,25 @@ class ProgressActivityState : Record {
   @Field val startedAt: Long = 0
 
   @Field val endsAt: Long = 0
+}
+
+// NOTE: Android widgets have no timeline, so the app's widgets rerender when the notification times out at endsAt or is dismissed
+class ReloadWidgetsReceiver : BroadcastReceiver() {
+  override fun onReceive(
+    context: Context,
+    intent: Intent,
+  ) {
+    val appWidgetManager = AppWidgetManager.getInstance(context)
+    appWidgetManager.installedProviders
+      .filter { provider -> provider.provider.packageName == context.packageName }
+      .forEach { provider ->
+        context.sendBroadcast(
+          Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE)
+            .setComponent(provider.provider)
+            .putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, appWidgetManager.getAppWidgetIds(provider.provider)),
+        )
+      }
+  }
 }
 
 class LiveUpdatesModule : Module() {
@@ -90,6 +112,9 @@ class LiveUpdatesModule : Module() {
         .setContentTitle(state.title)
         .setContentText(state.text)
         .setContentIntent(openApp)
+        .setDeleteIntent(
+          PendingIntent.getBroadcast(context, 0, Intent(context, ReloadWidgetsReceiver::class.java), PendingIntent.FLAG_IMMUTABLE),
+        )
         // NOTE: setTimeoutAfter needs Android 8+, so older notifications stay user-dismissible
         .setOngoing(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
         .setOnlyAlertOnce(true)
