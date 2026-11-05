@@ -226,7 +226,7 @@ func (service *service) deliverDueJobs(shutdown context.Context) bool {
 		return false
 	}
 
-	if err := commitJobs(ctx, transaction, startedAt, jobIDs, jobs); err != nil {
+	if err := commitJobs(ctx, transaction, jobIDs, jobs); err != nil {
 		slog.Error("deliver jobs", "error", err)
 		return false
 	}
@@ -322,7 +322,7 @@ func (job *claimedJob) record(device device, result result) {
 }
 
 // commitJobs removes unregistered tokens, requeues unsent and retryable sends, and deletes the jobs.
-func commitJobs(ctx context.Context, transaction pgx.Tx, startedAt time.Time, jobIDs []int64, jobs []*claimedJob) error {
+func commitJobs(ctx context.Context, transaction pgx.Tx, jobIDs []int64, jobs []*claimedJob) error {
 	ctx, cancel := context.WithTimeout(ctx, databaseTimeout)
 	defer cancel()
 	var (
@@ -355,8 +355,8 @@ func commitJobs(ctx context.Context, transaction pgx.Tx, startedAt time.Time, jo
 	// NOTE: a failure rolls the jobs back to be sent again, since dropping it would lose their retries
 	if len(unregisteredTokens)+len(requeued) > 0 {
 		batch := &pgx.Batch{}
-		// NOTE: a device that registered again after its job started keeps its token
-		batch.Queue(`DELETE FROM push_devices WHERE token = ANY($1) AND updated_at < $2`, unregisteredTokens, startedAt)
+		// NOTE: now() is the transaction's start on the database clock, so a device that registered again since keeps its token
+		batch.Queue(`DELETE FROM push_devices WHERE token = ANY($1) AND updated_at < now()`, unregisteredTokens)
 		batch.Queue(`INSERT INTO push_jobs (notification_id, send_at, job) SELECT * FROM unnest($1::bigint[], $2::timestamptz[], $3::jsonb[])`,
 			notificationIDs, sendAts, requeued)
 		if err := transaction.SendBatch(ctx, batch).Close(); err != nil {
