@@ -78,5 +78,5 @@ const styles = StyleSheet.create({
   firstRow: { borderTopWidth: 0 },
   label: { fontSize: 17 },
   value: { fontSize: 17, opacity: 0.6, fontVariant: ['tabular-nums'] },
-  nativeView: { flex: 1, opacity: 0.6 }
+  nativeView: { flexShrink: 1, opacity: 0.6 }
 });

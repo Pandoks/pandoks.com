@@ -3,8 +3,6 @@ package com.pandoks.moduletemplate
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Color
-import android.text.TextUtils
-import android.view.Gravity
 import android.widget.TextView
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.modules.Module
@@ -45,13 +43,27 @@ class ModuleTemplateView(context: Context, appContext: AppContext) : ExpoView(co
   override val shouldUseAndroidLayout = true
   val label = TextView(context).apply {
     layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
-    gravity = Gravity.END or Gravity.CENTER_VERTICAL
     textSize = 17f
-    maxLines = 1
-    ellipsize = TextUtils.TruncateAt.END
   }
+  private var reportedSize = Pair(-1, -1)
 
   init {
     addView(label)
+  }
+
+  // NOTE: Yoga can't measure native views, so report the text's size to wrap like React Native text.
+  override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+    label.measure(MeasureSpec.UNSPECIFIED, MeasureSpec.UNSPECIFIED)
+    val lineWidth = label.measuredWidth
+    val availableWidth = MeasureSpec.getSize(widthMeasureSpec)
+    val wrapWidth = if (availableWidth > 0) minOf(availableWidth, lineWidth) else lineWidth
+    label.measure(MeasureSpec.makeMeasureSpec(wrapWidth, MeasureSpec.EXACTLY), MeasureSpec.UNSPECIFIED)
+    val size = Pair(lineWidth, label.measuredHeight)
+    if (size != reportedSize) {
+      reportedSize = size
+      val density = resources.displayMetrics.density
+      shadowNodeProxy.setViewSize(size.first / density.toDouble(), size.second / density.toDouble())
+    }
+    super.onMeasure(widthMeasureSpec, heightMeasureSpec)
   }
 }
