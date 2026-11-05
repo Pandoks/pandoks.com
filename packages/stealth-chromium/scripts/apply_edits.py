@@ -148,6 +148,60 @@ EDITS = [
         "inject": "  // apex-ua-brand: present the greased Google Chrome triple\n"
                   "  if (apex_fp::Active()) brand = \"Google Chrome\";\n",
     },
+    # --- UA + UA-CH from ONE persona record (gap #4) --------------------
+    # Verified anchors (Chromium 157.0.8103.27). Every downstream surface --
+    # navigation Sec-CH-UA-* (content/browser/client_hints), subresource
+    # hints (frame_fetch_context.cc), navigator.userAgentData
+    # (navigator_ua.cc) in page/iframe/worker, navigator.userAgent --
+    # consumes GetUserAgent()/GetUserAgentMetadata() from this file, so
+    # patching here makes every surface coherent by construction.
+    {
+        "file": "components/embedder_support/user_agent_utils.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-ua-latent-ua-string",
+        "anchor": "std::string GetUserAgentInternal() {\n"
+                  "  std::string product = GetProductAndVersion();\n",
+        "where": "after",
+        "inject": "  // apex-ua-latent-ua-string: the persona OS segment replaces\n"
+                  "  // the compile-time platform.\n"
+                  "  if (const apex_fp::UAPersona apex_p = apex_fp::GetUAPersona();\n"
+                  "      apex_p.active) {\n"
+                  "    return BuildUserAgentFromOSAndProduct(apex_p.ua_os_segment,\n"
+                  "                                          product);\n"
+                  "  }\n",
+    },
+    {
+        "file": "components/embedder_support/user_agent_utils.cc",
+        "marker": "apex-ua-latent-ch-low",
+        "anchor": "  metadata.platform = GetPlatformForUAMetadata();\n",
+        "where": "after",
+        "inject": "  // apex-ua-latent-ch-low: low-entropy platform (Sec-CH-UA-Platform,\n"
+                  "  // userAgentData.platform) from the persona record. Also taken\n"
+                  "  // by the only_low_entropy_ch early return below.\n"
+                  "  if (const apex_fp::UAPersona apex_p = apex_fp::GetUAPersona();\n"
+                  "      apex_p.active) {\n"
+                  "    metadata.platform = apex_p.platform;\n"
+                  "    metadata.mobile = false;\n"
+                  "  }\n",
+    },
+    {
+        "file": "components/embedder_support/user_agent_utils.cc",
+        "marker": "apex-ua-latent-ch-high",
+        "anchor": "  metadata.platform_version = GetPlatformVersion();\n",
+        "where": "after",
+        "inject": "  // apex-ua-latent-ch-high: the rest of the persona record, so\n"
+                  "  // Sec-CH-UA-{Platform-Version,Arch,Bitness,WoW64,Model} and\n"
+                  "  // getHighEntropyValues() agree with the UA string by\n"
+                  "  // construction.\n"
+                  "  if (const apex_fp::UAPersona apex_p = apex_fp::GetUAPersona();\n"
+                  "      apex_p.active) {\n"
+                  "    metadata.platform_version = apex_p.platform_version;\n"
+                  "    metadata.architecture = apex_p.architecture;\n"
+                  "    metadata.bitness = apex_p.bitness;\n"
+                  "    metadata.wow64 = apex_p.wow64;\n"
+                  "    metadata.model = apex_p.model;\n"
+                  "  }\n",
+    },
     # --- navigator.userAgentData.platform ------------------------------
     {
         "file": "third_party/blink/renderer/core/frame/navigator_ua_data.cc",

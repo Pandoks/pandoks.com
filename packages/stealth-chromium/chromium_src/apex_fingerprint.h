@@ -185,6 +185,58 @@ inline uint32_t EtldSeed(const std::string& host) {
   return h ? h : 1u;
 }
 
+// --- UA / UA-CH persona record ------------------------------------------
+// ONE record drives the UA string, Sec-CH-UA-* (navigation + subresource),
+// navigator.userAgentData (page/iframe/worker) and navigator.platform.
+// Keyed by APEX_FP_UA_PLATFORM; APEX_FP_UA_ARCH / APEX_FP_UA_PLATFORM_VERSION
+// optionally pin the two high-entropy fields a persona varies.
+struct UAPersona {
+  bool active = false;
+  std::string ua_os_segment;
+  std::string platform;
+  std::string platform_version;
+  std::string architecture;
+  std::string bitness;
+  bool wow64 = false;
+  std::string model;
+  std::string navigator_platform;
+};
+
+inline UAPersona GetUAPersona() {
+  UAPersona p;
+  const std::string key = EnvStr("APEX_FP_UA_PLATFORM");
+  if (!Active() || key.empty()) return p;
+  std::string arch = EnvStr("APEX_FP_UA_ARCH");
+  const std::string ver = EnvStr("APEX_FP_UA_PLATFORM_VERSION");
+  if (key == "Windows") {
+    p.ua_os_segment = "Windows NT 10.0; Win64; x64";
+    p.platform = "Windows";
+    p.platform_version = ver.empty() ? "15.0.0" : ver;
+    if (arch.empty()) arch = "x86";
+    p.navigator_platform = "Win32";
+  } else if (key == "macOS") {
+    p.ua_os_segment = "Macintosh; Intel Mac OS X 10_15_7";
+    p.platform = "macOS";
+    p.platform_version = ver.empty() ? "26.7.2" : ver;
+    if (arch.empty()) arch = "arm";
+    p.navigator_platform = "MacIntel";
+  } else if (key == "Linux") {
+    p.ua_os_segment = "X11; Linux x86_64";
+    p.platform = "Linux";
+    p.platform_version = "";
+    if (arch.empty()) arch = "x86";
+    p.navigator_platform = "Linux x86_64";
+  } else {
+    return p;
+  }
+  p.architecture = (arch == "arm") ? "arm" : "x86";
+  p.bitness = "64";
+  p.wow64 = false;
+  p.model = "";
+  p.active = true;
+  return p;
+}
+
 }  // namespace apex_fp
 
 #endif  // APEX_CHROMIUM_FINGERPRINT_H_
