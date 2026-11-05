@@ -30,6 +30,11 @@ permissions:
   id-token: write
   contents: read
 
+# NOTE: max runs each push in turn instead of cancelling pending runs, so no push's filtered changes are skipped
+concurrency:
+  group: deploy-infra
+  queue: max
+
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
@@ -43,7 +48,7 @@ jobs:
         if: github.event_name != 'workflow_dispatch'
         id: filter
         with:
-          filters: |
+          filters: &filters |
             sst:
               - 'sst.config.ts'
               - 'infra/**'
@@ -59,9 +64,6 @@ jobs:
               - 'apps/mobile-template/{assets,src/!(__tests__)}/**'
 
   deploy-sst:
-    concurrency:
-      group: deploy-sst
-      cancel-in-progress: false
     needs: detect-changes
     if: needs.detect-changes.outputs.sst == 'true'
     runs-on: ubuntu-latest
@@ -98,9 +100,6 @@ jobs:
         run: pnpm sst deploy --stage production
 
   deploy-kubernetes:
-    concurrency:
-      group: deploy-kubernetes
-      cancel-in-progress: false
     needs:
       - detect-changes
       - deploy-sst
@@ -155,9 +154,6 @@ jobs:
           exit 1
 
   publish-mobile-template:
-    concurrency:
-      group: publish-mobile-template
-      cancel-in-progress: false
     needs:
       - detect-changes
       - deploy-sst
@@ -173,11 +169,8 @@ jobs:
       EXPO_NO_TELEMETRY: 1
 
     steps:
-      # NOTE: concurrency doesn't keep push order, so every run publishes main's tip
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: main
 
       - uses: ./.github/actions/setup-node-pnpm
 
@@ -187,5 +180,18 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
+      # NOTE: queue order isn't guaranteed, so a newer commit that changed the template publishes instead
+      - name: Fetch main's tip
+        run: git fetch --depth=1 --no-tags origin main
+
+      - name: Detect newer template changes
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: newer
+        with:
+          base: ${{ github.sha }}
+          ref: main
+          filters: *filters
+
       - name: Publish production update
+        if: steps.newer.outputs.mobile-template != 'true'
         run: pnpm sst shell --stage production -- pnpm updates publish apps/mobile-template production ios android

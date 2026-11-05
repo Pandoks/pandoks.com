@@ -69,6 +69,7 @@ jobs:
               - '**/chart/**'
             actions:
               - '.github/workflows/**'
+              - '.github/actionlint.yaml'
             renovate:
               - 'renovate.json'
               - 'renovate.json5'
