@@ -143,9 +143,10 @@
       ]
     },
     {
-      "description": "Every pnpm copy, the runner AMI's included, moves in one PR.",
+      "description": "Every pnpm copy, the runner AMI's included, moves in one PR. ghcr.io tags have no release timestamp, so they skip minimumReleaseAge; approve once the npm copies are in the PR too.",
       "matchPackageNames": ["pnpm", "ghcr.io/pnpm/pnpm"],
-      "groupName": "pnpm"
+      "groupName": "pnpm",
+      "dependencyDashboardApproval": true
     },
     {
       "description": "The Expo SDK pins these, react and react-native exactly; upgrade them together with `pnpm expo install expo@<sdk> --fix`, then remove the `~` Expo writes, match the `react` override in pnpm-workspace.yaml, and run `pnpm install`.",
