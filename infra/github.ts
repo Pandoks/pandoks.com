@@ -43,7 +43,6 @@ if (isProduction) {
     target: 'branch',
     enforcement: 'active',
     conditions: { refName: { includes: ['refs/heads/main'], excludes: [] } },
-    // NOTE: Every change lands through a PR as one squashed commit.
     rules: { pullRequest: { allowedMergeMethods: ['squash'] } }
   });
 
