@@ -17,21 +17,20 @@ import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
-import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataEventBuffer
 import com.google.android.gms.wearable.DataItem
-import com.google.android.gms.wearable.DataMap
 import com.google.android.gms.wearable.DataMapItem
+import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 // NOTE: must match packages/react-native-watch's WatchModule
-private const val CONTEXT_PATH = "/application_context"
-private const val MESSAGE_PATH = "/message"
+private const val PHONE_CONTEXT_PATH = "/phone_context"
+private const val WATCH_CONTEXT_PATH = "/watch_context"
 
 class MainActivity : ComponentActivity(), DataClient.OnDataChangedListener {
   private var valueFromPhone by mutableStateOf<String?>(null)
@@ -84,19 +83,16 @@ class MainActivity : ComponentActivity(), DataClient.OnDataChangedListener {
   }
 
   private fun show(dataItem: DataItem) {
-    if (dataItem.uri.path == CONTEXT_PATH) {
+    if (dataItem.uri.path == PHONE_CONTEXT_PATH) {
       valueFromPhone = DataMapItem.fromDataItem(dataItem).dataMap.getString("value")
     }
   }
 
   private fun send(value: String) {
-    sendError = null
-    val message = DataMap().apply { putString("value", value) }.toByteArray()
-    Wearable.getNodeClient(this).connectedNodes
-      .onSuccessTask { nodes ->
-        if (nodes.isEmpty()) error("Phone isn't connected")
-        Tasks.whenAll(nodes.map { node -> Wearable.getMessageClient(this).sendMessage(node.id, MESSAGE_PATH, message) })
-      }
+    val request = PutDataMapRequest.create(WATCH_CONTEXT_PATH)
+    request.dataMap.putString("value", value)
+    Wearable.getDataClient(this).putDataItem(request.asPutDataRequest().setUrgent())
+      .addOnSuccessListener { sendError = null }
       .addOnFailureListener { exception -> sendError = exception.localizedMessage }
   }
 }

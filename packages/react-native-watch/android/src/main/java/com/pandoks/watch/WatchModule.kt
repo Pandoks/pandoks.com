@@ -1,9 +1,12 @@
 package com.pandoks.watch
 
+import android.os.Bundle
 import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.wearable.CapabilityClient
-import com.google.android.gms.wearable.DataMap
-import com.google.android.gms.wearable.MessageClient
+import com.google.android.gms.wearable.DataClient
+import com.google.android.gms.wearable.DataEvent
+import com.google.android.gms.wearable.DataItem
+import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import expo.modules.kotlin.modules.Module
@@ -11,42 +14,50 @@ import expo.modules.kotlin.modules.ModuleDefinition
 
 // NOTE: the Wear OS app declares this capability and uses these paths
 private const val WATCH_CAPABILITY = "watch_app"
-private const val CONTEXT_PATH = "/application_context"
-private const val MESSAGE_PATH = "/message"
+private const val PHONE_CONTEXT_PATH = "/phone_context"
+private const val WATCH_CONTEXT_PATH = "/watch_context"
 
 class WatchModule : Module() {
   private val context get() = requireNotNull(appContext.reactContext)
   private var isReachable = false
+  private var receivedApplicationContext = Bundle()
 
-  private val messageListener = MessageClient.OnMessageReceivedListener { messageEvent ->
-    if (messageEvent.path == MESSAGE_PATH) {
-      sendEvent("onMessage", DataMap.fromByteArray(messageEvent.data).toBundle())
-    }
+  private val dataListener = DataClient.OnDataChangedListener { dataEvents ->
+    dataEvents
+      .filter { dataEvent -> dataEvent.type == DataEvent.TYPE_CHANGED }
+      .forEach { dataEvent -> receive(dataEvent.dataItem) }
   }
   private val capabilityListener = CapabilityClient.OnCapabilityChangedListener { updateReachability() }
 
   override fun definition() = ModuleDefinition {
     Name("Watch")
 
-    Events("onMessage", "onReachabilityChange")
+    Events("onApplicationContext", "onReachabilityChange")
 
     Constant("isSupported") { true }
 
     Property("isReachable") { isReachable }
 
+    Property("receivedApplicationContext") { receivedApplicationContext }
+
     OnCreate {
-      Wearable.getMessageClient(context).addListener(messageListener)
+      Wearable.getDataClient(context).addListener(dataListener)
       Wearable.getCapabilityClient(context).addListener(capabilityListener, WATCH_CAPABILITY)
       updateReachability()
+      // NOTE: the watch's data item outlives both apps, so read what it sent while this one wasn't running
+      Wearable.getDataClient(context).dataItems.addOnSuccessListener { dataItems ->
+        dataItems.forEach(::receive)
+        dataItems.release()
+      }
     }
 
     OnDestroy {
-      Wearable.getMessageClient(context).removeListener(messageListener)
+      Wearable.getDataClient(context).removeListener(dataListener)
       Wearable.getCapabilityClient(context).removeListener(capabilityListener, WATCH_CAPABILITY)
     }
 
     Function("updateApplicationContext") { applicationContext: Map<String, Any> ->
-      val request = PutDataMapRequest.create(CONTEXT_PATH)
+      val request = PutDataMapRequest.create(PHONE_CONTEXT_PATH)
       applicationContext.forEach { (key, value) ->
         when (value) {
           is String -> request.dataMap.putString(key, value)
@@ -60,15 +71,19 @@ class WatchModule : Module() {
     }
   }
 
+  private fun receive(dataItem: DataItem) {
+    if (dataItem.uri.path == WATCH_CONTEXT_PATH) {
+      receivedApplicationContext = DataMapItem.fromDataItem(dataItem).dataMap.toBundle()
+      sendEvent("onApplicationContext", receivedApplicationContext)
+    }
+  }
+
   private fun updateReachability() {
     Wearable.getCapabilityClient(context)
       .getCapability(WATCH_CAPABILITY, CapabilityClient.FILTER_REACHABLE)
       .addOnSuccessListener { capabilityInfo ->
-        val reachable = capabilityInfo.nodes.isNotEmpty()
-        if (reachable != isReachable) {
-          isReachable = reachable
-          sendEvent("onReachabilityChange", mapOf("isReachable" to reachable))
-        }
+        isReachable = capabilityInfo.nodes.isNotEmpty()
+        sendEvent("onReachabilityChange", mapOf("isReachable" to isReachable))
       }
   }
 }
