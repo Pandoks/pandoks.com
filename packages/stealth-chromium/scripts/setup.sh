@@ -158,14 +158,23 @@ if [ -f "$SENTINEL" ]; then
   CACHED_VERSION="$(cat "$SENTINEL" 2>/dev/null || echo "")"
 fi
 
-# CACHE_DIRTY was set above if step 2 did a fresh fetch. We only re-upload
-# the rolling cache when the tree changed — re-uploading an unchanged 10 GiB
-# tarball wastes ~5 min of zstd+S3 on every same-version iteration. Build
-# #19 measured this: 27 min warm vs 18 min, the 9-min gap was needless
-# re-upload. Do NOT reset CACHE_DIRTY here — step 2's cache-miss fetch
-# already set it to 1 and that upload must happen.
-if [ "$CACHED_VERSION" = "$CHROMIUM_VERSION" ]; then
-  echo "[3/3] cache already synced to $CHROMIUM_VERSION, skipping fetch + gclient sync"
+# The sentinel records what we WROTE, not what the tree IS. A tree that
+# predates the tag pin (e.g. fetched to main-branch tip before the pin
+# existed) carries drifted sources: 26 of 28 anchors still match, so the
+# anchor check passes, but the build compiles the WRONG revision and dies
+# on moved identifiers (build 16x-170059: text_metrics.cc main-tip had no
+# font_ member). Ground truth is git, so require the tree to actually BE at
+# the pinned tag before trusting the skip path.
+AT_PINNED_TAG=0
+if [ -d "$WORK/chromium/src" ]; then
+  TREE_REF="$(git -C "$WORK/chromium/src" describe --tags --exact-match HEAD 2>/dev/null || echo "")"
+  if [ "$TREE_REF" = "$CHROMIUM_VERSION" ]; then
+    AT_PINNED_TAG=1
+  fi
+fi
+
+if [ "$CACHED_VERSION" = "$CHROMIUM_VERSION" ] && [ "$AT_PINNED_TAG" = "1" ]; then
+  echo "[3/3] cache synced AND pinned to $CHROMIUM_VERSION, skipping fetch + gclient sync"
 elif [ -n "$CACHED_VERSION" ]; then
   echo "[3/3] cache was at $CACHED_VERSION, advancing to $CHROMIUM_VERSION ..."
   cd "$WORK/chromium/src"
