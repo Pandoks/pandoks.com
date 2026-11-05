@@ -3,11 +3,12 @@ import { NativeModule, requireOptionalNativeModule } from 'expo';
 type WatchPayload = Record<string, string | number | boolean>;
 
 declare class WatchModule extends NativeModule<{
-  onMessage: (message: WatchPayload) => void;
+  onApplicationContext: (context: WatchPayload) => void;
   onReachabilityChange: (event: { isReachable: boolean }) => void;
 }> {
   readonly isSupported: boolean;
   readonly isReachable: boolean;
+  readonly receivedApplicationContext: WatchPayload;
   updateApplicationContext(context: WatchPayload): void;
 }
 

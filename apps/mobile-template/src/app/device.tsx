@@ -52,7 +52,11 @@ function WatchRows({ watch }: { watch: NonNullable<typeof Watch> }) {
   const { isReachable } = useEvent(watch, 'onReachabilityChange', {
     isReachable: watch.isReachable
   });
-  const messageFromWatch = useEvent(watch, 'onMessage');
+  const contextFromWatch = useEvent(
+    watch,
+    'onApplicationContext',
+    watch.receivedApplicationContext
+  );
   const [sendError, setSendError] = useState<string | null>(null);
 
   function sendToWatch() {
@@ -76,7 +80,7 @@ function WatchRows({ watch }: { watch: NonNullable<typeof Watch> }) {
       <Pressable style={[styles.row, { borderColor: colors.border }]} onPress={sendToWatch}>
         <Text style={[styles.label, { color: colors.primary }]}>Send to watch</Text>
         <Text style={[styles.value, { color: colors.text }]}>
-          {messageFromWatch?.value ?? 'Nothing from watch'}
+          {contextFromWatch.value ?? 'Nothing from watch'}
         </Text>
       </Pressable>
     </>

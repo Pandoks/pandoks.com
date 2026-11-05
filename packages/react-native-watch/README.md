@@ -11,6 +11,8 @@ Otherwise it has:
   later.
 - `isReachable` and the `onReachabilityChange` event: whether the watch app is running and
   connected.
-- the `onMessage` event: each dictionary the watch sends with `sendMessage`.
+- `receivedApplicationContext` and the `onApplicationContext` event: the latest state the watch sent
+  with `updateApplicationContext`, delivered even if the phone app wasn't running.
 
-Read events with `useEvent(Watch, 'onMessage')` from `expo`.
+Read events with `useEvent(Watch, 'onApplicationContext', Watch.receivedApplicationContext)` from
+`expo`.

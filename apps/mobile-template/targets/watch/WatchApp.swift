@@ -32,9 +32,11 @@ final class PhoneSession: NSObject, WCSessionDelegate {
   }
 
   func send(_ value: String) {
-    sendError = nil
-    WCSession.default.sendMessage(["value": value], replyHandler: nil) { error in
-      DispatchQueue.main.async { self.sendError = error.localizedDescription }
+    do {
+      try WCSession.default.updateApplicationContext(["value": value])
+      sendError = nil
+    } catch {
+      sendError = error.localizedDescription
     }
   }
 

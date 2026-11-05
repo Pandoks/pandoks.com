@@ -7,11 +7,13 @@ public class WatchModule: Module {
   public func definition() -> ModuleDefinition {
     Name("Watch")
 
-    Events("onMessage", "onReachabilityChange")
+    Events("onApplicationContext", "onReachabilityChange")
 
     Constant("isSupported") { WCSession.isSupported() }
 
     Property("isReachable") { WCSession.default.isReachable }
+
+    Property("receivedApplicationContext") { WCSession.default.receivedApplicationContext }
 
     OnCreate {
       if WCSession.isSupported() {
@@ -33,13 +35,13 @@ class WatchSessionDelegate: NSObject, WCSessionDelegate {
     self.module = module
   }
 
-  // NOTE: isReachable reads false before activation, and activating doesn't count as a
-  // reachability change
+  // NOTE: both read empty before activation, and activating doesn't count as a change
   func session(
     _ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState,
     error: Error?
   ) {
     module?.sendEvent("onReachabilityChange", ["isReachable": session.isReachable])
+    module?.sendEvent("onApplicationContext", session.receivedApplicationContext)
   }
 
   func sessionDidBecomeInactive(_ session: WCSession) {}
@@ -53,7 +55,7 @@ class WatchSessionDelegate: NSObject, WCSessionDelegate {
     module?.sendEvent("onReachabilityChange", ["isReachable": session.isReachable])
   }
 
-  func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
-    module?.sendEvent("onMessage", message)
+  func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
+    module?.sendEvent("onApplicationContext", applicationContext)
   }
 }
