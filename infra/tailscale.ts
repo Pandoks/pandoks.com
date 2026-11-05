@@ -24,7 +24,8 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         services: {
           'svc:cliproxyapi': ['tag:hub'],
           'svc:cliproxyapi-ci': ['tag:hub'],
-          'svc:beszel': ['tag:hub']
+          'svc:beszel': ['tag:hub'],
+          'svc:artex': ['tag:hub']
         }
       },
       grants: [

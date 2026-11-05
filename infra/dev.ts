@@ -105,6 +105,16 @@ if (isProduction) {
     },
     { dependsOn: [tailscaleAcl] }
   );
+  new tailscale.Service(
+    'ArtexTailscaleService',
+    {
+      name: 'svc:artex',
+      comment: 'ARTEX on the homelab hub',
+      ports: ['tcp:443'],
+      tags: ['tag:hub']
+    },
+    { dependsOn: [tailscaleAcl] }
+  );
 }
 
 new sst.x.DevCommand('LocalInit', {
