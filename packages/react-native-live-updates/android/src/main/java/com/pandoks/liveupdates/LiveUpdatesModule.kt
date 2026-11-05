@@ -12,10 +12,15 @@ import android.os.Build
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.glance.appwidget.AppWidgetId
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.records.Field
 import expo.modules.kotlin.records.Record
+import expo.modules.widgets.ExpoWidgetsAppWidgetProvider
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 private const val CHANNEL_ID = "live_updates"
 private const val EXTRA_ENDS_AT = "endsAt"
@@ -65,16 +70,19 @@ class ReloadWidgetsReceiver : BroadcastReceiver() {
       scheduleWidgetsReload(context, requireNotNull(intent.data).schemeSpecificPart, endsAt)
     }
 
+    // TODO: expo-widgets skips the rerender on ACTION_APPWIDGET_UPDATE while a Glance session is open, so refresh like its own reload does
     val appWidgetManager = AppWidgetManager.getInstance(context)
-    appWidgetManager.installedProviders
-      .filter { provider -> provider.provider.packageName == context.packageName }
-      .forEach { provider ->
-        context.sendBroadcast(
-          Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE)
-            .setComponent(provider.provider)
-            .putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, appWidgetManager.getAppWidgetIds(provider.provider)),
-        )
-      }
+    val pendingResult = goAsync()
+    CoroutineScope(Dispatchers.Default).launch {
+      appWidgetManager.installedProviders
+        .filter { provider -> provider.provider.packageName == context.packageName }
+        .forEach { provider ->
+          val widget =
+            (Class.forName(provider.provider.className).getDeclaredConstructor().newInstance() as ExpoWidgetsAppWidgetProvider).glanceAppWidget
+          appWidgetManager.getAppWidgetIds(provider.provider).forEach { appWidgetId -> widget.refresh(context, AppWidgetId(appWidgetId)) }
+        }
+      pendingResult.finish()
+    }
   }
 }
 
