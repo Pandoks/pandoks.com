@@ -1,4 +1,5 @@
 {
   "type": "watch",
-  "displayName": "Mobile Template"
+  "displayName": "Mobile Template",
+  "icon": "../../assets/icon.png"
 }
