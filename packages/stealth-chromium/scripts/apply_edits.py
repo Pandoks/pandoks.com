@@ -64,8 +64,8 @@ EDITS = [
         "file": "third_party/blink/renderer/core/frame/navigator_ua_data.cc",
         "header": '#include "apex_fingerprint.h"',
         "marker": "apex-uadata-platform",
-        "anchor": "void NavigatorUAData::SetPlatform(const String& brand, "
-                  "const String& version) {\n",
+        "anchor": "void NavigatorUAData::SetPlatform(String brand, "
+                  "String version) {\n",
         "where": "after",
         "inject": "  // apex-uadata-platform\n"
                   "  if (apex_fp::HasOverride(\"APEX_FP_UA_PLATFORM\")) {\n"
@@ -134,7 +134,7 @@ EDITS = [
                   'canvas2d/apex_canvas_noise.h"',
         "marker": "apex-canvas-encode",
         "anchor": "    if (!paint_image.readPixels(info, pixmap_.writable_addr()"
-                  ", rowBytes, 0,\n"
+                  ", row_bytes, 0,\n"
                   "                                0)) {\n"
                   "      pixmap_.reset();\n"
                   "      return;\n"
