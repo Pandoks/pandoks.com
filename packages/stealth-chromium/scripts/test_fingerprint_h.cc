@@ -201,9 +201,8 @@ int main() {
           "CanvasKey returns the explicit APEX_FP_CANVAS_KEY");
     unsetenv("APEX_FP_CANVAS_KEY");
     setenv("APEX_FP_SEED", "4242", 1);
-    CHECK(apex_fp::CanvasKey() == apex_fp::Mix64(4242ull),
-          "CanvasKey fallback is Mix64(Seed())");
-    CHECK(apex_fp::CanvasKey() != 0, "fallback CanvasKey is non-zero");
+    CHECK(apex_fp::CanvasKey() == 0,
+          "CanvasKey unset -> 0 (fail closed: no 32-bit fallback)");
     unsetenv("APEX_FP_U64TEST");
   }
 

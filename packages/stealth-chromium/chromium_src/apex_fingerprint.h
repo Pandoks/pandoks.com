@@ -188,15 +188,13 @@ inline uint64_t EnvU64(const char* name, uint64_t fallback) {
 
 // Canvas farbling key: stable per persona (real canvas hashes are stable for
 // hundreds of days, so a persona whose canvas hash changes between sessions
-// is itself a signal). APEX_FP_CANVAS_KEY supplies 64 bits. Fallback is the
-// 32-bit session seed -- still content-keyed and irreversible per byte, but
-// brute-forceable from one attacker-drawn canvas in ~13 core-hours, so the
-// persona layer should always set the 64-bit key.
-inline uint64_t CanvasKey() {
-  uint64_t k = EnvU64("APEX_FP_CANVAS_KEY", 0);
-  if (k == 0) k = Mix64(static_cast<uint64_t>(Seed()));
-  return k;
-}
+// is itself a signal). APEX_FP_CANVAS_KEY supplies 64 bits. FAIL CLOSED: with
+// the variable unset there is NO farbling (key 0 disables the mask) rather
+// than falling back to the 32-bit session seed -- a 32-bit key is
+// brute-forceable from one attacker-drawn canvas in seconds, which would let
+// the attacker recover the entire LSB plane and forge the persona's canvas
+// hash. The persona layer (fp_profiles.py) always emits the key.
+inline uint64_t CanvasKey() { return EnvU64("APEX_FP_CANVAS_KEY", 0); }
 
 // Per-eTLD+1 (top-level site) seed derived from the session seed and the
 // site's registrable domain. Brave's farbling model -- so the same apex

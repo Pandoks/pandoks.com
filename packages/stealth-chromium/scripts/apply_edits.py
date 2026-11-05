@@ -51,17 +51,27 @@ SRC = WORK / "chromium" / "src"
 # wrapped in UNSAFE_BUFFERS with its invariant stated. The span covers exactly
 # the bytes GL / Skia wrote -- (apex_h - 1) full strides plus one unpadded
 # final row -- which is the size the upstream validators already require.
-# Canvas farbling v2: a DENSE, content-keyed LSB lock. For every textured,
-# non-transparent interior pixel, the low bit of R/G/B is OVERWRITTEN with a
-# bit of Mix64(key ^ H(3x3 window high-7-bits + alpha)). Properties (simulated
-# in /var/tmp/apex-farbling-sim): subtraction recovers only 7/8 bits per byte
-# (the attacker learns which bits were locked, never what they were); majority
-# vote over k sessions stays at ~49.9% wrong LSBs for every k (voting cannot
-# work because the locked bit is a function of the content); get->put->get
-# round-trips are exact (the key reads only bits the mask never writes); sub-rect
-# reads equal the full read. DENSITY IS THE SECURITY PARAMETER: every textured
-# interior pixel is locked; a sparse variant is byte-exact recoverable by
-# majority vote (k>=5).
+# Canvas farbling v2.1: the content-keyed LSB lock plus the four repair rules
+# the adversarial review proved necessary (measured in /var/tmp/apex-farble-sim
+# sim4..sim7). v2.0 (dense lock) broke three renderer invariants: I1 88%
+# impossible pixels on black-glyph-on-transparent (RGB is locally flat at 0 but
+# the all-channel conjunction still unlocked writes), I2b 255->254 at flat-fill
+# seams, I4 6.8% of grayscale pixels de-grayed. The repairs, all computed from
+# the same hi7 view the key uses (so idempotence survives):
+#   R1  per-channel hi7 flatness gate -- skip channel c if c's own 3x3 window
+#       is flat in hi7 (fixes I1)
+#   R2' extremal-value gate -- skip channel c when THIS pixel's own hi7 is
+#       0x00 or 0xFE (fixes I2b; the window form of this rule zeroes farbling
+#       entirely on black-glyph/gray-text, so it must be the pixel form)
+#   R3  equality-group bit sharing -- channels with equal hi7 at this pixel
+#       share one lock bit (fixes I4 de-graying; deterministic, no allocation)
+#   +A  alpha-LSB write -- the only remaining entropy on black-on-transparent
+#       (alpha coverage); alpha's uniform test and hash read alpha's HI7 so the
+#       mask stays a fixpoint (it now writes alpha's LSB).
+# Subtraction still recovers only 7/8 bits per byte; majority vote still buys
+# the attacker nothing (it converges to the farbled value, which every session
+# reproduces). Flat-fill canvases are deliberately near-stock: the page holds
+# an exact reference there and carries no device entropy anyway.
 _RGBA_NOISE_LOOP = (
     "      const uint64_t apex_key = apex_fp::CanvasKey();\n"
     "      if (apex_key != 0 && apex_w >= 3u && apex_h >= 3u &&\n"
@@ -79,38 +89,89 @@ _RGBA_NOISE_LOOP = (
     "        // readPixels -- the gates already guarantee RGBA order there).\n"
     "        const size_t apex_c0 = apex_bgra ? 2u : 0u;\n"
     "        const size_t apex_c2 = apex_bgra ? 0u : 2u;\n"
+    "        const size_t apex_ord[3] = {apex_c0, 1u, apex_c2};\n"
     "        for (size_t ay = 1; ay + 1 < apex_h; ++ay) {\n"
     "          for (size_t ax = 1; ax + 1 < apex_w; ++ax) {\n"
     "            base::span<uint8_t> apex_p = apex_at(ax, ay);\n"
     "            if (apex_p[3] == 0) continue;  // transparent: untouched\n"
-    "            // Uniform test on the HIGH 7 bits + alpha. A solid fill is\n"
-    "            // uniform in full bytes, hence in hi7; testing hi7 (not full\n"
-    "            // bytes) makes the decision invariant under the mask itself,\n"
-    "            // which is what makes re-reads a fixpoint.\n"
+    "            // Uniform/flatness tests on the HIGH 7 bits only. A solid\n"
+    "            // fill is uniform in full bytes, hence in hi7; testing hi7\n"
+    "            // (not full bytes) makes every decision invariant under the\n"
+    "            // mask itself, which is what makes re-reads a fixpoint.\n"
+    "            // Alpha is compared in hi7 too: the mask writes alpha's LSB,\n"
+    "            // so the decision must not read it.\n"
     "            bool apex_uniform = true;\n"
-    "            uint64_t apex_hv = 0xcbf29ce484222325ull;  // FNV-1a basis\n"
+    "            bool apex_ch_flat[3] = {true, true, true};  // R1, per channel\n"
+    "            bool apex_a_flat = true;                    // R1, alpha\n"
+    "            uint64_t apex_hv = 0xcbf29ce484222325ull;   // FNV-1a basis\n"
     "            for (size_t ady = 0; ady < 3u; ++ady) {\n"
     "              for (size_t adx = 0; adx < 3u; ++adx) {\n"
     "                base::span<uint8_t> apex_n =\n"
     "                    apex_at(ax + adx - 1u, ay + ady - 1u);\n"
-    "                for (size_t ac : {apex_c0, size_t{1}, apex_c2}) {  // R,G,B\n"
+    "                for (size_t li = 0; li < 3u; ++li) {\n"
+    "                  const size_t ac = apex_ord[li];\n"
     "                  const uint8_t apex_hi = apex_n[ac] & 0xFEu;\n"
-    "                  if (apex_hi != (apex_p[ac] & 0xFEu)) apex_uniform = false;\n"
+    "                  if (apex_hi != (apex_p[ac] & 0xFEu)) {\n"
+    "                    apex_uniform = false;\n"
+    "                    apex_ch_flat[li] = false;\n"
+    "                  }\n"
     "                  apex_hv = (apex_hv ^ apex_hi) * 0x100000001b3ull;\n"
     "                }\n"
-    "                if (apex_n[3] != apex_p[3]) apex_uniform = false;\n"
-    "                apex_hv = (apex_hv ^ apex_n[3]) * 0x100000001b3ull;\n"
+    "                if ((apex_n[3] & 0xFEu) != (apex_p[3] & 0xFEu)) {\n"
+    "                  apex_uniform = false;\n"
+    "                  apex_a_flat = false;\n"
+    "                }\n"
+    "                apex_hv =\n"
+    "                    (apex_hv ^ (apex_n[3] & 0xFEu)) * 0x100000001b3ull;\n"
     "              }\n"
     "            }\n"
     "            if (apex_uniform) continue;  // solid fill: untouched\n"
-    "            const uint64_t apex_k = apex_fp::Mix64(apex_key ^ apex_hv);\n"
-    "            const uint64_t apex_bits = apex_k >> 32;\n"
-    "            apex_p[apex_c0] =\n"
-    "                (apex_p[apex_c0] & 0xFEu) | uint8_t(apex_bits & 1u);\n"
-    "            apex_p[1] =\n"
-    "                (apex_p[1] & 0xFEu) | uint8_t((apex_bits >> 1) & 1u);\n"
-    "            apex_p[apex_c2] =\n"
-    "                (apex_p[apex_c2] & 0xFEu) | uint8_t((apex_bits >> 2) & 1u);\n"
+    "            const uint64_t apex_bits = apex_fp::Mix64(apex_key ^ apex_hv) >> 32;\n"
+    "            // +A: alpha-LSB write where alpha itself carries entropy\n"
+    "            // (its window is not flat) and is not extremal. This is the\n"
+    "            // only farbling left on black-glyph-on-transparent, where R1\n"
+    "            // correctly leaves structurally-flat RGB alone.\n"
+    "            {\n"
+    "              const uint8_t apex_ahi = apex_p[3] & 0xFEu;\n"
+    "              if (!apex_a_flat && apex_ahi != 0x00u && apex_ahi != 0xFEu)\n"
+    "                apex_p[3] = static_cast<uint8_t>(\n"
+    "                    apex_ahi | uint8_t((apex_bits >> 3) & 1u));\n"
+    "            }\n"
+    "            // R1 + R2': a channel is writable only if its own 3x3 window\n"
+    "            // is not flat in hi7, and this pixel's own hi7 is not 0x00/0xFE.\n"
+    "            bool apex_writable[3];\n"
+    "            for (size_t li = 0; li < 3u; ++li) {\n"
+    "              apex_writable[li] = !apex_ch_flat[li];\n"
+    "              const uint8_t apex_hi = apex_p[apex_ord[li]] & 0xFEu;\n"
+    "              if (apex_hi == 0x00u || apex_hi == 0xFEu) apex_writable[li] = false;\n"
+    "            }\n"
+    "            // R3: channels with equal hi7 at this pixel share ONE lock bit\n"
+    "            // (grays stay grays). Group index = number of distinct writable\n"
+    "            // hi7 values seen before this channel in canonical order -- no\n"
+    "            // allocation, deterministic. Group bits come from stream 0..2;\n"
+    "            // alpha's write used stream bit 3, so they cannot collide.\n"
+    "            size_t apex_grp[3];\n"
+    "            size_t apex_nb = 0;\n"
+    "            for (size_t li = 0; li < 3u; ++li) {\n"
+    "              if (!apex_writable[li]) continue;\n"
+    "              const uint8_t apex_hi = apex_p[apex_ord[li]] & 0xFEu;\n"
+    "              bool apex_found = false;\n"
+    "              for (size_t lj = 0; lj < li; ++lj) {\n"
+    "                if (!apex_writable[lj]) continue;\n"
+    "                if ((apex_p[apex_ord[lj]] & 0xFEu) == apex_hi) {\n"
+    "                  apex_grp[li] = apex_grp[lj];\n"
+    "                  apex_found = true;\n"
+    "                  break;\n"
+    "                }\n"
+    "              }\n"
+    "              if (!apex_found) apex_grp[li] = apex_nb++;\n"
+    "            }\n"
+    "            for (size_t li = 0; li < 3u; ++li) {\n"
+    "              if (!apex_writable[li]) continue;\n"
+    "              apex_p[apex_ord[li]] = static_cast<uint8_t>(\n"
+    "                  (apex_p[apex_ord[li]] & 0xFEu) |\n"
+    "                  uint8_t((apex_bits >> apex_grp[li]) & 1u));\n"
+    "            }\n"
     "          }\n"
     "        }\n"
     "      }\n"
