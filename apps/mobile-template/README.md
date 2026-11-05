@@ -13,6 +13,13 @@ embeds in the iOS app. It talks to the phone through
 `xcrun simctl pair` and install the built app's `Watch/watch.app` on it with `xcrun simctl install`.
 Device builds need your team ID in `ios.appleTeamId`, which the plugin applies to every target.
 
+`targets/wear` is its Wear OS counterpart in Compose for Wear OS, added at prebuild as the `:wear`
+Gradle module with the phone app's ID, signing key, R8 setting, and version name. Its version code
+is the phone's plus 1,000,000,000, since Play needs codes unique across form factors. Install it on
+a Wear OS emulator with `ANDROID_SERIAL=<watch serial> ./gradlew :wear:installDebug` from
+`android/`. The phone needs the Pixel Watch app from the Play Store, so use a Google Play emulator
+image, then pair with Device Manager's **Pair Wearable** in Android Studio.
+
 Run from this directory:
 
 ```sh
