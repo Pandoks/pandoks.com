@@ -108,6 +108,18 @@ PROBE_JS = r"""
   r.innerWidth = window.innerWidth;
   r.windowDimsOk = window.outerWidth > 0 && window.outerHeight > 0;
 
+  // --- 13. driver-layer leaks (patchright leak map) ---
+  r.pwGlobals = Object.getOwnPropertyNames(globalThis)
+    .filter(k => /^__(pw|playwright)/i.test(k)).length;     // want: 0
+  r.nextHopProtocol = (performance.getEntriesByType('navigation')[0] || {}).nextHopProtocol || '';
+  r.nextHopOk = r.nextHopProtocol !== '';                   // want: true (no doc re-serving)
+  try {
+    const e = new Error();
+    r.stackClean = !/pptr:|eval at <anonymous>|__puppeteer_evaluation_script__/i
+      .test(e.stack || '');
+  } catch (_) { r.stackClean = false; }                     // want: true
+  r.userActivationPresent = !!navigator.userActivation;     // informational
+
   return r;
 }
 """
@@ -137,6 +149,12 @@ _CHECKS = [
      lambda p: p.get("hardwareOk") is True),
     ("windowDimsOk", "window outer dimensions > 0",
      lambda p: p.get("windowDimsOk") is True),
+    ("pwGlobals", "no __pw*/__playwright* globals",
+     lambda p: (p.get("pwGlobals") or 0) == 0),
+    ("nextHopOk", "navigation nextHopProtocol not empty (no doc re-serving)",
+     lambda p: p.get("nextHopOk") is True),
+    ("stackClean", "error stacks have no automation frames",
+     lambda p: p.get("stackClean") is True),
 ]
 
 
