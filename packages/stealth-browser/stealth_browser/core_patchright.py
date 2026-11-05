@@ -22,8 +22,24 @@ import tempfile
 from patchright.async_api import async_playwright
 
 from stealth_browser.human_patchright import PatchrightHuman
-from stealth_browser.profile import Identity, chrome_launch_flags
+from stealth_browser.profile import (Identity, chrome_launch_flags,
+                                     in_container)
 from stealth_browser.proxy import from_env as proxy_from_env
+
+# Playwright default switches that change page-observable behaviour versus
+# stock Chrome (technique-catalog item #3). Playwright filters
+# ignore_default_args by exact string, so these must match chromiumSwitches.ts
+# verbatim. Everything else in that list (no-first-run, mock keychain, hang
+# monitor, breakpad, search-engine screen, ...) is UI/process-side only.
+_PLAYWRIGHT_NONSTOCK_SWITCHES = [
+    "--disable-field-trial-config",             # stock Chrome runs field trials
+    "--disable-background-networking",          # stock Chrome phones home
+    "--disable-background-timer-throttling",    # unthrottled background timers
+    "--disable-backgrounding-occluded-windows",  # occluded tabs keep full rAF
+    "--disable-renderer-backgrounding",         # renderer priority never drops
+    "--force-color-profile=srgb",               # color-gamut / canvas colour
+    "--disable-sync",                           # sync surfaces off
+]
 
 
 def _seed_profile_prefs(profile_dir: str) -> None:
@@ -135,6 +151,11 @@ class PatchrightCore:
             "channel": "chrome",  # real Google Chrome, not bundled Chromium
             "headless": self.headless,
             "args": chrome_launch_flags(idn, headless=self.headless),
+            "ignore_default_args": _PLAYWRIGHT_NONSTOCK_SWITCHES,
+            # Playwright passes --no-sandbox unless told otherwise; stock
+            # Chrome is sandboxed. The container adds --no-sandbox itself
+            # (root cannot init the sandbox there).
+            "chromium_sandbox": not in_container(),
         }
         # use the apex-chromium patched binary when available so the C++
         # fingerprint patches are active for this variant too.

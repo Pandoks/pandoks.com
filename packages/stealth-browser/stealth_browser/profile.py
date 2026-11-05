@@ -217,9 +217,15 @@ def chrome_launch_flags(identity: Identity, *, headless: bool,
         "--no-service-autorun",
         "--password-store=basic",
         "--use-mock-keychain",
-        # stable, real-user-ish rendering
-        "--disable-features=IsolateOrigins,site-per-process,Translate",
-        "--disable-popup-blocking",
+        # Only the translate bubble (UI, not page-visible) is disabled. Site
+        # isolation stays ON (nodriver's IsolateOrigins,site-per-process
+        # disable is detectable) and ThirdPartyStoragePartitioning stays ON
+        # (rebrowser-bot-detector `storagePartitioning` aba-iframe test).
+        # Chrome keeps the LAST --disable-features on the command line, and
+        # both nodriver and patchright append their own list BEFORE ours, so
+        # this one is what Chrome sees. No --disable-popup-blocking: a
+        # gesture-less window.open() succeeding is the `popupBlocking` test.
+        "--disable-features=Translate",
         # keep the GPU on -- a real machine has WebGL; SwiftShader looks fake
         f"--lang={identity.locale}",
     ]
