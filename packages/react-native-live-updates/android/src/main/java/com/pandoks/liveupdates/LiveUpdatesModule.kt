@@ -1,5 +1,6 @@
 package com.pandoks.liveupdates
 
+import android.app.AlarmManager
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
@@ -16,6 +17,7 @@ import expo.modules.kotlin.records.Field
 import expo.modules.kotlin.records.Record
 
 private const val CHANNEL_ID = "live_updates"
+private const val EXTRA_ENDS_AT = "endsAt"
 
 class ProgressActivityState : Record {
   @Field val title: String = ""
@@ -27,12 +29,28 @@ class ProgressActivityState : Record {
   @Field val endsAt: Long = 0
 }
 
+private fun reloadWidgetsIntent(
+  context: Context,
+  endsAt: Long,
+) = PendingIntent.getBroadcast(
+  context,
+  0,
+  Intent(context, ReloadWidgetsReceiver::class.java).putExtra(EXTRA_ENDS_AT, endsAt),
+  PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+)
+
 // NOTE: Android widgets have no timeline, so the app's widgets rerender when the notification times out at endsAt or is dismissed
 class ReloadWidgetsReceiver : BroadcastReceiver() {
   override fun onReceive(
     context: Context,
     intent: Intent,
   ) {
+    // NOTE: a dismissal before endsAt reloads too early, so an inexact alarm, which Doze can defer, reloads again at endsAt
+    val endsAt = intent.getLongExtra(EXTRA_ENDS_AT, 0)
+    if (System.currentTimeMillis() < endsAt) {
+      context.getSystemService(AlarmManager::class.java).set(AlarmManager.RTC, endsAt, reloadWidgetsIntent(context, endsAt))
+    }
+
     val appWidgetManager = AppWidgetManager.getInstance(context)
     appWidgetManager.installedProviders
       .filter { provider -> provider.provider.packageName == context.packageName }
@@ -112,9 +130,7 @@ class LiveUpdatesModule : Module() {
         .setContentTitle(state.title)
         .setContentText(state.text)
         .setContentIntent(openApp)
-        .setDeleteIntent(
-          PendingIntent.getBroadcast(context, 0, Intent(context, ReloadWidgetsReceiver::class.java), PendingIntent.FLAG_IMMUTABLE),
-        )
+        .setDeleteIntent(reloadWidgetsIntent(context, state.endsAt))
         // NOTE: setTimeoutAfter needs Android 8+, so older notifications stay user-dismissible
         .setOngoing(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
         .setOnlyAlertOnce(true)

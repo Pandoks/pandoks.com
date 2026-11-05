@@ -9,7 +9,8 @@ simulator, no sooner than 2 minutes after it starts), and keeps the activity unt
 dismissal, and `end()` removes it now. Android's bar moves only on `update`, and on Android 8+ the
 system removes the notification at `endsAt`; before that the user can dismiss it. Android widgets
 have no timeline, so the app's home screen widgets rerender when the notification goes away, letting
-them show their end state without the app.
+them show their end state without the app. If the user dismisses it early, an inexact alarm
+rerenders them at `endsAt`; Android may deliver it up to an hour late, or after Doze ends.
 
 The app needs the `expo-widgets` config plugin; set `enablePushNotifications` for iOS push tokens.
 `startProgressActivity` rejects when the user turned off Live Activities, notifications, or the Live
