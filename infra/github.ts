@@ -9,9 +9,9 @@ export const githubRepoName = 'pandoks.com';
 const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
   repository: githubRepoName,
   environment: isProduction ? 'production' : 'dev',
-  // NOTE: AWS trusts every job in this environment, so only protected branches get it.
+  // NOTE: AWS trusts every job in this environment, so only main gets it.
   deploymentBranchPolicy: isProduction
-    ? { protectedBranches: true, customBranchPolicies: false }
+    ? { protectedBranches: false, customBranchPolicies: true }
     : undefined
 });
 
@@ -23,18 +23,10 @@ new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
 });
 
 if (isProduction) {
-  new github.BranchProtection('GithubMainBranchProtection', {
-    repositoryId: githubRepoName,
-    pattern: 'main',
-    requiredStatusChecks: [
-      {
-        strict: false,
-        contexts: ['checks-pass', 'security-pass', 'tests-pass', 'build-and-publish-pass']
-      }
-    ],
-    allowsDeletions: false,
-    allowsForcePushes: false,
-    enforceAdmins: false
+  new github.RepositoryEnvironmentDeploymentPolicy('GithubProductionDeploymentPolicy', {
+    repository: githubRepoName,
+    environment: githubEnvironment.environment,
+    branchPattern: 'main'
   });
 
   new github.RepositoryRuleset('GithubMainRuleset', {
@@ -43,7 +35,19 @@ if (isProduction) {
     target: 'branch',
     enforcement: 'active',
     conditions: { refName: { includes: ['refs/heads/main'], excludes: [] } },
-    rules: { pullRequest: { allowedMergeMethods: ['squash'] } }
+    rules: {
+      deletion: true,
+      nonFastForward: true,
+      pullRequest: { allowedMergeMethods: ['squash'] },
+      requiredStatusChecks: {
+        requiredChecks: [
+          'checks-pass',
+          'security-pass',
+          'tests-pass',
+          'build-and-publish-pass'
+        ].map((context) => ({ context }))
+      }
+    }
   });
 
   new github.ActionsSecret('GithubGithubAccessToken', {
