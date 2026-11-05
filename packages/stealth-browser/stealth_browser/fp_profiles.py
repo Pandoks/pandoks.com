@@ -41,6 +41,25 @@ class FpProfile:
     webgl_vendor: str
     webgl_renderer: str
     gpu_class: str = "apple"   # apple | nvidia | amd | intel
+    # WebGPU GPUAdapterInfo.architecture. Dawn's vocabulary is per-GPU
+    # generation, not per-CPU ISA: "common-3" (Apple), "ampere"/"lovelace"
+    # (NVIDIA 30xx/40xx), "rdna-2" (AMD 6000), "gen-12lp" (Intel Xe),
+    # "software" (SwiftShader). None -> WEBGPU_ARCH_BY_CLASS fallback.
+    webgpu_arch: str | None = None
+    # "laptop" personas report a discharging battery; "desktop" personas have
+    # no battery and report what Chrome does for one: charging=true, level=1.
+    form_factor: str = "laptop"   # laptop | desktop
+
+
+# Default WebGPU architecture per gpu_class, used when a persona does not
+# pin a more specific one (e.g. "lovelace" for an RTX 40-series).
+WEBGPU_ARCH_BY_CLASS: dict[str, str] = {
+    "apple": "common-3",
+    "nvidia": "ampere",
+    "amd": "rdna-2",
+    "intel": "gen-12lp",
+    "software": "software",
+}
 
 
 # A pool of real, common device configurations. Each row is a genuine device
@@ -57,7 +76,7 @@ PROFILES: list[FpProfile] = [
         webgl_vendor="Google Inc. (Apple)",
         webgl_renderer="ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Pro, "
                        "Unspecified Version)",
-        gpu_class="apple",
+        gpu_class="apple", webgpu_arch="common-3", form_factor="laptop",
     ),
     FpProfile(
         label="MacBook Air 13 M2",
@@ -66,7 +85,7 @@ PROFILES: list[FpProfile] = [
         webgl_vendor="Google Inc. (Apple)",
         webgl_renderer="ANGLE (Apple, ANGLE Metal Renderer: Apple M2, "
                        "Unspecified Version)",
-        gpu_class="apple",
+        gpu_class="apple", webgpu_arch="common-3", form_factor="laptop",
     ),
     FpProfile(
         label="MacBook Pro 16 M1 Max",
@@ -75,7 +94,7 @@ PROFILES: list[FpProfile] = [
         webgl_vendor="Google Inc. (Apple)",
         webgl_renderer="ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Max, "
                        "Unspecified Version)",
-        gpu_class="apple",
+        gpu_class="apple", webgpu_arch="common-3", form_factor="laptop",
     ),
     FpProfile(
         label="MacBook Pro 14 M3",
@@ -84,7 +103,7 @@ PROFILES: list[FpProfile] = [
         webgl_vendor="Google Inc. (Apple)",
         webgl_renderer="ANGLE (Apple, ANGLE Metal Renderer: Apple M3, "
                        "Unspecified Version)",
-        gpu_class="apple",
+        gpu_class="apple", webgpu_arch="common-3", form_factor="laptop",
     ),
     # --- Windows / NVIDIA (gpu_class="nvidia") ---
     FpProfile(
@@ -94,7 +113,7 @@ PROFILES: list[FpProfile] = [
         webgl_vendor="Google Inc. (NVIDIA)",
         webgl_renderer="ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002503) "
                        "Direct3D11 vs_5_0 ps_5_0, D3D11)",
-        gpu_class="nvidia",
+        gpu_class="nvidia", webgpu_arch="ampere", form_factor="desktop",
     ),
     # --- Windows / Intel (gpu_class="intel") ---
     FpProfile(
@@ -104,7 +123,7 @@ PROFILES: list[FpProfile] = [
         webgl_vendor="Google Inc. (Intel)",
         webgl_renderer="ANGLE (Intel, Intel(R) Iris(R) Xe Graphics "
                        "(0x000046A6) Direct3D11 vs_5_0 ps_5_0, D3D11)",
-        gpu_class="intel",
+        gpu_class="intel", webgpu_arch="gen-12lp", form_factor="laptop",
     ),
     # --- Windows / AMD (gpu_class="amd") ---
     FpProfile(
@@ -114,7 +133,7 @@ PROFILES: list[FpProfile] = [
         webgl_vendor="Google Inc. (AMD)",
         webgl_renderer="ANGLE (AMD, AMD Radeon RX 6700 XT Direct3D11 "
                        "vs_5_0 ps_5_0, D3D11)",
-        gpu_class="amd",
+        gpu_class="amd", webgpu_arch="rdna-2", form_factor="desktop",
     ),
 ]
 
@@ -250,12 +269,20 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
 
     `seed` drives the deterministic canvas/audio noise -- one fresh seed per
     session, so each session's canvas/audio hash differs but is stable within
-    the session. The battery level is also seed-derived: per-session distinct,
-    stable within the session, in a plausible discharging-laptop band.
+    the session. For laptop personas the battery level is also seed-derived:
+    per-session distinct, stable within the session, in a plausible
+    discharging-laptop band. Desktop personas have no battery, and Chrome on
+    battery-less hardware reports charging=true, level=1 (chargingTime=0,
+    dischargingTime=Infinity), so those personas report exactly that.
     """
-    # per-session battery: deterministic from seed, 0.55..0.95, whole percent
-    rng = random.Random(seed)
-    battery_pct = rng.randint(55, 95)
+    if profile.form_factor == "desktop":
+        battery_level, battery_charging = "1", "1"
+    else:
+        # deterministic from seed, 0.55..0.95, whole percent
+        rng = random.Random(seed)
+        battery_level = str(rng.randint(55, 95) / 100.0)
+        battery_charging = "0"
+    webgpu_arch = profile.webgpu_arch or WEBGPU_ARCH_BY_CLASS[profile.gpu_class]
     return {
         "APEX_FP_ACTIVE": "1",
         "APEX_FP_SEED": str(seed & 0xFFFFFFFF),
@@ -266,17 +293,17 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         "APEX_FP_WEBGL_VENDOR": profile.webgl_vendor,
         "APEX_FP_WEBGL_RENDERER": profile.webgl_renderer,
         # WebGPU adapter info uses the persona gpu_class, which maps directly
-        # to the org-id strings WebGPU reports ("apple"/"intel"/"nvidia"/"amd")
+        # to the org-id strings WebGPU reports ("apple"/"intel"/"nvidia"/"amd").
+        # Architecture is Dawn's per-GPU-generation name, NOT a CPU ISA.
         "APEX_FP_WEBGPU_VENDOR": profile.gpu_class,
-        "APEX_FP_WEBGPU_ARCH": ("arm64" if profile.gpu_class == "apple"
-                                else "x86_64"),
+        "APEX_FP_WEBGPU_ARCH": webgpu_arch,
         # The screen is NOT spoofed: a screen value that disagrees with the
         # real window/display geometry is the impossible-geometry tell (a
         # window larger than the screen it is on, a dpr its panel can't have).
         # The binary reports the REAL screen natively, which is always
         # coherent; real_display_size() clamps the launch window to fit it.
-        "APEX_FP_BATTERY_LEVEL": str(battery_pct / 100.0),
-        "APEX_FP_BATTERY_CHARGING": "0",
+        "APEX_FP_BATTERY_LEVEL": battery_level,
+        "APEX_FP_BATTERY_CHARGING": battery_charging,
     }
 
 
