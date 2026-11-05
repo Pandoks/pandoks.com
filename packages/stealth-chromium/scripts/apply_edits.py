@@ -622,72 +622,111 @@ EDITS = [
             '        }\n'
         ),
     },
-    # --- Font deny hooks: rendering, document.fonts.check, local() -------
-    # Closes the allowlist's missing deny side: apex-font-allow only ADDS
-    # (allowlisted -> true), so a bundle family off the persona allowlist
-    # (Liberation*, Noto Color Emoji) still reported present and still RENDERED
-    # by name on a Win/mac persona. Anchors verified unique against
-    # Chromium 157.0.8103.27 (font_fallback_list.cc:169, font_cache.cc:202-205
-    # and :324-328).
+    # --- Font deny hook: rendering agrees with document.fonts.check ------
+    # Denies at FontCache::CreateFontPlatformData (font_cache_skia.cc:344) --
+    # the one function every family lookup reaches after the cache miss and
+    # before a FontPlatformData is built, so one edit covers CSS font-family,
+    # canvas ctx.font, fonts.check() (IsPlatformFamilyMatchAvailable),
+    # @font-face src:local() (kLocalUniqueFace), the bold/italic substitute
+    # lookup and the Arial<->Helvetica alternate retry. It sits BELOW the
+    # alternate-name retry on purpose: a denied "Helvetica" still falls to
+    # "Arial" exactly as real Windows Chrome does. Exempt: per-character
+    # fallback (kCreateFontByFciIdAndTtcIndex, never a page-named family) and
+    # the last-resort chain (kLastResort), which must always produce a font.
     {
-        "file": "third_party/blink/renderer/platform/fonts/font_fallback_list.cc",
+        "file": "third_party/blink/renderer/platform/fonts/skia/"
+                "font_cache_skia.cc",
         "header": '#include "third_party/blink/renderer/platform/fonts/'
                   'apex_font_policy.h"',
-        "marker": "apex-font-deny-render",
-        "anchor": "    if (!result && !curr_family->FamilyName().empty()) {\n",
-        "where": "before",
-        "inject": "    // apex-font-deny-render: a page-named family outside the\n"
-                  "    // persona allowlist must not resolve against the bundle\n"
-                  "    // (Liberation*, Arimo/Tinos/Cousine, Noto Color Emoji on a\n"
-                  "    // Win/mac persona). Skipping the system lookup IS the\n"
-                  "    // upstream 'not installed' path: next family, then\n"
-                  "    // -webkit-standard, then the last-resort font. Generic\n"
-                  "    // keywords were already resolved by the selector above.\n"
-                  "    if (!result && apex_fp::IsDeniedFamily(*curr_family)) {\n"
-                  "      continue;\n"
-                  "    }\n",
+        "marker": "apex-font-deny",
+        "anchor": "  if (!typeface)\n"
+                  "    return nullptr;\n",
+        "where": "after",
+        "inject": "  // apex-font-deny: a face the persona OS does not ship must\n"
+                  "  // not render either, or width probes contradict\n"
+                  "  // document.fonts.check(). Only page-nameable lookups are\n"
+                  "  // policed; fontconfig per-character fallback and the\n"
+                  "  // last-resort chain pass through.\n"
+                  "  if (apex_fp::Active() &&\n"
+                  "      creation_params.CreationType() == kCreateFontByFamily &&\n"
+                  "      alternate_name != AlternateFontName::kLastResort) {\n"
+                  "    bool apex_allowed;\n"
+                  "    if (alternate_name == AlternateFontName::kLocalUniqueFace) {\n"
+                  "      SkString apex_sk_family;\n"
+                  "      typeface->getFamilyName(&apex_sk_family);\n"
+                  "      apex_allowed =\n"
+                  "          apex_fp::IsAllowlistedFont(ToAtomicString(apex_sk_family));\n"
+                  "    } else {\n"
+                  "      apex_allowed = apex_fp::IsAllowlistedFont(creation_params.Family());\n"
+                  "    }\n"
+                  "    if (!apex_allowed)\n"
+                  "      return nullptr;\n"
+                  "  }\n",
     },
+    # system-ui bypasses the generic-settings path and resolves the host's UI
+    # font (a bundle face, not a persona font); keep it a sans by substituting
+    # the nearest allowed family instead of letting it fall to the serif font.
     {
         "file": "third_party/blink/renderer/platform/fonts/font_cache.cc",
         "header": '#include "third_party/blink/renderer/platform/fonts/'
                   'apex_font_policy.h"',
-        "marker": "apex-font-deny-check",
-        "anchor": "  return GetFontPlatformData(\n"
-                  "      font_description,\n"
-                  "      FontFaceCreationParams("
-                  "AdjustFamilyNameToAvoidUnsupportedFonts(family)),\n"
-                  "      AlternateFontName::kNoAlternate);\n",
+        "marker": "apex-font-system-ui",
+        "anchor": "  return GetFontPlatformData(font_description, "
+                  "FontFaceCreationParams(family),\n"
+                  "                             AlternateFontName::kNoAlternate);\n",
         "where": "before",
-        "inject": "  // apex-font-deny-check: deny side of apex-font-allow. A bundle\n"
-                  "  // family off the persona allowlist reports absent, so\n"
-                  "  // document.fonts.check() agrees with rendering\n"
-                  "  // (apex-font-deny-render) and with @font-face local()\n"
-                  "  // (apex-font-deny-local).\n"
-                  "  if (apex_fp::IsDeniedFamilyName(family)) return false;\n",
+        "inject": "  // apex-font-system-ui: a host UI font the persona OS does not\n"
+                  "  // ship is refused by apex-font-deny; keep system-ui a sans by\n"
+                  "  // resolving the nearest allowed family instead.\n"
+                  "  if (apex_fp::Active() && !apex_fp::IsAllowlistedFont(family)) {\n"
+                  "    return GetFontPlatformData(\n"
+                  "        font_description, FontFaceCreationParams(font_family_names::kArial),\n"
+                  "        AlternateFontName::kNoAlternate);\n"
+                  "  }\n",
     },
+    # Generic `monospace`: Chrome's Linux fixed-family default is the literal
+    # "Monospace" (locale_settings_linux.grd IDS_FIXED_FONT_FAMILY), which is
+    # not a persona font; map it to the nearest allowed monospace so <pre>/
+    # <code> keeps its class. Document + OffscreenCanvas worker variants.
     {
-        "file": "third_party/blink/renderer/platform/fonts/font_cache.cc",
-        "header": '#include "third_party/blink/renderer/platform/fonts/'
+        "file": "third_party/blink/renderer/core/css/css_font_selector.cc",
+        "header": '#include "third_party/blink/renderer/platform/font_family_names.h"\n'
+                  '#include "third_party/blink/renderer/platform/fonts/'
                   'apex_font_policy.h"',
-        "marker": "apex-font-deny-local",
-        "anchor": "    // a name that does not match yet may match once the table "
-                  "is ready.\n"
+        "marker": "apex-font-generic-mono",
+        "anchor": "  AtomicString settings_family_name =\n"
+                  "      FamilyNameFromSettings(request_description, font_family);\n"
+                  "  if (settings_family_name.empty()) {\n"
                   "    return nullptr;\n"
                   "  }\n",
         "where": "after",
-        "inject": "  // apex-font-deny-local: src: local() is the other door to the\n"
-                  "  // bundle's fonts. Judge the real match by its family name;\n"
-                  "  // off-allowlist -> behave as 'no such local font' (nullptr,\n"
-                  "  // not cached), which IsPlatformFontUniqueNameMatchAvailable\n"
-                  "  // and LocalFontFaceSource::CreateFontData both treat as a\n"
-                  "  // missing local font.\n"
-                  "  if (apex_fp::Active()) {\n"
-                  "    SkString apex_sk_family;\n"
-                  "    uniquely_identified_font->getFamilyName(&apex_sk_family);\n"
-                  "    if (apex_fp::IsDeniedFamilyName("
-                  "ToAtomicString(apex_sk_family))) {\n"
-                  "      return nullptr;\n"
-                  "    }\n"
+        "inject": "  // apex-font-generic-mono: the Linux fixed-family default\n"
+                  "  // (\"Monospace\") is not a persona font; use the nearest allowed\n"
+                  "  // monospace so the keyword keeps its class under apex-font-deny.\n"
+                  "  if (apex_fp::Active() &&\n"
+                  "      font_family.FamilyName() == font_family_names::kMonospace &&\n"
+                  "      !apex_fp::IsAllowlistedFont(settings_family_name)) {\n"
+                  "    settings_family_name = font_family_names::kCourierNew;\n"
+                  "  }\n",
+    },
+    {
+        "file": "third_party/blink/renderer/core/css/offscreen_font_selector.cc",
+        "header": '#include "third_party/blink/renderer/platform/font_family_names.h"\n'
+                  '#include "third_party/blink/renderer/platform/fonts/'
+                  'apex_font_policy.h"',
+        "marker": "apex-font-generic-mono-worker",
+        "anchor": "  AtomicString settings_family_name =\n"
+                  "      FamilyNameFromSettings(font_description, font_family);\n"
+                  "  if (settings_family_name.empty()) {\n"
+                  "    return nullptr;\n"
+                  "  }\n",
+        "where": "after",
+        "inject": "  // apex-font-generic-mono-worker: same as apex-font-generic-mono\n"
+                  "  // for OffscreenCanvas in workers.\n"
+                  "  if (apex_fp::Active() &&\n"
+                  "      font_family.FamilyName() == font_family_names::kMonospace &&\n"
+                  "      !apex_fp::IsAllowlistedFont(settings_family_name)) {\n"
+                  "    settings_family_name = font_family_names::kCourierNew;\n"
                   "  }\n",
     },
     # --- removed edits (do not re-add without new evidence) ------------

@@ -31,13 +31,16 @@
 // else is treated as Linux), the same switch apex_voices.h uses.
 //
 // Path 2 (rendering) and local() are closed by the deny hooks
-// apex-font-deny-render / apex-font-deny-check / apex-font-deny-local, which
-// use IsDeniedFamily()/IsDeniedFamilyName() below: a concrete (non-generic)
-// family the page names that is NOT on the persona allowlist never resolves
-// against the bundle, so a Win/mac persona cannot be caught rendering
-// Liberation*/Noto Color Emoji by name. CSS generic keywords (serif,
-// monospace, system-ui, -webkit-standard...) and per-character fallback are
-// deliberately untouched: they are how a real OS renders a missing font.
+// apex-font-deny (FontCache::CreateFontPlatformData -- the one chokepoint
+// every family lookup reaches, so rendering, document.fonts.check and
+// src:local() share one verdict) plus apex-font-system-ui and
+// apex-font-generic-mono[-worker], which keep the generic keywords on
+// persona-allowed faces. A concrete (non-generic) family the page names that
+// is NOT on the persona allowlist never resolves against the bundle, so a
+// Win/mac persona cannot be caught rendering Liberation*/Noto Color Emoji by
+// name. CSS generic keywords (serif, monospace, system-ui, -webkit-standard)
+// and per-character fallback are deliberately handled, not denied wholesale:
+// they are how a real OS renders a missing font.
 
 #ifndef APEX_CHROMIUM_FONT_POLICY_H_
 #define APEX_CHROMIUM_FONT_POLICY_H_
