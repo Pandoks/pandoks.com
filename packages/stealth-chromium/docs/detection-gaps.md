@@ -72,6 +72,32 @@ gate.
 4. Verify persona defaults: OS == host OS, locale/TZ == proxy exit country
    (gaps #3, #9, #13 mostly dissolve if the persona matches the host).
 
+## Evasion-approach comparison (from puppeteer-stealth source analysis)
+
+Read the full source of puppeteer-extra-plugin-stealth v2.11.2 (the JS-shim
+approach) and cross-referenced every evasion against CreepJS, fpscanner, BotD
+and brotector source. Result: the JS-Proxy approach is deterministically
+caught — CreepJS's prototype-cycle probes (setPrototypeOf/recursion tricks)
+fire on every Proxy-wrapped API, brotector catches the eval'd trap frame in
+live stacks (`at newHandler.<computed> [as apply] (eval at <anonymous>…)`),
+and spoofed values leak through worker scopes (WorkerNavigator
+hardwareConcurrency, OffscreenCanvas WebGL). BotD catches none of the 17
+evasions (its checks are weaker).
+
+**Implication for our stack (validated):** C++ patches (native code, no JS
+Proxy wrappers) pass the prototype-lie and toString checks that catch every
+JS-shim stealth. Our remaining risks are exactly the same categories that
+catch JS-shim tools when they apply to us: (a) worker-scope propagation of
+every patched value (WorkerNavigator, OffscreenCanvas, shared workers) —
+gap #6, (b) driver-layer CDP residue (Runtime.enable, sourceURL) — gap #1,
+(c) value coherence with workers/nested frames — gap #6. Every patch must be
+verified against the worker scope, not just the main frame.
+
+Analysis detail: run analysis was done against the live repos; the repo-local
+copy of this comparison lives in the agent transcripts. The actionable
+cross-reference (evasion → detector → catch mechanism) is what matters for
+the loop.
+
 ## Sources
 
 Fingerprint Smart Signals: https://docs.fingerprint.com/docs/smart-signals-reference
