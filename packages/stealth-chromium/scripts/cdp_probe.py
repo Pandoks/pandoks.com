@@ -157,6 +157,39 @@ def main() -> int:
         print(f"  [{mark}] CDP inspector-preview leak       = "
               f"{'no leak' if not cdp_leak else 'LEAKED'}")
 
+        # Field-trial testing config (args.gn: disable_fieldtrial_testing_config).
+        # chrome://version prints VariationsSourceToUiString()
+        # (components/webui/version/version_handler_helper.cc): a build that
+        # applied testing/variations/fieldtrial_testing_config.json at startup
+        # says "field-trial-config" -- a state stock Chrome is never in
+        # (branded builds gate it behind --enable-field-trial-config; stable
+        # users get "variations server"). The string is i18n-substituted into
+        # the page HTML, so it is readable as soon as the document loads; the
+        # active-trial list is filled asynchronously and is informational.
+        # An empty/missing string is a FAIL, not a pass: the probe must have
+        # actually read the page.
+        msg_id[0] += 1
+        ws.send(json.dumps({
+            "id": msg_id[0], "method": "Page.navigate",
+            "params": {"url": "chrome://version/"}}))
+        while json.loads(ws.recv()).get("id") != msg_id[0]:
+            pass
+        time.sleep(2)
+        ft_source = ev("(document.getElementById('variations-source')||{})"
+                       ".textContent") or ""
+        ft_source = ft_source.strip()
+        ft_active = ev("((document.getElementById('variations-list')||{})"
+                       ".textContent||'').split('\\n').filter(Boolean).length")
+        ft_ok = bool(ft_source) and "field-trial-config" not in ft_source
+        mark = "PASS" if ft_ok else "FAIL"
+        if ft_ok:
+            passed += 1
+        else:
+            failed += 1
+        print(f"  [{mark}] field-trial testing config       = "
+              f"source {ft_source!r}, {ft_active} active trial(s)"
+              f"{'' if ft_source else '  (could not read chrome://version)'}")
+
         ws.close()
         print(f"\n=== {passed} passed, {failed} failed ===")
         return 0 if failed == 0 else 1

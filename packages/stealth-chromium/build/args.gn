@@ -30,6 +30,26 @@ ffmpeg_branding = "Chrome"
 # Widevine signing cert is needed despite is_official_build.
 enable_widevine = true
 
+# Field trials. components/variations/service/BUILD.gn defaults
+# disable_fieldtrial_testing_config to false, so a Chromium-branded build
+# compiles testing/variations/fieldtrial_testing_config.json in AND applies
+# it at startup: ShouldUseFieldTrialTestingConfig() in
+# variations_field_trial_creator.cc applies it on every non-Chrome-branded
+# build unless --disable-field-trial-config is passed (and the launchers
+# deliberately pass no such flag -- it is itself a Playwright tell). Real
+# Chrome never applies it: branded builds gate it behind
+# --enable-field-trial-config and stable users get their trials from the
+# variations seed instead. So every session of this binary carried the same
+# set of testing-config experiment arms -- feature state the stable
+# population mostly lacks, identical across the whole fleet. Setting this
+# flips FIELDTRIAL_TESTING_ENABLED to false, which compiles the config out
+# entirely (no runtime flag to forget, nothing on the command line). The
+# binary then runs plain feature defaults: an unbranded build never fetches a
+# seed either (variations_service.cc skips the fetch without
+# --variations-server-url), which is the state of a real Chrome before its
+# first seed fetch -- a real population, unlike the testing config's.
+disable_fieldtrial_testing_config = true
+
 # No symbols -- apex never needs to debug the binary, real Chrome release ships
 # stripped, and symbol_level=0 meaningfully cuts compile time + disk.
 symbol_level = 0
