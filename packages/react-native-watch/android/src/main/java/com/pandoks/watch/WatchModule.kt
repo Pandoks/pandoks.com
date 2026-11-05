@@ -56,7 +56,7 @@ class WatchModule : Module() {
       Wearable.getCapabilityClient(context).removeListener(capabilityListener, WATCH_CAPABILITY)
     }
 
-    Function("updateApplicationContext") { applicationContext: Map<String, Any> ->
+    AsyncFunction("updateApplicationContext") { applicationContext: Map<String, Any> ->
       val request = PutDataMapRequest.create(PHONE_CONTEXT_PATH)
       applicationContext.forEach { (key, value) ->
         when (value) {
@@ -65,7 +65,7 @@ class WatchModule : Module() {
           is Boolean -> request.dataMap.putBoolean(key, value)
         }
       }
-      // NOTE: waits for Play services so failures throw like on iOS
+      // NOTE: resolves once Play services stores the item and rejects with its error, like on iOS
       Tasks.await(Wearable.getDataClient(context).putDataItem(request.asPutDataRequest().setUrgent()))
       Unit
     }
