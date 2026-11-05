@@ -34,7 +34,7 @@ and fleet-level population signals. Ranked:
 
 | Rank | Gap | Why it is the top risk | Rows |
 |---|---|---|---|
-| 1 | **WebRTC STUN reflexive candidate reveals the host's real egress IP past the proxy** | Chrome's default IP-handling policy gathers srflx candidates over UDP; SOCKS5/HTTP proxies in Chrome carry TCP only, so STUN goes direct and the page sees an IP that disagrees with every HTTP request. The forced-policy edit was removed and no `--force-webrtc-ip-handling-policy` flag is passed (both verified). For proxied mass scraping this is a one-probe unmask. | A8 |
+| 1 | **WebRTC STUN reflexive candidate reveals the host's real egress IP past the proxy** -- CLOSED 2026-11-05 | Chrome's default IP-handling policy gathers srflx candidates over UDP; SOCKS5/HTTP proxies in Chrome carry TCP only, so STUN goes direct and the page sees an IP that disagrees with every HTTP request. Fixed: every proxied session now launches with `--webrtc-ip-handling-policy=disable_non_proxied_udp` (`profile.WEBRTC_PROXIED_FLAG`); the page sees zero ICE candidates, like a real Chrome under the `WebRtcIpHandling` policy. Residual: "no candidates at all" is itself a (benign, population-level) signal. | A8 |
 | 2 | **Cross-OS persona on a Linux render stack** | In the container every session is a *Windows* persona (host GPU class falls back to `intel` because `lspci` is absent — verified) running on Linux/Xvfb. Fonts (only Liberation + Noto Color Emoji resolve; Segoe UI/Helvetica absent), emoji glyphs, CSS system colours (`ActiveText` = `rgb(255,0,0)` on Linux), `navigator.share` absent (Windows/ChromeOS/macOS only), BarcodeDetector absent for Mac personas, HEVC codec support, and `prefers-color-scheme` all say Linux. The font-policy header itself documents this residual. | B6, B9, C15, C17, B1 |
 | 3 | **GPU truth behind the spoofed strings** | `UNMASKED_RENDERER` says "Intel Iris Xe D3D11" while `MAX_TEXTURE_SIZE`, extension list, shader precision, and rendered-pixel hashes are llvmpipe-via-ANGLE (Mesa is pulled in by `xvfb → libgl1 → libglx0 → libglx-mesa0 → libgl1-mesa-dri`, verified in Debian deps and in the local image). WebGPU on Linux shipped in Chrome 144, so on 157 the adapter exists and `isFallbackAdapter` is real (true on a CPU adapter) next to a spoofed `vendor: intel`. | B3, B2, B4 |
 | 4 | **Fleet population signals** | (a) One persona tuple for all container sessions (rank 2 cause). (b) `fullVersionList`/`uaFullVersion` report `157.0.8103.27`, which was never a Linux Stable release — Stable went `156.0.8078.79 → 157.0.8103.38` (verified via chromiumdash). (c) The Chromium build applies `fieldtrial_testing_config.json` by default (Chromium builds do; branded Chrome does not) and `args.gn` does not set `disable_fieldtrial_testing_config`, so feature state differs from the stable population. Fingerprint already labels unbranded Chromium "Chromium-Based Browser". | C20, C21, A6 |
@@ -63,7 +63,7 @@ on some paths / with a residual), **UNCOVERED**.
 | A5 | HTTP header set/order, `Accept-Language` ↔ `navigator.languages` | Locale coherence; header-order mismatch is a Cloudflare detection-ID example | PARTIAL | `--lang` (profile.py); patchright core adds `extra_http_headers` via CDP (`core_patchright.py:202`) | Cloudflare detection IDs [S5] |
 | A6 | UA string + `Sec-CH-UA-*` + `userAgentData` (page/iframe/worker) | OS, arch, bitness, version, brands | COVERED, residual UNCOVERED (version currency) | `apex-ua-brand`, `apex-ua-latent-ua-string`, `apex-ua-latent-ch-low/high`, `apex-uadata-platform`, `apex-platform` | UA-CH spec [S6]; `user_agent_utils.cc` [S7]; chromiumdash releases [S8] |
 | A7 | IP geo / ASN ↔ timezone ↔ locale | `timezone_mismatch`, `os_mismatch` | PARTIAL | `_match_identity_to_proxy` (core_nodriver), `identity_env` (core_patchright) | Fingerprint Smart Signals: VPN detection [S9] |
-| A8 | WebRTC ICE candidates (host mDNS, srflx public IP) | Real egress IP that bypasses the proxy; LAN topology if mDNS off | **UNCOVERED** | no edit (removed, see apply_edits.py comment), no policy flag (profile.py comment) | Blink `webrtc_ip_handling_policy.h` [S10]; RFC 8828 §5.2 [S11]; Chromium `net/docs/proxy.md` [S12] |
+| A8 | WebRTC ICE candidates (host mDNS, srflx public IP) | Real egress IP that bypasses the proxy; LAN topology if mDNS off | COVERED when proxied (launcher), residual UNCOVERED (zero-candidate population signal) | `--webrtc-ip-handling-policy=disable_non_proxied_udp` on proxied sessions (`profile.WEBRTC_PROXIED_FLAG`, both cores); battery check `webrtcPublicIps` ⊆ `httpEgressIps` (checks.py #14) | Blink `webrtc_ip_handling_policy.h` [S10]; RFC 8828 §5.2 [S11]; Chromium `net/docs/proxy.md` [S12]; `chrome_switches.h` / `chrome_command_line_pref_store.cc` / `port_allocator.cc` / `basic_port_allocator.cc` @157 [S26] |
 | A9 | DNS resolution path | Resolver IP / leak when the client resolves | BY-CONSTRUCTION | Chrome resolves proxy-side for HTTP and SOCKS5 | `net/docs/proxy.md` [S12] |
 | B1 | Canvas 2D hash (`getImageData`, `toDataURL`/`toBlob`/`convertToBlob`) | GPU/driver/font rasterizer; OS via emoji glyphs and AA | PARTIAL | `apex-canvas-getimagedata`, `apex-canvas-encode` (+ `_RGBA_NOISE_LOOP` skips) | Mowery & Shacham 2012 [S13]; Castle canvas-noise detection [S14]; fingerprintjs `canvas.ts` emoji [S15] |
 | B2 | WebGL render hash (`readPixels`) | Real GPU/backend | PARTIAL | `apex-webgl-readpixels` | Cao, Li, Wijmans NDSS 2017 [S16] |
@@ -182,7 +182,8 @@ core looks up the exit IP through the proxied browser and rebuilds `Identity`
 the child environment (clean). Country→locale and region→timezone tables are
 small (`_COUNTRY_LOCALE` 12 entries, `_REGION_TZ` 10 US states).
 
-**A8 — WebRTC ICE candidates. UNCOVERED, highest risk when proxied.**
+**A8 — WebRTC ICE candidates. COVERED for proxied sessions (2026-11-05);
+residual is a population signal.**
 Chrome's default policy (`kWebRTCIPHandlingDefault`) "has the right to
 enumerate all interfaces and bind them to discover public interfaces"; only
 `kWebRTCIPHandlingDisableNonProxiedUdp` restricts WebRTC to "TCP to contact
@@ -191,15 +192,65 @@ is the only mode where "WebRTC media traffic MUST also be proxied" [S11]. Chrome
 proxies do not carry UDP [S12]. Consequence: a STUN request from a proxied
 session leaves the container directly and the `srflx` candidate carries the
 container host's public IP, while every HTTP request carries the proxy exit
-IP. Code state (verified): the forced-policy edit was removed from `EDITS`
-(comment block "WebRTC: default (mDNS-obfuscated) candidate gathering"), and
-`profile.py` explicitly passes no `--force-webrtc-ip-handling-policy`. The
-comment's premise ("srflx carries the WAN IP -- exactly what a real user behind
-a proxy exposes") is true for a user whose WAN *is* the proxy; it is false for
-this deployment, where WAN ≠ proxy exit. The mDNS obfuscation of host
-candidates does hide LAN IPs; it does not touch srflx. Residual even without a
-proxy: a Linux container's network shape (single interface, Docker bridge) is
-not what the persona claims — low.
+IP. The earlier removal note's premise ("srflx carries the WAN IP -- exactly
+what a real user behind a proxy exposes") is true for a user whose WAN *is*
+the proxy; it is false here, where WAN ≠ proxy exit.
+
+Mechanism at 157 [S26]: the policy reaches Blink only through
+`RendererPreferences.webrtc_ip_handling_policy`
+(`renderer_blink_platform_impl.cc` `GetWebRTCRendererPreferences`), which
+`chrome/browser/renderer_preferences_util.cc` fills from the pref
+`webrtc.ip_handling_policy`. The chrome-layer switch
+`--webrtc-ip-handling-policy` (`chrome_switches.h`) is mapped onto that pref
+by `ChromeCommandLinePrefStore` and so overrides a profile-seeded value. The
+content-layer `--force-webrtc-ip-handling-policy` is consumed only by
+`content/shell/browser/shell.cc` and
+`headless/lib/browser/headless_web_contents_impl.cc` (the 2022 CL that added
+both says "Headless: --force-…; Normal: --webrtc-ip-handling-policy"), so it
+was a no-op on headful Chrome. `kDisableNonProxiedUdp` sets
+`enable_multiple_routes = enable_nonproxied_udp = false`
+(`peer_connection_dependency_factory.cc`), i.e.
+`PORTALLOCATOR_DISABLE_ADAPTER_ENUMERATION | DISABLE_UDP | DISABLE_STUN |
+DISABLE_UDP_RELAY` (`blink/renderer/platform/p2p/port_allocator.cc`); WebRTC
+then binds the any-address and `IsAllowedByCandidateFilter` drops any-IP
+candidates (`p2p/client/basic_port_allocator.cc`), so without a TURN/TCP
+relay the page sees zero candidates.
+
+Measured (Chrome 156.0.8078.79, Linux, headful, local SOCKS5 that logs every
+request; Helium 0.20.2.1 on macOS):
+
+| Launch | Proxy | Candidates the page sees |
+|---|---|---|
+| default | none | host `<uuid>.local` udp + srflx = HTTP egress IP |
+| default | SOCKS5 | identical; proxy log shows TCP CONNECTs only, STUN went direct |
+| `--force-webrtc-ip-handling-policy=disable_non_proxied_udp` | none | identical to default (switch not honored) |
+| `--webrtc-ip-handling-policy=default_public_interface_only` | SOCKS5 | srflx only (still leaks) |
+| `--webrtc-ip-handling-policy=disable_non_proxied_udp` | none / SOCKS5 | none; gathering `complete` in ~250 ms |
+| pref `webrtc.ip_handling_policy: default` + that switch | none | none (switch wins over pref) |
+| Helium default / + that switch | none | srflx v4+v6 (no host) / none |
+
+Fix: `profile.WEBRTC_PROXIED_FLAG` is appended for every proxied session
+(nodriver via `chrome_launch_flags(proxy=)`, patchright next to its `proxy=`
+launch option). Unproxied sessions keep the default policy, where srflx
+equals the HTTP egress IP and WebRTC calls keep working. Battery check #14
+(`checks.py`) gathers candidates against Google STUN and asserts every
+public candidate IP is an HTTP egress IP (ipify v4/v6 fetched from the page).
+
+What remains observable: (1) a proxied session shows *no* ICE candidates at
+all and `iceGatheringState` reaches `complete` with no `onicecandidate`
+event -- the same as any Chrome under the `WebRtcIpHandling` enterprise
+policy or uBlock Origin's "prevent WebRTC from leaking local IP addresses",
+a minority but real population; a page cannot tell them apart. (2) It is
+distinguishable from a real residential user on the default policy, who
+shows a `.local` host candidate plus an srflx equal to their HTTP IP; only a
+UDP-capable egress (VPN/tun on the container network, not a Chrome proxy)
+could reproduce that. (3) A page supplying its own TURN-over-TCP server
+would get relay candidates through the proxy carrying the proxy exit IP --
+consistent with HTTP, no leak. (4) WebRTC calls that need UDP do not work in
+proxied sessions. Side finding, not fixed: Helium on the real display with
+the seeded `default` pref emits raw host IPs (`10.0.0.204`, global IPv6) --
+no mDNS obfuscation -- so an unproxied real-display session exposes LAN
+topology.
 
 **A9 — DNS.** "When using an HTTP proxy in Chrome, name resolution is always
 deferred to the proxy" and "when a proxy's scheme is set to SOCKSv5, name
@@ -535,6 +586,7 @@ trajectories and dwell; stream structure is C14. PARTIAL.
 - [S10] Chromium `third_party/blink/public/common/peerconnection/webrtc_ip_handling_policy.h`: https://chromium.googlesource.com/chromium/src/+/main/third_party/blink/public/common/peerconnection/webrtc_ip_handling_policy.h
 - [S11] RFC 8828, "WebRTC IP Address Handling Requirements", §5.2 Modes 1–4: https://www.rfc-editor.org/rfc/rfc8828.html
 - [S12] Chromium `net/docs/proxy.md` (proxy-side DNS for HTTP/SOCKS5; "SOCKSv5 … cannot be used to relay UDP traffic"): https://chromium.googlesource.com/chromium/src/+/main/net/docs/proxy.md
+- [S26] WebRTC IP-handling mechanism, read at tag 157.0.8103.27: `chrome/common/chrome_switches.h` (`kWebRtcIPHandlingPolicy`), `chrome/browser/prefs/chrome_command_line_pref_store.cc` (switch→pref map), `chrome/browser/renderer_preferences_util.cc`, `content/renderer/renderer_blink_platform_impl.cc`, `content/public/common/content_switches.cc` (`kForceWebRtcIPHandlingPolicy`), `content/shell/browser/shell.cc`, `headless/lib/browser/headless_web_contents_impl.cc`, `third_party/blink/renderer/modules/peerconnection/peer_connection_dependency_factory.cc`, `third_party/blink/renderer/platform/p2p/port_allocator.cc`, `third_party/blink/common/peerconnection/webrtc_ip_handling_policy.cc`; WebRTC `p2p/client/basic_port_allocator.cc` at the DEPS-pinned revision `95554e4a0c5c`: https://chromium.googlesource.com/chromium/src/+/refs/tags/157.0.8103.27/chrome/common/chrome_switches.h ; https://chromium.googlesource.com/chromium/src/+/refs/tags/157.0.8103.27/chrome/browser/prefs/chrome_command_line_pref_store.cc ; https://webrtc.googlesource.com/src/+/95554e4a0c5c343fdc989387d9d0ce18e2a2294b/p2p/client/basic_port_allocator.cc ; switch-adding CL (2022-06-15): https://chromium-review.googlesource.com/c/chromium/src/+/3689950
 - [S13] Mowery & Shacham, "Pixel Perfect: Fingerprinting Canvas in HTML5", W2SP 2012: https://hovav.net/ucsd/dist/canvas.pdf
 - [S14] Castle, "Detecting noise in canvas fingerprinting" (solid-fill check, cyclic `setPrototypeOf`): https://blog.castle.io/detecting-noise-in-canvas-fingerprinting/
 - [S15] fingerprintjs `src/sources/canvas.ts` ("Cwm fjordbank gly 😃", explicit built-in fonts): https://github.com/fingerprintjs/fingerprintjs/blob/master/src/sources/canvas.ts

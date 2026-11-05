@@ -317,7 +317,7 @@ uv run --project ../stealth-browser python scripts/cdp_probe.py
 | SpeechSynthesis voice list | anchor edit + `apex_voices.h` | `APEX_FP_UA_PLATFORM` |
 | `MediaDevices.enumerateDevices` | anchor edit + `apex_devices.h` | `APEX_FP_SEED` |
 | Local Font Access (`queryLocalFonts`) | anchor edit + `apex_font_policy.h` | `APEX_FP_ACTIVE` |
-| WebRTC ICE (no-non-proxied-UDP, real-IP leak) | anchor edit | `APEX_FP_ACTIVE` |
+| WebRTC ICE (no-non-proxied-UDP, real-IP leak) | launcher flag, proxied sessions only (`stealth-browser/profile.py` `WEBRTC_PROXIED_FLAG`), no binary edit | -- |
 | V8 inspector console-preview (2026 CDP-detection vector) | anchor edit | `APEX_FP_ACTIVE` |
 
 `patches/*.patch` files describe these in unified-diff form for review

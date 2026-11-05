@@ -195,6 +195,30 @@ def in_container() -> bool:
     return os.path.exists("/.dockerenv")
 
 
+# WebRTC behind a proxy. Chrome's HTTP/SOCKS5 proxies carry TCP only, so under
+# the default IP-handling policy STUN still leaves over UDP straight from the
+# host and the srflx candidate carries the host's REAL egress IP next to
+# proxied HTTP -- a one-probe unmask (detector-sources.md A8). The fix is
+# Chrome's own RFC 8828 mode-4 policy, disable_non_proxied_udp: no UDP, no
+# STUN, and the TCP ports bind the any-address (adapter enumeration off), which
+# WebRTC's candidate filter drops -- so the page sees ZERO candidates and ICE
+# gathering completes immediately. That is exactly what a real Chrome shows
+# under the WebRtcIpHandling enterprise policy or uBlock Origin's "prevent
+# WebRTC from leaking local IP addresses" (same pref, webrtc.ip_handling_policy;
+# verified live on Chrome 156 + Helium). Unproxied sessions keep the default
+# policy: there srflx == the HTTP egress IP, and WebRTC calls keep working.
+#
+# The switch is the chrome-layer one (chrome_switches.h kWebRtcIPHandlingPolicy
+# -> ChromeCommandLinePrefStore -> prefs::kWebRTCIPHandlingPolicy, read by
+# renderer_preferences_util.cc). It also wins over a profile-seeded
+# `webrtc.ip_handling_policy` pref (verified). The content-layer
+# --force-webrtc-ip-handling-policy that an earlier revision passed is honored
+# only by content_shell and the old headless shell (headless_web_contents_impl
+# .cc) -- it was a no-op on headful Chrome, verified: candidates identical to
+# the default.
+WEBRTC_PROXIED_FLAG = "--webrtc-ip-handling-policy=disable_non_proxied_udp"
+
+
 def chrome_launch_flags(identity: Identity, *, headless: bool,
                         proxy=None) -> list[str]:
     """Chrome command-line flags that remove headless/automation tells.
@@ -249,12 +273,8 @@ def chrome_launch_flags(identity: Identity, *, headless: bool,
             flags.append(
                 f"--window-size={identity.viewport_width},"
                 f"{identity.viewport_height}")
-        # WebRTC: NO ip-handling-policy flag, in the container either.
-        # disable_non_proxied_udp zeroes out ALL host candidates (round-2
-        # F12: zero ICE candidates, which real desktop Chrome never shows).
-        # Default candidate gathering is the no-leak mechanism: host
-        # candidates are mDNS .local names that never carry the LAN IPs, and
-        # srflx carries the WAN IP, like any real user behind a proxy.
+        # WebRTC: no policy flag here -- it is tied to the proxy, not to the
+        # container (see WEBRTC_PROXIED_FLAG below).
         # WebGL: a container has no GPU. Without help Chrome disables WebGL
         # entirely (renderer = null -- a dead headless tell). We route WebGL
         # through ANGLE's GL backend on top of Mesa's llvmpipe (installed in
@@ -271,7 +291,9 @@ def chrome_launch_flags(identity: Identity, *, headless: bool,
     if proxy is not None and getattr(proxy, "configured", False):
         # route all of Chrome's traffic through the proxy. Credentials are NOT
         # in this flag -- they are supplied over CDP (Fetch.authRequired).
-        flags.append(proxy.chrome_flag())
+        # A proxied session also stops WebRTC from leaking the real egress
+        # IP around the proxy (WEBRTC_PROXIED_FLAG above).
+        flags += [proxy.chrome_flag(), WEBRTC_PROXIED_FLAG]
     if headless:
         # only used by the headless control test; the real run stays headful
         flags.append("--headless=new")

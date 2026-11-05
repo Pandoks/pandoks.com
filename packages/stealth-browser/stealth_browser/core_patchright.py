@@ -22,8 +22,8 @@ import tempfile
 from patchright.async_api import async_playwright
 
 from stealth_browser.human_patchright import PatchrightHuman
-from stealth_browser.profile import (Identity, chrome_launch_flags,
-                                     in_container)
+from stealth_browser.profile import (Identity, WEBRTC_PROXIED_FLAG,
+                                     chrome_launch_flags, in_container)
 from stealth_browser.proxy import from_env as proxy_from_env
 
 # Playwright default switches that change page-observable behaviour versus
@@ -53,7 +53,8 @@ def _seed_profile_prefs(profile_dir: str) -> None:
     real-Chrome candidate gathering: Helium's ungoogled-chromium WebRTC
     restriction patch hides local IPs so hard that ICE emits ZERO candidates
     (round-3 F19). Helium prefs are inert in the container's stealth-chromium
-    build, so the same seed is harmless there.
+    build, so the same seed is harmless there. A proxied session overrides
+    the WebRTC pref from the command line (profile.WEBRTC_PROXIED_FLAG).
     """
     default_dir = os.path.join(profile_dir, "Default")
     os.makedirs(default_dir, exist_ok=True)
@@ -182,6 +183,11 @@ class PatchrightCore:
         proxy = self._proxy_dict()
         if proxy is not None:
             launch_kwargs["proxy"] = proxy
+            # The proxy goes in via Playwright's option (it carries the
+            # credentials), not chrome_launch_flags(proxy=), so add the
+            # proxied-session WebRTC policy here. It overrides the
+            # `webrtc.ip_handling_policy: default` seeded below (verified).
+            launch_kwargs["args"].append(WEBRTC_PROXIED_FLAG)
         # Context options kept to the non-Emulation minimum: viewport/screen/
         # device_scale_factor/color_scheme also ride Emulation.*, so they are
         # NOT set -- the browser reports the real display. The two context

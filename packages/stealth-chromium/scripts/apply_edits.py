@@ -242,17 +242,27 @@ EDITS = [
                   "    return;\n"
                   "  }\n",
     },
-    # --- WebRTC: default (mDNS-obfuscated) candidate gathering ---------
-    # NOTE: an earlier edit here forced webrtc_ip_handling_policy =
-    # kDisableNonProxiedUdp when apex was active ("never leak the real IP").
-    # It backfired: that policy drops ALL host candidates, so ICE produced
-    # zero candidates (round-2 F12) while real desktop Chrome always emits
-    # host candidates (mDNS .local names). Default candidate gathering with
-    # mDNS obfuscation IS the no-leak mechanism: host candidates carry only
-    # obfuscated .local names (the LAN IPs never reach the page) and srflx
-    # carries the WAN IP -- exactly what a real user behind a proxy exposes.
-    # The forced-policy edit is removed; no binary change is needed for
-    # WebRTC.
+    # --- WebRTC: no binary edit; the policy is a launcher flag ----------
+    # History: an edit here once forced webrtc_ip_handling_policy =
+    # kDisableNonProxiedUdp whenever apex was active. It was removed because
+    # ICE then produced zero candidates (round-2 F12) and the removal note
+    # argued that srflx "carries the WAN IP -- exactly what a real user
+    # behind a proxy exposes". That premise is false for this deployment:
+    # the WAN here is the container host, not the proxy exit, so the srflx
+    # IP disagrees with every proxied HTTP request (detector-sources.md A8,
+    # rank-1 uncovered risk). Zero candidates is simply what Chrome shows
+    # under that policy (TCP ports bind the any-address and WebRTC's
+    # candidate filter drops them) -- the same thing a real user with the
+    # WebRtcIpHandling enterprise policy or uBlock's WebRTC-leak option
+    # shows. It is also the right trade: an unproxied session keeps the
+    # default policy (srflx == HTTP egress, WebRTC calls work).
+    # The policy is therefore tied to the proxy, not to the binary:
+    # stealth-browser passes --webrtc-ip-handling-policy=disable_non_proxied_udp
+    # for proxied sessions (profile.WEBRTC_PROXIED_FLAG), which is Chrome's
+    # own switch for the webrtc.ip_handling_policy pref and works on stock
+    # Chrome as well as this build. Note the content-layer
+    # --force-webrtc-ip-handling-policy is NOT honored by chrome/ (only by
+    # content_shell and headless_shell) -- do not reintroduce it.
     # --- V8 inspector: suppress console preview prototype walk ----------
     {
         "file": "v8/src/inspector/v8-console-message.cc",

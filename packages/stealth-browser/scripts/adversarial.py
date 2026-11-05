@@ -72,6 +72,16 @@ HARD_TARGETS = [
 CHALLENGE_TIMEOUT_S = 75  # challenge pages resolve in a loop; give them time
 
 
+def as_expression(fn_js: str) -> str:
+    """checks.PROBE_JS / creepjs.EXTRACT_JS are arrow functions `() => {...}`.
+
+    /eval runs a JS *expression* (Runtime.evaluate), so a bare arrow function
+    evaluates to the function itself and comes back as `{}` -- every check
+    then scores on missing keys. Wrap it in an immediately-invoked call.
+    """
+    return f"({fn_js.strip()})()"
+
+
 def api(base: str, method: str, path: str, body: dict | None = None,
         timeout: float = 120) -> tuple[int, dict | bytes]:
     req = urllib.request.Request(base + path, method=method)
@@ -103,7 +113,7 @@ def wait_health(base: str, limit_s: int = 60) -> bool:
 def run_local_battery(base: str, name: str, probe_js: str) -> dict:
     """Create a session, run the probe JS on it, score, clean up."""
     status, created = api(base, "POST", "/sessions", body={})
-    if status != 200 or not isinstance(created, dict):
+    if status not in (200, 201) or not isinstance(created, dict):
         return {"name": name, "error": f"session create failed: {status}"}
     sid = created["id"]
     try:
@@ -126,7 +136,7 @@ def run_local_battery(base: str, name: str, probe_js: str) -> dict:
 
 def probe_hard_target(base: str, name: str, url: str, markers: list[str]) -> dict:
     status, created = api(base, "POST", "/sessions", body={})
-    if status != 200 or not isinstance(created, dict):
+    if status not in (200, 201) or not isinstance(created, dict):
         return {"name": name, "error": f"session create failed: {status}"}
     sid = created["id"]
     try:
@@ -167,7 +177,8 @@ def main() -> int:
     failures: list[str] = []
 
     if args.targets in ("local", "all"):
-        r = run_local_battery(base, "local-battery", checks.PROBE_JS)
+        r = run_local_battery(base, "local-battery",
+                              as_expression(checks.PROBE_JS))
         if "scored" not in r:
             print(r, file=sys.stderr)
             failures.append("local-battery: could not run")
@@ -178,7 +189,7 @@ def main() -> int:
 
     if args.targets in ("creep", "all"):
         status, created = api(base, "POST", "/sessions", body={})
-        sid = created["id"] if status == 200 and isinstance(created, dict) else None
+        sid = created["id"] if status in (200, 201) and isinstance(created, dict) else None
         if not sid:
             failures.append("creep: session create failed")
         else:
@@ -189,7 +200,8 @@ def main() -> int:
                 for _ in range(10):
                     time.sleep(5)
                     status, ev = api(base, "POST", f"/sessions/{sid}/eval",
-                                     body={"expression": creepjs.EXTRACT_JS})
+                                     body={"expression":
+                                           as_expression(creepjs.EXTRACT_JS)})
                     res = ev.get("result") if status == 200 else None
                     creep = json.loads(res) if isinstance(res, str) else res
                     if isinstance(creep, dict) and creep.get("ready"):

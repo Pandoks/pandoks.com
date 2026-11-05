@@ -11,7 +11,7 @@ from __future__ import annotations
 
 # Runs in the page. Pure JS, no automation API. Returns a JSON-able object.
 PROBE_JS = r"""
-() => {
+async () => {
   const r = {};
 
   // --- 1. the classic automation flag ---
@@ -120,6 +120,43 @@ PROBE_JS = r"""
   } catch (_) { r.stackClean = false; }                     // want: true
   r.userActivationPresent = !!navigator.userActivation;     // informational
 
+  // --- 14. WebRTC ICE must not reveal an IP the HTTP path does not ---
+  // Chrome's proxies carry TCP only: under the default IP-handling policy
+  // STUN goes out over UDP directly and the srflx candidate carries the
+  // host's real egress IP next to proxied HTTP (detector-sources.md A8).
+  // Invariant: every public IP in a candidate is an HTTP egress IP. Unproxied
+  // that is srflx == egress; proxied (disable_non_proxied_udp) it is zero
+  // candidates. mDNS .local hosts and private ranges are not IPs a page can
+  // use and are ignored.
+  r.webrtcCandidates = [];
+  try {
+    const pc = new RTCPeerConnection({
+      iceServers: [{urls: 'stun:stun.l.google.com:19302'}]});
+    pc.createDataChannel('probe');
+    const gathered = new Promise(res => {
+      pc.onicecandidate = e => {
+        if (e.candidate) r.webrtcCandidates.push(e.candidate.candidate);
+        else res();
+      };
+      setTimeout(res, 5000);
+    });
+    await pc.setLocalDescription(await pc.createOffer());
+    await gathered;
+    pc.close();
+  } catch (e) { r.webrtcError = String(e); }
+  const isPrivate = ip => /^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|fe80:|f[cd][0-9a-f]{2}:|::1$)/i.test(ip);
+  r.webrtcPublicIps = [...new Set(r.webrtcCandidates
+    .map(c => c.split(' ')[4])
+    .filter(a => a && !/\.local$/i.test(a) && !isPrivate(a)))];
+  r.httpEgressIps = [];
+  for (const u of ['https://api.ipify.org/?format=json',
+                   'https://api64.ipify.org/?format=json']) {
+    try {
+      const j = await (await fetch(u)).json();
+      if (j.ip && !r.httpEgressIps.includes(j.ip)) r.httpEgressIps.push(j.ip);
+    } catch (_) { /* unknown egress: any public candidate IP then fails */ }
+  }
+
   return r;
 }
 """
@@ -155,6 +192,8 @@ _CHECKS = [
      lambda p: p.get("nextHopOk") is True),
     ("stackClean", "error stacks have no automation frames",
      lambda p: p.get("stackClean") is True),
+    ("webrtcPublicIps", "WebRTC candidates reveal no IP beyond the HTTP egress",
+     lambda p: set(p.get("webrtcPublicIps") or []) <= set(p.get("httpEgressIps") or [])),
 ]
 
 

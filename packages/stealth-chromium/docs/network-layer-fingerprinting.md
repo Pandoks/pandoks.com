@@ -56,8 +56,11 @@ Accept-Language: first tag bare then `;q=0.9` format. Headless-shell sends no
   per pool with the direct-vs-proxy diff.
 - Record each exit's `tcpip.tcp_syn`/JA4T from tls.peet.ws; match persona OS
   to the exit's stack (or pick Linux/Android personas for Linux exits).
-- WebRTC: use `--force-webrtc-ip-handling-policy` (the actual Chromium switch
-  name; patchright's README spells it wrong).
+- WebRTC: use `--webrtc-ip-handling-policy=disable_non_proxied_udp` (the
+  chrome-layer switch that feeds the `webrtc.ip_handling_policy` pref;
+  `--force-webrtc-ip-handling-policy` is honored only by content_shell and
+  headless_shell -- a no-op on headful Chrome, verified). The service adds it
+  for every proxied session (`profile.WEBRTC_PROXIED_FLAG`).
 - Rotate across ASNs (Cloudflare detection ID 50331648 is per-ASN;
   residential pools score 29 regardless — detection ID 50331651).
 - Do not use `--headless`, UA overrides without matching UA-CH metadata, or
