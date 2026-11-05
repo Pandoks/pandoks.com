@@ -158,7 +158,7 @@ jobs:
         run: >-
           xcodebuild build -workspace MobileTemplate.xcworkspace -scheme MobileTemplate
           -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator'
-          CODE_SIGNING_ALLOWED=NO
+          ARCHS=arm64 CODE_SIGNING_ALLOWED=NO
 
   test-svelte-pkg:
     needs: detect-changes
