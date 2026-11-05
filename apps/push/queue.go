@@ -74,7 +74,7 @@ type claimedJob struct {
 	invalidFCMTokens   []string
 	retryTokens        []string
 	unsentTokens       []string
-	retryAfter         time.Duration
+	retryDelay         time.Duration
 	failures           map[string]int
 }
 
@@ -308,8 +308,12 @@ func (job *claimedJob) record(device device, result result) {
 	case invalidArgument:
 		job.invalidFCMTokens = append(job.invalidFCMTokens, device.Token)
 	case retryable:
-		job.retryTokens = append(job.retryTokens, device.Token)
-		job.retryAfter = max(job.retryAfter, result.retryAfter)
+		retryDelay := max(result.retryAfter, time.Second) << job.Attempt
+		// NOTE: a send whose own retry would come too late fails alone instead of dropping the job's other retries
+		if job.Attempt+1 < maxAttempts && retryDelay <= maxRetryDelay {
+			job.retryTokens = append(job.retryTokens, device.Token)
+			job.retryDelay = max(job.retryDelay, retryDelay)
+		}
 	case failed:
 	}
 	if result.outcome != delivered {
@@ -345,10 +349,7 @@ func commitJobs(ctx context.Context, transaction pgx.Tx, startedAt time.Time, jo
 		}
 		unregisteredTokens = append(unregisteredTokens, job.unregisteredTokens...)
 		requeue(job, time.Now(), job.Attempt, job.unsentTokens)
-		retryDelay := max(job.retryAfter, time.Second) << job.Attempt
-		if job.Attempt+1 < maxAttempts && retryDelay <= maxRetryDelay {
-			requeue(job, time.Now().Add(retryDelay), job.Attempt+1, job.retryTokens)
-		}
+		requeue(job, time.Now().Add(job.retryDelay), job.Attempt+1, job.retryTokens)
 	}
 
 	// NOTE: a failure rolls the jobs back to be sent again, since dropping it would lose their retries

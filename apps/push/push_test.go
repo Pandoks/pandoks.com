@@ -456,6 +456,16 @@ func TestPush(t *testing.T) {
 		}
 	})
 
+	t.Run("retries a send when another send of its job is told to retry past the retry window", func(t *testing.T) {
+		register("busy-beside-later-", "ios", "production", "device", "user-22")
+		register("later-beside-busy-", "android", "", "device", "user-22")
+		id := send(alert(map[string]any{"user_ids": []string{"user-22"}}))
+		waitFor(t, "the throttled APNs send to be retried", func() bool { return len(sentTo("busy-beside-later-")) == 2 && jobsLeft(id) == 0 })
+		if requests := len(sentTo("later-beside-busy-")); requests != 1 {
+			t.Errorf("sent the stale alert %d times", requests)
+		}
+	})
+
 	t.Run("keeps device tokens out of the logs when an APNs request fails in transport", func(t *testing.T) {
 		logs := &lockedBuffer{}
 		defaultLogger := slog.Default()
