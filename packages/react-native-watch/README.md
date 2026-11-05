@@ -25,5 +25,5 @@ On Android, the config plugin adds a Wear OS app as the `:wear` Gradle module, f
 relative to the app root: `["@pandoks.com/react-native-watch", { "wearApp": "./targets/wear" }]`.
 That app must reuse the phone app's application ID and signing key, declare the `watch_app`
 capability in `android_wear_capabilities`, read the phone's context from the `/phone_context` data
-item, and write its own to `/watch_context` with a `sentAt` time in epoch milliseconds, which the
-phone uses to keep the newest value across watches.
+item, and write its own to `/watch_context` as a `context` `DataMap` beside a `sentAt` time in epoch
+milliseconds, which the phone uses to keep the newest value across watches.

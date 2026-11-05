@@ -16,6 +16,7 @@ import expo.modules.kotlin.modules.ModuleDefinition
 private const val WATCH_CAPABILITY = "watch_app"
 private const val PHONE_CONTEXT_PATH = "/phone_context"
 private const val WATCH_CONTEXT_PATH = "/watch_context"
+private const val CONTEXT_KEY = "context"
 private const val SENT_AT_KEY = "sentAt"
 
 class WatchModule : Module() {
@@ -80,8 +81,7 @@ class WatchModule : Module() {
       val sentAt = dataMap.getLong(SENT_AT_KEY)
       if (sentAt < receivedSentAt) return
       receivedSentAt = sentAt
-      dataMap.remove(SENT_AT_KEY)
-      receivedApplicationContext = dataMap.toBundle()
+      receivedApplicationContext = requireNotNull(dataMap.getDataMap(CONTEXT_KEY)).toBundle()
       sendEvent("onApplicationContext", receivedApplicationContext)
     }
   }

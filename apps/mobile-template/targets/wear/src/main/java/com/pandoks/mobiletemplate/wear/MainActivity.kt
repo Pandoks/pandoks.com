@@ -21,6 +21,7 @@ import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataEventBuffer
 import com.google.android.gms.wearable.DataItem
+import com.google.android.gms.wearable.DataMap
 import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
@@ -31,6 +32,7 @@ import java.time.format.FormatStyle
 // NOTE: must match packages/react-native-watch's WatchModule
 private const val PHONE_CONTEXT_PATH = "/phone_context"
 private const val WATCH_CONTEXT_PATH = "/watch_context"
+private const val CONTEXT_KEY = "context"
 private const val SENT_AT_KEY = "sentAt"
 
 class MainActivity : ComponentActivity(), DataClient.OnDataChangedListener {
@@ -91,7 +93,7 @@ class MainActivity : ComponentActivity(), DataClient.OnDataChangedListener {
 
   private fun send(value: String) {
     val request = PutDataMapRequest.create(WATCH_CONTEXT_PATH)
-    request.dataMap.putString("value", value)
+    request.dataMap.putDataMap(CONTEXT_KEY, DataMap().apply { putString("value", value) })
     request.dataMap.putLong(SENT_AT_KEY, System.currentTimeMillis())
     Wearable.getDataClient(this).putDataItem(request.asPutDataRequest().setUrgent())
       .addOnSuccessListener { sendError = null }
