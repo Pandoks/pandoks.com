@@ -7,6 +7,7 @@ import android.appwidget.AppWidgetManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
@@ -29,15 +30,28 @@ class ProgressActivityState : Record {
   @Field val endsAt: Long = 0
 }
 
+// NOTE: the id in the data keeps each activity's PendingIntent distinct, since extras don't
 private fun reloadWidgetsIntent(
   context: Context,
+  id: String,
   endsAt: Long,
 ) = PendingIntent.getBroadcast(
   context,
   0,
-  Intent(context, ReloadWidgetsReceiver::class.java).putExtra(EXTRA_ENDS_AT, endsAt),
+  Intent(context, ReloadWidgetsReceiver::class.java)
+    .setData(Uri.fromParts("activity", id, null))
+    .putExtra(EXTRA_ENDS_AT, endsAt),
   PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
 )
+
+// NOTE: an inexact alarm, which Doze can defer
+private fun scheduleWidgetsReload(
+  context: Context,
+  id: String,
+  endsAt: Long,
+) {
+  context.getSystemService(AlarmManager::class.java).set(AlarmManager.RTC, endsAt, reloadWidgetsIntent(context, id, endsAt))
+}
 
 // NOTE: Android widgets have no timeline, so the app's widgets rerender when the notification times out at endsAt or is dismissed
 class ReloadWidgetsReceiver : BroadcastReceiver() {
@@ -45,10 +59,10 @@ class ReloadWidgetsReceiver : BroadcastReceiver() {
     context: Context,
     intent: Intent,
   ) {
-    // NOTE: a dismissal before endsAt reloads too early, so an inexact alarm, which Doze can defer, reloads again at endsAt
+    // NOTE: a dismissal before endsAt reloads too early, so they reload again at endsAt
     val endsAt = intent.getLongExtra(EXTRA_ENDS_AT, 0)
     if (System.currentTimeMillis() < endsAt) {
-      context.getSystemService(AlarmManager::class.java).set(AlarmManager.RTC, endsAt, reloadWidgetsIntent(context, endsAt))
+      scheduleWidgetsReload(context, requireNotNull(intent.data).schemeSpecificPart, endsAt)
     }
 
     val appWidgetManager = AppWidgetManager.getInstance(context)
@@ -88,6 +102,8 @@ class LiveUpdatesModule : Module() {
         // NOTE: users can dismiss ongoing notifications on Android 14+, and Live Updates must not repost them
         if (notificationManager().activeNotifications.any { notification -> notification.tag == id && notification.id == 0 }) {
           post(context(), id, state)
+        } else {
+          scheduleWidgetsReload(context(), id, state.endsAt)
         }
       }
 
@@ -130,7 +146,7 @@ class LiveUpdatesModule : Module() {
         .setContentTitle(state.title)
         .setContentText(state.text)
         .setContentIntent(openApp)
-        .setDeleteIntent(reloadWidgetsIntent(context, state.endsAt))
+        .setDeleteIntent(reloadWidgetsIntent(context, id, state.endsAt))
         // NOTE: setTimeoutAfter needs Android 8+, so older notifications stay user-dismissible
         .setOngoing(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
         .setOnlyAlertOnce(true)
