@@ -61,6 +61,21 @@ WEBGPU_ARCH_BY_CLASS: dict[str, str] = {
     "software": "software",
 }
 
+# Sec-CH-UA-* architecture and platform-version per navigator.platform family.
+# These mirror the defaults in apex_fingerprint.h's UAPersona (the C++ maps the
+# same values from APEX_FP_UA_PLATFORM), emitted explicitly so a persona can
+# never fall out of sync with the binary if the env-vars row changes.
+UA_ARCH_BY_PLATFORM: dict[str, str] = {
+    "Win32": "x86",
+    "MacIntel": "arm",
+    "Linux x86_64": "x86",
+}
+UA_PLATFORM_VERSION_BY_PLATFORM: dict[str, str] = {
+    "Win32": "15.0.0",
+    "MacIntel": "26.7.2",
+    "Linux x86_64": "",
+}
+
 
 # A pool of real, common device configurations. Each row is a genuine device
 # class -- the WebGL renderer string is the actual ANGLE string that hardware
@@ -288,6 +303,8 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         "APEX_FP_SEED": str(seed & 0xFFFFFFFF),
         "APEX_FP_PLATFORM": profile.platform,
         "APEX_FP_UA_PLATFORM": profile.ua_platform,
+        "APEX_FP_UA_ARCH": UA_ARCH_BY_PLATFORM[profile.platform],
+        "APEX_FP_UA_PLATFORM_VERSION": UA_PLATFORM_VERSION_BY_PLATFORM[profile.platform],
         "APEX_FP_HW_CONCURRENCY": str(profile.hw_concurrency),
         "APEX_FP_DEVICE_MEMORY": str(profile.device_memory),
         "APEX_FP_WEBGL_VENDOR": profile.webgl_vendor,
