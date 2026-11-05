@@ -89,8 +89,8 @@ class WatchModule : Module() {
   private fun updateReachability() {
     Wearable.getCapabilityClient(context)
       .getCapability(WATCH_CAPABILITY, CapabilityClient.FILTER_REACHABLE)
-      .addOnSuccessListener { capabilityInfo ->
-        isReachable = capabilityInfo.nodes.isNotEmpty()
+      .addOnCompleteListener { task ->
+        isReachable = task.isSuccessful && task.result.nodes.isNotEmpty()
         sendEvent("onReachabilityChange", mapOf("isReachable" to isReachable))
       }
   }
