@@ -14,9 +14,11 @@ The watch side lives in the app, like `apps/mobile-template/targets/watch` (watc
   throws when the Wearable API is unavailable and otherwise queues until a watch connects.
 - `isReachable` and the `onReachabilityChange` event: on iOS, whether the watch app is running and
   connected; on Android, whether a connected watch has the Wear OS app installed.
-- the `onMessage` event: each dictionary the watch sends with `sendMessage`.
+- `receivedApplicationContext` and the `onApplicationContext` event: the latest state the watch sent
+  with `updateApplicationContext`, delivered even if the phone app wasn't running.
 
-Read events with `useEvent(Watch, 'onMessage')` from `expo`.
+Read events with `useEvent(Watch, 'onApplicationContext', Watch.receivedApplicationContext)` from
+`expo`.
 
 On Android, the config plugin adds a Wear OS app as the `:wear` Gradle module, from a directory
 relative to the app root: `["@pandoks.com/react-native-watch", { "wearApp": "./targets/wear" }]`.
