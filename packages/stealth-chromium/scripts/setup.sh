@@ -12,6 +12,27 @@ APEX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="${APEX_CHROMIUM_WORK:-$HOME/apex-chromium-build}"
 CHROMIUM_VERSION="$(cat "$APEX_ROOT/chromium_version.txt")"
 
+# The cloud runner exports RUNNER_CACHE_BUCKET; the older builder exported
+# BUILDER_CACHE_BUCKET (the name this script's checks read). Accept either so
+# a runner-driven build uses the rolling cache instead of re-fetching 70GB.
+BUILDER_CACHE_BUCKET="${BUILDER_CACHE_BUCKET:-${RUNNER_CACHE_BUCKET:-}}"
+
+# chromium.googlesource.com drops long HTTPS fetches ("the remote end hung
+# up unexpectedly" / truncated body). One failure must not kill the build:
+# retry the tag fetch a few times with backoff before giving up.
+git_fetch_with_retry() {
+  local dir="$1" url="$2" ref="$3" attempt
+  for attempt in 1 2 3 4 5; do
+    if git -C "$dir" fetch --tags --depth 1 "$url" "$ref"; then
+      return 0
+    fi
+    echo "      git fetch attempt $attempt failed; retrying in 15s ..."
+    sleep 15
+  done
+  echo "      git fetch failed after 5 attempts"
+  return 1
+}
+
 echo "=== apex-chromium setup ==="
 echo " work dir         : $WORK"
 echo " Chromium version : $CHROMIUM_VERSION"
@@ -117,7 +138,7 @@ if [ -d "$WORK/chromium/src" ] \
      && ! APEX_CHROMIUM_WORK="$WORK" python3 "$APEX_ROOT/scripts/apply_edits.py" --check >/dev/null 2>&1; then
   echo "[2/3] tree fails the anchor check -- pinning to $CHROMIUM_VERSION ..."
   cd "$WORK/chromium/src"
-  git fetch --tags --depth 1 origin "refs/tags/$CHROMIUM_VERSION"
+  git_fetch_with_retry "$WORK/chromium/src" origin "refs/tags/$CHROMIUM_VERSION"
   git checkout "tags/$CHROMIUM_VERSION"
   cd "$WORK"
   gclient sync -D --no-history --with_branch_heads -j 4
@@ -194,7 +215,7 @@ elif [ -n "$CACHED_VERSION" ]; then
   # inherent to shallow Chromium checkouts). The major-version-keyed ccache
   # (see build.sh) still provides the cross-version COMPILE savings, which is
   # where the real cost lives anyway. Keep the rolling cache lean (depth-1).
-  git fetch --tags --depth 1 origin "refs/tags/$CHROMIUM_VERSION"
+  git_fetch_with_retry "$WORK/chromium/src" origin "refs/tags/$CHROMIUM_VERSION"
   git checkout "tags/$CHROMIUM_VERSION"
   # gclient sync pulls the third-party submodule deltas implied by the
   # new src/DEPS. -j 4 to stay under chromium.googlesource.com's burst
@@ -208,7 +229,7 @@ else
   # the tree to the tag here too, or the edits drift (build 157-c2x-080211).
   echo "[3/3] freshly fetched checkout — pinning to the $CHROMIUM_VERSION tag ..."
   cd "$WORK/chromium/src"
-  git fetch --tags --depth 1 origin "refs/tags/$CHROMIUM_VERSION"
+  git_fetch_with_retry "$WORK/chromium/src" origin "refs/tags/$CHROMIUM_VERSION"
   git checkout "tags/$CHROMIUM_VERSION"
   cd "$WORK"
   gclient sync -D --no-history --with_branch_heads -j 4
