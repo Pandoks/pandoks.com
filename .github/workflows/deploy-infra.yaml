@@ -48,7 +48,7 @@ jobs:
         if: github.event_name != 'workflow_dispatch'
         id: filter
         with:
-          filters: &filters |
+          filters: |
             sst:
               - 'sst.config.ts'
               - 'infra/**'
@@ -163,6 +163,10 @@ jobs:
       (needs.deploy-sst.result == 'success' || needs.deploy-sst.result == 'skipped')
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_DEFAULT_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
@@ -171,6 +175,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - uses: ./.github/actions/setup-node-pnpm
 
@@ -180,18 +186,24 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      # NOTE: queue order isn't guaranteed, so a newer commit that changed the template publishes instead
-      - name: Fetch main's tip
-        run: git fetch --depth=1 --no-tags origin main
-
-      - name: Detect newer template changes
-        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+      # NOTE: queue order isn't guaranteed, so skip once a newer commit's run has published. Runs never
+      # overlap, so none publishes between this check and the publish step it names.
+      - name: Check for a newer published update
         id: newer
-        with:
-          base: ${{ github.sha }}
-          ref: main
-          filters: *filters
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          newer_commits=$(git rev-list "${GITHUB_SHA}..origin/main")
+          newer_runs=$(gh run list --workflow deploy-infra.yaml --branch main --event push --limit 100 --json databaseId,headSha \
+            | jq -r --arg newer "${newer_commits}" '.[] | select(.headSha as $sha | $newer | split("\n") | index($sha)) | .databaseId')
+          published=''
+          for run_id in ${newer_runs}; do
+            published+=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?filter=all" \
+              --jq '.jobs[] | select(.name == "publish-mobile-template") | .steps[] | select(.name == "Publish production update" and .conclusion == "success") | .name')
+          done
+          echo "published=${published:+true}" >> "${GITHUB_OUTPUT}"
 
       - name: Publish production update
-        if: steps.newer.outputs.mobile-template != 'true'
+        if: steps.newer.outputs.published != 'true'
         run: pnpm sst shell --stage production -- pnpm updates publish apps/mobile-template production ios android
