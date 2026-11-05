@@ -12,10 +12,22 @@ metadata:
 spec:
   repo: https://argoproj.github.io/argo-helm
   chart: argo-cd
-  version: 9.3.4
+  version: 9.7.1
   targetNamespace: argocd
   valuesContent: |-
     configs:
+      cm:
+        timeout.reconciliation: 180s
+        # NOTE: helm-controller sets Failed only after 1000 Job retries, so this rarely fires.
+        resource.customizations.health.helm.cattle.io_HelmChart: |
+          local health_status = { status = "Healthy" }
+          for _, condition in ipairs((obj.status or {}).conditions or {}) do
+            if condition.type == "Failed" and condition.status == "True" then
+              health_status.status = "Degraded"
+              health_status.message = condition.message
+            end
+          end
+          return health_status
       params:
         server.insecure: true
 
