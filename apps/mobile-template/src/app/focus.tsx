@@ -58,9 +58,19 @@ export default function FocusScreen() {
   const [startError, setStartError] = useState<string | null>(null);
 
   useEffect(() => {
-    void getProgressActivities().then((activities) =>
-      Promise.all(activities.map((activity) => activity.end()))
-    );
+    void getProgressActivities().then(async (activities) => {
+      if (activities.length === 0) {
+        return;
+      }
+      // NOTE: Android 8+ removes Live Updates at endsAt, while iOS keeps finished activities, whose widget already shows Done
+      if (
+        Platform.OS === 'android' ||
+        (await FocusWidget.getTimeline()).some((entry) => entry.date.getTime() > Date.now())
+      ) {
+        FocusWidget.updateSnapshot({ title: 'Stopped', caption: `At ${formatTime(Date.now())}` });
+      }
+      await Promise.all(activities.map((activity) => activity.end()));
+    });
   }, []);
 
   useEffect(() => {

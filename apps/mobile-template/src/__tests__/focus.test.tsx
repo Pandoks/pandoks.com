@@ -7,6 +7,7 @@ import { act, userEvent } from '@testing-library/react-native';
 import { renderRouter, screen } from 'expo-router/testing-library';
 
 import FocusScreen from '../app/focus';
+import FocusWidget from '../widgets/focus-widget';
 
 jest.mock('@pandoks.com/react-native-live-updates', () => ({
   getProgressActivities: jest.fn(() => Promise.resolve([])),
@@ -14,8 +15,11 @@ jest.mock('@pandoks.com/react-native-live-updates', () => ({
 }));
 jest.mock('../widgets/focus-widget', () => ({
   updateSnapshot: jest.fn(),
-  updateTimeline: jest.fn()
+  updateTimeline: jest.fn(),
+  getTimeline: jest.fn(() => Promise.resolve([]))
 }));
+
+beforeEach(() => jest.clearAllMocks());
 
 const activity: ProgressActivity = {
   update: async () => {},
@@ -70,6 +74,20 @@ test('ends activities left running by an earlier launch', async () => {
   await renderRouter({ index: FocusScreen });
 
   expect(leftover.end).toHaveBeenCalled();
+});
+
+test('marks the widget stopped when ending an unfinished leftover activity', async () => {
+  const widget = jest.mocked(FocusWidget);
+  jest.mocked(getProgressActivities).mockResolvedValueOnce([activity]);
+  widget.getTimeline.mockResolvedValueOnce([
+    { date: new Date(Date.now() + 10_000), props: { title: 'Done', caption: 'At 9:00 AM' } }
+  ]);
+
+  await renderRouter({ index: FocusScreen });
+
+  expect(widget.updateSnapshot.mock.calls).toContainEqual([
+    expect.objectContaining({ title: 'Stopped' })
+  ]);
 });
 
 test('shows why a session could not start', async () => {
