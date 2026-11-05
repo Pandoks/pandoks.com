@@ -5,6 +5,9 @@ inputs:
   tools:
     description: Space-separated tools to install (passed to mise install as install_args), e.g. "shfmt" or "golangci-lint go:golang.org/x/vuln/cmd/govulncheck".
     required: true
+  working_directory:
+    description: Directory mise runs in, so its nested mise.toml applies, e.g. "apps/mobile-template". Defaults to the workspace root.
+    required: false
 
 runs:
   using: composite
@@ -13,5 +16,6 @@ runs:
       env:
         MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
       with:
-        version: 2026.10.17
+        version: 2026.10.18
         install_args: ${{ inputs.tools }}
+        working_directory: ${{ inputs.working_directory }}
