@@ -195,14 +195,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           newer_commits=$(git rev-list "${GITHUB_SHA}..origin/main")
-          newer_runs=$(gh run list --workflow deploy-infra.yaml --branch main --event push --limit 100 --json databaseId,headSha \
-            | jq -r --arg newer "${newer_commits}" '.[] | select(.headSha as $sha | $newer | split("\n") | index($sha)) | .databaseId')
-          published=''
+          runs=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-infra.yaml/runs?branch=main&per_page=100" \
+            --jq '.workflow_runs[] | "\(.id) \(.head_sha)"')
+          newer_runs=$(jq -rR --arg newer "${newer_commits}" 'split(" ") | select(.[1] as $sha | $newer | split("\n") | index($sha)) | .[0]' <<< "${runs}")
           for run_id in ${newer_runs}; do
-            published+=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?filter=all" \
+            published=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?filter=all&per_page=100" \
               --jq '.jobs[] | select(.name == "publish-mobile-template") | .steps[] | select(.name == "Publish production update" and .conclusion == "success") | .name')
+            if [ -n "${published}" ]; then
+              echo "published=true" >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
           done
-          echo "published=${published:+true}" >> "${GITHUB_OUTPUT}"
 
       # NOTE: with no SST changes of its own, this JS needs the latest SST deploy, from any earlier or
       # newer run, to have succeeded, so fix the infrastructure first, then re-run this job
@@ -212,7 +215,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          runs=$(gh run list --workflow deploy-infra.yaml --branch main --limit 100 --json databaseId,status --jq '.[] | "\(.databaseId) \(.status)"')
           earlier=false
           while read -r run_id status; do
             if [ "${run_id}" = "${GITHUB_RUN_ID}" ]; then
@@ -220,15 +222,17 @@ jobs:
             elif [ "${status}" != completed ]; then
               [ "${earlier}" = false ] || { echo "Earlier run ${run_id} hasn't finished"; exit 1; }
             else
-              sst=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?filter=all" \
-                --jq '[.jobs[] | select(.name == "deploy-sst")] | max_by(.run_attempt) | .conclusion')
+              sst=$(gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?filter=all&per_page=100" \
+                | jq -r '[.[].jobs[] | select(.name == "deploy-sst")] | max_by(.run_attempt) | .conclusion')
               [ "${sst}" = skipped ] && continue
               [ "${sst}" = success ] && exit 0
               echo "Run ${run_id}'s SST deploy ended in ${sst}"
               exit 1
             fi
-          done <<< "${runs}"
-          echo "No SST deploy in the last 100 runs"
+          done < <(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-infra.yaml/runs?branch=main&per_page=100" \
+            --jq '.workflow_runs[] | "\(.id) \(.status)"')
+          # NOTE: also reached when the run listing fails partway
+          echo "No SST deploy on main"
           exit 1
 
       - name: Publish production update
