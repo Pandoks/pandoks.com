@@ -16,11 +16,13 @@ import expo.modules.kotlin.modules.ModuleDefinition
 private const val WATCH_CAPABILITY = "watch_app"
 private const val PHONE_CONTEXT_PATH = "/phone_context"
 private const val WATCH_CONTEXT_PATH = "/watch_context"
+private const val SENT_AT_KEY = "sentAt"
 
 class WatchModule : Module() {
   private val context get() = requireNotNull(appContext.reactContext)
   private var isReachable = false
   private var receivedApplicationContext = Bundle()
+  private var receivedSentAt = Long.MIN_VALUE
 
   private val dataListener = DataClient.OnDataChangedListener { dataEvents ->
     dataEvents
@@ -73,7 +75,13 @@ class WatchModule : Module() {
 
   private fun receive(dataItem: DataItem) {
     if (dataItem.uri.path == WATCH_CONTEXT_PATH) {
-      receivedApplicationContext = DataMapItem.fromDataItem(dataItem).dataMap.toBundle()
+      // NOTE: each watch keeps its own item, so keep the newest across watches
+      val dataMap = DataMapItem.fromDataItem(dataItem).dataMap
+      val sentAt = dataMap.getLong(SENT_AT_KEY)
+      if (sentAt < receivedSentAt) return
+      receivedSentAt = sentAt
+      dataMap.remove(SENT_AT_KEY)
+      receivedApplicationContext = dataMap.toBundle()
       sendEvent("onApplicationContext", receivedApplicationContext)
     }
   }

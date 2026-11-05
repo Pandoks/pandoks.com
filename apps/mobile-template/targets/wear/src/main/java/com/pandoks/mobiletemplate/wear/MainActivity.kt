@@ -31,6 +31,7 @@ import java.time.format.FormatStyle
 // NOTE: must match packages/react-native-watch's WatchModule
 private const val PHONE_CONTEXT_PATH = "/phone_context"
 private const val WATCH_CONTEXT_PATH = "/watch_context"
+private const val SENT_AT_KEY = "sentAt"
 
 class MainActivity : ComponentActivity(), DataClient.OnDataChangedListener {
   private var valueFromPhone by mutableStateOf<String?>(null)
@@ -91,6 +92,7 @@ class MainActivity : ComponentActivity(), DataClient.OnDataChangedListener {
   private fun send(value: String) {
     val request = PutDataMapRequest.create(WATCH_CONTEXT_PATH)
     request.dataMap.putString("value", value)
+    request.dataMap.putLong(SENT_AT_KEY, System.currentTimeMillis())
     Wearable.getDataClient(this).putDataItem(request.asPutDataRequest().setUrgent())
       .addOnSuccessListener { sendError = null }
       .addOnFailureListener { exception -> sendError = exception.localizedMessage }
