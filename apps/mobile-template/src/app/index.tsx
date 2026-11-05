@@ -47,8 +47,10 @@ export default function HomeScreen() {
   return (
     <Screen title="Home">
       <View ref={gridRef} style={styles.grid}>
+        {/* TODO: drop the pane count from the key once https://github.com/react/react-native/issues/59741
+            is fixed; Fabric keeps a pane's old width when it changes from a fixed width to flex */}
         {panes.map((paneStyle, paneIndex) => (
-          <View key={paneIndex} testID="pane" style={[styles.pane, paneStyle]}>
+          <View key={`${panes.length}-${paneIndex}`} testID="pane" style={[styles.pane, paneStyle]}>
             {cardTitles
               .filter(
                 (_, cardIndex) =>
