@@ -17,6 +17,19 @@ is_component_build = false
 proprietary_codecs = true
 ffmpeg_branding = "Chrome"
 
+# Widevine. third_party/widevine/cdm/widevine.gni defaults enable_widevine to
+# (is_chrome_branded || is_chrome_for_testing_branded) -- both need
+# src-internal, which we don't have -- so a stock Chromium-branded build ships
+# WITHOUT the com.widevine.alpha key system. Real Chrome always has it, and its
+# absence is one of the "Chromium-Based Browser" tells. Forcing it on compiles
+# the WidevineCdm component installer (ENABLE_WIDEVINE_CDM_COMPONENT on
+# linux-x64), which fetches the CDM via the component updater into the profile
+# dir on first run (the CDM itself can't be bundled: bundle_widevine_cdm needs
+# the src-internal cdm/linux checkout). CDM host verification stays off here
+# (media_options.gni gates it on is_chrome_branded && (mac||win)), so no
+# Widevine signing cert is needed despite is_official_build.
+enable_widevine = true
+
 # No symbols -- apex never needs to debug the binary, real Chrome release ships
 # stripped, and symbol_level=0 meaningfully cuts compile time + disk.
 symbol_level = 0
