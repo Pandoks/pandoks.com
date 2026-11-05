@@ -1,5 +1,4 @@
 import { requireNativeModule, uuid } from 'expo';
-import { PermissionsAndroid } from 'react-native';
 
 import type { ProgressActivity, ProgressActivityState } from './progress-activity';
 
@@ -21,7 +20,6 @@ function toProgressActivity(id: string): ProgressActivity {
 export async function startProgressActivity(
   state: ProgressActivityState
 ): Promise<ProgressActivity> {
-  await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
   const id = uuid.v4();
   await LiveUpdates.start(id, state);
 

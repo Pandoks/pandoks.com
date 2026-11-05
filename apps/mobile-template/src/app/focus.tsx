@@ -7,7 +7,7 @@ import {
 import { type EventSubscription } from 'expo';
 import { useTheme } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { PermissionsAndroid, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Screen } from '../components/screen';
 import FocusWidget from '../widgets/focus-widget';
@@ -90,14 +90,17 @@ export default function FocusScreen() {
 
   async function start() {
     setStarting(true);
-    const startedAt = Date.now();
-    const state = {
-      title: 'Focus',
-      text: 'Stay on task',
-      startedAt,
-      endsAt: startedAt + SESSION_MS
-    };
     try {
+      if (Platform.OS === 'android') {
+        await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+      }
+      const startedAt = Date.now();
+      const state = {
+        title: 'Focus',
+        text: 'Stay on task',
+        startedAt,
+        endsAt: startedAt + SESSION_MS
+      };
       const activity = await startProgressActivity(state);
       setPushToken(null);
       setNow(startedAt);

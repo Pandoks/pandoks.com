@@ -5,6 +5,7 @@ import {
 } from '@pandoks.com/react-native-live-updates';
 import { act, userEvent } from '@testing-library/react-native';
 import { renderRouter, screen } from 'expo-router/testing-library';
+import { PermissionsAndroid, Platform } from 'react-native';
 
 import FocusScreen from '../app/focus';
 import FocusWidget from '../widgets/focus-widget';
@@ -19,7 +20,10 @@ jest.mock('../widgets/focus-widget', () => ({
   getTimeline: jest.fn(() => Promise.resolve([]))
 }));
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  jest.restoreAllMocks();
+});
 
 const activity: ProgressActivity = {
   update: async () => {},
@@ -88,6 +92,31 @@ test('marks the widget stopped when ending an unfinished leftover activity', asy
   expect(widget.updateSnapshot.mock.calls).toContainEqual([
     expect.objectContaining({ title: 'Stopped' })
   ]);
+});
+
+test('starts the session once the Android notification prompt resolves', async () => {
+  jest.useFakeTimers();
+  jest.replaceProperty(Platform, 'OS', 'android');
+  let grant = () => {};
+  jest.spyOn(PermissionsAndroid, 'request').mockReturnValueOnce(
+    new Promise((resolve) => {
+      grant = () => resolve(PermissionsAndroid.RESULTS.GRANTED);
+    })
+  );
+  jest.mocked(startProgressActivity).mockResolvedValueOnce(activity);
+  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+  await renderRouter({ index: FocusScreen });
+
+  await user.press(screen.getByText('Start'));
+  await act(() => jest.advanceTimersByTimeAsync(20_000));
+  const grantedAt = Date.now();
+  grant();
+  await act(() => jest.advanceTimersByTimeAsync(0));
+
+  expect(startProgressActivity).toHaveBeenCalledWith(
+    expect.objectContaining({ startedAt: grantedAt, endsAt: grantedAt + 30_000 })
+  );
+  jest.useRealTimers();
 });
 
 test('shows why a session could not start', async () => {

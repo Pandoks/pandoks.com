@@ -14,12 +14,18 @@ rerenders them at `endsAt`; Android may deliver it up to an hour late, or after 
 
 The app needs the `expo-widgets` config plugin; set `enablePushNotifications` for iOS push tokens.
 `startProgressActivity` rejects when the user turned off Live Activities, notifications, or the Live
-updates channel. Activities outlive the app process, so `getProgressActivities()` returns the
-running ones (on Android 8+) to update or end after a relaunch.
+updates channel. On Android, request `POST_NOTIFICATIONS` (`PermissionsAndroid.request`) before
+picking `startedAt`, so time spent on the prompt doesn't come out of the activity. Activities
+outlive the app process, so `getProgressActivities()` returns the running ones (on Android 8+) to
+update or end after a relaunch.
 
 ```ts
 import { startProgressActivity } from '@pandoks.com/react-native-live-updates';
+import { PermissionsAndroid, Platform } from 'react-native';
 
+if (Platform.OS === 'android') {
+  await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+}
 const startedAt = Date.now();
 const activity = await startProgressActivity({
   title: 'Focus',
