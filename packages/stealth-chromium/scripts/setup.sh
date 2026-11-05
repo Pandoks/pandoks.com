@@ -140,7 +140,10 @@ if [ -d "$WORK/chromium/src" ] \
   cd "$WORK/chromium/src"
   git_fetch_with_retry "$WORK/chromium/src" origin "refs/tags/$CHROMIUM_VERSION"
   git checkout "tags/$CHROMIUM_VERSION"
-  cd "$WORK"
+  # gclient sync resolves .gclient by walking UP from cwd, so it must run from
+  # inside the tree (src/) — the cache-MISS and version-advance sites do the
+  # same. From $WORK there is no .gclient: "Error: client not configured"
+  # (build 16x-182556 died here on the first-ever anchor-check pin).
   gclient sync -D --no-history --with_branch_heads -j 4
   echo "$CHROMIUM_VERSION" > "$SENTINEL"
   CACHE_DIRTY=1
@@ -231,7 +234,7 @@ else
   cd "$WORK/chromium/src"
   git_fetch_with_retry "$WORK/chromium/src" origin "refs/tags/$CHROMIUM_VERSION"
   git checkout "tags/$CHROMIUM_VERSION"
-  cd "$WORK"
+  # Run from src/ — gclient needs to find .gclient by walking up from cwd.
   gclient sync -D --no-history --with_branch_heads -j 4
   cd "$WORK"
   echo "$CHROMIUM_VERSION" > "$SENTINEL"
