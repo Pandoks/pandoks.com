@@ -33,10 +33,14 @@ class WatchSessionDelegate: NSObject, WCSessionDelegate {
     self.module = module
   }
 
+  // NOTE: isReachable reads false before activation, and activating doesn't count as a
+  // reachability change
   func session(
     _ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState,
     error: Error?
-  ) {}
+  ) {
+    module?.sendEvent("onReachabilityChange", ["isReachable": session.isReachable])
+  }
 
   func sessionDidBecomeInactive(_ session: WCSession) {}
 
