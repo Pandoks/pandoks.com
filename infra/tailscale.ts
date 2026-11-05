@@ -6,7 +6,6 @@ new tailscale.TailnetSettings('TailscaleSettings', {
   httpsEnabled: true
 });
 
-// NOTE: the hub serves each of these with `tailscale serve --service=svc:<name> --https=443`
 export const hubTailscaleServices = [
   { name: 'cliproxyapi', comment: 'CLIProxyAPI on the homelab hub' },
   { name: 'cliproxyapi-ci', comment: 'CLIProxyAPI with Console API keys only' },
