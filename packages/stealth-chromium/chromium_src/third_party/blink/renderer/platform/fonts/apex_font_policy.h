@@ -30,14 +30,20 @@
 // Persona OS comes from APEX_FP_UA_PLATFORM ("Windows" / "macOS"; anything
 // else is treated as Linux), the same switch apex_voices.h uses.
 //
-// Known residual (needs a deny hook in the edit, not this list): the bundle's
-// Liberation*/Noto Color Emoji families still report present on Win/Mac
-// personas through the real lookup, because this policy only ever adds.
+// Path 2 (rendering) and local() are closed by the deny hooks
+// apex-font-deny-render / apex-font-deny-check / apex-font-deny-local, which
+// use IsDeniedFamily()/IsDeniedFamilyName() below: a concrete (non-generic)
+// family the page names that is NOT on the persona allowlist never resolves
+// against the bundle, so a Win/mac persona cannot be caught rendering
+// Liberation*/Noto Color Emoji by name. CSS generic keywords (serif,
+// monospace, system-ui, -webkit-standard...) and per-character fallback are
+// deliberately untouched: they are how a real OS renders a missing font.
 
 #ifndef APEX_CHROMIUM_FONT_POLICY_H_
 #define APEX_CHROMIUM_FONT_POLICY_H_
 
 #include "apex_fingerprint.h"
+#include "third_party/blink/renderer/platform/fonts/font_family.h"
 #include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
 
 namespace apex_fp {
@@ -113,6 +119,29 @@ inline bool IsAllowlistedFont(const blink::AtomicString& family) {
     return IsMacAllowlistedFont(f);
   }
   return IsLinuxAllowlistedFont(f);
+}
+
+// Returns true when the persona policy must refuse to resolve `family`, a
+// concrete family name the page asked for, against the local font set:
+// policy on, name non-empty, and not on the persona-OS allowlist. The callers
+// treat `true` exactly like "no such font installed" (nullptr / false), which
+// is upstream's own fallback path -- no error, no console message.
+inline bool IsDeniedFamilyName(const blink::AtomicString& family) {
+  if (!Active() || family.empty()) {
+    return false;  // policy off -> real availability, as upstream
+  }
+  return !IsAllowlistedFont(family);
+}
+
+// FontFamily-aware variant for FontFallbackList: CSS <generic-family>
+// keywords (serif, sans-serif, monospace, cursive, fantasy, system-ui, math,
+// -webkit-standard...) are never denied. They are resolved by the FontSelector
+// through GenericFontFamilySettings, and a real OS always renders them.
+inline bool IsDeniedFamily(const blink::FontFamily& family) {
+  if (family.FamilyIsGeneric()) {
+    return false;
+  }
+  return IsDeniedFamilyName(family.FamilyName());
 }
 
 }  // namespace apex_fp

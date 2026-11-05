@@ -622,6 +622,74 @@ EDITS = [
             '        }\n'
         ),
     },
+    # --- Font deny hooks: rendering, document.fonts.check, local() -------
+    # Closes the allowlist's missing deny side: apex-font-allow only ADDS
+    # (allowlisted -> true), so a bundle family off the persona allowlist
+    # (Liberation*, Noto Color Emoji) still reported present and still RENDERED
+    # by name on a Win/mac persona. Anchors verified unique against
+    # Chromium 157.0.8103.27 (font_fallback_list.cc:169, font_cache.cc:202-205
+    # and :324-328).
+    {
+        "file": "third_party/blink/renderer/platform/fonts/font_fallback_list.cc",
+        "header": '#include "third_party/blink/renderer/platform/fonts/'
+                  'apex_font_policy.h"',
+        "marker": "apex-font-deny-render",
+        "anchor": "    if (!result && !curr_family->FamilyName().empty()) {\n",
+        "where": "before",
+        "inject": "    // apex-font-deny-render: a page-named family outside the\n"
+                  "    // persona allowlist must not resolve against the bundle\n"
+                  "    // (Liberation*, Arimo/Tinos/Cousine, Noto Color Emoji on a\n"
+                  "    // Win/mac persona). Skipping the system lookup IS the\n"
+                  "    // upstream 'not installed' path: next family, then\n"
+                  "    // -webkit-standard, then the last-resort font. Generic\n"
+                  "    // keywords were already resolved by the selector above.\n"
+                  "    if (!result && apex_fp::IsDeniedFamily(*curr_family)) {\n"
+                  "      continue;\n"
+                  "    }\n",
+    },
+    {
+        "file": "third_party/blink/renderer/platform/fonts/font_cache.cc",
+        "header": '#include "third_party/blink/renderer/platform/fonts/'
+                  'apex_font_policy.h"',
+        "marker": "apex-font-deny-check",
+        "anchor": "  return GetFontPlatformData(\n"
+                  "      font_description,\n"
+                  "      FontFaceCreationParams("
+                  "AdjustFamilyNameToAvoidUnsupportedFonts(family)),\n"
+                  "      AlternateFontName::kNoAlternate);\n",
+        "where": "before",
+        "inject": "  // apex-font-deny-check: deny side of apex-font-allow. A bundle\n"
+                  "  // family off the persona allowlist reports absent, so\n"
+                  "  // document.fonts.check() agrees with rendering\n"
+                  "  // (apex-font-deny-render) and with @font-face local()\n"
+                  "  // (apex-font-deny-local).\n"
+                  "  if (apex_fp::IsDeniedFamilyName(family)) return false;\n",
+    },
+    {
+        "file": "third_party/blink/renderer/platform/fonts/font_cache.cc",
+        "header": '#include "third_party/blink/renderer/platform/fonts/'
+                  'apex_font_policy.h"',
+        "marker": "apex-font-deny-local",
+        "anchor": "    // a name that does not match yet may match once the table "
+                  "is ready.\n"
+                  "    return nullptr;\n"
+                  "  }\n",
+        "where": "after",
+        "inject": "  // apex-font-deny-local: src: local() is the other door to the\n"
+                  "  // bundle's fonts. Judge the real match by its family name;\n"
+                  "  // off-allowlist -> behave as 'no such local font' (nullptr,\n"
+                  "  // not cached), which IsPlatformFontUniqueNameMatchAvailable\n"
+                  "  // and LocalFontFaceSource::CreateFontData both treat as a\n"
+                  "  // missing local font.\n"
+                  "  if (apex_fp::Active()) {\n"
+                  "    SkString apex_sk_family;\n"
+                  "    uniquely_identified_font->getFamilyName(&apex_sk_family);\n"
+                  "    if (apex_fp::IsDeniedFamilyName("
+                  "ToAtomicString(apex_sk_family))) {\n"
+                  "      return nullptr;\n"
+                  "    }\n"
+                  "  }\n",
+    },
     # --- removed edits (do not re-add without new evidence) ------------
     # apex-chrome-app-gone: stock Chrome 157 still exposes chrome.app on web
     #   pages; removing it created a distinguisher instead of closing one.
