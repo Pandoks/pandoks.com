@@ -1,8 +1,7 @@
 import { resolve } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { EXAMPLE_DOMAIN, STAGE_NAME, cloudflareZoneId, isProduction } from './dns';
-import { controlPlaneLoadBalancers, workerLoadBalancers } from './vps/vps';
+import { EXAMPLE_DOMAIN, STAGE_NAME } from './dns';
 import { secrets } from './secrets';
 
 const cloudflareIpRequest = await fetch('https://api.cloudflare.com/client/v4/ips');
@@ -10,31 +9,6 @@ export const cloudflareIps = (await cloudflareIpRequest.json()) as {
   result: { ipv4_cidrs: string[]; ipv6_cidrs: string[]; etag: string };
   success: boolean;
 };
-
-const publicLoadBalancers = [...workerLoadBalancers, ...controlPlaneLoadBalancers];
-
-if (publicLoadBalancers.length && !isProduction) {
-  for (const [i, loadBalancer] of publicLoadBalancers.entries()) {
-    new cloudflare.DnsRecord(`ExampleDomainLoadBalancer${i}Ipv4`, {
-      name: EXAMPLE_DOMAIN,
-      zoneId: cloudflareZoneId,
-      type: 'A',
-      proxied: true,
-      ttl: 1,
-      comment: 'hetzner k3s',
-      content: loadBalancer.loadbalancer.ipv4
-    });
-    new cloudflare.DnsRecord(`ExampleDomainLoadBalancer${i}Ipv6`, {
-      name: EXAMPLE_DOMAIN,
-      zoneId: cloudflareZoneId,
-      type: 'AAAA',
-      proxied: true,
-      ttl: 1,
-      comment: 'hetzner k3s',
-      content: loadBalancer.loadbalancer.ipv6
-    });
-  }
-}
 
 const openSslConfigPath = resolve('infra/vps/vps.openssl.conf');
 const certificateSigningRequestPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.csr`);

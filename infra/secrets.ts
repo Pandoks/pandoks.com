@@ -46,6 +46,9 @@ export const secrets = {
     ApplicationSecret: new sst.Secret('OvhApplicationSecret'),
     ConsumerKey: new sst.Secret('OvhConsumerKey')
   },
+  latitude: {
+    AuthToken: new sst.Secret('LatitudeAuthToken')
+  },
   tailscale: {
     OauthClientId: new sst.Secret('TailscaleOauthClientId'),
     OauthClientSecret: new sst.Secret('TailscaleOauthClientSecret')

@@ -6,6 +6,9 @@
 # K3S_TOKEN
 # SERVER_API
 # NODE_IP
+# PRIVATE_INTERFACE (private network interface for flannel and the firewall)
+# PRIVATE_NETPLAN (base64 netplan for the private interface, empty when the provider configures it)
+# K3S_NODE_ARGS (the pool's --node-label and --node-taint flags)
 # TAILSCALE_HOSTNAME
 # REGISTRATION_TAILNET_AUTH_KEY
 # KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID (for bootstrap)
@@ -51,9 +54,20 @@ write_files:
     content: |
       #!/usr/sbin/nft -f
 
-      flush ruleset
+      # NOTE: an owned table instead of `flush ruleset`, so reloading nftables never wipes k3s's rules
+      table inet pandoks
+      delete table inet pandoks
 
-      table inet filter {
+      table inet pandoks {
+        # NOTE: NodePort traffic is DNAT'd in prerouting and never reaches the input chain
+        chain prerouting {
+          type filter hook prerouting priority dstnat - 10; policy accept;
+
+          ct state established,related accept comment "Return traffic"
+          iifname { "lo", "tailscale0", "cni0", "flannel.1", "${PRIVATE_INTERFACE}" } accept comment "Internal interfaces"
+          meta l4proto { tcp, udp } th dport 30000-32767 counter drop comment "Public NodePorts"
+        }
+
         chain input {
           type filter hook input priority -100; policy drop;
 
@@ -64,7 +78,7 @@ write_files:
           iifname "tailscale0" accept comment "Tailscale interface"
           iifname "cni0" accept comment "K3s CNI bridge"
           iifname "flannel.1" accept comment "K3s Flannel"
-          iifname "enp7s0" ip saddr ${PRIVATE_IP_RANGE} accept comment "Private network"
+          iifname "${PRIVATE_INTERFACE}" ip saddr ${PRIVATE_IP_RANGE} accept comment "Private network"
 
           udp dport 41641 accept comment "Tailscale"
 
@@ -84,6 +98,12 @@ write_files:
       }
 
 runcmd:
+  - |
+    if [ -n "${PRIVATE_NETPLAN}" ]; then
+      printf '%s' "${PRIVATE_NETPLAN}" | base64 -d > /etc/netplan/60-private.yaml
+      chmod 600 /etc/netplan/60-private.yaml
+      netplan apply
+    fi
   - systemctl enable nftables
   - nft -f /etc/nftables.conf
   - curl -fsSL https://tailscale.com/install.sh | sh
@@ -102,7 +122,7 @@ runcmd:
           --node-ip="${NODE_IP}" \
           --advertise-address="${NODE_IP}" \
           --tls-san="${NODE_IP}" \
-          --flannel-iface=enp7s0 \
+          --flannel-iface=${PRIVATE_INTERFACE} \
           --etcd-expose-metrics \
           --etcd-s3 \
           --etcd-s3-endpoint="${S3_HOST}" \
@@ -111,7 +131,7 @@ runcmd:
           --etcd-s3-secret-key="${S3_SECRET_KEY}" \
           --etcd-s3-folder=kubernetes/etcd \
           --etcd-snapshot-schedule-cron="0 */6 * * *" \
-          --etcd-snapshot-retention=5
+          --etcd-snapshot-retention=5 ${K3S_NODE_ARGS}
 
       export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
       echo "Waiting for k3s to be ready..."
@@ -177,7 +197,7 @@ runcmd:
           --node-ip="${NODE_IP}" \
           --advertise-address="${NODE_IP}" \
           --tls-san="${NODE_IP}" \
-          --flannel-iface=enp7s0 \
+          --flannel-iface=${PRIVATE_INTERFACE} \
           --etcd-expose-metrics \
           --etcd-s3 \
           --etcd-s3-endpoint="${S3_HOST}" \
@@ -186,11 +206,11 @@ runcmd:
           --etcd-s3-secret-key="${S3_SECRET_KEY}" \
           --etcd-s3-folder=kubernetes/etcd \
           --etcd-snapshot-schedule-cron="0 */6 * * *" \
-          --etcd-snapshot-retention=5
+          --etcd-snapshot-retention=5 ${K3S_NODE_ARGS}
     else
       curl -sfL https://get.k3s.io | \
         INSTALL_K3S_VERSION="v1.36.5+k3s1" K3S_TOKEN="${K3S_TOKEN}" sh -s - agent \
           --server="${SERVER_API}" \
           --node-ip="${NODE_IP}" \
-          --flannel-iface=enp7s0
+          --flannel-iface=${PRIVATE_INTERFACE} ${K3S_NODE_ARGS}
     fi
