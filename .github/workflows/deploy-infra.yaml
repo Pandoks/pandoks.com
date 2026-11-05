@@ -204,6 +204,33 @@ jobs:
           done
           echo "published=${published:+true}" >> "${GITHUB_OUTPUT}"
 
+      # NOTE: with no SST changes of its own, this JS needs the latest SST deploy, from any earlier or
+      # newer run, to have succeeded, so fix the infrastructure first, then re-run this job
+      - name: Check the latest SST deploy succeeded
+        if: needs.deploy-sst.result == 'skipped' && steps.newer.outputs.published != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          runs=$(gh run list --workflow deploy-infra.yaml --branch main --limit 100 --json databaseId,status --jq '.[] | "\(.databaseId) \(.status)"')
+          earlier=false
+          while read -r run_id status; do
+            if [ "${run_id}" = "${GITHUB_RUN_ID}" ]; then
+              earlier=true
+            elif [ "${status}" != completed ]; then
+              [ "${earlier}" = false ] || { echo "Earlier run ${run_id} hasn't finished"; exit 1; }
+            else
+              sst=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?filter=all" \
+                --jq '[.jobs[] | select(.name == "deploy-sst")] | max_by(.run_attempt) | .conclusion')
+              [ "${sst}" = skipped ] && continue
+              [ "${sst}" = success ] && exit 0
+              echo "Run ${run_id}'s SST deploy ended in ${sst}"
+              exit 1
+            fi
+          done <<< "${runs}"
+          echo "No SST deploy in the last 100 runs"
+          exit 1
+
       - name: Publish production update
         if: steps.newer.outputs.published != 'true'
         run: pnpm sst shell --stage production -- pnpm updates publish apps/mobile-template production ios android
