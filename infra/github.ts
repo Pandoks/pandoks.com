@@ -37,6 +37,15 @@ if (isProduction) {
     enforceAdmins: false
   });
 
+  new github.RepositoryRuleset('GithubMainRuleset', {
+    name: 'main',
+    repository: githubRepoName,
+    target: 'branch',
+    enforcement: 'active',
+    conditions: { refName: { includes: ['refs/heads/main'], excludes: [] } },
+    rules: { pullRequest: { allowedMergeMethods: ['squash'] } }
+  });
+
   new github.ActionsSecret('GithubGithubAccessToken', {
     repository: githubRepoName,
     secretName: 'GH_TOKEN',
