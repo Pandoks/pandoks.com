@@ -249,13 +249,12 @@ def chrome_launch_flags(identity: Identity, *, headless: bool,
             flags.append(
                 f"--window-size={identity.viewport_width},"
                 f"{identity.viewport_height}")
-        # WebRTC: the no-leak policy is set ONLY in the container. On the
-        # real display this flag zeroes out ALL host candidates (no mDNS, no
-        # IPs -- round-2 F12); default candidate gathering is the no-leak
-        # mechanism (host candidates are mDNS .local names that never carry
-        # the LAN IPs; srflx carries the WAN IP, like any real user behind a
-        # proxy).
-        flags.append("--force-webrtc-ip-handling-policy=disable_non_proxied_udp")
+        # WebRTC: NO ip-handling-policy flag, in the container either.
+        # disable_non_proxied_udp zeroes out ALL host candidates (round-2
+        # F12: zero ICE candidates, which real desktop Chrome never shows).
+        # Default candidate gathering is the no-leak mechanism: host
+        # candidates are mDNS .local names that never carry the LAN IPs, and
+        # srflx carries the WAN IP, like any real user behind a proxy.
         # WebGL: a container has no GPU. Without help Chrome disables WebGL
         # entirely (renderer = null -- a dead headless tell). We route WebGL
         # through ANGLE's GL backend on top of Mesa's llvmpipe (installed in
