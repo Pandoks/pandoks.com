@@ -37,6 +37,16 @@ if (isProduction) {
     enforceAdmins: false
   });
 
+  new github.RepositoryRuleset('GithubMainRuleset', {
+    name: 'main',
+    repository: githubRepoName,
+    target: 'branch',
+    enforcement: 'active',
+    conditions: { refName: { includes: ['refs/heads/main'], excludes: [] } },
+    // NOTE: Every change lands through a PR as one squashed commit.
+    rules: { pullRequest: { allowedMergeMethods: ['squash'] } }
+  });
+
   new github.ActionsSecret('GithubGithubAccessToken', {
     repository: githubRepoName,
     secretName: 'GH_TOKEN',
