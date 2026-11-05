@@ -76,6 +76,7 @@ jobs:
             actions:
               - '.github/workflows/**'
               - '.github/actions/**'
+              - '.github/actionlint.yaml'
             renovate:
               - 'renovate.json'
               - 'renovate.json5'

@@ -4,5 +4,5 @@
     "strict": true,
     "types": ["jest", "expo/types"]
   },
-  "include": ["src", ".expo/types/**/*.ts", "expo-env.d.ts"]
+  "include": ["src", "app.config.ts", ".expo/types/**/*.ts", "expo-env.d.ts"]
 }

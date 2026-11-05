@@ -5,12 +5,13 @@ on:
     branches:
       - main
     paths:
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
       - 'sst.config.ts'
       - 'infra/**'
       - 'apps/**'
       - '!apps/desktop-template/**'
       - '!apps/example/**'
-      - '!apps/mobile-template/**'
       - 'packages/svelte/**'
       - 'k3s/**'
       - 'scripts/cluster/**'
@@ -29,12 +30,18 @@ permissions:
   id-token: write
   contents: read
 
+# NOTE: max runs each push in turn instead of cancelling pending runs, so no push's filtered changes are skipped
+concurrency:
+  group: deploy-infra
+  queue: max
+
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
       sst: ${{ github.event_name != 'workflow_dispatch' && steps.filter.outputs.sst || contains(fromJSON('["all","sst"]'), inputs.deploy) }}
       kubernetes: ${{ github.event_name != 'workflow_dispatch' && steps.filter.outputs.kubernetes || contains(fromJSON('["all","kubernetes"]'), inputs.deploy) }}
+      mobile-template: ${{ steps.filter.outputs.mobile-template }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
@@ -50,11 +57,13 @@ jobs:
             kubernetes:
               - 'k3s/**'
               - 'scripts/cluster/**'
+            mobile-template:
+              - 'pnpm-workspace.yaml'
+              - 'pnpm-lock.yaml'
+              - 'apps/mobile-template/{app.json,app.config.ts,package.json}'
+              - 'apps/mobile-template/{assets,src/!(__tests__)}/**'
 
   deploy-sst:
-    concurrency:
-      group: deploy-sst
-      cancel-in-progress: false
     needs: detect-changes
     if: needs.detect-changes.outputs.sst == 'true'
     runs-on: ubuntu-latest
@@ -91,9 +100,6 @@ jobs:
         run: pnpm sst deploy --stage production
 
   deploy-kubernetes:
-    concurrency:
-      group: deploy-kubernetes
-      cancel-in-progress: false
     needs:
       - detect-changes
       - deploy-sst
@@ -146,3 +152,89 @@ jobs:
           done
           echo "Timed out waiting for sync"
           exit 1
+
+  publish-mobile-template:
+    needs:
+      - detect-changes
+      - deploy-sst
+    if: |
+      always() &&
+      needs.detect-changes.outputs.mobile-template == 'true' &&
+      (needs.deploy-sst.result == 'success' || needs.deploy-sst.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_DEFAULT_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
+      EXPO_NO_TELEMETRY: 1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # NOTE: queue order isn't guaranteed, so skip once a newer commit's run has published. Runs never
+      # overlap, so none publishes between this check and the publish step it names.
+      - name: Check for a newer published update
+        id: newer
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          newer_commits=$(git rev-list "${GITHUB_SHA}..origin/main")
+          runs=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-infra.yaml/runs?branch=main&per_page=100" \
+            --jq '.workflow_runs[] | "\(.id) \(.head_sha)"')
+          newer_runs=$(jq -rR --arg newer "${newer_commits}" 'split(" ") | select(.[1] as $sha | $newer | split("\n") | index($sha)) | .[0]' <<< "${runs}")
+          for run_id in ${newer_runs}; do
+            published=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?filter=all&per_page=100" \
+              --jq '.jobs[] | select(.name == "publish-mobile-template") | .steps[] | select(.name == "Publish production update" and .conclusion == "success") | .name')
+            if [ -n "${published}" ]; then
+              echo "published=true" >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
+          done
+
+      # NOTE: with no SST changes of its own, this JS needs the latest SST deploy, from any earlier or
+      # newer run, to have succeeded, so fix the infrastructure first, then re-run this job
+      - name: Check the latest SST deploy succeeded
+        if: needs.deploy-sst.result == 'skipped' && steps.newer.outputs.published != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          earlier=false
+          while read -r run_id status; do
+            if [ "${run_id}" = "${GITHUB_RUN_ID}" ]; then
+              earlier=true
+            elif [ "${status}" != completed ]; then
+              [ "${earlier}" = false ] || { echo "Earlier run ${run_id} hasn't finished"; exit 1; }
+            else
+              sst=$(gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?filter=all&per_page=100" \
+                | jq -r '[.[].jobs[] | select(.name == "deploy-sst")] | max_by(.run_attempt) | .conclusion')
+              [ "${sst}" = skipped ] && continue
+              [ "${sst}" = success ] && exit 0
+              echo "Run ${run_id}'s SST deploy ended in ${sst}"
+              exit 1
+            fi
+          done < <(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-infra.yaml/runs?branch=main&per_page=100" \
+            --jq '.workflow_runs[] | "\(.id) \(.status)"')
+          # NOTE: also reached when the run listing fails partway
+          echo "No SST deploy on main"
+          exit 1
+
+      - name: Publish production update
+        if: steps.newer.outputs.published != 'true'
+        run: pnpm sst shell --stage production -- pnpm updates publish apps/mobile-template production ios android
