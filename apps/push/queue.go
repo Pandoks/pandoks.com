@@ -22,6 +22,8 @@ const (
 	sendConcurrency  = 1000
 	pollInterval     = time.Second
 	maxAttempts      = 5
+	// NOTE: a later retry would deliver a stale alert, so the send fails instead
+	maxRetryDelay = 8 * time.Minute
 )
 
 type notification struct {
@@ -343,8 +345,9 @@ func commitJobs(ctx context.Context, transaction pgx.Tx, startedAt time.Time, jo
 		}
 		unregisteredTokens = append(unregisteredTokens, job.unregisteredTokens...)
 		requeue(job, time.Now(), job.Attempt, job.unsentTokens)
-		if job.Attempt+1 < maxAttempts {
-			requeue(job, time.Now().Add(max(job.retryAfter, time.Second)<<job.Attempt), job.Attempt+1, job.retryTokens)
+		retryDelay := max(job.retryAfter, time.Second) << job.Attempt
+		if job.Attempt+1 < maxAttempts && retryDelay <= maxRetryDelay {
+			requeue(job, time.Now().Add(retryDelay), job.Attempt+1, job.retryTokens)
 		}
 	}
 

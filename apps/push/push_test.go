@@ -447,18 +447,12 @@ func TestPush(t *testing.T) {
 		}
 	})
 
-	t.Run("waits until the date FCM's Retry-After asks for", func(t *testing.T) {
+	t.Run("fails a send FCM's Retry-After delays past the retry window", func(t *testing.T) {
 		register("later-", "android", "", "device", "user-20")
 		id := send(alert(map[string]any{"user_ids": []string{"user-20"}}))
-		var retryAt time.Time
-		waitFor(t, "the send to be requeued", func() bool {
-			return database.QueryRow(ctx, `SELECT send_at FROM push_jobs WHERE notification_id = $1 AND job ? 'tokens'`, id).Scan(&retryAt) == nil
-		})
-		if wait := time.Until(retryAt); wait < 50*time.Minute {
-			t.Errorf("requeued the retry %s out instead of the hour FCM asked for", wait)
-		}
-		if status, _ := call(http.MethodDelete, "/notifications/"+id, nil); status != http.StatusNoContent {
-			t.Errorf("cancel: %d", status)
+		waitFor(t, "the job to finish without a retry", func() bool { return jobsLeft(id) == 0 })
+		if requests := len(sentTo("later-")); requests != 1 {
+			t.Errorf("sent the stale alert %d times", requests)
 		}
 	})
 
