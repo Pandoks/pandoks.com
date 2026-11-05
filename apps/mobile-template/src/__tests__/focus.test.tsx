@@ -94,6 +94,20 @@ test('marks the widget stopped when ending an unfinished leftover activity', asy
   ]);
 });
 
+test('keeps the widget on Done when an Android leftover activity already finished', async () => {
+  jest.replaceProperty(Platform, 'OS', 'android');
+  const widget = jest.mocked(FocusWidget);
+  jest
+    .mocked(getProgressActivities)
+    .mockResolvedValueOnce([{ ...activity, endsAt: Date.now() - 10_000 }]);
+
+  await renderRouter({ index: FocusScreen });
+
+  expect(widget.updateSnapshot.mock.calls).toContainEqual([
+    expect.objectContaining({ title: 'Done' })
+  ]);
+});
+
 test('starts the session once the Android notification prompt resolves', async () => {
   jest.useFakeTimers();
   jest.replaceProperty(Platform, 'OS', 'android');

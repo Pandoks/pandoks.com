@@ -1,12 +1,16 @@
 import { requireNativeModule, uuid } from 'expo';
 
-import type { ProgressActivity, ProgressActivityState } from './progress-activity';
+import type {
+  ProgressActivity,
+  ProgressActivityState,
+  RecoveredProgressActivity
+} from './progress-activity';
 
 const LiveUpdates = requireNativeModule<{
   start(id: string, state: ProgressActivityState): Promise<void>;
   update(id: string, state: ProgressActivityState): Promise<void>;
   end(id: string): Promise<void>;
-  activeIds(): Promise<string[]>;
+  active(): Promise<{ id: string; endsAt: number }[]>;
 }>('LiveUpdates');
 
 function toProgressActivity(id: string): ProgressActivity {
@@ -26,6 +30,9 @@ export async function startProgressActivity(
   return toProgressActivity(id);
 }
 
-export async function getProgressActivities(): Promise<ProgressActivity[]> {
-  return (await LiveUpdates.activeIds()).map(toProgressActivity);
+export async function getProgressActivities(): Promise<RecoveredProgressActivity[]> {
+  return (await LiveUpdates.active()).map(({ id, endsAt }) => ({
+    ...toProgressActivity(id),
+    endsAt
+  }));
 }

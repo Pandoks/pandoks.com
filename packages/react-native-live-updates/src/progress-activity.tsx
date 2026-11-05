@@ -32,6 +32,11 @@ export type ProgressActivity = {
   addPushTokenListener(listener: (pushToken: string) => void): EventSubscription;
 };
 
+export type RecoveredProgressActivity = ProgressActivity & {
+  /** Android only, since iOS can't read a running activity's state. */
+  endsAt?: number;
+};
+
 const ProgressLiveActivity = createLiveActivity<ProgressActivityState>(
   'ProgressActivity',
   (state, environment) => {
@@ -127,6 +132,6 @@ export function startProgressActivity(state: ProgressActivityState): Promise<Pro
 }
 
 /** Running activities, including ones that outlived an earlier app process. */
-export function getProgressActivities(): Promise<ProgressActivity[]> {
+export function getProgressActivities(): Promise<RecoveredProgressActivity[]> {
   return Promise.resolve(ProgressLiveActivity.getInstances().map(toProgressActivity));
 }

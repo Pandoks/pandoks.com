@@ -119,11 +119,11 @@ class LiveUpdatesModule : Module() {
         notificationManager().cancel(id, 0)
       }
 
-      AsyncFunction("activeIds") {
+      AsyncFunction("active") {
         notificationManager()
           .activeNotifications
           .filter { notification -> notification.id == 0 && NotificationCompat.getChannelId(notification.notification) == CHANNEL_ID }
-          .map { notification -> notification.tag }
+          .map { notification -> mapOf("id" to notification.tag, "endsAt" to notification.notification.`when`) }
       }
     }
 

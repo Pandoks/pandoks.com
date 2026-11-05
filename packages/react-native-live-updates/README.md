@@ -16,8 +16,9 @@ The app needs the `expo-widgets` config plugin; set `enablePushNotifications` fo
 `startProgressActivity` rejects when the user turned off Live Activities, notifications, or the Live
 updates channel. On Android, request `POST_NOTIFICATIONS` (`PermissionsAndroid.request`) before
 picking `startedAt`, so time spent on the prompt doesn't come out of the activity. Activities
-outlive the app process, so `getProgressActivities()` returns the running ones (on Android 8+) to
-update or end after a relaunch.
+outlive the app process, so `getProgressActivities()` returns them to update or end after a
+relaunch. iOS keeps finished ones until they're ended or dismissed, and so does Android before 8, so
+Android reports each one's `endsAt`; iOS can't read a running activity's state.
 
 ```ts
 import { startProgressActivity } from '@pandoks.com/react-native-live-updates';

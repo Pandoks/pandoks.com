@@ -62,13 +62,18 @@ export default function FocusScreen() {
       if (activities.length === 0) {
         return;
       }
-      // NOTE: Android 8+ removes Live Updates at endsAt, while iOS keeps finished activities, whose widget already shows Done
-      if (
-        Platform.OS === 'android' ||
-        (await FocusWidget.getTimeline()).some((entry) => entry.date.getTime() > Date.now())
-      ) {
-        FocusWidget.updateSnapshot({ title: 'Stopped', caption: `At ${formatTime(Date.now())}` });
-      }
+      // NOTE: iOS can't read a recovered activity's endsAt, but the widget's last timeline entry is its Done
+      const endsAt = Math.max(
+        ...(Platform.OS === 'android'
+          ? activities.map((activity) => activity.endsAt ?? 0)
+          : (await FocusWidget.getTimeline()).map((entry) => entry.date.getTime()))
+      );
+      const now = Date.now();
+      FocusWidget.updateSnapshot(
+        endsAt > now
+          ? { title: 'Stopped', caption: `At ${formatTime(now)}` }
+          : { title: 'Done', caption: `At ${formatTime(endsAt)}` }
+      );
       await Promise.all(activities.map((activity) => activity.end()));
     });
   }, []);
