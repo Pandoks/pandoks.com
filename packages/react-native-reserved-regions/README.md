@@ -11,10 +11,11 @@ const regions = useReservedRegions(); // [{ kind: 'division', frame: { x, y, wid
 const posture = usePosture(); // 'flat' | 'book' | 'tabletop'
 ```
 
-- A `division` is a fold and an `occlusion` is a camera cutout or the Dynamic Island. Frames are in
-  window coordinates, so compare them with `measureInWindow`; iOS frames include UIKit's margins
-  around the region. `useReservedRegions` returns active regions; pass `{ includeInactive: true }`
-  for the rest, such as a flat Android fold.
+- A `division` is a fold and an `occlusion` is something covering the screen, such as a camera
+  cutout, the Dynamic Island, or the iPhone Duo's side status bar. Frames are in window coordinates,
+  so compare them with `measureInWindow`; iOS frames include UIKit's margins around the region.
+  `useReservedRegions` returns active regions; pass `{ includeInactive: true }` for the rest, such
+  as a fully open fold or the iPhone Duo's idle inner camera.
 - `usePosture` is `book` for an active vertical fold, `tabletop` for a horizontal one, and `flat`
   otherwise. On Android a fold is active while half-open and a dual-screen hinge always, so a flat
   dual-screen phone reads as `book`; iOS has no posture API, so it reads only the fold's
