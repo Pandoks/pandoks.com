@@ -23,7 +23,8 @@
 # reported numbers are still produced by RoundRtt/RoundMbps rather than by us:
 #   rtt 50ms    -> rounds to exactly 50 (the 50ms report granularity) for the
 #                  whole 0.90..1.10 multiplier band.
-#   10000 kbps  -> clamps to exactly 10000 = the 10.0 Mbps kMaxDownlinkKbps
+#   12000 kbps  -> clamps to exactly 10000 = the 10.0 Mbps kMaxDownlinkKbps
+#                  for ANY multiplier: the smallest 0.90 gives 10800 > 10000.
 #                  for any multiplier.
 # transport_rtt and saveData are left real (saveData false is stock, and
 # transport_rtt is not exposed by the NetworkInformation.idl surface).

@@ -566,10 +566,11 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         env["APEX_FP_STORAGE_QUOTA_BYTES"] = str(quota)
     # navigator.connection: stock-desktop-plausible values, chosen so the
     # real reporting path produces exactly these numbers (rtt 50ms is the
-    # report granularity; 10000 kbps clamps to the 10 Mbps report maximum).
+    # report granularity; 12000 kbps clamps to the 10 Mbps report maximum for
+    # ANY per-origin rounding multiplier: 12000*0.90 = 10800 > 10000).
     env["APEX_FP_NETINFO_EFFECTIVE_TYPE"] = "4g"
     env["APEX_FP_NETINFO_RTT_MS"] = "50"
-    env["APEX_FP_NETINFO_DOWNLINK_KBPS"] = "10000"
+    env["APEX_FP_NETINFO_DOWNLINK_KBPS"] = "12000"
     # Media capability / platform-authenticator overrides: emit only what the
     # persona's hardware claims (unset -> the binary reports the real
     # capability).

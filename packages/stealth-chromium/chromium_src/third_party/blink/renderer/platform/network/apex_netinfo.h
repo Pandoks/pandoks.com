@@ -15,8 +15,12 @@
 // so the reported numbers are still produced by RoundRtt/RoundMbps:
 //   rtt 50ms    -> min(50 * mult, 3s) rounds to exactly 50 (the 50ms report
 //                  granularity) for the whole 0.90..1.10 multiplier band.
-//   10000 kbps  -> min(10000 * mult, kMaxDownlinkKbps) clamps to exactly
-//                  10000 = the 10.0 Mbps report maximum for any multiplier.
+//   12000 kbps  -> min(12000 * mult, kMaxDownlinkKbps) clamps to exactly
+//                  10000 = the 10.0 Mbps report maximum for ANY multiplier:
+//                  the smallest multiplier 0.90 gives 12000*0.90 = 10800,
+//                  still above the 10000 kbps cap, so every origin/salt combo
+//                  reports exactly 10.0 Mbps (what a real desktop persona
+//                  machine whose estimate exceeds the cap shows).
 // saveData is not overridden (stock is false).
 //
 // Env (all optional -- unset means "use the real Chromium value"):
@@ -35,13 +39,19 @@
 
 namespace apex_netinfo {
 
-// HTTP RTT override in ms, or -1 when unset.
+// HTTP RTT override in ms, or -1 when unset/inactive.
 inline int RttMsOverride() {
+  if (!apex_fp::Active()) {
+    return -1;
+  }
   return apex_fp::EnvInt("APEX_FP_NETINFO_RTT_MS", -1);
 }
 
-// Downlink override in kbps, or -1 when unset.
+// Downlink override in kbps, or -1 when unset/inactive.
 inline int DownlinkKbpsOverride() {
+  if (!apex_fp::Active()) {
+    return -1;
+  }
   return apex_fp::EnvInt("APEX_FP_NETINFO_DOWNLINK_KBPS", -1);
 }
 
