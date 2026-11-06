@@ -7,7 +7,9 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -33,7 +35,7 @@ type Job struct {
 	Payload  json.RawMessage
 	GroupKey *string
 	Attempt  int
-	reported bool
+	reported atomic.Bool
 }
 
 // Handler runs a job. Returning an error retries it with backoff, unless the error is Permanent or RetryAfter.
@@ -88,14 +90,14 @@ func Enqueue(ctx context.Context, db Querier, queue string, payload any, options
 	return id, err
 }
 
-// Cancel deletes a job no worker is running, and reports whether it did.
+// Cancel makes a job never run again, and reports whether it did. A job a worker is running finishes this run.
 func Cancel(ctx context.Context, db Querier, id int64) (bool, error) {
 	var cancelled bool
 	err := db.QueryRow(ctx, primary+`SELECT queue_cancel($1)`, id).Scan(&cancelled)
 	return cancelled, err
 }
 
-// CancelGroup deletes every job of queue and groupKey that no worker is running, and returns how many.
+// CancelGroup cancels every job of queue and groupKey like Cancel, and returns how many.
 func CancelGroup(ctx context.Context, db Querier, queue, groupKey string) (int64, error) {
 	var cancelled int64
 	err := db.QueryRow(ctx, primary+`SELECT queue_cancel_group($1, $2)`, queue, groupKey).Scan(&cancelled)
@@ -105,8 +107,10 @@ func CancelGroup(ctx context.Context, db Querier, queue, groupKey string) (int64
 // Complete ends the job in tx, so it commits with the handler's writes. False means the lease was lost:
 // roll tx back.
 func (job *Job) Complete(ctx context.Context, tx Querier) (bool, error) {
-	err := tx.QueryRow(ctx, primary+`SELECT queue_complete($1, $2)`, job.ID, job.Attempt).Scan(&job.reported)
-	return job.reported, err
+	var completed bool
+	err := tx.QueryRow(ctx, primary+`SELECT queue_complete($1, $2)`, job.ID, job.Attempt).Scan(&completed)
+	job.reported.Store(completed)
+	return completed, err
 }
 
 type Worker struct {
@@ -115,18 +119,24 @@ type Worker struct {
 	// Lease is how long a job stays claimed without a heartbeat, so how soon a dead worker's job runs again.
 	// Zero means 30 s.
 	Lease time.Duration
-	// Concurrency is how many jobs run at once. Zero means 1.
+	// Concurrency is how many jobs run at once. Zero means 1. Pool holds one connection for LISTEN and shares
+	// the rest between claims, heartbeats, reports and the handlers, so size it for the handlers' own use.
 	Concurrency int
 	Handle      Handler
 }
 
 // Run runs jobs until ctx is done or the database fails. It holds one pool connection for LISTEN. When ctx
-// is done, it cancels the running handlers' contexts and waits for them to return.
+// is done, it cancels the running handlers' contexts, waits for them to return, and gives back the jobs
+// whose handlers returned context.Canceled without spending their attempt.
 func (worker Worker) Run(ctx context.Context) error {
 	if worker.Lease == 0 {
 		worker.Lease = 30 * time.Second
 	}
 	worker.Concurrency = max(worker.Concurrency, 1)
+	// NOTE: LISTEN holds one connection for good, so a pool of one could never claim
+	if connections := worker.Pool.Config().MaxConns; connections < 2 {
+		return fmt.Errorf("the pool has %d connection, but LISTEN and claims need 2", connections)
+	}
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 	listener, err := worker.Pool.Acquire(ctx)
@@ -190,6 +200,11 @@ func (worker Worker) work(ctx context.Context, wake chan struct{}) error {
 		if err != nil {
 			return err
 		}
+		// NOTE: Postgres folds a transaction's NOTIFYs into one, so pass the wake on in case more jobs are due
+		select {
+		case wake <- struct{}{}:
+		default:
+		}
 		if err := worker.run(ctx, job); err != nil {
 			return err
 		}
@@ -208,21 +223,40 @@ func (worker Worker) run(ctx context.Context, job *Job) error {
 	for {
 		select {
 		case <-heartbeat.C:
+			// NOTE: once Complete deletes the job in the handler's transaction, an extend waits on its row lock and then
+			// finds no row
+			if job.reported.Load() {
+				heartbeat.Stop()
+				continue
+			}
 			var extended bool
-			err := worker.Pool.QueryRow(context.WithoutCancel(ctx), primary+`SELECT queue_extend($1, $2, $3)`, job.ID, job.Attempt, worker.Lease.Seconds()).Scan(&extended)
-			if err != nil || !extended {
+			extendContext, cancelExtend := context.WithTimeout(context.WithoutCancel(ctx), worker.Lease)
+			err := worker.Pool.QueryRow(extendContext, primary+`SELECT queue_extend($1, $2, $3)`, job.ID, job.Attempt, worker.Lease.Seconds()).Scan(&extended)
+			cancelExtend()
+			if (err != nil || !extended) && !job.reported.Load() {
 				slog.Warn("lease lost while running", "job", job.ID, "attempt", job.Attempt, "error", err)
 				heartbeat.Stop()
 				cancel()
 			}
 		case err := <-handled:
+			// NOTE: a handler stopped by Run's ctx gives the job back instead of spending an attempt on it
+			if ctx.Err() != nil && errors.Is(err, context.Canceled) {
+				return worker.release(context.WithoutCancel(ctx), job)
+			}
 			return worker.report(context.WithoutCancel(ctx), job, err)
 		}
 	}
 }
 
+func (worker Worker) release(ctx context.Context, job *Job) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	var released bool
+	return worker.Pool.QueryRow(ctx, primary+`SELECT queue_release($1, $2)`, job.ID, job.Attempt).Scan(&released)
+}
+
 func (worker Worker) report(ctx context.Context, job *Job, err error) error {
-	if err == nil && job.reported {
+	if err == nil && job.reported.Load() {
 		return nil
 	}
 	var f *failure
@@ -236,7 +270,7 @@ func (worker Worker) report(ctx context.Context, job *Job, err error) error {
 	default:
 		query = `SELECT queue_retry($1, $2, $3, $4)`
 		var retryAfter *float64
-		if f != nil && f.retryAfter > 0 {
+		if f != nil {
 			seconds := f.retryAfter.Seconds()
 			retryAfter = &seconds
 		}
