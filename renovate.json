@@ -59,7 +59,7 @@
       "customType": "regex",
       "managerFilePatterns": ["/^sst\\.config\\.ts$/"],
       "matchStrings": [
-        "\\n\\s+(?<depName>cloudflare|github|hcloud|tailscale): '(?<currentValue>[\\d.]+)'",
+        "\\n\\s+(?<depName>cloudflare|gcp|github|hcloud|tailscale): '(?<currentValue>[\\d.]+)'",
         "package: '(?<packageName>@ovhcloud/pulumi-ovh)',[\\s\\S]*?version: '(?<currentValue>[\\d.]+)'"
       ],
       "depNameTemplate": "{{#if packageName}}{{{packageName}}}{{else}}@pulumi/{{{depName}}}{{/if}}",

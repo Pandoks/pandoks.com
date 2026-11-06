@@ -15,7 +15,7 @@ export const secrets = {
     ApnsKey: new sst.Secret('AppleApnsKey') // .p8 file contents
   },
   firebase: {
-    ServiceAccountJson: new sst.Secret('FirebaseServiceAccountJson')
+    ServiceAccountJson: new sst.Secret('FirebaseServiceAccountJson', 'Placeholder') // Automatically set during deploy
   },
   cloudflare: {
     ApiKey: new sst.Secret('CloudflareApiKey'),
@@ -97,8 +97,10 @@ export const secrets = {
 
 export function setSecret(secretName: $util.Input<string>, secretValue: $util.Input<string>) {
   $resolve([secretName, secretValue]).apply(([name, value]) => {
-    execSync(`sst secret set ${name} --stage ${$app.stage} ${value}`, {
-      stdio: 'inherit'
+    // NOTE: stdin keeps multi-line values like JSON intact and out of the process list
+    execSync(`sst secret set ${name} --stage ${$app.stage}`, {
+      input: value,
+      stdio: ['pipe', 'inherit', 'inherit']
     });
   });
 }

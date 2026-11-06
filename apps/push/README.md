@@ -74,10 +74,50 @@ curl -X POST http://push.main.svc.cluster.local/notifications -d '{
 ## Setup
 
 It reads `AppleTeamId`, `AppleApnsKeyId`, `AppleApnsKey` (the `.p8` contents), and
-`FirebaseServiceAccountJson` from [infra/secrets.ts](/infra/secrets.ts). Every stage needs them set:
+`FirebaseServiceAccountJson` from [infra/secrets.ts](/infra/secrets.ts). Every stage needs the Apple
+ones set:
 
 ```sh
 pnpm sst secret set AppleApnsKey --stage <stage> < AuthKey_XXXXXXXXXX.p8
+```
+
+Each deploy sets `FirebaseServiceAccountJson` to a key of the `push` service account that
+[infra/firebase.ts](/infra/firebase.ts) creates with `roles/firebasecloudmessaging.admin`, in the
+Google Cloud project `pandoks-prod` for production and `pandoks-dev` for every other stage. Create
+both projects by hand in the [console](https://console.cloud.google.com/projectcreate), since a
+service account can't create projects without an organization. Deploying another stage needs Google
+credentials:
+
+```sh
+gcloud auth application-default login
+gcloud auth application-default set-quota-project pandoks-dev
+```
+
+Production deploys from CI authenticate through Workload Identity Federation, which can't create
+itself from CI. Before the first `main` deploy with `infra/firebase.ts`, create it once as a project
+owner; that deploy imports these resources:
+
+```sh
+gcloud auth login
+gcloud services enable cloudresourcemanager.googleapis.com iam.googleapis.com \
+  iamcredentials.googleapis.com sts.googleapis.com --project pandoks-prod
+gcloud iam workload-identity-pools create github --project pandoks-prod --location global
+gcloud iam workload-identity-pools providers create-oidc github --project pandoks-prod \
+  --location global --workload-identity-pool github \
+  --issuer-uri https://token.actions.githubusercontent.com \
+  --attribute-mapping google.subject=assertion.sub \
+  --attribute-condition "assertion.sub in ['repo:Pandoks/pandoks.com:environment:production', 'repo:Pandoks/pandoks.com:ref:refs/heads/main']"
+gcloud iam service-accounts create github-actions --project pandoks-prod
+gcloud projects add-iam-policy-binding pandoks-prod --role roles/owner \
+  --member serviceAccount:github-actions@pandoks-prod.iam.gserviceaccount.com
+gcloud iam service-accounts add-iam-policy-binding \
+  github-actions@pandoks-prod.iam.gserviceaccount.com --project pandoks-prod \
+  --role roles/iam.workloadIdentityUser \
+  --member "principalSet://iam.googleapis.com/projects/$(gcloud projects describe pandoks-prod --format 'value(projectNumber)')/locations/global/workloadIdentityPools/github/*"
+gh variable set GCP_WORKLOAD_IDENTITY_PROVIDER --body "$(gcloud iam workload-identity-pools \
+  providers describe github --project pandoks-prod --location global \
+  --workload-identity-pool github --format 'value(name)')"
+gh variable set GCP_SERVICE_ACCOUNT --body github-actions@pandoks-prod.iam.gserviceaccount.com
 ```
 
 ## Development

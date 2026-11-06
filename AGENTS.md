@@ -43,7 +43,7 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
    and with zero nodes it deletes Tailscale devices tagged for that stage's cluster; personal stages
    share the `dev` names. Tell me those effects and run `sst diff` only once I accept them; run
    `sst deploy` or `pnpm dev` (`sst dev`) only when I ask. If SST reports missing or expired AWS
-   credentials, ask me to run `pnpm sso`.
+   credentials, ask me to run `pnpm sso`; for Google, `gcloud auth application-default login`.
 3. **Editing my checkout from an experiment.** Use absolute paths in experiment copies;
    `mise exec -C <dir>` runs inside `<dir>`, so never point it at my checkout. Leave my staged and
    unstaged changes alone.

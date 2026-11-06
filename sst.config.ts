@@ -14,6 +14,7 @@ export default $config({
             process.env.GITHUB_ACTIONS || process.env.AWS_ACCESS_KEY_ID ? undefined : 'Personal'
         },
         cloudflare: '6.15.0',
+        gcp: '10.2.0',
         github: '6.12.1',
         hcloud: '1.32.1',
         ovh: {
@@ -35,6 +36,7 @@ export default $config({
       import('./infra/api'),
       import('./infra/cloudflare'),
       import('./infra/storage'),
+      import('./infra/firebase'),
       import('./infra/github'),
       import('./infra/website'),
       import('./infra/tailscale'),
