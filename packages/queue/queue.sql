@@ -105,6 +105,15 @@ CREATE OR REPLACE FUNCTION queue_fail(job_id bigint, attempt int, error_text tex
   ) SELECT EXISTS (SELECT 1 FROM failed);
 $$;
 
+-- Hands a job back without spending its attempt, for a worker that stops before its handler finishes.
+CREATE OR REPLACE FUNCTION queue_release(job_id bigint, attempt int) RETURNS boolean LANGUAGE sql AS $$
+  WITH released AS (
+    UPDATE queue_jobs SET state = 'queued', attempts = attempts - 1, available_at = now(), worker = NULL
+    WHERE id = job_id AND attempts = attempt AND state = 'running'
+    RETURNING 1
+  ) SELECT EXISTS (SELECT 1 FROM released);
+$$;
+
 -- Cancels a job no worker is running, including one waiting out a retry backoff.
 CREATE OR REPLACE FUNCTION queue_cancel(job_id bigint) RETURNS boolean LANGUAGE sql AS $$
   WITH cancelled AS (

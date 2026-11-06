@@ -21,6 +21,9 @@ graph LR
 - **Heartbeat:** while the handler runs, the client extends the lease every `lease / 3`. Go cancels
   the handler's context when the lease is lost. Python and TS can't stop a running handler, so they
   only log it, and the handler's side effects can happen twice.
+- **Shutdown:** when Go's `Run` stops, it cancels the running handlers. A job whose handler returns
+  `context.Canceled` goes back to the queue with its attempt unspent (`queue_release`). A Python or
+  TS worker that exits mid-job is a crash: the job runs again after its lease, on a spent attempt.
 - **Fencing:** every report carries the attempt it claimed. Once another worker claims the job, the
   first worker's extend, complete, retry, and fail return false and change nothing.
 - **Retry:** a handler error retries after `2^(attempt-1)` seconds, at most an hour, or after
@@ -37,15 +40,16 @@ graph LR
 
 Every client calls these, so a producer can also call them straight from SQL.
 
-| Function                                                                           | Returns                                        |
-| ---------------------------------------------------------------------------------- | ---------------------------------------------- |
-| `queue_enqueue(queue, payload jsonb, run_at, group_key, max_attempts)`             | job id; the last three may be `NULL`           |
-| `queue_claim(queue, worker, lease_seconds)`                                        | the claimed `queue_jobs` row, or no row        |
-| `queue_extend(id, attempt, lease_seconds)`                                         | false once the lease is lost                   |
-| `queue_complete(id, attempt)`                                                      | false once the lease is lost; deletes the job  |
-| `queue_retry(id, attempt, error, retry_after_s)`, `queue_fail(id, attempt, error)` | false once the lease is lost                   |
-| `queue_cancel(id)`, `queue_cancel_group(queue, group_key)`                         | whether, or how many, `queued` jobs it deleted |
-| `queue_wait_seconds(queue, max_seconds)`                                           | how long an idle worker waits                  |
+| Function                                                                           | Returns                                                             |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `queue_enqueue(queue, payload jsonb, run_at, group_key, max_attempts)`             | job id; the last three may be `NULL`                                |
+| `queue_claim(queue, worker, lease_seconds)`                                        | the claimed `queue_jobs` row, or no row                             |
+| `queue_extend(id, attempt, lease_seconds)`                                         | false once the lease is lost                                        |
+| `queue_complete(id, attempt)`                                                      | false once the lease is lost; deletes the job                       |
+| `queue_retry(id, attempt, error, retry_after_s)`, `queue_fail(id, attempt, error)` | false once the lease is lost                                        |
+| `queue_release(id, attempt)`                                                       | false once the lease is lost; requeues without spending the attempt |
+| `queue_cancel(id)`, `queue_cancel_group(queue, group_key)`                         | whether, or how many, `queued` jobs it deleted                      |
+| `queue_wait_seconds(queue, max_seconds)`                                           | how long an idle worker waits                                       |
 
 ## Clients
 
@@ -60,7 +64,7 @@ Every client calls these, so a producer can also call them straight from SQL.
 
 Enqueue inside the caller's transaction to commit the job with its writes. To commit a job's end
 with the handler's writes and follow-up jobs, call `Complete` in the handler's transaction and roll
-it back if it returns false; the runner then doesn't report the job again.
+it back if it returns false. Once it returns true, the runner doesn't report the job again.
 
 `Run` and `work` return or raise when the database fails. A Go caller that serves other traffic
 restarts `Run` in a loop; Python and TS workers exit and Kubernetes restarts them. When `Run`'s

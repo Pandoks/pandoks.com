@@ -121,7 +121,8 @@ type Worker struct {
 }
 
 // Run runs jobs until ctx is done or the database fails. It holds one pool connection for LISTEN. When ctx
-// is done, it cancels the running handlers' contexts and waits for them to return.
+// is done, it cancels the running handlers' contexts, waits for them to return, and gives back the jobs
+// whose handlers returned context.Canceled without spending their attempt.
 func (worker Worker) Run(ctx context.Context) error {
 	if worker.Lease == 0 {
 		worker.Lease = 30 * time.Second
@@ -223,9 +224,20 @@ func (worker Worker) run(ctx context.Context, job *Job) error {
 				cancel()
 			}
 		case err := <-handled:
+			// NOTE: a handler stopped by Run's ctx gives the job back instead of spending an attempt on it
+			if ctx.Err() != nil && errors.Is(err, context.Canceled) {
+				return worker.release(context.WithoutCancel(ctx), job)
+			}
 			return worker.report(context.WithoutCancel(ctx), job, err)
 		}
 	}
+}
+
+func (worker Worker) release(ctx context.Context, job *Job) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	var released bool
+	return worker.Pool.QueryRow(ctx, primary+`SELECT queue_release($1, $2)`, job.ID, job.Attempt).Scan(&released)
 }
 
 func (worker Worker) report(ctx context.Context, job *Job, err error) error {
