@@ -1,0 +1,58 @@
+# apex patch: HEVC / Dolby Vision runtime support for the claimed hardware
+#
+# THE PROBLEM. The build already has enable_platform_hevc (proprietary_codecs +
+# is_linux turns enable_hevc_parser_and_hw_decoder on, which implies
+# enable_platform_hevc), but the RUNTIME decision in
+# media/base/supported_types.cc consults the "supplemental decoder profile
+# cache", which is only filled by the GPU process's GetSupportedConfigs. On a
+# GPU-less container the cache stays empty, so MediaSource
+# isTypeSupported('video/mp4; codecs="hvc1.1.6.L93.B0"') answers false and
+# VideoDecoder.isConfigSupported rejects HEVC entirely -- on a persona
+# claiming a desktop GPU that decodes HEVC.
+#
+# THE FIX. When the persona claims HEVC decode (APEX_FP_MEDIA_HEVC=1),
+# IsDecoderHevcProfileSupported answers true for the mainstream Main/Main10
+# profiles -- what essentially every modern desktop GPU decodes. Dolby Vision
+# (dvh1/dvhe) gets the same treatment under APEX_FP_MEDIA_DOLBY_VISION=1
+# (which implies HEVC too -- DV profiles are HEVC), because the persona layer
+# only sets it for GPUs that legitimately decode DV.
+#
+# Runtime-gated; unset env = the real (empty-cache) behavior. The AC-3/E-AC-3
+# and DTS codec gaps are NOT handled here -- those are pure compile-time
+# flags (enable_platform_ac3_eac3_audio / enable_platform_dts_audio in
+# build/args.gn) that need no runtime override once enabled on Linux.
+#
+# Apply target: media/base/supported_types.cc (anchor edits via
+# scripts/apply_edits.py: apex-media-hevc, apex-media-dv).
+--- a/media/base/supported_types.cc
++++ b/media/base/supported_types.cc
+@@ IsDecoderHevcProfileSupported @@
+ #if BUILDFLAG(ENABLE_PLATFORM_HEVC)
+ #if BUILDFLAG(PLATFORM_HAS_OPTIONAL_HEVC_DECODE_SUPPORT)
+   // (ChromeOS feature gate, if applicable)
++  // --- apex: persona HEVC claim (Main/Main10) ---
++  if (apex_fp::MediaHevc() && (type.profile == media::HEVCPROFILE_MAIN ||
++                               type.profile == media::HEVCPROFILE_MAIN10)) {
++    return true;
++  }
++  // --- end apex ---
+   return GetSupplementalDecoderVideoProfileCache()->IsProfileSupported(
+       type.profile);
+@@ IsDecoderDolbyVisionProfileSupported @@
+ #if BUILDFLAG(ENABLE_PLATFORM_HEVC) &&
+     BUILDFLAG(PLATFORM_HAS_OPTIONAL_HEVC_DECODE_SUPPORT) &&
+     BUILDFLAG(ENABLE_PLATFORM_DOLBY_VISION)
++  // --- apex: persona Dolby Vision claim ---
++  if (apex_fp::MediaDolbyVision()) {
++    return true;
++  }
++  // --- end apex ---
+   return GetSupplementalDecoderVideoProfileCache()->IsProfileSupported(
+       type.profile);
+--- build/args.gn
++++ build/args.gn
+@@ platform codec flags @@
+ # AC-3/E-AC-3/DTS/Dolby-Vision demuxing for a desktop persona:
+ enable_platform_ac3_eac3_audio = true
+ enable_platform_dts_audio = true
+ enable_platform_dolby_vision = true

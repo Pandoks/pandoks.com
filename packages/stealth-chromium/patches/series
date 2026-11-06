@@ -25,3 +25,11 @@ fontcache-availability.patch
 
 # --- WebGPU adapter identity (navigator.gpu) ---
 webgpu-identity.patch
+
+# --- media capability truth vs persona (round 2) ---
+webcodecs-hw-support.patch
+mediacapabilities-hw-support.patch
+platform-codecs-support.patch
+
+# --- WebAuthn platform authenticator ---
+webauthn-platform.patch

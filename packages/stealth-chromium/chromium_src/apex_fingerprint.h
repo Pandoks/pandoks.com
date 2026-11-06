@@ -272,6 +272,39 @@ inline UAPersona GetUAPersona() {
   return p;
 }
 
+// --- media capability / platform-authenticator persona overrides ----------
+// Mirrors the APEX_FP_WEBGPU_* contract: each flag says what the persona's
+// CLAIMED hardware can do. Unset (or APEX_FP_ACTIVE!=1) means "report the
+// real Chromium capability" -- the container's actual (empty) GPU/CDM state.
+//
+//   APEX_FP_MEDIA_HW_DECODE   "1" -- persona's GPU decodes video in hardware
+//                             (drives WebCodecs isConfigSupported(hw) and
+//                             mediaCapabilities decodingInfo.powerEfficient)
+//   APEX_FP_MEDIA_HW_ENCODE   "1" -- persona's GPU encodes video in hardware
+//                             (drives WebCodecs VideoEncoder hw support)
+//   APEX_FP_MEDIA_HEVC        "1" -- persona's GPU decodes HEVC Main/Main10
+//                             (hvc1/hev1 in MediaSource/WebCodecs/EME lists)
+//   APEX_FP_MEDIA_DOLBY_VISION "1" -- persona's GPU decodes Dolby Vision
+//                             (dvh1/dvhe; requires APEX_FP_MEDIA_HEVC too)
+//   APEX_FP_WEBAUTHN_PLATFORM "1" -- persona reports a platform WebAuthn
+//                             authenticator (Windows Hello / Touch ID)
+inline bool MediaHwDecode() {
+  return Active() && EnvStr("APEX_FP_MEDIA_HW_DECODE") == "1";
+}
+inline bool MediaHwEncode() {
+  return Active() && EnvStr("APEX_FP_MEDIA_HW_ENCODE") == "1";
+}
+inline bool MediaHevc() {
+  return Active() && EnvStr("APEX_FP_MEDIA_HEVC") == "1";
+}
+inline bool MediaDolbyVision() {
+  return Active() && MediaHevc() &&
+         EnvStr("APEX_FP_MEDIA_DOLBY_VISION") == "1";
+}
+inline bool PlatformAuthenticator() {
+  return Active() && EnvStr("APEX_FP_WEBAUTHN_PLATFORM") == "1";
+}
+
 }  // namespace apex_fp
 
 #endif  // APEX_CHROMIUM_FINGERPRINT_H_

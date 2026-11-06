@@ -1,0 +1,60 @@
+# apex patch: report hardware video decode/encode for a GPU persona (WebCodecs)
+#
+# THE PROBLEM. On a GPU-less container the renderer has no GpuVideoAccelerator
+# Factories, so EVERY VideoDecoder.isConfigSupported({hardwareAcceleration:
+# 'prefer-hardware'}) and VideoEncoder.isConfigSupported({hardwareAcceleration:
+# 'prefer-hardware'}) resolves supported=false. A persona claiming a desktop
+# GPU answers software-only on every codec -- a strong GPU-truth vs persona
+# mismatch signal (confirmed: round-2 probe reports hwSupported=false for
+# avc1/vp9/av01/vp8 on all five decode + three encode configs).
+#
+# THE FIX. Two funnel overrides, both runtime-gated by the APEX_FP_* env:
+#
+#   - video_decoder.cc DecoderSupport_OnKnown -- the single funnel for
+#     decoder isConfigSupported(hardwareAcceleration:'prefer-hardware').
+#     When APEX_FP_MEDIA_HW_DECODE=1, report supported=true (before the
+#     `if (!gpu_factories)` check, which is what runs on the host).
+#   - video_encoder.cc isConfigSupportedWithHardwareOnly -- the hardware
+#     encoder funnel for encoder isConfigSupported. When
+#     APEX_FP_MEDIA_HW_ENCODE=1, report supported=true.
+#
+# A launch without the persona env keeps the real (software) answers -- the
+# binary is stock without APEX_FP_ACTIVE=1.
+#
+# Env contract (apex_fingerprint.h): APEX_FP_MEDIA_HW_DECODE / APEX_FP_MEDIA_
+# HW_ENCODE = "1". The persona layer (stealth-browser fp_profiles.py) must
+# emit these for GPU-class personas, coherent with the APEX_FP_WEBGPU_* GPU
+# description.
+#
+# Apply target: third_party/blink/renderer/modules/webcodecs/{video_decoder.cc,
+# video_encoder.cc} (anchor edits via scripts/apply_edits.py).
+--- a/third_party/blink/renderer/modules/webcodecs/video_decoder.cc
++++ b/third_party/blink/renderer/modules/webcodecs/video_decoder.cc
+@@ DecoderSupport_OnKnown @@
+   // Called with a possibly-null gpu_factories (no GPU process on the host).
++  // --- apex: persona hw-decode override ---
++  if (apex_fp::MediaHwDecode()) {
++    support->setSupported(true);
++    resolver->Resolve(support);
++    return;
++  }
++  // --- end apex ---
+   if (!gpu_factories) {
+     support->setSupported(false);
+     resolver->Resolve(support);
+     return;
+   }
+--- a/third_party/blink/renderer/modules/webcodecs/video_encoder.cc
++++ b/third_party/blink/renderer/modules/webcodecs/video_encoder.cc
+@@ isConfigSupportedWithHardwareOnly @@
+   // Hardware-encoder support probe; gpu_factories may be null on the host.
++  // --- apex: persona hw-encode override ---
++  if (apex_fp::MediaHwEncode()) {
++    support->setSupported(true);
++    std::move(callback).Run(support);
++    return;
++  }
++  // --- end apex ---
+   auto required_encoder_type =
+       GetRequiredEncoderType(config->profile, config->hw_pref);
+   bool supported = IsAcceleratedConfigurationSupported(...).is_ok();

@@ -904,6 +904,149 @@ EDITS = [
                   "    settings_family_name = font_family_names::kCourierNew;\n"
                   "  }\n",
     },
+    # --- WebCodecs video decode hw-support override --------------------
+    # Without a GPU process the GpuVideoAcceleratorFactories are null, and
+    # DecoderSupport_OnKnown (video_decoder.cc, the one funnel for
+    # isConfigSupported with hardwareAcceleration:'prefer-hardware') resolves
+    # supported=false for EVERY codec -- a GPU-class persona is detected as
+    # software-only. When the persona claims hardware decode, report it here
+    # (before the null check, which is what runs on the host). Runtime-gated:
+    # a launch without APEX_FP_MEDIA_HW_DECODE keeps stock output.
+    # Verified anchor (Chromium 157.0.8103.38).
+    {
+        "file": "third_party/blink/renderer/modules/webcodecs/"
+                "video_decoder.cc",
+        "header": '#include "third_party/blink/renderer/modules/webcodecs/'
+                  'apex_fingerprint.h"',
+        "marker": "apex-webcodecs-decoder-hw",
+        "anchor": "media::GpuVideoAcceleratorFactories* gpu_factories) {\n"
+                  "  if (!gpu_factories) {\n",
+        "where": "after",
+        "inject": "  // apex-webcodecs-decoder-hw: persona hw-decode override\n"
+                  "  if (apex_fp::MediaHwDecode()) {\n"
+                  "    support->setSupported(true);\n"
+                  "    resolver->Resolve(support);\n"
+                  "    return;\n"
+                  "  }\n",
+    },
+    # --- WebCodecs video encoder hw-support override -------------------
+    # Same class as the decoder: isConfigSupportedWithHardwareOnly is the
+    # hardware-encoder funnel for isConfigSupported({hw:'prefer-hardware'}).
+    # Without GPU factories it falls through to
+    # IsAcceleratedConfigurationSupported(nullptr) -> supported=false.
+    # Verified anchor (Chromium 157.0.8103.38).
+    {
+        "file": "third_party/blink/renderer/modules/webcodecs/"
+                "video_encoder.cc",
+        "header": '#include "third_party/blink/renderer/modules/webcodecs/'
+                  'apex_fingerprint.h"',
+        "marker": "apex-webcodecs-encoder-hw",
+        "anchor": "  auto required_encoder_type =\n"
+                  "      GetRequiredEncoderType(config->profile, "
+                  "config->hw_pref);\n",
+        "where": "before",
+        "inject": "  // apex-webcodecs-encoder-hw: persona hw-encode override\n"
+                  "  if (apex_fp::MediaHwEncode()) {\n"
+                  "    support->setSupported(true);\n"
+                  "    std::move(callback).Run(support);\n"
+                  "    return;\n"
+                  "  }\n",
+    },
+    # --- mediaCapabilities powerEfficient override ---------------------
+    # decodingInfo().powerEfficient comes from MediaCapabilities::
+    # GetGpuFactoriesSupport: with no GPU factories the host answers
+    # OnGpuFactoriesSupport(false) and every query reports
+    # powerEfficient=false -- the exact GPU-truth tell for h264 1080p on a
+    # desktop persona. When the persona claims hardware decode, answer the
+    # GPU factories query with true (before the real GetGpuFactories call).
+    # Verified anchor (Chromium 157.0.8103.38).
+    {
+        "file": "third_party/blink/renderer/modules/media_capabilities/"
+                "media_capabilities.cc",
+        "header": '#include "third_party/blink/renderer/modules/'
+                  'media_capabilities/apex_fingerprint.h"',
+        "marker": "apex-media-power",
+        "anchor": "  media::GpuVideoAcceleratorFactories* gpu_factories =\n"
+                  "      Platform::Current()->GetGpuFactories();\n",
+        "where": "before",
+        "inject": "  // apex-media-power: persona hw-decode => powerEfficient=true\n"
+                  "  if (apex_fp::MediaHwDecode()) {\n"
+                  "    OnGpuFactoriesSupport(callback_id, true, video_codec);\n"
+                  "    return;\n"
+                  "  }\n",
+    },
+    # --- media/base codec support overrides (HEVC / Dolby Vision) ------
+    # enable_platform_hevc is already on for is_linux + proprietary_codecs,
+    # but the RUNTIME decision (IsDecoderHevcProfileSupported) consults the
+    # supplemental decoder profile cache, which is only filled by the GPU
+    # process -- empty on this container, so hvc1/hev1 answer false. When the
+    # persona claims HEVC decode, answer for the mainstream Main/Main10
+    # profiles (what essentially every desktop GPU decodes). DV likewise,
+    # only when the persona claims it AND HEVC. Verified anchors
+    # (Chromium 157.0.8103.38; the #else/return-true tail makes the HEVC
+    # anchor unique -- the DV function has the same return statement but
+    # different surrounding text).
+    {
+        "file": "media/base/supported_types.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-media-hevc",
+        "anchor": "  return GetSupplementalDecoderVideoProfileCache()->"
+                  "IsProfileSupported(\n"
+                  "      type.profile);\n"
+                  "#else\n"
+                  "  return true;\n"
+                  "#endif  // BUIDFLAG(PLATFORM_HAS_OPTIONAL_HEVC_DECODE_"
+                  "SUPPORT)\n",
+        "where": "before",
+        "inject": "  // apex-media-hevc: persona HEVC claim (Main/Main10)\n"
+                  "  if (apex_fp::MediaHevc() &&\n"
+                  "      (type.profile == media::HEVCPROFILE_MAIN ||\n"
+                  "       type.profile == media::HEVCPROFILE_MAIN10)) {\n"
+                  "    return true;\n"
+                  "  }\n",
+    },
+    {
+        "file": "media/base/supported_types.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-media-dv",
+        "anchor": "    BUILDFLAG(ENABLE_PLATFORM_DOLBY_VISION)\n"
+                  "  return GetSupplementalDecoderVideoProfileCache()->"
+                  "IsProfileSupported(\n"
+                  "      type.profile);\n",
+        "where": "before",
+        "inject": "  // apex-media-dv: persona Dolby Vision claim\n"
+                  "  if (apex_fp::MediaDolbyVision()) {\n"
+                  "    return true;\n"
+                  "  }\n",
+    },
+    # --- WebAuthn platform authenticator -------------------------------
+    # IsUvpaaAvailableInternal is the single funnel for BOTH
+    # PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable() and
+    # GetClientCapabilities' userVerifyingPlatformAuthenticator bit. The real
+    # answer is resolved per-OS: Windows (WinWebAuthnApi) / macOS (TouchId) /
+    # ChromeOS (ChromeOSAuthenticator) -- Linux has NO implementation of
+    # content::IsUVPlatformAuthenticatorAvailable in is_uvpaa.cc at all, so a
+    # Linux build always answers false: the platformAuth=false tell. A desktop
+    # persona reports a platform authenticator (Windows Hello / Touch ID).
+    # Verified anchor (Chromium 157.0.8103.38).
+    {
+        "file": "content/browser/webauth/authenticator_common_impl.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-webauthn-platform",
+        "anchor": "void AuthenticatorCommonImpl::IsUvpaaAvailableInternal(\n"
+                  "    url::Origin caller_origin,\n"
+                  "    blink::mojom::Authenticator::\n"
+                  "        "
+                  "IsUserVerifyingPlatformAuthenticatorAvailableCallback "
+                  "callback,\n"
+                  "    bool is_get_client_capabilities_call) {\n",
+        "where": "after",
+        "inject": "  // apex-webauthn-platform: persona platform-authenticator\n"
+                  "  if (apex_fp::PlatformAuthenticator()) {\n"
+                  "    std::move(callback).Run(true);\n"
+                  "    return;\n"
+                  "  }\n",
+    },
     # --- removed edits (do not re-add without new evidence) ------------
     # apex-chrome-app-gone: stock Chrome 157 still exposes chrome.app on web
     #   pages; removing it created a distinguisher instead of closing one.

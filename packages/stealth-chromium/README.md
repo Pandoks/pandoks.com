@@ -38,7 +38,7 @@ ways a patch can land, and you need to know which one for each surface.
 |---|---|---|---|---|
 | 1 | **Full-file `chromium_src/` overlay** | The upstream `.cc` is a single tiny function. Drop in a complete replacement. | `chromium_src/<path>/<file>.cc` + listed in `scripts/apply.sh` `OVERLAYS=()` | 2 |
 | 2 | **Anchor edit** (preferred for everything else) | Patch one function inside a multi-function file. A unique substring anchors the insertion, surviving Chromium version drift. | A dict in the `EDITS = [...]` list at `scripts/apply_edits.py` | 23 |
-| 3 | **`.patch` file** (documentation only) | None &mdash; the `.patch` files in `patches/` are vestigial. They describe historical intent. `apply.sh` does **not** apply them. | `patches/*.patch` + `patches/series` | 10 (informational) |
+| 3 | **`.patch` file** (documentation only) | None &mdash; the `.patch` files in `patches/` are vestigial. They describe historical intent. `apply.sh` does **not** apply them. | `patches/*.patch` + `patches/series` | 14 (informational) |
 
 The header at the top of `scripts/apply.sh` claims it applies the `.patch`
 files in step 3 &mdash; **that comment is wrong**. Step 3 writes GN args. The
@@ -298,7 +298,7 @@ uv run --project ../stealth-browser python scripts/cdp_probe.py
 ## What's already patched
 
 `apply.sh` + `apply_edits.py` together cover (truthful count: **2 overlays +
-23 anchor edits = 25 distinct edits**, spanning ~20 web-facing surfaces):
+29 anchor edits = 31 distinct edits**, spanning ~20 web-facing surfaces):
 
 | Surface | Mechanism | Env var(s) |
 |---|---|---|
@@ -319,6 +319,12 @@ uv run --project ../stealth-browser python scripts/cdp_probe.py
 | Local Font Access (`queryLocalFonts`) | anchor edit + `apex_font_policy.h` | `APEX_FP_ACTIVE` |
 | WebRTC ICE (no-non-proxied-UDP, real-IP leak) | launcher flag, proxied sessions only (`stealth-browser/profile.py` `WEBRTC_PROXIED_FLAG`), no binary edit | -- |
 | V8 inspector console-preview (2026 CDP-detection vector) | anchor edit | `APEX_FP_ACTIVE` |
+| WebCodecs `VideoDecoder.isConfigSupported` hw answer | anchor edit | `APEX_FP_MEDIA_HW_DECODE` |
+| WebCodecs `VideoEncoder.isConfigSupported` hw answer | anchor edit | `APEX_FP_MEDIA_HW_ENCODE` |
+| `mediaCapabilities.decodingInfo().powerEfficient` | anchor edit | `APEX_FP_MEDIA_HW_DECODE` |
+| HEVC / Dolby Vision codec support (MSE/WebCodecs/EME lists) | build args (`enable_platform_{dolby_vision,ac3_eac3_audio,dts_audio}`) + anchor edit | `APEX_FP_MEDIA_HEVC`, `APEX_FP_MEDIA_DOLBY_VISION` |
+| WebAuthn `isUserVerifyingPlatformAuthenticatorAvailable()` | anchor edit | `APEX_FP_WEBAUTHN_PLATFORM` |
+| Widevine `com.widevine.alpha` key system | build args (`bundle_widevine_cdm`, CDM files fetched by `scripts/setup.sh`) | -- (always on; SW_SECURE robustness) |
 
 `patches/*.patch` files describe these in unified-diff form for review
 purposes but are NOT executed by the build.

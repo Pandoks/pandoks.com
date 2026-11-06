@@ -41,10 +41,14 @@ for dir in \
   "third_party/blink/renderer/modules/speech" \
   "third_party/blink/renderer/modules/peerconnection" \
   "third_party/blink/renderer/modules/font_access" \
+  "third_party/blink/renderer/modules/webcodecs" \
+  "third_party/blink/renderer/modules/media_capabilities" \
   "third_party/blink/renderer/platform/fonts" \
   "third_party/blink/renderer/platform/graphics" \
   "third_party/blink/renderer/modules/webgpu" \
   "components/embedder_support" \
+  "media/base" \
+  "content/browser/webauth" \
   "v8/src/inspector" ; do
   mkdir -p "$SRC/$dir"
   cp "$FP_H" "$SRC/$dir/apex_fingerprint.h"

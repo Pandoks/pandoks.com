@@ -1,0 +1,39 @@
+# apex patch: persona hardware decode => mediaCapabilities powerEfficient=true
+#
+# THE PROBLEM. navigator.mediaCapabilities.decodingInfo({h264 1080p}) reports
+# {supported: true, smooth: true, powerEfficient: false} in the container --
+# powerEfficient comes from MediaCapabilities::GetGpuFactoriesSupport, which
+# asks the renderer's GPU factories; without a GPU process it calls
+# OnGpuFactoriesSupport(false) for every query. A real GPU desktop reports
+# powerEfficient=true for h264 1080p. Fingerprinters score exactly this
+# GPU-truth vs persona mismatch (and cross-check it against WebCodecs hw
+# flags -- the two must agree).
+#
+# THE FIX. In GetGpuFactoriesSupport, when the persona claims hardware decode
+# (APEX_FP_MEDIA_HW_DECODE=1), answer the GPU factories query with
+# supported=true and return -- before the real
+# Platform::Current()->GetGpuFactories() call, which yields null on the host
+# and would override the persona answer with false.
+#
+# This single override is also what makes the supported-value co-derivation
+# right: ResolveCallbackIfReady only downgrades supported=false for non-builtin
+# codecs (vp9) when powerEfficient=false -- with the persona answer true, vp9
+# stays supported like on a real GPU desktop.
+#
+# Runtime-gated: no APEX_FP_MEDIA_HW_DECODE = stock behavior. Must be emitted
+# by the persona layer together with APEX_FP_MEDIA_HW_DECODE (WebCodecs) so
+# both APIs agree.
+#
+# Apply target: third_party/blink/renderer/modules/media_capabilities/
+# media_capabilities.cc (anchor edit via scripts/apply_edits.py).
+--- a/third_party/blink/renderer/modules/media_capabilities/media_capabilities.cc
++++ b/third_party/blink/renderer/modules/media_capabilities/media_capabilities.cc
+@@ MediaCapabilities::GetGpuFactoriesSupport @@
++  // --- apex: persona hw-decode => powerEfficient=true ---
++  if (apex_fp::MediaHwDecode()) {
++    OnGpuFactoriesSupport(callback_id, true, video_codec);
++    return;
++  }
++  // --- end apex ---
+   media::GpuVideoAcceleratorFactories* gpu_factories =
+       Platform::Current()->GetGpuFactories();

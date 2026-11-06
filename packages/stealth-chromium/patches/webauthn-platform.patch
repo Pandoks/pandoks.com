@@ -1,0 +1,36 @@
+# apex patch: report a platform WebAuthn authenticator for a desktop persona
+#
+# THE PROBLEM. PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+# resolves via content/browser/webauth/is_uvpaa.cc, which only implements
+# content::IsUVPlatformAuthenticatorAvailable for IS_MAC (Touch ID), IS_WIN
+# (WinWebAuthnApi) and IS_CHROMEOS (ChromeOSAuthenticator). A LINUX build has
+# no implementation at all, so the browser always answers false -- the
+# platformAuth=false tell on a persona claiming Windows/macOS (real Windows
+# with Hello reports true; confirmed by the round-2 probe).
+#
+# THE FIX. AuthenticatorCommonImpl::IsUvpaaAvailableInternal is the single
+# funnel for BOTH the JS API and the GetClientCapabilities'
+# userVerifyingPlatformAuthenticator bit. When the persona claims a platform
+# authenticator (APEX_FP_WEBAUTHN_PLATFORM=1), answer true at the top of the
+# function -- before the request-proxy and delegate-override checks, which are
+# the host's answer paths.
+#
+# Runtime-gated: no APEX_FP_WEBAUTHN_PLATFORM = the real (false on Linux)
+# answer. The persona layer must emit it for desktop personas.
+#
+# Apply target: content/browser/webauth/authenticator_common_impl.cc
+# (anchor edit via scripts/apply_edits.py).
+--- a/content/browser/webauth/authenticator_common_impl.cc
++++ b/content/browser/webauth/authenticator_common_impl.cc
+@@ AuthenticatorCommonImpl::IsUvpaaAvailableInternal @@
+   // Serves isUserVerifyingPlatformAuthenticatorAvailable() and the
+   // GetClientCapabilities platform bit; the OS-specific implementation of
+   // content::IsUVPlatformAuthenticatorAvailable doesn't exist on Linux.
++  // --- apex: persona platform-authenticator ---
++  if (apex_fp::PlatformAuthenticator()) {
++    std::move(callback).Run(true);
++    return;
++  }
++  // --- end apex ---
+   WebAuthenticationRequestProxy* proxy =
+       GetWebAuthnRequestProxyIfActive(caller_origin);
