@@ -2,8 +2,9 @@
 
 One-page brief for any future Claude session (including a fresh Claude Cloud
 session) picking up this work. Read this FIRST — it captures everything that
-doesn't survive a fresh checkout. **Last substantively updated 2026-06-03**
-(branch `browser-iterations`, after the cloud-build + caching work).
+doesn't survive a fresh checkout. **Last substantively updated 2026-11-05**
+(branch `browser-iterations`, after the round-2 stealth fixes + Widevine CDM
+work).
 
 > **Currency note.** Sections marked 🟢 CURRENT reflect the cloud build
 > pipeline as actually deployed and validated. Sections marked 🟡 HISTORICAL
@@ -29,31 +30,41 @@ Two packages, by responsibility:
 
 **The single most important thing to know:** the Chromium build no longer runs
 on anyone's local machine. It runs on an **ephemeral EC2 builder orchestrated by
-an AWS Step Functions state machine** (`dev-builder`), triggered by one
-`aws stepfunctions start-execution` call (or fully automatically via Renovate →
-GitHub Actions). Your laptop is never pinned. See "Cloud build" below.
+the `dev-runner` AWS Step Functions state machine** (us-west-2 — a thin
+launcher: launch the EC2, kick the build over SSM, poll until done), triggered
+by one `aws stepfunctions start-execution` call (or fully automatically via
+Renovate → GitHub Actions). Your laptop is never pinned. See "Cloud build"
+below.
 
 ---
 
 ## 🟢 CURRENT: how to build patched Chromium (cloud)
 
 The build pipeline is in `infra/builder/` (SST/Pulumi) + `packages/stealth-chromium/scripts/`.
-It launches a fresh c7i/c7g EC2 from a pre-baked AMI, restores caches from S3,
-applies the patches, compiles, uploads the binary to S3, and self-terminates —
-even on failure.
+The `dev-runner` SFN is a thin launcher: it launches the EC2 from a pre-baked
+AMI, sends the build command over SSM, and polls until the run exits. The build
+script (`packages/stealth-chromium/scripts/sfn-build.sh`) restores caches from
+S3, fetches the Widevine CDM input files, applies the patches, compiles,
+uploads the binary to S3, and self-terminates — even on failure.
 
 ### Trigger a build (manual, from any machine with AWS creds)
 
 ```sh
-export AWS_PROFILE=Personal AWS_REGION=us-west-1   # 12-hour SSO; rerun `pnpm sso` when expired
+export AWS_PROFILE=Personal AWS_REGION=us-west-2   # 12-hour SSO; rerun when expired
 BUILD_ID="stealth-chromium-$(date +%Y%m%d-%H%M%S)"
 aws stepfunctions start-execution \
-  --state-machine-arn arn:aws:states:us-west-1:343487555569:stateMachine:dev-builder \
+  --state-machine-arn arn:aws:states:us-west-2:343487555569:stateMachine:dev-runner \
   --name "$BUILD_ID" \
   --input "$(jq -nc --arg id "$BUILD_ID" --arg ref "$(git rev-parse --abbrev-ref HEAD)" \
     '{id:$id, ref:$ref, instanceType:"c7i.16xlarge", marketType:"on-demand",
       storageSizeGib:200, command:"bash packages/stealth-chromium/scripts/sfn-build.sh"}')"
 ```
+
+SSO login is `aws sso login --sso-session=personal --use-device-code
+--no-browser` — the real session is `personal` (confirmed in `~/.aws/config`).
+NOTE: the root `package.json` `pnpm sso` script still says
+`--sso-session=Pandoks_`, which does not exist in `~/.aws/config` — stale;
+use the explicit command above until that script is fixed.
 
 The SFN clones the branch from GitHub (`ref` must be **pushed** — local-only
 branches are invisible to the builder), so commit + push before triggering.
@@ -70,7 +81,7 @@ machine involvement.** The workflow also has a `workflow_dispatch` with
 ### Monitor a running build
 
 ```sh
-EXEC=arn:aws:states:us-west-1:343487555569:execution:dev-builder:$BUILD_ID
+EXEC=arn:aws:states:us-west-2:343487555569:execution:dev-runner:$BUILD_ID
 aws stepfunctions describe-execution --execution-arn "$EXEC" \
   --query '{status:status,started:startDate,stopped:stopDate}' --output json
 # Live probe of the EC2 (instance id is tagged with the build id):
@@ -81,17 +92,24 @@ aws ssm send-command --instance-ids "$INSTANCE" --document-name AWS-RunShellScri
   --parameters '{"commands":["#!/bin/bash","sudo grep -oE \"\\[[0-9]+/[0-9]+\\]\" /tmp/stealth-chromium-build-*.log | tail -1","sudo CCACHE_DIR=/build/.ccache ccache -s | head -8"]}'
 ```
 
-### Fetch the built binary
+### Fetch + validate the built binary
+
+`scripts/validate_artifact.sh [BUILD_ID]` does the whole thing: downloads
+`manifest.json` + the tarball from the artifacts bucket
+(default `personal-pandoks-runnerartifactsstorebucket-uadorowo`, us-west-2),
+`zstd -t`s it, checks size + sha256 against the manifest, extracts to
+`/var/tmp/stealth-artifact-<BUILD_ID>/`, sanity-checks the binary in a
+container, and **hard-fails if the bundled Widevine CDM is missing** (a
+CDM-less artifact reports `NotSupportedError` for `com.widevine.alpha` — the
+container can't component-update it later). It then prints the bake commands.
 
 ```sh
-ARTIFACTS=personal-pandoks-builderartifactsbucketbucket-oawuxubt
-aws s3 cp "s3://$ARTIFACTS/$BUILD_ID/manifest.json" - | jq .
-aws s3 cp "s3://$ARTIFACTS/$BUILD_ID/chromium-<version>.tar.zst" .
-tar --use-compress-program 'zstd -d --long=27' -xf chromium-<version>.tar.zst -C /opt/stealth-chromium/
-export APEX_CHROME_PATH=/opt/stealth-chromium/chrome
+cd packages/stealth-chromium
+scripts/validate_artifact.sh "$BUILD_ID"    # download + verify + extract
+export APEX_CHROME_PATH=/var/tmp/stealth-artifact-$BUILD_ID/chromium/chrome
 ```
 
-### Build-time profile (measured, c7i.16xlarge, us-west-1)
+### Build-time profile (measured, c7i.16xlarge)
 
 | Scenario | Wall time | Cost |
 |---|---|---|
@@ -103,8 +121,9 @@ export APEX_CHROME_PATH=/opt/stealth-chromium/chrome
 
 ## 🟢 CURRENT: the caching system (read before touching setup.sh/build.sh)
 
-Two independent caches in one S3 bucket
-(`personal-pandoks-buildercachebucketbucket-dadcwbmn`). Full diagram in
+Two independent caches in one S3 bucket (exported to the build as
+`RUNNER_CACHE_BUCKET`; the legacy name `BUILDER_CACHE_BUCKET` is also accepted
+by `setup.sh`). Full diagram in
 `.claude/artifacts/2026-05-27-caching-explainer.html` and
 `.claude/artifacts/2026-05-28-chromium-build-pipeline-report.html`.
 
@@ -151,36 +170,100 @@ To force a clean rebuild: `aws s3 rm s3://<cache-bucket>/ --recursive`.
 
 ## 🟢 CURRENT: status & open work
 
-### Version state — WE ARE A MAJOR VERSION BEHIND
-- Our pin (`packages/stealth-chromium/chromium_version.txt`): **148.0.7778.215**
-- Chrome stable as of 2026-06-03: **149.0.7827.53**
-- The next build should bump to 149. Anchor edits *should* survive the major
-  bump but this is unverified — run
-  `APEX_CHROMIUM_WORK=$WORK python3 scripts/apply_edits.py --check` against a
-  149 checkout to confirm no anchors drifted before trusting the build.
+### Version state — pin is current (157)
+- Our pin (`packages/stealth-chromium/chromium_version.txt`): **157.0.8103.38**
+  (bumped 2026-11-05, "Linux-Stable-plausible"). The old "we're a major version
+  behind at 148" state is resolved — the stack was rebased to 157
+  (commit `113043f7`).
+- Anchor edits were re-fitted for 157; `apply_edits.py --check` is the drift
+  gate (see "Local validation loop" below).
 
-### THE BUILT BINARY IS NOT FINGERPRINT-TESTED
-This is the biggest open gap. The SFN pipeline runs only
-`setup.sh → apply.sh → build.sh` — it **does not run
-`test_patched_binary.sh`**. So every binary we've produced (including the
-`.215` one in S3) is verified to *compile*, but never verified to actually
-*spoof fingerprints* at runtime. `test_patched_binary.sh` exists but is a
-manual, headful, host-side step (loads `verify_patches.html`, runs a
-16-detector benchmark). **The "composite 1.000 / 17-detector" claim below in
-the patch section is STALE** — it predates the monorepo migration and was
-measured against an old local binary, not the cloud-built `.215`.
+### Branch state — `browser-iterations` carries the full stealth stack
+This branch is the working integration branch for the round-2 stealth fixes.
+Subsystems it covers (all verified in the tree):
+
+- **UA / UA-CH personas** — brand + full-variant + low/high-entropy
+  client-hint headers (`apex-ua-brand`, `apex-ua-latent-ua-string`,
+  `apex-ua-latent-ch-low/high`, `apex-uadata-platform`).
+- **`navigator.platform`** — persona-coherent (`apex-platform`).
+- **Web Bluetooth** — `--enable-features=WebBluetooth` launcher flag
+  (`stealth-browser/stealth_browser/profile.py`), not a C++ patch.
+- **Fonts deny/allow** — `queryLocalFonts` policy + `document.fonts.check`
+  realism (`apex-font-allow`, `apex-font-deny`, `apex-font-system-ui`,
+  `apex-font-generic-mono`, `apex-font-generic-mono-worker`).
+- **Canvas v2.1 content-keyed lock** — farbling keyed on canvas content plus
+  repair rules + fail-closed key (`apex-canvas-getimagedata`,
+  `apex-canvas-encode`, `APEX_FP_CANVAS_KEY`).
+- **WebGPU identity/limits/features spoofing** — GPUAdapterInfo, backend,
+  features, limits (adapter + device), cross-origin compile-state leak
+  (`apex-webgpu-identity`, `apex-webgpu-limits`, `apex-webgpu-features`,
+  `apex-webgpu-device-limits`, `apex-webgpu-device-features`).
+- **WebAuthn platform override** —
+  `isUserVerifyingPlatformAuthenticatorAvailable()` (`apex-webauthn-platform`).
+- **WebCodecs / mediaCapabilities hw overrides** — decoder/encoder
+  `isConfigSupported` + `powerEfficient` (`apex-webcodecs-decoder-hw`,
+  `apex-webcodecs-encoder-hw`, `apex-media-power`).
+- **HEVC / Dolby Vision codecs** — MSE/WebCodecs/EME lists
+  (`apex-media-hevc`, `apex-media-dv`).
+- **Widevine CDM bundling** — CDM files fetched by `setup.sh` and shipped in
+  the artifact (see the cloud-build section).
+- **Regression scripts** — `temporal_audit.py` (same-session drift) +
+  `header_fidelity.py` (JA4H header byte-fidelity), both in
+  `packages/stealth-browser/scripts/`.
+- **Expanded battery** — `adversarial.py` (local detector battery + CreepJS
+  cross-check + hard-target anti-bot probes).
+
+**Branch head and the merge decision are left to the user** — this doc does not
+prescribe merging.
+
+### THE BUILT BINARY IS NOT FINGERPRINT-TESTED IN THE PIPELINE
+Still the biggest open gap. The SFN pipeline runs only
+`setup.sh → apply.sh → build.sh` — it does **not** run `test_patched_binary.sh`
+(the headful verify page + detector benchmark). So every binary we've produced
+is verified to *compile*, but never verified to actually *spoof fingerprints*
+at runtime by the pipeline itself. `scripts/validate_artifact.sh` closes the
+artifact-integrity half (it hard-fails a tarball missing the Widevine CDM) but
+is a host-side post-download check, not wired into the pipeline. The composite
+benchmark against the cloud binary is still unrun.
+
+### Local validation loop (offline, no build needed)
+- **Anchor drift** — against a real 157 checkout at `$WORK`:
+  `APEX_CHROMIUM_WORK=$WORK python3 scripts/apply_edits.py --check`
+  (dry-run: every anchor findable, exits 1 with a failure count on drift) and
+  `--verify` (post-apply gate: every marker must be present in the tree).
+- **Artifact integrity** — `scripts/validate_artifact.sh [BUILD_ID]`: downloads
+  and extracts the tarball to a temp dir, hard-fails if the Widevine CDM
+  (`manifest.json` / `libwidevinecdm.so`) is missing.
+- **Probe suites** (now committed in the repo, not /var/tmp):
+  - `scripts/cdp_probe.py` — raw-CDP probe of the patched binary with
+    `APEX_FP_*` set; isolates the C++ patches from any automation framework.
+  - `scripts/webgpu_probe.py` — WebGPU surface probe against the running
+    stealth-browser service (adapter identity + cross-origin compile-state
+    leak).
+  - `scripts/webgpu_probe_cdp.py` — WebGPU raw-CDP probe of the binary itself
+    (`--no-fp` = what stock leaks, `--fp` = what the patched binary presents).
+- **Regression scripts** — `stealth-browser/scripts/temporal_audit.py`
+  (same-session fingerprint drift; exits non-zero on any drift) and
+  `stealth-browser/scripts/header_fidelity.py` (JA4H byte-fidelity against a
+  raw-socket echo server). Both verified clean as of 2026-11.
+- **Adversarial battery** — `stealth-browser/scripts/adversarial.py`: local
+  detector battery (`checks.py` `PROBE_JS`), CreepJS cross-check, and
+  hard-target anti-bot probes (Cloudflare/DataDome/Akamai/Kasada/HUMAN/Amazon).
 
 **Top open items, in priority order:**
-1. **Close the validation loop.** Run `test_patched_binary.sh` against the
-   cloud `.215` binary (or wire it into the pipeline) to get a real, current
-   stealth score. Right now "is it better than the market" is unproven on the
-   shipped artifact.
-2. **Bump to Chromium 149** + `apply_edits.py --check` for anchor drift +
-   rebuild. The 148→149 bump is the natural forcing function to do #1 too.
-3. **Close the Clark gaps** (see competitive section). Quick wins first:
-   `storage.estimate()` quota, launcher hygiene. (`navigator.connection`
-   spoof dropped: round-4 verification proved our values already match real
-   Chrome on this host — see below.)
+1. **Close the composite-benchmark loop.** Run `test_patched_binary.sh` (or
+   the adversarial battery) against the current cloud-built 157 binary to get
+   a real stealth score. Temporal-stability and header-fidelity audits are
+   clean, but "is it better than the market" is still unproven on the shipped
+   artifact.
+2. **Wire `validate_artifact.sh` into the pipeline** so the CDM-presence gate
+   runs at build time, not only host-side after download.
+3. **Remaining Clark gaps** (see competitive section — the WebGPU, UA-CH,
+   fonts, and mediaCapabilities gaps are now closed):
+   `navigator.plugins`/`mimeTypes`, `getClientRects` jitter, AudioContext +
+   AnalyserNode noise, `navigator.storage.estimate()` quota, launcher hygiene.
+   (`navigator.connection` spoof dropped: round-4 verification proved our
+   values already match real Chrome on this host — see below.)
 4. **No `apps/stealth-browser/` deploy yet** — the Python service has no k8s
    deployment. When ready it becomes a `kube/` overlay over a Docker image of
    this package. Don't add it unless asked.
@@ -211,22 +294,32 @@ severity, flag to the defense if they weigh shape. Probe script kept at
 
 ## 🟢 CURRENT: C++ patch inventory
 
-**25 distinct edits** (verified in `scripts/apply_edits.py` + `apply.sh`),
-unchanged since the migration. Full per-surface table with env-var names lives
-in [`../stealth-chromium/README.md`](../stealth-chromium/README.md#whats-already-patched).
+**42 distinct edits** (verified in `scripts/apply_edits.py` + `apply.sh`:
+40 anchor edits + 2 overlays). Full per-surface table with env-var names lives
+in [`../stealth-chromium/README.md`](../stealth-chromium/README.md#whats-already-patched)
+(note: the README's own count is stale — the tree is the source of truth).
 
 Three patch mechanisms (only the first two are applied):
 
 | # | Mechanism | Count | Where |
 |---|---|---|---|
 | 1 | Full-file `chromium_src/` overlay | 2 | `apply.sh` `OVERLAYS=()` (navigator hardwareConcurrency + deviceMemory) |
-| 2 | Anchor edit (preferred) | 23 | `EDITS = [...]` in `scripts/apply_edits.py` |
-| 3 | `.patch` files (DOC ONLY — NOT applied) | 11 | `patches/*.patch` — vestigial, ignore for current behavior |
+| 2 | Anchor edit (preferred) | 40 | `EDITS = [...]` in `scripts/apply_edits.py` |
+| 3 | `.patch` files (DOC ONLY — NOT applied) | 14 | `patches/*.patch` — review-only, ignore for current behavior |
 
-The 23 anchor markers: WebGL renderer/vendor/readPixels, navigator
-platform + userAgentData.platform, WebRTC no-leak, V8 CDP no-preview, canvas
-getImageData/encode/measureText, audio noise, mediaDevices, fonts, screen
-(5 dims), battery (4 fields), speech voices.
+The 40 anchor markers, by surface: WebGL renderer/vendor/readPixels (3); UA
+brand + latent UA string + low/high-entropy client hints + userAgentData
+platform (5); navigator.platform + hardwareConcurrency coherence (2); V8 CDP
+no-preview (1); canvas getImageData + encode (2); mediaDevices (1); fonts
+allow/deny/system-ui/generic-mono/generic-mono-worker (5); screen 5 dims (5);
+battery 4 fields (4); speech voices (1); WebGPU identity/limits/features +
+device limits/features (5); WebCodecs decoder/encoder hw (2); mediaCapabilities
+powerEfficient (1); HEVC (1); Dolby Vision (1); WebAuthn platform (1).
+
+Removed edits (documented in `apply_edits.py`'s "removed edits" list — do not
+re-add without new evidence): `apex-audio-noise` (moved the audio hash into a
+rare cluster; stock is already common), `apex-measuretext-farbling` (its anchor
+is gone on main), `apex-chrome-app-gone` (removing it created a distinguisher).
 
 Deferred (not started): RAF/audio-quantum jitter (Chrome already clamps
 `performance.now()` to 100µs); per-eTLD+1 reseeding (`EtldSeed()` helper exists
@@ -234,9 +327,11 @@ in `chromium_src/apex_fingerprint.h`, no consumer yet).
 
 > **Stale benchmark claim (do not trust without re-running):** earlier docs
 > cite "composite 1.000 on a 17-detector benchmark, CreepJS 0% headless." That
-> was measured pre-migration against an old local binary. The cloud `.215`
-> binary has NOT been benchmarked. Treat the patch set as "compiles clean,
-> runtime-unverified" until `test_patched_binary.sh` runs against it.
+> was measured pre-migration against an old local binary. No cloud-built
+> binary has been composite-benchmarked. The temporal-stability and
+> header-fidelity audits ARE clean (2026-11), but treat the patch set as
+> "compiles clean, composite-unverified" until the benchmark runs against the
+> current 157 artifact.
 
 ---
 
@@ -251,21 +346,22 @@ no Clark equivalent (that's the Browserbase/Steel lane).
 headful on Xvfb (Clark admits CreepJS still flags their `--headless=new`); full
 HTTP service with session cloning + `/fetch` + first-class proxy (Clark has
 none); anchor-edit patches survive version bumps (Clark's `.patch` files don't);
-battery/speech/mediaDevices patches not in Clark's catalog. Clark ships only 17
-of its 49 cataloged patches; we ship 25 edits.
+battery/speech/mediaDevices/WebGPU patches not in Clark's catalog. Clark ships
+only 17 of its 49 cataloged patches; we ship 42 edits.
 
 **Top gaps vs Clark's shipped patches** (ranked by 2025-26 detector weight;
 🟢 quick / 🟡 medium / 🟠 port-from-Brave):
 1. 🟡 `navigator.plugins`/`mimeTypes` PDF-viewer list
-2. 🟡 WebGPU `GPUAdapterInfo` coherence (must match WebGL GPU strings)
-3. 🟢 `navigator.connection` spoof (datacenter-vs-residential signal)
-4. 🟠 `getClientRects`/`getBoundingClientRect` jitter (cross-session correlation)
-5. 🟠 AudioContext + AnalyserNode noise (we only patch getChannelData, 1 of 3 levels)
-6. 🟡 WebGL `getParameter`/`getSupportedExtensions` cross-field coherence
-7. 🟡 UA Client Hints `Sec-CH-UA-*` header coherence
-8. 🟢 `--enable-automation` launcher hygiene (operational guardrail)
-9. 🟡 `document.fonts.check()` realism (Win/Mac font packs)
-10. 🟢 `navigator.storage.estimate()` quota spoof
+2. 🟠 `getClientRects`/`getBoundingClientRect` jitter (cross-session correlation)
+3. 🟠 AudioContext + AnalyserNode noise (we only patch getChannelData, 1 of 3 levels)
+4. 🟡 WebGL `getParameter`/`getSupportedExtensions` cross-field coherence
+5. 🟢 `--enable-automation` launcher hygiene (operational guardrail)
+6. 🟢 `navigator.storage.estimate()` quota spoof
+
+(Closed since the 2026-05 audit: WebGPU `GPUAdapterInfo` coherence, UA Client
+Hints `Sec-CH-UA-*` header coherence, `document.fonts.check()` realism — all
+now shipped. `navigator.connection` spoof dropped: round-4 verification proved
+our values already match real Chrome on this host.)
 
 ---
 
@@ -285,9 +381,11 @@ curl -s -XDELETE localhost:8089/sessions/$SID
 Prereqs: system Google Chrome (or `APEX_CHROME_PATH` → patched binary), Xvfb on
 Linux (service is headful by design), `jq`, `uv`. Env vars: `APEX_CORE`
 (`nodriver`|`patchright`), `PORT`, `APEX_CHROME_PATH`, `APEX_FP_*` (per-session
-fingerprint overrides, only meaningful with the patched binary), Oxylabs proxy
-creds. The service has NOT been started against a live browser since the
-migration — import-only smoke test passed; a real end-to-end run is still open.
+fingerprint overrides, only meaningful with the patched binary),
+`APEX_PERSONA_DIR`/`APEX_PERSONA_COUNT` (persistent-profile pool, default 4),
+Oxylabs proxy creds. The service HAS been driven against live browsers since
+the migration — `scripts/temporal_audit.py` and `scripts/header_fidelity.py`
+(2026-11) run real sessions through it and both verified clean.
 
 ---
 
@@ -305,7 +403,8 @@ The X9Pro external SSD (`/Volumes/X9Pro/apex-chromium-build/`) held the
 original local build + a v1 binary + a 22-detector benchmark. **This is no
 longer the build path** — the cloud SFN builder replaced it. The v2 link
 failure described in old versions of this doc was a local stale-toolchain
-artifact; the cloud builder compiles `.215` cleanly.
+artifact; the cloud builder compiles cleanly (`.215` at the time; the pin is
+now 157).
 
 ---
 
