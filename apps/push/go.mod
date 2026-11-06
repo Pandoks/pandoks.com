@@ -5,6 +5,7 @@ go 1.27.3
 require (
 	github.com/jackc/pgx/v5 v5.11.0
 	golang.org/x/oauth2 v0.37.0
+	queue v0.0.0
 )
 
 require (
@@ -17,3 +18,5 @@ require (
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 )
+
+replace queue => ../../packages/queue

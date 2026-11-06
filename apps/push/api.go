@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"queue"
 	"slices"
 	"strconv"
 )
@@ -95,18 +96,12 @@ func (service *service) sendNotification(writer http.ResponseWriter, request *ht
 }
 
 func (service *service) cancelNotification(writer http.ResponseWriter, request *http.Request) {
-	id, err := strconv.ParseInt(request.PathValue("id"), 10, 64)
-	if err != nil {
-		http.NotFound(writer, request)
-		return
-	}
-	deleted, err := service.database.Exec(request.Context(), `
-		DELETE FROM push_jobs WHERE id IN (SELECT id FROM push_jobs WHERE notification_id = $1 FOR UPDATE SKIP LOCKED)`, id)
+	cancelled, err := queue.CancelGroup(request.Context(), service.database, pushQueue, request.PathValue("id"))
 	if err != nil {
 		internalError(writer, err)
 		return
 	}
-	if deleted.RowsAffected() == 0 {
+	if cancelled == 0 {
 		http.NotFound(writer, request)
 		return
 	}

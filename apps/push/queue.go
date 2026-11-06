@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"queue"
 	"slices"
+	"strconv"
 	"sync"
 	"time"
 
@@ -15,12 +17,13 @@ import (
 const (
 	// NOTE: a rollout overlaps up to 4 pods, and 4×5 fits the 25 Postgres connections PgDog leaves free
 	databaseConnections = 5
-	// NOTE: one connection holds LISTEN and one always stays free for the API
+	// NOTE: one connection holds LISTEN, and a job worker holds one only to claim or finish a job, never
+	// across its sends, so one is left for the API
 	jobWorkers       = databaseConnections - 2
 	databaseTimeout  = 5 * time.Second
+	pushQueue        = "push"
 	recipientsPerJob = 500
 	sendConcurrency  = 1000
-	pollInterval     = time.Second
 	maxAttempts      = 5
 	// NOTE: a later retry would deliver a stale alert, so the send fails instead
 	maxRetryDelay = 8 * time.Minute
@@ -63,12 +66,13 @@ type result struct {
 	backoff, retryAfter time.Duration
 }
 
-// claimedJob is a job whose row lock a worker holds, with the results of its sends.
+// claimedJob is a job whose lease a worker holds, with the results of its sends.
 type claimedJob struct {
 	notification
-	id, notificationID int64
-	recipients         int
-	devices            int
+	notificationID string
+	// claimedAt is the database's clock before the sends, so a device that registers again during them keeps its token
+	claimedAt time.Time
+	devices   int
 
 	mutex              sync.Mutex
 	delivered          int
@@ -82,7 +86,7 @@ type claimedJob struct {
 }
 
 // enqueue stores the notification as jobs of at most recipientsPerJob recipients, so a fan-out
-// spreads across every worker, and wakes a worker of this replica.
+// spreads across every worker.
 func (service *service) enqueue(ctx context.Context, request notification) (int64, error) {
 	var jobs []notification
 	// NOTE: a recipient repeated in two jobs would get it twice
@@ -98,198 +102,92 @@ func (service *service) enqueue(ctx context.Context, request notification) (int6
 		job.UserIDs, job.Tokens = nil, tokens
 		jobs = append(jobs, job)
 	}
-	var sendAt *time.Time
-	if !request.SendAt.IsZero() {
-		sendAt = &request.SendAt
-	}
 
+	transaction, err := service.database.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
 	var id int64
-	err := service.database.QueryRow(ctx, `
-		WITH notification AS MATERIALIZED (SELECT nextval('push_notification_ids') AS id),
-		inserted AS (
-		  INSERT INTO push_jobs (notification_id, send_at, job)
-		  SELECT notification.id, coalesce($1, now()), job FROM notification, unnest($2::jsonb[]) AS job
-		)
-		SELECT notification.id, CASE WHEN $3 THEN pg_notify('push_jobs', '') END FROM notification`,
-		// NOTE: NOTIFY serializes every notifying commit, so only a fan-out wakes the other replicas
-		sendAt, jobs, len(jobs) > 1,
-	).Scan(&id, nil)
-	if err == nil {
-		service.wakeWorker()
-	}
-	return id, err
-}
-
-// listen wakes a worker for every fan-out, and every pollInterval for jobs coming due.
-func (service *service) listen(ctx context.Context) {
-	for ctx.Err() == nil {
-		err := service.waitForJobs(ctx)
-		if ctx.Err() == nil {
-			slog.Error("listen for jobs", "error", err)
-			time.Sleep(pollInterval)
-		}
-	}
-}
-
-func (service *service) waitForJobs(ctx context.Context) error {
-	listenContext, cancel := context.WithTimeout(ctx, databaseTimeout)
-	defer cancel()
-	connection, err := service.database.Acquire(listenContext)
-	if err != nil {
-		return err
-	}
-	// NOTE: closed before release, so the pool replaces it instead of handing out a listening connection
-	defer func() {
-		_ = connection.Conn().Close(context.WithoutCancel(ctx))
-		connection.Release()
-	}()
-	if _, err := connection.Exec(listenContext, "LISTEN push_jobs"); err != nil {
-		return err
-	}
-	for {
-		service.wakeWorker()
-		waitContext, cancel := context.WithTimeout(ctx, pollInterval)
-		_, err := connection.Conn().WaitForNotification(waitContext)
-		cancel()
-		if err != nil && !errors.Is(err, context.DeadlineExceeded) {
-			return err
-		}
-	}
-}
-
-func (service *service) wakeWorker() {
-	select {
-	case service.wake <- struct{}{}:
-	default:
-	}
-}
-
-// work delivers due jobs until none are left, then waits to be woken.
-func (service *service) work(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-service.wake:
-		}
-		for ctx.Err() == nil && service.deliverDueJobs(ctx) {
-		}
-	}
-}
-
-// deliverDueJobs claims due jobs until it holds recipientsPerJob recipients, starting each job's
-// sends as soon as it's claimed, and deletes them in the same transaction, so a crash before the
-// commit leaves them to another worker.
-func (service *service) deliverDueJobs(shutdown context.Context) bool {
-	startedAt := time.Now()
-	ctx := context.WithoutCancel(shutdown)
-	beginContext, cancel := context.WithTimeout(ctx, databaseTimeout)
-	transaction, err := service.database.Begin(beginContext)
-	cancel()
-	if err != nil {
-		slog.Error("claim job", "error", err)
-		return false
-	}
-	defer func() {
-		rollbackContext, cancel := context.WithTimeout(ctx, databaseTimeout)
-		defer cancel()
-		_ = transaction.Rollback(rollbackContext)
-	}()
-
-	var (
-		jobs []*claimedJob
-		// NOTE: empty, not nil: pgx sends nil as NULL, and id <> ALL(NULL) matches nothing
-		jobIDs     = []int64{}
-		sends      sync.WaitGroup
-		recipients int
-		claimError error
-	)
-	for recipients < recipientsPerJob && shutdown.Err() == nil {
-		var (
-			job     *claimedJob
-			devices []device
-		)
-		job, devices, claimError = claimJob(ctx, transaction, jobIDs, recipientsPerJob-recipients)
-		if claimError != nil {
-			break
-		}
-		if len(jobs) == 0 {
-			service.wakeWorker()
-		}
-		jobs, jobIDs = append(jobs, job), append(jobIDs, job.id)
-		recipients += job.recipients
-		service.send(shutdown, &sends, job, devices)
-	}
-	sends.Wait()
-	if claimError != nil && !errors.Is(claimError, pgx.ErrNoRows) {
-		slog.Error("claim job", "error", claimError)
-		return false
-	}
-	if len(jobs) == 0 {
-		return false
-	}
-
-	if err := commitJobs(ctx, transaction, jobIDs, jobs); err != nil {
-		slog.Error("deliver jobs", "error", err)
-		return false
+	if err := transaction.QueryRow(ctx, `SELECT nextval('push_notification_ids')`).Scan(&id); err != nil {
+		return 0, err
 	}
 	for _, job := range jobs {
-		slog.Info("delivered job",
-			"app", job.App, "push_type", job.PushType, "attempt", job.Attempt, "devices", job.devices,
-			"delivered", job.delivered, "unregistered", len(job.unregisteredTokens), "retrying", len(job.retryTokens),
-			"requeued", len(job.unsentTokens), "failures", job.failures, "duration", time.Since(startedAt).String(),
-		)
+		options := queue.EnqueueOptions{RunAt: request.SendAt, GroupKey: strconv.FormatInt(id, 10)}
+		if _, err := queue.Enqueue(ctx, transaction, pushQueue, job, options); err != nil {
+			return 0, err
+		}
 	}
-	return true
+	return id, transaction.Commit(ctx)
 }
 
-// claimJob locks the next due job of at most maxRecipients recipients and finds its devices.
-func claimJob(ctx context.Context, transaction pgx.Tx, claimedIDs []int64, maxRecipients int) (*claimedJob, []device, error) {
+// deliver sends a job to its devices, then removes unregistered tokens, requeues unsent and
+// retryable sends, and completes the job in one transaction, so a worker that dies before the
+// commit leaves the whole job to another one once its lease runs out.
+func (service *service) deliver(ctx context.Context, queued *queue.Job) error {
+	startedAt := time.Now()
+	job := &claimedJob{notificationID: *queued.GroupKey, failures: map[string]int{}}
+	if err := json.Unmarshal(queued.Payload, &job.notification); err != nil {
+		return queue.Permanent(err)
+	}
+	devices, err := service.findDevices(context.WithoutCancel(ctx), job)
+	if err != nil {
+		slog.Error("find devices", "error", err)
+		return err
+	}
+	var sends sync.WaitGroup
+	service.send(ctx, &sends, job, devices)
+	sends.Wait()
+	if err := service.finish(context.WithoutCancel(ctx), queued, job); err != nil {
+		slog.Error("finish job", "error", err)
+		return err
+	}
+	slog.Info("delivered job",
+		"app", job.App, "push_type", job.PushType, "attempt", job.Attempt, "devices", job.devices,
+		"delivered", job.delivered, "unregistered", len(job.unregisteredTokens), "retrying", len(job.retryTokens),
+		"requeued", len(job.unsentTokens), "failures", job.failures, "duration", time.Since(startedAt).String(),
+	)
+	return nil
+}
+
+// findDevices reads the job's devices and the database's clock.
+func (service *service) findDevices(ctx context.Context, job *claimedJob) ([]device, error) {
 	ctx, cancel := context.WithTimeout(ctx, databaseTimeout)
 	defer cancel()
-	job := &claimedJob{failures: map[string]int{}}
-	err := transaction.QueryRow(ctx, `
-		SELECT id, notification_id, recipients, job FROM push_jobs
-		WHERE send_at <= now() AND id <> ALL($1) AND recipients <= $2
-		ORDER BY send_at LIMIT 1 FOR UPDATE SKIP LOCKED`,
-		// NOTE: SKIP LOCKED skips only other transactions' locks
-		claimedIDs, maxRecipients,
-	).Scan(&job.id, &job.notificationID, &job.recipients, &job.notification)
-	if err != nil {
-		return nil, nil, err
+	if err := service.database.QueryRow(ctx, `SELECT now()`).Scan(&job.claimedAt); err != nil {
+		return nil, err
 	}
 	kind := "device"
 	if job.PushType == "liveactivity" {
 		kind = "liveactivity"
 	}
-	rows, _ := transaction.Query(ctx,
+	rows, _ := service.database.Query(ctx,
 		`SELECT token, platform, apns_environment FROM push_devices
 		WHERE app = $1 AND kind = $2 AND ($3::text[] IS NULL OR user_id = ANY($3)) AND ($4::text[] IS NULL OR token = ANY($4))`,
 		job.App, kind, job.UserIDs, job.Tokens,
 	)
-	devices, err := pgx.CollectRows(rows, pgx.RowToStructByPos[device])
-	return job, devices, err
+	return pgx.CollectRows(rows, pgx.RowToStructByPos[device])
 }
 
-// send starts a send to every device the job has a payload for. Once shutdown is done it starts no
-// more and leaves the rest to be requeued, so a stopping replica commits before it's killed instead
-// of leaving the whole job to be sent again.
-func (service *service) send(shutdown context.Context, sends *sync.WaitGroup, job *claimedJob, devices []device) {
+// send starts a send to every device the job has a payload for. Once ctx is done, because the
+// replica is stopping or the lease was lost, it starts no more and leaves the rest to be requeued,
+// so a stopping replica finishes the job before it's killed instead of leaving all of it to be sent again.
+func (service *service) send(ctx context.Context, sends *sync.WaitGroup, job *claimedJob, devices []device) {
 	job.devices = len(devices)
 	for index, device := range devices {
 		if (device.Platform == "ios" && job.APNs == nil) || (device.Platform == "android" && job.FCM == nil) {
 			continue
 		}
 		// NOTE: checked first, since select picks at random once a send slot is free too
-		if shutdown.Err() == nil {
+		if ctx.Err() == nil {
 			select {
 			case service.sends <- struct{}{}:
 				sends.Go(func() {
 					defer func() { <-service.sends }()
-					job.record(device, service.senders[device.Platform].send(context.WithoutCancel(shutdown), device, job.notification))
+					job.record(device, service.senders[device.Platform].send(context.WithoutCancel(ctx), device, job.notification))
 				})
 				continue
-			case <-shutdown.Done():
+			case <-ctx.Done():
 			}
 		}
 		for _, unsent := range devices[index:] {
@@ -324,50 +222,51 @@ func (job *claimedJob) record(device device, result result) {
 	}
 }
 
-// commitJobs removes unregistered tokens, requeues unsent and retryable sends, and deletes the jobs.
-func commitJobs(ctx context.Context, transaction pgx.Tx, jobIDs []int64, jobs []*claimedJob) error {
+// finish removes unregistered tokens, requeues unsent and retryable sends, and completes the job in one transaction.
+func (service *service) finish(ctx context.Context, queued *queue.Job, job *claimedJob) error {
 	ctx, cancel := context.WithTimeout(ctx, databaseTimeout)
 	defer cancel()
-	var (
-		unregisteredTokens []string
-		notificationIDs    []int64
-		sendAts            []time.Time
-		requeued           []notification
-	)
-	requeue := func(job *claimedJob, sendAt time.Time, attempt int, tokens []string) {
-		// NOTE: claimJob skips jobs over recipientsPerJob, and a job's users can have more devices
+	transaction, err := service.database.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
+
+	// NOTE: another token taking the same FCM message proves the message valid, so the token is not
+	if job.fcmDelivered {
+		job.unregisteredTokens = append(job.unregisteredTokens, job.invalidFCMTokens...)
+	}
+	if len(job.unregisteredTokens) > 0 {
+		if _, err := transaction.Exec(ctx, `DELETE FROM push_devices WHERE token = ANY($1) AND updated_at < $2`, job.unregisteredTokens, job.claimedAt); err != nil {
+			return err
+		}
+	}
+	requeue := func(runAt time.Time, attempt int, tokens []string) error {
+		// NOTE: a job's users can have more devices than a job holds, and a smaller job spreads across workers
 		for chunk := range slices.Chunk(tokens, recipientsPerJob) {
 			// NOTE: keeps the user IDs, so a token registered to another user meanwhile isn't sent
 			next := job.notification
 			next.Tokens, next.Attempt = chunk, attempt
-			notificationIDs = append(notificationIDs, job.notificationID)
-			sendAts = append(sendAts, sendAt)
-			requeued = append(requeued, next)
+			if _, err := queue.Enqueue(ctx, transaction, pushQueue, next, queue.EnqueueOptions{RunAt: runAt, GroupKey: job.notificationID}); err != nil {
+				return err
+			}
 		}
+		return nil
 	}
-	for _, job := range jobs {
-		// NOTE: another token taking the same FCM message proves the message valid, so the token is not
-		if job.fcmDelivered {
-			job.unregisteredTokens = append(job.unregisteredTokens, job.invalidFCMTokens...)
-		}
-		unregisteredTokens = append(unregisteredTokens, job.unregisteredTokens...)
-		requeue(job, time.Now(), job.Attempt, job.unsentTokens)
-		requeue(job, time.Now().Add(job.retryDelay), job.Attempt+1, job.retryTokens)
+	if err := requeue(time.Time{}, job.Attempt, job.unsentTokens); err != nil {
+		return err
+	}
+	if err := requeue(time.Now().Add(job.retryDelay), job.Attempt+1, job.retryTokens); err != nil {
+		return err
 	}
 
-	// NOTE: a failure rolls the jobs back to be sent again, since dropping it would lose their retries
-	if len(unregisteredTokens)+len(requeued) > 0 {
-		batch := &pgx.Batch{}
-		// NOTE: now() is the transaction's start on the database clock, so a device that registered again since keeps its token
-		batch.Queue(`DELETE FROM push_devices WHERE token = ANY($1) AND updated_at < now()`, unregisteredTokens)
-		batch.Queue(`INSERT INTO push_jobs (notification_id, send_at, job) SELECT * FROM unnest($1::bigint[], $2::timestamptz[], $3::jsonb[])`,
-			notificationIDs, sendAts, requeued)
-		if err := transaction.SendBatch(ctx, batch).Close(); err != nil {
-			return err
-		}
-	}
-	if _, err := transaction.Exec(ctx, `DELETE FROM push_jobs WHERE id = ANY($1)`, jobIDs); err != nil {
+	// NOTE: a failure returns the error, so the queue retries the whole job with backoff instead of losing its retries
+	completed, err := queued.Complete(ctx, transaction)
+	if err != nil {
 		return err
+	}
+	if !completed {
+		return errors.New("lost the lease before finishing")
 	}
 	return transaction.Commit(ctx)
 }

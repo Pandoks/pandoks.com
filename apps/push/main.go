@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"queue"
 	"strings"
 	"sync"
 	"syscall"
@@ -32,23 +33,11 @@ CREATE TABLE IF NOT EXISTS push_devices (
 CREATE INDEX IF NOT EXISTS push_devices_app_kind_user_id ON push_devices (app, kind, user_id);
 
 CREATE SEQUENCE IF NOT EXISTS push_notification_ids;
-CREATE TABLE IF NOT EXISTS push_jobs (
-  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  notification_id bigint NOT NULL,
-  send_at timestamptz NOT NULL,
-  job jsonb NOT NULL,
-  -- NOTE: lets a claim skip jobs too big for its batch without reading their TOASTed job. A requeued
-  -- job sends to its tokens, and its user IDs only check who owns them.
-  recipients integer GENERATED ALWAYS AS (coalesce(jsonb_array_length(job->'tokens'), jsonb_array_length(job->'user_ids'))) STORED
-);
-CREATE INDEX IF NOT EXISTS push_jobs_send_at ON push_jobs (send_at);
-CREATE INDEX IF NOT EXISTS push_jobs_notification_id ON push_jobs (notification_id);
 `
 
 type service struct {
 	database *pgxpool.Pool
 	senders  map[string]sender
-	wake     chan struct{}
 	sends    chan struct{}
 }
 
@@ -82,6 +71,9 @@ func migrate(ctx context.Context) error {
 		return err
 	}
 	defer func() { _ = connection.Close(ctx) }()
+	if err := queue.Migrate(ctx, connection); err != nil {
+		return err
+	}
 	_, err = connection.Exec(ctx, schema)
 	return err
 }
@@ -91,7 +83,6 @@ func run(ctx context.Context, listener net.Listener) error {
 	if err != nil {
 		return err
 	}
-	// NOTE: every job worker holds a connection for its whole batch, and LISTEN holds one for good
 	databaseConfig.MaxConns = databaseConnections
 	// NOTE: the pool dials in the background without the caller's deadline
 	databaseConfig.ConnConfig.ConnectTimeout = databaseTimeout
@@ -121,15 +112,20 @@ func run(ctx context.Context, listener net.Listener) error {
 	service := &service{
 		database: database,
 		senders:  map[string]sender{"ios": apns, "android": fcm},
-		wake:     make(chan struct{}, jobWorkers),
 		sends:    make(chan struct{}, sendConcurrency),
 	}
 
 	var workers sync.WaitGroup
-	for range jobWorkers {
-		workers.Go(func() { service.work(ctx) })
-	}
-	workers.Go(func() { service.listen(ctx) })
+	workers.Go(func() {
+		worker := queue.Worker{Pool: database, Queue: pushQueue, Name: os.Getenv("HOSTNAME"), Concurrency: jobWorkers, Handle: service.deliver}
+		for ctx.Err() == nil {
+			err := worker.Run(ctx)
+			if ctx.Err() == nil {
+				slog.Error("run jobs", "error", err)
+				time.Sleep(time.Second)
+			}
+		}
+	})
 
 	server := &http.Server{Handler: service.routes(), ReadHeaderTimeout: 10 * time.Second}
 	serveErrors := make(chan error, 1)

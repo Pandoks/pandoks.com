@@ -95,6 +95,7 @@ jobs:
               - 'packages/clickhouse/backup/**'
             push:
               - 'apps/push/**'
+              - 'packages/queue/**'
 
       - id: chart-changes
         if: github.event_name != 'workflow_dispatch'

@@ -1,6 +1,7 @@
 FROM golang:1.27.3-trixie@sha256:fbb7ae40b62ff8afe31662df570d39b4f5052ac32b90dae8e60d7657a20a74f4 AS builder
 
-WORKDIR /src
+WORKDIR /src/apps/push
+COPY packages/queue /src/packages/queue
 COPY apps/push/go.mod apps/push/go.sum ./
 RUN go mod download
 

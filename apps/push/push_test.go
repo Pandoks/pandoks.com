@@ -41,9 +41,10 @@ type providerRequest struct {
 // fakeProvider speaks the APNs and FCM HTTP/2 wire formats over TLS. Tokens starting with "gone-"
 // are unregistered, "invalid-" are malformed FCM tokens, "busy-" are throttled on their first
 // request, "reset-" have their first APNs request's stream reset, "later-" FCM tokens are told to
-// retry at an HTTP date an hour away, "hang-", "slow-", "stuck-", and "burst-" block their first
-// request until release, releaseSlow, releaseStuck, and releaseBurst are closed, and "sandbox-" are
-// valid only on the sandbox APNs host while every other APNs token is valid only on production.
+// retry at an HTTP date an hour away, "slow-" and "stuck-" block their first request until
+// releaseSlow and releaseStuck are closed, "late-gone-" blocks its first request until release is
+// closed and is then unregistered, and "sandbox-" are valid only on the sandbox APNs host while
+// every other APNs token is valid only on production.
 type fakeProvider struct {
 	mutex            sync.Mutex
 	requests         map[string][]providerRequest
@@ -51,7 +52,6 @@ type fakeProvider struct {
 	release          chan struct{}
 	releaseSlow      chan struct{}
 	releaseStuck     chan struct{}
-	releaseBurst     chan struct{}
 }
 
 func (provider *fakeProvider) serve(t *testing.T, apnsPublicKey *ecdsa.PublicKey, environment string) *httptest.Server {
@@ -83,14 +83,14 @@ func (provider *fakeProvider) serve(t *testing.T, apnsPublicKey *ecdsa.PublicKey
 			_, _ = writer.Write([]byte(`{"reason":"TooManyRequests"}`))
 		case strings.HasPrefix(token, "reset-") && attempt == 1:
 			panic(http.ErrAbortHandler)
-		case strings.HasPrefix(token, "hang-") && attempt == 1:
+		case strings.HasPrefix(token, "late-gone-") && attempt == 1:
 			<-provider.release
+			writer.WriteHeader(http.StatusGone)
+			_, _ = writer.Write([]byte(`{"reason":"Unregistered","timestamp":1700000000000}`))
 		case strings.HasPrefix(token, "slow-") && attempt == 1:
 			<-provider.releaseSlow
 		case strings.HasPrefix(token, "stuck-") && attempt == 1:
 			<-provider.releaseStuck
-		case strings.HasPrefix(token, "burst-") && attempt == 1:
-			<-provider.releaseBurst
 		}
 	})
 	mux.HandleFunc("POST /token", func(writer http.ResponseWriter, _ *http.Request) {
@@ -235,7 +235,7 @@ func TestPush(t *testing.T) {
 	apnsKeyDER, _ := x509.MarshalPKCS8PrivateKey(apnsKey)
 	fcmKey, _ := rsa.GenerateKey(rand.Reader, 2048)
 	fcmKeyDER, _ := x509.MarshalPKCS8PrivateKey(fcmKey)
-	provider := &fakeProvider{requests: map[string][]providerRequest{}, release: make(chan struct{}), releaseSlow: make(chan struct{}), releaseStuck: make(chan struct{}), releaseBurst: make(chan struct{})}
+	provider := &fakeProvider{requests: map[string][]providerRequest{}, release: make(chan struct{}), releaseSlow: make(chan struct{}), releaseStuck: make(chan struct{})}
 	production := provider.serve(t, &apnsKey.PublicKey, "production")
 	sandbox := provider.serve(t, &apnsKey.PublicKey, "sandbox")
 	trustedCertificates := x509.NewCertPool()
@@ -327,7 +327,7 @@ func TestPush(t *testing.T) {
 	}
 	jobsLeft := func(notificationID string) int {
 		var count int
-		if err := database.QueryRow(ctx, `SELECT count(*) FROM push_jobs WHERE notification_id = $1`, notificationID).Scan(&count); err != nil {
+		if err := database.QueryRow(ctx, `SELECT count(*) FROM queue_jobs WHERE queue = $1 AND group_key = $2`, pushQueue, notificationID).Scan(&count); err != nil {
 			t.Fatal(err)
 		}
 		return count
@@ -425,15 +425,18 @@ func TestPush(t *testing.T) {
 		}
 	})
 
-	t.Run("sends a job again when its retries fail to requeue", func(t *testing.T) {
+	t.Run("retries a job with backoff when its retries fail to requeue", func(t *testing.T) {
 		register("busy-requeue-", "ios", "production", "device", "user-16")
-		// NOTE: fails the INSERT that requeues this token's retry
-		if _, err := database.Exec(ctx, fmt.Sprintf(`ALTER TABLE push_jobs ADD CONSTRAINT fail_requeue CHECK (NOT job->'tokens' ? '%s') NOT VALID`, "busy-requeue-"+app)); err != nil {
+		// NOTE: fails the enqueue that requeues this token's retry
+		if _, err := database.Exec(ctx, fmt.Sprintf(`ALTER TABLE queue_jobs ADD CONSTRAINT fail_requeue CHECK (NOT payload->'tokens' ? '%s') NOT VALID`, "busy-requeue-"+app)); err != nil {
 			t.Fatal(err)
 		}
-		t.Cleanup(func() { _, _ = database.Exec(ctx, `ALTER TABLE push_jobs DROP CONSTRAINT fail_requeue`) })
+		t.Cleanup(func() { _, _ = database.Exec(ctx, `ALTER TABLE queue_jobs DROP CONSTRAINT fail_requeue`) })
 		id := send(alert(map[string]any{"user_ids": []string{"user-16"}}))
 		waitFor(t, "the job to be sent again and finish", func() bool { return len(sentTo("busy-requeue-")) == 2 && jobsLeft(id) == 0 })
+		if requests := sentTo("busy-requeue-"); requests[1].at.Sub(requests[0].at) < time.Second {
+			t.Errorf("sent the job again after %s, before the queue's 1s backoff", requests[1].at.Sub(requests[0].at))
+		}
 	})
 
 	t.Run("skips a retry to a token registered to another user meanwhile", func(t *testing.T) {
@@ -444,6 +447,18 @@ func TestPush(t *testing.T) {
 		waitFor(t, "the retry to finish", func() bool { return jobsLeft(id) == 0 })
 		if requests := len(sentTo("busy-moved-")); requests != 1 {
 			t.Errorf("sent user-18's notification to user-19's device: %d requests", requests)
+		}
+	})
+
+	t.Run("keeps an unregistered token that registered again during the send", func(t *testing.T) {
+		register("late-gone-", "ios", "production", "device", "user-23")
+		id := send(alert(map[string]any{"user_ids": []string{"user-23"}}))
+		waitFor(t, "the send", func() bool { return len(sentTo("late-gone-")) == 1 })
+		register("late-gone-", "ios", "production", "device", "user-23")
+		close(provider.release)
+		waitFor(t, "the job to finish", func() bool { return jobsLeft(id) == 0 })
+		if !deviceExists("late-gone-") {
+			t.Error("removed a token registered again after the send started")
 		}
 	})
 
@@ -531,14 +546,14 @@ func TestPush(t *testing.T) {
 		var terminated int
 		err := database.QueryRow(ctx, `
 			SELECT count(*) FILTER (WHERE pg_terminate_backend(pid, 5000)) FROM pg_stat_activity
-			WHERE datname = current_database() AND query = 'LISTEN push_jobs'`,
+			WHERE datname = current_database() AND query = 'LISTEN "queue_push"'`,
 		).Scan(&terminated)
 		if err != nil || terminated != 1 {
 			t.Fatalf("terminated %d connections: %v", terminated, err)
 		}
 		waitFor(t, "LISTEN to reconnect", func() bool {
 			var listening int
-			err := database.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND query = 'LISTEN push_jobs'`).Scan(&listening)
+			err := database.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND query = 'LISTEN "queue_push"'`).Scan(&listening)
 			return err == nil && listening == 1
 		})
 	})
@@ -582,15 +597,15 @@ func TestPush(t *testing.T) {
 		})
 		register("woken-", "ios", "production", "device", "user-12")
 		startService(t)
-		// NOTE: without NOTIFY the new replica takes this on a poll, and the sleep lets the workers it woke go idle
+		// NOTE: the new replica claims this as it starts, and the sleep lets its workers go idle
 		firstID := send(alert(map[string]any{"user_ids": fanOut("user-none")}))
 		waitFor(t, "the new replica to take the first fan-out", func() bool { return jobsLeft(firstID) == 0 })
-		time.Sleep(pollInterval / 5)
+		time.Sleep(200 * time.Millisecond)
 
 		sentAt := time.Now()
 		send(alert(map[string]any{"user_ids": fanOut("user-12")}))
 		waitFor(t, "the other replica to deliver", func() bool { return len(sentTo("woken-")) == 1 })
-		if elapsed := time.Since(sentAt); elapsed > pollInterval/2 {
+		if elapsed := time.Since(sentAt); elapsed > 500*time.Millisecond {
 			t.Errorf("the other replica delivered after %s instead of being woken", elapsed)
 		}
 		close(provider.releaseStuck)
@@ -599,48 +614,6 @@ func TestPush(t *testing.T) {
 		}
 	})
 
-	t.Run("sends a burst of small notifications at once instead of one per worker", func(t *testing.T) {
-		sendAt := time.Now().Add(time.Second).Format(time.RFC3339Nano)
-		var ids []string
-		for index := range 4 * jobWorkers {
-			token := fmt.Sprintf("burst-%d-", index)
-			register(token, "ios", "production", "device", "user-14")
-			ids = append(ids, send(alert(map[string]any{"tokens": []string{token + app}, "send_at": sendAt})))
-		}
-		waitFor(t, "every send to be in flight", func() bool {
-			for index := range ids {
-				if len(sentTo(fmt.Sprintf("burst-%d-", index))) == 0 {
-					return false
-				}
-			}
-			return true
-		})
-		close(provider.releaseBurst)
-		for _, id := range ids {
-			waitFor(t, "the burst to finish", func() bool { return jobsLeft(id) == 0 })
-		}
-	})
-
-	t.Run("redelivers a job whose worker died before committing", func(t *testing.T) {
-		register("hang-", "ios", "production", "device", "user-9")
-		id := send(alert(map[string]any{"user_ids": []string{"user-9"}}))
-		waitFor(t, "the first send", func() bool { return len(sentTo("hang-")) == 1 })
-		var terminated int
-		// NOTE: polling workers are idle in a transaction for well under a second, the hung one for good
-		waitFor(t, "the hung worker's connection to be terminated", func() bool {
-			err := database.QueryRow(ctx, `
-				SELECT count(*) FILTER (WHERE pg_terminate_backend(pid)) FROM pg_stat_activity
-				WHERE datname = current_database() AND state = 'idle in transaction' AND query LIKE '%FROM push_jobs%'
-				  AND state_change < now() - interval '1 second'`,
-			).Scan(&terminated)
-			return err == nil && terminated > 0
-		})
-		if terminated != 1 {
-			t.Fatalf("terminated %d connections", terminated)
-		}
-		close(provider.release)
-		waitFor(t, "the job to be sent again and finish", func() bool { return len(sentTo("hang-")) == 2 && jobsLeft(id) == 0 })
-	})
 	t.Run("requeues the sends a stopping replica hasn't started instead of repeating the job", func(t *testing.T) {
 		// NOTE: one more unsent device than a job holds
 		devices := sendConcurrency + recipientsPerJob + 1
@@ -670,7 +643,7 @@ func TestPush(t *testing.T) {
 		close(provider.releaseSlow)
 		var requeued int
 		waitFor(t, "the unstarted sends to be requeued", func() bool {
-			err := database.QueryRow(ctx, `SELECT coalesce(sum(jsonb_array_length(job->'tokens')), 0) FROM push_jobs WHERE notification_id = $1`, id).Scan(&requeued)
+			err := database.QueryRow(ctx, `SELECT coalesce(sum(jsonb_array_length(payload->'tokens')), 0) FROM queue_jobs WHERE queue = $1 AND group_key = $2`, pushQueue, id).Scan(&requeued)
 			return err == nil && requeued > 0
 		})
 		if requeued != devices-sendConcurrency || started() != sendConcurrency {

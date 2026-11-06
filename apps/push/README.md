@@ -6,9 +6,8 @@ is reachable only inside the cluster at `http://push.main.svc.cluster.local`.
 ```mermaid
 graph LR
     Caller[In-cluster caller] -->|HTTP| API[push API]
-    API -->|devices, jobs| Postgres[(Postgres<br/>push_devices, push_jobs)]
-    API -->|wakes| Workers[push workers]
-    Postgres -->|NOTIFY on fan-out, SKIP LOCKED claims| Workers
+    API -->|devices, jobs| Postgres[(Postgres<br/>queue_jobs, push_devices)]
+    Postgres -->|NOTIFY on enqueue, leased claims| Workers[push workers]
     Workers -->|HTTP/2| APNs[APNs production / sandbox]
     Workers -->|HTTP/2| FCM
 ```
@@ -51,16 +50,18 @@ curl -X POST http://push.main.svc.cluster.local/notifications -d '{
 
 ## Delivery
 
-- A notification is split into jobs in Postgres so a fan-out spreads across every replica. A worker
-  holds its job's row lock while sending and deletes the job when it commits, so delivery is at
-  least once: a replica that dies mid-job leaves the job to another worker, which sends it again. A
-  stopping replica starts no more sends and requeues the tokens it hasn't sent before committing.
-- A worker claims due jobs until it holds 500 recipients and starts each job's sends as soon as it
-  claims it, so a burst of small notifications goes out together while a fan-out's full jobs still
-  spread across replicas.
-- Each pod opens at most 5 Postgres connections: 3 workers hold one each for their batch, LISTEN
-  holds one, and the API always has the last one plus any idle worker's. A rollout overlaps up to 4
-  pods, so push stays within 20 of the 25 connections PgDog leaves free.
+- A notification is split into jobs of at most 500 recipients on the `push` queue of
+  [packages/queue](/packages/queue), grouped by notification ID, so a fan-out spreads across every
+  replica. Each pod runs 3 jobs at a time under a 30-second lease that it renews while sending.
+  Delivery is at least once: a replica that dies mid-job leaves the job to another worker once the
+  lease runs out, within 30 seconds, and that worker sends it again. A stopping replica starts no
+  more sends and requeues the tokens it hasn't sent.
+- A job ends in one transaction that deletes unregistered tokens, requeues retries as new jobs, and
+  completes the job. If that fails, the queue runs the whole job again after 1, 2, 4, and 8 seconds,
+  then marks it dead in `queue_jobs`.
+- Each pod opens at most 5 Postgres connections: LISTEN holds one, and workers use the rest only to
+  claim, heartbeat, and finish a job, never across sends, so the API keeps one. A rollout overlaps
+  up to 4 pods, so push stays within 20 of the 25 connections PgDog leaves free.
 - Database calls time out after 5 seconds, and `GET /readyz` fails while Postgres is unreachable.
 - APNs `429` and `5xx` and FCM `429` and `5xx` are retried 4 times with exponential backoff, or
   after FCM's `Retry-After` as given if that's longer; APNs sends none. The first retry waits at

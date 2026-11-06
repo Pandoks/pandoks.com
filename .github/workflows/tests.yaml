@@ -50,6 +50,7 @@ jobs:
               - 'packages/valkey/reconciler/**'
             push:
               - 'apps/push/**'
+              - 'packages/queue/**'
 
   test-web:
     needs: detect-changes
