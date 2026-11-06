@@ -32,7 +32,7 @@ export default function DeviceScreen() {
     ['Safe area', [insets.top, insets.right, insets.bottom, insets.left].map(Math.round).join(' ')],
     ['Platform', `${Platform.OS} ${Platform.Version}`],
     ['Notifications', permission?.status],
-    ['Push token', token ?? error?.message ?? 'pending']
+    ['Push token', token ?? (error?.message || 'pending')]
   ];
   const actions = [
     { label: 'Allow notifications', onPress: requestPermission },

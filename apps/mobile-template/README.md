@@ -12,12 +12,12 @@ The Device tab demos
 
 Android gets a push token only from builds run in `sst shell`: it links the stage's Firebase app
 from [infra/firebase.ts](/infra/firebase.ts), and `app.config.ts` writes its `google-services.json`.
-Use `production`, or any other stage for the shared `pandoks-dev` project, and rebuild `android/` so
-prebuild copies the file:
+Any non-production stage gets the shared `pandoks-dev` project; production's config is only read by
+CI. Rebuild `android/` so prebuild copies the file:
 
 ```sh
 rm -rf android
-pnpm --dir ../.. sst shell --stage production -- \
+pnpm --dir ../.. sst shell --stage <stage> -- \
   pnpm --filter @pandoks.com/mobile-template android --variant release
 ```
 
