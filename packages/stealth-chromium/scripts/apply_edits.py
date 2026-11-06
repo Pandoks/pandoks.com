@@ -46,11 +46,15 @@ SRC = WORK / "chromium" / "src"
 # too. Noise is confined to textured content, where a page has no reference
 # value to diff against.
 #
-# Bounds: every access goes through base::span (CHECKed), never raw indexing,
-# so the body is -Wunsafe-buffer-usage clean; the one pointer->span step is
-# wrapped in UNSAFE_BUFFERS with its invariant stated. The span covers exactly
-# the bytes GL / Skia wrote -- (apex_h - 1) full strides plus one unpadded
-# final row -- which is the size the upstream validators already require.
+# Bounds: pixel access goes through base::span (apex_at()/apex_buf) so every
+# buffer access is CHECKed; the pointer->span step carries the stated invariant.
+# The four fixed-size stack tables (apex_ord/apex_ch_flat/apex_writable/apex_grp)
+# are raw-indexed, so the whole computation is wrapped in UNSAFE_BUFFERS({...})
+# -- the base/compiler_specific.h scoped suppression, required because all three
+# call sites compile under the blink unsafe-buffers enforcement list.
+# The span covers exactly the bytes GL / Skia wrote -- (apex_h - 1) full strides
+# plus one unpadded final row -- which is the size the upstream validators
+# already require.
 # Canvas farbling v2.1: the content-keyed LSB lock plus the four repair rules
 # the adversarial review proved necessary (measured in /var/tmp/apex-farble-sim
 # sim4..sim7). v2.0 (dense lock) broke three renderer invariants: I1 88%
@@ -90,6 +94,12 @@ _RGBA_NOISE_LOOP = (
     "        const size_t apex_c0 = apex_bgra ? 2u : 0u;\n"
     "        const size_t apex_c2 = apex_bgra ? 0u : 2u;\n"
     "        const size_t apex_ord[3] = {apex_c0, 1u, apex_c2};\n"
+    "        // SAFETY: apex_ord/apex_ch_flat/apex_writable/apex_grp are fixed\n"
+    "        // 3-element stack arrays indexed by li/lj in [0, 3); apex_at()\n"
+    "        // clamps every pixel access to the apex_buf span. UNSAFE_BUFFERS\n"
+    "        // scopes the suppression the blink unsafe-buffers enforcement\n"
+    "        // list requires for the residual raw indexing (apex_ord etc.).\n"
+    "        UNSAFE_BUFFERS({\n"
     "        for (size_t ay = 1; ay + 1 < apex_h; ++ay) {\n"
     "          for (size_t ax = 1; ax + 1 < apex_w; ++ax) {\n"
     "            base::span<uint8_t> apex_p = apex_at(ax, ay);\n"
@@ -174,6 +184,7 @@ _RGBA_NOISE_LOOP = (
     "            }\n"
     "          }\n"
     "        }\n"
+    "        });\n"
     "      }\n"
 )
 
