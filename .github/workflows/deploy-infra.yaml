@@ -137,8 +137,8 @@ jobs:
           while [ "${SECONDS}" -lt 600 ]; do
             argocd_app=$(sudo kubectl get application prod-cluster -n argocd -o json)
             argocd_revision=$(jq -r .status.sync.revision <<<"${argocd_app}")
-            # NOTE: Argo drops the refresh annotation with the first status written after the hard refresh.
-            argocd_state=$(jq -r '
+            # NOTE: status is stale until Argo CD removes the refresh annotation.
+            deploy_state=$(jq -r '
               if .metadata.annotations["argocd.argoproj.io/refresh"] then "refreshing"
               elif any(.status.conditions[]?; .type == "ComparisonError")
                 or (.status.operationState.operation.sync.revision == .status.sync.revision
@@ -146,10 +146,10 @@ jobs:
               elif .status.sync.status == "Synced" and .status.health.status == "Healthy" then "healthy"
               else "waiting" end' <<<"${argocd_app}")
 
-            if [ "${argocd_state}" = failed ] || [ "${argocd_state}" = healthy ]; then
+            if [ "${deploy_state}" = failed ] || [ "${deploy_state}" = healthy ]; then
               # NOTE: main may have moved on, so a newer revision that contains main_commit also counts.
               comparison_to_main=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${main_commit}...${argocd_revision}" --jq .status)
-              case "${argocd_state}:${comparison_to_main}" in
+              case "${deploy_state}:${comparison_to_main}" in
                 failed:identical | failed:ahead)
                   echo "Sync failed at ${argocd_revision}:"
                   jq -r '.status.conditions[]?.message, .status.operationState.message // empty' <<<"${argocd_app}"
@@ -163,5 +163,5 @@ jobs:
             fi
             sleep 5
           done
-          echo "Timed out waiting for main (${main_commit}) to sync healthy: ${argocd_state} at ${argocd_revision}"
+          echo "Timed out waiting for main (${main_commit}) to sync healthy: ${deploy_state} at ${argocd_revision}"
           exit 1
