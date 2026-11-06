@@ -74,6 +74,13 @@
     },
     {
       "customType": "regex",
+      "managerFilePatterns": ["/^mise\\.toml$/"],
+      "matchStrings": ["\\ngcloud = \"(?<currentValue>[\\d.]+)\""],
+      "depNameTemplate": "gcr.io/google.com/cloudsdktool/google-cloud-cli",
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
       "managerFilePatterns": ["/^infra/runner/ami\\.yaml$/"],
       "matchStrings": ["npm install -g (?<depName>pnpm)@(?<currentValue>[\\d.]+)"],
       "datasourceTemplate": "npm"
