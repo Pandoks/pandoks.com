@@ -271,6 +271,7 @@ jobs:
 
   checks-pass:
     needs:
+      - detect-changes
       - format-js
       - lint-js
       - format-go

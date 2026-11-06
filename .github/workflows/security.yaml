@@ -122,6 +122,7 @@ jobs:
 
   security-pass:
     needs:
+      - detect-changes
       - scan-k3s-config
     if: ${{ always() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest

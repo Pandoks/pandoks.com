@@ -122,6 +122,7 @@ jobs:
 
   tests-pass:
     needs:
+      - detect-changes
       - test-web
       - test-desktop
       - test-svelte-pkg

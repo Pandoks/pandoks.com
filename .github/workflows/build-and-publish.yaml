@@ -264,6 +264,7 @@ jobs:
 
   build-and-publish-pass:
     needs:
+      - detect-changes
       - build-publish-images
       - build-publish-charts
     if: ${{ always() }}
