@@ -32,6 +32,10 @@
 +++ b/third_party/blink/renderer/modules/webcodecs/video_decoder.cc
 @@ DecoderSupport_OnKnown @@
    // Called with a possibly-null gpu_factories (no GPU process on the host).
+   // NOTE: the apply_edits.py inject actually lands INSIDE the null-factories
+   // branch (anchor "if (!gpu_factories) {" + after). Intentional: the only
+   // deployment is the container (no GPU process), and on a real-GPU host the
+   // stock path serves the hardware truth, which is already persona-coherent.
 +  // --- apex: persona hw-decode override ---
 +  if (apex_fp::MediaHwDecode()) {
 +    support->setSupported(true);

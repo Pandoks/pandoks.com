@@ -273,8 +273,17 @@ fetch_widevine_cdm() {
   fi
   echo "[3.5/3] fetching Widevine CDM input files ($CHROMIUM_VERSION) ..."
   wv_zip_dir=$(mktemp -d)
-  if ! curl -fsSL -o "$wv_zip_dir/cft.zip" \
-       "https://storage.googleapis.com/chrome-for-testing-public/${CHROMIUM_VERSION}/linux64/chrome-linux64.zip"; then
+  wv_url="https://storage.googleapis.com/chrome-for-testing-public/${CHROMIUM_VERSION}/linux64/chrome-linux64.zip"
+  wv_attempt=1
+  while [ "$wv_attempt" -le 5 ]; do
+    if curl -fsSL -o "$wv_zip_dir/cft.zip" "$wv_url"; then
+      break
+    fi
+    echo "      CDM fetch attempt $wv_attempt/5 failed" >&2
+    wv_attempt=$((wv_attempt + 1))
+    sleep 3
+  done
+  if [ "$wv_attempt" -gt 5 ]; then
     rm -rf "$wv_zip_dir"
     echo "      ERROR: no chrome-linux64.zip for $CHROMIUM_VERSION at the CFT bucket." >&2
     echo "      Pin the CDM files manually at $wv_dir/{linux,x64}/ and re-run setup." >&2
