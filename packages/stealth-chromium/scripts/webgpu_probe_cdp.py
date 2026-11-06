@@ -195,7 +195,7 @@ FP_INTEL = {
                               "(0x000046A6) Direct3D11 vs_5_0 ps_5_0, D3D11)",
     "APEX_FP_WEBGPU_VENDOR": "intel",
     "APEX_FP_WEBGPU_ARCH": "gen-12lp",
-    "APEX_FP_WEBGPU_DEVICE_ID": "0x000046A6",
+    "APEX_FP_WEBGPU_DEVICE_ID": "0x46a6",
     "APEX_FP_WEBGPU_DESCRIPTION": "Intel(R) Iris(R) Xe Graphics",
     "APEX_FP_WEBGPU_DRIVER": "D3D12",
     "APEX_FP_WEBGPU_TYPE": "integrated",
