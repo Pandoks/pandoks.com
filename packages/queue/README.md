@@ -17,13 +17,17 @@ graph LR
 ## Rules
 
 - **Lease:** a claim marks the job `running` until `now() + lease`. A worker that dies stops
-  heartbeating, so its job runs again on another worker once the lease ends.
+  heartbeating, so its job runs again on another worker once the lease ends. The lease must be
+  positive: Go's zero `Lease` means 30 s, and a negative one, or a Python or TS lease of 0 or less,
+  is an error before the worker claims.
 - **Heartbeat:** while the handler runs, the client extends the lease every `lease / 3`. Go cancels
-  the handler's context when the lease is lost. Python and TS can't stop a running handler, so they
-  only log it, and the handler's side effects can happen twice.
+  the handler's context when the lease is lost or an extend fails. Python and TS can't stop a
+  running handler: they log a failed extend and keep heartbeating, and once the lease is lost they
+  log it and stop, so the handler's side effects can happen twice.
 - **Shutdown:** when Go's `Run` stops, it cancels the running handlers. A job whose handler returns
-  `context.Canceled` goes back to the queue with its attempt unspent (`queue_release`). A Python or
-  TS worker that exits mid-job is a crash: the job runs again after its lease, on a spent attempt.
+  `context.Canceled` goes back to the queue with its attempt unspent (`queue_release`), and so does
+  a job whose claim returns after `Run` stops. A Python or TS worker that exits mid-job is a crash:
+  the job runs again after its lease, on a spent attempt.
 - **Fencing:** every report carries the attempt it claimed. Once another worker claims the job, the
   first worker's extend, complete, retry, and fail return false and change nothing.
 - **Retry:** a handler error retries after `2^(attempt-1)` seconds, at most an hour, or after
@@ -31,8 +35,8 @@ graph LR
   attempt (5 by default), mark the job `dead`. A job whose worker dies on its last attempt is marked
   dead by the next claim.
 - **Cancel:** deletes a queued job, or a running one whose lease ran out. A job a worker still runs
-  finishes this run, and its retry, release, or lost lease then deletes it instead of running it
-  again.
+  finishes this run, and its retry, fail, release, or lost lease then deletes it instead of running
+  it again.
 - **History:** a completed or cancelled job is deleted. Dead rows stay in `queue_jobs` for a human
   to inspect, and logs are the only record of successes.
 - **Wake-up:** a trigger runs `pg_notify('queue_<name>')` whenever a row becomes `queued`, so it
@@ -67,11 +71,14 @@ Every client calls these, so a producer can also call them straight from SQL.
 
 Enqueue inside the caller's transaction to commit the job with its writes. To commit a job's end
 with the handler's writes and follow-up jobs, call `Complete` in the handler's transaction and roll
-it back if it returns false. Once it returns true, the runner doesn't report the job again.
+it back if it returns false. Once it returns true, the runner stops heartbeating and doesn't report
+the job, so a transaction that then rolls back anyway, like a failed commit, leaves the job to run
+again once its lease ends, on a spent attempt.
 
-`Run` and `work` return or raise when the database fails. A Go caller that serves other traffic
-restarts `Run` in a loop; Python and TS workers exit and Kubernetes restarts them. When `Run`'s
-context ends, it cancels the handlers' contexts but keeps heartbeating until they return.
+`Run` and `work` return or raise when the database fails, TS's `work` included when its idle
+connection does. A Go caller that serves other traffic restarts `Run` in a loop; Python and TS
+workers exit and Kubernetes restarts them. When `Run`'s context ends, it cancels the handlers'
+contexts but keeps heartbeating until they return.
 
 ```go
 // Producer, in the app's transaction
@@ -150,8 +157,9 @@ await work(client, 'thumbnails', process.env.HOSTNAME!, async (job) => {
 ## Tests
 
 `queue_test.go` covers the SQL rules once; the Python and TS tests cover only each client's own
-error mapping, heartbeat, wake-up channel, and in-transaction `complete`. They need a Postgres that
-the `PG*` variables reach, and each test empties its own queues first:
+error mapping, heartbeat, wake-up channel, in-transaction `complete`, and lease check, and TS's idle
+connection error. They need a Postgres that the `PG*` variables reach, and each test empties its own
+queues first:
 
 ```sh
 docker run -d --rm --name queue-test -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:18-trixie

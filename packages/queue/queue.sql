@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS queue_jobs (
   group_key    text,
   -- NOTE: a finished or cancelled job is deleted; a dead one stays for a human to inspect
   state        text        NOT NULL DEFAULT 'queued' CHECK (state IN ('queued', 'running', 'dead')),
-  -- NOTE: set on a running job; its retry, release or lost lease deletes it instead of running it again
+  -- NOTE: set on a running job; its retry, fail, release or lost lease deletes it instead of running it again
   cancelled    boolean     NOT NULL DEFAULT false,
   -- When a queued job may run. While running, the lease end: after it, another worker may claim the job.
   available_at timestamptz NOT NULL,
@@ -113,12 +113,16 @@ RETURNS boolean LANGUAGE sql AS $$
   ) SELECT EXISTS (SELECT 1 FROM deleted) OR EXISTS (SELECT 1 FROM retried);
 $$;
 
+-- Marks the job dead, or deletes it once cancelled.
 CREATE OR REPLACE FUNCTION queue_fail(job_id bigint, attempt int, error_text text) RETURNS boolean LANGUAGE sql AS $$
-  WITH failed AS (
-    UPDATE queue_jobs SET state = 'dead', last_error = error_text
-    WHERE id = job_id AND attempts = attempt AND state = 'running'
+  WITH deleted AS (
+    DELETE FROM queue_jobs WHERE id = job_id AND attempts = attempt AND state = 'running' AND cancelled
     RETURNING 1
-  ) SELECT EXISTS (SELECT 1 FROM failed);
+  ), failed AS (
+    UPDATE queue_jobs SET state = 'dead', last_error = error_text
+    WHERE id = job_id AND attempts = attempt AND state = 'running' AND NOT cancelled
+    RETURNING 1
+  ) SELECT EXISTS (SELECT 1 FROM deleted) OR EXISTS (SELECT 1 FROM failed);
 $$;
 
 -- Hands a job back without spending its attempt, for a worker that stops before its handler finishes. Deletes it

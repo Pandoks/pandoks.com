@@ -81,7 +81,21 @@ export async function work(
   worker: string,
   handle: Handler,
   lease = 30
-) {
+): Promise<never> {
+  if (lease <= 0) throw new Error(`the lease is ${lease} s, but it must be positive`);
+  // NOTE: pg emits an idle connection's error instead of rejecting a query, and an unhandled one crashes the process
+  const { promise: failed, reject } = Promise.withResolvers<never>();
+  db.on('error', reject);
+  return Promise.race([failed, claimJobs(db, queue, worker, handle, lease)]);
+}
+
+async function claimJobs(
+  db: pg.Client,
+  queue: string,
+  worker: string,
+  handle: Handler,
+  lease: number
+): Promise<never> {
   let notifications = 0;
   let wakeUp = () => {};
   db.on('notification', () => {
@@ -123,11 +137,6 @@ export async function work(
 }
 
 async function run(db: pg.Client, job: Job, handle: Handler, lease: number): Promise<void> {
-  // NOTE: a promise can't be stopped, so a lost lease is only logged; the fenced report changes nothing
-  const lost = (...error: unknown[]) => {
-    clearInterval(heartbeat);
-    console.warn(`lease lost while running job ${job.id} attempt ${job.attempt}`, ...error);
-  };
   let extending: Promise<void> | undefined;
   const extend = () => {
     // NOTE: once complete deletes the job in the handler's transaction, an extend waits on its row lock and then
@@ -139,9 +148,17 @@ async function run(db: pg.Client, job: Job, handle: Handler, lease: number): Pro
         job.attempt,
         lease
       ])
-      .then(({ rows: [{ extended }] }) => {
-        if (!extended) lost();
-      }, lost)
+      .then(
+        ({ rows: [{ extended }] }) => {
+          if (extended) return;
+          // NOTE: a promise can't be stopped, so a lost lease is only logged; the fenced report changes nothing
+          clearInterval(heartbeat);
+          console.warn(`lease lost while running job ${job.id} attempt ${job.attempt}`);
+        },
+        // NOTE: a failed extend doesn't mean the lease is lost, so the heartbeat keeps ticking
+        (error: unknown) =>
+          console.warn(`heartbeat failed for job ${job.id} attempt ${job.attempt}`, error)
+      )
       .finally(() => {
         extending = undefined;
       });

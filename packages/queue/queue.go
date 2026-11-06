@@ -117,7 +117,7 @@ type Worker struct {
 	Pool        *pgxpool.Pool
 	Queue, Name string
 	// Lease is how long a job stays claimed without a heartbeat, so how soon a dead worker's job runs again.
-	// Zero means 30 s.
+	// Zero means 30 s, and a negative one is an error.
 	Lease time.Duration
 	// Concurrency is how many jobs run at once. Zero means 1. Pool holds one connection for LISTEN and shares
 	// the rest between claims, heartbeats, reports and the handlers, so size it for the handlers' own use.
@@ -129,6 +129,9 @@ type Worker struct {
 // is done, it cancels the running handlers' contexts, waits for them to return, and gives back the jobs
 // whose handlers returned context.Canceled without spending their attempt.
 func (worker Worker) Run(ctx context.Context) error {
+	if worker.Lease < 0 {
+		return fmt.Errorf("the lease is %s, but it must be positive", worker.Lease)
+	}
 	if worker.Lease == 0 {
 		worker.Lease = 30 * time.Second
 	}
@@ -181,9 +184,13 @@ func (worker Worker) Run(ctx context.Context) error {
 func (worker Worker) work(ctx context.Context, wake chan struct{}) error {
 	for {
 		job := &Job{}
-		err := worker.Pool.QueryRow(ctx, primary+`SELECT id, queue, payload, group_key, attempts FROM queue_claim($1, $2, $3)`,
+		// NOTE: a claim cancelled mid-query can still commit, so it outlives ctx, and a job it claims after ctx is
+		// done goes back
+		claimContext, cancelClaim := context.WithTimeout(context.WithoutCancel(ctx), worker.Lease)
+		err := worker.Pool.QueryRow(claimContext, primary+`SELECT id, queue, payload, group_key, attempts FROM queue_claim($1, $2, $3)`,
 			worker.Queue, worker.Name, worker.Lease.Seconds(),
 		).Scan(&job.ID, &job.Queue, &job.Payload, &job.GroupKey, &job.Attempt)
+		cancelClaim()
 		if errors.Is(err, pgx.ErrNoRows) {
 			var seconds float64
 			if err := worker.Pool.QueryRow(ctx, primary+`SELECT queue_wait_seconds($1, $2)`, worker.Queue, worker.Lease.Seconds()).Scan(&seconds); err != nil {
@@ -199,6 +206,12 @@ func (worker Worker) work(ctx context.Context, wake chan struct{}) error {
 		}
 		if err != nil {
 			return err
+		}
+		if ctx.Err() != nil {
+			if err := worker.release(context.WithoutCancel(ctx), job); err != nil {
+				return err
+			}
+			return ctx.Err()
 		}
 		// NOTE: Postgres folds a transaction's NOTIFYs into one, so pass the wake on in case more jobs are due
 		select {
