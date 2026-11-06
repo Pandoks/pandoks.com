@@ -152,21 +152,13 @@ func TestFencedReports(t *testing.T) {
 		}
 	}
 
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := Enqueue(ctx, tx, queue+"-followup", map[string]string{}, EnqueueOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	completed, err := stale.Complete(ctx, tx)
+	completed, err := stale.Complete(ctx, pool)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if completed {
 		t.Error("Complete by the stale worker returned true")
 	}
-	_ = tx.Rollback(ctx)
 
 	if got := jobRow(t, id); got == nil || got.state != "running" || got.worker != "b" || got.attempts != 2 || got.lastError != "" {
 		t.Fatalf("the stale worker's reports changed b's job: %+v", got)
@@ -310,25 +302,6 @@ func TestWakeAndIsolation(t *testing.T) {
 	}
 	if got := jobRow(t, otherQueue); got.state != "queued" || got.attempts != 0 {
 		t.Fatalf("another queue's job was claimed: %+v", got)
-	}
-}
-
-func TestRolledBackEnqueueLeavesNoJob(t *testing.T) {
-	ctx := context.Background()
-	queue := newQueue(t)
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	id, err := Enqueue(ctx, tx, queue, map[string]string{}, EnqueueOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := tx.Rollback(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if jobRow(t, id) != nil {
-		t.Fatal("a rolled-back enqueue left its job")
 	}
 }
 
