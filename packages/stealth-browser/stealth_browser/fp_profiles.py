@@ -64,6 +64,16 @@ class FpProfile:
     # "laptop" personas report a discharging battery; "desktop" personas have
     # no battery and report what Chrome does for one: charging=true, level=1.
     form_factor: str = "laptop"   # laptop | desktop
+    # Media capability overrides (APEX_FP_MEDIA_* / APEX_FP_WEBAUTHN_*; see
+    # apex_fingerprint.h). True emits "1"; False (default) emits nothing --
+    # the binary then reports the REAL capability. Set what the persona's
+    # CLAIMED hardware justifies (hw decode/encode, HEVC, Dolby Vision,
+    # platform authenticator).
+    media_hw_decode: bool = False
+    media_hw_encode: bool = False
+    media_hevc: bool = False
+    media_dolby_vision: bool = False
+    platform_authenticator: bool = False
 
 
 # Default WebGPU architecture per gpu_class, used when a persona does not
@@ -245,6 +255,7 @@ PROFILES: list[FpProfile] = [
             "dual-source-blending", "subgroups",
             "texture-compression-astc",
         ),
+        media_hw_decode=True, media_hw_encode=True, media_hevc=True,
     ),
     FpProfile(
         label="MacBook Air 13 M2",
@@ -256,6 +267,7 @@ PROFILES: list[FpProfile] = [
         gpu_class="apple", webgpu_arch="common-3", form_factor="laptop",
         webgpu_device="Apple M2", webgpu_driver="Metal",
         webgpu_device_id="0x8112",
+        media_hw_decode=True, media_hw_encode=True, media_hevc=True,
     ),
     FpProfile(
         label="MacBook Pro 16 M1 Max",
@@ -276,6 +288,7 @@ PROFILES: list[FpProfile] = [
             "dual-source-blending", "subgroups",
             "texture-compression-astc",
         ),
+        media_hw_decode=True, media_hw_encode=True, media_hevc=True,
     ),
     FpProfile(
         label="MacBook Pro 14 M3",
@@ -287,6 +300,7 @@ PROFILES: list[FpProfile] = [
         gpu_class="apple", webgpu_arch="common-3", form_factor="laptop",
         webgpu_device="Apple M3", webgpu_driver="Metal",
         webgpu_device_id="0x8132",
+        media_hw_decode=True, media_hw_encode=True, media_hevc=True,
     ),
     # --- Windows / NVIDIA (gpu_class="nvidia") ---
     FpProfile(
@@ -299,6 +313,8 @@ PROFILES: list[FpProfile] = [
         gpu_class="nvidia", webgpu_arch="ampere", form_factor="desktop",
         webgpu_device="NVIDIA GeForce RTX 3060",
         webgpu_driver="D3D12", webgpu_device_id="0x2503",
+        media_hw_decode=True, media_hw_encode=True, media_hevc=True,
+        platform_authenticator=True,
     ),
     # --- Windows / Intel (gpu_class="intel") ---
     FpProfile(
@@ -311,6 +327,8 @@ PROFILES: list[FpProfile] = [
         gpu_class="intel", webgpu_arch="gen-12lp", form_factor="laptop",
         webgpu_device="Intel(R) Iris(R) Xe Graphics",
         webgpu_driver="D3D12", webgpu_device_id="0x46a6",
+        media_hw_decode=True, media_hw_encode=True,
+        media_hevc=True, media_dolby_vision=True,
     ),
     # --- Windows / AMD (gpu_class="amd") ---
     FpProfile(
@@ -323,6 +341,8 @@ PROFILES: list[FpProfile] = [
         gpu_class="amd", webgpu_arch="rdna-2", form_factor="desktop",
         webgpu_device="AMD Radeon RX 6700 XT", webgpu_driver="D3D12",
         webgpu_device_id="0x73df",  # real Navi22 (kernel amdgpu table)
+        media_hw_decode=True, media_hw_encode=True, media_hevc=True,
+        platform_authenticator=True,
     ),
 ]
 
@@ -523,6 +543,19 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         WEBGPU_FEATURES_BY_CLASS.get(profile.gpu_class, ())
     if webgpu_features:
         env["APEX_FP_WEBGPU_FEATURES"] = ",".join(webgpu_features)
+    # Media capability / platform-authenticator overrides: emit only what the
+    # persona's hardware claims (unset -> the binary reports the real
+    # capability).
+    if profile.media_hw_decode:
+        env["APEX_FP_MEDIA_HW_DECODE"] = "1"
+    if profile.media_hw_encode:
+        env["APEX_FP_MEDIA_HW_ENCODE"] = "1"
+    if profile.media_hevc:
+        env["APEX_FP_MEDIA_HEVC"] = "1"
+    if profile.media_dolby_vision:
+        env["APEX_FP_MEDIA_DOLBY_VISION"] = "1"
+    if profile.platform_authenticator:
+        env["APEX_FP_WEBAUTHN_PLATFORM"] = "1"
     return env
 
 

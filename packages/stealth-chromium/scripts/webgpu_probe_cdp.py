@@ -178,8 +178,9 @@ async def run_probe(binary: str, fp_env: dict, extra_flags=None) -> None:
 # The persona env the stealth-browser layer emits for a GPU-class-"intel" host
 # (fp_profiles.fp_env -> core_patchright launches the binary with it). Mirrors
 # the "Windows laptop, Intel Iris Xe" persona exactly: identity + type + the
-# class limits + the intel feature allowlist, so --fp exercises every
-# APEX_FP_WEBGPU_* injection point.
+# class limits + the intel feature allowlist + the media-capability overrides,
+# so --fp exercises every APEX_FP_* injection point. Battery is the
+# seed-derived laptop value (fp_env('...Iris Xe', seed=13371337)).
 FP_INTEL = {
     "APEX_FP_ACTIVE": "1",
     "APEX_FP_SEED": "13371337",
@@ -219,8 +220,12 @@ FP_INTEL = {
                                 "float32-filterable,float32-blendable,"
                                 "dual-source-blending,clip-distances,"
                                 "texture-compression-bc"),
-    "APEX_FP_BATTERY_LEVEL": "1",
-    "APEX_FP_BATTERY_CHARGING": "1",
+    "APEX_FP_MEDIA_HW_DECODE": "1",
+    "APEX_FP_MEDIA_HW_ENCODE": "1",
+    "APEX_FP_MEDIA_HEVC": "1",
+    "APEX_FP_MEDIA_DOLBY_VISION": "1",
+    "APEX_FP_BATTERY_LEVEL": "0.92",
+    "APEX_FP_BATTERY_CHARGING": "0",
 }
 
 
