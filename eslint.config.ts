@@ -192,7 +192,10 @@ export default defineConfig([
   },
 
   // REACT RULES
-  { files: ['**/*.tsx', 'apps/mobile-template/**/*.ts'], ...reactHooks.configs.flat.recommended },
+  {
+    files: ['**/*.tsx', 'apps/mobile-template/**/*.ts', 'packages/react-native-*/**/*.ts'],
+    ...reactHooks.configs.flat.recommended
+  },
   {
     files: ['**/*.tsx'],
     rules: {
