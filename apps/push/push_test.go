@@ -683,3 +683,11 @@ func TestPush(t *testing.T) {
 		}
 	})
 }
+
+func TestRetryAfterIsNotDoubled(t *testing.T) {
+	job := &claimedJob{notification: notification{Attempt: 3}, failures: map[string]int{}}
+	job.record(device{Token: "token", Platform: "android"}, result{outcome: retryable, retryAfter: 2 * time.Minute})
+	if len(job.retryTokens) != 1 || job.retryDelay != 2*time.Minute {
+		t.Fatalf("a 2 minute Retry-After on attempt 3 got retry tokens %v after %v", job.retryTokens, job.retryDelay)
+	}
+}

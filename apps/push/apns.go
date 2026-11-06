@@ -120,7 +120,7 @@ func (client *apnsClient) send(ctx context.Context, device device, job notificat
 		return result{outcome: retryable, reason: reason}
 	case response.StatusCode >= http.StatusInternalServerError:
 		// NOTE: a minute, not the 15 Apple asks for, so the retries end before the alert goes stale
-		return result{outcome: retryable, reason: reason, retryAfter: time.Minute}
+		return result{outcome: retryable, reason: reason, backoff: time.Minute}
 	default:
 		return result{outcome: failed, reason: reason}
 	}

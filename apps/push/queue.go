@@ -55,9 +55,10 @@ const (
 )
 
 type result struct {
-	outcome    outcome
-	reason     string
-	retryAfter time.Duration
+	outcome outcome
+	reason  string
+	// backoff is the first retry's delay, doubled on each later one; retryAfter is the provider's own delay
+	backoff, retryAfter time.Duration
 }
 
 // claimedJob is a job whose row lock a worker holds, with the results of its sends.
@@ -308,7 +309,7 @@ func (job *claimedJob) record(device device, result result) {
 	case invalidArgument:
 		job.invalidFCMTokens = append(job.invalidFCMTokens, device.Token)
 	case retryable:
-		retryDelay := max(result.retryAfter, time.Second) << job.Attempt
+		retryDelay := max(max(result.backoff, time.Second)<<job.Attempt, result.retryAfter)
 		// NOTE: a send whose own retry would come too late fails alone instead of dropping the job's other retries
 		if job.Attempt+1 < maxAttempts && retryDelay <= maxRetryDelay {
 			job.retryTokens = append(job.retryTokens, device.Token)
