@@ -14,12 +14,12 @@ graph LR
 
 ## API
 
-| Method   | Path                  | Body                                                                   | Response                              |
-| -------- | --------------------- | ---------------------------------------------------------------------- | ------------------------------------- |
-| `PUT`    | `/devices/{token}`    | `{"platform", "apns_environment", "app", "user_id", "kind"}`           | `204`                                 |
-| `DELETE` | `/devices/{token}`    |                                                                        | `204`                                 |
-| `POST`   | `/notifications`      | `{"app", "push_type", "user_ids", "tokens", "apns", "fcm", "send_at"}` | `201 {"id"}`                          |
-| `DELETE` | `/notifications/{id}` |                                                                        | `204`, or `404` if no part is waiting |
+| Method   | Path                  | Body                                                                   | Response                                            |
+| -------- | --------------------- | ---------------------------------------------------------------------- | --------------------------------------------------- |
+| `PUT`    | `/devices/{token}`    | `{"platform", "apns_environment", "app", "user_id", "kind"}`           | `204`                                               |
+| `DELETE` | `/devices/{token}`    |                                                                        | `204`                                               |
+| `POST`   | `/notifications`      | `{"app", "push_type", "user_ids", "tokens", "apns", "fcm", "send_at"}` | `201 {"id"}`                                        |
+| `DELETE` | `/notifications/{id}` |                                                                        | `204`, or `404` if no part is waiting or being sent |
 
 - `platform` is `ios` (raw APNs token) or `android` (FCM token). iOS devices need
   `apns_environment`: `sandbox` for development-signed builds, `production` otherwise. `app` is the
@@ -33,7 +33,7 @@ graph LR
   v1 `message` without `token`. iOS tokens are skipped without `apns` and Android tokens without
   `fcm`.
 - Cancelling removes the parts of a notification no worker is sending, retries waiting out their
-  backoff included. A part being sent still goes out.
+  backoff included. A part being sent still goes out, and so do its retries.
 
 ```sh
 curl -X PUT http://push.main.svc.cluster.local/devices/$TOKEN -d '{
