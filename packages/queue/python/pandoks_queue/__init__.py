@@ -98,7 +98,8 @@ def _run(conn: psycopg.Connection, job: Job, handle: Callable[[Job], None], leas
                 logging.warning("heartbeat failed for job %s attempt %s: %s", job.id, job.attempt, error)
                 continue
             if not extended:
-                logging.warning("lease lost while running job %s attempt %s", job.id, job.attempt)
+                if not job.reported:
+                    logging.warning("lease lost while running job %s attempt %s", job.id, job.attempt)
                 return
 
     heartbeat = threading.Thread(target=extend, daemon=True)

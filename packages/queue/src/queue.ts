@@ -150,7 +150,7 @@ async function run(db: pg.Client, job: Job, handle: Handler, lease: number): Pro
       ])
       .then(
         ({ rows: [{ extended }] }) => {
-          if (extended) return;
+          if (extended || job.reported) return;
           // NOTE: a promise can't be stopped, so a lost lease is only logged; the fenced report changes nothing
           clearInterval(heartbeat);
           console.warn(`lease lost while running job ${job.id} attempt ${job.attempt}`);
