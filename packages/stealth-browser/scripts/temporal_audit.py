@@ -44,12 +44,9 @@ sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.par
 # compared recursively; excluded keys are dropped before the diff.
 UNSTABLE_PREFIXES = (
     "connection.rtt", "connection.downlink", "connection.residual",  # timing
-    "media.devices.deviceId",  # per-origin device ids, by spec
     "performance.",  # performance timelines
 )
-UNSTABLE_KEYS = {
-    "navigator.maxTouchPoints",  # platform fact, stable, but include anyway
-}
+UNSTABLE_KEYS: set[str] = set()
 
 
 def api(base: str, method: str, path: str, body: dict | None = None,
@@ -328,11 +325,23 @@ def main() -> int:
             collections[tag] = flatten(probe)
             return collections[tag]
 
+        def assert_on_target(tag: str) -> None:
+            from urllib.parse import urlsplit
+            want = urlsplit(args.target).netloc
+            status, ev = api(base, "POST", f"/sessions/{sid}/eval",
+                             body={"expression": "location.href"})
+            href = (ev.get("result") or "") if status == 200 else ""
+            got = urlsplit(str(href)).netloc
+            if got != want:
+                raise RuntimeError(f"{tag}: page not on target "
+                                   f"(location.href={href!r})")
+
         status, _ = api(base, "POST", f"/sessions/{sid}/navigate",
                         body={"url": args.target})
         if status != 200:
             raise RuntimeError(f"navigate failed: {status}")
         time.sleep(2)
+        assert_on_target("load1")
         c1 = collect("load1")
         c2 = collect("load1-repeat")          # same page, second collection
         status, _ = api(base, "POST", f"/sessions/{sid}/navigate",
@@ -340,6 +349,7 @@ def main() -> int:
         if status != 200:
             raise RuntimeError("re-navigate failed")
         time.sleep(2)
+        assert_on_target("load2")
         c3 = collect("load2")                 # second full page load
         status, _ = api(base, "POST", f"/sessions/{sid}/navigate",
                         body={"url": "about:blank"})
@@ -348,6 +358,7 @@ def main() -> int:
         if status != 200:
             raise RuntimeError("third navigate failed")
         time.sleep(2)
+        assert_on_target("load3")
         c4 = collect("load3")                 # after blank round-trip
 
         for a_tag, b_tag in (("load1", "load1-repeat"),
