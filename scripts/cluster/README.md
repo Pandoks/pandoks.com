@@ -91,7 +91,7 @@ the deployment environment, not the SST stage.
 ./scripts/cluster/main.sh k3d up
 
 # Build and push images/charts to the local registry
-pnpm docker:build && pnpm dev:push
+pnpm local:build && pnpm local:push
 
 # Deploy in two steps: bootstrap (helm charts + CRDs), then overlay
 ./scripts/cluster/main.sh deploy local --stage your-stage --bootstrap
@@ -121,7 +121,7 @@ For dev, connect to `preview-cluster` (stage `dev`) or `dev-cluster` (personal s
 
 The first prod overlay deploy creates the `prod-cluster` ArgoCD Application, which then keeps prod
 in sync with `k3s/overlays/prod` on `main` (`deploy-infra.yaml` triggers a hard refresh when
-`k3s/**` or `scripts/cluster/**` changes).
+`k3s/**` or `scripts/cluster/**` changes, then waits for prod to be Synced and Healthy).
 
 ### Preview Without Applying
 

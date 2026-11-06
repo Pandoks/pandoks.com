@@ -30,6 +30,8 @@ export default defineConfig([
           './apps/*/tsconfig.json',
           './packages/*/tsconfig.json'
         ],
+        // TODO: https://github.com/typescript-eslint/typescript-eslint/issues/9504
+        extraFileExtensions: ['.svelte'],
         tsconfigRootDir: import.meta.dirname
       }
     },
@@ -133,10 +135,7 @@ export default defineConfig([
     files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],
     languageOptions: {
       parser: svelteParser,
-      parserOptions: {
-        parser: tseslint.parser,
-        extraFileExtensions: ['.svelte']
-      }
+      parserOptions: { parser: tseslint.parser }
     }
   },
   {
