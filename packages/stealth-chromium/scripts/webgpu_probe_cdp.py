@@ -176,13 +176,16 @@ async def run_probe(binary: str, fp_env: dict, extra_flags=None) -> None:
 
 
 # The persona env the stealth-browser layer emits for a GPU-class-"intel" host
-# (fp_profiles.fp_env -> core_patchright launches the binary with it).
+# (fp_profiles.fp_env -> core_patchright launches the binary with it). Mirrors
+# the "Windows laptop, Intel Iris Xe" persona exactly: identity + type + the
+# class limits + the intel feature allowlist, so --fp exercises every
+# APEX_FP_WEBGPU_* injection point.
 FP_INTEL = {
     "APEX_FP_ACTIVE": "1",
     "APEX_FP_SEED": "13371337",
     "APEX_FP_PLATFORM": "Win32",
     "APEX_FP_UA_PLATFORM": "Windows",
-    "APEX_FP_CANVAS_KEY": "4242424242424242",
+    "APEX_FP_CANVAS_KEY": "16924706725946048579",
     "APEX_FP_UA_ARCH": "x86",
     "APEX_FP_UA_PLATFORM_VERSION": "15.0.0",
     "APEX_FP_HW_CONCURRENCY": "8",
@@ -192,6 +195,30 @@ FP_INTEL = {
                               "(0x000046A6) Direct3D11 vs_5_0 ps_5_0, D3D11)",
     "APEX_FP_WEBGPU_VENDOR": "intel",
     "APEX_FP_WEBGPU_ARCH": "gen-12lp",
+    "APEX_FP_WEBGPU_DEVICE_ID": "0x000046A6",
+    "APEX_FP_WEBGPU_DESCRIPTION": "Intel(R) Iris(R) Xe Graphics",
+    "APEX_FP_WEBGPU_DRIVER": "D3D12",
+    "APEX_FP_WEBGPU_TYPE": "integrated",
+    "APEX_FP_WEBGPU_LIMIT_maxTextureDimension1D": "16384",
+    "APEX_FP_WEBGPU_LIMIT_maxTextureDimension2D": "16384",
+    "APEX_FP_WEBGPU_LIMIT_maxTextureDimension3D": "2048",
+    "APEX_FP_WEBGPU_LIMIT_maxTextureArrayLayers": "2048",
+    "APEX_FP_WEBGPU_LIMIT_maxBindGroups": "8",
+    "APEX_FP_WEBGPU_LIMIT_maxBindGroupsPlusVertexBuffers": "40",
+    "APEX_FP_WEBGPU_LIMIT_maxComputeInvocationsPerWorkgroup": "1024",
+    "APEX_FP_WEBGPU_LIMIT_maxComputeWorkgroupSizeX": "1024",
+    "APEX_FP_WEBGPU_LIMIT_maxComputeWorkgroupSizeY": "1024",
+    "APEX_FP_WEBGPU_LIMIT_maxComputeWorkgroupSizeZ": "1024",
+    "APEX_FP_WEBGPU_LIMIT_maxComputeWorkgroupStorageSize": "32768",
+    "APEX_FP_WEBGPU_LIMIT_maxBufferSize": "4294967296",
+    "APEX_FP_WEBGPU_LIMIT_maxStorageBufferBindingSize": "4294967296",
+    "APEX_FP_WEBGPU_FEATURES": ("core-features-and-limits,"
+                                "depth-clip-control,depth32float-stencil8,"
+                                "timestamp-query,indirect-first-instance,"
+                                "rg11b10ufloat-renderable,bgra8unorm-storage,"
+                                "float32-filterable,float32-blendable,"
+                                "dual-source-blending,clip-distances,"
+                                "texture-compression-bc"),
     "APEX_FP_BATTERY_LEVEL": "1",
     "APEX_FP_BATTERY_CHARGING": "1",
 }

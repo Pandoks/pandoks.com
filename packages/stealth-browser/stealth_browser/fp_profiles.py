@@ -57,6 +57,9 @@ class FpProfile:
     # Per-limit overrides (GPUSupportedLimits names -> values). Empty ->
     # WEBGPU_LIMITS_BY_CLASS fallback; both empty -> leave the real limits.
     webgpu_limits: dict[str, int] = field(default_factory=dict)
+    # WebGPU feature allowlist override (subset of real adapter.features).
+    # Empty -> WEBGPU_FEATURES_BY_CLASS fallback; both empty -> real set kept.
+    webgpu_features: tuple[str, ...] = ()
     # "laptop" personas report a discharging battery; "desktop" personas have
     # no battery and report what Chrome does for one: charging=true, level=1.
     form_factor: str = "laptop"   # laptop | desktop
@@ -122,6 +125,81 @@ WEBGPU_LIMITS_BY_CLASS: dict[str, dict[str, int]] = {
 WEBGPU_LIMITS_BY_CLASS["amd"] = WEBGPU_LIMITS_BY_CLASS["nvidia"]
 WEBGPU_LIMITS_BY_CLASS["intel"] = WEBGPU_LIMITS_BY_CLASS["nvidia"]
 
+# Persona-coherent WebGPU feature allowlists (APEX_FP_WEBGPU_FEATURES). The
+# binary reports real features INTERSECT the allowlist (subset-only), so every
+# name must be (a) a real WebGPU feature string and (b) one the claimed GPU
+# class genuinely exposes on its native backend. Names verified against
+# Chromium 157.0.8103.38 gpu_supported_features.idl. Class differences that
+# matter: Apple (Metal) does ASTC not BC; discrete x86 (D3D12) does BC not
+# ASTC; the integrated Intel list is a strict subset of the discrete lists
+# (no shader-f16/subgroups/bc-sliced-3d).
+WEBGPU_FEATURES_BY_CLASS: dict[str, tuple[str, ...]] = {
+    "apple": (
+        "core-features-and-limits",
+        "depth-clip-control",
+        "depth32float-stencil8",
+        "timestamp-query",
+        "indirect-first-instance",
+        "shader-f16",
+        "rg11b10ufloat-renderable",
+        "bgra8unorm-storage",
+        "float32-filterable",
+        "float32-blendable",
+        "dual-source-blending",
+        "subgroups",
+        "clip-distances",
+        "texture-compression-astc",
+    ),
+    "nvidia": (
+        "core-features-and-limits",
+        "depth-clip-control",
+        "depth32float-stencil8",
+        "timestamp-query",
+        "indirect-first-instance",
+        "shader-f16",
+        "rg11b10ufloat-renderable",
+        "bgra8unorm-storage",
+        "float32-filterable",
+        "float32-blendable",
+        "dual-source-blending",
+        "subgroups",
+        "clip-distances",
+        "texture-compression-bc",
+        "texture-compression-bc-sliced-3d",
+    ),
+    "amd": (
+        "core-features-and-limits",
+        "depth-clip-control",
+        "depth32float-stencil8",
+        "timestamp-query",
+        "indirect-first-instance",
+        "shader-f16",
+        "rg11b10ufloat-renderable",
+        "bgra8unorm-storage",
+        "float32-filterable",
+        "float32-blendable",
+        "dual-source-blending",
+        "subgroups",
+        "clip-distances",
+        "texture-compression-bc",
+        "texture-compression-bc-sliced-3d",
+    ),
+    "intel": (
+        "core-features-and-limits",
+        "depth-clip-control",
+        "depth32float-stencil8",
+        "timestamp-query",
+        "indirect-first-instance",
+        "rg11b10ufloat-renderable",
+        "bgra8unorm-storage",
+        "float32-filterable",
+        "float32-blendable",
+        "dual-source-blending",
+        "clip-distances",
+        "texture-compression-bc",
+    ),
+}
+
 # Sec-CH-UA-* architecture and platform-version per navigator.platform family.
 # These mirror the defaults in apex_fingerprint.h's UAPersona (the C++ maps the
 # same values from APEX_FP_UA_PLATFORM), emitted explicitly so a persona can
@@ -154,6 +232,18 @@ PROFILES: list[FpProfile] = [
                        "Unspecified Version)",
         gpu_class="apple", webgpu_arch="common-3", form_factor="laptop",
         webgpu_device="Apple M1 Pro", webgpu_driver="Metal",
+        # Apple silicon has no PCI device-id (Dawn falls back to the MTLDevice
+        # name as GPUAdapterInfo.device), so the coherent ID is the name.
+        webgpu_device_id="Apple M1 Pro",
+        webgpu_features=(
+            "core-features-and-limits", "depth-clip-control",
+            "depth32float-stencil8", "timestamp-query",
+            "indirect-first-instance", "shader-f16",
+            "rg11b10ufloat-renderable", "bgra8unorm-storage",
+            "float32-filterable", "float32-blendable",
+            "dual-source-blending", "subgroups",
+            "texture-compression-astc",
+        ),
     ),
     FpProfile(
         label="MacBook Air 13 M2",
@@ -164,6 +254,7 @@ PROFILES: list[FpProfile] = [
                        "Unspecified Version)",
         gpu_class="apple", webgpu_arch="common-3", form_factor="laptop",
         webgpu_device="Apple M2", webgpu_driver="Metal",
+        webgpu_device_id="Apple M2",
     ),
     FpProfile(
         label="MacBook Pro 16 M1 Max",
@@ -174,6 +265,16 @@ PROFILES: list[FpProfile] = [
                        "Unspecified Version)",
         gpu_class="apple", webgpu_arch="common-3", form_factor="laptop",
         webgpu_device="Apple M1 Max", webgpu_driver="Metal",
+        webgpu_device_id="Apple M1 Max",
+        webgpu_features=(
+            "core-features-and-limits", "depth-clip-control",
+            "depth32float-stencil8", "timestamp-query",
+            "indirect-first-instance", "shader-f16",
+            "rg11b10ufloat-renderable", "bgra8unorm-storage",
+            "float32-filterable", "float32-blendable",
+            "dual-source-blending", "subgroups",
+            "texture-compression-astc",
+        ),
     ),
     FpProfile(
         label="MacBook Pro 14 M3",
@@ -184,6 +285,7 @@ PROFILES: list[FpProfile] = [
                        "Unspecified Version)",
         gpu_class="apple", webgpu_arch="common-3", form_factor="laptop",
         webgpu_device="Apple M3", webgpu_driver="Metal",
+        webgpu_device_id="Apple M3",
     ),
     # --- Windows / NVIDIA (gpu_class="nvidia") ---
     FpProfile(
@@ -219,6 +321,7 @@ PROFILES: list[FpProfile] = [
                        "vs_5_0 ps_5_0, D3D11)",
         gpu_class="amd", webgpu_arch="rdna-2", form_factor="desktop",
         webgpu_device="AMD Radeon RX 6700 XT", webgpu_driver="D3D12",
+        webgpu_device_id="0x000073DF",  # real Navi22 (kernel amdgpu table)
     ),
 ]
 
@@ -415,6 +518,10 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
     if webgpu_limits:
         for limit_name, limit_value in webgpu_limits.items():
             env[f"APEX_FP_WEBGPU_LIMIT_{limit_name}"] = str(limit_value)
+    webgpu_features = profile.webgpu_features or \
+        WEBGPU_FEATURES_BY_CLASS.get(profile.gpu_class, ())
+    if webgpu_features:
+        env["APEX_FP_WEBGPU_FEATURES"] = ",".join(webgpu_features)
     return env
 
 

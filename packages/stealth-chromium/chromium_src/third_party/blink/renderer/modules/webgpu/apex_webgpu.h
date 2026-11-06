@@ -130,7 +130,9 @@ inline bool ApplyBackendTypeOverride(wgpu::BackendType* out) {
 // is copied into a GPUSupportedLimits. Callers: gpu_adapter.cc and
 // gpu_device.cc, both immediately after GetLimits() and before the
 // MakeGarbageCollected<GPUSupportedLimits>. 0 is a valid unset sentinel: no
-// WebGPU limit is legitimately 0.
+// WebGPU limit is legitimately 0. Each override is CLAMPED to the real limit:
+// the GPU process validates requests against the REAL limits, so an override
+// above them just moves the rejection error into a named name (a host leak).
 inline void ApplyLimitOverrides(GPUSupportedLimits::ComboLimits* limits) {
   if (!apex_fp::Active()) {
     return;
@@ -142,7 +144,10 @@ inline void ApplyLimitOverrides(GPUSupportedLimits::ComboLimits* limits) {
     if (apex_v != 0) {                                                      \
       using ApexLimitT =                                                    \
           decltype(GPUSupportedLimits::ComboLimits::name);                  \
-      limits->name = static_cast<ApexLimitT>(apex_v);                       \
+      const uint64_t apex_real = static_cast<uint64_t>(limits->name);       \
+      limits->name = static_cast<ApexLimitT>(apex_v < apex_real             \
+                                                 ? apex_v                   \
+                                                 : apex_real);              \
     }                                                                       \
   }
   APEX_WEBGPU_LIMIT_LIST(APEX_LIMIT)
