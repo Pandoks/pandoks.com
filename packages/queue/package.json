@@ -5,7 +5,7 @@
   "sideEffects": false,
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "pnpm run /^test:/",
+    "test": "pnpm run test:go && pnpm run test:python && pnpm run test:ts",
     "test:go": "GOWORK=off go test -race ./...",
     "test:python": "uv run --project ./python --frozen python -m unittest discover -s ./python/tests",
     "test:ts": "vitest run"
