@@ -303,9 +303,9 @@ kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
   patronictl -c /etc/patroni/patroni.yaml restart myapp-shard-0 --pending --force
 ```
 
-Patroni stores any setting it gets, so the Job also succeeds on a misspelled name or invalid value;
-Postgres only logs the rejection, so check the result with `SHOW <setting>`. Helm deletes a failed
-Job along with its logs, so follow them during the release:
+The Job also succeeds on a misspelled name or invalid value: Patroni skips it and only logs that in
+the `patroni` container, so check the result with `SHOW <setting>`. Helm deletes a failed Job along
+with its logs, so follow them during the release:
 
 ```bash
 kubectl logs -n myapp job/patroni-myapp-parameters -f
