@@ -135,33 +135,33 @@ jobs:
           main_commit=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)
 
           while [ "${SECONDS}" -lt 600 ]; do
-            application=$(sudo kubectl get application prod-cluster -n argocd -o json)
-            argo_revision=$(jq -r .status.sync.revision <<<"${application}")
+            argocd_app=$(sudo kubectl get application prod-cluster -n argocd -o json)
+            argocd_revision=$(jq -r .status.sync.revision <<<"${argocd_app}")
             # NOTE: Argo drops the refresh annotation with the first status written after the hard refresh.
-            argo_state=$(jq -r '
+            argocd_state=$(jq -r '
               if .metadata.annotations["argocd.argoproj.io/refresh"] then "refreshing"
               elif any(.status.conditions[]?; .type == "ComparisonError")
                 or (.status.operationState.operation.sync.revision == .status.sync.revision
                   and (.status.operationState.phase | IN("Failed", "Error"))) then "failed"
               elif .status.sync.status == "Synced" and .status.health.status == "Healthy" then "healthy"
-              else "waiting" end' <<<"${application}")
+              else "waiting" end' <<<"${argocd_app}")
 
-            if [ "${argo_state}" = failed ] || [ "${argo_state}" = healthy ]; then
+            if [ "${argocd_state}" = failed ] || [ "${argocd_state}" = healthy ]; then
               # NOTE: main may have moved on, so a newer revision that contains main_commit also counts.
-              comparison_to_main=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${main_commit}...${argo_revision}" --jq .status)
-              case "${argo_state}:${comparison_to_main}" in
+              comparison_to_main=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${main_commit}...${argocd_revision}" --jq .status)
+              case "${argocd_state}:${comparison_to_main}" in
                 failed:identical | failed:ahead)
-                  echo "Sync failed at ${argo_revision}:"
-                  jq -r '.status.conditions[]?.message, .status.operationState.message // empty' <<<"${application}"
+                  echo "Sync failed at ${argocd_revision}:"
+                  jq -r '.status.conditions[]?.message, .status.operationState.message // empty' <<<"${argocd_app}"
                   exit 1
                   ;;
                 healthy:identical | healthy:ahead)
-                  echo "Synced and healthy at ${argo_revision}"
+                  echo "Synced and healthy at ${argocd_revision}"
                   exit 0
                   ;;
               esac
             fi
             sleep 5
           done
-          echo "Timed out waiting for main (${main_commit}) to sync healthy: ${argo_state} at ${argo_revision}"
+          echo "Timed out waiting for main (${main_commit}) to sync healthy: ${argocd_state} at ${argocd_revision}"
           exit 1
