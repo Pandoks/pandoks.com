@@ -14,13 +14,13 @@
 FROM python:3.12-slim-bookworm
 
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 DEBIAN_FRONTEND=noninteractive \
-    APEX_CORE=patchright PORT=8089 HOST=0.0.0.0 \
+    APEX_CORE=patchright PORT=41000 HOST=0.0.0.0 \
     APEX_CHROME_PATH=/opt/stealth-chromium/chrome
 
 # Runtime dependencies of the patched chrome binary + Xvfb (no system
 # google-chrome -- the patched binary IS the browser).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      xvfb zstd curl jq ca-certificates \
+      xvfb xauth x11-utils zstd curl jq ca-certificates \
       libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 \
       libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 \
       libcairo2 libasound2 libatspi2.0-0 libx11-xcb1 libxcb-dri3-0 libxshmfence1 \
