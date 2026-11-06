@@ -63,11 +63,14 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
   GHCR images and charts), a Cloudflare Pages preview of `apps/web`, and `claude-review.yaml` (one
   Agent SDK `/code-review` per PR, posted as one review with inline comments). Required checks are
   the `*-pass` aggregates.
+- GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
+  deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
   `infra/`, `apps/` (except `desktop-template` and `example`), and `packages/svelte/`, plus an Argo
-  hard refresh only for `k3s/` and `scripts/cluster/` changes. Pages builds `apps/web` when a change
-  matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod`
-  renders but never prunes: a deleted resource stays in prod until pruned by hand.
+  hard refresh and a wait for Synced and Healthy only for `k3s/` and `scripts/cluster/` changes.
+  Pages builds `apps/web` when a change matches `pathIncludes` in `infra/website.ts`. Argo
+  auto-syncs everything `k3s/overlays/prod` renders but never prunes: a deleted resource stays in
+  prod until pruned by hand.
 - Every non-production stage gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
   environment, so two non-production stages collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
@@ -98,8 +101,8 @@ checkout. The SST CLI is `pnpm sst`.
 - Render without a cluster:
   `kustomize build k3s/overlays/<local|dev|prod> --load-restrictor LoadRestrictionsNone`.
 - Local cluster: `pnpm cluster k3d deps up`, `pnpm cluster k3d up` (hazard 4),
-  `pnpm docker:build && pnpm dev:push`, then hazard 4's deploy, once with `--bootstrap` on a fresh
-  cluster and again without. `pnpm dev:destroy` tears it down. See `scripts/cluster/README.md` and
+  `pnpm local:build && pnpm local:push`, then hazard 4's deploy, once with `--bootstrap` on a fresh
+  cluster and again without. `pnpm local:destroy` tears it down. See `scripts/cluster/README.md` and
   `k3s/README.md`.
 
 ## Verifying

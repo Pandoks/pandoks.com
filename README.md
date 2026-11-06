@@ -68,12 +68,12 @@ personal SST stage (for example, `pandoks`):
 
 ```sh
 # Quick setup (all-in-one)
-SST_STAGE=your-stage pnpm dev:init
+SST_STAGE=your-stage pnpm local:init
 
 # Or step by step:
 pnpm cluster k3d deps up               # Start docker compose dependencies
 pnpm cluster k3d up                    # Create k3d cluster
-pnpm docker:build && pnpm dev:push     # Build and push images/charts to the local registry
+pnpm local:build && pnpm local:push    # Build and push images/charts to the local registry
 pnpm cluster deploy local --stage your-stage --bootstrap  # First-time: install helm charts + CRDs
 pnpm cluster deploy local --stage your-stage # Apply environment overlay
 ```
@@ -81,7 +81,7 @@ pnpm cluster deploy local --stage your-stage # Apply environment overlay
 To tear down the cluster:
 
 ```sh
-pnpm dev:destroy
+pnpm local:destroy
 ```
 
 See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI commands and
