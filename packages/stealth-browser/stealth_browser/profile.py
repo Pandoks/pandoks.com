@@ -250,6 +250,12 @@ def chrome_launch_flags(identity: Identity, *, headless: bool,
         # this one is what Chrome sees. No --disable-popup-blocking: a
         # gesture-less window.open() succeeding is the `popupBlocking` test.
         "--disable-features=Translate",
+        # Web Bluetooth: navigator.bluetooth is gated behind the WebBluetooth
+        # runtime feature, which stable Chrome leaves OFF on Linux (on by
+        # default on Windows/macOS) -- verified against stock CFT 157 headful.
+        # Every persona in fp_profiles claims a Windows/Mac desktop, and those
+        # machines expose the API, so expose it here to stay persona-coherent.
+        "--enable-features=WebBluetooth",
         # keep the GPU on -- a real machine has WebGL; SwiftShader looks fake
         f"--lang={identity.locale}",
     ]

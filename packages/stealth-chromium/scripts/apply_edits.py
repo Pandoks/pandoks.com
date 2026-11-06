@@ -501,6 +501,12 @@ EDITS = [
                   "  if (apex_fp::HasOverride(\"APEX_FP_PLATFORM\")) {\n"
                   "    return String::FromUtf8(std::string_view(\n"
                   "        apex_fp::EnvStr(\"APEX_FP_PLATFORM\")));\n"
+                  "  }\n"
+                  "  // navigator.platform must agree with the UA and UA-CH\n"
+                  "  // surfaces, so it maps from the same persona record.\n"
+                  "  const apex_fp::UAPersona persona = apex_fp::GetUAPersona();\n"
+                  "  if (persona.active) {\n"
+                  "    return String::FromUtf8(persona.navigator_platform);\n"
                   "  }\n",
     },
 
