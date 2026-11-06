@@ -21,14 +21,58 @@ ffmpeg_branding = "Chrome"
 # (is_chrome_branded || is_chrome_for_testing_branded) -- both need
 # src-internal, which we don't have -- so a stock Chromium-branded build ships
 # WITHOUT the com.widevine.alpha key system. Real Chrome always has it, and its
-# absence is one of the "Chromium-Based Browser" tells. Forcing it on compiles
-# the WidevineCdm component installer (ENABLE_WIDEVINE_CDM_COMPONENT on
-# linux-x64), which fetches the CDM via the component updater into the profile
-# dir on first run (the CDM itself can't be bundled: bundle_widevine_cdm needs
-# the src-internal cdm/linux checkout). CDM host verification stays off here
-# (media_options.gni gates it on is_chrome_branded && (mac||win)), so no
-# Widevine signing cert is needed despite is_official_build.
+# absence is one of the "Chromium-Based Browser" tells.
+#
+# enable_widevine=true alone is NOT enough to make the key system appear: it
+# only compiles the CDM component installer, which downloads the CDM into the
+# profile dir at runtime -- and the container's egress is proxied, so the
+# fetch 403s and the browser reports NotSupportedError for every robustness
+# level. The CDM must be IN the image.
+#
+# bundle_widevine_cdm=true ships the CDM as build output: cdm_registration.cc
+# (GetBundledWidevine, compiled when BUNDLE_WIDEVINE_CDM) reads
+# <exe dir>/WidevineCdm/{manifest.json,_platform_specific/linux_x64/libwidevinecdm.so}
+# at startup and registers com.widevine.alpha from it. scripts/setup.sh drops
+# the CDM files into third_party/widevine/cdm/{linux,x64}/ (which is what the
+# src-internal checkout would provide; they are fetched from the pinned
+# Chrome-for-Testing build), and the bundling target copies them to
+# out/apex/WidevineCdm/. sfn-build.sh whitelists that dir into the artifact so
+# the runtime image carries it next to the chrome binary.
+#
+# What this buys: com.widevine.alpha is PRESENT and negotiates SW_SECURE_*
+# (L3, software CDM 4.10.3112.0). What it does NOT buy: HW_SECURE_* (L1)
+# robustness -- that needs hardware secure-video/TPM, impossible to honestly
+# report inside a container. A real desktop with a software-only Widevine
+# machine also answers SW-only, so L3 presence is coherent; L1 acceptance is
+# the next round's problem.
+#
+# CDM host verification stays off here (media_options.gni gates it on
+# is_chrome_branded && (mac||win)), so no Widevine signing cert is needed
+# despite is_official_build.
 enable_widevine = true
+bundle_widevine_cdm = true
+
+# Desktop platform codecs. proprietary_codecs=true enables the generic codec
+# machinery, but the *platform* media gates default OFF on Linux desktop:
+# media/media_options.gni defaults enable_platform_ac3_eac3_audio to
+# (cast || tvos) and enable_platform_dts_audio to false, so real Windows/macOS
+# codecs AC-3/E-AC-3/DTS are missing from canPlayType/MediaSource/EME lists
+# (confirmed by the round-2 probe: ac-3/ec-3/mp4a.a5 all false on a persona
+# claiming Windows). These are compile-time flags with no runtime GPU-decoder
+# dependency on Linux (supported_types.cc returns true directly once enabled),
+# so they are safe to force for a desktop persona. They also require
+# proprietary_codecs (asserted), which is set above.
+enable_platform_ac3_eac3_audio = true
+enable_platform_dts_audio = true
+
+# Dolby Vision demuxing (dvh1/dvhe). Default (cast || is_win) -- off on Linux.
+# Requires enable_platform_hevc, which enable_hevc_parser_and_hw_decoder
+# already turns on for is_linux + proprietary_codecs. Runtime decode support
+# still consults the GPU-process supplemental decoder cache (empty on a
+# GPU-less container); the persona override for that lives in
+# supported_types.cc (apex-media-hevc / apex-media-dv) and is env-gated, so
+# this flag just makes the parser/flag machinery reachable.
+enable_platform_dolby_vision = true
 
 # Field trials. components/variations/service/BUILD.gn defaults
 # disable_fieldtrial_testing_config to false, so a Chromium-branded build

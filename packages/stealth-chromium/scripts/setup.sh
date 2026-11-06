@@ -241,6 +241,66 @@ else
   CACHE_DIRTY=1
 fi
 
+# --- Widevine CDM bundling input -------------------------------------------
+# bundle_widevine_cdm=true (build/args.gn) makes the build copy the CDM files
+# from third_party/widevine/cdm/{linux,x64}/ into out/apex/WidevineCdm/. The
+# src-internal checkout would provide them; we fetch the identical files from
+# the Chrome-for-Testing build of the SAME Chromium version (pure CDN, no
+# auth, no accounts). SHA256 pins below match 157.0.8103.38; a version bump
+# needs its own pins.
+fetch_widevine_cdm() {
+  wv_dir="$WORK/chromium/src/third_party/widevine/cdm"
+  wv_so="$wv_dir/linux/x64/libwidevinecdm.so"
+  wv_manifest="$wv_dir/linux/x64/manifest.json"
+  wv_so_sha="cd250e8177183add7029ccc3057217b978779f9c7af800c45083f3cc0139020e"
+  wv_manifest_sha="106559aa573088d9436609452fd0ec85d19a4475a500526950d2ef4fae2a7ca4"
+  wv_check_sha() {
+    if [ "$CHROMIUM_VERSION" = "157.0.8103.38" ]; then
+      echo "$wv_so_sha  $wv_so" | shasum -a 256 -c - >/dev/null 2>&1 \
+        && echo "$wv_manifest_sha  $wv_manifest" | shasum -a 256 -c - >/dev/null 2>&1
+    else
+      # Version not covered by the pins: just require presence, and say so.
+      [ -f "$wv_so" ] && [ -f "$wv_manifest" ]
+    fi
+  }
+  if [ -f "$wv_so" ] && [ -f "$wv_manifest" ] && wv_check_sha; then
+    echo "[3.5/3] Widevine CDM input files present and verified"
+    return 0
+  fi
+  if [ -f "$wv_so" ] || [ -f "$wv_manifest" ]; then
+    echo "[3.5/3] CDM files present but unverified -- re-fetching"
+    rm -f "$wv_so" "$wv_manifest"
+  fi
+  echo "[3.5/3] fetching Widevine CDM input files ($CHROMIUM_VERSION) ..."
+  wv_zip_dir=$(mktemp -d)
+  if ! curl -fsSL -o "$wv_zip_dir/cft.zip" \
+       "https://storage.googleapis.com/chrome-for-testing-public/${CHROMIUM_VERSION}/linux64/chrome-linux64.zip"; then
+    rm -rf "$wv_zip_dir"
+    echo "      ERROR: no chrome-linux64.zip for $CHROMIUM_VERSION at the CFT bucket." >&2
+    echo "      Pin the CDM files manually at $wv_dir/{linux,x64}/ and re-run setup." >&2
+    return 1
+  fi
+  python3 - "$wv_zip_dir/cft.zip" "$wv_zip_dir" <<'PYEOF'
+import sys, zipfile
+zip_path, out = sys.argv[1], sys.argv[2]
+with zipfile.ZipFile(zip_path) as z:
+    z.extract("chrome-linux64/WidevineCdm/manifest.json", out)
+    z.extract(
+        "chrome-linux64/WidevineCdm/_platform_specific/linux_x64/libwidevinecdm.so",
+        out)
+PYEOF
+  mkdir -p "$wv_dir/linux/x64"
+  mv "$wv_zip_dir/chrome-linux64/WidevineCdm/manifest.json" "$wv_manifest"
+  mv "$wv_zip_dir/chrome-linux64/WidevineCdm/_platform_specific/linux_x64/libwidevinecdm.so" "$wv_so"
+  rm -rf "$wv_zip_dir"
+  if ! wv_check_sha; then
+    echo "      ERROR: CDM SHA256/presence check failed for $CHROMIUM_VERSION" >&2
+    return 1
+  fi
+  echo "[3.5/3] Widevine CDM input files verified"
+}
+fetch_widevine_cdm || exit 1
+
 # Refresh the rolling cache ONLY when the tree changed (full fetch or
 # version advance). On a same-version warm build, the tarball content is
 # byte-identical to what's already in S3, so re-uploading is pure waste.

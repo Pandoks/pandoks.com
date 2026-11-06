@@ -153,6 +153,14 @@ esac
 for req in icudtl.dat resources.pak chrome_100_percent.pak snapshot_blob.bin v8_context_snapshot.bin locales; do
   [ -e "$EXTRACT/$req" ] || echo "WARNING: expected file missing from tarball: $req"
 done
+# The bundled Widevine CDM is load-bearing: without it the browser answers
+# NotSupportedError for com.widevine.alpha (the container can't component-
+# update it later). Hard-fail, not a warning -- a CDM-less artifact is a
+# broken persona.
+if [ ! -f "$EXTRACT/WidevineCdm/manifest.json" ] \
+     || [ ! -f "$EXTRACT/WidevineCdm/_platform_specific/linux_x64/libwidevinecdm.so" ]; then
+  die "WidevineCdm missing from the tarball (manifest.json and/or libwidevinecdm.so)"
+fi
 
 if [ "${SKIP_DOCKER:-0}" = "1" ]; then
   log "SKIP_DOCKER=1: not running the binary"

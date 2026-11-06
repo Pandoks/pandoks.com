@@ -107,6 +107,12 @@ WHITELIST=(
   resources.pak
   snapshot_blob.bin
   v8_context_snapshot.bin
+  # Bundled Widevine CDM (bundle_widevine_cdm=true): the runtime lookup is
+  # <exe dir>/WidevineCdm/{manifest.json,_platform_specific/linux_x64/*} and
+  # the container has no egress to component-update it later. Without this dir
+  # in the artifact the browser reports NotSupportedError for
+  # com.widevine.alpha at every robustness level.
+  WidevineCdm
 )
 TAR_INCLUDES=()
 for entry in "${WHITELIST[@]}"; do
