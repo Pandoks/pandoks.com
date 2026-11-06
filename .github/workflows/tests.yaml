@@ -23,6 +23,7 @@ jobs:
       desktop: ${{ steps.filter.outputs.desktop }}
       svelte: ${{ steps.filter.outputs.svelte }}
       prettier: ${{ steps.filter.outputs.prettier }}
+      queue: ${{ steps.filter.outputs.queue }}
       valkey-reconciler: ${{ steps.filter.outputs.valkey-reconciler }}
       push: ${{ steps.filter.outputs.push }}
 
@@ -43,6 +44,8 @@ jobs:
               - 'packages/svelte/**'
             prettier:
               - 'packages/prettier/**'
+            queue:
+              - 'packages/queue/**'
             valkey-reconciler:
               - 'packages/valkey/reconciler/**'
             push:
@@ -105,6 +108,41 @@ jobs:
       - name: Run prettier package tests
         run: pnpm --filter @pandoks.com/prettier test
 
+  test-queue:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.queue == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-trixie@sha256:3a4264520e121176619f54ff867d12774bc81e95e7b84db58d63bccdb6144b81
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 2s --health-retries 15
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: packages/queue/go.mod
+          cache-dependency-path: packages/queue/go.sum
+
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: uv python
+
+      - name: Run tests
+        run: pnpm --filter @pandoks.com/queue test
+
   test-valkey-reconciler:
     needs: detect-changes
     if: needs.detect-changes.outputs.valkey-reconciler == 'true'
@@ -161,6 +199,7 @@ jobs:
       - test-desktop
       - test-svelte-pkg
       - test-prettier-pkg
+      - test-queue
       - test-valkey-reconciler
       - test-push
     if: ${{ always() }}
