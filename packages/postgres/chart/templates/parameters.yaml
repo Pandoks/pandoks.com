@@ -52,7 +52,7 @@ spec:
                   print('shard %d: updated' % shard, flush=True)
           env:
             - name: DB
-              value: {{ .Values.db }}
+              value: {{ .Values.db | quote }}
             - name: SHARDS
               value: {{ .Values.patroni.shards | quote }}
             - name: PARAMETERS
