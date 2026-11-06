@@ -30,11 +30,14 @@ graph LR
   `RetryAfter`'s delay, `0` retrying at once. `Permanent` errors, and the failure of the last
   attempt (5 by default), mark the job `dead`. A job whose worker dies on its last attempt is marked
   dead by the next claim.
+- **Cancel:** deletes a queued job, or a running one whose lease ran out. A job a worker still runs
+  finishes this run, and its retry, release, or lost lease then deletes it instead of running it
+  again.
 - **History:** a completed or cancelled job is deleted. Dead rows stay in `queue_jobs` for a human
   to inspect, and logs are the only record of successes.
 - **Wake-up:** a trigger runs `pg_notify('queue_<name>')` whenever a row becomes `queued`, so it
   fires at commit and a rolled-back enqueue wakes nobody. An idle worker otherwise sleeps until the
-  queue's next due job or lease end, at most one lease.
+  queue's next due job or lease end, at least 0.1 s and at most one lease.
 
 ## SQL API
 
@@ -48,7 +51,7 @@ Every client calls these, so a producer can also call them straight from SQL.
 | `queue_complete(id, attempt)`                                                      | false once the lease is lost; deletes the job                       |
 | `queue_retry(id, attempt, error, retry_after_s)`, `queue_fail(id, attempt, error)` | false once the lease is lost                                        |
 | `queue_release(id, attempt)`                                                       | false once the lease is lost; requeues without spending the attempt |
-| `queue_cancel(id)`, `queue_cancel_group(queue, group_key)`                         | whether, or how many, `queued` jobs it deleted                      |
+| `queue_cancel(id)`, `queue_cancel_group(queue, group_key)`                         | whether, or how many, jobs it deleted or marked cancelled           |
 | `queue_wait_seconds(queue, max_seconds)`                                           | how long an idle worker waits                                       |
 
 ## Clients
@@ -77,7 +80,7 @@ if _, err := queue.Enqueue(ctx, tx, "thumbnails", map[string]string{"image_id": 
 }
 
 // Worker; PG* variables, PGHOST the Patroni primary since LISTEN needs a session
-pool, err := pgxpool.New(ctx, "")
+pool, err := pgxpool.New(ctx, "pool_max_conns=6") // Concurrency + 2
 if err != nil {
 	return err
 }
@@ -124,18 +127,21 @@ await work(client, 'thumbnails', process.env.HOSTNAME!, async (job) => {
 - **Connect workers to the Patroni primary, not PgDog**, since LISTEN needs a session. Producers may
   go through PgDog: every client call starts with `/* pgdog_role: primary */`, which PgDog's docs
   say routes it to the primary (untested here).
-- **Connections:** a Go worker holds 1 pool connection for LISTEN and uses the pool for short
-  claims, heartbeats, and reports, so the worker holds none while a handler runs. A Python or TS
-  worker uses 1 connection for LISTEN, claims, heartbeats, and reports, runs 1 job at a time, and
-  its handler writes through a connection of its own.
+- **Connections:** a Go worker's pool needs `Concurrency + 2` connections, or `Run` returns an
+  error: 1 for LISTEN, 1 per handler's transaction, and 1 for claims, heartbeats, and reports. A
+  heartbeat gives up after one lease and counts as a lost lease. A Python or TS worker uses 1
+  connection for LISTEN, claims, heartbeats, and reports, runs 1 job at a time, and its handler
+  writes through a connection of its own.
 - **Queue names** are at most 57 bytes: a longer one fails `queue_enqueue`, since the channel
   `queue_<name>` must fit Postgres's 63-byte limit.
 - **Schema:** `Migrate` runs as `admin` on the primary before the app's own DDL, from the app's
   migrate step. It takes an advisory lock and uses only `IF NOT EXISTS` and `CREATE OR REPLACE`, so
-  every pod start reruns it safely. Keep later changes additive in the same style
-  (`ADD COLUMN IF NOT EXISTS`, `DROP FUNCTION IF EXISTS` before a signature changes); there is no
-  migrations table. Only the Go client migrates; a database with only Python or TS consumers would
-  add one that runs `queue.sql`.
+  every pod start reruns it safely. Its `CREATE INDEX` and `CREATE TRIGGER` lock `queue_jobs` even
+  when nothing changes, and every queue write waits behind them, so after 10 s behind an open
+  transaction it fails (`lock_timeout`) and the migrate init container restarts. Keep later changes
+  additive in the same style (`ADD COLUMN IF NOT EXISTS`, `DROP FUNCTION IF EXISTS` before a
+  signature changes); there is no migrations table. Only the Go client migrates; a database with
+  only Python or TS consumers would add one that runs `queue.sql`.
 - **TS ships as `.ts`.** Node strips its types through pnpm's workspace symlink but refuses a copy
   under `node_modules` (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`), so a TS worker image keeps
   the workspace layout or compiles; `pnpm deploy`-style copies don't work.

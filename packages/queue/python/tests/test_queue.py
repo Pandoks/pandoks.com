@@ -22,9 +22,9 @@ def tearDownModule() -> None:
     db.close()
 
 
-def start_worker(queue: str, handle, lease: float = 30) -> None:
+def start_worker(queue: str, handle, lease: float = 30, conninfo: str = "") -> None:
     """Runs a worker until the test process exits."""
-    threading.Thread(target=work, args=("", queue, "worker", handle, lease), daemon=True).start()
+    threading.Thread(target=work, args=(conninfo, queue, "worker", handle, lease), daemon=True).start()
 
 
 def wait_for(condition, timeout: float) -> None:
@@ -129,8 +129,10 @@ class QueueTest(unittest.TestCase):
                 enqueue(app, f"{self.queue}-followup", {"parent": job.id}, group_key=job.group_key)
                 if not job.complete(app):
                     raise psycopg.Rollback()
+                # NOTE: lets a heartbeat tick land between complete and the commit
+                time.sleep(0.2)
 
-        start_worker(self.queue, handle)
+        start_worker(self.queue, handle, lease=0.3)
         with self.assertNoLogs(level="WARNING"):
             job_id = enqueue(db, self.queue, {}, group_key="group")
             # NOTE: one job at a time, so once this one runs the first is reported
@@ -142,3 +144,22 @@ class QueueTest(unittest.TestCase):
             (f"{self.queue}-followup", job_id),
         ).fetchone()[0]
         self.assertEqual(followups, 1)
+
+    def test_failed_heartbeat_is_a_lost_lease(self) -> None:
+        app = psycopg.connect("", autocommit=True)
+        self.addCleanup(app.close)
+        done = threading.Event()
+
+        # NOTE: holds the job's row lock past the worker's lock_timeout, so its heartbeats fail
+        def handle(job: Job) -> None:
+            with app.transaction():
+                app.execute("SELECT FROM queue_jobs WHERE id = %s FOR UPDATE", (job.id,))
+                time.sleep(0.5)
+            done.set()
+
+        start_worker(self.queue, handle, lease=0.3, conninfo="options='-c lock_timeout=100'")
+        with self.assertLogs(level="WARNING") as logs:
+            enqueue(db, self.queue, {})
+            self.assertTrue(done.wait(10))
+        self.assertEqual(len(logs.output), 1, logs.output)
+        self.assertIn("lease lost while running", logs.output[0])

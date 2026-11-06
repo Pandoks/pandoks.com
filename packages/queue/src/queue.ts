@@ -45,7 +45,7 @@ export async function enqueue(
   return rows[0].id;
 }
 
-// Deletes a job no worker is running, and reports whether it did.
+// Makes a job never run again, and reports whether it did. A job a worker is running finishes this run.
 export async function cancel(db: Db, id: string): Promise<boolean> {
   const { rows } = await db.query<{ cancelled: boolean }>(
     PRIMARY + 'SELECT queue_cancel($1) AS cancelled',
@@ -54,7 +54,7 @@ export async function cancel(db: Db, id: string): Promise<boolean> {
   return rows[0].cancelled;
 }
 
-// Deletes every job of queue and groupKey that no worker is running, and returns how many.
+// Cancels every job of queue and groupKey like cancel, and returns how many.
 export async function cancelGroup(db: Db, queue: string, groupKey: string): Promise<number> {
   const { rows } = await db.query<{ cancelled: string }>(
     PRIMARY + 'SELECT queue_cancel_group($1, $2) AS cancelled',
@@ -124,8 +124,15 @@ export async function work(
 
 async function run(db: pg.Client, job: Job, handle: Handler, lease: number): Promise<void> {
   // NOTE: a promise can't be stopped, so a lost lease is only logged; the fenced report changes nothing
-  let extending = Promise.resolve();
+  const lost = (...error: unknown[]) => {
+    clearInterval(heartbeat);
+    console.warn(`lease lost while running job ${job.id} attempt ${job.attempt}`, ...error);
+  };
+  let extending: Promise<void> | undefined;
   const extend = () => {
+    // NOTE: once complete deletes the job in the handler's transaction, an extend waits on its row lock and then
+    // finds no row. A tick while an extend is in flight is skipped, so a slow one isn't queued twice.
+    if (job.reported || extending) return;
     extending = db
       .query<{ extended: boolean }>(PRIMARY + 'SELECT queue_extend($1, $2, $3) AS extended', [
         job.id,
@@ -133,9 +140,10 @@ async function run(db: pg.Client, job: Job, handle: Handler, lease: number): Pro
         lease
       ])
       .then(({ rows: [{ extended }] }) => {
-        if (!extended) {
-          console.warn(`lease lost while running job ${job.id} attempt ${job.attempt}`);
-        }
+        if (!extended) lost();
+      }, lost)
+      .finally(() => {
+        extending = undefined;
       });
   };
   const heartbeat = setInterval(extend, (lease / 3) * 1000);

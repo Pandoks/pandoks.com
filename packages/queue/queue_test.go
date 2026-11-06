@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -29,7 +30,8 @@ func TestMain(m *testing.M) {
 		log.Fatal(err)
 	}
 	_ = conn.Close(ctx)
-	pool, err = pgxpool.New(ctx, "")
+	// NOTE: enough for the tests' Concurrency 4 worker and their own queries
+	pool, err = pgxpool.New(ctx, "pool_max_conns=8")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -261,18 +263,42 @@ func TestScheduleAndCancel(t *testing.T) {
 		t.Fatalf("Cancel of a job in backoff = %v, %v", cancelled, err)
 	}
 
+	orphaned := enqueue(t, queue, EnqueueOptions{})
+	claim(t, queue, "worker")
+	expireLease(t, orphaned)
+	if cancelled, err := Cancel(ctx, pool, orphaned); err != nil || !cancelled || jobRow(t, orphaned) != nil {
+		t.Fatalf("Cancel of a job whose worker died = %v, %v", cancelled, err)
+	}
+
+	// A running job finishes this run, then its retry, release or lost lease deletes it instead of running it again
+	worker := Worker{Pool: pool}
+	for end, finish := range map[string]func(job *Job) error{
+		"retry":      func(job *Job) error { return worker.report(ctx, job, errors.New("boom")) },
+		"release":    func(job *Job) error { return worker.release(ctx, job) },
+		"lost lease": func(job *Job) error { expireLease(t, job.ID); claim(t, queue, "worker"); return nil },
+	} {
+		running := enqueue(t, queue, EnqueueOptions{})
+		job := claim(t, queue, "worker")
+		if cancelled, err := Cancel(ctx, pool, running); err != nil || !cancelled || jobRow(t, running) == nil {
+			t.Fatalf("Cancel of a running job = %v, %v, want it marked", cancelled, err)
+		}
+		if err := finish(job); err != nil {
+			t.Fatal(err)
+		}
+		if got := jobRow(t, running); got != nil {
+			t.Fatalf("a cancelled running job's %s kept it: %+v", end, got)
+		}
+	}
+
 	running := enqueue(t, queue, EnqueueOptions{GroupKey: "a"})
 	claim(t, queue, "worker")
-	if cancelled, err := Cancel(ctx, pool, running); err != nil || cancelled {
-		t.Fatalf("Cancel of a running job = %v, %v, want false", cancelled, err)
-	}
 	later := time.Now().Add(time.Hour)
 	enqueue(t, queue, EnqueueOptions{GroupKey: "a", RunAt: later})
 	enqueue(t, queue, EnqueueOptions{GroupKey: "a", RunAt: later})
 	other := enqueue(t, queue, EnqueueOptions{GroupKey: "b", RunAt: later})
 	otherQueue := enqueue(t, queue+"-other", EnqueueOptions{GroupKey: "a", RunAt: later})
-	if cancelled, err := CancelGroup(ctx, pool, queue, "a"); err != nil || cancelled != 2 {
-		t.Fatalf("CancelGroup = %d, %v, want 2", cancelled, err)
+	if cancelled, err := CancelGroup(ctx, pool, queue, "a"); err != nil || cancelled != 3 {
+		t.Fatalf("CancelGroup = %d, %v, want 3", cancelled, err)
 	}
 	if jobRow(t, running) == nil || jobRow(t, other) == nil || jobRow(t, otherQueue) == nil {
 		t.Fatal("CancelGroup deleted a running job, another group's job, or another queue's job")
@@ -315,7 +341,7 @@ func TestCompleteInTheHandlersTransaction(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	stopped := make(chan error, 1)
 	go func() {
-		stopped <- Worker{Pool: pool, Queue: queue, Name: "worker", Handle: func(ctx context.Context, job *Job) error {
+		stopped <- Worker{Pool: pool, Queue: queue, Name: "worker", Lease: 300 * time.Millisecond, Handle: func(ctx context.Context, job *Job) error {
 			tx, err := pool.Begin(ctx)
 			if err != nil {
 				return err
@@ -327,6 +353,8 @@ func TestCompleteInTheHandlersTransaction(t *testing.T) {
 			if completed, err := job.Complete(ctx, tx); err != nil || !completed {
 				return err
 			}
+			// NOTE: lets a heartbeat tick land between Complete and Commit
+			time.Sleep(200 * time.Millisecond)
 			return tx.Commit(ctx)
 		}}.Run(ctx)
 	}()
@@ -363,6 +391,68 @@ func TestMigrateTwice(t *testing.T) {
 		if err := Migrate(ctx, conn); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestMigrateFailsBehindAnOpenTransaction(t *testing.T) {
+	ctx := context.Background()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := Enqueue(ctx, tx, newQueue(t), map[string]string{}, EnqueueOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	conn, err := pgx.Connect(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Close(ctx) }()
+	migrateContext, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	var pgError *pgconn.PgError
+	if err := Migrate(migrateContext, conn); !errors.As(err, &pgError) || pgError.Code != "55P03" {
+		t.Fatalf("Migrate behind an open transaction returned %v, want a lock timeout", err)
+	}
+}
+
+// A handler on its last attempt that called Complete in its transaction locks the job, and its lease can run out
+// before the transaction ends.
+func TestLockedExpiredJobStallsNoClaims(t *testing.T) {
+	ctx := context.Background()
+	queue := newQueue(t)
+	id := enqueue(t, queue, EnqueueOptions{MaxAttempts: 1})
+	job := claim(t, queue, "worker")
+	expireLease(t, id)
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if completed, err := job.Complete(ctx, tx); err != nil || !completed {
+		t.Fatalf("Complete = %v, %v, want true", completed, err)
+	}
+
+	next := enqueue(t, queue, EnqueueOptions{})
+	claimContext, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	var claimed int64
+	if err := pool.QueryRow(claimContext, `SELECT id FROM queue_claim($1, 'worker', 30)`, queue).Scan(&claimed); err != nil || claimed != next {
+		t.Fatalf("claim beside a locked expired job = %d, %v, want %d", claimed, err, next)
+	}
+	var seconds float64
+	if err := pool.QueryRow(ctx, `SELECT queue_wait_seconds($1, 30)`, queue).Scan(&seconds); err != nil || seconds <= 0 {
+		t.Fatalf("wait beside a locked due job = %v, %v, want more than 0 so idle workers don't spin", seconds, err)
+	}
+}
+
+func TestRunRejectsASmallPool(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	err := Worker{Pool: pool, Queue: newQueue(t), Name: "worker", Concurrency: int(pool.Config().MaxConns) - 1}.Run(ctx)
+	if err == nil || errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Run with a pool too small for its heartbeats returned %v", err)
 	}
 }
 

@@ -56,12 +56,12 @@ def enqueue(
 
 
 def cancel(db: psycopg.Connection, job_id: int) -> bool:
-    """Deletes a job no worker is running, and reports whether it did."""
+    """Makes a job never run again, and reports whether it did. A job a worker is running finishes this run."""
     return db.execute(PRIMARY + "SELECT queue_cancel(%s)", (job_id,)).fetchone()[0]
 
 
 def cancel_group(db: psycopg.Connection, queue: str, group_key: str) -> int:
-    """Deletes every job of queue and group_key that no worker is running, and returns how many."""
+    """Cancels every job of queue and group_key like cancel, and returns how many."""
     return db.execute(PRIMARY + "SELECT queue_cancel_group(%s, %s)", (queue, group_key)).fetchone()[0]
 
 
@@ -85,10 +85,16 @@ def work(conninfo: str, queue: str, worker: str, handle: Callable[[Job], None], 
 def _run(conn: psycopg.Connection, job: Job, handle: Callable[[Job], None], lease: float) -> None:
     stop = threading.Event()
 
-    # NOTE: a thread can't stop the handler, so a lost lease is only logged; the fenced report changes nothing
+    # NOTE: a thread can't stop the handler, so a lost lease is only logged; the fenced report changes nothing.
+    # Once complete deletes the job in the handler's transaction, an extend would wait on its row lock and find no row.
     def extend() -> None:
-        while not stop.wait(lease / 3):
-            if not conn.execute(PRIMARY + "SELECT queue_extend(%s, %s, %s)", (job.id, job.attempt, lease)).fetchone()[0]:
+        while not stop.wait(lease / 3) and not job.reported:
+            try:
+                extended = conn.execute(PRIMARY + "SELECT queue_extend(%s, %s, %s)", (job.id, job.attempt, lease)).fetchone()[0]
+            except psycopg.Error as error:
+                logging.warning("lease lost while running job %s attempt %s: %s", job.id, job.attempt, error)
+                return
+            if not extended:
                 logging.warning("lease lost while running job %s attempt %s", job.id, job.attempt)
                 return
 

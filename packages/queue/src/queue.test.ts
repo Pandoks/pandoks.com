@@ -7,8 +7,8 @@ import { complete, enqueue, Permanent, RetryAfter, work, type Handler } from './
 const clients: pg.Client[] = [];
 let db: pg.Client;
 
-async function connect() {
-  const client = new pg.Client();
+async function connect(config?: pg.ClientConfig) {
+  const client = new pg.Client(config);
   await client.connect();
   clients.push(client);
   return client;
@@ -31,8 +31,8 @@ async function newQueue(name: string) {
 }
 
 // Runs a worker until the clients end after every test.
-async function startWorker(queue: string, handle: Handler, lease = 30) {
-  void work(await connect(), queue, 'worker', handle, lease).catch(() => {});
+async function startWorker(queue: string, handle: Handler, lease = 30, config?: pg.ClientConfig) {
+  void work(await connect(config), queue, 'worker', handle, lease).catch(() => {});
 }
 
 interface Row {
@@ -120,17 +120,24 @@ test("skips the runner's report after complete in the handler's transaction", as
   const app = await connect();
   const warn = vi.spyOn(console, 'warn');
   const done = Promise.withResolvers<void>();
-  await startWorker(queue, async (job) => {
-    if (job.payload.last) return done.resolve();
-    await app.query('BEGIN');
-    await enqueue(
-      app,
-      `${queue}-followup`,
-      { parent: job.id },
-      { groupKey: job.group_key ?? undefined }
-    );
-    await app.query((await complete(app, job)) ? 'COMMIT' : 'ROLLBACK');
-  });
+  await startWorker(
+    queue,
+    async (job) => {
+      if (job.payload.last) return done.resolve();
+      await app.query('BEGIN');
+      await enqueue(
+        app,
+        `${queue}-followup`,
+        { parent: job.id },
+        { groupKey: job.group_key ?? undefined }
+      );
+      const completed = await complete(app, job);
+      // NOTE: lets a heartbeat tick land between complete and COMMIT
+      await sleep(200);
+      await app.query(completed ? 'COMMIT' : 'ROLLBACK');
+    },
+    0.3
+  );
 
   const id = await enqueue(db, queue, {}, { groupKey: 'group' });
   // NOTE: one job at a time, so once this one runs the first is reported
@@ -143,4 +150,28 @@ test("skips the runner's report after complete in the handler's transaction", as
     [`${queue}-followup`, id]
   );
   expect(rows[0].count).toBe('1');
+});
+
+test('logs a failed heartbeat as a lost lease instead of crashing', async () => {
+  const queue = await newQueue('heartbeat-error');
+  const app = await connect();
+  const warn = vi.spyOn(console, 'warn').mockClear();
+  const done = Promise.withResolvers<void>();
+  // NOTE: holds the job's row lock past the worker's lock_timeout, so its heartbeats fail
+  await startWorker(
+    queue,
+    async (job) => {
+      await app.query('BEGIN');
+      await app.query('SELECT FROM queue_jobs WHERE id = $1 FOR UPDATE', [job.id]);
+      await sleep(500);
+      await app.query('COMMIT');
+      done.resolve();
+    },
+    0.3,
+    { lock_timeout: 100 }
+  );
+  await enqueue(db, queue, {});
+  await done.promise;
+  expect(warn).toHaveBeenCalledOnce();
+  expect(warn.mock.calls[0][0]).toMatch(/^lease lost while running/);
 });
