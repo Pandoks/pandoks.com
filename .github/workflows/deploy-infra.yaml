@@ -10,6 +10,7 @@ on:
       - 'apps/**'
       - '!apps/desktop-template/**'
       - '!apps/example/**'
+      - 'apps/*/kube/**'
       - 'packages/svelte/**'
       - 'k3s/**'
       - 'scripts/cluster/**'
@@ -48,6 +49,7 @@ jobs:
               - 'packages/svelte/**'
             kubernetes:
               - 'k3s/**'
+              - 'apps/*/kube/**'
               - 'scripts/cluster/**'
 
   deploy-sst:
