@@ -307,6 +307,55 @@ func TestScheduleAndCancel(t *testing.T) {
 	}
 }
 
+// A cancel that waits on a claim's row lock must judge the claimed row, or it misses the job and the job runs.
+func TestCancelDuringAClaim(t *testing.T) {
+	ctx := context.Background()
+	queue := newQueue(t)
+	for name, cancel := range map[string]func(id int64) (bool, error){
+		"Cancel": func(id int64) (bool, error) { return Cancel(ctx, pool, id) },
+		"CancelGroup": func(int64) (bool, error) {
+			cancelled, err := CancelGroup(ctx, pool, queue, "group")
+			return cancelled == 1, err
+		},
+	} {
+		id := enqueue(t, queue, EnqueueOptions{GroupKey: "group"})
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tx.Exec(ctx, `SELECT FROM queue_claim($1, 'worker', 30)`, queue); err != nil {
+			t.Fatal(err)
+		}
+		type result struct {
+			cancelled bool
+			err       error
+		}
+		cancelled := make(chan result, 1)
+		go func() {
+			ok, err := cancel(id)
+			cancelled <- result{ok, err}
+		}()
+		waitFor(t, 5*time.Second, func() bool {
+			var waiting bool
+			if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT FROM pg_stat_activity WHERE pid <> pg_backend_pid()
+				AND query LIKE '%queue_cancel%' AND wait_event_type = 'Lock')`).Scan(&waiting); err != nil {
+				t.Fatal(err)
+			}
+			return waiting
+		})
+		if err := tx.Commit(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if got := <-cancelled; got.err != nil || !got.cancelled {
+			t.Fatalf("%s during a claim = %v, %v, want true", name, got.cancelled, got.err)
+		}
+		expireLease(t, id)
+		if job := claim(t, queue, "worker"); job != nil {
+			t.Fatalf("a job %s cancelled during its claim ran again: %+v", name, job)
+		}
+	}
+}
+
 func TestWakeAndIsolation(t *testing.T) {
 	queue := newQueue(t)
 	otherQueue := enqueue(t, queue+"-other", EnqueueOptions{})

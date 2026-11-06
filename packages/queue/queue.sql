@@ -140,7 +140,10 @@ $$;
 
 -- Cancels a job so it never runs again: deletes it, or marks it while a worker holds its lease, so its handler
 -- finishes this run.
+-- NOTE: locks first, so the cancel judges the row after a claim or retry it waited on, not before. One statement would
+-- miss it both ways: the DELETE rechecks the new version and the UPDATE judges the old one.
 CREATE OR REPLACE FUNCTION queue_cancel(job_id bigint) RETURNS boolean LANGUAGE sql AS $$
+  SELECT FROM queue_jobs WHERE id = job_id FOR UPDATE;
   WITH deleted AS (
     DELETE FROM queue_jobs WHERE id = job_id AND (state = 'queued' OR state = 'running' AND available_at <= now())
     RETURNING 1
@@ -150,7 +153,9 @@ CREATE OR REPLACE FUNCTION queue_cancel(job_id bigint) RETURNS boolean LANGUAGE 
   ) SELECT EXISTS (SELECT 1 FROM deleted) OR EXISTS (SELECT 1 FROM marked);
 $$;
 
+-- NOTE: locks in id order, so two cancels of one group can't deadlock
 CREATE OR REPLACE FUNCTION queue_cancel_group(queue_name text, key text) RETURNS bigint LANGUAGE sql AS $$
+  SELECT FROM queue_jobs WHERE queue = queue_name AND group_key = key ORDER BY id FOR UPDATE;
   WITH deleted AS (
     DELETE FROM queue_jobs
     WHERE queue = queue_name AND group_key = key AND (state = 'queued' OR state = 'running' AND available_at <= now())
