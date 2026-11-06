@@ -1,5 +1,5 @@
 import { isProduction } from './dns';
-import { tailscaleAcl } from './tailscale';
+import { hubTailscaleServices, tailscaleAcl } from './tailscale';
 
 if (isProduction) {
   new ovh.vps.Vps(
@@ -59,32 +59,28 @@ if (isProduction) {
     'OvhDevVpsTailscaleTags',
     {
       deviceId: devTailscaleDevice.nodeId,
-      tags: ['tag:funnel', 'tag:ovh', 'tag:cliproxyapi', 'tag:ssh']
+      tags: ['tag:funnel', 'tag:ovh', 'tag:ssh']
     },
     { dependsOn: [tailscaleAcl] }
   );
 
-  // NOTE: pandoks-dev-box hosts this with `tailscale serve --service=svc:cliproxyapi --https=443`
-  new tailscale.Service(
-    'CliproxyapiTailscaleService',
+  const hubTailscaleDevice = tailscale.getDeviceOutput({ hostname: 'thinkpad-t470' });
+  new tailscale.DeviceTags(
+    'HubTailscaleTags',
     {
-      name: 'svc:cliproxyapi',
-      comment: 'CLIProxyAPI on pandoks-dev-box',
-      ports: ['tcp:443'],
-      tags: ['tag:cliproxyapi']
+      deviceId: hubTailscaleDevice.nodeId,
+      tags: ['tag:hub', 'tag:ssh']
     },
     { dependsOn: [tailscaleAcl] }
   );
-  new tailscale.Service(
-    'CliproxyapiCiTailscaleService',
-    {
-      name: 'svc:cliproxyapi-ci',
-      comment: 'CLIProxyAPI with Console API keys only',
-      ports: ['tcp:443'],
-      tags: ['tag:cliproxyapi']
-    },
-    { dependsOn: [tailscaleAcl] }
-  );
+
+  for (const { name, comment } of hubTailscaleServices) {
+    new tailscale.Service(
+      `${name.replace(/(?:^|-)(.)/g, (_, char: string) => char.toUpperCase())}TailscaleService`,
+      { name: `svc:${name}`, comment, ports: ['tcp:443'], tags: ['tag:hub'] },
+      { dependsOn: [tailscaleAcl] }
+    );
+  }
 }
 
 new sst.x.DevCommand('LocalInit', {

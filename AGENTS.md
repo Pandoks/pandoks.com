@@ -63,12 +63,14 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
   GHCR images and charts), a Cloudflare Pages preview of `apps/web`, and `claude-review.yaml` (one
   Agent SDK `/code-review` per PR, posted as one review with inline comments). Required checks are
   the `*-pass` aggregates.
+- GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
+  deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
   `infra/`, `apps/` (except `desktop-template`, `example`, and `push`), and `packages/svelte/`, plus
-  an Argo hard refresh only for `k3s/` and `scripts/cluster/` changes. Pages builds `apps/web` when
-  a change matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything
-  `k3s/overlays/prod` renders but never prunes: a deleted resource stays in prod until pruned by
-  hand.
+  an Argo hard refresh and a wait for Synced and Healthy only for `k3s/` and `scripts/cluster/`
+  changes. Pages builds `apps/web` when a change matches `pathIncludes` in `infra/website.ts`. Argo
+  auto-syncs everything `k3s/overlays/prod` renders but never prunes: a deleted resource stays in
+  prod until pruned by hand.
 - Every non-production stage gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
   environment, so two non-production stages collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
