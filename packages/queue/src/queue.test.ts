@@ -152,26 +152,50 @@ test("skips the runner's report after complete in the handler's transaction", as
   expect(rows[0].count).toBe('1');
 });
 
-test('logs a failed heartbeat as a lost lease instead of crashing', async () => {
+test('keeps heartbeating after a failed extend', async () => {
   const queue = await newQueue('heartbeat-error');
   const app = await connect();
   const warn = vi.spyOn(console, 'warn').mockClear();
-  const done = Promise.withResolvers<void>();
-  // NOTE: holds the job's row lock past the worker's lock_timeout, so its heartbeats fail
+  const { promise: running, resolve } = Promise.withResolvers<Row | undefined>();
   await startWorker(
     queue,
     async (job) => {
+      // NOTE: holds the job's row lock past the worker's lock_timeout, so its first heartbeat fails
       await app.query('BEGIN');
       await app.query('SELECT FROM queue_jobs WHERE id = $1 FOR UPDATE', [job.id]);
-      await sleep(500);
+      await sleep(450);
       await app.query('COMMIT');
-      done.resolve();
+      // NOTE: past the first lease, so only a later heartbeat keeps the job
+      await sleep(1000);
+      resolve(await row(job.id));
     },
-    0.3,
+    0.9,
     { lock_timeout: 100 }
   );
   await enqueue(db, queue, {});
-  await done.promise;
-  expect(warn).toHaveBeenCalledOnce();
-  expect(warn.mock.calls[0][0]).toMatch(/^lease lost while running/);
+  const job = await running;
+  expect(warn).toHaveBeenCalled();
+  for (const [message] of warn.mock.calls) expect(message).toMatch(/^heartbeat failed/);
+  expect(job?.state).toBe('running');
+  expect(job?.seconds).toBeGreaterThan(0);
+});
+
+test('rejects when its idle connection fails, instead of crashing', async () => {
+  const client = await connect();
+  const {
+    rows: [{ pid }]
+  } = await client.query<{ pid: number }>('SELECT pg_backend_pid() AS pid');
+  const working = expect(
+    work(client, await newQueue('idle-error'), 'worker', async () => {})
+  ).rejects.toThrow(/terminating connection/);
+  // NOTE: lets the worker go idle, waiting up to the 30 s lease
+  await sleep(200);
+  await db.query('SELECT pg_terminate_backend($1)', [pid]);
+  await working;
+});
+
+test('rejects a lease that is not positive', async () => {
+  await expect(work(new pg.Client(), 'ts-lease', 'worker', async () => {}, 0)).rejects.toThrow(
+    /lease/
+  );
 });

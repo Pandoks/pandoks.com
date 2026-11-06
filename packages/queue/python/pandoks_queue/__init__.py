@@ -68,6 +68,8 @@ def cancel_group(db: psycopg.Connection, queue: str, group_key: str) -> int:
 def work(conninfo: str, queue: str, worker: str, handle: Callable[[Job], None], lease: float = 30) -> None:
     """Runs jobs one at a time until the connection fails. It opens a connection of its own, since it LISTENs
     and heartbeats on it, so the handler writes through another connection."""
+    if lease <= 0:
+        raise ValueError(f"the lease is {lease} s, but it must be positive")
     with psycopg.connect(conninfo, autocommit=True) as conn:
         conn.execute(sql.SQL("LISTEN {}").format(sql.Identifier(f"queue_{queue}")))
         while True:
@@ -86,16 +88,18 @@ def _run(conn: psycopg.Connection, job: Job, handle: Callable[[Job], None], leas
     stop = threading.Event()
 
     # NOTE: a thread can't stop the handler, so a lost lease is only logged; the fenced report changes nothing.
-    # Once complete deletes the job in the handler's transaction, an extend would wait on its row lock and find no row.
+    # A failed extend doesn't mean the lease is lost, so the heartbeat keeps ticking. Once complete deletes the job
+    # in the handler's transaction, an extend would wait on its row lock and find no row.
     def extend() -> None:
         while not stop.wait(lease / 3) and not job.reported:
             try:
                 extended = conn.execute(PRIMARY + "SELECT queue_extend(%s, %s, %s)", (job.id, job.attempt, lease)).fetchone()[0]
             except psycopg.Error as error:
-                logging.warning("lease lost while running job %s attempt %s: %s", job.id, job.attempt, error)
-                return
+                logging.warning("heartbeat failed for job %s attempt %s: %s", job.id, job.attempt, error)
+                continue
             if not extended:
-                logging.warning("lease lost while running job %s attempt %s", job.id, job.attempt)
+                if not job.reported:
+                    logging.warning("lease lost while running job %s attempt %s", job.id, job.attempt)
                 return
 
     heartbeat = threading.Thread(target=extend, daemon=True)

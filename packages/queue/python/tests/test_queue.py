@@ -145,21 +145,32 @@ class QueueTest(unittest.TestCase):
         ).fetchone()[0]
         self.assertEqual(followups, 1)
 
-    def test_failed_heartbeat_is_a_lost_lease(self) -> None:
+    def test_heartbeat_outlasts_a_failed_extend(self) -> None:
         app = psycopg.connect("", autocommit=True)
         self.addCleanup(app.close)
+        rows = []
         done = threading.Event()
 
-        # NOTE: holds the job's row lock past the worker's lock_timeout, so its heartbeats fail
         def handle(job: Job) -> None:
+            # NOTE: holds the job's row lock past the worker's lock_timeout, so its first heartbeat fails
             with app.transaction():
                 app.execute("SELECT FROM queue_jobs WHERE id = %s FOR UPDATE", (job.id,))
-                time.sleep(0.5)
+                time.sleep(0.45)
+            # NOTE: past the first lease, so only a later heartbeat keeps the job
+            time.sleep(1)
+            rows.append(row(job.id))
             done.set()
 
-        start_worker(self.queue, handle, lease=0.3, conninfo="options='-c lock_timeout=100'")
+        start_worker(self.queue, handle, lease=0.9, conninfo="options='-c lock_timeout=100'")
         with self.assertLogs(level="WARNING") as logs:
             enqueue(db, self.queue, {})
             self.assertTrue(done.wait(10))
-        self.assertEqual(len(logs.output), 1, logs.output)
-        self.assertIn("lease lost while running", logs.output[0])
+        self.assertTrue(all("heartbeat failed" in line for line in logs.output), logs.output)
+        state, _, _, seconds = rows[0]
+        self.assertEqual(state, "running")
+        self.assertGreater(seconds, 0, "the lease ran out after a failed extend")
+
+    def test_rejects_a_lease_that_is_not_positive(self) -> None:
+        # NOTE: an unreachable host, so a check after connecting would raise something else
+        with self.assertRaises(ValueError):
+            work("host=/nonexistent", self.queue, "worker", lambda job: None, lease=0)

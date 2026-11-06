@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"log/slog"
+	"net"
 	"os"
 	"strings"
 	"sync/atomic"
@@ -270,10 +271,11 @@ func TestScheduleAndCancel(t *testing.T) {
 		t.Fatalf("Cancel of a job whose worker died = %v, %v", cancelled, err)
 	}
 
-	// A running job finishes this run, then its retry, release or lost lease deletes it instead of running it again
+	// A running job finishes this run, then its retry, fail, release or lost lease deletes it instead of running it again
 	worker := Worker{Pool: pool}
 	for end, finish := range map[string]func(job *Job) error{
 		"retry":      func(job *Job) error { return worker.report(ctx, job, errors.New("boom")) },
+		"fail":       func(job *Job) error { return worker.report(ctx, job, Permanent(errors.New("bad payload"))) },
 		"release":    func(job *Job) error { return worker.release(ctx, job) },
 		"lost lease": func(job *Job) error { expireLease(t, job.ID); claim(t, queue, "worker"); return nil },
 	} {
@@ -302,6 +304,55 @@ func TestScheduleAndCancel(t *testing.T) {
 	}
 	if jobRow(t, running) == nil || jobRow(t, other) == nil || jobRow(t, otherQueue) == nil {
 		t.Fatal("CancelGroup deleted a running job, another group's job, or another queue's job")
+	}
+}
+
+// A cancel that waits on a claim's row lock must judge the claimed row, or it misses the job and the job runs.
+func TestCancelDuringAClaim(t *testing.T) {
+	ctx := context.Background()
+	queue := newQueue(t)
+	for name, cancel := range map[string]func(id int64) (bool, error){
+		"Cancel": func(id int64) (bool, error) { return Cancel(ctx, pool, id) },
+		"CancelGroup": func(int64) (bool, error) {
+			cancelled, err := CancelGroup(ctx, pool, queue, "group")
+			return cancelled == 1, err
+		},
+	} {
+		id := enqueue(t, queue, EnqueueOptions{GroupKey: "group"})
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tx.Exec(ctx, `SELECT FROM queue_claim($1, 'worker', 30)`, queue); err != nil {
+			t.Fatal(err)
+		}
+		type result struct {
+			cancelled bool
+			err       error
+		}
+		cancelled := make(chan result, 1)
+		go func() {
+			ok, err := cancel(id)
+			cancelled <- result{ok, err}
+		}()
+		waitFor(t, 5*time.Second, func() bool {
+			var waiting bool
+			if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT FROM pg_stat_activity WHERE pid <> pg_backend_pid()
+				AND query LIKE '%queue_cancel%' AND wait_event_type = 'Lock')`).Scan(&waiting); err != nil {
+				t.Fatal(err)
+			}
+			return waiting
+		})
+		if err := tx.Commit(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if got := <-cancelled; got.err != nil || !got.cancelled {
+			t.Fatalf("%s during a claim = %v, %v, want true", name, got.cancelled, got.err)
+		}
+		expireLease(t, id)
+		if job := claim(t, queue, "worker"); job != nil {
+			t.Fatalf("a job %s cancelled during its claim ran again: %+v", name, job)
+		}
 	}
 }
 
@@ -461,6 +512,15 @@ func TestRunRejectsAPoolOfOne(t *testing.T) {
 	}
 }
 
+func TestRunRejectsANegativeLease(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	err := Worker{Pool: pool, Queue: newQueue(t), Name: "worker", Lease: -time.Second}.Run(ctx)
+	if err == nil || errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Run with a negative lease, which every claim would hand straight back, returned %v", err)
+	}
+}
+
 func TestRetryBackoffNeverOverflows(t *testing.T) {
 	queue := newQueue(t)
 	id := enqueue(t, queue, EnqueueOptions{MaxAttempts: 5000})
@@ -529,5 +589,64 @@ func TestShutdownGivesTheJobBack(t *testing.T) {
 	}
 	if got := jobRow(t, id); got == nil || got.state != "queued" || got.attempts != 0 {
 		t.Fatalf("a job stopped by shutdown wasn't given back unspent: %+v", got)
+	}
+}
+
+func TestShutdownGivesBackAClaimInFlight(t *testing.T) {
+	ctx := context.Background()
+	queue := newQueue(t)
+	id := enqueue(t, queue, EnqueueOptions{})
+	// NOTE: a pool whose cancel requests can't reach Postgres, like one that lands after the claim commits
+	config, err := pgxpool.ParseConfig("pool_max_conns=3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var unreachable atomic.Bool
+	config.ConnConfig.DialFunc = func(ctx context.Context, network, address string) (net.Conn, error) {
+		if unreachable.Load() {
+			return nil, errors.New("unreachable")
+		}
+		return (&net.Dialer{}).DialContext(ctx, network, address)
+	}
+	lossy, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lossy.Close()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	// NOTE: blocks the claim's update, so Run stops while its claim waits
+	if _, err := tx.Exec(ctx, `LOCK TABLE queue_jobs IN SHARE MODE`); err != nil {
+		t.Fatal(err)
+	}
+	claimActive := func(onLock bool) bool {
+		var active bool
+		if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT FROM pg_stat_activity WHERE pid <> pg_backend_pid() AND state = 'active'
+			AND query LIKE '%queue_claim%' AND (NOT $1 OR wait_event_type = 'Lock'))`, onLock).Scan(&active); err != nil {
+			t.Fatal(err)
+		}
+		return active
+	}
+
+	runContext, cancel := context.WithCancel(ctx)
+	stopped := make(chan error, 1)
+	go func() {
+		stopped <- Worker{Pool: lossy, Queue: queue, Name: "worker", Handle: func(ctx context.Context, job *Job) error { return nil }}.Run(runContext)
+	}()
+	waitFor(t, 5*time.Second, func() bool { return claimActive(true) })
+	unreachable.Store(true)
+	cancel()
+	if err := tx.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-stopped; !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run returned %v, want context.Canceled", err)
+	}
+	waitFor(t, 5*time.Second, func() bool { return !claimActive(false) })
+	if got := jobRow(t, id); got == nil || got.state != "queued" || got.attempts != 0 {
+		t.Fatalf("a job claimed as Run stopped wasn't given back unspent: %+v", got)
 	}
 }

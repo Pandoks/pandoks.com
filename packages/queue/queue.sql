@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS queue_jobs (
   group_key    text,
   -- NOTE: a finished or cancelled job is deleted; a dead one stays for a human to inspect
   state        text        NOT NULL DEFAULT 'queued' CHECK (state IN ('queued', 'running', 'dead')),
-  -- NOTE: set on a running job; its retry, release or lost lease deletes it instead of running it again
+  -- NOTE: set on a running job; its retry, fail, release or lost lease deletes it instead of running it again
   cancelled    boolean     NOT NULL DEFAULT false,
   -- When a queued job may run. While running, the lease end: after it, another worker may claim the job.
   available_at timestamptz NOT NULL,
@@ -113,12 +113,16 @@ RETURNS boolean LANGUAGE sql AS $$
   ) SELECT EXISTS (SELECT 1 FROM deleted) OR EXISTS (SELECT 1 FROM retried);
 $$;
 
+-- Marks the job dead, or deletes it once cancelled.
 CREATE OR REPLACE FUNCTION queue_fail(job_id bigint, attempt int, error_text text) RETURNS boolean LANGUAGE sql AS $$
-  WITH failed AS (
-    UPDATE queue_jobs SET state = 'dead', last_error = error_text
-    WHERE id = job_id AND attempts = attempt AND state = 'running'
+  WITH deleted AS (
+    DELETE FROM queue_jobs WHERE id = job_id AND attempts = attempt AND state = 'running' AND cancelled
     RETURNING 1
-  ) SELECT EXISTS (SELECT 1 FROM failed);
+  ), failed AS (
+    UPDATE queue_jobs SET state = 'dead', last_error = error_text
+    WHERE id = job_id AND attempts = attempt AND state = 'running' AND NOT cancelled
+    RETURNING 1
+  ) SELECT EXISTS (SELECT 1 FROM deleted) OR EXISTS (SELECT 1 FROM failed);
 $$;
 
 -- Hands a job back without spending its attempt, for a worker that stops before its handler finishes. Deletes it
@@ -136,7 +140,10 @@ $$;
 
 -- Cancels a job so it never runs again: deletes it, or marks it while a worker holds its lease, so its handler
 -- finishes this run.
+-- NOTE: locks first, so the cancel judges the row after a claim or retry it waited on, not before. One statement would
+-- miss it both ways: the DELETE rechecks the new version and the UPDATE judges the old one.
 CREATE OR REPLACE FUNCTION queue_cancel(job_id bigint) RETURNS boolean LANGUAGE sql AS $$
+  SELECT FROM queue_jobs WHERE id = job_id FOR UPDATE;
   WITH deleted AS (
     DELETE FROM queue_jobs WHERE id = job_id AND (state = 'queued' OR state = 'running' AND available_at <= now())
     RETURNING 1
@@ -146,7 +153,9 @@ CREATE OR REPLACE FUNCTION queue_cancel(job_id bigint) RETURNS boolean LANGUAGE 
   ) SELECT EXISTS (SELECT 1 FROM deleted) OR EXISTS (SELECT 1 FROM marked);
 $$;
 
+-- NOTE: locks in id order, so two cancels of one group can't deadlock
 CREATE OR REPLACE FUNCTION queue_cancel_group(queue_name text, key text) RETURNS bigint LANGUAGE sql AS $$
+  SELECT FROM queue_jobs WHERE queue = queue_name AND group_key = key ORDER BY id FOR UPDATE;
   WITH deleted AS (
     DELETE FROM queue_jobs
     WHERE queue = queue_name AND group_key = key AND (state = 'queued' OR state = 'running' AND available_at <= now())
