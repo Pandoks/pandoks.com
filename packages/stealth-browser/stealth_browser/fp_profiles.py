@@ -50,7 +50,8 @@ class FpProfile:
     # WebGPU GPUAdapterInfo fields, persona-coherent with the profile's GPU.
     # description = the device's marketing name (matches the WebGL renderer
     # string), driver = the backend string ("Metal"/"D3D12"), device_id = the
-    # hex PCI ID (only when the renderer string carries one).
+    # hex device ID Chrome reports (GPUAdapterInfo.device is always lowercase
+    # hex; real values here for coherence).
     webgpu_device: str | None = None
     webgpu_driver: str | None = None
     webgpu_device_id: str | None = None
@@ -232,9 +233,9 @@ PROFILES: list[FpProfile] = [
                        "Unspecified Version)",
         gpu_class="apple", webgpu_arch="common-3", form_factor="laptop",
         webgpu_device="Apple M1 Pro", webgpu_driver="Metal",
-        # Apple silicon has no PCI device-id (Dawn falls back to the MTLDevice
-        # name as GPUAdapterInfo.device), so the coherent ID is the name.
-        webgpu_device_id="Apple M1 Pro",
+        # GPUAdapterInfo.device is always the hex device id (IORegistry
+        # device-id = the Apple chip id), never the MTLDevice name.
+        webgpu_device_id="0x6000",
         webgpu_features=(
             "core-features-and-limits", "depth-clip-control",
             "depth32float-stencil8", "timestamp-query",
@@ -254,7 +255,7 @@ PROFILES: list[FpProfile] = [
                        "Unspecified Version)",
         gpu_class="apple", webgpu_arch="common-3", form_factor="laptop",
         webgpu_device="Apple M2", webgpu_driver="Metal",
-        webgpu_device_id="Apple M2",
+        webgpu_device_id="0x8112",
     ),
     FpProfile(
         label="MacBook Pro 16 M1 Max",
@@ -265,7 +266,7 @@ PROFILES: list[FpProfile] = [
                        "Unspecified Version)",
         gpu_class="apple", webgpu_arch="common-3", form_factor="laptop",
         webgpu_device="Apple M1 Max", webgpu_driver="Metal",
-        webgpu_device_id="Apple M1 Max",
+        webgpu_device_id="0x6001",
         webgpu_features=(
             "core-features-and-limits", "depth-clip-control",
             "depth32float-stencil8", "timestamp-query",
@@ -285,7 +286,7 @@ PROFILES: list[FpProfile] = [
                        "Unspecified Version)",
         gpu_class="apple", webgpu_arch="common-3", form_factor="laptop",
         webgpu_device="Apple M3", webgpu_driver="Metal",
-        webgpu_device_id="Apple M3",
+        webgpu_device_id="0x8132",
     ),
     # --- Windows / NVIDIA (gpu_class="nvidia") ---
     FpProfile(
@@ -297,7 +298,7 @@ PROFILES: list[FpProfile] = [
                        "Direct3D11 vs_5_0 ps_5_0, D3D11)",
         gpu_class="nvidia", webgpu_arch="ampere", form_factor="desktop",
         webgpu_device="NVIDIA GeForce RTX 3060",
-        webgpu_driver="D3D12", webgpu_device_id="0x00002503",
+        webgpu_driver="D3D12", webgpu_device_id="0x2503",
     ),
     # --- Windows / Intel (gpu_class="intel") ---
     FpProfile(
@@ -309,7 +310,7 @@ PROFILES: list[FpProfile] = [
                        "(0x000046A6) Direct3D11 vs_5_0 ps_5_0, D3D11)",
         gpu_class="intel", webgpu_arch="gen-12lp", form_factor="laptop",
         webgpu_device="Intel(R) Iris(R) Xe Graphics",
-        webgpu_driver="D3D12", webgpu_device_id="0x000046A6",
+        webgpu_driver="D3D12", webgpu_device_id="0x46a6",
     ),
     # --- Windows / AMD (gpu_class="amd") ---
     FpProfile(
@@ -321,7 +322,7 @@ PROFILES: list[FpProfile] = [
                        "vs_5_0 ps_5_0, D3D11)",
         gpu_class="amd", webgpu_arch="rdna-2", form_factor="desktop",
         webgpu_device="AMD Radeon RX 6700 XT", webgpu_driver="D3D12",
-        webgpu_device_id="0x000073DF",  # real Navi22 (kernel amdgpu table)
+        webgpu_device_id="0x73df",  # real Navi22 (kernel amdgpu table)
     ),
 ]
 
@@ -499,7 +500,7 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         "APEX_FP_WEBGPU_ARCH": webgpu_arch,
         # Identity fields so adapter.info agrees with the WebGL renderer
         # string (description = the device's marketing name, driver = the
-        # backend string, device_id = the hex PCI ID when known).
+        # backend string, device_id = the hex device ID).
         "APEX_FP_WEBGPU_DESCRIPTION": profile.webgpu_device or "",
         "APEX_FP_WEBGPU_DRIVER": profile.webgpu_driver or "",
         "APEX_FP_WEBGPU_TYPE": WEBGPU_TYPE_BY_CLASS[profile.gpu_class],
