@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parse, type HTMLElement } from 'node-html-parser';
 import { collectFontData, fontFromHtmlElement, injectCriticalFonts } from './critical-fonts';
-import { FONTS, type FontKey } from '$lib/fonts';
+import { FONTS, type FontKey } from '#lib/fonts.js';
 
 const element = (html: string): HTMLElement =>
   parse(`<body>${html}</body>`).querySelector('body')!.firstChild as HTMLElement;

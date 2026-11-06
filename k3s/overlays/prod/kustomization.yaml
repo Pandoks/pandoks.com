@@ -3,5 +3,4 @@ kind: Kustomization
 resources:
   - ../cluster
   - ../../bootstrap/prod
-  - ../../../apps/push-worker/kube
   - argocd.yaml

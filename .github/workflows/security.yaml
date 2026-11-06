@@ -26,16 +26,16 @@ jobs:
     outputs:
       k3s: ${{ steps.filter.outputs.k3s || github.event_name != 'pull_request' }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - id: filter
         if: github.event_name == 'pull_request'
-        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
           filters: |
             k3s:
               - 'k3s/**'
-              - 'apps/push-worker/kube/**'
+              - '.github/workflows/security.yaml'
 
   scan-published-images:
     # NOTE: we don't scan charts because the only issues are misconfigs, not CVEs.
@@ -53,13 +53,12 @@ jobs:
           - pgbackrest
           - valkey
           - valkey-reconciler
-          - push-worker
           - argocd-sst-plugin
           - clickhouse
           - clickhouse-keeper
           - clickhouse-backup
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Compute image reference
         id: ref
@@ -68,7 +67,7 @@ jobs:
         run: echo "image=ghcr.io/${OWNER,,}/${{ matrix.name }}:latest" >> "${GITHUB_OUTPUT}"
 
       - name: Log in to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -91,7 +90,7 @@ jobs:
 
       - name: Upload SARIF to GitHub Code Scanning
         if: always()
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           sarif_file: trivy-published-${{ matrix.name }}.sarif
           category: trivy-published-${{ matrix.name }}
@@ -101,7 +100,7 @@ jobs:
     if: needs.detect-changes.outputs.k3s == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Scan k3s manifests with Trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -116,33 +115,17 @@ jobs:
 
       - name: Upload SARIF to GitHub Code Scanning
         if: always()
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           sarif_file: trivy-k3s.sarif
           category: trivy-k3s
 
-      - name: Scan push worker manifests with Trivy
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          scan-type: config
-          scan-ref: apps/push-worker/kube
-          scanners: misconfig
-          trivy-config: trivy.yaml
-          trivyignores: .trivyignore.yaml
-          format: sarif
-          output: trivy-push-worker.sarif
-
-      - name: Upload push worker SARIF to GitHub Code Scanning
-        if: always()
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: trivy-push-worker.sarif
-          category: trivy-push-worker
-
   security-pass:
     needs:
+      - detect-changes
       - scan-k3s-config
-    if: ${{ always() && !cancelled() && github.event_name == 'pull_request' && !contains(needs.*.result, 'failure') }}
+    if: ${{ always() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
-      - run: echo "ok"
+      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1

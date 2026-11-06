@@ -6,6 +6,13 @@ new tailscale.TailnetSettings('TailscaleSettings', {
   httpsEnabled: true
 });
 
+export const hubTailscaleServices = [
+  { name: 'cliproxyapi', comment: 'CLIProxyAPI on the homelab hub' },
+  { name: 'cliproxyapi-ci', comment: 'CLIProxyAPI with Console API keys only' },
+  { name: 'beszel', comment: 'Beszel monitoring hub' },
+  { name: 'artex', comment: 'ARTEX on the homelab hub' }
+];
+
 export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
   resetAclOnDestroy: true,
   // NOTE: overwriteExistingContent is set to true so it works in all stages. we do this because the
@@ -14,6 +21,17 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
   overwriteExistingContent: true,
   acl: stringify(
     {
+      nodeAttrs: [
+        {
+          target: ['tag:funnel'],
+          attr: ['funnel']
+        }
+      ],
+      autoApprovers: {
+        services: Object.fromEntries(
+          hubTailscaleServices.map(({ name }) => [`svc:${name}`, ['tag:hub']])
+        )
+      },
       grants: [
         { src: ['*'], dst: ['*'], ip: ['*'] },
         {
@@ -32,11 +50,31 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         {
           action: 'check',
           src: ['autogroup:member'],
-          dst: ['autogroup:self', 'tag:hetzner', 'tag:ovh'],
+          dst: ['autogroup:self'],
           users: ['autogroup:nonroot', 'root']
+        },
+        {
+          action: 'check',
+          src: ['pandoks@github'],
+          dst: ['tag:hetzner', 'tag:ovh'],
+          users: ['autogroup:nonroot', 'root']
+        },
+        {
+          action: 'check',
+          src: ['autogroup:member'],
+          dst: ['tag:ssh'],
+          users: ['autogroup:nonroot']
+        },
+        // NOTE: tailscale doesn't allow check mode from tagged devices
+        {
+          action: 'accept',
+          src: ['tag:ssh'],
+          dst: ['tag:ssh'],
+          users: ['autogroup:nonroot']
         }
       ],
       tagOwners: {
+        'tag:funnel': ['pandoks@github'],
         'tag:hetzner': ['pandoks@github'],
         'tag:ovh': ['pandoks@github'],
         'tag:k8s-operator': ['tag:k8s-operator'],
@@ -45,7 +83,9 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         'tag:worker': ['pandoks@github'],
         'tag:dev': ['pandoks@github', 'tag:k8s-operator'],
         'tag:prod': ['pandoks@github', 'tag:k8s-operator'],
-        'tag:ci': ['pandoks@github']
+        'tag:ci': ['pandoks@github'],
+        'tag:hub': ['pandoks@github'],
+        'tag:ssh': ['pandoks@github']
       }
     },
     { maxLength: 80, indent: 2 }

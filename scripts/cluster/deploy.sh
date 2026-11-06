@@ -15,7 +15,6 @@ cmd_deploy_compute_vars() {
       cmd_deploy_compute_vars_is_local="true"
       cmd_deploy_compute_vars_image_registry="local-registry:5000"
       cmd_deploy_compute_vars_image_tag="latest"
-      cmd_deploy_compute_vars_push_worker_image_tag="latest"
       ;;
     prod | dev)
       cmd_deploy_compute_vars_is_local="false"
@@ -30,18 +29,6 @@ cmd_deploy_compute_vars() {
           ;;
         prod) cmd_deploy_compute_vars_image_tag="latest" ;;
       esac
-      cmd_deploy_compute_vars_push_worker_image_tag="latest"
-      if [ "${cmd_deploy_compute_vars_env}" = "prod" ]; then
-        cmd_deploy_compute_vars_push_worker_app_tree=$(
-          git -C "${REPO_ROOT}" rev-parse HEAD:apps/push-worker
-        )
-        cmd_deploy_compute_vars_push_worker_queue_tree=$(
-          git -C "${REPO_ROOT}" rev-parse HEAD:packages/queueworker
-        )
-        cmd_deploy_compute_vars_push_worker_image_tag="tree-\
-${cmd_deploy_compute_vars_push_worker_app_tree}-\
-${cmd_deploy_compute_vars_push_worker_queue_tree}"
-      fi
       ;;
   esac
 
@@ -49,12 +36,10 @@ ${cmd_deploy_compute_vars_push_worker_queue_tree}"
     --arg IsLocal "${cmd_deploy_compute_vars_is_local}" \
     --arg ImageRegistry "${cmd_deploy_compute_vars_image_registry}" \
     --arg ImageTag "${cmd_deploy_compute_vars_image_tag}" \
-    --arg PushWorkerImageTag "${cmd_deploy_compute_vars_push_worker_image_tag}" \
     '{
       IsLocal: $IsLocal,
       ImageRegistry: $ImageRegistry,
-      ImageTag: $ImageTag,
-      PushWorkerImageTag: $PushWorkerImageTag
+      ImageTag: $ImageTag
     }'
 }
 
@@ -91,7 +76,7 @@ cmd_deploy_render_templated_yaml() {
   else
     log_status "Running kustomize on overlay..."
   fi
-  cmd_deploy_render_kustomize=$(kubectl kustomize "${cmd_deploy_render_kustomize_path}" --load-restrictor LoadRestrictionsNone)
+  cmd_deploy_render_kustomize=$(kustomize build "${cmd_deploy_render_kustomize_path}" --load-restrictor LoadRestrictionsNone)
 
   log_status "Substituting template variables..."
   template_substitute "${cmd_deploy_render_kustomize}" "${cmd_deploy_render_template_vars}"
@@ -127,11 +112,13 @@ cmd_deploy_wait_for_crds() {
   wait_for_crd "servicemonitors.monitoring.coreos.com" 180
   printf "%b  Prometheus Operator CRDs established%b\n" "${GREEN}" "${NORMAL}"
 
-  echo "Waiting for ArgoCD..."
-  wait_for_crd "applications.argoproj.io" 180
-  kubectl -n argocd rollout status deploy/argocd-repo-server --timeout=300s || true
-  kubectl -n argocd rollout status deploy/argocd-server --timeout=300s || true
-  printf "%b  ArgoCD established%b\n" "${GREEN}" "${NORMAL}"
+  if [ "${cmd_deploy_wait_for_crds_env}" = "prod" ]; then
+    echo "Waiting for ArgoCD..."
+    wait_for_crd "applications.argoproj.io" 180
+    kubectl -n argocd rollout status deploy/argocd-repo-server --timeout=300s || true
+    kubectl -n argocd rollout status deploy/argocd-server --timeout=300s || true
+    printf "%b  ArgoCD established%b\n" "${GREEN}" "${NORMAL}"
+  fi
 
   [ "${cmd_deploy_wait_for_crds_env}" = "local" ] && return 0
 

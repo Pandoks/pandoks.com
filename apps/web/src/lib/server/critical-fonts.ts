@@ -2,19 +2,19 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import subsetFont from 'subset-font';
 import { parse, type HTMLElement, NodeType, type TextNode } from 'node-html-parser';
-import { FONTS, FONT_FAMILIES, type FontKey } from '$lib/fonts';
-import { unicodeRange } from '$lib/utils';
+import { FONTS, FONT_FAMILIES, type FontKey } from '#lib/fonts.js';
+import { unicodeRange } from '#lib/utils.js';
 
 const FONTS_DIR = resolve(process.cwd(), '../../packages/svelte/static/fonts');
 
 const FONT_BUFFERS = new Map<string, Buffer>();
 function loadFont(file: string): Buffer {
-  let buf = FONT_BUFFERS.get(file);
-  if (!buf) {
-    buf = readFileSync(join(FONTS_DIR, file));
-    FONT_BUFFERS.set(file, buf);
+  let buffer = FONT_BUFFERS.get(file);
+  if (!buffer) {
+    buffer = readFileSync(join(FONTS_DIR, file));
+    FONT_BUFFERS.set(file, buffer);
   }
-  return buf;
+  return buffer;
 }
 
 const WEIGHT_MAP: Record<string, number> = {

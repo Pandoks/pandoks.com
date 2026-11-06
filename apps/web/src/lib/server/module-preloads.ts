@@ -1,17 +1,9 @@
-import { building } from '$app/environment';
-import { readFileSync } from 'node:fs';
+import { immutable } from '$app/manifest';
 
-const bundledJs = building
-  ? Object.values(
-      JSON.parse(readFileSync('.svelte-kit/output/client/.vite/manifest.json', 'utf-8')) as Record<
-        string,
-        { file: string }
-      >
-    )
-      .map((entry) => entry.file)
-      .filter((file) => file.endsWith('.js'))
-      .map((file) => `/${file}`)
-  : [];
+const bundledJs = immutable
+  .map((file) => file.path)
+  .filter((path) => path.endsWith('.js'))
+  .map((path) => `/${path}`);
 
 export function injectPrefetchHints(html: string): string {
   const existingPreloads = new Set<string>();

@@ -7,24 +7,27 @@ metadata:
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
 metadata:
-  name: &name haproxy-ingress
+  name: haproxy-ingress
   namespace: kube-system
 spec:
   repo: https://haproxy-ingress.github.io/charts
-  chart: *name
-  version: 0.15.1
+  chart: haproxy-ingress
+  version: 0.16.2
   targetNamespace: ingress-controller
   createNamespace: true
   # NOTE: if you want to change the ports, look into dual service cutover for zero downtime.
   # we want to let the helm chart manage the service so we don't have to worry about updates and breaking changes.
   # only when we're changing the ports (which should be once in a blue moon) will we then manually
   # manage the service so that we can do the dual service cutover, but then we'll change it back
-  # https://github.com/haproxy-ingress/charts/blob/release-0.14/haproxy-ingress/values.yaml
+  # https://github.com/haproxy-ingress/charts/blob/release-0.16/haproxy-ingress/values.yaml
   valuesContent: |-
     controller:
       ingressClassResource:
         enabled: true
       kind: DaemonSet
+      # NOTE: nodes have no external IP; keeps Ingress status set so Argo sees it Healthy
+      extraArgs:
+        report-node-internal-ip-address: "true"
       service:
         httpPorts:
           - port: 80
@@ -35,8 +38,9 @@ spec:
             targetPort: https
             nodePort: 30443
       config:
-        use-forwarded-headers: "true"
-        forwarded-for-header: "X-Forwarded-For"
+        # NOTE: client IP is in CF-Connecting-IP
+        forwardfor: update
+        balance-algorithm: roundrobin
       stats:
         enabled: true
       metrics:

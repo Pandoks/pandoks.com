@@ -7,15 +7,27 @@ const previewUrl = isCI
   ? `http://localhost:${ciPort}`
   : execFileSync('portless', ['get', 'web-preview'], { encoding: 'utf8' }).trim();
 
-const previewCommand = isCI ? `pnpm exec vite preview --port ${ciPort}` : 'pnpm preview';
-const command = `pnpm build && ${previewCommand}`;
+// In CI avoid nested `pnpm` under Playwright's webServer. Concurrent
+// `pnpm run` + nested `pnpm build`/`pnpm exec` deadlocks under pnpm 12.6
+// (e2e hangs after "Running 1 test using 1 worker" until the 6h job timeout).
+const previewCommand = isCI ? `vite preview --port ${ciPort}` : 'pnpm preview';
+const command = isCI ? `vite build && ${previewCommand}` : `pnpm build && ${previewCommand}`;
 
 export default defineConfig({
+  timeout: 60_000,
+  expect: { timeout: 15_000 },
   webServer: {
     command,
     url: previewUrl,
-    ignoreHTTPSErrors: true
+    ignoreHTTPSErrors: true,
+    timeout: 180_000,
+    reuseExistingServer: !isCI
   },
-  use: { baseURL: previewUrl, ignoreHTTPSErrors: true },
+  use: {
+    baseURL: previewUrl,
+    ignoreHTTPSErrors: true,
+    navigationTimeout: 30_000,
+    actionTimeout: 15_000
+  },
   testDir: 'e2e'
 });

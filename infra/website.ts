@@ -10,7 +10,7 @@ new sst.x.DevCommand('DevWebsite', {
   }
 });
 
-const NODE_VERSION = '24.18.0';
+const NODE_VERSION = '24.22.1';
 
 if (isProduction) {
   const personalStaticWebsite = new cloudflare.PagesProject('PersonalWebsite', {
@@ -24,7 +24,13 @@ if (isProduction) {
         repoName: githubRepoName,
         productionBranch: 'main',
         prCommentsEnabled: true,
-        pathIncludes: ['apps/web/*', 'packages/svelte/*', 'pnpm-lock.yaml', 'pnpm-workspace.yaml']
+        pathIncludes: [
+          'apps/web/*',
+          'package.json',
+          'packages/svelte/*',
+          'pnpm-lock.yaml',
+          'pnpm-workspace.yaml'
+        ]
       }
     },
     buildConfig: {

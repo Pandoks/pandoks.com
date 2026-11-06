@@ -1,4 +1,5 @@
 import { isProduction } from './dns';
+import { hubTailscaleServices, tailscaleAcl } from './tailscale';
 
 if (isProduction) {
   new ovh.vps.Vps(
@@ -37,29 +38,63 @@ if (isProduction) {
           planCode: 'option-storage-local-2027-model4',
           pricingMode: 'upfront12',
           quantity: 1
+        },
+        {
+          duration: 'P1M',
+          planCode: 'option-additional-disk-2027-200g',
+          pricingMode: 'default',
+          quantity: 1
         }
       ]
     },
     {
       protect: true,
       import: 'vps-54c42746.vps.ovh.us',
-      ignoreChanges: ['plans', 'ovhSubsidiary']
+      ignoreChanges: ['plans', 'ovhSubsidiary', 'planOptions']
     }
   );
+
+  const devTailscaleDevice = tailscale.getDeviceOutput({ hostname: 'pandoks-dev-box' });
+  new tailscale.DeviceTags(
+    'OvhDevVpsTailscaleTags',
+    {
+      deviceId: devTailscaleDevice.nodeId,
+      tags: ['tag:funnel', 'tag:ovh', 'tag:ssh']
+    },
+    { dependsOn: [tailscaleAcl] }
+  );
+
+  const hubTailscaleDevice = tailscale.getDeviceOutput({ hostname: 'thinkpad-t470' });
+  new tailscale.DeviceTags(
+    'HubTailscaleTags',
+    {
+      deviceId: hubTailscaleDevice.nodeId,
+      tags: ['tag:hub', 'tag:ssh']
+    },
+    { dependsOn: [tailscaleAcl] }
+  );
+
+  for (const { name, comment } of hubTailscaleServices) {
+    new tailscale.Service(
+      `${name.replace(/(?:^|-)(.)/g, (_, char: string) => char.toUpperCase())}TailscaleService`,
+      { name: `svc:${name}`, comment, ports: ['tcp:443'], tags: ['tag:hub'] },
+      { dependsOn: [tailscaleAcl] }
+    );
+  }
 }
 
-new sst.x.DevCommand('DevInit', {
+new sst.x.DevCommand('LocalInit', {
   dev: {
-    title: 'InitDev',
-    command: 'pnpm dev:init',
+    title: 'InitLocal',
+    command: 'pnpm local:init',
     autostart: false
   }
 });
 
-new sst.x.DevCommand('DevDestroy', {
+new sst.x.DevCommand('LocalDestroy', {
   dev: {
-    title: 'DestroyDev',
-    command: 'pnpm dev:destroy',
+    title: 'DestroyLocal',
+    command: 'pnpm local:destroy',
     autostart: false
   }
 });

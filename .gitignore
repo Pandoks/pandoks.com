@@ -25,10 +25,10 @@ vite.config.ts.timestamp-*
 # Tests
 test-results
 playwright*/
+__pycache__/
 
 # sst
 .sst
-gha-creds-*.json
 
 # Only pnpm
 package-lock.json
@@ -39,7 +39,6 @@ yarn.lock
 dist/
 web-build/
 expo-env.d.ts
-apps/mobile-template/.gitignore
 
 # Native
 .kotlin/
@@ -52,19 +51,6 @@ apps/mobile-template/.gitignore
 
 # Metro
 .metro-health-check*
-
-# generated native folders
-apps/mobile-template/ios
-apps/mobile-template/android
-
-# typescript
-*.tsbuildinfo
-
-# AI
-.codex
-.claude/plans
-.claude/artifacts/
-.agent/artifacts/
 
 # Worktrees
 .worktrees

@@ -22,14 +22,14 @@ jobs:
       web: ${{ steps.filter.outputs.web }}
       desktop: ${{ steps.filter.outputs.desktop }}
       svelte: ${{ steps.filter.outputs.svelte }}
+      prettier: ${{ steps.filter.outputs.prettier }}
       valkey-reconciler: ${{ steps.filter.outputs.valkey-reconciler }}
-      push-worker: ${{ steps.filter.outputs.push-worker }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - id: filter
-        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
           filters: |
             web:
@@ -40,19 +40,17 @@ jobs:
               - 'packages/svelte/**'
             svelte:
               - 'packages/svelte/**'
+            prettier:
+              - 'packages/prettier/**'
             valkey-reconciler:
               - 'packages/valkey/reconciler/**'
-            push-worker:
-              - 'apps/push-worker/**'
-              - 'apps/workers/**'
-              - 'packages/queueworker/**'
 
   test-web:
     needs: detect-changes
     if: needs.detect-changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: ./.github/actions/setup-node-pnpm
 
@@ -67,7 +65,7 @@ jobs:
     if: needs.detect-changes.outputs.desktop == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: ./.github/actions/setup-node-pnpm
 
@@ -75,14 +73,14 @@ jobs:
         run: pnpm --filter @pandoks.com/desktop-template exec playwright install --with-deps chromium
 
       - name: Run desktop tests
-        run: pnpm --filter @pandoks.com/desktop-template test
+        run: xvfb-run -a pnpm --filter @pandoks.com/desktop-template test
 
   test-svelte-pkg:
     needs: detect-changes
     if: needs.detect-changes.outputs.svelte == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: ./.github/actions/setup-node-pnpm
 
@@ -92,17 +90,29 @@ jobs:
       - name: Run svelte package tests
         run: pnpm --filter @pandoks.com/svelte test
 
+  test-prettier-pkg:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.prettier == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - name: Run prettier package tests
+        run: pnpm --filter @pandoks.com/prettier test
+
   test-valkey-reconciler:
     needs: detect-changes
     if: needs.detect-changes.outputs.valkey-reconciler == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: ./.github/actions/setup-node-pnpm
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: packages/valkey/reconciler/go.mod
           cache-dependency-path: packages/valkey/reconciler/go.sum
@@ -110,42 +120,16 @@ jobs:
       - name: Run tests
         run: pnpm --filter @pandoks.com/valkey test
 
-  test-push-worker:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.push-worker == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: apps/push-worker/go.mod
-          cache-dependency-path: |
-            apps/push-worker/go.sum
-            apps/workers/go.sum
-            packages/queueworker/go.sum
-
-      - name: Test shared queue worker
-        working-directory: packages/queueworker
-        run: go test -race ./...
-
-      - name: Test queue runtime and examples
-        working-directory: apps/workers
-        run: go test -race ./...
-
-      - name: Test push worker
-        working-directory: apps/push-worker
-        run: go test -race ./...
-
   tests-pass:
     needs:
+      - detect-changes
       - test-web
       - test-desktop
       - test-svelte-pkg
+      - test-prettier-pkg
       - test-valkey-reconciler
-      - test-push-worker
-    if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
-      - run: echo "ok"
+      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1

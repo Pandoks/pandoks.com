@@ -25,15 +25,13 @@ usage() {
   printf "  %bdocker%b    hadolint over all Dockerfiles\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bshell%b     shellcheck over all shell scripts\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bactions%b   actionlint over GitHub Actions workflows\n" "${GREEN}" "${NORMAL}" >&2
-  printf "  %bswift%b     SwiftLint over Swift sources\n" "${GREEN}" "${NORMAL}" >&2
-  printf "  %bkotlin%b    ktlint over Kotlin sources\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %ball%b       Run every linter\n\n" "${GREEN}" "${NORMAL}" >&2
 
   exit "${1:-0}"
 }
 
 cmd_lint_js() {
-  cd "${REPO_ROOT}" && eslint . --concurrency auto
+  cd "${REPO_ROOT}" && eslint .
 }
 
 cmd_lint_go() {
@@ -55,22 +53,15 @@ cmd_lint_actions() {
   cd "${REPO_ROOT}" && actionlint
 }
 
-cmd_lint_swift() {
-  cd "${REPO_ROOT}"
-  git ls-files -z '*.swift' | xargs -0 swiftlint lint --quiet --strict
-}
-
-cmd_lint_kotlin() {
-  cd "${REPO_ROOT}"
-  git ls-files -z '*.kt' '*.kts' | xargs -0 ktlint
-}
-
 cmd_lint_helm() {
   cd "${REPO_ROOT}"
   helm lint --quiet --strict packages/*/chart
-  for c in packages/*/chart; do
+  cmd_lint_helm_manifests="$(for c in packages/*/chart; do
     helm template "$c"
-  done | kubeconform \
+    helm template "$c" --set backup.enabled=false,backup.bucket=LEAK,backup.credentials.secret=LEAK
+  done)"
+  if printf '%s\n' "${cmd_lint_helm_manifests}" | grep LEAK; then die "Backups-off render leaks"; fi
+  printf '%s\n' "${cmd_lint_helm_manifests}" | kubeconform \
     -strict \
     -ignore-missing-schemas \
     -schema-location default \
@@ -84,8 +75,6 @@ cmd_lint_all() {
   cmd_lint_docker
   cmd_lint_shell
   cmd_lint_actions
-  cmd_lint_swift
-  cmd_lint_kotlin
 }
 
 main() {
@@ -100,8 +89,6 @@ main() {
     docker) cmd_lint_docker ;;
     shell) cmd_lint_shell ;;
     actions) cmd_lint_actions ;;
-    swift) cmd_lint_swift ;;
-    kotlin) cmd_lint_kotlin ;;
     all) cmd_lint_all ;;
     help | --help | -h) usage ;;
     *)

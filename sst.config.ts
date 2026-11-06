@@ -14,7 +14,6 @@ export default $config({
             process.env.GITHUB_ACTIONS || process.env.AWS_ACCESS_KEY_ID ? undefined : 'Personal'
         },
         cloudflare: '6.15.0',
-        gcp: '9.30.0',
         github: '6.12.1',
         hcloud: '1.32.1',
         ovh: {
@@ -23,7 +22,7 @@ export default $config({
           applicationKey: 'edf9a4672d28e3c7',
           version: '2.17.0'
         },
-        tailscale: '0.27.0'
+        tailscale: '0.29.1'
       }
     };
   },
@@ -36,7 +35,6 @@ export default $config({
       import('./infra/api'),
       import('./infra/cloudflare'),
       import('./infra/storage'),
-      import('./infra/push'),
       import('./infra/github'),
       import('./infra/website'),
       import('./infra/tailscale'),
