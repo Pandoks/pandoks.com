@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS queue_jobs (
   -- When a queued job may run. While running, the lease end: after it, another worker may claim the job.
   available_at timestamptz NOT NULL,
   attempts     int         NOT NULL DEFAULT 0,
-  max_attempts int         NOT NULL,
+  max_attempts int         NOT NULL CHECK (max_attempts > 0),
   worker       text,
   last_error   text,
   created_at   timestamptz NOT NULL DEFAULT now()
@@ -83,13 +83,14 @@ CREATE OR REPLACE FUNCTION queue_complete(job_id bigint, attempt int) RETURNS bo
   ) SELECT EXISTS (SELECT 1 FROM done);
 $$;
 
--- Retries after retry_after_s seconds, or 2^(attempts-1) seconds when the handler gives none. Dead after max_attempts.
+-- Retries after retry_after_s seconds, or 2^(attempts-1) seconds up to an hour when the handler gives none. Dead
+-- after max_attempts.
 CREATE OR REPLACE FUNCTION queue_retry(job_id bigint, attempt int, error_text text, retry_after_s double precision DEFAULT NULL)
 RETURNS boolean LANGUAGE sql AS $$
   WITH retried AS (
     UPDATE queue_jobs SET
       state = CASE WHEN attempts >= max_attempts THEN 'dead' ELSE 'queued' END,
-      available_at = now() + make_interval(secs => coalesce(retry_after_s, power(2, attempts - 1))),
+      available_at = now() + make_interval(secs => coalesce(retry_after_s, least(power(2, attempts - 1), 3600))),
       last_error = error_text
     WHERE id = job_id AND attempts = attempt AND state = 'running'
     RETURNING 1

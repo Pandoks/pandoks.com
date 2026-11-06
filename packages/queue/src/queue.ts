@@ -35,7 +35,7 @@ export class RetryAfter extends Error {
 export async function enqueue(
   db: Db,
   queue: string,
-  payload: object,
+  payload: Record<string, unknown>,
   options: { runAt?: Date; groupKey?: string; maxAttempts?: number } = {}
 ): Promise<string> {
   const { rows } = await db.query<{ id: string }>(

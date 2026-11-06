@@ -190,6 +190,11 @@ func (worker Worker) work(ctx context.Context, wake chan struct{}) error {
 		if err != nil {
 			return err
 		}
+		// NOTE: Postgres folds a transaction's NOTIFYs into one, so pass the wake on in case more jobs are due
+		select {
+		case wake <- struct{}{}:
+		default:
+		}
 		if err := worker.run(ctx, job); err != nil {
 			return err
 		}
@@ -209,7 +214,9 @@ func (worker Worker) run(ctx context.Context, job *Job) error {
 		select {
 		case <-heartbeat.C:
 			var extended bool
-			err := worker.Pool.QueryRow(context.WithoutCancel(ctx), primary+`SELECT queue_extend($1, $2, $3)`, job.ID, job.Attempt, worker.Lease.Seconds()).Scan(&extended)
+			extendContext, cancelExtend := context.WithTimeout(context.WithoutCancel(ctx), worker.Lease)
+			err := worker.Pool.QueryRow(extendContext, primary+`SELECT queue_extend($1, $2, $3)`, job.ID, job.Attempt, worker.Lease.Seconds()).Scan(&extended)
+			cancelExtend()
 			if err != nil || !extended {
 				slog.Warn("lease lost while running", "job", job.ID, "attempt", job.Attempt, "error", err)
 				heartbeat.Stop()
@@ -236,7 +243,7 @@ func (worker Worker) report(ctx context.Context, job *Job, err error) error {
 	default:
 		query = `SELECT queue_retry($1, $2, $3, $4)`
 		var retryAfter *float64
-		if f != nil && f.retryAfter > 0 {
+		if f != nil {
 			seconds := f.retryAfter.Seconds()
 			retryAfter = &seconds
 		}

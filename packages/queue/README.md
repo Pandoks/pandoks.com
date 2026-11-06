@@ -23,9 +23,10 @@ graph LR
   only log it, and the handler's side effects can happen twice.
 - **Fencing:** every report carries the attempt it claimed. Once another worker claims the job, the
   first worker's extend, complete, retry, and fail return false and change nothing.
-- **Retry:** a handler error retries after `2^(attempt-1)` seconds, or after `RetryAfter`'s delay.
-  `Permanent` errors, and the failure of the last attempt (5 by default), mark the job `dead`. A job
-  whose worker dies on its last attempt is marked dead by the next claim.
+- **Retry:** a handler error retries after `2^(attempt-1)` seconds, at most an hour, or after
+  `RetryAfter`'s delay, `0` retrying at once. `Permanent` errors, and the failure of the last
+  attempt (5 by default), mark the job `dead`. A job whose worker dies on its last attempt is marked
+  dead by the next claim.
 - **History:** a completed or cancelled job is deleted. Dead rows stay in `queue_jobs` for a human
   to inspect, and logs are the only record of successes.
 - **Wake-up:** a trigger runs `pg_notify('queue_<name>')` whenever a row becomes `queued`, so it

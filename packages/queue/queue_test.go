@@ -392,3 +392,38 @@ func TestMigrateTwice(t *testing.T) {
 		}
 	}
 }
+
+func TestBatchEnqueueWakesEveryWorker(t *testing.T) {
+	ctx := context.Background()
+	queue := newQueue(t)
+	var running atomic.Int32
+	release := make(chan struct{})
+	startWorker(t, Worker{Queue: queue, Name: "worker", Lease: 30 * time.Second, Concurrency: 4, Handle: func(ctx context.Context, job *Job) error {
+		running.Add(1)
+		<-release
+		return nil
+	}})
+	// NOTE: lets every claim loop go idle first, so only the batch's one NOTIFY can wake them
+	time.Sleep(200 * time.Millisecond)
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 4 {
+		if _, err := Enqueue(ctx, tx, queue, map[string]string{}, EnqueueOptions{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer close(release)
+	waitFor(t, 2*time.Second, func() bool { return running.Load() == 4 })
+}
+
+func TestEnqueueRejectsNoAttempts(t *testing.T) {
+	if _, err := Enqueue(context.Background(), pool, newQueue(t), map[string]string{}, EnqueueOptions{MaxAttempts: -1}); err == nil {
+		t.Fatal("enqueued a job that can never be claimed")
+	}
+}
