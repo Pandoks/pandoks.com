@@ -6,13 +6,16 @@ import { tailscaleAcl } from './tailscale';
 export const githubOrg = 'Pandoks';
 export const githubRepoName = 'pandoks.com';
 
+const GITHUB_ACTIONS_APP_ID = 15368;
+// NOTE: AWS trusts every job in the production environment, so only main gets it.
+const DEPLOYMENT_BRANCH_POLICY = isProduction
+  ? { protectedBranches: false, customBranchPolicies: true }
+  : undefined;
+
 const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
   repository: githubRepoName,
   environment: isProduction ? 'production' : 'dev',
-  // NOTE: AWS trusts every job in this environment, so only protected branches get it.
-  deploymentBranchPolicy: isProduction
-    ? { protectedBranches: true, customBranchPolicies: false }
-    : undefined
+  deploymentBranchPolicy: DEPLOYMENT_BRANCH_POLICY
 });
 
 new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
@@ -23,18 +26,10 @@ new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
 });
 
 if (isProduction) {
-  new github.BranchProtection('GithubMainBranchProtection', {
-    repositoryId: githubRepoName,
-    pattern: 'main',
-    requiredStatusChecks: [
-      {
-        strict: false,
-        contexts: ['checks-pass', 'security-pass', 'tests-pass', 'build-and-publish-pass']
-      }
-    ],
-    allowsDeletions: false,
-    allowsForcePushes: false,
-    enforceAdmins: false
+  new github.RepositoryEnvironmentDeploymentPolicy('GithubProductionDeploymentPolicy', {
+    repository: githubRepoName,
+    environment: githubEnvironment.environment,
+    branchPattern: 'main'
   });
 
   new github.RepositoryRuleset('GithubMainRuleset', {
@@ -43,7 +38,20 @@ if (isProduction) {
     target: 'branch',
     enforcement: 'active',
     conditions: { refName: { includes: ['refs/heads/main'], excludes: [] } },
-    rules: { pullRequest: { allowedMergeMethods: ['squash'] } }
+    rules: {
+      deletion: true,
+      nonFastForward: true,
+      pullRequest: { allowedMergeMethods: ['squash'] },
+      // NOTE: No bypass: rename a required check by adding the new name, then dropping the old.
+      requiredStatusChecks: {
+        requiredChecks: [
+          'checks-pass',
+          'security-pass',
+          'tests-pass',
+          'build-and-publish-pass'
+        ].map((context) => ({ context, integrationId: GITHUB_ACTIONS_APP_ID }))
+      }
+    }
   });
 
   new github.ActionsSecret('GithubGithubAccessToken', {
