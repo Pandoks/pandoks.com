@@ -8,7 +8,7 @@ credentials:
     clientPassword: CLIENT_PASSWORD
 
 clickhouse:
-  image: ghcr.io/pandoks/clickhouse:latest@sha256:9c3bdb4117812ac7a46e583754c18d63d4e78f7f3dfb700c453670047f9417c8
+  image: ghcr.io/pandoks/clickhouse:latest@sha256:1b1f771c3fd7eb636c0d58144d95b389a88c5b13bc86fac8e2d2172483d39bde
   shards: 1
   replicasPerShard: 2
   # NOTE: no CPU limits here or on keeper; throttling stalls queries and Raft heartbeats
@@ -20,7 +20,7 @@ clickhouse:
       memory: 4Gi
 
 keeper:
-  image: ghcr.io/pandoks/clickhouse-keeper:latest@sha256:58a7240eb649c6a91d40e8941a77f15501685c93ac345b678a98ccb9dca4fda3
+  image: ghcr.io/pandoks/clickhouse-keeper:latest@sha256:8851bec98622e6e065c66997f156933bfd45fe1fe09d7927bba4a7d0e5127145
   replicas: 3
   resources:
     requests:
@@ -42,7 +42,7 @@ backup:
     dataKeys:
       accessKey: S3_ACCESS_KEY
       secretKey: S3_SECRET_KEY
-  image: ghcr.io/pandoks/clickhouse-backup:latest@sha256:692e2dff2618e55c182ebbe4fa2a723a18a1603caf1252fc8ff7d739c3993ce1
+  image: ghcr.io/pandoks/clickhouse-backup:latest@sha256:40b0010b07cbaf8676be0f94343954d25cb43a5a13efd21405da8d7a9a08a910
   bucket: backups
   path: kubernetes/example/clickhouse
   schedules:

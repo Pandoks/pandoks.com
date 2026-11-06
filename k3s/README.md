@@ -38,7 +38,7 @@ To setup the cluster, run the following commands from the root of the project. R
 with your personal SST stage (for example, `pandoks`):
 
 ```sh
-SST_STAGE=your-stage pnpm dev:init
+SST_STAGE=your-stage pnpm local:init
 ```
 
 Or step by step:
@@ -51,7 +51,7 @@ Or step by step:
 ./scripts/cluster/main.sh k3d up
 
 # Build and push images/helm charts to the local registry
-pnpm docker:build && pnpm dev:push
+pnpm local:build && pnpm local:push
 
 # Install base infrastructure (helm charts + CRDs)
 ./scripts/cluster/main.sh deploy local --stage your-stage --bootstrap
@@ -86,7 +86,8 @@ For dev, use `deploy dev --stage your-stage` in both commands, keeping `--bootst
 Application and a repo-server sidecar (`packages/argocd`) that renders kustomize with SST secrets.
 Once the first `deploy prod` creates it, ArgoCD syncs `k3s/overlays/prod` from `main`. The
 `deploy-infra.yaml` workflow triggers a hard refresh when `k3s/**`, `apps/*/kube/**`, or
-`scripts/cluster/**` changes.
+`scripts/cluster/**` changes, and fails unless prod becomes Synced and Healthy at `main` within 10
+minutes.
 
 ## k9s
 
