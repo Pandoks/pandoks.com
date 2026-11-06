@@ -41,10 +41,10 @@ type providerRequest struct {
 // fakeProvider speaks the APNs and FCM HTTP/2 wire formats over TLS. Tokens starting with "gone-"
 // are unregistered, "invalid-" are malformed FCM tokens, "busy-" are throttled on their first
 // request, "reset-" have their first APNs request's stream reset, "later-" FCM tokens are told to
-// retry at an HTTP date an hour away, "slow-" and "stuck-" block their first request until
-// releaseSlow and releaseStuck are closed, "late-gone-" blocks its first request until release is
-// closed and is then unregistered, and "sandbox-" are valid only on the sandbox APNs host while
-// every other APNs token is valid only on production.
+// retry at an HTTP date an hour away, "slow-", "stuck-", and "burst-" block their first request
+// until releaseSlow, releaseStuck, and releaseBurst are closed, "late-gone-" blocks its first
+// request until release is closed and is then unregistered, and "sandbox-" are valid only on the
+// sandbox APNs host while every other APNs token is valid only on production.
 type fakeProvider struct {
 	mutex            sync.Mutex
 	requests         map[string][]providerRequest
@@ -52,6 +52,7 @@ type fakeProvider struct {
 	release          chan struct{}
 	releaseSlow      chan struct{}
 	releaseStuck     chan struct{}
+	releaseBurst     chan struct{}
 }
 
 func (provider *fakeProvider) serve(t *testing.T, apnsPublicKey *ecdsa.PublicKey, environment string) *httptest.Server {
@@ -91,6 +92,8 @@ func (provider *fakeProvider) serve(t *testing.T, apnsPublicKey *ecdsa.PublicKey
 			<-provider.releaseSlow
 		case strings.HasPrefix(token, "stuck-") && attempt == 1:
 			<-provider.releaseStuck
+		case strings.HasPrefix(token, "burst-") && attempt == 1:
+			<-provider.releaseBurst
 		}
 	})
 	mux.HandleFunc("POST /token", func(writer http.ResponseWriter, _ *http.Request) {
@@ -235,7 +238,7 @@ func TestPush(t *testing.T) {
 	apnsKeyDER, _ := x509.MarshalPKCS8PrivateKey(apnsKey)
 	fcmKey, _ := rsa.GenerateKey(rand.Reader, 2048)
 	fcmKeyDER, _ := x509.MarshalPKCS8PrivateKey(fcmKey)
-	provider := &fakeProvider{requests: map[string][]providerRequest{}, release: make(chan struct{}), releaseSlow: make(chan struct{}), releaseStuck: make(chan struct{})}
+	provider := &fakeProvider{requests: map[string][]providerRequest{}, release: make(chan struct{}), releaseSlow: make(chan struct{}), releaseStuck: make(chan struct{}), releaseBurst: make(chan struct{})}
 	production := provider.serve(t, &apnsKey.PublicKey, "production")
 	sandbox := provider.serve(t, &apnsKey.PublicKey, "sandbox")
 	trustedCertificates := x509.NewCertPool()
@@ -556,6 +559,29 @@ func TestPush(t *testing.T) {
 			err := database.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND query = 'LISTEN "queue_push"'`).Scan(&listening)
 			return err == nil && listening == 1
 		})
+	})
+
+	t.Run("sends a burst of small notifications at once", func(t *testing.T) {
+		sendAt := time.Now().Add(time.Second).Format(time.RFC3339Nano)
+		var ids []string
+		// NOTE: four times the pool, which jobs holding a connection across their sends couldn't reach
+		for index := range 4 * databaseConnections {
+			token := fmt.Sprintf("burst-%d-", index)
+			register(token, "ios", "production", "device", "user-14")
+			ids = append(ids, send(alert(map[string]any{"tokens": []string{token + app}, "send_at": sendAt})))
+		}
+		waitFor(t, "every send to be in flight", func() bool {
+			for index := range ids {
+				if len(sentTo(fmt.Sprintf("burst-%d-", index))) == 0 {
+					return false
+				}
+			}
+			return true
+		})
+		close(provider.releaseBurst)
+		for _, id := range ids {
+			waitFor(t, "the burst to finish", func() bool { return jobsLeft(id) == 0 })
+		}
 	})
 
 	t.Run("delivers a fan-out exactly once across replicas", func(t *testing.T) {
