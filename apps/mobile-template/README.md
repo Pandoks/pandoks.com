@@ -10,6 +10,17 @@ The Device tab demos
 [@pandoks.com/react-native-notifications](/packages/react-native-notifications). Set
 `EXPO_PUBLIC_BACKEND_URL` when building to register its push token with the app's backend.
 
+Android gets a push token only from builds run in `sst shell`: it links the stage's Firebase app
+from [infra/firebase.ts](/infra/firebase.ts), and `app.config.ts` writes its `google-services.json`.
+Use `production`, or any other stage for the shared `pandoks-dev` project, and rebuild `android/` so
+prebuild copies the file:
+
+```sh
+rm -rf android
+pnpm --dir ../.. sst shell --stage production -- \
+  pnpm --filter @pandoks.com/mobile-template android --variant release
+```
+
 Run from this directory:
 
 ```sh
