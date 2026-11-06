@@ -24,6 +24,8 @@ const (
 	maxAttempts      = 5
 	// NOTE: a later retry would deliver a stale alert, so the send fails instead
 	maxRetryDelay = 8 * time.Minute
+	// NOTE: a failed connection retries over 2.5 minutes, so a short network outage doesn't drop the send
+	transportBackoff = 10 * time.Second
 )
 
 type notification struct {

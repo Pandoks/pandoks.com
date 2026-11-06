@@ -53,7 +53,7 @@ func (client *fcmClient) send(ctx context.Context, device device, job notificati
 
 	response, err := client.httpClient.Do(request)
 	if err != nil {
-		return result{outcome: retryable, reason: err.Error()}
+		return result{outcome: retryable, reason: err.Error(), backoff: transportBackoff}
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode == http.StatusOK {

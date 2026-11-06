@@ -138,6 +138,11 @@
       "pinDigests": false
     },
     {
+      "description": "gcloud's image tags only version the mise pin, which can't carry a digest.",
+      "matchPackageNames": ["gcr.io/google.com/cloudsdktool/google-cloud-cli"],
+      "pinDigests": false
+    },
+    {
       "description": "PgDog's chart uses two-part versions (v0.27).",
       "matchPackageNames": ["pgdog"],
       "versioning": "loose"

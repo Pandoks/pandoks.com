@@ -474,6 +474,9 @@ func TestPush(t *testing.T) {
 		register("reset-", "ios", "production", "device", "user-21")
 		id := send(alert(map[string]any{"user_ids": []string{"user-21"}}))
 		waitFor(t, "the reset send to be retried", func() bool { return len(sentTo("reset-")) == 2 && jobsLeft(id) == 0 })
+		if requests := sentTo("reset-"); requests[1].at.Sub(requests[0].at) < 10*time.Second {
+			t.Errorf("retried a reset send after %s, before 10s", requests[1].at.Sub(requests[0].at))
+		}
 		if !strings.Contains(logs.String(), "retrying=1") || strings.Contains(logs.String(), "reset-"+app) {
 			t.Errorf("didn't log the transport failure without its device token:\n%s", logs.String())
 		}
