@@ -78,7 +78,8 @@ jobs:
             pgbackrest:
               - 'packages/postgres/pgbackrest/**'
             valkey:
-              - 'packages/valkey/**'
+              - 'packages/valkey/Dockerfile'
+              - 'packages/valkey/entrypoint.sh'
             valkey-reconciler:
               - 'packages/valkey/reconciler/**'
             argocd-sst-plugin:
