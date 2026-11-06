@@ -447,12 +447,30 @@ func TestLockedExpiredJobStallsNoClaims(t *testing.T) {
 	}
 }
 
-func TestRunRejectsASmallPool(t *testing.T) {
+func TestRunRejectsAPoolOfOne(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	err := Worker{Pool: pool, Queue: newQueue(t), Name: "worker", Concurrency: int(pool.Config().MaxConns) - 1}.Run(ctx)
+	single, err := pgxpool.New(ctx, "pool_max_conns=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer single.Close()
+	err = Worker{Pool: single, Queue: newQueue(t), Name: "worker"}.Run(ctx)
 	if err == nil || errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("Run with a pool too small for its heartbeats returned %v", err)
+		t.Fatalf("Run with a pool of one, which can never claim, returned %v", err)
+	}
+}
+
+func TestRetryBackoffNeverOverflows(t *testing.T) {
+	queue := newQueue(t)
+	id := enqueue(t, queue, EnqueueOptions{MaxAttempts: 5000})
+	exec(t, `UPDATE queue_jobs SET state = 'running', attempts = 2000 WHERE id = $1`, id)
+	var retried bool
+	if err := pool.QueryRow(context.Background(), `SELECT queue_retry($1, 2000, 'failed')`, id).Scan(&retried); err != nil || !retried {
+		t.Fatalf("retrying attempt 2000 = %v, %v", retried, err)
+	}
+	if got := jobRow(t, id); got.secondsUntilAvailable < 3599 || got.secondsUntilAvailable > 3600 {
+		t.Fatalf("attempt 2000 retries after %.0f s, want the 1 hour cap", got.secondsUntilAvailable)
 	}
 }
 

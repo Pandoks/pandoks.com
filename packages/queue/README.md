@@ -80,7 +80,7 @@ if _, err := queue.Enqueue(ctx, tx, "thumbnails", map[string]string{"image_id": 
 }
 
 // Worker; PG* variables, PGHOST the Patroni primary since LISTEN needs a session
-pool, err := pgxpool.New(ctx, "pool_max_conns=6") // Concurrency + 2
+pool, err := pgxpool.New(ctx, "pool_max_conns=6") // Concurrency + 2, since every handler holds a transaction
 if err != nil {
 	return err
 }
@@ -127,11 +127,12 @@ await work(client, 'thumbnails', process.env.HOSTNAME!, async (job) => {
 - **Connect workers to the Patroni primary, not PgDog**, since LISTEN needs a session. Producers may
   go through PgDog: every client call starts with `/* pgdog_role: primary */`, which PgDog's docs
   say routes it to the primary (untested here).
-- **Connections:** a Go worker's pool needs `Concurrency + 2` connections, or `Run` returns an
-  error: 1 for LISTEN, 1 per handler's transaction, and 1 for claims, heartbeats, and reports. A
-  heartbeat gives up after one lease and counts as a lost lease. A Python or TS worker uses 1
-  connection for LISTEN, claims, heartbeats, and reports, runs 1 job at a time, and its handler
-  writes through a connection of its own.
+- **Connections:** a Go worker's pool needs at least 2 connections, or `Run` returns an error.
+  LISTEN holds 1, and claims, heartbeats, reports, and the handlers share the rest, so size the pool
+  for what the handlers hold at once plus 1: `Concurrency + 2` when every handler holds a
+  transaction. A heartbeat that can't get a connection gives up after one lease and counts as a lost
+  lease. A Python or TS worker uses 1 connection for LISTEN, claims, heartbeats, and reports, runs 1
+  job at a time, and its handler writes through a connection of its own.
 - **Queue names** are at most 57 bytes: a longer one fails `queue_enqueue`, since the channel
   `queue_<name>` must fit Postgres's 63-byte limit.
 - **Schema:** `Migrate` runs as `admin` on the primary before the app's own DDL, from the app's

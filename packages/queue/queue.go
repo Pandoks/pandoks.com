@@ -119,8 +119,8 @@ type Worker struct {
 	// Lease is how long a job stays claimed without a heartbeat, so how soon a dead worker's job runs again.
 	// Zero means 30 s.
 	Lease time.Duration
-	// Concurrency is how many jobs run at once. Zero means 1. Pool needs Concurrency + 2 connections: one for
-	// LISTEN, one per handler's transaction, and one for claims and heartbeats.
+	// Concurrency is how many jobs run at once. Zero means 1. Pool holds one connection for LISTEN and shares
+	// the rest between claims, heartbeats, reports and the handlers, so size it for the handlers' own use.
 	Concurrency int
 	Handle      Handler
 }
@@ -133,8 +133,9 @@ func (worker Worker) Run(ctx context.Context) error {
 		worker.Lease = 30 * time.Second
 	}
 	worker.Concurrency = max(worker.Concurrency, 1)
-	if connections := int(worker.Pool.Config().MaxConns); connections < worker.Concurrency+2 {
-		return fmt.Errorf("the pool has %d connections, but %d jobs at once need %d", connections, worker.Concurrency, worker.Concurrency+2)
+	// NOTE: LISTEN holds one connection for good, so a pool of one could never claim
+	if connections := worker.Pool.Config().MaxConns; connections < 2 {
+		return fmt.Errorf("the pool has %d connection, but LISTEN and claims need 2", connections)
 	}
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)

@@ -106,7 +106,7 @@ RETURNS boolean LANGUAGE sql AS $$
   ), retried AS (
     UPDATE queue_jobs SET
       state = CASE WHEN attempts >= max_attempts THEN 'dead' ELSE 'queued' END,
-      available_at = now() + make_interval(secs => coalesce(retry_after_s, least(power(2, attempts - 1), 3600))),
+      available_at = now() + make_interval(secs => coalesce(retry_after_s, least(power(2, least(attempts - 1, 12)), 3600))),
       last_error = error_text
     WHERE id = job_id AND attempts = attempt AND state = 'running' AND NOT cancelled
     RETURNING 1
