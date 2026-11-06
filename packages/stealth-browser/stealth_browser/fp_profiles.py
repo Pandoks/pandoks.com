@@ -74,6 +74,12 @@ class FpProfile:
     media_hevc: bool = False
     media_dolby_vision: bool = False
     platform_authenticator: bool = False
+    # Claimed total disk size in GiB. Real Chrome derives navigator.storage.
+    # estimate()'s quota from the HOST disk (60% of total capacity: pool =
+    # total * 0.8, per_key = pool * 0.75), so the container's disk leaks
+    # through as the quota. fp_env computes the quota for this claimed size
+    # with the same stock formula and emits it. None -> no quota override.
+    disk_gb: float | None = None
 
 
 # Default WebGPU architecture per gpu_class, used when a persona does not
@@ -256,6 +262,7 @@ PROFILES: list[FpProfile] = [
             "texture-compression-astc",
         ),
         media_hw_decode=True, media_hw_encode=True, media_hevc=True,
+        disk_gb=512,
     ),
     FpProfile(
         label="MacBook Air 13 M2",
@@ -268,6 +275,7 @@ PROFILES: list[FpProfile] = [
         webgpu_device="Apple M2", webgpu_driver="Metal",
         webgpu_device_id="0x8112",
         media_hw_decode=True, media_hw_encode=True, media_hevc=True,
+        disk_gb=256,
     ),
     FpProfile(
         label="MacBook Pro 16 M1 Max",
@@ -289,6 +297,7 @@ PROFILES: list[FpProfile] = [
             "texture-compression-astc",
         ),
         media_hw_decode=True, media_hw_encode=True, media_hevc=True,
+        disk_gb=1024,
     ),
     FpProfile(
         label="MacBook Pro 14 M3",
@@ -301,6 +310,7 @@ PROFILES: list[FpProfile] = [
         webgpu_device="Apple M3", webgpu_driver="Metal",
         webgpu_device_id="0x8132",
         media_hw_decode=True, media_hw_encode=True, media_hevc=True,
+        disk_gb=512,
     ),
     # --- Windows / NVIDIA (gpu_class="nvidia") ---
     FpProfile(
@@ -315,6 +325,7 @@ PROFILES: list[FpProfile] = [
         webgpu_driver="D3D12", webgpu_device_id="0x2503",
         media_hw_decode=True, media_hw_encode=True, media_hevc=True,
         platform_authenticator=True,
+        disk_gb=1024,
     ),
     # --- Windows / Intel (gpu_class="intel") ---
     FpProfile(
@@ -329,6 +340,7 @@ PROFILES: list[FpProfile] = [
         webgpu_driver="D3D12", webgpu_device_id="0x46a6",
         media_hw_decode=True, media_hw_encode=True,
         media_hevc=True, media_dolby_vision=True,
+        disk_gb=512,
     ),
     # --- Windows / AMD (gpu_class="amd") ---
     FpProfile(
@@ -343,6 +355,7 @@ PROFILES: list[FpProfile] = [
         webgpu_device_id="0x73df",  # real Navi22 (kernel amdgpu table)
         media_hw_decode=True, media_hw_encode=True, media_hevc=True,
         platform_authenticator=True,
+        disk_gb=1024,
     ),
 ]
 
@@ -543,6 +556,20 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         WEBGPU_FEATURES_BY_CLASS.get(profile.gpu_class, ())
     if webgpu_features:
         env["APEX_FP_WEBGPU_FEATURES"] = ",".join(webgpu_features)
+    # Storage quota: replicate the stock Chromium formula for the persona's
+    # claimed disk (storage/browser/quota/quota_settings.cc: pool = total *
+    # kPoolSizeRatio (0.8), per_key = pool * 0.75 -- two int truncations), so
+    # the emitted byte count is byte-identical to what stock Chrome reports
+    # on a disk of this size.
+    if profile.disk_gb:
+        quota = int(int(profile.disk_gb * (1024 ** 3) * 0.8) * 0.75)
+        env["APEX_FP_STORAGE_QUOTA_BYTES"] = str(quota)
+    # navigator.connection: stock-desktop-plausible values, chosen so the
+    # real reporting path produces exactly these numbers (rtt 50ms is the
+    # report granularity; 10000 kbps clamps to the 10 Mbps report maximum).
+    env["APEX_FP_NETINFO_EFFECTIVE_TYPE"] = "4g"
+    env["APEX_FP_NETINFO_RTT_MS"] = "50"
+    env["APEX_FP_NETINFO_DOWNLINK_KBPS"] = "10000"
     # Media capability / platform-authenticator overrides: emit only what the
     # persona's hardware claims (unset -> the binary reports the real
     # capability).

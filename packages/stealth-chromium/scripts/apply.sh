@@ -45,7 +45,9 @@ for dir in \
   "third_party/blink/renderer/modules/media_capabilities" \
   "third_party/blink/renderer/platform/fonts" \
   "third_party/blink/renderer/platform/graphics" \
+  "third_party/blink/renderer/platform/network" \
   "third_party/blink/renderer/modules/webgpu" \
+  "third_party/blink/renderer/modules/quota" \
   "components/embedder_support" \
   "media/base" \
   "content/browser/webauth" \
@@ -70,6 +72,10 @@ cp "$CS/third_party/blink/renderer/platform/fonts/apex_font_policy.h" \
    "$SRC/third_party/blink/renderer/platform/fonts/"
 cp "$CS/third_party/blink/renderer/modules/webgpu/apex_webgpu.h" \
    "$SRC/third_party/blink/renderer/modules/webgpu/"
+cp "$CS/third_party/blink/renderer/modules/quota/apex_quota.h" \
+   "$SRC/third_party/blink/renderer/modules/quota/"
+cp "$CS/third_party/blink/renderer/platform/network/apex_netinfo.h" \
+   "$SRC/third_party/blink/renderer/platform/network/"
 
 # --- 1. full-file overlays ------------------------------------------------
 # Only the two TINY single-function files are full-file overlays (a complete

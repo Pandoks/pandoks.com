@@ -33,3 +33,7 @@ platform-codecs-support.patch
 
 # --- WebAuthn platform authenticator ---
 webauthn-platform.patch
+
+# --- storage / network-realism surface fixes (round 2) ---
+storage-quota-override.patch
+netinfo-connection-override.patch

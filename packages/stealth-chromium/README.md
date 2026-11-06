@@ -298,7 +298,7 @@ uv run --project ../stealth-browser python scripts/cdp_probe.py
 ## What's already patched
 
 `apply.sh` + `apply_edits.py` together cover (truthful count: **2 overlays +
-29 anchor edits = 31 distinct edits**, spanning ~20 web-facing surfaces):
+31 anchor edits = 33 distinct edits**, spanning ~20 web-facing surfaces):
 
 | Surface | Mechanism | Env var(s) |
 |---|---|---|
@@ -325,6 +325,8 @@ uv run --project ../stealth-browser python scripts/cdp_probe.py
 | HEVC / Dolby Vision codec support (MSE/WebCodecs/EME lists) | build args (`enable_platform_{dolby_vision,ac3_eac3_audio,dts_audio}`) + anchor edit | `APEX_FP_MEDIA_HEVC`, `APEX_FP_MEDIA_DOLBY_VISION` |
 | WebAuthn `isUserVerifyingPlatformAuthenticatorAvailable()` | anchor edit | `APEX_FP_WEBAUTHN_PLATFORM` |
 | Widevine `com.widevine.alpha` key system | build args (`bundle_widevine_cdm`, CDM files fetched by `scripts/setup.sh`) | -- (always on; SW_SECURE robustness) |
+| `navigator.storage.estimate()` quota | anchor edit + `apex_quota.h` | `APEX_FP_STORAGE_QUOTA_BYTES` |
+| `navigator.connection` (`effectiveType`/`rtt`/`downlink`) | anchor edit + `apex_netinfo.h` | `APEX_FP_NETINFO_*` |
 
 `patches/*.patch` files describe these in unified-diff form for review
 purposes but are NOT executed by the build.

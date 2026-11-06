@@ -1,0 +1,62 @@
+# apex patch: persona-coherent navigator.connection quality values
+#
+# THE PROBLEM. navigator.connection ({effectiveType, downlink, rtt, saveData})
+# reports values derived from the container's REAL network stack. The
+# container's NetworkChangeNotifier classifies the NIC as ETHERNET, and
+# NetworkQualityEstimator's platform default observation for ETHERNET is
+# 90ms HTTP RTT / 1456 kbps (net/nqe/network_quality_estimator_params.cc,
+# ObtainDefaultObservations). After the report rounding (RoundRtt to the 50ms
+# granularity, RoundMbps to 50kbps buckets, both scaled by the per-host
+# 0.90..1.10 multiplier) the baseline reported {4g, downlink 1.5, rtt 100} --
+# a Linux/container tell for a desktop persona (the round-2 probe recorded
+# stock desktop Chrome at {4g, downlink 10, rtt 50}).
+#
+# THE FIX. NetworkStateNotifier::SetNetworkQuality is the single choke point
+# where the browser's pushed network-quality values enter Blink: BOTH the
+# not-observing getters (navigator.connection.rtt/downlink/effectiveType read
+# GetNetworkStateNotifier() directly) and the ConnectionChange observer cache
+# read that state, so overriding the parameters there covers both surfaces and
+# keeps them coherent. The persona layer emits the override values; the edit
+# rebinding the locals makes the real store/notify/rounding pipeline see them.
+#
+# The override values are REACHABLE by the real reporting path, so the
+# reported numbers are still produced by RoundRtt/RoundMbps rather than by us:
+#   rtt 50ms    -> rounds to exactly 50 (the 50ms report granularity) for the
+#                  whole 0.90..1.10 multiplier band.
+#   10000 kbps  -> clamps to exactly 10000 = the 10.0 Mbps kMaxDownlinkKbps
+#                  for any multiplier.
+# transport_rtt and saveData are left real (saveData false is stock, and
+# transport_rtt is not exposed by the NetworkInformation.idl surface).
+#
+# Runtime-gated: unset APEX_FP_NETINFO_* = the real (container) values.
+#
+# Apply target:
+# third_party/blink/renderer/platform/network/network_state_notifier.cc
+# (anchor edit via scripts/apply_edits.py; helper
+# chromium_src/third_party/blink/renderer/platform/network/apex_netinfo.h).
+--- a/third_party/blink/renderer/platform/network/network_state_notifier.cc
++++ b/third_party/blink/renderer/platform/network/network_state_notifier.cc
+@@ NetworkStateNotifier::SetNetworkQuality @@
+ void NetworkStateNotifier::SetNetworkQuality(WebEffectiveConnectionType type,
+                                              base::TimeDelta http_rtt,
+                                              base::TimeDelta transport_rtt,
+                                              int downlink_throughput_kbps) {
+   DCHECK(IsMainThread());
++  // apex-netinfo-quality: persona connection-quality
++  // overrides replace the host/container-derived estimates
++  // (a Linux container classifies as ETHERNET and reports
++  // the Ethernet NQE defaults, which is the tell).
++  const int apex_rtt = apex_netinfo::RttMsOverride();
++  if (apex_rtt >= 0) {
++    http_rtt = base::Milliseconds(apex_rtt);
++  }
++  const int apex_kbps = apex_netinfo::DownlinkKbpsOverride();
++  if (apex_kbps >= 0) {
++    downlink_throughput_kbps = apex_kbps;
++  }
++  const std::optional<WebEffectiveConnectionType> apex_ect =
++      apex_netinfo::EffectiveTypeOverride();
++  if (apex_ect) {
++    type = *apex_ect;
++  }
+   ScopedNotifier notifier(*this);

@@ -1,0 +1,41 @@
+# apex patch: persona-coherent navigator.storage.estimate() quota
+#
+# THE PROBLEM. The quota in navigator.storage.estimate() is derived from the
+# HOST disk: storage/browser/quota/quota_settings.cc computes pool =
+# total_disk * kPoolSizeRatio (0.8) and per_key = pool * 0.75 -- i.e. 60% of
+# the total disk capacity. A container's disk is not the persona's claimed
+# machine, so the baseline reported exactly 10737418240 (10 GiB) -- a
+# suspiciously round, small number for a desktop persona (real desktops are
+# in the tens-to-hundreds of GB; the round-2 probe flagged it).
+#
+# THE FIX. QueryStorageUsageAndQuotaCallback (storage_manager.cc) is the last
+# hop before the script-visible StorageEstimate object, so rewriting the quota
+# there catches every upstream derivation path. The persona layer computes the
+# quota with the SAME stock formula from the persona's claimed disk size
+# (fp_profiles.py: quota = int(int(disk * 0.8) * 0.75)) and emits it in
+# APEX_FP_STORAGE_QUOTA_BYTES; the edit re-applies it after the browser's
+# answer, so the reported number is byte-identical to what stock Chrome would
+# report on a disk of the claimed size.
+#
+# usage/usageDetails are NOT overridden: usage=0 and usageDetails={} are the
+# genuine fresh-profile shape (usageDetails is populated only for non-zero
+# usage breakdowns -- storage_manager.cc only sets fields for non-zero
+# usage_breakdown values).
+#
+# Runtime-gated: no APEX_FP_STORAGE_QUOTA_BYTES = the real (host-disk) quota.
+#
+# Apply target: third_party/blink/renderer/modules/quota/storage_manager.cc
+# (anchor edit via scripts/apply_edits.py; helper
+# chromium_src/third_party/blink/renderer/modules/quota/apex_quota.h).
+--- a/third_party/blink/renderer/modules/quota/storage_manager.cc
++++ b/third_party/blink/renderer/modules/quota/storage_manager.cc
+@@ QueryStorageUsageAndQuotaCallback @@
+   StorageEstimate* estimate = StorageEstimate::Create();
+   estimate->setUsage(usage_in_bytes);
+   estimate->setQuota(quota_in_bytes);
++  // apex-storage-quota: persona quota replaces the
++  // host-disk-derived one (the container disk is not the
++  // persona machine).
++  if (apex_quota::QuotaBytes() > 0) {
++    estimate->setQuota(apex_quota::QuotaBytes());
++  }

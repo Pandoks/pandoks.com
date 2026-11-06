@@ -1047,6 +1047,83 @@ EDITS = [
                   "    return;\n"
                   "  }\n",
     },
+    # --- navigator.storage.estimate() persona quota ---------------------
+    # The quota the browser answers with is derived from the HOST disk
+    # (storage/browser/quota/quota_settings.cc: pool = total_disk * 0.8,
+    # per_key = pool * 0.75), so a container reports the container's disk
+    # size -- the round-2 probe caught the baseline at exactly 10 GiB.
+    # QueryStorageUsageAndQuotaCallback is the last hop before the
+    # script-visible StorageEstimate object, so overriding the quota there
+    # catches every upstream derivation path. usage/usageDetails are left
+    # real: 0 and {} are the genuine fresh-profile shape (the field is
+    # populated only for non-zero usage breakdowns).
+    # Verified anchor (Chromium 157.0.8103.38).
+    {
+        "file": "third_party/blink/renderer/modules/quota/"
+                "storage_manager.cc",
+        "header": '#include "third_party/blink/renderer/modules/quota/'
+                  'apex_quota.h"',
+        "marker": "apex-storage-quota",
+        "anchor": "  estimate->setUsage(usage_in_bytes);\n"
+                  "  estimate->setQuota(quota_in_bytes);\n",
+        "where": "after",
+        "inject": "  // apex-storage-quota: persona quota replaces the\n"
+                  "  // host-disk-derived one (the container disk is not the\n"
+                  "  // persona machine).\n"
+                  "  if (apex_quota::QuotaBytes() > 0) {\n"
+                  "    estimate->setQuota(apex_quota::QuotaBytes());\n"
+                  "  }\n",
+    },
+    # --- navigator.connection persona quality override ------------------
+    # The container's NetworkChangeNotifier classifies the NIC as ETHERNET
+    # and NQE's platform default observation for it is 90ms HTTP RTT /
+    # 1456 kbps (net/nqe/network_quality_estimator_params.cc
+    # ObtainDefaultObservations), which report rounding turns into
+    # {4g, downlink 1.5, rtt 100} -- not what a desktop persona machine
+    # reports (round-2 probe: stock {4g, 10, 50}). SetNetworkQuality is the
+    # single choke point where the browser's pushed values enter Blink (both
+    # the not-observing getters and the ConnectionChange observer cache read
+    # that state), so overriding the parameters there covers both. The
+    # override values (rtt 50ms, 10000 kbps) are REACHABLE by the real
+    # reporting path -- RoundRtt rounds 50ms to exactly 50 for the whole
+    # 0.90..1.10 multiplier band and RoundMbps clamps 10000 kbps to exactly
+    # the 10.0 Mbps kMaxDownlinkKbps -- so the reported numbers are still
+    # produced by the real rounding code, not by us. transport_rtt and
+    # saveData are left real (saveData false is stock).
+    # Verified anchor (Chromium 157.0.8103.38).
+    {
+        "file": "third_party/blink/renderer/platform/network/"
+                "network_state_notifier.cc",
+        "header": '#include "third_party/blink/renderer/platform/network/'
+                  'apex_netinfo.h"',
+        "marker": "apex-netinfo-quality",
+        "anchor": "void NetworkStateNotifier::SetNetworkQuality("
+                  "WebEffectiveConnectionType type,\n"
+                  "                                             "
+                  "base::TimeDelta http_rtt,\n"
+                  "                                             "
+                  "base::TimeDelta transport_rtt,\n"
+                  "                                             "
+                  "int downlink_throughput_kbps) {\n",
+        "where": "after",
+        "inject": "  // apex-netinfo-quality: persona connection-quality\n"
+                  "  // overrides replace the host/container-derived estimates\n"
+                  "  // (a Linux container classifies as ETHERNET and reports\n"
+                  "  // the Ethernet NQE defaults, which is the tell).\n"
+                  "  const int apex_rtt = apex_netinfo::RttMsOverride();\n"
+                  "  if (apex_rtt >= 0) {\n"
+                  "    http_rtt = base::Milliseconds(apex_rtt);\n"
+                  "  }\n"
+                  "  const int apex_kbps = apex_netinfo::DownlinkKbpsOverride();\n"
+                  "  if (apex_kbps >= 0) {\n"
+                  "    downlink_throughput_kbps = apex_kbps;\n"
+                  "  }\n"
+                  "  const std::optional<WebEffectiveConnectionType> apex_ect =\n"
+                  "      apex_netinfo::EffectiveTypeOverride();\n"
+                  "  if (apex_ect) {\n"
+                  "    type = *apex_ect;\n"
+                  "  }\n",
+    },
     # --- removed edits (do not re-add without new evidence) ------------
     # apex-chrome-app-gone: stock Chrome 157 still exposes chrome.app on web
     #   pages; removing it created a distinguisher instead of closing one.
