@@ -64,6 +64,8 @@ cp "$CS/third_party/blink/renderer/modules/speech/apex_voices.h" \
    "$SRC/third_party/blink/renderer/modules/speech/"
 cp "$CS/third_party/blink/renderer/platform/fonts/apex_font_policy.h" \
    "$SRC/third_party/blink/renderer/platform/fonts/"
+cp "$CS/third_party/blink/renderer/modules/webgpu/apex_webgpu.h" \
+   "$SRC/third_party/blink/renderer/modules/webgpu/"
 
 # --- 1. full-file overlays ------------------------------------------------
 # Only the two TINY single-function files are full-file overlays (a complete

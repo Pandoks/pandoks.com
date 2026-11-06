@@ -47,6 +47,16 @@ class FpProfile:
     # (NVIDIA 30xx/40xx), "rdna-2" (AMD 6000), "gen-12lp" (Intel Xe),
     # "software" (SwiftShader). None -> WEBGPU_ARCH_BY_CLASS fallback.
     webgpu_arch: str | None = None
+    # WebGPU GPUAdapterInfo fields, persona-coherent with the profile's GPU.
+    # description = the device's marketing name (matches the WebGL renderer
+    # string), driver = the backend string ("Metal"/"D3D12"), device_id = the
+    # hex PCI ID (only when the renderer string carries one).
+    webgpu_device: str | None = None
+    webgpu_driver: str | None = None
+    webgpu_device_id: str | None = None
+    # Per-limit overrides (GPUSupportedLimits names -> values). Empty ->
+    # WEBGPU_LIMITS_BY_CLASS fallback; both empty -> leave the real limits.
+    webgpu_limits: dict[str, int] = field(default_factory=dict)
     # "laptop" personas report a discharging battery; "desktop" personas have
     # no battery and report what Chrome does for one: charging=true, level=1.
     form_factor: str = "laptop"   # laptop | desktop
@@ -61,6 +71,56 @@ WEBGPU_ARCH_BY_CLASS: dict[str, str] = {
     "intel": "gen-12lp",
     "software": "software",
 }
+
+# GPUAdapterInfo.type per gpu_class ("discrete" vs "integrated" bus). The
+# desktop cards are discrete; Apple Silicon and integrated Xe are integrated.
+WEBGPU_TYPE_BY_CLASS: dict[str, str] = {
+    "apple": "integrated",
+    "nvidia": "discrete",
+    "amd": "discrete",
+    "intel": "integrated",
+    "software": "cpu",
+}
+
+# TODO: verify -- per-limit persona values against a real machine of each
+# class before trusting them (the probe can diff them). These are the WebGPU
+# limits that visibly differ by GPU class; spec-max'd limits are left native.
+WEBGPU_LIMITS_BY_CLASS: dict[str, dict[str, int]] = {
+    # Apple Silicon (Metal): M-series limits.
+    "apple": {
+        "maxTextureDimension1D": 8192,
+        "maxTextureDimension2D": 8192,
+        "maxTextureDimension3D": 2048,
+        "maxTextureArrayLayers": 256,
+        "maxBindGroups": 4,
+        "maxBindGroupsPlusVertexBuffers": 8,
+        "maxComputeInvocationsPerWorkgroup": 1024,
+        "maxComputeWorkgroupSizeX": 1024,
+        "maxComputeWorkgroupSizeY": 1024,
+        "maxComputeWorkgroupSizeZ": 1024,
+        "maxComputeWorkgroupStorageSize": 32768,
+        "maxBufferSize": 268435456,
+        "maxStorageBufferBindingSize": 268435456,
+    },
+    # Desktop D3D12 (NVIDIA/AMD/Intel): shared D3D12-reported limits.
+    "nvidia": {
+        "maxTextureDimension1D": 16384,
+        "maxTextureDimension2D": 16384,
+        "maxTextureDimension3D": 2048,
+        "maxTextureArrayLayers": 2048,
+        "maxBindGroups": 8,
+        "maxBindGroupsPlusVertexBuffers": 40,
+        "maxComputeInvocationsPerWorkgroup": 1024,
+        "maxComputeWorkgroupSizeX": 1024,
+        "maxComputeWorkgroupSizeY": 1024,
+        "maxComputeWorkgroupSizeZ": 1024,
+        "maxComputeWorkgroupStorageSize": 32768,
+        "maxBufferSize": 4294967296,
+        "maxStorageBufferBindingSize": 4294967296,
+    },
+}
+WEBGPU_LIMITS_BY_CLASS["amd"] = WEBGPU_LIMITS_BY_CLASS["nvidia"]
+WEBGPU_LIMITS_BY_CLASS["intel"] = WEBGPU_LIMITS_BY_CLASS["nvidia"]
 
 # Sec-CH-UA-* architecture and platform-version per navigator.platform family.
 # These mirror the defaults in apex_fingerprint.h's UAPersona (the C++ maps the
@@ -93,6 +153,7 @@ PROFILES: list[FpProfile] = [
         webgl_renderer="ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Pro, "
                        "Unspecified Version)",
         gpu_class="apple", webgpu_arch="common-3", form_factor="laptop",
+        webgpu_device="Apple M1 Pro", webgpu_driver="Metal",
     ),
     FpProfile(
         label="MacBook Air 13 M2",
@@ -102,6 +163,7 @@ PROFILES: list[FpProfile] = [
         webgl_renderer="ANGLE (Apple, ANGLE Metal Renderer: Apple M2, "
                        "Unspecified Version)",
         gpu_class="apple", webgpu_arch="common-3", form_factor="laptop",
+        webgpu_device="Apple M2", webgpu_driver="Metal",
     ),
     FpProfile(
         label="MacBook Pro 16 M1 Max",
@@ -111,6 +173,7 @@ PROFILES: list[FpProfile] = [
         webgl_renderer="ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Max, "
                        "Unspecified Version)",
         gpu_class="apple", webgpu_arch="common-3", form_factor="laptop",
+        webgpu_device="Apple M1 Max", webgpu_driver="Metal",
     ),
     FpProfile(
         label="MacBook Pro 14 M3",
@@ -120,6 +183,7 @@ PROFILES: list[FpProfile] = [
         webgl_renderer="ANGLE (Apple, ANGLE Metal Renderer: Apple M3, "
                        "Unspecified Version)",
         gpu_class="apple", webgpu_arch="common-3", form_factor="laptop",
+        webgpu_device="Apple M3", webgpu_driver="Metal",
     ),
     # --- Windows / NVIDIA (gpu_class="nvidia") ---
     FpProfile(
@@ -130,6 +194,8 @@ PROFILES: list[FpProfile] = [
         webgl_renderer="ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002503) "
                        "Direct3D11 vs_5_0 ps_5_0, D3D11)",
         gpu_class="nvidia", webgpu_arch="ampere", form_factor="desktop",
+        webgpu_device="NVIDIA GeForce RTX 3060",
+        webgpu_driver="D3D12", webgpu_device_id="0x00002503",
     ),
     # --- Windows / Intel (gpu_class="intel") ---
     FpProfile(
@@ -140,6 +206,8 @@ PROFILES: list[FpProfile] = [
         webgl_renderer="ANGLE (Intel, Intel(R) Iris(R) Xe Graphics "
                        "(0x000046A6) Direct3D11 vs_5_0 ps_5_0, D3D11)",
         gpu_class="intel", webgpu_arch="gen-12lp", form_factor="laptop",
+        webgpu_device="Intel(R) Iris(R) Xe Graphics",
+        webgpu_driver="D3D12", webgpu_device_id="0x000046A6",
     ),
     # --- Windows / AMD (gpu_class="amd") ---
     FpProfile(
@@ -150,6 +218,7 @@ PROFILES: list[FpProfile] = [
         webgl_renderer="ANGLE (AMD, AMD Radeon RX 6700 XT Direct3D11 "
                        "vs_5_0 ps_5_0, D3D11)",
         gpu_class="amd", webgpu_arch="rdna-2", form_factor="desktop",
+        webgpu_device="AMD Radeon RX 6700 XT", webgpu_driver="D3D12",
     ),
 ]
 
@@ -308,7 +377,7 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         hashlib.sha256(f"apex-canvas:{profile.label}".encode()).digest()[:8],
         "big",
     )
-    return {
+    env = {
         "APEX_FP_ACTIVE": "1",
         "APEX_FP_SEED": str(seed & 0xFFFFFFFF),
         "APEX_FP_PLATFORM": profile.platform,
@@ -325,6 +394,12 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         # Architecture is Dawn's per-GPU-generation name, NOT a CPU ISA.
         "APEX_FP_WEBGPU_VENDOR": profile.gpu_class,
         "APEX_FP_WEBGPU_ARCH": webgpu_arch,
+        # Identity fields so adapter.info agrees with the WebGL renderer
+        # string (description = the device's marketing name, driver = the
+        # backend string, device_id = the hex PCI ID when known).
+        "APEX_FP_WEBGPU_DESCRIPTION": profile.webgpu_device or "",
+        "APEX_FP_WEBGPU_DRIVER": profile.webgpu_driver or "",
+        "APEX_FP_WEBGPU_TYPE": WEBGPU_TYPE_BY_CLASS[profile.gpu_class],
         # The screen is NOT spoofed: a screen value that disagrees with the
         # real window/display geometry is the impossible-geometry tell (a
         # window larger than the screen it is on, a dpr its panel can't have).
@@ -333,6 +408,14 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         "APEX_FP_BATTERY_LEVEL": battery_level,
         "APEX_FP_BATTERY_CHARGING": battery_charging,
     }
+    if profile.webgpu_device_id:
+        env["APEX_FP_WEBGPU_DEVICE_ID"] = profile.webgpu_device_id
+    webgpu_limits = dict(profile.webgpu_limits) if profile.webgpu_limits \
+        else WEBGPU_LIMITS_BY_CLASS.get(profile.gpu_class)
+    if webgpu_limits:
+        for limit_name, limit_value in webgpu_limits.items():
+            env[f"APEX_FP_WEBGPU_LIMIT_{limit_name}"] = str(limit_value)
+    return env
 
 
 def patched_chrome_path() -> str | None:

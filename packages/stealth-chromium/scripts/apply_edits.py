@@ -706,25 +706,95 @@ EDITS = [
                   "    }\n",
     },
 
-    # WebGPU adapter info: report the persona GPU instead of the host GPU so
-    # navigator.gpu adapter info is identity-coherent with the WebGL strings
-    # (the adapter handle itself stays real, so limits/features stay native).
+    # WebGPU persona: the identity, limits, features and type surfaces are
+    # spoofed to the persona GPU so navigator.gpu is identity-coherent with the
+    # WebGL strings and the UA persona. The adapter/device handles stay real
+    # (rendering behavior unchanged); only the reported fingerprint is
+    # rewritten. Shared helper: chromium_src/.../apex_webgpu.h (installed by
+    # apply.sh alongside apex_fingerprint.h).
     {
         "file": "third_party/blink/renderer/modules/webgpu/gpu_adapter.cc",
-        "header": '#include "apex_fingerprint.h"',
+        "header": '#include "third_party/blink/renderer/modules/webgpu/'
+                  'apex_webgpu.h"',
         "marker": "apex-webgpu-identity",
         "anchor": ("  description_ = String::FromUtf8(info.device);\n"
                    "  driver_ = String::FromUtf8(info.description);\n"),
         "where": "after",
         "inject": (
-            '        {  // apex-webgpu-identity\n'
-            '          if (apex_fp::HasOverride("APEX_FP_WEBGPU_VENDOR"))\n'
-            '            vendor_ = String::FromUtf8(\n'
-            '                apex_fp::EnvStr("APEX_FP_WEBGPU_VENDOR"));\n'
-            '          if (apex_fp::HasOverride("APEX_FP_WEBGPU_ARCH"))\n'
-            '            architecture_ = String::FromUtf8(\n'
-            '                apex_fp::EnvStr("APEX_FP_WEBGPU_ARCH"));\n'
-            '        }\n'
+            '  // apex-webgpu-identity: the persona GPU replaces the host GPU\n'
+            '  // so adapter.info agrees with the WebGL strings and the UA\n'
+            '  // persona. The adapter handle stays real, so rendering behavior\n'
+            '  // is unchanged; only the reported identity is rewritten.\n'
+            '  apex_webgpu::ApplyStringOverride("APEX_FP_WEBGPU_VENDOR",\n'
+            '                                   &vendor_);\n'
+            '  apex_webgpu::ApplyStringOverride("APEX_FP_WEBGPU_ARCH",\n'
+            '                                   &architecture_);\n'
+            '  apex_webgpu::ApplyStringOverride("APEX_FP_WEBGPU_DEVICE_ID",\n'
+            '                                   &device_);\n'
+            '  apex_webgpu::ApplyStringOverride("APEX_FP_WEBGPU_DESCRIPTION",\n'
+            '                                   &description_);\n'
+            '  apex_webgpu::ApplyStringOverride("APEX_FP_WEBGPU_DRIVER",\n'
+            '                                   &driver_);\n'
+            '  apex_webgpu::ApplyAdapterTypeOverride(&adapter_type_);\n'
+            '  apex_webgpu::ApplyBackendTypeOverride(&backend_type_);\n'
+        ),
+    },
+    {
+        "file": "third_party/blink/renderer/modules/webgpu/gpu_adapter.cc",
+        "header": '#include "third_party/blink/renderer/modules/webgpu/'
+                  'apex_webgpu.h"',
+        "marker": "apex-webgpu-limits",
+        "anchor": "  limits_ = MakeGarbageCollected<GPUSupportedLimits>(limits);\n",
+        "where": "before",
+        "inject": (
+            '  // apex-webgpu-limits: persona-claimed hardware limits replace\n'
+            '  // the real adapter\'s (a software adapter otherwise reports\n'
+            '  // spec-typical limits that contradict the claimed GPU class).\n'
+            '  apex_webgpu::ApplyLimitOverrides(&limits);\n'
+        ),
+    },
+    {
+        "file": "third_party/blink/renderer/modules/webgpu/gpu_adapter.cc",
+        "header": '#include "third_party/blink/renderer/modules/webgpu/'
+                  'apex_webgpu.h"',
+        "marker": "apex-webgpu-features",
+        "anchor": "  features_ = MakeFeatureNameSet(GetHandle());\n",
+        "where": "after",
+        "inject": (
+            '  // apex-webgpu-features: keep only the allowlisted subset when\n'
+            '  // configured. Subset-only: a claimed feature the real adapter\n'
+            '  // lacks would fail requestDevice validation.\n'
+            '  features_ = apex_webgpu::FilterFeaturesByAllowlist(features_);\n'
+        ),
+    },
+    # The device surfaces must agree with the adapter spoof (a probe reads
+    # device.limits / device.features after requestDevice; divergence between
+    # adapter and device is itself a tell). GPUDevice::Initialize builds both
+    # from the device handle, so the same helpers apply there.
+    {
+        "file": "third_party/blink/renderer/modules/webgpu/gpu_device.cc",
+        "header": '#include "third_party/blink/renderer/modules/webgpu/'
+                  'apex_webgpu.h"',
+        "marker": "apex-webgpu-device-limits",
+        "anchor": "  limits_ = MakeGarbageCollected<GPUSupportedLimits>(limits);\n",
+        "where": "before",
+        "inject": (
+            '  // apex-webgpu-device-limits: keep device.limits coherent with\n'
+            '  // the spoofed adapter.limits (same override table).\n'
+            '  apex_webgpu::ApplyLimitOverrides(&limits);\n'
+        ),
+    },
+    {
+        "file": "third_party/blink/renderer/modules/webgpu/gpu_device.cc",
+        "header": '#include "third_party/blink/renderer/modules/webgpu/'
+                  'apex_webgpu.h"',
+        "marker": "apex-webgpu-device-features",
+        "anchor": "  features_ = MakeGarbageCollected<GPUSupportedFeatures>(features);\n",
+        "where": "after",
+        "inject": (
+            '  // apex-webgpu-device-features: keep device.features coherent\n'
+            '  // with the spoofed adapter.features (same allowlist).\n'
+            '  features_ = apex_webgpu::FilterFeaturesByAllowlist(features_);\n'
         ),
     },
     # --- Font deny hook: rendering agrees with document.fonts.check ------

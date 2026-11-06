@@ -38,7 +38,7 @@ ways a patch can land, and you need to know which one for each surface.
 |---|---|---|---|---|
 | 1 | **Full-file `chromium_src/` overlay** | The upstream `.cc` is a single tiny function. Drop in a complete replacement. | `chromium_src/<path>/<file>.cc` + listed in `scripts/apply.sh` `OVERLAYS=()` | 2 |
 | 2 | **Anchor edit** (preferred for everything else) | Patch one function inside a multi-function file. A unique substring anchors the insertion, surviving Chromium version drift. | A dict in the `EDITS = [...]` list at `scripts/apply_edits.py` | 23 |
-| 3 | **`.patch` file** (documentation only) | None &mdash; the `.patch` files in `patches/` are vestigial. They describe historical intent. `apply.sh` does **not** apply them. | `patches/*.patch` + `patches/series` | 9 (informational) |
+| 3 | **`.patch` file** (documentation only) | None &mdash; the `.patch` files in `patches/` are vestigial. They describe historical intent. `apply.sh` does **not** apply them. | `patches/*.patch` + `patches/series` | 10 (informational) |
 
 The header at the top of `scripts/apply.sh` claims it applies the `.patch`
 files in step 3 &mdash; **that comment is wrong**. Step 3 writes GN args. The

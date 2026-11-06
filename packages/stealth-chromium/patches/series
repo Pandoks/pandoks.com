@@ -22,3 +22,6 @@ speechsynthesis-voices.patch
 
 # --- font availability consistency ---
 fontcache-availability.patch
+
+# --- WebGPU adapter identity (navigator.gpu) ---
+webgpu-identity.patch

@@ -1,0 +1,67 @@
+# apex patch: present a persona GPU to WebGPU (navigator.gpu)
+#
+# THE PROBLEM. WebGPU is the rising fingerprinting surface (detection-sota-2026:
+# GPU-adapter probing is the dominant real-world WebGPU fingerprint use, and
+# WebGPU-SPY reaches 90% site-level fingerprinting). navigator.gpu leaks the
+# HOST GPU through five surfaces, none spoofed before this patch:
+#
+#   1. GPUAdapterInfo identity strings  -- adapter.info.{vendor, architecture,
+#      device (hex device ID), description (device name), driver (backend
+#      string)} report the real host GPU. A Linux/SwiftShader host that claims
+#      a "MacBook Pro M1 Pro" persona via the UA and WebGL strings answers
+#      WebGPU with the SwiftShader/virtual GPU -- an incoherence a detector can
+#      score directly.
+#   2. GPUAdapter.type / GPUAdapterInfo.adapterType  -- "cpu"/"integrated"/
+#      "discrete" bus class, raw from the real backend.
+#   3. adapter.limits / device.limits  -- a software adapter reports
+#      spec-typical limits (identical across the whole fleet) instead of the
+#      limits the claimed GPU class would have.
+#   4. adapter.features / device.features  -- capability sets that don't match
+#      the persona's claimed hardware.
+#   5. device.adapterInfo  -- re-reads the adapter's identity (it inherits
+#      whatever #1 says, so fixing #1 fixes this too).
+#
+# THE FIX. In GPUAdapter's constructor the five identity strings and the
+# adapter/backend type are rewritten from the APEX_FP_WEBGPU_* persona env
+# (emitted by stealth-browser fp_profiles.py, coherent with the profile's
+# gpu_class and WebGL renderer string) AFTER the real values are read. The
+# wgpu limits struct is overridden per-limit (APEX_FP_WEBGPU_LIMIT_<Name>)
+# before it is copied into GPUSupportedLimits -- the same override is applied
+# in GPUDevice::Initialize so device.limits agrees with adapter.limits. The
+# feature set is filtered to the APEX_FP_WEBGPU_FEATURES allowlist (subset
+# only: a claimed feature the real adapter lacks would fail requestDevice
+# validation) in both surfaces. The adapter/device handles stay real, so
+# rendering behavior is unchanged; only the reported fingerprint is rewritten.
+#
+# The default env has no APEX_FP_WEBGPU_* set -> every patch falls through to
+# the real values (stock behavior).
+#
+# Not covered (deferred): the persistent pipeline-compile-state leak (compile
+# times differ on a second origin because GPU-process state survived) -- it
+# lives in the GPU process's Dawn cache and needs a partitioning change there;
+# the probe (scripts/webgpu_probe_cdp.py) records the timing so the next build
+# can measure it.
+#
+# Apply target: third_party/blink/renderer/modules/webgpu/{gpu_adapter.cc,
+# gpu_device.cc} (anchor edits; helper: chromium_src/.../apex_webgpu.h)
+--- a/third_party/blink/renderer/modules/webgpu/gpu_adapter.cc
++++ b/third_party/blink/renderer/modules/webgpu/gpu_adapter.cc
+@@ GPUAdapter::GPUAdapter @@ (after the description_/driver_ assignments)
++  // apex-webgpu-identity: the persona GPU replaces the host GPU
++  apex_webgpu::ApplyStringOverride("APEX_FP_WEBGPU_VENDOR", &vendor_);
++  apex_webgpu::ApplyStringOverride("APEX_FP_WEBGPU_ARCH", &architecture_);
++  apex_webgpu::ApplyStringOverride("APEX_FP_WEBGPU_DEVICE_ID", &device_);
++  apex_webgpu::ApplyStringOverride("APEX_FP_WEBGPU_DESCRIPTION", &description_);
++  apex_webgpu::ApplyStringOverride("APEX_FP_WEBGPU_DRIVER", &driver_);
++  apex_webgpu::ApplyAdapterTypeOverride(&adapter_type_);
++  apex_webgpu::ApplyBackendTypeOverride(&backend_type_);
+@@ GPUAdapter::GPUAdapter @@ (after features_ = MakeFeatureNameSet(...))
++  features_ = apex_webgpu::FilterFeaturesByAllowlist(features_);
+@@ GPUAdapter::GPUAdapter @@ (before limits_ = MakeGarbageCollected<...>(limits))
++  apex_webgpu::ApplyLimitOverrides(&limits);
+--- a/third_party/blink/renderer/modules/webgpu/gpu_device.cc
++++ b/third_party/blink/renderer/modules/webgpu/gpu_device.cc
+@@ GPUDevice::Initialize @@ (before limits_ = MakeGarbageCollected<...>(limits))
++  apex_webgpu::ApplyLimitOverrides(&limits);
+@@ GPUDevice::Initialize @@ (after features_ = MakeGarbageCollected<...>(features))
++  features_ = apex_webgpu::FilterFeaturesByAllowlist(features_);
