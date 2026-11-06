@@ -71,9 +71,27 @@ class PatchrightHuman:
         self.y = self.rng.uniform(self.vh * 0.3, self.vh * 0.6)
 
     # --- mouse motion ------------------------------------------------------
+    async def _sync_viewport(self):
+        """Read the live window size so clamping matches the real screen."""
+        try:
+            size = await self.page.evaluate(
+                "({w: window.innerWidth, h: window.innerHeight})")
+        except Exception:
+            return
+        if isinstance(size, dict) and size.get("w") and size.get("h"):
+            self.vw, self.vh = int(size["w"]), int(size["h"])
+
+    def _clamp(self, x, y):
+        """Keep every dispatched coordinate inside the viewport (+2px margin)."""
+        m = 2
+        return (min(max(x, m), self.vw - 1 - m),
+                min(max(y, m), self.vh - 1 - m))
+
     async def move_to(self, x, y, *, duration=None):
         """Glide the cursor to (x, y) on a min-jerk path (bell velocity)."""
         x, y = float(x), float(y)
+        await self._sync_viewport()
+        x, y = self._clamp(x, y)
         sx, sy = self.x, self.y
         dist = math.hypot(x - sx, y - sy)
         if dist < 1:
@@ -95,6 +113,7 @@ class PatchrightHuman:
             off = bow * math.sin(math.pi * t)
             cx = sx + (x - sx) * s - uy * off + self.rng.uniform(-j, j)
             cy = sy + (y - sy) * s + ux * off + self.rng.uniform(-j, j)
+            cx, cy = self._clamp(cx, cy)
             await self.page.mouse.move(cx, cy)
             self.x, self.y = cx, cy
             await asyncio.sleep(duration / steps)
@@ -167,8 +186,13 @@ class PatchrightHuman:
         await asyncio.sleep(self.rng.uniform(*self.regime["dwell"]))
         await self.page.keyboard.up(ch)
 
-    async def type_text(self, text, *, wpm=None):
-        """Type with human dwell (hold) + flight (inter-key gap) timing."""
+    async def type_text(self, text, *, wpm=None, correct=True):
+        """Type with human dwell (hold) + flight (inter-key gap) timing.
+
+        The backspace correction assumes the field started empty; pass
+        `correct=False` for streams typing into a field with existing content
+        (Backspace would otherwise eat a pre-existing char, not the typo).
+        """
         wpm = wpm or self.regime["wpm"]
         mean_flight = 60.0 / (wpm * 5)          # seconds per char
         for idx, ch in enumerate(text):
@@ -180,7 +204,8 @@ class PatchrightHuman:
                 flight += self.rng.uniform(0.0, 0.11)
             if self.rng.random() < 0.03:        # thinking pause
                 flight += self.rng.uniform(0.35, 1.0)
-            if self.rng.random() < self.regime["typo_rate"] and idx > 0:
+            if (correct and self.rng.random() < self.regime["typo_rate"]
+                    and idx > 0):
                 # typo + correction: delete the last char, retype it right
                 await asyncio.sleep(self.rng.uniform(0.1, 0.25))
                 await self.page.keyboard.down("Backspace")
@@ -192,9 +217,11 @@ class PatchrightHuman:
 
     async def type_into(self, selector: str, text, *, wpm=None):
         """Click an input element, then type into it like a human."""
+        existing = await self.page.locator(selector).first.input_value()
         await self.click(selector)
         await asyncio.sleep(self.rng.uniform(0.1, 0.35))
-        await self.type_text(text, wpm=wpm)
+        # corrections only when the field started empty (see type_text)
+        await self.type_text(text, wpm=wpm, correct=not existing)
         return await self.page.locator(selector).first.input_value()
 
     # --- idle behaviour ----------------------------------------------------
