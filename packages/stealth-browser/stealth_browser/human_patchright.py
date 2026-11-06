@@ -1,32 +1,55 @@
 """Human-like input driver for the patchright (Playwright) core.
 
-Mirrors `stealth_browser.human.Human` (the nodriver variant) but dispatches
-through Playwright's low-level mouse/keyboard primitives, which send the same
-raw CDP Input.* events. Same motion model: eased Bezier paths with tremor and
-overshoot, press-dwell clicks, variable wheel ticks, gaussian-timed typing.
+Ports the synthetic-human generator's motion models (behavior-capture
+humanizer): minimum-jerk (Flash & Hogan quintic) pointer paths with a
+distance-adaptive duration, small perpendicular bow, per-sample micro-jitter
+and overshoot + corrective return on long moves; press-hold-release clicks
+with a settle dwell; wheel ticks whose delta size decays across the gesture
+with reading pauses; typing with an explicit keydown/dwell/keyup/flight
+sequence (hold time under our control, unlike keyboard.type) and occasional
+backspace corrections.
+
+Each session draws ONE randomized parameter regime (typist wpm cluster, move
+speed factor, click timing ranges, scroll notch/decay/pause profile, typo
+rate, tremor scale) from the session seed and holds it for the whole session:
+between-session distributions differ, within-session they are stable. The
+same seed reproduces the same behavior.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import math
 import random
 
 
-def _bezier(p0, p1, p2, p3, t):
-    """Cubic Bezier point at parameter t in [0, 1]."""
-    u = 1 - t
-    x = (u * u * u * p0[0] + 3 * u * u * t * p1[0]
-         + 3 * u * t * t * p2[0] + t * t * t * p3[0])
-    y = (u * u * u * p0[1] + 3 * u * u * t * p1[1]
-         + 3 * u * t * t * p2[1] + t * t * t * p3[1])
-    return x, y
+def _min_jerk(t: float) -> float:
+    """Flash & Hogan minimum-jerk scalar profile, s(t) in [0, 1]."""
+    return 10 * t**3 - 15 * t**4 + 6 * t**5
 
 
-def _ease(t):
-    """Ease-in-out: real pointer motion accelerates then decelerates."""
-    return 3 * t * t - 2 * t * t * t
+def _draw_regime(rng: random.Random) -> dict:
+    """One parameter regime per session -- the humanization persona."""
+    return {
+        # typist cluster: flight mean = 60/(wpm*5) seconds per char
+        "wpm": rng.uniform(42, 78),
+        "flight_sigma": rng.uniform(0.40, 0.55),
+        "dwell": (rng.uniform(0.045, 0.060), rng.uniform(0.120, 0.135)),
+        "typo_rate": rng.uniform(0.025, 0.035),
+        # pointer persona
+        "move_speed": rng.uniform(0.85, 1.25),
+        "bow_scale": rng.uniform(0.08, 0.16),
+        "overshoot_rate": rng.uniform(0.50, 0.70),
+        "jitter": rng.uniform(0.4, 0.65),
+        # click timing (seconds)
+        "settle": (rng.uniform(0.045, 0.065), rng.uniform(0.140, 0.170)),
+        "hold": (rng.uniform(0.095, 0.115), rng.uniform(0.130, 0.145)),
+        "release": (rng.uniform(0.050, 0.080), rng.uniform(0.150, 0.180)),
+        # scroll persona
+        "wheel_base": (rng.uniform(75, 95), rng.uniform(225, 255)),
+        "wheel_decay": rng.uniform(0.40, 0.60),
+        "pause_prob": rng.uniform(0.18, 0.26),
+    }
 
 
 class PatchrightHuman:
@@ -36,16 +59,20 @@ class PatchrightHuman:
     (a real cursor never jumps). Construct one per page and reuse it.
     """
 
-    def __init__(self, page, *, viewport=(1512, 859)):
+    def __init__(self, page, *, viewport=(1512, 859), session_seed=None):
         self.page = page
         self.vw, self.vh = viewport
-        # start the cursor somewhere plausible, not (0,0)
-        self.x = random.uniform(self.vw * 0.3, self.vw * 0.6)
-        self.y = random.uniform(self.vh * 0.3, self.vh * 0.6)
+        self.seed = session_seed if session_seed is not None \
+            else random.getrandbits(64)
+        self.rng = random.Random(self.seed)
+        self.regime = _draw_regime(self.rng)
+        # start the cursor somewhere plausible, not (0,0) -- varies per session
+        self.x = self.rng.uniform(self.vw * 0.3, self.vw * 0.6)
+        self.y = self.rng.uniform(self.vh * 0.3, self.vh * 0.6)
 
     # --- mouse motion ------------------------------------------------------
     async def move_to(self, x, y, *, duration=None):
-        """Glide the cursor to (x, y) along an eased Bezier curve."""
+        """Glide the cursor to (x, y) on a min-jerk path (bell velocity)."""
         x, y = float(x), float(y)
         sx, sy = self.x, self.y
         dist = math.hypot(x - sx, y - sy)
@@ -53,109 +80,126 @@ class PatchrightHuman:
             return
 
         if duration is None:
-            duration = min(1.4, 0.18 + dist / 1600) * random.uniform(0.8, 1.3)
+            duration = min(1.3, 0.15 + dist / 1700) \
+                * self.rng.uniform(0.85, 1.25) * self.regime["move_speed"]
 
-        mx, my = (sx + x) / 2, (sy + y) / 2
-        if dist > 0:
-            px, py = -(y - sy) / dist, (x - sx) / dist
-        else:
-            px, py = 0, 0
-        bow = random.uniform(-0.18, 0.18) * dist
-        c1 = (sx + (mx - sx) * 0.4 + px * bow * random.uniform(0.4, 1.0),
-              sy + (my - sy) * 0.4 + py * bow * random.uniform(0.4, 1.0))
-        c2 = (x + (mx - x) * 0.4 + px * bow * random.uniform(0.4, 1.0),
-              y + (my - y) * 0.4 + py * bow * random.uniform(0.4, 1.0))
-
-        overshoot = dist > 220 and random.random() < 0.65
-        end = (x + px * random.uniform(-6, 6) + random.uniform(-4, 4),
-               y + py * random.uniform(-6, 6) + random.uniform(-4, 4)) \
-            if overshoot else (x, y)
-
-        steps = max(12, int(dist / 8))
+        # small perpendicular bow: no straight-line teleports
+        ux, uy = (x - sx) / dist, (y - sy) / dist
+        bow = self.regime["bow_scale"] * dist \
+            * (1 if self.rng.random() < 0.5 else -1)
+        j = self.regime["jitter"]
+        steps = max(14, int(dist / 9))
         for i in range(1, steps + 1):
-            t = _ease(i / steps)
-            cx, cy = _bezier((sx, sy), c1, c2, end, t)
-            cx += random.uniform(-0.6, 0.6)
-            cy += random.uniform(-0.6, 0.6)
+            t = i / steps
+            s = _min_jerk(t)
+            off = bow * math.sin(math.pi * t)
+            cx = sx + (x - sx) * s - uy * off + self.rng.uniform(-j, j)
+            cy = sy + (y - sy) * s + ux * off + self.rng.uniform(-j, j)
             await self.page.mouse.move(cx, cy)
             self.x, self.y = cx, cy
             await asyncio.sleep(duration / steps)
 
-        if overshoot:
-            await self.move_to(x, y, duration=random.uniform(0.06, 0.13))
+        # overshoot slightly on long moves, then correct back
+        if dist > 240 and self.rng.random() < self.regime["overshoot_rate"]:
+            ox = x + ux * self.rng.uniform(4, 11) + self.rng.uniform(-3, 3)
+            oy = y + uy * self.rng.uniform(4, 11) + self.rng.uniform(-3, 3)
+            await self.move_to(ox, oy, duration=self.rng.uniform(0.05, 0.10))
+            await self.move_to(x, y, duration=self.rng.uniform(0.07, 0.16))
         else:
             self.x, self.y = x, y
 
     async def wander(self, n=None):
         """A few idle cursor moves -- humans rarely hold the mouse still."""
-        for _ in range(n or random.randint(1, 3)):
+        for _ in range(n or self.rng.randint(1, 3)):
             await self.move_to(
-                random.uniform(self.vw * 0.15, self.vw * 0.85),
-                random.uniform(self.vh * 0.15, self.vh * 0.8))
-            await asyncio.sleep(random.uniform(0.15, 0.6))
+                self.rng.uniform(self.vw * 0.15, self.vw * 0.85),
+                self.rng.uniform(self.vh * 0.15, self.vh * 0.8))
+            await asyncio.sleep(self.rng.uniform(0.15, 0.6))
 
     # --- clicking ----------------------------------------------------------
     async def click_xy(self, x, y, *, button="left"):
         """Move to (x, y), settle, then press-hold-release like a finger."""
         await self.move_to(x, y)
-        await asyncio.sleep(random.uniform(0.04, 0.16))  # settle before press
+        await asyncio.sleep(self.rng.uniform(*self.regime["settle"]))
         await self.page.mouse.down(button=button)
-        await asyncio.sleep(random.uniform(0.05, 0.13))  # press dwell
+        await asyncio.sleep(self.rng.uniform(*self.regime["hold"]))
         await self.page.mouse.up(button=button)
-        await asyncio.sleep(random.uniform(0.05, 0.2))
+        await asyncio.sleep(self.rng.uniform(*self.regime["release"]))
 
     async def click(self, selector: str, *, button="left"):
         """Human-click the first element matching `selector`."""
         loc = self.page.locator(selector).first
         await loc.scroll_into_view_if_needed()
-        await asyncio.sleep(random.uniform(0.15, 0.4))
+        await asyncio.sleep(self.rng.uniform(0.15, 0.4))
         box = await loc.bounding_box()
         if box is None:
             await loc.click(button=button)
             return
-        cx = box["x"] + box["width"] / 2 + random.uniform(-6, 6)
-        cy = box["y"] + box["height"] / 2 + random.uniform(-4, 4)
+        cx = box["x"] + box["width"] / 2 + self.rng.uniform(-6, 6)
+        cy = box["y"] + box["height"] / 2 + self.rng.uniform(-4, 4)
         await self.click_xy(cx, cy, button=button)
 
     # --- scrolling ---------------------------------------------------------
     async def scroll(self, total, *, direction="down"):
-        """Scroll `total` px in several variable wheel ticks with pauses."""
+        """Scroll `total` px as wheel ticks whose delta size DECAYS to zero."""
         sign = 1 if direction == "down" else -1
-        remaining = abs(total)
+        remaining = float(abs(total))
+        total = float(abs(total)) or 1.0
         while remaining > 0:
-            tick = min(remaining, random.uniform(90, 240))
+            # deceleration: ticks shrink as the gesture winds down
+            consumed = 1.0 - remaining / total
+            base = self.rng.uniform(*self.regime["wheel_base"])
+            tick = min(remaining, base * (1.0 - self.regime["wheel_decay"]
+                                          * consumed))
             remaining -= tick
             await self.page.mouse.wheel(0, sign * tick)
-            if random.random() < 0.2:
-                await asyncio.sleep(random.uniform(0.6, 1.8))
+            if remaining <= 0:
+                await asyncio.sleep(self.rng.uniform(0.12, 0.30))
+            elif self.rng.random() < self.regime["pause_prob"]:
+                await asyncio.sleep(self.rng.uniform(0.5, 1.6))
             else:
-                await asyncio.sleep(random.uniform(0.05, 0.22))
+                await asyncio.sleep(self.rng.uniform(0.04, 0.20))
 
     # --- typing ------------------------------------------------------------
+    async def _type_char(self, ch):
+        """One keypress: keydown -> variable hold -> keyup."""
+        await self.page.keyboard.down(ch)
+        await asyncio.sleep(self.rng.uniform(*self.regime["dwell"]))
+        await self.page.keyboard.up(ch)
+
     async def type_text(self, text, *, wpm=None):
-        """Type into the focused element with human inter-key timing."""
-        wpm = wpm or random.uniform(45, 85)
-        mean = 60.0 / (wpm * 5)
-        for ch in text:
-            await self.page.keyboard.type(ch, delay=random.uniform(8, 24))
-            delay = random.gauss(mean, mean * 0.5)
-            delay = max(0.02, delay)
+        """Type with human dwell (hold) + flight (inter-key gap) timing."""
+        wpm = wpm or self.regime["wpm"]
+        mean_flight = 60.0 / (wpm * 5)          # seconds per char
+        for idx, ch in enumerate(text):
+            await self._type_char(ch)
+            # flight: gap to the NEXT key -- gaussian, slower at word starts
+            flight = max(0.025, self.rng.gauss(
+                mean_flight, mean_flight * self.regime["flight_sigma"]))
             if ch == " ":
-                delay += random.uniform(0.0, 0.12)
-            if random.random() < 0.03:  # occasional thinking pause
-                delay += random.uniform(0.3, 1.1)
-            await asyncio.sleep(delay)
+                flight += self.rng.uniform(0.0, 0.11)
+            if self.rng.random() < 0.03:        # thinking pause
+                flight += self.rng.uniform(0.35, 1.0)
+            if self.rng.random() < self.regime["typo_rate"] and idx > 0:
+                # typo + correction: delete the last char, retype it right
+                await asyncio.sleep(self.rng.uniform(0.1, 0.25))
+                await self.page.keyboard.down("Backspace")
+                await asyncio.sleep(self.rng.uniform(0.05, 0.10))
+                await self.page.keyboard.up("Backspace")
+                await self._type_char(ch)
+                flight = self.rng.uniform(0.25, 0.6)
+            await asyncio.sleep(flight)
 
     async def type_into(self, selector: str, text, *, wpm=None):
         """Click an input element, then type into it like a human."""
         await self.click(selector)
-        await asyncio.sleep(random.uniform(0.1, 0.35))
+        await asyncio.sleep(self.rng.uniform(0.1, 0.35))
         await self.type_text(text, wpm=wpm)
         return await self.page.locator(selector).first.input_value()
 
     # --- idle behaviour ----------------------------------------------------
     async def dwell(self, lo=0.4, hi=2.5):
         """Pause as if reading, with a small chance of an idle cursor move."""
-        await asyncio.sleep(random.uniform(lo, hi))
-        if random.random() < 0.35:
+        await asyncio.sleep(self.rng.uniform(lo, hi))
+        if self.rng.random() < 0.35:
             await self.wander(1)

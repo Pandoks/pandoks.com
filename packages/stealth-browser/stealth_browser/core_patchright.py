@@ -92,6 +92,8 @@ class PatchrightCore:
         self._context = None
         self._page = None
         self._human = None
+        # one humanization regime per session (drawn once, stable within)
+        self._session_seed = random.getrandbits(64)
         # temp user-data-dir backing non-persistent sessions (removed on close)
         self._profile_dir: str | None = None
         # explicit per-session ProxyConfig wins; env is the fallback.
@@ -117,7 +119,8 @@ class PatchrightCore:
     def _human(self):
         """Lazily build the human-input driver for the current page."""
         if self._human is None or self._human.page is not self._page:
-            self._human = PatchrightHuman(self._page)
+            self._human = PatchrightHuman(self._page,
+                                          session_seed=self._session_seed)
         return self._human
 
     def _proxy_dict(self) -> dict | None:
