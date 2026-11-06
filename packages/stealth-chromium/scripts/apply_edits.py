@@ -987,16 +987,19 @@ EDITS = [
                   "  }\n",
     },
     # --- media/base codec support overrides (HEVC / Dolby Vision) ------
-    # enable_platform_hevc is already on for is_linux + proprietary_codecs,
-    # but the RUNTIME decision (IsDecoderHevcProfileSupported) consults the
-    # supplemental decoder profile cache, which is only filled by the GPU
-    # process -- empty on this container, so hvc1/hev1 answer false. When the
-    # persona claims HEVC decode, answer for the mainstream Main/Main10
-    # profiles (what essentially every desktop GPU decodes). DV likewise,
-    # only when the persona claims it AND HEVC. Verified anchors
-    # (Chromium 157.0.8103.38; the #else/return-true tail makes the HEVC
-    # anchor unique -- the DV function has the same return statement but
-    # different surrounding text).
+    # process, and calls IsProfileSupported (which needs the supplemental cache
+    # filled by the GPU process -- empty on this container). When the persona
+    # claims HEVC decode, answer for the mainstream Main/Main10 profiles
+    # (what essentially every desktop GPU decodes). DV likewise, only when the
+    # persona claims it AND HEVC. Verified anchors (Chromium 157.0.8103.38;
+    # the #else/return-true tail makes the HEVC anchor unique -- the DV
+    # function has the same return statement but different surrounding text).
+    # HEVC inserts inside the #if ENABLE_PLATFORM_HEVC branch (before the
+    # real return). DV anchors on the LAST line of the multi-line #if
+    # condition and inserts AFTER it: inserting before/at the condition or
+    # spanning the backslash continuations puts the inject inside the
+    # preprocessor expression and breaks compilation ("expected value in
+    # expression" -- the first v38 build failure class).
     {
         "file": "media/base/supported_types.cc",
         "header": '#include "apex_fingerprint.h"',
@@ -1020,11 +1023,8 @@ EDITS = [
         "file": "media/base/supported_types.cc",
         "header": '#include "apex_fingerprint.h"',
         "marker": "apex-media-dv",
-        "anchor": "    BUILDFLAG(ENABLE_PLATFORM_DOLBY_VISION)\n"
-                  "  return GetSupplementalDecoderVideoProfileCache()->"
-                  "IsProfileSupported(\n"
-                  "      type.profile);\n",
-        "where": "before",
+        "anchor": "    BUILDFLAG(ENABLE_PLATFORM_DOLBY_VISION)\n",
+        "where": "after",
         "inject": "  // apex-media-dv: persona Dolby Vision claim\n"
                   "  if (apex_fp::MediaDolbyVision()) {\n"
                   "    return true;\n"
