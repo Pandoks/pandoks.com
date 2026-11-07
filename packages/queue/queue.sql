@@ -154,12 +154,22 @@ CREATE OR REPLACE FUNCTION public.queue_cancel(job_id bigint) RETURNS boolean LA
   ) SELECT EXISTS (SELECT 1 FROM deleted) OR EXISTS (SELECT 1 FROM marked);
 $$;
 
--- NOTE: the first statement waits out the transactions holding the group's rows, in id order so two cancels can't
--- deadlock. The second then runs on a fresh snapshot, so it sees the jobs they committed, like a follow-up.
-CREATE OR REPLACE FUNCTION public.queue_cancel_group(queue_name text, key text) RETURNS bigint LANGUAGE sql AS $$
-  SELECT FROM public.queue_jobs WHERE queue = queue_name AND group_key = key ORDER BY id FOR UPDATE;
-  -- NOTE: judged from the rows FOR UPDATE returns, so a job of the group that committed while the first statement
-  -- waited, and is being claimed, is judged as running
+-- NOTE: a handler may complete a job and enqueue its follow-up in one transaction, so waiting on one job can hide
+-- the next. The loop locks the group, in id order so two cancels can't deadlock, until a fresh snapshot shows no job
+-- it hasn't locked; only then are the rows judged, from the versions FOR UPDATE returns.
+CREATE OR REPLACE FUNCTION public.queue_cancel_group(queue_name text, key text) RETURNS bigint LANGUAGE plpgsql AS $$
+DECLARE
+  locked_ids bigint[];
+  cancelled_count bigint;
+BEGIN
+  LOOP
+    SELECT coalesce(array_agg(id), '{}') INTO locked_ids FROM (
+      SELECT id FROM public.queue_jobs WHERE queue = queue_name AND group_key = key ORDER BY id FOR UPDATE
+    ) AS group_jobs;
+    EXIT WHEN NOT EXISTS (
+      SELECT FROM public.queue_jobs WHERE queue = queue_name AND group_key = key AND id <> ALL (locked_ids)
+    );
+  END LOOP;
   WITH locked AS (
     SELECT id, state, available_at, cancelled FROM public.queue_jobs
     WHERE queue = queue_name AND group_key = key ORDER BY id FOR UPDATE
@@ -171,8 +181,9 @@ CREATE OR REPLACE FUNCTION public.queue_cancel_group(queue_name text, key text) 
     UPDATE public.queue_jobs jobs SET cancelled = true FROM locked
     WHERE jobs.id = locked.id AND locked.state = 'running' AND locked.available_at > now() AND NOT locked.cancelled
     RETURNING 1
-  ) SELECT (SELECT count(*) FROM deleted) + (SELECT count(*) FROM marked);
-$$;
+  ) SELECT (SELECT count(*) FROM deleted) + (SELECT count(*) FROM marked) INTO cancelled_count;
+  RETURN cancelled_count;
+END $$;
 
 -- Seconds an idle worker waits for a NOTIFY: until the queue's next due job or lease end, at most max_seconds.
 -- NOTE: at least 0.1 s, since a due row that queue_claim skips, like one an open transaction locks, would make

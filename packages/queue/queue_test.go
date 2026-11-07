@@ -356,8 +356,8 @@ func TestCancelDuringAClaim(t *testing.T) {
 	}
 }
 
-// The handler's transaction completes job A and enqueues its follow-up B in the same group, the documented
-// follow-up pattern. A group cancel that waits on A must still catch B, even while a worker is claiming it.
+// A handler's transaction completes job A while its follow-up B in the same group commits. A group cancel that
+// waits on A must still catch B, even while a worker is claiming it.
 func TestCancelGroupCatchesAFollowUpBeingClaimed(t *testing.T) {
 	ctx := context.Background()
 	queue := newQueue(t)
@@ -419,6 +419,84 @@ func TestCancelGroupCatchesAFollowUpBeingClaimed(t *testing.T) {
 	expireLease(t, followUp)
 	if job := claim(t, queue, "worker"); job != nil {
 		t.Fatalf("a follow-up cancelled while being claimed ran again: %+v", job)
+	}
+}
+
+// Two handlers complete A1 and A2 and hold their transactions. While the cancel waits on them, A1's follow-up B
+// commits and is claimed, and B's handler completes it and enqueues C. The cancel must still catch C.
+func TestCancelGroupCatchesAFollowUpOfAFollowUp(t *testing.T) {
+	ctx := context.Background()
+	queue := newQueue(t)
+	begin := func() (pgx.Tx, uint32) {
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = tx.Rollback(ctx) })
+		var pid uint32
+		if err := tx.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&pid); err != nil {
+			t.Fatal(err)
+		}
+		return tx, pid
+	}
+	complete := func(tx pgx.Tx) {
+		job := claim(t, queue, "worker")
+		if completed, err := job.Complete(ctx, tx); err != nil || !completed {
+			t.Fatalf("Complete = %v, %v", completed, err)
+		}
+	}
+	cancelBlockedBy := func(pid uint32) {
+		waitFor(t, 5*time.Second, func() bool {
+			var blocked bool
+			if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT FROM pg_stat_activity WHERE query LIKE '%queue_cancel_group%'
+				AND $1::int = ANY (pg_blocking_pids(pid)))`, pid).Scan(&blocked); err != nil {
+				t.Fatal(err)
+			}
+			return blocked
+		})
+	}
+
+	enqueue(t, queue, EnqueueOptions{GroupKey: "group"})
+	enqueue(t, queue, EnqueueOptions{GroupKey: "group"})
+	first, firstPID := begin()
+	complete(first)
+	second, secondPID := begin()
+	complete(second)
+	cancelled := make(chan int64, 1)
+	go func() {
+		count, err := CancelGroup(ctx, pool, queue, "group")
+		if err != nil {
+			t.Error(err)
+		}
+		cancelled <- count
+	}()
+	cancelBlockedBy(firstPID)
+
+	if _, err := Enqueue(ctx, first, queue, map[string]string{}, EnqueueOptions{GroupKey: "group"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := first.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	cancelBlockedBy(secondPID)
+	third, thirdPID := begin()
+	complete(third)
+	followUp, err := Enqueue(ctx, third, queue, map[string]string{}, EnqueueOptions{GroupKey: "group"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := second.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	cancelBlockedBy(thirdPID)
+	if err := third.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if count := <-cancelled; count != 1 {
+		t.Fatalf("the group cancel counted %d jobs, want the follow-up's follow-up", count)
+	}
+	if jobRow(t, followUp) != nil {
+		t.Fatal("the follow-up's follow-up survived the group cancel")
 	}
 }
 
