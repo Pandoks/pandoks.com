@@ -45,8 +45,8 @@ export function createLoadBalancers(
       protocol: 'tcp',
       listenPort: 443,
       destinationPort: 30443,
-      // NOTE: HAProxy doesn't accept PROXY; Cloudflare sends the client IP in CF-Connecting-IP.
-      proxyprotocol: false,
+      // NOTE: needed to validate all requests are coming from Cloudflare (false will only show load balancer's private network ip)
+      proxyprotocol: true,
       healthCheck: {
         protocol: 'tcp',
         port: 30443,
