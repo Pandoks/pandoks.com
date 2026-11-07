@@ -250,7 +250,7 @@ jobs:
             run=$(gh run list --workflow "$workflow" --commit "$SOURCE_REVISION" --event "$CHECK_EVENT" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
             [ -n "$run" ] || { echo "No $workflow run for $SOURCE_REVISION" >&2; exit 1; }
             gh run watch "$run" --exit-status && continue
-            # NOTE: a newer main commit cancels these checks and this run together; wait for that cancel instead of failing first.
+            # NOTE: a newer commit on main or the PR cancels these checks and this run together; wait for that cancel instead of failing first.
             [ "$(gh run view "$run" --json conclusion --jq .conclusion)" = cancelled ] && sleep 60
             exit 1
           done
