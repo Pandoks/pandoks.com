@@ -157,13 +157,18 @@ $$;
 -- NOTE: locks in id order, so two cancels of one group can't deadlock
 CREATE OR REPLACE FUNCTION public.queue_cancel_group(queue_name text, key text) RETURNS bigint LANGUAGE sql AS $$
   SELECT FROM public.queue_jobs WHERE queue = queue_name AND group_key = key ORDER BY id FOR UPDATE;
-  WITH deleted AS (
-    DELETE FROM public.queue_jobs
-    WHERE queue = queue_name AND group_key = key AND (state = 'queued' OR state = 'running' AND available_at <= now())
+  -- NOTE: judged from the rows FOR UPDATE returns, so a job of the group that committed while the first statement
+  -- waited, and is being claimed, is judged as running
+  WITH locked AS (
+    SELECT id, state, available_at, cancelled FROM public.queue_jobs
+    WHERE queue = queue_name AND group_key = key ORDER BY id FOR UPDATE
+  ), deleted AS (
+    DELETE FROM public.queue_jobs jobs USING locked
+    WHERE jobs.id = locked.id AND (locked.state = 'queued' OR locked.state = 'running' AND locked.available_at <= now())
     RETURNING 1
   ), marked AS (
-    UPDATE public.queue_jobs SET cancelled = true
-    WHERE queue = queue_name AND group_key = key AND state = 'running' AND available_at > now() AND NOT cancelled
+    UPDATE public.queue_jobs jobs SET cancelled = true FROM locked
+    WHERE jobs.id = locked.id AND locked.state = 'running' AND locked.available_at > now() AND NOT locked.cancelled
     RETURNING 1
   ) SELECT (SELECT count(*) FROM deleted) + (SELECT count(*) FROM marked);
 $$;
