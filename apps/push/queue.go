@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	// NOTE: a rollout overlaps up to 4 pods, and 4×5 fits the 25 Postgres connections PgDog leaves free
+	// NOTE: a rollout runs up to 4 pods, 2 draining beside 2 new, and 4×5 fits the 25 connections PgDog leaves free
 	databaseConnections = 5
 	// NOTE: two full jobs fill the send slots, so more workers only speed up small jobs. A job uses a
 	// connection only briefly to claim, read its devices, heartbeat, and finish, never across its sends, so

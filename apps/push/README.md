@@ -63,7 +63,8 @@ curl -X POST http://push.main.svc.cluster.local/notifications -d '{
 - Each pod opens at most 5 Postgres connections: LISTEN holds one, and the jobs and the API share
   the other 4. A job takes one only briefly to claim, read its devices, heartbeat, and finish, never
   across sends, so the 32 jobs and the API wait on them only while others make those short calls. A
-  rollout overlaps up to 4 pods, so push stays within 20 of the 25 connections PgDog leaves free.
+  rollout runs up to 4 pods at once, the 2 old ones still draining for up to 50 seconds beside the 2
+  new ones, so push stays within 20 of the 25 connections PgDog leaves free.
 - Database calls time out after 5 seconds, and `GET /readyz` fails while Postgres is unreachable.
 - APNs `429` and `5xx` and FCM `429` and `5xx` are retried 4 times with exponential backoff, or
   after FCM's `Retry-After` as given if that's longer; APNs sends none. The first retry waits at
