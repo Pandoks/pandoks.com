@@ -29,7 +29,8 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
 1. **Changing production by hand.** Production (the SST `production` stage and the prod cluster)
    changes when `main` does. Read it to diagnose, but change it no other way: no SST command against
    it, not even `sst diff`, no `pnpm cluster deploy prod`, not even `--dry-run`, no
-   `gh workflow run deploy-infra.yaml` (it deploys `production`), no push to `deploy/production`,
+   `gh workflow run deploy-infra.yaml` (it deploys `production`) or `build-and-publish.yaml` (it
+   publishes `deploy/production` and hard-refreshes prod's Argo), no push to `deploy/production`,
    and no `kubectl` write to prod, Argo refreshes, syncs, and restarts included. If production needs
    a manual fix, even when I say ship now, propose the exact command, target, and effect, then wait.
 2. **Deploying a stage by accident.** Pass `--stage <stage>` (or `SST_STAGE`) to every `sst` and
@@ -58,20 +59,22 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
 
 ## How changes ship
 
-- PRs run `checks.yaml`, `tests.yaml`, `security.yaml`, and `build-and-publish.yaml` (builds images
-  and charts; publishes them only for `preview`-labeled PRs), a Cloudflare Pages preview of
-  `apps/web`, and `claude-review.yaml` (one Agent SDK `/code-review` per PR, posted as one review
-  with inline comments). Required checks are the `*-pass` aggregates.
+- PRs run `checks.yaml`, `tests.yaml`, `security.yaml`, and `build-and-publish.yaml` (builds the
+  images and charts a change touches; publishes them from `main` and `preview`-labeled PRs), a
+  Cloudflare Pages preview of `apps/web`, and `claude-review.yaml` (one Agent SDK `/code-review` per
+  PR, posted as one review with inline comments). Required checks are the `*-pass` aggregates.
 - GHCR keeps every `main` image and chart version, since chart defaults and `deploy/production` pin
   their digests. Only a closed or unlabeled preview's versions, a deleted branch's versions, and
   untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
   `infra/`, `pnpm-lock.yaml`, `apps/` (except `desktop-template` and `example`), and
   `packages/svelte/`. Once Checks, Tests, and Security pass, `build-and-publish.yaml` writes the
-  commit and exact image digests to `deploy/production`. Pages builds `apps/web` when a change
-  matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod`
-  renders from `deploy/production` but never prunes: a deleted resource stays in prod until pruned
-  by hand.
+  commit and exact image digests to `deploy/production` (images and charts its path filters didn't
+  rebuild keep their previous pins), hard-refreshes prod's Argo, and fails unless prod is Synced and
+  Healthy at that release within 10 minutes. Only GitHub Actions can push `deploy/production`. Pages
+  builds `apps/web` when a change matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs
+  everything `k3s/overlays/prod` renders from `deploy/production` but never prunes: a deleted
+  resource stays in prod until pruned by hand.
 - The shared `dev` stage (`isSharedDev` in `infra/dns.ts`) gets `STAGE_NAME` `preview` and
   `preview.pandoks.com`. Every other non-production stage gets `STAGE_NAME` `dev` and
   `dev.pandoks.com`, so two personal stages collide. All non-production stages share the `dev`
@@ -80,7 +83,8 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
   only first-level preview hosts. Once it has load balancers, any `pandoks.com` host without its own
   record reaches the dev cluster, which holds that cert's key.
 - Same-repository PRs to `main` with the `preview` label deploy their apps and databases to
-  namespace `preview-<PR>` on the shared dev cluster from `deploy/preview-<PR>`; shared dev
+  namespace `preview-<PR>` on the shared dev cluster from `deploy/preview-<PR>`, rebuilding what
+  differs from `deploy/production`'s source and keeping its pins for the rest; shared dev
   infrastructure comes from `deploy/dev`. Keep two cloud clusters, prod and dev: no staging tier,
   promotion step, or per-PR cluster.
 - PRs get no infra diff: `sst diff` decrypts every secret, so never run it with production

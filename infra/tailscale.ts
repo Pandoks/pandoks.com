@@ -6,6 +6,13 @@ new tailscale.TailnetSettings('TailscaleSettings', {
   httpsEnabled: true
 });
 
+export const hubTailscaleServices = [
+  { name: 'cliproxyapi', comment: 'CLIProxyAPI on the homelab hub' },
+  { name: 'cliproxyapi-ci', comment: 'CLIProxyAPI with Console API keys only' },
+  { name: 'beszel', comment: 'Beszel monitoring hub' },
+  { name: 'artex', comment: 'ARTEX on the homelab hub' }
+];
+
 export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
   resetAclOnDestroy: true,
   // NOTE: overwriteExistingContent is set to true so it works in all stages. we do this because the
@@ -21,12 +28,24 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         }
       ],
       autoApprovers: {
-        services: {
-          'svc:cliproxyapi': ['tag:cliproxyapi'],
-          'svc:cliproxyapi-ci': ['tag:cliproxyapi']
-        }
+        services: Object.fromEntries(
+          hubTailscaleServices.map(({ name }) => [`svc:${name}`, ['tag:hub']])
+        )
       },
-      grants: [{ src: ['*'], dst: ['*'], ip: ['*'] }],
+      grants: [
+        { src: ['*'], dst: ['*'], ip: ['*'] },
+        {
+          src: ['tag:ci'],
+          dst: ['tag:k8s-operator'],
+          app: {
+            'tailscale.com/cap/kubernetes': [
+              {
+                impersonate: { groups: ['argocd-deployer'] }
+              }
+            ]
+          }
+        }
+      ],
       ssh: [
         {
           action: 'check',
@@ -66,7 +85,7 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         'tag:preview': ['pandoks@github', 'tag:k8s-operator'],
         'tag:prod': ['pandoks@github', 'tag:k8s-operator'],
         'tag:ci': ['pandoks@github'],
-        'tag:cliproxyapi': ['pandoks@github'],
+        'tag:hub': ['pandoks@github'],
         'tag:ssh': ['pandoks@github']
       }
     },

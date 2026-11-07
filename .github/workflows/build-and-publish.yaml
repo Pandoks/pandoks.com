@@ -17,12 +17,89 @@ env:
   CHART_VERSION: 0.0.0-${{ github.event.pull_request.number && format('pr.{0}.', github.event.pull_request.number) || '' }}ci.${{ github.run_id }}.${{ github.run_attempt }}
 
 concurrency:
-  group: build-and-publish-${{ github.event.pull_request.number || github.ref }}-${{ github.event.action == 'labeled' && github.event.label.name != 'preview' && 'ignored-label' || 'build' }}
+  group: build-and-publish-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      images: ${{ steps.select.outputs.images }}
+      charts: ${{ steps.select.outputs.charts }}
+      release: ${{ steps.released.outputs.release }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SOURCE_REVISION }}
+      - name: Find the released source
+        id: released
+        if: github.event_name != 'pull_request' || env.PUBLISH == 'true'
+        run: |
+          release=$(git ls-remote origin refs/heads/deploy/production)
+          if [ -n "$release" ]; then
+            git fetch --depth=1 origin deploy/production
+            source=$(git show FETCH_HEAD:SOURCE_REVISION)
+            printf 'release=%s\nsource=%s\n' "$(git rev-parse FETCH_HEAD)" "$source" >> "$GITHUB_OUTPUT"
+          fi
+      - id: changes
+        if: github.event_name == 'pull_request' || steps.released.outputs.source != ''
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          # NOTE: without a token, dorny diffs a preview against base instead of listing the PR's files.
+          token: ${{ steps.released.outputs.source == '' && github.token || '' }}
+          base: ${{ steps.released.outputs.source }}
+          ref: ${{ env.SOURCE_REVISION }}
+          filters: |
+            patroni:
+              - 'packages/postgres/patroni/**'
+            pgbackrest:
+              - 'packages/postgres/pgbackrest/**'
+            valkey:
+              - 'packages/valkey/Dockerfile'
+              - 'packages/valkey/entrypoint.sh'
+            valkey-reconciler:
+              - 'packages/valkey/reconciler/**'
+            argocd-sst-plugin:
+              - 'packages/argocd/**'
+            clickhouse:
+              - 'packages/clickhouse/clickhouse/**'
+            clickhouse-keeper:
+              - 'packages/clickhouse/keeper/**'
+            clickhouse-backup:
+              - 'packages/clickhouse/backup/**'
+            postgres-chart:
+              - 'packages/postgres/chart/**'
+            valkey-chart:
+              - 'packages/valkey/chart/**'
+            clickhouse-chart:
+              - 'packages/clickhouse/chart/**'
+      - name: Select images and charts
+        id: select
+        env:
+          CHANGES: ${{ steps.changes.outputs.changes }}
+        run: |
+          images='[
+            {"name":"patroni","dockerfile":"packages/postgres/patroni/Dockerfile"},
+            {"name":"pgbackrest","dockerfile":"packages/postgres/pgbackrest/Dockerfile"},
+            {"name":"valkey","dockerfile":"packages/valkey/Dockerfile"},
+            {"name":"valkey-reconciler","dockerfile":"packages/valkey/reconciler/Dockerfile"},
+            {"name":"argocd-sst-plugin","dockerfile":"packages/argocd/Dockerfile"},
+            {"name":"clickhouse","dockerfile":"packages/clickhouse/clickhouse/Dockerfile"},
+            {"name":"clickhouse-keeper","dockerfile":"packages/clickhouse/keeper/Dockerfile"},
+            {"name":"clickhouse-backup","dockerfile":"packages/clickhouse/backup/Dockerfile"}
+          ]'
+          charts='["postgres","valkey","clickhouse"]'
+          # NOTE: with no release to compare against, everything is built.
+          if [ -z "$CHANGES" ]; then
+            CHANGES=$(jq -nc --argjson images "$images" --argjson charts "$charts" '[$images[].name, ($charts[] + "-chart")]')
+          fi
+          images=$(jq -c --argjson changes "$CHANGES" 'map(select(.name | IN($changes[])))' <<<"$images")
+          charts=$(jq -c --argjson changes "$CHANGES" 'map(select(. + "-chart" | IN($changes[])))' <<<"$charts")
+          printf 'images=%s\ncharts=%s\n' "$images" "$charts" >> "$GITHUB_OUTPUT"
+
   images:
-    if: github.event.action != 'labeled' || github.event.label.name == 'preview'
+    needs: detect-changes
+    if: needs.detect-changes.outputs.images != '[]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -32,15 +109,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { name: patroni, dockerfile: packages/postgres/patroni/Dockerfile }
-          - { name: pgbackrest, dockerfile: packages/postgres/pgbackrest/Dockerfile }
-          - { name: valkey, dockerfile: packages/valkey/Dockerfile }
-          - { name: valkey-reconciler, dockerfile: packages/valkey/reconciler/Dockerfile }
-          - { name: argocd-sst-plugin, dockerfile: packages/argocd/Dockerfile }
-          - { name: clickhouse, dockerfile: packages/clickhouse/clickhouse/Dockerfile }
-          - { name: clickhouse-keeper, dockerfile: packages/clickhouse/keeper/Dockerfile }
-          - { name: clickhouse-backup, dockerfile: packages/clickhouse/backup/Dockerfile }
+        include: ${{ fromJSON(needs.detect-changes.outputs.images) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -63,7 +132,7 @@ jobs:
           scanners: vuln,secret
           trivy-config: trivy.yaml
           trivyignores: .trivyignore.yaml
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         if: env.PUBLISH == 'true'
         with:
           registry: ghcr.io
@@ -110,14 +179,15 @@ jobs:
           if-no-files-found: error
 
   charts:
-    if: github.event.action != 'labeled' || github.event.label.name == 'preview'
+    needs: detect-changes
+    if: needs.detect-changes.outputs.charts != '[]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     strategy:
       matrix:
-        chart: [postgres, valkey, clickhouse]
+        chart: ${{ fromJSON(needs.detect-changes.outputs.charts) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -151,8 +221,8 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: [images, charts]
-    if: github.ref == 'refs/heads/main' || (github.event.pull_request.head.repo.full_name == github.repository && contains(github.event.pull_request.labels.*.name, 'preview'))
+    needs: [detect-changes, images, charts]
+    if: ${{ !failure() && !cancelled() && (github.ref == 'refs/heads/main' || (github.event.pull_request.head.repo.full_name == github.repository && contains(github.event.pull_request.labels.*.name, 'preview'))) }}
     runs-on: ubuntu-latest
     concurrency:
       group: release-${{ github.event.pull_request.number || 'production' }}
@@ -191,7 +261,11 @@ jobs:
           path: ${{ runner.temp }}/release-inputs
       - name: Publish source and artifact pins for Argo CD
         id: release
-        run: scripts/ci/publish.sh "$RUNNER_TEMP/release-inputs"
+        env:
+          BUILT_IMAGES: ${{ join(fromJSON(needs.detect-changes.outputs.images).*.name, ' ') }}
+          BUILT_CHARTS: ${{ join(fromJSON(needs.detect-changes.outputs.charts), ' ') }}
+          PRODUCTION_RELEASE: ${{ needs.detect-changes.outputs.release }}
+        run: scripts/ci/publish.sh "$RUNNER_TEMP/release-inputs" "$BUILT_IMAGES" "$BUILT_CHARTS" "$PRODUCTION_RELEASE"
 
   shared-dev:
     needs: publish
@@ -220,9 +294,80 @@ jobs:
           git push --force-with-lease="refs/heads/deploy/dev:$previous" origin "$RELEASE_REVISION:refs/heads/deploy/dev"
           printf 'Shared dev infrastructure now follows PR #%s, source %s.\n' "$PREVIEW_NUMBER" "$SOURCE_REVISION" >> "$GITHUB_STEP_SUMMARY"
 
-  build-and-publish-pass:
-    needs: [images, charts, publish, shared-dev]
-    if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
+  wait-for-argocd:
+    needs: publish
+    if: needs.publish.outputs.revision != '' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - run: echo ok
+      - name: Setup Tailscale
+        uses: tailscale/github-action@99a8333667fff04fdd6cffb46dfd409f8329a7bf # v4.3.0
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Configure kubeconfig
+        run: |
+          PEERS=$(sudo tailscale status --peers) || { echo "tailscale status failed"; exit 1; }
+          if ! echo "$PEERS" | grep -q prod-cluster; then
+            echo "No cluster found — skipping the wait"
+            echo "SKIP_WAIT=true" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          sudo tailscale configure kubeconfig prod-cluster
+
+      - name: Trigger ArgoCD Sync
+        if: env.SKIP_WAIT != 'true'
+        run: |
+          sudo kubectl annotate application prod-cluster \
+            argocd.argoproj.io/refresh=hard \
+            --overwrite \
+            --namespace argocd
+
+      - name: Wait for ArgoCD Sync
+        if: env.SKIP_WAIT != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_REVISION: ${{ needs.publish.outputs.revision }}
+        run: |
+          while [ "${SECONDS}" -lt 600 ]; do
+            argocd_app=$(sudo kubectl get application prod-cluster -n argocd -o json)
+            argocd_revision=$(jq -r .status.sync.revision <<<"${argocd_app}")
+            deploy_state=$(jq -r '
+              if .metadata.annotations["argocd.argoproj.io/refresh"] then "refreshing"
+              elif any(.status.conditions[]?; .type == "ComparisonError")
+                or (.status.operationState.operation.sync.revision == .status.sync.revision
+                  and (.status.operationState.phase | IN("Failed", "Error"))) then "failed"
+              elif .status.sync.status == "Synced" and .status.health.status == "Healthy" then "healthy"
+              else "waiting" end' <<<"${argocd_app}")
+
+            if [ "${deploy_state}" = failed ] || [ "${deploy_state}" = healthy ]; then
+              # NOTE: a newer release may have replaced this one, so a revision that contains it also counts.
+              comparison_to_release=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${RELEASE_REVISION}...${argocd_revision}" --jq .status)
+              case "${deploy_state}:${comparison_to_release}" in
+                failed:identical | failed:ahead)
+                  echo "Sync failed at ${argocd_revision}:"
+                  jq -r '.status.conditions[]?.message, .status.operationState.message // empty' <<<"${argocd_app}"
+                  exit 1
+                  ;;
+                healthy:identical | healthy:ahead)
+                  echo "Synced and healthy at ${argocd_revision}"
+                  exit 0
+                  ;;
+              esac
+            fi
+            sleep 5
+          done
+          echo "Timed out waiting for release ${RELEASE_REVISION} to sync healthy: ${deploy_state} at ${argocd_revision}"
+          jq -r '"Health: \(.status.health.status)",
+            (.status.resources[]? | select(.health.status == "Degraded") | "\(.kind) \(.name): \(.health.message // "")"),
+            .status.conditions[]?.message, .status.operationState.message // empty' <<<"${argocd_app}"
+          exit 1
+
+  build-and-publish-pass:
+    needs: [detect-changes, images, charts, publish, shared-dev, wait-for-argocd]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1

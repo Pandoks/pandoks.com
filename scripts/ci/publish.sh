@@ -3,6 +3,9 @@
 set -euo pipefail
 
 artifacts=$1
+built_images=" $2 "
+built_charts=" $3 "
+production_release=$4
 if [ -n "$PREVIEW_NUMBER" ]; then
   current=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PREVIEW_NUMBER")
   if ! jq -e --arg source "$SOURCE_REVISION" --arg repo "$GITHUB_REPOSITORY" \
@@ -20,28 +23,51 @@ else
   target=deploy/production
 fi
 
-mapfile -t images < <(cat "$artifacts/"*.txt)
-expected=$(yq '.images[].name' k3s/components/images/kustomization.yaml | sort)
-actual=$(printf '%s\n' "${images[@]}" | cut -d@ -f1 | sort)
-[ "$actual" = "$expected" ] || {
-  echo 'Incomplete image outputs; rerun all jobs.' >&2
-  exit 1
-}
-if printf '%s\n' "${images[@]}" | grep -Evq '^ghcr.io/[^ /]+/[^ /@]+@sha256:[a-f0-9]{64}$'; then
+previous=$(git ls-remote origin "refs/heads/$target" | cut -f1)
+parents=()
+if [ -n "$previous" ]; then
+  git fetch origin "$previous"
+  parents=(-p "$previous")
+fi
+[ -z "$production_release" ] || git fetch origin "$production_release"
+
+# Images and charts this run didn't build keep the pins of the production release it detected changes against.
+pins=()
+for name in $(yq '.images[].name' k3s/components/images/kustomization.yaml); do
+  image=${name##*/}
+  if [[ $built_images == *" $image "* ]]; then
+    pins+=("$(cat "$artifacts/$image.txt")")
+  elif [ -n "$production_release" ]; then
+    pins+=("$name@$(git show "$production_release:k3s/components/images/kustomization.yaml" | NAME=$name yq '.images[] | select(.name == strenv(NAME)) | .digest')")
+  else
+    echo "$image was neither built nor pinned by a production release; rerun all jobs." >&2
+    exit 1
+  fi
+done
+if printf '%s\n' "${pins[@]}" | grep -Evq '^ghcr.io/[^ /]+/[^ /@]+@sha256:[a-f0-9]{64}$'; then
   echo 'Invalid image digest.' >&2
   exit 1
 fi
-(cd k3s/components/images && kustomize edit set image "${images[@]}")
+(cd k3s/components/images && kustomize edit set image "${pins[@]}")
 
 for chart in postgres valkey clickhouse; do
-  [ "$(cat "$artifacts/$chart.version")" = "$CHART_VERSION" ] || {
-    echo "Chart $chart version mismatch; rerun all jobs." >&2
+  if [[ $built_charts == *" $chart "* ]]; then
+    version=$(cat "$artifacts/$chart.version")
+    [ "$version" = "$CHART_VERSION" ] || {
+      echo "Chart $chart version mismatch; rerun all jobs." >&2
+      exit 1
+    }
+  elif [ -n "$production_release" ]; then
+    version=$(git show "$production_release:packages/$chart/chart/Chart.yaml" | yq .version)
+  else
+    echo "Chart $chart was neither built nor pinned by a production release; rerun all jobs." >&2
     exit 1
-  }
-  yq -i '.version = strenv(CHART_VERSION)' "packages/$chart/chart/Chart.yaml"
-done
-find apps k3s -name '*.yaml' -exec grep -l 'chart: oci://ghcr.io/pandoks/charts/' {} + | while IFS= read -r manifest; do
-  yq -i '(select(.kind == "HelmChart") | .spec.version) = strenv(CHART_VERSION)' "$manifest"
+  fi
+  export CHART_REF="oci://ghcr.io/pandoks/charts/$chart" VERSION="$version"
+  yq -i '.version = strenv(VERSION)' "packages/$chart/chart/Chart.yaml"
+  find apps k3s -name '*.yaml' -exec grep -l "chart: $CHART_REF\$" {} + | while IFS= read -r manifest; do
+    yq -i '(select(.kind == "HelmChart" and .spec.chart == strenv(CHART_REF)) | .spec.version) = strenv(VERSION)' "$manifest"
+  done
 done
 if [ -n "$PREVIEW_NUMBER" ]; then
   export PREVIEW_NAMESPACE="preview-$PREVIEW_NUMBER"
@@ -49,12 +75,6 @@ if [ -n "$PREVIEW_NUMBER" ]; then
 fi
 printf '%s\n' "$SOURCE_REVISION" > SOURCE_REVISION
 
-previous=$(git ls-remote origin "refs/heads/$target" | cut -f1)
-parents=()
-if [ -n "$previous" ]; then
-  git fetch origin "$previous"
-  parents=(-p "$previous")
-fi
 git config user.name github-actions[bot]
 git config user.email 41898282+github-actions[bot]@users.noreply.github.com
 git add k3s apps packages/*/chart/Chart.yaml SOURCE_REVISION

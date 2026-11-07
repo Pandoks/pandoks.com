@@ -66,25 +66,34 @@ pnpm local:build && pnpm local:push
 ## Previews and production
 
 One dev cluster hosts PR previews; production runs in a separate cluster. Add the `preview` label to
-a same-repository PR targeting `main` to opt in. CI builds its images/charts, waits for Checks,
-Tests, and Security, then writes its source and exact image/chart versions to `deploy/preview-<PR>`.
-Argo's ApplicationSet deploys that ref to namespace `preview-<PR>` at
-`https://preview-<PR>.pandoks.com`. Closing the PR or removing the label deletes its resources,
-including databases and data, its Git ref, and its `pr-<PR>` images and `0.0.0-pr.<PR>.*` charts in
-GHCR, except image digests `deploy/dev` still pins. Preview backups are disabled.
+a same-repository PR targeting `main` to opt in. CI builds the images/charts whose inputs differ
+from `deploy/production`'s source, waits for Checks, Tests, and Security, then writes its source and
+exact image/chart versions to `deploy/preview-<PR>`, keeping that production release's pins for
+everything it didn't rebuild, since GHCR keeps every `main` version. Argo's ApplicationSet deploys
+that ref to namespace `preview-<PR>` at `https://preview-<PR>.pandoks.com`. Closing the PR or
+removing the label deletes its resources, including databases and data, its Git ref, and its
+`pr-<PR>` images and `0.0.0-pr.<PR>.*` charts in GHCR, except image digests `deploy/dev` still pins.
+Preview backups are disabled.
 
 Shared controllers, MetalLB, ingress, monitoring, and upgrades are deployed once from `deploy/dev`.
-A successful opted-in PR that changes shared infrastructure updates it for every preview. The last
-successful infrastructure update wins. The first preview seeds `deploy/dev`; afterward, app-only PRs
-leave it alone. Closing a PR does not revert shared infrastructure. Labels never provision hardware.
-Successful `main` builds publish `deploy/production` for automatic production sync; there is no
-staging promotion step. CI publishes Git refs; Argo renders and applies them.
+A successful opted-in PR that changes shared infrastructure moves it to that PR's preview release.
+The last successful infrastructure update wins. The first preview seeds `deploy/dev`; afterward,
+app-only PRs leave it alone. Closing a PR does not revert shared infrastructure. Labels never
+provision hardware.
+
+Successful `main` builds publish `deploy/production`: CI builds the images and charts whose inputs
+changed since the last release, waits for Checks, Tests, and Security on that commit, then writes
+its source and exact image/chart versions to the ref, keeping the previous release's pins for
+everything it didn't rebuild, so stateful apps restart only when their inputs change. Argo syncs
+production from it; there is no staging promotion step. CI then hard-refreshes the `prod-cluster`
+Application and fails unless it is Synced and Healthy at that release within 10 minutes. Only GitHub
+Actions can push the ref. CI publishes Git refs; Argo renders and applies them.
 
 All remote overlays use the image pins in
 [`components/images/kustomization.yaml`](components/images/kustomization.yaml). Kustomize matches
 values at the fields in [`base/image-fields.yaml`](base/image-fields.yaml). Add new images to the CI
-build matrix, shared pins, and local overrides. Deploy never queries a registry or generates image
-patches. Each prepared ref includes `SOURCE_REVISION` for traceability.
+build matrix and path filters, shared pins, and local overrides. Deploy never queries a registry or
+generates image patches. Each deployment ref includes `SOURCE_REVISION` for traceability.
 
 ### Bootstrap and manual recovery
 
@@ -122,10 +131,11 @@ pnpm cluster deploy dev --dry-run --quiet > rendered.yaml
 | Personal stage, e.g. `pandoks` | `dev`           | `local --stage pandoks`       |
 
 Shared dev uses the `preview` prefix to preserve existing personal-stage and production identities.
-Its Tailscale hostname is `preview-cluster`. Argo credentials can read only their own SST stage; CI
-needs no Kubernetes credentials, and AWS trusts only the `production` GitHub environment and `main`.
-Existing clusters need the new prepared overlay applied once; Git changes do not automatically
-remove old resources while remote infrastructure pruning is disabled.
+Its Tailscale hostname is `preview-cluster`. Argo credentials can read only their own SST stage;
+CI's `tag:ci` may only get, patch, and update prod's Argo CD Applications, to refresh and watch
+`prod-cluster`; AWS trusts only the `production` GitHub environment and `main`. Existing clusters
+need the new overlay applied once; Git changes do not automatically remove old resources while
+remote infrastructure pruning is disabled.
 
 Preview ingress uses the shared dev cluster's public ingress and a wildcard `*.pandoks.com`
 DNS/origin certificate. The dev stage provisions no public load balancer yet, so previews go live

@@ -41,6 +41,7 @@ class PublishTests(unittest.TestCase):
         self.artifacts = self.work / "artifacts"
         self.artifacts.mkdir()
         names = subprocess.check_output(["yq", ".images[].name", "k3s/components/images/kustomization.yaml"], cwd=self.repo, text=True).splitlines()
+        self.images = [name.rsplit("/", 1)[1] for name in names]
         for name in names:
             (self.artifacts / (name.rsplit("/", 1)[1] + ".txt")).write_text(f"{name}@sha256:{'a' * 64}\n")
         for chart in ["postgres", "valkey", "clickhouse"]:
@@ -56,10 +57,11 @@ class PublishTests(unittest.TestCase):
     def git(self, *args):
         return subprocess.check_output(["git", *args], cwd=self.repo, text=True, stderr=subprocess.DEVNULL).strip()
 
-    def publish(self, success=True):
+    def publish(self, success=True, images=None, charts="postgres valkey clickhouse", production_release=""):
+        images = " ".join(self.images) if images is None else images
         (self.work / "pr.json").write_text(json.dumps(self.pr))
-        result = subprocess.run([str(ROOT / "scripts/ci/publish.sh"), str(self.artifacts)], cwd=self.repo,
-                                env=self.env, capture_output=True, text=True)
+        result = subprocess.run([str(ROOT / "scripts/ci/publish.sh"), str(self.artifacts), images, charts, production_release],
+                                cwd=self.repo, env=self.env, capture_output=True, text=True)
         self.assertEqual(result.returncode == 0, success, result.stdout + result.stderr)
         return result
 
@@ -154,7 +156,6 @@ class PublishTests(unittest.TestCase):
         self.publish()
         first = self.release()
         cases = [("patroni.txt", None), ("patroni.txt", "ghcr.io/pandoks/patroni@sha256:bad\n"),
-                 ("extra.txt", "ghcr.io/pandoks/patroni@sha256:" + "a" * 64 + "\n"),
                  ("postgres.version", None), ("postgres.version", "0.0.0-ci.123.2\n")]
         for name, value in cases:
             with self.subTest(name=name, value=value):
@@ -170,6 +171,45 @@ class PublishTests(unittest.TestCase):
                     path.unlink()
                 else:
                     path.write_text(original)
+
+    def rebuild_only_valkey(self, digest, chart_version):
+        for artifact in self.artifacts.iterdir():
+            artifact.unlink()
+        (self.artifacts / "valkey.txt").write_text(f"ghcr.io/pandoks/valkey@sha256:{digest * 64}\n")
+        (self.artifacts / "valkey.version").write_text(f"{chart_version}\n")
+        self.env["CHART_VERSION"] = chart_version
+
+    def test_unbuilt_images_and_charts_keep_the_production_release_pins(self):
+        self.env["PREVIEW_NUMBER"] = ""
+        self.publish(success=False, images="valkey", charts="valkey")
+        self.publish()
+        self.rebuild_only_valkey("b", "0.0.0-ci.124.1")
+        self.publish(images="valkey", charts="valkey", production_release=self.release("deploy/production"))
+        release = self.release("deploy/production")
+        pins = self.git("show", f"{release}:k3s/components/images/kustomization.yaml")
+        self.assertEqual(pins.count("sha256:" + "a" * 64), 7)
+        self.assertIn("sha256:" + "b" * 64, pins)
+        for chart, version in [("postgres", "0.0.0-ci.123.1"), ("valkey", "0.0.0-ci.124.1"), ("clickhouse", "0.0.0-ci.123.1")]:
+            self.assertIn(f"version: {version}", self.git("show", f"{release}:apps/example/kube/{chart}.yaml"))
+            self.assertIn(f"version: {version}", self.git("show", f"{release}:packages/{chart}/chart/Chart.yaml"))
+
+    def test_unbuilt_preview_pins_come_from_the_production_release_it_compared_against(self):
+        self.env["PREVIEW_NUMBER"] = ""
+        self.publish()
+        compared = self.release("deploy/production")
+        self.env["PREVIEW_NUMBER"] = "123"
+        self.rebuild_only_valkey("b", "0.0.0-pr.123.ci.124.1")
+        self.publish(images="valkey", charts="valkey", production_release=compared)
+        self.assertIn("sha256:" + "b" * 64, self.git("show", f"{self.release()}:k3s/components/images/kustomization.yaml"))
+        self.env["PREVIEW_NUMBER"] = ""
+        self.rebuild_only_valkey("c", "0.0.0-ci.125.1")
+        self.publish(images="valkey", charts="valkey", production_release=compared)
+        self.env["PREVIEW_NUMBER"] = "123"
+        self.publish(images="", charts="", production_release=compared)
+        release = self.release()
+        self.assertEqual(self.git("show", f"{release}:k3s/components/images/kustomization.yaml").count("sha256:" + "a" * 64), 8)
+        for chart in ["postgres", "valkey", "clickhouse"]:
+            self.assertIn("version: 0.0.0-ci.123.1", self.git("show", f"{release}:apps/example/kube/{chart}.yaml"))
 
 
 if __name__ == "__main__":
