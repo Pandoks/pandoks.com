@@ -59,7 +59,7 @@
       "customType": "regex",
       "managerFilePatterns": ["/^sst\\.config\\.ts$/"],
       "matchStrings": [
-        "\\n\\s+(?<depName>cloudflare|github|hcloud|tailscale): '(?<currentValue>[\\d.]+)'",
+        "\\n\\s+(?<depName>cloudflare|gcp|github|hcloud|tailscale): '(?<currentValue>[\\d.]+)'",
         "package: '(?<packageName>@ovhcloud/pulumi-ovh)',[\\s\\S]*?version: '(?<currentValue>[\\d.]+)'"
       ],
       "depNameTemplate": "{{#if packageName}}{{{packageName}}}{{else}}@pulumi/{{{depName}}}{{/if}}",
@@ -71,6 +71,13 @@
       "matchStrings": ["const NODE_VERSION = '(?<currentValue>[\\d.]+)'"],
       "depNameTemplate": "node",
       "datasourceTemplate": "node-version"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^mise\\.toml$/"],
+      "matchStrings": ["\\ngcloud = \"(?<currentValue>[\\d.]+)\""],
+      "depNameTemplate": "gcr.io/google.com/cloudsdktool/google-cloud-cli",
+      "datasourceTemplate": "docker"
     },
     {
       "customType": "regex",
@@ -128,6 +135,11 @@
       "description": "Our app charts too, and a chart's `version:` can't carry a digest.",
       "matchPackageNames": ["ghcr.io/pandoks/charts/**"],
       "groupName": null,
+      "pinDigests": false
+    },
+    {
+      "description": "gcloud's image tags only version the mise pin, which can't carry a digest.",
+      "matchPackageNames": ["gcr.io/google.com/cloudsdktool/google-cloud-cli"],
       "pinDigests": false
     },
     {

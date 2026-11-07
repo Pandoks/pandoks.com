@@ -1,3 +1,7 @@
 go 1.27.3
 
-use ./packages/valkey/reconciler
+use (
+	./apps/push
+	./packages/queue
+	./packages/valkey/reconciler
+)

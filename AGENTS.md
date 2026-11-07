@@ -43,7 +43,7 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
    and with zero nodes it deletes Tailscale devices tagged for that stage's cluster; personal stages
    share the `dev` names. Tell me those effects and run `sst diff` only once I accept them; run
    `sst deploy` or `pnpm dev` (`sst dev`) only when I ask. If SST reports missing or expired AWS
-   credentials, ask me to run `pnpm sso`.
+   credentials, ask me to run `pnpm sso`; for Google, `gcloud auth application-default login`.
 3. **Editing my checkout from an experiment.** Use absolute paths in experiment copies;
    `mise exec -C <dir>` runs inside `<dir>`, so never point it at my checkout. Leave my staged and
    unstaged changes alone.
@@ -66,9 +66,9 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
   deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
-  `infra/`, `apps/` (except `desktop-template` and `example`), and `packages/svelte/`, plus an Argo
-  hard refresh and a wait for Synced and Healthy only for `k3s/` and `scripts/cluster/` changes.
-  Pages builds `apps/web` when a change matches `pathIncludes` in `infra/website.ts`. Argo
+  `infra/`, `apps/` (except `desktop-template`, `example`, and `push`), and `packages/svelte/`, plus
+  an Argo hard refresh and a wait for Synced and Healthy only for `k3s/` and `scripts/cluster/`
+  changes. Pages builds `apps/web` when a change matches `pathIncludes` in `infra/website.ts`. Argo
   auto-syncs everything `k3s/overlays/prod` renders but never prunes: a deleted resource stays in
   prod until pruned by hand.
 - Every non-production stage gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
@@ -93,7 +93,8 @@ checkout. The SST CLI is `pnpm sst`.
   or `infra/` shows hundreds of false type errors.
 - `pnpm check` type-checks every package, `infra/`, and `sst.config.ts`.
 - Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, and `desktop-template`;
-  `pnpm --filter <package> test` for `prettier` and `valkey`.
+  `pnpm --filter <package> test` for `prettier`, `valkey`, `queue`, and `push` (the last two need
+  Postgres; see their READMEs).
 - Scoped: `pnpm exec prettier --check <files>`, `pnpm exec eslint [--fix] <files>`, `shellcheck`,
   `shfmt -d`, `hadolint`, `actionlint`, `pnpm --filter "...[origin/main]" --if-present check`. That
   filter and the shell and Docker format and lint commands see only tracked files, so check new

@@ -1,0 +1,118 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: push
+  namespace: main
+spec:
+  type: ClusterIP
+  selector:
+    app: push
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: push
+  namespace: main
+spec:
+  replicas: 2
+  # NOTE: no surge pod, so a rollout stays within the Postgres connection budget
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: &app push
+  template:
+    metadata:
+      labels:
+        app: *app
+    spec:
+      automountServiceAccountToken: false
+      # NOTE: longer than the preStop sleep, a job's 30s sends, and its database deadlines, so a stopping pod commits its jobs
+      terminationGracePeriodSeconds: 50
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: migrate
+          image: ${ImageRegistry}/push:${ImageTag}
+          args:
+            - migrate
+          env:
+            # NOTE: not PgDog: LISTEN needs a session, which transaction pooling doesn't keep
+            - &pghost
+              name: PGHOST
+              value: patroni-main-primary-shard-0
+            - &pgdatabase
+              name: PGDATABASE
+              value: main
+            - name: PGUSER
+              value: admin
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-main-creds
+                  key: ADMIN_PASSWORD
+          securityContext: &containerSecurityContext
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      containers:
+        - name: push
+          image: ${ImageRegistry}/push:${ImageTag}
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: push-creds
+          env:
+            - *pghost
+            - *pgdatabase
+            - name: PGUSER
+              value: client
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-main-creds
+                  key: CLIENT_PASSWORD
+            - name: APNS_PRODUCTION_URL
+              value: https://api.push.apple.com
+            - name: APNS_SANDBOX_URL
+              value: https://api.sandbox.push.apple.com
+            - name: FCM_URL
+              value: https://fcm.googleapis.com
+          # NOTE: keeps serving until the Service stops routing to the stopping pod
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5
+          # NOTE: only readiness checks Postgres, so a failover takes pods out of the Service without restarting them
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+            periodSeconds: 5
+            # NOTE: past the API's 5s database timeout, so a busy pool slows the probe instead of failing it
+            timeoutSeconds: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 10
+          # NOTE: no CPU limit; throttling adds latency spikes
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          securityContext: *containerSecurityContext
