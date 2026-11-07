@@ -650,3 +650,29 @@ func TestShutdownGivesBackAClaimInFlight(t *testing.T) {
 		t.Fatalf("a job claimed as Run stopped wasn't given back unspent: %+v", got)
 	}
 }
+
+// SQL function bodies resolve names at each call under the caller's search_path, where a session's temp table
+// comes first.
+func TestATempTableDoesNotShadowTheQueue(t *testing.T) {
+	ctx := context.Background()
+	queue := newQueue(t)
+	conn, err := pgx.Connect(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Close(ctx) }()
+	if _, err := conn.Exec(ctx, `CREATE TEMP TABLE queue_jobs (LIKE public.queue_jobs INCLUDING ALL)`); err != nil {
+		t.Fatal(err)
+	}
+	id, err := Enqueue(ctx, conn, queue, map[string]string{}, EnqueueOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if jobRow(t, id) == nil {
+		t.Fatal("Enqueue wrote to the session's temp queue_jobs")
+	}
+	var claimed int64
+	if err := conn.QueryRow(ctx, `SELECT id FROM public.queue_claim($1, 'worker', 30)`, queue).Scan(&claimed); err != nil || claimed != id {
+		t.Fatalf("claim beside a temp queue_jobs = %d, %v, want %d", claimed, err, id)
+	}
+}

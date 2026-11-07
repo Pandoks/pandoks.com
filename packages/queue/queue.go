@@ -86,21 +86,21 @@ func Enqueue(ctx context.Context, db Querier, queue string, payload any, options
 		maxAttempts = &options.MaxAttempts
 	}
 	var id int64
-	err = db.QueryRow(ctx, primary+`SELECT queue_enqueue($1, $2, $3, $4, $5)`, queue, data, runAt, groupKey, maxAttempts).Scan(&id)
+	err = db.QueryRow(ctx, primary+`SELECT public.queue_enqueue($1, $2, $3, $4, $5)`, queue, data, runAt, groupKey, maxAttempts).Scan(&id)
 	return id, err
 }
 
 // Cancel makes a job never run again, and reports whether it did. A job a worker is running finishes this run.
 func Cancel(ctx context.Context, db Querier, id int64) (bool, error) {
 	var cancelled bool
-	err := db.QueryRow(ctx, primary+`SELECT queue_cancel($1)`, id).Scan(&cancelled)
+	err := db.QueryRow(ctx, primary+`SELECT public.queue_cancel($1)`, id).Scan(&cancelled)
 	return cancelled, err
 }
 
 // CancelGroup cancels every job of queue and groupKey like Cancel, and returns how many.
 func CancelGroup(ctx context.Context, db Querier, queue, groupKey string) (int64, error) {
 	var cancelled int64
-	err := db.QueryRow(ctx, primary+`SELECT queue_cancel_group($1, $2)`, queue, groupKey).Scan(&cancelled)
+	err := db.QueryRow(ctx, primary+`SELECT public.queue_cancel_group($1, $2)`, queue, groupKey).Scan(&cancelled)
 	return cancelled, err
 }
 
@@ -108,7 +108,7 @@ func CancelGroup(ctx context.Context, db Querier, queue, groupKey string) (int64
 // roll tx back.
 func (job *Job) Complete(ctx context.Context, tx Querier) (bool, error) {
 	var completed bool
-	err := tx.QueryRow(ctx, primary+`SELECT queue_complete($1, $2)`, job.ID, job.Attempt).Scan(&completed)
+	err := tx.QueryRow(ctx, primary+`SELECT public.queue_complete($1, $2)`, job.ID, job.Attempt).Scan(&completed)
 	job.reported.Store(completed)
 	return completed, err
 }
@@ -187,13 +187,13 @@ func (worker Worker) work(ctx context.Context, wake chan struct{}) error {
 		// NOTE: a claim cancelled mid-query can still commit, so it outlives ctx, and a job it claims after ctx is
 		// done goes back
 		claimContext, cancelClaim := context.WithTimeout(context.WithoutCancel(ctx), worker.Lease)
-		err := worker.Pool.QueryRow(claimContext, primary+`SELECT id, queue, payload, group_key, attempts FROM queue_claim($1, $2, $3)`,
+		err := worker.Pool.QueryRow(claimContext, primary+`SELECT id, queue, payload, group_key, attempts FROM public.queue_claim($1, $2, $3)`,
 			worker.Queue, worker.Name, worker.Lease.Seconds(),
 		).Scan(&job.ID, &job.Queue, &job.Payload, &job.GroupKey, &job.Attempt)
 		cancelClaim()
 		if errors.Is(err, pgx.ErrNoRows) {
 			var seconds float64
-			if err := worker.Pool.QueryRow(ctx, primary+`SELECT queue_wait_seconds($1, $2)`, worker.Queue, worker.Lease.Seconds()).Scan(&seconds); err != nil {
+			if err := worker.Pool.QueryRow(ctx, primary+`SELECT public.queue_wait_seconds($1, $2)`, worker.Queue, worker.Lease.Seconds()).Scan(&seconds); err != nil {
 				return err
 			}
 			select {
@@ -244,7 +244,7 @@ func (worker Worker) run(ctx context.Context, job *Job) error {
 			}
 			var extended bool
 			extendContext, cancelExtend := context.WithTimeout(context.WithoutCancel(ctx), worker.Lease)
-			err := worker.Pool.QueryRow(extendContext, primary+`SELECT queue_extend($1, $2, $3)`, job.ID, job.Attempt, worker.Lease.Seconds()).Scan(&extended)
+			err := worker.Pool.QueryRow(extendContext, primary+`SELECT public.queue_extend($1, $2, $3)`, job.ID, job.Attempt, worker.Lease.Seconds()).Scan(&extended)
 			cancelExtend()
 			if (err != nil || !extended) && !job.reported.Load() {
 				slog.Warn("lease lost while running", "job", job.ID, "attempt", job.Attempt, "error", err)
@@ -265,7 +265,7 @@ func (worker Worker) release(ctx context.Context, job *Job) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	var released bool
-	return worker.Pool.QueryRow(ctx, primary+`SELECT queue_release($1, $2)`, job.ID, job.Attempt).Scan(&released)
+	return worker.Pool.QueryRow(ctx, primary+`SELECT public.queue_release($1, $2)`, job.ID, job.Attempt).Scan(&released)
 }
 
 func (worker Worker) report(ctx context.Context, job *Job, err error) error {
@@ -273,15 +273,15 @@ func (worker Worker) report(ctx context.Context, job *Job, err error) error {
 		return nil
 	}
 	var f *failure
-	query := `SELECT queue_complete($1, $2)`
+	query := `SELECT public.queue_complete($1, $2)`
 	args := []any{job.ID, job.Attempt}
 	switch {
 	case err == nil:
 	case errors.As(err, &f) && f.permanent:
-		query = `SELECT queue_fail($1, $2, $3)`
+		query = `SELECT public.queue_fail($1, $2, $3)`
 		args = append(args, err.Error())
 	default:
-		query = `SELECT queue_retry($1, $2, $3, $4)`
+		query = `SELECT public.queue_retry($1, $2, $3, $4)`
 		var retryAfter *float64
 		if f != nil {
 			seconds := f.retryAfter.Seconds()

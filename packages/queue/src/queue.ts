@@ -39,7 +39,7 @@ export async function enqueue(
   options: { runAt?: Date; groupKey?: string; maxAttempts?: number } = {}
 ): Promise<string> {
   const { rows } = await db.query<{ id: string }>(
-    PRIMARY + 'SELECT queue_enqueue($1, $2, $3, $4, $5) AS id',
+    PRIMARY + 'SELECT public.queue_enqueue($1, $2, $3, $4, $5) AS id',
     [queue, payload, options.runAt ?? null, options.groupKey ?? null, options.maxAttempts ?? null]
   );
   return rows[0].id;
@@ -48,7 +48,7 @@ export async function enqueue(
 // Makes a job never run again, and reports whether it did. A job a worker is running finishes this run.
 export async function cancel(db: Db, id: string): Promise<boolean> {
   const { rows } = await db.query<{ cancelled: boolean }>(
-    PRIMARY + 'SELECT queue_cancel($1) AS cancelled',
+    PRIMARY + 'SELECT public.queue_cancel($1) AS cancelled',
     [id]
   );
   return rows[0].cancelled;
@@ -57,7 +57,7 @@ export async function cancel(db: Db, id: string): Promise<boolean> {
 // Cancels every job of queue and groupKey like cancel, and returns how many.
 export async function cancelGroup(db: Db, queue: string, groupKey: string): Promise<number> {
   const { rows } = await db.query<{ cancelled: string }>(
-    PRIMARY + 'SELECT queue_cancel_group($1, $2) AS cancelled',
+    PRIMARY + 'SELECT public.queue_cancel_group($1, $2) AS cancelled',
     [queue, groupKey]
   );
   return Number(rows[0].cancelled);
@@ -66,7 +66,7 @@ export async function cancelGroup(db: Db, queue: string, groupKey: string): Prom
 // Ends the job in db's transaction, so it commits with the handler's writes. False means the lease was lost: roll back.
 export async function complete(db: Db, job: Job): Promise<boolean> {
   const { rows } = await db.query<{ completed: boolean }>(
-    PRIMARY + 'SELECT queue_complete($1, $2) AS completed',
+    PRIMARY + 'SELECT public.queue_complete($1, $2) AS completed',
     [job.id, job.attempt]
   );
   job.reported = rows[0].completed;
@@ -108,7 +108,7 @@ async function claimJobs(
       rows: [job]
     } = await db.query<Job>(
       PRIMARY +
-        'SELECT id, queue, payload, group_key, attempts AS attempt FROM queue_claim($1, $2, $3)',
+        'SELECT id, queue, payload, group_key, attempts AS attempt FROM public.queue_claim($1, $2, $3)',
       [queue, worker, lease]
     );
     if (job) {
@@ -118,7 +118,7 @@ async function claimJobs(
     const {
       rows: [{ seconds }]
     } = await db.query<{ seconds: number }>(
-      PRIMARY + 'SELECT queue_wait_seconds($1, $2) AS seconds',
+      PRIMARY + 'SELECT public.queue_wait_seconds($1, $2) AS seconds',
       [queue, lease]
     );
     // NOTE: a NOTIFY that arrived during the two queries above means a job may already be due, so claim again
@@ -143,11 +143,10 @@ async function run(db: pg.Client, job: Job, handle: Handler, lease: number): Pro
     // finds no row. A tick while an extend is in flight is skipped, so a slow one isn't queued twice.
     if (job.reported || extending) return;
     extending = db
-      .query<{ extended: boolean }>(PRIMARY + 'SELECT queue_extend($1, $2, $3) AS extended', [
-        job.id,
-        job.attempt,
-        lease
-      ])
+      .query<{ extended: boolean }>(
+        PRIMARY + 'SELECT public.queue_extend($1, $2, $3) AS extended',
+        [job.id, job.attempt, lease]
+      )
       .then(
         ({ rows: [{ extended }] }) => {
           if (extended || job.reported) return;
@@ -169,18 +168,18 @@ async function run(db: pg.Client, job: Job, handle: Handler, lease: number): Pro
   try {
     await handle(job);
     if (job.reported) return;
-    query = 'SELECT queue_complete($1, $2) AS reported';
+    query = 'SELECT public.queue_complete($1, $2) AS reported';
     params = [job.id, job.attempt];
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (error instanceof Permanent) {
-      query = 'SELECT queue_fail($1, $2, $3) AS reported';
+      query = 'SELECT public.queue_fail($1, $2, $3) AS reported';
       params = [job.id, job.attempt, message];
     } else if (error instanceof RetryAfter) {
-      query = 'SELECT queue_retry($1, $2, $3, $4) AS reported';
+      query = 'SELECT public.queue_retry($1, $2, $3, $4) AS reported';
       params = [job.id, job.attempt, message, error.seconds];
     } else {
-      query = 'SELECT queue_retry($1, $2, $3) AS reported';
+      query = 'SELECT public.queue_retry($1, $2, $3) AS reported';
       params = [job.id, job.attempt, message];
     }
   } finally {

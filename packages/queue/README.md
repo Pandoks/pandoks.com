@@ -45,7 +45,7 @@ graph LR
 
 ## SQL API
 
-Every client calls these, so a producer can also call them straight from SQL.
+Every client calls these as `public.queue_*`, so a producer can also call them straight from SQL.
 
 | Function                                                                           | Returns                                                             |
 | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
