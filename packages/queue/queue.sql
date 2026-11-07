@@ -155,7 +155,7 @@ CREATE OR REPLACE FUNCTION public.queue_cancel(job_id bigint) RETURNS boolean LA
 $$;
 
 -- NOTE: a handler may complete a job and enqueue its follow-up in one transaction, so waiting on one job can hide
--- the next. The loop locks the group, in id order so two cancels can't deadlock, until a fresh snapshot shows no job
+-- the next. The loop locks the group, in id order so two cancels rarely deadlock, until a fresh snapshot shows no job
 -- it hasn't locked; only then are the rows judged, from the versions FOR UPDATE returns.
 CREATE OR REPLACE FUNCTION public.queue_cancel_group(queue_name text, key text) RETURNS bigint LANGUAGE plpgsql AS $$
 DECLARE

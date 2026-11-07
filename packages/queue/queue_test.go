@@ -401,7 +401,7 @@ func TestCancelGroupCatchesAFollowUpBeingClaimed(t *testing.T) {
 	if err := handler.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
-	// NOTE: the cancel's second statement must be waiting on the claim, or this is no race
+	// NOTE: the cancel must be waiting on the claim, or this is no race
 	waitFor(t, 5*time.Second, func() bool {
 		var blocked bool
 		if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT FROM pg_stat_activity WHERE query LIKE '%queue_cancel_group%'
