@@ -356,6 +356,72 @@ func TestCancelDuringAClaim(t *testing.T) {
 	}
 }
 
+// The handler's transaction completes job A and enqueues its follow-up B in the same group, the documented
+// follow-up pattern. A group cancel that waits on A must still catch B, even while a worker is claiming it.
+func TestCancelGroupCatchesAFollowUpBeingClaimed(t *testing.T) {
+	ctx := context.Background()
+	queue := newQueue(t)
+	enqueue(t, queue, EnqueueOptions{GroupKey: "group"})
+	first := claim(t, queue, "worker")
+	handler, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = handler.Rollback(ctx) }()
+	if completed, err := first.Complete(ctx, handler); err != nil || !completed {
+		t.Fatalf("Complete = %v, %v", completed, err)
+	}
+	cancelled := make(chan int64, 1)
+	go func() {
+		count, err := CancelGroup(ctx, pool, queue, "group")
+		if err != nil {
+			t.Error(err)
+		}
+		cancelled <- count
+	}()
+	waitFor(t, 5*time.Second, func() bool {
+		var waiting bool
+		if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT FROM pg_stat_activity WHERE pid <> pg_backend_pid()
+			AND query LIKE '%queue_cancel_group%' AND wait_event_type = 'Lock')`).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		return waiting
+	})
+
+	followUp := enqueue(t, queue, EnqueueOptions{GroupKey: "group"})
+	claimer, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = claimer.Rollback(ctx) }()
+	var claimerPID uint32
+	if err := claimer.QueryRow(ctx, `SELECT pg_backend_pid() FROM queue_claim($1, 'worker', 30)`, queue).Scan(&claimerPID); err != nil {
+		t.Fatal(err)
+	}
+	if err := handler.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// NOTE: the cancel's second statement must be waiting on the claim, or this is no race
+	waitFor(t, 5*time.Second, func() bool {
+		var blocked bool
+		if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT FROM pg_stat_activity WHERE query LIKE '%queue_cancel_group%'
+			AND $1::int = ANY (pg_blocking_pids(pid)))`, claimerPID).Scan(&blocked); err != nil {
+			t.Fatal(err)
+		}
+		return blocked
+	})
+	if err := claimer.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if count := <-cancelled; count != 1 {
+		t.Fatalf("the group cancel counted %d jobs, want the follow-up", count)
+	}
+	expireLease(t, followUp)
+	if job := claim(t, queue, "worker"); job != nil {
+		t.Fatalf("a follow-up cancelled while being claimed ran again: %+v", job)
+	}
+}
+
 func TestWakeAndIsolation(t *testing.T) {
 	queue := newQueue(t)
 	otherQueue := enqueue(t, queue+"-other", EnqueueOptions{})

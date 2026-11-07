@@ -179,7 +179,7 @@ func (worker Worker) Run(ctx context.Context) error {
 }
 
 func (worker Worker) work(ctx context.Context, wake chan struct{}) error {
-	for {
+	for ctx.Err() == nil {
 		job := &Job{}
 		// NOTE: a claim cancelled mid-query can still commit, so it outlives ctx, and a job it claims after ctx is
 		// done goes back
@@ -219,6 +219,7 @@ func (worker Worker) work(ctx context.Context, wake chan struct{}) error {
 			return err
 		}
 	}
+	return ctx.Err()
 }
 
 // run heartbeats the lease while the handler runs, and cancels the handler if the lease is lost. The heartbeat
