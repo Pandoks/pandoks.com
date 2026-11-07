@@ -40,6 +40,7 @@ class PublishTests(unittest.TestCase):
         self.artifacts = self.work / "artifacts"
         self.artifacts.mkdir()
         names = subprocess.check_output(["yq", ".images[].name", "k3s/components/images/kustomization.yaml"], cwd=self.repo, text=True).splitlines()
+        self.images = [name.rsplit("/", 1)[1] for name in names]
         for name in names:
             (self.artifacts / (name.rsplit("/", 1)[1] + ".txt")).write_text(f"{name}@sha256:{'a' * 64}\n")
         for chart in ["postgres", "valkey", "clickhouse"]:
@@ -50,8 +51,9 @@ class PublishTests(unittest.TestCase):
     def git(self, *args):
         return subprocess.check_output(["git", *args], cwd=self.repo, text=True, stderr=subprocess.DEVNULL).strip()
 
-    def publish(self, success=True):
-        result = subprocess.run([str(ROOT / "scripts/ci/publish.sh"), str(self.artifacts)], cwd=self.repo,
+    def publish(self, success=True, images=None, charts="postgres valkey clickhouse"):
+        images = " ".join(self.images) if images is None else images
+        result = subprocess.run([str(ROOT / "scripts/ci/publish.sh"), str(self.artifacts), images, charts], cwd=self.repo,
                                 env=self.env, capture_output=True, text=True)
         self.assertEqual(result.returncode == 0, success, result.stdout + result.stderr)
         return result
@@ -99,7 +101,6 @@ class PublishTests(unittest.TestCase):
         self.publish()
         first = self.release()
         cases = [("patroni.txt", None), ("patroni.txt", "ghcr.io/pandoks/patroni@sha256:bad\n"),
-                 ("extra.txt", "ghcr.io/pandoks/patroni@sha256:" + "a" * 64 + "\n"),
                  ("postgres.version", None), ("postgres.version", "0.0.0-ci.123.2\n")]
         for name, value in cases:
             with self.subTest(name=name, value=value):
@@ -115,6 +116,23 @@ class PublishTests(unittest.TestCase):
                     path.unlink()
                 else:
                     path.write_text(original)
+
+    def test_unbuilt_images_and_charts_keep_the_previous_release_pins(self):
+        self.publish(success=False, images="valkey", charts="valkey")
+        self.publish()
+        for artifact in self.artifacts.iterdir():
+            artifact.unlink()
+        (self.artifacts / "valkey.txt").write_text(f"ghcr.io/pandoks/valkey@sha256:{'b' * 64}\n")
+        (self.artifacts / "valkey.version").write_text("0.0.0-ci.124.1\n")
+        self.env["CHART_VERSION"] = "0.0.0-ci.124.1"
+        self.publish(images="valkey", charts="valkey")
+        release = self.release()
+        pins = self.git("show", f"{release}:k3s/components/images/kustomization.yaml")
+        self.assertEqual(pins.count("sha256:" + "a" * 64), 7)
+        self.assertIn("sha256:" + "b" * 64, pins)
+        for chart, version in [("postgres", "0.0.0-ci.123.1"), ("valkey", "0.0.0-ci.124.1"), ("clickhouse", "0.0.0-ci.123.1")]:
+            self.assertIn(f"version: {version}", self.git("show", f"{release}:apps/example/kube/{chart}.yaml"))
+            self.assertIn(f"version: {version}", self.git("show", f"{release}:packages/{chart}/chart/Chart.yaml"))
 
 
 if __name__ == "__main__":

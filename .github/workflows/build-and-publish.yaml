@@ -19,7 +19,82 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      images: ${{ steps.select.outputs.images }}
+      charts: ${{ steps.select.outputs.charts }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SOURCE_REVISION }}
+      - name: Find the released source
+        id: released
+        if: github.event_name != 'pull_request'
+        run: |
+          release=$(git ls-remote origin refs/heads/deploy/production)
+          if [ -n "$release" ]; then
+            git fetch --depth=1 origin deploy/production
+            source=$(git show FETCH_HEAD:SOURCE_REVISION)
+            printf 'source=%s\n' "$source" >> "$GITHUB_OUTPUT"
+          fi
+      - id: changes
+        if: github.event_name == 'pull_request' || steps.released.outputs.source != ''
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          base: ${{ steps.released.outputs.source }}
+          ref: ${{ env.SOURCE_REVISION }}
+          filters: |
+            patroni:
+              - 'packages/postgres/patroni/**'
+            pgbackrest:
+              - 'packages/postgres/pgbackrest/**'
+            valkey:
+              - 'packages/valkey/Dockerfile'
+              - 'packages/valkey/entrypoint.sh'
+            valkey-reconciler:
+              - 'packages/valkey/reconciler/**'
+            argocd-sst-plugin:
+              - 'packages/argocd/**'
+            clickhouse:
+              - 'packages/clickhouse/clickhouse/**'
+            clickhouse-keeper:
+              - 'packages/clickhouse/keeper/**'
+            clickhouse-backup:
+              - 'packages/clickhouse/backup/**'
+            postgres-chart:
+              - 'packages/postgres/chart/**'
+            valkey-chart:
+              - 'packages/valkey/chart/**'
+            clickhouse-chart:
+              - 'packages/clickhouse/chart/**'
+      - name: Select images and charts
+        id: select
+        env:
+          CHANGES: ${{ steps.changes.outputs.changes }}
+        run: |
+          images='[
+            {"name":"patroni","dockerfile":"packages/postgres/patroni/Dockerfile"},
+            {"name":"pgbackrest","dockerfile":"packages/postgres/pgbackrest/Dockerfile"},
+            {"name":"valkey","dockerfile":"packages/valkey/Dockerfile"},
+            {"name":"valkey-reconciler","dockerfile":"packages/valkey/reconciler/Dockerfile"},
+            {"name":"argocd-sst-plugin","dockerfile":"packages/argocd/Dockerfile"},
+            {"name":"clickhouse","dockerfile":"packages/clickhouse/clickhouse/Dockerfile"},
+            {"name":"clickhouse-keeper","dockerfile":"packages/clickhouse/keeper/Dockerfile"},
+            {"name":"clickhouse-backup","dockerfile":"packages/clickhouse/backup/Dockerfile"}
+          ]'
+          charts='["postgres","valkey","clickhouse"]'
+          # NOTE: with no release to compare against, everything is built.
+          if [ -z "$CHANGES" ]; then
+            CHANGES=$(jq -nc --argjson images "$images" --argjson charts "$charts" '[$images[].name, ($charts[] + "-chart")]')
+          fi
+          images=$(jq -c --argjson changes "$CHANGES" 'map(select(.name | IN($changes[])))' <<<"$images")
+          charts=$(jq -c --argjson changes "$CHANGES" 'map(select(. + "-chart" | IN($changes[])))' <<<"$charts")
+          printf 'images=%s\ncharts=%s\n' "$images" "$charts" >> "$GITHUB_OUTPUT"
+
   images:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.images != '[]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -29,15 +104,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { name: patroni, dockerfile: packages/postgres/patroni/Dockerfile }
-          - { name: pgbackrest, dockerfile: packages/postgres/pgbackrest/Dockerfile }
-          - { name: valkey, dockerfile: packages/valkey/Dockerfile }
-          - { name: valkey-reconciler, dockerfile: packages/valkey/reconciler/Dockerfile }
-          - { name: argocd-sst-plugin, dockerfile: packages/argocd/Dockerfile }
-          - { name: clickhouse, dockerfile: packages/clickhouse/clickhouse/Dockerfile }
-          - { name: clickhouse-keeper, dockerfile: packages/clickhouse/keeper/Dockerfile }
-          - { name: clickhouse-backup, dockerfile: packages/clickhouse/backup/Dockerfile }
+        include: ${{ fromJSON(needs.detect-changes.outputs.images) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -106,13 +173,15 @@ jobs:
           if-no-files-found: error
 
   charts:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.charts != '[]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     strategy:
       matrix:
-        chart: [postgres, valkey, clickhouse]
+        chart: ${{ fromJSON(needs.detect-changes.outputs.charts) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -146,8 +215,8 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: [images, charts]
-    if: github.ref == 'refs/heads/main'
+    needs: [detect-changes, images, charts]
+    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     concurrency:
       group: release-production
@@ -179,10 +248,13 @@ jobs:
           merge-multiple: true
           path: ${{ runner.temp }}/release-inputs
       - name: Publish source and artifact pins for Argo CD
-        run: scripts/ci/publish.sh "$RUNNER_TEMP/release-inputs"
+        env:
+          BUILT_IMAGES: ${{ join(fromJSON(needs.detect-changes.outputs.images).*.name, ' ') }}
+          BUILT_CHARTS: ${{ join(fromJSON(needs.detect-changes.outputs.charts), ' ') }}
+        run: scripts/ci/publish.sh "$RUNNER_TEMP/release-inputs" "$BUILT_IMAGES" "$BUILT_CHARTS"
 
   build-and-publish-pass:
-    needs: [images, charts, publish]
+    needs: [detect-changes, images, charts, publish]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
