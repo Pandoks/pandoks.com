@@ -130,19 +130,38 @@ jobs:
 
       - name: Wait for ArgoCD Sync
         if: env.SKIP_DEPLOY != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          for _ in {1..60}; do
-            STATUS=$(sudo kubectl get application prod-cluster -n argocd -o jsonpath='{.status.sync.status}')
-            if [ "${STATUS}" = "Synced" ]; then
-              echo "Sync successful"
-              exit 0
-            fi
-            ERROR=$(sudo kubectl get application prod-cluster -n argocd -o jsonpath='{.status.conditions[?(@.type=="ComparisonError")].message}')
-            if [ -n "$ERROR" ]; then
-              echo "Sync failed: ${ERROR}"
-              exit 1
+          main_commit=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)
+
+          while [ "${SECONDS}" -lt 600 ]; do
+            argocd_app=$(sudo kubectl get application prod-cluster -n argocd -o json)
+            argocd_revision=$(jq -r .status.sync.revision <<<"${argocd_app}")
+            deploy_state=$(jq -r '
+              if .metadata.annotations["argocd.argoproj.io/refresh"] then "refreshing"
+              elif any(.status.conditions[]?; .type == "ComparisonError")
+                or (.status.operationState.operation.sync.revision == .status.sync.revision
+                  and (.status.operationState.phase | IN("Failed", "Error"))) then "failed"
+              elif .status.sync.status == "Synced" and .status.health.status == "Healthy" then "healthy"
+              else "waiting" end' <<<"${argocd_app}")
+
+            if [ "${deploy_state}" = failed ] || [ "${deploy_state}" = healthy ]; then
+              # NOTE: main may have moved on, so a newer revision that contains main_commit also counts.
+              comparison_to_main=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${main_commit}...${argocd_revision}" --jq .status)
+              case "${deploy_state}:${comparison_to_main}" in
+                failed:identical | failed:ahead)
+                  echo "Sync failed at ${argocd_revision}:"
+                  jq -r '.status.conditions[]?.message, .status.operationState.message // empty' <<<"${argocd_app}"
+                  exit 1
+                  ;;
+                healthy:identical | healthy:ahead)
+                  echo "Synced and healthy at ${argocd_revision}"
+                  exit 0
+                  ;;
+              esac
             fi
             sleep 5
           done
-          echo "Timed out waiting for sync"
+          echo "Timed out waiting for main (${main_commit}) to sync healthy: ${deploy_state} at ${argocd_revision}"
           exit 1
