@@ -43,6 +43,7 @@ jobs:
               - 'pnpm-workspace.yaml'
               - 'pnpm-lock.yaml'
               - 'apps/mobile-template/**'
+              - 'packages/react-native-*/**'
             svelte:
               - 'packages/svelte/**'
             prettier:
@@ -161,7 +162,7 @@ jobs:
         working-directory: apps/mobile-template/ios
         run: >-
           xcodebuild build -workspace MobileTemplate.xcworkspace -scheme MobileTemplate
-          -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator'
+          -configuration Release -destination 'generic/platform=iOS Simulator'
           ARCHS=arm64 CODE_SIGNING_ALLOWED=NO
 
   test-svelte-pkg:

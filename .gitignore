@@ -41,6 +41,8 @@ web-build/
 expo-env.d.ts
 apps/mobile-template/ios/
 apps/mobile-template/android/
+apps/mobile-template/targets/*/Info.plist
+apps/mobile-template/targets/*/Assets.xcassets/
 
 # Native
 .kotlin/

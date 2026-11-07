@@ -1,6 +1,10 @@
+import { Watch } from '@pandoks.com/react-native-watch';
+import { useEvent } from 'expo';
 import { useTheme } from 'expo-router';
+import { useState } from 'react';
 import {
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   useColorScheme,
@@ -37,8 +41,49 @@ export default function DeviceScreen() {
             <Text style={[styles.value, { color: colors.text }]}>{value}</Text>
           </View>
         ))}
+        {Watch && <WatchRows watch={Watch} />}
       </View>
     </Screen>
+  );
+}
+
+function WatchRows({ watch }: { watch: NonNullable<typeof Watch> }) {
+  const { colors } = useTheme();
+  const { isReachable } = useEvent(watch, 'onReachabilityChange', {
+    isReachable: watch.isReachable
+  });
+  const contextFromWatch = useEvent(
+    watch,
+    'onApplicationContext',
+    watch.receivedApplicationContext
+  );
+  const [sendError, setSendError] = useState<string | null>(null);
+
+  async function sendToWatch() {
+    try {
+      await watch.updateApplicationContext({ value: new Date().toLocaleTimeString() });
+      setSendError(null);
+    } catch (error) {
+      // NOTE: rejects when no watch is paired or the watch app isn't installed
+      setSendError(String(error));
+    }
+  }
+
+  return (
+    <>
+      <View style={[styles.row, { borderColor: colors.border }]}>
+        <Text style={[styles.label, { color: colors.text }]}>Watch</Text>
+        <Text style={[styles.value, { color: colors.text }]}>
+          {sendError ?? (isReachable ? 'Reachable' : 'Not reachable')}
+        </Text>
+      </View>
+      <Pressable style={[styles.row, { borderColor: colors.border }]} onPress={sendToWatch}>
+        <Text style={[styles.label, { color: colors.primary }]}>Send to watch</Text>
+        <Text style={[styles.value, { color: colors.text }]}>
+          {contextFromWatch.value ?? 'Nothing from watch'}
+        </Text>
+      </Pressable>
+    </>
   );
 }
 
