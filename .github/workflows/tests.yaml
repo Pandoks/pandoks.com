@@ -43,6 +43,7 @@ jobs:
               - 'pnpm-workspace.yaml'
               - 'pnpm-lock.yaml'
               - 'apps/mobile-template/**'
+              - 'packages/react-native-live-updates/**'
             svelte:
               - 'packages/svelte/**'
             prettier:

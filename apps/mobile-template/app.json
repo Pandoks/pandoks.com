@@ -30,6 +30,30 @@
           "backgroundColor": "#F2F2F2",
           "dark": { "backgroundColor": "#010101" }
         }
+      ],
+      [
+        "expo-widgets",
+        {
+          "enableAndroid": true,
+          "enablePushNotifications": true,
+          "widgets": [
+            {
+              "name": "FocusWidget",
+              "displayName": "Focus",
+              "description": "Your latest focus session",
+              "ios": {
+                "supportedFamilies": ["systemSmall"],
+                "initialLayout": "./src/widgets/focus-widget.tsx"
+              },
+              "android": {
+                "minWidth": 110,
+                "targetCellWidth": 2,
+                "targetCellHeight": 2,
+                "initialLayout": "./src/widgets/focus-widget.android.tsx"
+              }
+            }
+          ]
+        }
       ]
     ],
     "experiments": {
