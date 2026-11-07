@@ -87,8 +87,12 @@ pnpm local:destroy
 See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI commands and
 [k3s/README.md](./k3s/README.md) for cluster architecture details.
 
+Remote clusters are shared dev and production. Add the `preview` label to a same-repository PR
+targeting `main` to deploy its apps and databases into a separate namespace on dev; closing it or
+removing the label deletes the preview. Shared infrastructure changes affect every preview.
 Successful `main` builds deploy to production through Argo CD, and `main` changes to SST code deploy
-the `production` stage; see [the cluster workflow](./k3s/README.md).
+the `production` stage. Labels do not provision hardware; see
+[the cluster workflow](./k3s/README.md).
 
 ## Development
 

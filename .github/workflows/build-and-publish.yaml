@@ -3,6 +3,7 @@ name: Build and Publish
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, labeled]
   push:
     branches: [main]
   workflow_dispatch:
@@ -12,7 +13,8 @@ permissions:
 
 env:
   SOURCE_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-  PUBLISH: ${{ github.ref == 'refs/heads/main' }}
+  PUBLISH: ${{ github.ref == 'refs/heads/main' || (github.event.pull_request.head.repo.full_name == github.repository && contains(github.event.pull_request.labels.*.name, 'preview')) }}
+  CHART_VERSION: 0.0.0-${{ github.event.pull_request.number && format('pr.{0}.', github.event.pull_request.number) || '' }}ci.${{ github.run_id }}.${{ github.run_attempt }}
 
 concurrency:
   group: build-and-publish-${{ github.event.pull_request.number || github.ref }}
@@ -24,24 +26,27 @@ jobs:
     outputs:
       images: ${{ steps.select.outputs.images }}
       charts: ${{ steps.select.outputs.charts }}
+      release: ${{ steps.released.outputs.release }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.SOURCE_REVISION }}
       - name: Find the released source
         id: released
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' || env.PUBLISH == 'true'
         run: |
           release=$(git ls-remote origin refs/heads/deploy/production)
           if [ -n "$release" ]; then
             git fetch --depth=1 origin deploy/production
             source=$(git show FETCH_HEAD:SOURCE_REVISION)
-            printf 'source=%s\n' "$source" >> "$GITHUB_OUTPUT"
+            printf 'release=%s\nsource=%s\n' "$(git rev-parse FETCH_HEAD)" "$source" >> "$GITHUB_OUTPUT"
           fi
       - id: changes
         if: github.event_name == 'pull_request' || steps.released.outputs.source != ''
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
+          # NOTE: without a token, dorny diffs a preview against base instead of listing the PR's files.
+          token: ${{ steps.released.outputs.source == '' && github.token || '' }}
           base: ${{ steps.released.outputs.source }}
           ref: ${{ env.SOURCE_REVISION }}
           filters: |
@@ -141,6 +146,7 @@ jobs:
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=raw,value=build-${{ github.run_id }}-${{ github.run_attempt }}
+            type=raw,value=pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }},enable=${{ github.event_name == 'pull_request' }}
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         id: push
         if: env.PUBLISH == 'true'
@@ -196,7 +202,7 @@ jobs:
           trivy-config: trivy.yaml
           trivyignores: .trivyignore.yaml
       - name: Package chart
-        run: helm package "packages/${{ matrix.chart }}/chart" --version "0.0.0-ci.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+        run: helm package "packages/${{ matrix.chart }}/chart" --version "$CHART_VERSION"
       - name: Publish chart
         if: env.PUBLISH == 'true'
         env:
@@ -205,8 +211,8 @@ jobs:
           CHART: ${{ matrix.chart }}
         run: |
           echo "$GH_TOKEN" | helm registry login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
-          helm push "$CHART-0.0.0-ci.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}.tgz" "oci://ghcr.io/${OWNER,,}/charts"
-          printf '0.0.0-ci.%s.%s\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" > "$RUNNER_TEMP/$CHART.version"
+          helm push "$CHART-$CHART_VERSION.tgz" "oci://ghcr.io/${OWNER,,}/charts"
+          printf '%s\n' "$CHART_VERSION" > "$RUNNER_TEMP/$CHART.version"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: env.PUBLISH == 'true'
         with:
@@ -216,19 +222,23 @@ jobs:
 
   publish:
     needs: [detect-changes, images, charts]
-    if: ${{ !failure() && !cancelled() && github.ref == 'refs/heads/main' }}
+    if: ${{ !failure() && !cancelled() && (github.ref == 'refs/heads/main' || (github.event.pull_request.head.repo.full_name == github.repository && contains(github.event.pull_request.labels.*.name, 'preview'))) }}
     runs-on: ubuntu-latest
     concurrency:
-      group: release-production
+      group: release-${{ github.event.pull_request.number || 'production' }}
       cancel-in-progress: false
     permissions:
       contents: write
       actions: read
+      pull-requests: read
     outputs:
       revision: ${{ steps.release.outputs.revision }}
+      infrastructure: ${{ steps.release.outputs.infrastructure }}
     env:
       GH_TOKEN: ${{ github.token }}
-      CHART_VERSION: 0.0.0-ci.${{ github.run_id }}.${{ github.run_attempt }}
+      PREVIEW_NUMBER: ${{ github.event.pull_request.number }}
+      BASE_REVISION: ${{ github.event.pull_request.base.sha }}
+      CHECK_EVENT: ${{ github.event_name == 'pull_request' && 'pull_request' || 'push' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -237,7 +247,7 @@ jobs:
       - name: Require successful checks for this source
         run: |
           for workflow in Checks Tests Security; do
-            run=$(gh run list --workflow "$workflow" --commit "$SOURCE_REVISION" --event push --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+            run=$(gh run list --workflow "$workflow" --commit "$SOURCE_REVISION" --event "$CHECK_EVENT" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
             [ -n "$run" ] || { echo "No $workflow run for $SOURCE_REVISION" >&2; exit 1; }
             gh run watch "$run" --exit-status
           done
@@ -254,11 +264,39 @@ jobs:
         env:
           BUILT_IMAGES: ${{ join(fromJSON(needs.detect-changes.outputs.images).*.name, ' ') }}
           BUILT_CHARTS: ${{ join(fromJSON(needs.detect-changes.outputs.charts), ' ') }}
-        run: scripts/ci/publish.sh "$RUNNER_TEMP/release-inputs" "$BUILT_IMAGES" "$BUILT_CHARTS"
+          PRODUCTION_RELEASE: ${{ needs.detect-changes.outputs.release }}
+        run: scripts/ci/publish.sh "$RUNNER_TEMP/release-inputs" "$BUILT_IMAGES" "$BUILT_CHARTS" "$PRODUCTION_RELEASE"
+
+  shared-dev:
+    needs: publish
+    if: needs.publish.outputs.infrastructure == 'true'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-dev
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PREVIEW_NUMBER: ${{ github.event.pull_request.number }}
+      RELEASE_REVISION: ${{ needs.publish.outputs.revision }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.publish.outputs.revision }}
+          fetch-depth: 0
+      - name: Publish shared infrastructure changes once for the dev cluster
+        run: |
+          current=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PREVIEW_NUMBER")
+          jq -e --arg source "$SOURCE_REVISION" '.state == "open" and .head.sha == $source and any(.labels[]; .name == "preview")' <<<"$current" >/dev/null || exit 0
+          previous=$(git ls-remote origin refs/heads/deploy/dev | cut -f1)
+          git push --force-with-lease="refs/heads/deploy/dev:$previous" origin "$RELEASE_REVISION:refs/heads/deploy/dev"
+          printf 'Shared dev infrastructure now follows PR #%s, source %s.\n' "$PREVIEW_NUMBER" "$SOURCE_REVISION" >> "$GITHUB_STEP_SUMMARY"
 
   wait-for-argocd:
     needs: publish
-    if: needs.publish.outputs.revision != ''
+    if: needs.publish.outputs.revision != '' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Setup Tailscale
@@ -327,7 +365,7 @@ jobs:
           exit 1
 
   build-and-publish-pass:
-    needs: [detect-changes, images, charts, publish, wait-for-argocd]
+    needs: [detect-changes, images, charts, publish, shared-dev, wait-for-argocd]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
