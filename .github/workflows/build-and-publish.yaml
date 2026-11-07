@@ -60,7 +60,7 @@ jobs:
           scanners: vuln,secret
           trivy-config: trivy.yaml
           trivyignores: .trivyignore.yaml
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         if: env.PUBLISH == 'true'
         with:
           registry: ghcr.io
@@ -183,7 +183,8 @@ jobs:
 
   build-and-publish-pass:
     needs: [images, charts, publish]
-    if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
-      - run: echo ok
+      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1

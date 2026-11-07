@@ -181,7 +181,7 @@ metadata:
   namespace: kube-system
 spec:
   chart: oci://ghcr.io/pandoks/charts/postgres
-  version: 0.1.1
+  version: 0.1.2
   targetNamespace: &namespace myapp
   createNamespace: true
   failurePolicy: abort

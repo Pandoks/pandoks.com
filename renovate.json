@@ -115,8 +115,19 @@
       "description": "Each cluster add-on chart is its own rollout.",
       "matchDatasources": ["helm"],
       "groupName": null,
+      "separateMultipleMinor": true,
       "prBodyNotes": [
-        "{{#if isMajor}}Read the chart's upgrade notes and apply any new CRDs before merging; Helm only installs CRDs on first install.{{/if}}"
+        "{{#unless isPatch}}Read the chart's upgrade notes and apply any new CRDs before merging; Helm only installs CRDs on first install.{{/unless}}"
+      ]
+    },
+    {
+      "description": "Each argo-cd chart minor carries an Argo CD minor.",
+      "matchDatasources": ["helm"],
+      "matchPackageNames": ["argo-cd"],
+      "matchUpdateTypes": ["minor", "major"],
+      "dependencyDashboardApproval": true,
+      "prBodyNotes": [
+        "Read Argo CD's [upgrade notes](https://argo-cd.readthedocs.io/en/stable/operator-manual/upgrading/overview/) for every minor this crosses."
       ]
     },
     {
@@ -149,9 +160,10 @@
       ]
     },
     {
-      "description": "Every pnpm copy, the runner AMI's included, moves in one PR.",
+      "description": "Every pnpm copy, the runner AMI's included, moves in one PR. ghcr.io tags have no release timestamp, so they skip minimumReleaseAge; approve once the npm copies are in the PR too.",
       "matchPackageNames": ["pnpm", "ghcr.io/pnpm/pnpm"],
-      "groupName": "pnpm"
+      "groupName": "pnpm",
+      "dependencyDashboardApproval": true
     },
     {
       "description": "Keep engines.node a range.",

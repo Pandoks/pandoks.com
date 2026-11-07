@@ -152,13 +152,15 @@ jobs:
 
   tests-pass:
     needs:
+      - detect-changes
       - test-web
       - test-desktop
       - test-svelte-pkg
       - test-prettier-pkg
       - test-valkey-reconciler
       - test-release
-    if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
-      - run: echo "ok"
+      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
