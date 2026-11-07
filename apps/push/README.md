@@ -32,8 +32,9 @@ graph LR
   at `send_at`; it can't set both. `apns` is the APNs JSON payload sent as is, and `fcm` is the FCM
   v1 `message` without `token`. iOS tokens are skipped without `apns` and Android tokens without
   `fcm`.
-- Cancelling removes the parts of a notification no worker is sending, retries waiting out their
-  backoff included. A part being sent still goes out, and so do its retries.
+- Cancelling removes the parts of a notification no worker has claimed, retries waiting out their
+  backoff included. A claimed part still goes out, even one waiting for a free send slot, and so do
+  its retries.
 
 ```sh
 curl -X PUT http://push.main.svc.cluster.local/devices/$TOKEN -d '{
