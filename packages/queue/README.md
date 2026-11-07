@@ -86,7 +86,7 @@ if _, err := queue.Enqueue(ctx, tx, "thumbnails", map[string]string{"image_id": 
 	return err
 }
 
-// Worker; PG* variables, PGHOST the Patroni primary since LISTEN needs a session
+// Worker; PG* variables, PGHOST shard 0's Patroni primary (see Constraints)
 pool, err := pgxpool.New(ctx, "pool_max_conns=6") // Concurrency + 2, since every handler holds a transaction
 if err != nil {
 	return err
@@ -131,9 +131,9 @@ await work(client, 'thumbnails', process.env.HOSTNAME!, async (job) => {
 
 ## Constraints
 
-- **Connect workers to the Patroni primary, not PgDog**, since LISTEN needs a session. Producers may
-  go through PgDog: every client call starts with `/* pgdog_role: primary */`, which PgDog's docs
-  say routes it to the primary (untested here).
+- **Connect producers and workers to shard 0's Patroni primary (`patroni-<db>-primary-shard-0`), not
+  PgDog.** LISTEN needs a session, and with `patroni.shards > 1` PgDog sends a query without a
+  sharding key to every shard, so an enqueue through it would add the job once per shard.
 - **Connections:** a Go worker's pool needs at least 2 connections, or `Run` returns an error.
   LISTEN holds 1, and claims, heartbeats, reports, and the handlers share the rest, so size the pool
   for what the handlers hold at once plus 1: `Concurrency + 2` when every handler holds a

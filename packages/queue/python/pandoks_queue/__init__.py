@@ -10,9 +10,6 @@ import psycopg
 from psycopg import sql
 from psycopg.types.json import Jsonb
 
-# NOTE: PgDog parses a SELECT as a read, but every queue function writes
-PRIMARY = "/* pgdog_role: primary */ "
-
 
 @dataclass
 class Job:
@@ -25,7 +22,7 @@ class Job:
 
     def complete(self, db: psycopg.Connection) -> bool:
         """Ends the job in db's transaction, so it commits with the handler's writes. False means the lease was lost: roll back."""
-        self.reported = db.execute(PRIMARY + "SELECT public.queue_complete(%s, %s)", (self.id, self.attempt)).fetchone()[0]
+        self.reported = db.execute("SELECT public.queue_complete(%s, %s)", (self.id, self.attempt)).fetchone()[0]
         return self.reported
 
 
@@ -51,18 +48,18 @@ def enqueue(
 ) -> int:
     """Adds a job that may run from run_at, or now, and returns its id. Pass a connection in a transaction to commit it with the caller's writes."""
     return db.execute(
-        PRIMARY + "SELECT public.queue_enqueue(%s, %s, %s, %s, %s)", (queue, Jsonb(payload), run_at, group_key, max_attempts)
+        "SELECT public.queue_enqueue(%s, %s, %s, %s, %s)", (queue, Jsonb(payload), run_at, group_key, max_attempts)
     ).fetchone()[0]
 
 
 def cancel(db: psycopg.Connection, job_id: int) -> bool:
     """Makes a job never run again, and reports whether it did. A job a worker is running finishes this run."""
-    return db.execute(PRIMARY + "SELECT public.queue_cancel(%s)", (job_id,)).fetchone()[0]
+    return db.execute("SELECT public.queue_cancel(%s)", (job_id,)).fetchone()[0]
 
 
 def cancel_group(db: psycopg.Connection, queue: str, group_key: str) -> int:
     """Cancels every job of queue and group_key like cancel, and returns how many."""
-    return db.execute(PRIMARY + "SELECT public.queue_cancel_group(%s, %s)", (queue, group_key)).fetchone()[0]
+    return db.execute("SELECT public.queue_cancel_group(%s, %s)", (queue, group_key)).fetchone()[0]
 
 
 def work(conninfo: str, queue: str, worker: str, handle: Callable[[Job], None], lease: float = 30) -> None:
@@ -74,10 +71,10 @@ def work(conninfo: str, queue: str, worker: str, handle: Callable[[Job], None], 
         conn.execute(sql.SQL("LISTEN {}").format(sql.Identifier(f"queue_{queue}")))
         while True:
             row = conn.execute(
-                PRIMARY + "SELECT id, queue, payload, group_key, attempts FROM public.queue_claim(%s, %s, %s)", (queue, worker, lease)
+                "SELECT id, queue, payload, group_key, attempts FROM public.queue_claim(%s, %s, %s)", (queue, worker, lease)
             ).fetchone()
             if row is None:
-                seconds = conn.execute(PRIMARY + "SELECT public.queue_wait_seconds(%s, %s)", (queue, lease)).fetchone()[0]
+                seconds = conn.execute("SELECT public.queue_wait_seconds(%s, %s)", (queue, lease)).fetchone()[0]
                 for _ in conn.notifies(timeout=seconds, stop_after=1):
                     pass
                 continue
@@ -93,7 +90,7 @@ def _run(conn: psycopg.Connection, job: Job, handle: Callable[[Job], None], leas
     def extend() -> None:
         while not stop.wait(lease / 3) and not job.reported:
             try:
-                extended = conn.execute(PRIMARY + "SELECT public.queue_extend(%s, %s, %s)", (job.id, job.attempt, lease)).fetchone()[0]
+                extended = conn.execute("SELECT public.queue_extend(%s, %s, %s)", (job.id, job.attempt, lease)).fetchone()[0]
             except psycopg.Error as error:
                 logging.warning("heartbeat failed for job %s attempt %s: %s", job.id, job.attempt, error)
                 continue
@@ -119,5 +116,5 @@ def _run(conn: psycopg.Connection, job: Job, handle: Callable[[Job], None], leas
     finally:
         stop.set()
         heartbeat.join()
-    if not conn.execute(PRIMARY + query, args).fetchone()[0]:
+    if not conn.execute(query, args).fetchone()[0]:
         logging.warning("lease lost before the report for job %s attempt %s", job.id, job.attempt)
