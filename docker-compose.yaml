@@ -8,7 +8,7 @@ networks:
 
 services:
   s3:
-    image: localstack/localstack@sha256:21fe0a67fe7993a5b0082a29bfc94fce5a15b6622c87b0d98f9df2882a9afca3
+    image: localstack/localstack:2026.10.6@sha256:f94401988db4c01a5b2634d37d698a9b11c93f74c1ad0f7a8849f5ebd73dcbdc
     container_name: s3
     restart: always
     ports:

@@ -30,3 +30,4 @@ overrides:
   tmp: 0.2.7 # @electron-forge/cli → external-editor@^0.0.33; floor for GHSA-ph9p-34f9-6g65
   '@electron/node-gyp': 10.2.0-electron.2 # @electron-forge/cli → @electron/rebuild@3.7
   sharp: 0.35.5 # @sveltejs/enhanced-img + vite-imagetools pin ^0.34.1; floor for GHSA-f88m-g3jw-g9cj
+  '@electron/asar@4>glob': 14.0.2 # @electron-forge/cli → @electron/packager → @electron/asar pins ^13.0.2; floor for GHSA-3g3m-2fjr-6pw4
