@@ -570,25 +570,32 @@ func TestEnqueueRejectsNoAttempts(t *testing.T) {
 }
 
 func TestShutdownGivesTheJobBack(t *testing.T) {
-	queue := newQueue(t)
-	id := enqueue(t, queue, EnqueueOptions{MaxAttempts: 1})
-	started := make(chan struct{})
-	ctx, cancel := context.WithCancel(context.Background())
-	stopped := make(chan error, 1)
-	go func() {
-		stopped <- Worker{Pool: pool, Queue: queue, Name: "worker", Handle: func(ctx context.Context, job *Job) error {
-			close(started)
-			<-ctx.Done()
-			return ctx.Err()
-		}}.Run(ctx)
-	}()
-	<-started
-	cancel()
-	if err := <-stopped; !errors.Is(err, context.Canceled) {
-		t.Fatalf("Run returned %v, want context.Canceled", err)
-	}
-	if got := jobRow(t, id); got == nil || got.state != "queued" || got.attempts != 0 {
-		t.Fatalf("a job stopped by shutdown wasn't given back unspent: %+v", got)
+	// NOTE: a cancel stops Run once the handler starts, and a deadline a second in stops it on its own
+	for _, stop := range []error{context.Canceled, context.DeadlineExceeded} {
+		queue := newQueue(t)
+		id := enqueue(t, queue, EnqueueOptions{MaxAttempts: 1})
+		started := make(chan struct{})
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		stopped := make(chan error, 1)
+		go func() {
+			stopped <- Worker{Pool: pool, Queue: queue, Name: "worker", Handle: func(ctx context.Context, job *Job) error {
+				close(started)
+				<-ctx.Done()
+				return ctx.Err()
+			}}.Run(ctx)
+		}()
+		<-started
+		if errors.Is(stop, context.Canceled) {
+			cancel()
+		}
+		err := <-stopped
+		cancel()
+		if !errors.Is(err, stop) {
+			t.Fatalf("Run returned %v, want %v", err, stop)
+		}
+		if got := jobRow(t, id); got == nil || got.state != "queued" || got.attempts != 0 {
+			t.Fatalf("a job stopped by %v wasn't given back unspent: %+v", stop, got)
+		}
 	}
 }
 
@@ -648,5 +655,31 @@ func TestShutdownGivesBackAClaimInFlight(t *testing.T) {
 	waitFor(t, 5*time.Second, func() bool { return !claimActive(false) })
 	if got := jobRow(t, id); got == nil || got.state != "queued" || got.attempts != 0 {
 		t.Fatalf("a job claimed as Run stopped wasn't given back unspent: %+v", got)
+	}
+}
+
+// SQL function bodies resolve names at each call under the caller's search_path, where a session's temp table
+// comes first.
+func TestATempTableDoesNotShadowTheQueue(t *testing.T) {
+	ctx := context.Background()
+	queue := newQueue(t)
+	conn, err := pgx.Connect(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Close(ctx) }()
+	if _, err := conn.Exec(ctx, `CREATE TEMP TABLE queue_jobs (LIKE public.queue_jobs INCLUDING ALL)`); err != nil {
+		t.Fatal(err)
+	}
+	id, err := Enqueue(ctx, conn, queue, map[string]string{}, EnqueueOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if jobRow(t, id) == nil {
+		t.Fatal("Enqueue wrote to the session's temp queue_jobs")
+	}
+	var claimed int64
+	if err := conn.QueryRow(ctx, `SELECT id FROM public.queue_claim($1, 'worker', 30)`, queue).Scan(&claimed); err != nil || claimed != id {
+		t.Fatalf("claim beside a temp queue_jobs = %d, %v, want %d", claimed, err, id)
 	}
 }

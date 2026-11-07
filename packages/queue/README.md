@@ -25,9 +25,10 @@ graph LR
   running handler: they log a failed extend and keep heartbeating, and once the lease is lost they
   log it and stop, so the handler's side effects can happen twice.
 - **Shutdown:** when Go's `Run` stops, it cancels the running handlers. A job whose handler returns
-  `context.Canceled` goes back to the queue with its attempt unspent (`queue_release`), and so does
-  a job whose claim returns after `Run` stops. A Python or TS worker that exits mid-job is a crash:
-  the job runs again after its lease, on a spent attempt.
+  `ctx.Err()` (`context.Canceled`, or `context.DeadlineExceeded` for a deadline) goes back to the
+  queue with its attempt unspent (`queue_release`), and so does a job whose claim returns after
+  `Run` stops. A Python or TS worker that exits mid-job is a crash: the job runs again after its
+  lease, on a spent attempt.
 - **Fencing:** every report carries the attempt it claimed. Once another worker claims the job, the
   first worker's extend, complete, retry, and fail return false and change nothing.
 - **Retry:** a handler error retries after `2^(attempt-1)` seconds, at most an hour, or after
@@ -45,7 +46,7 @@ graph LR
 
 ## SQL API
 
-Every client calls these, so a producer can also call them straight from SQL.
+Every client calls these as `public.queue_*`, so a producer can also call them straight from SQL.
 
 | Function                                                                           | Returns                                                             |
 | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
@@ -86,7 +87,7 @@ if _, err := queue.Enqueue(ctx, tx, "thumbnails", map[string]string{"image_id": 
 	return err
 }
 
-// Worker; PG* variables, PGHOST the Patroni primary since LISTEN needs a session
+// Worker; PG* variables, PGHOST shard 0's Patroni primary (see Constraints)
 pool, err := pgxpool.New(ctx, "pool_max_conns=6") // Concurrency + 2, since every handler holds a transaction
 if err != nil {
 	return err
@@ -131,9 +132,9 @@ await work(client, 'thumbnails', process.env.HOSTNAME!, async (job) => {
 
 ## Constraints
 
-- **Connect workers to the Patroni primary, not PgDog**, since LISTEN needs a session. Producers may
-  go through PgDog: every client call starts with `/* pgdog_role: primary */`, which PgDog's docs
-  say routes it to the primary (untested here).
+- **Connect producers and workers to shard 0's Patroni primary (`patroni-<db>-primary-shard-0`), not
+  PgDog.** LISTEN needs a session, and with `patroni.shards > 1` PgDog sends a query without a
+  sharding key to every shard, so an enqueue through it would add the job once per shard.
 - **Connections:** a Go worker's pool needs at least 2 connections, or `Run` returns an error.
   LISTEN holds 1, and claims, heartbeats, reports, and the handlers share the rest, so size the pool
   for what the handlers hold at once plus 1: `Concurrency + 2` when every handler holds a
