@@ -154,7 +154,8 @@ CREATE OR REPLACE FUNCTION public.queue_cancel(job_id bigint) RETURNS boolean LA
   ) SELECT EXISTS (SELECT 1 FROM deleted) OR EXISTS (SELECT 1 FROM marked);
 $$;
 
--- NOTE: locks in id order, so two cancels of one group can't deadlock
+-- NOTE: the first statement waits out the transactions holding the group's rows, in id order so two cancels can't
+-- deadlock. The second then runs on a fresh snapshot, so it sees the jobs they committed, like a follow-up.
 CREATE OR REPLACE FUNCTION public.queue_cancel_group(queue_name text, key text) RETURNS bigint LANGUAGE sql AS $$
   SELECT FROM public.queue_jobs WHERE queue = queue_name AND group_key = key ORDER BY id FOR UPDATE;
   -- NOTE: judged from the rows FOR UPDATE returns, so a job of the group that committed while the first statement
