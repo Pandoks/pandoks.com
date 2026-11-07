@@ -16,6 +16,6 @@ spec:
   targetNamespace: metallb-system
   createNamespace: true
   valuesContent: |-
-    # L2-only: no BGPPeer or BFDProfile, so 0.16's default frr-k8s backend is off
+    # NOTE: L2 only (no BGPPeer), so the BGP backend is off
     frrk8s:
       enabled: false
