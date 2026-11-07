@@ -471,6 +471,36 @@ func TestPush(t *testing.T) {
 		}
 	})
 
+	t.Run("keeps a token registered again by a transaction that began before the send", func(t *testing.T) {
+		register("gone-reregistered-", "ios", "production", "device", "user-24")
+		reregistration, err := database.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = reregistration.Rollback(ctx) }()
+		var reregistrationPID uint32
+		if err := reregistration.QueryRow(ctx, `UPDATE push_devices SET updated_at = now() WHERE token = $1 RETURNING pg_backend_pid()`,
+			"gone-reregistered-"+app).Scan(&reregistrationPID); err != nil {
+			t.Fatal(err)
+		}
+		id := send(alert(map[string]any{"user_ids": []string{"user-24"}}))
+		waitFor(t, "the prune to wait on the registration", func() bool {
+			var blocked bool
+			if err := database.QueryRow(ctx, `SELECT EXISTS (SELECT FROM pg_stat_activity WHERE $1::int = ANY (pg_blocking_pids(pid)))`,
+				reregistrationPID).Scan(&blocked); err != nil {
+				t.Fatal(err)
+			}
+			return blocked
+		})
+		if err := reregistration.Commit(ctx); err != nil {
+			t.Fatal(err)
+		}
+		waitFor(t, "the job to finish", func() bool { return jobsLeft(id) == 0 })
+		if !deviceExists("gone-reregistered-") {
+			t.Error("removed a token registered again by a transaction that began before the send")
+		}
+	})
+
 	t.Run("fails a send FCM's Retry-After delays past the retry window", func(t *testing.T) {
 		register("later-", "android", "", "device", "user-20")
 		id := send(alert(map[string]any{"user_ids": []string{"user-20"}}))

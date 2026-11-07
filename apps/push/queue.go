@@ -43,7 +43,11 @@ type notification struct {
 	Attempt  int             `json:"attempt,omitempty"`
 }
 
-type device struct{ Token, Platform, APNsEnvironment string }
+// device is a registration; UpdatedAt is its version, so pruning never deletes a later registration of the token.
+type device struct {
+	Token, Platform, APNsEnvironment string
+	UpdatedAt                        time.Time
+}
 
 // sender delivers a notification to one device through its platform's provider.
 type sender interface {
@@ -71,19 +75,17 @@ type result struct {
 type claimedJob struct {
 	notification
 	notificationID string
-	// claimedAt is the database's clock before the sends, so a device that registers again during them keeps its token
-	claimedAt time.Time
-	devices   int
+	devices        int
 
-	mutex              sync.Mutex
-	delivered          int
-	fcmDelivered       bool
-	unregisteredTokens []string
-	invalidFCMTokens   []string
-	retryTokens        []string
-	unsentTokens       []string
-	retryDelay         time.Duration
-	failures           map[string]int
+	mutex        sync.Mutex
+	delivered    int
+	fcmDelivered bool
+	unregistered []device
+	invalidFCM   []device
+	retryTokens  []string
+	unsentTokens []string
+	retryDelay   time.Duration
+	failures     map[string]int
 }
 
 // enqueue stores the notification as jobs of at most recipientsPerJob recipients, so a fan-out
@@ -145,25 +147,22 @@ func (service *service) deliver(ctx context.Context, queued *queue.Job) error {
 	}
 	slog.Info("delivered job",
 		"app", job.App, "push_type", job.PushType, "attempt", job.Attempt, "devices", job.devices,
-		"delivered", job.delivered, "unregistered", len(job.unregisteredTokens), "retrying", len(job.retryTokens),
+		"delivered", job.delivered, "unregistered", len(job.unregistered), "retrying", len(job.retryTokens),
 		"requeued", len(job.unsentTokens), "failures", job.failures, "duration", time.Since(startedAt).String(),
 	)
 	return nil
 }
 
-// findDevices reads the job's devices and the database's clock.
+// findDevices reads the job's devices.
 func (service *service) findDevices(ctx context.Context, job *claimedJob) ([]device, error) {
 	ctx, cancel := context.WithTimeout(ctx, databaseTimeout)
 	defer cancel()
-	if err := service.database.QueryRow(ctx, `SELECT now()`).Scan(&job.claimedAt); err != nil {
-		return nil, err
-	}
 	kind := "device"
 	if job.PushType == "liveactivity" {
 		kind = "liveactivity"
 	}
 	rows, _ := service.database.Query(ctx,
-		`SELECT token, platform, apns_environment FROM push_devices
+		`SELECT token, platform, apns_environment, updated_at FROM push_devices
 		WHERE app = $1 AND kind = $2 AND ($3::text[] IS NULL OR user_id = ANY($3)) AND ($4::text[] IS NULL OR token = ANY($4))`,
 		job.App, kind, job.UserIDs, job.Tokens,
 	)
@@ -206,9 +205,9 @@ func (job *claimedJob) record(device device, result result) {
 		job.delivered++
 		job.fcmDelivered = job.fcmDelivered || device.Platform == "android"
 	case unregistered:
-		job.unregisteredTokens = append(job.unregisteredTokens, device.Token)
+		job.unregistered = append(job.unregistered, device)
 	case invalidArgument:
-		job.invalidFCMTokens = append(job.invalidFCMTokens, device.Token)
+		job.invalidFCM = append(job.invalidFCM, device)
 	case retryable:
 		retryDelay := max(max(result.backoff, time.Second)<<job.Attempt, result.retryAfter)
 		// NOTE: a send whose own retry would come too late fails alone instead of dropping the job's other retries
@@ -235,10 +234,15 @@ func (service *service) finish(ctx context.Context, queued *queue.Job, job *clai
 
 	// NOTE: another token taking the same FCM message proves the message valid, so the token is not
 	if job.fcmDelivered {
-		job.unregisteredTokens = append(job.unregisteredTokens, job.invalidFCMTokens...)
+		job.unregistered = append(job.unregistered, job.invalidFCM...)
 	}
-	if len(job.unregisteredTokens) > 0 {
-		if _, err := transaction.Exec(ctx, `DELETE FROM push_devices WHERE token = ANY($1) AND updated_at < $2`, job.unregisteredTokens, job.claimedAt); err != nil {
+	if len(job.unregistered) > 0 {
+		tokens, versions := make([]string, len(job.unregistered)), make([]time.Time, len(job.unregistered))
+		for index, device := range job.unregistered {
+			tokens[index], versions[index] = device.Token, device.UpdatedAt
+		}
+		if _, err := transaction.Exec(ctx, `DELETE FROM push_devices USING unnest($1::text[], $2::timestamptz[]) AS pruned (token, updated_at)
+			WHERE push_devices.token = pruned.token AND push_devices.updated_at = pruned.updated_at`, tokens, versions); err != nil {
 			return err
 		}
 	}
