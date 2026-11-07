@@ -38,16 +38,20 @@ func newAPNsClient(transport http.RoundTripper, urls map[string]string, keyID, t
 	if block == nil {
 		return nil, errors.New("APNS_KEY is not a PEM encoded .p8 key")
 	}
-	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	parsed, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
 		return nil, fmt.Errorf("parse APNS_KEY: %w", err)
+	}
+	key, ok := parsed.(*ecdsa.PrivateKey)
+	if !ok {
+		return nil, fmt.Errorf("APNS_KEY is a %T, but APNs signs with an ECDSA .p8 key", parsed)
 	}
 	return &apnsClient{
 		httpClient: &http.Client{Transport: transport, Timeout: 30 * time.Second},
 		urls:       urls,
 		keyID:      keyID,
 		teamID:     teamID,
-		key:        key.(*ecdsa.PrivateKey),
+		key:        key,
 	}, nil
 }
 

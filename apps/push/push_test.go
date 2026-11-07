@@ -693,3 +693,11 @@ func TestRetryAfterIsNotDoubled(t *testing.T) {
 		t.Fatalf("a 2 minute Retry-After on attempt 3 got retry tokens %v after %v", job.retryTokens, job.retryDelay)
 	}
 }
+
+func TestRejectsANonECDSAAPNsKey(t *testing.T) {
+	rsaKey, _ := rsa.GenerateKey(rand.Reader, 2048)
+	der, _ := x509.MarshalPKCS8PrivateKey(rsaKey)
+	if _, err := newAPNsClient(nil, nil, "", "", pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})); err == nil {
+		t.Fatal("accepted an RSA key as APNS_KEY")
+	}
+}
