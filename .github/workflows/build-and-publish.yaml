@@ -224,6 +224,8 @@ jobs:
     permissions:
       contents: write
       actions: read
+    outputs:
+      revision: ${{ steps.release.outputs.revision }}
     env:
       GH_TOKEN: ${{ github.token }}
       CHART_VERSION: 0.0.0-ci.${{ github.run_id }}.${{ github.run_attempt }}
@@ -248,13 +250,84 @@ jobs:
           merge-multiple: true
           path: ${{ runner.temp }}/release-inputs
       - name: Publish source and artifact pins for Argo CD
+        id: release
         env:
           BUILT_IMAGES: ${{ join(fromJSON(needs.detect-changes.outputs.images).*.name, ' ') }}
           BUILT_CHARTS: ${{ join(fromJSON(needs.detect-changes.outputs.charts), ' ') }}
         run: scripts/ci/publish.sh "$RUNNER_TEMP/release-inputs" "$BUILT_IMAGES" "$BUILT_CHARTS"
 
+  wait-for-argocd:
+    needs: publish
+    if: needs.publish.outputs.revision != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Tailscale
+        uses: tailscale/github-action@99a8333667fff04fdd6cffb46dfd409f8329a7bf # v4.3.0
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Configure kubeconfig
+        run: |
+          PEERS=$(sudo tailscale status --peers) || { echo "tailscale status failed"; exit 1; }
+          if ! echo "$PEERS" | grep -q prod-cluster; then
+            echo "No cluster found — skipping the wait"
+            echo "SKIP_WAIT=true" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          sudo tailscale configure kubeconfig prod-cluster
+
+      - name: Trigger ArgoCD Sync
+        if: env.SKIP_WAIT != 'true'
+        run: |
+          sudo kubectl annotate application prod-cluster \
+            argocd.argoproj.io/refresh=hard \
+            --overwrite \
+            --namespace argocd
+
+      - name: Wait for ArgoCD Sync
+        if: env.SKIP_WAIT != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_REVISION: ${{ needs.publish.outputs.revision }}
+        run: |
+          while [ "${SECONDS}" -lt 600 ]; do
+            argocd_app=$(sudo kubectl get application prod-cluster -n argocd -o json)
+            argocd_revision=$(jq -r .status.sync.revision <<<"${argocd_app}")
+            deploy_state=$(jq -r '
+              if .metadata.annotations["argocd.argoproj.io/refresh"] then "refreshing"
+              elif any(.status.conditions[]?; .type == "ComparisonError")
+                or (.status.operationState.operation.sync.revision == .status.sync.revision
+                  and (.status.operationState.phase | IN("Failed", "Error"))) then "failed"
+              elif .status.sync.status == "Synced" and .status.health.status == "Healthy" then "healthy"
+              else "waiting" end' <<<"${argocd_app}")
+
+            if [ "${deploy_state}" = failed ] || [ "${deploy_state}" = healthy ]; then
+              # NOTE: a newer release may have replaced this one, so a revision that contains it also counts.
+              comparison_to_release=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${RELEASE_REVISION}...${argocd_revision}" --jq .status)
+              case "${deploy_state}:${comparison_to_release}" in
+                failed:identical | failed:ahead)
+                  echo "Sync failed at ${argocd_revision}:"
+                  jq -r '.status.conditions[]?.message, .status.operationState.message // empty' <<<"${argocd_app}"
+                  exit 1
+                  ;;
+                healthy:identical | healthy:ahead)
+                  echo "Synced and healthy at ${argocd_revision}"
+                  exit 0
+                  ;;
+              esac
+            fi
+            sleep 5
+          done
+          echo "Timed out waiting for release ${RELEASE_REVISION} to sync healthy: ${deploy_state} at ${argocd_revision}"
+          jq -r '"Health: \(.status.health.status)",
+            (.status.resources[]? | select(.health.status == "Degraded") | "\(.kind) \(.name): \(.health.message // "")"),
+            .status.conditions[]?.message, .status.operationState.message // empty' <<<"${argocd_app}"
+          exit 1
+
   build-and-publish-pass:
-    needs: [detect-changes, images, charts, publish]
+    needs: [detect-changes, images, charts, publish, wait-for-argocd]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:

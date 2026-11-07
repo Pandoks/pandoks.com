@@ -32,7 +32,20 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
           hubTailscaleServices.map(({ name }) => [`svc:${name}`, ['tag:hub']])
         )
       },
-      grants: [{ src: ['*'], dst: ['*'], ip: ['*'] }],
+      grants: [
+        { src: ['*'], dst: ['*'], ip: ['*'] },
+        {
+          src: ['tag:ci'],
+          dst: ['tag:k8s-operator'],
+          app: {
+            'tailscale.com/cap/kubernetes': [
+              {
+                impersonate: { groups: ['argocd-deployer'] }
+              }
+            ]
+          }
+        }
+      ],
       ssh: [
         {
           action: 'check',
