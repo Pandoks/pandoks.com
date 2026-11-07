@@ -153,7 +153,7 @@ runcmd:
     spec:
       repo: https://pkgs.tailscale.com/helmcharts
       chart: tailscale-operator
-      version: 1.92.5
+      version: 1.104.2
       targetNamespace: tailscale
       valuesContent: |-
         apiServerProxyConfig:

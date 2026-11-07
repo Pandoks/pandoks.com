@@ -15,15 +15,15 @@ export default $config({
         },
         cloudflare: '6.15.0',
         gcp: '10.2.0',
-        github: '6.12.1',
-        hcloud: '1.32.1',
+        github: '6.15.1',
+        hcloud: '1.43.4',
         ovh: {
           package: '@ovhcloud/pulumi-ovh',
           endpoint: 'ovh-us',
           applicationKey: 'edf9a4672d28e3c7',
-          version: '2.17.0'
+          version: '2.22.0'
         },
-        tailscale: '0.29.1'
+        tailscale: '0.29.4'
       }
     };
   },
