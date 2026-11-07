@@ -1,0 +1,5 @@
+[tools]
+ruby = "4.0.9"
+java = "temurin-17.0.21+9"
+cocoapods = "1.17.0"
+maestro = { version = "2.11.0", version_prefix = "cli-" }

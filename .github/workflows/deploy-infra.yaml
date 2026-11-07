@@ -10,6 +10,7 @@ on:
       - 'apps/**'
       - '!apps/desktop-template/**'
       - '!apps/example/**'
+      - '!apps/mobile-template/**'
       - 'packages/svelte/**'
       - 'k3s/**'
       - 'scripts/cluster/**'
@@ -44,7 +45,7 @@ jobs:
             sst:
               - 'sst.config.ts'
               - 'infra/**'
-              - 'apps/!(desktop-template|example)/**'
+              - 'apps/!(desktop-template|example|mobile-template)/**'
               - 'packages/svelte/**'
             kubernetes:
               - 'k3s/**'

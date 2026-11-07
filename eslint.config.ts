@@ -5,10 +5,36 @@ import { defineConfig } from 'eslint/config';
 import tseslint from 'typescript-eslint';
 import unicorn from 'eslint-plugin-unicorn';
 import svelte from 'eslint-plugin-svelte';
+import reactHooks from 'eslint-plugin-react-hooks';
 import svelteParser from 'svelte-eslint-parser';
 import globals from 'globals';
 
 const gitignorePath = fileURLToPath(new URL('.gitignore', import.meta.url));
+
+const NAMING_CONVENTIONS = [
+  {
+    selector: 'default',
+    format: ['camelCase'],
+    leadingUnderscore: 'allowDouble',
+    trailingUnderscore: 'allowDouble'
+  },
+  {
+    selector: 'variable',
+    format: ['camelCase', 'UPPER_CASE', 'PascalCase'],
+    leadingUnderscore: 'allowSingleOrDouble',
+    trailingUnderscore: 'allowDouble'
+  },
+  {
+    selector: 'parameter',
+    format: ['camelCase', 'UPPER_CASE'],
+    leadingUnderscore: 'allow'
+  },
+  { selector: 'typeLike', format: ['PascalCase'] },
+  { selector: 'enumMember', format: ['PascalCase'] },
+  { selector: 'import', format: null },
+  { selector: 'objectLiteralProperty', format: null },
+  { selector: 'typeProperty', format: null }
+];
 
 export default defineConfig([
   includeIgnoreFile(gitignorePath),
@@ -101,31 +127,7 @@ export default defineConfig([
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }
       ],
 
-      '@typescript-eslint/naming-convention': [
-        'error',
-        {
-          selector: 'default',
-          format: ['camelCase'],
-          leadingUnderscore: 'allowDouble',
-          trailingUnderscore: 'allowDouble'
-        },
-        {
-          selector: 'variable',
-          format: ['camelCase', 'UPPER_CASE', 'PascalCase'],
-          leadingUnderscore: 'allowSingleOrDouble',
-          trailingUnderscore: 'allowDouble'
-        },
-        {
-          selector: 'parameter',
-          format: ['camelCase', 'UPPER_CASE'],
-          leadingUnderscore: 'allow'
-        },
-        { selector: 'typeLike', format: ['PascalCase'] },
-        { selector: 'enumMember', format: ['PascalCase'] },
-        { selector: 'import', format: null },
-        { selector: 'objectLiteralProperty', format: null },
-        { selector: 'typeProperty', format: null }
-      ]
+      '@typescript-eslint/naming-convention': ['error', ...NAMING_CONVENTIONS]
     }
   },
 
@@ -189,9 +191,22 @@ export default defineConfig([
     }
   },
 
+  // REACT RULES
+  { files: ['**/*.tsx', 'apps/mobile-template/**/*.ts'], ...reactHooks.configs.flat.recommended },
+  {
+    files: ['**/*.tsx'],
+    rules: {
+      '@typescript-eslint/naming-convention': [
+        'error',
+        ...NAMING_CONVENTIONS,
+        { selector: 'function', format: ['camelCase', 'PascalCase'] }
+      ]
+    }
+  },
+
   // TEST RULES
   {
-    files: ['**/*.{test,spec}.ts', '**/*.svelte.{test,spec}.ts'],
+    files: ['**/*.{test,spec}.{ts,tsx}', '**/*.svelte.{test,spec}.ts'],
     rules: {
       'unicorn/name-replacements': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',

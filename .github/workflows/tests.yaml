@@ -21,6 +21,7 @@ jobs:
     outputs:
       web: ${{ steps.filter.outputs.web }}
       desktop: ${{ steps.filter.outputs.desktop }}
+      mobile-template: ${{ steps.filter.outputs.mobile-template }}
       svelte: ${{ steps.filter.outputs.svelte }}
       prettier: ${{ steps.filter.outputs.prettier }}
       valkey-reconciler: ${{ steps.filter.outputs.valkey-reconciler }}
@@ -38,6 +39,11 @@ jobs:
             desktop:
               - 'apps/desktop-template/**'
               - 'packages/svelte/**'
+            mobile-template:
+              - '.github/actions/setup-mise/**'
+              - 'pnpm-workspace.yaml'
+              - 'pnpm-lock.yaml'
+              - 'apps/mobile-template/**'
             svelte:
               - 'packages/svelte/**'
             prettier:
@@ -74,6 +80,90 @@ jobs:
 
       - name: Run desktop tests
         run: xvfb-run -a pnpm --filter @pandoks.com/desktop-template test
+
+  test-mobile-template:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.mobile-template == 'true'
+    runs-on: ubuntu-latest
+    env:
+      EXPO_NO_TELEMETRY: 1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      # NOTE: offline checks against the installed SDK's bundledNativeModules.json, so new Expo patch
+      # releases inside Renovate's minimumReleaseAge don't fail every PR
+      - name: Check Expo SDK versions
+        env:
+          EXPO_OFFLINE: '1'
+        run: pnpm --filter @pandoks.com/mobile-template exec expo install --check
+
+      - name: Run mobile unit tests
+        run: pnpm --filter @pandoks.com/mobile-template test:unit
+
+      - name: Generate native projects
+        run: pnpm --filter @pandoks.com/mobile-template exec expo prebuild --no-install
+
+      - name: Bundle iOS and Android JS
+        run: pnpm --filter @pandoks.com/mobile-template exec expo export
+
+  test-mobile-template-android:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.mobile-template == 'true'
+    runs-on: ubuntu-latest
+    env:
+      EXPO_NO_TELEMETRY: 1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: java
+          working_directory: apps/mobile-template
+
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          cache-provider: basic
+
+      - name: Generate Android project
+        run: pnpm --filter @pandoks.com/mobile-template exec expo prebuild --platform android --no-install
+
+      - name: Compile Android release
+        working-directory: apps/mobile-template/android
+        run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
+
+  test-mobile-template-ios:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.mobile-template == 'true'
+    runs-on: macos-26
+    env:
+      EXPO_NO_TELEMETRY: 1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: ruby cocoapods
+          working_directory: apps/mobile-template
+
+      - name: Generate iOS project
+        run: pnpm --filter @pandoks.com/mobile-template exec expo prebuild --platform ios --no-install
+
+      - name: Install pods
+        working-directory: apps/mobile-template/ios
+        run: pod install
+
+      - name: Compile iOS simulator release
+        working-directory: apps/mobile-template/ios
+        run: >-
+          xcodebuild build -workspace MobileTemplate.xcworkspace -scheme MobileTemplate
+          -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator'
+          ARCHS=arm64 CODE_SIGNING_ALLOWED=NO
 
   test-svelte-pkg:
     needs: detect-changes
@@ -125,6 +215,9 @@ jobs:
       - detect-changes
       - test-web
       - test-desktop
+      - test-mobile-template
+      - test-mobile-template-android
+      - test-mobile-template-ios
       - test-svelte-pkg
       - test-prettier-pkg
       - test-valkey-reconciler
