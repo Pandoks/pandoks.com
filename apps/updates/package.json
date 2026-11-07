@@ -1,0 +1,16 @@
+{
+  "name": "@pandoks.com/updates",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "sst": "4.17.2"
+  },
+  "devDependencies": {
+    "vitest": "5.0.5"
+  }
+}
