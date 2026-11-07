@@ -194,9 +194,9 @@ Before calling infra, cluster, or tooling work done, check:
   false positives with a written reason, and resolve threads you addressed. Wait while a review bot
   is reviewing. If one stays silent on the latest push (no reaction, comment, or check) for 5
   minutes, request a review with the comment command it advertises on the PR, or by @-mentioning it
-  if it advertises none; if it's still silent 30 minutes after the push, stop waiting for it and
-  tell me. Otherwise stop when CI passes and every review bot has reviewed the latest commit with
-  nothing left unhandled.
+  if it advertises none; if it's still silent 30 minutes after the push or once nothing else is
+  left, stop waiting for it and tell me. Otherwise stop when CI passes and every review bot has
+  reviewed the latest commit with nothing left unhandled.
 
 ## Code Review Rules
 
