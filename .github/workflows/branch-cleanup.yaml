@@ -74,9 +74,9 @@ jobs:
             charts/postgres charts/valkey charts/clickhouse; do
             api="/users/${OWNER,,}/packages/container/${package//\//%2F}/versions"
             gh api --paginate --slurp "$api" \
-              | jq -r --arg image "pr-$PREVIEW_NUMBER" --arg chart "0.0.0-pr.$PREVIEW_NUMBER." --arg pinned "$pinned" '
+              | jq -r --arg image "pr-$PREVIEW_NUMBER-" --arg chart "0.0.0-pr.$PREVIEW_NUMBER." --arg pinned "$pinned" '
                   add | .[]
-                  | select(any(.metadata.container.tags[]; . == $image or startswith($chart)))
+                  | select(any(.metadata.container.tags[]; startswith($image) or startswith($chart)))
                   | select(.name as $digest | $pinned | contains($digest) | not)
                   | .id' \
               | xargs -rI{} gh api --method DELETE "$api/{}"

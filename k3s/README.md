@@ -72,8 +72,8 @@ exact image/chart versions to `deploy/preview-<PR>`, keeping that production rel
 everything it didn't rebuild, since GHCR keeps every `main` version. Argo's ApplicationSet deploys
 that ref to namespace `preview-<PR>` at `https://preview-<PR>.pandoks.com`. Closing the PR or
 removing the label deletes its resources, including databases and data, its Git ref, and its
-`pr-<PR>` images and `0.0.0-pr.<PR>.*` charts in GHCR, except image digests `deploy/dev` still pins.
-Preview backups are disabled.
+`pr-<PR>-*` images and `0.0.0-pr.<PR>.*` charts in GHCR, except image digests `deploy/dev` still
+pins. Preview backups are disabled.
 
 Shared controllers, MetalLB, ingress, monitoring, and upgrades are deployed once from `deploy/dev`.
 A successful opted-in PR that changes shared infrastructure moves it to that PR's preview release.

@@ -146,7 +146,7 @@ jobs:
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=raw,value=build-${{ github.run_id }}-${{ github.run_attempt }}
-            type=ref,event=pr
+            type=raw,value=pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }},enable=${{ github.event_name == 'pull_request' }}
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         id: push
         if: env.PUBLISH == 'true'
