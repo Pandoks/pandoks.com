@@ -54,13 +54,13 @@ if (isProduction) {
     }
   });
 
-  new github.RepositoryRuleset('GithubDeployProductionRuleset', {
-    name: 'deploy/production',
+  new github.RepositoryRuleset('GithubDeployRuleset', {
+    name: 'deploy',
     repository: githubRepoName,
     target: 'branch',
     enforcement: 'active',
-    conditions: { refName: { includes: ['refs/heads/deploy/production'], excludes: [] } },
-    // NOTE: Only Build and Publish's lease-guarded push writes the ref Argo deploys prod from.
+    conditions: { refName: { includes: ['refs/heads/deploy/*'], excludes: [] } },
+    // NOTE: Only Build and Publish and Preview Cleanup write the refs Argo deploys from.
     bypassActors: [
       { actorId: GITHUB_ACTIONS_APP_ID, actorType: 'Integration', bypassMode: 'always' }
     ],

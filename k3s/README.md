@@ -87,7 +87,7 @@ its source and exact image/chart versions to the ref, keeping the previous relea
 everything it didn't rebuild, so stateful apps restart only when their inputs change. Argo syncs
 production from it; there is no staging promotion step. CI then hard-refreshes the `prod-cluster`
 Application and fails unless it is Synced and Healthy at that release within 10 minutes. Only GitHub
-Actions can push the ref. CI publishes Git refs; Argo renders and applies them.
+Actions can push `deploy/*` refs. CI publishes Git refs; Argo renders and applies them.
 
 All remote overlays use the image pins in
 [`components/images/kustomization.yaml`](components/images/kustomization.yaml). Kustomize matches

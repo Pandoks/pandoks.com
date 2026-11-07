@@ -71,7 +71,7 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
   `packages/svelte/`. Once Checks, Tests, and Security pass, `build-and-publish.yaml` writes the
   commit and exact image digests to `deploy/production` (images and charts its path filters didn't
   rebuild keep their previous pins), hard-refreshes prod's Argo, and fails unless prod is Synced and
-  Healthy at that release within 10 minutes. Only GitHub Actions can push `deploy/production`. Pages
+  Healthy at that release within 10 minutes. Only GitHub Actions can push `deploy/*` refs. Pages
   builds `apps/web` when a change matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs
   everything `k3s/overlays/prod` renders from `deploy/production` but never prunes: a deleted
   resource stays in prod until pruned by hand.
