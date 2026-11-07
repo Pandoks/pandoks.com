@@ -70,6 +70,9 @@ def work(conninfo: str, queue: str, worker: str, handle: Callable[[Job], None], 
     with psycopg.connect(conninfo, autocommit=True) as conn:
         conn.execute(sql.SQL("LISTEN {}").format(sql.Identifier(f"queue_{queue}")))
         while True:
+            # NOTE: notifications buffer while jobs run, and the claim takes any job they announced
+            for _ in conn.notifies(timeout=0):
+                pass
             row = conn.execute(
                 "SELECT id, queue, payload, group_key, attempts FROM public.queue_claim(%s, %s, %s)", (queue, worker, lease)
             ).fetchone()
