@@ -1,3 +1,5 @@
+import { usePosture, useReservedRegions } from '@pandoks.com/react-native-reserved-regions';
+import { useHinge } from 'expo-hinge';
 import { useTheme } from 'expo-router';
 import {
   Platform,
@@ -16,13 +18,22 @@ export default function DeviceScreen() {
   const { width, height, fontScale } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const regions = useReservedRegions({ includeInactive: true });
+  const posture = usePosture();
+  const hinge = useHinge();
 
   const rows = [
     ['Color scheme', colorScheme],
     ['Window', `${Math.round(width)} × ${Math.round(height)}`],
     ['Font scale', fontScale.toFixed(2)],
     ['Safe area', [insets.top, insets.right, insets.bottom, insets.left].map(Math.round).join(' ')],
-    ['Platform', `${Platform.OS} ${Platform.Version}`]
+    ['Platform', `${Platform.OS} ${Platform.Version}`],
+    ['Posture', posture],
+    ['Hinge', hinge ? `${Math.round(hinge.angle)}° ${hinge.status}` : 'None'],
+    ...regions.map(({ kind, frame, active }) => [
+      `${kind === 'division' ? 'Division' : 'Occlusion'}${active ? '' : ' (inactive)'}`,
+      `${Math.round(frame.x)}, ${Math.round(frame.y)} ${Math.round(frame.width)} × ${Math.round(frame.height)}`
+    ])
   ];
 
   return (
@@ -30,7 +41,7 @@ export default function DeviceScreen() {
       <View style={[styles.list, { backgroundColor: colors.card, borderColor: colors.border }]}>
         {rows.map(([label, value], index) => (
           <View
-            key={label}
+            key={index}
             style={[styles.row, index === 0 && styles.firstRow, { borderColor: colors.border }]}
           >
             <Text style={[styles.label, { color: colors.text }]}>{label}</Text>
