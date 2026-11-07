@@ -18,7 +18,7 @@ backup:
       accessKey: S3_ACCESS_KEY
       secretKey: S3_SECRET_KEY
   bucket: backups
-  image: ghcr.io/pandoks/pgbackrest:latest@sha256:c7b25e244534fe610a91277a8ad7cd4484b7832aa0be84149681db755cf3eaf4
+  image: ghcr.io/pandoks/pgbackrest:latest@sha256:1a0d816a1f7f116a2aa88c130119707d9cbb1edf87e522219b778bc93de815b4
   encryptionKey: openssl-rand-hex-32
   path: kubernetes/examples/postgres
   schedules:
@@ -39,7 +39,7 @@ s3:
 patroni:
   shards: 1
   replicasPerShard: 3 # NOTE: replicasPerShard = primary (1) + replicas (n - 1)
-  image: ghcr.io/pandoks/patroni:latest@sha256:66ad4100ceb1e8897759558603e2cae6164bd24c7374abd645bbd02ebcf0e236
+  image: ghcr.io/pandoks/patroni:latest@sha256:6fefd351832a70b05412169abcea160523400b4186adae97bdd91fc9876cb54c
   resources:
     patroni: {}
     pgbackrest: {}
