@@ -97,9 +97,9 @@ pnpm local:build && pnpm local:push
 ./scripts/cluster/main.sh deploy local --stage your-stage --bootstrap
 ./scripts/cluster/main.sh deploy local --stage your-stage
 
-# Tear down everything
+# Tear down everything, local S3 data included
 ./scripts/cluster/main.sh k3d down
-./scripts/cluster/main.sh k3d deps down
+./scripts/cluster/main.sh k3d deps destroy
 ```
 
 ### Cloud Cluster (Hetzner via Tailscale)

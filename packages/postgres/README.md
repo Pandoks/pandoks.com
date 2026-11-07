@@ -88,7 +88,7 @@ graph TB
 - **Automated schedules** - full, differential, and incremental backups
 - **Point-in-time recovery** - restore to any moment
 - **Encryption** - AES-256-CBC for all backups
-- **S3-compatible storage** - works with AWS S3, MinIO, LocalStack
+- **S3-compatible storage** - works with AWS S3, MinIO, S3Mock
 - **Restore on bootstrap** - a new shard whose stanza already has a full backup restores it instead
   of starting empty
 
@@ -677,7 +677,7 @@ after changing them:
 | `backup.retention.full`         | Full backups to keep                               | `4`                                                         |
 | `backup.retention.diff`         | Diff backups to keep                               | `2`                                                         |
 | `s3.region`                     | S3 region                                          | `us-west-1`                                                 |
-| `s3.host`                       | S3 endpoint                                        | `host.k3d.internal:4566` (LocalStack from `docker-compose`) |
+| `s3.host`                       | S3 endpoint                                        | `host.k3d.internal:4566` (local uses S3Mock TLS on `:4567`) |
 | `s3.tls`                        | Verify S3 TLS (`y`/`n`)                            | `n`                                                         |
 | `s3.uriStyle`                   | S3 URI style                                       | `path`                                                      |
 | `patroni.shards`                | Number of shards                                   | `1`                                                         |
