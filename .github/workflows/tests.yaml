@@ -44,6 +44,8 @@ jobs:
             prettier:
               - 'packages/prettier/**'
             queue:
+              - '.github/actions/setup-mise/**'
+              - 'mise.toml'
               - 'packages/queue/**'
             valkey-reconciler:
               - 'packages/valkey/reconciler/**'
