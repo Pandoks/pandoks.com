@@ -13,7 +13,7 @@ export default $config({
             // profiles in ~/.aws/config
             process.env.GITHUB_ACTIONS || process.env.AWS_ACCESS_KEY_ID ? undefined : 'Personal'
         },
-        cloudflare: '6.15.0',
+        cloudflare: '6.23.2',
         github: '6.15.1',
         hcloud: '1.43.4',
         ovh: {
