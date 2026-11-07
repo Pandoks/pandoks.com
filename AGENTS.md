@@ -63,6 +63,9 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
   GHCR images and charts), a Cloudflare Pages preview of `apps/web`, and `claude-review.yaml` (one
   Agent SDK `/code-review` per PR, posted as one review with inline comments). Required checks are
   the `*-pass` aggregates.
+- PRs merge through GitHub's merge queue (squash, every entry green), which reruns the four required
+  workflows on `merge_group` against `main` plus the PRs ahead; there `build-and-publish.yaml`
+  builds and scans but publishes nothing.
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
   deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,

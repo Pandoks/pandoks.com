@@ -51,8 +51,9 @@ on:
         type: boolean
         default: false
   push:
-    branches:
-      - '**'
+    branches-ignore:
+      - 'gh-readonly-queue/**'
+  merge_group:
 
 concurrency:
   group: build-and-publish-${{ github.ref_name }}
@@ -165,6 +166,7 @@ jobs:
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        if: github.event_name != 'merge_group'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -172,6 +174,7 @@ jobs:
 
       - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         id: meta
+        if: github.event_name != 'merge_group'
         with:
           # NOTE: github.repository includes the owner/org (ghcr.io/<owner/org>/repo-name)
           images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image.name }}
@@ -201,6 +204,7 @@ jobs:
 
       - name: Push image
         id: push
+        if: github.event_name != 'merge_group'
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
@@ -214,6 +218,7 @@ jobs:
           provenance: mode=max
 
       - name: Generate Attestation
+        if: github.event_name != 'merge_group'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/${{ matrix.image.name }}
@@ -247,13 +252,8 @@ jobs:
         with:
           tools: helm
 
-      - name: Login to GHCR
-        run: |
-          echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
-
-      - name: Package and Push Helm Chart
+      - name: Package Helm Chart
         env:
-          OWNER: ${{ github.repository_owner }}
           BRANCH: ${{ github.ref_name }} # WARNING: do not inline this (security risk)
         run: |
           version_arg=()
@@ -261,7 +261,17 @@ jobs:
             version_arg=(--version "$(yq .version "${{ matrix.chart.path }}/Chart.yaml")-${BRANCH//\//-}")
           fi
           helm package "${{ matrix.chart.path }}" "${version_arg[@]}"
-          helm push "${{ matrix.chart.name }}"-*.tgz "oci://ghcr.io/${OWNER,,}/charts"
+
+      - name: Login to GHCR
+        if: github.event_name != 'merge_group'
+        run: |
+          echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Push Helm Chart
+        if: github.event_name != 'merge_group'
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: helm push "${{ matrix.chart.name }}"-*.tgz "oci://ghcr.io/${OWNER,,}/charts"
 
   build-and-publish-pass:
     needs:

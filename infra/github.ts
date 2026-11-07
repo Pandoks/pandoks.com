@@ -42,6 +42,7 @@ if (isProduction) {
       deletion: true,
       nonFastForward: true,
       pullRequest: { allowedMergeMethods: ['squash'] },
+      mergeQueue: { mergeMethod: 'SQUASH' },
       // NOTE: No bypass: rename a required check by adding the new name, then dropping the old.
       requiredStatusChecks: {
         requiredChecks: [
