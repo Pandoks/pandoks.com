@@ -8,6 +8,7 @@ networks:
 
 volumes:
   s3:
+    name: pandoks-s3
 
 services:
   s3:
@@ -22,6 +23,7 @@ services:
       - COM_ADOBE_TESTING_S3MOCK_STORE_ROOT=/s3mockroot
       - COM_ADOBE_TESTING_S3MOCK_STORE_RETAIN_FILES_ON_EXIT=true
       - COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS=backups,dev-backups
+      - COM_ADOBE_TESTING_S3MOCK_STORE_REGION=us-west-1
     networks:
       - local-network
     volumes:

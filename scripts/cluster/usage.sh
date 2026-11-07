@@ -55,6 +55,7 @@ usage_deps() {
   printf "%bSubcommands:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %bup%b         Start docker compose dependencies\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bdown%b       Stop docker compose dependencies\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bdestroy%b    Stop docker compose dependencies and delete their volumes\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %brestart%b    Restart docker compose dependencies\n\n" "${GREEN}" "${NORMAL}" >&2
 
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
