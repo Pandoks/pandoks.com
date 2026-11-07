@@ -349,10 +349,16 @@ func TestPush(t *testing.T) {
 		}
 	})
 
-	t.Run("rejects notifications to both user_ids and tokens", func(t *testing.T) {
-		notification := alert(map[string]any{"app": app, "user_ids": []string{"user-0"}, "tokens": []string{"token-0"}})
-		if status, body := call(http.MethodPost, "/notifications", notification); status != http.StatusBadRequest {
-			t.Errorf("send: %d %s", status, body)
+	t.Run("rejects notifications to both user_ids and tokens, or to an empty one", func(t *testing.T) {
+		for _, recipients := range []map[string]any{
+			{"user_ids": []string{"user-0"}, "tokens": []string{"token-0"}},
+			{"user_ids": []string{""}},
+			{"tokens": []string{"token-0", ""}},
+		} {
+			recipients["app"] = app
+			if status, body := call(http.MethodPost, "/notifications", alert(recipients)); status != http.StatusBadRequest {
+				t.Errorf("send to %v: %d %s", recipients, status, body)
+			}
 		}
 	})
 
@@ -694,10 +700,13 @@ func TestRetryAfterIsNotDoubled(t *testing.T) {
 	}
 }
 
-func TestRejectsANonECDSAAPNsKey(t *testing.T) {
+func TestRejectsAnAPNsKeyThatIsNotP256(t *testing.T) {
 	rsaKey, _ := rsa.GenerateKey(rand.Reader, 2048)
-	der, _ := x509.MarshalPKCS8PrivateKey(rsaKey)
-	if _, err := newAPNsClient(nil, nil, "", "", pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})); err == nil {
-		t.Fatal("accepted an RSA key as APNS_KEY")
+	p384Key, _ := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	for name, key := range map[string]any{"RSA": rsaKey, "P-384": p384Key} {
+		der, _ := x509.MarshalPKCS8PrivateKey(key)
+		if _, err := newAPNsClient(nil, nil, "", "", pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})); err == nil {
+			t.Errorf("accepted a %s key as APNS_KEY", name)
+		}
 	}
 }

@@ -29,9 +29,9 @@ graph LR
   `liveactivity` tokens with topic `<app>.push-type.liveactivity`; the others send only to `device`
   tokens. `background` sends with APNs priority 5.
 - A notification goes to every registered token of `user_ids`, or to the registered `tokens`, now or
-  at `send_at`; it can't set both. `apns` is the APNs JSON payload sent as is, and `fcm` is the FCM
-  v1 `message` without `token`. iOS tokens are skipped without `apns` and Android tokens without
-  `fcm`.
+  at `send_at`; it can't set both, or list an empty one. `apns` is the APNs JSON payload sent as is,
+  and `fcm` is the FCM v1 `message` without `token`. iOS tokens are skipped without `apns` and
+  Android tokens without `fcm`.
 - Cancelling removes the parts of a notification no worker has claimed, retries waiting out their
   backoff included. A claimed part still goes out, even one waiting for a free send slot, and so do
   its retries.
@@ -78,9 +78,9 @@ curl -X POST http://push.main.svc.cluster.local/notifications -d '{
 
 ## Setup
 
-It reads `AppleTeamId`, `AppleApnsKeyId`, `AppleApnsKey` (the `.p8` contents), and
-`FirebaseServiceAccountJson` from [infra/secrets.ts](/infra/secrets.ts). Every stage needs the Apple
-ones set:
+It reads `AppleTeamId`, `AppleApnsKeyId`, `AppleApnsKey` (the `.p8` contents, a P-256 key; push
+won't start with another), and `FirebaseServiceAccountJson` from
+[infra/secrets.ts](/infra/secrets.ts). Every stage needs the Apple ones set:
 
 ```sh
 pnpm sst secret set AppleApnsKey --stage <stage> < AuthKey_XXXXXXXXXX.p8

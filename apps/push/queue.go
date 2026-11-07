@@ -257,7 +257,12 @@ func (service *service) finish(ctx context.Context, queued *queue.Job, job *clai
 	if err := requeue(time.Time{}, job.Attempt, job.unsentTokens); err != nil {
 		return err
 	}
-	if err := requeue(time.Now().Add(job.retryDelay), job.Attempt+1, job.retryTokens); err != nil {
+	// NOTE: the queue compares run times with the database's clock, not this pod's
+	var databaseNow time.Time
+	if err := transaction.QueryRow(ctx, `SELECT now()`).Scan(&databaseNow); err != nil {
+		return err
+	}
+	if err := requeue(databaseNow.Add(job.retryDelay), job.Attempt+1, job.retryTokens); err != nil {
 		return err
 	}
 

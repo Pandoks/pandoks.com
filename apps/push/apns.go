@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
@@ -42,9 +43,10 @@ func newAPNsClient(transport http.RoundTripper, urls map[string]string, keyID, t
 	if err != nil {
 		return nil, fmt.Errorf("parse APNS_KEY: %w", err)
 	}
+	// NOTE: the signature's fixed 32-byte halves fit only P-256, the curve of every APNs .p8 key
 	key, ok := parsed.(*ecdsa.PrivateKey)
-	if !ok {
-		return nil, fmt.Errorf("APNS_KEY is a %T, but APNs signs with an ECDSA .p8 key", parsed)
+	if !ok || key.Curve != elliptic.P256() {
+		return nil, errors.New("APNS_KEY isn't a P-256 ECDSA key, the kind of an APNs .p8 key")
 	}
 	return &apnsClient{
 		httpClient: &http.Client{Transport: transport, Timeout: 30 * time.Second},
