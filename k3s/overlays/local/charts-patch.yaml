@@ -1,0 +1,28 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: main-postgres-main-cluster
+  namespace: kube-system
+spec:
+  chart: oci://local-registry:5000/charts/postgres
+  plainHTTP: true
+
+---
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: main-valkey-main-cluster
+  namespace: kube-system
+spec:
+  chart: oci://local-registry:5000/charts/valkey
+  plainHTTP: true
+
+---
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: main-clickhouse-main-cluster
+  namespace: kube-system
+spec:
+  chart: oci://local-registry:5000/charts/clickhouse
+  plainHTTP: true

@@ -23,7 +23,7 @@ apply_template_filter_to_value() {
 }
 
 # Substitute ${VAR} and ${VAR | filter} patterns in input with values from JSON
-# If a variable doesn't exist in JSON, the pattern is left as-is
+# Fails if a referenced value is missing or empty
 # Arguments:
 #   $1 - Input string with template variables
 #   $2 - JSON object with key-value pairs for substitution
@@ -49,7 +49,10 @@ template_substitute() {
         template_substitute_var=$(printf '%s' "${template_substitute_var}" | tr -d ' ')
 
         template_substitute_result=$(printf '%s' "${template_substitute_json}" | jq -r --arg k "${template_substitute_var}" '.[$k] // empty')
-        [ -z "${template_substitute_result}" ] && continue
+        if [ -z "${template_substitute_result}" ]; then
+          log_error "Missing or empty template value: ${template_substitute_var}"
+          return 1
+        fi
 
         template_substitute_filters="${template_substitute_pattern_content#*|}"
         while [ -n "${template_substitute_filters}" ]; do
@@ -71,7 +74,10 @@ template_substitute() {
         template_substitute_var=$(printf '%s' "${template_substitute_pattern_content}" | tr -d ' ')
 
         template_substitute_result=$(printf '%s' "${template_substitute_json}" | jq -r --arg k "${template_substitute_var}" '.[$k] // empty')
-        [ -z "${template_substitute_result}" ] && continue
+        if [ -z "${template_substitute_result}" ]; then
+          log_error "Missing or empty template value: ${template_substitute_var}"
+          return 1
+        fi
         ;;
     esac
 

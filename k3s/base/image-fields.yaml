@@ -1,0 +1,20 @@
+# HelmChart image values passed through to the chart.
+images:
+  - group: helm.cattle.io
+    kind: HelmChart
+    path: spec/set/backup.image
+  - group: helm.cattle.io
+    kind: HelmChart
+    path: spec/set/patroni.image
+  - group: helm.cattle.io
+    kind: HelmChart
+    path: spec/set/image
+  - group: helm.cattle.io
+    kind: HelmChart
+    path: spec/set/cluster.reconcilerImage
+  - group: helm.cattle.io
+    kind: HelmChart
+    path: spec/set/clickhouse.image
+  - group: helm.cattle.io
+    kind: HelmChart
+    path: spec/set/keeper.image
