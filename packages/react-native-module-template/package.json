@@ -1,0 +1,23 @@
+{
+  "name": "@pandoks.com/react-native-module-template",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./app.plugin.js": "./app.plugin.js"
+  },
+  "peerDependencies": {
+    "expo": "58.0.21",
+    "react-native": "0.88.1"
+  },
+  "devDependencies": {
+    "expo": "58.0.21",
+    "react": "19.3.0",
+    "react-native": "0.88.1",
+    "typescript": "6.0.3"
+  }
+}
