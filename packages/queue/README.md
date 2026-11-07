@@ -25,9 +25,10 @@ graph LR
   running handler: they log a failed extend and keep heartbeating, and once the lease is lost they
   log it and stop, so the handler's side effects can happen twice.
 - **Shutdown:** when Go's `Run` stops, it cancels the running handlers. A job whose handler returns
-  `context.Canceled` goes back to the queue with its attempt unspent (`queue_release`), and so does
-  a job whose claim returns after `Run` stops. A Python or TS worker that exits mid-job is a crash:
-  the job runs again after its lease, on a spent attempt.
+  `ctx.Err()` (`context.Canceled`, or `context.DeadlineExceeded` for a deadline) goes back to the
+  queue with its attempt unspent (`queue_release`), and so does a job whose claim returns after
+  `Run` stops. A Python or TS worker that exits mid-job is a crash: the job runs again after its
+  lease, on a spent attempt.
 - **Fencing:** every report carries the attempt it claimed. Once another worker claims the job, the
   first worker's extend, complete, retry, and fail return false and change nothing.
 - **Retry:** a handler error retries after `2^(attempt-1)` seconds, at most an hour, or after

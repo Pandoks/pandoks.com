@@ -124,7 +124,7 @@ type Worker struct {
 
 // Run runs jobs until ctx is done or the database fails. It holds one pool connection for LISTEN. When ctx
 // is done, it cancels the running handlers' contexts, waits for them to return, and gives back the jobs
-// whose handlers returned context.Canceled without spending their attempt.
+// whose handlers returned ctx.Err() without spending their attempt.
 func (worker Worker) Run(ctx context.Context) error {
 	if worker.Lease < 0 {
 		return fmt.Errorf("the lease is %s, but it must be positive", worker.Lease)
@@ -250,7 +250,7 @@ func (worker Worker) run(ctx context.Context, job *Job) error {
 			}
 		case err := <-handled:
 			// NOTE: a handler stopped by Run's ctx gives the job back instead of spending an attempt on it
-			if ctx.Err() != nil && errors.Is(err, context.Canceled) {
+			if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
 				return worker.release(context.WithoutCancel(ctx), job)
 			}
 			return worker.report(context.WithoutCancel(ctx), job, err)
