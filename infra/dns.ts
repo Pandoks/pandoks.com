@@ -1,7 +1,7 @@
 import { secrets, setSecret } from './secrets';
 
 export const isProduction = $app.stage === 'production';
-export const isSharedDev = $app.stage === 'dev';
+const isSharedDev = $app.stage === 'dev';
 
 export const STAGE_NAME = isProduction ? 'prod' : $app.stage;
 

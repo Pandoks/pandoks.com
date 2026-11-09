@@ -29,6 +29,9 @@ __pycache__/
 
 # sst
 .sst
+infra/vps/vps.origin.*.csr
+!infra/vps/vps.origin.dev.csr
+!infra/vps/vps.origin.prod.csr
 
 # Only pnpm
 package-lock.json

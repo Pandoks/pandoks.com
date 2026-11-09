@@ -17,4 +17,4 @@ stringData:
       defaultTags:
         - tag:k8s-operator
         - tag:k8s
-        - tag:${StageName}
+        - ${TailscaleStageTag}

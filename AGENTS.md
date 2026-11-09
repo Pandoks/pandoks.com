@@ -40,10 +40,10 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
    proxy or working around it with `PORTLESS=0`, `--force`, or `sudo`. If portless says the host is
    already registered, use `pnpm exec portless get web` only if that process runs from this
    checkout; otherwise tell me. `sst diff` evaluates `infra/`: on any stage it can write secrets,
-   and with zero nodes it deletes the stage's `<STAGE_NAME>-` prefixed Kubernetes Tailscale devices.
-   Tell me those effects and run `sst diff` only once I accept them; run `sst deploy` or `pnpm dev`
-   (`sst dev`) only when I ask. If SST reports missing or expired AWS credentials, ask me to run
-   `pnpm sso`.
+   and with zero nodes it deletes the stage's `<STAGE_NAME>-<cluster|grafana|argocd>` Tailscale
+   devices. Tell me those effects and run `sst diff` only once I accept them; run `sst deploy` or
+   `pnpm dev` (`sst dev`) only when I ask. If SST reports missing or expired AWS credentials, ask me
+   to run `pnpm sso`.
 3. **Editing my checkout from an experiment.** Use absolute paths in experiment copies;
    `mise exec -C <dir>` runs inside `<dir>`, so never point it at my checkout. Leave my staged and
    unstaged changes alone.
@@ -75,7 +75,8 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
   their stage name and `<stage>.dev.pandoks.com`, except the shared `dev` stage (`isSharedDev`),
   which gets `dev.pandoks.com`. Non-production stages share Tailscale `tag:dev` and the `dev` GitHub
   environment, which AWS doesn't trust. Only the shared `dev` and production origin CSRs
-  (`infra/vps/vps.origin.<dev|prod>.csr`) are committed.
+  (`infra/vps/vps.origin.<dev|prod>.csr`) are committed, so a personal stage's origin cert rotates
+  on its first deploy from a fresh checkout.
 - Stage `dev` owns proxied `*.pandoks.com` records and origin cert, because Universal SSL covers
   only first-level preview hosts; personal stages get `example-<stage>.pandoks.com` for the same
   reason. Once stage `dev` has load balancers, any `pandoks.com` host without its own record reaches
@@ -144,7 +145,7 @@ checkout. The SST CLI is `pnpm sst`.
 Before calling infra, cluster, or tooling work done, check:
 
 - **Environments:** no per-environment commands; local k3d, dev, and prod differ only in overlays,
-  variables, and `isProduction` or `isSharedDev` branches.
+  variables, and `isProduction` branches.
 - **Wiring and pins:** the wiring and Renovate rules under Code Review Rules. New pins are exact
   versions (`pnpm add -E`). Pin each copy of a shared version and let Renovate sync them; never read
   or symlink one from another. Gate risky bumps behind Dependency Dashboard approval instead of

@@ -101,6 +101,10 @@ const kubernetesOperatorOauthClient = new tailscale.OauthClient(
   },
   { dependsOn: [tailscaleAcl] }
 );
+
+// NOTE: this linkable is needed so that it's accessible from sst shell cli
+new sst.Linkable('TailscaleStageTag', { properties: { value: TAILSCALE_STAGE_TAG } });
+
 $resolve([
   secrets.k8s.tailscale.OauthClientId.name,
   secrets.k8s.tailscale.OauthClientId.value,

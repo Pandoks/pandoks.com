@@ -37,7 +37,7 @@ spec:
         annotations:
           tailscale.com/expose: 'true'
           tailscale.com/hostname: ${StageName}-argocd
-          tailscale.com/tags: tag:k8s,tag:${StageName}
+          tailscale.com/tags: tag:k8s,${TailscaleStageTag}
 
     repoServer:
       volumes:
