@@ -36,6 +36,7 @@ if (publicLoadBalancers.length && !isProduction) {
   }
 }
 
+const openSslConfigPath = resolve('infra/vps/vps.openssl.conf');
 const certificateSigningRequestPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.csr`);
 const certificateKeyPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.key`);
 
@@ -53,6 +54,8 @@ if (!existsSync(certificateSigningRequestPath)) {
       certificateKeyPath,
       '-out',
       certificateSigningRequestPath,
+      '-config',
+      openSslConfigPath,
       '-subj',
       `/CN=${EXAMPLE_DOMAIN}`
     ],

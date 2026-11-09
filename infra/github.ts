@@ -1,4 +1,4 @@
-import { cloudflareAccountId, isProduction, STAGE_NAME } from './dns';
+import { cloudflareAccountId, isProduction, isSharedDev, STAGE_NAME } from './dns';
 import { defaultAwsRegion } from './aws';
 import { secrets } from './secrets';
 import { tailscaleAcl } from './tailscale';
@@ -12,26 +12,30 @@ const DEPLOYMENT_BRANCH_POLICY = isProduction
   ? { protectedBranches: false, customBranchPolicies: true }
   : undefined;
 
-const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
-  repository: githubRepoName,
-  environment: isProduction ? 'production' : 'dev',
-  deploymentBranchPolicy: DEPLOYMENT_BRANCH_POLICY
-});
-
-new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
-  repository: githubRepoName,
-  environment: githubEnvironment.environment,
-  secretName: 'HCLOUD_TOKEN',
-  value: secrets.hetzner.ApiKey.value
-});
-
-if (isProduction) {
-  new github.RepositoryEnvironmentDeploymentPolicy('GithubProductionDeploymentPolicy', {
+if (isProduction || isSharedDev) {
+  const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
     repository: githubRepoName,
-    environment: githubEnvironment.environment,
-    branchPattern: 'main'
+    environment: isProduction ? 'production' : 'dev',
+    deploymentBranchPolicy: DEPLOYMENT_BRANCH_POLICY
   });
 
+  new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
+    repository: githubRepoName,
+    environment: githubEnvironment.environment,
+    secretName: 'HCLOUD_TOKEN',
+    value: secrets.hetzner.ApiKey.value
+  });
+
+  if (isProduction) {
+    new github.RepositoryEnvironmentDeploymentPolicy('GithubProductionDeploymentPolicy', {
+      repository: githubRepoName,
+      environment: githubEnvironment.environment,
+      branchPattern: 'main'
+    });
+  }
+}
+
+if (isProduction) {
   new github.RepositoryRuleset('GithubMainRuleset', {
     name: 'main',
     repository: githubRepoName,

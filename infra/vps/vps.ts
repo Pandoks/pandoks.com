@@ -131,12 +131,13 @@ const { tailscaleHostnames: _workerTailscaleHostnames, servers: _workerServers }
 if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
   const { devices = [] } = await tailscale.getDevices({ namePrefix: `${STAGE_NAME}-` });
 
-  const kubernetesDeviceHostnames = ['cluster', 'grafana', 'argocd'].map(
-    (deviceName) => `${STAGE_NAME}-${deviceName}`
+  // NOTE: Tailscale suffixes a duplicate machine name with `-1`, `-2`, ...
+  const kubernetesMachineNamePattern = new RegExp(
+    `^${STAGE_NAME}-(cluster|grafana|argocd)(-\\d+)?$`
   );
   const kubernetesDevices = devices.filter(
     (device) =>
-      kubernetesDeviceHostnames.includes(device.hostname) &&
+      kubernetesMachineNamePattern.test(device.name.split('.')[0]) &&
       device.tags.includes('tag:k8s') &&
       device.tags.includes(TAILSCALE_STAGE_TAG)
   );
