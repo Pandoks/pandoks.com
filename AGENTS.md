@@ -191,12 +191,11 @@ Before calling infra, cluster, or tooling work done, check:
 - Review and fix loops cover correctness, least code, style match, tests, and docs, and stop when a
   full round finds nothing.
 - Babysitting: poll checks and comments newer than the last push, fix real bot findings, dismiss
-  false positives with a written reason, and resolve threads you addressed. Wait while a review bot
-  is reviewing. If one stays silent on the latest push (no reaction, comment, or check) for 5
-  minutes, request a review with the comment command it advertises on the PR, or by @-mentioning it
-  if it advertises none; if it's still silent 30 minutes after the push, stop waiting for it and
-  tell me. Otherwise stop when CI passes and every review bot has reviewed the latest commit with
-  nothing left unhandled.
+  false positives with a written reason, and resolve threads you addressed. Once CI passes and
+  nothing is left unhandled, stop at the first of these and tell me which bots didn't review:
+  - every review bot has reviewed the latest push;
+  - 30 minutes have passed since that push;
+  - you have no timer, and no bot still missing shows activity on that push.
 
 ## Code Review Rules
 
