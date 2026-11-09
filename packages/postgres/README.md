@@ -529,12 +529,12 @@ shards; to move them all to the workers, first run
 
 ### Removing Workers
 
-Lowering `patroni.workers` deletes the highest groups' StatefulSets, so drain them first. For each
-group being removed, from the coordinator primary:
+Lowering `patroni.workers` deletes the highest groups' StatefulSets, and Patroni adds a group back
+to `pg_dist_node` while it still runs, so remove each group in this order. First drain it from the
+coordinator primary:
 
 ```sql
 SELECT citus_drain_node(nodename, nodeport) FROM pg_dist_node WHERE groupid = 2 AND noderole = 'primary';
-SELECT citus_remove_node(nodename, nodeport) FROM pg_dist_node WHERE groupid = 2;
 ```
 
 Raising `patroni.workers` again later restores the group's stanza (`myapp-group-2`) on bootstrap,
@@ -547,13 +547,29 @@ kubectl exec -n myapp patroni-myapp-group-2-0 -c patroni -- \
   pgbackrest --stanza=myapp-group-2 stanza-delete --force
 ```
 
+Pause the group's Patroni, or its primary's shutdown leaves the coordinator's Patroni holding a lock
+on `pg_dist_node` that blocks the removal:
+
+```bash
+kubectl exec -n myapp patroni-myapp-group-2-0 -c patroni -- \
+  patronictl -c /etc/patroni/patroni.yaml pause myapp --group 2 --wait
+```
+
 Then lower `patroni.workers` and redeploy right away, since the group's WAL archiving and backup
 CronJobs fail until it's gone. Helm deletes the group's StatefulSet, services, certificates, and
-backup CronJobs. Patroni's endpoints and `-config` Service, cert-manager's TLS secrets, and the PVCs
-are left behind:
+backup CronJobs. Once its pods are gone, delete Patroni's endpoints and `-config` Service, then
+disable and remove the group from the coordinator primary:
 
 ```bash
 kubectl delete endpoints,service -n myapp -l cluster-name=myapp,citus-group=2
+kubectl exec -n myapp "${coordinator}" -c patroni -- psql -d myapp \
+  -c "SELECT citus_disable_node(nodename, nodeport, synchronous => true) FROM pg_dist_node WHERE groupid = 2 AND noderole = 'primary';" \
+  -c "SELECT citus_remove_node(nodename, nodeport) FROM pg_dist_node WHERE groupid = 2;"
+```
+
+cert-manager's TLS secrets and the PVCs are left behind:
+
+```bash
 kubectl delete secret patroni-myapp-group-2-tls myapp-group-2-pgbackrest-backup-tls -n myapp
 
 # WARNING: This deletes all data in the group!
