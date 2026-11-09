@@ -191,10 +191,9 @@ Before calling infra, cluster, or tooling work done, check:
 - Review and fix loops cover correctness, least code, style match, tests, and docs, and stop when a
   full round finds nothing.
 - Babysitting: poll checks and comments newer than the last push, fix real bot findings, dismiss
-  false positives with a written reason, and resolve threads you addressed. After each push but the
-  first, comment `@codex review`. Once CI passes with nothing left unhandled, stop when Codex and
-  grok have reviewed the latest push, 30 minutes after it, or, without a timer, once the bots still
-  pending show no activity on it; name them to me.
+  false positives with a written reason, and resolve threads you addressed. Once CI passes with
+  nothing left unhandled, stop when every review bot has reviewed the latest push, 30 minutes after
+  it, or, without a timer, once the bots still pending show no activity on it; name them to me.
 
 ## Code Review Rules
 
