@@ -6,6 +6,5 @@ resources:
   - tailscale.yaml
   - metallb.yaml
   - cert-manager.yaml
-  - namespaces.yaml
   - postgres.yaml
   - valkey.yaml
