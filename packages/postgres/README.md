@@ -163,8 +163,8 @@ stringData:
   REPLICATION_PASSWORD: ${MyappMyappPostgresReplicationPassword | quote}
   PATRONI_PASSWORD: ${MyappMyappPostgresPatroniPassword | quote}
   userlist.txt: |
-    "admin" "${MyappMyappPostgresAdminPassword}"
-    "client" "${MyappMyappPostgresClientPassword}"
+    "admin" ${MyappMyappPostgresAdminPassword | pgbouncer}
+    "client" ${MyappMyappPostgresClientPassword | pgbouncer}
 
 ---
 apiVersion: v1
@@ -346,13 +346,12 @@ kubectl logs -n myapp job/patroni-myapp-parameters -f
 ### Upgrading Citus
 
 A Citus patch release only needs the new image. After a minor or major release rolls out, Citus
-refuses distributed queries until its extension is updated on each group's primary, workers first,
-and then finished on the coordinator
+refuses distributed queries until its extension is updated on every group's primary and then
+finished on the coordinator
 ([docs](https://docs.citusdata.com/en/stable/admin_guide/upgrading_citus.html)):
 
 ```bash
-for group in 1 2 0; do # every worker group, then the coordinator (group 0)
-  primary="$(kubectl get pod -n myapp -l "app=patroni-myapp,citus-group=${group},role=primary" -o name)"
+for primary in $(kubectl get pod -n myapp -l app=patroni-myapp,role=primary -o name); do
   kubectl exec -n myapp "${primary}" -c patroni -- psql -d myapp -c "ALTER EXTENSION citus UPDATE;"
 done
 
@@ -418,7 +417,7 @@ Create a temporary pod from each group's StatefulSet `patroni` container so it h
 config, and volumes, with pod 0's PVCs mounted:
 
 ```bash
-groups="0 1 2" # every group: 0 through patroni.workers
+groups="$(kubectl get statefulset -n myapp -l app=patroni-myapp -o jsonpath='{.items[*].metadata.labels.citus-group}')"
 
 for group in ${groups}; do
   kubectl get statefulset "patroni-myapp-group-${group}" -n myapp -o json | jq --arg group "${group}" '. as $sts | {
@@ -477,11 +476,11 @@ kubectl get pods -n myapp -l app=patroni-myapp -w
 Each group's pod 0 takes the leader lock with its restored data, and Patroni points `pg_dist_node`
 at the new primaries. A replica whose old data is past the restore point shows `start failed`
 (`requested timeline N is not a child of this server's history` in its log); rebuild it from its
-group's new primary:
+group's new primary, since the latest backup can still be on the old timeline:
 
 ```bash
 kubectl exec -n myapp patroni-myapp-group-0-0 -c patroni -- \
-  patronictl -c /etc/patroni/patroni.yaml reinit myapp patroni-myapp-group-0-1 --group 0 --force
+  patronictl -c /etc/patroni/patroni.yaml reinit myapp patroni-myapp-group-0-1 --group 0 --from-leader --force
 ```
 
 #### Step 6: Verify Recovery

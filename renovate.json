@@ -155,7 +155,7 @@
       "groupName": null,
       "dependencyDashboardApproval": true,
       "prBodyNotes": [
-        "Read Citus's [changelog](https://github.com/citusdata/citus/blob/main/CHANGELOG.md). Once the new image rolls out, run `ALTER EXTENSION citus UPDATE` on every worker group's primary, then on the coordinator, then `CALL citus_finish_citus_upgrade()` on the coordinator (see [Upgrading Citus](https://github.com/Pandoks/pandoks.com/blob/main/packages/postgres/README.md#upgrading-citus))."
+        "Read Citus's [changelog](https://github.com/citusdata/citus/blob/main/CHANGELOG.md). Once the new image rolls out, run `ALTER EXTENSION citus UPDATE` on every group's primary, then `CALL citus_finish_citus_upgrade()` on the coordinator (see [Upgrading Citus](https://github.com/Pandoks/pandoks.com/blob/main/packages/postgres/README.md#upgrading-citus))."
       ]
     },
     {
