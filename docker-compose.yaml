@@ -8,7 +8,7 @@ networks:
 
 volumes:
   s3:
-    name: pandoks-s3
+    name: local-s3
 
 services:
   s3:
