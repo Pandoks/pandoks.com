@@ -149,6 +149,16 @@
       ]
     },
     {
+      "description": "Citus refuses distributed queries after a minor or major until its extension is updated.",
+      "matchPackageNames": ["citusdata/citus"],
+      "matchUpdateTypes": ["minor", "major"],
+      "groupName": null,
+      "dependencyDashboardApproval": true,
+      "prBodyNotes": [
+        "Read Citus's [changelog](https://github.com/citusdata/citus/blob/main/CHANGELOG.md). Once the new image rolls out, run `ALTER EXTENSION citus UPDATE` on every worker group's primary, then on the coordinator, then `CALL citus_finish_citus_upgrade()` on the coordinator (see [Upgrading Citus](https://github.com/Pandoks/pandoks.com/blob/main/packages/postgres/README.md#upgrading-citus))."
+      ]
+    },
+    {
       "description": "Every pnpm copy, the runner AMI's included, moves in one PR. ghcr.io tags have no release timestamp, so they skip minimumReleaseAge; approve once the npm copies are in the PR too.",
       "matchPackageNames": ["pnpm", "ghcr.io/pnpm/pnpm"],
       "groupName": "pnpm",

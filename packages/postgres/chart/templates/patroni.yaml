@@ -129,7 +129,7 @@ metadata:
     cluster-name: {{ $.Values.db }}
     citus-group: {{ $group | quote }}
 spec:
-  replicas: {{ $.Values.patroni.replicasPerShard }}
+  replicas: {{ $.Values.patroni.replicasPerGroup }}
   serviceName: patroni-{{ $.Values.db }}-group-{{ $group }}
   selector:
     matchLabels:
@@ -195,8 +195,6 @@ spec:
               value: &db-name {{ $.Values.db }}
             - name: APP_NAME
               value: *app
-            - name: CLUSTER_NAME
-              value: *cluster-name
             - name: CITUS_GROUP
               value: *citus-group
             - name: NAMESPACE

@@ -87,7 +87,9 @@ graph TB
 ### PgBouncer (Connection Pooling)
 
 - **Transaction pooling** in front of the coordinator primary
-- **Read-only pool** - the `<db>_replicas` database points at the coordinator's replicas
+- **Read-only pool** - the `<db>_replicas` database points at the coordinator's replicas. Once
+  workers exist, only tables on the coordinator are read from those replicas: Citus reads the
+  workers' shards from their primaries, since `citus.use_secondary_nodes` defaults to `never`
 - **Authenticates** with `admin` and `client` from the database secret's `userlist.txt`
 
 ### pgBackRest (Backup & Recovery)
@@ -99,7 +101,9 @@ graph TB
 - **Encryption** - AES-256-CBC for all backups
 - **S3-compatible storage** - works with AWS S3, MinIO, LocalStack
 - **Restore on bootstrap** - a new group whose stanza already has a full backup restores it instead
-  of starting empty
+  of starting empty, up to the end of its own archived WAL. That's only consistent when a single
+  worker group is lost; after losing the coordinator or several groups, follow
+  [PITR](#point-in-time-recovery-pitr) instead
 
 ### Monitoring
 
@@ -199,7 +203,7 @@ spec:
     patroni.image: ${ImageRegistry}/patroni:${ImageTag}
     patroni.reconcilerImage: ${ImageRegistry}/postgres-reconciler:${ImageTag}
     patroni.workers: 0
-    patroni.replicasPerShard: 3
+    patroni.replicasPerGroup: 3
 ```
 
 Add the file to `apps/myapp/kube/kustomization.yaml` and `apps/myapp/kube` to
@@ -338,6 +342,23 @@ with its logs, so follow them during the release:
 kubectl logs -n myapp job/patroni-myapp-parameters -f
 ```
 
+### Upgrading Citus
+
+A Citus patch release only needs the new image. After a minor or major release rolls out, Citus
+refuses distributed queries until its extension is updated on each group's primary, workers first,
+and then finished on the coordinator
+([docs](https://docs.citusdata.com/en/stable/admin_guide/upgrading_citus.html)):
+
+```bash
+for group in 1 2 0; do # every worker group, then the coordinator (group 0)
+  primary="$(kubectl get pod -n myapp -l "app=patroni-myapp,citus-group=${group},role=primary" -o name)"
+  kubectl exec -n myapp "${primary}" -c patroni -- psql -d myapp -c "ALTER EXTENSION citus UPDATE;"
+done
+
+kubectl exec -n myapp "${coordinator}" -c patroni -- \
+  psql -d myapp -c "CALL citus_finish_citus_upgrade();"
+```
+
 ### Backup Operations
 
 ```bash
@@ -366,6 +387,10 @@ the UTC minute it ran (`YYYYMMDDTHHMMZ`, like `20260115T1430Z`). The last three 
 ```bash
 kubectl get jobs -n myapp -o name | grep citus-restore-point | xargs -n 1 kubectl logs -n myapp
 ```
+
+After losing groups, use the newest restore point every group has archived. A group archives its WAL
+at least every `archive_timeout` (5 minutes), so pick one created at least that long before the
+loss; Step 4 fails for a group that doesn't have it.
 
 For each group, pick a backup that finished before the restore point, since pgBackRest restores the
 latest backup by default:
@@ -427,10 +452,10 @@ target=20260115T1430Z
 for group in ${groups}; do
   kubectl exec -n myapp "pitr-restore-${group}" -- sh -ec '
     pgbackrest --stanza="${STANZA}" --type=name --target="$1" --target-action=promote restore
-    pg_ctl start -w -D /var/lib/postgresql/pgdata -l /tmp/pitr.log
+    pg_ctl start -W -D /var/lib/postgresql/pgdata -l /tmp/pitr.log
     until [ "$(psql -XAtc "SELECT pg_is_in_recovery()")" = f ]; do
-      pg_ctl status -D /var/lib/postgresql/pgdata > /dev/null
       sleep 5
+      pg_ctl status -D /var/lib/postgresql/pgdata > /dev/null
     done
     pg_ctl stop -w -D /var/lib/postgresql/pgdata' sh "${target}"
 done
@@ -438,7 +463,7 @@ done
 
 #### Step 5: Restart Every Group
 
-Delete the recovery pods and Patroni's state, then scale back up (to `patroni.replicasPerShard`):
+Delete the recovery pods and Patroni's state, then scale back up (to `patroni.replicasPerGroup`):
 
 ```bash
 for group in ${groups}; do kubectl delete pod -n myapp "pitr-restore-${group}"; done
@@ -448,8 +473,15 @@ kubectl scale statefulset -n myapp -l app=patroni-myapp --replicas=3
 kubectl get pods -n myapp -l app=patroni-myapp -w
 ```
 
-Each group's pod 0 takes the leader lock with its restored data. Replicas rebuild from it, and
-Patroni points `pg_dist_node` at the new primaries.
+Each group's pod 0 takes the leader lock with its restored data, and Patroni points `pg_dist_node`
+at the new primaries. A replica whose old data is past the restore point shows `start failed`
+(`requested timeline N is not a child of this server's history` in its log); rebuild it from its
+group's new primary:
+
+```bash
+kubectl exec -n myapp patroni-myapp-group-0-0 -c patroni -- \
+  patronictl -c /etc/patroni/patroni.yaml reinit myapp patroni-myapp-group-0-1 --group 0 --force
+```
 
 #### Step 6: Verify Recovery
 
@@ -504,26 +536,34 @@ SELECT citus_drain_node(nodename, nodeport) FROM pg_dist_node WHERE groupid = 2 
 SELECT citus_remove_node(nodename, nodeport) FROM pg_dist_node WHERE groupid = 2;
 ```
 
-Then lower `patroni.workers` and redeploy. Helm deletes the group's StatefulSet, services,
-certificates, and backup CronJobs. Patroni's endpoints, cert-manager's TLS secrets, and the PVCs are
-left behind:
+Raising `patroni.workers` again later restores the group's stanza (`myapp-group-2`) on bootstrap,
+with its old data and Citus catalog. Unless you want that, delete the stanza while the group still
+runs:
 
 ```bash
-kubectl delete endpoints myapp-2 myapp-2-config myapp-2-sync -n myapp
+kubectl exec -n myapp patroni-myapp-group-2-0 -c patroni -- pgbackrest --stanza=myapp-group-2 stop
+kubectl exec -n myapp patroni-myapp-group-2-0 -c patroni -- \
+  pgbackrest --stanza=myapp-group-2 stanza-delete --force
+```
+
+Then lower `patroni.workers` and redeploy. Helm deletes the group's StatefulSet, services,
+certificates, and backup CronJobs. Patroni's endpoints and `-config` Service, cert-manager's TLS
+secrets, and the PVCs are left behind:
+
+```bash
+kubectl delete endpoints,service -n myapp -l cluster-name=myapp,citus-group=2
 kubectl delete secret patroni-myapp-group-2-tls myapp-group-2-pgbackrest-backup-tls -n myapp
 
 # WARNING: This deletes all data in the group!
 kubectl delete pvc -n myapp -l app=patroni-myapp,citus-group=2
 ```
 
-The group's backups stay in the bucket under its stanza (`myapp-group-2`).
-
 ### Scaling Replicas Per Group
 
 ```yaml
 spec:
   set:
-    patroni.replicasPerShard: 5 # Was 3, now 5 pods per group
+    patroni.replicasPerGroup: 5 # Was 3, now 5 pods per group
 ```
 
 Redeploy, then watch the new replicas clone from pgBackRest (falling back to `pg_basebackup`):
@@ -532,7 +572,7 @@ Redeploy, then watch the new replicas clone from pgBackRest (falling back to `pg
 kubectl get pods -n myapp -w
 ```
 
-To scale down replicas, lower `patroni.replicasPerShard`. Kubernetes terminates the highest-ordinal
+To scale down replicas, lower `patroni.replicasPerGroup`. Kubernetes terminates the highest-ordinal
 pods, so switch over first if one of them is a leader. Their PVCs are kept, so delete them if you
 don't plan to scale back up.
 
@@ -555,8 +595,14 @@ kubectl delete pods -n myapp -l app=patroni-myapp
 ```
 
 If a group's stanza still has a full backup, its new primary restores it during bootstrap (see
-[pgBackRest](#pgbackrest-backup--recovery)). A restored coordinator stops syncing Citus metadata to
-the workers' old addresses so it can start; once every group is up, sync it again:
+[pgBackRest](#pgbackrest-backup--recovery)), to the end of that group's own archived WAL. That's
+only consistent when a single worker group was lost. After losing the coordinator or several groups,
+the groups can come back at different points, so restore every group with
+[PITR](#point-in-time-recovery-pitr) to the newest restore point archived on every group.
+
+A restored coordinator stops syncing Citus metadata to the workers' old addresses so it can start;
+once every group is up, sync it again, which pushes the coordinator's restored metadata to every
+worker:
 
 ```bash
 kubectl exec -n myapp "${coordinator}" -c patroni -- \
@@ -570,6 +616,13 @@ After changing one of them, update it on the coordinator primary too:
 
 ```sql
 UPDATE pg_dist_authinfo SET authinfo = 'password=<new password>' WHERE rolename = 'client';
+```
+
+PgBouncer mounts `userlist.txt` with `subPath`, which never sees secret changes, so restart it after
+changing `admin` or `client`:
+
+```bash
+kubectl rollout restart deployment/myapp-pgbouncer -n myapp
 ```
 
 ### Backup Job Fails with TLS Error
@@ -646,7 +699,7 @@ after changing them:
 | `s3.tls`                                 | Verify S3 TLS (`y`/`n`)                            | `n`                                                         |
 | `s3.uriStyle`                            | S3 URI style                                       | `path`                                                      |
 | `patroni.workers`                        | Citus worker groups (0 = coordinator only)         | `0`                                                         |
-| `patroni.replicasPerShard`               | Pods per group (1 primary + n - 1 replicas)        | `3`                                                         |
+| `patroni.replicasPerGroup`               | Pods per group (1 primary + n - 1 replicas)        | `3`                                                         |
 | `patroni.image`                          | Patroni image                                      | `ghcr.io/pandoks/patroni:latest`                            |
 | `patroni.reconcilerImage`                | Image of the Job that applies `patroni.parameters` | `ghcr.io/pandoks/postgres-reconciler:latest`                |
 | `patroni.parameters.*`                   | Postgres settings, applied to running clusters     | `max_connections: 100`, `shared_buffers: 128MB`, etc.       |
