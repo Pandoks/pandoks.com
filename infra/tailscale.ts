@@ -8,7 +8,7 @@ new tailscale.TailnetSettings('TailscaleSettings', {
 
 export const hubTailscaleServices = [
   { name: 'cliproxyapi', comment: 'CLIProxyAPI on the homelab hub' },
-  { name: 'cliproxyapi-ci', comment: 'CLIProxyAPI with Console API keys only' },
+  { name: 'cliproxyapi-api', comment: 'CLIProxyAPI with Console API keys only' },
   { name: 'beszel', comment: 'Beszel monitoring hub' },
   { name: 'artex', comment: 'ARTEX on the homelab hub' }
 ];

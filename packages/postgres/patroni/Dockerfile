@@ -1,4 +1,4 @@
-FROM postgres:18-trixie@sha256:3a4264520e121176619f54ff867d12774bc81e95e7b84db58d63bccdb6144b81
+FROM postgres:18-trixie@sha256:bd5dfa494a5a259704365813dbfa5fa6b3e69be7348d43b547f540c730478583
 
 # renovate: datasource=github-releases depName=citusdata/citus extractVersion=^v(?<version>.+)$
 ARG CITUS_VERSION=14.3.0

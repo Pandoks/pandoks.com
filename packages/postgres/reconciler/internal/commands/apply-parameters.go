@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"encoding/json"
 	"fmt"
 	"postgres/reconciler/internal/patroni"
 	"postgres/reconciler/internal/utils"
@@ -9,19 +8,14 @@ import (
 )
 
 func ApplyParameters(env utils.Env) error {
-	body, err := json.Marshal(map[string]any{"postgresql": map[string]any{"parameters": env.Parameters}})
-	if err != nil {
-		return err
-	}
-
 	for group := range env.Groups {
 		configURL := patroni.GetGroupConfigURL(env.DB, group)
 		for {
-			err := patroni.PatchConfig(configURL, env.PatroniPassword, body)
+			retry, err := patroni.PatchConfig(configURL, env.PatroniPassword, env.Parameters)
 			if err == nil {
 				break
 			}
-			if !patroni.IsRetryable(err) {
+			if !retry {
 				return fmt.Errorf("group %d: %w", group, err)
 			}
 			fmt.Printf("group %d: %s, retrying\n", group, err)

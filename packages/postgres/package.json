@@ -12,7 +12,7 @@
     "local:push": "pnpm run /^local:push:/",
     "local:push:patroni": "docker push localhost:12345/patroni:latest",
     "local:push:pgbackrest": "docker push localhost:12345/pgbackrest:latest",
-    "local:push:helm": "helm push postgres-*.tgz oci://localhost:12345/charts",
+    "local:push:helm": "helm push --plain-http postgres-*.tgz oci://localhost:12345/charts",
     "local:push:reconciler": "docker push localhost:12345/postgres-reconciler:latest",
     "test": "go test -C ./reconciler -v ./..."
   }

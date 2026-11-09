@@ -123,9 +123,8 @@ graph TB
 
 The initializer creates `admin` and `client` on the coordinator, in the application database, and
 Citus copies them to every worker. Citus connects to workers as the querying user, so their
-passwords are also stored in `pg_dist_authinfo`. Configure grants and ownership in the application
-database, including default privileges for the role that creates tables, before using `admin` or
-`client` there.
+passwords are also stored in `pg_dist_authinfo`. `client` automatically gets its access to tables,
+sequences, and functions that `admin` creates in `public`.
 
 **Security Note:** Remote logins (pod network only) to the application database are limited to
 `postgres`, `admin` and `client` (see `pg_hba` in [patroni.yaml](./chart/files/patroni.yaml)). Use

@@ -22,7 +22,7 @@ new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
   repository: githubRepoName,
   environment: githubEnvironment.environment,
   secretName: 'HCLOUD_TOKEN',
-  plaintextValue: secrets.hetzner.ApiKey.value
+  value: secrets.hetzner.ApiKey.value
 });
 
 if (isProduction) {
@@ -57,37 +57,37 @@ if (isProduction) {
   new github.ActionsSecret('GithubGithubAccessToken', {
     repository: githubRepoName,
     secretName: 'GH_TOKEN',
-    plaintextValue: secrets.github.PersonalAccessToken.value
+    value: secrets.github.PersonalAccessToken.value
   });
 
   new github.ActionsSecret('GithubGithubPackageManagementToken', {
     repository: githubRepoName,
     secretName: 'GH_PACKAGE_MANAGEMENT_TOKEN',
-    plaintextValue: secrets.github.PackageManagementToken.value
+    value: secrets.github.PackageManagementToken.value
   });
 
   new github.ActionsSecret('GithubCloudflareApiToken', {
     repository: githubRepoName,
     secretName: 'CLOUDFLARE_API_TOKEN',
-    plaintextValue: secrets.cloudflare.ApiKey.value
+    value: secrets.cloudflare.ApiKey.value
   });
 
   new github.ActionsSecret('GithubCloudflareAccountId', {
     repository: githubRepoName,
     secretName: 'CLOUDFLARE_DEFAULT_ACCOUNT_ID',
-    plaintextValue: cloudflareAccountId
+    value: cloudflareAccountId
   });
 
   new github.ActionsSecret('GithubOvhApplicationSecret', {
     repository: githubRepoName,
     secretName: 'OVH_APPLICATION_SECRET',
-    plaintextValue: secrets.ovh.ApplicationSecret.value
+    value: secrets.ovh.ApplicationSecret.value
   });
 
   new github.ActionsSecret('GithubOvhConsumerKey', {
     repository: githubRepoName,
     secretName: 'OVH_CONSUMER_KEY',
-    plaintextValue: secrets.ovh.ConsumerKey.value
+    value: secrets.ovh.ConsumerKey.value
   });
 
   const githubAWSOidcProvider = new aws.iam.OpenIdConnectProvider('AWSGithubActionsOidc', {
@@ -139,12 +139,12 @@ if (isProduction) {
   new github.ActionsSecret('GithubTailscaleOauthClientId', {
     repository: githubRepoName,
     secretName: 'TAILSCALE_OAUTH_CLIENT_ID',
-    plaintextValue: secrets.tailscale.OauthClientId.value
+    value: secrets.tailscale.OauthClientId.value
   });
   new github.ActionsSecret('GithubTailscaleOauthClientSecret', {
     repository: githubRepoName,
     secretName: 'TAILSCALE_OAUTH_CLIENT_SECRET',
-    plaintextValue: secrets.tailscale.OauthClientSecret.value
+    value: secrets.tailscale.OauthClientSecret.value
   });
 
   const githubActionsOauthClient = new tailscale.OauthClient(
@@ -159,12 +159,12 @@ if (isProduction) {
   new github.ActionsSecret('GithubActionsTailscaleOauthClientId', {
     repository: githubRepoName,
     secretName: 'TS_OAUTH_CLIENT_ID',
-    plaintextValue: githubActionsOauthClient.id
+    value: githubActionsOauthClient.id
   });
   new github.ActionsSecret('GithubActionsTailscaleOauthSecret', {
     repository: githubRepoName,
     secretName: 'TS_OAUTH_SECRET',
-    plaintextValue: githubActionsOauthClient.key
+    value: githubActionsOauthClient.key
   });
 
   // NOTE: Renovate handles the security-PRs, and reads dependabot alerts.

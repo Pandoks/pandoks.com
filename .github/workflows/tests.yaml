@@ -45,6 +45,9 @@ jobs:
               - 'packages/prettier/**'
             postgres-reconciler:
               - 'packages/postgres/reconciler/**'
+              - 'packages/postgres/package.json'
+              - 'go.work'
+              - 'go.work.sum'
             valkey-reconciler:
               - 'packages/valkey/reconciler/**'
 
