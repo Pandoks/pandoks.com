@@ -48,6 +48,11 @@ func TestPatchConfig(t *testing.T) {
 			status:  http.StatusBadRequest,
 			wantErr: true,
 		},
+		{
+			name:    "server error",
+			status:  http.StatusInternalServerError,
+			wantErr: true,
+		},
 	}
 
 	parameters := map[string]any{"max_connections": "200", "shared_buffers": "1GB"}
