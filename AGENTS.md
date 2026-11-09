@@ -62,15 +62,15 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
 - PRs run `checks.yaml`, `tests.yaml`, `security.yaml`, and `build-and-publish.yaml` (branch-tagged
   GHCR images and charts), a Cloudflare Pages preview of `apps/web`, and `claude-review.yaml` (one
   Agent SDK `/code-review` per PR, posted as one review with inline comments). Required checks are
-  the `*-pass` aggregates.
+  the `*-pass` aggregates, and a PR must be up to date with `main` to merge.
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
   deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
   `infra/`, `apps/` (except `desktop-template` and `example`), and `packages/svelte/`, plus an Argo
-  hard refresh and a wait for Synced and Healthy only for `k3s/` and `scripts/cluster/` changes.
-  Pages builds `apps/web` when a change matches `pathIncludes` in `infra/website.ts`. Argo
-  auto-syncs everything `k3s/overlays/prod` renders but never prunes: a deleted resource stays in
-  prod until pruned by hand.
+  hard refresh and a wait for Synced and Healthy only for `k3s/`, `apps/*/kube/`, and
+  `scripts/cluster/` changes. Pages builds `apps/web` when a change matches `pathIncludes` in
+  `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod` renders but never prunes: a
+  deleted resource stays in prod until pruned by hand.
 - Every non-production stage gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
   environment, so two non-production stages collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
@@ -178,8 +178,8 @@ Before calling infra, cluster, or tooling work done, check:
 
 - Stage (`git rm` included), commit, push, or open a PR only when asked. Once asked to push to a PR,
   commit and push its follow-up fixes there without asking again. A check waiting on my approval
-  doesn't hold an asked-for PR; open it and list the pending check. Never rewrite pushed history;
-  leave merging to me.
+  doesn't hold an asked-for PR; open it and list the pending check. Never rewrite pushed history:
+  bring a PR that's behind `main` up to date by merging `main` into it. Leave merging to me.
 - Commits and PR titles: Conventional Commits as `type(scope): short lowercase summary`, like
   `update(cluster): drop unused flag`. PRs are squash-merged, so the title is the commit that lands.
 - Descriptions are short: what changes and how to use or verify it, describing the current diff, not

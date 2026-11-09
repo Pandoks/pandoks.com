@@ -144,9 +144,10 @@ The chart expects these to already be in the cluster (all provided by [k3s](/k3s
 
 ### 1. Create Secrets
 
-PgBouncer mounts the database secret's `userlist.txt` key as its `auth_file`. Add both secrets to
-[k3s/base/core/credentials.yaml](/k3s/base/core/credentials.yaml). The `${...}` values are SST
-secrets defined in [infra/secrets.ts](/infra/secrets.ts).
+PgBouncer mounts the database secret's `userlist.txt` key as its `auth_file`. Declare the `myapp`
+Namespace in the app's `namespaces.yaml` and add both secrets to its `credentials.yaml`, each listed
+in the app's `kustomization.yaml` (see [apps/example/kube](/apps/example/kube)). The `${...}` values
+are SST secrets defined in [infra/secrets.ts](/infra/secrets.ts).
 
 ```yaml
 apiVersion: v1
