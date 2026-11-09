@@ -2,6 +2,9 @@ import { secrets, setSecret } from './secrets';
 
 export const isProduction = $app.stage === 'production';
 const isSharedDev = $app.stage === 'dev';
+if ($app.stage === 'prod') {
+  throw new Error("Stage 'prod' would reuse production's names; deploy 'production' instead");
+}
 
 export const STAGE_NAME = isProduction ? 'prod' : $app.stage;
 
