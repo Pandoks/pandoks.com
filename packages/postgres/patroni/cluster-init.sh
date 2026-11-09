@@ -84,6 +84,43 @@ else
   exit 1
 fi
 
+# NOTE: pg_dist_authinfo takes libpq conninfo, quoted with \ and ' escaped, inside sql's '' escaping
+admin_sql_password=$(printf '%s' "${ADMIN_PASSWORD}" | sed "s/'/''/g")
+client_sql_password=$(printf '%s' "${CLIENT_PASSWORD}" | sed "s/'/''/g")
+admin_conninfo_password=$(printf '%s' "${admin_sql_password}" | sed -e 's/\\/\\\\/g' -e "s/''/\\\\''/g")
+client_conninfo_password=$(printf '%s' "${client_sql_password}" | sed -e 's/\\/\\\\/g' -e "s/''/\\\\''/g")
+
+# NOTE: citus doesn't sync pg_dist_authinfo, whose rows need their role, so every group creates both
+if psql -Atq -d "${POSTGRES_DB}" -c "SELECT 1 FROM pg_roles WHERE rolname='admin'" | grep -q 1; then
+  echo "Role 'admin' already exists. Skipping creation."
+else
+  echo "Role 'admin' does not exist. Creating..."
+  if psql -d "${POSTGRES_DB}" -c "
+    CREATE ROLE admin WITH LOGIN PASSWORD '${admin_sql_password}';
+    INSERT INTO pg_dist_authinfo VALUES (0, 'admin', 'password=''${admin_conninfo_password}''');
+  "; then
+    echo "✓ Role 'admin' created successfully."
+  else
+    echo "Failed to create role 'admin'."
+    exit 1
+  fi
+fi
+
+if psql -Atq -d "${POSTGRES_DB}" -c "SELECT 1 FROM pg_roles WHERE rolname='client'" | grep -q 1; then
+  echo "Role 'client' already exists. Skipping creation."
+else
+  echo "Role 'client' does not exist. Creating..."
+  if psql -d "${POSTGRES_DB}" -c "
+    CREATE ROLE client WITH LOGIN PASSWORD '${client_sql_password}';
+    INSERT INTO pg_dist_authinfo VALUES (0, 'client', 'password=''${client_conninfo_password}''');
+  "; then
+    echo "✓ Role 'client' created successfully."
+  else
+    echo "Failed to create role 'client'."
+    exit 1
+  fi
+fi
+
 # NOTE: workers get everything else from the coordinator through citus
 if [ "${CITUS_GROUP}" -eq 0 ]; then
   # NOTE: patroni registers the coordinator without shards, which leaves no node for them until workers join
@@ -105,47 +142,20 @@ if [ "${CITUS_GROUP}" -eq 0 ]; then
     echo "Warning: Failed to create pg_stat_statements extension."
   fi
 
-  # NOTE: pg_dist_authinfo takes libpq conninfo, quoted with \ and ' escaped, inside sql's '' escaping
-  admin_sql_password=$(printf '%s' "${ADMIN_PASSWORD}" | sed "s/'/''/g")
-  client_sql_password=$(printf '%s' "${CLIENT_PASSWORD}" | sed "s/'/''/g")
-  admin_conninfo_password=$(printf '%s' "${admin_sql_password}" | sed -e 's/\\/\\\\/g' -e "s/''/\\\\''/g")
-  client_conninfo_password=$(printf '%s' "${client_sql_password}" | sed -e 's/\\/\\\\/g' -e "s/''/\\\\''/g")
-
-  if psql -Atq -d "${POSTGRES_DB}" -c "SELECT 1 FROM pg_roles WHERE rolname='admin'" | grep -q 1; then
-    echo "Role 'admin' already exists. Skipping creation."
+  echo "Granting role privileges..."
+  if psql -d "${POSTGRES_DB}" -c "
+    GRANT CONNECT ON DATABASE ${POSTGRES_DB} TO admin;
+    GRANT CREATE ON SCHEMA public TO admin;
+    GRANT CONNECT, TEMPORARY ON DATABASE ${POSTGRES_DB} TO client;
+    GRANT USAGE ON SCHEMA public TO client;
+    ALTER DEFAULT PRIVILEGES FOR ROLE admin IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO client;
+    ALTER DEFAULT PRIVILEGES FOR ROLE admin IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO client;
+    ALTER DEFAULT PRIVILEGES FOR ROLE admin IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO client;
+  "; then
+    echo "✓ Role privileges granted successfully."
   else
-    echo "Role 'admin' does not exist. Creating..."
-    if psql -d "${POSTGRES_DB}" -c "
-      CREATE ROLE admin WITH LOGIN PASSWORD '${admin_sql_password}';
-      GRANT CONNECT ON DATABASE ${POSTGRES_DB} TO admin;
-      GRANT CREATE ON SCHEMA public TO admin;
-      INSERT INTO pg_dist_authinfo VALUES (0, 'admin', 'password=''${admin_conninfo_password}''');
-    "; then
-      echo "✓ Role 'admin' created successfully."
-    else
-      echo "Failed to create role 'admin'."
-      exit 1
-    fi
-  fi
-
-  if psql -Atq -d "${POSTGRES_DB}" -c "SELECT 1 FROM pg_roles WHERE rolname='client'" | grep -q 1; then
-    echo "Role 'client' already exists. Skipping creation."
-  else
-    echo "Role 'client' does not exist. Creating..."
-    if psql -d "${POSTGRES_DB}" -c "
-      CREATE ROLE client WITH LOGIN PASSWORD '${client_sql_password}';
-      GRANT CONNECT, TEMPORARY ON DATABASE ${POSTGRES_DB} TO client;
-      GRANT USAGE ON SCHEMA public TO client;
-      ALTER DEFAULT PRIVILEGES FOR ROLE admin IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO client;
-      ALTER DEFAULT PRIVILEGES FOR ROLE admin IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO client;
-      ALTER DEFAULT PRIVILEGES FOR ROLE admin IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO client;
-      INSERT INTO pg_dist_authinfo VALUES (0, 'client', 'password=''${client_conninfo_password}''');
-    "; then
-      echo "✓ Role 'client' created successfully."
-    else
-      echo "Failed to create role 'client'."
-      exit 1
-    fi
+    echo "Failed to grant role privileges."
+    exit 1
   fi
 fi
 

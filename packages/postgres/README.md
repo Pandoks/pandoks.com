@@ -122,10 +122,11 @@ graph TB
 | `replicator` | Streaming replication | Replication only                                    |
 | `patroni`    | Patroni REST API      | Health checks, failover, worker to coordinator APIs |
 
-The initializer creates `admin` and `client` on the coordinator, in the application database, and
-Citus copies them to every worker. Citus connects to workers as the querying user, so their
-passwords are also stored in `pg_dist_authinfo`. `client` automatically gets its access to tables,
-sequences, and functions that `admin` creates in `public`.
+The initializer creates `admin` and `client` in the application database on every group, since Citus
+connects between nodes as the querying user with the passwords in each node's `pg_dist_authinfo`,
+which it doesn't sync. Their grants are made on the coordinator and Citus copies them to every
+worker. `client` automatically gets its access to tables, sequences, and functions that `admin`
+creates in `public`.
 
 **Security Note:** Remote logins (pod network only) to the application database are limited to
 `postgres`, `admin` and `client` (see `pg_hba` in [patroni.yaml](./chart/files/patroni.yaml)). Use
@@ -612,11 +613,10 @@ kubectl exec -n myapp "${coordinator}" -c patroni -- \
 
 ### Distributed Queries Fail to Authenticate
 
-Citus connects to workers with the superuser, `admin` and `client` passwords in `pg_dist_authinfo`.
-Patroni inserts the superuser's row in each group's own bootstrap and Citus doesn't sync this table,
-so after changing the superuser password update its row on every group's primary; `admin` and
-`client` rows only need the coordinator primary. Escape `\` and `'` in the password with `\`, then
-double every `'` for SQL:
+Citus connects between nodes with the superuser, `admin` and `client` passwords in
+`pg_dist_authinfo`. Each group inserts its own rows on bootstrap and Citus doesn't sync this table,
+so after changing a password update its row on every group's primary. Escape `\` and `'` in the
+password with `\`, then double every `'` for SQL:
 
 ```sql
 UPDATE pg_dist_authinfo SET authinfo = 'password=''<new password>''' WHERE rolename = 'client';
