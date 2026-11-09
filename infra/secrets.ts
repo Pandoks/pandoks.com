@@ -72,8 +72,7 @@ export const secrets = {
         AdminPassword: new sst.Secret('MainMainPostgresAdminPassword'),
         ClientPassword: new sst.Secret('MainMainPostgresClientPassword'),
         ReplicationPassword: new sst.Secret('MainMainPostgresReplicationPassword'),
-        PatroniPassword: new sst.Secret('MainMainPostgresPatroniPassword'),
-        PgdogAdminPassword: new sst.Secret('MainMainPostgresPgdogAdminPassword')
+        PatroniPassword: new sst.Secret('MainMainPostgresPatroniPassword')
       },
       mainValkey: {
         AdminPassword: new sst.Secret('MainMainValkeyAdminPassword'),

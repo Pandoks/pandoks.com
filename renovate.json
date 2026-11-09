@@ -131,11 +131,6 @@
       "pinDigests": false
     },
     {
-      "description": "PgDog's chart uses two-part versions (v0.27).",
-      "matchPackageNames": ["pgdog"],
-      "versioning": "loose"
-    },
-    {
       "matchFileNames": ["sst.config.ts"],
       "groupName": "sst providers"
     },

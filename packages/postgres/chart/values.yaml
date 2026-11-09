@@ -9,6 +9,7 @@ credentials:
     clientPassword: CLIENT_PASSWORD
     replicationPassword: REPLICATION_PASSWORD
     patroniPassword: PATRONI_PASSWORD
+    pgbouncerUserlist: userlist.txt # NOTE: PgBouncer's auth_file, with admin and client passwords
 
 backup:
   enabled: true # WARNING: set before first create; Patroni ignores later archive_mode changes
@@ -28,6 +29,8 @@ backup:
   retention:
     full: 4
     diff: 2
+  # NOTE: PITR across groups can only stop at these, see the README
+  restorePointSchedule: '*/15 * * * *'
   resources: {}
 
 s3:
@@ -37,8 +40,8 @@ s3:
   uriStyle: path
 
 patroni:
-  shards: 1
-  replicasPerShard: 3 # NOTE: replicasPerShard = primary (1) + replicas (n - 1)
+  workers: 0 # NOTE: Citus worker groups; 0 keeps every shard on the coordinator
+  replicasPerShard: 3 # NOTE: pods per group = primary (1) + replicas (n - 1)
   image: ghcr.io/pandoks/patroni:latest@sha256:66ad4100ceb1e8897759558603e2cae6164bd24c7374abd645bbd02ebcf0e236
   # NOTE: new clusters start with these, and a Job applies them to running clusters after every
   # install, upgrade and rollback. Ones that need a restart wait for `patronictl restart`, and a key
@@ -63,18 +66,18 @@ patroni:
     pgbackrest: {}
     postgresExporter: {}
 
-# Dedicated database nodes for Patroni (PgDog stays with the apps)
+# Dedicated database nodes for Patroni (PgBouncer stays with the apps)
 # options: { role: db } | ~
 nodeSelector: ~
 # options: [{ key: role, operator: Equal, value: db, effect: NoSchedule }] | ~
 tolerations: ~
 
-# https://github.com/pgdogdev/helm/blob/main/values.yaml
-pgdog:
+pgbouncer:
+  image: ghcr.io/cloudnative-pg/pgbouncer:1.26.1@sha256:3164c7e929c05deef00175c0bb81f3446a59f7254715b43a865ec8cdb83f869e
   replicas: 2
-  workers: 2
-  defaultPoolSize: 15
-  lsnCheckDelay: 0
-  lsnCheckInterval: 1000
-  loadBalancingStrategy: least_active_connections
-  readWriteSplit: include_primary_if_replica_banned
+  # https://www.pgbouncer.org/config.html
+  settings:
+    pool_mode: transaction
+    default_pool_size: 15
+    max_client_conn: 1000
+  resources: {}

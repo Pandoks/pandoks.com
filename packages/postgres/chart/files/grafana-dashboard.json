@@ -63,7 +63,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "pg_database_size_bytes{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"}",
+          "expr": "pg_database_size_bytes{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-group-.*\"}",
           "legendFormat": "{{`{{pod}}`}}",
           "range": true,
           "refId": "A"
@@ -71,7 +71,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(pg_database_size_bytes{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"})",
+          "expr": "sum(pg_database_size_bytes{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-group-.*\"})",
           "legendFormat": "Total",
           "range": true,
           "refId": "B"
@@ -79,7 +79,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "max(kubelet_volume_stats_capacity_bytes{namespace=\"{{ .Values.namespace }}\", persistentvolumeclaim=~\"patroni-data-patroni-{{ .Values.db }}-shard-.*\"})",
+          "expr": "max(kubelet_volume_stats_capacity_bytes{namespace=\"{{ .Values.namespace }}\", persistentvolumeclaim=~\"patroni-data-patroni-{{ .Values.db }}-group-.*\"})",
           "legendFormat": "Max Capacity (PVC)",
           "range": true,
           "refId": "C"
@@ -135,7 +135,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum by (pod, state) (pg_stat_activity_count{service=~\"patroni-{{ .Values.db }}-shard-.*\"})",
+          "expr": "sum by (pod, state) (pg_stat_activity_count{service=~\"patroni-{{ .Values.db }}-group-.*\"})",
           "legendFormat": "{{`{{pod}}`}} - {{`{{state}}`}}",
           "range": true,
           "refId": "A"
@@ -191,7 +191,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "rate(pg_stat_database_xact_commit{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])",
+          "expr": "rate(pg_stat_database_xact_commit{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])",
           "legendFormat": "{{`{{pod}}`}} commits",
           "range": true,
           "refId": "A"
@@ -199,7 +199,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "rate(pg_stat_database_xact_rollback{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])",
+          "expr": "rate(pg_stat_database_xact_rollback{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])",
           "legendFormat": "{{`{{pod}}`}} rollbacks",
           "range": true,
           "refId": "B"
@@ -207,7 +207,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pg_stat_database_xact_commit{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval]))",
+          "expr": "sum(rate(pg_stat_database_xact_commit{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval]))",
           "legendFormat": "Total commits",
           "range": true,
           "refId": "C"
@@ -263,7 +263,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "pg_stat_database_blks_hit{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"} / clamp_min(pg_stat_database_blks_hit{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"} + pg_stat_database_blks_read{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"}, 1)",
+          "expr": "pg_stat_database_blks_hit{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-group-.*\"} / clamp_min(pg_stat_database_blks_hit{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-group-.*\"} + pg_stat_database_blks_read{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-group-.*\"}, 1)",
           "legendFormat": "{{`{{pod}}`}}",
           "range": true,
           "refId": "A"
@@ -327,7 +327,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "rate(pg_stat_database_tup_inserted{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])",
+          "expr": "rate(pg_stat_database_tup_inserted{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])",
           "legendFormat": "{{`{{pod}}`}} inserted",
           "range": true,
           "refId": "A"
@@ -335,7 +335,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pg_stat_database_tup_inserted{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval]))",
+          "expr": "sum(rate(pg_stat_database_tup_inserted{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval]))",
           "legendFormat": "Total inserted",
           "range": true,
           "refId": "B"
@@ -391,7 +391,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "rate(pg_stat_database_tup_updated{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])",
+          "expr": "rate(pg_stat_database_tup_updated{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])",
           "legendFormat": "{{`{{pod}}`}} updated",
           "range": true,
           "refId": "A"
@@ -399,7 +399,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "rate(pg_stat_database_tup_deleted{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])",
+          "expr": "rate(pg_stat_database_tup_deleted{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])",
           "legendFormat": "{{`{{pod}}`}} deleted",
           "range": true,
           "refId": "B"
@@ -455,7 +455,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "rate(pg_stat_database_tup_fetched{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])",
+          "expr": "rate(pg_stat_database_tup_fetched{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])",
           "legendFormat": "{{`{{pod}}`}} fetched",
           "range": true,
           "refId": "A"
@@ -463,7 +463,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "rate(pg_stat_database_tup_returned{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])",
+          "expr": "rate(pg_stat_database_tup_returned{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])",
           "legendFormat": "{{`{{pod}}`}} returned",
           "range": true,
           "refId": "B"
@@ -471,7 +471,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pg_stat_database_tup_fetched{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval]))",
+          "expr": "sum(rate(pg_stat_database_tup_fetched{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval]))",
           "legendFormat": "Total fetched",
           "range": true,
           "refId": "C"
@@ -527,7 +527,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "pg_stat_database_deadlocks{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"}",
+          "expr": "pg_stat_database_deadlocks{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-group-.*\"}",
           "legendFormat": "{{`{{pod}}`}} deadlocks",
           "range": true,
           "refId": "A"
@@ -535,7 +535,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "pg_stat_database_conflicts{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"}",
+          "expr": "pg_stat_database_conflicts{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-group-.*\"}",
           "legendFormat": "{{`{{pod}}`}} conflicts",
           "range": true,
           "refId": "B"
@@ -599,7 +599,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "pg_replication_lag_seconds{service=~\"patroni-{{ .Values.db }}-shard-.*\"}",
+          "expr": "pg_replication_lag_seconds{service=~\"patroni-{{ .Values.db }}-group-.*\"}",
           "legendFormat": "{{`{{pod}}`}}",
           "range": true,
           "refId": "A"
@@ -655,7 +655,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "patroni_primary{service=~\"patroni-{{ .Values.db }}-shard-.*\"}",
+          "expr": "patroni_primary{service=~\"patroni-{{ .Values.db }}-group-.*\"}",
           "legendFormat": "{{`{{pod}}`}} primary",
           "range": true,
           "refId": "A"
@@ -663,7 +663,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "patroni_replica{service=~\"patroni-{{ .Values.db }}-shard-.*\"}",
+          "expr": "patroni_replica{service=~\"patroni-{{ .Values.db }}-group-.*\"}",
           "legendFormat": "{{`{{pod}}`}} replica",
           "range": true,
           "refId": "B"
@@ -719,7 +719,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "pg_locks_count{service=~\"patroni-{{ .Values.db }}-shard-.*\"}",
+          "expr": "pg_locks_count{service=~\"patroni-{{ .Values.db }}-group-.*\"}",
           "legendFormat": "{{`{{pod}}`}} - {{`{{mode}}`}}",
           "range": true,
           "refId": "A"
@@ -775,7 +775,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "pg_stat_database_temp_files{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"}",
+          "expr": "pg_stat_database_temp_files{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-group-.*\"}",
           "legendFormat": "{{`{{pod}}`}} temp files",
           "range": true,
           "refId": "A"
@@ -783,7 +783,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "pg_stat_database_temp_bytes{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"}",
+          "expr": "pg_stat_database_temp_bytes{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-group-.*\"}",
           "legendFormat": "{{`{{pod}}`}} temp bytes",
           "range": true,
           "refId": "B"
@@ -847,7 +847,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "rate(pg_stat_checkpointer_num_timed_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])",
+          "expr": "rate(pg_stat_checkpointer_num_timed_total{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])",
           "legendFormat": "{{`{{pod}}`}} timed",
           "range": true,
           "refId": "A"
@@ -855,7 +855,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "rate(pg_stat_checkpointer_num_requested_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])",
+          "expr": "rate(pg_stat_checkpointer_num_requested_total{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])",
           "legendFormat": "{{`{{pod}}`}} requested",
           "range": true,
           "refId": "B"
@@ -911,7 +911,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "rate(pg_stat_bgwriter_buffers_checkpoint_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])",
+          "expr": "rate(pg_stat_bgwriter_buffers_checkpoint_total{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])",
           "legendFormat": "{{`{{pod}}`}} checkpoint",
           "range": true,
           "refId": "A"
@@ -919,7 +919,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "rate(pg_stat_bgwriter_buffers_clean_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])",
+          "expr": "rate(pg_stat_bgwriter_buffers_clean_total{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])",
           "legendFormat": "{{`{{pod}}`}} bgwriter",
           "range": true,
           "refId": "B"
@@ -927,7 +927,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "rate(pg_stat_bgwriter_buffers_backend_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])",
+          "expr": "rate(pg_stat_bgwriter_buffers_backend_total{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])",
           "legendFormat": "{{`{{pod}}`}} backend",
           "range": true,
           "refId": "C"
@@ -983,7 +983,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "rate(pg_stat_checkpointer_write_time_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval]) / 1000",
+          "expr": "rate(pg_stat_checkpointer_write_time_total{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval]) / 1000",
           "legendFormat": "{{`{{pod}}`}} write",
           "range": true,
           "refId": "A"
@@ -991,7 +991,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "rate(pg_stat_checkpointer_sync_time_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval]) / 1000",
+          "expr": "rate(pg_stat_checkpointer_sync_time_total{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval]) / 1000",
           "legendFormat": "{{`{{pod}}`}} sync",
           "range": true,
           "refId": "B"
@@ -1047,7 +1047,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "pg_stat_bgwriter_buffers_alloc_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}",
+          "expr": "pg_stat_bgwriter_buffers_alloc_total{service=~\"patroni-{{ .Values.db }}-group-.*\"}",
           "legendFormat": "{{`{{pod}}`}} allocated",
           "range": true,
           "refId": "A"
@@ -1055,7 +1055,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "pg_stat_bgwriter_maxwritten_clean_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}",
+          "expr": "pg_stat_bgwriter_maxwritten_clean_total{service=~\"patroni-{{ .Values.db }}-group-.*\"}",
           "legendFormat": "{{`{{pod}}`}} maxwritten clean",
           "range": true,
           "refId": "B"
@@ -1119,7 +1119,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pg_stat_user_tables_seq_scan{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])) by (pod)",
+          "expr": "sum(rate(pg_stat_user_tables_seq_scan{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])) by (pod)",
           "legendFormat": "{{`{{pod}}`}} seq scans",
           "range": true,
           "refId": "A"
@@ -1127,7 +1127,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pg_stat_user_tables_idx_scan{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])) by (pod)",
+          "expr": "sum(rate(pg_stat_user_tables_idx_scan{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])) by (pod)",
           "legendFormat": "{{`{{pod}}`}} idx scans",
           "range": true,
           "refId": "B"
@@ -1183,7 +1183,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(pg_stat_user_tables_n_live_tup{service=~\"patroni-{{ .Values.db }}-shard-.*\"}) by (pod)",
+          "expr": "sum(pg_stat_user_tables_n_live_tup{service=~\"patroni-{{ .Values.db }}-group-.*\"}) by (pod)",
           "legendFormat": "{{`{{pod}}`}} live",
           "range": true,
           "refId": "A"
@@ -1191,7 +1191,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(pg_stat_user_tables_n_dead_tup{service=~\"patroni-{{ .Values.db }}-shard-.*\"}) by (pod)",
+          "expr": "sum(pg_stat_user_tables_n_dead_tup{service=~\"patroni-{{ .Values.db }}-group-.*\"}) by (pod)",
           "legendFormat": "{{`{{pod}}`}} dead",
           "range": true,
           "refId": "B"
@@ -1247,7 +1247,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pg_stat_user_tables_n_tup_ins{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])) by (pod)",
+          "expr": "sum(rate(pg_stat_user_tables_n_tup_ins{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])) by (pod)",
           "legendFormat": "{{`{{pod}}`}} insert",
           "range": true,
           "refId": "A"
@@ -1255,7 +1255,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pg_stat_user_tables_n_tup_upd{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])) by (pod)",
+          "expr": "sum(rate(pg_stat_user_tables_n_tup_upd{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])) by (pod)",
           "legendFormat": "{{`{{pod}}`}} update",
           "range": true,
           "refId": "B"
@@ -1263,7 +1263,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pg_stat_user_tables_n_tup_del{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])) by (pod)",
+          "expr": "sum(rate(pg_stat_user_tables_n_tup_del{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])) by (pod)",
           "legendFormat": "{{`{{pod}}`}} delete",
           "range": true,
           "refId": "C"
@@ -1319,7 +1319,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(pg_stat_user_tables_vacuum_count{service=~\"patroni-{{ .Values.db }}-shard-.*\"}) by (pod)",
+          "expr": "sum(pg_stat_user_tables_vacuum_count{service=~\"patroni-{{ .Values.db }}-group-.*\"}) by (pod)",
           "legendFormat": "{{`{{pod}}`}} vacuum",
           "range": true,
           "refId": "A"
@@ -1327,7 +1327,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(pg_stat_user_tables_autovacuum_count{service=~\"patroni-{{ .Values.db }}-shard-.*\"}) by (pod)",
+          "expr": "sum(pg_stat_user_tables_autovacuum_count{service=~\"patroni-{{ .Values.db }}-group-.*\"}) by (pod)",
           "legendFormat": "{{`{{pod}}`}} autovacuum",
           "range": true,
           "refId": "B"
@@ -1335,7 +1335,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(pg_stat_user_tables_analyze_count{service=~\"patroni-{{ .Values.db }}-shard-.*\"}) by (pod)",
+          "expr": "sum(pg_stat_user_tables_analyze_count{service=~\"patroni-{{ .Values.db }}-group-.*\"}) by (pod)",
           "legendFormat": "{{`{{pod}}`}} analyze",
           "range": true,
           "refId": "C"
@@ -1399,7 +1399,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "rate(pg_stat_database_blks_read{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])",
+          "expr": "rate(pg_stat_database_blks_read{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])",
           "legendFormat": "{{`{{pod}}`}} read",
           "range": true,
           "refId": "A"
@@ -1407,7 +1407,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "rate(pg_stat_database_blks_hit{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])",
+          "expr": "rate(pg_stat_database_blks_hit{datname=\"{{ .Values.db }}\", service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])",
           "legendFormat": "{{`{{pod}}`}} hit",
           "range": true,
           "refId": "B"
@@ -1463,7 +1463,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pg_statio_user_tables_heap_blocks_read{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])) by (pod)",
+          "expr": "sum(rate(pg_statio_user_tables_heap_blocks_read{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])) by (pod)",
           "legendFormat": "{{`{{pod}}`}} heap read",
           "range": true,
           "refId": "A"
@@ -1471,7 +1471,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pg_statio_user_tables_heap_blocks_hit{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])) by (pod)",
+          "expr": "sum(rate(pg_statio_user_tables_heap_blocks_hit{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])) by (pod)",
           "legendFormat": "{{`{{pod}}`}} heap hit",
           "range": true,
           "refId": "B"
@@ -1527,7 +1527,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pg_statio_user_tables_idx_blocks_read{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])) by (pod)",
+          "expr": "sum(rate(pg_statio_user_tables_idx_blocks_read{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])) by (pod)",
           "legendFormat": "{{`{{pod}}`}} idx read",
           "range": true,
           "refId": "A"
@@ -1535,7 +1535,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pg_statio_user_tables_idx_blocks_hit{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])) by (pod)",
+          "expr": "sum(rate(pg_statio_user_tables_idx_blocks_hit{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])) by (pod)",
           "legendFormat": "{{`{{pod}}`}} idx hit",
           "range": true,
           "refId": "B"
@@ -1591,7 +1591,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pg_statio_user_tables_toast_blocks_read{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])) by (pod)",
+          "expr": "sum(rate(pg_statio_user_tables_toast_blocks_read{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])) by (pod)",
           "legendFormat": "{{`{{pod}}`}} toast read",
           "range": true,
           "refId": "A"
@@ -1599,7 +1599,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pg_statio_user_tables_toast_blocks_hit{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])) by (pod)",
+          "expr": "sum(rate(pg_statio_user_tables_toast_blocks_hit{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])) by (pod)",
           "legendFormat": "{{`{{pod}}`}} toast hit",
           "range": true,
           "refId": "B"
@@ -1663,7 +1663,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "pg_replication_slots_slot_current_wal_lsn{service=~\"patroni-{{ .Values.db }}-shard-.*\"}",
+          "expr": "pg_replication_slots_slot_current_wal_lsn{service=~\"patroni-{{ .Values.db }}-group-.*\"}",
           "legendFormat": "{{`{{pod}}`}} {{`{{slot_name}}`}} current",
           "range": true,
           "refId": "A"
@@ -1671,7 +1671,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "pg_replication_slots_slot_confirmed_flush_lsn{service=~\"patroni-{{ .Values.db }}-shard-.*\"}",
+          "expr": "pg_replication_slots_slot_confirmed_flush_lsn{service=~\"patroni-{{ .Values.db }}-group-.*\"}",
           "legendFormat": "{{`{{pod}}`}} {{`{{slot_name}}`}} confirmed",
           "range": true,
           "refId": "B"
@@ -1727,7 +1727,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "pg_replication_slots_active{service=~\"patroni-{{ .Values.db }}-shard-.*\"}",
+          "expr": "pg_replication_slots_active{service=~\"patroni-{{ .Values.db }}-group-.*\"}",
           "legendFormat": "{{`{{pod}}`}} - {{`{{slot_name}}`}} active",
           "range": true,
           "refId": "A"
@@ -1783,7 +1783,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "pg_replication_slots_pg_wal_lsn_diff{service=~\"patroni-{{ .Values.db }}-shard-.*\"}",
+          "expr": "pg_replication_slots_pg_wal_lsn_diff{service=~\"patroni-{{ .Values.db }}-group-.*\"}",
           "legendFormat": "{{`{{pod}}`}} - {{`{{slot_name}}`}}",
           "range": true,
           "refId": "A"
@@ -1839,7 +1839,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "pg_stat_replication_reply_time{service=~\"patroni-{{ .Values.db }}-shard-.*\"}",
+          "expr": "pg_stat_replication_reply_time{service=~\"patroni-{{ .Values.db }}-group-.*\"}",
           "legendFormat": "{{`{{pod}}`}} - {{`{{application_name}}`}}",
           "range": true,
           "refId": "A"
@@ -1902,7 +1902,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pg_stat_statements_calls_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval]))",
+          "expr": "sum(rate(pg_stat_statements_calls_total{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval]))",
           "legendFormat": "Total Queries/s",
           "range": true,
           "refId": "A"
@@ -1910,7 +1910,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum by (pod) (rate(pg_stat_statements_calls_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval]))",
+          "expr": "sum by (pod) (rate(pg_stat_statements_calls_total{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval]))",
           "legendFormat": "{{`{{pod}}`}}",
           "range": true,
           "refId": "B"
@@ -1966,7 +1966,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pg_stat_statements_seconds_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])) / clamp_min(sum(rate(pg_stat_statements_calls_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])), 1e-10)",
+          "expr": "sum(rate(pg_stat_statements_seconds_total{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])) / clamp_min(sum(rate(pg_stat_statements_calls_total{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])), 1e-10)",
           "legendFormat": "Avg Query Latency",
           "range": true,
           "refId": "A"
@@ -1974,7 +1974,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum by (pod) (rate(pg_stat_statements_seconds_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])) / clamp_min(sum by (pod) (rate(pg_stat_statements_calls_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval])), 1e-10)",
+          "expr": "sum by (pod) (rate(pg_stat_statements_seconds_total{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])) / clamp_min(sum by (pod) (rate(pg_stat_statements_calls_total{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval])), 1e-10)",
           "legendFormat": "{{`{{pod}}`}}",
           "range": true,
           "refId": "B"
@@ -2030,7 +2030,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "topk(10, sum by (queryid) (pg_stat_statements_seconds_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}))",
+          "expr": "topk(10, sum by (queryid) (pg_stat_statements_seconds_total{service=~\"patroni-{{ .Values.db }}-group-.*\"}))",
           "legendFormat": "Query {{`{{queryid}}`}}",
           "range": true,
           "refId": "A"
@@ -2086,7 +2086,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "topk(10, sum by (queryid) (pg_stat_statements_calls_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}))",
+          "expr": "topk(10, sum by (queryid) (pg_stat_statements_calls_total{service=~\"patroni-{{ .Values.db }}-group-.*\"}))",
           "legendFormat": "Query {{`{{queryid}}`}}",
           "range": true,
           "refId": "A"
@@ -2142,7 +2142,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pg_stat_statements_rows_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval]))",
+          "expr": "sum(rate(pg_stat_statements_rows_total{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval]))",
           "legendFormat": "Total Rows/s",
           "range": true,
           "refId": "A"
@@ -2150,7 +2150,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum by (pod) (rate(pg_stat_statements_rows_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval]))",
+          "expr": "sum by (pod) (rate(pg_stat_statements_rows_total{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval]))",
           "legendFormat": "{{`{{pod}}`}}",
           "range": true,
           "refId": "B"
@@ -2206,7 +2206,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pg_stat_statements_block_read_seconds_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval]))",
+          "expr": "sum(rate(pg_stat_statements_block_read_seconds_total{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval]))",
           "legendFormat": "Block Read Time",
           "range": true,
           "refId": "A"
@@ -2214,524 +2214,13 @@
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "editorMode": "code",
-          "expr": "sum(rate(pg_stat_statements_block_write_seconds_total{service=~\"patroni-{{ .Values.db }}-shard-.*\"}[$__rate_interval]))",
+          "expr": "sum(rate(pg_stat_statements_block_write_seconds_total{service=~\"patroni-{{ .Values.db }}-group-.*\"}[$__rate_interval]))",
           "legendFormat": "Block Write Time",
           "range": true,
           "refId": "B"
         }
       ],
       "title": "Query I/O Time",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 145 },
-      "id": 140,
-      "title": "PgDog Connection Pooler",
-      "type": "row"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
-          },
-          "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 146 },
-      "id": 41,
-      "options": {
-        "legend": {
-          "calcs": ["lastNotNull"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "editorMode": "code",
-          "expr": "sum(pgdog_clients{service=~\"{{ .Values.db }}-pgdog\"})",
-          "legendFormat": "Active Clients",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "editorMode": "code",
-          "expr": "sum(pgdog_cl_waiting{service=~\"{{ .Values.db }}-pgdog\"})",
-          "legendFormat": "Clients Waiting",
-          "range": true,
-          "refId": "B"
-        }
-      ],
-      "title": "Client Connections",
-      "type": "timeseries"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
-          },
-          "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 146 },
-      "id": 42,
-      "options": {
-        "legend": {
-          "calcs": ["lastNotNull"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "editorMode": "code",
-          "expr": "sum(pgdog_sv_active{service=~\"{{ .Values.db }}-pgdog\"})",
-          "legendFormat": "Server Active",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "editorMode": "code",
-          "expr": "sum(pgdog_sv_idle{service=~\"{{ .Values.db }}-pgdog\"})",
-          "legendFormat": "Server Idle",
-          "range": true,
-          "refId": "B"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "editorMode": "code",
-          "expr": "sum(pgdog_sv_idle_xact{service=~\"{{ .Values.db }}-pgdog\"})",
-          "legendFormat": "Server Idle in Transaction",
-          "range": true,
-          "refId": "C"
-        }
-      ],
-      "title": "Server Connections",
-      "type": "timeseries"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
-          },
-          "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 154 },
-      "id": 43,
-      "options": {
-        "legend": {
-          "calcs": ["lastNotNull"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "editorMode": "code",
-          "expr": "avg(pgdog_avg_query_time{service=~\"{{ .Values.db }}-pgdog\"}) / 1000000",
-          "legendFormat": "Avg Query Time",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "editorMode": "code",
-          "expr": "avg(pgdog_avg_xact_time{service=~\"{{ .Values.db }}-pgdog\"}) / 1000000",
-          "legendFormat": "Avg Transaction Time",
-          "range": true,
-          "refId": "B"
-        }
-      ],
-      "title": "Query & Transaction Latency",
-      "type": "timeseries"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
-          },
-          "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 154 },
-      "id": 44,
-      "options": {
-        "legend": {
-          "calcs": ["lastNotNull"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "editorMode": "code",
-          "expr": "sum(rate(pgdog_total_query_count{service=~\"{{ .Values.db }}-pgdog\"}[$__rate_interval]))",
-          "legendFormat": "Queries/s",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "editorMode": "code",
-          "expr": "sum(rate(pgdog_total_xact_count{service=~\"{{ .Values.db }}-pgdog\"}[$__rate_interval]))",
-          "legendFormat": "Transactions/s",
-          "range": true,
-          "refId": "B"
-        }
-      ],
-      "title": "Query & Transaction Throughput",
-      "type": "timeseries"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
-          },
-          "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 162 },
-      "id": 45,
-      "options": {
-        "legend": {
-          "calcs": ["lastNotNull"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "editorMode": "code",
-          "expr": "max(pgdog_maxwait{service=~\"{{ .Values.db }}-pgdog\"}) / 1000000",
-          "legendFormat": "Max Wait Time",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Connection Wait Time",
-      "type": "timeseries"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
-          },
-          "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
-          "unit": "Bps"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 162 },
-      "id": 46,
-      "options": {
-        "legend": {
-          "calcs": ["lastNotNull"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "editorMode": "code",
-          "expr": "sum(rate(pgdog_total_sent{service=~\"{{ .Values.db }}-pgdog\"}[$__rate_interval]))",
-          "legendFormat": "Bytes Sent",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "editorMode": "code",
-          "expr": "sum(rate(pgdog_total_received{service=~\"{{ .Values.db }}-pgdog\"}[$__rate_interval]))",
-          "legendFormat": "Bytes Received",
-          "range": true,
-          "refId": "B"
-        }
-      ],
-      "title": "Data Transfer",
-      "type": "timeseries"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
-          },
-          "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
-          "unit": "percentunit"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 170 },
-      "id": 47,
-      "options": {
-        "legend": {
-          "calcs": ["lastNotNull"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "editorMode": "code",
-          "expr": "sum(pgdog_query_cache_hits{service=~\"{{ .Values.db }}-pgdog\"}) / clamp_min(sum(pgdog_query_cache_hits{service=~\"{{ .Values.db }}-pgdog\"}) + sum(pgdog_query_cache_misses{service=~\"{{ .Values.db }}-pgdog\"}), 1)",
-          "legendFormat": "Query Cache Hit Ratio",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Query Cache Hit Ratio",
-      "type": "timeseries"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
-          },
-          "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 170 },
-      "id": 48,
-      "options": {
-        "legend": {
-          "calcs": ["lastNotNull"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "editorMode": "code",
-          "expr": "sum(pgdog_errors{service=~\"{{ .Values.db }}-pgdog\"})",
-          "legendFormat": "Errors",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "editorMode": "code",
-          "expr": "sum(pgdog_out_of_sync{service=~\"{{ .Values.db }}-pgdog\"})",
-          "legendFormat": "Out of Sync",
-          "range": true,
-          "refId": "B"
-        }
-      ],
-      "title": "Errors",
       "type": "timeseries"
     }
   ],

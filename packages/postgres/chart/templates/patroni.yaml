@@ -34,23 +34,25 @@ data:
   pgbackrest.conf: |
 {{ .Files.Get "files/pgbackrest-server.conf" | indent 4 }}
 
-{{- range $shardIndex := until (int $.Values.patroni.shards) }}
+{{- range $group := until (add1 $.Values.patroni.workers | int) }}
 ---
 # provides a stable ip for the primary
 apiVersion: v1
 kind: Service
 metadata:
-  name: patroni-{{ $.Values.db }}-primary-shard-{{ $shardIndex }}
+  name: patroni-{{ $.Values.db }}-primary-group-{{ $group }}
   namespace: {{ $.Values.namespace }}
   labels:
-    app: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
-    cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
+    app: patroni-{{ $.Values.db }}
+    cluster-name: {{ $.Values.db }}
+    citus-group: {{ $group | quote }}
     role: primary
 spec:
   type: ClusterIP
   selector:
-    app: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
-    cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
+    app: patroni-{{ $.Values.db }}
+    cluster-name: {{ $.Values.db }}
+    citus-group: {{ $group | quote }}
     role: primary
   ports:
     - name: postgres
@@ -65,17 +67,19 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: patroni-{{ $.Values.db }}-replicas-shard-{{ $shardIndex }}
+  name: patroni-{{ $.Values.db }}-replicas-group-{{ $group }}
   namespace: {{ $.Values.namespace }}
   labels:
-    app: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
-    cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
+    app: patroni-{{ $.Values.db }}
+    cluster-name: {{ $.Values.db }}
+    citus-group: {{ $group | quote }}
     role: replica
 spec:
   type: ClusterIP
   selector:
-    app: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
-    cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
+    app: patroni-{{ $.Values.db }}
+    cluster-name: {{ $.Values.db }}
+    citus-group: {{ $group | quote }}
     role: replica
   ports:
     - name: postgres
@@ -89,18 +93,20 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+  name: patroni-{{ $.Values.db }}-group-{{ $group }}
   namespace: {{ $.Values.namespace }}
   labels:
-    app: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+    app: patroni-{{ $.Values.db }}
     app.kubernetes.io/name: patroni
     database: {{ $.Values.db }}
-    cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
+    cluster-name: {{ $.Values.db }}
+    citus-group: {{ $group | quote }}
 spec:
   clusterIP: None
   selector:
-    app: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
-    cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
+    app: patroni-{{ $.Values.db }}
+    cluster-name: {{ $.Values.db }}
+    citus-group: {{ $group | quote }}
   ports:
     - name: postgres
       port: 5432
@@ -116,23 +122,26 @@ spec:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+  name: patroni-{{ $.Values.db }}-group-{{ $group }}
   namespace: {{ $.Values.namespace }}
   labels:
-    app: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
-    cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
+    app: patroni-{{ $.Values.db }}
+    cluster-name: {{ $.Values.db }}
+    citus-group: {{ $group | quote }}
 spec:
   replicas: {{ $.Values.patroni.replicasPerShard }}
-  serviceName: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+  serviceName: patroni-{{ $.Values.db }}-group-{{ $group }}
   selector:
     matchLabels:
-      app: &app patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
-      cluster-name: &cluster-name {{ $.Values.db }}-shard-{{ $shardIndex }}
+      app: &app patroni-{{ $.Values.db }}
+      cluster-name: &cluster-name {{ $.Values.db }}
+      citus-group: &citus-group {{ $group | quote }}
   template:
     metadata:
       labels:
         app: *app
         cluster-name: *cluster-name
+        citus-group: *citus-group
     spec:
       {{- with $.Values.nodeSelector }}
       nodeSelector:
@@ -149,10 +158,13 @@ spec:
                 matchLabels:
                   app: *app
                   cluster-name: *cluster-name
+                  citus-group: *citus-group
               topologyKey: kubernetes.io/hostname
-      serviceAccountName: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+      serviceAccountName: patroni-{{ $.Values.db }}
       securityContext:
         fsGroup: 999
+        # NOTE: the default recursive chmod on every mount opens up citus's server.key, which postgres refuses
+        fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -185,6 +197,8 @@ spec:
               value: *app
             - name: CLUSTER_NAME
               value: *cluster-name
+            - name: CITUS_GROUP
+              value: *citus-group
             - name: NAMESPACE
               valueFrom:
                 fieldRef:
@@ -248,10 +262,10 @@ spec:
             - name: ENCRYPTION_KEY
               value: &encryption-key {{ $.Values.backup.encryptionKey }}
             - name: BACKUP_HOST_COMMON_NAME
-              value: &backup-host-common-name {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup
+              value: &backup-host-common-name {{ $.Values.db }}-group-{{ $group }}-pgbackrest-backup
             {{- end }}
             - name: STANZA
-              value: *cluster-name
+              value: &stanza {{ $.Values.db }}-group-{{ $group }}
           {{- with $.Values.patroni.resources.patroni }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -319,7 +333,7 @@ spec:
             - name: BACKUP_HOST_COMMON_NAME
               value: *backup-host-common-name
             - name: STANZA
-              value: *cluster-name
+              value: *stanza
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
@@ -427,7 +441,7 @@ spec:
             defaultMode: 0600
             sources:
               - secret:
-                  name: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}-tls
+                  name: patroni-{{ $.Values.db }}-group-{{ $group }}-tls
                   items:
                     - key: tls.crt
                       path: client.crt
@@ -436,7 +450,7 @@ spec:
                     - key: ca.crt
                       path: ca.crt
               - secret:
-                  name: {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup-tls
+                  name: {{ $.Values.db }}-group-{{ $group }}-pgbackrest-backup-tls
                   items:
                     - key: tls.crt
                       path: server.crt

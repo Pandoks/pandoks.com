@@ -95,10 +95,6 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
-    "MainMainPostgresPgdogAdminPassword": {
-      "type": "sst.sst.Secret"
-      "value": string
-    }
     "MainMainPostgresReplicationPassword": {
       "type": "sst.sst.Secret"
       "value": string

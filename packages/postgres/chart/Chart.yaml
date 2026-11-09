@@ -1,13 +1,14 @@
 apiVersion: v2
 name: postgres
-description: A Helm chart for PostgreSQL clusters with Patroni, PgDog, and PgBackRest
+description: A Helm chart for PostgreSQL clusters with Patroni, Citus, PgBouncer, and PgBackRest
 type: application
-version: 0.1.3
+version: 0.2.0
 appVersion: '18'
 keywords:
   - postgresql
   - patroni
-  - pgdog
+  - citus
+  - pgbouncer
   - pgbackrest
   - database
 maintainers:
