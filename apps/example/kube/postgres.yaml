@@ -18,3 +18,4 @@ spec:
     backup.path: kubernetes/main/postgres
     backup.image: ${ImageRegistry}/pgbackrest:${ImageTag}
     patroni.image: ${ImageRegistry}/patroni:${ImageTag}
+    patroni.reconcilerImage: ${ImageRegistry}/postgres-reconciler:${ImageTag}

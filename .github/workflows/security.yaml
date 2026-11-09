@@ -51,6 +51,7 @@ jobs:
         name:
           - patroni
           - pgbackrest
+          - postgres-reconciler
           - valkey
           - valkey-reconciler
           - argocd-sst-plugin

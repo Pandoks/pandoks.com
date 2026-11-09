@@ -1,3 +1,6 @@
 go 1.27.3
 
-use ./packages/valkey/reconciler
+use (
+	./packages/postgres/reconciler
+	./packages/valkey/reconciler
+)

@@ -14,6 +14,10 @@ on:
         description: 'Image · pgbackrest'
         type: boolean
         default: false
+      postgres-reconciler:
+        description: 'Image · postgres-reconciler'
+        type: boolean
+        default: false
       valkey:
         description: 'Image · valkey'
         type: boolean
@@ -77,6 +81,8 @@ jobs:
               - 'packages/postgres/patroni/**'
             pgbackrest:
               - 'packages/postgres/pgbackrest/**'
+            postgres-reconciler:
+              - 'packages/postgres/reconciler/**'
             valkey:
               - 'packages/valkey/**'
             valkey-reconciler:
@@ -109,6 +115,7 @@ jobs:
           all='[
             {"name":"patroni","path":"./packages/postgres/patroni/Dockerfile"},
             {"name":"pgbackrest","path":"./packages/postgres/pgbackrest/Dockerfile"},
+            {"name":"postgres-reconciler","path":"./packages/postgres/reconciler/Dockerfile"},
             {"name":"valkey","path":"./packages/valkey/Dockerfile"},
             {"name":"valkey-reconciler","path":"./packages/valkey/reconciler/Dockerfile"},
             {"name":"argocd-sst-plugin","path":"./packages/argocd/Dockerfile"},

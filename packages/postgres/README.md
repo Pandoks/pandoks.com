@@ -197,6 +197,7 @@ spec:
     backup.path: kubernetes/myapp/postgres
     backup.image: ${ImageRegistry}/pgbackrest:${ImageTag}
     patroni.image: ${ImageRegistry}/patroni:${ImageTag}
+    patroni.reconcilerImage: ${ImageRegistry}/postgres-reconciler:${ImageTag}
     patroni.workers: 0
     patroni.replicasPerShard: 3
 ```
@@ -317,12 +318,12 @@ instead, queries to its group can fail for up to `citus.node_connection_timeout`
 ### Change Postgres Settings
 
 Set `patroni.parameters` in the HelmChart. New clusters start with them, and after every install,
-upgrade and rollback a Job applies them to each group. Helm waits for the Job, which waits for a new
-cluster to restore its backup, so a restore longer than the HelmChart's `timeout` fails the release,
-and `failurePolicy: abort` then holds every later upgrade until you fix it. Size `timeout` to your
-largest restore. Settings Postgres can reload, like `work_mem`, take effect within seconds. Ones
-that need a restart, like `shared_buffers`, show under `Pending restart` until you restart each
-group in place:
+upgrade and rollback a [reconciler](./reconciler) Job (`apply-parameters`) applies them to each
+group. Helm waits for the Job, which waits for a new cluster to restore its backup, so a restore
+longer than the HelmChart's `timeout` fails the release, and `failurePolicy: abort` then holds every
+later upgrade until you fix it. Size `timeout` to your largest restore. Settings Postgres can
+reload, like `work_mem`, take effect within seconds. Ones that need a restart, like
+`shared_buffers`, show under `Pending restart` until you restart each group in place:
 
 ```bash
 kubectl exec -n myapp patroni-myapp-group-0-0 -c patroni -- \
@@ -604,12 +605,15 @@ after changing them:
 | ----------------------------- | --------------------------------------------------------------- |
 | `pnpm local:build:patroni`    | Builds the patroni docker image locally                         |
 | `pnpm local:build:pgbackrest` | Builds the pgbackrest docker image locally                      |
+| `pnpm local:build:reconciler` | Builds the postgres-reconciler docker image locally             |
 | `pnpm local:build:helm`       | Packages the helm chart into a `.tgz` locally                   |
 | `pnpm local:build`            | All of the build commands above                                 |
 | `pnpm local:push:patroni`     | Pushes the patroni image to the local k3d registry              |
 | `pnpm local:push:pgbackrest`  | Pushes the pgbackrest image to the local k3d registry           |
+| `pnpm local:push:reconciler`  | Pushes the postgres-reconciler image to the local k3d registry  |
 | `pnpm local:push:helm`        | Pushes the helm chart package to the local k3d registry via oci |
 | `pnpm local:push`             | All of the push commands above                                  |
+| `pnpm test`                   | Runs the reconciler Go tests                                    |
 
 `pnpm local:build && pnpm local:push` from the repo root does this for every package.
 
@@ -644,6 +648,7 @@ after changing them:
 | `patroni.workers`                        | Citus worker groups (0 = coordinator only)         | `0`                                                         |
 | `patroni.replicasPerShard`               | Pods per group (1 primary + n - 1 replicas)        | `3`                                                         |
 | `patroni.image`                          | Patroni image                                      | `ghcr.io/pandoks/patroni:latest`                            |
+| `patroni.reconcilerImage`                | Image of the Job that applies `patroni.parameters` | `ghcr.io/pandoks/postgres-reconciler:latest`                |
 | `patroni.parameters.*`                   | Postgres settings, applied to running clusters     | `max_connections: 100`, `shared_buffers: 128MB`, etc.       |
 | `patroni.resources.*`                    | `patroni`, `pgbackrest`, `postgresExporter`        | `{}`                                                        |
 | `pgbouncer.image`                        | PgBouncer image                                    | `ghcr.io/cloudnative-pg/pgbouncer`                          |
