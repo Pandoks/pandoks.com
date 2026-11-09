@@ -49,7 +49,8 @@ if (isProduction) {
           'security-pass',
           'tests-pass',
           'build-and-publish-pass'
-        ].map((context) => ({ context, integrationId: GITHUB_ACTIONS_APP_ID }))
+        ].map((context) => ({ context, integrationId: GITHUB_ACTIONS_APP_ID })),
+        strictRequiredStatusChecksPolicy: true
       }
     }
   });
