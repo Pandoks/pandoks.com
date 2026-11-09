@@ -10,12 +10,14 @@ spec:
     command: [sh, -c]
     args:
       - |
-        cd "$(git rev-parse --show-toplevel)"
-        pnpm install --frozen-lockfile
-        pnpm sst install
+        cd ../../..
+        [ -f pnpm-workspace.yaml ] || { echo "Expected k3s/overlays/<env>" >&2; exit 1; }
+        pnpm install --frozen-lockfile --ignore-scripts --store-dir /tmp/pnpm-store
+        pnpm sst install --stage production
   generate:
     command: [sh, -c]
     args:
       - |
-        cd "$(git rev-parse --show-toplevel)"
+        cd ../../..
+        [ -f pnpm-workspace.yaml ] || { echo "Expected k3s/overlays/<env>" >&2; exit 1; }
         sh ./scripts/cluster/main.sh deploy prod --dry-run --quiet

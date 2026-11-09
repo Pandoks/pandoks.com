@@ -24,6 +24,7 @@ jobs:
       svelte: ${{ steps.filter.outputs.svelte }}
       prettier: ${{ steps.filter.outputs.prettier }}
       valkey-reconciler: ${{ steps.filter.outputs.valkey-reconciler }}
+      release: ${{ steps.filter.outputs.release }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -42,6 +43,10 @@ jobs:
               - 'packages/svelte/**'
             prettier:
               - 'packages/prettier/**'
+            release:
+              - 'scripts/ci/**'
+              - 'k3s/components/images/**'
+              - '.github/workflows/build-and-publish.yaml'
             valkey-reconciler:
               - 'packages/valkey/reconciler/**'
 
@@ -120,6 +125,17 @@ jobs:
       - name: Run tests
         run: pnpm --filter @pandoks.com/valkey test
 
+  test-release:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: kustomize yq
+      - run: python3 -B -m unittest discover -s scripts/ci/tests -v
+
   tests-pass:
     needs:
       - detect-changes
@@ -128,6 +144,7 @@ jobs:
       - test-svelte-pkg
       - test-prettier-pkg
       - test-valkey-reconciler
+      - test-release
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:

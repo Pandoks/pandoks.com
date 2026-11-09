@@ -50,7 +50,7 @@
       "customType": "regex",
       "managerFilePatterns": ["/^apps/.+/kube/.+\\.ya?ml$/"],
       "matchStrings": [
-        "chart: oci://\\$\\{ImageRegistry\\}/(?<depName>charts/[a-z0-9-]+)\\s+version: (?<currentValue>\\S+)"
+        "chart: oci://ghcr\\.io/pandoks/(?<depName>charts/[a-z0-9-]+)\\s+version: (?<currentValue>\\S+)"
       ],
       "packageNameTemplate": "ghcr.io/pandoks/{{{depName}}}",
       "datasourceTemplate": "docker"
@@ -99,6 +99,12 @@
     }
   ],
   "packageRules": [
+    {
+      "description": "scripts/ci/publish.sh pins first-party images per release, and the local overlay uses the local registry.",
+      "matchManagers": ["kustomize", "kubernetes"],
+      "matchPackageNames": ["ghcr.io/pandoks/**", "local-registry:5000/**"],
+      "enabled": false
+    },
     {
       "description": "Merging a refresh rebuilds Valkey, which changes its digest again.",
       "matchPackageNames": ["ghcr.io/pandoks/valkey"],

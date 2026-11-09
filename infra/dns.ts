@@ -1,12 +1,17 @@
 import { secrets, setSecret } from './secrets';
 
 export const isProduction = $app.stage === 'production';
+export const isSharedDev = $app.stage === 'dev';
 
-export const domain = isProduction ? 'pandoks.com' : 'dev.pandoks.com';
+export const domain = isProduction
+  ? 'pandoks.com'
+  : isSharedDev
+    ? 'preview.pandoks.com'
+    : 'dev.pandoks.com';
 
-export const EXAMPLE_DOMAIN = 'example.pandoks.com';
+export const EXAMPLE_DOMAIN = isSharedDev ? '*.pandoks.com' : 'example.pandoks.com';
 
-export const STAGE_NAME = isProduction ? 'prod' : 'dev';
+export const STAGE_NAME = isProduction ? 'prod' : isSharedDev ? 'preview' : 'dev';
 
 secrets.Stage.value.apply((stageName) => {
   if (stageName !== STAGE_NAME) {

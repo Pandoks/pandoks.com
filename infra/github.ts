@@ -54,6 +54,19 @@ if (isProduction) {
     }
   });
 
+  new github.RepositoryRuleset('GithubDeployProductionRuleset', {
+    name: 'deploy/production',
+    repository: githubRepoName,
+    target: 'branch',
+    enforcement: 'active',
+    conditions: { refName: { includes: ['refs/heads/deploy/production'], excludes: [] } },
+    // NOTE: Only Build and Publish's lease-guarded push writes the ref Argo deploys prod from.
+    bypassActors: [
+      { actorId: GITHUB_ACTIONS_APP_ID, actorType: 'Integration', bypassMode: 'always' }
+    ],
+    rules: { creation: true, update: true, deletion: true, nonFastForward: true }
+  });
+
   new github.ActionsSecret('GithubGithubAccessToken', {
     repository: githubRepoName,
     secretName: 'GH_TOKEN',
