@@ -546,9 +546,10 @@ kubectl exec -n myapp patroni-myapp-group-2-0 -c patroni -- \
   pgbackrest --stanza=myapp-group-2 stanza-delete --force
 ```
 
-Then lower `patroni.workers` and redeploy. Helm deletes the group's StatefulSet, services,
-certificates, and backup CronJobs. Patroni's endpoints and `-config` Service, cert-manager's TLS
-secrets, and the PVCs are left behind:
+Then lower `patroni.workers` and redeploy right away, since the group's WAL archiving and backup
+CronJobs fail until it's gone. Helm deletes the group's StatefulSet, services, certificates, and
+backup CronJobs. Patroni's endpoints and `-config` Service, cert-manager's TLS secrets, and the PVCs
+are left behind:
 
 ```bash
 kubectl delete endpoints,service -n myapp -l cluster-name=myapp,citus-group=2
