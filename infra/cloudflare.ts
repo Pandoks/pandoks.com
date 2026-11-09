@@ -79,8 +79,8 @@ $resolve([
   secrets.k8s.HetznerOriginTlsKey.name,
   secrets.k8s.HetznerOriginTlsCrt.name
 ]).apply(([certificate, storedCertificate, keySecretName, certificateSecretName]) => {
-  // NOTE: compare trimmed, since a secret set from stdin may drop the PEM's trailing newline
-  if (certificate.trim() !== storedCertificate.trim()) {
+  // NOTE: only a checkout holding the CSR's key can sync the pair; CI has none, so it never writes
+  if (existsSync(certificateKeyPath) && certificate.trim() !== storedCertificate.trim()) {
     execFileSync(
       '/bin/sh',
       ['-lc', `sst secret set ${keySecretName} --stage ${$app.stage} < ${certificateKeyPath}`],

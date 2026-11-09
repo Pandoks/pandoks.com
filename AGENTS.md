@@ -76,9 +76,9 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
   which gets `dev.pandoks.com`. Non-production stages share Tailscale `tag:dev`; only production and
   shared `dev` manage their GitHub environment (`dev` isn't trusted by AWS). Only the shared `dev`
   and production origin CSRs (`infra/vps/vps.origin.<dev|prod>.csr`) are committed, so a personal
-  stage's origin cert rotates on its first deploy from a fresh checkout. A deploy whose issued cert
-  differs from the stored `HetznerOriginTlsCrt` writes it and `HetznerOriginTlsKey` from the
-  checkout's gitignored `.key`, failing if that key is missing.
+  stage's origin cert rotates on its first deploy from a fresh checkout. A deploy from a checkout
+  holding the stage's gitignored `.key` rewrites `HetznerOriginTlsKey` and `HetznerOriginTlsCrt`
+  when the issued cert differs from the stored one; CI never does.
 - Stage `dev` owns proxied `*.pandoks.com` records and origin cert, because Universal SSL covers
   only first-level preview hosts; personal stages get `example-<stage>.pandoks.com` for the same
   reason. Once stage `dev` has load balancers, any `pandoks.com` host without its own record reaches
@@ -147,7 +147,7 @@ checkout. The SST CLI is `pnpm sst`.
 Before calling infra, cluster, or tooling work done, check:
 
 - **Environments:** no per-environment commands; local k3d, dev, and prod differ only in overlays,
-  variables, and `isProduction` branches.
+  variables, and `isProduction` or `isSharedDev` branches.
 - **Wiring and pins:** the wiring and Renovate rules under Code Review Rules. New pins are exact
   versions (`pnpm add -E`). Pin each copy of a shared version and let Renovate sync them; never read
   or symlink one from another. Gate risky bumps behind Dependency Dashboard approval instead of
@@ -171,9 +171,10 @@ Before calling infra, cluster, or tooling work done, check:
   print colored output with `printf` (plain `echo` is fine), and report errors with `log_error` or
   `die` from `scripts/lib/log.sh`. CI-only scripts may use bash with `local` and no prefixes.
 - **TypeScript/SST:** one `infra/` file per provider or responsibility, a directory once it outgrows
-  one. Stage differences are `SCREAMING_SNAKE` constants from `isProduction ? a : b` at the top,
-  plus `if (isProduction)` around production-only resources. Helpers are verb-named `function`
-  declarations with destructured parameters. `Promise.all` instead of awaiting in loops.
+  one. Stage differences are `SCREAMING_SNAKE` constants from `isProduction ? a : b` (or
+  `isSharedDev`) at the top, plus `if (isProduction)` around production-only resources. Helpers are
+  verb-named `function` declarations with destructured parameters. `Promise.all` instead of awaiting
+  in loops.
 - **Go:** justify every `#nosec` or `//nolint` inline.
 - **Containers and manifests:** pin Dockerfile bases, third-party images, and chart defaults as
   `image:tag@sha256:…` in files a Renovate manager matches; no image lock files. Images in raw
