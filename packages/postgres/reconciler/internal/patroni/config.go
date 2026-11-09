@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -37,8 +39,12 @@ func PatchConfig(configURL string, password string, parameters map[string]any) (
 	defer func() { _ = response.Body.Close() }()
 
 	if response.StatusCode < 200 || response.StatusCode > 299 {
-		return response.StatusCode == http.StatusServiceUnavailable || response.StatusCode == http.StatusConflict,
-			fmt.Errorf("HTTP %s", response.Status)
+		retry = response.StatusCode == http.StatusServiceUnavailable || response.StatusCode == http.StatusConflict
+		responseBody, _ := io.ReadAll(io.LimitReader(response.Body, 1024))
+		if reason := strings.TrimSpace(string(responseBody)); reason != "" {
+			return retry, fmt.Errorf("HTTP %s: %s", response.Status, reason)
+		}
+		return retry, fmt.Errorf("HTTP %s", response.Status)
 	}
 	return false, nil
 }
