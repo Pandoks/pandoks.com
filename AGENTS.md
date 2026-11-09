@@ -76,7 +76,9 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
   which gets `dev.pandoks.com`. Non-production stages share Tailscale `tag:dev`; only production and
   shared `dev` manage their GitHub environment (`dev` isn't trusted by AWS). Only the shared `dev`
   and production origin CSRs (`infra/vps/vps.origin.<dev|prod>.csr`) are committed, so a personal
-  stage's origin cert rotates on its first deploy from a fresh checkout.
+  stage's origin cert rotates on its first deploy from a fresh checkout. A deploy whose issued cert
+  differs from the stored `HetznerOriginTlsCrt` writes it and `HetznerOriginTlsKey` from the
+  checkout's gitignored `.key`, failing if that key is missing.
 - Stage `dev` owns proxied `*.pandoks.com` records and origin cert, because Universal SSL covers
   only first-level preview hosts; personal stages get `example-<stage>.pandoks.com` for the same
   reason. Once stage `dev` has load balancers, any `pandoks.com` host without its own record reaches

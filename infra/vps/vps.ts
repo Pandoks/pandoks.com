@@ -44,7 +44,7 @@ const subnet = new hcloud.NetworkSubnet('HetznerK3sSubnet', {
   networkZone: NETWORK_ZONE
 });
 export const inboundFirewall = new hcloud.Firewall('HetznerInboundFirewall', {
-  name: 'inbound',
+  name: isProduction ? 'inbound' : `${STAGE_NAME}-inbound`,
   rules: [
     {
       direction: 'in',

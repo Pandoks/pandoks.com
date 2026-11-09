@@ -40,7 +40,6 @@ const openSslConfigPath = resolve('infra/vps/vps.openssl.conf');
 const certificateSigningRequestPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.csr`);
 const certificateKeyPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.key`);
 
-let needToSetCertificateSecret = false;
 if (!existsSync(certificateSigningRequestPath)) {
   execFileSync(
     'openssl',
@@ -61,14 +60,6 @@ if (!existsSync(certificateSigningRequestPath)) {
     ],
     { stdio: 'inherit' }
   );
-  secrets.k8s.HetznerOriginTlsKey.name.apply((secretName) => {
-    execFileSync(
-      '/bin/sh',
-      ['-lc', `sst secret set ${secretName} --stage ${$app.stage} < ${certificateKeyPath}`],
-      { stdio: 'inherit' }
-    );
-  });
-  needToSetCertificateSecret = true;
 }
 
 const certificateSigningRequest = readFileSync(certificateSigningRequestPath);
@@ -82,14 +73,25 @@ const hetznerOriginCert = new cloudflare.OriginCaCertificate(
   }
 );
 
-if (needToSetCertificateSecret) {
-  $resolve([hetznerOriginCert.certificate, secrets.k8s.HetznerOriginTlsCrt.name]).apply(
-    ([certificate, secretName]) => {
-      execFileSync(
-        '/bin/sh',
-        ['-lc', `sst secret set ${secretName} --stage ${$app.stage} <<'EOF'\n${certificate}EOF`],
-        { stdio: 'inherit' }
-      );
-    }
-  );
-}
+$resolve([
+  hetznerOriginCert.certificate,
+  secrets.k8s.HetznerOriginTlsCrt.value,
+  secrets.k8s.HetznerOriginTlsKey.name,
+  secrets.k8s.HetznerOriginTlsCrt.name
+]).apply(([certificate, storedCertificate, keySecretName, certificateSecretName]) => {
+  if (certificate !== storedCertificate) {
+    execFileSync(
+      '/bin/sh',
+      ['-lc', `sst secret set ${keySecretName} --stage ${$app.stage} < ${certificateKeyPath}`],
+      { stdio: 'inherit' }
+    );
+    execFileSync(
+      '/bin/sh',
+      [
+        '-lc',
+        `sst secret set ${certificateSecretName} --stage ${$app.stage} <<'EOF'\n${certificate}EOF`
+      ],
+      { stdio: 'inherit' }
+    );
+  }
+});
