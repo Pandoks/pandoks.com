@@ -16,10 +16,13 @@ services:
     container_name: s3
     restart: always
     ports:
-      - 4566:9090
+      - 4566:4566
       # NOTE: pgBackRest only speaks TLS to S3, so it gets the HTTPS port; ClickHouse uses plain HTTP
-      - 4567:9191
+      - 4567:4567
     environment:
+      # NOTE: undocumented S3Mock (Spring) settings for its HTTP and HTTPS ports, which default to 9090 and 9191
+      - HTTP_PORT=4566
+      - SERVER_PORT=4567
       - COM_ADOBE_TESTING_S3MOCK_STORE_ROOT=/s3mockroot
       - COM_ADOBE_TESTING_S3MOCK_STORE_RETAIN_FILES_ON_EXIT=true
       - COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS=backups,dev-backups
