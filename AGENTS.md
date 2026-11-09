@@ -67,10 +67,10 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
   deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
   `infra/`, `apps/` (except `desktop-template` and `example`), and `packages/svelte/`, plus an Argo
-  hard refresh and a wait for Synced and Healthy only for `k3s/` and `scripts/cluster/` changes.
-  Pages builds `apps/web` when a change matches `pathIncludes` in `infra/website.ts`. Argo
-  auto-syncs everything `k3s/overlays/prod` renders but never prunes: a deleted resource stays in
-  prod until pruned by hand.
+  hard refresh and a wait for Synced and Healthy only for `k3s/`, `apps/*/kube/`, and
+  `scripts/cluster/` changes. Pages builds `apps/web` when a change matches `pathIncludes` in
+  `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod` renders but never prunes: a
+  deleted resource stays in prod until pruned by hand.
 - The shared `dev` stage (`isSharedDev` in `infra/dns.ts`) gets `STAGE_NAME` `preview` and
   `preview.pandoks.com`. Every other non-production stage gets `STAGE_NAME` `dev` and
   `dev.pandoks.com`, so two personal stages collide. All non-production stages share the `dev`
@@ -196,12 +196,11 @@ Before calling infra, cluster, or tooling work done, check:
 - Review and fix loops cover correctness, least code, style match, tests, and docs, and stop when a
   full round finds nothing.
 - Babysitting: poll checks and comments newer than the last push, fix real bot findings, dismiss
-  false positives with a written reason, and resolve threads you addressed. Wait while a review bot
-  is reviewing. If one stays silent on the latest push (no reaction, comment, or check) for 5
-  minutes, request a review with the comment command it advertises on the PR, or by @-mentioning it
-  if it advertises none; if it's still silent 30 minutes after the push, stop waiting for it and
-  tell me. Otherwise stop when CI passes and every review bot has reviewed the latest commit with
-  nothing left unhandled.
+  false positives with a written reason, and resolve threads you addressed. Once CI passes and
+  nothing is left unhandled, stop at the first of these and tell me which bots didn't review:
+  - every review bot has reviewed the latest push;
+  - 30 minutes have passed since that push;
+  - you have no timer, and no bot still missing shows activity on that push.
 
 ## Code Review Rules
 
@@ -231,10 +230,8 @@ that can't happen, or for compatibility code for old data or deploy order during
   `sst.Secret` names, `${...}` placeholders, and `${{ secrets.* }}` are fine.
 - A swallowed failure in CI checks, scans, builds, or deploys, such as `|| true`, ignored exit
   codes, Trivy `exit-code: '0'`, or `continue-on-error`. Safe path: let the step fail. Intended
-  exceptions: a known upstream bug with a `TODO:` linking the issue (like `sst refresh` in
-  `deploy-infra.yaml`) and the best-effort `rollout status ... || true` waits in
-  `scripts/cluster/deploy.sh`. Lint suppressions like `# hadolint ignore=` aren't swallowed
-  failures.
+  exception: a known upstream bug with a `TODO:` linking the issue (like `sst refresh` in
+  `deploy-infra.yaml`). Lint suppressions like `# hadolint ignore=` aren't swallowed failures.
 - Missing wiring, because the thing silently never gets built, tested, deployed, or scanned, and a
   skipped path-filtered job still passes its required check:
   - a new `infra/` module outside `sst.config.ts`'s import graph;
