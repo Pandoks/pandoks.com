@@ -178,8 +178,8 @@ Before calling infra, cluster, or tooling work done, check:
 
 - Stage (`git rm` included), commit, push, or open a PR only when asked. Once asked to push to a PR,
   commit and push its follow-up fixes there without asking again. A check waiting on my approval
-  doesn't hold an asked-for PR; open it and list the pending check. Never rewrite pushed history;
-  leave merging to me.
+  doesn't hold an asked-for PR; open it and list the pending check. Never rewrite pushed history:
+  bring a PR that's behind `main` up to date by merging `main` into it. Leave merging to me.
 - Commits and PR titles: Conventional Commits as `type(scope): short lowercase summary`, like
   `update(cluster): drop unused flag`. PRs are squash-merged, so the title is the commit that lands.
 - Descriptions are short: what changes and how to use or verify it, describing the current diff, not
