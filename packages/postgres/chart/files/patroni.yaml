@@ -43,7 +43,7 @@ bootstrap: # how new clusters are created or replicas are initialized
         - 'host replication replicator 10.42.0.0/16 scram-sha-256'
         - 'host postgres replicator 10.42.0.0/16 scram-sha-256'
         - 'host postgres postgres 10.42.0.0/16 scram-sha-256'
-        - 'host ${POSTGRES_DB} postgres 10.42.0.0/16 scram-sha-256' # citus connects between nodes as the superuser
+        - 'hostssl ${POSTGRES_DB} postgres 10.42.0.0/16 scram-sha-256' # citus connects between nodes as the superuser
         - 'host ${POSTGRES_DB} client 10.42.0.0/16 scram-sha-256'
         - 'host ${POSTGRES_DB} admin 10.42.0.0/16 scram-sha-256'
   post_bootstrap: /usr/local/bin/cluster-init.sh

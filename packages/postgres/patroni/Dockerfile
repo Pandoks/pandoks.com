@@ -3,12 +3,17 @@ FROM postgres:18-trixie@sha256:bd5dfa494a5a259704365813dbfa5fa6b3e69be7348d43b54
 # renovate: datasource=github-releases depName=citusdata/citus extractVersion=^v(?<version>.+)$
 ARG CITUS_VERSION=14.3.0
 
+# NOTE: packagecloud's citusdata/community key (https://keyserver.ubuntu.com/pks/lookup?op=index&search=0x56F4FA441530DF18)
 ADD https://packagecloud.io/citusdata/community/gpgkey /usr/share/keyrings/citusdata.asc
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # gosu is bundled in the base image but never invoked by our entrypoint;
 # remove it to drop the (unreachable) Go stdlib CVEs in its static binary
 RUN rm -f /usr/local/bin/gosu \
   && apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+  && [ "$(gpg --show-keys --with-colons /usr/share/keyrings/citusdata.asc | awk -F: '$1 == "pub" { getline; print $10 }')" \
+    = E6FFC1A8E2561FC004D1847F56F4FA441530DF18 ] \
   && chmod 644 /usr/share/keyrings/citusdata.asc \
   && echo 'deb [signed-by=/usr/share/keyrings/citusdata.asc] https://packagecloud.io/citusdata/community/debian/ trixie main' \
     > /etc/apt/sources.list.d/citusdata.list \

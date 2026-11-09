@@ -33,11 +33,12 @@ if pgbackrest --stanza="${STANZA}" info | grep -q "full backup"; then
     echo "Failed to upgrade stanza."
     exit 1
   fi
-  pg_ctl start -w -D /var/lib/postgresql/pgdata
+  # NOTE: replaying archived WAL can outlast pg_ctl's 60s wait, so poll instead
+  pg_ctl start -W -D /var/lib/postgresql/pgdata
   # NOTE: recovery promotes on its own once it replays the archived WAL; promoting here would cut it short
   until [ "$(psql -XAt -d postgres -c 'SELECT pg_is_in_recovery()')" = f ]; do
-    pg_ctl status -D /var/lib/postgresql/pgdata > /dev/null || exit 1
     sleep 1
+    pg_ctl status -D /var/lib/postgresql/pgdata > /dev/null || exit 1
   done
   # NOTE: after this script patroni adds the superuser's citus credentials, failing on the restored ones
   if psql -d "${POSTGRES_DB}" -c "DELETE FROM pg_dist_authinfo WHERE nodeid = 0 AND rolename = current_user;"; then
@@ -104,6 +105,10 @@ if [ "${CITUS_GROUP}" -eq 0 ]; then
     echo "Warning: Failed to create pg_stat_statements extension."
   fi
 
+  # NOTE: pg_dist_authinfo takes libpq conninfo, quoted with \ and ' escaped, inside sql's '' escaping
+  admin_conninfo_password=$(printf '%s' "${ADMIN_PASSWORD}" | sed -e "s/[\\\\']/\\\\&/g" -e "s/'/''/g")
+  client_conninfo_password=$(printf '%s' "${CLIENT_PASSWORD}" | sed -e "s/[\\\\']/\\\\&/g" -e "s/'/''/g")
+
   if psql -Atq -d "${POSTGRES_DB}" -c "SELECT 1 FROM pg_roles WHERE rolname='admin'" | grep -q 1; then
     echo "Role 'admin' already exists. Skipping creation."
   else
@@ -112,7 +117,7 @@ if [ "${CITUS_GROUP}" -eq 0 ]; then
       CREATE ROLE admin WITH LOGIN PASSWORD '${ADMIN_PASSWORD}';
       GRANT CONNECT ON DATABASE ${POSTGRES_DB} TO admin;
       GRANT CREATE ON SCHEMA public TO admin;
-      INSERT INTO pg_dist_authinfo VALUES (0, 'admin', 'password=${ADMIN_PASSWORD}');
+      INSERT INTO pg_dist_authinfo VALUES (0, 'admin', 'password=''${admin_conninfo_password}''');
     "; then
       echo "✓ Role 'admin' created successfully."
     else
@@ -132,7 +137,7 @@ if [ "${CITUS_GROUP}" -eq 0 ]; then
       ALTER DEFAULT PRIVILEGES FOR ROLE admin IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO client;
       ALTER DEFAULT PRIVILEGES FOR ROLE admin IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO client;
       ALTER DEFAULT PRIVILEGES FOR ROLE admin IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO client;
-      INSERT INTO pg_dist_authinfo VALUES (0, 'client', 'password=${CLIENT_PASSWORD}');
+      INSERT INTO pg_dist_authinfo VALUES (0, 'client', 'password=''${client_conninfo_password}''');
     "; then
       echo "✓ Role 'client' created successfully."
     else

@@ -87,8 +87,9 @@ graph TB
 ### PgBouncer (Connection Pooling)
 
 - **Transaction pooling** in front of the coordinator primary
-- **Read-only pool** - the `<db>_replicas` database points at the coordinator's replicas. Once
-  workers exist, only tables on the coordinator are read from those replicas: Citus reads the
+- **Read-only pool** - the `<db>_replicas` database points at the coordinator's replicas, with
+  `default_transaction_read_only` on so a pooled connection to a promoted replica still can't write.
+  Once workers exist, only tables on the coordinator are read from those replicas: Citus reads the
   workers' shards from their primaries, since `citus.use_secondary_nodes` defaults to `never`
 - **Authenticates** with `admin` and `client` from the database secret's `userlist.txt`
 
@@ -611,10 +612,11 @@ kubectl exec -n myapp "${coordinator}" -c patroni -- \
 ### Distributed Queries Fail to Authenticate
 
 Citus connects to workers with the superuser, `admin` and `client` passwords in `pg_dist_authinfo`.
-After changing one of them, update it on the coordinator primary too:
+After changing one of them, update it on the coordinator primary too, escaping `\` and `'` in the
+password with `\`, then doubling every `'` for SQL:
 
 ```sql
-UPDATE pg_dist_authinfo SET authinfo = 'password=<new password>' WHERE rolename = 'client';
+UPDATE pg_dist_authinfo SET authinfo = 'password=''<new password>''' WHERE rolename = 'client';
 ```
 
 PgBouncer mounts `userlist.txt` with `subPath`, which never sees secret changes, so restart it after
