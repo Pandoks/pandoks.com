@@ -62,6 +62,8 @@ jobs:
               - '**/*.go'
               - '**/go.mod'
               - '**/go.sum'
+              - 'go.work'
+              - 'go.work.sum'
               - 'mise.toml'
               - '.github/actions/setup-mise/**'
             shell:
