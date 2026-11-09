@@ -23,6 +23,7 @@ jobs:
       desktop: ${{ steps.filter.outputs.desktop }}
       svelte: ${{ steps.filter.outputs.svelte }}
       prettier: ${{ steps.filter.outputs.prettier }}
+      postgres-reconciler: ${{ steps.filter.outputs.postgres-reconciler }}
       valkey-reconciler: ${{ steps.filter.outputs.valkey-reconciler }}
 
     steps:
@@ -42,6 +43,8 @@ jobs:
               - 'packages/svelte/**'
             prettier:
               - 'packages/prettier/**'
+            postgres-reconciler:
+              - 'packages/postgres/reconciler/**'
             valkey-reconciler:
               - 'packages/valkey/reconciler/**'
 
@@ -102,6 +105,24 @@ jobs:
       - name: Run prettier package tests
         run: pnpm --filter @pandoks.com/prettier test
 
+  test-postgres-reconciler:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.postgres-reconciler == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: packages/postgres/reconciler/go.mod
+          cache-dependency-path: packages/postgres/reconciler/go.mod
+
+      - name: Run tests
+        run: pnpm --filter @pandoks.com/postgres test
+
   test-valkey-reconciler:
     needs: detect-changes
     if: needs.detect-changes.outputs.valkey-reconciler == 'true'
@@ -127,6 +148,7 @@ jobs:
       - test-desktop
       - test-svelte-pkg
       - test-prettier-pkg
+      - test-postgres-reconciler
       - test-valkey-reconciler
     if: ${{ always() }}
     runs-on: ubuntu-latest

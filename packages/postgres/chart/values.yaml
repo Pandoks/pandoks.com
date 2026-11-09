@@ -40,6 +40,7 @@ patroni:
   shards: 1
   replicasPerShard: 3 # NOTE: replicasPerShard = primary (1) + replicas (n - 1)
   image: ghcr.io/pandoks/patroni:latest@sha256:66ad4100ceb1e8897759558603e2cae6164bd24c7374abd645bbd02ebcf0e236
+  reconcilerImage: ghcr.io/pandoks/postgres-reconciler:latest
   # NOTE: new clusters start with these, and a Job applies them to running clusters after every
   # install, upgrade and rollback. Ones that need a restart wait for `patronictl restart`, and a key
   # removed here keeps its last value
