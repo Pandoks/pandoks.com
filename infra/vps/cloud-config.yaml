@@ -1,7 +1,7 @@
 #cloud-config
 # env variables:
 # PRIVATE_IP_RANGE
-# STAGE_NAME
+# TAILSCALE_STAGE_TAG
 # ROLE
 # K3S_TOKEN
 # SERVER_API
@@ -137,7 +137,7 @@ runcmd:
       defaultTags:
         - tag:k8s-operator
         - tag:k8s
-        - tag:${STAGE_NAME}
+        - ${TAILSCALE_STAGE_TAG}
     EOF
     )" \
         --dry-run=client -o yaml | kubectl apply --server-side -f -

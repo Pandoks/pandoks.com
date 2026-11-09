@@ -1,6 +1,6 @@
 // WARNING: resources that hold data like servers, volumes, etc. should be protected by the
 // `protect` option in production. This is to prevent accidental deletion of resources.
-import { isProduction, STAGE_NAME } from '../dns';
+import { isProduction, STAGE_NAME, TAILSCALE_STAGE_TAG } from '../dns';
 import { createServers } from './servers';
 import { createLoadBalancers } from './load-balancers';
 import { deleteTailscaleDevices } from '../tailscale';
@@ -129,10 +129,10 @@ const { tailscaleHostnames: _workerTailscaleHostnames, servers: _workerServers }
 );
 
 if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
-  const { devices = [] } = await tailscale.getDevices({ namePrefix: `${STAGE_NAME}` });
+  const { devices = [] } = await tailscale.getDevices({ namePrefix: `${STAGE_NAME}-` });
 
   const kubernetesDevices = devices.filter(
-    (device) => device.tags.includes('tag:k8s') && device.tags.includes(`tag:${STAGE_NAME}`)
+    (device) => device.tags.includes('tag:k8s') && device.tags.includes(TAILSCALE_STAGE_TAG)
   );
   if (kubernetesDevices.length > 0) {
     const deletedDevices = deleteTailscaleDevices(

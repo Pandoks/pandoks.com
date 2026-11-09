@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { deleteTailscaleDevices, tailscaleAcl } from '../tailscale';
-import { isProduction, STAGE_NAME } from '../dns';
+import { isProduction, STAGE_NAME, TAILSCALE_STAGE_TAG } from '../dns';
 import { secrets } from '../secrets';
 import { backupBucket, s3Endpoint } from '../storage';
 import { renderCloudInit } from '../utils';
@@ -19,7 +19,7 @@ export const deleteServerFromTailnet = new $util.ResourceHook(
       namePrefix: `${serverLabels['tailscale'] ?? ''}`
     });
     const serverHetznerDevices = devices.filter(
-      (device) => device.tags.includes('tag:hetzner') && device.tags.includes(`tag:${STAGE_NAME}`)
+      (device) => device.tags.includes('tag:hetzner') && device.tags.includes(TAILSCALE_STAGE_TAG)
     );
     if (serverHetznerDevices.length > 0) {
       const deletedDevices = deleteTailscaleDevices(
@@ -117,7 +117,7 @@ export function createServers(
         reusable: false,
         expiry: 1800, // 30 minutes
         preauthorized: true,
-        tags: ['tag:hetzner', `tag:${STAGE_NAME}`, `tag:${serverArgs.type}`]
+        tags: ['tag:hetzner', TAILSCALE_STAGE_TAG, `tag:${serverArgs.type}`]
       },
       { dependsOn: [tailscaleAcl] }
     );
@@ -152,7 +152,7 @@ export function createServers(
         S3_SECRET_KEY
       ]) => {
         const environments = {
-          STAGE_NAME,
+          TAILSCALE_STAGE_TAG,
           PRIVATE_IP_RANGE,
           K3S_TOKEN,
           SERVER_API: `https://${bootstrapIp}:6443`,

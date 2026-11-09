@@ -1,6 +1,6 @@
 import stringify from 'json-stringify-pretty-compact';
 import { secrets, setSecret } from './secrets';
-import { STAGE_NAME } from './dns';
+import { STAGE_NAME, TAILSCALE_STAGE_TAG } from './dns';
 
 new tailscale.TailnetSettings('TailscaleSettings', {
   httpsEnabled: true
@@ -82,7 +82,6 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         'tag:control-plane': ['pandoks@github'],
         'tag:worker': ['pandoks@github'],
         'tag:dev': ['pandoks@github', 'tag:k8s-operator'],
-        'tag:preview': ['pandoks@github', 'tag:k8s-operator'],
         'tag:prod': ['pandoks@github', 'tag:k8s-operator'],
         'tag:ci': ['pandoks@github'],
         'tag:hub': ['pandoks@github'],
@@ -98,7 +97,7 @@ const kubernetesOperatorOauthClient = new tailscale.OauthClient(
   {
     description: `${STAGE_NAME} k8s operator`,
     scopes: ['devices:core', 'auth_keys', 'services'],
-    tags: ['tag:k8s-operator', `tag:${STAGE_NAME}`]
+    tags: ['tag:k8s-operator', TAILSCALE_STAGE_TAG]
   },
   { dependsOn: [tailscaleAcl] }
 );

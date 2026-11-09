@@ -3,15 +3,21 @@ import { secrets, setSecret } from './secrets';
 export const isProduction = $app.stage === 'production';
 export const isSharedDev = $app.stage === 'dev';
 
+export const STAGE_NAME = isProduction ? 'prod' : $app.stage;
+
 export const domain = isProduction
   ? 'pandoks.com'
   : isSharedDev
-    ? 'preview.pandoks.com'
-    : 'dev.pandoks.com';
+    ? 'dev.pandoks.com'
+    : `${STAGE_NAME}.dev.pandoks.com`;
 
-export const EXAMPLE_DOMAIN = isSharedDev ? '*.pandoks.com' : 'example.pandoks.com';
+export const EXAMPLE_DOMAIN = isProduction
+  ? 'example.pandoks.com'
+  : isSharedDev
+    ? '*.pandoks.com'
+    : `example-${STAGE_NAME}.pandoks.com`;
 
-export const STAGE_NAME = isProduction ? 'prod' : isSharedDev ? 'preview' : 'dev';
+export const TAILSCALE_STAGE_TAG = isProduction ? 'tag:prod' : 'tag:dev';
 
 secrets.Stage.value.apply((stageName) => {
   if (stageName !== STAGE_NAME) {

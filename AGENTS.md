@@ -40,10 +40,10 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
    proxy or working around it with `PORTLESS=0`, `--force`, or `sudo`. If portless says the host is
    already registered, use `pnpm exec portless get web` only if that process runs from this
    checkout; otherwise tell me. `sst diff` evaluates `infra/`: on any stage it can write secrets,
-   and with zero nodes it deletes Tailscale devices tagged for that stage's cluster; personal stages
-   share the `dev` names. Tell me those effects and run `sst diff` only once I accept them; run
-   `sst deploy` or `pnpm dev` (`sst dev`) only when I ask. If SST reports missing or expired AWS
-   credentials, ask me to run `pnpm sso`.
+   and with zero nodes it deletes the stage's `<STAGE_NAME>-` prefixed Kubernetes Tailscale devices.
+   Tell me those effects and run `sst diff` only once I accept them; run `sst deploy` or `pnpm dev`
+   (`sst dev`) only when I ask. If SST reports missing or expired AWS credentials, ask me to run
+   `pnpm sso`.
 3. **Editing my checkout from an experiment.** Use absolute paths in experiment copies;
    `mise exec -C <dir>` runs inside `<dir>`, so never point it at my checkout. Leave my staged and
    unstaged changes alone.
@@ -71,13 +71,15 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
   `scripts/cluster/` changes. Pages builds `apps/web` when a change matches `pathIncludes` in
   `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod` renders but never prunes: a
   deleted resource stays in prod until pruned by hand.
-- The shared `dev` stage (`isSharedDev` in `infra/dns.ts`) gets `STAGE_NAME` `preview` and
-  `preview.pandoks.com`. Every other non-production stage gets `STAGE_NAME` `dev` and
-  `dev.pandoks.com`, so two personal stages collide. All non-production stages share the `dev`
-  GitHub environment, which AWS doesn't trust.
+- `infra/dns.ts` names each stage: production gets `STAGE_NAME` `prod` and `pandoks.com`; others get
+  their stage name and `<stage>.dev.pandoks.com`, except the shared `dev` stage (`isSharedDev`),
+  which gets `dev.pandoks.com`. Non-production stages share Tailscale `tag:dev` and the `dev` GitHub
+  environment, which AWS doesn't trust. Only the shared `dev` and production origin CSRs
+  (`infra/vps/vps.origin.<dev|prod>.csr`) are committed.
 - Stage `dev` owns proxied `*.pandoks.com` records and origin cert, because Universal SSL covers
-  only first-level preview hosts. Once it has load balancers, any `pandoks.com` host without its own
-  record reaches the dev cluster, which holds that cert's key.
+  only first-level preview hosts; personal stages get `example-<stage>.pandoks.com` for the same
+  reason. Once stage `dev` has load balancers, any `pandoks.com` host without its own record reaches
+  the dev cluster, which holds that cert's key.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
   staging tier, promotion step, or per-PR cluster.
 - PRs get no infra diff: `sst diff` decrypts every secret, so never run it with production
