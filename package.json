@@ -33,7 +33,7 @@
     "bcryptjs": "3.0.3",
     "eslint": "10.14.0",
     "eslint-plugin-svelte": "3.24.0",
-    "eslint-plugin-unicorn": "76.0.0",
+    "eslint-plugin-unicorn": "79.0.0",
     "globals": "17.14.0",
     "jiti": "2.7.0",
     "json-stringify-pretty-compact": "4.0.0",
