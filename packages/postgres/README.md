@@ -678,7 +678,7 @@ after changing them:
 | `backup.retention.full`         | Full backups to keep                               | `4`                                                         |
 | `backup.retention.diff`         | Diff backups to keep                               | `2`                                                         |
 | `s3.region`                     | S3 region                                          | `us-west-1`                                                 |
-| `s3.host`                       | S3 endpoint                                        | `host.k3d.internal:4566` (local uses S3Mock TLS on `:4567`) |
+| `s3.host`                       | S3 endpoint                                        | `host.k3d.internal:9191` (S3Mock HTTPS from docker-compose) |
 | `s3.tls`                        | Verify S3 TLS (`y`/`n`)                            | `n`                                                         |
 | `s3.uriStyle`                   | S3 URI style                                       | `path`                                                      |
 | `patroni.shards`                | Number of shards                                   | `1`                                                         |

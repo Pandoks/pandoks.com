@@ -9,13 +9,3 @@ spec:
     hooks.backoffLimit: 0
     hooks.ttlSecondsAfterFinished: 86400 # 24 hours
     hooks.hookDeletePolicy: before-hook-creation
-
----
-apiVersion: helm.cattle.io/v1
-kind: HelmChart
-metadata:
-  name: main-postgres-main-cluster
-  namespace: kube-system
-spec:
-  set:
-    s3.host: host.k3d.internal:4567
