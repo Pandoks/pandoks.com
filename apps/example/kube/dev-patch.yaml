@@ -9,6 +9,7 @@ spec:
     hooks.backoffLimit: 0
     hooks.ttlSecondsAfterFinished: 86400 # 24 hours
     hooks.hookDeletePolicy: before-hook-creation
+
 ---
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
