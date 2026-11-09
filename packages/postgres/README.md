@@ -613,8 +613,10 @@ kubectl exec -n myapp "${coordinator}" -c patroni -- \
 ### Distributed Queries Fail to Authenticate
 
 Citus connects to workers with the superuser, `admin` and `client` passwords in `pg_dist_authinfo`.
-After changing one of them, update it on the coordinator primary too, escaping `\` and `'` in the
-password with `\`, then doubling every `'` for SQL:
+Patroni inserts the superuser's row in each group's own bootstrap and Citus doesn't sync this table,
+so after changing the superuser password update its row on every group's primary; `admin` and
+`client` rows only need the coordinator primary. Escape `\` and `'` in the password with `\`, then
+double every `'` for SQL:
 
 ```sql
 UPDATE pg_dist_authinfo SET authinfo = 'password=''<new password>''' WHERE rolename = 'client';

@@ -1,20 +1,3 @@
-{{- define "pgbouncer.ini" -}}
-[databases]
-{{ .Values.db }} = host=patroni-{{ .Values.db }}-primary-group-0 port=5432 dbname={{ .Values.db }}
-{{ .Values.db }}_replicas = host=patroni-{{ .Values.db }}-replicas-group-0 port=5432 dbname={{ .Values.db }} connect_query='SET default_transaction_read_only = on'
-
-[pgbouncer]
-listen_addr = 0.0.0.0
-listen_port = 6432
-unix_socket_dir =
-auth_type = scram-sha-256
-auth_file = /etc/pgbouncer/userlist.txt
-ignore_startup_parameters = extra_float_digits
-{{- range $name, $value := .Values.pgbouncer.settings }}
-{{ $name }} = {{ $value }}
-{{- end }}
-{{- end }}
-
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -22,7 +5,7 @@ metadata:
   namespace: {{ .Values.namespace }}
 data:
   pgbouncer.ini: |
-    {{- include "pgbouncer.ini" . | nindent 4 }}
+{{ tpl (.Files.Get "files/pgbouncer.ini") . | indent 4 }}
 
 ---
 apiVersion: v1
@@ -55,7 +38,7 @@ spec:
       labels:
         app: *app
       annotations:
-        checksum/config: {{ include "pgbouncer.ini" . | sha256sum }}
+        checksum/config: {{ tpl (.Files.Get "files/pgbouncer.ini") . | sha256sum }}
     spec:
       automountServiceAccountToken: false
       securityContext:

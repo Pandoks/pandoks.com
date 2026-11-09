@@ -106,15 +106,17 @@ if [ "${CITUS_GROUP}" -eq 0 ]; then
   fi
 
   # NOTE: pg_dist_authinfo takes libpq conninfo, quoted with \ and ' escaped, inside sql's '' escaping
-  admin_conninfo_password=$(printf '%s' "${ADMIN_PASSWORD}" | sed -e "s/[\\\\']/\\\\&/g" -e "s/'/''/g")
-  client_conninfo_password=$(printf '%s' "${CLIENT_PASSWORD}" | sed -e "s/[\\\\']/\\\\&/g" -e "s/'/''/g")
+  admin_sql_password=$(printf '%s' "${ADMIN_PASSWORD}" | sed "s/'/''/g")
+  client_sql_password=$(printf '%s' "${CLIENT_PASSWORD}" | sed "s/'/''/g")
+  admin_conninfo_password=$(printf '%s' "${admin_sql_password}" | sed -e 's/\\/\\\\/g' -e "s/''/\\\\''/g")
+  client_conninfo_password=$(printf '%s' "${client_sql_password}" | sed -e 's/\\/\\\\/g' -e "s/''/\\\\''/g")
 
   if psql -Atq -d "${POSTGRES_DB}" -c "SELECT 1 FROM pg_roles WHERE rolname='admin'" | grep -q 1; then
     echo "Role 'admin' already exists. Skipping creation."
   else
     echo "Role 'admin' does not exist. Creating..."
     if psql -d "${POSTGRES_DB}" -c "
-      CREATE ROLE admin WITH LOGIN PASSWORD '${ADMIN_PASSWORD}';
+      CREATE ROLE admin WITH LOGIN PASSWORD '${admin_sql_password}';
       GRANT CONNECT ON DATABASE ${POSTGRES_DB} TO admin;
       GRANT CREATE ON SCHEMA public TO admin;
       INSERT INTO pg_dist_authinfo VALUES (0, 'admin', 'password=''${admin_conninfo_password}''');
@@ -131,7 +133,7 @@ if [ "${CITUS_GROUP}" -eq 0 ]; then
   else
     echo "Role 'client' does not exist. Creating..."
     if psql -d "${POSTGRES_DB}" -c "
-      CREATE ROLE client WITH LOGIN PASSWORD '${CLIENT_PASSWORD}';
+      CREATE ROLE client WITH LOGIN PASSWORD '${client_sql_password}';
       GRANT CONNECT, TEMPORARY ON DATABASE ${POSTGRES_DB} TO client;
       GRANT USAGE ON SCHEMA public TO client;
       ALTER DEFAULT PRIVILEGES FOR ROLE admin IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO client;

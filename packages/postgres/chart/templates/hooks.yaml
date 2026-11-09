@@ -28,8 +28,8 @@ spec:
           env:
             - name: DB
               value: {{ .Values.db | quote }}
-            - name: GROUPS
-              value: {{ add1 .Values.patroni.workers | quote }}
+            - name: WORKERS
+              value: {{ .Values.patroni.workers | quote }}
             - name: PARAMETERS
               value: {{ .Values.patroni.parameters | toJson | quote }}
             - name: PATRONI_PASSWORD

@@ -8,7 +8,7 @@ import (
 )
 
 func ApplyParameters(env utils.Env) error {
-	for group := range env.Groups {
+	for group := range env.Workers + 1 {
 		configURL := patroni.GetGroupConfigURL(env.DB, group)
 		for {
 			retry, err := patroni.PatchConfig(configURL, env.PatroniPassword, env.Parameters)
