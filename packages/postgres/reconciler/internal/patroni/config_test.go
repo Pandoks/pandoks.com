@@ -59,6 +59,9 @@ func TestPatchConfig(t *testing.T) {
 				if request.Method != http.MethodPatch || request.URL.Path != "/config" {
 					t.Errorf("request = %s %s, want PATCH /config", request.Method, request.URL.Path)
 				}
+				if contentType := request.Header.Get("Content-Type"); contentType != "application/json" {
+					t.Errorf("Content-Type = %q, want application/json", contentType)
+				}
 				if user, password, ok := request.BasicAuth(); !ok || user != "patroni" || password != "password" {
 					t.Errorf("BasicAuth() = %q, %q, %v, want patroni, password, true", user, password, ok)
 				}
