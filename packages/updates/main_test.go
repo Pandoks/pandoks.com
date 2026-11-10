@@ -35,6 +35,7 @@ func writeExport(t *testing.T, createdAt string) string {
 		"metadata.json": `{"version":0,"bundler":"metro","fileMetadata":{
 			"ios":{"bundle":"_expo/static/js/ios/entry.hbc","assets":[{"path":"assets/icon","ext":"png"}]},
 			"android":{"bundle":"_expo/static/js/android/entry.hbc","assets":[]}}}`,
+		"expo-config-dev.json":              `{"slug":"app","name":"App Dev"}`,
 		"expo-config.json":                  `{"slug":"app","name":"App"}`,
 		"created-at":                        createdAt + "\n",
 		"runtime-version-ios-dev.json":      `{"runtimeVersion":"ios-dev-fingerprint"}`,
@@ -169,7 +170,7 @@ func TestTheRunningUpdateGetsNoUpdateAvailable(t *testing.T) {
 	}
 }
 
-func TestARebuildOfTheSameCodeKeepsItsUpdateID(t *testing.T) {
+func TestARebuildOfTheSameCodeIsANewUpdate(t *testing.T) {
 	headers := map[string]string{"expo-platform": "ios", "expo-runtime-version": "ios-fingerprint"}
 	var ids []string
 	for _, createdAt := range []string{"2026-11-09T00:00:00Z", "2026-11-10T00:00:00Z"} {
@@ -180,14 +181,15 @@ func TestARebuildOfTheSameCodeKeepsItsUpdateID(t *testing.T) {
 		}
 		ids = append(ids, update.ID)
 	}
-	if ids[0] != ids[1] {
-		t.Fatalf("IDs %v differ", ids)
+	if ids[0] == ids[1] {
+		t.Fatalf("both builds are update %s, so a revert wouldn't reach phones that have the newer one", ids[0])
 	}
 }
 
 func TestEachBuildGetsTheUpdateForItsRuntimeVersion(t *testing.T) {
 	updatesServer := newTestServer(t, "2026-11-09T00:00:00Z")
-	for _, runtimeVersion := range []string{"ios-fingerprint", "ios-dev-fingerprint"} {
+	builds := map[string]string{"ios-fingerprint": "App", "ios-dev-fingerprint": "App Dev"}
+	for runtimeVersion := range builds {
 		_, body := readSignedPart(t, request(updatesServer, "/", map[string]string{
 			"expo-platform":        "ios",
 			"expo-runtime-version": runtimeVersion,
@@ -198,6 +200,9 @@ func TestEachBuildGetsTheUpdateForItsRuntimeVersion(t *testing.T) {
 		}
 		if update.RuntimeVersion != runtimeVersion {
 			t.Fatalf("runtime version %q, want %q", update.RuntimeVersion, runtimeVersion)
+		}
+		if name := update.Extra["expoClient"].(map[string]any)["name"]; name != builds[runtimeVersion] {
+			t.Fatalf("%s got the config named %q, want %q", runtimeVersion, name, builds[runtimeVersion])
 		}
 	}
 }

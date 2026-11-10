@@ -100,9 +100,9 @@ func parseSigningKey(signingKey string) (*rsa.PrivateKey, error) {
 	return key, nil
 }
 
-// newServer reads the export in dir: expo export's output, plus expo-config.json, created-at, and one
-// runtime-version-<platform>*.json from expo-updates runtimeversion:resolve for each build of the app the update
-// serves. It signs every response up front.
+// newServer reads the export in dir: expo export's output, created-at, and for each build of the app the update
+// serves, a runtime-version-<platform><build>.json from expo-updates runtimeversion:resolve and the public
+// expo-config<build>.json, where <build> is empty for production. It signs every response up front.
 func newServer(dir, publicURL string, key *rsa.PrivateKey) (*server, error) {
 	var metadata struct {
 		FileMetadata map[string]struct {
@@ -114,10 +114,6 @@ func newServer(dir, publicURL string, key *rsa.PrivateKey) (*server, error) {
 		} `json:"fileMetadata"`
 	}
 	if err := readJSON(filepath.Join(dir, "metadata.json"), &metadata); err != nil {
-		return nil, err
-	}
-	var expoClient map[string]any
-	if err := readJSON(filepath.Join(dir, "expo-config.json"), &expoClient); err != nil {
 		return nil, err
 	}
 	createdAt, err := os.ReadFile(filepath.Join(dir, "created-at")) // #nosec G304 -- a file of the export baked into the image
@@ -165,19 +161,25 @@ func newServer(dir, publicURL string, key *rsa.PrivateKey) (*server, error) {
 			if runtime.RuntimeVersion == "" {
 				return nil, fmt.Errorf("%s has no runtime version; set runtimeVersion in the app config", runtimeFile)
 			}
+			build := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(runtimeFile), "runtime-version-"+platform), ".json")
+			var expoClient map[string]any
+			if err := readJSON(filepath.Join(dir, "expo-config"+build+".json"), &expoClient); err != nil {
+				return nil, err
+			}
 			update := manifest{
+				CreatedAt:      strings.TrimSpace(string(createdAt)),
 				RuntimeVersion: runtime.RuntimeVersion,
 				LaunchAsset:    launchAsset,
 				Assets:         assets,
 				Extra:          map[string]any{"expoClient": expoClient},
 			}
-			// NOTE: the content names the update, so a rebuild of the same code isn't downloaded again
+			// NOTE: expo-updates launches the newest update it has, so every build, even of old code, is a new update
+			// and reverting a bad one on main reaches phones that downloaded it
 			content, err := json.Marshal(update)
 			if err != nil {
 				return nil, err
 			}
 			update.ID = uuidFromContent(content)
-			update.CreatedAt = strings.TrimSpace(string(createdAt))
 			signed, err := signPart(key, "manifest", update)
 			if err != nil {
 				return nil, err
