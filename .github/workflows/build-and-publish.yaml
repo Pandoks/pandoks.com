@@ -100,7 +100,8 @@ jobs:
               - 'packages/clickhouse/backup/**'
             # NOTE: not the app's kube/, or merging Renovate's digest bump rebuilds the image and bumps it again
             mobile-template-mobile-updates:
-              - 'packages/mobile-updates/{Dockerfile,Dockerfile.dockerignore,go.mod,main.go}'
+              - 'packages/mobile-updates/{Dockerfile,go.mod,main.go}'
+              - '.dockerignore'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - 'apps/mobile-template/*'
