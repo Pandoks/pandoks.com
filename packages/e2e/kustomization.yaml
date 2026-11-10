@@ -1,4 +1,4 @@
-# Cluster-wide prerequisites the charts expect, applied once per suite run
+# ServiceMonitor CRDs the charts need on a bare cluster (kube-prometheus-stack installs them otherwise)
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
