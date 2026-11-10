@@ -1,5 +1,0 @@
-paths:
-  .github/workflows/deploy-infra.yaml:
-    ignore:
-      # TODO: https://github.com/rhysd/actionlint/issues/657
-      - 'unexpected key "queue" for "concurrency" section'

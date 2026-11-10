@@ -5,6 +5,6 @@ export default ({ config }: ConfigContext) => ({
   ...config,
   updates: {
     ...config.updates,
-    url: `https://updates.${process.env.UPDATES_ENVIRONMENT === 'dev' ? 'dev.' : ''}pandoks.com/${config.slug}`
+    url: `https://${process.env.UPDATES_ENVIRONMENT === 'dev' ? 'updates-dev' : 'updates'}.pandoks.com/${config.slug}`
   }
 });

@@ -38,6 +38,10 @@ on:
         description: 'Image · clickhouse-backup'
         type: boolean
         default: false
+      mobile-template-updates:
+        description: 'Image · mobile-template-updates'
+        type: boolean
+        default: false
       postgres-chart:
         description: 'Chart · postgres'
         type: boolean
@@ -94,6 +98,13 @@ jobs:
               - 'packages/clickhouse/keeper/**'
             clickhouse-backup:
               - 'packages/clickhouse/backup/**'
+            # NOTE: not the app's kube/, or merging Renovate's digest bump rebuilds the image and bumps it again
+            mobile-template-updates:
+              - 'packages/updates/{Dockerfile,Dockerfile.dockerignore,go.mod,main.go}'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'apps/mobile-template/*'
+              - 'apps/mobile-template/!(kube)/**'
 
       - id: chart-changes
         if: github.event_name != 'workflow_dispatch'
@@ -121,7 +132,8 @@ jobs:
             {"name":"argocd-sst-plugin","path":"./packages/argocd/Dockerfile"},
             {"name":"clickhouse","path":"./packages/clickhouse/clickhouse/Dockerfile"},
             {"name":"clickhouse-keeper","path":"./packages/clickhouse/keeper/Dockerfile"},
-            {"name":"clickhouse-backup","path":"./packages/clickhouse/backup/Dockerfile"}
+            {"name":"clickhouse-backup","path":"./packages/clickhouse/backup/Dockerfile"},
+            {"name":"mobile-template-updates","path":"./packages/updates/Dockerfile","build-args":"APP=mobile-template"}
           ]'
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             selected=$(jq -c 'to_entries | map(select(.value == true) | .key)' <<<"${DISPATCH}")
@@ -192,6 +204,7 @@ jobs:
         with:
           context: . # WARN: all dockerfiles should have a context of the root of the repo
           file: ${{ matrix.image.path }}
+          build-args: ${{ matrix.image.build-args }}
           load: true
           push: false
           tags: ${{ matrix.image.name }}:scan
@@ -212,6 +225,7 @@ jobs:
         with:
           context: .
           file: ${{ matrix.image.path }}
+          build-args: ${{ matrix.image.build-args }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
