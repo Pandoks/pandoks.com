@@ -249,6 +249,9 @@ benchmark against the cloud binary is still unrun.
 - **Adversarial battery** — `stealth-browser/scripts/adversarial.py`: local
   detector battery (`checks.py` `PROBE_JS`), CreepJS cross-check, and
   hard-target anti-bot probes (Cloudflare/DataDome/Akamai/Kasada/HUMAN/Amazon).
+- **Validation entry** — `stealth-browser/scripts/validate_build.sh`: runs the
+  offline detector regression gate (`behavior_attack_suite.py`) first, then the
+  adversarial battery; any gate failure fails the validation.
 
 **Top open items, in priority order:**
 1. **Close the composite-benchmark loop.** Run `test_patched_binary.sh` (or

@@ -70,6 +70,19 @@ on-disk dir) once, to shed the baked-in grants.
 (default `http://127.0.0.1:8089`). The agent manages one session implicitly;
 `stealth_create(persistent="<name>")` binds it to an identity profile.
 
+## Validate
+
+```sh
+cd packages/stealth-browser
+scripts/validate_build.sh --base http://localhost:41000   # service running
+scripts/validate_build.sh --skip-battery                  # offline gates only
+```
+
+The validation entry runs, in order: the offline detector regression gate
+(`behavior_attack_suite.py`, ~0.6s — a detector regression fails the
+validation before anything else) then the detection-surface battery
+(`adversarial.py`, needs the service up). Exit 0 = every gate passed.
+
 ## Plain tier
 
 `POST /fetch-plain` (stateless, no session): mass-scraping requests through
