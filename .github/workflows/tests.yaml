@@ -241,7 +241,6 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: packages/mobile-updates/go.mod
-          # NOTE: the server has no dependencies to cache
           cache: false
 
       - name: Run tests
