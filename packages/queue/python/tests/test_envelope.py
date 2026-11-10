@@ -38,3 +38,9 @@ class EnvelopeTest(unittest.TestCase):
                 with self.subTest(password, opener=opener.__name__), self.assertRaises(ValueError) as raised:
                     opener(f"valkey://client:{password}@127.0.0.1:1/q?lease=1s&max_attempts=1")
                 self.assertNotRegex(str(raised.exception), "xq1|zq2")
+
+    def test_decode_rejects_times_go_rejects(self):
+        body = json.loads(FIXTURES[0].read_text())
+        for time in ("2026-11-09T18:00:00", "2026-11-09", "20261109T180000Z"):
+            with self.subTest(time), self.assertRaises(ValueError):
+                decode(json.dumps(body | {"time": time}), attempt=1, deadline=datetime.now(UTC))

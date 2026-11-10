@@ -9,6 +9,7 @@ import {
 import {
   batches,
   checkDelay,
+  checkFailed,
   decodeRows,
   delaySeconds,
   encode,
@@ -19,16 +20,10 @@ import {
   type Queue
 } from './envelope.ts';
 
-export const BATCH_COUNT = 10;
+const BATCH_COUNT = 10;
 const BATCH_BYTES = 1 << 20;
 const WAIT_SECONDS = 20;
 const HOST = /^sqs\.([a-z0-9-]+)\.amazonaws\.com$/;
-
-export function checkFailed(action: string, failed: { Message?: string }[] | undefined): void {
-  if (failed?.length) {
-    throw new Error(`${action}: ${failed.length} failed: ${failed[0].Message}`);
-  }
-}
 
 export function openQueue(url: URL): SQSQueue {
   const params = queryParams(url, 'lease', 'endpoint');

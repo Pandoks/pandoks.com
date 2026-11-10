@@ -20,6 +20,7 @@ const ATTRIBUTES = new Set([
 ]);
 const DURATION = /^(\d+)(ms|s|m|h)$/;
 const DURATION_SECONDS: Record<string, number> = { ms: 0.001, s: 1, m: 60, h: 3600 };
+const RFC3339 = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(Z|[+-]\d\d:\d\d)$/;
 
 /**
  * What a producer sends. JSON data goes in the envelope's data member, anything else in
@@ -126,7 +127,7 @@ export function decode(
     throw new Error('decode envelope: specversion 1.0, id, source, and type are required');
   }
   const time = new Date(members.time);
-  if (Number.isNaN(time.getTime())) {
+  if (!RFC3339.test(members.time) || Number.isNaN(time.getTime())) {
     throw new Error(`decode envelope ${members.id}: time ${members.time} is not RFC 3339`);
   }
   let data: Uint8Array | undefined;
@@ -176,6 +177,13 @@ export function decodeRows(
     }
   }
   return { deliveries, malformed };
+}
+
+/** Throws when an AWS batch call reports failed entries. */
+export function checkFailed(action: string, failed: { Message?: string }[] | undefined): void {
+  if (failed?.length) {
+    throw new Error(`${action}: ${failed.length} failed: ${failed[0].Message}`);
+  }
 }
 
 /** Returns the URL's query, rejecting parameters outside allowed and repeated ones. */

@@ -26,8 +26,8 @@ graph LR
   sent as UTF-8 text. JSON content types (`application/json`, `*+json`) put the data in `data`;
   anything else goes base64 in `data_base64`. Extensions are top-level string members named
   `[a-z0-9]{1,20}`. `time` is written as UTC with milliseconds (`2026-11-09T18:00:00.123Z`) in every
-  language. [testdata/envelopes](./testdata/envelopes) holds the golden envelopes each language
-  decodes and re-encodes.
+  language, and read only as RFC 3339 with an offset. [testdata/envelopes](./testdata/envelopes)
+  holds the golden envelopes each language decodes and re-encodes.
 - **Size:** `Send` and `Publish` reject an envelope over 120,000 bytes on every broker, so a payload
   that works on SQS also fits Cloudflare's 128 KB. Store anything bigger in object storage and send
   a reference.

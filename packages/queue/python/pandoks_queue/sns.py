@@ -33,4 +33,4 @@ class SNSTopic:
             check_failed("publish to SNS", self.client.publish_batch(TopicArn=self.arn, PublishBatchRequestEntries=batch))
 
     def close(self) -> None:
-        pass
+        self.client.close()

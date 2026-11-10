@@ -1,8 +1,8 @@
 // SNS topics whose subscriptions are SQS queues with raw delivery on.
 import { PublishBatchCommand, SNSClient } from '@aws-sdk/client-sns';
-import { batches, encode, queryParams, type Message, type Topic } from './envelope.ts';
-import { BATCH_COUNT, checkFailed } from './sqs.ts';
+import { batches, checkFailed, encode, queryParams, type Message, type Topic } from './envelope.ts';
 
+const BATCH_COUNT = 10;
 const BATCH_BYTES = 256 << 10;
 
 export function openTopic(url: URL): SNSTopic {

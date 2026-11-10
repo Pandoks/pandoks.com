@@ -95,4 +95,4 @@ class SQSQueue:
             )
 
     def close(self) -> None:
-        pass
+        self.client.close()
