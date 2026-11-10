@@ -27,6 +27,7 @@ deploy_compute_vars() {
       ;;
   esac
 
+  # NOTE: local S3 is S3Mock, which only has the buckets docker-compose.yaml creates
   jq -n \
     --arg IsLocal "${deploy_compute_vars_is_local}" \
     --arg ImageRegistry "${deploy_compute_vars_image_registry}" \
@@ -35,7 +36,7 @@ deploy_compute_vars() {
       IsLocal: $IsLocal,
       ImageRegistry: $ImageRegistry,
       ImageTag: $ImageTag
-    }'
+    } + if $IsLocal == "true" then { BackupBucket: "backups" } else {} end'
 }
 
 deploy_get_template_vars() {
