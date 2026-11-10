@@ -40,6 +40,7 @@ jobs:
               - 'apps/desktop-template/**'
               - 'packages/svelte/**'
             mobile-template:
+              - '.github/actions/setup-mise/**'
               - 'pnpm-workspace.yaml'
               - 'pnpm-lock.yaml'
               - 'apps/mobile-template/**'
@@ -211,6 +212,7 @@ jobs:
 
   tests-pass:
     needs:
+      - detect-changes
       - test-web
       - test-desktop
       - test-mobile-template
@@ -219,7 +221,8 @@ jobs:
       - test-svelte-pkg
       - test-prettier-pkg
       - test-valkey-reconciler
-    if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
-      - run: echo "ok"
+      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
