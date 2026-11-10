@@ -51,8 +51,13 @@ EOF
   done
   unset IFS
 else
-  printf '\n# disabled default rdb settings\n' >> /etc/valkey/valkey.conf
-  echo 'save ""' >> /etc/valkey/valkey.conf
+  # NOTE: rdb-del-sync-files deletes the dump.rdb a replica's full sync leaves on the PVC, which a restart would load as stale data
+  cat >> /etc/valkey/valkey.conf << EOF
+
+# disabled default rdb settings
+save ""
+rdb-del-sync-files yes
+EOF
 fi
 
 exec "$@"

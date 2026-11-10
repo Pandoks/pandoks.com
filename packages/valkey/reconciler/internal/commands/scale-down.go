@@ -90,6 +90,13 @@ func ScaleDown(env utils.Env) error {
 		}
 	}
 
+	// NOTE: failovers can leave a master in a removed pod, so promote its replica before replicas go
+	if originalClusterNodeCount > desiredNodeCount {
+		if err := moveMastersToSafeSpots(helperOptions); err != nil {
+			return err
+		}
+	}
+
 	if currentReplicasPerMaster > env.ReplicasPerMaster {
 		if err := removeReplicasFromMasters(helperOptions); err != nil {
 			return err
@@ -102,10 +109,6 @@ func ScaleDown(env utils.Env) error {
 		valkey.PrintClusterNodes(client)
 		fmt.Println("=== Scale Down Complete ===")
 		return nil
-	}
-
-	if err := moveMastersToSafeSpots(helperOptions); err != nil {
-		return err
 	}
 
 	if err := removeDangerZoneNodes(helperOptions); err != nil {

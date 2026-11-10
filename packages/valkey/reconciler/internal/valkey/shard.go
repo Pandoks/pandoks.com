@@ -77,7 +77,7 @@ func PromoteOriginalShardLeader(ctx context.Context, options PromoteOriginalShar
 
 		const section = "replication"
 		replicaInfoCmd := replicaClient.B().Info().Section(section).Build()
-		masterInfoCmd := masterClient.B().Info().Section(section).Build()
+		masterNodesCmd := masterClient.B().ClusterNodes().Build()
 
 		replicaInfo, err := replicaClient.Do(ctx, replicaInfoCmd).ToString()
 		if err != nil || !strings.Contains(replicaInfo, "role:master") {
@@ -89,10 +89,9 @@ func PromoteOriginalShardLeader(ctx context.Context, options PromoteOriginalShar
 			continue
 		}
 
-		masterInfo, err := masterClient.Do(ctx, masterInfoCmd).ToString()
-		if err != nil ||
-			!strings.Contains(masterInfo, "role:slave") ||
-			!strings.Contains(masterInfo, fmt.Sprintf("master_host:%s", lowestIndexPodNode.Hostname)) {
+		// NOTE: match by node id, since master_host is an IP and the topology's IPs go stale when pods restart
+		masterNodes, err := masterClient.Do(ctx, masterNodesCmd).ToString()
+		if err != nil || !strings.Contains(masterNodes, fmt.Sprintf("myself,slave %s", lowestIndexPodNode.ID)) {
 			select {
 			case <-ctx.Done():
 				return "", "", ctx.Err()
