@@ -225,7 +225,7 @@ inline GPUSupportedFeatures* FilterFeaturesByAllowlist(
       continue;
     }
     const V8GPUFeatureName apex_v(apex_e);
-    if (!apex_allow.Contains(String(apex_v.AsStringView()))) {
+    if (!apex_allow.Contains(String::FromUtf8(apex_v.AsStringView().Utf8()))) {
       continue;
     }
     apex_out->AddFeatureName(apex_v);
