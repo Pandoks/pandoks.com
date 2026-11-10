@@ -24,6 +24,7 @@ jobs:
       svelte: ${{ steps.filter.outputs.svelte }}
       prettier: ${{ steps.filter.outputs.prettier }}
       valkey-reconciler: ${{ steps.filter.outputs.valkey-reconciler }}
+      e2e: ${{ steps.filter.outputs.e2e }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -44,6 +45,20 @@ jobs:
               - 'packages/prettier/**'
             valkey-reconciler:
               - 'packages/valkey/reconciler/**'
+            e2e:
+              - 'packages/e2e/**'
+              - 'packages/valkey/**'
+              - 'k3s/base/core/valkey.yaml'
+              - 'scripts/cluster/**'
+              - 'scripts/lib/**'
+              - 'docker-compose.yaml'
+              - 'package.json'
+              - 'mise.toml'
+              - 'go.work'
+              - 'go.work.sum'
+              - '.github/actions/setup-mise/**'
+              - '.github/actions/setup-node-pnpm/**'
+              - '.github/workflows/tests.yaml'
 
   test-web:
     needs: detect-changes
@@ -120,6 +135,33 @@ jobs:
       - name: Run tests
         run: pnpm --filter @pandoks.com/valkey test
 
+  test-e2e:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: go k3d kubectl helm
+
+      - name: Create k3d cluster
+        run: pnpm cluster k3d deps up && pnpm cluster k3d up
+
+      - name: Build and push the Valkey images
+        run: pnpm --filter @pandoks.com/valkey local:build && pnpm --filter @pandoks.com/valkey local:push
+
+      - name: Run e2e tests
+        run: go tool ginkgo -p ./packages/e2e
+
+      - name: Delete k3d cluster
+        if: ${{ always() }}
+        run: pnpm local:destroy
+
   tests-pass:
     needs:
       - detect-changes
@@ -128,6 +170,7 @@ jobs:
       - test-svelte-pkg
       - test-prettier-pkg
       - test-valkey-reconciler
+      - test-e2e
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:

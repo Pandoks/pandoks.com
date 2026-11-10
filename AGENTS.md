@@ -93,7 +93,8 @@ checkout. The SST CLI is `pnpm sst`.
   or `infra/` shows hundreds of false type errors.
 - `pnpm check` type-checks every package, `infra/`, and `sst.config.ts`.
 - Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, and `desktop-template`;
-  `pnpm --filter <package> test` for `prettier` and `valkey`.
+  `pnpm --filter <package> test` for `prettier` and `valkey`; `go tool ginkgo -p ./packages/e2e` for
+  the chart e2e suite on local k3d (`packages/e2e/README.md`).
 - Scoped: `pnpm exec prettier --check <files>`, `pnpm exec eslint [--fix] <files>`, `shellcheck`,
   `shfmt -d`, `hadolint`, `actionlint`, `pnpm --filter "...[origin/main]" --if-present check`. That
   filter and the shell and Docker format and lint commands see only tracked files, so check new
@@ -111,7 +112,8 @@ checkout. The SST CLI is `pnpm sst`.
   - Cluster behavior (`k3s/`, `apps/*/kube`, charts, cluster images): render, deploy to local k3d,
     and exercise it, including the failure paths you touched. k3d has no ArgoCD and skips
     `k3s/overlays/cluster` (Tailscale operator, upgrade controller); for those, render the `dev` and
-    `prod` overlays and build the image instead of forcing them onto k3d.
+    `prod` overlays and build the image instead of forcing them onto k3d. Chart changes also run the
+    e2e suite.
   - `scripts/`: run the real CLI for each result and failure path you touched, argument errors
     included.
   - `infra/` or `sst.config.ts`: full `pnpm check` plus scoped lint after the last edit and before

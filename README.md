@@ -84,8 +84,9 @@ To tear down the cluster:
 pnpm local:destroy
 ```
 
-See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI commands and
-[k3s/README.md](./k3s/README.md) for cluster architecture details.
+See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI commands,
+[k3s/README.md](./k3s/README.md) for cluster architecture details, and
+[packages/e2e/README.md](./packages/e2e/README.md) for the chart e2e tests that run on this cluster.
 
 ## Development
 
