@@ -84,7 +84,8 @@ func WaitForStatefulSetReady(ctx context.Context, namespace, name string, expect
 
 		ready := sts.Status.ReadyReplicas == expected
 		updated := sts.Status.UpdatedReplicas == expected
-		rolloutComplete := sts.Status.CurrentRevision == sts.Status.UpdateRevision
+		// NOTE: status lags a just-applied spec, so an old status can look like a finished rollout
+		rolloutComplete := sts.Status.ObservedGeneration == sts.Generation && sts.Status.CurrentRevision == sts.Status.UpdateRevision
 
 		if ready && updated && rolloutComplete {
 			fmt.Println("✓ StatefulSet is fully ready and updated")

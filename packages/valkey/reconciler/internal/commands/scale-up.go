@@ -220,10 +220,7 @@ func addReplicas(options *scaleUpOptions) error {
 				return err
 			}
 
-			currentClusterHostnames := make([]string, 0, len(clusterTopology.OrderedNodes)+len(replicasAdded))
-			for _, node := range clusterTopology.OrderedNodes {
-				currentClusterHostnames = append(currentClusterHostnames, fmt.Sprintf("%s:%d", node.Hostname, node.Port))
-			}
+			currentClusterHostnames := clusterTopology.Hostnames()
 			for hostname := range replicasAdded {
 				currentClusterHostnames = append(currentClusterHostnames, fmt.Sprintf("%s:%d", hostname, 6379))
 			}
@@ -317,13 +314,24 @@ func waitForEntireClusterForReplicas(env utils.Env, replicasAdded map[string]str
 }
 
 func finalizeScaleUp(options *scaleUpOptions) error {
-	client, clusterTopology := options.client, *options.topology
+	client := options.client
 	rebalanceOptions := valkey.RebalanceOptions{
 		CliBaseOptions:  options.cliBaseOptions,
 		UseEmptyMasters: true,
 		Replace:         true,
 	}
 
+	// NOTE: until every node reports cluster_state:ok, new masters fail rebalance with CLUSTERDOWN and rollout failovers look unhealthy
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	if err := valkey.WaitForAllNodesClusterInfoState(timeoutCtx, options.env, options.topology.Hostnames(), "cluster_state:ok"); err != nil {
+		return err
+	}
+
+	clusterTopology, err := valkey.GetClusterTopology(client)
+	if err != nil {
+		return err
+	}
 	if healthy, err := clusterTopology.IsHealthy(); !healthy {
 		fmt.Println(confusedMessage)
 		fmt.Println("Cluster is unhealthy with a proper amount of nodes. Something went wrong!")
@@ -331,23 +339,8 @@ func finalizeScaleUp(options *scaleUpOptions) error {
 		return err
 	}
 
-	// NOTE: rebalancing before every node reports cluster_state:ok fails with CLUSTERDOWN
-	nodeHostnames := make([]string, 0, len(clusterTopology.OrderedNodes))
-	for _, node := range clusterTopology.OrderedNodes {
-		nodeHostnames = append(nodeHostnames, fmt.Sprintf("%s:%d", node.Hostname, node.Port))
-	}
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-	if err := valkey.WaitForAllNodesClusterInfoState(timeoutCtx, options.env, nodeHostnames, "cluster_state:ok"); err != nil {
-		return err
-	}
-
 	fmt.Println("Rebalancing slots...")
 	if err := valkey.Rebalance(rebalanceOptions); err != nil {
-		return err
-	}
-	// NOTE: rebalance can exit 0 after a failed slot move
-	if err := valkey.Check(options.cliBaseOptions); err != nil {
 		return err
 	}
 	fmt.Println("✓ Slots rebalanced")

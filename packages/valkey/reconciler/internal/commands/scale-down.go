@@ -390,10 +390,7 @@ func moveMastersToSafeSpots(options *scaleDownOptions) error {
 	desiredNodeCount := env.Masters + env.Masters*env.ReplicasPerMaster
 	lastSafeNodeIndex := desiredNodeCount - 1
 
-	hostnames := make([]string, 0, len(clusterTopology.OrderedNodes))
-	for _, node := range clusterTopology.OrderedNodes {
-		hostnames = append(hostnames, fmt.Sprintf("%s:%d", node.Hostname, node.Port))
-	}
+	hostnames := clusterTopology.Hostnames()
 
 	modifiedTopology := false
 	for _, shard := range clusterTopology.OrderedShards {

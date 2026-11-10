@@ -75,6 +75,8 @@ spec:
     metadata:
       labels:
         app: *app
+      annotations:
+        checksum/config: {{ print (.Files.Get "files/valkey.conf") (.Files.Get "files/users.acl") | sha256sum }}
     spec:
       {{- with .Values.nodeSelector }}
       nodeSelector:
@@ -155,12 +157,13 @@ spec:
               port: 6379
             initialDelaySeconds: 20
             periodSeconds: 10
+          # NOTE: replicas turn ready only once synced, so a rollout never stops a primary its replica can't take over
           readinessProbe:
             exec:
               command:
                 - sh
                 - -c
-                - valkey-cli --user admin -a "$ADMIN_PASSWORD" ping | grep -q PONG
+                - valkey-cli --user admin -a "$ADMIN_PASSWORD" info replication | grep -qE '^(role:master|master_link_status:up)'
             initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 3

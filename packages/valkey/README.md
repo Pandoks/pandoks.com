@@ -153,15 +153,20 @@ be used to inject secrets into the configuration files via env variables. All cl
 templated configuration files via config maps.
 
 The `valkey.conf` file is used to configure the valkey cluster. The `users.acl` file is used to
-configure the users that can access the cluster.
+configure the users that can access the cluster. Passwords can't contain spaces or newlines, which
+`users.acl` can't hold.
 
 ### valkey.conf
 
 [valkey.conf](./chart/files/valkey.conf) is used to configure the valkey cluster. Replicas
-authenticate to their primary as **admin**. On `SIGTERM` (pod delete, rollout, drain), a primary
-first fails over to a synced replica, so it keeps its keys without persistence. A primary that
-crashes or is OOM-killed can restart empty with the same node ID before a replica takes over, so use
-`persistence` if a shard's data must survive that.
+authenticate to their primary as **admin**. Without `persistence`, a primary that restarts comes
+back empty with the same node ID, and its replicas resync to empty. On `SIGTERM` (pod delete,
+rollout, drain), a primary first fails over to a replica, but only when the cluster has at least 3
+masters (the replica needs votes from a majority of masters, and the stopping one can't vote) and a
+replica catches up within `shutdown-timeout` (10s). Replicas turn ready only once synced, so a
+rollout, which restarts one pod at a time whenever `valkey.conf` or `users.acl` changes, waits for
+them. Use `persistence` if a shard's data must survive a restart with no such failover: the default
+`replicasPerMaster: 0`, fewer than 3 masters, or a crash or OOM kill.
 
 For more information about the configuration options, visit
 [valkey.io/topics/configuration](https://valkey.io/topics/valkey.conf/).

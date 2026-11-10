@@ -11,7 +11,17 @@ for v in \
   eval ": \${$v:?Missing $v}"
 done
 
-envsubst < /tmp/conf_templates/valkey.conf > /etc/valkey/valkey.conf
+case "${ADMIN_PASSWORD}" in
+  *'
+'*)
+    echo "ADMIN_PASSWORD must not contain a newline" >&2
+    exit 1
+    ;;
+esac
+
+# NOTE: valkey.conf, unlike users.acl, unquotes values, so escape \ and " for the quoted primaryauth
+ESCAPED_ADMIN_PASSWORD=$(printf '%s' "${ADMIN_PASSWORD}" | sed 's/[\\"]/\\&/g') \
+  envsubst < /tmp/conf_templates/valkey.conf > /etc/valkey/valkey.conf
 envsubst < /tmp/conf_templates/users.acl > /etc/valkey/users.acl
 
 if [ -n "${PERSISTENCE:-}" ]; then
