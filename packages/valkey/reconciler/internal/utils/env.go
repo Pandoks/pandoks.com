@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -46,5 +47,41 @@ func Load() (Env, error) {
 		Masters:           masters,
 		ReplicasPerMaster: replicasPerMaster,
 		AdminPassword:     adminPassword,
+	}, nil
+}
+
+type ConfigEnv struct {
+	Parameters map[string]string
+	UsersACL   string
+}
+
+// LoadConfig reads the settings apply-config sets on running nodes. USERS_ACL is the users.acl template, expanded
+// from the environment like entrypoint.sh's envsubst.
+func LoadConfig() (ConfigEnv, error) {
+	var parameters map[string]string
+	if err := json.Unmarshal([]byte(os.Getenv("PARAMETERS")), &parameters); err != nil {
+		return ConfigEnv{}, fmt.Errorf("PARAMETERS environment variable is not a JSON object of strings: %w", err)
+	}
+
+	usersACLTemplate := os.Getenv("USERS_ACL")
+	if usersACLTemplate == "" {
+		return ConfigEnv{}, fmt.Errorf("USERS_ACL environment variable is not set")
+	}
+	// NOTE: an empty ${CLIENT_PASSWORD} would turn ">${CLIENT_PASSWORD}" into a valid empty password
+	var unsetVariables []string
+	usersACL := os.Expand(usersACLTemplate, func(name string) string {
+		value := os.Getenv(name)
+		if value == "" {
+			unsetVariables = append(unsetVariables, name)
+		}
+		return value
+	})
+	if len(unsetVariables) > 0 {
+		return ConfigEnv{}, fmt.Errorf("USERS_ACL uses unset environment variables: %v", unsetVariables)
+	}
+
+	return ConfigEnv{
+		Parameters: parameters,
+		UsersACL:   usersACL,
 	}, nil
 }

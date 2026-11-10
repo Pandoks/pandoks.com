@@ -104,6 +104,9 @@ spec:
     hooks.hookDeletePolicy: before-hook-creation
 ```
 
+These don't apply to the `apply-config` Job, which never retries and is deleted when it fails, so
+follow its logs instead.
+
 _If you haven't already, remember to add all `dev-patch.yaml` files to the `patches` in the
 [/k3s/overlays/local/kustomization.yaml](/k3s/overlays/local/kustomization.yaml) file._
 
@@ -139,11 +142,12 @@ changes accessible to the local k3d cluster:
 [reconciler](./reconciler) is a Go CLI that the chart runs as Helm hook jobs to manage the cluster
 topology:
 
-| Hook           | Command      | Description                                                        |
-| -------------- | ------------ | ------------------------------------------------------------------ |
-| `post-install` | `init`       | Creates the cluster from the initial masters and replicas          |
-| `pre-upgrade`  | `scale-down` | Moves slots off masters being removed, then removes excess nodes   |
-| `post-upgrade` | `scale-up`   | Adds new masters and replicas, then rebalances slots across shards |
+| Hook                                            | Command        | Description                                                        |
+| ----------------------------------------------- | -------------- | ------------------------------------------------------------------ |
+| `post-install`                                  | `init`         | Creates the cluster from the initial masters and replicas          |
+| `pre-upgrade`                                   | `scale-down`   | Moves slots off masters being removed, then removes excess nodes   |
+| `post-upgrade`                                  | `scale-up`     | Adds new masters and replicas, then rebalances slots across shards |
+| `post-install`, `post-upgrade`, `post-rollback` | `apply-config` | Sets `parameters` and `users.acl` on every node, after the above   |
 
 ## Configuration
 
@@ -164,14 +168,39 @@ back empty with the same node ID, and its replicas resync to empty. On `SIGTERM`
 rollout, drain), a primary first fails over to a replica, but only when the cluster has at least 3
 masters (the replica needs votes from a majority of masters, and the stopping one can't vote) and a
 replica catches up within `shutdown-timeout` (10s). Replicas turn ready only once synced, so a
-rollout, which restarts one pod at a time from the highest ordinal whenever `valkey.conf` or
-`users.acl` changes, waits for each restarted replica before stopping the next pod. It doesn't wait
-for a replica in a lower-numbered pod than its primary, so a primary whose replica is still
-resyncing then restarts empty. Use `persistence` if a shard's data must survive a restart with no
-such failover: the default `replicasPerMaster: 0`, fewer than 3 masters, or a crash or OOM kill.
+rollout, which restarts one pod at a time from the highest ordinal, waits for each restarted replica
+before stopping the next pod. It doesn't wait for a replica in a lower-numbered pod than its
+primary, so a primary whose replica is still resyncing then restarts empty. Use `persistence` if a
+shard's data must survive a restart with no such failover: the default `replicasPerMaster: 0`, fewer
+than 3 masters, or a crash or OOM kill.
 
 For more information about the configuration options, visit
 [valkey.io/topics/configuration](https://valkey.io/topics/valkey.conf/).
+
+### parameters
+
+Settings Valkey can change at runtime, like `maxmemory`, go in `parameters` instead:
+
+```yaml
+spec:
+  set:
+    parameters.maxmemory: 800mb
+```
+
+New pods start with them in `valkey.conf`. After every install, upgrade and rollback, the
+[reconciler](#reconciler)'s `apply-config` Job sets them on every node in one `CONFIG SET` and
+prints what `CONFIG GET` reports, so no pod restarts. It waits up to 5 minutes for nodes that don't
+answer yet and fails at once on an error from Valkey, like an invalid value. The render fails for
+settings Valkey can't change at runtime, like `cluster-enabled` or `aclfile`, and for ones the chart
+sets itself; those belong in `valkey.conf`. A key removed from `parameters` keeps its value until
+its pod restarts. Helm deletes a failed Job along with its logs, so follow them during the release:
+
+```sh
+kubectl logs -n <namespace> job/valkey-<name>-apply-config -f
+```
+
+Pods restart only when their template changes: `valkey.conf`, `image`, `persistence`, `resources`,
+`nodeSelector` or `tolerations`.
 
 ### users.acl
 
@@ -186,6 +215,13 @@ user and a **client** user:
 | client | Has read/write access to the cluster | Read, Write, String, Hash, List, Set, Sorted Set |
 
 _The **client** user doesn't have dangerous permissions like `FLUSHALL`, `CONFIG`, etc._
+
+The `apply-config` Job also resets each user to its line (`ACL SETUSER <user> reset <rules>`) and
+deletes users without one, like `ACL LOAD`, so rule changes and a new client password apply without
+a restart, and connections that already logged in stay open. A password changed in the secret
+reaches the nodes at the next chart upgrade, since only the Job applies it. The admin password can't
+change this way: the hooks log in with the new one, which the nodes don't accept yet, and the
+readiness probe and exporter keep the old one until their pod restarts.
 
 For more information about the permissions, visit
 [valkey.io/topics/acl](https://valkey.io/topics/acl/).

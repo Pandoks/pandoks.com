@@ -1,3 +1,26 @@
+{{- define "valkey.parameters" }}
+{{- /* NOTE: entrypoint.sh sets these for persistence, and masteruser and masterauth alias primaryuser and primaryauth */}}
+{{- $chartKeys := list "save" "rdb-del-sync-files" "appendonly" "appendfsync" "masteruser" "masterauth" }}
+{{- range splitList "\n" (.Files.Get "files/valkey.conf") }}
+{{- $line := trim . }}
+{{- if and $line (not (hasPrefix "#" $line)) }}
+{{- $chartKeys = append $chartKeys (first (splitList " " $line)) }}
+{{- end }}
+{{- end }}
+{{- /* NOTE: Valkey 9.1's IMMUTABLE_CONFIG and PROTECTED_CONFIG settings (src/config.c) and their aliases */}}
+{{- $runtimeLockedKeys := list "rdbchecksum" "daemonize" "always-show-logo" "set-proc-title" "repl-mptcp" "syslog-enabled" "cluster-enabled" "disable-thp" "enable-debug-assert" "lua-enable-insecure-api" "lua-enable-deprecated-api" "aclfile" "unixsocket" "unixsocketgroup" "pidfile" "cluster-config-file" "syslog-ident" "dbfilename" "appendfilename" "appenddirname" "server-cpulist" "server_cpulist" "bio-cpulist" "bio_cpulist" "aof-rewrite-cpulist" "aof_rewrite_cpulist" "bgsave-cpulist" "bgsave_cpulist" "logfile" "req-res-logfile" "hash-seed" "supervised" "syslog-facility" "enable-protected-configs" "enable-debug-command" "enable-module-command" "databases" "cluster-databases" "tcp-backlog" "mptcp" "cluster-port" "rdma-rx-size" "rdma-completion-vector" "unixsocketperm" "socket-mark-id" "client-default-resp" "dir" "replicaof" "slaveof" }}
+{{- $parameters := dict }}
+{{- range $name, $value := .Values.parameters }}
+{{- if has (lower $name) $runtimeLockedKeys }}
+{{- fail (printf "parameters.%s: Valkey can't change it on running nodes, so set it in files/valkey.conf, which restarts them" $name) }}
+{{- end }}
+{{- if has (lower $name) $chartKeys }}
+{{- fail (printf "parameters.%s: the chart sets it in files/valkey.conf or entrypoint.sh" $name) }}
+{{- end }}
+{{- $_ := set $parameters $name (toString $value) }}
+{{- end }}
+{{- toJson $parameters }}
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -6,6 +29,9 @@ metadata:
 data:
   valkey.conf: |
 {{ .Files.Get "files/valkey.conf" | indent 4 }}
+    {{- range $name, $value := include "valkey.parameters" . | fromJson }}
+    {{ $name }} {{ quote $value }}
+    {{- end }}
 
 ---
 apiVersion: v1
@@ -76,7 +102,8 @@ spec:
       labels:
         app: *app
       annotations:
-        checksum/config: {{ print (.Files.Get "files/valkey.conf") (.Files.Get "files/users.acl") | sha256sum }}
+        # NOTE: parameters and users.acl apply live through the apply-config hook, so only the fixed valkey.conf restarts pods
+        checksum/config: {{ .Files.Get "files/valkey.conf" | sha256sum }}
     spec:
       {{- with .Values.nodeSelector }}
       nodeSelector:
