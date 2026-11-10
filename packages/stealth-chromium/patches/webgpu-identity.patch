@@ -27,11 +27,26 @@
 # gpu_class and WebGL renderer string) AFTER the real values are read. The
 # wgpu limits struct is overridden per-limit (APEX_FP_WEBGPU_LIMIT_<Name>)
 # before it is copied into GPUSupportedLimits -- the same override is applied
-# in GPUDevice::Initialize so device.limits agrees with adapter.limits. The
+# in GPUDevice::Initialize so device.limits agrees with adapter.limits (the
+# clamp rule is conditional -- see LIMIT OVERRIDE CLAMP RULE below). The
 # feature set is filtered to the APEX_FP_WEBGPU_FEATURES allowlist (subset
 # only: a claimed feature the real adapter lacks would fail requestDevice
 # validation) in both surfaces. The adapter/device handles stay real, so
 # rendering behavior is unchanged; only the reported fingerprint is rewritten.
+#
+# LIMIT OVERRIDE CLAMP RULE. Each APEX_FP_WEBGPU_LIMIT_<Name> override is
+# clamped to the real limit ONLY when the real adapter is actual hardware
+# (discrete/integrated): the GPU process validates requests against the REAL
+# limits, so an override above them just moves the rejection error into a
+# named name (a host leak). When the real adapter is software (SwiftShader
+# reports AdapterType::CPU -- VK_PHYSICAL_DEVICE_TYPE_CPU) or undetectable
+# (Unknown), there is no real hardware to validate against, so the CLAIMED
+# value is reported directly: a discrete persona's limits stay coherent with
+# its claimed description instead of being clamped to the container's real
+# SwiftShader limits (the incoherent "NVIDIA RTX 3060 + maxTextureDimension2D
+# = 8192" pair this would otherwise produce). The real type is read from the
+# real handle (apex_webgpu::RealAdapterType; on the adapter side the local
+# `info` from GetInfo() is already available and is never spoofed).
 #
 # The default env has no APEX_FP_WEBGPU_* set -> every patch falls through to
 # the real values (stock behavior).
@@ -58,10 +73,15 @@
 @@ GPUAdapter::GPUAdapter @@ (after features_ = MakeFeatureNameSet(...))
 +  features_ = apex_webgpu::FilterFeaturesByAllowlist(features_);
 @@ GPUAdapter::GPUAdapter @@ (before limits_ = MakeGarbageCollected<...>(limits))
-+  apex_webgpu::ApplyLimitOverrides(&limits);
++  // info.adapterType = the REAL type (never spoofed -- the spoof rewrites
++  // the adapter_type_ member, not the GetInfo() local).
++  apex_webgpu::ApplyLimitOverrides(&limits, info.adapterType);
 --- a/third_party/blink/renderer/modules/webgpu/gpu_device.cc
 +++ b/third_party/blink/renderer/modules/webgpu/gpu_device.cc
 @@ GPUDevice::Initialize @@ (before limits_ = MakeGarbageCollected<...>(limits))
-+  apex_webgpu::ApplyLimitOverrides(&limits);
++  // adapter_'s REAL handle (the spoof rewrites identity, not the handle)
++  // supplies the real type for the same conditional clamp rule.
++  apex_webgpu::ApplyLimitOverrides(
++      &limits, apex_webgpu::RealAdapterType(adapter_->GetHandle()));
 @@ GPUDevice::Initialize @@ (after features_ = MakeGarbageCollected<...>(features))
 +  features_ = apex_webgpu::FilterFeaturesByAllowlist(features_);

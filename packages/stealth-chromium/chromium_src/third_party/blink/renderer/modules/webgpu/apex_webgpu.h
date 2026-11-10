@@ -126,17 +126,40 @@ inline bool ApplyBackendTypeOverride(wgpu::BackendType* out) {
   X(maxStorageTexturesInVertexStage)               \
   X(maxImmediateSize)
 
+// The REAL adapter type, read from the real handle. The spoof rewrites the
+// reported identity (including the GPUAdapter object's adapter_type_ member)
+// but never the handle, so this returns the host hardware's actual type at
+// every call site.
+inline wgpu::AdapterType RealAdapterType(const wgpu::Adapter& adapter) {
+  wgpu::AdapterInfo info = {};
+  adapter.GetInfo(&info);
+  return info.adapterType;
+}
+
 // Apply APEX_FP_WEBGPU_LIMIT_<Name> overrides to the limits struct BEFORE it
 // is copied into a GPUSupportedLimits. Callers: gpu_adapter.cc and
 // gpu_device.cc, both immediately after GetLimits() and before the
 // MakeGarbageCollected<GPUSupportedLimits>. 0 is a valid unset sentinel: no
-// WebGPU limit is legitimately 0. Each override is CLAMPED to the real limit:
-// the GPU process validates requests against the REAL limits, so an override
-// above them just moves the rejection error into a named name (a host leak).
-inline void ApplyLimitOverrides(GPUSupportedLimits::ComboLimits* limits) {
+// WebGPU limit is legitimately 0. real_adapter_type is the host adapter's
+// REAL type (via RealAdapterType(), not the spoofed reported identity).
+//
+// Clamp rule: when the real adapter is actual hardware (discrete/integrated),
+// each override is CLAMPED to the real limit -- the GPU process validates
+// requests against the REAL limits, so an override above them just moves the
+// rejection error into a named name (a host leak). When the real adapter is
+// software (SwiftShader reports AdapterType::CPU) or undetectable (Unknown),
+// there is no real hardware to validate against, so the CLAIMED value is
+// reported directly: a discrete persona's limits stay coherent with its
+// claimed description instead of being clamped to the container's real
+// SwiftShader limits.
+inline void ApplyLimitOverrides(GPUSupportedLimits::ComboLimits* limits,
+                                wgpu::AdapterType real_adapter_type) {
   if (!apex_fp::Active()) {
     return;
   }
+  const bool apex_has_real_hardware =
+      real_adapter_type == wgpu::AdapterType::DiscreteGPU ||
+      real_adapter_type == wgpu::AdapterType::IntegratedGPU;
 #define APEX_LIMIT(name)                                                    \
   {                                                                         \
     const uint64_t apex_v =                                                 \
@@ -145,9 +168,9 @@ inline void ApplyLimitOverrides(GPUSupportedLimits::ComboLimits* limits) {
       using ApexLimitT =                                                    \
           decltype(GPUSupportedLimits::ComboLimits::name);                  \
       const uint64_t apex_real = static_cast<uint64_t>(limits->name);       \
-      limits->name = static_cast<ApexLimitT>(apex_v < apex_real             \
-                                                 ? apex_v                   \
-                                                 : apex_real);              \
+      limits->name = static_cast<ApexLimitT>(                               \
+          !apex_has_real_hardware || apex_v < apex_real ? apex_v            \
+                                                        : apex_real);       \
     }                                                                       \
   }
   APEX_WEBGPU_LIMIT_LIST(APEX_LIMIT)

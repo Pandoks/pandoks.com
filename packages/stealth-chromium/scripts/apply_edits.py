@@ -761,7 +761,13 @@ EDITS = [
             '  // apex-webgpu-limits: persona-claimed hardware limits replace\n'
             '  // the real adapter\'s (a software adapter otherwise reports\n'
             '  // spec-typical limits that contradict the claimed GPU class).\n'
-            '  apex_webgpu::ApplyLimitOverrides(&limits);\n'
+            '  // Real hardware -> clamp to the real limit (request validation).\n'
+            '  // Software/unknown real adapter (SwiftShader -> CPU) -> report\n'
+            '  // the claimed value directly so the limits stay coherent with\n'
+            '  // the spoofed description. info.adapterType is the REAL type\n'
+            '  // (the local from GetInfo(); the spoof only rewrites the\n'
+            '  // adapter_type_ member below, never this local).\n'
+            '  apex_webgpu::ApplyLimitOverrides(&limits, info.adapterType);\n'
         ),
     },
     {
@@ -791,8 +797,13 @@ EDITS = [
         "where": "before",
         "inject": (
             '  // apex-webgpu-device-limits: keep device.limits coherent with\n'
-            '  // the spoofed adapter.limits (same override table).\n'
-            '  apex_webgpu::ApplyLimitOverrides(&limits);\n'
+            '  // the spoofed adapter.limits (same override table, same rule:\n'
+            '  // clamp only on real hardware; on a software/unknown real\n'
+            '  // adapter report the claimed value directly). adapter_\'s REAL\n'
+            '  // handle (not the spoofed identity) supplies the real type.\n'
+            '  apex_webgpu::ApplyLimitOverrides(\n'
+            '      &limits,\n'
+            '      apex_webgpu::RealAdapterType(adapter_->GetHandle()));\n'
         ),
     },
     {
