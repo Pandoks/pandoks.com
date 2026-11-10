@@ -20,12 +20,17 @@ subjects:
     namespace: {{ .Values.namespace }}
 
 ---
-# NOTE: create can't be limited to resourceNames
+# NOTE: create can't be limited to resourceNames. Hooks, since Helm creates the release's resources only after the
+# pre-upgrade apply-config needs them
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: valkey-{{ .Values.name }}-applied
   namespace: {{ .Values.namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade,pre-rollback
+    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-delete-policy": before-hook-creation
 rules:
   - apiGroups:
       - ''
@@ -49,6 +54,10 @@ kind: RoleBinding
 metadata:
   name: valkey-{{ .Values.name }}-applied
   namespace: {{ .Values.namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade,pre-rollback
+    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-delete-policy": before-hook-creation
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role

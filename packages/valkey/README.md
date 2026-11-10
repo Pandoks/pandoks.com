@@ -149,6 +149,11 @@ topology:
 | `post-upgrade`                                                 | `scale-up`     | Adds new masters and replicas, then rebalances slots across shards                      |
 | `pre-upgrade`, `post-install`, `post-upgrade`, `post-rollback` | `apply-config` | Sets `parameters` and `users.acl` on every node, before `scale-down` and after the rest |
 
+The `valkey-<name>-applied` Role and RoleBinding and the `valkey-<name>-metrics` Secret that
+`apply-config` needs are [hooks](https://helm.sh/docs/topics/charts_hooks/) themselves, created
+before every install, upgrade and rollback, since Helm creates a release's resources only after its
+pre-upgrade hooks. Like the `valkey-<name>-applied` Secret, they stay after `helm uninstall`.
+
 ## Configuration
 
 There are two configuration files that are used by the valkey cluster: `valkey.conf` and
@@ -207,14 +212,19 @@ Pods restart only when their template changes: `valkey.conf`, `image`, `persiste
 [users.acl](./chart/files/users.acl) is used to configure the users that can access the cluster.
 
 For better security practices, we use multiple users to access the cluster. We have an **admin**
-user and a **client** user:
+user, a **client** user and a **metrics** user:
 
-| User   | Description                          | Permissions                                      |
-| ------ | ------------------------------------ | ------------------------------------------------ |
-| admin  | Has full access to the cluster       | All permissions                                  |
-| client | Has read/write access to the cluster | Read, Write, String, Hash, List, Set, Sorted Set |
+| User    | Description                          | Permissions                                      |
+| ------- | ------------------------------------ | ------------------------------------------------ |
+| admin   | Has full access to the cluster       | All permissions                                  |
+| client  | Has read/write access to the cluster | Read, Write, String, Hash, List, Set, Sorted Set |
+| metrics | Used by the Prometheus exporter      | Only what the exporter's scrape runs, no keys    |
 
 _The **client** user doesn't have dangerous permissions like `FLUSHALL`, `CONFIG`, etc._
+
+The chart generates the **metrics** password into the `valkey-<name>-metrics` Secret on install and
+keeps it on upgrades, so it needs no secret of yours and never rotates with **admin**. An exporter
+option that runs more commands, like `check-keys`, needs them added to its `users.acl` line.
 
 The `apply-config` Job also resets each user to its line (`ACL SETUSER <user> reset <rules>`) and
 deletes users without one, like `ACL LOAD`, so rule changes and new passwords apply without a
@@ -228,8 +238,7 @@ replica is still linked to its primary, and then resets the users to `users.acl`
 old password, and saves the new one. It fails if a node accepts neither, like after the Secret is
 deleted; recreate it with the `adminPassword` the nodes accept. The readiness probe reads both
 passwords from a secret volume, which the kubelet refreshes within its sync period (about a minute),
-so update the secret a minute before the upgrade or pods may turn unready until it catches up. The
-exporter reads the admin password from env, so its scrapes fail until its pod restarts.
+so update the secret a minute before the upgrade or pods may turn unready until it catches up.
 
 For more information about the permissions, visit
 [valkey.io/topics/acl](https://valkey.io/topics/acl/).

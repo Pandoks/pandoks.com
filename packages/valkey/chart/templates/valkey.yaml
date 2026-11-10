@@ -44,6 +44,20 @@ data:
 {{ .Files.Get "files/users.acl" | indent 4 }}
 
 ---
+# NOTE: a hook for the same reason as the applied Role, and lookup keeps the generated password on upgrades
+apiVersion: v1
+kind: Secret
+metadata:
+  name: valkey-{{ .Values.name }}-metrics
+  namespace: {{ .Values.namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade,pre-rollback
+    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-delete-policy": before-hook-creation
+data:
+  password: {{ dig "data" "password" (randAlphaNum 32 | b64enc) (lookup "v1" "Secret" .Values.namespace (printf "valkey-%s-metrics" .Values.name)) }}
+
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -162,6 +176,11 @@ spec:
                 secretKeyRef:
                   name: *creds-secret
                   key: {{ .Values.credentials.dataKeys.clientPassword }}
+            - name: METRICS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: &metrics-secret valkey-{{ .Values.name }}-metrics
+                  key: &metrics-key password
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -218,12 +237,12 @@ spec:
             - name: REDIS_ADDR
               value: "redis://localhost:6379"
             - name: REDIS_USER
-              value: "admin"
+              value: "metrics"
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: *creds-secret
-                  key: *admin-key
+                  name: *metrics-secret
+                  key: *metrics-key
           resources:
             limits:
               cpu: 50m

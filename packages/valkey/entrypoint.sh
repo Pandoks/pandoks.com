@@ -7,7 +7,8 @@ for v in \
   NAMESPACE \
   HEADLESS_SERVICE \
   ADMIN_PASSWORD \
-  CLIENT_PASSWORD; do
+  CLIENT_PASSWORD \
+  METRICS_PASSWORD; do
   eval ": \${$v:?Missing $v}"
 done
 

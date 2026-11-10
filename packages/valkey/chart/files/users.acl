@@ -1,3 +1,4 @@
 user admin on >${ADMIN_PASSWORD} ~* &* +@all
 user client on >${CLIENT_PASSWORD} ~* &* +@read +@write +@string +@hash +@list +@set +@sortedset -@dangerous
+user metrics on >${METRICS_PASSWORD} +client|setname +info +config|get +cluster|info +latency|latest +latency|histogram +slowlog|len +slowlog|get +command|info +commandlog|len
 user default off
