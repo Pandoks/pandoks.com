@@ -1,4 +1,4 @@
-import { githubOrg, githubRepoName } from '../github';
+import { githubOrg, githubRepositoryName } from '../github';
 import {
   ARM_INSTANCE_TYPES,
   GPU_ARM_INSTANCE_TYPES,
@@ -256,7 +256,7 @@ export function runnerStateMachineDefinition({
         `export RUNNER_CACHE_BUCKET=${cacheBucket}`,
         `export RUNNER_ARTIFACTS_BUCKET=${artifactsBucket}`,
         `GITHUB_TOKEN=$(aws ssm get-parameter --name ${githubCloningTokenSSMParameter} --with-decryption --query Parameter.Value --output text)`,
-        `git clone --depth 1 --branch {} https://x-access-token:$\\{GITHUB_TOKEN\\}@github.com/${githubOrg}/${githubRepoName}.git /opt/repo`,
+        `git clone --depth 1 --branch {} https://x-access-token:$\\{GITHUB_TOKEN\\}@github.com/${githubOrg}/${githubRepositoryName}.git /opt/repo`,
         `unset GITHUB_TOKEN`,
         `cd /opt/repo`,
         `{}`
