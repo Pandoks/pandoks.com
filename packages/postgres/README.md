@@ -468,12 +468,14 @@ done
 
 #### Step 5: Restart Every Group
 
-Delete the recovery pods and Patroni's state, then scale back up (to `patroni.replicasPerGroup`):
+Delete the recovery pods and Patroni's state, then scale back up to your `patroni.replicasPerGroup`:
 
 ```bash
+replicas_per_group=3
+
 for group in ${groups}; do kubectl delete pod -n myapp "pitr-restore-${group}"; done
 kubectl delete endpoints -n myapp -l cluster-name=myapp
-kubectl scale statefulset -n myapp -l app=patroni-myapp --replicas=3
+kubectl scale statefulset -n myapp -l app=patroni-myapp --replicas="${replicas_per_group}"
 
 kubectl get pods -n myapp -l app=patroni-myapp -w
 ```
@@ -634,9 +636,17 @@ kubectl exec -n myapp "${coordinator}" -c patroni -- \
 ### Distributed Queries Fail to Authenticate
 
 Citus connects between nodes with the superuser, `admin` and `client` passwords in
-`pg_dist_authinfo`. Each group inserts its own rows on bootstrap and Citus doesn't sync this table,
-so after changing a password update its row on every group's primary. Escape `\` and `'` in the
-password with `\`, then double every `'` for SQL:
+`pg_dist_authinfo`. The roles' passwords and these rows are only set on bootstrap, so after changing
+a password, set it on the role from the coordinator primary, which Citus copies to every worker,
+doubling every `'`:
+
+```sql
+ALTER ROLE client PASSWORD '<new password>';
+```
+
+Each group inserts its own `pg_dist_authinfo` rows and Citus doesn't sync this table, so then update
+the role's row on every group's primary. Escape `\` and `'` in the password with `\`, then double
+every `'` for SQL:
 
 ```sql
 UPDATE pg_dist_authinfo SET authinfo = 'password=''<new password>''' WHERE rolename = 'client';
