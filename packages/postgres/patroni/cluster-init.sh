@@ -2,18 +2,31 @@
 
 set -eu
 
-stanza_info=$(pgbackrest --stanza="${STANZA}" info)
-if echo "${stanza_info}" | grep "missing stanza path"; then
-  echo "Stanza '${STANZA}' does not exist. Creating..."
-  if pgbackrest --stanza="${STANZA}" stanza-create; then
-    echo "✓ Stanza '${STANZA}' created successfully."
-  else
-    echo "Failed to create stanza '${STANZA}'."
-    exit 1
-  fi
-else
-  echo "Stanza '${STANZA}' already exists. Skipping stanza creation."
+# NOTE: info prints its errors to stdout, and exits 0 with "status: error (other)" when it can't read the repo
+if ! stanza_info=$(pgbackrest --stanza="${STANZA}" info); then
+  echo "${stanza_info}"
+  echo "Failed to read stanza '${STANZA}'."
+  exit 1
 fi
+case "${stanza_info}" in
+  *"status: error (missing stanza path)"*)
+    echo "Stanza '${STANZA}' does not exist. Creating..."
+    if pgbackrest --stanza="${STANZA}" stanza-create; then
+      echo "✓ Stanza '${STANZA}' created successfully."
+    else
+      echo "Failed to create stanza '${STANZA}'."
+      exit 1
+    fi
+    ;;
+  *"status: ok"* | *"status: error (no valid backups)"*)
+    echo "Stanza '${STANZA}' already exists. Skipping stanza creation."
+    ;;
+  *)
+    echo "${stanza_info}"
+    echo "Failed to read stanza '${STANZA}'."
+    exit 1
+    ;;
+esac
 
 echo "Checking for existing backup..."
 set +e # TODO: test if this is needed
