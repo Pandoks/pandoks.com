@@ -1,5 +1,3 @@
-// Command mobile-updates serves the Expo update baked into its image over the Expo Updates v1 protocol, signing
-// every manifest and directive with RSA-SHA256.
 package main
 
 import (
