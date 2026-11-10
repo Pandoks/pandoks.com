@@ -111,7 +111,7 @@ metadata:
   namespace: {{ .Values.namespace }}
   annotations:
     "helm.sh/hook": pre-upgrade
-    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-weight": "2"
     "helm.sh/hook-delete-policy": {{ .Values.hooks.hookDeletePolicy }}
 spec:
   backoffLimit: {{ .Values.hooks.backoffLimit }}
@@ -157,22 +157,23 @@ spec:
           emptyDir: {}
 
 ---
-# NOTE: weight 1 runs after init and scale-up, so every node is in the cluster
+# NOTE: weight 1 runs after init and scale-up, so every node is in the cluster, and before scale-down, so the scale
+# hooks log in with an admin password the nodes accept
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: valkey-{{ .Values.name }}-apply-config
   namespace: {{ .Values.namespace }}
   annotations:
-    "helm.sh/hook": post-install,post-upgrade,post-rollback
+    "helm.sh/hook": pre-upgrade,post-install,post-upgrade,post-rollback
     "helm.sh/hook-weight": "1"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
 spec:
   backoffLimit: 0
   template:
     spec:
+      serviceAccountName: valkey-{{ .Values.name }}-reconciler
       restartPolicy: Never
-      automountServiceAccountToken: false
       securityContext:
         seccompProfile:
           type: RuntimeDefault
