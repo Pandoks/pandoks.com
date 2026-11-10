@@ -120,7 +120,12 @@ runcmd:
           echo "k3s is ready"
           break
         fi
+        if [ "${i}" -eq 60 ]; then
+          echo "k3s never became ready" >&2
+          exit 1
+        fi
         echo "k3s is not ready..."
+        sleep 5
       done
 
       kubectl create secret generic tailscale \
@@ -144,6 +149,8 @@ runcmd:
 
       kubectl create namespace tailscale --dry-run=client -o yaml | kubectl apply --server-side -f -
 
+      kubectl wait --for=create crd/helmcharts.helm.cattle.io --timeout=300s || exit 1
+      kubectl wait --for=condition=Established crd/helmcharts.helm.cattle.io --timeout=60s || exit 1
       kubectl apply --server-side -f - << EOF
     apiVersion: helm.cattle.io/v1
     kind: HelmChart
