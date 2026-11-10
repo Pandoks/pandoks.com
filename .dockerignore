@@ -1,0 +1,7 @@
+# NOTE: matches a CI checkout, so a local mobile-updates image gets the same runtime version as CI's
+.git
+.sst
+**/node_modules
+**/.expo
+apps/*/ios
+apps/*/android

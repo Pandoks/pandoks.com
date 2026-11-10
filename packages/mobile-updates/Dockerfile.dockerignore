@@ -1,7 +1,0 @@
-# NOTE: matches a CI checkout, so a local build's runtime version matches the app's
-.git
-.sst
-**/node_modules
-**/.expo
-apps/*/ios
-apps/*/android
