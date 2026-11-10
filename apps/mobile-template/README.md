@@ -26,8 +26,8 @@ builds with the same native code, and `certificate.crt` verifies the `UpdatesSig
 The cluster serves the update baked into the `mobile-template-updates` image
 ([packages/updates](../../packages/updates/README.md)), which `build-and-publish.yaml` rebuilds when
 the app changes. In production that's the digest pinned in `kube/updates.yaml`: merging Renovate's
-bump releases the update, and reverting it rolls back. Local and dev clusters serve the checkout's
-own image.
+bump releases the update. To roll back, revert the change on `main` and merge the next bump, since
+phones keep the newest update they have. Local and dev clusters serve the checkout's own image.
 
 To try a dev update, build against `updates-dev.pandoks.com`, then change some JS and deploy the dev
 cluster from that branch once `build-and-publish.yaml` has built its image:
