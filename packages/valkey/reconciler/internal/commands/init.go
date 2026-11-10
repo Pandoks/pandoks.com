@@ -79,7 +79,13 @@ func Init(env utils.Env) error {
 		return err
 	}
 
-	fmt.Println()
+	// NOTE: writes fail with CLUSTERDOWN until every node reports cluster_state:ok
+	clusterStateCtx, cancelClusterState := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancelClusterState()
+	if err := valkey.WaitForAllNodesClusterInfoState(clusterStateCtx, env, nodeList, "cluster_state:ok"); err != nil {
+		return err
+	}
+
 	fmt.Println("✓ Cluster created successfully!")
 	fmt.Println()
 

@@ -44,6 +44,19 @@ func PromoteOriginalShardLeader(ctx context.Context, options PromoteOriginalShar
 	if !exists {
 		return "", "", fmt.Errorf("replica client for %s not found", lowestIndexPodNode.Hostname)
 	}
+	// NOTE: a manual failover fails while the replica still resyncs, e.g. right after its pod restarted
+	for {
+		replicaInfo, err := replicaClient.Do(ctx, replicaClient.B().Info().Section("replication").Build()).ToString()
+		if err == nil && strings.Contains(replicaInfo, "master_link_status:up") {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return "", "", ctx.Err()
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+
 	failoverCmd := replicaClient.B().ClusterFailover().Build()
 	if err := replicaClient.Do(ctx, failoverCmd).Error(); err != nil {
 		return "", "", err
