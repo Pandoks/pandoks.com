@@ -297,11 +297,21 @@ kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
 
 Set `patroni.parameters` in the HelmChart. New clusters start with them, restored ones included, and
 after every install, upgrade and rollback a [reconciler](./reconciler) Job (`apply-parameters`)
-applies them to each running shard; a shard that's still bootstrapping or restoring counts as done,
-so a restore never holds the release. A change made while a shard bootstraps reaches it only on the
-next release. Settings Postgres can reload, like `work_mem`, take effect within seconds. Ones that
-need a restart, like `shared_buffers`, show under `Pending restart` until you restart the shard in
-place:
+applies them to each running shard; a shard that's still bootstrapping or restoring counts as done.
+A restore resumed after a container restart is the exception: Patroni doesn't start until the replay
+and full backup finish, so the Job gets no answer and holds the release until then, failing it after
+Helm's 300s timeout. With `failurePolicy: abort` the release then stays failed; once the shard's
+Patroni runs, roll back to the failed revision, which reruns the Job with the same values, and the
+HelmChart's next retry exits cleanly:
+
+```bash
+helm history -n myapp myapp-postgres-myapp-cluster # the failed revision, e.g. 4
+helm rollback -n myapp myapp-postgres-myapp-cluster 4
+```
+
+A change made while a shard bootstraps reaches it only on the next release. Settings Postgres can
+reload, like `work_mem`, take effect within seconds. Ones that need a restart, like
+`shared_buffers`, show under `Pending restart` until you restart the shard in place:
 
 ```bash
 kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
@@ -406,7 +416,7 @@ pgbackrest --stanza=myapp-shard-0 \
   restore
 ```
 
-**Recovery type options:**
+**Recovery type options** (pass `--target-action=promote` with every type but `default`):
 
 - `--type=time --target="TIMESTAMP"` - Restore to specific time
 - `--type=xid --target="TRANSACTION_ID"` - Restore to specific transaction
@@ -414,16 +424,32 @@ pgbackrest --stanza=myapp-shard-0 \
 - `--type=immediate` - Stop as soon as the backup is consistent (no further WAL replay)
 - `--type=default` - Restore and replay all available WAL
 
-#### Step 5: Restart the Shard
-
-After restore completes, delete the recovery pod and scale back up:
+Then replay to the target in the recovery pod: Patroni would start the restored data directory as a
+replica, drop the recovery target and replay to the end of the archive. As on bootstrap,
+`hot_standby=off` lets replay accept settings lower than the backup's, and deleting the backup's
+`patroni.dynamic.json` (Patroni's cached cluster config) makes the shard start with the chart's
+`patroni.parameters`:
 
 ```bash
-# Exit and delete the recovery pod
-exit
-kubectl delete pod pitr-restore -n myapp
+rm -f /var/lib/postgresql/pgdata/patroni.dynamic.json
+pg_ctl start -W -D /var/lib/postgresql/pgdata -l /tmp/pitr.log -o "-c hot_standby=off"
 
-# Delete stale Patroni endpoints (required after restore)
+# Wait for "accepting connections"; if Postgres stops instead, /tmp/pitr.log says why
+until pg_isready; do sleep 10; pg_ctl status -D /var/lib/postgresql/pgdata > /dev/null || break; done
+grep "recovery stopping" /tmp/pitr.log
+pg_ctl stop -D /var/lib/postgresql/pgdata -m fast
+```
+
+#### Step 5: Restart the Shard
+
+After Postgres stops, delete the recovery pod and scale back up:
+
+```bash
+# Exit and delete the recovery pod (Postgres is stopped, so skip the 600s grace period)
+exit
+kubectl delete pod pitr-restore -n myapp --grace-period=1
+
+# Delete the stale leader and cluster config, so Patroni takes the restored primary and the chart's parameters
 kubectl delete endpoints myapp-shard-0 myapp-shard-0-config -n myapp
 
 # Scale the shard back up (to patroni.replicasPerShard)

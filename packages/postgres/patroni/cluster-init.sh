@@ -55,12 +55,12 @@ if [ -n "${BACKUP_BUCKET+set}" ]; then
       echo "Failed to upgrade stanza."
       exit 1
     fi
-    # NOTE: without hot standby, recovery accepts settings lower than the backup's, but pg_ctl returns once it starts
-    pg_ctl start -w -D /var/lib/postgresql/pgdata -o "-c hot_standby=off"
+    # NOTE: without hot standby, recovery accepts settings lower than the backup's; -W since pg_ctl's wait gives up after 60s
+    pg_ctl start -W -D /var/lib/postgresql/pgdata -o "-c hot_standby=off"
     echo "Waiting for recovery to finish..."
     until pg_isready -q; do
-      pg_ctl status -D /var/lib/postgresql/pgdata > /dev/null
       sleep 10
+      pg_ctl status -D /var/lib/postgresql/pgdata > /dev/null
     done
   fi
 fi

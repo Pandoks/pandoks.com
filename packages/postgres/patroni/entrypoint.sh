@@ -40,15 +40,17 @@ envsubst < /tmp/conf_templates/pgbackrest.conf > /etc/pgbackrest/pgbackrest.conf
 mkdir -p /var/lib/postgresql/pgdata
 chmod 700 /var/lib/postgresql/pgdata
 
-# NOTE: Patroni drops cluster-init.sh's retrying restore_command when it starts, so finish an interrupted restore first
+# NOTE: Patroni drops cluster-init.sh's retrying restore_command when it starts, so finish an interrupted restore first.
+# Backups taken before then keep it, and a later restore appends its own, so only the last one counts
 if [ -f /var/lib/postgresql/pgdata/recovery.signal ] \
-  && grep -q "^restore_command = 'until pgbackrest" /var/lib/postgresql/pgdata/postgresql.auto.conf; then
+  && grep "^restore_command = " /var/lib/postgresql/pgdata/postgresql.auto.conf | tail -n 1 \
+  | grep -q "^restore_command = 'until pgbackrest"; then
   trap 'pg_ctl stop -w -D /var/lib/postgresql/pgdata -m fast; exit 130' INT
-  pg_ctl start -w -D /var/lib/postgresql/pgdata -o "-c hot_standby=off"
+  pg_ctl start -W -D /var/lib/postgresql/pgdata -o "-c hot_standby=off"
   echo "Waiting for the interrupted restore's recovery to finish..."
   until pg_isready -q; do
-    pg_ctl status -D /var/lib/postgresql/pgdata > /dev/null
     sleep 10
+    pg_ctl status -D /var/lib/postgresql/pgdata > /dev/null
   done
   if pgbackrest --stanza="${STANZA}" backup --type=full; then
     echo "✓ Full backup created successfully. Replicas can now bootstrap."
