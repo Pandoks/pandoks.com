@@ -119,6 +119,25 @@ spec:
       targetPort: 9187
 
 ---
+# reaches every member's REST API, ready or not, for the parameters Job
+apiVersion: v1
+kind: Service
+metadata:
+  name: patroni-{{ $.Values.db }}-api-group-{{ $group }}
+  namespace: {{ $.Values.namespace }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: patroni-{{ $.Values.db }}
+    cluster-name: {{ $.Values.db }}
+    citus-group: {{ $group | quote }}
+  ports:
+    - name: patroni
+      port: 8008
+      targetPort: 8008
+
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:

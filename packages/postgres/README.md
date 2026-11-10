@@ -95,16 +95,21 @@ graph TB
 
 ### pgBackRest (Backup & Recovery)
 
-- **Per-group backups** - each group has its own stanza (`myapp-group-N`)
+- **Per-group backups** - each group has its own stanza (`myapp-group-N`), backed up from its
+  primary
 - **Automated schedules** - full, differential, and incremental backups
 - **Cluster-wide restore points** - a CronJob runs `citus_create_restore_point()`, the only targets
   every group can be restored to consistently
 - **Encryption** - AES-256-CBC for all backups
-- **S3-compatible storage** - works with AWS S3, MinIO, LocalStack
+- **S3-compatible storage** - works with AWS S3, MinIO, S3Mock
 - **Restore on bootstrap** - a new group whose stanza already has a full backup restores it instead
-  of starting empty, up to the end of its own archived WAL. That's only consistent when a single
-  worker group is lost; after losing the coordinator or several groups, follow
-  [PITR](#point-in-time-recovery-pitr) instead
+  of starting empty, with the chart's `postgresql.conf` and `pg_hba.conf` instead of the backup's,
+  and without the backup's `ALTER SYSTEM` settings. It waits for WAL replay however long it takes,
+  retrying repo errors every 10 seconds until only a missing segment ends it, then takes a full
+  backup for its replicas. If the repo can't be read, the bootstrap fails instead of starting empty.
+  Replaying to the end of its own archived WAL is only consistent when a single worker group is
+  lost; after losing the coordinator or several groups, follow [PITR](#point-in-time-recovery-pitr)
+  instead
 
 ### Monitoring
 
@@ -194,13 +199,12 @@ spec:
   targetNamespace: &namespace myapp
   createNamespace: true
   failurePolicy: abort
-  timeout: 30m
   plainHTTP: ${IsLocal}
   set:
     db: myapp
     namespace: *namespace
     credentials.secret: postgres-myapp-creds
-    backup.path: kubernetes/myapp/postgres
+    backup.path: /kubernetes/myapp/postgres
     backup.image: ${ImageRegistry}/pgbackrest:${ImageTag}
     patroni.image: ${ImageRegistry}/patroni:${ImageTag}
     patroni.reconcilerImage: ${ImageRegistry}/postgres-reconciler:${ImageTag}
@@ -323,13 +327,13 @@ instead, queries to its group can fail for up to `citus.node_connection_timeout`
 
 ### Change Postgres Settings
 
-Set `patroni.parameters` in the HelmChart. New clusters start with them, and after every install,
-upgrade and rollback a [reconciler](./reconciler) Job (`apply-parameters`) applies them to each
-group. Helm waits for the Job, which waits for a new cluster to restore its backup, so a restore
-longer than the HelmChart's `timeout` fails the release, and `failurePolicy: abort` then holds every
-later upgrade until you fix it. Size `timeout` to your largest restore. Settings Postgres can
-reload, like `work_mem`, take effect within seconds. Ones that need a restart, like
-`shared_buffers`, show under `Pending restart` until you restart each group in place:
+Set `patroni.parameters` in the HelmChart. New clusters start with them, restored ones included, and
+after every install, upgrade and rollback a [reconciler](./reconciler) Job (`apply-parameters`)
+applies them to each running group; a group that's still bootstrapping or restoring counts as done,
+so a restore never holds the release. A change made while a group bootstraps reaches it only on the
+next release. Settings Postgres can reload, like `work_mem`, take effect within seconds. Ones that
+need a restart, like `shared_buffers`, show under `Pending restart` until you restart each group in
+place:
 
 ```bash
 kubectl exec -n myapp patroni-myapp-group-0-0 -c patroni -- \
@@ -705,7 +709,7 @@ after changing them:
 | `backup.credentials.secret`              | S3 credentials secret                              | `backup-bucket-creds`                                       |
 | `backup.credentials.dataKeys.*`          | Access/secret keys in that secret                  | `S3_ACCESS_KEY`, `S3_SECRET_KEY`                            |
 | `backup.bucket`                          | S3 bucket                                          | `backups`                                                   |
-| `backup.path`                            | Path in the bucket                                 | `kubernetes/examples/postgres`                              |
+| `backup.path`                            | Path in the bucket                                 | `/kubernetes/examples/postgres`                             |
 | `backup.encryptionKey`                   | pgBackRest cipher passphrase                       | `openssl-rand-hex-32` (placeholder, override it)            |
 | `backup.image`                           | pgBackRest image                                   | `ghcr.io/pandoks/pgbackrest:latest`                         |
 | `backup.schedules.full`                  | Full backup cron                                   | `0 2 * * 0` (Sunday 2 AM)                                   |
@@ -715,7 +719,7 @@ after changing them:
 | `backup.retention.diff`                  | Diff backups to keep                               | `2`                                                         |
 | `backup.restorePointSchedule`            | Citus restore point cron                           | `*/15 * * * *`                                              |
 | `s3.region`                              | S3 region                                          | `us-west-1`                                                 |
-| `s3.host`                                | S3 endpoint                                        | `host.k3d.internal:4566` (LocalStack from `docker-compose`) |
+| `s3.host`                                | S3 endpoint                                        | `host.k3d.internal:9191` (S3Mock HTTPS from docker-compose) |
 | `s3.tls`                                 | Verify S3 TLS (`y`/`n`)                            | `n`                                                         |
 | `s3.uriStyle`                            | S3 URI style                                       | `path`                                                      |
 | `patroni.workers`                        | Citus worker groups (0 = coordinator only)         | `0`                                                         |

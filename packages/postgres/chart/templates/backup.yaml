@@ -90,8 +90,6 @@ spec:
               env:
                 - name: MASTER_HOST
                   value: patroni-{{ .context.Values.db }}-primary-group-{{ .group }}.{{ .context.Values.namespace }}.svc.cluster.local
-                - name: SLAVE_HOST
-                  value: patroni-{{ .context.Values.db }}-replicas-group-{{ .group }}.{{ .context.Values.namespace }}.svc.cluster.local
                 - name: CLIENT_COMMON_NAME
                   value: patroni-{{ .context.Values.db }}-group-{{ .group }}
                 - name: BACKUP_BUCKET

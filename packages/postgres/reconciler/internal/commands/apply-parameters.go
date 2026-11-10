@@ -21,7 +21,7 @@ func ApplyParameters(env utils.Env) error {
 			fmt.Printf("group %d: %s, retrying\n", group, err)
 			time.Sleep(5 * time.Second)
 		}
-		fmt.Printf("group %d: updated\n", group)
+		fmt.Printf("group %d: done\n", group)
 	}
 	return nil
 }

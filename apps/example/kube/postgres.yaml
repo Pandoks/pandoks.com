@@ -9,13 +9,12 @@ spec:
   targetNamespace: &namespace main
   createNamespace: true
   failurePolicy: abort
-  timeout: 30m # NOTE: a backup restore can take this long
   plainHTTP: ${IsLocal}
   set:
     db: main
     namespace: *namespace
     credentials.secret: postgres-main-creds
-    backup.path: kubernetes/main/postgres
+    backup.path: /kubernetes/main/postgres
     backup.image: ${ImageRegistry}/pgbackrest:${ImageTag}
     patroni.image: ${ImageRegistry}/patroni:${ImageTag}
     patroni.reconcilerImage: ${ImageRegistry}/postgres-reconciler:${ImageTag}
