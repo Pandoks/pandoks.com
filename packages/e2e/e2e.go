@@ -1,4 +1,3 @@
-// Package e2e holds the helpers the per-package Ginkgo suites share to test charts on the local k3d cluster.
 package e2e
 
 import (
@@ -16,63 +15,56 @@ import (
 	"github.com/onsi/gomega"
 )
 
-// NOTE: the context and registry `pnpm cluster k3d up` creates; every command is pinned to this context, so a suite
-// can never write to another cluster
+// NOTE: every command is pinned to this context, so a suite can't write to another cluster
 const (
 	KubeContext = "k3d-local-cluster"
 	Registry    = "local-registry:5000"
 )
 
-// RunSuite runs the package's specs with the shared Eventually defaults
-func RunSuite(t *testing.T, description string) {
+func RunSuite(t *testing.T, suiteDescription string) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
 	gomega.SetDefaultEventuallyTimeout(time.Minute)
 	gomega.SetDefaultEventuallyPollingInterval(2 * time.Second)
-	ginkgo.RunSpecs(t, description)
+	ginkgo.RunSpecs(t, suiteDescription)
 }
 
-// ApplyServiceMonitorCRD applies the Prometheus Operator CRDs the charts' monitoring templates need, unless the cluster
-// already has them, and waits for them
 func ApplyServiceMonitorCRD() {
 	ginkgo.GinkgoHelper()
-	// NOTE: a cluster from `pnpm local:init` already has them from kube-prometheus-stack
+	// NOTE: kube-prometheus-stack already installs them on a `pnpm local:init` cluster
 	if _, err := Run("", "kubectl", "get", "crd", "servicemonitors.monitoring.coreos.com"); err != nil {
-		_, file, _, _ := runtime.Caller(0)
-		MustRun("", "kubectl", "apply", "--server-side", "-k", filepath.Dir(file))
+		_, currentFile, _, _ := runtime.Caller(0)
+		MustRun("", "kubectl", "apply", "--server-side", "-k", filepath.Dir(currentFile))
 	}
 	MustRun("", "kubectl", "wait", "--for=condition=Established", "crd/servicemonitors.monitoring.coreos.com")
 }
 
-// Run runs kubectl or helm against the local k3d cluster
-func Run(stdin, command string, args ...string) (string, error) {
+func Run(stdin, executable string, arguments ...string) (string, error) {
 	contextFlag := "--context"
-	if command == "helm" {
+	if executable == "helm" {
 		contextFlag = "--kube-context"
 	}
 	// G204: only the specs choose the arguments, as in the _test.go files gosec already skips
-	cmd := exec.Command(command, append([]string{contextFlag, KubeContext}, args...)...) //nolint:gosec
-	cmd.Stdin = strings.NewReader(stdin)
+	command := exec.Command(executable, append([]string{contextFlag, KubeContext}, arguments...)...) //nolint:gosec
+	command.Stdin = strings.NewReader(stdin)
 	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
+	command.Stdout, command.Stderr = &stdout, &stderr
+	if err := command.Run(); err != nil {
 		// NOTE: %v, not %w: Gomega prints a wrapped *exec.ExitError as a struct dump
-		return stdout.String(), fmt.Errorf("%s %s: %v\n%s", command, strings.Join(args, " "), err, stderr.String())
+		return stdout.String(), fmt.Errorf("%s %s: %v\n%s", executable, strings.Join(arguments, " "), err, stderr.String())
 	}
 	return stdout.String(), nil
 }
 
-func MustRun(stdin, command string, args ...string) string {
+func MustRun(stdin, executable string, arguments ...string) string {
 	ginkgo.GinkgoHelper()
-	output, err := Run(stdin, command, args...)
+	output, err := Run(stdin, executable, arguments...)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 	return output
 }
 
-// InstallChart installs chartDir as release into a new namespace holding the given credentials.secret and waits for
-// its hooks. After the spec or Ordered container it dumps diagnostics if anything failed, then deletes the namespace.
-func InstallChart(release, chartDir string, secret, values map[string]string) string {
+func InstallChart(releaseName, chartDirectory string, secretData, chartValues map[string]string) string {
 	ginkgo.GinkgoHelper()
-	namespace := fmt.Sprintf("e2e-%s-%s", release, strings.ToLower(rand.Text()[:4]))
+	namespace := fmt.Sprintf("e2e-%s-%s", releaseName, strings.ToLower(rand.Text()[:4]))
 	MustRun("", "kubectl", "create", "namespace", namespace)
 	ginkgo.DeferCleanup(func() {
 		if ginkgo.CurrentSpecReport().Failed() {
@@ -81,42 +73,40 @@ func InstallChart(release, chartDir string, secret, values map[string]string) st
 		MustRun("", "kubectl", "delete", "namespace", namespace, "--timeout=3m")
 	})
 
-	secretArgs := []string{"-n", namespace, "create", "secret", "generic", values["credentials.secret"]}
-	for key, value := range secret {
-		secretArgs = append(secretArgs, fmt.Sprintf("--from-literal=%s=%s", key, value))
+	secretArguments := []string{"-n", namespace, "create", "secret", "generic", chartValues["credentials.secret"]}
+	for secretKey, secretValue := range secretData {
+		secretArguments = append(secretArguments, fmt.Sprintf("--from-literal=%s=%s", secretKey, secretValue))
 	}
-	MustRun("", "kubectl", secretArgs...)
+	MustRun("", "kubectl", secretArguments...)
 
-	values["namespace"] = namespace
-	UpgradeChart(namespace, release, chartDir, values)
+	chartValues["namespace"] = namespace
+	UpgradeChart(namespace, releaseName, chartDirectory, chartValues)
 	return namespace
 }
 
-// UpgradeChart installs or upgrades release in namespace from chartDir with values on top of its previous ones and
-// waits for its hooks
-func UpgradeChart(namespace, release, chartDir string, values map[string]string) {
+func UpgradeChart(namespace, releaseName, chartDirectory string, chartValues map[string]string) {
 	ginkgo.GinkgoHelper()
-	args := []string{
-		"-n", namespace, "upgrade", release, chartDir,
+	helmArguments := []string{
+		"-n", namespace, "upgrade", releaseName, chartDirectory,
 		"--install", "--reset-then-reuse-values", "--timeout=5m",
 	}
-	for key, value := range values {
-		args = append(args, "--set", key+"="+value)
+	for valueKey, value := range chartValues {
+		helmArguments = append(helmArguments, "--set", valueKey+"="+value)
 	}
-	MustRun("", "helm", args...)
+	MustRun("", "helm", helmArguments...)
 }
 
 func dumpDiagnostics(namespace string) {
-	for _, args := range [][]string{
+	for _, kubectlArguments := range [][]string{
 		{"-n", namespace, "get", "pods,jobs,statefulsets", "-o", "wide"},
 		{"-n", namespace, "get", "events", "--sort-by=.lastTimestamp"},
 	} {
-		output, err := Run("", "kubectl", args...)
-		ginkgo.GinkgoWriter.Printf("\n$ kubectl %s\n%s%v\n", strings.Join(args, " "), output, err)
+		output, err := Run("", "kubectl", kubectlArguments...)
+		ginkgo.GinkgoWriter.Printf("\n$ kubectl %s\n%s%v\n", strings.Join(kubectlArguments, " "), output, err)
 	}
-	pods, _ := Run("", "kubectl", "-n", namespace, "get", "pods", "-o", "name")
-	for _, pod := range strings.Fields(pods) {
-		output, _ := Run("", "kubectl", "-n", namespace, "logs", pod, "--all-containers", "--prefix", "--tail=30")
-		ginkgo.GinkgoWriter.Printf("\n$ kubectl logs %s\n%s", pod, output)
+	podNames, _ := Run("", "kubectl", "-n", namespace, "get", "pods", "-o", "name")
+	for _, podName := range strings.Fields(podNames) {
+		podLogs, _ := Run("", "kubectl", "-n", namespace, "logs", podName, "--all-containers", "--prefix", "--tail=30")
+		ginkgo.GinkgoWriter.Printf("\n$ kubectl logs %s\n%s", podName, podLogs)
 	}
 }

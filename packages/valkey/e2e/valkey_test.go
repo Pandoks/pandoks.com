@@ -12,84 +12,82 @@ import (
 )
 
 const (
-	chartDir       = "../chart"
-	valkeyPassword = "admin-test-password"
-	keyCount       = 1000
+	valkeyChartDirectory = "../chart"
+	adminPassword        = "admin-test-password"
+	keyCount             = 1000
 )
 
-func installValkey(masters int) string {
+func installValkey(masterCount int) string {
 	GinkgoHelper()
-	return e2e.InstallChart("valkey", chartDir,
-		map[string]string{"ADMIN_PASSWORD": valkeyPassword, "CLIENT_PASSWORD": "client-test-password"},
+	return e2e.InstallChart("valkey", valkeyChartDirectory,
+		map[string]string{"ADMIN_PASSWORD": adminPassword, "CLIENT_PASSWORD": "client-test-password"},
 		map[string]string{
 			"name":                    "vk",
 			"image":                   e2e.Registry + "/valkey:latest",
 			"cluster.reconcilerImage": e2e.Registry + "/valkey-reconciler:latest",
-			"cluster.masters":         strconv.Itoa(masters),
+			"cluster.masters":         strconv.Itoa(masterCount),
 			"credentials.secret":      "valkey-creds",
 			// NOTE: keep the hook Jobs for the diagnostics dump
 			"hooks.hookDeletePolicy": "before-hook-creation",
 		})
 }
 
-func valkeyCli(namespace, pod, stdin string, args ...string) (string, error) {
+func valkeyCli(namespace, podName, stdin string, cliArguments ...string) (string, error) {
 	return e2e.Run(stdin, "kubectl", append([]string{
-		"-n", namespace, "exec", "-i", pod, "-c", "valkey", "--",
-		"valkey-cli", "--user", "admin", "-a", valkeyPassword, "--no-auth-warning",
-	}, args...)...)
+		"-n", namespace, "exec", "-i", podName, "-c", "valkey", "--",
+		"valkey-cli", "--user", "admin", "-a", adminPassword, "--no-auth-warning",
+	}, cliArguments...)...)
 }
 
 func writeKeys(namespace string) {
 	GinkgoHelper()
-	var commands strings.Builder
-	for i := range keyCount {
-		fmt.Fprintf(&commands, "SET key:%d %d\n", i, i)
+	var setCommands strings.Builder
+	for keyIndex := range keyCount {
+		fmt.Fprintf(&setCommands, "SET key:%d %d\n", keyIndex, keyIndex)
 	}
-	output, err := valkeyCli(namespace, "valkey-vk-0", commands.String(), "-c")
+	output, err := valkeyCli(namespace, "valkey-vk-0", setCommands.String(), "-c")
 	Expect(err).NotTo(HaveOccurred())
 	Expect(strings.Count(output, "OK\n")).To(Equal(keyCount), "not every SET returned OK")
 }
 
-func expectKeysReadable(g Gomega, namespace, pod string) {
-	var commands, expected strings.Builder
-	for i := range keyCount {
-		fmt.Fprintf(&commands, "GET key:%d\n", i)
-		fmt.Fprintf(&expected, "%d\n", i)
+func expectKeysReadable(g Gomega, namespace, podName string) {
+	var getCommands, expectedValues strings.Builder
+	for keyIndex := range keyCount {
+		fmt.Fprintf(&getCommands, "GET key:%d\n", keyIndex)
+		fmt.Fprintf(&expectedValues, "%d\n", keyIndex)
 	}
-	output, err := valkeyCli(namespace, pod, commands.String(), "-c")
+	output, err := valkeyCli(namespace, podName, getCommands.String(), "-c")
 	g.Expect(err).NotTo(HaveOccurred())
-	values := regexp.MustCompile(`(?m)^-> Redirected.*\n`).ReplaceAllString(output, "")
-	g.Expect(values).To(Equal(expected.String()), "not every key:N returned N")
+	returnedValues := regexp.MustCompile(`(?m)^-> Redirected.*\n`).ReplaceAllString(output, "")
+	g.Expect(returnedValues).To(Equal(expectedValues.String()), "not every key:N returned N")
 }
 
-var masterLine = regexp.MustCompile(`(?m)^\S+ \(\w+\.\.\.\) -> (\d+) keys \| (\d+) slots`)
+var clusterCheckMasterLine = regexp.MustCompile(`(?m)^\S+ \(\w+\.\.\.\) -> (\d+) keys \| (\d+) slots`)
 
-// expectHealthyCluster checks that every node reports cluster_state:ok, slot coverage, open slots, master count, and
-// that slots are spread over every master
-func expectHealthyCluster(g Gomega, namespace string, masters int) {
-	replicas, err := e2e.Run("", "kubectl", "-n", namespace, "get", "statefulset", "valkey-vk", "-o", "jsonpath={.spec.replicas}")
+func expectHealthyCluster(g Gomega, namespace string, masterCount int) {
+	statefulSetReplicas, err := e2e.Run("", "kubectl", "-n", namespace, "get", "statefulset", "valkey-vk", "-o", "jsonpath={.spec.replicas}")
 	g.Expect(err).NotTo(HaveOccurred())
-	pods, err := strconv.Atoi(replicas)
+	podCount, err := strconv.Atoi(statefulSetReplicas)
 	g.Expect(err).NotTo(HaveOccurred())
 	// NOTE: `--cluster create` returns before the nodes reach cluster_state:ok, and until then writes get CLUSTERDOWN
-	for i := range pods {
-		info, err := valkeyCli(namespace, fmt.Sprintf("valkey-vk-%d", i), "", "cluster", "info")
+	for podIndex := range podCount {
+		clusterInfo, err := valkeyCli(namespace, fmt.Sprintf("valkey-vk-%d", podIndex), "", "cluster", "info")
 		g.Expect(err).NotTo(HaveOccurred())
-		g.Expect(info).To(ContainSubstring("cluster_state:ok"))
+		g.Expect(clusterInfo).To(ContainSubstring("cluster_state:ok"))
 	}
-	address := fmt.Sprintf("valkey-vk-0.valkey-vk-headless.%s.svc.cluster.local:6379", namespace)
+	seedNodeAddress := fmt.Sprintf("valkey-vk-0.valkey-vk-headless.%s.svc.cluster.local:6379", namespace)
 	// NOTE: --cluster check exits 1 on open slots; its output says why, so assert on that instead of the exit code
-	output, err := valkeyCli(namespace, "valkey-vk-0", "", "--cluster", "check", address)
-	g.Expect(output).To(ContainSubstring("[OK] All 16384 slots covered."), "%v", err)
-	g.Expect(output).To(ContainSubstring("[OK] All nodes agree about slots configuration."))
-	g.Expect(output).NotTo(ContainSubstring("[WARNING]"))
+	clusterCheckOutput, err := valkeyCli(namespace, "valkey-vk-0", "", "--cluster", "check", seedNodeAddress)
+	g.Expect(clusterCheckOutput).To(ContainSubstring("[OK] All 16384 slots covered."), "%v", err)
+	g.Expect(clusterCheckOutput).To(ContainSubstring("[OK] All nodes agree about slots configuration."))
+	g.Expect(clusterCheckOutput).NotTo(ContainSubstring("[WARNING]"))
 	slotsPerMaster := []int{}
-	for _, match := range masterLine.FindAllStringSubmatch(output, -1) {
-		slots, _ := strconv.Atoi(match[2])
-		slotsPerMaster = append(slotsPerMaster, slots)
+	for _, masterLineMatch := range clusterCheckMasterLine.FindAllStringSubmatch(clusterCheckOutput, -1) {
+		masterSlotCount, _ := strconv.Atoi(masterLineMatch[2])
+		slotsPerMaster = append(slotsPerMaster, masterSlotCount)
 	}
-	g.Expect(slotsPerMaster).To(HaveLen(masters))
-	g.Expect(slotsPerMaster).To(HaveEach(BeNumerically(">=", 16384/masters/2)), "slots are not spread over every master")
+	g.Expect(slotsPerMaster).To(HaveLen(masterCount))
+	g.Expect(slotsPerMaster).To(HaveEach(BeNumerically(">=", 16384/masterCount/2)), "slots are not spread over every master")
 }
 
 var _ = Describe("Valkey", Label("valkey"), func() {
@@ -110,7 +108,7 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 		})
 
 		It("scales down to 3 masters with the pre-upgrade hook and keeps every key", func() {
-			e2e.UpgradeChart(namespace, "valkey", chartDir, map[string]string{"cluster.masters": "3"})
+			e2e.UpgradeChart(namespace, "valkey", valkeyChartDirectory, map[string]string{"cluster.masters": "3"})
 			Eventually(expectHealthyCluster).WithArguments(namespace, 3).Should(Succeed())
 			expectKeysReadable(Default, namespace, "valkey-vk-0")
 		})
