@@ -1,9 +1,4 @@
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+export { cn } from 'tailwind-variants';
 
 export type WithoutChild<T> = 'child' extends keyof T ? Omit<T, 'child'> : T;
 export type WithoutChildren<T> = 'children' extends keyof T ? Omit<T, 'children'> : T;
