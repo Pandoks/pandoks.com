@@ -38,8 +38,8 @@ on:
         description: 'Image · clickhouse-backup'
         type: boolean
         default: false
-      mobile-template-updates:
-        description: 'Image · mobile-template-updates'
+      mobile-template-mobile-updates:
+        description: 'Image · mobile-template-mobile-updates'
         type: boolean
         default: false
       postgres-chart:
@@ -99,7 +99,7 @@ jobs:
             clickhouse-backup:
               - 'packages/clickhouse/backup/**'
             # NOTE: not the app's kube/, or merging Renovate's digest bump rebuilds the image and bumps it again
-            mobile-template-updates:
+            mobile-template-mobile-updates:
               - 'packages/mobile-updates/{Dockerfile,Dockerfile.dockerignore,go.mod,main.go}'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
@@ -133,7 +133,7 @@ jobs:
             {"name":"clickhouse","path":"./packages/clickhouse/clickhouse/Dockerfile"},
             {"name":"clickhouse-keeper","path":"./packages/clickhouse/keeper/Dockerfile"},
             {"name":"clickhouse-backup","path":"./packages/clickhouse/backup/Dockerfile"},
-            {"name":"mobile-template-updates","path":"./packages/mobile-updates/Dockerfile","build-args":"APP=mobile-template"}
+            {"name":"mobile-template-mobile-updates","path":"./packages/mobile-updates/Dockerfile","build-args":"APP=mobile-template"}
           ]'
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             selected=$(jq -c 'to_entries | map(select(.value == true) | .key)' <<<"${DISPATCH}")

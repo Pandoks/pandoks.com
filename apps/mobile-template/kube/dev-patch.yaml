@@ -6,4 +6,4 @@ metadata:
   namespace: kube-system
 spec:
   set:
-    image: ${ImageRegistry}/mobile-template-updates:${ImageTag}
+    image: ${ImageRegistry}/mobile-template-mobile-updates:${ImageTag}

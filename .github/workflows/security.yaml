@@ -58,7 +58,7 @@ jobs:
           - clickhouse
           - clickhouse-keeper
           - clickhouse-backup
-          - mobile-template-updates
+          - mobile-template-mobile-updates
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

@@ -40,7 +40,7 @@ jobs:
           - clickhouse
           - clickhouse-keeper
           - clickhouse-backup
-          - mobile-template-updates
+          - mobile-template-mobile-updates
           - charts/postgres
           - charts/valkey
           - charts/clickhouse

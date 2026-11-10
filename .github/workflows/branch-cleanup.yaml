@@ -48,7 +48,7 @@ jobs:
           - clickhouse
           - clickhouse-keeper
           - clickhouse-backup
-          - mobile-template-updates
+          - mobile-template-mobile-updates
     steps:
       - name: Delete GHCR versions for deleted branch
         shell: bash

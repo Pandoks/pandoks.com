@@ -171,7 +171,7 @@ Before calling infra, cluster, or tooling work done, check:
   `image:tag@sha256:…` in files a Renovate manager matches; no image lock files. Images in raw
   manifests in `k3s/` aren't matched yet, so add a `kubernetes` `managerFilePatterns` entry to
   `renovate.json` before pinning an image there. First-party images in `apps/*/kube` stay
-  `${ImageRegistry}/<img>:${ImageTag}`, except an app's updates image, which is pinned like a
+  `${ImageRegistry}/<img>:${ImageTag}`, except an app's mobile-updates image, which is pinned like a
   third-party one so Renovate's digest bump releases it, with a `dev-patch.yaml` back to the
   placeholder for local and dev. Prefer copying official binaries from official images. Use `.yaml`,
   with anchors only for values that must stay equal. Default unset or off-by-default `values.yaml`
