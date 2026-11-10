@@ -35,15 +35,23 @@ jobs:
             web:
               - 'apps/web/**'
               - 'packages/svelte/**'
+              - '.github/actions/setup-node-pnpm/**'
             desktop:
               - 'apps/desktop-template/**'
               - 'packages/svelte/**'
+              - '.github/actions/setup-node-pnpm/**'
             svelte:
               - 'packages/svelte/**'
+              - '.github/actions/setup-node-pnpm/**'
             prettier:
               - 'packages/prettier/**'
+              - '.github/actions/setup-node-pnpm/**'
             valkey-reconciler:
               - 'packages/valkey/reconciler/**'
+              - 'packages/valkey/package.json'
+              - 'go.work'
+              - 'go.work.sum'
+              - '.github/actions/setup-node-pnpm/**'
 
   test-web:
     needs: detect-changes

@@ -125,15 +125,9 @@ jobs:
 
       - uses: ./.github/actions/setup-node-pnpm
 
-      - name: Setup Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: packages/valkey/reconciler/go.mod
-          cache-dependency-path: packages/valkey/reconciler/go.sum
-
       - uses: ./.github/actions/setup-mise
         with:
-          tools: golangci-lint
+          tools: go golangci-lint
 
       - name: Run format check
         run: pnpm format check go
@@ -142,6 +136,9 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.go == 'true'
     runs-on: ubuntu-latest
+    env:
+      # NOTE: lets mise's go: backend use setup-go's Go, whose cache this job owns
+      MISE_DISABLE_TOOLS: go
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -155,7 +152,7 @@ jobs:
 
       - uses: ./.github/actions/setup-mise
         with:
-          tools: go golangci-lint go:golang.org/x/vuln/cmd/govulncheck
+          tools: golangci-lint go:golang.org/x/vuln/cmd/govulncheck
 
       - name: Run lint
         run: pnpm lint go
