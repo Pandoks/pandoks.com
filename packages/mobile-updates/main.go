@@ -76,11 +76,11 @@ func run() error {
 	if err != nil || publicURL.Host == "" {
 		return fmt.Errorf("URL %q isn't the URL clients reach this server at", os.Getenv("URL"))
 	}
-	updates, err := newServer("/updates", publicURL.String(), key)
+	mobileUpdates, err := newServer("/mobile-updates", publicURL.String(), key)
 	if err != nil {
 		return err
 	}
-	httpServer := &http.Server{Addr: ":8080", Handler: updates, ReadHeaderTimeout: 10 * time.Second}
+	httpServer := &http.Server{Addr: ":8080", Handler: mobileUpdates, ReadHeaderTimeout: 10 * time.Second}
 	return httpServer.ListenAndServe()
 }
 
@@ -121,12 +121,12 @@ func newServer(dir, publicURL string, key *rsa.PrivateKey) (*server, error) {
 		return nil, err
 	}
 
-	updatesServer := &server{
+	mobileUpdatesServer := &server{
 		updates:       map[string]map[string]signedManifest{},
 		assetPaths:    map[string]string{},
 		assetContents: map[string]string{},
 	}
-	if updatesServer.noUpdate, err = signPart(key, "directive", map[string]string{"type": "noUpdateAvailable"}); err != nil {
+	if mobileUpdatesServer.noUpdate, err = signPart(key, "directive", map[string]string{"type": "noUpdateAvailable"}); err != nil {
 		return nil, err
 	}
 	for platform, files := range metadata.FileMetadata {
@@ -137,20 +137,20 @@ func newServer(dir, publicURL string, key *rsa.PrivateKey) (*server, error) {
 		if len(runtimeFiles) == 0 {
 			return nil, fmt.Errorf("%s has no runtime-version-%s*.json", platform, platform)
 		}
-		launchAsset, err := updatesServer.addAsset(dir, publicURL, files.Bundle, "", "application/javascript")
+		launchAsset, err := mobileUpdatesServer.addAsset(dir, publicURL, files.Bundle, "", "application/javascript")
 		if err != nil {
 			return nil, err
 		}
 		assets := []asset{}
 		for _, file := range files.Assets {
-			fileAsset, err := updatesServer.addAsset(dir, publicURL, file.Path, file.Ext, mime.TypeByExtension("."+file.Ext))
+			fileAsset, err := mobileUpdatesServer.addAsset(dir, publicURL, file.Path, file.Ext, mime.TypeByExtension("."+file.Ext))
 			if err != nil {
 				return nil, err
 			}
 			assets = append(assets, fileAsset)
 		}
 
-		updatesServer.updates[platform] = map[string]signedManifest{}
+		mobileUpdatesServer.updates[platform] = map[string]signedManifest{}
 		for _, runtimeFile := range runtimeFiles {
 			var runtime struct {
 				RuntimeVersion string `json:"runtimeVersion"`
@@ -183,10 +183,10 @@ func newServer(dir, publicURL string, key *rsa.PrivateKey) (*server, error) {
 			if err != nil {
 				return nil, err
 			}
-			updatesServer.updates[platform][runtime.RuntimeVersion] = signedManifest{id: update.ID, part: signed}
+			mobileUpdatesServer.updates[platform][runtime.RuntimeVersion] = signedManifest{id: update.ID, part: signed}
 		}
 	}
-	return updatesServer, nil
+	return mobileUpdatesServer, nil
 }
 
 func readJSON(path string, value any) error {
@@ -200,7 +200,7 @@ func readJSON(path string, value any) error {
 	return nil
 }
 
-func (updatesServer *server) addAsset(dir, publicURL, path, extension, contentType string) (asset, error) {
+func (mobileUpdatesServer *server) addAsset(dir, publicURL, path, extension, contentType string) (asset, error) {
 	data, err := os.ReadFile(filepath.Join(dir, path)) // #nosec G304 -- a path from the export's own metadata.json
 	if err != nil {
 		return asset{}, err
@@ -211,8 +211,8 @@ func (updatesServer *server) addAsset(dir, publicURL, path, extension, contentTy
 	sha := sha256.Sum256(data)
 	md5Sum := md5.Sum(data) // #nosec G401 -- the protocol keys assets by MD5, as a name, not for security
 	hash := base64.RawURLEncoding.EncodeToString(sha[:])
-	updatesServer.assetPaths[hash] = filepath.Join(dir, path)
-	updatesServer.assetContents[hash] = contentType
+	mobileUpdatesServer.assetPaths[hash] = filepath.Join(dir, path)
+	mobileUpdatesServer.assetContents[hash] = contentType
 	fileAsset := asset{Hash: hash, Key: hex.EncodeToString(md5Sum[:]), ContentType: contentType, URL: publicURL + "/assets/" + hash}
 	if extension != "" {
 		fileAsset.FileExtension = "." + extension
@@ -240,9 +240,9 @@ func signPart(key *rsa.PrivateKey, name string, value any) (signedPart, error) {
 	return signedPart{name: name, body: string(body), signature: base64.StdEncoding.EncodeToString(signature)}, nil
 }
 
-func (updatesServer *server) ServeHTTP(response http.ResponseWriter, request *http.Request) {
+func (mobileUpdatesServer *server) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	if hash, ok := strings.CutPrefix(request.URL.Path, "/assets/"); ok {
-		updatesServer.serveAsset(response, request, hash)
+		mobileUpdatesServer.serveAsset(response, request, hash)
 		return
 	}
 	if request.URL.Path != "/" {
@@ -251,7 +251,7 @@ func (updatesServer *server) ServeHTTP(response http.ResponseWriter, request *ht
 	}
 
 	runtimeVersion := request.Header.Get("expo-runtime-version")
-	platformUpdates, ok := updatesServer.updates[request.Header.Get("expo-platform")]
+	platformUpdates, ok := mobileUpdatesServer.updates[request.Header.Get("expo-platform")]
 	if runtimeVersion == "" || !ok {
 		http.Error(response, "Missing runtime version, or unknown platform", http.StatusBadRequest)
 		return
@@ -265,19 +265,19 @@ func (updatesServer *server) ServeHTTP(response http.ResponseWriter, request *ht
 		return
 	}
 	if request.Header.Get("expo-current-update-id") == update.id {
-		writePart(response, updatesServer.noUpdate)
+		writePart(response, mobileUpdatesServer.noUpdate)
 		return
 	}
 	writePart(response, update.part)
 }
 
-func (updatesServer *server) serveAsset(response http.ResponseWriter, request *http.Request, hash string) {
-	path, ok := updatesServer.assetPaths[hash]
+func (mobileUpdatesServer *server) serveAsset(response http.ResponseWriter, request *http.Request, hash string) {
+	path, ok := mobileUpdatesServer.assetPaths[hash]
 	if !ok {
 		http.NotFound(response, request)
 		return
 	}
-	response.Header().Set("content-type", updatesServer.assetContents[hash])
+	response.Header().Set("content-type", mobileUpdatesServer.assetContents[hash])
 	response.Header().Set("cache-control", "public, max-age=31536000, immutable")
 	http.ServeFile(response, request, path)
 }
