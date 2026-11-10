@@ -81,7 +81,11 @@ func openValkey(ctx context.Context, parsed *url.URL) (*valkeyQueue, error) {
 		return nil, err
 	}
 	prefix := "{" + name + "}"
-	if subscription := params["subscription"]; subscription != "" {
+	if subscription, ok := params["subscription"]; ok {
+		if subscription == "" {
+			client.Close()
+			return nil, errors.New("valkey URL: subscription is empty")
+		}
 		prefix += ":" + subscription
 		if err := client.Do(ctx, client.B().Sadd().Key("{"+name+"}:subscriptions").Member(subscription).Build()).Error(); err != nil {
 			client.Close()
@@ -225,7 +229,8 @@ func openValkeyTopic(_ context.Context, parsed *url.URL) (*valkeyTopic, error) {
 
 func (topic *valkeyTopic) Publish(ctx context.Context, messages ...Message) error {
 	sentAt := time.Now()
-	for _, message := range messages {
+	bodies := make([]string, len(messages))
+	for index, message := range messages {
 		if message.Delay != 0 {
 			return errors.New("publish to Valkey: topics take no delay")
 		}
@@ -233,7 +238,10 @@ func (topic *valkeyTopic) Publish(ctx context.Context, messages ...Message) erro
 		if err != nil {
 			return err
 		}
-		if err := topic.publish(ctx, string(body)); err != nil {
+		bodies[index] = string(body)
+	}
+	for _, body := range bodies {
+		if err := topic.publish(ctx, body); err != nil {
 			return err
 		}
 	}

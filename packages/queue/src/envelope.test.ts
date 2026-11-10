@@ -28,4 +28,17 @@ describe('envelope', () => {
     }
     encode(valid, new Date());
   });
+
+  test('decode rejects invalid base64 like Go and Python do', () => {
+    const body = JSON.stringify({
+      specversion: '1.0',
+      id: 'x',
+      source: '//test',
+      type: 'test',
+      time: '2026-11-09T18:00:00.000Z',
+      datacontenttype: 'application/octet-stream',
+      data_base64: '!!!'
+    });
+    expect(() => decode(body, { attempt: 1, deadline: new Date(), handle: undefined })).toThrow();
+  });
 });

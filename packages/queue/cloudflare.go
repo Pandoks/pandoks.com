@@ -18,6 +18,7 @@ import (
 const (
 	cloudflareBatchCount     = 100
 	cloudflareBatchBytes     = 256_000
+	cloudflareMetadataBytes  = 100
 	cloudflareEmptyPollDelay = time.Second
 )
 
@@ -82,7 +83,7 @@ func cloudflareEntries(messages []Message, sentAt time.Time) ([]queues.MessageBu
 
 func (queue *cloudflareQueue) push(ctx context.Context, entries []queues.MessageBulkPushParamsMessageUnion) error {
 	size := func(entry queues.MessageBulkPushParamsMessageUnion) int {
-		return len(entry.(queues.MessageBulkPushParamsMessagesMqQueueMessageText).Body.Value)
+		return len(entry.(queues.MessageBulkPushParamsMessagesMqQueueMessageText).Body.Value) + cloudflareMetadataBytes
 	}
 	for _, batch := range batches(entries, size, cloudflareBatchCount, cloudflareBatchBytes) {
 		params := queues.MessageBulkPushParams{AccountID: cloudflare.F(queue.account), Messages: cloudflare.F(batch)}

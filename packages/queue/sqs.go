@@ -96,7 +96,6 @@ func (queue *sqsQueue) Receive(ctx context.Context, max int) ([]*Delivery, error
 	if max < 1 {
 		return nil, fmt.Errorf("receive from SQS: max %d must be at least 1", max)
 	}
-	deadline := time.Now().Add(queue.lease)
 	output, err := queue.client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
 		QueueUrl:                    &queue.url,
 		MaxNumberOfMessages:         int32(min(max, sqsBatchCount)),
@@ -107,6 +106,8 @@ func (queue *sqsQueue) Receive(ctx context.Context, max int) ([]*Delivery, error
 	if err != nil {
 		return nil, fmt.Errorf("receive from SQS: %w", err)
 	}
+	// NOTE: the visibility timeout starts when the long poll returns a message
+	deadline := time.Now().Add(queue.lease)
 	deliveries := make([]*Delivery, 0, len(output.Messages))
 	var malformed []*Delivery
 	for _, message := range output.Messages {

@@ -19,7 +19,7 @@ EMPTY_POLL_DELAY = 0.1
 
 def valkey_client(parsed: SplitResult) -> tuple[ValkeyCluster, str]:
     """Connects to the cluster in a valkey://[user:password@]host:port/<name> URL."""
-    name = parsed.path.removeprefix("/")
+    name = unquote(parsed.path.removeprefix("/"))
     if not parsed.hostname or not name or any(character in name for character in "{}/"):
         raise ValueError("valkey URL must be valkey://[user:password@]host:port/<name>")
     client = ValkeyCluster(
@@ -40,7 +40,10 @@ def open_queue(parsed: SplitResult) -> ValkeyQueue:
         raise ValueError(f"valkey URL: max_attempts {params.get('max_attempts')!r} must be at least 1")
     client, name = valkey_client(parsed)
     prefix = "{" + name + "}"
-    if subscription := params.get("subscription"):
+    if (subscription := params.get("subscription")) is not None:
+        if not subscription:
+            client.close()
+            raise ValueError("valkey URL: subscription is empty")
         prefix += ":" + subscription
         client.sadd("{" + name + "}:subscriptions", subscription)
     return ValkeyQueue(client, prefix, lease, max_attempts)
@@ -118,8 +121,8 @@ class ValkeyTopic:
         if any(message.delay for message in messages):
             raise ValueError("publish to Valkey: topics take no delay")
         sent_at = datetime.now(UTC)
-        for message in messages:
-            self._publish(encode(message, sent_at))
+        for body in [encode(message, sent_at) for message in messages]:
+            self._publish(body)
 
     def _publish(self, body: str) -> None:
         """Rereads the subscriptions when publish.lua reports they changed since the last read."""

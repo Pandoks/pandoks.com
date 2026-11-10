@@ -17,6 +17,7 @@ import {
 
 const BATCH_COUNT = 100;
 const BATCH_BYTES = 256_000;
+const METADATA_BYTES = 100;
 const EMPTY_POLL_DELAY = 1;
 
 interface Entry {
@@ -78,7 +79,7 @@ export class CloudflareQueue implements Queue {
   }
 
   async push(pushed: Entry[]): Promise<void> {
-    const size = (entry: Entry) => Buffer.byteLength(entry.body);
+    const size = (entry: Entry) => Buffer.byteLength(entry.body) + METADATA_BYTES;
     for (const batch of batches(pushed, size, BATCH_COUNT, BATCH_BYTES)) {
       await this.client.queues.messages.bulkPush(this.id, {
         account_id: this.account,

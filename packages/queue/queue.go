@@ -108,16 +108,12 @@ func parseLease(params map[string]string) (time.Duration, error) {
 	if match == nil {
 		return 0, fmt.Errorf("lease %q must be a whole number of ms, s, m, or h", params["lease"])
 	}
-	amount, err := strconv.ParseInt(match[1], 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("lease %q: %w", params["lease"], err)
-	}
 	unit := map[string]time.Duration{"ms": time.Millisecond, "s": time.Second, "m": time.Minute, "h": time.Hour}[match[2]]
-	lease := time.Duration(amount) * unit
-	if lease <= 0 || lease > 12*time.Hour {
+	amount, err := strconv.ParseInt(match[1], 10, 64)
+	if err != nil || amount < 1 || amount > int64(12*time.Hour/unit) {
 		return 0, fmt.Errorf("lease %q must be more than 0 and at most 12h", params["lease"])
 	}
-	return lease, nil
+	return time.Duration(amount) * unit, nil
 }
 
 func checkDelay(delay time.Duration) error {

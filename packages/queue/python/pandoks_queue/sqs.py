@@ -58,7 +58,6 @@ class SQSQueue:
     def receive(self, max: int) -> list[Delivery]:
         if max < 1:
             raise ValueError(f"receive from SQS: max {max} must be at least 1")
-        deadline = datetime.now(UTC) + timedelta(seconds=self.lease)
         response = self.client.receive_message(
             QueueUrl=self.url,
             MaxNumberOfMessages=min(max, BATCH_COUNT),
@@ -66,6 +65,8 @@ class SQSQueue:
             VisibilityTimeout=int(self.lease),
             MessageSystemAttributeNames=["ApproximateReceiveCount"],
         )
+        # NOTE: the visibility timeout starts when the long poll returns a message
+        deadline = datetime.now(UTC) + timedelta(seconds=self.lease)
         rows = [
             (message["Body"], int(message["Attributes"]["ApproximateReceiveCount"]), message["ReceiptHandle"])
             for message in response.get("Messages", [])

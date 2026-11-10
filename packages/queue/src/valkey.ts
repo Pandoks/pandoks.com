@@ -24,7 +24,7 @@ function script(name: string): Script {
 
 /** Connects to the cluster in a valkey://[user:password@]host:port/<name> URL. */
 async function valkeyClient(url: URL): Promise<{ client: GlideClusterClient; name: string }> {
-  const name = url.pathname.replace(/^\//, '');
+  const name = decodeURIComponent(url.pathname.replace(/^\//, ''));
   if (!url.hostname || !name || /[{}/]/.test(name)) {
     throw new Error('valkey URL must be valkey://[user:password@]host:port/<name>');
   }
@@ -49,7 +49,11 @@ export async function openQueue(url: URL): Promise<ValkeyQueue> {
   }
   const { client, name } = await valkeyClient(url);
   let prefix = `{${name}}`;
-  if (params.subscription) {
+  if (params.subscription !== undefined) {
+    if (!params.subscription) {
+      client.close();
+      throw new Error('valkey URL: subscription is empty');
+    }
     prefix += `:${params.subscription}`;
     await client.sadd(`{${name}}:subscriptions`, [params.subscription]);
   }
@@ -167,8 +171,9 @@ export class ValkeyTopic implements Topic {
       throw new Error('publish to Valkey: topics take no delay');
     }
     const sentAt = new Date();
-    for (const message of messages) {
-      await this.publishBody(encode(message, sentAt));
+    const bodies = messages.map((message) => encode(message, sentAt));
+    for (const body of bodies) {
+      await this.publishBody(body);
     }
   }
 

@@ -135,6 +135,10 @@ export function decode(
       throw new Error(`decode envelope ${members.id}: data_base64 is not a string`);
     }
     data = new Uint8Array(Buffer.from(event.data_base64, 'base64'));
+    // NOTE: Buffer skips invalid characters, so only canonical base64 round-trips
+    if (Buffer.from(data).toString('base64') !== event.data_base64) {
+      throw new Error(`decode envelope ${members.id}: data_base64 is not valid base64`);
+    }
   } else if ('data' in event) {
     data = new TextEncoder().encode(JSON.stringify(event.data));
   }

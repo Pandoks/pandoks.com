@@ -176,3 +176,9 @@ func TestWorkerSettlesEachOutcome(t *testing.T) {
 		}
 	}
 }
+
+func TestParseLeaseRejectsOverflowingAmounts(t *testing.T) {
+	if lease, err := parseLease(map[string]string{"lease": "2251799813685249h"}); err == nil {
+		t.Fatalf("accepted an overflowing lease as %s", lease)
+	}
+}

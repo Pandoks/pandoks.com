@@ -73,7 +73,6 @@ export class SQSQueue implements Queue {
 
   async receive(max: number, signal?: AbortSignal): Promise<Delivery[]> {
     if (max < 1) throw new Error(`receive from SQS: max ${max} must be at least 1`);
-    const deadline = new Date(Date.now() + this.lease * 1000);
     let output;
     try {
       output = await this.client.send(
@@ -90,6 +89,8 @@ export class SQSQueue implements Queue {
       if (signal?.aborted) return [];
       throw error;
     }
+    // NOTE: the visibility timeout starts when the long poll returns a message
+    const deadline = new Date(Date.now() + this.lease * 1000);
     const rows = (output.Messages ?? []).map((message): [string, number, unknown] => [
       message.Body!,
       Number(message.Attributes!.ApproximateReceiveCount),

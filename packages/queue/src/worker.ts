@@ -20,8 +20,8 @@ export class RetryAfter extends Error {
 /**
  * Runs handle on up to concurrency deliveries at once. A handler that resolves is acked;
  * Permanent is acked and logged; RetryAfter is retried after its delay; any other error is
- * retried after backoff. The handler's signal aborts 10 s before the delivery's deadline or on
- * shutdown. run resolves once signal aborts and the running handlers have settled.
+ * retried after backoff. The handler's signal aborts 10 s before the delivery's deadline (halfway
+ * there for a shorter lease) or on shutdown. run resolves once signal aborts and the running handlers have settled.
  */
 export class Worker {
   queue: Queue;
@@ -62,7 +62,8 @@ export class Worker {
   }
 
   private async process(delivery: Delivery, signal: AbortSignal): Promise<void> {
-    const remaining = delivery.deadline.getTime() - HANDLER_MARGIN * 1000 - Date.now();
+    const untilDeadline = delivery.deadline.getTime() - Date.now();
+    const remaining = untilDeadline - Math.min(HANDLER_MARGIN * 1000, untilDeadline / 2);
     const handlerSignal = AbortSignal.any([signal, AbortSignal.timeout(Math.max(remaining, 0))]);
     const name = `${delivery.id} (${delivery.type}) attempt ${delivery.attempt}`;
     try {

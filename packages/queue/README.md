@@ -113,11 +113,11 @@ func RetryAfter(delay time.Duration, err error) error
 **Worker:** it receives only as many deliveries as it has free slots (`Concurrency`). A handler that
 returns is acked; `Permanent` is acked and logged; `RetryAfter` is retried after its delay (capped
 at `MaxDelay`); any other error, or a Go panic, is retried after `2^(attempt-1)` s, at most 15 min.
-Go cancels the handler's context, and TS aborts its signal, 10 s before `Deadline`; Python can't
-stop a running handler, so it logs one that runs past that point. When the context, signal, or
-`stop` event ends, the worker stops receiving, Go and TS cancel the running handlers, and it returns
-once they have settled. A Python or SQS worker can wait out its current receive first (up to SQS's
-20 s long poll).
+Go cancels the handler's context, and TS aborts its signal, 10 s before `Deadline` (halfway there
+for a shorter lease); Python can't stop a running handler, so it logs one that runs past that point.
+When the context, signal, or `stop` event ends, the worker stops receiving, Go and TS cancel the
+running handlers, and it returns once they have settled. A Python worker can wait out its current
+receive first (up to SQS's 20 s long poll) and leaves what that receive returns to lease expiry.
 
 ## URLs
 
@@ -232,7 +232,9 @@ await new Worker({
 
 - **TS ships as `.ts`** and loads the Lua scripts from `../valkey`, so a TS worker image keeps the
   workspace layout or compiles; `pnpm deploy`-style copies don't work. Python reads the same scripts
-  relative to its source, so install it from the repo (`uv` path dependency).
+  relative to its source, so depend on it as an editable path dependency
+  (`pandoks-queue = { path = "…/packages/queue/python", editable = true }` under
+  `[tool.uv.sources]`); a built wheel has no Lua files.
 - **TS `data` is parsed with `JSON.parse`,** so numbers past 2^53 lose precision; send them as
   strings.
 - **Valkey clients** need the cluster's `client` ACL from chart 0.1.5 or later: valkey-go otherwise

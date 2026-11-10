@@ -51,6 +51,9 @@ class Worker:
                     log.exception("queue receive failed")
                     deliveries = []
                     stop.wait(POLL_ERROR_DELAY)
+                if stop.is_set():
+                    # NOTE: received after stop; their leases return them to another worker
+                    deliveries = []
                 for _ in range(free - len(deliveries)):
                     slots.release()
                 for delivery in deliveries:

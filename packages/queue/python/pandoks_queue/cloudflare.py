@@ -22,6 +22,7 @@ from pandoks_queue.envelope import (
 
 BATCH_COUNT = 100
 BATCH_BYTES = 256_000
+METADATA_BYTES = 100
 EMPTY_POLL_DELAY = 1.0
 
 
@@ -61,7 +62,7 @@ class CloudflareQueue:
         self.client, self.account, self.id, self.lease = client, account, queue_id, 0.0
 
     def push(self, pushed: list[dict]) -> None:
-        for batch in batches(pushed, lambda entry: len(entry["body"].encode()), BATCH_COUNT, BATCH_BYTES):
+        for batch in batches(pushed, lambda entry: len(entry["body"].encode()) + METADATA_BYTES, BATCH_COUNT, BATCH_BYTES):
             self.client.queues.messages.bulk_push(self.id, account_id=self.account, messages=batch)
 
     def send(self, *messages: Message) -> None:
