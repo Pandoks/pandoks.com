@@ -1,11 +1,11 @@
-# The app's slug, which names its resources and its path on host
+# The app's slug, which names its resources and its path on the host
 name: example
 namespace: example
-# Required: the app's updates image, built from packages/mobile-updates/Dockerfile with APP set to the app
+# Required: the app's image, built from packages/mobile-updates/Dockerfile with APP set to the app
 image: ~
-# Required: the stage's updates host, ${UpdatesDomain} in an app's kube
+# Required: ${UpdatesDomain} in an app's kube
 host: ~
-# The TLS secret Cloudflare's origin certificate is in, for traffic from Cloudflare to the ingress
+# The secret with Cloudflare's origin certificate, which the ingress serves to Cloudflare
 tlsSecret: cloudflare-origin-tls
 
 signingKey:

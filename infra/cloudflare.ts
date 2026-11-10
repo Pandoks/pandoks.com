@@ -85,7 +85,7 @@ const hetznerOriginCert = new cloudflare.OriginCaCertificate(
   }
 );
 
-// NOTE: a new certificate, like one for a new hostname, replaces the one the cluster's ingress serves
+// NOTE: changing hostnames reissues the certificate, so keep the ingress's copy in sync
 $resolve([
   hetznerOriginCert.certificate,
   secrets.k8s.HetznerOriginTlsCrt.name,

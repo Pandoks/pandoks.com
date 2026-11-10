@@ -6,7 +6,7 @@ export const domain = isProduction ? 'pandoks.com' : 'dev.pandoks.com';
 
 export const EXAMPLE_DOMAIN = 'example.pandoks.com';
 
-// NOTE: one subdomain level, since Cloudflare's free edge certificate covers no deeper
+// NOTE: not updates.dev.pandoks.com, since Cloudflare's free edge certificate covers only one subdomain level
 export const UPDATES_DOMAIN = isProduction ? 'updates.pandoks.com' : 'updates-dev.pandoks.com';
 
 export const STAGE_NAME = isProduction ? 'prod' : 'dev';

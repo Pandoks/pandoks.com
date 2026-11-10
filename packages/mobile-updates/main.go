@@ -1,10 +1,10 @@
-// Command updates serves the Expo update baked into its image over the Expo Updates v1 protocol, and signs
+// Command mobile-updates serves the Expo update baked into its image over the Expo Updates v1 protocol, signing
 // every manifest and directive with RSA-SHA256.
 package main
 
 import (
 	"crypto"
-	"crypto/md5" // #nosec G501 -- the protocol's asset key is an MD5 digest, used as a name, not for security
+	"crypto/md5" // #nosec G501 -- the protocol keys assets by MD5, as a name, not for security
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -53,7 +53,7 @@ type signedManifest struct {
 }
 
 type server struct {
-	// A platform's update, signed once for each runtime version it serves
+	// Signed manifests by platform, then runtime version
 	updates       map[string]map[string]signedManifest
 	noUpdate      signedPart
 	assetPaths    map[string]string
@@ -100,9 +100,9 @@ func parseSigningKey(signingKey string) (*rsa.PrivateKey, error) {
 	return key, nil
 }
 
-// newServer reads the export in dir: expo export's output, created-at, and for each build of the app the update
-// serves, a runtime-version-<platform><build>.json from expo-updates runtimeversion:resolve and the public
-// expo-config<build>.json, where <build> is empty for production. It signs every response up front.
+// newServer reads the export in dir: expo export's output, created-at, and per build of the app (<build> is empty
+// for production, -dev for dev) runtime-version-<platform><build>.json and expo-config<build>.json. It signs every
+// response up front.
 func newServer(dir, publicURL string, key *rsa.PrivateKey) (*server, error) {
 	var metadata struct {
 		FileMetadata map[string]struct {
@@ -116,7 +116,7 @@ func newServer(dir, publicURL string, key *rsa.PrivateKey) (*server, error) {
 	if err := readJSON(filepath.Join(dir, "metadata.json"), &metadata); err != nil {
 		return nil, err
 	}
-	createdAt, err := os.ReadFile(filepath.Join(dir, "created-at")) // #nosec G304 -- a file of the export baked into the image
+	createdAt, err := os.ReadFile(filepath.Join(dir, "created-at")) // #nosec G304 -- the export baked into the image
 	if err != nil {
 		return nil, err
 	}
@@ -173,8 +173,7 @@ func newServer(dir, publicURL string, key *rsa.PrivateKey) (*server, error) {
 				Assets:         assets,
 				Extra:          map[string]any{"expoClient": expoClient},
 			}
-			// NOTE: expo-updates launches the newest update it has, so every build, even of old code, is a new update
-			// and reverting a bad one on main reaches phones that downloaded it
+			// NOTE: the ID covers createdAt, so a revert ships as a new, newer update: phones keep the newest one they have
 			content, err := json.Marshal(update)
 			if err != nil {
 				return nil, err
@@ -191,7 +190,7 @@ func newServer(dir, publicURL string, key *rsa.PrivateKey) (*server, error) {
 }
 
 func readJSON(path string, value any) error {
-	data, err := os.ReadFile(path) // #nosec G304 -- the path is a file of the export baked into the image
+	data, err := os.ReadFile(path) // #nosec G304 -- the export baked into the image
 	if err != nil {
 		return err
 	}
@@ -202,7 +201,7 @@ func readJSON(path string, value any) error {
 }
 
 func (updatesServer *server) addAsset(dir, publicURL, path, extension, contentType string) (asset, error) {
-	data, err := os.ReadFile(filepath.Join(dir, path)) // #nosec G304 -- the path comes from the export's own metadata.json
+	data, err := os.ReadFile(filepath.Join(dir, path)) // #nosec G304 -- a path from the export's own metadata.json
 	if err != nil {
 		return asset{}, err
 	}
@@ -210,7 +209,7 @@ func (updatesServer *server) addAsset(dir, publicURL, path, extension, contentTy
 		contentType = http.DetectContentType(data)
 	}
 	sha := sha256.Sum256(data)
-	md5Sum := md5.Sum(data) // #nosec G401 -- the protocol's asset key is an MD5 digest, used as a name, not for security
+	md5Sum := md5.Sum(data) // #nosec G401 -- the protocol keys assets by MD5, as a name, not for security
 	hash := base64.RawURLEncoding.EncodeToString(sha[:])
 	updatesServer.assetPaths[hash] = filepath.Join(dir, path)
 	updatesServer.assetContents[hash] = contentType

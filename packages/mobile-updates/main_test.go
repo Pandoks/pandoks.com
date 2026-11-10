@@ -75,7 +75,7 @@ func request(handler http.Handler, path string, headers map[string]string) *http
 	return recorder
 }
 
-// readSignedPart checks the response is one signed part, verifies its signature, and returns its name and body.
+// readSignedPart checks the response is one part with a valid signature and returns its name and body.
 func readSignedPart(t *testing.T, response *httptest.ResponseRecorder) (string, []byte) {
 	t.Helper()
 	if response.Code != http.StatusOK {

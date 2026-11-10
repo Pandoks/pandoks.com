@@ -1,4 +1,4 @@
-# NOTE: a local build sees what a CI checkout does, so the export's runtime version matches the app's build
+# NOTE: matches a CI checkout, so a local build's runtime version matches the app's
 .git
 .sst
 **/node_modules
