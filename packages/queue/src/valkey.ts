@@ -62,7 +62,12 @@ export async function openQueue(url: URL): Promise<ValkeyQueue> {
       throw new Error('valkey URL: subscription is empty');
     }
     prefix += `:${params.subscription}`;
-    await client.sadd(`{${name}}:subscriptions`, [params.subscription]);
+    try {
+      await client.sadd(`{${name}}:subscriptions`, [params.subscription]);
+    } catch (error) {
+      client.close();
+      throw error;
+    }
   }
   return new ValkeyQueue(client, prefix, lease, maxAttempts);
 }
@@ -73,7 +78,7 @@ export async function openTopic(url: URL): Promise<ValkeyTopic> {
   return new ValkeyTopic(await valkeyClient(url), name);
 }
 
-/** Keeps a queue's stream, delayed retries, and dead letters under one hash tag. */
+/** Keeps a queue's stream, delayed retries, dead letters, and reclaim cursor under one hash tag. */
 export class ValkeyQueue implements Queue {
   client: GlideClusterClient;
   keys: string[];
@@ -82,10 +87,11 @@ export class ValkeyQueue implements Queue {
   maxAttempts: number;
   receiveScript = script('receive');
   retryScript = script('retry');
+  closeScript = script('close');
 
   constructor(client: GlideClusterClient, prefix: string, lease: number, maxAttempts: number) {
     this.client = client;
-    this.keys = [`${prefix}:stream`, `${prefix}:delayed`, `${prefix}:dlq`];
+    this.keys = [`${prefix}:stream`, `${prefix}:delayed`, `${prefix}:dlq`, `${prefix}:reclaim`];
     this.lease = lease;
     this.maxAttempts = maxAttempts;
   }
@@ -154,11 +160,18 @@ export class ValkeyQueue implements Queue {
     await this.client.invokeScript(this.retryScript, { keys: this.keys, args });
   }
 
-  close(): Promise<void> {
-    this.receiveScript.release();
-    this.retryScript.release();
-    this.client.close();
-    return Promise.resolve();
+  async close(): Promise<void> {
+    try {
+      await this.client.invokeScript(this.closeScript, {
+        keys: [this.keys[0]],
+        args: [GROUP, this.consumer]
+      });
+    } finally {
+      this.receiveScript.release();
+      this.retryScript.release();
+      this.closeScript.release();
+      this.client.close();
+    }
   }
 }
 

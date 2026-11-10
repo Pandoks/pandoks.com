@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -68,6 +69,7 @@ func TestEncodeRejectsWhatOtherBrokersCannotCarry(t *testing.T) {
 		"delay":            {Source: "//test", Type: "test", Delay: MaxDelay + time.Second},
 		"size":             {Source: "//test", Type: "test", Data: []byte(`"` + strings.Repeat("x", MaxEnvelopeBytes) + `"`)},
 		"invalid json":     {Source: "//test", Type: "test", Data: []byte("{")},
+		"invalid utf-8":    {Source: "//test", Type: "test", Data: []byte("\"\xff\"")},
 	} {
 		if _, err := encode(message, time.Now()); err == nil {
 			t.Errorf("%s: encode accepted %+v", name, message)
@@ -82,6 +84,23 @@ func TestDecodeRejectsBothDataMembers(t *testing.T) {
 	body := []byte(`{"specversion":"1.0","id":"x","source":"//test","type":"test","time":"2026-11-09T18:00:00.000Z","data":{},"data_base64":"e30="}`)
 	if err := decode(body, &Delivery{}); err == nil {
 		t.Fatal("decode accepted both data and data_base64")
+	}
+}
+
+func TestDecodeRejectsWhatPythonAndTSReject(t *testing.T) {
+	envelope := `{"specversion":"1.0","id":"x","source":"//test","type":"test","time":"%s"%s}`
+	for name, body := range map[string]string{
+		"invalid utf-8":       fmt.Sprintf(envelope, "2026-11-09T18:00:00.000Z", `,"ext":"`+"\xff"+`"`),
+		"offset +24:00":       fmt.Sprintf(envelope, "2026-11-09T18:00:00+24:00", ""),
+		"offset +00:60":       fmt.Sprintf(envelope, "2026-11-09T18:00:00+00:60", ""),
+		"comma fraction":      fmt.Sprintf(envelope, "2026-11-09T18:00:00,123Z", ""),
+		"year 0000":           fmt.Sprintf(envelope, "0000-01-01T00:00:00Z", ""),
+		"base64 line break":   fmt.Sprintf(envelope, "2026-11-09T18:00:00.000Z", `,"data_base64":"e3\r\n0="`),
+		"base64 padding bits": fmt.Sprintf(envelope, "2026-11-09T18:00:00.000Z", `,"data_base64":"e31="`),
+	} {
+		if err := decode([]byte(body), &Delivery{}); err == nil {
+			t.Errorf("%s: decode accepted %q", name, body)
+		}
 	}
 }
 

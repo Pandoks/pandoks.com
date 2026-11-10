@@ -8,9 +8,11 @@ import unittest
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from unittest import mock
 
 import boto3
 from valkey.cluster import ValkeyCluster
+from valkey.exceptions import ResponseError
 
 from pandoks_queue import Message, open_queue, open_topic
 from pandoks_queue.envelope import decode, encode
@@ -133,12 +135,33 @@ class ValkeyContractTest(Contract, unittest.TestCase):
         self.subscriptions = [
             self.open(f"{base}t{suffix}?subscription={name}&lease=500ms&max_attempts=3") for name in ("a", "b")
         ]
-        client = ValkeyCluster(host="127.0.0.1", port=VALKEY_PORT, username="client", password="client", decode_responses=True)
+        client = self.client = ValkeyCluster(host="127.0.0.1", port=VALKEY_PORT, username="client", password="client", decode_responses=True)
         self.addCleanup(client.close)
         self.dead_letters = lambda: [
             decode(fields["envelope"], attempt=0, deadline=datetime.now(UTC)).id
             for _, fields in client.xrange("{q" + suffix + "}:dlq")
         ]
+
+    def test_close_removes_only_settled_consumers(self):
+        name = f"x{secrets.token_hex(5)}"
+        url = f"valkey://client:client@127.0.0.1:{VALKEY_PORT}/{name}?lease=500ms&max_attempts=5"
+        settled, holding = open_queue(url), open_queue(url)
+        message = test_message("close")
+        holding.send(message)
+        self.assertIn(message.id, receive(holding, WAIT, message.id))
+        settled.receive(1)
+        settled.close()
+        holding.close()
+        consumers = self.client.xinfo_consumers("{" + name + "}:stream", "workers")
+        self.assertEqual([consumer["name"] for consumer in consumers], [holding.consumer])
+
+    def test_open_closes_the_client_when_subscribing_fails(self):
+        name = f"s{secrets.token_hex(5)}"
+        self.client.set("{" + name + "}:subscriptions", "not a set")
+        with mock.patch.object(ValkeyCluster, "close", autospec=True, side_effect=ValkeyCluster.close) as close:
+            with self.assertRaises(ResponseError):
+                open_queue(f"valkey://client:client@127.0.0.1:{VALKEY_PORT}/{name}?subscription=a&lease=500ms&max_attempts=3")
+        close.assert_called_once()
 
 
 class SQSContractTest(Contract, unittest.TestCase):

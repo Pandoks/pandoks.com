@@ -13,7 +13,7 @@ graph LR
   subgraph B[Broker, from the URL]
     SQS["awssqs:// SQS<br/>awssns:// SNS → SQS"]
     CF["cloudflare:// Queues<br/>HTTP pull"]
-    V["valkey:// Streams<br/>+ receive/retry/publish.lua"]
+    V["valkey:// Streams<br/>+ receive/retry/publish/close.lua"]
   end
   B -->|"Receive(max), lease"| W["Worker (Go / Python / TS)<br/>Handle → Ack / Retry(delay)"]
   W -->|"Ack · Retry"| B
@@ -24,10 +24,11 @@ graph LR
 - **Envelope:** the message body on every broker is a CloudEvents 1.0 structured JSON envelope
   (`specversion`, `id`, `source`, `type`, `time`, `datacontenttype`, then `data` or `data_base64`),
   sent as UTF-8 text. JSON content types (`application/json`, `*+json`) put the data in `data`;
-  anything else goes base64 in `data_base64`. Extensions are top-level string members named
-  `[a-z0-9]{1,20}`. `time` is written as UTC with milliseconds (`2026-11-09T18:00:00.123Z`) in every
-  language, and read only as RFC 3339 with an offset. [testdata/envelopes](./testdata/envelopes)
-  holds the golden envelopes each language decodes and re-encodes.
+  anything else goes canonical base64 (padded, no line breaks) in `data_base64`. Extensions are
+  top-level string members named `[a-z0-9]{1,20}`. `time` is written as UTC with milliseconds
+  (`2026-11-09T18:00:00.123Z`) in every language, and read only as RFC 3339 with an offset.
+  [testdata/envelopes](./testdata/envelopes) holds the golden envelopes each language decodes and
+  re-encodes.
 - **Size:** `Send` and `Publish` reject an envelope over 120,000 bytes on every broker, so a payload
   that works on SQS also fits Cloudflare's 128 KB. Store anything bigger in object storage and send
   a reference.
@@ -131,7 +132,7 @@ Credentials come from each SDK's usual environment.
 | SNS topic           | `awssns:///arn:aws:sns:<region>:<account>:<name>[?endpoint=<url>]`               | Subscriptions are SQS queues subscribed with raw delivery on                   |
 | Cloudflare queue    | `cloudflare://<account_id>/<queue_id>?lease=2m`                                  | `CLOUDFLARE_API_TOKEN` with Queues Edit; the queue needs an HTTP pull consumer |
 | Cloudflare topic    | `cloudflare://<account_id>/<queue_id>,<queue_id>…`                               | Producer-side fan-out to each queue                                            |
-| Valkey queue        | `valkey://[user:password@]<host>:<port>/<name>?lease=2m&max_attempts=5`          | Keys `{<name>}:stream`, `{<name>}:delayed`, `{<name>}:dlq`                     |
+| Valkey queue        | `valkey://[user:password@]<host>:<port>/<name>?lease=2m&max_attempts=5`          | Keys `{<name>}:stream`, `{<name>}:delayed`, `{<name>}:dlq`, `{<name>}:reclaim` |
 | Valkey topic        | `valkey://[user:password@]<host>:<port>/<topic>`                                 | Fans out to `{<topic>}:subscriptions`                                          |
 | Valkey subscription | `valkey://…/<topic>?subscription=<name>&lease=2m&max_attempts=5`                 | Opening one registers it in the topic's set                                    |
 
@@ -151,11 +152,14 @@ parameters are errors.
 | Topic fan-out    | SNS → SQS, native         | none: `Publish` sends to each queue, not atomic     | emulated: `publish.lua`, atomic in one slot       |
 | Local emulator   | Moto, ElasticMQ           | none                                                | `valkey/valkey` container                         |
 
-The three [Lua scripts](./valkey) are the Valkey adapter's only logic, and every language loads the
+The four [Lua scripts](./valkey) are the Valkey adapter's only logic, and every language loads the
 same files. A queue's keys share one hash tag, so a queue (or a topic with its subscriptions) lives
-on one shard. Valkey used as a queue needs `persistence: aof` and replicas, and can still lose about
-a second of acknowledged writes on failover. The chart's `client` user has the
-[grants](/packages/valkey/README.md#usersacl) the scripts and cluster clients need.
+on one shard. Each receive runs one `XAUTOCLAIM`, which scans at most 10 × `max` leased entries from
+the cursor the last receive stored in `{q}:reclaim`, so an expired lease behind N live ones comes
+back within N / (10 × `max`) receives. `Close` removes the queue's consumer from the group unless it
+still holds leases, which stay claimable. Valkey used as a queue needs `persistence: aof` and
+replicas, and can still lose about a second of acknowledged writes on failover. The chart's `client`
+user has the [grants](/packages/valkey/README.md#usersacl) the scripts and cluster clients need.
 
 Pick SQS for durable work (managed, long polls, native redrive and fan-out), Cloudflare for work
 produced at the edge, and Valkey for cheap, high-rate in-cluster work that tolerates that loss.

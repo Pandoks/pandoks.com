@@ -27,6 +27,10 @@ class EnvelopeTest(unittest.TestCase):
             "delay": replace(valid, delay=MAX_DELAY + 1),
             "size": replace(valid, data=json.dumps("x" * MAX_ENVELOPE_BYTES).encode()),
             "invalid json": replace(valid, data=b"{"),
+            "id": replace(valid, id=1),
+            "source": replace(valid, source=1),
+            "type": replace(valid, type=b"test"),
+            "extension value": replace(valid, extensions={"ext": 1}),
         }.items():
             with self.subTest(name), self.assertRaises(ValueError):
                 encode(message, datetime.now(UTC))
@@ -49,3 +53,9 @@ class EnvelopeTest(unittest.TestCase):
         body = json.loads(FIXTURES[0].read_text())
         with self.assertRaises(ValueError):
             decode(json.dumps(body | {"data": {}, "data_base64": "e30="}), attempt=1, deadline=datetime.now(UTC))
+
+    def test_decode_rejects_what_go_and_ts_reject(self):
+        envelope = '{"specversion":"1.0","id":"x","source":"//test","type":"test","time":"2026-11-09T18:00:00.000Z",%s}'
+        for member in ('"data":NaN', '"data":Infinity', '"data":-Infinity', '"data_base64":"e31="'):
+            with self.subTest(member), self.assertRaises(ValueError):
+                decode(envelope % member, attempt=1, deadline=datetime.now(UTC))

@@ -7,6 +7,7 @@ import { GlideClusterClient } from '@valkey/valkey-glide';
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { decode, encode, type Delivery, type Message, type Queue, type Topic } from './envelope.ts';
 import { openQueue, openTopic } from './index.ts';
+import type { ValkeyQueue } from './valkey.ts';
 
 const VALKEY = '127.0.0.1:16379';
 const MOTO_ENDPOINT = 'http://127.0.0.1:15000';
@@ -261,5 +262,42 @@ describe.each(brokers)('%s contract', { timeout: 120_000 }, (_, open, enabled) =
       expect(delivery).toBeDefined();
       await subscription.ack(delivery);
     }
+  });
+});
+
+describe('valkey', () => {
+  let client: GlideClusterClient;
+  beforeAll(async () => {
+    client = await GlideClusterClient.createClient({
+      addresses: [{ host: '127.0.0.1', port: 16379 }],
+      credentials: { username: 'client', password: 'client' }
+    });
+  });
+  afterAll(() => client.close());
+
+  test('close removes only settled consumers', async () => {
+    const name = `x${suffix()}`;
+    const url = `valkey://client:client@${VALKEY}/${name}?lease=500ms&max_attempts=5`;
+    const [settled, holding] = await Promise.all([openQueue(url), openQueue(url)]);
+    const message = testMessage('close');
+    await holding.send(message);
+    expect(await receive(holding, WAIT, message.id)).toHaveProperty(message.id);
+    await settled.receive(1);
+    await Promise.all([settled.close(), holding.close()]);
+    const consumers = await client.xinfoConsumers(`{${name}}:stream`, 'workers');
+    expect(consumers.map((consumer) => consumer.name)).toEqual([(holding as ValkeyQueue).consumer]);
+  });
+
+  test('open closes the client when subscribing fails', async () => {
+    const name = `s${suffix()}`;
+    await client.set(`{${name}}:subscriptions`, 'not a set');
+    const close = vi.spyOn(GlideClusterClient.prototype, 'close');
+    await expect(
+      openQueue(
+        `valkey://client:client@${VALKEY}/${name}?subscription=a&lease=500ms&max_attempts=3`
+      )
+    ).rejects.toThrow();
+    expect(close).toHaveBeenCalledOnce();
+    close.mockRestore();
   });
 });

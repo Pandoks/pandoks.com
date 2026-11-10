@@ -50,7 +50,11 @@ def open_queue(parsed: SplitResult) -> ValkeyQueue:
             client.close()
             raise ValueError("valkey URL: subscription is empty")
         prefix += ":" + subscription
-        client.sadd("{" + name + "}:subscriptions", subscription)
+        try:
+            client.sadd("{" + name + "}:subscriptions", subscription)
+        except BaseException:
+            client.close()
+            raise
     return ValkeyQueue(client, prefix, lease, max_attempts)
 
 
@@ -61,14 +65,15 @@ def open_topic(parsed: SplitResult) -> ValkeyTopic:
 
 
 class ValkeyQueue:
-    """Keeps a queue's stream, delayed retries, and dead letters under one hash tag."""
+    """Keeps a queue's stream, delayed retries, dead letters, and reclaim cursor under one hash tag."""
 
     def __init__(self, client: ValkeyCluster, prefix: str, lease: float, max_attempts: int):
         self.client, self.lease, self.max_attempts = client, lease, max_attempts
-        self.keys = [prefix + ":stream", prefix + ":delayed", prefix + ":dlq"]
+        self.keys = [prefix + ":stream", prefix + ":delayed", prefix + ":dlq", prefix + ":reclaim"]
         self.consumer = secrets.token_hex(8)
         self.receive_script = client.register_script((SCRIPTS / "receive.lua").read_text())
         self.retry_script = client.register_script((SCRIPTS / "retry.lua").read_text())
+        self.close_script = client.register_script((SCRIPTS / "close.lua").read_text())
 
     def send(self, *messages: Message) -> None:
         sent_at = datetime.now(UTC)
@@ -113,7 +118,10 @@ class ValkeyQueue:
             self.retry_script(keys=self.keys, args=args)
 
     def close(self) -> None:
-        self.client.close()
+        try:
+            self.close_script(keys=self.keys[:1], args=[GROUP, self.consumer])
+        finally:
+            self.client.close()
 
 
 class ValkeyTopic:

@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // timeLayout is RFC 3339 in UTC with milliseconds, which Go, Python, and JS all write the same way.
@@ -20,6 +21,7 @@ const timeLayout = "2006-01-02T15:04:05.000Z07:00"
 
 var (
 	extensionName = regexp.MustCompile(`^[a-z0-9]{1,20}$`)
+	rfc3339       = regexp.MustCompile(`^\d{4}-\d\d-\d\dT([01]\d|2[0-3]):\d\d:\d\d(\.\d+)?(Z|[+-]([01]\d|2[0-3]):[0-5]\d)$`)
 	attributes    = []string{"specversion", "id", "source", "type", "time", "datacontenttype", "data", "data_base64"}
 )
 
@@ -60,8 +62,8 @@ func encode(message Message, sentAt time.Time) ([]byte, error) {
 	switch {
 	case message.Data == nil:
 	case isJSON(event["datacontenttype"].(string)):
-		if !json.Valid(message.Data) {
-			return nil, fmt.Errorf("encode message %s: data is not valid JSON", event["id"])
+		if !json.Valid(message.Data) || !utf8.Valid(message.Data) {
+			return nil, fmt.Errorf("encode message %s: data is not valid UTF-8 JSON", event["id"])
 		}
 		event["data"] = json.RawMessage(message.Data)
 	default:
@@ -83,6 +85,9 @@ func encode(message Message, sentAt time.Time) ([]byte, error) {
 
 // decode reads an envelope into the delivery's message and send time.
 func decode(body []byte, delivery *Delivery) error {
+	if !utf8.Valid(body) {
+		return errors.New("decode envelope: not valid UTF-8")
+	}
 	var event map[string]json.RawMessage
 	if err := json.Unmarshal(body, &event); err != nil {
 		return fmt.Errorf("decode envelope: %w", err)
@@ -100,6 +105,10 @@ func decode(body []byte, delivery *Delivery) error {
 	}
 	if members["specversion"] != "1.0" || members["id"] == "" || members["source"] == "" || members["type"] == "" {
 		return errors.New("decode envelope: specversion 1.0, id, source, and type are required")
+	}
+	// NOTE: time.Parse also takes offsets like +24:00, comma fractions, and year 0000, which Python rejects
+	if !rfc3339.MatchString(members["time"]) || strings.HasPrefix(members["time"], "0000") {
+		return fmt.Errorf("decode envelope %s: time %q is not RFC 3339", members["id"], members["time"])
 	}
 	sentAt, err := time.Parse(time.RFC3339Nano, members["time"])
 	if err != nil {
@@ -119,8 +128,10 @@ func decode(body []byte, delivery *Delivery) error {
 		if err := json.Unmarshal(raw, &encoded); err != nil {
 			return fmt.Errorf("decode envelope %s: data_base64 is not a string", message.ID)
 		}
-		if message.Data, err = base64.StdEncoding.DecodeString(encoded); err != nil {
-			return fmt.Errorf("decode envelope %s: %w", message.ID, err)
+		// NOTE: DecodeString skips CR and LF, so only canonical base64 round-trips
+		message.Data, err = base64.StdEncoding.DecodeString(encoded)
+		if err != nil || base64.StdEncoding.EncodeToString(message.Data) != encoded {
+			return fmt.Errorf("decode envelope %s: data_base64 is not canonical base64", message.ID)
 		}
 	} else if raw, ok := event["data"]; ok {
 		message.Data = raw

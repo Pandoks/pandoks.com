@@ -22,7 +22,7 @@ ATTRIBUTES = {"specversion", "id", "source", "type", "time", "datacontenttype", 
 DURATION = re.compile(r"(\d+)(ms|s|m|h)")
 DURATION_SECONDS = {"ms": 0.001, "s": 1, "m": 60, "h": 3600}
 LONE_SURROGATE = re.compile("[\ud800-\udfff]")
-RFC3339 = re.compile(r"\d{4}-\d\d-\d\dT([01]\d|2[0-3]):\d\d:\d\d(\.\d+)?(Z|[+-]\d\d:\d\d)")
+RFC3339 = re.compile(r"\d{4}-\d\d-\d\dT([01]\d|2[0-3]):\d\d:\d\d(\.\d+)?(Z|[+-]([01]\d|2[0-3]):[0-5]\d)", re.ASCII)
 
 log = logging.getLogger("pandoks_queue")
 
@@ -72,6 +72,9 @@ def is_json(content_type: str) -> bool:
 
 def encode(message: Message, sent_at: datetime) -> str:
     """Writes message as a CloudEvents 1.0 structured JSON envelope sent at sent_at."""
+    attributes = (message.id or "", message.source, message.type, *message.extensions.values())
+    if not all(isinstance(value, str) for value in attributes):
+        raise ValueError("encode message: id, source, type, and extension values must be strings")
     if not message.source or not message.type:
         raise ValueError("encode message: source and type are required")
     check_delay(message.delay)
@@ -101,7 +104,7 @@ def encode(message: Message, sent_at: datetime) -> str:
 
 def decode(body: str, **delivery) -> Delivery:
     """Reads an envelope into a Delivery with the broker's attempt, deadline, and handle."""
-    event = json.loads(body)
+    event = json.loads(body, parse_constant=reject_constant)
     if not isinstance(event, dict):
         raise ValueError("decode envelope: not an object")
     members = {name: value for name, value in event.items() if name not in ("data", "data_base64")}
@@ -115,6 +118,9 @@ def decode(body: str, **delivery) -> Delivery:
         raise ValueError(f"decode envelope {members['id']}: data and data_base64 are mutually exclusive")
     if "data_base64" in event:
         data = base64.b64decode(event["data_base64"], validate=True)
+        # NOTE: validate still allows nonzero padding bits, so only canonical base64 round-trips
+        if base64.b64encode(data).decode() != event["data_base64"]:
+            raise ValueError(f"decode envelope {members['id']}: data_base64 is not canonical base64")
     elif "data" in event:
         data = json.dumps(event["data"], separators=(",", ":")).encode()
     else:
@@ -129,6 +135,10 @@ def decode(body: str, **delivery) -> Delivery:
         time=datetime.fromisoformat(members.get("time", "")),
         **delivery,
     )
+
+
+def reject_constant(constant: str) -> None:
+    raise ValueError(f"decode envelope: {constant} is not JSON")
 
 
 def decode_rows(rows: Iterable[tuple[str, int, object]], deadline: datetime) -> tuple[list[Delivery], list[object]]:

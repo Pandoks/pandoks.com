@@ -29,10 +29,13 @@ var (
 	retrySource string
 	//go:embed valkey/publish.lua
 	publishSource string
+	//go:embed valkey/close.lua
+	closeSource string
 
 	receiveScript = valkey.NewLuaScript(receiveSource)
 	retryScript   = valkey.NewLuaScript(retrySource)
 	publishScript = valkey.NewLuaScript(publishSource)
+	closeScript   = valkey.NewLuaScript(closeSource)
 )
 
 // valkeyName reads <name> from a valkey://[user:password@]host:port/<name> URL. Check it before
@@ -59,7 +62,8 @@ func valkeyClient(parsed *url.URL) (valkey.Client, error) {
 	return client, nil
 }
 
-// valkeyQueue keeps a queue's stream, delayed retries, and dead letters under one hash tag.
+// valkeyQueue keeps a queue's stream, delayed retries, dead letters, and reclaim cursor under one
+// hash tag.
 type valkeyQueue struct {
 	client      valkey.Client
 	keys        []string
@@ -103,7 +107,7 @@ func openValkey(ctx context.Context, parsed *url.URL) (*valkeyQueue, error) {
 	}
 	return &valkeyQueue{
 		client:      client,
-		keys:        []string{prefix + ":stream", prefix + ":delayed", prefix + ":dlq"},
+		keys:        []string{prefix + ":stream", prefix + ":delayed", prefix + ":dlq", prefix + ":reclaim"},
 		consumer:    rand.Text(),
 		lease:       lease,
 		maxAttempts: maxAttempts,
@@ -215,7 +219,10 @@ func (queue *valkeyQueue) Retry(ctx context.Context, delay time.Duration, delive
 }
 
 func (queue *valkeyQueue) Close() error {
-	queue.client.Close()
+	defer queue.client.Close()
+	if err := closeScript.Exec(context.Background(), queue.client, queue.keys[:1], []string{valkeyGroup, queue.consumer}).Error(); err != nil {
+		return fmt.Errorf("close Valkey queue: %w", err)
+	}
 	return nil
 }
 

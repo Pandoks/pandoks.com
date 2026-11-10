@@ -48,8 +48,9 @@ describe('envelope', () => {
     '2026-11-09',
     '2026-11-09 18:00:00Z',
     '2026-11-09T24:00:00Z',
-    '2026-02-30T18:00:00Z'
-  ])('decode rejects the time %s like Go does', (time) => {
+    '2026-02-30T18:00:00Z',
+    '0000-01-01T00:00:00Z'
+  ])('decode rejects the time %s like Go and Python do', (time) => {
     const body = JSON.stringify({
       specversion: '1.0',
       id: 'x',

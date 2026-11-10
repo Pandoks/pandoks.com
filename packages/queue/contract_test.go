@@ -40,11 +40,7 @@ type broker struct {
 func TestValkeyContract(t *testing.T) {
 	suffix := strings.ToLower(rand.Text()[:10])
 	base := "valkey://client:client@" + valkeyAddress + "/"
-	client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{valkeyAddress}, Username: "client", Password: "client", DisableCache: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(client.Close)
+	client := valkeyTestClient(t)
 	runContract(t, broker{
 		lease:       500 * time.Millisecond,
 		maxAttempts: 3,
@@ -70,6 +66,16 @@ func TestValkeyContract(t *testing.T) {
 			openQueue(t, base+"t"+suffix+"?subscription=b&lease=500ms&max_attempts=3"),
 		},
 	})
+}
+
+func valkeyTestClient(t *testing.T) valkey.Client {
+	t.Helper()
+	client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{valkeyAddress}, Username: "client", Password: "client", DisableCache: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(client.Close)
+	return client
 }
 
 func TestSQSContract(t *testing.T) {
@@ -408,25 +414,81 @@ func TestValkeyLateRetryLeavesAReclaimedEntry(t *testing.T) {
 }
 
 func TestValkeyReclaimsALeaseBehindFreshOnes(t *testing.T) {
-	rawURL := "valkey://client:client@" + valkeyAddress + "/c" + strings.ToLower(rand.Text()[:10]) + "?lease=500ms&max_attempts=5"
-	fresh, expired := openQueue(t, rawURL), openQueue(t, rawURL)
+	name := "c" + strings.ToLower(rand.Text()[:10])
+	rawURL := "valkey://client:client@" + valkeyAddress + "/" + name + "?lease=500ms&max_attempts=5"
+	leaser, reclaimer, client := openQueue(t, rawURL), openQueue(t, rawURL), valkeyTestClient(t)
 	messages := make([]Message, 11)
 	for index := range messages {
 		messages[index] = testMessage("cursor")
 	}
-	if err := fresh.Send(t.Context(), messages...); err != nil {
+	if err := leaser.Send(t.Context(), messages...); err != nil {
 		t.Fatal(err)
 	}
-	if deliveries, err := fresh.Receive(t.Context(), len(messages)); err != nil || len(deliveries) != len(messages) {
+	deliveries, err := leaser.Receive(t.Context(), len(messages))
+	if err != nil || len(deliveries) != len(messages) {
 		t.Fatalf("got %d deliveries, %v", len(deliveries), err)
 	}
 	time.Sleep(time.Second)
-	// NOTE: re-leasing the first 10 leaves the last expired lease past one XAUTOCLAIM COUNT 1 scan
-	if deliveries, err := fresh.Receive(t.Context(), 10); err != nil || len(deliveries) != 10 {
-		t.Fatalf("got %d deliveries, %v", len(deliveries), err)
+	var renewed []string
+	for _, delivery := range deliveries {
+		if delivery.ID != messages[10].ID {
+			renewed = append(renewed, delivery.handle.(string))
+		}
 	}
-	deliveries, err := expired.Receive(t.Context(), 1)
-	if err != nil || len(deliveries) != 1 || deliveries[0].ID != messages[10].ID {
-		t.Fatalf("got %+v, %v, want %s", deliveries, err, messages[10].ID)
+	if err := client.Do(t.Context(), client.B().Xclaim().Key("{"+name+"}:stream").Group(valkeyGroup).Consumer("renewer").
+		MinIdleTime("0").Id(renewed...).Justid().Build()).Error(); err != nil {
+		t.Fatal(err)
+	}
+	// NOTE: one XAUTOCLAIM COUNT 1 scans only the 10 renewed leases, and the next resumes after them
+	if first, err := reclaimer.Receive(t.Context(), 1); err != nil || len(first) != 0 {
+		t.Fatalf("first receive got %+v, %v; want nothing past a 10-entry scan", first, err)
+	}
+	second, err := reclaimer.Receive(t.Context(), 1)
+	if err != nil || len(second) != 1 || second[0].ID != messages[10].ID {
+		t.Fatalf("second receive got %+v, %v, want %s", second, err, messages[10].ID)
+	}
+}
+
+func TestValkeyCloseRemovesOnlySettledConsumers(t *testing.T) {
+	name := "x" + strings.ToLower(rand.Text()[:10])
+	rawURL := "valkey://client:client@" + valkeyAddress + "/" + name + "?lease=500ms&max_attempts=5"
+	settled, holding, client := openQueue(t, rawURL), openQueue(t, rawURL), valkeyTestClient(t)
+	message := testMessage("close")
+	if err := holding.Send(t.Context(), message); err != nil {
+		t.Fatal(err)
+	}
+	if held := receive(t, holding, 30*time.Second, message.ID); held[message.ID] == nil {
+		t.Fatal("holding never received the message")
+	}
+	if _, err := settled.Receive(t.Context(), 1); err != nil {
+		t.Fatal(err)
+	}
+	for _, queue := range []Queue{settled, holding} {
+		if err := queue.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	consumers, err := client.Do(t.Context(), client.B().XinfoConsumers().Key("{"+name+"}:stream").Group(valkeyGroup).Build()).ToArray()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, consumer := range consumers {
+		fields, err := consumer.AsMap()
+		if err != nil {
+			t.Fatal(err)
+		}
+		nameField := fields["name"]
+		consumerName, err := nameField.ToString()
+		if err != nil {
+			t.Fatal(err)
+		}
+		names = append(names, consumerName)
+	}
+	if want := []string{holding.(*valkeyQueue).consumer}; !slices.Equal(names, want) {
+		t.Fatalf("consumers %v, want only the one holding a lease %v", names, want)
+	}
+	if reclaimed := receive(t, openQueue(t, rawURL), 30*time.Second, message.ID)[message.ID]; reclaimed == nil || reclaimed.Attempt != 2 {
+		t.Fatalf("reclaimed %+v, want the held message's attempt 2", reclaimed)
 	}
 }
