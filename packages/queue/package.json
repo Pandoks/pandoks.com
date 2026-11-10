@@ -1,0 +1,45 @@
+{
+  "name": "@pandoks.com/queue",
+  "version": "0.0.1",
+  "type": "module",
+  "sideEffects": false,
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "pnpm run test:go && pnpm run test:python && pnpm run test:ts",
+    "test:go": "GOWORK=off go test -race -count=1 ./...",
+    "test:python": "uv run --project ./python --frozen --all-extras python -m unittest discover -s ./python/tests",
+    "test:ts": "vitest run"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-sns": "3.1161.0",
+    "@aws-sdk/client-sqs": "3.1161.0",
+    "@valkey/valkey-glide": "2.5.3",
+    "cloudflare": "7.3.0"
+  },
+  "peerDependenciesMeta": {
+    "@aws-sdk/client-sns": {
+      "optional": true
+    },
+    "@aws-sdk/client-sqs": {
+      "optional": true
+    },
+    "@valkey/valkey-glide": {
+      "optional": true
+    },
+    "cloudflare": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@aws-sdk/client-sns": "3.1161.0",
+    "@aws-sdk/client-sqs": "3.1161.0",
+    "@types/node": "25.9.9",
+    "@valkey/valkey-glide": "2.5.3",
+    "cloudflare": "7.3.0",
+    "typescript": "6.0.3",
+    "vitest": "5.1.0"
+  }
+}
