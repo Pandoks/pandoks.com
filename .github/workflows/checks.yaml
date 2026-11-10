@@ -34,7 +34,76 @@ jobs:
       - id: filter
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
-          filters: .github/filters.yaml
+          filters: |
+            shared-node-setup: &shared-node-setup
+              - '.github/workflows/checks.yaml'
+              - '.github/actions/setup-node-pnpm/**'
+              - 'mise.toml'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+            shared-mise-setup: &shared-mise-setup
+              - '.github/workflows/checks.yaml'
+              - '.github/actions/setup-mise/**'
+              - 'mise.toml'
+            prettier:
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.js'
+              - '**/*.jsx'
+              - '**/*.svelte'
+              - '**/*.md'
+              - '**/*.json'
+              - '**/*.yaml'
+              - '**/*.yml'
+              - '**/*.css'
+              - '.prettierrc'
+              - '.prettierignore'
+              - 'scripts/format/**'
+              - *shared-node-setup
+            eslint:
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.js'
+              - '**/*.jsx'
+              - '**/*.svelte'
+              - 'eslint.config.ts'
+              - 'tsconfig.eslint.json'
+              - 'scripts/lint/**'
+              - *shared-node-setup
+            go:
+              - '**/*.go'
+              - '**/go.mod'
+              - '**/go.sum'
+              - 'go.work'
+              - 'go.work.sum'
+              - '.golangci.yaml'
+              - 'scripts/format/**'
+              - 'scripts/lint/**'
+              - *shared-mise-setup
+            shell:
+              - '**/*.sh'
+              - '.shellcheckrc'
+              - *shared-mise-setup
+            helm:
+              - '**/chart/**'
+              - 'scripts/lint/**'
+              - *shared-mise-setup
+            actions:
+              - '.github/workflows/**'
+              - '.github/actions/**'
+            renovate:
+              - 'renovate.json'
+              - 'renovate.json5'
+              - '.renovaterc'
+              - '.renovaterc.json'
+              - '.renovaterc.json5'
+              - '.github/workflows/checks.yaml'
+            infra:
+              - 'infra/**'
+              - 'sst.config.ts'
+              - 'tsconfig.json'
+              - *shared-node-setup
 
   # ─── JS / TS ──────────────────────────────────────────────────────────
   format-js:
