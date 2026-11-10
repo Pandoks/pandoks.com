@@ -93,7 +93,9 @@ graph TB
   of starting empty, with the chart's `postgresql.conf` and `pg_hba.conf` instead of the backup's,
   and without the backup's `ALTER SYSTEM` settings. It waits for WAL replay however long it takes,
   retrying repo errors every 10 seconds until only a missing segment ends it, then takes a full
-  backup for its replicas. If the repo can't be read, the bootstrap fails instead of starting empty
+  backup for its replicas. If the container restarts mid-replay, it finishes the replay before
+  Patroni starts, without that backup. If the repo can't be read, the bootstrap fails instead of
+  starting empty
 
 ### Monitoring
 
