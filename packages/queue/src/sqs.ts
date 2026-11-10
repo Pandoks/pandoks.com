@@ -24,10 +24,11 @@ const BATCH_COUNT = 10;
 const BATCH_BYTES = 1 << 20;
 const WAIT_SECONDS = 20;
 const HOST = /^sqs\.([a-z0-9-]+)\.amazonaws\.com$/;
+const PATH = /^\/[^/]+\/[^/]+$/;
 
 export function openQueue(url: URL): SQSQueue {
   const region = HOST.exec(url.host);
-  if (!region || url.username || url.password) {
+  if (!region || url.username || url.password || !PATH.test(url.pathname)) {
     throw new Error('awssqs URL must be awssqs://sqs.<region>.amazonaws.com/<account>/<name>');
   }
   const params = queryParams(url, 'lease', 'endpoint');

@@ -23,6 +23,7 @@ BATCH_COUNT = 10
 BATCH_BYTES = 1 << 20
 WAIT_SECONDS = 20
 HOST = re.compile(r"sqs\.([a-z0-9-]+)\.amazonaws\.com")
+PATH = re.compile(r"/[^/]+/[^/]+")
 
 
 def check_failed(action: str, response: dict) -> None:
@@ -32,7 +33,7 @@ def check_failed(action: str, response: dict) -> None:
 
 def open_queue(parsed: SplitResult) -> SQSQueue:
     region = HOST.fullmatch(parsed.netloc)
-    if region is None:
+    if region is None or PATH.fullmatch(parsed.path) is None:
         raise ValueError("awssqs URL must be awssqs://sqs.<region>.amazonaws.com/<account>/<name>")
     params = query_params(parsed, "lease", "endpoint")
     lease = parse_lease(parsed, params)

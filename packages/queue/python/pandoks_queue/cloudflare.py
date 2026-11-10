@@ -45,6 +45,8 @@ def open_queue(parsed: SplitResult) -> CloudflareQueue:
     if len(queues) != 1:
         raise ValueError("cloudflare URL: a queue has one queue id; a list is a topic")
     queues[0].lease = parse_lease(parsed, params)
+    if queues[0].lease < 1:
+        raise ValueError(f"cloudflare URL: lease {params['lease']!r} must be at least 1s")
     return queues[0]
 
 

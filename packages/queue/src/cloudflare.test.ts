@@ -85,14 +85,14 @@ test('cloudflare lease starts after a slow pull', async () => {
         response.end(
           JSON.stringify({ success: true, errors: [], messages: [], result: { messages: pulled } })
         );
-      }, 1000);
+      }, 2000);
     });
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   vi.stubEnv('CLOUDFLARE_BASE_URL', `http://127.0.0.1:${(server.address() as AddressInfo).port}`);
   vi.stubEnv('CLOUDFLARE_API_TOKEN', 'test');
   try {
-    const deliveries = await (await openQueue('cloudflare://acct/q1?lease=500ms')).receive(10);
+    const deliveries = await (await openQueue('cloudflare://acct/q1?lease=1s')).receive(10);
     expect(deliveries.map((delivery) => delivery.id)).toEqual(['slow']);
     expect(deliveries[0].deadline.getTime()).toBeGreaterThan(Date.now());
   } finally {

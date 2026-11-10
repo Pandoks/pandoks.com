@@ -23,7 +23,10 @@ const (
 	sqsWait       = 20
 )
 
-var sqsHost = regexp.MustCompile(`^sqs\.([a-z0-9-]+)\.amazonaws\.com$`)
+var (
+	sqsHost = regexp.MustCompile(`^sqs\.([a-z0-9-]+)\.amazonaws\.com$`)
+	sqsPath = regexp.MustCompile(`^/[^/]+/[^/]+$`)
+)
 
 type sqsQueue struct {
 	client *sqs.Client
@@ -45,7 +48,7 @@ func awsConfig(ctx context.Context, region, endpoint string) (aws.Config, error)
 
 func openSQS(ctx context.Context, parsed *url.URL) (*sqsQueue, error) {
 	region := sqsHost.FindStringSubmatch(parsed.Host)
-	if region == nil || parsed.User != nil {
+	if region == nil || parsed.User != nil || !sqsPath.MatchString(parsed.Path) {
 		return nil, errors.New("awssqs URL must be awssqs://sqs.<region>.amazonaws.com/<account>/<name>")
 	}
 	params, err := queryParams(parsed, "lease", "endpoint")

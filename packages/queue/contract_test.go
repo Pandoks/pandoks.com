@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"slices"
 	"strings"
@@ -574,7 +575,7 @@ func TestValkeyAcksANonUTF8Entry(t *testing.T) {
 	}
 }
 
-func TestValkeyAckScriptSettlesBothEntriesAtOnce(t *testing.T) {
+func TestValkeyAckScriptSettlesALargeBatchAtOnce(t *testing.T) {
 	name := "k" + strings.ToLower(rand.Text()[:10])
 	queue, client := openQueue(t, "valkey://client:client@"+valkeyAddress+"/"+name+"?lease=1m&max_attempts=3"), valkeyTestClient(t)
 	stream := "{" + name + "}:stream"
@@ -586,6 +587,9 @@ func TestValkeyAckScriptSettlesBothEntriesAtOnce(t *testing.T) {
 	args := []string{valkeyGroup}
 	for _, delivery := range received {
 		args = append(args, delivery.handle.(string))
+	}
+	for index := range 10_000 {
+		args = append(args, fmt.Sprintf("1-%d", index))
 	}
 	if err := ackScript.Exec(t.Context(), client, []string{stream}, args).Error(); err != nil {
 		t.Fatal(err)

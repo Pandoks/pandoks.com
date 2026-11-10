@@ -1,8 +1,10 @@
 import json
+import os
 import unittest
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
+from unittest import mock
 
 from pandoks_queue import open_queue, open_topic
 from pandoks_queue.envelope import (
@@ -68,6 +70,7 @@ class EnvelopeTest(unittest.TestCase):
             with self.subTest(opener.__name__), self.assertRaisesRegex(ValueError, "host:port"):
                 opener("valkey://127.0.0.1/q?lease=1s&max_attempts=1")
 
+    @mock.patch.dict(os.environ, {"CLOUDFLARE_API_TOKEN": "test"})
     def test_open_rejects_malformed_urls(self):
         for opener, urls in ((open_queue, MALFORMED_URLS["queues"]), (open_topic, MALFORMED_URLS["topics"])):
             for url in urls:

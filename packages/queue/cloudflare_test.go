@@ -108,7 +108,7 @@ func TestCloudflareLeaseStartsAfterASlowPull(t *testing.T) {
 		t.Fatal(err)
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		time.Sleep(time.Second)
+		time.Sleep(2 * time.Second)
 		pulled := []map[string]any{{"id": "m1", "body": string(body), "lease_id": "lease-1", "attempts": 0}}
 		writer.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(writer).Encode(map[string]any{"success": true, "errors": []any{}, "messages": []any{}, "result": map[string]any{"messages": pulled}})
@@ -117,8 +117,8 @@ func TestCloudflareLeaseStartsAfterASlowPull(t *testing.T) {
 	t.Setenv("CLOUDFLARE_BASE_URL", server.URL)
 	t.Setenv("CLOUDFLARE_API_TOKEN", "test")
 
-	deliveries, err := openQueue(t, "cloudflare://acct/q1?lease=500ms").Receive(t.Context(), 10)
+	deliveries, err := openQueue(t, "cloudflare://acct/q1?lease=1s").Receive(t.Context(), 10)
 	if err != nil || len(deliveries) != 1 || !deliveries[0].Deadline.After(time.Now()) {
-		t.Fatalf("got %+v, %v, want one delivery whose 500ms lease hasn't ended", deliveries, err)
+		t.Fatalf("got %+v, %v, want one delivery whose 1s lease hasn't ended", deliveries, err)
 	}
 }
