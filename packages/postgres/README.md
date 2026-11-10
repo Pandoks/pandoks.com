@@ -84,15 +84,16 @@ graph TB
 
 ### pgBackRest (Backup & Recovery)
 
-- **Per-shard backups** - each shard has its own stanza
+- **Per-shard backups** - each shard has its own stanza, backed up from its primary
 - **Automated schedules** - full, differential, and incremental backups
 - **Point-in-time recovery** - restore to any moment
 - **Encryption** - AES-256-CBC for all backups
 - **S3-compatible storage** - works with AWS S3, MinIO, S3Mock
 - **Restore on bootstrap** - a new shard whose stanza already has a full backup restores it instead
-  of starting empty, with the chart's `postgresql.conf` and `pg_hba.conf` instead of the backup's.
-  It waits for WAL replay however long it takes, then takes a full backup for its replicas. If the
-  repo can't be read, the bootstrap fails instead of starting empty
+  of starting empty, with the chart's `postgresql.conf` and `pg_hba.conf` instead of the backup's,
+  and without the backup's `ALTER SYSTEM` settings. It waits for WAL replay however long it takes,
+  retrying repo errors every 10 seconds until only a missing segment ends it, then takes a full
+  backup for its replicas. If the repo can't be read, the bootstrap fails instead of starting empty
 
 ### Monitoring
 
@@ -182,7 +183,7 @@ metadata:
   namespace: kube-system
 spec:
   chart: oci://${ImageRegistry}/charts/postgres
-  version: 0.1.5
+  version: 0.1.6
   targetNamespace: &namespace myapp
   createNamespace: true
   failurePolicy: abort
