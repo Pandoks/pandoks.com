@@ -7,11 +7,14 @@ signed with RSA-SHA256.
 
 Each app gets its own image, built from this `Dockerfile` with `APP` set to its directory under
 `apps/`. The build runs `expo export` for iOS and Android and resolves each platform's runtime
-version, and the server answers:
+version twice: once as is, for production builds, and once with `UPDATES_ENVIRONMENT=dev`, the
+variable an app's config reads to point dev builds at the dev host, which changes their native
+fingerprint. The server answers:
 
 - `GET /` with `expo-platform` and `expo-runtime-version`: the signed manifest, a signed
   `noUpdateAvailable` directive when `expo-current-update-id` is already that update, `204` when the
-  runtime version isn't the image's, and `400` without a runtime version or for an unknown platform.
+  runtime version is neither of the image's, and `400` without a runtime version or for an unknown
+  platform.
 - `GET /assets/<sha256>`: the update's files.
 
 The update's ID comes from its content, so rebuilding the same code doesn't make clients download it
@@ -78,20 +81,20 @@ The namespace also needs the `cloudflare-origin-tls` secret, like
 digest after `main` builds a new one, so merging that PR releases the update and reverting it rolls
 back. Keep the app's `kube/` out of the image's build filter, or each bump rebuilds the image.
 
-In the app config, point `updates.url` at the app's URL and commit the certificate (`*.pem` is
-gitignored):
+In the app, commit the certificate (`*.pem` is gitignored), list `/android` and `/ios` in its own
+`.gitignore` so the fingerprint skips generated native code, and point `updates.url` at the app's
+URL:
 
-```json
-{
-  "expo": {
-    "runtimeVersion": { "policy": "fingerprint" },
-    "updates": {
-      "url": "https://updates.pandoks.com/<slug>",
-      "codeSigningCertificate": "./certificate.crt",
-      "codeSigningMetadata": { "keyid": "main", "alg": "rsa-v1_5-sha256" }
-    }
+```ts
+export default ({ config }: ConfigContext) => ({
+  ...config,
+  runtimeVersion: { policy: 'fingerprint' },
+  updates: {
+    url: `https://${process.env.UPDATES_ENVIRONMENT === 'dev' ? 'updates-dev' : 'updates'}.pandoks.com/${config.slug}`,
+    codeSigningCertificate: './certificate.crt',
+    codeSigningMetadata: { keyid: 'main', alg: 'rsa-v1_5-sha256' }
   }
-}
+});
 ```
 
 `pnpm --filter @pandoks.com/updates test` runs the server against a fake export and checks its
