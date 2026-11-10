@@ -157,7 +157,7 @@ spec:
               port: 6379
             initialDelaySeconds: 20
             periodSeconds: 10
-          # NOTE: replicas turn ready only once synced, so a rollout never stops a primary its replica can't take over
+          # NOTE: replicas turn ready only once synced, so a rollout waits for each restarted replica before the next pod
           readinessProbe:
             exec:
               command:

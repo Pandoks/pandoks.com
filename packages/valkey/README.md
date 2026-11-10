@@ -164,8 +164,10 @@ back empty with the same node ID, and its replicas resync to empty. On `SIGTERM`
 rollout, drain), a primary first fails over to a replica, but only when the cluster has at least 3
 masters (the replica needs votes from a majority of masters, and the stopping one can't vote) and a
 replica catches up within `shutdown-timeout` (10s). Replicas turn ready only once synced, so a
-rollout, which restarts one pod at a time whenever `valkey.conf` or `users.acl` changes, waits for
-them. Use `persistence` if a shard's data must survive a restart with no such failover: the default
+rollout, which restarts one pod at a time from the highest ordinal whenever `valkey.conf` or
+`users.acl` changes, waits for each restarted replica before stopping the next pod. It doesn't wait
+for a replica in a lower-numbered pod than its primary, so a primary whose replica is still
+resyncing then restarts empty. Use `persistence` if a shard's data must survive a restart with no such failover: the default
 `replicasPerMaster: 0`, fewer than 3 masters, or a crash or OOM kill.
 
 For more information about the configuration options, visit
