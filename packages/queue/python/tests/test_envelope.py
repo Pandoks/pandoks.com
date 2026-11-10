@@ -5,7 +5,16 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from pandoks_queue import open_queue, open_topic
-from pandoks_queue.envelope import MAX_DELAY, MAX_DEPTH, MAX_ENVELOPE_BYTES, Message, decode, decode_rows, encode
+from pandoks_queue.envelope import (
+    MAX_DELAY,
+    MAX_DEPTH,
+    MAX_ENVELOPE_BYTES,
+    Message,
+    decode,
+    decode_rows,
+    delay_milliseconds,
+    encode,
+)
 
 TESTDATA = Path(__file__).resolve().parents[2] / "testdata"
 FIXTURES = sorted((TESTDATA / "envelopes").glob("*.json"))
@@ -23,6 +32,11 @@ class EnvelopeTest(unittest.TestCase):
                 encoded = encode(delivery, delivery.time)
                 self.assertEqual(json.loads(encoded), json.loads(body))
                 self.assertNotRegex(encoded, "[\ufffe\uffff]", "SQS rejects them raw")
+
+    def test_delay_milliseconds_round_up(self):
+        for seconds, milliseconds in [(0, 0), (0.0005, 1), (0.0019, 2), (0.002, 2), (2.007, 2007)]:
+            with self.subTest(seconds=seconds):
+                self.assertEqual(delay_milliseconds(seconds), milliseconds)
 
     def test_encode_rejects_what_other_brokers_cannot_carry(self):
         valid = Message(source="//test", type="test")

@@ -323,6 +323,12 @@ export function delaySeconds(delay: number): number {
   return Math.ceil(delay);
 }
 
+/** Rounds a checked delay up to whole milliseconds. */
+export function delayMilliseconds(delay: number): number {
+  // NOTE: round first, since float noise makes 2.007 * 1000 come out as 2007.0000000000002
+  return Math.ceil(Number((delay * 1000).toFixed(9)));
+}
+
 /** The worker's retry delay after a failed attempt: 1 s, 2 s, 4 s, … up to MAX_DELAY. */
 export function backoff(attempt: number): number {
   return Math.min(2 ** Math.min(Math.max(attempt - 1, 0), 10), MAX_DELAY);

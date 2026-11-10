@@ -131,7 +131,7 @@ func (queue *valkeyQueue) Send(ctx context.Context, messages ...Message) error {
 		if err != nil {
 			return err
 		}
-		args = append(args, strconv.FormatInt(message.Delay.Milliseconds(), 10), string(body))
+		args = append(args, strconv.FormatInt(delayMilliseconds(message.Delay), 10), string(body))
 	}
 	if err := sendScript.Exec(ctx, queue.client, queue.keys[:2], args).Error(); err != nil {
 		return fmt.Errorf("send to Valkey: %w", err)
@@ -206,7 +206,7 @@ func (queue *valkeyQueue) Retry(ctx context.Context, delay time.Duration, delive
 	if len(deliveries) == 0 {
 		return nil
 	}
-	args := []string{valkeyGroup, strconv.FormatInt(delay.Milliseconds(), 10), strconv.Itoa(queue.maxAttempts)}
+	args := []string{valkeyGroup, strconv.FormatInt(delayMilliseconds(delay), 10), strconv.Itoa(queue.maxAttempts)}
 	for _, delivery := range deliveries {
 		args = append(args, delivery.handle.(string), strconv.Itoa(delivery.Attempt))
 	}

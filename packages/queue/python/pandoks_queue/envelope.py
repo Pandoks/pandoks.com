@@ -246,6 +246,12 @@ def delay_seconds(delay: float) -> int:
     return math.ceil(delay)
 
 
+def delay_milliseconds(delay: float) -> int:
+    """Rounds a checked delay up to whole milliseconds."""
+    # NOTE: round first, since float noise makes 2.007 * 1000 come out as 2007.0000000000002
+    return math.ceil(round(delay * 1000, 9))
+
+
 def backoff(attempt: int) -> float:
     """The worker's retry delay after a failed attempt: 1 s, 2 s, 4 s, … up to MAX_DELAY."""
     return min(2.0 ** min(max(attempt - 1, 0), 10), MAX_DELAY)

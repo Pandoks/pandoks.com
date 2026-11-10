@@ -1,6 +1,13 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
-import { MAX_DELAY, MAX_ENVELOPE_BYTES, decodeRows, encode, type Message } from './envelope.ts';
+import {
+  MAX_DELAY,
+  MAX_ENVELOPE_BYTES,
+  decodeRows,
+  delayMilliseconds,
+  encode,
+  type Message
+} from './envelope.ts';
 import { openQueue, openTopic } from './index.ts';
 
 function readFixtures(directory: string): { name: string; body: string }[] {
@@ -19,6 +26,18 @@ describe('envelope', () => {
     expect(JSON.parse(encoded)).toEqual(JSON.parse(body));
     // NOTE: SQS rejects them raw
     expect(encoded).not.toMatch(/[\ufffe\uffff]/);
+  });
+
+  test('delayMilliseconds rounds up to whole milliseconds', () => {
+    for (const [seconds, milliseconds] of [
+      [0, 0],
+      [0.0005, 1],
+      [0.0019, 2],
+      [0.002, 2],
+      [2.007, 2007]
+    ]) {
+      expect(delayMilliseconds(seconds)).toBe(milliseconds);
+    }
   });
 
   test('encode rejects what other brokers cannot carry', () => {

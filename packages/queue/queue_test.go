@@ -313,6 +313,14 @@ func TestWorkerReleasesWhatItReceivesAfterShutdown(t *testing.T) {
 	}
 }
 
+func TestDelayMillisecondsRoundsUp(t *testing.T) {
+	for delay, want := range map[time.Duration]int64{0: 0, 500 * time.Microsecond: 1, 1900 * time.Microsecond: 2, 2 * time.Millisecond: 2} {
+		if got := delayMilliseconds(delay); got != want {
+			t.Errorf("delayMilliseconds(%s) = %d, want %d", delay, got, want)
+		}
+	}
+}
+
 func TestParseLeaseRejectsOverflowingAmounts(t *testing.T) {
 	if lease, err := parseLease(map[string]string{"lease": "2251799813685249h"}); err == nil {
 		t.Fatalf("accepted an overflowing lease as %s", lease)

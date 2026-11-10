@@ -16,6 +16,7 @@ from pandoks_queue.envelope import (
     check_delay,
     decode_rows,
     decodes,
+    delay_milliseconds,
     encode,
     parse_lease,
     query_params,
@@ -97,7 +98,7 @@ class ValkeyQueue:
         args = []
         for message in messages:
             body = encode(message, sent_at)
-            args += [round(message.delay * 1000), body]
+            args += [delay_milliseconds(message.delay), body]
         self.send_script(keys=self.keys[:2], args=args)
 
     def receive(self, max: int) -> list[Delivery]:
@@ -126,7 +127,7 @@ class ValkeyQueue:
     def retry(self, delay: float, *deliveries: Delivery) -> None:
         check_delay(delay)
         if deliveries:
-            args = [GROUP, round(delay * 1000), self.max_attempts]
+            args = [GROUP, delay_milliseconds(delay), self.max_attempts]
             for delivery in deliveries:
                 args += [delivery.handle, delivery.attempt]
             self.retry_script(keys=self.keys, args=args)

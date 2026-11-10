@@ -50,9 +50,10 @@ graph LR
   `ApproximateReceiveCount` is approximate).
 - **Retry:** `Retry(delay)` releases the delivery to come back after `delay`, which, like `Send`'s
   `Delay`, is at most 15 min (`MaxDelay`, SQS's ceiling). SQS and Cloudflare round delays up to
-  whole seconds. A zero `Delay` keeps the queue's own default delay on SQS (its `DelaySeconds`
-  attribute) and Cloudflare (its `delivery_delay`), and is immediate on Valkey, which has none; a
-  zero `Retry` delay is immediate on every broker. Valkey times delays on its server clock.
+  whole seconds, and Valkey up to whole milliseconds. A zero `Delay` keeps the queue's own default
+  delay on SQS (its `DelaySeconds` attribute) and Cloudflare (its `delivery_delay`), and is
+  immediate on Valkey, which has none; a zero `Retry` delay is immediate on every broker. Valkey
+  times delays on its server clock.
 - **Dead letters:** after the broker's attempt limit a delivery moves to its dead-letter queue: SQS
   redrive `maxReceiveCount`, Cloudflare `max_retries` and `dead_letter_queue`, or Valkey's
   `max_attempts`, which writes to the `{<queue>}:dlq` stream.

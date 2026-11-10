@@ -137,6 +137,11 @@ func delaySeconds(delay time.Duration) int32 {
 	return int32((delay + time.Second - 1) / time.Second) //nolint:gosec // checkDelay caps it at 900
 }
 
+// delayMilliseconds rounds a delay checked by checkDelay up to whole milliseconds.
+func delayMilliseconds(delay time.Duration) int64 {
+	return int64((delay + time.Millisecond - 1) / time.Millisecond)
+}
+
 // backoff is the worker's retry delay after a failed attempt: 1 s, 2 s, 4 s, … up to MaxDelay.
 func backoff(attempt int) time.Duration {
 	if attempt > 11 {

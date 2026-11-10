@@ -5,6 +5,7 @@ import { ClusterBatch, Decoder, GlideClusterClient, Script } from '@valkey/valke
 import {
   checkDelay,
   decodeRows,
+  delayMilliseconds,
   encode,
   parseLease,
   queryParams,
@@ -123,7 +124,7 @@ export class ValkeyQueue implements Queue {
     const sentAt = new Date();
     const args = messages.flatMap((message) => {
       const body = encode(message, sentAt);
-      return [String(Math.round((message.delay ?? 0) * 1000)), body];
+      return [String(delayMilliseconds(message.delay ?? 0)), body];
     });
     await this.client.invokeScript(this.sendScript, { keys: this.keys.slice(0, 2), args });
   }
@@ -183,7 +184,7 @@ export class ValkeyQueue implements Queue {
   async retry(delay: number, ...deliveries: Delivery[]): Promise<void> {
     checkDelay(delay);
     if (deliveries.length === 0) return;
-    const args = [GROUP, String(Math.round(delay * 1000)), String(this.maxAttempts)];
+    const args = [GROUP, String(delayMilliseconds(delay)), String(this.maxAttempts)];
     for (const delivery of deliveries) {
       args.push(delivery.handle as string, String(delivery.attempt));
     }
