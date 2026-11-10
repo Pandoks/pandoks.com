@@ -88,7 +88,7 @@ graph TB
 - **Automated schedules** - full, differential, and incremental backups
 - **Point-in-time recovery** - restore to any moment
 - **Encryption** - AES-256-CBC for all backups
-- **S3-compatible storage** - works with AWS S3, MinIO, LocalStack
+- **S3-compatible storage** - works with AWS S3, MinIO, S3Mock
 - **Restore on bootstrap** - a new shard whose stanza already has a full backup restores it instead
   of starting empty
 
@@ -189,7 +189,7 @@ spec:
     db: myapp
     namespace: *namespace
     credentials.secret: postgres-myapp-creds
-    backup.path: kubernetes/myapp/postgres
+    backup.path: /kubernetes/myapp/postgres
     backup.image: ${ImageRegistry}/pgbackrest:${ImageTag}
     patroni.image: ${ImageRegistry}/patroni:${ImageTag}
     patroni.shards: 1
@@ -669,7 +669,7 @@ after changing them:
 | `backup.credentials.secret`     | S3 credentials secret                              | `backup-bucket-creds`                                       |
 | `backup.credentials.dataKeys.*` | Access/secret keys in that secret                  | `S3_ACCESS_KEY`, `S3_SECRET_KEY`                            |
 | `backup.bucket`                 | S3 bucket                                          | `backups`                                                   |
-| `backup.path`                   | Path in the bucket                                 | `kubernetes/examples/postgres`                              |
+| `backup.path`                   | Path in the bucket                                 | `/kubernetes/examples/postgres`                             |
 | `backup.encryptionKey`          | pgBackRest cipher passphrase                       | `openssl-rand-hex-32` (placeholder, override it)            |
 | `backup.image`                  | pgBackRest image                                   | `ghcr.io/pandoks/pgbackrest:latest`                         |
 | `backup.schedules.full`         | Full backup cron                                   | `0 2 * * 0` (Sunday 2 AM)                                   |
@@ -678,7 +678,7 @@ after changing them:
 | `backup.retention.full`         | Full backups to keep                               | `4`                                                         |
 | `backup.retention.diff`         | Diff backups to keep                               | `2`                                                         |
 | `s3.region`                     | S3 region                                          | `us-west-1`                                                 |
-| `s3.host`                       | S3 endpoint                                        | `host.k3d.internal:4566` (LocalStack from `docker-compose`) |
+| `s3.host`                       | S3 endpoint                                        | `host.k3d.internal:9191` (S3Mock HTTPS from docker-compose) |
 | `s3.tls`                        | Verify S3 TLS (`y`/`n`)                            | `n`                                                         |
 | `s3.uriStyle`                   | S3 URI style                                       | `path`                                                      |
 | `patroni.shards`                | Number of shards                                   | `1`                                                         |
