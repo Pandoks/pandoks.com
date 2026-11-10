@@ -14,7 +14,7 @@ metadata:
   namespace: kube-system # the helm chart controller that k3s uses needs to be in the kube-system namespace
 spec:
   chart: oci://${ImageRegistry}/charts/valkey
-  version: 0.1.6
+  version: 0.1.7
   targetNamespace: &namespace <namespace>
   createNamespace: true
   failurePolicy: abort
