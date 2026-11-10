@@ -1,5 +1,5 @@
 apiVersion: v2
-name: updates
+name: mobile-updates
 description: Expo updates server for one app, serving the update baked into its image
 type: application
 version: 0.1.0

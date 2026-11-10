@@ -43,7 +43,7 @@ jobs:
           - charts/postgres
           - charts/valkey
           - charts/clickhouse
-          - charts/updates
+          - charts/mobile-updates
     env:
       GH_TOKEN: ${{ secrets.GH_PACKAGE_MANAGEMENT_TOKEN }}
       OWNER: ${{ github.repository_owner }}

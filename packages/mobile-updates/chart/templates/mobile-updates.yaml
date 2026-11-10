@@ -1,7 +1,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: updates-{{ .Values.name }}
+  name: mobile-updates-{{ .Values.name }}
   namespace: {{ .Values.namespace }}
   annotations:
     # NOTE: the server serves / and /assets/, so the app's path is stripped
@@ -20,7 +20,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: updates-{{ .Values.name }}
+                name: mobile-updates-{{ .Values.name }}
                 port:
                   number: 80
 
@@ -28,12 +28,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: updates-{{ .Values.name }}
+  name: mobile-updates-{{ .Values.name }}
   namespace: {{ .Values.namespace }}
 spec:
   type: ClusterIP
   selector:
-    app: updates-{{ .Values.name }}
+    app: mobile-updates-{{ .Values.name }}
   ports:
     - name: http
       port: 80
@@ -43,7 +43,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: updates-{{ .Values.name }}
+  name: mobile-updates-{{ .Values.name }}
   namespace: {{ .Values.namespace }}
 spec:
   replicas: {{ .Values.replicas }}
@@ -54,11 +54,11 @@ spec:
       maxUnavailable: 0
   selector:
     matchLabels:
-      app: updates-{{ .Values.name }}
+      app: mobile-updates-{{ .Values.name }}
   template:
     metadata:
       labels:
-        app: updates-{{ .Values.name }}
+        app: mobile-updates-{{ .Values.name }}
     spec:
       automountServiceAccountToken: false
       securityContext:
@@ -66,7 +66,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-        - name: updates
+        - name: mobile-updates
           image: {{ .Values.image | quote }}
           ports:
             - containerPort: 8080

@@ -96,4 +96,5 @@ server, run this from the root of the monorepo:
 pnpm dev --stage your-stage # assuming that you are still verified via SSO
 ```
 
-Expo apps get over-the-air updates from [packages/updates](./packages/updates/README.md).
+Expo apps get over-the-air updates from
+[packages/mobile-updates](./packages/mobile-updates/README.md).
