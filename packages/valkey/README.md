@@ -167,8 +167,8 @@ replica catches up within `shutdown-timeout` (10s). Replicas turn ready only onc
 rollout, which restarts one pod at a time from the highest ordinal whenever `valkey.conf` or
 `users.acl` changes, waits for each restarted replica before stopping the next pod. It doesn't wait
 for a replica in a lower-numbered pod than its primary, so a primary whose replica is still
-resyncing then restarts empty. Use `persistence` if a shard's data must survive a restart with no such failover: the default
-`replicasPerMaster: 0`, fewer than 3 masters, or a crash or OOM kill.
+resyncing then restarts empty. Use `persistence` if a shard's data must survive a restart with no
+such failover: the default `replicasPerMaster: 0`, fewer than 3 masters, or a crash or OOM kill.
 
 For more information about the configuration options, visit
 [valkey.io/topics/configuration](https://valkey.io/topics/valkey.conf/).
