@@ -160,16 +160,16 @@ test('keeps heartbeating after a failed extend', async () => {
   await startWorker(
     queue,
     async (job) => {
-      // NOTE: holds the job's row lock past the worker's lock_timeout, so its first heartbeat fails
+      // NOTE: holds the job's row lock until the worker's first heartbeat fails on its lock_timeout
       await app.query('BEGIN');
       await app.query('SELECT FROM queue_jobs WHERE id = $1 FOR UPDATE', [job.id]);
-      await sleep(450);
+      await vi.waitFor(() => expect(warn).toHaveBeenCalled());
       await app.query('COMMIT');
       // NOTE: past the first lease, so only a later heartbeat keeps the job
       await sleep(1000);
       resolve(await row(job.id));
     },
-    0.9,
+    1.2,
     { lock_timeout: 100 }
   );
   await enqueue(db, queue, {});

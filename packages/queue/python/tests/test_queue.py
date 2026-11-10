@@ -152,16 +152,17 @@ class QueueTest(unittest.TestCase):
         done = threading.Event()
 
         def handle(job: Job) -> None:
-            # NOTE: holds the job's row lock past the worker's lock_timeout, so its first heartbeat fails
+            # NOTE: holds the job's row lock until the worker's first heartbeat fails on its lock_timeout
             with app.transaction():
                 app.execute("SELECT FROM queue_jobs WHERE id = %s FOR UPDATE", (job.id,))
-                time.sleep(0.45)
+                while not logs.output:
+                    time.sleep(0.01)
             # NOTE: past the first lease, so only a later heartbeat keeps the job
             time.sleep(1)
             rows.append(row(job.id))
             done.set()
 
-        start_worker(self.queue, handle, lease=0.9, conninfo="options='-c lock_timeout=100'")
+        start_worker(self.queue, handle, lease=1.2, conninfo="options='-c lock_timeout=100'")
         with self.assertLogs(level="WARNING") as logs:
             enqueue(db, self.queue, {})
             self.assertTrue(done.wait(10))
