@@ -1,0 +1,98 @@
+# Updates
+
+Self-hosted over-the-air updates for Expo apps: a Go server that implements the
+[Expo Updates v1 protocol](https://docs.expo.dev/technical-specs/expo-updates-1/) for the update
+baked into its image, and a Helm chart that runs it for one app. Every manifest and directive is
+signed with RSA-SHA256.
+
+Each app gets its own image, built from this `Dockerfile` with `APP` set to its directory under
+`apps/`. The build runs `expo export` for iOS and Android and resolves each platform's runtime
+version, and the server answers:
+
+- `GET /` with `expo-platform` and `expo-runtime-version`: the signed manifest, a signed
+  `noUpdateAvailable` directive when `expo-current-update-id` is already that update, `204` when the
+  runtime version isn't the image's, and `400` without a runtime version or for an unknown platform.
+- `GET /assets/<sha256>`: the update's files.
+
+The update's ID comes from its content, so rebuilding the same code doesn't make clients download it
+again.
+
+```sh
+docker build -f packages/updates/Dockerfile --build-arg APP=<app> -t <app>-updates .
+```
+
+## Signing key
+
+Expo clients only verify `rsa-v1_5-sha256` with a self-signed certificate that has the
+`digitalSignature` key usage and `codeSigning` extended key usage:
+
+```sh
+openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj '/CN=Pandoks Updates' \
+  -addext 'keyUsage=critical,digitalSignature' -addext 'extendedKeyUsage=critical,codeSigning' \
+  -keyout private-key.pem -out certificate.crt
+pnpm sst secret set UpdatesSigningKey --stage <stage> < private-key.pem
+```
+
+Keep `private-key.pem` out of git. Every stage needs `UpdatesSigningKey` set, production included,
+or its deploys fail.
+
+## Usage
+
+Run the chart from the app's `kube/` with the [HelmChart](https://docs.k3s.io/add-ons/helm) kind. It
+serves the app at `https://${UpdatesDomain}/<slug>`: `updates.pandoks.com` in production and
+`updates-dev.pandoks.com` in every other stage.
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: updates-<slug>-signing-key
+  namespace: <namespace>
+type: Opaque
+data:
+  private-key.pem: ${UpdatesSigningKey | base64}
+
+---
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: <namespace>-updates-<slug>
+  namespace: kube-system
+spec:
+  chart: oci://${ImageRegistry}/charts/updates
+  version: 0.1.0
+  targetNamespace: &namespace <namespace>
+  createNamespace: true
+  failurePolicy: abort
+  plainHTTP: ${IsLocal}
+  set:
+    name: <slug>
+    namespace: *namespace
+    image: ghcr.io/pandoks/<app>-updates:latest@sha256:<digest>
+    host: ${UpdatesDomain}
+    signingKey.secret: updates-<slug>-signing-key
+```
+
+The namespace also needs the `cloudflare-origin-tls` secret, like
+[apps/example/kube/credentials.yaml](/apps/example/kube/credentials.yaml). Renovate bumps the image
+digest after `main` builds a new one, so merging that PR releases the update and reverting it rolls
+back. Keep the app's `kube/` out of the image's build filter, or each bump rebuilds the image.
+
+In the app config, point `updates.url` at the app's URL and commit the certificate (`*.pem` is
+gitignored):
+
+```json
+{
+  "expo": {
+    "runtimeVersion": { "policy": "fingerprint" },
+    "updates": {
+      "url": "https://updates.pandoks.com/<slug>",
+      "codeSigningCertificate": "./certificate.crt",
+      "codeSigningMetadata": { "keyid": "main", "alg": "rsa-v1_5-sha256" }
+    }
+  }
+}
+```
+
+`pnpm --filter @pandoks.com/updates test` runs the server against a fake export and checks its
+responses and signatures.

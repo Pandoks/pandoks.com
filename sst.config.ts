@@ -35,7 +35,6 @@ export default $config({
       import('./infra/api'),
       import('./infra/cloudflare'),
       import('./infra/storage'),
-      import('./infra/updates'),
       import('./infra/github'),
       import('./infra/website'),
       import('./infra/tailscale'),

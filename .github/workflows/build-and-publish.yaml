@@ -50,6 +50,10 @@ on:
         description: 'Chart · clickhouse'
         type: boolean
         default: false
+      updates-chart:
+        description: 'Chart · updates'
+        type: boolean
+        default: false
   push:
     branches:
       - '**'
@@ -102,6 +106,8 @@ jobs:
               - 'packages/valkey/chart/**'
             clickhouse:
               - 'packages/clickhouse/chart/**'
+            updates:
+              - 'packages/updates/chart/**'
 
       - id: set-image-matrix
         env:
@@ -132,7 +138,8 @@ jobs:
           all='[
             {"name":"postgres","path":"./packages/postgres/chart"},
             {"name":"valkey","path":"./packages/valkey/chart"},
-            {"name":"clickhouse","path":"./packages/clickhouse/chart"}
+            {"name":"clickhouse","path":"./packages/clickhouse/chart"},
+            {"name":"updates","path":"./packages/updates/chart"}
           ]'
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             selected=$(jq -c 'to_entries | map(select(.value == true and (.key | endswith("-chart"))) | .key | sub("-chart$"; ""))' <<<"${DISPATCH}")

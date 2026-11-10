@@ -1,0 +1,22 @@
+# The app's slug, which names its resources and its path on host
+name: example
+namespace: example
+# Required: the app's updates image, built from packages/updates/Dockerfile with APP set to the app
+image: ~
+# Required: the stage's updates host, ${UpdatesDomain} in an app's kube
+host: ~
+# The TLS secret Cloudflare's origin certificate is in, for traffic from Cloudflare to the ingress
+tlsSecret: cloudflare-origin-tls
+
+signingKey:
+  secret: updates-example-signing-key
+  dataKey: private-key.pem
+
+replicas: 2
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 128Mi

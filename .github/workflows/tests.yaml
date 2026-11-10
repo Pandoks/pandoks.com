@@ -46,7 +46,7 @@ jobs:
             valkey-reconciler:
               - 'packages/valkey/reconciler/**'
             updates:
-              - 'apps/updates/**'
+              - 'packages/updates/**'
 
   test-web:
     needs: detect-changes
@@ -132,7 +132,14 @@ jobs:
 
       - uses: ./.github/actions/setup-node-pnpm
 
-      - name: Run updates tests
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: packages/updates/go.mod
+          # NOTE: the server has no dependencies to cache
+          cache: false
+
+      - name: Run tests
         run: pnpm --filter @pandoks.com/updates test
 
   tests-pass:
