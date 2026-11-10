@@ -1,0 +1,7 @@
+# NOTE: a local build sees what a CI checkout does, so the export's runtime version matches the app's build
+.git
+.sst
+**/node_modules
+**/.expo
+apps/*/ios
+apps/*/android

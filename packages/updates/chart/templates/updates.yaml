@@ -1,0 +1,96 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: updates-{{ .Values.name }}
+  namespace: {{ .Values.namespace }}
+  annotations:
+    # NOTE: the server serves / and /assets/, so the app's path is stripped
+    haproxy-ingress.github.io/rewrite-target: /
+spec:
+  ingressClassName: haproxy
+  tls:
+    - hosts:
+        - {{ .Values.host | quote }}
+      secretName: {{ .Values.tlsSecret }}
+  rules:
+    - host: {{ .Values.host | quote }}
+      http:
+        paths:
+          - path: /{{ .Values.name }}
+            pathType: Prefix
+            backend:
+              service:
+                name: updates-{{ .Values.name }}
+                port:
+                  number: 80
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: updates-{{ .Values.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  type: ClusterIP
+  selector:
+    app: updates-{{ .Values.name }}
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: updates-{{ .Values.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.replicas }}
+  # NOTE: a new image waits for its build, so the old pods keep serving until a new one is ready
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: updates-{{ .Values.name }}
+  template:
+    metadata:
+      labels:
+        app: updates-{{ .Values.name }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: updates
+          image: {{ .Values.image | quote }}
+          ports:
+            - containerPort: 8080
+          env:
+            - name: URL
+              value: https://{{ .Values.host }}/{{ .Values.name }}
+            - name: SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.signingKey.secret }}
+                  key: {{ .Values.signingKey.dataKey }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

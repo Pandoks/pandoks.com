@@ -50,6 +50,9 @@ export const secrets = {
     OauthClientId: new sst.Secret('TailscaleOauthClientId'),
     OauthClientSecret: new sst.Secret('TailscaleOauthClientSecret')
   },
+  updates: {
+    SigningKey: new sst.Secret('UpdatesSigningKey')
+  },
   k8s: {
     tailscale: {
       OauthClientId: new sst.Secret('KubernetesTailscaleOauthClientId', 'Placeholder'), // Automatically set during deploy

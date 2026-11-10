@@ -1,0 +1,8 @@
+apiVersion: v2
+name: updates
+description: Expo updates server for one app, serving the update baked into its image
+type: application
+version: 0.1.0
+maintainers:
+  - name: pandoks
+dependencies: []

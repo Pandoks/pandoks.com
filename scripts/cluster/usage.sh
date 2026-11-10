@@ -37,7 +37,7 @@ usage_k3d() {
   printf "  %brestart%b\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Restart k3d cluster\n\n" >&2
 
-  printf "  %bdeps%b <up|down|restart>\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bdeps%b <up|down|destroy|restart>\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Manage docker compose dependencies\n\n" >&2
 
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
@@ -55,6 +55,7 @@ usage_deps() {
   printf "%bSubcommands:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %bup%b         Start docker compose dependencies\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bdown%b       Stop docker compose dependencies\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bdestroy%b    Stop docker compose dependencies and delete their volumes\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %brestart%b    Restart docker compose dependencies\n\n" "${GREEN}" "${NORMAL}" >&2
 
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2

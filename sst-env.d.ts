@@ -200,6 +200,14 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "UpdatesDomain": {
+      "type": "sst.sst.Linkable"
+      "value": string
+    }
+    "UpdatesSigningKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
   }
 }
 
