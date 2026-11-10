@@ -1,4 +1,4 @@
-import { cloudflareAccountId, hasCluster, isProduction, STAGE_NAME } from './dns';
+import { cloudflareAccountId, isProduction, isSharedDev, STAGE_NAME } from './dns';
 import { defaultAwsRegion } from './aws';
 import { secrets } from './secrets';
 import { tailscaleAcl } from './tailscale';
@@ -8,38 +8,54 @@ export const githubRepoName = 'pandoks.com';
 
 const GITHUB_ACTIONS_APP_ID = 15368;
 
-if (hasCluster) {
-  // NOTE: AWS trusts every job in the production and dev environments, so only main gets them, and
-  // removing a stage keeps them.
-  const githubEnvironment = new github.RepositoryEnvironment(
-    'GithubStageEnvironment',
-    {
-      repository: githubRepoName,
-      environment: isProduction ? 'production' : 'dev',
-      deploymentBranchPolicy: { protectedBranches: false, customBranchPolicies: true }
-    },
-    { retainOnDelete: true }
-  );
+// NOTE: AWS trusts every job in the production and dev environments, so only main gets them.
+const MAIN_ONLY_BRANCH_POLICY = { protectedBranches: false, customBranchPolicies: true };
+
+// NOTE: Production creates the dev environment; only dev holds the dev Hetzner project's token.
+if (isSharedDev) {
+  new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
+    repository: githubRepoName,
+    environment: 'dev',
+    secretName: 'HCLOUD_TOKEN',
+    value: secrets.hetzner.ApiKey.value
+  });
+}
+
+if (isProduction) {
+  const githubProductionEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
+    repository: githubRepoName,
+    environment: 'production',
+    deploymentBranchPolicy: MAIN_ONLY_BRANCH_POLICY
+  });
 
   new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
     repository: githubRepoName,
-    environment: githubEnvironment.environment,
+    environment: githubProductionEnvironment.environment,
     secretName: 'HCLOUD_TOKEN',
     value: secrets.hetzner.ApiKey.value
   });
 
-  new github.RepositoryEnvironmentDeploymentPolicy(
-    'GithubProductionDeploymentPolicy',
+  new github.RepositoryEnvironmentDeploymentPolicy('GithubProductionDeploymentPolicy', {
+    repository: githubRepoName,
+    environment: githubProductionEnvironment.environment,
+    branchPattern: 'main'
+  });
+
+  const githubDevEnvironment = new github.RepositoryEnvironment('GithubDevEnvironment', {
+    repository: githubRepoName,
+    environment: 'dev',
+    deploymentBranchPolicy: MAIN_ONLY_BRANCH_POLICY
+  });
+
+  const githubDevDeploymentPolicy = new github.RepositoryEnvironmentDeploymentPolicy(
+    'GithubDevDeploymentPolicy',
     {
       repository: githubRepoName,
-      environment: githubEnvironment.environment,
+      environment: githubDevEnvironment.environment,
       branchPattern: 'main'
-    },
-    { retainOnDelete: true }
+    }
   );
-}
 
-if (isProduction) {
   new github.RepositoryRuleset('GithubMainRuleset', {
     name: 'main',
     repository: githubRepoName,
@@ -120,7 +136,8 @@ if (isProduction) {
               'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
               'token.actions.githubusercontent.com:sub': [
                 `repo:${githubOrg}/${githubRepoName}:environment:production`,
-                `repo:${githubOrg}/${githubRepoName}:environment:dev`,
+                // NOTE: Reading the dev policy makes AWS trust environment:dev only once it is main-only.
+                $interpolate`repo:${githubOrg}/${githubRepoName}:environment:${githubDevDeploymentPolicy.environment}`,
                 `repo:${githubOrg}/${githubRepoName}:ref:refs/heads/main`
               ]
             }

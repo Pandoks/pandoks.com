@@ -82,8 +82,8 @@ The `deploy` command renders templates with these substitutions before applying:
 
 ### Local k3d Cluster
 
-Replace `your-stage` with your personal SST stage (for example, `pandoks`); `local` and `dev` select
-the deployment environment, not the SST stage.
+Replace `your-stage` with your personal SST stage (for example, `pandoks`); `local` selects the
+deployment environment, not the SST stage.
 
 ```sh
 # Start dependencies and create the k3d cluster

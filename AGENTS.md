@@ -74,12 +74,11 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
   prod until pruned by hand.
 - Each cloud cluster belongs to one SST stage (`hasCluster` in `infra/dns.ts`): `production`
   (`STAGE_NAME` `prod`, `pandoks.com`, `tag:prod`) and `dev` (`dev`, `dev.pandoks.com`, `tag:dev`)
-  each own their servers, network, Tailscale operator client, GitHub environment (main-only, trusted
-  by AWS, and kept by `sst remove`: delete it by hand only after dropping its trust in
-  `infra/github.ts`), and origin cert. Other stages, like `pandoks`, get their stage name and
-  `<stage>.dev.pandoks.com` and only non-cluster resources (API, buckets, runners); their cluster is
-  local k3d. Singletons (Tailscale ACL and tailnet settings, GitHub repo settings, AWS OIDC) belong
-  to `production`.
+  each own their servers, network, Tailscale operator client, GitHub environment `HCLOUD_TOKEN`, and
+  origin cert. Other stages, like `pandoks`, get their stage name and `<stage>.dev.pandoks.com` and
+  only non-cluster resources (API, buckets, runners); their cluster is local k3d. Singletons
+  (Tailscale ACL and tailnet settings, GitHub repo settings, the main-only `production` and `dev`
+  GitHub environments AWS trusts, AWS OIDC) belong to `production`.
 - `infra/vps/vps.origin.<prod|dev>.csr` are committed. A deploy from a checkout holding the stage's
   gitignored `.key` rewrites `HetznerOriginTlsKey` and `HetznerOriginTlsCrt` when the issued cert
   differs from the stored one; CI never does.

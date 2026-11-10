@@ -219,5 +219,5 @@ k3s HelmChart CRD sometimes doesn't trigger upgrades. To force update:
 
 ```bash
 kubectl delete helmchart kube-prometheus-stack -n kube-system
-pnpm cluster deploy local --stage your-stage  # or dev/prod
+pnpm cluster deploy local --stage your-stage
 ```
