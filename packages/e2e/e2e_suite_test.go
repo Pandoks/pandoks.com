@@ -1,8 +1,7 @@
-package e2e
+package e2e_test
 
 import (
 	"bytes"
-	"flag"
 	"fmt"
 	"math/rand/v2"
 	"os/exec"
@@ -14,10 +13,11 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var kubeContext = flag.String("context", "k3d-local-cluster", "kubectl context of the k3d cluster")
-
-// NOTE: the registry `pnpm cluster k3d up` creates, as the k3d nodes reach it
-const registry = "local-registry:5000"
+// NOTE: the context and registry `pnpm cluster k3d up` creates; never point the suite at another cluster
+const (
+	kubeContext = "k3d-local-cluster"
+	registry    = "local-registry:5000"
+)
 
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -27,18 +27,20 @@ func TestE2E(t *testing.T) {
 }
 
 var _ = SynchronizedBeforeSuite(func() {
-	mustRun("", "kubectl", "apply", "--server-side", "-k", ".")
+	// NOTE: a cluster from `pnpm local:init` already has them from kube-prometheus-stack
+	if _, err := run("", "kubectl", "get", "crd", "servicemonitors.monitoring.coreos.com"); err != nil {
+		mustRun("", "kubectl", "apply", "--server-side", "-k", ".")
+	}
 	mustRun("", "kubectl", "apply", "-f", "../../k3s/base/core/valkey.yaml")
 	mustRun("", "kubectl", "wait", "--for=condition=Established", "crd/servicemonitors.monitoring.coreos.com")
 }, func() {})
 
-// run runs kubectl or helm against the k3d cluster and returns its stdout
 func run(stdin, command string, args ...string) (string, error) {
 	contextFlag := "--context"
 	if command == "helm" {
 		contextFlag = "--kube-context"
 	}
-	cmd := exec.Command(command, append([]string{contextFlag, *kubeContext}, args...)...)
+	cmd := exec.Command(command, append([]string{contextFlag, kubeContext}, args...)...)
 	cmd.Stdin = strings.NewReader(stdin)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr

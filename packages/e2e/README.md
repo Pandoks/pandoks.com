@@ -5,8 +5,8 @@ End-to-end tests for the Helm charts in `packages/`, written with
 installs a chart from its source directory with `helm` into a fresh namespace of the local k3d
 cluster, waits for its hooks, exercises it with `kubectl`, and deletes the namespace afterwards
 (dumping pods, events and logs first if it failed). Before the specs, the suite applies what the
-charts expect from the cluster: the Prometheus Operator CRDs (`kustomization.yaml`) and the
-`valkey-reconciler` ClusterRole (`k3s/base/core/valkey.yaml`).
+charts expect from the cluster: the Prometheus Operator CRDs (`kustomization.yaml`, only if the
+cluster has none yet) and the `valkey-reconciler` ClusterRole (`k3s/base/core/valkey.yaml`).
 
 CI runs it in the `test-e2e` job of `.github/workflows/tests.yaml`.
 
@@ -23,8 +23,7 @@ pnpm --filter @pandoks.com/valkey local:build && pnpm --filter @pandoks.com/valk
 mise exec -- go tool ginkgo -p ./packages/e2e
 ```
 
-The suite targets the `k3d-local-cluster` context; pass another with
-`go tool ginkgo -p ./packages/e2e -- -context=<context>`. Rebuild and push a chart's images after
+The suite only ever targets the `k3d-local-cluster` context. Rebuild and push a chart's images after
 changing them; the chart itself is read from the checkout on every run. `pnpm local:destroy` tears
 the cluster down.
 
@@ -45,16 +44,3 @@ Each chart's specs carry its name as a label. Run only some with `--label-filter
 - `Eventually` waits 1 minute by default; give longer waits `.WithTimeout(...)`.
 - A spec that needs another image adds its `local:build`/`local:push` to the `test-e2e` job and the
   package's paths to its `e2e` filter.
-
-## Deferred scenarios
-
-These Valkey scenarios fail on `main` because of open chart bugs, so their specs land with the
-fixes:
-
-- Scale up 3 → 4 masters: the post-upgrade hook rebalances before every node reports
-  `cluster_state:ok` and leaves open slots. Fix:
-  [#299](https://github.com/Pandoks/pandoks.com/pull/299).
-- Failover when a master pod is deleted or its k3d node is paused: replicas never sync (no
-  `primaryauth`), and a restarted master comes back empty. Fix: #299.
-- Cluster commands as the `client` user: its ACL can't discover the cluster topology. Fix:
-  [#111](https://github.com/Pandoks/pandoks.com/pull/111).

@@ -153,14 +153,13 @@ jobs:
         run: pnpm cluster k3d deps up && pnpm cluster k3d up
 
       - name: Build and push the Valkey images
-        run: pnpm --filter @pandoks.com/valkey local:build && pnpm --filter @pandoks.com/valkey local:push
+        run: |
+          pnpm --filter @pandoks.com/valkey run '/^local:build:(image|reconciler)$/'
+          pnpm --filter @pandoks.com/valkey run '/^local:push:(image|reconciler)$/'
 
+      # NOTE: below the job timeout, so a hung command still ends with the failed specs' diagnostics
       - name: Run e2e tests
-        run: go tool ginkgo -p ./packages/e2e
-
-      - name: Delete k3d cluster
-        if: ${{ always() }}
-        run: pnpm local:destroy
+        run: go tool ginkgo -p --timeout=20m ./packages/e2e
 
   tests-pass:
     needs:

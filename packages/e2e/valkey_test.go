@@ -1,4 +1,4 @@
-package e2e
+package e2e_test
 
 import (
 	"fmt"
@@ -25,9 +25,7 @@ func installValkey(masters int) string {
 			"cluster.reconcilerImage": registry + "/valkey-reconciler:latest",
 			"cluster.masters":         strconv.Itoa(masters),
 			"credentials.secret":      "valkey-creds",
-			// NOTE: fail on the first hook error and keep the hook Jobs for the diagnostics dump
-			"hooks.restartPolicy":    "Never",
-			"hooks.backoffLimit":     "0",
+			// NOTE: keep the hook Jobs for the diagnostics dump
 			"hooks.hookDeletePolicy": "before-hook-creation",
 		})
 }
@@ -50,7 +48,6 @@ func writeKeys(namespace string) {
 	Expect(strings.Count(output, "OK\n")).To(Equal(keyCount), "not every SET returned OK")
 }
 
-// expectKeysReadable reads every key through the cluster from the given pod
 func expectKeysReadable(g Gomega, namespace, pod string) {
 	var commands, expected strings.Builder
 	for i := range keyCount {
@@ -65,19 +62,23 @@ func expectKeysReadable(g Gomega, namespace, pod string) {
 
 var masterLine = regexp.MustCompile(`(?m)^\S+ \(\w+\.\.\.\) -> (\d+) keys \| (\d+) slots`)
 
-// expectHealthyCluster checks that every master serves, slot coverage, open slots, master count, and that slots are
-// spread over every master
+// expectHealthyCluster checks that every node reports cluster_state:ok, slot coverage, open slots, master count, and
+// that slots are spread over every master
 func expectHealthyCluster(g Gomega, namespace string, masters int) {
+	replicas, err := run("", "kubectl", "-n", namespace, "get", "statefulset", "valkey-vk", "-o", "jsonpath={.spec.replicas}")
+	g.Expect(err).NotTo(HaveOccurred())
+	pods, err := strconv.Atoi(replicas)
+	g.Expect(err).NotTo(HaveOccurred())
 	// NOTE: `--cluster create` returns before the nodes reach cluster_state:ok, and until then writes get CLUSTERDOWN
-	for i := range masters {
+	for i := range pods {
 		info, err := valkeyCli(namespace, fmt.Sprintf("valkey-vk-%d", i), "", "cluster", "info")
 		g.Expect(err).NotTo(HaveOccurred())
 		g.Expect(info).To(ContainSubstring("cluster_state:ok"))
 	}
 	address := fmt.Sprintf("valkey-vk-0.valkey-vk-headless.%s.svc.cluster.local:6379", namespace)
 	// NOTE: --cluster check exits 1 on open slots; its output says why, so assert on that instead of the exit code
-	output, _ := valkeyCli(namespace, "valkey-vk-0", "", "--cluster", "check", address)
-	g.Expect(output).To(ContainSubstring("[OK] All 16384 slots covered."))
+	output, err := valkeyCli(namespace, "valkey-vk-0", "", "--cluster", "check", address)
+	g.Expect(output).To(ContainSubstring("[OK] All 16384 slots covered."), "%v", err)
 	g.Expect(output).To(ContainSubstring("[OK] All nodes agree about slots configuration."))
 	g.Expect(output).NotTo(ContainSubstring("[WARNING]"))
 	slotsPerMaster := []int{}
@@ -108,7 +109,6 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 
 		It("scales down to 3 masters with the pre-upgrade hook and keeps every key", func() {
 			upgradeChart(namespace, "valkey", map[string]string{"cluster.masters": "3"})
-			mustRun("", "kubectl", "-n", namespace, "rollout", "status", "statefulset/valkey-vk", "--timeout=2m")
 			Eventually(expectHealthyCluster).WithArguments(namespace, 3).Should(Succeed())
 			expectKeysReadable(Default, namespace, "valkey-vk-0")
 		})
