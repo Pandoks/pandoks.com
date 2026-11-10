@@ -35,14 +35,14 @@ jobs:
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
           filters: |
-            node-setup: &node-setup
+            shared-node-setup: &shared-node-setup
               - '.github/workflows/checks.yaml'
               - '.github/actions/setup-node-pnpm/**'
               - 'mise.toml'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
-            mise-setup: &mise-setup
+            shared-mise-setup: &shared-mise-setup
               - '.github/workflows/checks.yaml'
               - '.github/actions/setup-mise/**'
               - 'mise.toml'
@@ -60,7 +60,7 @@ jobs:
               - '.prettierrc'
               - '.prettierignore'
               - 'scripts/format/**'
-              - *node-setup
+              - *shared-node-setup
             eslint:
               - '**/*.ts'
               - '**/*.tsx'
@@ -70,7 +70,7 @@ jobs:
               - 'eslint.config.ts'
               - 'tsconfig.eslint.json'
               - 'scripts/lint/**'
-              - *node-setup
+              - *shared-node-setup
             go:
               - '**/*.go'
               - '**/go.mod'
@@ -80,15 +80,15 @@ jobs:
               - '.golangci.yaml'
               - 'scripts/format/**'
               - 'scripts/lint/**'
-              - *mise-setup
+              - *shared-mise-setup
             shell:
               - '**/*.sh'
               - '.shellcheckrc'
-              - *mise-setup
+              - *shared-mise-setup
             helm:
               - '**/chart/**'
               - 'scripts/lint/**'
-              - *mise-setup
+              - *shared-mise-setup
             actions:
               - '.github/workflows/**'
               - '.github/actions/**'
@@ -103,7 +103,7 @@ jobs:
               - 'infra/**'
               - 'sst.config.ts'
               - 'tsconfig.json'
-              - *node-setup
+              - *shared-node-setup
 
   # ─── JS / TS ──────────────────────────────────────────────────────────
   format-js:

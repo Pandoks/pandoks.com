@@ -32,7 +32,7 @@ jobs:
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
           filters: |
-            node-setup: &node-setup
+            shared-node-setup: &shared-node-setup
               - '.github/workflows/tests.yaml'
               - '.github/actions/setup-node-pnpm/**'
               - 'mise.toml'
@@ -42,23 +42,23 @@ jobs:
             web:
               - 'apps/web/**'
               - 'packages/svelte/**'
-              - *node-setup
+              - *shared-node-setup
             desktop:
               - 'apps/desktop-template/**'
               - 'packages/svelte/**'
-              - *node-setup
+              - *shared-node-setup
             svelte:
               - 'packages/svelte/**'
-              - *node-setup
+              - *shared-node-setup
             prettier:
               - 'packages/prettier/**'
-              - *node-setup
+              - *shared-node-setup
             valkey-reconciler:
               - 'packages/valkey/reconciler/**'
               - 'packages/valkey/package.json'
               - 'go.work'
               - 'go.work.sum'
-              - *node-setup
+              - *shared-node-setup
 
   test-web:
     needs: detect-changes
