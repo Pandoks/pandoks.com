@@ -1,7 +1,5 @@
 shared-node-setup: &shared-node-setup
   - '.github/filters.yaml'
-  - '.github/workflows/checks.yaml'
-  - '.github/workflows/tests.yaml'
   - '.github/actions/setup-node-pnpm/**'
   - 'mise.toml'
   - 'package.json'
@@ -9,10 +7,12 @@ shared-node-setup: &shared-node-setup
   - 'pnpm-workspace.yaml'
 shared-mise-setup: &shared-mise-setup
   - '.github/filters.yaml'
-  - '.github/workflows/checks.yaml'
-  - '.github/workflows/tests.yaml'
   - '.github/actions/setup-mise/**'
   - 'mise.toml'
+checks-workflow: &checks-workflow
+  - '.github/workflows/checks.yaml'
+tests-workflow: &tests-workflow
+  - '.github/workflows/tests.yaml'
 
 # checks.yaml
 prettier:
@@ -30,6 +30,7 @@ prettier:
   - '.prettierignore'
   - 'scripts/format/**'
   - *shared-node-setup
+  - *checks-workflow
 eslint:
   - '**/*.ts'
   - '**/*.tsx'
@@ -40,6 +41,7 @@ eslint:
   - 'tsconfig.eslint.json'
   - 'scripts/lint/**'
   - *shared-node-setup
+  - *checks-workflow
 go:
   - '**/*.go'
   - '**/go.mod'
@@ -50,14 +52,17 @@ go:
   - 'scripts/format/**'
   - 'scripts/lint/**'
   - *shared-mise-setup
+  - *checks-workflow
 shell:
   - '**/*.sh'
   - '.shellcheckrc'
   - *shared-mise-setup
+  - *checks-workflow
 helm:
   - '**/chart/**'
   - 'scripts/lint/**'
   - *shared-mise-setup
+  - *checks-workflow
 actions:
   - '.github/workflows/**'
   - '.github/actions/**'
@@ -68,31 +73,37 @@ renovate:
   - '.renovaterc.json'
   - '.renovaterc.json5'
   - '.github/filters.yaml'
-  - '.github/workflows/checks.yaml'
+  - *checks-workflow
 infra:
   - 'infra/**'
   - 'sst.config.ts'
   - 'tsconfig.json'
   - *shared-node-setup
+  - *checks-workflow
 
 # tests.yaml
 web:
   - 'apps/web/**'
   - 'packages/svelte/**'
   - *shared-node-setup
+  - *tests-workflow
 desktop:
   - 'apps/desktop-template/**'
   - 'packages/svelte/**'
   - *shared-node-setup
+  - *tests-workflow
 svelte:
   - 'packages/svelte/**'
   - *shared-node-setup
+  - *tests-workflow
 prettier-pkg:
   - 'packages/prettier/**'
   - *shared-node-setup
+  - *tests-workflow
 valkey-reconciler:
   - 'packages/valkey/reconciler/**'
   - 'packages/valkey/package.json'
   - 'go.work'
   - 'go.work.sum'
   - *shared-node-setup
+  - *tests-workflow
