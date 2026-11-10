@@ -21,7 +21,8 @@ Every build is a new update with its own ID and creation time, even of old code,
 launches the newest update it has.
 
 ```sh
-docker build -f packages/updates/Dockerfile --build-arg APP=<app> -t <app>-updates .
+docker build -f packages/updates/Dockerfile --build-arg APP=<app> \
+  --build-arg CREATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" -t <app>-updates .
 ```
 
 ## Signing key

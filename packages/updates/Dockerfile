@@ -21,8 +21,12 @@ RUN pnpm exec expo export --output-dir /export --platform ios --platform android
     && for platform in ios android; do \
     pnpm exec expo-updates runtimeversion:resolve --platform "${platform}" > "/export/runtime-version-${platform}.json" \
     && UPDATES_ENVIRONMENT=dev pnpm exec expo-updates runtimeversion:resolve --platform "${platform}" > "/export/runtime-version-${platform}-dev.json"; \
-    done \
-    && date -u +%Y-%m-%dT%H:%M:%SZ > /export/created-at
+    done
+
+# NOTE: each build passes a new time, so the stamp never comes from the cache and even a rebuild of old code is
+# newer than the update it rolls back
+ARG CREATED_AT
+RUN test -n "${CREATED_AT}" && printf '%s\n' "${CREATED_AT}" > /export/created-at
 
 FROM golang:1.27.3-trixie@sha256:af1bfc2614ebb1dbd31af514b78740fd678850e76498762b425ecee4c5c6ea80 AS builder
 
