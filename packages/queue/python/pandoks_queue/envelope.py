@@ -9,6 +9,7 @@ import secrets
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from itertools import accumulate
 from typing import Protocol
 from urllib.parse import SplitResult, parse_qs
 
@@ -16,10 +17,15 @@ MAX_DELAY = 900.0
 """SQS's DelaySeconds maximum in seconds, the portable ceiling for every delay."""
 MAX_ENVELOPE_BYTES = 120_000
 """Fits Cloudflare's 128 KB message limit with room for its metadata."""
+MAX_DEPTH = 64
+"""How deeply an envelope, itself one level, may nest arrays and objects."""
 
 EXTENSION_NAME = re.compile(r"[a-z0-9]{1,20}")
 ATTRIBUTES = {"specversion", "id", "source", "type", "time", "datacontenttype", "data", "data_base64"}
-DURATION = re.compile(r"(\d+)(ms|s|m|h)")
+DURATION = re.compile(r"(\d+)(ms|s|m|h)", re.ASCII)
+JSON_STRINGS_AND_SCALARS = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"|[^][{}"]+')
+# NOTE: parse_qs keeps bad % escapes and ; where Go's url.ParseQuery fails
+MALFORMED_QUERY = re.compile(r"%(?![0-9A-Fa-f]{2})|;")
 DURATION_SECONDS = {"ms": 0.001, "s": 1, "m": 60, "h": 3600}
 LONE_SURROGATE = re.compile("[\ud800-\udfff]")
 RFC3339 = re.compile(r"\d{4}-\d\d-\d\dT([01]\d|2[0-3]):\d\d:\d\d(\.\d+)?(Z|[+-]([01]\d|2[0-3]):[0-5]\d)", re.ASCII)
@@ -93,7 +99,10 @@ def encode(message: Message, sent_at: datetime) -> str:
         "datacontenttype": message.content_type or "application/json",
     }
     if message.data is not None and is_json(event["datacontenttype"]):
-        event["data"] = parse_json(message.data)
+        text = message.data.decode()
+        if 1 + json_depth(text) > MAX_DEPTH:
+            raise ValueError(f"encode message {event['id']}: envelope nests over {MAX_DEPTH} levels")
+        event["data"] = parse_json(text)
     elif message.data is not None:
         event["data_base64"] = base64.b64encode(message.data).decode()
     body = json.dumps(event, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
@@ -106,6 +115,8 @@ def encode(message: Message, sent_at: datetime) -> str:
 
 def decode(body: str, **delivery) -> Delivery:
     """Reads an envelope into a Delivery with the broker's attempt, deadline, and handle."""
+    if json_depth(body) > MAX_DEPTH:
+        raise ValueError(f"decode envelope: nests over {MAX_DEPTH} levels")
     event = parse_json(body)
     if not isinstance(event, dict):
         raise ValueError("decode envelope: not an object")
@@ -121,8 +132,9 @@ def decode(body: str, **delivery) -> Delivery:
         raise ValueError("decode envelope: specversion 1.0, id, source, and type are required")
     if not RFC3339.fullmatch(members.get("time", "")):
         raise ValueError(f"decode envelope {members['id']}: time {members.get('time')!r} is not RFC 3339")
-    if "data" in event and "data_base64" in event:
-        raise ValueError(f"decode envelope {members['id']}: data and data_base64 are mutually exclusive")
+    content_type = members.get("datacontenttype", "application/json")
+    if (contradicting := "data_base64" if is_json(content_type) else "data") in event:
+        raise ValueError(f"decode envelope {members['id']}: {contradicting} contradicts datacontenttype {content_type!r}")
     if "data_base64" in event:
         data = base64.b64decode(event["data_base64"], validate=True)
         # NOTE: validate still allows nonzero padding bits, so only canonical base64 round-trips
@@ -136,7 +148,7 @@ def decode(body: str, **delivery) -> Delivery:
         id=members["id"],
         source=members["source"],
         type=members["type"],
-        content_type=members.get("datacontenttype", "application/json"),
+        content_type=content_type,
         extensions={name: value for name, value in members.items() if name not in ATTRIBUTES},
         data=data,
         time=datetime.fromisoformat(members.get("time", "")),
@@ -147,6 +159,12 @@ def decode(body: str, **delivery) -> Delivery:
 def parse_json(text: str | bytes) -> object:
     """Parses JSON, rejecting NaN, Infinity, and numbers past float64's range as Go and TS do."""
     return json.loads(text, parse_constant=reject_number, parse_float=finite_float, parse_int=finite_int)
+
+
+def json_depth(text: str) -> int:
+    """Returns how deeply valid JSON text nests arrays and objects."""
+    brackets = JSON_STRINGS_AND_SCALARS.sub("", text)
+    return max(accumulate(1 if bracket in "[{" else -1 for bracket in brackets), default=0)
 
 
 def reject_number(text: str) -> None:
@@ -174,7 +192,7 @@ def decode_rows(rows: Iterable[tuple[str | bytes, int, object]], deadline: datet
         try:
             text = body.decode() if isinstance(body, bytes) else body
             deliveries.append(decode(text, attempt=attempt, deadline=deadline, handle=handle))
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, RecursionError):
             log.exception("queue dropped a malformed message")
             malformed.append(handle)
     return deliveries, malformed
@@ -182,8 +200,10 @@ def decode_rows(rows: Iterable[tuple[str | bytes, int, object]], deadline: datet
 
 def query_params(parsed: SplitResult, *allowed: str) -> dict[str, str]:
     """Returns the URL's query, rejecting parameters outside allowed and repeated ones."""
+    if MALFORMED_QUERY.search(parsed.query):
+        raise ValueError(f"{parsed.scheme} URL: query does not parse")
     params = {}
-    for name, values in parse_qs(parsed.query, keep_blank_values=True).items():
+    for name, values in parse_qs(parsed.query, keep_blank_values=True, errors="strict").items():
         if name not in allowed or len(values) != 1:
             raise ValueError(f"{parsed.scheme} URL: unexpected parameter {name!r}")
         params[name] = values[0]

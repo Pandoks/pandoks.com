@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"time"
+	"unicode/utf8"
 )
 
 const (
@@ -99,6 +100,9 @@ func queryParams(parsed *url.URL, allowed ...string) (map[string]string, error) 
 	for name, values := range query {
 		if !slices.Contains(allowed, name) || len(values) != 1 {
 			return nil, fmt.Errorf("%s URL: unexpected parameter %q", parsed.Scheme, name)
+		}
+		if !utf8.ValidString(values[0]) {
+			return nil, fmt.Errorf("%s URL: %s is not UTF-8", parsed.Scheme, name)
 		}
 		params[name] = values[0]
 	}

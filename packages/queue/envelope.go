@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"mime"
 	"regexp"
 	"slices"
 	"strings"
@@ -16,8 +15,12 @@ import (
 	"unicode/utf8"
 )
 
-// timeLayout is RFC 3339 in UTC with milliseconds, which Go, Python, and JS all write the same way.
-const timeLayout = "2006-01-02T15:04:05.000Z07:00"
+const (
+	// timeLayout is RFC 3339 in UTC with milliseconds, which Go, Python, and JS all write the same way.
+	timeLayout = "2006-01-02T15:04:05.000Z07:00"
+	// maxDepth is how deeply an envelope, itself one level, may nest arrays and objects.
+	maxDepth = 64
+)
 
 var (
 	extensionName = regexp.MustCompile(`^[a-z0-9]{1,20}$`)
@@ -25,11 +28,15 @@ var (
 	attributes    = []string{"specversion", "id", "source", "type", "time", "datacontenttype", "data", "data_base64"}
 	// jsonEscape matches one escape in a JSON string, capturing a lone UTF-16 surrogate half
 	jsonEscape = regexp.MustCompile(`\\(?:u[dD][89abAB][[:xdigit:]]{2}\\u[dD][c-fC-F][[:xdigit:]]{2}|(u[dD][89a-fA-F][[:xdigit:]]{2})|[^u]|u[[:xdigit:]]{4})`)
+	// lineSeparatorEscape matches the \u2028 and \u2029 escapes encoding/json always writes, and an
+	// escaped backslash so the u after one isn't read as an escape
+	lineSeparatorEscape = regexp.MustCompile(`\\\\|\\u202[89]`)
 )
 
 func isJSON(contentType string) bool {
-	mediaType, _, err := mime.ParseMediaType(contentType)
-	return err == nil && (mediaType == "application/json" || strings.HasSuffix(mediaType, "+json"))
+	mediaType, _, _ := strings.Cut(contentType, ";")
+	mediaType = strings.ToLower(strings.TrimSpace(mediaType))
+	return mediaType == "application/json" || strings.HasSuffix(mediaType, "+json")
 }
 
 // encode writes message as a CloudEvents 1.0 structured JSON envelope sent at sentAt.
@@ -72,6 +79,9 @@ func encode(message Message, sentAt time.Time) ([]byte, error) {
 		if !utf8.Valid(message.Data) || !finiteJSON(message.Data) {
 			return nil, fmt.Errorf("encode message %s: data is not valid UTF-8 JSON with finite numbers", event["id"])
 		}
+		if 1+jsonDepth(message.Data) > maxDepth {
+			return nil, fmt.Errorf("encode message %s: envelope nests over %d levels", event["id"], maxDepth)
+		}
 		event["data"] = json.RawMessage(message.Data)
 	default:
 		event["data_base64"] = message.Data
@@ -83,7 +93,16 @@ func encode(message Message, sentAt time.Time) ([]byte, error) {
 	if err := encoder.Encode(event); err != nil {
 		return nil, fmt.Errorf("encode message %s: %w", event["id"], err)
 	}
-	body := bytes.TrimSuffix(buffer.Bytes(), []byte("\n"))
+	// NOTE: Python and TS write U+2028 and U+2029 unescaped, so the size matches theirs
+	body := lineSeparatorEscape.ReplaceAllFunc(bytes.TrimSuffix(buffer.Bytes(), []byte("\n")), func(escape []byte) []byte {
+		switch string(escape) {
+		case `\u2028`:
+			return []byte("\u2028")
+		case `\u2029`:
+			return []byte("\u2029")
+		}
+		return escape
+	})
 	if len(body) > MaxEnvelopeBytes {
 		return nil, fmt.Errorf("encode message %s: envelope is %d bytes, over %d", event["id"], len(body), MaxEnvelopeBytes)
 	}
@@ -94,6 +113,26 @@ func encode(message Message, sentAt time.Time) ([]byte, error) {
 // require.
 func finiteJSON(data []byte) bool {
 	return json.Unmarshal(data, new(any)) == nil
+}
+
+// jsonDepth returns how deeply valid JSON nests arrays and objects.
+func jsonDepth(data []byte) int {
+	depth, deepest, inString := 0, 0, false
+	for index := 0; index < len(data); index++ {
+		switch character := data[index]; {
+		case inString && character == '\\':
+			index++
+		case character == '"':
+			inString = !inString
+		case inString:
+		case character == '[' || character == '{':
+			depth++
+			deepest = max(deepest, depth)
+		case character == ']' || character == '}':
+			depth--
+		}
+	}
+	return deepest
 }
 
 // hasLoneSurrogate reports whether a JSON string escapes half a surrogate pair, which encoding/json
@@ -111,6 +150,9 @@ func hasLoneSurrogate(raw []byte) bool {
 func decode(body []byte, delivery *Delivery) error {
 	if !utf8.Valid(body) {
 		return errors.New("decode envelope: not valid UTF-8")
+	}
+	if jsonDepth(body) > maxDepth {
+		return fmt.Errorf("decode envelope: nests over %d levels", maxDepth)
 	}
 	var event map[string]json.RawMessage
 	if err := json.Unmarshal(body, &event); err != nil {
@@ -148,10 +190,12 @@ func decode(body []byte, delivery *Delivery) error {
 	if contentType, ok := members["datacontenttype"]; ok {
 		message.ContentType = contentType
 	}
-	_, hasData := event["data"]
-	_, hasBase64 := event["data_base64"]
-	if hasData && hasBase64 {
-		return fmt.Errorf("decode envelope %s: data and data_base64 are mutually exclusive", message.ID)
+	contradicting := "data_base64"
+	if !isJSON(message.ContentType) {
+		contradicting = "data"
+	}
+	if _, ok := event[contradicting]; ok {
+		return fmt.Errorf("decode envelope %s: %s contradicts datacontenttype %q", message.ID, contradicting, message.ContentType)
 	}
 	if encoded, ok := members["data_base64"]; ok {
 		// NOTE: DecodeString skips CR and LF, so only canonical base64 round-trips

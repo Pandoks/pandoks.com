@@ -54,7 +54,7 @@ export async function openQueue(url: URL): Promise<ValkeyQueue> {
   const params = queryParams(url, 'lease', 'max_attempts', 'subscription');
   const lease = parseLease(params);
   const maxAttempts = Number(params.max_attempts);
-  if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
+  if (!/^\d+$/.test(params.max_attempts ?? '') || maxAttempts < 1) {
     throw new Error(`valkey URL: max_attempts ${params.max_attempts} must be at least 1`);
   }
   const client = await valkeyClient(url);

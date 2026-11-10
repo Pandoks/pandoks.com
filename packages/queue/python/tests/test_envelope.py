@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from pandoks_queue import open_queue, open_topic
-from pandoks_queue.envelope import MAX_DELAY, MAX_ENVELOPE_BYTES, Message, decode, decode_rows, encode
+from pandoks_queue.envelope import MAX_DELAY, MAX_DEPTH, MAX_ENVELOPE_BYTES, Message, decode, decode_rows, encode
 
 TESTDATA = Path(__file__).resolve().parents[2] / "testdata"
 FIXTURES = sorted((TESTDATA / "envelopes").glob("*.json"))
@@ -30,6 +30,7 @@ class EnvelopeTest(unittest.TestCase):
             "size": replace(valid, data=json.dumps("x" * MAX_ENVELOPE_BYTES).encode()),
             "invalid json": replace(valid, data=b"{"),
             "infinite number": replace(valid, data=b"1e400"),
+            "nesting depth": replace(valid, data=b"[" * MAX_DEPTH + b"]" * MAX_DEPTH),
             "id": replace(valid, id=1),
             "source": replace(valid, source=1),
             "type": replace(valid, type=b"test"),
@@ -46,6 +47,20 @@ class EnvelopeTest(unittest.TestCase):
         for opener in (open_queue, open_topic):
             with self.subTest(opener.__name__), self.assertRaisesRegex(ValueError, "host:port"):
                 opener("valkey://127.0.0.1/q?lease=1s&max_attempts=1")
+
+    def test_open_rejects_query_values_go_rejects(self):
+        for query in (
+            "lease=1s&max_attempts=1_0",
+            "lease=1s&max_attempts=%2B3",
+            "lease=1s&max_attempts=+3",
+            "lease=1s&max_attempts=%D9%A3",
+            "lease=%D9%A3s&max_attempts=3",
+            "lease=1s&max_attempts=3&subscription=a%zz",
+            "lease=1s&max_attempts=3&subscription=a%ff",
+            "lease=1s&max_attempts=3&subscription=a;b",
+        ):
+            with self.subTest(query), self.assertRaises(ValueError):
+                open_queue(f"valkey://127.0.0.1:1/q?{query}")
 
     def test_open_keeps_valkey_passwords_out_of_errors(self):
         for password in ("xq1/zq2", "xq1?zq2", "xq1#zq2", "123/zq2", "123?zq2", "123#zq2"):

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -22,6 +23,8 @@ const (
 )
 
 var (
+	// NOTE: strconv.Atoi also takes a leading +, which Python and TS reject
+	maxAttemptsPattern = regexp.MustCompile(`^\d+$`)
 	//go:embed valkey/send.lua
 	sendSource string
 	//go:embed valkey/receive.lua
@@ -88,7 +91,7 @@ func openValkey(ctx context.Context, parsed *url.URL) (*valkeyQueue, error) {
 		return nil, fmt.Errorf("valkey URL: %w", err)
 	}
 	maxAttempts, err := strconv.Atoi(params["max_attempts"])
-	if err != nil || maxAttempts < 1 {
+	if err != nil || maxAttempts < 1 || !maxAttemptsPattern.MatchString(params["max_attempts"]) {
 		return nil, fmt.Errorf("valkey URL: max_attempts %q must be at least 1", params["max_attempts"])
 	}
 	client, err := valkeyClient(parsed)

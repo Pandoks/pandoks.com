@@ -6,6 +6,8 @@ import { setTimeout } from 'node:timers/promises';
 export const MAX_DELAY = 900;
 /** Fits Cloudflare's 128 KB message limit with room for its metadata. */
 export const MAX_ENVELOPE_BYTES = 120_000;
+/** How deeply an envelope, itself one level, may nest arrays and objects. */
+const MAX_DEPTH = 64;
 
 const EXTENSION_NAME = /^[a-z0-9]{1,20}$/;
 const ATTRIBUTES = new Set([
@@ -105,7 +107,13 @@ export function encode(message: Message, sentAt: Date): string {
     datacontenttype: message.contentType || 'application/json'
   };
   if (message.data && isJSON(event.datacontenttype as string)) {
-    event.data = parseJSON(new TextDecoder('utf-8', { fatal: true }).decode(message.data));
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(message.data);
+    if (1 + jsonDepth(text) > MAX_DEPTH) {
+      throw new Error(
+        `encode message ${String(event.id)}: envelope nests over ${MAX_DEPTH} levels`
+      );
+    }
+    event.data = parseJSON(text);
   } else if (message.data) {
     event.data_base64 = Buffer.from(message.data).toString('base64');
   }
@@ -129,11 +137,34 @@ function parseJSON(text: string): unknown {
   });
 }
 
+/** Returns how deeply valid JSON text nests arrays and objects. */
+function jsonDepth(text: string): number {
+  let depth = 0;
+  let deepest = 0;
+  let inString = false;
+  for (let index = 0; index < text.length; index++) {
+    const character = text[index];
+    if (inString && character === '\\') {
+      index++;
+    } else if (character === '"') {
+      inString = !inString;
+    } else if (!inString && (character === '[' || character === '{')) {
+      deepest = Math.max(deepest, ++depth);
+    } else if (!inString && (character === ']' || character === '}')) {
+      depth--;
+    }
+  }
+  return deepest;
+}
+
 /** Reads an envelope into a Delivery with the broker's attempt, deadline, and handle. */
 function decode(
   body: string,
   delivery: { attempt: number; deadline: Date; handle: unknown }
 ): Delivery {
+  if (jsonDepth(body) > MAX_DEPTH) {
+    throw new Error(`decode envelope: nests over ${MAX_DEPTH} levels`);
+  }
   const event = parseJSON(body);
   if (typeof event !== 'object' || event === null || Array.isArray(event)) {
     throw new Error('decode envelope: not an object');
@@ -167,8 +198,12 @@ function decode(
   ) {
     throw new Error(`decode envelope ${members.id}: time ${members.time} is not RFC 3339`);
   }
-  if ('data' in event && 'data_base64' in event) {
-    throw new Error(`decode envelope ${members.id}: data and data_base64 are mutually exclusive`);
+  const contentType = members.datacontenttype ?? 'application/json';
+  const contradicting = isJSON(contentType) ? 'data_base64' : 'data';
+  if (contradicting in event) {
+    throw new Error(
+      `decode envelope ${members.id}: ${contradicting} contradicts datacontenttype ${contentType}`
+    );
   }
   let data: Uint8Array | undefined;
   if ('data_base64' in event) {
@@ -190,7 +225,7 @@ function decode(
     id: members.id,
     source: members.source,
     type: members.type,
-    contentType: members.datacontenttype ?? 'application/json',
+    contentType,
     extensions,
     data,
     time,
@@ -232,6 +267,13 @@ export function checkFailed(action: string, failed: { Message?: string }[] | und
 
 /** Returns the URL's query, rejecting parameters outside allowed and repeated ones. */
 export function queryParams(url: URL, ...allowed: string[]): Record<string, string> {
+  // NOTE: URLSearchParams keeps ; and bad % escapes and reads invalid UTF-8 as U+FFFD, where Go fails
+  try {
+    if (url.search.includes(';')) throw new URIError('; separates parameters');
+    decodeURIComponent(url.search);
+  } catch {
+    throw new Error(`${url.protocol} URL: query does not parse`);
+  }
   const params: Record<string, string> = {};
   for (const name of url.searchParams.keys()) {
     if (!allowed.includes(name) || url.searchParams.getAll(name).length !== 1) {

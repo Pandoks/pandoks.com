@@ -71,6 +71,7 @@ func TestEncodeRejectsWhatOtherBrokersCannotCarry(t *testing.T) {
 		"invalid json":     {Source: "//test", Type: "test", Data: []byte("{")},
 		"invalid utf-8":    {Source: "//test", Type: "test", Data: []byte("\"\xff\"")},
 		"infinite number":  {Source: "//test", Type: "test", Data: []byte("1e400")},
+		"nesting depth":    {Source: "//test", Type: "test", Data: []byte(strings.Repeat("[", maxDepth) + strings.Repeat("]", maxDepth))},
 		"utf-8 id":         {ID: "\xff", Source: "//test", Type: "test"},
 		"utf-8 type":       {Source: "//test", Type: "\xe2\x82"},
 		"utf-8 extension":  {Source: "//test", Type: "test", Extensions: map[string]string{"ext": "\xff"}},
@@ -137,15 +138,45 @@ func TestEncodeSizesHTMLLikePythonAndTS(t *testing.T) {
 	}
 }
 
+func TestEncodeSizesLineSeparatorsLikePythonAndTS(t *testing.T) {
+	// 20,000 separators are 60,000 bytes unescaped and 120,000 escaped
+	separators := strings.Repeat("\u2028\u2029", 5_000)
+	data := `"\\u2028` + separators + `"`
+	body, err := encode(Message{Source: "//test", Type: "test", Extensions: map[string]string{"note": separators}, Data: []byte(data)}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var delivery Delivery
+	if err := decode(body, &delivery); err != nil {
+		t.Fatal(err)
+	}
+	if delivery.Extensions["note"] != separators || string(delivery.Data) != data {
+		t.Fatalf("decoded %.100q and %.100q", delivery.Extensions["note"], delivery.Data)
+	}
+}
+
+func TestEncodeReadsContentTypesLikePythonAndTS(t *testing.T) {
+	body, err := encode(Message{Source: "//test", Type: "test", ContentType: "Application/JSON; charset", Data: []byte("{}")}, time.Now())
+	if err != nil || !strings.Contains(string(body), `"data":{}`) {
+		t.Fatalf("encoded %s, %v, want data as JSON", body, err)
+	}
+}
+
 func TestOpenRejectsMalformedURLs(t *testing.T) {
 	for _, rawURL := range []string{
 		"awssqs://sqs.us-west-1.amazonaws.com/123456789012/q?lease=30s&endpoint=%zz",
 		"awssqs://sqs.us-west-1.amazonaws.com/123456789012/q?lease=30s&bogus%zz=1",
 		"valkey://127.0.0.1/q?lease=1s&max_attempts=1",
+		"valkey://127.0.0.1:1/q?lease=1s&max_attempts=%2B3",
+		"valkey://127.0.0.1:1/t?lease=1s&max_attempts=3&subscription=a%ff",
+		"valkey://127.0.0.1:1/t?lease=1s&max_attempts=3&subscription=a;b",
 	} {
-		if queue, err := Open(t.Context(), rawURL); err == nil {
+		queue, err := Open(t.Context(), rawURL)
+		if err == nil {
 			_ = queue.Close()
-			t.Errorf("Open accepted %s", rawURL)
+		}
+		if err == nil || !strings.Contains(err.Error(), "URL") {
+			t.Errorf("Open %s: error %v, want a URL error", rawURL, err)
 		}
 	}
 	if _, err := OpenTopic(t.Context(), "valkey://127.0.0.1/t"); err == nil || !strings.Contains(err.Error(), "host:port") {

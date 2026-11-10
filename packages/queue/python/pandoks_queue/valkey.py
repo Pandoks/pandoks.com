@@ -1,5 +1,6 @@
 """Valkey cluster queues and topics built from the shared Lua scripts in packages/queue/valkey."""
 
+import re
 import secrets
 import time
 from datetime import UTC, datetime, timedelta
@@ -14,6 +15,7 @@ from pandoks_queue.envelope import Delivery, Message, check_delay, decode_rows, 
 SCRIPTS = Path(__file__).resolve().parents[2] / "valkey"
 GROUP = "workers"
 EMPTY_POLL_DELAY = 0.1
+WHOLE_NUMBER = re.compile(r"\d+", re.ASCII)
 
 
 def valkey_name(parsed: SplitResult) -> str:
@@ -38,8 +40,7 @@ def open_queue(parsed: SplitResult) -> ValkeyQueue:
     name = valkey_name(parsed)
     params = query_params(parsed, "lease", "max_attempts", "subscription")
     lease = parse_lease(params)
-    max_attempts = int(params.get("max_attempts", "0"))
-    if max_attempts < 1:
+    if not WHOLE_NUMBER.fullmatch(params.get("max_attempts", "")) or (max_attempts := int(params["max_attempts"])) < 1:
         raise ValueError(f"valkey URL: max_attempts {params.get('max_attempts')!r} must be at least 1")
     client = valkey_client(parsed)
     prefix = "{" + name + "}"

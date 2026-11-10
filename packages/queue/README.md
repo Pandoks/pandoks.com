@@ -24,14 +24,14 @@ graph LR
 - **Envelope:** the message body on every broker is a CloudEvents 1.0 structured JSON envelope
   (`specversion`, `id`, `source`, `type`, `time`, `datacontenttype`, then `data` or `data_base64`),
   sent as UTF-8 text. JSON content types (`application/json`, `*+json`) put the data in `data`;
-  anything else goes canonical base64 (padded, no line breaks) in `data_base64`. Extensions are
-  top-level string members named `[a-z0-9]{1,20}`; every attribute is a string of valid Unicode (no
-  lone UTF-16 surrogate), never `null`, and a missing `datacontenttype` reads as `application/json`.
-  Numbers in `data` must fit a float64 (no `NaN`, `Infinity`, or `1e400`). `time` is written as UTC
-  with milliseconds (`2026-11-09T18:00:00.123Z`) in every language, and read only as RFC 3339 with
-  an offset. [testdata/envelopes](./testdata/envelopes) holds the golden envelopes each language
-  decodes and re-encodes, and [testdata/malformed](./testdata/malformed) bodies every language
-  rejects.
+  anything else goes canonical base64 (padded, no line breaks) in `data_base64`, and an envelope
+  with the other member is malformed. Extensions are top-level string members named
+  `[a-z0-9]{1,20}`; every attribute is a string of valid Unicode (no lone UTF-16 surrogate), never
+  `null`, and a missing `datacontenttype` reads as `application/json`. Numbers in `data` must fit a
+  float64 (no `NaN`, `Infinity`, or `1e400`). `time` is written as UTC with milliseconds
+  (`2026-11-09T18:00:00.123Z`) in every language, and read only as RFC 3339 with an offset.
+  [testdata/envelopes](./testdata/envelopes) holds the golden envelopes each language decodes and
+  re-encodes, and [testdata/malformed](./testdata/malformed) bodies every language rejects.
 - **Size:** `Send` and `Publish` reject an envelope over 120,000 bytes on every broker, so a payload
   that works on SQS also fits Cloudflare's 128 KB. Store anything bigger in object storage and send
   a reference.
@@ -141,8 +141,10 @@ Credentials come from each SDK's usual environment.
 | Valkey topic        | `valkey://[user:password@]<host>:<port>/<topic>`                                 | Fans out to `{<topic>}:subscriptions`                                          |
 | Valkey subscription | `valkey://…/<topic>?subscription=<name>&lease=2m&max_attempts=5`                 | Opening one registers it in the topic's set                                    |
 
-`lease` is `<n>ms`, `<n>s`, `<n>m`, or `<n>h`, at most 12 h, and required on every queue. Unknown
-parameters and malformed query strings are errors, and Valkey URLs need the port.
+`lease` is `<n>ms`, `<n>s`, `<n>m`, or `<n>h`, at most 12 h, and required on every queue;
+`max_attempts` is at least 1, in ASCII digits. Unknown parameters and malformed query strings (a
+`;`, a `%` not followed by two hex digits, or escapes that aren't UTF-8) are errors, and Valkey URLs
+need the port.
 
 ## Brokers
 
@@ -248,6 +250,9 @@ await new Worker({
   `[tool.uv.sources]`); a built wheel has no Lua files.
 - **TS `data` is parsed with `JSON.parse`,** so numbers past 2^53 lose precision; send them as
   strings.
+- **Nesting:** an envelope nests at most 64 arrays and objects deep, counting itself, so `data`
+  nests at most 63. `Send` and `Publish` reject deeper data and `Receive` acks deeper envelopes as
+  malformed, so every language's parser stays within its stack.
 - **Valkey clients** need the cluster's `client` ACL from chart 0.1.6 or later: valkey-go otherwise
   silently falls back to a single-node client.
 

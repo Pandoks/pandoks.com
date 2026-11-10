@@ -27,6 +27,7 @@ describe('envelope', () => {
       { ...valid, data: new TextEncoder().encode(JSON.stringify('x'.repeat(MAX_ENVELOPE_BYTES))) },
       { ...valid, data: new TextEncoder().encode('{') },
       { ...valid, data: new TextEncoder().encode('1e400') },
+      { ...valid, data: new TextEncoder().encode('['.repeat(64) + ']'.repeat(64)) },
       { ...valid, id: 'cut \ud83d' },
       { ...valid, contentType: 'text/plain\udc00' },
       { ...valid, extensions: { ext: '\udc00' } }
@@ -103,6 +104,18 @@ describe('envelope', () => {
         'host:port'
       );
     }
+  });
+
+  test.each([
+    'lease=1s&max_attempts=0x10',
+    'lease=1s&max_attempts=%2B3',
+    'lease=1s&max_attempts=+3',
+    'lease=1s&max_attempts=1e1',
+    'lease=1s&max_attempts=3&subscription=a%zz',
+    'lease=1s&max_attempts=3&subscription=a%ff',
+    'lease=1s&max_attempts=3&subscription=a;b'
+  ])('open rejects the query %s like Go does', async (query) => {
+    await expect(openQueue(`valkey://127.0.0.1:1/q?${query}`)).rejects.toThrow(/URL/);
   });
 
   test.each(['xq1/zq2', 'xq1?zq2', 'xq1#zq2', '123/zq2', '123?zq2', '123#zq2'])(
