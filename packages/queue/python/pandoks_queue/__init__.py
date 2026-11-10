@@ -7,7 +7,15 @@ Install the extras for the brokers you use: pandoks-queue[sqs,cloudflare,valkey]
 from importlib import import_module
 from urllib.parse import urlsplit
 
-from pandoks_queue.envelope import MAX_DELAY, MAX_ENVELOPE_BYTES, Delivery, Message, Queue, Topic
+from pandoks_queue.envelope import (
+    MAX_DELAY,
+    MAX_ENVELOPE_BYTES,
+    Delivery,
+    Message,
+    Queue,
+    Topic,
+    check_url_parts,
+)
 from pandoks_queue.worker import Permanent, RetryAfter, Worker
 
 __all__ = [
@@ -32,6 +40,7 @@ def open_queue(url: str) -> Queue:
     """Opens a queue, or a topic's subscription, from its URL."""
     try:
         parsed = urlsplit(url)
+        check_url_parts(parsed)
     except ValueError:
         # NOTE: its error can carry the netloc, password included
         raise ValueError("open queue: URL does not parse") from None
@@ -44,6 +53,7 @@ def open_topic(url: str) -> Topic:
     """Opens a topic from its URL."""
     try:
         parsed = urlsplit(url)
+        check_url_parts(parsed)
     except ValueError:
         # NOTE: its error can carry the netloc, password included
         raise ValueError("open topic: URL does not parse") from None

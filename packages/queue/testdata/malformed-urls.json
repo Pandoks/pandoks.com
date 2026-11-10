@@ -54,7 +54,17 @@
     "cloudflare://account/orders/../payments?lease=30s",
     "cloudflare://account/orders/%2E%2e/payments?lease=30s",
     "valkey://127.0.0.1:1/orders/../payments?lease=1s&max_attempts=1",
-    "valkey://127.0.0.1:1/orders/%2e%2e/payments?lease=1s&max_attempts=1"
+    "valkey://127.0.0.1:1/orders/%2e%2e/payments?lease=1s&max_attempts=1",
+    "awssqs://sqs.us-west-1.amazonaws.com/123456789012/orders%zz?lease=30s",
+    "awssqs://sqs.us-west-1.amazonaws.com/123456789012/orders%ff?lease=30s",
+    "awssqs://sqs.us-west-1.amazonaws.com/123456789012/orders%2Fpayments?lease=30s",
+    "awssqs://sqs.us-west-1.amazonaws.com/123456789012/..?lease=30s",
+    "cloudflare://account%zz/orders?lease=30s",
+    "cloudflare://account%ff/orders?lease=30s",
+    "cloudflare://account/orders%zz?lease=30s",
+    "cloudflare://account/..?lease=30s",
+    "valkey://127.0.0.1:1/..?lease=1s&max_attempts=1",
+    "valkey://127.0.0.1:1/%2E%2E?lease=1s&max_attempts=1"
   ],
   "topics": [
     "awssns://sns.us-west-1.amazonaws.com/arn:aws:sns:us-west-1:123456789012:t",
@@ -95,6 +105,11 @@
     "awssns:///arn::sns:us-west-1:123456789012:t",
     "awssns:///x/../arn:aws:sns:us-west-1:123456789012:t",
     "cloudflare://account/a,orders/../payments",
-    "valkey://127.0.0.1:1/orders/./payments"
+    "valkey://127.0.0.1:1/orders/./payments",
+    "awssns:///arn:aws:sns:us-west-1:123456789012:t%ff",
+    "awssns:///arn:aws:sns:us-west-1:123456789012:t%2F",
+    "awssns:///arn:aws:sns:us-west-1:123456789012:t/",
+    "cloudflare://account%zz/a",
+    "valkey://127.0.0.1:1/.."
   ]
 }

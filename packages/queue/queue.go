@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 	"unicode/utf8"
 )
@@ -59,7 +60,7 @@ type Topic interface {
 // Open opens a queue, or a topic's subscription, from its URL.
 func Open(ctx context.Context, rawURL string) (Queue, error) {
 	parsed, err := url.Parse(rawURL)
-	if err != nil {
+	if err != nil || !urlPartsOK(parsed) {
 		return nil, errors.New("open queue: URL does not parse")
 	}
 	switch parsed.Scheme {
@@ -76,7 +77,7 @@ func Open(ctx context.Context, rawURL string) (Queue, error) {
 // OpenTopic opens a topic from its URL.
 func OpenTopic(ctx context.Context, rawURL string) (Topic, error) {
 	parsed, err := url.Parse(rawURL)
-	if err != nil {
+	if err != nil || !urlPartsOK(parsed) {
 		return nil, errors.New("open topic: URL does not parse")
 	}
 	switch parsed.Scheme {
@@ -88,6 +89,17 @@ func OpenTopic(ctx context.Context, rawURL string) (Topic, error) {
 		return openValkeyTopic(ctx, parsed)
 	}
 	return nil, fmt.Errorf("open topic: unknown scheme %q", parsed.Scheme)
+}
+
+// urlPartsOK reports whether the host and decoded path are UTF-8, and no decoded path segment is
+// empty, . or .., which TS's URL parser would otherwise resolve to another name.
+func urlPartsOK(parsed *url.URL) bool {
+	if !utf8.ValidString(parsed.Host) || !utf8.ValidString(parsed.Path) {
+		return false
+	}
+	return !slices.ContainsFunc(strings.Split(parsed.Path, "/")[1:], func(segment string) bool {
+		return segment == "" || segment == "." || segment == ".."
+	})
 }
 
 // queryParams returns the URL's query, rejecting parameters outside allowed and repeated ones.

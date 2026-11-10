@@ -5,7 +5,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from itertools import batched
-from urllib.parse import SplitResult
+from urllib.parse import SplitResult, unquote
 
 from cloudflare import Cloudflare
 
@@ -30,7 +30,7 @@ DEAD_LETTERED = "Message has exhausted maxRetries"
 
 
 def cloudflare_queues(parsed: SplitResult, *allowed: str) -> tuple[list[CloudflareQueue], dict[str, str]]:
-    ids = parsed.path.removeprefix("/").split(",")
+    ids = unquote(parsed.path).removeprefix("/").split(",")
     # NOTE: a port is a user and the start of a password cut off by an unescaped /, ?, or #
     if (
         not parsed.netloc

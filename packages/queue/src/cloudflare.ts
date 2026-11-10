@@ -32,7 +32,7 @@ function cloudflareQueues(
   url: URL,
   ...allowed: string[]
 ): { queues: CloudflareQueue[]; params: Record<string, string> } {
-  const ids = url.pathname.replace(/^\//, '').split(',');
+  const ids = decodeURIComponent(url.pathname).replace(/^\//, '').split(',');
   // NOTE: a port is a user and the start of a password cut off by an unescaped /, ?, or #
   if (
     !url.host ||

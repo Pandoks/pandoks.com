@@ -6,7 +6,7 @@ const BATCH_COUNT = 10;
 const BATCH_BYTES = 256 << 10;
 
 export function openTopic(url: URL): SNSTopic {
-  const arn = url.pathname.replace(/^\//, '');
+  const arn = decodeURIComponent(url.pathname).replace(/^\//, '');
   const fields = arn.split(':');
   if (
     url.host ||

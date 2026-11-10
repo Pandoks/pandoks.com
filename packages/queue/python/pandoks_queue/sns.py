@@ -1,7 +1,7 @@
 """SNS topics whose subscriptions are SQS queues with raw delivery on."""
 
 from datetime import UTC, datetime
-from urllib.parse import SplitResult
+from urllib.parse import SplitResult, unquote
 
 import boto3
 
@@ -12,7 +12,7 @@ BATCH_BYTES = 256 << 10
 
 
 def open_topic(parsed: SplitResult) -> SNSTopic:
-    arn = parsed.path.removeprefix("/")
+    arn = unquote(parsed.path).removeprefix("/")
     fields = arn.split(":")
     if parsed.netloc or len(fields) != 6 or fields[0] != "arn" or fields[2] != "sns" or "" in fields:
         raise ValueError("awssns URL must be awssns:///arn:aws:sns:<region>:<account>:<name>")

@@ -18,12 +18,14 @@ function parse(url: string, action: string): URL {
   // NOTE: not new URL, whose error carries the whole URL, password included
   const parsed = URL.parse(url);
   if (!parsed) throw new Error(`${action}: URL does not parse`);
-  if (
-    rawPath
-      .split('/')
-      .slice(1)
-      .some((segment) => /^(?:\.|%2e){0,2}$/i.test(segment))
-  ) {
+  let segments: string[];
+  try {
+    decodeURIComponent(parsed.host);
+    segments = decodeURIComponent(rawPath).split('/').slice(1);
+  } catch {
+    throw new Error(`${action}: URL does not parse`);
+  }
+  if (segments.some((segment) => segment === '' || segment === '.' || segment === '..')) {
     throw new Error(`${action}: URL path has an empty or dot segment`);
   }
   return parsed;

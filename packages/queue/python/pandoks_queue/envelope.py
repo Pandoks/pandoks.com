@@ -213,6 +213,13 @@ def decodes(part: str) -> bool:
     return not MALFORMED_ESCAPE.search(part)
 
 
+def check_url_parts(parsed: SplitResult) -> None:
+    """Rejects a netloc or decoded path that isn't UTF-8, or a path segment that is empty, . or .."""
+    segments = unquote(parsed.path).split("/")[1:]
+    if not decodes(parsed.netloc) or not decodes(parsed.path) or any(segment in ("", ".", "..") for segment in segments):
+        raise ValueError("URL does not parse")
+
+
 def query_params(parsed: SplitResult, *allowed: str) -> dict[str, str]:
     """Returns the URL's query, rejecting parameters outside allowed and repeated ones."""
     if ";" in parsed.query or not decodes(parsed.query):

@@ -28,7 +28,7 @@ const PATH = /^\/[^/]+\/[^/]+$/;
 
 export function openQueue(url: URL): SQSQueue {
   const region = HOST.exec(url.host);
-  if (!region || url.username || url.password || !PATH.test(url.pathname)) {
+  if (!region || url.username || url.password || !PATH.test(decodeURIComponent(url.pathname))) {
     throw new Error('awssqs URL must be awssqs://sqs.<region>.amazonaws.com/<account>/<name>');
   }
   const params = queryParams(url, 'lease', 'endpoint');
