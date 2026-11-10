@@ -6,6 +6,8 @@ metadata:
   name: kube-prometheus-stack
   namespace: kube-system
 spec:
+  # NOTE: a HelmChartConfig's failurePolicy defaults to reinstall and overrides the HelmChart's.
+  failurePolicy: abort
   valuesContent: |-
     kubeEtcd:
       enabled: true

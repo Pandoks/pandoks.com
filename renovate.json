@@ -159,13 +159,13 @@
       "dependencyDashboardApproval": true
     },
     {
-      "description": "Kubernetes can't skip minors, so each k3s minor is its own PR.",
-      "matchPackageNames": ["k3s-io/k3s"],
+      "description": "Kubernetes can't skip minors, so each k3s minor is its own PR, with the kubectl that applies kube-prometheus-stack's CRDs.",
+      "matchPackageNames": ["k3s-io/k3s", "registry.k8s.io/kubectl"],
       "groupName": "k3s",
       "separateMultipleMinor": true
     },
     {
-      "matchPackageNames": ["k3s-io/k3s"],
+      "matchPackageNames": ["k3s-io/k3s", "registry.k8s.io/kubectl"],
       "matchUpdateTypes": ["minor", "major"],
       "dependencyDashboardApproval": true,
       "prBodyNotes": [
