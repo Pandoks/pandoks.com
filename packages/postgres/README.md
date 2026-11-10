@@ -400,7 +400,9 @@ kubectl exec -it pitr-restore -n myapp -- bash
 #### Step 4: Perform PITR Restore
 
 Inside the recovery pod, run pgbackrest restore with the target time. `delta=y` is set in
-`pgbackrest.conf`, so the restore overwrites the existing data directory in place:
+`pgbackrest.conf`, so the restore overwrites the existing data directory in place. The
+`restore_command` retries while the repo is unreachable, as on bootstrap, so an outage can't end
+replay early; a missing segment still does:
 
 ```bash
 # Restore to specific point in time
@@ -408,11 +410,13 @@ pgbackrest --stanza=myapp-shard-0 \
   --type=time \
   --target="2024-01-15 14:30:00+00" \
   --target-action=promote \
+  --recovery-option="restore_command=until pgbackrest --stanza=myapp-shard-0 archive-get %f \"%p\"; do [ \$? -eq 1 ] && exit 1; sleep 10; done" \
   restore
 
 # Alternative: Restore to the end of the archived WAL (latest state)
 pgbackrest --stanza=myapp-shard-0 \
   --type=default \
+  --recovery-option="restore_command=until pgbackrest --stanza=myapp-shard-0 archive-get %f \"%p\"; do [ \$? -eq 1 ] && exit 1; sleep 10; done" \
   restore
 ```
 
@@ -437,12 +441,14 @@ pg_ctl start -W -D /var/lib/postgresql/pgdata -l /tmp/pitr.log -o "-c hot_standb
 # Wait for "accepting connections"; if Postgres stops instead, /tmp/pitr.log says why
 until pg_isready; do sleep 10; pg_ctl status -D /var/lib/postgresql/pgdata > /dev/null || break; done
 grep "recovery stopping" /tmp/pitr.log
+# Fails if replay didn't reach the target and promote: read /tmp/pitr.log and don't continue
+test ! -f /var/lib/postgresql/pgdata/recovery.signal
 pg_ctl stop -D /var/lib/postgresql/pgdata -m fast
 ```
 
 #### Step 5: Restart the Shard
 
-After Postgres stops, delete the recovery pod and scale back up:
+Once the `test` passed and Postgres stopped, delete the recovery pod and scale back up:
 
 ```bash
 # Exit and delete the recovery pod (Postgres is stopped, so skip the 600s grace period)
