@@ -1,4 +1,4 @@
-import { cloudflareAccountId, isProduction, isSharedDev, STAGE_NAME } from './dns';
+import { cloudflareAccountId, hasCluster, isProduction, STAGE_NAME } from './dns';
 import { defaultAwsRegion } from './aws';
 import { secrets } from './secrets';
 import { tailscaleAcl } from './tailscale';
@@ -7,16 +7,13 @@ export const githubOrg = 'Pandoks';
 export const githubRepoName = 'pandoks.com';
 
 const GITHUB_ACTIONS_APP_ID = 15368;
-// NOTE: AWS trusts every job in the production environment, so only main gets it.
-const DEPLOYMENT_BRANCH_POLICY = isProduction
-  ? { protectedBranches: false, customBranchPolicies: true }
-  : undefined;
 
-if (isProduction || isSharedDev) {
+if (hasCluster) {
+  // NOTE: AWS trusts every job in the production and dev environments, so only main gets them.
   const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
     repository: githubRepoName,
     environment: isProduction ? 'production' : 'dev',
-    deploymentBranchPolicy: DEPLOYMENT_BRANCH_POLICY
+    deploymentBranchPolicy: { protectedBranches: false, customBranchPolicies: true }
   });
 
   new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
@@ -26,13 +23,11 @@ if (isProduction || isSharedDev) {
     value: secrets.hetzner.ApiKey.value
   });
 
-  if (isProduction) {
-    new github.RepositoryEnvironmentDeploymentPolicy('GithubProductionDeploymentPolicy', {
-      repository: githubRepoName,
-      environment: githubEnvironment.environment,
-      branchPattern: 'main'
-    });
-  }
+  new github.RepositoryEnvironmentDeploymentPolicy('GithubProductionDeploymentPolicy', {
+    repository: githubRepoName,
+    environment: githubEnvironment.environment,
+    branchPattern: 'main'
+  });
 }
 
 if (isProduction) {
@@ -116,6 +111,7 @@ if (isProduction) {
               'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
               'token.actions.githubusercontent.com:sub': [
                 `repo:${githubOrg}/${githubRepoName}:environment:production`,
+                `repo:${githubOrg}/${githubRepoName}:environment:dev`,
                 `repo:${githubOrg}/${githubRepoName}:ref:refs/heads/main`
               ]
             }
@@ -159,7 +155,7 @@ if (isProduction) {
       scopes: ['devices:core', 'auth_keys'],
       tags: ['tag:ci']
     },
-    { dependsOn: [tailscaleAcl] }
+    { dependsOn: tailscaleAcl }
   );
   new github.ActionsSecret('GithubActionsTailscaleOauthClientId', {
     repository: githubRepoName,

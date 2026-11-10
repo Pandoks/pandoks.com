@@ -67,8 +67,8 @@ k3s + tailscale. The tailscale operator provides secure access to the cluster AP
 SSH tunnels.
 
 ```sh
-# Connect via tailscale (cluster appears as <stage>-cluster in your tailnet)
-tailscale configure kubeconfig <stage>-cluster
+# Connect via tailscale (cluster appears as <prod|dev>-cluster in your tailnet)
+tailscale configure kubeconfig <prod|dev>-cluster
 kubectl --context <tailscale-context> get pods
 
 # Install base infrastructure (helm charts + CRDs)
@@ -78,7 +78,8 @@ kubectl --context <tailscale-context> get pods
 ./scripts/cluster/main.sh deploy prod
 ```
 
-For dev, use `deploy dev --stage your-stage` in both commands, keeping `--bootstrap` on the first.
+For dev, use `deploy dev --stage dev` in both commands, keeping `--bootstrap` on the first. Only the
+`production` and `dev` SST stages have cloud clusters.
 
 ### ArgoCD (prod)
 
@@ -192,7 +193,7 @@ patches in its etcd endpoints with a `HelmChartConfig` because they're environme
 k3s/bootstrap/core/kube-prometheus-stack.yaml  → monitoring namespace, Grafana secret, HelmChart
 k3s/overlays/local/prom-etcd-config.yaml       → HelmChartConfig with k3d control plane IPs (172.30.0.4-6)
 k3s/overlays/cluster/prom-etcd-config.yaml     → HelmChartConfig with Hetzner IPs (10.0.1.10+)
-k3s/base/core/monitoring.yaml                  → Grafana service exposed via Tailscale (<stage>-grafana)
+k3s/base/core/monitoring.yaml                  → Grafana service exposed via Tailscale (<prod|dev>-grafana)
 k3s/base/monitoring/                           → HAProxy Grafana dashboards
 ```
 

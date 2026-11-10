@@ -116,8 +116,8 @@ tailscale configure kubeconfig prod-cluster
 ./scripts/cluster/main.sh deploy prod
 ```
 
-For dev, connect to `<stage>-cluster` (`dev-cluster` for the shared `dev` stage) and use
-`deploy dev --stage <stage>` in both steps, keeping `--bootstrap` on the first.
+For dev, connect to `dev-cluster` and use `deploy dev --stage dev` in both steps, keeping
+`--bootstrap` on the first. Personal stages have no cloud cluster.
 
 The first prod overlay deploy creates the `prod-cluster` ArgoCD Application, which then keeps prod
 in sync with `k3s/overlays/prod` on `main` (`deploy-infra.yaml` triggers a hard refresh when

@@ -40,10 +40,10 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
    proxy or working around it with `PORTLESS=0`, `--force`, or `sudo`. If portless says the host is
    already registered, use `pnpm exec portless get web` only if that process runs from this
    checkout; otherwise tell me. `sst diff` evaluates `infra/`: on any stage it can write secrets,
-   and with zero nodes it deletes the stage's `<STAGE_NAME>-<cluster|grafana|argocd>` Tailscale
-   devices. Tell me those effects and run `sst diff` only once I accept them; run `sst deploy` or
-   `pnpm dev` (`sst dev`) only when I ask. If SST reports missing or expired AWS credentials, ask me
-   to run `pnpm sso`.
+   and on `dev` with zero nodes it deletes the dev cluster's Tailscale devices. Tell me those
+   effects and run `sst diff` only once I accept them; run `sst deploy` or `pnpm dev` (`sst dev`)
+   only when I ask. `main` deploys `dev` too, so a hand deploy of `dev` lasts until the next one. If
+   SST reports missing or expired AWS credentials, ask me to run `pnpm sso`.
 3. **Editing my checkout from an experiment.** Use absolute paths in experiment copies;
    `mise exec -C <dir>` runs inside `<dir>`, so never point it at my checkout. Leave my staged and
    unstaged changes alone.
@@ -65,24 +65,26 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
   the `*-pass` aggregates, and a PR must be up to date with `main` to merge.
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
   deleted branch's versions and untagged orphans are deleted.
-- Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
-  `infra/`, `apps/` (except `desktop-template` and `example`), and `packages/svelte/`, plus an Argo
-  hard refresh and a wait for Synced and Healthy only for `k3s/`, `apps/*/kube/`, and
-  `scripts/cluster/` changes. Pages builds `apps/web` when a change matches `pathIncludes` in
-  `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod` renders but never prunes: a
-  deleted resource stays in prod until pruned by hand.
-- `infra/dns.ts` names each stage: production gets `STAGE_NAME` `prod` and `pandoks.com`; others get
-  their stage name and `<stage>.dev.pandoks.com`, except the shared `dev` stage (`isSharedDev`),
-  which gets `dev.pandoks.com`. Non-production stages share Tailscale `tag:dev`; only production and
-  shared `dev` manage their GitHub environment (`dev` isn't trusted by AWS). Only the shared `dev`
-  and production origin CSRs (`infra/vps/vps.origin.<dev|prod>.csr`) are committed, so a personal
-  stage's origin cert rotates on its first deploy from a fresh checkout. A deploy from a checkout
-  holding the stage's gitignored `.key` rewrites `HetznerOriginTlsKey` and `HetznerOriginTlsCrt`
-  when the issued cert differs from the stored one; CI never does.
+- Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production`, then `--stage dev` if
+  production succeeds (manual dispatch deploys only production), for `sst.config.ts`, `infra/`,
+  `apps/` (except `desktop-template` and `example`), and `packages/svelte/`, plus a prod Argo hard
+  refresh and a wait for Synced and Healthy only for `k3s/`, `apps/*/kube/`, and `scripts/cluster/`
+  changes. Pages builds `apps/web` when a change matches `pathIncludes` in `infra/website.ts`. Argo
+  auto-syncs everything `k3s/overlays/prod` renders but never prunes: a deleted resource stays in
+  prod until pruned by hand.
+- Each cloud cluster belongs to one SST stage (`hasCluster` in `infra/dns.ts`): `production`
+  (`STAGE_NAME` `prod`, `pandoks.com`, `tag:prod`) and `dev` (`dev`, `dev.pandoks.com`, `tag:dev`)
+  each own their servers, network, Tailscale operator client, GitHub environment (main-only, trusted
+  by AWS), and origin cert. Other stages, like `pandoks`, get their stage name and
+  `<stage>.dev.pandoks.com` and only non-cluster resources (API, buckets, runners); their cluster is
+  local k3d. Singletons (Tailscale ACL and tailnet settings, GitHub repo settings, AWS OIDC) belong
+  to `production`.
+- `infra/vps/vps.origin.<prod|dev>.csr` are committed. A deploy from a checkout holding the stage's
+  gitignored `.key` rewrites `HetznerOriginTlsKey` and `HetznerOriginTlsCrt` when the issued cert
+  differs from the stored one; CI never does.
 - Stage `dev` owns proxied `*.pandoks.com` records and origin cert, because Universal SSL covers
-  only first-level preview hosts; personal stages get `example-<stage>.pandoks.com` for the same
-  reason. Once stage `dev` has load balancers, any `pandoks.com` host without its own record reaches
-  the dev cluster, which holds that cert's key.
+  only first-level preview hosts. Once stage `dev` has load balancers, any `pandoks.com` host
+  without its own record reaches the dev cluster, which holds that cert's key.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
   staging tier, promotion step, or per-PR cluster.
 - PRs get no infra diff: `sst diff` decrypts every secret, so never run it with production
@@ -147,7 +149,7 @@ checkout. The SST CLI is `pnpm sst`.
 Before calling infra, cluster, or tooling work done, check:
 
 - **Environments:** no per-environment commands; local k3d, dev, and prod differ only in overlays,
-  variables, and `isProduction` or `isSharedDev` branches.
+  variables, and `isProduction` or `hasCluster` branches.
 - **Wiring and pins:** the wiring and Renovate rules under Code Review Rules. New pins are exact
   versions (`pnpm add -E`). Pin each copy of a shared version and let Renovate sync them; never read
   or symlink one from another. Gate risky bumps behind Dependency Dashboard approval instead of
@@ -171,10 +173,10 @@ Before calling infra, cluster, or tooling work done, check:
   print colored output with `printf` (plain `echo` is fine), and report errors with `log_error` or
   `die` from `scripts/lib/log.sh`. CI-only scripts may use bash with `local` and no prefixes.
 - **TypeScript/SST:** one `infra/` file per provider or responsibility, a directory once it outgrows
-  one. Stage differences are `SCREAMING_SNAKE` constants from `isProduction ? a : b` (or
-  `isSharedDev`) at the top, plus `if (isProduction)` around production-only resources. Helpers are
-  verb-named `function` declarations with destructured parameters. `Promise.all` instead of awaiting
-  in loops.
+  one. Stage differences are `SCREAMING_SNAKE` constants from `isProduction ? a : b` at the top,
+  plus `if (isProduction)` around production-only resources and `if (hasCluster)` around cluster
+  resources. Helpers are verb-named `function` declarations with destructured parameters.
+  `Promise.all` instead of awaiting in loops.
 - **Go:** justify every `#nosec` or `//nolint` inline.
 - **Containers and manifests:** pin Dockerfile bases, third-party images, and chart defaults as
   `image:tag@sha256:…` in files a Renovate manager matches; no image lock files. Images in raw

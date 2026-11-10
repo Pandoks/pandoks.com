@@ -1,6 +1,6 @@
 // WARNING: resources that hold data like servers, volumes, etc. should be protected by the
 // `protect` option in production. This is to prevent accidental deletion of resources.
-import { isProduction, STAGE_NAME, TAILSCALE_STAGE_TAG } from '../dns';
+import { hasCluster, isProduction, STAGE_NAME } from '../dns';
 import { createServers } from './servers';
 import { createLoadBalancers } from './load-balancers';
 import { deleteTailscaleDevices } from '../tailscale';
@@ -33,74 +33,99 @@ const loadBalancerServerCapacity = 25;
  *
  * You'll probably want to rename a bunch of the resources and variable names when you do.
  */
-const privateNetwork = new hcloud.Network('HetznerK3sPrivateNetwork', {
-  name: `k3s-private-${STAGE_NAME}-network`,
-  ipRange: '10.0.0.0/8'
-});
-const subnet = new hcloud.NetworkSubnet('HetznerK3sSubnet', {
-  networkId: privateNetwork.id.apply((id) => parseInt(id)),
-  type: 'cloud',
-  ipRange: '10.0.1.0/24',
-  networkZone: NETWORK_ZONE
-});
-export const inboundFirewall = new hcloud.Firewall('HetznerInboundFirewall', {
-  name: isProduction ? 'inbound' : `${STAGE_NAME}-inbound`,
-  rules: [
+export const controlPlaneLoadBalancers: ReturnType<typeof createLoadBalancers> = [];
+export const workerLoadBalancers: ReturnType<typeof createLoadBalancers> = [];
+
+if (hasCluster) {
+  const privateNetwork = new hcloud.Network('HetznerK3sPrivateNetwork', {
+    name: `k3s-private-${STAGE_NAME}-network`,
+    ipRange: '10.0.0.0/8'
+  });
+  const subnet = new hcloud.NetworkSubnet('HetznerK3sSubnet', {
+    networkId: privateNetwork.id.apply((id) => parseInt(id)),
+    type: 'cloud',
+    ipRange: '10.0.1.0/24',
+    networkZone: NETWORK_ZONE
+  });
+  const inboundFirewall = new hcloud.Firewall('HetznerInboundFirewall', {
+    name: 'inbound',
+    rules: [
+      {
+        direction: 'in',
+        protocol: 'udp',
+        port: '41641',
+        description: 'tailscale',
+        sourceIps: ['0.0.0.0/0', '::/0']
+      }
+    ]
+  });
+
+  const controlPlaneLoadBalancerCount =
+    Math.ceil(CONTROL_PLANE_NODE_COUNT / loadBalancerServerCapacity) * LOAD_BALANCERS_PER_NODE;
+  controlPlaneLoadBalancers.push(
+    ...createLoadBalancers(
+      {
+        type: 'control-plane',
+        loadBalancerCount: controlPlaneLoadBalancerCount,
+        network: privateNetwork
+      },
+      {
+        type: LOAD_BALANCER_TYPE,
+        location: LOCATION,
+        algorithm: LOAD_BALANCER_ALGORITHM
+      }
+    )
+  );
+
+  const workerLoadBalancerCount =
+    Math.ceil(WORKER_NODE_COUNT / loadBalancerServerCapacity) * LOAD_BALANCERS_PER_NODE;
+
+  workerLoadBalancers.push(
+    ...createLoadBalancers(
+      {
+        type: 'worker',
+        loadBalancerCount: workerLoadBalancerCount,
+        network: privateNetwork
+      },
+      {
+        type: LOAD_BALANCER_TYPE,
+        location: LOCATION,
+        algorithm: LOAD_BALANCER_ALGORITHM
+      }
+    )
+  );
+
+  const bootstrapServer: { ip: string | undefined; server: hcloud.Server | undefined } = {
+    ip: undefined,
+    server: undefined
+  };
+
+  const { tailscaleHostnames: _controlPlaneTailscaleHostnames, servers: _controlPlaneServers } =
+    createServers(
+      {
+        type: 'control-plane',
+        serverCount: CONTROL_PLANE_NODE_COUNT,
+        network: { network: privateNetwork, subnet },
+        startingOctet: CONTROL_PLANE_HOST_START_OCTET,
+        loadBalancersPerNode: LOAD_BALANCERS_PER_NODE,
+        loadBalancers: controlPlaneLoadBalancers
+      },
+      {
+        type: SERVER_TYPE,
+        image: SERVER_IMAGE,
+        location: LOCATION,
+        firewalls: [inboundFirewall]
+      },
+      bootstrapServer
+    );
+  const { tailscaleHostnames: _workerTailscaleHostnames, servers: _workerServers } = createServers(
     {
-      direction: 'in',
-      protocol: 'udp',
-      port: '41641',
-      description: 'tailscale',
-      sourceIps: ['0.0.0.0/0', '::/0']
-    }
-  ]
-});
-
-const controlPlaneLoadBalancerCount =
-  Math.ceil(CONTROL_PLANE_NODE_COUNT / loadBalancerServerCapacity) * LOAD_BALANCERS_PER_NODE;
-export const controlPlaneLoadBalancers = createLoadBalancers(
-  {
-    type: 'control-plane',
-    loadBalancerCount: controlPlaneLoadBalancerCount,
-    network: privateNetwork
-  },
-  {
-    type: LOAD_BALANCER_TYPE,
-    location: LOCATION,
-    algorithm: LOAD_BALANCER_ALGORITHM
-  }
-);
-
-const workerLoadBalancerCount =
-  Math.ceil(WORKER_NODE_COUNT / loadBalancerServerCapacity) * LOAD_BALANCERS_PER_NODE;
-
-export const workerLoadBalancers = createLoadBalancers(
-  {
-    type: 'worker',
-    loadBalancerCount: workerLoadBalancerCount,
-    network: privateNetwork
-  },
-  {
-    type: LOAD_BALANCER_TYPE,
-    location: LOCATION,
-    algorithm: LOAD_BALANCER_ALGORITHM
-  }
-);
-
-const bootstrapServer: { ip: string | undefined; server: hcloud.Server | undefined } = {
-  ip: undefined,
-  server: undefined
-};
-
-const { tailscaleHostnames: _controlPlaneTailscaleHostnames, servers: _controlPlaneServers } =
-  createServers(
-    {
-      type: 'control-plane',
-      serverCount: CONTROL_PLANE_NODE_COUNT,
+      type: 'worker',
+      serverCount: WORKER_NODE_COUNT,
       network: { network: privateNetwork, subnet },
-      startingOctet: CONTROL_PLANE_HOST_START_OCTET,
+      startingOctet: WORKER_HOST_START_OCTET,
       loadBalancersPerNode: LOAD_BALANCERS_PER_NODE,
-      loadBalancers: controlPlaneLoadBalancers
+      loadBalancers: workerLoadBalancers
     },
     {
       type: SERVER_TYPE,
@@ -110,65 +135,42 @@ const { tailscaleHostnames: _controlPlaneTailscaleHostnames, servers: _controlPl
     },
     bootstrapServer
   );
-const { tailscaleHostnames: _workerTailscaleHostnames, servers: _workerServers } = createServers(
-  {
-    type: 'worker',
-    serverCount: WORKER_NODE_COUNT,
-    network: { network: privateNetwork, subnet },
-    startingOctet: WORKER_HOST_START_OCTET,
-    loadBalancersPerNode: LOAD_BALANCERS_PER_NODE,
-    loadBalancers: workerLoadBalancers
-  },
-  {
-    type: SERVER_TYPE,
-    image: SERVER_IMAGE,
-    location: LOCATION,
-    firewalls: [inboundFirewall]
-  },
-  bootstrapServer
-);
 
-if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
-  const { devices = [] } = await tailscale.getDevices({ namePrefix: `${STAGE_NAME}-` });
+  if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
+    const { devices = [] } = await tailscale.getDevices({ namePrefix: `${STAGE_NAME}` });
 
-  // NOTE: Tailscale suffixes a duplicate machine name with `-1`, `-2`, ...
-  const kubernetesMachineNamePattern = new RegExp(
-    `^${STAGE_NAME}-(cluster|grafana|argocd)(-\\d+)?$`
-  );
-  const kubernetesDevices = devices.filter(
-    (device) =>
-      kubernetesMachineNamePattern.test(device.name.split('.')[0]) &&
-      device.tags.includes('tag:k8s') &&
-      device.tags.includes(TAILSCALE_STAGE_TAG)
-  );
-  if (kubernetesDevices.length > 0) {
-    const deletedDevices = deleteTailscaleDevices(
-      ...kubernetesDevices.map((device) => device.nodeId)
+    const kubernetesDevices = devices.filter(
+      (device) => device.tags.includes('tag:k8s') && device.tags.includes(`tag:${STAGE_NAME}`)
     );
-    deletedDevices.apply((deletedDevices) => {
-      const deletedDeviceIds = deletedDevices
-        .filter((device) => device.success)
-        .map((device) => device.deviceId);
-      const failedToDeleteDeviceIds = deletedDevices
-        .filter((device) => !device.success)
-        .map((device) => device.deviceId);
-      if (deletedDeviceIds.length) {
-        console.log(
-          `Deleted Tailscale devices:\n${kubernetesDevices
-            .filter((device) => deletedDeviceIds.includes(device.nodeId))
-            .map((device) => device.name)
-            .join('\n')}`
-        );
-      }
-      if (failedToDeleteDeviceIds.length) {
-        console.log(
-          `Failed to delete Tailscale devices:\n${kubernetesDevices
-            .filter((device) => failedToDeleteDeviceIds.includes(device.nodeId))
-            .map((device) => device.name)
-            .join('\n')}`
-        );
-      }
-    });
+    if (kubernetesDevices.length > 0) {
+      const deletedDevices = deleteTailscaleDevices(
+        ...kubernetesDevices.map((device) => device.nodeId)
+      );
+      deletedDevices.apply((deletedDevices) => {
+        const deletedDeviceIds = deletedDevices
+          .filter((device) => device.success)
+          .map((device) => device.deviceId);
+        const failedToDeleteDeviceIds = deletedDevices
+          .filter((device) => !device.success)
+          .map((device) => device.deviceId);
+        if (deletedDeviceIds.length) {
+          console.log(
+            `Deleted Tailscale devices:\n${kubernetesDevices
+              .filter((device) => deletedDeviceIds.includes(device.nodeId))
+              .map((device) => device.name)
+              .join('\n')}`
+          );
+        }
+        if (failedToDeleteDeviceIds.length) {
+          console.log(
+            `Failed to delete Tailscale devices:\n${kubernetesDevices
+              .filter((device) => failedToDeleteDeviceIds.includes(device.nodeId))
+              .map((device) => device.name)
+              .join('\n')}`
+          );
+        }
+      });
+    }
   }
 }
 

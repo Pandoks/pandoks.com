@@ -7,6 +7,6 @@ metadata:
   annotations:
     tailscale.com/expose: 'true'
     tailscale.com/hostname: ${StageName}-grafana
-    tailscale.com/tags: tag:k8s,${TailscaleStageTag}
+    tailscale.com/tags: tag:k8s,tag:${StageName}
 spec:
   type: ClusterIP

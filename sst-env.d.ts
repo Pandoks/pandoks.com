@@ -180,10 +180,6 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
-    "TailscaleStageTag": {
-      "type": "sst.sst.Linkable"
-      "value": string
-    }
     "TextSms": {
       "name": string
       "type": "sst.aws.Function"

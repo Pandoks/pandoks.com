@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { EXAMPLE_DOMAIN, STAGE_NAME, cloudflareZoneId, isProduction } from './dns';
+import { EXAMPLE_DOMAIN, STAGE_NAME, cloudflareZoneId, hasCluster, isProduction } from './dns';
 import { controlPlaneLoadBalancers, workerLoadBalancers } from './vps/vps';
 import { secrets } from './secrets';
 
@@ -36,63 +36,65 @@ if (publicLoadBalancers.length && !isProduction) {
   }
 }
 
-const openSslConfigPath = resolve('infra/vps/vps.openssl.conf');
-const certificateSigningRequestPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.csr`);
-const certificateKeyPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.key`);
+if (hasCluster) {
+  const openSslConfigPath = resolve('infra/vps/vps.openssl.conf');
+  const certificateSigningRequestPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.csr`);
+  const certificateKeyPath = resolve(`infra/vps/vps.origin.${STAGE_NAME}.key`);
 
-if (!existsSync(certificateSigningRequestPath)) {
-  execFileSync(
-    'openssl',
-    [
-      'req',
-      '-new',
-      '-newkey',
-      'rsa:2048',
-      '-nodes',
-      '-keyout',
-      certificateKeyPath,
-      '-out',
-      certificateSigningRequestPath,
-      '-config',
-      openSslConfigPath,
-      '-subj',
-      `/CN=${EXAMPLE_DOMAIN}`
-    ],
-    { stdio: 'inherit' }
-  );
-}
-
-const certificateSigningRequest = readFileSync(certificateSigningRequestPath);
-const hetznerOriginCert = new cloudflare.OriginCaCertificate(
-  'HetznerOriginCloudflareCaCertificate',
-  {
-    hostnames: [EXAMPLE_DOMAIN],
-    requestType: 'origin-rsa',
-    csr: certificateSigningRequest.toString(),
-    requestedValidity: 5475 // 15 years
-  }
-);
-
-$resolve([
-  hetznerOriginCert.certificate,
-  secrets.k8s.HetznerOriginTlsCrt.value,
-  secrets.k8s.HetznerOriginTlsKey.name,
-  secrets.k8s.HetznerOriginTlsCrt.name
-]).apply(([certificate, storedCertificate, keySecretName, certificateSecretName]) => {
-  // NOTE: only a checkout holding the CSR's key can sync the pair; CI has none, so it never writes
-  if (existsSync(certificateKeyPath) && certificate.trim() !== storedCertificate.trim()) {
+  if (!existsSync(certificateSigningRequestPath)) {
     execFileSync(
-      '/bin/sh',
-      ['-lc', `sst secret set ${keySecretName} --stage ${$app.stage} < ${certificateKeyPath}`],
-      { stdio: 'inherit' }
-    );
-    execFileSync(
-      '/bin/sh',
+      'openssl',
       [
-        '-lc',
-        `sst secret set ${certificateSecretName} --stage ${$app.stage} <<'EOF'\n${certificate}EOF`
+        'req',
+        '-new',
+        '-newkey',
+        'rsa:2048',
+        '-nodes',
+        '-keyout',
+        certificateKeyPath,
+        '-out',
+        certificateSigningRequestPath,
+        '-config',
+        openSslConfigPath,
+        '-subj',
+        `/CN=${EXAMPLE_DOMAIN}`
       ],
       { stdio: 'inherit' }
     );
   }
-});
+
+  const certificateSigningRequest = readFileSync(certificateSigningRequestPath);
+  const hetznerOriginCert = new cloudflare.OriginCaCertificate(
+    'HetznerOriginCloudflareCaCertificate',
+    {
+      hostnames: [EXAMPLE_DOMAIN],
+      requestType: 'origin-rsa',
+      csr: certificateSigningRequest.toString(),
+      requestedValidity: 5475 // 15 years
+    }
+  );
+
+  $resolve([
+    hetznerOriginCert.certificate,
+    secrets.k8s.HetznerOriginTlsCrt.value,
+    secrets.k8s.HetznerOriginTlsKey.name,
+    secrets.k8s.HetznerOriginTlsCrt.name
+  ]).apply(([certificate, storedCertificate, keySecretName, certificateSecretName]) => {
+    // NOTE: only a checkout holding the CSR's key can sync the pair; CI has none, so it never writes
+    if (existsSync(certificateKeyPath) && certificate.trim() !== storedCertificate.trim()) {
+      execFileSync(
+        '/bin/sh',
+        ['-lc', `sst secret set ${keySecretName} --stage ${$app.stage} < ${certificateKeyPath}`],
+        { stdio: 'inherit' }
+      );
+      execFileSync(
+        '/bin/sh',
+        [
+          '-lc',
+          `sst secret set ${certificateSecretName} --stage ${$app.stage} <<'EOF'\n${certificate}EOF`
+        ],
+        { stdio: 'inherit' }
+      );
+    }
+  });
+}
