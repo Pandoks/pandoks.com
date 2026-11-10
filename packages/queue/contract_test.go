@@ -574,6 +574,34 @@ func TestValkeyAcksANonUTF8Entry(t *testing.T) {
 	}
 }
 
+func TestValkeyAckScriptSettlesBothEntriesAtOnce(t *testing.T) {
+	name := "k" + strings.ToLower(rand.Text()[:10])
+	queue, client := openQueue(t, "valkey://client:client@"+valkeyAddress+"/"+name+"?lease=1m&max_attempts=3"), valkeyTestClient(t)
+	stream := "{" + name + "}:stream"
+	messages := []Message{testMessage("ack"), testMessage("ack")}
+	if err := queue.Send(t.Context(), messages...); err != nil {
+		t.Fatal(err)
+	}
+	received := receive(t, queue, 30*time.Second, messages[0].ID, messages[1].ID)
+	args := []string{valkeyGroup}
+	for _, delivery := range received {
+		args = append(args, delivery.handle.(string))
+	}
+	if err := ackScript.Exec(t.Context(), client, []string{stream}, args).Error(); err != nil {
+		t.Fatal(err)
+	}
+	pending, err := client.Do(t.Context(), client.B().Xpending().Key(stream).Group(valkeyGroup).Build()).ToArray()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count, _ := pending[0].AsInt64(); count != 0 {
+		t.Fatalf("%d entries still pending", count)
+	}
+	if length, err := client.Do(t.Context(), client.B().Xlen().Key(stream).Build()).AsInt64(); err != nil || length != 0 {
+		t.Fatalf("stream holds %d entries (%v), want none", length, err)
+	}
+}
+
 func TestValkeyLeaseStartsAfterASlowServer(t *testing.T) {
 	queue, client := openQueue(t, "valkey://client:client@"+valkeyAddress+"/l"+strings.ToLower(rand.Text()[:10])+"?lease=500ms&max_attempts=3"), valkeyTestClient(t)
 	message := testMessage("stall")

@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { setTimeout } from 'node:timers/promises';
 import { CreateQueueCommand, GetQueueAttributesCommand, SQSClient } from '@aws-sdk/client-sqs';
 import { CreateTopicCommand, SNSClient, SubscribeCommand } from '@aws-sdk/client-sns';
-import { GlideClusterClient } from '@valkey/valkey-glide';
+import { GlideClusterClient, Script } from '@valkey/valkey-glide';
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import {
   decodeRows,
@@ -341,6 +341,24 @@ describe('valkey', { timeout: 60_000 }, () => {
     await queue.send(message);
     expect((await queue.receive(10)).map((delivery) => delivery.id)).toEqual([message.id]);
     expect(await client.xlen(`{${name}}:stream`)).toBe(1);
+    await queue.close();
+  });
+
+  test('the ack script settles both entries at once', async () => {
+    const name = `k${suffix()}`;
+    const queue = await openTestQueue(name);
+    const messages = [testMessage('ack'), testMessage('ack')];
+    await queue.send(...messages);
+    const received = await receive(queue, WAIT, ...messages.map((message) => message.id));
+    const stream = `{${name}}:stream`;
+    const script = new Script(readFileSync(new URL('../valkey/ack.lua', import.meta.url), 'utf8'));
+    await client.invokeScript(script, {
+      keys: [stream],
+      args: ['workers', ...Object.values(received).map((delivery) => delivery.handle as string)]
+    });
+    script.release();
+    expect((await client.xpending(stream, 'workers'))[0]).toBe(0);
+    expect(await client.xlen(stream)).toBe(0);
     await queue.close();
   });
 

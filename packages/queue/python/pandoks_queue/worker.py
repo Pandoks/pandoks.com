@@ -1,5 +1,6 @@
 """Runs a handler on deliveries with the same settle rules as the Go and TS workers."""
 
+import math
 import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -17,9 +18,12 @@ class Permanent(Exception):
 
 
 class RetryAfter(Exception):
-    """A handler error the worker retries after delay seconds, clamped to 0 through MAX_DELAY."""
+    """A handler error the worker retries after delay seconds, clamped to 0 through MAX_DELAY. A NaN
+    delay raises ValueError instead, which the worker retries after backoff like any other error."""
 
     def __init__(self, delay: float, *args: object):
+        if math.isnan(delay):
+            raise ValueError("RetryAfter delay is NaN")
         super().__init__(*args)
         self.delay = delay
 

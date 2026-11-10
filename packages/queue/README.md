@@ -13,7 +13,7 @@ graph LR
   subgraph B[Broker, from the URL]
     SQS["awssqs:// SQS<br/>awssns:// SNS → SQS"]
     CF["cloudflare:// Queues<br/>HTTP pull"]
-    V["valkey:// Streams<br/>+ receive/retry/publish/close.lua"]
+    V["valkey:// Streams<br/>+ receive/ack/retry/publish/close.lua"]
   end
   B -->|"Receive(max), lease"| W["Worker (Go / Python / TS)<br/>Handle → Ack / Retry(delay)"]
   W -->|"Ack · Retry"| B
@@ -124,13 +124,13 @@ func RetryAfter(delay time.Duration, err error) error
 
 **Worker:** it receives only as many deliveries as it has free slots (`Concurrency`). A handler that
 returns is acked; `Permanent` is acked and logged; `RetryAfter` is retried after its delay (clamped
-to 0 through `MaxDelay`); any other error, or a Go panic, is retried after `2^(attempt-1)` s, at
-most 15 min. Go cancels the handler's context, and TS aborts its signal, 10 s before `Deadline`
-(halfway there for a shorter lease); Python can't stop a running handler, so it logs one that runs
-past that point. When the context, signal, or `stop` event ends, the worker stops receiving, retries
-what its last receive returned with no delay instead of handling it, Go and TS cancel the running
-handlers, and it returns once they have settled. A Python worker can wait out its current receive
-first (up to SQS's 20 s long poll).
+to 0 through `MaxDelay`; a `NaN` delay makes Python and TS raise instead); any other error, or a Go
+panic, is retried after `2^(attempt-1)` s, at most 15 min. Go cancels the handler's context, and TS
+aborts its signal, 10 s before `Deadline` (halfway there for a shorter lease); Python can't stop a
+running handler, so it logs one that runs past that point. When the context, signal, or `stop` event
+ends, the worker stops receiving, retries what its last receive returned with no delay instead of
+handling it, Go and TS cancel the running handlers, and it returns once they have settled. A Python
+worker can wait out its current receive first (up to SQS's 20 s long poll).
 
 ## URLs
 
@@ -166,7 +166,7 @@ user and password, and they need the port. Every language rejects the URLs in
 | Topic fan-out    | SNS → SQS, native                | none: `Publish` sends to each queue, not atomic     | emulated: `publish.lua`, atomic in one slot       |
 | Local emulator   | Moto, ElasticMQ                  | none                                                | `valkey/valkey` container                         |
 
-The five [Lua scripts](./valkey) are the Valkey adapter's only logic, and every language loads the
+The six [Lua scripts](./valkey) are the Valkey adapter's only logic, and every language loads the
 same files. A queue's keys share one hash tag, so a queue (or a topic with its subscriptions) lives
 on one shard. Each receive runs one `XAUTOCLAIM`, which scans at most 10 × `max` leased entries from
 the cursor the last receive stored in `{q}:reclaim`, so an expired lease behind N live ones comes

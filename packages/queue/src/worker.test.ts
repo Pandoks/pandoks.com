@@ -12,6 +12,7 @@ test('the worker settles each outcome', async () => {
     'permanent',
     'retry-after',
     'expired',
+    'unparseable',
     'failed',
     'shutdown'
   ].map((id) => ({
@@ -65,6 +66,8 @@ test('the worker settles each outcome', async () => {
           throw new RetryAfter(3600, 'rate limited');
         case 'expired':
           throw new RetryAfter(-1, 'retry date passed');
+        case 'unparseable':
+          throw new RetryAfter(Number('soon'), 'rate limited');
         case 'failed':
           throw new Error('transient');
       }
@@ -77,7 +80,13 @@ test('the worker settles each outcome', async () => {
 
   expect(abortedWhileHandling).toBe(false);
   expect(acked.sort()).toEqual(['ok', 'permanent']);
-  expect(retried).toEqual({ 'retry-after': MAX_DELAY, expired: 0, failed: 4, shutdown: 4 });
+  expect(retried).toEqual({
+    'retry-after': MAX_DELAY,
+    expired: 0,
+    unparseable: 4,
+    failed: 4,
+    shutdown: 4
+  });
   expect(maxes.every((max) => max >= 1 && max <= 2)).toBe(true);
 });
 

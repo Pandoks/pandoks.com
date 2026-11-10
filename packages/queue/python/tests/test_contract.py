@@ -17,6 +17,7 @@ from valkey.exceptions import ResponseError
 
 from pandoks_queue import Message, open_queue, open_topic
 from pandoks_queue.envelope import decode, encode
+from pandoks_queue.valkey import SCRIPTS
 
 VALKEY_PORT = 16379
 MOTO_ENDPOINT = "http://127.0.0.1:15000"
@@ -181,6 +182,18 @@ class ValkeyContractTest(Contract, unittest.TestCase):
         with self.assertLogs("pandoks_queue"):
             self.assertEqual([delivery.id for delivery in queue.receive(10)], [message.id])
         self.assertEqual(self.client.xlen("{" + name + "}:stream"), 1)
+
+    def test_ack_script_settles_both_entries_at_once(self):
+        name = f"k{secrets.token_hex(5)}"
+        queue = self.open(f"valkey://client:client@127.0.0.1:{VALKEY_PORT}/{name}?lease=1m&max_attempts=3")
+        messages = [test_message("ack"), test_message("ack")]
+        queue.send(*messages)
+        received = receive(queue, WAIT, *(message.id for message in messages))
+        stream = "{" + name + "}:stream"
+        script = self.client.register_script((SCRIPTS / "ack.lua").read_text())
+        script(keys=[stream], args=["workers", *(delivery.handle for delivery in received.values())])
+        self.assertEqual(self.client.xpending(stream, "workers")["pending"], 0)
+        self.assertEqual(self.client.xlen(stream), 0)
 
     def test_lease_starts_after_a_slow_server(self):
         queue = self.open(f"valkey://client:client@127.0.0.1:{VALKEY_PORT}/l{secrets.token_hex(5)}?lease=500ms&max_attempts=3")

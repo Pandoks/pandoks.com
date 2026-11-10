@@ -97,6 +97,7 @@ class ValkeyQueue:
         self.receive_script = client.register_script((SCRIPTS / "receive.lua").read_text())
         self.retry_script = client.register_script((SCRIPTS / "retry.lua").read_text())
         self.close_script = client.register_script((SCRIPTS / "close.lua").read_text())
+        self.ack_script = client.register_script((SCRIPTS / "ack.lua").read_text())
 
     def send(self, *messages: Message) -> None:
         sent_at = datetime.now(UTC)
@@ -121,10 +122,7 @@ class ValkeyQueue:
 
     def _delete(self, stream_ids: list) -> None:
         if stream_ids:
-            pipeline = self.client.pipeline()
-            pipeline.xack(self.keys[0], GROUP, *stream_ids)
-            pipeline.xdel(self.keys[0], *stream_ids)
-            pipeline.execute()
+            self.ack_script(keys=self.keys[:1], args=[GROUP, *stream_ids])
 
     def ack(self, *deliveries: Delivery) -> None:
         self._delete([delivery.handle for delivery in deliveries])

@@ -36,12 +36,15 @@ var (
 	publishSource string
 	//go:embed valkey/close.lua
 	closeSource string
+	//go:embed valkey/ack.lua
+	ackSource string
 
 	sendScript    = valkey.NewLuaScript(sendSource)
 	receiveScript = valkey.NewLuaScript(receiveSource)
 	retryScript   = valkey.NewLuaScript(retrySource)
 	publishScript = valkey.NewLuaScript(publishSource)
 	closeScript   = valkey.NewLuaScript(closeSource)
+	ackScript     = valkey.NewLuaScript(ackSource)
 )
 
 // valkeyName reads <name> from a valkey://[user:password@]host:port/<name> URL. Check it before
@@ -184,17 +187,12 @@ func (queue *valkeyQueue) Ack(ctx context.Context, deliveries ...*Delivery) erro
 	if len(deliveries) == 0 {
 		return nil
 	}
-	ids := make([]string, len(deliveries))
-	for index, delivery := range deliveries {
-		ids[index] = delivery.handle.(string)
+	args := []string{valkeyGroup}
+	for _, delivery := range deliveries {
+		args = append(args, delivery.handle.(string))
 	}
-	for _, result := range queue.client.DoMulti(ctx,
-		queue.client.B().Xack().Key(queue.keys[0]).Group(valkeyGroup).Id(ids...).Build(),
-		queue.client.B().Xdel().Key(queue.keys[0]).Id(ids...).Build(),
-	) {
-		if err := result.Error(); err != nil {
-			return fmt.Errorf("ack Valkey messages: %w", err)
-		}
+	if err := ackScript.Exec(ctx, queue.client, queue.keys[:1], args).Error(); err != nil {
+		return fmt.Errorf("ack Valkey messages: %w", err)
 	}
 	return nil
 }

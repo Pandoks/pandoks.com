@@ -1,7 +1,7 @@
 // Valkey cluster queues and topics built from the shared Lua scripts in packages/queue/valkey.
 import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { ClusterBatch, Decoder, GlideClusterClient, Script } from '@valkey/valkey-glide';
+import { Decoder, GlideClusterClient, Script } from '@valkey/valkey-glide';
 import {
   checkDelay,
   decodeRows,
@@ -112,6 +112,7 @@ export class ValkeyQueue implements Queue {
   receiveScript = script('receive');
   retryScript = script('retry');
   closeScript = script('close');
+  ackScript = script('ack');
 
   constructor(client: GlideClusterClient, prefix: string, lease: number, maxAttempts: number) {
     this.client = client;
@@ -171,10 +172,10 @@ export class ValkeyQueue implements Queue {
 
   private async delete(streamIDs: string[]): Promise<void> {
     if (streamIDs.length === 0) return;
-    const batch = new ClusterBatch(false)
-      .xack(this.keys[0], GROUP, streamIDs)
-      .xdel(this.keys[0], streamIDs);
-    await this.client.exec(batch, true);
+    await this.client.invokeScript(this.ackScript, {
+      keys: [this.keys[0]],
+      args: [GROUP, ...streamIDs]
+    });
   }
 
   async ack(...deliveries: Delivery[]): Promise<void> {
@@ -202,6 +203,7 @@ export class ValkeyQueue implements Queue {
       this.receiveScript.release();
       this.retryScript.release();
       this.closeScript.release();
+      this.ackScript.release();
       this.client.close();
     }
   }

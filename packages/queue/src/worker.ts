@@ -7,12 +7,16 @@ const POLL_ERROR_DELAY = 1;
 /** A handler error the worker acks instead of retrying, like a malformed payload. */
 export class Permanent extends Error {}
 
-/** A handler error the worker retries after delay seconds, clamped to 0 through MAX_DELAY. */
+/**
+ * A handler error the worker retries after delay seconds, clamped to 0 through MAX_DELAY. A NaN
+ * delay throws instead, which the worker retries after backoff like any other error.
+ */
 export class RetryAfter extends Error {
   delay: number;
 
   constructor(delay: number, message?: string) {
     super(message);
+    if (Number.isNaN(delay)) throw new Error('RetryAfter delay is NaN');
     this.delay = delay;
   }
 }
