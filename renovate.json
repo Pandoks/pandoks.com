@@ -135,6 +135,12 @@
       "groupName": "sst providers"
     },
     {
+      "description": "TODO: https://github.com/anomalyco/sst/issues/6885 SST's bundled Cloudflare components don't type-check against @pulumi/cloudflare 6.16+; approve once SST supports it.",
+      "matchPackageNames": ["@pulumi/cloudflare"],
+      "groupName": null,
+      "dependencyDashboardApproval": true
+    },
+    {
       "description": "Kubernetes can't skip minors, so each k3s minor is its own PR.",
       "matchPackageNames": ["k3s-io/k3s"],
       "groupName": "k3s",

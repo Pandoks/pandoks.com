@@ -85,9 +85,6 @@ spec:
     - name: postgres
       port: 5432
       targetPort: 5432
-    - name: pgbackrest
-      port: 8432
-      targetPort: 8432
 
 ---
 apiVersion: v1
@@ -180,6 +177,8 @@ spec:
                   citus-group: *citus-group
               topologyKey: kubernetes.io/hostname
       serviceAccountName: patroni-{{ $.Values.db }}
+      # NOTE: Postgres's shutdown waits for up to two archiver rounds of 3 archive-push tries of 60s each
+      terminationGracePeriodSeconds: 600
       securityContext:
         fsGroup: 999
         # NOTE: the default recursive chmod on every mount opens up citus's server.key, which postgres refuses

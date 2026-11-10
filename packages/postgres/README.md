@@ -106,9 +106,10 @@ graph TB
   of starting empty, with the chart's `postgresql.conf` and `pg_hba.conf` instead of the backup's,
   and without the backup's `ALTER SYSTEM` settings other than Citus's `ssl`. It waits for WAL replay
   however long it takes, retrying repo errors every 10 seconds until only a missing segment ends it,
-  then takes a full backup for its replicas. If the repo can't be read, the bootstrap fails instead
-  of starting empty. Replaying to the end of its own archived WAL is only consistent when a single
-  worker group is lost; after losing the coordinator or several groups, follow
+  then takes a full backup for its replicas. If the container restarts mid-replay, it finishes the
+  replay and takes that backup before Patroni starts. If the repo can't be read, the bootstrap fails
+  instead of starting empty. Replaying to the end of its own archived WAL is only consistent when a
+  single worker group is lost; after losing the coordinator or several groups, follow
   [PITR](#point-in-time-recovery-pitr) instead
 
 ### Monitoring
@@ -329,11 +330,21 @@ instead, queries to its group can fail for up to `citus.node_connection_timeout`
 
 Set `patroni.parameters` in the HelmChart. New clusters start with them, restored ones included, and
 after every install, upgrade and rollback a [reconciler](./reconciler) Job (`apply-parameters`)
-applies them to each running group; a group that's still bootstrapping or restoring counts as done,
-so a restore never holds the release. A change made while a group bootstraps reaches it only on the
-next release. Settings Postgres can reload, like `work_mem`, take effect within seconds. Ones that
-need a restart, like `shared_buffers`, show under `Pending restart` until you restart each group in
-place:
+applies them to each running group; a group that's still bootstrapping or restoring counts as done.
+A restore resumed after a container restart is the exception: Patroni doesn't start until the replay
+and full backup finish, so the Job gets no answer and holds the release until then, failing it after
+Helm's 300s timeout. With `failurePolicy: abort` the release then stays failed; once the group's
+Patroni runs, roll back to the failed revision, which reruns the Job with the same values, and the
+HelmChart's next retry exits cleanly:
+
+```bash
+helm history -n myapp myapp-postgres-myapp-cluster # the failed revision, e.g. 4
+helm rollback -n myapp myapp-postgres-myapp-cluster 4
+```
+
+A change made while a group bootstraps reaches it only on the next release. Settings Postgres can
+reload, like `work_mem`, take effect within seconds. Ones that need a restart, like
+`shared_buffers`, show under `Pending restart` until you restart each group in place:
 
 ```bash
 kubectl exec -n myapp patroni-myapp-group-0-0 -c patroni -- \
@@ -446,10 +457,12 @@ done
 `delta=y` is set in `pgbackrest.conf`, so the restore overwrites the existing data directory in
 place. Add `--set=<backup label>` when a group's latest backup is newer than the restore point.
 Postgres then replays WAL up to the restore point and promotes inside the recovery pod, because
-Patroni drops recovery targets and would promote too early. The loop fails if Postgres exits
-instead, and `/tmp/pitr.log` in that recovery pod says why. If pgBackRest refuses because
-`postmaster.pid` exists, that pod was killed before Postgres stopped; delete the file in its
-recovery pod and rerun:
+Patroni drops recovery targets and would promote too early. As on bootstrap, `hot_standby=off` lets
+replay accept settings lower than the backup's, and deleting the backup's `patroni.dynamic.json`
+(Patroni's cached cluster config) makes the group start with the chart's `patroni.parameters`. The
+loop fails if Postgres exits instead, and `/tmp/pitr.log` in that recovery pod says why. If
+pgBackRest refuses because `postmaster.pid` exists, that pod was killed before Postgres stopped;
+delete the file in its recovery pod and rerun:
 
 ```bash
 target=20260115T1430Z
@@ -457,8 +470,9 @@ target=20260115T1430Z
 for group in ${groups}; do
   kubectl exec -n myapp "pitr-restore-${group}" -- sh -ec '
     pgbackrest --stanza="${STANZA}" --type=name --target="$1" --target-action=promote restore
-    pg_ctl start -W -D /var/lib/postgresql/pgdata -l /tmp/pitr.log
-    until [ "$(psql -XAtc "SELECT pg_is_in_recovery()")" = f ]; do
+    rm -f /var/lib/postgresql/pgdata/patroni.dynamic.json
+    pg_ctl start -W -D /var/lib/postgresql/pgdata -l /tmp/pitr.log -o "-c hot_standby=off"
+    until pg_isready -q; do
       sleep 5
       pg_ctl status -D /var/lib/postgresql/pgdata > /dev/null
     done
@@ -468,12 +482,13 @@ done
 
 #### Step 5: Restart Every Group
 
-Delete the recovery pods and Patroni's state, then scale back up to your `patroni.replicasPerGroup`:
+Delete the recovery pods (Postgres is stopped, so skip the 600s grace period) and Patroni's state,
+then scale back up to your `patroni.replicasPerGroup`:
 
 ```bash
 replicas_per_group=3
 
-for group in ${groups}; do kubectl delete pod -n myapp "pitr-restore-${group}"; done
+for group in ${groups}; do kubectl delete pod -n myapp "pitr-restore-${group}" --grace-period=1; done
 kubectl delete endpoints -n myapp -l cluster-name=myapp
 kubectl scale statefulset -n myapp -l app=patroni-myapp --replicas="${replicas_per_group}"
 
@@ -662,9 +677,8 @@ kubectl rollout restart deployment/myapp-pgbouncer -n myapp
 ### Backup Job Fails with TLS Error
 
 The chart issues per-group certificates (`patroni-myapp-group-N` and
-`myapp-group-N-pgbackrest-backup`) from `internal-ca-issuer`, with the group's primary and replicas
-service hostnames as `dnsNames`. If backup jobs fail with certificate errors, check that they're
-ready:
+`myapp-group-N-pgbackrest-backup`) from `internal-ca-issuer`, with the group's primary service
+hostname as the DNS name. If backup jobs fail with certificate errors, check that they're ready:
 
 ```bash
 kubectl get certificate -n myapp
