@@ -159,6 +159,7 @@ jobs:
           cache-dependency-path: |
             packages/valkey/reconciler/go.sum
             packages/e2e/go.sum
+            packages/valkey/e2e/go.sum
 
       - uses: ./.github/actions/setup-mise
         with:

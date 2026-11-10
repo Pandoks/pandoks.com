@@ -1,6 +1,7 @@
-package e2e_test
+package valkey_test
 
 import (
+	"e2e"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -11,18 +12,19 @@ import (
 )
 
 const (
+	chartDir       = "../chart"
 	valkeyPassword = "admin-test-password"
 	keyCount       = 1000
 )
 
 func installValkey(masters int) string {
 	GinkgoHelper()
-	return installChart("valkey",
+	return e2e.InstallChart("valkey", chartDir,
 		map[string]string{"ADMIN_PASSWORD": valkeyPassword, "CLIENT_PASSWORD": "client-test-password"},
 		map[string]string{
 			"name":                    "vk",
-			"image":                   registry + "/valkey:latest",
-			"cluster.reconcilerImage": registry + "/valkey-reconciler:latest",
+			"image":                   e2e.Registry + "/valkey:latest",
+			"cluster.reconcilerImage": e2e.Registry + "/valkey-reconciler:latest",
 			"cluster.masters":         strconv.Itoa(masters),
 			"credentials.secret":      "valkey-creds",
 			// NOTE: keep the hook Jobs for the diagnostics dump
@@ -31,7 +33,7 @@ func installValkey(masters int) string {
 }
 
 func valkeyCli(namespace, pod, stdin string, args ...string) (string, error) {
-	return run(stdin, "kubectl", append([]string{
+	return e2e.Run(stdin, "kubectl", append([]string{
 		"-n", namespace, "exec", "-i", pod, "-c", "valkey", "--",
 		"valkey-cli", "--user", "admin", "-a", valkeyPassword, "--no-auth-warning",
 	}, args...)...)
@@ -65,7 +67,7 @@ var masterLine = regexp.MustCompile(`(?m)^\S+ \(\w+\.\.\.\) -> (\d+) keys \| (\d
 // expectHealthyCluster checks that every node reports cluster_state:ok, slot coverage, open slots, master count, and
 // that slots are spread over every master
 func expectHealthyCluster(g Gomega, namespace string, masters int) {
-	replicas, err := run("", "kubectl", "-n", namespace, "get", "statefulset", "valkey-vk", "-o", "jsonpath={.spec.replicas}")
+	replicas, err := e2e.Run("", "kubectl", "-n", namespace, "get", "statefulset", "valkey-vk", "-o", "jsonpath={.spec.replicas}")
 	g.Expect(err).NotTo(HaveOccurred())
 	pods, err := strconv.Atoi(replicas)
 	g.Expect(err).NotTo(HaveOccurred())
@@ -108,7 +110,7 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 		})
 
 		It("scales down to 3 masters with the pre-upgrade hook and keeps every key", func() {
-			upgradeChart(namespace, "valkey", map[string]string{"cluster.masters": "3"})
+			e2e.UpgradeChart(namespace, "valkey", chartDir, map[string]string{"cluster.masters": "3"})
 			Eventually(expectHealthyCluster).WithArguments(namespace, 3).Should(Succeed())
 			expectKeysReadable(Default, namespace, "valkey-vk-0")
 		})

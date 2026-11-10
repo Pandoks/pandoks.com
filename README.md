@@ -86,7 +86,8 @@ pnpm local:destroy
 
 See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI commands,
 [k3s/README.md](./k3s/README.md) for cluster architecture details, and
-[packages/e2e/README.md](./packages/e2e/README.md) for the chart e2e tests that run on this cluster.
+[packages/e2e/README.md](./packages/e2e/README.md) for the per-package e2e suites that run on this
+cluster.
 
 ## Development
 

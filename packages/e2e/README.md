@@ -1,16 +1,24 @@
-# Chart e2e tests
+# e2e
 
-End-to-end tests for the Helm charts in `packages/`, written with
-[Ginkgo v2](https://onsi.github.io/ginkgo/) and [Gomega](https://onsi.github.io/gomega/). Each spec
-installs a chart from its source directory with `helm` into a fresh namespace of the local k3d
-cluster, waits for its hooks, exercises it with `kubectl`, and deletes the namespace afterwards
-(dumping pods, events and logs first if it failed). Before the specs, the suite applies what the
-charts expect from the cluster: the Prometheus Operator CRDs (`kustomization.yaml`, only if the
-cluster has none yet) and the `valkey-reconciler` ClusterRole (`k3s/base/core/valkey.yaml`).
+Shared helpers for the end-to-end suites that test charts and apps on the local k3d cluster, written
+with [Ginkgo v2](https://onsi.github.io/ginkgo/) and [Gomega](https://onsi.github.io/gomega/). This
+module has no specs of its own: each package keeps its suite in its own `e2e/` directory, so a
+change to one package only runs that package's suite, in its `test-<package>-e2e` job.
 
-CI runs it in the `test-e2e` job of `.github/workflows/tests.yaml`.
+The helpers (`e2e.go`):
 
-## Running locally
+- `Run`/`MustRun` run `kubectl` or `helm` pinned to the `k3d-local-cluster` context; there is no
+  option to point a suite at another cluster.
+- `RunSuite` runs a suite with the shared `Eventually` defaults (1 minute timeout, 2 second polls).
+- `ApplyServiceMonitorCRD` applies the Prometheus Operator CRDs the charts' monitoring templates
+  need (`kustomization.yaml`), unless the cluster already has them.
+- `InstallChart` installs a chart from its source directory into a fresh namespace with its
+  credentials secret and waits for its hooks; after the spec or `Ordered` container it dumps pods,
+  events and logs if anything failed, then deletes the namespace. `UpgradeChart` changes its values.
+
+Only add a helper here once more than one suite needs it; anything for one chart stays in its suite.
+
+## Running a suite
 
 From the repo root. `pnpm cluster k3d up` switches your default kubectl context, so save it first:
 
@@ -20,27 +28,26 @@ pnpm cluster k3d deps up && pnpm cluster k3d up
 kubectl config use-context "${previous_context}"
 pnpm --filter @pandoks.com/valkey local:build && pnpm --filter @pandoks.com/valkey local:push
 
-mise exec -- go tool ginkgo -p ./packages/e2e
+mise exec -- go tool ginkgo -p ./packages/valkey/e2e
 ```
 
-The suite only ever targets the `k3d-local-cluster` context. Rebuild and push a chart's images after
-changing them; the chart itself is read from the checkout on every run. `pnpm local:destroy` tears
-the cluster down.
+Rebuild and push a package's images after changing them; the chart itself is read from the checkout
+on every run. Run some specs with `--label-filter`, list them with `--dry-run -v`, and tear the
+cluster down with `pnpm local:destroy`.
 
-## Labels
+## Adding a suite
 
-Each chart's specs carry its name as a label. Run only some with `--label-filter`, e.g.
-`go tool ginkgo -p --label-filter=valkey ./packages/e2e`, and list them with `--dry-run -v`.
-
-## Adding specs
-
-- One `<chart>_test.go` per chart, with one `Describe("<Chart>", Label("<chart>"), ...)`.
-- Install with `installChart` and change values with `upgradeChart`; both wait for the chart's
-  hooks.
-- Steps that build on each other go in an `Ordered` container with the install in `BeforeAll`, so a
-  failed step skips the rest and the namespace is deleted once at the end.
-- Mark specs that disrupt the whole cluster, like pausing a k3d node, `Serial`; `ginkgo -p` runs
-  them alone after the parallel ones.
-- `Eventually` waits 1 minute by default; give longer waits `.WithTimeout(...)`.
-- A spec that needs another image adds its `local:build`/`local:push` to the `test-e2e` job and the
-  package's paths to its `e2e` filter.
+1. Create `packages/<package>/e2e` (or `apps/<app>/e2e`) as its own Go module, named
+   `<package>/e2e`, that requires `e2e v0.0.0` with `replace e2e => ../../e2e`, add it to `go.work`,
+   and run `go mod tidy` in it. `pnpm lint go`, `pnpm format go` and `govulncheck` cover every
+   `go.work` module.
+2. Add `<package>_suite_test.go` calling `e2e.RunSuite`, with a `SynchronizedBeforeSuite` that
+   applies the cluster prerequisites the chart expects (`e2e.ApplyServiceMonitorCRD`, its RBAC).
+3. Add specs in `Describe("<Package>", Label("<package>"), ...)`. Steps that build on each other go
+   in an `Ordered` container with the install in `BeforeAll`, so a failed step skips the rest and
+   the namespace is deleted once at the end. Mark specs that disrupt the whole cluster, like pausing
+   a k3d node, `Serial`. Give `Eventually` waits longer than a minute `.WithTimeout(...)`.
+4. In `tests.yaml`, add a `<package>-e2e` filter with the package's paths and `*needs-e2e-setup`,
+   and a `test-<package>-e2e` job, copied from `test-valkey-e2e`, that builds and pushes only the
+   images the suite needs and runs only that suite; add the job to `tests-pass`'s `needs`, and its
+   `go.sum` to `lint-go`'s `cache-dependency-path` in `checks.yaml`.
