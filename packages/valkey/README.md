@@ -176,10 +176,10 @@ user and a **client** user:
 
 _The **client** user doesn't have dangerous permissions like `FLUSHALL`, `CONFIG`, etc._ Cluster
 clients need `PING`, `COMMAND`, and `CLUSTER SLOTS|SHARDS|INFO` to find the shards (valkey-go
-otherwise falls back to a single-node client), and GLIDE sets connection names with
-`CLIENT SETNAME|SETINFO`. [`packages/queue`](/packages/queue)'s Valkey adapter runs Lua scripts,
-which need `EVAL`, `EVALSHA`, `SCRIPT LOAD`, and `TIME`; the ACL still applies to every command a
-script calls.
+otherwise falls back to a single-node client), `ASKING` to follow `-ASK` redirects while the chart
+rebalances slots, and GLIDE sets connection names with `CLIENT SETNAME|SETINFO`.
+[`packages/queue`](/packages/queue)'s Valkey adapter runs Lua scripts, which need `EVAL`, `EVALSHA`,
+`SCRIPT LOAD`, and `TIME`; the ACL still applies to every command a script calls.
 
 For more information about the permissions, visit
 [valkey.io/topics/acl](https://valkey.io/topics/acl/).
