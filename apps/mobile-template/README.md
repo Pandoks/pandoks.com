@@ -22,16 +22,18 @@ Release builds check `updates.pandoks.com` with `expo-updates` in the background
 a new update on the next launch. The runtime version is the native
 [fingerprint](https://docs.expo.dev/versions/latest/sdk/fingerprint/), so an update only reaches
 builds with the same native code, and `certificate.crt` verifies the `UpdatesSigningKey` signature.
-Merging JS changes to `main` publishes a production update from `deploy-infra.yaml`, so reverting
-them on `main` rolls production back.
 
-To try a dev update, build against `updates.dev.pandoks.com`, change some JS, and publish from a
-non-production stage like `pandoks`:
+The cluster serves the update baked into the `mobile-template-updates` image
+([packages/updates](../../packages/updates/README.md)), which `build-and-publish.yaml` rebuilds when
+the app changes. In production that's the digest pinned in `kube/updates.yaml`: merging Renovate's
+bump releases the update, and reverting it rolls back. Local and dev clusters serve the checkout's
+own image.
+
+To try a dev update, build against `updates-dev.pandoks.com`, then change some JS and deploy the dev
+cluster from that branch once `build-and-publish.yaml` has built its image:
 
 ```sh
 export UPDATES_ENVIRONMENT=dev
 rm -rf ios && pnpm ios --configuration Release
-pnpm --dir ../.. sst shell --stage <stage> -- pnpm updates publish apps/mobile-template production ios
 rm -rf android && pnpm android --variant release
-pnpm --dir ../.. sst shell --stage <stage> -- pnpm updates publish apps/mobile-template production android
 ```

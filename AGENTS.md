@@ -69,9 +69,9 @@ inside it, use `#lib`.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
   `infra/`, `apps/` (except `desktop-template`, `mobile-template`, and `example`), and
   `packages/svelte/`, plus an Argo hard refresh and a wait for Synced and Healthy only for `k3s/`,
-  `apps/*/kube/`, and `scripts/cluster/` changes. Pages builds `apps/web` when a change matches `pathIncludes` in
-  `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod` renders but never prunes: a
-  deleted resource stays in prod until pruned by hand.
+  `apps/*/kube/`, and `scripts/cluster/` changes. Pages builds `apps/web` when a change matches
+  `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod` renders but
+  never prunes: a deleted resource stays in prod until pruned by hand.
 - Every non-production stage gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
   environment, so two non-production stages collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
@@ -171,10 +171,11 @@ Before calling infra, cluster, or tooling work done, check:
   `image:tag@sha256:…` in files a Renovate manager matches; no image lock files. Images in raw
   manifests in `k3s/` aren't matched yet, so add a `kubernetes` `managerFilePatterns` entry to
   `renovate.json` before pinning an image there. First-party images in `apps/*/kube` stay
-  `${ImageRegistry}/<img>:${ImageTag}`. Prefer copying official binaries from official images. Use
-  `.yaml`, with anchors only for values that must stay equal. Default unset or off-by-default
-  `values.yaml` options to `~` (no `enabled` switch) under an `# options:` comment listing the
-  choices.
+  `${ImageRegistry}/<img>:${ImageTag}`, except an app's updates image, which is pinned like a
+  third-party one so Renovate's digest bump releases it, with a `dev-patch.yaml` back to the
+  placeholder for local and dev. Prefer copying official binaries from official images. Use `.yaml`,
+  with anchors only for values that must stay equal. Default unset or off-by-default `values.yaml`
+  options to `~` (no `enabled` switch) under an `# options:` comment listing the choices.
 
 ## Git and pull requests
 
