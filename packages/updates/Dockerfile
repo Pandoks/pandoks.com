@@ -12,10 +12,13 @@ ARG APP
 RUN test -n "${APP}" && pnpm install --frozen-lockfile --filter "./apps/${APP}..."
 
 WORKDIR /src/apps/${APP}
+# NOTE: a build with UPDATES_ENVIRONMENT=dev points at the dev updates host, which changes its native fingerprint,
+# so the update serves that runtime version too
 RUN pnpm exec expo export --output-dir /export --platform ios --platform android \
     && pnpm exec expo config --type public --json > /export/expo-config.json \
     && for platform in ios android; do \
-    pnpm exec expo-updates runtimeversion:resolve --platform "${platform}" > "/export/runtime-version-${platform}.json"; \
+    pnpm exec expo-updates runtimeversion:resolve --platform "${platform}" > "/export/runtime-version-${platform}.json" \
+    && UPDATES_ENVIRONMENT=dev pnpm exec expo-updates runtimeversion:resolve --platform "${platform}" > "/export/runtime-version-${platform}-dev.json"; \
     done \
     && date -u +%Y-%m-%dT%H:%M:%SZ > /export/created-at
 

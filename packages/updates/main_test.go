@@ -37,6 +37,7 @@ func writeExport(t *testing.T, createdAt string) string {
 			"android":{"bundle":"_expo/static/js/android/entry.hbc","assets":[]}}}`,
 		"expo-config.json":                  `{"slug":"app","name":"App"}`,
 		"created-at":                        createdAt + "\n",
+		"runtime-version-ios-dev.json":      `{"runtimeVersion":"ios-dev-fingerprint"}`,
 		"runtime-version-ios.json":          `{"runtimeVersion":"ios-fingerprint"}`,
 		"runtime-version-android.json":      `{"runtimeVersion":"android-fingerprint"}`,
 		"_expo/static/js/ios/entry.hbc":     "ios bundle",
@@ -181,6 +182,23 @@ func TestARebuildOfTheSameCodeKeepsItsUpdateID(t *testing.T) {
 	}
 	if ids[0] != ids[1] {
 		t.Fatalf("IDs %v differ", ids)
+	}
+}
+
+func TestEachBuildGetsTheUpdateForItsRuntimeVersion(t *testing.T) {
+	updatesServer := newTestServer(t, "2026-11-09T00:00:00Z")
+	for _, runtimeVersion := range []string{"ios-fingerprint", "ios-dev-fingerprint"} {
+		_, body := readSignedPart(t, request(updatesServer, "/", map[string]string{
+			"expo-platform":        "ios",
+			"expo-runtime-version": runtimeVersion,
+		}))
+		var update manifest
+		if err := json.Unmarshal(body, &update); err != nil {
+			t.Fatal(err)
+		}
+		if update.RuntimeVersion != runtimeVersion {
+			t.Fatalf("runtime version %q, want %q", update.RuntimeVersion, runtimeVersion)
+		}
 	}
 }
 

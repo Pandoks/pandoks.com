@@ -47,14 +47,14 @@ type signedPart struct {
 	name, body, signature string
 }
 
-type platformUpdate struct {
-	runtimeVersion string
-	manifestID     string
-	manifest       signedPart
+type signedManifest struct {
+	id   string
+	part signedPart
 }
 
 type server struct {
-	updates       map[string]platformUpdate
+	// A platform's update, signed once for each runtime version it serves
+	updates       map[string]map[string]signedManifest
 	noUpdate      signedPart
 	assetPaths    map[string]string
 	assetContents map[string]string
@@ -100,8 +100,9 @@ func parseSigningKey(signingKey string) (*rsa.PrivateKey, error) {
 	return key, nil
 }
 
-// newServer reads the export in dir: expo export's output, plus expo-config.json, created-at, and
-// runtime-version-<platform>.json from expo-updates runtimeversion:resolve. It signs every response up front.
+// newServer reads the export in dir: expo export's output, plus expo-config.json, created-at, and one
+// runtime-version-<platform>*.json from expo-updates runtimeversion:resolve for each build of the app the update
+// serves. It signs every response up front.
 func newServer(dir, publicURL string, key *rsa.PrivateKey) (*server, error) {
 	var metadata struct {
 		FileMetadata map[string]struct {
@@ -125,7 +126,7 @@ func newServer(dir, publicURL string, key *rsa.PrivateKey) (*server, error) {
 	}
 
 	updatesServer := &server{
-		updates:       map[string]platformUpdate{},
+		updates:       map[string]map[string]signedManifest{},
 		assetPaths:    map[string]string{},
 		assetContents: map[string]string{},
 	}
@@ -133,45 +134,56 @@ func newServer(dir, publicURL string, key *rsa.PrivateKey) (*server, error) {
 		return nil, err
 	}
 	for platform, files := range metadata.FileMetadata {
-		var runtime struct {
-			RuntimeVersion string `json:"runtimeVersion"`
-		}
-		if err := readJSON(filepath.Join(dir, "runtime-version-"+platform+".json"), &runtime); err != nil {
+		runtimeFiles, err := filepath.Glob(filepath.Join(dir, "runtime-version-"+platform+"*.json"))
+		if err != nil {
 			return nil, err
 		}
-		if runtime.RuntimeVersion == "" {
-			return nil, fmt.Errorf("%s has no runtime version; set runtimeVersion in the app config", platform)
+		if len(runtimeFiles) == 0 {
+			return nil, fmt.Errorf("%s has no runtime-version-%s*.json", platform, platform)
 		}
-
 		launchAsset, err := updatesServer.addAsset(dir, publicURL, files.Bundle, "", "application/javascript")
 		if err != nil {
 			return nil, err
 		}
-		update := manifest{
-			RuntimeVersion: runtime.RuntimeVersion,
-			LaunchAsset:    launchAsset,
-			Assets:         []asset{},
-			Extra:          map[string]any{"expoClient": expoClient},
-		}
+		assets := []asset{}
 		for _, file := range files.Assets {
 			fileAsset, err := updatesServer.addAsset(dir, publicURL, file.Path, file.Ext, mime.TypeByExtension("."+file.Ext))
 			if err != nil {
 				return nil, err
 			}
-			update.Assets = append(update.Assets, fileAsset)
+			assets = append(assets, fileAsset)
 		}
-		// NOTE: the content names the update, so a rebuild of the same code isn't downloaded again
-		content, err := json.Marshal(update)
-		if err != nil {
-			return nil, err
+
+		updatesServer.updates[platform] = map[string]signedManifest{}
+		for _, runtimeFile := range runtimeFiles {
+			var runtime struct {
+				RuntimeVersion string `json:"runtimeVersion"`
+			}
+			if err := readJSON(runtimeFile, &runtime); err != nil {
+				return nil, err
+			}
+			if runtime.RuntimeVersion == "" {
+				return nil, fmt.Errorf("%s has no runtime version; set runtimeVersion in the app config", runtimeFile)
+			}
+			update := manifest{
+				RuntimeVersion: runtime.RuntimeVersion,
+				LaunchAsset:    launchAsset,
+				Assets:         assets,
+				Extra:          map[string]any{"expoClient": expoClient},
+			}
+			// NOTE: the content names the update, so a rebuild of the same code isn't downloaded again
+			content, err := json.Marshal(update)
+			if err != nil {
+				return nil, err
+			}
+			update.ID = uuidFromContent(content)
+			update.CreatedAt = strings.TrimSpace(string(createdAt))
+			signed, err := signPart(key, "manifest", update)
+			if err != nil {
+				return nil, err
+			}
+			updatesServer.updates[platform][runtime.RuntimeVersion] = signedManifest{id: update.ID, part: signed}
 		}
-		update.ID = uuidFromContent(content)
-		update.CreatedAt = strings.TrimSpace(string(createdAt))
-		signed, err := signPart(key, "manifest", update)
-		if err != nil {
-			return nil, err
-		}
-		updatesServer.updates[platform] = platformUpdate{runtimeVersion: runtime.RuntimeVersion, manifestID: update.ID, manifest: signed}
 	}
 	return updatesServer, nil
 }
@@ -238,7 +250,7 @@ func (updatesServer *server) ServeHTTP(response http.ResponseWriter, request *ht
 	}
 
 	runtimeVersion := request.Header.Get("expo-runtime-version")
-	update, ok := updatesServer.updates[request.Header.Get("expo-platform")]
+	platformUpdates, ok := updatesServer.updates[request.Header.Get("expo-platform")]
 	if runtimeVersion == "" || !ok {
 		http.Error(response, "Missing runtime version, or unknown platform", http.StatusBadRequest)
 		return
@@ -246,15 +258,16 @@ func (updatesServer *server) ServeHTTP(response http.ResponseWriter, request *ht
 	response.Header().Set("expo-protocol-version", "1")
 	response.Header().Set("expo-sfv-version", "0")
 	response.Header().Set("cache-control", "private, max-age=0")
-	if runtimeVersion != update.runtimeVersion {
+	update, ok := platformUpdates[runtimeVersion]
+	if !ok {
 		response.WriteHeader(http.StatusNoContent)
 		return
 	}
-	if request.Header.Get("expo-current-update-id") == update.manifestID {
+	if request.Header.Get("expo-current-update-id") == update.id {
 		writePart(response, updatesServer.noUpdate)
 		return
 	}
-	writePart(response, update.manifest)
+	writePart(response, update.part)
 }
 
 func (updatesServer *server) serveAsset(response http.ResponseWriter, request *http.Request, hash string) {
