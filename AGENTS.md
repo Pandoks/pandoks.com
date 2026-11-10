@@ -93,8 +93,8 @@ checkout. The SST CLI is `pnpm sst`.
   or `infra/` shows hundreds of false type errors.
 - `pnpm check` type-checks every package, `infra/`, and `sst.config.ts`.
 - Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, and `desktop-template`;
-  `pnpm --filter <package> test` for `prettier`, `valkey`, and `queue` (needs Postgres; see its
-  README).
+  `pnpm --filter <package> test` for `prettier`, `valkey`, and `queue` (start its brokers with
+  `docker compose -f packages/queue/compose.yaml up -d --wait`).
 - Scoped: `pnpm exec prettier --check <files>`, `pnpm exec eslint [--fix] <files>`, `shellcheck`,
   `shfmt -d`, `hadolint`, `actionlint`, `pnpm --filter "...[origin/main]" --if-present check`. That
   filter and the shell and Docker format and lint commands see only tracked files, so check new
