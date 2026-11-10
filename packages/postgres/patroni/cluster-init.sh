@@ -2,7 +2,8 @@
 
 set -eu
 
-if pgbackrest --stanza="${STANZA}" info | grep "missing stanza path"; then
+stanza_info=$(pgbackrest --stanza="${STANZA}" info)
+if echo "${stanza_info}" | grep "missing stanza path"; then
   echo "Stanza '${STANZA}' does not exist. Creating..."
   if pgbackrest --stanza="${STANZA}" stanza-create; then
     echo "✓ Stanza '${STANZA}' created successfully."
