@@ -18,7 +18,7 @@ import (
 	"testing"
 )
 
-const testURL = "https://updates.test/app"
+const testURL = "https://mobile-updates.test/app"
 
 var signingKey = func() *rsa.PrivateKey {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -58,11 +58,11 @@ func writeExport(t *testing.T, createdAt string) string {
 
 func newTestServer(t *testing.T, createdAt string) *server {
 	t.Helper()
-	updatesServer, err := newServer(writeExport(t, createdAt), testURL, signingKey)
+	mobileUpdatesServer, err := newServer(writeExport(t, createdAt), testURL, signingKey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return updatesServer
+	return mobileUpdatesServer
 }
 
 func request(handler http.Handler, path string, headers map[string]string) *httptest.ResponseRecorder {
@@ -117,8 +117,8 @@ func readSignedPart(t *testing.T, response *httptest.ResponseRecorder) (string, 
 }
 
 func TestServesASignedManifestWhoseAssetsMatchTheirHashes(t *testing.T) {
-	updatesServer := newTestServer(t, "2026-11-09T00:00:00Z")
-	name, body := readSignedPart(t, request(updatesServer, "/", map[string]string{
+	mobileUpdatesServer := newTestServer(t, "2026-11-09T00:00:00Z")
+	name, body := readSignedPart(t, request(mobileUpdatesServer, "/", map[string]string{
 		"expo-platform":        "ios",
 		"expo-runtime-version": "ios-fingerprint",
 	}))
@@ -142,29 +142,29 @@ func TestServesASignedManifestWhoseAssetsMatchTheirHashes(t *testing.T) {
 		if path == nil {
 			t.Fatalf("asset URL %q isn't under %s", fileAsset.URL, testURL)
 		}
-		response := request(updatesServer, path[1], nil)
+		response := request(mobileUpdatesServer, path[1], nil)
 		sum := sha256.Sum256(response.Body.Bytes())
 		if response.Code != http.StatusOK || base64.RawURLEncoding.EncodeToString(sum[:]) != fileAsset.Hash ||
 			response.Header().Get("content-type") != fileAsset.ContentType {
 			t.Fatalf("asset %s: status %d, content-type %q", fileAsset.URL, response.Code, response.Header().Get("content-type"))
 		}
 	}
-	if response := request(updatesServer, "/assets/unknown", nil); response.Code != http.StatusNotFound {
+	if response := request(mobileUpdatesServer, "/assets/unknown", nil); response.Code != http.StatusNotFound {
 		t.Fatalf("unknown asset: status %d, want 404", response.Code)
 	}
 }
 
 func TestTheRunningUpdateGetsNoUpdateAvailable(t *testing.T) {
-	updatesServer := newTestServer(t, "2026-11-09T00:00:00Z")
+	mobileUpdatesServer := newTestServer(t, "2026-11-09T00:00:00Z")
 	headers := map[string]string{"expo-platform": "android", "expo-runtime-version": "android-fingerprint"}
-	_, body := readSignedPart(t, request(updatesServer, "/", headers))
+	_, body := readSignedPart(t, request(mobileUpdatesServer, "/", headers))
 	var update manifest
 	if err := json.Unmarshal(body, &update); err != nil {
 		t.Fatal(err)
 	}
 
 	headers["expo-current-update-id"] = update.ID
-	name, body := readSignedPart(t, request(updatesServer, "/", headers))
+	name, body := readSignedPart(t, request(mobileUpdatesServer, "/", headers))
 	if name != "directive" || string(body) != `{"type":"noUpdateAvailable"}` {
 		t.Fatalf("part %q: %s", name, body)
 	}
@@ -187,10 +187,10 @@ func TestARebuildOfTheSameCodeIsANewUpdate(t *testing.T) {
 }
 
 func TestEachBuildGetsTheUpdateForItsRuntimeVersion(t *testing.T) {
-	updatesServer := newTestServer(t, "2026-11-09T00:00:00Z")
+	mobileUpdatesServer := newTestServer(t, "2026-11-09T00:00:00Z")
 	builds := map[string]string{"ios-fingerprint": "App", "ios-dev-fingerprint": "App Dev"}
 	for runtimeVersion := range builds {
-		_, body := readSignedPart(t, request(updatesServer, "/", map[string]string{
+		_, body := readSignedPart(t, request(mobileUpdatesServer, "/", map[string]string{
 			"expo-platform":        "ios",
 			"expo-runtime-version": runtimeVersion,
 		}))
@@ -218,13 +218,13 @@ func TestAnotherRuntimeVersionGetsNoContent(t *testing.T) {
 }
 
 func TestRejectsAMissingRuntimeVersionOrAnUnknownPlatform(t *testing.T) {
-	updatesServer := newTestServer(t, "2026-11-09T00:00:00Z")
+	mobileUpdatesServer := newTestServer(t, "2026-11-09T00:00:00Z")
 	for _, headers := range []map[string]string{
 		{"expo-platform": "ios"},
 		{"expo-platform": "web", "expo-runtime-version": "ios-fingerprint"},
 		{"expo-runtime-version": "ios-fingerprint"},
 	} {
-		if response := request(updatesServer, "/", headers); response.Code != http.StatusBadRequest {
+		if response := request(mobileUpdatesServer, "/", headers); response.Code != http.StatusBadRequest {
 			t.Fatalf("%v: status %d, want 400", headers, response.Code)
 		}
 	}

@@ -3,7 +3,7 @@ name: example
 namespace: example
 # Required: the app's image, built from packages/mobile-updates/Dockerfile with APP set to the app
 image: ~
-# Required: ${UpdatesDomain} in an app's kube
+# Required: ${MobileUpdatesDomain} in an app's kube
 host: ~
 # The secret with Cloudflare's origin certificate, which the ingress serves to Cloudflare
 tlsSecret: cloudflare-origin-tls

@@ -13,14 +13,14 @@ ARG APP
 RUN test -n "${APP}" && pnpm install --frozen-lockfile --ignore-scripts --filter "./apps/${APP}..."
 
 WORKDIR /src/apps/${APP}
-# NOTE: dev builds (UPDATES_ENVIRONMENT=dev) point at the dev host, which changes their native fingerprint, so they
+# NOTE: dev builds (MOBILE_UPDATES_ENVIRONMENT=dev) point at the dev host, which changes their native fingerprint, so they
 # get their own runtime version and config
 RUN pnpm exec expo export --output-dir /export --platform ios --platform android \
     && pnpm exec expo config --type public --json > /export/expo-config.json \
-    && UPDATES_ENVIRONMENT=dev pnpm exec expo config --type public --json > /export/expo-config-dev.json \
+    && MOBILE_UPDATES_ENVIRONMENT=dev pnpm exec expo config --type public --json > /export/expo-config-dev.json \
     && for platform in ios android; do \
     pnpm exec expo-updates runtimeversion:resolve --platform "${platform}" > "/export/runtime-version-${platform}.json" \
-    && UPDATES_ENVIRONMENT=dev pnpm exec expo-updates runtimeversion:resolve --platform "${platform}" > "/export/runtime-version-${platform}-dev.json"; \
+    && MOBILE_UPDATES_ENVIRONMENT=dev pnpm exec expo-updates runtimeversion:resolve --platform "${platform}" > "/export/runtime-version-${platform}-dev.json"; \
     done
 
 # NOTE: stamped after the cached export, so every build, even of old code, is newer than the update it replaces
@@ -37,13 +37,13 @@ ARG TARGETOS=linux
 ARG TARGETARCH=amd64
 ENV GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0
 
-RUN go build -trimpath -buildvcs=false -ldflags="-s -w" -o /out/updates .
+RUN go build -trimpath -buildvcs=false -ldflags="-s -w" -o /out/mobile-updates .
 
 FROM scratch
 
-COPY --from=builder /out/updates /usr/local/bin/updates
-COPY --from=export /export /updates
+COPY --from=builder /out/mobile-updates /usr/local/bin/mobile-updates
+COPY --from=export /export /mobile-updates
 
 USER 65532:65532
 
-ENTRYPOINT ["/usr/local/bin/updates"]
+ENTRYPOINT ["/usr/local/bin/mobile-updates"]

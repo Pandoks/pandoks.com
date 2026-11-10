@@ -1,7 +1,13 @@
 import { resolve } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { EXAMPLE_DOMAIN, STAGE_NAME, UPDATES_DOMAIN, cloudflareZoneId, isProduction } from './dns';
+import {
+  EXAMPLE_DOMAIN,
+  MOBILE_UPDATES_DOMAIN,
+  STAGE_NAME,
+  cloudflareZoneId,
+  isProduction
+} from './dns';
 import { controlPlaneLoadBalancers, workerLoadBalancers } from './vps/vps';
 import { secrets } from './secrets';
 
@@ -16,9 +22,9 @@ const publicLoadBalancers = [...workerLoadBalancers, ...controlPlaneLoadBalancer
 if (!isProduction) {
   createLoadBalancerRecords({ name: 'ExampleDomain', domain: EXAMPLE_DOMAIN });
 }
-createLoadBalancerRecords({ name: 'UpdatesDomain', domain: UPDATES_DOMAIN });
+createLoadBalancerRecords({ name: 'MobileUpdatesDomain', domain: MOBILE_UPDATES_DOMAIN });
 
-new sst.Linkable('UpdatesDomain', { properties: { value: UPDATES_DOMAIN } });
+new sst.Linkable('MobileUpdatesDomain', { properties: { value: MOBILE_UPDATES_DOMAIN } });
 
 function createLoadBalancerRecords({ name, domain }: { name: string; domain: string }) {
   for (const [i, loadBalancer] of publicLoadBalancers.entries()) {
@@ -78,7 +84,7 @@ const certificateSigningRequest = readFileSync(certificateSigningRequestPath);
 const hetznerOriginCert = new cloudflare.OriginCaCertificate(
   'HetznerOriginCloudflareCaCertificate',
   {
-    hostnames: [EXAMPLE_DOMAIN, UPDATES_DOMAIN],
+    hostnames: [EXAMPLE_DOMAIN, MOBILE_UPDATES_DOMAIN],
     requestType: 'origin-rsa',
     csr: certificateSigningRequest.toString(),
     requestedValidity: 5475 // 15 years

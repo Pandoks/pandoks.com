@@ -1,6 +1,6 @@
 {
   "name": "@pandoks.com/mobile-updates",
-  "description": "Expo updates server and chart",
+  "description": "Mobile updates server and chart",
   "version": "0.0.1",
   "type": "module",
   "scripts": {

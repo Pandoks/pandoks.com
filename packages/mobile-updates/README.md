@@ -8,8 +8,8 @@ signed with RSA-SHA256.
 Each app gets its own image, built from this `Dockerfile` with `APP` set to its directory under
 `apps/`. The build runs `expo export` for iOS and Android and resolves each platform's runtime
 version and the app's public config twice: once as is, for production builds, and once with
-`UPDATES_ENVIRONMENT=dev`, the variable an app's config reads to point dev builds at the dev host,
-which changes their native fingerprint. The server answers:
+`MOBILE_UPDATES_ENVIRONMENT=dev`, the variable an app's config reads to point dev builds at the dev
+host, which changes their native fingerprint. The server answers:
 
 - `GET /` with `expo-platform` and `expo-runtime-version`: the signed manifest, a signed
   `noUpdateAvailable` directive when `expo-current-update-id` is already that update, `204` when the
@@ -22,7 +22,7 @@ launches the newest update it has.
 
 ```sh
 docker build -f packages/mobile-updates/Dockerfile --build-arg APP=<app> \
-  --build-arg CREATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" -t <app>-updates .
+  --build-arg CREATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" -t <app>-mobile-updates .
 ```
 
 ## Signing key
@@ -31,20 +31,20 @@ Expo clients only verify `rsa-v1_5-sha256` with a self-signed certificate that h
 `digitalSignature` key usage and `codeSigning` extended key usage:
 
 ```sh
-openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj '/CN=Pandoks Updates' \
+openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj '/CN=Pandoks Mobile Updates' \
   -addext 'keyUsage=critical,digitalSignature' -addext 'extendedKeyUsage=critical,codeSigning' \
   -keyout private-key.pem -out certificate.crt
-pnpm sst secret set UpdatesSigningKey --stage <stage> < private-key.pem
+pnpm sst secret set MobileUpdatesSigningKey --stage <stage> < private-key.pem
 ```
 
-Keep `private-key.pem` out of git. Every stage needs `UpdatesSigningKey` set, production included,
-or its deploys fail.
+Keep `private-key.pem` out of git. Every stage needs `MobileUpdatesSigningKey` set, production
+included, or its deploys fail.
 
 ## Usage
 
 Run the chart from the app's `kube/` with the [HelmChart](https://docs.k3s.io/add-ons/helm) kind. It
-serves the app at `https://${UpdatesDomain}/<slug>`: `updates.pandoks.com` in production and
-`updates-dev.pandoks.com` in every other stage.
+serves the app at `https://${MobileUpdatesDomain}/<slug>`: `mobile-updates.pandoks.com` in
+production and `mobile-updates-dev.pandoks.com` in every other stage.
 
 ```yaml
 apiVersion: v1
@@ -54,7 +54,7 @@ metadata:
   namespace: <namespace>
 type: Opaque
 data:
-  private-key.pem: ${UpdatesSigningKey | base64}
+  private-key.pem: ${MobileUpdatesSigningKey | base64}
 
 ---
 apiVersion: helm.cattle.io/v1
@@ -72,8 +72,8 @@ spec:
   set:
     name: <slug>
     namespace: *namespace
-    image: ghcr.io/pandoks/<app>-updates:latest@sha256:<digest>
-    host: ${UpdatesDomain}
+    image: ghcr.io/pandoks/<app>-mobile-updates:latest@sha256:<digest>
+    host: ${MobileUpdatesDomain}
     signingKey.secret: mobile-updates-<slug>-signing-key
 ```
 
@@ -93,7 +93,7 @@ export default ({ config }: ConfigContext) => ({
   ...config,
   runtimeVersion: { policy: 'fingerprint' },
   updates: {
-    url: `https://${process.env.UPDATES_ENVIRONMENT === 'dev' ? 'updates-dev' : 'updates'}.pandoks.com/${config.slug}`,
+    url: `https://${process.env.MOBILE_UPDATES_ENVIRONMENT === 'dev' ? 'mobile-updates-dev' : 'mobile-updates'}.pandoks.com/${config.slug}`,
     codeSigningCertificate: './certificate.crt',
     codeSigningMetadata: { keyid: 'main', alg: 'rsa-v1_5-sha256' }
   }

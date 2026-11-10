@@ -50,8 +50,8 @@ export const secrets = {
     OauthClientId: new sst.Secret('TailscaleOauthClientId'),
     OauthClientSecret: new sst.Secret('TailscaleOauthClientSecret')
   },
-  updates: {
-    SigningKey: new sst.Secret('UpdatesSigningKey')
+  mobileUpdates: {
+    SigningKey: new sst.Secret('MobileUpdatesSigningKey')
   },
   k8s: {
     tailscale: {
