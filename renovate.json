@@ -131,6 +131,54 @@
       "pinDigests": false
     },
     {
+      "description": "Main publishes each chart under its Chart.yaml version, so a chart change bumps it and every copy that pins it. Templates compile against the branch's first update, so each chart names its own files.",
+      "matchFileNames": ["packages/clickhouse/chart/**"],
+      "bumpVersions": [
+        {
+          "filePatterns": [
+            "packages/clickhouse/chart/Chart.yaml",
+            "apps/example/kube/clickhouse.yaml"
+          ],
+          "matchStrings": [
+            "\\nversion: (?<version>\\S+)",
+            "charts/clickhouse\\s+version: (?<version>\\S+)"
+          ]
+        }
+      ]
+    },
+    {
+      "matchFileNames": ["packages/postgres/chart/**"],
+      "bumpVersions": [
+        {
+          "filePatterns": [
+            "packages/postgres/chart/Chart.yaml",
+            "apps/example/kube/postgres.yaml",
+            "packages/postgres/README.md"
+          ],
+          "matchStrings": [
+            "\\nversion: (?<version>\\S+)",
+            "charts/postgres\\s+version: (?<version>\\S+)"
+          ]
+        }
+      ]
+    },
+    {
+      "matchFileNames": ["packages/valkey/chart/**"],
+      "bumpVersions": [
+        {
+          "filePatterns": [
+            "packages/valkey/chart/Chart.yaml",
+            "apps/example/kube/valkey.yaml",
+            "packages/valkey/README.md"
+          ],
+          "matchStrings": [
+            "\\nversion: (?<version>\\S+)",
+            "charts/valkey\\s+version: (?<version>\\S+)"
+          ]
+        }
+      ]
+    },
+    {
       "matchFileNames": ["sst.config.ts"],
       "groupName": "sst providers"
     },

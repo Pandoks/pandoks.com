@@ -460,22 +460,27 @@ Postgres then replays WAL up to the restore point and promotes inside the recove
 Patroni drops recovery targets and would promote too early. As on bootstrap, `hot_standby=off` lets
 replay accept settings lower than the backup's, and deleting the backup's `patroni.dynamic.json`
 (Patroni's cached cluster config) makes the group start with the chart's `patroni.parameters`. The
-loop fails if Postgres exits instead, and `/tmp/pitr.log` in that recovery pod says why. If
-pgBackRest refuses because `postmaster.pid` exists, that pod was killed before Postgres stopped;
-delete the file in its recovery pod and rerun:
+`restore_command` retries while the repo is unreachable, as on bootstrap, so an outage can't end
+replay early; a missing segment still does. A group's exec fails if Postgres exits or replay ends
+before the restore point, and `/tmp/pitr.log` in that recovery pod says why; don't go on to Step 5
+until every group's exec succeeded. If pgBackRest refuses because `postmaster.pid` exists, that pod
+was killed before Postgres stopped; delete the file in its recovery pod and rerun:
 
 ```bash
 target=20260115T1430Z
 
 for group in ${groups}; do
   kubectl exec -n myapp "pitr-restore-${group}" -- sh -ec '
-    pgbackrest --stanza="${STANZA}" --type=name --target="$1" --target-action=promote restore
+    pgbackrest --stanza="${STANZA}" --type=name --target="$1" --target-action=promote \
+      --recovery-option="restore_command=until pgbackrest --stanza=${STANZA} archive-get %f \"%p\"; do [ \$? -eq 1 ] && exit 1; sleep 10; done" \
+      restore
     rm -f /var/lib/postgresql/pgdata/patroni.dynamic.json
     pg_ctl start -W -D /var/lib/postgresql/pgdata -l /tmp/pitr.log -o "-c hot_standby=off"
     until pg_isready -q; do
       sleep 5
       pg_ctl status -D /var/lib/postgresql/pgdata > /dev/null
     done
+    test ! -f /var/lib/postgresql/pgdata/recovery.signal
     pg_ctl stop -w -D /var/lib/postgresql/pgdata' sh "${target}"
 done
 ```
