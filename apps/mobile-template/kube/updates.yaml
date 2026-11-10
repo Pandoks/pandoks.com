@@ -14,6 +14,6 @@ spec:
     name: mobile-template
     namespace: *namespace
     # NOTE: Renovate bumps the digest after main builds a new image, so merging that PR releases the update
-    image: ghcr.io/pandoks/mobile-template-updates:latest@sha256:e2819b3a0027ce8aa5a79924abba24a2677d5179770bb96a42ffd0c34aed798e
+    image: ghcr.io/pandoks/mobile-template-updates:latest@sha256:93c6c5bfa053a91992608a6bc14951d42c04659bb33630625d0dc6a2f836979a
     host: ${UpdatesDomain}
     signingKey.secret: updates-mobile-template-signing-key
