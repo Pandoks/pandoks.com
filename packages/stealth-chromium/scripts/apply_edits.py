@@ -799,11 +799,13 @@ EDITS = [
             '  // apex-webgpu-device-limits: keep device.limits coherent with\n'
             '  // the spoofed adapter.limits (same override table, same rule:\n'
             '  // clamp only on real hardware; on a software/unknown real\n'
-            '  // adapter report the claimed value directly). adapter_\'s REAL\n'
-            '  // handle (not the spoofed identity) supplies the real type.\n'
+            '  // adapter report the claimed value directly). GetHandle() here\n'
+            '  // is the DEVICE\'s own real handle; GetAdapter() returns the\n'
+            '  // REAL wgpu::Adapter (the spoof rewrites identity, not the\n'
+            '  // handle), which RealAdapterType reads the true type from.\n'
             '  apex_webgpu::ApplyLimitOverrides(\n'
             '      &limits,\n'
-            '      apex_webgpu::RealAdapterType(adapter_->GetHandle()));\n'
+            '      apex_webgpu::RealAdapterType(GetHandle().GetAdapter()));\n'
         ),
     },
     {

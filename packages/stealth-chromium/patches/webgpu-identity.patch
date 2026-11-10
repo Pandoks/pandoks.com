@@ -79,9 +79,9 @@
 --- a/third_party/blink/renderer/modules/webgpu/gpu_device.cc
 +++ b/third_party/blink/renderer/modules/webgpu/gpu_device.cc
 @@ GPUDevice::Initialize @@ (before limits_ = MakeGarbageCollected<...>(limits))
-+  // adapter_'s REAL handle (the spoof rewrites identity, not the handle)
-+  // supplies the real type for the same conditional clamp rule.
++  // GetHandle() here is the DEVICE's own real handle; GetAdapter() returns
++  // the REAL wgpu::Adapter (never spoofed) whose type the clamp rule reads.
 +  apex_webgpu::ApplyLimitOverrides(
-+      &limits, apex_webgpu::RealAdapterType(adapter_->GetHandle()));
++      &limits, apex_webgpu::RealAdapterType(GetHandle().GetAdapter()));
 @@ GPUDevice::Initialize @@ (after features_ = MakeGarbageCollected<...>(features))
 +  features_ = apex_webgpu::FilterFeaturesByAllowlist(features_);
