@@ -34,16 +34,17 @@ type cloudflareQueue struct {
 }
 
 func cloudflareQueues(parsed *url.URL, allowed ...string) ([]*cloudflareQueue, map[string]string, error) {
+	ids := strings.Split(strings.TrimPrefix(parsed.Path, "/"), ",")
+	// NOTE: a port is a user and the start of a password cut off by an unescaped /, ?, or #
+	if parsed.Host == "" || strings.Contains(parsed.Host, ":") || parsed.User != nil || slices.Contains(ids, "") {
+		return nil, nil, errors.New("cloudflare URL must be cloudflare://<account_id>/<queue_id>[,<queue_id>…]")
+	}
 	params, err := queryParams(parsed, allowed...)
 	if err != nil {
 		return nil, nil, err
 	}
 	if os.Getenv("CLOUDFLARE_API_TOKEN") == "" {
 		return nil, nil, errors.New("cloudflare URL: CLOUDFLARE_API_TOKEN is not set")
-	}
-	ids := strings.Split(strings.TrimPrefix(parsed.Path, "/"), ",")
-	if parsed.Host == "" || slices.Contains(ids, "") {
-		return nil, nil, fmt.Errorf("cloudflare URL %q must be cloudflare://<account_id>/<queue_id>[,<queue_id>…]", parsed)
 	}
 	client := cloudflare.NewClient()
 	queueList := make([]*cloudflareQueue, len(ids))

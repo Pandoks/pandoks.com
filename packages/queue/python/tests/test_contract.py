@@ -3,6 +3,7 @@
 import json
 import os
 import secrets
+import threading
 import time
 import unittest
 from dataclasses import replace
@@ -173,6 +174,19 @@ class ValkeyContractTest(Contract, unittest.TestCase):
         with self.assertLogs("pandoks_queue"):
             self.assertEqual([delivery.id for delivery in queue.receive(10)], [message.id])
         self.assertEqual(self.client.xlen("{" + name + "}:stream"), 1)
+
+    def test_lease_starts_after_a_slow_server(self):
+        queue = self.open(f"valkey://client:client@127.0.0.1:{VALKEY_PORT}/l{secrets.token_hex(5)}?lease=500ms&max_attempts=3")
+        message = test_message("stall")
+        queue.send(message)
+        # NOTE: another client's slow script busies the server, as on a loaded shard
+        stall = threading.Thread(target=self.client.eval, args=("local stop = os.clock() + 1 while os.clock() < stop do end", 0))
+        stall.start()
+        self.addCleanup(stall.join)
+        time.sleep(0.1)
+        deliveries = queue.receive(10)
+        self.assertEqual([delivery.id for delivery in deliveries], [message.id])
+        self.assertGreater(deliveries[0].deadline, datetime.now(UTC))
 
     def test_open_closes_the_client_when_subscribing_fails(self):
         name = f"s{secrets.token_hex(5)}"

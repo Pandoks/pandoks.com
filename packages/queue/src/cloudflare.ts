@@ -32,15 +32,14 @@ function cloudflareQueues(
   url: URL,
   ...allowed: string[]
 ): { queues: CloudflareQueue[]; params: Record<string, string> } {
+  const ids = url.pathname.replace(/^\//, '').split(',');
+  // NOTE: a port is a user and the start of a password cut off by an unescaped /, ?, or #
+  if (!url.host || url.port || url.username || url.password || ids.includes('')) {
+    throw new Error('cloudflare URL must be cloudflare://<account_id>/<queue_id>[,<queue_id>…]');
+  }
   const params = queryParams(url, ...allowed);
   if (!process.env.CLOUDFLARE_API_TOKEN) {
     throw new Error('cloudflare URL: CLOUDFLARE_API_TOKEN is not set');
-  }
-  const ids = url.pathname.replace(/^\//, '').split(',');
-  if (!url.host || ids.includes('')) {
-    throw new Error(
-      `cloudflare URL ${url} must be cloudflare://<account_id>/<queue_id>[,<queue_id>…]`
-    );
   }
   const client = new Cloudflare();
   return { queues: ids.map((id) => new CloudflareQueue(client, url.host, id)), params };
@@ -51,7 +50,7 @@ export function openQueue(url: URL): CloudflareQueue {
   if (queues.length !== 1) {
     throw new Error('cloudflare URL: a queue has one queue id; a list is a topic');
   }
-  queues[0].lease = parseLease(params);
+  queues[0].lease = parseLease(url, params);
   return queues[0];
 }
 

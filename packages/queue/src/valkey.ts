@@ -29,8 +29,23 @@ function script(name: string): Script {
  * echoes the URL: an unescaped /, ?, or # in the password leaves no valid name.
  */
 function valkeyName(url: URL): string {
-  const name = decodeURIComponent(url.pathname.replace(/^\//, ''));
-  if (!url.hostname || !url.port || !name || /[{}/]/.test(name)) {
+  const [name, ...credentials] = [url.pathname.replace(/^\//, ''), url.username, url.password].map(
+    (part) => {
+      // NOTE: it throws on a malformed escape or one that isn't UTF-8, which Go and Python reject
+      try {
+        return decodeURIComponent(part);
+      } catch {
+        return undefined;
+      }
+    }
+  );
+  if (
+    !url.hostname ||
+    !url.port ||
+    !name ||
+    /[{}/]/.test(name) ||
+    credentials.includes(undefined)
+  ) {
     throw new Error('valkey URL must be valkey://[user:password@]host:port/<name>');
   }
   return name;
@@ -52,10 +67,14 @@ function valkeyClient(url: URL): Promise<GlideClusterClient> {
 export async function openQueue(url: URL): Promise<ValkeyQueue> {
   const name = valkeyName(url);
   const params = queryParams(url, 'lease', 'max_attempts', 'subscription');
-  const lease = parseLease(params);
+  const lease = parseLease(url, params);
   const maxAttempts = Number(params.max_attempts);
-  if (!/^\d+$/.test(params.max_attempts ?? '') || maxAttempts < 1) {
-    throw new Error(`valkey URL: max_attempts ${params.max_attempts} must be at least 1`);
+  if (
+    !/^\d+$/.test(params.max_attempts ?? '') ||
+    maxAttempts < 1 ||
+    BigInt(params.max_attempts) >= 2n ** 63n
+  ) {
+    throw new Error(`valkey URL: max_attempts ${params.max_attempts} must be from 1 to 2^63-1`);
   }
   const client = await valkeyClient(url);
   let prefix = `{${name}}`;
@@ -112,7 +131,6 @@ export class ValkeyQueue implements Queue {
   async receive(max: number, signal?: AbortSignal): Promise<Delivery[]> {
     if (max < 1) throw new Error(`receive from Valkey: max ${max} must be at least 1`);
     if (signal?.aborted) return [];
-    const deadline = new Date(Date.now() + this.lease * 1000);
     const invocation = this.client.invokeScript(this.receiveScript, {
       keys: this.keys,
       args: [
@@ -135,6 +153,8 @@ export class ValkeyQueue implements Queue {
       signal?.removeEventListener('abort', onAbort);
     }
     if (!rows) return [];
+    // NOTE: the lease starts when the script runs, which can be well after the call on a busy server
+    const deadline = new Date(Date.now() + this.lease * 1000);
     const { deliveries, malformed } = decodeRows(
       rows.map(([streamID, body, attempt]): [Uint8Array, number, unknown] => [
         body,

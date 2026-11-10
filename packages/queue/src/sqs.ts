@@ -26,14 +26,14 @@ const WAIT_SECONDS = 20;
 const HOST = /^sqs\.([a-z0-9-]+)\.amazonaws\.com$/;
 
 export function openQueue(url: URL): SQSQueue {
+  const region = HOST.exec(url.host);
+  if (!region || url.username || url.password) {
+    throw new Error('awssqs URL must be awssqs://sqs.<region>.amazonaws.com/<account>/<name>');
+  }
   const params = queryParams(url, 'lease', 'endpoint');
-  const lease = parseLease(params);
+  const lease = parseLease(url, params);
   if (!Number.isInteger(lease)) {
     throw new Error(`awssqs URL: lease ${params.lease} must be whole seconds`);
-  }
-  const region = HOST.exec(url.host);
-  if (!region) {
-    throw new Error(`awssqs URL: host ${url.host} must be sqs.<region>.amazonaws.com`);
   }
   const client = new SQSClient({ region: region[1], endpoint: params.endpoint });
   return new SQSQueue(client, `https://${url.host}${url.pathname}`, lease);

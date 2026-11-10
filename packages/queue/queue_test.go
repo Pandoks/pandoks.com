@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -57,6 +58,9 @@ func TestGoldenEnvelopesRoundTrip(t *testing.T) {
 				t.Fatal(err)
 			}
 			jsonEqual(t, encoded, body)
+			if strings.ContainsAny(string(encoded), "\uFFFE\uFFFF") {
+				t.Fatalf("SQS rejects the raw U+FFFE or U+FFFF in %s", encoded)
+			}
 		})
 	}
 }
@@ -127,7 +131,7 @@ func TestDecodeRejectsWhatPythonAndTSReject(t *testing.T) {
 	}
 }
 
-func TestEncodeSizesHTMLLikePythonAndTS(t *testing.T) {
+func TestEncodeWritesHTMLUnescaped(t *testing.T) {
 	html := Message{Source: "//test", Type: "test", Data: []byte(`"` + strings.Repeat("<&>", (MaxEnvelopeBytes-300)/3) + `"`)}
 	body, err := encode(html, time.Now())
 	if err != nil {
@@ -138,7 +142,7 @@ func TestEncodeSizesHTMLLikePythonAndTS(t *testing.T) {
 	}
 }
 
-func TestEncodeSizesLineSeparatorsLikePythonAndTS(t *testing.T) {
+func TestEncodeWritesLineSeparatorsUnescaped(t *testing.T) {
 	// 20,000 separators are 60,000 bytes unescaped and 120,000 escaped
 	separators := strings.Repeat("\u2028\u2029", 5_000)
 	data := `"\\u2028` + separators + `"`
@@ -155,45 +159,33 @@ func TestEncodeSizesLineSeparatorsLikePythonAndTS(t *testing.T) {
 	}
 }
 
-func TestEncodeReadsContentTypesLikePythonAndTS(t *testing.T) {
-	body, err := encode(Message{Source: "//test", Type: "test", ContentType: "Application/JSON; charset", Data: []byte("{}")}, time.Now())
-	if err != nil || !strings.Contains(string(body), `"data":{}`) {
-		t.Fatalf("encoded %s, %v, want data as JSON", body, err)
-	}
-}
-
 func TestOpenRejectsMalformedURLs(t *testing.T) {
-	for _, rawURL := range []string{
-		"awssqs://sqs.us-west-1.amazonaws.com/123456789012/q?lease=30s&endpoint=%zz",
-		"awssqs://sqs.us-west-1.amazonaws.com/123456789012/q?lease=30s&bogus%zz=1",
-		"valkey://127.0.0.1/q?lease=1s&max_attempts=1",
-		"valkey://127.0.0.1:1/q?lease=1s&max_attempts=%2B3",
-		"valkey://127.0.0.1:1/t?lease=1s&max_attempts=3&subscription=a%ff",
-		"valkey://127.0.0.1:1/t?lease=1s&max_attempts=3&subscription=a;b",
-	} {
-		queue, err := Open(t.Context(), rawURL)
+	body, err := os.ReadFile(filepath.Join("testdata", "malformed-urls.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var urls struct{ Queues, Topics []string }
+	if err := json.Unmarshal(body, &urls); err != nil {
+		t.Fatal(err)
+	}
+	check := func(rawURL string, closer io.Closer, err error) {
 		if err == nil {
-			_ = queue.Close()
+			_ = closer.Close()
 		}
-		if err == nil || !strings.Contains(err.Error(), "URL") {
-			t.Errorf("Open %s: error %v, want a URL error", rawURL, err)
+		if err == nil || !strings.Contains(err.Error(), "URL") || strings.Contains(err.Error(), "xq1") || strings.Contains(err.Error(), "zq2") {
+			t.Errorf("%s: error %v, want a URL error without the password", rawURL, err)
 		}
+	}
+	for _, rawURL := range urls.Queues {
+		queue, err := Open(t.Context(), rawURL)
+		check(rawURL, queue, err)
+	}
+	for _, rawURL := range urls.Topics {
+		topic, err := OpenTopic(t.Context(), rawURL)
+		check(rawURL, topic, err)
 	}
 	if _, err := OpenTopic(t.Context(), "valkey://127.0.0.1/t"); err == nil || !strings.Contains(err.Error(), "host:port") {
 		t.Errorf("OpenTopic without a port: error %v, want the URL format", err)
-	}
-}
-
-func TestOpenKeepsValkeyPasswordsOutOfErrors(t *testing.T) {
-	for _, password := range []string{"xq1/zq2", "xq1?zq2", "xq1#zq2", "xq1%zq2", "123/zq2", "123?zq2", "123#zq2"} {
-		rawURL := "valkey://client:" + password + "@127.0.0.1:1/q?lease=1s&max_attempts=1"
-		_, queueErr := Open(t.Context(), rawURL)
-		_, topicErr := OpenTopic(t.Context(), rawURL)
-		for _, err := range []error{queueErr, topicErr} {
-			if err == nil || strings.Contains(err.Error(), "xq1") || strings.Contains(err.Error(), "zq2") {
-				t.Errorf("password %q: error %v", password, err)
-			}
-		}
 	}
 }
 

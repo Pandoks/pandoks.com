@@ -554,3 +554,24 @@ func TestValkeyAcksANonUTF8Entry(t *testing.T) {
 		t.Fatalf("stream holds %d entries (%v), want only the valid one", length, err)
 	}
 }
+
+func TestValkeyLeaseStartsAfterASlowServer(t *testing.T) {
+	queue, client := openQueue(t, "valkey://client:client@"+valkeyAddress+"/l"+strings.ToLower(rand.Text()[:10])+"?lease=500ms&max_attempts=3"), valkeyTestClient(t)
+	message := testMessage("stall")
+	if err := queue.Send(t.Context(), message); err != nil {
+		t.Fatal(err)
+	}
+	// NOTE: another client's slow script busies the server, as on a loaded shard
+	stalled := make(chan error, 1)
+	go func() {
+		stalled <- client.Do(context.Background(), client.B().Eval().Script("local stop = os.clock() + 1 while os.clock() < stop do end return 1").Numkeys(0).Build()).Error()
+	}()
+	time.Sleep(100 * time.Millisecond)
+	deliveries, err := queue.Receive(t.Context(), 10)
+	if err != nil || len(deliveries) != 1 || !deliveries[0].Deadline.After(time.Now()) {
+		t.Fatalf("got %+v, %v, want one delivery whose 500ms lease hasn't ended", deliveries, err)
+	}
+	if err := <-stalled; err != nil {
+		t.Fatal(err)
+	}
+}

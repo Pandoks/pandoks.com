@@ -28,14 +28,21 @@ var (
 	attributes    = []string{"specversion", "id", "source", "type", "time", "datacontenttype", "data", "data_base64"}
 	// jsonEscape matches one escape in a JSON string, capturing a lone UTF-16 surrogate half
 	jsonEscape = regexp.MustCompile(`\\(?:u[dD][89abAB][[:xdigit:]]{2}\\u[dD][c-fC-F][[:xdigit:]]{2}|(u[dD][89a-fA-F][[:xdigit:]]{2})|[^u]|u[[:xdigit:]]{4})`)
-	// lineSeparatorEscape matches the \u2028 and \u2029 escapes encoding/json always writes, and an
-	// escaped backslash so the u after one isn't read as an escape
-	lineSeparatorEscape = regexp.MustCompile(`\\\\|\\u202[89]`)
+	// rewrites matches the \u2028 and \u2029 escapes encoding/json always writes, an escaped
+	// backslash so the u after one isn't read as an escape, and the U+FFFE and U+FFFF it writes raw
+	rewrites = regexp.MustCompile(`\\\\|\\u202[89]|[\x{FFFE}\x{FFFF}]`)
 )
 
+// isJSON trims only spaces and tabs and lowercases only ASCII, since Go, Python, and JS each trim
+// and lowercase Unicode differently.
 func isJSON(contentType string) bool {
 	mediaType, _, _ := strings.Cut(contentType, ";")
-	mediaType = strings.ToLower(strings.TrimSpace(mediaType))
+	mediaType = strings.Map(func(character rune) rune {
+		if 'A' <= character && character <= 'Z' {
+			return character + 'a' - 'A'
+		}
+		return character
+	}, strings.Trim(mediaType, " \t"))
 	return mediaType == "application/json" || strings.HasSuffix(mediaType, "+json")
 }
 
@@ -86,22 +93,26 @@ func encode(message Message, sentAt time.Time) ([]byte, error) {
 	default:
 		event["data_base64"] = message.Data
 	}
-	// NOTE: unescaped <, >, and & keep the size the same as Python's and TS's encoders
+	// NOTE: Python and TS write <, >, and & unescaped
 	var buffer bytes.Buffer
 	encoder := json.NewEncoder(&buffer)
 	encoder.SetEscapeHTML(false)
 	if err := encoder.Encode(event); err != nil {
 		return nil, fmt.Errorf("encode message %s: %w", event["id"], err)
 	}
-	// NOTE: Python and TS write U+2028 and U+2029 unescaped, so the size matches theirs
-	body := lineSeparatorEscape.ReplaceAllFunc(bytes.TrimSuffix(buffer.Bytes(), []byte("\n")), func(escape []byte) []byte {
-		switch string(escape) {
+	// NOTE: Python and TS write U+2028 and U+2029 unescaped, and SQS rejects U+FFFE and U+FFFF raw
+	body := rewrites.ReplaceAllFunc(bytes.TrimSuffix(buffer.Bytes(), []byte("\n")), func(match []byte) []byte {
+		switch string(match) {
 		case `\u2028`:
 			return []byte("\u2028")
 		case `\u2029`:
 			return []byte("\u2029")
+		case "\uFFFE":
+			return []byte(`\ufffe`)
+		case "\uFFFF":
+			return []byte(`\uffff`)
 		}
-		return escape
+		return match
 	})
 	if len(body) > MaxEnvelopeBytes {
 		return nil, fmt.Errorf("encode message %s: envelope is %d bytes, over %d", event["id"], len(body), MaxEnvelopeBytes)

@@ -6,12 +6,13 @@ import logging
 import math
 import re
 import secrets
+import string
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from itertools import accumulate
 from typing import Protocol
-from urllib.parse import SplitResult, parse_qs
+from urllib.parse import SplitResult, parse_qs, unquote
 
 MAX_DELAY = 900.0
 """SQS's DelaySeconds maximum in seconds, the portable ceiling for every delay."""
@@ -24,10 +25,13 @@ EXTENSION_NAME = re.compile(r"[a-z0-9]{1,20}")
 ATTRIBUTES = {"specversion", "id", "source", "type", "time", "datacontenttype", "data", "data_base64"}
 DURATION = re.compile(r"(\d+)(ms|s|m|h)", re.ASCII)
 JSON_STRINGS_AND_SCALARS = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"|[^][{}"]+')
-# NOTE: parse_qs keeps bad % escapes and ; where Go's url.ParseQuery fails
-MALFORMED_QUERY = re.compile(r"%(?![0-9A-Fa-f]{2})|;")
+# NOTE: unquote and parse_qs keep bad % escapes, and parse_qs takes ;, where Go fails
+MALFORMED_ESCAPE = re.compile(r"%(?![0-9A-Fa-f]{2})")
 DURATION_SECONDS = {"ms": 0.001, "s": 1, "m": 60, "h": 3600}
 LONE_SURROGATE = re.compile("[\ud800-\udfff]")
+# NOTE: SQS also rejects the noncharacters U+FFFE and U+FFFF
+UNSENDABLE = re.compile("[\ud800-\udfff\ufffe\uffff]")
+ASCII_LOWERCASE = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
 RFC3339 = re.compile(r"\d{4}-\d\d-\d\dT([01]\d|2[0-3]):\d\d:\d\d(\.\d+)?(Z|[+-]([01]\d|2[0-3]):[0-5]\d)", re.ASCII)
 
 log = logging.getLogger("pandoks_queue")
@@ -72,13 +76,15 @@ class Topic(Protocol):
 
 
 def is_json(content_type: str) -> bool:
-    media_type = content_type.split(";")[0].strip().lower()
+    """Trims only spaces and tabs and lowercases only ASCII, since Go, Python, and JS each trim and
+    lowercase Unicode differently."""
+    media_type = content_type.split(";")[0].strip(" \t").translate(ASCII_LOWERCASE)
     return media_type == "application/json" or media_type.endswith("+json")
 
 
 def encode(message: Message, sent_at: datetime) -> str:
     """Writes message as a CloudEvents 1.0 structured JSON envelope sent at sent_at."""
-    attributes = (message.id or "", message.source, message.type, message.content_type or "", *message.extensions.values())
+    attributes = (message.id, message.source, message.type, message.content_type, *message.extensions.values())
     if not all(isinstance(value, str) for value in attributes):
         raise ValueError("encode message: id, source, type, content type, and extension values must be strings")
     if any(LONE_SURROGATE.search(value) for value in attributes):
@@ -107,7 +113,7 @@ def encode(message: Message, sent_at: datetime) -> str:
         event["data_base64"] = base64.b64encode(message.data).decode()
     body = json.dumps(event, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
     # NOTE: a lone surrogate in data (like JS text cut mid-emoji) can't be UTF-8, so escape it as JS does
-    body = LONE_SURROGATE.sub(lambda match: f"\\u{ord(match[0]):04x}", body)
+    body = UNSENDABLE.sub(lambda match: f"\\u{ord(match[0]):04x}", body)
     if len(body.encode()) > MAX_ENVELOPE_BYTES:
         raise ValueError(f"encode message {event['id']}: envelope is {len(body.encode())} bytes, over {MAX_ENVELOPE_BYTES}")
     return body
@@ -192,15 +198,24 @@ def decode_rows(rows: Iterable[tuple[str | bytes, int, object]], deadline: datet
         try:
             text = body.decode() if isinstance(body, bytes) else body
             deliveries.append(decode(text, attempt=attempt, deadline=deadline, handle=handle))
-        except (ValueError, TypeError, RecursionError):
+        except (ValueError, TypeError):
             log.exception("queue dropped a malformed message")
             malformed.append(handle)
     return deliveries, malformed
 
 
+def decodes(part: str) -> bool:
+    """Reports whether a URL part's % escapes are well formed and UTF-8, as Go and TS require."""
+    try:
+        unquote(part, errors="strict")
+    except UnicodeDecodeError:
+        return False
+    return not MALFORMED_ESCAPE.search(part)
+
+
 def query_params(parsed: SplitResult, *allowed: str) -> dict[str, str]:
     """Returns the URL's query, rejecting parameters outside allowed and repeated ones."""
-    if MALFORMED_QUERY.search(parsed.query):
+    if ";" in parsed.query or not decodes(parsed.query):
         raise ValueError(f"{parsed.scheme} URL: query does not parse")
     params = {}
     for name, values in parse_qs(parsed.query, keep_blank_values=True, errors="strict").items():
@@ -210,14 +225,14 @@ def query_params(parsed: SplitResult, *allowed: str) -> dict[str, str]:
     return params
 
 
-def parse_lease(params: dict[str, str]) -> float:
+def parse_lease(parsed: SplitResult, params: dict[str, str]) -> float:
     """Reads the required lease parameter in seconds, written like 500ms, 30s, 2m, or 1h."""
     match = DURATION.fullmatch(params.get("lease", ""))
     if match is None:
-        raise ValueError(f"lease {params.get('lease')!r} must be a whole number of ms, s, m, or h")
+        raise ValueError(f"{parsed.scheme} URL: lease {params.get('lease')!r} must be a whole number of ms, s, m, or h")
     lease = int(match[1]) * DURATION_SECONDS[match[2]]
     if not 0 < lease <= 12 * 3600:
-        raise ValueError(f"lease {params['lease']!r} must be more than 0 and at most 12h")
+        raise ValueError(f"{parsed.scheme} URL: lease {params['lease']!r} must be more than 0 and at most 12h")
     return lease
 
 

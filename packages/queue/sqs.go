@@ -2,6 +2,7 @@ package queue
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -43,6 +44,10 @@ func awsConfig(ctx context.Context, region, endpoint string) (aws.Config, error)
 }
 
 func openSQS(ctx context.Context, parsed *url.URL) (*sqsQueue, error) {
+	region := sqsHost.FindStringSubmatch(parsed.Host)
+	if region == nil || parsed.User != nil {
+		return nil, errors.New("awssqs URL must be awssqs://sqs.<region>.amazonaws.com/<account>/<name>")
+	}
 	params, err := queryParams(parsed, "lease", "endpoint")
 	if err != nil {
 		return nil, err
@@ -53,10 +58,6 @@ func openSQS(ctx context.Context, parsed *url.URL) (*sqsQueue, error) {
 	}
 	if lease%time.Second != 0 {
 		return nil, fmt.Errorf("awssqs URL: lease %s must be whole seconds", lease)
-	}
-	region := sqsHost.FindStringSubmatch(parsed.Host)
-	if region == nil {
-		return nil, fmt.Errorf("awssqs URL: host %q must be sqs.<region>.amazonaws.com", parsed.Host)
 	}
 	cfg, err := awsConfig(ctx, region[1], params["endpoint"])
 	if err != nil {

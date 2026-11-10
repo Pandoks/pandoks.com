@@ -12,11 +12,11 @@ BATCH_BYTES = 256 << 10
 
 
 def open_topic(parsed: SplitResult) -> SNSTopic:
-    params = query_params(parsed, "endpoint")
     arn = parsed.path.removeprefix("/")
     fields = arn.split(":")
-    if len(fields) != 6 or fields[0] != "arn" or fields[2] != "sns":
-        raise ValueError(f"awssns URL: path {arn!r} must be a topic ARN")
+    if parsed.netloc or len(fields) != 6 or fields[0] != "arn" or fields[2] != "sns":
+        raise ValueError("awssns URL must be awssns:///arn:aws:sns:<region>:<account>:<name>")
+    params = query_params(parsed, "endpoint")
     return SNSTopic(boto3.client("sns", region_name=fields[3], endpoint_url=params.get("endpoint")), arn)
 
 

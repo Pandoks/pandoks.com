@@ -31,13 +31,13 @@ def check_failed(action: str, response: dict) -> None:
 
 
 def open_queue(parsed: SplitResult) -> SQSQueue:
-    params = query_params(parsed, "lease", "endpoint")
-    lease = parse_lease(params)
-    if lease % 1:
-        raise ValueError(f"awssqs URL: lease {params['lease']!r} must be whole seconds")
     region = HOST.fullmatch(parsed.netloc)
     if region is None:
-        raise ValueError(f"awssqs URL: host {parsed.netloc!r} must be sqs.<region>.amazonaws.com")
+        raise ValueError("awssqs URL must be awssqs://sqs.<region>.amazonaws.com/<account>/<name>")
+    params = query_params(parsed, "lease", "endpoint")
+    lease = parse_lease(parsed, params)
+    if lease % 1:
+        raise ValueError(f"awssqs URL: lease {params['lease']!r} must be whole seconds")
     client = boto3.client("sqs", region_name=region[1], endpoint_url=params.get("endpoint"))
     return SQSQueue(client, f"https://{parsed.netloc}{parsed.path}", lease)
 

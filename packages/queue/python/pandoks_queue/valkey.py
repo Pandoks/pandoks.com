@@ -10,7 +10,16 @@ from urllib.parse import SplitResult, unquote
 from valkey.cluster import ValkeyCluster
 from valkey.exceptions import ResponseError
 
-from pandoks_queue.envelope import Delivery, Message, check_delay, decode_rows, encode, parse_lease, query_params
+from pandoks_queue.envelope import (
+    Delivery,
+    Message,
+    check_delay,
+    decode_rows,
+    decodes,
+    encode,
+    parse_lease,
+    query_params,
+)
 
 SCRIPTS = Path(__file__).resolve().parents[2] / "valkey"
 GROUP = "workers"
@@ -22,7 +31,14 @@ def valkey_name(parsed: SplitResult) -> str:
     """Reads <name> from a valkey://[user:password@]host:port/<name> URL. Check it before anything
     that echoes the URL: an unescaped /, ?, or # in the password leaves no valid name."""
     name = unquote(parsed.path.removeprefix("/"))
-    if not parsed.hostname or not name or any(character in name for character in "{}/") or parsed.port is None:
+    parts = (parsed.path, parsed.username or "", parsed.password or "")
+    if (
+        not parsed.hostname
+        or not name
+        or any(character in name for character in "{}/")
+        or not all(map(decodes, parts))
+        or parsed.port is None
+    ):
         raise ValueError("valkey URL must be valkey://[user:password@]host:port/<name>")
     return name
 
@@ -39,9 +55,10 @@ def valkey_client(parsed: SplitResult) -> ValkeyCluster:
 def open_queue(parsed: SplitResult) -> ValkeyQueue:
     name = valkey_name(parsed)
     params = query_params(parsed, "lease", "max_attempts", "subscription")
-    lease = parse_lease(params)
-    if not WHOLE_NUMBER.fullmatch(params.get("max_attempts", "")) or (max_attempts := int(params["max_attempts"])) < 1:
-        raise ValueError(f"valkey URL: max_attempts {params.get('max_attempts')!r} must be at least 1")
+    lease = parse_lease(parsed, params)
+    max_attempts = params.get("max_attempts", "")
+    if not WHOLE_NUMBER.fullmatch(max_attempts) or not 1 <= int(max_attempts) < 2**63:
+        raise ValueError(f"valkey URL: max_attempts {max_attempts!r} must be from 1 to 2^63-1")
     client = valkey_client(parsed)
     prefix = "{" + name + "}"
     if (subscription := params.get("subscription")) is not None:
@@ -54,7 +71,7 @@ def open_queue(parsed: SplitResult) -> ValkeyQueue:
         except BaseException:
             client.close()
             raise
-    return ValkeyQueue(client, prefix, lease, max_attempts)
+    return ValkeyQueue(client, prefix, lease, int(max_attempts))
 
 
 def open_topic(parsed: SplitResult) -> ValkeyTopic:
@@ -86,9 +103,10 @@ class ValkeyQueue:
     def receive(self, max: int) -> list[Delivery]:
         if max < 1:
             raise ValueError(f"receive from Valkey: max {max} must be at least 1")
-        deadline = datetime.now(UTC) + timedelta(seconds=self.lease)
         args = [GROUP, self.consumer, max, round(self.lease * 1000), self.max_attempts]
         rows = self.receive_script(keys=self.keys, args=args)
+        # NOTE: the lease starts when the script runs, which can be well after the call on a busy server
+        deadline = datetime.now(UTC) + timedelta(seconds=self.lease)
         deliveries, malformed = decode_rows(((body, int(attempt), stream_id) for stream_id, body, attempt in rows), deadline)
         self._delete(malformed)
         if not rows:

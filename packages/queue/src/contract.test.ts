@@ -344,13 +344,17 @@ describe('valkey', { timeout: 60_000 }, () => {
     await queue.close();
   });
 
-  test('receive waits out a slow server', async () => {
-    const queue = await openTestQueue(`w${suffix()}`);
+  test('receive waits out a slow server and starts the lease after it', async () => {
+    const queue = await openQueue(
+      `valkey://client:client@${VALKEY}/w${suffix()}?lease=500ms&max_attempts=3`
+    );
     const message = testMessage('slow');
     await queue.send(message);
     const stalled = stall(1);
     await setTimeout(100);
-    expect((await queue.receive(10)).map((delivery) => delivery.id)).toEqual([message.id]);
+    const deliveries = await queue.receive(10);
+    expect(deliveries.map((delivery) => delivery.id)).toEqual([message.id]);
+    expect(deliveries[0].deadline.getTime()).toBeGreaterThan(Date.now());
     await stalled;
     await queue.close();
   });

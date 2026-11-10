@@ -6,12 +6,12 @@ const BATCH_COUNT = 10;
 const BATCH_BYTES = 256 << 10;
 
 export function openTopic(url: URL): SNSTopic {
-  const params = queryParams(url, 'endpoint');
   const arn = url.pathname.replace(/^\//, '');
   const fields = arn.split(':');
-  if (fields.length !== 6 || fields[0] !== 'arn' || fields[2] !== 'sns') {
-    throw new Error(`awssns URL: path ${arn} must be a topic ARN`);
+  if (url.host || fields.length !== 6 || fields[0] !== 'arn' || fields[2] !== 'sns') {
+    throw new Error('awssns URL must be awssns:///arn:aws:sns:<region>:<account>:<name>');
   }
+  const params = queryParams(url, 'endpoint');
   return new SNSTopic(new SNSClient({ region: fields[3], endpoint: params.endpoint }), arn);
 }
 

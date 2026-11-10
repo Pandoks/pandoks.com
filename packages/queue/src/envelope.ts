@@ -67,8 +67,15 @@ export interface Topic {
   close(): Promise<void>;
 }
 
+/**
+ * Trims only spaces and tabs and lowercases only ASCII, since Go, Python, and JS each trim and
+ * lowercase Unicode differently.
+ */
 function isJSON(contentType: string): boolean {
-  const mediaType = contentType.split(';')[0].trim().toLowerCase();
+  const mediaType = contentType
+    .split(';')[0]
+    .replace(/^[ \t]+|[ \t]+$/g, '')
+    .replace(/[A-Z]/g, (letter) => letter.toLowerCase());
   return mediaType === 'application/json' || mediaType.endsWith('+json');
 }
 
@@ -117,7 +124,11 @@ export function encode(message: Message, sentAt: Date): string {
   } else if (message.data) {
     event.data_base64 = Buffer.from(message.data).toString('base64');
   }
-  const body = JSON.stringify(event);
+  // NOTE: SQS rejects the noncharacters U+FFFE and U+FFFF raw
+  const body = JSON.stringify(event).replace(
+    /[\ufffe\uffff]/g,
+    (character) => `\\u${character.charCodeAt(0).toString(16)}`
+  );
   const bytes = Buffer.byteLength(body);
   if (bytes > MAX_ENVELOPE_BYTES) {
     throw new Error(
@@ -285,14 +296,18 @@ export function queryParams(url: URL, ...allowed: string[]): Record<string, stri
 }
 
 /** Reads the required lease parameter in seconds, written like 500ms, 30s, 2m, or 1h. */
-export function parseLease(params: Record<string, string>): number {
+export function parseLease(url: URL, params: Record<string, string>): number {
   const match = DURATION.exec(params.lease ?? '');
   if (!match) {
-    throw new Error(`lease ${params.lease} must be a whole number of ms, s, m, or h`);
+    throw new Error(
+      `${url.protocol} URL: lease ${params.lease} must be a whole number of ms, s, m, or h`
+    );
   }
   const lease = Number(match[1]) * DURATION_SECONDS[match[2]];
   if (lease <= 0 || lease > 12 * 3600) {
-    throw new Error(`lease ${params.lease} must be more than 0 and at most 12h`);
+    throw new Error(
+      `${url.protocol} URL: lease ${params.lease} must be more than 0 and at most 12h`
+    );
   }
   return lease;
 }

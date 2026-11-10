@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/valkey-io/valkey-go"
 )
@@ -47,7 +48,10 @@ var (
 // anything that echoes the URL: an unescaped /, ?, or # in the password leaves no valid name.
 func valkeyName(parsed *url.URL) (string, error) {
 	name := strings.TrimPrefix(parsed.Path, "/")
-	if parsed.Hostname() == "" || parsed.Port() == "" || name == "" || strings.ContainsAny(name, "{}/") {
+	password, _ := parsed.User.Password()
+	decoded := []string{name, parsed.User.Username(), password}
+	if parsed.Hostname() == "" || parsed.Port() == "" || name == "" || strings.ContainsAny(name, "{}/") ||
+		slices.ContainsFunc(decoded, func(part string) bool { return !utf8.ValidString(part) }) {
 		return "", errors.New("valkey URL must be valkey://[user:password@]host:port/<name>")
 	}
 	return name, nil
@@ -92,7 +96,7 @@ func openValkey(ctx context.Context, parsed *url.URL) (*valkeyQueue, error) {
 	}
 	maxAttempts, err := strconv.Atoi(params["max_attempts"])
 	if err != nil || maxAttempts < 1 || !maxAttemptsPattern.MatchString(params["max_attempts"]) {
-		return nil, fmt.Errorf("valkey URL: max_attempts %q must be at least 1", params["max_attempts"])
+		return nil, fmt.Errorf("valkey URL: max_attempts %q must be from 1 to 2^63-1", params["max_attempts"])
 	}
 	client, err := valkeyClient(parsed)
 	if err != nil {
@@ -139,12 +143,13 @@ func (queue *valkeyQueue) Receive(ctx context.Context, max int) ([]*Delivery, er
 	if max < 1 {
 		return nil, fmt.Errorf("receive from Valkey: max %d must be at least 1", max)
 	}
-	deadline := time.Now().Add(queue.lease)
 	args := []string{valkeyGroup, queue.consumer, strconv.Itoa(max), strconv.FormatInt(queue.lease.Milliseconds(), 10), strconv.Itoa(queue.maxAttempts)}
 	rows, err := receiveScript.Exec(ctx, queue.client, queue.keys, args).ToArray()
 	if err != nil {
 		return nil, fmt.Errorf("receive from Valkey: %w", err)
 	}
+	// NOTE: the lease starts when the script runs, which can be well after the call on a busy server
+	deadline := time.Now().Add(queue.lease)
 	deliveries := make([]*Delivery, 0, len(rows))
 	var malformed []*Delivery
 	for _, row := range rows {

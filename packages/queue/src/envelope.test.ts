@@ -15,7 +15,10 @@ function decode(body: string) {
 describe('envelope', () => {
   test.each(readFixtures('envelopes'))('$name round-trips', ({ body }) => {
     const [delivery] = decode(body).deliveries;
-    expect(JSON.parse(encode(delivery, delivery.time))).toEqual(JSON.parse(body));
+    const encoded = encode(delivery, delivery.time);
+    expect(JSON.parse(encoded)).toEqual(JSON.parse(body));
+    // NOTE: SQS rejects them raw
+    expect(encoded).not.toMatch(/[\ufffe\uffff]/);
   });
 
   test('encode rejects what other brokers cannot carry', () => {
@@ -106,30 +109,18 @@ describe('envelope', () => {
     }
   });
 
+  const malformedURLs = JSON.parse(
+    readFileSync(new URL('../testdata/malformed-urls.json', import.meta.url), 'utf8')
+  ) as { queues: string[]; topics: string[] };
   test.each([
-    'lease=1s&max_attempts=0x10',
-    'lease=1s&max_attempts=%2B3',
-    'lease=1s&max_attempts=+3',
-    'lease=1s&max_attempts=1e1',
-    'lease=1s&max_attempts=3&subscription=a%zz',
-    'lease=1s&max_attempts=3&subscription=a%ff',
-    'lease=1s&max_attempts=3&subscription=a;b'
-  ])('open rejects the query %s like Go does', async (query) => {
-    await expect(openQueue(`valkey://127.0.0.1:1/q?${query}`)).rejects.toThrow(/URL/);
+    ...malformedURLs.queues.map((url) => ({ url, open: openQueue })),
+    ...malformedURLs.topics.map((url) => ({ url, open: openTopic }))
+  ])('open rejects $url without echoing its password', async ({ url, open }) => {
+    const error: unknown = await open(url).then(
+      () => undefined,
+      (thrown: unknown) => thrown
+    );
+    expect(String(error)).toMatch(/URL/);
+    expect(JSON.stringify(error) + String(error)).not.toMatch(/xq1|zq2/);
   });
-
-  test.each(['xq1/zq2', 'xq1?zq2', 'xq1#zq2', '123/zq2', '123?zq2', '123#zq2'])(
-    'open keeps the valkey password %s out of errors',
-    async (password) => {
-      const url = `valkey://client:${password}@127.0.0.1:1/q?lease=1s&max_attempts=1`;
-      for (const open of [openQueue, openTopic]) {
-        const error: unknown = await open(url).then(
-          () => undefined,
-          (thrown: unknown) => thrown
-        );
-        expect(error).toBeInstanceOf(Error);
-        expect(JSON.stringify(error) + String(error)).not.toMatch(/xq1|zq2/);
-      }
-    }
-  );
 });

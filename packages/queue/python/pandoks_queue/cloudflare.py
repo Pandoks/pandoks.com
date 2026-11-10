@@ -29,12 +29,13 @@ DEAD_LETTERED = "Message has exhausted maxRetries"
 
 
 def cloudflare_queues(parsed: SplitResult, *allowed: str) -> tuple[list[CloudflareQueue], dict[str, str]]:
+    ids = parsed.path.removeprefix("/").split(",")
+    # NOTE: a port is a user and the start of a password cut off by an unescaped /, ?, or #
+    if not parsed.netloc or any(character in parsed.netloc for character in "@:") or "" in ids:
+        raise ValueError("cloudflare URL must be cloudflare://<account_id>/<queue_id>[,<queue_id>…]")
     params = query_params(parsed, *allowed)
     if not os.environ.get("CLOUDFLARE_API_TOKEN"):
         raise ValueError("cloudflare URL: CLOUDFLARE_API_TOKEN is not set")
-    ids = parsed.path.removeprefix("/").split(",")
-    if not parsed.netloc or "" in ids:
-        raise ValueError(f"cloudflare URL {parsed.geturl()!r} must be cloudflare://<account_id>/<queue_id>[,<queue_id>…]")
     client = Cloudflare()
     return [CloudflareQueue(client, parsed.netloc, queue_id) for queue_id in ids], params
 
@@ -43,7 +44,7 @@ def open_queue(parsed: SplitResult) -> CloudflareQueue:
     queues, params = cloudflare_queues(parsed, "lease")
     if len(queues) != 1:
         raise ValueError("cloudflare URL: a queue has one queue id; a list is a topic")
-    queues[0].lease = parse_lease(params)
+    queues[0].lease = parse_lease(parsed, params)
     return queues[0]
 
 

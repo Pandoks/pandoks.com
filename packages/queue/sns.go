@@ -23,14 +23,14 @@ type snsTopic struct {
 }
 
 func openSNS(ctx context.Context, parsed *url.URL) (*snsTopic, error) {
+	arn := strings.TrimPrefix(parsed.Path, "/")
+	fields := strings.Split(arn, ":")
+	if parsed.Host != "" || parsed.User != nil || len(fields) != 6 || fields[0] != "arn" || fields[2] != "sns" {
+		return nil, errors.New("awssns URL must be awssns:///arn:aws:sns:<region>:<account>:<name>")
+	}
 	params, err := queryParams(parsed, "endpoint")
 	if err != nil {
 		return nil, err
-	}
-	arn := strings.TrimPrefix(parsed.Path, "/")
-	fields := strings.Split(arn, ":")
-	if len(fields) != 6 || fields[0] != "arn" || fields[2] != "sns" {
-		return nil, fmt.Errorf("awssns URL: path %q must be a topic ARN", arn)
 	}
 	cfg, err := awsConfig(ctx, fields[3], params["endpoint"])
 	if err != nil {

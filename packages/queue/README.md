@@ -23,18 +23,22 @@ graph LR
 
 - **Envelope:** the message body on every broker is a CloudEvents 1.0 structured JSON envelope
   (`specversion`, `id`, `source`, `type`, `time`, `datacontenttype`, then `data` or `data_base64`),
-  sent as UTF-8 text. JSON content types (`application/json`, `*+json`) put the data in `data`;
-  anything else goes canonical base64 (padded, no line breaks) in `data_base64`, and an envelope
-  with the other member is malformed. Extensions are top-level string members named
-  `[a-z0-9]{1,20}`; every attribute is a string of valid Unicode (no lone UTF-16 surrogate), never
-  `null`, and a missing `datacontenttype` reads as `application/json`. Numbers in `data` must fit a
-  float64 (no `NaN`, `Infinity`, or `1e400`). `time` is written as UTC with milliseconds
-  (`2026-11-09T18:00:00.123Z`) in every language, and read only as RFC 3339 with an offset.
-  [testdata/envelopes](./testdata/envelopes) holds the golden envelopes each language decodes and
-  re-encodes, and [testdata/malformed](./testdata/malformed) bodies every language rejects.
+  sent as UTF-8 text. JSON content types (`application/json`, `*+json`, read after trimming spaces
+  and tabs and lowercasing ASCII only) put the data in `data`; anything else goes canonical base64
+  (padded, no line breaks) in `data_base64`, and an envelope with the other member is malformed.
+  Extensions are top-level string members named `[a-z0-9]{1,20}`; every attribute is a string of
+  valid Unicode (no lone UTF-16 surrogate), never `null`, and a missing `datacontenttype` reads as
+  `application/json`. Numbers in `data` must fit a float64 (no `NaN`, `Infinity`, or `1e400`).
+  `time` is written as UTC with milliseconds (`2026-11-09T18:00:00.123Z`) in every language, and
+  read only as RFC 3339 with an offset. Encoders escape U+FFFE and U+FFFF, which SQS rejects raw
+  (Moto accepts them). [testdata/envelopes](./testdata/envelopes) holds the golden envelopes each
+  language decodes and re-encodes, and [testdata/malformed](./testdata/malformed) bodies every
+  language rejects.
 - **Size:** `Send` and `Publish` reject an envelope over 120,000 bytes on every broker, so a payload
-  that works on SQS also fits Cloudflare's 128 KB. Store anything bigger in object storage and send
-  a reference.
+  that works on SQS also fits Cloudflare's 128 KB. Each language measures its own encoding: Go keeps
+  escapes in JSON `data` as written (like `\u00e9`), while Python and TS re-encode `data`, so the
+  same message can measure differently. Store anything bigger in object storage and send a
+  reference.
 - **At-least-once:** every broker can deliver a message twice, and no broker fences a late ack.
   Valkey skips a late retry of a delivery whose lease expired and was received again. Handlers
   dedupe on the envelope `id`, which the producer chooses (random when empty) and should make stable
@@ -142,22 +146,24 @@ Credentials come from each SDK's usual environment.
 | Valkey subscription | `valkey://…/<topic>?subscription=<name>&lease=2m&max_attempts=5`                 | Opening one registers it in the topic's set                                    |
 
 `lease` is `<n>ms`, `<n>s`, `<n>m`, or `<n>h`, at most 12 h, and required on every queue;
-`max_attempts` is at least 1, in ASCII digits. Unknown parameters and malformed query strings (a
-`;`, a `%` not followed by two hex digits, or escapes that aren't UTF-8) are errors, and Valkey URLs
-need the port.
+`max_attempts` is required on Valkey queues, from 1 to 2^63 - 1 in ASCII digits. Unknown parameters,
+a `;` in the query, and malformed escapes (a `%` not followed by two hex digits, or escapes that
+aren't UTF-8) in the query or a Valkey name, user, or password are errors. Only Valkey URLs take a
+user and password, and they need the port. Every language rejects the URLs in
+[testdata/malformed-urls.json](./testdata/malformed-urls.json) without echoing their passwords.
 
 ## Brokers
 
-|                  | SQS + SNS                 | Cloudflare Queues, HTTP pull                        | Valkey Streams                                    |
-| ---------------- | ------------------------- | --------------------------------------------------- | ------------------------------------------------- |
-| Send batch       | 10 messages, 1 MiB        | 100 messages, 256 KB                                | any, `send.lua`                                   |
-| Receive          | 10, 20 s long poll        | 100, no long poll: an empty pull waits 1 s (billed) | any, `receive.lua`; an empty one waits 0.1 s      |
-| Delay on send    | native, ≤ 15 min          | native                                              | emulated: zset `{q}:delayed`, promoted on receive |
-| Lease            | visibility timeout        | `visibility_timeout_ms`                             | emulated: `XAUTOCLAIM` after the lease            |
-| Retry with delay | `ChangeMessageVisibility` | `/ack` `retries[].delay_seconds`                    | emulated: `retry.lua`                             |
-| Dead letters     | redrive policy            | consumer `max_retries` + `dead_letter_queue`        | emulated: `{q}:dlq` stream at `max_attempts`      |
-| Topic fan-out    | SNS → SQS, native         | none: `Publish` sends to each queue, not atomic     | emulated: `publish.lua`, atomic in one slot       |
-| Local emulator   | Moto, ElasticMQ           | none                                                | `valkey/valkey` container                         |
+|                  | SQS + SNS                        | Cloudflare Queues, HTTP pull                        | Valkey Streams                                    |
+| ---------------- | -------------------------------- | --------------------------------------------------- | ------------------------------------------------- |
+| Send batch       | 10 messages, 1 MiB (SNS 256 KiB) | 100 messages, 256 KB                                | any, `send.lua`                                   |
+| Receive          | 10, 20 s long poll               | 100, no long poll: an empty pull waits 1 s (billed) | any, `receive.lua`; an empty one waits 0.1 s      |
+| Delay on send    | native, ≤ 15 min                 | native                                              | emulated: zset `{q}:delayed`, promoted on receive |
+| Lease            | visibility timeout               | `visibility_timeout_ms`                             | emulated: `XAUTOCLAIM` after the lease            |
+| Retry with delay | `ChangeMessageVisibility`        | `/ack` `retries[].delay_seconds`                    | emulated: `retry.lua`                             |
+| Dead letters     | redrive policy                   | consumer `max_retries` + `dead_letter_queue`        | emulated: `{q}:dlq` stream at `max_attempts`      |
+| Topic fan-out    | SNS → SQS, native                | none: `Publish` sends to each queue, not atomic     | emulated: `publish.lua`, atomic in one slot       |
+| Local emulator   | Moto, ElasticMQ                  | none                                                | `valkey/valkey` container                         |
 
 The five [Lua scripts](./valkey) are the Valkey adapter's only logic, and every language loads the
 same files. A queue's keys share one hash tag, so a queue (or a topic with its subscriptions) lives
