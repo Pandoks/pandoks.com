@@ -182,7 +182,7 @@ metadata:
   namespace: kube-system
 spec:
   chart: oci://${ImageRegistry}/charts/postgres
-  version: 0.1.4
+  version: 0.1.5
   targetNamespace: &namespace myapp
   createNamespace: true
   failurePolicy: abort
