@@ -28,7 +28,7 @@ func TestCloudflareRequests(t *testing.T) {
 		switch {
 		case strings.HasSuffix(request.URL.Path, "/pull") && len(pushed) > 0:
 			first := pushed[0]["messages"].([]any)[0].(map[string]any)
-			result["messages"] = []map[string]any{{"id": "m1", "body": first["body"], "lease_id": "lease-1", "attempts": 2}}
+			result["messages"] = []map[string]any{{"id": "m1", "body": first["body"], "lease_id": "lease-1", "attempts": 1}}
 		case strings.HasSuffix(request.URL.Path, "/ack"):
 			result["ackCount"] = len(decoded["acks"].([]any))
 			result["retryCount"] = len(decoded["retries"].([]any))

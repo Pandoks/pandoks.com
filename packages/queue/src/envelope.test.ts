@@ -43,19 +43,35 @@ describe('envelope', () => {
     expect(() => decode(body, { attempt: 1, deadline: new Date(), handle: undefined })).toThrow();
   });
 
-  test.each(['2026-11-09T18:00:00', '2026-11-09', '2026-11-09 18:00:00Z'])(
-    'decode rejects the time %s like Go does',
-    (time) => {
-      const body = JSON.stringify({
-        specversion: '1.0',
-        id: 'x',
-        source: '//test',
-        type: 'test',
-        time
-      });
-      expect(() => decode(body, { attempt: 1, deadline: new Date(), handle: undefined })).toThrow();
-    }
-  );
+  test.each([
+    '2026-11-09T18:00:00',
+    '2026-11-09',
+    '2026-11-09 18:00:00Z',
+    '2026-11-09T24:00:00Z',
+    '2026-02-30T18:00:00Z'
+  ])('decode rejects the time %s like Go does', (time) => {
+    const body = JSON.stringify({
+      specversion: '1.0',
+      id: 'x',
+      source: '//test',
+      type: 'test',
+      time
+    });
+    expect(() => decode(body, { attempt: 1, deadline: new Date(), handle: undefined })).toThrow();
+  });
+
+  test('decode rejects both data and data_base64 like Go and Python do', () => {
+    const body = JSON.stringify({
+      specversion: '1.0',
+      id: 'x',
+      source: '//test',
+      type: 'test',
+      time: '2026-11-09T18:00:00.000Z',
+      data: {},
+      data_base64: 'e30='
+    });
+    expect(() => decode(body, { attempt: 1, deadline: new Date(), handle: undefined })).toThrow();
+  });
 
   test.each(['xq1/zq2', 'xq1?zq2', 'xq1#zq2', '123/zq2', '123?zq2', '123#zq2'])(
     'open keeps the valkey password %s out of errors',

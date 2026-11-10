@@ -114,7 +114,7 @@ export class CloudflareQueue implements Queue {
     const { deliveries, malformed } = decodeRows(
       pulled.map((message): [string, number, unknown] => [
         message.body!,
-        message.attempts!,
+        message.attempts! + 1,
         message.lease_id
       ]),
       deadline

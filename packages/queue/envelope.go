@@ -109,6 +109,11 @@ func decode(body []byte, delivery *Delivery) error {
 	if message.ContentType == "" {
 		message.ContentType = "application/json"
 	}
+	_, hasData := event["data"]
+	_, hasBase64 := event["data_base64"]
+	if hasData && hasBase64 {
+		return fmt.Errorf("decode envelope %s: data and data_base64 are mutually exclusive", message.ID)
+	}
 	if raw, ok := event["data_base64"]; ok {
 		var encoded string
 		if err := json.Unmarshal(raw, &encoded); err != nil {

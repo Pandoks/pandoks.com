@@ -20,7 +20,7 @@ const ATTRIBUTES = new Set([
 ]);
 const DURATION = /^(\d+)(ms|s|m|h)$/;
 const DURATION_SECONDS: Record<string, number> = { ms: 0.001, s: 1, m: 60, h: 3600 };
-const RFC3339 = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(Z|[+-]\d\d:\d\d)$/;
+const RFC3339 = /^\d{4}-\d\d-\d\dT([01]\d|2[0-3]):\d\d:\d\d(\.\d+)?(Z|[+-]\d\d:\d\d)$/;
 
 /**
  * What a producer sends. JSON data goes in the envelope's data member, anything else in
@@ -127,8 +127,17 @@ export function decode(
     throw new Error('decode envelope: specversion 1.0, id, source, and type are required');
   }
   const time = new Date(members.time);
-  if (!RFC3339.test(members.time) || Number.isNaN(time.getTime())) {
+  // NOTE: Date rolls a day past the month's end, like Feb 30, over into the next month
+  const day = members.time.slice(0, 10);
+  if (
+    !RFC3339.test(members.time) ||
+    Number.isNaN(time.getTime()) ||
+    new Date(day).toISOString().slice(0, 10) !== day
+  ) {
     throw new Error(`decode envelope ${members.id}: time ${members.time} is not RFC 3339`);
+  }
+  if ('data' in event && 'data_base64' in event) {
+    throw new Error(`decode envelope ${members.id}: data and data_base64 are mutually exclusive`);
   }
   let data: Uint8Array | undefined;
   if ('data_base64' in event) {

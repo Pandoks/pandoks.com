@@ -118,7 +118,7 @@ func (queue *cloudflareQueue) Receive(ctx context.Context, max int) ([]*Delivery
 	deliveries := make([]*Delivery, 0, len(response.Messages))
 	var malformed []*Delivery
 	for _, message := range response.Messages {
-		delivery := &Delivery{Attempt: int(message.Attempts), Deadline: deadline, handle: message.LeaseID}
+		delivery := &Delivery{Attempt: int(message.Attempts) + 1, Deadline: deadline, handle: message.LeaseID}
 		if err := decode([]byte(message.Body), delivery); err != nil {
 			slog.Error("queue dropped a malformed message", "message_id", message.ID, "error", err)
 			malformed = append(malformed, delivery)

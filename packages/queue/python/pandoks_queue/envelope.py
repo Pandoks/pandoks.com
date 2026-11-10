@@ -22,7 +22,7 @@ ATTRIBUTES = {"specversion", "id", "source", "type", "time", "datacontenttype", 
 DURATION = re.compile(r"(\d+)(ms|s|m|h)")
 DURATION_SECONDS = {"ms": 0.001, "s": 1, "m": 60, "h": 3600}
 LONE_SURROGATE = re.compile("[\ud800-\udfff]")
-RFC3339 = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(Z|[+-]\d\d:\d\d)")
+RFC3339 = re.compile(r"\d{4}-\d\d-\d\dT([01]\d|2[0-3]):\d\d:\d\d(\.\d+)?(Z|[+-]\d\d:\d\d)")
 
 log = logging.getLogger("pandoks_queue")
 
@@ -111,6 +111,8 @@ def decode(body: str, **delivery) -> Delivery:
         raise ValueError("decode envelope: specversion 1.0, id, source, and type are required")
     if not RFC3339.fullmatch(members.get("time", "")):
         raise ValueError(f"decode envelope {members['id']}: time {members.get('time')!r} is not RFC 3339")
+    if "data" in event and "data_base64" in event:
+        raise ValueError(f"decode envelope {members['id']}: data and data_base64 are mutually exclusive")
     if "data_base64" in event:
         data = base64.b64decode(event["data_base64"], validate=True)
     elif "data" in event:

@@ -18,7 +18,7 @@ test('cloudflare requests', async () => {
       let result: Record<string, unknown> = {};
       if (path.endsWith('/pull') && pushed) {
         const [first] = pushed[0].messages as { body: string }[];
-        result = { messages: [{ id: 'm1', body: first.body, lease_id: 'lease-1', attempts: 2 }] };
+        result = { messages: [{ id: 'm1', body: first.body, lease_id: 'lease-1', attempts: 1 }] };
       } else if (path.endsWith('/ack')) {
         result = { ackCount: body.acks.length, retryCount: body.retries.length };
       }

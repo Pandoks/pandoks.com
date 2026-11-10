@@ -239,7 +239,7 @@ await new Worker({
   `[tool.uv.sources]`); a built wheel has no Lua files.
 - **TS `data` is parsed with `JSON.parse`,** so numbers past 2^53 lose precision; send them as
   strings.
-- **Valkey clients** need the cluster's `client` ACL from chart 0.1.5 or later: valkey-go otherwise
+- **Valkey clients** need the cluster's `client` ACL from chart 0.1.6 or later: valkey-go otherwise
   silently falls back to a single-node client.
 
 ## Tests

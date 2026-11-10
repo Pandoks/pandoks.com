@@ -78,6 +78,13 @@ func TestEncodeRejectsWhatOtherBrokersCannotCarry(t *testing.T) {
 	}
 }
 
+func TestDecodeRejectsBothDataMembers(t *testing.T) {
+	body := []byte(`{"specversion":"1.0","id":"x","source":"//test","type":"test","time":"2026-11-09T18:00:00.000Z","data":{},"data_base64":"e30="}`)
+	if err := decode(body, &Delivery{}); err == nil {
+		t.Fatal("decode accepted both data and data_base64")
+	}
+}
+
 func TestEncodeSizesHTMLLikePythonAndTS(t *testing.T) {
 	html := Message{Source: "//test", Type: "test", Data: []byte(`"` + strings.Repeat("<&>", (MaxEnvelopeBytes-300)/3) + `"`)}
 	body, err := encode(html, time.Now())

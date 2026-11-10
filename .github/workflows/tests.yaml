@@ -187,22 +187,29 @@ jobs:
           QUEUE_TEST_CLOUDFLARE_SUBSCRIPTION: ${{ steps.queues.outputs.subscription }}
         working-directory: packages/queue
         run: |
-          GOWORK=off go test -race -count=1 -run Cloudflare ./...
-          uv run --project ./python --frozen --all-extras python -m unittest discover -s ./python/tests -k Cloudflare
-          pnpm exec vitest run src/cloudflare.test.ts src/contract.test.ts -t cloudflare
+          failed=0
+          GOWORK=off go test -race -count=1 -run Cloudflare ./... || failed=1
+          uv run --project ./python --frozen --all-extras python -m unittest discover -s ./python/tests -k Cloudflare || failed=1
+          pnpm exec vitest run src/cloudflare.test.ts src/contract.test.ts -t cloudflare || failed=1
+          exit "${failed}"
 
       - name: Delete this run's queues
         if: always() && steps.queues.outputs.dlq != ''
         env:
-          QUEUE_IDS: ${{ steps.queues.outputs.dlq }} ${{ steps.queues.outputs.queue }} ${{ steps.queues.outputs.subscription }}
+          # NOTE: the dead-letter queue goes last, since Cloudflare won't delete it while a consumer names it
+          QUEUE_IDS: ${{ steps.queues.outputs.queue }} ${{ steps.queues.outputs.subscription }} ${{ steps.queues.outputs.dlq }}
         run: |
           api() {
-            curl --fail-with-body -sS -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/queues$1" "${@:2}"
+            local response
+            response=$(curl --fail-with-body -sS -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/queues$1" "${@:2}") ||
+              { echo "${*:2} queues$1 failed: ${response}" >&2; return 1; }
+            echo "${response}"
           }
           failed=0
           for id in ${QUEUE_IDS}; do
-            for consumer in $(api "/${id}/consumers" | jq -er '.result[].consumer_id'); do
+            consumers=$(api "/${id}/consumers") || failed=1
+            for consumer in $(echo "${consumers}" | jq -r '.result[].consumer_id'); do
               api "/${id}/consumers/${consumer}" -X DELETE > /dev/null || failed=1
             done
             api "/${id}" -X DELETE > /dev/null || failed=1

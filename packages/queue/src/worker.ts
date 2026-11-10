@@ -70,7 +70,9 @@ export class Worker {
 
   private async process(delivery: Delivery, signal: AbortSignal): Promise<void> {
     const untilDeadline = delivery.deadline.getTime() - Date.now();
-    const remaining = untilDeadline - Math.min(HANDLER_MARGIN * 1000, untilDeadline / 2);
+    const remaining = Math.floor(
+      untilDeadline - Math.min(HANDLER_MARGIN * 1000, untilDeadline / 2)
+    );
     const handlerSignal = AbortSignal.any([signal, AbortSignal.timeout(Math.max(remaining, 0))]);
     const name = `${delivery.id} (${delivery.type}) attempt ${delivery.attempt}`;
     try {

@@ -406,3 +406,27 @@ func TestValkeyLateRetryLeavesAReclaimedEntry(t *testing.T) {
 		t.Fatalf("the late retry re-queued it: %+v", again[message.ID])
 	}
 }
+
+func TestValkeyReclaimsALeaseBehindFreshOnes(t *testing.T) {
+	rawURL := "valkey://client:client@" + valkeyAddress + "/c" + strings.ToLower(rand.Text()[:10]) + "?lease=500ms&max_attempts=5"
+	fresh, expired := openQueue(t, rawURL), openQueue(t, rawURL)
+	messages := make([]Message, 11)
+	for index := range messages {
+		messages[index] = testMessage("cursor")
+	}
+	if err := fresh.Send(t.Context(), messages...); err != nil {
+		t.Fatal(err)
+	}
+	if deliveries, err := fresh.Receive(t.Context(), len(messages)); err != nil || len(deliveries) != len(messages) {
+		t.Fatalf("got %d deliveries, %v", len(deliveries), err)
+	}
+	time.Sleep(time.Second)
+	// NOTE: re-leasing the first 10 leaves the last expired lease past one XAUTOCLAIM COUNT 1 scan
+	if deliveries, err := fresh.Receive(t.Context(), 10); err != nil || len(deliveries) != 10 {
+		t.Fatalf("got %d deliveries, %v", len(deliveries), err)
+	}
+	deliveries, err := expired.Receive(t.Context(), 1)
+	if err != nil || len(deliveries) != 1 || deliveries[0].ID != messages[10].ID {
+		t.Fatalf("got %+v, %v, want %s", deliveries, err, messages[10].ID)
+	}
+}

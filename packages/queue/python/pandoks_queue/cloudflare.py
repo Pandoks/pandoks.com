@@ -80,7 +80,7 @@ class CloudflareQueue:
         )
         pulled = (response.messages if response else None) or []
         deliveries, malformed = decode_rows(
-            ((message.body, int(message.attempts), message.lease_id) for message in pulled), deadline
+            ((message.body, int(message.attempts) + 1, message.lease_id) for message in pulled), deadline
         )
         self._settle([{"lease_id": handle} for handle in malformed], [])
         # NOTE: pulls don't long-poll and every empty one is a billed read
@@ -105,7 +105,7 @@ class CloudflareQueue:
             self._settle([], [{"lease_id": delivery.handle, "delay_seconds": delay_seconds(delay)} for delivery in batch])
 
     def close(self) -> None:
-        pass
+        self.client.close()
 
 
 class CloudflareTopic:
@@ -123,4 +123,4 @@ class CloudflareTopic:
             subscription.push(published)
 
     def close(self) -> None:
-        pass
+        self.subscriptions[0].client.close()

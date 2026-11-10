@@ -118,3 +118,45 @@ test('the worker releases what it receives after shutdown', async () => {
   expect(handled).toEqual([]);
   expect(settled).toEqual(['retry late after 0']);
 });
+
+test('the worker handles a short lease that ends on an odd millisecond', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  const controller = new AbortController();
+  const deadline = new Date(Date.now() + 1999);
+  const short: Delivery = {
+    id: 'short',
+    source: '//test',
+    type: 'test',
+    contentType: 'application/json',
+    extensions: {},
+    time: deadline,
+    attempt: 1,
+    deadline,
+    handle: 'short'
+  };
+  const acked: string[] = [];
+  const queue: Queue = {
+    send: async () => {},
+    receive: () => Promise.resolve([short]),
+    ack: (...settled) => {
+      acked.push(...settled.map((delivery) => delivery.id));
+      return Promise.resolve();
+    },
+    retry: async () => {},
+    close: async () => {}
+  };
+  try {
+    await new Worker({
+      queue,
+      concurrency: 1,
+      handle: () => {
+        controller.abort();
+        return Promise.resolve();
+      }
+    }).run(controller.signal);
+  } finally {
+    vi.useRealTimers();
+  }
+
+  expect(acked).toEqual(['short']);
+});

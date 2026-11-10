@@ -41,6 +41,11 @@ class EnvelopeTest(unittest.TestCase):
 
     def test_decode_rejects_times_go_rejects(self):
         body = json.loads(FIXTURES[0].read_text())
-        for time in ("2026-11-09T18:00:00", "2026-11-09", "20261109T180000Z"):
+        for time in ("2026-11-09T18:00:00", "2026-11-09", "20261109T180000Z", "2026-11-09T24:00:00Z", "2026-02-30T18:00:00Z"):
             with self.subTest(time), self.assertRaises(ValueError):
                 decode(json.dumps(body | {"time": time}), attempt=1, deadline=datetime.now(UTC))
+
+    def test_decode_rejects_both_data_members(self):
+        body = json.loads(FIXTURES[0].read_text())
+        with self.assertRaises(ValueError):
+            decode(json.dumps(body | {"data": {}, "data_base64": "e30="}), attempt=1, deadline=datetime.now(UTC))

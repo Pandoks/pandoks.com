@@ -25,7 +25,7 @@ class CloudflareRequestsTest(unittest.TestCase):
                 result = {}
                 if self.path.endswith("/pull") and pushed:
                     first = pushed[0]["messages"][0]
-                    result["messages"] = [{"id": "m1", "body": first["body"], "lease_id": "lease-1", "attempts": 2}]
+                    result["messages"] = [{"id": "m1", "body": first["body"], "lease_id": "lease-1", "attempts": 1}]
                 elif self.path.endswith("/ack"):
                     result = {"ackCount": len(body["acks"]), "retryCount": len(body["retries"])}
                 response = json.dumps({"success": True, "errors": [], "messages": [], "result": result}).encode()
@@ -56,7 +56,12 @@ class CloudflareRequestsTest(unittest.TestCase):
             self.assertEqual([(delivery.id, delivery.attempt) for delivery in deliveries], [("m0", 2)])
             queue.retry(3, *deliveries)
             queue.ack(*deliveries)
-            open_topic("cloudflare://acct/q1,q2").publish(Message(source="//test", type="test"))
+            queue.close()
+            self.assertTrue(queue.client.is_closed())
+            topic = open_topic("cloudflare://acct/q1,q2")
+            topic.publish(Message(source="//test", type="test"))
+            topic.close()
+            self.assertTrue(topic.subscriptions[1].client.is_closed())
 
         batches = requests["/accounts/acct/queues/q1/messages/batch"]
         self.assertEqual([len(batch["messages"]) for batch in batches], [100, 50, 1])

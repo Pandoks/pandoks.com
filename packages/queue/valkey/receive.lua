@@ -24,19 +24,24 @@ local function fields(entry)
 end
 
 local out = {}
-local claimed = server.call('XAUTOCLAIM', stream, group, consumer, lease, '0-0', 'COUNT', count)
-for _, entry in ipairs(claimed[2]) do
-  local values = fields(entry)
-  local deliveries = server.call('XPENDING', stream, group, entry[1], entry[1], 1)[1][4]
-  local attempt = tonumber(values.attempt) + deliveries
-  if attempt > max_attempts then
-    server.call('XADD', dlq, '*', 'envelope', values.envelope, 'attempt', attempt - 1, 'source', entry[1])
-    server.call('XACK', stream, group, entry[1])
-    server.call('XDEL', stream, entry[1])
-  else
-    table.insert(out, { entry[1], values.envelope, attempt })
+-- NOTE: one XAUTOCLAIM scans at most 10 * COUNT pending entries, so follow its cursor
+local cursor = '0-0'
+repeat
+  local claimed = server.call('XAUTOCLAIM', stream, group, consumer, lease, cursor, 'COUNT', count - #out)
+  cursor = claimed[1]
+  for _, entry in ipairs(claimed[2]) do
+    local values = fields(entry)
+    local deliveries = server.call('XPENDING', stream, group, entry[1], entry[1], 1)[1][4]
+    local attempt = tonumber(values.attempt) + deliveries
+    if attempt > max_attempts then
+      server.call('XADD', dlq, '*', 'envelope', values.envelope, 'attempt', attempt - 1, 'source', entry[1])
+      server.call('XACK', stream, group, entry[1])
+      server.call('XDEL', stream, entry[1])
+    else
+      table.insert(out, { entry[1], values.envelope, attempt })
+    end
   end
-end
+until cursor == '0-0' or #out >= count
 
 if #out < count then
   local read = server.call('XREADGROUP', 'GROUP', group, consumer, 'COUNT', count - #out, 'STREAMS', stream, '>')
