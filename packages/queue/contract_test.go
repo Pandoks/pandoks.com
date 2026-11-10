@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -512,5 +513,44 @@ func TestValkeyCloseRemovesOnlySettledConsumers(t *testing.T) {
 	}
 	if reclaimed := receive(t, openQueue(t, rawURL), 30*time.Second, message.ID)[message.ID]; reclaimed == nil || reclaimed.Attempt != 2 {
 		t.Fatalf("reclaimed %+v, want the held message's attempt 2", reclaimed)
+	}
+}
+
+func TestValkeyDelaysOnTheServerClock(t *testing.T) {
+	queue := openQueue(t, "valkey://client:client@"+valkeyAddress+"/d"+strings.ToLower(rand.Text()[:10])+"?lease=1m&max_attempts=3")
+	if _, err := queue.Receive(t.Context(), 1); err != nil {
+		t.Fatal(err)
+	}
+	message := testMessage("skew")
+	message.Delay = time.Second
+	sentAt := time.Now()
+	// NOTE: a bubble's clock starts in 2000, like a producer whose clock is decades behind Valkey's
+	synctest.Test(t, func(t *testing.T) {
+		if err := queue.Send(context.Background(), message); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if got := receive(t, queue, 30*time.Second, message.ID)[message.ID]; got == nil || time.Since(sentAt) < time.Second {
+		t.Fatalf("got %+v after %v, want it after its 1s delay", got, time.Since(sentAt))
+	}
+}
+
+func TestValkeyAcksANonUTF8Entry(t *testing.T) {
+	name := "u" + strings.ToLower(rand.Text()[:10])
+	queue, client := openQueue(t, "valkey://client:client@"+valkeyAddress+"/"+name+"?lease=1m&max_attempts=3"), valkeyTestClient(t)
+	stream := "{" + name + "}:stream"
+	if err := client.Do(t.Context(), client.B().Xadd().Key(stream).Id("*").FieldValue().FieldValue("envelope", "\xff").FieldValue("attempt", "0").Build()).Error(); err != nil {
+		t.Fatal(err)
+	}
+	message := testMessage("utf8")
+	if err := queue.Send(t.Context(), message); err != nil {
+		t.Fatal(err)
+	}
+	deliveries, err := queue.Receive(t.Context(), 10)
+	if err != nil || len(deliveries) != 1 || deliveries[0].ID != message.ID {
+		t.Fatalf("got %+v, %v, want only %s", deliveries, err, message.ID)
+	}
+	if length, err := client.Do(t.Context(), client.B().Xlen().Key(stream).Build()).AsInt64(); err != nil || length != 1 {
+		t.Fatalf("stream holds %d entries (%v), want only the valid one", length, err)
 	}
 }

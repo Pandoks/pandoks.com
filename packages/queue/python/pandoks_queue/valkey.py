@@ -1,6 +1,5 @@
 """Valkey cluster queues and topics built from the shared Lua scripts in packages/queue/valkey."""
 
-import json
 import secrets
 import time
 from datetime import UTC, datetime, timedelta
@@ -32,7 +31,6 @@ def valkey_client(parsed: SplitResult) -> ValkeyCluster:
         port=parsed.port,
         username=unquote(parsed.username or "") or None,
         password=unquote(parsed.password or "") or None,
-        decode_responses=True,
     )
 
 
@@ -71,21 +69,18 @@ class ValkeyQueue:
         self.client, self.lease, self.max_attempts = client, lease, max_attempts
         self.keys = [prefix + ":stream", prefix + ":delayed", prefix + ":dlq", prefix + ":reclaim"]
         self.consumer = secrets.token_hex(8)
+        self.send_script = client.register_script((SCRIPTS / "send.lua").read_text())
         self.receive_script = client.register_script((SCRIPTS / "receive.lua").read_text())
         self.retry_script = client.register_script((SCRIPTS / "retry.lua").read_text())
         self.close_script = client.register_script((SCRIPTS / "close.lua").read_text())
 
     def send(self, *messages: Message) -> None:
         sent_at = datetime.now(UTC)
-        pipeline = self.client.pipeline()
+        args = []
         for message in messages:
             body = encode(message, sent_at)
-            if message.delay:
-                due = round((sent_at.timestamp() + message.delay) * 1000)
-                pipeline.zadd(self.keys[1], {json.dumps({"envelope": body, "attempt": 0}): due})
-            else:
-                pipeline.xadd(self.keys[0], {"envelope": body, "attempt": 0})
-        pipeline.execute()
+            args += [round(message.delay * 1000), body]
+        self.send_script(keys=self.keys[:2], args=args)
 
     def receive(self, max: int) -> list[Delivery]:
         if max < 1:
@@ -142,7 +137,7 @@ class ValkeyTopic:
         """Rereads the subscriptions when publish.lua reports they changed since the last read."""
         subscriptions_key = "{" + self.name + "}:subscriptions"
         for _ in range(3):
-            subscriptions = sorted(self.client.smembers(subscriptions_key))
+            subscriptions = sorted(name.decode() for name in self.client.smembers(subscriptions_key))
             keys = [subscriptions_key, *("{" + self.name + "}:" + name + ":stream" for name in subscriptions)]
             try:
                 self.publish_script(keys=keys, args=[body])

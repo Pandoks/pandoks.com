@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	_ "embed"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -23,6 +22,8 @@ const (
 )
 
 var (
+	//go:embed valkey/send.lua
+	sendSource string
 	//go:embed valkey/receive.lua
 	receiveSource string
 	//go:embed valkey/retry.lua
@@ -32,6 +33,7 @@ var (
 	//go:embed valkey/close.lua
 	closeSource string
 
+	sendScript    = valkey.NewLuaScript(sendSource)
 	receiveScript = valkey.NewLuaScript(receiveSource)
 	retryScript   = valkey.NewLuaScript(retrySource)
 	publishScript = valkey.NewLuaScript(publishSource)
@@ -116,28 +118,16 @@ func openValkey(ctx context.Context, parsed *url.URL) (*valkeyQueue, error) {
 
 func (queue *valkeyQueue) Send(ctx context.Context, messages ...Message) error {
 	sentAt := time.Now()
-	commands := make(valkey.Commands, len(messages))
-	for index, message := range messages {
+	args := make([]string, 0, 2*len(messages))
+	for _, message := range messages {
 		body, err := encode(message, sentAt)
 		if err != nil {
 			return err
 		}
-		if message.Delay == 0 {
-			commands[index] = queue.client.B().Xadd().Key(queue.keys[0]).Id("*").FieldValue().
-				FieldValue("envelope", string(body)).FieldValue("attempt", "0").Build()
-			continue
-		}
-		member, err := json.Marshal(map[string]any{"envelope": string(body), "attempt": 0})
-		if err != nil {
-			return fmt.Errorf("send to Valkey: %w", err)
-		}
-		due := sentAt.Add(message.Delay).UnixMilli()
-		commands[index] = queue.client.B().Zadd().Key(queue.keys[1]).ScoreMember().ScoreMember(float64(due), string(member)).Build()
+		args = append(args, strconv.FormatInt(message.Delay.Milliseconds(), 10), string(body))
 	}
-	for _, result := range queue.client.DoMulti(ctx, commands...) {
-		if err := result.Error(); err != nil {
-			return fmt.Errorf("send to Valkey: %w", err)
-		}
+	if err := sendScript.Exec(ctx, queue.client, queue.keys[:2], args).Error(); err != nil {
+		return fmt.Errorf("send to Valkey: %w", err)
 	}
 	return nil
 }

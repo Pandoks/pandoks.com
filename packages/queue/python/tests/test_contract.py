@@ -155,6 +155,25 @@ class ValkeyContractTest(Contract, unittest.TestCase):
         consumers = self.client.xinfo_consumers("{" + name + "}:stream", "workers")
         self.assertEqual([consumer["name"] for consumer in consumers], [holding.consumer])
 
+    def test_delay_follows_the_server_clock(self):
+        message = replace(test_message("skew"), delay=1)
+        sent_at = time.monotonic()
+        with mock.patch("pandoks_queue.valkey.datetime") as clock:
+            clock.now.return_value = datetime.now(UTC) + timedelta(hours=1)
+            self.queue.send(message)
+        self.assertIn(message.id, receive(self.queue, WAIT, message.id))
+        self.assertGreaterEqual(time.monotonic() - sent_at, 1)
+
+    def test_receive_acks_a_non_utf8_entry(self):
+        name = f"u{secrets.token_hex(5)}"
+        queue = self.open(f"valkey://client:client@127.0.0.1:{VALKEY_PORT}/{name}?lease=1m&max_attempts=3")
+        self.client.xadd("{" + name + "}:stream", {"envelope": b"\xff", "attempt": 0})
+        message = test_message("utf8")
+        queue.send(message)
+        with self.assertLogs("pandoks_queue"):
+            self.assertEqual([delivery.id for delivery in queue.receive(10)], [message.id])
+        self.assertEqual(self.client.xlen("{" + name + "}:stream"), 1)
+
     def test_open_closes_the_client_when_subscribing_fails(self):
         name = f"s{secrets.token_hex(5)}"
         self.client.set("{" + name + "}:subscriptions", "not a set")

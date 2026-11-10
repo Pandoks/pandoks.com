@@ -62,6 +62,7 @@ test('cloudflare requests', async () => {
     content_type: 'text',
     delay_seconds: 2
   });
+  expect((batches[0].messages as Record<string, unknown>[])[1]).not.toHaveProperty('delay_seconds');
   expect(requests['/accounts/acct/queues/q2/messages/batch']).toHaveLength(1);
   expect(requests['/accounts/acct/queues/q1/messages/pull'][0]).toEqual({
     batch_size: 100,

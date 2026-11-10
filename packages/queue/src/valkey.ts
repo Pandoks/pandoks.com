@@ -1,7 +1,7 @@
 // Valkey cluster queues and topics built from the shared Lua scripts in packages/queue/valkey.
 import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { ClusterBatch, GlideClusterClient, Script } from '@valkey/valkey-glide';
+import { ClusterBatch, Decoder, GlideClusterClient, Script } from '@valkey/valkey-glide';
 import {
   checkDelay,
   decodeRows,
@@ -17,6 +17,8 @@ import {
 
 const GROUP = 'workers';
 const EMPTY_POLL_DELAY = 0.1;
+// NOTE: GLIDE's 250 ms default fails a slow receive or send that Valkey still applies
+const REQUEST_TIMEOUT_MS = 10_000;
 
 function script(name: string): Script {
   return new Script(readFileSync(new URL(`../valkey/${name}.lua`, import.meta.url), 'utf8'));
@@ -42,7 +44,8 @@ function valkeyClient(url: URL): Promise<GlideClusterClient> {
           username: decodeURIComponent(url.username) || undefined,
           password: decodeURIComponent(url.password)
         }
-      : undefined
+      : undefined,
+    requestTimeout: REQUEST_TIMEOUT_MS
   });
 }
 
@@ -85,6 +88,7 @@ export class ValkeyQueue implements Queue {
   consumer = randomBytes(8).toString('hex');
   lease: number;
   maxAttempts: number;
+  sendScript = script('send');
   receiveScript = script('receive');
   retryScript = script('retry');
   closeScript = script('close');
@@ -98,28 +102,18 @@ export class ValkeyQueue implements Queue {
 
   async send(...messages: Message[]): Promise<void> {
     const sentAt = new Date();
-    const batch = new ClusterBatch(false);
-    for (const message of messages) {
+    const args = messages.flatMap((message) => {
       const body = encode(message, sentAt);
-      if (message.delay) {
-        const due = sentAt.getTime() + Math.round(message.delay * 1000);
-        batch.zadd(this.keys[1], [
-          { element: JSON.stringify({ envelope: body, attempt: 0 }), score: due }
-        ]);
-      } else {
-        batch.xadd(this.keys[0], [
-          ['envelope', body],
-          ['attempt', '0']
-        ]);
-      }
-    }
-    await this.client.exec(batch, true);
+      return [String(Math.round((message.delay ?? 0) * 1000)), body];
+    });
+    await this.client.invokeScript(this.sendScript, { keys: this.keys.slice(0, 2), args });
   }
 
   async receive(max: number, signal?: AbortSignal): Promise<Delivery[]> {
     if (max < 1) throw new Error(`receive from Valkey: max ${max} must be at least 1`);
+    if (signal?.aborted) return [];
     const deadline = new Date(Date.now() + this.lease * 1000);
-    const rows = (await this.client.invokeScript(this.receiveScript, {
+    const invocation = this.client.invokeScript(this.receiveScript, {
       keys: this.keys,
       args: [
         GROUP,
@@ -127,10 +121,26 @@ export class ValkeyQueue implements Queue {
         String(max),
         String(Math.round(this.lease * 1000)),
         String(this.maxAttempts)
-      ]
-    })) as [string, string, number][];
+      ],
+      decoder: Decoder.Bytes
+    }) as Promise<[Buffer, Buffer, number][]>;
+    // NOTE: GLIDE takes no signal, so stop waiting on abort; leased rows return after the lease
+    const aborted = Promise.withResolvers<undefined>();
+    const onAbort = () => aborted.resolve(undefined);
+    signal?.addEventListener('abort', onAbort);
+    let rows;
+    try {
+      rows = await Promise.race([invocation, aborted.promise]);
+    } finally {
+      signal?.removeEventListener('abort', onAbort);
+    }
+    if (!rows) return [];
     const { deliveries, malformed } = decodeRows(
-      rows.map(([streamID, body, attempt]): [string, number, unknown] => [body, attempt, streamID]),
+      rows.map(([streamID, body, attempt]): [Uint8Array, number, unknown] => [
+        body,
+        attempt,
+        streamID.toString()
+      ]),
       deadline
     );
     await this.delete(malformed as string[]);
@@ -167,6 +177,7 @@ export class ValkeyQueue implements Queue {
         args: [GROUP, this.consumer]
       });
     } finally {
+      this.sendScript.release();
       this.receiveScript.release();
       this.retryScript.release();
       this.closeScript.release();

@@ -74,11 +74,15 @@ func cloudflareEntries(messages []Message, sentAt time.Time) ([]queues.MessageBu
 		if err != nil {
 			return nil, err
 		}
-		entries[index] = queues.MessageBulkPushParamsMessagesMqQueueMessageText{
-			Body:         cloudflare.F(string(body)),
-			ContentType:  cloudflare.F(queues.MessageBulkPushParamsMessagesMqQueueMessageTextContentTypeText),
-			DelaySeconds: cloudflare.F(float64(delaySeconds(message.Delay))),
+		entry := queues.MessageBulkPushParamsMessagesMqQueueMessageText{
+			Body:        cloudflare.F(string(body)),
+			ContentType: cloudflare.F(queues.MessageBulkPushParamsMessagesMqQueueMessageTextContentTypeText),
 		}
+		// NOTE: an explicit 0 overrides the queue's default delivery delay
+		if message.Delay > 0 {
+			entry.DelaySeconds = cloudflare.F(float64(delaySeconds(message.Delay)))
+		}
+		entries[index] = entry
 	}
 	return entries, nil
 }

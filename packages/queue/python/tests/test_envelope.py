@@ -34,6 +34,9 @@ class EnvelopeTest(unittest.TestCase):
             "source": replace(valid, source=1),
             "type": replace(valid, type=b"test"),
             "extension value": replace(valid, extensions={"ext": 1}),
+            "lone surrogate id": replace(valid, id="cut \ud83d"),
+            "lone surrogate content type": replace(valid, content_type="text/plain\udc00"),
+            "lone surrogate extension": replace(valid, extensions={"ext": "\udc00"}),
         }.items():
             with self.subTest(name), self.assertRaises(ValueError):
                 encode(message, datetime.now(UTC))

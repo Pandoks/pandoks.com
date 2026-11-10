@@ -83,6 +83,9 @@ func TestCloudflareRequests(t *testing.T) {
 	if first["content_type"] != "text" || first["delay_seconds"] != 2.0 {
 		t.Errorf("first message %v, want text with its delay rounded up to 2 s", first)
 	}
+	if second := batches[0]["messages"].([]any)[1].(map[string]any); second["delay_seconds"] != nil {
+		t.Errorf("second message %v, want no delay_seconds, which would override the queue's default", second)
+	}
 	if len(requests["/accounts/acct/queues/q2/messages/batch"]) != 1 {
 		t.Error("the topic skipped its second queue")
 	}

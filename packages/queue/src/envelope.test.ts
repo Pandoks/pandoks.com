@@ -26,7 +26,10 @@ describe('envelope', () => {
       { ...valid, delay: MAX_DELAY + 1 },
       { ...valid, data: new TextEncoder().encode(JSON.stringify('x'.repeat(MAX_ENVELOPE_BYTES))) },
       { ...valid, data: new TextEncoder().encode('{') },
-      { ...valid, data: new TextEncoder().encode('1e400') }
+      { ...valid, data: new TextEncoder().encode('1e400') },
+      { ...valid, id: 'cut \ud83d' },
+      { ...valid, contentType: 'text/plain\udc00' },
+      { ...valid, extensions: { ext: '\udc00' } }
     ];
     for (const message of invalid) {
       expect(() => encode(message, new Date())).toThrow();

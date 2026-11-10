@@ -1,6 +1,7 @@
 // The contract every adapter meets, against compose.yaml's brokers and, in CI, Cloudflare.
 import { randomBytes } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
+import { setTimeout } from 'node:timers/promises';
 import { CreateQueueCommand, GetQueueAttributesCommand, SQSClient } from '@aws-sdk/client-sqs';
 import { CreateTopicCommand, SNSClient, SubscribeCommand } from '@aws-sdk/client-sns';
 import { GlideClusterClient } from '@valkey/valkey-glide';
@@ -293,15 +294,81 @@ describe('sqs', () => {
   });
 });
 
-describe('valkey', () => {
+describe('valkey', { timeout: 60_000 }, () => {
   let client: GlideClusterClient;
   beforeAll(async () => {
     client = await GlideClusterClient.createClient({
       addresses: [{ host: '127.0.0.1', port: 16379 }],
-      credentials: { username: 'client', password: 'client' }
+      credentials: { username: 'client', password: 'client' },
+      requestTimeout: 10_000
     });
   });
   afterAll(() => client.close());
+
+  /** Busies the server for seconds, as another client's slow script would. */
+  function stall(seconds: number): Promise<unknown> {
+    const script = `local stop = os.clock() + ${seconds} while os.clock() < stop do end`;
+    return client.customCommand(['EVAL', script, '0']);
+  }
+
+  async function openTestQueue(name: string): Promise<Queue> {
+    return openQueue(`valkey://client:client@${VALKEY}/${name}?lease=1m&max_attempts=3`);
+  }
+
+  test('a delay follows the server clock, not the producer clock', async () => {
+    const queue = await openTestQueue(`d${suffix()}`);
+    const message = { ...testMessage('skew'), delay: 1 };
+    const sentAt = performance.now();
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + 3_600_000 });
+    try {
+      await queue.send(message);
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(await receive(queue, WAIT, message.id)).toHaveProperty(message.id);
+    expect(performance.now() - sentAt).toBeGreaterThanOrEqual(1000);
+    await queue.close();
+  });
+
+  test('receive acks a non-UTF-8 entry', async () => {
+    const name = `u${suffix()}`;
+    const queue = await openTestQueue(name);
+    await client.xadd(`{${name}}:stream`, [
+      ['envelope', Buffer.from([0xff])],
+      ['attempt', '0']
+    ]);
+    const message = testMessage('utf8');
+    await queue.send(message);
+    expect((await queue.receive(10)).map((delivery) => delivery.id)).toEqual([message.id]);
+    expect(await client.xlen(`{${name}}:stream`)).toBe(1);
+    await queue.close();
+  });
+
+  test('receive waits out a slow server', async () => {
+    const queue = await openTestQueue(`w${suffix()}`);
+    const message = testMessage('slow');
+    await queue.send(message);
+    const stalled = stall(1);
+    await setTimeout(100);
+    expect((await queue.receive(10)).map((delivery) => delivery.id)).toEqual([message.id]);
+    await stalled;
+    await queue.close();
+  });
+
+  test('receive returns nothing once aborted, even on a stalled server', async () => {
+    const queue = await openTestQueue(`a${suffix()}`);
+    const message = testMessage('abort');
+    await queue.send(message);
+    expect(await queue.receive(10, AbortSignal.abort())).toEqual([]);
+    expect((await queue.receive(10)).map((delivery) => delivery.attempt)).toEqual([1]);
+    const stalled = stall(2);
+    await setTimeout(100);
+    const started = performance.now();
+    expect(await queue.receive(10, AbortSignal.timeout(200))).toEqual([]);
+    expect(performance.now() - started).toBeLessThan(1000);
+    await stalled;
+    await queue.close();
+  });
 
   test('close removes only settled consumers', async () => {
     const name = `x${suffix()}`;

@@ -25,12 +25,13 @@ graph LR
   (`specversion`, `id`, `source`, `type`, `time`, `datacontenttype`, then `data` or `data_base64`),
   sent as UTF-8 text. JSON content types (`application/json`, `*+json`) put the data in `data`;
   anything else goes canonical base64 (padded, no line breaks) in `data_base64`. Extensions are
-  top-level string members named `[a-z0-9]{1,20}`; every attribute is a string, never `null`, and a
-  missing `datacontenttype` reads as `application/json`. Numbers in `data` must fit a float64 (no
-  `NaN`, `Infinity`, or `1e400`). `time` is written as UTC with milliseconds
-  (`2026-11-09T18:00:00.123Z`) in every language, and read only as RFC 3339 with an offset.
-  [testdata/envelopes](./testdata/envelopes) holds the golden envelopes each language decodes and
-  re-encodes, and [testdata/malformed](./testdata/malformed) bodies every language rejects.
+  top-level string members named `[a-z0-9]{1,20}`; every attribute is a string of valid Unicode (no
+  lone UTF-16 surrogate), never `null`, and a missing `datacontenttype` reads as `application/json`.
+  Numbers in `data` must fit a float64 (no `NaN`, `Infinity`, or `1e400`). `time` is written as UTC
+  with milliseconds (`2026-11-09T18:00:00.123Z`) in every language, and read only as RFC 3339 with
+  an offset. [testdata/envelopes](./testdata/envelopes) holds the golden envelopes each language
+  decodes and re-encodes, and [testdata/malformed](./testdata/malformed) bodies every language
+  rejects.
 - **Size:** `Send` and `Publish` reject an envelope over 120,000 bytes on every broker, so a payload
   that works on SQS also fits Cloudflare's 128 KB. Store anything bigger in object storage and send
   a reference.
@@ -45,13 +46,14 @@ graph LR
   `ApproximateReceiveCount` is approximate).
 - **Retry:** `Retry(delay)` releases the delivery to come back after `delay`, which, like `Send`'s
   `Delay`, is at most 15 min (`MaxDelay`, SQS's ceiling). SQS and Cloudflare round delays up to
-  whole seconds. A zero `Delay` on SQS leaves the queue's own default delay (its `DelaySeconds`
-  attribute) in place.
+  whole seconds. A zero `Delay` keeps the queue's own default delay on SQS (its `DelaySeconds`
+  attribute) and Cloudflare (its `delivery_delay`), and is immediate on Valkey, which has none; a
+  zero `Retry` delay is immediate on every broker. Valkey times delays on its server clock.
 - **Dead letters:** after the broker's attempt limit a delivery moves to its dead-letter queue: SQS
   redrive `maxReceiveCount`, Cloudflare `max_retries` and `dead_letter_queue`, or Valkey's
   `max_attempts`, which writes to the `{<queue>}:dlq` stream.
-- **Malformed bodies:** a body that isn't a valid envelope is logged and acked by `Receive`, not
-  retried.
+- **Malformed bodies:** a body that isn't a valid UTF-8 envelope is logged and acked by `Receive`,
+  not retried.
 - **Topics:** a topic fans each message out to subscription queues, and each subscription is an
   ordinary queue with its own lease, retries, and dead letters. `Publish` takes no delay.
 
@@ -146,7 +148,7 @@ parameters and malformed query strings are errors, and Valkey URLs need the port
 
 |                  | SQS + SNS                 | Cloudflare Queues, HTTP pull                        | Valkey Streams                                    |
 | ---------------- | ------------------------- | --------------------------------------------------- | ------------------------------------------------- |
-| Send batch       | 10 messages, 1 MiB        | 100 messages, 256 KB                                | pipelined `XADD`                                  |
+| Send batch       | 10 messages, 1 MiB        | 100 messages, 256 KB                                | any, `send.lua`                                   |
 | Receive          | 10, 20 s long poll        | 100, no long poll: an empty pull waits 1 s (billed) | any, `receive.lua`; an empty one waits 0.1 s      |
 | Delay on send    | native, ≤ 15 min          | native                                              | emulated: zset `{q}:delayed`, promoted on receive |
 | Lease            | visibility timeout        | `visibility_timeout_ms`                             | emulated: `XAUTOCLAIM` after the lease            |
@@ -155,7 +157,7 @@ parameters and malformed query strings are errors, and Valkey URLs need the port
 | Topic fan-out    | SNS → SQS, native         | none: `Publish` sends to each queue, not atomic     | emulated: `publish.lua`, atomic in one slot       |
 | Local emulator   | Moto, ElasticMQ           | none                                                | `valkey/valkey` container                         |
 
-The four [Lua scripts](./valkey) are the Valkey adapter's only logic, and every language loads the
+The five [Lua scripts](./valkey) are the Valkey adapter's only logic, and every language loads the
 same files. A queue's keys share one hash tag, so a queue (or a topic with its subscriptions) lives
 on one shard. Each receive runs one `XAUTOCLAIM`, which scans at most 10 × `max` leased entries from
 the cursor the last receive stored in `{q}:reclaim`, so an expired lease behind N live ones comes

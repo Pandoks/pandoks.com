@@ -75,6 +75,18 @@ export function encode(message: Message, sentAt: Date): string {
   if (!message.source || !message.type) {
     throw new Error('encode message: source and type are required');
   }
+  const attributes = [
+    message.id ?? '',
+    message.source,
+    message.type,
+    message.contentType ?? '',
+    ...Object.values(message.extensions ?? {})
+  ];
+  if (!attributes.every((value) => value.isWellFormed())) {
+    throw new Error(
+      'encode message: id, source, type, content type, and extension values must be valid Unicode'
+    );
+  }
   checkDelay(message.delay ?? 0);
   for (const name of Object.keys(message.extensions ?? {})) {
     if (!EXTENSION_NAME.test(name) || ATTRIBUTES.has(name)) {
@@ -132,6 +144,9 @@ function decode(
     if (typeof value !== 'string') {
       throw new Error(`decode envelope: ${name} is not a string`);
     }
+    if (!value.isWellFormed()) {
+      throw new Error(`decode envelope: ${name} escapes half a UTF-16 surrogate pair`);
+    }
     if (!ATTRIBUTES.has(name) && !EXTENSION_NAME.test(name)) {
       throw new Error(`decode envelope: extension name ${name} is not [a-z0-9]{1,20}`);
     }
@@ -185,17 +200,21 @@ function decode(
 
 /**
  * Decodes [body, attempt, handle] rows, returning the deliveries and the handles of malformed
- * messages, which adapters ack and log instead of retrying.
+ * messages, including bodies that aren't UTF-8, which adapters ack and log instead of retrying.
  */
 export function decodeRows(
-  rows: [string, number, unknown][],
+  rows: [string | Uint8Array, number, unknown][],
   deadline: Date
 ): { deliveries: Delivery[]; malformed: unknown[] } {
   const deliveries: Delivery[] = [];
   const malformed: unknown[] = [];
   for (const [body, attempt, handle] of rows) {
     try {
-      deliveries.push(decode(body, { attempt, deadline, handle }));
+      const text =
+        typeof body === 'string'
+          ? body
+          : new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(body);
+      deliveries.push(decode(text, { attempt, deadline, handle }));
     } catch (error) {
       console.error('queue dropped a malformed message', error);
       malformed.push(handle);

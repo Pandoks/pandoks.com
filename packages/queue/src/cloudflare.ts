@@ -25,7 +25,7 @@ const DEAD_LETTERED = 'Message has exhausted maxRetries';
 interface Entry {
   body: string;
   content_type: 'text';
-  delay_seconds: number;
+  delay_seconds?: number;
 }
 
 function cloudflareQueues(
@@ -61,10 +61,11 @@ export function openTopic(url: URL): CloudflareTopic {
 
 function entries(messages: Message[]): Entry[] {
   const sentAt = new Date();
+  // NOTE: an explicit 0 overrides the queue's default delivery delay
   return messages.map((message) => ({
     body: encode(message, sentAt),
     content_type: 'text',
-    delay_seconds: delaySeconds(message.delay ?? 0)
+    ...(message.delay ? { delay_seconds: delaySeconds(message.delay) } : {})
   }));
 }
 

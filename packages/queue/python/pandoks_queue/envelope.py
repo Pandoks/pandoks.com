@@ -72,9 +72,11 @@ def is_json(content_type: str) -> bool:
 
 def encode(message: Message, sent_at: datetime) -> str:
     """Writes message as a CloudEvents 1.0 structured JSON envelope sent at sent_at."""
-    attributes = (message.id or "", message.source, message.type, *message.extensions.values())
+    attributes = (message.id or "", message.source, message.type, message.content_type or "", *message.extensions.values())
     if not all(isinstance(value, str) for value in attributes):
-        raise ValueError("encode message: id, source, type, and extension values must be strings")
+        raise ValueError("encode message: id, source, type, content type, and extension values must be strings")
+    if any(LONE_SURROGATE.search(value) for value in attributes):
+        raise ValueError("encode message: id, source, type, content type, and extension values must be valid Unicode")
     if not message.source or not message.type:
         raise ValueError("encode message: source and type are required")
     check_delay(message.delay)
@@ -95,7 +97,7 @@ def encode(message: Message, sent_at: datetime) -> str:
     elif message.data is not None:
         event["data_base64"] = base64.b64encode(message.data).decode()
     body = json.dumps(event, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
-    # NOTE: a lone surrogate (like JS text cut mid-emoji) can't be UTF-8, so escape it as JS does
+    # NOTE: a lone surrogate in data (like JS text cut mid-emoji) can't be UTF-8, so escape it as JS does
     body = LONE_SURROGATE.sub(lambda match: f"\\u{ord(match[0]):04x}", body)
     if len(body.encode()) > MAX_ENVELOPE_BYTES:
         raise ValueError(f"encode message {event['id']}: envelope is {len(body.encode())} bytes, over {MAX_ENVELOPE_BYTES}")
@@ -110,6 +112,8 @@ def decode(body: str, **delivery) -> Delivery:
     members = {name: value for name, value in event.items() if name != "data"}
     if not all(isinstance(value, str) for value in members.values()):
         raise ValueError("decode envelope: every attribute, extension, and data_base64 must be a string")
+    if any(LONE_SURROGATE.search(value) for value in members.values()):
+        raise ValueError("decode envelope: an attribute or extension escapes half a UTF-16 surrogate pair")
     for name in members.keys() - ATTRIBUTES:
         if not EXTENSION_NAME.fullmatch(name):
             raise ValueError(f"decode envelope: extension name {name!r} is not [a-z0-9]{{1,20}}")
@@ -161,13 +165,15 @@ def finite_int(text: str) -> int:
     return int(text)
 
 
-def decode_rows(rows: Iterable[tuple[str, int, object]], deadline: datetime) -> tuple[list[Delivery], list[object]]:
+def decode_rows(rows: Iterable[tuple[str | bytes, int, object]], deadline: datetime) -> tuple[list[Delivery], list[object]]:
     """Decodes (body, attempt, handle) rows, returning the deliveries and the handles of
-    malformed messages, which adapters ack and log instead of retrying."""
+    malformed messages, including bodies that aren't UTF-8, which adapters ack and log instead of
+    retrying."""
     deliveries, malformed = [], []
     for body, attempt, handle in rows:
         try:
-            deliveries.append(decode(body, attempt=attempt, deadline=deadline, handle=handle))
+            text = body.decode() if isinstance(body, bytes) else body
+            deliveries.append(decode(text, attempt=attempt, deadline=deadline, handle=handle))
         except (ValueError, TypeError):
             log.exception("queue dropped a malformed message")
             malformed.append(handle)

@@ -69,6 +69,7 @@ class CloudflareRequestsTest(unittest.TestCase):
         self.assertEqual([len(batch["messages"]) for batch in batches], [100, 50, 1])
         self.assertEqual(batches[0]["messages"][0]["content_type"], "text")
         self.assertEqual(batches[0]["messages"][0]["delay_seconds"], 2)
+        self.assertNotIn("delay_seconds", batches[0]["messages"][1])
         self.assertEqual(len(requests["/accounts/acct/queues/q2/messages/batch"]), 1)
         self.assertEqual(requests["/accounts/acct/queues/q1/messages/pull"][0], {"batch_size": 100, "visibility_timeout_ms": 90000})
         retry, ack = requests["/accounts/acct/queues/q1/messages/ack"]

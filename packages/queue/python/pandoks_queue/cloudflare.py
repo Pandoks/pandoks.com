@@ -53,8 +53,10 @@ def open_topic(parsed: SplitResult) -> CloudflareTopic:
 
 def entries(messages: tuple[Message, ...]) -> list[dict]:
     sent_at = datetime.now(UTC)
+    # NOTE: an explicit 0 overrides the queue's default delivery delay
     return [
-        {"body": encode(message, sent_at), "content_type": "text", "delay_seconds": delay_seconds(message.delay)}
+        {"body": encode(message, sent_at), "content_type": "text"}
+        | ({"delay_seconds": delay_seconds(message.delay)} if message.delay else {})
         for message in messages
     ]
 

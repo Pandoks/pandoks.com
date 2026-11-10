@@ -23,6 +23,8 @@ var (
 	extensionName = regexp.MustCompile(`^[a-z0-9]{1,20}$`)
 	rfc3339       = regexp.MustCompile(`^\d{4}-\d\d-\d\dT([01]\d|2[0-3]):\d\d:\d\d(\.\d+)?(Z|[+-]([01]\d|2[0-3]):[0-5]\d)$`)
 	attributes    = []string{"specversion", "id", "source", "type", "time", "datacontenttype", "data", "data_base64"}
+	// jsonEscape matches one escape in a JSON string, capturing a lone UTF-16 surrogate half
+	jsonEscape = regexp.MustCompile(`\\(?:u[dD][89abAB][[:xdigit:]]{2}\\u[dD][c-fC-F][[:xdigit:]]{2}|(u[dD][89a-fA-F][[:xdigit:]]{2})|[^u]|u[[:xdigit:]]{4})`)
 )
 
 func isJSON(contentType string) bool {
@@ -94,6 +96,17 @@ func finiteJSON(data []byte) bool {
 	return json.Unmarshal(data, new(any)) == nil
 }
 
+// hasLoneSurrogate reports whether a JSON string escapes half a surrogate pair, which encoding/json
+// reads as U+FFFD while Python and TS keep it.
+func hasLoneSurrogate(raw []byte) bool {
+	for _, match := range jsonEscape.FindAllSubmatchIndex(raw, -1) {
+		if match[2] >= 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // decode reads an envelope into the delivery's message and send time.
 func decode(body []byte, delivery *Delivery) error {
 	if !utf8.Valid(body) {
@@ -111,6 +124,9 @@ func decode(body []byte, delivery *Delivery) error {
 		var value *string
 		if err := json.Unmarshal(raw, &value); err != nil || value == nil {
 			return fmt.Errorf("decode envelope: %s is not a string", name)
+		}
+		if hasLoneSurrogate(raw) {
+			return fmt.Errorf("decode envelope: %s escapes half a UTF-16 surrogate pair", name)
 		}
 		if !slices.Contains(attributes, name) && !extensionName.MatchString(name) {
 			return fmt.Errorf("decode envelope: extension name %q is not [a-z0-9]{1,20}", name)
