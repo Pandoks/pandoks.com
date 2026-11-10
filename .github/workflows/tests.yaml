@@ -22,7 +22,7 @@ jobs:
       web: ${{ steps.filter.outputs.web }}
       desktop: ${{ steps.filter.outputs.desktop }}
       svelte: ${{ steps.filter.outputs.svelte }}
-      prettier: ${{ steps.filter.outputs.prettier }}
+      prettier-pkg: ${{ steps.filter.outputs.prettier-pkg }}
       valkey-reconciler: ${{ steps.filter.outputs.valkey-reconciler }}
 
     steps:
@@ -31,34 +31,7 @@ jobs:
       - id: filter
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
-          filters: |
-            shared-node-setup: &shared-node-setup
-              - '.github/workflows/tests.yaml'
-              - '.github/actions/setup-node-pnpm/**'
-              - 'mise.toml'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-            web:
-              - 'apps/web/**'
-              - 'packages/svelte/**'
-              - *shared-node-setup
-            desktop:
-              - 'apps/desktop-template/**'
-              - 'packages/svelte/**'
-              - *shared-node-setup
-            svelte:
-              - 'packages/svelte/**'
-              - *shared-node-setup
-            prettier:
-              - 'packages/prettier/**'
-              - *shared-node-setup
-            valkey-reconciler:
-              - 'packages/valkey/reconciler/**'
-              - 'packages/valkey/package.json'
-              - 'go.work'
-              - 'go.work.sum'
-              - *shared-node-setup
+          filters: .github/filters.yaml
 
   test-web:
     needs: detect-changes
@@ -107,7 +80,7 @@ jobs:
 
   test-prettier-pkg:
     needs: detect-changes
-    if: needs.detect-changes.outputs.prettier == 'true'
+    if: needs.detect-changes.outputs.prettier-pkg == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

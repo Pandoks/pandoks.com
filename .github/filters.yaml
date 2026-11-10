@@ -1,0 +1,98 @@
+shared-node-setup: &shared-node-setup
+  - '.github/filters.yaml'
+  - '.github/workflows/checks.yaml'
+  - '.github/workflows/tests.yaml'
+  - '.github/actions/setup-node-pnpm/**'
+  - 'mise.toml'
+  - 'package.json'
+  - 'pnpm-lock.yaml'
+  - 'pnpm-workspace.yaml'
+shared-mise-setup: &shared-mise-setup
+  - '.github/filters.yaml'
+  - '.github/workflows/checks.yaml'
+  - '.github/workflows/tests.yaml'
+  - '.github/actions/setup-mise/**'
+  - 'mise.toml'
+
+# checks.yaml
+prettier:
+  - '**/*.ts'
+  - '**/*.tsx'
+  - '**/*.js'
+  - '**/*.jsx'
+  - '**/*.svelte'
+  - '**/*.md'
+  - '**/*.json'
+  - '**/*.yaml'
+  - '**/*.yml'
+  - '**/*.css'
+  - '.prettierrc'
+  - '.prettierignore'
+  - 'scripts/format/**'
+  - *shared-node-setup
+eslint:
+  - '**/*.ts'
+  - '**/*.tsx'
+  - '**/*.js'
+  - '**/*.jsx'
+  - '**/*.svelte'
+  - 'eslint.config.ts'
+  - 'tsconfig.eslint.json'
+  - 'scripts/lint/**'
+  - *shared-node-setup
+go:
+  - '**/*.go'
+  - '**/go.mod'
+  - '**/go.sum'
+  - 'go.work'
+  - 'go.work.sum'
+  - '.golangci.yaml'
+  - 'scripts/format/**'
+  - 'scripts/lint/**'
+  - *shared-mise-setup
+shell:
+  - '**/*.sh'
+  - '.shellcheckrc'
+  - *shared-mise-setup
+helm:
+  - '**/chart/**'
+  - 'scripts/lint/**'
+  - *shared-mise-setup
+actions:
+  - '.github/workflows/**'
+  - '.github/actions/**'
+renovate:
+  - 'renovate.json'
+  - 'renovate.json5'
+  - '.renovaterc'
+  - '.renovaterc.json'
+  - '.renovaterc.json5'
+  - '.github/filters.yaml'
+  - '.github/workflows/checks.yaml'
+infra:
+  - 'infra/**'
+  - 'sst.config.ts'
+  - 'tsconfig.json'
+  - *shared-node-setup
+
+# tests.yaml
+web:
+  - 'apps/web/**'
+  - 'packages/svelte/**'
+  - *shared-node-setup
+desktop:
+  - 'apps/desktop-template/**'
+  - 'packages/svelte/**'
+  - *shared-node-setup
+svelte:
+  - 'packages/svelte/**'
+  - *shared-node-setup
+prettier-pkg:
+  - 'packages/prettier/**'
+  - *shared-node-setup
+valkey-reconciler:
+  - 'packages/valkey/reconciler/**'
+  - 'packages/valkey/package.json'
+  - 'go.work'
+  - 'go.work.sum'
+  - *shared-node-setup
