@@ -91,8 +91,12 @@ func OpenTopic(ctx context.Context, rawURL string) (Topic, error) {
 
 // queryParams returns the URL's query, rejecting parameters outside allowed and repeated ones.
 func queryParams(parsed *url.URL, allowed ...string) (map[string]string, error) {
+	query, err := url.ParseQuery(parsed.RawQuery)
+	if err != nil {
+		return nil, fmt.Errorf("%s URL: query does not parse", parsed.Scheme)
+	}
 	params := map[string]string{}
-	for name, values := range parsed.Query() {
+	for name, values := range query {
 		if !slices.Contains(allowed, name) || len(values) != 1 {
 			return nil, fmt.Errorf("%s URL: unexpected parameter %q", parsed.Scheme, name)
 		}

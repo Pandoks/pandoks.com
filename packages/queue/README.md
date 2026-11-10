@@ -25,10 +25,12 @@ graph LR
   (`specversion`, `id`, `source`, `type`, `time`, `datacontenttype`, then `data` or `data_base64`),
   sent as UTF-8 text. JSON content types (`application/json`, `*+json`) put the data in `data`;
   anything else goes canonical base64 (padded, no line breaks) in `data_base64`. Extensions are
-  top-level string members named `[a-z0-9]{1,20}`. `time` is written as UTC with milliseconds
+  top-level string members named `[a-z0-9]{1,20}`; every attribute is a string, never `null`, and a
+  missing `datacontenttype` reads as `application/json`. Numbers in `data` must fit a float64 (no
+  `NaN`, `Infinity`, or `1e400`). `time` is written as UTC with milliseconds
   (`2026-11-09T18:00:00.123Z`) in every language, and read only as RFC 3339 with an offset.
   [testdata/envelopes](./testdata/envelopes) holds the golden envelopes each language decodes and
-  re-encodes.
+  re-encodes, and [testdata/malformed](./testdata/malformed) bodies every language rejects.
 - **Size:** `Send` and `Publish` reject an envelope over 120,000 bytes on every broker, so a payload
   that works on SQS also fits Cloudflare's 128 KB. Store anything bigger in object storage and send
   a reference.
@@ -43,7 +45,8 @@ graph LR
   `ApproximateReceiveCount` is approximate).
 - **Retry:** `Retry(delay)` releases the delivery to come back after `delay`, which, like `Send`'s
   `Delay`, is at most 15 min (`MaxDelay`, SQS's ceiling). SQS and Cloudflare round delays up to
-  whole seconds.
+  whole seconds. A zero `Delay` on SQS leaves the queue's own default delay (its `DelaySeconds`
+  attribute) in place.
 - **Dead letters:** after the broker's attempt limit a delivery moves to its dead-letter queue: SQS
   redrive `maxReceiveCount`, Cloudflare `max_retries` and `dead_letter_queue`, or Valkey's
   `max_attempts`, which writes to the `{<queue>}:dlq` stream.
@@ -137,7 +140,7 @@ Credentials come from each SDK's usual environment.
 | Valkey subscription | `valkey://…/<topic>?subscription=<name>&lease=2m&max_attempts=5`                 | Opening one registers it in the topic's set                                    |
 
 `lease` is `<n>ms`, `<n>s`, `<n>m`, or `<n>h`, at most 12 h, and required on every queue. Unknown
-parameters are errors.
+parameters and malformed query strings are errors, and Valkey URLs need the port.
 
 ## Brokers
 

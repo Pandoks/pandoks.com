@@ -42,7 +42,7 @@ var (
 // anything that echoes the URL: an unescaped /, ?, or # in the password leaves no valid name.
 func valkeyName(parsed *url.URL) (string, error) {
 	name := strings.TrimPrefix(parsed.Path, "/")
-	if parsed.Host == "" || name == "" || strings.ContainsAny(name, "{}/") {
+	if parsed.Hostname() == "" || parsed.Port() == "" || name == "" || strings.ContainsAny(name, "{}/") {
 		return "", errors.New("valkey URL must be valkey://[user:password@]host:port/<name>")
 	}
 	return name, nil

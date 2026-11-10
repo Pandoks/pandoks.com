@@ -21,7 +21,7 @@ def valkey_name(parsed: SplitResult) -> str:
     """Reads <name> from a valkey://[user:password@]host:port/<name> URL. Check it before anything
     that echoes the URL: an unescaped /, ?, or # in the password leaves no valid name."""
     name = unquote(parsed.path.removeprefix("/"))
-    if not parsed.hostname or not name or any(character in name for character in "{}/"):
+    if not parsed.hostname or not name or any(character in name for character in "{}/") or parsed.port is None:
         raise ValueError("valkey URL must be valkey://[user:password@]host:port/<name>")
     return name
 
@@ -29,7 +29,7 @@ def valkey_name(parsed: SplitResult) -> str:
 def valkey_client(parsed: SplitResult) -> ValkeyCluster:
     return ValkeyCluster(
         host=parsed.hostname,
-        port=parsed.port or 6379,
+        port=parsed.port,
         username=unquote(parsed.username or "") or None,
         password=unquote(parsed.password or "") or None,
         decode_responses=True,

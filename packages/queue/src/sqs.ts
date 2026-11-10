@@ -52,10 +52,11 @@ export class SQSQueue implements Queue {
 
   async send(...messages: Message[]): Promise<void> {
     const sentAt = new Date();
+    // NOTE: like Go's SDK, leave DelaySeconds out for no delay, so SQS applies the queue's default
     const entries = messages.map((message, index) => ({
       Id: String(index),
       MessageBody: encode(message, sentAt),
-      DelaySeconds: delaySeconds(message.delay ?? 0)
+      DelaySeconds: message.delay ? delaySeconds(message.delay) : undefined
     }));
     const size = (entry: { MessageBody: string }) => Buffer.byteLength(entry.MessageBody);
     for (const batch of batches(entries, size, BATCH_COUNT, BATCH_BYTES)) {

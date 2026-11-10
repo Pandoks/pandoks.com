@@ -14,9 +14,9 @@ import (
 	"time"
 )
 
-func fixtures(t *testing.T) map[string][]byte {
+func fixtures(t *testing.T, directory string) map[string][]byte {
 	t.Helper()
-	paths, err := filepath.Glob("testdata/envelopes/*.json")
+	paths, err := filepath.Glob(filepath.Join("testdata", directory, "*.json"))
 	if err != nil || len(paths) == 0 {
 		t.Fatalf("glob fixtures: %v (%d found)", err, len(paths))
 	}
@@ -46,7 +46,7 @@ func jsonEqual(t *testing.T, got, want []byte) {
 }
 
 func TestGoldenEnvelopesRoundTrip(t *testing.T) {
-	for name, body := range fixtures(t) {
+	for name, body := range fixtures(t, "envelopes") {
 		t.Run(name, func(t *testing.T) {
 			var delivery Delivery
 			if err := decode(body, &delivery); err != nil {
@@ -70,6 +70,10 @@ func TestEncodeRejectsWhatOtherBrokersCannotCarry(t *testing.T) {
 		"size":             {Source: "//test", Type: "test", Data: []byte(`"` + strings.Repeat("x", MaxEnvelopeBytes) + `"`)},
 		"invalid json":     {Source: "//test", Type: "test", Data: []byte("{")},
 		"invalid utf-8":    {Source: "//test", Type: "test", Data: []byte("\"\xff\"")},
+		"infinite number":  {Source: "//test", Type: "test", Data: []byte("1e400")},
+		"utf-8 id":         {ID: "\xff", Source: "//test", Type: "test"},
+		"utf-8 type":       {Source: "//test", Type: "\xe2\x82"},
+		"utf-8 extension":  {Source: "//test", Type: "test", Extensions: map[string]string{"ext": "\xff"}},
 	} {
 		if _, err := encode(message, time.Now()); err == nil {
 			t.Errorf("%s: encode accepted %+v", name, message)
@@ -84,6 +88,24 @@ func TestDecodeRejectsBothDataMembers(t *testing.T) {
 	body := []byte(`{"specversion":"1.0","id":"x","source":"//test","type":"test","time":"2026-11-09T18:00:00.000Z","data":{},"data_base64":"e30="}`)
 	if err := decode(body, &Delivery{}); err == nil {
 		t.Fatal("decode accepted both data and data_base64")
+	}
+}
+
+func TestDecodeRejectsMalformedEnvelopes(t *testing.T) {
+	for name, body := range fixtures(t, "malformed") {
+		if err := decode(body, &Delivery{}); err == nil {
+			t.Errorf("%s: decode accepted %.200s", name, body)
+		}
+	}
+}
+
+func TestDecodeKeepsAnEmptyContentType(t *testing.T) {
+	var delivery Delivery
+	if err := decode([]byte(`{"specversion":"1.0","id":"x","source":"//test","type":"test","time":"2026-11-09T18:00:00.000Z","datacontenttype":""}`), &delivery); err != nil {
+		t.Fatal(err)
+	}
+	if delivery.ContentType != "" {
+		t.Fatalf("content type %q, want the envelope's empty one", delivery.ContentType)
 	}
 }
 
@@ -112,6 +134,22 @@ func TestEncodeSizesHTMLLikePythonAndTS(t *testing.T) {
 	}
 	if !strings.Contains(string(body), "<&>") {
 		t.Fatalf("escaped HTML in %.200s", body)
+	}
+}
+
+func TestOpenRejectsMalformedURLs(t *testing.T) {
+	for _, rawURL := range []string{
+		"awssqs://sqs.us-west-1.amazonaws.com/123456789012/q?lease=30s&endpoint=%zz",
+		"awssqs://sqs.us-west-1.amazonaws.com/123456789012/q?lease=30s&bogus%zz=1",
+		"valkey://127.0.0.1/q?lease=1s&max_attempts=1",
+	} {
+		if queue, err := Open(t.Context(), rawURL); err == nil {
+			_ = queue.Close()
+			t.Errorf("Open accepted %s", rawURL)
+		}
+	}
+	if _, err := OpenTopic(t.Context(), "valkey://127.0.0.1/t"); err == nil || !strings.Contains(err.Error(), "host:port") {
+		t.Errorf("OpenTopic without a port: error %v, want the URL format", err)
 	}
 }
 

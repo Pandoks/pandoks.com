@@ -65,7 +65,7 @@ export interface Topic {
   close(): Promise<void>;
 }
 
-export function isJSON(contentType: string): boolean {
+function isJSON(contentType: string): boolean {
   const mediaType = contentType.split(';')[0].trim().toLowerCase();
   return mediaType === 'application/json' || mediaType.endsWith('+json');
 }
@@ -93,7 +93,7 @@ export function encode(message: Message, sentAt: Date): string {
     datacontenttype: message.contentType || 'application/json'
   };
   if (message.data && isJSON(event.datacontenttype as string)) {
-    event.data = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(message.data));
+    event.data = parseJSON(new TextDecoder('utf-8', { fatal: true }).decode(message.data));
   } else if (message.data) {
     event.data_base64 = Buffer.from(message.data).toString('base64');
   }
@@ -107,12 +107,22 @@ export function encode(message: Message, sentAt: Date): string {
   return body;
 }
 
+/** Parses JSON, rejecting numbers past float64's range as Go and Python do. */
+function parseJSON(text: string): unknown {
+  return JSON.parse(text, (_key, value: unknown) => {
+    if (typeof value === 'number' && !Number.isFinite(value)) {
+      throw new Error('JSON number is not finite');
+    }
+    return value;
+  });
+}
+
 /** Reads an envelope into a Delivery with the broker's attempt, deadline, and handle. */
-export function decode(
+function decode(
   body: string,
   delivery: { attempt: number; deadline: Date; handle: unknown }
 ): Delivery {
-  const event: unknown = JSON.parse(body);
+  const event = parseJSON(body);
   if (typeof event !== 'object' || event === null || Array.isArray(event)) {
     throw new Error('decode envelope: not an object');
   }
@@ -121,6 +131,9 @@ export function decode(
     if (name === 'data' || name === 'data_base64') continue;
     if (typeof value !== 'string') {
       throw new Error(`decode envelope: ${name} is not a string`);
+    }
+    if (!ATTRIBUTES.has(name) && !EXTENSION_NAME.test(name)) {
+      throw new Error(`decode envelope: extension name ${name} is not [a-z0-9]{1,20}`);
     }
     members[name] = value;
   }

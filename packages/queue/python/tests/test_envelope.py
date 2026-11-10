@@ -5,9 +5,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from pandoks_queue import open_queue, open_topic
-from pandoks_queue.envelope import MAX_DELAY, MAX_ENVELOPE_BYTES, Message, decode, encode
+from pandoks_queue.envelope import MAX_DELAY, MAX_ENVELOPE_BYTES, Message, decode, decode_rows, encode
 
-FIXTURES = sorted((Path(__file__).resolve().parents[2] / "testdata" / "envelopes").glob("*.json"))
+TESTDATA = Path(__file__).resolve().parents[2] / "testdata"
+FIXTURES = sorted((TESTDATA / "envelopes").glob("*.json"))
+MALFORMED = sorted((TESTDATA / "malformed").glob("*.json"))
 
 
 class EnvelopeTest(unittest.TestCase):
@@ -27,6 +29,7 @@ class EnvelopeTest(unittest.TestCase):
             "delay": replace(valid, delay=MAX_DELAY + 1),
             "size": replace(valid, data=json.dumps("x" * MAX_ENVELOPE_BYTES).encode()),
             "invalid json": replace(valid, data=b"{"),
+            "infinite number": replace(valid, data=b"1e400"),
             "id": replace(valid, id=1),
             "source": replace(valid, source=1),
             "type": replace(valid, type=b"test"),
@@ -35,6 +38,11 @@ class EnvelopeTest(unittest.TestCase):
             with self.subTest(name), self.assertRaises(ValueError):
                 encode(message, datetime.now(UTC))
         encode(valid, datetime.now(UTC))
+
+    def test_open_rejects_a_valkey_url_without_a_port(self):
+        for opener in (open_queue, open_topic):
+            with self.subTest(opener.__name__), self.assertRaisesRegex(ValueError, "host:port"):
+                opener("valkey://127.0.0.1/q?lease=1s&max_attempts=1")
 
     def test_open_keeps_valkey_passwords_out_of_errors(self):
         for password in ("xq1/zq2", "xq1?zq2", "xq1#zq2", "123/zq2", "123?zq2", "123#zq2"):
@@ -53,6 +61,17 @@ class EnvelopeTest(unittest.TestCase):
         body = json.loads(FIXTURES[0].read_text())
         with self.assertRaises(ValueError):
             decode(json.dumps(body | {"data": {}, "data_base64": "e30="}), attempt=1, deadline=datetime.now(UTC))
+
+    def test_decode_drops_malformed_envelopes(self):
+        self.assertTrue(MALFORMED)
+        for path in MALFORMED:
+            with self.subTest(path.name), self.assertLogs("pandoks_queue"):
+                self.assertEqual(decode_rows([(path.read_text(), 1, path.name)], datetime.now(UTC)), ([], [path.name]))
+
+    def test_decode_keeps_an_empty_content_type(self):
+        body = json.loads(FIXTURES[0].read_text())
+        delivery = decode(json.dumps(body | {"datacontenttype": ""}), attempt=1, deadline=datetime.now(UTC))
+        self.assertEqual(delivery.content_type, "")
 
     def test_decode_rejects_what_go_and_ts_reject(self):
         envelope = '{"specversion":"1.0","id":"x","source":"//test","type":"test","time":"2026-11-09T18:00:00.000Z",%s}'

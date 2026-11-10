@@ -28,7 +28,7 @@ function script(name: string): Script {
  */
 function valkeyName(url: URL): string {
   const name = decodeURIComponent(url.pathname.replace(/^\//, ''));
-  if (!url.hostname || !name || /[{}/]/.test(name)) {
+  if (!url.hostname || !url.port || !name || /[{}/]/.test(name)) {
     throw new Error('valkey URL must be valkey://[user:password@]host:port/<name>');
   }
   return name;
@@ -36,7 +36,7 @@ function valkeyName(url: URL): string {
 
 function valkeyClient(url: URL): Promise<GlideClusterClient> {
   return GlideClusterClient.createClient({
-    addresses: [{ host: url.hostname, port: Number(url.port || 6379) }],
+    addresses: [{ host: url.hostname, port: Number(url.port) }],
     credentials: url.password
       ? {
           username: decodeURIComponent(url.username) || undefined,

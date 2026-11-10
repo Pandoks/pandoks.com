@@ -188,11 +188,20 @@ class SQSContractTest(Contract, unittest.TestCase):
             arn = create_queue(f"t-{suffix}-{name}")
             sns.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=arn, Attributes={"RawMessageDelivery": "true"})
             self.subscriptions.append(self.open(queue_url(f"t-{suffix}-{name}")))
+        create_queue(f"d-{suffix}", {"DelaySeconds": "5"})
+        self.delayed = self.open(queue_url(f"d-{suffix}"))
         self.lease, self.max_attempts = 1, 3
         self.queue = self.open(queue_url(f"q-{suffix}"))
         dlq = self.open(queue_url(f"dlq-{suffix}"))
         self.dead_letters = lambda: received_ids(dlq)
         self.topic = self.open(f"awssns:///{topic_arn}?endpoint={MOTO_ENDPOINT}", open_topic)
+
+    def test_no_delay_keeps_the_queue_default_delay(self):
+        message = test_message("default-delay")
+        sent_at = time.monotonic()
+        self.delayed.send(message)
+        self.assertIn(message.id, receive(self.delayed, WAIT, message.id))
+        self.assertGreaterEqual(time.monotonic() - sent_at, 5)
 
 
 @unittest.skipUnless(os.environ.get("QUEUE_TEST_CLOUDFLARE_QUEUE"), "the tests.yaml Cloudflare job sets QUEUE_TEST_CLOUDFLARE_*")

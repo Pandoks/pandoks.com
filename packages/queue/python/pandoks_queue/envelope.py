@@ -91,7 +91,7 @@ def encode(message: Message, sent_at: datetime) -> str:
         "datacontenttype": message.content_type or "application/json",
     }
     if message.data is not None and is_json(event["datacontenttype"]):
-        event["data"] = json.loads(message.data)
+        event["data"] = parse_json(message.data)
     elif message.data is not None:
         event["data_base64"] = base64.b64encode(message.data).decode()
     body = json.dumps(event, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
@@ -104,12 +104,15 @@ def encode(message: Message, sent_at: datetime) -> str:
 
 def decode(body: str, **delivery) -> Delivery:
     """Reads an envelope into a Delivery with the broker's attempt, deadline, and handle."""
-    event = json.loads(body, parse_constant=reject_constant)
+    event = parse_json(body)
     if not isinstance(event, dict):
         raise ValueError("decode envelope: not an object")
-    members = {name: value for name, value in event.items() if name not in ("data", "data_base64")}
+    members = {name: value for name, value in event.items() if name != "data"}
     if not all(isinstance(value, str) for value in members.values()):
-        raise ValueError("decode envelope: every attribute and extension must be a string")
+        raise ValueError("decode envelope: every attribute, extension, and data_base64 must be a string")
+    for name in members.keys() - ATTRIBUTES:
+        if not EXTENSION_NAME.fullmatch(name):
+            raise ValueError(f"decode envelope: extension name {name!r} is not [a-z0-9]{{1,20}}")
     if members.get("specversion") != "1.0" or not all(members.get(name) for name in ("id", "source", "type")):
         raise ValueError("decode envelope: specversion 1.0, id, source, and type are required")
     if not RFC3339.fullmatch(members.get("time", "")):
@@ -137,8 +140,25 @@ def decode(body: str, **delivery) -> Delivery:
     )
 
 
-def reject_constant(constant: str) -> None:
-    raise ValueError(f"decode envelope: {constant} is not JSON")
+def parse_json(text: str | bytes) -> object:
+    """Parses JSON, rejecting NaN, Infinity, and numbers past float64's range as Go and TS do."""
+    return json.loads(text, parse_constant=reject_number, parse_float=finite_float, parse_int=finite_int)
+
+
+def reject_number(text: str) -> None:
+    raise ValueError(f"JSON number {text} is not finite")
+
+
+def finite_float(text: str) -> float:
+    if not math.isfinite(number := float(text)):
+        reject_number(text)
+    return number
+
+
+def finite_int(text: str) -> int:
+    if not math.isfinite(float(text)):
+        reject_number(text)
+    return int(text)
 
 
 def decode_rows(rows: Iterable[tuple[str, int, object]], deadline: datetime) -> tuple[list[Delivery], list[object]]:

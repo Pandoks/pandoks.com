@@ -35,6 +35,11 @@ func encode(message Message, sentAt time.Time) ([]byte, error) {
 	if message.Source == "" || message.Type == "" {
 		return nil, errors.New("encode message: source and type are required")
 	}
+	for _, value := range append([]string{message.ID, message.Source, message.Type, message.ContentType}, slices.Collect(maps.Values(message.Extensions))...) {
+		if !utf8.ValidString(value) {
+			return nil, errors.New("encode message: id, source, type, content type, and extension values must be valid UTF-8")
+		}
+	}
 	if err := checkDelay(message.Delay); err != nil {
 		return nil, fmt.Errorf("encode message %s: %w", message.ID, err)
 	}
@@ -62,8 +67,8 @@ func encode(message Message, sentAt time.Time) ([]byte, error) {
 	switch {
 	case message.Data == nil:
 	case isJSON(event["datacontenttype"].(string)):
-		if !json.Valid(message.Data) || !utf8.Valid(message.Data) {
-			return nil, fmt.Errorf("encode message %s: data is not valid UTF-8 JSON", event["id"])
+		if !utf8.Valid(message.Data) || !finiteJSON(message.Data) {
+			return nil, fmt.Errorf("encode message %s: data is not valid UTF-8 JSON with finite numbers", event["id"])
 		}
 		event["data"] = json.RawMessage(message.Data)
 	default:
@@ -83,6 +88,12 @@ func encode(message Message, sentAt time.Time) ([]byte, error) {
 	return body, nil
 }
 
+// finiteJSON reports whether data is valid JSON whose numbers all fit a float64, as Python and TS
+// require.
+func finiteJSON(data []byte) bool {
+	return json.Unmarshal(data, new(any)) == nil
+}
+
 // decode reads an envelope into the delivery's message and send time.
 func decode(body []byte, delivery *Delivery) error {
 	if !utf8.Valid(body) {
@@ -94,14 +105,17 @@ func decode(body []byte, delivery *Delivery) error {
 	}
 	members := map[string]string{}
 	for name, raw := range event {
-		if name == "data" || name == "data_base64" {
+		if name == "data" {
 			continue
 		}
-		var value string
-		if err := json.Unmarshal(raw, &value); err != nil {
+		var value *string
+		if err := json.Unmarshal(raw, &value); err != nil || value == nil {
 			return fmt.Errorf("decode envelope: %s is not a string", name)
 		}
-		members[name] = value
+		if !slices.Contains(attributes, name) && !extensionName.MatchString(name) {
+			return fmt.Errorf("decode envelope: extension name %q is not [a-z0-9]{1,20}", name)
+		}
+		members[name] = *value
 	}
 	if members["specversion"] != "1.0" || members["id"] == "" || members["source"] == "" || members["type"] == "" {
 		return errors.New("decode envelope: specversion 1.0, id, source, and type are required")
@@ -114,26 +128,25 @@ func decode(body []byte, delivery *Delivery) error {
 	if err != nil {
 		return fmt.Errorf("decode envelope %s: %w", members["id"], err)
 	}
-	message := Message{ID: members["id"], Source: members["source"], Type: members["type"], ContentType: members["datacontenttype"]}
-	if message.ContentType == "" {
-		message.ContentType = "application/json"
+	message := Message{ID: members["id"], Source: members["source"], Type: members["type"], ContentType: "application/json"}
+	if contentType, ok := members["datacontenttype"]; ok {
+		message.ContentType = contentType
 	}
 	_, hasData := event["data"]
 	_, hasBase64 := event["data_base64"]
 	if hasData && hasBase64 {
 		return fmt.Errorf("decode envelope %s: data and data_base64 are mutually exclusive", message.ID)
 	}
-	if raw, ok := event["data_base64"]; ok {
-		var encoded string
-		if err := json.Unmarshal(raw, &encoded); err != nil {
-			return fmt.Errorf("decode envelope %s: data_base64 is not a string", message.ID)
-		}
+	if encoded, ok := members["data_base64"]; ok {
 		// NOTE: DecodeString skips CR and LF, so only canonical base64 round-trips
 		message.Data, err = base64.StdEncoding.DecodeString(encoded)
 		if err != nil || base64.StdEncoding.EncodeToString(message.Data) != encoded {
 			return fmt.Errorf("decode envelope %s: data_base64 is not canonical base64", message.ID)
 		}
 	} else if raw, ok := event["data"]; ok {
+		if !finiteJSON(raw) {
+			return fmt.Errorf("decode envelope %s: data has a number past float64's range", message.ID)
+		}
 		message.Data = raw
 	}
 	for name, value := range members {

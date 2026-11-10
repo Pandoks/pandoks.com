@@ -5,7 +5,14 @@ import { CreateQueueCommand, GetQueueAttributesCommand, SQSClient } from '@aws-s
 import { CreateTopicCommand, SNSClient, SubscribeCommand } from '@aws-sdk/client-sns';
 import { GlideClusterClient } from '@valkey/valkey-glide';
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
-import { decode, encode, type Delivery, type Message, type Queue, type Topic } from './envelope.ts';
+import {
+  decodeRows,
+  encode,
+  type Delivery,
+  type Message,
+  type Queue,
+  type Topic
+} from './envelope.ts';
 import { openQueue, openTopic } from './index.ts';
 import type { ValkeyQueue } from './valkey.ts';
 
@@ -84,7 +91,7 @@ async function valkeyBroker(): Promise<Broker> {
       const entries = (await client.xrange(`{q${name}}:dlq`, { value: '-' }, { value: '+' })) ?? {};
       return Object.values(entries).map((fields) => {
         const envelope = fields.find(([field]) => field === 'envelope')![1];
-        return decode(String(envelope), { attempt: 0, deadline: new Date(), handle: undefined }).id;
+        return decodeRows([[String(envelope), 0, undefined]], new Date()).deliveries[0].id;
       });
     },
     close: async () => {
@@ -189,7 +196,7 @@ describe.each(brokers)('%s contract', { timeout: 120_000 }, (_, open, enabled) =
     const sent: Record<string, Message> = {};
     for (const name of readdirSync(fixtures)) {
       const body = readFileSync(new URL(name, fixtures), 'utf8');
-      const fixture = decode(body, { attempt: 1, deadline: new Date(), handle: undefined });
+      const [fixture] = decodeRows([[body, 1, undefined]], new Date()).deliveries;
       const id = `${fixture.id}-${suffix()}`;
       sent[id] = {
         id,
@@ -262,6 +269,27 @@ describe.each(brokers)('%s contract', { timeout: 120_000 }, (_, open, enabled) =
       expect(delivery).toBeDefined();
       await subscription.ack(delivery);
     }
+  });
+});
+
+describe('sqs', () => {
+  test('no delay keeps the queue default delay', { timeout: 60_000 }, async () => {
+    vi.stubEnv('AWS_ACCESS_KEY_ID', 'test');
+    vi.stubEnv('AWS_SECRET_ACCESS_KEY', 'test');
+    const sqs = new SQSClient({ region: REGION, endpoint: MOTO_ENDPOINT });
+    const name = `d-${suffix()}`;
+    await sqs.send(new CreateQueueCommand({ QueueName: name, Attributes: { DelaySeconds: '5' } }));
+    sqs.destroy();
+    const queue = await openQueue(
+      `awssqs://sqs.${REGION}.amazonaws.com/${MOTO_ACCOUNT}/${name}?lease=1s&endpoint=${MOTO_ENDPOINT}`
+    );
+    const message = testMessage('default-delay');
+    const sentAt = Date.now();
+    await queue.send(message);
+    expect(await receive(queue, WAIT, message.id)).toHaveProperty(message.id);
+    expect(Date.now() - sentAt).toBeGreaterThanOrEqual(5000);
+    await queue.close();
+    vi.unstubAllEnvs();
   });
 });
 

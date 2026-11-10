@@ -48,8 +48,10 @@ class SQSQueue:
 
     def send(self, *messages: Message) -> None:
         sent_at = datetime.now(UTC)
+        # NOTE: like Go's SDK, leave DelaySeconds out for no delay, so SQS applies the queue's default
         entries = [
-            {"Id": str(index), "MessageBody": encode(message, sent_at), "DelaySeconds": delay_seconds(message.delay)}
+            {"Id": str(index), "MessageBody": encode(message, sent_at)}
+            | ({"DelaySeconds": delay_seconds(message.delay)} if message.delay else {})
             for index, message in enumerate(messages)
         ]
         for batch in batches(entries, lambda entry: len(entry["MessageBody"].encode()), BATCH_COUNT, BATCH_BYTES):

@@ -128,6 +128,28 @@ func TestSQSContract(t *testing.T) {
 	})
 }
 
+func TestSQSNoDelayKeepsTheQueueDefault(t *testing.T) {
+	t.Setenv("AWS_ACCESS_KEY_ID", "test")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
+	cfg := aws.Config{Region: region, BaseEndpoint: aws.String(motoEndpoint), Credentials: credentials.NewStaticCredentialsProvider("test", "test", "")}
+	name := "d-" + strings.ToLower(rand.Text()[:10])
+	if _, err := sqs.NewFromConfig(cfg).CreateQueue(t.Context(), &sqs.CreateQueueInput{QueueName: aws.String(name), Attributes: map[string]string{"DelaySeconds": "5"}}); err != nil {
+		t.Fatal(err)
+	}
+	queue := openQueue(t, "awssqs://sqs."+region+".amazonaws.com/"+motoAccount+"/"+name+"?lease=1s&endpoint="+motoEndpoint)
+	message := testMessage("default-delay")
+	sentAt := time.Now()
+	if err := queue.Send(t.Context(), message); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := receive(t, queue, 30*time.Second, message.ID)[message.ID]; !ok {
+		t.Fatal("message never arrived")
+	}
+	if elapsed := time.Since(sentAt); elapsed < 5*time.Second {
+		t.Fatalf("arrived after %s, before the queue's 5 s default delay", elapsed)
+	}
+}
+
 // TestCloudflareContract runs against queues the CI job creates, each with an HTTP pull
 // consumer; the main queue dead-letters to the second after max_retries 2.
 func TestCloudflareContract(t *testing.T) {
@@ -223,7 +245,7 @@ func runContract(t *testing.T, broker broker) {
 
 	t.Run("sends, receives, and acks golden envelopes", func(t *testing.T) {
 		sent := map[string]Message{}
-		for name, body := range fixtures(t) {
+		for name, body := range fixtures(t, "envelopes") {
 			var fixture Delivery
 			if err := decode(body, &fixture); err != nil {
 				t.Fatal(err)

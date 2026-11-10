@@ -1,17 +1,20 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
-import { MAX_DELAY, MAX_ENVELOPE_BYTES, decode, encode, type Message } from './envelope.ts';
+import { MAX_DELAY, MAX_ENVELOPE_BYTES, decodeRows, encode, type Message } from './envelope.ts';
 import { openQueue, openTopic } from './index.ts';
 
-const fixtures = new URL('../testdata/envelopes/', import.meta.url);
-const fixtureBodies = readdirSync(fixtures).map((name) => ({
-  name,
-  body: readFileSync(new URL(name, fixtures), 'utf8')
-}));
+function readFixtures(directory: string): { name: string; body: string }[] {
+  const url = new URL(`../testdata/${directory}/`, import.meta.url);
+  return readdirSync(url).map((name) => ({ name, body: readFileSync(new URL(name, url), 'utf8') }));
+}
+
+function decode(body: string) {
+  return decodeRows([[body, 1, undefined]], new Date());
+}
 
 describe('envelope', () => {
-  test.each(fixtureBodies)('$name round-trips', ({ body }) => {
-    const delivery = decode(body, { attempt: 1, deadline: new Date(), handle: undefined });
+  test.each(readFixtures('envelopes'))('$name round-trips', ({ body }) => {
+    const [delivery] = decode(body).deliveries;
     expect(JSON.parse(encode(delivery, delivery.time))).toEqual(JSON.parse(body));
   });
 
@@ -22,7 +25,8 @@ describe('envelope', () => {
       { ...valid, extensions: { source: 'x' } },
       { ...valid, delay: MAX_DELAY + 1 },
       { ...valid, data: new TextEncoder().encode(JSON.stringify('x'.repeat(MAX_ENVELOPE_BYTES))) },
-      { ...valid, data: new TextEncoder().encode('{') }
+      { ...valid, data: new TextEncoder().encode('{') },
+      { ...valid, data: new TextEncoder().encode('1e400') }
     ];
     for (const message of invalid) {
       expect(() => encode(message, new Date())).toThrow();
@@ -40,7 +44,7 @@ describe('envelope', () => {
       datacontenttype: 'application/octet-stream',
       data_base64: '!!!'
     });
-    expect(() => decode(body, { attempt: 1, deadline: new Date(), handle: undefined })).toThrow();
+    expect(decode(body).malformed).toHaveLength(1);
   });
 
   test.each([
@@ -58,7 +62,7 @@ describe('envelope', () => {
       type: 'test',
       time
     });
-    expect(() => decode(body, { attempt: 1, deadline: new Date(), handle: undefined })).toThrow();
+    expect(decode(body).malformed).toHaveLength(1);
   });
 
   test('decode rejects both data and data_base64 like Go and Python do', () => {
@@ -71,7 +75,31 @@ describe('envelope', () => {
       data: {},
       data_base64: 'e30='
     });
-    expect(() => decode(body, { attempt: 1, deadline: new Date(), handle: undefined })).toThrow();
+    expect(decode(body).malformed).toHaveLength(1);
+  });
+
+  test.each(readFixtures('malformed'))('decode drops the malformed $name', ({ body }) => {
+    expect(decode(body).malformed).toHaveLength(1);
+  });
+
+  test('decode keeps an empty content type', () => {
+    const body = JSON.stringify({
+      specversion: '1.0',
+      id: 'x',
+      source: '//test',
+      type: 'test',
+      time: '2026-11-09T18:00:00.000Z',
+      datacontenttype: ''
+    });
+    expect(decode(body).deliveries[0].contentType).toBe('');
+  });
+
+  test('open rejects a valkey URL without a port', async () => {
+    for (const open of [openQueue, openTopic]) {
+      await expect(open('valkey://127.0.0.1/q?lease=1s&max_attempts=1')).rejects.toThrow(
+        'host:port'
+      );
+    }
   });
 
   test.each(['xq1/zq2', 'xq1?zq2', 'xq1#zq2', '123/zq2', '123?zq2', '123#zq2'])(
