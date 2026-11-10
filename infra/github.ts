@@ -9,12 +9,17 @@ export const githubRepoName = 'pandoks.com';
 const GITHUB_ACTIONS_APP_ID = 15368;
 
 if (hasCluster) {
-  // NOTE: AWS trusts every job in the production and dev environments, so only main gets them.
-  const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
-    repository: githubRepoName,
-    environment: isProduction ? 'production' : 'dev',
-    deploymentBranchPolicy: { protectedBranches: false, customBranchPolicies: true }
-  });
+  // NOTE: AWS trusts every job in the production and dev environments, so only main gets them, and
+  // removing a stage keeps them.
+  const githubEnvironment = new github.RepositoryEnvironment(
+    'GithubStageEnvironment',
+    {
+      repository: githubRepoName,
+      environment: isProduction ? 'production' : 'dev',
+      deploymentBranchPolicy: { protectedBranches: false, customBranchPolicies: true }
+    },
+    { retainOnDelete: true }
+  );
 
   new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
     repository: githubRepoName,
@@ -23,11 +28,15 @@ if (hasCluster) {
     value: secrets.hetzner.ApiKey.value
   });
 
-  new github.RepositoryEnvironmentDeploymentPolicy('GithubProductionDeploymentPolicy', {
-    repository: githubRepoName,
-    environment: githubEnvironment.environment,
-    branchPattern: 'main'
-  });
+  new github.RepositoryEnvironmentDeploymentPolicy(
+    'GithubProductionDeploymentPolicy',
+    {
+      repository: githubRepoName,
+      environment: githubEnvironment.environment,
+      branchPattern: 'main'
+    },
+    { retainOnDelete: true }
+  );
 }
 
 if (isProduction) {

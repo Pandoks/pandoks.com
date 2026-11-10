@@ -454,9 +454,9 @@ spec:
     patroni.shards: 4 # Was 3, now 4
 ```
 
-For `local` or `dev`, redeploy with `pnpm cluster deploy <env> --stage your-stage`. Replace `<env>`
-with `local` or `dev` and `your-stage` with your personal SST stage (for example, `pandoks`). Prod
-syncs from `main` through ArgoCD. This creates the new shard (`myapp-shard-3`) with its own
+For `local`, redeploy with `pnpm cluster deploy local --stage your-stage`, replacing `your-stage`
+with your personal SST stage (for example, `pandoks`); for `dev`, use `pnpm cluster deploy dev`.
+Prod syncs from `main` through ArgoCD. This creates the new shard (`myapp-shard-3`) with its own
 StatefulSet, services, certificates, and backup cronjobs.
 
 **Step 2: Verify New Shard**

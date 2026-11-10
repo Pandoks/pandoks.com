@@ -78,8 +78,8 @@ kubectl --context <tailscale-context> get pods
 ./scripts/cluster/main.sh deploy prod
 ```
 
-For dev, use `deploy dev --stage dev` in both commands, keeping `--bootstrap` on the first. Only the
-`production` and `dev` SST stages have cloud clusters.
+For dev, use `deploy dev` in both commands, keeping `--bootstrap` on the first; it forces stage
+`dev`. Only the `production` and `dev` SST stages have cloud clusters.
 
 ### ArgoCD (prod)
 

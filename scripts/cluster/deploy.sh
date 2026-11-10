@@ -178,6 +178,7 @@ cmd_deploy() {
     esac
   done
   [ "${cmd_deploy_env}" = "prod" ] && cmd_deploy_stage="production"
+  [ "${cmd_deploy_env}" = "dev" ] && cmd_deploy_stage="dev"
 
   if [ -n "${cmd_deploy_kubeconfig}" ]; then
     KUBECONFIG="$(validate_and_get_absolute_kubeconfig_path "${cmd_deploy_kubeconfig}")"
