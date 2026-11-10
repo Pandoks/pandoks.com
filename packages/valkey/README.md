@@ -197,8 +197,10 @@ New pods start with them in `valkey.conf`. After every install, upgrade and roll
 prints what `CONFIG GET` reports, so no pod restarts. It waits up to 5 minutes for nodes that don't
 answer yet and fails at once on an error from Valkey, like an invalid value. The render fails for
 settings Valkey can't change at runtime, like `cluster-enabled` or `aclfile`, and for ones the chart
-sets itself; those belong in `valkey.conf`. A key removed from `parameters` keeps its value until
-its pod restarts. Helm deletes a failed Job along with its logs, so follow them during the release:
+sets itself; those belong in `valkey.conf`. It also fails for secrets like `requirepass`, which
+would show in the ConfigMap and the Job's logs. A key removed from `parameters` keeps its value
+until its pod restarts. Helm deletes a failed Job along with its logs, so follow them during the
+release:
 
 ```sh
 kubectl logs -n <namespace> job/valkey-<name>-apply-config -f

@@ -9,10 +9,15 @@
 {{- end }}
 {{- /* NOTE: Valkey 9.1's IMMUTABLE_CONFIG and PROTECTED_CONFIG settings (src/config.c) and their aliases */}}
 {{- $runtimeLockedKeys := list "rdbchecksum" "daemonize" "always-show-logo" "set-proc-title" "repl-mptcp" "syslog-enabled" "cluster-enabled" "disable-thp" "enable-debug-assert" "lua-enable-insecure-api" "lua-enable-deprecated-api" "aclfile" "unixsocket" "unixsocketgroup" "pidfile" "cluster-config-file" "syslog-ident" "dbfilename" "appendfilename" "appenddirname" "server-cpulist" "server_cpulist" "bio-cpulist" "bio_cpulist" "aof-rewrite-cpulist" "aof_rewrite_cpulist" "bgsave-cpulist" "bgsave_cpulist" "logfile" "req-res-logfile" "hash-seed" "supervised" "syslog-facility" "enable-protected-configs" "enable-debug-command" "enable-module-command" "databases" "cluster-databases" "tcp-backlog" "mptcp" "cluster-port" "rdma-rx-size" "rdma-completion-vector" "unixsocketperm" "socket-mark-id" "client-default-resp" "dir" "replicaof" "slaveof" }}
+{{- /* NOTE: Valkey 9.1's SENSITIVE_CONFIG settings, besides the chart's primaryuser and primaryauth */}}
+{{- $sensitiveKeys := list "requirepass" "tls-key-file-pass" "tls-client-key-file-pass" }}
 {{- $parameters := dict }}
 {{- range $name, $value := .Values.parameters }}
 {{- if has (lower $name) $runtimeLockedKeys }}
 {{- fail (printf "parameters.%s: Valkey can't change it on running nodes, so set it in files/valkey.conf, which restarts them" $name) }}
+{{- end }}
+{{- if has (lower $name) $sensitiveKeys }}
+{{- fail (printf "parameters.%s: it would show in the ConfigMap and apply-config's logs, so keep secrets out of parameters" $name) }}
 {{- end }}
 {{- if has (lower $name) $chartKeys }}
 {{- fail (printf "parameters.%s: the chart sets it in files/valkey.conf or entrypoint.sh" $name) }}
