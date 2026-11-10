@@ -73,3 +73,48 @@ test('the worker settles each outcome', async () => {
   expect(retried).toEqual({ 'retry-after': MAX_DELAY, failed: 4, shutdown: 4 });
   expect(maxes.every((max) => max >= 1 && max <= 2)).toBe(true);
 });
+
+test('the worker releases what it receives after shutdown', async () => {
+  const controller = new AbortController();
+  const deadline = new Date(Date.now() + 60_000);
+  const late: Delivery = {
+    id: 'late',
+    source: '//test',
+    type: 'test',
+    contentType: 'application/json',
+    extensions: {},
+    time: deadline,
+    attempt: 1,
+    deadline,
+    handle: 'late'
+  };
+  const settled: string[] = [];
+  const queue: Queue = {
+    send: async () => {},
+    receive: () => {
+      controller.abort();
+      return Promise.resolve([late]);
+    },
+    ack: (...acked) => {
+      settled.push(...acked.map((delivery) => `ack ${delivery.id}`));
+      return Promise.resolve();
+    },
+    retry: (delay, ...retried) => {
+      settled.push(...retried.map((delivery) => `retry ${delivery.id} after ${delay}`));
+      return Promise.resolve();
+    },
+    close: async () => {}
+  };
+  const handled: string[] = [];
+  await new Worker({
+    queue,
+    concurrency: 1,
+    handle: (delivery) => {
+      handled.push(delivery.id);
+      return Promise.resolve();
+    }
+  }).run(controller.signal);
+
+  expect(handled).toEqual([]);
+  expect(settled).toEqual(['retry late after 0']);
+});

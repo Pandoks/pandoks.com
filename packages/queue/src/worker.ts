@@ -21,7 +21,8 @@ export class RetryAfter extends Error {
  * Runs handle on up to concurrency deliveries at once. A handler that resolves is acked;
  * Permanent is acked and logged; RetryAfter is retried after its delay; any other error is
  * retried after backoff. The handler's signal aborts 10 s before the delivery's deadline (halfway
- * there for a shorter lease) or on shutdown. run resolves once signal aborts and the running handlers have settled.
+ * there for a shorter lease) or on shutdown. run resolves once signal aborts, what its last
+ * receive returned is released, and the running handlers have settled.
  */
 export class Worker {
   queue: Queue;
@@ -52,6 +53,12 @@ export class Worker {
         console.error('queue receive failed', error);
         await sleep(POLL_ERROR_DELAY, signal);
         continue;
+      }
+      if (signal.aborted) {
+        await this.queue.retry(0, ...deliveries).catch((error: unknown) => {
+          console.error('queue release failed', error);
+        });
+        break;
       }
       for (const delivery of deliveries) {
         const settled = this.process(delivery, signal).finally(() => running.delete(settled));

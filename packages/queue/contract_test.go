@@ -383,3 +383,26 @@ func TestWorkerRunsAgainstValkey(t *testing.T) {
 		t.Fatalf("handled %d of %d", len(handled), len(ids))
 	}
 }
+
+func TestValkeyLateRetryLeavesAReclaimedEntry(t *testing.T) {
+	rawURL := "valkey://client:client@" + valkeyAddress + "/r" + strings.ToLower(rand.Text()[:10]) + "?lease=500ms&max_attempts=5"
+	slow, reclaimer := openQueue(t, rawURL), openQueue(t, rawURL)
+	message := testMessage("late")
+	if err := slow.Send(t.Context(), message); err != nil {
+		t.Fatal(err)
+	}
+	late := receive(t, slow, 30*time.Second, message.ID)[message.ID]
+	reclaimed := receive(t, reclaimer, 30*time.Second, message.ID)[message.ID]
+	if late == nil || reclaimed == nil {
+		t.Fatalf("got %+v and %+v", late, reclaimed)
+	}
+	if err := slow.Retry(t.Context(), 0, late); err != nil {
+		t.Fatal(err)
+	}
+	if err := reclaimer.Ack(t.Context(), reclaimed); err != nil {
+		t.Fatal(err)
+	}
+	if again := receive(t, slow, 2*time.Second, message.ID); len(again) > 0 {
+		t.Fatalf("the late retry re-queued it: %+v", again[message.ID])
+	}
+}

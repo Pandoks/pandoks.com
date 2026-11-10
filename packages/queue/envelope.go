@@ -1,6 +1,7 @@
 package queue
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -66,10 +67,14 @@ func encode(message Message, sentAt time.Time) ([]byte, error) {
 	default:
 		event["data_base64"] = message.Data
 	}
-	body, err := json.Marshal(event)
-	if err != nil {
+	// NOTE: unescaped <, >, and & keep the size the same as Python's and TS's encoders
+	var buffer bytes.Buffer
+	encoder := json.NewEncoder(&buffer)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(event); err != nil {
 		return nil, fmt.Errorf("encode message %s: %w", event["id"], err)
 	}
+	body := bytes.TrimSuffix(buffer.Bytes(), []byte("\n"))
 	if len(body) > MaxEnvelopeBytes {
 		return nil, fmt.Errorf("encode message %s: envelope is %d bytes, over %d", event["id"], len(body), MaxEnvelopeBytes)
 	}

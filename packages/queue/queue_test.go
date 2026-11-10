@@ -78,13 +78,39 @@ func TestEncodeRejectsWhatOtherBrokersCannotCarry(t *testing.T) {
 	}
 }
 
+func TestEncodeSizesHTMLLikePythonAndTS(t *testing.T) {
+	html := Message{Source: "//test", Type: "test", Data: []byte(`"` + strings.Repeat("<&>", (MaxEnvelopeBytes-300)/3) + `"`)}
+	body, err := encode(html, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "<&>") {
+		t.Fatalf("escaped HTML in %.200s", body)
+	}
+}
+
+func TestOpenKeepsValkeyPasswordsOutOfErrors(t *testing.T) {
+	for _, password := range []string{"xq1/zq2", "xq1?zq2", "xq1#zq2", "xq1%zq2", "123/zq2", "123?zq2", "123#zq2"} {
+		rawURL := "valkey://client:" + password + "@127.0.0.1:1/q?lease=1s&max_attempts=1"
+		_, queueErr := Open(t.Context(), rawURL)
+		_, topicErr := OpenTopic(t.Context(), rawURL)
+		for _, err := range []error{queueErr, topicErr} {
+			if err == nil || strings.Contains(err.Error(), "xq1") || strings.Contains(err.Error(), "zq2") {
+				t.Errorf("password %q: error %v", password, err)
+			}
+		}
+	}
+}
+
 // recordingQueue hands out its deliveries once and records how the worker settles them.
+// cancelOnReceive, when set, is called as a receive returns, like a shutdown racing it.
 type recordingQueue struct {
-	mutex      sync.Mutex
-	deliveries []*Delivery
-	maxes      []int
-	acked      []string
-	retried    map[string]time.Duration
+	mutex           sync.Mutex
+	deliveries      []*Delivery
+	maxes           []int
+	acked           []string
+	retried         map[string]time.Duration
+	cancelOnReceive context.CancelFunc
 }
 
 func (queue *recordingQueue) Send(context.Context, ...Message) error { return nil }
@@ -99,6 +125,9 @@ func (queue *recordingQueue) Receive(ctx context.Context, max int) ([]*Delivery,
 	if count == 0 {
 		<-ctx.Done()
 		return nil, ctx.Err()
+	}
+	if queue.cancelOnReceive != nil {
+		queue.cancelOnReceive()
 	}
 	return result, nil
 }
@@ -174,6 +203,26 @@ func TestWorkerSettlesEachOutcome(t *testing.T) {
 		if max < 1 || max > worker.Concurrency {
 			t.Errorf("received up to %d with concurrency %d", max, worker.Concurrency)
 		}
+	}
+}
+
+func TestWorkerReleasesWhatItReceivesAfterShutdown(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	queue := &recordingQueue{
+		deliveries:      []*Delivery{{Message: Message{ID: "late"}, Attempt: 1, Deadline: time.Now().Add(time.Minute)}},
+		retried:         map[string]time.Duration{},
+		cancelOnReceive: cancel,
+	}
+	handled := false
+	worker := Worker{Queue: queue, Concurrency: 1, Handle: func(context.Context, *Delivery) error {
+		handled = true
+		return nil
+	}}
+	if err := worker.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if handled || len(queue.acked) > 0 || !reflect.DeepEqual(queue.retried, map[string]time.Duration{"late": 0}) {
+		t.Errorf("handled %v, acked %v, retried %v; want only a retry after 0", handled, queue.acked, queue.retried)
 	}
 }
 

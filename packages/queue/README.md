@@ -32,8 +32,9 @@ graph LR
   that works on SQS also fits Cloudflare's 128 KB. Store anything bigger in object storage and send
   a reference.
 - **At-least-once:** every broker can deliver a message twice, and no broker fences a late ack.
-  Handlers dedupe on the envelope `id`, which the producer chooses (random when empty) and should
-  make stable for retried sends.
+  Valkey skips a late retry of a delivery whose lease expired and was received again. Handlers
+  dedupe on the envelope `id`, which the producer chooses (random when empty) and should make stable
+  for retried sends.
 - **Lease:** `Receive` leases each delivery for the URL's `lease`. `Deadline` is when it ends; past
   it the broker redelivers. Set the lease above the handler's worst case plus 10 s; no broker here
   can extend one portably.
@@ -115,9 +116,10 @@ returns is acked; `Permanent` is acked and logged; `RetryAfter` is retried after
 at `MaxDelay`); any other error, or a Go panic, is retried after `2^(attempt-1)` s, at most 15 min.
 Go cancels the handler's context, and TS aborts its signal, 10 s before `Deadline` (halfway there
 for a shorter lease); Python can't stop a running handler, so it logs one that runs past that point.
-When the context, signal, or `stop` event ends, the worker stops receiving, Go and TS cancel the
-running handlers, and it returns once they have settled. A Python worker can wait out its current
-receive first (up to SQS's 20 s long poll) and leaves what that receive returns to lease expiry.
+When the context, signal, or `stop` event ends, the worker stops receiving, retries what its last
+receive returned with no delay instead of handling it, Go and TS cancel the running handlers, and it
+returns once they have settled. A Python worker can wait out its current receive first (up to SQS's
+20 s long poll).
 
 ## URLs
 
@@ -257,6 +259,9 @@ docker compose -f packages/queue/compose.yaml down
 
 Cloudflare has no emulator, so its contract runs only in CI (`test-queue-cloudflare` in
 [tests.yaml](/.github/workflows/tests.yaml)), against queues the job creates for the run and deletes
-afterwards. Locally it is skipped unless `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, and
-`QUEUE_TEST_CLOUDFLARE_QUEUE`, `_DLQ`, and `_SUBSCRIPTION` (queue ids, the first dead-lettering to
-the second after `max_retries` 2) are set.
+afterwards. The job uses the repository's existing `CLOUDFLARE_API_TOKEN` and
+`CLOUDFLARE_DEFAULT_ACCOUNT_ID` secrets, so that token needs Queues · Edit. Until the job has run,
+the token's permissions and whether `max_retries` 2 dead-letters after 3 deliveries (Cloudflare's
+docs read both ways) are unverified. Locally it is skipped unless `CLOUDFLARE_ACCOUNT_ID`,
+`CLOUDFLARE_API_TOKEN`, and `QUEUE_TEST_CLOUDFLARE_QUEUE`, `_DLQ`, and `_SUBSCRIPTION` (queue ids,
+the first dead-lettering to the second after `max_retries` 2) are set.

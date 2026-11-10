@@ -44,8 +44,13 @@ jobs:
             prettier:
               - 'packages/prettier/**'
             queue:
+              - '.github/workflows/tests.yaml'
               - '.github/actions/setup-mise/**'
+              - '.github/actions/setup-node-pnpm/**'
               - 'mise.toml'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
               - 'packages/queue/**'
               - 'packages/valkey/chart/files/users.acl'
             valkey-reconciler:
@@ -138,10 +143,9 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.queue == 'true'
     runs-on: ubuntu-latest
-    environment: dev
     env:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_QUEUES_API_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       QUEUE_PREFIX: ci-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -161,7 +165,7 @@ jobs:
       - name: Create this run's queues
         id: queues
         run: |
-          : "${CLOUDFLARE_API_TOKEN:?Add a Cloudflare API token with Account > Queues > Edit as CLOUDFLARE_QUEUES_API_TOKEN in the dev environment}"
+          : "${CLOUDFLARE_API_TOKEN:?The CLOUDFLARE_API_TOKEN repository secret from infra/github.ts is not set}"
           api() {
             curl --fail-with-body -sS -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H 'Content-Type: application/json' \
               "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/queues$1" "${@:2}"

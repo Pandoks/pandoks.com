@@ -4,6 +4,7 @@ package queue
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -58,7 +59,7 @@ type Topic interface {
 func Open(ctx context.Context, rawURL string) (Queue, error) {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
-		return nil, fmt.Errorf("open queue: %w", err)
+		return nil, errors.New("open queue: URL does not parse")
 	}
 	switch parsed.Scheme {
 	case "awssqs":
@@ -75,7 +76,7 @@ func Open(ctx context.Context, rawURL string) (Queue, error) {
 func OpenTopic(ctx context.Context, rawURL string) (Topic, error) {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
-		return nil, fmt.Errorf("open topic: %w", err)
+		return nil, errors.New("open topic: URL does not parse")
 	}
 	switch parsed.Scheme {
 	case "awssns":

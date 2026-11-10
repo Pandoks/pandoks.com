@@ -4,6 +4,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
+from pandoks_queue import open_queue, open_topic
 from pandoks_queue.envelope import MAX_DELAY, MAX_ENVELOPE_BYTES, Message, decode, encode
 
 FIXTURES = sorted((Path(__file__).resolve().parents[2] / "testdata" / "envelopes").glob("*.json"))
@@ -30,3 +31,10 @@ class EnvelopeTest(unittest.TestCase):
             with self.subTest(name), self.assertRaises(ValueError):
                 encode(message, datetime.now(UTC))
         encode(valid, datetime.now(UTC))
+
+    def test_open_keeps_valkey_passwords_out_of_errors(self):
+        for password in ("xq1/zq2", "xq1?zq2", "xq1#zq2", "123/zq2", "123?zq2", "123#zq2"):
+            for opener in (open_queue, open_topic):
+                with self.subTest(password, opener=opener.__name__), self.assertRaises(ValueError) as raised:
+                    opener(f"valkey://client:{password}@127.0.0.1:1/q?lease=1s&max_attempts=1")
+                self.assertNotRegex(str(raised.exception), "xq1|zq2")

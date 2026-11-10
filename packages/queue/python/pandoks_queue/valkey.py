@@ -17,28 +17,33 @@ GROUP = "workers"
 EMPTY_POLL_DELAY = 0.1
 
 
-def valkey_client(parsed: SplitResult) -> tuple[ValkeyCluster, str]:
-    """Connects to the cluster in a valkey://[user:password@]host:port/<name> URL."""
+def valkey_name(parsed: SplitResult) -> str:
+    """Reads <name> from a valkey://[user:password@]host:port/<name> URL. Check it before anything
+    that echoes the URL: an unescaped /, ?, or # in the password leaves no valid name."""
     name = unquote(parsed.path.removeprefix("/"))
     if not parsed.hostname or not name or any(character in name for character in "{}/"):
         raise ValueError("valkey URL must be valkey://[user:password@]host:port/<name>")
-    client = ValkeyCluster(
+    return name
+
+
+def valkey_client(parsed: SplitResult) -> ValkeyCluster:
+    return ValkeyCluster(
         host=parsed.hostname,
         port=parsed.port or 6379,
         username=unquote(parsed.username or "") or None,
         password=unquote(parsed.password or "") or None,
         decode_responses=True,
     )
-    return client, name
 
 
 def open_queue(parsed: SplitResult) -> ValkeyQueue:
+    name = valkey_name(parsed)
     params = query_params(parsed, "lease", "max_attempts", "subscription")
     lease = parse_lease(params)
     max_attempts = int(params.get("max_attempts", "0"))
     if max_attempts < 1:
         raise ValueError(f"valkey URL: max_attempts {params.get('max_attempts')!r} must be at least 1")
-    client, name = valkey_client(parsed)
+    client = valkey_client(parsed)
     prefix = "{" + name + "}"
     if (subscription := params.get("subscription")) is not None:
         if not subscription:
@@ -50,8 +55,9 @@ def open_queue(parsed: SplitResult) -> ValkeyQueue:
 
 
 def open_topic(parsed: SplitResult) -> ValkeyTopic:
+    name = valkey_name(parsed)
     query_params(parsed)
-    return ValkeyTopic(*valkey_client(parsed))
+    return ValkeyTopic(valkey_client(parsed), name)
 
 
 class ValkeyQueue:

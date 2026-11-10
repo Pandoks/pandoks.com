@@ -29,8 +29,9 @@ class Worker:
     """Runs handle on up to concurrency deliveries at once in threads. A handler that returns is
     acked; Permanent is acked and logged; RetryAfter is retried after its delay; any other
     exception is retried after backoff. Python can't stop a running handler, so one that runs
-    past 10 s before its deadline is logged, and the broker may redeliver it meanwhile. run
-    returns once stop is set and the running handlers have settled."""
+    past 10 s before its deadline (halfway there for a shorter lease) is logged, and the broker
+    may redeliver it meanwhile. run returns once stop is set, what its last receive returned is
+    released, and the running handlers have settled."""
 
     queue: Queue
     handle: Callable[[Delivery], None]
@@ -52,13 +53,20 @@ class Worker:
                     deliveries = []
                     stop.wait(POLL_ERROR_DELAY)
                 if stop.is_set():
-                    # NOTE: received after stop; their leases return them to another worker
+                    self._release(deliveries)
                     deliveries = []
                 for _ in range(free - len(deliveries)):
                     slots.release()
                 for delivery in deliveries:
                     pool.submit(self._process, delivery, slots)
             slots.release()
+
+    def _release(self, deliveries: list[Delivery]) -> None:
+        """Returns deliveries received after stop to the queue without handling them."""
+        try:
+            self.queue.retry(0, *deliveries)
+        except Exception:
+            log.exception("queue release failed")
 
     def _process(self, delivery: Delivery, slots: threading.BoundedSemaphore) -> None:
         try:
@@ -70,6 +78,7 @@ class Worker:
 
     def _settle(self, delivery: Delivery) -> None:
         name = f"{delivery.id} ({delivery.type}) attempt {delivery.attempt}"
+        handler_deadline = delivery.deadline - min(HANDLER_MARGIN, (delivery.deadline - datetime.now(UTC)) / 2)
         try:
             self.handle(delivery)
         except Permanent:
@@ -82,6 +91,6 @@ class Worker:
             log.exception("queue message %s failed", name)
             return self.queue.retry(backoff(delivery.attempt), delivery)
         finally:
-            if datetime.now(UTC) > delivery.deadline - HANDLER_MARGIN:
-                log.warning("queue handler for %s ran past 10 s before its deadline", name)
+            if datetime.now(UTC) > handler_deadline:
+                log.warning("queue handler for %s ran past %s before its deadline", name, delivery.deadline - handler_deadline)
         self.queue.ack(delivery)

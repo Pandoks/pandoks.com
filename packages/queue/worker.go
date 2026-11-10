@@ -20,7 +20,8 @@ const (
 // acked; Permanent errors are acked and logged; RetryAfter errors are retried after their delay;
 // any other error or a panic is retried after backoff. The handler's context ends 10 s before
 // the delivery's deadline, or halfway there for a shorter lease. When Run's context ends, Run
-// stops receiving, cancels the handlers' contexts, settles them, and returns.
+// stops receiving, releases what its last receive returned, cancels the handlers' contexts,
+// settles them, and returns.
 type Worker struct {
 	Queue       Queue
 	Handle      func(context.Context, *Delivery) error
@@ -52,13 +53,14 @@ func (worker Worker) Run(ctx context.Context) error {
 		}
 
 		deliveries, err := worker.Queue.Receive(ctx, free)
+		if ctx.Err() != nil {
+			worker.release(ctx, deliveries)
+			return nil
+		}
 		for range free - len(deliveries) {
 			<-slots
 		}
 		if err != nil {
-			if ctx.Err() != nil {
-				return nil
-			}
 			slog.Error("queue receive failed", "error", err)
 			select {
 			case <-time.After(pollErrorDelay):
@@ -103,6 +105,15 @@ func (worker Worker) process(ctx context.Context, delivery *Delivery) {
 	}
 	if settleErr != nil {
 		log.Error("queue settle failed", "error", settleErr)
+	}
+}
+
+// release returns deliveries received after shutdown began to the queue without handling them.
+func (worker Worker) release(ctx context.Context, deliveries []*Delivery) {
+	settleContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), settleTimeout)
+	defer cancel()
+	if err := worker.Queue.Retry(settleContext, 0, deliveries...); err != nil {
+		slog.Error("queue release failed", "error", err)
 	}
 }
 

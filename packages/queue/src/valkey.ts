@@ -22,13 +22,20 @@ function script(name: string): Script {
   return new Script(readFileSync(new URL(`../valkey/${name}.lua`, import.meta.url), 'utf8'));
 }
 
-/** Connects to the cluster in a valkey://[user:password@]host:port/<name> URL. */
-async function valkeyClient(url: URL): Promise<{ client: GlideClusterClient; name: string }> {
+/**
+ * Reads <name> from a valkey://[user:password@]host:port/<name> URL. Check it before anything that
+ * echoes the URL: an unescaped /, ?, or # in the password leaves no valid name.
+ */
+function valkeyName(url: URL): string {
   const name = decodeURIComponent(url.pathname.replace(/^\//, ''));
   if (!url.hostname || !name || /[{}/]/.test(name)) {
     throw new Error('valkey URL must be valkey://[user:password@]host:port/<name>');
   }
-  const client = await GlideClusterClient.createClient({
+  return name;
+}
+
+function valkeyClient(url: URL): Promise<GlideClusterClient> {
+  return GlideClusterClient.createClient({
     addresses: [{ host: url.hostname, port: Number(url.port || 6379) }],
     credentials: url.password
       ? {
@@ -37,17 +44,17 @@ async function valkeyClient(url: URL): Promise<{ client: GlideClusterClient; nam
         }
       : undefined
   });
-  return { client, name };
 }
 
 export async function openQueue(url: URL): Promise<ValkeyQueue> {
+  const name = valkeyName(url);
   const params = queryParams(url, 'lease', 'max_attempts', 'subscription');
   const lease = parseLease(params);
   const maxAttempts = Number(params.max_attempts);
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
     throw new Error(`valkey URL: max_attempts ${params.max_attempts} must be at least 1`);
   }
-  const { client, name } = await valkeyClient(url);
+  const client = await valkeyClient(url);
   let prefix = `{${name}}`;
   if (params.subscription !== undefined) {
     if (!params.subscription) {
@@ -61,9 +68,9 @@ export async function openQueue(url: URL): Promise<ValkeyQueue> {
 }
 
 export async function openTopic(url: URL): Promise<ValkeyTopic> {
+  const name = valkeyName(url);
   queryParams(url);
-  const { client, name } = await valkeyClient(url);
-  return new ValkeyTopic(client, name);
+  return new ValkeyTopic(await valkeyClient(url), name);
 }
 
 /** Keeps a queue's stream, delayed retries, and dead letters under one hash tag. */

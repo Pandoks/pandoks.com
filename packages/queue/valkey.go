@@ -35,12 +35,17 @@ var (
 	publishScript = valkey.NewLuaScript(publishSource)
 )
 
-// valkeyClient connects to the cluster in a valkey://[user:password@]host:port/<name> URL.
-func valkeyClient(parsed *url.URL) (valkey.Client, string, error) {
+// valkeyName reads <name> from a valkey://[user:password@]host:port/<name> URL. Check it before
+// anything that echoes the URL: an unescaped /, ?, or # in the password leaves no valid name.
+func valkeyName(parsed *url.URL) (string, error) {
 	name := strings.TrimPrefix(parsed.Path, "/")
 	if parsed.Host == "" || name == "" || strings.ContainsAny(name, "{}/") {
-		return nil, "", fmt.Errorf("valkey URL %q must be valkey://[user:password@]host:port/<name>", parsed.Redacted())
+		return "", errors.New("valkey URL must be valkey://[user:password@]host:port/<name>")
 	}
+	return name, nil
+}
+
+func valkeyClient(parsed *url.URL) (valkey.Client, error) {
 	password, _ := parsed.User.Password()
 	client, err := valkey.NewClient(valkey.ClientOption{
 		InitAddress:  []string{parsed.Host},
@@ -49,9 +54,9 @@ func valkeyClient(parsed *url.URL) (valkey.Client, string, error) {
 		DisableCache: true,
 	})
 	if err != nil {
-		return nil, "", fmt.Errorf("connect to Valkey: %w", err)
+		return nil, fmt.Errorf("connect to Valkey: %w", err)
 	}
-	return client, name, nil
+	return client, nil
 }
 
 // valkeyQueue keeps a queue's stream, delayed retries, and dead letters under one hash tag.
@@ -64,6 +69,10 @@ type valkeyQueue struct {
 }
 
 func openValkey(ctx context.Context, parsed *url.URL) (*valkeyQueue, error) {
+	name, err := valkeyName(parsed)
+	if err != nil {
+		return nil, err
+	}
 	params, err := queryParams(parsed, "lease", "max_attempts", "subscription")
 	if err != nil {
 		return nil, err
@@ -76,7 +85,7 @@ func openValkey(ctx context.Context, parsed *url.URL) (*valkeyQueue, error) {
 	if err != nil || maxAttempts < 1 {
 		return nil, fmt.Errorf("valkey URL: max_attempts %q must be at least 1", params["max_attempts"])
 	}
-	client, name, err := valkeyClient(parsed)
+	client, err := valkeyClient(parsed)
 	if err != nil {
 		return nil, err
 	}
@@ -217,10 +226,14 @@ type valkeyTopic struct {
 }
 
 func openValkeyTopic(_ context.Context, parsed *url.URL) (*valkeyTopic, error) {
+	name, err := valkeyName(parsed)
+	if err != nil {
+		return nil, err
+	}
 	if _, err := queryParams(parsed); err != nil {
 		return nil, err
 	}
-	client, name, err := valkeyClient(parsed)
+	client, err := valkeyClient(parsed)
 	if err != nil {
 		return nil, err
 	}

@@ -14,7 +14,9 @@ export { Permanent, RetryAfter, Worker } from './worker.ts';
 
 /** Opens a queue, or a topic's subscription, from its URL. */
 export async function openQueue(url: string): Promise<Queue> {
-  const parsed = new URL(url);
+  // NOTE: not new URL, whose error carries the whole URL, password included
+  const parsed = URL.parse(url);
+  if (!parsed) throw new Error('open queue: URL does not parse');
   switch (parsed.protocol) {
     case 'awssqs:':
       return (await import('./sqs.ts')).openQueue(parsed);
@@ -28,7 +30,9 @@ export async function openQueue(url: string): Promise<Queue> {
 
 /** Opens a topic from its URL. */
 export async function openTopic(url: string): Promise<Topic> {
-  const parsed = new URL(url);
+  // NOTE: not new URL, whose error carries the whole URL, password included
+  const parsed = URL.parse(url);
+  if (!parsed) throw new Error('open topic: URL does not parse');
   switch (parsed.protocol) {
     case 'awssns:':
       return (await import('./sns.ts')).openTopic(parsed);

@@ -21,6 +21,7 @@ EXTENSION_NAME = re.compile(r"[a-z0-9]{1,20}")
 ATTRIBUTES = {"specversion", "id", "source", "type", "time", "datacontenttype", "data", "data_base64"}
 DURATION = re.compile(r"(\d+)(ms|s|m|h)")
 DURATION_SECONDS = {"ms": 0.001, "s": 1, "m": 60, "h": 3600}
+LONE_SURROGATE = re.compile("[\ud800-\udfff]")
 
 log = logging.getLogger("pandoks_queue")
 
@@ -90,6 +91,8 @@ def encode(message: Message, sent_at: datetime) -> str:
     elif message.data is not None:
         event["data_base64"] = base64.b64encode(message.data).decode()
     body = json.dumps(event, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+    # NOTE: a lone surrogate (like JS text cut mid-emoji) can't be UTF-8, so escape it as JS does
+    body = LONE_SURROGATE.sub(lambda match: f"\\u{ord(match[0]):04x}", body)
     if len(body.encode()) > MAX_ENVELOPE_BYTES:
         raise ValueError(f"encode message {event['id']}: envelope is {len(body.encode())} bytes, over {MAX_ENVELOPE_BYTES}")
     return body
@@ -108,7 +111,7 @@ def decode(body: str, **delivery) -> Delivery:
     if "data_base64" in event:
         data = base64.b64decode(event["data_base64"], validate=True)
     elif "data" in event:
-        data = json.dumps(event["data"], ensure_ascii=False, separators=(",", ":")).encode()
+        data = json.dumps(event["data"], separators=(",", ":")).encode()
     else:
         data = None
     return Delivery(

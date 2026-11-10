@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 import { MAX_DELAY, MAX_ENVELOPE_BYTES, decode, encode, type Message } from './envelope.ts';
+import { openQueue, openTopic } from './index.ts';
 
 const fixtures = new URL('../testdata/envelopes/', import.meta.url);
 const fixtureBodies = readdirSync(fixtures).map((name) => ({
@@ -41,4 +42,19 @@ describe('envelope', () => {
     });
     expect(() => decode(body, { attempt: 1, deadline: new Date(), handle: undefined })).toThrow();
   });
+
+  test.each(['xq1/zq2', 'xq1?zq2', 'xq1#zq2', '123/zq2', '123?zq2', '123#zq2'])(
+    'open keeps the valkey password %s out of errors',
+    async (password) => {
+      const url = `valkey://client:${password}@127.0.0.1:1/q?lease=1s&max_attempts=1`;
+      for (const open of [openQueue, openTopic]) {
+        const error: unknown = await open(url).then(
+          () => undefined,
+          (thrown: unknown) => thrown
+        );
+        expect(error).toBeInstanceOf(Error);
+        expect(JSON.stringify(error) + String(error)).not.toMatch(/xq1|zq2/);
+      }
+    }
+  );
 });
