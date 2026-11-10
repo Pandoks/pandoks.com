@@ -104,12 +104,12 @@ graph TB
 - **S3-compatible storage** - works with AWS S3, MinIO, S3Mock
 - **Restore on bootstrap** - a new group whose stanza already has a full backup restores it instead
   of starting empty, with the chart's `postgresql.conf` and `pg_hba.conf` instead of the backup's,
-  and without the backup's `ALTER SYSTEM` settings. It waits for WAL replay however long it takes,
-  retrying repo errors every 10 seconds until only a missing segment ends it, then takes a full
-  backup for its replicas. If the repo can't be read, the bootstrap fails instead of starting empty.
-  Replaying to the end of its own archived WAL is only consistent when a single worker group is
-  lost; after losing the coordinator or several groups, follow [PITR](#point-in-time-recovery-pitr)
-  instead
+  and without the backup's `ALTER SYSTEM` settings other than Citus's `ssl`. It waits for WAL replay
+  however long it takes, retrying repo errors every 10 seconds until only a missing segment ends it,
+  then takes a full backup for its replicas. If the repo can't be read, the bootstrap fails instead
+  of starting empty. Replaying to the end of its own archived WAL is only consistent when a single
+  worker group is lost; after losing the coordinator or several groups, follow
+  [PITR](#point-in-time-recovery-pitr) instead
 
 ### Monitoring
 
