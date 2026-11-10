@@ -17,7 +17,7 @@ class Permanent(Exception):
 
 
 class RetryAfter(Exception):
-    """A handler error the worker retries after delay seconds, capped at MAX_DELAY."""
+    """A handler error the worker retries after delay seconds, clamped to 0 through MAX_DELAY."""
 
     def __init__(self, delay: float, *args: object):
         super().__init__(*args)
@@ -86,7 +86,7 @@ class Worker:
             return self.queue.ack(delivery)
         except RetryAfter as error:
             log.warning("queue message %s retried in %ss: %s", name, error.delay, error)
-            return self.queue.retry(min(error.delay, MAX_DELAY), delivery)
+            return self.queue.retry(min(max(error.delay, 0), MAX_DELAY), delivery)
         except Exception:
             log.exception("queue message %s failed", name)
             return self.queue.retry(backoff(delivery.attempt), delivery)

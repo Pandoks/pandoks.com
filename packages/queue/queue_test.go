@@ -246,7 +246,7 @@ func (*recordingQueue) Close() error { return nil }
 func TestWorkerSettlesEachOutcome(t *testing.T) {
 	queue := &recordingQueue{retried: map[string]time.Duration{}}
 	deadline := time.Now().Add(time.Minute)
-	for _, id := range []string{"ok", "permanent", "retry-after", "failed", "panicked", "shutdown"} {
+	for _, id := range []string{"ok", "permanent", "retry-after", "expired", "failed", "panicked", "shutdown"} {
 		queue.deliveries = append(queue.deliveries, &Delivery{
 			Message:  Message{ID: id},
 			Attempt:  3,
@@ -264,6 +264,8 @@ func TestWorkerSettlesEachOutcome(t *testing.T) {
 			return Permanent(errors.New("malformed"))
 		case "retry-after":
 			return RetryAfter(time.Hour, errors.New("rate limited"))
+		case "expired":
+			return RetryAfter(-time.Second, errors.New("retry date passed"))
 		case "failed":
 			return errors.New("transient")
 		case "panicked":
@@ -283,7 +285,7 @@ func TestWorkerSettlesEachOutcome(t *testing.T) {
 	if !reflect.DeepEqual(queue.acked, []string{"ok", "permanent"}) && !reflect.DeepEqual(queue.acked, []string{"permanent", "ok"}) {
 		t.Errorf("acked %v, want ok and permanent", queue.acked)
 	}
-	want := map[string]time.Duration{"retry-after": MaxDelay, "failed": 4 * time.Second, "panicked": 4 * time.Second, "shutdown": 4 * time.Second}
+	want := map[string]time.Duration{"retry-after": MaxDelay, "expired": 0, "failed": 4 * time.Second, "panicked": 4 * time.Second, "shutdown": 4 * time.Second}
 	if !reflect.DeepEqual(queue.retried, want) {
 		t.Errorf("retried %v, want %v", queue.retried, want)
 	}

@@ -43,7 +43,7 @@ class WorkerTest(unittest.TestCase):
     def test_worker_settles_each_outcome(self):
         stop = threading.Event()
         deadline = datetime.now(UTC) + timedelta(minutes=1)
-        ids = ["ok", "permanent", "retry-after", "failed", "shutdown"]
+        ids = ["ok", "permanent", "retry-after", "expired", "failed", "shutdown"]
         queue = RecordingQueue(
             [Delivery(id=id, source="//test", type="test", time=deadline, attempt=3, deadline=deadline) for id in ids],
             stop,
@@ -55,6 +55,8 @@ class WorkerTest(unittest.TestCase):
                     raise Permanent("malformed")
                 case "retry-after":
                     raise RetryAfter(3600, "rate limited")
+                case "expired":
+                    raise RetryAfter(-1, "retry date passed")
                 case "failed":
                     raise RuntimeError("transient")
                 case "shutdown":
@@ -65,7 +67,7 @@ class WorkerTest(unittest.TestCase):
         with self.assertLogs("pandoks_queue", "WARNING"):
             worker.run(stop)
         self.assertCountEqual(queue.acked, ["ok", "permanent"])
-        self.assertEqual(queue.retried, {"retry-after": MAX_DELAY, "failed": 4, "shutdown": 4})
+        self.assertEqual(queue.retried, {"retry-after": MAX_DELAY, "expired": 0, "failed": 4, "shutdown": 4})
         self.assertTrue(all(1 <= max <= 2 for max in queue.maxes), queue.maxes)
 
     def test_worker_warns_only_past_half_a_short_lease(self):

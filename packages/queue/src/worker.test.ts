@@ -7,19 +7,24 @@ test('the worker settles each outcome', async () => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   const controller = new AbortController();
   const deadline = new Date(Date.now() + 60_000);
-  let deliveries: Delivery[] = ['ok', 'permanent', 'retry-after', 'failed', 'shutdown'].map(
-    (id) => ({
-      id,
-      source: '//test',
-      type: 'test',
-      contentType: 'application/json',
-      extensions: {},
-      time: deadline,
-      attempt: 3,
-      deadline,
-      handle: id
-    })
-  );
+  let deliveries: Delivery[] = [
+    'ok',
+    'permanent',
+    'retry-after',
+    'expired',
+    'failed',
+    'shutdown'
+  ].map((id) => ({
+    id,
+    source: '//test',
+    type: 'test',
+    contentType: 'application/json',
+    extensions: {},
+    time: deadline,
+    attempt: 3,
+    deadline,
+    handle: id
+  }));
   const maxes: number[] = [];
   const acked: string[] = [];
   const retried: Record<string, number> = {};
@@ -58,6 +63,8 @@ test('the worker settles each outcome', async () => {
           throw new Permanent('malformed');
         case 'retry-after':
           throw new RetryAfter(3600, 'rate limited');
+        case 'expired':
+          throw new RetryAfter(-1, 'retry date passed');
         case 'failed':
           throw new Error('transient');
       }
@@ -70,7 +77,7 @@ test('the worker settles each outcome', async () => {
 
   expect(abortedWhileHandling).toBe(false);
   expect(acked.sort()).toEqual(['ok', 'permanent']);
-  expect(retried).toEqual({ 'retry-after': MAX_DELAY, failed: 4, shutdown: 4 });
+  expect(retried).toEqual({ 'retry-after': MAX_DELAY, expired: 0, failed: 4, shutdown: 4 });
   expect(maxes.every((max) => max >= 1 && max <= 2)).toBe(true);
 });
 

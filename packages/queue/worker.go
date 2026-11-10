@@ -98,7 +98,7 @@ func (worker Worker) process(ctx context.Context, delivery *Delivery) {
 		settleErr = worker.Queue.Ack(settleContext, delivery)
 	case errors.As(err, &retryAfter):
 		log.Warn("queue message retried", "delay", retryAfter.delay, "error", err)
-		settleErr = worker.Queue.Retry(settleContext, min(retryAfter.delay, MaxDelay), delivery)
+		settleErr = worker.Queue.Retry(settleContext, min(max(retryAfter.delay, 0), MaxDelay), delivery)
 	default:
 		log.Error("queue message failed", "error", err)
 		settleErr = worker.Queue.Retry(settleContext, backoff(delivery.Attempt), delivery)
@@ -142,7 +142,7 @@ type retryAfterError struct {
 func (err *retryAfterError) Error() string { return err.err.Error() }
 func (err *retryAfterError) Unwrap() error { return err.err }
 
-// RetryAfter marks a handler error the worker retries after delay, capped at MaxDelay.
+// RetryAfter marks a handler error the worker retries after delay, clamped to 0 through MaxDelay.
 func RetryAfter(delay time.Duration, err error) error {
 	return &retryAfterError{delay: delay, err: err}
 }

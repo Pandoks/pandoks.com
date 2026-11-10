@@ -151,7 +151,10 @@ jobs:
   # NOTE: Cloudflare Queues has no emulator, so this job creates this run's queues and deletes them
   test-queue-cloudflare:
     needs: detect-changes
-    if: needs.detect-changes.outputs.queue == 'true'
+    # NOTE: fork PRs get no repository secrets, so only this repo's branches run it
+    if: >-
+      needs.detect-changes.outputs.queue == 'true' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     env:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}

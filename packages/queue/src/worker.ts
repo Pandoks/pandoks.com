@@ -7,7 +7,7 @@ const POLL_ERROR_DELAY = 1;
 /** A handler error the worker acks instead of retrying, like a malformed payload. */
 export class Permanent extends Error {}
 
-/** A handler error the worker retries after delay seconds, capped at MAX_DELAY. */
+/** A handler error the worker retries after delay seconds, clamped to 0 through MAX_DELAY. */
 export class RetryAfter extends Error {
   delay: number;
 
@@ -85,7 +85,7 @@ export class Worker {
         }
         if (error instanceof RetryAfter) {
           console.warn(`queue message ${name} retried in ${error.delay}s`, error);
-          return await this.queue.retry(Math.min(error.delay, MAX_DELAY), delivery);
+          return await this.queue.retry(Math.min(Math.max(error.delay, 0), MAX_DELAY), delivery);
         }
         console.error(`queue message ${name} failed`, error);
         return await this.queue.retry(backoff(delivery.attempt), delivery);

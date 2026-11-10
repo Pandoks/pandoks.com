@@ -123,14 +123,14 @@ func RetryAfter(delay time.Duration, err error) error
 | Dependency | all SDKs in `go.mod`                   | extras `pandoks-queue[sqs,cloudflare,valkey]`  | optional peers, loaded by `import()` per URL scheme  |
 
 **Worker:** it receives only as many deliveries as it has free slots (`Concurrency`). A handler that
-returns is acked; `Permanent` is acked and logged; `RetryAfter` is retried after its delay (capped
-at `MaxDelay`); any other error, or a Go panic, is retried after `2^(attempt-1)` s, at most 15 min.
-Go cancels the handler's context, and TS aborts its signal, 10 s before `Deadline` (halfway there
-for a shorter lease); Python can't stop a running handler, so it logs one that runs past that point.
-When the context, signal, or `stop` event ends, the worker stops receiving, retries what its last
-receive returned with no delay instead of handling it, Go and TS cancel the running handlers, and it
-returns once they have settled. A Python worker can wait out its current receive first (up to SQS's
-20 s long poll).
+returns is acked; `Permanent` is acked and logged; `RetryAfter` is retried after its delay (clamped
+to 0 through `MaxDelay`); any other error, or a Go panic, is retried after `2^(attempt-1)` s, at
+most 15 min. Go cancels the handler's context, and TS aborts its signal, 10 s before `Deadline`
+(halfway there for a shorter lease); Python can't stop a running handler, so it logs one that runs
+past that point. When the context, signal, or `stop` event ends, the worker stops receiving, retries
+what its last receive returned with no delay instead of handling it, Go and TS cancel the running
+handlers, and it returns once they have settled. A Python worker can wait out its current receive
+first (up to SQS's 20 s long poll).
 
 ## URLs
 
