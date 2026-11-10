@@ -1,0 +1,19 @@
+{
+ "mode": "human",
+ "scenario": "scroll",
+ "out": "/var/tmp/stealth-check/behavior-capture/datasets/human-scroll.jsonl",
+ "driver_dispatches": 19,
+ "page_received": 20,
+ "binding_received": 20,
+ "cap_stats": {
+  "seq": 20,
+  "buffered": 0
+ },
+ "is_trusted_total": 19,
+ "is_trusted_false": 1,
+ "untrusted_types": [
+  "mousemove"
+ ],
+ "seq_monotonic": true,
+ "duration_s": 5.32
+}

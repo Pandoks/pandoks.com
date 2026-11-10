@@ -1,0 +1,19 @@
+{
+ "mode": "patched",
+ "scenario": "scroll",
+ "out": "/var/tmp/stealth-check/patched-capture/patched-scroll.jsonl",
+ "session_seed": 20250619,
+ "page_received": 30,
+ "binding_received": 30,
+ "cap_stats": {
+  "seq": 30,
+  "buffered": 0
+ },
+ "is_trusted_total": 29,
+ "is_trusted_false": 1,
+ "untrusted_types": [
+  "mousemove"
+ ],
+ "seq_monotonic": true,
+ "duration_s": 10.06
+}

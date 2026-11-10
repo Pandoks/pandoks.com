@@ -1,0 +1,19 @@
+{
+ "mode": "machine",
+ "scenario": "clicks",
+ "out": "/var/tmp/stealth-check/behavior-capture/datasets/machine-clicks.jsonl",
+ "driver_dispatches": 3,
+ "page_received": 88,
+ "binding_received": 88,
+ "cap_stats": {
+  "seq": 88,
+  "buffered": 0
+ },
+ "is_trusted_total": 87,
+ "is_trusted_false": 1,
+ "untrusted_types": [
+  "mousemove"
+ ],
+ "seq_monotonic": true,
+ "duration_s": 3.41
+}

@@ -1,0 +1,19 @@
+{
+ "mode": "patched",
+ "scenario": "clicks",
+ "out": "/var/tmp/stealth-check/patched-capture/seed777-clicks.jsonl",
+ "session_seed": 777,
+ "page_received": 322,
+ "binding_received": 322,
+ "cap_stats": {
+  "seq": 322,
+  "buffered": 0
+ },
+ "is_trusted_total": 321,
+ "is_trusted_false": 1,
+ "untrusted_types": [
+  "mousemove"
+ ],
+ "seq_monotonic": true,
+ "duration_s": 7.64
+}

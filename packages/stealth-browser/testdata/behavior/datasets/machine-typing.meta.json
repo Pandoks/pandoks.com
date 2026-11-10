@@ -1,0 +1,19 @@
+{
+ "mode": "machine",
+ "scenario": "typing",
+ "out": "/var/tmp/stealth-check/behavior-capture/datasets/machine-typing.jsonl",
+ "driver_dispatches": 54,
+ "page_received": 189,
+ "binding_received": 189,
+ "cap_stats": {
+  "seq": 189,
+  "buffered": 0
+ },
+ "is_trusted_total": 188,
+ "is_trusted_false": 1,
+ "untrusted_types": [
+  "mousemove"
+ ],
+ "seq_monotonic": true,
+ "duration_s": 4.02
+}

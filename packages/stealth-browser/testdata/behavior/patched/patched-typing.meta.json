@@ -1,0 +1,19 @@
+{
+ "mode": "patched",
+ "scenario": "typing",
+ "out": "/var/tmp/stealth-check/patched-capture/patched-typing.jsonl",
+ "session_seed": 20250619,
+ "page_received": 345,
+ "binding_received": 345,
+ "cap_stats": {
+  "seq": 345,
+  "buffered": 0
+ },
+ "is_trusted_total": 344,
+ "is_trusted_false": 1,
+ "untrusted_types": [
+  "mousemove"
+ ],
+ "seq_monotonic": true,
+ "duration_s": 29.7
+}

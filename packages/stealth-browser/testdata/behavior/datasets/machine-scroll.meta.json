@@ -1,0 +1,19 @@
+{
+ "mode": "machine",
+ "scenario": "scroll",
+ "out": "/var/tmp/stealth-check/behavior-capture/datasets/machine-scroll.jsonl",
+ "driver_dispatches": 15,
+ "page_received": 16,
+ "binding_received": 16,
+ "cap_stats": {
+  "seq": 16,
+  "buffered": 0
+ },
+ "is_trusted_total": 15,
+ "is_trusted_false": 1,
+ "untrusted_types": [
+  "mousemove"
+ ],
+ "seq_monotonic": true,
+ "duration_s": 4.2
+}

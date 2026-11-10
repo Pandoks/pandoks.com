@@ -1,0 +1,19 @@
+{
+ "mode": "human",
+ "scenario": "typing",
+ "out": "/var/tmp/stealth-check/behavior-capture/datasets/human-typing.jsonl",
+ "driver_dispatches": 223,
+ "page_received": 395,
+ "binding_received": 395,
+ "cap_stats": {
+  "seq": 395,
+  "buffered": 0
+ },
+ "is_trusted_total": 394,
+ "is_trusted_false": 1,
+ "untrusted_types": [
+  "mousemove"
+ ],
+ "seq_monotonic": true,
+ "duration_s": 21.1
+}

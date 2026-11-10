@@ -1,0 +1,19 @@
+{
+ "mode": "human",
+ "scenario": "clicks",
+ "out": "/var/tmp/stealth-check/behavior-capture/datasets/human-clicks.jsonl",
+ "driver_dispatches": 127,
+ "page_received": 258,
+ "binding_received": 258,
+ "cap_stats": {
+  "seq": 258,
+  "buffered": 0
+ },
+ "is_trusted_total": 257,
+ "is_trusted_false": 1,
+ "untrusted_types": [
+  "mousemove"
+ ],
+ "seq_monotonic": true,
+ "duration_s": 7.45
+}
