@@ -1,10 +1,10 @@
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
 metadata:
-  name: mobile-template-updates-mobile-template
+  name: mobile-template-mobile-updates-mobile-template
   namespace: kube-system
 spec:
-  chart: oci://${ImageRegistry}/charts/updates
+  chart: oci://${ImageRegistry}/charts/mobile-updates
   version: 0.1.0
   targetNamespace: &namespace mobile-template
   createNamespace: true
@@ -16,4 +16,4 @@ spec:
     # NOTE: Renovate bumps the digest after main builds a new image, so merging that PR releases the update
     image: ghcr.io/pandoks/mobile-template-updates:latest@sha256:93c6c5bfa053a91992608a6bc14951d42c04659bb33630625d0dc6a2f836979a
     host: ${UpdatesDomain}
-    signingKey.secret: updates-mobile-template-signing-key
+    signingKey.secret: mobile-updates-mobile-template-signing-key

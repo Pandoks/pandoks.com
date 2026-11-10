@@ -31,8 +31,8 @@ RUN test -n "${CREATED_AT}" && printf '%s\n' "${CREATED_AT}" > /export/created-a
 FROM golang:1.27.3-trixie@sha256:af1bfc2614ebb1dbd31af514b78740fd678850e76498762b425ecee4c5c6ea80 AS builder
 
 WORKDIR /src
-COPY packages/updates/go.mod ./
-COPY packages/updates/main.go ./
+COPY packages/mobile-updates/go.mod ./
+COPY packages/mobile-updates/main.go ./
 
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64

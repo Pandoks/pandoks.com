@@ -25,7 +25,7 @@ jobs:
       svelte: ${{ steps.filter.outputs.svelte }}
       prettier: ${{ steps.filter.outputs.prettier }}
       valkey-reconciler: ${{ steps.filter.outputs.valkey-reconciler }}
-      updates: ${{ steps.filter.outputs.updates }}
+      mobile-updates: ${{ steps.filter.outputs.mobile-updates }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -65,8 +65,8 @@ jobs:
               - 'go.work'
               - 'go.work.sum'
               - *needs-node-setup
-            updates:
-              - 'packages/updates/**'
+            mobile-updates:
+              - 'packages/mobile-updates/**'
               - *needs-node-setup
 
   test-web:
@@ -228,9 +228,9 @@ jobs:
       - name: Run tests
         run: pnpm --filter @pandoks.com/valkey test
 
-  test-updates:
+  test-mobile-updates:
     needs: detect-changes
-    if: needs.detect-changes.outputs.updates == 'true'
+    if: needs.detect-changes.outputs.mobile-updates == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -240,12 +240,12 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: packages/updates/go.mod
+          go-version-file: packages/mobile-updates/go.mod
           # NOTE: the server has no dependencies to cache
           cache: false
 
       - name: Run tests
-        run: pnpm --filter @pandoks.com/updates test
+        run: pnpm --filter @pandoks.com/mobile-updates test
 
   tests-pass:
     needs:
@@ -258,7 +258,7 @@ jobs:
       - test-svelte-pkg
       - test-prettier-pkg
       - test-valkey-reconciler
-      - test-updates
+      - test-mobile-updates
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:

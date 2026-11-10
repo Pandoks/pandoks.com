@@ -1,6 +1,6 @@
 go 1.27.3
 
 use (
-	./packages/updates
+	./packages/mobile-updates
 	./packages/valkey/reconciler
 )

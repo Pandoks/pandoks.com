@@ -54,8 +54,8 @@ on:
         description: 'Chart · clickhouse'
         type: boolean
         default: false
-      updates-chart:
-        description: 'Chart · updates'
+      mobile-updates-chart:
+        description: 'Chart · mobile-updates'
         type: boolean
         default: false
   push:
@@ -100,7 +100,7 @@ jobs:
               - 'packages/clickhouse/backup/**'
             # NOTE: not the app's kube/, or merging Renovate's digest bump rebuilds the image and bumps it again
             mobile-template-updates:
-              - 'packages/updates/{Dockerfile,Dockerfile.dockerignore,go.mod,main.go}'
+              - 'packages/mobile-updates/{Dockerfile,Dockerfile.dockerignore,go.mod,main.go}'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - 'apps/mobile-template/*'
@@ -117,8 +117,8 @@ jobs:
               - 'packages/valkey/chart/**'
             clickhouse:
               - 'packages/clickhouse/chart/**'
-            updates:
-              - 'packages/updates/chart/**'
+            mobile-updates:
+              - 'packages/mobile-updates/chart/**'
 
       - id: set-image-matrix
         env:
@@ -133,7 +133,7 @@ jobs:
             {"name":"clickhouse","path":"./packages/clickhouse/clickhouse/Dockerfile"},
             {"name":"clickhouse-keeper","path":"./packages/clickhouse/keeper/Dockerfile"},
             {"name":"clickhouse-backup","path":"./packages/clickhouse/backup/Dockerfile"},
-            {"name":"mobile-template-updates","path":"./packages/updates/Dockerfile","build-args":"APP=mobile-template"}
+            {"name":"mobile-template-updates","path":"./packages/mobile-updates/Dockerfile","build-args":"APP=mobile-template"}
           ]'
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             selected=$(jq -c 'to_entries | map(select(.value == true) | .key)' <<<"${DISPATCH}")
@@ -151,7 +151,7 @@ jobs:
             {"name":"postgres","path":"./packages/postgres/chart"},
             {"name":"valkey","path":"./packages/valkey/chart"},
             {"name":"clickhouse","path":"./packages/clickhouse/chart"},
-            {"name":"updates","path":"./packages/updates/chart"}
+            {"name":"mobile-updates","path":"./packages/mobile-updates/chart"}
           ]'
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             selected=$(jq -c 'to_entries | map(select(.value == true and (.key | endswith("-chart"))) | .key | sub("-chart$"; ""))' <<<"${DISPATCH}")

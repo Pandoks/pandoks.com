@@ -2,7 +2,7 @@
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
 metadata:
-  name: mobile-template-updates-mobile-template
+  name: mobile-template-mobile-updates-mobile-template
   namespace: kube-system
 spec:
   set:

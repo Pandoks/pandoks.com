@@ -1,4 +1,4 @@
-# Updates
+# Mobile updates
 
 Self-hosted over-the-air updates for Expo apps: a Go server that implements the
 [Expo Updates v1 protocol](https://docs.expo.dev/technical-specs/expo-updates-1/) for the update
@@ -21,7 +21,7 @@ Every build is a new update with its own ID and creation time, even of old code,
 launches the newest update it has.
 
 ```sh
-docker build -f packages/updates/Dockerfile --build-arg APP=<app> \
+docker build -f packages/mobile-updates/Dockerfile --build-arg APP=<app> \
   --build-arg CREATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" -t <app>-updates .
 ```
 
@@ -50,7 +50,7 @@ serves the app at `https://${UpdatesDomain}/<slug>`: `updates.pandoks.com` in pr
 apiVersion: v1
 kind: Secret
 metadata:
-  name: updates-<slug>-signing-key
+  name: mobile-updates-<slug>-signing-key
   namespace: <namespace>
 type: Opaque
 data:
@@ -60,10 +60,10 @@ data:
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
 metadata:
-  name: <namespace>-updates-<slug>
+  name: <namespace>-mobile-updates-<slug>
   namespace: kube-system
 spec:
-  chart: oci://${ImageRegistry}/charts/updates
+  chart: oci://${ImageRegistry}/charts/mobile-updates
   version: 0.1.0
   targetNamespace: &namespace <namespace>
   createNamespace: true
@@ -74,7 +74,7 @@ spec:
     namespace: *namespace
     image: ghcr.io/pandoks/<app>-updates:latest@sha256:<digest>
     host: ${UpdatesDomain}
-    signingKey.secret: updates-<slug>-signing-key
+    signingKey.secret: mobile-updates-<slug>-signing-key
 ```
 
 The namespace also needs the `cloudflare-origin-tls` secret, like
@@ -100,5 +100,5 @@ export default ({ config }: ConfigContext) => ({
 });
 ```
 
-`pnpm --filter @pandoks.com/updates test` runs the server against a fake export and checks its
-responses and signatures.
+`pnpm --filter @pandoks.com/mobile-updates test` runs the server against a fake export and checks
+its responses and signatures.
