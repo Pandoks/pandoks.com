@@ -234,6 +234,13 @@ func addReplicas(options *scaleUpOptions) error {
 				return err
 			}
 
+			// NOTE: a slot moved during a replica's first sync stays open on it: the sync's RDB carries the open slot, and the primary only sends the closing SETSLOT to synced replicas
+			timeoutCtx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+			if err := valkey.WaitForReplicaSynced(timeoutCtx, replicaClient); err != nil {
+				return err
+			}
+
 			replicaClient.Close()
 			replicasAdded[freeNodeHostname] = masterNode.Node.ID
 
