@@ -57,25 +57,25 @@ inline int DownlinkKbpsOverride() {
 
 // Effective-connection-type override, or nullopt when unset/unrecognized.
 // Values are the NetworkInformation.idl EffectiveConnectionType names.
-inline std::optional<WebEffectiveConnectionType> EffectiveTypeOverride() {
+inline std::optional<blink::WebEffectiveConnectionType> EffectiveTypeOverride() {
   if (!apex_fp::Active()) {
     return std::nullopt;
   }
   const std::string v = apex_fp::EnvStr("APEX_FP_NETINFO_EFFECTIVE_TYPE");
   if (v == "slow-2g") {
-    return WebEffectiveConnectionType::kTypeSlow2G;
+    return blink::WebEffectiveConnectionType::kTypeSlow2G;
   }
   if (v == "2g") {
-    return WebEffectiveConnectionType::kType2G;
+    return blink::WebEffectiveConnectionType::kType2G;
   }
   if (v == "3g") {
-    return WebEffectiveConnectionType::kType3G;
+    return blink::WebEffectiveConnectionType::kType3G;
   }
   if (v == "4g") {
-    return WebEffectiveConnectionType::kType4G;
+    return blink::WebEffectiveConnectionType::kType4G;
   }
   if (v == "offline") {
-    return WebEffectiveConnectionType::kTypeOffline;
+    return blink::WebEffectiveConnectionType::kTypeOffline;
   }
   return std::nullopt;
 }
