@@ -64,6 +64,7 @@ jobs:
               - '**/go.sum'
               - 'mise.toml'
               - '.github/actions/setup-mise/**'
+              - '.github/workflows/checks.yaml'
             shell:
               - '**/*.sh'
               - '.shellcheckrc'
