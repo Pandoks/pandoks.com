@@ -7,14 +7,14 @@ ENV EXPO_NO_TELEMETRY=1
 WORKDIR /src
 COPY . .
 
-# The app directory under apps/, like mobile-template
+# The app's directory under apps/, like mobile-template
 ARG APP
-# NOTE: no install scripts, like the root's sst install, since the export needs none
+# NOTE: skips install scripts like the root's sst install, which the export doesn't need
 RUN test -n "${APP}" && pnpm install --frozen-lockfile --ignore-scripts --filter "./apps/${APP}..."
 
 WORKDIR /src/apps/${APP}
-# NOTE: a build with UPDATES_ENVIRONMENT=dev points at the dev updates host, which changes its native fingerprint,
-# so the update serves that runtime version too
+# NOTE: dev builds (UPDATES_ENVIRONMENT=dev) point at the dev host, which changes their native fingerprint, so they
+# get their own runtime version and config
 RUN pnpm exec expo export --output-dir /export --platform ios --platform android \
     && pnpm exec expo config --type public --json > /export/expo-config.json \
     && UPDATES_ENVIRONMENT=dev pnpm exec expo config --type public --json > /export/expo-config-dev.json \
@@ -23,8 +23,7 @@ RUN pnpm exec expo export --output-dir /export --platform ios --platform android
     && UPDATES_ENVIRONMENT=dev pnpm exec expo-updates runtimeversion:resolve --platform "${platform}" > "/export/runtime-version-${platform}-dev.json"; \
     done
 
-# NOTE: each build passes a new time, so the stamp never comes from the cache and even a rebuild of old code is
-# newer than the update it rolls back
+# NOTE: stamped after the cached export, so every build, even of old code, is newer than the update it replaces
 ARG CREATED_AT
 RUN test -n "${CREATED_AT}" && printf '%s\n' "${CREATED_AT}" > /export/created-at
 
