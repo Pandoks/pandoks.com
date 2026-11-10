@@ -90,7 +90,9 @@ graph TB
 - **Encryption** - AES-256-CBC for all backups
 - **S3-compatible storage** - works with AWS S3, MinIO, S3Mock
 - **Restore on bootstrap** - a new shard whose stanza already has a full backup restores it instead
-  of starting empty
+  of starting empty, with the chart's `postgresql.conf` and `pg_hba.conf` instead of the backup's.
+  It waits for WAL replay however long it takes, then takes a full backup for its replicas. If the
+  repo can't be read, the bootstrap fails instead of starting empty
 
 ### Monitoring
 

@@ -29,19 +29,18 @@ case "${stanza_info}" in
 esac
 
 echo "Checking for existing backup..."
-set +e # TODO: test if this is needed
-if pgbackrest --stanza="${STANZA}" info | grep -q "full backup"; then
+if echo "${stanza_info}" | grep -q "full backup"; then
   echo "Full backup already exists. Restoring..."
   pg_ctl stop -w -D /var/lib/postgresql/pgdata -m fast
-  # NOTE: keep Patroni's postgresql.conf from bootstrap.dcs over the backup's, which has the old settings
-  cp /var/lib/postgresql/pgdata/postgresql.conf /tmp/postgresql.conf || exit 1
+  # NOTE: keep Patroni's postgresql.conf and pg_hba.conf from bootstrap.dcs over the backup's old ones
+  cp /var/lib/postgresql/pgdata/postgresql.conf /var/lib/postgresql/pgdata/pg_hba.conf /tmp/
   if pgbackrest --stanza="${STANZA}" restore; then
     echo "✓ Full backup restored successfully."
   else
     echo "Failed to restore full backup."
     exit 1
   fi
-  mv /tmp/postgresql.conf /var/lib/postgresql/pgdata/postgresql.conf || exit 1
+  mv /tmp/postgresql.conf /tmp/pg_hba.conf /var/lib/postgresql/pgdata/
   echo "Patching stanza..."
   if pgbackrest --stanza="${STANZA}" --no-online stanza-upgrade; then
     echo "✓ Stanza upgraded successfully."
@@ -49,12 +48,14 @@ if pgbackrest --stanza="${STANZA}" info | grep -q "full backup"; then
     echo "Failed to upgrade stanza."
     exit 1
   fi
-  pg_ctl start -w -D /var/lib/postgresql/pgdata
-  pg_ctl promote -w -D /var/lib/postgresql/pgdata
-  echo "Database ready..."
-  exit 0
+  # NOTE: without hot standby, recovery accepts settings lower than the backup's, but pg_ctl returns once it starts
+  pg_ctl start -w -D /var/lib/postgresql/pgdata -o "-c hot_standby=off"
+  echo "Waiting for recovery to finish..."
+  until pg_isready -q; do
+    pg_ctl status -D /var/lib/postgresql/pgdata > /dev/null
+    sleep 10
+  done
 fi
-set -e
 
 if psql -Atq -d postgres -c "SELECT 1 FROM pg_database WHERE datname='${POSTGRES_DB}'" | grep -q 1; then
   echo "Database '${POSTGRES_DB}' already exists. Skipping creation."
