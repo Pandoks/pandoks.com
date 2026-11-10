@@ -240,7 +240,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Validate renovate.json
-        uses: docker://ghcr.io/renovatebot/renovate:43@sha256:3b72fc4274c56f65f53dcd4dcbed3143289358e0a2d96f7af215e6cf1923e5f6
+        uses: docker://ghcr.io/renovatebot/renovate:44@sha256:05b3a6b06d2c452e11bf0f3cd792f13d44d7e37b9a4bbd8106f6de6f5de4842b
         with:
           entrypoint: renovate-config-validator
           args: --strict --no-global renovate.json
