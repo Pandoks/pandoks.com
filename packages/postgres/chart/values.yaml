@@ -20,7 +20,7 @@ backup:
   bucket: backups
   image: ghcr.io/pandoks/pgbackrest:latest@sha256:1a0d816a1f7f116a2aa88c130119707d9cbb1edf87e522219b778bc93de815b4
   encryptionKey: openssl-rand-hex-32
-  path: kubernetes/examples/postgres
+  path: /kubernetes/examples/postgres
   schedules:
     full: '0 2 * * 0'
     diff: '0 2 * * 3,6'
@@ -32,7 +32,7 @@ backup:
 
 s3:
   region: us-west-1
-  host: host.k3d.internal:4566
+  host: host.k3d.internal:9191
   tls: 'n'
   uriStyle: path
 
