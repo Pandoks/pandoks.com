@@ -9,7 +9,8 @@ COPY . .
 
 # The app directory under apps/, like mobile-template
 ARG APP
-RUN test -n "${APP}" && pnpm install --frozen-lockfile --filter "./apps/${APP}..."
+# NOTE: no install scripts, like the root's sst install, since the export needs none
+RUN test -n "${APP}" && pnpm install --frozen-lockfile --ignore-scripts --filter "./apps/${APP}..."
 
 WORKDIR /src/apps/${APP}
 # NOTE: a build with UPDATES_ENVIRONMENT=dev points at the dev updates host, which changes its native fingerprint,
