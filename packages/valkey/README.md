@@ -14,7 +14,7 @@ metadata:
   namespace: kube-system # the helm chart controller that k3s uses needs to be in the kube-system namespace
 spec:
   chart: oci://${ImageRegistry}/charts/valkey
-  version: 0.1.4
+  version: 0.1.5
   targetNamespace: &namespace <namespace>
   createNamespace: true
   failurePolicy: abort
@@ -157,7 +157,11 @@ configure the users that can access the cluster.
 
 ### valkey.conf
 
-[valkey.conf](./chart/files/valkey.conf) is used to configure the valkey cluster.
+[valkey.conf](./chart/files/valkey.conf) is used to configure the valkey cluster. Replicas
+authenticate to their primary as **admin**. On `SIGTERM` (pod delete, rollout, drain), a primary
+first fails over to a synced replica, so it keeps its keys without persistence. A primary that
+crashes or is OOM-killed can restart empty with the same node ID before a replica takes over, so use
+`persistence` if a shard's data must survive that.
 
 For more information about the configuration options, visit
 [valkey.io/topics/configuration](https://valkey.io/topics/valkey.conf/).

@@ -331,8 +331,23 @@ func finalizeScaleUp(options *scaleUpOptions) error {
 		return err
 	}
 
+	// NOTE: rebalancing before every node reports cluster_state:ok fails with CLUSTERDOWN
+	nodeHostnames := make([]string, 0, len(clusterTopology.OrderedNodes))
+	for _, node := range clusterTopology.OrderedNodes {
+		nodeHostnames = append(nodeHostnames, fmt.Sprintf("%s:%d", node.Hostname, node.Port))
+	}
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	if err := valkey.WaitForAllNodesClusterInfoState(timeoutCtx, options.env, nodeHostnames, "cluster_state:ok"); err != nil {
+		return err
+	}
+
 	fmt.Println("Rebalancing slots...")
 	if err := valkey.Rebalance(rebalanceOptions); err != nil {
+		return err
+	}
+	// NOTE: rebalance can exit 0 after a failed slot move
+	if err := valkey.Check(options.cliBaseOptions); err != nil {
 		return err
 	}
 	fmt.Println("✓ Slots rebalanced")

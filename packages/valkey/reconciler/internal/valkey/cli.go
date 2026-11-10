@@ -132,6 +132,34 @@ func Rebalance(options RebalanceOptions) error {
 	return cmd.Run()
 }
 
+// fails on open slots, uncovered slots, or nodes that disagree about the slot configuration
+func Check(options CliBaseOptions) error {
+	if !doesCommandExist("valkey-cli") {
+		return fmt.Errorf("valkey-cli is not installed")
+	}
+	if err := options.ValidateConnection(); err != nil {
+		return err
+	}
+	if err := options.ValidateAuth(); err != nil {
+		return err
+	}
+
+	args := []string{"--cluster", "check", options.Address()}
+
+	if options.Username != "" {
+		args = append(args, "--user", options.Username)
+	}
+	fmt.Printf("Command: valkey-cli %s\n", strings.Join(args, " "))
+	if options.Password != "" {
+		args = append(args, "-a", options.Password)
+	}
+
+	cmd := exec.Command("valkey-cli", args...) // #nosec G204 (cmd injection) -- args from validated structs, not user input
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
 // NOTE: doesn't support replicas because there is a race condition in the cli
 type AddNodeOptions struct {
 	CliBaseOptions
