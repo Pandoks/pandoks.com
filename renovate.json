@@ -122,6 +122,12 @@
       ]
     },
     {
+      "description": "A chart major can carry breaking values, CRD or subchart changes, and one PR can cross several.",
+      "matchDatasources": ["helm"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
       "description": "Each argo-cd chart minor carries an Argo CD minor.",
       "matchDatasources": ["helm"],
       "matchPackageNames": ["argo-cd"],
