@@ -46,6 +46,7 @@ class EnvelopeTest(unittest.TestCase):
             "delay": replace(valid, delay=MAX_DELAY + 1),
             "size": replace(valid, data=json.dumps("x" * MAX_ENVELOPE_BYTES).encode()),
             "invalid json": replace(valid, data=b"{"),
+            "leading bom": replace(valid, data="\ufeff{}".encode()),
             "infinite number": replace(valid, data=b"1e400"),
             "nesting depth": replace(valid, data=b"[" * MAX_DEPTH + b"]" * MAX_DEPTH),
             "id": replace(valid, id=1),
@@ -73,6 +74,12 @@ class EnvelopeTest(unittest.TestCase):
                 with self.subTest(url), self.assertRaisesRegex(ValueError, "URL") as raised:
                     opener(url)
                 self.assertNotRegex(str(raised.exception), "xq1|zq2")
+
+    def test_open_hides_a_netloc_python_cannot_split(self):
+        for opener in (open_queue, open_topic):
+            with self.subTest(opener.__name__), self.assertRaisesRegex(ValueError, "URL") as raised:
+                opener("valkey://client:xq1\uff03zq2@127.0.0.1:1/t")
+            self.assertNotRegex(str(raised.exception), "xq1|zq2")
 
     def test_decode_rejects_times_go_rejects(self):
         body = json.loads(FIXTURES[0].read_text())

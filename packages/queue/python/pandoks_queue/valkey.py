@@ -33,12 +33,17 @@ def valkey_name(parsed: SplitResult) -> str:
     that echoes the URL: an unescaped /, ?, or # in the password leaves no valid name."""
     name = unquote(parsed.path.removeprefix("/"))
     parts = (parsed.path, parsed.username or "", parsed.password or "")
+    try:
+        port = parsed.port
+    except ValueError:
+        # NOTE: its error carries the port, which is the password when the URL has no @
+        port = None
     if (
         not parsed.hostname
         or not name
         or any(character in name for character in "{}/")
         or not all(map(decodes, parts))
-        or parsed.port is None
+        or port is None
     ):
         raise ValueError("valkey URL must be valkey://[user:password@]host:port/<name>")
     return name

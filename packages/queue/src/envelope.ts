@@ -114,7 +114,7 @@ export function encode(message: Message, sentAt: Date): string {
     datacontenttype: message.contentType || 'application/json'
   };
   if (message.data && isJSON(event.datacontenttype as string)) {
-    const text = new TextDecoder('utf-8', { fatal: true }).decode(message.data);
+    const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(message.data);
     if (1 + jsonDepth(text) > MAX_DEPTH) {
       throw new Error(
         `encode message ${String(event.id)}: envelope nests over ${MAX_DEPTH} levels`

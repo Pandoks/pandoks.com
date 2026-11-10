@@ -74,6 +74,7 @@ func TestEncodeRejectsWhatOtherBrokersCannotCarry(t *testing.T) {
 		"size":             {Source: "//test", Type: "test", Data: []byte(`"` + strings.Repeat("x", MaxEnvelopeBytes) + `"`)},
 		"invalid json":     {Source: "//test", Type: "test", Data: []byte("{")},
 		"invalid utf-8":    {Source: "//test", Type: "test", Data: []byte("\"\xff\"")},
+		"leading bom":      {Source: "//test", Type: "test", Data: []byte("\uFEFF{}")},
 		"infinite number":  {Source: "//test", Type: "test", Data: []byte("1e400")},
 		"nesting depth":    {Source: "//test", Type: "test", Data: []byte(strings.Repeat("[", maxDepth) + strings.Repeat("]", maxDepth))},
 		"utf-8 id":         {ID: "\xff", Source: "//test", Type: "test"},

@@ -48,6 +48,7 @@ describe('envelope', () => {
       { ...valid, delay: MAX_DELAY + 1 },
       { ...valid, data: new TextEncoder().encode(JSON.stringify('x'.repeat(MAX_ENVELOPE_BYTES))) },
       { ...valid, data: new TextEncoder().encode('{') },
+      { ...valid, data: new TextEncoder().encode('\ufeff{}') },
       { ...valid, data: new TextEncoder().encode('1e400') },
       { ...valid, data: new TextEncoder().encode('['.repeat(64) + ']'.repeat(64)) },
       { ...valid, id: 'cut \ud83d' },

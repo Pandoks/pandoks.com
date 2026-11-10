@@ -30,7 +30,11 @@ TOPIC_ADAPTERS = {"awssns": "sns", "cloudflare": "cloudflare", "valkey": "valkey
 
 def open_queue(url: str) -> Queue:
     """Opens a queue, or a topic's subscription, from its URL."""
-    parsed = urlsplit(url)
+    try:
+        parsed = urlsplit(url)
+    except ValueError:
+        # NOTE: its error can carry the netloc, password included
+        raise ValueError("open queue: URL does not parse") from None
     if parsed.scheme not in QUEUE_ADAPTERS:
         raise ValueError(f"open queue: unknown scheme {parsed.scheme!r}")
     return import_module(f"pandoks_queue.{QUEUE_ADAPTERS[parsed.scheme]}").open_queue(parsed)
@@ -38,7 +42,11 @@ def open_queue(url: str) -> Queue:
 
 def open_topic(url: str) -> Topic:
     """Opens a topic from its URL."""
-    parsed = urlsplit(url)
+    try:
+        parsed = urlsplit(url)
+    except ValueError:
+        # NOTE: its error can carry the netloc, password included
+        raise ValueError("open topic: URL does not parse") from None
     if parsed.scheme not in TOPIC_ADAPTERS:
         raise ValueError(f"open topic: unknown scheme {parsed.scheme!r}")
     return import_module(f"pandoks_queue.{TOPIC_ADAPTERS[parsed.scheme]}").open_topic(parsed)
