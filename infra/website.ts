@@ -1,5 +1,5 @@
 import { cloudflareAccountId, cloudflareZoneId, domain, isProduction } from './dns';
-import { githubOrg, githubRepoName } from './github';
+import { githubOrg, githubRepositoryName } from './github';
 
 new sst.x.DevCommand('DevWebsite', {
   dev: {
@@ -21,7 +21,7 @@ if (isProduction) {
       type: 'github',
       config: {
         owner: githubOrg,
-        repoName: githubRepoName,
+        repoName: githubRepositoryName,
         productionBranch: 'main',
         prCommentsEnabled: true,
         pathIncludes: [
