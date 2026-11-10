@@ -28,15 +28,17 @@
 
 // This header is included from gpu_adapter.cc / gpu_device.cc, which live in
 // namespace blink -- but these helpers sit in namespace apex_webgpu, where
-// blink/WTF names are not in scope. Import the ones the helpers use.
+// blink names are not in scope. Import the ones the helpers use. In 157 the
+// WTF namespace types (String, StringView, HashSet) were migrated into
+// namespace blink, so every one of these is blink::.
 namespace apex_webgpu {
 using blink::GPUSupportedFeatures;
 using blink::GPUSupportedLimits;
 using blink::MakeGarbageCollected;
 using blink::V8GPUFeatureName;
-using WTF::HashSet;
-using WTF::String;
-using WTF::StringView;
+using blink::HashSet;
+using blink::String;
+using blink::StringView;
 
 // Replace *out with the env value when the override is present.
 inline void ApplyStringOverride(const char* env, String* out) {
