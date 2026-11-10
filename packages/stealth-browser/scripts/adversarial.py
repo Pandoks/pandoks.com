@@ -56,8 +56,10 @@ HARD_TARGETS = [
         "just a moment", "checking your browser", "enable javascript and cookies",
         "attention required", "challenge-platform"]),
     ("datadome", "https://datadome.co/", [
-        "datadome challenge", "captcha-delivery", "verify you are human",
-        "blocked"]),  # careful: vendor's own page legitimately contains its name
+        "datadome challenge", "captcha-delivery", "verify you are human"]),
+    # no "blocked" marker: the vendor's own marketing copy legitimately
+    # contains it, so a clean visit would false-FAIL; the challenge markers
+    # above are the specific signals
     ("akamai", "https://www.akamai.com/", [
         "access denied", "reference number", "transaction id", "bot manager"]),
     ("kasada", "https://kasada.io/", [
