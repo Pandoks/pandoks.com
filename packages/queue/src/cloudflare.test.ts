@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { expect, test, vi } from 'vitest';
-import { encode } from './envelope.ts';
+import { encode, sleep } from './envelope.ts';
 import { openQueue, openTopic } from './index.ts';
 
 // Checks what the adapter sends Cloudflare's API, which has no emulator; the CI job's live
@@ -95,6 +95,43 @@ test('cloudflare lease starts after a slow pull', async () => {
     const deliveries = await (await openQueue('cloudflare://acct/q1?lease=500ms')).receive(10);
     expect(deliveries.map((delivery) => delivery.id)).toEqual(['slow']);
     expect(deliveries[0].deadline.getTime()).toBeGreaterThan(Date.now());
+  } finally {
+    vi.unstubAllEnvs();
+    server.close();
+  }
+});
+
+test('cloudflare topic pushes subscriptions concurrently', async () => {
+  let pushSecond: () => void;
+  const secondPushed = new Promise<boolean>((resolve) => (pushSecond = () => resolve(true)));
+  const server = createServer((request, response) => {
+    request.resume();
+    request.on('end', () => {
+      const respond = (otherPushed: boolean) => {
+        response.statusCode = otherPushed ? 200 : 400;
+        response.setHeader('Content-Type', 'application/json');
+        response.end(
+          JSON.stringify({
+            success: otherPushed,
+            errors: otherPushed ? [] : [{ code: 1, message: 'q2 never pushed while q1 was slow' }],
+            messages: [],
+            result: {}
+          })
+        );
+      };
+      if (request.url === '/accounts/acct/queues/q2/messages/batch') {
+        pushSecond();
+        respond(true);
+      } else {
+        void Promise.race([secondPushed, sleep(5).then(() => false)]).then(respond);
+      }
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  vi.stubEnv('CLOUDFLARE_BASE_URL', `http://127.0.0.1:${(server.address() as AddressInfo).port}`);
+  vi.stubEnv('CLOUDFLARE_API_TOKEN', 'test');
+  try {
+    await (await openTopic('cloudflare://acct/q1,q2')).publish({ source: '//test', type: 'test' });
   } finally {
     vi.unstubAllEnvs();
     server.close();

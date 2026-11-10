@@ -12,11 +12,26 @@ export {
 } from './envelope.ts';
 export { Permanent, RetryAfter, Worker } from './worker.ts';
 
-/** Opens a queue, or a topic's subscription, from its URL. */
-export async function openQueue(url: string): Promise<Queue> {
+/** Parses a URL, rejecting a path URL.parse would rewrite: it drops dot segments, so a/../b opens b. */
+function parse(url: string, action: string): URL {
+  const rawPath = /^[^:]*:(?:\/\/[^/?#]*)?([^?#]*)/.exec(url)?.[1] ?? '';
   // NOTE: not new URL, whose error carries the whole URL, password included
   const parsed = URL.parse(url);
-  if (!parsed) throw new Error('open queue: URL does not parse');
+  if (!parsed) throw new Error(`${action}: URL does not parse`);
+  if (
+    rawPath
+      .split('/')
+      .slice(1)
+      .some((segment) => /^(?:\.|%2e){0,2}$/i.test(segment))
+  ) {
+    throw new Error(`${action}: URL path has an empty or dot segment`);
+  }
+  return parsed;
+}
+
+/** Opens a queue, or a topic's subscription, from its URL. */
+export async function openQueue(url: string): Promise<Queue> {
+  const parsed = parse(url, 'open queue');
   switch (parsed.protocol) {
     case 'awssqs:':
       return (await import('./sqs.ts')).openQueue(parsed);
@@ -30,9 +45,7 @@ export async function openQueue(url: string): Promise<Queue> {
 
 /** Opens a topic from its URL. */
 export async function openTopic(url: string): Promise<Topic> {
-  // NOTE: not new URL, whose error carries the whole URL, password included
-  const parsed = URL.parse(url);
-  if (!parsed) throw new Error('open topic: URL does not parse');
+  const parsed = parse(url, 'open topic');
   switch (parsed.protocol) {
     case 'awssns:':
       return (await import('./sns.ts')).openTopic(parsed);

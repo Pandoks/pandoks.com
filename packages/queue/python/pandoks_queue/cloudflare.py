@@ -2,6 +2,7 @@
 
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from itertools import batched
 from urllib.parse import SplitResult
@@ -31,7 +32,11 @@ DEAD_LETTERED = "Message has exhausted maxRetries"
 def cloudflare_queues(parsed: SplitResult, *allowed: str) -> tuple[list[CloudflareQueue], dict[str, str]]:
     ids = parsed.path.removeprefix("/").split(",")
     # NOTE: a port is a user and the start of a password cut off by an unescaped /, ?, or #
-    if not parsed.netloc or any(character in parsed.netloc for character in "@:") or "" in ids:
+    if (
+        not parsed.netloc
+        or any(character in parsed.netloc for character in "@:")
+        or any(not queue_id or "/" in queue_id for queue_id in ids)
+    ):
         raise ValueError("cloudflare URL must be cloudflare://<account_id>/<queue_id>[,<queue_id>…]")
     params = query_params(parsed, *allowed)
     if not os.environ.get("CLOUDFLARE_API_TOKEN"):
@@ -133,8 +138,10 @@ class CloudflareTopic:
         if any(message.delay for message in messages):
             raise ValueError("publish to Cloudflare: topics take no delay")
         published = entries(messages)
-        for subscription in self.subscriptions:
-            subscription.push(published)
+        with ThreadPoolExecutor(len(self.subscriptions)) as executor:
+            pushes = [executor.submit(subscription.push, published) for subscription in self.subscriptions]
+        for push in pushes:
+            push.result()
 
     def close(self) -> None:
         self.subscriptions[0].client.close()

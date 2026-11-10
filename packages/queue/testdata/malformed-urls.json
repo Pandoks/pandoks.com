@@ -47,7 +47,14 @@
     "valkey://client:123#zq2@127.0.0.1:1/q?lease=1s&max_attempts=1",
     "valkey://client:xq1%zq2@127.0.0.1:1/q?lease=1s&max_attempts=1",
     "valkey://client:xq1%ffzq2@127.0.0.1:1/q?lease=1s&max_attempts=1",
-    "valkey://xq1%ff:zq2@127.0.0.1:1/q?lease=1s&max_attempts=1"
+    "valkey://xq1%ff:zq2@127.0.0.1:1/q?lease=1s&max_attempts=1",
+    "awssqs://sqs.us-west-1.amazonaws.com/123456789012/orders/../payments?lease=30s",
+    "awssqs://sqs.us-west-1.amazonaws.com/123456789012/orders/%2e%2E/payments?lease=30s",
+    "awssqs://sqs.us-west-1.amazonaws.com/123456789012/./payments?lease=30s",
+    "cloudflare://account/orders/../payments?lease=30s",
+    "cloudflare://account/orders/%2E%2e/payments?lease=30s",
+    "valkey://127.0.0.1:1/orders/../payments?lease=1s&max_attempts=1",
+    "valkey://127.0.0.1:1/orders/%2e%2e/payments?lease=1s&max_attempts=1"
   ],
   "topics": [
     "awssns://sns.us-west-1.amazonaws.com/arn:aws:sns:us-west-1:123456789012:t",
@@ -81,6 +88,13 @@
     "valkey://client:123#zq2@127.0.0.1:1/t",
     "valkey://client:xq1%zq2@127.0.0.1:1/t",
     "valkey://client:xq1%ffzq2@127.0.0.1:1/t",
-    "valkey://xq1%ff:zq2@127.0.0.1:1/t"
+    "valkey://xq1%ff:zq2@127.0.0.1:1/t",
+    "awssns:///arn:aws:sns:us-west-1::t",
+    "awssns:///arn:aws:sns:us-west-1:123456789012:",
+    "awssns:///arn:aws:sns::123456789012:t",
+    "awssns:///arn::sns:us-west-1:123456789012:t",
+    "awssns:///x/../arn:aws:sns:us-west-1:123456789012:t",
+    "cloudflare://account/a,orders/../payments",
+    "valkey://127.0.0.1:1/orders/./payments"
   ]
 }

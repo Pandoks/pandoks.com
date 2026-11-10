@@ -122,3 +122,30 @@ func TestCloudflareLeaseStartsAfterASlowPull(t *testing.T) {
 		t.Fatalf("got %+v, %v, want one delivery whose 500ms lease hasn't ended", deliveries, err)
 	}
 }
+
+func TestCloudflareTopicPushesSubscriptionsConcurrently(t *testing.T) {
+	secondPushed := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		_, _ = io.Copy(io.Discard, request.Body)
+		switch request.URL.Path {
+		case "/accounts/acct/queues/q1/messages/batch":
+			select {
+			case <-secondPushed:
+			case <-time.After(5 * time.Second):
+				http.Error(writer, `{"success":false,"errors":[{"code":1,"message":"q2 never pushed while q1 was slow"}]}`, http.StatusBadRequest)
+				return
+			}
+		case "/accounts/acct/queues/q2/messages/batch":
+			close(secondPushed)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{"success": true, "errors": []any{}, "messages": []any{}, "result": map[string]any{}})
+	}))
+	defer server.Close()
+	t.Setenv("CLOUDFLARE_BASE_URL", server.URL)
+	t.Setenv("CLOUDFLARE_API_TOKEN", "test")
+
+	if err := openTopic(t, "cloudflare://acct/q1,q2").Publish(t.Context(), testMessage("fanout")); err != nil {
+		t.Fatal(err)
+	}
+}

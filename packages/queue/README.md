@@ -149,8 +149,10 @@ Credentials come from each SDK's usual environment.
 `lease` is `<n>ms`, `<n>s`, `<n>m`, or `<n>h`, at most 12 h, and required on every queue;
 `max_attempts` is required on Valkey queues, from 1 to 2^63 - 1 in ASCII digits. Unknown parameters,
 a `;` in the query, and malformed escapes (a `%` not followed by two hex digits, or escapes that
-aren't UTF-8) in the query or a Valkey name, user, or password are errors. Only Valkey URLs take a
-user and password, and they need the port. Every language rejects the URLs in
+aren't UTF-8) in the query or a Valkey name, user, or password are errors, as are incomplete SNS
+ARNs, and TS also rejects empty, `.`, and `..` path segments (escaped too), which its URL parser
+would otherwise resolve to another name. Only Valkey URLs take a user and password, and they need
+the port. Every language rejects the URLs in
 [testdata/malformed-urls.json](./testdata/malformed-urls.json) without echoing their passwords.
 
 ## Brokers

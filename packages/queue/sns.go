@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -25,7 +26,8 @@ type snsTopic struct {
 func openSNS(ctx context.Context, parsed *url.URL) (*snsTopic, error) {
 	arn := strings.TrimPrefix(parsed.Path, "/")
 	fields := strings.Split(arn, ":")
-	if parsed.Host != "" || parsed.User != nil || len(fields) != 6 || fields[0] != "arn" || fields[2] != "sns" {
+	if parsed.Host != "" || parsed.User != nil || len(fields) != 6 || fields[0] != "arn" || fields[2] != "sns" ||
+		slices.Contains(fields, "") {
 		return nil, errors.New("awssns URL must be awssns:///arn:aws:sns:<region>:<account>:<name>")
 	}
 	params, err := queryParams(parsed, "endpoint")

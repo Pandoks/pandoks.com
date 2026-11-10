@@ -9,6 +9,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cloudflare/cloudflare-go/v7"
@@ -36,7 +37,8 @@ type cloudflareQueue struct {
 func cloudflareQueues(parsed *url.URL, allowed ...string) ([]*cloudflareQueue, map[string]string, error) {
 	ids := strings.Split(strings.TrimPrefix(parsed.Path, "/"), ",")
 	// NOTE: a port is a user and the start of a password cut off by an unescaped /, ?, or #
-	if parsed.Host == "" || strings.Contains(parsed.Host, ":") || parsed.User != nil || slices.Contains(ids, "") {
+	if parsed.Host == "" || strings.Contains(parsed.Host, ":") || parsed.User != nil ||
+		slices.ContainsFunc(ids, func(id string) bool { return id == "" || strings.Contains(id, "/") }) {
 		return nil, nil, errors.New("cloudflare URL must be cloudflare://<account_id>/<queue_id>[,<queue_id>…]")
 	}
 	params, err := queryParams(parsed, allowed...)
@@ -226,8 +228,14 @@ func (topic *cloudflareTopic) Publish(ctx context.Context, messages ...Message) 
 	if err != nil {
 		return err
 	}
-	for _, subscription := range topic.subscriptions {
-		if err := subscription.push(ctx, entries); err != nil {
+	pushErrors := make([]error, len(topic.subscriptions))
+	var group sync.WaitGroup
+	for index, subscription := range topic.subscriptions {
+		group.Go(func() { pushErrors[index] = subscription.push(ctx, entries) })
+	}
+	group.Wait()
+	for _, err := range pushErrors {
+		if err != nil {
 			return err
 		}
 	}

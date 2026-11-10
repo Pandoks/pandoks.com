@@ -34,7 +34,13 @@ function cloudflareQueues(
 ): { queues: CloudflareQueue[]; params: Record<string, string> } {
   const ids = url.pathname.replace(/^\//, '').split(',');
   // NOTE: a port is a user and the start of a password cut off by an unescaped /, ?, or #
-  if (!url.host || url.port || url.username || url.password || ids.includes('')) {
+  if (
+    !url.host ||
+    url.port ||
+    url.username ||
+    url.password ||
+    ids.some((id) => !id || id.includes('/'))
+  ) {
     throw new Error('cloudflare URL must be cloudflare://<account_id>/<queue_id>[,<queue_id>…]');
   }
   const params = queryParams(url, ...allowed);
@@ -194,9 +200,7 @@ export class CloudflareTopic implements Topic {
       throw new Error('publish to Cloudflare: topics take no delay');
     }
     const published = entries(messages);
-    for (const subscription of this.subscriptions) {
-      await subscription.push(published);
-    }
+    await Promise.all(this.subscriptions.map((subscription) => subscription.push(published)));
   }
 
   async close(): Promise<void> {}

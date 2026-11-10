@@ -8,7 +8,13 @@ const BATCH_BYTES = 256 << 10;
 export function openTopic(url: URL): SNSTopic {
   const arn = url.pathname.replace(/^\//, '');
   const fields = arn.split(':');
-  if (url.host || fields.length !== 6 || fields[0] !== 'arn' || fields[2] !== 'sns') {
+  if (
+    url.host ||
+    fields.length !== 6 ||
+    fields[0] !== 'arn' ||
+    fields[2] !== 'sns' ||
+    fields.includes('')
+  ) {
     throw new Error('awssns URL must be awssns:///arn:aws:sns:<region>:<account>:<name>');
   }
   const params = queryParams(url, 'endpoint');

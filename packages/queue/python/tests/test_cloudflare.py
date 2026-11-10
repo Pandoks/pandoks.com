@@ -107,3 +107,34 @@ class CloudflareRequestsTest(unittest.TestCase):
             queue.close()
         self.assertEqual([delivery.id for delivery in deliveries], ["slow"])
         self.assertGreater(deliveries[0].deadline, datetime.now(UTC))
+
+    def test_topic_pushes_subscriptions_concurrently(self):
+        second_pushed = threading.Event()
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                self.rfile.read(int(self.headers["Content-Length"]))
+                if self.path == "/accounts/acct/queues/q2/messages/batch":
+                    second_pushed.set()
+                elif not second_pushed.wait(5):
+                    self.send_error(400, "q2 never pushed while q1 was slow")
+                    return
+                response = json.dumps({"success": True, "errors": [], "messages": [], "result": {}}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(response)))
+                self.end_headers()
+                self.wfile.write(response)
+
+            def log_message(self, *args):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        environment = {"CLOUDFLARE_BASE_URL": f"http://127.0.0.1:{server.server_port}", "CLOUDFLARE_API_TOKEN": "test"}
+        with mock.patch.dict(os.environ, environment):
+            topic = open_topic("cloudflare://acct/q1,q2")
+            topic.publish(Message(source="//test", type="test"))
+            topic.close()
