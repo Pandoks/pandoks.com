@@ -1,4 +1,4 @@
-FROM golang:1.27.3-trixie@sha256:ce01baa8d47f3917e015fd28dad23b42b7e2332070bf85d8ae3e9c2f035ef2da AS kustomize-builder
+FROM golang:1.27.3-trixie@sha256:af1bfc2614ebb1dbd31af514b78740fd678850e76498762b425ecee4c5c6ea80 AS kustomize-builder
 
 # renovate: datasource=go depName=kustomize packageName=sigs.k8s.io/kustomize/kustomize/v5
 ARG KUSTOMIZE_VERSION=v5.8.3
