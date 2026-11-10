@@ -179,18 +179,25 @@ spec:
               mountPath: /etc/valkey
             - name: &tmp tmp
               mountPath: /tmp
+            - name: &admin-passwords admin-passwords
+              mountPath: /etc/valkey-admin
+              readOnly: true
           livenessProbe:
             tcpSocket:
               port: 6379
             initialDelaySeconds: 20
             periodSeconds: 10
-          # NOTE: replicas turn ready only once synced, so a rollout waits for each restarted replica before the next pod
+          # NOTE: replicas turn ready only once synced, so a rollout waits for each restarted replica before the next pod.
+          # The secret can change before apply-config applies it, so fall back to the admin password it last applied
           readinessProbe:
             exec:
               command:
                 - sh
                 - -c
-                - valkey-cli --user admin -a "$ADMIN_PASSWORD" info replication | grep -qE '^(role:master|master_link_status:up)'
+                - >-
+                  for password_file in /etc/valkey-admin/current /etc/valkey-admin/applied; do
+                  valkey-cli --user admin -a "$(cat "$password_file")" info replication | grep -qE '^(role:master|master_link_status:up)' && exit 0;
+                  done; exit 1
             initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 3
@@ -247,6 +254,21 @@ spec:
           emptyDir: {}
         - name: *tmp
           emptyDir: {}
+        # NOTE: no subPath, so the kubelet refreshes both files when their secrets change
+        - name: *admin-passwords
+          projected:
+            sources:
+              - secret:
+                  name: *creds-secret
+                  items:
+                    - key: *admin-key
+                      path: current
+              - secret:
+                  name: valkey-{{ .Values.name }}-applied
+                  optional: true
+                  items:
+                    - key: adminPassword
+                      path: applied
   volumeClaimTemplates:
     - metadata:
         name: *data

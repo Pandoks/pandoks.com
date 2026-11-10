@@ -142,12 +142,12 @@ changes accessible to the local k3d cluster:
 [reconciler](./reconciler) is a Go CLI that the chart runs as Helm hook jobs to manage the cluster
 topology:
 
-| Hook                                            | Command        | Description                                                        |
-| ----------------------------------------------- | -------------- | ------------------------------------------------------------------ |
-| `post-install`                                  | `init`         | Creates the cluster from the initial masters and replicas          |
-| `pre-upgrade`                                   | `scale-down`   | Moves slots off masters being removed, then removes excess nodes   |
-| `post-upgrade`                                  | `scale-up`     | Adds new masters and replicas, then rebalances slots across shards |
-| `post-install`, `post-upgrade`, `post-rollback` | `apply-config` | Sets `parameters` and `users.acl` on every node, after the above   |
+| Hook                                                           | Command        | Description                                                                             |
+| -------------------------------------------------------------- | -------------- | --------------------------------------------------------------------------------------- |
+| `post-install`                                                 | `init`         | Creates the cluster from the initial masters and replicas                               |
+| `pre-upgrade`                                                  | `scale-down`   | Moves slots off masters being removed, then removes excess nodes                        |
+| `post-upgrade`                                                 | `scale-up`     | Adds new masters and replicas, then rebalances slots across shards                      |
+| `pre-upgrade`, `post-install`, `post-upgrade`, `post-rollback` | `apply-config` | Sets `parameters` and `users.acl` on every node, before `scale-down` and after the rest |
 
 ## Configuration
 
@@ -217,11 +217,19 @@ user and a **client** user:
 _The **client** user doesn't have dangerous permissions like `FLUSHALL`, `CONFIG`, etc._
 
 The `apply-config` Job also resets each user to its line (`ACL SETUSER <user> reset <rules>`) and
-deletes users without one, like `ACL LOAD`, so rule changes and a new client password apply without
-a restart, and connections that already logged in stay open. A password changed in the secret
-reaches the nodes at the next chart upgrade, since only the Job applies it. The admin password can't
-change this way: the hooks log in with the new one, which the nodes don't accept yet, and the
-readiness probe and exporter keep the old one until their pod restarts.
+deletes users without one, like `ACL LOAD`, so rule changes and new passwords apply without a
+restart, and connections that already logged in stay open. A password changed in the secret reaches
+the nodes at the next chart upgrade, since only the Job applies it.
+
+The Job keeps the admin password it last applied in the `valkey-<name>-applied` Secret. When the
+secret has a different one, it rotates it before `scale-down` logs in: on every node it logs in with
+either password, adds the new one to **admin** and sets `primaryauth` to it, checks that every
+replica is still linked to its primary, and then resets the users to `users.acl`, which drops the
+old password, and saves the new one. It fails if a node accepts neither, like after the Secret is
+deleted; recreate it with the `adminPassword` the nodes accept. The readiness probe reads both
+passwords from a secret volume, which the kubelet refreshes within its sync period (about a minute),
+so update the secret a minute before the upgrade or pods may turn unready until it catches up. The
+exporter reads the admin password from env, so its scrapes fail until its pod restarts.
 
 For more information about the permissions, visit
 [valkey.io/topics/acl](https://valkey.io/topics/acl/).

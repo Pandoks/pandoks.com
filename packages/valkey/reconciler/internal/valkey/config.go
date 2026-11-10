@@ -41,6 +41,18 @@ func SetParameters(ctx context.Context, nodeClient valkeygo.Client, parameters m
 	return nil
 }
 
+// AddAdminPassword makes the node accept adminPassword alongside the admin passwords it already has and
+// authenticate to its primary with it.
+func AddAdminPassword(ctx context.Context, nodeClient valkeygo.Client, adminPassword string) error {
+	if err := nodeClient.Do(ctx, nodeClient.B().AclSetuser().Username(AdminUser).Rule(">"+adminPassword).Build()).Error(); err != nil {
+		return fmt.Errorf("ACL SETUSER %s: %w", AdminUser, err)
+	}
+	if err := nodeClient.Do(ctx, nodeClient.B().ConfigSet().ParameterValue().ParameterValue("primaryauth", adminPassword).Build()).Error(); err != nil {
+		return fmt.Errorf("CONFIG SET primaryauth: %w", err)
+	}
+	return nil
+}
+
 // SetUsers makes the node's users match usersACL, an expanded users.acl, like ACL LOAD would: each user is reset
 // to its line's rules and users without a line are deleted.
 func SetUsers(ctx context.Context, nodeClient valkeygo.Client, usersACL string) error {
