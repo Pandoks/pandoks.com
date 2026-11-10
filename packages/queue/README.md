@@ -170,9 +170,11 @@ same files. A queue's keys share one hash tag, so a queue (or a topic with its s
 on one shard. Each receive runs one `XAUTOCLAIM`, which scans at most 10 × `max` leased entries from
 the cursor the last receive stored in `{q}:reclaim`, so an expired lease behind N live ones comes
 back within N / (10 × `max`) receives. `Close` removes the queue's consumer from the group unless it
-still holds leases, which stay claimable. Valkey used as a queue needs `persistence: aof` and
-replicas, and can still lose about a second of acknowledged writes on failover. The chart's `client`
-user has the [grants](/packages/valkey/README.md#usersacl) the scripts and cluster clients need.
+still holds leases, which stay claimable; once a lease, a receive also removes every consumer that
+holds none and hasn't received for a lease, like a crashed worker's. Valkey used as a queue needs
+`persistence: aof` and replicas, and can still lose about a second of acknowledged writes on
+failover. The chart's `client` user has the [grants](/packages/valkey/README.md#usersacl) the
+scripts and cluster clients need.
 
 Pick SQS for durable work (managed, long polls, native redrive and fan-out), Cloudflare for work
 produced at the edge, and Valkey for cheap, high-rate in-cluster work that tolerates that loss.

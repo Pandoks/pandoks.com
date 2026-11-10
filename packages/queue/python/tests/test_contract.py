@@ -143,7 +143,7 @@ class ValkeyContractTest(Contract, unittest.TestCase):
             for _, fields in client.xrange("{q" + suffix + "}:dlq")
         ]
 
-    def test_close_removes_only_settled_consumers(self):
+    def test_removes_only_settled_consumers(self):
         name = f"x{secrets.token_hex(5)}"
         url = f"valkey://client:client@127.0.0.1:{VALKEY_PORT}/{name}?lease=500ms&max_attempts=5"
         settled, holding = open_queue(url), open_queue(url)
@@ -153,8 +153,15 @@ class ValkeyContractTest(Contract, unittest.TestCase):
         settled.receive(1)
         settled.close()
         holding.close()
-        consumers = self.client.xinfo_consumers("{" + name + "}:stream", "workers")
-        self.assertEqual([consumer["name"] for consumer in consumers], [holding.consumer])
+        consumers = lambda: [consumer["name"] for consumer in self.client.xinfo_consumers("{" + name + "}:stream", "workers")]
+        self.assertEqual(consumers(), [holding.consumer])
+        reclaimer, polling = self.open(url), self.open(url)
+        self.assertEqual(receive(reclaimer, WAIT, message.id)[message.id].attempt, 2)
+        # NOTE: past a lease, so the next receive sweeps the consumers
+        time.sleep(1)
+        polling.receive(1)
+        reclaimer.receive(1)
+        self.assertEqual(consumers(), sorted([reclaimer.consumer, polling.consumer]))
 
     def test_delay_follows_the_server_clock(self):
         message = replace(test_message("skew"), delay=1)

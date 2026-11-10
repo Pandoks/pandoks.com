@@ -472,7 +472,7 @@ func TestValkeyReclaimsALeaseBehindFreshOnes(t *testing.T) {
 	}
 }
 
-func TestValkeyCloseRemovesOnlySettledConsumers(t *testing.T) {
+func TestValkeyRemovesOnlySettledConsumers(t *testing.T) {
 	name := "x" + strings.ToLower(rand.Text()[:10])
 	rawURL := "valkey://client:client@" + valkeyAddress + "/" + name + "?lease=500ms&max_attempts=5"
 	settled, holding, client := openQueue(t, rawURL), openQueue(t, rawURL), valkeyTestClient(t)
@@ -491,6 +491,30 @@ func TestValkeyCloseRemovesOnlySettledConsumers(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if names, want := valkeyConsumers(t, client, name), []string{holding.(*valkeyQueue).consumer}; !slices.Equal(names, want) {
+		t.Fatalf("consumers %v, want only the one holding a lease %v", names, want)
+	}
+	reclaimer, polling := openQueue(t, rawURL), openQueue(t, rawURL)
+	if reclaimed := receive(t, reclaimer, 30*time.Second, message.ID)[message.ID]; reclaimed == nil || reclaimed.Attempt != 2 {
+		t.Fatalf("reclaimed %+v, want the held message's attempt 2", reclaimed)
+	}
+	// NOTE: past a lease, so the next receive sweeps the consumers
+	time.Sleep(time.Second)
+	for _, queue := range []Queue{polling, reclaimer} {
+		if _, err := queue.Receive(t.Context(), 1); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := []string{reclaimer.(*valkeyQueue).consumer, polling.(*valkeyQueue).consumer}
+	slices.Sort(want)
+	if names := valkeyConsumers(t, client, name); !slices.Equal(names, want) {
+		t.Fatalf("consumers %v, want the reclaimed one gone and the polling one kept %v", names, want)
+	}
+}
+
+// valkeyConsumers lists the group's consumers on queue name's stream, sorted as Valkey keeps them.
+func valkeyConsumers(t *testing.T, client valkey.Client, name string) []string {
+	t.Helper()
 	consumers, err := client.Do(t.Context(), client.B().XinfoConsumers().Key("{"+name+"}:stream").Group(valkeyGroup).Build()).ToArray()
 	if err != nil {
 		t.Fatal(err)
@@ -508,12 +532,7 @@ func TestValkeyCloseRemovesOnlySettledConsumers(t *testing.T) {
 		}
 		names = append(names, consumerName)
 	}
-	if want := []string{holding.(*valkeyQueue).consumer}; !slices.Equal(names, want) {
-		t.Fatalf("consumers %v, want only the one holding a lease %v", names, want)
-	}
-	if reclaimed := receive(t, openQueue(t, rawURL), 30*time.Second, message.ID)[message.ID]; reclaimed == nil || reclaimed.Attempt != 2 {
-		t.Fatalf("reclaimed %+v, want the held message's attempt 2", reclaimed)
-	}
+	return names
 }
 
 func TestValkeyDelaysOnTheServerClock(t *testing.T) {

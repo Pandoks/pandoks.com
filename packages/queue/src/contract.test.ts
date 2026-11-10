@@ -374,7 +374,7 @@ describe('valkey', { timeout: 60_000 }, () => {
     await queue.close();
   });
 
-  test('close removes only settled consumers', async () => {
+  test('removes only settled consumers', async () => {
     const name = `x${suffix()}`;
     const url = `valkey://client:client@${VALKEY}/${name}?lease=500ms&max_attempts=5`;
     const [settled, holding] = await Promise.all([openQueue(url), openQueue(url)]);
@@ -383,8 +383,19 @@ describe('valkey', { timeout: 60_000 }, () => {
     expect(await receive(holding, WAIT, message.id)).toHaveProperty(message.id);
     await settled.receive(1);
     await Promise.all([settled.close(), holding.close()]);
-    const consumers = await client.xinfoConsumers(`{${name}}:stream`, 'workers');
-    expect(consumers.map((consumer) => consumer.name)).toEqual([(holding as ValkeyQueue).consumer]);
+    const consumers = async () =>
+      (await client.xinfoConsumers(`{${name}}:stream`, 'workers')).map((consumer) => consumer.name);
+    expect(await consumers()).toEqual([(holding as ValkeyQueue).consumer]);
+    const [reclaimer, polling] = await Promise.all([openQueue(url), openQueue(url)]);
+    expect((await receive(reclaimer, WAIT, message.id))[message.id]?.attempt).toBe(2);
+    // NOTE: past a lease, so the next receive sweeps the consumers
+    await setTimeout(1000);
+    await polling.receive(1);
+    await reclaimer.receive(1);
+    expect(await consumers()).toEqual(
+      [(reclaimer as ValkeyQueue).consumer, (polling as ValkeyQueue).consumer].sort()
+    );
+    await Promise.all([reclaimer.close(), polling.close()]);
   });
 
   test('open closes the client when subscribing fails', async () => {
