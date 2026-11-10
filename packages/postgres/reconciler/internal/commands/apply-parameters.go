@@ -21,7 +21,7 @@ func ApplyParameters(env utils.Env) error {
 			fmt.Printf("shard %d: %s, retrying\n", shard, err)
 			time.Sleep(5 * time.Second)
 		}
-		fmt.Printf("shard %d: updated\n", shard)
+		fmt.Printf("shard %d: done\n", shard)
 	}
 	return nil
 }

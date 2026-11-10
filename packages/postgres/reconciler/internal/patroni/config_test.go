@@ -21,10 +21,8 @@ func TestPatchConfig(t *testing.T) {
 			status: http.StatusOK,
 		},
 		{
-			name:      "config not in the DCS yet",
-			status:    http.StatusServiceUnavailable,
-			wantErr:   true,
-			wantRetry: true,
+			name:   "cluster still bootstrapping",
+			status: http.StatusServiceUnavailable,
 		},
 		{
 			name:      "concurrent config edit",

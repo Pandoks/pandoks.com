@@ -9,7 +9,6 @@ spec:
   targetNamespace: &namespace main
   createNamespace: true
   failurePolicy: abort
-  timeout: 30m # NOTE: a backup restore can take this long
   plainHTTP: ${IsLocal}
   set:
     db: main

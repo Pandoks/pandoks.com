@@ -19,12 +19,15 @@ set +e # TODO: test if this is needed
 if pgbackrest --stanza="${STANZA}" info | grep -q "full backup"; then
   echo "Full backup already exists. Restoring..."
   pg_ctl stop -w -D /var/lib/postgresql/pgdata -m fast
+  # NOTE: keep Patroni's postgresql.conf from bootstrap.dcs over the backup's, which has the old settings
+  cp /var/lib/postgresql/pgdata/postgresql.conf /tmp/postgresql.conf || exit 1
   if pgbackrest --stanza="${STANZA}" restore; then
     echo "✓ Full backup restored successfully."
   else
     echo "Failed to restore full backup."
     exit 1
   fi
+  mv /tmp/postgresql.conf /var/lib/postgresql/pgdata/postgresql.conf || exit 1
   echo "Patching stanza..."
   if pgbackrest --stanza="${STANZA}" --no-online stanza-upgrade; then
     echo "✓ Stanza upgraded successfully."

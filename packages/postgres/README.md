@@ -184,7 +184,6 @@ spec:
   targetNamespace: &namespace myapp
   createNamespace: true
   failurePolicy: abort
-  timeout: 30m
   plainHTTP: ${IsLocal}
   set:
     db: myapp
@@ -291,13 +290,13 @@ kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
 
 ### Change Postgres Settings
 
-Set `patroni.parameters` in the HelmChart. New clusters start with them, and after every install,
-upgrade and rollback a [reconciler](./reconciler) Job (`apply-parameters`) applies them to each
-shard. Helm waits for the Job, which waits for a new cluster to restore its backup, so a restore
-longer than the HelmChart's `timeout` fails the release, and `failurePolicy: abort` then holds every
-later upgrade until you fix it. Size `timeout` to your largest restore. Settings Postgres can
-reload, like `work_mem`, take effect within seconds. Ones that need a restart, like
-`shared_buffers`, show under `Pending restart` until you restart the shard in place:
+Set `patroni.parameters` in the HelmChart. New clusters start with them, restored ones included, and
+after every install, upgrade and rollback a [reconciler](./reconciler) Job (`apply-parameters`)
+applies them to each running shard; a shard that's still bootstrapping or restoring counts as done,
+so a restore never holds the release. A change made while a shard bootstraps reaches it only on the
+next release. Settings Postgres can reload, like `work_mem`, take effect within seconds. Ones that
+need a restart, like `shared_buffers`, show under `Pending restart` until you restart the shard in
+place:
 
 ```bash
 kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
