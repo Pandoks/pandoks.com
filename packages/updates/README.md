@@ -7,9 +7,9 @@ signed with RSA-SHA256.
 
 Each app gets its own image, built from this `Dockerfile` with `APP` set to its directory under
 `apps/`. The build runs `expo export` for iOS and Android and resolves each platform's runtime
-version twice: once as is, for production builds, and once with `UPDATES_ENVIRONMENT=dev`, the
-variable an app's config reads to point dev builds at the dev host, which changes their native
-fingerprint. The server answers:
+version and the app's public config twice: once as is, for production builds, and once with
+`UPDATES_ENVIRONMENT=dev`, the variable an app's config reads to point dev builds at the dev host,
+which changes their native fingerprint. The server answers:
 
 - `GET /` with `expo-platform` and `expo-runtime-version`: the signed manifest, a signed
   `noUpdateAvailable` directive when `expo-current-update-id` is already that update, `204` when the
@@ -17,8 +17,8 @@ fingerprint. The server answers:
   platform.
 - `GET /assets/<sha256>`: the update's files.
 
-The update's ID comes from its content, so rebuilding the same code doesn't make clients download it
-again.
+Every build is a new update with its own ID and creation time, even of old code, since expo-updates
+launches the newest update it has.
 
 ```sh
 docker build -f packages/updates/Dockerfile --build-arg APP=<app> -t <app>-updates .
@@ -78,8 +78,10 @@ spec:
 
 The namespace also needs the `cloudflare-origin-tls` secret, like
 [apps/example/kube/credentials.yaml](/apps/example/kube/credentials.yaml). Renovate bumps the image
-digest after `main` builds a new one, so merging that PR releases the update and reverting it rolls
-back. Keep the app's `kube/` out of the image's build filter, or each bump rebuilds the image.
+digest after `main` builds a new one, so merging that PR releases the update. To roll back, revert
+the change on `main` and merge the next bump: reverting a bump only stops phones that haven't
+downloaded that update yet. Keep the app's `kube/` out of the image's build filter, or each bump
+rebuilds the image.
 
 In the app, commit the certificate (`*.pem` is gitignored), list `/android` and `/ios` in its own
 `.gitignore` so the fingerprint skips generated native code, and point `updates.url` at the app's

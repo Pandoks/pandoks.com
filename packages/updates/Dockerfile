@@ -17,6 +17,7 @@ WORKDIR /src/apps/${APP}
 # so the update serves that runtime version too
 RUN pnpm exec expo export --output-dir /export --platform ios --platform android \
     && pnpm exec expo config --type public --json > /export/expo-config.json \
+    && UPDATES_ENVIRONMENT=dev pnpm exec expo config --type public --json > /export/expo-config-dev.json \
     && for platform in ios android; do \
     pnpm exec expo-updates runtimeversion:resolve --platform "${platform}" > "/export/runtime-version-${platform}.json" \
     && UPDATES_ENVIRONMENT=dev pnpm exec expo-updates runtimeversion:resolve --platform "${platform}" > "/export/runtime-version-${platform}-dev.json"; \
