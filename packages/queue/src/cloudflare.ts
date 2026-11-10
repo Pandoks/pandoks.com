@@ -19,6 +19,8 @@ const BATCH_COUNT = 100;
 const BATCH_BYTES = 256_000;
 const METADATA_BYTES = 100;
 const EMPTY_POLL_DELAY = 1;
+// the ack warning for a retried message that moves to the dead-letter queue
+const DEAD_LETTERED = 'Message has exhausted maxRetries';
 
 interface Entry {
   body: string;
@@ -138,10 +140,13 @@ export class CloudflareQueue implements Queue {
       acks,
       retries
     });
+    const warnings = Object.values(response.warnings ?? {});
+    const deadLettered = warnings.filter((warning) => warning === DEAD_LETTERED).length;
     if (
       response.ackCount !== acks.length ||
       response.retryCount !== retries.length ||
-      Object.keys(response.warnings ?? {}).length > 0
+      deadLettered !== warnings.length ||
+      deadLettered > retries.length
     ) {
       throw new Error(`settle Cloudflare queue ${this.id} messages: ${JSON.stringify(response)}`);
     }

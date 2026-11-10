@@ -24,6 +24,8 @@ BATCH_COUNT = 100
 BATCH_BYTES = 256_000
 METADATA_BYTES = 100
 EMPTY_POLL_DELAY = 1.0
+# the ack warning for a retried message that moves to the dead-letter queue
+DEAD_LETTERED = "Message has exhausted maxRetries"
 
 
 def cloudflare_queues(parsed: SplitResult, *allowed: str) -> tuple[list[CloudflareQueue], dict[str, str]]:
@@ -92,7 +94,15 @@ class CloudflareQueue:
         if not acks and not retries:
             return
         response = self.client.queues.messages.ack(self.id, account_id=self.account, acks=acks, retries=retries)
-        if response is None or response.ack_count != len(acks) or response.retry_count != len(retries) or response.warnings:
+        warnings = list((response.warnings or {}).values()) if response else []
+        dead_lettered = warnings.count(DEAD_LETTERED)
+        if (
+            response is None
+            or response.ack_count != len(acks)
+            or response.retry_count != len(retries)
+            or dead_lettered != len(warnings)
+            or dead_lettered > len(retries)
+        ):
             raise RuntimeError(f"settle Cloudflare queue {self.id} messages: {response}")
 
     def ack(self, *deliveries: Delivery) -> None:

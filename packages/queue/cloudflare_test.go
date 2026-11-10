@@ -32,6 +32,9 @@ func TestCloudflareRequests(t *testing.T) {
 		case strings.HasSuffix(request.URL.Path, "/ack"):
 			result["ackCount"] = len(decoded["acks"].([]any))
 			result["retryCount"] = len(decoded["retries"].([]any))
+			if result["retryCount"] != 0 {
+				result["warnings"] = map[string]string{"m1": cloudflareDeadLettered}
+			}
 		}
 		writer.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(writer).Encode(map[string]any{"success": true, "errors": []any{}, "messages": []any{}, "result": result})

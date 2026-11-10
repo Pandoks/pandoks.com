@@ -21,6 +21,9 @@ test('cloudflare requests', async () => {
         result = { messages: [{ id: 'm1', body: first.body, lease_id: 'lease-1', attempts: 1 }] };
       } else if (path.endsWith('/ack')) {
         result = { ackCount: body.acks.length, retryCount: body.retries.length };
+        if (body.retries.length > 0) {
+          result.warnings = { m1: 'Message has exhausted maxRetries' };
+        }
       }
       response.setHeader('Content-Type', 'application/json');
       response.end(JSON.stringify({ success: true, errors: [], messages: [], result }));

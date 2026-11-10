@@ -20,6 +20,8 @@ const (
 	cloudflareBatchBytes     = 256_000
 	cloudflareMetadataBytes  = 100
 	cloudflareEmptyPollDelay = time.Second
+	// cloudflareDeadLettered is the ack warning for a retried message that moves to the dead-letter queue
+	cloudflareDeadLettered = "Message has exhausted maxRetries"
 )
 
 // cloudflareQueue is a Cloudflare queue with an HTTP pull consumer. Credentials come from
@@ -148,7 +150,14 @@ func (queue *cloudflareQueue) settle(ctx context.Context, acks []queues.MessageA
 	if err != nil {
 		return fmt.Errorf("settle Cloudflare queue %s messages: %w", queue.id, err)
 	}
-	if int(response.AckCount) != len(acks) || int(response.RetryCount) != len(retries) || len(response.Warnings) > 0 {
+	deadLettered := 0
+	for _, warning := range response.Warnings {
+		if warning == cloudflareDeadLettered {
+			deadLettered++
+		}
+	}
+	if int(response.AckCount) != len(acks) || int(response.RetryCount) != len(retries) ||
+		deadLettered != len(response.Warnings) || deadLettered > len(retries) {
 		return fmt.Errorf("settle Cloudflare queue %s messages: acked %d of %d, retried %d of %d, warnings %v",
 			queue.id, int(response.AckCount), len(acks), int(response.RetryCount), len(retries), response.Warnings)
 	}

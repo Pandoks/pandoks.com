@@ -260,8 +260,9 @@ docker compose -f packages/queue/compose.yaml down
 Cloudflare has no emulator, so its contract runs only in CI (`test-queue-cloudflare` in
 [tests.yaml](/.github/workflows/tests.yaml)), against queues the job creates for the run and deletes
 afterwards. The job uses the repository's existing `CLOUDFLARE_API_TOKEN` and
-`CLOUDFLARE_DEFAULT_ACCOUNT_ID` secrets, so that token needs Queues · Edit. Until the job has run,
-the token's permissions and whether `max_retries` 2 dead-letters after 3 deliveries (Cloudflare's
-docs read both ways) are unverified. Locally it is skipped unless `CLOUDFLARE_ACCOUNT_ID`,
-`CLOUDFLARE_API_TOKEN`, and `QUEUE_TEST_CLOUDFLARE_QUEUE`, `_DLQ`, and `_SUBSCRIPTION` (queue ids,
-the first dead-lettering to the second after `max_retries` 2) are set.
+`CLOUDFLARE_DEFAULT_ACCOUNT_ID` secrets, so that token needs Queues · Edit. Live runs show
+`max_retries` 2 dead-letters after 3 deliveries: the third retry's ack answers with the warning
+`Message has exhausted maxRetries`, which the adapters treat as success. Locally it is skipped
+unless `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, and `QUEUE_TEST_CLOUDFLARE_QUEUE`, `_DLQ`,
+and `_SUBSCRIPTION` (queue ids, the first dead-lettering to the second after `max_retries` 2) are
+set.

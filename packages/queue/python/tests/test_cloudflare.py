@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest import mock
 
 from pandoks_queue import Message, open_queue, open_topic
-from pandoks_queue.cloudflare import EMPTY_POLL_DELAY
+from pandoks_queue.cloudflare import DEAD_LETTERED, EMPTY_POLL_DELAY
 
 
 class CloudflareRequestsTest(unittest.TestCase):
@@ -28,6 +28,8 @@ class CloudflareRequestsTest(unittest.TestCase):
                     result["messages"] = [{"id": "m1", "body": first["body"], "lease_id": "lease-1", "attempts": 1}]
                 elif self.path.endswith("/ack"):
                     result = {"ackCount": len(body["acks"]), "retryCount": len(body["retries"])}
+                    if body["retries"]:
+                        result["warnings"] = {"m1": DEAD_LETTERED}
                 response = json.dumps({"success": True, "errors": [], "messages": [], "result": result}).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
