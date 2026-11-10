@@ -288,8 +288,21 @@ def extract_clicks(events):
             dirs.append(1 if dx >= 0 else -1)
         flips = sum(1 for i in range(1, len(dirs)) if dirs[i] != dirs[i - 1])
         reversals = flips / len(dirs)
+    # per-gesture move rate: median events/s within a gesture (the activity
+    # emission rate; span averages get diluted by idle gaps between gestures)
+    move_rate = None
+    if len(moves) >= 2:
+        rates = []
+        for g in _move_gestures(moves):
+            if len(g) < 2:
+                continue
+            span = (g[-1].get("ts") or 0) - (g[0].get("ts") or 0)
+            if span > 0:
+                rates.append(len(g) / (span / 1000.0))
+        move_rate = percentile(rates, 0.5) if rates else None
     return {
         "n_clicks": len(downs),
+        "c_move_rate": move_rate,
         "c_press_mean": mean(press_hold) if press_hold else None,
         "c_press_p50": percentile(press_hold, 0.5) if press_hold else None,
         "c_press_max": max(press_hold) if press_hold else None,
@@ -464,6 +477,22 @@ def r_press_cv(v):
     return 0.0
 
 
+def r_move_rate(v):
+    if v is None:
+        return 0.0
+    # mouse_event_rate gate (docs/input-stream-realism.md): human band is
+    # N(15,7)+-1sigma (8-22 events/s); >+3sigma (36/s) is burst-per-frame.
+    # Recorded human vs machine gesture rates overlap (30-65/s on both), so
+    # this gates the emitted rate, it does not classify on its own.
+    if v < 8.0:
+        return -1.0
+    if v <= 22.0:
+        return 1.0
+    if v >= 36.0:
+        return -1.0
+    return 1.0 - 2.0 * (v - 22.0) / 14.0
+
+
 def r_settle(v):
     if v is None:
         return 0.0
@@ -579,6 +608,7 @@ CLICK_RULES = [
     ("c_speed_ratio", r_speed_ratio, 0.5),
     ("c_slow_frac", r_slow_frac, 0.4),
     ("c_press_cv", r_press_cv, 0.5),
+    ("c_move_rate", r_move_rate, 0.35),
     ("c_settle_cv", r_settle_cv, 0.4),
 ]
 

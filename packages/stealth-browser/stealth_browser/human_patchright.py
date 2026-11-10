@@ -41,10 +41,16 @@ def _draw_regime(rng: random.Random) -> dict:
         "bow_scale": rng.uniform(0.08, 0.16),
         "overshoot_rate": rng.uniform(0.50, 0.70),
         "jitter": rng.uniform(0.4, 0.65),
-        # click timing (seconds)
+        # click timing (seconds); hold is log-normal around a per-session
+        # median -- within-session sigma must clear the 20ms gate
+        # (docs/input-stream-realism.md Layer 2: click_duration mean 90-130ms
+        # sigma>=20ms) and a narrow uniform cannot (sigma ~4-14ms)
         "settle": (rng.uniform(0.045, 0.065), rng.uniform(0.140, 0.170)),
-        "hold": (rng.uniform(0.095, 0.115), rng.uniform(0.130, 0.145)),
+        "hold": (rng.uniform(0.100, 0.110), rng.uniform(0.27, 0.33)),
         "release": (rng.uniform(0.050, 0.080), rng.uniform(0.150, 0.180)),
+        # pointer event rate (events/s) -- the doc's gate is
+        # mouse_event_rate in N(15,7) by session; emit inside its +-1sigma
+        "move_rate": rng.uniform(12.0, 21.0),
         # scroll persona
         "wheel_base": (rng.uniform(75, 95), rng.uniform(225, 255)),
         "wheel_decay": rng.uniform(0.40, 0.60),
@@ -106,7 +112,8 @@ class PatchrightHuman:
         bow = self.regime["bow_scale"] * dist \
             * (1 if self.rng.random() < 0.5 else -1)
         j = self.regime["jitter"]
-        steps = max(14, int(dist / 9))
+        # emit at the per-session event rate: points, not per-frame spam
+        steps = max(2, round(duration * self.regime["move_rate"]))
         for i in range(1, steps + 1):
             t = i / steps
             s = _min_jerk(t)
@@ -136,12 +143,18 @@ class PatchrightHuman:
             await asyncio.sleep(self.rng.uniform(0.15, 0.6))
 
     # --- clicking ----------------------------------------------------------
+    async def _hold(self):
+        """Log-normal press hold around the per-session median."""
+        median, sigma = self.regime["hold"]
+        hold = median * math.exp(self.rng.gauss(0.0, sigma))
+        return min(max(hold, 0.030), 0.250)
+
     async def click_xy(self, x, y, *, button="left"):
         """Move to (x, y), settle, then press-hold-release like a finger."""
         await self.move_to(x, y)
         await asyncio.sleep(self.rng.uniform(*self.regime["settle"]))
         await self.page.mouse.down(button=button)
-        await asyncio.sleep(self.rng.uniform(*self.regime["hold"]))
+        await asyncio.sleep(await self._hold())
         await self.page.mouse.up(button=button)
         await asyncio.sleep(self.rng.uniform(*self.regime["release"]))
 
