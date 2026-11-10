@@ -96,7 +96,6 @@ export class CloudflareQueue implements Queue {
 
   async receive(max: number, signal?: AbortSignal): Promise<Delivery[]> {
     if (max < 1) throw new Error(`receive from Cloudflare: max ${max} must be at least 1`);
-    const deadline = new Date(Date.now() + this.lease * 1000);
     let response;
     try {
       response = await this.client.queues.messages.pull(
@@ -112,6 +111,8 @@ export class CloudflareQueue implements Queue {
       if (signal?.aborted) return [];
       throw error;
     }
+    // NOTE: the lease starts when Cloudflare answers, which can be well after the call on a slow network
+    const deadline = new Date(Date.now() + this.lease * 1000);
     const pulled = response.messages ?? [];
     const { deliveries, malformed } = decodeRows(
       pulled.map((message): [string, number, unknown] => [

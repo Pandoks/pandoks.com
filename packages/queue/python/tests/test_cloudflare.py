@@ -3,11 +3,13 @@ import os
 import threading
 import time
 import unittest
+from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest import mock
 
 from pandoks_queue import Message, open_queue, open_topic
 from pandoks_queue.cloudflare import DEAD_LETTERED, EMPTY_POLL_DELAY
+from pandoks_queue.envelope import encode
 
 
 class CloudflareRequestsTest(unittest.TestCase):
@@ -75,3 +77,33 @@ class CloudflareRequestsTest(unittest.TestCase):
         retry, ack = requests["/accounts/acct/queues/q1/messages/ack"]
         self.assertEqual(retry["retries"], [{"lease_id": "lease-1", "delay_seconds": 3}])
         self.assertEqual(ack["acks"], [{"lease_id": "lease-1"}])
+
+    def test_lease_starts_after_a_slow_pull(self):
+        body = encode(Message(id="slow", source="//test", type="test", data=b"{}"), datetime.now(UTC))
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                self.rfile.read(int(self.headers["Content-Length"]))
+                time.sleep(1)
+                pulled = [{"id": "m1", "body": body, "lease_id": "lease-1", "attempts": 0}]
+                response = json.dumps({"success": True, "errors": [], "messages": [], "result": {"messages": pulled}}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(response)))
+                self.end_headers()
+                self.wfile.write(response)
+
+            def log_message(self, *args):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        environment = {"CLOUDFLARE_BASE_URL": f"http://127.0.0.1:{server.server_port}", "CLOUDFLARE_API_TOKEN": "test"}
+        with mock.patch.dict(os.environ, environment):
+            queue = open_queue("cloudflare://acct/q1?lease=500ms")
+            deliveries = queue.receive(10)
+            queue.close()
+        self.assertEqual([delivery.id for delivery in deliveries], ["slow"])
+        self.assertGreater(deliveries[0].deadline, datetime.now(UTC))

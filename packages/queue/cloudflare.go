@@ -113,7 +113,6 @@ func (queue *cloudflareQueue) Receive(ctx context.Context, max int) ([]*Delivery
 	if max < 1 {
 		return nil, fmt.Errorf("receive from Cloudflare: max %d must be at least 1", max)
 	}
-	deadline := time.Now().Add(queue.lease)
 	response, err := queue.client.Queues.Messages.Pull(ctx, queue.id, queues.MessagePullParams{
 		AccountID:           cloudflare.F(queue.account),
 		BatchSize:           cloudflare.F(float64(min(max, cloudflareBatchCount))),
@@ -122,6 +121,8 @@ func (queue *cloudflareQueue) Receive(ctx context.Context, max int) ([]*Delivery
 	if err != nil {
 		return nil, fmt.Errorf("receive from Cloudflare queue %s: %w", queue.id, err)
 	}
+	// NOTE: the lease starts when Cloudflare answers, which can be well after the call on a slow network
+	deadline := time.Now().Add(queue.lease)
 	deliveries := make([]*Delivery, 0, len(response.Messages))
 	var malformed []*Delivery
 	for _, message := range response.Messages {

@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { expect, test, vi } from 'vitest';
+import { encode } from './envelope.ts';
 import { openQueue, openTopic } from './index.ts';
 
 // Checks what the adapter sends Cloudflare's API, which has no emulator; the CI job's live
@@ -71,4 +72,31 @@ test('cloudflare requests', async () => {
   const [retry, ack] = requests['/accounts/acct/queues/q1/messages/ack'];
   expect(retry.retries).toEqual([{ lease_id: 'lease-1', delay_seconds: 3 }]);
   expect(ack.acks).toEqual([{ lease_id: 'lease-1' }]);
+});
+
+test('cloudflare lease starts after a slow pull', async () => {
+  const body = encode({ id: 'slow', source: '//test', type: 'test' }, new Date());
+  const server = createServer((request, response) => {
+    request.resume();
+    request.on('end', () => {
+      setTimeout(() => {
+        const pulled = [{ id: 'm1', body, lease_id: 'lease-1', attempts: 0 }];
+        response.setHeader('Content-Type', 'application/json');
+        response.end(
+          JSON.stringify({ success: true, errors: [], messages: [], result: { messages: pulled } })
+        );
+      }, 1000);
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  vi.stubEnv('CLOUDFLARE_BASE_URL', `http://127.0.0.1:${(server.address() as AddressInfo).port}`);
+  vi.stubEnv('CLOUDFLARE_API_TOKEN', 'test');
+  try {
+    const deliveries = await (await openQueue('cloudflare://acct/q1?lease=500ms')).receive(10);
+    expect(deliveries.map((delivery) => delivery.id)).toEqual(['slow']);
+    expect(deliveries[0].deadline.getTime()).toBeGreaterThan(Date.now());
+  } finally {
+    vi.unstubAllEnvs();
+    server.close();
+  }
 });

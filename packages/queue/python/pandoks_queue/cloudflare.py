@@ -76,13 +76,14 @@ class CloudflareQueue:
     def receive(self, max: int) -> list[Delivery]:
         if max < 1:
             raise ValueError(f"receive from Cloudflare: max {max} must be at least 1")
-        deadline = datetime.now(UTC) + timedelta(seconds=self.lease)
         response = self.client.queues.messages.pull(
             self.id,
             account_id=self.account,
             batch_size=min(max, BATCH_COUNT),
             visibility_timeout_ms=round(self.lease * 1000),
         )
+        # NOTE: the lease starts when Cloudflare answers, which can be well after the call on a slow network
+        deadline = datetime.now(UTC) + timedelta(seconds=self.lease)
         pulled = (response.messages if response else None) or []
         deliveries, malformed = decode_rows(
             ((message.body, int(message.attempts) + 1, message.lease_id) for message in pulled), deadline
