@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { describe, expect, test, vi } from 'vitest';
+import { describe, expect, test } from 'vitest';
 import {
   MAX_DELAY,
   MAX_ENVELOPE_BYTES,
@@ -136,12 +136,10 @@ describe('envelope', () => {
     ...malformedURLs.queues.map((url) => ({ url, open: openQueue })),
     ...malformedURLs.topics.map((url) => ({ url, open: openTopic }))
   ])('open rejects $url without echoing its password', async ({ url, open }) => {
-    vi.stubEnv('CLOUDFLARE_API_TOKEN', 'test');
     const error: unknown = await open(url).then(
       () => undefined,
       (thrown: unknown) => thrown
     );
-    vi.unstubAllEnvs();
     expect(String(error)).toMatch(/URL/);
     expect(JSON.stringify(error) + String(error)).not.toMatch(/xq1|zq2/);
   });

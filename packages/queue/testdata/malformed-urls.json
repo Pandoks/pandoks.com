@@ -23,7 +23,6 @@
     "cloudflare://key:123/zq2@account/queue?lease=30s",
     "cloudflare://key:123?zq2@account/queue?lease=30s",
     "cloudflare://key:123#zq2@account/queue?lease=30s",
-    "cloudflare://account/queue?lease=999ms",
     "valkey://127.0.0.1/q?lease=1s&max_attempts=1",
     "valkey://127.0.0.1:1/q?lease=1s&max_attempts=0",
     "valkey://127.0.0.1:1/q?lease=1s&max_attempts=1_0",

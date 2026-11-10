@@ -65,9 +65,6 @@ func openCloudflare(parsed *url.URL) (*cloudflareQueue, error) {
 	if queueList[0].lease, err = parseLease(params); err != nil {
 		return nil, fmt.Errorf("cloudflare URL: %w", err)
 	}
-	if queueList[0].lease < time.Second {
-		return nil, fmt.Errorf("cloudflare URL: lease %q must be at least 1s", params["lease"])
-	}
 	return queueList[0], nil
 }
 

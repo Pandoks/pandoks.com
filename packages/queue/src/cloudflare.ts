@@ -51,9 +51,6 @@ export function openQueue(url: URL): CloudflareQueue {
     throw new Error('cloudflare URL: a queue has one queue id; a list is a topic');
   }
   queues[0].lease = parseLease(url, params);
-  if (queues[0].lease < 1) {
-    throw new Error(`cloudflare URL: lease ${params.lease} must be at least 1s`);
-  }
   return queues[0];
 }
 

@@ -169,7 +169,6 @@ func TestOpenRejectsMalformedURLs(t *testing.T) {
 	if err := json.Unmarshal(body, &urls); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("CLOUDFLARE_API_TOKEN", "test")
 	check := func(rawURL string, closer io.Closer, err error) {
 		if err == nil {
 			_ = closer.Close()

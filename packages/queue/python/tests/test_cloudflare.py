@@ -84,7 +84,7 @@ class CloudflareRequestsTest(unittest.TestCase):
         class Handler(BaseHTTPRequestHandler):
             def do_POST(self):
                 self.rfile.read(int(self.headers["Content-Length"]))
-                time.sleep(2)
+                time.sleep(1)
                 pulled = [{"id": "m1", "body": body, "lease_id": "lease-1", "attempts": 0}]
                 response = json.dumps({"success": True, "errors": [], "messages": [], "result": {"messages": pulled}}).encode()
                 self.send_response(200)
@@ -102,7 +102,7 @@ class CloudflareRequestsTest(unittest.TestCase):
         self.addCleanup(server.shutdown)
         environment = {"CLOUDFLARE_BASE_URL": f"http://127.0.0.1:{server.server_port}", "CLOUDFLARE_API_TOKEN": "test"}
         with mock.patch.dict(os.environ, environment):
-            queue = open_queue("cloudflare://acct/q1?lease=1s")
+            queue = open_queue("cloudflare://acct/q1?lease=500ms")
             deliveries = queue.receive(10)
             queue.close()
         self.assertEqual([delivery.id for delivery in deliveries], ["slow"])
