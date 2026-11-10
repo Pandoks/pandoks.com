@@ -48,6 +48,13 @@
     },
     {
       "customType": "regex",
+      "managerFilePatterns": ["/^k3s/.+\\.ya?ml$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+tag: (?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]+)"
+      ]
+    },
+    {
+      "customType": "regex",
       "managerFilePatterns": ["/^apps/.+/kube/.+\\.ya?ml$/"],
       "matchStrings": [
         "chart: oci://\\$\\{ImageRegistry\\}/(?<depName>charts/[a-z0-9-]+)\\s+version: (?<currentValue>\\S+)"
