@@ -19,6 +19,12 @@ func TestLoadConfig(t *testing.T) {
 			name:    "password unset",
 			wantErr: true,
 		},
+		{
+			// SetUsers would apply the line up to the newline before failing on the rest
+			name:           "password with a newline",
+			clientPassword: "pass\nword",
+			wantErr:        true,
+		},
 	}
 
 	for _, test := range tests {

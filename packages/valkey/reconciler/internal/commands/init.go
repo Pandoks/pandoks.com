@@ -59,24 +59,23 @@ func Init(env utils.Env) error {
 
 	info, err := infoResponse.ToString()
 	if err == nil && strings.Contains(info, "cluster_state:ok") {
-		fmt.Println("Cluster already initialized; skipping initialization.")
-		return nil
-	}
-
-	fmt.Println("Creating Valkey cluster...")
-	createClusterOptions := valkey.CreateClusterOptions{
-		CliBaseOptions: valkey.CliBaseOptions{
-			Auth: valkey.Auth{
-				Username: valkey.AdminUser,
-				Password: env.AdminPassword,
+		fmt.Println("Cluster already initialized; skipping creation.")
+	} else {
+		fmt.Println("Creating Valkey cluster...")
+		createClusterOptions := valkey.CreateClusterOptions{
+			CliBaseOptions: valkey.CliBaseOptions{
+				Auth: valkey.Auth{
+					Username: valkey.AdminUser,
+					Password: env.AdminPassword,
+				},
 			},
-		},
-		Nodes:             nodeList,
-		ReplicasPerMaster: env.ReplicasPerMaster,
-	}
-	if err := valkey.CreateCluster(createClusterOptions); err != nil {
-		fmt.Println("ERROR: Failed to create cluster")
-		return err
+			Nodes:             nodeList,
+			ReplicasPerMaster: env.ReplicasPerMaster,
+		}
+		if err := valkey.CreateCluster(createClusterOptions); err != nil {
+			fmt.Println("ERROR: Failed to create cluster")
+			return err
+		}
 	}
 
 	// NOTE: writes fail with CLUSTERDOWN until every node reports cluster_state:ok
@@ -86,7 +85,7 @@ func Init(env utils.Env) error {
 		return err
 	}
 
-	fmt.Println("✓ Cluster created successfully!")
+	fmt.Println("✓ Cluster is ready!")
 	fmt.Println()
 
 	valkey.PrintClusterInfo(clusterClient)

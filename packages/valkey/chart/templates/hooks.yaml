@@ -212,3 +212,8 @@ spec:
                 secretKeyRef:
                   name: *creds-secret
                   key: {{ .Values.credentials.dataKeys.clientPassword }}
+            - name: METRICS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: valkey-{{ .Values.name }}-metrics
+                  key: password

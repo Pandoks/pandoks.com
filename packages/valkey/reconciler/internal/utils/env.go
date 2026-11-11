@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Env struct {
@@ -67,17 +68,24 @@ func LoadConfig() (ConfigEnv, error) {
 	if usersACLTemplate == "" {
 		return ConfigEnv{}, fmt.Errorf("USERS_ACL environment variable is not set")
 	}
-	// NOTE: an empty ${CLIENT_PASSWORD} would turn ">${CLIENT_PASSWORD}" into a valid empty password
-	var unsetVariables []string
+	// NOTE: an empty ${CLIENT_PASSWORD} would turn ">${CLIENT_PASSWORD}" into a valid empty password, and a space or
+	// newline would split its line after the lines before it already applied
+	var unsetVariables, unsplittableVariables []string
 	usersACL := os.Expand(usersACLTemplate, func(name string) string {
 		value := os.Getenv(name)
 		if value == "" {
 			unsetVariables = append(unsetVariables, name)
 		}
+		if strings.ContainsAny(value, " \n") {
+			unsplittableVariables = append(unsplittableVariables, name)
+		}
 		return value
 	})
 	if len(unsetVariables) > 0 {
 		return ConfigEnv{}, fmt.Errorf("USERS_ACL uses unset environment variables: %v", unsetVariables)
+	}
+	if len(unsplittableVariables) > 0 {
+		return ConfigEnv{}, fmt.Errorf("USERS_ACL uses environment variables with a space or newline: %v", unsplittableVariables)
 	}
 
 	return ConfigEnv{
