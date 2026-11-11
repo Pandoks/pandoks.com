@@ -42,7 +42,12 @@ EOF
 }
 
 sign() {
-  openssl dgst -sha256 -sign "$1" "$2" | openssl base64 -A
+  sign_key="$1"
+  sign_file="$2"
+
+  # NOTE: separate commands, since a pipe would hide a failed signing behind base64's success
+  openssl dgst -sha256 -sign "${sign_key}" -out "${sign_file}.sig" "${sign_file}"
+  openssl base64 -A -in "${sign_file}.sig"
 }
 
 upload_asset() {
@@ -114,9 +119,10 @@ cmd_publish() {
       '{ id: $id, createdAt: $createdAt, runtimeVersion: $runtimeVersion, launchAsset: $launchAsset,
         assets: $assets, metadata: {}, extra: { expoClient: $expoClient[0] } }' \
       > "${cmd_publish_export_dir}/${cmd_publish_platform}-manifest.json"
+    cmd_publish_manifest_signature="$(sign "${cmd_publish_export_dir}/signing-key.pem" "${cmd_publish_export_dir}/${cmd_publish_platform}-manifest.json")"
     jq -n \
       --rawfile manifest "${cmd_publish_export_dir}/${cmd_publish_platform}-manifest.json" \
-      --arg manifestSignature "$(sign "${cmd_publish_export_dir}/signing-key.pem" "${cmd_publish_export_dir}/${cmd_publish_platform}-manifest.json")" \
+      --arg manifestSignature "${cmd_publish_manifest_signature}" \
       --arg noUpdateSignature "${cmd_publish_no_update_signature}" \
       '{ id: ($manifest | fromjson | .id), manifest: $manifest, manifestSignature: $manifestSignature,
         noUpdateSignature: $noUpdateSignature }' \
