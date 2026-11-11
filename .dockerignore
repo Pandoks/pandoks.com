@@ -1,6 +1,0 @@
-.git
-.sst
-**/node_modules
-**/.expo
-apps/*/ios
-apps/*/android

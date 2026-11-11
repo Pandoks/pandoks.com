@@ -1,8 +1,0 @@
-apiVersion: v2
-name: mobile-updates
-description: Mobile updates server for one app, serving the Expo update baked into its image
-type: application
-version: 0.1.0
-maintainers:
-  - name: pandoks
-dependencies: []

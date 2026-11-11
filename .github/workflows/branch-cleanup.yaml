@@ -86,7 +86,6 @@ jobs:
           - postgres
           - valkey
           - clickhouse
-          - mobile-updates
     steps:
       - name: Delete GHCR chart versions for deleted branch
         shell: bash
