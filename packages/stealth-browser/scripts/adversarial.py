@@ -92,12 +92,19 @@ def api(base: str, method: str, path: str, body: dict | None = None,
         data = json.dumps(body).encode()
     else:
         data = None
-    try:
-        with urllib.request.urlopen(req, data=data, timeout=timeout) as r:
-            raw = r.read()
-            return r.status, (json.loads(raw) if raw[:1] in (b"{", b"[") else raw)
-    except urllib.error.HTTPError as e:
-        return e.code, json.loads(e.read() or b"{}")
+    last: Exception | None = None
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, data=data, timeout=timeout) as r:
+                raw = r.read()
+                return r.status, (json.loads(raw) if raw[:1] in (b"{", b"[") else raw)
+        except urllib.error.HTTPError as e:
+            return e.code, json.loads(e.read() or b"{}")
+        except (ConnectionError, TimeoutError) as e:
+            # transient resets/timeouts kill the whole battery otherwise
+            last = e
+            time.sleep(2 * (attempt + 1))
+    raise last  # type: ignore[misc]
 
 
 def wait_health(base: str, limit_s: int = 60) -> bool:
@@ -106,7 +113,7 @@ def wait_health(base: str, limit_s: int = 60) -> bool:
             status, body = api(base, "GET", "/health", timeout=5)
             if status == 200 and isinstance(body, dict) and body.get("ok"):
                 return True
-        except (urllib.error.URLError, TimeoutError):
+        except (urllib.error.URLError, ConnectionError, TimeoutError):
             pass
         time.sleep(3)
     return False
