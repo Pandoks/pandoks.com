@@ -82,7 +82,7 @@ jobs:
       - e2e
     if: >-
       !cancelled() && needs.tests.result == 'success' && needs.build.result == 'success' &&
-      needs.e2e.result != 'failure' &&
+      (needs.e2e.result == 'success' || needs.e2e.result == 'skipped') &&
       (needs.build.outputs.images != '[]' || needs.build.outputs.charts != '[]')
     permissions:
       contents: read
