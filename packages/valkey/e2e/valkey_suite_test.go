@@ -8,11 +8,11 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var valkeyImage, reconcilerImage string
+var valkeyImage, valkeyReconcilerImage string
 
 func init() {
 	flag.StringVar(&valkeyImage, "valkey-image", "", "Valkey image to test instead of the chart's default")
-	flag.StringVar(&reconcilerImage, "reconciler-image", "", "reconciler image to test instead of the chart's default")
+	flag.StringVar(&valkeyReconcilerImage, "valkey-reconciler-image", "", "reconciler image to test instead of the chart's default")
 }
 
 func TestValkey(t *testing.T) {

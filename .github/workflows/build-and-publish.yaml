@@ -64,9 +64,7 @@ jobs:
     outputs:
       images: ${{ steps.set-image-matrix.outputs.images }}
       charts: ${{ steps.set-chart-matrix.outputs.charts }}
-      valkey-image: ${{ steps.image-changes.outputs.valkey == 'true' || inputs.valkey }}
-      valkey-reconciler-image: ${{ steps.image-changes.outputs.valkey-reconciler == 'true' || inputs.valkey-reconciler }}
-      valkey-e2e: ${{ steps.e2e-changes.outputs.valkey == 'true' || inputs.valkey-chart }}
+      e2e: ${{ steps.set-e2e-matrix.outputs.e2e }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -134,12 +132,14 @@ jobs:
           DISPATCH: ${{ toJSON(inputs) }}
         run: |
           all='[
-            {"name":"patroni","path":"./packages/postgres/patroni/Dockerfile"},
-            {"name":"pgbackrest","path":"./packages/postgres/pgbackrest/Dockerfile"},
-            {"name":"argocd-sst-plugin","path":"./packages/argocd/Dockerfile"},
-            {"name":"clickhouse","path":"./packages/clickhouse/clickhouse/Dockerfile"},
-            {"name":"clickhouse-keeper","path":"./packages/clickhouse/keeper/Dockerfile"},
-            {"name":"clickhouse-backup","path":"./packages/clickhouse/backup/Dockerfile"}
+            {"name":"patroni","package":"postgres","path":"./packages/postgres/patroni/Dockerfile"},
+            {"name":"pgbackrest","package":"postgres","path":"./packages/postgres/pgbackrest/Dockerfile"},
+            {"name":"valkey","package":"valkey","path":"./packages/valkey/Dockerfile"},
+            {"name":"valkey-reconciler","package":"valkey","path":"./packages/valkey/reconciler/Dockerfile"},
+            {"name":"argocd-sst-plugin","package":"argocd","path":"./packages/argocd/Dockerfile"},
+            {"name":"clickhouse","package":"clickhouse","path":"./packages/clickhouse/clickhouse/Dockerfile"},
+            {"name":"clickhouse-keeper","package":"clickhouse","path":"./packages/clickhouse/keeper/Dockerfile"},
+            {"name":"clickhouse-backup","package":"clickhouse","path":"./packages/clickhouse/backup/Dockerfile"}
           ]'
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             selected=$(jq -c 'to_entries | map(select(.value == true) | .key)' <<<"${DISPATCH}")
@@ -166,9 +166,127 @@ jobs:
           charts=$(jq -c --argjson sel "${selected}" 'map(select(.name as $n | $sel | index($n)))' <<<"${all}")
           echo "charts=${charts}" >> "${GITHUB_OUTPUT}"
 
-  build-publish-images:
+      - id: set-e2e-matrix
+        env:
+          DISPATCH: ${{ toJSON(inputs) }}
+          IMAGES: ${{ steps.set-image-matrix.outputs.images }}
+        run: |
+          suites='["valkey"]'
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            selected=$(jq -c --argjson images "${IMAGES}" '[(to_entries[] | select(.value == true and (.key | endswith("-chart"))) | .key | sub("-chart$"; "")), $images[].package]' <<<"${DISPATCH}")
+          else
+            selected='${{ steps.e2e-changes.outputs.changes || '[]' }}'
+          fi
+          e2e=$(jq -c --argjson sel "${selected}" 'map(select(. as $suite | $sel | index($suite)))' <<<"${suites}")
+          echo "e2e=${e2e}" >> "${GITHUB_OUTPUT}"
+
+  build-images:
     needs: detect-changes
     if: needs.detect-changes.outputs.images != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image: ${{ fromJSON(needs.detect-changes.outputs.images) }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Run Hadolint
+        uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        with:
+          dockerfile: ${{ matrix.image.path }}
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image.name }}
+          tags: |
+            type=ref,event=branch
+            type=raw,value=ref-{{branch}}-{{sha}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ${{ matrix.image.path }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=docker,dest=${{ runner.temp }}/image.tar
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          input: ${{ runner.temp }}/image.tar
+          scanners: vuln,secret
+          trivy-config: trivy.yaml
+          trivyignores: .trivyignore.yaml
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: image-${{ matrix.image.package }}-${{ matrix.image.name }}
+          path: ${{ runner.temp }}/image.tar
+          retention-days: 1
+
+  test-e2e:
+    needs:
+      - detect-changes
+      - build-images
+    if: >-
+      !cancelled() && needs.detect-changes.result == 'success' &&
+      needs.build-images.result != 'failure' &&
+      needs.detect-changes.outputs.e2e != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.detect-changes.outputs.e2e) }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: go k3d kubectl helm
+
+      - name: Create k3d cluster
+        run: pnpm cluster k3d deps up && pnpm cluster k3d up
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: image-${{ matrix.package }}-*
+          path: ${{ runner.temp }}
+
+      # NOTE: below the job timeout, so a hung spec still dumps its diagnostics
+      - name: Run e2e tests
+        env:
+          PACKAGE: ${{ matrix.package }}
+          BUILT_IMAGES: ${{ needs.detect-changes.outputs.images }}
+        run: |
+          suite_flags=()
+          for image in $(jq -r --arg package "${PACKAGE}" '.[] | select(.package == $package) | .name' <<<"${BUILT_IMAGES}"); do
+            loaded_image=$(docker load --input "${RUNNER_TEMP}/image-${PACKAGE}-${image}/image.tar" | sed -n 's/^Loaded image: //p' | head -n 1)
+            docker tag "${loaded_image}" "localhost:12345/${image}:${GITHUB_SHA}"
+            docker push "localhost:12345/${image}:${GITHUB_SHA}"
+            suite_flags+=("--${image}-image=local-registry:5000/${image}:${GITHUB_SHA}")
+          done
+          go tool ginkgo -p --timeout=20m "./packages/${PACKAGE}/e2e" -- "${suite_flags[@]}"
+
+  publish-images:
+    needs:
+      - detect-changes
+      - build-images
+      - test-e2e
+    if: >-
+      !cancelled() && needs.build-images.result == 'success' &&
+      needs.test-e2e.result != 'failure'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -180,87 +298,43 @@ jobs:
         image: ${{ fromJSON(needs.detect-changes.outputs.images) }}
 
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: image-${{ matrix.image.package }}-${{ matrix.image.name }}
+          path: ${{ runner.temp }}
 
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: ./.github/actions/build-image
-        with:
-          name: ${{ matrix.image.name }}
-          dockerfile: ${{ matrix.image.path }}
-
-  build-test-publish-valkey:
-    needs: detect-changes
-    if: >-
-      needs.detect-changes.outputs.valkey-e2e == 'true' ||
-      needs.detect-changes.outputs.valkey-image == 'true' ||
-      needs.detect-changes.outputs.valkey-reconciler-image == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-      attestations: write
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - if: needs.detect-changes.outputs.valkey-image == 'true'
-        uses: ./.github/actions/build-image
-        with:
-          name: valkey
-          dockerfile: ./packages/valkey/Dockerfile
-
-      - if: needs.detect-changes.outputs.valkey-reconciler-image == 'true'
-        uses: ./.github/actions/build-image
-        with:
-          name: valkey-reconciler
-          dockerfile: ./packages/valkey/reconciler/Dockerfile
-
-      - uses: ./.github/actions/setup-node-pnpm
-
-      - uses: ./.github/actions/setup-mise
-        with:
-          tools: go k3d kubectl helm
-
-      - name: Create k3d cluster
-        run: pnpm cluster k3d deps up && pnpm cluster k3d up
-
-      # NOTE: below the job timeout, so a hung spec still dumps its diagnostics
-      - name: Run e2e tests
+      - name: Push the tested image
+        id: push
         env:
-          VALKEY_IMAGE_BUILT: ${{ needs.detect-changes.outputs.valkey-image }}
-          RECONCILER_IMAGE_BUILT: ${{ needs.detect-changes.outputs.valkey-reconciler-image }}
+          OWNER: ${{ github.repository_owner }}
+          IMAGE: ${{ matrix.image.name }}
         run: |
-          suite_flags=()
-          if [[ "${VALKEY_IMAGE_BUILT}" == 'true' ]]; then
-            docker tag valkey:scan localhost:12345/valkey:latest
-            docker push localhost:12345/valkey:latest
-            suite_flags+=(--valkey-image=local-registry:5000/valkey:latest)
-          fi
-          if [[ "${RECONCILER_IMAGE_BUILT}" == 'true' ]]; then
-            docker tag valkey-reconciler:scan localhost:12345/valkey-reconciler:latest
-            docker push localhost:12345/valkey-reconciler:latest
-            suite_flags+=(--reconciler-image=local-registry:5000/valkey-reconciler:latest)
-          fi
-          go tool ginkgo -p --timeout=20m ./packages/valkey/e2e -- "${suite_flags[@]}"
+          docker load --input "${RUNNER_TEMP}/image.tar"
+          docker push --all-tags "ghcr.io/${OWNER,,}/${IMAGE}"
+          pushed_reference=$(docker image ls --format '{{.Repository}}:{{.Tag}}' "ghcr.io/${OWNER,,}/${IMAGE}" | head -n 1)
+          repo_digest=$(docker image inspect --format '{{index .RepoDigests 0}}' "${pushed_reference}")
+          echo "digest=${repo_digest#*@}" >> "${GITHUB_OUTPUT}"
+
+      - name: Generate Attestation
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/${{ matrix.image.name }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: false
 
   build-publish-charts:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.charts != '[]'
+    needs:
+      - detect-changes
+      - test-e2e
+    if: >-
+      !cancelled() && needs.detect-changes.result == 'success' &&
+      needs.detect-changes.outputs.charts != '[]' && needs.test-e2e.result != 'failure'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -304,8 +378,9 @@ jobs:
   build-and-publish-pass:
     needs:
       - detect-changes
-      - build-publish-images
-      - build-test-publish-valkey
+      - build-images
+      - test-e2e
+      - publish-images
       - build-publish-charts
     if: ${{ always() }}
     runs-on: ubuntu-latest
