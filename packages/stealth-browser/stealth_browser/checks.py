@@ -759,6 +759,113 @@ async () => {
       && (r.playbackQuality.dropped || 0) <= r.playbackQuality.total && r.rvfcFrames >= 2;
   } catch (e) { r.playbackError = String(e); r.playbackQualityOk = false; }
 
+  // --- 36. CDP/automation-leak surfaces (deeper than the single Error probe) ---
+  try {
+    // match injection-style names the cdc_/__patchright/__cdp/__pw_* families
+    // actually use; the explicit-injection list catches bare-name globals the
+    // regex wouldn't (e.g. window.cdp)
+    const leakSig = /^(_?_?(cdp|pw|playwright|patchright|puppeteer|pptr|driver|selenium|phantom|nightmare|automation|recorder|protocol|inject)|cdc_|_rec$)/i;
+    r.cdpWindowEnumHits = Object.keys(window).filter(k => leakSig.test(k));
+    r.cdpGlobalEnumHits = Object.getOwnPropertyNames(globalThis).filter(k => leakSig.test(k));
+    r.cdpNavigatorEnumHits = Object.getOwnPropertyNames(navigator).filter(k => leakSig.test(k));
+    r.cdpDocumentEnumHits = Object.getOwnPropertyNames(document).filter(k => leakSig.test(k));
+    r.cdpInjectedGlobals = ['__cdp', '__cdp_', '__patchright', '__playwright', '__pw',
+      '__puppeteer', 'cdp', 'CDPState', 'InjectedUtil', '__protocol']
+      .filter(k => k in globalThis);
+    r.cdpEnumOk = r.cdpWindowEnumHits.length === 0 && r.cdpGlobalEnumHits.length === 0
+      && r.cdpNavigatorEnumHits.length === 0 && r.cdpDocumentEnumHits.length === 0
+      && r.cdpInjectedGlobals.length === 0;
+  } catch (e) { r.cdpEnumError = String(e); r.cdpEnumOk = false; }
+
+  // synthetic events must stay untrusted: real Chrome reports isTrusted=false
+  // for dispatchEvent/createEvent, and Event.prototype.isTrusted must stay a
+  // native getter -- automation stacks that rewrite it leak the rewrite.
+  try {
+    const trustTarget = document.createElement('div');
+    let trustListenerEvent = null;
+    const trustListener = ev => { trustListenerEvent = ev; };
+    trustTarget.addEventListener('stealth-probe-trust', trustListener);
+    const trustSynthetic = new Event('stealth-probe-trust');
+    trustTarget.dispatchEvent(trustSynthetic);
+    trustTarget.removeEventListener('stealth-probe-trust', trustListener);
+    const trustLegacy = document.createEvent('Event');
+    trustLegacy.initEvent('stealth-probe-trust');
+    r.syntheticIsTrusted = trustSynthetic.isTrusted;            // want false
+    r.listenerIsTrusted = trustListenerEvent && trustListenerEvent.isTrusted;
+    r.legacyIsTrusted = trustLegacy.isTrusted;                  // want false
+    const trustDescriptor = Object.getOwnPropertyDescriptor(Event.prototype, 'isTrusted');
+    r.isTrustedGetterNative = !!(trustDescriptor && trustDescriptor.get
+      && String(trustDescriptor.get).includes('[native code]'));
+    r.eventTrustOk = r.syntheticIsTrusted === false && r.listenerIsTrusted === false
+      && r.legacyIsTrusted === false && r.isTrustedGetterNative === true;
+  } catch (e) { r.eventTrustError = String(e); r.eventTrustOk = false; }
+
+  // stack traces from several error origins; no framework frame names.
+  // Deliberately NOT matching 'eval at <anonymous>' -- a plain eval'd error
+  // shows that in stock Chrome too.
+  try {
+    const sampleStack = fn => {
+      try { fn(); } catch (e) { return e.stack || ''; }
+      return '';
+    };
+    const stackPaths = {
+      typeError: sampleStack(() => { null.prop; }),
+      jsonParse: sampleStack(() => { JSON.parse('{bad'); }),
+      evalError: sampleStack(() => { eval('null.prop'); }),
+      rangeError: sampleStack(() => { [].flat(Infinity).length; }),
+      asyncError: '',
+    };
+    await new Promise(res => {
+      Promise.reject(new Error('async-path')).catch(e => {
+        stackPaths.asyncError = e.stack || ''; res();
+      });
+      setTimeout(res, 1000);
+    });
+    const stackLeakSig = /patchright|playwright|puppeteer|pptr:|__puppeteer|cdp_|CDPState|InjectedScript|chromium/i;
+    r.stackSamples = Object.fromEntries(Object.entries(stackPaths)
+      .map(([k, v]) => [k, v.slice(0, 200)]));
+    r.stackLeakPaths = Object.entries(stackPaths).filter(([_, v]) => stackLeakSig.test(v))
+      .map(([k]) => k);
+    r.stackTracesOk = r.stackLeakPaths.length === 0;
+  } catch (e) { r.stackTracesError = String(e); r.stackTracesOk = false; }
+
+  // --- 37. network-stack surface: TLS fingerprint + HTTP header consistency ---
+  // tls.peet.ws /api/all reports the handshake + request as the SERVER saw it
+  // (verified field names: tls.ja3/ja3_hash/ja4/ja4_r, top-level
+  // user_agent/http_version/method, http2.sent_frames[].headers where the
+  // frame_type === 'HEADERS' frame carries "name: value" strings). Hashes are
+  // presence-only (they drift); the asserted invariant is the server-observed
+  // user_agent == navigator.userAgent.
+  try {
+    const tlsData = await (await fetch('https://tls.peet.ws/api/all')).json();
+    r.tlsJa3 = tlsData.tls && tlsData.tls.ja3 || null;
+    r.tlsJa3Hash = tlsData.tls && tlsData.tls.ja3_hash || null;
+    r.tlsJa4 = tlsData.tls && tlsData.tls.ja4 || null;
+    r.tlsJa4R = tlsData.tls && tlsData.tls.ja4_r || null;
+    r.tlsHttpVersion = tlsData.http_version || null;
+    r.tlsServerUa = tlsData.user_agent || null;
+    r.tlsMethod = tlsData.method || null;
+    const tlsHeadersFrame = (tlsData.http2 && tlsData.http2.sent_frames || [])
+      .find(f => f && f.frame_type === 'HEADERS');
+    r.tlsRequestHeaders = tlsHeadersFrame ? tlsHeadersFrame.headers || [] : [];
+    const tlsHeaderMap = Object.fromEntries(r.tlsRequestHeaders
+      .map(h => { const i = h.indexOf(': '); return [h.slice(0, i), h.slice(i + 2)]; }));
+    r.tlsAcceptLanguage = tlsHeaderMap['accept-language'] || null;
+    r.tlsAutomationHeaders = Object.keys(tlsHeaderMap)
+      .filter(k => /^(x-(cdp|pw|playwright|puppeteer|webdriver|selenium|nodriver|chrome))/i.test(k));
+    r.tlsUaMismatch = r.tlsServerUa != null && r.tlsServerUa !== navigator.userAgent;
+    const tlsFirstLang = (navigator.languages && navigator.languages[0] || '').toLowerCase();
+    // stock Chrome always sends Accept-Language on h2, so its absence when we
+    // DID capture headers is a leak; with no HEADERS frame (h1.1) it is
+    // unobservable and the check records pass
+    r.tlsAcceptLanguageOk = r.tlsRequestHeaders.length === 0
+      || (r.tlsAcceptLanguage != null && tlsFirstLang !== ''
+        && r.tlsAcceptLanguage.toLowerCase().startsWith(tlsFirstLang));
+    r.tlsSurfaceOk = !!r.tlsJa3 && !!r.tlsJa3Hash && !!r.tlsJa4 && !!r.tlsJa4R
+      && r.tlsUaMismatch === false && r.tlsAcceptLanguageOk === true
+      && r.tlsAutomationHeaders.length === 0;
+  } catch (e) { r.tlsError = String(e); r.tlsSurfaceOk = false; }
+
   return r;
 }
 """
@@ -893,6 +1000,20 @@ _CHECKS = [
      lambda p: p.get("videoRoundtripOk") is True),
     ("playbackQualityOk", "video playback produces rVFC frames + valid quality stats",
      lambda p: p.get("playbackQualityOk") is True),
+    # --- CDP/automation-leak + network-stack surface (sections 36-37) ---
+    ("cdpEnumOk", "no automation-injected properties on window/navigator/document",
+     lambda p: p.get("cdpEnumOk") is True),
+    ("eventTrustOk", "synthetic events report isTrusted=false and the getter stays native",
+     lambda p: p.get("eventTrustOk") is True),
+    ("stackTracesOk", "error stack traces from multiple paths leak no automation frames",
+     lambda p: p.get("stackTracesOk") is True),
+    ("tlsSurfaceOk", "TLS fingerprint present, server-observed UA matches the browser",
+     lambda p: p.get("tlsSurfaceOk") is True),
+    ("tlsUaMismatch", "server-observed user_agent equals navigator.userAgent",
+     lambda p: p.get("tlsUaMismatch") is False),
+    ("tlsAcceptLanguageOk", "Accept-Language consistent with navigator.languages "
+                            "(pass when no headers were observable)",
+     lambda p: p.get("tlsAcceptLanguageOk") is True),
 ]
 
 
