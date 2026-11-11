@@ -21,14 +21,14 @@ SHA-256 and are never deleted, since phones can fetch any update's files at any 
 
 ## Signing key
 
-Expo clients only verify `rsa-v1_5-sha256` with a self-signed certificate that has the
-`digitalSignature` key usage and `codeSigning` extended key usage:
+Generate the key and its certificate outside the repo with Expo's generator, from any app with
+`expo-updates`:
 
 ```sh
-openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -subj '/CN=Pandoks Mobile Updates' \
-  -addext 'keyUsage=critical,digitalSignature' -addext 'extendedKeyUsage=critical,codeSigning' \
-  -keyout private-key.pem -out certificate.crt
-pnpm sst secret set MobileUpdatesSigningKey --stage <stage> < private-key.pem
+pnpm --dir apps/<app> exec expo-updates codesigning:generate \
+  --certificate-common-name 'Pandoks Mobile Updates' --certificate-validity-duration-years 10 \
+  --key-output-directory ~/mobile-updates-keys --certificate-output-directory ~/mobile-updates-keys
+pnpm sst secret set MobileUpdatesSigningKey --stage <stage> < ~/mobile-updates-keys/private-key.pem
 ```
 
 Keep `private-key.pem` out of git and backed up: installed apps only trust the certificate they
@@ -37,8 +37,9 @@ fail. `publish` signs with the value from the stage's last deploy, so deploy aft
 
 ## App config
 
-Commit the certificate in the app (`*.pem` is gitignored), list `/android` and `/ios` in its own
-`.gitignore` so the fingerprint skips generated native code, and point `updates.url` at its slug:
+Commit `certificate.pem` in the app as `certificate.crt` (`*.pem` is gitignored), list `/android`
+and `/ios` in its own `.gitignore` so the fingerprint skips generated native code, and point
+`updates.url` at its slug:
 
 ```ts
 export default ({ config }: ConfigContext) => ({
