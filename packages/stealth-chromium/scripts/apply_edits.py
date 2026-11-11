@@ -520,6 +520,31 @@ EDITS = [
                   "    return String::FromUtf8(persona.navigator_platform);\n"
                   "  }\n",
     },
+    # navigator_base.cc -- the ACTUAL provider of navigator.platform on
+    # desktop: Navigator::platform() overrides the NavigatorID mixin and
+    # delegates to NavigatorBase::platform() -> GetReducedNavigatorPlatform().
+    # The NavigatorID::platform() edit above is only reachable on Android,
+    # so patching it alone produced a binary with no spoof (the linker
+    # stripped the dead function and APEX_FP_PLATFORM with it).
+    {
+        "file": "third_party/blink/renderer/core/execution_context/"
+                "navigator_base.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-platform-base",
+        "anchor": "String NavigatorBase::platform() const {\n",
+        "where": "after",
+        "inject": "  // apex-platform-base\n"
+                  "  if (apex_fp::HasOverride(\"APEX_FP_PLATFORM\")) {\n"
+                  "    return String::FromUtf8(std::string_view(\n"
+                  "        apex_fp::EnvStr(\"APEX_FP_PLATFORM\")));\n"
+                  "  }\n"
+                  "  // navigator.platform must agree with the UA and UA-CH\n"
+                  "  // surfaces, so it maps from the same persona record.\n"
+                  "  const apex_fp::UAPersona persona = apex_fp::GetUAPersona();\n"
+                  "  if (persona.active) {\n"
+                  "    return String::FromUtf8(persona.navigator_platform);\n"
+                  "  }\n",
+    },
 
     # --- screen.{width,height,availWidth,availHeight,colorDepth} -------
     # Each getter is anchored on its unique signature line; the apex value
