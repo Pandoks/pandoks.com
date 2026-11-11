@@ -56,8 +56,6 @@ type ConfigEnv struct {
 	UsersACL   string
 }
 
-// LoadConfig reads the settings apply-config sets on running nodes. USERS_ACL is the users.acl template, expanded
-// from the environment like entrypoint.sh's envsubst.
 func LoadConfig() (ConfigEnv, error) {
 	var parameters map[string]string
 	if err := json.Unmarshal([]byte(os.Getenv("PARAMETERS")), &parameters); err != nil {
@@ -68,8 +66,8 @@ func LoadConfig() (ConfigEnv, error) {
 	if usersACLTemplate == "" {
 		return ConfigEnv{}, fmt.Errorf("USERS_ACL environment variable is not set")
 	}
-	// NOTE: an empty ${CLIENT_PASSWORD} would turn ">${CLIENT_PASSWORD}" into a valid empty password, and a space or
-	// newline would split its line after the lines before it already applied
+	// NOTE: expanded like entrypoint.sh's envsubst. An empty ${CLIENT_PASSWORD} would turn ">${CLIENT_PASSWORD}" into
+	// a valid empty password, and a space or newline would split its line after the lines before it already applied
 	var unsetVariables, unsplittableVariables []string
 	usersACL := os.Expand(usersACLTemplate, func(name string) string {
 		value := os.Getenv(name)

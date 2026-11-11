@@ -243,6 +243,9 @@ spec:
               value: "redis://localhost:6379"
             - name: REDIS_USER
               value: "metrics"
+            # NOTE: CONFIG GET would show primaryauth, the admin password
+            - name: REDIS_EXPORTER_CONFIG_COMMAND
+              value: "-"
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:

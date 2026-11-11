@@ -9,8 +9,6 @@ import (
 	valkeygo "github.com/valkey-io/valkey-go"
 )
 
-// SetParameters sets every parameter on the node in one atomic CONFIG SET and prints what CONFIG GET reports,
-// which Valkey normalizes (100mb reads back as 104857600).
 func SetParameters(ctx context.Context, nodeClient valkeygo.Client, parameters map[string]string) error {
 	if len(parameters) == 0 {
 		return nil
@@ -26,6 +24,7 @@ func SetParameters(ctx context.Context, nodeClient valkeygo.Client, parameters m
 		return err
 	}
 
+	// NOTE: Valkey normalizes values (100mb reads back as 104857600)
 	appliedParameters, err := nodeClient.Do(ctx, nodeClient.B().ConfigGet().Parameter(names...).Build()).AsStrMap()
 	if err != nil {
 		return err
@@ -41,8 +40,6 @@ func SetParameters(ctx context.Context, nodeClient valkeygo.Client, parameters m
 	return nil
 }
 
-// AddAdminPassword makes the node accept adminPassword alongside the admin passwords it already has and
-// authenticate to its primary with it.
 func AddAdminPassword(ctx context.Context, nodeClient valkeygo.Client, adminPassword string) error {
 	if err := nodeClient.Do(ctx, nodeClient.B().AclSetuser().Username(AdminUser).Rule(">"+adminPassword).Build()).Error(); err != nil {
 		return fmt.Errorf("ACL SETUSER %s: %w", AdminUser, err)
@@ -53,8 +50,6 @@ func AddAdminPassword(ctx context.Context, nodeClient valkeygo.Client, adminPass
 	return nil
 }
 
-// SetUsers makes the node's users match usersACL, an expanded users.acl, like ACL LOAD would: each user is reset
-// to its line's rules and users without a line are deleted.
 func SetUsers(ctx context.Context, nodeClient valkeygo.Client, usersACL string) error {
 	usernames := make([]string, 0)
 	for lineIndex, line := range strings.Split(usersACL, "\n") {

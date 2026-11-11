@@ -50,14 +50,21 @@ func ApplyConfig(env utils.Env, config utils.ConfigEnv) error {
 		appliedAdminPassword = string(appliedSecret.Data[appliedAdminPasswordKey])
 	}
 	rotating := appliedSecretExists && appliedAdminPassword != env.AdminPassword
+	newAdminClient := func(hostname string) (*valkey.ValkeyClient, error) {
+		nodeClient, err := newNodeClient(hostname, env.AdminPassword)
+		if isWrongPass(err) && rotating {
+			nodeClient, err = newNodeClient(hostname, appliedAdminPassword)
+		}
+		if isWrongPass(err) {
+			return nil, fmt.Errorf("the node accepts neither the admin password nor a last-applied one in the %s Secret: %w", appliedSecretName, err)
+		}
+		return nodeClient, err
+	}
 
 	if rotating {
 		fmt.Println("Adding the new admin password next to the last-applied one...")
 		err := forEachNode(timeoutCtx, hostnames, func(hostname string) error {
-			nodeClient, err := newNodeClient(hostname, env.AdminPassword)
-			if isWrongPass(err) {
-				nodeClient, err = newNodeClient(hostname, appliedAdminPassword)
-			}
+			nodeClient, err := newAdminClient(hostname)
 			if err != nil {
 				return err
 			}
@@ -67,21 +74,11 @@ func ApplyConfig(env utils.Env, config utils.ConfigEnv) error {
 		if err != nil {
 			return err
 		}
-
-		fmt.Println("Checking that replicas are still linked to their primaries...")
-		for _, hostname := range hostnames {
-			if err := checkReplicaLink(timeoutCtx, hostname, env.AdminPassword); err != nil {
-				return fmt.Errorf("%s: %w", hostname, err)
-			}
-		}
 	}
 
 	fmt.Println("Applying parameters and users.acl, which drops any other admin password...")
 	err = forEachNode(timeoutCtx, hostnames, func(hostname string) error {
-		nodeClient, err := newNodeClient(hostname, env.AdminPassword)
-		if isWrongPass(err) && !appliedSecretExists {
-			return fmt.Errorf("the admin password isn't accepted and there's no %s Secret with the last-applied one: %w", appliedSecretName, err)
-		}
+		nodeClient, err := newAdminClient(hostname)
 		if err != nil {
 			return err
 		}
@@ -116,7 +113,6 @@ func ApplyConfig(env utils.Env, config utils.ConfigEnv) error {
 	return nil
 }
 
-// forEachNode runs applyNode on each node in turn, retrying while the node doesn't answer yet.
 func forEachNode(ctx context.Context, hostnames []string, applyNode func(hostname string) error) error {
 	for _, hostname := range hostnames {
 		for {
@@ -138,24 +134,6 @@ func forEachNode(ctx context.Context, hostnames []string, applyNode func(hostnam
 		}
 		fmt.Printf("✓ %s\n", hostname)
 	}
-	return nil
-}
-
-func checkReplicaLink(ctx context.Context, hostname, adminPassword string) error {
-	nodeClient, err := newNodeClient(hostname, adminPassword)
-	if err != nil {
-		return err
-	}
-	defer nodeClient.Close()
-
-	replicationInfo, err := nodeClient.Do(ctx, nodeClient.B().Info().Section("replication").Build()).ToString()
-	if err != nil {
-		return err
-	}
-	if strings.Contains(replicationInfo, "role:slave") && !strings.Contains(replicationInfo, "master_link_status:up") {
-		return fmt.Errorf("replica isn't linked to its primary after CONFIG SET primaryauth")
-	}
-	fmt.Printf("✓ %s\n", hostname)
 	return nil
 }
 

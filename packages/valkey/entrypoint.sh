@@ -20,10 +20,26 @@ case "${ADMIN_PASSWORD}" in
     ;;
 esac
 
-# NOTE: valkey.conf, unlike users.acl, unquotes values, so escape \ and " for the quoted primaryauth
-ESCAPED_ADMIN_PASSWORD=$(printf '%s' "${ADMIN_PASSWORD}" | sed 's/[\\"]/\\&/g') \
-  envsubst < /tmp/conf_templates/valkey.conf > /etc/valkey/valkey.conf
-envsubst < /tmp/conf_templates/users.acl > /etc/valkey/users.acl
+primary_admin_password="${ADMIN_PASSWORD}"
+acl_admin_passwords="${ADMIN_PASSWORD}"
+# NOTE: until apply-config rotates a changed admin password, the other nodes accept only the last-applied one
+if [ -f /etc/valkey-admin/applied ]; then
+  applied_admin_password=$(cat /etc/valkey-admin/applied)
+  if [ "${applied_admin_password}" != "${ADMIN_PASSWORD}" ]; then
+    primary_admin_password="${applied_admin_password}"
+    acl_admin_passwords="${ADMIN_PASSWORD} >${applied_admin_password}"
+  fi
+fi
+
+# NOTE: listing the variables keeps envsubst off other $ in parameters, like notify-keyspace-events $xKE.
+# valkey.conf, unlike users.acl, unquotes values, so escape \ and " for the quoted primaryauth
+ESCAPED_ADMIN_PASSWORD=$(printf '%s' "${primary_admin_password}" | sed 's/[\\"]/\\&/g') \
+  envsubst "$(printf '$%s ' POD_NAME HEADLESS_SERVICE NAMESPACE ESCAPED_ADMIN_PASSWORD)" \
+  < /tmp/conf_templates/valkey.conf > /etc/valkey/valkey.conf
+# NOTE: users.acl's >${ADMIN_PASSWORD} then also takes the last-applied password
+ADMIN_PASSWORD="${acl_admin_passwords}" \
+  envsubst "$(printf '$%s ' ADMIN_PASSWORD CLIENT_PASSWORD METRICS_PASSWORD)" \
+  < /tmp/conf_templates/users.acl > /etc/valkey/users.acl
 
 if [ -n "${PERSISTENCE:-}" ]; then
   echo "dir /data" >> /etc/valkey/valkey.conf

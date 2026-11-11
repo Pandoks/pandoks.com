@@ -158,8 +158,9 @@ pre-upgrade hooks. Like the `valkey-<name>-applied` Secret, they stay after `hel
 
 There are two configuration files that are used by the valkey cluster: `valkey.conf` and
 `users.acl`. They live in [chart/files](./chart/files) and are both templated so that `envsubst` can
-be used to inject secrets into the configuration files via env variables. All clusters use the same
-templated configuration files via config maps.
+be used to inject secrets into the configuration files via env variables; it expands only the
+variables they use, so other `$` stay as written. All clusters use the same templated configuration
+files via config maps.
 
 The `valkey.conf` file is used to configure the valkey cluster. The `users.acl` file is used to
 configure the users that can access the cluster. Passwords can't contain spaces or newlines, which
@@ -225,8 +226,10 @@ user, a **client** user and a **metrics** user:
 _The **client** user doesn't have dangerous permissions like `FLUSHALL`, `CONFIG`, etc._
 
 The chart generates the **metrics** password into the `valkey-<name>-metrics` Secret on install and
-keeps it on upgrades, so it needs no secret of yours and never rotates with **admin**. An exporter
-option that runs more commands, like `check-keys`, needs them added to its `users.acl` line.
+keeps it on upgrades, so it needs no secret of yours and never rotates with **admin**. The exporter
+skips its config metrics, since `CONFIG GET` would show `primaryauth`, the admin password. An
+exporter option that runs more commands, like `check-keys`, needs them added to its `users.acl`
+line.
 
 The `apply-config` Job also resets each user to its line (`ACL SETUSER <user> reset <rules>`) and
 deletes users without one, like `ACL LOAD`, so rule changes and new passwords apply without a
@@ -235,12 +238,14 @@ the nodes at the next chart upgrade, since only the Job applies it.
 
 The Job keeps the admin password it last applied in the `valkey-<name>-applied` Secret. When the
 secret has a different one, it rotates it before `scale-down` logs in: on every node it logs in with
-either password, adds the new one to **admin** and sets `primaryauth` to it, checks that every
-replica is still linked to its primary, and then resets the users to `users.acl`, which drops the
-old password, and saves the new one. It fails if a node accepts neither, like after the Secret is
-deleted; recreate it with the `adminPassword` the nodes accept. The readiness probe reads both
-passwords from a secret volume, which the kubelet refreshes within its sync period (about a minute),
-so update the secret a minute before the upgrade or pods may turn unready until it catches up.
+either password, adds the new one to **admin** and sets `primaryauth` to it, and then resets the
+users to `users.acl`, which drops the old password, and saves the new one. It fails if a node
+accepts neither, like after the Secret is deleted; recreate it with the `adminPassword` the nodes
+accept. A pod that starts between the secret change and the rotation accepts both passwords and
+replicates with the last-applied one. The readiness probe tries both from a secret volume, which the
+kubelet refreshes within about a minute, so when the rotation runs sooner, like when Argo applies
+the secret and the chart together, pods can turn unready and leave the `valkey-<name>-cluster`
+Service until it catches up.
 
 For more information about the permissions, visit
 [valkey.io/topics/acl](https://valkey.io/topics/acl/).
