@@ -6,6 +6,11 @@ metadata:
 data:
   config.yaml: |
 {{ .Files.Get "files/config.yaml" | indent 4 }}
+{{- if .Values.s3.skipTlsVerify }}
+    openSSL:
+      client:
+        verificationMode: none
+{{- end }}
 
 ---
 apiVersion: v1

@@ -2,7 +2,7 @@ apiVersion: v2
 name: clickhouse
 description: ClickHouse database with Keeper for replication
 type: application
-version: 0.1.2
+version: 0.1.3
 appVersion: '25.11'
 keywords:
   - clickhouse

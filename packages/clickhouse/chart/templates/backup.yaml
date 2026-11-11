@@ -66,6 +66,10 @@ spec:
                       key: {{ .context.Values.backup.credentials.dataKeys.secretKey }}
                 - name: RETENTION
                   value: {{ index .context.Values.backup.retention .type | quote }}
+                {{- if .context.Values.s3.skipTlsVerify }}
+                - name: RCLONE_NO_CHECK_CERTIFICATE
+                  value: 'true'
+                {{- end }}
               {{- with .context.Values.backup.resources }}
               resources:
                 {{- toYaml . | nindent 16 }}

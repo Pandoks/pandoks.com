@@ -9,3 +9,12 @@ spec:
     hooks.backoffLimit: 0
     hooks.ttlSecondsAfterFinished: 86400 # 24 hours
     hooks.hookDeletePolicy: before-hook-creation
+---
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: main-clickhouse-main-cluster
+  namespace: kube-system
+spec:
+  set:
+    s3.skipTlsVerify: 'true' # NOTE: the local AWS Emulator's certificate only names localhost
