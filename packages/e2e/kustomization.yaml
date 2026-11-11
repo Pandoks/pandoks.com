@@ -1,4 +1,3 @@
-# The charts ship ServiceMonitors, so a bare test cluster needs these CRDs (kube-prometheus-stack adds them otherwise)
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:

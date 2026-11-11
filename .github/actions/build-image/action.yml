@@ -20,7 +20,6 @@ runs:
     - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
       id: meta
       with:
-        # NOTE: github.repository includes the owner/org (ghcr.io/<owner/org>/repo-name)
         images: ghcr.io/${{ github.repository_owner }}/${{ inputs.name }}
         tags: |
           type=ref,event=branch
@@ -30,7 +29,7 @@ runs:
     - name: Build image
       uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
       with:
-        context: . # WARN: all dockerfiles should have a context of the root of the repo
+        context: .
         file: ${{ inputs.dockerfile }}
         load: true
         push: false

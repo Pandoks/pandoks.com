@@ -80,7 +80,6 @@ jobs:
               - 'packages/postgres/patroni/**'
             pgbackrest:
               - 'packages/postgres/pgbackrest/**'
-            # NOTE: the Valkey images build in build-test-publish-valkey, on the runner that tests them
             valkey:
               - 'packages/valkey/Dockerfile'
               - 'packages/valkey/entrypoint.sh'
@@ -240,9 +239,7 @@ jobs:
       - name: Create k3d cluster
         run: pnpm cluster k3d deps up && pnpm cluster k3d up
 
-      # NOTE: an image the change didn't touch comes from the chart's default, main's image on GHCR.
-      # The ginkgo timeout is below the job timeout, so a hung command still ends with the failed
-      # specs' diagnostics.
+      # NOTE: below the job timeout, so a hung spec still dumps its diagnostics
       - name: Run e2e tests
         env:
           VALKEY_IMAGE_BUILT: ${{ needs.detect-changes.outputs.valkey-image }}
