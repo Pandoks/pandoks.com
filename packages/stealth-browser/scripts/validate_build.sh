@@ -2,7 +2,8 @@
 # shellcheck shell=bash
 # Validation entry for the stealth-browser build.
 #
-#   scripts/validate_build.sh [--base URL] [--targets local|creep|hard|all]
+#   scripts/validate_build.sh [--base URL]
+#                             [--targets local|creep|hard|flows|all]
 #                             [--wait N] [--skip-battery]
 #
 # 1. behavior_attack_suite.py -- the committed detector regression gate

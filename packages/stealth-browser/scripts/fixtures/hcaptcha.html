@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<!-- hCaptcha flow fixture: hCaptcha's documented always-pass TEST sitekey
+     (docs.hcaptcha.com test keys; verified in hCaptcha/hcaptcha-go). The
+     callback fires on pass and writes the token into #token. -->
+<script src="https://js.hcaptcha.com/1/api.js?render=explicit&onload=onHcaptchaLoad" async defer></script>
+<script>
+function onHcaptchaLoad() {
+  try {
+    hcaptcha.render('h-captcha', {
+      sitekey: '10000000-ffff-ffff-ffff-000000000001',
+      callback: function (token) {
+        if (!token) { return; }
+        document.getElementById('token').textContent = token;
+        document.getElementById('state').textContent = 'OK';
+      }
+    });
+  } catch (err) {
+    document.getElementById('state').textContent = 'ERROR: ' + err;
+  }
+}
+</script>
+</head>
+<body>
+<div id="h-captcha"></div>
+<div id="state">PENDING</div>
+<div id="token" style="word-break:break-all"></div>
+</body>
+</html>

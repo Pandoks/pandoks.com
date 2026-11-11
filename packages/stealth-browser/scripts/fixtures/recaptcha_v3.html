@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<!-- reCAPTCHA v3 flow fixture: Google's always-pass TEST sitekey (no domain
+     restriction). Executes on load; the score token lands in #token. -->
+<script src="https://www.google.com/recaptcha/api.js?render=6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"></script>
+<script>
+function flowExecute() {
+  if (!window.grecaptcha) { setTimeout(flowExecute, 500); return; }
+  grecaptcha.ready(function () {
+    grecaptcha.execute('6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI',
+                       {action: 'flow_test'}).then(function (token) {
+      if (!token) { return; }
+      document.getElementById('token').textContent = token;
+      document.getElementById('state').textContent = 'OK';
+    }).catch(function (err) {
+      document.getElementById('state').textContent = 'ERROR: ' + err;
+    });
+  });
+}
+flowExecute();
+</script>
+</head>
+<body>
+<div id="state">PENDING</div>
+<div id="token" style="word-break:break-all"></div>
+</body>
+</html>

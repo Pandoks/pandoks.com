@@ -12,6 +12,9 @@ detection model sees them:
   3. hard-target probes       -- the anti-bot vendors (Cloudflare, DataDome,
      Akamai, Kasada, HUMAN, Amazon). We navigate each and classify whether we
      got a challenge, a block, or the real page.
+  4. captcha flows            -- interactive challenges (Turnstile, reCAPTCHA
+     v3, hCaptcha) driven to a SOLVED state through the humanized input layer;
+     every click goes through the humanizer, never a raw CDP dispatch.
 
 Every target gets its own session, driven exactly as an automation client
 would drive it. The matrix at the end is the "what can the model still see"
@@ -21,6 +24,7 @@ thing to patch.
 Usage:
   python scripts/adversarial.py --base http://localhost:41000
   python scripts/adversarial.py --base http://localhost:41000 --targets hard
+  python scripts/adversarial.py --base http://localhost:41000 --targets flows
   python scripts/adversarial.py --base http://localhost:41000 --local
 """
 
@@ -203,8 +207,8 @@ def probe_hard_target(base: str, name: str, url: str, markers: list[str],
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", default="http://localhost:41000")
-    ap.add_argument("--targets", choices=["local", "creep", "hard", "all"],
-                    default="all")
+    ap.add_argument("--targets", choices=["local", "creep", "hard", "flows",
+                                           "all"], default="all")
     ap.add_argument("--wait", type=int, default=60, help="seconds to wait for /health")
     args = ap.parse_args()
     base = args.base.rstrip("/")
@@ -264,6 +268,21 @@ def main() -> int:
             print(f"  [{mark}] {name}: {outcome}")
             if outcome != "clean":
                 failures.append(f"hard:{name}: {outcome}")
+
+    if args.targets in ("flows", "all"):
+        # imported here so the rest of the battery doesn't pull the flow
+        # machinery in on every run
+        import flow_targets
+        print("\n=== captcha flows ===")
+        try:
+            results, flow_failures = flow_targets.run_flows(base, api)
+        except Exception as e:  # noqa: BLE001 - a crashed tier is a finding
+            results, flow_failures = [], [f"flows: crashed: {e}"]
+        for r in results:
+            outcome = r.get("outcome", r.get("error", "unknown"))
+            mark = "PASS" if outcome.startswith("solved") else "FAIL"
+            print(f"  [{mark}] {r['name']}: {outcome}")
+        failures.extend(flow_failures)
 
     print()
     if failures:
