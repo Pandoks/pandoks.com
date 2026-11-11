@@ -12,7 +12,7 @@
 
   <p>
     <a href="https://github.com/Pandoks/pandoks.com/actions/workflows/checks.yaml"><img src="https://github.com/Pandoks/pandoks.com/actions/workflows/checks.yaml/badge.svg" alt="Checks"></a>
-    <a href="https://github.com/Pandoks/pandoks.com/actions/workflows/tests.yaml"><img src="https://github.com/Pandoks/pandoks.com/actions/workflows/tests.yaml/badge.svg" alt="Tests"></a>
+    <a href="https://github.com/Pandoks/pandoks.com/actions/workflows/pipeline.yaml"><img src="https://github.com/Pandoks/pandoks.com/actions/workflows/pipeline.yaml/badge.svg" alt="Pipeline"></a>
     <a href="https://github.com/Pandoks/pandoks.com/actions/workflows/security.yaml"><img src="https://github.com/Pandoks/pandoks.com/actions/workflows/security.yaml/badge.svg" alt="Security"></a>
   </p>
 

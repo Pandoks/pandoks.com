@@ -4,16 +4,7 @@ permissions:
   contents: read
 
 on:
-  pull_request:
-    branches:
-      - main
-  push:
-    branches:
-      - main
-
-concurrency:
-  group: tests-${{ github.ref }}
-  cancel-in-progress: true
+  workflow_call:
 
 jobs:
   detect-changes:
@@ -33,6 +24,7 @@ jobs:
         with:
           filters: |
             needs-node-setup: &needs-node-setup
+              - '.github/workflows/pipeline.yaml'
               - '.github/workflows/tests.yaml'
               - '.github/actions/setup-node-pnpm/**'
               - 'mise.toml'
@@ -134,17 +126,3 @@ jobs:
 
       - name: Run tests
         run: pnpm --filter @pandoks.com/valkey test
-
-  tests-pass:
-    needs:
-      - detect-changes
-      - test-web
-      - test-desktop
-      - test-svelte-pkg
-      - test-prettier-pkg
-      - test-valkey-reconciler
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    steps:
-      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
-        run: exit 1

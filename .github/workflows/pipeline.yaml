@@ -1,0 +1,114 @@
+name: Pipeline
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      patroni:
+        description: 'Image · patroni'
+        type: boolean
+        default: false
+      pgbackrest:
+        description: 'Image · pgbackrest'
+        type: boolean
+        default: false
+      valkey:
+        description: 'Image · valkey'
+        type: boolean
+        default: false
+      valkey-reconciler:
+        description: 'Image · valkey-reconciler'
+        type: boolean
+        default: false
+      argocd-sst-plugin:
+        description: 'Image · argocd-sst-plugin'
+        type: boolean
+        default: false
+      clickhouse:
+        description: 'Image · clickhouse'
+        type: boolean
+        default: false
+      clickhouse-keeper:
+        description: 'Image · clickhouse-keeper'
+        type: boolean
+        default: false
+      clickhouse-backup:
+        description: 'Image · clickhouse-backup'
+        type: boolean
+        default: false
+      postgres-chart:
+        description: 'Chart · postgres'
+        type: boolean
+        default: false
+      valkey-chart:
+        description: 'Chart · valkey'
+        type: boolean
+        default: false
+      clickhouse-chart:
+        description: 'Chart · clickhouse'
+        type: boolean
+        default: false
+  push:
+    branches:
+      - '**'
+
+concurrency:
+  group: pipeline-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    uses: ./.github/workflows/tests.yaml
+
+  build:
+    uses: ./.github/workflows/build.yaml
+    with:
+      dispatch: ${{ toJSON(inputs) }}
+
+  e2e:
+    needs: build
+    if: needs.build.outputs.e2e != '[]'
+    uses: ./.github/workflows/e2e.yaml
+    with:
+      packages: ${{ needs.build.outputs.e2e }}
+      images: ${{ needs.build.outputs.images }}
+
+  publish:
+    needs:
+      - tests
+      - build
+      - e2e
+    if: >-
+      !cancelled() && needs.tests.result == 'success' && needs.build.result == 'success' &&
+      needs.e2e.result != 'failure' &&
+      (needs.build.outputs.images != '[]' || needs.build.outputs.charts != '[]')
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/publish.yaml
+    with:
+      images: ${{ needs.build.outputs.images }}
+      charts: ${{ needs.build.outputs.charts }}
+
+  tests-pass:
+    needs: tests
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
+
+  build-and-publish-pass:
+    needs:
+      - build
+      - e2e
+      - publish
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1

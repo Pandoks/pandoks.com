@@ -1,0 +1,103 @@
+name: Publish
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      images:
+        description: JSON list of the tested images, as build.yaml's images output.
+        type: string
+        required: true
+      charts:
+        description: JSON list of the charts to publish, as build.yaml's charts output.
+        type: string
+        required: true
+
+jobs:
+  publish-images:
+    if: inputs.images != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    strategy:
+      matrix:
+        image: ${{ fromJSON(inputs.images) }}
+
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: image-${{ matrix.image.package }}-${{ matrix.image.name }}
+          path: ${{ runner.temp }}
+
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push the tested image
+        id: push
+        shell: bash
+        env:
+          OWNER: ${{ github.repository_owner }}
+          IMAGE: ${{ matrix.image.name }}
+        run: |
+          docker load --input "${RUNNER_TEMP}/${IMAGE}.tar"
+          docker push --all-tags "ghcr.io/${OWNER,,}/${IMAGE}"
+          pushed_reference=$(docker image ls --format '{{.Repository}}:{{.Tag}}' "ghcr.io/${OWNER,,}/${IMAGE}" | head -n 1)
+          repo_digest=$(docker image inspect --format '{{index .RepoDigests 0}}' "${pushed_reference}")
+          echo "digest=${repo_digest#*@}" >> "${GITHUB_OUTPUT}"
+
+      - name: Generate Attestation
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/${{ matrix.image.name }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: false
+
+  publish-charts:
+    if: inputs.charts != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        chart: ${{ fromJSON(inputs.charts) }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Scan Helm chart with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: config
+          scan-ref: ${{ matrix.chart.path }}
+          scanners: misconfig
+          trivy-config: trivy.yaml
+          trivyignores: .trivyignore.yaml
+
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: helm
+
+      - name: Login to GHCR
+        run: |
+          echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Package and Push Helm Chart
+        env:
+          OWNER: ${{ github.repository_owner }}
+          BRANCH: ${{ github.ref_name }} # WARNING: do not inline this (security risk)
+        run: |
+          version_arg=()
+          if [[ "${BRANCH}" != "${{ github.event.repository.default_branch }}" ]]; then
+            version_arg=(--version "$(yq .version "${{ matrix.chart.path }}/Chart.yaml")-${BRANCH//\//-}")
+          fi
+          helm package "${{ matrix.chart.path }}" "${version_arg[@]}"
+          helm push "${{ matrix.chart.name }}"-*.tgz "oci://ghcr.io/${OWNER,,}/charts"
