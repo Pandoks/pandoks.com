@@ -227,7 +227,8 @@ _The **client** user doesn't have dangerous permissions like `FLUSHALL`, `CONFIG
 
 The chart generates the **metrics** password into the `valkey-<name>-metrics` Secret on install and
 keeps it on upgrades, so it needs no secret of yours and never rotates with **admin**. The exporter
-skips its config metrics, since `CONFIG GET` would show `primaryauth`, the admin password. An
+skips its config metrics, since `CONFIG GET` would show `primaryauth`, the admin password, and its
+last-slow-command metrics, since `SLOWLOG GET` shows commands' arguments, like `SET`'s values. An
 exporter option that runs more commands, like `check-keys`, needs them added to its `users.acl`
 line.
 
