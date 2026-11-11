@@ -30,7 +30,7 @@ func installValkey(masterCount int) string {
 		chartValues["image"] = valkeyImage
 	}
 	if valkeyReconcilerImage != "" {
-		chartValues["cluster.valkeyReconcilerImage"] = valkeyReconcilerImage
+		chartValues["cluster.reconcilerImage"] = valkeyReconcilerImage
 	}
 	return e2e.InstallChart("valkey", valkeyChartDirectory,
 		map[string]string{"ADMIN_PASSWORD": adminPassword, "CLIENT_PASSWORD": "client-test-password"},
