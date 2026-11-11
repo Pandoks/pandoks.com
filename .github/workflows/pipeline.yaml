@@ -59,31 +59,50 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  tests:
-    uses: ./.github/workflows/tests.yaml
-
-  build:
-    uses: ./.github/workflows/build.yaml
+  changes:
+    uses: ./.github/workflows/changes.yaml
     with:
       dispatch: ${{ toJSON(inputs) }}
 
+  tests:
+    needs: changes
+    if: needs.changes.outputs.unit != '[]'
+    uses: ./.github/workflows/tests.yaml
+    with:
+      jobs: ${{ needs.changes.outputs.unit }}
+
+  build:
+    needs: changes
+    if: needs.changes.outputs.images != '[]'
+    uses: ./.github/workflows/build.yaml
+    with:
+      images: ${{ needs.changes.outputs.images }}
+
   e2e:
-    needs: build
-    if: needs.build.outputs.e2e != '[]'
+    needs:
+      - changes
+      - build
+    if: >-
+      !cancelled() && needs.changes.result == 'success' &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped') &&
+      needs.changes.outputs.e2e != '[]'
     uses: ./.github/workflows/e2e.yaml
     with:
-      packages: ${{ needs.build.outputs.e2e }}
-      images: ${{ needs.build.outputs.images }}
+      packages: ${{ needs.changes.outputs.e2e }}
+      images: ${{ needs.changes.outputs.images }}
 
   publish:
     needs:
+      - changes
       - tests
       - build
       - e2e
     if: >-
-      !cancelled() && needs.tests.result == 'success' && needs.build.result == 'success' &&
+      !cancelled() && needs.changes.result == 'success' &&
+      (needs.tests.result == 'success' || needs.tests.result == 'skipped') &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped') &&
       (needs.e2e.result == 'success' || needs.e2e.result == 'skipped') &&
-      (needs.build.outputs.images != '[]' || needs.build.outputs.charts != '[]')
+      (needs.changes.outputs.images != '[]' || needs.changes.outputs.charts != '[]')
     permissions:
       contents: read
       packages: write
@@ -91,11 +110,13 @@ jobs:
       attestations: write
     uses: ./.github/workflows/publish.yaml
     with:
-      images: ${{ needs.build.outputs.images }}
-      charts: ${{ needs.build.outputs.charts }}
+      images: ${{ needs.changes.outputs.images }}
+      charts: ${{ needs.changes.outputs.charts }}
 
   tests-pass:
-    needs: tests
+    needs:
+      - changes
+      - tests
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
@@ -104,6 +125,7 @@ jobs:
 
   build-and-publish-pass:
     needs:
+      - changes
       - build
       - e2e
       - publish

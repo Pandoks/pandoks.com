@@ -55,7 +55,7 @@ Run some specs with `--label-filter`, list them with `--dry-run -v`, and tear th
    a k3d node, `Serial`. Give `Eventually` waits longer than a minute `.WithTimeout(...)`.
 4. Give the suite a `--<image>-image` flag per first-party image, named after the image, set only
    when given, so it otherwise tests the chart's default.
-5. In `build.yaml`, add a `<package>` filter with the package's paths and `*needs-e2e-setup` to
+5. In `changes.yaml`, add a `<package>` filter with the package's paths and `*needs-e2e-setup` to
    `e2e-changes`, and the package to `suites` in `set-e2e-matrix`. Its images already carry their
    `package` in the image matrix, so `e2e.yaml` loads the ones the run built and passes them as
    flags, and `publish-images` pushes them only once the suite passed. Add the suite's `go.sum` to
