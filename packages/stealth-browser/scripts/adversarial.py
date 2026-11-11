@@ -40,15 +40,41 @@ from stealth_browser import checks  # noqa: E402
 from stealth_browser import creepjs  # noqa: E402
 
 # Challenge markers for the hard targets. A site passes when NONE of its
-# vendor's markers appear in the rendered text.
+# vendor's markers appear in the rendered text. Detector TEST pages that
+# always render their own check names need a custom check instead -- raw
+# markers false-positive on the page's static UI (sannysoft prints
+# "webdriver" 40x as row labels on a clean pass; rebrowser's UI renders
+# "detected"/"not detected" as its own vocabulary).
+
+def _sannysoft_hit(text: str) -> str | None:
+    # every row label renders regardless of outcome; a real fail shows the
+    # anomalous value next to it (e.g. "webdriver ... true")
+    if re.search(r'(?i)webdriver[^\n]{0,40}\btrue\b', text):
+        return "webdriver=true"
+    if re.search(r'(?i)headless[^\n]{0,40}\btrue\b', text):
+        return "headless=true"
+    if "browser is being controlled" in text.lower():
+        return "controlled-banner"
+    return None
+
+
+def _rebrowser_hit(text: str) -> str | None:
+    # the app always renders its own vocabulary; a clean run says
+    # "not detected". fail only on the standalone verdict.
+    low = text.lower()
+    if "not detected" in low:
+        return None
+    if "detected" in low:
+        return "detected"
+    return None
+
+
 HARD_TARGETS = [
     # public detector pages (from the 2025-26 gap research: docs/detection-gaps.md)
-    ("sannysoft", "https://bot.sannysoft.com/", [
-        "chrome driver", "webdriver", "headless", "browser is being controlled"]),
-    ("rebrowser", "https://bot-detector.rebrowser.net/", [
-        "detected", "webdriver"]),
+    ("sannysoft", "https://bot.sannysoft.com/", [], _sannysoft_hit),
+    ("rebrowser", "https://bot-detector.rebrowser.net/", [], _rebrowser_hit),
     ("creepbot", "https://abrahamjuliot.github.io/creepjs/tests/detect.html", [
-        "headless", "detected"]),
+        "headless", "detected"], None),
     ("fingerprint-demo", "https://demo.fingerprint.com/playground", [
         "bot detected", "bot score"]),
     # hard-target vendor sites
@@ -143,7 +169,8 @@ def run_local_battery(base: str, name: str, probe_js: str) -> dict:
         api(base, "DELETE", f"/sessions/{sid}")
 
 
-def probe_hard_target(base: str, name: str, url: str, markers: list[str]) -> dict:
+def probe_hard_target(base: str, name: str, url: str, markers: list[str],
+                      custom_check=None) -> dict:
     status, created = api(base, "POST", "/sessions", body={})
     if status not in (200, 201) or not isinstance(created, dict):
         return {"name": name, "error": f"session create failed: {status}"}
@@ -159,7 +186,10 @@ def probe_hard_target(base: str, name: str, url: str, markers: list[str]) -> dic
             status, txt = api(base, "GET", f"/sessions/{sid}/text")
             body = (txt or {}).get("text", "") if isinstance(txt, dict) else ""
             low = str(body).lower()
-            hit = next((m for m in markers if m in low), None)
+            if custom_check is not None:
+                hit = custom_check(str(body))
+            else:
+                hit = next((m for m in markers if m in low), None)
             if hit:
                 verdict = f"challenged ({hit})"
                 break
@@ -226,8 +256,9 @@ def main() -> int:
 
     if args.targets in ("hard", "all"):
         print("\n=== hard targets ===")
-        for name, url, markers in HARD_TARGETS:
-            r = probe_hard_target(base, name, url, markers)
+        for name, url, markers, *rest in HARD_TARGETS:
+            custom = rest[0] if rest else None
+            r = probe_hard_target(base, name, url, markers, custom)
             outcome = r.get("outcome", r.get("error", "unknown"))
             mark = "PASS" if outcome == "clean" else "FAIL"
             print(f"  [{mark}] {name}: {outcome}")
