@@ -111,10 +111,10 @@ func addMasters(options *scaleUpOptions) error {
 	currentMasterCount := len(clusterTopology.Masters)
 
 	numberOfMastersToAdd := env.Masters - currentMasterCount
-	hostnames := make([]string, 0, len(clusterTopology.Masters)+numberOfMastersToAdd)
+	// NOTE: replicas too, since the topology read below can ask one and drop a hostname it hasn't learned yet
+	hostnames := clusterTopology.Hostnames()
 	hostnameMatching := make([][]string, 0, numberOfMastersToAdd)
 	for _, master := range clusterTopology.Masters {
-		hostnames = append(hostnames, fmt.Sprintf("%s:%d", master.Node.Hostname, master.Node.Port))
 		hostnameMatching = append(hostnameMatching, []string{master.Node.Hostname})
 	}
 
