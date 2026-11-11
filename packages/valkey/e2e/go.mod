@@ -1,6 +1,6 @@
 module valkey/e2e
 
-go 1.27.3
+go 1.27.4
 
 require (
 	e2e v0.0.0
