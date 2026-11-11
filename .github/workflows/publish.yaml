@@ -7,11 +7,11 @@ on:
   workflow_call:
     inputs:
       images:
-        description: JSON list of the tested images, as build.yaml's images output.
+        description: JSON list of the tested images, as changes.yaml's images output.
         type: string
         required: true
       charts:
-        description: JSON list of the charts to publish, as build.yaml's charts output.
+        description: JSON list of the charts to publish, as changes.yaml's charts output.
         type: string
         required: true
 
