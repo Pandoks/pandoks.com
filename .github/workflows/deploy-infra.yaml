@@ -16,6 +16,7 @@ on:
       - 'packages/svelte/**'
       - 'k3s/**'
       - 'scripts/cluster/**'
+      - 'scripts/mobile-updates/**'
   workflow_dispatch:
     inputs:
       deploy:
@@ -57,6 +58,7 @@ jobs:
             mobile-template:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
+              - 'scripts/mobile-updates/**'
               - 'apps/mobile-template/{app.json,app.config.ts,package.json}'
               - 'apps/mobile-template/{assets,src/!(__tests__)}/**'
 
