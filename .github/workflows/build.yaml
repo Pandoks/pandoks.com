@@ -73,9 +73,7 @@ jobs:
         with:
           filters: |
             needs-e2e-setup: &needs-e2e-setup
-              - '.github/workflows/pipeline.yaml'
               - '.github/workflows/build.yaml'
-              - '.github/workflows/publish.yaml'
               - '.github/workflows/e2e.yaml'
               - '.github/actions/**'
               - 'packages/e2e/**'

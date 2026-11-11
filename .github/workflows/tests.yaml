@@ -24,7 +24,6 @@ jobs:
         with:
           filters: |
             needs-node-setup: &needs-node-setup
-              - '.github/workflows/pipeline.yaml'
               - '.github/workflows/tests.yaml'
               - '.github/actions/setup-node-pnpm/**'
               - 'mise.toml'
