@@ -19,17 +19,22 @@ const (
 
 func installValkey(masterCount int) string {
 	GinkgoHelper()
+	chartValues := map[string]string{
+		"name":               "vk",
+		"cluster.masters":    strconv.Itoa(masterCount),
+		"credentials.secret": "valkey-creds",
+		// NOTE: keep the hook Jobs for the diagnostics dump
+		"hooks.hookDeletePolicy": "before-hook-creation",
+	}
+	if valkeyImage != "" {
+		chartValues["image"] = valkeyImage
+	}
+	if reconcilerImage != "" {
+		chartValues["cluster.reconcilerImage"] = reconcilerImage
+	}
 	return e2e.InstallChart("valkey", valkeyChartDirectory,
 		map[string]string{"ADMIN_PASSWORD": adminPassword, "CLIENT_PASSWORD": "client-test-password"},
-		map[string]string{
-			"name":                    "vk",
-			"image":                   e2e.Registry + "/valkey:latest",
-			"cluster.reconcilerImage": e2e.Registry + "/valkey-reconciler:latest",
-			"cluster.masters":         strconv.Itoa(masterCount),
-			"credentials.secret":      "valkey-creds",
-			// NOTE: keep the hook Jobs for the diagnostics dump
-			"hooks.hookDeletePolicy": "before-hook-creation",
-		})
+		chartValues)
 }
 
 func valkeyCli(namespace, podName, stdin string, cliArguments ...string) (string, error) {

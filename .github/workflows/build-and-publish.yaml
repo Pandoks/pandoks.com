@@ -64,6 +64,9 @@ jobs:
     outputs:
       images: ${{ steps.set-image-matrix.outputs.images }}
       charts: ${{ steps.set-chart-matrix.outputs.charts }}
+      valkey-image: ${{ steps.image-changes.outputs.valkey == 'true' || inputs.valkey }}
+      valkey-reconciler-image: ${{ steps.image-changes.outputs.valkey-reconciler == 'true' || inputs.valkey-reconciler }}
+      valkey-e2e: ${{ steps.e2e-changes.outputs.valkey }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -77,6 +80,7 @@ jobs:
               - 'packages/postgres/patroni/**'
             pgbackrest:
               - 'packages/postgres/pgbackrest/**'
+            # NOTE: the Valkey images build in build-test-publish-valkey, on the runner that tests them
             valkey:
               - 'packages/valkey/Dockerfile'
               - 'packages/valkey/entrypoint.sh'
@@ -103,6 +107,29 @@ jobs:
             clickhouse:
               - 'packages/clickhouse/chart/**'
 
+      - id: e2e-changes
+        if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            needs-e2e-setup: &needs-e2e-setup
+              - '.github/workflows/build-and-publish.yaml'
+              - '.github/actions/**'
+              - 'packages/e2e/**'
+              - 'scripts/cluster/**'
+              - 'scripts/lib/**'
+              - 'docker-compose.yaml'
+              - 'go.work'
+              - 'go.work.sum'
+              - 'mise.toml'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+            valkey:
+              - 'packages/valkey/**'
+              - 'k3s/base/core/valkey.yaml'
+              - *needs-e2e-setup
+
       - id: set-image-matrix
         env:
           DISPATCH: ${{ toJSON(inputs) }}
@@ -110,8 +137,6 @@ jobs:
           all='[
             {"name":"patroni","path":"./packages/postgres/patroni/Dockerfile"},
             {"name":"pgbackrest","path":"./packages/postgres/pgbackrest/Dockerfile"},
-            {"name":"valkey","path":"./packages/valkey/Dockerfile"},
-            {"name":"valkey-reconciler","path":"./packages/valkey/reconciler/Dockerfile"},
             {"name":"argocd-sst-plugin","path":"./packages/argocd/Dockerfile"},
             {"name":"clickhouse","path":"./packages/clickhouse/clickhouse/Dockerfile"},
             {"name":"clickhouse-keeper","path":"./packages/clickhouse/keeper/Dockerfile"},
@@ -158,10 +183,34 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Run Hadolint
-        uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/build-image
+        with:
+          name: ${{ matrix.image.name }}
           dockerfile: ${{ matrix.image.path }}
+
+  build-test-publish-valkey:
+    needs: detect-changes
+    if: >-
+      needs.detect-changes.outputs.valkey-e2e == 'true' ||
+      needs.detect-changes.outputs.valkey-image == 'true' ||
+      needs.detect-changes.outputs.valkey-reconciler-image == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
@@ -170,55 +219,47 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
-        id: meta
+      - if: needs.detect-changes.outputs.valkey-image == 'true'
+        uses: ./.github/actions/build-image
         with:
-          # NOTE: github.repository includes the owner/org (ghcr.io/<owner/org>/repo-name)
-          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image.name }}
-          tags: |
-            type=ref,event=branch
-            type=raw,value=ref-{{branch}}-{{sha}}
-            type=raw,value=latest,enable={{is_default_branch}}
+          name: valkey
+          dockerfile: ./packages/valkey/Dockerfile
 
-      - name: Build image
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+      - if: needs.detect-changes.outputs.valkey-reconciler-image == 'true'
+        uses: ./.github/actions/build-image
         with:
-          context: . # WARN: all dockerfiles should have a context of the root of the repo
-          file: ${{ matrix.image.path }}
-          load: true
-          push: false
-          tags: ${{ matrix.image.name }}:scan
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          name: valkey-reconciler
+          dockerfile: ./packages/valkey/reconciler/Dockerfile
 
-      - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: ${{ matrix.image.name }}:scan
-          scanners: vuln,secret
-          trivy-config: trivy.yaml
-          trivyignores: .trivyignore.yaml
+      - uses: ./.github/actions/setup-node-pnpm
 
-      - name: Push image
-        id: push
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+      - uses: ./.github/actions/setup-mise
         with:
-          context: .
-          file: ${{ matrix.image.path }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          sbom: true
-          provenance: mode=max
+          tools: go k3d kubectl helm
 
-      - name: Generate Attestation
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-name: ghcr.io/${{ github.repository_owner }}/${{ matrix.image.name }}
-          subject-digest: ${{ steps.push.outputs.digest }}
-          push-to-registry: false
+      - name: Create k3d cluster
+        run: pnpm cluster k3d deps up && pnpm cluster k3d up
+
+      # NOTE: an image the change didn't touch comes from the chart's default, main's image on GHCR.
+      # The ginkgo timeout is below the job timeout, so a hung command still ends with the failed
+      # specs' diagnostics.
+      - name: Run e2e tests
+        env:
+          VALKEY_IMAGE_BUILT: ${{ needs.detect-changes.outputs.valkey-image }}
+          RECONCILER_IMAGE_BUILT: ${{ needs.detect-changes.outputs.valkey-reconciler-image }}
+        run: |
+          suite_flags=()
+          if [[ "${VALKEY_IMAGE_BUILT}" == 'true' ]]; then
+            docker tag valkey:scan localhost:12345/valkey:latest
+            docker push localhost:12345/valkey:latest
+            suite_flags+=(--valkey-image=local-registry:5000/valkey:latest)
+          fi
+          if [[ "${RECONCILER_IMAGE_BUILT}" == 'true' ]]; then
+            docker tag valkey-reconciler:scan localhost:12345/valkey-reconciler:latest
+            docker push localhost:12345/valkey-reconciler:latest
+            suite_flags+=(--reconciler-image=local-registry:5000/valkey-reconciler:latest)
+          fi
+          go tool ginkgo -p --timeout=20m ./packages/valkey/e2e -- "${suite_flags[@]}"
 
   build-publish-charts:
     needs: detect-changes
@@ -267,6 +308,7 @@ jobs:
     needs:
       - detect-changes
       - build-publish-images
+      - build-test-publish-valkey
       - build-publish-charts
     if: ${{ always() }}
     runs-on: ubuntu-latest

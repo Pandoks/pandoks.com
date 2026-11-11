@@ -3,7 +3,7 @@
 Shared helpers for the end-to-end suites that test charts and apps on the local k3d cluster, written
 with [Ginkgo v2](https://onsi.github.io/ginkgo/) and [Gomega](https://onsi.github.io/gomega/). This
 module has no specs of its own: each package keeps its suite in its own `e2e/` directory, so a
-change to one package only runs that package's suite, in its `test-<package>-e2e` job.
+change to one package only runs that package's suite, in its `build-test-publish-<package>` job.
 
 The helpers (`e2e.go`):
 
@@ -28,12 +28,17 @@ pnpm cluster k3d deps up && pnpm cluster k3d up
 kubectl config use-context "${previous_context}"
 pnpm --filter @pandoks.com/valkey local:build && pnpm --filter @pandoks.com/valkey local:push
 
-mise exec -- go tool ginkgo -p ./packages/valkey/e2e
+mise exec -- go tool ginkgo -p ./packages/valkey/e2e -- \
+  --valkey-image=local-registry:5000/valkey:latest \
+  --reconciler-image=local-registry:5000/valkey-reconciler:latest
 ```
 
-Rebuild and push a package's images after changing them; the chart itself is read from the checkout
-on every run. Run some specs with `--label-filter`, list them with `--dry-run -v`, and tear the
-cluster down with `pnpm local:destroy`.
+The chart is read from the checkout on every run. An image flag left out uses the chart's default,
+main's image on GHCR, which is `linux/amd64` only, so on Apple Silicon pass every image; rebuild and
+push one after changing it.
+
+Run some specs with `--label-filter`, list them with `--dry-run -v`, and tear the cluster down with
+`pnpm local:destroy`.
 
 ## Adding a suite
 
@@ -47,7 +52,11 @@ cluster down with `pnpm local:destroy`.
    in an `Ordered` container with the install in `BeforeAll`, so a failed step skips the rest and
    the namespace is deleted once at the end. Mark specs that disrupt the whole cluster, like pausing
    a k3d node, `Serial`. Give `Eventually` waits longer than a minute `.WithTimeout(...)`.
-4. In `tests.yaml`, add a `<package>-e2e` filter with the package's paths and `*needs-e2e-setup`,
-   and a `test-<package>-e2e` job, copied from `test-valkey-e2e`, that builds and pushes only the
-   images the suite needs and runs only that suite; add the job to `tests-pass`'s `needs`, and its
-   `go.sum` to `lint-go`'s `cache-dependency-path` in `checks.yaml`.
+4. Give the suite an image flag per first-party image, set only when given, so it otherwise tests
+   the chart's default.
+5. In `build-and-publish.yaml`, add a `<package>` filter with the package's paths and
+   `*needs-e2e-setup` to `e2e-changes`, move the package's images out of the image matrix, and add a
+   `build-test-publish-<package>` job, copied from `build-test-publish-valkey`, that builds and
+   pushes only the images the change touched, passes those to the suite, and runs only that suite;
+   add the job to `build-and-publish-pass`'s `needs`, and its `go.sum` to `lint-go`'s
+   `cache-dependency-path` in `checks.yaml`.

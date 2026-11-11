@@ -16,10 +16,7 @@ import (
 )
 
 // NOTE: every command is pinned to this context, so a suite can't write to another cluster
-const (
-	KubeContext = "k3d-local-cluster"
-	Registry    = "local-registry:5000"
-)
+const KubeContext = "k3d-local-cluster"
 
 func RunSuite(t *testing.T, suiteDescription string) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
