@@ -10,6 +10,8 @@ cmd_deps() {
     up)
       echo "Starting docker compose dependencies..."
       docker compose -f ./docker-compose.yaml -p deps up -d
+      docker compose -f ./docker-compose.yaml -p deps wait s3-buckets > /dev/null \
+        || die "s3-buckets failed to create the local buckets; see 'docker compose -p deps logs s3-buckets'"
       log_ok "docker compose dependencies started"
       ;;
     down)
@@ -26,6 +28,8 @@ cmd_deps() {
       echo "Restarting docker compose dependencies..."
       docker compose -f ./docker-compose.yaml -p deps down
       docker compose -f ./docker-compose.yaml -p deps up -d
+      docker compose -f ./docker-compose.yaml -p deps wait s3-buckets > /dev/null \
+        || die "s3-buckets failed to create the local buckets; see 'docker compose -p deps logs s3-buckets'"
       log_ok "docker compose dependencies restarted"
       ;;
     help | --help | -h) usage_deps ;;

@@ -9,6 +9,7 @@ networks:
 services:
   s3:
     build: ./scripts/cluster/aws-emulator
+    pull_policy: build
     container_name: s3
     restart: always
     ports:
