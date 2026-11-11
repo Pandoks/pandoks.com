@@ -51,25 +51,39 @@ from stealth_browser import creepjs  # noqa: E402
 # "detected"/"not detected" as its own vocabulary).
 
 def _sannysoft_hit(text: str) -> str | None:
-    # every row label renders regardless of outcome; a real fail shows the
-    # anomalous value next to it (e.g. "webdriver ... true")
-    if re.search(r'(?i)webdriver[^\n]{0,40}\btrue\b', text):
-        return "webdriver=true"
-    if re.search(r'(?i)headless[^\n]{0,40}\btrue\b', text):
-        return "headless=true"
-    if "browser is being controlled" in text.lower():
-        return "controlled-banner"
+    # sannysoft renders every check name as a row label regardless of
+    # outcome, and its detailed JSON dump contains keys like
+    # `"webDriver": true` meaning "the property EXISTS" (value is false).
+    # So only table rows at line start count: a real fail shows the
+    # anomalous value ("true"/"missing") as the row's value; passing rows
+    # show "passed"/"missing (passed)". Skip anything that looks like the
+    # indented JSON metadata block.
+    for line in text.splitlines():
+        s = line.strip()
+        if not s or s.startswith('"') or s.startswith('{') or s.startswith('}'):
+            continue
+        low = s.lower()
+        if not any(k in low for k in ("webdriver", "headless", "chrome driver",
+                                      "browser is being controlled")):
+            continue
+        if "browser is being controlled" in low:
+            return "controlled-banner"
+        # row = "CheckName<TAB or spaces>value"; value "passed" or
+        # "missing (passed)" == pass; anything else = the detected value
+        if re.search(r'\b(true|found|detected)\b\s*$', low):
+            return s[:60]
     return None
 
 
 def _rebrowser_hit(text: str) -> str | None:
-    # the app always renders its own vocabulary; a clean run says
-    # "not detected". fail only on the standalone verdict.
-    low = text.lower()
-    if "not detected" in low:
-        return None
-    if "detected" in low:
-        return "detected"
+    # the page renders one glyph per test: green pass, yellow warning,
+    # red fail -- and uses the words "detected"/"not detected" inside PASS
+    # messages ("No leak detected"), so word matching is meaningless.
+    # Fail on any yellow/red test line; report the test name.
+    for line in text.splitlines():
+        s = line.strip()
+        if s.startswith(("🟡", "🔴")):
+            return s[:60]
     return None
 
 
