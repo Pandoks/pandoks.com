@@ -74,9 +74,18 @@ func ApplyConfig(env utils.Env, config utils.ConfigEnv) error {
 		if err != nil {
 			return err
 		}
+
+		// NOTE: every node accepts the new password now, so a pod restarted from here on starts with only it
+		appliedSecret.StringData = map[string]string{appliedAdminPasswordKey: env.AdminPassword}
+		if _, err := secrets.Update(timeoutCtx, appliedSecret, metav1.UpdateOptions{}); err != nil {
+			return err
+		}
+		fmt.Printf("✓ Updated %s\n", appliedSecretName)
 	}
 
-	fmt.Println("Applying parameters and users.acl, which drops any other admin password...")
+	// NOTE: primaryauth on every node before any node drops the old password, and on every run, since a pod restarted
+	// mid-rotation starts with the last-applied password
+	fmt.Println("Applying parameters and primaryauth...")
 	err = forEachNode(timeoutCtx, hostnames, func(hostname string) error {
 		nodeClient, err := newAdminClient(hostname)
 		if err != nil {
@@ -86,10 +95,19 @@ func ApplyConfig(env utils.Env, config utils.ConfigEnv) error {
 		if err := valkey.SetParameters(timeoutCtx, nodeClient, config.Parameters); err != nil {
 			return err
 		}
-		// NOTE: every run, since a pod restarted mid-rotation starts with the last-applied password
-		if err := valkey.SetPrimaryAuth(timeoutCtx, nodeClient, env.AdminPassword); err != nil {
+		return valkey.SetPrimaryAuth(timeoutCtx, nodeClient, env.AdminPassword)
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Applying users.acl, which drops any other admin password...")
+	err = forEachNode(timeoutCtx, hostnames, func(hostname string) error {
+		nodeClient, err := newAdminClient(hostname)
+		if err != nil {
 			return err
 		}
+		defer nodeClient.Close()
 		return valkey.SetUsers(timeoutCtx, nodeClient, config.UsersACL)
 	})
 	if err != nil {
@@ -105,12 +123,6 @@ func ApplyConfig(env utils.Env, config utils.ConfigEnv) error {
 			return err
 		}
 		fmt.Printf("✓ Created %s\n", appliedSecretName)
-	} else if rotating {
-		appliedSecret.StringData = map[string]string{appliedAdminPasswordKey: env.AdminPassword}
-		if _, err := secrets.Update(timeoutCtx, appliedSecret, metav1.UpdateOptions{}); err != nil {
-			return err
-		}
-		fmt.Printf("✓ Updated %s\n", appliedSecretName)
 	}
 
 	fmt.Println("=== Config Apply Complete ===")

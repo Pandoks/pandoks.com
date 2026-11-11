@@ -25,6 +25,17 @@ func TestLoadConfig(t *testing.T) {
 			clientPassword: "pass\nword",
 			wantErr:        true,
 		},
+		{
+			// A restarted pod's aclfile load trims it, so the node would accept only "password"
+			name:           "password ending in a carriage return",
+			clientPassword: "password\r",
+			wantErr:        true,
+		},
+		{
+			name:           "password ending in a tab",
+			clientPassword: "password\t",
+			wantErr:        true,
+		},
 	}
 
 	for _, test := range tests {

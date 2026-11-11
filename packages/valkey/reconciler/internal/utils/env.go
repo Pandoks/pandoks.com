@@ -67,14 +67,15 @@ func LoadConfig() (ConfigEnv, error) {
 		return ConfigEnv{}, fmt.Errorf("USERS_ACL environment variable is not set")
 	}
 	// NOTE: expanded like entrypoint.sh's envsubst. An empty ${CLIENT_PASSWORD} would turn ">${CLIENT_PASSWORD}" into
-	// a valid empty password, and a space or newline would split its line after the lines before it already applied
+	// a valid empty password, a space or newline would split its line after the lines before it already applied, and
+	// a restarted pod's aclfile load trims a leading or trailing tab or CR that ACL SETUSER keeps
 	var unsetVariables, unsplittableVariables []string
 	usersACL := os.Expand(usersACLTemplate, func(name string) string {
 		value := os.Getenv(name)
 		if value == "" {
 			unsetVariables = append(unsetVariables, name)
 		}
-		if strings.ContainsAny(value, " \n") {
+		if strings.ContainsAny(value, " \t\r\n") {
 			unsplittableVariables = append(unsplittableVariables, name)
 		}
 		return value
@@ -83,7 +84,7 @@ func LoadConfig() (ConfigEnv, error) {
 		return ConfigEnv{}, fmt.Errorf("USERS_ACL uses unset environment variables: %v", unsetVariables)
 	}
 	if len(unsplittableVariables) > 0 {
-		return ConfigEnv{}, fmt.Errorf("USERS_ACL uses environment variables with a space or newline: %v", unsplittableVariables)
+		return ConfigEnv{}, fmt.Errorf("USERS_ACL uses environment variables with a space, tab, carriage return or newline: %v", unsplittableVariables)
 	}
 
 	return ConfigEnv{
