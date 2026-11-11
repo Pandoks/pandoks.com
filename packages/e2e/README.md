@@ -3,8 +3,8 @@
 Shared helpers for the end-to-end suites that test charts and apps on the local k3d cluster, written
 with [Ginkgo v2](https://onsi.github.io/ginkgo/) and [Gomega](https://onsi.github.io/gomega/). This
 module has no specs of its own: each package keeps its suite in its own `e2e/` directory, so a
-change to one package only runs that package's suite, in its `test-e2e` matrix entry in
-`build-and-publish.yaml`.
+change to one package only runs that package's suite. In CI, `e2e.yaml` runs the suites, called by
+`build-and-publish.yaml` between building the images and publishing them.
 
 The helpers (`e2e.go`):
 
@@ -57,6 +57,6 @@ Run some specs with `--label-filter`, list them with `--dry-run -v`, and tear th
    when given, so it otherwise tests the chart's default.
 5. In `build-and-publish.yaml`, add a `<package>` filter with the package's paths and
    `*needs-e2e-setup` to `e2e-changes`, and the package to `suites` in `set-e2e-matrix`. Its images
-   already carry their `package` in the image matrix, so `test-e2e` loads the ones the run built and
+   already carry their `package` in the image matrix, so `e2e.yaml` loads the ones the run built and
    passes them as flags, and `publish-images` pushes them only once the suite passed. Add the
    suite's `go.sum` to `lint-go`'s `cache-dependency-path` in `checks.yaml`.

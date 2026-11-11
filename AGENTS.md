@@ -60,8 +60,8 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
 ## How changes ship
 
 - PRs run `checks.yaml`, `tests.yaml`, `security.yaml`, and `build-and-publish.yaml` (branch-tagged
-  GHCR images and charts, published only after the e2e suites pass on k3d with the images the run
-  built), a Cloudflare Pages preview of `apps/web`, and `claude-review.yaml` (one Agent SDK
+  GHCR images and charts, published only after `e2e.yaml`'s suites pass on k3d with the images the
+  run built), a Cloudflare Pages preview of `apps/web`, and `claude-review.yaml` (one Agent SDK
   `/code-review` per PR, posted as one review with inline comments). Required checks are the
   `*-pass` aggregates, and a PR must be up to date with `main` to merge.
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
