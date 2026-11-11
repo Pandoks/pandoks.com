@@ -81,6 +81,9 @@ cmd_publish() {
   cmd_publish_namespace="$3"
   cmd_publish_assets_domain="$4"
   cmd_publish_stage="$5"
+  if [ "${cmd_publish_stage}" = production ] && [ "${GITHUB_ACTIONS:-}" != true ]; then
+    die "Production publishes only from deploy-infra.yaml on main"
+  fi
   cmd_publish_export_dir="$(mktemp -d)"
   trap 'rm -rf "${cmd_publish_export_dir}"' EXIT
   # NOTE: builds made with MOBILE_UPDATES_ENVIRONMENT=dev check the dev stages' host, and that config changes their
