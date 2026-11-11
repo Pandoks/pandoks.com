@@ -150,6 +150,48 @@ case "$(uname -s)" in
   *)      BIN="$SRC/out/apex/chrome";;
 esac
 
+# Post-build governance: the compiled binary must actually contain every
+# spoof-marker env string the patch set references. apply.sh --verify only
+# checks the SOURCE tree; a stale/unlinked navigator_id.o (fix6) ships a
+# stock-behaving binary while every source check passes. So verify the OUTPUT.
+echo "[2.5/2] verifying compiled binary carries the spoof markers ..."
+python3 - "$BIN" "$APEX_ROOT" <<'PYEOF'
+import os, re, sys
+
+bin_path, apex_root = sys.argv[1], sys.argv[2]
+data = open(bin_path, "rb").read()
+
+def quoted_markers(path, bucket):
+    # apply_edits.py embeds the C++ injects as escaped python strings, so the
+    # quotes appear as \" in the raw text -- strip backslashes first.
+    text = open(path, encoding="utf-8", errors="replace").read().replace("\\", "")
+    for m in re.findall(r'"(APEX_FP[A-Z0-9_]+)"', text):
+        bucket[m] = path
+
+gated = {}    # quoted in apply_edits.py or an overlay .cc -> must be in the binary
+warned = {}   # .h-only -> may be a dead-stripped helper, report but do not gate
+quoted_markers(os.path.join(apex_root, "scripts", "apply_edits.py"), gated)
+src = os.path.join(apex_root, "chromium_src")
+for dirpath, _, files in os.walk(src):
+    for name in files:
+        if name.endswith(".cc"):
+            quoted_markers(os.path.join(dirpath, name), gated)
+        elif name.endswith(".h"):
+            quoted_markers(os.path.join(dirpath, name), warned)
+
+missing = [m for m in sorted(gated)
+           if not re.search(re.escape(m.encode()) + rb"(?![A-Z0-9_])", data)]
+for m in sorted(warned):
+    if not re.search(re.escape(m.encode()) + rb"(?![A-Z0-9_])", data):
+        print(f"  (warn) {m} absent from binary (header-only helper, may be unused)")
+if missing:
+    for m in missing:
+        print(f"  MISSING {m} in {bin_path} -- the patch set did not reach the output")
+    print(f"{len(missing)} marker(s) absent from the compiled binary -- build is invalid.")
+    sys.exit(1)
+print(f"all {len(gated)} gating markers present in {os.path.basename(bin_path)}")
+PYEOF
+
 echo
 echo "=== build complete ==="
 echo " binary: $BIN"
