@@ -7,4 +7,3 @@ resources:
 patches:
   - path: dev-patch.yaml
   - path: ../../../apps/example/kube/dev-patch.yaml
-  - path: ../../../apps/mobile-template/kube/dev-patch.yaml

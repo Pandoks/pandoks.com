@@ -48,7 +48,6 @@ jobs:
           - clickhouse
           - clickhouse-keeper
           - clickhouse-backup
-          - mobile-template-mobile-updates
     steps:
       - name: Delete GHCR versions for deleted branch
         shell: bash
@@ -87,7 +86,6 @@ jobs:
           - postgres
           - valkey
           - clickhouse
-          - mobile-updates
     steps:
       - name: Delete GHCR chart versions for deleted branch
         shell: bash

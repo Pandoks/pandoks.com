@@ -18,24 +18,23 @@ pnpm test:e2e   # Maestro flows in e2e/, against the running app
 
 ## Updates
 
-Release builds check `mobile-updates.pandoks.com` with `expo-updates` in the background on launch
-and apply a new update on the next launch. The runtime version is the native
+Release builds check `mobile-updates.pandoks.com/mobile-template` with `expo-updates` on launch and
+whenever the app returns to the foreground, then offer a restart once an update has downloaded;
+ignored, it applies on the next launch. The runtime version is the native
 [fingerprint](https://docs.expo.dev/versions/latest/sdk/fingerprint/), so an update only reaches
 builds with the same native code, and `certificate.crt` verifies the `MobileUpdatesSigningKey`
 signature.
 
-The cluster serves the update baked into the `mobile-template-mobile-updates` image
-([packages/mobile-updates](../../packages/mobile-updates/README.md)), which `build-and-publish.yaml`
-rebuilds when the app changes. In production that's the digest pinned in `kube/mobile-updates.yaml`:
-merging Renovate's bump releases the update. To roll back, revert the change on `main` and merge the
-next bump, since phones keep the newest update they have. Local and dev clusters serve the
-checkout's own image.
+Merging a change to the app's JS or assets on `main` publishes it from `deploy-infra.yaml`
+([apps/mobile-updates](../mobile-updates/README.md)). To roll back, revert the change on `main`:
+phones keep the newest update they have, and the revert publishes a newer one.
 
-To try a dev update, build against `mobile-updates-dev.pandoks.com`, then change some JS and deploy
-the dev cluster from that branch once `build-and-publish.yaml` has built its image:
+To try an update on a dev stage, build against `mobile-updates-dev.pandoks.com`, then change some JS
+and publish it from the repo root:
 
 ```sh
 export MOBILE_UPDATES_ENVIRONMENT=dev
 rm -rf ios && pnpm ios --configuration Release
 rm -rf android && pnpm android --variant release
+pnpm sst shell --stage <stage> -- pnpm mobile-updates publish apps/mobile-template
 ```

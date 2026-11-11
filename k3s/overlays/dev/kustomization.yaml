@@ -3,5 +3,3 @@ kind: Kustomization
 resources:
   - ../cluster
   - ../../bootstrap/dev
-patches:
-  - path: ../../../apps/mobile-template/kube/dev-patch.yaml

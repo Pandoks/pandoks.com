@@ -9,9 +9,7 @@
     "android": "expo run:android",
     "check": "tsc --noEmit",
     "test:unit": "jest",
-    "test:e2e": "maestro test e2e",
-    "local:build": "docker build -f ../../packages/mobile-updates/Dockerfile --build-arg APP=mobile-template --build-arg CREATED_AT=\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" ../../ -t localhost:12345/mobile-template-mobile-updates:latest",
-    "local:push": "docker push localhost:12345/mobile-template-mobile-updates:latest"
+    "test:e2e": "maestro test e2e"
   },
   "jest": {
     "preset": "jest-expo"

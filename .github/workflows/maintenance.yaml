@@ -40,11 +40,9 @@ jobs:
           - clickhouse
           - clickhouse-keeper
           - clickhouse-backup
-          - mobile-template-mobile-updates
           - charts/postgres
           - charts/valkey
           - charts/clickhouse
-          - charts/mobile-updates
     env:
       GH_TOKEN: ${{ secrets.GH_PACKAGE_MANAGEMENT_TOKEN }}
       OWNER: ${{ github.repository_owner }}

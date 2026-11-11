@@ -1,9 +1,0 @@
-# NOTE: local and dev clusters serve the image built from the checkout's branch, not main's pinned one
-apiVersion: helm.cattle.io/v1
-kind: HelmChart
-metadata:
-  name: mobile-template-mobile-updates-mobile-template
-  namespace: kube-system
-spec:
-  set:
-    image: ${ImageRegistry}/mobile-template-mobile-updates:${ImageTag}

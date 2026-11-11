@@ -38,10 +38,6 @@ on:
         description: 'Image · clickhouse-backup'
         type: boolean
         default: false
-      mobile-template-mobile-updates:
-        description: 'Image · mobile-template-mobile-updates'
-        type: boolean
-        default: false
       postgres-chart:
         description: 'Chart · postgres'
         type: boolean
@@ -52,10 +48,6 @@ on:
         default: false
       clickhouse-chart:
         description: 'Chart · clickhouse'
-        type: boolean
-        default: false
-      mobile-updates-chart:
-        description: 'Chart · mobile-updates'
         type: boolean
         default: false
   push:
@@ -98,14 +90,6 @@ jobs:
               - 'packages/clickhouse/keeper/**'
             clickhouse-backup:
               - 'packages/clickhouse/backup/**'
-            # NOTE: not the app's kube/, or merging Renovate's digest bump rebuilds the image and bumps it again
-            mobile-template-mobile-updates:
-              - 'packages/mobile-updates/{Dockerfile,go.mod,main.go}'
-              - '.dockerignore'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - 'apps/mobile-template/*'
-              - 'apps/mobile-template/!(kube)/**'
 
       - id: chart-changes
         if: github.event_name != 'workflow_dispatch'
@@ -118,8 +102,6 @@ jobs:
               - 'packages/valkey/chart/**'
             clickhouse:
               - 'packages/clickhouse/chart/**'
-            mobile-updates:
-              - 'packages/mobile-updates/chart/**'
 
       - id: set-image-matrix
         env:
@@ -133,8 +115,7 @@ jobs:
             {"name":"argocd-sst-plugin","path":"./packages/argocd/Dockerfile"},
             {"name":"clickhouse","path":"./packages/clickhouse/clickhouse/Dockerfile"},
             {"name":"clickhouse-keeper","path":"./packages/clickhouse/keeper/Dockerfile"},
-            {"name":"clickhouse-backup","path":"./packages/clickhouse/backup/Dockerfile"},
-            {"name":"mobile-template-mobile-updates","path":"./packages/mobile-updates/Dockerfile","build-args":"APP=mobile-template"}
+            {"name":"clickhouse-backup","path":"./packages/clickhouse/backup/Dockerfile"}
           ]'
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             selected=$(jq -c 'to_entries | map(select(.value == true) | .key)' <<<"${DISPATCH}")
@@ -151,8 +132,7 @@ jobs:
           all='[
             {"name":"postgres","path":"./packages/postgres/chart"},
             {"name":"valkey","path":"./packages/valkey/chart"},
-            {"name":"clickhouse","path":"./packages/clickhouse/chart"},
-            {"name":"mobile-updates","path":"./packages/mobile-updates/chart"}
+            {"name":"clickhouse","path":"./packages/clickhouse/chart"}
           ]'
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             selected=$(jq -c 'to_entries | map(select(.value == true and (.key | endswith("-chart"))) | .key | sub("-chart$"; ""))' <<<"${DISPATCH}")
@@ -190,10 +170,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # NOTE: an updates image stamps this as its update's creation time, so a rebuild of old code is a newer update
-      - id: created
-        run: echo "at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "${GITHUB_OUTPUT}"
-
       - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         id: meta
         with:
@@ -209,9 +185,6 @@ jobs:
         with:
           context: . # WARN: all dockerfiles should have a context of the root of the repo
           file: ${{ matrix.image.path }}
-          build-args: |
-            ${{ matrix.image.build-args }}
-            CREATED_AT=${{ steps.created.outputs.at }}
           load: true
           push: false
           tags: ${{ matrix.image.name }}:scan
@@ -232,9 +205,6 @@ jobs:
         with:
           context: .
           file: ${{ matrix.image.path }}
-          build-args: |
-            ${{ matrix.image.build-args }}
-            CREATED_AT=${{ steps.created.outputs.at }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
