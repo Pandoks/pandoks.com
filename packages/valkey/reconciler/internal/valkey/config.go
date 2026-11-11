@@ -44,6 +44,10 @@ func AddAdminPassword(ctx context.Context, nodeClient valkeygo.Client, adminPass
 	if err := nodeClient.Do(ctx, nodeClient.B().AclSetuser().Username(AdminUser).Rule(">"+adminPassword).Build()).Error(); err != nil {
 		return fmt.Errorf("ACL SETUSER %s: %w", AdminUser, err)
 	}
+	return nil
+}
+
+func SetPrimaryAuth(ctx context.Context, nodeClient valkeygo.Client, adminPassword string) error {
 	if err := nodeClient.Do(ctx, nodeClient.B().ConfigSet().ParameterValue().ParameterValue("primaryauth", adminPassword).Build()).Error(); err != nil {
 		return fmt.Errorf("CONFIG SET primaryauth: %w", err)
 	}

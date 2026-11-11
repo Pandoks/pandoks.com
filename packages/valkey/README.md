@@ -238,14 +238,14 @@ the nodes at the next chart upgrade, since only the Job applies it.
 
 The Job keeps the admin password it last applied in the `valkey-<name>-applied` Secret. When the
 secret has a different one, it rotates it before `scale-down` logs in: on every node it logs in with
-either password, adds the new one to **admin** and sets `primaryauth` to it, and then resets the
-users to `users.acl`, which drops the old password, and saves the new one. It fails if a node
-accepts neither, like after the Secret is deleted; recreate it with the `adminPassword` the nodes
-accept. A pod that starts between the secret change and the rotation accepts both passwords and
-replicates with the last-applied one. The readiness probe tries both from a secret volume, which the
-kubelet refreshes within about a minute, so when the rotation runs sooner, like when Argo applies
-the secret and the chart together, pods can turn unready and leave the `valkey-<name>-cluster`
-Service until it catches up.
+either password and adds the new one to **admin**. Then, on every run, it sets `primaryauth` to the
+secret's password and resets the users to `users.acl`, which drops the old password, and saves the
+new one. It fails if a node accepts neither, like after the Secret is deleted; recreate it with the
+`adminPassword` the nodes accept. A pod that starts between the secret change and the rotation
+accepts both passwords and replicates with the last-applied one. The readiness probe tries both from
+a secret volume, which the kubelet refreshes within about a minute, so when the rotation runs
+sooner, like when Argo applies the secret and the chart together, pods can turn unready and leave
+the `valkey-<name>-cluster` Service until it catches up.
 
 For more information about the permissions, visit
 [valkey.io/topics/acl](https://valkey.io/topics/acl/).

@@ -86,6 +86,10 @@ func ApplyConfig(env utils.Env, config utils.ConfigEnv) error {
 		if err := valkey.SetParameters(timeoutCtx, nodeClient, config.Parameters); err != nil {
 			return err
 		}
+		// NOTE: every run, since a pod restarted mid-rotation starts with the last-applied password
+		if err := valkey.SetPrimaryAuth(timeoutCtx, nodeClient, env.AdminPassword); err != nil {
+			return err
+		}
 		return valkey.SetUsers(timeoutCtx, nodeClient, config.UsersACL)
 	})
 	if err != nil {
