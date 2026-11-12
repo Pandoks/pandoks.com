@@ -4,7 +4,7 @@ metadata:
   name: kube-prometheus-stack
   namespace: kube-system
 spec:
-  # NOTE: a HelmChartConfig's failurePolicy defaults to reinstall and overrides the HelmChart's.
+  # NOTE: overrides the HelmChart's; the default, reinstall, deletes Grafana's PVC on failure
   failurePolicy: abort
   valuesContent: |-
     kubeEtcd:
