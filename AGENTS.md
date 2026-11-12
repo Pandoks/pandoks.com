@@ -2,9 +2,9 @@
 
 Personal monorepo. SST (`sst.config.ts`, `infra/`) manages all infrastructure: AWS and Cloudflare
 for what needs high availability, rented machines (Hetzner in `infra/vps/`, moving to OVH) for raw
-compute; the cluster is K3s with Kustomize and ArgoCD. `apps/desktop-template` and `apps/example`
-are templates, but `apps/example/kube` is in every overlay, prod included. Apps import
-`packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it, use `#lib`.
+compute; the cluster is K3s with Kustomize and ArgoCD. `templates/` holds starters that are never
+deployed; `apps/example` is an example app whose `kube/` is in every overlay, prod included. Apps
+import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it, use `#lib`.
 
 ## Principles
 
@@ -67,11 +67,11 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
   deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
-  `infra/`, `apps/` (except `desktop-template` and `example`), and `packages/svelte/`, plus an Argo
-  hard refresh and a wait for Synced and Healthy only for `k3s/`, `apps/*/kube/`, and
-  `scripts/cluster/` changes. Pages builds `apps/web` when a change matches `pathIncludes` in
-  `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod` renders but never prunes: a
-  deleted resource stays in prod until pruned by hand.
+  `infra/`, `apps/` (except `example`), and `packages/svelte/`, plus an Argo hard refresh and a wait
+  for Synced and Healthy only for `k3s/`, `apps/*/kube/`, and `scripts/cluster/` changes. Pages
+  builds `apps/web` when a change matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs
+  everything `k3s/overlays/prod` renders but never prunes: a deleted resource stays in prod until
+  pruned by hand.
 - Every non-production stage gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
   environment, so two non-production stages collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
@@ -93,7 +93,7 @@ checkout. The SST CLI is `pnpm sst`.
 - `pnpm lint <js|go|helm|docker|shell|actions|all>`; `js` needs `.sst/platform` from `pnpm install`,
   or `infra/` shows hundreds of false type errors.
 - `pnpm check` type-checks every package, `infra/`, and `sst.config.ts`.
-- Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, and `desktop-template`;
+- Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, and `desktop`;
   `pnpm --filter <package> test` for `prettier`, `postgres`, and `valkey`;
   `go tool ginkgo -p ./packages/<pkg>/e2e` for a package's e2e suite on local k3d
   (`packages/e2e/README.md`).
