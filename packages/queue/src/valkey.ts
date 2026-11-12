@@ -249,14 +249,11 @@ export class ValkeyTopic implements Topic {
       throw new Error('publish to Valkey: topics take no delay');
     }
     const sentAt = new Date();
-    const bodies = messages.map((message) => encode(message, sentAt));
-    for (const body of bodies) {
-      await this.publishBody(body);
-    }
+    await this.publishBodies(messages.map((message) => encode(message, sentAt)));
   }
 
   /** Rereads the subscriptions when publish.lua reports they changed since the last read. */
-  private async publishBody(body: string): Promise<void> {
+  private async publishBodies(bodies: string[]): Promise<void> {
     const subscriptionsKey = `{${this.name}}:subscriptions`;
     for (let attempt = 0; attempt < 3; attempt++) {
       const subscriptions = [...(await this.client.smembers(subscriptionsKey))].map(String).sort();
@@ -265,7 +262,7 @@ export class ValkeyTopic implements Topic {
         ...subscriptions.map((subscription) => `{${this.name}}:${subscription}:stream`)
       ];
       try {
-        await this.client.invokeScript(this.publishScript, { keys, args: [body] });
+        await this.client.invokeScript(this.publishScript, { keys, args: bodies });
         return;
       } catch (error) {
         if (!String(error).includes('STALE')) throw error;

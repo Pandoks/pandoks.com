@@ -158,17 +158,16 @@ class ValkeyTopic:
         if any(message.delay for message in messages):
             raise ValueError("publish to Valkey: topics take no delay")
         sent_at = datetime.now(UTC)
-        for body in [encode(message, sent_at) for message in messages]:
-            self._publish(body)
+        self._publish([encode(message, sent_at) for message in messages])
 
-    def _publish(self, body: str) -> None:
+    def _publish(self, bodies: list[str]) -> None:
         """Rereads the subscriptions when publish.lua reports they changed since the last read."""
         subscriptions_key = "{" + self.name + "}:subscriptions"
         for _ in range(3):
             subscriptions = sorted(name.decode() for name in self.client.smembers(subscriptions_key))
             keys = [subscriptions_key, *("{" + self.name + "}:" + name + ":stream" for name in subscriptions)]
             try:
-                self.publish_script(keys=keys, args=[body])
+                self.publish_script(keys=keys, args=bodies)
                 return
             except ResponseError as error:
                 if "STALE" not in str(error):

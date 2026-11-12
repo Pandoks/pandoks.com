@@ -301,16 +301,11 @@ func (topic *valkeyTopic) Publish(ctx context.Context, messages ...Message) erro
 		}
 		bodies[index] = string(body)
 	}
-	for _, body := range bodies {
-		if err := topic.publish(ctx, body); err != nil {
-			return err
-		}
-	}
-	return nil
+	return topic.publish(ctx, bodies)
 }
 
 // publish rereads the subscriptions when publish.lua reports they changed since the last read.
-func (topic *valkeyTopic) publish(ctx context.Context, body string) error {
+func (topic *valkeyTopic) publish(ctx context.Context, bodies []string) error {
 	subscriptionsKey := "{" + topic.name + "}:subscriptions"
 	for range 3 {
 		subscriptions, err := topic.client.Do(ctx, topic.client.B().Smembers().Key(subscriptionsKey).Build()).AsStrSlice()
@@ -322,7 +317,7 @@ func (topic *valkeyTopic) publish(ctx context.Context, body string) error {
 		for _, subscription := range subscriptions {
 			keys = append(keys, "{"+topic.name+"}:"+subscription+":stream")
 		}
-		err = publishScript.Exec(ctx, topic.client, keys, []string{body}).Error()
+		err = publishScript.Exec(ctx, topic.client, keys, bodies).Error()
 		if err == nil {
 			return nil
 		}
