@@ -197,10 +197,24 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 			expectKeysReadable(Default, namespace, "valkey-vk-0")
 		})
 
-		It("finishes an admin password rotation when the same upgrade has a rejected parameter", func() {
-			const newAdminPassword = "admin-test-password-2"
+		const newAdminPassword = "admin-test-password-2"
+
+		It("leaves a recreated applied Secret empty while the nodes reject the admin password", func() {
+			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "secret", "valkey-vk-applied")
 			e2e.MustRun("", "kubectl", "-n", namespace, "patch", "secret", "valkey-creds", "--type=merge",
 				"-p", fmt.Sprintf(`{"stringData":{"ADMIN_PASSWORD":%q}}`, newAdminPassword))
+			upgradeOutput, err := e2e.Run("", "helm", "-n", namespace, "upgrade", "valkey", valkeyChartDirectory,
+				"--reset-then-reuse-values", "--timeout=5m")
+			Expect(err).To(HaveOccurred())
+			Expect(upgradeOutput + err.Error()).To(ContainSubstring("accepts neither the admin password"))
+			Expect(e2e.MustRun("", "kubectl", "-n", namespace, "get", "secret", "valkey-vk-applied", "-o", "jsonpath={.data}")).To(BeEmpty())
+
+			// NOTE: the recovery the README gives, which the next spec's rotation starts from
+			e2e.MustRun("", "kubectl", "-n", namespace, "patch", "secret", "valkey-vk-applied", "--type=merge",
+				"-p", fmt.Sprintf(`{"stringData":{"adminPassword":%q}}`, adminPassword))
+		})
+
+		It("finishes an admin password rotation when the same upgrade has a rejected parameter", func() {
 			upgradeOutput, err := e2e.Run("", "helm", "-n", namespace, "upgrade", "valkey", valkeyChartDirectory,
 				"--reset-then-reuse-values", "--timeout=5m", "--set", "parameters.maxmemory=lots")
 			Expect(err).To(HaveOccurred())

@@ -56,8 +56,8 @@ func ApplyConfig(env utils.Env, config utils.ConfigEnv) error {
 		return nodeClient, err
 	}
 
-	if rotating {
-		fmt.Println("Adding the new admin password next to the last-applied one...")
+	if appliedAdminPassword != env.AdminPassword {
+		fmt.Println("Adding the admin password next to any last-applied one...")
 		err := forEachNode(timeoutCtx, hostnames, func(hostname string) error {
 			nodeClient, err := newAdminClient(hostname)
 			if err != nil {
@@ -69,9 +69,7 @@ func ApplyConfig(env utils.Env, config utils.ConfigEnv) error {
 		if err != nil {
 			return err
 		}
-	}
 
-	if appliedAdminPassword != env.AdminPassword {
 		// NOTE: every node accepts the new password now, so a pod restarted from here on starts with only it
 		appliedSecret.StringData = map[string]string{appliedAdminPasswordKey: env.AdminPassword}
 		// NOTE: Helm leaves hooks on uninstall, but Kubernetes deletes what the StatefulSet owns
