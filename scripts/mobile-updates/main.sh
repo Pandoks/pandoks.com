@@ -27,15 +27,15 @@ usage() {
   exit "${1:-0}"
 }
 
-cloudflare_put() {
-  cloudflare_put_path="$1"
-  cloudflare_put_file="$2"
-  cloudflare_put_content_type="$3"
+write_kv_value() {
+  write_kv_value_namespace="$1"
+  write_kv_value_key="$2"
+  write_kv_value_file="$3"
 
-  # NOTE: the token goes in through stdin to keep it out of the process list
+  # NOTE: stdin keeps the token out of the process list
   curl --fail --silent --show-error --request PUT --header @- \
-    --header "content-type: ${cloudflare_put_content_type}" --data-binary "@${cloudflare_put_file}" \
-    "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_DEFAULT_ACCOUNT_ID}/${cloudflare_put_path}" \
+    --header "content-type: application/json" --data-binary "@${write_kv_value_file}" \
+    "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_DEFAULT_ACCOUNT_ID}/storage/kv/namespaces/${write_kv_value_namespace}/values/$(jq -rn --arg key "${write_kv_value_key}" '$key | @uri')" \
     > /dev/null << EOF
 Authorization: Bearer ${CLOUDFLARE_API_TOKEN}
 EOF
@@ -45,41 +45,41 @@ sign() {
   sign_key="$1"
   sign_file="$2"
 
-  # NOTE: separate commands, since a pipe would hide a failed signing behind base64's success
+  # NOTE: no pipe, since base64's success would hide a failed signing
   openssl dgst -sha256 -sign "${sign_key}" -out "${sign_file}.sig" "${sign_file}"
   openssl base64 -A -in "${sign_file}.sig"
 }
 
-add_asset() {
-  add_asset_export_dir="$1"
-  add_asset_bucket="$2"
-  add_asset_assets_domain="$3"
-  add_asset_path="$4"
-  add_asset_content_type="$5"
-  add_asset_extension="$6"
-  add_asset_file="${add_asset_export_dir}/${add_asset_path}"
+queue_asset_upload() {
+  queue_asset_upload_export_dir="$1"
+  queue_asset_upload_bucket="$2"
+  queue_asset_upload_assets_domain="$3"
+  queue_asset_upload_path="$4"
+  queue_asset_upload_content_type="$5"
+  queue_asset_upload_extension="$6"
+  queue_asset_upload_file="${queue_asset_upload_export_dir}/${queue_asset_upload_path}"
 
-  add_asset_hash="$(openssl dgst -sha256 -binary "${add_asset_file}" | openssl base64 -A | tr '+/' '-_' | tr -d '=')"
-  # NOTE: platforms share most assets, so each is uploaded once per run. curl resets options between uploads, so
-  # each repeats them, fail included
-  if ! grep -qsxF "${add_asset_hash}" "${add_asset_export_dir}/asset-hashes.txt"; then
-    printf '%s\n' "${add_asset_hash}" >> "${add_asset_export_dir}/asset-hashes.txt"
-    cat >> "${add_asset_export_dir}/uploads.curlrc" << EOF
+  queue_asset_upload_hash="$(openssl dgst -sha256 -binary "${queue_asset_upload_file}" | openssl base64 -A | tr '+/' '-_' | tr -d '=')"
+  # NOTE: platforms share most assets, so each uploads once
+  if ! grep -qsxF "${queue_asset_upload_hash}" "${queue_asset_upload_export_dir}/asset-hashes.txt"; then
+    printf '%s\n' "${queue_asset_upload_hash}" >> "${queue_asset_upload_export_dir}/asset-hashes.txt"
+    # NOTE: curl resets options between uploads, so every entry repeats them, fail included
+    cat >> "${queue_asset_upload_export_dir}/uploads.curlrc" << EOF
 next
-url = "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_DEFAULT_ACCOUNT_ID}/r2/buckets/${add_asset_bucket}/objects/${add_asset_hash}"
-upload-file = "${add_asset_file}"
-header = "content-type: ${add_asset_content_type}"
+url = "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_DEFAULT_ACCOUNT_ID}/r2/buckets/${queue_asset_upload_bucket}/objects/${queue_asset_upload_hash}"
+upload-file = "${queue_asset_upload_file}"
+header = "content-type: ${queue_asset_upload_content_type}"
 expand-header = "Authorization: Bearer {{CLOUDFLARE_API_TOKEN}}"
 fail
 output = "/dev/null"
 EOF
   fi
   jq -n \
-    --arg hash "${add_asset_hash}" \
-    --arg key "$(openssl dgst -md5 -r "${add_asset_file}" | cut -d ' ' -f 1)" \
-    --arg contentType "${add_asset_content_type}" \
-    --arg url "https://${add_asset_assets_domain}/${add_asset_hash}" \
-    --arg extension "${add_asset_extension}" \
+    --arg hash "${queue_asset_upload_hash}" \
+    --arg key "$(openssl dgst -md5 -r "${queue_asset_upload_file}" | cut -d ' ' -f 1)" \
+    --arg contentType "${queue_asset_upload_content_type}" \
+    --arg url "https://${queue_asset_upload_assets_domain}/${queue_asset_upload_hash}" \
+    --arg extension "${queue_asset_upload_extension}" \
     '{ hash: $hash, key: $key, contentType: $contentType, url: $url }
       + if $extension == "" then {} else { fileExtension: ".\($extension)" } end'
 }
@@ -95,8 +95,7 @@ cmd_publish() {
   fi
   cmd_publish_export_dir="$(mktemp -d)"
   trap 'rm -rf "${cmd_publish_export_dir}"' EXIT
-  # NOTE: builds made with MOBILE_UPDATES_ENVIRONMENT=dev check the dev stages' host, and that config changes their
-  # runtime version
+  # NOTE: MOBILE_UPDATES_ENVIRONMENT=dev points builds at the dev host and changes their runtime version
   if [ "${cmd_publish_stage}" != production ]; then
     export MOBILE_UPDATES_ENVIRONMENT=dev
   fi
@@ -116,16 +115,16 @@ cmd_publish() {
   for cmd_publish_platform in ios android; do
     cmd_publish_runtime_version="$(pnpm --dir "${cmd_publish_app_dir}" exec expo-updates runtimeversion:resolve --platform "${cmd_publish_platform}" | jq -er .runtimeVersion)"
     cmd_publish_bundle="$(jq -er --arg platform "${cmd_publish_platform}" '.fileMetadata[$platform].bundle' "${cmd_publish_export_dir}/metadata.json")"
-    cmd_publish_launch_asset="$(add_asset "${cmd_publish_export_dir}" "${cmd_publish_bucket}" "${cmd_publish_assets_domain}" "${cmd_publish_bundle}" application/javascript '')"
+    cmd_publish_launch_asset="$(queue_asset_upload "${cmd_publish_export_dir}" "${cmd_publish_bucket}" "${cmd_publish_assets_domain}" "${cmd_publish_bundle}" application/javascript '')"
     jq -r --arg platform "${cmd_publish_platform}" '.fileMetadata[$platform].assets[] | "\(.ext) \(.path)"' \
       "${cmd_publish_export_dir}/metadata.json" > "${cmd_publish_export_dir}/${cmd_publish_platform}-assets.txt"
     while read -r cmd_publish_extension cmd_publish_path; do
       cmd_publish_content_type="$(file --brief --mime-type "${cmd_publish_export_dir}/${cmd_publish_path}")"
-      add_asset "${cmd_publish_export_dir}" "${cmd_publish_bucket}" "${cmd_publish_assets_domain}" "${cmd_publish_path}" "${cmd_publish_content_type}" "${cmd_publish_extension}"
+      queue_asset_upload "${cmd_publish_export_dir}" "${cmd_publish_bucket}" "${cmd_publish_assets_domain}" "${cmd_publish_path}" "${cmd_publish_content_type}" "${cmd_publish_extension}"
     done < "${cmd_publish_export_dir}/${cmd_publish_platform}-assets.txt" \
       > "${cmd_publish_export_dir}/${cmd_publish_platform}-assets.json"
 
-    # NOTE: every publish is a new, newer update, so a revert on main reaches phones that have the reverted one
+    # NOTE: every publish is a newer update, so a revert on main reaches phones running the reverted one
     jq -ncj \
       --arg id "$(node -p 'crypto.randomUUID()')" \
       --arg createdAt "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" \
@@ -146,14 +145,13 @@ cmd_publish() {
       > "${cmd_publish_export_dir}/${cmd_publish_platform}-update.json"
     printf '%s\n' "${cmd_publish_slug}/${cmd_publish_platform}/${cmd_publish_runtime_version}" > "${cmd_publish_export_dir}/${cmd_publish_platform}-key.txt"
   done
-  # NOTE: --variable reads the token from the environment, keeping it out of the process list and the config file
+  # NOTE: --variable keeps the token out of the process list and the config file
   curl --silent --show-error --parallel --variable %CLOUDFLARE_API_TOKEN --config "${cmd_publish_export_dir}/uploads.curlrc"
 
-  # NOTE: written after every file is uploaded, so no published manifest names a missing file
+  # NOTE: written after the uploads, so no manifest names a missing file
   for cmd_publish_platform in ios android; do
     cmd_publish_key="$(cat "${cmd_publish_export_dir}/${cmd_publish_platform}-key.txt")"
-    cloudflare_put "storage/kv/namespaces/${cmd_publish_namespace}/values/$(jq -rn --arg key "${cmd_publish_key}" '$key | @uri')" \
-      "${cmd_publish_export_dir}/${cmd_publish_platform}-update.json" application/json
+    write_kv_value "${cmd_publish_namespace}" "${cmd_publish_key}" "${cmd_publish_export_dir}/${cmd_publish_platform}-update.json"
     log_ok "Published ${cmd_publish_key}"
   done
 }
