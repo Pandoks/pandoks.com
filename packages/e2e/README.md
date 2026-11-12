@@ -36,7 +36,8 @@ mise exec -- go tool ginkgo -p ./packages/valkey/e2e -- \
 
 The chart is read from the checkout on every run. An image flag left out uses the chart's default,
 main's image on GHCR, which is `linux/amd64` only, so on Apple Silicon pass every image; rebuild and
-push one after changing it.
+push one after changing it. Valkey's upgrade spec installs chart 0.1.5 from GHCR first, so there
+also pass `--previous-valkey-image` and `--previous-valkey-reconciler-image`, built from main.
 
 Run some specs with `--label-filter`, list them with `--dry-run -v`, and tear the cluster down with
 `pnpm local:destroy`.
