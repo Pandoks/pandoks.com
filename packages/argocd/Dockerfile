@@ -1,4 +1,4 @@
-FROM golang:1.27.3-trixie@sha256:c65ecfe613b539ac74c62a4c3b2c27e8f8a6076384c8f27e8a3c0f3be17cc385 AS kustomize-builder
+FROM golang:1.27.4-trixie@sha256:b54b2639de8c1bfe538ec5ffc45f29b1932235ac5f6d63c059853646677112d9 AS kustomize-builder
 
 # renovate: datasource=go depName=kustomize packageName=sigs.k8s.io/kustomize/kustomize/v5
 ARG KUSTOMIZE_VERSION=v5.8.3
@@ -9,7 +9,7 @@ RUN go mod init kustomize \
     && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" \
     -o /out/kustomize sigs.k8s.io/kustomize/kustomize/v5
 
-FROM node:24.22.1-slim@sha256:be8204d4bd327363357f532187b752ff62759c31bedf98e9e18fc08c9cbd605c
+FROM node:24.22.2-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9
 
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
     && apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \

@@ -1,5 +1,5 @@
 # WARNING: make sure to match it with /infra/vps/cloud-config.yaml's secret creation
-# NOTE: Only needed in production - the tailscale operator is not installed in dev
+# NOTE: Unused in local - only dev and prod (cloud-config bootstrap, then the cluster overlay) install the tailscale operator
 apiVersion: v1
 kind: Secret
 metadata:

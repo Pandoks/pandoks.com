@@ -12,6 +12,14 @@ log_warn() {
   printf "%b!%b %s\n" "${YELLOW}" "${NORMAL}" "$*" >&2
 }
 
+log_info() {
+  case "${1:-}" in
+    --quiet=true) return 0 ;;
+    --quiet=false) shift ;;
+  esac
+  printf "%s\n" "$*" >&2
+}
+
 die() {
   log_error "$*"
   exit 1
