@@ -40,8 +40,8 @@ jobs:
       - name: Run desktop tests
         run: xvfb-run -a pnpm --filter @pandoks.com/desktop-template test
 
-  test-mobile-template:
-    if: contains(fromJSON(inputs.jobs), 'mobile-template')
+  test-mobile:
+    if: contains(fromJSON(inputs.jobs), 'mobile')
     runs-on: ubuntu-latest
     env:
       EXPO_NO_TELEMETRY: 1
@@ -54,19 +54,19 @@ jobs:
       - name: Check Expo SDK versions
         env:
           EXPO_OFFLINE: '1'
-        run: pnpm --filter @pandoks.com/mobile-template exec expo install --check
+        run: pnpm --filter @pandoks.com/mobile exec expo install --check
 
       - name: Run mobile unit tests
-        run: pnpm --filter @pandoks.com/mobile-template test:unit
+        run: pnpm --filter @pandoks.com/mobile test:unit
 
       - name: Generate native projects
-        run: pnpm --filter @pandoks.com/mobile-template exec expo prebuild --no-install
+        run: pnpm --filter @pandoks.com/mobile exec expo prebuild --no-install
 
       - name: Bundle iOS and Android JS
-        run: pnpm --filter @pandoks.com/mobile-template exec expo export
+        run: pnpm --filter @pandoks.com/mobile exec expo export
 
-  test-mobile-template-android:
-    if: contains(fromJSON(inputs.jobs), 'mobile-template')
+  test-mobile-android:
+    if: contains(fromJSON(inputs.jobs), 'mobile')
     runs-on: ubuntu-latest
     env:
       EXPO_NO_TELEMETRY: 1
@@ -85,14 +85,14 @@ jobs:
           cache-provider: basic
 
       - name: Generate Android project
-        run: pnpm --filter @pandoks.com/mobile-template exec expo prebuild --platform android --no-install
+        run: pnpm --filter @pandoks.com/mobile exec expo prebuild --platform android --no-install
 
       - name: Compile Android release
         working-directory: templates/mobile/android
         run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
 
-  test-mobile-template-ios:
-    if: contains(fromJSON(inputs.jobs), 'mobile-template')
+  test-mobile-ios:
+    if: contains(fromJSON(inputs.jobs), 'mobile')
     runs-on: macos-26
     env:
       EXPO_NO_TELEMETRY: 1
@@ -107,7 +107,7 @@ jobs:
           working_directory: templates/mobile
 
       - name: Generate iOS project
-        run: pnpm --filter @pandoks.com/mobile-template exec expo prebuild --platform ios --no-install
+        run: pnpm --filter @pandoks.com/mobile exec expo prebuild --platform ios --no-install
 
       - name: Install pods
         working-directory: templates/mobile/ios
