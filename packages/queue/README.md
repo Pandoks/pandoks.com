@@ -265,7 +265,7 @@ await new Worker({
 - **Nesting:** an envelope nests at most 64 arrays and objects deep, counting itself, so `data`
   nests at most 63. `Send` and `Publish` reject deeper data and `Receive` acks deeper envelopes as
   malformed, so every language's parser stays within its stack.
-- **Valkey clients** need the cluster's `client` ACL from chart 0.1.6 or later: valkey-go otherwise
+- **Valkey clients** need the cluster's `client` ACL from chart 0.1.7 or later: valkey-go otherwise
   silently falls back to a single-node client.
 
 ## Tests
