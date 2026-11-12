@@ -212,11 +212,28 @@ Grafana uses the default sidecar-based provisioning. Earlier versions had a race
 (REQ_SKIP_INIT bug) but this was fixed in Grafana helm chart 10.5.8 (included in
 kube-prometheus-stack 80.14.4+).
 
+### Upgrading
+
+Helm skips a chart's `crds/` on upgrade, so `crds.upgradeJob` applies the chart's Prometheus
+Operator CRDs in a pre-upgrade Job before the new operator rolls out.
+
 ### Updating Helm Values
 
-k3s HelmChart CRD sometimes doesn't trigger upgrades. To force update:
+k3s HelmChart CRD sometimes doesn't trigger upgrades. To rerun one, delete its Job and
+helm-controller recreates it (for dev, use its `<tailscale-context>`):
 
 ```bash
-kubectl delete helmchart kube-prometheus-stack -n kube-system
-pnpm cluster deploy local --stage your-stage  # or dev/prod
+kubectl --context k3d-local-cluster -n kube-system delete job helm-install-kube-prometheus-stack
 ```
+
+`failurePolicy: abort` (on the HelmChart and each overlay's HelmChartConfig, whose default overrides
+it) stops a failed release from being reinstalled. Once the cause is fixed, roll it back to the
+revision `helm history` still shows as `deployed`, then delete the Job as above:
+
+```bash
+helm --kube-context k3d-local-cluster -n monitoring history kube-prometheus-stack
+helm --kube-context k3d-local-cluster -n monitoring rollback kube-prometheus-stack <revision>
+```
+
+Don't delete the HelmChart: helm-controller then uninstalls the release, which deletes Grafana's PVC
+and its data. Prod only changes through `main`.

@@ -4,6 +4,8 @@ metadata:
   name: kube-prometheus-stack
   namespace: kube-system
 spec:
+  # NOTE: must be abort here too, or a failed upgrade is uninstalled, deleting Grafana's PVC
+  failurePolicy: abort
   valuesContent: |-
     kubeEtcd:
       enabled: true
