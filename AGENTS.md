@@ -59,18 +59,11 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
 
 ## How changes ship
 
-- Every branch push runs `pipeline.yaml`: `changes.yaml` decides from the changed paths (or a manual
-  run's checkboxes) what runs, and the pipeline calls each reusable workflow only when it has work
-  (`checks.yaml` always, for its `workspace-check`): `checks.yaml` (format, lint, type checks),
-  `security.yaml` (Trivy on the Kubernetes manifests, the built images and the charts, and
-  `govulncheck` on every Go module), `tests.yaml` (unit tests), `build.yaml` (images as run
-  artifacts), `e2e.yaml` (k3d suites with the images the run built), and `publish.yaml`
-  (branch-tagged GHCR images and charts, only after everything else passed). Workflows with their
-  own trigger stay standalone: `claude-review.yaml` on PRs (one Agent SDK `/code-review` per PR,
-  posted as one review with inline comments), `security-audit.yaml` (the manifests and published
-  images, daily), and the ones below; Cloudflare Pages also builds a preview of `apps/web`. Required
-  checks are the `*-pass` aggregates in `pipeline.yaml`, and a PR must be up to date with `main` to
-  merge.
+- Every branch push runs `pipeline.yaml`: `changes.yaml` picks what runs from the changed paths,
+  then `checks.yaml`, `security.yaml`, `tests.yaml`, `build.yaml`, `e2e.yaml`, and `publish.yaml`
+  (branch-tagged GHCR images and charts, only once everything else passes). `claude-review.yaml`
+  reviews each PR, `security-audit.yaml` rescans daily, and Cloudflare Pages previews `apps/web`.
+  Required checks are the `*-pass` aggregates, and a PR must be up to date with `main` to merge.
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
   deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
@@ -103,7 +96,7 @@ checkout. The SST CLI is `pnpm sst`.
 - Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, and `desktop-template`;
   `pnpm --filter <package> test` for `prettier` and `valkey`;
   `go tool ginkgo -p ./packages/<pkg>/e2e` for a package's e2e suite on local k3d
-  (`packages/e2e/README.md`, which also covers adding one).
+  (`packages/e2e/README.md`).
 - Scoped: `pnpm exec prettier --check <files>`, `pnpm exec eslint [--fix] <files>`, `shellcheck`,
   `shfmt -d`, `hadolint`, `actionlint`, `pnpm --filter "...[origin/main]" --if-present check`. That
   filter and the shell and Docker format and lint commands see only tracked files, so check new
@@ -121,8 +114,8 @@ checkout. The SST CLI is `pnpm sst`.
   - Cluster behavior (`k3s/`, `apps/*/kube`, charts, cluster images): render, deploy to local k3d,
     and exercise it, including the failure paths you touched. k3d has no ArgoCD and skips
     `k3s/overlays/cluster` (Tailscale operator, upgrade controller); for those, render the `dev` and
-    `prod` overlays and build the image instead of forcing them onto k3d. Chart changes also run the
-    package's e2e suite.
+    `prod` overlays and build the image instead of forcing them onto k3d. Run a changed chart's e2e
+    suite if it has one.
   - `scripts/`: run the real CLI for each result and failure path you touched, argument errors
     included.
   - `infra/` or `sst.config.ts`: full `pnpm check` plus scoped lint after the last edit and before
