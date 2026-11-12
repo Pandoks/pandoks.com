@@ -58,5 +58,4 @@ Run some specs with `--label-filter`, list them with `--dry-run -v`, and tear th
 5. In `changes.yaml`, add a `<package>` filter with the package's paths and `*needs-e2e-setup` to
    `e2e-changes`, and the package to `suites` in `set-e2e-matrix`. Its images already carry their
    `package` in the image matrix, so `e2e.yaml` loads the ones the run built and passes them as
-   flags, and `publish-images` pushes them only once the suite passed. Add the suite's `go.sum` to
-   `lint-go`'s `cache-dependency-path` in `checks.yaml`.
+   flags, and `publish-images` pushes them only once the suite passed.

@@ -59,10 +59,7 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: packages/valkey/reconciler/go.mod
-          cache-dependency-path: |
-            packages/valkey/reconciler/go.sum
-            packages/e2e/go.sum
-            packages/valkey/e2e/go.sum
+          cache-dependency-path: '**/go.sum'
 
       - uses: ./.github/actions/setup-mise
         with:
