@@ -19,6 +19,8 @@ spec:
         operator: In
         values:
           - 'true'
+  tolerations:
+    - operator: Exists
   serviceAccountName: system-upgrade
   upgrade:
     image: rancher/k3s-upgrade
@@ -45,10 +47,7 @@ spec:
       - key: node-role.kubernetes.io/control-plane
         operator: DoesNotExist
   tolerations:
-    - key: role
-      operator: Equal
-      value: db
-      effect: NoSchedule
+    - operator: Exists
   prepare:
     args:
       - prepare

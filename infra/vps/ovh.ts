@@ -152,6 +152,8 @@ export function createOvhCluster(pools: NodePool<OvhServer>[]) {
           {
             dependsOn: nodeResources.slice(0, 1),
             ignoreChanges: isProduction ? ['userData'] : [],
+            // NOTE: the replacement asks for the same fixed IP, which the old VM's port still holds
+            deleteBeforeReplace: true,
             protect: isProduction,
             hooks: { afterDelete: [deleteInstanceFromTailnet] }
           }
