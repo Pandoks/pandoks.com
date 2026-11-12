@@ -76,7 +76,9 @@ template_substitute() {
         ;;
     esac
 
-    template_substitute_output=$(printf '%s' "${template_substitute_output}" | awk -v pat="${template_substitute_pattern}" -v rep="${template_substitute_result}" '{
+    # NOTE: awk -v expands backslash escapes in rep, so double them to keep the value literal
+    template_substitute_awk_rep=$(printf '%s' "${template_substitute_result}" | sed 's/\\/\\\\/g')
+    template_substitute_output=$(printf '%s' "${template_substitute_output}" | awk -v pat="${template_substitute_pattern}" -v rep="${template_substitute_awk_rep}" '{
       while ((idx = index($0, pat)) > 0) {
         $0 = substr($0, 1, idx-1) rep substr($0, idx+length(pat))
       }
