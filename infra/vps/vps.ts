@@ -86,32 +86,17 @@ if (!machines.some(({ clusterName }) => clusterName === CLUSTERS[0].name)) {
       !keptProxyHostnames.includes(device.hostname)
   );
   if (kubernetesDevices.length > 0) {
-    const deletedDevices = deleteTailscaleDevices(
-      ...kubernetesDevices.map((device) => device.nodeId)
-    );
-    deletedDevices.apply((deletedDevices) => {
-      const deletedDeviceIds = deletedDevices
-        .filter((device) => device.success)
-        .map((device) => device.deviceId);
-      const failedToDeleteDeviceIds = deletedDevices
-        .filter((device) => !device.success)
-        .map((device) => device.deviceId);
-      if (deletedDeviceIds.length) {
-        console.log(
-          `Deleted Tailscale devices:\n${kubernetesDevices
-            .filter((device) => deletedDeviceIds.includes(device.nodeId))
-            .map((device) => device.name)
+    const deviceNames = new Map(kubernetesDevices.map((device) => [device.nodeId, device.name]));
+    deleteTailscaleDevices(...deviceNames.keys()).apply((deletedDevices) => {
+      const failedDevices = deletedDevices.filter((device) => !device.success);
+      if (failedDevices.length) {
+        throw new Error(
+          `Failed to delete Tailscale devices:\n${failedDevices
+            .map(({ deviceId, error }) => `${deviceNames.get(deviceId)}: ${error}`)
             .join('\n')}`
         );
       }
-      if (failedToDeleteDeviceIds.length) {
-        console.log(
-          `Failed to delete Tailscale devices:\n${kubernetesDevices
-            .filter((device) => failedToDeleteDeviceIds.includes(device.nodeId))
-            .map((device) => device.name)
-            .join('\n')}`
-        );
-      }
+      console.log(`Deleted Tailscale devices:\n${[...deviceNames.values()].join('\n')}`);
     });
   }
 }

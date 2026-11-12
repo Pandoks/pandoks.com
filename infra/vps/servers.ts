@@ -82,9 +82,10 @@ function getWorkerPoolOctet({ name, server }: NodePool) {
   return ((hash + (server.kind === 'metal' ? 1 : 0)) % 253) + 2;
 }
 
-// NOTE: Pulumi creates a pool's new kind before deleting its old one, so they can't share hostnames
-function getNodeName(pool: NodePool) {
-  return `${pool.name}-${pool.server.kind}`;
+// NOTE: Pulumi creates a new server type before deleting the old one, so they can't share hostnames
+// NOTE: only OVHcloud names carry the provider, since Latitude caps hostnames at 32 characters
+function getNodeName({ name, server }: NodePool) {
+  return server.provider === 'ovh' ? `${name}-ovh-${server.kind}` : `${name}-${server.kind}`;
 }
 
 function getResourceName(...names: string[]) {
