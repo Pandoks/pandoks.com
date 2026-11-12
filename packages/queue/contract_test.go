@@ -634,20 +634,16 @@ func TestValkeyReleasesWhatACancelledReceiveLeases(t *testing.T) {
 	if err := stopped.Send(t.Context(), message); err != nil {
 		t.Fatal(err)
 	}
-	// NOTE: another client's slow script keeps the receive queued past the shutdown
+	// NOTE: another client's slow script keeps the receive queued past its cancel
 	stalled := make(chan error, 1)
 	go func() {
 		stalled <- client.Do(context.Background(), client.B().Eval().Script("local stop = os.clock() + 1 while os.clock() < stop do end return 1").Numkeys(0).Build()).Error()
 	}()
 	time.Sleep(100 * time.Millisecond)
-	ctx, cancel := context.WithCancel(t.Context())
-	time.AfterFunc(200*time.Millisecond, cancel)
-	worker := Worker{Queue: stopped, Concurrency: 1, Handle: func(context.Context, *Delivery) error {
-		t.Error("handled a delivery after shutdown")
-		return nil
-	}}
-	if err := worker.Run(ctx); err != nil {
-		t.Fatal(err)
+	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	defer cancel()
+	if deliveries, err := stopped.Receive(ctx, 1); err == nil || len(deliveries) > 0 {
+		t.Fatalf("cancelled receive returned %v, %v; want only an error", deliveries, err)
 	}
 	if err := <-stalled; err != nil {
 		t.Fatal(err)

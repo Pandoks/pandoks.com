@@ -31,12 +31,12 @@ test('the worker settles each outcome', async () => {
   const retried: Record<string, number> = {};
   const queue: Queue = {
     send: async () => {},
-    receive: async (max, signal) => {
+    receive: async (max) => {
       maxes.push(max);
       const received = deliveries.slice(0, max);
       deliveries = deliveries.slice(max);
       if (received.length === 0) {
-        await new Promise((resolve) => signal?.addEventListener('abort', resolve));
+        await new Promise((resolve) => controller.signal.addEventListener('abort', resolve));
       }
       return received;
     },

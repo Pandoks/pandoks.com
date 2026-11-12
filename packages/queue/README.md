@@ -128,9 +128,11 @@ to 0 through `MaxDelay`; a `NaN` delay makes Python and TS raise instead); any o
 panic, is retried after `2^(attempt-1)` s, at most 15 min. Go cancels the handler's context, and TS
 aborts its signal, 10 s before `Deadline` (halfway there for a shorter lease); Python can't stop a
 running handler, so it logs one that runs past that point. When the context, signal, or `stop` event
-ends, the worker stops receiving, retries what its last receive returned with no delay instead of
-handling it, Go and TS cancel the running handlers, and it returns once they have settled. A Python
-worker can wait out its current receive first (up to SQS's 20 s long poll).
+ends, the worker stops receiving, Go and TS cancel the running handlers, and it waits out its
+current receive instead of cancelling it, since a broker can lease messages to a cancelled receive.
+It retries what that receive returned with no delay instead of handling it, and returns once the
+handlers have settled. The wait is up to SQS's 20 s long poll (Cloudflare 1 s, Valkey 0.1 s when
+empty), so give a worker a shutdown grace period above 20 s plus its slowest settle.
 
 ## URLs
 

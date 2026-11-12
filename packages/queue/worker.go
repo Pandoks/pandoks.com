@@ -20,8 +20,8 @@ const (
 // acked; Permanent errors are acked and logged; RetryAfter errors are retried after their delay;
 // any other error or a panic is retried after backoff. The handler's context ends 10 s before
 // the delivery's deadline, or halfway there for a shorter lease. When Run's context ends, Run
-// stops receiving, releases what its last receive returned, cancels the handlers' contexts,
-// settles them, and returns.
+// stops receiving, waits out its last receive and releases what it returned, cancels the
+// handlers' contexts, settles them, and returns.
 type Worker struct {
 	Queue       Queue
 	Handle      func(context.Context, *Delivery) error
@@ -52,7 +52,8 @@ func (worker Worker) Run(ctx context.Context) error {
 			}
 		}
 
-		deliveries, err := worker.Queue.Receive(ctx, free)
+		// NOTE: not cancelled on shutdown, since the broker can lease messages to a cancelled receive
+		deliveries, err := worker.Queue.Receive(context.WithoutCancel(ctx), free)
 		if ctx.Err() != nil {
 			worker.release(ctx, deliveries)
 			return nil

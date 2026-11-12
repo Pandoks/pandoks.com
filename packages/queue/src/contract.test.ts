@@ -16,6 +16,7 @@ import {
 } from './envelope.ts';
 import { openQueue, openTopic } from './index.ts';
 import type { ValkeyQueue } from './valkey.ts';
+import { Worker } from './worker.ts';
 
 const VALKEY = '127.0.0.1:16379';
 const MOTO_ENDPOINT = 'http://127.0.0.1:15000';
@@ -273,24 +274,54 @@ describe.each(brokers)('%s contract', { timeout: 120_000 }, (_, open, enabled) =
   });
 });
 
-describe('sqs', () => {
-  test('no delay keeps the queue default delay', { timeout: 60_000 }, async () => {
+describe('sqs', { timeout: 60_000 }, () => {
+  beforeAll(() => {
     vi.stubEnv('AWS_ACCESS_KEY_ID', 'test');
     vi.stubEnv('AWS_SECRET_ACCESS_KEY', 'test');
+  });
+  afterAll(() => vi.unstubAllEnvs());
+
+  async function openTestQueue(lease: string, attributes?: Record<string, string>) {
     const sqs = new SQSClient({ region: REGION, endpoint: MOTO_ENDPOINT });
     const name = `d-${suffix()}`;
-    await sqs.send(new CreateQueueCommand({ QueueName: name, Attributes: { DelaySeconds: '5' } }));
+    await sqs.send(new CreateQueueCommand({ QueueName: name, Attributes: attributes }));
     sqs.destroy();
-    const queue = await openQueue(
-      `awssqs://sqs.${REGION}.amazonaws.com/${MOTO_ACCOUNT}/${name}?lease=1s&endpoint=${MOTO_ENDPOINT}`
+    return openQueue(
+      `awssqs://sqs.${REGION}.amazonaws.com/${MOTO_ACCOUNT}/${name}?lease=${lease}&endpoint=${MOTO_ENDPOINT}`
     );
+  }
+
+  test('no delay keeps the queue default delay', async () => {
+    const queue = await openTestQueue('1s', { DelaySeconds: '5' });
     const message = testMessage('default-delay');
     const sentAt = Date.now();
     await queue.send(message);
     expect(await receive(queue, WAIT, message.id)).toHaveProperty(message.id);
     expect(Date.now() - sentAt).toBeGreaterThanOrEqual(5000);
     await queue.close();
-    vi.unstubAllEnvs();
+  });
+
+  test('a stopped worker releases what its long poll takes after the stop', async () => {
+    const queue = await openTestQueue('1m');
+    const controller = new AbortController();
+    const handled: string[] = [];
+    const running = new Worker({
+      queue,
+      concurrency: 1,
+      handle: (delivery) => {
+        handled.push(delivery.id);
+        return Promise.resolve();
+      }
+    }).run(controller.signal);
+    await setTimeout(1000);
+    controller.abort();
+    // NOTE: aborting a long poll only drops the connection, so the server still takes this message
+    const message = testMessage('stopped');
+    await queue.send(message);
+    await running;
+    expect(handled).toEqual([]);
+    expect((await receive(queue, 5, message.id))[message.id]?.attempt).toBe(2);
+    await queue.close();
   });
 });
 

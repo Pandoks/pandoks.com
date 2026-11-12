@@ -199,11 +199,12 @@ type recordingQueue struct {
 	acked           []string
 	retried         map[string]time.Duration
 	cancelOnReceive context.CancelFunc
+	stopped         <-chan struct{}
 }
 
 func (queue *recordingQueue) Send(context.Context, ...Message) error { return nil }
 
-func (queue *recordingQueue) Receive(ctx context.Context, max int) ([]*Delivery, error) {
+func (queue *recordingQueue) Receive(_ context.Context, max int) ([]*Delivery, error) {
 	queue.mutex.Lock()
 	defer queue.mutex.Unlock()
 	queue.maxes = append(queue.maxes, max)
@@ -211,8 +212,8 @@ func (queue *recordingQueue) Receive(ctx context.Context, max int) ([]*Delivery,
 	result := queue.deliveries[:count]
 	queue.deliveries = queue.deliveries[count:]
 	if count == 0 {
-		<-ctx.Done()
-		return nil, ctx.Err()
+		<-queue.stopped
+		return nil, nil
 	}
 	if queue.cancelOnReceive != nil {
 		queue.cancelOnReceive()
@@ -244,7 +245,8 @@ func (queue *recordingQueue) Retry(ctx context.Context, delay time.Duration, del
 func (*recordingQueue) Close() error { return nil }
 
 func TestWorkerSettlesEachOutcome(t *testing.T) {
-	queue := &recordingQueue{retried: map[string]time.Duration{}}
+	ctx, cancel := context.WithCancel(t.Context())
+	queue := &recordingQueue{retried: map[string]time.Duration{}, stopped: ctx.Done()}
 	deadline := time.Now().Add(time.Minute)
 	for _, id := range []string{"ok", "permanent", "retry-after", "expired", "failed", "panicked", "shutdown"} {
 		queue.deliveries = append(queue.deliveries, &Delivery{
@@ -253,7 +255,6 @@ func TestWorkerSettlesEachOutcome(t *testing.T) {
 			Deadline: deadline,
 		})
 	}
-	ctx, cancel := context.WithCancel(t.Context())
 	var handlerDeadline time.Time
 	worker := Worker{Queue: queue, Concurrency: 2, Handle: func(ctx context.Context, delivery *Delivery) error {
 		switch delivery.ID {
