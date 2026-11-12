@@ -1,0 +1,94 @@
+#cloud-config
+# env variables:
+# PRIVATE_IP_RANGE (every location's range)
+# PRIVATE_INTERFACE (private network interface for the firewall)
+# PRIVATE_NETPLAN (base64 netplan for the private interface, its routes, and the tunnel)
+# TAILSCALE_HOSTNAME
+# REGISTRATION_TAILNET_AUTH_KEY
+package_update: true
+package_upgrade: true
+ssh_pwauth: false
+disable_root: true
+
+users:
+  - name: pandoks
+    gecos: 'Admin User'
+    groups: [sudo]
+    sudo: 'ALL=(ALL) NOPASSWD:ALL'
+    shell: /bin/bash
+
+packages:
+  - curl
+
+write_files:
+  - path: /etc/ssh/sshd_config
+    owner: root:root
+    permissions: '0644'
+    content: |
+      PubkeyAuthentication yes
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      ChallengeResponseAuthentication no
+      PermitRootLogin no
+      AllowUsers pandoks
+      Subsystem sftp internal-sftp
+      UsePAM yes
+  - path: /etc/sysctl.d/90-pandoks.conf
+    owner: root:root
+    permissions: '0644'
+    content: |
+      net.ipv4.ip_forward = 1
+  - path: /etc/nftables.conf
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/usr/sbin/nft -f
+
+      # NOTE: an owned table, not `flush ruleset`, so a reload never wipes Tailscale's rules
+      table inet pandoks
+      delete table inet pandoks
+
+      table inet pandoks {
+        chain input {
+          type filter hook input priority -100; policy drop;
+
+          ct state established,related accept comment "Return traffic"
+          ct state invalid drop comment "Invalid packets"
+
+          iif "lo" accept comment "Loopback"
+          iifname "tailscale0" accept comment "Tailscale interface"
+          iifname "${PRIVATE_INTERFACE}" ip saddr ${PRIVATE_IP_RANGE} accept comment "Private network"
+          iifname "wg0" ip saddr ${PRIVATE_IP_RANGE} accept comment "Gateway tunnels"
+
+          udp dport 41641 accept comment "Tailscale"
+          udp dport 51820 accept comment "Gateway WireGuard"
+
+          ip6 nexthdr ipv6-icmp accept comment "ICMPv6 (required for IPv6)"
+
+          limit rate 5/minute counter log prefix "nft-drop: "
+          counter drop
+        }
+
+        chain forward {
+          type filter hook forward priority filter; policy accept;
+        }
+
+        chain output {
+          type filter hook output priority filter; policy accept;
+        }
+      }
+
+runcmd:
+  - |
+    printf '%s' "${PRIVATE_NETPLAN}" | base64 -d > /etc/netplan/60-private.yaml
+    chmod 600 /etc/netplan/60-private.yaml
+    netplan apply
+  - sysctl --system
+  - systemctl enable nftables
+  - nft -f /etc/nftables.conf
+  - curl -fsSL https://tailscale.com/install.sh | sh
+  - |
+    tailscale up --ssh \
+      --authkey "${REGISTRATION_TAILNET_AUTH_KEY}" \
+      --hostname "${TAILSCALE_HOSTNAME}" \
+      --accept-dns=false

@@ -2,13 +2,13 @@
 # env variables:
 # PRIVATE_IP_RANGE (every location's range)
 # STAGE_NAME
-# ROLE (bootstrap, server, worker, or gateway)
+# ROLE (bootstrap, server, or worker)
 # CLUSTER_NAME
 # K3S_TOKEN
 # SERVER_API
 # NODE_IP
 # PRIVATE_INTERFACE (private network interface for flannel and the firewall)
-# PRIVATE_NETPLAN (base64 netplan for the private interface, its routes, and a gateway's tunnel)
+# PRIVATE_NETPLAN (base64 netplan for the private interface and its routes)
 # K3S_NODE_ARGS (the pool's --node-label and --node-taint flags)
 # GPU (nvidia, or empty)
 # TAILSCALE_HOSTNAME
@@ -50,19 +50,13 @@ write_files:
       AllowUsers pandoks
       Subsystem sftp internal-sftp
       UsePAM yes
-  - path: /etc/sysctl.d/90-pandoks.conf
-    owner: root:root
-    permissions: '0644'
-    content: |
-      # NOTE: gateways route between locations; k3s nodes forward too
-      net.ipv4.ip_forward = 1
   - path: /etc/nftables.conf
     owner: root:root
     permissions: '0755'
     content: |
       #!/usr/sbin/nft -f
 
-      # NOTE: an owned table instead of `flush ruleset`, so reloading nftables never wipes k3s's rules
+      # NOTE: an owned table, not `flush ruleset`, so a reload never wipes k3s's rules
       table inet pandoks
       delete table inet pandoks
 
@@ -72,7 +66,7 @@ write_files:
           type filter hook prerouting priority dstnat - 10; policy accept;
 
           ct state established,related accept comment "Return traffic"
-          iifname { "lo", "tailscale0", "cni0", "flannel.1", "wg0", "${PRIVATE_INTERFACE}" } accept comment "Internal interfaces"
+          iifname { "lo", "tailscale0", "cni0", "flannel.1", "${PRIVATE_INTERFACE}" } accept comment "Internal interfaces"
           meta l4proto { tcp, udp } th dport 30000-32767 counter drop comment "Public NodePorts"
         }
 
@@ -87,10 +81,8 @@ write_files:
           iifname "cni0" accept comment "K3s CNI bridge"
           iifname "flannel.1" accept comment "K3s Flannel"
           iifname "${PRIVATE_INTERFACE}" ip saddr ${PRIVATE_IP_RANGE} accept comment "Private network"
-          iifname "wg0" ip saddr ${PRIVATE_IP_RANGE} accept comment "Gateway tunnels"
 
           udp dport 41641 accept comment "Tailscale"
-          udp dport 51820 accept comment "Gateway WireGuard"
 
           ip6 nexthdr ipv6-icmp accept comment "ICMPv6 (required for IPv6)"
 
@@ -112,7 +104,6 @@ runcmd:
     printf '%s' "${PRIVATE_NETPLAN}" | base64 -d > /etc/netplan/60-private.yaml
     chmod 600 /etc/netplan/60-private.yaml
     netplan apply
-  - sysctl --system
   - systemctl enable nftables
   - nft -f /etc/nftables.conf
   - curl -fsSL https://tailscale.com/install.sh | sh
@@ -128,9 +119,11 @@ runcmd:
       NVIDIA_DRIVER_VERSION=580.178.04-0ubuntu0.24.04.1
       # renovate: datasource=github-releases depName=NVIDIA/nvidia-container-toolkit
       NVIDIA_CONTAINER_TOOLKIT_VERSION=1.20.1
+      # NOTE: apt then trusts only this key from the downloaded keyring
+      NVIDIA_REPOSITORY_KEY=C95B321B61E88C1809C4F759DDCAE044F796ECB0
       curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
         gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit.gpg
-      echo "deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit.gpg] https://nvidia.github.io/libnvidia-container/stable/deb/$(dpkg --print-architecture) /" \
+      echo "deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit.gpg,$NVIDIA_REPOSITORY_KEY] https://nvidia.github.io/libnvidia-container/stable/deb/$(dpkg --print-architecture) /" \
         > /etc/apt/sources.list.d/nvidia-container-toolkit.list
       apt-get update
       # NOTE: k3s finds the NVIDIA runtime at start, so the driver and toolkit go in first

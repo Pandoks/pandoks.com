@@ -6,7 +6,7 @@ applications. For databases, it is better to use a managed database as it reduce
 overhead.
 
 `infra/vps` builds the dev and prod clusters on OVHcloud VMs and bare metal and Latitude.sh bare
-metal, across one or more locations each. Both stages have no nodes yet.
+metal, across one or more locations each.
 
 ## Directory Structure
 
@@ -68,8 +68,7 @@ k3s + tailscale. The tailscale operator provides secure access to the cluster AP
 SSH tunnels.
 
 `CLUSTERS` at the top of `infra/vps/vps.ts` lists each stage's k3s clusters, one per region, since
-embedded etcd keeps a control plane in one location. Every stage has one cluster for now, and the
-deploy tooling expects it: only the first cluster's proxy is `<stage>-cluster`.
+embedded etcd keeps a control plane in one location.
 
 - **Locations** are provider sites, an OVHcloud Public Cloud `region` or a Latitude `site`, each
   with its own `10.N.0.0/16`. OVHcloud's account settings sit at the top of `infra/vps/ovh.ts`.
@@ -87,8 +86,7 @@ deploy tooling expects it: only the first cluster's proxy is `<stage>-cluster`.
 
 The `database` pool joins with the `role=db` label and `role=db:NoSchedule` taint, so pin the
 database charts with `nodeSelector.role: db` and a matching toleration. Latitude reads its API token
-from `LATITUDESH_AUTH_TOKEN`. A cluster with no nodes orders nothing. Neither provider has public
-ingress yet.
+from `LATITUDESH_AUTH_TOKEN`.
 
 | Location address | Use                                                      |
 | ---------------- | -------------------------------------------------------- |
@@ -96,10 +94,11 @@ ingress yet.
 | `10.N.1.1`       | Gateway                                                  |
 | `10.N.1.2`       | Interconnect router                                      |
 | `10.N.1.10-19`   | Control plane (`overlays/cluster/prom-etcd-config.yaml`) |
-| `10.N.1.100-200` | MetalLB (`base/core/metallb.yaml`)                       |
+| `10.0.1.100-200` | MetalLB (`base/core/metallb.yaml`)                       |
 | `10.N.<hash>.x`  | A worker pool, from its name's hash                      |
 
-The MetalLB and etcd manifests pin `10.0.1.x`, so the control-plane location keeps `10.0.0.0/16`.
+The MetalLB and etcd manifests pin `10.0.1.x`, so the first cluster's control plane must be in
+`10.0.0.0/16`.
 
 ### Changing a Cluster
 
@@ -107,17 +106,22 @@ Edit `CLUSTERS`; reverting an edit undoes it the same way. Invalid configs fail 
 two control-plane pools, overlapping CIDRs, an unlinked location, or `gpu` on a non-GPU machine.
 
 - **Pool:** raise `count` to add nodes. Lowering it removes the highest-index nodes, so drain and
-  delete them with `kubectl` first. Renaming a pool or changing its server or labels rebuilds it.
+  delete them with `kubectl` first. Renaming a pool or changing its server, labels, taints, or `gpu`
+  rebuilds it.
+- **Control plane:** to move it, first deploy the cluster with zero nodes, which removes the old
+  `<stage>-cluster` proxy.
 - **Location:** add it with an unused `10.N.0.0/16`, a `gateway`, and a link, and give the existing
   location a `gateway` too if it was alone. Existing nodes don't change.
-- **Link:** change `via`. Only the gateways at both ends rebuild, so traffic over that link drops
-  until they're back; nodes and k3s keep running.
+- **Link:** change `via`. Gateways whose routes change rebuild, and so does a gateway dialing one
+  whose public IP changes; traffic through them drops until they're back, while nodes keep running.
 - **Region:** add another cluster with its own name and CIDRs. `scripts/cluster`, ArgoCD, and
   `deploy-infra.yaml` handle one cluster per stage until a follow-up.
 
 Production protects k3s nodes and ignores their user data, so a change that would delete or rebuild
 one fails there, and label, taint, or `gpu` changes reach only new nodes. Gateways hold no data and
-rebuild in every stage.
+rebuild in every stage, but only when their links, locations, or `gateway-config.yaml` change.
+Latitude rebuilds a gateway by deleting and reordering it, which likely changes its public IP
+(rebuilding its dialing peer) and, if the plan is out of stock, cuts the location off.
 
 ```sh
 # Connect via tailscale (cluster appears as <stage>-cluster in your tailnet)

@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import { isProduction, STAGE_NAME } from '../dns';
 import { createTailnetCleanupHook, type Machine } from './servers';
 
@@ -13,6 +14,7 @@ export type OvhMetalServer = {
   kind: 'metal';
   planCode: string;
   options: string[];
+  privateInterface: string;
 } & Gpu;
 export type OvhServer = OvhVmServer | OvhMetalServer;
 // NOTE: the provider uses OVHcloud's US API, so each US region and the datacenter of its bare metal
@@ -36,13 +38,17 @@ export function vm(flavor: string, { gpu }: Gpu = {}): OvhVmServer {
 
 /** A bare metal plan code and its options; GPU plans carry a gpu-* option */
 export function metal(
-  { planCode, options }: { planCode: string; options: string[] },
+  {
+    planCode,
+    options,
+    privateInterface
+  }: { planCode: string; options: string[]; privateInterface: string },
   { gpu }: Gpu = {}
 ): OvhMetalServer {
   if (gpu && !options.some((option) => option.startsWith('gpu-'))) {
     throw new Error(`OVHcloud plan ${planCode} has no GPU option`);
   }
-  return { provider: 'ovh', kind: 'metal', planCode, options, gpu };
+  return { provider: 'ovh', kind: 'metal', planCode, options, privateInterface, gpu };
 }
 
 // NOTE: from the US catalog: /1.0/order/catalog/public/baremetalServers?ovhSubsidiary=US
@@ -53,7 +59,9 @@ export const ADVANCE_1 = {
     'softraid-2x960nvme-pcie-gen4-24adv01-v3-us',
     'bandwidth-3000-adv-gen3-us',
     'vrack-bandwidth-25000-adv-gen3-us'
-  ]
+  ],
+  // NOTE: names differ by server range; read it with `ip link` on a delivered server
+  privateInterface: ''
 };
 export const ADVANCE_5 = {
   planCode: '26adv05-v2-us',
@@ -62,48 +70,62 @@ export const ADVANCE_5 = {
     'softraid-2x960nvme-pcie-gen5-26adv05-v2-us',
     'bandwidth-3000-adv-gen4-us',
     'vrack-bandwidth-25000-adv-gen4-us'
-  ]
+  ],
+  privateInterface: ''
 };
 
-// NOTE: service names from the OVHcloud control panel (Bare Metal Cloud > vRack, Public Cloud project ID)
+// NOTE: from the control panel: the vRack's service name and the Public Cloud project ID
 const VRACK = isProduction ? '' : '';
 const CLOUD_PROJECT = isProduction ? '' : '';
 const VM_IMAGE = 'Ubuntu 24.04';
-// NOTE: a Public Cloud SSH key's name; OVHcloud won't create a VM without one, though nodes are
-// reached over Tailscale SSH
+// NOTE: OVHcloud won't create a VM without a Public Cloud SSH key, though we use Tailscale SSH
 const VM_SSH_KEY = isProduction ? '' : '';
 const SERVER_OS = 'ubuntu2404-server_64';
-// NOTE: interface names differ by server range; read them with `ip link` on the first server
 const VM_PRIVATE_INTERFACE = 'ens4';
-const SERVER_PRIVATE_INTERFACE = '';
 
 const deleteServerFromTailnet = createTailnetCleanupHook({
   name: 'OvhDeleteServerFromTailnet',
   provider: 'ovh',
-  getTailscaleHostname: (oldOutputs) => oldOutputs.displayName as string | undefined
+  getTailscaleHostname: ({ oldOutputs }) => oldOutputs?.displayName as string | undefined
+});
+// NOTE: new os or customizations reinstall the server in place, where no delete hook runs
+const deleteReinstalledServerFromTailnet = createTailnetCleanupHook({
+  name: 'OvhDeleteReinstalledServerFromTailnet',
+  provider: 'ovh',
+  getTailscaleHostname: ({ oldInputs, newInputs, oldOutputs }) =>
+    new Promise((resolve) =>
+      $util
+        .all([oldInputs?.os, oldInputs?.customizations, newInputs?.os, newInputs?.customizations])
+        .apply(([oldOs, oldCustomizations, newOs, newCustomizations]) =>
+          resolve(
+            isDeepStrictEqual([oldOs, oldCustomizations], [newOs, newCustomizations])
+              ? undefined
+              : (oldOutputs?.displayName as string | undefined)
+          )
+        )
+    )
 });
 const deleteInstanceFromTailnet = createTailnetCleanupHook({
   name: 'OvhDeleteInstanceFromTailnet',
   provider: 'ovh',
-  getTailscaleHostname: (oldOutputs) => oldOutputs.name as string | undefined
+  getTailscaleHostname: ({ oldOutputs }) => oldOutputs?.name as string | undefined
 });
 
-/**
- * Puts the Public Cloud project on the vRack, on one untagged private network across the machines'
- * regions, and gives each location its subnet. Returns the subnets by `locationKey`.
- */
 export function createOvhNetwork(machines: OvhMachine[]): Record<string, OvhLocationNetwork> {
   if (machines.length === 0) return {};
   const ordersVms = machines.some(({ server }) => server.kind === 'vm');
-  const ordersBareMetal = machines.some(({ server }) => server.kind === 'metal');
-  const missing = Object.entries({
-    VRACK,
-    CLOUD_PROJECT,
-    ...(ordersVms && { VM_SSH_KEY }),
-    ...(ordersBareMetal && { SERVER_PRIVATE_INTERFACE })
-  })
-    .filter(([, value]) => !value)
-    .map(([name]) => name);
+  const missing = [
+    ...Object.entries({ VRACK, CLOUD_PROJECT, ...(ordersVms && { VM_SSH_KEY }) })
+      .filter(([, value]) => !value)
+      .map(([name]) => name),
+    ...new Set(
+      machines.flatMap(({ server }) =>
+        server.kind === 'metal' && !server.privateInterface
+          ? [`${server.planCode}'s privateInterface`]
+          : []
+      )
+    )
+  ];
   if (missing.length) {
     throw new Error(`Set ${missing.join(', ')} in infra/vps/ovh.ts before using OVHcloud`);
   }
@@ -127,7 +149,7 @@ export function createOvhNetwork(machines: OvhMachine[]): Record<string, OvhLoca
   return Object.fromEntries(
     [...locations].map(([locationKey, { region, cidr }]) => {
       const cidrPrefix = cidr.split('.').slice(0, 2).join('.');
-      // NOTE: Neutron's DHCP and its own ports take .0.x; VMs get fixed IPs and bare metal static ones
+      // NOTE: Neutron's DHCP and ports take .0.x, outside the IPs we assign
       const subnet = new ovh.cloudproject.NetworkPrivateSubnet(`${locationKey}Subnet`, {
         serviceName: CLOUD_PROJECT,
         networkId: privateNetwork.id,
@@ -143,10 +165,6 @@ export function createOvhNetwork(machines: OvhMachine[]): Record<string, OvhLoca
   );
 }
 
-/**
- * Orders the machine: a Public Cloud VM, or a bare metal server joined to the vRack. Only k3s nodes
- * are protected in production; gateways hold no data, so a link change rebuilds them everywhere.
- */
 export function createOvhServer({
   machine,
   network: { privateNetwork, subnet },
@@ -157,6 +175,7 @@ export function createOvhServer({
   dependsOn: $util.Resource[];
 }) {
   const { server, location } = machine;
+  // NOTE: gateways hold no data, so only k3s nodes are protected in production
   const protect = isProduction && machine.role !== 'gateway';
   if (server.kind === 'vm') {
     const userData = machine.createUserData({
@@ -220,9 +239,9 @@ export function createOvhServer({
   }
 
   const userData = machine.createUserData({
-    name: SERVER_PRIVATE_INTERFACE,
+    name: server.privateInterface,
     createNetplanDevices: (routes) => ({
-      ethernets: { [SERVER_PRIVATE_INTERFACE]: { addresses: [`${machine.ip}/16`], routes } }
+      ethernets: { [server.privateInterface]: { addresses: [`${machine.ip}/16`], routes } }
     })
   });
   const dedicatedServer = new ovh.dedicated.Server(
@@ -256,7 +275,10 @@ export function createOvhServer({
       dependsOn,
       ignoreChanges: protect ? ['os', 'customizations'] : [],
       protect,
-      hooks: { afterDelete: [deleteServerFromTailnet] }
+      hooks: {
+        beforeUpdate: [deleteReinstalledServerFromTailnet],
+        afterDelete: [deleteServerFromTailnet]
+      }
     }
   );
   new ovh.vrack.DedicatedServerInterface(

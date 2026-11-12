@@ -8,14 +8,13 @@ import { renderCloudInit } from '../utils';
 import type { LatitudeLocation, LatitudeServer } from './latitude';
 import type { OvhLocation, OvhServer } from './ovh';
 
-const cloudInitConfig = readFileSync(`${process.cwd()}/infra/vps/cloud-config.yaml`, 'utf8');
+const nodeCloudConfig = readFileSync(`${process.cwd()}/infra/vps/cloud-config.yaml`, 'utf8');
+// NOTE: gateways get their own template, so node-only edits never rebuild them
+const gatewayCloudConfig = readFileSync(`${process.cwd()}/infra/vps/gateway-config.yaml`, 'utf8');
 
 export type Provider = 'ovh' | 'latitude';
 
-/**
- * Identical nodes ordered in one location, from that location's provider. Hostnames, resource
- * names, and worker IPs derive from `name`, so renaming a pool rebuilds its nodes.
- */
+// NOTE: hostnames, resource names, and worker IPs derive from `name`, so renaming rebuilds nodes
 export type NodePool = {
   name: string;
   location: string;
@@ -25,10 +24,6 @@ export type NodePool = {
   labels?: Record<string, string>;
   taints?: `${string}=${string}:${'NoSchedule' | 'PreferNoSchedule' | 'NoExecute'}`[];
 };
-/**
- * One k3s cluster. Each location is one provider site with its own 10.N.0.0/16, and each link joins
- * two locations' gateways, through a WireGuard tunnel or a routed private interconnect.
- */
 export type Cluster = {
   name: string;
   locations: Record<string, OvhLocation | LatitudeLocation>;
@@ -37,12 +32,10 @@ export type Cluster = {
 };
 
 type NetplanRoute = { to: string; via?: string; scope?: 'link' };
-/** The provider's private NIC: its name, and its netplan devices with `routes` added to it */
 export type PrivateInterface = {
   name: string;
   createNetplanDevices: (routes: NetplanRoute[]) => $util.Input<Record<string, unknown>>;
 };
-/** A server to order: a k3s node, or the gateway joining its location to the cluster's others */
 export type Machine = {
   clusterName: string;
   locationKey: string;
@@ -56,15 +49,19 @@ export type Machine = {
   | { provider: 'latitude'; server: LatitudeServer; location: LatitudeLocation }
 );
 
-// NOTE: each location's 10.N.0.0/16 sits in it, and nodes route it through their location's gateway
+// NOTE: covers every location's 10.N.0.0/16, which nodes reach through their location's gateway
 const PRIVATE_IP_RANGE = '10.0.0.0/8';
 const K3S_CIDRS = ['10.42.0.0/16', '10.43.0.0/16'];
+// NOTE: k3s/base/core/metallb.yaml and overlays/cluster/prom-etcd-config.yaml pin 10.0.1.x
+const FIRST_CONTROL_PLANE_CIDR = '10.0.0.0/16';
 // NOTE: k3s/README.md maps each location's addresses
 const GATEWAY_IP = [1, 1] as const;
 const INTERCONNECT_IP = [1, 2] as const;
 const CONTROL_PLANE_IP_START = 10;
 const MAX_CONTROL_PLANE_NODES = 10;
 const WIREGUARD_PORT = 51820;
+// NOTE: a rebuilt bootstrap node starts a new cluster, whose proxy needs the old proxy's hostname
+const bootstrapProxyHostnames = new Map<string, string>();
 const X25519_PKCS8_PREFIX = Buffer.from('302e020100300506032b656e04220420', 'hex');
 // NOTE: the device plugin chart schedules onto nvidia.com/gpu.present nodes and tolerates the taint
 const GPU_NODE_ARGS = [
@@ -94,7 +91,7 @@ function getResourceName(...names: string[]) {
 }
 
 function checkName(kind: string, name: string) {
-  // NOTE: words that start with a letter keep resource names distinct, like GpuWorkers
+  // NOTE: words start with a letter, so `gpu-1` and `gpu1` can't both become `Gpu1`
   if (!/^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)*$/.test(name)) {
     throw new Error(`${kind} name ${name} must be lowercase words joined by single hyphens`);
   }
@@ -124,10 +121,7 @@ function getWireguardKeys({ k3sToken, locationKey }: { k3sToken: string; locatio
   return { privateKey: privateKey.toString('base64'), publicKey: publicKey.toString('base64') };
 }
 
-/**
- * Maps `from to` to the location after `from` on the way to `to`. Each link costs one hop plus a
- * unique tie-break, so every pair has one shortest path both ways, as WireGuard's allowed IPs need.
- */
+/** Maps `from to` to the next hop; per-link tie-breaks give each pair one path, for WireGuard */
 function getNextHops({
   locationNames,
   links
@@ -159,17 +153,16 @@ function getNextHops({
   return nextHops;
 }
 
-/**
- * Creates the server's one-time Tailscale key and renders cloud-config.yaml for it. The key's
- * description carries a hash of the user data, so new user data swaps in a fresh key.
- */
+/** The key's description hashes the user data, so new user data swaps in a fresh one-time key */
 function createUserData({
+  template,
   resourceName,
   description,
   tags,
   netplanDevices,
   environment
 }: {
+  template: string;
   resourceName: string;
   description: string;
   tags: string[];
@@ -190,7 +183,7 @@ function createUserData({
         PRIVATE_NETPLAN: privateNetplan,
         REGISTRATION_TAILNET_AUTH_KEY: registrationTailnetAuthKey
       })
-      .apply((variables) => renderCloudInit(cloudInitConfig, variables));
+      .apply((variables) => renderCloudInit(template, variables));
 
   const registrationTailnetAuthKey = new tailscale.TailnetKey(
     `${resourceName}TailnetRegistrationAuthKey`,
@@ -247,7 +240,7 @@ function getGatewayMachine({
       // NOTE: the later-declared gateway dials, so the gateway it dials is created first
       const dials = locationNames.indexOf(peerName) < locationNames.indexOf(locationName);
       return $util
-        .all([secrets.hetzner.K3sToken.value, dials ? gatewayPublicIps[peerKey] : ''])
+        .all([secrets.k3s.Token.value, dials ? gatewayPublicIps[peerKey] : ''])
         .apply(([k3sToken, publicIp]) => ({
           keys: { public: getWireguardKeys({ k3sToken, locationKey: peerKey }).publicKey },
           'allowed-ips': allowedIps,
@@ -255,13 +248,14 @@ function getGatewayMachine({
         }));
     });
     return createUserData({
+      template: gatewayCloudConfig,
       resourceName,
       description: `${cluster.name} ${locationName} gateway reg`,
       tags: [`tag:${location.provider}`, `tag:${STAGE_NAME}`],
       netplanDevices: $util
         .all([
           privateInterface.createNetplanDevices(interconnectRoutes),
-          secrets.hetzner.K3sToken.value,
+          secrets.k3s.Token.value,
           $util.all(peers)
         ])
         .apply(([devices, k3sToken, resolvedPeers]) => ({
@@ -281,7 +275,6 @@ function getGatewayMachine({
           })
         })),
       environment: {
-        ROLE: 'gateway',
         PRIVATE_INTERFACE: privateInterface.name,
         TAILSCALE_HOSTNAME: hostname
       }
@@ -323,6 +316,10 @@ function getNodeMachine({
   const resourceName = `${getResourceName(cluster.name, pool.name)}Server${index}`;
   const hostname = `${STAGE_NAME}-${cluster.name}-${pool.name}-${index}`;
   const role = pool.role === 'control-plane' ? (index === 0 ? 'bootstrap' : 'server') : 'worker';
+  // TODO: name each cluster's proxy after it once deploy tooling handles several clusters
+  const proxyHostname =
+    clusterIndex === 0 ? `${STAGE_NAME}-cluster` : `${STAGE_NAME}-${cluster.name}-cluster`;
+  if (role === 'bootstrap') bootstrapProxyHostnames.set(hostname, proxyHostname);
   const nodeArgs = [
     ...Object.entries(pool.labels ?? {}).map(([key, value]) => `--node-label=${key}=${value}`),
     ...(pool.taints ?? []).map((taint) => `--node-taint=${taint}`),
@@ -338,6 +335,7 @@ function getNodeMachine({
     resourceName,
     createUserData: (privateInterface) =>
       createUserData({
+        template: nodeCloudConfig,
         resourceName,
         description: `${cluster.name} ${pool.name} ${index} node reg`,
         tags: [`tag:${location.provider}`, `tag:${STAGE_NAME}`, `tag:${pool.role}`],
@@ -347,7 +345,7 @@ function getNodeMachine({
         environment: {
           ROLE: role,
           CLUSTER_NAME: cluster.name,
-          K3S_TOKEN: secrets.hetzner.K3sToken.value,
+          K3S_TOKEN: secrets.k3s.Token.value,
           SERVER_API: serverApi,
           NODE_IP: ip,
           PRIVATE_INTERFACE: privateInterface.name,
@@ -356,9 +354,7 @@ function getNodeMachine({
           TAILSCALE_HOSTNAME: hostname,
           KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID: secrets.k8s.tailscale.OauthClientId.value,
           KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET: secrets.k8s.tailscale.OauthClientSecret.value,
-          // TODO: name each cluster's proxy after it once deploy tooling handles several clusters
-          KUBERNETES_TAILSCALE_HOSTNAME:
-            clusterIndex === 0 ? `${STAGE_NAME}-cluster` : `${STAGE_NAME}-${cluster.name}-cluster`,
+          KUBERNETES_TAILSCALE_HOSTNAME: proxyHostname,
           S3_HOST: s3Endpoint,
           BACKUP_BUCKET: backupBucket.name,
           S3_ACCESS_KEY: secrets.cloudflare.BackupAccessKey.value,
@@ -371,11 +367,7 @@ function getNodeMachine({
   } as Machine;
 }
 
-/**
- * Validates every cluster and lists the servers to order for those with nodes: gateways in location
- * order, then the control plane, whose first node bootstraps the cluster, then workers. Each created
- * gateway's public IP goes in `gatewayPublicIps` under its `locationKey`, for later gateways to dial.
- */
+/** Callers set `gatewayPublicIps[locationKey]` to each gateway's public IP, for later ones to dial */
 export function getMachines({
   clusters,
   gatewayPublicIps
@@ -385,6 +377,14 @@ export function getMachines({
 }): Machine[] {
   const clusterNames = new Set<string>();
   const cidrLocations = new Map<string, string>();
+  const resourceNameOwners = new Map<string, string>();
+  const checkResourceName = (resourceName: string, owner: string) => {
+    const otherOwner = resourceNameOwners.get(resourceName);
+    if (otherOwner) {
+      throw new Error(`${otherOwner} and ${owner} both make ${resourceName}; rename one`);
+    }
+    resourceNameOwners.set(resourceName, owner);
+  };
   return clusters.flatMap((cluster, clusterIndex) => {
     checkName('Cluster', cluster.name);
     if (clusterNames.has(cluster.name)) {
@@ -397,6 +397,10 @@ export function getMachines({
     for (const [locationName, location] of Object.entries(cluster.locations)) {
       checkName('Location', locationName);
       checkHostname(`${cluster.name}-${locationName}-gw`);
+      checkResourceName(
+        `${getResourceName(cluster.name, locationName)}Gateway`,
+        `${cluster.name}/${locationName}`
+      );
       if (!/^10\.(0|[1-9]\d?|1\d\d|2[0-4]\d|25[0-5])\.0\.0\/16$/.test(location.cidr)) {
         throw new Error(`Location ${locationName}'s cidr ${location.cidr} must be a 10.N.0.0/16`);
       }
@@ -462,13 +466,26 @@ export function getMachines({
         throw new Error(`Pool name ${pool.name} is used twice in ${cluster.name}`);
       }
       poolNames.add(pool.name);
+      checkResourceName(
+        `${getResourceName(cluster.name, pool.name)}Server`,
+        `${cluster.name}/${pool.name}`
+      );
       if (!(pool.location in cluster.locations)) {
         throw new Error(`Pool ${pool.name} names missing location ${pool.location}`);
       }
-      const { provider } = cluster.locations[pool.location];
+      const { provider, cidr } = cluster.locations[pool.location];
       if (pool.server.provider !== provider) {
         throw new Error(
           `Pool ${pool.name} needs a ${provider} server for location ${pool.location}`
+        );
+      }
+      if (
+        clusterIndex === 0 &&
+        pool.role === 'control-plane' &&
+        cidr !== FIRST_CONTROL_PLANE_CIDR
+      ) {
+        throw new Error(
+          `Pool ${pool.name} must be in ${FIRST_CONTROL_PLANE_CIDR}, which k3s/ pins for the first cluster`
         );
       }
       if (pool.role === 'worker') {
@@ -501,10 +518,49 @@ export function getMachines({
   });
 }
 
-/**
- * Removes a deleted server's devices from the tailnet. `getTailscaleHostname` reads the hostname
- * back from the deleted resource's outputs.
- */
+async function deleteTailnetDevices({
+  hostname,
+  tags
+}: {
+  hostname: string | undefined;
+  tags: string[];
+}) {
+  if (!hostname) return;
+  const { devices = [] } = await tailscale.getDevices({ namePrefix: hostname });
+  const matchingDevices = devices.filter(
+    (device) => device.hostname === hostname && tags.every((tag) => device.tags.includes(tag))
+  );
+  if (matchingDevices.length > 0) {
+    const deletedDevices = deleteTailscaleDevices(
+      ...matchingDevices.map((device) => device.nodeId)
+    );
+    deletedDevices.apply((deletedDevices) => {
+      const deletedDeviceIds = deletedDevices
+        .filter((device) => device.success)
+        .map((device) => device.deviceId);
+      const failedToDeleteDeviceIds = deletedDevices
+        .filter((device) => !device.success)
+        .map((device) => device.deviceId);
+      if (deletedDeviceIds.length) {
+        console.log(
+          `Deleted Tailscale devices:\n${matchingDevices
+            .filter((device) => deletedDeviceIds.includes(device.nodeId))
+            .map((device) => device.name)
+            .join('\n')}`
+        );
+      }
+      if (failedToDeleteDeviceIds.length) {
+        console.log(
+          `Failed to delete Tailscale devices:\n${matchingDevices
+            .filter((device) => failedToDeleteDeviceIds.includes(device.nodeId))
+            .map((device) => device.name)
+            .join('\n')}`
+        );
+      }
+    });
+  }
+}
+
 export function createTailnetCleanupHook({
   name,
   provider,
@@ -512,48 +568,26 @@ export function createTailnetCleanupHook({
 }: {
   name: string;
   provider: Provider;
-  getTailscaleHostname: (oldOutputs: Record<string, unknown>) => string | undefined;
+  getTailscaleHostname: (
+    serverHookArgs: $util.ResourceHookArgs
+  ) => string | undefined | Promise<string | undefined>;
 }) {
-  return new $util.ResourceHook(name, async (serverOutput) => {
-    const tailscaleHostname = getTailscaleHostname(
-      serverOutput.oldOutputs as Record<string, unknown>
-    );
-
-    const { devices = [] } = await tailscale.getDevices({ namePrefix: tailscaleHostname ?? '' });
-    const serverDevices = devices.filter(
-      (device) =>
-        device.hostname === tailscaleHostname &&
-        device.tags.includes(`tag:${provider}`) &&
-        device.tags.includes(`tag:${STAGE_NAME}`)
-    );
-    if (serverDevices.length > 0) {
-      const deletedDevices = deleteTailscaleDevices(
-        ...serverDevices.map((device) => device.nodeId)
-      );
-      deletedDevices.apply((deletedDevices) => {
-        const deletedDeviceIds = deletedDevices
-          .filter((device) => device.success)
-          .map((device) => device.deviceId);
-        const failedToDeleteDeviceIds = deletedDevices
-          .filter((device) => !device.success)
-          .map((device) => device.deviceId);
-        if (deletedDeviceIds.length) {
-          console.log(
-            `Deleted Tailscale devices:\n${serverDevices
-              .filter((device) => deletedDeviceIds.includes(device.nodeId))
-              .map((device) => device.name)
-              .join('\n')}`
-          );
-        }
-        if (failedToDeleteDeviceIds.length) {
-          console.log(
-            `Failed to delete Tailscale devices:\n${serverDevices
-              .filter((device) => failedToDeleteDeviceIds.includes(device.nodeId))
-              .map((device) => device.name)
-              .join('\n')}`
-          );
-        }
-      });
-    }
+  return new $util.ResourceHook(name, async (serverHookArgs) => {
+    const tailscaleHostname = await getTailscaleHostname(serverHookArgs);
+    const proxyHostname = bootstrapProxyHostnames.get(tailscaleHostname ?? '');
+    await Promise.all([
+      deleteTailnetDevices({
+        hostname: tailscaleHostname,
+        tags: [`tag:${provider}`, `tag:${STAGE_NAME}`]
+      }),
+      ...(proxyHostname
+        ? [
+            deleteTailnetDevices({
+              hostname: proxyHostname,
+              tags: ['tag:k8s', `tag:${STAGE_NAME}`]
+            })
+          ]
+        : [])
+    ]);
   });
 }
