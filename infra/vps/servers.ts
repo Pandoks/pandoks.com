@@ -88,6 +88,10 @@ function getNodeName({ name, server }: NodePool) {
   return server.provider === 'ovh' ? `${name}-ovh-${server.kind}` : `${name}-${server.kind}`;
 }
 
+function getGatewayName(locationName: string, { provider }: OvhLocation | LatitudeLocation) {
+  return provider === 'ovh' ? `${locationName}-ovh-gw` : `${locationName}-gw`;
+}
+
 function getResourceName(...names: string[]) {
   return names
     .flatMap((name) => name.split('-'))
@@ -228,7 +232,7 @@ function getGatewayMachine({
   const locationNames = Object.keys(cluster.locations);
   const locationKey = getResourceName(cluster.name, locationName);
   const resourceName = `${locationKey}Gateway`;
-  const hostname = `${STAGE_NAME}-${cluster.name}-${locationName}-gw`;
+  const hostname = `${STAGE_NAME}-${cluster.name}-${getGatewayName(locationName, location)}`;
 
   const wireguardPeers = new Map<string, string[]>();
   const interconnectRoutes: NetplanRoute[] = [];
@@ -384,13 +388,14 @@ export function getMachines({
 }): Machine[] {
   const clusterNames = new Set<string>();
   const cidrLocations = new Map<string, string>();
-  const resourceNameOwners = new Map<string, string>();
-  const checkResourceName = (resourceName: string, owner: string) => {
-    const otherOwner = resourceNameOwners.get(resourceName);
+  // NOTE: holds resource names and hostname prefixes, which can't collide with each other
+  const nameOwners = new Map<string, string>();
+  const checkUniqueName = (name: string, owner: string) => {
+    const otherOwner = nameOwners.get(name);
     if (otherOwner) {
-      throw new Error(`${otherOwner} and ${owner} both make ${resourceName}; rename one`);
+      throw new Error(`${otherOwner} and ${owner} both make ${name}; rename one`);
     }
-    resourceNameOwners.set(resourceName, owner);
+    nameOwners.set(name, owner);
   };
   return clusters.flatMap((cluster, clusterIndex) => {
     checkName('Cluster', cluster.name);
@@ -402,8 +407,10 @@ export function getMachines({
     const locationNames = Object.keys(cluster.locations);
     for (const [locationName, location] of Object.entries(cluster.locations)) {
       checkName('Location', locationName);
-      if (location.provider === 'latitude') checkHostname(`${cluster.name}-${locationName}-gw`);
-      checkResourceName(
+      const gatewayName = `${cluster.name}-${getGatewayName(locationName, location)}`;
+      if (location.provider === 'latitude') checkHostname(gatewayName);
+      checkUniqueName(gatewayName, `${cluster.name}/${locationName}`);
+      checkUniqueName(
         `${getResourceName(cluster.name, locationName)}Gateway`,
         `${cluster.name}/${locationName}`
       );
@@ -473,7 +480,9 @@ export function getMachines({
       if (!Number.isInteger(pool.count) || pool.count < 0) {
         throw new Error(`Pool ${pool.name}'s count must be a whole number`);
       }
-      checkResourceName(
+      const nodeName = `${cluster.name}-${getNodeName(pool)}`;
+      checkUniqueName(nodeName, `${cluster.name}/${pool.name}`);
+      checkUniqueName(
         `${getResourceName(cluster.name, pool.name)}Server`,
         `${cluster.name}/${pool.name}`
       );
@@ -487,7 +496,7 @@ export function getMachines({
         );
       }
       if (provider === 'latitude') {
-        checkHostname(`${cluster.name}-${getNodeName(pool)}-${Math.max(pool.count - 1, 0)}`);
+        checkHostname(`${nodeName}-${Math.max(pool.count - 1, 0)}`);
       }
       if (
         clusterIndex === 0 &&

@@ -110,17 +110,19 @@ two control-plane pools, overlapping CIDRs, an unlinked location, or `gpu` on a 
 
 - **Pool:** raise `count` to add nodes. Lowering it removes the highest-index nodes, so drain and
   delete them with `kubectl` first. Renaming a worker pool or switching it between VM and bare metal
-  creates new nodes before deleting the old ones, so add the new pool, then drain and remove the old
-  one; do the same to change an OVHcloud plan's `options`, which never reach existing servers. Other
-  server changes, or new labels, taints, or `gpu`, rebuild its nodes under the same names, which k3s
-  refuses until you `kubectl delete node` the old ones. OVHcloud VMs keep their boot image, so after
-  changing `VM_IMAGE`, lower and raise a pool's `count` to replace them. Latitude servers keep their
-  OS, so do the same after changing `OPERATING_SYSTEM`; gateways take it at their next rebuild.
+  or between providers creates new nodes before deleting the old ones, so add the new pool, then
+  drain and remove the old one; do the same to change an OVHcloud plan's `options`, which never
+  reach existing servers. Other server changes, or new labels, taints, or `gpu`, rebuild its nodes
+  under the same names, which k3s refuses until you `kubectl delete node` the old ones. OVHcloud VMs
+  keep their boot image, so after changing `VM_IMAGE`, lower and raise a pool's `count` to replace
+  them. Latitude servers keep their OS, so do the same after changing `OPERATING_SYSTEM`; gateways
+  take it at their next rebuild.
 - **Control plane:** to move or rename it, rename its cluster, or replace its bootstrap node (index
-  0), first deploy the cluster with zero nodes, which removes its proxy. If that removal fails, the
-  deploy only warns, so delete the device by hand, or the new proxy gets a suffixed hostname.
-  Control-plane IPs come from node indexes, so new nodes would otherwise take IPs the old ones still
-  hold.
+  0), first deploy the cluster with zero nodes, which removes its proxy. For the first cluster, the
+  deploy removes it during evaluation, and a failed removal fails the deploy before it deletes any
+  nodes. For later clusters, deleting the bootstrap node removes it and a failure only warns, so
+  delete the device by hand, or the new proxy gets a suffixed hostname. Control-plane IPs come from
+  node indexes, so new nodes would otherwise take IPs the old ones still hold.
 - **Location:** add it with an unused `10.N.0.0/16`, a `gateway`, and a link, and give the existing
   location a `gateway` too if it was alone. Existing nodes don't change.
 - **Link:** change `via`. Gateways whose routes change rebuild, and so does a gateway dialing one
@@ -129,11 +131,12 @@ two control-plane pools, overlapping CIDRs, an unlinked location, or `gpu` on a 
   `deploy-infra.yaml` handle one cluster per stage until a follow-up.
 
 Production protects k3s nodes and ignores their user data, so deleting or rebuilding one fails there
-(after a renamed or VM↔bare metal pool's new nodes are created), and label, taint, or `gpu` changes
-reach only new nodes. Gateways hold no data and rebuild in every stage, but only when their links,
-locations, `gateway-config.yaml`, or OVHcloud's `SERVER_OS` change. Latitude, and OVHcloud on a plan
-or region change, rebuild a gateway by deleting and reordering it, which likely changes its public
-IP (rebuilding its dialing peer) and, if the plan is out of stock, cuts the location off.
+(after a renamed, VM↔bare metal, or OVHcloud↔Latitude pool's new nodes are created), and label,
+taint, or `gpu` changes reach only new nodes. Gateways hold no data and rebuild in every stage, but
+only when their links, locations, `gateway-config.yaml`, or OVHcloud's `SERVER_OS` change. Latitude,
+and OVHcloud on a plan or region change, rebuild a gateway by deleting and reordering it, which
+likely changes its public IP (rebuilding its dialing peer) and, if the plan is out of stock, cuts
+the location off.
 
 OVHcloud's provider waits 2 hours for a bare metal order, and once delivery takes longer, the next
 deploy records the server without installing it. Outside production, which ignores user data, run
