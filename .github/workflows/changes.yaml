@@ -1,0 +1,298 @@
+name: Changes
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      dispatch:
+        description: JSON of the pipeline's manual-run inputs, which pick the images and charts instead of the path filters.
+        type: string
+        default: '{}'
+    outputs:
+      checks:
+        description: JSON list of the check groups to run.
+        value: ${{ jobs.detect.outputs.checks }}
+      kubernetes-config:
+        description: Whether to scan the Kubernetes manifests, 'true' or 'false'.
+        value: ${{ jobs.detect.outputs.kubernetes-config }}
+      go-dependencies:
+        description: Whether to run govulncheck, 'true' or 'false'.
+        value: ${{ jobs.detect.outputs.go-dependencies }}
+      unit-tests:
+        description: JSON list of the unit test jobs to run.
+        value: ${{ jobs.detect.outputs.unit-tests }}
+      images:
+        description: JSON list of the images to build, test and publish, each {"name","package","path"}.
+        value: ${{ jobs.detect.outputs.images }}
+      charts:
+        description: JSON list of the charts to publish, each {"name","path"}.
+        value: ${{ jobs.detect.outputs.charts }}
+      e2e:
+        description: JSON list of the packages whose e2e suite runs.
+        value: ${{ jobs.detect.outputs.e2e }}
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      checks: ${{ steps.set-checks-matrix.outputs.checks }}
+      kubernetes-config: ${{ steps.security-changes.outputs.kubernetes == 'true' }}
+      go-dependencies: ${{ steps.checks-changes.outputs.go == 'true' }}
+      unit-tests: ${{ steps.set-unit-test-matrix.outputs.unit-tests }}
+      images: ${{ steps.set-image-matrix.outputs.images }}
+      charts: ${{ steps.set-chart-matrix.outputs.charts }}
+      e2e: ${{ steps.set-e2e-matrix.outputs.e2e }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: checks-changes
+        if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            needs-node-setup: &needs-node-setup
+              - '.github/workflows/checks.yaml'
+              - '.github/actions/setup-node-pnpm/**'
+              - 'mise.toml'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+            needs-mise-setup: &needs-mise-setup
+              - '.github/workflows/checks.yaml'
+              - '.github/actions/setup-mise/**'
+              - 'mise.toml'
+            prettier:
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.js'
+              - '**/*.jsx'
+              - '**/*.svelte'
+              - '**/*.md'
+              - '**/*.json'
+              - '**/*.yaml'
+              - '**/*.yml'
+              - '**/*.css'
+              - '.prettierrc'
+              - '.prettierignore'
+              - 'scripts/format/**'
+              - *needs-node-setup
+            eslint:
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.js'
+              - '**/*.jsx'
+              - '**/*.svelte'
+              - 'eslint.config.ts'
+              - 'tsconfig.eslint.json'
+              - 'scripts/lint/**'
+              - *needs-node-setup
+            go:
+              - '**/*.go'
+              - '**/go.mod'
+              - '**/go.sum'
+              - 'go.work'
+              - 'go.work.sum'
+              - '.golangci.yaml'
+              - 'scripts/format/**'
+              - 'scripts/lint/**'
+              - *needs-mise-setup
+            shell:
+              - '**/*.sh'
+              - '.shellcheckrc'
+              - *needs-mise-setup
+            helm:
+              - '**/chart/**'
+              - 'scripts/lint/**'
+              - *needs-mise-setup
+            actions:
+              - '.github/workflows/**'
+              - '.github/actions/**'
+            renovate:
+              - 'renovate.json'
+              - 'renovate.json5'
+              - '.renovaterc'
+              - '.renovaterc.json'
+              - '.renovaterc.json5'
+              - '.github/workflows/checks.yaml'
+            infra:
+              - 'infra/**'
+              - 'sst.config.ts'
+              - 'tsconfig.json'
+              - *needs-node-setup
+
+      - id: security-changes
+        if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            kubernetes:
+              - 'k3s/**'
+              - 'apps/*/kube/**'
+              - '.github/workflows/security.yaml'
+
+      - id: unit-test-changes
+        if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            needs-node-setup: &needs-node-setup
+              - '.github/workflows/tests.yaml'
+              - '.github/actions/setup-node-pnpm/**'
+              - 'mise.toml'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+            web:
+              - 'apps/web/**'
+              - 'packages/svelte/**'
+              - *needs-node-setup
+            desktop:
+              - 'apps/desktop-template/**'
+              - 'packages/svelte/**'
+              - *needs-node-setup
+            mobile-template:
+              - '.github/actions/setup-mise/**'
+              - 'apps/mobile-template/**'
+              - 'packages/react-native-*/**'
+              - *needs-node-setup
+            svelte:
+              - 'packages/svelte/**'
+              - *needs-node-setup
+            prettier:
+              - 'packages/prettier/**'
+              - *needs-node-setup
+            valkey-reconciler:
+              - 'packages/valkey/reconciler/**'
+              - 'packages/valkey/package.json'
+              - 'go.work'
+              - 'go.work.sum'
+              - *needs-node-setup
+
+      - id: image-changes
+        if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            patroni:
+              - 'packages/postgres/patroni/**'
+            pgbackrest:
+              - 'packages/postgres/pgbackrest/**'
+            valkey:
+              - 'packages/valkey/Dockerfile'
+              - 'packages/valkey/entrypoint.sh'
+            valkey-reconciler:
+              - 'packages/valkey/reconciler/**'
+            argocd-sst-plugin:
+              - 'packages/argocd/**'
+            clickhouse:
+              - 'packages/clickhouse/clickhouse/**'
+            clickhouse-keeper:
+              - 'packages/clickhouse/keeper/**'
+            clickhouse-backup:
+              - 'packages/clickhouse/backup/**'
+
+      - id: chart-changes
+        if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            postgres:
+              - 'packages/postgres/chart/**'
+            valkey:
+              - 'packages/valkey/chart/**'
+            clickhouse:
+              - 'packages/clickhouse/chart/**'
+
+      - id: e2e-changes
+        if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            needs-e2e-setup: &needs-e2e-setup
+              - '.github/workflows/build.yaml'
+              - '.github/workflows/e2e.yaml'
+              - '.github/actions/**'
+              - 'packages/e2e/**'
+              - 'scripts/cluster/**'
+              - 'scripts/lib/**'
+              - 'docker-compose.yaml'
+              - 'go.work'
+              - 'go.work.sum'
+              - 'mise.toml'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+            valkey:
+              - 'packages/valkey/**'
+              - 'k3s/base/core/valkey.yaml'
+              - *needs-e2e-setup
+
+      - id: set-checks-matrix
+        run: |
+          all='["prettier","eslint","go","shell","helm","actions","renovate","infra"]'
+          selected='${{ steps.checks-changes.outputs.changes || '[]' }}'
+          checks=$(jq -c --argjson sel "${selected}" 'map(select(. as $group | $sel | index($group)))' <<<"${all}")
+          echo "checks=${checks}" >> "${GITHUB_OUTPUT}"
+
+      - id: set-unit-test-matrix
+        run: |
+          all='["web","desktop","mobile-template","svelte","prettier","valkey-reconciler"]'
+          selected='${{ steps.unit-test-changes.outputs.changes || '[]' }}'
+          unit_tests=$(jq -c --argjson sel "${selected}" 'map(select(. as $job | $sel | index($job)))' <<<"${all}")
+          echo "unit-tests=${unit_tests}" >> "${GITHUB_OUTPUT}"
+
+      - id: set-image-matrix
+        env:
+          DISPATCH: ${{ inputs.dispatch }}
+        run: |
+          all='[
+            {"name":"patroni","package":"postgres","path":"./packages/postgres/patroni/Dockerfile"},
+            {"name":"pgbackrest","package":"postgres","path":"./packages/postgres/pgbackrest/Dockerfile"},
+            {"name":"valkey","package":"valkey","path":"./packages/valkey/Dockerfile"},
+            {"name":"valkey-reconciler","package":"valkey","path":"./packages/valkey/reconciler/Dockerfile"},
+            {"name":"argocd-sst-plugin","package":"argocd","path":"./packages/argocd/Dockerfile"},
+            {"name":"clickhouse","package":"clickhouse","path":"./packages/clickhouse/clickhouse/Dockerfile"},
+            {"name":"clickhouse-keeper","package":"clickhouse","path":"./packages/clickhouse/keeper/Dockerfile"},
+            {"name":"clickhouse-backup","package":"clickhouse","path":"./packages/clickhouse/backup/Dockerfile"}
+          ]'
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            selected=$(jq -c 'to_entries | map(select(.value == true) | .key)' <<<"${DISPATCH}")
+          else
+            selected='${{ steps.image-changes.outputs.changes || '[]' }}'
+          fi
+          images=$(jq -c --argjson sel "${selected}" 'map(select(.name as $n | $sel | index($n)))' <<<"${all}")
+          echo "images=${images}" >> "${GITHUB_OUTPUT}"
+
+      - id: set-chart-matrix
+        env:
+          DISPATCH: ${{ inputs.dispatch }}
+        run: |
+          all='[
+            {"name":"postgres","path":"./packages/postgres/chart"},
+            {"name":"valkey","path":"./packages/valkey/chart"},
+            {"name":"clickhouse","path":"./packages/clickhouse/chart"}
+          ]'
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            selected=$(jq -c 'to_entries | map(select(.value == true and (.key | endswith("-chart"))) | .key | sub("-chart$"; ""))' <<<"${DISPATCH}")
+          else
+            selected='${{ steps.chart-changes.outputs.changes || '[]' }}'
+          fi
+          charts=$(jq -c --argjson sel "${selected}" 'map(select(.name as $n | $sel | index($n)))' <<<"${all}")
+          echo "charts=${charts}" >> "${GITHUB_OUTPUT}"
+
+      - id: set-e2e-matrix
+        env:
+          DISPATCH: ${{ inputs.dispatch }}
+          IMAGES: ${{ steps.set-image-matrix.outputs.images }}
+        run: |
+          suites='["valkey"]'
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            selected=$(jq -c --argjson images "${IMAGES}" '[(to_entries[] | select(.value == true and (.key | endswith("-chart"))) | .key | sub("-chart$"; "")), $images[].package]' <<<"${DISPATCH}")
+          else
+            selected='${{ steps.e2e-changes.outputs.changes || '[]' }}'
+          fi
+          e2e=$(jq -c --argjson sel "${selected}" 'map(select(. as $suite | $sel | index($suite)))' <<<"${suites}")
+          echo "e2e=${e2e}" >> "${GITHUB_OUTPUT}"

@@ -1,3 +1,7 @@
-go 1.27.3
+go 1.27.4
 
-use ./packages/valkey/reconciler
+use (
+	./packages/e2e
+	./packages/valkey/e2e
+	./packages/valkey/reconciler
+)
