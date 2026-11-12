@@ -67,6 +67,8 @@ func InstallChart(releaseName, chartDirectory string, secretData, chartValues ma
 		if ginkgo.CurrentSpecReport().Failed() {
 			dumpDiagnostics(namespace)
 		}
+		// NOTE: a chart can own resources outside its namespace, like Postgres's PgDog HelmChart
+		MustRun("", "helm", "-n", namespace, "uninstall", releaseName, "--wait", "--ignore-not-found")
 		MustRun("", "kubectl", "delete", "namespace", namespace, "--timeout=3m")
 	})
 
