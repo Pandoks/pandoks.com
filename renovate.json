@@ -48,30 +48,19 @@
     },
     {
       "customType": "regex",
+      "managerFilePatterns": ["/^k3s/.+\\.ya?ml$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+tag: (?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]+)"
+      ]
+    },
+    {
+      "customType": "regex",
       "managerFilePatterns": ["/^apps/.+/kube/.+\\.ya?ml$/"],
       "matchStrings": [
         "chart: oci://\\$\\{ImageRegistry\\}/(?<depName>charts/[a-z0-9-]+)\\s+version: (?<currentValue>\\S+)"
       ],
       "packageNameTemplate": "ghcr.io/pandoks/{{{depName}}}",
       "datasourceTemplate": "docker"
-    },
-    {
-      "customType": "regex",
-      "description": "The bridge behind each Terraform-provider package in Pulumi.yaml.",
-      "managerFilePatterns": ["/^Pulumi\\.yaml$/"],
-      "matchStrings": ["source: terraform-provider\\s+version: (?<currentValue>\\S+)"],
-      "depNameTemplate": "pulumi/pulumi-terraform-provider",
-      "datasourceTemplate": "github-releases",
-      "extractVersionTemplate": "^v(?<version>.+)$"
-    },
-    {
-      "customType": "regex",
-      "description": "The Terraform provider each Pulumi.yaml package wraps.",
-      "managerFilePatterns": ["/^Pulumi\\.yaml$/"],
-      "matchStrings": [
-        "source: terraform-provider\\s+version: \\S+\\s+parameters:\\s+- (?<depName>\\S+/\\S+)\\s+- (?<currentValue>\\S+)"
-      ],
-      "datasourceTemplate": "terraform-provider"
     },
     {
       "customType": "regex",
@@ -99,7 +88,10 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^k3s/.+/kustomization\\.ya?ml$/"],
+      "managerFilePatterns": [
+        "/^k3s/.+/kustomization\\.ya?ml$/",
+        "/^packages/e2e/kustomization\\.yaml$/"
+      ],
       "matchStrings": [
         "https://github\\.com/(?<depName>[^/]+/[^/]+)/releases/download/(?<currentValue>[^/]+)/"
       ],
@@ -123,6 +115,12 @@
       ]
     },
     {
+      "description": "A chart major can carry breaking values, CRD or subchart changes, and one PR can cross several.",
+      "matchDatasources": ["helm"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
       "description": "Each argo-cd chart minor carries an Argo CD minor.",
       "matchDatasources": ["helm"],
       "matchPackageNames": ["argo-cd"],
@@ -139,6 +137,54 @@
       "pinDigests": false
     },
     {
+      "description": "Main publishes each chart under its Chart.yaml version, so a chart change bumps it and every copy that pins it. Templates compile against the branch's first update, so each chart names its own files.",
+      "matchFileNames": ["packages/clickhouse/chart/**"],
+      "bumpVersions": [
+        {
+          "filePatterns": [
+            "packages/clickhouse/chart/Chart.yaml",
+            "apps/example/kube/clickhouse.yaml"
+          ],
+          "matchStrings": [
+            "\\nversion: (?<version>\\S+)",
+            "charts/clickhouse\\s+version: (?<version>\\S+)"
+          ]
+        }
+      ]
+    },
+    {
+      "matchFileNames": ["packages/postgres/chart/**"],
+      "bumpVersions": [
+        {
+          "filePatterns": [
+            "packages/postgres/chart/Chart.yaml",
+            "apps/example/kube/postgres.yaml",
+            "packages/postgres/README.md"
+          ],
+          "matchStrings": [
+            "\\nversion: (?<version>\\S+)",
+            "charts/postgres\\s+version: (?<version>\\S+)"
+          ]
+        }
+      ]
+    },
+    {
+      "matchFileNames": ["packages/valkey/chart/**"],
+      "bumpVersions": [
+        {
+          "filePatterns": [
+            "packages/valkey/chart/Chart.yaml",
+            "apps/example/kube/valkey.yaml",
+            "packages/valkey/README.md"
+          ],
+          "matchStrings": [
+            "\\nversion: (?<version>\\S+)",
+            "charts/valkey\\s+version: (?<version>\\S+)"
+          ]
+        }
+      ]
+    },
+    {
       "description": "PgDog's chart uses two-part versions (v0.27).",
       "matchPackageNames": ["pgdog"],
       "versioning": "loose"
@@ -147,14 +193,6 @@
       "description": "Every Pulumi CLI copy (mise, the Argo CD plugin image) moves in one PR.",
       "matchPackageNames": ["pulumi/pulumi", "pulumi/pulumi-base"],
       "groupName": "pulumi cli"
-    },
-    {
-      "matchPackageNames": [
-        "@pulumi/*",
-        "@ovhcloud/pulumi-ovh",
-        "pulumi/pulumi-terraform-provider"
-      ],
-      "groupName": "pulumi packages"
     },
     {
       "description": "Kubernetes can't skip minors, so each k3s minor is its own PR.",

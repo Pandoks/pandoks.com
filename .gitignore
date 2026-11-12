@@ -15,6 +15,7 @@ Thumbs.db
 # Env
 .env
 .env.*
+mise.local.toml
 
 # Vite
 vite.config.js.timestamp-*
@@ -60,9 +61,5 @@ apps/web/static/blog-images
 # helm
 *.tgz
 
-# pulumi: `pulumi install` generates bridged provider SDKs
-/sdks
-
 # Local development
-/data
 /k3dconfig.yaml

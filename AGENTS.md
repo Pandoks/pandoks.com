@@ -2,9 +2,9 @@
 
 Personal monorepo. Pulumi (`Pulumi.yaml`, `infra/`) manages all infrastructure: AWS and Cloudflare
 for what needs high availability, rented machines (Hetzner in `infra/vps/`, moving to OVH) for raw
-compute; the cluster is K3s with Kustomize and ArgoCD. `apps/desktop-template` and `apps/example`
-are templates, but `apps/example/kube` is in every overlay, prod included. Apps import
-`packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it, use `#lib`.
+compute; the cluster is K3s with Kustomize and ArgoCD. `templates/` holds starters that are never
+deployed; `apps/example` is an example app whose `kube/` is in every overlay, prod included. Apps
+import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it, use `#lib`.
 
 ## Principles
 
@@ -60,19 +60,19 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
 
 ## How changes ship
 
-- PRs run `checks.yaml`, `tests.yaml`, `security.yaml`, and `build-and-publish.yaml` (branch-tagged
-  GHCR images and charts), a Cloudflare Pages preview of `apps/web`, and `claude-review.yaml` (one
-  Agent SDK `/code-review` per PR, posted as one review with inline comments). Required checks are
-  the `*-pass` aggregates, and a PR must be up to date with `main` to merge.
+- Every branch push runs `pipeline.yaml`: `changes.yaml` picks what runs from the changed paths,
+  then `checks.yaml`, `security.yaml`, `tests.yaml`, `build.yaml`, `e2e.yaml`, and `publish.yaml`
+  (branch-tagged GHCR images and charts, only once everything else passes). `claude-review.yaml`
+  reviews each PR, `security-audit.yaml` rescans daily, and Cloudflare Pages previews `apps/web`.
+  Required checks are the `*-pass` aggregates, and a PR must be up to date with `main` to merge.
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
   deleted branch's versions and untagged orphans are deleted.
-- Merging to `main` runs `deploy-infra.yaml`: `pulumi up --refresh --stack production` for
-  `Pulumi.yaml`, `Pulumi.production.yaml`, `infra/`, `apps/` (except `desktop-template` and
-  `example`), and `packages/svelte/`, plus an Argo hard refresh and a wait for Synced and Healthy
-  only for `k3s/`, `apps/*/kube/`, and `scripts/cluster/` changes. Pages builds `apps/web` when a
-  change matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything
-  `k3s/overlays/prod` renders but never prunes: a deleted resource stays in prod until pruned by
-  hand.
+- Merging to `main` runs `deploy-infra.yaml`: `pulumi up --stack production` for `Pulumi.yaml`,
+  `Pulumi.production.yaml`, `infra/`, `apps/` (except `example`), and `packages/svelte/`, plus an
+  Argo hard refresh and a wait for Synced and Healthy only for `k3s/`, `apps/*/kube/`, and
+  `scripts/cluster/` changes. Pages builds `apps/web` when a change matches `pathIncludes` in
+  `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod` renders but never prunes: a
+  deleted resource stays in prod until pruned by hand.
 - Every non-production stack gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
   environment, so two non-production stacks collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
@@ -93,10 +93,10 @@ checkout.
   `pnpm dlx skills update -p`.
 - `pnpm lint <js|go|helm|docker|shell|actions|all>`.
 - `pnpm check` type-checks every package and `infra/`.
-- Terraform-only providers: `pulumi package add terraform-provider <org>/<name> <version>` pins them
-  under `packages:` in `Pulumi.yaml` for Renovate; `pulumi install` regenerates `sdks/`.
-- Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, and `desktop-template`;
-  `pnpm --filter <package> test` for `prettier` and `valkey`.
+- Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, and `desktop`;
+  `pnpm --filter <package> test` for `prettier` and `valkey`;
+  `go tool ginkgo -p ./packages/<pkg>/e2e` for a package's e2e suite on local k3d
+  (`packages/e2e/README.md`).
 - Scoped: `pnpm exec prettier --check <files>`, `pnpm exec eslint [--fix] <files>`, `shellcheck`,
   `shfmt -d`, `hadolint`, `actionlint`, `pnpm --filter "...[origin/main]" --if-present check`. That
   filter and the shell and Docker format and lint commands see only tracked files, so check new
@@ -114,7 +114,8 @@ checkout.
   - Cluster behavior (`k3s/`, `apps/*/kube`, charts, cluster images): render, deploy to local k3d,
     and exercise it, including the failure paths you touched. k3d has no ArgoCD and skips
     `k3s/overlays/cluster` (Tailscale operator, upgrade controller); for those, render the `dev` and
-    `prod` overlays and build the image instead of forcing them onto k3d.
+    `prod` overlays and build the image instead of forcing them onto k3d. Run a changed chart's e2e
+    suite if it has one.
   - `scripts/`: run the real CLI for each result and failure path you touched, argument errors
     included.
   - `infra/` or `Pulumi.yaml`: full `pnpm check` plus scoped lint after the last edit and before
@@ -240,11 +241,11 @@ that can't happen, or for compatibility code for old data or deploy order during
   - a new `${...}` manifest placeholder with no matching stack output or computed variable in
     `scripts/cluster/deploy.sh`, which `pnpm cluster deploy` and Argo apply as literal text (fine
     for shell variables in embedded scripts);
-  - a new first-party image or chart missing from `build-and-publish.yaml`'s path filters or matrix,
-    or from the `branch-cleanup.yaml` and `maintenance.yaml` matrices, or a new first-party image
-    missing from the `security.yaml` scan;
-  - a new tested package missing its filter and job in `tests.yaml`, a new CI job missing from its
-    `*-pass` aggregate's `needs` (scheduled-only jobs excepted), or a new aggregate missing from
-    `requiredStatusChecks` in `infra/github.ts`;
+  - a new first-party image or chart missing from `changes.yaml`'s path filters or matrix, or from
+    the `branch-cleanup.yaml` and `maintenance.yaml` matrices, or a new first-party image missing
+    from the `security-audit.yaml` scan;
+  - a new tested package missing its filter in `changes.yaml` and its job in `tests.yaml`, a new CI
+    job missing from its `*-pass` aggregate's `needs` (scheduled-only jobs excepted), or a new
+    aggregate missing from `requiredStatusChecks` in `infra/github.ts`;
   - a new Pulumi or Pages build input missing from the `deploy-infra.yaml` filters or `pathIncludes`
     in `infra/website.ts`.

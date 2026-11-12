@@ -1,0 +1,185 @@
+name: Pipeline
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      patroni:
+        description: 'Image · patroni'
+        type: boolean
+        default: false
+      pgbackrest:
+        description: 'Image · pgbackrest'
+        type: boolean
+        default: false
+      valkey:
+        description: 'Image · valkey'
+        type: boolean
+        default: false
+      valkey-reconciler:
+        description: 'Image · valkey-reconciler'
+        type: boolean
+        default: false
+      argocd-pulumi-plugin:
+        description: 'Image · argocd-pulumi-plugin'
+        type: boolean
+        default: false
+      clickhouse:
+        description: 'Image · clickhouse'
+        type: boolean
+        default: false
+      clickhouse-keeper:
+        description: 'Image · clickhouse-keeper'
+        type: boolean
+        default: false
+      clickhouse-backup:
+        description: 'Image · clickhouse-backup'
+        type: boolean
+        default: false
+      postgres-chart:
+        description: 'Chart · postgres'
+        type: boolean
+        default: false
+      valkey-chart:
+        description: 'Chart · valkey'
+        type: boolean
+        default: false
+      clickhouse-chart:
+        description: 'Chart · clickhouse'
+        type: boolean
+        default: false
+  push:
+    branches:
+      - '**'
+
+concurrency:
+  group: pipeline-${{ github.event_name }}-${{ github.ref_name }}
+  cancel-in-progress: ${{ github.ref_name != 'main' }}
+
+jobs:
+  changes:
+    uses: ./.github/workflows/changes.yaml
+    with:
+      dispatch: ${{ toJSON(inputs) }}
+
+  checks:
+    needs: changes
+    uses: ./.github/workflows/checks.yaml
+    with:
+      jobs: ${{ needs.changes.outputs.checks }}
+
+  security:
+    needs:
+      - changes
+      - build
+    if: >-
+      !cancelled() && needs.changes.result == 'success' &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped') &&
+      (needs.changes.outputs.kubernetes-config == 'true' || needs.changes.outputs.go-dependencies == 'true' ||
+      needs.changes.outputs.images != '[]' || needs.changes.outputs.charts != '[]')
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    uses: ./.github/workflows/security.yaml
+    with:
+      kubernetes-config: ${{ needs.changes.outputs.kubernetes-config == 'true' }}
+      images: ${{ needs.changes.outputs.images }}
+      charts: ${{ needs.changes.outputs.charts }}
+      go-dependencies: ${{ needs.changes.outputs.go-dependencies == 'true' }}
+
+  tests:
+    needs: changes
+    if: needs.changes.outputs.unit-tests != '[]'
+    uses: ./.github/workflows/tests.yaml
+    with:
+      jobs: ${{ needs.changes.outputs.unit-tests }}
+
+  build:
+    needs: changes
+    if: needs.changes.outputs.images != '[]'
+    uses: ./.github/workflows/build.yaml
+    with:
+      images: ${{ needs.changes.outputs.images }}
+
+  e2e:
+    needs:
+      - changes
+      - build
+    if: >-
+      !cancelled() && needs.changes.result == 'success' &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped') &&
+      needs.changes.outputs.e2e != '[]'
+    uses: ./.github/workflows/e2e.yaml
+    with:
+      packages: ${{ needs.changes.outputs.e2e }}
+      images: ${{ needs.changes.outputs.images }}
+
+  publish:
+    needs:
+      - changes
+      - checks
+      - security
+      - tests
+      - build
+      - e2e
+    if: >-
+      !cancelled() && needs.changes.result == 'success' && needs.checks.result == 'success' &&
+      (needs.security.result == 'success' || needs.security.result == 'skipped') &&
+      (needs.tests.result == 'success' || needs.tests.result == 'skipped') &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped') &&
+      (needs.e2e.result == 'success' || needs.e2e.result == 'skipped') &&
+      (needs.changes.outputs.images != '[]' || needs.changes.outputs.charts != '[]')
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/publish.yaml
+    with:
+      images: ${{ needs.changes.outputs.images }}
+      charts: ${{ needs.changes.outputs.charts }}
+
+  checks-pass:
+    needs:
+      - changes
+      - checks
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
+
+  security-pass:
+    needs:
+      - changes
+      - security
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
+
+  tests-pass:
+    needs:
+      - changes
+      - tests
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
+
+  build-and-publish-pass:
+    needs:
+      - changes
+      - build
+      - e2e
+      - publish
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1

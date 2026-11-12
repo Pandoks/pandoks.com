@@ -9,7 +9,6 @@ on:
       - 'Pulumi.production.yaml'
       - 'infra/**'
       - 'apps/**'
-      - '!apps/desktop-template/**'
       - '!apps/example/**'
       - 'apps/*/kube/**'
       - 'packages/svelte/**'
@@ -47,7 +46,7 @@ jobs:
               - 'Pulumi.yaml'
               - 'Pulumi.production.yaml'
               - 'infra/**'
-              - 'apps/!(desktop-template|example)/**'
+              - 'apps/!(example)/**'
               - 'packages/svelte/**'
             kubernetes:
               - 'k3s/**'

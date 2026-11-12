@@ -5,7 +5,7 @@ import * as cloudflare from '@pulumi/cloudflare';
 import { buildSync } from 'esbuild';
 import { secrets } from './secrets.ts';
 import { cloudflareZoneId, domain, isProduction } from './dns.ts';
-import { githubOrg, githubRepoName } from './github.ts';
+import { githubOrg, githubRepositoryName } from './github.ts';
 
 const apiDomain = `api.${domain}`;
 const NOTION_BLOG_DATABASE_ID = '20f1bb259e4b804ba24be1ceebf4c761';
@@ -146,7 +146,7 @@ const notionWebhookFunction = createFunction({
     SCHEDULER_INVOKE_ROLE_ARN: scheduleInvokeTextRole.arn,
     SCHEDULER_GROUP_NAME: scheduleTextGroup.name,
     TEXT_FUNCTION_ARN: textFunction.arn,
-    GITHUB_NOTION_SYNC_URL: `https://api.github.com/repos/${githubOrg}/${githubRepoName}/actions/workflows/sync-notion.yaml/dispatches`,
+    GITHUB_NOTION_SYNC_URL: `https://api.github.com/repos/${githubOrg}/${githubRepositoryName}/actions/workflows/sync-notion.yaml/dispatches`,
     GITHUB_PERSONAL_ACCESS_TOKEN: secrets.github.PersonalAccessToken,
     NOTION_API_KEY: secrets.notion.ApiKey,
     NOTION_WEBHOOK_VERIFICATION_TOKEN: secrets.notion.WebhookVerificationToken,

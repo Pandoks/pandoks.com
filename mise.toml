@@ -1,7 +1,7 @@
 [tools]
 pnpm = "12.16.1"
 node = "24.22.2"
-go = "1.27.3"
+go = "1.27.4"
 uv = "0.13.6"
 python = "3.15.2"
 aws-cli = "2.39.3"
@@ -29,5 +29,3 @@ python.uv_venv_auto = "source" # auto-activate uv-created .venvs (uv.lock projec
 [env]
 # uv resolves interpreters from PATH (mise's python) instead of downloading its own
 UV_PYTHON_PREFERENCE = "system"
-# the `pnpm sso` profile for Pulumi, its S3 backend and scripts; CI's AWS jobs don't load mise
-AWS_PROFILE = "Personal"

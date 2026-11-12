@@ -1,7 +1,7 @@
 import * as pulumi from '@pulumi/pulumi';
 import * as cloudflare from '@pulumi/cloudflare';
 import { cloudflareAccountId, cloudflareZoneId, domain, isProduction } from './dns.ts';
-import { githubOrg, githubRepoName } from './github.ts';
+import { githubOrg, githubRepositoryName } from './github.ts';
 
 const NODE_VERSION = '24.22.2';
 
@@ -14,7 +14,7 @@ if (isProduction) {
       type: 'github',
       config: {
         owner: githubOrg,
-        repoName: githubRepoName,
+        repoName: githubRepositoryName,
         productionBranch: 'main',
         prCommentsEnabled: true,
         pathIncludes: [
