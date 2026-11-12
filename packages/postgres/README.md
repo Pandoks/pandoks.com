@@ -88,7 +88,7 @@ graph TB
 - **Automated schedules** - full, differential, and incremental backups
 - **Point-in-time recovery** - restore to any moment
 - **Encryption** - AES-256-CBC for all backups
-- **S3-compatible storage** - works with AWS S3, MinIO, LocalStack
+- **S3-compatible storage** - works with AWS S3, MinIO, S3Mock
 - **Restore on bootstrap** - a new shard whose stanza already has a full backup restores it instead
   of starting empty
 
@@ -108,9 +108,8 @@ graph TB
 | `replicator` | Streaming replication | Replication only                                 |
 | `patroni`    | Patroni REST API      | Health checks, failover                          |
 
-The initializer applies schema, table, sequence, and default privileges in `postgres`, not the
-application database. Configure grants and ownership in the application database, including default
-privileges for the role that creates tables, before using `admin` or `client` there.
+The initializer applies these privileges in the application database, and `client` automatically
+gets its access to tables, sequences, and functions that `admin` creates in `public`.
 
 **Security Note:** Remote logins (pod network only) to the application database are limited to
 `admin` and `client` (see `pg_hba` in [patroni.yaml](./chart/files/patroni.yaml)). Use `admin` for
@@ -129,9 +128,10 @@ The chart expects these to already be in the cluster (all provided by [k3s](/k3s
 
 ### 1. Create Secrets
 
-The database secret is also mounted by PgDog, so it needs a `users.toml` key. Add both secrets to
-[k3s/base/core/credentials.yaml](/k3s/base/core/credentials.yaml). The `${...}` values are SST
-secrets defined in [infra/secrets.ts](/infra/secrets.ts).
+The database secret is also mounted by PgDog, so it needs a `users.toml` key. Declare the `myapp`
+Namespace in the app's `namespaces.yaml` and add both secrets to its `credentials.yaml`, each listed
+in the app's `kustomization.yaml` (see [apps/example/kube](/apps/example/kube)). The `${...}` values
+are SST secrets defined in [infra/secrets.ts](/infra/secrets.ts).
 
 ```yaml
 apiVersion: v1
@@ -180,7 +180,7 @@ metadata:
   namespace: kube-system
 spec:
   chart: oci://${ImageRegistry}/charts/postgres
-  version: 0.1.0
+  version: 0.1.5
   targetNamespace: &namespace myapp
   createNamespace: true
   failurePolicy: abort
@@ -189,7 +189,7 @@ spec:
     db: myapp
     namespace: *namespace
     credentials.secret: postgres-myapp-creds
-    backup.path: kubernetes/myapp/postgres
+    backup.path: /kubernetes/myapp/postgres
     backup.image: ${ImageRegistry}/pgbackrest:${ImageTag}
     patroni.image: ${ImageRegistry}/patroni:${ImageTag}
     patroni.shards: 1
@@ -642,54 +642,55 @@ Local k3d clusters pull the images and chart from the local registry (`localhost
 machine, `local-registry:5000` inside the cluster). Build and push them at least once, and again
 after changing them:
 
-| Command                    | Description                                                     |
-| -------------------------- | --------------------------------------------------------------- |
-| `pnpm build:patroni`       | Builds the patroni docker image locally                         |
-| `pnpm build:pgbackrest`    | Builds the pgbackrest docker image locally                      |
-| `pnpm build:helm`          | Packages the helm chart into a `.tgz` locally                   |
-| `pnpm build`               | All of the build commands above                                 |
-| `pnpm dev:push:patroni`    | Pushes the patroni image to the local k3d registry              |
-| `pnpm dev:push:pgbackrest` | Pushes the pgbackrest image to the local k3d registry           |
-| `pnpm dev:push:helm`       | Pushes the helm chart package to the local k3d registry via oci |
-| `pnpm dev:push`            | All of the push commands above                                  |
+| Command                       | Description                                                     |
+| ----------------------------- | --------------------------------------------------------------- |
+| `pnpm local:build:patroni`    | Builds the patroni docker image locally                         |
+| `pnpm local:build:pgbackrest` | Builds the pgbackrest docker image locally                      |
+| `pnpm local:build:helm`       | Packages the helm chart into a `.tgz` locally                   |
+| `pnpm local:build`            | All of the build commands above                                 |
+| `pnpm local:push:patroni`     | Pushes the patroni image to the local k3d registry              |
+| `pnpm local:push:pgbackrest`  | Pushes the pgbackrest image to the local k3d registry           |
+| `pnpm local:push:helm`        | Pushes the helm chart package to the local k3d registry via oci |
+| `pnpm local:push`             | All of the push commands above                                  |
 
-`pnpm docker:build && pnpm dev:push` from the repo root does this for every package.
+`pnpm local:build && pnpm local:push` from the repo root does this for every package.
 
 ## Configuration Reference
 
 ### Values
 
-| Key                             | Description                                 | Default                                                     |
-| ------------------------------- | ------------------------------------------- | ----------------------------------------------------------- |
-| `db`                            | Database name                               | `example`                                                   |
-| `namespace`                     | Kubernetes namespace                        | `example`                                                   |
-| `credentials.secret`            | Database credentials secret                 | `postgres-example-creds`                                    |
-| `credentials.dataKeys.*`        | Password keys in that secret                | `SUPERUSER_PASSWORD`, `ADMIN_PASSWORD`, etc.                |
-| `backup.credentials.secret`     | S3 credentials secret                       | `backup-bucket-creds`                                       |
-| `backup.credentials.dataKeys.*` | Access/secret keys in that secret           | `S3_ACCESS_KEY`, `S3_SECRET_KEY`                            |
-| `backup.bucket`                 | S3 bucket                                   | `backups`                                                   |
-| `backup.path`                   | Path in the bucket                          | `kubernetes/examples/postgres`                              |
-| `backup.encryptionKey`          | pgBackRest cipher passphrase                | `openssl-rand-hex-32` (placeholder, override it)            |
-| `backup.image`                  | pgBackRest image                            | `ghcr.io/pandoks/pgbackrest:latest`                         |
-| `backup.schedules.full`         | Full backup cron                            | `0 2 * * 0` (Sunday 2 AM)                                   |
-| `backup.schedules.diff`         | Diff backup cron                            | `0 2 * * 3,6` (Wed/Sat)                                     |
-| `backup.schedules.incr`         | Incr backup cron                            | `0 2 * * 1,2,4,5`                                           |
-| `backup.retention.full`         | Full backups to keep                        | `4`                                                         |
-| `backup.retention.diff`         | Diff backups to keep                        | `2`                                                         |
-| `s3.region`                     | S3 region                                   | `us-west-1`                                                 |
-| `s3.host`                       | S3 endpoint                                 | `host.k3d.internal:4566` (LocalStack from `docker-compose`) |
-| `s3.tls`                        | Verify S3 TLS (`y`/`n`)                     | `n`                                                         |
-| `s3.uriStyle`                   | S3 URI style                                | `path`                                                      |
-| `patroni.shards`                | Number of shards                            | `1`                                                         |
-| `patroni.replicasPerShard`      | Pods per shard (1 primary + n - 1 replicas) | `3`                                                         |
-| `patroni.image`                 | Patroni image                               | `ghcr.io/pandoks/patroni:latest`                            |
-| `patroni.resources.*`           | `patroni`, `pgbackrest`, `postgresExporter` | `{}`                                                        |
-| `pgdog.*`                       | Passed through to the [PgDog chart][pgdog]  | See below                                                   |
-| `pgdog.replicas`                | PgDog replicas                              | `2`                                                         |
-| `pgdog.workers`                 | PgDog worker threads                        | `2`                                                         |
-| `pgdog.defaultPoolSize`         | Server connections per pool                 | `15`                                                        |
-| `pgdog.loadBalancingStrategy`   | Load balancing                              | `least_active_connections`                                  |
-| `pgdog.readWriteSplit`          | Read/write routing                          | `include_primary_if_replica_banned`                         |
+| Key                             | Description                                        | Default                                                     |
+| ------------------------------- | -------------------------------------------------- | ----------------------------------------------------------- |
+| `db`                            | Database name                                      | `example`                                                   |
+| `namespace`                     | Kubernetes namespace                               | `example`                                                   |
+| `credentials.secret`            | Database credentials secret                        | `postgres-example-creds`                                    |
+| `credentials.dataKeys.*`        | Password keys in that secret                       | `SUPERUSER_PASSWORD`, `ADMIN_PASSWORD`, etc.                |
+| `backup.enabled`                | Backups and WAL archiving; set before first create | `true`                                                      |
+| `backup.credentials.secret`     | S3 credentials secret                              | `backup-bucket-creds`                                       |
+| `backup.credentials.dataKeys.*` | Access/secret keys in that secret                  | `S3_ACCESS_KEY`, `S3_SECRET_KEY`                            |
+| `backup.bucket`                 | S3 bucket                                          | `backups`                                                   |
+| `backup.path`                   | Path in the bucket                                 | `/kubernetes/examples/postgres`                             |
+| `backup.encryptionKey`          | pgBackRest cipher passphrase                       | `openssl-rand-hex-32` (placeholder, override it)            |
+| `backup.image`                  | pgBackRest image                                   | `ghcr.io/pandoks/pgbackrest:latest`                         |
+| `backup.schedules.full`         | Full backup cron                                   | `0 2 * * 0` (Sunday 2 AM)                                   |
+| `backup.schedules.diff`         | Diff backup cron                                   | `0 2 * * 3,6` (Wed/Sat)                                     |
+| `backup.schedules.incr`         | Incr backup cron                                   | `0 2 * * 1,2,4,5`                                           |
+| `backup.retention.full`         | Full backups to keep                               | `4`                                                         |
+| `backup.retention.diff`         | Diff backups to keep                               | `2`                                                         |
+| `s3.region`                     | S3 region                                          | `us-west-1`                                                 |
+| `s3.host`                       | S3 endpoint                                        | `host.k3d.internal:9191` (S3Mock HTTPS from docker-compose) |
+| `s3.tls`                        | Verify S3 TLS (`y`/`n`)                            | `n`                                                         |
+| `s3.uriStyle`                   | S3 URI style                                       | `path`                                                      |
+| `patroni.shards`                | Number of shards                                   | `1`                                                         |
+| `patroni.replicasPerShard`      | Pods per shard (1 primary + n - 1 replicas)        | `3`                                                         |
+| `patroni.image`                 | Patroni image                                      | `ghcr.io/pandoks/patroni:latest`                            |
+| `patroni.resources.*`           | `patroni`, `pgbackrest`, `postgresExporter`        | `{}`                                                        |
+| `pgdog.*`                       | Passed through to the [PgDog chart][pgdog]         | See below                                                   |
+| `pgdog.replicas`                | PgDog replicas                                     | `2`                                                         |
+| `pgdog.workers`                 | PgDog worker threads                               | `2`                                                         |
+| `pgdog.defaultPoolSize`         | Server connections per pool                        | `15`                                                        |
+| `pgdog.loadBalancingStrategy`   | Load balancing                                     | `least_active_connections`                                  |
+| `pgdog.readWriteSplit`          | Read/write routing                                 | `include_primary_if_replica_banned`                         |
 
 [pgdog]: https://github.com/pgdogdev/helm/blob/main/values.yaml
 

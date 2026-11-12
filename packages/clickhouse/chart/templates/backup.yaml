@@ -1,5 +1,5 @@
 {{- range $type, $schedule := $.Values.backup.schedules }}
-  {{- if $schedule }}
+  {{- if and $.Values.backup.enabled $schedule }}
 ---
 {{ include "clickhouse.backup.cronjob" (dict "context" $ "type" $type "schedule" $schedule) }}
   {{- end }}

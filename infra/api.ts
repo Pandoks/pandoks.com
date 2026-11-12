@@ -1,6 +1,6 @@
 import { secrets } from './secrets';
 import { domain, isProduction } from './dns';
-import { githubOrg, githubRepoName } from './github';
+import { githubOrg, githubRepositoryName } from './github';
 
 const apiDomain = `api.${domain}`;
 export const nodeVersion = 'nodejs24.x';
@@ -87,7 +87,7 @@ new sst.aws.Function('NotionWebhookHandler', {
     SCHEDULER_INVOKE_ROLE_ARN: scheduleInvokeTextRole.arn,
     SCHEDULER_GROUP_NAME: scheduleTextGroup.name,
     TEXT_FUNCTION_ARN: textFunction.arn,
-    GITHUB_NOTION_SYNC_URL: `https://api.github.com/repos/${githubOrg}/${githubRepoName}/actions/workflows/sync-notion.yaml/dispatches`
+    GITHUB_NOTION_SYNC_URL: `https://api.github.com/repos/${githubOrg}/${githubRepositoryName}/actions/workflows/sync-notion.yaml/dispatches`
   },
   link: [
     notion,

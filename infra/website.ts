@@ -1,5 +1,5 @@
 import { cloudflareAccountId, cloudflareZoneId, domain, isProduction } from './dns';
-import { githubOrg, githubRepoName } from './github';
+import { githubOrg, githubRepositoryName } from './github';
 
 new sst.x.DevCommand('DevWebsite', {
   dev: {
@@ -10,7 +10,7 @@ new sst.x.DevCommand('DevWebsite', {
   }
 });
 
-const NODE_VERSION = '24.18.0';
+const NODE_VERSION = '24.22.2';
 
 if (isProduction) {
   const personalStaticWebsite = new cloudflare.PagesProject('PersonalWebsite', {
@@ -21,7 +21,7 @@ if (isProduction) {
       type: 'github',
       config: {
         owner: githubOrg,
-        repoName: githubRepoName,
+        repoName: githubRepositoryName,
         productionBranch: 'main',
         prCommentsEnabled: true,
         pathIncludes: [

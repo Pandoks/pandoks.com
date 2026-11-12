@@ -23,10 +23,20 @@ metadata:
 spec:
   repo: https://prometheus-community.github.io/helm-charts
   chart: kube-prometheus-stack
-  version: 80.14.4
+  version: 92.17.1
   targetNamespace: monitoring
   createNamespace: true
+  failurePolicy: abort
   valuesContent: |-
+    # NOTE: Helm never upgrades CRDs, so this Job does; busybox is pinned as it defaults to :latest
+    crds:
+      upgradeJob:
+        enabled: true
+        image:
+          busybox:
+            # renovate: datasource=docker depName=busybox
+            tag: 1.38@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4
+
     # etcd monitoring disabled by default - enable via HelmChartConfig in overlays
     kubeEtcd:
       enabled: false

@@ -1,128 +1,123 @@
 name: Security
 
-on:
-  pull_request:
-    branches:
-      - main
-  push:
-    branches:
-      - main
-  schedule:
-    - cron: '0 17 * * *'
-  workflow_dispatch:
-
 permissions:
   contents: read
   security-events: write
   actions: read
 
-concurrency:
-  group: security-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+on:
+  workflow_call:
+    inputs:
+      kubernetes-config:
+        description: Scan the Kubernetes manifests in k3s/ and apps/.
+        type: boolean
+        default: false
+      images:
+        description: JSON list of the built images to scan, each {"name","package","path"}, from build.yaml's artifacts.
+        type: string
+        default: '[]'
+      charts:
+        description: JSON list of the charts to scan, each {"name","path"}.
+        type: string
+        default: '[]'
+      go-dependencies:
+        description: Run govulncheck on every Go module, test code included.
+        type: boolean
+        default: false
 
 jobs:
-  detect-changes:
+  scan-kubernetes-config:
+    if: inputs.kubernetes-config
     runs-on: ubuntu-latest
-    outputs:
-      k3s: ${{ steps.filter.outputs.k3s || github.event_name != 'pull_request' }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - id: filter
-        if: github.event_name == 'pull_request'
-        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
-        with:
-          filters: |
-            k3s:
-              - 'k3s/**'
-
-  scan-published-images:
-    # NOTE: we don't scan charts because the only issues are misconfigs, not CVEs.
-    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
-      packages: read
     strategy:
       fail-fast: false
       matrix:
-        name:
-          - patroni
-          - pgbackrest
-          - valkey
-          - valkey-reconciler
-          - argocd-sst-plugin
-          - clickhouse
-          - clickhouse-keeper
-          - clickhouse-backup
+        dir:
+          - k3s
+          - apps
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Compute image reference
-        id: ref
-        env:
-          OWNER: ${{ github.repository_owner }}
-        run: echo "image=ghcr.io/${OWNER,,}/${{ matrix.name }}:latest" >> "${GITHUB_OUTPUT}"
-
-      - name: Log in to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull published image
-        env:
-          IMAGE: ${{ steps.ref.outputs.image }}
-        run: docker pull "${IMAGE}"
-
-      - name: Scan published image with Trivy
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: ${{ steps.ref.outputs.image }}
-          scanners: vuln,secret
-          trivy-config: trivy.yaml
-          trivyignores: .trivyignore.yaml
-          format: sarif
-          output: trivy-published-${{ matrix.name }}.sarif
-
-      - name: Upload SARIF to GitHub Code Scanning
-        if: always()
-        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
-        with:
-          sarif_file: trivy-published-${{ matrix.name }}.sarif
-          category: trivy-published-${{ matrix.name }}
-
-  scan-k3s-config:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.k3s == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Scan k3s manifests with Trivy
+      - name: Scan manifests with Trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: config
-          scan-ref: k3s
+          scan-ref: ${{ matrix.dir }}
           scanners: misconfig
           trivy-config: trivy.yaml
           trivyignores: .trivyignore.yaml
           format: sarif
-          output: trivy-k3s.sarif
+          output: trivy-${{ matrix.dir }}.sarif
 
       - name: Upload SARIF to GitHub Code Scanning
         if: always()
-        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
-          sarif_file: trivy-k3s.sarif
-          category: trivy-k3s
+          sarif_file: trivy-${{ matrix.dir }}.sarif
+          category: trivy-${{ matrix.dir }}
 
-  security-pass:
-    needs:
-      - scan-k3s-config
-    if: ${{ always() && !cancelled() && github.event_name == 'pull_request' && !contains(needs.*.result, 'failure') }}
+  scan-images:
+    if: inputs.images != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(inputs.images) }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: image-${{ matrix.image.package }}-${{ matrix.image.name }}
+          path: ${{ runner.temp }}
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          input: ${{ runner.temp }}/${{ matrix.image.name }}.tar
+          scanners: vuln,secret
+          trivy-config: trivy.yaml
+          trivyignores: .trivyignore.yaml
+
+  scan-charts:
+    if: inputs.charts != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJSON(inputs.charts) }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Scan Helm chart with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: config
+          scan-ref: ${{ matrix.chart.path }}
+          scanners: misconfig
+          trivy-config: trivy.yaml
+          trivyignores: .trivyignore.yaml
+
+  scan-go-dependencies:
+    if: inputs.go-dependencies
     runs-on: ubuntu-latest
     steps:
-      - run: echo "ok"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: packages/valkey/reconciler/go.mod
+          cache-dependency-path: '**/go.sum'
+
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: go go:golang.org/x/vuln/cmd/govulncheck
+
+      - name: Run govulncheck
+        run: |
+          for d in $(go list -m -f '{{.Dir}}'); do
+            (cd "$d" && govulncheck -test ./...)
+          done

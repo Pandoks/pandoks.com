@@ -6,33 +6,25 @@ networks:
       config:
         - subnet: 172.30.0.0/16
 
+volumes:
+  s3:
+    name: local-s3
+
 services:
   s3:
-    image: localstack/localstack@sha256:21fe0a67fe7993a5b0082a29bfc94fce5a15b6622c87b0d98f9df2882a9afca3
+    image: adobe/s3mock:5.2.3@sha256:ab01a6946750f451ca215a47e91030695b260e4003b8a5a6201d25029b8fca92
     container_name: s3
     restart: always
     ports:
-      - 4566:4566
+      - 9090:9090
+      # NOTE: pgBackRest only speaks TLS to S3, so it gets the HTTPS port; ClickHouse uses plain HTTP
+      - 9191:9191
     environment:
-      - SERVICES=s3
-      - AWS_DEFAULT_REGION=us-west-1
-      - AWS_ACCESS_KEY_ID=test
-      - AWS_SECRET_ACCESS_KEY=testsecret
-      - BACKUP_BUCKET=database
-      - PERSISTENCE=1
-      - DATA_DIR=/var/lib/localstack/data
+      - COM_ADOBE_TESTING_S3MOCK_STORE_ROOT=/s3mockroot
+      - COM_ADOBE_TESTING_S3MOCK_STORE_RETAIN_FILES_ON_EXIT=true
+      - COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS=backups,dev-backups
+      - COM_ADOBE_TESTING_S3MOCK_STORE_REGION=us-west-1
     networks:
       - local-network
     volumes:
-      - ./data/localstack:/var/lib/localstack
-    entrypoint:
-      - sh
-      - -c
-      - |
-        mkdir -p /etc/localstack/init/ready.d
-        cat > /etc/localstack/init/ready.d/s3.sh << 'EOF'
-        #!/bin/sh
-        awslocal s3 mb s3://$$BACKUP_BUCKET || true
-        EOF
-        chmod +x /etc/localstack/init/ready.d/s3.sh
-        exec docker-entrypoint.sh
+      - s3:/s3mockroot

@@ -56,9 +56,12 @@ cmd_lint_actions() {
 cmd_lint_helm() {
   cd "${REPO_ROOT}"
   helm lint --quiet --strict packages/*/chart
-  for c in packages/*/chart; do
+  cmd_lint_helm_manifests="$(for c in packages/*/chart; do
     helm template "$c"
-  done | kubeconform \
+    helm template "$c" --set backup.enabled=false,backup.bucket=LEAK,backup.credentials.secret=LEAK
+  done)"
+  if printf '%s\n' "${cmd_lint_helm_manifests}" | grep LEAK; then die "Backups-off render leaks"; fi
+  printf '%s\n' "${cmd_lint_helm_manifests}" | kubeconform \
     -strict \
     -ignore-missing-schemas \
     -schema-location default \
