@@ -127,8 +127,9 @@ func (queue *sqsQueue) Receive(ctx context.Context, max int) ([]*Delivery, error
 		}
 		deliveries = append(deliveries, delivery)
 	}
+	// NOTE: a malformed message whose ack fails returns and is dropped again
 	if err := queue.Ack(ctx, malformed...); err != nil {
-		return nil, err
+		slog.Error("queue failed to ack malformed messages", "error", err)
 	}
 	return deliveries, nil
 }

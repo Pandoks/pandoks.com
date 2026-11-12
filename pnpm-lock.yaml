@@ -318,11 +318,11 @@ importers:
   packages/queue:
     devDependencies:
       '@aws-sdk/client-sns':
-        specifier: 3.1161.0
-        version: 3.1161.0
+        specifier: 3.1162.0
+        version: 3.1162.0
       '@aws-sdk/client-sqs':
-        specifier: 3.1161.0
-        version: 3.1161.0
+        specifier: 3.1162.0
+        version: 3.1162.0
       '@types/node':
         specifier: 25.9.9
         version: 25.9.9
@@ -505,16 +505,12 @@ packages:
     resolution: {integrity: sha512-pY9NqHLEx454eBLwmqxsg6ZTOKVgSwA/YxuHG3WFKwVPiBegdSquDcDLOToRjeX3XbTm1ZebmA3TakDfmO6hJA==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/client-sns@3.1161.0':
-    resolution: {integrity: sha512-ZvLlpkzhjkv1Ud4L1BJTcMBkh3o9rnZ/BSW7NGLYZiBNGOkH+0c6m5pQRA8sAVqT2p9YDI+Ekx7C2GZxe37ohw==}
-    engines: {node: '>=20.0.0'}
-
   '@aws-sdk/client-sns@3.1162.0':
     resolution: {integrity: sha512-OuJfVJ1vbp0eThFqsgiODK+WhNCQArbIeY1WXwF7pK1S9aZooKmHA+0Uj77jHTG8j0UA0rN4oTybypGfKJb6aA==}
     engines: {node: '>=20.0.0'}
 
-  '@aws-sdk/client-sqs@3.1161.0':
-    resolution: {integrity: sha512-qkSzZC/ZWxmxEJDaajCMLt+xdwmtLGMoACRSryG6zwpWUQLtoVzggY6oIm4S9dJeR5eIoHlbK2n8Dl1wB2yMiA==}
+  '@aws-sdk/client-sqs@3.1162.0':
+    resolution: {integrity: sha512-kSieJZcdV1s2q3Pk4RXkBo4Y4qTY1iTCy37pMs2Xh2jpG1QIxQXYABjejwkZRel/B1isJZAGBd1KRseeF64ArA==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/client-ssm@3.1162.0':
@@ -4517,17 +4513,6 @@ snapshots:
       '@smithy/types': 4.20.0
       tslib: 2.8.1
 
-  '@aws-sdk/client-sns@3.1161.0':
-    dependencies:
-      '@aws-sdk/core': 3.980.0
-      '@aws-sdk/credential-provider-node': 3.972.93
-      '@aws-sdk/types': 3.975.0
-      '@smithy/core': 3.39.0
-      '@smithy/fetch-http-handler': 5.8.1
-      '@smithy/node-http-handler': 4.14.2
-      '@smithy/types': 4.20.0
-      tslib: 2.8.1
-
   '@aws-sdk/client-sns@3.1162.0':
     dependencies:
       '@aws-sdk/core': 3.980.0
@@ -4539,7 +4524,7 @@ snapshots:
       '@smithy/types': 4.20.0
       tslib: 2.8.1
 
-  '@aws-sdk/client-sqs@3.1161.0':
+  '@aws-sdk/client-sqs@3.1162.0':
     dependencies:
       '@aws-sdk/core': 3.980.0
       '@aws-sdk/credential-provider-node': 3.972.93

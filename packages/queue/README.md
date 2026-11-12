@@ -58,7 +58,7 @@ graph LR
   redrive `maxReceiveCount`, Cloudflare `max_retries` and `dead_letter_queue`, or Valkey's
   `max_attempts`, which writes to the `{<queue>}:dlq` stream.
 - **Malformed bodies:** a body that isn't a valid UTF-8 envelope is logged and acked by `Receive`,
-  not retried.
+  not retried. A failed ack of one is logged too, and `Receive` still returns the valid deliveries.
 - **Topics:** a topic fans each message out to subscription queues, and each subscription is an
   ordinary queue with its own lease, retries, and dead letters. `Publish` takes no delay.
 
@@ -150,10 +150,11 @@ Credentials come from each SDK's usual environment.
 `max_attempts` is required on Valkey queues, from 1 to 2^63 - 1 in ASCII digits. Unknown parameters,
 a `;` in the query, and malformed escapes (a `%` not followed by two hex digits, or escapes that
 aren't UTF-8) in the host, path, or query, or in a Valkey user or password, are errors, as are
-incomplete SNS ARNs and empty, `.`, or `..` path segments once decoded (so `%2F` splits a segment),
-which TS's URL parser would otherwise resolve to another name. Only Valkey URLs take a user and
-password, and they need the port. Every language rejects the URLs in
-[testdata/malformed-urls.json](./testdata/malformed-urls.json) without echoing their passwords.
+incomplete SNS ARNs or ones outside an `aws` or `aws-*` partition, and empty, `.`, or `..` path
+segments once decoded (so `%2F` splits a segment), which TS's URL parser would otherwise resolve to
+another name. Only Valkey URLs take a user and password, and they need the port. Every language
+rejects the URLs in [testdata/malformed-urls.json](./testdata/malformed-urls.json) without echoing
+their passwords.
 
 ## Brokers
 

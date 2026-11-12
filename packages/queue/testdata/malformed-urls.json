@@ -103,6 +103,7 @@
     "awssns:///arn:aws:sns:us-west-1:123456789012:",
     "awssns:///arn:aws:sns::123456789012:t",
     "awssns:///arn::sns:us-west-1:123456789012:t",
+    "awssns:///arn:invalid:sns:us-west-1:123456789012:t",
     "awssns:///x/../arn:aws:sns:us-west-1:123456789012:t",
     "cloudflare://account/a,orders/../payments",
     "valkey://127.0.0.1:1/orders/./payments",

@@ -12,6 +12,7 @@ export function openTopic(url: URL): SNSTopic {
     url.host ||
     fields.length !== 6 ||
     fields[0] !== 'arn' ||
+    (fields[1] !== 'aws' && !fields[1].startsWith('aws-')) ||
     fields[2] !== 'sns' ||
     fields.includes('')
   ) {

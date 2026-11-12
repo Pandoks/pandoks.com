@@ -176,3 +176,10 @@ test('the worker handles a short lease that ends on an odd millisecond', async (
 
   expect(acked).toEqual(['short']);
 });
+
+test('the worker rejects a concurrency that is not a positive integer', async () => {
+  for (const concurrency of [0, 1.5, NaN, Infinity]) {
+    const worker = new Worker({ queue: {} as Queue, concurrency, handle: async () => {} });
+    await expect(worker.run(AbortSignal.abort())).rejects.toThrow('concurrency');
+  }
+});

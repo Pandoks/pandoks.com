@@ -40,8 +40,8 @@ export class Worker {
   }
 
   async run(signal: AbortSignal): Promise<void> {
-    if (this.concurrency < 1) {
-      throw new Error('queue worker: concurrency must be at least 1');
+    if (!Number.isInteger(this.concurrency) || this.concurrency < 1) {
+      throw new Error('queue worker: concurrency must be an integer of at least 1');
     }
     const running = new Set<Promise<void>>();
     while (!signal.aborted) {

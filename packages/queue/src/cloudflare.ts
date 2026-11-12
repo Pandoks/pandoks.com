@@ -128,10 +128,11 @@ export class CloudflareQueue implements Queue {
       ]),
       deadline
     );
+    // NOTE: a malformed message whose ack fails returns and is dropped again
     await this.settle(
       malformed.map((handle) => ({ lease_id: handle as string })),
       []
-    );
+    ).catch((error: unknown) => console.error('queue failed to ack malformed messages', error));
     // NOTE: pulls don't long-poll and every empty one is a billed read
     if (pulled.length === 0) await sleep(EMPTY_POLL_DELAY, signal);
     return deliveries;

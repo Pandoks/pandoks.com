@@ -392,6 +392,18 @@ describe('valkey', { timeout: 60_000 }, () => {
     await queue.close();
   });
 
+  test('an aborted receive releases what the stalled server leases after it', async () => {
+    const queue = await openTestQueue(`r${suffix()}`);
+    const message = testMessage('abandoned');
+    await queue.send(message);
+    const stalled = stall(2);
+    await setTimeout(100);
+    expect(await queue.receive(10, AbortSignal.timeout(200))).toEqual([]);
+    await stalled;
+    expect((await receive(queue, 5, message.id))[message.id]?.attempt).toBe(2);
+    await queue.close();
+  });
+
   test('removes only settled consumers', async () => {
     const name = `x${suffix()}`;
     const url = `valkey://client:client@${VALKEY}/${name}?lease=500ms&max_attempts=5`;

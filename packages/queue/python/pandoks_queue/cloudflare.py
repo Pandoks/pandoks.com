@@ -17,6 +17,7 @@ from pandoks_queue.envelope import (
     decode_rows,
     delay_seconds,
     encode,
+    log,
     parse_lease,
     query_params,
 )
@@ -93,7 +94,11 @@ class CloudflareQueue:
         deliveries, malformed = decode_rows(
             ((message.body, int(message.attempts) + 1, message.lease_id) for message in pulled), deadline
         )
-        self._settle([{"lease_id": handle} for handle in malformed], [])
+        # NOTE: a malformed message whose ack fails returns and is dropped again
+        try:
+            self._settle([{"lease_id": handle} for handle in malformed], [])
+        except Exception:
+            log.exception("queue failed to ack malformed messages")
         # NOTE: pulls don't long-poll and every empty one is a billed read
         if not pulled:
             time.sleep(EMPTY_POLL_DELAY)

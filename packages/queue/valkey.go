@@ -171,8 +171,9 @@ func (queue *valkeyQueue) Receive(ctx context.Context, max int) ([]*Delivery, er
 		}
 		deliveries = append(deliveries, delivery)
 	}
+	// NOTE: a malformed message whose ack fails returns and is dropped again
 	if err := queue.Ack(ctx, malformed...); err != nil {
-		return nil, err
+		slog.Error("queue failed to ack malformed messages", "error", err)
 	}
 	if len(rows) == 0 {
 		select {

@@ -94,7 +94,10 @@ export class SQSQueue implements Queue {
       message.ReceiptHandle
     ]);
     const { deliveries, malformed } = decodeRows(rows, deadline);
-    await this.delete(malformed);
+    // NOTE: a malformed message whose ack fails returns and is dropped again
+    await this.delete(malformed).catch((error: unknown) =>
+      console.error('queue failed to ack malformed messages', error)
+    );
     return deliveries;
   }
 

@@ -136,8 +136,9 @@ func (queue *cloudflareQueue) Receive(ctx context.Context, max int) ([]*Delivery
 		}
 		deliveries = append(deliveries, delivery)
 	}
+	// NOTE: a malformed message whose ack fails returns and is dropped again
 	if err := queue.Ack(ctx, malformed...); err != nil {
-		return nil, err
+		slog.Error("queue failed to ack malformed messages", "error", err)
 	}
 	// NOTE: pulls don't long-poll and every empty one is a billed read
 	if len(response.Messages) == 0 {

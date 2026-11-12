@@ -18,6 +18,7 @@ from pandoks_queue.envelope import (
     decodes,
     delay_milliseconds,
     encode,
+    log,
     parse_lease,
     query_params,
 )
@@ -115,7 +116,11 @@ class ValkeyQueue:
         # NOTE: the lease starts when the script runs, which can be well after the call on a busy server
         deadline = datetime.now(UTC) + timedelta(seconds=self.lease)
         deliveries, malformed = decode_rows(((body, int(attempt), stream_id) for stream_id, body, attempt in rows), deadline)
-        self._delete(malformed)
+        # NOTE: a malformed message whose ack fails returns and is dropped again
+        try:
+            self._delete(malformed)
+        except Exception:
+            log.exception("queue failed to ack malformed messages")
         if not rows:
             time.sleep(EMPTY_POLL_DELAY)
         return deliveries

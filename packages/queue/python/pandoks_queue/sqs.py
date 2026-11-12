@@ -15,6 +15,7 @@ from pandoks_queue.envelope import (
     decode_rows,
     delay_seconds,
     encode,
+    log,
     parse_lease,
     query_params,
 )
@@ -75,7 +76,11 @@ class SQSQueue:
             for message in response.get("Messages", [])
         ]
         deliveries, malformed = decode_rows(rows, deadline)
-        self._delete(malformed)
+        # NOTE: a malformed message whose ack fails returns and is dropped again
+        try:
+            self._delete(malformed)
+        except Exception:
+            log.exception("queue failed to ack malformed messages")
         return deliveries
 
     def _delete(self, handles: list) -> None:

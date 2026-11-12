@@ -149,3 +149,31 @@ func TestCloudflareTopicPushesSubscriptionsConcurrently(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestCloudflareKeepsValidDeliveriesWhenAckingMalformedOnesFails(t *testing.T) {
+	message := testMessage("valid")
+	body, err := encode(message, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if strings.HasSuffix(request.URL.Path, "/ack") {
+			http.Error(writer, `{"success":false,"errors":[{"code":1,"message":"lease expired"}]}`, http.StatusBadRequest)
+			return
+		}
+		pulled := []map[string]any{
+			{"id": "m1", "body": string(body), "lease_id": "lease-1", "attempts": 0},
+			{"id": "m2", "body": "not an envelope", "lease_id": "lease-2", "attempts": 0},
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{"success": true, "errors": []any{}, "messages": []any{}, "result": map[string]any{"messages": pulled}})
+	}))
+	defer server.Close()
+	t.Setenv("CLOUDFLARE_BASE_URL", server.URL)
+	t.Setenv("CLOUDFLARE_API_TOKEN", "test")
+
+	deliveries, err := openQueue(t, "cloudflare://acct/q1?lease=30s").Receive(t.Context(), 10)
+	if err != nil || len(deliveries) != 1 || deliveries[0].ID != message.ID {
+		t.Fatalf("got %+v, %v, want the valid delivery", deliveries, err)
+	}
+}

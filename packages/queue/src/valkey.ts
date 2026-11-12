@@ -113,6 +113,7 @@ export class ValkeyQueue implements Queue {
   retryScript = script('retry');
   closeScript = script('close');
   ackScript = script('ack');
+  private releases: Promise<unknown> = Promise.resolve();
 
   constructor(client: GlideClusterClient, prefix: string, lease: number, maxAttempts: number) {
     this.client = client;
@@ -144,7 +145,7 @@ export class ValkeyQueue implements Queue {
       ],
       decoder: Decoder.Bytes
     }) as Promise<[Buffer, Buffer, number][]>;
-    // NOTE: GLIDE takes no signal, so stop waiting on abort; leased rows return after the lease
+    // NOTE: GLIDE takes no signal, so stop waiting on abort
     const aborted = Promise.withResolvers<undefined>();
     const onAbort = () => aborted.resolve(undefined);
     signal?.addEventListener('abort', onAbort);
@@ -154,7 +155,19 @@ export class ValkeyQueue implements Queue {
     } finally {
       signal?.removeEventListener('abort', onAbort);
     }
-    if (!rows) return [];
+    if (!rows) {
+      // NOTE: the script still runs once the server gets to it, so release what it leases then
+      const release = invocation
+        .then((leased) =>
+          this.settle(
+            0,
+            leased.map(([streamID, , attempt]) => [streamID.toString(), attempt])
+          )
+        )
+        .catch((error: unknown) => console.error('queue release failed', error));
+      this.releases = Promise.all([this.releases, release]);
+      return [];
+    }
     // NOTE: the lease starts when the script runs, which can be well after the call on a busy server
     const deadline = new Date(Date.now() + this.lease * 1000);
     const { deliveries, malformed } = decodeRows(
@@ -165,7 +178,10 @@ export class ValkeyQueue implements Queue {
       ]),
       deadline
     );
-    await this.delete(malformed as string[]);
+    // NOTE: a malformed message whose ack fails returns and is dropped again
+    await this.delete(malformed as string[]).catch((error: unknown) =>
+      console.error('queue failed to ack malformed messages', error)
+    );
     if (rows.length === 0) await sleep(EMPTY_POLL_DELAY, signal);
     return deliveries;
   }
@@ -184,16 +200,24 @@ export class ValkeyQueue implements Queue {
 
   async retry(delay: number, ...deliveries: Delivery[]): Promise<void> {
     checkDelay(delay);
-    if (deliveries.length === 0) return;
-    const args = [GROUP, String(delayMilliseconds(delay)), String(this.maxAttempts)];
-    for (const delivery of deliveries) {
-      args.push(delivery.handle as string, String(delivery.attempt));
+    await this.settle(
+      delayMilliseconds(delay),
+      deliveries.map((delivery) => [delivery.handle as string, delivery.attempt])
+    );
+  }
+
+  private async settle(delayMs: number, leases: [string, number][]): Promise<void> {
+    if (leases.length === 0) return;
+    const args = [GROUP, String(delayMs), String(this.maxAttempts)];
+    for (const [streamID, attempt] of leases) {
+      args.push(streamID, String(attempt));
     }
     await this.client.invokeScript(this.retryScript, { keys: this.keys, args });
   }
 
   async close(): Promise<void> {
     try {
+      await this.releases;
       await this.client.invokeScript(this.closeScript, {
         keys: [this.keys[0]],
         args: [GROUP, this.consumer]
