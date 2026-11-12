@@ -11,6 +11,12 @@ on:
         type: string
         default: '{}'
     outputs:
+      checks:
+        description: JSON list of the check groups to run.
+        value: ${{ jobs.detect.outputs.checks }}
+      kubernetes-config:
+        description: Whether to scan the Kubernetes manifests, 'true' or 'false'.
+        value: ${{ jobs.detect.outputs.kubernetes-config }}
       unit:
         description: JSON list of the unit test jobs to run.
         value: ${{ jobs.detect.outputs.unit }}
@@ -28,6 +34,8 @@ jobs:
   detect:
     runs-on: ubuntu-latest
     outputs:
+      checks: ${{ steps.set-checks-matrix.outputs.checks }}
+      kubernetes-config: ${{ steps.security-changes.outputs.kubernetes == 'true' }}
       unit: ${{ steps.set-unit-matrix.outputs.unit }}
       images: ${{ steps.set-image-matrix.outputs.images }}
       charts: ${{ steps.set-chart-matrix.outputs.charts }}
@@ -35,6 +43,91 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: checks-changes
+        if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            needs-node-setup: &needs-node-setup
+              - '.github/workflows/checks.yaml'
+              - '.github/actions/setup-node-pnpm/**'
+              - 'mise.toml'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+            needs-mise-setup: &needs-mise-setup
+              - '.github/workflows/checks.yaml'
+              - '.github/actions/setup-mise/**'
+              - 'mise.toml'
+            prettier:
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.js'
+              - '**/*.jsx'
+              - '**/*.svelte'
+              - '**/*.md'
+              - '**/*.json'
+              - '**/*.yaml'
+              - '**/*.yml'
+              - '**/*.css'
+              - '.prettierrc'
+              - '.prettierignore'
+              - 'scripts/format/**'
+              - *needs-node-setup
+            eslint:
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.js'
+              - '**/*.jsx'
+              - '**/*.svelte'
+              - 'eslint.config.ts'
+              - 'tsconfig.eslint.json'
+              - 'scripts/lint/**'
+              - *needs-node-setup
+            go:
+              - '**/*.go'
+              - '**/go.mod'
+              - '**/go.sum'
+              - 'go.work'
+              - 'go.work.sum'
+              - '.golangci.yaml'
+              - 'scripts/format/**'
+              - 'scripts/lint/**'
+              - *needs-mise-setup
+            shell:
+              - '**/*.sh'
+              - '.shellcheckrc'
+              - *needs-mise-setup
+            helm:
+              - '**/chart/**'
+              - 'scripts/lint/**'
+              - *needs-mise-setup
+            actions:
+              - '.github/workflows/**'
+              - '.github/actions/**'
+            renovate:
+              - 'renovate.json'
+              - 'renovate.json5'
+              - '.renovaterc'
+              - '.renovaterc.json'
+              - '.renovaterc.json5'
+              - '.github/workflows/checks.yaml'
+            infra:
+              - 'infra/**'
+              - 'sst.config.ts'
+              - 'tsconfig.json'
+              - *needs-node-setup
+
+      - id: security-changes
+        if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            kubernetes:
+              - 'k3s/**'
+              - 'apps/*/kube/**'
+              - '.github/workflows/security.yaml'
 
       - id: unit-changes
         if: github.event_name != 'workflow_dispatch'
@@ -127,6 +220,13 @@ jobs:
               - 'packages/valkey/**'
               - 'k3s/base/core/valkey.yaml'
               - *needs-e2e-setup
+
+      - id: set-checks-matrix
+        run: |
+          all='["prettier","eslint","go","shell","helm","actions","renovate","infra"]'
+          selected='${{ steps.checks-changes.outputs.changes || '[]' }}'
+          checks=$(jq -c --argjson sel "${selected}" 'map(select(. as $group | $sel | index($group)))' <<<"${all}")
+          echo "checks=${checks}" >> "${GITHUB_OUTPUT}"
 
       - id: set-unit-matrix
         run: |

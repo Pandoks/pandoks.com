@@ -59,14 +59,16 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
 
 ## How changes ship
 
-- PRs run `checks.yaml`, `security.yaml`, and `pipeline.yaml`, which runs on every branch push:
-  `changes.yaml` decides from the changed paths (or a manual run's checkboxes) what runs, and the
-  pipeline calls only the reusable workflows that have work: `tests.yaml` (unit tests), `build.yaml`
-  (images as run artifacts), `e2e.yaml` (k3d suites with the images the run built), and
-  `publish.yaml` (branch-tagged GHCR images and charts, only after the unit tests and suites pass);
-  plus a Cloudflare Pages preview of `apps/web`, and `claude-review.yaml` (one Agent SDK
-  `/code-review` per PR, posted as one review with inline comments). Required checks are the
-  `*-pass` aggregates, and a PR must be up to date with `main` to merge.
+- Every branch push runs `pipeline.yaml`: `changes.yaml` decides from the changed paths (or a manual
+  run's checkboxes) what runs, and the pipeline calls only the reusable workflows that have work:
+  `checks.yaml` (format, lint, type checks), `security.yaml` (Trivy on the Kubernetes manifests),
+  `tests.yaml` (unit tests), `build.yaml` (images as run artifacts), `e2e.yaml` (k3d suites with the
+  images the run built), and `publish.yaml` (branch-tagged GHCR images and charts, only after
+  everything else passed). Workflows with their own trigger stay standalone: `claude-review.yaml` on
+  PRs (one Agent SDK `/code-review` per PR, posted as one review with inline comments),
+  `security-nightly.yaml` (the manifests and published images, daily), and the ones below;
+  Cloudflare Pages also builds a preview of `apps/web`. Required checks are the `*-pass` aggregates
+  in `pipeline.yaml`, and a PR must be up to date with `main` to merge.
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
   deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
@@ -243,7 +245,7 @@ that can't happen, or for compatibility code for old data or deploy order during
     for shell variables in embedded scripts);
   - a new first-party image or chart missing from `changes.yaml`'s path filters or matrix, or from
     the `branch-cleanup.yaml` and `maintenance.yaml` matrices, or a new first-party image missing
-    from the `security.yaml` scan;
+    from the `security-nightly.yaml` scan;
   - a new tested package missing its filter in `changes.yaml` and its job in `tests.yaml`, a new CI
     job missing from its `*-pass` aggregate's `needs` (scheduled-only jobs excepted), or a new
     aggregate missing from `requiredStatusChecks` in `infra/github.ts`;

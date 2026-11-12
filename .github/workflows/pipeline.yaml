@@ -64,6 +64,21 @@ jobs:
     with:
       dispatch: ${{ toJSON(inputs) }}
 
+  checks:
+    needs: changes
+    uses: ./.github/workflows/checks.yaml
+    with:
+      jobs: ${{ needs.changes.outputs.checks }}
+
+  security:
+    needs: changes
+    if: needs.changes.outputs.kubernetes-config == 'true'
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    uses: ./.github/workflows/security.yaml
+
   tests:
     needs: changes
     if: needs.changes.outputs.unit != '[]'
@@ -94,11 +109,14 @@ jobs:
   publish:
     needs:
       - changes
+      - checks
+      - security
       - tests
       - build
       - e2e
     if: >-
-      !cancelled() && needs.changes.result == 'success' &&
+      !cancelled() && needs.changes.result == 'success' && needs.checks.result == 'success' &&
+      (needs.security.result == 'success' || needs.security.result == 'skipped') &&
       (needs.tests.result == 'success' || needs.tests.result == 'skipped') &&
       (needs.build.result == 'success' || needs.build.result == 'skipped') &&
       (needs.e2e.result == 'success' || needs.e2e.result == 'skipped') &&
@@ -112,6 +130,26 @@ jobs:
     with:
       images: ${{ needs.changes.outputs.images }}
       charts: ${{ needs.changes.outputs.charts }}
+
+  checks-pass:
+    needs:
+      - changes
+      - checks
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
+
+  security-pass:
+    needs:
+      - changes
+      - security
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
 
   tests-pass:
     needs:
