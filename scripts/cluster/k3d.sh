@@ -17,6 +17,11 @@ cmd_deps() {
       docker compose -f ./docker-compose.yaml -p deps down
       log_ok "docker compose dependencies stopped"
       ;;
+    destroy)
+      echo "Removing docker compose dependencies and their volumes..."
+      docker compose -f ./docker-compose.yaml -p deps down --volumes
+      log_ok "docker compose dependencies and volumes removed"
+      ;;
     restart)
       echo "Restarting docker compose dependencies..."
       docker compose -f ./docker-compose.yaml -p deps down
