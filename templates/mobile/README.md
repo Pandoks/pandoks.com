@@ -18,7 +18,7 @@ locally, and no release build job exists yet. Rebuild `android/` so prebuild cop
 ```sh
 rm -rf android
 pnpm --dir ../.. sst shell --stage <stage> -- \
-  pnpm --filter @pandoks.com/mobile-template android --variant release
+  pnpm --filter @pandoks.com/mobile android --variant release
 ```
 
 Run from this directory:
