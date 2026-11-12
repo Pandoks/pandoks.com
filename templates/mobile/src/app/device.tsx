@@ -1,4 +1,4 @@
-import { ModuleTemplate, ModuleTemplateView } from '@pandoks.com/react-native-module-template';
+import { ModuleTemplate, ModuleTemplateView } from '@pandoks.com/react-native-module';
 import { useEvent } from 'expo';
 import { useTheme } from 'expo-router';
 import { useEffect } from 'react';
