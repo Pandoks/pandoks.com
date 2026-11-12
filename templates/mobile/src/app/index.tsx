@@ -4,7 +4,7 @@ import { type ComponentRef, useLayoutEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Screen } from '../components/screen';
+import { Screen } from '@/components/screen';
 
 const cardTitles = ['Inbox', 'Today', 'Upcoming', 'Projects', 'Archive', 'Trash'];
 

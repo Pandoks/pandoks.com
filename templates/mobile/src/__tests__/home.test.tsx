@@ -3,7 +3,7 @@ import { type ComponentRef } from 'react';
 import { Dimensions, type StyleProp, StyleSheet, View, type ViewStyle } from 'react-native';
 import { fireEvent, renderRouter, screen, within } from 'expo-router/testing-library';
 
-import HomeScreen from '../app/index';
+import HomeScreen from '@/app/index';
 
 let mockRegions: ReservedRegion[] = [];
 jest.mock('@pandoks.com/react-native-reserved-regions', () => ({
