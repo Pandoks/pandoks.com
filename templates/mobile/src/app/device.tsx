@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Screen } from '../components/screen';
+import { Screen } from '@/components/screen';
 
 export default function DeviceScreen() {
   const colorScheme = useColorScheme();

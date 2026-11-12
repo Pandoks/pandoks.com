@@ -150,12 +150,12 @@ jobs:
               - 'packages/svelte/**'
               - *needs-node-setup
             desktop:
-              - 'apps/desktop-template/**'
+              - 'templates/desktop/**'
               - 'packages/svelte/**'
               - *needs-node-setup
             mobile-template:
               - '.github/actions/setup-mise/**'
-              - 'apps/mobile-template/**'
+              - 'templates/mobile/**'
               - 'packages/react-native-*/**'
               - *needs-node-setup
             svelte:

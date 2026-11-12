@@ -17,5 +17,5 @@ To start a new module:
 3. Add `"@pandoks.com/react-native-<name>": "workspace:*"` to the app's dependencies, and
    `["@pandoks.com/react-native-<name>", { "greeting": "…" }]` to `plugins` in its `app.json` if you
    kept `app.plugin.js`, then `pnpm install`.
-4. From `apps/mobile-template`, run `pnpm exec expo prebuild --clean`, then `pnpm ios` and
+4. From `templates/mobile`, run `pnpm exec expo prebuild --clean`, then `pnpm ios` and
    `pnpm android`; native code doesn't hot-reload.
