@@ -2,7 +2,7 @@
 
 Phone side of the Apple Watch bridge, an [Expo module](https://docs.expo.dev/modules/module-api)
 over [WatchConnectivity](https://developer.apple.com/documentation/watchconnectivity). The watch
-side lives in the app's watchOS target, like `apps/mobile-template/targets/watch`.
+side lives in the app's watchOS target, like `templates/mobile/targets/watch`.
 
 `Watch` is `null` on Android until Wear OS support, and on iPads, which can't pair a watch.
 Otherwise it has:

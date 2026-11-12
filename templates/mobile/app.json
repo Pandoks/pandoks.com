@@ -9,6 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.pandoks.mobiletemplate",
+      "icon": "./assets/expo.icon",
       "supportsTablet": true
     },
     "android": {

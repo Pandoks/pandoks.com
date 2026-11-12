@@ -39,10 +39,10 @@ yarn.lock
 dist/
 web-build/
 expo-env.d.ts
-apps/mobile-template/ios/
-apps/mobile-template/android/
-apps/mobile-template/targets/*/Info.plist
-apps/mobile-template/targets/*/Assets.xcassets/
+templates/mobile/ios/
+templates/mobile/android/
+templates/mobile/targets/*/Info.plist
+templates/mobile/targets/*/Assets.xcassets/
 
 # Native
 .kotlin/
