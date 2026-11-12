@@ -10,8 +10,8 @@ import (
 
 var httpClient = &http.Client{Timeout: 10 * time.Second}
 
-func GetShardConfigURL(db string, shard int) string {
-	return fmt.Sprintf("http://patroni-%s-api-shard-%d:8008/config", db, shard)
+func GetGroupConfigURL(db string, group int) string {
+	return fmt.Sprintf("http://patroni-%s-api-group-%d:8008/config", db, group)
 }
 
 func PatchConfig(configURL string, password string, parameters map[string]any) (retry bool, err error) {

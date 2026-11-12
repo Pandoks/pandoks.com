@@ -1,6 +1,6 @@
 # PostgreSQL High-Availability Cluster
 
-Production-ready PostgreSQL cluster with automatic failover, connection pooling, sharding, and
+Production-ready PostgreSQL cluster with automatic failover, connection pooling, Citus sharding, and
 continuous backups.
 
 ## Architecture
@@ -12,55 +12,54 @@ graph TB
     end
 
     subgraph "Connection Layer - Port 6432"
-        PgDog[PgDog Connection Pooler<br/>2+ replicas]
+        PgBouncer[PgBouncer<br/>2+ replicas]
     end
 
-    subgraph "Shard 0"
-        S0P[Patroni Pod 0-0<br/>Primary]
-        S0R1[Patroni Pod 0-1<br/>Replica]
-        S0R2[Patroni Pod 0-2<br/>Replica]
+    subgraph "Group 0 - Coordinator"
+        G0P[Patroni Pod 0-0<br/>Primary]
+        G0R1[Patroni Pod 0-1<br/>Replica]
+        G0R2[Patroni Pod 0-2<br/>Replica]
     end
 
-    subgraph "Shard 1"
-        S1P[Patroni Pod 1-0<br/>Primary]
-        S1R1[Patroni Pod 1-1<br/>Replica]
-        S1R2[Patroni Pod 1-2<br/>Replica]
+    subgraph "Group 1 - Worker"
+        G1P[Patroni Pod 1-0<br/>Primary]
+        G1R1[Patroni Pod 1-1<br/>Replica]
     end
 
-    subgraph "Shard N..."
-        SNP[Patroni Pod N-0<br/>Primary]
+    subgraph "Group N - Worker..."
+        GNP[Patroni Pod N-0<br/>Primary]
     end
 
     subgraph "Backup System"
-        BackupJobs[Backup CronJobs<br/>Per Shard]
+        BackupJobs[Backup CronJobs<br/>Per Group]
+        RestorePoint[Restore Point CronJob]
         S3[S3 Storage<br/>Encrypted]
     end
 
-    App -->|client user| PgDog
-    PgDog -->|Writes| S0P
-    PgDog -->|Writes| S1P
-    PgDog -->|Reads| S0R1
-    PgDog -->|Reads| S1R1
+    App -->|client user| PgBouncer
+    PgBouncer -->|myapp| G0P
+    PgBouncer -->|myapp_replicas| G0R1
+    G0P -->|Citus distributed queries| G1P
+    G0P -->|Citus distributed queries| GNP
 
-    S0P -.->|Streaming Replication| S0R1
-    S0P -.->|Streaming Replication| S0R2
-    S1P -.->|Streaming Replication| S1R1
-    S1P -.->|Streaming Replication| S1R2
+    G0P -.->|Streaming Replication| G0R1
+    G0P -.->|Streaming Replication| G0R2
+    G1P -.->|Streaming Replication| G1R1
 
-    BackupJobs -->|TLS| S0R1
-    BackupJobs -->|TLS| S1R1
-    BackupJobs -.->|TLS if no replica is up| S0P
-    BackupJobs -.->|TLS if no replica is up| S1P
+    BackupJobs -->|TLS| G0R1
+    BackupJobs -->|TLS| G1R1
+    BackupJobs -.->|TLS if no replica is up| G0P
+    BackupJobs -.->|TLS if no replica is up| G1P
     BackupJobs --> S3
+    RestorePoint --> G0P
 
-    style S0P fill:#90EE90
-    style S1P fill:#90EE90
-    style SNP fill:#90EE90
-    style S0R1 fill:#87CEEB
-    style S0R2 fill:#87CEEB
-    style S1R1 fill:#87CEEB
-    style S1R2 fill:#87CEEB
-    style PgDog fill:#FFD700
+    style G0P fill:#90EE90
+    style G1P fill:#90EE90
+    style GNP fill:#90EE90
+    style G0R1 fill:#87CEEB
+    style G0R2 fill:#87CEEB
+    style G1R1 fill:#87CEEB
+    style PgBouncer fill:#FFD700
 ```
 
 ## Components
@@ -68,38 +67,53 @@ graph TB
 ### Patroni (High Availability)
 
 - **PostgreSQL 18** with automatic failover
-- **Sharding support** - multiple independent shards
-- **3 pods per shard** (1 primary + 2 replicas, configurable) with streaming replication
+- **One Patroni cluster per Citus group** - group 0 is the coordinator, groups 1..n are workers, all
+  sharing one Patroni `scope` (the database name)
+- **3 pods per group** (1 primary + 2 replicas, configurable) with quorum synchronous replication,
+  which Patroni enables for Citus
 - **Leader election** via Kubernetes endpoints
 - **Automatic recovery** from node failures
-- **Extensions** - pg_cron, pgvector, PostGIS, and pg_stat_statements are available in the image.
-  Fresh bootstrap attempts to create `pg_stat_statements` in the application database; create the
-  other extensions in the target database as needed.
+- **Extensions** - Citus, pg_cron, pgvector, PostGIS, and pg_stat_statements are available in the
+  image. Fresh bootstrap creates `citus` and `pg_stat_statements` in the application database;
+  create the other extensions on the coordinator as needed.
 
-### PgDog (Connection Pooling & Sharding)
+### Citus (Sharding)
 
-- **Connection pooling** - transaction-level pooling
-- **Automatic sharding** - routes queries to correct shard based on sharding key
-- **Read/write splitting** - writes to primary, reads to replicas
-- **Auto role detection** - detects primary/replica via `pg_is_in_recovery()`
-- **Load balancing** - least active connections strategy
+- **Native Patroni support** ([docs](https://patroni.readthedocs.io/en/latest/citus.html)) - Patroni
+  creates the extension, registers workers in `pg_dist_node`, and updates it on every failover and
+  switchover
+- **Starts single-node** - with `patroni.workers: 0` the coordinator holds every shard, so
+  distributed and reference tables work from day one
+- **Scales out** by adding worker groups and rebalancing shards onto them (see [Scaling](#scaling))
+
+### PgBouncer (Connection Pooling)
+
+- **Transaction pooling** in front of the coordinator primary
+- **Read-only pool** - the `<db>_replicas` database points at the coordinator's replicas, with
+  `default_transaction_read_only` on so a pooled connection to a promoted replica still can't write.
+  Once workers exist, only tables on the coordinator are read from those replicas: Citus reads the
+  workers' shards from their primaries, since `citus.use_secondary_nodes` defaults to `never`
+- **Authenticates** with `admin` and `client` from the database secret's `userlist.txt`
 
 ### pgBackRest (Backup & Recovery)
 
-- **Per-shard backups** - each shard has its own stanza, backed up from the first running replica
-  pgBackRest finds among the shard's pods (each listed by its DNS name), or from the primary if none
-  is up
+- **Per-group backups** - each group has its own stanza (`myapp-group-N`), backed up from the first
+  running replica pgBackRest finds among the group's pods (each listed by its DNS name), or from the
+  primary if none is up
 - **Automated schedules** - full, differential, and incremental backups
-- **Point-in-time recovery** - restore to any moment
+- **Cluster-wide restore points** - a CronJob runs `citus_create_restore_point()`, the only targets
+  every group can be restored to consistently
 - **Encryption** - AES-256-CBC for all backups
 - **S3-compatible storage** - works with AWS S3, MinIO, S3Mock
-- **Restore on bootstrap** - a new shard whose stanza already has a full backup restores it instead
+- **Restore on bootstrap** - a new group whose stanza already has a full backup restores it instead
   of starting empty, with the chart's `postgresql.conf` and `pg_hba.conf` instead of the backup's,
-  and without the backup's `ALTER SYSTEM` settings. It waits for WAL replay however long it takes,
-  retrying repo errors every 10 seconds until only a missing segment ends it, then takes a full
-  backup for its replicas. If the container restarts mid-replay, it finishes the replay and takes
-  that backup before Patroni starts. If the repo can't be read, the bootstrap fails instead of
-  starting empty
+  and without the backup's `ALTER SYSTEM` settings other than Citus's `ssl`. It waits for WAL replay
+  however long it takes, retrying repo errors every 10 seconds until only a missing segment ends it,
+  then takes a full backup for its replicas. If the container restarts mid-replay, it finishes the
+  replay and takes that backup before Patroni starts. If the repo can't be read, the bootstrap fails
+  instead of starting empty. Replaying to the end of its own archived WAL is only consistent when a
+  single worker group is lost; after losing the coordinator or several groups, follow
+  [PITR](#point-in-time-recovery-pitr) instead
 
 ### Monitoring
 
@@ -109,20 +123,23 @@ graph TB
 
 ## Users & Permissions
 
-| User         | Purpose               | Intended access                                  |
-| ------------ | --------------------- | ------------------------------------------------ |
-| `postgres`   | Superuser             | Full access, remote logins only to `postgres` db |
-| `admin`      | Schema management     | CREATE/ALTER/DROP in `public`, remote access     |
-| `client`     | Application queries   | SELECT/INSERT/UPDATE/DELETE                      |
-| `replicator` | Streaming replication | Replication only                                 |
-| `patroni`    | Patroni REST API      | Health checks, failover                          |
+| User         | Purpose               | Intended access                                     |
+| ------------ | --------------------- | --------------------------------------------------- |
+| `postgres`   | Superuser             | Full access; Citus uses it between nodes            |
+| `admin`      | Schema management     | CREATE/ALTER/DROP in `public`, remote access        |
+| `client`     | Application queries   | SELECT/INSERT/UPDATE/DELETE                         |
+| `replicator` | Streaming replication | Replication only                                    |
+| `patroni`    | Patroni REST API      | Health checks, failover, worker to coordinator APIs |
 
-The initializer applies these privileges in the application database, and `client` automatically
-gets its access to tables, sequences, and functions that `admin` creates in `public`.
+The initializer creates `admin` and `client` in the application database on every group, since Citus
+connects between nodes as the querying user with the passwords in each node's `pg_dist_authinfo`,
+which it doesn't sync. Their grants are made on the coordinator and Citus copies them to every
+worker. `client` automatically gets its access to tables, sequences, and functions that `admin`
+creates in `public`.
 
 **Security Note:** Remote logins (pod network only) to the application database are limited to
-`admin` and `client` (see `pg_hba` in [patroni.yaml](./chart/files/patroni.yaml)). Use `admin` for
-schema changes and `client` for applications.
+`postgres`, `admin` and `client` (see `pg_hba` in [patroni.yaml](./chart/files/patroni.yaml)). Use
+`admin` for schema changes and `client` for applications.
 
 ## Requirements
 
@@ -137,7 +154,7 @@ The chart expects these to already be in the cluster (all provided by [k3s](/k3s
 
 ### 1. Create Secrets
 
-The database secret is also mounted by PgDog, so it needs a `users.toml` key. Declare the `myapp`
+PgBouncer mounts the database secret's `userlist.txt` key as its `auth_file`. Declare the `myapp`
 Namespace in the app's `namespaces.yaml` and add both secrets to its `credentials.yaml`, each listed
 in the app's `kustomization.yaml` (see [apps/example/kube](/apps/example/kube)). The `${...}` values
 are SST secrets defined in [infra/secrets.ts](/infra/secrets.ts).
@@ -155,16 +172,9 @@ stringData:
   CLIENT_PASSWORD: ${MyappMyappPostgresClientPassword | quote}
   REPLICATION_PASSWORD: ${MyappMyappPostgresReplicationPassword | quote}
   PATRONI_PASSWORD: ${MyappMyappPostgresPatroniPassword | quote}
-  users.toml: |
-    [[users]]
-    name = "admin"
-    database = "myapp"
-    password = "${MyappMyappPostgresAdminPassword}"
-
-    [[users]]
-    name = "client"
-    database = "myapp"
-    password = "${MyappMyappPostgresClientPassword}"
+  userlist.txt: |
+    "admin" ${MyappMyappPostgresAdminPassword | pgbouncer}
+    "client" ${MyappMyappPostgresClientPassword | pgbouncer}
 
 ---
 apiVersion: v1
@@ -189,7 +199,7 @@ metadata:
   namespace: kube-system
 spec:
   chart: oci://${ImageRegistry}/charts/postgres
-  version: 0.1.6
+  version: 0.2.0
   targetNamespace: &namespace myapp
   createNamespace: true
   failurePolicy: abort
@@ -202,8 +212,8 @@ spec:
     backup.image: ${ImageRegistry}/pgbackrest:${ImageTag}
     patroni.image: ${ImageRegistry}/patroni:${ImageTag}
     patroni.reconcilerImage: ${ImageRegistry}/postgres-reconciler:${ImageTag}
-    patroni.shards: 1
-    patroni.replicasPerShard: 3
+    patroni.workers: 0
+    patroni.replicasPerGroup: 3
 ```
 
 Add the file to `apps/myapp/kube/kustomization.yaml` and `apps/myapp/kube` to
@@ -232,79 +242,102 @@ spec:
     tolerations[0].effect: NoSchedule
 ```
 
-### 3. Configure Sharding (Optional)
-
-To enable sharding, add sharded tables configuration:
-
-```yaml
-spec:
-  set:
-    patroni.shards: 3
-  valuesContent: |-
-    pgdog:
-      shardedTables:
-        - database: myapp
-          name: users
-          column: id
-          dataType: bigint
-```
-
-**Supported data types for sharding:** `bigint`, `uuid`, `varchar`, `vector`
-
 ## Connecting to PostgreSQL
 
-### Application Connection (via PgDog)
+### Application Connection (via PgBouncer)
 
 ```bash
-# Connection string
-postgresql://client:CLIENT_PASSWORD@myapp-pgdog:6432/myapp
+# Reads and writes, on the coordinator primary
+postgresql://client:CLIENT_PASSWORD@myapp-pgbouncer:6432/myapp
+
+# Reads only, on the coordinator replicas
+postgresql://client:CLIENT_PASSWORD@myapp-pgbouncer:6432/myapp_replicas
 
 # Using psql from a pod
 kubectl exec -it -n myapp deployment/myapp -- \
-  psql -h myapp-pgdog -p 6432 -U client -d myapp
+  psql -h myapp-pgbouncer -p 6432 -U client -d myapp
 ```
+
+PgBouncer runs in transaction mode, so session state (`SET`, advisory locks, `LISTEN`) doesn't
+survive between transactions. Set `pgbouncer.settings` for any
+[PgBouncer setting](https://www.pgbouncer.org/config.html).
 
 ### Admin Connection (Direct)
 
+Schema changes go to the coordinator primary, and Citus applies them to every worker. Find that pod
+and connect:
+
 ```bash
-# Connect to the shard's primary for schema changes (check `patronictl list` for the current leader)
-kubectl exec -it -n myapp patroni-myapp-shard-0-0 -c patroni -- \
-  psql -U admin -d myapp
+coordinator="$(kubectl get pod -n myapp -l app=patroni-myapp,citus-group=0,role=primary -o name)"
+
+kubectl exec -it -n myapp "${coordinator}" -c patroni -- psql -U admin -d myapp
 ```
+
+## Schema Design
+
+Citus spreads a **distributed table** across shards by its distribution column, and copies a
+**reference table** to every node. Plain tables stay on the coordinator.
+
+```sql
+CREATE TABLE events (
+  tenant_id bigint,
+  id bigint,
+  payload jsonb,
+  PRIMARY KEY (tenant_id, id)
+);
+SELECT create_distributed_table('events', 'tenant_id');
+
+CREATE TABLE countries (code text PRIMARY KEY, name text);
+SELECT create_reference_table('countries');
+```
+
+- Every primary key and unique constraint on a distributed table must include its distribution
+  column, since Citus can only enforce uniqueness within a shard.
+- Pick a distribution column most queries filter on (like a tenant id) and use the same one for
+  tables you join, so joins stay on one node. Distribute related tables with
+  `colocate_with => '<table>'`.
+- Use reference tables for small lookup tables that distributed tables join or reference with
+  foreign keys.
+
+See [Citus table types](https://docs.citusdata.com/en/stable/develop/migration.html).
 
 ## Common Operations
 
 ### Check Cluster Status
 
 ```bash
-# Check shard 0 (repeat for each shard)
-kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
+# Every group, coordinator and workers
+kubectl exec -n myapp patroni-myapp-group-0-0 -c patroni -- \
   patronictl -c /etc/patroni/patroni.yaml list
 
-# Check PgDog role detection
-kubectl exec -n myapp deploy/myapp-pgdog -- \
-  curl -s http://127.0.0.1:9090/metrics | grep "role="
+# Nodes Citus routes to
+coordinator="$(kubectl get pod -n myapp -l app=patroni-myapp,citus-group=0,role=primary -o name)"
+kubectl exec -n myapp "${coordinator}" -c patroni -- psql -d myapp -c "SELECT * FROM pg_dist_node;"
 ```
 
 ### Manual Failover
 
 ```bash
-# Switchover to specific replica
-kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
-  patronictl -c /etc/patroni/patroni.yaml switchover \
-  --leader patroni-myapp-shard-0-0 \
-  --candidate patroni-myapp-shard-0-1 \
+# Switchover within a group
+kubectl exec -n myapp patroni-myapp-group-0-0 -c patroni -- \
+  patronictl -c /etc/patroni/patroni.yaml switchover --group 0 \
+  --leader patroni-myapp-group-0-0 \
+  --candidate patroni-myapp-group-0-1 \
   --force
 ```
+
+Patroni updates `pg_dist_node` on the coordinator, so queries resume through PgBouncer. During a
+worker switchover Citus pauses queries to that worker instead of failing them. When a pod dies
+instead, queries to its group can fail for up to `citus.node_connection_timeout` (30 s).
 
 ### Change Postgres Settings
 
 Set `patroni.parameters` in the HelmChart. New clusters start with them, restored ones included, and
 after every install, upgrade and rollback a [reconciler](./reconciler) Job (`apply-parameters`)
-applies them to each running shard; a shard that's still bootstrapping or restoring counts as done.
+applies them to each running group; a group that's still bootstrapping or restoring counts as done.
 A restore resumed after a container restart is the exception: Patroni doesn't start until the replay
 and full backup finish, so the Job gets no answer and holds the release until then, failing it after
-Helm's 300s timeout. With `failurePolicy: abort` the release then stays failed; once the shard's
+Helm's 300s timeout. With `failurePolicy: abort` the release then stays failed; once the group's
 Patroni runs, roll back to the failed revision, which reruns the Job with the same values, and the
 HelmChart's next retry exits cleanly:
 
@@ -313,13 +346,13 @@ helm history -n myapp myapp-postgres-myapp-cluster # the failed revision, e.g. 4
 helm rollback -n myapp myapp-postgres-myapp-cluster 4
 ```
 
-A change made while a shard bootstraps reaches it only on the next release. Settings Postgres can
+A change made while a group bootstraps reaches it only on the next release. Settings Postgres can
 reload, like `work_mem`, take effect within seconds. Ones that need a restart, like
-`shared_buffers`, show under `Pending restart` until you restart the shard in place:
+`shared_buffers`, show under `Pending restart` until you restart each group in place:
 
 ```bash
-kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
-  patronictl -c /etc/patroni/patroni.yaml restart myapp-shard-0 --pending --force
+kubectl exec -n myapp patroni-myapp-group-0-0 -c patroni -- \
+  patronictl -c /etc/patroni/patroni.yaml restart myapp --group 0 --pending --force
 ```
 
 The Job also succeeds on a misspelled name or invalid value: Patroni skips it and only logs that in
@@ -330,283 +363,268 @@ with its logs, so follow them during the release:
 kubectl logs -n myapp job/patroni-myapp-parameters -f
 ```
 
+### Upgrading Citus
+
+A Citus patch release only needs the new image. After a minor or major release rolls out, Citus
+refuses distributed queries until its extension is updated on every group's primary and then
+finished on the coordinator
+([docs](https://docs.citusdata.com/en/stable/admin_guide/upgrading_citus.html)):
+
+```bash
+for primary in $(kubectl get pod -n myapp -l app=patroni-myapp,role=primary -o name); do
+  kubectl exec -n myapp "${primary}" -c patroni -- psql -d myapp -c "ALTER EXTENSION citus UPDATE;"
+done
+
+coordinator="$(kubectl get pod -n myapp -l app=patroni-myapp,citus-group=0,role=primary -o name)"
+kubectl exec -n myapp "${coordinator}" -c patroni -- \
+  psql -d myapp -c "CALL citus_finish_citus_upgrade();"
+```
+
 ### Backup Operations
 
 ```bash
-# Trigger manual backup
-kubectl create job --from=cronjob/myapp-shard-0-pgbackrest-backup-full manual-backup -n myapp
+# Trigger manual backup (repeat for each group)
+kubectl create job --from=cronjob/myapp-group-0-pgbackrest-backup-full manual-backup -n myapp
 
 # Check backup status
-kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
-  pgbackrest --stanza=myapp-shard-0 info
+kubectl exec -n myapp patroni-myapp-group-0-0 -c patroni -- \
+  pgbackrest --stanza=myapp-group-0 info
 
-# List all backups
-kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
-  pgbackrest --stanza=myapp-shard-0 info --output=json
+# Create a restore point now
+kubectl create job --from=cronjob/myapp-citus-restore-point manual-restore-point -n myapp
 ```
 
 ### Point-in-Time Recovery (PITR)
 
-PITR allows you to restore a shard to any specific moment in time. This is useful for recovering
-from accidental data deletion or corruption.
+Each group has its own WAL, so restoring groups to the same timestamp can split a distributed
+transaction. Restore every group to the same **restore point** instead: a named WAL record
+`citus_create_restore_point()` writes on every node while it blocks distributed commits.
 
-#### Step 1: Identify Target Time
+#### Step 1: Pick a Restore Point and Backups
 
-First, determine the exact timestamp you want to recover to:
+The `myapp-citus-restore-point` CronJob creates one every `backup.restorePointSchedule`, named after
+the UTC second its attempt ran (`YYYYMMDDTHHMMSSZ`, like `20260115T143000Z`). A failed attempt can
+leave its name on some groups, so pick one a run logged; the last three runs log theirs:
 
 ```bash
-# List available backups and their time ranges
-kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
-  pgbackrest --stanza=myapp-shard-0 info
-
-# Output shows backup timestamps and WAL archive range
-# Example: archive start/stop: 000000010000000000000001/00000001000000000000000A
+kubectl get jobs -n myapp -o name | grep citus-restore-point | xargs -n 1 kubectl logs -n myapp
 ```
 
-The recovery point must be:
+After losing groups, use the newest restore point every group has archived. A group archives its WAL
+at least every `archive_timeout` (5 minutes), so pick one created at least that long before the
+loss; Step 4 fails for a group that doesn't have it.
 
-- After the oldest backup's completion time
-- Before the latest WAL archive timestamp
-- In ISO 8601 format: `YYYY-MM-DD HH:MM:SS+TZ`
-
-#### Step 2: Stop the Shard
-
-Before restoring, you must stop all pods in the target shard to prevent data conflicts:
+For each group, pick a backup that finished before the restore point, since pgBackRest restores the
+latest backup by default:
 
 ```bash
-# Scale down the shard's StatefulSet to 0
-kubectl scale statefulset patroni-myapp-shard-0 -n myapp --replicas=0
-
-# Wait for all pods to terminate
-kubectl wait --for=delete pod -l cluster-name=myapp-shard-0 -n myapp --timeout=120s
+kubectl exec -n myapp patroni-myapp-group-0-0 -c patroni -- \
+  pgbackrest --stanza=myapp-group-0 info
 ```
 
-#### Step 3: Prepare a Recovery Pod
+#### Step 2: Stop Every Group
 
-Create a temporary pod from the StatefulSet's `patroni` container so it has the same env, config,
-and volumes, with pod 0's PVCs mounted:
+Stop the workers first, since a worker primary notifies the coordinator before it stops:
 
 ```bash
-kubectl get statefulset patroni-myapp-shard-0 -n myapp -o json | jq '. as $sts | {
-  apiVersion: "v1",
-  kind: "Pod",
-  metadata: { name: "pitr-restore", namespace: .metadata.namespace },
-  spec: (.spec.template.spec
-    | .containers |= map(select(.name == "patroni") | .args = ["sleep", "infinity"] | del(.readinessProbe))
-    | .volumes += [$sts.spec.volumeClaimTemplates[].metadata.name
-        | { name: ., persistentVolumeClaim: { claimName: "\(.)-\($sts.metadata.name)-0" } }])
-}' | kubectl apply -f -
-
-kubectl wait --for=condition=Ready pod/pitr-restore -n myapp --timeout=120s
-kubectl exec -it pitr-restore -n myapp -- bash
+for worker in $(kubectl get statefulset -n myapp -l 'app=patroni-myapp,citus-group!=0' -o name); do
+  kubectl scale -n myapp "${worker}" --replicas=0
+done
+kubectl wait --for=delete pod -n myapp -l 'app=patroni-myapp,citus-group!=0' --timeout=300s
+kubectl scale statefulset -n myapp patroni-myapp-group-0 --replicas=0
+kubectl wait --for=delete pod -n myapp -l app=patroni-myapp --timeout=300s
 ```
 
-#### Step 4: Perform PITR Restore
+#### Step 3: Prepare a Recovery Pod per Group
 
-Inside the recovery pod, run pgbackrest restore with the target time. `delta=y` is set in
-`pgbackrest.conf`, so the restore overwrites the existing data directory in place. The
-`restore_command` retries while the repo is unreachable, as on bootstrap, so an outage can't end
-replay early; a missing segment still does:
+Create a temporary pod from each group's StatefulSet `patroni` container so it has the same env,
+config, and volumes, with pod 0's PVCs mounted:
 
 ```bash
-# Restore to specific point in time
-pgbackrest --stanza=myapp-shard-0 \
-  --type=time \
-  --target="2024-01-15 14:30:00+00" \
-  --target-action=promote \
-  --recovery-option="restore_command=until pgbackrest --stanza=myapp-shard-0 archive-get %f \"%p\"; do [ \$? -eq 1 ] && exit 1; sleep 10; done" \
-  restore
+groups="$(kubectl get statefulset -n myapp -l app=patroni-myapp -o jsonpath='{.items[*].metadata.labels.citus-group}')"
 
-# Alternative: Restore to the end of the archived WAL (latest state)
-pgbackrest --stanza=myapp-shard-0 \
-  --type=default \
-  --recovery-option="restore_command=until pgbackrest --stanza=myapp-shard-0 archive-get %f \"%p\"; do [ \$? -eq 1 ] && exit 1; sleep 10; done" \
-  restore
+for group in ${groups}; do
+  kubectl get statefulset "patroni-myapp-group-${group}" -n myapp -o json | jq --arg group "${group}" '. as $sts | {
+    apiVersion: "v1",
+    kind: "Pod",
+    metadata: { name: "pitr-restore-\($group)", namespace: .metadata.namespace },
+    spec: (.spec.template.spec
+      | .containers |= map(select(.name == "patroni") | .args = ["sleep", "infinity"] | del(.readinessProbe))
+      | .volumes += [$sts.spec.volumeClaimTemplates[].metadata.name
+          | { name: ., persistentVolumeClaim: { claimName: "\(.)-\($sts.metadata.name)-0" } }])
+  }' | kubectl apply -f -
+done
+
+for group in ${groups}; do
+  kubectl wait --for=condition=Ready "pod/pitr-restore-${group}" -n myapp --timeout=120s
+done
 ```
 
-**Recovery type options** (pass `--target-action=promote` with every type but `default`):
+#### Step 4: Restore Every Group
 
-- `--type=time --target="TIMESTAMP"` - Restore to specific time
-- `--type=xid --target="TRANSACTION_ID"` - Restore to specific transaction
-- `--type=lsn --target="WAL_LSN"` - Restore to specific WAL position
-- `--type=immediate` - Stop as soon as the backup is consistent (no further WAL replay)
-- `--type=default` - Restore and replay all available WAL
-
-Then replay to the target in the recovery pod: Patroni would start the restored data directory as a
-replica, drop the recovery target and replay to the end of the archive. As on bootstrap,
-`hot_standby=off` lets replay accept settings lower than the backup's, and deleting the backup's
-`patroni.dynamic.json` (Patroni's cached cluster config) makes the shard start with the chart's
-`patroni.parameters`:
+`delta=y` is set in `pgbackrest.conf`, so the restore overwrites the existing data directory in
+place. Add `--set=<backup label>` when a group's latest backup is newer than the restore point.
+Postgres then replays WAL up to the restore point and promotes inside the recovery pod, because
+Patroni drops recovery targets and would promote too early. As on bootstrap, `hot_standby=off` lets
+replay accept settings lower than the backup's, and deleting the backup's `patroni.dynamic.json`
+(Patroni's cached cluster config) makes the group start with the chart's `patroni.parameters`. The
+group also keeps its current `postgresql.auto.conf` (`ALTER SYSTEM` settings) over the backup's,
+adding only the backup's Citus `ssl` and pgBackRest's recovery settings. The `restore_command`
+retries while the repo is unreachable, as on bootstrap, so an outage can't end replay early; a
+missing segment still does. A group's exec fails if Postgres exits or replay ends before the restore
+point, and `/tmp/pitr.log` in that recovery pod says why; don't go on to Step 5 until every group's
+exec succeeded. If pgBackRest refuses because `postmaster.pid` exists, that pod was killed before
+Postgres stopped; delete the file in its recovery pod and rerun:
 
 ```bash
-rm -f /var/lib/postgresql/pgdata/patroni.dynamic.json
-pg_ctl start -W -D /var/lib/postgresql/pgdata -l /tmp/pitr.log -o "-c hot_standby=off"
+target=20260115T143000Z
 
-# Wait for "accepting connections"; if Postgres stops instead, /tmp/pitr.log says why
-until pg_isready; do sleep 10; pg_ctl status -D /var/lib/postgresql/pgdata > /dev/null || break; done
-grep "recovery stopping" /tmp/pitr.log
-# Fails if replay didn't reach the target and promote: read /tmp/pitr.log and don't continue
-test ! -f /var/lib/postgresql/pgdata/recovery.signal
-pg_ctl stop -D /var/lib/postgresql/pgdata -m fast
+for group in ${groups}; do
+  kubectl exec -n myapp "pitr-restore-${group}" -- sh -ec '
+    cp /var/lib/postgresql/pgdata/postgresql.auto.conf /tmp/
+    pgbackrest --stanza="${STANZA}" --type=name --target="$1" --target-action=promote \
+      --recovery-option="restore_command=until pgbackrest --stanza=${STANZA} archive-get %f \"%p\"; do [ \$? -eq 1 ] && exit 1; sleep 10; done" \
+      restore
+    sed -n -e "/^ssl = /p" -e "/^# Recovery settings generated by pgBackRest/,\$p" \
+      /var/lib/postgresql/pgdata/postgresql.auto.conf >> /tmp/postgresql.auto.conf
+    mv /tmp/postgresql.auto.conf /var/lib/postgresql/pgdata/
+    rm -f /var/lib/postgresql/pgdata/patroni.dynamic.json
+    pg_ctl start -W -D /var/lib/postgresql/pgdata -l /tmp/pitr.log -o "-c hot_standby=off"
+    until pg_isready -q; do
+      sleep 5
+      pg_ctl status -D /var/lib/postgresql/pgdata > /dev/null
+    done
+    test ! -f /var/lib/postgresql/pgdata/recovery.signal
+    pg_ctl stop -w -D /var/lib/postgresql/pgdata' sh "${target}"
+done
 ```
 
-#### Step 5: Restart the Shard
+#### Step 5: Restart Every Group
 
-Once the `test` passed and Postgres stopped, delete the recovery pod and scale back up:
+Delete the recovery pods (Postgres is stopped, so skip the 600s grace period) and Patroni's state,
+then scale back up to your `patroni.replicasPerGroup`:
 
 ```bash
-# Exit and delete the recovery pod (Postgres is stopped, so skip the 600s grace period)
-exit
-kubectl delete pod pitr-restore -n myapp --grace-period=1
+replicas_per_group=3
 
-# Delete the stale leader and cluster config, so Patroni takes the restored primary and the chart's parameters
-kubectl delete endpoints myapp-shard-0 myapp-shard-0-config -n myapp
+for group in ${groups}; do kubectl delete pod -n myapp "pitr-restore-${group}" --grace-period=1; done
+kubectl delete endpoints -n myapp -l cluster-name=myapp
+kubectl scale statefulset -n myapp -l app=patroni-myapp --replicas="${replicas_per_group}"
 
-# Scale the shard back up (to patroni.replicasPerShard)
-kubectl scale statefulset patroni-myapp-shard-0 -n myapp --replicas=3
+kubectl get pods -n myapp -l app=patroni-myapp -w
+```
 
-# Watch pods come up
-kubectl get pods -n myapp -l cluster-name=myapp-shard-0 -w
+Each group's pod 0 takes the leader lock with its restored data, and Patroni points `pg_dist_node`
+at the new primaries. A replica whose old data is past the restore point shows `start failed`
+(`requested timeline N is not a child of this server's history` in its log); rebuild it from its
+group's new primary, since the latest backup can still be on the old timeline:
+
+```bash
+kubectl exec -n myapp patroni-myapp-group-0-0 -c patroni -- \
+  patronictl -c /etc/patroni/patroni.yaml reinit myapp patroni-myapp-group-0-1 --group 0 --from-leader --force
 ```
 
 #### Step 6: Verify Recovery
 
 ```bash
-# Check cluster health
-kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
+kubectl exec -n myapp patroni-myapp-group-0-0 -c patroni -- \
   patronictl -c /etc/patroni/patroni.yaml list
 
-# Verify data is at expected state
-kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
-  psql -U postgres -d myapp -c "SELECT MAX(created_at) FROM your_table;"
+coordinator="$(kubectl get pod -n myapp -l app=patroni-myapp,citus-group=0,role=primary -o name)"
+kubectl exec -n myapp "${coordinator}" -c patroni -- psql -d myapp -c "SELECT MAX(created_at) FROM your_table;"
 ```
 
-#### PITR Notes
+If a group never reaches the restore point (a wrong name, or a backup newer than it), Step 4 fails
+for it with `recovery ended before configured recovery target was reached` in `/tmp/pitr.log`; redo
+Step 4 for that group with the right name or `--set` before Step 5.
 
-- **Per-shard recovery**: Each shard has independent backups. You can recover one shard without
-  affecting others.
-- **Replica rebuilding**: After PITR, replicas will automatically rebuild from the restored primary
-  via pgbackrest or basebackup.
-- **Timeline changes**: PITR creates a new timeline. The `recovery_target_timeline: latest` setting
-  in Patroni ensures replicas follow the new timeline.
-- **Data consistency**: For sharded tables, recovering one shard to a different point in time may
-  cause cross-shard inconsistencies. Plan accordingly.
+## Scaling
 
-### Scaling Shards
+### Adding Workers
 
-PgDog uses PostgreSQL's hash partition functions, so changing `patroni.shards` changes routing for
-existing keys. Adding empty shards or moving only a removed shard's rows is not enough.
-
-**Before either procedure**, stop application reads and writes, including background jobs, and
-export the schema, data, and sequence state from every existing shard to storage outside the
-cluster. Verify the export is complete and restorable before changing `patroni.shards`; keep traffic
-stopped through reloading and validation below.
-
-PgDog's [online resharding](https://docs.pgdog.dev/features/sharding/resharding/) is a separate
-process requiring a new destination cluster and `schema_admin` users with replication permissions.
-This chart does not provision those, and its default two PgDog replicas do not support the
-documented single-instance automatic cutover. The procedures below use downtime.
-
-#### Adding Shards (Scale Up)
-
-**Step 1: Update Helm Values**
-
-Increase the shard count in your HelmChart:
+Raise `patroni.workers` in the HelmChart:
 
 ```yaml
 spec:
   set:
-    patroni.shards: 4 # Was 3, now 4
+    patroni.workers: 2 # Was 0
 ```
 
 For `local` or `dev`, redeploy with `pnpm cluster deploy <env> --stage your-stage`. Replace `<env>`
 with `local` or `dev` and `your-stage` with your personal SST stage (for example, `pandoks`). Prod
-syncs from `main` through ArgoCD. This creates the new shard (`myapp-shard-3`) with its own
-StatefulSet, services, certificates, and backup cronjobs.
-
-**Step 2: Verify New Shard**
-
-```bash
-# Wait for new shard pods
-kubectl get pods -n myapp -l cluster-name=myapp-shard-3 -w
-
-# Check cluster health
-kubectl exec -n myapp patroni-myapp-shard-3-0 -c patroni -- \
-  patronictl -c /etc/patroni/patroni.yaml list
-```
-
-**Step 3: Restart PgDog**
-
-The chart regenerates PgDog's `databases` from `patroni.shards`, but PgDog pods don't restart on
-config changes. Wait for the PgDog HelmChart update to finish and confirm the generated
-configuration lists the new shard set before restarting:
+syncs from `main` through ArgoCD. This creates each new group (`myapp-group-1`, ...) with its own
+StatefulSet, services, certificates, and backup CronJobs, and Patroni adds its primary to
+`pg_dist_node`. Wait for it there, then move shards onto the new workers from the coordinator
+primary:
 
 ```bash
-kubectl rollout restart deploy/myapp-pgdog -n myapp
-kubectl rollout status deploy/myapp-pgdog -n myapp
+coordinator="$(kubectl get pod -n myapp -l app=patroni-myapp,citus-group=0,role=primary -o name)"
+kubectl exec -n myapp "${coordinator}" -c patroni -- psql -d myapp -c "SELECT citus_rebalance_start();"
+
+# Watch until state is finished
+kubectl exec -n myapp "${coordinator}" -c patroni -- psql -d myapp -c "SELECT * FROM citus_rebalance_status();"
 ```
 
-Confirm every serving PgDog instance uses the new shard set before reloading data.
+The rebalance moves shards online with logical replication. The coordinator keeps its share of
+shards; to move them all to the workers, first run
+`SELECT citus_set_node_property(nodename, nodeport, 'shouldhaveshards', false) FROM pg_dist_node WHERE groupid = 0 AND noderole = 'primary';`.
 
-**Step 4: Reload and Validate Data**
+### Removing Workers
 
-Ensure the schema matches the export on every destination shard. Added shards may restore old
-backups, so clear old application table data on all destination shards before reloading to avoid
-duplicate or stale rows. Re-insert the complete exported data through PgDog with the new shard count
-and the configured sharding keys. Preserve unsharded and replicated tables and restore sequence
-state as appropriate for the schema.
+Lowering `patroni.workers` deletes the highest groups' StatefulSets, and Patroni adds a group back
+to `pg_dist_node` while it still runs, so remove each group in this order. First drain it from the
+coordinator primary:
 
-Before resuming application traffic, verify row counts against the export, key-based reads and
-writes through PgDog, and that replicas have caught up. Keep the export until validation succeeds.
+```sql
+SELECT citus_drain_node(nodename, nodeport) FROM pg_dist_node WHERE groupid = 2 AND noderole = 'primary';
+```
 
-#### Removing Shards (Scale Down)
+Raising `patroni.workers` again later restores the group's stanza (`myapp-group-2`) on bootstrap,
+with its old data and Citus catalog. Unless you want that, delete the stanza while the group still
+runs:
 
-Export every shard with application traffic stopped as described above before lowering the shard
-count. Removing shards changes routing for keys on the retained shards too.
+```bash
+kubectl exec -n myapp patroni-myapp-group-2-0 -c patroni -- pgbackrest --stanza=myapp-group-2 stop
+kubectl exec -n myapp patroni-myapp-group-2-0 -c patroni -- \
+  pgbackrest --stanza=myapp-group-2 stanza-delete --force
+```
 
-**Step 1: Update Helm Values**
+Pause the group's Patroni, or its primary's shutdown leaves the coordinator's Patroni holding a lock
+on `pg_dist_node` that blocks the removal:
+
+```bash
+kubectl exec -n myapp patroni-myapp-group-2-0 -c patroni -- \
+  patronictl -c /etc/patroni/patroni.yaml pause myapp --group 2 --wait
+```
+
+Then lower `patroni.workers` and redeploy right away, since the group's WAL archiving and backup
+CronJobs fail until it's gone. Helm deletes the group's StatefulSet, services, certificates, and
+backup CronJobs. Once its pods are gone, delete Patroni's endpoints and `-config` Service, then
+disable and remove the group from the coordinator primary:
+
+```bash
+kubectl delete endpoints,service -n myapp -l cluster-name=myapp,citus-group=2
+coordinator="$(kubectl get pod -n myapp -l app=patroni-myapp,citus-group=0,role=primary -o name)"
+kubectl exec -n myapp "${coordinator}" -c patroni -- psql -d myapp \
+  -c "SELECT citus_disable_node(nodename, nodeport, synchronous => true) FROM pg_dist_node WHERE groupid = 2 AND noderole = 'primary';" \
+  -c "SELECT citus_remove_node(nodename, nodeport) FROM pg_dist_node WHERE groupid = 2;"
+```
+
+cert-manager's TLS secrets and the PVCs are left behind:
+
+```bash
+kubectl delete secret patroni-myapp-group-2-tls myapp-group-2-pgbackrest-backup-tls -n myapp
+
+# WARNING: This deletes all data in the group!
+kubectl delete pvc -n myapp -l app=patroni-myapp,citus-group=2
+```
+
+### Scaling Replicas Per Group
 
 ```yaml
 spec:
   set:
-    patroni.shards: 3 # Was 4, now 3
-```
-
-Redeploy, verify the remaining shards are healthy, and follow Step 3 above to restart PgDog and
-verify its new routing before reloading. Keep application traffic stopped.
-
-**Step 2: Reload and Validate Data**
-
-Clear old table data on the remaining shards, re-insert the complete export through PgDog, and
-restore sequence state and validate as in [Adding Shards](#adding-shards-scale-up), Step 4. Resume
-application traffic only after validation succeeds.
-
-**Step 3: Clean Up Leftover Resources**
-
-Helm deletes the removed shard's StatefulSet, services, certificates, and backup cronjobs on
-upgrade. Patroni's endpoints, cert-manager's TLS secrets, and the PVCs are left behind:
-
-```bash
-# Delete Patroni endpoints
-kubectl delete endpoints myapp-shard-3 myapp-shard-3-config -n myapp
-
-# Delete TLS secrets
-kubectl delete secret patroni-myapp-shard-3-tls myapp-shard-3-pgbackrest-backup-tls -n myapp
-
-# Delete PVCs (WARNING: This deletes all data!)
-kubectl delete pvc -n myapp -l cluster-name=myapp-shard-3
-```
-
-The shard's backups stay in the bucket under its stanza (`myapp-shard-3`).
-
-#### Scaling Replicas Per Shard
-
-Scaling replicas within a shard is simpler and doesn't require data migration:
-
-```yaml
-spec:
-  set:
-    patroni.replicasPerShard: 5 # Was 3, now 5 pods per shard
+    patroni.replicasPerGroup: 5 # Was 3, now 5 pods per group
 ```
 
 Redeploy, then watch the new replicas clone from pgBackRest (falling back to `pg_basebackup`):
@@ -615,28 +633,9 @@ Redeploy, then watch the new replicas clone from pgBackRest (falling back to `pg
 kubectl get pods -n myapp -w
 ```
 
-To scale down replicas, lower `patroni.replicasPerShard`. Kubernetes terminates the highest-ordinal
-pods, so switch over first if one of them is the leader. Their PVCs are kept, so delete them if you
+To scale down replicas, lower `patroni.replicasPerGroup`. Kubernetes terminates the highest-ordinal
+pods, so switch over first if one of them is a leader. Their PVCs are kept, so delete them if you
 don't plan to scale back up.
-
-### Test Sharding
-
-```bash
-# Insert data (will be distributed across shards)
-kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- bash -c '
-  export PGPASSWORD=$CLIENT_PASSWORD
-  for i in $(seq 1 100); do
-    psql -h myapp-pgdog -p 6432 -U client -d myapp \
-      -c "INSERT INTO users (id, name) VALUES ($i, '"'"'user-$i'"'"');"
-  done
-'
-
-# Check distribution
-for shard in 0 1 2; do
-  kubectl exec -n myapp patroni-myapp-shard-${shard}-0 -c patroni -- \
-    psql -U postgres -d myapp -c "SELECT COUNT(*) FROM users;"
-done
-```
 
 ## Troubleshooting
 
@@ -649,29 +648,60 @@ bootstrapping:
 waiting for leader to bootstrap
 ```
 
-**Fix:** Delete the stale endpoints:
+**Fix:** Delete Patroni's endpoints for every group and restart the pods:
 
 ```bash
-kubectl delete endpoints myapp-shard-0 myapp-shard-0-config \
-  myapp-shard-1 myapp-shard-1-config \
-  myapp-shard-2 myapp-shard-2-config \
-  -n myapp
+kubectl delete endpoints -n myapp -l cluster-name=myapp
+kubectl delete pods -n myapp -l app=patroni-myapp
 ```
 
-Then restart the pods:
+If a group's stanza still has a full backup, its new primary restores it during bootstrap (see
+[pgBackRest](#pgbackrest-backup--recovery)), to the end of that group's own archived WAL. That's
+only consistent when a single worker group was lost. After losing the coordinator or several groups,
+the groups can come back at different points, so restore every group with
+[PITR](#point-in-time-recovery-pitr) to the newest restore point archived on every group.
+
+A restored coordinator stops syncing Citus metadata to the workers' old addresses so it can start;
+once every group is up, sync it again, which pushes the coordinator's restored metadata to every
+worker:
 
 ```bash
-kubectl delete pods -n myapp -l 'cluster-name in (myapp-shard-0,myapp-shard-1,myapp-shard-2)'
+coordinator="$(kubectl get pod -n myapp -l app=patroni-myapp,citus-group=0,role=primary -o name)"
+kubectl exec -n myapp "${coordinator}" -c patroni -- \
+  psql -d myapp -c "SELECT start_metadata_sync_to_all_nodes();"
 ```
 
-If the stanza still has a full backup, the new primary restores it during bootstrap (see
-[pgBackRest](#pgbackrest-backup--recovery)).
+### Distributed Queries Fail to Authenticate
+
+Citus connects between nodes with the superuser, `admin` and `client` passwords in
+`pg_dist_authinfo`. The roles' passwords and these rows are only set on bootstrap, so after changing
+a password, set it on the role from the coordinator primary, which Citus copies to every worker,
+doubling every `'`:
+
+```sql
+ALTER ROLE client PASSWORD '<new password>';
+```
+
+Each group inserts its own `pg_dist_authinfo` rows and Citus doesn't sync this table, so then update
+the role's row on every group's primary. Escape `\` and `'` in the password with `\`, then double
+every `'` for SQL:
+
+```sql
+UPDATE pg_dist_authinfo SET authinfo = 'password=''<new password>''' WHERE rolename = 'client';
+```
+
+PgBouncer mounts `userlist.txt` with `subPath`, which never sees secret changes, so restart it after
+changing `admin` or `client`:
+
+```bash
+kubectl rollout restart deployment/myapp-pgbouncer -n myapp
+```
 
 ### Backup Job Fails with TLS Error
 
-The chart issues per-shard certificates (`patroni-myapp-shard-N` and
-`myapp-shard-N-pgbackrest-backup`) from `internal-ca-issuer`, with a wildcard DNS name covering
-every pod of the shard. If backup jobs fail with certificate errors, check that they're ready:
+The chart issues per-group certificates (`patroni-myapp-group-N` and
+`myapp-group-N-pgbackrest-backup`) from `internal-ca-issuer`, with a wildcard DNS name covering
+every pod of the group. If backup jobs fail with certificate errors, check that they're ready:
 
 ```bash
 kubectl get certificate -n myapp
@@ -681,23 +711,12 @@ kubectl get certificate -n myapp
 
 ```bash
 # Check replication status
-kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
+kubectl exec -n myapp patroni-myapp-group-0-0 -c patroni -- \
   psql -U postgres -c "SELECT * FROM pg_stat_replication;"
 
 # Check Patroni cluster view
-kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
+kubectl exec -n myapp patroni-myapp-group-0-0 -c patroni -- \
   patronictl -c /etc/patroni/patroni.yaml list
-```
-
-### PgDog Not Routing to Replicas
-
-These are the chart defaults, so make sure they aren't overridden:
-
-```yaml
-pgdog:
-  lsnCheckDelay: 0 # Enable role detection immediately
-  lsnCheckInterval: 1000 # Check every 1 second
-  readWriteSplit: include_primary_if_replica_banned
 ```
 
 ## Local Development
@@ -726,66 +745,67 @@ after changing them:
 
 ### Values
 
-| Key                             | Description                                        | Default                                                     |
-| ------------------------------- | -------------------------------------------------- | ----------------------------------------------------------- |
-| `db`                            | Database name                                      | `example`                                                   |
-| `namespace`                     | Kubernetes namespace                               | `example`                                                   |
-| `credentials.secret`            | Database credentials secret                        | `postgres-example-creds`                                    |
-| `credentials.dataKeys.*`        | Password keys in that secret                       | `SUPERUSER_PASSWORD`, `ADMIN_PASSWORD`, etc.                |
-| `backup.enabled`                | Backups and WAL archiving; set before first create | `true`                                                      |
-| `backup.credentials.secret`     | S3 credentials secret                              | `backup-bucket-creds`                                       |
-| `backup.credentials.dataKeys.*` | Access/secret keys in that secret                  | `S3_ACCESS_KEY`, `S3_SECRET_KEY`                            |
-| `backup.bucket`                 | S3 bucket                                          | `backups`                                                   |
-| `backup.path`                   | Path in the bucket                                 | `/kubernetes/examples/postgres`                             |
-| `backup.encryptionKey`          | pgBackRest cipher passphrase                       | `openssl-rand-hex-32` (placeholder, override it)            |
-| `backup.image`                  | pgBackRest image                                   | `ghcr.io/pandoks/pgbackrest:latest`                         |
-| `backup.schedules.full`         | Full backup cron                                   | `0 2 * * 0` (Sunday 2 AM)                                   |
-| `backup.schedules.diff`         | Diff backup cron                                   | `0 2 * * 3,6` (Wed/Sat)                                     |
-| `backup.schedules.incr`         | Incr backup cron                                   | `0 2 * * 1,2,4,5`                                           |
-| `backup.retention.full`         | Full backups to keep                               | `4`                                                         |
-| `backup.retention.diff`         | Diff backups to keep                               | `2`                                                         |
-| `s3.region`                     | S3 region                                          | `us-west-1`                                                 |
-| `s3.host`                       | S3 endpoint                                        | `host.k3d.internal:9191` (S3Mock HTTPS from docker-compose) |
-| `s3.tls`                        | Verify S3 TLS (`y`/`n`)                            | `n`                                                         |
-| `s3.uriStyle`                   | S3 URI style                                       | `path`                                                      |
-| `patroni.shards`                | Number of shards                                   | `1`                                                         |
-| `patroni.replicasPerShard`      | Pods per shard (1 primary + n - 1 replicas)        | `3`                                                         |
-| `patroni.image`                 | Patroni image                                      | `ghcr.io/pandoks/patroni:latest`                            |
-| `patroni.reconcilerImage`       | Image of the Job that applies `patroni.parameters` | `ghcr.io/pandoks/postgres-reconciler:latest`                |
-| `patroni.parameters.*`          | Postgres settings, applied to running clusters     | `max_connections: 100`, `shared_buffers: 128MB`, etc.       |
-| `patroni.resources.*`           | `patroni`, `pgbackrest`, `postgresExporter`        | `{}`                                                        |
-| `pgdog.*`                       | Passed through to the [PgDog chart][pgdog]         | See below                                                   |
-| `pgdog.replicas`                | PgDog replicas                                     | `2`                                                         |
-| `pgdog.workers`                 | PgDog worker threads                               | `2`                                                         |
-| `pgdog.defaultPoolSize`         | Server connections per pool                        | `15`                                                        |
-| `pgdog.loadBalancingStrategy`   | Load balancing                                     | `least_active_connections`                                  |
-| `pgdog.readWriteSplit`          | Read/write routing                                 | `include_primary_if_replica_banned`                         |
-
-[pgdog]: https://github.com/pgdogdev/helm/blob/main/values.yaml
+| Key                                      | Description                                        | Default                                                     |
+| ---------------------------------------- | -------------------------------------------------- | ----------------------------------------------------------- |
+| `db`                                     | Database name, also the Citus database             | `example`                                                   |
+| `namespace`                              | Kubernetes namespace                               | `example`                                                   |
+| `credentials.secret`                     | Database credentials secret                        | `postgres-example-creds`                                    |
+| `credentials.dataKeys.*`                 | Password keys in that secret                       | `SUPERUSER_PASSWORD`, `ADMIN_PASSWORD`, etc.                |
+| `credentials.dataKeys.pgbouncerUserlist` | PgBouncer `auth_file` key in that secret           | `userlist.txt`                                              |
+| `backup.enabled`                         | Backups and WAL archiving; set before first create | `true`                                                      |
+| `backup.credentials.secret`              | S3 credentials secret                              | `backup-bucket-creds`                                       |
+| `backup.credentials.dataKeys.*`          | Access/secret keys in that secret                  | `S3_ACCESS_KEY`, `S3_SECRET_KEY`                            |
+| `backup.bucket`                          | S3 bucket                                          | `backups`                                                   |
+| `backup.path`                            | Path in the bucket                                 | `/kubernetes/examples/postgres`                             |
+| `backup.encryptionKey`                   | pgBackRest cipher passphrase                       | `openssl-rand-hex-32` (placeholder, override it)            |
+| `backup.image`                           | pgBackRest image                                   | `ghcr.io/pandoks/pgbackrest:latest`                         |
+| `backup.schedules.full`                  | Full backup cron                                   | `0 2 * * 0` (Sunday 2 AM)                                   |
+| `backup.schedules.diff`                  | Diff backup cron                                   | `0 2 * * 3,6` (Wed/Sat)                                     |
+| `backup.schedules.incr`                  | Incr backup cron                                   | `0 2 * * 1,2,4,5`                                           |
+| `backup.retention.full`                  | Full backups to keep                               | `4`                                                         |
+| `backup.retention.diff`                  | Diff backups to keep                               | `2`                                                         |
+| `backup.restorePointSchedule`            | Citus restore point cron                           | `*/15 * * * *`                                              |
+| `s3.region`                              | S3 region                                          | `us-west-1`                                                 |
+| `s3.host`                                | S3 endpoint                                        | `host.k3d.internal:9191` (S3Mock HTTPS from docker-compose) |
+| `s3.tls`                                 | Verify S3 TLS (`y`/`n`)                            | `n`                                                         |
+| `s3.uriStyle`                            | S3 URI style                                       | `path`                                                      |
+| `patroni.workers`                        | Citus worker groups (0 = coordinator only)         | `0`                                                         |
+| `patroni.replicasPerGroup`               | Pods per group (1 primary + n - 1 replicas)        | `3`                                                         |
+| `patroni.image`                          | Patroni image                                      | `ghcr.io/pandoks/patroni:latest`                            |
+| `patroni.reconcilerImage`                | Image of the Job that applies `patroni.parameters` | `ghcr.io/pandoks/postgres-reconciler:latest`                |
+| `patroni.parameters.*`                   | Postgres settings, applied to running clusters     | `max_connections: 100`, `shared_buffers: 128MB`, etc.       |
+| `patroni.resources.*`                    | `patroni`, `pgbackrest`, `postgresExporter`        | `{}`                                                        |
+| `pgbouncer.image`                        | PgBouncer image                                    | `ghcr.io/cloudnative-pg/pgbouncer`                          |
+| `pgbouncer.replicas`                     | PgBouncer replicas                                 | `2`                                                         |
+| `pgbouncer.settings.*`                   | `[pgbouncer]` settings in `pgbouncer.ini`          | `pool_mode: transaction`, `default_pool_size: 15`, etc.     |
+| `pgbouncer.resources`                    | PgBouncer resources                                | `{}`                                                        |
 
 ### Ports
 
 | Port   | Service           | Purpose                 |
 | ------ | ----------------- | ----------------------- |
 | `5432` | PostgreSQL        | Database connections    |
-| `6432` | PgDog             | Connection pooler       |
+| `6432` | PgBouncer         | Connection pooler       |
 | `8008` | Patroni REST API  | Health checks, failover |
 | `8432` | pgBackRest        | Backup TLS server       |
 | `9187` | postgres-exporter | PostgreSQL metrics      |
-| `9090` | PgDog             | OpenMetrics             |
 
 ## Security
 
-1. **Superuser stays off app databases** - `postgres` can only log in remotely to the `postgres`
-   database
-2. **TLS for backups** - All backup traffic is encrypted
-3. **Encrypted backups** - AES-256-CBC encryption at rest
-4. **Least privilege** - Applications use `client` user with limited permissions
-5. **Network isolation** - pg_hba.conf restricts access by user and database
+1. **Superuser stays off the app database for clients** - `postgres` logs in remotely only to
+   `postgres` and, for Citus between nodes, the application database
+2. **TLS between nodes** - Citus connects with `sslmode=require`, using the self-signed certificate
+   it generates
+3. **TLS for backups** - All backup traffic is encrypted
+4. **Encrypted backups** - AES-256-CBC encryption at rest
+5. **Least privilege** - Applications use `client` user with limited permissions
+6. **Network isolation** - pg_hba.conf restricts access by user and database
 
 ## References
 
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/)
 - [Patroni Documentation](https://patroni.readthedocs.io/)
-- [PgDog Documentation](https://docs.pgdog.dev/)
+- [Patroni Citus support](https://patroni.readthedocs.io/en/latest/citus.html)
+- [Citus Documentation](https://docs.citusdata.com/)
+- [PgBouncer Documentation](https://www.pgbouncer.org/config.html)
 - [pgBackRest Documentation](https://pgbackrest.org/user-guide.html)

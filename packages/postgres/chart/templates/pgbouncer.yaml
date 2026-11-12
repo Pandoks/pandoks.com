@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.db }}-pgbouncer-config
+  namespace: {{ .Values.namespace }}
+data:
+  pgbouncer.ini: |
+{{ tpl (.Files.Get "files/pgbouncer.ini") . | indent 4 }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.db }}-pgbouncer
+  namespace: {{ .Values.namespace }}
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ .Values.db }}-pgbouncer
+  ports:
+    - name: pgbouncer
+      port: 6432
+      targetPort: 6432
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.db }}-pgbouncer
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.pgbouncer.replicas }}
+  selector:
+    matchLabels:
+      app: &app {{ .Values.db }}-pgbouncer
+  template:
+    metadata:
+      labels:
+        app: *app
+      annotations:
+        checksum/config: {{ tpl (.Files.Get "files/pgbouncer.ini") . | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: pgbouncer
+          image: {{ .Values.pgbouncer.image }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: pgbouncer
+              containerPort: 6432
+          readinessProbe:
+            tcpSocket:
+              port: 6432
+            periodSeconds: 5
+          {{- with .Values.pgbouncer.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/pgbouncer/pgbouncer.ini
+              subPath: pgbouncer.ini
+            - name: userlist
+              mountPath: /etc/pgbouncer/userlist.txt
+              subPath: userlist.txt
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Values.db }}-pgbouncer-config
+        - name: userlist
+          secret:
+            secretName: {{ .Values.credentials.secret }}
+            items:
+              - key: {{ .Values.credentials.dataKeys.pgbouncerUserlist }}
+                path: userlist.txt

@@ -195,11 +195,6 @@
       ]
     },
     {
-      "description": "PgDog's chart uses two-part versions (v0.27).",
-      "matchPackageNames": ["pgdog"],
-      "versioning": "loose"
-    },
-    {
       "matchFileNames": ["sst.config.ts"],
       "groupName": "sst providers"
     },
@@ -221,6 +216,16 @@
       "dependencyDashboardApproval": true,
       "prBodyNotes": [
         "Check that k3s's [stable channel](https://update.k3s.io/v1-release/channels) has reached this minor, and read its [upgrade notes](https://docs.k3s.io/upgrades/manual). The Plans upgrade servers first, then agents."
+      ]
+    },
+    {
+      "description": "Citus refuses distributed queries after a minor or major until its extension is updated.",
+      "matchPackageNames": ["citusdata/citus"],
+      "matchUpdateTypes": ["minor", "major"],
+      "groupName": null,
+      "dependencyDashboardApproval": true,
+      "prBodyNotes": [
+        "Read Citus's [changelog](https://github.com/citusdata/citus/blob/main/CHANGELOG.md). Once the new image rolls out, run `ALTER EXTENSION citus UPDATE` on every group's primary, then `CALL citus_finish_citus_upgrade()` on the coordinator (see [Upgrading Citus](https://github.com/Pandoks/pandoks.com/blob/main/packages/postgres/README.md#upgrading-citus))."
       ]
     },
     {

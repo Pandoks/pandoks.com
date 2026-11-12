@@ -70,13 +70,14 @@ using `--dry-run`).
 
 The `deploy` command renders templates with these substitutions before applying:
 
-| Variable                | Description                                  |
-| ----------------------- | -------------------------------------------- |
-| `${ImageRegistry}`      | Container registry (local-registry or GHCR). |
-| `${ImageTag}`           | Image tag (latest or branch name).           |
-| `${IsLocal}`            | `'true'` or `'false'` for conditional logic. |
-| `${<SST Resource>}`     | Any SST resource by name.                    |
-| `${<Secret> \| base64}` | Base64 encode a secret value.                |
+| Variable                   | Description                                       |
+| -------------------------- | ------------------------------------------------- |
+| `${ImageRegistry}`         | Container registry (local-registry or GHCR).      |
+| `${ImageTag}`              | Image tag (latest or branch name).                |
+| `${IsLocal}`               | `'true'` or `'false'` for conditional logic.      |
+| `${<SST Resource>}`        | Any SST resource by name.                         |
+| `${<Secret> \| base64}`    | Base64 encode a secret value.                     |
+| `${<Secret> \| pgbouncer}` | Quote a secret value for a PgBouncer `auth_file`. |
 
 ## Examples
 

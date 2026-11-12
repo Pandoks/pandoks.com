@@ -109,11 +109,12 @@ usage_deploy() {
   printf "      Suppress status messages, output only YAML (for CI/CD)\n\n" >&2
 
   printf "%bTemplate Variables:%b\n" "${BOLD}" "${NORMAL}" >&2
-  printf "  \${ImageRegistry}     - Container registry (local or GHCR)\n" >&2
-  printf "  \${ImageTag}          - Image tag (latest or branch name)\n" >&2
-  printf "  \${IsLocal}           - 'true' or 'false' for conditional logic\n" >&2
-  printf "  \${<SST Resource>}    - Any SST resource by name\n" >&2
-  printf "  \${<Secret> | base64} - Base64 encode a secret value\n\n" >&2
+  printf "  \${ImageRegistry}        - Container registry (local or GHCR)\n" >&2
+  printf "  \${ImageTag}             - Image tag (latest or branch name)\n" >&2
+  printf "  \${IsLocal}              - 'true' or 'false' for conditional logic\n" >&2
+  printf "  \${<SST Resource>}       - Any SST resource by name\n" >&2
+  printf "  \${<Secret> | base64}    - Base64 encode a secret value\n" >&2
+  printf "  \${<Secret> | pgbouncer} - Quote a secret value for a PgBouncer auth_file\n\n" >&2
 
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  # First-time cluster setup (bootstrap, then overlay):\n" >&2

@@ -1,17 +1,73 @@
-{{- range $shardIndex := until (int $.Values.patroni.shards) }}
+{{- range $group := until (add1 $.Values.patroni.workers | int) }}
   {{- range $type, $schedule := $.Values.backup.schedules }}
     {{- if and $.Values.backup.enabled $schedule }}
 ---
-{{ include "pgbackrest.cronjob" (dict "context" $ "type" $type "schedule" $schedule "shardIndex" $shardIndex) }}
+{{ include "pgbackrest.cronjob" (dict "context" $ "type" $type "schedule" $schedule "group" $group) }}
     {{- end }}
   {{- end }}
+{{- end }}
+
+{{- if .Values.backup.enabled }}
+---
+# NOTE: the only targets every group can be restored to consistently, see the README
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Values.db }}-citus-restore-point
+  namespace: {{ .Values.namespace }}
+spec:
+  schedule: {{ .Values.backup.restorePointSchedule | quote }}
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          automountServiceAccountToken: false
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: restore-point
+              image: {{ .Values.patroni.image }}
+              securityContext:
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              command:
+                - sh
+                - -c
+                - |
+                  set -eu
+                  # NOTE: unique per attempt, since a failed one can leave its marker on some groups
+                  # and recovery stops at the first marker with the target name
+                  name="$(date -u +%Y%m%dT%H%M%SZ)"
+                  psql -v ON_ERROR_STOP=1 -c "SELECT citus_create_restore_point('${name}')"
+                  echo "Created restore point ${name}"
+              env:
+                - name: PGHOST
+                  value: patroni-{{ .Values.db }}-primary-group-0
+                - name: PGDATABASE
+                  value: {{ .Values.db }}
+                - name: PGUSER
+                  value: postgres
+                # NOTE: Citus's advice; it bounds only the coordinator's lock wait, not the workers'
+                - name: PGOPTIONS
+                  value: -c lock_timeout=1s
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.credentials.secret }}
+                      key: {{ .Values.credentials.dataKeys.superuserPassword }}
+          restartPolicy: OnFailure
+      backoffLimit: 4
 {{- end }}
 
 {{- define "pgbackrest.cronjob" -}}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ .context.Values.db }}-shard-{{ .shardIndex }}-pgbackrest-backup-{{ .type }}
+  name: {{ .context.Values.db }}-group-{{ .group }}-pgbackrest-backup-{{ .type }}
   namespace: {{ .context.Values.namespace }}
 spec:
   schedule: {{ .schedule }}
@@ -33,12 +89,12 @@ spec:
                   drop: ["ALL"]
               args:
                 - pgbackrest
-                - --stanza={{ .context.Values.db }}-shard-{{ .shardIndex }}
+                - --stanza={{ .context.Values.db }}-group-{{ .group }}
                 - --type={{ .type }}
                 - backup
               env:
                 - name: CLIENT_COMMON_NAME
-                  value: patroni-{{ .context.Values.db }}-shard-{{ .shardIndex }}
+                  value: patroni-{{ .context.Values.db }}-group-{{ .group }}
                 - name: BACKUP_BUCKET
                   value: {{ .context.Values.backup.bucket }}
                 - name: BACKUP_PATH
@@ -64,7 +120,7 @@ spec:
                 - name: ENCRYPTION_KEY
                   value: {{ .context.Values.backup.encryptionKey }}
                 - name: STANZA
-                  value: {{ .context.Values.db }}-shard-{{ .shardIndex }}
+                  value: {{ .context.Values.db }}-group-{{ .group }}
                 - name: PGPASSWORD
                   valueFrom:
                     secretKeyRef:
@@ -99,7 +155,7 @@ spec:
               emptyDir: {}
             - name: *tls
               secret:
-                secretName: {{ .context.Values.db }}-shard-{{ .shardIndex }}-pgbackrest-backup-tls
+                secretName: {{ .context.Values.db }}-group-{{ .group }}-pgbackrest-backup-tls
                 defaultMode: 0600
                 items:
                   - key: tls.crt

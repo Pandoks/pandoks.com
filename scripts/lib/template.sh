@@ -14,6 +14,7 @@ apply_template_filter_to_value() {
   case "${apply_template_filter_to_value_filter_name}" in
     base64) printf '%s' "${apply_template_filter_to_value_value}" | base64 -w0 ;;
     bcrypt) pnpm bcrypt "${apply_template_filter_to_value_value}" 10 | sed 's/^\$2b\$/\$2a\$/' ;;
+    pgbouncer) printf '%s' "${apply_template_filter_to_value_value}" | sed 's/"/""/g; s/^/"/; s/$/"/' ;;
     quote) yaml_safe_value "${apply_template_filter_to_value_value}" ;;
     *)
       printf "%bError:%b Unknown template filter: %s\n" "${RED}" "${NORMAL}" "${apply_template_filter_to_value_filter_name}" >&2
@@ -75,7 +76,9 @@ template_substitute() {
         ;;
     esac
 
-    template_substitute_output=$(printf '%s' "${template_substitute_output}" | awk -v pat="${template_substitute_pattern}" -v rep="${template_substitute_result}" '{
+    # NOTE: awk -v expands backslash escapes in rep, so double them to keep the value literal
+    template_substitute_awk_rep=$(printf '%s' "${template_substitute_result}" | sed 's/\\/\\\\/g')
+    template_substitute_output=$(printf '%s' "${template_substitute_output}" | awk -v pat="${template_substitute_pattern}" -v rep="${template_substitute_awk_rep}" '{
       while ((idx = index($0, pat)) > 0) {
         $0 = substr($0, 1, idx-1) rep substr($0, idx+length(pat))
       }

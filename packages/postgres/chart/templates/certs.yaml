@@ -1,16 +1,16 @@
 {{- if $.Values.backup.enabled }}
-{{- range $shardIndex := until (int $.Values.patroni.shards) }}
+{{- range $group := until (add1 $.Values.patroni.workers | int) }}
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+  name: patroni-{{ $.Values.db }}-group-{{ $group }}
   namespace: {{ $.Values.namespace }}
 spec:
-  commonName: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
-  secretName: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}-tls
+  commonName: patroni-{{ $.Values.db }}-group-{{ $group }}
+  secretName: patroni-{{ $.Values.db }}-group-{{ $group }}-tls
   dnsNames:
-    - '*.patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}.{{ $.Values.namespace }}.svc.cluster.local'
+    - '*.patroni-{{ $.Values.db }}-group-{{ $group }}.{{ $.Values.namespace }}.svc.cluster.local'
   usages:
     - client auth
     - server auth
@@ -23,13 +23,13 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup
+  name: {{ $.Values.db }}-group-{{ $group }}-pgbackrest-backup
   namespace: {{ $.Values.namespace }}
 spec:
-  commonName: {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup
-  secretName: {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup-tls
+  commonName: {{ $.Values.db }}-group-{{ $group }}-pgbackrest-backup
+  secretName: {{ $.Values.db }}-group-{{ $group }}-pgbackrest-backup-tls
   dnsNames:
-    - '*.patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}.{{ $.Values.namespace }}.svc.cluster.local'
+    - '*.patroni-{{ $.Values.db }}-group-{{ $group }}.{{ $.Values.namespace }}.svc.cluster.local'
   usages:
     - client auth
     - server auth

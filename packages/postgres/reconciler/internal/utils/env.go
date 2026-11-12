@@ -9,7 +9,7 @@ import (
 
 type Env struct {
 	DB              string
-	Shards          int
+	Workers         int
 	Parameters      map[string]any
 	PatroniPassword string
 }
@@ -20,9 +20,9 @@ func Load() (Env, error) {
 		return Env{}, fmt.Errorf("DB environment variable is not set")
 	}
 
-	shards, err := strconv.Atoi(os.Getenv("SHARDS"))
+	workers, err := strconv.Atoi(os.Getenv("WORKERS"))
 	if err != nil {
-		return Env{}, fmt.Errorf("SHARDS environment variable is not set")
+		return Env{}, fmt.Errorf("WORKERS environment variable is not set")
 	}
 
 	var parameters map[string]any
@@ -37,7 +37,7 @@ func Load() (Env, error) {
 
 	return Env{
 		DB:              db,
-		Shards:          shards,
+		Workers:         workers,
 		Parameters:      parameters,
 		PatroniPassword: patroniPassword,
 	}, nil
