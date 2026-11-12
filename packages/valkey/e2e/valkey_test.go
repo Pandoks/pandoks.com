@@ -17,14 +17,17 @@ const (
 	keyCount             = 1000
 )
 
-func installValkey(masterCount int) string {
+func installValkey(masterCount, replicasPerMaster int) string {
 	GinkgoHelper()
 	chartValues := map[string]string{
-		"name":               "vk",
-		"cluster.masters":    strconv.Itoa(masterCount),
-		"credentials.secret": "valkey-creds",
-		// NOTE: keep the hook Jobs for the diagnostics dump
+		"name":                      "vk",
+		"cluster.masters":           strconv.Itoa(masterCount),
+		"cluster.replicasPerMaster": strconv.Itoa(replicasPerMaster),
+		"credentials.secret":        "valkey-creds",
+		// NOTE: keep the hook Jobs for the diagnostics dump, and don't let retries hide a failure
 		"hooks.hookDeletePolicy": "before-hook-creation",
+		"hooks.restartPolicy":    "Never",
+		"hooks.backoffLimit":     "0",
 	}
 	if valkeyImage != "" {
 		chartValues["image"] = valkeyImage
@@ -38,10 +41,39 @@ func installValkey(masterCount int) string {
 }
 
 func valkeyCli(namespace, podName, stdin string, cliArguments ...string) (string, error) {
+	return valkeyCliAs(namespace, podName, adminPassword, stdin, cliArguments...)
+}
+
+func valkeyCliAs(namespace, podName, password, stdin string, cliArguments ...string) (string, error) {
 	return e2e.Run(stdin, "kubectl", append([]string{
 		"-n", namespace, "exec", "-i", podName, "-c", "valkey", "--",
-		"valkey-cli", "--user", "admin", "-a", adminPassword, "--no-auth-warning",
+		"valkey-cli", "--user", "admin", "-a", password, "--no-auth-warning",
 	}, cliArguments...)...)
+}
+
+func podNames(namespace string) []string {
+	GinkgoHelper()
+	return strings.Fields(e2e.MustRun("", "kubectl", "-n", namespace, "get", "pods", "-l", "app=valkey-vk", "-o", "jsonpath={.items[*].metadata.name}"))
+}
+
+func expectReplicasSynced(g Gomega, namespace string, replicaCount int) {
+	syncedReplicaCount, replicaKeyCount := 0, 0
+	for _, podName := range podNames(namespace) {
+		replicationInfo, err := valkeyCli(namespace, podName, "", "info", "replication")
+		g.Expect(err).NotTo(HaveOccurred())
+		if !strings.Contains(replicationInfo, "role:slave") {
+			continue
+		}
+		g.Expect(replicationInfo).To(ContainSubstring("master_link_status:up"), podName)
+		dbsizeOutput, err := valkeyCli(namespace, podName, "", "dbsize")
+		g.Expect(err).NotTo(HaveOccurred())
+		podKeyCount, err := strconv.Atoi(strings.TrimSpace(dbsizeOutput))
+		g.Expect(err).NotTo(HaveOccurred())
+		syncedReplicaCount++
+		replicaKeyCount += podKeyCount
+	}
+	g.Expect(syncedReplicaCount).To(Equal(replicaCount))
+	g.Expect(replicaKeyCount).To(Equal(keyCount), "the replicas don't hold every key")
 }
 
 func writeKeys(namespace string) {
@@ -100,7 +132,7 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 		var namespace string
 
 		BeforeAll(func() {
-			namespace = installValkey(4)
+			namespace = installValkey(4, 0)
 		})
 
 		It("forms a cluster with every slot spread over 4 masters", func() {
@@ -116,6 +148,70 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 			e2e.UpgradeChart(namespace, "valkey", valkeyChartDirectory, map[string]string{"cluster.masters": "3"})
 			Eventually(expectHealthyCluster).WithArguments(namespace, 3).Should(Succeed())
 			expectKeysReadable(Default, namespace, "valkey-vk-0")
+		})
+	})
+
+	Context("replication", Ordered, func() {
+		var namespace string
+
+		BeforeAll(func() {
+			namespace = installValkey(3, 1)
+		})
+
+		It("syncs every replica with its master", func() {
+			Eventually(expectHealthyCluster).WithArguments(namespace, 3).Should(Succeed())
+			writeKeys(namespace)
+			Eventually(expectReplicasSynced).WithArguments(namespace, 3).Should(Succeed())
+		})
+
+		It("applies parameters to the running nodes without restarting them", func() {
+			podUIDsQuery := []string{"-n", namespace, "get", "pods", "-l", "app=valkey-vk", "-o", "jsonpath={.items[*].metadata.uid}"}
+			podUIDs := e2e.MustRun("", "kubectl", podUIDsQuery...)
+			// NOTE: no-failover and the sync delay set up the next spec
+			e2e.UpgradeChart(namespace, "valkey", valkeyChartDirectory, map[string]string{
+				"parameters.maxmemory":                   "200mb",
+				"parameters.cluster-replica-no-failover": "yes",
+				"parameters.repl-diskless-sync-delay":    "30",
+			})
+			for _, podName := range podNames(namespace) {
+				maxmemory, err := valkeyCli(namespace, podName, "", "config", "get", "maxmemory")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(maxmemory).To(Equal("maxmemory\n209715200\n"), podName)
+			}
+			Expect(e2e.MustRun("", "kubectl", podUIDsQuery...)).To(Equal(podUIDs))
+		})
+
+		It("scales down right after a failover, while the demoted master resyncs", func() {
+			masterNodeID, err := valkeyCli(namespace, "valkey-vk-0", "", "cluster", "myid")
+			Expect(err).NotTo(HaveOccurred())
+			replicaNodes, err := valkeyCli(namespace, "valkey-vk-0", "", "cluster", "replicas", strings.TrimSpace(masterNodeID))
+			Expect(err).NotTo(HaveOccurred())
+			replicaPodName := regexp.MustCompile(`,(valkey-vk-\d+)\.`).FindStringSubmatch(replicaNodes)[1]
+			Expect(valkeyCli(namespace, replicaPodName, "", "cluster", "failover")).To(Equal("OK\n"))
+			Eventually(valkeyCli).WithArguments(namespace, "valkey-vk-0", "", "info", "replication").Should(ContainSubstring("role:slave"))
+
+			// NOTE: the sync delay keeps the restarted replica resyncing while scale-down runs
+			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", "valkey-vk-0")
+			e2e.UpgradeChart(namespace, "valkey", valkeyChartDirectory, map[string]string{"cluster.replicasPerMaster": "0"})
+			Eventually(expectHealthyCluster).WithArguments(namespace, 3).Should(Succeed())
+			expectKeysReadable(Default, namespace, "valkey-vk-0")
+		})
+
+		It("finishes an admin password rotation when the same upgrade has a rejected parameter", func() {
+			const newAdminPassword = "admin-test-password-2"
+			e2e.MustRun("", "kubectl", "-n", namespace, "patch", "secret", "valkey-creds", "--type=merge",
+				"-p", fmt.Sprintf(`{"stringData":{"ADMIN_PASSWORD":%q}}`, newAdminPassword))
+			upgradeOutput, err := e2e.Run("", "helm", "-n", namespace, "upgrade", "valkey", valkeyChartDirectory,
+				"--reset-then-reuse-values", "--timeout=5m", "--set", "parameters.maxmemory=lots")
+			Expect(err).To(HaveOccurred())
+			// NOTE: Helm prints the failed apply-config Job's logs before deleting it
+			Expect(upgradeOutput + err.Error()).To(ContainSubstring("argument must be a memory value"))
+
+			for _, podName := range podNames(namespace) {
+				// NOTE: valkey-cli goes on unauthenticated after a rejected -a
+				Expect(valkeyCliAs(namespace, podName, adminPassword, "", "ping")).To(HavePrefix("NOAUTH"), podName)
+				Expect(valkeyCliAs(namespace, podName, newAdminPassword, "", "ping")).To(Equal("PONG\n"), podName)
+			}
 		})
 	})
 })
