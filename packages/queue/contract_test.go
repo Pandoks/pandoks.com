@@ -669,7 +669,7 @@ func TestValkeyAckScriptSettlesALargeBatchAtOnce(t *testing.T) {
 	}
 }
 
-func TestValkeyLeaseStartsAfterASlowServer(t *testing.T) {
+func TestValkeyLeaseCountsFromTheCallOnASlowServer(t *testing.T) {
 	queue, client := openQueue(t, "valkey://client:client@"+valkeyAddress+"/l"+strings.ToLower(rand.Text()[:10])+"?lease=500ms&max_attempts=3"), valkeyTestClient(t)
 	message := testMessage("stall")
 	if err := queue.Send(t.Context(), message); err != nil {
@@ -681,9 +681,11 @@ func TestValkeyLeaseStartsAfterASlowServer(t *testing.T) {
 		stalled <- client.Do(context.Background(), client.B().Eval().Script("local stop = os.clock() + 1 while os.clock() < stop do end return 1").Numkeys(0).Build()).Error()
 	}()
 	time.Sleep(100 * time.Millisecond)
+	called := time.Now()
 	deliveries, err := queue.Receive(t.Context(), 10)
-	if err != nil || len(deliveries) != 1 || !deliveries[0].Deadline.After(time.Now()) {
-		t.Fatalf("got %+v, %v, want one delivery whose 500ms lease hasn't ended", deliveries, err)
+	// NOTE: the lease counts from the call, so the second the server stalled comes out of it
+	if err != nil || len(deliveries) != 1 || deliveries[0].Deadline.After(called.Add(time.Second)) {
+		t.Fatalf("got %+v, %v, want one delivery whose 500ms lease counts from the call", deliveries, err)
 	}
 	if err := <-stalled; err != nil {
 		t.Fatal(err)

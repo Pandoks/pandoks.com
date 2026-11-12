@@ -195,7 +195,7 @@ class ValkeyContractTest(Contract, unittest.TestCase):
         self.assertEqual(self.client.xpending(stream, "workers")["pending"], 0)
         self.assertEqual(self.client.xlen(stream), 0)
 
-    def test_lease_starts_after_a_slow_server(self):
+    def test_lease_counts_from_the_call_on_a_slow_server(self):
         queue = self.open(f"valkey://client:client@127.0.0.1:{VALKEY_PORT}/l{secrets.token_hex(5)}?lease=500ms&max_attempts=3")
         message = test_message("stall")
         queue.send(message)
@@ -204,9 +204,11 @@ class ValkeyContractTest(Contract, unittest.TestCase):
         stall.start()
         self.addCleanup(stall.join)
         time.sleep(0.1)
+        called = datetime.now(UTC)
         deliveries = queue.receive(10)
         self.assertEqual([delivery.id for delivery in deliveries], [message.id])
-        self.assertGreater(deliveries[0].deadline, datetime.now(UTC))
+        # NOTE: the lease counts from the call, so the second the server stalled comes out of it
+        self.assertLess(deliveries[0].deadline, called + timedelta(seconds=1))
 
     def test_open_closes_the_client_when_subscribing_fails(self):
         name = f"s{secrets.token_hex(5)}"

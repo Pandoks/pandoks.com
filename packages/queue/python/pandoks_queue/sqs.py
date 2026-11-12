@@ -62,8 +62,8 @@ class SQSQueue:
             check_failed("send to SQS", self.client.send_message_batch(QueueUrl=self.url, Entries=batch))
 
     def receive(self, max: int) -> list[Delivery]:
-        if max < 1:
-            raise ValueError(f"receive from SQS: max {max} must be at least 1")
+        if not isinstance(max, int) or max < 1:
+            raise ValueError(f"receive from SQS: max {max} must be a positive integer")
         response = self.client.receive_message(
             QueueUrl=self.url,
             MaxNumberOfMessages=min(max, BATCH_COUNT),

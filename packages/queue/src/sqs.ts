@@ -72,7 +72,9 @@ export class SQSQueue implements Queue {
   }
 
   async receive(max: number, signal?: AbortSignal): Promise<Delivery[]> {
-    if (max < 1) throw new Error(`receive from SQS: max ${max} must be at least 1`);
+    if (!Number.isInteger(max) || max < 1) {
+      throw new Error(`receive from SQS: max ${max} must be a positive integer`);
+    }
     let output;
     try {
       output = await this.client.send(

@@ -45,7 +45,8 @@ graph LR
   for retried sends.
 - **Lease:** `Receive` leases each delivery for the URL's `lease`. `Deadline` is when it ends; past
   it the broker redelivers. Set the lease above the handler's worst case plus 10 s; no broker here
-  can extend one portably.
+  can extend one portably. Valkey's `Deadline` counts from the `Receive` call, so a slow server
+  spends part of the lease; SQS and Cloudflare count from their answer.
 - **Attempts:** `Attempt` is 1 on the first delivery and comes from the broker (SQS's
   `ApproximateReceiveCount` is approximate).
 - **Retry:** `Retry(delay)` releases the delivery to come back after `delay`, which, like `Send`'s
@@ -156,7 +157,8 @@ user or password, are errors, as are incomplete SNS ARNs or ones outside an `aws
 partition, `.fifo` queues and topics (FIFO needs a message group ID, which `Send` and `Publish`
 never set), and empty, `.`, or `..` path segments once decoded (so `%2F` splits a segment), which
 TS's URL parser would otherwise resolve to another name. Only Valkey URLs take a user and password,
-and they need the port. Every language rejects the URLs in
+and they need the port; a named user needs a non-empty password, since GLIDE sends no AUTH for an
+empty one. Every language rejects the URLs in
 [testdata/malformed-urls.json](./testdata/malformed-urls.json) without echoing their passwords.
 
 ## Brokers

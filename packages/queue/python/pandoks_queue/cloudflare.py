@@ -80,8 +80,8 @@ class CloudflareQueue:
         self.push(entries(messages))
 
     def receive(self, max: int) -> list[Delivery]:
-        if max < 1:
-            raise ValueError(f"receive from Cloudflare: max {max} must be at least 1")
+        if not isinstance(max, int) or max < 1:
+            raise ValueError(f"receive from Cloudflare: max {max} must be a positive integer")
         response = self.client.queues.messages.pull(
             self.id,
             account_id=self.account,

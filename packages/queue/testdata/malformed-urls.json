@@ -49,6 +49,8 @@
     "valkey://client:xq1%zq2@127.0.0.1:1/q?lease=1s&max_attempts=1",
     "valkey://client:xq1%ffzq2@127.0.0.1:1/q?lease=1s&max_attempts=1",
     "valkey://xq1%ff:zq2@127.0.0.1:1/q?lease=1s&max_attempts=1",
+    "valkey://client:@127.0.0.1:1/q?lease=1s&max_attempts=1",
+    "valkey://client@127.0.0.1:1/q?lease=1s&max_attempts=1",
     "awssqs://sqs.us-west-1.amazonaws.com/123456789012/orders/../payments?lease=30s",
     "awssqs://sqs.us-west-1.amazonaws.com/123456789012/orders/%2e%2E/payments?lease=30s",
     "awssqs://sqs.us-west-1.amazonaws.com/123456789012/./payments?lease=30s",

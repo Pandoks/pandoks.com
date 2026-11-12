@@ -49,6 +49,8 @@ function valkeyName(url: URL): string {
   ) {
     throw new Error('valkey URL must be valkey://[user:password@]host:port/<name>');
   }
+  // NOTE: GLIDE sends no AUTH for an empty password, so a named user can't log in without one
+  if (url.username && !url.password) throw new Error('valkey URL: a named user needs a password');
   return name;
 }
 
@@ -132,8 +134,13 @@ export class ValkeyQueue implements Queue {
   }
 
   async receive(max: number, signal?: AbortSignal): Promise<Delivery[]> {
-    if (max < 1) throw new Error(`receive from Valkey: max ${max} must be at least 1`);
+    if (!Number.isInteger(max) || max < 1) {
+      throw new Error(`receive from Valkey: max ${max} must be a positive integer`);
+    }
     if (signal?.aborted) return [];
+    // NOTE: the server starts the lease when it runs the script, after this call, so counting from
+    // here never outlasts the server's lease, even when the reply is read late
+    const deadline = new Date(Date.now() + this.lease * 1000);
     const invocation = this.client.invokeScript(this.receiveScript, {
       keys: this.keys,
       args: [
@@ -168,8 +175,6 @@ export class ValkeyQueue implements Queue {
       this.releases = Promise.all([this.releases, release]);
       return [];
     }
-    // NOTE: the lease starts when the script runs, which can be well after the call on a busy server
-    const deadline = new Date(Date.now() + this.lease * 1000);
     const { deliveries, malformed } = decodeRows(
       rows.map(([streamID, body, attempt]): [Uint8Array, number, unknown] => [
         body,

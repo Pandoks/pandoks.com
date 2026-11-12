@@ -58,6 +58,10 @@ func valkeyName(parsed *url.URL) (string, error) {
 		slices.ContainsFunc(decoded, func(part string) bool { return !utf8.ValidString(part) }) {
 		return "", errors.New("valkey URL must be valkey://[user:password@]host:port/<name>")
 	}
+	// NOTE: GLIDE (TS) sends no AUTH for an empty password, so every language rejects one
+	if parsed.User.Username() != "" && password == "" {
+		return "", errors.New("valkey URL: a named user needs a password")
+	}
 	return name, nil
 }
 
@@ -152,6 +156,9 @@ func (queue *valkeyQueue) Receive(ctx context.Context, max int) ([]*Delivery, er
 		return nil, fmt.Errorf("receive from Valkey: %w", ctx.Err())
 	}
 	args := []string{valkeyGroup, queue.consumer, strconv.Itoa(max), strconv.FormatInt(queue.lease.Milliseconds(), 10), strconv.Itoa(queue.maxAttempts)}
+	// NOTE: the server starts the lease when it runs the script, after this call, so counting from
+	// here never outlasts the server's lease, even when the reply is read late
+	deadline := time.Now().Add(queue.lease)
 	// NOTE: valkey-go stops waiting on cancel, but the server still runs the script
 	replies := make(chan valkey.ValkeyResult, 1)
 	go func() {
@@ -161,14 +168,14 @@ func (queue *valkeyQueue) Receive(ctx context.Context, max int) ([]*Delivery, er
 	select {
 	case reply = <-replies:
 	case <-ctx.Done():
-		queue.releases.Go(func() { queue.release(ctx, <-replies) })
+		queue.releases.Go(func() { queue.release(ctx, deadline, <-replies) })
 		return nil, fmt.Errorf("receive from Valkey: %w", ctx.Err())
 	}
 	rows, err := reply.ToArray()
 	if err != nil {
 		return nil, fmt.Errorf("receive from Valkey: %w", err)
 	}
-	deliveries, err := queue.deliveries(ctx, rows)
+	deliveries, err := queue.deliveries(ctx, rows, deadline)
 	if err != nil {
 		return nil, err
 	}
@@ -182,13 +189,13 @@ func (queue *valkeyQueue) Receive(ctx context.Context, max int) ([]*Delivery, er
 }
 
 // release retries what a receive abandoned on cancel leased once its script ran, with no delay.
-func (queue *valkeyQueue) release(ctx context.Context, reply valkey.ValkeyResult) {
+func (queue *valkeyQueue) release(ctx context.Context, deadline time.Time, reply valkey.ValkeyResult) {
 	settleContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), settleTimeout)
 	defer cancel()
 	rows, err := reply.ToArray()
 	var deliveries []*Delivery
 	if err == nil {
-		deliveries, err = queue.deliveries(settleContext, rows)
+		deliveries, err = queue.deliveries(settleContext, rows, deadline)
 	}
 	if err == nil {
 		err = queue.Retry(settleContext, 0, deliveries...)
@@ -199,9 +206,7 @@ func (queue *valkeyQueue) release(ctx context.Context, reply valkey.ValkeyResult
 }
 
 // deliveries decodes receive.lua's rows, and logs and acks the malformed ones.
-func (queue *valkeyQueue) deliveries(ctx context.Context, rows []valkey.ValkeyMessage) ([]*Delivery, error) {
-	// NOTE: the lease starts when the script runs, which can be well after the call on a busy server
-	deadline := time.Now().Add(queue.lease)
+func (queue *valkeyQueue) deliveries(ctx context.Context, rows []valkey.ValkeyMessage, deadline time.Time) ([]*Delivery, error) {
 	deliveries := make([]*Delivery, 0, len(rows))
 	var malformed []*Delivery
 	for _, row := range rows {

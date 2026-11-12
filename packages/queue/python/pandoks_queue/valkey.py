@@ -47,6 +47,9 @@ def valkey_name(parsed: SplitResult) -> str:
         or port is None
     ):
         raise ValueError("valkey URL must be valkey://[user:password@]host:port/<name>")
+    # NOTE: GLIDE (TS) sends no AUTH for an empty password, so every language rejects one
+    if parsed.username and not parsed.password:
+        raise ValueError("valkey URL: a named user needs a password")
     return name
 
 
@@ -109,12 +112,13 @@ class ValkeyQueue:
         self.send_script(keys=self.keys, args=args)
 
     def receive(self, max: int) -> list[Delivery]:
-        if max < 1:
-            raise ValueError(f"receive from Valkey: max {max} must be at least 1")
+        if not isinstance(max, int) or max < 1:
+            raise ValueError(f"receive from Valkey: max {max} must be a positive integer")
         args = [GROUP, self.consumer, max, round(self.lease * 1000), self.max_attempts]
-        rows = self.receive_script(keys=self.keys, args=args)
-        # NOTE: the lease starts when the script runs, which can be well after the call on a busy server
+        # NOTE: the server starts the lease when it runs the script, after this call, so counting from
+        # here never outlasts the server's lease, even when the reply is read late
         deadline = datetime.now(UTC) + timedelta(seconds=self.lease)
+        rows = self.receive_script(keys=self.keys, args=args)
         deliveries, malformed = decode_rows(((body, int(attempt), stream_id) for stream_id, body, attempt in rows), deadline)
         # NOTE: a malformed message whose ack fails returns and is dropped again
         try:

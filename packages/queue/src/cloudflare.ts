@@ -101,7 +101,9 @@ export class CloudflareQueue implements Queue {
   }
 
   async receive(max: number, signal?: AbortSignal): Promise<Delivery[]> {
-    if (max < 1) throw new Error(`receive from Cloudflare: max ${max} must be at least 1`);
+    if (!Number.isInteger(max) || max < 1) {
+      throw new Error(`receive from Cloudflare: max ${max} must be a positive integer`);
+    }
     let response;
     try {
       response = await this.client.queues.messages.pull(

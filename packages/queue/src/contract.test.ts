@@ -393,7 +393,7 @@ describe('valkey', { timeout: 60_000 }, () => {
     await queue.close();
   });
 
-  test('receive waits out a slow server and starts the lease after it', async () => {
+  test('receive waits out a slow server, which spends the lease', async () => {
     const queue = await openQueue(
       `valkey://client:client@${VALKEY}/w${suffix()}?lease=500ms&max_attempts=3`
     );
@@ -401,9 +401,11 @@ describe('valkey', { timeout: 60_000 }, () => {
     await queue.send(message);
     const stalled = stall(1);
     await setTimeout(100);
+    const called = Date.now();
     const deliveries = await queue.receive(10);
     expect(deliveries.map((delivery) => delivery.id)).toEqual([message.id]);
-    expect(deliveries[0].deadline.getTime()).toBeGreaterThan(Date.now());
+    // NOTE: the lease counts from the call, so the second the server stalled comes out of it
+    expect(deliveries[0].deadline.getTime()).toBeLessThan(called + 1000);
     await stalled;
     await queue.close();
   });

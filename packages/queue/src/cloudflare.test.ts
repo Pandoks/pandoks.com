@@ -101,6 +101,31 @@ test('cloudflare lease starts after a slow pull', async () => {
   }
 });
 
+test('cloudflare receive rejects a count that is not a positive integer', async () => {
+  const pulls: string[] = [];
+  const server = createServer((request, response) => {
+    pulls.push(request.url!);
+    request.resume();
+    request.on('end', () => {
+      response.setHeader('Content-Type', 'application/json');
+      response.end(JSON.stringify({ success: true, errors: [], messages: [], result: {} }));
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  vi.stubEnv('CLOUDFLARE_BASE_URL', `http://127.0.0.1:${(server.address() as AddressInfo).port}`);
+  vi.stubEnv('CLOUDFLARE_API_TOKEN', 'test');
+  try {
+    const queue = await openQueue('cloudflare://acct/q1?lease=1s');
+    for (const count of [0, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      await expect(queue.receive(count)).rejects.toThrow('must be a positive integer');
+    }
+    expect(pulls).toEqual([]);
+  } finally {
+    vi.unstubAllEnvs();
+    server.close();
+  }
+});
+
 test('cloudflare topic pushes subscriptions concurrently', async () => {
   let pushSecond: () => void;
   const secondPushed = new Promise<boolean>((resolve) => (pushSecond = () => resolve(true)));
