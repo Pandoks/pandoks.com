@@ -67,8 +67,8 @@ k3s + tailscale. The tailscale operator provides secure access to the cluster AP
 SSH tunnels.
 
 ```sh
-# Connect via tailscale (cluster appears as <prod|dev>-cluster in your tailnet)
-tailscale configure kubeconfig <prod|dev>-cluster
+# Connect via tailscale (cluster appears as <stage>-cluster in your tailnet)
+tailscale configure kubeconfig <stage>-cluster
 kubectl --context <tailscale-context> get pods
 
 # Install base infrastructure (helm charts + CRDs)
@@ -78,8 +78,7 @@ kubectl --context <tailscale-context> get pods
 ./scripts/cluster/main.sh deploy prod
 ```
 
-For dev, use `deploy dev` in both commands, keeping `--bootstrap` on the first; it forces stage
-`dev`. Only the `production` and `dev` SST stages have cloud clusters.
+For dev, use `deploy dev --stage your-stage` in both commands, keeping `--bootstrap` on the first.
 
 ### ArgoCD (prod)
 
@@ -193,7 +192,7 @@ patches in its etcd endpoints with a `HelmChartConfig` because they're environme
 k3s/bootstrap/core/kube-prometheus-stack.yaml  → monitoring namespace, Grafana secret, HelmChart
 k3s/overlays/local/prom-etcd-config.yaml       → HelmChartConfig with k3d control plane IPs (172.30.0.4-6)
 k3s/overlays/cluster/prom-etcd-config.yaml     → HelmChartConfig with Hetzner IPs (10.0.1.10+)
-k3s/base/core/monitoring.yaml                  → Grafana service exposed via Tailscale (<prod|dev>-grafana)
+k3s/base/core/monitoring.yaml                  → Grafana service exposed via Tailscale (<stage>-grafana)
 k3s/base/monitoring/                           → HAProxy Grafana dashboards
 ```
 
@@ -213,11 +212,28 @@ Grafana uses the default sidecar-based provisioning. Earlier versions had a race
 (REQ_SKIP_INIT bug) but this was fixed in Grafana helm chart 10.5.8 (included in
 kube-prometheus-stack 80.14.4+).
 
+### Upgrading
+
+Helm skips a chart's `crds/` on upgrade, so `crds.upgradeJob` applies the chart's Prometheus
+Operator CRDs in a pre-upgrade Job before the new operator rolls out.
+
 ### Updating Helm Values
 
-k3s HelmChart CRD sometimes doesn't trigger upgrades. To force update:
+k3s HelmChart CRD sometimes doesn't trigger upgrades. To rerun one, delete its Job and
+helm-controller recreates it (for dev, use its `<tailscale-context>`):
 
 ```bash
-kubectl delete helmchart kube-prometheus-stack -n kube-system
-pnpm cluster deploy local --stage your-stage
+kubectl --context k3d-local-cluster -n kube-system delete job helm-install-kube-prometheus-stack
 ```
+
+`failurePolicy: abort` (on the HelmChart and each overlay's HelmChartConfig, whose default overrides
+it) stops a failed release from being reinstalled. Once the cause is fixed, roll it back to the
+revision `helm history` still shows as `deployed`, then delete the Job as above:
+
+```bash
+helm --kube-context k3d-local-cluster -n monitoring history kube-prometheus-stack
+helm --kube-context k3d-local-cluster -n monitoring rollback kube-prometheus-stack <revision>
+```
+
+Don't delete the HelmChart: helm-controller then uninstalls the release, which deletes Grafana's PVC
+and its data. Prod only changes through `main`.
