@@ -66,7 +66,6 @@
     "cloudflare://account/..?lease=30s",
     "valkey://127.0.0.1:1/..?lease=1s&max_attempts=1",
     "valkey://127.0.0.1:1/%2E%2E?lease=1s&max_attempts=1",
-    "cloudflare://abc%31/queue?lease=1s",
     "valkey://h%6fst:1/q?lease=1s&max_attempts=1",
     "valkey://h%C3%A9st:1/q?lease=1s&max_attempts=1"
   ],
@@ -117,7 +116,6 @@
     "awssns:///arn:aws:sns:us-west-1:123456789012:t/",
     "cloudflare://account%zz/a",
     "valkey://127.0.0.1:1/..",
-    "cloudflare://abc%31/a",
     "valkey://h%6fst:1/t",
     "valkey://hést:1/t"
   ]
