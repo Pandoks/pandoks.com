@@ -95,8 +95,7 @@ export const secrets = {
   }
 };
 
-// NOTE: every resource and invoke of these packages gets its explicit provider, so no stack picks up
-// ambient credentials. Pulumi.yaml disables their defaults, so anything this misses fails.
+// NOTE: explicit providers so no ambient token is used; disabled defaults fail anything missed
 const providers: Record<string, pulumi.ProviderResource> = {
   cloudflare: new cloudflare.Provider('Cloudflare', { apiToken: secrets.cloudflare.ApiKey }),
   github: new github.Provider('Github', { token: secrets.github.PersonalAccessToken }),
