@@ -46,8 +46,10 @@ graph TB
     G0P -.->|Streaming Replication| G0R2
     G1P -.->|Streaming Replication| G1R1
 
-    BackupJobs -->|TLS| G0P
-    BackupJobs -->|TLS| G1P
+    BackupJobs -->|TLS| G0R1
+    BackupJobs -->|TLS| G1R1
+    BackupJobs -.->|TLS if no replica is up| G0P
+    BackupJobs -.->|TLS if no replica is up| G1P
     BackupJobs --> S3
     RestorePoint --> G0P
 
@@ -95,8 +97,9 @@ graph TB
 
 ### pgBackRest (Backup & Recovery)
 
-- **Per-group backups** - each group has its own stanza (`myapp-group-N`), backed up from its
-  primary
+- **Per-group backups** - each group has its own stanza (`myapp-group-N`), backed up from the first
+  running replica pgBackRest finds among the group's pods (each listed by its DNS name), or from the
+  primary if none is up
 - **Automated schedules** - full, differential, and incremental backups
 - **Cluster-wide restore points** - a CronJob runs `citus_create_restore_point()`, the only targets
   every group can be restored to consistently
@@ -697,8 +700,8 @@ kubectl rollout restart deployment/myapp-pgbouncer -n myapp
 ### Backup Job Fails with TLS Error
 
 The chart issues per-group certificates (`patroni-myapp-group-N` and
-`myapp-group-N-pgbackrest-backup`) from `internal-ca-issuer`, with the group's primary service
-hostname as the DNS name. If backup jobs fail with certificate errors, check that they're ready:
+`myapp-group-N-pgbackrest-backup`) from `internal-ca-issuer`, with a wildcard DNS name covering
+every pod of the group. If backup jobs fail with certificate errors, check that they're ready:
 
 ```bash
 kubectl get certificate -n myapp

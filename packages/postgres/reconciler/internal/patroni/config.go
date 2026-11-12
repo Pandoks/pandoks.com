@@ -14,10 +14,6 @@ func GetGroupConfigURL(db string, group int) string {
 	return fmt.Sprintf("http://patroni-%s-api-group-%d:8008/config", db, group)
 }
 
-// PatchConfig merges parameters into the cluster config that the Patroni REST API at configURL stores in
-// the DCS. A 503 means the cluster is still bootstrapping, which writes the same parameters from
-// bootstrap.dcs, so it counts as done. retry is true while no member answers or another config edit is in
-// flight (409).
 func PatchConfig(configURL string, password string, parameters map[string]any) (retry bool, err error) {
 	body, err := json.Marshal(map[string]any{"postgresql": map[string]any{"parameters": parameters}})
 	if err != nil {
@@ -37,6 +33,7 @@ func PatchConfig(configURL string, password string, parameters map[string]any) (
 	}
 	defer func() { _ = response.Body.Close() }()
 
+	// NOTE: 503 means still bootstrapping, and bootstrap.dcs already sets these parameters
 	if response.StatusCode == http.StatusServiceUnavailable {
 		return false, nil
 	}

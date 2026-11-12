@@ -10,7 +10,7 @@ spec:
   commonName: patroni-{{ $.Values.db }}-group-{{ $group }}
   secretName: patroni-{{ $.Values.db }}-group-{{ $group }}-tls
   dnsNames:
-    - patroni-{{ $.Values.db }}-primary-group-{{ $group }}.{{ $.Values.namespace }}.svc.cluster.local
+    - '*.patroni-{{ $.Values.db }}-group-{{ $group }}.{{ $.Values.namespace }}.svc.cluster.local'
   usages:
     - client auth
     - server auth
@@ -29,7 +29,7 @@ spec:
   commonName: {{ $.Values.db }}-group-{{ $group }}-pgbackrest-backup
   secretName: {{ $.Values.db }}-group-{{ $group }}-pgbackrest-backup-tls
   dnsNames:
-    - patroni-{{ $.Values.db }}-primary-group-{{ $group }}.{{ $.Values.namespace }}.svc.cluster.local
+    - '*.patroni-{{ $.Values.db }}-group-{{ $group }}.{{ $.Values.namespace }}.svc.cluster.local'
   usages:
     - client auth
     - server auth
