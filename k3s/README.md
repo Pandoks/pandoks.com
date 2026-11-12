@@ -117,8 +117,10 @@ two control-plane pools, overlapping CIDRs, an unlinked location, or `gpu` on a 
   changing `VM_IMAGE`, lower and raise a pool's `count` to replace them. Latitude servers keep their
   OS, so do the same after changing `OPERATING_SYSTEM`; gateways take it at their next rebuild.
 - **Control plane:** to move or rename it, rename its cluster, or replace its bootstrap node (index
-  0), first deploy the cluster with zero nodes, which removes its proxy. Control-plane IPs come from
-  node indexes, so new nodes would otherwise take IPs the old ones still hold.
+  0), first deploy the cluster with zero nodes, which removes its proxy. If that removal fails, the
+  deploy only warns, so delete the device by hand, or the new proxy gets a suffixed hostname.
+  Control-plane IPs come from node indexes, so new nodes would otherwise take IPs the old ones still
+  hold.
 - **Location:** add it with an unused `10.N.0.0/16`, a `gateway`, and a link, and give the existing
   location a `gateway` too if it was alone. Existing nodes don't change.
 - **Link:** change `via`. Gateways whose routes change rebuild, and so does a gateway dialing one

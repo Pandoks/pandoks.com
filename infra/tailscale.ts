@@ -156,13 +156,14 @@ export function deleteTailscaleDevices(...deviceIds: string[]) {
     secrets.tailscale.OauthClientId.value,
     secrets.tailscale.OauthClientSecret.value
   ]).apply(async ([clientId, clientSecret]) => {
-    const accessToken = await tailscaleApiToken({ clientId, clientSecret });
+    // NOTE: token failures become results, since a rejected Output never settles an awaiting hook
+    const accessToken = tailscaleApiToken({ clientId, clientSecret });
     return await Promise.all(
       deviceIds.map(async (deviceId) => {
         try {
           const response = await fetch(`https://api.tailscale.com/api/v2/device/${deviceId}`, {
             method: 'DELETE',
-            headers: { Authorization: `Bearer ${accessToken}` }
+            headers: { Authorization: `Bearer ${await accessToken}` }
           });
           if (!response.ok) {
             throw new Error(`${response.status} ${response.statusText}`);
