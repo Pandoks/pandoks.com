@@ -626,3 +626,36 @@ func TestValkeyLeaseStartsAfterASlowServer(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestValkeyReleasesWhatACancelledReceiveLeases(t *testing.T) {
+	rawURL := "valkey://client:client@" + valkeyAddress + "/c" + strings.ToLower(rand.Text()[:10]) + "?lease=1m&max_attempts=3"
+	stopped, client := openQueue(t, rawURL), valkeyTestClient(t)
+	message := testMessage("cancelled")
+	if err := stopped.Send(t.Context(), message); err != nil {
+		t.Fatal(err)
+	}
+	// NOTE: another client's slow script keeps the receive queued past the shutdown
+	stalled := make(chan error, 1)
+	go func() {
+		stalled <- client.Do(context.Background(), client.B().Eval().Script("local stop = os.clock() + 1 while os.clock() < stop do end return 1").Numkeys(0).Build()).Error()
+	}()
+	time.Sleep(100 * time.Millisecond)
+	ctx, cancel := context.WithCancel(t.Context())
+	time.AfterFunc(200*time.Millisecond, cancel)
+	worker := Worker{Queue: stopped, Concurrency: 1, Handle: func(context.Context, *Delivery) error {
+		t.Error("handled a delivery after shutdown")
+		return nil
+	}}
+	if err := worker.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-stalled; err != nil {
+		t.Fatal(err)
+	}
+	if err := stopped.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if receive(t, openQueue(t, rawURL), 5*time.Second, message.ID)[message.ID] == nil {
+		t.Fatal("the cancelled receive's lease was never released")
+	}
+}

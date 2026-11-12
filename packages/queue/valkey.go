@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -82,6 +83,7 @@ type valkeyQueue struct {
 	consumer    string
 	lease       time.Duration
 	maxAttempts int
+	releases    sync.WaitGroup
 }
 
 func openValkey(ctx context.Context, parsed *url.URL) (*valkeyQueue, error) {
@@ -146,11 +148,58 @@ func (queue *valkeyQueue) Receive(ctx context.Context, max int) ([]*Delivery, er
 	if max < 1 {
 		return nil, fmt.Errorf("receive from Valkey: max %d must be at least 1", max)
 	}
+	if ctx.Err() != nil {
+		return nil, fmt.Errorf("receive from Valkey: %w", ctx.Err())
+	}
 	args := []string{valkeyGroup, queue.consumer, strconv.Itoa(max), strconv.FormatInt(queue.lease.Milliseconds(), 10), strconv.Itoa(queue.maxAttempts)}
-	rows, err := receiveScript.Exec(ctx, queue.client, queue.keys, args).ToArray()
+	// NOTE: valkey-go stops waiting on cancel, but the server still runs the script
+	replies := make(chan valkey.ValkeyResult, 1)
+	go func() {
+		replies <- receiveScript.Exec(context.WithoutCancel(ctx), queue.client, queue.keys, args)
+	}()
+	var reply valkey.ValkeyResult
+	select {
+	case reply = <-replies:
+	case <-ctx.Done():
+		queue.releases.Go(func() { queue.release(ctx, <-replies) })
+		return nil, fmt.Errorf("receive from Valkey: %w", ctx.Err())
+	}
+	rows, err := reply.ToArray()
 	if err != nil {
 		return nil, fmt.Errorf("receive from Valkey: %w", err)
 	}
+	deliveries, err := queue.deliveries(ctx, rows)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		select {
+		case <-time.After(valkeyEmptyPollDelay):
+		case <-ctx.Done():
+		}
+	}
+	return deliveries, nil
+}
+
+// release retries what a receive abandoned on cancel leased once its script ran, with no delay.
+func (queue *valkeyQueue) release(ctx context.Context, reply valkey.ValkeyResult) {
+	settleContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), settleTimeout)
+	defer cancel()
+	rows, err := reply.ToArray()
+	var deliveries []*Delivery
+	if err == nil {
+		deliveries, err = queue.deliveries(settleContext, rows)
+	}
+	if err == nil {
+		err = queue.Retry(settleContext, 0, deliveries...)
+	}
+	if err != nil {
+		slog.Error("queue release failed", "error", err)
+	}
+}
+
+// deliveries decodes receive.lua's rows, and logs and acks the malformed ones.
+func (queue *valkeyQueue) deliveries(ctx context.Context, rows []valkey.ValkeyMessage) ([]*Delivery, error) {
 	// NOTE: the lease starts when the script runs, which can be well after the call on a busy server
 	deadline := time.Now().Add(queue.lease)
 	deliveries := make([]*Delivery, 0, len(rows))
@@ -174,12 +223,6 @@ func (queue *valkeyQueue) Receive(ctx context.Context, max int) ([]*Delivery, er
 	// NOTE: a malformed message whose ack fails returns and is dropped again
 	if err := queue.Ack(ctx, malformed...); err != nil {
 		slog.Error("queue failed to ack malformed messages", "error", err)
-	}
-	if len(rows) == 0 {
-		select {
-		case <-time.After(valkeyEmptyPollDelay):
-		case <-ctx.Done():
-		}
 	}
 	return deliveries, nil
 }
@@ -217,6 +260,7 @@ func (queue *valkeyQueue) Retry(ctx context.Context, delay time.Duration, delive
 
 func (queue *valkeyQueue) Close() error {
 	defer queue.client.Close()
+	queue.releases.Wait()
 	if err := closeScript.Exec(context.Background(), queue.client, queue.keys[:1], []string{valkeyGroup, queue.consumer}).Error(); err != nil {
 		return fmt.Errorf("close Valkey queue: %w", err)
 	}
