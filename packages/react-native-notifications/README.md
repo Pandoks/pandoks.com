@@ -45,6 +45,6 @@ Android notifications on the `default` channel:
 Add `"expo-notifications"` to the app's `plugins`, which sets the iOS `aps-environment` entitlement.
 Android needs Firebase for a token: register the app with `gcp.firebase.AndroidApp` in
 [infra/firebase.ts](/infra/firebase.ts) and point `android.googleServicesFile` at its config, as the
-[template's app.config.ts](/apps/mobile-template/app.config.ts) does. Without the exact alarm
+[template's app.config.ts](/templates/mobile/app.config.ts) does. Without the exact alarm
 permission, which Android 14+ denies by default and this package doesn't request, Android delivers
 scheduled notifications at an approximate time.
