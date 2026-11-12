@@ -149,8 +149,8 @@ jobs:
               - 'apps/web/**'
               - 'packages/svelte/**'
               - *needs-node-setup
-            desktop:
-              - 'apps/desktop-template/**'
+            desktop-template:
+              - 'templates/desktop/**'
               - 'packages/svelte/**'
               - *needs-node-setup
             svelte:
@@ -239,7 +239,7 @@ jobs:
 
       - id: set-unit-test-matrix
         run: |
-          all='["web","desktop","svelte","prettier","queue","valkey-reconciler"]'
+          all='["web","desktop-template","svelte","prettier","queue","valkey-reconciler"]'
           selected='${{ steps.unit-test-changes.outputs.changes || '[]' }}'
           unit_tests=$(jq -c --argjson sel "${selected}" 'map(select(. as $job | $sel | index($job)))' <<<"${all}")
           echo "unit-tests=${unit_tests}" >> "${GITHUB_OUTPUT}"
