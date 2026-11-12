@@ -8,7 +8,6 @@ on:
       - 'sst.config.ts'
       - 'infra/**'
       - 'apps/**'
-      - '!apps/desktop-template/**'
       - '!apps/example/**'
       - 'apps/*/kube/**'
       - 'pnpm-lock.yaml'
@@ -17,6 +16,7 @@ on:
       - 'k3s/**'
       - 'scripts/cluster/**'
       - 'scripts/mobile-updates/**'
+      - 'templates/mobile/**'
   workflow_dispatch:
     inputs:
       deploy:
@@ -49,7 +49,7 @@ jobs:
             sst:
               - 'sst.config.ts'
               - 'infra/**'
-              - 'apps/!(desktop-template|example|mobile-template)/**'
+              - 'apps/!(example)/**'
               - 'packages/svelte/**'
             kubernetes:
               - 'k3s/**'
@@ -59,8 +59,8 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - 'scripts/mobile-updates/**'
-              - 'apps/mobile-template/{app.json,app.config.ts,package.json}'
-              - 'apps/mobile-template/{assets,src/!(__tests__)}/**'
+              - 'templates/mobile/{app.json,app.config.ts,package.json}'
+              - 'templates/mobile/{assets,src/!(__tests__)}/**'
 
   deploy-sst:
     concurrency:
@@ -128,7 +128,7 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Publish update
-        run: pnpm sst shell --stage production -- pnpm mobile-updates publish apps/mobile-template
+        run: pnpm sst shell --stage production -- pnpm mobile-updates publish templates/mobile
 
   deploy-kubernetes:
     concurrency:

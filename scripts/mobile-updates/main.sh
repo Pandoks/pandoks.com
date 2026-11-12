@@ -22,7 +22,7 @@ usage() {
   printf "  %bpublish%b   Export the app and serve it as the latest update\n\n" "${GREEN}" "${NORMAL}" >&2
 
   printf "%bExample:%b\n" "${BOLD}" "${NORMAL}" >&2
-  printf "  pnpm sst shell --stage pandoks -- pnpm mobile-updates publish apps/mobile-template\n\n" >&2
+  printf "  pnpm sst shell --stage pandoks -- pnpm mobile-updates publish templates/mobile\n\n" >&2
 
   exit "${1:-0}"
 }

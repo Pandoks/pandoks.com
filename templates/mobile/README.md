@@ -26,8 +26,8 @@ builds with the same native code, and `certificate.crt` verifies the `MobileUpda
 signature.
 
 Merging a change to the app's JS or assets on `main` publishes it from `deploy-infra.yaml`
-([apps/mobile-updates](../mobile-updates/README.md)). To roll back, revert the change on `main`:
-phones keep the newest update they have, and the revert publishes a newer one.
+([apps/mobile-updates](../../apps/mobile-updates/README.md)). To roll back, revert the change on
+`main`: phones keep the newest update they have, and the revert publishes a newer one.
 
 To try an update on a dev stage, build against `mobile-updates-dev.pandoks.com`, then change some JS
 and publish it from the repo root:
@@ -36,5 +36,5 @@ and publish it from the repo root:
 export MOBILE_UPDATES_ENVIRONMENT=dev
 rm -rf ios && pnpm ios --configuration Release
 rm -rf android && pnpm android --variant release
-pnpm sst shell --stage <stage> -- pnpm mobile-updates publish apps/mobile-template
+pnpm sst shell --stage <stage> -- pnpm mobile-updates publish templates/mobile
 ```
