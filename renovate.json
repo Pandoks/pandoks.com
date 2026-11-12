@@ -98,7 +98,10 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^k3s/.+/kustomization\\.ya?ml$/"],
+      "managerFilePatterns": [
+        "/^k3s/.+/kustomization\\.ya?ml$/",
+        "/^packages/e2e/kustomization\\.yaml$/"
+      ],
       "matchStrings": [
         "https://github\\.com/(?<depName>[^/]+/[^/]+)/releases/download/(?<currentValue>[^/]+)/"
       ],
