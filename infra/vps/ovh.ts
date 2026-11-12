@@ -151,7 +151,8 @@ export function createOvhCluster(pools: NodePool<OvhServer>[]) {
           },
           {
             dependsOn: nodeResources.slice(0, 1),
-            ignoreChanges: isProduction ? ['userData'] : [],
+            // NOTE: OVHcloud updates its base images, and a new image ID would replace every VM
+            ignoreChanges: isProduction ? ['userData', 'bootFrom'] : ['bootFrom'],
             // NOTE: the replacement asks for the same fixed IP, which the old VM's port still holds
             deleteBeforeReplace: true,
             protect: isProduction,
