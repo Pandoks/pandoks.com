@@ -1,7 +1,7 @@
 import { Dimensions, type StyleProp, StyleSheet, type ViewStyle } from 'react-native';
 import { renderRouter, screen } from 'expo-router/testing-library';
 
-import HomeScreen from '../app/index';
+import HomeScreen from '@/app/index';
 
 test.each([
   [599, 1],

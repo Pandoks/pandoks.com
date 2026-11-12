@@ -2,10 +2,9 @@
 
 Personal monorepo. SST (`sst.config.ts`, `infra/`) manages all infrastructure: AWS and Cloudflare
 for what needs high availability, rented machines (Hetzner in `infra/vps/`, moving to OVH) for raw
-compute; the cluster is K3s with Kustomize and ArgoCD. `apps/desktop-template`,
-`apps/mobile-template`, and `apps/example` are templates, but `apps/example/kube` is in every
-overlay, prod included. Apps import `packages/svelte` by package name (`@pandoks.com/svelte/...`);
-inside it, use `#lib`.
+compute; the cluster is K3s with Kustomize and ArgoCD. `templates/` holds starters that are never
+deployed; `apps/example` is an example app whose `kube/` is in every overlay, prod included. Apps
+import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it, use `#lib`.
 
 ## Principles
 
@@ -68,11 +67,11 @@ inside it, use `#lib`.
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
   deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
-  `infra/`, `apps/` (except `desktop-template`, `mobile-template`, and `example`), and
-  `packages/svelte/`, plus an Argo hard refresh and a wait for Synced and Healthy only for `k3s/`,
-  `apps/*/kube/`, and `scripts/cluster/` changes. Pages builds `apps/web` when a change matches
-  `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod` renders but
-  never prunes: a deleted resource stays in prod until pruned by hand.
+  `infra/`, `apps/` (except `example`), and `packages/svelte/`, plus an Argo hard refresh and a wait
+  for Synced and Healthy only for `k3s/`, `apps/*/kube/`, and `scripts/cluster/` changes. Pages
+  builds `apps/web` when a change matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs
+  everything `k3s/overlays/prod` renders but never prunes: a deleted resource stays in prod until
+  pruned by hand.
 - Every non-production stage gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
   environment, so two non-production stages collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
@@ -122,7 +121,7 @@ checkout. The SST CLI is `pnpm sst`.
   - `infra/` or `sst.config.ts`: full `pnpm check` plus scoped lint after the last edit and before
     every commit or push; narrower checks don't replace it.
   - `apps/web`: `CI=1 pnpm --filter web test:e2e` (skips portless) for user-visible changes.
-  - `apps/mobile-template`: `pnpm ios` and `pnpm android` from the app, then `pnpm test:e2e`.
+  - `templates/mobile`: `pnpm ios` and `pnpm android` from the app, then `pnpm test:e2e`.
   - Workflows: the PR's CI once a PR exists.
 - Before calling work done, run format, lint, type, and test commands for every language and package
   you touched, even for a one-line change, and report a configured checker exclusion only when it
