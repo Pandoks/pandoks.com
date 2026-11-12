@@ -250,7 +250,7 @@ func makeRoomForMasters(options *scaleDownOptions) error {
 			}
 
 			promoteOriginalShardLeaderOptions := valkey.PromoteOriginalShardLeaderOptions{
-				ClusterClient: client.Client,
+				AdminPassword: env.AdminPassword,
 				Shard:         shard,
 				Topology:      clusterTopology,
 			}
@@ -409,7 +409,7 @@ func moveMastersToSafeSpots(options *scaleDownOptions) error {
 		// NOTE: because the topology is healthy at the start of scale down function,
 		// there will always be a pod that isn't going to be removed from a statefulset scale down
 		promoteOriginalShardLeaderOptions := valkey.PromoteOriginalShardLeaderOptions{
-			ClusterClient: client.Client,
+			AdminPassword: env.AdminPassword,
 			Shard:         shard,
 			Topology:      clusterTopology,
 		}
