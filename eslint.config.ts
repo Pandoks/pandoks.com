@@ -54,7 +54,8 @@ export default defineConfig([
           './tsconfig.json',
           './tsconfig.eslint.json',
           './apps/*/tsconfig.json',
-          './packages/*/tsconfig.json'
+          './packages/*/tsconfig.json',
+          './templates/*/tsconfig.json'
         ],
         // TODO: https://github.com/typescript-eslint/typescript-eslint/issues/9504
         extraFileExtensions: ['.svelte'],
@@ -165,7 +166,7 @@ export default defineConfig([
     }
   },
   {
-    files: ['apps/desktop-template/electron/**'],
+    files: ['templates/desktop/electron/**'],
     rules: {
       '@typescript-eslint/no-unsafe-argument': 'off',
       '@typescript-eslint/no-unsafe-assignment': 'off',
@@ -192,7 +193,7 @@ export default defineConfig([
   },
 
   // REACT RULES
-  { files: ['**/*.tsx', 'apps/mobile-template/**/*.ts'], ...reactHooks.configs.flat.recommended },
+  { files: ['**/*.tsx', 'templates/mobile/**/*.ts'], ...reactHooks.configs.flat.recommended },
   {
     files: ['**/*.tsx'],
     rules: {
