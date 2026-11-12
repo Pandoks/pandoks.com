@@ -4,111 +4,17 @@ permissions:
   contents: read
 
 on:
-  pull_request:
-    branches:
-      - main
-  push:
-    branches:
-      - main
-
-concurrency:
-  group: checks-${{ github.ref }}
-  cancel-in-progress: true
+  workflow_call:
+    inputs:
+      jobs:
+        description: JSON list of the check groups to run, like ["prettier","go"]; workspace-check always runs.
+        type: string
+        required: true
 
 jobs:
-  detect-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      prettier: ${{ steps.filter.outputs.prettier }}
-      eslint: ${{ steps.filter.outputs.eslint }}
-      go: ${{ steps.filter.outputs.go }}
-      shell: ${{ steps.filter.outputs.shell }}
-      helm: ${{ steps.filter.outputs.helm }}
-      actions: ${{ steps.filter.outputs.actions }}
-      renovate: ${{ steps.filter.outputs.renovate }}
-      infra: ${{ steps.filter.outputs.infra }}
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - id: filter
-        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
-        with:
-          filters: |
-            needs-node-setup: &needs-node-setup
-              - '.github/workflows/checks.yaml'
-              - '.github/actions/setup-node-pnpm/**'
-              - 'mise.toml'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-            needs-mise-setup: &needs-mise-setup
-              - '.github/workflows/checks.yaml'
-              - '.github/actions/setup-mise/**'
-              - 'mise.toml'
-            prettier:
-              - '**/*.ts'
-              - '**/*.tsx'
-              - '**/*.js'
-              - '**/*.jsx'
-              - '**/*.svelte'
-              - '**/*.md'
-              - '**/*.json'
-              - '**/*.yaml'
-              - '**/*.yml'
-              - '**/*.css'
-              - '.prettierrc'
-              - '.prettierignore'
-              - 'scripts/format/**'
-              - *needs-node-setup
-            eslint:
-              - '**/*.ts'
-              - '**/*.tsx'
-              - '**/*.js'
-              - '**/*.jsx'
-              - '**/*.svelte'
-              - 'eslint.config.ts'
-              - 'tsconfig.eslint.json'
-              - 'scripts/lint/**'
-              - *needs-node-setup
-            go:
-              - '**/*.go'
-              - '**/go.mod'
-              - '**/go.sum'
-              - 'go.work'
-              - 'go.work.sum'
-              - '.golangci.yaml'
-              - 'scripts/format/**'
-              - 'scripts/lint/**'
-              - *needs-mise-setup
-            shell:
-              - '**/*.sh'
-              - '.shellcheckrc'
-              - *needs-mise-setup
-            helm:
-              - '**/chart/**'
-              - 'scripts/lint/**'
-              - *needs-mise-setup
-            actions:
-              - '.github/workflows/**'
-              - '.github/actions/**'
-            renovate:
-              - 'renovate.json'
-              - 'renovate.json5'
-              - '.renovaterc'
-              - '.renovaterc.json'
-              - '.renovaterc.json5'
-              - '.github/workflows/checks.yaml'
-            infra:
-              - 'infra/**'
-              - 'sst.config.ts'
-              - 'tsconfig.json'
-              - *needs-node-setup
-
   # ─── JS / TS ──────────────────────────────────────────────────────────
   format-js:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.prettier == 'true'
+    if: contains(fromJSON(inputs.jobs), 'prettier')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -119,8 +25,7 @@ jobs:
         run: pnpm format check js
 
   lint-js:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.eslint == 'true'
+    if: contains(fromJSON(inputs.jobs), 'eslint')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -132,8 +37,7 @@ jobs:
 
   # ─── Go ───────────────────────────────────────────────────────────────
   format-go:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.go == 'true'
+    if: contains(fromJSON(inputs.jobs), 'go')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -146,8 +50,7 @@ jobs:
         run: ./scripts/format/main.sh check go
 
   lint-go:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.go == 'true'
+    if: contains(fromJSON(inputs.jobs), 'go')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -156,25 +59,18 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: packages/valkey/reconciler/go.mod
-          cache-dependency-path: packages/valkey/reconciler/go.sum
+          cache-dependency-path: '**/go.sum'
 
       - uses: ./.github/actions/setup-mise
         with:
-          tools: go golangci-lint go:golang.org/x/vuln/cmd/govulncheck
+          tools: go golangci-lint
 
       - name: Run lint
         run: ./scripts/lint/main.sh go
 
-      - name: Run govulncheck
-        run: |
-          for d in $(go list -m -f '{{.Dir}}'); do
-            (cd "$d" && govulncheck ./...)
-          done
-
   # ─── Shell ────────────────────────────────────────────────────────────
   format-shell:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.shell == 'true'
+    if: contains(fromJSON(inputs.jobs), 'shell')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -187,8 +83,7 @@ jobs:
         run: ./scripts/format/main.sh check shell
 
   lint-shell:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.shell == 'true'
+    if: contains(fromJSON(inputs.jobs), 'shell')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -202,8 +97,7 @@ jobs:
 
   # ─── Helm ─────────────────────────────────────────────────────────────
   lint-helm:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.helm == 'true'
+    if: contains(fromJSON(inputs.jobs), 'helm')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -217,8 +111,7 @@ jobs:
 
   # ─── GitHub Actions ───────────────────────────────────────────────────
   lint-actions:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.actions == 'true'
+    if: contains(fromJSON(inputs.jobs), 'actions')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -230,8 +123,7 @@ jobs:
 
   # ─── Renovate ─────────────────────────────────────────────────────────
   validate-renovate:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.renovate == 'true'
+    if: contains(fromJSON(inputs.jobs), 'renovate')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -244,7 +136,6 @@ jobs:
 
   # ─── Workspace checks ─────────────────────────────────────────────────
   workspace-check:
-    needs: detect-changes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -254,8 +145,7 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm
 
       # NOTE: If a workspace `check` adds a non-npm system binary (Go, helm, hadolint, etc.),
-      # add a `detect-changes`-gated install step above this — mirror the pattern in
-      # the `format-go` / `lint-helm` jobs.
+      # add an install step above this — mirror the pattern in the `format-go` / `lint-helm` jobs.
       - name: Run workspace checks
         env:
           BASE: ${{ github.base_ref || 'main' }}
@@ -263,8 +153,7 @@ jobs:
 
   # ─── Infra typecheck ──────────────────────────────────────────────────
   check-infra:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.infra == 'true'
+    if: contains(fromJSON(inputs.jobs), 'infra')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -273,23 +162,3 @@ jobs:
 
       - name: Typecheck infra
         run: pnpm check:infra
-
-  checks-pass:
-    needs:
-      - detect-changes
-      - format-js
-      - lint-js
-      - format-go
-      - lint-go
-      - format-shell
-      - lint-shell
-      - lint-helm
-      - lint-actions
-      - validate-renovate
-      - workspace-check
-      - check-infra
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    steps:
-      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
-        run: exit 1

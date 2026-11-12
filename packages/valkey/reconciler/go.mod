@@ -1,6 +1,6 @@
 module valkey/reconciler
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/valkey-io/valkey-go v1.0.79
