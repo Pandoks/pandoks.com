@@ -81,10 +81,10 @@ jobs:
 
   tests:
     needs: changes
-    if: needs.changes.outputs.unit != '[]'
+    if: needs.changes.outputs.unit-tests != '[]'
     uses: ./.github/workflows/tests.yaml
     with:
-      jobs: ${{ needs.changes.outputs.unit }}
+      jobs: ${{ needs.changes.outputs.unit-tests }}
 
   build:
     needs: changes
