@@ -28,6 +28,10 @@ exec > >(tee -a "$LOG_FILE") 2>&1
 echo "=== sfn-build start ==="
 echo " build id      : $RUNNER_JOB_ID"
 echo " cache bucket  : $RUNNER_CACHE_BUCKET"
+# build.sh reads BUILDER_CACHE_BUCKET for the ccache tarballs; the SFN only
+# provides RUNNER_CACHE_BUCKET, so without this export no build ever restored
+# or uploaded the compile cache.
+export BUILDER_CACHE_BUCKET="$RUNNER_CACHE_BUCKET"
 echo " artifacts     : $RUNNER_ARTIFACTS_BUCKET"
 echo " package root  : $PKG_ROOT"
 date -u +"%Y-%m-%dT%H:%M:%SZ"
