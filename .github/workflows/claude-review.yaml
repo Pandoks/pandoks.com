@@ -34,7 +34,7 @@ jobs:
 
       - uses: ./.github/actions/setup-node-pnpm
 
-      - uses: tailscale/github-action@99a8333667fff04fdd6cffb46dfd409f8329a7bf # v4.3.0
+      - uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c # v4.4.0
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
@@ -61,7 +61,7 @@ jobs:
       # WARNING: The reviewer reads untrusted PR text, so its process must not see the OIDC request vars.
       - name: Review with Claude
         env:
-          ANTHROPIC_BASE_URL: https://cliproxyapi-ci.tailb2c81d.ts.net
+          ANTHROPIC_BASE_URL: https://cliproxyapi-api.tailb2c81d.ts.net
           ANTHROPIC_API_KEY: cliproxyapi
           GH_TOKEN: ${{ steps.claude-app.outputs.token || github.token }}
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1'
