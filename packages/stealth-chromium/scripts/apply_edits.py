@@ -1199,8 +1199,7 @@ EDITS = [
                   "{SkColorSetRGB(0x00, 0x00, 0xEE)};\n"
                   "    mixer[kColorCssSystemVisitedText] = "
                   "{SkColorSetRGB(0x55, 0x1A, 0x8B)};\n"
-                  "  }\n"
-                  "}",
+                  "  }\n",
         "where": "after",
         "inject": "  // apex-system-colors: a Windows persona replaces the\n"
                   "  // Linux default CSS system palette (the ActiveText red\n"
