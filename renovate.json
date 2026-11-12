@@ -48,6 +48,13 @@
     },
     {
       "customType": "regex",
+      "managerFilePatterns": ["/^k3s/.+\\.ya?ml$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+tag: (?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]+)"
+      ]
+    },
+    {
+      "customType": "regex",
       "managerFilePatterns": ["/^apps/.+/kube/.+\\.ya?ml$/"],
       "matchStrings": [
         "chart: oci://\\$\\{ImageRegistry\\}/(?<depName>charts/[a-z0-9-]+)\\s+version: (?<currentValue>\\S+)"
@@ -116,6 +123,12 @@
       "prBodyNotes": [
         "{{#unless isPatch}}Read the chart's upgrade notes and apply any new CRDs before merging; Helm only installs CRDs on first install.{{/unless}}"
       ]
+    },
+    {
+      "description": "A chart major can carry breaking values, CRD or subchart changes, and one PR can cross several.",
+      "matchDatasources": ["helm"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
     },
     {
       "description": "Each argo-cd chart minor carries an Argo CD minor.",
