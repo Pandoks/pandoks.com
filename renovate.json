@@ -64,6 +64,14 @@
     },
     {
       "customType": "regex",
+      "managerFilePatterns": ["/^infra/vps/cloud-config\\.yaml$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: registryUrl=(?<registryUrl>\\S+))?\\s+[A-Z_]+_VERSION=(?<currentValue>\\S+)"
+      ],
+      "extractVersionTemplate": "^v?(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
       "managerFilePatterns": ["/^sst\\.config\\.ts$/"],
       "matchStrings": [
         "\\n\\s+(?<depName>cloudflare|github|hcloud|tailscale): '(?<currentValue>[\\d.]+)'",

@@ -1,47 +1,80 @@
-import { createHash } from 'node:crypto';
+import { createHash, createHmac, createPrivateKey, createPublicKey } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { deleteTailscaleDevices, tailscaleAcl } from '../tailscale';
 import { STAGE_NAME } from '../dns';
 import { secrets } from '../secrets';
 import { backupBucket, s3Endpoint } from '../storage';
 import { renderCloudInit } from '../utils';
+import type { LatitudeLocation, LatitudeServer } from './latitude';
+import type { OvhLocation, OvhServer } from './ovh';
 
 const cloudInitConfig = readFileSync(`${process.cwd()}/infra/vps/cloud-config.yaml`, 'utf8');
 
 export type Provider = 'ovh' | 'latitude';
 
 /**
- * Identical nodes ordered from one provider. Hostnames, resource names, and worker IPs derive from
- * `name`, so renaming a pool rebuilds its nodes. `server` is the provider's machine type.
+ * Identical nodes ordered in one location, from that location's provider. Hostnames, resource
+ * names, and worker IPs derive from `name`, so renaming a pool rebuilds its nodes.
  */
-export type NodePool<Server> = {
+export type NodePool = {
   name: string;
+  location: string;
   role: 'control-plane' | 'worker';
   count: number;
-  server: Server;
+  server: OvhServer | LatitudeServer;
   labels?: Record<string, string>;
   taints?: `${string}=${string}:${'NoSchedule' | 'PreferNoSchedule' | 'NoExecute'}`[];
 };
-export type ClusterNode<Server> = {
-  pool: NodePool<Server>;
-  index: number;
+/**
+ * One k3s cluster. Each location is one provider site with its own 10.N.0.0/16, and each link joins
+ * two locations' gateways, through a WireGuard tunnel or a routed private interconnect.
+ */
+export type Cluster = {
+  name: string;
+  locations: Record<string, OvhLocation | LatitudeLocation>;
+  links: { between: [string, string]; via: 'wireguard' | 'interconnect' }[];
+  pools: NodePool[];
+};
+
+type NetplanRoute = { to: string; via?: string; scope?: 'link' };
+/** The provider's private NIC: its name, and its netplan devices with `routes` added to it */
+export type PrivateInterface = {
+  name: string;
+  createNetplanDevices: (routes: NetplanRoute[]) => $util.Input<Record<string, unknown>>;
+};
+/** A server to order: a k3s node, or the gateway joining its location to the cluster's others */
+export type Machine = {
+  clusterName: string;
+  locationKey: string;
+  role: 'control-plane' | 'worker' | 'gateway';
   ip: string;
   hostname: string;
   resourceName: string;
-};
+  createUserData: (privateInterface: PrivateInterface) => $util.Output<string>;
+} & (
+  | { provider: 'ovh'; server: OvhServer; location: OvhLocation }
+  | { provider: 'latitude'; server: LatitudeServer; location: LatitudeLocation }
+);
 
-// NOTE: 10.0.0.x is the provider's (OVHcloud's DHCP), 10.0.1.10-19 the control plane's,
-// 10.0.1.100-200 MetalLB's, and 10.0.<hash of its name>.x each worker pool's
-export const PRIVATE_IP_RANGE = '10.0.0.0/16';
+// NOTE: each location's 10.N.0.0/16 sits in it, and nodes route it through their location's gateway
+const PRIVATE_IP_RANGE = '10.0.0.0/8';
+const K3S_CIDRS = ['10.42.0.0/16', '10.43.0.0/16'];
+// NOTE: k3s/README.md maps each location's addresses
+const GATEWAY_IP = [1, 1] as const;
+const INTERCONNECT_IP = [1, 2] as const;
 const CONTROL_PLANE_IP_START = 10;
 const MAX_CONTROL_PLANE_NODES = 10;
-const PROVIDER_RESOURCE_NAMES: Record<Provider, string> = {
-  ovh: 'Ovh',
-  latitude: 'Latitude'
-};
+const WIREGUARD_PORT = 51820;
+const X25519_PKCS8_PREFIX = Buffer.from('302e020100300506032b656e04220420', 'hex');
+// NOTE: the device plugin chart schedules onto nvidia.com/gpu.present nodes and tolerates the taint
+const GPU_NODE_ARGS = [
+  '--node-label=nvidia.com/gpu.present=true',
+  '--node-taint=nvidia.com/gpu=present:NoSchedule',
+  '--default-runtime=nvidia'
+];
 
-function getPrivateIp(thirdOctet: number, lastOctet: number) {
-  return `${PRIVATE_IP_RANGE.split('.').slice(0, 2).join('.')}.${thirdOctet}.${lastOctet}`;
+function getLocationIp(cidr: string, [thirdOctet, lastOctet]: readonly [number, number]) {
+  return `${cidr.split('.').slice(0, 2).join('.')}.${thirdOctet}.${lastOctet}`;
 }
 
 // NOTE: FNV-1a, so declaring, reordering, or removing other pools never moves a worker pool's IPs
@@ -53,163 +86,419 @@ function getWorkerPoolOctet(name: string) {
   return (hash % 253) + 2;
 }
 
-/**
- * Validates the pools and lists their nodes with the control plane first, so the first node
- * bootstraps the cluster.
- */
-export function getClusterNodes<Server>({
-  provider,
-  pools
-}: {
-  provider: Provider;
-  pools: NodePool<Server>[];
-}): ClusterNode<Server>[] {
-  const controlPlanePools = pools.filter((pool) => pool.role === 'control-plane');
-  const workerPools = pools.filter((pool) => pool.role === 'worker');
-  const controlPlaneCount = controlPlanePools[0]?.count ?? 0;
-  if (controlPlanePools.length > 1) {
-    throw new Error('Define one control-plane pool');
-  }
-  if (controlPlaneCount > MAX_CONTROL_PLANE_NODES) {
-    throw new Error(`The control-plane pool can have up to ${MAX_CONTROL_PLANE_NODES} nodes`);
-  }
-  if (controlPlaneCount === 0 && workerPools.some((pool) => pool.count > 0)) {
-    throw new Error('Worker nodes need at least one control-plane node to join');
-  }
-
-  const poolNames = new Set<string>();
-  const workerPoolOctets = new Map<number, string>();
-  for (const pool of pools) {
-    // NOTE: hostnames like prod-latitude-<name>-<index> must fit Latitude's 32 characters
-    // NOTE: words that start with a letter keep resource names distinct, like GpuWorkers
-    if (pool.name.length > 14 || !/^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)*$/.test(pool.name)) {
-      throw new Error(
-        `Pool name ${pool.name} must be up to 14 characters of lowercase words joined by single hyphens, like gpu-workers`
-      );
-    }
-    if (poolNames.has(pool.name)) {
-      throw new Error(`Pool name ${pool.name} is used twice`);
-    }
-    poolNames.add(pool.name);
-    if (pool.role === 'worker') {
-      const octet = getWorkerPoolOctet(pool.name);
-      const collidingPoolName = workerPoolOctets.get(octet);
-      if (collidingPoolName) {
-        throw new Error(`Pools ${collidingPoolName} and ${pool.name} share IPs; rename one`);
-      }
-      workerPoolOctets.set(octet, pool.name);
-      if (pool.count > 254) {
-        throw new Error(`Pool ${pool.name} can have up to 254 nodes`);
-      }
-    }
-  }
-
-  return [...controlPlanePools, ...workerPools].flatMap((pool) =>
-    Array.from({ length: pool.count }, (_, index) => ({
-      pool,
-      index,
-      ip:
-        pool.role === 'control-plane'
-          ? getPrivateIp(1, CONTROL_PLANE_IP_START + index)
-          : getPrivateIp(getWorkerPoolOctet(pool.name), index + 1),
-      hostname: `${STAGE_NAME}-${provider}-${pool.name}-${index}`,
-      resourceName: `${getPoolResourceName(pool)}Server${index}`
-    }))
-  );
-}
-
-export function getPoolResourceName({ name }: { name: string }) {
-  return name
-    .split('-')
+function getResourceName(...names: string[]) {
+  return names
+    .flatMap((name) => name.split('-'))
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join('');
 }
 
-/**
- * Creates the node's one-time Tailscale key and renders cloud-config.yaml for it. `privateNetplan`
- * is base64 netplan for the private interface, or '' when the provider configures it.
- */
-export function createNodeUserData<Server>({
-  provider,
-  node,
-  privateInterface,
-  privateNetplan
-}: {
-  provider: Provider;
-  node: ClusterNode<Server>;
-  privateInterface: string;
-  privateNetplan: $util.Input<string>;
-}): $util.Output<string> {
-  const { pool, index } = node;
-  const role = pool.role === 'control-plane' ? (index === 0 ? 'bootstrap' : 'server') : 'worker';
-  const nodeArgs = [
-    ...Object.entries(pool.labels ?? {}).map(([key, value]) => `--node-label=${key}=${value}`),
-    ...(pool.taints ?? []).map((taint) => `--node-taint=${taint}`)
-  ].join(' ');
+function checkName(kind: string, name: string) {
+  // NOTE: words that start with a letter keep resource names distinct, like GpuWorkers
+  if (!/^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)*$/.test(name)) {
+    throw new Error(`${kind} name ${name} must be lowercase words joined by single hyphens`);
+  }
+}
 
-  const renderUserData = (registrationTailnetAuthKey: $util.Input<string>) =>
-    $resolve([
-      secrets.Stage.value,
-      secrets.hetzner.K3sToken.value,
-      privateNetplan,
-      registrationTailnetAuthKey,
-      secrets.k8s.tailscale.OauthClientId.value,
-      secrets.k8s.tailscale.OauthClientSecret.value,
-      s3Endpoint,
-      backupBucket.name,
-      secrets.cloudflare.BackupAccessKey.value,
-      secrets.cloudflare.BackupSecretKey.value
-    ]).apply(
-      ([
-        STAGE_NAME,
-        K3S_TOKEN,
-        PRIVATE_NETPLAN,
-        REGISTRATION_TAILNET_AUTH_KEY,
-        KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID,
-        KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET,
-        S3_HOST,
-        BACKUP_BUCKET,
-        S3_ACCESS_KEY,
-        S3_SECRET_KEY
-      ]) =>
-        renderCloudInit(cloudInitConfig, {
-          STAGE_NAME,
-          PRIVATE_IP_RANGE,
-          K3S_TOKEN,
-          SERVER_API: `https://${getPrivateIp(1, CONTROL_PLANE_IP_START)}:6443`,
-          NODE_IP: node.ip,
-          PRIVATE_INTERFACE: privateInterface,
-          PRIVATE_NETPLAN,
-          K3S_NODE_ARGS: nodeArgs,
-          ROLE: role,
-          TAILSCALE_HOSTNAME: node.hostname,
-          REGISTRATION_TAILNET_AUTH_KEY,
-          KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID,
-          KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET,
-          KUBERNETES_TAILSCALE_HOSTNAME: `${STAGE_NAME}-cluster`,
-          S3_HOST,
-          BACKUP_BUCKET,
-          S3_ACCESS_KEY,
-          S3_SECRET_KEY
-        })
+// NOTE: Latitude caps hostnames at 32 characters, and prod is the longest stage name
+function checkHostname(hostname: string) {
+  if (`prod-${hostname}`.length > 32) {
+    throw new Error(
+      `Hostname prod-${hostname} is over Latitude's 32 characters; shorten its names`
     );
+  }
+}
+
+// NOTE: derived from the k3s token, so gateways keep their keys across deploys without a new secret
+function getWireguardKeys({ k3sToken, locationKey }: { k3sToken: string; locationKey: string }) {
+  const privateKey = createHmac('sha256', k3sToken).update(`wireguard ${locationKey}`).digest();
+  const publicKey = createPublicKey(
+    createPrivateKey({
+      key: Buffer.concat([X25519_PKCS8_PREFIX, privateKey]),
+      format: 'der',
+      type: 'pkcs8'
+    })
+  )
+    .export({ format: 'der', type: 'spki' })
+    .subarray(-32);
+  return { privateKey: privateKey.toString('base64'), publicKey: publicKey.toString('base64') };
+}
+
+/**
+ * Maps `from to` to the location after `from` on the way to `to`. Each link costs one hop plus a
+ * unique tie-break, so every pair has one shortest path both ways, as WireGuard's allowed IPs need.
+ */
+function getNextHops({
+  locationNames,
+  links
+}: {
+  locationNames: string[];
+  links: Cluster['links'];
+}) {
+  const costs = new Map<string, number>();
+  const nextHops = new Map<string, string>();
+  for (const [index, { between }] of links.entries()) {
+    for (const [from, to] of [between, [...between].reverse()]) {
+      costs.set(`${from} ${to}`, 2 ** links.length + 2 ** index);
+      nextHops.set(`${from} ${to}`, to);
+    }
+  }
+  for (const through of locationNames) {
+    for (const from of locationNames) {
+      for (const to of locationNames) {
+        const costThrough =
+          (costs.get(`${from} ${through}`) ?? Infinity) +
+          (costs.get(`${through} ${to}`) ?? Infinity);
+        if (from !== to && costThrough < (costs.get(`${from} ${to}`) ?? Infinity)) {
+          costs.set(`${from} ${to}`, costThrough);
+          nextHops.set(`${from} ${to}`, nextHops.get(`${from} ${through}`)!);
+        }
+      }
+    }
+  }
+  return nextHops;
+}
+
+/**
+ * Creates the server's one-time Tailscale key and renders cloud-config.yaml for it. The key's
+ * description carries a hash of the user data, so new user data swaps in a fresh key.
+ */
+function createUserData({
+  resourceName,
+  description,
+  tags,
+  netplanDevices,
+  environment
+}: {
+  resourceName: string;
+  description: string;
+  tags: string[];
+  netplanDevices: $util.Input<Record<string, unknown>>;
+  environment: Record<string, $util.Input<string>>;
+}): $util.Output<string> {
+  const privateNetplan = $util
+    .output(netplanDevices)
+    .apply((devices) =>
+      Buffer.from(JSON.stringify({ network: { version: 2, ...devices } })).toString('base64')
+    );
+  const renderUserData = (registrationTailnetAuthKey: $util.Input<string>) =>
+    $util
+      .all({
+        ...environment,
+        STAGE_NAME: secrets.Stage.value,
+        PRIVATE_IP_RANGE,
+        PRIVATE_NETPLAN: privateNetplan,
+        REGISTRATION_TAILNET_AUTH_KEY: registrationTailnetAuthKey
+      })
+      .apply((variables) => renderCloudInit(cloudInitConfig, variables));
 
   const registrationTailnetAuthKey = new tailscale.TailnetKey(
-    `${PROVIDER_RESOURCE_NAMES[provider]}${node.resourceName}TailnetRegistrationAuthKey`,
+    `${resourceName}TailnetRegistrationAuthKey`,
     {
-      // NOTE: the hash swaps in a fresh single-use key whenever new user data rebuilds the node
       description: renderUserData('').apply(
         (userData) =>
-          `${provider} ${pool.name} ${index} node reg ${createHash('sha256').update(userData).digest('hex').slice(0, 8)}`
+          `${description} ${createHash('sha256').update(userData).digest('hex').slice(0, 8)}`
       ),
       reusable: false,
       expiry: 86400, // 1 day, since bare metal can take hours to deliver
       preauthorized: true,
-      tags: [`tag:${provider}`, `tag:${STAGE_NAME}`, `tag:${pool.role}`]
+      tags
     },
     { dependsOn: [tailscaleAcl] }
   );
   return renderUserData(registrationTailnetAuthKey.key);
+}
+
+function getGatewayMachine({
+  cluster,
+  locationName,
+  nextHops,
+  gatewayPublicIps
+}: {
+  cluster: Cluster;
+  locationName: string;
+  nextHops: Map<string, string>;
+  gatewayPublicIps: Record<string, $util.Output<string>>;
+}): Machine {
+  const location = cluster.locations[locationName];
+  const locationNames = Object.keys(cluster.locations);
+  const locationKey = getResourceName(cluster.name, locationName);
+  const resourceName = `${locationKey}Gateway`;
+  const hostname = `${STAGE_NAME}-${cluster.name}-${locationName}-gw`;
+
+  const wireguardPeers = new Map<string, string[]>();
+  const interconnectRoutes: NetplanRoute[] = [];
+  for (const otherLocationName of locationNames.filter((name) => name !== locationName)) {
+    const nextHop = nextHops.get(`${locationName} ${otherLocationName}`)!;
+    const { cidr } = cluster.locations[otherLocationName];
+    const link = cluster.links.find(
+      ({ between }) => between.includes(locationName) && between.includes(nextHop)
+    )!;
+    if (link.via === 'interconnect') {
+      interconnectRoutes.push({ to: cidr, via: getLocationIp(location.cidr, INTERCONNECT_IP) });
+    } else {
+      wireguardPeers.set(nextHop, [...(wireguardPeers.get(nextHop) ?? []), cidr]);
+    }
+  }
+
+  const createGatewayUserData = (privateInterface: PrivateInterface) => {
+    const peers = [...wireguardPeers].map(([peerName, allowedIps]) => {
+      const peerKey = getResourceName(cluster.name, peerName);
+      // NOTE: the later-declared gateway dials, so the gateway it dials is created first
+      const dials = locationNames.indexOf(peerName) < locationNames.indexOf(locationName);
+      return $util
+        .all([secrets.hetzner.K3sToken.value, dials ? gatewayPublicIps[peerKey] : ''])
+        .apply(([k3sToken, publicIp]) => ({
+          keys: { public: getWireguardKeys({ k3sToken, locationKey: peerKey }).publicKey },
+          'allowed-ips': allowedIps,
+          ...(dials && { endpoint: `${publicIp}:${WIREGUARD_PORT}`, keepalive: 25 })
+        }));
+    });
+    return createUserData({
+      resourceName,
+      description: `${cluster.name} ${locationName} gateway reg`,
+      tags: [`tag:${location.provider}`, `tag:${STAGE_NAME}`],
+      netplanDevices: $util
+        .all([
+          privateInterface.createNetplanDevices(interconnectRoutes),
+          secrets.hetzner.K3sToken.value,
+          $util.all(peers)
+        ])
+        .apply(([devices, k3sToken, resolvedPeers]) => ({
+          ...devices,
+          ...(resolvedPeers.length > 0 && {
+            tunnels: {
+              wg0: {
+                mode: 'wireguard',
+                port: WIREGUARD_PORT,
+                key: getWireguardKeys({ k3sToken, locationKey }).privateKey,
+                peers: resolvedPeers,
+                routes: resolvedPeers
+                  .flatMap((peer) => peer['allowed-ips'])
+                  .map((to) => ({ to, scope: 'link' }))
+              }
+            }
+          })
+        })),
+      environment: {
+        ROLE: 'gateway',
+        PRIVATE_INTERFACE: privateInterface.name,
+        TAILSCALE_HOSTNAME: hostname
+      }
+    });
+  };
+
+  return {
+    clusterName: cluster.name,
+    locationKey,
+    role: 'gateway',
+    ip: getLocationIp(location.cidr, GATEWAY_IP),
+    hostname,
+    resourceName,
+    createUserData: createGatewayUserData,
+    provider: location.provider,
+    server: location.gateway,
+    location
+  } as Machine;
+}
+
+function getNodeMachine({
+  cluster,
+  clusterIndex,
+  pool,
+  index,
+  serverApi
+}: {
+  cluster: Cluster;
+  clusterIndex: number;
+  pool: NodePool;
+  index: number;
+  serverApi: string;
+}): Machine {
+  const location = cluster.locations[pool.location];
+  const ip =
+    pool.role === 'control-plane'
+      ? getLocationIp(location.cidr, [1, CONTROL_PLANE_IP_START + index])
+      : getLocationIp(location.cidr, [getWorkerPoolOctet(pool.name), index + 1]);
+  const resourceName = `${getResourceName(cluster.name, pool.name)}Server${index}`;
+  const hostname = `${STAGE_NAME}-${cluster.name}-${pool.name}-${index}`;
+  const role = pool.role === 'control-plane' ? (index === 0 ? 'bootstrap' : 'server') : 'worker';
+  const nodeArgs = [
+    ...Object.entries(pool.labels ?? {}).map(([key, value]) => `--node-label=${key}=${value}`),
+    ...(pool.taints ?? []).map((taint) => `--node-taint=${taint}`),
+    ...(pool.server.gpu ? GPU_NODE_ARGS : [])
+  ].join(' ');
+
+  return {
+    clusterName: cluster.name,
+    locationKey: getResourceName(cluster.name, pool.location),
+    role: pool.role,
+    ip,
+    hostname,
+    resourceName,
+    createUserData: (privateInterface) =>
+      createUserData({
+        resourceName,
+        description: `${cluster.name} ${pool.name} ${index} node reg`,
+        tags: [`tag:${location.provider}`, `tag:${STAGE_NAME}`, `tag:${pool.role}`],
+        netplanDevices: privateInterface.createNetplanDevices([
+          { to: PRIVATE_IP_RANGE, via: getLocationIp(location.cidr, GATEWAY_IP) }
+        ]),
+        environment: {
+          ROLE: role,
+          CLUSTER_NAME: cluster.name,
+          K3S_TOKEN: secrets.hetzner.K3sToken.value,
+          SERVER_API: serverApi,
+          NODE_IP: ip,
+          PRIVATE_INTERFACE: privateInterface.name,
+          K3S_NODE_ARGS: nodeArgs,
+          GPU: pool.server.gpu ?? '',
+          TAILSCALE_HOSTNAME: hostname,
+          KUBERNETES_TAILSCALE_OAUTH_CLIENT_ID: secrets.k8s.tailscale.OauthClientId.value,
+          KUBERNETES_TAILSCALE_OAUTH_CLIENT_SECRET: secrets.k8s.tailscale.OauthClientSecret.value,
+          // TODO: name each cluster's proxy after it once deploy tooling handles several clusters
+          KUBERNETES_TAILSCALE_HOSTNAME:
+            clusterIndex === 0 ? `${STAGE_NAME}-cluster` : `${STAGE_NAME}-${cluster.name}-cluster`,
+          S3_HOST: s3Endpoint,
+          BACKUP_BUCKET: backupBucket.name,
+          S3_ACCESS_KEY: secrets.cloudflare.BackupAccessKey.value,
+          S3_SECRET_KEY: secrets.cloudflare.BackupSecretKey.value
+        }
+      }),
+    provider: location.provider,
+    server: pool.server,
+    location
+  } as Machine;
+}
+
+/**
+ * Validates every cluster and lists the servers to order for those with nodes: gateways in location
+ * order, then the control plane, whose first node bootstraps the cluster, then workers. Each created
+ * gateway's public IP goes in `gatewayPublicIps` under its `locationKey`, for later gateways to dial.
+ */
+export function getMachines({
+  clusters,
+  gatewayPublicIps
+}: {
+  clusters: Cluster[];
+  gatewayPublicIps: Record<string, $util.Output<string>>;
+}): Machine[] {
+  const clusterNames = new Set<string>();
+  const cidrLocations = new Map<string, string>();
+  return clusters.flatMap((cluster, clusterIndex) => {
+    checkName('Cluster', cluster.name);
+    if (clusterNames.has(cluster.name)) {
+      throw new Error(`Cluster name ${cluster.name} is used twice`);
+    }
+    clusterNames.add(cluster.name);
+
+    // Locations and links
+    const locationNames = Object.keys(cluster.locations);
+    for (const [locationName, location] of Object.entries(cluster.locations)) {
+      checkName('Location', locationName);
+      checkHostname(`${cluster.name}-${locationName}-gw`);
+      if (!/^10\.(0|[1-9]\d?|1\d\d|2[0-4]\d|25[0-5])\.0\.0\/16$/.test(location.cidr)) {
+        throw new Error(`Location ${locationName}'s cidr ${location.cidr} must be a 10.N.0.0/16`);
+      }
+      if (K3S_CIDRS.includes(location.cidr)) {
+        throw new Error(
+          `Location ${locationName}'s cidr ${location.cidr} is k3s's pod or service range`
+        );
+      }
+      const overlappingLocation = cidrLocations.get(location.cidr);
+      if (overlappingLocation) {
+        throw new Error(
+          `Locations ${overlappingLocation} and ${cluster.name}/${locationName} both use ${location.cidr}`
+        );
+      }
+      cidrLocations.set(location.cidr, `${cluster.name}/${locationName}`);
+      if (locationNames.length > 1 && !location.gateway) {
+        throw new Error(`Location ${locationName} needs a gateway to reach its cluster's others`);
+      }
+      if (locationNames.length === 1 && location.gateway) {
+        throw new Error(`Location ${locationName} has a gateway but no other location to reach`);
+      }
+    }
+    const linkedPairs = new Set<string>();
+    for (const { between } of cluster.links) {
+      const missingLocation = between.find((name) => !(name in cluster.locations));
+      if (missingLocation) {
+        throw new Error(`Link ${between.join('-')} names missing location ${missingLocation}`);
+      }
+      const pair = [...between].sort().join(' ');
+      if (between[0] === between[1] || linkedPairs.has(pair)) {
+        throw new Error(`Link ${between.join('-')} must join two locations not already linked`);
+      }
+      linkedPairs.add(pair);
+    }
+    const nextHops = getNextHops({ locationNames, links: cluster.links });
+    for (const locationName of locationNames.slice(1)) {
+      if (!nextHops.has(`${locationNames[0]} ${locationName}`)) {
+        throw new Error(`Location ${locationName} has no links to the rest of ${cluster.name}`);
+      }
+    }
+
+    // Pools
+    const controlPlanePools = cluster.pools.filter((pool) => pool.role === 'control-plane');
+    const workerPools = cluster.pools.filter((pool) => pool.role === 'worker');
+    const controlPlaneCount = controlPlanePools[0]?.count ?? 0;
+    if (controlPlanePools.length > 1) {
+      throw new Error(
+        `Define one control-plane pool in ${cluster.name}, so etcd stays in one location`
+      );
+    }
+    if (controlPlaneCount > MAX_CONTROL_PLANE_NODES) {
+      throw new Error(`The control-plane pool can have up to ${MAX_CONTROL_PLANE_NODES} nodes`);
+    }
+    if (controlPlaneCount === 0 && workerPools.some((pool) => pool.count > 0)) {
+      throw new Error('Worker nodes need at least one control-plane node to join');
+    }
+    const poolNames = new Set<string>();
+    const workerPoolOctets = new Map<string, string>();
+    for (const pool of cluster.pools) {
+      checkName('Pool', pool.name);
+      checkHostname(`${cluster.name}-${pool.name}-${Math.max(pool.count - 1, 0)}`);
+      if (poolNames.has(pool.name)) {
+        throw new Error(`Pool name ${pool.name} is used twice in ${cluster.name}`);
+      }
+      poolNames.add(pool.name);
+      if (!(pool.location in cluster.locations)) {
+        throw new Error(`Pool ${pool.name} names missing location ${pool.location}`);
+      }
+      const { provider } = cluster.locations[pool.location];
+      if (pool.server.provider !== provider) {
+        throw new Error(
+          `Pool ${pool.name} needs a ${provider} server for location ${pool.location}`
+        );
+      }
+      if (pool.role === 'worker') {
+        const octetKey = `${pool.location} ${getWorkerPoolOctet(pool.name)}`;
+        const collidingPoolName = workerPoolOctets.get(octetKey);
+        if (collidingPoolName) {
+          throw new Error(`Pools ${collidingPoolName} and ${pool.name} share IPs; rename one`);
+        }
+        workerPoolOctets.set(octetKey, pool.name);
+        if (pool.count > 254) {
+          throw new Error(`Pool ${pool.name} can have up to 254 nodes`);
+        }
+      }
+    }
+
+    // NOTE: a cluster without nodes orders nothing, so it deploys before its providers are set up
+    if (controlPlaneCount === 0) return [];
+    const controlPlaneCidr = cluster.locations[controlPlanePools[0].location].cidr;
+    const serverApi = `https://${getLocationIp(controlPlaneCidr, [1, CONTROL_PLANE_IP_START])}:6443`;
+    return [
+      ...(locationNames.length > 1 ? locationNames : []).map((locationName) =>
+        getGatewayMachine({ cluster, locationName, nextHops, gatewayPublicIps })
+      ),
+      ...[...controlPlanePools, ...workerPools].flatMap((pool) =>
+        Array.from({ length: pool.count }, (_, index) =>
+          getNodeMachine({ cluster, clusterIndex, pool, index, serverApi })
+        )
+      )
+    ];
+  });
 }
 
 /**

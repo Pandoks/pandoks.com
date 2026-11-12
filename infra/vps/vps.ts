@@ -2,59 +2,105 @@
 // `protect` option in production. This is to prevent accidental deletion of resources.
 import { isProduction, STAGE_NAME } from '../dns';
 import { deleteTailscaleDevices } from '../tailscale';
-import { createLatitudeCluster, type LatitudeServer } from './latitude';
-import { ADVANCE_1_SERVER, ADVANCE_5_SERVER, createOvhCluster, type OvhServer } from './ovh';
-import type { NodePool } from './servers';
+import * as latitude from './latitude';
+import * as ovh from './ovh';
+import { getMachines, type Cluster } from './servers';
 
-type Cluster =
-  | { provider: 'ovh'; pools: NodePool<OvhServer>[] }
-  | { provider: 'latitude'; pools: NodePool<LatitudeServer>[] };
+// NOTE: one cluster per region, since embedded etcd keeps a cluster's control plane in one location
+// NOTE: the control-plane location keeps 10.0.0.0/16, which k3s's MetalLB and etcd configs pin
+// NOTE: the database charts schedule onto nodes labeled and tainted role=db
+// NOTE: move a control plane via a zero-node deploy, which removes the old `<stage>-cluster` proxy
+// NOTE: to downsize a pool, first drain and delete its highest-index nodes with kubectl
+const CLUSTERS: Cluster[] = isProduction
+  ? [
+      {
+        name: 'us-west',
+        locations: { 'ovh-hil': { provider: 'ovh', region: 'US-WEST-OR-1', cidr: '10.0.0.0/16' } },
+        links: [],
+        pools: [
+          {
+            name: 'control-plane',
+            location: 'ovh-hil',
+            role: 'control-plane',
+            count: 0,
+            server: ovh.vm('d2-4')
+          },
+          {
+            name: 'worker',
+            location: 'ovh-hil',
+            role: 'worker',
+            count: 0,
+            server: ovh.metal(ovh.ADVANCE_1)
+          },
+          {
+            name: 'database',
+            location: 'ovh-hil',
+            role: 'worker',
+            count: 0,
+            server: ovh.metal(ovh.ADVANCE_5),
+            labels: { role: 'db' },
+            taints: ['role=db:NoSchedule']
+          }
+        ]
+      }
+    ]
+  : [
+      {
+        name: 'us-west',
+        locations: { 'ovh-hil': { provider: 'ovh', region: 'US-WEST-OR-1', cidr: '10.0.0.0/16' } },
+        links: [],
+        pools: [
+          {
+            name: 'control-plane',
+            location: 'ovh-hil',
+            role: 'control-plane',
+            count: 0,
+            server: ovh.vm('d2-8')
+          },
+          { name: 'worker', location: 'ovh-hil', role: 'worker', count: 0, server: ovh.vm('d2-8') },
+          {
+            name: 'database',
+            location: 'ovh-hil',
+            role: 'worker',
+            count: 0,
+            server: ovh.metal(ovh.ADVANCE_1),
+            labels: { role: 'db' },
+            taints: ['role=db:NoSchedule']
+          }
+        ]
+      }
+    ];
 
-// NOTE: each pool orders `count` identical servers; locations and network settings live at the top
-// of each provider's file. The database charts schedule onto nodes labeled and tainted role=db
-// NOTE: switch providers through a zero-node deploy, which removes the old `<stage>-cluster` proxy
-// NOTE: if you want to downsize a pool, remember to manually drain and remove its highest-index nodes with `kubectl drain` & `kubectl delete node`
-const CLUSTER: Cluster = isProduction
-  ? {
-      provider: 'ovh',
-      pools: [
-        { name: 'control-plane', role: 'control-plane', count: 0, server: { flavor: 'd2-4' } },
-        { name: 'worker', role: 'worker', count: 0, server: ADVANCE_1_SERVER },
-        {
-          name: 'database',
-          role: 'worker',
-          count: 0,
-          server: ADVANCE_5_SERVER,
-          labels: { role: 'db' },
-          taints: ['role=db:NoSchedule']
-        }
-      ]
+const gatewayPublicIps: Record<string, $util.Output<string>> = {};
+const machines = getMachines({ clusters: CLUSTERS, gatewayPublicIps });
+
+if (machines.length > 0) {
+  const ovhNetworks = ovh.createOvhNetwork(
+    machines.filter((machine) => machine.provider === 'ovh')
+  );
+  const latitudeNetworks = latitude.createLatitudeNetwork(
+    machines.filter((machine) => machine.provider === 'latitude')
+  );
+  const bootstrapServers: Record<string, $util.Resource> = {};
+  for (const machine of machines) {
+    const dependsOn =
+      machine.role !== 'gateway' && machine.clusterName in bootstrapServers
+        ? [bootstrapServers[machine.clusterName]]
+        : [];
+    const { resource, publicIp } =
+      machine.provider === 'ovh'
+        ? ovh.createOvhServer({ machine, network: ovhNetworks[machine.locationKey], dependsOn })
+        : latitude.createLatitudeServer({
+            machine,
+            virtualNetwork: latitudeNetworks[machine.locationKey],
+            dependsOn
+          });
+    if (machine.role === 'gateway') {
+      gatewayPublicIps[machine.locationKey] = publicIp;
+    } else {
+      bootstrapServers[machine.clusterName] ??= resource;
     }
-  : {
-      provider: 'ovh',
-      pools: [
-        { name: 'control-plane', role: 'control-plane', count: 0, server: { flavor: 'd2-8' } },
-        { name: 'worker', role: 'worker', count: 0, server: { flavor: 'd2-8' } },
-        {
-          name: 'database',
-          role: 'worker',
-          count: 0,
-          server: ADVANCE_1_SERVER,
-          labels: { role: 'db' },
-          taints: ['role=db:NoSchedule']
-        }
-      ]
-    };
-
-function createCluster(cluster: Cluster) {
-  if (cluster.provider === 'ovh') return createOvhCluster(cluster.pools);
-  return createLatitudeCluster(cluster.pools);
-}
-
-// NOTE: a stage without nodes creates nothing at its provider, so it deploys before that provider's
-// account settings are filled in
-if (CLUSTER.pools.some((pool) => pool.count > 0)) {
-  createCluster(CLUSTER);
+  }
 } else {
   const { devices = [] } = await tailscale.getDevices({ namePrefix: `${STAGE_NAME}` });
 
