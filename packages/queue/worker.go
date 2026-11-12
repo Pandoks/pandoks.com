@@ -51,6 +51,10 @@ func (worker Worker) Run(ctx context.Context) error {
 				break fill
 			}
 		}
+		// NOTE: select may take a free slot over a shutdown that's also ready
+		if ctx.Err() != nil {
+			return nil
+		}
 
 		// NOTE: not cancelled on shutdown, since the broker can lease messages to a cancelled receive
 		deliveries, err := worker.Queue.Receive(context.WithoutCancel(ctx), free)

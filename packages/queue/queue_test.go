@@ -317,6 +317,22 @@ func TestWorkerReleasesWhatItReceivesAfterShutdown(t *testing.T) {
 	}
 }
 
+func TestWorkerStartsNoReceiveAfterShutdown(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	queue := &recordingQueue{retried: map[string]time.Duration{}, stopped: ctx.Done()}
+	worker := Worker{Queue: queue, Concurrency: 1, Handle: func(context.Context, *Delivery) error { return nil }}
+	// NOTE: a free slot and the shutdown are both ready, and select picks between them at random
+	for range 100 {
+		if err := worker.Run(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(queue.maxes) > 0 {
+		t.Errorf("received %d times after shutdown, want none", len(queue.maxes))
+	}
+}
+
 func TestDelayMillisecondsRoundsUp(t *testing.T) {
 	for delay, want := range map[time.Duration]int64{0: 0, 500 * time.Microsecond: 1, 1900 * time.Microsecond: 2, 2 * time.Millisecond: 2} {
 		if got := delayMilliseconds(delay); got != want {
