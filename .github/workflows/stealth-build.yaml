@@ -1,0 +1,70 @@
+name: stealth-chromium-build
+
+on:
+  workflow_dispatch:
+    inputs:
+      id:
+        description: 'Execution id (becomes the S3 prefix + SFN execution name)'
+        required: true
+      ref:
+        description: 'Repo ref the runner checks out'
+        required: false
+        default: 'browser-iterations'
+      instance_type:
+        description: 'EC2 build instance type'
+        required: false
+        default: 'c7i.16xlarge'
+      storage_gib:
+        description: 'Root EBS size for the build box'
+        required: false
+        default: '200'
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: stealth-chromium-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start the build
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Launch and wait for the SFN execution
+        env:
+          EXECUTION_ARN: 'arn:aws:states:us-west-2:343487555569:execution:pandoks-runner:${{ inputs.id }}'
+        run: |
+          set -euo pipefail
+          INPUT=$(
+            jq -n \
+              --arg id "${{ inputs.id }}" \
+              --arg ref "${{ inputs.ref }}" \
+              --arg it "${{ inputs.instance_type }}" \
+              --arg sg "${{ inputs.storage_gib }}" \
+              '{id: $id, ref: $ref, instanceType: $it, marketType: "on-demand",
+                storageSizeGib: ($sg | tonumber),
+                command: "bash packages/stealth-chromium/scripts/sfn-build.sh"}'
+          )
+          aws stepfunctions start-execution \
+            --state-machine-arn arn:aws:states:us-west-2:343487555569:stateMachine:pandoks-runner \
+            --name "${{ inputs.id }}" \
+            --input "$INPUT" >/dev/null
+          echo "execution: $EXECUTION_ARN"
+          for i in $(seq 1 240); do
+            status=$(aws stepfunctions describe-execution --execution-arn "$EXECUTION_ARN" \
+              --query status --output text 2>/dev/null || echo RUNNING)
+            if [ "$status" != "RUNNING" ]; then break; fi
+            sleep 120
+          done
+          echo "final status: $status"
+          [ "$status" = "SUCCEEDED" ]
+      - name: List build artifacts
+        if: success()
+        run: |
+          aws s3 ls "s3://personal-pandoks-runnerartifactsstorebucket-uadorowo/${{ inputs.id }}/" --recursive
