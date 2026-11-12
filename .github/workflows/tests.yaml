@@ -26,8 +26,8 @@ jobs:
       - name: Run web tests
         run: pnpm --filter @pandoks.com/web test
 
-  test-desktop:
-    if: contains(fromJSON(inputs.jobs), 'desktop')
+  test-desktop-template:
+    if: contains(fromJSON(inputs.jobs), 'desktop-template')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -37,11 +37,11 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm --filter @pandoks.com/desktop exec playwright install --with-deps chromium
 
-      - name: Run desktop tests
+      - name: Run desktop template tests
         run: xvfb-run -a pnpm --filter @pandoks.com/desktop test
 
-  test-mobile:
-    if: contains(fromJSON(inputs.jobs), 'mobile')
+  test-mobile-template:
+    if: contains(fromJSON(inputs.jobs), 'mobile-template')
     runs-on: ubuntu-latest
     env:
       EXPO_NO_TELEMETRY: 1
@@ -65,8 +65,8 @@ jobs:
       - name: Bundle iOS and Android JS
         run: pnpm --filter @pandoks.com/mobile exec expo export
 
-  test-mobile-android:
-    if: contains(fromJSON(inputs.jobs), 'mobile')
+  test-mobile-template-android:
+    if: contains(fromJSON(inputs.jobs), 'mobile-template')
     runs-on: ubuntu-latest
     env:
       EXPO_NO_TELEMETRY: 1
@@ -91,8 +91,8 @@ jobs:
         working-directory: templates/mobile/android
         run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
 
-  test-mobile-ios:
-    if: contains(fromJSON(inputs.jobs), 'mobile')
+  test-mobile-template-ios:
+    if: contains(fromJSON(inputs.jobs), 'mobile-template')
     runs-on: macos-26
     env:
       EXPO_NO_TELEMETRY: 1
