@@ -23,7 +23,7 @@ image, then pair with Device Manager's **Pair Wearable** in Android Studio.
 Run from this directory:
 
 ```sh
-mise install    # Ruby, CocoaPods, Java, and Maestro from this app's mise.toml
+mise install    # includes Ruby, CocoaPods, Java, and Maestro
 pnpm ios        # build and run on an iOS simulator
 pnpm android    # build and run on an Android emulator
 pnpm test:unit
