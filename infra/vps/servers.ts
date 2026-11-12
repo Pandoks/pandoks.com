@@ -160,7 +160,6 @@ function getNextHops({
 function createUserData({
   template,
   resourceName,
-  description,
   hardware,
   tags,
   netplanDevices,
@@ -168,7 +167,6 @@ function createUserData({
 }: {
   template: string;
   resourceName: string;
-  description: string;
   hardware: unknown;
   tags: string[];
   netplanDevices: $util.Input<Record<string, unknown>>;
@@ -193,9 +191,14 @@ function createUserData({
   const registrationTailnetAuthKey = new tailscale.TailnetKey(
     `${resourceName}TailnetRegistrationAuthKey`,
     {
+      // NOTE: fixed length, since Tailscale caps descriptions at 50 characters
       description: renderUserData('').apply((userData) => {
-        const hash = createHash('sha256').update(JSON.stringify(hardware)).update(userData);
-        return `${description} ${hash.digest('hex').slice(0, 8)}`;
+        // NOTE: OVHcloud adds plan options in place, so they mustn't reinstall a server
+        const hardwareJson = JSON.stringify(hardware, (key, value: unknown) =>
+          key === 'options' ? undefined : value
+        );
+        const hash = createHash('sha256').update(hardwareJson).update(userData);
+        return `registration ${hash.digest('hex').slice(0, 8)}`;
       }),
       reusable: false,
       expiry: 86400, // 1 day, since bare metal can take hours to deliver
@@ -255,7 +258,6 @@ function getGatewayMachine({
     return createUserData({
       template: gatewayCloudConfig,
       resourceName,
-      description: `${cluster.name} ${locationName} gateway reg`,
       hardware: location,
       tags: [`tag:${location.provider}`, `tag:${STAGE_NAME}`],
       netplanDevices: $util
@@ -339,7 +341,6 @@ function getNodeMachine({
       createUserData({
         template: nodeCloudConfig,
         resourceName,
-        description: `${cluster.name} ${pool.name} ${index} node reg`,
         hardware: [pool.server, { ...location, gateway: undefined }],
         tags: [`tag:${location.provider}`, `tag:${STAGE_NAME}`, `tag:${pool.role}`],
         netplanDevices: privateInterface.createNetplanDevices([

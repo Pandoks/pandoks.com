@@ -15,6 +15,8 @@ export type OvhMetalServer = {
   planCode: string;
   options: string[];
   privateInterface: string;
+  // NOTE: on the server, so a new OS also rotates its Tailscale key
+  os: string;
 } & Gpu;
 export type OvhServer = OvhVmServer | OvhMetalServer;
 // NOTE: US regions only (the provider uses OVHcloud's US API), each to its bare metal datacenter
@@ -46,7 +48,15 @@ export function metal(
   if (gpu && !options.some((option) => option.startsWith('gpu-'))) {
     throw new Error(`OVHcloud plan ${planCode} has no GPU option`);
   }
-  return { provider: 'ovh', kind: 'metal', planCode, options, privateInterface, gpu };
+  return {
+    provider: 'ovh',
+    kind: 'metal',
+    planCode,
+    options,
+    privateInterface,
+    os: SERVER_OS,
+    gpu
+  };
 }
 
 // NOTE: from the US catalog: /1.0/order/catalog/public/baremetalServers?ovhSubsidiary=US
@@ -78,6 +88,7 @@ const VRACK = isProduction ? '' : '';
 const CLOUD_PROJECT = isProduction ? '' : '';
 const VM_IMAGE = 'Ubuntu 24.04';
 // NOTE: OVHcloud won't create a VM without a Public Cloud SSH key, though we use Tailscale SSH
+// WARNING: a new key replaces every VM with a spent Tailscale key; change it with VM pools at 0
 const VM_SSH_KEY = isProduction ? '' : '';
 const SERVER_OS = 'ubuntu2404-server_64';
 const VM_PRIVATE_INTERFACE = 'ens4';
@@ -239,8 +250,11 @@ export function createOvhServer({
 
   const userData = machine.createUserData({
     name: server.privateInterface,
+    // NOTE: netplan rejects a bond redefined as an ethernet, so the address joins the existing bond
     createNetplanDevices: (routes) => ({
-      ethernets: { [server.privateInterface]: { addresses: [`${machine.ip}/16`], routes } }
+      [server.privateInterface.startsWith('bond') ? 'bonds' : 'ethernets']: {
+        [server.privateInterface]: { addresses: [`${machine.ip}/16`], routes }
+      }
     })
   });
   const dedicatedServer = new ovh.dedicated.Server(
@@ -248,7 +262,7 @@ export function createOvhServer({
     {
       ovhSubsidiary: 'US',
       displayName: machine.hostname,
-      os: SERVER_OS,
+      os: server.os,
       customizations: { hostname: machine.hostname, configDriveUserData: userData },
       plans: [
         {

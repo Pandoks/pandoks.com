@@ -128,9 +128,9 @@ two control-plane pools, overlapping CIDRs, an unlinked location, or `gpu` on a 
 Production protects k3s nodes and ignores their user data, so deleting or rebuilding one fails there
 (after a renamed or VM↔bare metal pool's new nodes are created), and label, taint, or `gpu` changes
 reach only new nodes. Gateways hold no data and rebuild in every stage, but only when their links,
-locations, or `gateway-config.yaml` change. Latitude rebuilds a gateway by deleting and reordering
-it, which likely changes its public IP (rebuilding its dialing peer) and, if the plan is out of
-stock, cuts the location off.
+locations, `gateway-config.yaml`, or OVHcloud's `SERVER_OS` change. Latitude rebuilds a gateway by
+deleting and reordering it, which likely changes its public IP (rebuilding its dialing peer) and, if
+the plan is out of stock, cuts the location off.
 
 OVHcloud's provider waits 2 hours for a bare metal order, and once delivery takes longer, the next
 deploy records the server without installing it. Outside production, which ignores user data, run
