@@ -392,7 +392,6 @@ export function getMachines({
     }
     clusterNames.add(cluster.name);
 
-    // Locations and links
     const locationNames = Object.keys(cluster.locations);
     for (const [locationName, location] of Object.entries(cluster.locations)) {
       checkName('Location', locationName);
@@ -442,7 +441,6 @@ export function getMachines({
       }
     }
 
-    // Pools
     const controlPlanePools = cluster.pools.filter((pool) => pool.role === 'control-plane');
     const workerPools = cluster.pools.filter((pool) => pool.role === 'worker');
     const controlPlaneCount = controlPlanePools[0]?.count ?? 0;
