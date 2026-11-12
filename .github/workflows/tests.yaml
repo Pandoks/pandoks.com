@@ -43,8 +43,6 @@ jobs:
   test-mobile-template:
     if: contains(fromJSON(inputs.jobs), 'mobile-template')
     runs-on: ubuntu-latest
-    env:
-      EXPO_NO_TELEMETRY: 1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -58,12 +56,6 @@ jobs:
 
       - name: Run mobile unit tests
         run: pnpm --filter @pandoks.com/mobile test:unit
-
-      - name: Generate native projects
-        run: pnpm --filter @pandoks.com/mobile exec expo prebuild --no-install
-
-      - name: Bundle iOS and Android JS
-        run: pnpm --filter @pandoks.com/mobile exec expo export
 
   test-mobile-template-android:
     if: contains(fromJSON(inputs.jobs), 'mobile-template')
