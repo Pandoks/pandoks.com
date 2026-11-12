@@ -42,8 +42,8 @@ class Worker:
     concurrency: int
 
     def run(self, stop: threading.Event) -> None:
-        if self.concurrency < 1:
-            raise ValueError("queue worker: concurrency must be at least 1")
+        if type(self.concurrency) is not int or self.concurrency < 1:
+            raise ValueError("queue worker: concurrency must be an integer of at least 1")
         slots = threading.BoundedSemaphore(self.concurrency)
         with ThreadPoolExecutor(self.concurrency) as pool:
             while slots.acquire() and not stop.is_set():

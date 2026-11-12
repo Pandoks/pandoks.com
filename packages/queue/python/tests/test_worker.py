@@ -1,3 +1,4 @@
+import math
 import threading
 import unittest
 from datetime import UTC, datetime, timedelta
@@ -91,3 +92,10 @@ class WorkerTest(unittest.TestCase):
         handled = []
         Worker(queue, handled.append, concurrency=1).run(stop)
         self.assertEqual((handled, queue.acked, queue.retried), ([], [], {"late": 0}))
+
+    def test_worker_rejects_a_concurrency_that_is_not_a_positive_integer(self):
+        stop = threading.Event()
+        stop.set()
+        for concurrency in (0, 1.5, math.nan, math.inf, True):
+            with self.subTest(concurrency=concurrency), self.assertRaisesRegex(ValueError, "concurrency"):
+                Worker(RecordingQueue([], stop), lambda delivery: None, concurrency).run(stop)
