@@ -14,7 +14,7 @@ config plugins in `app.json`. Builds run locally, with no EAS.
 Run from this directory:
 
 ```sh
-mise install    # Ruby, CocoaPods, Java, and Maestro from this app's mise.toml
+mise install    # includes Ruby, CocoaPods, Java, and Maestro
 pnpm ios        # build and run on an iOS simulator
 pnpm android    # build and run on an Android emulator
 pnpm test:unit
