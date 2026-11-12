@@ -1,0 +1,59 @@
+name: E2E
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      packages:
+        description: JSON list of the packages whose suite runs, like ["valkey"].
+        type: string
+        required: true
+      images:
+        description: JSON list of the images the calling run built, each {"name","package"}, uploaded as the artifact image-<package>-<name> holding <name>.tar.
+        type: string
+        required: true
+
+jobs:
+  suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(inputs.packages) }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: go k3d kubectl helm
+
+      - name: Create k3d cluster
+        run: pnpm cluster k3d deps up && pnpm cluster k3d up
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: image-${{ matrix.package }}-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/images
+
+      # NOTE: below the job timeout, so a hung spec still dumps its diagnostics
+      - name: Run e2e tests
+        shell: bash
+        env:
+          PACKAGE: ${{ matrix.package }}
+          BUILT_IMAGES: ${{ inputs.images }}
+        run: |
+          suite_flags=()
+          for image in $(jq -r --arg package "${PACKAGE}" '.[] | select(.package == $package) | .name' <<<"${BUILT_IMAGES}"); do
+            loaded_image=$(docker load --input "${RUNNER_TEMP}/images/${image}.tar" | sed -n 's/^Loaded image: //p' | head -n 1)
+            docker tag "${loaded_image}" "localhost:12345/${image}:${GITHUB_SHA}"
+            docker push "localhost:12345/${image}:${GITHUB_SHA}"
+            suite_flags+=("--${image}-image=local-registry:5000/${image}:${GITHUB_SHA}")
+          done
+          go tool ginkgo -p --timeout=20m "./packages/${PACKAGE}/e2e" -- "${suite_flags[@]}"

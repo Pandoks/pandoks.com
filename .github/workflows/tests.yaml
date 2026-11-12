@@ -4,56 +4,16 @@ permissions:
   contents: read
 
 on:
-  pull_request:
-    branches:
-      - main
-  push:
-    branches:
-      - main
-
-concurrency:
-  group: tests-${{ github.ref }}
-  cancel-in-progress: true
+  workflow_call:
+    inputs:
+      jobs:
+        description: JSON list of the unit test jobs to run, like ["web","valkey-reconciler"].
+        type: string
+        required: true
 
 jobs:
-  detect-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      web: ${{ steps.filter.outputs.web }}
-      desktop: ${{ steps.filter.outputs.desktop }}
-      mobile-template: ${{ steps.filter.outputs.mobile-template }}
-      svelte: ${{ steps.filter.outputs.svelte }}
-      prettier: ${{ steps.filter.outputs.prettier }}
-      valkey-reconciler: ${{ steps.filter.outputs.valkey-reconciler }}
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - id: filter
-        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
-        with:
-          filters: |
-            web:
-              - 'apps/web/**'
-              - 'packages/svelte/**'
-            desktop:
-              - 'apps/desktop-template/**'
-              - 'packages/svelte/**'
-            mobile-template:
-              - 'pnpm-workspace.yaml'
-              - 'pnpm-lock.yaml'
-              - 'apps/mobile-template/**'
-              - 'packages/react-native-live-updates/**'
-            svelte:
-              - 'packages/svelte/**'
-            prettier:
-              - 'packages/prettier/**'
-            valkey-reconciler:
-              - 'packages/valkey/reconciler/**'
-
   test-web:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.web == 'true'
+    if: contains(fromJSON(inputs.jobs), 'web')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -67,8 +27,7 @@ jobs:
         run: pnpm --filter @pandoks.com/web test
 
   test-desktop:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.desktop == 'true'
+    if: contains(fromJSON(inputs.jobs), 'desktop')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -82,8 +41,7 @@ jobs:
         run: xvfb-run -a pnpm --filter @pandoks.com/desktop-template test
 
   test-mobile-template:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.mobile-template == 'true'
+    if: contains(fromJSON(inputs.jobs), 'mobile-template')
     runs-on: ubuntu-latest
     env:
       EXPO_NO_TELEMETRY: 1
@@ -92,8 +50,7 @@ jobs:
 
       - uses: ./.github/actions/setup-node-pnpm
 
-      # NOTE: offline checks against the installed SDK's bundledNativeModules.json, so new Expo patch
-      # releases inside Renovate's minimumReleaseAge don't fail every PR
+      # NOTE: offline, so Expo patches still inside Renovate's minimumReleaseAge don't fail every PR
       - name: Check Expo SDK versions
         env:
           EXPO_OFFLINE: '1'
@@ -109,8 +66,7 @@ jobs:
         run: pnpm --filter @pandoks.com/mobile-template exec expo export
 
   test-mobile-template-android:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.mobile-template == 'true'
+    if: contains(fromJSON(inputs.jobs), 'mobile-template')
     runs-on: ubuntu-latest
     env:
       EXPO_NO_TELEMETRY: 1
@@ -136,8 +92,7 @@ jobs:
         run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
 
   test-mobile-template-ios:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.mobile-template == 'true'
+    if: contains(fromJSON(inputs.jobs), 'mobile-template')
     runs-on: macos-26
     env:
       EXPO_NO_TELEMETRY: 1
@@ -166,8 +121,7 @@ jobs:
           ARCHS=arm64 CODE_SIGNING_ALLOWED=NO
 
   test-svelte-pkg:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.svelte == 'true'
+    if: contains(fromJSON(inputs.jobs), 'svelte')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -181,8 +135,7 @@ jobs:
         run: pnpm --filter @pandoks.com/svelte test
 
   test-prettier-pkg:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.prettier == 'true'
+    if: contains(fromJSON(inputs.jobs), 'prettier')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -193,8 +146,7 @@ jobs:
         run: pnpm --filter @pandoks.com/prettier test
 
   test-valkey-reconciler:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.valkey-reconciler == 'true'
+    if: contains(fromJSON(inputs.jobs), 'valkey-reconciler')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -209,18 +161,3 @@ jobs:
 
       - name: Run tests
         run: pnpm --filter @pandoks.com/valkey test
-
-  tests-pass:
-    needs:
-      - test-web
-      - test-desktop
-      - test-mobile-template
-      - test-mobile-template-android
-      - test-mobile-template-ios
-      - test-svelte-pkg
-      - test-prettier-pkg
-      - test-valkey-reconciler
-    if: ${{ always() && !cancelled() && !contains(needs.*.result, 'failure') }}
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "ok"

@@ -6,6 +6,13 @@ new tailscale.TailnetSettings('TailscaleSettings', {
   httpsEnabled: true
 });
 
+export const hubTailscaleServices = [
+  { name: 'cliproxyapi', comment: 'CLIProxyAPI on the homelab hub' },
+  { name: 'cliproxyapi-api', comment: 'CLIProxyAPI with Console API keys only' },
+  { name: 'beszel', comment: 'Beszel monitoring hub' },
+  { name: 'artex', comment: 'ARTEX on the homelab hub' }
+];
+
 export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
   resetAclOnDestroy: true,
   // NOTE: overwriteExistingContent is set to true so it works in all stages. we do this because the
@@ -21,11 +28,9 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         }
       ],
       autoApprovers: {
-        services: {
-          'svc:cliproxyapi': ['tag:hub'],
-          'svc:cliproxyapi-ci': ['tag:hub'],
-          'svc:beszel': ['tag:hub']
-        }
+        services: Object.fromEntries(
+          hubTailscaleServices.map(({ name }) => [`svc:${name}`, ['tag:hub']])
+        )
       },
       grants: [
         { src: ['*'], dst: ['*'], ip: ['*'] },
