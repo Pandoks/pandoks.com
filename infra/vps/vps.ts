@@ -70,11 +70,20 @@ if (machines.length > 0) {
       bootstrapServers[machine.clusterName] ??= resource;
     }
   }
-} else {
+}
+
+// NOTE: only the first cluster gets `pnpm cluster deploy`'s devices, like <stage>-grafana
+if (!machines.some(({ clusterName }) => clusterName === CLUSTERS[0].name)) {
   const { devices = [] } = await tailscale.getDevices({ namePrefix: `${STAGE_NAME}` });
+  const keptProxyHostnames = machines.map(
+    ({ clusterName }) => `${STAGE_NAME}-${clusterName}-cluster`
+  );
 
   const kubernetesDevices = devices.filter(
-    (device) => device.tags.includes('tag:k8s') && device.tags.includes(`tag:${STAGE_NAME}`)
+    (device) =>
+      device.tags.includes('tag:k8s') &&
+      device.tags.includes(`tag:${STAGE_NAME}`) &&
+      !keptProxyHostnames.includes(device.hostname)
   );
   if (kubernetesDevices.length > 0) {
     const deletedDevices = deleteTailscaleDevices(

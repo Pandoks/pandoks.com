@@ -54,7 +54,6 @@ const PRIVATE_IP_RANGE = '10.0.0.0/8';
 const K3S_CIDRS = ['10.42.0.0/16', '10.43.0.0/16'];
 // NOTE: k3s/base/core/metallb.yaml and overlays/cluster/prom-etcd-config.yaml pin 10.0.1.x
 const FIRST_CONTROL_PLANE_CIDR = '10.0.0.0/16';
-// NOTE: k3s/README.md maps each location's addresses
 const GATEWAY_IP = [1, 1] as const;
 const INTERCONNECT_IP = [1, 2] as const;
 const CONTROL_PLANE_IP_START = 10;
@@ -81,6 +80,12 @@ function getWorkerPoolOctet(name: string) {
     hash = Math.imul(hash ^ character.charCodeAt(0), 16777619) >>> 0;
   }
   return (hash % 253) + 2;
+}
+
+// NOTE: VM and bare metal are different resource types, so Pulumi creates a swapped pool's new
+// nodes before deleting the old ones, which must not share their IPs or hostnames
+function getNodeName(pool: NodePool) {
+  return `${pool.name}-${pool.server.kind}`;
 }
 
 function getResourceName(...names: string[]) {
@@ -311,9 +316,9 @@ function getNodeMachine({
   const ip =
     pool.role === 'control-plane'
       ? getLocationIp(location.cidr, [1, CONTROL_PLANE_IP_START + index])
-      : getLocationIp(location.cidr, [getWorkerPoolOctet(pool.name), index + 1]);
+      : getLocationIp(location.cidr, [getWorkerPoolOctet(getNodeName(pool)), index + 1]);
   const resourceName = `${getResourceName(cluster.name, pool.name)}Server${index}`;
-  const hostname = `${STAGE_NAME}-${cluster.name}-${pool.name}-${index}`;
+  const hostname = `${STAGE_NAME}-${cluster.name}-${getNodeName(pool)}-${index}`;
   const role = pool.role === 'control-plane' ? (index === 0 ? 'bootstrap' : 'server') : 'worker';
   const nodeArgs = [
     ...Object.entries(pool.labels ?? {}).map(([key, value]) => `--node-label=${key}=${value}`),
@@ -391,7 +396,7 @@ export function getMachines({
     const locationNames = Object.keys(cluster.locations);
     for (const [locationName, location] of Object.entries(cluster.locations)) {
       checkName('Location', locationName);
-      checkHostname(`${cluster.name}-${locationName}-gw`);
+      if (location.provider === 'latitude') checkHostname(`${cluster.name}-${locationName}-gw`);
       checkResourceName(
         `${getResourceName(cluster.name, locationName)}Gateway`,
         `${cluster.name}/${locationName}`
@@ -456,7 +461,6 @@ export function getMachines({
     const workerPoolOctets = new Map<string, string>();
     for (const pool of cluster.pools) {
       checkName('Pool', pool.name);
-      checkHostname(`${cluster.name}-${pool.name}-${Math.max(pool.count - 1, 0)}`);
       if (poolNames.has(pool.name)) {
         throw new Error(`Pool name ${pool.name} is used twice in ${cluster.name}`);
       }
@@ -477,6 +481,9 @@ export function getMachines({
           `Pool ${pool.name} needs a ${provider} server for location ${pool.location}`
         );
       }
+      if (provider === 'latitude') {
+        checkHostname(`${cluster.name}-${getNodeName(pool)}-${Math.max(pool.count - 1, 0)}`);
+      }
       if (
         clusterIndex === 0 &&
         pool.role === 'control-plane' &&
@@ -487,7 +494,7 @@ export function getMachines({
         );
       }
       if (pool.role === 'worker') {
-        const octetKey = `${pool.location} ${getWorkerPoolOctet(pool.name)}`;
+        const octetKey = `${pool.location} ${getWorkerPoolOctet(getNodeName(pool))}`;
         const collidingPoolName = workerPoolOctets.get(octetKey);
         if (collidingPoolName) {
           throw new Error(`Pools ${collidingPoolName} and ${pool.name} share IPs; rename one`);
@@ -505,7 +512,7 @@ export function getMachines({
     // NOTE: recorded with zero nodes too, so scaling the bootstrap node to zero removes the proxy
     if (controlPlanePools[0]) {
       bootstrapProxyHostnames.set(
-        `${STAGE_NAME}-${cluster.name}-${controlPlanePools[0].name}-0`,
+        `${STAGE_NAME}-${cluster.name}-${getNodeName(controlPlanePools[0])}-0`,
         proxyHostname
       );
     }

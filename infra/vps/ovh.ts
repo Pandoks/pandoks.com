@@ -19,7 +19,7 @@ export type OvhMetalServer = {
 export type OvhServer = OvhVmServer | OvhMetalServer;
 // NOTE: US regions only (the provider uses OVHcloud's US API), each to its bare metal datacenter
 const DATACENTERS = { 'US-EAST-VA-1': 'vin', 'US-WEST-OR-1': 'hil' } as const;
-/** A Public Cloud region. Its gateway is bare metal, since VM ports drop traffic they forward */
+// NOTE: no VM gateways, since OVHcloud VM ports drop the traffic they forward
 export type OvhLocation = {
   provider: 'ovh';
   region: keyof typeof DATACENTERS;
@@ -58,7 +58,8 @@ export const ADVANCE_1 = {
     'bandwidth-3000-adv-gen3-us',
     'vrack-bandwidth-25000-adv-gen3-us'
   ],
-  // NOTE: names differ by server range; read it with `ip link` on a delivered server
+  // NOTE: names differ by server range; read it with `ip link` on a delivered server, like the
+  // hardware test's or one ordered by hand
   privateInterface: ''
 };
 export const ADVANCE_5 = {

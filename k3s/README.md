@@ -75,9 +75,10 @@ embedded etcd keeps a control plane in one location.
 - **Pools** pick a location, a role, a count, a server, and optional node labels and taints. A
   server is `ovh.vm('d2-4')`, `ovh.metal(ovh.ADVANCE_1)`, or `latitude.metal('m4-metal-small')`
   (Latitude has no VMs in `@sst-provider/latitudesh` 1.2.0). Bare metal's `privateInterface`
-  defaults to `eno2` on Latitude (bonded plans use `bond0`), while OVHcloud's `ADVANCE_*` ship with
-  `''`, to fill in from `ip link` on a delivered server before ordering. `{ gpu: 'nvidia' }`
-  installs the NVIDIA driver and container toolkit before k3s and adds the
+  defaults to `eno2` on Latitude, so pass `{ privateInterface: 'bond0' }` for bonded plans, while
+  OVHcloud's `ADVANCE_*` ship with `''` and refuse to order until it's set. Read it from `ip link`
+  on a delivered server, for OVHcloud the hardware test's or one ordered by hand.
+  `{ gpu: 'nvidia' }` installs the NVIDIA driver and container toolkit before k3s and adds the
   `nvidia.com/gpu.present=true` label and `nvidia.com/gpu=present:NoSchedule` taint that the device
   plugin in `overlays/cluster` targets, so GPU pods request `nvidia.com/gpu` and tolerate the taint.
 - **Links** join a cluster's locations, `wireguard` (a tunnel between both locations' gateways) or
@@ -108,9 +109,12 @@ Edit `CLUSTERS`; reverting an edit undoes it the same way. Invalid configs fail 
 two control-plane pools, overlapping CIDRs, an unlinked location, or `gpu` on a non-GPU machine.
 
 - **Pool:** raise `count` to add nodes. Lowering it removes the highest-index nodes, so drain and
-  delete them with `kubectl` first. Renaming a worker pool or changing its server, labels, taints,
-  or `gpu` rebuilds it. OVHcloud VMs keep their boot image, so after changing `VM_IMAGE`, lower and
-  raise a pool's `count` to replace them.
+  delete them with `kubectl` first. Renaming a worker pool or switching it between VM and bare metal
+  creates new nodes before deleting the old ones, so add the new pool, then drain and remove the old
+  one; do the same to change an OVHcloud plan's `options`, which never reach existing servers. Other
+  server changes, or new labels, taints, or `gpu`, rebuild its nodes under the same names, which k3s
+  refuses until you `kubectl delete node` the old ones. OVHcloud VMs keep their boot image, so after
+  changing `VM_IMAGE`, lower and raise a pool's `count` to replace them.
 - **Control plane:** to move or rename it, rename its cluster, or replace its bootstrap node (index
   0), first deploy the cluster with zero nodes, which removes its proxy. Control-plane IPs come from
   node indexes, so new nodes would otherwise take IPs the old ones still hold.
@@ -121,11 +125,18 @@ two control-plane pools, overlapping CIDRs, an unlinked location, or `gpu` on a 
 - **Region:** add another cluster with its own name and CIDRs. `scripts/cluster`, ArgoCD, and
   `deploy-infra.yaml` handle one cluster per stage until a follow-up.
 
-Production protects k3s nodes and ignores their user data, so a change that would delete or rebuild
-one fails there, and label, taint, or `gpu` changes reach only new nodes. Gateways hold no data and
-rebuild in every stage, but only when their links, locations, or `gateway-config.yaml` change.
-Latitude rebuilds a gateway by deleting and reordering it, which likely changes its public IP
-(rebuilding its dialing peer) and, if the plan is out of stock, cuts the location off.
+Production protects k3s nodes and ignores their user data, so deleting or rebuilding one fails there
+(after a renamed or VM↔bare metal pool's new nodes are created), and label, taint, or `gpu` changes
+reach only new nodes. Gateways hold no data and rebuild in every stage, but only when their links,
+locations, or `gateway-config.yaml` change. Latitude rebuilds a gateway by deleting and reordering
+it, which likely changes its public IP (rebuilding its dialing peer) and, if the plan is out of
+stock, cuts the location off.
+
+OVHcloud's provider waits 2 hours for a bare metal order, and once delivery takes longer, the next
+deploy records the server without installing it. Outside production, which ignores user data, run
+`pnpm sst state remove <Name>TailnetRegistrationAuthKey --stage <stage>` (like
+`UsWestWorkerServer0`) so the next deploy reinstalls it with a fresh Tailscale key, since keys
+expire after a day.
 
 ```sh
 # Connect via tailscale (cluster appears as <stage>-cluster in your tailnet)

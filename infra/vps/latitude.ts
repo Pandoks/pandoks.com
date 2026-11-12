@@ -17,10 +17,9 @@ export type LatitudeLocation = {
   gateway?: LatitudeServer;
 };
 
-// NOTE: GPU plans are the g families, like g3-h100-small and g4-rtx6kpro-large
 const GPU_PLAN = /^g\d+-/;
 
-/** Bonded plans' private NIC is bond0 */
+/** Bonded plans need `{ privateInterface: 'bond0' }`; check with `ip link` on a delivered one */
 export function metal(
   plan: string,
   { gpu, privateInterface = 'eno2' }: { gpu?: 'nvidia'; privateInterface?: string } = {}
@@ -75,7 +74,7 @@ export function createLatitudeServer({
     name: PRIVATE_INTERFACE,
     createNetplanDevices: (routes) =>
       virtualNetwork.vid.apply((vid) => ({
-        // NOTE: Latitude's netplan already defines bonds, but a VLAN on a spare NIC needs it defined
+        // NOTE: Latitude's netplan defines bonds, but a VLAN on a spare NIC must define the NIC
         ...(!machine.server.privateInterface.startsWith('bond') && {
           ethernets: { [machine.server.privateInterface]: {} }
         }),
