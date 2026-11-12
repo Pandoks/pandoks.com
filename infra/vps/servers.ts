@@ -91,8 +91,7 @@ function getResourceName(...names: string[]) {
 }
 
 function checkName(kind: string, name: string) {
-  // NOTE: words start with a letter, so `gpu-1` and `gpu1` can't both become `Gpu1`
-  if (!/^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)*$/.test(name)) {
+  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(name)) {
     throw new Error(`${kind} name ${name} must be lowercase words joined by single hyphens`);
   }
 }
@@ -297,16 +296,16 @@ function getGatewayMachine({
 
 function getNodeMachine({
   cluster,
-  clusterIndex,
   pool,
   index,
-  serverApi
+  serverApi,
+  proxyHostname
 }: {
   cluster: Cluster;
-  clusterIndex: number;
   pool: NodePool;
   index: number;
   serverApi: string;
+  proxyHostname: string;
 }): Machine {
   const location = cluster.locations[pool.location];
   const ip =
@@ -316,10 +315,6 @@ function getNodeMachine({
   const resourceName = `${getResourceName(cluster.name, pool.name)}Server${index}`;
   const hostname = `${STAGE_NAME}-${cluster.name}-${pool.name}-${index}`;
   const role = pool.role === 'control-plane' ? (index === 0 ? 'bootstrap' : 'server') : 'worker';
-  // TODO: name each cluster's proxy after it once deploy tooling handles several clusters
-  const proxyHostname =
-    clusterIndex === 0 ? `${STAGE_NAME}-cluster` : `${STAGE_NAME}-${cluster.name}-cluster`;
-  if (role === 'bootstrap') bootstrapProxyHostnames.set(hostname, proxyHostname);
   const nodeArgs = [
     ...Object.entries(pool.labels ?? {}).map(([key, value]) => `--node-label=${key}=${value}`),
     ...(pool.taints ?? []).map((taint) => `--node-taint=${taint}`),
@@ -367,7 +362,7 @@ function getNodeMachine({
   } as Machine;
 }
 
-/** Callers set `gatewayPublicIps[locationKey]` to each gateway's public IP, for later ones to dial */
+/** Callers set `gatewayPublicIps[locationKey]` to each gateway's public IP for later ones */
 export function getMachines({
   clusters,
   gatewayPublicIps
@@ -466,6 +461,9 @@ export function getMachines({
         throw new Error(`Pool name ${pool.name} is used twice in ${cluster.name}`);
       }
       poolNames.add(pool.name);
+      if (!Number.isInteger(pool.count) || pool.count < 0) {
+        throw new Error(`Pool ${pool.name}'s count must be a whole number`);
+      }
       checkResourceName(
         `${getResourceName(cluster.name, pool.name)}Server`,
         `${cluster.name}/${pool.name}`
@@ -501,6 +499,17 @@ export function getMachines({
       }
     }
 
+    // TODO: name each cluster's proxy after it once deploy tooling handles several clusters
+    const proxyHostname =
+      clusterIndex === 0 ? `${STAGE_NAME}-cluster` : `${STAGE_NAME}-${cluster.name}-cluster`;
+    // NOTE: recorded with zero nodes too, so scaling the bootstrap node to zero removes the proxy
+    if (controlPlanePools[0]) {
+      bootstrapProxyHostnames.set(
+        `${STAGE_NAME}-${cluster.name}-${controlPlanePools[0].name}-0`,
+        proxyHostname
+      );
+    }
+
     // NOTE: a cluster without nodes orders nothing, so it deploys before its providers are set up
     if (controlPlaneCount === 0) return [];
     const controlPlaneCidr = cluster.locations[controlPlanePools[0].location].cidr;
@@ -511,7 +520,7 @@ export function getMachines({
       ),
       ...[...controlPlanePools, ...workerPools].flatMap((pool) =>
         Array.from({ length: pool.count }, (_, index) =>
-          getNodeMachine({ cluster, clusterIndex, pool, index, serverApi })
+          getNodeMachine({ cluster, pool, index, serverApi, proxyHostname })
         )
       )
     ];

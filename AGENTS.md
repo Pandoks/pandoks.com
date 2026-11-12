@@ -1,11 +1,10 @@
 # Pandoks.com
 
 Personal monorepo. SST (`sst.config.ts`, `infra/`) manages all infrastructure: AWS and Cloudflare
-for what needs high availability, rented machines (OVHcloud and Latitude.sh, set per stage by
-`CLUSTERS` in `infra/vps/vps.ts`) for raw compute; the cluster is K3s with Kustomize and ArgoCD.
-`apps/desktop-template` and `apps/example` are templates, but `apps/example/kube` is in every
-overlay, prod included. Apps import `packages/svelte` by package name (`@pandoks.com/svelte/...`);
-inside it, use `#lib`.
+for what needs high availability, rented machines (OVHcloud and Latitude in `infra/vps/`) for raw
+compute; the cluster is K3s with Kustomize and ArgoCD. `apps/desktop-template` and `apps/example`
+are templates, but `apps/example/kube` is in every overlay, prod included. Apps import
+`packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it, use `#lib`.
 
 ## Principles
 

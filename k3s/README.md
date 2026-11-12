@@ -74,10 +74,12 @@ embedded etcd keeps a control plane in one location.
   with its own `10.N.0.0/16`. OVHcloud's account settings sit at the top of `infra/vps/ovh.ts`.
 - **Pools** pick a location, a role, a count, a server, and optional node labels and taints. A
   server is `ovh.vm('d2-4')`, `ovh.metal(ovh.ADVANCE_1)`, or `latitude.metal('m4-metal-small')`
-  (Latitude has no VMs in `@sst-provider/latitudesh` 1.2.0). `{ gpu: 'nvidia' }` installs the NVIDIA
-  driver and container toolkit before k3s and adds the `nvidia.com/gpu.present=true` label and
-  `nvidia.com/gpu=present:NoSchedule` taint that the device plugin in `overlays/cluster` targets, so
-  GPU pods request `nvidia.com/gpu` and tolerate the taint.
+  (Latitude has no VMs in `@sst-provider/latitudesh` 1.2.0). Bare metal's `privateInterface`
+  defaults to `eno2` on Latitude (bonded plans use `bond0`), while OVHcloud's `ADVANCE_*` ship with
+  `''`, to fill in from `ip link` on a delivered server before ordering. `{ gpu: 'nvidia' }`
+  installs the NVIDIA driver and container toolkit before k3s and adds the
+  `nvidia.com/gpu.present=true` label and `nvidia.com/gpu=present:NoSchedule` taint that the device
+  plugin in `overlays/cluster` targets, so GPU pods request `nvidia.com/gpu` and tolerate the taint.
 - **Links** join a cluster's locations, `wireguard` (a tunnel between both locations' gateways) or
   `interconnect` (a routed private circuit whose router sits at `10.N.1.2`; ordering it isn't
   automated yet). Each location of a multi-location cluster needs a bare metal `gateway`, since
@@ -106,10 +108,12 @@ Edit `CLUSTERS`; reverting an edit undoes it the same way. Invalid configs fail 
 two control-plane pools, overlapping CIDRs, an unlinked location, or `gpu` on a non-GPU machine.
 
 - **Pool:** raise `count` to add nodes. Lowering it removes the highest-index nodes, so drain and
-  delete them with `kubectl` first. Renaming a pool or changing its server, labels, taints, or `gpu`
-  rebuilds it.
-- **Control plane:** to move it, first deploy the cluster with zero nodes, which removes the old
-  `<stage>-cluster` proxy.
+  delete them with `kubectl` first. Renaming a worker pool or changing its server, labels, taints,
+  or `gpu` rebuilds it. OVHcloud VMs keep their boot image, so after changing `VM_IMAGE`, lower and
+  raise a pool's `count` to replace them.
+- **Control plane:** to move or rename it, rename its cluster, or replace its bootstrap node (index
+  0), first deploy the cluster with zero nodes, which removes its proxy. Control-plane IPs come from
+  node indexes, so new nodes would otherwise take IPs the old ones still hold.
 - **Location:** add it with an unused `10.N.0.0/16`, a `gateway`, and a link, and give the existing
   location a `gateway` too if it was alone. Existing nodes don't change.
 - **Link:** change `via`. Gateways whose routes change rebuild, and so does a gateway dialing one
@@ -164,8 +168,8 @@ with a remote k3s API forwarded to the default port 6443 (e.g. through SSH tunne
 You'll also see in `scripts/cluster/k3d.sh` that we forward port 30080 in _docker_ to port 8080 on
 the machine (`localhost`). This is because `k3d` runs k3s inside of docker and we need to expose the
 ports that we're exposing from `NodePort` to the host machine. This also mimics the behavior of
-production clusters because the cluster is inside a private networks and the only thing that is
-exposed is through a load balancer that points into the private network at the forwarded port.
+cloud clusters, whose nodes' firewall drops `NodePort`s on public interfaces, so public traffic
+needs a way in that OVHcloud and Latitude clusters don't have yet.
 
 ### Cloud Clusters
 

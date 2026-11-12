@@ -17,7 +17,7 @@ export type OvhMetalServer = {
   privateInterface: string;
 } & Gpu;
 export type OvhServer = OvhVmServer | OvhMetalServer;
-// NOTE: the provider uses OVHcloud's US API, so each US region and the datacenter of its bare metal
+// NOTE: US regions only (the provider uses OVHcloud's US API), each to its bare metal datacenter
 const DATACENTERS = { 'US-EAST-VA-1': 'vin', 'US-WEST-OR-1': 'hil' } as const;
 /** A Public Cloud region. Its gateway is bare metal, since VM ports drop traffic they forward */
 export type OvhLocation = {
@@ -30,13 +30,11 @@ export type OvhLocation = {
 // NOTE: GPU flavor families in OVHcloud's US catalog (/order/catalog/public/cloud?ovhSubsidiary=US)
 const GPU_FLAVOR = /^(t2|t2-le|l4|l40s)-\d+$/;
 
-/** A Public Cloud VM flavor like d2-4 */
 export function vm(flavor: string, { gpu }: Gpu = {}): OvhVmServer {
   if (gpu && !GPU_FLAVOR.test(flavor)) throw new Error(`OVHcloud flavor ${flavor} has no GPU`);
   return { provider: 'ovh', kind: 'vm', flavor, gpu };
 }
 
-/** A bare metal plan code and its options; GPU plans carry a gpu-* option */
 export function metal(
   {
     planCode,
@@ -274,6 +272,8 @@ export function createOvhServer({
     {
       dependsOn,
       ignoreChanges: protect ? ['os', 'customizations'] : [],
+      // NOTE: the replacement takes the same private IP and hostname
+      deleteBeforeReplace: true,
       protect,
       hooks: {
         beforeUpdate: [deleteReinstalledServerFromTailnet],

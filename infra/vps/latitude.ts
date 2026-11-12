@@ -20,7 +20,7 @@ export type LatitudeLocation = {
 // NOTE: GPU plans are the g families, like g3-h100-small and g4-rtx6kpro-large
 const GPU_PLAN = /^g\d+-/;
 
-/** A bare metal plan like m4-metal-small; bonded plans' private NIC is bond0, not eno2 */
+/** Bonded plans' private NIC is bond0 */
 export function metal(
   plan: string,
   { gpu, privateInterface = 'eno2' }: { gpu?: 'nvidia'; privateInterface?: string } = {}
@@ -75,8 +75,10 @@ export function createLatitudeServer({
     name: PRIVATE_INTERFACE,
     createNetplanDevices: (routes) =>
       virtualNetwork.vid.apply((vid) => ({
-        // NOTE: netplan links a VLAN only to an interface it defines
-        ethernets: { [machine.server.privateInterface]: {} },
+        // NOTE: Latitude's netplan already defines bonds, but a VLAN on a spare NIC needs it defined
+        ...(!machine.server.privateInterface.startsWith('bond') && {
+          ethernets: { [machine.server.privateInterface]: {} }
+        }),
         vlans: {
           [PRIVATE_INTERFACE]: {
             id: vid,
