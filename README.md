@@ -11,9 +11,8 @@
   </p>
 
   <p>
-    <a href="https://github.com/Pandoks/pandoks.com/actions/workflows/checks.yaml"><img src="https://github.com/Pandoks/pandoks.com/actions/workflows/checks.yaml/badge.svg" alt="Checks"></a>
-    <a href="https://github.com/Pandoks/pandoks.com/actions/workflows/tests.yaml"><img src="https://github.com/Pandoks/pandoks.com/actions/workflows/tests.yaml/badge.svg" alt="Tests"></a>
-    <a href="https://github.com/Pandoks/pandoks.com/actions/workflows/security.yaml"><img src="https://github.com/Pandoks/pandoks.com/actions/workflows/security.yaml/badge.svg" alt="Security"></a>
+    <a href="https://github.com/Pandoks/pandoks.com/actions/workflows/pipeline.yaml"><img src="https://github.com/Pandoks/pandoks.com/actions/workflows/pipeline.yaml/badge.svg" alt="Pipeline"></a>
+    <a href="https://github.com/Pandoks/pandoks.com/actions/workflows/security-audit.yaml"><img src="https://github.com/Pandoks/pandoks.com/actions/workflows/security-audit.yaml/badge.svg" alt="Security Audit"></a>
   </p>
 
   <p>
@@ -84,8 +83,9 @@ To tear down the cluster:
 pnpm local:destroy
 ```
 
-See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI commands and
-[k3s/README.md](./k3s/README.md) for cluster architecture details.
+See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI commands,
+[k3s/README.md](./k3s/README.md) for cluster architecture details, and
+[packages/e2e/README.md](./packages/e2e/README.md) for e2e suites.
 
 ## Development
 
