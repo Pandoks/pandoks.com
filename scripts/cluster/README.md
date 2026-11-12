@@ -49,19 +49,19 @@ the **bootstrap layer** at `k3s/bootstrap/<env>` instead (helm charts, CRDs, bas
 two are separate kustomize paths — to deploy a fresh cluster end-to-end, run
 `deploy <env> --bootstrap` first, then `deploy <env>` again without the flag.
 
-| Environment | Description                                                                                                       |
-| ----------- | ----------------------------------------------------------------------------------------------------------------- |
-| `local`     | Local k3d cluster. ImageRegistry: `local-registry:5000`, ImageTag: `latest`.                                      |
-| `dev`       | Dev cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: branch name (or `latest` on main/master).          |
-| `prod`      | Production cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: `latest`. SST stage forced to `production`. |
+| Environment | Description                                                                                                                         |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `local`     | Local k3d cluster. ImageRegistry: `local-registry:5000`, ImageTag: `latest`.                                                        |
+| `dev`       | Dev cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: branch name (or `latest` on main/master). SST stage forced to `dev`. |
+| `prod`      | Production cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: `latest`. SST stage forced to `production`.                   |
 
-| Option         | Description                                                                                          |
-| -------------- | ---------------------------------------------------------------------------------------------------- |
-| `--bootstrap`  | Apply `k3s/bootstrap/<env>` (helm charts + CRD providers) and wait for CRDs.                         |
-| `--stage`      | SST stage to fetch secrets from (default: SST's default stage; forced to `production` for prod env). |
-| `--dry-run`    | Render templates without applying.                                                                   |
-| `--kubeconfig` | Kubeconfig file for kubectl operations.                                                              |
-| `--quiet`/`-q` | Suppress status messages; with `--dry-run`, output only YAML.                                        |
+| Option         | Description                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `--bootstrap`  | Apply `k3s/bootstrap/<env>` (helm charts + CRD providers) and wait for CRDs.                                       |
+| `--stage`      | SST stage to fetch secrets from (default: SST's default stage; forced to `dev` for dev and `production` for prod). |
+| `--dry-run`    | Render templates without applying.                                                                                 |
+| `--kubeconfig` | Kubeconfig file for kubectl operations.                                                                            |
+| `--quiet`/`-q` | Suppress status messages; with `--dry-run`, output only YAML.                                                      |
 
 You will be prompted to confirm the destination kubectl context before anything is applied (unless
 using `--dry-run`).
@@ -82,8 +82,8 @@ The `deploy` command renders templates with these substitutions before applying:
 
 ### Local k3d Cluster
 
-Replace `your-stage` with your personal SST stage (for example, `pandoks`); `local` and `dev` select
-the deployment environment, not the SST stage.
+Replace `your-stage` with your personal SST stage (for example, `pandoks`); `local` selects the
+deployment environment, not the SST stage.
 
 ```sh
 # Start dependencies and create the k3d cluster
@@ -116,8 +116,8 @@ tailscale configure kubeconfig prod-cluster
 ./scripts/cluster/main.sh deploy prod
 ```
 
-For dev, connect to `dev-cluster` and use `deploy dev --stage your-stage` in both steps, keeping
-`--bootstrap` on the first.
+For dev, connect to `dev-cluster` and run the same two steps with `deploy dev`. Personal stages have
+no cloud cluster.
 
 The first prod overlay deploy creates the `prod-cluster` ArgoCD Application, which then keeps prod
 in sync with `k3s/overlays/prod` on `main` (`deploy-infra.yaml` triggers a hard refresh when

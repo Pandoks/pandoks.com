@@ -1,12 +1,21 @@
 import { secrets, setSecret } from './secrets';
 
 export const isProduction = $app.stage === 'production';
+export const isSharedDev = $app.stage === 'dev';
+export const hasCluster = isProduction || isSharedDev;
+if ($app.stage === 'prod') {
+  throw new Error("Stage 'prod' would reuse production's names; deploy 'production' instead");
+}
 
-export const domain = isProduction ? 'pandoks.com' : 'dev.pandoks.com';
+export const STAGE_NAME = isProduction ? 'prod' : $app.stage;
 
-export const EXAMPLE_DOMAIN = 'example.pandoks.com';
+export const domain = isProduction
+  ? 'pandoks.com'
+  : isSharedDev
+    ? 'dev.pandoks.com'
+    : `${STAGE_NAME}.dev.pandoks.com`;
 
-export const STAGE_NAME = isProduction ? 'prod' : 'dev';
+export const EXAMPLE_DOMAIN = isProduction ? 'example.pandoks.com' : '*.pandoks.com';
 
 secrets.Stage.value.apply((stageName) => {
   if (stageName !== STAGE_NAME) {

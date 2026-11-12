@@ -84,7 +84,8 @@ usage_deploy() {
   printf "      Deploy to dev cloud cluster with:\n" >&2
   printf "        - ImageRegistry: ghcr.io/pandoks\n" >&2
   printf "        - ImageTag: <branch-name> (or 'latest' on main/master)\n" >&2
-  printf "        - IsLocal: false\n\n" >&2
+  printf "        - IsLocal: false\n" >&2
+  printf "        - SST stage forced to 'dev'\n\n" >&2
   printf "  %bprod%b\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Deploy to production cloud cluster with:\n" >&2
   printf "        - ImageRegistry: ghcr.io/pandoks\n" >&2
@@ -100,7 +101,7 @@ usage_deploy() {
   printf "      again without --bootstrap to apply the overlay.\n\n" >&2
   printf "  %b--stage%b <STAGE>\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      SST stage to fetch secrets from (default: SST's default stage;\n" >&2
-  printf "      forced to 'production' for the prod environment)\n\n" >&2
+  printf "      forced to 'dev' for dev and 'production' for prod)\n\n" >&2
   printf "  %b--dry-run%b\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      Show rendered YAML without applying to cluster\n\n" >&2
   printf "  %b--kubeconfig%b <PATH>\n" "${YELLOW}" "${NORMAL}" >&2

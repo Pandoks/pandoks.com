@@ -119,7 +119,7 @@ export function createServers(
         preauthorized: true,
         tags: ['tag:hetzner', `tag:${STAGE_NAME}`, `tag:${serverArgs.type}`]
       },
-      { dependsOn: [tailscaleAcl] }
+      { dependsOn: tailscaleAcl }
     );
 
     const tailscaleHostname = `${STAGE_NAME}-hetzner-${serverArgs.type}-server-${i}`;

@@ -61,7 +61,7 @@ if (isProduction) {
       deviceId: devTailscaleDevice.nodeId,
       tags: ['tag:funnel', 'tag:ovh', 'tag:ssh']
     },
-    { dependsOn: [tailscaleAcl] }
+    { dependsOn: tailscaleAcl }
   );
 
   const hubTailscaleDevice = tailscale.getDeviceOutput({ hostname: 'thinkpad-t470' });
@@ -71,14 +71,14 @@ if (isProduction) {
       deviceId: hubTailscaleDevice.nodeId,
       tags: ['tag:hub', 'tag:ssh']
     },
-    { dependsOn: [tailscaleAcl] }
+    { dependsOn: tailscaleAcl }
   );
 
   for (const { name, comment } of hubTailscaleServices) {
     new tailscale.Service(
       `${name.replace(/(?:^|-)(.)/g, (_, char: string) => char.toUpperCase())}TailscaleService`,
       { name: `svc:${name}`, comment, ports: ['tcp:443'], tags: ['tag:hub'] },
-      { dependsOn: [tailscaleAcl] }
+      { dependsOn: tailscaleAcl }
     );
   }
 }
