@@ -96,8 +96,8 @@ checkout. The SST CLI is `pnpm sst`.
 - `pnpm lint <js|go|helm|docker|shell|actions|all>`; `js` needs `.sst/platform` from `pnpm install`,
   or `infra/` shows hundreds of false type errors.
 - `pnpm check` type-checks every package, `infra/`, and `sst.config.ts`.
-- Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, `desktop-template`, and
-  `mobile-template`; `pnpm --filter <package> test` for `prettier`, `valkey`, and `mobile-updates`;
+- Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, `desktop`, and `mobile`;
+  `pnpm --filter <package> test` for `prettier`, `valkey`, and `mobile-updates`;
   `go tool ginkgo -p ./packages/<pkg>/e2e` for a package's e2e suite on local k3d
   (`packages/e2e/README.md`).
 - Mobile updates: `pnpm sst shell --stage <stage> -- pnpm mobile-updates publish apps/<app>`;

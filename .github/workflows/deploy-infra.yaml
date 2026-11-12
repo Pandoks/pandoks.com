@@ -38,7 +38,7 @@ jobs:
     outputs:
       sst: ${{ github.event_name != 'workflow_dispatch' && steps.filter.outputs.sst || contains(fromJSON('["all","sst"]'), inputs.deploy) }}
       kubernetes: ${{ github.event_name != 'workflow_dispatch' && steps.filter.outputs.kubernetes || contains(fromJSON('["all","kubernetes"]'), inputs.deploy) }}
-      mobile-template: ${{ steps.filter.outputs.mobile-template }}
+      mobile: ${{ steps.filter.outputs.mobile }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
@@ -55,7 +55,7 @@ jobs:
               - 'k3s/**'
               - 'apps/*/kube/**'
               - 'scripts/cluster/**'
-            mobile-template:
+            mobile:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - 'scripts/mobile-updates/**'
@@ -101,13 +101,13 @@ jobs:
       - name: Deploy SST
         run: pnpm sst deploy --stage production
 
-  publish-mobile-template:
+  publish-mobile:
     # NOTE: on the job, so a run that skips it doesn't cancel another run's pending publish
     concurrency:
-      group: publish-mobile-template
+      group: publish-mobile
       cancel-in-progress: false
     needs: detect-changes
-    if: needs.detect-changes.outputs.mobile-template == 'true'
+    if: needs.detect-changes.outputs.mobile == 'true'
     runs-on: ubuntu-latest
     environment: production
     env:
