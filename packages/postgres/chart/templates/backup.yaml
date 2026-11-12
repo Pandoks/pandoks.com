@@ -39,7 +39,9 @@ spec:
                 - -c
                 - |
                   set -eu
-                  name="$(date -u +%Y%m%dT%H%MZ)"
+                  # NOTE: unique per attempt, since a failed one can leave its marker on some groups
+                  # and recovery stops at the first marker with the target name
+                  name="$(date -u +%Y%m%dT%H%M%SZ)"
                   psql -v ON_ERROR_STOP=1 -c "SELECT citus_create_restore_point('${name}')"
                   echo "Created restore point ${name}"
               env:
@@ -49,6 +51,10 @@ spec:
                   value: {{ .Values.db }}
                 - name: PGUSER
                   value: postgres
+                # NOTE: Citus's advice, so a long distributed write fails this attempt instead of
+                # letting it block every write queued behind it
+                - name: PGOPTIONS
+                  value: -c lock_timeout=1s
                 - name: PGPASSWORD
                   valueFrom:
                     secretKeyRef:
