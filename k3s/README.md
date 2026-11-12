@@ -114,7 +114,8 @@ two control-plane pools, overlapping CIDRs, an unlinked location, or `gpu` on a 
   one; do the same to change an OVHcloud plan's `options`, which never reach existing servers. Other
   server changes, or new labels, taints, or `gpu`, rebuild its nodes under the same names, which k3s
   refuses until you `kubectl delete node` the old ones. OVHcloud VMs keep their boot image, so after
-  changing `VM_IMAGE`, lower and raise a pool's `count` to replace them.
+  changing `VM_IMAGE`, lower and raise a pool's `count` to replace them. Latitude servers keep their
+  OS, so do the same after changing `OPERATING_SYSTEM`; gateways take it at their next rebuild.
 - **Control plane:** to move or rename it, rename its cluster, or replace its bootstrap node (index
   0), first deploy the cluster with zero nodes, which removes its proxy. Control-plane IPs come from
   node indexes, so new nodes would otherwise take IPs the old ones still hold.
@@ -128,9 +129,9 @@ two control-plane pools, overlapping CIDRs, an unlinked location, or `gpu` on a 
 Production protects k3s nodes and ignores their user data, so deleting or rebuilding one fails there
 (after a renamed or VM↔bare metal pool's new nodes are created), and label, taint, or `gpu` changes
 reach only new nodes. Gateways hold no data and rebuild in every stage, but only when their links,
-locations, `gateway-config.yaml`, or OVHcloud's `SERVER_OS` change. Latitude rebuilds a gateway by
-deleting and reordering it, which likely changes its public IP (rebuilding its dialing peer) and, if
-the plan is out of stock, cuts the location off.
+locations, `gateway-config.yaml`, or OVHcloud's `SERVER_OS` change. Latitude, and OVHcloud on a plan
+or region change, rebuild a gateway by deleting and reordering it, which likely changes its public
+IP (rebuilding its dialing peer) and, if the plan is out of stock, cuts the location off.
 
 OVHcloud's provider waits 2 hours for a bare metal order, and once delivery takes longer, the next
 deploy records the server without installing it. Outside production, which ignores user data, run

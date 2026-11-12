@@ -193,10 +193,12 @@ function createUserData({
     {
       // NOTE: fixed length, since Tailscale caps descriptions at 50 characters
       description: renderUserData('').apply((userData) => {
-        // NOTE: OVHcloud adds plan options in place, so they mustn't reinstall a server
-        const hardwareJson = JSON.stringify(hardware, (key, value: unknown) =>
-          key === 'options' ? undefined : value
-        );
+        // NOTE: key order and OVHcloud plan options (state only) mustn't reinstall a server
+        const hardwareJson = JSON.stringify(hardware, (key, value: unknown) => {
+          if (key === 'options') return undefined;
+          if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+          return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)));
+        });
         const hash = createHash('sha256').update(hardwareJson).update(userData);
         return `registration ${hash.digest('hex').slice(0, 8)}`;
       }),
@@ -549,33 +551,20 @@ async function deleteTailnetDevices({
     (device) => device.hostname === hostname && tags.every((tag) => device.tags.includes(tag))
   );
   if (matchingDevices.length > 0) {
-    const deletedDevices = deleteTailscaleDevices(
-      ...matchingDevices.map((device) => device.nodeId)
+    const deletedDevices = await new Promise<
+      { deviceId: string; success: boolean; error?: string }[]
+    >((resolve) =>
+      deleteTailscaleDevices(...matchingDevices.map((device) => device.nodeId)).apply(resolve)
     );
-    deletedDevices.apply((deletedDevices) => {
-      const deletedDeviceIds = deletedDevices
-        .filter((device) => device.success)
-        .map((device) => device.deviceId);
-      const failedToDeleteDeviceIds = deletedDevices
-        .filter((device) => !device.success)
-        .map((device) => device.deviceId);
-      if (deletedDeviceIds.length) {
-        console.log(
-          `Deleted Tailscale devices:\n${matchingDevices
-            .filter((device) => deletedDeviceIds.includes(device.nodeId))
-            .map((device) => device.name)
-            .join('\n')}`
-        );
-      }
-      if (failedToDeleteDeviceIds.length) {
-        console.log(
-          `Failed to delete Tailscale devices:\n${matchingDevices
-            .filter((device) => failedToDeleteDeviceIds.includes(device.nodeId))
-            .map((device) => device.name)
-            .join('\n')}`
-        );
-      }
-    });
+    const failures = deletedDevices
+      .filter((device) => !device.success)
+      .map((device) => `${device.deviceId}: ${device.error}`);
+    if (failures.length) {
+      throw new Error(`Failed to delete Tailscale devices:\n${failures.join('\n')}`);
+    }
+    console.log(
+      `Deleted Tailscale devices:\n${matchingDevices.map((device) => device.name).join('\n')}`
+    );
   }
 }
 
