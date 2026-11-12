@@ -540,21 +540,25 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 					replicaPods = append(replicaPods, podName(0, podIndex))
 				}
 			}
-			// NOTE: the backup waits for a standby to replay past its start, so it can't finish first
+			// NOTE: replicas hold this commit an hour (a promotion skips it), so the backup waits on them
+			Expect(execInPod(namespace, oldPrimaryPod, "patroni", "patronictl", "-c", patroniConfig, "edit-config", "--force",
+				"--set", "postgresql.recovery_conf.recovery_min_apply_delay=1h")).Error().NotTo(HaveOccurred())
 			for _, replicaPod := range replicaPods {
-				Expect(psql(namespace, replicaPod, "SELECT pg_wal_replay_pause()")).Error().NotTo(HaveOccurred())
+				Eventually(psql).WithArguments(namespace, replicaPod, "SHOW recovery_min_apply_delay").Should(Equal("1h"))
 			}
+			lastRowID++
+			insertRows(namespace, 0, lastRowID, lastRowID)
 			startBackupJob(namespace, 0, "full", "failover-full")
 			Eventually(e2e.Run).WithArguments("", "kubectl", "-n", namespace, "logs", "job/failover-full").
 				Should(ContainSubstring("wait for replay on the standby"))
-			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", oldPrimaryPod)
+			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", oldPrimaryPod, "--wait=false")
+			Expect(e2e.MustRun("", "kubectl", "-n", namespace, "logs", "job/failover-full")).
+				To(MatchRegexp(`wait for replay on the standby.*\n$`), "the backup's first attempt stopped waiting before the delete")
+			Expect(e2e.MustRun("", "kubectl", "-n", namespace, "get", "pods", "-l", "job-name=failover-full",
+				"-o", "jsonpath={.items[*].status.containerStatuses[0].restartCount}")).To(Equal("0"), "the backup's first attempt ended before the delete")
 			Eventually(primaryPodName).WithArguments(namespace, 0).WithTimeout(2 * time.Minute).Should(BeElementOf(replicaPods))
-			newPrimaryPod := mustPrimaryPodName(namespace, 0)
-			for _, replicaPod := range replicaPods {
-				if replicaPod != newPrimaryPod {
-					Expect(psql(namespace, replicaPod, "SELECT pg_wal_replay_resume()")).Error().NotTo(HaveOccurred())
-				}
-			}
+			Expect(execInPod(namespace, mustPrimaryPodName(namespace, 0), "patroni", "patronictl", "-c", patroniConfig, "edit-config", "--force",
+				"--set", "postgresql.recovery_conf.recovery_min_apply_delay=null")).Error().NotTo(HaveOccurred())
 
 			e2e.MustRun("", "kubectl", "-n", namespace, "wait", "--for=condition=Complete", "job/failover-full", "--timeout=8m")
 			restartCount := e2e.MustRun("", "kubectl", "-n", namespace, "get", "pods", "-l", "job-name=failover-full",
