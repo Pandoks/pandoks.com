@@ -15,7 +15,7 @@ import {
   useNotificationPermission
 } from '@pandoks.com/react-native-notifications';
 
-import { Screen } from '../components/screen';
+import { Screen } from '@/components/screen';
 
 export default function DeviceScreen() {
   const colorScheme = useColorScheme();
