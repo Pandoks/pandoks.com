@@ -58,9 +58,10 @@ version, so dev and production builds never get each other's updates.
 
 ## Publish
 
-`publish` runs `expo export`, uploads the files to R2, then signs and writes each platform's
-manifest to KV. Every publish is a new update, so to roll back, revert the change on `main`;
-production publishes only from `deploy-infra.yaml` on `main`. Other stages:
+`publish` runs `expo export`, checks the signing key against the app's certificate, uploads the
+files to R2 in parallel, then signs and writes each platform's manifest to KV. Every publish is a
+new update, so to roll back, revert the change on `main`; production publishes only from
+`deploy-infra.yaml` on `main`. Other stages:
 
 ```sh
 pnpm sst shell --stage <stage> -- pnpm mobile-updates publish apps/<app>
