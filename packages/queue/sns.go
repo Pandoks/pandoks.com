@@ -30,6 +30,9 @@ func openSNS(ctx context.Context, parsed *url.URL) (*snsTopic, error) {
 		(fields[1] != "aws" && !strings.HasPrefix(fields[1], "aws-")) || fields[2] != "sns" || slices.Contains(fields, "") {
 		return nil, errors.New("awssns URL must be awssns:///arn:aws:sns:<region>:<account>:<name>")
 	}
+	if strings.HasSuffix(arn, ".fifo") {
+		return nil, errors.New("awssns URL: FIFO topics are not supported, since Publish sets no MessageGroupId")
+	}
 	params, err := queryParams(parsed, "endpoint")
 	if err != nil {
 		return nil, err

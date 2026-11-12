@@ -23,6 +23,8 @@ def open_topic(parsed: SplitResult) -> SNSTopic:
         or "" in fields
     ):
         raise ValueError("awssns URL must be awssns:///arn:aws:sns:<region>:<account>:<name>")
+    if arn.endswith(".fifo"):
+        raise ValueError("awssns URL: FIFO topics are not supported, since Publish sets no MessageGroupId")
     params = query_params(parsed, "endpoint")
     return SNSTopic(boto3.client("sns", region_name=fields[3], endpoint_url=params.get("endpoint")), arn)
 

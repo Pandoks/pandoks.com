@@ -36,6 +36,8 @@ def open_queue(parsed: SplitResult) -> SQSQueue:
     region = HOST.fullmatch(parsed.netloc)
     if region is None or PATH.fullmatch(unquote(parsed.path)) is None:
         raise ValueError("awssqs URL must be awssqs://sqs.<region>.amazonaws.com/<account>/<name>")
+    if unquote(parsed.path).endswith(".fifo"):
+        raise ValueError("awssqs URL: FIFO queues are not supported, since Send sets no MessageGroupId")
     params = query_params(parsed, "lease", "endpoint")
     lease = parse_lease(parsed, params)
     if lease % 1:

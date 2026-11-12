@@ -71,9 +71,10 @@ class EnvelopeTest(unittest.TestCase):
     def test_open_rejects_malformed_urls(self):
         for opener, urls in ((open_queue, MALFORMED_URLS["queues"]), (open_topic, MALFORMED_URLS["topics"])):
             for url in urls:
-                with self.subTest(url), self.assertRaisesRegex(ValueError, "URL") as raised:
-                    opener(url)
-                self.assertNotRegex(str(raised.exception), "xq1|zq2")
+                with self.subTest(url):
+                    with self.assertRaisesRegex(ValueError, "URL") as raised:
+                        opener(url)
+                    self.assertNotRegex(str(raised.exception), "xq1|zq2")
 
     def test_open_hides_a_netloc_python_cannot_split(self):
         for opener in (open_queue, open_topic):

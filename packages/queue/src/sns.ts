@@ -18,6 +18,11 @@ export function openTopic(url: URL): SNSTopic {
   ) {
     throw new Error('awssns URL must be awssns:///arn:aws:sns:<region>:<account>:<name>');
   }
+  if (arn.endsWith('.fifo')) {
+    throw new Error(
+      'awssns URL: FIFO topics are not supported, since Publish sets no MessageGroupId'
+    );
+  }
   const params = queryParams(url, 'endpoint');
   return new SNSTopic(new SNSClient({ region: fields[3], endpoint: params.endpoint }), arn);
 }

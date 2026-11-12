@@ -31,6 +31,9 @@ export function openQueue(url: URL): SQSQueue {
   if (!region || url.username || url.password || !PATH.test(decodeURIComponent(url.pathname))) {
     throw new Error('awssqs URL must be awssqs://sqs.<region>.amazonaws.com/<account>/<name>');
   }
+  if (decodeURIComponent(url.pathname).endsWith('.fifo')) {
+    throw new Error('awssqs URL: FIFO queues are not supported, since Send sets no MessageGroupId');
+  }
   const params = queryParams(url, 'lease', 'endpoint');
   const lease = parseLease(url, params);
   if (!Number.isInteger(lease)) {

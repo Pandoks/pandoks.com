@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -50,6 +51,9 @@ func openSQS(ctx context.Context, parsed *url.URL) (*sqsQueue, error) {
 	region := sqsHost.FindStringSubmatch(parsed.Host)
 	if region == nil || parsed.User != nil || !sqsPath.MatchString(parsed.Path) {
 		return nil, errors.New("awssqs URL must be awssqs://sqs.<region>.amazonaws.com/<account>/<name>")
+	}
+	if strings.HasSuffix(parsed.Path, ".fifo") {
+		return nil, errors.New("awssqs URL: FIFO queues are not supported, since Send sets no MessageGroupId")
 	}
 	params, err := queryParams(parsed, "lease", "endpoint")
 	if err != nil {
