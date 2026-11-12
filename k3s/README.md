@@ -17,14 +17,14 @@ k3s/
     dev/                     # core + system-upgrade-controller CRDs
     prod/                    # core + ArgoCD + system-upgrade-controller CRDs
   base/                      # Shared resources for every environment
-    core/                    # Namespaces, MetalLB pool, cert-manager issuers, credentials, RBAC
+    core/                    # MetalLB pool, cert-manager issuers, shared ClusterRoles, Tailscale credentials
     apps/                    # References to apps/*/kube
     monitoring/              # HAProxy Grafana dashboards
   overlays/                  # deploy <env> (includes base + bootstrap/<env>)
     local/                   # k3d: MetalLB docker IPs, k3d etcd endpoints, apps/*/kube/dev-patch.yaml
     cluster/                 # Shared by dev + prod: Tailscale operator, system upgrades, Hetzner etcd endpoints
     dev/                     # cluster + bootstrap/dev
-    prod/                    # cluster + bootstrap/prod + ArgoCD SST plugin and Application
+    prod/                    # cluster + bootstrap/prod + ArgoCD credentials, SST plugin and Application
 ```
 
 SST secrets are substituted inline (`${Secret}`) by `pnpm cluster deploy`. See
@@ -83,10 +83,11 @@ For dev, use `deploy dev --stage your-stage` in both commands, keeping `--bootst
 ### ArgoCD (prod)
 
 `bootstrap/prod` installs ArgoCD, and `overlays/prod/argocd.yaml` adds the `prod-cluster`
-Application and a repo-server sidecar (`packages/argocd`) that renders kustomize with SST secrets.
-Once the first `deploy prod` creates it, ArgoCD syncs `k3s/overlays/prod` from `main`. The
-`deploy-infra.yaml` workflow triggers a hard refresh when `k3s/**` or `scripts/cluster/**` changes,
-and fails unless prod becomes Synced and Healthy at `main` within 10 minutes.
+Application, its credentials, and a repo-server sidecar (`packages/argocd`) that renders kustomize
+with SST secrets. Once the first `deploy prod` creates it, ArgoCD syncs `k3s/overlays/prod` from
+`main`. The `deploy-infra.yaml` workflow triggers a hard refresh when `k3s/**`, `apps/*/kube/**`, or
+`scripts/cluster/**` changes, and fails unless prod becomes Synced and Healthy at `main` within 10
+minutes.
 
 ## k9s
 
@@ -211,11 +212,28 @@ Grafana uses the default sidecar-based provisioning. Earlier versions had a race
 (REQ_SKIP_INIT bug) but this was fixed in Grafana helm chart 10.5.8 (included in
 kube-prometheus-stack 80.14.4+).
 
+### Upgrading
+
+Helm skips a chart's `crds/` on upgrade, so `crds.upgradeJob` applies the chart's Prometheus
+Operator CRDs in a pre-upgrade Job before the new operator rolls out.
+
 ### Updating Helm Values
 
-k3s HelmChart CRD sometimes doesn't trigger upgrades. To force update:
+k3s HelmChart CRD sometimes doesn't trigger upgrades. To rerun one, delete its Job and
+helm-controller recreates it (for dev, use its `<tailscale-context>`):
 
 ```bash
-kubectl delete helmchart kube-prometheus-stack -n kube-system
-pnpm cluster deploy local --stage your-stage  # or dev/prod
+kubectl --context k3d-local-cluster -n kube-system delete job helm-install-kube-prometheus-stack
 ```
+
+`failurePolicy: abort` (on the HelmChart and each overlay's HelmChartConfig, whose default overrides
+it) stops a failed release from being reinstalled. Once the cause is fixed, roll it back to the
+revision `helm history` still shows as `deployed`, then delete the Job as above:
+
+```bash
+helm --kube-context k3d-local-cluster -n monitoring history kube-prometheus-stack
+helm --kube-context k3d-local-cluster -n monitoring rollback kube-prometheus-stack <revision>
+```
+
+Don't delete the HelmChart: helm-controller then uninstalls the release, which deletes Grafana's PVC
+and its data. Prod only changes through `main`.

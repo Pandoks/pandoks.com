@@ -10,7 +10,7 @@
     "local:build:helm": "rm -f ./valkey-*.tgz && helm package ./chart",
     "local:push": "pnpm run /^local:push:/",
     "local:push:image": "docker push localhost:12345/valkey:latest",
-    "local:push:helm": "helm push valkey-*.tgz oci://localhost:12345/charts",
+    "local:push:helm": "helm push --plain-http valkey-*.tgz oci://localhost:12345/charts",
     "local:push:reconciler": "docker push localhost:12345/valkey-reconciler:latest",
     "test": "GOWORK=off go test -C ./reconciler -v ./..."
   }

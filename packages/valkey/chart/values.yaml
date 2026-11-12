@@ -11,7 +11,7 @@ credentials:
 cluster:
   masters: 1
   replicasPerMaster: 0
-  reconcilerImage: ghcr.io/pandoks/valkey-reconciler:latest@sha256:a8808f4e693ffc515ad56dbc431f19ebe79bd8c9bfb658c29155b2593c545879
+  reconcilerImage: ghcr.io/pandoks/valkey-reconciler:latest@sha256:d714c90df2854eae7c70b5ab35894a06772e36fa1ead12d0262bce1cc927acda
 
 # No persistence by default
 # options: rdb,aof | rdb | aof | ~

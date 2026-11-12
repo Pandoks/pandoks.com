@@ -5,7 +5,7 @@ import { secrets } from './secrets';
 import { tailscaleAcl } from './tailscale';
 
 export const githubOrg = 'Pandoks';
-export const githubRepoName = 'pandoks.com';
+export const githubRepositoryName = 'pandoks.com';
 
 const GITHUB_ACTIONS_APP_ID = 15368;
 // NOTE: AWS trusts every job in the production environment, so only main gets it.
@@ -14,13 +14,13 @@ const DEPLOYMENT_BRANCH_POLICY = isProduction
   : undefined;
 
 const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
-  repository: githubRepoName,
+  repository: githubRepositoryName,
   environment: isProduction ? 'production' : 'dev',
   deploymentBranchPolicy: DEPLOYMENT_BRANCH_POLICY
 });
 
 new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
-  repository: githubRepoName,
+  repository: githubRepositoryName,
   environment: githubEnvironment.environment,
   secretName: 'HCLOUD_TOKEN',
   value: secrets.hetzner.ApiKey.value
@@ -28,14 +28,14 @@ new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
 
 if (isProduction) {
   new github.RepositoryEnvironmentDeploymentPolicy('GithubProductionDeploymentPolicy', {
-    repository: githubRepoName,
+    repository: githubRepositoryName,
     environment: githubEnvironment.environment,
     branchPattern: 'main'
   });
 
   new github.RepositoryRuleset('GithubMainRuleset', {
     name: 'main',
-    repository: githubRepoName,
+    repository: githubRepositoryName,
     target: 'branch',
     enforcement: 'active',
     conditions: { refName: { includes: ['refs/heads/main'], excludes: [] } },
@@ -50,43 +50,44 @@ if (isProduction) {
           'security-pass',
           'tests-pass',
           'build-and-publish-pass'
-        ].map((context) => ({ context, integrationId: GITHUB_ACTIONS_APP_ID }))
+        ].map((context) => ({ context, integrationId: GITHUB_ACTIONS_APP_ID })),
+        strictRequiredStatusChecksPolicy: true
       }
     }
   });
 
   new github.ActionsSecret('GithubGithubAccessToken', {
-    repository: githubRepoName,
+    repository: githubRepositoryName,
     secretName: 'GH_TOKEN',
     value: secrets.github.PersonalAccessToken.value
   });
 
   new github.ActionsSecret('GithubGithubPackageManagementToken', {
-    repository: githubRepoName,
+    repository: githubRepositoryName,
     secretName: 'GH_PACKAGE_MANAGEMENT_TOKEN',
     value: secrets.github.PackageManagementToken.value
   });
 
   new github.ActionsSecret('GithubCloudflareApiToken', {
-    repository: githubRepoName,
+    repository: githubRepositoryName,
     secretName: 'CLOUDFLARE_API_TOKEN',
     value: secrets.cloudflare.ApiKey.value
   });
 
   new github.ActionsSecret('GithubCloudflareAccountId', {
-    repository: githubRepoName,
+    repository: githubRepositoryName,
     secretName: 'CLOUDFLARE_DEFAULT_ACCOUNT_ID',
     value: cloudflareAccountId
   });
 
   new github.ActionsSecret('GithubOvhApplicationSecret', {
-    repository: githubRepoName,
+    repository: githubRepositoryName,
     secretName: 'OVH_APPLICATION_SECRET',
     value: secrets.ovh.ApplicationSecret.value
   });
 
   new github.ActionsSecret('GithubOvhConsumerKey', {
-    repository: githubRepoName,
+    repository: githubRepositoryName,
     secretName: 'OVH_CONSUMER_KEY',
     value: secrets.ovh.ConsumerKey.value
   });
@@ -111,8 +112,8 @@ if (isProduction) {
             StringEquals: {
               'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
               'token.actions.githubusercontent.com:sub': [
-                `repo:${githubOrg}/${githubRepoName}:environment:production`,
-                `repo:${githubOrg}/${githubRepoName}:ref:refs/heads/main`
+                `repo:${githubOrg}/${githubRepositoryName}:environment:production`,
+                `repo:${githubOrg}/${githubRepositoryName}:ref:refs/heads/main`
               ]
             }
           }
@@ -127,12 +128,12 @@ if (isProduction) {
   });
 
   new github.ActionsVariable('GithubAWSRole', {
-    repository: githubRepoName,
+    repository: githubRepositoryName,
     variableName: 'AWS_ROLE_ARN',
     value: githubActionsAWSRole.arn
   });
   new github.ActionsVariable('GithubAWSRegion', {
-    repository: githubRepoName,
+    repository: githubRepositoryName,
     variableName: 'AWS_REGION',
     value: defaultAwsRegion
   });
@@ -151,7 +152,7 @@ if (isProduction) {
       workloadIdentityPoolId: githubActionsGcpPool.workloadIdentityPoolId,
       workloadIdentityPoolProviderId: 'github',
       attributeMapping: { 'google.subject': 'assertion.sub' },
-      attributeCondition: `assertion.sub in ['repo:${githubOrg}/${githubRepoName}:environment:production', 'repo:${githubOrg}/${githubRepoName}:ref:refs/heads/main']`,
+      attributeCondition: `assertion.sub in ['repo:${githubOrg}/${githubRepositoryName}:environment:production', 'repo:${githubOrg}/${githubRepositoryName}:ref:refs/heads/main']`,
       oidc: { issuerUri: 'https://token.actions.githubusercontent.com' }
     },
     {
@@ -182,29 +183,29 @@ if (isProduction) {
   new github.ActionsVariable(
     'GithubGcpWorkloadIdentityProvider',
     {
-      repository: githubRepoName,
+      repository: githubRepositoryName,
       variableName: 'GCP_WORKLOAD_IDENTITY_PROVIDER',
       value: githubActionsGcpProvider.name
     },
-    { import: `${githubRepoName}:GCP_WORKLOAD_IDENTITY_PROVIDER` }
+    { import: `${githubRepositoryName}:GCP_WORKLOAD_IDENTITY_PROVIDER` }
   );
   new github.ActionsVariable(
     'GithubGcpServiceAccount',
     {
-      repository: githubRepoName,
+      repository: githubRepositoryName,
       variableName: 'GCP_SERVICE_ACCOUNT',
       value: githubActionsGcpServiceAccount.email
     },
-    { import: `${githubRepoName}:GCP_SERVICE_ACCOUNT` }
+    { import: `${githubRepositoryName}:GCP_SERVICE_ACCOUNT` }
   );
 
   new github.ActionsSecret('GithubTailscaleOauthClientId', {
-    repository: githubRepoName,
+    repository: githubRepositoryName,
     secretName: 'TAILSCALE_OAUTH_CLIENT_ID',
     value: secrets.tailscale.OauthClientId.value
   });
   new github.ActionsSecret('GithubTailscaleOauthClientSecret', {
-    repository: githubRepoName,
+    repository: githubRepositoryName,
     secretName: 'TAILSCALE_OAUTH_CLIENT_SECRET',
     value: secrets.tailscale.OauthClientSecret.value
   });
@@ -219,19 +220,19 @@ if (isProduction) {
     { dependsOn: [tailscaleAcl] }
   );
   new github.ActionsSecret('GithubActionsTailscaleOauthClientId', {
-    repository: githubRepoName,
+    repository: githubRepositoryName,
     secretName: 'TS_OAUTH_CLIENT_ID',
     value: githubActionsOauthClient.id
   });
   new github.ActionsSecret('GithubActionsTailscaleOauthSecret', {
-    repository: githubRepoName,
+    repository: githubRepositoryName,
     secretName: 'TS_OAUTH_SECRET',
     value: githubActionsOauthClient.key
   });
 
   // NOTE: Renovate handles the security-PRs, and reads dependabot alerts.
   new github.RepositoryDependabotSecurityUpdates('GithubDependabotSecurityUpdates', {
-    repository: githubRepoName,
+    repository: githubRepositoryName,
     enabled: false
   });
 }
