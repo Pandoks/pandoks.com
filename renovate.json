@@ -248,7 +248,11 @@
     },
     {
       "description": "`expo install --check` also holds these to the Expo SDK's versions in the Expo app and its packages.",
-      "matchFileNames": ["templates/mobile/package.json", "packages/react-native-*/package.json"],
+      "matchFileNames": [
+        "templates/mobile/package.json",
+        "templates/react-native-module/package.json",
+        "packages/react-native-*/package.json"
+      ],
       "matchPackageNames": ["typescript", "jest", "@types/jest"],
       "groupName": "expo sdk",
       "dependencyDashboardApproval": true
