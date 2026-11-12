@@ -128,7 +128,7 @@ export class ValkeyQueue implements Queue {
       const body = encode(message, sentAt);
       return [String(delayMilliseconds(message.delay ?? 0)), body];
     });
-    await this.client.invokeScript(this.sendScript, { keys: this.keys.slice(0, 2), args });
+    await this.client.invokeScript(this.sendScript, { keys: this.keys, args });
   }
 
   async receive(max: number, signal?: AbortSignal): Promise<Delivery[]> {

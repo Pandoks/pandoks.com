@@ -1,4 +1,4 @@
--- KEYS: stream, delayed, dlq, reclaim cursor and last sweep (one hash tag, so one slot)
+-- KEYS: stream, delayed, dlq, reclaim cursor, last sweep, and delayed sequence (one hash tag)
 -- ARGV: group, consumer, count, lease_ms, max_attempts
 -- Returns {{stream_id, envelope, attempt}, ...}: due delayed retries promoted, expired leases
 -- reclaimed (dead-lettered past max_attempts), then new entries. Once a lease, it also removes

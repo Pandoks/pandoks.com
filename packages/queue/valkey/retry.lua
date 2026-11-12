@@ -1,8 +1,8 @@
--- KEYS: stream, delayed, dlq
+-- KEYS: stream, delayed, dlq, reclaim
 -- ARGV: group, delay_ms, max_attempts, then stream_id, attempt pairs
 -- Settles each delivery as failed: dead-letters it once attempt reaches max_attempts, else
 -- schedules it to come back after delay_ms as a new entry carrying the attempts spent.
-local stream, delayed, dlq = KEYS[1], KEYS[2], KEYS[3]
+local stream, delayed, dlq, reclaim = KEYS[1], KEYS[2], KEYS[3], KEYS[4]
 local group, delay, max_attempts = ARGV[1], tonumber(ARGV[2]), tonumber(ARGV[3])
 
 local time = server.call('TIME')
@@ -26,7 +26,8 @@ for index = 4, #ARGV, 2 do
     if attempt >= max_attempts then
       server.call('XADD', dlq, '*', 'envelope', values.envelope, 'attempt', attempt, 'source', id)
     else
-      server.call('ZADD', delayed, now + delay, cjson.encode({ envelope = values.envelope, attempt = attempt }))
+      local sequence = server.call('HINCRBY', reclaim, 'sequence', 1)
+      server.call('ZADD', delayed, now + delay, cjson.encode({ envelope = values.envelope, attempt = attempt, sequence = sequence }))
     end
     server.call('XDEL', stream, id)
     settled = settled + 1

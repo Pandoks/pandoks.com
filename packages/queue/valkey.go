@@ -138,7 +138,7 @@ func (queue *valkeyQueue) Send(ctx context.Context, messages ...Message) error {
 		}
 		args = append(args, strconv.FormatInt(delayMilliseconds(message.Delay), 10), string(body))
 	}
-	if err := sendScript.Exec(ctx, queue.client, queue.keys[:2], args).Error(); err != nil {
+	if err := sendScript.Exec(ctx, queue.client, queue.keys, args).Error(); err != nil {
 		return fmt.Errorf("send to Valkey: %w", err)
 	}
 	return nil

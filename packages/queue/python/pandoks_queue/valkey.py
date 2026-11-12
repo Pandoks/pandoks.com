@@ -106,7 +106,7 @@ class ValkeyQueue:
         for message in messages:
             body = encode(message, sent_at)
             args += [delay_milliseconds(message.delay), body]
-        self.send_script(keys=self.keys[:2], args=args)
+        self.send_script(keys=self.keys, args=args)
 
     def receive(self, max: int) -> list[Delivery]:
         if max < 1:

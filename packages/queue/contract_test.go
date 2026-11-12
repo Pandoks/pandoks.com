@@ -591,6 +591,33 @@ func TestValkeyDelaysOnTheServerClock(t *testing.T) {
 	}
 }
 
+func TestValkeyKeepsIdenticalDelayedMessagesApart(t *testing.T) {
+	queue := openQueue(t, "valkey://client:client@"+valkeyAddress+"/i"+strings.ToLower(rand.Text()[:10])+"?lease=1m&max_attempts=3")
+	message := testMessage("twin")
+	message.Delay = time.Millisecond
+	if err := queue.Send(t.Context(), message, message); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	for _, stage := range []string{"sent", "retried"} {
+		var deliveries []*Delivery
+		for len(deliveries) < 2 && ctx.Err() == nil {
+			received, err := queue.Receive(ctx, 10)
+			if err != nil && ctx.Err() == nil {
+				t.Fatal(err)
+			}
+			deliveries = append(deliveries, received...)
+		}
+		if len(deliveries) != 2 {
+			t.Fatalf("%d of 2 identical %s messages arrived", len(deliveries), stage)
+		}
+		if err := queue.Retry(t.Context(), time.Millisecond, deliveries...); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestValkeyAcksANonUTF8Entry(t *testing.T) {
 	name := "u" + strings.ToLower(rand.Text()[:10])
 	queue, client := openQueue(t, "valkey://client:client@"+valkeyAddress+"/"+name+"?lease=1m&max_attempts=3"), valkeyTestClient(t)
