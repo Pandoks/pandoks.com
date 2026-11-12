@@ -98,7 +98,7 @@ from `LATITUDESH_AUTH_TOKEN`.
 | `10.N.1.2`       | Interconnect router                                      |
 | `10.N.1.10-19`   | Control plane (`overlays/cluster/prom-etcd-config.yaml`) |
 | `10.0.1.100-200` | MetalLB (`base/core/metallb.yaml`)                       |
-| `10.N.<hash>.x`  | A worker pool, from its name's hash                      |
+| `10.N.<hash>.x`  | A worker pool, from its name's hash, +1 for bare metal   |
 
 The MetalLB and etcd manifests pin `10.0.1.x`, so the first cluster's control plane must be in
 `10.0.0.0/16`.

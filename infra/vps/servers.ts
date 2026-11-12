@@ -73,17 +73,16 @@ function getLocationIp(cidr: string, [thirdOctet, lastOctet]: readonly [number, 
   return `${cidr.split('.').slice(0, 2).join('.')}.${thirdOctet}.${lastOctet}`;
 }
 
-// NOTE: FNV-1a, so declaring, reordering, or removing other pools never moves a worker pool's IPs
-function getWorkerPoolOctet(name: string) {
+// NOTE: FNV-1a, so other pools never move a pool's IPs; metal's +1 keeps a kind swap off old IPs
+function getWorkerPoolOctet({ name, server }: NodePool) {
   let hash = 2166136261;
   for (const character of name) {
     hash = Math.imul(hash ^ character.charCodeAt(0), 16777619) >>> 0;
   }
-  return (hash % 253) + 2;
+  return ((hash + (server.kind === 'metal' ? 1 : 0)) % 253) + 2;
 }
 
-// NOTE: VM and bare metal are different resource types, so Pulumi creates a swapped pool's new
-// nodes before deleting the old ones, which must not share their IPs or hostnames
+// NOTE: Pulumi creates a pool's new kind before deleting its old one, so they can't share hostnames
 function getNodeName(pool: NodePool) {
   return `${pool.name}-${pool.server.kind}`;
 }
@@ -157,11 +156,12 @@ function getNextHops({
   return nextHops;
 }
 
-/** The key's description hashes the user data, so new user data swaps in a fresh one-time key */
+/** The key's description hashes the user data and `hardware`, so a rebuilt server gets a new key */
 function createUserData({
   template,
   resourceName,
   description,
+  hardware,
   tags,
   netplanDevices,
   environment
@@ -169,6 +169,7 @@ function createUserData({
   template: string;
   resourceName: string;
   description: string;
+  hardware: unknown;
   tags: string[];
   netplanDevices: $util.Input<Record<string, unknown>>;
   environment: Record<string, $util.Input<string>>;
@@ -192,10 +193,10 @@ function createUserData({
   const registrationTailnetAuthKey = new tailscale.TailnetKey(
     `${resourceName}TailnetRegistrationAuthKey`,
     {
-      description: renderUserData('').apply(
-        (userData) =>
-          `${description} ${createHash('sha256').update(userData).digest('hex').slice(0, 8)}`
-      ),
+      description: renderUserData('').apply((userData) => {
+        const hash = createHash('sha256').update(JSON.stringify(hardware)).update(userData);
+        return `${description} ${hash.digest('hex').slice(0, 8)}`;
+      }),
       reusable: false,
       expiry: 86400, // 1 day, since bare metal can take hours to deliver
       preauthorized: true,
@@ -255,6 +256,7 @@ function getGatewayMachine({
       template: gatewayCloudConfig,
       resourceName,
       description: `${cluster.name} ${locationName} gateway reg`,
+      hardware: location,
       tags: [`tag:${location.provider}`, `tag:${STAGE_NAME}`],
       netplanDevices: $util
         .all([
@@ -316,7 +318,7 @@ function getNodeMachine({
   const ip =
     pool.role === 'control-plane'
       ? getLocationIp(location.cidr, [1, CONTROL_PLANE_IP_START + index])
-      : getLocationIp(location.cidr, [getWorkerPoolOctet(getNodeName(pool)), index + 1]);
+      : getLocationIp(location.cidr, [getWorkerPoolOctet(pool), index + 1]);
   const resourceName = `${getResourceName(cluster.name, pool.name)}Server${index}`;
   const hostname = `${STAGE_NAME}-${cluster.name}-${getNodeName(pool)}-${index}`;
   const role = pool.role === 'control-plane' ? (index === 0 ? 'bootstrap' : 'server') : 'worker';
@@ -338,6 +340,7 @@ function getNodeMachine({
         template: nodeCloudConfig,
         resourceName,
         description: `${cluster.name} ${pool.name} ${index} node reg`,
+        hardware: [pool.server, { ...location, gateway: undefined }],
         tags: [`tag:${location.provider}`, `tag:${STAGE_NAME}`, `tag:${pool.role}`],
         netplanDevices: privateInterface.createNetplanDevices([
           { to: PRIVATE_IP_RANGE, via: getLocationIp(location.cidr, GATEWAY_IP) }
@@ -492,7 +495,7 @@ export function getMachines({
         );
       }
       if (pool.role === 'worker') {
-        const octetKey = `${pool.location} ${getWorkerPoolOctet(getNodeName(pool))}`;
+        const octetKey = `${pool.location} ${getWorkerPoolOctet(pool)}`;
         const collidingPoolName = workerPoolOctets.get(octetKey);
         if (collidingPoolName) {
           throw new Error(`Pools ${collidingPoolName} and ${pool.name} share IPs; rename one`);
