@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -91,10 +92,13 @@ func OpenTopic(ctx context.Context, rawURL string) (Topic, error) {
 	return nil, fmt.Errorf("open topic: unknown scheme %q", parsed.Scheme)
 }
 
-// urlPartsOK reports whether the host and decoded path are UTF-8, and no decoded path segment is
-// empty, . or .., which TS's URL parser would otherwise resolve to another name.
+// urlPartsOK reports whether the host is ASCII with no % escapes, the decoded path is UTF-8, and
+// no decoded path segment is empty, . or .., which TS's URL parser would otherwise resolve to
+// another name.
 func urlPartsOK(parsed *url.URL) bool {
-	if !utf8.ValidString(parsed.Host) || !utf8.ValidString(parsed.Path) {
+	// NOTE: Go decodes a host's %25 and non-ASCII escapes, which TS's URL keeps escaped
+	if strings.ContainsFunc(parsed.Host, func(char rune) bool { return char == '%' || char > unicode.MaxASCII }) ||
+		!utf8.ValidString(parsed.Path) {
 		return false
 	}
 	return !slices.ContainsFunc(strings.Split(parsed.Path, "/")[1:], func(segment string) bool {

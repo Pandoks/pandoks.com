@@ -17,10 +17,10 @@ function parse(url: string, action: string): URL {
   const rawPath = /^[^:]*:(?:\/\/[^/?#]*)?([^?#]*)/.exec(url)?.[1] ?? '';
   // NOTE: not new URL, whose error carries the whole URL, password included
   const parsed = URL.parse(url);
-  if (!parsed) throw new Error(`${action}: URL does not parse`);
+  // NOTE: URL keeps a host's escapes undecoded, so reject them as Go and Python do
+  if (!parsed || parsed.host.includes('%')) throw new Error(`${action}: URL does not parse`);
   let segments: string[];
   try {
-    decodeURIComponent(parsed.host);
     segments = decodeURIComponent(rawPath).split('/').slice(1);
   } catch {
     throw new Error(`${action}: URL does not parse`);

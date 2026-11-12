@@ -150,8 +150,9 @@ Credentials come from each SDK's usual environment.
 
 `lease` is `<n>ms`, `<n>s`, `<n>m`, or `<n>h`, at most 12 h, and required on every queue;
 `max_attempts` is required on Valkey queues, from 1 to 2^63 - 1 in ASCII digits. Unknown parameters,
-a `;` in the query, and malformed escapes (a `%` not followed by two hex digits, or escapes that
-aren't UTF-8) in the host, path, or query, or in a Valkey user or password, are errors, as are
+a `;` in the query, a host with a `%` escape or a non-ASCII character, and malformed escapes (a `%`
+not followed by two hex digits, or escapes that aren't UTF-8) in the path or query, or in a Valkey
+user or password, are errors, as are
 incomplete SNS ARNs or ones outside an `aws` or `aws-*` partition, `.fifo` queues and topics (FIFO
 needs a message group ID, which `Send` and `Publish` never set), and empty, `.`, or `..` path
 segments once decoded (so `%2F` splits a segment), which TS's URL parser would otherwise resolve to

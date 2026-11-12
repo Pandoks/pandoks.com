@@ -214,9 +214,17 @@ def decodes(part: str) -> bool:
 
 
 def check_url_parts(parsed: SplitResult) -> None:
-    """Rejects a netloc or decoded path that isn't UTF-8, or a path segment that is empty, . or .."""
+    """Rejects a netloc or decoded path that isn't UTF-8, a host with a % escape or non-ASCII
+    character, or a path segment that is empty, . or .."""
+    host = parsed.netloc.rpartition("@")[2]
     segments = unquote(parsed.path).split("/")[1:]
-    if not decodes(parsed.netloc) or not decodes(parsed.path) or any(segment in ("", ".", "..") for segment in segments):
+    if (
+        not decodes(parsed.netloc)
+        or "%" in host
+        or not host.isascii()
+        or not decodes(parsed.path)
+        or any(segment in ("", ".", "..") for segment in segments)
+    ):
         raise ValueError("URL does not parse")
 
 
