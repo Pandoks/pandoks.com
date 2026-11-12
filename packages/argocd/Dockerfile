@@ -37,3 +37,7 @@ COPY --chown=999:999 packages/argocd/argocd-plugin.yaml /home/argocd/cmp-server/
 
 USER argocd
 WORKDIR /home/argocd
+
+RUN aws configure set profile.pandoks-pulumi-state.region auto \
+    && aws configure set profile.pandoks-pulumi-state.credential_process \
+    'aws ssm get-parameter --region us-west-1 --name /pulumi/r2-state-read-credentials --with-decryption --query Parameter.Value --output text'

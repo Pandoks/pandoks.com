@@ -1,6 +1,7 @@
 import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
 import * as cloudflare from '@pulumi/cloudflare';
+import { providers } from './secrets.ts';
 
 export const isProduction = pulumi.getStack() === 'production';
 
@@ -13,7 +14,10 @@ export const STAGE_NAME = isProduction ? 'prod' : 'dev';
 const awsAccountIdentityJson = await aws.getCallerIdentity();
 export const awsAccountId = awsAccountIdentityJson.accountId;
 
-const cloudflareZone = await cloudflare.getZone({ filter: { name: 'pandoks.com' } });
+const cloudflareZone = await cloudflare.getZone(
+  { filter: { name: 'pandoks.com' } },
+  { provider: providers.cloudflare }
+);
 export const cloudflareAccountId = cloudflareZone.account.id;
 export const cloudflareZoneId = cloudflareZone.id;
 

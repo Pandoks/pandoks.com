@@ -2,9 +2,9 @@ import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
 import * as cloudflare from '@pulumi/cloudflare';
 import { usWest2Provider } from './aws.ts';
-import { cloudflareAccountId, STAGE_NAME } from './dns.ts';
+import { cloudflareAccountId, isProduction, STAGE_NAME } from './dns.ts';
+import { providers } from './secrets.ts';
 
-// NOTE: aliases adopt resources SST created inside its bucket components.
 export const backupBucket = new cloudflare.R2Bucket(
   'BackupBucket',
   {
@@ -14,32 +14,19 @@ export const backupBucket = new cloudflare.R2Bucket(
     location: 'wnam',
     storageClass: 'Standard'
   },
-  {
-    aliases: [
-      {
-        name: 'BackupBucketBucket',
-        parent: pulumi.createUrn('BackupBucket', 'sst:cloudflare:Bucket')
-      }
-    ]
-  }
+  { provider: providers.cloudflare, protect: isProduction, retainOnDelete: isProduction }
 );
 
 export const s3Endpoint = `${cloudflareAccountId}.r2.cloudflarestorage.com`;
 
-function createRunnerBucket({ name }: { name: string }) {
-  const sstBucketUrn = pulumi.createUrn(name, 'sst:aws:Bucket');
+function createRunnerBucket({ id, name }: { id: string; name: string }) {
   const bucket = new aws.s3.Bucket(
-    name,
-    { forceDestroy: true },
-    {
-      provider: usWest2Provider,
-      aliases: [{ name: `${name}Bucket`, parent: sstBucketUrn }],
-      // NOTE: keeps the random name SST gave existing buckets; new stacks get a Pulumi autoname.
-      ignoreChanges: ['bucket']
-    }
+    id,
+    { bucket: `pandoks-${STAGE_NAME}-${name}`, forceDestroy: true },
+    { provider: usWest2Provider, protect: isProduction, retainOnDelete: isProduction }
   );
   new aws.s3.BucketPublicAccessBlock(
-    `${name}PublicAccessBlock`,
+    `${id}PublicAccessBlock`,
     {
       bucket: bucket.bucket,
       blockPublicAcls: true,
@@ -47,10 +34,10 @@ function createRunnerBucket({ name }: { name: string }) {
       ignorePublicAcls: true,
       restrictPublicBuckets: true
     },
-    { provider: usWest2Provider, aliases: [{ parent: sstBucketUrn }] }
+    { provider: usWest2Provider }
   );
   new aws.s3.BucketPolicy(
-    `${name}Policy`,
+    `${id}Policy`,
     {
       bucket: bucket.bucket,
       policy: pulumi.jsonStringify({
@@ -66,16 +53,19 @@ function createRunnerBucket({ name }: { name: string }) {
         ]
       })
     },
-    { provider: usWest2Provider, aliases: [{ parent: sstBucketUrn }] }
+    { provider: usWest2Provider }
   );
-  return { bucket, sstBucketUrn };
+  return bucket;
 }
 
-const runnerCacheStore = createRunnerBucket({ name: 'RunnerCacheStore' });
+export const runnerCacheBucket = createRunnerBucket({
+  id: 'RunnerCacheStore',
+  name: 'runner-cache'
+});
 new aws.s3.BucketLifecycleConfiguration(
   'RunnerCacheStoreLifecycle',
   {
-    bucket: runnerCacheStore.bucket.bucket,
+    bucket: runnerCacheBucket.bucket,
     rules: [
       {
         id: 'expire-stale-cache',
@@ -85,10 +75,12 @@ new aws.s3.BucketLifecycleConfiguration(
       }
     ]
   },
-  { provider: usWest2Provider, aliases: [{ parent: runnerCacheStore.sstBucketUrn }] }
+  { provider: usWest2Provider }
 );
-export const runnerCacheBucket = runnerCacheStore.bucket;
 
-export const runnerArtifactsBucket = createRunnerBucket({ name: 'RunnerArtifactsStore' }).bucket;
+export const runnerArtifactsBucket = createRunnerBucket({
+  id: 'RunnerArtifactsStore',
+  name: 'runner-artifacts'
+});
 
 export const outputs = { BackupBucket: backupBucket.name };

@@ -39,12 +39,12 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
    `warn` or `fail` line (it exits 0 on a stopped proxy), give me its fix instead of starting the
    proxy or working around it with `PORTLESS=0`, `--force`, or `sudo`. If portless says the host is
    already registered, use `pnpm exec portless get web` only if that process runs from this
-   checkout; otherwise tell me. `pulumi preview` evaluates `infra/` read-only: it decrypts the
-   stack's secrets and calls cloud read APIs. `pulumi up` also deletes Tailscale devices tagged for
-   that stack's cluster when it has zero nodes; personal stacks share the `dev` names. Run
-   `pulumi up`, `refresh`, `destroy`, or `config set` only when I ask. Pulumi reads the stack's
-   passphrase from `PULUMI_CONFIG_PASSPHRASE`, stored at `/sst/passphrase/personal/<stack>` in SSM.
-   If AWS credentials are missing or expired, ask me to run `pnpm sso`.
+   checkout; otherwise tell me. `pulumi preview` reads the stack's state from R2, decrypts it with
+   the stack's KMS key, reads every `/pulumi/<stack>/` secret from SSM, and calls cloud read APIs;
+   it leaves the state bucket unchanged. `pulumi up` also deletes Tailscale devices tagged for that
+   stack's cluster when it has zero nodes; personal stacks share the `dev` names. Run `pulumi up`,
+   `refresh`, `destroy`, or `stack init` only when I ask. If AWS credentials are missing or expired,
+   ask me to run `pnpm sso`.
 3. **Editing my checkout from an experiment.** Use absolute paths in experiment copies;
    `mise exec -C <dir>` runs inside `<dir>`, so never point it at my checkout. Leave my staged and
    unstaged changes alone.
@@ -52,11 +52,13 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
    `pnpm cluster k3d up` does, so save `kubectl config current-context` first and switch back.
    Target k3d with `kubectl --context k3d-local-cluster` and
    `printf 'y\n' | mise exec -- pnpm cluster deploy local --stack <stack> --kubeconfig "$(mise exec -- k3d kubeconfig write local-cluster)"`.
-5. **Leaking secrets.** `--show-secrets` output, passphrases, and `pnpm cluster deploy --dry-run`
-   output are real credentials: never print, commit, or paste them, and inspect manifests with
-   `kustomize build`. `Pulumi.<stack>.yaml` holds only ciphertext and is committed. New secrets go
-   in `infra/secrets.ts`; one without a value fails every preview and deploy of its stack, so pipe
-   yours into `pulumi config set --secret <Name> --stack <stack>` and ask me to set production's.
+5. **Leaking secrets.** `--show-secrets` output, SSM `/pulumi/` values, and
+   `pnpm cluster deploy --dry-run` output are real credentials: never print, commit, or paste them,
+   and inspect manifests with `kustomize build`. `Pulumi.<stack>.yaml` holds only the KMS secrets
+   provider and encrypted data key. New secrets go in `infra/secrets.ts`; one without a value fails
+   every preview and deploy of its stack, so write yours byte for byte with
+   `aws ssm put-parameter --type SecureString --name /pulumi/<stack>/<Name> --value file://<file>`
+   and ask me to set production's.
 
 ## How changes ship
 
@@ -67,12 +69,12 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
   Required checks are the `*-pass` aggregates, and a PR must be up to date with `main` to merge.
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
   deleted branch's versions and untagged orphans are deleted.
-- Merging to `main` runs `deploy-infra.yaml`: `pulumi up --stack production` for `Pulumi.yaml`,
-  `Pulumi.production.yaml`, `infra/`, `apps/` (except `example`), and `packages/svelte/`, plus an
-  Argo hard refresh and a wait for Synced and Healthy only for `k3s/`, `apps/*/kube/`, and
-  `scripts/cluster/` changes. Pages builds `apps/web` when a change matches `pathIncludes` in
-  `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod` renders but never prunes: a
-  deleted resource stays in prod until pruned by hand.
+- Merging to `main` runs `deploy-infra.yaml`: `pulumi up --refresh --stack production` for
+  `Pulumi.yaml`, `Pulumi.production.yaml`, `infra/`, `apps/` (except `example`), and
+  `packages/svelte/`, plus an Argo hard refresh and a wait for Synced and Healthy only for `k3s/`,
+  `apps/*/kube/`, and `scripts/cluster/` changes. Pages builds `apps/web` when a change matches
+  `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod` renders but
+  never prunes: a deleted resource stays in prod until pruned by hand.
 - Every non-production stack gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
   environment, so two non-production stacks collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
@@ -167,10 +169,10 @@ Before calling infra, cluster, or tooling work done, check:
 - **TypeScript/Pulumi:** one `infra/` file per provider or responsibility, a directory once it
   outgrows one. Stack differences are `SCREAMING_SNAKE` constants from `isProduction ? a : b` at the
   top, plus `if (isProduction)` around production-only resources. Node runs `infra/` by stripping
-  types, so import relative modules with `.ts` and providers explicitly. Production data resource
-  types belong in `DATA_RESOURCE_TYPES` in `infra/index.ts` (`protect` and `retainOnDelete`).
-  Helpers are verb-named `function` declarations with destructured parameters. `Promise.all` instead
-  of awaiting in loops.
+  types, so import relative modules with `.ts`. Pass `providers.<name>` from `infra/secrets.ts` to
+  every Cloudflare, GitHub, Hetzner, and Tailscale resource and invoke; `Pulumi.yaml` disables their
+  default providers. Helpers are verb-named `function` declarations with destructured parameters.
+  `Promise.all` instead of awaiting in loops.
 - **Go:** justify every `#nosec` or `//nolint` inline.
 - **Containers and manifests:** pin Dockerfile bases, third-party images, and chart defaults as
   `image:tag@sha256:…` in files a Renovate manager matches; no image lock files. Images in raw

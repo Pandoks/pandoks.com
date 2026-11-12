@@ -43,8 +43,16 @@ mise install
 pnpm install
 ```
 
-3. Configure AWS SSO session in `~/.aws/config`. `pnpm sso` points to sso session `personal`, and
-   `mise.toml` sets `AWS_PROFILE=Personal`; change both to match your config.
+3. Configure an AWS SSO profile in `~/.aws/config` and export it as `AWS_PROFILE`, in your shell or
+   a gitignored `mise.local.toml`. `pnpm sso` logs in to sso session `personal`; change it in
+   `package.json` to match. Then add the profile Pulumi reads its R2 state with, whose credentials
+   come from SSM through your SSO login:
+
+```sh
+aws configure set profile.pandoks-pulumi-state.region auto
+aws configure set profile.pandoks-pulumi-state.credential_process \
+  'aws ssm get-parameter --region us-west-1 --name /pulumi/r2-state-credentials --with-decryption --query Parameter.Value --output text'
+```
 
 > [!NOTE]
 > AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while
@@ -87,19 +95,20 @@ See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI comman
 ## Development
 
 Everything outside Kubernetes is a [Pulumi](https://www.pulumi.com/docs/) program in `infra/`, with
-one stack per stage (`production`, `dev`, and personal stacks like `pandoks`). State lives in S3,
-and each stack's secrets are encrypted in `Pulumi.<stack>.yaml` with the passphrase stored in SSM:
+one stack per stage (`production`, `dev`, and personal stacks like `pandoks`). State lives in the R2
+bucket in `Pulumi.yaml`, each `Pulumi.<stack>.yaml` names the KMS key that encrypts it, and every
+secret in `infra/secrets.ts` is an SSM `SecureString` at `/pulumi/<stack>/<Name>`:
 
 ```sh
-export PULUMI_CONFIG_PASSPHRASE="$(aws ssm get-parameter --name /sst/passphrase/personal/your-stack \
-  --with-decryption --query Parameter.Value --output text)"
 pulumi preview --stack your-stack
 pulumi up --stack your-stack
-printf "%s" "$VALUE" | pulumi config set --secret --stack your-stack <Name> # infra/secrets.ts
+# file:// keeps the value byte for byte; write it with printf '%s' to avoid a trailing newline
+aws ssm put-parameter --overwrite --type SecureString --name /pulumi/your-stack/<Name> --value file://<file>
 ```
 
-A new stack needs `pulumi stack init your-stack`, its SSM passphrase, and every secret in
-`infra/secrets.ts`. Other development commands:
+A new stack needs every secret in `infra/secrets.ts` and a committed `Pulumi.<stack>.yaml` from
+`pulumi stack init your-stack --no-select --secrets-provider 'awskms://alias/pulumi-nonproduction?region=us-west-1'`.
+Other development commands:
 
 ```sh
 pnpm --filter web dev           # website

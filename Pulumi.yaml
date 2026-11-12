@@ -6,11 +6,9 @@ runtime:
   options:
     packagemanager: pnpm
 backend:
-  url: s3://sst-state-vccamowamddd/pulumi?region=us-west-1
+  url: s3://pandoks-pulumi-state?endpoint=<cloudflare-account-id>.r2.cloudflarestorage.com&region=auto&s3ForcePathStyle=true&awssdk=v2&profile=pandoks-pulumi-state
 config:
   aws:region:
     value: us-west-1
-  ovh:endpoint:
-    value: ovh-us
-  ovh:applicationKey:
-    value: edf9a4672d28e3c7
+  pulumi:disable-default-providers:
+    value: [cloudflare, github, hcloud, ovh, tailscale]

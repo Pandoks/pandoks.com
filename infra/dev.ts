@@ -2,8 +2,16 @@ import * as ovh from '@ovhcloud/pulumi-ovh';
 import * as tailscale from '@pulumi/tailscale';
 import { isProduction } from './dns.ts';
 import { hubTailscaleServices, tailscaleAcl } from './tailscale.ts';
+import { providers, secrets } from './secrets.ts';
 
 if (isProduction) {
+  const ovhProvider = new ovh.Provider('Ovh', {
+    endpoint: 'ovh-us',
+    applicationKey: 'edf9a4672d28e3c7',
+    applicationSecret: secrets.ovh.ApplicationSecret,
+    consumerKey: secrets.ovh.ConsumerKey
+  });
+
   new ovh.vps.Vps(
     'OvhDevVps',
     {
@@ -50,37 +58,44 @@ if (isProduction) {
       ]
     },
     {
+      provider: ovhProvider,
       protect: true,
       import: 'vps-54c42746.vps.ovh.us',
       ignoreChanges: ['plans', 'ovhSubsidiary', 'planOptions']
     }
   );
 
-  const devTailscaleDevice = tailscale.getDeviceOutput({ hostname: 'pandoks-dev-box' });
+  const devTailscaleDevice = tailscale.getDeviceOutput(
+    { hostname: 'pandoks-dev-box' },
+    { provider: providers.tailscale }
+  );
   new tailscale.DeviceTags(
     'OvhDevVpsTailscaleTags',
     {
       deviceId: devTailscaleDevice.nodeId,
       tags: ['tag:funnel', 'tag:ovh', 'tag:ssh']
     },
-    { dependsOn: [tailscaleAcl] }
+    { provider: providers.tailscale, dependsOn: [tailscaleAcl] }
   );
 
-  const hubTailscaleDevice = tailscale.getDeviceOutput({ hostname: 'thinkpad-t470' });
+  const hubTailscaleDevice = tailscale.getDeviceOutput(
+    { hostname: 'thinkpad-t470' },
+    { provider: providers.tailscale }
+  );
   new tailscale.DeviceTags(
     'HubTailscaleTags',
     {
       deviceId: hubTailscaleDevice.nodeId,
       tags: ['tag:hub', 'tag:ssh']
     },
-    { dependsOn: [tailscaleAcl] }
+    { provider: providers.tailscale, dependsOn: [tailscaleAcl] }
   );
 
   for (const { name, comment } of hubTailscaleServices) {
     new tailscale.Service(
       `${name.replace(/(?:^|-)(.)/g, (_, char: string) => char.toUpperCase())}TailscaleService`,
       { name: `svc:${name}`, comment, ports: ['tcp:443'], tags: ['tag:hub'] },
-      { dependsOn: [tailscaleAcl] }
+      { provider: providers.tailscale, dependsOn: [tailscaleAcl] }
     );
   }
 }

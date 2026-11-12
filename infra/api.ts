@@ -3,18 +3,15 @@ import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
 import * as cloudflare from '@pulumi/cloudflare';
 import { buildSync } from 'esbuild';
-import { secrets } from './secrets.ts';
-import { cloudflareZoneId, domain, isProduction } from './dns.ts';
+import { providers, secrets } from './secrets.ts';
+import { cloudflareZoneId, domain, isProduction, STAGE_NAME } from './dns.ts';
 import { githubOrg, githubRepositoryName } from './github.ts';
 
 const apiDomain = `api.${domain}`;
 const NOTION_BLOG_DATABASE_ID = '20f1bb259e4b804ba24be1ceebf4c761';
 
-// NOTE: aliases adopt resources SST created inside its Function and Router components.
-const sstRouterUrn = pulumi.createUrn('ApiRouter', 'sst:aws:Router');
-const sstRouterCdnUrn = pulumi.createUrn('ApiRouterCdn', 'sst:aws:CDN', sstRouterUrn);
-
 function createFunction({
+  id,
   name,
   entryPoint,
   handler,
@@ -22,6 +19,7 @@ function createFunction({
   environment,
   inlinePolicy
 }: {
+  id: string;
   name: string;
   entryPoint: string;
   handler: string;
@@ -29,24 +27,17 @@ function createFunction({
   environment: Record<string, pulumi.Input<string>>;
   inlinePolicy?: pulumi.Input<string>;
 }) {
-  const aliases = [{ parent: pulumi.createUrn(name, 'sst:aws:Function') }];
-  // NOTE: keeps the random names SST gave existing resources; new stacks get a Pulumi autoname.
-  const ignoreChanges = ['name'];
-
-  const logGroup = new aws.cloudwatch.LogGroup(
-    `${name}LogGroup`,
-    { retentionInDays: 30 },
-    { aliases, ignoreChanges }
-  );
-  const role = new aws.iam.Role(
-    `${name}Role`,
-    {
-      assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({ Service: 'lambda.amazonaws.com' }),
-      managedPolicyArns: [aws.iam.ManagedPolicy.AWSLambdaBasicExecutionRole],
-      inlinePolicies: inlinePolicy ? [{ name: 'inline', policy: inlinePolicy }] : []
-    },
-    { aliases, ignoreChanges }
-  );
+  const functionName = `${STAGE_NAME}-${name}`;
+  const logGroup = new aws.cloudwatch.LogGroup(`${id}LogGroup`, {
+    name: `/aws/lambda/${functionName}`,
+    retentionInDays: 30
+  });
+  const role = new aws.iam.Role(`${id}Role`, {
+    name: functionName,
+    assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({ Service: 'lambda.amazonaws.com' }),
+    managedPolicyArns: [aws.iam.ManagedPolicy.AWSLambdaBasicExecutionRole],
+    inlinePolicies: inlinePolicy ? [{ name: 'inline', policy: inlinePolicy }] : []
+  });
 
   const [bundle] = buildSync({
     entryPoints: [join(import.meta.dirname, '../apps/functions/src', entryPoint)],
@@ -58,26 +49,24 @@ function createFunction({
     write: false
   }).outputFiles;
 
-  return new aws.lambda.Function(
-    `${name}Function`,
-    {
-      runtime: aws.lambda.Runtime.NodeJS24dX,
-      handler: `index.${handler}`,
-      role: role.arn,
-      timeout,
-      memorySize: 1024,
-      code: new pulumi.asset.AssetArchive({
-        'index.js': new pulumi.asset.StringAsset(bundle.text)
-      }),
-      environment: { variables: environment },
-      loggingConfig: { logFormat: 'Text', logGroup: logGroup.name }
-    },
-    { aliases, ignoreChanges }
-  );
+  return new aws.lambda.Function(`${id}Function`, {
+    name: functionName,
+    runtime: aws.lambda.Runtime.NodeJS24dX,
+    handler: `index.${handler}`,
+    role: role.arn,
+    timeout,
+    memorySize: 1024,
+    code: new pulumi.asset.AssetArchive({
+      'index.js': new pulumi.asset.StringAsset(bundle.text)
+    }),
+    environment: { variables: environment },
+    loggingConfig: { logFormat: 'Text', logGroup: logGroup.name }
+  });
 }
 
 export const textFunction = createFunction({
-  name: 'TextSms',
+  id: 'TextSms',
+  name: 'text-sms',
   entryPoint: 'text.ts',
   handler: 'sendTextHandler',
   timeout: 20,
@@ -117,7 +106,8 @@ new aws.iam.RolePolicy('ScheduleInvokeTextPolicy', {
 });
 
 const notionWebhookFunction = createFunction({
-  name: 'NotionWebhookHandler',
+  id: 'NotionWebhookHandler',
+  name: 'notion-webhook-handler',
   entryPoint: 'api/notion/webhook.ts',
   handler: 'webhookHandler',
   timeout: 30,
@@ -156,7 +146,7 @@ const notionWebhookFunction = createFunction({
   }
 });
 
-const api = new aws.apigatewayv2.Api('Api', { protocolType: 'HTTP' });
+const api = new aws.apigatewayv2.Api('Api', { name: `${STAGE_NAME}-api`, protocolType: 'HTTP' });
 const apiStage = new aws.apigatewayv2.Stage('ApiStage', {
   apiId: api.id,
   name: '$default',
@@ -185,7 +175,6 @@ const apiCertificate = new aws.acm.Certificate('ApiCertificate', {
   validationMethod: 'DNS'
 });
 const apiCertificateValidationOption = apiCertificate.domainValidationOptions[0];
-// NOTE: ACM reuses one validation record per domain and account, so this adopts SST's record.
 const apiCertificateValidationRecord = new cloudflare.DnsRecord(
   'ApiCertificateValidationRecord',
   {
@@ -196,11 +185,7 @@ const apiCertificateValidationRecord = new cloudflare.DnsRecord(
     proxied: false,
     ttl: 60
   },
-  {
-    aliases: [
-      { parent: pulumi.createUrn('ApiRouterCdnSsl', 'sst:aws:Certificate', sstRouterCdnUrn) }
-    ]
-  }
+  { provider: providers.cloudflare }
 );
 const apiCertificateValidation = new aws.acm.CertificateValidation('ApiCertificateValidation', {
   certificateArn: apiCertificate.arn,
@@ -230,14 +215,7 @@ new cloudflare.DnsRecord(
     proxied: false,
     ttl: 60
   },
-  {
-    aliases: [
-      {
-        name: `ApiRouterCdnCNAMERecord${apiDomain.replaceAll('.', '').replace(/^./, (char) => char.toUpperCase())}`,
-        parent: sstRouterCdnUrn
-      }
-    ]
-  }
+  { provider: providers.cloudflare }
 );
 
 export const outputs = { NotionBlogDatabaseId: NOTION_BLOG_DATABASE_ID };

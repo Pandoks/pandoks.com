@@ -67,14 +67,9 @@ jobs:
 
       - uses: ./.github/actions/setup-node-pnpm
 
-      - name: Read pulumi version from mise.toml
-        id: mise-pulumi
-        run: echo "version=$(sed -n -E 's/^"aqua:pulumi\/pulumi"[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' mise.toml)" >> "$GITHUB_OUTPUT"
-
-      - name: Setup Pulumi
-        uses: pulumi/actions@96c7761824268174e0d2a4e8c7d75671eebd24a7 # v7.1.0
+      - uses: ./.github/actions/setup-mise
         with:
-          pulumi-version: ${{ steps.mise-pulumi.outputs.version }}
+          tools: aqua:pulumi/pulumi
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
@@ -82,28 +77,11 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Load Pulumi passphrase
+      - name: Configure the Pulumi state profile
         run: |
-          passphrase=$(aws ssm get-parameter --name /sst/passphrase/personal/production \
-            --with-decryption --query Parameter.Value --output text)
-          echo "::add-mask::${passphrase}"
-          echo "PULUMI_CONFIG_PASSPHRASE=${passphrase}" >> "$GITHUB_ENV"
-
-      # TODO: drop this step once the SST cut-over deploy has run; it only gates that one deploy.
-      - name: Check the SST cut-over preview
-        run: |
-          pulumi preview --stack production --refresh --json > preview.json
-          jq -e '
-            def type: .urn | split("::")[2] | split("$") | last;
-            if any(.steps[]; .op == "delete" and (type | startswith("sst:"))) | not then true
-            else [.steps[] | select(
-              (.op | IN("same", "update", "refresh", "read") | not)
-              and (.op == "delete" and (type | test("^(sst:|aws:cloudfront/|aws:acm/|aws:lambda/(functionUrl|permission):|aws:s3/(bucketObjectv2|bucketCorsConfiguration):|random:|pulumi:providers:)")) | not)
-              and (.op == "create" and (type | test("^(aws:apigatewayv2/|aws:acm/|aws:lambda/permission:)")) | not)
-              and (type | test("^aws:imagebuilder/") | not)
-              and ((.urn | endswith("::ApiCertificateValidationRecord")) | not)
-            ) | "\(.op) \(.urn)"] | if length == 0 then true else (.[] | debug) | false end
-            end' preview.json > /dev/null
+          aws configure set profile.pandoks-pulumi-state.region auto
+          aws configure set profile.pandoks-pulumi-state.credential_process \
+            'aws ssm get-parameter --region us-west-1 --name /pulumi/r2-state-credentials --with-decryption --query Parameter.Value --output text'
 
       - name: Deploy Pulumi
         run: pulumi up --yes --refresh --stack production

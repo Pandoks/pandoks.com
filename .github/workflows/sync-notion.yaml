@@ -16,14 +16,9 @@ jobs:
 
       - uses: ./.github/actions/setup-node-pnpm
 
-      - name: Read pulumi version from mise.toml
-        id: mise-pulumi
-        run: echo "version=$(sed -n -E 's/^"aqua:pulumi\/pulumi"[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' mise.toml)" >> "$GITHUB_OUTPUT"
-
-      - name: Setup Pulumi
-        uses: pulumi/actions@96c7761824268174e0d2a4e8c7d75671eebd24a7 # v7.1.0
+      - uses: ./.github/actions/setup-mise
         with:
-          pulumi-version: ${{ steps.mise-pulumi.outputs.version }}
+          tools: aqua:pulumi/pulumi
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
@@ -31,10 +26,15 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: us-west-1
 
+      - name: Configure the Pulumi state profile
+        run: |
+          aws configure set profile.pandoks-pulumi-state.region auto
+          aws configure set profile.pandoks-pulumi-state.credential_process \
+            'aws ssm get-parameter --region us-west-1 --name /pulumi/r2-state-credentials --with-decryption --query Parameter.Value --output text'
+
       - name: Sync all Notion content
         run: |
-          . ./scripts/lib/pulumi.sh
-          outputs=$(get_pulumi_outputs production)
+          outputs=$(pulumi stack output --stack production --json --show-secrets)
           NOTION_API_KEY=$(jq -r .NotionApiKey <<<"${outputs}")
           echo "::add-mask::${NOTION_API_KEY}"
           BLOG_NOTION_DATABASE_ID=$(jq -r .NotionBlogDatabaseId <<<"${outputs}")

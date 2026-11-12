@@ -3,9 +3,6 @@ import * as aws from '@pulumi/aws';
 import { awsAccountId, isProduction } from './dns.ts';
 import { defaultAwsRegion } from './aws.ts';
 
-const STATE_BUCKET = 'sst-state-vccamowamddd';
-const PRODUCTION_STACK_PATH = 'pulumi/.pulumi/stacks/personal/production.json';
-
 export const outputs: Record<string, pulumi.Output<string>> = {};
 
 // NOTE: the Argo CD plugin reads production's stack outputs with this read-only user.
@@ -27,22 +24,13 @@ if (isProduction) {
           Effect: 'Allow',
           Action: ['ssm:GetParameter'],
           Resource: [
-            `arn:aws:ssm:${defaultAwsRegion}:${awsAccountId}:parameter/sst/passphrase/personal/production`
+            `arn:aws:ssm:${defaultAwsRegion}:${awsAccountId}:parameter/pulumi/r2-state-read-credentials`
           ]
         },
         {
           Effect: 'Allow',
-          Action: ['s3:GetObject'],
-          Resource: [
-            `arn:aws:s3:::${STATE_BUCKET}/pulumi/.pulumi/meta.yaml`,
-            `arn:aws:s3:::${STATE_BUCKET}/${PRODUCTION_STACK_PATH}*`
-          ]
-        },
-        {
-          Effect: 'Allow',
-          Action: ['s3:ListBucket'],
-          Resource: [`arn:aws:s3:::${STATE_BUCKET}`],
-          Condition: { StringLike: { 's3:prefix': [`${PRODUCTION_STACK_PATH}*`] } }
+          Action: ['kms:Decrypt'],
+          Resource: [aws.kms.getAliasOutput({ name: 'alias/pulumi-production' }).targetKeyArn]
         }
       ]
     })

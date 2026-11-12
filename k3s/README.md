@@ -85,9 +85,9 @@ For dev, use `deploy dev --stack your-stack` in both commands, keeping `--bootst
 `bootstrap/prod` installs ArgoCD, and `overlays/prod/argocd.yaml` adds the `prod-cluster`
 Application, its credentials, and a repo-server sidecar (`packages/argocd`) that renders kustomize
 with Pulumi stack outputs. Once the first `deploy prod` creates it, ArgoCD syncs `k3s/overlays/prod`
-from `main`. The `deploy-infra.yaml` workflow triggers a hard refresh when `k3s/**`, `apps/*/kube/**`, or
-`scripts/cluster/**` changes, and fails unless prod becomes Synced and Healthy at `main` within 10
-minutes.
+from `main`. The `deploy-infra.yaml` workflow triggers a hard refresh when `k3s/**`,
+`apps/*/kube/**`, or `scripts/cluster/**` changes, and fails unless prod becomes Synced and Healthy
+at `main` within 10 minutes.
 
 ## k9s
 

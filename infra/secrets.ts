@@ -1,109 +1,107 @@
 import * as pulumi from '@pulumi/pulumi';
+import * as aws from '@pulumi/aws';
+import * as cloudflare from '@pulumi/cloudflare';
+import * as github from '@pulumi/github';
+import * as hcloud from '@pulumi/hcloud';
+import * as tailscale from '@pulumi/tailscale';
 
 // NOTE: keyed by name, so `pnpm cluster deploy` and Argo substitute them as `${Name}`.
 export const outputs: Record<string, pulumi.Output<string>> = {};
 
-function requireSecret({
-  name,
-  namespace,
-  key = name
-}: {
-  name: string;
-  namespace?: string;
-  key?: string;
-}) {
-  const value = new pulumi.Config(namespace).requireSecret(key);
+function requireSecret(name: string) {
+  // NOTE: invoke results aren't secret, so without this the values print and land in state as-is.
+  const value = pulumi.secret(
+    aws.ssm.getParameterOutput({
+      name: `/pulumi/${pulumi.getStack()}/${name}`,
+      withDecryption: true
+    }).value
+  );
   outputs[name] = value;
   return value;
 }
 
 export const secrets = {
   notion: {
-    ApiKey: requireSecret({ name: 'NotionApiKey' }),
-    WebhookVerificationToken: requireSecret({ name: 'NotionWebhookVerificationToken' })
+    ApiKey: requireSecret('NotionApiKey'),
+    WebhookVerificationToken: requireSecret('NotionWebhookVerificationToken')
   },
   cloudflare: {
-    ApiKey: requireSecret({ name: 'CloudflareApiKey', namespace: 'cloudflare', key: 'apiToken' }),
-    BackupAccessKey: requireSecret({ name: 'CloudflareBackupAccessKey' }),
-    BackupSecretKey: requireSecret({ name: 'CloudflareBackupSecretKey' })
+    ApiKey: requireSecret('CloudflareApiKey'),
+    BackupAccessKey: requireSecret('CloudflareBackupAccessKey'),
+    BackupSecretKey: requireSecret('CloudflareBackupSecretKey')
   },
   github: {
-    PersonalAccessToken: requireSecret({
-      name: 'GithubPersonalAccessToken',
-      namespace: 'github',
-      key: 'token'
-    }),
-    PackageManagementToken: requireSecret({ name: 'GithubPackageManagementToken' })
+    PersonalAccessToken: requireSecret('GithubPersonalAccessToken'),
+    PackageManagementToken: requireSecret('GithubPackageManagementToken')
   },
   personal: {
-    KwokPhoneNumber: requireSecret({ name: 'KwokPhoneNumber' }),
-    MichellePhoneNumber: requireSecret({ name: 'MichellePhoneNumber' })
+    KwokPhoneNumber: requireSecret('KwokPhoneNumber'),
+    MichellePhoneNumber: requireSecret('MichellePhoneNumber')
   },
   twilio: {
-    PhoneNumber: requireSecret({ name: 'TwilioPhoneNumber' }),
-    AccountSid: requireSecret({ name: 'TwilioAccountSid' }),
-    AuthToken: requireSecret({ name: 'TwilioAuthToken' }),
-    NotionMessagingServiceSid: requireSecret({ name: 'TwilioNotionMessagingServiceSid' })
+    PhoneNumber: requireSecret('TwilioPhoneNumber'),
+    AccountSid: requireSecret('TwilioAccountSid'),
+    AuthToken: requireSecret('TwilioAuthToken'),
+    NotionMessagingServiceSid: requireSecret('TwilioNotionMessagingServiceSid')
   },
   oxylabs: {
     residential: {
-      Username: requireSecret({ name: 'OxylabsResidentialUsername' }),
-      Password: requireSecret({ name: 'OxylabsResidentialPassword' })
+      Username: requireSecret('OxylabsResidentialUsername'),
+      Password: requireSecret('OxylabsResidentialPassword')
     },
     webUnblocker: {
-      Username: requireSecret({ name: 'OxylabsWebUnblockerUsername' }),
-      Password: requireSecret({ name: 'OxylabsWebUnblockerPassword' })
+      Username: requireSecret('OxylabsWebUnblockerUsername'),
+      Password: requireSecret('OxylabsWebUnblockerPassword')
     }
   },
   hetzner: {
-    ApiKey: requireSecret({ name: 'HetznerApiKey', namespace: 'hcloud', key: 'token' }),
-    K3sToken: requireSecret({ name: 'HetznerK3sToken' })
+    ApiKey: requireSecret('HetznerApiKey'),
+    K3sToken: requireSecret('HetznerK3sToken')
   },
   ovh: {
-    ApplicationSecret: requireSecret({
-      name: 'OvhApplicationSecret',
-      namespace: 'ovh',
-      key: 'applicationSecret'
-    }),
-    ConsumerKey: requireSecret({ name: 'OvhConsumerKey', namespace: 'ovh', key: 'consumerKey' })
+    ApplicationSecret: requireSecret('OvhApplicationSecret'),
+    ConsumerKey: requireSecret('OvhConsumerKey')
   },
   tailscale: {
-    OauthClientId: requireSecret({
-      name: 'TailscaleOauthClientId',
-      namespace: 'tailscale',
-      key: 'oauthClientId'
-    }),
-    OauthClientSecret: requireSecret({
-      name: 'TailscaleOauthClientSecret',
-      namespace: 'tailscale',
-      key: 'oauthClientSecret'
-    })
+    OauthClientId: requireSecret('TailscaleOauthClientId'),
+    OauthClientSecret: requireSecret('TailscaleOauthClientSecret')
   },
   k8s: {
     grafana: {
-      AdminPassword: requireSecret({ name: 'KubernetesGrafanaAdminPassword' })
+      AdminPassword: requireSecret('KubernetesGrafanaAdminPassword')
     },
     // NOTE: the key behind the CSR in infra/vps, generated once with vps.openssl.conf.
-    HetznerOriginTlsKey: requireSecret({ name: 'HetznerOriginTlsKey' }),
+    HetznerOriginTlsKey: requireSecret('HetznerOriginTlsKey'),
     main: {
       // namespace
-      // NOTE: names are '<namespace><db-name><resource><var>' (ie. MainMainPostgresSuperuserPassword)
+      // NOTE: names are <namespace><db-name><resource><var>, like MainMainPostgresSuperuserPassword
       mainPostgres: {
-        SuperuserPassword: requireSecret({ name: 'MainMainPostgresSuperuserPassword' }),
-        AdminPassword: requireSecret({ name: 'MainMainPostgresAdminPassword' }),
-        ClientPassword: requireSecret({ name: 'MainMainPostgresClientPassword' }),
-        ReplicationPassword: requireSecret({ name: 'MainMainPostgresReplicationPassword' }),
-        PatroniPassword: requireSecret({ name: 'MainMainPostgresPatroniPassword' }),
-        PgdogAdminPassword: requireSecret({ name: 'MainMainPostgresPgdogAdminPassword' })
+        SuperuserPassword: requireSecret('MainMainPostgresSuperuserPassword'),
+        AdminPassword: requireSecret('MainMainPostgresAdminPassword'),
+        ClientPassword: requireSecret('MainMainPostgresClientPassword'),
+        ReplicationPassword: requireSecret('MainMainPostgresReplicationPassword'),
+        PatroniPassword: requireSecret('MainMainPostgresPatroniPassword'),
+        PgdogAdminPassword: requireSecret('MainMainPostgresPgdogAdminPassword')
       },
       mainValkey: {
-        AdminPassword: requireSecret({ name: 'MainMainValkeyAdminPassword' }),
-        ClientPassword: requireSecret({ name: 'MainMainValkeyClientPassword' })
+        AdminPassword: requireSecret('MainMainValkeyAdminPassword'),
+        ClientPassword: requireSecret('MainMainValkeyClientPassword')
       },
       mainClickhouse: {
-        AdminPassword: requireSecret({ name: 'MainMainClickhouseAdminPassword' }),
-        ClientPassword: requireSecret({ name: 'MainMainClickhouseClientPassword' })
+        AdminPassword: requireSecret('MainMainClickhouseAdminPassword'),
+        ClientPassword: requireSecret('MainMainClickhouseClientPassword')
       }
     }
   }
+};
+
+// NOTE: explicit, so no stack picks up ambient credentials; Pulumi.yaml disables the defaults.
+export const providers = {
+  cloudflare: new cloudflare.Provider('Cloudflare', { apiToken: secrets.cloudflare.ApiKey }),
+  github: new github.Provider('Github', { token: secrets.github.PersonalAccessToken }),
+  hcloud: new hcloud.Provider('Hetzner', { token: secrets.hetzner.ApiKey }),
+  tailscale: new tailscale.Provider('Tailscale', {
+    oauthClientId: secrets.tailscale.OauthClientId,
+    oauthClientSecret: secrets.tailscale.OauthClientSecret
+  })
 };

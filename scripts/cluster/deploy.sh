@@ -39,11 +39,11 @@ deploy_compute_vars() {
 }
 
 deploy_get_template_vars() {
-  deploy_get_template_vars_env="$1"   # local|dev|prod
-  deploy_get_template_vars_stack="$2" # Pulumi stack
+  deploy_get_template_vars_env="$1" # local|dev|prod
+  deploy_get_template_vars_stack="$2"
 
   log_info --quiet="${QUIET}" "Fetching Pulumi outputs for stack '${deploy_get_template_vars_stack}'..."
-  deploy_get_template_vars_outputs=$(get_pulumi_outputs "${deploy_get_template_vars_stack}") || {
+  deploy_get_template_vars_outputs=$(pulumi stack output --stack "${deploy_get_template_vars_stack}" --json --show-secrets) || {
     log_error "Failed to fetch Pulumi stack outputs. Make sure you're authenticated with AWS."
     printf "Try running: %bpnpm sso%b.\n" "${BOLD}" "${NORMAL}" >&2
     return 1
