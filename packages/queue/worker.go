@@ -19,9 +19,9 @@ const (
 // Worker runs Handle on up to Concurrency deliveries at once. A handler that returns nil is
 // acked; Permanent errors are acked and logged; RetryAfter errors are retried after their delay;
 // any other error or a panic is retried after backoff. The handler's context ends 10 s before
-// the delivery's deadline, or halfway there for a shorter lease. When Run's context ends, Run
-// stops receiving, waits out its last receive and releases what it returned, cancels the
-// handlers' contexts, settles them, and returns.
+// the delivery's deadline, or halfway there for a shorter lease. When Run's context ends, the
+// handlers' contexts end with it; Run starts no new receive, waits out its last one and releases
+// what it returned, settles the handlers, and returns.
 type Worker struct {
 	Queue       Queue
 	Handle      func(context.Context, *Delivery) error

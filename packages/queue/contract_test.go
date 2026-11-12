@@ -9,6 +9,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -149,6 +150,41 @@ func TestSQSNoDelayKeepsTheQueueDefault(t *testing.T) {
 	}
 	if elapsed := time.Since(sentAt); elapsed < 5*time.Second {
 		t.Fatalf("arrived after %s, before the queue's 5 s default delay", elapsed)
+	}
+}
+
+func TestSQSWorkerReleasesWhatItsLongPollTakesAfterShutdown(t *testing.T) {
+	t.Setenv("AWS_ACCESS_KEY_ID", "test")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
+	cfg := aws.Config{Region: region, BaseEndpoint: aws.String(motoEndpoint), Credentials: credentials.NewStaticCredentialsProvider("test", "test", "")}
+	name := "s-" + strings.ToLower(rand.Text()[:10])
+	if _, err := sqs.NewFromConfig(cfg).CreateQueue(t.Context(), &sqs.CreateQueueInput{QueueName: aws.String(name)}); err != nil {
+		t.Fatal(err)
+	}
+	queue := openQueue(t, "awssqs://sqs."+region+".amazonaws.com/"+motoAccount+"/"+name+"?lease=1m&endpoint="+motoEndpoint)
+	ctx, cancel := context.WithCancel(t.Context())
+	var handled atomic.Bool
+	worker := Worker{Queue: queue, Concurrency: 1, Handle: func(context.Context, *Delivery) error {
+		handled.Store(true)
+		return nil
+	}}
+	stopped := make(chan error, 1)
+	go func() { stopped <- worker.Run(ctx) }()
+	time.Sleep(time.Second)
+	cancel()
+	// NOTE: cancelling a long poll only drops the connection, so the server still takes this message
+	message := testMessage("stopped")
+	if err := queue.Send(t.Context(), message); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-stopped; err != nil {
+		t.Fatal(err)
+	}
+	if handled.Load() {
+		t.Error("handled a message received after shutdown")
+	}
+	if delivery := receive(t, queue, 5*time.Second, message.ID)[message.ID]; delivery == nil || delivery.Attempt != 2 {
+		t.Fatalf("got %v, want the message back as attempt 2", delivery)
 	}
 }
 
