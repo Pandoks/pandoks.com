@@ -26,8 +26,8 @@ jobs:
       - name: Run web tests
         run: pnpm --filter @pandoks.com/web test
 
-  test-desktop:
-    if: contains(fromJSON(inputs.jobs), 'desktop')
+  test-desktop-template:
+    if: contains(fromJSON(inputs.jobs), 'desktop-template')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -35,10 +35,10 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm
 
       - name: Install Playwright browsers
-        run: pnpm --filter @pandoks.com/desktop-template exec playwright install --with-deps chromium
+        run: pnpm --filter @pandoks.com/desktop exec playwright install --with-deps chromium
 
-      - name: Run desktop tests
-        run: xvfb-run -a pnpm --filter @pandoks.com/desktop-template test
+      - name: Run desktop template tests
+        run: xvfb-run -a pnpm --filter @pandoks.com/desktop test
 
   test-svelte-pkg:
     if: contains(fromJSON(inputs.jobs), 'svelte')

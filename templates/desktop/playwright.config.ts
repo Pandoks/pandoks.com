@@ -5,7 +5,7 @@ const isCI = !!process.env.CI;
 const ciPort = 4173;
 const previewUrl = isCI
   ? `http://localhost:${ciPort}`
-  : execFileSync('portless', ['get', 'desktop-template-preview'], { encoding: 'utf8' }).trim();
+  : execFileSync('portless', ['get', 'desktop-preview'], { encoding: 'utf8' }).trim();
 
 // In CI avoid nested `pnpm` under Playwright's webServer. Concurrent
 // `pnpm run` + nested `pnpm build`/`pnpm exec` deadlocks under pnpm 12.6
