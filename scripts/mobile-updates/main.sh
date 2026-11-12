@@ -50,27 +50,36 @@ sign() {
   openssl base64 -A -in "${sign_file}.sig"
 }
 
-upload_asset() {
-  upload_asset_export_dir="$1"
-  upload_asset_bucket="$2"
-  upload_asset_assets_domain="$3"
-  upload_asset_path="$4"
-  upload_asset_content_type="$5"
-  upload_asset_extension="$6"
-  upload_asset_file="${upload_asset_export_dir}/${upload_asset_path}"
+add_asset() {
+  add_asset_export_dir="$1"
+  add_asset_bucket="$2"
+  add_asset_assets_domain="$3"
+  add_asset_path="$4"
+  add_asset_content_type="$5"
+  add_asset_extension="$6"
+  add_asset_file="${add_asset_export_dir}/${add_asset_path}"
 
-  upload_asset_hash="$(openssl dgst -sha256 -binary "${upload_asset_file}" | openssl base64 -A | tr '+/' '-_' | tr -d '=')"
-  # NOTE: platforms share most assets, so each is uploaded once per run
-  if ! grep -qsxF "${upload_asset_hash}" "${upload_asset_export_dir}/uploaded-hashes.txt"; then
-    cloudflare_put "r2/buckets/${upload_asset_bucket}/objects/${upload_asset_hash}" "${upload_asset_file}" "${upload_asset_content_type}"
-    printf '%s\n' "${upload_asset_hash}" >> "${upload_asset_export_dir}/uploaded-hashes.txt"
+  add_asset_hash="$(openssl dgst -sha256 -binary "${add_asset_file}" | openssl base64 -A | tr '+/' '-_' | tr -d '=')"
+  # NOTE: platforms share most assets, so each is uploaded once per run. curl resets options between uploads, so
+  # each repeats them, fail included
+  if ! grep -qsxF "${add_asset_hash}" "${add_asset_export_dir}/asset-hashes.txt"; then
+    printf '%s\n' "${add_asset_hash}" >> "${add_asset_export_dir}/asset-hashes.txt"
+    cat >> "${add_asset_export_dir}/uploads.curlrc" << EOF
+next
+url = "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_DEFAULT_ACCOUNT_ID}/r2/buckets/${add_asset_bucket}/objects/${add_asset_hash}"
+upload-file = "${add_asset_file}"
+header = "content-type: ${add_asset_content_type}"
+expand-header = "Authorization: Bearer {{CLOUDFLARE_API_TOKEN}}"
+fail
+output = "/dev/null"
+EOF
   fi
   jq -n \
-    --arg hash "${upload_asset_hash}" \
-    --arg key "$(openssl dgst -md5 -r "${upload_asset_file}" | cut -d ' ' -f 1)" \
-    --arg contentType "${upload_asset_content_type}" \
-    --arg url "https://${upload_asset_assets_domain}/${upload_asset_hash}" \
-    --arg extension "${upload_asset_extension}" \
+    --arg hash "${add_asset_hash}" \
+    --arg key "$(openssl dgst -md5 -r "${add_asset_file}" | cut -d ' ' -f 1)" \
+    --arg contentType "${add_asset_content_type}" \
+    --arg url "https://${add_asset_assets_domain}/${add_asset_hash}" \
+    --arg extension "${add_asset_extension}" \
     '{ hash: $hash, key: $key, contentType: $contentType, url: $url }
       + if $extension == "" then {} else { fileExtension: ".\($extension)" } end'
 }
@@ -98,16 +107,21 @@ cmd_publish() {
   printf '%s' "${SST_RESOURCE_MobileUpdatesSigningKey}" | jq -er .value > "${cmd_publish_export_dir}/signing-key.pem"
   printf '{"type":"noUpdateAvailable"}' > "${cmd_publish_export_dir}/no-update.json"
   cmd_publish_no_update_signature="$(sign "${cmd_publish_export_dir}/signing-key.pem" "${cmd_publish_export_dir}/no-update.json")"
+  cmd_publish_certificate="${cmd_publish_app_dir}/$(pnpm --dir "${cmd_publish_app_dir}" exec expo config --json | jq -er .updates.codeSigningCertificate)"
+  openssl x509 -in "${cmd_publish_certificate}" -pubkey -noout > "${cmd_publish_export_dir}/public-key.pem"
+  openssl dgst -sha256 -verify "${cmd_publish_export_dir}/public-key.pem" -signature "${cmd_publish_export_dir}/no-update.json.sig" \
+    "${cmd_publish_export_dir}/no-update.json" > /dev/null \
+    || die "MobileUpdatesSigningKey doesn't match ${cmd_publish_certificate}, so phones would reject the update"
 
   for cmd_publish_platform in ios android; do
     cmd_publish_runtime_version="$(pnpm --dir "${cmd_publish_app_dir}" exec expo-updates runtimeversion:resolve --platform "${cmd_publish_platform}" | jq -er .runtimeVersion)"
     cmd_publish_bundle="$(jq -er --arg platform "${cmd_publish_platform}" '.fileMetadata[$platform].bundle' "${cmd_publish_export_dir}/metadata.json")"
-    cmd_publish_launch_asset="$(upload_asset "${cmd_publish_export_dir}" "${cmd_publish_bucket}" "${cmd_publish_assets_domain}" "${cmd_publish_bundle}" application/javascript '')"
+    cmd_publish_launch_asset="$(add_asset "${cmd_publish_export_dir}" "${cmd_publish_bucket}" "${cmd_publish_assets_domain}" "${cmd_publish_bundle}" application/javascript '')"
     jq -r --arg platform "${cmd_publish_platform}" '.fileMetadata[$platform].assets[] | "\(.ext) \(.path)"' \
       "${cmd_publish_export_dir}/metadata.json" > "${cmd_publish_export_dir}/${cmd_publish_platform}-assets.txt"
     while read -r cmd_publish_extension cmd_publish_path; do
       cmd_publish_content_type="$(file --brief --mime-type "${cmd_publish_export_dir}/${cmd_publish_path}")"
-      upload_asset "${cmd_publish_export_dir}" "${cmd_publish_bucket}" "${cmd_publish_assets_domain}" "${cmd_publish_path}" "${cmd_publish_content_type}" "${cmd_publish_extension}"
+      add_asset "${cmd_publish_export_dir}" "${cmd_publish_bucket}" "${cmd_publish_assets_domain}" "${cmd_publish_path}" "${cmd_publish_content_type}" "${cmd_publish_extension}"
     done < "${cmd_publish_export_dir}/${cmd_publish_platform}-assets.txt" \
       > "${cmd_publish_export_dir}/${cmd_publish_platform}-assets.json"
 
@@ -132,6 +146,8 @@ cmd_publish() {
       > "${cmd_publish_export_dir}/${cmd_publish_platform}-update.json"
     printf '%s\n' "${cmd_publish_slug}/${cmd_publish_platform}/${cmd_publish_runtime_version}" > "${cmd_publish_export_dir}/${cmd_publish_platform}-key.txt"
   done
+  # NOTE: --variable reads the token from the environment, keeping it out of the process list and the config file
+  curl --silent --show-error --parallel --variable %CLOUDFLARE_API_TOKEN --config "${cmd_publish_export_dir}/uploads.curlrc"
 
   # NOTE: written after every file is uploaded, so no published manifest names a missing file
   for cmd_publish_platform in ios android; do

@@ -62,10 +62,11 @@ inside it, use `#lib`.
 
 ## How changes ship
 
-- PRs run `checks.yaml`, `tests.yaml`, `security.yaml`, and `build-and-publish.yaml` (branch-tagged
-  GHCR images and charts), a Cloudflare Pages preview of `apps/web`, and `claude-review.yaml` (one
-  Agent SDK `/code-review` per PR, posted as one review with inline comments). Required checks are
-  the `*-pass` aggregates, and a PR must be up to date with `main` to merge.
+- Every branch push runs `pipeline.yaml`: `changes.yaml` picks what runs from the changed paths,
+  then `checks.yaml`, `security.yaml`, `tests.yaml`, `build.yaml`, `e2e.yaml`, and `publish.yaml`
+  (branch-tagged GHCR images and charts, only once everything else passes). `claude-review.yaml`
+  reviews each PR, `security-audit.yaml` rescans daily, and Cloudflare Pages previews `apps/web`.
+  Required checks are the `*-pass` aggregates, and a PR must be up to date with `main` to merge.
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
   deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
@@ -97,7 +98,9 @@ checkout. The SST CLI is `pnpm sst`.
   or `infra/` shows hundreds of false type errors.
 - `pnpm check` type-checks every package, `infra/`, and `sst.config.ts`.
 - Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, `desktop-template`, and
-  `mobile-template`; `pnpm --filter <package> test` for `prettier`, `valkey`, and `mobile-updates`.
+  `mobile-template`; `pnpm --filter <package> test` for `prettier`, `valkey`, and `mobile-updates`;
+  `go tool ginkgo -p ./packages/<pkg>/e2e` for a package's e2e suite on local k3d
+  (`packages/e2e/README.md`).
 - Mobile updates: `pnpm sst shell --stage <stage> -- pnpm mobile-updates publish apps/<app>`;
   production publishes only from `deploy-infra.yaml` on `main`.
 - Scoped: `pnpm exec prettier --check <files>`, `pnpm exec eslint [--fix] <files>`, `shellcheck`,
@@ -117,7 +120,8 @@ checkout. The SST CLI is `pnpm sst`.
   - Cluster behavior (`k3s/`, `apps/*/kube`, charts, cluster images): render, deploy to local k3d,
     and exercise it, including the failure paths you touched. k3d has no ArgoCD and skips
     `k3s/overlays/cluster` (Tailscale operator, upgrade controller); for those, render the `dev` and
-    `prod` overlays and build the image instead of forcing them onto k3d.
+    `prod` overlays and build the image instead of forcing them onto k3d. Run a changed chart's e2e
+    suite if it has one.
   - `scripts/`: run the real CLI for each result and failure path you touched, argument errors
     included.
   - `infra/` or `sst.config.ts`: full `pnpm check` plus scoped lint after the last edit and before
@@ -241,11 +245,11 @@ that can't happen, or for compatibility code for old data or deploy order during
   - a new `${...}` manifest placeholder with no matching SST resource or computed variable in
     `scripts/cluster/deploy.sh`, which `pnpm cluster deploy` and Argo apply as literal text (fine
     for shell variables in embedded scripts);
-  - a new first-party image or chart missing from `build-and-publish.yaml`'s path filters or matrix,
-    or from the `branch-cleanup.yaml` and `maintenance.yaml` matrices, or a new first-party image
-    missing from the `security.yaml` scan;
-  - a new tested package missing its filter and job in `tests.yaml`, a new CI job missing from its
-    `*-pass` aggregate's `needs` (scheduled-only jobs excepted), or a new aggregate missing from
-    `requiredStatusChecks` in `infra/github.ts`;
+  - a new first-party image or chart missing from `changes.yaml`'s path filters or matrix, or from
+    the `branch-cleanup.yaml` and `maintenance.yaml` matrices, or a new first-party image missing
+    from the `security-audit.yaml` scan;
+  - a new tested package missing its filter in `changes.yaml` and its job in `tests.yaml`, a new CI
+    job missing from its `*-pass` aggregate's `needs` (scheduled-only jobs excepted), or a new
+    aggregate missing from `requiredStatusChecks` in `infra/github.ts`;
   - a new SST or Pages build input missing from the `deploy-infra.yaml` filters or `pathIncludes` in
     `infra/website.ts`.
