@@ -470,7 +470,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			Eventually(expectRows).WithArguments(namespace, oldPrimaryPod, 1, 2000).Should(Succeed())
 		})
 
-		It("rolls every pod on a pod spec change and keeps serving writes", func() {
+		It("rolls every pod on a pod spec change and takes writes once it finishes", func() {
 			oldPodUIDs := e2e.MustRun("", "kubectl", "-n", namespace, "get", "pods", "-l", "cluster-name="+clusterName(0), "-o", "jsonpath={.items[*].metadata.uid}")
 			e2e.UpgradeChart(namespace, "postgres", postgresChartDirectory, map[string]string{"patroni.resources.postgresExporter.requests.memory": "64Mi"})
 			e2e.MustRun("", "kubectl", "-n", namespace, "rollout", "status", "statefulset/"+statefulSetName(0), "--timeout=10m")
