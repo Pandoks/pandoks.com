@@ -57,13 +57,21 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^sst\\.config\\.ts$/"],
+      "description": "The bridge behind each Terraform-provider package in Pulumi.yaml.",
+      "managerFilePatterns": ["/^Pulumi\\.yaml$/"],
+      "matchStrings": ["source: terraform-provider\\s+version: (?<currentValue>\\S+)"],
+      "depNameTemplate": "pulumi/pulumi-terraform-provider",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "The Terraform provider each Pulumi.yaml package wraps.",
+      "managerFilePatterns": ["/^Pulumi\\.yaml$/"],
       "matchStrings": [
-        "\\n\\s+(?<depName>cloudflare|github|hcloud|tailscale): '(?<currentValue>[\\d.]+)'",
-        "package: '(?<packageName>@ovhcloud/pulumi-ovh)',[\\s\\S]*?version: '(?<currentValue>[\\d.]+)'"
+        "source: terraform-provider\\s+version: \\S+\\s+parameters:\\s+- (?<depName>\\S+/\\S+)\\s+- (?<currentValue>\\S+)"
       ],
-      "depNameTemplate": "{{#if packageName}}{{{packageName}}}{{else}}@pulumi/{{{depName}}}{{/if}}",
-      "datasourceTemplate": "npm"
+      "datasourceTemplate": "terraform-provider"
     },
     {
       "customType": "regex",
@@ -136,8 +144,17 @@
       "versioning": "loose"
     },
     {
-      "matchFileNames": ["sst.config.ts"],
-      "groupName": "sst providers"
+      "description": "Every Pulumi CLI copy (mise, the Argo CD plugin image) moves in one PR.",
+      "matchPackageNames": ["pulumi/pulumi", "pulumi/pulumi-base"],
+      "groupName": "pulumi cli"
+    },
+    {
+      "matchPackageNames": [
+        "@pulumi/*",
+        "@ovhcloud/pulumi-ovh",
+        "pulumi/pulumi-terraform-provider"
+      ],
+      "groupName": "pulumi packages"
     },
     {
       "description": "Kubernetes can't skip minors, so each k3s minor is its own PR.",

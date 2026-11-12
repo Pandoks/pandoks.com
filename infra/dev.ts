@@ -1,5 +1,7 @@
-import { isProduction } from './dns';
-import { hubTailscaleServices, tailscaleAcl } from './tailscale';
+import * as ovh from '@ovhcloud/pulumi-ovh';
+import * as tailscale from '@pulumi/tailscale';
+import { isProduction } from './dns.ts';
+import { hubTailscaleServices, tailscaleAcl } from './tailscale.ts';
 
 if (isProduction) {
   new ovh.vps.Vps(
@@ -82,37 +84,3 @@ if (isProduction) {
     );
   }
 }
-
-new sst.x.DevCommand('LocalInit', {
-  dev: {
-    title: 'InitLocal',
-    command: 'pnpm local:init',
-    autostart: false
-  }
-});
-
-new sst.x.DevCommand('LocalDestroy', {
-  dev: {
-    title: 'DestroyLocal',
-    command: 'pnpm local:destroy',
-    autostart: false
-  }
-});
-
-new sst.x.DevCommand('K3dRestart', {
-  dev: {
-    title: 'RestartK3d',
-    command: 'pnpm cluster k3d restart',
-    autostart: false
-  }
-});
-
-new sst.x.DevCommand('K3dDependencyRestart', {
-  dev: {
-    title: 'RestartK3dDeps',
-    command: 'pnpm cluster k3d deps restart',
-    autostart: false
-  }
-});
-
-export {};

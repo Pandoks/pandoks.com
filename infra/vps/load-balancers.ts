@@ -1,4 +1,5 @@
-import { STAGE_NAME } from '../dns';
+import * as hcloud from '@pulumi/hcloud';
+import { STAGE_NAME } from '../dns.ts';
 
 export function createLoadBalancers(
   loadBalancerArgs: {

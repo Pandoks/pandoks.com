@@ -15,7 +15,6 @@ Thumbs.db
 # Env
 .env
 .env.*
-!.env.example
 
 # Vite
 vite.config.js.timestamp-*
@@ -26,9 +25,6 @@ vite.config.ts.timestamp-*
 test-results
 playwright*/
 __pycache__/
-
-# sst
-.sst
 
 # Only pnpm
 package-lock.json
@@ -63,6 +59,9 @@ apps/web/static/blog-images
 
 # helm
 *.tgz
+
+# pulumi: `pulumi install` generates bridged provider SDKs
+/sdks
 
 # Local development
 /data

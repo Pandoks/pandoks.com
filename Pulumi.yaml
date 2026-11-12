@@ -1,0 +1,16 @@
+name: personal
+description: pandoks.com infrastructure
+main: infra/index.ts
+runtime:
+  name: nodejs
+  options:
+    packagemanager: pnpm
+backend:
+  url: s3://sst-state-vccamowamddd/pulumi?region=us-west-1
+config:
+  aws:region:
+    value: us-west-1
+  ovh:endpoint:
+    value: ovh-us
+  ovh:applicationKey:
+    value: edf9a4672d28e3c7

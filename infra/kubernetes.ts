@@ -1,7 +1,14 @@
-import { awsAccountId, isProduction } from './dns';
-import { defaultAwsRegion } from './aws';
-import { secrets, setSecret } from './secrets';
+import * as pulumi from '@pulumi/pulumi';
+import * as aws from '@pulumi/aws';
+import { awsAccountId, isProduction } from './dns.ts';
+import { defaultAwsRegion } from './aws.ts';
 
+const STATE_BUCKET = 'sst-state-vccamowamddd';
+const PRODUCTION_STACK_PATH = 'pulumi/.pulumi/stacks/personal/production.json';
+
+export const outputs: Record<string, pulumi.Output<string>> = {};
+
+// NOTE: the Argo CD plugin reads production's stack outputs with this read-only user.
 if (isProduction) {
   const argocdUser = new aws.iam.User('ArgocdCmpUser', {
     name: 'argo-cmp'
@@ -13,14 +20,13 @@ if (isProduction) {
 
   new aws.iam.UserPolicy('ArgocdCmpPolicy', {
     user: argocdUser.name,
-    policy: $jsonStringify({
+    policy: pulumi.jsonStringify({
       Version: '2012-10-17',
       Statement: [
         {
           Effect: 'Allow',
           Action: ['ssm:GetParameter'],
           Resource: [
-            `arn:aws:ssm:${defaultAwsRegion}:${awsAccountId}:parameter/sst/bootstrap`,
             `arn:aws:ssm:${defaultAwsRegion}:${awsAccountId}:parameter/sst/passphrase/personal/production`
           ]
         },
@@ -28,27 +34,20 @@ if (isProduction) {
           Effect: 'Allow',
           Action: ['s3:GetObject'],
           Resource: [
-            'arn:aws:s3:::sst-state-*/app/personal/production.json',
-            'arn:aws:s3:::sst-state-*/passphrase/personal/production'
+            `arn:aws:s3:::${STATE_BUCKET}/pulumi/.pulumi/meta.yaml`,
+            `arn:aws:s3:::${STATE_BUCKET}/${PRODUCTION_STACK_PATH}*`
           ]
+        },
+        {
+          Effect: 'Allow',
+          Action: ['s3:ListBucket'],
+          Resource: [`arn:aws:s3:::${STATE_BUCKET}`],
+          Condition: { StringLike: { 's3:prefix': [`${PRODUCTION_STACK_PATH}*`] } }
         }
       ]
     })
   });
 
-  $resolve([
-    secrets.k8s.argocd.AccessKeyId.value,
-    argocdAccessKey.id,
-    secrets.k8s.argocd.SecretAccessKey.value,
-    argocdAccessKey.secret
-  ]).apply(([secretAccessKeyId, argoAccessKeyId, secretAccessKeySecret, argoSecretAccessKey]) => {
-    if (secretAccessKeyId !== argoAccessKeyId) {
-      setSecret(secrets.k8s.argocd.AccessKeyId.name, argocdAccessKey.id);
-    }
-    if (secretAccessKeySecret !== argoSecretAccessKey) {
-      setSecret(secrets.k8s.argocd.SecretAccessKey.name, argocdAccessKey.secret);
-    }
-  });
+  outputs.KubernetesArgocdAccessKeyId = argocdAccessKey.id;
+  outputs.KubernetesArgocdSecretAccessKey = argocdAccessKey.secret;
 }
-
-export {};

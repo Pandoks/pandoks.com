@@ -1,6 +1,8 @@
+import * as pulumi from '@pulumi/pulumi';
+import * as tailscale from '@pulumi/tailscale';
 import stringify from 'json-stringify-pretty-compact';
-import { secrets, setSecret } from './secrets';
-import { STAGE_NAME } from './dns';
+import { secrets } from './secrets.ts';
+import { STAGE_NAME } from './dns.ts';
 
 new tailscale.TailnetSettings('TailscaleSettings', {
   httpsEnabled: true
@@ -92,7 +94,7 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
   )
 });
 
-const kubernetesOperatorOauthClient = new tailscale.OauthClient(
+export const kubernetesOperatorOauthClient = new tailscale.OauthClient(
   `${STAGE_NAME}TailscaleKubernetesOperatorOauthClient`.replace(/^./, (char) => char.toUpperCase()),
   {
     description: `${STAGE_NAME} k8s operator`,
@@ -100,30 +102,6 @@ const kubernetesOperatorOauthClient = new tailscale.OauthClient(
     tags: ['tag:k8s-operator', `tag:${STAGE_NAME}`]
   },
   { dependsOn: [tailscaleAcl] }
-);
-$resolve([
-  secrets.k8s.tailscale.OauthClientId.name,
-  secrets.k8s.tailscale.OauthClientId.value,
-  kubernetesOperatorOauthClient.id,
-  secrets.k8s.tailscale.OauthClientSecret.name,
-  secrets.k8s.tailscale.OauthClientSecret.value,
-  kubernetesOperatorOauthClient.key
-]).apply(
-  ([
-    oauthClientIdSecretName,
-    oauthClientIdSecretValue,
-    oauthClientId,
-    oauthClientSecretSecretName,
-    oauthClientSecretSecretValue,
-    oauthClientSecret
-  ]) => {
-    if (oauthClientIdSecretValue !== oauthClientId) {
-      setSecret(oauthClientIdSecretName, oauthClientId);
-    }
-    if (oauthClientSecretSecretValue !== oauthClientSecret) {
-      setSecret(oauthClientSecretSecretName, oauthClientSecret);
-    }
-  }
 );
 
 async function tailscaleApiToken({
@@ -152,30 +130,34 @@ async function tailscaleApiToken({
 }
 
 export function deleteTailscaleDevices(...deviceIds: string[]) {
-  return $resolve([
-    secrets.tailscale.OauthClientId.value,
-    secrets.tailscale.OauthClientSecret.value
-  ]).apply(async ([clientId, clientSecret]) => {
-    const accessToken = await tailscaleApiToken({ clientId, clientSecret });
-    return await Promise.all(
-      deviceIds.map(async (deviceId) => {
-        try {
-          const response = await fetch(`https://api.tailscale.com/api/v2/device/${deviceId}`, {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${accessToken}` }
-          });
-          if (!response.ok) {
-            throw new Error(`${response.status} ${response.statusText}`);
+  return pulumi
+    .all([secrets.tailscale.OauthClientId, secrets.tailscale.OauthClientSecret])
+    .apply(async ([clientId, clientSecret]) => {
+      const accessToken = await tailscaleApiToken({ clientId, clientSecret });
+      return await Promise.all(
+        deviceIds.map(async (deviceId) => {
+          try {
+            const response = await fetch(`https://api.tailscale.com/api/v2/device/${deviceId}`, {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            if (!response.ok) {
+              throw new Error(`${response.status} ${response.statusText}`);
+            }
+            return { deviceId, success: true };
+          } catch (error) {
+            return {
+              deviceId,
+              success: false,
+              error: error instanceof Error ? error.message : String(error)
+            };
           }
-          return { deviceId, success: true };
-        } catch (error) {
-          return {
-            deviceId,
-            success: false,
-            error: error instanceof Error ? error.message : String(error)
-          };
-        }
-      })
-    );
-  });
+        })
+      );
+    });
 }
+
+export const outputs = {
+  KubernetesTailscaleOauthClientId: kubernetesOperatorOauthClient.id,
+  KubernetesTailscaleOauthClientSecret: kubernetesOperatorOauthClient.key
+};

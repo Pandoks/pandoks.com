@@ -1,4 +1,4 @@
-# patches argocd to include a sidecar container plugin to render kustomize with sst
+# patches argocd to include a sidecar container plugin to render kustomize with pulumi outputs
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -10,8 +10,8 @@ spec:
       securityContext:
         runAsUser: 999
       containers:
-        - name: kustomize-sst-render
-          image: ghcr.io/pandoks/argocd-sst-plugin:main
+        - name: kustomize-pulumi-render
+          image: ghcr.io/pandoks/argocd-pulumi-plugin:main
           # The mutable tag must be re-pulled on restart, or a node keeps serving a cached old renderer.
           imagePullPolicy: Always
           command: [/var/run/argocd/argocd-cmp-server]
@@ -21,23 +21,18 @@ spec:
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: sst-credentials
+                  name: pulumi-credentials
                   key: AWS_ACCESS_KEY_ID
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: sst-credentials
+                  name: pulumi-credentials
                   key: AWS_SECRET_ACCESS_KEY
             - name: AWS_REGION
               valueFrom:
                 secretKeyRef:
-                  name: sst-credentials
+                  name: pulumi-credentials
                   key: AWS_REGION
-            - name: CLOUDFLARE_API_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: sst-credentials
-                  key: CLOUDFLARE_API_TOKEN
           volumeMounts:
             - name: var-files
               mountPath: /var/run/argocd
@@ -59,7 +54,7 @@ spec:
     targetRevision: main
     path: k3s/overlays/prod
     plugin:
-      name: kustomize-sst-render-v1.0
+      name: kustomize-pulumi-render-v1.0
   destination:
     server: https://kubernetes.default.svc
   syncPolicy:

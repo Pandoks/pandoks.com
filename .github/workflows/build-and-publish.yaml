@@ -22,8 +22,8 @@ on:
         description: 'Image · valkey-reconciler'
         type: boolean
         default: false
-      argocd-sst-plugin:
-        description: 'Image · argocd-sst-plugin'
+      argocd-pulumi-plugin:
+        description: 'Image · argocd-pulumi-plugin'
         type: boolean
         default: false
       clickhouse:
@@ -82,7 +82,7 @@ jobs:
               - 'packages/valkey/entrypoint.sh'
             valkey-reconciler:
               - 'packages/valkey/reconciler/**'
-            argocd-sst-plugin:
+            argocd-pulumi-plugin:
               - 'packages/argocd/**'
             clickhouse:
               - 'packages/clickhouse/clickhouse/**'
@@ -112,7 +112,7 @@ jobs:
             {"name":"pgbackrest","path":"./packages/postgres/pgbackrest/Dockerfile"},
             {"name":"valkey","path":"./packages/valkey/Dockerfile"},
             {"name":"valkey-reconciler","path":"./packages/valkey/reconciler/Dockerfile"},
-            {"name":"argocd-sst-plugin","path":"./packages/argocd/Dockerfile"},
+            {"name":"argocd-pulumi-plugin","path":"./packages/argocd/Dockerfile"},
             {"name":"clickhouse","path":"./packages/clickhouse/clickhouse/Dockerfile"},
             {"name":"clickhouse-keeper","path":"./packages/clickhouse/keeper/Dockerfile"},
             {"name":"clickhouse-backup","path":"./packages/clickhouse/backup/Dockerfile"}

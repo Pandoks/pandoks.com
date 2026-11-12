@@ -12,7 +12,7 @@ const gitignorePath = fileURLToPath(new URL('.gitignore', import.meta.url));
 
 export default defineConfig([
   includeIgnoreFile(gitignorePath),
-  { ignores: ['sst.config.ts', '**/sst-env.d.ts', '**/.svelte-kit/'] },
+  { ignores: ['**/.svelte-kit/'] },
 
   // GLOBAL RULES
   js.configs.recommended,

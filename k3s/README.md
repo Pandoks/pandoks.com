@@ -24,21 +24,21 @@ k3s/
     local/                   # k3d: MetalLB docker IPs, k3d etcd endpoints, apps/*/kube/dev-patch.yaml
     cluster/                 # Shared by dev + prod: Tailscale operator, system upgrades, Hetzner etcd endpoints
     dev/                     # cluster + bootstrap/dev
-    prod/                    # cluster + bootstrap/prod + ArgoCD SST plugin and Application
+    prod/                    # cluster + bootstrap/prod + ArgoCD Pulumi plugin and Application
 ```
 
-SST secrets are substituted inline (`${Secret}`) by `pnpm cluster deploy`. See
+Pulumi stack outputs are substituted inline (`${Secret}`) by `pnpm cluster deploy`. See
 [scripts/cluster/README.md](../scripts/cluster/README.md) for the template variables.
 
 ## Local Development
 
 For local development, we use [k3d](https://k3d.io/) to create a local k3s cluster.
 
-To setup the cluster, run the following commands from the root of the project. Replace `your-stage`
-with your personal SST stage (for example, `pandoks`):
+To setup the cluster, run the following commands from the root of the project. Replace `your-stack`
+with your personal Pulumi stack (for example, `pandoks`):
 
 ```sh
-SST_STAGE=your-stage pnpm local:init
+pulumi stack select your-stack && pnpm local:init
 ```
 
 Or step by step:
@@ -54,15 +54,15 @@ Or step by step:
 pnpm local:build && pnpm local:push
 
 # Install base infrastructure (helm charts + CRDs)
-./scripts/cluster/main.sh deploy local --stage your-stage --bootstrap
+./scripts/cluster/main.sh deploy local --stack your-stack --bootstrap
 
-# Deploy local overlay (MetalLB IP patch + app dev patches; SST secrets substituted inline)
-./scripts/cluster/main.sh deploy local --stage your-stage
+# Deploy local overlay (MetalLB IP patch + app dev patches; stack outputs substituted inline)
+./scripts/cluster/main.sh deploy local --stack your-stack
 ```
 
 ## Cloud Clusters
 
-The dev and prod clusters are provisioned by SST (`infra/vps`) with cloud-config that bootstraps
+The dev and prod clusters are provisioned by Pulumi (`infra/vps`) with cloud-config that bootstraps
 k3s + tailscale. The tailscale operator provides secure access to the cluster API without needing
 SSH tunnels.
 
@@ -74,17 +74,17 @@ kubectl --context <tailscale-context> get pods
 # Install base infrastructure (helm charts + CRDs)
 ./scripts/cluster/main.sh deploy prod --bootstrap
 
-# Deploy overlay (tailscale operator + system-upgrade controller; SST secrets substituted inline)
+# Deploy overlay (tailscale operator + system-upgrade controller; stack outputs substituted inline)
 ./scripts/cluster/main.sh deploy prod
 ```
 
-For dev, use `deploy dev --stage your-stage` in both commands, keeping `--bootstrap` on the first.
+For dev, use `deploy dev --stack your-stack` in both commands, keeping `--bootstrap` on the first.
 
 ### ArgoCD (prod)
 
 `bootstrap/prod` installs ArgoCD, and `overlays/prod/argocd.yaml` adds the `prod-cluster`
-Application and a repo-server sidecar (`packages/argocd`) that renders kustomize with SST secrets.
-Once the first `deploy prod` creates it, ArgoCD syncs `k3s/overlays/prod` from `main`. The
+Application and a repo-server sidecar (`packages/argocd`) that renders kustomize with Pulumi stack
+outputs. Once the first `deploy prod` creates it, ArgoCD syncs `k3s/overlays/prod` from `main`. The
 `deploy-infra.yaml` workflow triggers a hard refresh when `k3s/**`, `apps/*/kube/**`, or
 `scripts/cluster/**` changes, and fails unless prod becomes Synced and Healthy at `main` within 10
 minutes.
@@ -218,5 +218,5 @@ k3s HelmChart CRD sometimes doesn't trigger upgrades. To force update:
 
 ```bash
 kubectl delete helmchart kube-prometheus-stack -n kube-system
-pnpm cluster deploy local --stage your-stage  # or dev/prod
+pnpm cluster deploy local --stack your-stack  # or dev/prod
 ```

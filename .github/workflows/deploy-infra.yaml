@@ -5,7 +5,8 @@ on:
     branches:
       - main
     paths:
-      - 'sst.config.ts'
+      - 'Pulumi.yaml'
+      - 'Pulumi.production.yaml'
       - 'infra/**'
       - 'apps/**'
       - '!apps/desktop-template/**'
@@ -22,7 +23,7 @@ on:
         default: all
         options:
           - all
-          - sst
+          - pulumi
           - kubernetes
 
 permissions:
@@ -33,7 +34,7 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      sst: ${{ github.event_name != 'workflow_dispatch' && steps.filter.outputs.sst || contains(fromJSON('["all","sst"]'), inputs.deploy) }}
+      pulumi: ${{ github.event_name != 'workflow_dispatch' && steps.filter.outputs.pulumi || contains(fromJSON('["all","pulumi"]'), inputs.deploy) }}
       kubernetes: ${{ github.event_name != 'workflow_dispatch' && steps.filter.outputs.kubernetes || contains(fromJSON('["all","kubernetes"]'), inputs.deploy) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -42,8 +43,9 @@ jobs:
         id: filter
         with:
           filters: |
-            sst:
-              - 'sst.config.ts'
+            pulumi:
+              - 'Pulumi.yaml'
+              - 'Pulumi.production.yaml'
               - 'infra/**'
               - 'apps/!(desktop-template|example)/**'
               - 'packages/svelte/**'
@@ -52,29 +54,28 @@ jobs:
               - 'apps/*/kube/**'
               - 'scripts/cluster/**'
 
-  deploy-sst:
+  deploy-pulumi:
     concurrency:
-      group: deploy-sst
+      group: deploy-pulumi
       cancel-in-progress: false
     needs: detect-changes
-    if: needs.detect-changes.outputs.sst == 'true'
+    if: needs.detect-changes.outputs.pulumi == 'true'
     runs-on: ubuntu-latest
     environment: production
-    env:
-      GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_DEFAULT_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
-      HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
-      OVH_APPLICATION_SECRET: ${{ secrets.OVH_APPLICATION_SECRET }}
-      OVH_CONSUMER_KEY: ${{ secrets.OVH_CONSUMER_KEY }}
-      TAILSCALE_OAUTH_CLIENT_ID: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
-      TAILSCALE_OAUTH_CLIENT_SECRET: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: ./.github/actions/setup-node-pnpm
+
+      - name: Read pulumi version from mise.toml
+        id: mise-pulumi
+        run: echo "version=$(sed -n -E 's/^"aqua:pulumi\/pulumi"[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' mise.toml)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Pulumi
+        uses: pulumi/actions@96c7761824268174e0d2a4e8c7d75671eebd24a7 # v7.1.0
+        with:
+          pulumi-version: ${{ steps.mise-pulumi.outputs.version }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
@@ -82,14 +83,31 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      # TODO: remove continue-on-error after sst fixes refresh exit code bug
-      # https://github.com/anomalyco/sst/issues/6713
-      - name: Refresh sst state
-        continue-on-error: true
-        run: pnpm sst refresh --stage production
+      - name: Load Pulumi passphrase
+        run: |
+          passphrase=$(aws ssm get-parameter --name /sst/passphrase/personal/production \
+            --with-decryption --query Parameter.Value --output text)
+          echo "::add-mask::${passphrase}"
+          echo "PULUMI_CONFIG_PASSPHRASE=${passphrase}" >> "$GITHUB_ENV"
 
-      - name: Deploy SST
-        run: pnpm sst deploy --stage production
+      # TODO: drop this step once the SST cut-over deploy has run; it only gates that one deploy.
+      - name: Check the SST cut-over preview
+        run: |
+          pulumi preview --stack production --refresh --json > preview.json
+          jq -e '
+            def type: .urn | split("::")[2] | split("$") | last;
+            if any(.steps[]; .op == "delete" and (type | startswith("sst:"))) | not then true
+            else [.steps[] | select(
+              (.op | IN("same", "update", "refresh", "read") | not)
+              and (.op == "delete" and (type | test("^(sst:|aws:cloudfront/|aws:acm/|aws:lambda/(functionUrl|permission):|aws:s3/(bucketObjectv2|bucketCorsConfiguration):|random:|pulumi:providers:)")) | not)
+              and (.op == "create" and (type | test("^(aws:apigatewayv2/|aws:acm/|aws:lambda/permission:)")) | not)
+              and (type | test("^aws:imagebuilder/") | not)
+              and ((.urn | endswith("::ApiCertificateValidationRecord")) | not)
+            ) | "\(.op) \(.urn)"] | if length == 0 then true else (.[] | debug) | false end
+            end' preview.json > /dev/null
+
+      - name: Deploy Pulumi
+        run: pulumi up --yes --refresh --stack production
 
   deploy-kubernetes:
     concurrency:
@@ -97,11 +115,11 @@ jobs:
       cancel-in-progress: false
     needs:
       - detect-changes
-      - deploy-sst
+      - deploy-pulumi
     if: |
       always() &&
       needs.detect-changes.outputs.kubernetes == 'true' &&
-      (needs.deploy-sst.result == 'success' || needs.deploy-sst.result == 'skipped')
+      (needs.deploy-pulumi.result == 'success' || needs.deploy-pulumi.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - name: Setup Tailscale

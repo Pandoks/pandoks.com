@@ -39,26 +39,20 @@ deploy_compute_vars() {
 }
 
 deploy_get_template_vars() {
-  deploy_get_template_vars_env="$1"       # local|dev|prod
-  deploy_get_template_vars_stage="${2:-}" # --stage <stage> equivalent
+  deploy_get_template_vars_env="$1"   # local|dev|prod
+  deploy_get_template_vars_stack="$2" # Pulumi stack
 
-  if [ -n "${deploy_get_template_vars_stage}" ]; then
-    log_info --quiet="${QUIET}" "Fetching SST resources for stage '${deploy_get_template_vars_stage}'..."
-  else
-    log_info --quiet="${QUIET}" "Fetching SST resources..."
-  fi
-
-  deploy_get_template_vars_sst=$(get_sst_resources "${deploy_get_template_vars_stage}")
-  if [ -z "${deploy_get_template_vars_sst}" ]; then
-    log_error "Failed to fetch SST resources. Make sure you're authenticated with SST."
+  log_info --quiet="${QUIET}" "Fetching Pulumi outputs for stack '${deploy_get_template_vars_stack}'..."
+  deploy_get_template_vars_outputs=$(get_pulumi_outputs "${deploy_get_template_vars_stack}") || {
+    log_error "Failed to fetch Pulumi stack outputs. Make sure you're authenticated with AWS."
     printf "Try running: %bpnpm sso%b.\n" "${BOLD}" "${NORMAL}" >&2
     return 1
-  fi
-  log_info --quiet="${QUIET}" "SST resources fetched"
+  }
+  log_info --quiet="${QUIET}" "Pulumi outputs fetched"
 
   deploy_get_template_vars_computed=$(deploy_compute_vars "${deploy_get_template_vars_env}")
 
-  printf '%s' "${deploy_get_template_vars_sst}" \
+  printf '%s' "${deploy_get_template_vars_outputs}" \
     | jq --argjson computed "${deploy_get_template_vars_computed}" '. + $computed'
 }
 
@@ -141,7 +135,7 @@ cmd_deploy() {
 
   cmd_deploy_dry_run=false
   cmd_deploy_is_bootstrap=false
-  cmd_deploy_stage=""
+  cmd_deploy_stack=""
   cmd_deploy_kubeconfig=""
 
   while [ $# -gt 0 ]; do
@@ -154,10 +148,10 @@ cmd_deploy() {
         cmd_deploy_is_bootstrap=true
         shift
         ;;
-      --stage)
-        [ $# -ge 2 ] || die "Missing value for --stage"
+      --stack)
+        [ $# -ge 2 ] || die "Missing value for --stack"
 
-        cmd_deploy_stage="$2"
+        cmd_deploy_stack="$2"
         shift 2
         ;;
       --kubeconfig)
@@ -177,7 +171,10 @@ cmd_deploy() {
         ;;
     esac
   done
-  [ "${cmd_deploy_env}" = "prod" ] && cmd_deploy_stage="production"
+  [ "${cmd_deploy_env}" = "prod" ] && cmd_deploy_stack="production"
+  if [ -z "${cmd_deploy_stack}" ]; then
+    cmd_deploy_stack=$(pulumi stack --show-name) || die "Pass --stack <stack> or run 'pulumi stack select <stack>'"
+  fi
 
   if [ -n "${cmd_deploy_kubeconfig}" ]; then
     KUBECONFIG="$(validate_and_get_absolute_kubeconfig_path "${cmd_deploy_kubeconfig}")"
@@ -212,7 +209,7 @@ cmd_deploy() {
     fi
   fi
 
-  cmd_deploy_template_vars=$(deploy_get_template_vars "${cmd_deploy_env}" "${cmd_deploy_stage}") || return 1
+  cmd_deploy_template_vars=$(deploy_get_template_vars "${cmd_deploy_env}" "${cmd_deploy_stack}") || return 1
 
   cmd_deploy_rendered=$(deploy_render_templated_yaml "${cmd_deploy_kustomize_path}" "${cmd_deploy_template_vars}" "${cmd_deploy_is_bootstrap}")
 

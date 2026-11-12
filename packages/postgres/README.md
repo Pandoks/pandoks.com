@@ -131,7 +131,7 @@ The chart expects these to already be in the cluster (all provided by [k3s](/k3s
 The database secret is also mounted by PgDog, so it needs a `users.toml` key. Declare the `myapp`
 Namespace in the app's `namespaces.yaml` and add both secrets to its `credentials.yaml`, each listed
 in the app's `kustomization.yaml` (see [apps/example/kube](/apps/example/kube)). The `${...}` values
-are SST secrets defined in [infra/secrets.ts](/infra/secrets.ts).
+are Pulumi secrets defined in [infra/secrets.ts](/infra/secrets.ts).
 
 ```yaml
 apiVersion: v1
@@ -454,9 +454,9 @@ spec:
     patroni.shards: 4 # Was 3, now 4
 ```
 
-For `local` or `dev`, redeploy with `pnpm cluster deploy <env> --stage your-stage`. Replace `<env>`
-with `local` or `dev` and `your-stage` with your personal SST stage (for example, `pandoks`). Prod
-syncs from `main` through ArgoCD. This creates the new shard (`myapp-shard-3`) with its own
+For `local` or `dev`, redeploy with `pnpm cluster deploy <env> --stack your-stack`. Replace `<env>`
+with `local` or `dev` and `your-stack` with your personal Pulumi stack (for example, `pandoks`).
+Prod syncs from `main` through ArgoCD. This creates the new shard (`myapp-shard-3`) with its own
 StatefulSet, services, certificates, and backup cronjobs.
 
 **Step 2: Verify New Shard**

@@ -85,7 +85,7 @@ jobs:
               - '.github/workflows/checks.yaml'
             infra:
               - 'infra/**'
-              - 'sst.config.ts'
+              - 'Pulumi.yaml'
               - 'tsconfig.json'
               - 'package.json'
               - 'pnpm-lock.yaml'

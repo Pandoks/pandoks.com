@@ -1,6 +1,6 @@
 # Pandoks.com
 
-Personal monorepo. SST (`sst.config.ts`, `infra/`) manages all infrastructure: AWS and Cloudflare
+Personal monorepo. Pulumi (`Pulumi.yaml`, `infra/`) manages all infrastructure: AWS and Cloudflare
 for what needs high availability, rented machines (Hetzner in `infra/vps/`, moving to OVH) for raw
 compute; the cluster is K3s with Kustomize and ArgoCD. `apps/desktop-template` and `apps/example`
 are templates, but `apps/example/kube` is in every overlay, prod included. Apps import
@@ -12,12 +12,12 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
   moving parts, least code a human can still read; new files, helpers, options, env vars, and
   dependencies need a reason the change can't work without them.
 - Use the native or industry-standard mechanism first (Kustomize, ArgoCD, GitHub Actions, Renovate,
-  SST, mise, our formatters) and check how mature projects solve it. Work around only an unfixed
+  Pulumi, mise, our formatters) and check how mature projects solve it. Work around only an unfixed
   upstream bug, with a `TODO:` linking the issue.
 - Fail fast: no fallbacks, retries, shims, or guards for cases that can't happen, or for old data or
   deploy order during a rollout, which I fix by hand once.
 - Scripts take explicit arguments, not env vars, except values the platform injects (provider
-  credentials, SST-linked resources).
+  credentials, Pulumi stack outputs).
 - My chat message wins over this file, except hazard 1. If a rule here or a lint, type, test, or
   scan check fights the task, ask before breaking, suppressing, or relaxing it, or piling on code to
   satisfy it.
@@ -26,36 +26,37 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
 
 ## Ways to hurt yourself
 
-1. **Changing production by hand.** Production (the SST `production` stage and the prod cluster)
-   changes when `main` does. Read it to diagnose, but change it no other way: no SST command against
-   it, not even `sst diff`, no `pnpm cluster deploy prod`, not even `--dry-run`, no
+1. **Changing production by hand.** Production (the Pulumi `production` stack and the prod cluster)
+   changes when `main` does. Read it to diagnose, but change it no other way: no `pulumi` command
+   against it, not even `pulumi preview`, no `pnpm cluster deploy prod`, not even `--dry-run`, no
    `gh workflow run deploy-infra.yaml` (it deploys `production`, and its Kubernetes job
    hard-refreshes prod), and no `kubectl` write to prod, Argo refreshes, syncs, and restarts
    included. If production needs a manual fix, even when I say ship now, propose the exact command,
    target, and effect, then wait.
-2. **Deploying a stage by accident.** Pass `--stage <stage>` (or `SST_STAGE`) to every `sst` and
+2. **Deploying a stack by accident.** Pass `--stack <stack>` to every `pulumi` and
    `pnpm cluster deploy` command; mine is `pandoks`. For the site, run `pnpm exec portless doctor`
    before `pnpm --filter web dev`, which can start a missing proxy with `sudo`; if doctor prints a
    `warn` or `fail` line (it exits 0 on a stopped proxy), give me its fix instead of starting the
    proxy or working around it with `PORTLESS=0`, `--force`, or `sudo`. If portless says the host is
    already registered, use `pnpm exec portless get web` only if that process runs from this
-   checkout; otherwise tell me. `sst diff` evaluates `infra/`: on any stage it can write secrets,
-   and with zero nodes it deletes Tailscale devices tagged for that stage's cluster; personal stages
-   share the `dev` names. Tell me those effects and run `sst diff` only once I accept them; run
-   `sst deploy` or `pnpm dev` (`sst dev`) only when I ask. If SST reports missing or expired AWS
-   credentials, ask me to run `pnpm sso`.
+   checkout; otherwise tell me. `pulumi preview` evaluates `infra/` read-only: it decrypts the
+   stack's secrets and calls cloud read APIs. `pulumi up` also deletes Tailscale devices tagged for
+   that stack's cluster when it has zero nodes; personal stacks share the `dev` names. Run
+   `pulumi up`, `refresh`, `destroy`, or `config set` only when I ask. Pulumi reads the stack's
+   passphrase from `PULUMI_CONFIG_PASSPHRASE`, stored at `/sst/passphrase/personal/<stack>` in SSM.
+   If AWS credentials are missing or expired, ask me to run `pnpm sso`.
 3. **Editing my checkout from an experiment.** Use absolute paths in experiment copies;
    `mise exec -C <dir>` runs inside `<dir>`, so never point it at my checkout. Leave my staged and
    unstaged changes alone.
 4. **Applying to the wrong cluster.** Don't switch the default current context;
    `pnpm cluster k3d up` does, so save `kubectl config current-context` first and switch back.
    Target k3d with `kubectl --context k3d-local-cluster` and
-   `printf 'y\n' | mise exec -- pnpm cluster deploy local --stage <stage> --kubeconfig "$(mise exec -- k3d kubeconfig write local-cluster)"`.
-5. **Leaking secrets.** `.env.<stage>` files, `sst.Secret` values, and
-   `pnpm cluster deploy --dry-run` output are real credentials: never print, commit, or paste them,
-   and inspect manifests with `kustomize build`. New secrets go in `infra/secrets.ts`; one without a
-   value fails every deploy and diff of its stage, so set yours with
-   `pnpm sst secret set <Name> <value> --stage <stage>` and ask me to set production's.
+   `printf 'y\n' | mise exec -- pnpm cluster deploy local --stack <stack> --kubeconfig "$(mise exec -- k3d kubeconfig write local-cluster)"`.
+5. **Leaking secrets.** `--show-secrets` output, passphrases, and `pnpm cluster deploy --dry-run`
+   output are real credentials: never print, commit, or paste them, and inspect manifests with
+   `kustomize build`. `Pulumi.<stack>.yaml` holds only ciphertext and is committed. New secrets go
+   in `infra/secrets.ts`; one without a value fails every preview and deploy of its stack, so pipe
+   yours into `pulumi config set --secret <Name> --stack <stack>` and ask me to set production's.
 
 ## How changes ship
 
@@ -65,17 +66,18 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
   the `*-pass` aggregates, and a PR must be up to date with `main` to merge.
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
   deleted branch's versions and untagged orphans are deleted.
-- Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
-  `infra/`, `apps/` (except `desktop-template` and `example`), and `packages/svelte/`, plus an Argo
-  hard refresh and a wait for Synced and Healthy only for `k3s/`, `apps/*/kube/`, and
-  `scripts/cluster/` changes. Pages builds `apps/web` when a change matches `pathIncludes` in
-  `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod` renders but never prunes: a
-  deleted resource stays in prod until pruned by hand.
-- Every non-production stage gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
-  environment, so two non-production stages collide.
+- Merging to `main` runs `deploy-infra.yaml`: `pulumi up --refresh --stack production` for
+  `Pulumi.yaml`, `Pulumi.production.yaml`, `infra/`, `apps/` (except `desktop-template` and
+  `example`), and `packages/svelte/`, plus an Argo hard refresh and a wait for Synced and Healthy
+  only for `k3s/`, `apps/*/kube/`, and `scripts/cluster/` changes. Pages builds `apps/web` when a
+  change matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything
+  `k3s/overlays/prod` renders but never prunes: a deleted resource stays in prod until pruned by
+  hand.
+- Every non-production stack gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
+  environment, so two non-production stacks collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
   staging tier, promotion step, or per-PR cluster.
-- PRs get no infra diff: `sst diff` decrypts every secret, so never run it with production
+- PRs get no infra diff: `pulumi preview` decrypts every secret, so never run it with production
   credentials off `main`.
 
 ## Commands
@@ -83,15 +85,16 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
 Tools are pinned in `mise.toml`: `mise install`, then `pnpm install`. Never install tools
 system-wide. Agent shells usually don't activate mise, so `pnpm` is missing and `node` and `kubectl`
 are unpinned globals; run repo commands, `kubectl` included, as `mise exec -- <cmd>` from inside the
-checkout. The SST CLI is `pnpm sst`.
+checkout.
 
 - `pnpm format <js|go|shell|all>` writes; `pnpm format check <...>` checks.
 - Manage agent skills only with the skills CLI, for Claude Code, Codex, and opencode:
   `pnpm dlx skills add <source> -s <skill> -a claude-code codex opencode`, and
   `pnpm dlx skills update -p`.
-- `pnpm lint <js|go|helm|docker|shell|actions|all>`; `js` needs `.sst/platform` from `pnpm install`,
-  or `infra/` shows hundreds of false type errors.
-- `pnpm check` type-checks every package, `infra/`, and `sst.config.ts`.
+- `pnpm lint <js|go|helm|docker|shell|actions|all>`.
+- `pnpm check` type-checks every package and `infra/`.
+- Terraform-only providers: `pulumi package add terraform-provider <org>/<name> <version>` pins them
+  under `packages:` in `Pulumi.yaml` for Renovate; `pulumi install` regenerates `sdks/`.
 - Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, and `desktop-template`;
   `pnpm --filter <package> test` for `prettier` and `valkey`.
 - Scoped: `pnpm exec prettier --check <files>`, `pnpm exec eslint [--fix] <files>`, `shellcheck`,
@@ -114,7 +117,7 @@ checkout. The SST CLI is `pnpm sst`.
     `prod` overlays and build the image instead of forcing them onto k3d.
   - `scripts/`: run the real CLI for each result and failure path you touched, argument errors
     included.
-  - `infra/` or `sst.config.ts`: full `pnpm check` plus scoped lint after the last edit and before
+  - `infra/` or `Pulumi.yaml`: full `pnpm check` plus scoped lint after the last edit and before
     every commit or push; narrower checks don't replace it.
   - `apps/web`: `CI=1 pnpm --filter web test:e2e` (skips portless) for user-visible changes.
   - Workflows: the PR's CI once a PR exists.
@@ -160,10 +163,13 @@ Before calling infra, cluster, or tooling work done, check:
   `cmd_`; `usage*` and other helpers don't, even beside older ones that do. Quote as `"${var}"`,
   print colored output with `printf` (plain `echo` is fine), and report errors with `log_error` or
   `die` from `scripts/lib/log.sh`. CI-only scripts may use bash with `local` and no prefixes.
-- **TypeScript/SST:** one `infra/` file per provider or responsibility, a directory once it outgrows
-  one. Stage differences are `SCREAMING_SNAKE` constants from `isProduction ? a : b` at the top,
-  plus `if (isProduction)` around production-only resources. Helpers are verb-named `function`
-  declarations with destructured parameters. `Promise.all` instead of awaiting in loops.
+- **TypeScript/Pulumi:** one `infra/` file per provider or responsibility, a directory once it
+  outgrows one. Stack differences are `SCREAMING_SNAKE` constants from `isProduction ? a : b` at the
+  top, plus `if (isProduction)` around production-only resources. Node runs `infra/` by stripping
+  types, so import relative modules with `.ts` and providers explicitly. Production data resource
+  types belong in `DATA_RESOURCE_TYPES` in `infra/index.ts` (`protect` and `retainOnDelete`).
+  Helpers are verb-named `function` declarations with destructured parameters. `Promise.all` instead
+  of awaiting in loops.
 - **Go:** justify every `#nosec` or `//nolint` inline.
 - **Containers and manifests:** pin Dockerfile bases, third-party images, and chart defaults as
   `image:tag@sha256:…` in files a Renovate manager matches; no image lock files. Images in raw
@@ -207,7 +213,7 @@ that can't happen, or for compatibility code for old data or deploy order during
   scripts or workflows, weakened `protect` or `retain`, or stage checks that confuse production with
   other stages. The existing `deploy-infra.yaml` dispatch and `pnpm cluster deploy prod` recovery
   paths are intended; new callers of them aren't, except local `--dry-run` previews, tests that stub
-  SST and `kubectl`, and Argo Applications in the `prod` overlay that render `main`. Safe path:
+  Pulumi and `kubectl`, and Argo Applications in the `prod` overlay that render `main`. Safe path:
   `isProduction` in `infra/` and the `prod` overlay in `k3s/`.
 - A new pin (a version or digest added where none was, not a bump) that Renovate can't update, or a
   new third-party download or image with no version (`releases/latest`, `:latest`). Exceptions: a
@@ -222,16 +228,16 @@ that can't happen, or for compatibility code for old data or deploy order during
 - An attacker-controlled `${{ }}` value, like a branch name or PR title, in `run:` instead of
   `env:`.
 - A real secret value in code, manifests, values, logs, or workflow output. References like
-  `sst.Secret` names, `${...}` placeholders, and `${{ secrets.* }}` are fine.
+  `infra/secrets.ts` names, `${...}` placeholders, and `${{ secrets.* }}` are fine.
 - A swallowed failure in CI checks, scans, builds, or deploys, such as `|| true`, ignored exit
   codes, Trivy `exit-code: '0'`, or `continue-on-error`. Safe path: let the step fail. Intended
-  exception: a known upstream bug with a `TODO:` linking the issue (like `sst refresh` in
-  `deploy-infra.yaml`). Lint suppressions like `# hadolint ignore=` aren't swallowed failures.
+  exception: a known upstream bug with a `TODO:` linking the issue. Lint suppressions like
+  `# hadolint ignore=` aren't swallowed failures.
 - Missing wiring, because the thing silently never gets built, tested, deployed, or scanned, and a
   skipped path-filtered job still passes its required check:
-  - a new `infra/` module outside `sst.config.ts`'s import graph;
+  - a new `infra/` module outside `infra/index.ts`'s import graph;
   - a new app `kube/` directory missing from `k3s/base/apps`;
-  - a new `${...}` manifest placeholder with no matching SST resource or computed variable in
+  - a new `${...}` manifest placeholder with no matching stack output or computed variable in
     `scripts/cluster/deploy.sh`, which `pnpm cluster deploy` and Argo apply as literal text (fine
     for shell variables in embedded scripts);
   - a new first-party image or chart missing from `build-and-publish.yaml`'s path filters or matrix,
@@ -240,5 +246,5 @@ that can't happen, or for compatibility code for old data or deploy order during
   - a new tested package missing its filter and job in `tests.yaml`, a new CI job missing from its
     `*-pass` aggregate's `needs` (scheduled-only jobs excepted), or a new aggregate missing from
     `requiredStatusChecks` in `infra/github.ts`;
-  - a new SST or Pages build input missing from the `deploy-infra.yaml` filters or `pathIncludes` in
-    `infra/website.ts`.
+  - a new Pulumi or Pages build input missing from the `deploy-infra.yaml` filters or `pathIncludes`
+    in `infra/website.ts`.

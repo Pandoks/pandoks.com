@@ -1,7 +1,11 @@
-import { cloudflareAccountId, isProduction, STAGE_NAME } from './dns';
-import { defaultAwsRegion } from './aws';
-import { secrets } from './secrets';
-import { tailscaleAcl } from './tailscale';
+import * as pulumi from '@pulumi/pulumi';
+import * as aws from '@pulumi/aws';
+import * as github from '@pulumi/github';
+import * as tailscale from '@pulumi/tailscale';
+import { cloudflareAccountId, isProduction, STAGE_NAME } from './dns.ts';
+import { defaultAwsRegion } from './aws.ts';
+import { secrets } from './secrets.ts';
+import { tailscaleAcl } from './tailscale.ts';
 
 export const githubOrg = 'Pandoks';
 export const githubRepoName = 'pandoks.com';
@@ -22,7 +26,7 @@ new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
   repository: githubRepoName,
   environment: githubEnvironment.environment,
   secretName: 'HCLOUD_TOKEN',
-  value: secrets.hetzner.ApiKey.value
+  value: secrets.hetzner.ApiKey
 });
 
 if (isProduction) {
@@ -58,19 +62,19 @@ if (isProduction) {
   new github.ActionsSecret('GithubGithubAccessToken', {
     repository: githubRepoName,
     secretName: 'GH_TOKEN',
-    value: secrets.github.PersonalAccessToken.value
+    value: secrets.github.PersonalAccessToken
   });
 
   new github.ActionsSecret('GithubGithubPackageManagementToken', {
     repository: githubRepoName,
     secretName: 'GH_PACKAGE_MANAGEMENT_TOKEN',
-    value: secrets.github.PackageManagementToken.value
+    value: secrets.github.PackageManagementToken
   });
 
   new github.ActionsSecret('GithubCloudflareApiToken', {
     repository: githubRepoName,
     secretName: 'CLOUDFLARE_API_TOKEN',
-    value: secrets.cloudflare.ApiKey.value
+    value: secrets.cloudflare.ApiKey
   });
 
   new github.ActionsSecret('GithubCloudflareAccountId', {
@@ -82,13 +86,13 @@ if (isProduction) {
   new github.ActionsSecret('GithubOvhApplicationSecret', {
     repository: githubRepoName,
     secretName: 'OVH_APPLICATION_SECRET',
-    value: secrets.ovh.ApplicationSecret.value
+    value: secrets.ovh.ApplicationSecret
   });
 
   new github.ActionsSecret('GithubOvhConsumerKey', {
     repository: githubRepoName,
     secretName: 'OVH_CONSUMER_KEY',
-    value: secrets.ovh.ConsumerKey.value
+    value: secrets.ovh.ConsumerKey
   });
 
   const githubAWSOidcProvider = new aws.iam.OpenIdConnectProvider('AWSGithubActionsOidc', {
@@ -98,7 +102,7 @@ if (isProduction) {
 
   const githubActionsAWSRole = new aws.iam.Role('AWSGithubActionsRole', {
     name: 'PersonalGithubActions',
-    assumeRolePolicy: $jsonStringify({
+    assumeRolePolicy: pulumi.jsonStringify({
       Version: '2012-10-17',
       Statement: [
         {
@@ -140,12 +144,12 @@ if (isProduction) {
   new github.ActionsSecret('GithubTailscaleOauthClientId', {
     repository: githubRepoName,
     secretName: 'TAILSCALE_OAUTH_CLIENT_ID',
-    value: secrets.tailscale.OauthClientId.value
+    value: secrets.tailscale.OauthClientId
   });
   new github.ActionsSecret('GithubTailscaleOauthClientSecret', {
     repository: githubRepoName,
     secretName: 'TAILSCALE_OAUTH_CLIENT_SECRET',
-    value: secrets.tailscale.OauthClientSecret.value
+    value: secrets.tailscale.OauthClientSecret
   });
 
   const githubActionsOauthClient = new tailscale.OauthClient(

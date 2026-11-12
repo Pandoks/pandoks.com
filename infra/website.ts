@@ -1,14 +1,7 @@
-import { cloudflareAccountId, cloudflareZoneId, domain, isProduction } from './dns';
-import { githubOrg, githubRepoName } from './github';
-
-new sst.x.DevCommand('DevWebsite', {
-  dev: {
-    title: 'WebsiteDev',
-    command: 'pnpm dev',
-    autostart: false,
-    directory: 'apps/web'
-  }
-});
+import * as pulumi from '@pulumi/pulumi';
+import * as cloudflare from '@pulumi/cloudflare';
+import { cloudflareAccountId, cloudflareZoneId, domain, isProduction } from './dns.ts';
+import { githubOrg, githubRepoName } from './github.ts';
 
 const NODE_VERSION = '24.22.2';
 
@@ -62,7 +55,7 @@ if (isProduction) {
     zoneId: cloudflareZoneId,
     name: domain,
     type: 'CNAME',
-    content: $interpolate`${personalStaticWebsite.name}.pages.dev`,
+    content: pulumi.interpolate`${personalStaticWebsite.name}.pages.dev`,
     proxied: true,
     ttl: 1
   });
@@ -99,7 +92,7 @@ if (isProduction) {
             key: 'http.request.full_uri'
           }
         },
-        expression: $interpolate`http.request.full_uri in $${pagesDotDevRedirects.name}`,
+        expression: pulumi.interpolate`http.request.full_uri in $${pagesDotDevRedirects.name}`,
         enabled: true
       }
     ]
