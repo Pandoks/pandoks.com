@@ -1,7 +1,7 @@
 import { useTheme } from 'expo-router';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-import { Screen } from '../components/screen';
+import { Screen } from '@/components/screen';
 
 export default function HomeScreen() {
   const { width } = useWindowDimensions();

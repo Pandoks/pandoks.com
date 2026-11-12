@@ -4,8 +4,8 @@ Phone side of the watch bridge, an [Expo module](https://docs.expo.dev/modules/m
 JS API and a native adapter per platform:
 [WatchConnectivity](https://developer.apple.com/documentation/watchconnectivity) on iOS and the
 [Wearable Data Layer](https://developer.android.com/training/wearables/data/overview) on Android.
-The watch side lives in the app, like `apps/mobile-template/targets/watch` (watchOS) and
-`apps/mobile-template/targets/wear` (Wear OS).
+The watch side lives in the app, like `templates/mobile/targets/watch` (watchOS) and
+`templates/mobile/targets/wear` (Wear OS).
 
 `Watch` is `null` on iPads, which can't pair a watch. Otherwise it has:
 
