@@ -10,8 +10,6 @@ import (
 	"valkey/reconciler/internal/valkey"
 
 	valkeygo "github.com/valkey-io/valkey-go"
-	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -41,15 +39,12 @@ func ApplyConfig(env utils.Env, config utils.ConfigEnv) error {
 	secrets := kubernetesClient.CoreV1().Secrets(env.Namespace)
 	appliedSecretName := utils.GetAppliedSecretName(env.ClusterName)
 	appliedSecret, err := secrets.Get(timeoutCtx, appliedSecretName, metav1.GetOptions{})
-	appliedSecretExists := !apierrors.IsNotFound(err)
-	if err != nil && appliedSecretExists {
+	if err != nil {
 		return err
 	}
-	var appliedAdminPassword string
-	if appliedSecretExists {
-		appliedAdminPassword = string(appliedSecret.Data[appliedAdminPasswordKey])
-	}
-	rotating := appliedSecretExists && appliedAdminPassword != env.AdminPassword
+	// NOTE: the chart creates the Secret empty, so it has no password before the first run
+	appliedAdminPassword := string(appliedSecret.Data[appliedAdminPasswordKey])
+	rotating := appliedAdminPassword != "" && appliedAdminPassword != env.AdminPassword
 	newAdminClient := func(hostname string) (*valkey.ValkeyClient, error) {
 		nodeClient, err := newNodeClient(hostname, env.AdminPassword)
 		if isWrongPass(err) && rotating {
@@ -74,9 +69,18 @@ func ApplyConfig(env utils.Env, config utils.ConfigEnv) error {
 		if err != nil {
 			return err
 		}
+	}
 
+	if appliedAdminPassword != env.AdminPassword {
 		// NOTE: every node accepts the new password now, so a pod restarted from here on starts with only it
 		appliedSecret.StringData = map[string]string{appliedAdminPasswordKey: env.AdminPassword}
+		// NOTE: Helm leaves hooks on uninstall, but Kubernetes deletes what the StatefulSet owns
+		appliedSecret.OwnerReferences = []metav1.OwnerReference{{
+			APIVersion: "apps/v1",
+			Kind:       "StatefulSet",
+			Name:       statefulSet.Name,
+			UID:        statefulSet.UID,
+		}}
 		if _, err := secrets.Update(timeoutCtx, appliedSecret, metav1.UpdateOptions{}); err != nil {
 			return err
 		}
@@ -85,16 +89,13 @@ func ApplyConfig(env utils.Env, config utils.ConfigEnv) error {
 
 	// NOTE: primaryauth on every node before any node drops the old password, and on every run, since a pod restarted
 	// mid-rotation starts with the last-applied password
-	fmt.Println("Applying parameters and primaryauth...")
+	fmt.Println("Applying primaryauth...")
 	err = forEachNode(timeoutCtx, hostnames, func(hostname string) error {
 		nodeClient, err := newAdminClient(hostname)
 		if err != nil {
 			return err
 		}
 		defer nodeClient.Close()
-		if err := valkey.SetParameters(timeoutCtx, nodeClient, config.Parameters); err != nil {
-			return err
-		}
 		return valkey.SetPrimaryAuth(timeoutCtx, nodeClient, env.AdminPassword)
 	})
 	if err != nil {
@@ -108,21 +109,24 @@ func ApplyConfig(env utils.Env, config utils.ConfigEnv) error {
 			return err
 		}
 		defer nodeClient.Close()
-		return valkey.SetUsers(timeoutCtx, nodeClient, config.UsersACL)
+		return valkey.SetUsers(timeoutCtx, nodeClient, config.Users)
 	})
 	if err != nil {
 		return err
 	}
 
-	if !appliedSecretExists {
-		appliedSecret = &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{Name: appliedSecretName},
-			StringData: map[string]string{appliedAdminPasswordKey: env.AdminPassword},
-		}
-		if _, err := secrets.Create(timeoutCtx, appliedSecret, metav1.CreateOptions{}); err != nil {
+	// NOTE: last, so a rejected value can't leave a rotation half done
+	fmt.Println("Applying parameters...")
+	err = forEachNode(timeoutCtx, hostnames, func(hostname string) error {
+		nodeClient, err := newAdminClient(hostname)
+		if err != nil {
 			return err
 		}
-		fmt.Printf("✓ Created %s\n", appliedSecretName)
+		defer nodeClient.Close()
+		return valkey.SetParameters(timeoutCtx, nodeClient, config.Parameters)
+	})
+	if err != nil {
+		return err
 	}
 
 	fmt.Println("=== Config Apply Complete ===")

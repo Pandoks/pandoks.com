@@ -20,8 +20,7 @@ subjects:
     namespace: {{ .Values.namespace }}
 
 ---
-# NOTE: create can't be limited to resourceNames. Hooks, since Helm creates the release's resources only after the
-# pre-upgrade apply-config needs them
+# NOTE: hooks, since the pre-upgrade apply-config needs them before Helm creates release resources
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -41,12 +40,6 @@ rules:
     verbs:
       - get
       - update
-  - apiGroups:
-      - ''
-    resources:
-      - secrets
-    verbs:
-      - create
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1

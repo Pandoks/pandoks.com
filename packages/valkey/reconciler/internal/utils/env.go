@@ -53,7 +53,12 @@ func Load() (Env, error) {
 
 type ConfigEnv struct {
 	Parameters map[string]string
-	UsersACL   string
+	Users      []ACLUser
+}
+
+type ACLUser struct {
+	Name  string
+	Rules []string
 }
 
 func LoadConfig() (ConfigEnv, error) {
@@ -87,8 +92,21 @@ func LoadConfig() (ConfigEnv, error) {
 		return ConfigEnv{}, fmt.Errorf("USERS_ACL uses environment variables with a space, tab, carriage return or newline: %v", unsplittableVariables)
 	}
 
+	var users []ACLUser
+	for lineIndex, line := range strings.Split(usersACL, "\n") {
+		// NOTE: Valkey splits aclfile lines on single spaces
+		fields := strings.Split(strings.Trim(line, " \t\r"), " ")
+		if fields[0] == "" {
+			continue
+		}
+		if fields[0] != "user" || len(fields) < 2 {
+			return ConfigEnv{}, fmt.Errorf("users.acl line %d doesn't start with user and a username", lineIndex+1)
+		}
+		users = append(users, ACLUser{Name: fields[1], Rules: fields[2:]})
+	}
+
 	return ConfigEnv{
 		Parameters: parameters,
-		UsersACL:   usersACL,
+		Users:      users,
 	}, nil
 }

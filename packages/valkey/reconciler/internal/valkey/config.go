@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
+	"valkey/reconciler/internal/utils"
 
 	valkeygo "github.com/valkey-io/valkey-go"
 )
@@ -54,24 +54,14 @@ func SetPrimaryAuth(ctx context.Context, nodeClient valkeygo.Client, adminPasswo
 	return nil
 }
 
-func SetUsers(ctx context.Context, nodeClient valkeygo.Client, usersACL string) error {
-	usernames := make([]string, 0)
-	for lineIndex, line := range strings.Split(usersACL, "\n") {
-		// NOTE: Valkey splits aclfile lines on single spaces
-		fields := strings.Split(strings.Trim(line, " \t\r"), " ")
-		if fields[0] == "" {
-			continue
+func SetUsers(ctx context.Context, nodeClient valkeygo.Client, users []utils.ACLUser) error {
+	usernames := make([]string, 0, len(users))
+	for _, user := range users {
+		rules := append([]string{"reset"}, user.Rules...)
+		if err := nodeClient.Do(ctx, nodeClient.B().AclSetuser().Username(user.Name).Rule(rules...).Build()).Error(); err != nil {
+			return fmt.Errorf("ACL SETUSER %s: %w", user.Name, err)
 		}
-		if fields[0] != "user" || len(fields) < 2 {
-			return fmt.Errorf("users.acl line %d doesn't start with user and a username", lineIndex+1)
-		}
-
-		username := fields[1]
-		rules := append([]string{"reset"}, fields[2:]...)
-		if err := nodeClient.Do(ctx, nodeClient.B().AclSetuser().Username(username).Rule(rules...).Build()).Error(); err != nil {
-			return fmt.Errorf("ACL SETUSER %s: %w", username, err)
-		}
-		usernames = append(usernames, username)
+		usernames = append(usernames, user.Name)
 	}
 
 	existingUsernames, err := nodeClient.Do(ctx, nodeClient.B().AclUsers().Build()).AsStrSlice()

@@ -168,6 +168,7 @@ metadata:
     "helm.sh/hook": pre-upgrade,post-install,post-upgrade,post-rollback
     "helm.sh/hook-weight": "1"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
+    "helm.sh/hook-output-log-policy": hook-failed
 spec:
   backoffLimit: 0
   template:

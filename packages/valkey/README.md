@@ -104,8 +104,8 @@ spec:
     hooks.hookDeletePolicy: before-hook-creation
 ```
 
-These don't apply to the `apply-config` Job, which never retries and is deleted when it fails, so
-follow its logs instead.
+These don't apply to the `apply-config` Job, which never retries; Helm prints its logs when it
+fails.
 
 _If you haven't already, remember to add all `dev-patch.yaml` files to the `patches` in the
 [/k3s/overlays/local/kustomization.yaml](/k3s/overlays/local/kustomization.yaml) file._
@@ -152,7 +152,9 @@ topology:
 The `valkey-<name>-applied` Role and RoleBinding and the `valkey-<name>-metrics` Secret that
 `apply-config` needs are [hooks](https://helm.sh/docs/topics/charts_hooks/) themselves, created
 before every install, upgrade and rollback, since Helm creates a release's resources only after its
-pre-upgrade hooks. Like the `valkey-<name>-applied` Secret, they stay after `helm uninstall`.
+pre-upgrade hooks. So is the `valkey-<name>-applied` Secret, created only before an install or
+upgrade that doesn't find it. They stay after `helm uninstall`, but the `valkey-<name>-applied`
+Secret, which `apply-config` makes the StatefulSet own, is deleted with it.
 
 ## Configuration
 
@@ -199,12 +201,19 @@ prints what `CONFIG GET` reports, so no pod restarts. It waits up to 5 minutes f
 answer yet and fails at once on an error from Valkey, like an invalid value. The render fails for
 settings Valkey can't change at runtime, like `cluster-enabled` or `aclfile`, and for ones the chart
 sets itself; those belong in `valkey.conf`. It also fails for secrets like `requirepass`, which
-would show in the ConfigMap and the Job's logs. A key removed from `parameters` keeps its value
-until its pod restarts. Helm deletes a failed Job along with its logs, so follow them during the
-release:
+would show in the ConfigMap and the Job's logs, and for a setting and its alias together, like
+`slave-read-only` next to the default `replica-read-only`. A key removed from `parameters` keeps its
+value until its pod restarts. Helm prints a failed Job's logs before deleting it; for a HelmChart,
+they're in the `helm-install-<HelmChart name>` Job's logs in `kube-system`, with `--previous` once
+it has retried.
+
+Before an upgrade, `apply-config` sets the new chart's `parameters` on the old pods, so a setting
+only a newer `image` knows needs two upgrades: the image first, then the setting. A rejected value
+fails the release, and with `failurePolicy: abort` the HelmChart then stops upgrading it. Fix the
+value, then roll back to the last good revision so the next `helm-install` run upgrades again:
 
 ```sh
-kubectl logs -n <namespace> job/valkey-<name>-apply-config -f
+helm rollback -n <namespace> <namespace>-valkey-<name>-cluster
 ```
 
 Pods restart only when their template changes: `valkey.conf`, `image`, `persistence`, `resources`,
@@ -228,25 +237,29 @@ _The **client** user doesn't have dangerous permissions like `FLUSHALL`, `CONFIG
 The chart generates the **metrics** password into the `valkey-<name>-metrics` Secret on install and
 keeps it on upgrades, so it needs no secret of yours and never rotates with **admin**. The exporter
 skips its config metrics, since `CONFIG GET` would show `primaryauth`, the admin password, and its
-last-slow-command metrics, since `SLOWLOG GET` shows commands' arguments, like `SET`'s values. An
-exporter option that runs more commands, like `check-keys`, needs them added to its `users.acl`
-line.
+last-slow-command metrics, since `SLOWLOG GET` shows commands' arguments, like `SET`'s values. The
+exporter still runs `SLOWLOG GET` on every scrape, so each node's `acl_access_denied_cmd` (in
+`INFO stats`) climbs by one per scrape. An exporter option that runs more commands, like
+`check-keys`, needs them added to its `users.acl` line.
 
 The `apply-config` Job also resets each user to its line (`ACL SETUSER <user> reset <rules>`) and
 deletes users without one, like `ACL LOAD`, so rule changes and new passwords apply without a
-restart, and connections that already logged in stay open. A password changed in the secret reaches
-the nodes at the next chart upgrade, since only the Job applies it.
+restart, and connections that already logged in stay open. After rotating a leaked password, close
+them with `CLIENT KILL USER <user>` on every node. A password changed in the secret reaches the
+nodes at the next chart upgrade, since only the Job applies it.
 
-The Job keeps the admin password it last applied in the `valkey-<name>-applied` Secret. When the
-secret has a different one, it rotates it before `scale-down` logs in: on every node it logs in with
-either password, adds the new one to **admin** and saves it. Then, on every run, it sets
-`primaryauth` to the secret's password on every node, and only then resets the users to `users.acl`,
-which drops the old password. It fails if a node accepts neither, like after the Secret is deleted;
-recreate it with the `adminPassword` the nodes accept. A pod that starts between the secret change
-and the rotation accepts both passwords and replicates with the last-applied one. The readiness
-probe tries both from a secret volume, which the kubelet refreshes within about a minute, so when
-the rotation runs sooner, like when Argo applies the secret and the chart together, pods can turn
-unready and leave the `valkey-<name>-cluster` Service until it catches up.
+The Job keeps the admin password it last applied in the `valkey-<name>-applied` Secret, which the
+chart creates empty. When the secret has a different one, it rotates it before `scale-down` logs in:
+on every node it logs in with either password, adds the new one to **admin** and saves it. Then, on
+every run, it sets `primaryauth` to the secret's password on every node, only then resets the users
+to `users.acl`, which drops the old password, and sets `parameters` last, so a rejected value can't
+stop a rotation halfway. It fails if a node accepts neither, like after the Secret is deleted (the
+next upgrade recreates it empty) or changed by hand; set its `adminPassword` to the one the nodes
+accept. A pod that starts between the secret change and the rotation accepts both passwords and
+replicates with the last-applied one. The readiness probe tries both from a secret volume, which the
+kubelet refreshes within about a minute, so when the rotation runs sooner, like when Argo applies
+the secret and the chart together, pods can turn unready and leave the `valkey-<name>-cluster`
+Service until it catches up.
 
 For more information about the permissions, visit
 [valkey.io/topics/acl](https://valkey.io/topics/acl/).

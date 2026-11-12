@@ -1,25 +1,33 @@
 {{- define "valkey.parameters" }}
-{{- /* NOTE: entrypoint.sh sets these for persistence, and masteruser and masterauth alias primaryuser and primaryauth */}}
-{{- $chartKeys := list "save" "rdb-del-sync-files" "appendonly" "appendfsync" "masteruser" "masterauth" }}
+{{- /* NOTE: entrypoint.sh sets these for persistence */}}
+{{- $chartKeys := list "save" "rdb-del-sync-files" "appendonly" "appendfsync" }}
 {{- range splitList "\n" (.Files.Get "files/valkey.conf") }}
 {{- $line := trim . }}
 {{- if and $line (not (hasPrefix "#" $line)) }}
 {{- $chartKeys = append $chartKeys (first (splitList " " $line)) }}
 {{- end }}
 {{- end }}
-{{- /* NOTE: Valkey 9.1's IMMUTABLE_CONFIG and PROTECTED_CONFIG settings (src/config.c) and their aliases */}}
-{{- $runtimeLockedKeys := list "rdbchecksum" "daemonize" "always-show-logo" "set-proc-title" "repl-mptcp" "syslog-enabled" "cluster-enabled" "disable-thp" "enable-debug-assert" "lua-enable-insecure-api" "lua-enable-deprecated-api" "aclfile" "unixsocket" "unixsocketgroup" "pidfile" "cluster-config-file" "syslog-ident" "dbfilename" "appendfilename" "appenddirname" "server-cpulist" "server_cpulist" "bio-cpulist" "bio_cpulist" "aof-rewrite-cpulist" "aof_rewrite_cpulist" "bgsave-cpulist" "bgsave_cpulist" "logfile" "req-res-logfile" "hash-seed" "supervised" "syslog-facility" "enable-protected-configs" "enable-debug-command" "enable-module-command" "databases" "cluster-databases" "tcp-backlog" "mptcp" "cluster-port" "rdma-rx-size" "rdma-completion-vector" "unixsocketperm" "socket-mark-id" "client-default-resp" "dir" "replicaof" "slaveof" }}
+{{- /* NOTE: Valkey 9.1's aliases (src/config.c), so a key and its alias can't both be set */}}
+{{- $aliasKeys := dict "aof_rewrite_cpulist" "aof-rewrite-cpulist" "bgsave_cpulist" "bgsave-cpulist" "bio_cpulist" "bio-cpulist" "lua-time-limit" "busy-reply-threshold" "cluster-slave-no-failover" "cluster-replica-no-failover" "cluster-slave-validity-factor" "cluster-replica-validity-factor" "slowlog-log-slower-than" "commandlog-execution-slower-than" "slowlog-max-len" "commandlog-slow-execution-max-len" "hash-max-ziplist-entries" "hash-max-listpack-entries" "hash-max-ziplist-value" "hash-max-listpack-value" "list-max-ziplist-size" "list-max-listpack-size" "lua-enable-deprecated-api" "lua-enable-insecure-api" "min-slaves-max-lag" "min-replicas-max-lag" "min-slaves-to-write" "min-replicas-to-write" "masterauth" "primaryauth" "masteruser" "primaryuser" "repl-ping-slave-period" "repl-ping-replica-period" "slave-announce-ip" "replica-announce-ip" "slave-announce-port" "replica-announce-port" "slave-ignore-maxmemory" "replica-ignore-maxmemory" "slave-lazy-flush" "replica-lazy-flush" "slave-priority" "replica-priority" "slave-read-only" "replica-read-only" "slave-serve-stale-data" "replica-serve-stale-data" "slaveof" "replicaof" "server_cpulist" "server-cpulist" "zset-max-ziplist-entries" "zset-max-listpack-entries" "zset-max-ziplist-value" "zset-max-listpack-value" }}
+{{- /* NOTE: Valkey 9.1's IMMUTABLE_CONFIG and PROTECTED_CONFIG settings (src/config.c) */}}
+{{- $runtimeLockedKeys := list "rdbchecksum" "daemonize" "always-show-logo" "set-proc-title" "repl-mptcp" "syslog-enabled" "cluster-enabled" "disable-thp" "enable-debug-assert" "lua-enable-insecure-api" "aclfile" "unixsocket" "unixsocketgroup" "pidfile" "cluster-config-file" "syslog-ident" "dbfilename" "appendfilename" "appenddirname" "server-cpulist" "bio-cpulist" "aof-rewrite-cpulist" "bgsave-cpulist" "logfile" "req-res-logfile" "hash-seed" "supervised" "syslog-facility" "enable-protected-configs" "enable-debug-command" "enable-module-command" "databases" "cluster-databases" "tcp-backlog" "mptcp" "cluster-port" "rdma-rx-size" "rdma-completion-vector" "unixsocketperm" "socket-mark-id" "client-default-resp" "dir" "replicaof" }}
 {{- /* NOTE: Valkey 9.1's SENSITIVE_CONFIG settings, besides the chart's primaryuser and primaryauth */}}
 {{- $sensitiveKeys := list "requirepass" "tls-key-file-pass" "tls-client-key-file-pass" }}
 {{- $parameters := dict }}
+{{- $keysByCanonicalKey := dict }}
 {{- range $name, $value := .Values.parameters }}
-{{- if has (lower $name) $runtimeLockedKeys }}
+{{- $canonicalKey := get $aliasKeys (lower $name) | default (lower $name) }}
+{{- if hasKey $keysByCanonicalKey $canonicalKey }}
+{{- fail (printf "parameters.%s: parameters.%s sets the same setting" $name (get $keysByCanonicalKey $canonicalKey)) }}
+{{- end }}
+{{- $_ := set $keysByCanonicalKey $canonicalKey $name }}
+{{- if has $canonicalKey $runtimeLockedKeys }}
 {{- fail (printf "parameters.%s: Valkey can't change it on running nodes, so set it in files/valkey.conf, which restarts them" $name) }}
 {{- end }}
-{{- if has (lower $name) $sensitiveKeys }}
+{{- if has $canonicalKey $sensitiveKeys }}
 {{- fail (printf "parameters.%s: it would show in the ConfigMap and apply-config's logs, so keep secrets out of parameters" $name) }}
 {{- end }}
-{{- if has (lower $name) $chartKeys }}
+{{- if has $canonicalKey $chartKeys }}
 {{- fail (printf "parameters.%s: the chart sets it in files/valkey.conf or entrypoint.sh" $name) }}
 {{- end }}
 {{- $_ := set $parameters $name (toString $value) }}
@@ -61,6 +69,19 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation
 data:
   password: {{ dig "data" "password" (randAlphaNum 32 | b64enc) (lookup "v1" "Secret" .Values.namespace (printf "valkey-%s-metrics" .Values.name)) }}
+
+{{- if not (lookup "v1" "Secret" .Values.namespace (printf "valkey-%s-applied" .Values.name)) }}
+---
+# NOTE: empty for apply-config to fill; no pre-rollback, which would rerun a stored, empty copy
+apiVersion: v1
+kind: Secret
+metadata:
+  name: valkey-{{ .Values.name }}-applied
+  namespace: {{ .Values.namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-1"
+{{- end }}
 
 ---
 apiVersion: v1
@@ -246,6 +267,9 @@ spec:
             # NOTE: CONFIG GET would show primaryauth, the admin password
             - name: REDIS_EXPORTER_CONFIG_COMMAND
               value: "-"
+            # NOTE: /scrape?target= sends the metrics password anywhere; Prometheus uses /metrics
+            - name: REDIS_EXPORTER_DISABLE_SCRAPE_ENDPOINT
+              value: "true"
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
