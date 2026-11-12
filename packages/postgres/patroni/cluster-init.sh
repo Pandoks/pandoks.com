@@ -2,17 +2,31 @@
 
 set -eu
 
-if pgbackrest --stanza="${STANZA}" info | grep "missing stanza path"; then
-  echo "Stanza '${STANZA}' does not exist. Creating..."
-  if pgbackrest --stanza="${STANZA}" stanza-create; then
-    echo "✓ Stanza '${STANZA}' created successfully."
-  else
-    echo "Failed to create stanza '${STANZA}'."
-    exit 1
-  fi
-else
-  echo "Stanza '${STANZA}' already exists. Skipping stanza creation."
+# NOTE: info prints its errors to stdout, and exits 0 with "status: error (other)" when it can't read the repo
+if ! stanza_info=$(pgbackrest --stanza="${STANZA}" info); then
+  echo "${stanza_info}"
+  echo "Failed to read stanza '${STANZA}'."
+  exit 1
 fi
+case "${stanza_info}" in
+  *"status: error (missing stanza path)"*)
+    echo "Stanza '${STANZA}' does not exist. Creating..."
+    if pgbackrest --stanza="${STANZA}" stanza-create; then
+      echo "✓ Stanza '${STANZA}' created successfully."
+    else
+      echo "Failed to create stanza '${STANZA}'."
+      exit 1
+    fi
+    ;;
+  *"status: ok"* | *"status: error (no valid backups)"*)
+    echo "Stanza '${STANZA}' already exists. Skipping stanza creation."
+    ;;
+  *)
+    echo "${stanza_info}"
+    echo "Failed to read stanza '${STANZA}'."
+    exit 1
+    ;;
+esac
 
 echo "Checking for existing backup..."
 set +e # TODO: test if this is needed
@@ -62,16 +76,10 @@ if psql -Atq -d postgres -c "SELECT 1 FROM pg_roles WHERE rolname='admin'" | gre
   echo "Role 'admin' already exists. Skipping creation."
 else
   echo "Role 'admin' does not exist. Creating..."
-  if psql -d postgres -c "
+  if psql -d "${POSTGRES_DB}" -c "
     CREATE ROLE admin WITH LOGIN PASSWORD '${ADMIN_PASSWORD}';
     GRANT CONNECT ON DATABASE ${POSTGRES_DB} TO admin;
     GRANT CREATE ON SCHEMA public TO admin;
-    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO admin;
-    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO admin;
-    GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO admin;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO admin;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON SEQUENCES TO admin;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON FUNCTIONS TO admin;
   "; then
     echo "✓ Role 'admin' created successfully."
   else
@@ -84,16 +92,13 @@ if psql -Atq -d postgres -c "SELECT 1 FROM pg_roles WHERE rolname='client'" | gr
   echo "Role 'client' already exists. Skipping creation."
 else
   echo "Role 'client' does not exist. Creating..."
-  if psql -d postgres -c "
+  if psql -d "${POSTGRES_DB}" -c "
     CREATE ROLE client WITH LOGIN PASSWORD '${CLIENT_PASSWORD}';
     GRANT CONNECT, TEMPORARY ON DATABASE ${POSTGRES_DB} TO client;
     GRANT USAGE ON SCHEMA public TO client;
-    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO client;
-    GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO client;
-    GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO client;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO client;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO client;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO client;
+    ALTER DEFAULT PRIVILEGES FOR ROLE admin IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO client;
+    ALTER DEFAULT PRIVILEGES FOR ROLE admin IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO client;
+    ALTER DEFAULT PRIVILEGES FOR ROLE admin IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO client;
   "; then
     echo "✓ Role 'client' created successfully."
   else

@@ -12,10 +12,10 @@ metadata:
 spec:
   repo: https://metallb.github.io/metallb
   chart: metallb
-  version: 0.15.3
+  version: 0.16.1
   targetNamespace: metallb-system
   createNamespace: true
   valuesContent: |-
-    speaker:
-      frr:
-        enabled: true
+    # NOTE: L2 only (no BGPPeer), so the BGP backend is off
+    frrk8s:
+      enabled: false

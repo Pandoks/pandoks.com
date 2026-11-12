@@ -60,18 +60,19 @@ name (`@pandoks.com/svelte/...`); inside it, use `#lib`.
 
 ## How changes ship
 
-- PRs run `checks.yaml`, `tests.yaml`, `security.yaml`, and `build-and-publish.yaml` (branch-tagged
-  GHCR images and charts), a Cloudflare Pages preview of `apps/web`, and `claude-review.yaml` (one
-  Agent SDK `/code-review` per PR, posted as one review with inline comments). Required checks are
-  the `*-pass` aggregates.
+- Every branch push runs `pipeline.yaml`: `changes.yaml` picks what runs from the changed paths,
+  then `checks.yaml`, `security.yaml`, `tests.yaml`, `build.yaml`, `e2e.yaml`, and `publish.yaml`
+  (branch-tagged GHCR images and charts, only once everything else passes). `claude-review.yaml`
+  reviews each PR, `security-audit.yaml` rescans daily, and Cloudflare Pages previews `apps/web`.
+  Required checks are the `*-pass` aggregates, and a PR must be up to date with `main` to merge.
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
   deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
   `infra/`, `apps/` (except `desktop-template`, `mobile-template`, and `example`), and
-  `packages/svelte/`, plus an Argo hard refresh only for `k3s/` and `scripts/cluster/` changes.
-  Pages builds `apps/web` when a change matches `pathIncludes` in `infra/website.ts`. Argo
-  auto-syncs everything `k3s/overlays/prod` renders but never prunes: a deleted resource stays in
-  prod until pruned by hand.
+  `packages/svelte/`, plus an Argo hard refresh and a wait for Synced and Healthy only for `k3s/`,
+  `apps/*/kube/`, and `scripts/cluster/` changes. Pages builds `apps/web` when a change matches
+  `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod` renders but
+  never prunes: a deleted resource stays in prod until pruned by hand.
 - Every non-production stage gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
   environment, so two non-production stages collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
@@ -94,7 +95,9 @@ checkout. The SST CLI is `pnpm sst`.
   or `infra/` shows hundreds of false type errors.
 - `pnpm check` type-checks every package, `infra/`, and `sst.config.ts`.
 - Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, `desktop-template`, and
-  `mobile-template`; `pnpm --filter <package> test` for `prettier` and `valkey`.
+  `mobile-template`; `pnpm --filter <package> test` for `prettier` and `valkey`;
+  `go tool ginkgo -p ./packages/<pkg>/e2e` for a package's e2e suite on local k3d
+  (`packages/e2e/README.md`).
 - Scoped: `pnpm exec prettier --check <files>`, `pnpm exec eslint [--fix] <files>`, `shellcheck`,
   `shfmt -d`, `hadolint`, `actionlint`, `pnpm --filter "...[origin/main]" --if-present check`. That
   filter and the shell and Docker format and lint commands see only tracked files, so check new
@@ -112,7 +115,8 @@ checkout. The SST CLI is `pnpm sst`.
   - Cluster behavior (`k3s/`, `apps/*/kube`, charts, cluster images): render, deploy to local k3d,
     and exercise it, including the failure paths you touched. k3d has no ArgoCD and skips
     `k3s/overlays/cluster` (Tailscale operator, upgrade controller); for those, render the `dev` and
-    `prod` overlays and build the image instead of forcing them onto k3d.
+    `prod` overlays and build the image instead of forcing them onto k3d. Run a changed chart's e2e
+    suite if it has one.
   - `scripts/`: run the real CLI for each result and failure path you touched, argument errors
     included.
   - `infra/` or `sst.config.ts`: full `pnpm check` plus scoped lint after the last edit and before
@@ -180,8 +184,8 @@ Before calling infra, cluster, or tooling work done, check:
 
 - Stage (`git rm` included), commit, push, or open a PR only when asked. Once asked to push to a PR,
   commit and push its follow-up fixes there without asking again. A check waiting on my approval
-  doesn't hold an asked-for PR; open it and list the pending check. Never rewrite pushed history;
-  leave merging to me.
+  doesn't hold an asked-for PR; open it and list the pending check. Never rewrite pushed history:
+  bring a PR that's behind `main` up to date by merging `main` into it. Leave merging to me.
 - Commits and PR titles: Conventional Commits as `type(scope): short lowercase summary`, like
   `update(cluster): drop unused flag`. PRs are squash-merged, so the title is the commit that lands.
 - Descriptions are short: what changes and how to use or verify it, describing the current diff, not
@@ -193,12 +197,11 @@ Before calling infra, cluster, or tooling work done, check:
 - Review and fix loops cover correctness, least code, style match, tests, and docs, and stop when a
   full round finds nothing.
 - Babysitting: poll checks and comments newer than the last push, fix real bot findings, dismiss
-  false positives with a written reason, and resolve threads you addressed. Wait while a review bot
-  is reviewing. If one stays silent on the latest push (no reaction, comment, or check) for 5
-  minutes, request a review with the comment command it advertises on the PR, or by @-mentioning it
-  if it advertises none; if it's still silent 30 minutes after the push, stop waiting for it and
-  tell me. Otherwise stop when CI passes and every review bot has reviewed the latest commit with
-  nothing left unhandled.
+  false positives with a written reason, and resolve threads you addressed. Once CI passes and
+  nothing is left unhandled, stop at the first of these and tell me which bots didn't review:
+  - every review bot has reviewed the latest push;
+  - 30 minutes have passed since that push;
+  - you have no timer, and no bot still missing shows activity on that push.
 
 ## Code Review Rules
 
@@ -228,10 +231,8 @@ that can't happen, or for compatibility code for old data or deploy order during
   `sst.Secret` names, `${...}` placeholders, and `${{ secrets.* }}` are fine.
 - A swallowed failure in CI checks, scans, builds, or deploys, such as `|| true`, ignored exit
   codes, Trivy `exit-code: '0'`, or `continue-on-error`. Safe path: let the step fail. Intended
-  exceptions: a known upstream bug with a `TODO:` linking the issue (like `sst refresh` in
-  `deploy-infra.yaml`) and the best-effort `rollout status ... || true` waits in
-  `scripts/cluster/deploy.sh`. Lint suppressions like `# hadolint ignore=` aren't swallowed
-  failures.
+  exception: a known upstream bug with a `TODO:` linking the issue (like `sst refresh` in
+  `deploy-infra.yaml`). Lint suppressions like `# hadolint ignore=` aren't swallowed failures.
 - Missing wiring, because the thing silently never gets built, tested, deployed, or scanned, and a
   skipped path-filtered job still passes its required check:
   - a new `infra/` module outside `sst.config.ts`'s import graph;
@@ -239,11 +240,11 @@ that can't happen, or for compatibility code for old data or deploy order during
   - a new `${...}` manifest placeholder with no matching SST resource or computed variable in
     `scripts/cluster/deploy.sh`, which `pnpm cluster deploy` and Argo apply as literal text (fine
     for shell variables in embedded scripts);
-  - a new first-party image or chart missing from `build-and-publish.yaml`'s path filters or matrix,
-    or from the `branch-cleanup.yaml` and `maintenance.yaml` matrices, or a new first-party image
-    missing from the `security.yaml` scan;
-  - a new tested package missing its filter and job in `tests.yaml`, a new CI job missing from its
-    `*-pass` aggregate's `needs` (scheduled-only jobs excepted), or a new aggregate missing from
-    `requiredStatusChecks` in `infra/github.ts`;
+  - a new first-party image or chart missing from `changes.yaml`'s path filters or matrix, or from
+    the `branch-cleanup.yaml` and `maintenance.yaml` matrices, or a new first-party image missing
+    from the `security-audit.yaml` scan;
+  - a new tested package missing its filter in `changes.yaml` and its job in `tests.yaml`, a new CI
+    job missing from its `*-pass` aggregate's `needs` (scheduled-only jobs excepted), or a new
+    aggregate missing from `requiredStatusChecks` in `infra/github.ts`;
   - a new SST or Pages build input missing from the `deploy-infra.yaml` filters or `pathIncludes` in
     `infra/website.ts`.
