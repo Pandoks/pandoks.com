@@ -655,6 +655,17 @@ after changing them:
 
 `pnpm local:build && pnpm local:push` from the repo root does this for every package.
 
+The Ginkgo suite in [e2e](./e2e) installs the chart on local k3d and tests replication, failover,
+switchover, scaling, rolling upgrades, backups and restore-on-bootstrap. With the cluster up (see
+[packages/e2e](../e2e/README.md#running-a-suite)), from the repo root:
+
+```sh
+pnpm --filter @pandoks.com/postgres local:build && pnpm --filter @pandoks.com/postgres local:push
+mise exec -- go tool ginkgo -p ./packages/postgres/e2e -- \
+  --patroni-image=local-registry:5000/patroni:latest \
+  --pgbackrest-image=local-registry:5000/pgbackrest:latest
+```
+
 ## Configuration Reference
 
 ### Values
