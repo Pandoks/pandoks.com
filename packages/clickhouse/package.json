@@ -13,6 +13,6 @@
     "local:push:clickhouse": "docker push localhost:12345/clickhouse:latest",
     "local:push:keeper": "docker push localhost:12345/clickhouse-keeper:latest",
     "local:push:backup": "docker push localhost:12345/clickhouse-backup:latest",
-    "local:push:helm": "helm push clickhouse-*.tgz oci://localhost:12345/charts"
+    "local:push:helm": "helm push --plain-http clickhouse-*.tgz oci://localhost:12345/charts"
   }
 }

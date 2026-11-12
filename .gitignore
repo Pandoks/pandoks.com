@@ -68,5 +68,4 @@ apps/web/static/blog-images
 *.tgz
 
 # Local development
-/data
 /k3dconfig.yaml
