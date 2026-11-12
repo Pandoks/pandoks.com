@@ -146,7 +146,7 @@ cmd_publish() {
     printf '%s\n' "${cmd_publish_slug}/${cmd_publish_platform}/${cmd_publish_runtime_version}" > "${cmd_publish_export_dir}/${cmd_publish_platform}-key.txt"
   done
   # NOTE: --variable keeps the token out of the process list and the config file
-  curl --silent --show-error --parallel --variable %CLOUDFLARE_API_TOKEN --config "${cmd_publish_export_dir}/uploads.curlrc"
+  curl --silent --show-error --parallel --fail-early --variable %CLOUDFLARE_API_TOKEN --config "${cmd_publish_export_dir}/uploads.curlrc"
 
   # NOTE: written after the uploads, so no manifest names a missing file
   for cmd_publish_platform in ios android; do
