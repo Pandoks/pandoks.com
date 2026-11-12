@@ -48,6 +48,7 @@ for dir in \
   "third_party/blink/renderer/platform/network" \
   "third_party/blink/renderer/modules/webgpu" \
   "third_party/blink/renderer/modules/quota" \
+  "ui/color" \
   "components/embedder_support" \
   "media/base" \
   "content/browser/webauth" \
@@ -76,6 +77,7 @@ cp "$CS/third_party/blink/renderer/modules/quota/apex_quota.h" \
    "$SRC/third_party/blink/renderer/modules/quota/"
 cp "$CS/third_party/blink/renderer/platform/network/apex_netinfo.h" \
    "$SRC/third_party/blink/renderer/platform/network/"
+cp "$CS/ui/color/apex_system_colors.h" "$SRC/ui/color/"
 
 # --- 1. full-file overlays ------------------------------------------------
 # Only the two TINY single-function files are full-file overlays (a complete

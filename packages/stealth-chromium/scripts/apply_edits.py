@@ -1173,6 +1173,40 @@ EDITS = [
                   "    type = *apex_ect;\n"
                   "  }\n",
     },
+    # --- CSS system colors: Windows persona palette ---------------------
+    # rebrowser's platformMismatch: the browser claims Windows but CSS
+    # system colors are the Linux ones -- ActiveText = rgb(255,0,0), the
+    # built-in palette red. The CSS system-color surface is produced by
+    # LayoutTheme::SystemColorFromColorProvider -> ui::kColorCssSystem*,
+    # which on Linux resolves through CompleteDefaultCssSystemColor
+    # Definition() (ui/color/color_provider_utils.cc) because Linux's
+    # MapNativeColorsToCssSystemColors (ui/color/css_system_color_mixer.cc)
+    # is an EMPTY no-op: the whole palette is the hardcoded default table.
+    # Real Windows Chrome instead maps these ids from live GetSysColor()
+    # values (ui/color/win/css_system_color_mixer_win.cc -> native_color_
+    # mixers_win.cc). So the fix: after the upstream default assignments,
+    # overwrite the palette with the Windows defaults when the persona is
+    # Windows (gates on "APEX_FP_PLATFORM" / UA persona). Helper:
+    # chromium_src/ui/color/apex_system_colors.h (installed by apply.sh).
+    # Verified anchor (Chromium 157.0.8103.38): the tail of
+    # CompleteDefaultCssSystemColorDefinition -- the light-mode
+    # LinkText/VisitedText lines and the if/else close. Unique in the file.
+    {
+        "file": "ui/color/color_provider_utils.cc",
+        "header": '#include "ui/color/apex_system_colors.h"',
+        "marker": "apex-system-colors",
+        "anchor": "    mixer[kColorCssSystemLinkText] = "
+                  "{SkColorSetRGB(0x00, 0x00, 0xEE)};\n"
+                  "    mixer[kColorCssSystemVisitedText] = "
+                  "{SkColorSetRGB(0x55, 0x1A, 0x8B)};\n"
+                  "  }\n"
+                  "}",
+        "where": "after",
+        "inject": "  // apex-system-colors: a Windows persona replaces the\n"
+                  "  // Linux default CSS system palette (the ActiveText red\n"
+                  "  // is the platformMismatch tell). Gated on \"APEX_FP_PLATFORM\".\n"
+                  "  apex_system_colors::ApplyWindowsSystemColors(mixer, dark_mode);\n",
+    },
     # --- removed edits (do not re-add without new evidence) ------------
     # apex-chrome-app-gone: stock Chrome 157 still exposes chrome.app on web
     #   pages; removing it created a distinguisher instead of closing one.
