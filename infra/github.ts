@@ -1,5 +1,6 @@
 import { cloudflareAccountId, isProduction, STAGE_NAME } from './dns';
 import { defaultAwsRegion } from './aws';
+import { FIREBASE_PROJECT } from './firebase';
 import { secrets } from './secrets';
 import { tailscaleAcl } from './tailscale';
 
@@ -136,6 +137,67 @@ if (isProduction) {
     variableName: 'AWS_REGION',
     value: defaultAwsRegion
   });
+
+  // NOTE: CI needs these to deploy, so the first deploy imports them from the bootstrap in apps/push/README.md
+  const githubActionsGcpPool = new gcp.iam.WorkloadIdentityPool(
+    'GcpGithubActionsPool',
+    { project: FIREBASE_PROJECT, workloadIdentityPoolId: 'github' },
+    { import: `projects/${FIREBASE_PROJECT}/locations/global/workloadIdentityPools/github` }
+  );
+
+  const githubActionsGcpProvider = new gcp.iam.WorkloadIdentityPoolProvider(
+    'GcpGithubActionsProvider',
+    {
+      project: FIREBASE_PROJECT,
+      workloadIdentityPoolId: githubActionsGcpPool.workloadIdentityPoolId,
+      workloadIdentityPoolProviderId: 'github',
+      attributeMapping: { 'google.subject': 'assertion.sub' },
+      attributeCondition: `assertion.sub in ['repo:${githubOrg}/${githubRepositoryName}:environment:production', 'repo:${githubOrg}/${githubRepositoryName}:ref:refs/heads/main']`,
+      oidc: { issuerUri: 'https://token.actions.githubusercontent.com' }
+    },
+    {
+      import: `projects/${FIREBASE_PROJECT}/locations/global/workloadIdentityPools/github/providers/github`
+    }
+  );
+
+  const githubActionsGcpServiceAccount = new gcp.serviceaccount.Account(
+    'GcpGithubActionsServiceAccount',
+    { project: FIREBASE_PROJECT, accountId: 'github-actions' },
+    {
+      import: `projects/${FIREBASE_PROJECT}/serviceAccounts/github-actions@${FIREBASE_PROJECT}.iam.gserviceaccount.com`
+    }
+  );
+
+  new gcp.projects.IAMMember('GcpGithubActionsOwner', {
+    project: FIREBASE_PROJECT,
+    role: 'roles/owner',
+    member: githubActionsGcpServiceAccount.member
+  });
+
+  new gcp.serviceaccount.IAMMember('GcpGithubActionsWorkloadIdentityUser', {
+    serviceAccountId: githubActionsGcpServiceAccount.name,
+    role: 'roles/iam.workloadIdentityUser',
+    member: $interpolate`principalSet://iam.googleapis.com/${githubActionsGcpPool.name}/*`
+  });
+
+  new github.ActionsVariable(
+    'GithubGcpWorkloadIdentityProvider',
+    {
+      repository: githubRepositoryName,
+      variableName: 'GCP_WORKLOAD_IDENTITY_PROVIDER',
+      value: githubActionsGcpProvider.name
+    },
+    { import: `${githubRepositoryName}:GCP_WORKLOAD_IDENTITY_PROVIDER` }
+  );
+  new github.ActionsVariable(
+    'GithubGcpServiceAccount',
+    {
+      repository: githubRepositoryName,
+      variableName: 'GCP_SERVICE_ACCOUNT',
+      value: githubActionsGcpServiceAccount.email
+    },
+    { import: `${githubRepositoryName}:GCP_SERVICE_ACCOUNT` }
+  );
 
   new github.ActionsSecret('GithubTailscaleOauthClientId', {
     repository: githubRepositoryName,

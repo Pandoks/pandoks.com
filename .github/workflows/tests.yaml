@@ -65,6 +65,40 @@ jobs:
       - name: Run prettier package tests
         run: pnpm --filter @pandoks.com/prettier test
 
+  test-queue:
+    if: contains(fromJSON(inputs.jobs), 'queue')
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-trixie@sha256:3a4264520e121176619f54ff867d12774bc81e95e7b84db58d63bccdb6144b81
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 2s --health-retries 15
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: packages/queue/go.mod
+          cache-dependency-path: packages/queue/go.sum
+
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: uv python
+
+      - name: Run tests
+        run: pnpm --filter @pandoks.com/queue test
+
   test-valkey-reconciler:
     if: contains(fromJSON(inputs.jobs), 'valkey-reconciler')
     runs-on: ubuntu-latest
@@ -81,3 +115,33 @@ jobs:
 
       - name: Run tests
         run: pnpm --filter @pandoks.com/valkey test
+
+  test-push:
+    if: contains(fromJSON(inputs.jobs), 'push')
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-trixie@sha256:3a4264520e121176619f54ff867d12774bc81e95e7b84db58d63bccdb6144b81
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 2s --health-retries 15
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: apps/push/go.mod
+          cache-dependency-path: apps/push/go.sum
+
+      - name: Run tests
+        run: pnpm --filter @pandoks.com/push test

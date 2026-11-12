@@ -159,11 +159,19 @@ jobs:
             prettier:
               - 'packages/prettier/**'
               - *needs-node-setup
+            queue:
+              - '.github/actions/setup-mise/**'
+              - 'packages/queue/**'
+              - *needs-node-setup
             valkey-reconciler:
               - 'packages/valkey/reconciler/**'
               - 'packages/valkey/package.json'
               - 'go.work'
               - 'go.work.sum'
+              - *needs-node-setup
+            push:
+              - 'apps/push/**'
+              - 'packages/queue/**'
               - *needs-node-setup
 
       - id: image-changes
@@ -188,6 +196,9 @@ jobs:
               - 'packages/clickhouse/keeper/**'
             clickhouse-backup:
               - 'packages/clickhouse/backup/**'
+            push:
+              - 'apps/push/**'
+              - 'packages/queue/**'
 
       - id: chart-changes
         if: github.event_name != 'workflow_dispatch'
@@ -234,7 +245,7 @@ jobs:
 
       - id: set-unit-test-matrix
         run: |
-          all='["web","desktop","svelte","prettier","valkey-reconciler"]'
+          all='["web","desktop","svelte","prettier","queue","valkey-reconciler","push"]'
           selected='${{ steps.unit-test-changes.outputs.changes || '[]' }}'
           unit_tests=$(jq -c --argjson sel "${selected}" 'map(select(. as $job | $sel | index($job)))' <<<"${all}")
           echo "unit-tests=${unit_tests}" >> "${GITHUB_OUTPUT}"
@@ -251,7 +262,8 @@ jobs:
             {"name":"argocd-sst-plugin","package":"argocd","path":"./packages/argocd/Dockerfile"},
             {"name":"clickhouse","package":"clickhouse","path":"./packages/clickhouse/clickhouse/Dockerfile"},
             {"name":"clickhouse-keeper","package":"clickhouse","path":"./packages/clickhouse/keeper/Dockerfile"},
-            {"name":"clickhouse-backup","package":"clickhouse","path":"./packages/clickhouse/backup/Dockerfile"}
+            {"name":"clickhouse-backup","package":"clickhouse","path":"./packages/clickhouse/backup/Dockerfile"},
+            {"name":"push","package":"push","path":"./apps/push/Dockerfile"}
           ]'
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             selected=$(jq -c 'to_entries | map(select(.value == true) | .key)' <<<"${DISPATCH}")

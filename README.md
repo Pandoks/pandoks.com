@@ -52,6 +52,14 @@ pnpm install
 > [!NOTE]
 > AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while
 
+5. Deploying a non-production stage also needs Google credentials for the `pandoks-dev` project (see
+   [apps/push/README.md](/apps/push/README.md#setup)):
+
+```sh
+gcloud auth application-default login
+gcloud auth application-default set-quota-project pandoks-dev
+```
+
 ## Local Kubernetes Cluster
 
 Although not all of the apps are deployed to Kubernetes, majority of the services are running in a

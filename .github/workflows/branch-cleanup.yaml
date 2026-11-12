@@ -48,6 +48,7 @@ jobs:
           - clickhouse
           - clickhouse-keeper
           - clickhouse-backup
+          - push
     steps:
       - name: Delete GHCR versions for deleted branch
         shell: bash
