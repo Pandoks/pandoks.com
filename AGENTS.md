@@ -11,6 +11,8 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
 - Stay close to the metal with few providers and managed services. Simplest architecture, fewest
   moving parts, least code a human can still read; new files, helpers, options, env vars, and
   dependencies need a reason the change can't work without them.
+- Choose where code runs by latency to its callers: keep it in the cluster when its callers are
+  there, move it to a provider's primitives when they're not.
 - Use the native or industry-standard mechanism first (Kustomize, ArgoCD, GitHub Actions, Renovate,
   SST, mise, our formatters) and check how mature projects solve it. Work around only an unfixed
   upstream bug, with a `TODO:` linking the issue.
@@ -94,9 +96,11 @@ checkout. The SST CLI is `pnpm sst`.
   or `infra/` shows hundreds of false type errors.
 - `pnpm check` type-checks every package, `infra/`, and `sst.config.ts`.
 - Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, and `desktop-template`;
-  `pnpm --filter <package> test` for `prettier` and `valkey`;
+  `pnpm --filter <package> test` for `prettier`, `valkey`, and `mobile-updates`;
   `go tool ginkgo -p ./packages/<pkg>/e2e` for a package's e2e suite on local k3d
   (`packages/e2e/README.md`).
+- Mobile updates: `pnpm sst shell --stage <stage> -- pnpm mobile-updates publish apps/<app>`;
+  production publishes only from `deploy-infra.yaml` on `main`.
 - Scoped: `pnpm exec prettier --check <files>`, `pnpm exec eslint [--fix] <files>`, `shellcheck`,
   `shfmt -d`, `hadolint`, `actionlint`, `pnpm --filter "...[origin/main]" --if-present check`. That
   filter and the shell and Docker format and lint commands see only tracked files, so check new

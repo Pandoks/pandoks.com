@@ -165,6 +165,9 @@ jobs:
               - 'go.work'
               - 'go.work.sum'
               - *needs-node-setup
+            mobile-updates:
+              - 'apps/mobile-updates/**'
+              - *needs-node-setup
 
       - id: image-changes
         if: github.event_name != 'workflow_dispatch'
@@ -234,7 +237,7 @@ jobs:
 
       - id: set-unit-test-matrix
         run: |
-          all='["web","desktop","svelte","prettier","valkey-reconciler"]'
+          all='["web","desktop","svelte","prettier","valkey-reconciler","mobile-updates"]'
           selected='${{ steps.unit-test-changes.outputs.changes || '[]' }}'
           unit_tests=$(jq -c --argjson sel "${selected}" 'map(select(. as $job | $sel | index($job)))' <<<"${all}")
           echo "unit-tests=${unit_tests}" >> "${GITHUB_OUTPUT}"

@@ -6,6 +6,14 @@ export const domain = isProduction ? 'pandoks.com' : 'dev.pandoks.com';
 
 export const EXAMPLE_DOMAIN = 'example.pandoks.com';
 
+// NOTE: not *.dev.pandoks.com, since Cloudflare's free edge certificate covers only one subdomain level
+export const MOBILE_UPDATES_DOMAIN = isProduction
+  ? 'mobile-updates.pandoks.com'
+  : 'mobile-updates-dev.pandoks.com';
+export const MOBILE_UPDATES_ASSETS_DOMAIN = isProduction
+  ? 'mobile-updates-assets.pandoks.com'
+  : 'mobile-updates-assets-dev.pandoks.com';
+
 export const STAGE_NAME = isProduction ? 'prod' : 'dev';
 
 secrets.Stage.value.apply((stageName) => {
