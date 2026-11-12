@@ -424,7 +424,9 @@ kubectl exec -n myapp patroni-myapp-group-0-0 -c patroni -- \
 Stop the workers first, since a worker primary notifies the coordinator before it stops:
 
 ```bash
-kubectl scale statefulset -n myapp -l 'app=patroni-myapp,citus-group!=0' --replicas=0
+for worker in $(kubectl get statefulset -n myapp -l 'app=patroni-myapp,citus-group!=0' -o name); do
+  kubectl scale -n myapp "${worker}" --replicas=0
+done
 kubectl wait --for=delete pod -n myapp -l 'app=patroni-myapp,citus-group!=0' --timeout=300s
 kubectl scale statefulset -n myapp patroni-myapp-group-0 --replicas=0
 kubectl wait --for=delete pod -n myapp -l app=patroni-myapp --timeout=300s

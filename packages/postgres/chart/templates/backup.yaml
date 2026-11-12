@@ -51,8 +51,7 @@ spec:
                   value: {{ .Values.db }}
                 - name: PGUSER
                   value: postgres
-                # NOTE: Citus's advice, so a long distributed write fails this attempt instead of
-                # letting it block every write queued behind it
+                # NOTE: Citus's advice; it bounds only the coordinator's lock wait, not the workers'
                 - name: PGOPTIONS
                   value: -c lock_timeout=1s
                 - name: PGPASSWORD
