@@ -32,7 +32,7 @@ metadata:
   namespace: {{ .Values.namespace }}
 data:
   pgbackrest.conf: |
-{{ .Files.Get "files/pgbackrest-server.conf" | indent 4 }}
+{{ tpl (.Files.Get "files/pgbackrest-server.conf") . | indent 4 }}
 
 {{- range $shardIndex := until (int $.Values.patroni.shards) }}
 ---
@@ -56,9 +56,6 @@ spec:
     - name: postgres
       port: 5432
       targetPort: 5432
-    - name: pgbackrest
-      port: 8432
-      targetPort: 8432
 
 ---
 # provides a stable ip for all replicas

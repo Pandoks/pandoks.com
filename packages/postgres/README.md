@@ -47,8 +47,10 @@ graph TB
     S1P -.->|Streaming Replication| S1R1
     S1P -.->|Streaming Replication| S1R2
 
-    BackupJobs -->|TLS| S0P
-    BackupJobs -->|TLS| S1P
+    BackupJobs -->|TLS| S0R1
+    BackupJobs -->|TLS| S1R1
+    BackupJobs -.->|TLS if no replica is up| S0P
+    BackupJobs -.->|TLS if no replica is up| S1P
     BackupJobs --> S3
 
     style S0P fill:#90EE90
@@ -84,7 +86,9 @@ graph TB
 
 ### pgBackRest (Backup & Recovery)
 
-- **Per-shard backups** - each shard has its own stanza, backed up from its primary
+- **Per-shard backups** - each shard has its own stanza, backed up from the first running replica
+  pgBackRest finds among the shard's pods (each listed by its DNS name), or from the primary if none
+  is up
 - **Automated schedules** - full, differential, and incremental backups
 - **Point-in-time recovery** - restore to any moment
 - **Encryption** - AES-256-CBC for all backups
