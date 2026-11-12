@@ -3,7 +3,7 @@ import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
 import * as cloudflare from '@pulumi/cloudflare';
 import { buildSync } from 'esbuild';
-import { providers, secrets } from './secrets.ts';
+import { secrets } from './secrets.ts';
 import { cloudflareZoneId, domain, isProduction, STAGE_NAME } from './dns.ts';
 import { githubOrg, githubRepositoryName } from './github.ts';
 
@@ -175,18 +175,14 @@ const apiCertificate = new aws.acm.Certificate('ApiCertificate', {
   validationMethod: 'DNS'
 });
 const apiCertificateValidationOption = apiCertificate.domainValidationOptions[0];
-const apiCertificateValidationRecord = new cloudflare.DnsRecord(
-  'ApiCertificateValidationRecord',
-  {
-    zoneId: cloudflareZoneId,
-    name: apiCertificateValidationOption.resourceRecordName,
-    type: apiCertificateValidationOption.resourceRecordType,
-    content: apiCertificateValidationOption.resourceRecordValue,
-    proxied: false,
-    ttl: 60
-  },
-  { provider: providers.cloudflare }
-);
+const apiCertificateValidationRecord = new cloudflare.DnsRecord('ApiCertificateValidationRecord', {
+  zoneId: cloudflareZoneId,
+  name: apiCertificateValidationOption.resourceRecordName,
+  type: apiCertificateValidationOption.resourceRecordType,
+  content: apiCertificateValidationOption.resourceRecordValue,
+  proxied: false,
+  ttl: 60
+});
 const apiCertificateValidation = new aws.acm.CertificateValidation('ApiCertificateValidation', {
   certificateArn: apiCertificate.arn,
   validationRecordFqdns: [apiCertificateValidationRecord.name]
@@ -205,17 +201,13 @@ new aws.apigatewayv2.ApiMapping('ApiMapping', {
   domainName: apiDomainName.id,
   stage: apiStage.id
 });
-new cloudflare.DnsRecord(
-  'ApiDnsRecord',
-  {
-    zoneId: cloudflareZoneId,
-    name: apiDomain,
-    type: 'CNAME',
-    content: apiDomainName.domainNameConfiguration.targetDomainName,
-    proxied: false,
-    ttl: 60
-  },
-  { provider: providers.cloudflare }
-);
+new cloudflare.DnsRecord('ApiDnsRecord', {
+  zoneId: cloudflareZoneId,
+  name: apiDomain,
+  type: 'CNAME',
+  content: apiDomainName.domainNameConfiguration.targetDomainName,
+  proxied: false,
+  ttl: 60
+});
 
 export const outputs = { NotionBlogDatabaseId: NOTION_BLOG_DATABASE_ID };

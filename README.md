@@ -97,13 +97,16 @@ See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI comman
 Everything outside Kubernetes is a [Pulumi](https://www.pulumi.com/docs/) program in `infra/`, with
 one stack per stage (`production`, `dev`, and personal stacks like `pandoks`). State lives in the R2
 bucket in `Pulumi.yaml`, each `Pulumi.<stack>.yaml` names the KMS key that encrypts it, and every
-secret in `infra/secrets.ts` is an SSM `SecureString` at `/pulumi/<stack>/<Name>`:
+secret in `infra/secrets.ts` is an SSM `SecureString` at `/pulumi/<stack>/<Name>`, encrypted with
+the same key. Runner instances can read any SSM parameter but can't use these keys, so never write
+one with the default `aws/ssm` key:
 
 ```sh
 pulumi preview --stack your-stack
 pulumi up --stack your-stack
 # file:// keeps the value byte for byte; write it with printf '%s' to avoid a trailing newline
-aws ssm put-parameter --overwrite --type SecureString --name /pulumi/your-stack/<Name> --value file://<file>
+aws ssm put-parameter --overwrite --type SecureString --key-id alias/pulumi-nonproduction \
+  --name /pulumi/your-stack/<Name> --value file://<file>
 ```
 
 A new stack needs every secret in `infra/secrets.ts` and a committed `Pulumi.<stack>.yaml` from

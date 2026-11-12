@@ -1,6 +1,5 @@
 import * as hcloud from '@pulumi/hcloud';
 import { STAGE_NAME } from '../dns.ts';
-import { providers } from '../secrets.ts';
 
 export function createLoadBalancers(
   loadBalancerArgs: {
@@ -32,37 +31,31 @@ export function createLoadBalancers(
         loadBalancerType: hcloudLoadBalancerArgs.type,
         location: hcloudLoadBalancerArgs.location,
         algorithm: { type: hcloudLoadBalancerArgs.algorithm }
-      },
-      { provider: providers.hcloud }
+      }
     );
     const publicLoadBalancerNetwork = new hcloud.LoadBalancerNetwork(
       `HetznerK3sPublic${loadBalancerResourceName}LoadBalancer${i}Network`,
       {
         loadBalancerId: publicLoadBalancer.id.apply((id) => parseInt(id)),
         networkId: loadBalancerArgs.network.id.apply((id) => parseInt(id))
-      },
-      { provider: providers.hcloud }
+      }
     );
     // Only enable https on the load balancer because we're using Cloudflare Strict
-    new hcloud.LoadBalancerService(
-      `HetznerK3s${loadBalancerResourceName}LoadBalancer${i}Port443`,
-      {
-        loadBalancerId: publicLoadBalancer.id,
+    new hcloud.LoadBalancerService(`HetznerK3s${loadBalancerResourceName}LoadBalancer${i}Port443`, {
+      loadBalancerId: publicLoadBalancer.id,
+      protocol: 'tcp',
+      listenPort: 443,
+      destinationPort: 30443,
+      // NOTE: shows requests come from Cloudflare; without it, only the LB's private IP shows.
+      proxyprotocol: true,
+      healthCheck: {
         protocol: 'tcp',
-        listenPort: 443,
-        destinationPort: 30443,
-        // NOTE: shows requests come from Cloudflare; without it, only the LB's private IP shows.
-        proxyprotocol: true,
-        healthCheck: {
-          protocol: 'tcp',
-          port: 30443,
-          interval: 10,
-          timeout: 3,
-          retries: 3
-        }
-      },
-      { provider: providers.hcloud }
-    );
+        port: 30443,
+        interval: 10,
+        timeout: 3,
+        retries: 3
+      }
+    });
     publicLoadBalancers.push({
       loadbalancer: publicLoadBalancer,
       network: publicLoadBalancerNetwork

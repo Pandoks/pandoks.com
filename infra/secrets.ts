@@ -95,8 +95,9 @@ export const secrets = {
   }
 };
 
-// NOTE: explicit, so no stack picks up ambient credentials; Pulumi.yaml disables the defaults.
-export const providers = {
+// NOTE: every resource and invoke of these packages gets its explicit provider, so no stack picks up
+// ambient credentials. Pulumi.yaml disables their defaults, so anything this misses fails.
+const providers: Record<string, pulumi.ProviderResource> = {
   cloudflare: new cloudflare.Provider('Cloudflare', { apiToken: secrets.cloudflare.ApiKey }),
   github: new github.Provider('Github', { token: secrets.github.PersonalAccessToken }),
   hcloud: new hcloud.Provider('Hetzner', { token: secrets.hetzner.ApiKey }),
@@ -105,3 +106,11 @@ export const providers = {
     oauthClientSecret: secrets.tailscale.OauthClientSecret
   })
 };
+pulumi.runtime.registerResourceTransform(({ type, props, opts }) => ({
+  props,
+  opts: { ...opts, provider: opts.provider ?? providers[type.split(':')[0]] }
+}));
+pulumi.runtime.registerInvokeTransform(({ token, args, opts }) => ({
+  args,
+  opts: { ...opts, provider: opts.provider ?? providers[token.split(':')[0]] }
+}));

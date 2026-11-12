@@ -2,120 +2,99 @@ import * as pulumi from '@pulumi/pulumi';
 import * as cloudflare from '@pulumi/cloudflare';
 import { cloudflareAccountId, cloudflareZoneId, domain, isProduction } from './dns.ts';
 import { githubOrg, githubRepositoryName } from './github.ts';
-import { providers } from './secrets.ts';
 
 const NODE_VERSION = '24.22.2';
 
 if (isProduction) {
-  const personalStaticWebsite = new cloudflare.PagesProject(
-    'PersonalWebsite',
-    {
-      accountId: cloudflareAccountId,
-      name: 'pandoks',
-      productionBranch: 'main',
-      source: {
-        type: 'github',
-        config: {
-          owner: githubOrg,
-          repoName: githubRepositoryName,
-          productionBranch: 'main',
-          prCommentsEnabled: true,
-          pathIncludes: [
-            'apps/web/*',
-            'package.json',
-            'packages/svelte/*',
-            'pnpm-lock.yaml',
-            'pnpm-workspace.yaml'
-          ]
-        }
-      },
-      buildConfig: {
-        buildCommand: 'pnpm --filter web build',
-        destinationDir: 'apps/web/build',
-        rootDir: '',
-        buildCaching: true
-      },
-      deploymentConfigs: {
-        preview: {
-          envVars: {
-            NODE_VERSION: { type: 'plain_text', value: NODE_VERSION }
-          }
-        },
-        production: {
-          envVars: {
-            NODE_VERSION: { type: 'plain_text', value: NODE_VERSION }
-          }
-        }
+  const personalStaticWebsite = new cloudflare.PagesProject('PersonalWebsite', {
+    accountId: cloudflareAccountId,
+    name: 'pandoks',
+    productionBranch: 'main',
+    source: {
+      type: 'github',
+      config: {
+        owner: githubOrg,
+        repoName: githubRepositoryName,
+        productionBranch: 'main',
+        prCommentsEnabled: true,
+        pathIncludes: [
+          'apps/web/*',
+          'package.json',
+          'packages/svelte/*',
+          'pnpm-lock.yaml',
+          'pnpm-workspace.yaml'
+        ]
       }
     },
-    { provider: providers.cloudflare }
-  );
-  new cloudflare.PagesDomain(
-    'PersonalWebsiteDomain',
-    {
-      accountId: cloudflareAccountId,
-      projectName: personalStaticWebsite.name,
-      name: domain
+    buildConfig: {
+      buildCommand: 'pnpm --filter web build',
+      destinationDir: 'apps/web/build',
+      rootDir: '',
+      buildCaching: true
     },
-    { provider: providers.cloudflare }
-  );
+    deploymentConfigs: {
+      preview: {
+        envVars: {
+          NODE_VERSION: { type: 'plain_text', value: NODE_VERSION }
+        }
+      },
+      production: {
+        envVars: {
+          NODE_VERSION: { type: 'plain_text', value: NODE_VERSION }
+        }
+      }
+    }
+  });
+  new cloudflare.PagesDomain('PersonalWebsiteDomain', {
+    accountId: cloudflareAccountId,
+    projectName: personalStaticWebsite.name,
+    name: domain
+  });
 
-  new cloudflare.DnsRecord(
-    'PersonalWebsiteDnsRecord',
-    {
-      zoneId: cloudflareZoneId,
-      name: domain,
-      type: 'CNAME',
-      content: pulumi.interpolate`${personalStaticWebsite.name}.pages.dev`,
-      proxied: true,
-      ttl: 1
-    },
-    { provider: providers.cloudflare }
-  );
+  new cloudflare.DnsRecord('PersonalWebsiteDnsRecord', {
+    zoneId: cloudflareZoneId,
+    name: domain,
+    type: 'CNAME',
+    content: pulumi.interpolate`${personalStaticWebsite.name}.pages.dev`,
+    proxied: true,
+    ttl: 1
+  });
 
-  const pagesDotDevRedirects = new cloudflare.List(
-    'PagesDotDevRedirectList',
-    {
-      accountId: cloudflareAccountId,
-      kind: 'redirect',
-      name: 'pages_dot_dev_redirects',
-      items: [
-        {
-          redirect: {
-            sourceUrl: 'pandoks.pages.dev/',
-            targetUrl: 'https://pandoks.com',
-            statusCode: 301,
-            includeSubdomains: false,
-            subpathMatching: true,
-            preserveQueryString: true
+  const pagesDotDevRedirects = new cloudflare.List('PagesDotDevRedirectList', {
+    accountId: cloudflareAccountId,
+    kind: 'redirect',
+    name: 'pages_dot_dev_redirects',
+    items: [
+      {
+        redirect: {
+          sourceUrl: 'pandoks.pages.dev/',
+          targetUrl: 'https://pandoks.com',
+          statusCode: 301,
+          includeSubdomains: false,
+          subpathMatching: true,
+          preserveQueryString: true
+        }
+      }
+    ]
+  });
+
+  new cloudflare.Ruleset('PagesDotDevRedirectRuleset', {
+    accountId: cloudflareAccountId,
+    kind: 'root',
+    phase: 'http_request_redirect',
+    name: 'account_bulk_redirects',
+    rules: [
+      {
+        action: 'redirect',
+        actionParameters: {
+          fromList: {
+            name: pagesDotDevRedirects.name,
+            key: 'http.request.full_uri'
           }
-        }
-      ]
-    },
-    { provider: providers.cloudflare }
-  );
-
-  new cloudflare.Ruleset(
-    'PagesDotDevRedirectRuleset',
-    {
-      accountId: cloudflareAccountId,
-      kind: 'root',
-      phase: 'http_request_redirect',
-      name: 'account_bulk_redirects',
-      rules: [
-        {
-          action: 'redirect',
-          actionParameters: {
-            fromList: {
-              name: pagesDotDevRedirects.name,
-              key: 'http.request.full_uri'
-            }
-          },
-          expression: pulumi.interpolate`http.request.full_uri in $${pagesDotDevRedirects.name}`,
-          enabled: true
-        }
-      ]
-    },
-    { provider: providers.cloudflare }
-  );
+        },
+        expression: pulumi.interpolate`http.request.full_uri in $${pagesDotDevRedirects.name}`,
+        enabled: true
+      }
+    ]
+  });
 }

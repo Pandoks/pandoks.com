@@ -3,7 +3,6 @@ import * as aws from '@pulumi/aws';
 import * as cloudflare from '@pulumi/cloudflare';
 import { usWest2Provider } from './aws.ts';
 import { cloudflareAccountId, isProduction, STAGE_NAME } from './dns.ts';
-import { providers } from './secrets.ts';
 
 export const backupBucket = new cloudflare.R2Bucket(
   'BackupBucket',
@@ -14,7 +13,7 @@ export const backupBucket = new cloudflare.R2Bucket(
     location: 'wnam',
     storageClass: 'Standard'
   },
-  { provider: providers.cloudflare, protect: isProduction, retainOnDelete: isProduction }
+  { protect: isProduction, retainOnDelete: isProduction }
 );
 
 export const s3Endpoint = `${cloudflareAccountId}.r2.cloudflarestorage.com`;

@@ -57,8 +57,9 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
    and inspect manifests with `kustomize build`. `Pulumi.<stack>.yaml` holds only the KMS secrets
    provider and encrypted data key. New secrets go in `infra/secrets.ts`; one without a value fails
    every preview and deploy of its stack, so write yours byte for byte with
-   `aws ssm put-parameter --type SecureString --name /pulumi/<stack>/<Name> --value file://<file>`
-   and ask me to set production's.
+   `aws ssm put-parameter --type SecureString --key-id alias/pulumi-nonproduction --name /pulumi/<stack>/<Name> --value file://<file>`
+   and ask me to set production's (`alias/pulumi-production`). Runner instances can read every SSM
+   parameter, so never write a `/pulumi/` value with the default `aws/ssm` key.
 
 ## How changes ship
 
@@ -70,11 +71,12 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
   deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `pulumi up --refresh --stack production` for
-  `Pulumi.yaml`, `Pulumi.production.yaml`, `infra/`, `apps/` (except `example`), and
-  `packages/svelte/`, plus an Argo hard refresh and a wait for Synced and Healthy only for `k3s/`,
-  `apps/*/kube/`, and `scripts/cluster/` changes. Pages builds `apps/web` when a change matches
-  `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod` renders but
-  never prunes: a deleted resource stays in prod until pruned by hand.
+  `Pulumi.yaml`, `Pulumi.production.yaml`, the root `package.json` and `pnpm-lock.yaml`, `infra/`,
+  `apps/` (except `example`), and `packages/svelte/`, plus an Argo hard refresh and a wait for
+  Synced and Healthy only for `k3s/`, `apps/*/kube/`, and `scripts/cluster/` changes. Pages builds
+  `apps/web` when a change matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything
+  `k3s/overlays/prod` renders but never prunes: a deleted resource stays in prod until pruned by
+  hand.
 - Every non-production stack gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
   environment, so two non-production stacks collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
@@ -169,10 +171,8 @@ Before calling infra, cluster, or tooling work done, check:
 - **TypeScript/Pulumi:** one `infra/` file per provider or responsibility, a directory once it
   outgrows one. Stack differences are `SCREAMING_SNAKE` constants from `isProduction ? a : b` at the
   top, plus `if (isProduction)` around production-only resources. Node runs `infra/` by stripping
-  types, so import relative modules with `.ts`. Pass `providers.<name>` from `infra/secrets.ts` to
-  every Cloudflare, GitHub, Hetzner, and Tailscale resource and invoke; `Pulumi.yaml` disables their
-  default providers. Helpers are verb-named `function` declarations with destructured parameters.
-  `Promise.all` instead of awaiting in loops.
+  types, so import relative modules with `.ts`. Helpers are verb-named `function` declarations with
+  destructured parameters. `Promise.all` instead of awaiting in loops.
 - **Go:** justify every `#nosec` or `//nolint` inline.
 - **Containers and manifests:** pin Dockerfile bases, third-party images, and chart defaults as
   `image:tag@sha256:…` in files a Renovate manager matches; no image lock files. Images in raw

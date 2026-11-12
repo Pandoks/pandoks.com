@@ -7,7 +7,6 @@ import { isProduction, STAGE_NAME } from '../dns.ts';
 import { createServers } from './servers.ts';
 import { createLoadBalancers } from './load-balancers.ts';
 import { deleteTailscaleDevices } from '../tailscale.ts';
-import { providers } from '../secrets.ts';
 
 // NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
 const CONTROL_PLANE_NODE_COUNT = isProduction ? 0 : 0;
@@ -37,40 +36,28 @@ const loadBalancerServerCapacity = 25;
  *
  * You'll probably want to rename a bunch of the resources and variable names when you do.
  */
-const privateNetwork = new hcloud.Network(
-  'HetznerK3sPrivateNetwork',
-  {
-    name: `k3s-private-${STAGE_NAME}-network`,
-    ipRange: '10.0.0.0/8'
-  },
-  { provider: providers.hcloud }
-);
-const subnet = new hcloud.NetworkSubnet(
-  'HetznerK3sSubnet',
-  {
-    networkId: privateNetwork.id.apply((id) => parseInt(id)),
-    type: 'cloud',
-    ipRange: '10.0.1.0/24',
-    networkZone: NETWORK_ZONE
-  },
-  { provider: providers.hcloud }
-);
-export const inboundFirewall = new hcloud.Firewall(
-  'HetznerInboundFirewall',
-  {
-    name: 'inbound',
-    rules: [
-      {
-        direction: 'in',
-        protocol: 'udp',
-        port: '41641',
-        description: 'tailscale',
-        sourceIps: ['0.0.0.0/0', '::/0']
-      }
-    ]
-  },
-  { provider: providers.hcloud }
-);
+const privateNetwork = new hcloud.Network('HetznerK3sPrivateNetwork', {
+  name: `k3s-private-${STAGE_NAME}-network`,
+  ipRange: '10.0.0.0/8'
+});
+const subnet = new hcloud.NetworkSubnet('HetznerK3sSubnet', {
+  networkId: privateNetwork.id.apply((id) => parseInt(id)),
+  type: 'cloud',
+  ipRange: '10.0.1.0/24',
+  networkZone: NETWORK_ZONE
+});
+export const inboundFirewall = new hcloud.Firewall('HetznerInboundFirewall', {
+  name: 'inbound',
+  rules: [
+    {
+      direction: 'in',
+      protocol: 'udp',
+      port: '41641',
+      description: 'tailscale',
+      sourceIps: ['0.0.0.0/0', '::/0']
+    }
+  ]
+});
 
 const controlPlaneLoadBalancerCount =
   Math.ceil(CONTROL_PLANE_NODE_COUNT / loadBalancerServerCapacity) * LOAD_BALANCERS_PER_NODE;
@@ -146,10 +133,7 @@ const { tailscaleHostnames: _workerTailscaleHostnames, servers: _workerServers }
 
 // NOTE: only on update, so a preview never deletes devices.
 if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0 && !pulumi.runtime.isDryRun()) {
-  const { devices = [] } = await tailscale.getDevices(
-    { namePrefix: `${STAGE_NAME}` },
-    { provider: providers.tailscale }
-  );
+  const { devices = [] } = await tailscale.getDevices({ namePrefix: `${STAGE_NAME}` });
 
   const kubernetesDevices = devices.filter(
     (device) => device.tags.includes('tag:k8s') && device.tags.includes(`tag:${STAGE_NAME}`)

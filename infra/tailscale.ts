@@ -1,16 +1,12 @@
 import * as pulumi from '@pulumi/pulumi';
 import * as tailscale from '@pulumi/tailscale';
 import stringify from 'json-stringify-pretty-compact';
-import { providers, secrets } from './secrets.ts';
+import { secrets } from './secrets.ts';
 import { STAGE_NAME } from './dns.ts';
 
-new tailscale.TailnetSettings(
-  'TailscaleSettings',
-  {
-    httpsEnabled: true
-  },
-  { provider: providers.tailscale }
-);
+new tailscale.TailnetSettings('TailscaleSettings', {
+  httpsEnabled: true
+});
 
 export const hubTailscaleServices = [
   { name: 'cliproxyapi', comment: 'CLIProxyAPI on the homelab hub' },
@@ -19,88 +15,84 @@ export const hubTailscaleServices = [
   { name: 'artex', comment: 'ARTEX on the homelab hub' }
 ];
 
-export const tailscaleAcl = new tailscale.Acl(
-  'TailscaleAcl',
-  {
-    resetAclOnDestroy: true,
-    // NOTE: overwriteExistingContent is set to true so it works in all stages. we do this because
-    // the tailnet isn't used for any important networking. it is solely to access the devices.
-    // WARNING: a change to this will overwrite the ACL on all stages.
-    overwriteExistingContent: true,
-    acl: stringify(
-      {
-        nodeAttrs: [
-          {
-            target: ['tag:funnel'],
-            attr: ['funnel']
-          }
-        ],
-        autoApprovers: {
-          services: Object.fromEntries(
-            hubTailscaleServices.map(({ name }) => [`svc:${name}`, ['tag:hub']])
-          )
-        },
-        grants: [
-          { src: ['*'], dst: ['*'], ip: ['*'] },
-          {
-            src: ['tag:ci'],
-            dst: ['tag:k8s-operator'],
-            app: {
-              'tailscale.com/cap/kubernetes': [
-                {
-                  impersonate: { groups: ['argocd-deployer'] }
-                }
-              ]
-            }
-          }
-        ],
-        ssh: [
-          {
-            action: 'check',
-            src: ['autogroup:member'],
-            dst: ['autogroup:self'],
-            users: ['autogroup:nonroot', 'root']
-          },
-          {
-            action: 'check',
-            src: ['pandoks@github'],
-            dst: ['tag:hetzner', 'tag:ovh'],
-            users: ['autogroup:nonroot', 'root']
-          },
-          {
-            action: 'check',
-            src: ['autogroup:member'],
-            dst: ['tag:ssh'],
-            users: ['autogroup:nonroot']
-          },
-          // NOTE: tailscale doesn't allow check mode from tagged devices
-          {
-            action: 'accept',
-            src: ['tag:ssh'],
-            dst: ['tag:ssh'],
-            users: ['autogroup:nonroot']
-          }
-        ],
-        tagOwners: {
-          'tag:funnel': ['pandoks@github'],
-          'tag:hetzner': ['pandoks@github'],
-          'tag:ovh': ['pandoks@github'],
-          'tag:k8s-operator': ['tag:k8s-operator'],
-          'tag:k8s': ['tag:k8s-operator'],
-          'tag:control-plane': ['pandoks@github'],
-          'tag:worker': ['pandoks@github'],
-          'tag:dev': ['pandoks@github', 'tag:k8s-operator'],
-          'tag:prod': ['pandoks@github', 'tag:k8s-operator'],
-          'tag:ci': ['pandoks@github'],
-          'tag:hub': ['pandoks@github'],
-          'tag:ssh': ['pandoks@github']
+export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
+  resetAclOnDestroy: true,
+  // NOTE: overwriteExistingContent is set to true so it works in all stages. we do this because
+  // the tailnet isn't used for any important networking. it is solely to access the devices.
+  // WARNING: a change to this will overwrite the ACL on all stages.
+  overwriteExistingContent: true,
+  acl: stringify(
+    {
+      nodeAttrs: [
+        {
+          target: ['tag:funnel'],
+          attr: ['funnel']
         }
+      ],
+      autoApprovers: {
+        services: Object.fromEntries(
+          hubTailscaleServices.map(({ name }) => [`svc:${name}`, ['tag:hub']])
+        )
       },
-      { maxLength: 80, indent: 2 }
-    )
-  },
-  { provider: providers.tailscale }
-);
+      grants: [
+        { src: ['*'], dst: ['*'], ip: ['*'] },
+        {
+          src: ['tag:ci'],
+          dst: ['tag:k8s-operator'],
+          app: {
+            'tailscale.com/cap/kubernetes': [
+              {
+                impersonate: { groups: ['argocd-deployer'] }
+              }
+            ]
+          }
+        }
+      ],
+      ssh: [
+        {
+          action: 'check',
+          src: ['autogroup:member'],
+          dst: ['autogroup:self'],
+          users: ['autogroup:nonroot', 'root']
+        },
+        {
+          action: 'check',
+          src: ['pandoks@github'],
+          dst: ['tag:hetzner', 'tag:ovh'],
+          users: ['autogroup:nonroot', 'root']
+        },
+        {
+          action: 'check',
+          src: ['autogroup:member'],
+          dst: ['tag:ssh'],
+          users: ['autogroup:nonroot']
+        },
+        // NOTE: tailscale doesn't allow check mode from tagged devices
+        {
+          action: 'accept',
+          src: ['tag:ssh'],
+          dst: ['tag:ssh'],
+          users: ['autogroup:nonroot']
+        }
+      ],
+      tagOwners: {
+        'tag:funnel': ['pandoks@github'],
+        'tag:hetzner': ['pandoks@github'],
+        'tag:ovh': ['pandoks@github'],
+        'tag:k8s-operator': ['tag:k8s-operator'],
+        'tag:k8s': ['tag:k8s-operator'],
+        'tag:control-plane': ['pandoks@github'],
+        'tag:worker': ['pandoks@github'],
+        'tag:dev': ['pandoks@github', 'tag:k8s-operator'],
+        'tag:prod': ['pandoks@github', 'tag:k8s-operator'],
+        'tag:ci': ['pandoks@github'],
+        'tag:hub': ['pandoks@github'],
+        'tag:ssh': ['pandoks@github']
+      }
+    },
+    { maxLength: 80, indent: 2 }
+  )
+});
 
 export const kubernetesOperatorOauthClient = new tailscale.OauthClient(
   `${STAGE_NAME}TailscaleKubernetesOperatorOauthClient`.replace(/^./, (char) => char.toUpperCase()),
@@ -109,7 +101,7 @@ export const kubernetesOperatorOauthClient = new tailscale.OauthClient(
     scopes: ['devices:core', 'auth_keys', 'services'],
     tags: ['tag:k8s-operator', `tag:${STAGE_NAME}`]
   },
-  { provider: providers.tailscale, dependsOn: [tailscaleAcl] }
+  { dependsOn: [tailscaleAcl] }
 );
 
 async function tailscaleApiToken({

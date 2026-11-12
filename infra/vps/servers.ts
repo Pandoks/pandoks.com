@@ -9,7 +9,7 @@ import {
   tailscaleAcl
 } from '../tailscale.ts';
 import { isProduction, STAGE_NAME } from '../dns.ts';
-import { providers, secrets } from '../secrets.ts';
+import { secrets } from '../secrets.ts';
 import { backupBucket, s3Endpoint } from '../storage.ts';
 import { renderCloudInit } from '../utils.ts';
 
@@ -23,12 +23,9 @@ export const deleteServerFromTailnet = new pulumi.ResourceHook(
     };
     const serverLabels = outputs.labels ?? {};
 
-    const { devices = [] } = await tailscale.getDevices(
-      {
-        namePrefix: `${serverLabels['tailscale'] ?? ''}`
-      },
-      { provider: providers.tailscale }
-    );
+    const { devices = [] } = await tailscale.getDevices({
+      namePrefix: `${serverLabels['tailscale'] ?? ''}`
+    });
     const serverHetznerDevices = devices.filter(
       (device) => device.tags.includes('tag:hetzner') && device.tags.includes(`tag:${STAGE_NAME}`)
     );
@@ -97,24 +94,16 @@ export function createServers(
   const placementGroups =
     serverArgs.type === 'control-plane'
       ? [
-          new hcloud.PlacementGroup(
-            'HetznerControlPlanePlacementGroup',
-            {
-              name: 'control-plane',
-              type: 'spread'
-            },
-            { provider: providers.hcloud }
-          )
+          new hcloud.PlacementGroup('HetznerControlPlanePlacementGroup', {
+            name: 'control-plane',
+            type: 'spread'
+          })
         ]
       : Array.from({ length: Math.ceil(serverArgs.serverCount / 10) }).map((_, i) => {
-          return new hcloud.PlacementGroup(
-            `HetznerWorkerPlacementGroup${i}`,
-            {
-              name: `workers-${i}`,
-              type: 'spread'
-            },
-            { provider: providers.hcloud }
-          );
+          return new hcloud.PlacementGroup(`HetznerWorkerPlacementGroup${i}`, {
+            name: `workers-${i}`,
+            type: 'spread'
+          });
         });
 
   for (let i = 0; i < serverArgs.serverCount; i++) {
@@ -138,7 +127,7 @@ export function createServers(
         preauthorized: true,
         tags: ['tag:hetzner', `tag:${STAGE_NAME}`, `tag:${serverArgs.type}`]
       },
-      { provider: providers.tailscale, dependsOn: [tailscaleAcl] }
+      { dependsOn: [tailscaleAcl] }
     );
 
     const tailscaleHostname = `${STAGE_NAME}-hetzner-${serverArgs.type}-server-${i}`;
@@ -217,7 +206,6 @@ export function createServers(
         userData
       },
       {
-        provider: providers.hcloud,
         dependsOn: dependencies,
         ignoreChanges: isProduction ? ['userData'] : [],
         protect: isProduction,
@@ -243,7 +231,7 @@ export function createServers(
           serverId: server.id.apply((id) => parseInt(id)),
           usePrivateIp: true
         },
-        { provider: providers.hcloud, dependsOn: [network] }
+        { dependsOn: [network] }
       );
     }
   }

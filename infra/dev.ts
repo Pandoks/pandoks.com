@@ -2,7 +2,7 @@ import * as ovh from '@ovhcloud/pulumi-ovh';
 import * as tailscale from '@pulumi/tailscale';
 import { isProduction } from './dns.ts';
 import { hubTailscaleServices, tailscaleAcl } from './tailscale.ts';
-import { providers, secrets } from './secrets.ts';
+import { secrets } from './secrets.ts';
 
 if (isProduction) {
   const ovhProvider = new ovh.Provider('Ovh', {
@@ -60,42 +60,37 @@ if (isProduction) {
     {
       provider: ovhProvider,
       protect: true,
+      retainOnDelete: true,
       import: 'vps-54c42746.vps.ovh.us',
       ignoreChanges: ['plans', 'ovhSubsidiary', 'planOptions']
     }
   );
 
-  const devTailscaleDevice = tailscale.getDeviceOutput(
-    { hostname: 'pandoks-dev-box' },
-    { provider: providers.tailscale }
-  );
+  const devTailscaleDevice = tailscale.getDeviceOutput({ hostname: 'pandoks-dev-box' });
   new tailscale.DeviceTags(
     'OvhDevVpsTailscaleTags',
     {
       deviceId: devTailscaleDevice.nodeId,
       tags: ['tag:funnel', 'tag:ovh', 'tag:ssh']
     },
-    { provider: providers.tailscale, dependsOn: [tailscaleAcl] }
+    { dependsOn: [tailscaleAcl] }
   );
 
-  const hubTailscaleDevice = tailscale.getDeviceOutput(
-    { hostname: 'thinkpad-t470' },
-    { provider: providers.tailscale }
-  );
+  const hubTailscaleDevice = tailscale.getDeviceOutput({ hostname: 'thinkpad-t470' });
   new tailscale.DeviceTags(
     'HubTailscaleTags',
     {
       deviceId: hubTailscaleDevice.nodeId,
       tags: ['tag:hub', 'tag:ssh']
     },
-    { provider: providers.tailscale, dependsOn: [tailscaleAcl] }
+    { dependsOn: [tailscaleAcl] }
   );
 
   for (const { name, comment } of hubTailscaleServices) {
     new tailscale.Service(
       `${name.replace(/(?:^|-)(.)/g, (_, char: string) => char.toUpperCase())}TailscaleService`,
       { name: `svc:${name}`, comment, ports: ['tcp:443'], tags: ['tag:hub'] },
-      { provider: providers.tailscale, dependsOn: [tailscaleAcl] }
+      { dependsOn: [tailscaleAcl] }
     );
   }
 }
