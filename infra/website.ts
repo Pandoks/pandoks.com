@@ -10,7 +10,7 @@ new sst.x.DevCommand('DevWebsite', {
   }
 });
 
-const NODE_VERSION = '24.22.2';
+const NODE_VERSION = '24.22.3';
 
 if (isProduction) {
   const personalStaticWebsite = new cloudflare.PagesProject('PersonalWebsite', {
