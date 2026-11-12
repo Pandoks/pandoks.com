@@ -670,8 +670,8 @@ If the stanza still has a full backup, the new primary restores it during bootst
 ### Backup Job Fails with TLS Error
 
 The chart issues per-shard certificates (`patroni-myapp-shard-N` and
-`myapp-shard-N-pgbackrest-backup`) from `internal-ca-issuer`, with the shard's primary service
-hostname as the DNS name. If backup jobs fail with certificate errors, check that they're ready:
+`myapp-shard-N-pgbackrest-backup`) from `internal-ca-issuer`, with a wildcard DNS name covering
+every pod of the shard. If backup jobs fail with certificate errors, check that they're ready:
 
 ```bash
 kubectl get certificate -n myapp
