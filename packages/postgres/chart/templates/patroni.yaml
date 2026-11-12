@@ -49,9 +49,6 @@ spec:
     - name: postgres
       port: 5432
       targetPort: 5432
-    - name: pgbackrest
-      port: 8432
-      targetPort: 8432
 
 ---
 # provides a stable ip for all replicas
@@ -74,9 +71,6 @@ spec:
     - name: postgres
       port: 5432
       targetPort: 5432
-    - name: pgbackrest
-      port: 8432
-      targetPort: 8432
 
 ---
 apiVersion: v1

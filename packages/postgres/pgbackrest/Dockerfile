@@ -4,7 +4,9 @@ FROM postgres:18-trixie@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c
 # remove it to drop the (unreachable) Go stdlib CVEs in its static binary
 RUN rm -f /usr/local/bin/gosu \
   && apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
+  curl \
   gettext-base \
+  jq \
   pgbackrest \
   && rm -rf /var/lib/apt/lists/*
 
