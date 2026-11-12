@@ -8,7 +8,6 @@ on:
       - 'sst.config.ts'
       - 'infra/**'
       - 'apps/**'
-      - '!apps/desktop-template/**'
       - '!apps/example/**'
       - 'apps/*/kube/**'
       - 'packages/svelte/**'
@@ -45,7 +44,7 @@ jobs:
             sst:
               - 'sst.config.ts'
               - 'infra/**'
-              - 'apps/!(desktop-template|example)/**'
+              - 'apps/!(example)/**'
               - 'packages/svelte/**'
             kubernetes:
               - 'k3s/**'
