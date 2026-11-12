@@ -17,6 +17,9 @@ on:
       kubernetes-config:
         description: Whether to scan the Kubernetes manifests, 'true' or 'false'.
         value: ${{ jobs.detect.outputs.kubernetes-config }}
+      go-dependencies:
+        description: Whether to run govulncheck, 'true' or 'false'.
+        value: ${{ jobs.detect.outputs.go-dependencies }}
       unit-tests:
         description: JSON list of the unit test jobs to run.
         value: ${{ jobs.detect.outputs.unit-tests }}
@@ -36,6 +39,7 @@ jobs:
     outputs:
       checks: ${{ steps.set-checks-matrix.outputs.checks }}
       kubernetes-config: ${{ steps.security-changes.outputs.kubernetes == 'true' }}
+      go-dependencies: ${{ steps.checks-changes.outputs.go == 'true' }}
       unit-tests: ${{ steps.set-unit-test-matrix.outputs.unit-tests }}
       images: ${{ steps.set-image-matrix.outputs.images }}
       charts: ${{ steps.set-chart-matrix.outputs.charts }}

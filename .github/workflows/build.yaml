@@ -48,14 +48,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          input: ${{ runner.temp }}/${{ matrix.image.name }}.tar
-          scanners: vuln,secret
-          trivy-config: trivy.yaml
-          trivyignores: .trivyignore.yaml
-
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: image-${{ matrix.image.package }}-${{ matrix.image.name }}

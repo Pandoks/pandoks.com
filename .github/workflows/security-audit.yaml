@@ -13,6 +13,8 @@ permissions:
 jobs:
   scan-kubernetes-config:
     uses: ./.github/workflows/security.yaml
+    with:
+      kubernetes-config: true
 
   scan-published-images:
     # NOTE: we don't scan charts because the only issues are misconfigs, not CVEs.

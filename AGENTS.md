@@ -62,14 +62,15 @@ are templates, but `apps/example/kube` is in every overlay, prod included. Apps 
 - Every branch push runs `pipeline.yaml`: `changes.yaml` decides from the changed paths (or a manual
   run's checkboxes) what runs, and the pipeline calls each reusable workflow only when it has work
   (`checks.yaml` always, for its `workspace-check`): `checks.yaml` (format, lint, type checks),
-  `security.yaml` (Trivy on the Kubernetes manifests), `tests.yaml` (unit tests), `build.yaml`
-  (images as run artifacts), `e2e.yaml` (k3d suites with the images the run built), and
-  `publish.yaml` (branch-tagged GHCR images and charts, only after everything else passed).
-  Workflows with their own trigger stay standalone: `claude-review.yaml` on PRs (one Agent SDK
-  `/code-review` per PR, posted as one review with inline comments), `security-audit.yaml` (the
-  manifests and published images, daily), and the ones below; Cloudflare Pages also builds a preview
-  of `apps/web`. Required checks are the `*-pass` aggregates in `pipeline.yaml`, and a PR must be up
-  to date with `main` to merge.
+  `security.yaml` (Trivy on the Kubernetes manifests, the built images and the charts, and
+  `govulncheck` on every Go module), `tests.yaml` (unit tests), `build.yaml` (images as run
+  artifacts), `e2e.yaml` (k3d suites with the images the run built), and `publish.yaml`
+  (branch-tagged GHCR images and charts, only after everything else passed). Workflows with their
+  own trigger stay standalone: `claude-review.yaml` on PRs (one Agent SDK `/code-review` per PR,
+  posted as one review with inline comments), `security-audit.yaml` (the manifests and published
+  images, daily), and the ones below; Cloudflare Pages also builds a preview of `apps/web`. Required
+  checks are the `*-pass` aggregates in `pipeline.yaml`, and a PR must be up to date with `main` to
+  merge.
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
   deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,

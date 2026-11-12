@@ -71,13 +71,24 @@ jobs:
       jobs: ${{ needs.changes.outputs.checks }}
 
   security:
-    needs: changes
-    if: needs.changes.outputs.kubernetes-config == 'true'
+    needs:
+      - changes
+      - build
+    if: >-
+      !cancelled() && needs.changes.result == 'success' &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped') &&
+      (needs.changes.outputs.kubernetes-config == 'true' || needs.changes.outputs.go-dependencies == 'true' ||
+      needs.changes.outputs.images != '[]' || needs.changes.outputs.charts != '[]')
     permissions:
       contents: read
       security-events: write
       actions: read
     uses: ./.github/workflows/security.yaml
+    with:
+      kubernetes-config: ${{ needs.changes.outputs.kubernetes-config == 'true' }}
+      images: ${{ needs.changes.outputs.images }}
+      charts: ${{ needs.changes.outputs.charts }}
+      go-dependencies: ${{ needs.changes.outputs.go-dependencies == 'true' }}
 
   tests:
     needs: changes
