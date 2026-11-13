@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"maps"
 	"os/exec"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -15,6 +16,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/types"
 )
 
 const (
@@ -175,16 +177,27 @@ func mustPrimaryPodName(namespace string, shard int) string {
 	return primaryPod
 }
 
-func replicaPodName(namespace string, shard, podCount int) string {
+func replicaPodNames(namespace string, shard, podCount int) []string {
 	GinkgoHelper()
 	primaryPod := mustPrimaryPodName(namespace, shard)
+	var replicaPods []string
 	for podIndex := range podCount {
 		if podName(shard, podIndex) != primaryPod {
-			return podName(shard, podIndex)
+			replicaPods = append(replicaPods, podName(shard, podIndex))
 		}
 	}
-	Fail("shard has no replica")
-	return ""
+	Expect(replicaPods).NotTo(BeEmpty(), "shard has no replica")
+	return replicaPods
+}
+
+func replicaPodName(namespace string, shard, podCount int) string {
+	GinkgoHelper()
+	return replicaPodNames(namespace, shard, podCount)[0]
+}
+
+// podHost is a pod's DNS name through its shard's headless Service.
+func podHost(namespace string, shard int, pod string) string {
+	return fmt.Sprintf("%s.%s.%s.svc.cluster.local", pod, statefulSetName(shard), namespace)
 }
 
 func replicaIPs(namespace string, shard int) []string {
@@ -219,15 +232,22 @@ type patroniMember struct {
 	Role     string `json:"Role"`
 	State    string `json:"State"`
 	Timeline int    `json:"TL"`
+	// NOTE: whole MB for a replica, an empty string for the leader
+	ReplayLag any `json:"Replay Lag"`
+}
+
+func listPatroniMembers(g Gomega, namespace string, shard int) []patroniMember {
+	membersJSON, err := execInPod(namespace, podName(shard, 0), "patroni", "patronictl", "-c", patroniConfig, "list", "-f", "json")
+	g.Expect(err).NotTo(HaveOccurred())
+	var members []patroniMember
+	g.Expect(json.Unmarshal([]byte(membersJSON), &members)).To(Succeed())
+	return members
 }
 
 // expectHealthyShard checks Patroni, Postgres and the role=primary pod label agree on one leader
 // with every other pod streaming from it.
 func expectHealthyShard(g Gomega, namespace string, shard, podCount int) {
-	membersJSON, err := execInPod(namespace, podName(shard, 0), "patroni", "patronictl", "-c", patroniConfig, "list", "-f", "json")
-	g.Expect(err).NotTo(HaveOccurred())
-	var members []patroniMember
-	g.Expect(json.Unmarshal([]byte(membersJSON), &members)).To(Succeed())
+	members := listPatroniMembers(g, namespace, shard)
 	g.Expect(members).To(HaveLen(podCount))
 
 	var leaders []patroniMember
@@ -350,6 +370,15 @@ func expectValidBackups(g Gomega, namespace string, shard int) {
 	g.Expect(info.Backup).To(HaveEach(HaveField("Error", false)), "a backup is recorded with an error")
 }
 
+func expectVerified(namespace string, shard int) {
+	GinkgoHelper()
+	verifyOutput, err := execInPod(namespace, mustPrimaryPodName(namespace, shard), "patroni",
+		"pgbackrest", "--stanza="+clusterName(shard), "--output=text", "--verbose", "verify")
+	Expect(err).NotTo(HaveOccurred())
+	// NOTE: verify exits 0 on an invalid backup too, and only its summary says "status: error"
+	Expect(verifyOutput).To(MatchRegexp(`(?m)^status: ok$`))
+}
+
 // switchWAL closes the current WAL segment, so it's archived, and returns its name.
 func switchWAL(namespace string, shard int) string {
 	GinkgoHelper()
@@ -374,6 +403,47 @@ func runBackupJob(namespace string, shard int, backupType, jobName string) {
 	GinkgoHelper()
 	startBackupJob(namespace, shard, backupType, jobName)
 	e2e.MustRun("", "kubectl", "-n", namespace, "wait", "--for=condition=Complete", "job/"+jobName, "--timeout=5m")
+}
+
+// backupJobRestarts counts the backup attempts that failed and restarted the job's container.
+func backupJobRestarts(namespace, jobName string) string {
+	GinkgoHelper()
+	return e2e.MustRun("", "kubectl", "-n", namespace, "get", "pods", "-l", "job-name="+jobName,
+		"-o", "jsonpath={.items[*].status.containerStatuses[0].restartCount}")
+}
+
+// backupHosts returns the primary (pg1) and standby (pg2) hosts the job's last backup attempt
+// copied from, as its "backup command begin" line lists them, with no standby when it had none.
+func backupHosts(namespace, jobName string) (string, string) {
+	GinkgoHelper()
+	commandBegin := regexp.MustCompile(`backup command begin .*`).FindString(e2e.MustRun("", "kubectl", "-n", namespace, "logs", "job/"+jobName))
+	Expect(commandBegin).NotTo(BeEmpty())
+	hosts := make([]string, 2)
+	for hostIndex := range hosts {
+		if hostOption := regexp.MustCompile(fmt.Sprintf(`--pg%d-host=(\S+)`, hostIndex+1)).FindStringSubmatch(commandBegin); hostOption != nil {
+			hosts[hostIndex] = hostOption[1]
+		}
+	}
+	return hosts[0], hosts[1]
+}
+
+// expectReplayLag checks the replay lag Patroni reports for replicaPod, which the backup job reads,
+// in whole MB.
+func expectReplayLag(g Gomega, namespace string, shard int, replicaPod string, lagMatcher types.GomegaMatcher) {
+	members := listPatroniMembers(g, namespace, shard)
+	g.Expect(members).To(ContainElement(And(HaveField("Member", replicaPod), HaveField("ReplayLag", lagMatcher))))
+}
+
+// stallReplay stops replicaPod's startup process until the spec ends, so its WAL receiver keeps
+// streaming while replay stands still. Patroni's recovery_min_apply_delay would hold every replica.
+func stallReplay(namespace, replicaPod string) {
+	GinkgoHelper()
+	startupPID, err := psql(namespace, replicaPod, "SELECT pid FROM pg_stat_activity WHERE backend_type = 'startup'")
+	Expect(err).NotTo(HaveOccurred())
+	Expect(execInPod(namespace, replicaPod, "patroni", "kill", "-STOP", startupPID)).Error().NotTo(HaveOccurred())
+	DeferCleanup(func() {
+		Expect(execInPod(namespace, replicaPod, "patroni", "kill", "-CONT", startupPID)).Error().NotTo(HaveOccurred())
+	})
 }
 
 // stopShard scales the shard to zero pods, as a restore replaces a lost cluster.
@@ -645,7 +715,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			// NOTE: in the sidecar, client.crt is the Patroni pod's own identity
 			output, err := execInPod(namespace, replicaPodName(namespace, 0, defaultPodCount), "pgbackrest",
 				"pgbackrest", "--stanza="+clusterName(0), "--archive-check=n", "--log-level-console=warn",
-				fmt.Sprintf("--pg1-host=%s.%s.svc.cluster.local", primaryServiceHost(0), namespace), "--pg1-host-type=tls",
+				"--pg1-host="+podHost(namespace, 0, mustPrimaryPodName(namespace, 0)), "--pg1-host-type=tls",
 				"--pg1-host-cert-file=/etc/pgbackrest/certs/client.crt", "--pg1-host-key-file=/etc/pgbackrest/certs/client.key",
 				"--pg1-host-ca-file=/etc/pgbackrest/certs/ca.crt", "check")
 			Expect(err).To(HaveOccurred())
@@ -785,12 +855,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 
 		It("retries a backup whose primary fails over mid-run until it completes", func() {
 			oldPrimaryPod := mustPrimaryPodName(namespace, 0)
-			var replicaPods []string
-			for podIndex := range defaultPodCount {
-				if podName(0, podIndex) != oldPrimaryPod {
-					replicaPods = append(replicaPods, podName(0, podIndex))
-				}
-			}
+			replicaPods := replicaPodNames(namespace, 0, defaultPodCount)
 			// NOTE: replicas hold this commit an hour (a promotion skips it), so the backup waits on them
 			Expect(execInPod(namespace, oldPrimaryPod, "patroni", "patronictl", "-c", patroniConfig, "edit-config", "--force",
 				"--set", "postgresql.recovery_conf.recovery_min_apply_delay=1h")).Error().NotTo(HaveOccurred())
@@ -805,25 +870,18 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", oldPrimaryPod, "--wait=false")
 			Expect(e2e.MustRun("", "kubectl", "-n", namespace, "logs", "job/failover-full")).
 				To(MatchRegexp(`wait for replay on the standby.*\n$`), "the backup's first attempt stopped waiting before the delete")
-			Expect(e2e.MustRun("", "kubectl", "-n", namespace, "get", "pods", "-l", "job-name=failover-full",
-				"-o", "jsonpath={.items[*].status.containerStatuses[0].restartCount}")).To(Equal("0"), "the backup's first attempt ended before the delete")
+			Expect(backupJobRestarts(namespace, "failover-full")).To(Equal("0"), "the backup's first attempt ended before the delete")
 			Eventually(primaryPodName).WithArguments(namespace, 0).WithTimeout(2 * time.Minute).Should(BeElementOf(replicaPods))
 			Expect(execInPod(namespace, mustPrimaryPodName(namespace, 0), "patroni", "patronictl", "-c", patroniConfig, "edit-config", "--force",
 				"--set", "postgresql.recovery_conf.recovery_min_apply_delay=null")).Error().NotTo(HaveOccurred())
 
 			e2e.MustRun("", "kubectl", "-n", namespace, "wait", "--for=condition=Complete", "job/failover-full", "--timeout=8m")
-			restartCount := e2e.MustRun("", "kubectl", "-n", namespace, "get", "pods", "-l", "job-name=failover-full",
-				"-o", "jsonpath={.items[*].status.containerStatuses[0].restartCount}")
-			Expect(strconv.Atoi(restartCount)).To(BeNumerically(">=", 1), "the backup's first attempt wasn't interrupted")
+			Expect(strconv.Atoi(backupJobRestarts(namespace, "failover-full"))).To(BeNumerically(">=", 1), "the backup's first attempt wasn't interrupted")
 			waitForHealthyShard(namespace, 0, defaultPodCount)
 		})
 
 		It("passes pgbackrest verify", func() {
-			verifyOutput, err := execInPod(namespace, mustPrimaryPodName(namespace, 0), "patroni",
-				"pgbackrest", "--stanza="+clusterName(0), "--output=text", "--verbose", "verify")
-			Expect(err).NotTo(HaveOccurred())
-			// NOTE: verify exits 0 on an invalid backup too, and only its summary says "status: error"
-			Expect(verifyOutput).To(MatchRegexp(`(?m)^status: ok$`))
+			expectVerified(namespace, 0)
 		})
 
 		// TODO: un-pend once the README's PITR runbook stops Patroni from dropping pgBackRest's recovery target
@@ -875,6 +933,97 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			expectRowsOnEveryPod(restoredNamespace, 0, defaultPodCount, 1, lastRowID)
 			walSegment = switchWAL(restoredNamespace, 0)
 			Eventually(expectArchived).WithArguments(restoredNamespace, 0, walSegment).Should(Succeed())
+		})
+	})
+
+	Context("choosing what to back up from", Ordered, func() {
+		var namespace string
+		var lastRowID int
+
+		BeforeAll(func() {
+			namespace = installPostgresWithRowsTable(postgresChartDirectory, 1, nil)
+		})
+
+		replicaHosts := func() []string {
+			GinkgoHelper()
+			var hosts []string
+			for _, replicaPod := range replicaPodNames(namespace, 0, defaultPodCount) {
+				hosts = append(hosts, podHost(namespace, 0, replicaPod))
+			}
+			return hosts
+		}
+
+		expectCurrentReplicas := func() {
+			GinkgoHelper()
+			for _, replicaPod := range replicaPodNames(namespace, 0, defaultPodCount) {
+				Eventually(expectReplayLag).WithArguments(namespace, 0, replicaPod, BeZero()).Should(Succeed())
+			}
+		}
+
+		// stallReplicas stalls replay on replicaPods and moves the primary past them until Patroni
+		// reports each over the backup's 16MB replay lag limit.
+		stallReplicas := func(replicaPods ...string) {
+			GinkgoHelper()
+			for _, replicaPod := range replicaPods {
+				stallReplay(namespace, replicaPod)
+			}
+			// NOTE: each switch skips to the next 16MB segment, so three put the primary at least 32MB ahead
+			for range 3 {
+				lastRowID++
+				insertRows(namespace, 0, lastRowID, lastRowID)
+				switchWAL(namespace, 0)
+			}
+			for _, replicaPod := range replicaPods {
+				Eventually(expectReplayLag).WithArguments(namespace, 0, replicaPod, BeNumerically(">", 16)).Should(Succeed())
+			}
+		}
+
+		It("backs up through a replica when every replica is current", func() {
+			expectCurrentReplicas()
+			runBackupJob(namespace, 0, "full", "current-full")
+			primaryHost, standbyHost := backupHosts(namespace, "current-full")
+			Expect(primaryHost).To(Equal(podHost(namespace, 0, mustPrimaryPodName(namespace, 0))))
+			Expect(standbyHost).To(BeElementOf(replicaHosts()))
+		})
+
+		It("backs up through the current replica while the other lags", func() {
+			replicaPods := replicaPodNames(namespace, 0, defaultPodCount)
+			laggingPod, currentPod := replicaPods[0], replicaPods[1]
+			stallReplicas(laggingPod)
+			Eventually(expectReplayLag).WithArguments(namespace, 0, currentPod, BeZero()).Should(Succeed())
+			runBackupJob(namespace, 0, "incr", "one-lagging-incr")
+			Expect(backupJobRestarts(namespace, "one-lagging-incr")).To(Equal("0"), "a backup attempt failed")
+			_, standbyHost := backupHosts(namespace, "one-lagging-incr")
+			Expect(standbyHost).To(Equal(podHost(namespace, 0, currentPod)))
+		})
+
+		It("backs up from the primary and logs why when every replica lags", func() {
+			stallReplicas(replicaPodNames(namespace, 0, defaultPodCount)...)
+			runBackupJob(namespace, 0, "incr", "all-lagging-incr")
+			Expect(backupJobRestarts(namespace, "all-lagging-incr")).To(Equal("0"), "a backup attempt failed")
+			primaryHost, standbyHost := backupHosts(namespace, "all-lagging-incr")
+			Expect(primaryHost).To(Equal(podHost(namespace, 0, mustPrimaryPodName(namespace, 0))))
+			Expect(standbyHost).To(BeEmpty())
+			Expect(e2e.MustRun("", "kubectl", "-n", namespace, "logs", "job/all-lagging-incr")).
+				To(ContainSubstring("no replica is streaming within 16777216 bytes of replay lag"))
+		})
+
+		It("backs up from the new primary through a current replica after a switchover", func() {
+			waitForHealthyShard(namespace, 0, defaultPodCount)
+			expectCurrentReplicas()
+			switchover(namespace, 0, replicaPodName(namespace, 0, defaultPodCount))
+			waitForHealthyShard(namespace, 0, defaultPodCount)
+			expectCurrentReplicas()
+			runBackupJob(namespace, 0, "incr", "switchover-incr")
+			primaryHost, standbyHost := backupHosts(namespace, "switchover-incr")
+			Expect(primaryHost).To(Equal(podHost(namespace, 0, mustPrimaryPodName(namespace, 0))))
+			Expect(standbyHost).To(BeElementOf(replicaHosts()))
+		})
+
+		It("leaves valid backups from replicas and the primary alike", func() {
+			Expect(backupTypes(readStanzaInfo(Default, namespace, 0))).To(Equal([]string{"full", "full", "incr", "incr", "incr"}))
+			expectValidBackups(Default, namespace, 0)
+			expectVerified(namespace, 0)
 		})
 	})
 

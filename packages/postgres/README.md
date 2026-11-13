@@ -660,9 +660,9 @@ after changing them:
 `pnpm local:build && pnpm local:push` from the repo root does this for every package.
 
 The Ginkgo suite in [e2e](./e2e) installs the chart on local k3d and tests replication, failover,
-switchover, scaling replicas and shards, rolling upgrades, metrics, backups, retention and
-restore-on-bootstrap, PgDog routing and sharding, upgrading from the newest chart on GHCR and
-reverting to it, and reinstalling after an uninstall. With the cluster up (see
+switchover, scaling replicas and shards, rolling upgrades, metrics, backups and which pod they copy
+from, retention and restore-on-bootstrap, PgDog routing and sharding, upgrading from the newest
+chart on GHCR and reverting to it, and reinstalling after an uninstall. With the cluster up (see
 [packages/e2e](../e2e/README.md#running-a-suite)), from the repo root:
 
 ```sh
