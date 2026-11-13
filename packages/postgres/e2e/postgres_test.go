@@ -1017,7 +1017,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 
 			// NOTE: a commit per WAL segment, so replay takes long enough to break the repo partway through
 			mustPsqlOnPrimary(namespace, 0, fmt.Sprintf(
-				"DO $$ BEGIN FOR id IN %d..%d LOOP INSERT INTO e2e_rows VALUES (id); COMMIT; PERFORM pg_switch_wal(); END LOOP; END $$",
+				"DO $$ BEGIN FOR id IN %d..%d LOOP PERFORM pg_switch_wal(); INSERT INTO e2e_rows VALUES (id); COMMIT; END LOOP; END $$",
 				lastRowID+1, lastRowID+restoredSegmentCount))
 			lastRowID += restoredSegmentCount
 			walSegment := switchWAL(namespace, 0)
