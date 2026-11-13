@@ -37,6 +37,10 @@ spec:
                 - --type={{ .type }}
                 - backup
               env:
+                - name: MASTER_HOST
+                  value: patroni-{{ .context.Values.db }}-primary-shard-{{ .shardIndex }}.{{ .context.Values.namespace }}.svc.cluster.local
+                - name: SLAVE_HOST
+                  value: patroni-{{ .context.Values.db }}-replicas-shard-{{ .shardIndex }}.{{ .context.Values.namespace }}.svc.cluster.local
                 - name: CLIENT_COMMON_NAME
                   value: patroni-{{ .context.Values.db }}-shard-{{ .shardIndex }}
                 - name: BACKUP_BUCKET

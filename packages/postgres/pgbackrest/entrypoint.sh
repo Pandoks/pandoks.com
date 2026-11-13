@@ -24,7 +24,9 @@ else
   for v in \
     FULL_RETENTION \
     DIFF_RETENTION \
-    CLIENT_COMMON_NAME; do
+    CLIENT_COMMON_NAME \
+    MASTER_HOST \
+    SLAVE_HOST; do
     eval ": \${$v:?Missing $v}"
   done
 fi

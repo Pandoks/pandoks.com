@@ -47,10 +47,8 @@ graph TB
     S1P -.->|Streaming Replication| S1R1
     S1P -.->|Streaming Replication| S1R2
 
-    BackupJobs -->|TLS| S0R1
-    BackupJobs -->|TLS| S1R1
-    BackupJobs -.->|TLS if no replica is up| S0P
-    BackupJobs -.->|TLS if no replica is up| S1P
+    BackupJobs -->|TLS| S0P
+    BackupJobs -->|TLS| S1P
     BackupJobs --> S3
 
     style S0P fill:#90EE90
@@ -86,9 +84,7 @@ graph TB
 
 ### pgBackRest (Backup & Recovery)
 
-- **Per-shard backups** - each shard has its own stanza, backed up from the first running replica
-  pgBackRest finds among the shard's pods (each listed by its DNS name), or from the primary if none
-  is up
+- **Per-shard backups** - each shard has its own stanza
 - **Automated schedules** - full, differential, and incremental backups
 - **Point-in-time recovery** - restore to any moment
 - **Encryption** - AES-256-CBC for all backups
@@ -189,7 +185,7 @@ metadata:
   namespace: kube-system
 spec:
   chart: oci://${ImageRegistry}/charts/postgres
-  version: 0.1.6
+  version: 0.1.7
   targetNamespace: &namespace myapp
   createNamespace: true
   failurePolicy: abort
@@ -670,8 +666,9 @@ If the stanza still has a full backup, the new primary restores it during bootst
 ### Backup Job Fails with TLS Error
 
 The chart issues per-shard certificates (`patroni-myapp-shard-N` and
-`myapp-shard-N-pgbackrest-backup`) from `internal-ca-issuer`, with a wildcard DNS name covering
-every pod of the shard. If backup jobs fail with certificate errors, check that they're ready:
+`myapp-shard-N-pgbackrest-backup`) from `internal-ca-issuer`, with the shard's primary and replicas
+service hostnames as `dnsNames`. If backup jobs fail with certificate errors, check that they're
+ready:
 
 ```bash
 kubectl get certificate -n myapp
