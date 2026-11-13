@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: patroni-{{ .Values.db }}-parameters
+  namespace: {{ .Values.namespace }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade,post-rollback
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: parameters
+          image: {{ .Values.patroni.reconcilerImage }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          args:
+            - apply-parameters
+          env:
+            - name: DB
+              value: {{ .Values.db | quote }}
+            - name: SHARDS
+              value: {{ .Values.patroni.shards | quote }}
+            - name: PARAMETERS
+              value: {{ .Values.patroni.parameters | toJson | quote }}
+            - name: PATRONI_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.credentials.secret }}
+                  key: {{ .Values.credentials.dataKeys.patroniPassword }}

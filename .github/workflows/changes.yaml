@@ -163,6 +163,12 @@ jobs:
             prettier:
               - 'packages/prettier/**'
               - *needs-node-setup
+            postgres-reconciler:
+              - 'packages/postgres/reconciler/**'
+              - 'packages/postgres/package.json'
+              - 'go.work'
+              - 'go.work.sum'
+              - *needs-node-setup
             valkey-reconciler:
               - 'packages/valkey/reconciler/**'
               - 'packages/valkey/package.json'
@@ -179,6 +185,8 @@ jobs:
               - 'packages/postgres/patroni/**'
             pgbackrest:
               - 'packages/postgres/pgbackrest/**'
+            postgres-reconciler:
+              - 'packages/postgres/reconciler/**'
             valkey:
               - 'packages/valkey/Dockerfile'
               - 'packages/valkey/entrypoint.sh'
@@ -238,7 +246,7 @@ jobs:
 
       - id: set-unit-test-matrix
         run: |
-          all='["web","desktop-template","mobile-template","svelte","prettier","valkey-reconciler"]'
+          all='["web","desktop-template","mobile-template","svelte","prettier","postgres-reconciler","valkey-reconciler"]'
           selected='${{ steps.unit-test-changes.outputs.changes || '[]' }}'
           unit_tests=$(jq -c --argjson sel "${selected}" 'map(select(. as $job | $sel | index($job)))' <<<"${all}")
           echo "unit-tests=${unit_tests}" >> "${GITHUB_OUTPUT}"
@@ -250,6 +258,7 @@ jobs:
           all='[
             {"name":"patroni","package":"postgres","path":"./packages/postgres/patroni/Dockerfile"},
             {"name":"pgbackrest","package":"postgres","path":"./packages/postgres/pgbackrest/Dockerfile"},
+            {"name":"postgres-reconciler","package":"postgres","path":"./packages/postgres/reconciler/Dockerfile"},
             {"name":"valkey","package":"valkey","path":"./packages/valkey/Dockerfile"},
             {"name":"valkey-reconciler","package":"valkey","path":"./packages/valkey/reconciler/Dockerfile"},
             {"name":"argocd-sst-plugin","package":"argocd","path":"./packages/argocd/Dockerfile"},
