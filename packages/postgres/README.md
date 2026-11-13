@@ -94,8 +94,8 @@ graph TB
   and without the backup's `ALTER SYSTEM` settings. It waits for WAL replay however long it takes,
   retrying repo errors every 10 seconds until only a missing segment ends it, then takes a full
   backup for its replicas, retrying every 10 seconds until it succeeds. If the container restarts
-  before then, it finishes the replay and takes that backup before Patroni starts. If the repo can't
-  be read, the bootstrap fails instead of starting empty
+  during replay or before that backup succeeds, it finishes both before Patroni starts. If the repo
+  can't be read, the bootstrap fails instead of starting empty
 
 ### Monitoring
 
