@@ -168,9 +168,8 @@ jobs:
   test-queue-cloudflare:
     if: contains(fromJSON(inputs.jobs), 'queue')
     runs-on: ubuntu-latest
+    # NOTE: the Cloudflare token is only on the steps that call Cloudflare, not install or setup
     env:
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       QUEUE_PREFIX: ci-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -189,6 +188,9 @@ jobs:
 
       - name: Create this run's queues
         id: queues
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           : "${CLOUDFLARE_API_TOKEN:?The CLOUDFLARE_API_TOKEN repository secret from infra/github.ts is not set}"
           api() {
@@ -207,6 +209,8 @@ jobs:
 
       - name: Run Cloudflare tests
         env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           QUEUE_TEST_CLOUDFLARE_QUEUE: ${{ steps.queues.outputs.queue }}
           QUEUE_TEST_CLOUDFLARE_DLQ: ${{ steps.queues.outputs.dlq }}
           QUEUE_TEST_CLOUDFLARE_SUBSCRIPTION: ${{ steps.queues.outputs.subscription }}
@@ -221,6 +225,8 @@ jobs:
       - name: Delete this run's queues
         if: always() && steps.queues.outputs.dlq != ''
         env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           # NOTE: the dead-letter queue goes last, since Cloudflare won't delete it while a consumer names it
           QUEUE_IDS: ${{ steps.queues.outputs.queue }} ${{ steps.queues.outputs.subscription }} ${{ steps.queues.outputs.dlq }}
         run: |
