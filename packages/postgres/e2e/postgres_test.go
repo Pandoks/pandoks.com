@@ -768,6 +768,9 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 		})
 
 		It("keeps the data when every pod is deleted at once", func() {
+			// TODO: OrderedReady deadlocks when the primary isn't pod 0; #320 removes this switchover
+			switchover(namespace, 0, podName(0, 0))
+			waitForHealthyShard(namespace, 0, defaultPodCount)
 			writeCount := mustPsqlOnPrimary(namespace, 0, "SELECT count(*) FROM e2e_writes")
 			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", "-l", "cluster-name="+clusterName(0))
 			waitForHealthyShard(namespace, 0, defaultPodCount)
