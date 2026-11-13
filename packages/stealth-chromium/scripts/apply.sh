@@ -50,6 +50,8 @@ for dir in \
   "third_party/blink/renderer/modules/quota" \
   "ui/color" \
   "components/embedder_support" \
+  "chrome/renderer" \
+  "third_party/blink/renderer/modules/shapedetection" \
   "media/base" \
   "content/browser/webauth" \
   "v8/src/inspector" ; do

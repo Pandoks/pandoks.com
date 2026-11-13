@@ -298,7 +298,8 @@ uv run --project ../stealth-browser python scripts/cdp_probe.py
 ## What's already patched
 
 `apply.sh` + `apply_edits.py` together cover (truthful count: **2 overlays +
-31 anchor edits = 33 distinct edits**, spanning ~20 web-facing surfaces):
+46 anchor edits = 48 distinct edits**, across 28 source files, spanning
+~20 web-facing surfaces):
 
 | Surface | Mechanism | Env var(s) |
 |---|---|---|
@@ -327,6 +328,8 @@ uv run --project ../stealth-browser python scripts/cdp_probe.py
 | Widevine `com.widevine.alpha` key system | build args (`bundle_widevine_cdm`, CDM files fetched by `scripts/setup.sh`) | -- (always on; SW_SECURE robustness) |
 | `navigator.storage.estimate()` quota | anchor edit + `apex_quota.h` | `APEX_FP_STORAGE_QUOTA_BYTES` |
 | `navigator.connection` (`effectiveType`/`rtt`/`downlink`) | anchor edit + `apex_netinfo.h` | `APEX_FP_NETINFO_*` |
+| `navigator.share` + `navigator.canShare` (Win + macOS personas) | anchor edit | `APEX_FP_UA_PLATFORM` |
+| `navigator.BarcodeDetector` + `getSupportedFormats()` (macOS persona) | anchor edits | `APEX_FP_UA_PLATFORM` |
 
 `patches/*.patch` files describe these in unified-diff form for review
 purposes but are NOT executed by the build.

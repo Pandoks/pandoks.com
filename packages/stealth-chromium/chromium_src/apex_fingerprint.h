@@ -246,6 +246,11 @@ inline UAPersona GetUAPersona() {
   if (key == "Windows") {
     p.ua_os_segment = "Windows NT 10.0; Win64; x64";
     p.platform = "Windows";
+    // Windows 10 and 11 both report "Windows NT 10.0" in the UA; the OS
+    // version is carried ONLY in the high-entropy Sec-CH-UA-Platform-Version
+    // hint. A real Win10 machine reports 1.0.0; >= 13 is Win11. 15.0.0 (Win11
+    // 23H2) is the default; a Win10 persona must pin 1.0.0 via
+    // APEX_FP_UA_PLATFORM_VERSION (the persona layer does).
     p.platform_version = ver.empty() ? "15.0.0" : ver;
     if (arch.empty()) arch = "x86";
     p.navigator_platform = "Win32";
@@ -270,6 +275,25 @@ inline UAPersona GetUAPersona() {
   p.model = "";
   p.active = true;
   return p;
+}
+
+// --- OS-gated Web API surface (gap #9) ------------------------------------
+// Real Chrome compiles its per-OS Web API availability into the binary:
+// chrome/renderer gates navigator.share / navigator.canShare to
+// Android/ChromeOS/Win/Mac builds (chrome_content_renderer_client.cc), and
+// the BarcodeDetector runtime feature is "stable" only on Mac/Android and
+// ChromeOS (platform/runtime_enabled_features.json5; on Windows and Linux it
+// is "test", i.e. off). A Linux build therefore presents a Linux surface
+// whatever OS the persona claims. The persona OS's surface is exposed by the
+// chrome/renderer edit: share/canShare for Windows and macOS personas,
+// BarcodeDetector for macOS (a real Windows Chrome 157 does NOT have it --
+// its shape-detection provider is the not-supported stub).
+// Keyed off the existing APEX_FP_UA_PLATFORM; no new env var.
+inline bool PersonaIsWindows() {
+  return Active() && EnvStr("APEX_FP_UA_PLATFORM") == "Windows";
+}
+inline bool PersonaIsMacOS() {
+  return Active() && EnvStr("APEX_FP_UA_PLATFORM") == "macOS";
 }
 
 // --- media capability / platform-authenticator persona overrides ----------

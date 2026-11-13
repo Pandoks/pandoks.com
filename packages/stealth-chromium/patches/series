@@ -37,3 +37,7 @@ webauthn-platform.patch
 # --- storage / network-realism surface fixes (round 2) ---
 storage-quota-override.patch
 netinfo-connection-override.patch
+
+# --- OS-gated Web API surface (gap #9) ---
+osapi-features.patch
+osapi-barcodedetector-formats.patch

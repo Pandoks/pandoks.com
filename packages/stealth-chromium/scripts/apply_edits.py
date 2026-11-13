@@ -314,6 +314,86 @@ EDITS = [
                   "    return;\n"
                   "  }\n",
     },
+    # --- OS-gated Web API surface (gap #9) ------------------------------
+    # Real Chrome compiles its per-OS Web API availability into the binary:
+    # navigator.share / navigator.canShare exist only on Android/ChromeOS/Win/
+    # Mac builds (this file's EnableWebShare is inside
+    # BUILDFLAG(IS_ANDROID||IS_CHROMEOS||IS_WIN||IS_MAC)), and the
+    # BarcodeDetector runtime feature is "stable" only on Mac/Android and
+    # ChromeOS (platform/runtime_enabled_features.json5; on Windows and Linux
+    # it is "test", i.e. off). A Linux build therefore presents a Linux Web
+    # API surface whatever OS the persona claims. Expose the persona OS's
+    # surface: share/canShare for Windows and macOS personas, BarcodeDetector
+    # for macOS. NOT for Windows: real Windows Chrome 157 does NOT have
+    # BarcodeDetector (MDN: "Supported on ChromeOS and macOS only"; the 8103
+    # Windows shape-detection provider is the not-supported stub) -- exposing
+    # it there would ADD a tell.
+    # Verified anchor (Chromium 157.0.8103.38 branch).
+    {
+        "file": "chrome/renderer/chrome_content_renderer_client.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-osapi-features",
+        "anchor": "  blink::WebRuntimeFeatures::EnableWebShare(true);\n"
+                  "#endif\n",
+        "where": "after",
+        "inject": "  // apex-osapi-features: persona OS -> the OS-gated Web API\n"
+                  "  // surface (navigator.share / navigator.canShare on Win and\n"
+                  "  // Mac; BarcodeDetector on Mac).\n"
+                  "  if (apex_fp::PersonaIsWindows() || apex_fp::PersonaIsMacOS()) {\n"
+                  "    blink::WebRuntimeFeatures::EnableWebShare(true);\n"
+                  "  }\n"
+                  "  if (apex_fp::PersonaIsMacOS()) {\n"
+                  "    blink::WebRuntimeFeatures::EnableFeatureFromString(\n"
+                  "        \"BarcodeDetector\", true);\n"
+                  "  }\n",
+    },
+    {
+        "file": "third_party/blink/renderer/modules/shapedetection/"
+                "barcode_detector.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-osapi-barcodedetector-formats",
+        "anchor": "BarcodeDetector::getSupportedFormats(ScriptState* "
+                  "script_state) {\n"
+                  "  ExecutionContext* context = "
+                  "ExecutionContext::From(script_state);\n",
+        "where": "after",
+        "inject": "  // apex-osapi-barcodedetector-formats: a macOS persona must\n"
+                  "  // report the format list real macOS Chrome reports; the\n"
+                  "  // Linux build's shape-detection provider is a stub that\n"
+                  "  // would answer []. The list is the set of Vision\n"
+                  "  // symbologies services/shape_detection maps on Mac\n"
+                  "  // (no UPC_A, no CODABAR).\n"
+                  "  if (apex_fp::PersonaIsMacOS()) {\n"
+                  "    Vector<V8BarcodeFormat> apex_formats;\n"
+                  "    apex_formats.push_back(\n"
+                  "        V8BarcodeFormat(V8BarcodeFormat::Enum::kAztec));\n"
+                  "    apex_formats.push_back(\n"
+                  "        V8BarcodeFormat(V8BarcodeFormat::Enum::kCode39));\n"
+                  "    apex_formats.push_back(\n"
+                  "        V8BarcodeFormat(V8BarcodeFormat::Enum::kCode93));\n"
+                  "    apex_formats.push_back(\n"
+                  "        V8BarcodeFormat(V8BarcodeFormat::Enum::kCode128));\n"
+                  "    apex_formats.push_back(\n"
+                  "        V8BarcodeFormat(V8BarcodeFormat::Enum::kDataMatrix));\n"
+                  "    apex_formats.push_back(\n"
+                  "        V8BarcodeFormat(V8BarcodeFormat::Enum::kEan13));\n"
+                  "    apex_formats.push_back(\n"
+                  "        V8BarcodeFormat(V8BarcodeFormat::Enum::kEan8));\n"
+                  "    apex_formats.push_back(\n"
+                  "        V8BarcodeFormat(V8BarcodeFormat::Enum::kItf));\n"
+                  "    apex_formats.push_back(\n"
+                  "        V8BarcodeFormat(V8BarcodeFormat::Enum::kPdf417));\n"
+                  "    apex_formats.push_back(\n"
+                  "        V8BarcodeFormat(V8BarcodeFormat::Enum::kQrCode));\n"
+                  "    apex_formats.push_back(\n"
+                  "        V8BarcodeFormat(V8BarcodeFormat::Enum::kUpcE));\n"
+                  "    auto* apex_resolver = MakeGarbageCollected<\n"
+                  "        ScriptPromiseResolver<IDLSequence<V8BarcodeFormat>>>(\n"
+                  "        script_state);\n"
+                  "    apex_resolver->Resolve(std::move(apex_formats));\n"
+                  "    return apex_resolver->Promise();\n"
+                  "  }\n",
+    },
     # --- WebRTC: no binary edit; the policy is a launcher flag ----------
     # History: an edit here once forced webrtc_ip_handling_policy =
     # kDisableNonProxiedUdp whenever apex was active. It was removed because

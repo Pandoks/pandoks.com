@@ -1,0 +1,52 @@
+# apex patch: expose the persona OS's OS-gated Web API surface (gap #9)
+#
+# THE PROBLEM. Real Chrome compiles its per-OS Web API availability into the
+# binary. navigator.share / navigator.canShare exist only on
+# Android/ChromeOS/Win/Mac builds (chrome/renderer/
+# chrome_content_renderer_client.cc's EnableWebShare is inside
+# BUILDFLAG(IS_ANDROID || IS_CHROMEOS || IS_WIN || IS_MAC)), and the
+# BarcodeDetector runtime feature is "stable" only on Mac/Android and ChromeOS
+# (platform/runtime_enabled_features.json5; on Windows and Linux it is "test",
+# i.e. off). A Linux build therefore presents a Linux Web API surface no matter
+# which OS the persona claims -- `typeof navigator.share === 'function'` is
+# false under a Windows/macOS persona, which is what CreepJS's `noWebShare`
+# fires on.
+#
+# THE FIX. An anchor edit in chrome/renderer/chrome_content_renderer_client.cc
+# (the file and function real Chrome itself uses for these gates) re-applies
+# the same calls, gated on the persona's claimed OS:
+#   - Windows or macOS persona: blink::WebRuntimeFeatures::EnableWebShare(true)
+#     (navigator.share + navigator.canShare).
+#   - macOS persona: also
+#     blink::WebRuntimeFeatures::EnableFeatureFromString("BarcodeDetector",
+#     true). NOT for Windows: a real Windows Chrome 157 does NOT expose
+#     BarcodeDetector (MDN: "Supported on ChromeOS and macOS only"; the 8103
+#     services/shape_detection Windows provider is the not-supported stub), so
+#     exposing it there would ADD a tell.
+# The macOS getSupportedFormats() list is overridden separately
+# (apex-osapi-barcodedetector-formats.patch).
+#
+# Runtime-gated: no APEX_FP_UA_PLATFORM (or APEX_FP_ACTIVE != 1) = the real
+# (Linux-build) surface.
+#
+# Apply target: chrome/renderer/chrome_content_renderer_client.cc
+# (anchor edit via scripts/apply_edits.py; the persona OS helpers live in
+# chromium_src/apex_fingerprint.h -- apply.sh must copy it into
+# chrome/renderer/).
+--- a/chrome/renderer/chrome_content_renderer_client.cc
++++ b/chrome/renderer/chrome_content_renderer_client.cc
+@@ SetRuntimeFeaturesDefaultsBeforeBlinkInitialization @@
+ #if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_WIN) || \
+     BUILDFLAG(IS_MAC)
+   blink::WebRuntimeFeatures::EnableWebShare(true);
+ #endif
++  // apex-osapi-features: persona OS -> the OS-gated Web API
++  // surface (navigator.share / navigator.canShare on Win and
++  // Mac; BarcodeDetector on Mac).
++  if (apex_fp::PersonaIsWindows() || apex_fp::PersonaIsMacOS()) {
++    blink::WebRuntimeFeatures::EnableWebShare(true);
++  }
++  if (apex_fp::PersonaIsMacOS()) {
++    blink::WebRuntimeFeatures::EnableFeatureFromString(
++        "BarcodeDetector", true);
++  }

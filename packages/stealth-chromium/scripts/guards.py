@@ -42,6 +42,16 @@ GUARDS: dict[str, tuple[str, object]] = {
                            "const i=await a.requestAdapterInfo();"
                            "return i.vendor;})()",
                            "webgpu-persona-or-real"),
+    # OS-gated Web API surface (persona OS, not the host OS)
+    "apex-osapi-webshare": ("typeof navigator.share === 'function' && "
+                            "typeof navigator.canShare === 'function'",
+                            "true-when-persona-win-or-mac-else-false"),
+    "apex-osapi-barcodedetector": (
+        "typeof window.BarcodeDetector === 'function' ? "
+        "(async()=>{try{const f = await window.BarcodeDetector."
+        "getSupportedFormats(); return f.length;}catch(e){return 'throw'}})() "
+        ": 'absent'",
+        "macos-persona: >=1; win/linux persona: absent"),
     # battery
     "apex-battery": ("(async()=>{const b=await navigator.getBattery ? "
                      "navigator.getBattery() : null;"

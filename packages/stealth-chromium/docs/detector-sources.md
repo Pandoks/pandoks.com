@@ -35,13 +35,13 @@ and fleet-level population signals. Ranked:
 | Rank | Gap | Why it is the top risk | Rows |
 |---|---|---|---|
 | 1 | **WebRTC STUN reflexive candidate reveals the host's real egress IP past the proxy** -- CLOSED 2026-11-05 | Chrome's default IP-handling policy gathers srflx candidates over UDP; SOCKS5/HTTP proxies in Chrome carry TCP only, so STUN goes direct and the page sees an IP that disagrees with every HTTP request. Fixed: every proxied session now launches with `--webrtc-ip-handling-policy=disable_non_proxied_udp` (`profile.WEBRTC_PROXIED_FLAG`); the page sees zero ICE candidates, like a real Chrome under the `WebRtcIpHandling` policy. Residual: "no candidates at all" is itself a (benign, population-level) signal. | A8 |
-| 2 | **Cross-OS persona on a Linux render stack** | In the container every session is a *Windows* persona (host GPU class falls back to `intel` because `lspci` is absent — verified) running on Linux/Xvfb. Fonts (only Liberation + Noto Color Emoji resolve; Segoe UI/Helvetica absent), emoji glyphs, CSS system colours (`ActiveText` = `rgb(255,0,0)` on Linux), `navigator.share` absent (Windows/ChromeOS/macOS only), BarcodeDetector absent for Mac personas, HEVC codec support, and `prefers-color-scheme` all say Linux. The font-policy header itself documents this residual. | B6, B9, C15, C17, B1 |
+| 2 | **Cross-OS persona on a Linux render stack** | In the container every session is a *Windows* persona (host GPU class falls back to `intel` because `lspci` is absent — verified) running on Linux/Xvfb. Fonts (only Liberation + Noto Color Emoji resolve; Segoe UI/Helvetica absent), emoji glyphs, CSS system colours (`ActiveText` = `rgb(255,0,0)` on Linux), HEVC codec support, and `prefers-color-scheme` all say Linux. The OS-gated API surface (`navigator.share`/`canShare` for Win/macOS personas, `BarcodeDetector` for macOS) is now exposed (C16, 2026-11-10). The font-policy header itself documents this residual. | B6, B9, C15, C17, B1 |
 | 3 | **GPU truth behind the spoofed strings** | `UNMASKED_RENDERER` says "Intel Iris Xe D3D11" while `MAX_TEXTURE_SIZE`, extension list, shader precision, and rendered-pixel hashes are llvmpipe-via-ANGLE (Mesa is pulled in by `xvfb → libgl1 → libglx0 → libglx-mesa0 → libgl1-mesa-dri`, verified in Debian deps and in the local image). WebGPU on Linux shipped in Chrome 144, so on 157 the adapter exists and `isFallbackAdapter` is real (true on a CPU adapter) next to a spoofed `vendor: intel`. | B3, B2, B4 |
 | 4 | **Fleet population signals** | (a) One persona tuple for all container sessions (rank 2 cause). (b) `fullVersionList`/`uaFullVersion` report `157.0.8103.27`, which was never a Linux Stable release — Stable went `156.0.8078.79 → 157.0.8103.38` (verified via chromiumdash). (c) The Chromium build applies `fieldtrial_testing_config.json` by default (Chromium builds do; branded Chrome does not) and `args.gn` does not set `disable_fieldtrial_testing_config`, so feature state differs from the stable population. Fingerprint already labels unbranded Chromium "Chromium-Based Browser". | C20, C21, A6 |
 | 5 | **Input-stream structure and user-activation flips** | All input is CDP `Input.dispatch*` (nodriver `human.py`, patchright `page.mouse`): `isTrusted` is true but coalesced-event count, `pressure`, wheel-notch and hold-time structure are machine-shaped (the project measured this). Both cores send `userGesture: true` on every `Runtime.evaluate` (nodriver `tab.py`, `core_patchright.py:272`), flipping `navigator.userActivation` without any pointer/key event. | C14, D2 |
 | 6 | **Noise surfaces silently dropped** | `apex-audio-noise` and `apex-measuretext-farbling` were removed from `EDITS` (comment block at the end of the list) but the README still lists WebAudio and `measureText` as patched, and `apply.sh` still copies the orphaned headers. AudioContext and TextMetrics hashes are therefore stock. | B5, B8 |
 | 7 | nodriver core still uses `Emulation.setTimezoneOverride` / `setLocaleOverride` (patchright core uses `TZ`/`LANG`), Fetch-domain interception when proxy auth is on, `--disable-features` last-wins assumption unverified | D6, D4, D7 |
-| 8 | Storage quota from a small container disk, timing/Wasm fingerprints, Local Font Access | C11, B11, C19 |
+| 8 | Storage quota from a small container disk (now overridden per persona, C11), timing/Wasm fingerprints, Local Font Access | C11, B11, C19 |
 
 Everything else is either covered by a verified edit or covered by
 construction (real, unpatched Chromium behaviour that already matches Chrome).
@@ -86,12 +86,12 @@ on some paths / with a residual), **UNCOVERED**.
 | C8 | Permissions API ↔ `Notification.permission` | Headless (`denied`/`prompt` mismatch) | BY-CONSTRUCTION | no pre-grants (browser.py, core_patchright.py comments) | CreepJS `hasPermissionsBug` [S17] (origin: Vastel 2018 [S26]) |
 | C9 | `navigator.plugins` / `mimeTypes` / `pdfViewerEnabled` | Headless | BY-CONSTRUCTION (inferred: `pdf_enable` default) | checks.py row 6 | CreepJS `noPlugins`, `pdfIsDisabled` [S17] |
 | C10 | Storage partitioning / cookie semantics | Launch-flag tampering | BY-CONSTRUCTION | profile.py keeps `ThirdPartyStoragePartitioning` on | rebrowser `storagePartitioning` [S24] |
-| C11 | `navigator.storage.estimate()` quota | Disk size (60% of disk) → VM/container | **UNCOVERED** | none | web.dev storage quota [S27] |
+| C11 | `navigator.storage.estimate()` quota | Disk size (60% of disk) → VM/container | COVERED 2026-11-10 | `apex-storage-quota` (storage_manager.cc) + `APEX_FP_STORAGE_QUOTA_BYTES` | web.dev storage quota [S27] |
 | C12 | WebAssembly feature set / API quirks | Engine version | BY-CONSTRUCTION (same V8 as Chrome 157) | — | wasm-feature-detect [S28]; arXiv 2506.00719 [S23] |
 | C13 | Network Information API (`rtt`, `downlink`, `effectiveType`) | Network class; BotD collects `rtt` | BY-CONSTRUCTION (verified equal to real Chrome 156 on the Mac host, HANDOFF round 4) | — | WICG netinfo privacy section [S29]; BotD `rtt` source [S30] |
 | C14 | Keyboard/pointer events: `isTrusted`, coalesced events, `pressure`, wheel notches, hold times | Synthetic input stream | PARTIAL | `human.py` (CDP `Input.dispatch*`), `human_patchright.py` (`page.mouse`) | project `input-stream-realism.md` (measured); CL 6917162 [S31] |
 | C15 | MediaCapabilities / `isTypeSupported` (HEVC, platform codecs) | OS + hardware decoder | **UNCOVERED** | `proprietary_codecs=true` only | MDN video codecs: Chrome HEVC per-OS [S32]; W3C Media Capabilities §Privacy [S33] |
-| C16 | OS-gated API presence (`navigator.share/canShare`, `BarcodeDetector`, `ContactsManager`, `downlinkMax`) | Real OS | **UNCOVERED** | none | Chrome 89 Web Share desktop (ChromeOS + Windows) [S34]; Shape Detection (macOS, ChromeOS, Android) [S35]; CreepJS `noWebShare` [S17] |
+| C16 | OS-gated API presence (`navigator.share/canShare`, `BarcodeDetector`, `ContactsManager`, `downlinkMax`) | Real OS | COVERED (share/canShare + BarcodeDetector) 2026-11-10 | `apex-osapi-features` (chrome/renderer), `apex-osapi-barcodedetector-formats` (shapedetection) | Chrome 89 Web Share desktop (ChromeOS + Windows) [S34]; Shape Detection (macOS, ChromeOS, Android) [S35]; CreepJS `noWebShare` [S17] |
 | C17 | Intl / timezone / locale | Coherence with IP | PARTIAL | A7 | Fingerprint `timezone_mismatch` [S9] |
 | C18 | Local Font Access (`queryLocalFonts`) | Full font list (permission-gated) | UNCOVERED, low | README claims it; no edit targets `modules/font_access` (apply.sh only copies a header there) | — |
 | C19 | `chrome.*` object shape, `chrome.runtime` | Headless/Chromium | BY-CONSTRUCTION (verified vs real Chrome 156, HANDOFF round 4) | `apex-chrome-app-gone` removed on evidence | CreepJS `hasBadChromeRuntime` [S17] |
@@ -393,9 +393,16 @@ build output.
 rebrowser's `storagePartitioning` test (A-B-A iframe) is the detector [S24].
 BY-CONSTRUCTION, subject to the last-`--disable-features`-wins assumption (D7).
 
-**C11 — Storage quota. UNCOVERED.** "An origin can use up to 60% of the total
-disk space … Chrome … will always report 60% of the actual disk size" [S27]. A
-small container volume therefore reports a quota no consumer laptop would.
+**C11 — Storage quota. COVERED 2026-11-10.** "An origin can use up to 60% of the
+total disk space … Chrome … will always report 60% of the actual disk size"
+[S27]. A small container volume therefore reports a quota no consumer laptop
+would. `apex-storage-quota` (storage_manager.cc) replaces the quota with
+`APEX_FP_STORAGE_QUOTA_BYTES`, computed by the persona layer with the stock
+formula (60% of the persona's claimed `disk_gb`) — verified against
+`storage/browser/quota/quota_settings.cc` @157: `pool = total * 0.8`,
+`per_key = pool * 0.75` = 60% of the **total** (not free) disk, which the
+persona layer replicates. `navigator.connection` is NOT faked (real values
+report).
 
 **C12 — WebAssembly features.** Same V8 as Chrome 157, so the
 wasm-feature-detect matrix [S28] matches; only timing (B11) leaks.
@@ -423,14 +430,28 @@ real host. The spec's privacy section expects capability to correlate with
 device class [S33] — which is exactly the cross-check a detector runs.
 `proprietary_codecs=true` / `ffmpeg_branding="Chrome"` cover H.264/AAC only.
 
-**C16 — OS-gated API presence. UNCOVERED.** Web Share on desktop arrived in
-Chrome 89 for "ChromeOS and Windows" [S34] (macOS later; Linux never); CreepJS
-`noWebShare` fires when `CSS.supports('accent-color: initial')` is true but
-`navigator.share`/`canShare` are missing [S17] — i.e. on this Linux build under
-a Windows UA. "Barcode detection is available on macOS, ChromeOS, and Android"
-[S35], so a macOS persona must expose `BarcodeDetector` and this build does
-not. `ContactsManager` and `connection.downlinkMax` are the other CreepJS
-siblings.
+**C16 — OS-gated API presence. COVERED 2026-11-10** (Web Share + BarcodeDetector;
+`ContactsManager` and `connection.downlinkMax` remain). Web Share on desktop
+arrived in Chrome 89 for "ChromeOS and Windows" [S34] (macOS later; Linux
+never); CreepJS `noWebShare` fires when `CSS.supports('accent-color: initial')`
+is true but `navigator.share`/`canShare` are missing [S17] — i.e. on this Linux
+build under a Windows UA. "Barcode detection is available on macOS, ChromeOS,
+and Android" [S35]. Implementation, persona-gated off
+`APEX_FP_UA_PLATFORM` (`apex-osapi-features` in
+`chrome/renderer/chrome_content_renderer_client.cc`): `EnableWebShare` for
+Windows and macOS personas (mirrors the stock `BUILDFLAG(IS_WIN||IS_MAC)` gate
+that a Linux build compiles out), and
+`EnableFeatureFromString("BarcodeDetector", true)` for macOS only — a real
+Windows Chrome 157 does NOT expose `BarcodeDetector` (MDN: "Supported on
+ChromeOS and macOS only"; the 8103 `services/shape_detection` Windows provider
+is the not-supported stub), so exposing it on Windows would add a tell.
+`apex-osapi-barcodedetector-formats` additionally returns the real macOS
+format list from `getSupportedFormats()` (the Linux build's provider is a stub
+that would answer `[]`; the list is the 11 Vision symbologies
+`barcode_detection_impl_mac_vision.mm` maps). Residuals: `detect()` still
+rejects (`NotSupportedError`) on the stub provider; `share()` (with a user
+gesture) fails on the Linux host because the browser-side `webshare`
+source_set is Win/ChromeOS/Mac-only — `canShare()` (no gesture) works.
 
 **C17 — Intl / timezone.** See A7/D6.
 

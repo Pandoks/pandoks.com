@@ -1,0 +1,46 @@
+# apex patch: macOS persona's real BarcodeDetector format list (gap #9)
+#
+# With the BarcodeDetector runtime feature exposed for a macOS persona
+# (apex-osapi-features.patch), getSupportedFormats() still answers through the
+# shape-detection service -- and on this Linux build the service's provider is
+# the not-supported stub (services/shape_detection/barcode_detection_provider_
+# impl.cc: "Platform not supported for Barcode Detection Service."), which
+# resolves the promise to []. A real macOS Chrome answers the 11 format strings
+# the Apple Vision path can map (services/shape_detection/
+# barcode_detection_impl_mac_vision.mm: aztec, code_39, code_93, code_128,
+# data_matrix, ean_13, ean_8, itf, pdf417, qr_code, upc_e -- no UPC_A, no
+# CODABAR). An empty list under a macOS persona is itself a tell.
+#
+# THE FIX. An anchor edit in modules/shapedetection/barcode_detector.cc
+# resolves the promise directly with that list for a macOS persona, using the
+# same Vector<V8BarcodeFormat> + ScriptPromiseResolver shape the upstream
+# BarcodeDetectorStatics::OnEnumerateSupportedFormats uses.
+#
+# Runtime-gated: no APEX_FP_UA_PLATFORM = "macOS" (or APEX_FP_ACTIVE != 1) =
+# the real service path.
+#
+# Apply target:
+# third_party/blink/renderer/modules/shapedetection/barcode_detector.cc
+# (anchor edit via scripts/apply_edits.py).
+--- a/third_party/blink/renderer/modules/shapedetection/barcode_detector.cc
++++ b/third_party/blink/renderer/modules/shapedetection/barcode_detector.cc
+@@ BarcodeDetector::getSupportedFormats @@
+   ExecutionContext* context = ExecutionContext::From(script_state);
++  // apex-osapi-barcodedetector-formats: a macOS persona must
++  // report the format list real macOS Chrome reports; the
++  // Linux build's shape-detection provider is a stub that
++  // would answer []. The list is the set of Vision
++  // symbologies services/shape_detection maps on Mac
++  // (no UPC_A, no CODABAR).
++  if (apex_fp::PersonaIsMacOS()) {
++    Vector<V8BarcodeFormat> apex_formats;
++    apex_formats.push_back(V8BarcodeFormat(V8BarcodeFormat::Enum::kAztec));
++    // ... the full 11-entry list, as in apply_edits.py ...
++    auto* apex_resolver = MakeGarbageCollected<
++        ScriptPromiseResolver<IDLSequence<V8BarcodeFormat>>>(
++        script_state);
++    apex_resolver->Resolve(std::move(apex_formats));
++    return apex_resolver->Promise();
++  }
+   return BarcodeDetectorStatics::From(context)->EnumerateSupportedFormats(
+       script_state);
