@@ -1,7 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
   <uses-feature android:name="android.hardware.type.watch" />
 
-  <application android:label="Mobile Template" android:theme="@android:style/Theme.DeviceDefault">
+  <application
+    android:label="Mobile Template"
+    android:icon="@mipmap/ic_launcher"
+    android:roundIcon="@mipmap/ic_launcher_round"
+    android:theme="@android:style/Theme.DeviceDefault">
     <meta-data android:name="com.google.android.wearable.standalone" android:value="false" />
 
     <activity android:name=".MainActivity" android:exported="true">

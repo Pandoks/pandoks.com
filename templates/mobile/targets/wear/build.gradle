@@ -15,6 +15,13 @@ apply plugin: 'org.jetbrains.kotlin.plugin.compose'
 evaluationDependsOn(':app')
 def phoneApp = project(':app').android
 
+// NOTE: reuse the launcher icons Expo generates for the phone app
+def phoneIcons = layout.buildDirectory.dir('generated/res/phoneIcons').get().asFile
+project.sync {
+  from(project(':app').file('src/main/res')) { include 'mipmap-*/**' }
+  into phoneIcons
+}
+
 android {
   namespace 'com.pandoks.mobiletemplate.wear'
   compileSdk rootProject.ext.compileSdkVersion
@@ -34,6 +41,8 @@ android {
     buildType.minifyEnabled = phoneBuildType.minifyEnabled
     buildType.proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
   }
+
+  sourceSets.main.res.srcDir(phoneIcons)
 
   buildFeatures {
     compose true

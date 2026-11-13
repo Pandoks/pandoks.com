@@ -67,8 +67,9 @@ class MainActivity : ComponentActivity(), DataClient.OnDataChangedListener {
 
   override fun onResume() {
     super.onResume()
-    Wearable.getDataClient(this).addListener(this)
-    Wearable.getDataClient(this).dataItems.addOnSuccessListener { dataItems ->
+    // NOTE: read the current item only once the listener registers, so no change slips between them
+    val dataClient = Wearable.getDataClient(this)
+    dataClient.addListener(this).onSuccessTask { dataClient.dataItems }.addOnSuccessListener { dataItems ->
       dataItems.forEach(::show)
       dataItems.release()
     }

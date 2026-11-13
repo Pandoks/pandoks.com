@@ -26,4 +26,5 @@ relative to the app root: `["@pandoks.com/react-native-watch", { "wearApp": "./t
 That app must reuse the phone app's application ID and signing key, declare the `watch_app`
 capability in `android_wear_capabilities`, read the phone's context from the `/phone_context` data
 item, and write its own to `/watch_context` as a `context` `DataMap` beside a `sentAt` time in epoch
-milliseconds, which the phone uses to keep the newest value across watches.
+milliseconds. The phone applies changes in the order they arrive and uses `sentAt` only at startup,
+to pick the latest item stored by several watches.

@@ -5,7 +5,7 @@ import com.google.android.gms.tasks.Tasks
 import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.DataEvent
-import com.google.android.gms.wearable.DataItem
+import com.google.android.gms.wearable.DataMap
 import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
@@ -22,13 +22,17 @@ private const val SENT_AT_KEY = "sentAt"
 class WatchModule : Module() {
   private val context get() = requireNotNull(appContext.reactContext)
   private var isReachable = false
+  private var reachabilityRequest = 0
   private var receivedApplicationContext = Bundle()
-  private var receivedSentAt = Long.MIN_VALUE
+  private var hasReceivedChange = false
 
   private val dataListener = DataClient.OnDataChangedListener { dataEvents ->
     dataEvents
-      .filter { dataEvent -> dataEvent.type == DataEvent.TYPE_CHANGED }
-      .forEach { dataEvent -> receive(dataEvent.dataItem) }
+      .filter { dataEvent -> dataEvent.type == DataEvent.TYPE_CHANGED && dataEvent.dataItem.uri.path == WATCH_CONTEXT_PATH }
+      .forEach { dataEvent ->
+        hasReceivedChange = true
+        receive(DataMapItem.fromDataItem(dataEvent.dataItem).dataMap)
+      }
   }
   private val capabilityListener = CapabilityClient.OnCapabilityChangedListener { updateReachability() }
 
@@ -43,14 +47,21 @@ class WatchModule : Module() {
 
     Property("receivedApplicationContext") { receivedApplicationContext }
 
+    // NOTE: read the current state only once each listener registers, so no change slips between them
     OnCreate {
-      Wearable.getDataClient(context).addListener(dataListener)
-      Wearable.getCapabilityClient(context).addListener(capabilityListener, WATCH_CAPABILITY)
-      updateReachability()
+      Wearable.getCapabilityClient(context)
+        .addListener(capabilityListener, WATCH_CAPABILITY)
+        .addOnSuccessListener { updateReachability() }
       // NOTE: the watch's data item outlives both apps, so read what it sent while this one wasn't running
-      Wearable.getDataClient(context).dataItems.addOnSuccessListener { dataItems ->
-        dataItems.forEach(::receive)
+      val dataClient = Wearable.getDataClient(context)
+      dataClient.addListener(dataListener).onSuccessTask { dataClient.dataItems }.addOnSuccessListener { dataItems ->
+        // NOTE: each watch keeps its own item, so take the one sent last, unless a change already arrived
+        val newestDataMap = dataItems
+          .filter { dataItem -> dataItem.uri.path == WATCH_CONTEXT_PATH }
+          .map { dataItem -> DataMapItem.fromDataItem(dataItem).dataMap }
+          .maxByOrNull { dataMap -> dataMap.getLong(SENT_AT_KEY) }
         dataItems.release()
+        if (!hasReceivedChange) newestDataMap?.let(::receive)
       }
     }
 
@@ -74,22 +85,18 @@ class WatchModule : Module() {
     }
   }
 
-  private fun receive(dataItem: DataItem) {
-    if (dataItem.uri.path == WATCH_CONTEXT_PATH) {
-      // NOTE: each watch keeps its own item, so keep the newest across watches
-      val dataMap = DataMapItem.fromDataItem(dataItem).dataMap
-      val sentAt = dataMap.getLong(SENT_AT_KEY)
-      if (sentAt < receivedSentAt) return
-      receivedSentAt = sentAt
-      receivedApplicationContext = requireNotNull(dataMap.getDataMap(CONTEXT_KEY)).toBundle()
-      sendEvent("onApplicationContext", receivedApplicationContext)
-    }
+  private fun receive(dataMap: DataMap) {
+    receivedApplicationContext = requireNotNull(dataMap.getDataMap(CONTEXT_KEY)).toBundle()
+    sendEvent("onApplicationContext", receivedApplicationContext)
   }
 
   private fun updateReachability() {
+    // NOTE: lookups can complete out of order, so apply only the latest
+    val request = ++reachabilityRequest
     Wearable.getCapabilityClient(context)
       .getCapability(WATCH_CAPABILITY, CapabilityClient.FILTER_REACHABLE)
       .addOnCompleteListener { task ->
+        if (request != reachabilityRequest) return@addOnCompleteListener
         isReachable = task.isSuccessful && task.result.nodes.isNotEmpty()
         sendEvent("onReachabilityChange", mapOf("isReachable" to isReachable))
       }
