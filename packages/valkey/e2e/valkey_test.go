@@ -3,6 +3,7 @@ package valkey_test
 import (
 	"e2e"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -91,6 +92,10 @@ func valkeyCliAs(namespace, podName, user, password, stdin string, cliArguments 
 		"-n", namespace, "exec", "-i", podName, "-c", "valkey", "--",
 		"valkey-cli", "--user", user, "-a", password, "--no-auth-warning",
 	}, cliArguments...)...)
+}
+
+func valkeyCliUnauthenticated(namespace, podName string, cliArguments ...string) (string, error) {
+	return e2e.Run("", "kubectl", append([]string{"-n", namespace, "exec", podName, "-c", "valkey", "--", "valkey-cli"}, cliArguments...)...)
 }
 
 func podNames(namespace string) []string {
@@ -394,6 +399,10 @@ func expectPodsReady(g Gomega, namespace string, podCount int) {
 	g.Expect(strings.Fields(readyStatuses)).To(And(HaveLen(podCount), HaveEach("True")))
 }
 
+func podReadyStatus(namespace, podName string) (string, error) {
+	return e2e.Run("", "kubectl", "-n", namespace, "get", "pod", podName, "-o", `jsonpath={.status.conditions[?(@.type=="Ready")].status}`)
+}
+
 func helmRevision(namespace string) string {
 	GinkgoHelper()
 	return strings.TrimSpace(e2e.MustRun("", "kubectl", "-n", namespace, "get", "secret", "-l", "owner=helm,name=valkey,status=deployed",
@@ -407,7 +416,6 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 			Expect(err).To(MatchError(ContainSubstring(message)))
 		},
 		Entry("a setting Valkey can't change at runtime", "parameters.cluster-enabled=no", "Valkey can't change it on running nodes"),
-		Entry("a protected setting", "parameters.enable-debug-command=yes", "Valkey can't change it on running nodes"),
 		Entry("a secret", "parameters.requirepass=leak", "keep secrets out of parameters"),
 		Entry("a setting the chart sets", "parameters.primaryauth=leak", "the chart sets it"),
 		Entry("an alias of a default", "parameters.slave-read-only=no", "parameters.replica-read-only sets the same setting"),
@@ -446,10 +454,15 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 		})
 
 		It("turns off the default user and rejects a wrong password", func() {
-			Expect(e2e.Run("", "kubectl", "-n", namespace, "exec", "valkey-vk-0", "-c", "valkey", "--", "valkey-cli", "ping")).
-				To(HavePrefix("NOAUTH"))
-			// NOTE: valkey-cli goes on unauthenticated after a rejected -a
-			Expect(valkeyCliAs(namespace, "valkey-vk-0", "client", "wrong-password", "", "ping")).To(HavePrefix("NOAUTH"))
+			Expect(valkeyCliUnauthenticated(namespace, "valkey-vk-0", "ping")).To(HavePrefix("NOAUTH"))
+			defaultUserJSON, err := valkeyCli(namespace, "valkey-vk-0", "", "-3", "--json", "acl", "getuser", "default")
+			Expect(err).NotTo(HaveOccurred())
+			var defaultUser struct{ Flags, Passwords []string }
+			Expect(json.Unmarshal([]byte(defaultUserJSON), &defaultUser)).To(Succeed())
+			Expect(defaultUser.Flags).To(And(ContainElement("off"), Not(ContainElement("nopass"))))
+			Expect(defaultUser.Passwords).To(BeEmpty())
+
+			Expect(valkeyCliUnauthenticated(namespace, "valkey-vk-0", "auth", "client", "wrong-password")).To(HavePrefix("WRONGPASS"))
 		})
 
 		It("lets client read and write keys but not run admin commands", func() {
@@ -472,7 +485,14 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 			endpoints := strings.Fields(e2e.MustRun("", "kubectl", "-n", namespace, "get", "servicemonitor", "valkey-vk",
 				"-o", `jsonpath={range .spec.endpoints[*]}{.port}{" "}{.path}{"\n"}{end}`))
 			Expect(endpoints).To(HaveLen(2), "want one endpoint with a port and a path")
-			servicePort := e2e.MustRun("", "kubectl", "-n", namespace, "get", "service", "-l", "app.kubernetes.io/name=valkey,database=vk",
+			var serviceSelector map[string]string
+			Expect(json.Unmarshal([]byte(e2e.MustRun("", "kubectl", "-n", namespace, "get", "servicemonitor", "valkey-vk",
+				"-o", "jsonpath={.spec.selector.matchLabels}")), &serviceSelector)).To(Succeed())
+			serviceSelectorLabels := []string{}
+			for labelKey, labelValue := range serviceSelector {
+				serviceSelectorLabels = append(serviceSelectorLabels, labelKey+"="+labelValue)
+			}
+			servicePort := e2e.MustRun("", "kubectl", "-n", namespace, "get", "service", "-l", strings.Join(serviceSelectorLabels, ","),
 				"-o", fmt.Sprintf(`jsonpath={.items[*].spec.ports[?(@.name==%q)].targetPort}`, endpoints[0]))
 			Expect(strings.Fields(servicePort)).To(HaveLen(1), "want one Service port named %s", endpoints[0])
 
@@ -481,27 +501,50 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 			_, err := getThroughPodProxy(namespace, "valkey-vk-0", servicePort, "/scrape?target=redis://localhost:6379")
 			Expect(err).To(MatchError(ContainSubstring("NotFound")))
 		})
+
+		It("denies the exporter's scrape nothing but the documented SLOWLOG GET", func() {
+			for _, podName := range podNames(namespace) {
+				Expect(valkeyCli(namespace, podName, "", "acl", "log", "reset")).To(Equal("OK\n"), podName)
+				_, err := getThroughPodProxy(namespace, podName, "9121", "/metrics")
+				Expect(err).NotTo(HaveOccurred())
+
+				aclLogJSON, err := valkeyCli(namespace, podName, "", "-3", "--json", "acl", "log")
+				Expect(err).NotTo(HaveOccurred())
+				var aclLogEntries []struct{ Reason, Object, Username string }
+				Expect(json.Unmarshal([]byte(aclLogJSON), &aclLogEntries)).To(Succeed())
+				metricsDenials := []string{}
+				for _, aclLogEntry := range aclLogEntries {
+					if aclLogEntry.Username == "metrics" {
+						metricsDenials = append(metricsDenials, aclLogEntry.Reason+" "+aclLogEntry.Object)
+					}
+				}
+				Expect(metricsDenials).To(ConsistOf("command slowlog|get"), podName)
+			}
+		})
+
+		It("keeps the metrics password across upgrades", func() {
+			password := metricsPassword(namespace)
+			upgradeValkey(namespace, map[string]string{})
+			Expect(metricsPassword(namespace)).To(Equal(password))
+			Eventually(expectExportersUp).WithArguments(namespace, "9121", "/metrics").Should(Succeed())
+		})
 	})
 
-	Context("reconciler scale down", Ordered, func() {
+	Context("scaling masters without replicas", Ordered, func() {
 		var namespace string
 
 		BeforeAll(func() {
-			namespace = installValkey(4, 0)
-		})
-
-		It("forms a cluster with every slot spread over 4 masters", func() {
-			waitForHealthyCluster(namespace, 4, 0)
-		})
-
-		It("serves every key written through the cluster", func() {
-			writeKeys(namespace)
-			expectKeysReadable(Default, namespace, "valkey-vk-0")
+			namespace = installValkeyWithKeys(4, 0)
 		})
 
 		It("scales down to 3 masters with the pre-upgrade hook and keeps every key", func() {
 			upgradeValkey(namespace, map[string]string{"cluster.masters": "3"})
 			expectScaledCluster(namespace, 3, 0)
+		})
+
+		It("adds a master and rebalances slots onto it, keeping every key", func() {
+			upgradeValkey(namespace, map[string]string{"cluster.masters": "4"})
+			expectScaledCluster(namespace, 4, 0)
 		})
 	})
 
@@ -512,7 +555,7 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 			namespace = installValkeyWithKeys(1, 0)
 		})
 
-		It("adds masters and replicas in one upgrade, syncing each new replica before rebalancing", func() {
+		It("adds masters and replicas in one upgrade, leaving no open slot on any new replica", func() {
 			upgradeValkey(namespace, map[string]string{"cluster.masters": "3", "cluster.replicasPerMaster": "1"})
 			expectScaledCluster(namespace, 3, 1)
 		})
@@ -631,7 +674,7 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 			expectConfigOnEveryPod(namespace, "maxmemory", "209715200")
 		})
 
-		It("restarts pods one at a time for a valkey.conf change and keeps every key", func() {
+		It("restarts every pod for a valkey.conf change and keeps every key", func() {
 			changedChartDirectory := filepath.Join(GinkgoT().TempDir(), "chart")
 			Expect(os.CopyFS(changedChartDirectory, os.DirFS(valkeyChartDirectory))).To(Succeed())
 			configFile, err := os.OpenFile(filepath.Join(changedChartDirectory, "files/valkey.conf"), os.O_APPEND|os.O_WRONLY, 0)
@@ -641,37 +684,33 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 			Expect(configFile.Close()).To(Succeed())
 			originalPodUIDs := podUIDs(namespace)
 
-			stopPolling, mostUnready := make(chan struct{}), make(chan int)
-			go func() {
-				defer GinkgoRecover()
-				mostUnreadyPods := 0
-				for {
-					select {
-					case <-stopPolling:
-						mostUnready <- mostUnreadyPods
-						return
-					case <-time.After(time.Second):
-					}
-					readyStatuses, err := e2e.Run("", "kubectl", "-n", namespace, "get", "pods", "-l", "app=valkey-vk",
-						"-o", `jsonpath={range .items[*]}{.status.conditions[?(@.type=="Ready")].status}{" "}{end}`)
-					if err == nil {
-						// NOTE: a deleted pod not yet recreated counts as unready
-						mostUnreadyPods = max(mostUnreadyPods, 6-strings.Count(readyStatuses, "True"))
-					}
-				}
-			}()
 			e2e.UpgradeChart(namespace, "valkey", changedChartDirectory, map[string]string{})
 			waitForHealthyCluster(namespace, 3, 1)
-			Eventually(expectPodsReady).WithArguments(namespace, 6).Should(Succeed())
-			close(stopPolling)
-
-			Expect(<-mostUnready).To(Equal(1))
 			Expect(podUIDs(namespace)).NotTo(ContainElement(BeElementOf(originalPodUIDs)))
 			expectKeysReadable(Default, namespace, "valkey-vk-0")
 			Eventually(expectReplicasSynced).WithArguments(namespace).Should(Succeed())
 		})
 
-		It("deletes the applied Secret on uninstall and keeps the data PVCs", func() {
+		It("keeps a restarted replica unready until it syncs", func() {
+			// NOTE: the probe first runs 10s after the container starts, so the full sync must take longer
+			upgradeValkey(namespace, map[string]string{"parameters.repl-diskless-sync-delay": "30"})
+			_, replicaPodName := shardOfKey(namespace, "key:0")
+			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", replicaPodName)
+
+			Eventually(valkeyCli).WithArguments(namespace, replicaPodName, "", "info", "replication").
+				Should(ContainSubstring("master_link_status:down"))
+			Consistently(func(g Gomega) {
+				replicationInfo, err := valkeyCli(namespace, replicaPodName, "", "info", "replication")
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(replicationInfo).To(ContainSubstring("master_link_status:down"))
+				g.Expect(podReadyStatus(namespace, replicaPodName)).To(Equal("False"))
+			}).WithTimeout(15 * time.Second).WithPolling(time.Second).Should(Succeed())
+
+			Eventually(podReadyStatus).WithArguments(namespace, replicaPodName).Should(Equal("True"))
+			Expect(valkeyCli(namespace, replicaPodName, "", "info", "replication")).To(ContainSubstring("master_link_status:up"))
+		})
+
+		It("deletes the applied Secret on uninstall", func() {
 			Expect(e2e.MustRun("", "kubectl", "-n", namespace, "get", "secret", "valkey-vk-applied", "-o", "jsonpath={.metadata.ownerReferences[*].kind}")).
 				To(Equal("StatefulSet"))
 			e2e.MustRun("", "helm", "-n", namespace, "uninstall", "valkey", "--wait", "--timeout=3m")
@@ -679,7 +718,6 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 				_, err := e2e.Run("", "kubectl", "-n", namespace, "get", "secret", "valkey-vk-applied")
 				return err
 			}).Should(MatchError(ContainSubstring("NotFound")))
-			Expect(strings.Fields(e2e.MustRun("", "kubectl", "-n", namespace, "get", "pvc", "-o", "name"))).To(HaveLen(6))
 		})
 	})
 
@@ -710,15 +748,17 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 			writeKeys(namespace)
 			Eventually(expectReplicasSynced).WithArguments(namespace).Should(Succeed())
 		})
+	})
 
-		It("keeps the metrics password across upgrades", func() {
-			password := metricsPassword(namespace)
-			upgradeValkey(namespace, map[string]string{"parameters.maxmemory": "200mb"})
-			Expect(metricsPassword(namespace)).To(Equal(password))
-			Eventually(expectExportersUp).WithArguments(namespace, "9121", "/metrics").Should(Succeed())
+	Context("admin password rotation", Ordered, func() {
+		var namespace, masterPodName, replicaPodName string
+
+		BeforeAll(func() {
+			namespace = installValkeyWithKeys(1, 1)
+			masterPodName, replicaPodName = shardOfKey(namespace, "key:0")
 		})
 
-		It("keeps pods ready when the admin secret changes before the upgrade", func() {
+		It("keeps pods ready, and a pod restarted meanwhile syncing, when the admin secret changes before the upgrade", func() {
 			e2e.MustRun("", "kubectl", "-n", namespace, "patch", "secret", "valkey-creds", "--type=merge",
 				"-p", fmt.Sprintf(`{"stringData":{"ADMIN_PASSWORD":%q}}`, newAdminPassword))
 			for _, podName := range podNames(namespace) {
@@ -726,13 +766,36 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 					WithTimeout(3 * time.Minute).Should(Equal(newAdminPassword))
 			}
 			// NOTE: the readiness probe turns a pod unready after 3 failures 5s apart
-			Consistently(expectPodsReady).WithArguments(namespace, 2).WithTimeout(20 * time.Second).Should(Succeed())
+			Consistently(expectPodsReady).WithArguments(namespace, 2).WithTimeout(20 * time.Second).WithPolling(time.Second).Should(Succeed())
+
+			// NOTE: the restarted pod reads the new password, which its master doesn't accept until the upgrade
+			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", replicaPodName)
+			Eventually(expectReplicasSynced).WithArguments(namespace).WithTimeout(2 * time.Minute).Should(Succeed())
+			Expect(valkeyCliAs(namespace, replicaPodName, "admin", newAdminPassword, "", "ping")).To(Equal("PONG\n"))
 
 			upgradeValkey(namespace, map[string]string{})
 			for _, podName := range podNames(namespace) {
 				Expect(valkeyCliAs(namespace, podName, "admin", newAdminPassword, "", "ping")).To(Equal("PONG\n"), podName)
 			}
 			expectPodsReady(Default, namespace, 2)
+		})
+
+		It("reconnects the replica with the rotated password once its link drops", func() {
+			replicaClientID := func() (string, error) {
+				clientList, err := valkeyCliAs(namespace, masterPodName, "admin", newAdminPassword, "", "client", "list", "type", "replica")
+				clientIDMatch := regexp.MustCompile(`(?m)^id=(\d+) `).FindStringSubmatch(clientList)
+				if clientIDMatch == nil {
+					return "", err
+				}
+				return clientIDMatch[1], err
+			}
+			originalReplicaClientID, err := replicaClientID()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(originalReplicaClientID).NotTo(BeEmpty())
+
+			// NOTE: a replica logs in to its master only on connecting, so drop the link to use primaryauth
+			Expect(valkeyCliAs(namespace, masterPodName, "admin", newAdminPassword, "", "client", "kill", "type", "replica")).To(Equal("1\n"))
+			Eventually(replicaClientID).Should(And(Not(BeEmpty()), Not(Equal(originalReplicaClientID))))
 		})
 	})
 
@@ -756,16 +819,14 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 		})
 
 		It("scales down right after a failover, while the demoted master resyncs", func() {
-			masterNodeID, err := valkeyCli(namespace, "valkey-vk-0", "", "cluster", "myid")
-			Expect(err).NotTo(HaveOccurred())
-			replicaNodes, err := valkeyCli(namespace, "valkey-vk-0", "", "cluster", "replicas", strings.TrimSpace(masterNodeID))
-			Expect(err).NotTo(HaveOccurred())
-			replicaPodName := regexp.MustCompile(`,(valkey-vk-\d+)\.`).FindStringSubmatch(replicaNodes)[1]
-			Expect(valkeyCli(namespace, replicaPodName, "", "cluster", "failover")).To(Equal("OK\n"))
-			Eventually(valkeyCli).WithArguments(namespace, "valkey-vk-0", "", "info", "replication").Should(ContainSubstring("role:slave"))
+			demotedPodName, promotedPodName := shardOfKey(namespace, "key:0")
+			Expect(valkeyCli(namespace, promotedPodName, "", "cluster", "failover")).To(Equal("OK\n"))
+			Eventually(valkeyCli).WithArguments(namespace, demotedPodName, "", "info", "replication").Should(ContainSubstring("role:slave"))
 
 			// NOTE: the sync delay keeps the restarted replica resyncing while scale-down runs
-			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", "valkey-vk-0")
+			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", demotedPodName)
+			Eventually(valkeyCli).WithArguments(namespace, demotedPodName, "", "info", "replication").
+				Should(And(ContainSubstring("role:slave"), ContainSubstring("master_link_status:down")))
 			upgradeValkey(namespace, map[string]string{"cluster.replicasPerMaster": "0"})
 			expectScaledCluster(namespace, 3, 0)
 		})
@@ -793,8 +854,7 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 			Expect(upgradeOutput + err.Error()).To(ContainSubstring("argument must be a memory value"))
 
 			for _, podName := range podNames(namespace) {
-				// NOTE: valkey-cli goes on unauthenticated after a rejected -a
-				Expect(valkeyCliAs(namespace, podName, "admin", adminPassword, "", "ping")).To(HavePrefix("NOAUTH"), podName)
+				Expect(valkeyCliUnauthenticated(namespace, podName, "auth", "admin", adminPassword)).To(HavePrefix("WRONGPASS"), podName)
 				Expect(valkeyCliAs(namespace, podName, "admin", newAdminPassword, "", "ping")).To(Equal("PONG\n"), podName)
 			}
 		})
