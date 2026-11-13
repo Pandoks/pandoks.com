@@ -656,8 +656,9 @@ after changing them:
 `pnpm local:build && pnpm local:push` from the repo root does this for every package.
 
 The Ginkgo suite in [e2e](./e2e) installs the chart on local k3d and tests replication, failover,
-switchover, scaling, rolling upgrades, backups and restore-on-bootstrap. With the cluster up (see
-[packages/e2e](../e2e/README.md#running-a-suite)), from the repo root:
+switchover, scaling, rolling upgrades, backups, retention and restore-on-bootstrap, PgDog routing,
+and upgrading from the newest chart on GHCR, then rolling back and uninstalling. With the cluster up
+(see [packages/e2e](../e2e/README.md#running-a-suite)), from the repo root:
 
 ```sh
 pnpm --filter @pandoks.com/postgres local:build && pnpm --filter @pandoks.com/postgres local:push
