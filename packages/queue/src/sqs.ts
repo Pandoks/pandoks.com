@@ -63,12 +63,14 @@ export class SQSQueue implements Queue {
       DelaySeconds: message.delay ? delaySeconds(message.delay) : undefined
     }));
     const size = (entry: { MessageBody: string }) => Buffer.byteLength(entry.MessageBody);
-    for (const batch of batches(entries, size, BATCH_COUNT, BATCH_BYTES)) {
-      const output = await this.client.send(
-        new SendMessageBatchCommand({ QueueUrl: this.url, Entries: batch })
-      );
-      checkFailed('send to SQS', output.Failed);
-    }
+    await Promise.all(
+      batches(entries, size, BATCH_COUNT, BATCH_BYTES).map(async (batch) => {
+        const output = await this.client.send(
+          new SendMessageBatchCommand({ QueueUrl: this.url, Entries: batch })
+        );
+        checkFailed('send to SQS', output.Failed);
+      })
+    );
   }
 
   async receive(max: number, signal?: AbortSignal): Promise<Delivery[]> {

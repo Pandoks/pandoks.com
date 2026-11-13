@@ -88,12 +88,11 @@ export class CloudflareQueue implements Queue {
 
   async push(pushed: Entry[]): Promise<void> {
     const size = (entry: Entry) => Buffer.byteLength(entry.body) + METADATA_BYTES;
-    for (const batch of batches(pushed, size, BATCH_COUNT, BATCH_BYTES)) {
-      await this.client.queues.messages.bulkPush(this.id, {
-        account_id: this.account,
-        messages: batch
-      });
-    }
+    await Promise.all(
+      batches(pushed, size, BATCH_COUNT, BATCH_BYTES).map((batch) =>
+        this.client.queues.messages.bulkPush(this.id, { account_id: this.account, messages: batch })
+      )
+    );
   }
 
   async send(...messages: Message[]): Promise<void> {

@@ -46,12 +46,14 @@ export class SNSTopic implements Topic {
       Message: encode(message, sentAt)
     }));
     const size = (entry: { Message: string }) => Buffer.byteLength(entry.Message);
-    for (const batch of batches(entries, size, BATCH_COUNT, BATCH_BYTES)) {
-      const output = await this.client.send(
-        new PublishBatchCommand({ TopicArn: this.arn, PublishBatchRequestEntries: batch })
-      );
-      checkFailed('publish to SNS', output.Failed);
-    }
+    await Promise.all(
+      batches(entries, size, BATCH_COUNT, BATCH_BYTES).map(async (batch) => {
+        const output = await this.client.send(
+          new PublishBatchCommand({ TopicArn: this.arn, PublishBatchRequestEntries: batch })
+        );
+        checkFailed('publish to SNS', output.Failed);
+      })
+    );
   }
 
   close(): Promise<void> {
