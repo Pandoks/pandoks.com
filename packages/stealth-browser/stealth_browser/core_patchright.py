@@ -91,7 +91,7 @@ class PatchrightCore:
         self._browser = None
         self._context = None
         self._page = None
-        self._human = None
+        self._human_driver = None
         # one humanization regime per session (drawn once, stable within)
         self._session_seed = random.getrandbits(64)
         # temp user-data-dir backing non-persistent sessions (removed on close)
@@ -118,10 +118,10 @@ class PatchrightCore:
 
     def _human(self):
         """Lazily build the human-input driver for the current page."""
-        if self._human is None or self._human.page is not self._page:
-            self._human = PatchrightHuman(self._page,
-                                          session_seed=self._session_seed)
-        return self._human
+        if self._human_driver is None or self._human_driver.page is not self._page:
+            self._human_driver = PatchrightHuman(self._page,
+                                                 session_seed=self._session_seed)
+        return self._human_driver
 
     def _proxy_dict(self) -> dict | None:
         """Translate a ProxyConfig into Playwright's proxy option shape."""
