@@ -80,7 +80,7 @@ if (isProduction) {
       scopes: ['devices:core', 'auth_keys'],
       tags: ['tag:ci']
     },
-    { dependsOn: [tailscaleAcl] }
+    { dependsOn: tailscaleAcl }
   );
   new github.ActionsSecret('GithubActionsTailscaleOauthClientId', {
     repository: githubRepositoryName,
