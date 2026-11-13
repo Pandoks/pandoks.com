@@ -4,7 +4,6 @@ import { useTheme } from 'expo-router';
 import * as Updates from 'expo-updates';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// Rechecks on foreground and offers a restart once an update downloads; ignored, it applies next launch
 export function UpdateBanner() {
   const { isUpdatePending } = Updates.useUpdates();
   const { colors } = useTheme();

@@ -3,8 +3,9 @@
 Personal monorepo. SST (`sst.config.ts`, `infra/`) manages all infrastructure: AWS and Cloudflare
 for what needs high availability, rented machines (Hetzner in `infra/vps/`, moving to OVH) for raw
 compute; the cluster is K3s with Kustomize and ArgoCD. `templates/` holds starters that are never
-deployed; `apps/example` is an example app whose `kube/` is in every overlay, prod included. Apps
-import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it, use `#lib`.
+deployed, except `templates/mobile`'s OTA updates, which publish to production; `apps/example` is an
+example app whose `kube/` is in every overlay, prod included. Apps import `packages/svelte` by
+package name (`@pandoks.com/svelte/...`); inside it, use `#lib`.
 
 ## Principles
 

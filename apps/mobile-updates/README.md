@@ -67,7 +67,10 @@ Production publishes only from `deploy-infra.yaml` on `main`, split so the app's
 run beside a secret: `build-mobile-template` exports with no secrets, AWS, or OIDC token, and
 `publish-mobile-template` uploads the artifact without installing anything, using only the
 Cloudflare token and the `MOBILE_UPDATES_*` secret and variables that `infra/github.ts` writes to
-the `production` environment. Other stages:
+the `production` environment. One build and one publish run at a time, and a newer pending run
+replaces an older pending one. Each run exports its own commit, and GitHub queues jobs by when they
+start waiting, not by merge order, so merges close together can publish an older commit last or
+cancel the newer merge's pending job; rerun the newer merge's jobs to publish it. Other stages:
 
 ```sh
 pnpm sst shell --stage <stage> -- pnpm mobile-updates publish apps/<app>
