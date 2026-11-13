@@ -29,7 +29,7 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
-// NOTE: must match packages/react-native-watch's WatchModule
+// NOTE: must match packages/react-native/watch's WatchModule
 private const val PHONE_CONTEXT_PATH = "/phone_context"
 private const val WATCH_CONTEXT_PATH = "/watch_context"
 private const val CONTEXT_KEY = "context"
