@@ -634,20 +634,16 @@ bootstrapping:
 waiting for leader to bootstrap
 ```
 
-**Fix:** Delete the stale endpoints. Without the chart's `myapp-shard-N` service, the leader
-endpoints may already be gone, as kube-controller-manager deletes endpoints that have no service:
+**Fix:** Delete the stale endpoints, and the waiting pods bootstrap the shard. Don't restart them: a
+pod killed mid-bootstrap can come back leading its unrestored data directory. Without the chart's
+`myapp-shard-N` service, the leader endpoints may already be gone, as kube-controller-manager
+deletes endpoints that have no service:
 
 ```bash
 kubectl delete endpoints myapp-shard-0 myapp-shard-0-config \
   myapp-shard-1 myapp-shard-1-config \
   myapp-shard-2 myapp-shard-2-config \
   -n myapp --ignore-not-found
-```
-
-Then restart the pods:
-
-```bash
-kubectl delete pods -n myapp -l 'cluster-name in (myapp-shard-0,myapp-shard-1,myapp-shard-2)'
 ```
 
 If the stanza still has a full backup, the new primary restores it during bootstrap (see
