@@ -156,7 +156,7 @@ jobs:
             mobile-template:
               - '.github/actions/setup-mise/**'
               - 'templates/mobile/**'
-              - 'packages/react-native-live-updates/**'
+              - 'packages/react-native/**'
               - *needs-node-setup
             svelte:
               - 'packages/svelte/**'
