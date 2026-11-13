@@ -24,9 +24,12 @@ public class StoreUpdatesModule: Module {
       try await Task { @MainActor in
         let productViewController = SKStoreProductViewController()
         productViewController.delegate = self.productViewControllerDelegate
-        _ = try await productViewController.loadProduct(withParameters: [
+        let loaded = try await productViewController.loadProduct(withParameters: [
           SKStoreProductParameterITunesItemIdentifier: storeApp.trackId
         ])
+        guard loaded else {
+          throw Exception(name: "StorePageNotLoaded", description: "The App Store page didn't load")
+        }
         self.appContext?.utilities?.currentViewController()?.present(productViewController, animated: true)
       }.value
     }
