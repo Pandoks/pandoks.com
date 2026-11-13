@@ -691,25 +691,6 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 			Eventually(expectReplicasSynced).WithArguments(namespace).Should(Succeed())
 		})
 
-		It("keeps a restarted replica unready until it syncs", func() {
-			// NOTE: the probe first runs 10s after the container starts, so the full sync must take longer
-			upgradeValkey(namespace, map[string]string{"parameters.repl-diskless-sync-delay": "30"})
-			_, replicaPodName := shardOfKey(namespace, "key:0")
-			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", replicaPodName)
-
-			Eventually(valkeyCli).WithArguments(namespace, replicaPodName, "", "info", "replication").
-				Should(ContainSubstring("master_link_status:down"))
-			Consistently(func(g Gomega) {
-				replicationInfo, err := valkeyCli(namespace, replicaPodName, "", "info", "replication")
-				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(replicationInfo).To(ContainSubstring("master_link_status:down"))
-				g.Expect(podReadyStatus(namespace, replicaPodName)).To(Equal("False"))
-			}).WithTimeout(15 * time.Second).WithPolling(time.Second).Should(Succeed())
-
-			Eventually(podReadyStatus).WithArguments(namespace, replicaPodName).Should(Equal("True"))
-			Expect(valkeyCli(namespace, replicaPodName, "", "info", "replication")).To(ContainSubstring("master_link_status:up"))
-		})
-
 		It("deletes the applied Secret on uninstall", func() {
 			Expect(e2e.MustRun("", "kubectl", "-n", namespace, "get", "secret", "valkey-vk-applied", "-o", "jsonpath={.metadata.ownerReferences[*].kind}")).
 				To(Equal("StatefulSet"))
@@ -808,7 +789,7 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 
 		It("applies parameters to the running nodes without restarting them", func() {
 			originalPodUIDs := podUIDs(namespace)
-			// NOTE: no-failover and the sync delay set up the next spec
+			// NOTE: no-failover and the sync delay set up the next specs
 			upgradeValkey(namespace, map[string]string{
 				"parameters.maxmemory":                   "200mb",
 				"parameters.cluster-replica-no-failover": "yes",
@@ -816,6 +797,24 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 			})
 			expectConfigOnEveryPod(namespace, "maxmemory", "209715200")
 			Expect(podUIDs(namespace)).To(Equal(originalPodUIDs))
+		})
+
+		It("keeps a restarted replica unready until it syncs", func() {
+			// NOTE: the probe first runs 10s after the container starts, so the sync delay must outlast it
+			_, replicaPodName := shardOfKey(namespace, "key:0")
+			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", replicaPodName)
+
+			Eventually(valkeyCli).WithArguments(namespace, replicaPodName, "", "info", "replication").
+				Should(ContainSubstring("master_link_status:down"))
+			Consistently(func(g Gomega) {
+				replicationInfo, err := valkeyCli(namespace, replicaPodName, "", "info", "replication")
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(replicationInfo).To(ContainSubstring("master_link_status:down"))
+				g.Expect(podReadyStatus(namespace, replicaPodName)).To(Equal("False"))
+			}).WithTimeout(15 * time.Second).WithPolling(time.Second).Should(Succeed())
+
+			Eventually(podReadyStatus).WithArguments(namespace, replicaPodName).Should(Equal("True"))
+			Expect(valkeyCli(namespace, replicaPodName, "", "info", "replication")).To(ContainSubstring("master_link_status:up"))
 		})
 
 		It("scales down right after a failover, while the demoted master resyncs", func() {
