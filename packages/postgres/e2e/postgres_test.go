@@ -892,7 +892,8 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			targetRowID := lastRowID + 1000
 			insertRows(namespace, 0, lastRowID+1, targetRowID)
 			targetTime := mustPsqlOnPrimary(namespace, 0, "SELECT clock_timestamp()")
-			// NOTE: the newest backup is past the target, so it can't seed the restored shard's replicas
+			// NOTE: the newest backup is past the target, so it can't seed the restored shard's replicas,
+			// and the one the restore picks still has the 1h apply delay of the previous spec's replica
 			runBackupJob(namespace, 0, "full", "past-target-full")
 			insertRows(namespace, 0, targetRowID+1, targetRowID+1000)
 			walSegment := switchWAL(namespace, 0)
@@ -918,11 +919,17 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			e2e.MustRun("", "kubectl", "-n", namespace, "exec", "pitr-restore", "--",
 				"pgbackrest", "--stanza="+clusterName(0), "--type=time", "--target="+targetTime, "--target-action=promote", "restore")
 			e2e.MustRun("", "kubectl", "-n", namespace, "exec", "pitr-restore", "--",
-				"pg_ctl", "start", "-D", "/var/lib/postgresql/pgdata", "-l", "/tmp/pitr-restore.log")
+				"pg_ctl", "start", "-D", "/var/lib/postgresql/pgdata", "-l", "/tmp/pitr-restore.log", "-o", "-c recovery_min_apply_delay=0")
 			Eventually(psql).WithArguments(namespace, "pitr-restore", "SELECT pg_is_in_recovery()").Should(Equal("f"))
 			e2e.MustRun("", "kubectl", "-n", namespace, "exec", "pitr-restore", "--", "pg_ctl", "stop", "-w", "-D", "/var/lib/postgresql/pgdata")
 			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", "pitr-restore")
 			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "endpoints", clusterName(0), clusterName(0)+"-config")
+			for podIndex := 1; podIndex < defaultPodCount; podIndex++ {
+				e2e.MustRun("", "kubectl", "delete", "pvc", "-n", namespace, "patroni-data-"+podName(0, podIndex), "patroni-wal-archives-"+podName(0, podIndex))
+			}
+			e2e.MustRun("", "kubectl", "-n", namespace, "scale", "statefulset", statefulSetName(0), "--replicas=1")
+			e2e.MustRun("", "kubectl", "-n", namespace, "wait", "--for=condition=Ready", "pod/"+podName(0, 0), "--timeout=5m")
+			runBackupJob(namespace, 0, "full", "pitr-full")
 			e2e.MustRun("", "kubectl", "-n", namespace, "scale", "statefulset", statefulSetName(0), fmt.Sprintf("--replicas=%d", defaultPodCount))
 
 			waitForHealthyShard(namespace, 0, defaultPodCount)

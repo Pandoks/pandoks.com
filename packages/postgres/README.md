@@ -379,10 +379,11 @@ pgbackrest --stanza=myapp-shard-0 \
 
 Then replay the WAL up to the target in the recovery pod and wait for Postgres to promote itself.
 Patroni drops the recovery target that `pgbackrest restore` writes to `postgresql.auto.conf`, so if
-it started Postgres still in recovery, Postgres would replay all the WAL:
+it started Postgres still in recovery, Postgres would replay all the WAL. A backup taken from a
+replica keeps that replica's Patroni settings, so `-o` overrides any apply delay it had:
 
 ```bash
-pg_ctl start -D /var/lib/postgresql/pgdata -l /tmp/pitr-restore.log
+pg_ctl start -D /var/lib/postgresql/pgdata -l /tmp/pitr-restore.log -o '-c recovery_min_apply_delay=0'
 # Prints f once it reached the target and promoted; check /tmp/pitr-restore.log if it never does
 until [ "$(psql -Atq -d postgres -c 'SELECT pg_is_in_recovery()' 2> /dev/null)" = f ]; do sleep 5; done
 pg_ctl stop -w -D /var/lib/postgresql/pgdata
@@ -398,7 +399,9 @@ pg_ctl stop -w -D /var/lib/postgresql/pgdata
 
 #### Step 5: Restart the Shard
 
-After restore completes, delete the recovery pod and scale back up:
+After restore completes, delete the recovery pod. The replicas' data runs past the restore point,
+and Patroni doesn't notice, so delete their PVCs to have them cloned again. Replicas clone from the
+newest backup, so start the restored primary alone and back it up before scaling back up:
 
 ```bash
 # Exit and delete the recovery pod
@@ -407,6 +410,18 @@ kubectl delete pod pitr-restore -n myapp
 
 # Delete stale Patroni endpoints (required after restore)
 kubectl delete endpoints myapp-shard-0 myapp-shard-0-config -n myapp
+
+# Delete every PVC but pod 0's (up to patroni.replicasPerShard - 1)
+for pod in 1 2; do
+  kubectl delete pvc -n myapp patroni-data-patroni-myapp-shard-0-${pod} \
+    patroni-wal-archives-patroni-myapp-shard-0-${pod}
+done
+
+# Start the restored primary and take a full backup on its new timeline
+kubectl scale statefulset patroni-myapp-shard-0 -n myapp --replicas=1
+kubectl wait --for=condition=Ready pod/patroni-myapp-shard-0-0 -n myapp --timeout=5m
+kubectl create job --from=cronjob/myapp-shard-0-pgbackrest-backup-full pitr-full -n myapp
+kubectl wait --for=condition=Complete job/pitr-full -n myapp --timeout=30m
 
 # Scale the shard back up (to patroni.replicasPerShard)
 kubectl scale statefulset patroni-myapp-shard-0 -n myapp --replicas=3
@@ -431,8 +446,8 @@ kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
 
 - **Per-shard recovery**: Each shard has independent backups. You can recover one shard without
   affecting others.
-- **Replica rebuilding**: After PITR, replicas will automatically rebuild from the restored primary
-  via pgbackrest or basebackup.
+- **Replica rebuilding**: Replicas clone from the newest backup, which must be on the restored
+  timeline (Step 5's backup), falling back to `pg_basebackup` from the primary.
 - **Timeline changes**: PITR creates a new timeline. The `recovery_target_timeline: latest` setting
   in Patroni ensures replicas follow the new timeline.
 - **Data consistency**: For sharded tables, recovering one shard to a different point in time may
