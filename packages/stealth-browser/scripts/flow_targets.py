@@ -211,9 +211,9 @@ def run_flow(base: str, name: str, url: str, click_selectors: list[str],
              api) -> dict:
     """One flow: create session -> navigate -> poll for token -> cleanup.
 
-    The humanizer click happens once, at the grace deadline, so a widget that
-    solves itself is never disturbed mid-solve and an interactive one still
-    gets exactly one natural click attempt.
+    The humanizer clicks on a schedule (first at the grace deadline, then
+    repeats), so a widget that solves itself is never disturbed mid-solve and
+    an interactive one still gets natural click attempts.
     """
     status, created = api(base, "POST", "/sessions", body={})
     if status not in (200, 201) or not isinstance(created, dict):
@@ -224,10 +224,14 @@ def run_flow(base: str, name: str, url: str, click_selectors: list[str],
                         body={"url": url})
         if status != 200:
             return {"name": name, "outcome": f"navigate-failed ({status})"}
-        clicked = False
         last = "never probed"
         deadline = time.monotonic() + TOKEN_TIMEOUT_S
-        grace = time.monotonic() + TOKEN_GRACE_S
+        start = time.monotonic()
+        # Auto-passing widgets solve themselves in the first grace window;
+        # interactive ones (hCaptcha's always-pass TEST sitekey opens an image
+        # challenge) get repeated click attempts on a schedule instead of one.
+        click_schedule = [TOKEN_GRACE_S + i * 30 for i in range(3)]
+        clicks_done = 0
         while time.monotonic() < deadline:
             status, ev = api(base, "POST", f"/sessions/{sid}/eval",
                              body={"expression": TOKEN_EXTRACT_JS})
@@ -235,8 +239,9 @@ def run_flow(base: str, name: str, url: str, click_selectors: list[str],
                 ok, last = flow_passes(parse_token_result(ev.get("result")))
                 if ok:
                     return {"name": name, "outcome": f"solved ({last})"}
-            if not clicked and time.monotonic() >= grace:
-                clicked = True
+            elapsed = time.monotonic() - start
+            if clicks_done < len(click_schedule) and elapsed >= click_schedule[clicks_done]:
+                clicks_done += 1
                 for sel in click_selectors:
                     try:
                         status, _ = api(base, "POST", f"/sessions/{sid}/click",
@@ -256,7 +261,8 @@ def run_flow(base: str, name: str, url: str, click_selectors: list[str],
             ok, last = flow_passes(parse_token_result(ev.get("result")))
             if ok:
                 return {"name": name, "outcome": f"solved ({last})"}
-        clicks = "1 click attempt" if clicked else "no click attempted"
+        clicks = (f"{clicks_done} click attempt(s)"
+                  if clicks_done else "no click attempted")
         return {"name": name, "outcome": f"unsolved after {TOKEN_TIMEOUT_S}s "
                                          f"({last}, {clicks})"}
     finally:
