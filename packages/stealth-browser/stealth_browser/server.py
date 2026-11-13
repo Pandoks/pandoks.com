@@ -171,10 +171,12 @@ async def _route(req: Request) -> bytes:
 
     m = re.match(r"^/sessions/([^/]+)/click$", p)
     if req.method == "POST" and m:
-        selector = req.json().get("selector")
-        if not selector:
-            raise ServiceError(400, "missing 'selector'")
-        await manager.click(m.group(1), selector)
+        spec = req.json()
+        selector = spec.get("selector")
+        x, y = spec.get("x"), spec.get("y")
+        if not selector and (x is None or y is None):
+            raise ServiceError(400, "need 'selector' or both 'x' and 'y'")
+        await manager.click(m.group(1), selector, x=x, y=y)
         return _json_response(200, {"ok": True})
 
     m = re.match(r"^/sessions/([^/]+)/type$", p)

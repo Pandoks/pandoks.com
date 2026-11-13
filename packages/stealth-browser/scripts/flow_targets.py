@@ -243,11 +243,32 @@ def run_flow(base: str, name: str, url: str, click_selectors: list[str],
             if clicks_done < len(click_schedule) and elapsed >= click_schedule[clicks_done]:
                 clicks_done += 1
                 for sel in click_selectors:
-                    try:
-                        status, _ = api(base, "POST", f"/sessions/{sid}/click",
-                                        body={"selector": sel}, timeout=180)
-                    except (ConnectionError, TimeoutError):
-                        status = 0
+                    if isinstance(sel, tuple) and sel[0] == "coords":
+                        _, dx, dy = sel
+                        try:
+                            st, rect = api(base, "POST", f"/sessions/{sid}/eval",
+                                           body={"expression":
+                                                 "(() => { const f = document.querySelector("
+                                                 "'iframe[src*=\'hcaptcha.com\']');"
+                                                 " if (!f) return null; const r = f.getBoundingClientRect();"
+                                                 " return JSON.stringify({x: r.x, y: r.y}); })()"})
+                            pos = json.loads(rect.get("result")) \
+                                if isinstance(rect, dict) and rect.get("result") else None
+                            if not pos:
+                                status = 0
+                                continue
+                            status, _ = api(base, "POST", f"/sessions/{sid}/click",
+                                            body={"x": pos["x"] + dx,
+                                                  "y": pos["y"] + dy},
+                                            timeout=180)
+                        except (ConnectionError, TimeoutError):
+                            status = 0
+                    else:
+                        try:
+                            status, _ = api(base, "POST", f"/sessions/{sid}/click",
+                                            body={"selector": sel}, timeout=180)
+                        except (ConnectionError, TimeoutError):
+                            status = 0
                     if status == 200:
                         # click landed; a human waits for the challenge to
                         # settle instead of double-clicking every candidate
@@ -275,7 +296,7 @@ FLOW_TARGETS = [
     ("cloudflare-turnstile", "https://demo.turnstile.workers.dev/",
      TURNSTILE_CLICK_SELECTORS),
     ("recaptcha-v3", ("fixture", "recaptcha_v3.html"), []),
-    ("hcaptcha", ("fixture", "hcaptcha.html"), HCAPTCHA_CLICK_SELECTORS),
+    ("hcaptcha", ("fixture", "hcaptcha.html"), [("coords", 35, 40)]),
 ]
 
 

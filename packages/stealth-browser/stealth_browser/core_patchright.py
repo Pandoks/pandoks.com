@@ -295,9 +295,13 @@ class PatchrightCore:
             return None
         return res.get("value")
 
-    async def click(self, selector: str) -> None:
+    async def click(self, selector: str | None = None, *,
+                    x: float | None = None, y: float | None = None) -> None:
         # human-like: curve in, dwell, press-hold-release (not one instant
         # isTrusted-shaped jump)
+        if x is not None and y is not None:
+            await self._human().click_at(x, y)
+            return
         await self._human().click(selector)
 
     async def type_text(self, selector: str, text: str) -> None:

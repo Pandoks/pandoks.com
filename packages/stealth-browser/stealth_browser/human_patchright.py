@@ -158,6 +158,10 @@ class PatchrightHuman:
         await self.page.mouse.up(button=button)
         await asyncio.sleep(self.rng.uniform(*self.regime["release"]))
 
+    async def click_at(self, x, y, *, button="left"):
+        """Human-click at viewport coordinates (e.g. inside an iframe box)."""
+        await self.click_xy(x, y, button=button)
+
     async def click(self, selector: str, *, button="left"):
         """Human-click the first element matching `selector`."""
         loc = self.page.locator(selector).first

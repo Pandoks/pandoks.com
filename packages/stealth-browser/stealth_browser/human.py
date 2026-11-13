@@ -136,6 +136,8 @@ class Human:
             await asyncio.sleep(random.uniform(0.15, 0.6))
 
     # --- clicking ----------------------------------------------------------
+    async def click_at(self, x, y, *, button="left"):
+        """Human-click at viewport coordinates (e.g. inside an iframe box)."""
     async def click_xy(self, x, y, *, button="left"):
         """Move to (x, y), settle, then press-hold-release like a finger."""
         await self.move_to(x, y)

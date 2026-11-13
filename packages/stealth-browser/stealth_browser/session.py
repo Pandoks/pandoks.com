@@ -152,10 +152,11 @@ class SessionManager:
         async with s.lock:
             return await s.core.eval_js(expression)
 
-    async def click(self, sid: str, selector: str) -> None:
+    async def click(self, sid: str, selector: str | None = None, *,
+                    x: float | None = None, y: float | None = None) -> None:
         s = self._get(sid)
         async with s.lock:
-            await s.core.click(selector)
+            await s.core.click(selector, x=x, y=y)
 
     async def type_text(self, sid: str, selector: str, text: str) -> None:
         s = self._get(sid)

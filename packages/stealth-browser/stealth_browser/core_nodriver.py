@@ -190,7 +190,11 @@ class NodriverCore:
             return result
         return _unwrap(result)
 
-    async def click(self, selector: str) -> None:
+    async def click(self, selector: str | None = None, *,
+                    x: float | None = None, y: float | None = None) -> None:
+        if x is not None and y is not None:
+            await self._human.click_at(x, y)
+            return
         el = await self._tab.select(selector)
         await self._human.click(el)
 
