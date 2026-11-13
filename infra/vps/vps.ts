@@ -1,182 +1,102 @@
 // WARNING: resources that hold data like servers, volumes, etc. should be protected by the
 // `protect` option in production. This is to prevent accidental deletion of resources.
 import { isProduction, STAGE_NAME } from '../dns';
-import { createServers } from './servers';
-import { createLoadBalancers } from './load-balancers';
 import { deleteTailscaleDevices } from '../tailscale';
+import * as latitude from './latitude';
+import * as ovh from './ovh';
+import { getMachines, type Cluster } from './servers';
 
-// NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
-const CONTROL_PLANE_NODE_COUNT = isProduction ? 0 : 0;
-const CONTROL_PLANE_HOST_START_OCTET = 10; // starts at 10.0.1.<CONTROL_PLANE_HOST_START_OCTET>
-const WORKER_NODE_COUNT = isProduction ? 0 : 0;
-const WORKER_HOST_START_OCTET = 20; // starts at 10.0.1.<WORKER_HOST_START_OCTET> 20 allows for 10 control plane nodes
-// NOTE: servers can only be upgraded, not downgraded because disk size needs to be >= than the previous type
-const SERVER_TYPE = isProduction ? 'ccx13' : 'cx23';
-const LOAD_BALANCERS_PER_NODE = isProduction ? 1 : 0;
-const LOAD_BALANCER_TYPE = isProduction ? 'lb11' : 'lb11';
-const LOAD_BALANCER_ALGORITHM = 'least_connections'; // round_robin, least_connections
-const SERVER_IMAGE = 'ubuntu-24.04';
-const LOCATION = isProduction ? 'hil' : 'fsn1';
-const NETWORK_ZONE = isProduction ? 'us-west' : 'eu-central';
+// NOTE: one cluster per region, since embedded etcd keeps a cluster's control plane in one location
+const CLUSTERS: Cluster[] = [
+  {
+    name: 'us-west',
+    locations: { 'ovh-hil': { provider: 'ovh', region: 'US-WEST-OR-1', cidr: '10.0.0.0/16' } },
+    links: [],
+    pools: [
+      {
+        name: 'control-plane',
+        location: 'ovh-hil',
+        role: 'control-plane',
+        count: 0,
+        server: isProduction ? ovh.vm('d2-4') : ovh.vm('d2-8')
+      },
+      {
+        name: 'worker',
+        location: 'ovh-hil',
+        role: 'worker',
+        count: 0,
+        server: isProduction ? ovh.metal(ovh.ADVANCE_1) : ovh.vm('d2-8')
+      },
+      {
+        name: 'database',
+        location: 'ovh-hil',
+        role: 'worker',
+        count: 0,
+        server: isProduction ? ovh.metal(ovh.ADVANCE_5) : ovh.metal(ovh.ADVANCE_1),
+        labels: { role: 'db' },
+        taints: ['role=db:NoSchedule']
+      }
+    ]
+  }
+];
 
-const loadBalancerServerCapacity = 25;
+const gatewayPublicIps: Record<string, $util.Output<string>> = {};
+const machines = getMachines({ clusters: CLUSTERS, gatewayPublicIps });
 
-/**
- * NOTE: Hetzner doesn't allow you to connect servers from different regions in the same network.
- * Networks are only created in a single region. If you want to have multiple reigions to reduce latency,
- * you need to create multiple clusters and networks in different regions. You don't need to connect them
- * via a VPN or through the public internet.
- *
- * To have multiple regions work, look into Cloudflare DNS load balancers. You can steer traffic based
- * off of "geo steering" or "proximity/latency". This costs extra, so stay in one region until latency
- * is an issue.
- *
- * You'll probably want to rename a bunch of the resources and variable names when you do.
- */
-const privateNetwork = new hcloud.Network('HetznerK3sPrivateNetwork', {
-  name: `k3s-private-${STAGE_NAME}-network`,
-  ipRange: '10.0.0.0/8'
-});
-const subnet = new hcloud.NetworkSubnet('HetznerK3sSubnet', {
-  networkId: privateNetwork.id.apply((id) => parseInt(id)),
-  type: 'cloud',
-  ipRange: '10.0.1.0/24',
-  networkZone: NETWORK_ZONE
-});
-export const inboundFirewall = new hcloud.Firewall('HetznerInboundFirewall', {
-  name: 'inbound',
-  rules: [
-    {
-      direction: 'in',
-      protocol: 'udp',
-      port: '41641',
-      description: 'tailscale',
-      sourceIps: ['0.0.0.0/0', '::/0']
+if (machines.length > 0) {
+  const ovhNetworks = ovh.createOvhNetwork(
+    machines.filter((machine) => machine.provider === 'ovh')
+  );
+  const latitudeNetworks = latitude.createLatitudeNetwork(
+    machines.filter((machine) => machine.provider === 'latitude')
+  );
+  const bootstrapServers: Record<string, $util.Resource> = {};
+  for (const machine of machines) {
+    const dependsOn =
+      machine.role !== 'gateway' && machine.clusterName in bootstrapServers
+        ? [bootstrapServers[machine.clusterName]]
+        : [];
+    const { resource, publicIp } =
+      machine.provider === 'ovh'
+        ? ovh.createOvhServer({ machine, network: ovhNetworks[machine.locationKey], dependsOn })
+        : latitude.createLatitudeServer({
+            machine,
+            virtualNetwork: latitudeNetworks[machine.locationKey],
+            dependsOn
+          });
+    if (machine.role === 'gateway') {
+      gatewayPublicIps[machine.locationKey] = publicIp;
+    } else {
+      bootstrapServers[machine.clusterName] ??= resource;
     }
-  ]
-});
-
-const controlPlaneLoadBalancerCount =
-  Math.ceil(CONTROL_PLANE_NODE_COUNT / loadBalancerServerCapacity) * LOAD_BALANCERS_PER_NODE;
-export const controlPlaneLoadBalancers = createLoadBalancers(
-  {
-    type: 'control-plane',
-    loadBalancerCount: controlPlaneLoadBalancerCount,
-    network: privateNetwork
-  },
-  {
-    type: LOAD_BALANCER_TYPE,
-    location: LOCATION,
-    algorithm: LOAD_BALANCER_ALGORITHM
-  }
-);
-
-const workerLoadBalancerCount =
-  Math.ceil(WORKER_NODE_COUNT / loadBalancerServerCapacity) * LOAD_BALANCERS_PER_NODE;
-
-export const workerLoadBalancers = createLoadBalancers(
-  {
-    type: 'worker',
-    loadBalancerCount: workerLoadBalancerCount,
-    network: privateNetwork
-  },
-  {
-    type: LOAD_BALANCER_TYPE,
-    location: LOCATION,
-    algorithm: LOAD_BALANCER_ALGORITHM
-  }
-);
-
-const bootstrapServer: { ip: string | undefined; server: hcloud.Server | undefined } = {
-  ip: undefined,
-  server: undefined
-};
-
-const { tailscaleHostnames: _controlPlaneTailscaleHostnames, servers: _controlPlaneServers } =
-  createServers(
-    {
-      type: 'control-plane',
-      serverCount: CONTROL_PLANE_NODE_COUNT,
-      network: { network: privateNetwork, subnet },
-      startingOctet: CONTROL_PLANE_HOST_START_OCTET,
-      loadBalancersPerNode: LOAD_BALANCERS_PER_NODE,
-      loadBalancers: controlPlaneLoadBalancers
-    },
-    {
-      type: SERVER_TYPE,
-      image: SERVER_IMAGE,
-      location: LOCATION,
-      firewalls: [inboundFirewall]
-    },
-    bootstrapServer
-  );
-const { tailscaleHostnames: _workerTailscaleHostnames, servers: _workerServers } = createServers(
-  {
-    type: 'worker',
-    serverCount: WORKER_NODE_COUNT,
-    network: { network: privateNetwork, subnet },
-    startingOctet: WORKER_HOST_START_OCTET,
-    loadBalancersPerNode: LOAD_BALANCERS_PER_NODE,
-    loadBalancers: workerLoadBalancers
-  },
-  {
-    type: SERVER_TYPE,
-    image: SERVER_IMAGE,
-    location: LOCATION,
-    firewalls: [inboundFirewall]
-  },
-  bootstrapServer
-);
-
-if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
-  const { devices = [] } = await tailscale.getDevices({ namePrefix: `${STAGE_NAME}` });
-
-  const kubernetesDevices = devices.filter(
-    (device) => device.tags.includes('tag:k8s') && device.tags.includes(`tag:${STAGE_NAME}`)
-  );
-  if (kubernetesDevices.length > 0) {
-    const deletedDevices = deleteTailscaleDevices(
-      ...kubernetesDevices.map((device) => device.nodeId)
-    );
-    deletedDevices.apply((deletedDevices) => {
-      const deletedDeviceIds = deletedDevices
-        .filter((device) => device.success)
-        .map((device) => device.deviceId);
-      const failedToDeleteDeviceIds = deletedDevices
-        .filter((device) => !device.success)
-        .map((device) => device.deviceId);
-      if (deletedDeviceIds.length) {
-        console.log(
-          `Deleted Tailscale devices:\n${kubernetesDevices
-            .filter((device) => deletedDeviceIds.includes(device.nodeId))
-            .map((device) => device.name)
-            .join('\n')}`
-        );
-      }
-      if (failedToDeleteDeviceIds.length) {
-        console.log(
-          `Failed to delete Tailscale devices:\n${kubernetesDevices
-            .filter((device) => failedToDeleteDeviceIds.includes(device.nodeId))
-            .map((device) => device.name)
-            .join('\n')}`
-        );
-      }
-    });
   }
 }
 
-const publicLoadBalancerOutputs = Object.fromEntries(
-  // NOTE: we have to hard code the name because indecies can't be pulumi inputs/outputs
-  [
-    ...controlPlaneLoadBalancers.map((lb, i): [string, $util.Output<string>] => [
-      `ControlPlaneLoadBalancer${i}`,
-      lb.loadbalancer.ipv4
-    ]),
-    ...workerLoadBalancers.map((lb, i): [string, $util.Output<string>] => [
-      `WorkerLoadBalancer${i}`,
-      lb.loadbalancer.ipv4
-    ])
-  ]
-);
+// NOTE: only the first cluster gets `pnpm cluster deploy`'s devices, like <stage>-grafana
+if (!machines.some(({ clusterName }) => clusterName === CLUSTERS[0].name)) {
+  const { devices = [] } = await tailscale.getDevices({ namePrefix: `${STAGE_NAME}` });
+  const keptProxyHostnames = machines.map(
+    ({ clusterName }) => `${STAGE_NAME}-${clusterName}-cluster`
+  );
 
-export const outputs = { ...publicLoadBalancerOutputs };
+  const kubernetesDevices = devices.filter(
+    (device) =>
+      device.tags.includes('tag:k8s') &&
+      device.tags.includes(`tag:${STAGE_NAME}`) &&
+      !keptProxyHostnames.includes(device.hostname)
+  );
+  if (kubernetesDevices.length > 0) {
+    const deviceNames = new Map(kubernetesDevices.map((device) => [device.nodeId, device.name]));
+    deleteTailscaleDevices(...deviceNames.keys()).apply((deletedDevices) => {
+      const failedDevices = deletedDevices.filter((device) => !device.success);
+      if (failedDevices.length) {
+        throw new Error(
+          `Failed to delete Tailscale devices:\n${failedDevices
+            .map(({ deviceId, error }) => `${deviceNames.get(deviceId)}: ${error}`)
+            .join('\n')}`
+        );
+      }
+      console.log(`Deleted Tailscale devices:\n${[...deviceNames.values()].join('\n')}`);
+    });
+  }
+}

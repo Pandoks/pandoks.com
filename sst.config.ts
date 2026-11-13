@@ -22,7 +22,8 @@ export default $config({
           applicationKey: 'edf9a4672d28e3c7',
           version: '2.22.0'
         },
-        tailscale: '0.29.4'
+        tailscale: '0.29.4',
+        latitudesh: { package: '@sst-provider/latitudesh', version: '1.2.0' }
       }
     };
   },

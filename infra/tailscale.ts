@@ -56,7 +56,7 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
         {
           action: 'check',
           src: ['pandoks@github'],
-          dst: ['tag:hetzner', 'tag:ovh'],
+          dst: ['tag:ovh', 'tag:latitude'],
           users: ['autogroup:nonroot', 'root']
         },
         {
@@ -75,8 +75,8 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
       ],
       tagOwners: {
         'tag:funnel': ['pandoks@github'],
-        'tag:hetzner': ['pandoks@github'],
         'tag:ovh': ['pandoks@github'],
+        'tag:latitude': ['pandoks@github'],
         'tag:k8s-operator': ['tag:k8s-operator'],
         'tag:k8s': ['tag:k8s-operator'],
         'tag:control-plane': ['pandoks@github'],
@@ -156,13 +156,14 @@ export function deleteTailscaleDevices(...deviceIds: string[]) {
     secrets.tailscale.OauthClientId.value,
     secrets.tailscale.OauthClientSecret.value
   ]).apply(async ([clientId, clientSecret]) => {
-    const accessToken = await tailscaleApiToken({ clientId, clientSecret });
+    // NOTE: token failures become results, since a rejected Output never settles an awaiting hook
+    const accessToken = tailscaleApiToken({ clientId, clientSecret });
     return await Promise.all(
       deviceIds.map(async (deviceId) => {
         try {
           const response = await fetch(`https://api.tailscale.com/api/v2/device/${deviceId}`, {
             method: 'DELETE',
-            headers: { Authorization: `Bearer ${accessToken}` }
+            headers: { Authorization: `Bearer ${await accessToken}` }
           });
           if (!response.ok) {
             throw new Error(`${response.status} ${response.statusText}`);
