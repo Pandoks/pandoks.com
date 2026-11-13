@@ -93,6 +93,11 @@ kubernetes:
   namespace: ${NAMESPACE}
   use_endpoints: true
   pod_ip: ${POD_IP}
+  ports: # for the leader Endpoints; names need to match the chart's <db>-shard-N Service
+    - name: postgres
+      port: 5432
+    - name: pgbackrest
+      port: 8432
   labels: # these labels need to match the ones in your kube.yaml
     app: ${APP_NAME}
     cluster-name: ${CLUSTER_NAME}

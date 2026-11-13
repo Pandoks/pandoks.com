@@ -53,6 +53,9 @@ tolerations: ~
 
 # https://github.com/pgdogdev/helm/blob/main/values.yaml
 pgdog:
+  image:
+    repository: ghcr.io/pgdogdev/pgdog
+    tag: v0.1.65@sha256:8bfda475f13f68374800ad5eb8c0b31b70742a3411a89157ccc914ff95ad39b4
   replicas: 2
   workers: 2
   defaultPoolSize: 15

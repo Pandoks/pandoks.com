@@ -90,7 +90,12 @@ graph TB
 - **Encryption** - AES-256-CBC for all backups
 - **S3-compatible storage** - works with AWS S3, MinIO, S3Mock
 - **Restore on bootstrap** - a new shard whose stanza already has a full backup restores it instead
-  of starting empty
+  of starting empty, with the chart's `postgresql.conf` and `pg_hba.conf` instead of the backup's,
+  and without the backup's `ALTER SYSTEM` settings. It waits for WAL replay however long it takes,
+  retrying repo errors every 10 seconds until only a missing segment ends it, then takes a full
+  backup for its replicas, retrying every 10 seconds until it succeeds. If the container restarts
+  during replay or before that backup succeeds, it finishes both before Patroni starts. If the repo
+  can't be read, the bootstrap fails instead of starting empty
 
 ### Monitoring
 
@@ -180,7 +185,7 @@ metadata:
   namespace: kube-system
 spec:
   chart: oci://${ImageRegistry}/charts/postgres
-  version: 0.1.5
+  version: 0.1.7
   targetNamespace: &namespace myapp
   createNamespace: true
   failurePolicy: abort
@@ -361,7 +366,9 @@ kubectl exec -it pitr-restore -n myapp -- bash
 #### Step 4: Perform PITR Restore
 
 Inside the recovery pod, run pgbackrest restore with the target time. `delta=y` is set in
-`pgbackrest.conf`, so the restore overwrites the existing data directory in place:
+`pgbackrest.conf`, so the restore overwrites the existing data directory in place. The
+`restore_command` retries while the repo is unreachable, as on bootstrap, so an outage can't end
+replay early; a missing segment still does:
 
 ```bash
 # Restore to specific point in time
@@ -369,15 +376,34 @@ pgbackrest --stanza=myapp-shard-0 \
   --type=time \
   --target="2024-01-15 14:30:00+00" \
   --target-action=promote \
+  --recovery-option="restore_command=until pgbackrest --stanza=myapp-shard-0 archive-get %f \"%p\"; do [ \$? -eq 1 ] && exit 1; sleep 10; done" \
   restore
 
 # Alternative: Restore to the end of the archived WAL (latest state)
 pgbackrest --stanza=myapp-shard-0 \
   --type=default \
+  --recovery-option="restore_command=until pgbackrest --stanza=myapp-shard-0 archive-get %f \"%p\"; do [ \$? -eq 1 ] && exit 1; sleep 10; done" \
   restore
 ```
 
-**Recovery type options:**
+Then replay the WAL up to the target in the recovery pod and wait for Postgres to promote itself.
+Patroni drops the recovery target that `pgbackrest restore` writes to `postgresql.auto.conf`, so if
+it started Postgres still in recovery, Postgres would replay all the WAL. A backup taken from a
+replica keeps that replica's Patroni settings, so `-o` overrides any apply delay it had, and
+`hot_standby=off` keeps replay going past a `max_connections` raised after the backup, as on
+bootstrap. Deleting the backup's `patroni.dynamic.json`, Patroni's cached cluster config, keeps
+Patroni from loading the backup's settings, like that delay, into the DCS once Step 5 deletes its
+config:
+
+```bash
+rm -f /var/lib/postgresql/pgdata/patroni.dynamic.json
+pg_ctl start -D /var/lib/postgresql/pgdata -l /tmp/pitr-restore.log -o '-c recovery_min_apply_delay=0 -c hot_standby=off'
+# Prints f once it reached the target and promoted; check /tmp/pitr-restore.log if it never does
+until [ "$(psql -Atq -d postgres -c 'SELECT pg_is_in_recovery()' 2> /dev/null)" = f ]; do sleep 5; done
+pg_ctl stop -w -D /var/lib/postgresql/pgdata
+```
+
+**Recovery type options** (pass `--target-action=promote` with every type but `default`):
 
 - `--type=time --target="TIMESTAMP"` - Restore to specific time
 - `--type=xid --target="TRANSACTION_ID"` - Restore to specific transaction
@@ -387,15 +413,29 @@ pgbackrest --stanza=myapp-shard-0 \
 
 #### Step 5: Restart the Shard
 
-After restore completes, delete the recovery pod and scale back up:
+After restore completes, delete the recovery pod. The replicas' data runs past the restore point,
+and Patroni doesn't notice, so delete their PVCs to have them cloned again. Replicas clone from the
+newest backup, so start the restored primary alone and back it up before scaling back up:
 
 ```bash
-# Exit and delete the recovery pod
+# Exit and delete the recovery pod (Postgres is stopped, so skip the 600s grace period)
 exit
-kubectl delete pod pitr-restore -n myapp
+kubectl delete pod pitr-restore -n myapp --grace-period=1
 
 # Delete stale Patroni endpoints (required after restore)
 kubectl delete endpoints myapp-shard-0 myapp-shard-0-config -n myapp
+
+# Delete every PVC but pod 0's (up to patroni.replicasPerShard - 1)
+for pod in 1 2; do
+  kubectl delete pvc -n myapp patroni-data-patroni-myapp-shard-0-${pod} \
+    patroni-wal-archives-patroni-myapp-shard-0-${pod}
+done
+
+# Start the restored primary and take a full backup on its new timeline
+kubectl scale statefulset patroni-myapp-shard-0 -n myapp --replicas=1
+kubectl rollout status statefulset/patroni-myapp-shard-0 -n myapp --timeout=5m
+kubectl create job --from=cronjob/myapp-shard-0-pgbackrest-backup-full pitr-full -n myapp
+kubectl wait --for=condition=Complete job/pitr-full -n myapp --timeout=30m
 
 # Scale the shard back up (to patroni.replicasPerShard)
 kubectl scale statefulset patroni-myapp-shard-0 -n myapp --replicas=3
@@ -420,8 +460,8 @@ kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
 
 - **Per-shard recovery**: Each shard has independent backups. You can recover one shard without
   affecting others.
-- **Replica rebuilding**: After PITR, replicas will automatically rebuild from the restored primary
-  via pgbackrest or basebackup.
+- **Replica rebuilding**: Replicas clone from the newest backup, which must be on the restored
+  timeline (Step 5's backup), falling back to `pg_basebackup` from the primary.
 - **Timeline changes**: PITR creates a new timeline. The `recovery_target_timeline: latest` setting
   in Patroni ensures replicas follow the new timeline.
 - **Data consistency**: For sharded tables, recovering one shard to a different point in time may
@@ -519,11 +559,12 @@ application traffic only after validation succeeds.
 **Step 3: Clean Up Leftover Resources**
 
 Helm deletes the removed shard's StatefulSet, services, certificates, and backup cronjobs on
-upgrade. Patroni's endpoints, cert-manager's TLS secrets, and the PVCs are left behind:
+upgrade. Patroni's `-config` service and endpoints, cert-manager's TLS secrets, and the PVCs are
+left behind, and so can the leader endpoints if Patroni rewrote them as its pods shut down:
 
 ```bash
-# Delete Patroni endpoints
-kubectl delete endpoints myapp-shard-3 myapp-shard-3-config -n myapp
+# Delete Patroni's services and endpoints
+kubectl delete service,endpoints myapp-shard-3 myapp-shard-3-config -n myapp --ignore-not-found
 
 # Delete TLS secrets
 kubectl delete secret patroni-myapp-shard-3-tls myapp-shard-3-pgbackrest-backup-tls -n myapp
@@ -551,8 +592,8 @@ kubectl get pods -n myapp -w
 ```
 
 To scale down replicas, lower `patroni.replicasPerShard`. Kubernetes terminates the highest-ordinal
-pods, so switch over first if one of them is the leader. Their PVCs are kept, so delete them if you
-don't plan to scale back up.
+pods, all at once, so switch over first if one of them is the leader. Their PVCs are kept, so delete
+them if you don't plan to scale back up.
 
 ### Test Sharding
 
@@ -573,6 +614,15 @@ for shard in 0 1 2; do
 done
 ```
 
+### Upgrading from 0.1.5
+
+0.1.7 sets the StatefulSets' immutable `podManagementPolicy`, so before upgrading, delete each
+shard's StatefulSet without its pods, which keep running and are adopted, then rolled:
+
+```bash
+kubectl delete statefulset -n myapp patroni-myapp-shard-0 --cascade=orphan
+```
+
 ## Troubleshooting
 
 ### Cluster Won't Start After Deletion
@@ -584,19 +634,16 @@ bootstrapping:
 waiting for leader to bootstrap
 ```
 
-**Fix:** Delete the stale endpoints:
+**Fix:** Delete the stale endpoints, and the waiting pods bootstrap the shard. Don't restart them: a
+pod killed mid-bootstrap can come back leading its unrestored data directory. Without the chart's
+`myapp-shard-N` service, the leader endpoints may already be gone, as kube-controller-manager
+deletes endpoints that have no service:
 
 ```bash
 kubectl delete endpoints myapp-shard-0 myapp-shard-0-config \
   myapp-shard-1 myapp-shard-1-config \
   myapp-shard-2 myapp-shard-2-config \
-  -n myapp
-```
-
-Then restart the pods:
-
-```bash
-kubectl delete pods -n myapp -l 'cluster-name in (myapp-shard-0,myapp-shard-1,myapp-shard-2)'
+  -n myapp --ignore-not-found
 ```
 
 If the stanza still has a full backup, the new primary restores it during bootstrap (see
@@ -605,9 +652,9 @@ If the stanza still has a full backup, the new primary restores it during bootst
 ### Backup Job Fails with TLS Error
 
 The chart issues per-shard certificates (`patroni-myapp-shard-N` and
-`myapp-shard-N-pgbackrest-backup`) from `internal-ca-issuer`, with the shard's primary and replicas
-service hostnames as `dnsNames`. If backup jobs fail with certificate errors, check that they're
-ready:
+`myapp-shard-N-pgbackrest-backup`) from `internal-ca-issuer`, with the shard's primary
+(`myapp-shard-N`) and replicas (`patroni-myapp-replicas-shard-N`) service hostnames as `dnsNames`.
+If backup jobs fail with certificate errors, check that they're ready:
 
 ```bash
 kubectl get certificate -n myapp
@@ -709,6 +756,7 @@ own `main` tag, leaving your branch's `latest` images alone.
 | `patroni.image`                 | Patroni image                                      | `ghcr.io/pandoks/patroni:latest`                            |
 | `patroni.resources.*`           | `patroni`, `pgbackrest`, `postgresExporter`        | `{}`                                                        |
 | `pgdog.*`                       | Passed through to the [PgDog chart][pgdog]         | See below                                                   |
+| `pgdog.image.*`                 | PgDog image `repository` and `tag`                 | `ghcr.io/pgdogdev/pgdog:v0.1.65`                            |
 | `pgdog.replicas`                | PgDog replicas                                     | `2`                                                         |
 | `pgdog.workers`                 | PgDog worker threads                               | `2`                                                         |
 | `pgdog.defaultPoolSize`         | Server connections per pool                        | `15`                                                        |

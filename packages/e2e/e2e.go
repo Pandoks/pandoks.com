@@ -69,6 +69,8 @@ func InstallChart(releaseName, chart string, secretData, chartValues map[string]
 		}
 		// NOTE: a chart can own resources outside its namespace, like Postgres's PgDog HelmChart
 		MustRun("", "helm", "-n", namespace, "uninstall", releaseName, "--wait", "--ignore-not-found")
+		// NOTE: teardown doesn't test graceful stops, and Postgres's can outlast the namespace timeout
+		MustRun("", "kubectl", "-n", namespace, "delete", "pods", "--all", "--grace-period=1")
 		MustRun("", "kubectl", "delete", "namespace", namespace, "--timeout=3m")
 	})
 
