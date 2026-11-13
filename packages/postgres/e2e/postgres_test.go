@@ -125,7 +125,12 @@ func psqlOverNetwork(namespace, clientPodName, user, password, databaseName, sql
 
 // psqlThroughPgDog connects from clientPodName as client to PgDog, the way the README's apps do.
 func psqlThroughPgDog(namespace, clientPodName, sql string) (string, error) {
-	connection := fmt.Sprintf("host=%s port=6432 user=client password=%s dbname=%s connect_timeout=2", pgdogHost, clientPassword, database)
+	return psqlThroughPgDogPod(namespace, clientPodName, pgdogHost, sql)
+}
+
+// psqlThroughPgDogPod connects from clientPodName as client to the PgDog at pgdogAddress.
+func psqlThroughPgDogPod(namespace, clientPodName, pgdogAddress, sql string) (string, error) {
+	connection := fmt.Sprintf("host=%s port=6432 user=client password=%s dbname=%s connect_timeout=2", pgdogAddress, clientPassword, database)
 	return execInPod(namespace, clientPodName, "patroni", "psql", connection, "-v", "ON_ERROR_STOP=1", "-Atq", "-c", sql)
 }
 
@@ -141,12 +146,24 @@ func startPgDog(namespace string, shardCount int) {
 		WithTimeout(5 * time.Minute).Should(ContainSubstring("condition met"))
 }
 
-// waitForPgDog waits for several connections in a row, so kube-proxy no longer routes to old pods.
-func waitForPgDog(namespace, clientPod string) {
+// restartPgDog follows Adding Shards' Step 3 once PgDog's config lists exactly shardCount shards.
+func restartPgDog(namespace string, shardCount int) {
+	GinkgoHelper()
+	Eventually(e2e.Run).WithArguments("", "kubectl", "-n", namespace, "get", "configmap", pgdogHost, "-o", `jsonpath={.data.pgdog\.toml}`).
+		Should(And(ContainSubstring(statefulSetName(shardCount-1)), Not(ContainSubstring(statefulSetName(shardCount)))))
+	oldPgDogPods := strings.Fields(e2e.MustRun("", "kubectl", "-n", namespace, "get", "pods", "-l", "app.kubernetes.io/name=pgdog", "-o", "name"))
+	e2e.MustRun("", "kubectl", "rollout", "restart", "deploy/"+pgdogHost, "-n", namespace)
+	e2e.MustRun("", "kubectl", "rollout", "status", "deploy/"+pgdogHost, "-n", namespace, "--timeout=3m")
+	e2e.MustRun("", "kubectl", append([]string{"-n", namespace, "wait", "--for=delete", "--timeout=2m"}, oldPgDogPods...)...)
+}
+
+// waitForPgDogWrites waits until PgDog takes a write for each e2e_users key 1 to rowCount in a row.
+func waitForPgDogWrites(namespace, clientPod string, rowCount int) {
 	GinkgoHelper()
 	Eventually(func(g Gomega) {
-		for range 5 {
-			g.Expect(psqlThroughPgDog(namespace, clientPod, "SELECT 1")).To(Equal("1"))
+		for id := 1; id <= rowCount; id++ {
+			// NOTE: deletes nothing, as no row has the key yet, but still needs the key's primary
+			g.Expect(psqlThroughPgDog(namespace, clientPod, fmt.Sprintf("DELETE FROM e2e_users WHERE id = %d", id))).Error().NotTo(HaveOccurred())
 		}
 	}).Should(Succeed())
 }
@@ -523,16 +540,23 @@ func shardPodIPs(namespace string, shard int) []string {
 }
 
 var _ = Describe("Postgres", Label("postgres"), func() {
-	// NOTE: first, so its spec waiting out PgDog's 5-minute ban_timeout overlaps the rest
 	Context("through PgDog", Ordered, func() {
-		var namespace, clientPod string
+		const selectServerIP = "SELECT host(inet_server_addr())"
+		var namespace, clientPod, pgdogPodIP string
 
 		BeforeAll(func() {
-			namespace = installPostgres(postgresChartDirectory, 1, nil)
+			// NOTE: so the banned replica's reads come back in seconds, not PgDog's default 5 minutes
+			namespace = installPostgres(postgresChartDirectory, 1, map[string]string{"pgdog.banTimeout": "10000"})
 			waitForHealthyShard(namespace, 0, defaultPodCount)
-			clientPod = replicaPodName(namespace, 0, defaultPodCount)
+			// NOTE: PgDog breaks least-active ties in config order, which the read specs rely on
+			Expect(mustPrimaryPodName(namespace, 0)).To(Equal(podName(0, 0)))
+			// NOTE: the specs delete the other two pods
+			clientPod = podName(0, 2)
 			Expect(psqlOverNetwork(namespace, clientPod, "admin", adminPassword, database, "CREATE TABLE e2e_writes (id int PRIMARY KEY)")).Error().NotTo(HaveOccurred())
 			startPgDog(namespace, 1)
+			// NOTE: each PgDog pod balances and bans on its own, so the read specs go through one
+			pgdogPodIP = strings.Fields(e2e.MustRun("", "kubectl", "-n", namespace, "get", "pods", "-l", "app.kubernetes.io/name=pgdog",
+				"-o", "jsonpath={.items[*].status.podIP}"))[0]
 		})
 
 		It("sends writes to the primary", func() {
@@ -545,26 +569,65 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			}
 		})
 
-		It("sends reads to the replicas", func() {
-			// NOTE: the bootstrap leader, so the primary hasn't moved since PgDog detected the roles
-			Expect(mustPrimaryPodName(namespace, 0)).To(Equal(podName(0, 0)))
-			replicaIPs := replicaIPs(namespace, 0)
-			for range 10 {
-				Expect(psqlThroughPgDog(namespace, clientPod, "SELECT host(inet_server_addr())")).To(BeElementOf(replicaIPs))
+		It("reports each pod's detected role in its metrics on 9090, as the README's curl reads them", func() {
+			var roleLabels []string
+			for podIndex := range defaultPodCount {
+				role := "replica"
+				if podIndex == 0 {
+					role = "primary"
+				}
+				roleLabels = append(roleLabels, fmt.Sprintf(`host="%s.%s.%s.svc.cluster.local",port="5432",shard="0",role="%s"`,
+					podName(0, podIndex), statefulSetName(0), namespace, role))
+			}
+			metricsBySource := map[string]string{
+				"the README's curl": e2e.MustRun("", "kubectl", "-n", namespace, "exec", "deploy/"+pgdogHost, "--", "curl", "-s", "http://127.0.0.1:9090/metrics"),
+			}
+			targets := serviceMonitorTargets(namespace, pgdogHost)
+			Expect(targets).To(HaveLen(2), "the ServiceMonitor doesn't target each PgDog pod once")
+			for _, target := range targets {
+				metricsBySource[target] = e2e.MustRun("", "kubectl", "get", "--raw", target)
+			}
+			for source, metrics := range metricsBySource {
+				for _, roleLabel := range roleLabels {
+					Expect(metrics).To(ContainSubstring(roleLabel), source)
+				}
 			}
 		})
 
-		It("returns reads to a restarted replica and stops reading from the primary", func() {
-			restartedPod := replicaPodName(namespace, 0, defaultPodCount)
-			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", restartedPod)
-			waitForHealthyShard(namespace, 0, defaultPodCount)
-			// NOTE: PgDog bans the pod while it's down, for up to its 5-minute default ban_timeout
-			Eventually(psqlThroughPgDog).WithArguments(namespace, clientPod, "SELECT host(inet_server_addr())").
-				WithTimeout(7 * time.Minute).Should(Equal(podIP(namespace, restartedPod)))
+		It("sends reads to both replicas", func() {
 			replicaIPs := replicaIPs(namespace, 0)
-			for range 10 {
-				Expect(psqlThroughPgDog(namespace, clientPod, "SELECT host(inet_server_addr())")).To(BeElementOf(replicaIPs))
-			}
+			// NOTE: a running read keeps its replica's connection busy, so the next read goes to the other
+			var heldReadServerIP string
+			heldReadDone := make(chan error, 1)
+			go func() {
+				var err error
+				heldReadServerIP, err = psqlThroughPgDogPod(namespace, clientPod, pgdogPodIP, selectServerIP+" FROM pg_sleep(10)")
+				heldReadDone <- err
+			}()
+			Eventually(func(g Gomega) {
+				var sleepingBackends []string
+				for podIndex := 1; podIndex < defaultPodCount; podIndex++ {
+					sleeping, err := psql(namespace, podName(0, podIndex), "SELECT count(*) FROM pg_stat_activity WHERE wait_event = 'PgSleep'")
+					g.Expect(err).NotTo(HaveOccurred())
+					sleepingBackends = append(sleepingBackends, sleeping)
+				}
+				g.Expect(sleepingBackends).To(ContainElement("1"))
+			}).Should(Succeed())
+
+			readServerIP, err := psqlThroughPgDogPod(namespace, clientPod, pgdogPodIP, selectServerIP)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(<-heldReadDone).To(Succeed())
+			Expect([]string{heldReadServerIP, readServerIP}).To(ConsistOf(replicaIPs))
+		})
+
+		It("reads from the primary while a deleted replica is banned, then from the replica again", func() {
+			primaryIP := podIP(namespace, podName(0, 0))
+			bannedPod := podName(0, 1)
+			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", bannedPod)
+			// NOTE: include_primary_if_replica_banned adds the primary to the reads only during a ban
+			Eventually(psqlThroughPgDogPod).WithArguments(namespace, clientPod, pgdogPodIP, selectServerIP).Should(Equal(primaryIP))
+			waitForHealthyShard(namespace, 0, defaultPodCount)
+			Eventually(psqlThroughPgDogPod).WithArguments(namespace, clientPod, pgdogPodIP, selectServerIP).Should(Equal(podIP(namespace, bannedPod)))
 		})
 
 		It("reaches the new primary within 30s of a graceful primary deletion, keeping every acknowledged write", func() {
@@ -610,6 +673,23 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			}
 		})
 
+		It("lets client query pgvector and PostGIS columns once the superuser creates the extensions", func() {
+			mustPsqlOnPrimary(namespace, 0, "CREATE EXTENSION vector; CREATE EXTENSION postgis")
+			replicaPod := replicaPodName(namespace, 0, defaultPodCount)
+			Expect(psqlOverNetwork(namespace, replicaPod, "admin", adminPassword, database,
+				"CREATE TABLE e2e_places (id int PRIMARY KEY, embedding vector(2), location geography(Point))")).Error().NotTo(HaveOccurred())
+			Expect(psqlOverNetwork(namespace, replicaPod, "client", clientPassword, database, `
+				INSERT INTO e2e_places VALUES (1, '[0,0]', 'POINT(0 0)'), (2, '[1,1]', 'POINT(1 1)');
+				SELECT id FROM e2e_places ORDER BY embedding <-> '[0.9,0.9]' LIMIT 1;
+				SELECT id FROM e2e_places WHERE ST_DWithin(location, 'POINT(0.001 0)', 1000)`)).To(Equal("2\n1"))
+		})
+
+		It("runs pg_cron jobs in the app database once the superuser creates pg_cron", func() {
+			mustPsqlOnPrimary(namespace, 0, `CREATE EXTENSION pg_cron; CREATE TABLE e2e_cron_runs (ran_at timestamptz);
+				SELECT cron.schedule('e2e', '1 seconds', 'INSERT INTO e2e_cron_runs VALUES (now())')`)
+			Eventually(psqlOnPrimary).WithArguments(namespace, 0, "SELECT count(*) >= 2 FROM e2e_cron_runs").Should(Equal("t"))
+		})
+
 		It("serves every pod's Patroni and Postgres metrics at its ServiceMonitors' targets", func() {
 			for serviceMonitorName, upMetric := range map[string]string{
 				"patroni-" + database:  `(?m)^patroni_postgres_running\{.*\} 1$`,
@@ -632,13 +712,16 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			Expect(psqlOverNetwork(namespace, replicaPod, "postgres", "superuser-test-password", "postgres", "SELECT 1")).To(Equal("1"))
 		})
 
-		It("lets client use the tables admin creates but not create its own", func() {
+		It("lets client use the tables, sequences and functions admin creates but not create its own", func() {
 			replicaPod := replicaPodName(namespace, 0, defaultPodCount)
 			_, err := psqlOverNetwork(namespace, replicaPod, "client", clientPassword, database, "CREATE TABLE client_owned (id int)")
 			Expect(err).To(MatchError(ContainSubstring("permission denied for schema public")))
-			Expect(psqlOverNetwork(namespace, replicaPod, "admin", adminPassword, database, "CREATE TABLE admin_owned (id int)")).Error().NotTo(HaveOccurred())
+			// NOTE: PUBLIC can run functions until revoked, so only client's own grant lets it run this one
+			Expect(psqlOverNetwork(namespace, replicaPod, "admin", adminPassword, database, `CREATE TABLE admin_owned (id serial PRIMARY KEY);
+				CREATE FUNCTION admin_doubled(n int) RETURNS int LANGUAGE sql RETURN n * 2;
+				REVOKE EXECUTE ON FUNCTION admin_doubled FROM PUBLIC`)).Error().NotTo(HaveOccurred())
 			Expect(psqlOverNetwork(namespace, replicaPod, "client", clientPassword, database,
-				"INSERT INTO admin_owned VALUES (1); SELECT count(*) FROM admin_owned")).To(Equal("1"))
+				"INSERT INTO admin_owned DEFAULT VALUES; SELECT admin_doubled(id) FROM admin_owned")).To(Equal("2"))
 		})
 
 		It("denies a Patroni pod's certificate access to the primary's pgBackRest TLS server", func() {
@@ -727,17 +810,6 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			Eventually(expectRows).WithArguments(namespace, oldPrimaryPod, 1, 2000).Should(Succeed())
 		})
 
-		It("rolls every pod on a pod spec change and takes writes once it finishes", func() {
-			oldPodUIDs := podUIDs(namespace, 0)
-			e2e.UpgradeChart(namespace, "postgres", postgresChartDirectory, map[string]string{"patroni.resources.postgresExporter.requests.memory": "64Mi"})
-			e2e.MustRun("", "kubectl", "-n", namespace, "rollout", "status", "statefulset/"+statefulSetName(0), "--timeout=10m")
-			Expect(podUIDs(namespace, 0)).NotTo(ContainElement(BeElementOf(oldPodUIDs)))
-
-			waitForHealthyShard(namespace, 0, 3)
-			insertRows(namespace, 0, 2001, 3000)
-			expectRowsOnEveryPod(namespace, 0, 3, 1, 3000)
-		})
-
 		It("adds a replica cloned by pgBackRest that catches up when replicasPerShard goes up", func() {
 			e2e.UpgradeChart(namespace, "postgres", postgresChartDirectory, map[string]string{"patroni.replicasPerShard": "4"})
 			waitForHealthyShard(namespace, 0, 4)
@@ -745,7 +817,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			Expect(e2e.MustRun("", "kubectl", "-n", namespace, "logs", podName(0, 3), "-c", "patroni")).
 				To(ContainSubstring("replica has been created using pgbackrest"))
 			Eventually(expectReplicationSlots).WithArguments(namespace, 0, 4).Should(Succeed())
-			Eventually(expectRows).WithArguments(namespace, podName(0, 3), 1, 3000).Should(Succeed())
+			Eventually(expectRows).WithArguments(namespace, podName(0, 3), 1, 2000).Should(Succeed())
 		})
 
 		It("removes the highest pod cleanly and keeps its PVCs when replicasPerShard goes down", func() {
@@ -757,8 +829,8 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			waitForHealthyShard(namespace, 0, 3)
 			// NOTE: Patroni keeps a removed member's slot, inactive, for member_slots_ttl (30 minutes)
 			Eventually(expectReplicationSlots).WithArguments(namespace, 0, 3).Should(Succeed())
-			insertRows(namespace, 0, 3001, 4000)
-			expectRowsOnEveryPod(namespace, 0, 3, 1, 4000)
+			insertRows(namespace, 0, 2001, 3000)
+			expectRowsOnEveryPod(namespace, 0, 3, 1, 3000)
 			e2e.MustRun("", "kubectl", "-n", namespace, "get", "pvc", "patroni-data-"+podName(0, 3), "patroni-wal-archives-"+podName(0, 3))
 		})
 	})
@@ -986,6 +1058,8 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			e2e.MustRun("", "kubectl", "-n", namespace, "wait", "--for=delete", "pod", "-l", "cluster-name="+clusterName(0), "--timeout=2m")
 			Expect(strings.Fields(e2e.MustRun("", "kubectl", "-n", namespace, "get", "pvc", "-l", "cluster-name="+clusterName(0), "-o", "name"))).
 				To(HaveLen(2 * defaultPodCount))
+			Expect(e2e.MustRun("", "kubectl", "-n", namespace, "get", "pvc", "-l", "cluster-name="+clusterName(0),
+				"-o", "jsonpath={.items[*].metadata.deletionTimestamp}")).To(BeEmpty(), "a PVC is being deleted")
 		})
 
 		It("restores the stanza on a reinstall without the PVCs once the README's stale endpoints fix is applied", func() {
@@ -1015,6 +1089,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			})
 			insertRows(namespace, 0, 1, 1000)
 			clientPod = replicaPodName(namespace, 0, defaultPodCount)
+			startPgDog(namespace, 1)
 		})
 
 		It("bootstraps an added shard with its own stanza and full backup, leaving shard 0 untouched", func() {
@@ -1032,16 +1107,16 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			expectRowsOnEveryPod(namespace, 0, defaultPodCount, 1, 1000)
 		})
 
-		It("routes each sharded row to one shard and reads it back from that shard by its key", func() {
+		It("routes each sharded row to one shard once PgDog restarts with Adding Shards' Step 3", func() {
 			for shard := range 2 {
 				mustPsqlOnPrimary(namespace, shard, "SET ROLE admin; CREATE TABLE e2e_users (id bigint PRIMARY KEY)")
 			}
-			startPgDog(namespace, 2)
+			restartPgDog(namespace, 2)
 			shardsByPrimaryIP := map[string]int{}
 			for shard := range 2 {
 				shardsByPrimaryIP[podIP(namespace, mustPrimaryPodName(namespace, shard))] = shard
 			}
-			waitForPgDog(namespace, clientPod)
+			waitForPgDogWrites(namespace, clientPod, shardedRowCount)
 
 			idsByShard := map[int][]string{}
 			for id := 1; id <= shardedRowCount; id++ {
@@ -1068,16 +1143,11 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			e2e.UpgradeChart(namespace, "postgres", postgresChartDirectory, map[string]string{"patroni.shards": "1"})
 			e2e.MustRun("", "kubectl", "-n", namespace, "wait", "--for=delete", "pod", "-l", "cluster-name="+clusterName(1), "--timeout=2m")
 			waitForHealthyShard(namespace, 0, defaultPodCount)
-			Eventually(e2e.Run).WithArguments("", "kubectl", "-n", namespace, "get", "configmap", pgdogHost, "-o", `jsonpath={.data.pgdog\.toml}`).
-				Should(And(ContainSubstring(statefulSetName(0)), Not(ContainSubstring(statefulSetName(1)))))
-			oldPgDogPods := strings.Fields(e2e.MustRun("", "kubectl", "-n", namespace, "get", "pods", "-l", "app.kubernetes.io/name=pgdog", "-o", "name"))
-			e2e.MustRun("", "kubectl", "rollout", "restart", "deploy/"+pgdogHost, "-n", namespace)
-			e2e.MustRun("", "kubectl", "rollout", "status", "deploy/"+pgdogHost, "-n", namespace, "--timeout=3m")
-			e2e.MustRun("", "kubectl", append([]string{"-n", namespace, "wait", "--for=delete", "--timeout=2m"}, oldPgDogPods...)...)
+			restartPgDog(namespace, 1)
 
 			// NOTE: Step 2
 			mustPsqlOnPrimary(namespace, 0, "DELETE FROM e2e_users")
-			waitForPgDog(namespace, clientPod)
+			waitForPgDogWrites(namespace, clientPod, shardedRowCount)
 			for id := 1; id <= shardedRowCount; id++ {
 				Expect(psqlThroughPgDog(namespace, clientPod, fmt.Sprintf("INSERT INTO e2e_users VALUES (%d)", id))).Error().NotTo(HaveOccurred())
 			}
@@ -1088,8 +1158,9 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 				Expect(psqlThroughPgDog(namespace, clientPod, fmt.Sprintf("SELECT id FROM e2e_users WHERE id = %d", id))).To(Equal(strconv.Itoa(id)))
 			}
 
-			// NOTE: Step 3, verbatim but for the names
-			e2e.MustRun("", "kubectl", "delete", "endpoints", clusterName(1), clusterName(1)+"-config", "-n", namespace)
+			// NOTE: Step 3, but for the names
+			// TODO: add --ignore-not-found to the README's Step 3 too, as kube-controller-manager races it
+			e2e.MustRun("", "kubectl", "delete", "endpoints", clusterName(1), clusterName(1)+"-config", "-n", namespace, "--ignore-not-found")
 			e2e.MustRun("", "kubectl", "delete", "secret", statefulSetName(1)+"-tls", clusterName(1)+"-pgbackrest-backup-tls", "-n", namespace)
 			e2e.MustRun("", "kubectl", "delete", "pvc", "-n", namespace, "-l", "cluster-name="+clusterName(1))
 

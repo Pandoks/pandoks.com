@@ -663,15 +663,20 @@ reverting to it, and reinstalling after an uninstall. With the cluster up (see
 
 ```sh
 pnpm --filter @pandoks.com/postgres local:build && pnpm --filter @pandoks.com/postgres local:push
+for image in patroni pgbackrest; do
+  docker build -f "packages/postgres/${image}/Dockerfile" -t "localhost:12345/${image}:main" \
+    https://github.com/Pandoks/pandoks.com.git#main
+  docker push "localhost:12345/${image}:main"
+done
 mise exec -- go tool ginkgo -p ./packages/postgres/e2e -- \
   --patroni-image=local-registry:5000/patroni:latest \
   --pgbackrest-image=local-registry:5000/pgbackrest:latest \
-  --previous-patroni-image=local-registry:5000/patroni:latest \
-  --previous-pgbackrest-image=local-registry:5000/pgbackrest:latest
+  --previous-patroni-image=local-registry:5000/patroni:main \
+  --previous-pgbackrest-image=local-registry:5000/pgbackrest:main
 ```
 
-The `--previous-*` images run main's chart from GHCR, so build them from main if your branch changes
-the images.
+The `--previous-*` images run main's chart from GHCR, so the loop builds them from main under their
+own `main` tag, leaving your branch's `latest` images alone.
 
 ## Configuration Reference
 
