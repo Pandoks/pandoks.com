@@ -120,8 +120,6 @@ cmd_upload() {
   cmd_upload_bucket="$2"
   cmd_upload_namespace="$3"
   cmd_upload_assets_domain="$4"
-  [ -n "${MOBILE_UPDATES_SIGNING_KEY:-}" ] && [ -n "${CLOUDFLARE_API_TOKEN:-}" ] && [ -n "${CLOUDFLARE_DEFAULT_ACCOUNT_ID:-}" ] \
-    || die "Missing MOBILE_UPDATES_SIGNING_KEY, CLOUDFLARE_API_TOKEN, or CLOUDFLARE_DEFAULT_ACCOUNT_ID"
   cmd_upload_work_dir="$(mktemp -d)"
   trap 'rm -rf "${cmd_upload_work_dir}"' EXIT
 

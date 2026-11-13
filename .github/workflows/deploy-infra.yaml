@@ -45,6 +45,7 @@ jobs:
         if: github.event_name != 'workflow_dispatch'
         id: filter
         with:
+          predicate-quantifier: some-with-excludes
           filters: |
             sst:
               - 'sst.config.ts'
@@ -59,8 +60,8 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - 'scripts/mobile-updates/**'
-              - 'templates/mobile/{app.json,app.config.ts,package.json}'
-              - 'templates/mobile/{assets,src/!(__tests__)}/**'
+              - 'templates/mobile/**'
+              - '!templates/mobile/{README.md,e2e/**,src/__tests__/**}'
 
   deploy-sst:
     concurrency:
@@ -103,8 +104,10 @@ jobs:
 
   # NOTE: expo and every dependency it loads run here, so it gets no secrets, AWS, or OIDC token
   build-mobile-template:
-    # NOTE: queues on each job keep publishes in merge order, and on the job so a run that skips it
-    # doesn't cancel another run's pending one
+    # NOTE: one build and one publish run at a time, and a newer pending one replaces the older one.
+    # GitHub queues jobs by when they start waiting, not by merge, so merges close together can publish
+    # out of order; rerun the newer run's jobs to fix it. Job-level, so a run that skips it doesn't
+    # cancel another run's pending one
     concurrency:
       group: build-mobile-template
       cancel-in-progress: false

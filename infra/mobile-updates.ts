@@ -42,7 +42,16 @@ if (isProduction) {
       {
         description: 'Cache mobile update files, which never change, at the edge',
         action: 'set_cache_settings',
-        actionParameters: { cache: true, edgeTtl: { mode: 'override_origin', default: 31536000 } },
+        actionParameters: {
+          cache: true,
+          edgeTtl: {
+            mode: 'respect_origin',
+            statusCodeTtls: [
+              { statusCodeRange: { to: 299 }, value: 31536000 },
+              { statusCodeRange: { from: 400 }, value: -1 }
+            ]
+          }
+        },
         expression:
           'http.host in {"mobile-updates-assets.pandoks.com" "mobile-updates-assets-dev.pandoks.com"}',
         enabled: true
