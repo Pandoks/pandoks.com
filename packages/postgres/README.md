@@ -419,7 +419,7 @@ done
 
 # Start the restored primary and take a full backup on its new timeline
 kubectl scale statefulset patroni-myapp-shard-0 -n myapp --replicas=1
-kubectl wait --for=condition=Ready pod/patroni-myapp-shard-0-0 -n myapp --timeout=5m
+kubectl rollout status statefulset/patroni-myapp-shard-0 -n myapp --timeout=5m
 kubectl create job --from=cronjob/myapp-shard-0-pgbackrest-backup-full pitr-full -n myapp
 kubectl wait --for=condition=Complete job/pitr-full -n myapp --timeout=30m
 

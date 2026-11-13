@@ -657,10 +657,10 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 		})
 
 		It("keeps the backup job's TLS key out of the Patroni pods", func() {
-			for podIndex := range defaultPodCount {
-				Expect(execInPod(namespace, podName(0, podIndex), "pgbackrest", "ls", "/etc/pgbackrest/certs")).
-					To(Equal("ca.crt\nclient.crt\nclient.key"))
-			}
+			mountedSecrets := strings.Fields(e2e.MustRun("", "kubectl", "-n", namespace, "get", "pods", "-l", "cluster-name="+clusterName(0), "-o",
+				"jsonpath={.items[*].spec.volumes[*].secret.secretName} {.items[*].spec.volumes[*].projected.sources[*].secret.name}"))
+			Expect(mountedSecrets).To(ContainElement(statefulSetName(0) + "-tls"))
+			Expect(mountedSecrets).NotTo(ContainElement(clusterName(0) + "-pgbackrest-backup-tls"))
 		})
 	})
 
@@ -926,7 +926,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 				e2e.MustRun("", "kubectl", "delete", "pvc", "-n", namespace, "patroni-data-"+podName(0, podIndex), "patroni-wal-archives-"+podName(0, podIndex))
 			}
 			e2e.MustRun("", "kubectl", "-n", namespace, "scale", "statefulset", statefulSetName(0), "--replicas=1")
-			e2e.MustRun("", "kubectl", "-n", namespace, "wait", "--for=condition=Ready", "pod/"+podName(0, 0), "--timeout=5m")
+			e2e.MustRun("", "kubectl", "-n", namespace, "rollout", "status", "statefulset/"+statefulSetName(0), "--timeout=5m")
 			runBackupJob(namespace, 0, "full", "pitr-full")
 			e2e.MustRun("", "kubectl", "-n", namespace, "scale", "statefulset", statefulSetName(0), fmt.Sprintf("--replicas=%d", defaultPodCount))
 
