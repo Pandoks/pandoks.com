@@ -31,6 +31,7 @@ import json
 import os
 import random
 import string
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 
@@ -167,19 +168,130 @@ _IPGEO_ENDPOINTS = [
 ]
 
 
-def lookup_exit_geo(timeout: float = 8.0) -> dict | None:
+def _socks5_tunnel(proxy: ProxyConfig, host: str, port: int,
+                   timeout: float):
+    """Open a SOCKS5 CONNECT tunnel to (host, port); return the raw socket.
+
+    Implements the RFC 1928 handshake (client greeting -> chosen auth method
+    -> CONNECT -> reply). Supports the no-auth (0x00) and username/password
+    (0x02) methods, which cover real vendor proxies. Returns None if the
+    handshake or CONNECT fails.
+    """
+    import socket
+    s = socket.create_connection((proxy.host, proxy.port), timeout=timeout)
+    try:
+        # greeting: version 5, 2 methods offered (no-auth, user/pass)
+        s.sendall(b"\x05\x02\x00\x02")
+        chosen = s.recv(2)
+        if len(chosen) < 2 or chosen[0] != 0x05:
+            raise OSError("bad SOCKS5 greeting reply")
+        if chosen[1] == 0x02:
+            # RFC 1929 sub-negotiation: ver(1) ulen(1) user plen(1) pass
+            user = (proxy.username or "").encode()
+            pw = (proxy.password or "").encode()
+            s.sendall(b"\x01" + bytes([len(user)]) + user
+                      + bytes([len(pw)]) + pw)
+            ok = s.recv(2)
+            if len(ok) < 2 or ok[1] != 0x00:
+                raise OSError("SOCKS5 auth rejected")
+        elif chosen[1] != 0x00:
+            raise OSError(f"SOCKS5 chose unsupported method {chosen[1]}")
+        # CONNECT to host:port, domain-name addressing
+        s.sendall(b"\x05\x01\x00\x03" + bytes([len(host)]) + host.encode()
+                  + port.to_bytes(2, "big"))
+        resp = s.recv(4)
+        if len(resp) < 4 or resp[1] != 0x00:
+            raise OSError(f"SOCKS5 CONNECT failed (reply {resp!r})")
+        # drain the bound address (BND.ADDR + BND.PORT) per address type
+        atyp = resp[3]
+        if atyp == 0x01:
+            s.recv(6)
+        elif atyp == 0x03:
+            ln = s.recv(1)[0]
+            s.recv(ln + 2)
+        elif atyp == 0x04:
+            s.recv(18)
+        return s
+    except Exception:  # noqa: BLE001 - tunnel setup failure -> no lookup
+        s.close()
+        return None
+
+
+def _geo_request_through_proxy(proxy: ProxyConfig, url: str,
+                               timeout: float):
+    """Fetch one JSON endpoint THROUGH the configured proxy (synchronous).
+
+    HTTP/HTTPS: an urllib opener whose ProxyHandler points at the proxy;
+    credentials are sent as a pre-emptive Proxy-Authorization header (CPython
+    forwards a request-level Proxy-Authorization into the CONNECT tunnel).
+    SOCKS5: a minimal RFC 1928 CONNECT tunnel + http.client over it.
+    """
+    import base64
+    parsed = urllib.parse.urlparse(url)
+    if proxy.scheme == "socks5":
+        import http.client
+        import ssl
+        default_port = 443 if parsed.scheme == "https" else 80
+        tunnel = _socks5_tunnel(proxy, parsed.hostname, parsed.port
+                                or default_port, timeout)
+        if tunnel is None:
+            return None
+        try:
+            if parsed.scheme == "https":
+                wrapped = ssl.create_default_context().wrap_socket(
+                    tunnel, server_hostname=parsed.hostname)
+                conn = http.client.HTTPSConnection(parsed.hostname,
+                                                  timeout=timeout)
+                # the socket is already connected (and now TLS-wrapped);
+                # hand it to http.client so it skips its own connect()
+                conn.sock = wrapped
+            else:
+                conn = http.client.HTTPConnection(parsed.hostname,
+                                                 timeout=timeout)
+                conn.sock = tunnel
+            # Connection: close so the response is delimited by EOF even when
+            # an endpoint replies with a bare HTTP/1.0 body (no Content-Length)
+            conn.request("GET", parsed.path or "/",
+                         headers={"Connection": "close"})
+            with conn.getresponse() as r:
+                return json.load(r)
+        finally:
+            tunnel.close()
+    handler = urllib.request.ProxyHandler({
+        "http": f"{proxy.scheme}://{proxy.host}:{proxy.port}",
+        "https": f"{proxy.scheme}://{proxy.host}:{proxy.port}",
+    })
+    headers = {}
+    if proxy.has_auth():
+        cred = base64.b64encode(
+            f"{proxy.username}:{proxy.password}".encode()).decode()
+        headers["Proxy-Authorization"] = f"Basic {cred}"
+    opener = urllib.request.build_opener(handler)
+    req = urllib.request.Request(url, headers=headers)
+    with opener.open(req, timeout=timeout) as r:
+        return json.load(r)
+
+
+def lookup_exit_geo(timeout: float = 8.0,
+                    proxy: ProxyConfig | None = None) -> dict | None:
     """Look up the geolocation of the CURRENT outbound IP.
 
     Run this AFTER the proxy is in effect (e.g. from inside the browser, or
     from a process already routed through the proxy) so it returns the proxy's
-    exit location, not your real one. Returns a normalized dict:
+    exit location, not your real one. With `proxy` set, the lookup itself is
+    routed through that proxy (HTTP CONNECT or SOCKS5), which is what a
+    caller needs when the browser does not exist yet and the exit IP must be
+    known BEFORE launch. Returns a normalized dict:
         {ip, city, region, country, timezone, latitude, longitude}
     or None if every endpoint fails.
     """
     for url in _IPGEO_ENDPOINTS:
         try:
-            with urllib.request.urlopen(url, timeout=timeout) as r:
-                raw = json.load(r)
+            if proxy is not None and proxy.configured:
+                raw = _geo_request_through_proxy(proxy, url, timeout)
+            else:
+                with urllib.request.urlopen(url, timeout=timeout) as r:
+                    raw = json.load(r)
         except Exception:  # noqa: BLE001 - try the next endpoint
             continue
         norm = _normalize_geo(raw)

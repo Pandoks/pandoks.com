@@ -151,6 +151,19 @@ _COMMON_VIEWPORTS = [
     (1366, 657, 768, 1.0),    # older/budget laptop
     (1680, 939, 1050, 1.0),   # 1680x1050 desktop
 ]
+# Sampling weight per viewport, parallel to _COMMON_VIEWPORTS. The reported
+# screen must look like it comes from the real population (Fingerprint's
+# "Device Rarity" flags rare screen tuples), so the weights are the share of
+# that (screen_w, screen_h, dpr) tuple in real desktop traffic. Source:
+# apify-fingerprint-datapoints 0.16.0 (fingerprint-network-definition.zip ->
+# network.json, node "screen"), the conditional table of screen given
+# userAgent, pooled (equal-weight per UA) over all 228 desktop-Chrome UAs
+# (mobile UAs excluded) -- the model is rebuilt from the newest 30,000
+# real-visitor records (see stealth-chromium/docs/persona-generation-research
+# .md, "Data provenance"). Measured shares: 1920x1080 dpr1 0.219, 1440x900
+# dpr2 0.091, 1366x768 dpr1 0.064, 1536x864 dpr1.25 0.053, 1512x982 dpr2
+# 0.040, 1680x1050 0.012.
+_VIEWPORT_WEIGHTS = [0.040, 0.091, 0.219, 0.053, 0.064, 0.012]
 
 
 def identity_for_ip_geo(geo: dict, *, vary_viewport: bool = True) -> Identity:
@@ -181,7 +194,8 @@ def identity_for_ip_geo(geo: dict, *, vary_viewport: bool = True) -> Identity:
         kwargs["latitude"] = float(lat)
         kwargs["longitude"] = float(lon)
     if vary_viewport:
-        vw, vh, sh, dsf = _random.choice(_COMMON_VIEWPORTS)
+        vw, vh, sh, dsf = _random.choices(
+            _COMMON_VIEWPORTS, weights=_VIEWPORT_WEIGHTS)[0]
         kwargs.update(viewport_width=vw, viewport_height=vh,
                       screen_width=vw, screen_height=sh,
                       device_scale_factor=dsf)

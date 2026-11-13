@@ -41,6 +41,13 @@ class FpProfile:
     device_memory: float   # navigator.deviceMemory (0.25..8, power of two)
     webgl_vendor: str
     webgl_renderer: str
+    # High-entropy Sec-CH-UA-Platform-Version override. None -> the
+    # UA_PLATFORM_VERSION_BY_PLATFORM map. The Windows map value is 15.0.0
+    # (Win11 23H2); Windows 10 and 11 both report "Windows NT 10.0" in the
+    # UA, so a Win10 persona is claimed ONLY through this field: it must be
+    # "1.0.0" (a real Win10 machine reports platform version 1.0.0, and
+    # >= 13 is what detectors read as Win11).
+    ua_platform_version: str | None = None
     gpu_class: str = "apple"   # apple | nvidia | amd | intel
     # WebGPU GPUAdapterInfo.architecture. Dawn's vocabulary is per-GPU
     # generation, not per-CPU ISA: "common-3" (Apple), "ampere"/"lovelace"
@@ -80,6 +87,27 @@ class FpProfile:
     # through as the quota. fp_env computes the quota for this claimed size
     # with the same stock formula and emits it. None -> no quota override.
     disk_gb: float | None = None
+    # Relative sampling weight from the real-visitor population, so the
+    # profile mix reproduces what real machines look like instead of a uniform
+    # pick. Source: apify-fingerprint-datapoints 0.16.0
+    # (fingerprint-network-definition.zip -> network.json, node
+    # "hardwareConcurrency"), the conditional table of hardwareConcurrency
+    # given userAgent, pooled (equal-weight per UA) over all desktop-Chrome
+    # UAs per OS -- the model is rebuilt from the newest 30,000 real-visitor
+    # records (see stealth-chromium/docs/persona-generation-research.md,
+    # "Data provenance"). Values are the share of that core count within the
+    # OS's desktop population:
+    #   Mac:  8 cores 0.441, 10 cores 0.175 (8/10/12/14 = 44/18/5/5%)
+    #   Windows: 8 cores 0.284, 12 cores 0.177, 16 cores 0.147
+    # (8/4/12/16 = 28/19/18/15%).
+    # deviceMemory stays 8 on every profile on purpose: real Chrome reports
+    # navigator.deviceMemory clamped at 8 GB (ApproximatedDeviceMemory caps
+    # at 8), so 8 is both the API-possible maximum and the most common real
+    # value (38% of desktop traffic in the same model; the 16/32 shares there
+    # come from the collector's raw-RAM path, which the clamped API never
+    # produces). Sampling outside {0.25..8} would be rarer than the detector
+    # rule allows, not more realistic.
+    population_weight: float = 1.0
 
 
 # Default WebGPU architecture per gpu_class, used when a persona does not
@@ -221,6 +249,12 @@ WEBGPU_FEATURES_BY_CLASS: dict[str, tuple[str, ...]] = {
 # These mirror the defaults in apex_fingerprint.h's UAPersona (the C++ maps the
 # same values from APEX_FP_UA_PLATFORM), emitted explicitly so a persona can
 # never fall out of sync with the binary if the env-vars row changes.
+#
+# Platform-version coherence rule (the OS version is carried ONLY in this
+# high-entropy hint; Windows 10 and 11 both report "Windows NT 10.0" in the
+# UA): a real Win10 machine reports 1.0.0, >= 13 is Win11. 15.0.0 = Win11
+# 23H2. A Win10 persona is claimed by setting the profile's
+# ua_platform_version to "1.0.0" (the per-profile field overrides this map).
 UA_ARCH_BY_PLATFORM: dict[str, str] = {
     "Win32": "x86",
     "MacIntel": "arm",
@@ -231,7 +265,6 @@ UA_PLATFORM_VERSION_BY_PLATFORM: dict[str, str] = {
     "MacIntel": "26.7.2",
     "Linux x86_64": "",
 }
-
 
 # A pool of real, common device configurations. Each row is a genuine device
 # class -- the WebGL renderer string is the actual ANGLE string that hardware
@@ -263,6 +296,7 @@ PROFILES: list[FpProfile] = [
         ),
         media_hw_decode=True, media_hw_encode=True, media_hevc=True,
         disk_gb=512,
+        population_weight=0.175,
     ),
     FpProfile(
         label="MacBook Air 13 M2",
@@ -276,6 +310,7 @@ PROFILES: list[FpProfile] = [
         webgpu_device_id="0x8112",
         media_hw_decode=True, media_hw_encode=True, media_hevc=True,
         disk_gb=256,
+        population_weight=0.441,
     ),
     FpProfile(
         label="MacBook Pro 16 M1 Max",
@@ -298,6 +333,7 @@ PROFILES: list[FpProfile] = [
         ),
         media_hw_decode=True, media_hw_encode=True, media_hevc=True,
         disk_gb=1024,
+        population_weight=0.175,
     ),
     FpProfile(
         label="MacBook Pro 14 M3",
@@ -311,6 +347,7 @@ PROFILES: list[FpProfile] = [
         webgpu_device_id="0x8132",
         media_hw_decode=True, media_hw_encode=True, media_hevc=True,
         disk_gb=512,
+        population_weight=0.441,
     ),
     # --- Windows / NVIDIA (gpu_class="nvidia") ---
     FpProfile(
@@ -326,6 +363,7 @@ PROFILES: list[FpProfile] = [
         media_hw_decode=True, media_hw_encode=True, media_hevc=True,
         platform_authenticator=True,
         disk_gb=1024,
+        population_weight=0.177,
     ),
     # --- Windows / Intel (gpu_class="intel") ---
     FpProfile(
@@ -341,6 +379,7 @@ PROFILES: list[FpProfile] = [
         media_hw_decode=True, media_hw_encode=True,
         media_hevc=True, media_dolby_vision=True,
         disk_gb=512,
+        population_weight=0.284,
     ),
     # --- Windows / AMD (gpu_class="amd") ---
     FpProfile(
@@ -356,6 +395,7 @@ PROFILES: list[FpProfile] = [
         media_hw_decode=True, media_hw_encode=True, media_hevc=True,
         platform_authenticator=True,
         disk_gb=1024,
+        population_weight=0.147,
     ),
 ]
 
@@ -483,7 +523,12 @@ def pick_profile(rng: random.Random | None = None) -> FpProfile:
         # no profile for this GPU class -- fall back to the whole pool, but
         # this means WebGL render output may not match the string (logged).
         coherent = PROFILES
-    return r.choice(coherent)
+    # Weighted by the real-visitor population (see population_weight): a
+    # uniform pick over the pool makes every claimed machine equally common,
+    # which is itself a rarity signal -- real 8-core machines are several
+    # times more common than 10/16-core ones.
+    return r.choices(coherent, weights=[p.population_weight
+                                        for p in coherent])[0]
 
 
 def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
@@ -521,7 +566,8 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         "APEX_FP_UA_PLATFORM": profile.ua_platform,
         "APEX_FP_CANVAS_KEY": str(canvas_key),
         "APEX_FP_UA_ARCH": UA_ARCH_BY_PLATFORM[profile.platform],
-        "APEX_FP_UA_PLATFORM_VERSION": UA_PLATFORM_VERSION_BY_PLATFORM[profile.platform],
+        "APEX_FP_UA_PLATFORM_VERSION": (profile.ua_platform_version
+                                        or UA_PLATFORM_VERSION_BY_PLATFORM[profile.platform]),
         "APEX_FP_HW_CONCURRENCY": str(profile.hw_concurrency),
         "APEX_FP_DEVICE_MEMORY": str(profile.device_memory),
         "APEX_FP_WEBGL_VENDOR": profile.webgl_vendor,

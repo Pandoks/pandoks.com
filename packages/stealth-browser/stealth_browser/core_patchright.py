@@ -13,6 +13,7 @@ verified detection surface. Rendering uses the real (Xvfb) display directly.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import random
@@ -23,8 +24,10 @@ from patchright.async_api import async_playwright
 
 from stealth_browser.human_patchright import PatchrightHuman
 from stealth_browser.profile import (Identity, WEBRTC_PROXIED_FLAG,
-                                     chrome_launch_flags, in_container)
+                                     chrome_launch_flags, in_container,
+                                     identity_for_ip_geo)
 from stealth_browser.proxy import from_env as proxy_from_env
+from stealth_browser.proxy import lookup_exit_geo
 
 # Playwright default switches that change page-observable behaviour versus
 # stock Chrome (technique-catalog item #3). Playwright filters
@@ -99,6 +102,8 @@ class PatchrightCore:
         # explicit per-session ProxyConfig wins; env is the fallback.
         self._proxy = (proxy if proxy is not None
                        else (proxy_from_env() if use_proxy else None))
+        # geo of the proxy's exit IP once known (matched before launch)
+        self._exit_geo: dict | None = None
 
     @property
     def profile(self) -> dict:
@@ -109,7 +114,8 @@ class PatchrightCore:
             "locale": idn.locale,
             "platform": idn.platform_name,
             "rendering": "real display (no Emulation override)",
-            "proxy": {"active": self._proxy is not None},
+            "proxy": {"active": self._proxy is not None,
+                      "exit_geo": self._exit_geo},
         }
         if self.persistent:
             d["persistent"] = self.persistent
@@ -134,7 +140,33 @@ class PatchrightCore:
             d["password"] = p.password
         return d
 
+    async def _match_identity_to_proxy(self) -> None:
+        """Rebuild Identity from the proxy exit IP's geolocation.
+
+        Unlike the nodriver core (which can re-match AFTER launch, since it
+        applies the identity over CDP), every identity surface here is baked
+        in at LAUNCH time (TZ/LANG/LC_ALL env, --lang flag, the
+        Accept-Language context header), so the exit IP must be known before
+        launch. The lookup itself is routed through the proxy (a pre-launch
+        Python process is not proxied, so a direct lookup would report OUR
+        location, not the proxy's). Best-effort: on any failure the session
+        keeps the default identity rather than blocking or crashing.
+        """
+        if self._proxy is None or not self._proxy.configured:
+            return
+        try:
+            geo = await asyncio.to_thread(lookup_exit_geo, 8.0, self._proxy)
+        except Exception:  # noqa: BLE001 - proxy geo match is best-effort
+            return
+        if geo and geo.get("timezone"):
+            self._exit_geo = geo
+            self.identity = identity_for_ip_geo(geo)
+
     async def open(self) -> None:
+        # With a proxy, make the identity agree with the exit IP BEFORE
+        # launch: a US fingerprint (TZ/LANG/Accept-Language) on a German
+        # exit is the classic coherence "lie" (Fingerprint timezone_mismatch).
+        await self._match_identity_to_proxy()
         idn = self.identity
         self._pw = await async_playwright().start()
         from stealth_browser.fp_profiles import (pick_profile, fp_env,
