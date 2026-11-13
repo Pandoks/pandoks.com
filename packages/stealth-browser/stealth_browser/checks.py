@@ -247,24 +247,32 @@ async () => {
 
   // --- 19. timing precision (clamped performance.now / forged timeline = tell) ---
   try {
+    const perfT0 = performance.now();
     const perfSamples = [];
     for (let i = 0; i < 1000; i++) perfSamples.push(performance.now());
+    const perfWallMs = performance.now() - perfT0;
     let perfMinDelta = Infinity;
     let perfZeroDeltas = 0;
+    let perfNonZeroDeltas = 0;
     for (let i = 1; i < perfSamples.length; i++) {
       const d = perfSamples[i] - perfSamples[i - 1];
-      if (d === 0) perfZeroDeltas++; else if (d < perfMinDelta) perfMinDelta = d;
+      if (d === 0) perfZeroDeltas++;
+      else { perfNonZeroDeltas++; if (d < perfMinDelta) perfMinDelta = d; }
     }
-    const perfFlat = perfSamples.slice(0, 100).every((v, i) => i === 0 || v === perfSamples[i - 1]);
     r.perfMinDelta = perfMinDelta === Infinity ? null : perfMinDelta;
     r.perfZeroDeltas = perfZeroDeltas;
-    r.perfFirstFlat = perfFlat;
+    r.perfNonZeroDeltas = perfNonZeroDeltas;
+    r.perfWallMs = perfWallMs;
     r.timeOriginDriftMs = performance.timeOrigin + performance.now() - Date.now();
   } catch (e) { r.timingError = String(e); }
-  // 0.15 not 0.1: the quantum is exactly 0.1ms and float rounding of the
-  // subtraction lands a hair above it on real Chrome -- a clamped timer shows
-  // 1ms+, so anything <= 0.15 is normal precision.
-  r.timingPrecisionOk = r.perfMinDelta != null && r.perfMinDelta <= 0.15 && !r.perfFirstFlat;
+  // The clamping invariant: NO delta strictly inside (0, 0.099) -- a clamped
+  // timer only steps 0 or >= 0.1ms. A fully flat 1000-sample loop on a fast
+  // machine is NOT a forged timeline (the loop fits inside one 0.1ms bucket);
+  // it only counts as flat if the loop also spanned < 10ms of wall time with
+  // zero ticks AND never ticked. (firstFlat alone was brittle: a fast box
+  // produced 997 zero deltas + firstFlat=true on real Chrome 157.)
+  r.timingPrecisionOk = (r.perfMinDelta == null || r.perfMinDelta >= 0.099)
+    && (r.perfNonZeroDeltas > 0 || r.perfWallMs >= 10);
   r.timeOriginOk = Math.abs(r.timeOriginDriftMs) < 5000;
 
   // --- 20. screen/window coherence (avail>full, outer<inner, touch on desktop) ---
@@ -793,7 +801,11 @@ async () => {
     r.syntheticIsTrusted = trustSynthetic.isTrusted;            // want false
     r.listenerIsTrusted = trustListenerEvent && trustListenerEvent.isTrusted;
     r.legacyIsTrusted = trustLegacy.isTrusted;                  // want false
-    const trustDescriptor = Object.getOwnPropertyDescriptor(Event.prototype, 'isTrusted');
+    // isTrusted is a [LegacyUnforgeable] IDL attribute: it lives as an own
+    // accessor on each Event INSTANCE, never on Event.prototype. Probe the
+    // instance's own descriptor (the prototype lookup is undefined even in
+    // stock Chrome -- verified on 157.0.8103.38).
+    var trustDescriptor = Object.getOwnPropertyDescriptor(trustSynthetic, 'isTrusted');
     r.isTrustedGetterNative = !!(trustDescriptor && trustDescriptor.get
       && String(trustDescriptor.get).includes('[native code]'));
     r.eventTrustOk = r.syntheticIsTrusted === false && r.listenerIsTrusted === false
@@ -829,42 +841,6 @@ async () => {
     r.stackTracesOk = r.stackLeakPaths.length === 0;
   } catch (e) { r.stackTracesError = String(e); r.stackTracesOk = false; }
 
-  // --- 37. network-stack surface: TLS fingerprint + HTTP header consistency ---
-  // tls.peet.ws /api/all reports the handshake + request as the SERVER saw it
-  // (verified field names: tls.ja3/ja3_hash/ja4/ja4_r, top-level
-  // user_agent/http_version/method, http2.sent_frames[].headers where the
-  // frame_type === 'HEADERS' frame carries "name: value" strings). Hashes are
-  // presence-only (they drift); the asserted invariant is the server-observed
-  // user_agent == navigator.userAgent.
-  try {
-    const tlsData = await (await fetch('https://tls.peet.ws/api/all')).json();
-    r.tlsJa3 = tlsData.tls && tlsData.tls.ja3 || null;
-    r.tlsJa3Hash = tlsData.tls && tlsData.tls.ja3_hash || null;
-    r.tlsJa4 = tlsData.tls && tlsData.tls.ja4 || null;
-    r.tlsJa4R = tlsData.tls && tlsData.tls.ja4_r || null;
-    r.tlsHttpVersion = tlsData.http_version || null;
-    r.tlsServerUa = tlsData.user_agent || null;
-    r.tlsMethod = tlsData.method || null;
-    const tlsHeadersFrame = (tlsData.http2 && tlsData.http2.sent_frames || [])
-      .find(f => f && f.frame_type === 'HEADERS');
-    r.tlsRequestHeaders = tlsHeadersFrame ? tlsHeadersFrame.headers || [] : [];
-    const tlsHeaderMap = Object.fromEntries(r.tlsRequestHeaders
-      .map(h => { const i = h.indexOf(': '); return [h.slice(0, i), h.slice(i + 2)]; }));
-    r.tlsAcceptLanguage = tlsHeaderMap['accept-language'] || null;
-    r.tlsAutomationHeaders = Object.keys(tlsHeaderMap)
-      .filter(k => /^(x-(cdp|pw|playwright|puppeteer|webdriver|selenium|nodriver|chrome))/i.test(k));
-    r.tlsUaMismatch = r.tlsServerUa != null && r.tlsServerUa !== navigator.userAgent;
-    const tlsFirstLang = (navigator.languages && navigator.languages[0] || '').toLowerCase();
-    // stock Chrome always sends Accept-Language on h2, so its absence when we
-    // DID capture headers is a leak; with no HEADERS frame (h1.1) it is
-    // unobservable and the check records pass
-    r.tlsAcceptLanguageOk = r.tlsRequestHeaders.length === 0
-      || (r.tlsAcceptLanguage != null && tlsFirstLang !== ''
-        && r.tlsAcceptLanguage.toLowerCase().startsWith(tlsFirstLang));
-    r.tlsSurfaceOk = !!r.tlsJa3 && !!r.tlsJa3Hash && !!r.tlsJa4 && !!r.tlsJa4R
-      && r.tlsUaMismatch === false && r.tlsAcceptLanguageOk === true
-      && r.tlsAutomationHeaders.length === 0;
-  } catch (e) { r.tlsError = String(e); r.tlsSurfaceOk = false; }
 
   return r;
 }

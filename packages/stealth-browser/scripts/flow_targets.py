@@ -158,6 +158,14 @@ class _QuietHandler(SimpleHTTPRequestHandler):
     def log_message(self, *args):  # noqa: A002 - stdlib signature
         pass
 
+    def end_headers(self):
+        # The service's /fetch runs fetch() INSIDE the page (cors mode). From
+        # about:blank the origin is opaque ("null"), so every response needs
+        # ACAO or the browser blocks it ("Failed to fetch") -- which is how
+        # the fixtures "failed" before this header existed.
+        self.send_header("Access-Control-Allow-Origin", "*")
+        super().end_headers()
+
 
 def start_fixture_server() -> tuple[int, ThreadingHTTPServer]:
     """Serve FIXTURE_DIR on an ephemeral port bound to all interfaces."""

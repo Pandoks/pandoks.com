@@ -163,6 +163,67 @@ def wait_health(base: str, limit_s: int = 60) -> bool:
     return False
 
 
+TLS_ECHO_URL = "https://tls.peet.ws/api/all"
+
+
+def _fetch_tls_via_navigation(api, base: str, sid: str) -> dict:
+    """Read the TLS echo endpoint by NAVIGATING to it (fetch() from a page is
+    CORS-blocked: tls.peet.ws sends no Access-Control-Allow-Origin; a direct
+    navigation has no CORS).  Returns the parsed JSON response or {}."""
+    try:
+        status, _ = api(base, "POST", f"/sessions/{sid}/navigate",
+                        body={"url": TLS_ECHO_URL})
+        if status != 200:
+            return {}
+        time.sleep(4)
+        status, txt = api(base, "GET", f"/sessions/{sid}/text")
+        body = (txt or {}).get("text", "") if isinstance(txt, dict) else ""
+        return json.loads(body) if str(body).strip().startswith("{") else {}
+    except Exception as e:  # noqa: BLE001 - report as empty, not fatal
+        return {"_tls_fetch_error": str(e)}
+
+
+def _merge_tls_scoring(probe: dict, tls: dict) -> None:
+    """Compute the TLS-surface checks from server-observed data. The probe
+    fields (tlsJa3 etc.) are filled here because the JS probe no longer does
+    the fetch (CORS)."""
+    tls_info = tls.get("tls") or {}
+    probe["tlsJa3"] = tls_info.get("ja3")
+    probe["tlsJa3Hash"] = tls_info.get("ja3_hash")
+    probe["tlsJa4"] = tls_info.get("ja4")
+    probe["tlsJa4R"] = tls_info.get("ja4_r")
+    probe["tlsHttpVersion"] = tls.get("http_version")
+    probe["tlsServerUa"] = tls.get("user_agent")
+    probe["tlsMethod"] = tls.get("method")
+    headers = []
+    for frame in (tls.get("http2") or {}).get("sent_frames") or []:
+        if isinstance(frame, dict) and frame.get("frame_type") == "HEADERS":
+            headers = frame.get("headers") or []
+            break
+    probe["tlsRequestHeaders"] = headers
+    header_map = {}
+    for h in headers:
+        if isinstance(h, str) and ": " in h:
+            k, v = h.split(": ", 1)
+            header_map[k.lower()] = v
+    probe["tlsAcceptLanguage"] = header_map.get("accept-language")
+    probe["tlsAutomationHeaders"] = [k for k in header_map
+                                     if re.match(r"^x-(cdp|pw|playwright|puppeteer|webdriver|selenium|nodriver|chrome)",
+                                                 k, re.I)]
+    probe["tlsUaMismatch"] = bool(probe["tlsServerUa"]
+                                  and probe["tlsServerUa"] != probe.get("userAgent"))
+    first_lang = ((probe.get("languages") or [None])[0] or "").lower()
+    probe["tlsAcceptLanguageOk"] = (not headers
+                                    or (probe["tlsAcceptLanguage"] is not None
+                                        and first_lang
+                                        and probe["tlsAcceptLanguage"].lower().startswith(first_lang)))
+    probe["tlsSurfaceOk"] = (bool(probe["tlsJa3"] and probe["tlsJa3Hash"]
+                                  and probe["tlsJa4"] and probe["tlsJa4R"])
+                             and probe["tlsUaMismatch"] is False
+                             and probe["tlsAcceptLanguageOk"] is True
+                             and not probe["tlsAutomationHeaders"])
+
+
 def run_local_battery(base: str, name: str, probe_js: str) -> dict:
     """Create a session, run the probe JS on it, score, clean up."""
     status, created = api(base, "POST", "/sessions", body={})
@@ -182,6 +243,7 @@ def run_local_battery(base: str, name: str, probe_js: str) -> dict:
         probe = json.loads(result) if isinstance(result, str) else result
         if not isinstance(probe, dict):
             return {"name": name, "error": f"probe not a dict: {probe!r}"}
+        _merge_tls_scoring(probe, _fetch_tls_via_navigation(api, base, sid))
         return {"name": name, "probe": probe, "scored": checks.score(probe)}
     finally:
         api(base, "DELETE", f"/sessions/{sid}")
