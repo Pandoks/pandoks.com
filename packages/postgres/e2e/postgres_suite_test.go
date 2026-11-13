@@ -10,11 +10,13 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var patroniImage, pgbackrestImage string
+var patroniImage, pgbackrestImage, previousPatroniImage, previousPgbackrestImage string
 
 func init() {
 	flag.StringVar(&patroniImage, "patroni-image", "", "Patroni image to test instead of the chart's default")
 	flag.StringVar(&pgbackrestImage, "pgbackrest-image", "", "pgBackRest image to test instead of the chart's default")
+	flag.StringVar(&previousPatroniImage, "previous-patroni-image", "", "Patroni image for main's published chart instead of its default")
+	flag.StringVar(&previousPgbackrestImage, "previous-pgbackrest-image", "", "pgBackRest image for main's published chart instead of its default")
 }
 
 func TestPostgres(t *testing.T) {
