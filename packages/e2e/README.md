@@ -13,9 +13,10 @@ The helpers (`e2e.go`):
 - `RunSuite` runs a suite with the shared `Eventually` defaults (1 minute timeout, 2 second polls).
 - `ApplyServiceMonitorCRD` applies the Prometheus Operator CRDs the charts' monitoring templates
   need (`kustomization.yaml`), unless the cluster already has them.
-- `InstallChart` installs a chart from its source directory into a fresh namespace with its
-  credentials secret and waits for its hooks; after the spec or `Ordered` container it dumps pods,
-  events and logs if anything failed, then deletes the namespace. `UpgradeChart` changes its values.
+- `InstallChart` installs a chart, from its source directory or an OCI ref, into a fresh namespace
+  with its credentials secret and waits for its hooks; after the spec or `Ordered` container it
+  dumps pods, events and logs if anything failed, then uninstalls the release and deletes the
+  namespace. `UpgradeChart` changes its values.
 
 Only add a helper here once more than one suite needs it; anything for one chart stays in its suite.
 
@@ -33,6 +34,11 @@ mise exec -- go tool ginkgo -p ./packages/valkey/e2e -- \
   --valkey-image=local-registry:5000/valkey:latest \
   --valkey-reconciler-image=local-registry:5000/valkey-reconciler:latest
 ```
+
+For Postgres, build and push `@pandoks.com/postgres` and pass `--patroni-image` and
+`--pgbackrest-image` to `./packages/postgres/e2e`; its suite installs cert-manager itself. Its
+upgrade specs install main's chart from GHCR first, so on Apple Silicon also pass
+`--previous-patroni-image` and `--previous-pgbackrest-image`, built from main.
 
 The chart is read from the checkout on every run. An image flag left out uses the chart's default,
 main's image on GHCR, which is `linux/amd64` only, so on Apple Silicon pass every image; rebuild and

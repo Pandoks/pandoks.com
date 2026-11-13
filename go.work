@@ -2,6 +2,7 @@ go 1.27.4
 
 use (
 	./packages/e2e
+	./packages/postgres/e2e
 	./packages/valkey/e2e
 	./packages/valkey/reconciler
 )

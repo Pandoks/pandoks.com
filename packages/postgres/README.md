@@ -655,6 +655,29 @@ after changing them:
 
 `pnpm local:build && pnpm local:push` from the repo root does this for every package.
 
+The Ginkgo suite in [e2e](./e2e) installs the chart on local k3d and tests replication, failover,
+switchover, scaling replicas and shards, rolling upgrades, metrics, backups, retention and
+restore-on-bootstrap, PgDog routing and sharding, upgrading from the newest chart on GHCR and
+reverting to it, and reinstalling after an uninstall. With the cluster up (see
+[packages/e2e](../e2e/README.md#running-a-suite)), from the repo root:
+
+```sh
+pnpm --filter @pandoks.com/postgres local:build && pnpm --filter @pandoks.com/postgres local:push
+for image in patroni pgbackrest; do
+  docker build -f "packages/postgres/${image}/Dockerfile" -t "localhost:12345/${image}:main" \
+    https://github.com/Pandoks/pandoks.com.git#main
+  docker push "localhost:12345/${image}:main"
+done
+mise exec -- go tool ginkgo -p ./packages/postgres/e2e -- \
+  --patroni-image=local-registry:5000/patroni:latest \
+  --pgbackrest-image=local-registry:5000/pgbackrest:latest \
+  --previous-patroni-image=local-registry:5000/patroni:main \
+  --previous-pgbackrest-image=local-registry:5000/pgbackrest:main
+```
+
+The `--previous-*` images run main's chart from GHCR, so the loop builds them from main under their
+own `main` tag, leaving your branch's `latest` images alone.
+
 ## Configuration Reference
 
 ### Values

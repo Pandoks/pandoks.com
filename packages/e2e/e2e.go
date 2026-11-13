@@ -59,7 +59,7 @@ func MustRun(stdin, executable string, arguments ...string) string {
 	return output
 }
 
-func InstallChart(releaseName, chartDirectory string, secretData, chartValues map[string]string) string {
+func InstallChart(releaseName, chart string, secretData, chartValues map[string]string) string {
 	ginkgo.GinkgoHelper()
 	namespace := fmt.Sprintf("e2e-%s-%s", releaseName, strings.ToLower(rand.Text()[:4]))
 	MustRun("", "kubectl", "create", "namespace", namespace)
@@ -67,6 +67,8 @@ func InstallChart(releaseName, chartDirectory string, secretData, chartValues ma
 		if ginkgo.CurrentSpecReport().Failed() {
 			dumpDiagnostics(namespace)
 		}
+		// NOTE: a chart can own resources outside its namespace, like Postgres's PgDog HelmChart
+		MustRun("", "helm", "-n", namespace, "uninstall", releaseName, "--wait", "--ignore-not-found")
 		MustRun("", "kubectl", "delete", "namespace", namespace, "--timeout=3m")
 	})
 
@@ -77,14 +79,14 @@ func InstallChart(releaseName, chartDirectory string, secretData, chartValues ma
 	MustRun("", "kubectl", secretArguments...)
 
 	chartValues["namespace"] = namespace
-	UpgradeChart(namespace, releaseName, chartDirectory, chartValues)
+	UpgradeChart(namespace, releaseName, chart, chartValues)
 	return namespace
 }
 
-func UpgradeChart(namespace, releaseName, chartDirectory string, chartValues map[string]string) {
+func UpgradeChart(namespace, releaseName, chart string, chartValues map[string]string) {
 	ginkgo.GinkgoHelper()
 	helmArguments := []string{
-		"-n", namespace, "upgrade", releaseName, chartDirectory,
+		"-n", namespace, "upgrade", releaseName, chart,
 		"--install", "--reset-then-reuse-values", "--timeout=5m",
 	}
 	for valueKey, value := range chartValues {
