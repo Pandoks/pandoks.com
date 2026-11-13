@@ -90,7 +90,12 @@ graph TB
 - **Encryption** - AES-256-CBC for all backups
 - **S3-compatible storage** - works with AWS S3, MinIO, S3Mock
 - **Restore on bootstrap** - a new shard whose stanza already has a full backup restores it instead
-  of starting empty
+  of starting empty, with the chart's `postgresql.conf` and `pg_hba.conf` instead of the backup's,
+  and without the backup's `ALTER SYSTEM` settings. It waits for WAL replay however long it takes,
+  retrying repo errors every 10 seconds until only a missing segment ends it, then takes a full
+  backup for its replicas. If the container restarts mid-replay, it finishes the replay and takes
+  that backup before Patroni starts. If the repo can't be read, the bootstrap fails instead of
+  starting empty
 
 ### Monitoring
 
@@ -361,7 +366,9 @@ kubectl exec -it pitr-restore -n myapp -- bash
 #### Step 4: Perform PITR Restore
 
 Inside the recovery pod, run pgbackrest restore with the target time. `delta=y` is set in
-`pgbackrest.conf`, so the restore overwrites the existing data directory in place:
+`pgbackrest.conf`, so the restore overwrites the existing data directory in place. The
+`restore_command` retries while the repo is unreachable, as on bootstrap, so an outage can't end
+replay early; a missing segment still does:
 
 ```bash
 # Restore to specific point in time
@@ -369,27 +376,32 @@ pgbackrest --stanza=myapp-shard-0 \
   --type=time \
   --target="2024-01-15 14:30:00+00" \
   --target-action=promote \
+  --recovery-option="restore_command=until pgbackrest --stanza=myapp-shard-0 archive-get %f \"%p\"; do [ \$? -eq 1 ] && exit 1; sleep 10; done" \
   restore
 
 # Alternative: Restore to the end of the archived WAL (latest state)
 pgbackrest --stanza=myapp-shard-0 \
   --type=default \
+  --recovery-option="restore_command=until pgbackrest --stanza=myapp-shard-0 archive-get %f \"%p\"; do [ \$? -eq 1 ] && exit 1; sleep 10; done" \
   restore
 ```
 
 Then replay the WAL up to the target in the recovery pod and wait for Postgres to promote itself.
 Patroni drops the recovery target that `pgbackrest restore` writes to `postgresql.auto.conf`, so if
 it started Postgres still in recovery, Postgres would replay all the WAL. A backup taken from a
-replica keeps that replica's Patroni settings, so `-o` overrides any apply delay it had:
+replica keeps that replica's Patroni settings, so `-o` overrides any apply delay it had. Deleting
+the backup's `patroni.dynamic.json`, Patroni's cached cluster config, keeps Patroni from loading the
+backup's settings, like that delay, into the DCS once Step 5 deletes its config:
 
 ```bash
+rm -f /var/lib/postgresql/pgdata/patroni.dynamic.json
 pg_ctl start -D /var/lib/postgresql/pgdata -l /tmp/pitr-restore.log -o '-c recovery_min_apply_delay=0'
 # Prints f once it reached the target and promoted; check /tmp/pitr-restore.log if it never does
 until [ "$(psql -Atq -d postgres -c 'SELECT pg_is_in_recovery()' 2> /dev/null)" = f ]; do sleep 5; done
 pg_ctl stop -w -D /var/lib/postgresql/pgdata
 ```
 
-**Recovery type options:**
+**Recovery type options** (pass `--target-action=promote` with every type but `default`):
 
 - `--type=time --target="TIMESTAMP"` - Restore to specific time
 - `--type=xid --target="TRANSACTION_ID"` - Restore to specific transaction
@@ -404,9 +416,9 @@ and Patroni doesn't notice, so delete their PVCs to have them cloned again. Repl
 newest backup, so start the restored primary alone and back it up before scaling back up:
 
 ```bash
-# Exit and delete the recovery pod
+# Exit and delete the recovery pod (Postgres is stopped, so skip the 600s grace period)
 exit
-kubectl delete pod pitr-restore -n myapp
+kubectl delete pod pitr-restore -n myapp --grace-period=1
 
 # Delete stale Patroni endpoints (required after restore)
 kubectl delete endpoints myapp-shard-0 myapp-shard-0-config -n myapp
@@ -578,8 +590,8 @@ kubectl get pods -n myapp -w
 ```
 
 To scale down replicas, lower `patroni.replicasPerShard`. Kubernetes terminates the highest-ordinal
-pods, so switch over first if one of them is the leader. Their PVCs are kept, so delete them if you
-don't plan to scale back up.
+pods, all at once, so switch over first if one of them is the leader. Their PVCs are kept, so delete
+them if you don't plan to scale back up.
 
 ### Test Sharding
 

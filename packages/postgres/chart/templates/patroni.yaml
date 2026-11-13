@@ -110,6 +110,8 @@ metadata:
     cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
 spec:
   replicas: {{ $.Values.patroni.replicasPerShard }}
+  # NOTE: pod 0 can't lead when Patroni's failsafe topology lacks it, so start the others alongside it
+  podManagementPolicy: Parallel
   serviceName: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
   selector:
     matchLabels:
@@ -138,6 +140,8 @@ spec:
                   cluster-name: *cluster-name
               topologyKey: kubernetes.io/hostname
       serviceAccountName: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+      # NOTE: Postgres's shutdown waits for up to two archiver rounds of 3 archive-push tries of 60s each
+      terminationGracePeriodSeconds: 600
       securityContext:
         fsGroup: 999
         seccompProfile:
