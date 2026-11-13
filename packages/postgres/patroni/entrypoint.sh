@@ -40,10 +40,9 @@ envsubst < /tmp/conf_templates/pgbackrest.conf > /etc/pgbackrest/pgbackrest.conf
 mkdir -p /var/lib/postgresql/pgdata
 chmod 700 /var/lib/postgresql/pgdata
 
-# NOTE: Patroni would end an interrupted restore on a repo error; restores append, so the last one wins
-if [ -f /var/lib/postgresql/pgdata/recovery.signal ] \
-  && grep "^restore_command = " /var/lib/postgresql/pgdata/postgresql.auto.conf | tail -n 1 \
-  | grep -q "^restore_command = 'until pgbackrest"; then
+# NOTE: Patroni would end an interrupted restore's replay on a repo error, and its replicas would
+# clone the pre-restore backup until cluster-init.sh's full backup succeeds
+if [ -f /var/lib/postgresql/pgdata/restore.pending ]; then
   # NOTE: SIGINT is the image's stop signal
   trap 'pg_ctl stop -w -D /var/lib/postgresql/pgdata -m fast; exit 130' INT
   pg_ctl start -W -D /var/lib/postgresql/pgdata -o "-c hot_standby=off"
@@ -52,11 +51,12 @@ if [ -f /var/lib/postgresql/pgdata/recovery.signal ] \
     sleep 10
     pg_ctl status -D /var/lib/postgresql/pgdata > /dev/null
   done
-  if pgbackrest --stanza="${STANZA}" backup --type=full; then
-    echo "✓ Full backup created successfully. Replicas can now bootstrap."
-  else
-    echo "Warning: Failed to create full backup. Replicas may restore the previous backup's settings."
-  fi
+  until pgbackrest --stanza="${STANZA}" backup --type=full; do
+    echo "Failed to create the restored cluster's full backup. Retrying in 10s..."
+    sleep 10
+  done
+  rm /var/lib/postgresql/pgdata/restore.pending
+  echo "✓ Full backup created successfully. Replicas can now bootstrap."
   pg_ctl stop -w -D /var/lib/postgresql/pgdata -m fast
 fi
 

@@ -93,9 +93,9 @@ graph TB
   of starting empty, with the chart's `postgresql.conf` and `pg_hba.conf` instead of the backup's,
   and without the backup's `ALTER SYSTEM` settings. It waits for WAL replay however long it takes,
   retrying repo errors every 10 seconds until only a missing segment ends it, then takes a full
-  backup for its replicas. If the container restarts mid-replay, it finishes the replay and takes
-  that backup before Patroni starts. If the repo can't be read, the bootstrap fails instead of
-  starting empty
+  backup for its replicas, retrying every 10 seconds until it succeeds. If the container restarts
+  before then, it finishes the replay and takes that backup before Patroni starts. If the repo can't
+  be read, the bootstrap fails instead of starting empty
 
 ### Monitoring
 
@@ -389,13 +389,15 @@ pgbackrest --stanza=myapp-shard-0 \
 Then replay the WAL up to the target in the recovery pod and wait for Postgres to promote itself.
 Patroni drops the recovery target that `pgbackrest restore` writes to `postgresql.auto.conf`, so if
 it started Postgres still in recovery, Postgres would replay all the WAL. A backup taken from a
-replica keeps that replica's Patroni settings, so `-o` overrides any apply delay it had. Deleting
-the backup's `patroni.dynamic.json`, Patroni's cached cluster config, keeps Patroni from loading the
-backup's settings, like that delay, into the DCS once Step 5 deletes its config:
+replica keeps that replica's Patroni settings, so `-o` overrides any apply delay it had, and
+`hot_standby=off` keeps replay going past a `max_connections` raised after the backup, as on
+bootstrap. Deleting the backup's `patroni.dynamic.json`, Patroni's cached cluster config, keeps
+Patroni from loading the backup's settings, like that delay, into the DCS once Step 5 deletes its
+config:
 
 ```bash
 rm -f /var/lib/postgresql/pgdata/patroni.dynamic.json
-pg_ctl start -D /var/lib/postgresql/pgdata -l /tmp/pitr-restore.log -o '-c recovery_min_apply_delay=0'
+pg_ctl start -D /var/lib/postgresql/pgdata -l /tmp/pitr-restore.log -o '-c recovery_min_apply_delay=0 -c hot_standby=off'
 # Prints f once it reached the target and promoted; check /tmp/pitr-restore.log if it never does
 until [ "$(psql -Atq -d postgres -c 'SELECT pg_is_in_recovery()' 2> /dev/null)" = f ]; do sleep 5; done
 pg_ctl stop -w -D /var/lib/postgresql/pgdata
@@ -610,6 +612,15 @@ for shard in 0 1 2; do
   kubectl exec -n myapp patroni-myapp-shard-${shard}-0 -c patroni -- \
     psql -U postgres -d myapp -c "SELECT COUNT(*) FROM users;"
 done
+```
+
+### Upgrading from 0.1.5
+
+0.1.7 sets the StatefulSets' immutable `podManagementPolicy`, so before upgrading, delete each
+shard's StatefulSet without its pods, which keep running and are adopted, then rolled:
+
+```bash
+kubectl delete statefulset -n myapp patroni-myapp-shard-0 --cascade=orphan
 ```
 
 ## Troubleshooting
