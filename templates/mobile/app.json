@@ -23,6 +23,7 @@
     "plugins": [
       "expo-router",
       ["expo-navigation-bar", { "enforceContrast": false }],
+      ["@pandoks.com/react-native-module", { "greeting": "Hello from app.json" }],
       [
         "expo-splash-screen",
         {
