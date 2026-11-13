@@ -49,7 +49,8 @@ export function useNotificationPermission() {
 export function useNotificationRouting() {
   useEffect(() => {
     function openUrl(response: Notifications.NotificationResponse | null) {
-      const url = response?.notification.request.content.data?.url;
+      if (response?.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
+      const url = response.notification.request.content.data?.url;
       if (!url) return;
       router.push(url as Href);
       Notifications.clearLastNotificationResponse();
