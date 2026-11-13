@@ -1,9 +1,11 @@
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Env struct {
@@ -46,5 +48,65 @@ func Load() (Env, error) {
 		Masters:           masters,
 		ReplicasPerMaster: replicasPerMaster,
 		AdminPassword:     adminPassword,
+	}, nil
+}
+
+type ConfigEnv struct {
+	Parameters map[string]string
+	Users      []ACLUser
+}
+
+type ACLUser struct {
+	Name  string
+	Rules []string
+}
+
+func LoadConfig() (ConfigEnv, error) {
+	var parameters map[string]string
+	if err := json.Unmarshal([]byte(os.Getenv("PARAMETERS")), &parameters); err != nil {
+		return ConfigEnv{}, fmt.Errorf("PARAMETERS environment variable is not a JSON object of strings: %w", err)
+	}
+
+	usersACLTemplate := os.Getenv("USERS_ACL")
+	if usersACLTemplate == "" {
+		return ConfigEnv{}, fmt.Errorf("USERS_ACL environment variable is not set")
+	}
+	// NOTE: expanded like entrypoint.sh's envsubst. An empty ${CLIENT_PASSWORD} would turn ">${CLIENT_PASSWORD}" into
+	// a valid empty password, a space or newline would split its line after the lines before it already applied, and
+	// a restarted pod's aclfile load trims a leading or trailing tab or CR that ACL SETUSER keeps
+	var unsetVariables, unsplittableVariables []string
+	usersACL := os.Expand(usersACLTemplate, func(name string) string {
+		value := os.Getenv(name)
+		if value == "" {
+			unsetVariables = append(unsetVariables, name)
+		}
+		if strings.ContainsAny(value, " \t\r\n") {
+			unsplittableVariables = append(unsplittableVariables, name)
+		}
+		return value
+	})
+	if len(unsetVariables) > 0 {
+		return ConfigEnv{}, fmt.Errorf("USERS_ACL uses unset environment variables: %v", unsetVariables)
+	}
+	if len(unsplittableVariables) > 0 {
+		return ConfigEnv{}, fmt.Errorf("USERS_ACL uses environment variables with a space, tab, carriage return or newline: %v", unsplittableVariables)
+	}
+
+	var users []ACLUser
+	for lineIndex, line := range strings.Split(usersACL, "\n") {
+		// NOTE: Valkey splits aclfile lines on single spaces
+		fields := strings.Split(strings.Trim(line, " \t\r"), " ")
+		if fields[0] == "" {
+			continue
+		}
+		if fields[0] != "user" || len(fields) < 2 {
+			return ConfigEnv{}, fmt.Errorf("users.acl line %d doesn't start with user and a username", lineIndex+1)
+		}
+		users = append(users, ACLUser{Name: fields[1], Rules: fields[2:]})
+	}
+
+	return ConfigEnv{
+		Parameters: parameters,
+		Users:      users,
 	}, nil
 }

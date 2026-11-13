@@ -117,6 +117,14 @@ func (t Topology) IsHealthy() (bool, error) {
 	return true, nil
 }
 
+func (t Topology) Hostnames() []string {
+	hostnames := make([]string, 0, len(t.OrderedNodes))
+	for _, node := range t.OrderedNodes {
+		hostnames = append(hostnames, fmt.Sprintf("%s:%d", node.Hostname, node.Port))
+	}
+	return hostnames
+}
+
 func GetClusterTopology(client valkey.Client) (Topology, error) {
 	nodes, err := ClusterNodes(client)
 	if err != nil {

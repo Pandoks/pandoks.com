@@ -111,10 +111,10 @@ func addMasters(options *scaleUpOptions) error {
 	currentMasterCount := len(clusterTopology.Masters)
 
 	numberOfMastersToAdd := env.Masters - currentMasterCount
-	hostnames := make([]string, 0, len(clusterTopology.Masters)+numberOfMastersToAdd)
+	// NOTE: replicas too, since the topology read below can ask one and drop a hostname it hasn't learned yet
+	hostnames := clusterTopology.Hostnames()
 	hostnameMatching := make([][]string, 0, numberOfMastersToAdd)
 	for _, master := range clusterTopology.Masters {
-		hostnames = append(hostnames, fmt.Sprintf("%s:%d", master.Node.Hostname, master.Node.Port))
 		hostnameMatching = append(hostnameMatching, []string{master.Node.Hostname})
 	}
 
@@ -220,10 +220,7 @@ func addReplicas(options *scaleUpOptions) error {
 				return err
 			}
 
-			currentClusterHostnames := make([]string, 0, len(clusterTopology.OrderedNodes)+len(replicasAdded))
-			for _, node := range clusterTopology.OrderedNodes {
-				currentClusterHostnames = append(currentClusterHostnames, fmt.Sprintf("%s:%d", node.Hostname, node.Port))
-			}
+			currentClusterHostnames := clusterTopology.Hostnames()
 			for hostname := range replicasAdded {
 				currentClusterHostnames = append(currentClusterHostnames, fmt.Sprintf("%s:%d", hostname, 6379))
 			}
@@ -234,6 +231,13 @@ func addReplicas(options *scaleUpOptions) error {
 				env,
 				currentClusterHostnames,
 				[]string{fmt.Sprintf("%s slave %s", freeNodeHostname, masterNode.Node.ID)}); err != nil {
+				return err
+			}
+
+			// NOTE: a full sync's RDB carries open slots, but only synced replicas get the SETSLOT that closes them
+			timeoutCtx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+			if err := valkey.WaitForReplicaSynced(timeoutCtx, replicaClient); err != nil {
 				return err
 			}
 
@@ -317,13 +321,24 @@ func waitForEntireClusterForReplicas(env utils.Env, replicasAdded map[string]str
 }
 
 func finalizeScaleUp(options *scaleUpOptions) error {
-	client, clusterTopology := options.client, *options.topology
+	client := options.client
 	rebalanceOptions := valkey.RebalanceOptions{
 		CliBaseOptions:  options.cliBaseOptions,
 		UseEmptyMasters: true,
 		Replace:         true,
 	}
 
+	// NOTE: until every node reports cluster_state:ok, new masters fail rebalance with CLUSTERDOWN and rollout failovers look unhealthy
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	if err := valkey.WaitForAllNodesClusterInfoState(timeoutCtx, options.env, options.topology.Hostnames(), "cluster_state:ok"); err != nil {
+		return err
+	}
+
+	clusterTopology, err := valkey.GetClusterTopology(client)
+	if err != nil {
+		return err
+	}
 	if healthy, err := clusterTopology.IsHealthy(); !healthy {
 		fmt.Println(confusedMessage)
 		fmt.Println("Cluster is unhealthy with a proper amount of nodes. Something went wrong!")

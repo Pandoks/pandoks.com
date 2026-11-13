@@ -111,7 +111,7 @@ metadata:
   namespace: {{ .Values.namespace }}
   annotations:
     "helm.sh/hook": pre-upgrade
-    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-weight": "2"
     "helm.sh/hook-delete-policy": {{ .Values.hooks.hookDeletePolicy }}
 spec:
   backoffLimit: {{ .Values.hooks.backoffLimit }}
@@ -155,3 +155,66 @@ spec:
       volumes:
         - name: *tmp
           emptyDir: {}
+
+---
+# NOTE: weight 1 runs after init and scale-up, so every node is in the cluster, and before scale-down, so the scale
+# hooks log in with an admin password the nodes accept
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: valkey-{{ .Values.name }}-apply-config
+  namespace: {{ .Values.namespace }}
+  annotations:
+    "helm.sh/hook": pre-upgrade,post-install,post-upgrade,post-rollback
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded,hook-failed
+    "helm.sh/hook-output-log-policy": hook-failed
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      serviceAccountName: valkey-{{ .Values.name }}-reconciler
+      restartPolicy: Never
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: apply-config
+          image: {{ .Values.cluster.reconcilerImage }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          args:
+            - apply-config
+          env:
+            - name: CLUSTER_NAME
+              value: {{ .Values.name }}
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: MASTERS
+              value: {{ .Values.cluster.masters | quote }}
+            - name: REPLICAS_PER_MASTER
+              value: {{ .Values.cluster.replicasPerMaster | quote }}
+            - name: PARAMETERS
+              value: {{ include "valkey.parameters" . | quote }}
+            - name: USERS_ACL
+              value: {{ .Files.Get "files/users.acl" | quote }}
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: &creds-secret {{ .Values.credentials.secret }}
+                  key: {{ .Values.credentials.dataKeys.adminPassword }}
+            - name: CLIENT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: *creds-secret
+                  key: {{ .Values.credentials.dataKeys.clientPassword }}
+            - name: METRICS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: valkey-{{ .Values.name }}-metrics
+                  key: password

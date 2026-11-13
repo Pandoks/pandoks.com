@@ -3,6 +3,7 @@ package valkey
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -10,7 +11,7 @@ import (
 )
 
 type PromoteOriginalShardLeaderOptions struct {
-	ClusterClient valkey.Client
+	AdminPassword string
 	Shard         Shard
 	Topology      Topology
 }
@@ -39,21 +40,38 @@ func PromoteOriginalShardLeader(ctx context.Context, options PromoteOriginalShar
 		return masterNode.Node.Hostname, "", nil
 	}
 
-	// to be promoted to master
-	replicaClient, exists := options.ClusterClient.Nodes()[fmt.Sprintf("%s:%d", lowestIndexPodNode.Hostname, lowestIndexPodNode.Port)]
-	if !exists {
-		return "", "", fmt.Errorf("replica client for %s not found", lowestIndexPodNode.Hostname)
+	// NOTE: dialed directly; the cluster client's Nodes() leaves out a resyncing (loading) node
+	newNodeClient := func(node ClusterNode) (*ValkeyClient, error) {
+		return NewClient(valkey.ClientOption{
+			InitAddress:       []string{fmt.Sprintf("%s:%d", node.Hostname, node.Port)},
+			Username:          AdminUser,
+			Password:          options.AdminPassword,
+			ForceSingleClient: true,
+		})
 	}
+
+	// to be promoted to master
+	replicaClient, err := newNodeClient(lowestIndexPodNode)
+	if err != nil {
+		return "", "", err
+	}
+	defer replicaClient.Close()
+	// NOTE: a manual failover fails while the replica still resyncs, e.g. right after its pod restarted
+	if err := WaitForReplicaSynced(ctx, replicaClient); err != nil {
+		return "", "", err
+	}
+
 	failoverCmd := replicaClient.B().ClusterFailover().Build()
 	if err := replicaClient.Do(ctx, failoverCmd).Error(); err != nil {
 		return "", "", err
 	}
 
 	// to be demoted to slave
-	masterClient, exists := options.ClusterClient.Nodes()[fmt.Sprintf("%s:%d", masterNode.Node.Hostname, masterNode.Node.Port)]
-	if !exists {
-		return "", "", fmt.Errorf("master client for %s not found", masterNode.Node.Hostname)
+	masterClient, err := newNodeClient(masterNode.Node)
+	if err != nil {
+		return "", "", err
 	}
+	defer masterClient.Close()
 
 	for {
 		select {
@@ -64,7 +82,6 @@ func PromoteOriginalShardLeader(ctx context.Context, options PromoteOriginalShar
 
 		const section = "replication"
 		replicaInfoCmd := replicaClient.B().Info().Section(section).Build()
-		masterInfoCmd := masterClient.B().Info().Section(section).Build()
 
 		replicaInfo, err := replicaClient.Do(ctx, replicaInfoCmd).ToString()
 		if err != nil || !strings.Contains(replicaInfo, "role:master") {
@@ -76,10 +93,10 @@ func PromoteOriginalShardLeader(ctx context.Context, options PromoteOriginalShar
 			continue
 		}
 
-		masterInfo, err := masterClient.Do(ctx, masterInfoCmd).ToString()
-		if err != nil ||
-			!strings.Contains(masterInfo, "role:slave") ||
-			!strings.Contains(masterInfo, fmt.Sprintf("master_host:%s", lowestIndexPodNode.Hostname)) {
+		// NOTE: match by node id, since master_host is an IP and the topology's IPs go stale when pods restart
+		masterNodes, err := ClusterNodes(masterClient)
+		myselfIndex := slices.IndexFunc(masterNodes, func(node ClusterNode) bool { return slices.Contains(node.Flags, Myself) })
+		if err != nil || myselfIndex == -1 || !slices.Contains(masterNodes[myselfIndex].Flags, Slave) || masterNodes[myselfIndex].Master != lowestIndexPodNode.ID {
 			select {
 			case <-ctx.Done():
 				return "", "", ctx.Err()

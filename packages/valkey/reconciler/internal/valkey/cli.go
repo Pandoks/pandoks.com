@@ -18,6 +18,25 @@ func doesCommandExist(cmd string) bool {
 	return err == nil
 }
 
+func runCli(auth Auth, args ...string) error {
+	if !doesCommandExist("valkey-cli") {
+		return fmt.Errorf("valkey-cli is not installed")
+	}
+
+	if auth.Username != "" {
+		args = append(args, "--user", auth.Username)
+	}
+	fmt.Printf("Command: valkey-cli %s\n", strings.Join(args, " "))
+	if auth.Password != "" {
+		args = append(args, "-a", auth.Password)
+	}
+
+	cmd := exec.Command("valkey-cli", args...) // #nosec G204 (cmd injection) -- args from validated structs, not user input
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
 type Auth struct {
 	Username string
 	Password string
@@ -69,9 +88,6 @@ type RebalanceOptions struct {
 }
 
 func Rebalance(options RebalanceOptions) error {
-	if !doesCommandExist("valkey-cli") {
-		return fmt.Errorf("valkey-cli is not installed")
-	}
 	if err := options.ValidateConnection(); err != nil {
 		return err
 	}
@@ -80,10 +96,6 @@ func Rebalance(options RebalanceOptions) error {
 	}
 
 	args := []string{"--cluster", "rebalance", options.Address(), "--cluster-yes"}
-
-	if options.Username != "" {
-		args = append(args, "--user", options.Username)
-	}
 
 	if options.Threshold != nil {
 		if *options.Threshold < 0 {
@@ -121,15 +133,11 @@ func Rebalance(options RebalanceOptions) error {
 		args = append(args, "--cluster-replace")
 	}
 
-	fmt.Printf("Command: valkey-cli %s\n", strings.Join(args, " "))
-	if options.Password != "" {
-		args = append(args, "-a", options.Password)
+	if err := runCli(options.Auth, args...); err != nil {
+		return err
 	}
-
-	cmd := exec.Command("valkey-cli", args...) // #nosec G204 (cmd injection) -- args from validated structs, not user input
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	// NOTE: rebalance can exit 0 after a failed slot move, and check fails on open or uncovered slots
+	return runCli(options.Auth, "--cluster", "check", options.Address())
 }
 
 // NOTE: doesn't support replicas because there is a race condition in the cli
@@ -141,9 +149,6 @@ type AddNodeOptions struct {
 }
 
 func AddNode(options AddNodeOptions) error {
-	if !doesCommandExist("valkey-cli") {
-		return fmt.Errorf("valkey-cli is not installed")
-	}
 	if err := options.ValidateConnection(); err != nil {
 		return err
 	}
@@ -165,19 +170,7 @@ func AddNode(options AddNodeOptions) error {
 		"--cluster-yes",
 	}
 
-	if options.Username != "" {
-		args = append(args, "--user", options.Username)
-	}
-
-	fmt.Printf("Command: valkey-cli %s\n", strings.Join(args, " "))
-	if options.Password != "" {
-		args = append(args, "-a", options.Password)
-	}
-
-	cmd := exec.Command("valkey-cli", args...) // #nosec G204 (cmd injection) -- args from validated structs, not user input
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return runCli(options.Auth, args...)
 }
 
 type DelNodeOptions struct {
@@ -187,9 +180,6 @@ type DelNodeOptions struct {
 }
 
 func DelNode(options DelNodeOptions) error {
-	if !doesCommandExist("valkey-cli") {
-		return fmt.Errorf("valkey-cli is not installed")
-	}
 	if err := options.ValidateConnection(); err != nil {
 		return err
 	}
@@ -199,18 +189,7 @@ func DelNode(options DelNodeOptions) error {
 
 	args := []string{"--cluster", "del-node", options.Address(), options.NodeID, "--cluster-yes"}
 
-	if options.Username != "" {
-		args = append(args, "--user", options.Username)
-	}
-	fmt.Printf("Command: valkey-cli %s\n", strings.Join(args, " "))
-	if options.Password != "" {
-		args = append(args, "-a", options.Password)
-	}
-
-	cmd := exec.Command("valkey-cli", args...) // #nosec G204 (cmd injection) -- args from validated structs, not user input
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return runCli(options.Auth, args...)
 }
 
 type DelShardOptions struct {
@@ -323,9 +302,6 @@ type CreateClusterOptions struct {
 }
 
 func CreateCluster(options CreateClusterOptions) error {
-	if !doesCommandExist("valkey-cli") {
-		return fmt.Errorf("valkey-cli is not installed")
-	}
 	if err := options.ValidateAuth(); err != nil {
 		return err
 	}
@@ -341,16 +317,5 @@ func CreateCluster(options CreateClusterOptions) error {
 	args = append(args, options.Nodes...)
 	args = append(args, "--cluster-replicas", strconv.Itoa(options.ReplicasPerMaster), "--cluster-yes")
 
-	if options.Username != "" {
-		args = append(args, "--user", options.Username)
-	}
-	fmt.Printf("Command: valkey-cli %s\n", strings.Join(args, " "))
-	if options.Password != "" {
-		args = append(args, "-a", options.Password)
-	}
-
-	cmd := exec.Command("valkey-cli", args...) // #nosec G204 (cmd injection) -- args from validated structs, not user input
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return runCli(options.Auth, args...)
 }
