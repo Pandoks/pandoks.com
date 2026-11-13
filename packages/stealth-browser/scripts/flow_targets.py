@@ -190,7 +190,11 @@ def resolve_fixture_base(base: str, port: int, api) -> str | None:
             try:
                 status, res = api(
                     base, "POST", f"/sessions/{sid}/fetch",
+                    # credentials must be "omit": with credentials=include the
+                    # CORS spec forbids ACAO: * (it requires the exact origin),
+                    # and the fixture probe needs no cookies anyway.
                     body={"url": f"{cand}/{FIXTURE_PROBE_FILE}",
+                          "credentials": "omit",
                           "timeout_ms": 3000})
             except (ConnectionError, TimeoutError):
                 continue
