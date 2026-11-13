@@ -88,6 +88,10 @@ TOKEN_EXTRACT_JS = """(() => {
   return JSON.stringify(out);
 })()"""
 
+COORD_RECT_JS = ('(() => { const f = document.querySelector("iframe"); '
+                 'if (!f) return null; const r = f.getBoundingClientRect(); '
+                 'return JSON.stringify({x: r.x, y: r.y}); })()')
+
 FIXTURE_TARGETS = {
     "recaptcha-v3": "recaptcha_v3.html",
     "hcaptcha": "hcaptcha.html",
@@ -248,22 +252,22 @@ def run_flow(base: str, name: str, url: str, click_selectors: list[str],
                         _, dx, dy = sel
                         try:
                             st, rect = api(base, "POST", f"/sessions/{sid}/eval",
-                                           body={"expression":
-                                                 "(() => { const f = document.querySelector("
-                                                 "'iframe[src*=\'hcaptcha.com\']');"
-                                                 " if (!f) return null; const r = f.getBoundingClientRect();"
-                                                 " return JSON.stringify({x: r.x, y: r.y}); })()"})
-                            pos = json.loads(rect.get("result")) \
-                                if isinstance(rect, dict) and rect.get("result") else None
+                                           body={"expression": COORD_RECT_JS})
+                            raw = rect.get("result") if isinstance(rect, dict) else None
+                            pos = json.loads(raw) if raw else None
                             if not pos:
                                 status = 0
+                                coord_notes.append(f"no-rect raw={raw!r}")
                                 continue
                             status, _ = api(base, "POST", f"/sessions/{sid}/click",
                                             body={"x": pos["x"] + dx,
                                                   "y": pos["y"] + dy},
                                             timeout=180)
-                        except (ConnectionError, TimeoutError):
+                            coord_notes.append(
+                                f"click ({pos['x'] + dx},{pos['y'] + dy}) -> {status}")
+                        except (ConnectionError, TimeoutError) as e:
                             status = 0
+                            coord_notes.append(f"exc {e!r}")
                     else:
                         try:
                             status, _ = api(base, "POST", f"/sessions/{sid}/click",
@@ -283,7 +287,7 @@ def run_flow(base: str, name: str, url: str, click_selectors: list[str],
             ok, last = flow_passes(parse_token_result(ev.get("result")))
             if ok:
                 return {"name": name, "outcome": f"solved ({last})"}
-        clicks = (f"{clicks_done} click attempt(s)"
+        clicks = (f"{clicks_done} click attempt(s) [{'; '.join(coord_notes)}]"
                   if clicks_done else "no click attempted")
         return {"name": name, "outcome": f"unsolved after {TOKEN_TIMEOUT_S}s "
                                          f"({last}, {clicks})"}
