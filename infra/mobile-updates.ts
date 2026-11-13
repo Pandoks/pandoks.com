@@ -7,7 +7,7 @@ import {
   isProduction
 } from './dns';
 
-const mobileUpdatesBucket = new sst.cloudflare.Bucket('MobileUpdatesBucket', {
+export const mobileUpdatesBucket = new sst.cloudflare.Bucket('MobileUpdatesBucket', {
   transform: {
     bucket: {
       name: `${STAGE_NAME}-mobile-updates`,
@@ -51,7 +51,7 @@ if (isProduction) {
   });
 }
 
-const mobileUpdatesManifests = new sst.cloudflare.Kv('MobileUpdatesManifests');
+export const mobileUpdatesManifests = new sst.cloudflare.Kv('MobileUpdatesManifests');
 
 new sst.cloudflare.Worker('MobileUpdates', {
   accountId: cloudflareAccountId,

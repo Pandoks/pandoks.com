@@ -1,5 +1,6 @@
-import { cloudflareAccountId, isProduction, STAGE_NAME } from './dns';
+import { cloudflareAccountId, isProduction, MOBILE_UPDATES_ASSETS_DOMAIN, STAGE_NAME } from './dns';
 import { defaultAwsRegion } from './aws';
+import { mobileUpdatesBucket, mobileUpdatesManifests } from './mobile-updates';
 import { secrets } from './secrets';
 import { tailscaleAcl } from './tailscale';
 
@@ -89,6 +90,31 @@ if (isProduction) {
     repository: githubRepositoryName,
     secretName: 'OVH_CONSUMER_KEY',
     value: secrets.ovh.ConsumerKey.value
+  });
+
+  new github.ActionsEnvironmentSecret('GithubMobileUpdatesSigningKey', {
+    repository: githubRepositoryName,
+    environment: githubEnvironment.environment,
+    secretName: 'MOBILE_UPDATES_SIGNING_KEY',
+    value: secrets.mobileUpdates.SigningKey.value
+  });
+  new github.ActionsEnvironmentVariable('GithubMobileUpdatesBucket', {
+    repository: githubRepositoryName,
+    environment: githubEnvironment.environment,
+    variableName: 'MOBILE_UPDATES_BUCKET',
+    value: mobileUpdatesBucket.name
+  });
+  new github.ActionsEnvironmentVariable('GithubMobileUpdatesManifestsNamespaceId', {
+    repository: githubRepositoryName,
+    environment: githubEnvironment.environment,
+    variableName: 'MOBILE_UPDATES_MANIFESTS_NAMESPACE_ID',
+    value: mobileUpdatesManifests.namespaceId
+  });
+  new github.ActionsEnvironmentVariable('GithubMobileUpdatesAssetsDomain', {
+    repository: githubRepositoryName,
+    environment: githubEnvironment.environment,
+    variableName: 'MOBILE_UPDATES_ASSETS_DOMAIN',
+    value: MOBILE_UPDATES_ASSETS_DOMAIN
   });
 
   const githubAWSOidcProvider = new aws.iam.OpenIdConnectProvider('AWSGithubActionsOidc', {

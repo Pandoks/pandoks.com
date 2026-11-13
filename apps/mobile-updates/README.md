@@ -58,10 +58,16 @@ version, so dev and production builds never get each other's updates.
 
 ## Publish
 
-`publish` runs `expo export`, checks the signing key against the app's certificate, uploads the
-files to R2 in parallel, then signs and writes each platform's manifest to KV. Every publish is a
-new update, so to roll back, revert the change on `main`; production publishes only from
-`deploy-infra.yaml` on `main`. Other stages:
+`publish` runs `export`, then `upload`. `export` runs `expo export` and saves the app's public
+config, certificate, and runtime versions beside it; `upload` checks the signing key against that
+certificate, uploads the files to R2 in parallel, then signs and writes each platform's manifest to
+KV. Every publish is a new update, so to roll back, revert the change on `main`.
+
+Production publishes only from `deploy-infra.yaml` on `main`, split so the app's dependencies never
+run beside a secret: `build-mobile-template` exports with no secrets, AWS, or OIDC token, and
+`publish-mobile-template` uploads the artifact without installing anything, using only the
+Cloudflare token and the `MOBILE_UPDATES_*` secret and variables that `infra/github.ts` writes to
+the `production` environment. Other stages:
 
 ```sh
 pnpm sst shell --stage <stage> -- pnpm mobile-updates publish apps/<app>
