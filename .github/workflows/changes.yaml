@@ -220,6 +220,12 @@ jobs:
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
+            postgres:
+              - 'packages/postgres/**'
+              - 'k3s/base/core/postgres.yaml'
+              - 'k3s/base/core/cert-manager.yaml'
+              - 'k3s/bootstrap/core/cert-manager.yaml'
+              - *needs-e2e-setup
             valkey:
               - 'packages/valkey/**'
               - 'k3s/base/core/valkey.yaml'
@@ -283,7 +289,7 @@ jobs:
           DISPATCH: ${{ inputs.dispatch }}
           IMAGES: ${{ steps.set-image-matrix.outputs.images }}
         run: |
-          suites='["valkey"]'
+          suites='["postgres","valkey"]'
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             selected=$(jq -c --argjson images "${IMAGES}" '[(to_entries[] | select(.value == true and (.key | endswith("-chart"))) | .key | sub("-chart$"; "")), $images[].package]' <<<"${DISPATCH}")
           else
