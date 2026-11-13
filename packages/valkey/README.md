@@ -14,7 +14,7 @@ metadata:
   namespace: kube-system # the helm chart controller that k3s uses needs to be in the kube-system namespace
 spec:
   chart: oci://${ImageRegistry}/charts/valkey
-  version: 0.1.6
+  version: 0.1.7
   targetNamespace: &namespace <namespace>
   createNamespace: true
   failurePolicy: abort
@@ -181,6 +181,12 @@ before stopping the next pod. It doesn't wait for a replica in a lower-numbered 
 primary, so a primary whose replica is still resyncing then restarts empty. Use `persistence` if a
 shard's data must survive a restart with no such failover: the default `replicasPerMaster: 0`, fewer
 than 3 masters, or a crash or OOM kill.
+
+Nodes reach each other only at the IPs in their `nodes.conf`, so when every pod restarts at once on
+new IPs, like after a node outage or `kubectl delete pods`, no node reaches another. Every 5
+seconds, each pod's entrypoint looks up the hostname of each peer it sees failing and, if the IP
+changed and that node answers `CLUSTER MYID` with the same node ID, runs `CLUSTER MEET` on it, so
+the cluster re-forms on its own.
 
 For more information about the configuration options, visit
 [valkey.io/topics/configuration](https://valkey.io/topics/valkey.conf/).

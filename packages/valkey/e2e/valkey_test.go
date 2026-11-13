@@ -637,11 +637,9 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 			Eventually(expectReplicasSynced).WithArguments(namespace).Should(Succeed())
 		})
 
-		// TODO: pending until restarted nodes find their peers' new pod IPs: with every pod recreated at once, each node
-		// keeps gossiping to the old IPs in its nodes.conf, so cluster_state stays fail and writes get CLUSTERDOWN
-		PIt("serves writes again after every pod is deleted at once", func() {
+		It("serves writes again after every pod is deleted at once", func() {
 			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pods", "-l", "app=valkey-vk")
-			Eventually(expectHealthyCluster).WithArguments(namespace, 3, 1).WithTimeout(5 * time.Minute).Should(Succeed())
+			waitForHealthyCluster(namespace, 3, 1)
 			writeKeys(namespace)
 			expectKeysReadable(Default, namespace, "valkey-vk-0")
 			Eventually(expectReplicasSynced).WithArguments(namespace).Should(Succeed())
