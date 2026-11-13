@@ -14,7 +14,7 @@ metadata:
   namespace: kube-system # the helm chart controller that k3s uses needs to be in the kube-system namespace
 spec:
   chart: oci://${ImageRegistry}/charts/valkey
-  version: 0.1.5
+  version: 0.1.7
   targetNamespace: &namespace <namespace>
   createNamespace: true
   failurePolicy: abort
@@ -169,12 +169,17 @@ For more information about the configuration options, visit
 For better security practices, we use multiple users to access the cluster. We have an **admin**
 user and a **client** user:
 
-| User   | Description                          | Permissions                                      |
-| ------ | ------------------------------------ | ------------------------------------------------ |
-| admin  | Has full access to the cluster       | All permissions                                  |
-| client | Has read/write access to the cluster | Read, Write, String, Hash, List, Set, Sorted Set |
+| User   | Description                          | Permissions                                                                               |
+| ------ | ------------------------------------ | ----------------------------------------------------------------------------------------- |
+| admin  | Has full access to the cluster       | All permissions                                                                           |
+| client | Has read/write access to the cluster | Read, Write, String, Hash, List, Set, Sorted Set, cluster discovery, and scripts (`EVAL`) |
 
-_The **client** user doesn't have dangerous permissions like `FLUSHALL`, `CONFIG`, etc._
+_The **client** user doesn't have dangerous permissions like `FLUSHALL`, `CONFIG`, etc._ Cluster
+clients need `PING`, `COMMAND`, and `CLUSTER SLOTS|SHARDS|INFO` to find the shards (valkey-go
+otherwise falls back to a single-node client), `ASKING` to follow `-ASK` redirects while the chart
+rebalances slots, and GLIDE sets connection names with `CLIENT SETNAME|SETINFO`.
+[`packages/queue`](/packages/queue)'s Valkey adapter runs Lua scripts, which need `EVAL`, `EVALSHA`,
+`SCRIPT LOAD`, and `TIME`; the ACL still applies to every command a script calls.
 
 For more information about the permissions, visit
 [valkey.io/topics/acl](https://valkey.io/topics/acl/).

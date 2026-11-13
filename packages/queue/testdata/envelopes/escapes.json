@@ -1,0 +1,14 @@
+{
+  "specversion": "1.0",
+  "id": "escapes-1",
+  "source": "//pandoks.com/queue/test",
+  "type": "com.pandoks.queue.escapes",
+  "emoji": "pair \ud83d\ude00",
+  "time": "2026-11-09T18:00:00.000Z",
+  "datacontenttype": "application/json",
+  "data": {
+    "title": "cut mid-emoji \ud83d",
+    "html": "<b>a & b</b>",
+    "separators": "  "
+  }
+}

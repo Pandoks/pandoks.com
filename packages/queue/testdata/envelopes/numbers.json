@@ -1,0 +1,12 @@
+{
+  "specversion": "1.0",
+  "id": "numbers-1",
+  "source": "//pandoks.com/queue/test",
+  "type": "com.pandoks.queue.numbers",
+  "time": "2026-11-09T18:00:00.000Z",
+  "datacontenttype": "application/json",
+  "data": {
+    "largest": 1.7976931348623157e308,
+    "huge": 100000000000000000000000000000000000000000000000000
+  }
+}

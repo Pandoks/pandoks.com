@@ -1,0 +1,179 @@
+package queue
+
+import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+)
+
+// TestCloudflareRequests checks what the adapter sends Cloudflare's API, which has no emulator;
+// the CI job's live queues prove how Cloudflare answers.
+func TestCloudflareRequests(t *testing.T) {
+	var mutex sync.Mutex
+	requests := map[string][]map[string]any{}
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		body, _ := io.ReadAll(request.Body)
+		var decoded map[string]any
+		_ = json.Unmarshal(body, &decoded)
+		mutex.Lock()
+		requests[request.URL.Path] = append(requests[request.URL.Path], decoded)
+		pushed := requests["/accounts/acct/queues/q1/messages/batch"]
+		mutex.Unlock()
+		result := map[string]any{}
+		switch {
+		case strings.HasSuffix(request.URL.Path, "/pull") && len(pushed) > 0:
+			first := pushed[0]["messages"].([]any)[0].(map[string]any)
+			result["messages"] = []map[string]any{{"id": "m1", "body": first["body"], "lease_id": "lease-1", "attempts": 1}}
+		case strings.HasSuffix(request.URL.Path, "/ack"):
+			result["ackCount"] = len(decoded["acks"].([]any))
+			result["retryCount"] = len(decoded["retries"].([]any))
+			if result["retryCount"] != 0 {
+				result["warnings"] = map[string]string{"m1": cloudflareDeadLettered}
+			}
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{"success": true, "errors": []any{}, "messages": []any{}, "result": result})
+	}))
+	defer server.Close()
+	t.Setenv("CLOUDFLARE_BASE_URL", server.URL)
+	t.Setenv("CLOUDFLARE_API_TOKEN", "test")
+
+	queue := openQueue(t, "cloudflare://acct/q1?lease=90s")
+	empty := time.Now()
+	if deliveries, err := queue.Receive(t.Context(), 500); err != nil || len(deliveries) != 0 {
+		t.Fatalf("got %v, %v from an empty queue", deliveries, err)
+	}
+	if time.Since(empty) < cloudflareEmptyPollDelay {
+		t.Error("an empty pull returned without waiting")
+	}
+
+	messages := make([]Message, 150)
+	for index := range messages {
+		messages[index] = testMessage("cloudflare")
+	}
+	messages[0].Delay = 1500 * time.Millisecond
+	if err := queue.Send(t.Context(), messages...); err != nil {
+		t.Fatal(err)
+	}
+	deliveries, err := queue.Receive(t.Context(), 500)
+	if err != nil || len(deliveries) != 1 || deliveries[0].ID != messages[0].ID || deliveries[0].Attempt != 2 {
+		t.Fatalf("got %+v, %v", deliveries, err)
+	}
+	if err := queue.Retry(t.Context(), 3*time.Second, deliveries...); err != nil {
+		t.Fatal(err)
+	}
+	if err := queue.Ack(t.Context(), deliveries...); err != nil {
+		t.Fatal(err)
+	}
+	topic := openTopic(t, "cloudflare://acct/q1,q2")
+	if err := topic.Publish(t.Context(), testMessage("fanout")); err != nil {
+		t.Fatal(err)
+	}
+
+	batches := requests["/accounts/acct/queues/q1/messages/batch"]
+	if len(batches) != 3 || len(batches[0]["messages"].([]any)) != 100 || len(batches[1]["messages"].([]any)) != 50 {
+		t.Fatalf("pushed %d batches, want 100 and 50 messages then the topic's", len(batches))
+	}
+	first := batches[0]["messages"].([]any)[0].(map[string]any)
+	if first["content_type"] != "text" || first["delay_seconds"] != 2.0 {
+		t.Errorf("first message %v, want text with its delay rounded up to 2 s", first)
+	}
+	if second := batches[0]["messages"].([]any)[1].(map[string]any); second["delay_seconds"] != nil {
+		t.Errorf("second message %v, want no delay_seconds, which would override the queue's default", second)
+	}
+	if len(requests["/accounts/acct/queues/q2/messages/batch"]) != 1 {
+		t.Error("the topic skipped its second queue")
+	}
+	pull := requests["/accounts/acct/queues/q1/messages/pull"][0]
+	if pull["batch_size"] != 100.0 || pull["visibility_timeout_ms"] != 90_000.0 {
+		t.Errorf("pull %v, want batch 100 and a 90 s lease", pull)
+	}
+	acks := requests["/accounts/acct/queues/q1/messages/ack"]
+	retry := acks[0]["retries"].([]any)[0].(map[string]any)
+	ack := acks[1]["acks"].([]any)[0].(map[string]any)
+	if retry["lease_id"] != "lease-1" || retry["delay_seconds"] != 3.0 || ack["lease_id"] != "lease-1" {
+		t.Errorf("settled with %v", acks)
+	}
+}
+
+func TestCloudflareLeaseStartsAfterASlowPull(t *testing.T) {
+	message := testMessage("slow")
+	body, err := encode(message, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		time.Sleep(time.Second)
+		pulled := []map[string]any{{"id": "m1", "body": string(body), "lease_id": "lease-1", "attempts": 0}}
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{"success": true, "errors": []any{}, "messages": []any{}, "result": map[string]any{"messages": pulled}})
+	}))
+	defer server.Close()
+	t.Setenv("CLOUDFLARE_BASE_URL", server.URL)
+	t.Setenv("CLOUDFLARE_API_TOKEN", "test")
+
+	deliveries, err := openQueue(t, "cloudflare://acct/q1?lease=500ms").Receive(t.Context(), 10)
+	if err != nil || len(deliveries) != 1 || !deliveries[0].Deadline.After(time.Now()) {
+		t.Fatalf("got %+v, %v, want one delivery whose 500ms lease hasn't ended", deliveries, err)
+	}
+}
+
+func TestCloudflareTopicPushesSubscriptionsConcurrently(t *testing.T) {
+	secondPushed := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		_, _ = io.Copy(io.Discard, request.Body)
+		switch request.URL.Path {
+		case "/accounts/acct/queues/q1/messages/batch":
+			select {
+			case <-secondPushed:
+			case <-time.After(5 * time.Second):
+				http.Error(writer, `{"success":false,"errors":[{"code":1,"message":"q2 never pushed while q1 was slow"}]}`, http.StatusBadRequest)
+				return
+			}
+		case "/accounts/acct/queues/q2/messages/batch":
+			close(secondPushed)
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{"success": true, "errors": []any{}, "messages": []any{}, "result": map[string]any{}})
+	}))
+	defer server.Close()
+	t.Setenv("CLOUDFLARE_BASE_URL", server.URL)
+	t.Setenv("CLOUDFLARE_API_TOKEN", "test")
+
+	if err := openTopic(t, "cloudflare://acct/q1,q2").Publish(t.Context(), testMessage("fanout")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCloudflareKeepsValidDeliveriesWhenAckingMalformedOnesFails(t *testing.T) {
+	message := testMessage("valid")
+	body, err := encode(message, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if strings.HasSuffix(request.URL.Path, "/ack") {
+			http.Error(writer, `{"success":false,"errors":[{"code":1,"message":"lease expired"}]}`, http.StatusBadRequest)
+			return
+		}
+		pulled := []map[string]any{
+			{"id": "m1", "body": string(body), "lease_id": "lease-1", "attempts": 0},
+			{"id": "m2", "body": "not an envelope", "lease_id": "lease-2", "attempts": 0},
+		}
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]any{"success": true, "errors": []any{}, "messages": []any{}, "result": map[string]any{"messages": pulled}})
+	}))
+	defer server.Close()
+	t.Setenv("CLOUDFLARE_BASE_URL", server.URL)
+	t.Setenv("CLOUDFLARE_API_TOKEN", "test")
+
+	deliveries, err := openQueue(t, "cloudflare://acct/q1?lease=30s").Receive(t.Context(), 10)
+	if err != nil || len(deliveries) != 1 || deliveries[0].ID != message.ID {
+		t.Fatalf("got %+v, %v, want the valid delivery", deliveries, err)
+	}
+}

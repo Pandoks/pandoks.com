@@ -221,6 +221,30 @@ importers:
         specifier: 5.1.0
         version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@25.9.9)(jsdom@31.0.0)(vite@8.3.6(@types/node@25.9.9)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
 
+  packages/queue:
+    devDependencies:
+      '@aws-sdk/client-sns':
+        specifier: 3.1162.0
+        version: 3.1162.0
+      '@aws-sdk/client-sqs':
+        specifier: 3.1162.0
+        version: 3.1162.0
+      '@types/node':
+        specifier: 25.9.9
+        version: 25.9.9
+      '@valkey/valkey-glide':
+        specifier: 2.5.3
+        version: 2.5.3
+      cloudflare:
+        specifier: 7.3.0
+        version: 7.3.0
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 5.1.0
+        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@25.9.9)(jsdom@31.0.0)(vite@8.3.6(@types/node@25.9.9)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
+
   packages/svelte:
     devDependencies:
       '@internationalized/date':
@@ -564,6 +588,10 @@ packages:
     resolution: {integrity: sha512-OuJfVJ1vbp0eThFqsgiODK+WhNCQArbIeY1WXwF7pK1S9aZooKmHA+0Uj77jHTG8j0UA0rN4oTybypGfKJb6aA==}
     engines: {node: '>=20.0.0'}
 
+  '@aws-sdk/client-sqs@3.1162.0':
+    resolution: {integrity: sha512-kSieJZcdV1s2q3Pk4RXkBo4Y4qTY1iTCy37pMs2Xh2jpG1QIxQXYABjejwkZRel/B1isJZAGBd1KRseeF64ArA==}
+    engines: {node: '>=20.0.0'}
+
   '@aws-sdk/client-ssm@3.1162.0':
     resolution: {integrity: sha512-IiK4VYgFk5RVGVpDVlKaijwieaSkjWXoWa51wm8ExHoVdFE9us8S0UrwoUpHTbdEPUzR4QctW4Qw7VCEQ8hrXA==}
     engines: {node: '>=20.0.0'}
@@ -622,6 +650,10 @@ packages:
     resolution: {integrity: sha512-+KAK020JY95Q7Swwo5b9pl9S11VPuNLqecCW5bzkksWiU5pmI85lAloOD4qlIKIA/P8FlrRJ60XJ6+lnDQK/DQ==}
     engines: {node: '>=20.0.0'}
 
+  '@aws-sdk/middleware-sdk-sqs@3.972.50':
+    resolution: {integrity: sha512-iSxF2dJT3+At+RT9eeyq0qFKVLEPto27TAQxn2zH2bw5syXj4+/H4VReFqcQAe3n0IdGlt+0T6flnPMb71FOHA==}
+    engines: {node: '>=20.0.0'}
+
   '@aws-sdk/nested-clients@3.998.0':
     resolution: {integrity: sha512-aOD1oQVWG6UjOOEdp0MsrWE93vG8pPbvtymmeNtglGxAARplh1wzhHs4npqtY5JN5GBSrTaLbn1hQQ3W2Lk8ow==}
     engines: {node: '>=20.0.0'}
@@ -636,6 +668,10 @@ packages:
 
   '@aws-sdk/types@3.975.0':
     resolution: {integrity: sha512-WQlhs6juByzWOzj5fwxOx0mPJaEqMcG/sDpl3Id61B3XhKE63xY+0QWcnG+sWR/sCfprmreyUo1lM7IKZmHMzw==}
+    engines: {node: '>=20.0.0'}
+
+  '@aws-sdk/types@3.975.1':
+    resolution: {integrity: sha512-7rGxUkCB2QPoQOeJmonmAICTN2zrH+fpmi1p4Iwu72lnxNaMhOgqcbpyddifnM1DBb19TWQ1u6z/XjkaFNEDWw==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/util-dynamodb@3.996.9':
@@ -2106,6 +2142,33 @@ packages:
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
 
+  '@protobufjs/aspromise@1.1.2':
+    resolution: {integrity: sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==}
+
+  '@protobufjs/base64@1.1.2':
+    resolution: {integrity: sha512-AZkcAA5vnN/v4PDqKyMR5lx7hZttPDgClv83E//FMNhR2TMcLUhfRUBHCmSl0oi9zMgDDqRUJkSxO3wm85+XLg==}
+
+  '@protobufjs/codegen@2.0.5':
+    resolution: {integrity: sha512-zgXFLzW3Ap33e6d0Wlj4MGIm6Ce8O89n/apUaGNB/jx+hw+ruWEp7EwGUshdLKVRCxZW12fp9r40E1mQrf/34g==}
+
+  '@protobufjs/eventemitter@1.1.1':
+    resolution: {integrity: sha512-vW1GmwMZNnL+gMRaovlh9yZX74kc+TTU3FObkkurpMaRtBfLP3ldjS9KQWlwZgraRE0+dheEEoAxdzcJQ8eXZg==}
+
+  '@protobufjs/fetch@1.1.1':
+    resolution: {integrity: sha512-GpptLrs57adMSuHi3VNj0mAF8dwh36LMaYF6XyJ6JMWlVsc+t42tm1HSEDmOs3A8fC9yyeisgLhsTVQokOZ0zw==}
+
+  '@protobufjs/float@1.0.2':
+    resolution: {integrity: sha512-Ddb+kVXlXst9d+R9PfTIxh1EdNkgoRe5tOX6t01f1lYWOvJnSPDBlG241QLzcyPdoNTsblLUdujGSE4RzrTZGQ==}
+
+  '@protobufjs/path@1.1.2':
+    resolution: {integrity: sha512-6JOcJ5Tm08dOHAbdR3GrvP+yUUfkjG5ePsHYczMFLq3ZmMkAD98cDgcT2iA1lJ9NVwFd4tH/iSSoe44YWkltEA==}
+
+  '@protobufjs/pool@1.1.0':
+    resolution: {integrity: sha512-0kELaGSIDBKvcgS4zkjz1PeddatrjYcmMWOlAuAPwAeccUrPHdUqo/J6LiymHHEiJT5NrF1UVwxY14f+fy4WQw==}
+
+  '@protobufjs/utf8@1.1.2':
+    resolution: {integrity: sha512-b1UQwcEZ4yCnMCD8DAL1VlbvBJE9/IX4FTIp7BG1xYpf29SLazLSrqUkj4w7Y5y7cCVP6E5tcqqcI0xemPkHug==}
+
   '@radix-ui/primitive@1.2.0':
     resolution: {integrity: sha512-KABY+VMIRPJL+Vyzv/335FEhXXD/xDv8BMb1kl48/aXJZMH0LtHCTx5ga5RnxaEP3nZHtmTLf1P9vanmFX46bw==}
 
@@ -2479,6 +2542,10 @@ packages:
     resolution: {integrity: sha512-U/mB2XiwTLaf+NSgLSWwJfptsMT/H8aBi0aTAA/E5e2/TagFeGCqAyhKGG0w0A9IWTkm4qYEmLoD/HB6aYfnRA==}
     engines: {node: '>=18.0.0'}
 
+  '@smithy/core@3.40.0':
+    resolution: {integrity: sha512-DssGno52pzZ5m6RlDtyKuBIpZNPg9pqgs0CnNDKz9IatxCsmvNmJNn5Zn6rf77MthZo9wf89OvZFhTY/RwxhxQ==}
+    engines: {node: '>=18.0.0'}
+
   '@smithy/credential-provider-imds@4.5.2':
     resolution: {integrity: sha512-A9uSdn72ozbRUSit0eib0TW7nXuNPlaeM0zcGkJ+nE6tFcSDbnmtwoxbTCFBukVQcszDAyvsd7+rTduPTXpygg==}
     engines: {node: '>=18.0.0'}
@@ -2497,6 +2564,10 @@ packages:
 
   '@smithy/types@4.19.0':
     resolution: {integrity: sha512-r7jh49VJxGerfAcTQA6gXcKc+98zOp/tqRwzYjgOE+iSQsP6cEU1hq2QzbuipmP68QtYdY9wKEhiCQZIzHgZ4Q==}
+    engines: {node: '>=18.0.0'}
+
+  '@smithy/types@4.20.0':
+    resolution: {integrity: sha512-lCA6QG22dPk9ecHbv91jDQZsmtPUjdS1aE2Il6NNPqe7DrYc0dZQi6DhcESk2KYXH2sp5xbAcGdYMZDFnuzA2A==}
     engines: {node: '>=18.0.0'}
 
   '@stablelib/base64@1.0.1':
@@ -2991,6 +3062,44 @@ packages:
     resolution: {integrity: sha512-DpLMlAqlrk4zBVK3DiDjwKD0oq7pZNy+8BiIBRuByqb6dm5jsdoLMhIiyh/xR7+WejaW/1Ui+XgbgMNa4+zWJg==}
     cpu: [x64]
     os: [win32]
+
+  '@valkey/valkey-glide-darwin-arm64@2.5.3':
+    resolution: {integrity: sha512-DB2dooH/OLhN6v2/rHbg5L+cynkYx/HhXSG/Iqs18+xaKvWlQZwdbfj5x2AXK0XObQVQaJKLMnc6+EYbv5+Img==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@valkey/valkey-glide-darwin-x64@2.5.3':
+    resolution: {integrity: sha512-Sxw+2uA2K445FCdIr78T7XirwKHMDP1rdliqRzRWgx87PYQOfkp8Qz/LXyri3la+YZ6/rnGezwkyuNlDT75kBw==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@valkey/valkey-glide-linux-arm64-gnu@2.5.3':
+    resolution: {integrity: sha512-/hpjvDQGarJe1KJFSYcUfPB1KrnhqUBkiFbK3Yq9wyv8CA/Jh5QiADDXYjDjVwpY+Ocy+znm6E7Od8tNTrmdiw==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@valkey/valkey-glide-linux-arm64-musl@2.5.3':
+    resolution: {integrity: sha512-aKqkDMEewlQvEjdCa+rSWKwL41nLxEshqJ8otMtvpgtRyU2fjRH5yDuJ4JXsCz+4Y/Zi5xQVspUawU37XgIf0A==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@valkey/valkey-glide-linux-x64-gnu@2.5.3':
+    resolution: {integrity: sha512-65JCnAj0IlQqiIzVCNzWo8v1N5c58Hoi2jP+fmtf78+1Uw4JInPAgicGI6GronlaLrfXZRTLqNNnjVez0QeMUg==}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@valkey/valkey-glide-linux-x64-musl@2.5.3':
+    resolution: {integrity: sha512-kBsS6nLjhcIcecM+iEUdVdTl/WzkJH8YNSKeKeUPZJUfK3zQqiyw6dbC/w6aYmOB/UrtJOQkuSbRZqfNWyf+Dw==}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@valkey/valkey-glide@2.5.3':
+    resolution: {integrity: sha512-VvT7oOr1ZyvPDFUEEovYqVKNaCicUHJPmrfDyflCEi8hzH+YEdxEikYDheHGeclgFW0MlLkJ2rky6pa7tT6iqg==}
+    engines: {node: '>=16'}
 
   '@vitest/mocker@5.1.0':
     resolution: {integrity: sha512-5umB9/jlWcqVS6fsrFmv5Gdnpu6wAUio/lEOwAmvB7v+lFo/IW2B9FhAD0p19GCULTgMzLCdUmuCDCnAzWgppQ==}
@@ -3519,6 +3628,10 @@ packages:
   clone@1.0.4:
     resolution: {integrity: sha512-JQHZ2QMW6l3aH/j6xCqQThY/9OH4D/9ls34cgkUBiEeocRTU04tHfKPBsUK1PqZCUQM7GiA0IIXJSuXHI64Kbg==}
     engines: {node: '>=0.8'}
+
+  cloudflare@7.3.0:
+    resolution: {integrity: sha512-0P4cMFjzdIe388E57xNCV2wKzv1ZVZqMFu7+p2gsZuggbXs39xTKtXJN8FACkKh+xjLQ7dNruNlT/aT+9ajJtg==}
+    hasBin: true
 
   clsx@2.1.1:
     resolution: {integrity: sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA==}
@@ -5317,6 +5430,9 @@ packages:
     resolution: {integrity: sha512-lddSgOt3bPASrylL54ZSpy8nBHns+vBVSoILlVOx+dei300pnLRN958rj/EdlVLKuWlSESU3qdnDZdAI7FXYGg==}
     engines: {node: '>=22'}
 
+  long@5.3.2:
+    resolution: {integrity: sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA==}
+
   loose-envify@1.4.0:
     resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}
     hasBin: true
@@ -6136,6 +6252,10 @@ packages:
   prompts@2.4.2:
     resolution: {integrity: sha512-NxNv/kLguCA7p3jE8oL2aEBsrJWgAakBpgmgK6lpPWV+WuOmY6r2/zbAVnP+T8bQlA0nzHXSJSJW0Hq7ylaD2Q==}
     engines: {node: '>= 6'}
+
+  protobufjs@7.6.6:
+    resolution: {integrity: sha512-dYDWdjSl5RNb7SgPxGQcRU+GtvP7s2fpkrY0r432PcOIaZ0/rBcxEZnQN67iJhFuQiVw754JDoPruPCNdGsbjg==}
+    engines: {node: '>=12.0.0'}
 
   proxy-addr@2.0.8:
     resolution: {integrity: sha512-5nnx0yGyVUcY6t9RnWcARWtwT9F1D8O9rt08htPvnd49W1IgZtmLkhu9WfMzQj1cFxjHIO6connUNVW5k7AVyQ==}
@@ -7570,6 +7690,18 @@ snapshots:
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
+  '@aws-sdk/client-sqs@3.1162.0':
+    dependencies:
+      '@aws-sdk/core': 3.980.0
+      '@aws-sdk/credential-provider-node': 3.972.93
+      '@aws-sdk/middleware-sdk-sqs': 3.972.50
+      '@aws-sdk/types': 3.975.0
+      '@smithy/core': 3.38.1
+      '@smithy/fetch-http-handler': 5.8.0
+      '@smithy/node-http-handler': 4.14.0
+      '@smithy/types': 4.19.0
+      tslib: 2.8.1
+
   '@aws-sdk/client-ssm@3.1162.0':
     dependencies:
       '@aws-sdk/core': 3.980.0
@@ -7705,6 +7837,13 @@ snapshots:
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
+  '@aws-sdk/middleware-sdk-sqs@3.972.50':
+    dependencies:
+      '@aws-sdk/types': 3.975.1
+      '@smithy/core': 3.40.0
+      '@smithy/types': 4.20.0
+      tslib: 2.8.1
+
   '@aws-sdk/nested-clients@3.998.0':
     dependencies:
       '@aws-sdk/core': 3.980.0
@@ -7735,6 +7874,11 @@ snapshots:
   '@aws-sdk/types@3.975.0':
     dependencies:
       '@smithy/types': 4.19.0
+      tslib: 2.8.1
+
+  '@aws-sdk/types@3.975.1':
+    dependencies:
+      '@smithy/types': 4.20.0
       tslib: 2.8.1
 
   '@aws-sdk/util-dynamodb@3.996.9(@aws-sdk/client-dynamodb@3.1162.0)':
@@ -9636,6 +9780,26 @@ snapshots:
 
   '@polka/url@1.0.0-next.29': {}
 
+  '@protobufjs/aspromise@1.1.2': {}
+
+  '@protobufjs/base64@1.1.2': {}
+
+  '@protobufjs/codegen@2.0.5': {}
+
+  '@protobufjs/eventemitter@1.1.1': {}
+
+  '@protobufjs/fetch@1.1.1':
+    dependencies:
+      '@protobufjs/aspromise': 1.1.2
+
+  '@protobufjs/float@1.0.2': {}
+
+  '@protobufjs/path@1.1.2': {}
+
+  '@protobufjs/pool@1.1.0': {}
+
+  '@protobufjs/utf8@1.1.2': {}
+
   '@radix-ui/primitive@1.2.0': {}
 
   '@radix-ui/react-collection@1.2.0(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.0))(react@19.3.0)':
@@ -9994,6 +10158,11 @@ snapshots:
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
+  '@smithy/core@3.40.0':
+    dependencies:
+      '@smithy/types': 4.20.0
+      tslib: 2.8.1
+
   '@smithy/credential-provider-imds@4.5.2':
     dependencies:
       '@smithy/core': 3.38.1
@@ -10019,6 +10188,10 @@ snapshots:
       tslib: 2.8.1
 
   '@smithy/types@4.19.0':
+    dependencies:
+      tslib: 2.8.1
+
+  '@smithy/types@4.20.0':
     dependencies:
       tslib: 2.8.1
 
@@ -10488,6 +10661,36 @@ snapshots:
 
   '@unrs/resolver-binding-win32-x64-msvc@1.13.0':
     optional: true
+
+  '@valkey/valkey-glide-darwin-arm64@2.5.3':
+    optional: true
+
+  '@valkey/valkey-glide-darwin-x64@2.5.3':
+    optional: true
+
+  '@valkey/valkey-glide-linux-arm64-gnu@2.5.3':
+    optional: true
+
+  '@valkey/valkey-glide-linux-arm64-musl@2.5.3':
+    optional: true
+
+  '@valkey/valkey-glide-linux-x64-gnu@2.5.3':
+    optional: true
+
+  '@valkey/valkey-glide-linux-x64-musl@2.5.3':
+    optional: true
+
+  '@valkey/valkey-glide@2.5.3':
+    dependencies:
+      long: 5.3.2
+      protobufjs: 7.6.6
+    optionalDependencies:
+      '@valkey/valkey-glide-darwin-arm64': 2.5.3
+      '@valkey/valkey-glide-darwin-x64': 2.5.3
+      '@valkey/valkey-glide-linux-arm64-gnu': 2.5.3
+      '@valkey/valkey-glide-linux-arm64-musl': 2.5.3
+      '@valkey/valkey-glide-linux-x64-gnu': 2.5.3
+      '@valkey/valkey-glide-linux-x64-musl': 2.5.3
 
   '@vitest/mocker@5.1.0(vite@8.3.6(@types/node@25.9.9)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))':
     dependencies:
@@ -11093,6 +11296,8 @@ snapshots:
     optional: true
 
   clone@1.0.4: {}
+
+  cloudflare@7.3.0: {}
 
   clsx@2.1.1: {}
 
@@ -13258,6 +13463,8 @@ snapshots:
       strip-ansi: 7.2.0
       wrap-ansi: 10.0.2
 
+  long@5.3.2: {}
+
   loose-envify@1.4.0:
     dependencies:
       js-tokens: 4.0.0
@@ -14254,6 +14461,20 @@ snapshots:
     dependencies:
       kleur: 3.0.3
       sisteransi: 1.0.5
+
+  protobufjs@7.6.6:
+    dependencies:
+      '@protobufjs/aspromise': 1.1.2
+      '@protobufjs/base64': 1.1.2
+      '@protobufjs/codegen': 2.0.5
+      '@protobufjs/eventemitter': 1.1.1
+      '@protobufjs/fetch': 1.1.1
+      '@protobufjs/float': 1.0.2
+      '@protobufjs/path': 1.1.2
+      '@protobufjs/pool': 1.1.0
+      '@protobufjs/utf8': 1.1.2
+      '@types/node': 25.9.9
+      long: 5.3.2
 
   proxy-addr@2.0.8:
     dependencies:

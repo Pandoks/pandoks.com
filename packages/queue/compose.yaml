@@ -1,0 +1,40 @@
+# Brokers for the queue tests: docker compose -f packages/queue/compose.yaml up -d --wait
+services:
+  moto:
+    image: motoserver/moto:5.2.5@sha256:59a1965d845249b04def37a0e2565f9cc6c44543cb89b68e90f28f344b3b0d1a
+    ports:
+      - 127.0.0.1:15000:5000
+    healthcheck:
+      test:
+        [
+          CMD,
+          python,
+          -c,
+          "import urllib.request; urllib.request.urlopen('http://localhost:5000/moto-api/')"
+        ]
+      interval: 1s
+      retries: 30
+
+  valkey:
+    image: valkey/valkey:9-alpine@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b
+    ports:
+      - 127.0.0.1:16379:6379
+    volumes:
+      - ../valkey/chart/files/users.acl:/etc/valkey/users.acl.template:ro
+    # NOTE: the chart's own ACL, so tests run as its client user; one cluster node owns every slot
+    entrypoint: [sh, -c]
+    command:
+      - |
+        sed -e 's/$${ADMIN_PASSWORD}/admin/' -e 's/$${CLIENT_PASSWORD}/client/' /etc/valkey/users.acl.template > /tmp/users.acl
+        valkey-server --protected-mode no --aclfile /tmp/users.acl --cluster-enabled yes \
+          --cluster-config-file /tmp/nodes.conf --cluster-announce-ip 127.0.0.1 --cluster-announce-port 16379 &
+        until valkey-cli --user admin --pass admin --no-auth-warning cluster addslotsrange 0 16383; do sleep 0.1; done
+        wait
+    healthcheck:
+      test:
+        [
+          CMD-SHELL,
+          valkey-cli --user admin --pass admin --no-auth-warning cluster info | grep -q cluster_state:ok
+        ]
+      interval: 1s
+      retries: 30

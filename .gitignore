@@ -26,6 +26,7 @@ vite.config.ts.timestamp-*
 test-results
 playwright*/
 __pycache__/
+.venv/
 
 # sst
 .sst

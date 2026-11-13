@@ -96,6 +96,9 @@ jobs:
     uses: ./.github/workflows/tests.yaml
     with:
       jobs: ${{ needs.changes.outputs.unit-tests }}
+    secrets:
+      CLOUDFLARE_DEFAULT_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
   build:
     needs: changes

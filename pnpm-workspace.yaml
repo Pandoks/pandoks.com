@@ -22,6 +22,7 @@ allowBuilds:
   sharp: true
   fs-xattr: true # @electron-forge/maker-dmg (packaging)
   macos-alias: true # @electron-forge/maker-dmg (packaging)
+  protobufjs: false # @valkey/valkey-glide: its postinstall only checks versions
   '@parcel/watcher': false # jest (prebuilt binary)
   unrs-resolver: false # jest (prebuilt binary)
 

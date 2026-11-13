@@ -1,0 +1,15 @@
+{
+  "specversion": "1.0",
+  "id": "42-0",
+  "source": "//pandoks.com/push",
+  "type": "com.pandoks.push.part",
+  "time": "2026-11-09T18:00:00.123Z",
+  "datacontenttype": "application/json",
+  "data": {
+    "tokens": ["t1", "t2"],
+    "attempt": 0,
+    "title": "héllo \"world\" ✓",
+    "big": 9007199254740991
+  },
+  "notificationid": "42"
+}
