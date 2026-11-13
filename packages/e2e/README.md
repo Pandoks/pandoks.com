@@ -15,8 +15,8 @@ The helpers (`e2e.go`):
   need (`kustomization.yaml`), unless the cluster already has them.
 - `InstallChart` installs a chart, from its source directory or an OCI ref, into a fresh namespace
   with its credentials secret and waits for its hooks; after the spec or `Ordered` container it
-  dumps pods, events and logs if anything failed, then uninstalls the release and deletes the
-  namespace. `UpgradeChart` changes its values.
+  dumps pods, events and logs if anything failed, then uninstalls the release, deletes its leftover
+  pods with a 1s grace period, and deletes the namespace. `UpgradeChart` changes its values.
 
 Only add a helper here once more than one suite needs it; anything for one chart stays in its suite.
 
