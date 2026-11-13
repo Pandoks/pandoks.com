@@ -7,7 +7,7 @@ system light and dark themes, and a layout that adapts to tablets and foldables.
 config plugins in `app.json`. Builds run locally, with no EAS.
 
 The Device tab demos
-[@pandoks.com/react-native-notifications](/packages/react-native-notifications). Set
+[@pandoks.com/react-native-notifications](/packages/react-native/notifications). Set
 `EXPO_PUBLIC_BACKEND_URL` when building to register its push token with the app's backend.
 
 Android gets a push token only from builds run in `sst shell`: it links the stage's Firebase app
