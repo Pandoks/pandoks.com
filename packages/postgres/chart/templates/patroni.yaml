@@ -169,8 +169,6 @@ spec:
                   cluster-name: *cluster-name
               topologyKey: kubernetes.io/hostname
       serviceAccountName: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
-      # NOTE: Postgres's shutdown waits for up to two archiver rounds of 3 archive-push tries of 60s each
-      terminationGracePeriodSeconds: 600
       securityContext:
         fsGroup: 999
         seccompProfile:

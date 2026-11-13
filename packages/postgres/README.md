@@ -90,12 +90,7 @@ graph TB
 - **Encryption** - AES-256-CBC for all backups
 - **S3-compatible storage** - works with AWS S3, MinIO, S3Mock
 - **Restore on bootstrap** - a new shard whose stanza already has a full backup restores it instead
-  of starting empty, with the chart's `postgresql.conf` and `pg_hba.conf` instead of the backup's,
-  and without the backup's `ALTER SYSTEM` settings. It waits for WAL replay however long it takes,
-  retrying repo errors every 10 seconds until only a missing segment ends it, then takes a full
-  backup for its replicas. If the container restarts mid-replay, it finishes the replay and takes
-  that backup before Patroni starts. If the repo can't be read, the bootstrap fails instead of
-  starting empty
+  of starting empty
 
 ### Monitoring
 
@@ -400,9 +395,7 @@ kubectl exec -it pitr-restore -n myapp -- bash
 #### Step 4: Perform PITR Restore
 
 Inside the recovery pod, run pgbackrest restore with the target time. `delta=y` is set in
-`pgbackrest.conf`, so the restore overwrites the existing data directory in place. The
-`restore_command` retries while the repo is unreachable, as on bootstrap, so an outage can't end
-replay early; a missing segment still does:
+`pgbackrest.conf`, so the restore overwrites the existing data directory in place:
 
 ```bash
 # Restore to specific point in time
@@ -410,17 +403,15 @@ pgbackrest --stanza=myapp-shard-0 \
   --type=time \
   --target="2024-01-15 14:30:00+00" \
   --target-action=promote \
-  --recovery-option="restore_command=until pgbackrest --stanza=myapp-shard-0 archive-get %f \"%p\"; do [ \$? -eq 1 ] && exit 1; sleep 10; done" \
   restore
 
 # Alternative: Restore to the end of the archived WAL (latest state)
 pgbackrest --stanza=myapp-shard-0 \
   --type=default \
-  --recovery-option="restore_command=until pgbackrest --stanza=myapp-shard-0 archive-get %f \"%p\"; do [ \$? -eq 1 ] && exit 1; sleep 10; done" \
   restore
 ```
 
-**Recovery type options** (pass `--target-action=promote` with every type but `default`):
+**Recovery type options:**
 
 - `--type=time --target="TIMESTAMP"` - Restore to specific time
 - `--type=xid --target="TRANSACTION_ID"` - Restore to specific transaction
@@ -428,34 +419,16 @@ pgbackrest --stanza=myapp-shard-0 \
 - `--type=immediate` - Stop as soon as the backup is consistent (no further WAL replay)
 - `--type=default` - Restore and replay all available WAL
 
-Then replay to the target in the recovery pod: Patroni would start the restored data directory as a
-replica, drop the recovery target and replay to the end of the archive. As on bootstrap,
-`hot_standby=off` lets replay accept settings lower than the backup's, and deleting the backup's
-`patroni.dynamic.json` (Patroni's cached cluster config) makes the shard start with the chart's
-`patroni.parameters`:
-
-```bash
-rm -f /var/lib/postgresql/pgdata/patroni.dynamic.json
-pg_ctl start -W -D /var/lib/postgresql/pgdata -l /tmp/pitr.log -o "-c hot_standby=off"
-
-# Wait for "accepting connections"; if Postgres stops instead, /tmp/pitr.log says why
-until pg_isready; do sleep 10; pg_ctl status -D /var/lib/postgresql/pgdata > /dev/null || break; done
-grep "recovery stopping" /tmp/pitr.log
-# Fails if replay didn't reach the target and promote: read /tmp/pitr.log and don't continue
-test ! -f /var/lib/postgresql/pgdata/recovery.signal
-pg_ctl stop -D /var/lib/postgresql/pgdata -m fast
-```
-
 #### Step 5: Restart the Shard
 
-Once the `test` passed and Postgres stopped, delete the recovery pod and scale back up:
+After restore completes, delete the recovery pod and scale back up:
 
 ```bash
-# Exit and delete the recovery pod (Postgres is stopped, so skip the 600s grace period)
+# Exit and delete the recovery pod
 exit
-kubectl delete pod pitr-restore -n myapp --grace-period=1
+kubectl delete pod pitr-restore -n myapp
 
-# Delete the stale leader and cluster config, so Patroni takes the restored primary and the chart's parameters
+# Delete stale Patroni endpoints (required after restore)
 kubectl delete endpoints myapp-shard-0 myapp-shard-0-config -n myapp
 
 # Scale the shard back up (to patroni.replicasPerShard)
