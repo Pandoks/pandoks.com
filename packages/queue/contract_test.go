@@ -618,6 +618,19 @@ func TestValkeyKeepsIdenticalDelayedMessagesApart(t *testing.T) {
 	}
 }
 
+func TestValkeyPublishRejectsASwappedSubscription(t *testing.T) {
+	name := "s" + strings.ToLower(rand.Text()[:10])
+	client := valkeyTestClient(t)
+	subscriptions := "{" + name + "}:subscriptions"
+	if err := client.Do(t.Context(), client.B().Sadd().Key(subscriptions).Member("a", "c").Build()).Error(); err != nil {
+		t.Fatal(err)
+	}
+	keys := []string{subscriptions, "{" + name + "}:a:stream", "{" + name + "}:b:stream"}
+	if err := publishScript.Exec(t.Context(), client, keys, []string{"envelope"}).Error(); err == nil || !strings.Contains(err.Error(), "STALE") {
+		t.Fatalf("published to removed subscription b and skipped c (%v), want a STALE error", err)
+	}
+}
+
 func TestValkeyAcksANonUTF8Entry(t *testing.T) {
 	name := "u" + strings.ToLower(rand.Text()[:10])
 	queue, client := openQueue(t, "valkey://client:client@"+valkeyAddress+"/"+name+"?lease=1m&max_attempts=3"), valkeyTestClient(t)
