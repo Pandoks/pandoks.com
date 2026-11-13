@@ -296,7 +296,7 @@ FLOW_TARGETS = [
     ("cloudflare-turnstile", "https://demo.turnstile.workers.dev/",
      TURNSTILE_CLICK_SELECTORS),
     ("recaptcha-v3", ("fixture", "recaptcha_v3.html"), []),
-    ("hcaptcha", ("fixture", "hcaptcha.html"), [("coords", 35, 40)]),
+    ("hcaptcha", ("fixture", "hcaptcha.html"), [("coords", 30, 37)]),
 ]
 
 
