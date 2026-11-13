@@ -279,7 +279,7 @@ func makeRoomForMasters(options *scaleDownOptions) error {
 			fmt.Println("✓ Master moved to safe spot")
 		}
 
-		if err := valkey.DelNode(valkey.DelNodeOptions{CliBaseOptions: options.cliBaseOptions, NodeID: node.ID}); err != nil {
+		if err := valkey.DelNode(valkey.DelNodeOptions{CliBaseOptions: options.cliBaseOptions, Node: node}); err != nil {
 			return err
 		}
 	}
@@ -344,7 +344,7 @@ func removeReplicasFromMasters(options *scaleDownOptions) error {
 		for _, node := range nodesToDelete {
 			removedNodeHostnames[fmt.Sprintf("%s:%d", node.Hostname, node.Port)] = struct{}{}
 
-			if err := valkey.DelNode(valkey.DelNodeOptions{CliBaseOptions: options.cliBaseOptions, NodeID: node.ID}); err != nil {
+			if err := valkey.DelNode(valkey.DelNodeOptions{CliBaseOptions: options.cliBaseOptions, Node: node}); err != nil {
 				return err
 			}
 			*options.nodeCount -= 1
@@ -476,7 +476,7 @@ func removeDangerZoneNodes(options *scaleDownOptions) error {
 		}
 
 		fmt.Printf("  %s\n", node.ID)
-		if err := valkey.DelNode(valkey.DelNodeOptions{CliBaseOptions: options.cliBaseOptions, NodeID: node.ID}); err != nil {
+		if err := valkey.DelNode(valkey.DelNodeOptions{CliBaseOptions: options.cliBaseOptions, Node: node}); err != nil {
 			return err
 		}
 		*options.nodeCount -= 1
