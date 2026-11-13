@@ -10,9 +10,9 @@ The watch side lives in the app, like `templates/mobile/targets/watch` (watchOS)
 `Watch` is `null` on iPads, which can't pair a watch. Otherwise it has:
 
 - `updateApplicationContext(context)`: replaces the state the watch reads, even if it launches
-  later. On iOS it waits for the session to activate, then rejects if no watch with the app is
-  paired; on Android it rejects when the Wearable API is unavailable and otherwise queues until a
-  watch connects.
+  later. On iOS it waits for the session to activate, then rejects if activation fails or no watch
+  with the app is paired; on Android it rejects when the Wearable API is unavailable and otherwise
+  queues until a watch connects.
 - `isReachable` and the `onReachabilityChange` event: on iOS, whether the watch app is running and
   connected; on Android, whether a connected watch has the Wear OS app installed.
 - `receivedApplicationContext` and the `onApplicationContext` event: the latest state the watch sent

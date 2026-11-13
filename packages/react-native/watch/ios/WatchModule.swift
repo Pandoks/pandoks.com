@@ -23,7 +23,7 @@ public class WatchModule: Module {
     }
 
     AsyncFunction("updateApplicationContext") { (context: [String: Any]) in
-      await self.sessionDelegate.waitForActivation()
+      try await self.sessionDelegate.waitForActivation()
       try WCSession.default.updateApplicationContext(context)
     }
   }
@@ -32,18 +32,21 @@ public class WatchModule: Module {
 class WatchSessionDelegate: NSObject, WCSessionDelegate {
   weak var module: WatchModule?
   private let activationLock = NSLock()
-  private var activationWaiters: [CheckedContinuation<Void, Never>] = []
+  private var activationError: Error?
+  private var activationWaiters: [CheckedContinuation<Void, Error>] = []
 
   init(module: WatchModule) {
     self.module = module
   }
 
   // NOTE: sends fail until the session activates, at launch and while switching watches
-  func waitForActivation() async {
-    await withCheckedContinuation { continuation in
+  func waitForActivation() async throws {
+    try await withCheckedThrowingContinuation { continuation in
       activationLock.withLock {
         if WCSession.default.activationState == .activated {
           continuation.resume()
+        } else if let activationError {
+          continuation.resume(throwing: activationError)
         } else {
           activationWaiters.append(continuation)
         }
@@ -56,8 +59,16 @@ class WatchSessionDelegate: NSObject, WCSessionDelegate {
     _ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState,
     error: Error?
   ) {
+    // NOTE: completes as .inactive when switching watches, and sessionDidDeactivate reactivates
     activationLock.withLock {
-      activationWaiters.forEach { $0.resume() }
+      activationError = error
+      if let error {
+        activationWaiters.forEach { $0.resume(throwing: error) }
+      } else if activationState == .activated {
+        activationWaiters.forEach { $0.resume() }
+      } else {
+        return
+      }
       activationWaiters.removeAll()
     }
     module?.sendEvent("onReachabilityChange", ["isReachable": session.isReachable])
