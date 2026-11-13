@@ -38,6 +38,7 @@ private const val SENT_AT_KEY = "sentAt"
 class MainActivity : ComponentActivity(), DataClient.OnDataChangedListener {
   private var valueFromPhone by mutableStateOf<String?>(null)
   private var sendError by mutableStateOf<String?>(null)
+  private var hasReceivedChange = false
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -68,9 +69,10 @@ class MainActivity : ComponentActivity(), DataClient.OnDataChangedListener {
   override fun onResume() {
     super.onResume()
     // NOTE: read the current item only once the listener registers, so no change slips between them
+    hasReceivedChange = false
     val dataClient = Wearable.getDataClient(this)
     dataClient.addListener(this).onSuccessTask { dataClient.dataItems }.addOnSuccessListener { dataItems ->
-      dataItems.forEach(::show)
+      if (!hasReceivedChange) dataItems.forEach(::show)
       dataItems.release()
     }
   }
@@ -83,7 +85,10 @@ class MainActivity : ComponentActivity(), DataClient.OnDataChangedListener {
   override fun onDataChanged(dataEvents: DataEventBuffer) {
     dataEvents
       .filter { dataEvent -> dataEvent.type == DataEvent.TYPE_CHANGED }
-      .forEach { dataEvent -> show(dataEvent.dataItem) }
+      .forEach { dataEvent ->
+        hasReceivedChange = true
+        show(dataEvent.dataItem)
+      }
   }
 
   private fun show(dataItem: DataItem) {
