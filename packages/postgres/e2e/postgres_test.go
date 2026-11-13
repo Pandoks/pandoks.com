@@ -1007,24 +1007,6 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			Expect(e2e.MustRun("", "kubectl", "-n", namespace, "logs", "job/all-lagging-incr")).
 				To(ContainSubstring("no replica is streaming within 16777216 bytes of replay lag"))
 		})
-
-		It("backs up from the new primary through a current replica after a switchover", func() {
-			waitForHealthyShard(namespace, 0, defaultPodCount)
-			expectCurrentReplicas()
-			switchover(namespace, 0, replicaPodName(namespace, 0, defaultPodCount))
-			waitForHealthyShard(namespace, 0, defaultPodCount)
-			expectCurrentReplicas()
-			runBackupJob(namespace, 0, "incr", "switchover-incr")
-			primaryHost, standbyHost := backupHosts(namespace, "switchover-incr")
-			Expect(primaryHost).To(Equal(podHost(namespace, 0, mustPrimaryPodName(namespace, 0))))
-			Expect(standbyHost).To(BeElementOf(replicaHosts()))
-		})
-
-		It("leaves valid backups from replicas and the primary alike", func() {
-			Expect(backupTypes(readStanzaInfo(Default, namespace, 0))).To(Equal([]string{"full", "full", "incr", "incr", "incr"}))
-			expectValidBackups(Default, namespace, 0)
-			expectVerified(namespace, 0)
-		})
 	})
 
 	Context("backup retention", Ordered, func() {

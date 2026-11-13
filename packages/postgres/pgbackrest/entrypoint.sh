@@ -35,7 +35,7 @@ write_backup_hosts() {
     echo "[${STANZA}]"
     write_pg_host 1 "${write_backup_hosts_primary}"
     if [ -n "${write_backup_hosts_replica}" ]; then
-      echo "backup-standby=y"
+      echo "backup-standby=prefer"
       write_pg_host 2 "${write_backup_hosts_replica}"
     fi
   } >> /etc/pgbackrest/pgbackrest.conf
