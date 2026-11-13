@@ -6,7 +6,7 @@ runtime:
   options:
     packagemanager: pnpm
 backend:
-  url: s3://pandoks-pulumi-state?endpoint=<cloudflare-account-id>.r2.cloudflarestorage.com&region=auto&s3ForcePathStyle=true&awssdk=v2&profile=pandoks-pulumi-state
+  url: s3://pandoks-pulumi-state?endpoint=3c8d5c4cf3f877d2b7e81dd40485bdc5.r2.cloudflarestorage.com&region=auto&s3ForcePathStyle=true&awssdk=v2&profile=pandoks-pulumi-state
 config:
   aws:region:
     value: us-west-1
