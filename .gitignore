@@ -40,6 +40,8 @@ yarn.lock
 dist/
 web-build/
 expo-env.d.ts
+templates/mobile/ios/
+templates/mobile/android/
 
 # Native
 .kotlin/
