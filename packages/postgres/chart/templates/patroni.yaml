@@ -29,7 +29,26 @@ data:
 
 {{- range $shardIndex := until (int $.Values.patroni.shards) }}
 ---
-# provides a stable ip for the primary
+# routes to the primary: Patroni writes the leader's IP to these Endpoints as it takes the leader
+# lock, so an unreachable old primary still labeled role=primary gets no traffic
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $.Values.db }}-shard-{{ $shardIndex }}
+  namespace: {{ $.Values.namespace }}
+  labels:
+    app: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
+    cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: postgres
+      port: 5432
+    - name: pgbackrest
+      port: 8432
+
+---
+# provides a stable name for the primary
 apiVersion: v1
 kind: Service
 metadata:
@@ -40,18 +59,8 @@ metadata:
     cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
     role: primary
 spec:
-  type: ClusterIP
-  selector:
-    app: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
-    cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
-    role: primary
-  ports:
-    - name: postgres
-      port: 5432
-      targetPort: 5432
-    - name: pgbackrest
-      port: 8432
-      targetPort: 8432
+  type: ExternalName
+  externalName: {{ $.Values.db }}-shard-{{ $shardIndex }}.{{ $.Values.namespace }}.svc.cluster.local
 
 ---
 # provides a stable ip for all replicas
@@ -416,25 +425,16 @@ spec:
           emptyDir: {}
         {{- if $.Values.backup.enabled }}
         - name: *tls
-          projected:
+          secret:
+            secretName: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}-tls
             defaultMode: 0600
-            sources:
-              - secret:
-                  name: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}-tls
-                  items:
-                    - key: tls.crt
-                      path: client.crt
-                    - key: tls.key
-                      path: client.key
-                    - key: ca.crt
-                      path: ca.crt
-              - secret:
-                  name: {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup-tls
-                  items:
-                    - key: tls.crt
-                      path: server.crt
-                    - key: tls.key
-                      path: server.key
+            items:
+              - key: tls.crt
+                path: client.crt
+              - key: tls.key
+                path: client.key
+              - key: ca.crt
+                path: ca.crt
         {{- end }}
         - name: *socket
           emptyDir: {}

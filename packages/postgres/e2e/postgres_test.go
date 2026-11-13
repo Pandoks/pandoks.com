@@ -54,10 +54,11 @@ func installPostgres(chart string, shardCount int, valueOverrides map[string]str
 		"backup.credentials.secret": "postgres-creds",
 		"backup.path":               newBackupPath(),
 		"backup.encryptionKey":      "e2e-encryption-key",
-		// NOTE: February 30th never comes, so no scheduled backup lands among the specs' own
-		"backup.schedules.full": "0 0 30 2 *",
-		"backup.schedules.diff": "0 0 30 2 *",
-		"backup.schedules.incr": "0 0 30 2 *",
+		// NOTE: February 30th never comes, so no scheduled backup lands among the specs' own, and the
+		// leading * is YAML's alias marker, so every install checks the chart quotes the schedules
+		"backup.schedules.full": "* * 30 2 *",
+		"backup.schedules.diff": "* * 30 2 *",
+		"backup.schedules.incr": "* * 30 2 *",
 		// NOTE: only the PgDog specs go through PgDog, so the rest don't pull its image
 		"pgdog.replicas": "0",
 	}
@@ -380,18 +381,22 @@ func writeThroughPrimaryDeletion(namespace string, psqlAsClient func(sql string)
 	return <-acknowledgedWrites
 }
 
-// expectBriefWriteUnavailability reports the longest gap between writes as reportName, and checks
-// it stayed under 30s and writes resumed.
-func expectBriefWriteUnavailability(writes []acknowledgedWrite, reportName string) {
+// expectBriefWriteUnavailability reports the longest gap between writes as reportName, checks it
+// stayed under maxUnavailability and writes resumed, and returns the index of the write that ended it.
+func expectBriefWriteUnavailability(writes []acknowledgedWrite, reportName string, maxUnavailability time.Duration) int {
 	GinkgoHelper()
 	Expect(writes).NotTo(BeEmpty())
 	var writeUnavailability time.Duration
+	resumedWriteIndex := 0
 	for writeIndex := 1; writeIndex < len(writes); writeIndex++ {
-		writeUnavailability = max(writeUnavailability, writes[writeIndex].returnedAt.Sub(writes[writeIndex-1].returnedAt))
+		if gap := writes[writeIndex].returnedAt.Sub(writes[writeIndex-1].returnedAt); gap > writeUnavailability {
+			writeUnavailability, resumedWriteIndex = gap, writeIndex
+		}
 	}
 	AddReportEntry(reportName, writeUnavailability.String())
-	Expect(writeUnavailability).To(BeNumerically("<", 30*time.Second))
+	Expect(writeUnavailability).To(BeNumerically("<", maxUnavailability))
 	Expect(writes[len(writes)-1].returnedAt).To(BeTemporally(">", time.Now().Add(-5*time.Second)), "writes didn't resume")
+	return resumedWriteIndex
 }
 
 var _ = Describe("Postgres", Label("postgres"), func() {
@@ -452,6 +457,13 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			// NOTE: check warns with the server's AccessError, then fails as it found no database
 			Expect(output).To(MatchRegexp(`\[AccessError\].*access denied`))
 		})
+
+		It("keeps the backup job's TLS key out of the Patroni pods", func() {
+			for podIndex := range defaultPodCount {
+				Expect(execInPod(namespace, podName(0, podIndex), "pgbackrest", "ls", "/etc/pgbackrest/certs")).
+					To(Equal("ca.crt\nclient.crt\nclient.key"))
+			}
+		})
 	})
 
 	Context("failures", Ordered, func() {
@@ -467,7 +479,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			writes := writeThroughPrimaryDeletion(namespace, func(sql string) (string, error) {
 				return psqlOverNetwork(namespace, clientPod, "client", clientPassword, database, sql)
 			})
-			expectBriefWriteUnavailability(writes, "write unavailability on primary deletion")
+			expectBriefWriteUnavailability(writes, "write unavailability on primary deletion", 30*time.Second)
 			acknowledgedIDs := make([]string, len(writes))
 			for writeIndex, write := range writes {
 				acknowledgedIDs[writeIndex] = strconv.Itoa(write.id)
@@ -508,6 +520,56 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			waitForHealthyShard(namespace, 0, defaultPodCount)
 			Eventually(expectRows).WithArguments(namespace, replicaPod, 1, 2000).Should(Succeed())
 		})
+	})
+
+	It("fails over to one routed primary within ttl + 2 loop_wait of the primary's node freezing", Serial, func() {
+		// NOTE: a frozen server node hangs the API requests k3d's load balancer sends it, so the
+		// pods go on the agents
+		agentNodes := strings.Fields(e2e.MustRun("", "kubectl", "get", "nodes", "-l", "!node-role.kubernetes.io/control-plane",
+			"-o", "jsonpath={.items[*].metadata.name}"))
+		Expect(agentNodes).To(HaveLen(defaultPodCount))
+		for _, agentNode := range agentNodes {
+			e2e.MustRun("", "kubectl", "label", "node", agentNode, "e2e-postgres-node=agent")
+			DeferCleanup(e2e.MustRun, "", "kubectl", "label", "node", agentNode, "e2e-postgres-node-")
+		}
+		namespace := installPostgres(postgresChartDirectory, 1, map[string]string{"nodeSelector.e2e-postgres-node": "agent"})
+		waitForHealthyShard(namespace, 0, defaultPodCount)
+		clientPod := replicaPodName(namespace, 0, defaultPodCount)
+		Expect(psqlOverNetwork(namespace, clientPod, "admin", adminPassword, database, "CREATE TABLE e2e_writes (id int PRIMARY KEY)")).Error().NotTo(HaveOccurred())
+		// NOTE: resolved once, as CoreDNS may run on the frozen node
+		primaryServiceAddress := strings.Fields(e2e.MustRun("", "kubectl", "-n", namespace, "exec", clientPod, "-c", "patroni", "--",
+			"getent", "hosts", primaryServiceHost(0)))[0]
+		connection := fmt.Sprintf("host=%s user=client password=%s dbname=%s connect_timeout=2", primaryServiceAddress, clientPassword, database)
+
+		stopWriting := make(chan struct{})
+		stopWriter := sync.OnceFunc(func() { close(stopWriting) })
+		DeferCleanup(stopWriter)
+		acknowledgedWrites := make(chan []acknowledgedWrite, 1)
+		// NOTE: the frozen node's kernel still acks TCP, so a query in flight when it froze never returns
+		go writeUntilStopped(func(sql string) (string, error) {
+			return execInPod(namespace, clientPod, "patroni", "timeout", "5", "psql", connection, "-v", "ON_ERROR_STOP=1", "-Atq", "-c", sql)
+		}, stopWriting, acknowledgedWrites)
+		time.Sleep(5 * time.Second)
+
+		// NOTE: k3d nodes are Docker containers named after their Kubernetes node
+		frozenNode := e2e.MustRun("", "kubectl", "-n", namespace, "get", "pod", mustPrimaryPodName(namespace, 0), "-o", "jsonpath={.spec.nodeName}")
+		Expect(exec.Command("docker", "pause", frozenNode).Run()).To(Succeed())
+		unfreezeNode := sync.OnceFunc(func() { Expect(exec.Command("docker", "unpause", frozenNode).Run()).To(Succeed()) })
+		DeferCleanup(unfreezeNode)
+		// NOTE: Kubernetes marks the frozen node's pods unready after its 40s node-monitor-grace-period,
+		// so a Service selecting role=primary routes to both primaries until then
+		time.Sleep(90 * time.Second)
+		stopWriter()
+		writes := <-acknowledgedWrites
+
+		// NOTE: files/patroni.yaml's ttl (30s) and loop_wait (10s): the frozen leader's lock expires within
+		// ttl, a replica sees that within loop_wait, and promotion and routing fit in another loop_wait
+		resumedWriteIndex := expectBriefWriteUnavailability(writes, "write unavailability on a primary node freeze", 50*time.Second)
+		// NOTE: writeUntilStopped numbers every attempt, so an ID gap is a failed write
+		Expect(writes[len(writes)-1].id-writes[resumedWriteIndex].id).To(Equal(len(writes)-1-resumedWriteIndex),
+			"a write failed after the failover, so the primary Service still routed to the frozen pod")
+		unfreezeNode()
+		waitForHealthyShard(namespace, 0, defaultPodCount)
 	})
 
 	Context("planned operations", Ordered, func() {
@@ -625,12 +687,13 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			Expect(verifyOutput).To(MatchRegexp(`(?m)^status: ok$`))
 		})
 
-		// TODO: un-pend once the README's PITR runbook stops Patroni from dropping pgBackRest's recovery target
-		It("restores a shard to a point in time with the README's runbook", Pending, func() {
+		It("restores a shard to a point in time with the README's runbook", func() {
 			targetRowID := lastRowID + 1000
 			insertRows(namespace, 0, lastRowID+1, targetRowID)
 			targetTime := mustPsqlOnPrimary(namespace, 0, "SELECT clock_timestamp()")
 			insertRows(namespace, 0, targetRowID+1, targetRowID+1000)
+			// NOTE: the newest backup is past the target, so it can't seed the restored shard's replicas
+			runBackupJob(namespace, 0, "full", "past-target-full")
 			walSegment := switchWAL(namespace, 0)
 			Eventually(expectArchived).WithArguments(namespace, 0, walSegment).Should(Succeed())
 
@@ -653,6 +716,10 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			e2e.MustRun("", "kubectl", "-n", namespace, "wait", "--for=condition=Ready", "pod/pitr-restore", "--timeout=120s")
 			e2e.MustRun("", "kubectl", "-n", namespace, "exec", "pitr-restore", "--",
 				"pgbackrest", "--stanza="+clusterName(0), "--type=time", "--target="+targetTime, "--target-action=promote", "restore")
+			e2e.MustRun("", "kubectl", "-n", namespace, "exec", "pitr-restore", "--",
+				"pg_ctl", "start", "-D", "/var/lib/postgresql/pgdata", "-l", "/tmp/pitr-restore.log")
+			Eventually(psql).WithArguments(namespace, "pitr-restore", "SELECT pg_is_in_recovery()").Should(Equal("f"))
+			e2e.MustRun("", "kubectl", "-n", namespace, "exec", "pitr-restore", "--", "pg_ctl", "stop", "-w", "-D", "/var/lib/postgresql/pgdata")
 			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", "pitr-restore")
 			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "endpoints", clusterName(0), clusterName(0)+"-config")
 			e2e.MustRun("", "kubectl", "-n", namespace, "scale", "statefulset", statefulSetName(0), fmt.Sprintf("--replicas=%d", defaultPodCount))
@@ -694,9 +761,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 		Expect(afterExpiry.Archive[0].Min).To(Equal(oldestKeptWAL), "the expired backup's WAL is still in the repo")
 	})
 
-	// TODO: un-pend once cluster-init.sh skips pgBackRest when backup.enabled is false; its
-	// `pgbackrest info` fails on the empty repo1-path, so Patroni abandons the bootstrap
-	It("installs and replicates with no backup CronJobs or WAL archiving when backup.enabled is false", Pending, func() {
+	It("installs and replicates with no backup CronJobs or WAL archiving when backup.enabled is false", func() {
 		namespace := installPostgresWithRowsTable(postgresChartDirectory, 1, map[string]string{"backup.enabled": "false"})
 		Expect(e2e.MustRun("", "kubectl", "-n", namespace, "get", "cronjobs", "-o", "name")).To(BeEmpty())
 		Expect(mustPsqlOnPrimary(namespace, 0, "SHOW archive_mode")).To(Equal("off"))
@@ -794,7 +859,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			writes := writeThroughPrimaryDeletion(namespace, func(sql string) (string, error) {
 				return psqlThroughPgDog(namespace, clientPod, sql)
 			})
-			expectBriefWriteUnavailability(writes, "PgDog write unavailability on primary deletion")
+			expectBriefWriteUnavailability(writes, "PgDog write unavailability on primary deletion", 30*time.Second)
 		})
 	})
 })

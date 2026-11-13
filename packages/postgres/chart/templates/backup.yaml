@@ -14,7 +14,7 @@ metadata:
   name: {{ .context.Values.db }}-shard-{{ .shardIndex }}-pgbackrest-backup-{{ .type }}
   namespace: {{ .context.Values.namespace }}
 spec:
-  schedule: {{ .schedule }}
+  schedule: {{ .schedule | quote }}
   jobTemplate:
     spec:
       template:

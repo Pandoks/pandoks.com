@@ -180,7 +180,7 @@ metadata:
   namespace: kube-system
 spec:
   chart: oci://${ImageRegistry}/charts/postgres
-  version: 0.1.5
+  version: 0.1.7
   targetNamespace: &namespace myapp
   createNamespace: true
   failurePolicy: abort
@@ -375,6 +375,17 @@ pgbackrest --stanza=myapp-shard-0 \
 pgbackrest --stanza=myapp-shard-0 \
   --type=default \
   restore
+```
+
+Then replay the WAL up to the target in the recovery pod and wait for Postgres to promote itself.
+Patroni drops the recovery target that `pgbackrest restore` writes to `postgresql.auto.conf`, so if
+it started Postgres still in recovery, Postgres would replay all the WAL:
+
+```bash
+pg_ctl start -D /var/lib/postgresql/pgdata -l /tmp/pitr-restore.log
+# Prints f once it reached the target and promoted; check /tmp/pitr-restore.log if it never does
+until [ "$(psql -Atq -d postgres -c 'SELECT pg_is_in_recovery()' 2> /dev/null)" = f ]; do sleep 5; done
+pg_ctl stop -w -D /var/lib/postgresql/pgdata
 ```
 
 **Recovery type options:**
