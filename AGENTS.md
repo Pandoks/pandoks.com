@@ -93,7 +93,7 @@ checkout. The SST CLI is `pnpm sst`.
 - `pnpm lint <js|go|helm|docker|shell|actions|all>`; `js` needs `.sst/platform` from `pnpm install`,
   or `infra/` shows hundreds of false type errors.
 - `pnpm check` type-checks every package, `infra/`, and `sst.config.ts`.
-- Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, and `desktop`;
+- Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, `desktop`, and `mobile`;
   `pnpm --filter <package> test` for `prettier` and `valkey`;
   `go tool ginkgo -p ./packages/<pkg>/e2e` for a package's e2e suite on local k3d
   (`packages/e2e/README.md`).
@@ -121,6 +121,7 @@ checkout. The SST CLI is `pnpm sst`.
   - `infra/` or `sst.config.ts`: full `pnpm check` plus scoped lint after the last edit and before
     every commit or push; narrower checks don't replace it.
   - `apps/web`: `CI=1 pnpm --filter web test:e2e` (skips portless) for user-visible changes.
+  - `templates/mobile`: `pnpm ios` and `pnpm android` from the app, then `pnpm test:e2e`.
   - Workflows: the PR's CI once a PR exists.
 - Before calling work done, run format, lint, type, and test commands for every language and package
   you touched, even for a one-line change, and report a configured checker exclusion only when it
