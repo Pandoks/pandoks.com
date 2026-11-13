@@ -530,11 +530,12 @@ application traffic only after validation succeeds.
 **Step 3: Clean Up Leftover Resources**
 
 Helm deletes the removed shard's StatefulSet, services, certificates, and backup cronjobs on
-upgrade. Patroni's endpoints, cert-manager's TLS secrets, and the PVCs are left behind:
+upgrade. Patroni's `-config` service and endpoints, cert-manager's TLS secrets, and the PVCs are
+left behind, and so can the leader endpoints if Patroni rewrote them as its pods shut down:
 
 ```bash
-# Delete Patroni endpoints
-kubectl delete endpoints myapp-shard-3 myapp-shard-3-config -n myapp
+# Delete Patroni's services and endpoints
+kubectl delete service,endpoints myapp-shard-3 myapp-shard-3-config -n myapp --ignore-not-found
 
 # Delete TLS secrets
 kubectl delete secret patroni-myapp-shard-3-tls myapp-shard-3-pgbackrest-backup-tls -n myapp
@@ -595,13 +596,14 @@ bootstrapping:
 waiting for leader to bootstrap
 ```
 
-**Fix:** Delete the stale endpoints:
+**Fix:** Delete the stale endpoints. Without the chart's `myapp-shard-N` service, the leader
+endpoints may already be gone, as kube-controller-manager deletes endpoints that have no service:
 
 ```bash
 kubectl delete endpoints myapp-shard-0 myapp-shard-0-config \
   myapp-shard-1 myapp-shard-1-config \
   myapp-shard-2 myapp-shard-2-config \
-  -n myapp
+  -n myapp --ignore-not-found
 ```
 
 Then restart the pods:
@@ -715,6 +717,7 @@ the images.
 | `patroni.image`                 | Patroni image                                      | `ghcr.io/pandoks/patroni:latest`                            |
 | `patroni.resources.*`           | `patroni`, `pgbackrest`, `postgresExporter`        | `{}`                                                        |
 | `pgdog.*`                       | Passed through to the [PgDog chart][pgdog]         | See below                                                   |
+| `pgdog.image.*`                 | PgDog image `repository` and `tag`                 | `ghcr.io/pgdogdev/pgdog:v0.1.65`                            |
 | `pgdog.replicas`                | PgDog replicas                                     | `2`                                                         |
 | `pgdog.workers`                 | PgDog worker threads                               | `2`                                                         |
 | `pgdog.defaultPoolSize`         | Server connections per pool                        | `15`                                                        |

@@ -892,9 +892,9 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			targetRowID := lastRowID + 1000
 			insertRows(namespace, 0, lastRowID+1, targetRowID)
 			targetTime := mustPsqlOnPrimary(namespace, 0, "SELECT clock_timestamp()")
-			insertRows(namespace, 0, targetRowID+1, targetRowID+1000)
 			// NOTE: the newest backup is past the target, so it can't seed the restored shard's replicas
 			runBackupJob(namespace, 0, "full", "past-target-full")
+			insertRows(namespace, 0, targetRowID+1, targetRowID+1000)
 			walSegment := switchWAL(namespace, 0)
 			Eventually(expectArchived).WithArguments(namespace, 0, walSegment).Should(Succeed())
 
@@ -995,7 +995,12 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 		var namespace string
 
 		BeforeAll(func() {
-			namespace = installPostgresWithRowsTable(publishedPostgresChart, 1, nil)
+			// NOTE: main's published chart doesn't quote the schedules
+			namespace = installPostgresWithRowsTable(publishedPostgresChart, 1, map[string]string{
+				"backup.schedules.full": "0 0 30 2 *",
+				"backup.schedules.diff": "0 0 30 2 *",
+				"backup.schedules.incr": "0 0 30 2 *",
+			})
 			insertRows(namespace, 0, 1, 1000)
 		})
 
@@ -1059,7 +1064,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			Eventually(e2e.Run).WithArguments("", "kubectl", "-n", namespace, "logs", podName(0, 0), "-c", "patroni").
 				WithTimeout(3*time.Minute).Should(ContainSubstring("waiting for leader to bootstrap"), "the stale endpoints didn't block the bootstrap")
 
-			// NOTE: --ignore-not-found, as a starting kube-controller-manager deletes Service-less endpoints
+			// NOTE: the README's fix, verbatim but for the names
 			e2e.MustRun("", "kubectl", "delete", "endpoints", clusterName(0), clusterName(0)+"-config", "-n", namespace, "--ignore-not-found")
 			e2e.MustRun("", "kubectl", "delete", "pods", "-n", namespace, "-l", fmt.Sprintf("cluster-name in (%s)", clusterName(0)))
 			waitForHealthyShard(namespace, 0, defaultPodCount)
@@ -1154,7 +1159,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			}
 
 			// NOTE: Step 3, verbatim but for the names
-			e2e.MustRun("", "kubectl", "delete", "endpoints", clusterName(1), clusterName(1)+"-config", "-n", namespace)
+			e2e.MustRun("", "kubectl", "delete", "service,endpoints", clusterName(1), clusterName(1)+"-config", "-n", namespace, "--ignore-not-found")
 			e2e.MustRun("", "kubectl", "delete", "secret", statefulSetName(1)+"-tls", clusterName(1)+"-pgbackrest-backup-tls", "-n", namespace)
 			e2e.MustRun("", "kubectl", "delete", "pvc", "-n", namespace, "-l", "cluster-name="+clusterName(1))
 
@@ -1166,8 +1171,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			Expect(backupTypes(removedStanza[0])).To(Equal([]string{"full"}), "the removed shard's backups aren't in the bucket")
 		})
 
-		// TODO: un-pend once Removing Shards' Step 3 deletes Patroni's <scope>-config Service too
-		It("leaves nothing of the removed shard after Removing Shards' Step 3", Pending, func() {
+		It("leaves nothing of the removed shard after Removing Shards' Step 3", func() {
 			leftovers := e2e.MustRun("", "kubectl", "-n", namespace, "get", "-o", "name",
 				"all,endpoints,endpointslices,configmaps,secrets,pvc,serviceaccounts,rolebindings,certificates,certificaterequests,servicemonitors")
 			Expect(strings.Fields(leftovers)).NotTo(ContainElement(ContainSubstring(clusterName(1))))
