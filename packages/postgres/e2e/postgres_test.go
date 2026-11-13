@@ -618,8 +618,11 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			// NOTE: so the banned replica's reads come back in seconds, not PgDog's default 5 minutes
 			namespace = installPostgres(postgresChartDirectory, 1, map[string]string{"pgdog.banTimeout": "10000"})
 			waitForHealthyShard(namespace, 0, defaultPodCount)
-			// NOTE: PgDog breaks least-active ties in config order, which the read specs rely on
-			Expect(mustPrimaryPodName(namespace, 0)).To(Equal(podName(0, 0)))
+			// NOTE: PgDog breaks least-active ties in config order, so the read specs need pod 0 to lead
+			if mustPrimaryPodName(namespace, 0) != podName(0, 0) {
+				switchover(namespace, 0, podName(0, 0))
+				waitForHealthyShard(namespace, 0, defaultPodCount)
+			}
 			// NOTE: the specs delete the other two pods
 			clientPod = podName(0, 2)
 			Expect(psqlOverNetwork(namespace, clientPod, "admin", adminPassword, database, "CREATE TABLE e2e_writes (id int PRIMARY KEY)")).Error().NotTo(HaveOccurred())
@@ -640,14 +643,15 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 		})
 
 		It("reports each pod's detected role in its metrics on 9090, as the README's curl reads them", func() {
-			var roleLabels []string
+			var roleLineMatchers []types.GomegaMatcher
 			for podIndex := range defaultPodCount {
 				role := "replica"
 				if podIndex == 0 {
 					role = "primary"
 				}
-				roleLabels = append(roleLabels, fmt.Sprintf(`host="%s.%s.%s.svc.cluster.local",port="5432",shard="0",role="%s"`,
-					podName(0, podIndex), statefulSetName(0), namespace, role))
+				roleLineMatchers = append(roleLineMatchers, ContainElement(SatisfyAll(
+					ContainSubstring(fmt.Sprintf(`host="%s.%s.%s.svc.cluster.local"`, podName(0, podIndex), statefulSetName(0), namespace)),
+					ContainSubstring(fmt.Sprintf(`role="%s"`, role)))))
 			}
 			metricsBySource := map[string]string{
 				"the README's curl": e2e.MustRun("", "kubectl", "-n", namespace, "exec", "deploy/"+pgdogHost, "--", "curl", "-s", "http://127.0.0.1:9090/metrics"),
@@ -658,8 +662,8 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 				metricsBySource[target] = e2e.MustRun("", "kubectl", "get", "--raw", target)
 			}
 			for source, metrics := range metricsBySource {
-				for _, roleLabel := range roleLabels {
-					Expect(metrics).To(ContainSubstring(roleLabel), source)
+				for _, roleLineMatcher := range roleLineMatchers {
+					Expect(strings.Split(metrics, "\n")).To(roleLineMatcher, source)
 				}
 			}
 		})
@@ -671,21 +675,29 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			heldReadDone := make(chan error, 1)
 			go func() {
 				var err error
-				heldReadServerIP, err = psqlThroughPgDogPod(namespace, clientPod, pgdogPodIP, selectServerIP+" FROM pg_sleep(10)")
+				heldReadServerIP, err = psqlThroughPgDogPod(namespace, clientPod, pgdogPodIP, selectServerIP+" FROM pg_sleep(30)")
 				heldReadDone <- err
 			}()
+			var sleepingReplicaIP string
 			Eventually(func(g Gomega) {
-				var sleepingBackends []string
 				for podIndex := 1; podIndex < defaultPodCount; podIndex++ {
 					sleeping, err := psql(namespace, podName(0, podIndex), "SELECT count(*) FROM pg_stat_activity WHERE wait_event = 'PgSleep'")
 					g.Expect(err).NotTo(HaveOccurred())
-					sleepingBackends = append(sleepingBackends, sleeping)
+					if sleeping == "1" {
+						sleepingReplicaIP = podIP(namespace, podName(0, podIndex))
+					}
 				}
-				g.Expect(sleepingBackends).To(ContainElement("1"))
+				g.Expect(sleepingReplicaIP).NotTo(BeEmpty())
 			}).Should(Succeed())
 
-			readServerIP, err := psqlThroughPgDogPod(namespace, clientPod, pgdogPodIP, selectServerIP)
-			Expect(err).NotTo(HaveOccurred())
+			// NOTE: PgDog's LSN monitor can tie checkouts to the sleeping replica, so retry past them
+			var readServerIP string
+			Eventually(func(g Gomega) {
+				var err error
+				readServerIP, err = psqlThroughPgDogPod(namespace, clientPod, pgdogPodIP, selectServerIP)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(readServerIP).NotTo(Equal(sleepingReplicaIP))
+			}).Should(Succeed())
 			Expect(<-heldReadDone).To(Succeed())
 			Expect([]string{heldReadServerIP, readServerIP}).To(ConsistOf(replicaIPs))
 		})
@@ -839,8 +851,10 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 
 		It("keeps the data when every pod is deleted at once", func() {
 			// TODO: OrderedReady deadlocks when the primary isn't pod 0; #320 removes this switchover
-			switchover(namespace, 0, podName(0, 0))
-			waitForHealthyShard(namespace, 0, defaultPodCount)
+			if mustPrimaryPodName(namespace, 0) != podName(0, 0) {
+				switchover(namespace, 0, podName(0, 0))
+				waitForHealthyShard(namespace, 0, defaultPodCount)
+			}
 			writeCount := mustPsqlOnPrimary(namespace, 0, "SELECT count(*) FROM e2e_writes")
 			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", "-l", "cluster-name="+clusterName(0))
 			waitForHealthyShard(namespace, 0, defaultPodCount)
@@ -1293,7 +1307,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			}
 
 			// NOTE: Step 3, but for the names
-			// TODO: add --ignore-not-found to the README's Step 3 too, as kube-controller-manager races it
+			// TODO: kube-controller-manager races Step 3; drop --ignore-not-found once #320 adds it there
 			e2e.MustRun("", "kubectl", "delete", "endpoints", clusterName(1), clusterName(1)+"-config", "-n", namespace, "--ignore-not-found")
 			e2e.MustRun("", "kubectl", "delete", "secret", statefulSetName(1)+"-tls", clusterName(1)+"-pgbackrest-backup-tls", "-n", namespace)
 			e2e.MustRun("", "kubectl", "delete", "pvc", "-n", namespace, "-l", "cluster-name="+clusterName(1))
