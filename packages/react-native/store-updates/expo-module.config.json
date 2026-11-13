@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["StoreUpdatesModule"]
+  },
+  "android": {
+    "modules": ["com.pandoks.storeupdates.StoreUpdatesModule"]
+  }
+}
