@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { expect, test, vi } from 'vitest';
-import { encode, sleep } from './envelope.ts';
+import { encode, sleep, type Delivery } from './envelope.ts';
 import { openQueue, openTopic } from './index.ts';
 
 // Checks what the adapter sends Cloudflare's API, which has no emulator; the CI job's live
@@ -157,6 +157,48 @@ test('cloudflare topic pushes subscriptions concurrently', async () => {
   vi.stubEnv('CLOUDFLARE_API_TOKEN', 'test');
   try {
     await (await openTopic('cloudflare://acct/q1,q2')).publish({ source: '//test', type: 'test' });
+  } finally {
+    vi.unstubAllEnvs();
+    server.close();
+  }
+});
+
+test('cloudflare ack settles every batch concurrently', async () => {
+  let ackSecond: () => void;
+  const secondAcked = new Promise<boolean>((resolve) => (ackSecond = () => resolve(true)));
+  const server = createServer((request, response) => {
+    let raw = '';
+    request.on('data', (chunk) => (raw += chunk));
+    request.on('end', () => {
+      const acks = (JSON.parse(raw) as { acks: unknown[] }).acks.length;
+      const respond = (otherAcked: boolean) => {
+        response.statusCode = otherAcked ? 200 : 400;
+        response.setHeader('Content-Type', 'application/json');
+        response.end(
+          JSON.stringify({
+            success: otherAcked,
+            errors: otherAcked
+              ? []
+              : [{ code: 1, message: 'batch 2 never acked while 1 was slow' }],
+            messages: [],
+            result: { ackCount: acks, retryCount: 0 }
+          })
+        );
+      };
+      if (acks === 1) {
+        ackSecond();
+        respond(true);
+      } else {
+        void Promise.race([secondAcked, sleep(1).then(() => false)]).then(respond);
+      }
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  vi.stubEnv('CLOUDFLARE_BASE_URL', `http://127.0.0.1:${(server.address() as AddressInfo).port}`);
+  vi.stubEnv('CLOUDFLARE_API_TOKEN', 'test');
+  try {
+    const deliveries = Array.from({ length: 101 }, (_, index) => ({ handle: `lease-${index}` }));
+    await (await openQueue('cloudflare://acct/q1?lease=30s')).ack(...(deliveries as Delivery[]));
   } finally {
     vi.unstubAllEnvs();
     server.close();

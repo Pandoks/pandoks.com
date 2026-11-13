@@ -109,16 +109,18 @@ export class SQSQueue implements Queue {
   }
 
   private async delete(handles: unknown[]): Promise<void> {
-    for (const batch of batches(handles, () => 0, BATCH_COUNT, Infinity)) {
-      const entries = batch.map((handle, index) => ({
-        Id: String(index),
-        ReceiptHandle: handle as string
-      }));
-      const output = await this.client.send(
-        new DeleteMessageBatchCommand({ QueueUrl: this.url, Entries: entries })
-      );
-      checkFailed('ack SQS messages', output.Failed);
-    }
+    await Promise.all(
+      batches(handles, () => 0, BATCH_COUNT, Infinity).map(async (batch) => {
+        const entries = batch.map((handle, index) => ({
+          Id: String(index),
+          ReceiptHandle: handle as string
+        }));
+        const output = await this.client.send(
+          new DeleteMessageBatchCommand({ QueueUrl: this.url, Entries: entries })
+        );
+        checkFailed('ack SQS messages', output.Failed);
+      })
+    );
   }
 
   async ack(...deliveries: Delivery[]): Promise<void> {
@@ -127,17 +129,19 @@ export class SQSQueue implements Queue {
 
   async retry(delay: number, ...deliveries: Delivery[]): Promise<void> {
     checkDelay(delay);
-    for (const batch of batches(deliveries, () => 0, BATCH_COUNT, Infinity)) {
-      const entries = batch.map((delivery, index) => ({
-        Id: String(index),
-        ReceiptHandle: delivery.handle as string,
-        VisibilityTimeout: delaySeconds(delay)
-      }));
-      const output = await this.client.send(
-        new ChangeMessageVisibilityBatchCommand({ QueueUrl: this.url, Entries: entries })
-      );
-      checkFailed('retry SQS messages', output.Failed);
-    }
+    await Promise.all(
+      batches(deliveries, () => 0, BATCH_COUNT, Infinity).map(async (batch) => {
+        const entries = batch.map((delivery, index) => ({
+          Id: String(index),
+          ReceiptHandle: delivery.handle as string,
+          VisibilityTimeout: delaySeconds(delay)
+        }));
+        const output = await this.client.send(
+          new ChangeMessageVisibilityBatchCommand({ QueueUrl: this.url, Entries: entries })
+        );
+        checkFailed('retry SQS messages', output.Failed);
+      })
+    );
   }
 
   close(): Promise<void> {

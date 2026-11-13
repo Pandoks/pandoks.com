@@ -162,25 +162,29 @@ export class CloudflareQueue implements Queue {
   }
 
   async ack(...deliveries: Delivery[]): Promise<void> {
-    for (const batch of batches(deliveries, () => 0, BATCH_COUNT, Infinity)) {
-      await this.settle(
-        batch.map((delivery) => ({ lease_id: delivery.handle as string })),
-        []
-      );
-    }
+    await Promise.all(
+      batches(deliveries, () => 0, BATCH_COUNT, Infinity).map((batch) =>
+        this.settle(
+          batch.map((delivery) => ({ lease_id: delivery.handle as string })),
+          []
+        )
+      )
+    );
   }
 
   async retry(delay: number, ...deliveries: Delivery[]): Promise<void> {
     checkDelay(delay);
-    for (const batch of batches(deliveries, () => 0, BATCH_COUNT, Infinity)) {
-      await this.settle(
-        [],
-        batch.map((delivery) => ({
-          lease_id: delivery.handle as string,
-          delay_seconds: delaySeconds(delay)
-        }))
-      );
-    }
+    await Promise.all(
+      batches(deliveries, () => 0, BATCH_COUNT, Infinity).map((batch) =>
+        this.settle(
+          [],
+          batch.map((delivery) => ({
+            lease_id: delivery.handle as string,
+            delay_seconds: delaySeconds(delay)
+          }))
+        )
+      )
+    );
   }
 
   async close(): Promise<void> {}
