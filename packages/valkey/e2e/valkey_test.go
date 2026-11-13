@@ -531,20 +531,25 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 	})
 
 	Context("scaling masters without replicas", Ordered, func() {
-		var namespace string
+		var namespace, removedNodeID string
 
 		BeforeAll(func() {
 			namespace = installValkeyWithKeys(4, 0)
 		})
 
 		It("scales down to 3 masters with the pre-upgrade hook and keeps every key", func() {
+			nodeID, err := valkeyCli(namespace, "valkey-vk-3", "", "cluster", "myid")
+			Expect(err).NotTo(HaveOccurred())
+			removedNodeID = nodeID
 			upgradeValkey(namespace, map[string]string{"cluster.masters": "3"})
 			expectScaledCluster(namespace, 3, 0)
 		})
 
-		It("adds a master and rebalances slots onto it, keeping every key", func() {
+		It("adds a master under a new node ID and rebalances slots onto it, keeping every key", func() {
 			upgradeValkey(namespace, map[string]string{"cluster.masters": "4"})
 			expectScaledCluster(namespace, 4, 0)
+			// NOTE: peers ignore a removed node's ID for 60s, so a pod scaled back in rejoins under a new one
+			Expect(valkeyCli(namespace, "valkey-vk-3", "", "cluster", "myid")).NotTo(Equal(removedNodeID))
 		})
 	})
 
