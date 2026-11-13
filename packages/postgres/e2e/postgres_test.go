@@ -996,8 +996,13 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			primaryPod := mustPrimaryPodName(namespace, 0)
 			Expect(execInPod(namespace, primaryPod, "patroni", "patronictl", "-c", patroniConfig, "edit-config", "--force",
 				"--set", "postgresql.parameters.max_connections=200")).Error().NotTo(HaveOccurred())
-			Eventually(execInPod).WithArguments(namespace, primaryPod, "patroni", "patronictl", "-c", patroniConfig, "list").
-				Should(ContainSubstring("Pending restart"))
+			Eventually(func(g Gomega) {
+				membersJSON, err := execInPod(namespace, primaryPod, "patroni", "patronictl", "-c", patroniConfig, "list", "-f", "json")
+				g.Expect(err).NotTo(HaveOccurred())
+				var members []map[string]any
+				g.Expect(json.Unmarshal([]byte(membersJSON), &members)).To(Succeed())
+				g.Expect(members).To(HaveEach(HaveKeyWithValue("Pending restart", "*")))
+			}).Should(Succeed())
 			Expect(execInPod(namespace, primaryPod, "patroni", "patronictl", "-c", patroniConfig, "restart", clusterName(0), "--pending", "--force")).
 				Error().NotTo(HaveOccurred())
 			for podIndex := range defaultPodCount {
