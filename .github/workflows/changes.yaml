@@ -157,7 +157,7 @@ jobs:
               - '.github/actions/setup-mise/**'
               - 'templates/mobile/**'
               - 'templates/react-native-module/**'
-              - 'packages/react-native-*/**'
+              - 'packages/react-native/**'
               - *needs-node-setup
             svelte:
               - 'packages/svelte/**'

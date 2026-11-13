@@ -11,7 +11,7 @@ directly, so there is no build step.
 
 To start a new module:
 
-1. Copy this directory to `packages/react-native-<name>`.
+1. Copy this directory to `packages/react-native/<name>`.
 2. Rename the package to `@pandoks.com/react-native-<name>`, and replace `ModuleTemplate` and
    `moduletemplate` with your name in file contents and paths. Drop `app.plugin.js` and its
    `exports` entry if you need no native config.
