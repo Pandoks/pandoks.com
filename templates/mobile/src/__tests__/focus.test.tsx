@@ -28,10 +28,8 @@ beforeEach(() => {
 const activity: ProgressActivity = {
   update: async () => {},
   end: async () => {},
-  addPushTokenListener: (listener) => {
-    listener('activity-token');
-    return { remove() {} };
-  }
+  getPushToken: () => Promise.resolve('activity-token'),
+  addPushTokenListener: () => ({ remove() {} })
 };
 
 test('starts one activity when Start is tapped again before the first starts', async () => {
@@ -69,6 +67,17 @@ test('ends a finished session with its final state so iOS keeps showing Done', a
 
   expect(finished.end).toHaveBeenCalledWith(expect.objectContaining({ title: 'Focus' }));
   jest.useRealTimers();
+});
+
+test('waits to start until activities left by an earlier launch end', async () => {
+  jest.mocked(getProgressActivities).mockResolvedValueOnce([activity]);
+  jest.mocked(FocusWidget).getTimeline.mockReturnValueOnce(new Promise(() => {}));
+  const user = userEvent.setup();
+  await renderRouter({ index: FocusScreen });
+
+  await user.press(screen.getByText('Start'));
+
+  expect(startProgressActivity).not.toHaveBeenCalled();
 });
 
 test('ends activities left running by an earlier launch', async () => {

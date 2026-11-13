@@ -70,7 +70,8 @@ class ReloadWidgetsReceiver : BroadcastReceiver() {
       scheduleWidgetsReload(context, requireNotNull(intent.data).schemeSpecificPart, endsAt)
     }
 
-    // TODO: expo-widgets skips the rerender on ACTION_APPWIDGET_UPDATE while a Glance session is open, so refresh like its own reload does
+    // TODO: expo-widgets keeps its native reload internal, and its widgets rerender only on refresh, not on
+    // ACTION_APPWIDGET_UPDATE while a Glance session is open (https://github.com/expo/peek/blob/20d8a4e5a1700d270a78f8c9baabc4a9c360b035/peek-emittables/src/main/kotlin/io/github/expo/peek/emittables/PeekEmittableAppWidget.kt#L47-L58)
     val appWidgetManager = AppWidgetManager.getInstance(context)
     val pendingResult = goAsync()
     CoroutineScope(Dispatchers.Default).launch {
@@ -162,7 +163,8 @@ class LiveUpdatesModule : Module() {
         .setWhen(state.endsAt)
         .setUsesChronometer(true)
         .setChronometerCountDown(true)
-        .setTimeoutAfter(state.endsAt - now)
+        // NOTE: Android ignores a nonpositive timeout, so an activity past endsAt times out now
+        .setTimeoutAfter((state.endsAt - now).coerceAtLeast(1))
         .setStyle(
           NotificationCompat
             .ProgressStyle()

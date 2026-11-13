@@ -17,6 +17,7 @@ function toProgressActivity(id: string): ProgressActivity {
   return {
     update: (nextState) => LiveUpdates.update(id, nextState),
     end: () => LiveUpdates.end(id),
+    getPushToken: () => Promise.resolve(null),
     addPushTokenListener: () => ({ remove() {} })
   };
 }

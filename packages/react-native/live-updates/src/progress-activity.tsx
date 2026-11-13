@@ -28,7 +28,11 @@ export type ProgressActivity = {
    * `endsAt` passed) until the system dismisses it; Android removes the notification either way.
    */
   end(finalState?: ProgressActivityState): Promise<void>;
-  /** iOS: the ActivityKit token for `liveactivity` pushes; Android Live Updates have none. */
+  /**
+   * iOS: the ActivityKit token for `liveactivity` pushes, `null` until issued; Android Live Updates
+   * have none. Read it, then listen for changes, since a token issued earlier isn't replayed.
+   */
+  getPushToken(): Promise<string | null>;
   addPushTokenListener(listener: (pushToken: string) => void): EventSubscription;
 };
 
@@ -118,6 +122,7 @@ function toProgressActivity(liveActivity: LiveActivity<ProgressActivityState>): 
     update: (nextState) => liveActivity.update(nextState, new Date(nextState.endsAt)),
     end: (finalState) =>
       finalState ? liveActivity.end('default', finalState) : liveActivity.end('immediate'),
+    getPushToken: () => liveActivity.getPushToken(),
     addPushTokenListener: (listener) =>
       liveActivity.addPushTokenListener(({ pushToken }) => listener(pushToken))
   };

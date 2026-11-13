@@ -10,7 +10,9 @@ dismissal, and `end()` removes it now. Android's bar moves only on `update`, and
 system removes the notification at `endsAt`; before that the user can dismiss it. Android widgets
 have no timeline, so the app's home screen widgets rerender when the notification goes away, letting
 them show their end state without the app. If the user dismisses it early, an inexact alarm
-rerenders them at `endsAt`; Android may deliver it up to an hour late, or after Doze ends.
+rerenders them at `endsAt`; Android may deliver it up to an hour late, or after Doze ends. A reboot
+clears the notification and the alarm, so widgets keep their last render until the app updates them.
+iOS ends an activity after 8 hours, so keep activities shorter on both platforms.
 
 The app needs the `expo-widgets` config plugin; set `enablePushNotifications` for iOS push tokens.
 `startProgressActivity` rejects when the user turned off Live Activities, notifications, or the Live
@@ -34,7 +36,8 @@ const activity = await startProgressActivity({
   startedAt,
   endsAt: startedAt + 30_000
 });
-activity.addPushTokenListener((pushToken) => {}); // iOS only
+const pushToken = await activity.getPushToken(); // iOS only, null until issued
+activity.addPushTokenListener((nextPushToken) => {}); // iOS only
 await activity.update({
   title: 'Focus',
   text: 'Ten more seconds',

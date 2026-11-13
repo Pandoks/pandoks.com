@@ -55,27 +55,31 @@ export default function FocusScreen() {
   const [now, setNow] = useState(Date.now);
   const [pushToken, setPushToken] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  // NOTE: Start waits for leftovers to end, or their widget cleanup would overwrite the new session's
+  const [recovering, setRecovering] = useState(true);
   const [startError, setStartError] = useState<string | null>(null);
 
   useEffect(() => {
-    void getProgressActivities().then(async (activities) => {
-      if (activities.length === 0) {
-        return;
-      }
-      // NOTE: iOS can't read a recovered activity's endsAt, but the widget's last timeline entry is its Done
-      const endsAt = Math.max(
-        ...(Platform.OS === 'android'
-          ? activities.map((activity) => activity.endsAt ?? 0)
-          : (await FocusWidget.getTimeline()).map((entry) => entry.date.getTime()))
-      );
-      const now = Date.now();
-      FocusWidget.updateSnapshot(
-        endsAt > now
-          ? { title: 'Stopped', caption: `At ${formatTime(now)}` }
-          : { title: 'Done', caption: `At ${formatTime(endsAt)}` }
-      );
-      await Promise.all(activities.map((activity) => activity.end()));
-    });
+    void getProgressActivities()
+      .then(async (activities) => {
+        if (activities.length === 0) {
+          return;
+        }
+        // NOTE: iOS can't read a recovered activity's endsAt, but the widget's last timeline entry is its Done
+        const endsAt = Math.max(
+          ...(Platform.OS === 'android'
+            ? activities.map((activity) => activity.endsAt ?? 0)
+            : (await FocusWidget.getTimeline()).map((entry) => entry.date.getTime()))
+        );
+        const now = Date.now();
+        FocusWidget.updateSnapshot(
+          endsAt > now
+            ? { title: 'Stopped', caption: `At ${formatTime(now)}` }
+            : { title: 'Done', caption: `At ${formatTime(endsAt)}` }
+        );
+        await Promise.all(activities.map((activity) => activity.end()));
+      })
+      .finally(() => setRecovering(false));
   }, []);
 
   useEffect(() => {
@@ -114,6 +118,7 @@ export default function FocusScreen() {
         state,
         pushTokenSubscription: activity.addPushTokenListener(setPushToken)
       });
+      void activity.getPushToken().then((token) => token && setPushToken(token));
       showFocusing(state.endsAt);
       setStartError(null);
     } catch (error) {
@@ -173,7 +178,7 @@ export default function FocusScreen() {
           ) : (
             <Pressable
               accessibilityRole="button"
-              disabled={starting}
+              disabled={starting || recovering}
               style={[styles.button, { backgroundColor: colors.primary }]}
               onPress={start}
             >
