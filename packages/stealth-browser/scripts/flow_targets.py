@@ -224,6 +224,7 @@ def run_flow(base: str, name: str, url: str, click_selectors: list[str],
                         body={"url": url})
         if status != 200:
             return {"name": name, "outcome": f"navigate-failed ({status})"}
+        coord_notes: list[str] = []
         last = "never probed"
         deadline = time.monotonic() + TOKEN_TIMEOUT_S
         start = time.monotonic()
