@@ -48,21 +48,6 @@ spec:
       port: 8432
 
 ---
-# provides a stable name for the primary
-apiVersion: v1
-kind: Service
-metadata:
-  name: patroni-{{ $.Values.db }}-primary-shard-{{ $shardIndex }}
-  namespace: {{ $.Values.namespace }}
-  labels:
-    app: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
-    cluster-name: {{ $.Values.db }}-shard-{{ $shardIndex }}
-    role: primary
-spec:
-  type: ExternalName
-  externalName: {{ $.Values.db }}-shard-{{ $shardIndex }}.{{ $.Values.namespace }}.svc.cluster.local
-
----
 # provides a stable ip for all replicas
 apiVersion: v1
 kind: Service

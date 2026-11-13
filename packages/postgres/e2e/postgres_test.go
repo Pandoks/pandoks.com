@@ -36,9 +36,7 @@ func podName(shard, podIndex int) string {
 	return fmt.Sprintf("%s-%d", statefulSetName(shard), podIndex)
 }
 
-func primaryServiceHost(shard int) string {
-	return fmt.Sprintf("patroni-%s-primary-shard-%d", database, shard)
-}
+func primaryServiceHost(shard int) string { return clusterName(shard) }
 
 func newBackupPath() string {
 	return "/e2e/" + strings.ToLower(rand.Text()[:8])
