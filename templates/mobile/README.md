@@ -11,9 +11,10 @@ The Device tab demos
 `EXPO_PUBLIC_BACKEND_URL` when building to register its push token with the app's backend.
 
 Android gets a push token only from builds run in `sst shell`: it links the stage's Firebase app
-from [infra/firebase.ts](/infra/firebase.ts), and `app.config.ts` writes its `google-services.json`.
-Any non-production stage gets the shared `pandoks-dev` project. Production's config is never read
-locally, and no release build job exists yet. Rebuild `android/` so prebuild copies the file:
+from [infra/firebase.ts](/infra/firebase.ts), and `app.config.ts` writes its `google-services.json`
+to `.expo/`. Any non-production stage gets the shared `pandoks-dev` project. Production's config is
+never read locally, and no release build job exists yet. `expo run:android` prebuilds only when
+`android/` is missing, so delete it whenever you switch between `sst shell` and plain builds:
 
 ```sh
 rm -rf android

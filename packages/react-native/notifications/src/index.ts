@@ -129,7 +129,7 @@ export async function unregisterDevice({
  * Schedules a local notification at a date, in some seconds, or daily at a time. Android without
  * the exact alarm permission delivers it at an approximate time.
  */
-export function scheduleNotification({
+export async function scheduleNotification({
   title,
   body,
   url,
@@ -141,6 +141,7 @@ export function scheduleNotification({
   trigger: { date: Date } | { seconds: number } | { hour: number; minute: number };
 }) {
   const { DATE, TIME_INTERVAL, DAILY } = Notifications.SchedulableTriggerInputTypes;
+  await channelCreated;
   return Notifications.scheduleNotificationAsync({
     content: { title, body, data: { url } },
     trigger:

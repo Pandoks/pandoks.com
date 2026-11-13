@@ -41,7 +41,6 @@ web-build/
 expo-env.d.ts
 templates/mobile/ios/
 templates/mobile/android/
-templates/mobile/google-services.json
 
 # Native
 .kotlin/
