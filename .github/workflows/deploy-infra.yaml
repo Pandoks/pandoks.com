@@ -10,9 +10,14 @@ on:
       - 'apps/**'
       - '!apps/example/**'
       - 'apps/*/kube/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'packages/react-native/**'
       - 'packages/svelte/**'
       - 'k3s/**'
       - 'scripts/cluster/**'
+      - 'scripts/mobile-updates/**'
+      - 'templates/mobile/**'
   workflow_dispatch:
     inputs:
       deploy:
@@ -34,12 +39,14 @@ jobs:
     outputs:
       sst: ${{ github.event_name != 'workflow_dispatch' && steps.filter.outputs.sst || contains(fromJSON('["all","sst"]'), inputs.deploy) }}
       kubernetes: ${{ github.event_name != 'workflow_dispatch' && steps.filter.outputs.kubernetes || contains(fromJSON('["all","kubernetes"]'), inputs.deploy) }}
+      mobile-template: ${{ steps.filter.outputs.mobile-template }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         if: github.event_name != 'workflow_dispatch'
         id: filter
         with:
+          predicate-quantifier: some-with-excludes
           filters: |
             sst:
               - 'sst.config.ts'
@@ -50,6 +57,13 @@ jobs:
               - 'k3s/**'
               - 'apps/*/kube/**'
               - 'scripts/cluster/**'
+            mobile-template:
+              - 'packages/react-native/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'scripts/mobile-updates/**'
+              - 'templates/mobile/**'
+              - '!templates/mobile/{README.md,e2e/**,src/__tests__/**}'
 
   deploy-sst:
     concurrency:
@@ -89,6 +103,67 @@ jobs:
 
       - name: Deploy SST
         run: pnpm sst deploy --stage production
+
+  # NOTE: expo and every dependency it loads run here, so it gets no secrets, AWS, or OIDC token
+  build-mobile-template:
+    # NOTE: job-level, so a run that skips it doesn't cancel another run's pending one (observed, not documented)
+    concurrency:
+      group: build-mobile-template
+      cancel-in-progress: false
+    needs: detect-changes
+    if: needs.detect-changes.outputs.mobile-template == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      EXPO_NO_TELEMETRY: 1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - name: Export update
+        run: pnpm mobile-updates export templates/mobile production "${RUNNER_TEMP}/mobile-template-update"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mobile-template-update
+          path: ${{ runner.temp }}/mobile-template-update
+          retention-days: 1
+
+  # NOTE: runs only main.sh over the export, with no install, so no dependency sees the signing key
+  publish-mobile-template:
+    concurrency:
+      group: publish-mobile-template
+      cancel-in-progress: false
+    needs: build-mobile-template
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_DEFAULT_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
+      MOBILE_UPDATES_SIGNING_KEY: ${{ secrets.MOBILE_UPDATES_SIGNING_KEY }}
+      MOBILE_UPDATES_BUCKET: ${{ vars.MOBILE_UPDATES_BUCKET }}
+      MOBILE_UPDATES_MANIFESTS_NAMESPACE_ID: ${{ vars.MOBILE_UPDATES_MANIFESTS_NAMESPACE_ID }}
+      MOBILE_UPDATES_ASSETS_DOMAIN: ${{ vars.MOBILE_UPDATES_ASSETS_DOMAIN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: mobile-template-update
+          path: ${{ runner.temp }}/mobile-template-update
+
+      - name: Publish update
+        run: |
+          ./scripts/mobile-updates/main.sh upload "${RUNNER_TEMP}/mobile-template-update" \
+            "${MOBILE_UPDATES_BUCKET}" "${MOBILE_UPDATES_MANIFESTS_NAMESPACE_ID}" "${MOBILE_UPDATES_ASSETS_DOMAIN}"
 
   deploy-kubernetes:
     concurrency:

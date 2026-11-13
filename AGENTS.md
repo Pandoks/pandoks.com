@@ -3,14 +3,17 @@
 Personal monorepo. SST (`sst.config.ts`, `infra/`) manages all infrastructure: AWS and Cloudflare
 for what needs high availability, rented machines (Hetzner in `infra/vps/`, moving to OVH) for raw
 compute; the cluster is K3s with Kustomize and ArgoCD. `templates/` holds starters that are never
-deployed; `apps/example` is an example app whose `kube/` is in every overlay, prod included. Apps
-import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it, use `#lib`.
+deployed, except `templates/mobile`'s OTA updates, which publish to production; `apps/example` is an
+example app whose `kube/` is in every overlay, prod included. Apps import `packages/svelte` by
+package name (`@pandoks.com/svelte/...`); inside it, use `#lib`.
 
 ## Principles
 
 - Stay close to the metal with few providers and managed services. Simplest architecture, fewest
   moving parts, least code a human can still read; new files, helpers, options, env vars, and
   dependencies need a reason the change can't work without them.
+- Choose where code runs by latency to its callers: keep it in the cluster when its callers are
+  there, move it to a provider's primitives when they're not.
 - Use the native or industry-standard mechanism first (Kustomize, ArgoCD, GitHub Actions, Renovate,
   SST, mise, our formatters) and check how mature projects solve it. Work around only an unfixed
   upstream bug, with a `TODO:` linking the issue.
@@ -68,10 +71,11 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
   deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `sst deploy --stage production` for `sst.config.ts`,
   `infra/`, `apps/` (except `example`), and `packages/svelte/`, plus an Argo hard refresh and a wait
-  for Synced and Healthy only for `k3s/`, `apps/*/kube/`, and `scripts/cluster/` changes. Pages
-  builds `apps/web` when a change matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs
-  everything `k3s/overlays/prod` renders but never prunes: a deleted resource stays in prod until
-  pruned by hand.
+  for Synced and Healthy only for `k3s/`, `apps/*/kube/`, and `scripts/cluster/` changes, and a
+  mobile updates publish for mobile app changes other than docs and tests. Pages builds `apps/web`
+  when a change matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything
+  `k3s/overlays/prod` renders but never prunes: a deleted resource stays in prod until pruned by
+  hand.
 - Every non-production stage gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
   environment, so two non-production stages collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
@@ -94,9 +98,11 @@ checkout. The SST CLI is `pnpm sst`.
   or `infra/` shows hundreds of false type errors.
 - `pnpm check` type-checks every package, `infra/`, and `sst.config.ts`.
 - Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, `desktop`, and `mobile`;
-  `pnpm --filter <package> test` for `prettier` and `valkey`;
+  `pnpm --filter <package> test` for `prettier`, `valkey`, and `mobile-updates`;
   `go tool ginkgo -p ./packages/<pkg>/e2e` for a package's e2e suite on local k3d
   (`packages/e2e/README.md`).
+- Mobile updates: `pnpm sst shell --stage <stage> -- pnpm mobile-updates publish apps/<app>`;
+  production publishes only from `deploy-infra.yaml` on `main`.
 - Scoped: `pnpm exec prettier --check <files>`, `pnpm exec eslint [--fix] <files>`, `shellcheck`,
   `shfmt -d`, `hadolint`, `actionlint`, `pnpm --filter "...[origin/main]" --if-present check`. That
   filter and the shell and Docker format and lint commands see only tracked files, so check new
