@@ -8,7 +8,8 @@ side lives in the app's watchOS target, like `templates/mobile/targets/watch`.
 Otherwise it has:
 
 - `updateApplicationContext(context)`: replaces the state the watch reads, even if it launches
-  later. It waits for the session to activate, then rejects if no watch with the app is paired.
+  later. It waits for the session to activate, then rejects if activation fails or no watch with the
+  app is paired.
 - `isReachable` and the `onReachabilityChange` event: whether the watch app is running and
   connected.
 - `receivedApplicationContext` and the `onApplicationContext` event: the latest state the watch sent
