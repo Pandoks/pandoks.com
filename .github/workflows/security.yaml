@@ -5,6 +5,9 @@ permissions:
   security-events: write
   actions: read
 
+# NOTE: any job on main can write the Actions cache, so the scans gating what production pulls skip it
+cache-mode: none
+
 on:
   workflow_call:
     inputs:

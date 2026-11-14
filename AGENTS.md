@@ -226,6 +226,10 @@ that can't happen, or for compatibility code for old data or deploy order during
   can't compute are bumped by hand with their version.
 - An attacker-controlled `${{ }}` value, like a branch name or PR title, in `run:` instead of
   `env:`.
+- An Actions cache restore or save, which any job on `main` can write, in a job with production
+  access (production secrets, `id-token: write`, or the `tag:ci` tailnet), or a restore in a `main`
+  build or scan of what production pulls. Safe path: `cache-mode: none` on the workflow, like
+  `deploy-infra.yaml`, or no `cache-from` on `main`, like `build.yaml`.
 - A real secret value in code, manifests, values, logs, or workflow output. References like
   `sst.Secret` names, `${...}` placeholders, and `${{ secrets.* }}` are fine.
 - A swallowed failure in CI checks, scans, builds, or deploys, such as `|| true`, ignored exit
