@@ -206,6 +206,27 @@ int main() {
     unsetenv("APEX_FP_U64TEST");
   }
 
+  // --- persona OS predicates: PersonaIsDesktop (device-sensor suppression) ---
+  // The device-sensor suppression (device_single_window_event_controller.cc)
+  // keys on this: desktop personas get no deviceorientation/devicemotion
+  // events, mobile personas (Android / iOS) keep the stock behavior.
+  unsetenv("APEX_FP_ACTIVE");
+  unsetenv("APEX_FP_UA_PLATFORM");
+  CHECK(!apex_fp::PersonaIsDesktop(),
+        "PersonaIsDesktop false while the master switch is off");
+  setenv("APEX_FP_ACTIVE", "1", 1);
+  CHECK(!apex_fp::PersonaIsDesktop(),
+        "PersonaIsDesktop false when APEX_FP_UA_PLATFORM is unset");
+  setenv("APEX_FP_UA_PLATFORM", "Windows", 1);
+  CHECK(apex_fp::PersonaIsDesktop(), "PersonaIsDesktop true for Windows");
+  setenv("APEX_FP_UA_PLATFORM", "macOS", 1);
+  CHECK(apex_fp::PersonaIsDesktop(), "PersonaIsDesktop true for macOS");
+  setenv("APEX_FP_UA_PLATFORM", "Android", 1);
+  CHECK(!apex_fp::PersonaIsDesktop(), "PersonaIsDesktop false for Android");
+  setenv("APEX_FP_UA_PLATFORM", "iOS", 1);
+  CHECK(!apex_fp::PersonaIsDesktop(), "PersonaIsDesktop false for iOS");
+  unsetenv("APEX_FP_UA_PLATFORM");
+
   std::printf("\n%s (%d failure%s)\n",
               failures == 0 ? "ALL PASS" : "FAILURES",
               failures, failures == 1 ? "" : "s");

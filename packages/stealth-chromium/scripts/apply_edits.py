@@ -363,21 +363,21 @@ EDITS = [
                 "device_single_window_event_controller.cc",
         "header": '#include "apex_fingerprint.h"',
         "marker": "apex-device-sensors-suppress",
-        "anchor": "  if (event_type != EventTypeName())\n"
-                  "    return;\n"
-                  "\n"
-                  "  if (GetPage() && GetPage()->IsPageVisible())\n"
+        "anchor": "  if (GetPage() && GetPage()->IsPageVisible())\n"
                   "    StartUpdating();\n",
-        "where": "after",
+        "where": "before",
+        "order_before": "    StartUpdating();\n",
         "inject": "  // apex-device-sensors-suppress: a desktop persona must not\n"
                   "  // receive deviceorientation / devicemotion events. Both\n"
                   "  // controllers (DeviceOrientationController,\n"
                   "  // DeviceMotionController) funnel through this base-class\n"
-                  "  // DidAddEventListener, which is what starts the sensor pump\n"
-                  "  // (StartUpdating). The Linux container reports orientation\n"
-                  "  // data, so stock behavior fires the events with no permission\n"
-                  "  // grant -- on a real desktop they do not fire. Suppress when\n"
-                  "  // the persona claims a desktop OS (mobile personas would\n"
+                  "  // DidAddEventListener, and the inject runs BEFORE\n"
+                  "  // StartUpdating, so the sensor pump never starts under a\n"
+                  "  // desktop persona and no event is ever dispatched. The\n"
+                  "  // Linux container reports orientation data, so stock\n"
+                  "  // behavior fires the events with no permission grant --\n"
+                  "  // on a real desktop they do not fire. Suppress when the\n"
+                  "  // persona claims a desktop OS (mobile personas would\n"
                   "  // legitimately report motion).\n"
                   "  if (apex_fp::PersonaIsDesktop()) {\n"
                   "    return;\n"
@@ -1477,6 +1477,25 @@ def verify_applied() -> int:
         if not _marker_present(text, marker):
             print(f"  MISS {edit['file']}: marker {marker!r} absent")
             missing += 1
+            continue
+        order_before = edit.get("order_before")
+        if order_before is not None:
+            # Ordering gate: the inject must land BEFORE `order_before` in
+            # the applied file. Guards against a re-fitted anchor/where
+            # silently moving an early-return to after the call it must
+            # stop (the device-sensor suppress must precede
+            # StartUpdating() -- placed after it, the pump starts anyway
+            # and the suppression is a no-op).
+            try:
+                inject_at = text.index(edit["inject"])
+                sentinel_at = text.index(order_before)
+            except ValueError:
+                inject_at = -1
+                sentinel_at = -1
+            if not (0 <= inject_at < sentinel_at):
+                print(f"  MISS {edit['file']}: inject for {marker!r} is "
+                      f"not before {order_before!r}")
+                missing += 1
     if missing:
         print(f"{missing} marker(s) absent -- apply is incomplete. Re-run "
               f"apply_edits.py.")

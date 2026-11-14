@@ -36,11 +36,13 @@
 +  // receive deviceorientation / devicemotion events. Both
 +  // controllers (DeviceOrientationController,
 +  // DeviceMotionController) funnel through this base-class
-+  // DidAddEventListener, which is what starts the sensor pump
-+  // (StartUpdating). The Linux container reports orientation
-+  // data, so stock behavior fires the events with no permission
-+  // grant -- on a real desktop they do not fire. Suppress when
-+  // the persona claims a desktop OS (mobile personas would
++  // DidAddEventListener, and the inject runs BEFORE
++  // StartUpdating, so the sensor pump never starts under a
++  // desktop persona and no event is ever dispatched. The
++  // Linux container reports orientation data, so stock
++  // behavior fires the events with no permission grant --
++  // on a real desktop they do not fire. Suppress when the
++  // persona claims a desktop OS (mobile personas would
 +  // legitimately report motion).
 +  if (apex_fp::PersonaIsDesktop()) {
 +    return;
