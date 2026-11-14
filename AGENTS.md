@@ -39,12 +39,10 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
    `warn` or `fail` line (it exits 0 on a stopped proxy), give me its fix instead of starting the
    proxy or working around it with `PORTLESS=0`, `--force`, or `sudo`. If portless says the host is
    already registered, use `pnpm exec portless get web` only if that process runs from this
-   checkout; otherwise tell me. `pulumi preview` reads the stack's state from R2, decrypts it with
-   the stack's KMS key, reads every `/pulumi/<stack>/` secret from SSM, and calls cloud read APIs;
-   it leaves the state bucket unchanged. `pulumi up` also deletes Tailscale devices tagged for that
-   stack's cluster when it has zero nodes; personal stacks share the `dev` names. Run `pulumi up`,
-   `refresh`, `destroy`, or `stack init` only when I ask. If AWS credentials are missing or expired,
-   ask me to run `pnpm sso`.
+   checkout; otherwise tell me. `pulumi preview` changes nothing, but `pulumi up` with zero nodes
+   deletes Tailscale devices tagged for that stack's cluster; personal stacks share the `dev` names.
+   Run `pulumi up`, `refresh`, `destroy`, or `stack init` only when I ask. If AWS credentials are
+   missing or expired, ask me to run `pnpm sso`.
 3. **Editing my checkout from an experiment.** Use absolute paths in experiment copies;
    `mise exec -C <dir>` runs inside `<dir>`, so never point it at my checkout. Leave my staged and
    unstaged changes alone.
@@ -54,12 +52,10 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
    `printf 'y\n' | mise exec -- pnpm cluster deploy local --stack <stack> --kubeconfig "$(mise exec -- k3d kubeconfig write local-cluster)"`.
 5. **Leaking secrets.** `--show-secrets` output, SSM `/pulumi/` values, and
    `pnpm cluster deploy --dry-run` output are real credentials: never print, commit, or paste them,
-   and inspect manifests with `kustomize build`. `Pulumi.<stack>.yaml` holds only the KMS secrets
-   provider and encrypted data key. New secrets go in `infra/secrets.ts`; one without a value fails
-   every preview and deploy of its stack, so write yours byte for byte with
+   and inspect manifests with `kustomize build`. New secrets go in `infra/secrets.ts`; one without a
+   value fails every preview and deploy of its stack, so set yours with
    `aws ssm put-parameter --type SecureString --key-id alias/pulumi-nonproduction --name /pulumi/<stack>/<Name> --value file://<file>`
-   and ask me to set production's (`alias/pulumi-production`). Runner instances can read every SSM
-   parameter, so never write a `/pulumi/` value with the default `aws/ssm` key.
+   (never the default `aws/ssm` key, which runners can read) and ask me to set production's.
 
 ## How changes ship
 
@@ -171,9 +167,8 @@ Before calling infra, cluster, or tooling work done, check:
   `die` from `scripts/lib/log.sh`. CI-only scripts may use bash with `local` and no prefixes.
 - **TypeScript/Pulumi:** one `infra/` file per provider or responsibility, a directory once it
   outgrows one. Stack differences are `SCREAMING_SNAKE` constants from `isProduction ? a : b` at the
-  top, plus `if (isProduction)` around production-only resources. Node runs `infra/` by stripping
-  types, so import relative modules with `.ts`. Helpers are verb-named `function` declarations with
-  destructured parameters. `Promise.all` instead of awaiting in loops.
+  top, plus `if (isProduction)` around production-only resources. Helpers are verb-named `function`
+  declarations with destructured parameters. `Promise.all` instead of awaiting in loops.
 - **Go:** justify every `#nosec` or `//nolint` inline.
 - **Containers and manifests:** pin Dockerfile bases, third-party images, and chart defaults as
   `image:tag@sha256:…` in files a Renovate manager matches; no image lock files. Images in raw
