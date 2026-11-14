@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as cloudflare from '@pulumi/cloudflare';
@@ -22,6 +22,8 @@ execFileSync(
   ['deploy', '--dry-run', '--outdir', bundleDirectory],
   { cwd: functionsDirectory, stdio: ['ignore', 'ignore', 'inherit'] }
 );
+const apiWorkerBundle = readFileSync(join(bundleDirectory, 'index.js'), 'utf8');
+rmSync(bundleDirectory, { recursive: true });
 
 const textReminderWorkflowName = `${STAGE_NAME}-text-reminder`;
 const notionVerificationTokenStore = new cloudflare.WorkersKvNamespace(
@@ -44,7 +46,7 @@ const secretBindings = {
 const apiWorker = new cloudflare.WorkersScript('ApiWorker', {
   accountId: cloudflareAccountId,
   scriptName: `${STAGE_NAME}-api`,
-  content: readFileSync(join(bundleDirectory, 'index.js'), 'utf8'),
+  content: apiWorkerBundle,
   mainModule: 'index.js',
   compatibilityDate: wranglerConfig.compatibility_date,
   compatibilityFlags: wranglerConfig.compatibility_flags,
