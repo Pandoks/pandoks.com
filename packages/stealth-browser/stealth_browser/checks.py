@@ -10,7 +10,10 @@ Sections 15-35 add the extended adversarial surfaces (WebGPU, Intl/ICU,
 font coherence, timing precision, audio signature, codecs, permissions,
 device APIs, storage, runtime artifacts, EME/WebCodecs/WebAuthn, and the
 GPU/video pipelines) ported from the external round-1/round-2 probe suites,
-so every battery run covers them.
+so every battery run covers them. Sections 36-45 add the CDP/automation-leak
+and network-stack surfaces plus the 2026-11 detection-gap extension (CSS
+media queries + system colors, Intl timezone depth, WebRTC capability depth,
+sensors/misc presence, WebAuthn capability matrix, Wasm feature matrix).
 """
 
 from __future__ import annotations
@@ -222,11 +225,39 @@ async () => {
   } catch (e) { r.intlDisplayError = String(e); r.intlDisplayNamesOk = false; }
 
   // --- 18. font-set coherence (a Windows persona needs Windows-core fonts) ---
+  // The catalog lists must stay in lockstep with the persona-OS font layer:
+  // the Windows list is the same set the stealth image installs and
+  // name-clones (packages/stealth-chromium/Dockerfile +
+  // scripts/remap_persona_fonts.py) and the same set the Windows allowlist in
+  // packages/stealth-chromium/chromium_src/third_party/blink/renderer/platform/
+  // fonts/apex_font_policy.h allows. Ground truth for the Windows list is
+  // Microsoft's Win10/11 font lists (see
+  // /var/tmp/research/environment-coherence.md section 2.1).
   try {
-    const fontNames = ['Segoe UI', 'Arial', 'Times New Roman', 'Courier New',
-      'Calibri', 'Cambria', 'Candara', 'Consolas', 'Constantia', 'Corbel',
-      'MS Gothic', 'Verdana', 'Tahoma', 'Microsoft Sans Serif',
-      'Malgun Gothic', 'Yu Gothic'];
+    const fontCatalog = {
+      windows: ['Segoe UI', 'Segoe UI Bold', 'Segoe UI Light',
+        'Segoe UI Semibold', 'Segoe UI Semilight', 'Arial', 'Arial Black',
+        'Calibri', 'Calibri Bold', 'Cambria', 'Cambria Bold', 'Cambria Math',
+        'Candara', 'Candara Bold', 'Comic Sans MS', 'Consolas', 'Consolas Bold',
+        'Constantia', 'Constantia Bold', 'Corbel', 'Corbel Bold', 'Courier New',
+        'Ebrima', 'Franklin Gothic Medium', 'Gabriola', 'Gadugi', 'Georgia',
+        'Hololens MDL2 Assets', 'Impact', 'Ink Free', 'Javanese Text',
+        'Leelawadee UI', 'Lucida Console', 'Lucida Console Bold',
+        'Malgun Gothic', 'Marlett', 'Microsoft Sans Serif', 'Microsoft YaHei',
+        'Microsoft JhengHei', 'Mongolian Baiti', 'MS Gothic', 'MS PGothic',
+        'MS Mincho', 'MV Boli', 'Myanmar Text', 'Nirmala UI',
+        'Palatino Linotype', 'Segoe MDL2 Assets', 'Segoe Print', 'Segoe Script',
+        'Segoe UI Historic', 'Segoe UI Emoji', 'SimSun', 'Sitka', 'Sylfaen',
+        'Symbol', 'Tahoma', 'Times New Roman', 'Trebuchet MS', 'Verdana',
+        'Webdings', 'Wingdings', 'Yu Gothic'],
+      // What the bundle resolves for a macOS persona (the macOS allowlist).
+      mac: ['Arial', 'Times New Roman', 'Courier New'],
+      // Linux persona: the original Debian bundle set.
+      linux: ['Arial', 'Times New Roman', 'Liberation Sans', 'Liberation Serif',
+        'Liberation Mono', 'Arimo', 'Tinos', 'Cousine'],
+    };
+    const fontNames = uaWin ? fontCatalog.windows
+      : (uaMac ? fontCatalog.mac : fontCatalog.linux);
     const fontSpan = document.createElement('span');
     fontSpan.style.cssText = 'position:absolute;left:-9999px;white-space:nowrap;font-size:72px;';
     fontSpan.textContent = 'mmmmmmmmmwwwwwwwwwwiiiilli';
@@ -241,8 +272,9 @@ async () => {
       try { r.fontSet[f] = measureFont(f) !== fontBaseline; } catch (e) { r.fontSet[f] = null; }
     }
     fontSpan.remove();
-    r.fontsCoherent = ['Segoe UI', 'Arial', 'Times New Roman', 'Calibri']
-      .some(f => r.fontSet[f] === true);
+    // A real Windows 10/11 machine reports every core family as present; assert
+    // the enumeration matches that (not just "one of them").
+    r.fontsCoherent = fontNames.every(f => r.fontSet[f] === true);
   } catch (e) { r.fontSetError = String(e); r.fontsCoherent = false; }
 
   // --- 19. timing precision (clamped performance.now / forged timeline = tell) ---
@@ -841,10 +873,251 @@ async () => {
     r.stackTracesOk = r.stackLeakPaths.length === 0;
   } catch (e) { r.stackTracesError = String(e); r.stackTracesOk = false; }
 
+  // --- 38. CSS media queries (detection-gaps row 20: zero coverage before this) ---
+  // FingerprintJS OSS reads 5+ of these directly; CreepJS's prefersLightColor
+  // reads (prefers-color-scheme). Assert the values are well-formed and
+  // desktop-coherent: exactly one of light/dark, no forced colors, a COLOR
+  // display (monochrome: 0 matches), and at least srgb gamut.
+  try {
+    const mediaMatch = q => { try { return matchMedia(q).matches; } catch (e) { return null; } };
+    r.mediaQueries = {
+      prefersColorScheme: mediaMatch('(prefers-color-scheme: dark)') === true ? 'dark'
+        : (mediaMatch('(prefers-color-scheme: light)') === true ? 'light' : 'none'),
+      forcedColors: mediaMatch('(forced-colors: active)') === true ? 'active' : 'none',
+      monochrome: mediaMatch('(monochrome: 0)') === true,  // 0 = color display
+      displayGamutSrgb: mediaMatch('(display-gamut: srgb)') === true,
+      invertedColors: mediaMatch('(inverted-colors: inverted)') === true,  // recorded
+    };
+    r.mediaQueriesOk = ['light', 'dark'].includes(r.mediaQueries.prefersColorScheme)
+      && ['none', 'active'].includes(r.mediaQueries.forcedColors)
+      && r.mediaQueries.monochrome === true
+      && r.mediaQueries.displayGamutSrgb === true;
+  } catch (e) { r.mediaQueriesError = String(e); r.mediaQueriesOk = false; }
+
+  // System colors: the persona OS's ui::NativeTheme decides these. The known
+  // cross-OS tell is ActiveText: Linux/Xvfb answers rgb(255,0,0) while a
+  // genuine Windows desktop answers rgb(0,102,204) (CreepJS hasKnownBgColor).
+  // Every system color must resolve to a real (non-transparent) color.
+  try {
+    const sysColorEl = document.createElement('div');
+    document.body.appendChild(sysColorEl);
+    const sysColorNames = ['AccentColor', 'AccentColorText', 'ActiveText',
+      'ButtonBorder', 'ButtonFace', 'ButtonText', 'Canvas', 'CanvasText',
+      'Field', 'FieldText', 'GrayText', 'Highlight', 'HighlightText',
+      'InfoBackground', 'InfoText', 'LinkText', 'Mark', 'MarkText', 'VisitedText'];
+    r.systemColors = {};
+    for (const sysColorName of sysColorNames) {
+      sysColorEl.style.color = sysColorName;
+      r.systemColors[sysColorName] = getComputedStyle(sysColorEl).color;
+    }
+    sysColorEl.remove();
+    const sysColorTransparent = c => !c || c === 'rgba(0, 0, 0, 0)' || c === 'transparent';
+    const sysColorNorm = c => String(c || '').replace(/\s+/g, '');
+    r.systemColorsOk = sysColorNames.every(n => !sysColorTransparent(r.systemColors[n]))
+      && (r.uachPlatform !== 'Windows'
+        || sysColorNorm(r.systemColors.ActiveText) === 'rgb(0,102,204)');
+  } catch (e) { r.systemColorsError = String(e); r.systemColorsOk = false; }
+
+  // --- 39. Intl timezone + depth (detection-gaps row 22: the battery never
+  // read the exact timezone_mismatch input) ---
+  // resolvedOptions().timeZone must be a real IANA zone (not Etc/Unknown, not
+  // empty) and must be one Intl itself supports.
+  try {
+    r.intlTimeZone = new Intl.DateTimeFormat().resolvedOptions().timeZone;
+    r.intlTimezoneOk = typeof r.intlTimeZone === 'string' && r.intlTimeZone.length > 0
+      && r.intlTimeZone !== 'Etc/Unknown'
+      && Intl.supportedValuesOf('timeZone').includes(r.intlTimeZone);
+  } catch (e) { r.intlTimezoneError = String(e); r.intlTimezoneOk = false; }
+  // formatToParts: the typed-ctor route must produce the full part-type set.
+  try {
+    r.intlFormatParts = new Intl.DateTimeFormat('en-US',
+      {year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric',
+       minute: '2-digit', second: '2-digit', weekday: 'long'})
+      .formatToParts(new Date()).map(p => p.type);
+    r.intlFormatPartsOk = ['year', 'month', 'day', 'hour', 'minute', 'second', 'weekday']
+      .every(t => r.intlFormatParts.includes(t));
+  } catch (e) { r.intlFormatPartsError = String(e); r.intlFormatPartsOk = false; }
+  // A second collation angle beyond the sv/en o-diaeresis pair: case ordering.
+  try {
+    r.intlCaseFirst = new Intl.Collator('de', {caseFirst: 'upper'}).compare('a', 'A');
+    r.intlCaseFirstOk = r.intlCaseFirst > 0;
+  } catch (e) { r.intlCaseFirstError = String(e); r.intlCaseFirstOk = false; }
+  r.intlTimezoneOk = r.intlTimezoneOk === true && r.intlFormatPartsOk === true
+    && r.intlCaseFirstOk === true;
+
+  // --- 40. WebRTC depth (detection-gaps row 24: beyond the ICE-IP check) ---
+  // getCapabilities codec lists, SDP rtpmap coherence with those lists, and
+  // the DTLS/SRTP cipher suites a connected transport must report.
+  try {
+    const rtcsCaps = (typeof RTCRtpSender === 'function' && RTCRtpSender.getCapabilities)
+      ? RTCRtpSender : null;
+    const videoCaps = rtcsCaps ? (rtcsCaps.getCapabilities('video') || {codecs: []}) : {codecs: []};
+    const audioCaps = rtcsCaps ? (rtcsCaps.getCapabilities('audio') || {codecs: []}) : {codecs: []};
+    r.webrtcVideoCaps = videoCaps.codecs.map(c => (c.mimeType || '').toUpperCase());
+    r.webrtcAudioCaps = audioCaps.codecs.map(c => (c.mimeType || '').toUpperCase());
+    r.webrtcCapsOk = r.webrtcVideoCaps.includes('VIDEO/VP8')
+      && r.webrtcVideoCaps.includes('VIDEO/VP9') && r.webrtcVideoCaps.includes('VIDEO/H264')
+      && r.webrtcAudioCaps.includes('AUDIO/OPUS');
+    // The SDP offer's rtpmap set must be the same codec universe as the
+    // capability table (a spoofed/partial stack diverges here).
+    const sdpPc = new RTCPeerConnection({iceServers: []});
+    sdpPc.addTransceiver('audio');
+    sdpPc.addTransceiver('video');
+    const sdpOffer = await sdpPc.createOffer();
+    sdpPc.close();
+    const rtpMapCodecs = (sdpOffer.sdp || '').split('\n')
+      .filter(l => l.startsWith('a=rtpmap:'))
+      .map(l => (l.split(' ')[1] || '').split('/')[0].toUpperCase());
+    r.webrtcSdpRtpMaps = rtpMapCodecs;
+    r.webrtcSdpOk = rtpMapCodecs.includes('OPUS') && rtpMapCodecs.includes('VP8')
+      && rtpMapCodecs.every(c => r.webrtcVideoCaps.includes('VIDEO/' + c)
+        || r.webrtcAudioCaps.includes('AUDIO/' + c));
+    // A connected transport must expose dtlsCipher + srtpCipher. If the PC
+    // never connects (no network), the cipher assertion is inconclusive.
+    r.webrtcStatsCiphers = null;
+    r.webrtcDtlsCiphers = null;
+    const statsPc = new RTCPeerConnection({
+      iceServers: [{urls: 'stun:stun.l.google.com:19302'}]});
+    statsPc.createDataChannel('stealth-probe-stats');
+    await statsPc.setLocalDescription(await statsPc.createOffer());
+    const statsConnected = await new Promise(res => {
+      if (statsPc.connectionState === 'connected') return res(true);
+      statsPc.onconnectionstatechange = () => {
+        if (statsPc.connectionState === 'connected') res(true);
+      };
+      setTimeout(() => res(false), 8000);
+    });
+    r.webrtcStatsConnected = statsConnected;
+    if (statsConnected) {
+      const statsReport = await statsPc.getStats();
+      const statsTransports = [...statsReport.values()].filter(s => s.type === 'transport');
+      r.webrtcStatsCiphers = statsTransports.map(t => t.srtpCipher || null);
+      r.webrtcDtlsCiphers = statsTransports.map(t => t.dtlsCipher || null);
+    }
+    statsPc.close();
+    r.webrtcStatsOk = !statsConnected
+      || (r.webrtcStatsCiphers && r.webrtcStatsCiphers.some(c => /AES/i.test(String(c || ''))));
+  } catch (e) {
+    r.webrtcDepthError = String(e);
+    r.webrtcCapsOk = false;
+    r.webrtcSdpOk = false;
+    r.webrtcStatsOk = false;
+  }
+  r.webrtcDepthOk = r.webrtcCapsOk === true && r.webrtcSdpOk === true
+    && r.webrtcStatsOk === true;
+
+  // --- 41. sensors + misc presence (detection-gaps row 27) ---
+  // Sensor constructors must EXIST on desktop Chrome but their events must
+  // never FIRE (no motion sensors on a desktop). Then the misc presence set.
+  try {
+    r.sensorTypes = {accelerometer: typeof Accelerometer, gyroscope: typeof Gyroscope,
+      magnetometer: typeof Magnetometer, deviceOrientation: typeof DeviceOrientationEvent,
+      deviceMotion: typeof DeviceMotionEvent};
+    r.sensorEventsFired = await new Promise(res => {
+      let sensorEventCount = 0;
+      const sensorListener = () => { sensorEventCount++; };
+      window.addEventListener('deviceorientation', sensorListener);
+      window.addEventListener('devicemotion', sensorListener);
+      setTimeout(() => {
+        window.removeEventListener('deviceorientation', sensorListener);
+        window.removeEventListener('devicemotion', sensorListener);
+        res(sensorEventCount);
+      }, 400);
+    });
+    r.xrInfo = {present: 'xr' in navigator};
+    if (r.xrInfo.present && navigator.xr && navigator.xr.isSessionSupported) {
+      try { r.xrInfo.immersiveVr = await navigator.xr.isSessionSupported('immersive-vr'); }
+      catch (e) { r.xrInfo.immersiveVr = 'ERR'; }
+      try { r.xrInfo.immersiveAr = await navigator.xr.isSessionSupported('immersive-ar'); }
+      catch (e) { r.xrInfo.immersiveAr = 'ERR'; }
+    }
+    // vendorFlavors is NOT a Chromium API (verified in navigator_id.idl) -- it
+    // is recorded, never asserted.
+    r.miscPresence = {vendor: navigator.vendor, productSub: navigator.productSub,
+      vendorSub: navigator.vendorSub, vendorFlavors: navigator.vendorFlavors,
+      maxActions: (typeof Notification === 'function') ? Notification.maxActions : null,
+      domBlockers: navigator.domBlockers == null ? null : navigator.domBlockers,
+      serviceWorker: 'serviceWorker' in navigator,
+      presentation: typeof navigator.presentation,
+      broadcastChannel: typeof BroadcastChannel, imageCapture: typeof ImageCapture};
+    r.sensorsMiscOk = Object.values(r.sensorTypes).every(t => t === 'function')
+      && r.sensorEventsFired === 0
+      && (!r.xrInfo.present
+        || (r.xrInfo.immersiveVr === false && r.xrInfo.immersiveAr === false))
+      && r.miscPresence.vendor === 'Google Inc.'
+      && r.miscPresence.productSub === '20030107'
+      && r.miscPresence.maxActions === 2
+      && (r.miscPresence.domBlockers == null || r.miscPresence.domBlockers === 0)
+      && r.miscPresence.serviceWorker === true
+      && r.miscPresence.presentation === 'object'
+      && r.miscPresence.broadcastChannel === 'function'
+      && r.miscPresence.imageCapture === 'function';
+  } catch (e) { r.sensorsMiscError = String(e); r.sensorsMiscOk = false; }
+
+  // --- 42. WebAuthn capability matrix (detection-gaps row 25, shipped 133) ---
+  // getClientCapabilities() must resolve to a boolean map whose keys are the
+  // 9 spec values (or extension:* names); values are booleans.
+  try {
+    r.webAuthnCaps = null;
+    if (r.webAuthnPresent && typeof PublicKeyCredential.getClientCapabilities === 'function') {
+      r.webAuthnCaps = await PublicKeyCredential.getClientCapabilities();
+    }
+    const knownCaps = new Set(['conditionalCreate', 'conditionalGet', 'hybridTransport',
+      'passkeyPlatformAuthenticator', 'userVerifyingPlatformAuthenticator',
+      'relatedOrigins', 'signalAllAcceptedCredentials', 'signalCurrentUserDetails',
+      'signalUnknownCredential']);
+    const capKeys = Object.keys(r.webAuthnCaps || {});
+    r.webAuthnCapsOk = r.webAuthnCaps != null && capKeys.length > 0
+      && capKeys.every(k => knownCaps.has(k) || k.startsWith('extension:'))
+      && Object.values(r.webAuthnCaps).every(v => typeof v === 'boolean');
+  } catch (e) { r.webAuthnCapsError = String(e); r.webAuthnCapsOk = false; }
+
+  // --- 43. Wasm feature matrix (detection-gaps row 32) ---
+  // Same V8 as Chrome 157 means every shipped feature validates; the minimal
+  // probe modules are the canonical wasm-feature-detect 1.10.1 bytes.
+  try {
+    const wasmValid = wasmBytes => {
+      try { return WebAssembly.validate(new Uint8Array(wasmBytes)); }
+      catch (e) { return false; }
+    };
+    r.wasmFeatures = {
+      simd: wasmValid([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1,
+        0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11]),
+      threads: (typeof MessageChannel !== 'undefined'
+        && (new MessageChannel()).port1.postMessage(new SharedArrayBuffer(1)),
+      wasmValid([0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 3, 2, 1, 0, 5, 4, 1, 3,
+        1, 1, 10, 11, 1, 9, 0, 65, 0, 254, 16, 2, 0, 26, 11])),
+      bulkMemory: wasmValid([0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 3, 2, 1, 0,
+        5, 3, 1, 0, 1, 10, 14, 1, 12, 0, 65, 0, 65, 0, 65, 0, 252, 10, 0, 0, 11]),
+      exceptions: wasmValid([0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 3, 2, 1, 0,
+        10, 8, 1, 6, 0, 6, 64, 25, 11, 11]),
+      referenceTypes: wasmValid([0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 3, 2, 1,
+        0, 10, 7, 1, 5, 0, 208, 112, 26, 11]),
+      relaxedSimd: wasmValid([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2,
+        1, 0, 10, 15, 1, 13, 0, 65, 1, 253, 15, 65, 2, 253, 15, 253, 128, 2, 11]),
+      gc: wasmValid([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 95, 1, 120, 0]),
+      memory64: wasmValid([0, 97, 115, 109, 1, 0, 0, 0, 5, 3, 1, 4, 1]),
+      tailCall: wasmValid([0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 3, 2, 1, 0,
+        10, 6, 1, 4, 0, 18, 0, 11]),
+    };
+    r.wasmFeaturesOk = Object.values(r.wasmFeatures).every(v => v === true);
+  } catch (e) { r.wasmFeaturesError = String(e); r.wasmFeaturesOk = false; }
+
 
   return r;
 }
 """
+
+
+def _coherent_sec_fetch(sf: dict | None) -> bool:
+    """The battery's TLS check is a top-level CDP navigation, so the coherent
+    Sec-Fetch set is site=none (no initiator), mode=navigate, dest=document,
+    user=?1 -- all four present."""
+    if not isinstance(sf, dict):
+        return False
+    return (all(sf.get(k) is not None for k in ("site", "mode", "dest", "user"))
+            and sf.get("mode") == "navigate" and sf.get("dest") == "document"
+            and sf.get("site") == "none" and sf.get("user") == "?1")
 
 
 # Each check: (key, human label, predicate on the probe dict).
@@ -990,6 +1263,27 @@ _CHECKS = [
     ("tlsAcceptLanguageOk", "Accept-Language consistent with navigator.languages "
                             "(pass when no headers were observable)",
      lambda p: p.get("tlsAcceptLanguageOk") is True),
+    # --- 2026-11-14 adversarial extension (detection-gaps rows 20/22/24/25/27/32) ---
+    ("mediaQueriesOk", "CSS media queries coherent (scheme/forced/monochrome/gamut)",
+     lambda p: p.get("mediaQueriesOk") is True),
+    ("systemColorsOk", "CSS system colors all resolve; Windows ActiveText is the Win accent blue",
+     lambda p: p.get("systemColorsOk") is True),
+    ("intlTimezoneOk", "Intl resolvedOptions().timeZone is a real IANA zone "
+                      "(the timezone_mismatch input) + formatToParts/collation sanity",
+     lambda p: p.get("intlTimezoneOk") is True),
+    ("webrtcDepthOk", "WebRTC getCapabilities/SDP/getStats coherent (codecs + cipher suites)",
+     lambda p: p.get("webrtcDepthOk") is True),
+    ("sensorsMiscOk", "sensor APIs present without events + misc presence set coherent (desktop)",
+     lambda p: p.get("sensorsMiscOk") is True),
+    ("webAuthnCapsOk", "WebAuthn getClientCapabilities resolves to a boolean map "
+                      "over the 9 spec keys",
+     lambda p: p.get("webAuthnCapsOk") is True),
+    ("wasmFeaturesOk", "WebAssembly feature matrix validates (Chrome-157 feature set)",
+     lambda p: p.get("wasmFeaturesOk") is True),
+    ("tlsSecFetchOk", "Sec-Fetch-Site/Mode/Dest/User present and coherent with the "
+                     "top-level navigation (pass when no headers were observable)",
+     lambda p: (p.get("tlsSecFetchObserved") is False)
+               or _coherent_sec_fetch(p.get("tlsSecFetch"))),
 ]
 
 

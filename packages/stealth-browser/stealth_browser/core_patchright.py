@@ -72,6 +72,14 @@ def _seed_profile_prefs(profile_dir: str) -> None:
     helium = prefs.setdefault("helium", {})
     helium.setdefault("noise", {})["enabled"] = False
     prefs.setdefault("webrtc", {})["ip_handling_policy"] = "default"
+    # DoH off: Chrome issues DoH queries with LOAD_BYPASS_PROXY (net/dns/
+    # dns_http_attempt.cc, verified at 157.0.8103.78), so an active DoH
+    # resolver would make DNS exit from the host's datacenter IP while HTTP
+    # exits from the proxy -- a resolver/connector + same-country mismatch.
+    # `dns_over_https.mode: "off"` is the chrome://settings "Secure DNS: No"
+    # equivalent (pref_names.h kDnsOverHttpsMode; anything other than
+    # "secure"/"automatic" maps to off). No command-line switch exists.
+    prefs.setdefault("dns_over_https", {})["mode"] = "off"
     with open(path, "w") as f:
         json.dump(prefs, f)
 

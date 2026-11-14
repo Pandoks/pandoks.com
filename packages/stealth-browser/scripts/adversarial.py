@@ -217,11 +217,28 @@ def _merge_tls_scoring(probe: dict, tls: dict) -> None:
                                     or (probe["tlsAcceptLanguage"] is not None
                                         and first_lang
                                         and probe["tlsAcceptLanguage"].lower().startswith(first_lang)))
+    # Sec-Fetch-* request metadata (detection-gaps row 24). The battery's TLS
+    # check navigates top-level, so the coherent set is site=none (no
+    # initiator), mode=navigate, dest=document, user=?1. All four must be
+    # present whenever headers were observable; a header-less run passes
+    # (same convention as tlsAcceptLanguageOk).
+    probe["tlsSecFetch"] = {k: header_map.get("sec-fetch-" + k)
+                            for k in ("site", "mode", "dest", "user")}
+    probe["tlsSecFetchObserved"] = bool(headers)
+    sec_fetch = probe["tlsSecFetch"]
+    probe["tlsSecFetchOk"] = (not headers
+                              or (all(sec_fetch[k] is not None
+                                      for k in ("site", "mode", "dest", "user"))
+                                  and sec_fetch["mode"] == "navigate"
+                                  and sec_fetch["dest"] == "document"
+                                  and sec_fetch["site"] == "none"
+                                  and sec_fetch["user"] == "?1"))
     probe["tlsSurfaceOk"] = (bool(probe["tlsJa3"] and probe["tlsJa3Hash"]
                                   and probe["tlsJa4"] and probe["tlsJa4R"])
                              and probe["tlsUaMismatch"] is False
                              and probe["tlsAcceptLanguageOk"] is True
-                             and not probe["tlsAutomationHeaders"])
+                             and not probe["tlsAutomationHeaders"]
+                             and probe["tlsSecFetchOk"] is True)
 
 
 def run_local_battery(base: str, name: str, probe_js: str) -> dict:

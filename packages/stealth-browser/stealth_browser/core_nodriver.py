@@ -14,6 +14,7 @@ from __future__ import annotations
 
 
 import base64
+import json
 
 from nodriver import cdp
 from stealth_browser.browser import StealthBrowser
@@ -24,9 +25,37 @@ from stealth_browser.proxy import from_env as proxy_from_env, lookup_exit_geo
 
 import os
 import random
+import shutil
+import tempfile
 
 from .fp_profiles import pick_profile, fp_env, patched_chrome_path
 from .personas import POOL as PERSONA_POOL
+
+
+def _seed_doh_off(profile_dir: str) -> None:
+    """Pre-seed `dns_over_https.mode: "off"` into a profile's Preferences.
+
+    Chrome issues DoH queries with LOAD_BYPASS_PROXY (net/dns/dns_http_attempt
+    .cc, verified at 157.0.8103.78), so an active DoH resolver makes DNS exit
+    from the host's datacenter IP while HTTP exits from the proxy. The pref is
+    the chrome://settings "Secure DNS: No" equivalent (pref_names.h
+    kDnsOverHttpsMode; anything other than "secure"/"automatic" maps to off);
+    there is no command-line switch. Same write pattern as core_patchright's
+    _seed_profile_prefs.
+    """
+    default_dir = os.path.join(profile_dir, "Default")
+    os.makedirs(default_dir, exist_ok=True)
+    path = os.path.join(default_dir, "Preferences")
+    prefs: dict = {}
+    if os.path.exists(path):
+        try:
+            with open(path) as f:
+                prefs = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            prefs = {}
+    prefs.setdefault("dns_over_https", {})["mode"] = "off"
+    with open(path, "w") as f:
+        json.dump(prefs, f)
 
 
 class NodriverCore:
@@ -64,6 +93,10 @@ class NodriverCore:
         self._proxy = (proxy if proxy is not None
                        else (proxy_from_env() if use_proxy else None))
         self._exit_geo: dict | None = None
+        # throwaway user-data-dir backing an ephemeral session (no free
+        # persona) -- we own it so the DoH-off pref can be seeded; removed
+        # on close.
+        self._profile_dir: str | None = None
         # persistent persona profile -- a "lived-in" Chrome profile dir with
         # accumulated cookies/history. None -> ephemeral (pool exhausted).
         self._persona = PERSONA_POOL.acquire()
@@ -106,10 +139,16 @@ class NodriverCore:
         if self._proxy is not None:
             kwargs["proxy"] = self._proxy
         # persistent persona profile: a "lived-in" user_data_dir with real
-        # accumulated cookies/history. Falls back to ephemeral when the pool
-        # is exhausted (still isolated, just not warmed).
+        # accumulated cookies/history. Falls back to a throwaway dir we own
+        # when the pool is exhausted (still isolated, just not warmed) -- we
+        # own it so the DoH-off pref can be seeded pre-launch either way.
         if self._persona is not None:
             kwargs["extra_args"] = [f"--user-data-dir={self._persona}"]
+            _seed_doh_off(self._persona)
+        else:
+            self._profile_dir = tempfile.mkdtemp(prefix="stealth-session-")
+            kwargs["extra_args"] = [f"--user-data-dir={self._profile_dir}"]
+            _seed_doh_off(self._profile_dir)
 
         self._sb = StealthBrowser(self.identity, **kwargs)
         await self._sb.__aenter__()
@@ -230,6 +269,11 @@ class NodriverCore:
         # lock until exit).
         PERSONA_POOL.release(self._persona)
         self._persona = None
+        # the ephemeral throwaway profile is ours -- remove it after the
+        # browser exits and releases the lock
+        if self._profile_dir is not None:
+            shutil.rmtree(self._profile_dir, ignore_errors=True)
+            self._profile_dir = None
 
     # ----- session-clone (shared-login multi-session) --------------------
     async def dump_state(self) -> dict:
