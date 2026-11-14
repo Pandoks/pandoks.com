@@ -43,10 +43,9 @@ mise install
 pnpm install
 ```
 
-3. Configure an AWS SSO profile in `~/.aws/config` and export it as `AWS_PROFILE`, in your shell or
-   a gitignored `mise.local.toml`. `pnpm sso` logs in to sso session `personal`; change it in
-   `package.json` to match. Then add the profile Pulumi reads its R2 state with, whose credentials
-   come from SSM through your SSO login:
+3. Configure an AWS SSO profile in `~/.aws/config` and export it as `AWS_PROFILE`. `pnpm sso` logs
+   in to sso session `personal`; change it in `package.json` to match. Then add the profile Pulumi
+   reads its R2 state with:
 
 ```sh
 aws configure set profile.pandoks-pulumi-state.region auto
@@ -96,25 +95,16 @@ See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI comman
 
 Everything outside Kubernetes is a [Pulumi](https://www.pulumi.com/docs/) program in `infra/`, with
 one stack per stage (`production`, `dev`, and personal stacks like `pandoks`). State lives in the R2
-bucket in `Pulumi.yaml`, each `Pulumi.<stack>.yaml` names the KMS key that encrypts it, and every
-secret in `infra/secrets.ts` is an SSM `SecureString` at `/pulumi/<stack>/<Name>`, encrypted with
-the same key. Runner instances can read any SSM parameter but can't use these keys, so never write
-one with the default `aws/ssm` key:
+bucket in `Pulumi.yaml`, and each `Pulumi.<stack>.yaml` names the KMS key that encrypts it and the
+stack's secrets, SSM `SecureString`s at `/pulumi/<stack>/<Name>`:
 
 ```sh
 pulumi preview --stack your-stack
 pulumi up --stack your-stack
-# file:// keeps the value byte for byte; write it with printf '%s' to avoid a trailing newline
+# never the default aws/ssm key, which runner instances can read
 aws ssm put-parameter --overwrite --type SecureString --key-id alias/pulumi-nonproduction \
   --name /pulumi/your-stack/<Name> --value file://<file>
 ```
 
 A new stack needs every secret in `infra/secrets.ts` and a committed `Pulumi.<stack>.yaml` from
 `pulumi stack init your-stack --no-select --secrets-provider 'awskms://alias/pulumi-nonproduction?region=us-west-1'`.
-Other development commands:
-
-```sh
-pnpm --filter web dev           # website
-pnpm cluster k3d restart        # restart the local cluster
-pnpm cluster k3d deps restart   # restart its docker compose dependencies
-```
