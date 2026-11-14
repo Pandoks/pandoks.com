@@ -35,7 +35,7 @@ and fleet-level population signals. Ranked:
 | Rank | Gap | Why it is the top risk | Rows |
 |---|---|---|---|
 | 1 | **WebRTC STUN reflexive candidate reveals the host's real egress IP past the proxy** -- CLOSED 2026-11-05 | Chrome's default IP-handling policy gathers srflx candidates over UDP; SOCKS5/HTTP proxies in Chrome carry TCP only, so STUN goes direct and the page sees an IP that disagrees with every HTTP request. Fixed: every proxied session now launches with `--webrtc-ip-handling-policy=disable_non_proxied_udp` (`profile.WEBRTC_PROXIED_FLAG`); the page sees zero ICE candidates, like a real Chrome under the `WebRtcIpHandling` policy. Residual: "no candidates at all" is itself a (benign, population-level) signal. | A8 |
-| 2 | **Cross-OS persona on a Linux render stack** | In the container every session is a *Windows* persona (host GPU class falls back to `intel` because `lspci` is absent — verified) running on Linux/Xvfb. Fonts (only Liberation + Noto Color Emoji resolve; Segoe UI/Helvetica absent), emoji glyphs, CSS system colours (`ActiveText` = `rgb(255,0,0)` on Linux), HEVC codec support, and `prefers-color-scheme` all say Linux. The OS-gated API surface (`navigator.share`/`canShare` for Win/macOS personas, `BarcodeDetector` for macOS) is now exposed (C16, 2026-11-10). The font-policy header itself documents this residual. | B6, B9, C15, C17, B1 |
+| 2 | **Cross-OS persona on a Linux render stack** | In the container every session is a *Windows* persona (host GPU class falls back to `intel` because `lspci` is absent — verified) running on Linux/Xvfb. Fonts (the Windows 10/11 core list now resolves via the persona-OS font layer; Helvetica still absent on the macOS persona), emoji glyphs, CSS system colours (`ActiveText` = `rgb(255,0,0)` on Linux), HEVC codec support, and `prefers-color-scheme` all say Linux. The OS-gated API surface (`navigator.share`/`canShare` for Win/macOS personas, `BarcodeDetector` for macOS) is now exposed (C16, 2026-11-10). The font-policy header itself documents this residual. | B6, B9, C15, C17, B1 |
 | 3 | **GPU truth behind the spoofed strings** | `UNMASKED_RENDERER` says "Intel Iris Xe D3D11" while `MAX_TEXTURE_SIZE`, extension list, shader precision, and rendered-pixel hashes are llvmpipe-via-ANGLE (Mesa is pulled in by `xvfb → libgl1 → libglx0 → libglx-mesa0 → libgl1-mesa-dri`, verified in Debian deps and in the local image). WebGPU on Linux shipped in Chrome 144, so on 157 the adapter exists and `isFallbackAdapter` is real (true on a CPU adapter) next to a spoofed `vendor: intel`. | B3, B2, B4 |
 | 4 | **Fleet population signals** | (a) One persona tuple for all container sessions (rank 2 cause). (b) `fullVersionList`/`uaFullVersion` report `157.0.8103.27`, which was never a Linux Stable release — Stable went `156.0.8078.79 → 157.0.8103.38` (verified via chromiumdash). (c) The Chromium build applies `fieldtrial_testing_config.json` by default (Chromium builds do; branded Chrome does not) and `args.gn` does not set `disable_fieldtrial_testing_config`, so feature state differs from the stable population. Fingerprint already labels unbranded Chromium "Chromium-Based Browser". | C20, C21, A6 |
 | 5 | **Input-stream structure and user-activation flips** | All input is CDP `Input.dispatch*` (nodriver `human.py`, patchright `page.mouse`): `isTrusted` is true but coalesced-event count, `pressure`, wheel-notch and hold-time structure are machine-shaped (the project measured this). Both cores send `userGesture: true` on every `Runtime.evaluate` (nodriver `tab.py`, `core_patchright.py:272`), flipping `navigator.userActivation` without any pointer/key event. | C14, D2 |
@@ -320,15 +320,18 @@ includes it. The README's "WebAudio getChannelData" row is stale. Risk is low
 *if* Linux x64 Chrome's hash equals Windows x64 Chrome's for the persona's
 build (same clang/float path — inferred, not measured).
 
-**B6 — Font set via width measurement. UNCOVERED.** Fifield & Egelman
-fingerprint users through glyph bounding boxes across fonts [S21]. The
-`apex_font_policy.h` header states the residual plainly: the bundle resolves
-only Arial/Times New Roman/Courier New (metric aliases to Liberation), the
-Liberation families, Arimo/Tinos/Cousine and Noto Color Emoji; "Segoe UI" on
-a Windows persona and "Menlo"/"Helvetica" on a macOS persona are absent, and
-"the bundle's Liberation*/Noto Color Emoji families still report present on
-Win/Mac personas through the real lookup". A detector measuring 50–100 common
-family names gets a Debian-minimal font set under a Windows UA.
+**B6 — Font set via width measurement. CLOSED in code 2026-11-14 (uncommitted).**
+Fifield & Egelman fingerprint users through glyph bounding boxes across fonts
+[S21]. The persona-OS font layer (`packages/stealth-chromium/Dockerfile` +
+`scripts/remap_persona_fonts.py`) installs the Windows 10/11 core font set from
+free sources and name-clones it onto the persona family names, so the bundle
+now resolves the full core list (63 names, `verify_persona_fonts.sh` gates the
+build on it); the width path and `document.fonts.check()` agree for every
+allowlisted name. A detector measuring 50–100 common family names now gets a
+Windows-core font set under a Windows UA. Residual: the *rasterization* is
+FreeType on the clone faces, not the real Microsoft binaries (mscorefonts is
+the real binaries for 11 families; the rest are metric-compatible clones), and
+fontconfig cannot match hyphenated names so `MingLiU-ExtB` stays absent.
 
 **B7 — `document.fonts.check()` / `local()`.** `FontFaceSet::check` skips a
 family when `font_selector->IsPlatformFamilyMatchAvailable(...)` is true [S22];

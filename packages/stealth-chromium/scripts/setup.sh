@@ -246,7 +246,8 @@ fi
 # from third_party/widevine/cdm/{linux,x64}/ into out/apex/WidevineCdm/. The
 # src-internal checkout would provide them; we fetch the identical files from
 # the Chrome-for-Testing build of the SAME Chromium version (pure CDN, no
-# auth, no accounts). SHA256 pins below match 157.0.8103.38; a version bump
+# auth, no accounts). SHA256 pins below match 157.0.8103.38 and 157.0.8103.80
+# (verified identical between the two); a version bump
 # needs its own pins.
 fetch_widevine_cdm() {
   wv_dir="$WORK/chromium/src/third_party/widevine/cdm"
@@ -255,13 +256,16 @@ fetch_widevine_cdm() {
   wv_so_sha="cd250e8177183add7029ccc3057217b978779f9c7af800c45083f3cc0139020e"
   wv_manifest_sha="106559aa573088d9436609452fd0ec85d19a4475a500526950d2ef4fae2a7ca4"
   wv_check_sha() {
-    if [ "$CHROMIUM_VERSION" = "157.0.8103.38" ]; then
-      echo "$wv_so_sha  $wv_so" | shasum -a 256 -c - >/dev/null 2>&1 \
-        && echo "$wv_manifest_sha  $wv_manifest" | shasum -a 256 -c - >/dev/null 2>&1
-    else
-      # Version not covered by the pins: just require presence, and say so.
-      [ -f "$wv_so" ] && [ -f "$wv_manifest" ]
-    fi
+    case "$CHROMIUM_VERSION" in
+      157.0.8103.38|157.0.8103.80)
+        echo "$wv_so_sha  $wv_so" | shasum -a 256 -c - >/dev/null 2>&1 \
+          && echo "$wv_manifest_sha  $wv_manifest" | shasum -a 256 -c - >/dev/null 2>&1
+        ;;
+      *)
+        # Version not covered by the pins: just require presence, and say so.
+        [ -f "$wv_so" ] && [ -f "$wv_manifest" ]
+        ;;
+    esac
   }
   if [ -f "$wv_so" ] && [ -f "$wv_manifest" ] && wv_check_sha; then
     echo "[3.5/3] Widevine CDM input files present and verified"

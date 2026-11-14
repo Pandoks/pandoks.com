@@ -19,13 +19,12 @@
 // those families this function returns false and the caller falls through to
 // the real fontconfig lookup, which (correctly) also says absent.
 //
-// (b) was measured on the bundle (python:3.12-slim-bookworm + fonts-liberation
-// 1:1.07.4-11 + fonts-noto-color-emoji 2.042) by replaying Skia's
-// SkFontConfigInterfaceDirect::isAcceptableMatch rule over fc-pattern/fc-match:
-// only Arial / Times New Roman / Courier New (via Skia's kFontEquivMap metric
-// classes), the four Liberation families, Arimo/Tinos/Cousine and Noto Color
-// Emoji resolve. Helvetica, Times, Courier, Verdana, Georgia, DejaVu, Noto Sans
-// etc. do NOT (fontconfig's alias for them is weak, so Skia rejects the match).
+// (b) is now provided by the persona-OS font layer (packages/stealth-chromium/
+// Dockerfile + scripts/remap_persona_fonts.py): the image installs free sources
+// for the persona-OS core list and name-clones them onto the persona family
+// names, so every allowlisted name below really resolves. scripts/
+// verify_persona_fonts.sh runs at image build time and fails the build if any
+// persona name stops resolving, which keeps (a) and (b) from drifting apart.
 //
 // Persona OS comes from APEX_FP_UA_PLATFORM ("Windows" / "macOS"; anything
 // else is treated as Linux), the same switch apex_voices.h uses.
@@ -51,14 +50,32 @@
 
 namespace apex_fp {
 
-// Windows 11 ships Arial, Times New Roman and Courier New (Microsoft
-// "Windows 11 font list"); the bundle resolves all three to the
-// metric-compatible Liberation faces, so widths agree with real Windows.
-// Segoe UI, Calibri, Consolas, Verdana, Georgia, Tahoma... are shipped by
-// Windows but NOT by the bundle -> deliberately absent.
+// Windows 10/11: the full core family list the persona-OS font layer
+// (packages/stealth-chromium/Dockerfile + scripts/remap_persona_fonts.py)
+// makes resolvable in the bundle. The layer installs free/legitimate sources
+// (Microsoft Core Fonts EULA, OFL 1.1, LGPL 2.1 -- see the Dockerfile comment)
+// and name-clones them onto the Windows family names, so the bundle actually
+// resolves every name below. This list is kept in lockstep with
+// scripts/verify_persona_fonts.sh, which the image build runs as a gate: if a
+// name stops resolving, the build fails instead of the allowlist drifting from
+// (b). "mingliu-extb" is deliberately absent: fontconfig cannot match
+// hyphenated family names, so its width path would say absent.
 inline bool IsWindowsAllowlistedFont(const std::string& f) {
   static const char* kWin[] = {
-    "arial", "times new roman", "courier new",
+    "segoe ui", "segoe ui bold", "segoe ui light", "segoe ui semibold",
+    "segoe ui semilight", "arial", "arial black", "calibri", "calibri bold",
+    "cambria", "cambria bold", "cambria math", "candara", "candara bold",
+    "comic sans ms", "consolas", "consolas bold", "constantia",
+    "constantia bold", "corbel", "corbel bold", "courier new", "ebrima",
+    "franklin gothic medium", "gabriola", "gadugi", "georgia",
+    "hololens mdl2 assets", "impact", "ink free", "javanese text",
+    "leelawadee ui", "lucida console", "lucida console bold", "malgun gothic",
+    "marlett", "microsoft sans serif", "microsoft yahei", "microsoft jhenghei",
+    "mongolian baiti", "ms gothic", "ms pgothic", "ms mincho", "mv boli",
+    "myanmar text", "nirmala ui", "palatino linotype", "segoe mdl2 assets",
+    "segoe print", "segoe script", "segoe ui historic", "segoe ui emoji",
+    "simsun", "sitka", "sylfaen", "symbol", "tahoma", "times new roman",
+    "trebuchet ms", "verdana", "webdings", "wingdings", "yu gothic",
   };
   for (const char* a : kWin) {
     if (f == a) {
