@@ -10,3 +10,6 @@ packages/*/chart/templates/*.yaml
 
 # Skills
 .agents/skills
+
+# Wrangler
+apps/functions/worker-configuration.d.ts

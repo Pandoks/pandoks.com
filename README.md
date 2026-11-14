@@ -108,3 +108,12 @@ aws ssm put-parameter --overwrite --type SecureString --key-id alias/pulumi-nonp
 
 A new stack needs every secret in `infra/secrets.ts` and a committed `Pulumi.<stack>.yaml` from
 `pulumi stack init your-stack --no-select --secrets-provider 'awskms://alias/pulumi-nonproduction?region=us-west-1'`.
+
+The Notion webhook and text reminders in `apps/functions` are a Cloudflare Worker on `api.<domain>`.
+Run it locally with the names in its `wrangler.json` `secrets.required` set in
+`apps/functions/.env`, and regenerate `worker-configuration.d.ts` with
+`pnpm --filter @pandoks.com/functions types` after changing `wrangler.json`:
+
+```sh
+pnpm --filter @pandoks.com/functions dev
+```
