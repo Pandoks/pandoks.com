@@ -7,6 +7,7 @@ python = "3.15.2"
 aws-cli = "2.39.3"
 gh = "2.103.3"
 jq = "1.8.2"
+"aqua:pulumi/pulumi" = "3.274.1"
 
 helm = "4.3.1"
 kubectl = "1.37.2"

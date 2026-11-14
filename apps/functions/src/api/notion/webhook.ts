@@ -1,7 +1,6 @@
 import { SSMClient, PutParameterCommand } from '@aws-sdk/client-ssm';
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { Resource } from 'sst';
 import { handleNotionBlogSync } from './gh-blog-sync';
 import { handleTextReminder } from './text-reminder';
 
@@ -51,7 +50,7 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
 
     const parameterUrl = `https://console.aws.amazon.com/systems-manager/parameters/${encodeURIComponent(
       encodeURIComponent(parameterName)
-    )}/description?region=${Resource.AwsRegion.value}`;
+    )}/description?region=${process.env.AWS_REGION!}`;
     console.log(
       [
         '=== NOTION WEBHOOK VERIFICATION TOKEN CAPTURED ===',
@@ -59,11 +58,11 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
         '[URL] Open this in AWS Console:',
         parameterUrl,
         '',
-        '[ACTION] Set the SST secret:',
-        'pnpm sst secret set NotionWebhookVerificationToken --stage production <paste-token-here>',
+        '[ACTION] Copy it into the stack secret:',
+        `aws ssm put-parameter --overwrite --type SecureString --key-id alias/pulumi-production --name /pulumi/production/NotionWebhookVerificationToken --value "$(aws ssm get-parameter --name ${parameterName} --with-decryption --query Parameter.Value --output text)"`,
         '',
         '[ACTION] Redeploy:',
-        'pnpm sst deploy --stage production',
+        'gh workflow run deploy-infra.yaml -f deploy=pulumi',
         '',
         '[REMINDER] Delete the temporary SSM parameter after the secret is set.'
       ].join('\n')
@@ -77,7 +76,7 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
   if (!signature) return new Response('Unauthorized', { status: 401 });
 
   const provided = signature.replace('sha256=', '');
-  const expected = createHmac('sha256', Resource.NotionWebhookVerificationToken.value)
+  const expected = createHmac('sha256', process.env.NOTION_WEBHOOK_VERIFICATION_TOKEN!)
     .update(event.body)
     .digest('hex');
   const providedBuffer = Buffer.from(provided, 'hex');

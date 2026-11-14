@@ -11,7 +11,6 @@
     "sso": "aws sso login --sso-session=personal --use-device-code --no-browser",
     "tools:install": "mise install --yes",
     "cluster": "./scripts/cluster/main.sh",
-    "dev": "sst dev",
     "local:init": "pnpm cluster k3d deps up && pnpm cluster k3d up && pnpm local:build && pnpm local:push && pnpm cluster deploy local --bootstrap --kubeconfig \"$(k3d kubeconfig write local-cluster)\" && pnpm cluster deploy local --kubeconfig \"$(k3d kubeconfig write local-cluster)\"",
     "local:destroy": "pnpm cluster k3d down && pnpm cluster k3d deps destroy",
     "local:push": "pnpm -r --if-present local:push",
@@ -21,8 +20,7 @@
     "lint": "./scripts/lint/main.sh",
     "test": "./scripts/test/main.sh",
     "check:infra": "tsc -p .",
-    "check": "pnpm -r --if-present check && pnpm check:infra",
-    "postinstall": "sst install --stage install"
+    "check": "pnpm -r --if-present check && pnpm check:infra"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261104.1",
@@ -31,6 +29,7 @@
     "@pandoks.com/prettier": "workspace:*",
     "@types/node": "25.9.9",
     "bcryptjs": "3.0.3",
+    "esbuild": "0.28.2",
     "eslint": "10.14.0",
     "eslint-plugin-react-hooks": "7.1.1",
     "eslint-plugin-svelte": "3.24.0",
@@ -47,6 +46,12 @@
     "typescript-eslint": "8.72.1"
   },
   "dependencies": {
-    "sst": "4.17.2"
+    "@ovhcloud/pulumi-ovh": "2.22.0",
+    "@pulumi/aws": "7.20.0",
+    "@pulumi/cloudflare": "6.15.0",
+    "@pulumi/github": "6.15.1",
+    "@pulumi/hcloud": "1.43.4",
+    "@pulumi/pulumi": "3.274.1",
+    "@pulumi/tailscale": "0.29.4"
   }
 }

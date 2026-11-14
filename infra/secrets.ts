@@ -1,96 +1,115 @@
-import { execSync } from 'node:child_process';
+import * as pulumi from '@pulumi/pulumi';
+import * as aws from '@pulumi/aws';
+import * as cloudflare from '@pulumi/cloudflare';
+import * as github from '@pulumi/github';
+import * as hcloud from '@pulumi/hcloud';
+import * as tailscale from '@pulumi/tailscale';
+
+// NOTE: keyed by name, so `pnpm cluster deploy` and Argo substitute them as `${Name}`.
+export const outputs: Record<string, pulumi.Output<string>> = {};
+
+function requireSecret(name: string) {
+  // NOTE: invoke results aren't secret, so without this the values print and land in state as-is.
+  const value = pulumi.secret(
+    aws.ssm.getParameterOutput({
+      name: `/pulumi/${pulumi.getStack()}/${name}`,
+      withDecryption: true
+    }).value
+  );
+  outputs[name] = value;
+  return value;
+}
 
 export const secrets = {
-  Stage: new sst.Secret('StageName', 'dev'), // Automatically set during deploy
   notion: {
-    ApiKey: new sst.Secret('NotionApiKey'),
-    WebhookVerificationToken: new sst.Secret('NotionWebhookVerificationToken')
-  },
-  aws: {
-    Region: new sst.Secret('AwsRegion', 'us-west-1')
+    ApiKey: requireSecret('NotionApiKey'),
+    WebhookVerificationToken: requireSecret('NotionWebhookVerificationToken')
   },
   cloudflare: {
-    ApiKey: new sst.Secret('CloudflareApiKey'),
-    BackupAccessKey: new sst.Secret('CloudflareBackupAccessKey'),
-    BackupSecretKey: new sst.Secret('CloudflareBackupSecretKey')
+    ApiKey: requireSecret('CloudflareApiKey'),
+    BackupAccessKey: requireSecret('CloudflareBackupAccessKey'),
+    BackupSecretKey: requireSecret('CloudflareBackupSecretKey')
   },
   github: {
-    PersonalAccessToken: new sst.Secret('GithubPersonalAccessToken'),
-    PackageManagementToken: new sst.Secret('GithubPackageManagementToken')
+    PersonalAccessToken: requireSecret('GithubPersonalAccessToken'),
+    PackageManagementToken: requireSecret('GithubPackageManagementToken')
   },
   personal: {
-    KwokPhoneNumber: new sst.Secret('KwokPhoneNumber'),
-    MichellePhoneNumber: new sst.Secret('MichellePhoneNumber')
+    KwokPhoneNumber: requireSecret('KwokPhoneNumber'),
+    MichellePhoneNumber: requireSecret('MichellePhoneNumber')
   },
   twilio: {
-    PhoneNumber: new sst.Secret('TwilioPhoneNumber'),
-    AccountSid: new sst.Secret('TwilioAccountSid'),
-    AuthToken: new sst.Secret('TwilioAuthToken'),
-    NotionMessagingServiceSid: new sst.Secret('TwilioNotionMessagingServiceSid')
+    PhoneNumber: requireSecret('TwilioPhoneNumber'),
+    AccountSid: requireSecret('TwilioAccountSid'),
+    AuthToken: requireSecret('TwilioAuthToken'),
+    NotionMessagingServiceSid: requireSecret('TwilioNotionMessagingServiceSid')
   },
   oxylabs: {
     residential: {
-      Username: new sst.Secret('OxylabsResidentialUsername'),
-      Password: new sst.Secret('OxylabsResidentialPassword')
+      Username: requireSecret('OxylabsResidentialUsername'),
+      Password: requireSecret('OxylabsResidentialPassword')
     },
     webUnblocker: {
-      Username: new sst.Secret('OxylabsWebUnblockerUsername'),
-      Password: new sst.Secret('OxylabsWebUnblockerPassword')
+      Username: requireSecret('OxylabsWebUnblockerUsername'),
+      Password: requireSecret('OxylabsWebUnblockerPassword')
     }
   },
   hetzner: {
-    ApiKey: new sst.Secret('HetznerApiKey'),
-    K3sToken: new sst.Secret('HetznerK3sToken')
+    ApiKey: requireSecret('HetznerApiKey'),
+    K3sToken: requireSecret('HetznerK3sToken')
   },
   ovh: {
-    ApplicationSecret: new sst.Secret('OvhApplicationSecret'),
-    ConsumerKey: new sst.Secret('OvhConsumerKey')
+    ApplicationSecret: requireSecret('OvhApplicationSecret'),
+    ConsumerKey: requireSecret('OvhConsumerKey')
   },
   tailscale: {
-    OauthClientId: new sst.Secret('TailscaleOauthClientId'),
-    OauthClientSecret: new sst.Secret('TailscaleOauthClientSecret')
+    OauthClientId: requireSecret('TailscaleOauthClientId'),
+    OauthClientSecret: requireSecret('TailscaleOauthClientSecret')
   },
   k8s: {
-    tailscale: {
-      OauthClientId: new sst.Secret('KubernetesTailscaleOauthClientId', 'Placeholder'), // Automatically set during deploy
-      OauthClientSecret: new sst.Secret('KubernetesTailscaleOauthClientSecret', 'Placeholder') // Automatically set during deploy
-    },
-    argocd: {
-      AccessKeyId: new sst.Secret('KubernetesArgocdAccessKeyId', 'Placeholder'), // Automatically set during deploy
-      SecretAccessKey: new sst.Secret('KubernetesArgocdSecretAccessKey', 'Placeholder') // Automatically set during deploy
-    },
     grafana: {
-      AdminPassword: new sst.Secret('KubernetesGrafanaAdminPassword', 'password')
+      AdminPassword: requireSecret('KubernetesGrafanaAdminPassword')
     },
-    HetznerOriginTlsKey: new sst.Secret('HetznerOriginTlsKey', 'No Origin Tls Key Set'), // Automatically set during deploy
-    HetznerOriginTlsCrt: new sst.Secret('HetznerOriginTlsCrt', 'No Origin Tls Cert Set'), // Automatically set during deploy
+    // NOTE: the key behind the CSR in infra/vps, generated once with vps.openssl.conf.
+    HetznerOriginTlsKey: requireSecret('HetznerOriginTlsKey'),
     main: {
       // namespace
-      // NOTE: sst Secret names are named '<namespace><db-name><resource><var>' (ie. MainMainPostgresSuperuserPassword)
+      // NOTE: names are <namespace><db-name><resource><var>, like MainMainPostgresSuperuserPassword
       mainPostgres: {
-        SuperuserPassword: new sst.Secret('MainMainPostgresSuperuserPassword'),
-        AdminPassword: new sst.Secret('MainMainPostgresAdminPassword'),
-        ClientPassword: new sst.Secret('MainMainPostgresClientPassword'),
-        ReplicationPassword: new sst.Secret('MainMainPostgresReplicationPassword'),
-        PatroniPassword: new sst.Secret('MainMainPostgresPatroniPassword'),
-        PgdogAdminPassword: new sst.Secret('MainMainPostgresPgdogAdminPassword')
+        SuperuserPassword: requireSecret('MainMainPostgresSuperuserPassword'),
+        AdminPassword: requireSecret('MainMainPostgresAdminPassword'),
+        ClientPassword: requireSecret('MainMainPostgresClientPassword'),
+        ReplicationPassword: requireSecret('MainMainPostgresReplicationPassword'),
+        PatroniPassword: requireSecret('MainMainPostgresPatroniPassword'),
+        PgdogAdminPassword: requireSecret('MainMainPostgresPgdogAdminPassword')
       },
       mainValkey: {
-        AdminPassword: new sst.Secret('MainMainValkeyAdminPassword'),
-        ClientPassword: new sst.Secret('MainMainValkeyClientPassword')
+        AdminPassword: requireSecret('MainMainValkeyAdminPassword'),
+        ClientPassword: requireSecret('MainMainValkeyClientPassword')
       },
       mainClickhouse: {
-        AdminPassword: new sst.Secret('MainMainClickhouseAdminPassword'),
-        ClientPassword: new sst.Secret('MainMainClickhouseClientPassword')
+        AdminPassword: requireSecret('MainMainClickhouseAdminPassword'),
+        ClientPassword: requireSecret('MainMainClickhouseClientPassword')
       }
     }
   }
 };
 
-export function setSecret(secretName: $util.Input<string>, secretValue: $util.Input<string>) {
-  $resolve([secretName, secretValue]).apply(([name, value]) => {
-    execSync(`sst secret set ${name} --stage ${$app.stage} ${value}`, {
-      stdio: 'inherit'
-    });
-  });
-}
+// NOTE: explicit providers so no ambient token is used; disabled defaults fail anything missed
+const providers: Record<string, pulumi.ProviderResource> = {
+  cloudflare: new cloudflare.Provider('Cloudflare', { apiToken: secrets.cloudflare.ApiKey }),
+  github: new github.Provider('Github', { token: secrets.github.PersonalAccessToken }),
+  hcloud: new hcloud.Provider('Hetzner', { token: secrets.hetzner.ApiKey }),
+  tailscale: new tailscale.Provider('Tailscale', {
+    oauthClientId: secrets.tailscale.OauthClientId,
+    oauthClientSecret: secrets.tailscale.OauthClientSecret
+  })
+};
+pulumi.runtime.registerResourceTransform(({ type, props, opts }) => ({
+  props,
+  opts: { ...opts, provider: opts.provider ?? providers[type.split(':')[0]] }
+}));
+pulumi.runtime.registerInvokeTransform(({ token, args, opts }) => ({
+  args,
+  opts: { ...opts, provider: opts.provider ?? providers[token.split(':')[0]] }
+}));

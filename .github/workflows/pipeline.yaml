@@ -22,8 +22,8 @@ on:
         description: 'Image · valkey-reconciler'
         type: boolean
         default: false
-      argocd-sst-plugin:
-        description: 'Image · argocd-sst-plugin'
+      argocd-pulumi-plugin:
+        description: 'Image · argocd-pulumi-plugin'
         type: boolean
         default: false
       clickhouse:

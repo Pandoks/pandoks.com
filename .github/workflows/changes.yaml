@@ -119,7 +119,7 @@ jobs:
               - '.github/workflows/checks.yaml'
             infra:
               - 'infra/**'
-              - 'sst.config.ts'
+              - 'Pulumi*.yaml'
               - 'tsconfig.json'
               - *needs-node-setup
 
@@ -184,7 +184,7 @@ jobs:
               - 'packages/valkey/entrypoint.sh'
             valkey-reconciler:
               - 'packages/valkey/reconciler/**'
-            argocd-sst-plugin:
+            argocd-pulumi-plugin:
               - 'packages/argocd/**'
             clickhouse:
               - 'packages/clickhouse/clickhouse/**'
@@ -252,7 +252,7 @@ jobs:
             {"name":"pgbackrest","package":"postgres","path":"./packages/postgres/pgbackrest/Dockerfile"},
             {"name":"valkey","package":"valkey","path":"./packages/valkey/Dockerfile"},
             {"name":"valkey-reconciler","package":"valkey","path":"./packages/valkey/reconciler/Dockerfile"},
-            {"name":"argocd-sst-plugin","package":"argocd","path":"./packages/argocd/Dockerfile"},
+            {"name":"argocd-pulumi-plugin","package":"argocd","path":"./packages/argocd/Dockerfile"},
             {"name":"clickhouse","package":"clickhouse","path":"./packages/clickhouse/clickhouse/Dockerfile"},
             {"name":"clickhouse-keeper","package":"clickhouse","path":"./packages/clickhouse/keeper/Dockerfile"},
             {"name":"clickhouse-backup","package":"clickhouse","path":"./packages/clickhouse/backup/Dockerfile"}

@@ -1,7 +1,8 @@
-import { cloudflareAccountId, isProduction, STAGE_NAME } from './dns';
-import { defaultAwsRegion } from './aws';
-import { secrets } from './secrets';
-import { tailscaleAcl } from './tailscale';
+import * as github from '@pulumi/github';
+import * as tailscale from '@pulumi/tailscale';
+import { cloudflareAccountId, isProduction, STAGE_NAME } from './dns.ts';
+import { secrets } from './secrets.ts';
+import { tailscaleAcl } from './tailscale.ts';
 
 export const githubOrg = 'Pandoks';
 export const githubRepositoryName = 'pandoks.com';
@@ -16,13 +17,6 @@ const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironme
   repository: githubRepositoryName,
   environment: isProduction ? 'production' : 'dev',
   deploymentBranchPolicy: DEPLOYMENT_BRANCH_POLICY
-});
-
-new github.ActionsEnvironmentSecret('GithubHetznerApiKey', {
-  repository: githubRepositoryName,
-  environment: githubEnvironment.environment,
-  secretName: 'HCLOUD_TOKEN',
-  value: secrets.hetzner.ApiKey.value
 });
 
 if (isProduction) {
@@ -58,94 +52,25 @@ if (isProduction) {
   new github.ActionsSecret('GithubGithubAccessToken', {
     repository: githubRepositoryName,
     secretName: 'GH_TOKEN',
-    value: secrets.github.PersonalAccessToken.value
+    value: secrets.github.PersonalAccessToken
   });
 
   new github.ActionsSecret('GithubGithubPackageManagementToken', {
     repository: githubRepositoryName,
     secretName: 'GH_PACKAGE_MANAGEMENT_TOKEN',
-    value: secrets.github.PackageManagementToken.value
+    value: secrets.github.PackageManagementToken
   });
 
   new github.ActionsSecret('GithubCloudflareApiToken', {
     repository: githubRepositoryName,
     secretName: 'CLOUDFLARE_API_TOKEN',
-    value: secrets.cloudflare.ApiKey.value
+    value: secrets.cloudflare.ApiKey
   });
 
   new github.ActionsSecret('GithubCloudflareAccountId', {
     repository: githubRepositoryName,
     secretName: 'CLOUDFLARE_DEFAULT_ACCOUNT_ID',
     value: cloudflareAccountId
-  });
-
-  new github.ActionsSecret('GithubOvhApplicationSecret', {
-    repository: githubRepositoryName,
-    secretName: 'OVH_APPLICATION_SECRET',
-    value: secrets.ovh.ApplicationSecret.value
-  });
-
-  new github.ActionsSecret('GithubOvhConsumerKey', {
-    repository: githubRepositoryName,
-    secretName: 'OVH_CONSUMER_KEY',
-    value: secrets.ovh.ConsumerKey.value
-  });
-
-  const githubAWSOidcProvider = new aws.iam.OpenIdConnectProvider('AWSGithubActionsOidc', {
-    url: 'https://token.actions.githubusercontent.com',
-    clientIdLists: ['sts.amazonaws.com']
-  });
-
-  const githubActionsAWSRole = new aws.iam.Role('AWSGithubActionsRole', {
-    name: 'PersonalGithubActions',
-    assumeRolePolicy: $jsonStringify({
-      Version: '2012-10-17',
-      Statement: [
-        {
-          Effect: 'Allow',
-          Principal: {
-            Federated: githubAWSOidcProvider.arn
-          },
-          Action: 'sts:AssumeRoleWithWebIdentity',
-          Condition: {
-            StringEquals: {
-              'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-              'token.actions.githubusercontent.com:sub': [
-                `repo:${githubOrg}/${githubRepositoryName}:environment:production`,
-                `repo:${githubOrg}/${githubRepositoryName}:ref:refs/heads/main`
-              ]
-            }
-          }
-        }
-      ]
-    })
-  });
-
-  new aws.iam.RolePolicyAttachment('AWSGithubActionsPolicy', {
-    role: githubActionsAWSRole.name,
-    policyArn: aws.iam.ManagedPolicy.AdministratorAccess
-  });
-
-  new github.ActionsVariable('GithubAWSRole', {
-    repository: githubRepositoryName,
-    variableName: 'AWS_ROLE_ARN',
-    value: githubActionsAWSRole.arn
-  });
-  new github.ActionsVariable('GithubAWSRegion', {
-    repository: githubRepositoryName,
-    variableName: 'AWS_REGION',
-    value: defaultAwsRegion
-  });
-
-  new github.ActionsSecret('GithubTailscaleOauthClientId', {
-    repository: githubRepositoryName,
-    secretName: 'TAILSCALE_OAUTH_CLIENT_ID',
-    value: secrets.tailscale.OauthClientId.value
-  });
-  new github.ActionsSecret('GithubTailscaleOauthClientSecret', {
-    repository: githubRepositoryName,
-    secretName: 'TAILSCALE_OAUTH_CLIENT_SECRET',
-    value: secrets.tailscale.OauthClientSecret.value
   });
 
   const githubActionsOauthClient = new tailscale.OauthClient(
@@ -155,7 +80,7 @@ if (isProduction) {
       scopes: ['devices:core', 'auth_keys'],
       tags: ['tag:ci']
     },
-    { dependsOn: [tailscaleAcl] }
+    { dependsOn: tailscaleAcl }
   );
   new github.ActionsSecret('GithubActionsTailscaleOauthClientId', {
     repository: githubRepositoryName,

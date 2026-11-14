@@ -15,7 +15,7 @@ Thumbs.db
 # Env
 .env
 .env.*
-!.env.example
+mise.local.toml
 
 # Vite
 vite.config.js.timestamp-*
@@ -26,9 +26,6 @@ vite.config.ts.timestamp-*
 test-results
 playwright*/
 __pycache__/
-
-# sst
-.sst
 
 # Only pnpm
 package-lock.json

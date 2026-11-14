@@ -8,11 +8,10 @@ import {
 import { Client, isFullPage } from '@notionhq/client';
 import type { PageObjectResponse } from '@notionhq/client';
 import { createHash } from 'node:crypto';
-import { Resource } from 'sst';
 import { PHONE_NUMBER_MAPPINGS, type Users } from '../../lib/pii';
 import type { NotionWebhookEvent } from './webhook';
 
-const notion = new Client({ auth: Resource.NotionApiKey.value, notionVersion: '2026-03-11' });
+const notion = new Client({ auth: process.env.NOTION_API_KEY, notionVersion: '2026-03-11' });
 const schedulerClient = new SchedulerClient({});
 const ALL_PHONE_NUMBERS = [...new Set(Object.values(PHONE_NUMBER_MAPPINGS))];
 const NAME_PROPERTY_KEYS = ['Assigned To', 'Person', 'Assignee'];

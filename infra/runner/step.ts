@@ -1,10 +1,11 @@
-import { githubOrg, githubRepositoryName } from '../github';
+import * as pulumi from '@pulumi/pulumi';
+import { githubOrg, githubRepositoryName } from '../github.ts';
 import {
   ARM_INSTANCE_TYPES,
   GPU_ARM_INSTANCE_TYPES,
   GPU_X86_INSTANCE_TYPES,
   X86_INSTANCE_TYPES
-} from './types';
+} from './types.ts';
 
 const INPUT_DEFAULTS = { storageSizeGib: 8 };
 
@@ -223,142 +224,148 @@ export function runnerStateMachineDefinition({
   githubCloningTokenSSMParameter
 }: {
   templates: {
-    x86: $util.Input<string>;
-    arm64: $util.Input<string>;
-    gpuX86: $util.Input<string>;
-    gpuArm64: $util.Input<string>;
+    x86: pulumi.Input<string>;
+    arm64: pulumi.Input<string>;
+    gpuX86: pulumi.Input<string>;
+    gpuArm64: pulumi.Input<string>;
   };
-  cacheBucket: $util.Input<string>;
-  artifactsBucket: $util.Input<string>;
-  githubCloningTokenSSMParameter: $util.Input<string>;
+  cacheBucket: pulumi.Input<string>;
+  artifactsBucket: pulumi.Input<string>;
+  githubCloningTokenSSMParameter: pulumi.Input<string>;
 }) {
-  return $resolve([
-    x86,
-    arm64,
-    gpuX86,
-    gpuArm64,
-    cacheBucket,
-    artifactsBucket,
-    githubCloningTokenSSMParameter
-  ]).apply(
-    ([
-      launchTemplateIdX86,
-      launchTemplateIdArm64,
-      launchTemplateIdGpuX86,
-      launchTemplateIdGpuArm64,
+  return pulumi
+    .all([
+      x86,
+      arm64,
+      gpuX86,
+      gpuArm64,
       cacheBucket,
       artifactsBucket,
       githubCloningTokenSSMParameter
-    ]) => {
-      const bashScript = [
-        `set -euo pipefail`,
-        `export RUNNER_JOB_ID={}`,
-        `export RUNNER_CACHE_BUCKET=${cacheBucket}`,
-        `export RUNNER_ARTIFACTS_BUCKET=${artifactsBucket}`,
-        `GITHUB_TOKEN=$(aws ssm get-parameter --name ${githubCloningTokenSSMParameter} --with-decryption --query Parameter.Value --output text)`,
-        `git clone --depth 1 --branch {} https://x-access-token:$\\{GITHUB_TOKEN\\}@github.com/${githubOrg}/${githubRepositoryName}.git /opt/repo`,
-        `unset GITHUB_TOKEN`,
-        `cd /opt/repo`,
-        `{}`
-      ].join('; ');
+    ])
+    .apply(
+      ([
+        launchTemplateIdX86,
+        launchTemplateIdArm64,
+        launchTemplateIdGpuX86,
+        launchTemplateIdGpuArm64,
+        cacheBucket,
+        artifactsBucket,
+        githubCloningTokenSSMParameter
+      ]) => {
+        const bashScript = [
+          `set -euo pipefail`,
+          `export RUNNER_JOB_ID={}`,
+          `export RUNNER_CACHE_BUCKET=${cacheBucket}`,
+          `export RUNNER_ARTIFACTS_BUCKET=${artifactsBucket}`,
+          `GITHUB_TOKEN=$(aws ssm get-parameter --name ${githubCloningTokenSSMParameter} --with-decryption --query Parameter.Value --output text)`,
+          `git clone --depth 1 --branch {} https://x-access-token:$\\{GITHUB_TOKEN\\}@github.com/${githubOrg}/${githubRepositoryName}.git /opt/repo`,
+          `unset GITHUB_TOKEN`,
+          `cd /opt/repo`,
+          `{}`
+        ].join('; ');
 
-      return JSON.stringify({
-        Comment:
-          'Ephemeral EC2 runner — launch (arch/gpu-routed), run command via SSM, always terminate',
-        StartAt: 'ApplyDefaults',
-        States: {
-          ApplyDefaults: {
-            Type: 'Pass',
-            Parameters: {
-              'resolved.$': `States.JsonMerge(States.StringToJson('${JSON.stringify(INPUT_DEFAULTS)}'), $$.Execution.Input, false)`
-            },
-            OutputPath: '$.resolved',
-            Next: 'ResolveId'
-          },
-          ResolveId: {
-            Type: 'Choice',
-            Choices: [{ Variable: '$.id', IsPresent: true, Next: 'AttachTemplates' }],
-            Default: 'FallbackId'
-          },
-          FallbackId: {
-            Type: 'Pass',
-            InputPath: '$$.Execution.Name',
-            ResultPath: '$.id',
-            Next: 'AttachTemplates'
-          },
-          AttachTemplates: {
-            Type: 'Pass',
-            Result: {
-              launchTemplateIdX86,
-              launchTemplateIdArm64,
-              launchTemplateIdGpuX86,
-              launchTemplateIdGpuArm64
-            },
-            ResultPath: '$.templates',
-            Next: 'NormalizeStorageSize'
-          },
-          ...storageSizeGate,
-          ...instanceTypesGate,
-          ...Object.fromEntries(
-            RUNNER_VARIANTS.flatMap((variant) => [
-              [
-                `LaunchSpot${variant.suffix}`,
-                launchInstance({ templatePath: variant.templatePath, market: 'spot' })
-              ],
-              [
-                `LaunchOnDemand${variant.suffix}`,
-                launchInstance({ templatePath: variant.templatePath, market: 'on-demand' })
-              ]
-            ])
-          ),
-          ...waitForSsm,
-          RunJob: {
-            Type: 'Task',
-            Resource: 'arn:aws:states:::aws-sdk:ssm:sendCommand',
-            Parameters: {
-              'InstanceIds.$': 'States.Array($.instance.Instances[0].InstanceId)',
-              DocumentName: 'AWS-RunShellScript',
-              TimeoutSeconds: 60,
+        return JSON.stringify({
+          Comment:
+            'Ephemeral EC2 runner — launch (arch/gpu-routed), run command via SSM, always terminate',
+          StartAt: 'ApplyDefaults',
+          States: {
+            ApplyDefaults: {
+              Type: 'Pass',
               Parameters: {
-                'commands.$': `States.Array(States.Format('bash -c \\'${bashScript}\\'', $.id, $.ref, $.command))`,
-                executionTimeout: ['86400'] // 24 hours
+                'resolved.$': `States.JsonMerge(States.StringToJson('${JSON.stringify(INPUT_DEFAULTS)}'), $$.Execution.Input, false)`
               },
-              CloudWatchOutputConfig: { CloudWatchOutputEnabled: true }
+              OutputPath: '$.resolved',
+              Next: 'ResolveId'
             },
-            ResultPath: '$.command',
-            Next: 'WaitForJob',
-            Catch: [
-              { ErrorEquals: ['States.ALL'], ResultPath: '$.error', Next: 'TerminateAfterFailure' }
-            ]
-          },
-          ...waitForJob,
-          TerminateAfterSuccess: {
-            Type: 'Task',
-            Resource: 'arn:aws:states:::aws-sdk:ec2:terminateInstances',
-            Parameters: {
-              'InstanceIds.$': 'States.Array($.instance.Instances[0].InstanceId)'
+            ResolveId: {
+              Type: 'Choice',
+              Choices: [{ Variable: '$.id', IsPresent: true, Next: 'AttachTemplates' }],
+              Default: 'FallbackId'
             },
-            ResultPath: '$.termination',
-            Next: 'Done',
-            Retry: [{ ErrorEquals: ['States.ALL'], IntervalSeconds: 15, MaxAttempts: 5 }]
-          },
-          TerminateAfterFailure: {
-            Type: 'Task',
-            Resource: 'arn:aws:states:::aws-sdk:ec2:terminateInstances',
-            Parameters: {
-              'InstanceIds.$': 'States.Array($.instance.Instances[0].InstanceId)'
+            FallbackId: {
+              Type: 'Pass',
+              InputPath: '$$.Execution.Name',
+              ResultPath: '$.id',
+              Next: 'AttachTemplates'
             },
-            ResultPath: '$.termination',
-            Next: 'FailJob',
-            Retry: [{ ErrorEquals: ['States.ALL'], IntervalSeconds: 15, MaxAttempts: 5 }],
-            Catch: [
-              { ErrorEquals: ['States.ALL'], ResultPath: '$.terminationError', Next: 'FailJob' }
-            ]
-          },
-          ...fails,
-          Done: { Type: 'Succeed' }
-        }
-      });
-    }
-  );
+            AttachTemplates: {
+              Type: 'Pass',
+              Result: {
+                launchTemplateIdX86,
+                launchTemplateIdArm64,
+                launchTemplateIdGpuX86,
+                launchTemplateIdGpuArm64
+              },
+              ResultPath: '$.templates',
+              Next: 'NormalizeStorageSize'
+            },
+            ...storageSizeGate,
+            ...instanceTypesGate,
+            ...Object.fromEntries(
+              RUNNER_VARIANTS.flatMap((variant) => [
+                [
+                  `LaunchSpot${variant.suffix}`,
+                  launchInstance({ templatePath: variant.templatePath, market: 'spot' })
+                ],
+                [
+                  `LaunchOnDemand${variant.suffix}`,
+                  launchInstance({ templatePath: variant.templatePath, market: 'on-demand' })
+                ]
+              ])
+            ),
+            ...waitForSsm,
+            RunJob: {
+              Type: 'Task',
+              Resource: 'arn:aws:states:::aws-sdk:ssm:sendCommand',
+              Parameters: {
+                'InstanceIds.$': 'States.Array($.instance.Instances[0].InstanceId)',
+                DocumentName: 'AWS-RunShellScript',
+                TimeoutSeconds: 60,
+                Parameters: {
+                  'commands.$': `States.Array(States.Format('bash -c \\'${bashScript}\\'', $.id, $.ref, $.command))`,
+                  executionTimeout: ['86400'] // 24 hours
+                },
+                CloudWatchOutputConfig: { CloudWatchOutputEnabled: true }
+              },
+              ResultPath: '$.command',
+              Next: 'WaitForJob',
+              Catch: [
+                {
+                  ErrorEquals: ['States.ALL'],
+                  ResultPath: '$.error',
+                  Next: 'TerminateAfterFailure'
+                }
+              ]
+            },
+            ...waitForJob,
+            TerminateAfterSuccess: {
+              Type: 'Task',
+              Resource: 'arn:aws:states:::aws-sdk:ec2:terminateInstances',
+              Parameters: {
+                'InstanceIds.$': 'States.Array($.instance.Instances[0].InstanceId)'
+              },
+              ResultPath: '$.termination',
+              Next: 'Done',
+              Retry: [{ ErrorEquals: ['States.ALL'], IntervalSeconds: 15, MaxAttempts: 5 }]
+            },
+            TerminateAfterFailure: {
+              Type: 'Task',
+              Resource: 'arn:aws:states:::aws-sdk:ec2:terminateInstances',
+              Parameters: {
+                'InstanceIds.$': 'States.Array($.instance.Instances[0].InstanceId)'
+              },
+              ResultPath: '$.termination',
+              Next: 'FailJob',
+              Retry: [{ ErrorEquals: ['States.ALL'], IntervalSeconds: 15, MaxAttempts: 5 }],
+              Catch: [
+                { ErrorEquals: ['States.ALL'], ResultPath: '$.terminationError', Next: 'FailJob' }
+              ]
+            },
+            ...fails,
+            Done: { Type: 'Succeed' }
+          }
+        });
+      }
+    );
 }

@@ -1,7 +1,17 @@
-import { isProduction } from './dns';
-import { hubTailscaleServices, tailscaleAcl } from './tailscale';
+import * as ovh from '@ovhcloud/pulumi-ovh';
+import * as tailscale from '@pulumi/tailscale';
+import { isProduction } from './dns.ts';
+import { hubTailscaleServices, tailscaleAcl } from './tailscale.ts';
+import { secrets } from './secrets.ts';
 
 if (isProduction) {
+  const ovhProvider = new ovh.Provider('Ovh', {
+    endpoint: 'ovh-us',
+    applicationKey: 'edf9a4672d28e3c7',
+    applicationSecret: secrets.ovh.ApplicationSecret,
+    consumerKey: secrets.ovh.ConsumerKey
+  });
+
   new ovh.vps.Vps(
     'OvhDevVps',
     {
@@ -48,7 +58,9 @@ if (isProduction) {
       ]
     },
     {
+      provider: ovhProvider,
       protect: true,
+      retainOnDelete: true,
       import: 'vps-54c42746.vps.ovh.us',
       ignoreChanges: ['plans', 'ovhSubsidiary', 'planOptions']
     }
@@ -61,7 +73,7 @@ if (isProduction) {
       deviceId: devTailscaleDevice.nodeId,
       tags: ['tag:funnel', 'tag:ovh', 'tag:ssh']
     },
-    { dependsOn: [tailscaleAcl] }
+    { dependsOn: tailscaleAcl }
   );
 
   const hubTailscaleDevice = tailscale.getDeviceOutput({ hostname: 'thinkpad-t470' });
@@ -71,48 +83,14 @@ if (isProduction) {
       deviceId: hubTailscaleDevice.nodeId,
       tags: ['tag:hub', 'tag:ssh']
     },
-    { dependsOn: [tailscaleAcl] }
+    { dependsOn: tailscaleAcl }
   );
 
   for (const { name, comment } of hubTailscaleServices) {
     new tailscale.Service(
       `${name.replace(/(?:^|-)(.)/g, (_, char: string) => char.toUpperCase())}TailscaleService`,
       { name: `svc:${name}`, comment, ports: ['tcp:443'], tags: ['tag:hub'] },
-      { dependsOn: [tailscaleAcl] }
+      { dependsOn: tailscaleAcl }
     );
   }
 }
-
-new sst.x.DevCommand('LocalInit', {
-  dev: {
-    title: 'InitLocal',
-    command: 'pnpm local:init',
-    autostart: false
-  }
-});
-
-new sst.x.DevCommand('LocalDestroy', {
-  dev: {
-    title: 'DestroyLocal',
-    command: 'pnpm local:destroy',
-    autostart: false
-  }
-});
-
-new sst.x.DevCommand('K3dRestart', {
-  dev: {
-    title: 'RestartK3d',
-    command: 'pnpm cluster k3d restart',
-    autostart: false
-  }
-});
-
-new sst.x.DevCommand('K3dDependencyRestart', {
-  dev: {
-    title: 'RestartK3dDeps',
-    command: 'pnpm cluster k3d deps restart',
-    autostart: false
-  }
-});
-
-export {};

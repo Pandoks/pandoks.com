@@ -1,4 +1,3 @@
-import { Resource } from 'sst';
 import type { NotionWebhookEvent } from './webhook';
 
 // NOTE: notion UUIDs are inconsistent with the same resource. sometimes dashes and sometimes not
@@ -10,7 +9,7 @@ export const handleNotionBlogSync = async (event: NotionWebhookEvent) => {
   const parent = (event.data as { parent?: { database_id?: string } }).parent;
   if (
     !parent?.database_id ||
-    normalizeNotionId(parent.database_id) !== Resource.Notion.blogDatabaseId
+    normalizeNotionId(parent.database_id) !== process.env.NOTION_BLOG_DATABASE_ID
   ) {
     return;
   }
@@ -19,7 +18,7 @@ export const handleNotionBlogSync = async (event: NotionWebhookEvent) => {
     method: 'POST',
     headers: {
       Accept: 'application/vnd.github.v3+json',
-      Authorization: `token ${Resource.GithubPersonalAccessToken.value}`,
+      Authorization: `token ${process.env.GITHUB_PERSONAL_ACCESS_TOKEN!}`,
       'Content-Type': 'application/json',
       'User-Agent': process.env.DOMAIN!
     },

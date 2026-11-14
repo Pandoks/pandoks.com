@@ -1,12 +1,13 @@
 import { hash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { US_WEST_2_REGION, usWest2Provider } from '../aws';
-import { STAGE_NAME } from '../dns';
+import * as aws from '@pulumi/aws';
+import { US_WEST_2_REGION, usWest2Provider } from '../aws.ts';
+import { STAGE_NAME } from '../dns.ts';
 
 // WARNING: reverting these files reuses an existing (immutable) version, so bump the minor.
 const sources = ['ami.ts', 'ami.yaml', 'ami-gpu.yaml'].map((file) =>
-  readFileSync(join(process.cwd(), 'infra/runner', file), 'utf-8')
+  readFileSync(join(import.meta.dirname, file), 'utf-8')
 );
 const VERSION = `1.1.${parseInt(hash('sha256', sources.join('\0')).slice(0, 7), 16)}`;
 
@@ -44,7 +45,7 @@ function renderAmiTemplateYaml({
   file: string;
   replacements?: Record<string, string>;
 }) {
-  let data = readFileSync(join(process.cwd(), 'infra/runner', file), 'utf-8');
+  let data = readFileSync(join(import.meta.dirname, file), 'utf-8');
   if (replacements) {
     for (const [token, value] of Object.entries(replacements)) {
       data = data.replaceAll(`{{${token}}}`, value);

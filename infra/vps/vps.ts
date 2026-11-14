@@ -1,9 +1,12 @@
 // WARNING: resources that hold data like servers, volumes, etc. should be protected by the
 // `protect` option in production. This is to prevent accidental deletion of resources.
-import { isProduction, STAGE_NAME } from '../dns';
-import { createServers } from './servers';
-import { createLoadBalancers } from './load-balancers';
-import { deleteTailscaleDevices } from '../tailscale';
+import * as pulumi from '@pulumi/pulumi';
+import * as hcloud from '@pulumi/hcloud';
+import * as tailscale from '@pulumi/tailscale';
+import { isProduction, STAGE_NAME } from '../dns.ts';
+import { createServers } from './servers.ts';
+import { createLoadBalancers } from './load-balancers.ts';
+import { deleteTailscaleDevices } from '../tailscale.ts';
 
 // NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
 const CONTROL_PLANE_NODE_COUNT = isProduction ? 0 : 0;
@@ -128,7 +131,8 @@ const { tailscaleHostnames: _workerTailscaleHostnames, servers: _workerServers }
   bootstrapServer
 );
 
-if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
+// NOTE: only on update, so a preview never deletes devices.
+if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0 && !pulumi.runtime.isDryRun()) {
   const { devices = [] } = await tailscale.getDevices({ namePrefix: `${STAGE_NAME}` });
 
   const kubernetesDevices = devices.filter(
@@ -168,11 +172,11 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0) {
 const publicLoadBalancerOutputs = Object.fromEntries(
   // NOTE: we have to hard code the name because indecies can't be pulumi inputs/outputs
   [
-    ...controlPlaneLoadBalancers.map((lb, i): [string, $util.Output<string>] => [
+    ...controlPlaneLoadBalancers.map((lb, i): [string, pulumi.Output<string>] => [
       `ControlPlaneLoadBalancer${i}`,
       lb.loadbalancer.ipv4
     ]),
-    ...workerLoadBalancers.map((lb, i): [string, $util.Output<string>] => [
+    ...workerLoadBalancers.map((lb, i): [string, pulumi.Output<string>] => [
       `WorkerLoadBalancer${i}`,
       lb.loadbalancer.ipv4
     ])

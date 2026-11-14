@@ -34,20 +34,24 @@
 
 - [Git](https://git-scm.com/downloads) and [mise](https://mise.jdx.dev/installing-mise.html)
 - [Docker](https://docs.docker.com/get-docker/)
-- [OpenSSL](https://www.openssl.org/)
 - [Tailscale](https://tailscale.com/download), only for cloud (dev/prod) cluster access
 
-2. Setup `.env.<stage>`. Take a look at [.env.example](/.env.example) as a reference.
-
-3. Setup the repository:
+2. Setup the repository:
 
 ```sh
 mise install
 pnpm install
 ```
 
-4. Configure AWS SSO session in `~/.aws/config`. `pnpm sso` points to sso session `personal`, but
-   you can change it to whatever you want in `package.json`.
+3. Configure an AWS SSO profile in `~/.aws/config` and export it as `AWS_PROFILE`. `pnpm sso` logs
+   in to sso session `personal`; change it in `package.json` to match. Then add the profile Pulumi
+   reads its R2 state with:
+
+```sh
+aws configure set profile.pandoks-pulumi-state.region auto
+aws configure set profile.pandoks-pulumi-state.credential_process \
+  'aws ssm get-parameter --region us-west-1 --name /pulumi/r2-state-credentials --with-decryption --query Parameter.Value --output text'
+```
 
 > [!NOTE]
 > AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while
@@ -62,19 +66,19 @@ the cloud. _Because we're using k3d, which puts an entire Kubernetes cluster ins
 containers, not everything is one to one with the production cluster. ie. networking, registries,
 etc_
 
-To setup the local cluster, run this from the root of the monorepo. Replace `your-stage` with your
-personal SST stage (for example, `pandoks`):
+To setup the local cluster, run this from the root of the monorepo. Replace `your-stack` with your
+personal Pulumi stack (for example, `pandoks`):
 
 ```sh
 # Quick setup (all-in-one)
-SST_STAGE=your-stage pnpm local:init
+pulumi stack select your-stack && pnpm local:init
 
 # Or step by step:
 pnpm cluster k3d deps up               # Start docker compose dependencies
 pnpm cluster k3d up                    # Create k3d cluster
 pnpm local:build && pnpm local:push    # Build and push images/charts to the local registry
-pnpm cluster deploy local --stage your-stage --bootstrap  # First-time: install helm charts + CRDs
-pnpm cluster deploy local --stage your-stage # Apply environment overlay
+pnpm cluster deploy local --stack your-stack --bootstrap  # First-time: install helm charts + CRDs
+pnpm cluster deploy local --stack your-stack # Apply environment overlay
 ```
 
 To tear down the cluster:
@@ -89,9 +93,47 @@ See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI comman
 
 ## Development
 
-For things that are not deployed to Kubernetes, they are managed by `sst`. To run the development
-server, run this from the root of the monorepo:
+Everything outside Kubernetes is a [Pulumi](https://www.pulumi.com/docs/) program in `infra/`, with
+one stack per stage (`production`, `dev`, and personal stacks like `pandoks`). State lives in the R2
+bucket in `Pulumi.yaml`, and each `Pulumi.<stack>.yaml` names the KMS key that encrypts it and the
+stack's secrets, SSM `SecureString`s at `/pulumi/<stack>/<Name>`:
 
 ```sh
-pnpm dev --stage your-stage # assuming that you are still verified via SSO
+pulumi preview --stack your-stack
+pulumi up --stack your-stack
+# never the default aws/ssm key, which runner instances can read
+aws ssm put-parameter --overwrite --type SecureString --key-id alias/pulumi-nonproduction \
+  --name /pulumi/your-stack/<Name> --value file://<file>
 ```
+
+A new stack needs every secret in `infra/secrets.ts` and a committed `Pulumi.<stack>.yaml` from
+`pulumi stack init your-stack --no-select --secrets-provider 'awskms://alias/pulumi-nonproduction?region=us-west-1'`.
+
+### Bootstrap
+
+The program doesn't own its state, keys or CI login, so a new account needs these once:
+
+1. In Cloudflare, the R2 bucket `pandoks-pulumi-state` (location WNAM) and two R2 API tokens limited
+   to it: **Object Read & Write** and **Object Read only**.
+2. In AWS, the KMS keys, then each token in SSM, written to a file as
+   `{"Version":1,"AccessKeyId":"…","SecretAccessKey":"…"}`:
+
+```sh
+for alias in pulumi-production pulumi-nonproduction; do
+  key_id=$(aws kms create-key --region us-west-1 --query KeyMetadata.KeyId --output text)
+  aws kms create-alias --region us-west-1 --alias-name "alias/${alias}" --target-key-id "${key_id}"
+done
+aws ssm put-parameter --region us-west-1 --type SecureString --key-id alias/pulumi-production \
+  --name /pulumi/r2-state-credentials --value file://<read-write-token-file>
+aws ssm put-parameter --region us-west-1 --type SecureString --key-id alias/pulumi-production \
+  --name /pulumi/r2-state-read-credentials --value file://<read-only-token-file>
+```
+
+3. For CI, a GitHub OIDC identity provider (`token.actions.githubusercontent.com`, audience
+   `sts.amazonaws.com`) and an IAM role with `AdministratorAccess` it can assume for
+   `repo:Pandoks/pandoks.com:ref:refs/heads/main` and
+   `repo:Pandoks/pandoks.com:environment:production`. Then
+   `gh variable set AWS_ROLE_ARN --body <role-arn>` and
+   `gh variable set AWS_REGION --body us-west-1`.
+4. The `production` and `dev` stacks with their secrets, as above; `production` uses
+   `alias/pulumi-production`.
