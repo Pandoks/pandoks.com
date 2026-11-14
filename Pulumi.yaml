@@ -1,4 +1,4 @@
-name: personal
+name: pandoks.com
 description: pandoks.com infrastructure
 main: infra/index.ts
 runtime:
