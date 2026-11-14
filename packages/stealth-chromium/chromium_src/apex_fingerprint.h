@@ -295,6 +295,18 @@ inline bool PersonaIsWindows() {
 inline bool PersonaIsMacOS() {
   return Active() && EnvStr("APEX_FP_UA_PLATFORM") == "macOS";
 }
+// True when the persona claims a desktop OS (Windows / macOS / Linux -- i.e.
+// anything that is not a mobile platform). Mobile personas would legitimately
+// report motion, desktop personas would not. An active persona with no
+// APEX_FP_UA_PLATFORM is NOT desktop (fail closed: keep the stock behavior
+// when the claimed OS is unknown).
+inline bool PersonaIsDesktop() {
+  if (!Active()) {
+    return false;
+  }
+  const std::string platform = EnvStr("APEX_FP_UA_PLATFORM");
+  return !platform.empty() && platform != "Android" && platform != "iOS";
+}
 
 // --- media capability / platform-authenticator persona overrides ----------
 // Mirrors the APEX_FP_WEBGPU_* contract: each flag says what the persona's

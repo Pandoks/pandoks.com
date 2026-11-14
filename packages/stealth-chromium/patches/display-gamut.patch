@@ -1,0 +1,75 @@
+# apex patch: (display-gamut: srgb) must match (fix11 #4)
+#
+# THE PROBLEM. matchMedia("(display-gamut: srgb)").matches is false on the
+# build while a real display reports true. Root cause: Chromium 157 registers
+# only "color-gamut" as a media feature (core/css/media_feature_names.json5).
+# "display-gamut" (CSS Color 4) is not in the list, so the query's feature is
+# unknown to the evaluator's function map and every (display-gamut: X) query
+# evaluates to false. The value source is NOT the problem -- the color-gamut
+# evaluator (ColorGamutMediaFeatureEval -> MediaValues::CalculateColorGamut)
+# already maps the real screen's ColorSpaceGamut (from the ScreenInfo the
+# compositor reports) onto the srgb/p3/rec2020 matching set correctly; an
+# sRGB screen matches srgb and rejects p3/rec2020, which is the real-display
+# behavior the persona should show.
+#
+# THE FIX. Three small source edits wire "display-gamut" through the same
+# machinery as "color-gamut":
+#   1. core/css/media_feature_names.json5: register "display-gamut" (the
+#      codegen emits kDisplayGamutMediaFeature and adds the
+#      CSS_MEDIAQUERY_NAMES_FOR_EACH_MEDIAFEATURE macro entry
+#      (kDisplayGamutMediaFeature, DisplayGamut)).
+#   2. core/css/media_query_evaluator.cc: a 3-line trampoline
+#      DisplayGamutMediaFeatureEval that forwards to
+#      ColorGamutMediaFeatureEval (the macro-generated map needs a function
+#      with that exact name; reusing the color-gamut evaluator means the
+#      per-gamut matching semantics come from the one upstream
+#      implementation).
+#   3. core/css/media_query_exp.cc: FeatureWithValidIdent accepts the same
+#      value idents (srgb / p3 / rec2020) for the new name, so
+#      (display-gamut: srgb) parses.
+# Persona-level override is NOT needed: the value comes from the real screen's
+# color capabilities, which is what a real machine would also report.
+#
+# Runtime-gated: none (the query is always evaluable; the value reflects the
+# real display).
+#
+# Apply targets (all anchor edits via scripts/apply_edits.py):
+#   third_party/blink/renderer/core/css/media_feature_names.json5
+#   third_party/blink/renderer/core/css/media_query_evaluator.cc
+#   third_party/blink/renderer/core/css/media_query_exp.cc
+--- a/third_party/blink/renderer/core/css/media_feature_names.json5
++++ b/third_party/blink/renderer/core/css/media_feature_names.json5
+@@ data @@
+     "color",
+     "color-index",
+     "color-gamut",
++    "display-gamut",  // apex-display-gamut-names
+     "forced-colors",
+--- a/third_party/blink/renderer/core/css/media_query_evaluator.cc
++++ b/third_party/blink/renderer/core/css/media_query_evaluator.cc
+@@ ColorGamutMediaFeatureEval (after the switch / NOTREACHED) @@
+   NOTREACHED();
+ }
++  // apex-display-gamut-eval: the (display-gamut: X) media query
++  // evaluates through the same ColorSpaceGamut switch as
++  // (color-gamut: X). The generated function map pairs the
++  // "display-gamut" name with this DisplayGamut prefix, so
++  // the trampoline is what the macro will call.
++  static bool DisplayGamutMediaFeatureEval(
++      const MediaQueryExpValue& value, MediaQueryOperator op,
++      const MediaValues& media_values) {
++    return ColorGamutMediaFeatureEval(value, op, media_values);
++  }
+--- a/third_party/blink/renderer/core/css/media_query_exp.cc
++++ b/third_party/blink/renderer/core/css/media_query_exp.cc
+@@ FeatureWithValidIdent (after the color-gamut case) @@
+   if (media_feature == media_feature_names::kColorGamutMediaFeature) {
+     return ident == CSSValueID::kSRGB || ident == CSSValueID::kP3 ||
+            ident == CSSValueID::kRec2020;
+   }
++  // apex-display-gamut-idents: the display-gamut name accepts the
++  // same value idents as color-gamut (srgb / p3 / rec2020).
++  if (media_feature == media_feature_names::kDisplayGamutMediaFeature) {
++    return ident == CSSValueID::kSRGB || ident == CSSValueID::kP3 ||
++           ident == CSSValueID::kRec2020;
++  }

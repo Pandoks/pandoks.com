@@ -26,6 +26,16 @@
 # The macOS getSupportedFormats() list is overridden separately
 # (apex-osapi-barcodedetector-formats.patch).
 #
+# fix11 addition: the Generic Sensor classes gated by the SensorExtraClasses
+# runtime feature (magnetometer.idl + ambient_light_sensor.idl carry
+# RuntimeEnabled=SensorExtraClasses; the rest of the sensor set has no gate)
+# are also OS-gated in practice: a Linux 157 build leaves the feature
+# "experimental" (off), so a Windows persona lacked the Magnetometer /
+# AmbientLightSensor globals that real Windows Chrome exposes as part of the
+# full Generic Sensor set (the round-11 probe: typeof Magnetometer was
+# "undefined" under a Windows persona). The same edit now enables
+# SensorExtraClasses for a Windows persona.
+#
 # Runtime-gated: no APEX_FP_UA_PLATFORM (or APEX_FP_ACTIVE != 1) = the real
 # (Linux-build) surface.
 #
@@ -49,4 +59,15 @@
 +  if (apex_fp::PersonaIsMacOS()) {
 +    blink::WebRuntimeFeatures::EnableFeatureFromString(
 +        "BarcodeDetector", true);
++  }
++  // The Generic Sensor classes gated by the SensorExtraClasses
++  // runtime feature (magnetometer.idl + ambient_light_sensor.idl
++  // carry RuntimeEnabled=SensorExtraClasses; the rest of the
++  // sensor set has no gate). A Linux 157 build leaves it
++  // "experimental" (off), so a Windows persona would lack the
++  // Magnetometer / AmbientLightSensor globals that real Windows
++  // Chrome exposes as part of the full Generic Sensor set.
++  if (apex_fp::PersonaIsWindows()) {
++    blink::WebRuntimeFeatures::EnableFeatureFromString(
++        "SensorExtraClasses", true);
 +  }

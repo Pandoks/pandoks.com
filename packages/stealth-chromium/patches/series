@@ -41,3 +41,7 @@ netinfo-connection-override.patch
 # --- OS-gated Web API surface (gap #9) ---
 osapi-features.patch
 osapi-barcodedetector-formats.patch
+
+# --- fix11: sensor-surface gaps ---
+device-sensors-suppress.patch
+display-gamut.patch

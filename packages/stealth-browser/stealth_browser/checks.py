@@ -258,18 +258,46 @@ async () => {
     };
     const fontNames = uaWin ? fontCatalog.windows
       : (uaMac ? fontCatalog.mac : fontCatalog.linux);
+    // Per-script probe text. The width probe must measure glyphs the target
+    // face actually has: the per-script persona fonts (the Noto clones behind
+    // Ebrima / Gadugi / ... and Noto Color Emoji behind Segoe UI Emoji) do NOT
+    // carry basic Latin, so measuring the Latin string in them just measures
+    // the per-glyph fallback (identical to the missing-font baseline) and
+    // reports a present font as absent. Each script string is covered by the
+    // clone (and by the real Windows font -- that is what the font is for).
+    // Everything else measures the shared Latin string.
+    const fontProbeText = {
+      Ebrima: 'ߊߌߒߜߐ',
+      Gadugi: 'ᎣᏍᏓᏱᎠ',
+      'Javanese Text': 'ꦔꦏ꧀ꦗꦫ',
+      'Leelawadee UI': 'กขคงจฉ',
+      'MV Boli': 'މދނސް',
+      'Myanmar Text': 'ကခဂဃ',
+      'Nirmala UI': 'कखगघ',
+      'Mongolian Baiti': 'ᠠᠳᠴᠸ',
+      'Segoe UI Emoji': '\u{1F600}\u{1F601}',
+    };
     const fontSpan = document.createElement('span');
     fontSpan.style.cssText = 'position:absolute;left:-9999px;white-space:nowrap;font-size:72px;';
-    fontSpan.textContent = 'mmmmmmmmmwwwwwwwwwwiiiilli';
     document.body.appendChild(fontSpan);
-    const measureFont = f => {
-      fontSpan.style.fontFamily = f + ', monospace';
+    const measureFont = (f, generic) => {
+      fontSpan.textContent = fontProbeText[f] || 'mmmmmmmmmwwwwwwwwwwiiiilli';
+      fontSpan.style.fontFamily = f + ', ' + generic;
       return fontSpan.offsetWidth;
     };
-    const fontBaseline = measureFont('missing-font-xyz');
+    // Two baselines: with the generic monospace fallback (forced to Courier
+    // New by the persona patch) a target that IS Courier New -- or metric-
+    // identical to it (Lucida Console) -- measures the same as the baseline.
+    // The serif fallback resolves to a proportional face, which every persona
+    // face differs from. Present = differs from EITHER baseline.
+    const fontBaselineMono = measureFont('missing-font-xyz', 'monospace');
+    const fontBaselineSerif = measureFont('missing-font-xyz', 'serif');
     r.fontSet = {};
     for (const f of fontNames) {
-      try { r.fontSet[f] = measureFont(f) !== fontBaseline; } catch (e) { r.fontSet[f] = null; }
+      try {
+        r.fontSet[f] = measureFont(f, 'monospace') !== fontBaselineMono
+          || measureFont(f, 'serif') !== fontBaselineSerif;
+      } catch (e) { r.fontSet[f] = null; }
     }
     fontSpan.remove();
     // A real Windows 10/11 machine reports every core family as present; assert
@@ -1062,10 +1090,13 @@ async () => {
     if (r.webAuthnPresent && typeof PublicKeyCredential.getClientCapabilities === 'function') {
       r.webAuthnCaps = await PublicKeyCredential.getClientCapabilities();
     }
+    // Chrome 157's real map carries 24 keys (verified live); the W3C enum
+    // grew past the 9 the 133-era spec listed. Anything not in this set is a
+    // lie; extension:* is always allowed.
     const knownCaps = new Set(['conditionalCreate', 'conditionalGet', 'hybridTransport',
       'passkeyPlatformAuthenticator', 'userVerifyingPlatformAuthenticator',
       'relatedOrigins', 'signalAllAcceptedCredentials', 'signalCurrentUserDetails',
-      'signalUnknownCredential']);
+      'signalUnknownCredential', 'immediateGet']);
     const capKeys = Object.keys(r.webAuthnCaps || {});
     r.webAuthnCapsOk = r.webAuthnCaps != null && capKeys.length > 0
       && capKeys.every(k => knownCaps.has(k) || k.startsWith('extension:'))
@@ -1080,13 +1111,16 @@ async () => {
       try { return WebAssembly.validate(new Uint8Array(wasmBytes)); }
       catch (e) { return false; }
     };
+    // threads requires crossOriginIsolated (COOP/COEP) for shared memory;
+    // on a plain page the SAB constructor is gated, so record N/A (null) there
+    // instead of throwing and killing the whole matrix.
     r.wasmFeatures = {
       simd: wasmValid([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1,
         0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11]),
-      threads: (typeof MessageChannel !== 'undefined'
-        && (new MessageChannel()).port1.postMessage(new SharedArrayBuffer(1)),
-      wasmValid([0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 3, 2, 1, 0, 5, 4, 1, 3,
-        1, 1, 10, 11, 1, 9, 0, 65, 0, 254, 16, 2, 0, 26, 11])),
+      threads: (typeof SharedArrayBuffer !== 'undefined'
+        ? wasmValid([0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 3, 2, 1, 0, 5, 4, 1, 3,
+            1, 1, 10, 11, 1, 9, 0, 65, 0, 254, 16, 2, 0, 26, 11])
+        : null),
       bulkMemory: wasmValid([0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 3, 2, 1, 0,
         5, 3, 1, 0, 1, 10, 14, 1, 12, 0, 65, 0, 65, 0, 65, 0, 252, 10, 0, 0, 11]),
       exceptions: wasmValid([0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 3, 2, 1, 0,
@@ -1100,7 +1134,8 @@ async () => {
       tailCall: wasmValid([0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 3, 2, 1, 0,
         10, 6, 1, 4, 0, 18, 0, 11]),
     };
-    r.wasmFeaturesOk = Object.values(r.wasmFeatures).every(v => v === true);
+    r.wasmFeaturesOk = Object.entries(r.wasmFeatures)
+      .every(([k, v]) => v === true || (k === 'threads' && v == null));
   } catch (e) { r.wasmFeaturesError = String(e); r.wasmFeaturesOk = false; }
 
 

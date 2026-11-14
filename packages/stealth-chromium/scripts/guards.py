@@ -97,6 +97,24 @@ GUARDS: dict[str, tuple[str, object]] = {
                           "c.width=120;c.height=40;const g=c.getContext('2d');"
                           "g.font='14px Arial';g.fillText('apex guard',4,20);"
                           "return c.toDataURL().slice(-40);})()", "string-any"),
+    # fix11: OS-gated sensor surface -- SensorExtraClasses on for a Windows
+    # persona (Magnetometer + AmbientLightSensor globals; the rest of the
+    # Generic Sensor set has no runtime gate, so they are always present).
+    "apex-osapi-sensorextraclasses": (
+        "typeof Magnetometer === 'function' && "
+        "typeof AmbientLightSensor === 'function'",
+        "true-when-persona-win-else-false"),
+    # fix11: no deviceorientation / devicemotion events on a desktop persona.
+    "apex-device-sensors-suppress": (
+        "new Promise(res => {let n = 0;const l = () => {n++;};"
+        "window.addEventListener('deviceorientation', l);"
+        "window.addEventListener('devicemotion', l);"
+        "setTimeout(() => res(n), 600);})",
+        "0-desktop-persona"),
+    # fix11: (display-gamut: srgb) is a registered media query that evaluates
+    # against the real screen's gamut (an sRGB display matches srgb only).
+    "apex-display-gamut": ("matchMedia('(display-gamut: srgb)').matches",
+                           "matches-real-display-gamut"),
 }
 
 

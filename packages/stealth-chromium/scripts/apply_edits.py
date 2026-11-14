@@ -345,6 +345,42 @@ EDITS = [
                   "  if (apex_fp::PersonaIsMacOS()) {\n"
                   "    blink::WebRuntimeFeatures::EnableFeatureFromString(\n"
                   "        \"BarcodeDetector\", true);\n"
+                  "  }\n"
+                  "  // The Generic Sensor classes gated by the SensorExtraClasses\n"
+                  "  // runtime feature (magnetometer.idl + ambient_light_sensor.idl\n"
+                  "  // carry RuntimeEnabled=SensorExtraClasses; the rest of the\n"
+                  "  // sensor set has no gate). A Linux 157 build leaves it\n"
+                  "  // \"experimental\" (off), so a Windows persona would lack the\n"
+                  "  // Magnetometer / AmbientLightSensor globals that real Windows\n"
+                  "  // Chrome exposes as part of the full Generic Sensor set.\n"
+                  "  if (apex_fp::PersonaIsWindows()) {\n"
+                  "    blink::WebRuntimeFeatures::EnableFeatureFromString(\n"
+                  "        \"SensorExtraClasses\", true);\n"
+                  "  }\n",
+    },
+    {
+        "file": "third_party/blink/renderer/core/frame/"
+                "device_single_window_event_controller.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-device-sensors-suppress",
+        "anchor": "  if (event_type != EventTypeName())\n"
+                  "    return;\n"
+                  "\n"
+                  "  if (GetPage() && GetPage()->IsPageVisible())\n"
+                  "    StartUpdating();\n",
+        "where": "after",
+        "inject": "  // apex-device-sensors-suppress: a desktop persona must not\n"
+                  "  // receive deviceorientation / devicemotion events. Both\n"
+                  "  // controllers (DeviceOrientationController,\n"
+                  "  // DeviceMotionController) funnel through this base-class\n"
+                  "  // DidAddEventListener, which is what starts the sensor pump\n"
+                  "  // (StartUpdating). The Linux container reports orientation\n"
+                  "  // data, so stock behavior fires the events with no permission\n"
+                  "  // grant -- on a real desktop they do not fire. Suppress when\n"
+                  "  // the persona claims a desktop OS (mobile personas would\n"
+                  "  // legitimately report motion).\n"
+                  "  if (apex_fp::PersonaIsDesktop()) {\n"
+                  "    return;\n"
                   "  }\n",
     },
     {
@@ -1285,6 +1321,65 @@ EDITS = [
                   "  // Linux default CSS system palette (the ActiveText red\n"
                   "  // is the platformMismatch tell). Gated on \"APEX_FP_PLATFORM\".\n"
                   "  apex_system_colors::ApplyWindowsSystemColors(mixer, dark_mode);\n",
+    },
+    # --- display-gamut media query (fix11 #4) ----------------------------
+    # Chromium 157 registers only "color-gamut" as a media feature
+    # (media_feature_names.json5). "display-gamut" (CSS Color 4) is unknown,
+    # so `matchMedia("(display-gamut: srgb)")` can never match (false) while a
+    # real display Chrome matches it. Wire the name through the same
+    # machinery: register it (json5), accept its idents (media_query_exp.cc),
+    # and route evaluation to the existing color-gamut evaluator
+    # (media_query_evaluator.cc). The color-gamut evaluator maps the real
+    # screen's ColorSpaceGamut to the matching set, which is the correct
+    # per-persona behavior (an sRGB display matches srgb, not p3/rec2020).
+    {
+        "file": "third_party/blink/renderer/core/css/media_feature_names.json5",
+        "marker": "apex-display-gamut-names",
+        "anchor": '    "color-gamut",\n',
+        "where": "after",
+        "inject": '    "display-gamut",  // apex-display-gamut-names\n',
+    },
+    {
+        "file": "third_party/blink/renderer/core/css/media_query_evaluator.cc",
+        "marker": "apex-display-gamut-eval",
+        "anchor": "    case ColorSpaceGamut::BT2020:\n"
+                  "      return value.Id() == CSSValueID::kSRGB || "
+                  "value.Id() == CSSValueID::kP3 ||\n"
+                  "             value.Id() == CSSValueID::kRec2020;\n"
+                  "  }\n"
+                  "\n"
+                  "  NOTREACHED();\n"
+                  "}\n",
+        "where": "after",
+        "inject": "  // apex-display-gamut-eval: the (display-gamut: X) media query\n"
+                  "  // evaluates through the same ColorSpaceGamut switch as\n"
+                  "  // (color-gamut: X). The generated function map pairs the\n"
+                  "  // \"display-gamut\" name with this DisplayGamut prefix, so\n"
+                  "  // the trampoline is what the macro will call.\n"
+                  "  static bool DisplayGamutMediaFeatureEval(\n"
+                  "      const MediaQueryExpValue& value, MediaQueryOperator op,\n"
+                  "      const MediaValues& media_values) {\n"
+                  "    return ColorGamutMediaFeatureEval(value, op, "
+                  "media_values);\n"
+                  "  }\n",
+    },
+    {
+        "file": "third_party/blink/renderer/core/css/media_query_exp.cc",
+        "marker": "apex-display-gamut-idents",
+        "anchor": "  if (media_feature == media_feature_names::kColorGamutMediaFeature) {\n"
+                  "    return ident == CSSValueID::kSRGB || ident == "
+                  "CSSValueID::kP3 ||\n"
+                  "           ident == CSSValueID::kRec2020;\n"
+                  "  }\n",
+        "where": "after",
+        "inject": "  // apex-display-gamut-idents: the display-gamut name accepts the\n"
+                  "  // same value idents as color-gamut (srgb / p3 / rec2020).\n"
+                  "  if (media_feature == "
+                  "media_feature_names::kDisplayGamutMediaFeature) {\n"
+                  "    return ident == CSSValueID::kSRGB || ident == "
+                  "CSSValueID::kP3 ||\n"
+                  "           ident == CSSValueID::kRec2020;\n"
+                  "  }\n",
     },
     # --- removed edits (do not re-add without new evidence) ------------
     # apex-chrome-app-gone: stock Chrome 157 still exposes chrome.app on web

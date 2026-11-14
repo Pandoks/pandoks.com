@@ -1,0 +1,49 @@
+# apex patch: no deviceorientation / devicemotion events under a desktop
+# persona (fix11 #2)
+#
+# THE PROBLEM. A page that registers deviceorientation / devicemotion
+# listeners received 2 events within 400 ms on a desktop persona with no
+# permission grant (the round-11 probe: sensorEventsFired: 2). On a real
+# desktop these events do not fire (no motion sensors -> no data -> the
+# controller never dispatches; on macOS they are additionally permission
+# gated). The leak comes from the container: the Linux sensor stack reports
+# orientation data, so the stock controller starts its pump and dispatches.
+#
+# THE FIX. Both device controllers (DeviceOrientationController for
+# "deviceorientation" + "deviceorientationabsolute", DeviceMotionController
+# for "devicemotion") funnel through the shared base class
+# DeviceSingleWindowEventController::DidAddEventListener, which is what
+# starts the sensor pump (StartUpdating() -> PlatformEventController).
+# The edit returns early for a desktop persona, so the pump never starts and
+# no event is ever dispatched; the listener registration is otherwise
+# unchanged. Mobile personas (Android / iOS) keep the stock behavior -- a
+# phone legitimately reports motion.
+#
+# Runtime-gated: no APEX_FP_ACTIVE (or a mobile APEX_FP_UA_PLATFORM) = the
+# real (Linux-build) behavior.
+#
+# Apply target: third_party/blink/renderer/core/frame/
+# device_single_window_event_controller.cc (anchor edit via
+# scripts/apply_edits.py; the persona OS helpers live in
+# chromium_src/apex_fingerprint.h -- apply.sh must copy it into
+# core/frame/, which it already does for the screen edits).
+--- a/third_party/blink/renderer/core/frame/device_single_window_event_controller.cc
++++ b/third_party/blink/renderer/core/frame/device_single_window_event_controller.cc
+@@ DeviceSingleWindowEventController::DidAddEventListener @@
+   if (event_type != EventTypeName())
+     return;
++  // apex-device-sensors-suppress: a desktop persona must not
++  // receive deviceorientation / devicemotion events. Both
++  // controllers (DeviceOrientationController,
++  // DeviceMotionController) funnel through this base-class
++  // DidAddEventListener, which is what starts the sensor pump
++  // (StartUpdating). The Linux container reports orientation
++  // data, so stock behavior fires the events with no permission
++  // grant -- on a real desktop they do not fire. Suppress when
++  // the persona claims a desktop OS (mobile personas would
++  // legitimately report motion).
++  if (apex_fp::PersonaIsDesktop()) {
++    return;
++  }
+   if (GetPage() && GetPage()->IsPageVisible())
+     StartUpdating();
