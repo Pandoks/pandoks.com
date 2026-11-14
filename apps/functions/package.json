@@ -3,20 +3,15 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "check": "tsc --noEmit"
+    "dev": "wrangler dev",
+    "types": "wrangler types --include-runtime=false",
+    "check": "pnpm types --check && tsc --noEmit"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "3.1162.0",
-    "@aws-sdk/client-lambda": "3.1162.0",
-    "@aws-sdk/client-scheduler": "3.1162.0",
-    "@aws-sdk/client-sns": "3.1162.0",
-    "@aws-sdk/client-ssm": "3.1162.0",
-    "@aws-sdk/lib-dynamodb": "3.1162.0",
-    "@notionhq/client": "5.31.0",
-    "twilio": "6.2.0",
-    "undici": "8.12.4"
+    "@notionhq/client": "5.31.0"
   },
   "devDependencies": {
-    "@types/aws-lambda": "8.10.164"
+    "@cloudflare/workers-types": "5.20261104.1",
+    "wrangler": "4.161.0"
   }
 }

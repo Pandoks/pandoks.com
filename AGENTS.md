@@ -121,6 +121,8 @@ checkout.
   - `infra/` or `Pulumi.yaml`: full `pnpm check` plus scoped lint after the last edit and before
     every commit or push; narrower checks don't replace it.
   - `apps/web`: `CI=1 pnpm --filter web test:e2e` (skips portless) for user-visible changes.
+  - `apps/functions`: `pnpm --filter @pandoks.com/functions dev`, then curl `/notion/webhook` with
+    payloads signed by its `.env` `NOTION_WEBHOOK_VERIFICATION_TOKEN`.
   - `templates/mobile`: `pnpm ios` and `pnpm android` from the app, then `pnpm test:e2e`.
   - Workflows: the PR's CI once a PR exists.
 - Before calling work done, run format, lint, type, and test commands for every language and package

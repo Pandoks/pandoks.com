@@ -1,0 +1,28 @@
+{
+  "name": "api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-13",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": { "NOTION_BLOG_DATABASE_ID": "20f1bb259e4b804ba24be1ceebf4c761" },
+  "workflows": [
+    {
+      "name": "text-reminder",
+      "binding": "TEXT_REMINDER_WORKFLOW",
+      "class_name": "TextReminderWorkflow"
+    }
+  ],
+  "kv_namespaces": [{ "binding": "NOTION_VERIFICATION_TOKEN_STORE" }],
+  "secrets": {
+    "required": [
+      "GITHUB_PERSONAL_ACCESS_TOKEN",
+      "NOTION_API_KEY",
+      "NOTION_WEBHOOK_VERIFICATION_TOKEN",
+      "TWILIO_PHONE_NUMBER",
+      "TWILIO_ACCOUNT_SID",
+      "TWILIO_AUTH_TOKEN",
+      "TWILIO_NOTION_MESSAGING_SERVICE_SID",
+      "KWOK_PHONE_NUMBER",
+      "MICHELLE_PHONE_NUMBER"
+    ]
+  }
+}

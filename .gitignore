@@ -6,6 +6,7 @@ node_modules
 .svelte-kit
 build
 .temp
+.wrangler
 
 # OS
 .DS_Store
