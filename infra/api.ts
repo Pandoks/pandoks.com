@@ -1,14 +1,10 @@
 import { secrets } from './secrets';
 import { domain, isProduction } from './dns';
-import { githubEnvironment, githubOrg, githubRepositoryName } from './github';
+import { githubOrg, githubRepositoryName } from './github';
+import { notion } from './notion';
 
 const apiDomain = `api.${domain}`;
 export const nodeVersion = 'nodejs24.x';
-
-// NOTE: this linkable is needed so that it's accessible from sst shell cli
-const notion = new sst.Linkable('Notion', {
-  properties: { blogDatabaseId: '20f1bb259e4b804ba24be1ceebf4c761' }
-});
 
 export const apiRouter = new sst.aws.Router('ApiRouter', {
   domain: {
@@ -99,18 +95,3 @@ new sst.aws.Function('NotionWebhookHandler', {
     secrets.personal.MichellePhoneNumber
   ]
 });
-
-if (isProduction) {
-  // NOTE: a Notion webhook can start sync-notion.yaml, so it gets only these, not sst shell
-  new github.ActionsEnvironmentSecret('GithubNotionApiKey', {
-    repository: githubRepositoryName,
-    environment: githubEnvironment.environment,
-    secretName: 'NOTION_API_KEY',
-    value: secrets.notion.ApiKey.value
-  });
-  new github.ActionsVariable('GithubNotionBlogDatabaseId', {
-    repository: githubRepositoryName,
-    variableName: 'BLOG_NOTION_DATABASE_ID',
-    value: notion.properties.blogDatabaseId
-  });
-}
