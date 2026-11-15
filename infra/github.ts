@@ -12,7 +12,7 @@ const DEPLOYMENT_BRANCH_POLICY = isProduction
   ? { protectedBranches: false, customBranchPolicies: true }
   : undefined;
 
-const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
+export const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
   repository: githubRepositoryName,
   environment: isProduction ? 'production' : 'dev',
   deploymentBranchPolicy: DEPLOYMENT_BRANCH_POLICY

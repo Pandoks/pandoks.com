@@ -1,6 +1,6 @@
 import { secrets } from './secrets';
 import { domain, isProduction } from './dns';
-import { githubOrg, githubRepositoryName } from './github';
+import { githubEnvironment, githubOrg, githubRepositoryName } from './github';
 
 const apiDomain = `api.${domain}`;
 export const nodeVersion = 'nodejs24.x';
@@ -99,3 +99,18 @@ new sst.aws.Function('NotionWebhookHandler', {
     secrets.personal.MichellePhoneNumber
   ]
 });
+
+if (isProduction) {
+  // NOTE: a Notion webhook can start sync-notion.yaml, so it gets only these, not sst shell
+  new github.ActionsEnvironmentSecret('GithubNotionApiKey', {
+    repository: githubRepositoryName,
+    environment: githubEnvironment.environment,
+    secretName: 'NOTION_API_KEY',
+    value: secrets.notion.ApiKey.value
+  });
+  new github.ActionsVariable('GithubNotionBlogDatabaseId', {
+    repository: githubRepositoryName,
+    variableName: 'BLOG_NOTION_DATABASE_ID',
+    value: notion.properties.blogDatabaseId
+  });
+}
