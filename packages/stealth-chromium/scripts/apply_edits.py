@@ -280,8 +280,12 @@ EDITS = [
         "header": '#include "third_party/blink/renderer/modules/webgl/'
                   'apex_webgl_limits.h"',
         "marker": "apex-webgl-limits-resolve",
-        "anchor": "ScriptValue WebGLRenderingContextBase::GetFloatParameter(\n",
+        # Must precede every user: getShaderPrecisionFormat is the first
+        # (lineWidth, viewport and the Get*Parameter helpers come later).
+        "anchor": "WebGLShaderPrecisionFormat* "
+                  "WebGLRenderingContextBase::getShaderPrecisionFormat(\n",
         "where": "before",
+        "order_before": "ApexLimitsBackend(&apex_limits_backend_",
         "inject": "// apex-webgl-limits-resolve: the persona backend for one context,\n"
                   "// resolved once -- the real GL_RENDERER read is a synchronous GPU\n"
                   "// round trip.\n"
