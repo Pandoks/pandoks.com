@@ -46,9 +46,9 @@ SRC = WORK / "chromium" / "src"
 # too. Noise is confined to textured content, where a page has no reference
 # value to diff against.
 #
-# Bounds: pixel access goes through base::span (apex_at()/apex_buf) so every
+# Bounds: pixel access goes through base::span (row spans + apex_ld()) so every
 # buffer access is CHECKed; the pointer->span step carries the stated invariant.
-# The four fixed-size stack tables (apex_ord/apex_ch_flat/apex_writable/apex_grp)
+# The fixed-size stack tables (apex_ord/apex_win/apex_hi/apex_writable/apex_grp)
 # are raw-indexed, so the whole computation is wrapped in UNSAFE_BUFFERS({...})
 # -- the base/compiler_specific.h scoped suppression, required because all three
 # call sites compile under the blink unsafe-buffers enforcement list.
@@ -76,6 +76,13 @@ SRC = WORK / "chromium" / "src"
 # the attacker nothing (it converges to the farbled value, which every session
 # reproduces). Flat-fill canvases are deliberately near-stock: the page holds
 # an exact reference there and carries no device entropy anyway.
+# v2.2 is v2.1 re-shaped for readback latency, same output byte for byte: v2.1
+# FNV-hashed every opaque pixel's 3x3 window before testing uniformity, so a
+# 256x256 solid readPixels paid 65k 36-step hash chains (red-team: readPixels
+# 2.4x / getImageData-encode 9x stock latency). v2.2 keeps a sliding window of
+# pixel words, answers uniform / R1 / alpha flatness from one masked XOR-OR, and
+# hashes only pixels that will be written. scripts/test_canvas_noise.py checks
+# it against a frozen v2.1 copy.
 _RGBA_NOISE_LOOP = (
     "      const uint64_t apex_key = apex_fp::CanvasKey();\n"
     "      if (apex_key != 0 && apex_w >= 3u && apex_h >= 3u &&\n"
@@ -84,9 +91,7 @@ _RGBA_NOISE_LOOP = (
     "        // rows apex_stride bytes apart; last row >= apex_w * 4 bytes.\n"
     "        base::span<uint8_t> apex_buf = UNSAFE_BUFFERS(base::span<uint8_t>(\n"
     "            apex_px, apex_stride * (apex_h - 1u) + apex_w * 4u));\n"
-    "        auto apex_at = [&](size_t ax, size_t ay) {\n"
-    "          return apex_buf.subspan(ay * apex_stride + ax * 4u, 4u);\n"
-    "        };\n"
+    "        const size_t apex_rowb = apex_w * 4u;\n"
     "        // Channel order canonicalised to R,G,B so getImageData (RGBA) and\n"
     "        // the encode path (N32 may be BGRA) lock the SAME logical bits.\n"
     "        // apex_bgra is bound by the inject (false for getImageData /\n"
@@ -94,94 +99,121 @@ _RGBA_NOISE_LOOP = (
     "        const size_t apex_c0 = apex_bgra ? 2u : 0u;\n"
     "        const size_t apex_c2 = apex_bgra ? 0u : 2u;\n"
     "        const size_t apex_ord[3] = {apex_c0, 1u, apex_c2};\n"
-    "        // SAFETY: apex_ord/apex_ch_flat/apex_writable/apex_grp are fixed\n"
-    "        // 3-element stack arrays indexed by li/lj in [0, 3); apex_at()\n"
-    "        // clamps every pixel access to the apex_buf span. UNSAFE_BUFFERS\n"
-    "        // scopes the suppression the blink unsafe-buffers enforcement\n"
-    "        // list requires for the residual raw indexing (apex_ord etc.).\n"
+    "        // A pixel as one word: byte b at bits [8b, 8b + 8), assembled\n"
+    "        // explicitly (endian-independent). One bounds check per pixel.\n"
+    "        auto apex_ld = [](base::span<uint8_t> apex_r, size_t apex_o) {\n"
+    "          const auto apex_q = apex_r.subspan(apex_o).first<4u>();\n"
+    "          return static_cast<uint32_t>(apex_q[0]) |\n"
+    "                 (static_cast<uint32_t>(apex_q[1]) << 8) |\n"
+    "                 (static_cast<uint32_t>(apex_q[2]) << 16) |\n"
+    "                 (static_cast<uint32_t>(apex_q[3]) << 24);\n"
+    "        };\n"
+    "        // SAFETY: apex_ord/apex_win/apex_writable/apex_grp are fixed-size\n"
+    "        // stack arrays indexed in [0, 3) / [0, 9); pixel bytes are only\n"
+    "        // touched through row spans (subspan()/operator[] CHECK).\n"
+    "        // UNSAFE_BUFFERS scopes the suppression the blink unsafe-buffers\n"
+    "        // enforcement list requires for the stack arrays.\n"
     "        UNSAFE_BUFFERS({\n"
     "        for (size_t ay = 1; ay + 1 < apex_h; ++ay) {\n"
+    "          const base::span<uint8_t> apex_ra =\n"
+    "              apex_buf.subspan((ay - 1u) * apex_stride, apex_rowb);\n"
+    "          const base::span<uint8_t> apex_rm =\n"
+    "              apex_buf.subspan(ay * apex_stride, apex_rowb);\n"
+    "          const base::span<uint8_t> apex_rb =\n"
+    "              apex_buf.subspan((ay + 1u) * apex_stride, apex_rowb);\n"
+    "          // Sliding 3x3 window of pixel words: columns x-1, x, x+1 of the\n"
+    "          // rows above (a), at (m) and below (b) the pixel. Words loaded\n"
+    "          // before a neighbour was farbled differ from it in LSBs only,\n"
+    "          // and every decision below masks LSBs off.\n"
+    "          uint32_t apex_a0 = apex_ld(apex_ra, 0u), apex_a1 = apex_ld(apex_ra, 4u);\n"
+    "          uint32_t apex_m0 = apex_ld(apex_rm, 0u), apex_m1 = apex_ld(apex_rm, 4u);\n"
+    "          uint32_t apex_b0 = apex_ld(apex_rb, 0u), apex_b1 = apex_ld(apex_rb, 4u);\n"
     "          for (size_t ax = 1; ax + 1 < apex_w; ++ax) {\n"
-    "            base::span<uint8_t> apex_p = apex_at(ax, ay);\n"
-    "            if (apex_p[3] == 0) continue;  // transparent: untouched\n"
-    "            // Uniform/flatness tests on the HIGH 7 bits only. A solid\n"
-    "            // fill is uniform in full bytes, hence in hi7; testing hi7\n"
-    "            // (not full bytes) makes every decision invariant under the\n"
-    "            // mask itself, which is what makes re-reads a fixpoint.\n"
-    "            // Alpha is compared in hi7 too: the mask writes alpha's LSB,\n"
-    "            // so the decision must not read it.\n"
-    "            bool apex_uniform = true;\n"
-    "            bool apex_ch_flat[3] = {true, true, true};  // R1, per channel\n"
-    "            bool apex_a_flat = true;                    // R1, alpha\n"
-    "            uint64_t apex_hv = 0xcbf29ce484222325ull;   // FNV-1a basis\n"
-    "            for (size_t ady = 0; ady < 3u; ++ady) {\n"
-    "              for (size_t adx = 0; adx < 3u; ++adx) {\n"
-    "                base::span<uint8_t> apex_n =\n"
-    "                    apex_at(ax + adx - 1u, ay + ady - 1u);\n"
-    "                for (size_t li = 0; li < 3u; ++li) {\n"
-    "                  const size_t ac = apex_ord[li];\n"
-    "                  const uint8_t apex_hi = apex_n[ac] & 0xFEu;\n"
-    "                  if (apex_hi != (apex_p[ac] & 0xFEu)) {\n"
-    "                    apex_uniform = false;\n"
-    "                    apex_ch_flat[li] = false;\n"
+    "            const size_t apex_o = ax * 4u;\n"
+    "            const uint32_t apex_a2 = apex_ld(apex_ra, apex_o + 4u);\n"
+    "            const uint32_t apex_m2 = apex_ld(apex_rm, apex_o + 4u);\n"
+    "            const uint32_t apex_b2 = apex_ld(apex_rb, apex_o + 4u);\n"
+    "            const uint32_t apex_p = apex_m1;\n"
+    "            // Per-byte OR of (window byte XOR this pixel's byte), masked to\n"
+    "            // the high 7 bits: zero => the window is uniform in hi7; byte c\n"
+    "            // zero => channel c's window is flat (R1). No hashing yet.\n"
+    "            const uint32_t apex_d =\n"
+    "                ((apex_a0 ^ apex_p) | (apex_a1 ^ apex_p) | (apex_a2 ^ apex_p) |\n"
+    "                 (apex_m0 ^ apex_p) | (apex_m2 ^ apex_p) | (apex_b0 ^ apex_p) |\n"
+    "                 (apex_b1 ^ apex_p) | (apex_b2 ^ apex_p)) &\n"
+    "                0xFEFEFEFEu;\n"
+    "            // Skip transparent pixels (alpha == 0, full byte) and uniform\n"
+    "            // windows (solid fill): both stay byte-identical to stock.\n"
+    "            if ((apex_p >> 24) != 0u && apex_d != 0u) {\n"
+    "              // +A: alpha-LSB write where alpha's window is not flat and its\n"
+    "              // own hi7 is not extremal -- the only farbling left on\n"
+    "              // black-glyph-on-transparent, where R1 leaves flat RGB alone.\n"
+    "              const uint8_t apex_ahi = static_cast<uint8_t>((apex_p >> 24) & 0xFEu);\n"
+    "              const bool apex_a_w = (apex_d >> 24) != 0u && apex_ahi != 0x00u &&\n"
+    "                                    apex_ahi != 0xFEu;\n"
+    "              // R1 + R2': a channel is writable only if its own window is not\n"
+    "              // flat in hi7, and this pixel's own hi7 is not 0x00 / 0xFE.\n"
+    "              uint8_t apex_hi[3];\n"
+    "              bool apex_writable[3];\n"
+    "              bool apex_any = apex_a_w;\n"
+    "              for (size_t li = 0; li < 3u; ++li) {\n"
+    "                const size_t apex_sh = 8u * apex_ord[li];\n"
+    "                apex_hi[li] = static_cast<uint8_t>((apex_p >> apex_sh) & 0xFEu);\n"
+    "                apex_writable[li] = ((apex_d >> apex_sh) & 0xFEu) != 0u &&\n"
+    "                                    apex_hi[li] != 0x00u && apex_hi[li] != 0xFEu;\n"
+    "                apex_any = apex_any || apex_writable[li];\n"
+    "              }\n"
+    "              if (apex_any) {\n"
+    "                // The content key: FNV-1a over the window's hi7 bytes,\n"
+    "                // row-major, channels canonical R,G,B then alpha. Only\n"
+    "                // computed when something will be written.\n"
+    "                const uint32_t apex_win[9] = {apex_a0, apex_a1, apex_a2,\n"
+    "                                              apex_m0, apex_p,  apex_m2,\n"
+    "                                              apex_b0, apex_b1, apex_b2};\n"
+    "                uint64_t apex_hv = 0xcbf29ce484222325ull;  // FNV-1a basis\n"
+    "                for (const uint32_t apex_n : apex_win) {\n"
+    "                  for (size_t li = 0; li < 3u; ++li) {\n"
+    "                    apex_hv = (apex_hv ^ ((apex_n >> (8u * apex_ord[li])) & 0xFEu)) *\n"
+    "                              0x100000001b3ull;\n"
     "                  }\n"
-    "                  apex_hv = (apex_hv ^ apex_hi) * 0x100000001b3ull;\n"
+    "                  apex_hv = (apex_hv ^ ((apex_n >> 24) & 0xFEu)) * 0x100000001b3ull;\n"
     "                }\n"
-    "                if ((apex_n[3] & 0xFEu) != (apex_p[3] & 0xFEu)) {\n"
-    "                  apex_uniform = false;\n"
-    "                  apex_a_flat = false;\n"
+    "                const uint64_t apex_bits =\n"
+    "                    apex_fp::Mix64(apex_key ^ apex_hv) >> 32;\n"
+    "                if (apex_a_w) {\n"
+    "                  apex_rm[apex_o + 3u] = static_cast<uint8_t>(\n"
+    "                      apex_ahi | uint8_t((apex_bits >> 3) & 1u));\n"
     "                }\n"
-    "                apex_hv =\n"
-    "                    (apex_hv ^ (apex_n[3] & 0xFEu)) * 0x100000001b3ull;\n"
-    "              }\n"
-    "            }\n"
-    "            if (apex_uniform) continue;  // solid fill: untouched\n"
-    "            const uint64_t apex_bits = apex_fp::Mix64(apex_key ^ apex_hv) >> 32;\n"
-    "            // +A: alpha-LSB write where alpha itself carries entropy\n"
-    "            // (its window is not flat) and is not extremal. This is the\n"
-    "            // only farbling left on black-glyph-on-transparent, where R1\n"
-    "            // correctly leaves structurally-flat RGB alone.\n"
-    "            {\n"
-    "              const uint8_t apex_ahi = apex_p[3] & 0xFEu;\n"
-    "              if (!apex_a_flat && apex_ahi != 0x00u && apex_ahi != 0xFEu)\n"
-    "                apex_p[3] = static_cast<uint8_t>(\n"
-    "                    apex_ahi | uint8_t((apex_bits >> 3) & 1u));\n"
-    "            }\n"
-    "            // R1 + R2': a channel is writable only if its own 3x3 window\n"
-    "            // is not flat in hi7, and this pixel's own hi7 is not 0x00/0xFE.\n"
-    "            bool apex_writable[3];\n"
-    "            for (size_t li = 0; li < 3u; ++li) {\n"
-    "              apex_writable[li] = !apex_ch_flat[li];\n"
-    "              const uint8_t apex_hi = apex_p[apex_ord[li]] & 0xFEu;\n"
-    "              if (apex_hi == 0x00u || apex_hi == 0xFEu) apex_writable[li] = false;\n"
-    "            }\n"
-    "            // R3: channels with equal hi7 at this pixel share ONE lock bit\n"
-    "            // (grays stay grays). Group index = number of distinct writable\n"
-    "            // hi7 values seen before this channel in canonical order -- no\n"
-    "            // allocation, deterministic. Group bits come from stream 0..2;\n"
-    "            // alpha's write used stream bit 3, so they cannot collide.\n"
-    "            size_t apex_grp[3];\n"
-    "            size_t apex_nb = 0;\n"
-    "            for (size_t li = 0; li < 3u; ++li) {\n"
-    "              if (!apex_writable[li]) continue;\n"
-    "              const uint8_t apex_hi = apex_p[apex_ord[li]] & 0xFEu;\n"
-    "              bool apex_found = false;\n"
-    "              for (size_t lj = 0; lj < li; ++lj) {\n"
-    "                if (!apex_writable[lj]) continue;\n"
-    "                if ((apex_p[apex_ord[lj]] & 0xFEu) == apex_hi) {\n"
-    "                  apex_grp[li] = apex_grp[lj];\n"
-    "                  apex_found = true;\n"
-    "                  break;\n"
+    "                // R3: channels with equal hi7 at this pixel share ONE lock\n"
+    "                // bit (grays stay grays). Group index = number of distinct\n"
+    "                // writable hi7 values seen before this channel in canonical\n"
+    "                // order -- no allocation, deterministic. Group bits come\n"
+    "                // from stream 0..2; alpha's write used stream bit 3, so\n"
+    "                // they cannot collide.\n"
+    "                size_t apex_grp[3];\n"
+    "                size_t apex_nb = 0;\n"
+    "                for (size_t li = 0; li < 3u; ++li) {\n"
+    "                  if (!apex_writable[li]) continue;\n"
+    "                  bool apex_found = false;\n"
+    "                  for (size_t lj = 0; lj < li; ++lj) {\n"
+    "                    if (apex_writable[lj] && apex_hi[lj] == apex_hi[li]) {\n"
+    "                      apex_grp[li] = apex_grp[lj];\n"
+    "                      apex_found = true;\n"
+    "                      break;\n"
+    "                    }\n"
+    "                  }\n"
+    "                  if (!apex_found) apex_grp[li] = apex_nb++;\n"
+    "                }\n"
+    "                for (size_t li = 0; li < 3u; ++li) {\n"
+    "                  if (!apex_writable[li]) continue;\n"
+    "                  apex_rm[apex_o + apex_ord[li]] = static_cast<uint8_t>(\n"
+    "                      apex_hi[li] | uint8_t((apex_bits >> apex_grp[li]) & 1u));\n"
     "                }\n"
     "              }\n"
-    "              if (!apex_found) apex_grp[li] = apex_nb++;\n"
     "            }\n"
-    "            for (size_t li = 0; li < 3u; ++li) {\n"
-    "              if (!apex_writable[li]) continue;\n"
-    "              apex_p[apex_ord[li]] = static_cast<uint8_t>(\n"
-    "                  (apex_p[apex_ord[li]] & 0xFEu) |\n"
-    "                  uint8_t((apex_bits >> apex_grp[li]) & 1u));\n"
-    "            }\n"
+    "            apex_a0 = apex_a1; apex_a1 = apex_a2;\n"
+    "            apex_m0 = apex_m1; apex_m1 = apex_m2;\n"
+    "            apex_b0 = apex_b1; apex_b1 = apex_b2;\n"
     "          }\n"
     "        }\n"
     "        });\n"
@@ -478,6 +510,7 @@ EDITS = [
         "header": '#include "third_party/blink/renderer/modules/canvas/'
                   'canvas2d/apex_canvas_noise.h"',
         "marker": "apex-canvas-getimagedata",
+        "verify_inject": True,  # shared _RGBA_NOISE_LOOP must be current
         "anchor": "    if (!read_pixels_successful) {\n",
         "where": "before",
         "inject": "    // apex-canvas-getimagedata: perturb the readback pixels.\n"
@@ -513,6 +546,7 @@ EDITS = [
         "header": '#include "third_party/blink/renderer/modules/canvas/'
                   'canvas2d/apex_canvas_noise.h"',
         "marker": "apex-canvas-encode",
+        "verify_inject": True,  # shared _RGBA_NOISE_LOOP must be current
         "anchor": "    if (!paint_image.readPixels(info, pixmap_.writable_addr()"
                   ", row_bytes, 0,\n"
                   "                                0)) {\n"
@@ -825,6 +859,7 @@ EDITS = [
         "header": '#include "third_party/blink/renderer/modules/canvas/'
                   'canvas2d/apex_canvas_noise.h"',
         "marker": "apex-webgl-readpixels",
+        "verify_inject": True,  # shared _RGBA_NOISE_LOOP must be current
         "anchor": "    ContextGL()->ReadPixels(x, y, width, height, "
                   "format, type, data);\n",
         "where": "after",
@@ -1476,6 +1511,12 @@ def verify_applied() -> int:
             continue
         if not _marker_present(text, marker):
             print(f"  MISS {edit['file']}: marker {marker!r} absent")
+            missing += 1
+            continue
+        if edit.get("verify_inject") and edit["inject"] not in text:
+            # The marker alone would accept a reused tree still carrying an
+            # older inject under the same marker (apply skips marked edits).
+            print(f"  MISS {edit['file']}: inject for {marker!r} is stale")
             missing += 1
             continue
         order_before = edit.get("order_before")

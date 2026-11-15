@@ -97,6 +97,19 @@ GUARDS: dict[str, tuple[str, object]] = {
                           "c.width=120;c.height=40;const g=c.getContext('2d');"
                           "g.font='14px Arial';g.fillText('apex guard',4,20);"
                           "return c.toDataURL().slice(-40);})()", "string-any"),
+    # canvas noise v2.2: a solid readPixels must come back byte-exact and at
+    # stock latency (v2.1 hashed every opaque pixel: 2.4x stock p50).
+    "apex-canvas-readback-latency": (
+        "(()=>{const c=document.createElement('canvas');c.width=c.height=256;"
+        "const g=c.getContext('webgl');if(!g)return 'no-webgl';"
+        "g.clearColor(0.3,0.5,0.7,1);g.clear(g.COLOR_BUFFER_BIT);"
+        "const b=new Uint8Array(256*256*4);const t=[];"
+        "for(let i=0;i<31;i++){const s=performance.now();"
+        "g.readPixels(0,0,256,256,g.RGBA,g.UNSIGNED_BYTE,b);"
+        "t.push(performance.now()-s);}t.sort((x,y)=>x-y);let exact=true;"
+        "for(let i=4;i<b.length;i++)if(b[i]!==b[i%4]){exact=false;break;}"
+        "return {exact,p50:t[15]};})()",
+        "exact true; p50 within 1.5x of the same binary with APEX_FP_ACTIVE unset"),
     # fix11: OS-gated sensor surface -- SensorExtraClasses on for a Windows
     # persona (Magnetometer + AmbientLightSensor globals; the rest of the
     # Generic Sensor set has no runtime gate, so they are always present).

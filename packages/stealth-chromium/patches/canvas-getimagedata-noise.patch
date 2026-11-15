@@ -10,6 +10,14 @@
 # buffer and before the ImageData is constructed. refresh_patches.sh re-fits
 # this hunk on each Chromium bump.
 #
+# Current behavior: the hunk below is the original v1 sketch. The shipped
+# perturbation is apply_edits.py's _RGBA_NOISE_LOOP (v2.2), shared verbatim by
+# this site, the encode path (canvas-todataurl-noise.patch) and WebGL
+# readPixels. v2.2 produces the same bytes as v2.1 but only hashes pixels it
+# will write; a solid 256x256 readback costs ~0.1 ms instead of ~2.1 ms (sim).
+# scripts/test_canvas_noise.py proves byte equivalence against a frozen v2.1,
+# and `apply_edits.py --verify` fails a tree whose injected loop is stale.
+#
 # Apply target: third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
 --- a/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
 +++ b/third_party/blink/renderer/modules/canvas/canvas2d/base_rendering_context_2d.cc
