@@ -130,8 +130,11 @@ watch or undo the rotation, and only what needs the new values waits for **Deplo
      (90 days, per Region), check every enabled Region, not just those in use, since
      `PersonalGithubActions` has `AdministratorAccess`. Undo every write you didn't make: IAM users,
      keys, roles, identity providers, that role's trust policy, bucket policies, instances,
-     functions, and anything else. Then close the two ways into production's SST state, which will
-     hold every value **Rotate** sets:
+     functions, and anything else. Event history doesn't log S3 object writes, so also list the
+     versions of `app/personal/production.json` in the `sst-state-*` bucket: a version no deploy
+     wrote means the state can't be trusted, so restore the last one from before the leak before
+     setting anything. Then close the two ways into production's SST state, which will hold every
+     value **Rotate** sets:
      - IAM → Roles → `PersonalGithubActions` → Revoke sessions: undoing its trust policy leaves
        credentials it already issued valid.
      - IAM → Users → `argo-cmp` → Security credentials: delete its access key, which reads that
@@ -167,16 +170,17 @@ watch or undo the rotation, and only what needs the new values waits for **Deplo
      users and their tokens (`/me/identity/user/{user}` and `…/token/{name}`), the SAML identity
      provider (`/me/identity/provider`), IAM policies (v2 `/iam/policy/{policyId}`), and
      applications (`/me/api/application/{applicationId}`, listed by `GET /me/api/application`).
-   - **Tailscale:** the root OAuth client can make credentials and devices that reach every tailnet
-     node. Under
+   - **Tailscale:** the root OAuth client in `TailscaleOauthClient*` can make credentials and
+     devices that reach every tailnet node, so revoke it first; **Rotate** makes its replacement.
+     Then, under
      [Settings → Trust credentials](https://console.tailscale.com/admin/settings/trust-credentials),
-     revoke every OAuth client or federated identity you didn't make, and Pulumi's `prod github ci`
-     and `prod k8s operator`, whose secrets leaked too: a `tag:ci` node reaches the prod cluster API
-     as `argocd-deployer`, which can patch Argo `Application`s. **Deploy** makes new ones, and CI's
-     Argo refresh fails until then. Revoking a client leaves the auth keys and child credentials it
-     made, which configuration audit logs list with its client ID as the actor, so revoke those
-     under [Settings → Keys](https://console.tailscale.com/admin/settings/keys). Revoking a key
-     leaves its devices, so remove the ones you didn't add under
+     revoke every other OAuth client or federated identity you didn't make, and Pulumi's
+     `prod github ci` and `prod k8s operator`, whose secrets leaked too: a `tag:ci` node reaches the
+     prod cluster API as `argocd-deployer`, which can patch Argo `Application`s. **Deploy** makes
+     new ones, and CI's Argo refresh fails until then. Revoking a client leaves the auth keys and
+     child credentials it made, which configuration audit logs list with its client ID as the actor,
+     so revoke those under [Settings → Keys](https://console.tailscale.com/admin/settings/keys).
+     Revoking a key leaves its devices, so remove the ones you didn't add under
      [Machines](https://console.tailscale.com/admin/machines). Pulumi doesn't manage DNS
      nameservers, webhooks, or log streaming, so undo changes there.
    - **Cloudflare:** delete API tokens you didn't make, found in the account's
@@ -253,7 +257,7 @@ watch or undo the rotation, and only what needs the new values waits for **Deplo
       that PAT.
    4. Restart what reads rotated Secrets as env vars only at start, starting with
       `kubectl -n argocd rollout restart deployment argocd-repo-server`, whose renderer holds the
-      AWS key and Cloudflare token.
+      AWS key and Cloudflare token, and the Postgres pods, whose pgBackRest holds the backup keys.
 
    Run these yourself: they're the intended recovery paths that AGENTS.md hazard 1 keeps agents from
    running.
@@ -267,12 +271,13 @@ watch or undo the rotation, and only what needs the new values waits for **Deplo
    - **Tailscale:** remove Pulumi's old OAuth clients if any are left, and the auth keys and child
      credentials they made, as in **Remove access**.
 
-7. **Audit.** The root Tailscale client and the Cloudflare, Hetzner, OVH, and Twilio credentials
-   stayed live until **Rotate**. Repeat **Remove access** for anything created or changed since it
-   began. Then:
+7. **Audit.** The Cloudflare, Hetzner, OVH, and Twilio credentials stayed live until **Rotate**.
+   Repeat **Remove access** for anything created or changed since it began. Then:
    - **Cloudflare:** review every write in the Audit Logs since the leak: DNS records, Workers, zone
      rules and Snippets, Email Routing, Pages domains and settings, and R2 bucket access. Pulumi
      resets none it doesn't manage, so undo them.
    - **Backups:** the backup keys can read, overwrite, and delete the backup bucket. Treat its
      contents as read, check for objects deleted or replaced since the leak, and restore the latest
      Postgres and ClickHouse backups somewhere disposable before relying on them.
+   - **Twilio:** review message and call logs, usage, and billing since the leak for traffic you
+     didn't send.
