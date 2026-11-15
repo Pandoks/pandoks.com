@@ -56,7 +56,8 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
    and inspect manifests with `kustomize build`. New secrets go in `infra/secrets.ts`; one without a
    value fails every deploy and diff of its stage, so set yours with
    `pnpm sst secret set <Name> <value> --stage <stage>` and ask me to set production's. A production
-   leak follows `README.md`'s `## If a production secret leaks`.
+   leak follows `README.md`'s `## If a production secret leaks`; propose each of its steps that
+   changes production and wait, per hazard 1.
 
 ## How changes ship
 

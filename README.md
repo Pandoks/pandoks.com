@@ -102,20 +102,24 @@ A leak exposes every production `sst.Secret`, so rotate every credential among t
 in order: footholds come out after **Close the source** and before **Rotate**, so the attacker can't
 watch or undo the rotation, and only what needs the new values waits for **Deploy**.
 
-1. **Delete the PAT.** Delete the token in `GithubPersonalAccessToken` (GitHub → Settings →
-   Developer settings → Personal access tokens) before anything else, and make no new one until
-   **Rotate**. Pulumi manages this repo with it and writes it as `GH_TOKEN`, so anyone holding it
-   can open the `production` environment to another branch and read its secrets. Renovate, the
-   internet-facing `NotionWebhookHandler` Lambda, the cluster's `ghcr-auth` Secrets, and SSM's
-   `/runners/prod/github-cloning-pat`, which any runner job can read, hold it too.
+1. **Delete the PATs.** Delete the tokens in `GithubPersonalAccessToken` and
+   `GithubPackageManagementToken` (GitHub → Settings → Developer settings → Personal access tokens)
+   before anything else, and make no new ones until **Rotate**. Pulumi manages this repo with the
+   first and writes it as `GH_TOKEN`, so anyone holding it can open the `production` environment to
+   another branch and read its secrets. Renovate, the internet-facing `NotionWebhookHandler` Lambda,
+   the cluster's `ghcr-auth` Secrets, and SSM's `/runners/prod/github-cloning-pat`, which any runner
+   job can read, hold it too. The second can delete GHCR package versions.
 
 2. **Close the source.** Before any new value exists:
-   - Review `main`'s merged commits and PRs since the leak. The `main` ruleset requires no
-     approvals, so a PAT holder can merge.
+   - Review `main`'s merged commits and PRs since the leak, and its Activity view for force pushes.
+     The `main` ruleset requires no approvals, so a PAT holder can merge.
    - Remove the leaking dependency or input from `main` by PR and merge it, dispatching nothing
      before then: `deploy-sst` installs it beside every secret. Deploys fail until **Rotate**, since
      the GitHub provider looks up `GH_TOKEN`'s user and gets 401 for the deleted PAT, so
      **Deploy**'s is the first that lands.
+   - If this machine ever installed the bad version, it may have persisted outside `node_modules`
+     (shell rc files, `~/.aws/config`, git hooks, mise config), so run every later step from a clean
+     machine.
    - In a new terminal, which every later step uses, update to the fixed `main` and run
      `pnpm install --frozen-lockfile`. A leftover dependency's `node` bin would otherwise replace
      the `node` that `pnpm sst secret set` starts.
@@ -123,17 +127,20 @@ watch or undo the rotation, and only what needs the new values waits for **Deplo
 3. **Remove access.** Remove what the attacker can still act through, back to the leak's start:
    - **AWS:** in CloudTrail →
      [Event history](https://docs.aws.amazon.com/awscloudtrail/latest/userguide/view-cloudtrail-events.html)
-     (90 days), check `us-east-1` for IAM and every Region in use (`us-west-1`, and `us-west-2` for
-     the runners). Undo every write you didn't make: IAM users, keys, roles, identity providers,
-     `PersonalGithubActions`' trust policy (the role has `AdministratorAccess`), bucket policies,
-     and anything else. Then close the two ways into production's SST state, which will hold every
-     value **Rotate** sets:
+     (90 days, per Region), check every enabled Region, not just those in use, since
+     `PersonalGithubActions` has `AdministratorAccess`. Undo every write you didn't make: IAM users,
+     keys, roles, identity providers, that role's trust policy, bucket policies, instances,
+     functions, and anything else. Then close the two ways into production's SST state, which will
+     hold every value **Rotate** sets:
      - IAM → Roles → `PersonalGithubActions` → Revoke sessions: undoing its trust policy leaves
        credentials it already issued valid.
-     - IAM → Users → `argo-cmp` → Security credentials: make its access key inactive, since it reads
-       that state and its passphrase. Argo can't render prod until **Deploy** replaces it, and
-       **Rotate**'s PR must replace it, or its deploy likely makes the old key active again.
-   - **GitHub:** remove collaborators, invitations, deploy keys, and webhooks you didn't add. Check
+     - IAM → Users → `argo-cmp` → Security credentials: delete its access key, which reads that
+       state and its passphrase. **Deploy** makes a new one. Argo can't render prod until then.
+   - **GitHub:** remove collaborators, invitations, deploy keys, webhooks, self-hosted runners, and
+     account SSH and GPG keys you didn't add. Check the repo's Actions secrets and variables (a
+     changed `AWS_ROLE_ARN` would send **Deploy**'s new values to another account), the `main`
+     ruleset, and GHCR package versions pushed or deleted since the leak, above all
+     `argocd-sst-plugin:main`, which prod pulls on every start beside the AWS key. Check
      `production`'s branch policy: the first command must print
      `{"custom_branch_policies":true,"protected_branches":false}`, and the second only
      `branch main`.
@@ -145,12 +152,15 @@ watch or undo the rotation, and only what needs the new values waits for **Deplo
      ```
 
    - **Servers:** review each server's actions since the leak: Hetzner's `/servers/{id}/actions`
-     (`create_image`, `enable_rescue`, `reset_password`, `request_console`, `attach_iso`, `rebuild`)
-     and OVH's `/vps/{serviceName}/tasks` (`createSnapshot`, `snapshot/download`,
-     `netbootMode: rescue`, `rebuild`). Isolate or power off any server with an action you didn't
-     run, and treat its data, and any snapshotted disk's, as read. Delete snapshots and SSH keys
-     (Hetzner's `/ssh_keys`, OVH's `/me/sshKey`) you didn't make. Production has no Hetzner nodes;
-     its one server is the imported OVH `OvhDevVps`, `vps-54c42746.vps.ovh.us`.
+     (`create_image`, `enable_rescue`, `reset_password`, `request_console`, `attach_iso`,
+     `rebuild_server`) and OVH's `/vps/{serviceName}/tasks` (`createSnapshot`, `setNetboot`,
+     `reinstallVm`, `openConsoleAccess`, `getConsoleUrl`, `changeRootPassword`,
+     `restoreVeeamBackup`, `restoreFullVeeamBackup`). A snapshot download and a mounted backup leave
+     no task, so also check OVH's `…/snapshot` and `…/veeam/restoredBackup`. Isolate or power off
+     any server with an action you didn't run, and treat its data, and any snapshotted or backed-up
+     disk's, as read. Delete servers, snapshots, and SSH keys (Hetzner's `/ssh_keys`, OVH's
+     `/me/sshKey`) you didn't make. Production has no Hetzner nodes; its one server is the imported
+     OVH `OvhDevVps`, `vps-54c42746.vps.ovh.us`.
    - **OVH account:** the leaked consumer key can create access that outlives **Rotate**. In the
      signed-in [API console](https://api.us.ovhcloud.com/console), delete each of these you didn't
      make by its `DELETE` route: OAuth2 clients (`/me/api/oauth2/client/{clientId}`, beta), IAM
@@ -160,14 +170,15 @@ watch or undo the rotation, and only what needs the new values waits for **Deplo
    - **Tailscale:** the root OAuth client can make credentials and devices that reach every tailnet
      node. Under
      [Settings → Trust credentials](https://console.tailscale.com/admin/settings/trust-credentials),
-     revoke every OAuth client or federated identity you didn't make. That leaves the auth keys and
-     child credentials it made, which configuration audit logs list with its client ID as the actor,
-     so revoke those under [Settings → Keys](https://console.tailscale.com/admin/settings/keys).
-     Revoking a key leaves its devices, so remove the ones you didn't add under
-     [Machines](https://console.tailscale.com/admin/machines). Also revoke Pulumi's `prod github ci`
-     client, whose `TS_OAUTH_*` repo secrets the PAT exposed, and `prod k8s operator`, whose secrets
-     are in SST state: a `tag:ci` node reaches the prod cluster API as `argocd-deployer`, which can
-     patch Argo `Application`s. CI's Argo refresh fails until **Deploy** replaces them.
+     revoke every OAuth client or federated identity you didn't make, and Pulumi's `prod github ci`
+     and `prod k8s operator`, whose secrets leaked too: a `tag:ci` node reaches the prod cluster API
+     as `argocd-deployer`, which can patch Argo `Application`s. **Deploy** makes new ones, and CI's
+     Argo refresh fails until then. Revoking a client leaves the auth keys and child credentials it
+     made, which configuration audit logs list with its client ID as the actor, so revoke those
+     under [Settings → Keys](https://console.tailscale.com/admin/settings/keys). Revoking a key
+     leaves its devices, so remove the ones you didn't add under
+     [Machines](https://console.tailscale.com/admin/machines). Pulumi doesn't manage DNS
+     nameservers, webhooks, or log streaming, so undo changes there.
    - **Cloudflare:** delete API tokens you didn't make, found in the account's
      [Audit Logs](https://developers.cloudflare.com/fundamentals/account/account-security/review-audit-logs/)
      (18 months).
@@ -177,10 +188,12 @@ watch or undo the rotation, and only what needs the new values waits for **Deplo
      ([contain](https://www.twilio.com/docs/usage/fraud-response-guide/contain)). In the main
      account and each kept subaccount, open Settings → Account settings → API keys & auth tokens →
      API keys, and delete each key you didn't make: its name → Delete this key → Delete
-     ([API keys](https://www.twilio.com/docs/iam/api-keys/keys-in-console)).
+     ([API keys](https://www.twilio.com/docs/iam/api-keys/keys-in-console)). Check that the phone
+     number's and the messaging service's webhook URLs are still yours.
 
-4. **Rotate.** Set a new PAT as `GithubPersonalAccessToken`, then rotate every other production
-   `sst.Secret` that holds a credential with `pnpm sst secret set <Name> --stage production`, which
+4. **Rotate.** Set a new PAT as `GithubPersonalAccessToken` and one as
+   `GithubPackageManagementToken`, then rotate every other production `sst.Secret` that holds a
+   credential, except those below, with `pnpm sst secret set <Name> --stage production`, which
    prompts for the value. `deploy-sst` signs in with GitHub secrets that only Pulumi writes, so
    right after setting one of the `sst.Secret`s below, set its GitHub secret with
    `gh secret set <NAME>`, which also prompts. Then revoke the old credential at its provider.
@@ -207,29 +220,43 @@ watch or undo the rotation, and only what needs the new values waits for **Deplo
      or narrower **Rights** and the longest **Validity**. Set `OvhApplicationSecret` and
      `OvhConsumerKey` from it, change `applicationKey` in the PR, and delete the old application
      (`DELETE /me/api/application/{applicationId}`), which revokes all its credentials.
-   - **Made by Pulumi:** find an input change that replaces each; none is tested yet.
-     - `argo-cmp`'s AWS access key, copied into `KubernetesArgocd*`. It can read production's SST
-       state and passphrase.
-     - The k8s operator's Tailscale OAuth client, copied into `KubernetesTailscaleOauthClient*`.
-     - The GitHub Actions Tailscale client, written as `TS_OAUTH_*`. Its `tag:ci` nodes reach every
-       node, and the prod cluster API as `argocd-deployer`, which can patch Argo `Application`s.
-   - **Not covered yet:** these need a procedure that these steps don't have.
+   - **Made by Pulumi:** **Remove access** deleted `argo-cmp`'s key and the two Tailscale clients;
+     `deploy-sst`'s refresh drops them and the deploy makes new ones, which it copies into
+     `KubernetesArgocd*`, `KubernetesTailscaleOauthClient*`, and `TS_OAUTH_*`. That's untested, and
+     it needs the refresh to pass.
+   - **Notion:** regenerate `NotionApiKey` in the integration's settings. For
+     `NotionWebhookVerificationToken`, recreate the webhook subscription; the Lambda writes Notion's
+     new token to SSM `/tmp/notion-verification-token`, which you set.
+   - **Not covered yet:** these need a procedure that these steps don't have, so leave them out of
+     the pass above.
      - `HetznerOriginTlsKey` and its Cloudflare origin certificate. A deploy makes a new key and
        CSR, and sets both secrets, only when `infra/vps/vps.origin.prod.csr` is missing. Deleting it
        doesn't converge: CI never commits the new CSR, so every deploy makes another pair.
-     - The `MainMain*Password`s. Setting one changes only the stored value: the running Postgres,
-       Valkey, and ClickHouse keep the old password, and Postgres's `cluster-init.sh` skips roles
-       that exist, so each also needs its password changed in the database.
+     - The `MainMain*Password`s and `KubernetesGrafanaAdminPassword`. Setting one changes only the
+       stored value: Postgres's `cluster-init.sh` skips roles that exist, and Valkey, ClickHouse,
+       and Grafana keep the password they started with, so each needs it changed in the service.
+     - `HetznerK3sToken`: nodes keep accepting the old token until `k3s token rotate`, and
+       production's `ignoreChanges: ['userData']` keeps a deploy from passing the new one.
 
 5. **Deploy.** Merge **Rotate**'s PR, which deploys SST, then run
    `gh workflow run deploy-infra.yaml -f deploy=sst` once more: the deploy that replaces a copied
-   credential records the old value in state. Only then switch to the cluster with
-   `tailscale configure kubeconfig prod-cluster` and run
-   `pnpm cluster deploy prod --stage production`. It reads values from the last deploy's state, not
-   the secret store, so earlier it would re-apply old values, including the revoked PAT to the
-   Secrets in **Delete the PAT**. Argo can't fix those itself: it fetches `main` with that PAT. Run
-   both commands yourself: they're the intended recovery paths that AGENTS.md hazard 1 keeps agents
-   from running.
+   credential records the old value in state. Then, if a `prod-cluster` peer is in
+   `tailscale status`:
+   1. Switch to it with `tailscale configure kubeconfig prod-cluster`.
+   2. Before any new value reaches it, check that the `prod-cluster` Application's `spec.source` is
+      `main`'s `k3s/overlays/prod` and it has no `spec.sources`, and delete workloads you didn't
+      deploy and anything Argo marks as requiring pruning: `prune: false` keeps what a patched
+      source or a reverted commit added.
+   3. Run `pnpm cluster deploy prod --stage production`. It reads values from the last deploy's
+      state, not the secret store, so earlier it would re-apply old values, including the revoked
+      PAT to the Secrets in **Delete the PATs**. Argo can't fix those itself: it fetches `main` with
+      that PAT.
+   4. Restart what reads rotated Secrets as env vars only at start, starting with
+      `kubectl -n argocd rollout restart deployment argocd-repo-server`, whose renderer holds the
+      AWS key and Cloudflare token.
+
+   Run these yourself: they're the intended recovery paths that AGENTS.md hazard 1 keeps agents from
+   running.
 
 6. **After the deploy.** Fix what needed the new values:
    - **Servers isolated in Remove access:** SST can't re-create `OvhDevVps`, which is imported with
@@ -237,19 +264,15 @@ watch or undo the rotation, and only what needs the new values waits for **Deplo
      or order a new VPS and change its `import` by PR. While production has Hetzner nodes, re-create
      them from SST; production's `protect` and `ignoreChanges: ['userData']` keep a plain deploy
      from replacing one.
-   - **Tailscale:** if **Rotate**'s replacements left Pulumi's old OAuth clients, remove them and
-     the auth keys and child credentials they made, as in **Remove access**.
+   - **Tailscale:** remove Pulumi's old OAuth clients if any are left, and the auth keys and child
+     credentials they made, as in **Remove access**.
 
 7. **Audit.** The root Tailscale client and the Cloudflare, Hetzner, OVH, and Twilio credentials
-   stayed live until **Rotate**. Repeat **Remove access** for anything created since it began:
-   Tailscale trust credentials, keys, and devices; Cloudflare API tokens; Hetzner and OVH actions,
-   SSH keys, and snapshots; OVH OAuth2 clients, IAM users and tokens, identity provider, policies,
-   and applications; Twilio API keys and subaccounts; and GitHub. Then:
-   - **Cloudflare:** check the Audit Logs since the leak for DNS records and Workers SST doesn't
-     manage, and delete them.
-   - **Argo:** `prod-cluster` must target `main`'s `k3s/overlays/prod`. A patched source could have
-     added resources, which `prune: false` keeps after **Deploy** restores it, so delete any it
-     marks as requiring pruning.
+   stayed live until **Rotate**. Repeat **Remove access** for anything created or changed since it
+   began. Then:
+   - **Cloudflare:** review every write in the Audit Logs since the leak: DNS records, Workers, zone
+     rules and Snippets, Email Routing, Pages domains and settings, and R2 bucket access. Pulumi
+     resets none it doesn't manage, so undo them.
    - **Backups:** the backup keys can read, overwrite, and delete the backup bucket. Treat its
      contents as read, check for objects deleted or replaced since the leak, and restore the latest
      Postgres and ClickHouse backups somewhere disposable before relying on them.
