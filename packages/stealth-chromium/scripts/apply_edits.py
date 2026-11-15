@@ -373,6 +373,35 @@ EDITS = [
                   "  }\n",
     },
     {
+        # WebGL2 overrides GetInt64Parameter with an identical body, and that
+        # override is what answers MAX_SERVER_WAIT_TIMEOUT. The base file's
+        # cached resolver is file-static, so resolve inline here (one
+        # GL_RENDERER read per query; this pname is rarely queried).
+        "file": "third_party/blink/renderer/modules/webgl/"
+                "webgl2_rendering_context_base.cc",
+        "header": '#include "third_party/blink/renderer/modules/webgl/'
+                  'apex_webgl_limits.h"',
+        "marker": "apex-webgl2-limits-int64",
+        "anchor": "ScriptValue WebGL2RenderingContextBase::GetInt64Parameter(\n"
+                  "    ScriptState* script_state,\n"
+                  "    GLenum pname) {\n"
+                  "  GLint64 value = 0;\n"
+                  "  if (!isContextLost())\n"
+                  "    ContextGL()->GetInteger64v(pname, &value);\n",
+        "where": "after",
+        "inject": "  if (!isContextLost()) {  // apex-webgl2-limits-int64\n"
+                  "    apex_webgl::Backend apex_b = apex_webgl::ClaimedBackend();\n"
+                  "    if (apex_b != apex_webgl::Backend::kNone) {\n"
+                  "      apex_b = apex_webgl::EffectiveBackend(\n"
+                  "          apex_b, String(ContextGL()->GetString(GL_RENDERER)).Utf8());\n"
+                  "    }\n"
+                  "    int64_t apex_v = 0;\n"
+                  "    if (apex_webgl::IntLimit(apex_b, pname, &apex_v)) {\n"
+                  "      value = apex_v;\n"
+                  "    }\n"
+                  "  }\n",
+    },
+    {
         "file": "third_party/blink/renderer/modules/webgl/"
                 "webgl_rendering_context_base.cc",
         "marker": "apex-webgl-limits-floatarray",
