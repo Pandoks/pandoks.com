@@ -61,6 +61,8 @@ done
 # module-local helper headers
 cp "$CS/third_party/blink/renderer/modules/webgl/apex_webgl_strings.h" \
    "$SRC/third_party/blink/renderer/modules/webgl/"
+cp "$CS/third_party/blink/renderer/modules/webgl/apex_webgl_limits.h" \
+   "$SRC/third_party/blink/renderer/modules/webgl/"
 cp "$CS/third_party/blink/renderer/modules/canvas/canvas2d/apex_canvas_noise.h" \
    "$SRC/third_party/blink/renderer/modules/canvas/canvas2d/"
 cp "$CS/third_party/blink/renderer/core/html/canvas/apex_text_metrics_noise.h" \

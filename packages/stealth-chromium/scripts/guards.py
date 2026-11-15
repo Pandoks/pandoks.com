@@ -35,6 +35,26 @@ GUARDS: dict[str, tuple[str, object]] = {
                             "? g.getParameter(g.getExtension('WEBGL_debug_renderer_info')"
                             ".UNMASKED_RENDERER_WEBGL) : 'no-ext' : 'no-webgl';})()",
                             "contains-APEX_FP_WEBGL_RENDERER-or-real"),
+    # webgl numeric limits: the claimed backend's table (apex_webgl_limits.h)
+    "apex-webgl-limits": ("(()=>{const g=document.createElement('canvas')"
+                          ".getContext('webgl');if(!g)return 'no-webgl';"
+                          "return [g.getParameter(g.MAX_VERTEX_UNIFORM_VECTORS),"
+                          "g.getParameter(g.MAX_VARYING_VECTORS),"
+                          "[...g.getParameter(g.MAX_VIEWPORT_DIMS)],"
+                          "[...g.getParameter(g.ALIASED_LINE_WIDTH_RANGE)],"
+                          "[...g.getParameter(g.ALIASED_POINT_SIZE_RANGE)]];})()",
+                          "d3d11: [4096|4095-nvidia,30,[32767,32767],[1,1],"
+                          "[1,1024]]; metal: [1024,30,[16384,16384],[1,1],[1,511]]"),
+    "apex-webgl-limits-linewidth": (
+        "(()=>{const g=document.createElement('canvas').getContext('webgl');"
+        "if(!g)return 'no-webgl';g.lineWidth(5);"
+        "return g.getParameter(g.LINE_WIDTH);})()",
+        5),
+    "apex-webgl-limits-viewport": (
+        "(()=>{const g=document.createElement('canvas').getContext('webgl');"
+        "if(!g)return 'no-webgl';g.viewport(0,0,30000,40000);"
+        "return [...g.getParameter(g.VIEWPORT)];})()",
+        "d3d11: [0,0,30000,32767]; metal: [0,0,16384,16384]"),
     # webgpu (new)
     "apex-webgpu-vendor": ("(async()=>{if(!navigator.gpu)return 'no-webgpu';"
                            "const a=await navigator.gpu.requestAdapter();"

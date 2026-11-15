@@ -9,6 +9,7 @@
 // Build + run:  c++ -std=c++17 -I../chromium_src test_fingerprint_h.cc -o /tmp/apexfp && /tmp/apexfp
 
 #include "apex_fingerprint.h"
+#include "third_party/blink/renderer/modules/webgl/apex_webgl_limits.h"
 
 #include <cassert>
 #include <cstdio>
@@ -226,6 +227,115 @@ int main() {
   setenv("APEX_FP_UA_PLATFORM", "iOS", 1);
   CHECK(!apex_fp::PersonaIsDesktop(), "PersonaIsDesktop false for iOS");
   unsetenv("APEX_FP_UA_PLATFORM");
+
+  // --- WebGL limits (apex_webgl_limits.h): backend gating + table lookup ---
+  {
+    using apex_webgl::Backend;
+    auto persona = [](const char* os, const char* vendor, const char* renderer) {
+      setenv("APEX_FP_ACTIVE", "1", 1);
+      setenv("APEX_FP_UA_PLATFORM", os, 1);
+      setenv("APEX_FP_WEBGL_VENDOR", vendor, 1);
+      setenv("APEX_FP_WEBGL_RENDERER", renderer, 1);
+    };
+    auto lim = [](Backend b, uint32_t pname) {
+      int64_t v = -12345;
+      return apex_webgl::IntLimit(b, pname, &v) ? v : -12345;
+    };
+    // Persona rows as fp_profiles.py emits them.
+    persona("Windows", "Google Inc. (Intel)",
+            "ANGLE (Intel, Intel(R) Iris(R) Xe Graphics (0x000046A6) "
+            "Direct3D11 vs_5_0 ps_5_0, D3D11)");
+    const Backend d3d = apex_webgl::ClaimedBackend();
+    CHECK(d3d == Backend::kD3D11, "Windows D3D11 persona -> D3D11 table");
+    CHECK(lim(d3d, 0x8DFB) == 4096 && lim(d3d, 0x8DFC) == 30,
+          "D3D11: MAX_VERTEX_UNIFORM_VECTORS 4096, MAX_VARYING_VECTORS 30");
+    CHECK(lim(d3d, 0x8DFD) == 1024 && lim(d3d, 0x0D33) == 16384,
+          "D3D11: MAX_FRAGMENT_UNIFORM_VECTORS 1024, MAX_TEXTURE_SIZE 16384");
+    CHECK(lim(d3d, 0x8D6B) == 4294967294LL && lim(d3d, 0x9111) == 0,
+          "D3D11: MAX_ELEMENT_INDEX 2^32-2, MAX_SERVER_WAIT_TIMEOUT 0");
+    CHECK(lim(d3d, 0x8D57) == -12345,
+          "MAX_SAMPLES is not in the table (device-derived; stays real)");
+    float lo = 0, hi = 0;
+    CHECK(apex_webgl::FloatRange(d3d, 0x846E, &lo, &hi) && lo == 1 && hi == 1,
+          "D3D11: ALIASED_LINE_WIDTH_RANGE [1,1]");
+    CHECK(apex_webgl::FloatRange(d3d, 0x846D, &lo, &hi) && hi == 1024,
+          "D3D11: ALIASED_POINT_SIZE_RANGE [1,1024]");
+    int32_t w = 0, h = 0;
+    CHECK(apex_webgl::ViewportDims(d3d, &w, &h) && w == 32767 && h == 32767,
+          "D3D11: MAX_VIEWPORT_DIMS [32767,32767]");
+
+    persona("Windows", "Google Inc. (NVIDIA)",
+            "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002503) "
+            "Direct3D11 vs_5_0 ps_5_0, D3D11)");
+    const Backend nv = apex_webgl::ClaimedBackend();
+    CHECK(lim(nv, 0x8DFB) == 4095 && lim(nv, 0x8B4A) == 16380 &&
+              lim(nv, 0x8A31) == 212988,
+          "D3D11 NVIDIA: skipVSConstantRegisterZero costs one vertex vector");
+
+    persona("macOS", "Google Inc. (Apple)",
+            "ANGLE (Apple, ANGLE Metal Renderer: Apple M2, Unspecified Version)");
+    const Backend mtl = apex_webgl::ClaimedBackend();
+    CHECK(mtl == Backend::kMetal, "macOS Metal persona -> Metal table");
+    CHECK(lim(mtl, 0x8DFB) == 1024 && lim(mtl, 0x8A30) == 16384 &&
+              lim(mtl, 0x8A2F) == 32,
+          "Metal: 1024 vertex vectors, 16 KiB UBOs, 32 UBO bindings");
+    CHECK(apex_webgl::FloatRange(mtl, 0x846D, &lo, &hi) && hi == 511,
+          "Metal: ALIASED_POINT_SIZE_RANGE [1,511]");
+    CHECK(apex_webgl::ViewportDims(mtl, &w, &h) && w == 16384,
+          "Metal: MAX_VIEWPORT_DIMS [16384,16384]");
+
+    // Fail closed: wrong OS for the string, non-D3D11 string, switch off.
+    persona("macOS", "Google Inc. (Intel)",
+            "ANGLE (Intel, Intel(R) Iris(R) Xe Graphics Direct3D11 vs_5_0 "
+            "ps_5_0, D3D11)");
+    CHECK(apex_webgl::ClaimedBackend() == Backend::kNone,
+          "D3D11 string on a macOS persona -> no table");
+    persona("Windows", "Google Inc. (Intel)",
+            "ANGLE (Intel, Intel(R) HD Graphics Direct3D9Ex vs_3_0 ps_3_0, "
+            "d3d9)");
+    CHECK(apex_webgl::ClaimedBackend() == Backend::kNone,
+          "D3D9 string -> no table (never the wrong backend's values)");
+    setenv("APEX_FP_ACTIVE", "0", 1);
+    CHECK(apex_webgl::ClaimedBackend() == Backend::kNone,
+          "master switch off -> no table");
+    CHECK(!apex_webgl::IntLimit(Backend::kNone, 0x0D33, nullptr),
+          "kNone answers nothing");
+
+    // The real context already on the claimed backend keeps its own values.
+    CHECK(apex_webgl::EffectiveBackend(
+              Backend::kMetal,
+              "ANGLE (Apple, ANGLE Metal Renderer: Apple M2, Unspecified "
+              "Version)") == Backend::kNone,
+          "Metal persona on a real Metal context -> real values");
+    CHECK(apex_webgl::EffectiveBackend(
+              Backend::kD3D11,
+              "ANGLE (Mesa, llvmpipe (LLVM 19.1.7 256 bits), OpenGL 4.5)") ==
+              Backend::kD3D11,
+          "D3D11 persona on llvmpipe -> spoofed");
+
+    // viewport(0,0,30000,40000): llvmpipe stored [0,0,16384,16384]; D3D11
+    // would hold [0,0,30000,32767].
+    apex_webgl::Viewport out;
+    CHECK(apex_webgl::ReportedViewport(Backend::kD3D11, {0, 0, 30000, 40000},
+                                       {0, 0, 16384, 16384}, 16384, 16384,
+                                       &out) &&
+              out.w == 30000 && out.h == 32767,
+          "VIEWPORT reports the claimed backend's clamp of the request");
+    CHECK(!apex_webgl::ReportedViewport(Backend::kD3D11, {0, 0, 30000, 40000},
+                                        {0, 0, 640, 480}, 16384, 16384, &out),
+          "VIEWPORT moved by something else -> real value kept");
+
+    int32_t rmin = 0, rmax = 0, prec = -1;
+    CHECK(apex_webgl::Precision(d3d, 0x8DF1, &rmin, &rmax, &prec) &&
+              rmin == 127 && rmax == 127 && prec == 23,
+          "MEDIUM_FLOAT precision {127,127,23}");
+    CHECK(apex_webgl::Precision(mtl, 0x8DF3, &rmin, &rmax, &prec) &&
+              rmin == 31 && rmax == 30 && prec == 0,
+          "LOW_INT precision {31,30,0}");
+    unsetenv("APEX_FP_UA_PLATFORM");
+    unsetenv("APEX_FP_WEBGL_VENDOR");
+    unsetenv("APEX_FP_WEBGL_RENDERER");
+  }
 
   std::printf("\n%s (%d failure%s)\n",
               failures == 0 ? "ALL PASS" : "FAILURES",

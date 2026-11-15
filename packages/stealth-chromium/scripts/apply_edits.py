@@ -252,6 +252,250 @@ EDITS = [
                   "            return WebGLAny(script_state, apex_v);\n"
                   "        }\n",
     },
+    # --- WebGL numeric limits: the claimed backend's, not llvmpipe's (B3) --
+    # Tables + gating: chromium_src/.../webgl/apex_webgl_limits.h. Every
+    # WebGL1/WebGL2 getParameter limit funnels through the six Get*Parameter
+    # helpers below (WebGL2RenderingContextBase::getParameter calls the same
+    # base helpers), so these edits cover both context types. Verified anchors
+    # (Chromium 157.0.8103.80, each unique).
+    {
+        "file": "third_party/blink/renderer/modules/webgl/"
+                "webgl_rendering_context_base.h",
+        "marker": "apex-webgl-limits-state",
+        "anchor": "  // Helpers for getParameter and others\n",
+        "where": "before",
+        "inject": "  // apex-webgl-limits-state: per-context bookkeeping for the persona\n"
+                  "  // limit spoof. -1 = backend not resolved yet.\n"
+                  "  int apex_limits_backend_ = -1;\n"
+                  "  bool apex_vp_set_ = false;\n"
+                  "  GLint apex_vp_x_ = 0;\n"
+                  "  GLint apex_vp_y_ = 0;\n"
+                  "  GLint apex_vp_w_ = 0;\n"
+                  "  GLint apex_vp_h_ = 0;\n"
+                  "  GLfloat apex_line_width_ = 0.0f;\n\n",
+    },
+    {
+        "file": "third_party/blink/renderer/modules/webgl/"
+                "webgl_rendering_context_base.cc",
+        "header": '#include "third_party/blink/renderer/modules/webgl/'
+                  'apex_webgl_limits.h"',
+        "marker": "apex-webgl-limits-resolve",
+        "anchor": "ScriptValue WebGLRenderingContextBase::GetFloatParameter(\n",
+        "where": "before",
+        "inject": "// apex-webgl-limits-resolve: the persona backend for one context,\n"
+                  "// resolved once -- the real GL_RENDERER read is a synchronous GPU\n"
+                  "// round trip.\n"
+                  "static apex_webgl::Backend ApexLimitsBackend(\n"
+                  "    int* cache,\n"
+                  "    gpu::gles2::GLES2Interface* gl) {\n"
+                  "  if (*cache < 0) {\n"
+                  "    apex_webgl::Backend apex_b = apex_webgl::ClaimedBackend();\n"
+                  "    if (apex_b != apex_webgl::Backend::kNone) {\n"
+                  "      apex_b = apex_webgl::EffectiveBackend(\n"
+                  "          apex_b, String(gl->GetString(GL_RENDERER)).Utf8());\n"
+                  "    }\n"
+                  "    *cache = static_cast<int>(apex_b);\n"
+                  "  }\n"
+                  "  return static_cast<apex_webgl::Backend>(*cache);\n"
+                  "}\n\n",
+    },
+    {
+        "file": "third_party/blink/renderer/modules/webgl/"
+                "webgl_rendering_context_base.cc",
+        "marker": "apex-webgl-limits-reset",
+        "anchor": "void WebGLRenderingContextBase::InitializeNewContext() {\n"
+                  "  DCHECK(!isContextLost());\n"
+                  "  DCHECK(GetDrawingBuffer());\n",
+        "where": "after",
+        "inject": "  // apex-webgl-limits-reset: a restored context starts from GL defaults.\n"
+                  "  apex_limits_backend_ = -1;\n"
+                  "  apex_vp_set_ = false;\n"
+                  "  apex_line_width_ = 0.0f;\n",
+    },
+    {
+        "file": "third_party/blink/renderer/modules/webgl/"
+                "webgl_rendering_context_base.cc",
+        "marker": "apex-webgl-limits-float",
+        "anchor": "  GLfloat value = 0;\n"
+                  "  if (!isContextLost()) {\n"
+                  "    ContextGL()->GetFloatv(pname, &value);\n"
+                  "  }\n",
+        "where": "after",
+        "inject": "  if (!isContextLost()) {  // apex-webgl-limits-float\n"
+                  "    float apex_f = 0.0f;\n"
+                  "    if (pname == GL_LINE_WIDTH && apex_line_width_ > 0.0f) {\n"
+                  "      value = apex_line_width_;\n"
+                  "    } else if (apex_webgl::FloatLimit(\n"
+                  "                   ApexLimitsBackend(&apex_limits_backend_, ContextGL()),\n"
+                  "                   pname, &apex_f)) {\n"
+                  "      value = apex_f;\n"
+                  "    }\n"
+                  "  }\n",
+    },
+    {
+        "file": "third_party/blink/renderer/modules/webgl/"
+                "webgl_rendering_context_base.cc",
+        "marker": "apex-webgl-limits-int",
+        "anchor": "  GLint value = 0;\n"
+                  "  if (!isContextLost()) {\n"
+                  "    ContextGL()->GetIntegerv(pname, &value);\n",
+        "where": "after",
+        "inject": "    {  // apex-webgl-limits-int\n"
+                  "      int64_t apex_v = 0;\n"
+                  "      if (apex_webgl::IntLimit(\n"
+                  "              ApexLimitsBackend(&apex_limits_backend_, ContextGL()),\n"
+                  "              pname, &apex_v) &&\n"
+                  "          apex_v >= std::numeric_limits<GLint>::min() &&\n"
+                  "          apex_v <= std::numeric_limits<GLint>::max()) {\n"
+                  "        value = static_cast<GLint>(apex_v);\n"
+                  "      }\n"
+                  "    }\n",
+    },
+    {
+        "file": "third_party/blink/renderer/modules/webgl/"
+                "webgl_rendering_context_base.cc",
+        "marker": "apex-webgl-limits-int64",
+        "anchor": "  GLint64 value = 0;\n"
+                  "  if (!isContextLost())\n"
+                  "    ContextGL()->GetInteger64v(pname, &value);\n",
+        "where": "after",
+        "inject": "  if (!isContextLost()) {  // apex-webgl-limits-int64\n"
+                  "    int64_t apex_v = 0;\n"
+                  "    if (apex_webgl::IntLimit(\n"
+                  "            ApexLimitsBackend(&apex_limits_backend_, ContextGL()),\n"
+                  "            pname, &apex_v)) {\n"
+                  "      value = apex_v;\n"
+                  "    }\n"
+                  "  }\n",
+    },
+    {
+        "file": "third_party/blink/renderer/modules/webgl/"
+                "webgl_rendering_context_base.cc",
+        "marker": "apex-webgl-limits-floatarray",
+        "anchor": "  std::array<GLfloat, 4> value = {0};\n"
+                  "  if (!isContextLost())\n"
+                  "    ContextGL()->GetFloatv(pname, value.data());\n",
+        "where": "after",
+        "inject": "  if (!isContextLost()) {  // apex-webgl-limits-floatarray\n"
+                  "    float apex_lo = 0.0f;\n"
+                  "    float apex_hi = 0.0f;\n"
+                  "    if (apex_webgl::FloatRange(\n"
+                  "            ApexLimitsBackend(&apex_limits_backend_, ContextGL()),\n"
+                  "            pname, &apex_lo, &apex_hi)) {\n"
+                  "      value[0] = apex_lo;\n"
+                  "      value[1] = apex_hi;\n"
+                  "    }\n"
+                  "  }\n",
+    },
+    {
+        "file": "third_party/blink/renderer/modules/webgl/"
+                "webgl_rendering_context_base.cc",
+        "marker": "apex-webgl-limits-intarray",
+        "anchor": "  std::array<GLint, 4> value = {0};\n"
+                  "  if (!isContextLost())\n"
+                  "    ContextGL()->GetIntegerv(pname, value.data());\n",
+        "where": "after",
+        "inject": "  if (!isContextLost()) {  // apex-webgl-limits-intarray\n"
+                  "    const apex_webgl::Backend apex_b =\n"
+                  "        ApexLimitsBackend(&apex_limits_backend_, ContextGL());\n"
+                  "    int32_t apex_w = 0;\n"
+                  "    int32_t apex_h = 0;\n"
+                  "    apex_webgl::Viewport apex_out;\n"
+                  "    if (pname == GL_MAX_VIEWPORT_DIMS &&\n"
+                  "        apex_webgl::ViewportDims(apex_b, &apex_w, &apex_h)) {\n"
+                  "      value[0] = apex_w;\n"
+                  "      value[1] = apex_h;\n"
+                  "    } else if (pname == GL_VIEWPORT && apex_vp_set_ &&\n"
+                  "               apex_webgl::ReportedViewport(\n"
+                  "                   apex_b,\n"
+                  "                   {apex_vp_x_, apex_vp_y_, apex_vp_w_, apex_vp_h_},\n"
+                  "                   {value[0], value[1], value[2], value[3]},\n"
+                  "                   max_viewport_dims_[0], max_viewport_dims_[1],\n"
+                  "                   &apex_out)) {\n"
+                  "      value[2] = apex_out.w;\n"
+                  "      value[3] = apex_out.h;\n"
+                  "    }\n"
+                  "  }\n",
+    },
+    {
+        "file": "third_party/blink/renderer/modules/webgl/"
+                "webgl_rendering_context_base.cc",
+        "marker": "apex-webgl-limits-precision",
+        "anchor": "  ContextGL()->GetShaderPrecisionFormat(shader_type, precision_type, "
+                  "range,\n"
+                  "                                        &precision);\n",
+        "where": "after",
+        "inject": "  {  // apex-webgl-limits-precision\n"
+                  "    int32_t apex_lo = 0;\n"
+                  "    int32_t apex_hi = 0;\n"
+                  "    int32_t apex_p = 0;\n"
+                  "    if (apex_webgl::Precision(\n"
+                  "            ApexLimitsBackend(&apex_limits_backend_, ContextGL()),\n"
+                  "            precision_type, &apex_lo, &apex_hi, &apex_p)) {\n"
+                  "      range[0] = apex_lo;\n"
+                  "      range[1] = apex_hi;\n"
+                  "      precision = apex_p;\n"
+                  "    }\n"
+                  "  }\n",
+    },
+    # Coherence with ALIASED_LINE_WIDTH_RANGE [1,1]: on ANGLE-D3D11/Metal,
+    # lineWidth(5) is stored as-is (ValidateLineWidth rejects only <= 0 / NaN;
+    # PrivateState::setLineWidth keeps the raw value, the passthrough decoder
+    # does not clamp) so LINE_WIDTH reads back 5, but lines rasterize 1px wide.
+    # llvmpipe would draw them 5px wide. So the GL gets the claimed maximum
+    # and LINE_WIDTH reports the page's value. Invalid widths fall through so
+    # the GL raises INVALID_VALUE and the remembered width is untouched.
+    # order_before: the early return must precede the real LineWidth call.
+    {
+        "file": "third_party/blink/renderer/modules/webgl/"
+                "webgl_rendering_context_base.cc",
+        "marker": "apex-webgl-limits-linewidth",
+        "anchor": "void WebGLRenderingContextBase::lineWidth(GLfloat width) {\n"
+                  "  if (isContextLost())\n"
+                  "    return;\n",
+        "where": "after",
+        "inject": "  {  // apex-webgl-limits-linewidth\n"
+                  "    float apex_lo = 0.0f;\n"
+                  "    float apex_hi = 0.0f;\n"
+                  "    if (apex_webgl::FloatRange(\n"
+                  "            ApexLimitsBackend(&apex_limits_backend_, ContextGL()),\n"
+                  "            GL_ALIASED_LINE_WIDTH_RANGE, &apex_lo, &apex_hi)) {\n"
+                  "      if (width > apex_hi) {\n"
+                  "        apex_line_width_ = width;\n"
+                  "        ContextGL()->LineWidth(apex_hi);\n"
+                  "        return;\n"
+                  "      }\n"
+                  "      if (width > 0.0f) {\n"
+                  "        apex_line_width_ = 0.0f;\n"
+                  "      }\n"
+                  "    }\n"
+                  "  }\n",
+        "order_before": "  ContextGL()->LineWidth(width);\n",
+    },
+    # Coherence with MAX_VIEWPORT_DIMS: remember the page's request so a
+    # VIEWPORT query reports the claimed backend's clamp of it (see
+    # ReportedViewport). Negative sizes are GL errors that leave the state
+    # unchanged, so they are not recorded.
+    {
+        "file": "third_party/blink/renderer/modules/webgl/"
+                "webgl_rendering_context_base.cc",
+        "marker": "apex-webgl-limits-viewport",
+        "anchor": "                                         GLsizei height) {\n"
+                  "  if (isContextLost())\n"
+                  "    return;\n"
+                  "  ContextGL()->Viewport(x, y, width, height);\n",
+        "where": "after",
+        "inject": "  // apex-webgl-limits-viewport\n"
+                  "  if (width >= 0 && height >= 0 &&\n"
+                  "      ApexLimitsBackend(&apex_limits_backend_, ContextGL()) !=\n"
+                  "          apex_webgl::Backend::kNone) {\n"
+                  "    apex_vp_set_ = true;\n"
+                  "    apex_vp_x_ = x;\n"
+                  "    apex_vp_y_ = y;\n"
+                  "    apex_vp_w_ = width;\n"
+                  "    apex_vp_h_ = height;\n"
+                  "  }\n",
+    },
     # --- UA-CH brand list: identify as Google Chrome -------------------
     # Without is_chrome_branded (needs src-internal) CHROMIUM_BRANDING is set,
     # `brand` stays nullopt, and GenerateBrandVersionList() emits only

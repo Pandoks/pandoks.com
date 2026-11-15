@@ -67,7 +67,7 @@ on some paths / with a residual), **UNCOVERED**.
 | A9 | DNS resolution path | Resolver IP / leak when the client resolves | BY-CONSTRUCTION | Chrome resolves proxy-side for HTTP and SOCKS5 | `net/docs/proxy.md` [S12] |
 | B1 | Canvas 2D hash (`getImageData`, `toDataURL`/`toBlob`/`convertToBlob`) | GPU/driver/font rasterizer; OS via emoji glyphs and AA | PARTIAL | `apex-canvas-getimagedata`, `apex-canvas-encode` (+ `_RGBA_NOISE_LOOP` skips) | Mowery & Shacham 2012 [S13]; Castle canvas-noise detection [S14]; fingerprintjs `canvas.ts` emoji [S15] |
 | B2 | WebGL render hash (`readPixels`) | Real GPU/backend | PARTIAL | `apex-webgl-readpixels` | Cao, Li, Wijmans NDSS 2017 [S16] |
-| B3 | WebGL numeric params / extensions / precision vs UNMASKED strings | Real GPU class | **UNCOVERED** | strings only: `apex-webgl-vendor`, `apex-webgl-renderer` | CreepJS `hasBadWebGL` and GPU-params checks [S17]; Castle Hidemium [S18] |
+| B3 | WebGL numeric params / extensions / precision vs UNMASKED strings | Real GPU class | **PARTIAL (unbuilt)** | strings: `apex-webgl-vendor`, `apex-webgl-renderer`; numeric limits + precision: `apex-webgl-limits-*` (D3D11/Metal tables, `apex_webgl_limits.h`). Extension list, MAX_SAMPLES and render output are still llvmpipe | CreepJS `hasBadWebGL` and GPU-params checks [S17]; Castle Hidemium [S18] |
 | B4 | WebGPU `GPUAdapterInfo` | vendor/architecture spoofed; `isFallbackAdapter`, `limits`, `features` real | PARTIAL | `apex-webgpu-identity` | `gpu_adapter.cc` [S19]; WebGPU on Linux in Chrome 144 [S20] |
 | B5 | AudioContext / OfflineAudioContext hash | DSP/compiler/arch class | **UNCOVERED** (edit removed) | `apex_audio_noise.h` orphaned; "removed edits" note | Cao et al. [S16]; (Englehardt & Narayanan 2016 first measured audio FP) |
 | B6 | Font enumeration by width/glyph fallback | Installed font set → OS | **UNCOVERED** | `apex_font_policy.h` header documents the residual | Fifield & Egelman 2015 [S21] |
@@ -284,8 +284,12 @@ default pack state; other format/type pairs, PBO readbacks, and canvas
 `toDataURL` of a WebGL canvas (goes through B1's encode path) are not all
 covered. The rendered content itself is llvmpipe/ANGLE output (B3).
 
-**B3 — WebGL parameters vs strings. UNCOVERED.** Only `UNMASKED_VENDOR` /
-`UNMASKED_RENDERER` are overridden (`apex-webgl-vendor/renderer`). CreepJS
+**B3 — WebGL parameters vs strings. PARTIAL (unbuilt).** `apex-webgl-limits-*`
+now reports the claimed backend's getParameter limits and shader precision
+(ANGLE D3D11 / Metal caps at the ANGLE revision Chromium 157.0.8103.80 pins;
+tables in `chromium_src/.../webgl/apex_webgl_limits.h`). Not yet covered: the
+extension list, MAX_SAMPLES, and rendered output. Before that, only `UNMASKED_VENDOR` /
+`UNMASKED_RENDERER` were overridden (`apex-webgl-vendor/renderer`). CreepJS
 compares the main-thread renderer with the worker's (`hasBadWebGL`) — both are
 patched, so that passes — but its GPU-parameter-vs-model check and Castle's
 Hidemium analysis [S18] compare `MAX_TEXTURE_SIZE`, `MAX_*_UNIFORM_*`,
