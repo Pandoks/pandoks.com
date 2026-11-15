@@ -11,7 +11,8 @@ watches *how it is driven*. Automation tells:
   * mouse paths follow a Bezier curve with eased (slow-fast-slow) speed and a
     little overshoot + correction, like a hand on a trackpad
   * a click is move -> settle -> press -> short hold -> release
-  * scrolling is several variable wheel ticks with pauses, not one jump
+  * scrolling is whole-notch wheel flicks with pauses, not one jump
+  * every coordinate sits on the device-pixel grid, like a real mouse
   * typing has variable per-key delays, occasional longer "thinking" pauses
 
 Everything is dispatched as raw CDP Input events (Input.dispatchMouseEvent /
@@ -28,6 +29,8 @@ import math
 import random
 
 from nodriver import cdp
+
+from stealth_browser.human_patchright import _draw_regime, _wheel_plan
 
 
 def _bezier(p0, p1, p2, p3, t):
@@ -52,18 +55,25 @@ class Human:
     (a real cursor never jumps). Construct one per tab and reuse it.
     """
 
-    def __init__(self, tab, *, viewport=(1512, 859)):
+    def __init__(self, tab, *, viewport=(1512, 859), dpr=1.0):
         self.tab = tab
         self.vw, self.vh = viewport
+        self.dpr = float(dpr) or 1.0
+        # per-instance wheel persona (notch size, spin/flick cadence)
+        self._regime = _draw_regime(random.Random())
         # start the cursor somewhere plausible, not (0,0)
         self.x = random.uniform(self.vw * 0.3, self.vw * 0.6)
         self.y = random.uniform(self.vh * 0.3, self.vh * 0.6)
 
     # --- low-level CDP dispatch -------------------------------------------
+    def _snap(self, v):
+        """A real mouse reports whole device pixels: multiples of 1/dpr."""
+        return round(float(v) * self.dpr) / self.dpr
+
     async def _mouse(self, type_, x, y, *, button=None, buttons=0,
                      click_count=0):
         await self.tab.send(cdp.input_.dispatch_mouse_event(
-            type_=type_, x=float(x), y=float(y),
+            type_=type_, x=self._snap(x), y=self._snap(y),
             button=button, buttons=buttons,
             click_count=click_count or None,
             # a real trackpad reports a pointer type + a little force
@@ -138,6 +148,8 @@ class Human:
     # --- clicking ----------------------------------------------------------
     async def click_at(self, x, y, *, button="left"):
         """Human-click at viewport coordinates (e.g. inside an iframe box)."""
+        await self.click_xy(x, y, button=button)
+
     async def click_xy(self, x, y, *, button="left"):
         """Move to (x, y), settle, then press-hold-release like a finger."""
         await self.move_to(x, y)
@@ -187,25 +199,20 @@ class Human:
 
     # --- scrolling ---------------------------------------------------------
     async def scroll(self, total, *, direction="down"):
-        """Scroll `total` px in several variable wheel ticks with pauses.
+        """Scroll ~`total` px (rounded to whole notches) as wheel flicks.
 
-        A real wheel/trackpad emits many small deltas; one giant jump is a
-        tell. Tick sizes and pauses vary, with an occasional reading pause.
+        Same notched-wheel model as PatchrightHuman: a wheel only reports
+        whole notches, a flick decelerates, flicks are split by pauses.
         """
         sign = 1 if direction == "down" else -1
-        remaining = abs(total)
-        while remaining > 0:
-            tick = min(remaining, random.uniform(90, 240))
-            remaining -= tick
+        for notches, pause in _wheel_plan(random, total, self._regime):
             await self.tab.send(cdp.input_.dispatch_mouse_event(
-                type_="mouseWheel", x=float(self.x), y=float(self.y),
-                delta_x=0.0, delta_y=float(sign * tick), pointer_type="mouse",
+                type_="mouseWheel", x=self._snap(self.x), y=self._snap(self.y),
+                delta_x=0.0,
+                delta_y=float(sign * notches * self._regime["notch_px"]),
+                pointer_type="mouse",
             ))
-            # short pause between ticks; sometimes a longer "reading" pause
-            if random.random() < 0.2:
-                await asyncio.sleep(random.uniform(0.6, 1.8))
-            else:
-                await asyncio.sleep(random.uniform(0.05, 0.22))
+            await asyncio.sleep(pause)
 
     async def read_scroll(self, *, screens=2.0):
         """Scroll down ~`screens` viewport-heights as if reading a page."""

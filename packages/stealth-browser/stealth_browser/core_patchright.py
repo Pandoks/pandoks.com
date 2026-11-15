@@ -45,7 +45,7 @@ _PLAYWRIGHT_NONSTOCK_SWITCHES = [
 ]
 
 
-def _seed_profile_prefs(profile_dir: str) -> None:
+def _seed_profile_prefs(profile_dir: str, accept_language: str) -> None:
     """Pre-seed the profile Preferences with the fingerprint-stability prefs.
 
     The real-display binary is Helium (a Chromium fork). Its built-in
@@ -80,6 +80,15 @@ def _seed_profile_prefs(profile_dir: str) -> None:
     # equivalent (pref_names.h kDnsOverHttpsMode; anything other than
     # "secure"/"automatic" maps to off). No command-line switch exists.
     prefs.setdefault("dns_over_https", {})["mode"] = "off"
+    # Accept-Language comes from the network stack's own pref, never a
+    # DevTools header: Network.setExtraHTTPHeaders / setUserAgentOverride
+    # land it right after User-Agent, where stock Chrome appends it last
+    # (after Accept-Encoding). The pref is the bare list; Chrome's
+    # ExpandLanguageList + GenerateAcceptLanguageHeader (net/http/
+    # http_util.cc) re-derive the q-values, and navigator.languages reads
+    # the same pref, so header and JS agree.
+    prefs.setdefault("intl", {})["accept_languages"] = ",".join(
+        part.split(";")[0].strip() for part in accept_language.split(","))
     with open(path, "w") as f:
         json.dump(prefs, f)
 
@@ -154,7 +163,7 @@ class PatchrightCore:
         Unlike the nodriver core (which can re-match AFTER launch, since it
         applies the identity over CDP), every identity surface here is baked
         in at LAUNCH time (TZ/LANG/LC_ALL env, --lang flag, the
-        Accept-Language context header), so the exit IP must be known before
+        intl.accept_languages profile pref), so the exit IP must be known before
         launch. The lookup itself is routed through the proxy (a pre-launch
         Python process is not proxied, so a direct lookup would report OUR
         location, not the proxy's). Best-effort: on any failure the session
@@ -233,8 +242,9 @@ class PatchrightCore:
             launch_kwargs["args"].append(WEBRTC_PROXIED_FLAG)
         # Context options kept to the non-Emulation minimum: viewport/screen/
         # device_scale_factor/color_scheme also ride Emulation.*, so they are
-        # NOT set -- the browser reports the real display. The two context
-        # options below are the exception, with the reasons:
+        # NOT set -- the browser reports the real display. The one context
+        # option below is the exception, with the reason (Accept-Language is
+        # a profile pref, see _seed_profile_prefs):
         # no_viewport: patchright force-emulates its default 1280x720
         # viewport (innerWidth/Height AND screen) on every page unless
         # explicitly disabled. A real outer (the OS window) next to an
@@ -246,10 +256,7 @@ class PatchrightCore:
         # Permissions are NOT pre-granted: a virgin profile sits at 'prompt',
         # and terminal (granted/denied) states on a never-visited site are an
         # automation tell. Geolocation comes from the proxy's real IP.
-        ctx_opts = {
-            "no_viewport": True,
-            "extra_http_headers": {"Accept-Language": idn.accept_language},
-        }
+        ctx_opts = {"no_viewport": True}
         # Every session launches through launch_persistent_context against a
         # profile dir we control, so the fingerprint-stability prefs
         # (_seed_profile_prefs) are pre-seeded before Chrome reads them. A
@@ -263,7 +270,7 @@ class PatchrightCore:
         else:
             profile_dir = tempfile.mkdtemp(prefix="stealth-session-")
             self._profile_dir = profile_dir
-        _seed_profile_prefs(profile_dir)
+        _seed_profile_prefs(profile_dir, idn.accept_language)
         # a named profile keeps its own CDP endpoint for attach/debug, like
         # any real device that stays reachable
         port = random.randint(41000, 49999)

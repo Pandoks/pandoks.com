@@ -3,14 +3,14 @@
 Ports the synthetic-human generator's motion models (behavior-capture
 humanizer): minimum-jerk (Flash & Hogan quintic) pointer paths with a
 distance-adaptive duration, small perpendicular bow, per-sample micro-jitter
-and overshoot + corrective return on long moves; press-hold-release clicks
-with a settle dwell; wheel ticks whose delta size decays across the gesture
-with reading pauses; typing with an explicit keydown/dwell/keyup/flight
-sequence (hold time under our control, unlike keyboard.type) and occasional
-backspace corrections.
+and overshoot + corrective return on long moves, every point on the
+device-pixel grid; press-hold-release clicks with a settle dwell; whole-notch
+wheel flicks that decelerate, split by finger-reset and reading pauses; typing
+with an explicit keydown/dwell/keyup/flight sequence (hold time under our
+control, unlike keyboard.type) and occasional backspace corrections.
 
 Each session draws ONE randomized parameter regime (typist wpm cluster, move
-speed factor, click timing ranges, scroll notch/decay/pause profile, typo
+speed factor, click timing ranges, wheel spin/flick/pause profile, typo
 rate, tremor scale) from the session seed and holds it for the whole session:
 between-session distributions differ, within-session they are stable. The
 same seed reproduces the same behavior.
@@ -51,11 +51,51 @@ def _draw_regime(rng: random.Random) -> dict:
         # pointer event rate (events/s) -- the doc's gate is
         # mouse_event_rate in N(15,7) by session; emit inside its +-1sigma
         "move_rate": rng.uniform(12.0, 21.0),
-        # scroll persona
-        "wheel_base": (rng.uniform(75, 95), rng.uniform(225, 255)),
-        "wheel_decay": rng.uniform(0.40, 0.60),
+        # scroll persona: a notched wheel. Windows Chrome maps one 120-unit
+        # notch to 3 lines x 100/3 px = 100 px (ui/events/blink/
+        # web_input_event_builders_win.cc), so every delta is a whole number
+        # of notches. A finger flick spins a few notches whose spacing grows
+        # as the spin decelerates; flicks are split by a finger-reset pause.
+        "notch_px": 100.0,
+        "spin_gap": (rng.uniform(0.030, 0.060), rng.uniform(0.30, 0.45)),
+        "spin_decay": rng.uniform(1.12, 1.35),
+        "flick_notches": rng.uniform(2.5, 4.5),
+        "flick_pause": (rng.uniform(0.18, 0.32), rng.uniform(0.35, 0.55)),
+        # a fast spin occasionally lands two notches in one event (Blink
+        # coalesces queued wheel events)
+        "double_notch": rng.uniform(0.04, 0.10),
         "pause_prob": rng.uniform(0.18, 0.26),
     }
+
+
+def _lognormal(rng: random.Random, median_sigma) -> float:
+    median, sigma = median_sigma
+    return median * math.exp(rng.gauss(0.0, sigma))
+
+
+def _wheel_plan(rng: random.Random, total, regime: dict) -> list:
+    """(notches, sleep_s) per wheel event for a scroll of ~`total` px."""
+    plan = []
+    notches = max(1, round(abs(total) / regime["notch_px"]))
+    while notches > 0:
+        flick = min(notches, 1 + int(rng.expovariate(
+            1.0 / (regime["flick_notches"] - 1.0))))
+        notches -= flick
+        gap = 1.0
+        while flick > 0:
+            step = 2 if (flick >= 2
+                         and rng.random() < regime["double_notch"]) else 1
+            flick -= step
+            # the spin decelerates: each notch arrives later than the last
+            plan.append([step, gap * _lognormal(rng, regime["spin_gap"])])
+            gap *= regime["spin_decay"]
+        if notches <= 0:
+            plan[-1][1] = rng.uniform(0.12, 0.30)
+        elif rng.random() < regime["pause_prob"]:
+            plan[-1][1] = rng.uniform(0.5, 1.6)
+        else:
+            plan[-1][1] = _lognormal(rng, regime["flick_pause"])
+    return [tuple(p) for p in plan]
 
 
 class PatchrightHuman:
@@ -72,26 +112,33 @@ class PatchrightHuman:
             else random.getrandbits(64)
         self.rng = random.Random(self.seed)
         self.regime = _draw_regime(self.rng)
+        self.dpr = 1.0
         # start the cursor somewhere plausible, not (0,0) -- varies per session
         self.x = self.rng.uniform(self.vw * 0.3, self.vw * 0.6)
         self.y = self.rng.uniform(self.vh * 0.3, self.vh * 0.6)
 
     # --- mouse motion ------------------------------------------------------
     async def _sync_viewport(self):
-        """Read the live window size so clamping matches the real screen."""
+        """Read the live window size and DPR so dispatch matches the screen."""
         try:
             size = await self.page.evaluate(
-                "({w: window.innerWidth, h: window.innerHeight})")
+                "({w: window.innerWidth, h: window.innerHeight,"
+                " dpr: window.devicePixelRatio})")
         except Exception:
             return
         if isinstance(size, dict) and size.get("w") and size.get("h"):
             self.vw, self.vh = int(size["w"]), int(size["h"])
+            if size.get("dpr"):
+                self.dpr = float(size["dpr"])
 
     def _clamp(self, x, y):
-        """Keep every dispatched coordinate inside the viewport (+2px margin)."""
+        """Keep every dispatched coordinate inside the viewport (+2px margin)
+        and on the device-pixel grid: a real mouse reports whole device
+        pixels, so clientX/Y are multiples of 1/dpr (integers at dpr 1)."""
         m = 2
-        return (min(max(x, m), self.vw - 1 - m),
-                min(max(y, m), self.vh - 1 - m))
+        d = self.dpr
+        return (round(min(max(x, m), self.vw - 1 - m) * d) / d,
+                round(min(max(y, m), self.vh - 1 - m) * d) / d)
 
     async def move_to(self, x, y, *, duration=None):
         """Glide the cursor to (x, y) on a min-jerk path (bell velocity)."""
@@ -177,24 +224,12 @@ class PatchrightHuman:
 
     # --- scrolling ---------------------------------------------------------
     async def scroll(self, total, *, direction="down"):
-        """Scroll `total` px as wheel ticks whose delta size DECAYS to zero."""
+        """Scroll ~`total` px (rounded to whole notches) as wheel flicks."""
         sign = 1 if direction == "down" else -1
-        remaining = float(abs(total))
-        total = float(abs(total)) or 1.0
-        while remaining > 0:
-            # deceleration: ticks shrink as the gesture winds down
-            consumed = 1.0 - remaining / total
-            base = self.rng.uniform(*self.regime["wheel_base"])
-            tick = min(remaining, base * (1.0 - self.regime["wheel_decay"]
-                                          * consumed))
-            remaining -= tick
-            await self.page.mouse.wheel(0, sign * tick)
-            if remaining <= 0:
-                await asyncio.sleep(self.rng.uniform(0.12, 0.30))
-            elif self.rng.random() < self.regime["pause_prob"]:
-                await asyncio.sleep(self.rng.uniform(0.5, 1.6))
-            else:
-                await asyncio.sleep(self.rng.uniform(0.04, 0.20))
+        for notches, pause in _wheel_plan(self.rng, total, self.regime):
+            await self.page.mouse.wheel(
+                0, sign * notches * self.regime["notch_px"])
+            await asyncio.sleep(pause)
 
     # --- typing ------------------------------------------------------------
     async def _type_char(self, ch):

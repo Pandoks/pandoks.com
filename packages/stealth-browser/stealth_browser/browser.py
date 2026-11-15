@@ -206,19 +206,21 @@ class StealthBrowser:
         """
         from .human import Human  # local import avoids a cycle
         w, h = self.identity.viewport_width, self.identity.viewport_height
+        dpr = self.identity.device_scale_factor
         try:
-            # use the page's real innerWidth/innerHeight when available
+            # use the page's real innerWidth/innerHeight/DPR when available
             dims = await tab.evaluate(
-                "JSON.stringify([window.innerWidth, window.innerHeight])",
+                "JSON.stringify([window.innerWidth, window.innerHeight,"
+                " window.devicePixelRatio])",
                 return_by_value=True)
             import json
             raw = dims if isinstance(dims, str) else getattr(
                 getattr(dims, "deep_serialized_value", None), "value", None)
             if raw:
-                w, h = json.loads(raw)
+                w, h, dpr = json.loads(raw)
         except Exception:  # noqa: BLE001 - fall back to identity viewport
             pass
-        return Human(tab, viewport=(w, h))
+        return Human(tab, viewport=(w, h), dpr=dpr)
 
     async def _apply_identity(self, tab) -> None:
         idn = self.identity
@@ -252,14 +254,19 @@ class StealthBrowser:
         except Exception:  # noqa: BLE001
             pass
 
-    @staticmethod
-    async def humanize(tab) -> None:
+    async def humanize(self, tab) -> None:
         """Inject a little real-user motion. Detectors flag perfectly inert
-        sessions; a real human scrolls and pauses irregularly."""
+        sessions; a real human scrolls and pauses irregularly.
+
+        Goes through Human's notched-wheel model, not nodriver's
+        tab.scroll_down/up: those are Input.synthesizeScrollGesture, which
+        emits fractional deltas on a fixed ~16.7ms frame grid at (0, 0)."""
         try:
-            await tab.scroll_down(random.randint(90, 160))
+            h = await self.human_for(tab)
+            await h.scroll(int(h.vh * random.uniform(0.9, 1.6)))
             await tab.sleep(random.uniform(0.3, 0.7))
-            await tab.scroll_up(random.randint(40, 90))
+            await h.scroll(int(h.vh * random.uniform(0.4, 0.9)),
+                           direction="up")
             await tab.sleep(random.uniform(0.2, 0.5))
         except Exception:  # noqa: BLE001 - humanizing is best-effort
             pass

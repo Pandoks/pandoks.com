@@ -125,10 +125,13 @@ _REGION_TZ = {
 # gets de-DE, not en-US. A locale that disagrees with the IP's country is a
 # real coherence signal that strict fingerprinters cross-check. This is honest
 # matching, not spoofing: the request genuinely exits in that country.
+# The Accept-Language value must be exactly what Chrome derives from its bare
+# language list (core_patchright seeds that list as intl.accept_languages and
+# Chrome appends a missing base language, e.g. fr-CA -> fr).
 _COUNTRY_LOCALE = {
     "US": ("en-US", "en-US,en;q=0.9"),
     "GB": ("en-GB", "en-GB,en;q=0.9"),
-    "CA": ("en-CA", "en-CA,en;q=0.9,fr-CA;q=0.8"),
+    "CA": ("en-CA", "en-CA,en;q=0.9,fr-CA;q=0.8,fr;q=0.7"),
     "AU": ("en-AU", "en-AU,en;q=0.9"),
     "DE": ("de-DE", "de-DE,de;q=0.9,en;q=0.8"),
     "FR": ("fr-FR", "fr-FR,fr;q=0.9,en;q=0.8"),
