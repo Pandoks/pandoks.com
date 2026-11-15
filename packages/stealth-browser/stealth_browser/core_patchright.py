@@ -200,10 +200,16 @@ class PatchrightCore:
             "LANG": idn.locale.replace("-", "_") + ".UTF-8",
             "LC_ALL": idn.locale.replace("-", "_") + ".UTF-8",
         }
+        patched = patched_chrome_path()
+        if patched is not None:
+            self._fp_profile = pick_profile()
+            self._fp_seed = __import__("random").getrandbits(32)
         launch_kwargs: dict = {
             "channel": "chrome",  # real Google Chrome, not bundled Chromium
             "headless": self.headless,
-            "args": chrome_launch_flags(idn, headless=self.headless),
+            "args": chrome_launch_flags(
+                idn, headless=self.headless,
+                fp_profile=self._fp_profile if patched is not None else None),
             "ignore_default_args": _PLAYWRIGHT_NONSTOCK_SWITCHES,
             # Playwright passes --no-sandbox unless told otherwise; stock
             # Chrome is sandboxed. The container adds --no-sandbox itself
@@ -218,12 +224,9 @@ class PatchrightCore:
         # .start() ran above, so a later os.environ.update would NOT reach
         # the spawned Chrome. `env=` sets the child process environment
         # explicitly and reliably.
-        patched = patched_chrome_path()
         if patched is not None:
             launch_kwargs["executable_path"] = patched
             launch_kwargs.pop("channel", None)  # explicit path overrides channel
-            self._fp_profile = pick_profile()
-            self._fp_seed = __import__("random").getrandbits(32)
             # full child env = inherited env + APEX_FP_* overrides + identity
             launch_kwargs["env"] = {
                 **_os.environ,

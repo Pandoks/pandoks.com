@@ -107,7 +107,8 @@ class StealthBrowser:
                  *, headless: bool = False,
                  chrome_path: str = REAL_CHROME,
                  proxy=None,
-                 extra_args: list[str] | None = None):
+                 extra_args: list[str] | None = None,
+                 fp_profile=None):
         # headless defaults to False on purpose -- see module docstring.
         # proxy: an optional ProxyConfig (stealth.proxy.from_env()). When set,
         # all of Chrome's traffic routes through it and proxy auth is handled
@@ -120,12 +121,14 @@ class StealthBrowser:
         self.chrome_path = chrome_path
         self.proxy = proxy
         self.extra_args = list(extra_args or [])
+        self.fp_profile = fp_profile
         self._browser = None
 
     async def __aenter__(self) -> "StealthBrowser":
         args = chrome_launch_flags(self.identity,
                                    headless=self.headless,
-                                   proxy=self.proxy)
+                                   proxy=self.proxy,
+                                   fp_profile=self.fp_profile)
         args += self.extra_args
         self._browser = await uc.start(
             browser_executable_path=self.chrome_path,

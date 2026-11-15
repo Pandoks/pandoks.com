@@ -136,6 +136,7 @@ class NodriverCore:
         kwargs: dict = {"headless": self.headless}
         if self._patched_chrome is not None:
             kwargs["chrome_path"] = self._patched_chrome
+            kwargs["fp_profile"] = self._fp_profile
         if self._proxy is not None:
             kwargs["proxy"] = self._proxy
         # persistent persona profile: a "lived-in" user_data_dir with real

@@ -477,6 +477,32 @@ def real_display_size() -> tuple[int, int] | None:
     return None
 
 
+# Bottom taskbar height in CSS px; it is a fixed DIP height, so it is the same
+# at every display scale. Real Windows Chrome on a 1920x1080 dpr-1 screen
+# reports availHeight 1032 (43%) or 1040 (37%) with availTop 0, and the same
+# 48/40 gaps on 1536x864@1.25 (816/824) and 1366x768 (720/728):
+# apify-fingerprint-datapoints 0.16.0 network.json "screen" node, pooled over
+# 57 Windows desktop-Chrome UAs. 48 is Windows 11's default taskbar, 40 is
+# Windows 10's.
+WIN11_TASKBAR_PX = 48
+WIN10_TASKBAR_PX = 40
+
+
+def screen_avail(profile: FpProfile,
+                 screen: tuple[int, int]) -> tuple[int, int]:
+    """(availWidth, availHeight) a real machine of the persona's OS reports.
+
+    macOS stays at the full screen: its menu-bar exclusion moves availTop,
+    which the binary cannot override, and availHeight < height with
+    availTop 0 is not a real Mac shape.
+    """
+    w, h = screen
+    if profile.platform != "Win32":
+        return (w, h)
+    win10 = profile.ua_platform_version == "1.0.0"
+    return (w, h - (WIN10_TASKBAR_PX if win10 else WIN11_TASKBAR_PX))
+
+
 def pick_profile_by_label(label_or_substring: str) -> FpProfile | None:
     """Find a profile by exact label or case-insensitive substring match.
 
@@ -531,7 +557,8 @@ def pick_profile(rng: random.Random | None = None) -> FpProfile:
                                         for p in coherent])[0]
 
 
-def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
+def fp_env(profile: FpProfile, seed: int,
+           screen: tuple[int, int] | None = None) -> dict[str, str]:
     """Build the APEX_FP_* environment dict for a session.
 
     `seed` drives the deterministic canvas/audio noise -- one fresh seed per
@@ -541,6 +568,9 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
     discharging-laptop band. Desktop personas have no battery, and Chrome on
     battery-less hardware reports charging=true, level=1 (chargingTime=0,
     dischargingTime=Infinity), so those personas report exactly that.
+
+    `screen` is the real display size (default: real_display_size()); with
+    it known, the persona's OS shell exclusion is emitted as the avail area.
     """
     if profile.form_factor == "desktop":
         battery_level, battery_charging = "1", "1"
@@ -583,14 +613,21 @@ def fp_env(profile: FpProfile, seed: int) -> dict[str, str]:
         "APEX_FP_WEBGPU_DESCRIPTION": profile.webgpu_device or "",
         "APEX_FP_WEBGPU_DRIVER": profile.webgpu_driver or "",
         "APEX_FP_WEBGPU_TYPE": WEBGPU_TYPE_BY_CLASS[profile.gpu_class],
-        # The screen is NOT spoofed: a screen value that disagrees with the
-        # real window/display geometry is the impossible-geometry tell (a
+        # The screen size is NOT spoofed: a screen value that disagrees with
+        # the real window/display geometry is the impossible-geometry tell (a
         # window larger than the screen it is on, a dpr its panel can't have).
-        # The binary reports the REAL screen natively, which is always
-        # coherent; real_display_size() clamps the launch window to fit it.
+        # The binary reports the REAL screen natively; only the avail area
+        # below is overridden, and chrome_launch_flags sizes the window to it.
         "APEX_FP_BATTERY_LEVEL": battery_level,
         "APEX_FP_BATTERY_CHARGING": battery_charging,
     }
+    # Emitted even when equal to the screen: nodriver os.environ.update()s
+    # this dict, so an omitted key would keep a previous session's value.
+    screen = screen or real_display_size()
+    if screen is not None:
+        avail_w, avail_h = screen_avail(profile, screen)
+        env["APEX_FP_SCREEN_AVAIL_W"] = str(avail_w)
+        env["APEX_FP_SCREEN_AVAIL_H"] = str(avail_h)
     if profile.webgpu_device_id:
         env["APEX_FP_WEBGPU_DEVICE_ID"] = profile.webgpu_device_id
     webgpu_limits = dict(profile.webgpu_limits) if profile.webgpu_limits \

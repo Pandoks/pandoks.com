@@ -19,7 +19,7 @@ import platform
 import shutil
 from dataclasses import dataclass, field
 
-from stealth_browser.fp_profiles import real_display_size
+from stealth_browser.fp_profiles import real_display_size, screen_avail
 
 
 def chrome_path() -> str:
@@ -237,7 +237,7 @@ WEBRTC_PROXIED_FLAG = "--webrtc-ip-handling-policy=disable_non_proxied_udp"
 
 
 def chrome_launch_flags(identity: Identity, *, headless: bool,
-                        proxy=None) -> list[str]:
+                        proxy=None, fp_profile=None) -> list[str]:
     """Chrome command-line flags that remove headless/automation tells.
 
     The single most important choice: do NOT pass --headless. Headless Chrome
@@ -284,14 +284,18 @@ def chrome_launch_flags(identity: Identity, *, headless: bool,
         #  --disable-dev-shm-usage -- containers give /dev/shm only ~64MB;
         #                         without this Chrome crashes on big pages.
         flags += ["--no-sandbox", "--disable-dev-shm-usage"]
-        # Geometry in the container: the window must fit the Xvfb screen AND
-        # real Chrome always reports outer >= inner (the frame chrome is
-        # outside the viewport). Sizing the window to the screen keeps
-        # inner <= outer == screen coherent; no driver ever emulates a
-        # conflicting viewport (see core_patchright's no_viewport).
+        # Geometry in the container: a maximized window, i.e. at 0,0 filling
+        # the persona's avail area (fp_env emits the same avail), as real
+        # Windows Chrome reports (outer == avail, screenX 0 in the apify
+        # dataset). Chrome's tab strip + toolbar keep inner < outer; no driver
+        # ever emulates a conflicting viewport (see core_patchright's
+        # no_viewport). Without the position Chrome opens at 10,10 and a
+        # screen-sized window runs off the screen.
         real = real_display_size()
         if real is not None:
-            flags.append(f"--window-size={real[0]},{real[1]}")
+            w, h = (screen_avail(fp_profile, real) if fp_profile is not None
+                    else real)
+            flags += ["--window-position=0,0", f"--window-size={w},{h}"]
         else:
             flags.append(
                 f"--window-size={identity.viewport_width},"
