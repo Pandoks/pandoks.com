@@ -146,7 +146,8 @@ watch or undo the rotation, and only what needs the new values waits for **Deplo
      account SSH and GPG keys you didn't add. Check the repo's Actions secrets and variables (a
      changed `AWS_ROLE_ARN` would send **Deploy**'s new values to another account), the `main`
      ruleset, and GHCR package versions pushed or deleted since the leak, above all
-     `argocd-sst-plugin:main`, which prod pulls on every start beside the AWS key. Check
+     `argocd-sst-plugin:main`, which prod pulls on every start beside the AWS key; if it changed,
+     republish it from trusted `main` and check its digest before **Deploy** restarts Argo. Check
      `production`'s branch policy: the first command must print
      `{"custom_branch_policies":true,"protected_branches":false}`, and the second only
      `branch main`.
@@ -231,7 +232,8 @@ watch or undo the rotation, and only what needs the new values waits for **Deplo
    - **Made by Pulumi:** **Remove access** deleted `argo-cmp`'s key and the two Tailscale clients;
      `deploy-sst`'s refresh drops them and the deploy makes new ones, which it copies into
      `KubernetesArgocd*`, `KubernetesTailscaleOauthClient*`, and `TS_OAUTH_*`. That's untested, and
-     it needs the refresh to pass.
+     it needs the refresh to pass, which can fail without failing the job: before **Deploy**'s
+     second run, check the merge's **Refresh sst state** log shows the three removed from state.
    - **Notion:** regenerate `NotionApiKey` in the integration's settings. For
      `NotionWebhookVerificationToken`, recreate the webhook subscription; the Lambda writes Notion's
      new token to SSM `/tmp/notion-verification-token`, which you set.
