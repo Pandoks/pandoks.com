@@ -17,7 +17,8 @@ from stealth_browser import checks  # noqa: E402
 NEW_KEYS = ["cdpEnumOk", "eventTrustOk", "stackTracesOk", "tlsSurfaceOk",
             "tlsUaMismatch", "tlsAcceptLanguageOk", "mediaQueriesOk",
             "systemColorsOk", "intlTimezoneOk", "webrtcDepthOk", "sensorsMiscOk",
-            "webAuthnCapsOk", "wasmFeaturesOk", "tlsSecFetchOk"]
+            "webAuthnCapsOk", "wasmFeaturesOk", "tlsSecFetchOk",
+            "webglLimitsCoherentOk"]
 NEW_CHECKS = [c for c in checks._CHECKS if c[0] in NEW_KEYS]
 OTHER_KEYS = [c[0] for c in checks._CHECKS if c[0] not in NEW_KEYS]
 
@@ -30,8 +31,8 @@ class TestRegistration(unittest.TestCase):
     def test_new_checks_are_registered(self):
         self.assertEqual([c[0] for c in NEW_CHECKS], NEW_KEYS)
 
-    def test_count_is_base_62_plus_6_plus_8(self):
-        self.assertEqual(len(checks._CHECKS), 76)
+    def test_count_is_base_62_plus_15_new(self):
+        self.assertEqual(len(checks._CHECKS), 77)
         self.assertEqual(len(OTHER_KEYS), 62)
 
     def test_empty_probe_fails_every_new_check(self):
@@ -409,6 +410,65 @@ class TestTlsSecFetchOk(unittest.TestCase):
         probe = self.base_probe(observed=False, site=None, mode=None, dest=None,
                                user=None)
         self._assert(probe, True)
+
+
+# Synthetic probe fixtures: the D3D11 / Metal rows are the ANGLE tables from the
+# check; the llvmpipe-shaped row is a made-up software-renderer shape for the
+# negative test. None of these are measured values.
+_D3D11_NVIDIA = "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Direct3D11 vs_5_0 ps_5_0, D3D11)"
+_D3D11_INTEL = "ANGLE (Intel, Intel(R) UHD Graphics 630 Direct3D11 vs_5_0 ps_5_0, D3D11)"
+_METAL = "ANGLE Metal Renderer: Apple M2, Version 14.4 (Build 23E214)"
+
+
+def _limits(renderer, vertex_uniform=4095, viewport=(0, 0, 30000, 32767), webgl2=True,
+            **overrides):
+    lim = {"webgl2": webgl2, "renderer": renderer,
+           "maxVertexUniformVectors": vertex_uniform,
+           "maxViewportDims": [32767, 32767], "aliasedPointSizeRange": [1, 1024],
+           "aliasedLineWidthRange": [1, 1], "maxVaryingVectors": 30,
+           "maxUniformBlockSize": 65536, "uniformBufferOffsetAlignment": 256,
+           "maxServerWaitTimeout": 0, "lineWidth": 5, "viewport": list(viewport)}
+    lim.update(overrides)
+    return lim
+
+
+class TestWebglLimitsCoherentOk(unittest.TestCase):
+    def _assert(self, probe, expected):
+        hit = next(r for r in scored(probe)["results"] if r["key"] == "webglLimitsCoherentOk")
+        self.assertEqual(hit["ok"], expected)
+
+    def test_pass_d3d11_nvidia(self):
+        self._assert({"webglLimits": _limits(_D3D11_NVIDIA)}, True)
+
+    def test_pass_d3d11_other_vendor_uses_4096(self):
+        self._assert({"webglLimits": _limits(_D3D11_INTEL, vertex_uniform=4096)}, True)
+
+    def test_fail_d3d11_other_vendor_with_nvidia_value(self):
+        self._assert({"webglLimits": _limits(_D3D11_INTEL, vertex_uniform=4095)}, False)
+
+    def test_pass_metal(self):
+        metal = _limits(_METAL, vertex_uniform=1024, viewport=(0, 0, 16384, 16384),
+                        maxViewportDims=[16384, 16384], aliasedPointSizeRange=[1, 511],
+                        maxUniformBlockSize=16384, uniformBufferOffsetAlignment=16)
+        self._assert({"webglLimits": metal}, True)
+
+    def test_pass_unknown_renderer_records_only(self):
+        linux = _limits("Mesa Intel(R) UHD Graphics (ADL-S GT1)", vertex_uniform=256,
+                        viewport=(0, 0, 1, 1))
+        self._assert({"webglLimits": linux}, True)
+
+    def test_fail_llvmpipe_shape_under_d3d11_renderer(self):
+        llvmpipe = _limits(_D3D11_NVIDIA, vertex_uniform=256,
+                           viewport=(0, 0, 8192, 8192), maxViewportDims=[8192, 8192],
+                           aliasedPointSizeRange=[1, 255], maxUniformBlockSize=16384,
+                           uniformBufferOffsetAlignment=16)
+        self._assert({"webglLimits": llvmpipe}, False)
+
+    def test_fail_webgl2_server_wait_timeout_nonzero(self):
+        self._assert({"webglLimits": _limits(_D3D11_NVIDIA, maxServerWaitTimeout=1)}, False)
+
+    def test_fail_when_webgl_missing_entirely(self):
+        self._assert({"webglLimits": None, "webglLimitsError": "no webgl"}, False)
 
 
 if __name__ == "__main__":

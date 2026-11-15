@@ -1138,6 +1138,35 @@ async () => {
       .every(([k, v]) => v === true || (k === 'threads' && v == null));
   } catch (e) { r.wasmFeaturesError = String(e); r.wasmFeaturesOk = false; }
 
+  // --- 44. WebGL numeric limits (ANGLE tables per claimed backend) ---
+  // Read raw; the expected table is chosen from the renderer string in Python.
+  // Typed arrays are converted to plain arrays here.
+  try {
+    const lc = document.createElement('canvas');
+    const lgl2 = lc.getContext('webgl2');
+    const lgl = lgl2 || lc.getContext('webgl');
+    if (!lgl) throw new Error('no webgl');
+    const lDbg = lgl.getExtension('WEBGL_debug_renderer_info');
+    const lArr = v => v == null ? null : Array.from(v);
+    const lim = {
+      webgl2: !!lgl2,
+      maxVertexUniformVectors: lgl.getParameter(lgl.MAX_VERTEX_UNIFORM_VECTORS),
+      maxViewportDims: lArr(lgl.getParameter(lgl.MAX_VIEWPORT_DIMS)),
+      aliasedPointSizeRange: lArr(lgl.getParameter(lgl.ALIASED_POINT_SIZE_RANGE)),
+      aliasedLineWidthRange: lArr(lgl.getParameter(lgl.ALIASED_LINE_WIDTH_RANGE)),
+      maxVaryingVectors: lgl.getParameter(lgl.MAX_VARYING_VECTORS),
+      maxUniformBlockSize: lgl2 ? lgl.getParameter(lgl.MAX_UNIFORM_BLOCK_SIZE) : null,
+      uniformBufferOffsetAlignment: lgl2 ? lgl.getParameter(lgl.UNIFORM_BUFFER_OFFSET_ALIGNMENT) : null,
+      maxServerWaitTimeout: lgl2 ? lgl.getParameter(lgl.MAX_SERVER_WAIT_TIMEOUT) : null,
+      renderer: lDbg ? lgl.getParameter(lDbg.UNMASKED_RENDERER_WEBGL) : null,
+    };
+    lgl.lineWidth(5);
+    lim.lineWidth = lgl.getParameter(lgl.LINE_WIDTH);
+    lgl.viewport(0, 0, 30000, 40000);
+    lim.viewport = lArr(lgl.getParameter(lgl.VIEWPORT));
+    r.webglLimits = lim;
+  } catch (e) { r.webglLimitsError = String(e); r.webglLimits = null; }
+
 
   return r;
 }
@@ -1153,6 +1182,52 @@ def _coherent_sec_fetch(sf: dict | None) -> bool:
     return (all(sf.get(k) is not None for k in ("site", "mode", "dest", "user"))
             and sf.get("mode") == "navigate" and sf.get("dest") == "document"
             and sf.get("site") == "none" and sf.get("user") == "?1")
+
+
+_WEBGL_COMMON_LIMITS = {"aliasedLineWidthRange": [1, 1], "maxVaryingVectors": 30,
+                        "lineWidth": 5}
+_WEBGL_LIMIT_TABLES = {
+    "d3d11-nvidia": {**_WEBGL_COMMON_LIMITS, "maxVertexUniformVectors": 4095,
+                     "maxViewportDims": [32767, 32767],
+                     "aliasedPointSizeRange": [1, 1024], "maxUniformBlockSize": 65536,
+                     "uniformBufferOffsetAlignment": 256,
+                     "viewport": [0, 0, 30000, 32767]},
+    "d3d11-other": {**_WEBGL_COMMON_LIMITS, "maxVertexUniformVectors": 4096,
+                    "maxViewportDims": [32767, 32767],
+                    "aliasedPointSizeRange": [1, 1024], "maxUniformBlockSize": 65536,
+                    "uniformBufferOffsetAlignment": 256,
+                    "viewport": [0, 0, 30000, 32767]},
+    "metal": {**_WEBGL_COMMON_LIMITS, "maxVertexUniformVectors": 1024,
+              "maxViewportDims": [16384, 16384],
+              "aliasedPointSizeRange": [1, 511], "maxUniformBlockSize": 16384,
+              "uniformBufferOffsetAlignment": 16,
+              "viewport": [0, 0, 16384, 16384]},
+}
+
+
+def _webgl_expected_limits(renderer: str | None) -> dict | None:
+    """The ANGLE limit table for the claimed backend, or None (record only)."""
+    if not isinstance(renderer, str):
+        return None
+    if ", D3D11)" in renderer:
+        return _WEBGL_LIMIT_TABLES["d3d11-nvidia" if "NVIDIA" in renderer else "d3d11-other"]
+    if "ANGLE Metal Renderer" in renderer:
+        return _WEBGL_LIMIT_TABLES["metal"]
+    return None
+
+
+def _webgl_limits_coherent(p: dict) -> bool:
+    """A missing WebGL probe fails; an unrecognised renderer passes (record only).
+    WebGL2-only limits are checked against the WebGL2 context the probe got."""
+    lim = p.get("webglLimits")
+    if not isinstance(lim, dict):
+        return False
+    expected = _webgl_expected_limits(lim.get("renderer"))
+    if expected is None:
+        return True
+    if lim.get("webgl2") and lim.get("maxServerWaitTimeout") != 0:
+        return False
+    return all(lim.get(k) == v for k, v in expected.items())
 
 
 # Each check: (key, human label, predicate on the probe dict).
@@ -1319,6 +1394,10 @@ _CHECKS = [
                      "top-level navigation (pass when no headers were observable)",
      lambda p: (p.get("tlsSecFetchObserved") is False)
                or _coherent_sec_fetch(p.get("tlsSecFetch"))),
+    # --- WebGL numeric limits (section 44) ---
+    ("webglLimitsCoherentOk", "WebGL numeric limits match the claimed ANGLE backend "
+                             "(pass when the renderer is not a claimed backend)",
+     _webgl_limits_coherent),
 ]
 
 
