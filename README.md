@@ -108,7 +108,9 @@ watch or undo the rotation, and only what needs the new values waits for **Deplo
    first and writes it as `GH_TOKEN`, so anyone holding it can open the `production` environment to
    another branch and read its secrets. Renovate, the internet-facing `NotionWebhookHandler` Lambda,
    the cluster's `ghcr-auth` Secrets, and SSM's `/runners/prod/github-cloning-pat`, which any runner
-   job can read, hold it too. The second can delete GHCR package versions.
+   job can read, hold it too. The second can delete GHCR package versions. Then cancel every queued
+   and in-progress run you didn't start (`gh run list -s queued`, `-s in_progress`, then
+   `gh run cancel <id>`): a running `id-token: write` job can keep assuming the AWS role.
 
 2. **Close the source.** Before any new value exists:
    - Review `main`'s merged commits and PRs since the leak, and its Activity view for force pushes.
@@ -128,13 +130,14 @@ watch or undo the rotation, and only what needs the new values waits for **Deplo
    - **AWS:** in CloudTrail →
      [Event history](https://docs.aws.amazon.com/awscloudtrail/latest/userguide/view-cloudtrail-events.html)
      (90 days, per Region), check every enabled Region, not just those in use, since
-     `PersonalGithubActions` has `AdministratorAccess`. Undo every write you didn't make: IAM users,
-     keys, roles, identity providers, that role's trust policy, bucket policies, instances,
-     functions, and anything else. Event history doesn't log S3 object writes, so also list the
-     versions of `app/personal/production.json` in the `sst-state-*` bucket: a version no deploy
-     wrote means the state can't be trusted, so restore the last one from before the leak before
-     setting anything. Then close the two ways into production's SST state, which will hold every
-     value **Rotate** sets:
+     `PersonalGithubActions` has `AdministratorAccess`. If the leak is older than 90 days and no
+     trail kept its events, treat every IAM principal and resource you can't account for as the
+     attacker's. Undo every write you didn't make: IAM users, keys, roles, identity providers, that
+     role's trust policy, bucket policies, instances, functions, and anything else. Event history
+     doesn't log S3 object writes, so also list the versions of `app/personal/production.json` in
+     the `sst-state-*` bucket: a version no deploy wrote means the state can't be trusted, so
+     restore the last one from before the leak before setting anything. Then close the two ways into
+     production's SST state, which will hold every value **Rotate** sets:
      - IAM → Roles → `PersonalGithubActions` → Revoke sessions: undoing its trust policy leaves
        credentials it already issued valid.
      - IAM → Users → `argo-cmp` → Security credentials: delete its access key, which reads that
@@ -161,9 +164,10 @@ watch or undo the rotation, and only what needs the new values waits for **Deplo
      `restoreVeeamBackup`, `restoreFullVeeamBackup`). A snapshot download and a mounted backup leave
      no task, so also check OVH's `…/snapshot` and `…/veeam/restoredBackup`. Isolate or power off
      any server with an action you didn't run, and treat its data, and any snapshotted or backed-up
-     disk's, as read. Delete servers, snapshots, and SSH keys (Hetzner's `/ssh_keys`, OVH's
-     `/me/sshKey`) you didn't make. Production has no Hetzner nodes; its one server is the imported
-     OVH `OvhDevVps`, `vps-54c42746.vps.ovh.us`.
+     disk's, as read. Delete every Hetzner project resource you didn't make (servers, networks,
+     firewalls, load balancers, volumes, IPs, placement groups, snapshots, and `/ssh_keys`), and OVH
+     snapshots and `/me/sshKey` entries. Production has no Hetzner nodes; its one server is the
+     imported OVH `OvhDevVps`, `vps-54c42746.vps.ovh.us`.
    - **OVH account:** the leaked consumer key can create access that outlives **Rotate**. In the
      signed-in [API console](https://api.us.ovhcloud.com/console), delete each of these you didn't
      make by its `DELETE` route: OAuth2 clients (`/me/api/oauth2/client/{clientId}`, beta), IAM
@@ -244,8 +248,9 @@ watch or undo the rotation, and only what needs the new values waits for **Deplo
 
 5. **Deploy.** Merge **Rotate**'s PR, which deploys SST, then run
    `gh workflow run deploy-infra.yaml -f deploy=sst` once more: the deploy that replaces a copied
-   credential records the old value in state. Then, if a `prod-cluster` peer is in
-   `tailscale status`:
+   credential records the old value in state. Then, if production has cluster nodes
+   (`infra/vps/vps.ts`), do these; if `prod-cluster` is missing from `tailscale status`, stop and
+   restore access or rebuild the cluster first:
    1. Switch to it with `tailscale configure kubeconfig prod-cluster`.
    2. Before any new value reaches it, check that the `prod-cluster` Application's `spec.source` is
       `main`'s `k3s/overlays/prod` and it has no `spec.sources`, and delete workloads you didn't
@@ -279,5 +284,6 @@ watch or undo the rotation, and only what needs the new values waits for **Deplo
    - **Backups:** the backup keys can read, overwrite, and delete the backup bucket. Treat its
      contents as read, check for objects deleted or replaced since the leak, and restore the latest
      Postgres and ClickHouse backups somewhere disposable before relying on them.
-   - **Twilio:** review message and call logs, usage, and billing since the leak for traffic you
-     didn't send.
+   - **Usage:** review Twilio's message and call logs, and Oxylabs' and every provider's usage and
+     billing, since the leak for traffic you didn't send. Treat the pages shared with the Notion
+     integration as read.
