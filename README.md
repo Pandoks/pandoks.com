@@ -269,6 +269,8 @@ needs the new values waits for **Deploy**.
      - The K3s servers' copy of the `CloudflareBackup*Key`s: `cloud-config.yaml` passes them as
        `--etcd-s3-*` flags once, so etcd snapshots fail once the old key is revoked, until each
        server's flags change and K3s restarts.
+     - Secrets the cluster made, which the backup keys could read in the unencrypted etcd snapshots,
+       such as cert-manager's `internal-root-ca-secret` (10 years, `rotationPolicy: Never`).
 
 5. **Deploy.** Merge **Rotate**'s PR, which deploys SST, then run
    `gh workflow run deploy-infra.yaml -f deploy=sst` once more: the deploy that replaces a copied
@@ -280,7 +282,8 @@ needs the new values waits for **Deploy**.
    2. Before any new value reaches it, check that the `prod-cluster` Application's `spec.source` is
       `main`'s `k3s/overlays/prod` and it has no `spec.sources`, and delete workloads you didn't
       deploy and anything Argo marks as requiring pruning: `prune: false` keeps what a patched
-      source or a reverted commit added.
+      source or a reverted commit added. If you found either, its pods could write to the nodes, so
+      stop and rebuild the cluster first.
    3. Run `pnpm cluster deploy prod --stage production`. It reads values from the last deploy's
       state, not the secret store, so earlier it would re-apply old values, including the revoked
       PAT to the Secrets in **Delete the PATs**. Argo can't fix those itself: it fetches `main` with
