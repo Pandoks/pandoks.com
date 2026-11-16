@@ -7,10 +7,19 @@ new tailscale.TailnetSettings('TailscaleSettings', {
 });
 
 export const hubTailscaleServices = [
-  { name: 'cliproxyapi', comment: 'CLIProxyAPI on the homelab hub' },
-  { name: 'cliproxyapi-api', comment: 'CLIProxyAPI with Console API keys only' },
-  { name: 'beszel', comment: 'Beszel monitoring hub' },
-  { name: 'artex', comment: 'ARTEX on the homelab hub' }
+  { name: 'cliproxyapi', comment: 'CLIProxyAPI on the homelab hub', ports: ['tcp:443'] },
+  {
+    name: 'cliproxyapi-api',
+    comment: 'CLIProxyAPI with Console API keys only',
+    ports: ['tcp:443']
+  },
+  { name: 'beszel', comment: 'Beszel monitoring hub', ports: ['tcp:443'] },
+  { name: 'artex', comment: 'ARTEX on the homelab hub', ports: ['tcp:443'] },
+  {
+    name: 'protonmail-bridge',
+    comment: 'Proton Mail Bridge IMAP and SMTP on the homelab hub',
+    ports: ['tcp:1143', 'tcp:1025']
+  }
 ];
 
 export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
@@ -34,6 +43,7 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
       },
       grants: [
         { src: ['*'], dst: ['*'], ip: ['*'] },
+        { src: ['*'], dst: ['svc:protonmail-bridge'], ip: ['tcp:1143', 'tcp:1025'] },
         {
           src: ['tag:ci'],
           dst: ['tag:k8s-operator'],

@@ -74,10 +74,10 @@ if (isProduction) {
     { dependsOn: [tailscaleAcl] }
   );
 
-  for (const { name, comment } of hubTailscaleServices) {
+  for (const { name, comment, ports } of hubTailscaleServices) {
     new tailscale.Service(
       `${name.replace(/(?:^|-)(.)/g, (_, char: string) => char.toUpperCase())}TailscaleService`,
-      { name: `svc:${name}`, comment, ports: ['tcp:443'], tags: ['tag:hub'] },
+      { name: `svc:${name}`, comment, ports, tags: ['tag:hub'] },
       { dependsOn: [tailscaleAcl] }
     );
   }
