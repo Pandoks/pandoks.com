@@ -1229,6 +1229,41 @@ async () => {
     r.voicesDetailedOk = vs.length > 0 && vs.some(v => v.localService === true);
   } catch (e) { r.voicesDetailedError = String(e); r.voicesDetailedOk = false; }
 
+  // --- 48. ComputePressure coherence (detection-gaps row 8) ---
+  // The readings come from the HOST OS, not the persona. A coherent
+  // persona must report valid enum states and a utilization in [0,1]; the
+  // values are recorded for cross-run comparison.
+  try {
+    r.computePressure = null;
+    if ('PressureObserver' in window) {
+      const obs = new PressureObserver(s => { r.computePressure = s; });
+      obs.observe('cpu');
+      await new Promise(res => {
+        const t0 = Date.now();
+        const check = () => { if (r.computePressure || Date.now() - t0 > 1500) res(); else setTimeout(check, 100); };
+        check();
+      });
+      try { obs.disconnect(); } catch (e) {}
+    }
+    r.computePressureOk = r.computePressure == null || (
+      r.computePressure.length > 0
+      && ['nominal', 'fair', 'serious', 'critical']
+        .includes(r.computePressure[0].state)
+      && r.computePressure[0].cpuUtilization >= 0
+      && r.computePressure[0].cpuUtilization <= 1);
+  } catch (e) { r.computePressureError = String(e); r.computePressureOk = false; }
+
+  // --- 49. High-entropy client hints (detection-gaps row 23) ---
+  // formFactors must name the persona's form factor class; a desktop
+  // persona must include Desktop and exclude Mobile.
+  try {
+    r.chHigh = await navigator.userAgentData.getHighEntropyValues([
+      'formFactors', 'architecture', 'bitness', 'platformVersion', 'model']);
+    r.chFormFactorsOk = Array.isArray(r.chHigh.formFactors)
+      && r.chHigh.formFactors.includes('Desktop')
+      && !r.chHigh.formFactors.includes('Mobile');
+  } catch (e) { r.chHighError = String(e); r.chFormFactorsOk = false; }
+
   return r;
 }
 """
@@ -1473,6 +1508,12 @@ _CHECKS = [
     ("voicesDetailedOk", "speechSynthesis exposes real local voices "
      "(>=1 voice with localService)",
      lambda p: p.get("voicesDetailedOk") is True),
+    ("computePressureOk", "ComputePressure reports valid states and "
+     "utilization in [0,1] (or is absent)",
+     lambda p: p.get("computePressureOk") is True),
+    ("chFormFactorsOk", "high-entropy client hints name the desktop form "
+     "factor (Desktop in, Mobile out)",
+     lambda p: p.get("chFormFactorsOk") is True),
 ]
 
 
