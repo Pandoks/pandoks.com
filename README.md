@@ -145,10 +145,11 @@ watch or undo the rotation, and only what needs the new values waits for **Deplo
    - **GitHub:** remove collaborators, invitations, deploy keys, webhooks, self-hosted runners, and
      account SSH and GPG keys you didn't add. Check the repo's Actions secrets and variables (a
      changed `AWS_ROLE_ARN` would send **Deploy**'s new values to another account), the `main`
-     ruleset, and GHCR package versions pushed or deleted since the leak, above all
-     `argocd-sst-plugin:main`, which prod pulls on every start beside the AWS key; if it changed,
-     republish it from trusted `main` and check its digest before **Deploy** restarts Argo. Check
-     `production`'s branch policy: the first command must print
+     ruleset, and GHCR package versions pushed or deleted since the leak, above all the tags prod
+     pulls on every start: `argocd-sst-plugin:main`, beside the AWS key, and the example app's
+     `:latest` images, beside the database and backup keys. Republish any that changed from trusted
+     `main` and check their digests before **Deploy** restarts their pods. Check `production`'s
+     branch policy: the first command must print
      `{"custom_branch_policies":true,"protected_branches":false}`, and the second only
      `branch main`.
 
@@ -279,13 +280,18 @@ watch or undo the rotation, and only what needs the new values waits for **Deplo
      credentials they made, as in **Remove access**.
 
 7. **Audit.** The Cloudflare, Hetzner, OVH, and Twilio credentials stayed live until **Rotate**.
-   Repeat **Remove access** for anything created or changed since it began. Then:
+   Repeat **Remove access** for anything created or changed since it began. A server action you
+   didn't run means that node may have read **Deploy**'s new values, so isolate it and repeat
+   **Rotate** and **Deploy**. Then:
    - **Cloudflare:** review every write in the Audit Logs since the leak: DNS records, Workers, zone
      rules and Snippets, Email Routing, Pages domains and settings, and R2 bucket access. Pulumi
      resets none it doesn't manage, so undo them.
    - **Backups:** the backup keys can read, overwrite, and delete the backup bucket. Treat its
      contents as read, check for objects deleted or replaced since the leak, and restore the latest
      Postgres and ClickHouse backups somewhere disposable before relying on them.
+   - **Twilio:** review Monitor Events since the leak
+     ([analyze](https://www.twilio.com/docs/usage/fraud-response-guide/analyze)) and undo changes
+     you didn't make, such as geo permissions, phone numbers, and messaging services.
    - **Usage:** review Twilio's message and call logs, and Oxylabs' and every provider's usage and
      billing, since the leak for traffic you didn't send. Treat the pages shared with the Notion
      integration as read.
