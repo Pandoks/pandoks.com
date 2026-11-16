@@ -43,7 +43,11 @@ export const tailscaleAcl = new tailscale.Acl('TailscaleAcl', {
       },
       grants: [
         { src: ['*'], dst: ['*'], ip: ['*'] },
-        { src: ['*'], dst: ['svc:protonmail-bridge'], ip: ['tcp:1143', 'tcp:1025'] },
+        ...hubTailscaleServices.map(({ name, ports }) => ({
+          src: ['*'],
+          dst: [`svc:${name}`],
+          ip: ports
+        })),
         {
           src: ['tag:ci'],
           dst: ['tag:k8s-operator'],
