@@ -205,11 +205,11 @@ class Human:
         whole notches, a flick decelerates, flicks are split by pauses.
         """
         sign = 1 if direction == "down" else -1
-        for notches, pause in _wheel_plan(random, total, self._regime):
+        for delta, pause in _wheel_plan(random, total, self._regime):
             await self.tab.send(cdp.input_.dispatch_mouse_event(
                 type_="mouseWheel", x=self._snap(self.x), y=self._snap(self.y),
                 delta_x=0.0,
-                delta_y=float(sign * notches * self._regime["notch_px"]),
+                delta_y=float(sign * delta),
                 pointer_type="mouse",
             ))
             await asyncio.sleep(pause)
