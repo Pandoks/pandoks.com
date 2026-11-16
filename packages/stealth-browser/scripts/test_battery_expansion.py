@@ -31,9 +31,9 @@ class TestRegistration(unittest.TestCase):
     def test_new_checks_are_registered(self):
         self.assertEqual([c[0] for c in NEW_CHECKS], NEW_KEYS)
 
-    def test_count_is_base_62_plus_15_new(self):
-        self.assertEqual(len(checks._CHECKS), 77)
-        self.assertEqual(len(OTHER_KEYS), 62)
+    def test_count_is_base_66_plus_15_new(self):
+        self.assertEqual(len(checks._CHECKS), 81)
+        self.assertEqual(len(OTHER_KEYS), 66)
 
     def test_empty_probe_fails_every_new_check(self):
         r = scored({})

@@ -1167,6 +1167,72 @@ async () => {
     r.webglLimits = lim;
   } catch (e) { r.webglLimitsError = String(e); r.webglLimits = null; }
 
+  // --- 45. PerformanceObserver inventory + 2026 API presence ---
+  // A real 157 Chrome's supportedEntryTypes is a fixed 20-entry set; the
+  // stable 2026 APIs are presence/absence discriminators (a persona's
+  // platform must NOT expose the desktop-test-only ones).
+  try {
+    r.perfEntryTypes = (PerformanceObserver.supportedEntryTypes || []).slice().sort();
+    r.perfEntryTypesOk = r.perfEntryTypes.includes('longtask')
+      && r.perfEntryTypes.includes('long-animation-frame')
+      && r.perfEntryTypes.includes('event')
+      && r.perfEntryTypes.includes('paint')
+      && r.perfEntryTypes.includes('layout-shift');
+    r.apiPresence = {
+      webTransport: 'WebTransport' in window,
+      computePressure: 'PressureObserver' in window,
+      storageBuckets: 'storageBuckets' in navigator,
+      serial: 'serial' in navigator,
+      hid: 'hid' in navigator,
+      privateStateTokens: typeof document.hasPrivateToken === 'function',
+      fedCm: 'IdentityCredential' in window,
+      contacts: 'contacts' in navigator,
+      digitalGoods: 'getDigitalGoodsService' in navigator,
+    };
+    r.apiPresenceOk = r.apiPresence.contacts === false
+      && r.apiPresence.digitalGoods === false;
+  } catch (e) { r.perfEntryTypesError = String(e); r.perfEntryTypesOk = false; }
+
+  // --- 46. V8 execution fingerprints (Math + error shape) ---
+  // CreepJS hashes exact Math outputs and flags non-reproducible results;
+  // fpCollect records error message text and stack-overflow depth. V8 build
+  // differences (or a patched build) shift all of these. The values are
+  // recorded for the cross-run reference comparison.
+  try {
+    const mathTable = {
+      acos: Math.acos(0.123), asin: Math.asin(0.123), atan: Math.atan(0.123),
+      cos: Math.cos(0.123), sin: Math.sin(0.123), tan: Math.tan(0.123),
+      exp: Math.exp(1.234), pow: Math.pow(2.345, 2.345), log: Math.log(12.345),
+      sinh: Math.sinh(1.234), cosh: Math.cosh(1.234), tanh: Math.tanh(1.234),
+    };
+    const repr = Object.entries(mathTable).map(([k, v]) => k + ':' + v);
+    // reproducibility: the same input must give the same output every call
+    const repro = Object.entries(mathTable).every(([k, v]) => {
+      const f = Math[k];
+      return f(k === 'pow' ? 2.345 : 0.123) === v
+        || (k === 'exp' && f(1.234) === v) || (k === 'log' && f(12.345) === v)
+        || (k === 'sinh' && f(1.234) === v) || (k === 'cosh' && f(1.234) === v)
+        || (k === 'tanh' && f(1.234) === v);
+    });
+    let depth = 0;
+    const overflow = () => { depth++; overflow(); };
+    try { overflow(); } catch (e) { /* expected */ }
+    let nullMsg = '';
+    try { null.x; } catch (e) { nullMsg = e.message; }
+    r.mathFingerprint = repr;
+    r.errorShape = { nullMessage: nullMsg, stackDepth: depth };
+    r.mathOk = repro;
+  } catch (e) { r.mathError = String(e); r.mathOk = false; }
+
+  // --- 47. Speech voice detail (names + localService) ---
+  try {
+    const vs = (speechSynthesis.getVoices() || []).map(v => ({
+      name: v.name, lang: v.lang, localService: v.localService,
+      default: v.default, voiceURI: v.voiceURI }));
+    r.voicesDetailed = vs;
+    // a real desktop Chrome always has locally-installed voices
+    r.voicesDetailedOk = vs.length > 0 && vs.some(v => v.localService === true);
+  } catch (e) { r.voicesDetailedError = String(e); r.voicesDetailedOk = false; }
 
   return r;
 }
@@ -1398,6 +1464,20 @@ _CHECKS = [
     ("webglLimitsCoherentOk", "WebGL numeric limits match the claimed ANGLE backend "
                              "(pass when the renderer is not a claimed backend)",
      _webgl_limits_coherent),
+    ("perfEntryTypesOk", "PerformanceObserver supportedEntryTypes carries the "
+     "real 157 set (longtask, long-animation-frame, event, paint, "
+     "layout-shift present)",
+     lambda p: p.get("perfEntryTypesOk") is True),
+    ("apiPresenceOk", "2026 stable-API presence is desktop-correct "
+     "(contacts + digitalGoods absent on a desktop persona; presence of the "
+     "stable set recorded)",
+     lambda p: p.get("apiPresenceOk") is True),
+    ("mathOk", "V8 Math outputs are reproducible (same input, same output "
+     "every call; fingerprint recorded for the cross-run reference)",
+     lambda p: p.get("mathOk") is True),
+    ("voicesDetailedOk", "speechSynthesis exposes real local voices "
+     "(>=1 voice with localService)",
+     lambda p: p.get("voicesDetailedOk") is True),
 ]
 
 
