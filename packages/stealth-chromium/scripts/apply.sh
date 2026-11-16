@@ -51,6 +51,7 @@ for dir in \
   "ui/color" \
   "components/embedder_support" \
   "chrome/renderer" \
+  "chrome/browser/ui/startup" \
   "third_party/blink/renderer/modules/shapedetection" \
   "media/base" \
   "content/browser/webauth" \
