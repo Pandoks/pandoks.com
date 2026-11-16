@@ -154,7 +154,10 @@ needs the new values waits for **Deploy**.
      role's sessions again if its trust policy changed. Event history doesn't log S3 object writes,
      so also list the versions of `app/personal/production.json` in the `sst-state-*` bucket: a
      version no deploy wrote means the state can't be trusted, so restore the last one from before
-     the leak before setting anything.
+     the leak before setting anything. Last, list the role's `AssumeRoleWithWebIdentity` events
+     since you revoked its sessions: one from a run you didn't start used an OIDC token fetched
+     before the cancel, which works until it expires, so revoke again, undo what that session wrote,
+     and repeat this check.
 
    - **GitHub:** check the repo's Actions secrets and variables (a changed `AWS_ROLE_ARN` would send
      **Deploy**'s new values to another account), the `main` ruleset, and GHCR package versions
@@ -264,9 +267,10 @@ needs the new values waits for **Deploy**.
 
 5. **Deploy.** Merge **Rotate**'s PR, which deploys SST, then run
    `gh workflow run deploy-infra.yaml -f deploy=sst` once more: the deploy that replaces a copied
-   credential records the old value in state. Then, if production has cluster nodes
-   (`infra/vps/vps.ts`), do these; if `prod-cluster` is missing from `tailscale status`, stop and
-   restore access or rebuild the cluster first:
+   credential records the old value in state. Wait for each run to succeed
+   (`gh run watch <id> --exit-status`). Then, if production has cluster nodes (`infra/vps/vps.ts`),
+   do these; if `prod-cluster` is missing from `tailscale status`, stop and restore access or
+   rebuild the cluster first:
    1. Switch to it with `tailscale configure kubeconfig prod-cluster`.
    2. Before any new value reaches it, check that the `prod-cluster` Application's `spec.source` is
       `main`'s `k3s/overlays/prod` and it has no `spec.sources`, and delete workloads you didn't
@@ -307,4 +311,5 @@ needs the new values waits for **Deploy**.
      you didn't make, such as geo permissions, phone numbers, and messaging services.
    - **Usage:** review Twilio's message and call logs, and Oxylabs' and every provider's usage and
      billing, since the leak for traffic you didn't send. Treat the pages shared with the Notion
-     integration and the `KwokPhoneNumber` and `MichellePhoneNumber` secrets as read.
+     integration, the `KwokPhoneNumber` and `MichellePhoneNumber` secrets, and Twilio's retained
+     messages and media as read.
