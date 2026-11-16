@@ -99,8 +99,9 @@ pnpm dev --stage your-stage # assuming that you are still verified via SSO
 ## If a production secret leaks
 
 A leak exposes every production `sst.Secret`, so rotate every credential among them. Do these steps
-in order: footholds come out after **Close the source** and before **Rotate**, so the attacker can't
-watch or undo the rotation, and only what needs the new values waits for **Deploy**.
+in order: GitHub accounts and keys come out with the PATs and other footholds after **Close the
+source**, all before **Rotate**, so the attacker can't watch or undo the rotation, and only what
+needs the new values waits for **Deploy**.
 
 1. **Delete the PATs.** Delete the tokens in `GithubPersonalAccessToken` and
    `GithubPackageManagementToken` (GitHub → Settings → Developer settings → Personal access tokens)
@@ -108,9 +109,17 @@ watch or undo the rotation, and only what needs the new values waits for **Deplo
    first and writes it as `GH_TOKEN`, so anyone holding it can open the `production` environment to
    another branch and read its secrets. Renovate, the internet-facing `NotionWebhookHandler` Lambda,
    the cluster's `ghcr-auth` Secrets, and SSM's `/runners/prod/github-cloning-pat`, which any runner
-   job can read, hold it too. The second can delete GHCR package versions. Then cancel every queued
-   and in-progress run you didn't start (`gh run list -s queued`, `-s in_progress`, then
-   `gh run cancel <id>`): a running `id-token: write` job can keep assuming the AWS role.
+   job can read, hold it too. The second can delete GHCR package versions. Then remove
+   collaborators, invitations, deploy keys, webhooks, self-hosted runners, and account SSH and GPG
+   keys you didn't add, since any of them can merge to `main` or push. Cancel every run that isn't
+   finished, and repeat until the first command prints nothing: a running `id-token: write` job can
+   keep assuming the AWS role.
+
+   ```sh
+   gh run list --limit 1000 --json databaseId,status \
+     --jq '.[] | select(.status != "completed") | .databaseId'
+   gh run cancel <id>
+   ```
 
 2. **Close the source.** Before any new value exists:
    - Review `main`'s merged commits and PRs since the leak, and its Activity view for force pushes.
@@ -142,16 +151,14 @@ watch or undo the rotation, and only what needs the new values waits for **Deplo
        credentials it already issued valid.
      - IAM → Users → `argo-cmp` → Security credentials: delete its access key, which reads that
        state and its passphrase. **Deploy** makes a new one. Argo can't render prod until then.
-   - **GitHub:** remove collaborators, invitations, deploy keys, webhooks, self-hosted runners, and
-     account SSH and GPG keys you didn't add. Check the repo's Actions secrets and variables (a
-     changed `AWS_ROLE_ARN` would send **Deploy**'s new values to another account), the `main`
-     ruleset, and GHCR package versions pushed or deleted since the leak, above all the tags prod
-     pulls on every start: `argocd-sst-plugin:main`, beside the AWS key, and the example app's
-     `:latest` images, beside the database and backup keys. Republish any that changed from trusted
-     `main` and check their digests before **Deploy** restarts their pods. Check `production`'s
-     branch policy: the first command must print
-     `{"custom_branch_policies":true,"protected_branches":false}`, and the second only
-     `branch main`.
+   - **GitHub:** check the repo's Actions secrets and variables (a changed `AWS_ROLE_ARN` would send
+     **Deploy**'s new values to another account), the `main` ruleset, and GHCR package versions
+     pushed or deleted since the leak, above all the tags prod pulls on every start:
+     `argocd-sst-plugin:main`, beside the AWS key, and the example app's `:latest` images, beside
+     the database and backup keys. Republish any that changed from trusted `main` and check their
+     digests before **Deploy** restarts their pods. Check `production`'s branch policy: the first
+     command must print `{"custom_branch_policies":true,"protected_branches":false}`, and the second
+     only `branch main`.
 
      ```sh
      gh api 'repos/{owner}/{repo}/environments/production' --jq .deployment_branch_policy
@@ -237,7 +244,8 @@ watch or undo the rotation, and only what needs the new values waits for **Deplo
      second run, check the merge's **Refresh sst state** log shows the three removed from state.
    - **Notion:** regenerate `NotionApiKey` in the integration's settings. For
      `NotionWebhookVerificationToken`, recreate the webhook subscription; the Lambda writes Notion's
-     new token to SSM `/tmp/notion-verification-token`, which you set.
+     new token to SSM `/tmp/notion-verification-token`. Anyone can post one there, so set it only
+     once Notion's Verify accepts it.
    - **Not covered yet:** these need a procedure that these steps don't have, so leave them out of
      the pass above.
      - `HetznerOriginTlsKey` and its Cloudflare origin certificate. A deploy makes a new key and
