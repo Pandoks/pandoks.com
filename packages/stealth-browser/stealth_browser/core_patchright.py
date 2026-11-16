@@ -360,7 +360,7 @@ class PatchrightCore:
 
     async def scroll(self, amount: int) -> None:
         # human-like: several variable wheel ticks, not one jump
-        await self._human().scroll(amount)
+        await self._human().scroll(abs(amount), direction="down" if amount >= 0 else "up")
 
     async def screenshot(self) -> bytes:
         return await self._page.screenshot(type="png")

@@ -243,7 +243,7 @@ class NodriverCore:
         await self._human.type_into(el, text)
 
     async def scroll(self, amount: int) -> None:
-        await self._human.scroll(amount)
+        await self._human.scroll(abs(amount), direction="down" if amount >= 0 else "up")
 
     async def screenshot(self) -> bytes:
         result = await self._tab.send(
