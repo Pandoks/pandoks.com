@@ -293,9 +293,9 @@ def chrome_launch_flags(identity: Identity, *, headless: bool,
         # screen-sized window runs off the screen.
         real = real_display_size()
         if real is not None:
-            w, h = (screen_avail(fp_profile, real) if fp_profile is not None
-                    else real)
-            flags += ["--window-position=0,0", f"--window-size={w},{h}"]
+            w, h, top = (screen_avail(fp_profile, real) if fp_profile is not None
+                         else (*real, 0))
+            flags += ["--window-position=0," + str(top), f"--window-size={w},{h}"]
         else:
             flags.append(
                 f"--window-size={identity.viewport_width},"

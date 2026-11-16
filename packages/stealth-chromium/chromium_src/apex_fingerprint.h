@@ -20,6 +20,7 @@
 //   APEX_FP_SCREEN_H         int, screen.height
 //   APEX_FP_SCREEN_AVAIL_W   int, screen.availWidth
 //   APEX_FP_SCREEN_AVAIL_H   int, screen.availHeight
+//   APEX_FP_SCREEN_AVAIL_TOP int, screen.availTop (macOS menu bar: 25)
 //   APEX_FP_COLOR_DEPTH      int, screen.colorDepth (typically 24/30)
 //   APEX_FP_BATTERY_LEVEL    float 0..1, navigator.getBattery() level
 //   APEX_FP_BATTERY_CHARGING "1"/"0", battery charging state

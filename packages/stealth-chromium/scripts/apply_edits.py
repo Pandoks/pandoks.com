@@ -1023,6 +1023,17 @@ EDITS = [
     },
     {
         "file": "third_party/blink/renderer/core/frame/screen.cc",
+        "marker": "apex-screen-availtop",
+        "anchor": "int Screen::availTop() const {\n",
+        "where": "after",
+        "inject": "  // apex-screen-availtop\n"
+                  "  if (apex_fp::HasOverride(\"APEX_FP_SCREEN_AVAIL_TOP\")) {\n"
+                  "    int v = apex_fp::EnvInt(\"APEX_FP_SCREEN_AVAIL_TOP\", 0);\n"
+                  "    if (v > 0) return v;\n"
+                  "  }\n",
+    },
+    {
+        "file": "third_party/blink/renderer/core/frame/screen.cc",
         "marker": "apex-screen-colordepth",
         "anchor": "unsigned Screen::colorDepth() const {\n",
         "where": "after",
@@ -1031,6 +1042,24 @@ EDITS = [
                   "    int v = apex_fp::EnvInt(\"APEX_FP_COLOR_DEPTH\", 0);\n"
                   "    if (v == 24 || v == 30) return static_cast<unsigned>(v);\n"
                   "  }\n",
+    },
+
+    # --- bad-flags security infobar: 56px of window chrome ----------------
+    # The container must run --no-sandbox (+ --disable-dev-shm-usage), and
+    # Chrome shows a "You are using an unsupported command-line flag" infobar
+    # for each. That bar is 56px tall and shifts innerHeight up, so
+    # window.outerHeight - innerHeight reports 143px where real Windows
+    # Chrome (no infobar) reports 87px -- a layout tell. With the apex spoof
+    # on, suppress the warning entirely.
+    {
+        "file": "chrome/browser/ui/startup/infobar_utils.cc",
+        "header": '#include "apex_fingerprint.h"',
+        "marker": "apex-no-bad-flags-warning",
+        "anchor": "bool ShouldShowBadFlagsSecurityWarnings() {\n",
+        "where": "after",
+        "inject": "  // apex-no-bad-flags-warning\n"
+                  "  if (apex_fp::Active())\n"
+                  "    return false;\n",
     },
 
     # --- hardwareConcurrency: worker + iframe coherence ----------------

@@ -483,24 +483,27 @@ def real_display_size() -> tuple[int, int] | None:
 # 48/40 gaps on 1536x864@1.25 (816/824) and 1366x768 (720/728):
 # apify-fingerprint-datapoints 0.16.0 network.json "screen" node, pooled over
 # 57 Windows desktop-Chrome UAs. 48 is Windows 11's default taskbar, 40 is
-# Windows 10's.
+# Windows 10's. 25 is macOS's menu bar (availTop, excluded from the top).
 WIN11_TASKBAR_PX = 48
 WIN10_TASKBAR_PX = 40
+MACOS_MENU_BAR_PX = 25
 
 
 def screen_avail(profile: FpProfile,
-                 screen: tuple[int, int]) -> tuple[int, int]:
-    """(availWidth, availHeight) a real machine of the persona's OS reports.
+                 screen: tuple[int, int]) -> tuple[int, int, int]:
+    """(availWidth, availHeight, availTop) a real machine of the persona's
+    OS reports.
 
-    macOS stays at the full screen: its menu-bar exclusion moves availTop,
-    which the binary cannot override, and availHeight < height with
-    availTop 0 is not a real Mac shape.
+    macOS excludes the 25px menu bar at the TOP (availHeight = h - 25,
+    availTop = 25); Windows excludes the taskbar at the bottom (availTop 0).
+    The binary overrides all three (APEX_FP_SCREEN_AVAIL_*), so each shape is
+    reported exactly.
     """
     w, h = screen
-    if profile.platform != "Win32":
-        return (w, h)
+    if profile.platform == "MacIntel":
+        return (w, h - MACOS_MENU_BAR_PX, MACOS_MENU_BAR_PX)
     win10 = profile.ua_platform_version == "1.0.0"
-    return (w, h - (WIN10_TASKBAR_PX if win10 else WIN11_TASKBAR_PX))
+    return (w, h - (WIN10_TASKBAR_PX if win10 else WIN11_TASKBAR_PX), 0)
 
 
 def pick_profile_by_label(label_or_substring: str) -> FpProfile | None:
@@ -625,9 +628,10 @@ def fp_env(profile: FpProfile, seed: int,
     # this dict, so an omitted key would keep a previous session's value.
     screen = screen or real_display_size()
     if screen is not None:
-        avail_w, avail_h = screen_avail(profile, screen)
+        avail_w, avail_h, avail_top = screen_avail(profile, screen)
         env["APEX_FP_SCREEN_AVAIL_W"] = str(avail_w)
         env["APEX_FP_SCREEN_AVAIL_H"] = str(avail_h)
+        env["APEX_FP_SCREEN_AVAIL_TOP"] = str(avail_top)
     if profile.webgpu_device_id:
         env["APEX_FP_WEBGPU_DEVICE_ID"] = profile.webgpu_device_id
     webgpu_limits = dict(profile.webgpu_limits) if profile.webgpu_limits \

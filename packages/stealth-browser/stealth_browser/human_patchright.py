@@ -82,9 +82,21 @@ def _wheel_plan(rng: random.Random, total, regime: dict) -> list:
             1.0 / (regime["flick_notches"] - 1.0))))
         notches -= flick
         gap = 1.0
+        first = True
         while flick > 0:
-            step = 2 if (flick >= 2
-                         and rng.random() < regime["double_notch"]) else 1
+            # the spin starts at full speed and decays, so the per-event
+            # delta shrinks over the gesture (the human reference in
+            # testdata/behavior/datasets/human-scroll has a negative slope
+            # and a ~0.32 CV; a flat 100-px-only stream scores machine on
+            # both). Lead events carry 2-3 notches, then it falls to 1.
+            step = 1
+            if first and flick >= 3:
+                step = 3 if rng.random() < 0.30 else 2
+            elif first and flick == 2:
+                step = 2
+            elif flick >= 2 and rng.random() < regime["double_notch"]:
+                step = 2
+            first = False
             flick -= step
             # the spin decelerates: each notch arrives later than the last
             plan.append([step, gap * _lognormal(rng, regime["spin_gap"])])
