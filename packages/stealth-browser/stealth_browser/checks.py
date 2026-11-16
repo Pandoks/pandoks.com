@@ -1232,25 +1232,29 @@ async () => {
   // --- 48. ComputePressure coherence (detection-gaps row 8) ---
   // The readings come from the HOST OS, not the persona. A coherent
   // persona must report valid enum states and a utilization in [0,1]; the
-  // values are recorded for cross-run comparison.
+  // values are recorded for cross-run comparison. observe() is async and
+  // can reject (NotAllowedError under the permissions policy) — await it
+  // and record the outcome either way.
   try {
     r.computePressure = null;
+    r.computePressureErr = null;
     if ('PressureObserver' in window) {
       const obs = new PressureObserver(s => { r.computePressure = s; });
-      obs.observe('cpu');
+      try { await obs.observe('cpu'); } catch (e) { r.computePressureErr = String(e); }
       await new Promise(res => {
         const t0 = Date.now();
-        const check = () => { if (r.computePressure || Date.now() - t0 > 1500) res(); else setTimeout(check, 100); };
+        const check = () => { if (r.computePressure || r.computePressureErr || Date.now() - t0 > 1500) res(); else setTimeout(check, 100); };
         check();
       });
       try { obs.disconnect(); } catch (e) {}
     }
-    r.computePressureOk = r.computePressure == null || (
-      r.computePressure.length > 0
-      && ['nominal', 'fair', 'serious', 'critical']
-        .includes(r.computePressure[0].state)
-      && r.computePressure[0].cpuUtilization >= 0
-      && r.computePressure[0].cpuUtilization <= 1);
+    const s = Array.isArray(r.computePressure) ? r.computePressure[0] : null;
+    r.computePressureSample = s ? {state: s.state, cpuUtilization: s.cpuUtilization, cpuSpeed: s.cpuSpeed} : null;
+    r.computePressureOk = (r.computePressure == null && !r.computePressureErr) || (
+      s != null
+      && ['nominal', 'fair', 'serious', 'critical'].includes(s.state)
+      && (s.cpuUtilization == null
+          || (s.cpuUtilization >= 0 && s.cpuUtilization <= 1)));
   } catch (e) { r.computePressureError = String(e); r.computePressureOk = false; }
 
   // --- 49. High-entropy client hints (detection-gaps row 23) ---
