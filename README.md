@@ -112,12 +112,13 @@ needs the new values waits for **Deploy**.
    job can read, hold it too. The second can delete GHCR package versions. Then remove
    collaborators, invitations, deploy keys, webhooks, self-hosted runners, and account SSH and GPG
    keys you didn't add, since any of them can merge to `main` or push. Cancel every run that isn't
-   finished, and repeat until the first command prints nothing: a running `id-token: write` job can
-   keep assuming the AWS role.
+   finished, and repeat until the loop prints nothing: a running `id-token: write` job can keep
+   assuming the AWS role.
 
    ```sh
-   gh run list --limit 1000 --json databaseId,status \
-     --jq '.[] | select(.status != "completed") | .databaseId'
+   for run_status in requested queued pending waiting in_progress; do
+     gh run list --status "${run_status}" --limit 1000 --json databaseId --jq '.[].databaseId'
+   done
    gh run cancel <id>
    ```
 
@@ -154,17 +155,14 @@ needs the new values waits for **Deploy**.
      role's sessions again if its trust policy changed. Event history doesn't log S3 object writes,
      so also list the versions of `app/personal/production.json` in the `sst-state-*` bucket: a
      version no deploy wrote means the state can't be trusted, so restore the last one from before
-     the leak before setting anything. Last, list the role's `AssumeRoleWithWebIdentity` events
-     since you revoked its sessions: one from a run you didn't start used an OIDC token fetched
-     before the cancel, which works until it expires, so revoke again, undo what that session wrote,
-     and repeat this check.
+     the leak before setting anything.
 
    - **GitHub:** check the repo's Actions secrets and variables (a changed `AWS_ROLE_ARN` would send
      **Deploy**'s new values to another account), the `main` ruleset, and GHCR package versions
      pushed or deleted since the leak, above all the tags prod pulls on every start:
      `argocd-sst-plugin:main`, beside the AWS key, and the example app's `:latest` images, beside
      the database and backup keys. Republish any that changed from trusted `main` and check their
-     digests before **Deploy** restarts their pods. Check `production`'s branch policy: the first
+     digests; **Deploy** restarts what runs them. Check `production`'s branch policy: the first
      command must print `{"custom_branch_policies":true,"protected_branches":false}`, and the second
      only `branch main`.
 
@@ -216,12 +214,16 @@ needs the new values waits for **Deploy**.
      ([API keys](https://www.twilio.com/docs/iam/api-keys/keys-in-console)). Check that the phone
      number's and the messaging service's webhook URLs are still yours.
 
-4. **Rotate.** Set a new PAT as `GithubPersonalAccessToken` and one as
-   `GithubPackageManagementToken`, then rotate every other production `sst.Secret` that holds a
-   credential, except those below, with `pnpm sst secret set <Name> --stage production`, which
-   prompts for the value. `deploy-sst` signs in with GitHub secrets that only Pulumi writes, so
-   right after setting one of the `sst.Secret`s below, set its GitHub secret with
-   `gh secret set <NAME>`, which also prompts. Then revoke the old credential at its provider.
+4. **Rotate.** First list `PersonalGithubActions`' `AssumeRoleWithWebIdentity` events since you
+   revoked its sessions; the rest of **Remove access** gave CloudTrail time to deliver them. One
+   from a run you didn't start used an OIDC token fetched before the cancel, which works until it
+   expires, so revoke again, undo what that session wrote, and repeat this check. Then set a new PAT
+   as `GithubPersonalAccessToken` and one as `GithubPackageManagementToken`, then rotate every other
+   production `sst.Secret` that holds a credential, except those below, with
+   `pnpm sst secret set <Name> --stage production`, which prompts for the value. `deploy-sst` signs
+   in with GitHub secrets that only Pulumi writes, so right after setting one of the `sst.Secret`s
+   below, set its GitHub secret with `gh secret set <NAME>`, which also prompts. Then revoke the old
+   credential at its provider.
 
    | `sst.Secret`                 | GitHub secret                       |
    | ---------------------------- | ----------------------------------- |
@@ -264,6 +266,9 @@ needs the new values waits for **Deploy**.
        and Grafana keep the password they started with, so each needs it changed in the service.
      - `HetznerK3sToken`: nodes keep accepting the old token until `k3s token rotate`, and
        production's `ignoreChanges: ['userData']` keeps a deploy from passing the new one.
+     - The K3s servers' copy of the `CloudflareBackup*Key`s: `cloud-config.yaml` passes them as
+       `--etcd-s3-*` flags once, so etcd snapshots fail once the old key is revoked, until each
+       server's flags change and K3s restarts.
 
 5. **Deploy.** Merge **Rotate**'s PR, which deploys SST, then run
    `gh workflow run deploy-infra.yaml -f deploy=sst` once more: the deploy that replaces a copied
@@ -283,6 +288,8 @@ needs the new values waits for **Deploy**.
    4. Restart what reads rotated Secrets as env vars only at start, starting with
       `kubectl -n argocd rollout restart deployment argocd-repo-server`, whose renderer holds the
       AWS key and Cloudflare token, and the Postgres pods, whose pgBackRest holds the backup keys.
+      Also restart every workload running an image **Remove access** republished, and check each new
+      pod's `imageID` is the trusted digest.
 
    Run these yourself: they're the intended recovery paths that AGENTS.md hazard 1 keeps agents from
    running.
