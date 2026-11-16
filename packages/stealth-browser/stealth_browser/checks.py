@@ -1199,27 +1199,22 @@ async () => {
   // differences (or a patched build) shift all of these. The values are
   // recorded for the cross-run reference comparison.
   try {
-    const mathTable = {
-      acos: Math.acos(0.123), asin: Math.asin(0.123), atan: Math.atan(0.123),
-      cos: Math.cos(0.123), sin: Math.sin(0.123), tan: Math.tan(0.123),
-      exp: Math.exp(1.234), pow: Math.pow(2.345, 2.345), log: Math.log(12.345),
-      sinh: Math.sinh(1.234), cosh: Math.cosh(1.234), tanh: Math.tanh(1.234),
-    };
-    const repr = Object.entries(mathTable).map(([k, v]) => k + ':' + v);
-    // reproducibility: the same input must give the same output every call
-    const repro = Object.entries(mathTable).every(([k, v]) => {
-      const f = Math[k];
-      return f(k === 'pow' ? 2.345 : 0.123) === v
-        || (k === 'exp' && f(1.234) === v) || (k === 'log' && f(12.345) === v)
-        || (k === 'sinh' && f(1.234) === v) || (k === 'cosh' && f(1.234) === v)
-        || (k === 'tanh' && f(1.234) === v);
-    });
+    // (name, args) pairs — re-call with the SAME args and require the
+    // identical result (the reproducibility property CreepJS asserts).
+    const mathProbes = [
+      ['acos', [0.123]], ['asin', [0.123]], ['atan', [0.123]],
+      ['cos', [0.123]], ['sin', [0.123]], ['tan', [0.123]],
+      ['exp', [1.234]], ['pow', [2.345, 2.345]], ['log', [12.345]],
+      ['sinh', [1.234]], ['cosh', [1.234]], ['tanh', [1.234]],
+    ];
+    const first = mathProbes.map(([k, a]) => Math[k](...a));
+    const repro = mathProbes.every(([k, a], i) => Math[k](...a) === first[i]);
+    r.mathFingerprint = mathProbes.map(([k], i) => k + ':' + first[i]);
     let depth = 0;
     const overflow = () => { depth++; overflow(); };
     try { overflow(); } catch (e) { /* expected */ }
     let nullMsg = '';
     try { null.x; } catch (e) { nullMsg = e.message; }
-    r.mathFingerprint = repr;
     r.errorShape = { nullMessage: nullMsg, stackDepth: depth };
     r.mathOk = repro;
   } catch (e) { r.mathError = String(e); r.mathOk = false; }
