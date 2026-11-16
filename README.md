@@ -136,21 +136,26 @@ needs the new values waits for **Deploy**.
      the `node` that `pnpm sst secret set` starts.
 
 3. **Remove access.** Remove what the attacker can still act through, back to the leak's start:
-   - **AWS:** in CloudTrail →
+   - **AWS:** first rerun step 1's cancel, since a workflow scheduled on `main` before step 2's
+     merge can start a run, then close the two ways into production's SST state, which will hold
+     every value **Rotate** sets:
+     - IAM → Roles → `PersonalGithubActions` → Revoke sessions: undoing its trust policy leaves
+       credentials it already issued valid.
+     - IAM → Users → `argo-cmp` → Security credentials: delete its access key, which reads that
+       state and its passphrase. **Deploy** makes a new one. Argo can't render prod until then.
+
+     Then, in CloudTrail →
      [Event history](https://docs.aws.amazon.com/awscloudtrail/latest/userguide/view-cloudtrail-events.html)
      (90 days, per Region), check every enabled Region, not just those in use, since
      `PersonalGithubActions` has `AdministratorAccess`. If the leak is older than 90 days and no
      trail kept its events, treat every IAM principal and resource you can't account for as the
      attacker's. Undo every write you didn't make: IAM users, keys, roles, identity providers, that
-     role's trust policy, bucket policies, instances, functions, and anything else. Event history
-     doesn't log S3 object writes, so also list the versions of `app/personal/production.json` in
-     the `sst-state-*` bucket: a version no deploy wrote means the state can't be trusted, so
-     restore the last one from before the leak before setting anything. Then close the two ways into
-     production's SST state, which will hold every value **Rotate** sets:
-     - IAM → Roles → `PersonalGithubActions` → Revoke sessions: undoing its trust policy leaves
-       credentials it already issued valid.
-     - IAM → Users → `argo-cmp` → Security credentials: delete its access key, which reads that
-       state and its passphrase. **Deploy** makes a new one. Argo can't render prod until then.
+     role's trust policy, bucket policies, instances, functions, and anything else, and revoke the
+     role's sessions again if its trust policy changed. Event history doesn't log S3 object writes,
+     so also list the versions of `app/personal/production.json` in the `sst-state-*` bucket: a
+     version no deploy wrote means the state can't be trusted, so restore the last one from before
+     the leak before setting anything.
+
    - **GitHub:** check the repo's Actions secrets and variables (a changed `AWS_ROLE_ARN` would send
      **Deploy**'s new values to another account), the `main` ruleset, and GHCR package versions
      pushed or deleted since the leak, above all the tags prod pulls on every start:
@@ -162,7 +167,7 @@ needs the new values waits for **Deploy**.
 
      ```sh
      gh api 'repos/{owner}/{repo}/environments/production' --jq .deployment_branch_policy
-     gh api 'repos/{owner}/{repo}/environments/production/deployment-branch-policies' \
+     gh api --paginate 'repos/{owner}/{repo}/environments/production/deployment-branch-policies' \
        --jq '.branch_policies[] | "\(.type) \(.name)"'
      ```
 
@@ -242,10 +247,10 @@ needs the new values waits for **Deploy**.
      `KubernetesArgocd*`, `KubernetesTailscaleOauthClient*`, and `TS_OAUTH_*`. That's untested, and
      it needs the refresh to pass, which can fail without failing the job: before **Deploy**'s
      second run, check the merge's **Refresh sst state** log shows the three removed from state.
-   - **Notion:** regenerate `NotionApiKey` in the integration's settings. For
-     `NotionWebhookVerificationToken`, recreate the webhook subscription; the Lambda writes Notion's
-     new token to SSM `/tmp/notion-verification-token`. Anyone can post one there, so set it only
-     once Notion's Verify accepts it.
+   - **Notion:** regenerate the integration's secret in its settings and set it as `NotionApiKey`.
+     For `NotionWebhookVerificationToken`, recreate the webhook subscription; the Lambda writes
+     Notion's new token to SSM `/tmp/notion-verification-token`. Anyone can post one there, so set
+     it only once Notion's Verify accepts it.
    - **Not covered yet:** these need a procedure that these steps don't have, so leave them out of
      the pass above.
      - `HetznerOriginTlsKey` and its Cloudflare origin certificate. A deploy makes a new key and
@@ -302,4 +307,4 @@ needs the new values waits for **Deploy**.
      you didn't make, such as geo permissions, phone numbers, and messaging services.
    - **Usage:** review Twilio's message and call logs, and Oxylabs' and every provider's usage and
      billing, since the leak for traffic you didn't send. Treat the pages shared with the Notion
-     integration as read.
+     integration and the `KwokPhoneNumber` and `MichellePhoneNumber` secrets as read.
