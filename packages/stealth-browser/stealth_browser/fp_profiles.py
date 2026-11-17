@@ -528,12 +528,19 @@ def pick_profile_by_label(label_or_substring: str) -> FpProfile | None:
     return None
 
 
-def pick_profile(rng: random.Random | None = None) -> FpProfile:
+def pick_profile(rng: random.Random | None = None, *,
+                 stable_seed: str | None = None) -> FpProfile:
     """Pick a random profile whose GPU class matches the host.
 
     Env override: APEX_PROFILE=<label substring> pins a specific profile
     instead of randomising. Useful for service mode where the caller wants
     "give me a Windows RTX 3060 session" -- set APEX_PROFILE per container.
+
+    stable_seed: when given (e.g. the persistent-profile name), the pick is
+    DETERMINISTIC -- the same seed always selects the same profile, so a
+    persistent session keeps ONE fingerprint across restarts. A stored
+    identity (cookies + history) must not change its machine between
+    sessions -- that correlation is exactly what detectors check.
 
     This is the key to deep WebGL coherence: the profile's claimed GPU IS the
     host GPU, so the renderer string, numeric GL params, shader precision, and
@@ -546,7 +553,12 @@ def pick_profile(rng: random.Random | None = None) -> FpProfile:
         if match is not None:
             return match
         # fall through to host-coherent random if APEX_PROFILE didn't match
-    r = rng or random
+    if stable_seed is not None:
+        # deterministic per-identity pick: hash the seed into the RNG so the
+        # same persistent identity always lands on the same machine profile
+        r = random.Random(stable_seed)
+    else:
+        r = rng or random
     coherent = [p for p in PROFILES if p.gpu_class == _HOST_GPU_CLASS]
     if not coherent:
         # no profile for this GPU class -- fall back to the whole pool, but

@@ -57,7 +57,8 @@ def _make_core(headless: bool, proxy=None, profile_label: str | None = None,
             return PatchrightCore(identity, headless=headless, proxy=proxy,
                                   persistent=persistent)
         if backend == "nodriver":
-            return NodriverCore(identity, headless=headless, proxy=proxy)
+            return NodriverCore(identity, headless=headless, proxy=proxy,
+                                persistent=persistent)
         raise ServiceError(500, f"unknown APEX_CORE: {backend!r}")
     finally:
         if profile_label:

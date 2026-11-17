@@ -112,8 +112,14 @@ class PatchrightCore:
         self._context = None
         self._page = None
         self._human_driver = None
-        # one humanization regime per session (drawn once, stable within)
-        self._session_seed = random.getrandbits(64)
+        # one humanization regime per session (drawn once, stable within);
+        # for a persistent identity the regime is stable across restarts too
+        # (the same machine keeps its typing/scroll behavior model)
+        self._session_seed = (
+            int(__import__("hashlib").sha256(
+                f"apex-persistent:{self.persistent}".encode()
+            ).hexdigest()[:16], 16)
+            if self.persistent else random.getrandbits(64))
         # temp user-data-dir backing non-persistent sessions (removed on close)
         self._profile_dir: str | None = None
         # explicit per-session ProxyConfig wins; env is the fallback.
@@ -202,8 +208,14 @@ class PatchrightCore:
         }
         patched = patched_chrome_path()
         if patched is not None:
-            self._fp_profile = pick_profile()
-            self._fp_seed = __import__("random").getrandbits(32)
+            stable = (f"apex-persistent:{self.persistent}"
+                      if self.persistent else None)
+            self._fp_profile = pick_profile(stable_seed=stable)
+            # the humanizer's per-session seed must also be stable for a
+            # persistent identity (same machine -> same behavior model)
+            self._fp_seed = (int(__import__("hashlib").sha256(
+                stable.encode()).hexdigest()[:8], 16)
+                if stable else __import__("random").getrandbits(32))
         launch_kwargs: dict = {
             "channel": "chrome",  # real Google Chrome, not bundled Chromium
             "headless": self.headless,

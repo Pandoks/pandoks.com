@@ -77,15 +77,21 @@ class NodriverCore:
 
     def __init__(self, identity: Identity | None = None,
                  *, headless: bool = False, use_proxy: bool = True,
-                 proxy=None):
+                 proxy=None, persistent: str | None = None):
         self.identity = identity or Identity()
+        self.persistent = persistent  # a name under the profiles volume; the
+        # caller's cookies/localStorage live there across restarts
         self.headless = headless
         self._sb: StealthBrowser | None = None
         self._tab = None
         self._human: Human | None = None
         # per-session fingerprint profile (only meaningful with apex-chromium)
-        self._fp_profile = pick_profile()
-        self._fp_seed = random.getrandbits(32)
+        stable = (f"apex-persistent:{self.persistent}"
+                  if self.persistent else None)
+        self._fp_profile = pick_profile(stable_seed=stable)
+        self._fp_seed = (int(__import__("hashlib").sha256(
+            stable.encode()).hexdigest()[:8], 16)
+            if stable else random.getrandbits(32))
         self._patched_chrome = patched_chrome_path()
         # per-session proxy: an explicit ProxyConfig (from the request body)
         # takes priority over env defaults; env is used as fallback so
@@ -143,7 +149,12 @@ class NodriverCore:
         # accumulated cookies/history. Falls back to a throwaway dir we own
         # when the pool is exhausted (still isolated, just not warmed) -- we
         # own it so the DoH-off pref can be seeded pre-launch either way.
-        if self._persona is not None:
+        if self.persistent:
+            # explicit persistent identity: the caller's profile dir (the
+            # same layout the patchright path uses) takes priority
+            kwargs["extra_args"] = [f"--user-data-dir={self.persistent}"]
+            _seed_doh_off(self.persistent)
+        elif self._persona is not None:
             kwargs["extra_args"] = [f"--user-data-dir={self._persona}"]
             _seed_doh_off(self._persona)
         else:
