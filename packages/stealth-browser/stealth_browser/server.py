@@ -125,6 +125,15 @@ async def _route(req: Request) -> bytes:
         return _json_response(200, {
             "ok": True, "sessions": manager.count(), "backend": BACKEND})
 
+    # Profile discovery: what can `profile` be set to on POST /sessions?
+    # Lists the available persona labels (and their device class) so a
+    # caller never has to guess the substring.
+    if req.method == "GET" and p == "/profiles":
+        from stealth_browser.fp_profiles import PROFILES
+        return _json_response(200, {
+            "profiles": [{"label": p.label, "platform": p.platform}
+                         for p in PROFILES]})
+
     if req.method == "POST" and p == "/sessions":
         body = req.json()
         # Optional per-session proxy: caller supplies any vendor (Oxylabs,

@@ -97,18 +97,21 @@ def from_env(*, session_id: str | None = None) -> ProxyConfig | None:
     )
 
 
-def from_dict(spec: dict, *, session_id: str | None = None) -> ProxyConfig:
-    """Build a ProxyConfig from a caller-supplied dict (per-session API body).
+def from_dict(spec: dict | str, *, session_id: str | None = None) -> ProxyConfig:
+    """Build a ProxyConfig from a caller-supplied value (per-session API body).
 
-    Accepts either a "server URL" form or explicit fields. apex is vendor-
-    agnostic: callers bring whatever proxy they want (Oxylabs, Bright Data,
-    Smartproxy, their own SOCKS5, an on-prem squid). The two accepted shapes:
+    Accepts a plain URL STRING (the easiest form — paste it and go) or a dict.
+    apex is vendor-agnostic: callers bring whatever proxy they want (Oxylabs,
+    Bright Data, Smartproxy, their own SOCKS5, an on-prem squid). The accepted
+    forms:
 
+      "http://user:pass@gate.example.com:7777"       (plain URL string)
+      "socks5://user:pass@gate.example.com:1080"     (plain URL string)
       {"server": "http://gate.example.com:7777",
-       "username": "...", "password": "..."}
+       "username": "...", "password": "..."}          (Playwright-style dict)
 
       {"host": "gate.example.com", "port": 7777, "scheme": "http",
-       "username": "...", "password": "..."}
+       "username": "...", "password": "..."}          (explicit fields dict)
 
     A {session} placeholder in `username` is substituted with `session_id` so
     rotating-gateway proxies (Oxylabs residential, Bright Data zone-style,
@@ -117,6 +120,18 @@ def from_dict(spec: dict, *, session_id: str | None = None) -> ProxyConfig:
     The chrome_flag/has_auth machinery downstream is identical for any vendor
     -- HTTP CONNECT + Basic auth is the universal proxy contract.
     """
+    if isinstance(spec, str):
+        from urllib.parse import unquote, urlparse
+        u = urlparse(spec.strip())
+        scheme = (u.scheme or "http").lower()
+        host = u.hostname or ""
+        port = u.port or (443 if scheme == "https" else 80)
+        spec = {
+            "host": host, "port": port, "scheme": scheme,
+            # URL credentials are percent-encoded; decode them
+            "username": unquote(u.username) if u.username else None,
+            "password": unquote(u.password) if u.password else None,
+        }
     if "server" in spec:
         # Playwright-style "server" URL form
         from urllib.parse import urlparse
