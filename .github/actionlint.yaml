@@ -1,0 +1,4 @@
+self-hosted-runner:
+  labels:
+    # TODO: remove once actionlint knows GitHub's xcode-27 image https://github.com/rhysd/actionlint/issues/739
+    - xcode-27

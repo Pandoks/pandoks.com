@@ -13,7 +13,7 @@ export default function RootLayout() {
         <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
       )}
       <NavigationBar style="auto" />
-      <NativeTabs>
+      <NativeTabs sidebarAdaptable>
         <NativeTabs.Trigger name="index">
           <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
           <NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} md="home" />

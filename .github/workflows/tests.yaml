@@ -84,7 +84,8 @@ jobs:
 
   test-mobile-template-ios:
     if: contains(fromJSON(inputs.jobs), 'mobile-template')
-    runs-on: macos-26
+    # NOTE: iOS 27.1 SDK, without which iPhone Duo letterboxes the app on its inner display
+    runs-on: xcode-27
     env:
       EXPO_NO_TELEMETRY: 1
     steps:
