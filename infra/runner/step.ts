@@ -6,7 +6,7 @@ import {
   X86_INSTANCE_TYPES
 } from './types';
 
-const INPUT_DEFAULTS = { storageSizeGib: 8 };
+const INPUT_DEFAULTS = { storageSizeGib: 8, repository: `${githubOrg}/${githubRepositoryName}` };
 
 const RUNNER_VARIANTS = [
   { suffix: 'X86', types: X86_INSTANCE_TYPES, templatePath: '$.templates.launchTemplateIdX86' },
@@ -256,7 +256,7 @@ export function runnerStateMachineDefinition({
         `export RUNNER_CACHE_BUCKET=${cacheBucket}`,
         `export RUNNER_ARTIFACTS_BUCKET=${artifactsBucket}`,
         `GITHUB_TOKEN=$(aws ssm get-parameter --name ${githubCloningTokenSSMParameter} --with-decryption --query Parameter.Value --output text)`,
-        `git clone --depth 1 --branch {} https://x-access-token:$\\{GITHUB_TOKEN\\}@github.com/${githubOrg}/${githubRepositoryName}.git /opt/repo`,
+        `git clone --depth 1 --branch {} https://x-access-token:$\\{GITHUB_TOKEN\\}@github.com/{}.git /opt/repo`,
         `unset GITHUB_TOKEN`,
         `cd /opt/repo`,
         `{}`
@@ -320,7 +320,7 @@ export function runnerStateMachineDefinition({
               DocumentName: 'AWS-RunShellScript',
               TimeoutSeconds: 60,
               Parameters: {
-                'commands.$': `States.Array(States.Format('bash -c \\'${bashScript}\\'', $.id, $.ref, $.command))`,
+                'commands.$': `States.Array(States.Format('bash -c \\'${bashScript}\\'', $.id, $.ref, $.repository, $.command))`,
                 executionTimeout: ['86400'] // 24 hours
               },
               CloudWatchOutputConfig: { CloudWatchOutputEnabled: true }
