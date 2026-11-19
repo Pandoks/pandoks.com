@@ -1,4 +1,4 @@
-import { githubOrg, githubRepositoryName } from '../github';
+import { apexRepositoryName, githubOrg, githubRepositoryName } from '../github';
 import {
   ARM_INSTANCE_TYPES,
   GPU_ARM_INSTANCE_TYPES,
@@ -6,7 +6,10 @@ import {
   X86_INSTANCE_TYPES
 } from './types';
 
-const INPUT_DEFAULTS = { storageSizeGib: 8, repository: `${githubOrg}/${githubRepositoryName}` };
+const INPUT_DEFAULTS = { storageSizeGib: 8 };
+const RUNNER_REPOSITORIES = [githubRepositoryName, apexRepositoryName].map(
+  (repositoryName) => `${githubOrg}/${repositoryName}`
+);
 
 const RUNNER_VARIANTS = [
   { suffix: 'X86', types: X86_INSTANCE_TYPES, templatePath: '$.templates.launchTemplateIdX86' },
@@ -63,7 +66,8 @@ function launchInstance({
           ResourceType: 'instance',
           Tags: [
             { Key: 'Id', 'Value.$': '$.id' },
-            { Key: 'Ref', 'Value.$': '$.ref' }
+            { Key: 'Ref', 'Value.$': '$.ref' },
+            { Key: 'Repository', 'Value.$': '$.repository' }
           ]
         }
       ]
@@ -73,6 +77,20 @@ function launchInstance({
     Catch: [{ ErrorEquals: ['States.ALL'], ResultPath: '$.error', Next: 'FailNoInstance' }]
   };
 }
+
+const repositoryGate = {
+  ValidateRepository: {
+    Type: 'Choice',
+    Choices: RUNNER_REPOSITORIES.map((repository) => ({
+      And: [
+        { Variable: '$.repository', IsPresent: true },
+        { Variable: '$.repository', StringEquals: repository }
+      ],
+      Next: 'NormalizeStorageSize'
+    })),
+    Default: 'FailInvalidRepository'
+  }
+};
 
 const storageSizeGate = {
   NormalizeStorageSize: {
@@ -204,6 +222,11 @@ const fails = {
     Cause: 'instanceType is not in the supported list',
     Error: 'InvalidInstanceType'
   },
+  FailInvalidRepository: {
+    Type: 'Fail',
+    Cause: 'repository is missing or not allowed to use the runner',
+    Error: 'InvalidRepository'
+  },
   FailInvalidStorageSize: {
     Type: 'Fail',
     Cause: 'storageSizeGib must be an integer between 8 and 16384 (gp3 max)',
@@ -259,6 +282,7 @@ export function runnerStateMachineDefinition({
         `git clone --depth 1 --branch {} https://x-access-token:$\\{GITHUB_TOKEN\\}@github.com/{}.git /opt/repo`,
         `unset GITHUB_TOKEN`,
         `cd /opt/repo`,
+        `git remote set-url origin https://github.com/{}.git`,
         `{}`
       ].join('; ');
 
@@ -295,8 +319,9 @@ export function runnerStateMachineDefinition({
               launchTemplateIdGpuArm64
             },
             ResultPath: '$.templates',
-            Next: 'NormalizeStorageSize'
+            Next: 'ValidateRepository'
           },
+          ...repositoryGate,
           ...storageSizeGate,
           ...instanceTypesGate,
           ...Object.fromEntries(
@@ -320,7 +345,7 @@ export function runnerStateMachineDefinition({
               DocumentName: 'AWS-RunShellScript',
               TimeoutSeconds: 60,
               Parameters: {
-                'commands.$': `States.Array(States.Format('bash -c \\'${bashScript}\\'', $.id, $.ref, $.repository, $.command))`,
+                'commands.$': `States.Array(States.Format('bash -c \\'${bashScript}\\'', $.id, $.ref, $.repository, $.repository, $.command))`,
                 executionTimeout: ['86400'] // 24 hours
               },
               CloudWatchOutputConfig: { CloudWatchOutputEnabled: true }

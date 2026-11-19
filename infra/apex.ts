@@ -1,11 +1,8 @@
 import { US_WEST_2_REGION } from './aws';
 import { isProduction } from './dns';
-import { githubOrg } from './github';
+import { apexRepositoryName, githubOrg } from './github';
 import { runnerStateMachine } from './runner/runner';
-import { secrets } from './secrets';
 import { runnerArtifactsBucket } from './storage';
-
-const APEX_REPOSITORY_NAME = 'apex';
 
 if (isProduction) {
   // NOTE: looked up, not imported: infra/github.ts creates the provider inside its prod block
@@ -27,7 +24,7 @@ if (isProduction) {
           Condition: {
             StringEquals: {
               'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
-              'token.actions.githubusercontent.com:sub': `repo:${githubOrg}/${APEX_REPOSITORY_NAME}:ref:refs/heads/main`
+              'token.actions.githubusercontent.com:sub': `repo:${githubOrg}/${apexRepositoryName}:ref:refs/heads/main`
             }
           }
         }
@@ -46,21 +43,12 @@ if (isProduction) {
         },
         {
           effect: 'Allow',
-          actions: [
-            'states:DescribeExecution',
-            'states:GetExecutionHistory',
-            'states:StopExecution'
-          ],
+          actions: ['states:DescribeExecution'],
           resources: [
             runnerStateMachine.arn.apply(
-              (arn) => `${arn.replace(':stateMachine:', ':execution:')}:*`
+              (arn) => `${arn.replace(':stateMachine:', ':execution:')}:apex-*`
             )
           ]
-        },
-        {
-          effect: 'Allow',
-          actions: ['ssm:GetCommandInvocation'],
-          resources: ['*']
         },
         {
           effect: 'Allow',
@@ -84,15 +72,9 @@ if (isProduction) {
   };
   for (const [variableName, value] of Object.entries(apexVariables)) {
     new github.ActionsVariable(`ApexGithub${variableName}`, {
-      repository: APEX_REPOSITORY_NAME,
+      repository: apexRepositoryName,
       variableName,
       value
     });
   }
-
-  new github.ActionsSecret('ApexGithubGithubAccessToken', {
-    repository: APEX_REPOSITORY_NAME,
-    secretName: 'GH_TOKEN',
-    value: secrets.github.PersonalAccessToken.value
-  });
 }
