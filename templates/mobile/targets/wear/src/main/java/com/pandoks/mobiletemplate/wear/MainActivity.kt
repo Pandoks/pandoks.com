@@ -3,20 +3,23 @@ package com.pandoks.mobiletemplate.wear
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
+import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
+import androidx.wear.compose.material3.AppScaffold
 import androidx.wear.compose.material3.Button
+import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.ScreenScaffold
+import androidx.wear.compose.material3.SurfaceTransformation
 import androidx.wear.compose.material3.Text
+import androidx.wear.compose.material3.lazy.rememberTransformationSpec
+import androidx.wear.compose.material3.lazy.transformedHeight
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataEventBuffer
@@ -44,22 +47,40 @@ class MainActivity : ComponentActivity(), DataClient.OnDataChangedListener {
     super.onCreate(savedInstanceState)
     setContent {
       MaterialTheme {
-        Column(
-          Modifier.fillMaxSize().padding(24.dp),
-          Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
-          Alignment.CenterHorizontally
-        ) {
-          Text(valueFromPhone ?: "Nothing from phone")
-          sendError?.let { error ->
-            Text(
-              error,
-              color = MaterialTheme.colorScheme.error,
-              textAlign = TextAlign.Center,
-              style = MaterialTheme.typography.bodySmall
-            )
-          }
-          Button(onClick = { send(LocalTime.now().format(DateTimeFormatter.ofLocalizedTime(FormatStyle.MEDIUM))) }) {
-            Text("Send to phone")
+        AppScaffold {
+          val listState = rememberTransformingLazyColumnState()
+          val transformationSpec = rememberTransformationSpec()
+          ScreenScaffold(listState) { contentPadding ->
+            TransformingLazyColumn(state = listState, contentPadding = contentPadding) {
+              item {
+                ListHeader(
+                  Modifier.fillMaxWidth().transformedHeight(this, transformationSpec),
+                  transformation = SurfaceTransformation(transformationSpec)
+                ) {
+                  Text(valueFromPhone ?: "Nothing from phone", textAlign = TextAlign.Center)
+                }
+              }
+              sendError?.let { error ->
+                item {
+                  Text(
+                    error,
+                    Modifier.fillMaxWidth().transformedHeight(this, transformationSpec),
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodySmall
+                  )
+                }
+              }
+              item {
+                Button(
+                  onClick = { send(LocalTime.now().format(DateTimeFormatter.ofLocalizedTime(FormatStyle.MEDIUM))) },
+                  Modifier.fillMaxWidth().transformedHeight(this, transformationSpec),
+                  transformation = SurfaceTransformation(transformationSpec)
+                ) {
+                  Text("Send to phone")
+                }
+              }
+            }
           }
         }
       }
