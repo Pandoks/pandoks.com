@@ -105,7 +105,7 @@ class MainActivity : ComponentActivity(), DataClient.OnDataChangedListener {
 
   override fun onDataChanged(dataEvents: DataEventBuffer) {
     dataEvents
-      .filter { dataEvent -> dataEvent.type == DataEvent.TYPE_CHANGED }
+      .filter { dataEvent -> dataEvent.type == DataEvent.TYPE_CHANGED && dataEvent.dataItem.uri.path == PHONE_CONTEXT_PATH }
       .forEach { dataEvent ->
         hasReceivedChange = true
         show(dataEvent.dataItem)

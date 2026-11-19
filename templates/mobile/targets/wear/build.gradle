@@ -17,10 +17,11 @@ def phoneApp = project(':app').android
 
 // NOTE: reuse the launcher icons Expo generates for the phone app
 def phoneIcons = layout.buildDirectory.dir('generated/res/phoneIcons').get().asFile
-project.sync {
+def syncPhoneIcons = tasks.register('syncPhoneIcons', Sync) {
   from(project(':app').file('src/main/res')) { include 'mipmap-*/**' }
   into phoneIcons
 }
+tasks.named('preBuild') { dependsOn syncPhoneIcons }
 
 android {
   namespace 'com.pandoks.mobiletemplate.wear'
