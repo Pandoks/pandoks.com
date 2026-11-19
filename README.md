@@ -44,14 +44,8 @@ pnpm install
 ```
 
 3. Configure an AWS SSO profile in `~/.aws/config` and export it as `AWS_PROFILE`. `pnpm sso` logs
-   in to sso session `personal`; change it in `package.json` to match. Then add the profile Pulumi
-   reads its R2 state with:
-
-```sh
-aws configure set profile.pandoks-pulumi-state.region auto
-aws configure set profile.pandoks-pulumi-state.credential_process \
-  'aws ssm get-parameter --region us-west-1 --name /pulumi/r2-state-credentials --with-decryption --query Parameter.Value --output text'
-```
+   in to sso session `personal`; change it in `package.json` to match. Then run `pnpm bootstrap`
+   ([Bootstrap](#bootstrap)).
 
 > [!NOTE]
 > AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while
@@ -107,33 +101,10 @@ aws ssm put-parameter --overwrite --type SecureString --key-id alias/pulumi-nonp
 ```
 
 A new stack needs every secret in `infra/secrets.ts` and a committed `Pulumi.<stack>.yaml` from
-`pulumi stack init your-stack --no-select --secrets-provider 'awskms://alias/pulumi-nonproduction?region=us-west-1'`.
+`pulumi stack init your-stack --no-select --secrets-provider 'awskms://alias/pulumi-nonproduction?region=us-west-1'`;
+`production` uses `alias/pulumi-production`, the only key Argo CD can decrypt.
 
 ### Bootstrap
 
-The program doesn't own its state, keys or CI login, so a new account needs these once:
-
-1. In Cloudflare, the R2 bucket `pandoks-pulumi-state` (location WNAM) and two R2 API tokens limited
-   to it: **Object Read & Write** and **Object Read only**.
-2. In AWS, the KMS keys, then each token in SSM, written to a file as
-   `{"Version":1,"AccessKeyId":"…","SecretAccessKey":"…"}`:
-
-```sh
-for alias in pulumi-production pulumi-nonproduction; do
-  key_id=$(aws kms create-key --region us-west-1 --query KeyMetadata.KeyId --output text)
-  aws kms create-alias --region us-west-1 --alias-name "alias/${alias}" --target-key-id "${key_id}"
-done
-aws ssm put-parameter --region us-west-1 --type SecureString --key-id alias/pulumi-production \
-  --name /pulumi/r2-state-credentials --value file://<read-write-token-file>
-aws ssm put-parameter --region us-west-1 --type SecureString --key-id alias/pulumi-production \
-  --name /pulumi/r2-state-read-credentials --value file://<read-only-token-file>
-```
-
-3. For CI, a GitHub OIDC identity provider (`token.actions.githubusercontent.com`, audience
-   `sts.amazonaws.com`) and an IAM role with `AdministratorAccess` it can assume for
-   `repo:Pandoks/pandoks.com:ref:refs/heads/main` and
-   `repo:Pandoks/pandoks.com:environment:production`. Then
-   `gh variable set AWS_ROLE_ARN --body <role-arn>` and
-   `gh variable set AWS_REGION --body us-west-1`.
-4. The `production` and `dev` stacks with their secrets, as above; `production` uses
-   `alias/pulumi-production`.
+`pnpm bootstrap` sets up the state bucket, KMS keys, R2 state tokens, this machine's profile and
+CI's AWS role. It's safe to rerun, and on a new machine it only logs in and adds the profile.

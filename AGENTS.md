@@ -87,6 +87,7 @@ system-wide. Agent shells usually don't activate mise, so `pnpm` is missing and 
 are unpinned globals; run repo commands, `kubectl` included, as `mise exec -- <cmd>` from inside the
 checkout.
 
+- `pnpm bootstrap` (mine to run) sets up Pulumi's state, KMS keys, R2 tokens, profile, and CI role.
 - `pnpm format <js|go|shell|all>` writes; `pnpm format check <...>` checks.
 - Manage agent skills only with the skills CLI, for Claude Code, Codex, and opencode:
   `pnpm dlx skills add <source> -s <skill> -a claude-code codex opencode`, and
@@ -210,10 +211,11 @@ that can't happen, or for compatibility code for old data or deploy order during
 
 - A new way to change production outside the `main` deploy, such as production commands added to
   scripts or workflows, weakened `protect` or `retain`, or stage checks that confuse production with
-  other stages. The existing `deploy-infra.yaml` dispatch and `pnpm cluster deploy prod` recovery
-  paths are intended; new callers of them aren't, except local `--dry-run` previews, tests that stub
-  Pulumi and `kubectl`, and Argo Applications in the `prod` overlay that render `main`. Safe path:
-  `isProduction` in `infra/` and the `prod` overlay in `k3s/`.
+  other stages. The existing `deploy-infra.yaml` dispatch, `pnpm bootstrap`, and
+  `pnpm cluster deploy prod` recovery paths are intended; new callers of them aren't, except local
+  `--dry-run` previews, tests that stub Pulumi and `kubectl`, and Argo Applications in the `prod`
+  overlay that render `main`. Safe path: `isProduction` in `infra/` and the `prod` overlay in
+  `k3s/`.
 - A new pin (a version or digest added where none was, not a bump) that Renovate can't update, or a
   new third-party download or image with no version (`releases/latest`, `:latest`). Exceptions: a
   chart's own `version:` in `Chart.yaml` and an `appVersion` that sets no image tag or download,
