@@ -120,7 +120,7 @@ export const runnerGithubTokenParameter = new aws.ssm.Parameter(
   {
     name: `/runners/${STAGE_NAME}/github-cloning-pat`,
     type: 'SecureString',
-    value: secrets.github.PersonalAccessToken.value
+    value: secrets.github.RunnerCloningToken.value
   },
   { provider: usWest2Provider }
 );
