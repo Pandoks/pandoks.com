@@ -5,10 +5,19 @@ import { secrets } from './secrets.ts';
 import { isProduction, STAGE_NAME } from './dns.ts';
 
 export const hubTailscaleServices = [
-  { name: 'cliproxyapi', comment: 'CLIProxyAPI on the homelab hub' },
-  { name: 'cliproxyapi-api', comment: 'CLIProxyAPI with Console API keys only' },
-  { name: 'beszel', comment: 'Beszel monitoring hub' },
-  { name: 'artex', comment: 'ARTEX on the homelab hub' }
+  { name: 'cliproxyapi', comment: 'CLIProxyAPI on the homelab hub', ports: ['tcp:443'] },
+  {
+    name: 'cliproxyapi-api',
+    comment: 'CLIProxyAPI with Console API keys only',
+    ports: ['tcp:443']
+  },
+  { name: 'beszel', comment: 'Beszel monitoring hub', ports: ['tcp:443'] },
+  { name: 'artex', comment: 'ARTEX on the homelab hub', ports: ['tcp:443'] },
+  {
+    name: 'protonmail-bridge',
+    comment: 'Proton Mail Bridge IMAP and SMTP on the homelab hub',
+    ports: ['tcp:1143', 'tcp:1025']
+  }
 ];
 
 // NOTE: the ACL and settings span the whole tailnet, so production owns them for every stack.
@@ -35,6 +44,11 @@ if (isProduction) {
         },
         grants: [
           { src: ['*'], dst: ['*'], ip: ['*'] },
+          ...hubTailscaleServices.map(({ name, ports }) => ({
+            src: ['*'],
+            dst: [`svc:${name}`],
+            ip: ports
+          })),
           {
             src: ['tag:ci'],
             dst: ['tag:k8s-operator'],
