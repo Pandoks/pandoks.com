@@ -88,8 +88,40 @@ jobs:
           aws configure set profile.pandoks-pulumi-state.credential_process \
             'aws ssm get-parameter --region us-west-1 --name /pulumi/r2-state-credentials --with-decryption --query Parameter.Value --output text'
 
+      - name: Setup Tailscale
+        uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c # v4.4.0
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
       - name: Deploy Pulumi
         run: pulumi up --yes --refresh --stack production
+
+      # NOTE: production servers ignore user-data changes, so a replaced key reaches the cluster here.
+      - name: Sync the External Secrets access key
+        run: |
+          PEERS=$(sudo tailscale status --peers) || { echo "tailscale status failed"; exit 1; }
+          if ! echo "$PEERS" | grep -q prod-cluster; then
+            echo "No cluster found — skipping key sync"
+            exit 0
+          fi
+          sudo tailscale configure kubeconfig prod-cluster
+
+          outputs=$(pulumi stack output --stack production --json --show-secrets)
+          secret_access_key=$(jq -er .ExternalSecretsSecretAccessKey <<<"${outputs}")
+          echo "::add-mask::${secret_access_key}"
+          secret=$(jq '{
+            apiVersion: "v1",
+            kind: "Secret",
+            metadata: {name: "external-secrets-aws", namespace: "external-secrets"},
+            type: "Opaque",
+            data: {
+              "access-key-id": (.ExternalSecretsAccessKeyId | @base64),
+              "secret-access-key": (.ExternalSecretsSecretAccessKey | @base64)
+            }
+          }' <<<"${outputs}")
+          sudo kubectl apply --server-side -f - <<<"${secret}"
 
   deploy-kubernetes:
     concurrency:

@@ -42,7 +42,7 @@ flowchart LR
   human["/pulumi/{stack}/{Name}<br/>(human inputs)"] --> pulumi[Pulumi]
   generated["Tailscale OAuth client,<br/>origin certificate"] --> pulumi
   pulumi -->|createClusterSecret| ssm["SSM /kubernetes/{prod or dev}/{Name}"]
-  pulumi -->|access key in bootstrap cloud-config| aws["Secret external-secrets/external-secrets-aws"]
+  pulumi -->|"access key: bootstrap cloud-config,<br/>then deploy-infra.yaml in prod"| aws["Secret external-secrets/external-secrets-aws"]
   ssm --> store[ClusterSecretStore cluster-secrets]
   aws --> store
   store --> eso[ExternalSecret] --> secret[Secret]
@@ -70,24 +70,16 @@ too.
 
 ### Rotating the External Secrets access key
 
-Every server's user data carries the key, and the bootstrap node's cloud-config writes
-`external-secrets/external-secrets-aws` once. In other stacks, replacing the key
-(`pulumi up --stack <stack> --target-replace <urn>`, URN from
-`pulumi stack --stack <stack> --show-urns`) changes the user data, so the next `pulumi up` replaces
-every server and rebuilds the cluster, wiping its data, with the new key. Production ignores
-user-data changes, so rotate its key by hand:
+Rename `ExternalSecretsAccessKey` in `infra/kubernetes.ts` and merge; this rotates every stack's
+key. The bootstrap node's cloud-config writes `external-secrets/external-secrets-aws` on first boot:
 
-1. Rename `ExternalSecretsAccessKey` in `infra/kubernetes.ts` and merge. Until step 2, syncs fail
-   and Secrets keep their last values.
-2. Write the new key into the cluster:
-
-```sh
-outputs=$(pulumi stack output --stack <stack> --json --show-secrets)
-kubectl -n external-secrets create secret generic external-secrets-aws \
-  --from-literal=access-key-id="$(printf '%s' "${outputs}" | jq -r .ExternalSecretsAccessKeyId)" \
-  --from-literal=secret-access-key="$(printf '%s' "${outputs}" | jq -r .ExternalSecretsSecretAccessKey)" \
-  --dry-run=client -o yaml | kubectl apply --server-side -f -
-```
+- **prod** ignores user-data changes, so after every `pulumi up`, `deploy-infra.yaml` writes the
+  stack's key into that Secret. Pulumi creates the new key before deleting the old one, so syncs can
+  fail only in the seconds between, and Secrets keep their last values.
+- **other stacks**: the user data changes, so the next `pulumi up --stack <stack>` replaces every
+  server and rebuilds the cluster, wiping its data, with the new key. To rotate just one, run
+  `pulumi up --stack <stack> --target-replace <urn>` (URN from
+  `pulumi stack --stack <stack> --show-urns`) instead of renaming.
 
 ## Local Development
 

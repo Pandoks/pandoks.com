@@ -75,7 +75,7 @@ new aws.iam.UserPolicy('ExternalSecretsPolicy', {
   })
 });
 
-// NOTE: for rotating the key by hand (k3s/README.md#rotating-the-external-secrets-access-key)
+// NOTE: deploy-infra.yaml syncs these to prod (k3s/README.md#rotating-the-external-secrets-access-key)
 export const outputs = {
   ExternalSecretsAccessKeyId: externalSecretsAccessKey.id,
   ExternalSecretsSecretAccessKey: externalSecretsAccessKey.secret
