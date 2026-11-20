@@ -41,7 +41,8 @@ export default $config({
       import('./infra/vps/vps'),
       import('./infra/kubernetes'),
       import('./infra/dev'),
-      import('./infra/runner/runner')
+      import('./infra/runner/runner'),
+      import('./infra/apex')
     ]);
     return imports.reduce((acculumator, importResult: any) => {
       if (importResult.outputs) {

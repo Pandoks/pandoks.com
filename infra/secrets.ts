@@ -16,7 +16,8 @@ export const secrets = {
   },
   github: {
     PersonalAccessToken: new sst.Secret('GithubPersonalAccessToken'),
-    PackageManagementToken: new sst.Secret('GithubPackageManagementToken')
+    PackageManagementToken: new sst.Secret('GithubPackageManagementToken'),
+    RunnerCloningToken: new sst.Secret('GithubRunnerCloningToken')
   },
   personal: {
     KwokPhoneNumber: new sst.Secret('KwokPhoneNumber'),

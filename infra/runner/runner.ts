@@ -120,7 +120,25 @@ export const runnerGithubTokenParameter = new aws.ssm.Parameter(
   {
     name: `/runners/${STAGE_NAME}/github-cloning-pat`,
     type: 'SecureString',
-    value: secrets.github.PersonalAccessToken.value
+    value: secrets.github.RunnerCloningToken.value
+  },
+  { provider: usWest2Provider }
+);
+// NOTE: AmazonSSMManagedInstanceCore allows reading every parameter, SST's passphrases included,
+// and jobs run arbitrary commands as this role
+new aws.iam.RolePolicy(
+  'RunnerInstanceParameterPolicy',
+  {
+    role: runnerInstanceRole.id,
+    policy: aws.iam.getPolicyDocumentOutput({
+      statements: [
+        {
+          effect: 'Deny',
+          actions: ['ssm:GetParameter', 'ssm:GetParameters', 'ssm:GetParametersByPath'],
+          notResources: [runnerGithubTokenParameter.arn]
+        }
+      ]
+    }).json
   },
   { provider: usWest2Provider }
 );
