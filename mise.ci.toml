@@ -1,0 +1,3 @@
+[env]
+# CI authenticates with OIDC; a profile it lacks breaks every AWS call
+AWS_PROFILE = false

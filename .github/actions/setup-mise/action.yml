@@ -1,5 +1,5 @@
 name: Setup mise tools
-description: Install declared tools from mise.toml via jdx/mise-action, with the trusted-config-path and mise version pin applied once.
+description: Install declared tools from mise.toml via jdx/mise-action, with the trusted-config-path, mise version pin and ci environment applied once.
 
 inputs:
   tools:
@@ -9,6 +9,9 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Load mise.ci.toml
+      shell: bash
+      run: echo "MISE_ENV=ci" >> "${GITHUB_ENV}"
     - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
       env:
         MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}

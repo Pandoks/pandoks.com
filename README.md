@@ -43,8 +43,8 @@ mise install
 pnpm install
 ```
 
-3. Configure an AWS SSO profile as `[default]` in `~/.aws/config`, or name it and set `AWS_PROFILE`.
-   `pnpm sso` logs in to sso session `pandoks`; change it in `package.json` to match. Then run
+3. Configure an AWS SSO profile `pandoks` in `~/.aws/config`; `mise.toml` sets `AWS_PROFILE` to it.
+   `pnpm sso` logs in to sso session `pandoks`; change both to match yours. Then run
    `pnpm bootstrap` ([Bootstrap](#bootstrap)).
 
 > [!NOTE]
