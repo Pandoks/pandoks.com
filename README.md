@@ -46,8 +46,8 @@ mise install
 pnpm install
 ```
 
-4. Configure AWS SSO session in `~/.aws/config`. `pnpm sso` points to sso session `personal`, but
-   you can change it to whatever you want in `package.json`.
+4. Configure AWS SSO session in `~/.aws/config`. `pnpm sso` logs in to sso session `pandoks` and SST
+   uses profile `pandoks`; to use other names, change both, in `package.json` and `sst.config.ts`.
 
 > [!NOTE]
 > AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while
