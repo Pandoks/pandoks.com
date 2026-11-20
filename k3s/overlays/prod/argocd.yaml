@@ -75,7 +75,7 @@ roleRef:
 
 ---
 # NOTE: deploy-infra.yaml writes the External Secrets access key after every production `pulumi up`,
-# as tag:ci-production, which only main's production environment can join as.
+# as tag:ci-production, which only main's AWS role can read the OAuth secret to join as.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
