@@ -90,6 +90,13 @@ func ScaleDown(env utils.Env) error {
 		}
 	}
 
+	// NOTE: failovers can leave a master in a removed pod, so promote its replica before replicas go
+	if originalClusterNodeCount > desiredNodeCount {
+		if err := moveMastersToSafeSpots(helperOptions); err != nil {
+			return err
+		}
+	}
+
 	if currentReplicasPerMaster > env.ReplicasPerMaster {
 		if err := removeReplicasFromMasters(helperOptions); err != nil {
 			return err
@@ -102,10 +109,6 @@ func ScaleDown(env utils.Env) error {
 		valkey.PrintClusterNodes(client)
 		fmt.Println("=== Scale Down Complete ===")
 		return nil
-	}
-
-	if err := moveMastersToSafeSpots(helperOptions); err != nil {
-		return err
 	}
 
 	if err := removeDangerZoneNodes(helperOptions); err != nil {
@@ -247,7 +250,7 @@ func makeRoomForMasters(options *scaleDownOptions) error {
 			}
 
 			promoteOriginalShardLeaderOptions := valkey.PromoteOriginalShardLeaderOptions{
-				ClusterClient: client.Client,
+				AdminPassword: env.AdminPassword,
 				Shard:         shard,
 				Topology:      clusterTopology,
 			}
@@ -390,10 +393,7 @@ func moveMastersToSafeSpots(options *scaleDownOptions) error {
 	desiredNodeCount := env.Masters + env.Masters*env.ReplicasPerMaster
 	lastSafeNodeIndex := desiredNodeCount - 1
 
-	hostnames := make([]string, 0, len(clusterTopology.OrderedNodes))
-	for _, node := range clusterTopology.OrderedNodes {
-		hostnames = append(hostnames, fmt.Sprintf("%s:%d", node.Hostname, node.Port))
-	}
+	hostnames := clusterTopology.Hostnames()
 
 	modifiedTopology := false
 	for _, shard := range clusterTopology.OrderedShards {
@@ -409,7 +409,7 @@ func moveMastersToSafeSpots(options *scaleDownOptions) error {
 		// NOTE: because the topology is healthy at the start of scale down function,
 		// there will always be a pod that isn't going to be removed from a statefulset scale down
 		promoteOriginalShardLeaderOptions := valkey.PromoteOriginalShardLeaderOptions{
-			ClusterClient: client.Client,
+			AdminPassword: env.AdminPassword,
 			Shard:         shard,
 			Topology:      clusterTopology,
 		}

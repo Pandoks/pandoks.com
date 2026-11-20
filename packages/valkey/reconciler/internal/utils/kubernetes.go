@@ -32,6 +32,23 @@ func GetStatefulsetPodName(name string, index int) string {
 	return fmt.Sprintf("valkey-%s-%d", name, index)
 }
 
+func GetAppliedSecretName(name string) string {
+	return fmt.Sprintf("valkey-%s-applied", name)
+}
+
+func NewKubernetesClient() (*kubernetes.Clientset, error) {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get in-cluster config: %w", err)
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+	return clientset, nil
+}
+
 // hostnames & ips include port
 func GetAllServicePods(serviceFQDN string) (ips []string, hostnames []string, err error) {
 	ips, err = net.LookupHost(serviceFQDN)
@@ -60,14 +77,9 @@ func WaitForStatefulSetReady(ctx context.Context, namespace, name string, expect
 	}
 	expected := int32(expectedReplicas)
 
-	config, err := rest.InClusterConfig()
+	clientset, err := NewKubernetesClient()
 	if err != nil {
-		return fmt.Errorf("failed to get in-cluster config: %w", err)
-	}
-
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return fmt.Errorf("failed to create kubernetes client: %w", err)
+		return err
 	}
 
 	for {
@@ -84,7 +96,8 @@ func WaitForStatefulSetReady(ctx context.Context, namespace, name string, expect
 
 		ready := sts.Status.ReadyReplicas == expected
 		updated := sts.Status.UpdatedReplicas == expected
-		rolloutComplete := sts.Status.CurrentRevision == sts.Status.UpdateRevision
+		// NOTE: status lags a just-applied spec, so an old status can look like a finished rollout
+		rolloutComplete := sts.Status.ObservedGeneration == sts.Generation && sts.Status.CurrentRevision == sts.Status.UpdateRevision
 
 		if ready && updated && rolloutComplete {
 			fmt.Println("✓ StatefulSet is fully ready and updated")

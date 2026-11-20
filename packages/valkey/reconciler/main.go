@@ -9,7 +9,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: valkey-reconciler <init|scale-up|scale-down>")
+		fmt.Fprintln(os.Stderr, "usage: valkey-reconciler <init|scale-up|scale-down|apply-config>")
 		os.Exit(2)
 	}
 
@@ -40,9 +40,20 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "apply-config":
+		config, err := utils.LoadConfig()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+		if err := commands.ApplyConfig(env, config); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", subcommand)
-		fmt.Fprintln(os.Stderr, "available commands: init, scale-up, scale-down")
+		fmt.Fprintln(os.Stderr, "available commands: init, scale-up, scale-down, apply-config")
 		os.Exit(2)
 	}
 }

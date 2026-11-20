@@ -279,3 +279,17 @@ func Replicate(replicaSingleClient valkey.Client, masterID string) error {
 
 	return nil
 }
+
+func WaitForReplicaSynced(ctx context.Context, replicaSingleClient valkey.Client) error {
+	for {
+		replicaInfo, err := replicaSingleClient.Do(ctx, replicaSingleClient.B().Info().Section("replication").Build()).ToString()
+		if err == nil && strings.Contains(replicaInfo, "master_link_status:up") {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+}

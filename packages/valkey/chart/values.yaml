@@ -17,6 +17,15 @@ cluster:
 # options: rdb,aof | rdb | aof | ~
 persistence: ~
 
+# Valkey settings, applied to running nodes without a restart. Quote values: unquoted, yes renders as true and
+# 104857600 as 1.048576e+08
+# NOTE: a key removed here keeps its last value until its pod restarts
+parameters:
+  loglevel: notice
+  cluster-allow-reads-when-down: 'yes'
+  replica-read-only: 'yes'
+  cluster-node-timeout: '5000'
+
 # NOTE: no CPU limit; throttling adds latency spikes
 resources:
   requests:

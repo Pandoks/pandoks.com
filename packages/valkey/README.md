@@ -14,7 +14,7 @@ metadata:
   namespace: kube-system # the helm chart controller that k3s uses needs to be in the kube-system namespace
 spec:
   chart: oci://${ImageRegistry}/charts/valkey
-  version: 0.1.5
+  version: 0.1.6
   targetNamespace: &namespace <namespace>
   createNamespace: true
   failurePolicy: abort
@@ -104,6 +104,9 @@ spec:
     hooks.hookDeletePolicy: before-hook-creation
 ```
 
+These don't apply to the `apply-config` Job, which never retries; Helm prints its logs when it
+fails.
+
 _If you haven't already, remember to add all `dev-patch.yaml` files to the `patches` in the
 [/k3s/overlays/local/kustomization.yaml](/k3s/overlays/local/kustomization.yaml) file._
 
@@ -139,42 +142,124 @@ changes accessible to the local k3d cluster:
 [reconciler](./reconciler) is a Go CLI that the chart runs as Helm hook jobs to manage the cluster
 topology:
 
-| Hook           | Command      | Description                                                        |
-| -------------- | ------------ | ------------------------------------------------------------------ |
-| `post-install` | `init`       | Creates the cluster from the initial masters and replicas          |
-| `pre-upgrade`  | `scale-down` | Moves slots off masters being removed, then removes excess nodes   |
-| `post-upgrade` | `scale-up`   | Adds new masters and replicas, then rebalances slots across shards |
+| Hook                                                           | Command        | Description                                                                             |
+| -------------------------------------------------------------- | -------------- | --------------------------------------------------------------------------------------- |
+| `post-install`                                                 | `init`         | Creates the cluster from the initial masters and replicas                               |
+| `pre-upgrade`                                                  | `scale-down`   | Moves slots off masters being removed, then removes excess nodes                        |
+| `post-upgrade`                                                 | `scale-up`     | Adds new masters and replicas, then rebalances slots across shards                      |
+| `pre-upgrade`, `post-install`, `post-upgrade`, `post-rollback` | `apply-config` | Sets `parameters` and `users.acl` on every node, before `scale-down` and after the rest |
+
+The `valkey-<name>-applied` Role and RoleBinding and the `valkey-<name>-metrics` Secret that
+`apply-config` needs are [hooks](https://helm.sh/docs/topics/charts_hooks/) themselves, created
+before every install, upgrade and rollback, since Helm creates a release's resources only after its
+pre-upgrade hooks. So is the `valkey-<name>-applied` Secret, created only before an install or
+upgrade that doesn't find it. They stay after `helm uninstall`, but the `valkey-<name>-applied`
+Secret, which `apply-config` makes the StatefulSet own, is deleted with it.
 
 ## Configuration
 
 There are two configuration files that are used by the valkey cluster: `valkey.conf` and
 `users.acl`. They live in [chart/files](./chart/files) and are both templated so that `envsubst` can
-be used to inject secrets into the configuration files via env variables. All clusters use the same
-templated configuration files via config maps.
+be used to inject secrets into the configuration files via env variables; it expands only the
+variables they use, so other `$` stay as written. All clusters use the same templated configuration
+files via config maps.
 
 The `valkey.conf` file is used to configure the valkey cluster. The `users.acl` file is used to
-configure the users that can access the cluster.
+configure the users that can access the cluster. Passwords can't contain spaces, tabs, carriage
+returns or newlines, which `users.acl` can't hold.
 
 ### valkey.conf
 
-[valkey.conf](./chart/files/valkey.conf) is used to configure the valkey cluster.
+[valkey.conf](./chart/files/valkey.conf) is used to configure the valkey cluster. Replicas
+authenticate to their primary as **admin**. Without `persistence`, a primary that restarts comes
+back empty with the same node ID, and its replicas resync to empty. On `SIGTERM` (pod delete,
+rollout, drain), a primary first fails over to a replica, but only when the cluster has at least 3
+masters (the replica needs votes from a majority of masters, and the stopping one can't vote) and a
+replica catches up within `shutdown-timeout` (10s). Replicas turn ready only once synced, so a
+rollout, which restarts one pod at a time from the highest ordinal, waits for each restarted replica
+before stopping the next pod. It doesn't wait for a replica in a lower-numbered pod than its
+primary, so a primary whose replica is still resyncing then restarts empty. Use `persistence` if a
+shard's data must survive a restart with no such failover: the default `replicasPerMaster: 0`, fewer
+than 3 masters, or a crash or OOM kill.
 
 For more information about the configuration options, visit
 [valkey.io/topics/configuration](https://valkey.io/topics/valkey.conf/).
+
+### parameters
+
+Settings Valkey can change at runtime, like `maxmemory`, go in `parameters` instead:
+
+```yaml
+spec:
+  set:
+    parameters.maxmemory: 800mb
+```
+
+New pods start with them in `valkey.conf`. After every install, upgrade and rollback, the
+[reconciler](#reconciler)'s `apply-config` Job sets them on every node in one `CONFIG SET` and
+prints what `CONFIG GET` reports, so no pod restarts. It waits up to 5 minutes for nodes that don't
+answer yet and fails at once on an error from Valkey, like an invalid value. The render fails for
+settings Valkey can't change at runtime, like `cluster-enabled` or `aclfile`, and for ones the chart
+sets itself; those belong in `valkey.conf`. It also fails for secrets like `requirepass`, which
+would show in the ConfigMap and the Job's logs, and for a setting and its alias together, like
+`slave-read-only` next to the default `replica-read-only`. A key removed from `parameters` keeps its
+value until its pod restarts. Helm prints a failed Job's logs before deleting it; for a HelmChart,
+they're in the `helm-install-<HelmChart name>` Job's logs in `kube-system`, with `--previous` once
+it has retried.
+
+Before an upgrade, `apply-config` sets the new chart's `parameters` on the old pods, so a setting
+only a newer `image` knows needs two upgrades: the image first, then the setting. A rejected value
+fails the release, and with `failurePolicy: abort` the HelmChart then stops upgrading it. Fix the
+value, then roll back to the last good revision so the next `helm-install` run upgrades again:
+
+```sh
+helm rollback -n <namespace> <namespace>-valkey-<name>-cluster
+```
+
+Pods restart only when their template changes: `valkey.conf`, `image`, `persistence`, `resources`,
+`nodeSelector` or `tolerations`.
 
 ### users.acl
 
 [users.acl](./chart/files/users.acl) is used to configure the users that can access the cluster.
 
 For better security practices, we use multiple users to access the cluster. We have an **admin**
-user and a **client** user:
+user, a **client** user and a **metrics** user:
 
-| User   | Description                          | Permissions                                      |
-| ------ | ------------------------------------ | ------------------------------------------------ |
-| admin  | Has full access to the cluster       | All permissions                                  |
-| client | Has read/write access to the cluster | Read, Write, String, Hash, List, Set, Sorted Set |
+| User    | Description                          | Permissions                                      |
+| ------- | ------------------------------------ | ------------------------------------------------ |
+| admin   | Has full access to the cluster       | All permissions                                  |
+| client  | Has read/write access to the cluster | Read, Write, String, Hash, List, Set, Sorted Set |
+| metrics | Used by the Prometheus exporter      | Only what the exporter's scrape runs, no keys    |
 
 _The **client** user doesn't have dangerous permissions like `FLUSHALL`, `CONFIG`, etc._
+
+The chart generates the **metrics** password into the `valkey-<name>-metrics` Secret on install and
+keeps it on upgrades, so it needs no secret of yours and never rotates with **admin**. The exporter
+skips its config metrics, since `CONFIG GET` would show `primaryauth`, the admin password, and its
+last-slow-command metrics, since `SLOWLOG GET` shows commands' arguments, like `SET`'s values. The
+exporter still runs `SLOWLOG GET` on every scrape, so each node's `acl_access_denied_cmd` (in
+`INFO stats`) climbs by one per scrape. An exporter option that runs more commands, like
+`check-keys`, needs them added to its `users.acl` line.
+
+The `apply-config` Job also resets each user to its line (`ACL SETUSER <user> reset <rules>`) and
+deletes users without one, like `ACL LOAD`, so rule changes and new passwords apply without a
+restart, and connections that already logged in stay open. After rotating a leaked password, close
+them with `CLIENT KILL USER <user>` on every node. A password changed in the secret reaches the
+nodes at the next chart upgrade, since only the Job applies it.
+
+The Job keeps the admin password it last applied in the `valkey-<name>-applied` Secret, which the
+chart creates empty. When the secret has a different one, it rotates it before `scale-down` logs in:
+on every node it logs in with either password, adds the new one to **admin** and saves it. Then, on
+every run, it sets `primaryauth` to the secret's password on every node, only then resets the users
+to `users.acl`, which drops the old password, and sets `parameters` last, so a rejected value can't
+stop a rotation halfway. It fails if a node accepts neither, like after the Secret is deleted (the
+next upgrade recreates it empty) or changed by hand; set its `adminPassword` to the one the nodes
+accept. A pod that starts between the secret change and the rotation accepts both passwords and
+replicates with the last-applied one. The readiness probe tries both from a secret volume, which the
+kubelet refreshes within about a minute, so when the rotation runs sooner, like when Argo applies
+the secret and the chart together, pods can turn unready and leave the `valkey-<name>-cluster`
+Service until it catches up.
 
 For more information about the permissions, visit
 [valkey.io/topics/acl](https://valkey.io/topics/acl/).
