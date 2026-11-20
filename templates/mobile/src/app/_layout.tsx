@@ -18,6 +18,10 @@ export default function RootLayout() {
           <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
           <NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} md="home" />
         </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="focus">
+          <NativeTabs.Trigger.Label>Focus</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon sf="timer" md="timer" />
+        </NativeTabs.Trigger>
         <NativeTabs.Trigger name="device">
           <NativeTabs.Trigger.Label>Device</NativeTabs.Trigger.Label>
           <NativeTabs.Trigger.Icon sf="iphone" md="smartphone" />
