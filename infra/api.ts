@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
 import * as cloudflare from '@pulumi/cloudflare';
-import { buildSync } from 'esbuild';
+import { createFunction } from '@pandoks.com/infra/aws';
 import { secrets } from './secrets.ts';
 import { cloudflareZoneId, domain, isProduction, STAGE_NAME } from './dns.ts';
 import { githubOrg, githubRepositoryName } from './github.ts';
@@ -10,65 +10,12 @@ import type { NotionWebhookEnvironment, TextSmsEnvironment } from '../apps/funct
 
 const apiDomain = `api.${domain}`;
 const NOTION_BLOG_DATABASE_ID = '20f1bb259e4b804ba24be1ceebf4c761';
-
-function createFunction({
-  id,
-  name,
-  entryPoint,
-  handler,
-  timeout,
-  environment,
-  inlinePolicy
-}: {
-  id: string;
-  name: string;
-  entryPoint: string;
-  handler: string;
-  timeout: number;
-  environment: Record<string, pulumi.Input<string>>;
-  inlinePolicy?: pulumi.Input<string>;
-}) {
-  const functionName = `${STAGE_NAME}-${name}`;
-  const logGroup = new aws.cloudwatch.LogGroup(`${id}LogGroup`, {
-    name: `/aws/lambda/${functionName}`,
-    retentionInDays: 30
-  });
-  const role = new aws.iam.Role(`${id}Role`, {
-    name: functionName,
-    assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({ Service: 'lambda.amazonaws.com' }),
-    managedPolicyArns: [aws.iam.ManagedPolicy.AWSLambdaBasicExecutionRole],
-    inlinePolicies: inlinePolicy ? [{ name: 'inline', policy: inlinePolicy }] : []
-  });
-
-  const [bundle] = buildSync({
-    entryPoints: [join(import.meta.dirname, '../apps/functions/src', entryPoint)],
-    bundle: true,
-    minify: true,
-    platform: 'node',
-    target: 'node24',
-    format: 'cjs',
-    write: false
-  }).outputFiles;
-
-  return new aws.lambda.Function(`${id}Function`, {
-    name: functionName,
-    runtime: aws.lambda.Runtime.NodeJS24dX,
-    handler: `index.${handler}`,
-    role: role.arn,
-    timeout,
-    memorySize: 1024,
-    code: new pulumi.asset.AssetArchive({
-      'index.js': new pulumi.asset.StringAsset(bundle.text)
-    }),
-    environment: { variables: environment },
-    loggingConfig: { logFormat: 'Text', logGroup: logGroup.name }
-  });
-}
+const functionsDirectory = join(import.meta.dirname, '../apps/functions/src');
 
 export const textFunction = createFunction({
   id: 'TextSms',
-  name: 'text-sms',
-  entryPoint: 'text.ts',
+  name: `${STAGE_NAME}-text-sms`,
+  entryPoint: join(functionsDirectory, 'text.ts'),
   handler: 'sendTextHandler',
   timeout: 20,
   environment: {
@@ -108,8 +55,8 @@ new aws.iam.RolePolicy('ScheduleInvokeTextPolicy', {
 
 const notionWebhookFunction = createFunction({
   id: 'NotionWebhookHandler',
-  name: 'notion-webhook-handler',
-  entryPoint: 'api/notion/webhook.ts',
+  name: `${STAGE_NAME}-notion-webhook-handler`,
+  entryPoint: join(functionsDirectory, 'api/notion/webhook.ts'),
   handler: 'webhookHandler',
   timeout: 30,
   inlinePolicy: pulumi.jsonStringify({

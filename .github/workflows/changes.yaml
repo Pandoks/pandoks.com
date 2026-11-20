@@ -119,6 +119,7 @@ jobs:
               - '.github/workflows/checks.yaml'
             infra:
               - 'infra/**'
+              - 'packages/infra/**'
               - 'Pulumi*.yaml'
               - 'tsconfig.json'
               - *needs-node-setup

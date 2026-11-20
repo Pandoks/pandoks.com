@@ -3,15 +3,12 @@ import { join } from 'node:path';
 import * as pulumi from '@pulumi/pulumi';
 import * as hcloud from '@pulumi/hcloud';
 import * as tailscale from '@pulumi/tailscale';
-import {
-  deleteTailscaleDevices,
-  kubernetesOperatorOauthClient,
-  tailscaleAcl
-} from '../tailscale.ts';
+import { renderCloudInit } from '@pandoks.com/infra/cloud-init';
+import { deleteTailscaleDevices } from '@pandoks.com/infra/tailscale';
+import { kubernetesOperatorOauthClient, tailscaleAcl } from '../tailscale.ts';
 import { isProduction, STAGE_NAME } from '../dns.ts';
 import { secrets } from '../secrets.ts';
 import { backupBucket, s3Endpoint } from '../storage.ts';
-import { renderCloudInit } from '../utils.ts';
 
 const cloudInitConfig = readFileSync(join(import.meta.dirname, 'cloud-config.yaml'), 'utf8');
 
@@ -30,9 +27,11 @@ export const deleteServerFromTailnet = new pulumi.ResourceHook(
       (device) => device.tags.includes('tag:hetzner') && device.tags.includes(`tag:${STAGE_NAME}`)
     );
     if (serverHetznerDevices.length > 0) {
-      const deletedDevices = deleteTailscaleDevices(
-        ...serverHetznerDevices.map((device) => device.nodeId)
-      );
+      const deletedDevices = deleteTailscaleDevices({
+        clientId: secrets.tailscale.OauthClientId,
+        clientSecret: secrets.tailscale.OauthClientSecret,
+        deviceIds: serverHetznerDevices.map((device) => device.nodeId)
+      });
       deletedDevices.apply((deletedDevices) => {
         const deletedDeviceIds = deletedDevices
           .filter((device) => device.success)
