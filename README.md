@@ -44,7 +44,7 @@ pnpm install
 ```
 
 3. Configure an AWS SSO profile in `~/.aws/config` and export it as `AWS_PROFILE`. `pnpm sso` logs
-   in to sso session `personal`; change it in `package.json` to match. Then run `pnpm bootstrap`
+   in to sso session `pandoks`; change it in `package.json` to match. Then run `pnpm bootstrap`
    ([Bootstrap](#bootstrap)).
 
 > [!NOTE]

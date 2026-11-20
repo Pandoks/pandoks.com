@@ -8,7 +8,7 @@
     "pnpm": "12.16.1"
   },
   "scripts": {
-    "sso": "aws sso login --sso-session=personal --use-device-code --no-browser",
+    "sso": "aws sso login --sso-session=pandoks --use-device-code --no-browser",
     "bootstrap": "./scripts/bootstrap.sh",
     "tools:install": "mise install --yes",
     "cluster": "./scripts/cluster/main.sh",
