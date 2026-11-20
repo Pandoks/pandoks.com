@@ -27,34 +27,10 @@ export const deleteServerFromTailnet = new pulumi.ResourceHook(
       (device) => device.tags.includes('tag:hetzner') && device.tags.includes(`tag:${STAGE_NAME}`)
     );
     if (serverHetznerDevices.length > 0) {
-      const deletedDevices = deleteTailscaleDevices({
+      deleteTailscaleDevices({
         clientId: secrets.tailscale.OauthClientId,
         clientSecret: secrets.tailscale.OauthClientSecret,
-        deviceIds: serverHetznerDevices.map((device) => device.nodeId)
-      });
-      deletedDevices.apply((deletedDevices) => {
-        const deletedDeviceIds = deletedDevices
-          .filter((device) => device.success)
-          .map((device) => device.deviceId);
-        const failedToDeleteDeviceIds = deletedDevices
-          .filter((device) => !device.success)
-          .map((device) => device.deviceId);
-        if (deletedDeviceIds.length) {
-          console.log(
-            `Deleted Tailscale devices:\n${serverHetznerDevices
-              .filter((device) => deletedDeviceIds.includes(device.nodeId))
-              .map((device) => device.name)
-              .join('\n')}`
-          );
-        }
-        if (failedToDeleteDeviceIds.length) {
-          console.log(
-            `Failed to delete Tailscale devices:\n${serverHetznerDevices
-              .filter((device) => failedToDeleteDeviceIds.includes(device.nodeId))
-              .map((device) => device.name)
-              .join('\n')}`
-          );
-        }
+        devices: serverHetznerDevices
       });
     }
   }
@@ -177,7 +153,7 @@ export function createServers(
             S3_ACCESS_KEY,
             S3_SECRET_KEY
           };
-          return renderCloudInit(cloudInitConfig, environments);
+          return renderCloudInit({ config: cloudInitConfig, environment: environments });
         }
       );
 

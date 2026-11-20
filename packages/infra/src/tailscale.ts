@@ -28,33 +28,39 @@ async function tailscaleApiToken({
 export function deleteTailscaleDevices({
   clientId,
   clientSecret,
-  deviceIds
+  devices
 }: {
   clientId: pulumi.Input<string>;
   clientSecret: pulumi.Input<string>;
-  deviceIds: string[];
+  devices: { nodeId: string; name: string }[];
 }) {
   return pulumi.all([clientId, clientSecret]).apply(async ([clientId, clientSecret]) => {
     const accessToken = await tailscaleApiToken({ clientId, clientSecret });
-    return await Promise.all(
-      deviceIds.map(async (deviceId) => {
+    const deleted = await Promise.all(
+      devices.map(async (device) => {
         try {
-          const response = await fetch(`https://api.tailscale.com/api/v2/device/${deviceId}`, {
+          const response = await fetch(`https://api.tailscale.com/api/v2/device/${device.nodeId}`, {
             method: 'DELETE',
             headers: { Authorization: `Bearer ${accessToken}` }
           });
-          if (!response.ok) {
-            throw new Error(`${response.status} ${response.statusText}`);
-          }
-          return { deviceId, success: true };
-        } catch (error) {
-          return {
-            deviceId,
-            success: false,
-            error: error instanceof Error ? error.message : String(error)
-          };
+          return response.ok;
+        } catch {
+          return false;
         }
       })
     );
+
+    const deletedDevices = devices.filter((_, i) => deleted[i]);
+    const failedDevices = devices.filter((_, i) => !deleted[i]);
+    if (deletedDevices.length) {
+      console.log(
+        `Deleted Tailscale devices:\n${deletedDevices.map((device) => device.name).join('\n')}`
+      );
+    }
+    if (failedDevices.length) {
+      console.log(
+        `Failed to delete Tailscale devices:\n${failedDevices.map((device) => device.name).join('\n')}`
+      );
+    }
   });
 }
