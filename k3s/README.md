@@ -39,7 +39,7 @@ Every credential in the cluster is an `ExternalSecret` that
 
 ```mermaid
 flowchart LR
-  human["/pulumi/{stack}/{Name}<br/>(human inputs)"] --> pulumi[Pulumi]
+  human["Pulumi.{stack}.yaml secrets<br/>(human inputs)"] --> pulumi[Pulumi]
   generated["Tailscale OAuth client,<br/>origin certificate"] --> pulumi
   pulumi -->|createClusterSecret| ssm["SSM /kubernetes/{prod or dev}/{Name}"]
   pulumi -->|"access key: bootstrap cloud-config,<br/>then deploy-infra.yaml in prod"| aws["Secret external-secrets/external-secrets-aws"]

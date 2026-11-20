@@ -36,6 +36,9 @@ if (publicLoadBalancers.length && !isProduction) {
   }
 }
 
+// NOTE: a new stage or key needs a new CSR here and its key set as secret HetznerOriginTlsKey:
+// openssl req -new -newkey rsa:2048 -nodes -keyout <key> \
+//   -out infra/vps/vps.origin.<stage>.csr -config infra/vps/vps.openssl.conf
 const certificateSigningRequest = readFileSync(
   join(import.meta.dirname, `vps/vps.origin.${STAGE_NAME}.csr`),
   'utf8'
