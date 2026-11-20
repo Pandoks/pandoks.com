@@ -191,7 +191,7 @@ ensure_github_variable() {
   if [ "${ensure_github_variable_current}" = "${ensure_github_variable_value}" ]; then
     log_ok "GitHub variable ${ensure_github_variable_name}"
   elif [ -n "${ensure_github_variable_current}" ]; then
-    die "GitHub variable ${ensure_github_variable_name} is ${ensure_github_variable_current}, not ${ensure_github_variable_value}; check AWS_PROFILE, or delete the variable to replace it"
+    die "GitHub variable ${ensure_github_variable_name} is ${ensure_github_variable_current}, not ${ensure_github_variable_value}; check your AWS profile, or delete the variable to replace it"
   else
     gh variable set "${ensure_github_variable_name}" --repo "${ensure_github_variable_repo}" --body "${ensure_github_variable_value}"
     log_added "GitHub variable ${ensure_github_variable_name}"
