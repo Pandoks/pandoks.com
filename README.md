@@ -87,10 +87,11 @@ See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI comman
 
 ## Development
 
-Everything outside Kubernetes is a [Pulumi](https://www.pulumi.com/docs/) program in `infra/`, with
-one stack per stage (`production`, `dev`, and personal stacks like `pandoks`). State lives in the R2
-bucket in `Pulumi.yaml`, and each `Pulumi.<stack>.yaml` names the KMS key that encrypts its state
-and holds its secrets, encrypted with that key:
+Everything outside Kubernetes is a [Pulumi](https://www.pulumi.com/docs/) program in `infra/`
+(generic helpers in `packages/infra/`), with one stack per stage (`production`, `dev`, and personal
+stacks like `pandoks`). State lives in the R2 bucket in `Pulumi.yaml`, and each
+`Pulumi.<stack>.yaml` names the KMS key that encrypts its state and holds its secrets, encrypted
+with that key:
 
 ```sh
 pulumi preview --stack your-stack

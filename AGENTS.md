@@ -68,11 +68,11 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
   deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `pulumi up --refresh --stack production` for
   `Pulumi.yaml`, `Pulumi.production.yaml`, the root `package.json` and `pnpm-lock.yaml`, `infra/`,
-  `apps/` (except `example`), and `packages/svelte/`, plus an Argo hard refresh and a wait for
-  Synced and Healthy only for `k3s/`, `apps/*/kube/`, and `scripts/cluster/` changes. Pages builds
-  `apps/web` when a change matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything
-  `k3s/overlays/prod` renders but never prunes: a deleted resource stays in prod until pruned by
-  hand.
+  `packages/infra/`, `apps/` (except `example`), and `packages/svelte/`, plus an Argo hard refresh
+  and a wait for Synced and Healthy only for `k3s/`, `apps/*/kube/`, and `scripts/cluster/` changes.
+  Pages builds `apps/web` when a change matches `pathIncludes` in `infra/website.ts`. Argo
+  auto-syncs everything `k3s/overlays/prod` renders but never prunes: a deleted resource stays in
+  prod until pruned by hand.
 - Every non-production stack gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
   environment, so two non-production stacks collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
@@ -119,8 +119,8 @@ checkout.
     suite if it has one.
   - `scripts/`: run the real CLI for each result and failure path you touched, argument errors
     included.
-  - `infra/` or `Pulumi.yaml`: full `pnpm check` plus scoped lint after the last edit and before
-    every commit or push; narrower checks don't replace it.
+  - `infra/`, `packages/infra/`, or `Pulumi.yaml`: full `pnpm check` plus scoped lint after the last
+    edit and before every commit or push; narrower checks don't replace it.
   - `apps/web`: `CI=1 pnpm --filter web test:e2e` (skips portless) for user-visible changes.
   - `templates/mobile`: `pnpm ios` and `pnpm android` from the app, then `pnpm test:e2e`.
   - Workflows: the PR's CI once a PR exists.
@@ -169,7 +169,9 @@ Before calling infra, cluster, or tooling work done, check:
 - **TypeScript/Pulumi:** one `infra/` file per provider or responsibility, a directory once it
   outgrows one. Stack differences are `SCREAMING_SNAKE` constants from `isProduction ? a : b` at the
   top, plus `if (isProduction)` around production-only resources. Helpers are verb-named `function`
-  declarations with destructured parameters. `Promise.all` instead of awaiting in loops.
+  declarations with destructured parameters; ones reusable outside this program (no knowledge of its
+  resources, SSM layout, state machine, or files) go in `packages/infra`, imported as
+  `@pandoks.com/infra/<file>`. `Promise.all` instead of awaiting in loops.
 - **Go:** justify every `#nosec` or `//nolint` inline.
 - **Containers and manifests:** pin Dockerfile bases, third-party images, and chart defaults as
   `image:tag@sha256:…` in files a Renovate manager matches; no image lock files. Images in raw

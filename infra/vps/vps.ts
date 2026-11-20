@@ -3,10 +3,11 @@
 import * as pulumi from '@pulumi/pulumi';
 import * as hcloud from '@pulumi/hcloud';
 import * as tailscale from '@pulumi/tailscale';
+import { deleteTailscaleDevices } from '@pandoks.com/infra/tailscale';
 import { isProduction, STAGE_NAME } from '../dns.ts';
+import { secrets } from '../secrets.ts';
 import { createServers } from './servers.ts';
 import { createLoadBalancers } from './load-balancers.ts';
-import { deleteTailscaleDevices } from '../tailscale.ts';
 
 // NOTE: if you want to downsize the cluster, remember to manually drain remove the nodes with `kubectl drain` & `kubectl delete node`
 const CONTROL_PLANE_NODE_COUNT = isProduction ? 0 : 0;
@@ -139,32 +140,10 @@ if (CONTROL_PLANE_NODE_COUNT + WORKER_NODE_COUNT === 0 && !pulumi.runtime.isDryR
     (device) => device.tags.includes('tag:k8s') && device.tags.includes(`tag:${STAGE_NAME}`)
   );
   if (kubernetesDevices.length > 0) {
-    const deletedDevices = deleteTailscaleDevices(
-      ...kubernetesDevices.map((device) => device.nodeId)
-    );
-    deletedDevices.apply((deletedDevices) => {
-      const deletedDeviceIds = deletedDevices
-        .filter((device) => device.success)
-        .map((device) => device.deviceId);
-      const failedToDeleteDeviceIds = deletedDevices
-        .filter((device) => !device.success)
-        .map((device) => device.deviceId);
-      if (deletedDeviceIds.length) {
-        console.log(
-          `Deleted Tailscale devices:\n${kubernetesDevices
-            .filter((device) => deletedDeviceIds.includes(device.nodeId))
-            .map((device) => device.name)
-            .join('\n')}`
-        );
-      }
-      if (failedToDeleteDeviceIds.length) {
-        console.log(
-          `Failed to delete Tailscale devices:\n${kubernetesDevices
-            .filter((device) => failedToDeleteDeviceIds.includes(device.nodeId))
-            .map((device) => device.name)
-            .join('\n')}`
-        );
-      }
+    deleteTailscaleDevices({
+      clientId: secrets.tailscale.OauthClientId,
+      clientSecret: secrets.tailscale.OauthClientSecret,
+      devices: kubernetesDevices
     });
   }
 }

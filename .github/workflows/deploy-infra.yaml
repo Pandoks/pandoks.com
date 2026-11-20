@@ -10,6 +10,7 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'infra/**'
+      - 'packages/infra/**'
       - 'apps/**'
       - '!apps/example/**'
       - 'apps/*/kube/**'
@@ -50,6 +51,7 @@ jobs:
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'infra/**'
+              - 'packages/infra/**'
               - 'apps/!(example)/**'
               - 'packages/svelte/**'
             kubernetes:
