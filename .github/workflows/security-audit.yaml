@@ -10,6 +10,9 @@ permissions:
   security-events: write
   actions: read
 
+# NOTE: any job on main can write the Actions cache, so audits of what production pulls skip it
+cache-mode: none
+
 jobs:
   scan-kubernetes-config:
     uses: ./.github/workflows/security.yaml

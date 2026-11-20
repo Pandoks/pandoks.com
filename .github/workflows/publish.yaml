@@ -3,6 +3,9 @@ name: Publish
 permissions:
   contents: read
 
+# NOTE: any job on main can write the Actions cache, so what production pulls never comes from it
+cache-mode: none
+
 on:
   workflow_call:
     inputs:

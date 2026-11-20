@@ -28,6 +28,9 @@ permissions:
   id-token: write
   contents: read
 
+# NOTE: any job on main can write the Actions cache, so jobs with production secrets never read it
+cache-mode: none
+
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
