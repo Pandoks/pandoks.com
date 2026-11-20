@@ -4,6 +4,39 @@ metadata:
   name: tailscale
 
 ---
+# WARNING: make sure to match it with /infra/vps/cloud-config.yaml's secret creation
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: tailscale
+  namespace: kube-system
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: cluster-secrets
+  target:
+    template:
+      data:
+        tailscale-oauth: |
+          oauth:
+            clientId: "{{ .clientId }}"
+            clientSecret: "{{ .clientSecret }}"
+        operator-config: |
+          operatorConfig:
+            hostname: "dev-cluster"
+            defaultTags:
+              - tag:k8s-operator
+              - tag:k8s
+              - tag:dev
+  data:
+    - secretKey: clientId
+      remoteRef:
+        key: KubernetesTailscaleOauthClientId
+    - secretKey: clientSecret
+      remoteRef:
+        key: KubernetesTailscaleOauthClientSecret
+
+---
 # WARNING: make sure to match it with /infra/vps/cloud-config.yaml's tailscale bootstrap
 apiVersion: helm.cattle.io/v1
 kind: HelmChart

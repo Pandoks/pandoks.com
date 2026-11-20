@@ -1,87 +1,81 @@
 import * as pulumi from '@pulumi/pulumi';
 
-// NOTE: keyed by name, so `pnpm cluster deploy` and Argo substitute them as `${Name}`.
-export const outputs: Record<string, pulumi.Output<string>> = {};
-
 const config = new pulumi.Config();
-
-function requireSecret(name: string) {
-  const value = config.requireSecret(name);
-  outputs[name] = value;
-  return value;
-}
 
 export const secrets = {
   notion: {
-    ApiKey: requireSecret('NotionApiKey'),
-    WebhookVerificationToken: requireSecret('NotionWebhookVerificationToken')
+    ApiKey: config.requireSecret('NotionApiKey'),
+    WebhookVerificationToken: config.requireSecret('NotionWebhookVerificationToken')
   },
   cloudflare: {
-    ApiKey: requireSecret('CloudflareApiKey'),
-    BackupAccessKey: requireSecret('CloudflareBackupAccessKey'),
-    BackupSecretKey: requireSecret('CloudflareBackupSecretKey')
+    ApiKey: config.requireSecret('CloudflareApiKey'),
+    BackupAccessKey: config.requireSecret('CloudflareBackupAccessKey'),
+    BackupSecretKey: config.requireSecret('CloudflareBackupSecretKey')
   },
   github: {
-    PersonalAccessToken: requireSecret('GithubPersonalAccessToken'),
-    PackageManagementToken: requireSecret('GithubPackageManagementToken')
+    PersonalAccessToken: config.requireSecret('GithubPersonalAccessToken'),
+    PackageManagementToken: config.requireSecret('GithubPackageManagementToken')
   },
   personal: {
-    KwokPhoneNumber: requireSecret('KwokPhoneNumber'),
-    MichellePhoneNumber: requireSecret('MichellePhoneNumber')
+    KwokPhoneNumber: config.requireSecret('KwokPhoneNumber'),
+    MichellePhoneNumber: config.requireSecret('MichellePhoneNumber')
   },
   twilio: {
-    PhoneNumber: requireSecret('TwilioPhoneNumber'),
-    AccountSid: requireSecret('TwilioAccountSid'),
-    AuthToken: requireSecret('TwilioAuthToken'),
-    NotionMessagingServiceSid: requireSecret('TwilioNotionMessagingServiceSid')
+    PhoneNumber: config.requireSecret('TwilioPhoneNumber'),
+    AccountSid: config.requireSecret('TwilioAccountSid'),
+    AuthToken: config.requireSecret('TwilioAuthToken'),
+    NotionMessagingServiceSid: config.requireSecret('TwilioNotionMessagingServiceSid')
   },
   oxylabs: {
     residential: {
-      Username: requireSecret('OxylabsResidentialUsername'),
-      Password: requireSecret('OxylabsResidentialPassword')
+      Username: config.requireSecret('OxylabsResidentialUsername'),
+      Password: config.requireSecret('OxylabsResidentialPassword')
     },
     webUnblocker: {
-      Username: requireSecret('OxylabsWebUnblockerUsername'),
-      Password: requireSecret('OxylabsWebUnblockerPassword')
+      Username: config.requireSecret('OxylabsWebUnblockerUsername'),
+      Password: config.requireSecret('OxylabsWebUnblockerPassword')
     }
   },
   hetzner: {
-    ApiKey: requireSecret('HetznerApiKey'),
-    K3sToken: requireSecret('HetznerK3sToken')
+    ApiKey: config.requireSecret('HetznerApiKey'),
+    K3sToken: config.requireSecret('HetznerK3sToken')
   },
   ovh: {
-    ApplicationSecret: requireSecret('OvhApplicationSecret'),
-    ConsumerKey: requireSecret('OvhConsumerKey')
+    ApplicationSecret: config.requireSecret('OvhApplicationSecret'),
+    ConsumerKey: config.requireSecret('OvhConsumerKey')
   },
   tailscale: {
-    OauthClientId: requireSecret('TailscaleOauthClientId'),
-    OauthClientSecret: requireSecret('TailscaleOauthClientSecret')
+    OauthClientId: config.requireSecret('TailscaleOauthClientId'),
+    OauthClientSecret: config.requireSecret('TailscaleOauthClientSecret')
   },
   k8s: {
     grafana: {
-      AdminPassword: requireSecret('KubernetesGrafanaAdminPassword')
+      AdminPassword: config.requireSecret('KubernetesGrafanaAdminPassword')
     },
     // NOTE: the key behind the CSR in infra/vps, generated once with vps.openssl.conf.
-    HetznerOriginTlsKey: requireSecret('HetznerOriginTlsKey'),
+    HetznerOriginTlsKey: config.requireSecret('HetznerOriginTlsKey'),
     main: {
       // namespace
       // NOTE: names are <namespace><db-name><resource><var>, like MainMainPostgresSuperuserPassword
       mainPostgres: {
-        SuperuserPassword: requireSecret('MainMainPostgresSuperuserPassword'),
-        AdminPassword: requireSecret('MainMainPostgresAdminPassword'),
-        ClientPassword: requireSecret('MainMainPostgresClientPassword'),
-        ReplicationPassword: requireSecret('MainMainPostgresReplicationPassword'),
-        PatroniPassword: requireSecret('MainMainPostgresPatroniPassword'),
-        PgdogAdminPassword: requireSecret('MainMainPostgresPgdogAdminPassword')
+        SuperuserPassword: config.requireSecret('MainMainPostgresSuperuserPassword'),
+        AdminPassword: config.requireSecret('MainMainPostgresAdminPassword'),
+        ClientPassword: config.requireSecret('MainMainPostgresClientPassword'),
+        ReplicationPassword: config.requireSecret('MainMainPostgresReplicationPassword'),
+        PatroniPassword: config.requireSecret('MainMainPostgresPatroniPassword'),
+        PgdogAdminPassword: config.requireSecret('MainMainPostgresPgdogAdminPassword')
       },
       mainValkey: {
-        AdminPassword: requireSecret('MainMainValkeyAdminPassword'),
-        ClientPassword: requireSecret('MainMainValkeyClientPassword')
+        AdminPassword: config.requireSecret('MainMainValkeyAdminPassword'),
+        ClientPassword: config.requireSecret('MainMainValkeyClientPassword')
       },
       mainClickhouse: {
-        AdminPassword: requireSecret('MainMainClickhouseAdminPassword'),
-        ClientPassword: requireSecret('MainMainClickhouseClientPassword')
+        AdminPassword: config.requireSecret('MainMainClickhouseAdminPassword'),
+        ClientPassword: config.requireSecret('MainMainClickhouseClientPassword')
       }
     }
   }
 };
+
+// NOTE: sync-notion.yaml reads it from production's stack outputs.
+export const outputs = { NotionApiKey: secrets.notion.ApiKey };

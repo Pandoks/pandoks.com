@@ -1,4 +1,4 @@
-# patches argocd to include a sidecar container plugin to render kustomize with pulumi outputs
+# patches argocd to include a sidecar container plugin to render kustomize with image variables
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -17,22 +17,6 @@ spec:
           command: [/var/run/argocd/argocd-cmp-server]
           securityContext:
             readOnlyRootFilesystem: true
-          env:
-            - name: AWS_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: pulumi-credentials
-                  key: AWS_ACCESS_KEY_ID
-            - name: AWS_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: pulumi-credentials
-                  key: AWS_SECRET_ACCESS_KEY
-            - name: AWS_REGION
-              valueFrom:
-                secretKeyRef:
-                  name: pulumi-credentials
-                  key: AWS_REGION
           volumeMounts:
             - name: var-files
               mountPath: /var/run/argocd
@@ -90,27 +74,30 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 
 ---
-apiVersion: v1
-kind: Secret
+# NOTE: deploy-infra.yaml writes the External Secrets access key after every production `pulumi up`,
+# as tag:ci-production, which only main's AWS role can read the OAuth secret to join as.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
 metadata:
-  name: pulumi-credentials
-  namespace: argocd
-type: Opaque
-stringData:
-  AWS_ACCESS_KEY_ID: ${KubernetesArgocdAccessKeyId | quote}
-  AWS_SECRET_ACCESS_KEY: ${KubernetesArgocdSecretAccessKey | quote}
-  AWS_REGION: ${AwsRegion | quote}
+  name: external-secrets-aws-writer
+  namespace: external-secrets
+rules:
+  - apiGroups: ['']
+    resources: ['secrets']
+    resourceNames: ['external-secrets-aws']
+    verbs: ['patch']
 
 ---
-apiVersion: v1
-kind: Secret
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
 metadata:
-  name: ghcr-auth
-  namespace: argocd
-  labels:
-    argocd.argoproj.io/secret-type: repository
-type: Opaque
-stringData:
-  url: https://github.com/Pandoks/pandoks.com
-  username: Pandoks
-  password: ${GithubPersonalAccessToken | quote}
+  name: external-secrets-aws-writer
+  namespace: external-secrets
+subjects:
+  - kind: Group
+    name: external-secrets-aws-writer
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: external-secrets-aws-writer
+  apiGroup: rbac.authorization.k8s.io

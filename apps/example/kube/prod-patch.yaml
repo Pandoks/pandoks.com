@@ -1,0 +1,8 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: main-clickhouse-main-cluster
+  namespace: kube-system
+spec:
+  set:
+    backup.bucket: prod-backups

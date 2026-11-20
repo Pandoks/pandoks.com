@@ -6,7 +6,27 @@ metadata:
   namespace: monitoring
   annotations:
     tailscale.com/expose: 'true'
-    tailscale.com/hostname: ${StageName}-grafana
-    tailscale.com/tags: tag:k8s,tag:${StageName}
+    tailscale.com/hostname: dev-grafana
+    tailscale.com/tags: tag:k8s,tag:dev
 spec:
   type: ClusterIP
+
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: cluster-secrets
+  target:
+    template:
+      mergePolicy: Merge
+      data:
+        username: admin
+  data:
+    - secretKey: password
+      remoteRef:
+        key: KubernetesGrafanaAdminPassword

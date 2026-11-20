@@ -14,7 +14,7 @@ spec:
     name: main
     namespace: *namespace
     credentials.secret: clickhouse-main-creds
-    backup.bucket: ${BackupBucket}
+    backup.bucket: dev-backups
     backup.path: kubernetes/main/clickhouse
     clickhouse.image: ${ImageRegistry}/clickhouse:${ImageTag}
     keeper.image: ${ImageRegistry}/clickhouse-keeper:${ImageTag}

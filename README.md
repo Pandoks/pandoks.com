@@ -60,19 +60,19 @@ the cloud. _Because we're using k3d, which puts an entire Kubernetes cluster ins
 containers, not everything is one to one with the production cluster. ie. networking, registries,
 etc_
 
-To setup the local cluster, run this from the root of the monorepo. Replace `your-stack` with your
-personal Pulumi stack (for example, `pandoks`):
+To setup the local cluster, run this from the root of the monorepo. It needs no AWS login or Pulumi
+stack: its secrets are placeholders in `k3s/overlays/local/cluster-secrets.yaml`.
 
 ```sh
 # Quick setup (all-in-one)
-pulumi stack select your-stack && pnpm local:init
+pnpm local:init
 
 # Or step by step:
 pnpm cluster k3d deps up               # Start docker compose dependencies
 pnpm cluster k3d up                    # Create k3d cluster
 pnpm local:build && pnpm local:push    # Build and push images/charts to the local registry
-pnpm cluster deploy local --stack your-stack --bootstrap  # First-time: install helm charts + CRDs
-pnpm cluster deploy local --stack your-stack # Apply environment overlay
+pnpm cluster deploy local --bootstrap  # First-time: install helm charts + CRDs
+pnpm cluster deploy local              # Apply environment overlay
 ```
 
 To tear down the cluster:
@@ -101,11 +101,14 @@ pulumi config set --secret --raw --stack your-stack <Name> < <file>
 
 A new stack needs every secret in `infra/secrets.ts` and a `Pulumi.<stack>.yaml` from
 `pulumi stack init your-stack --no-select --secrets-provider 'awskms://alias/pulumi-nonproduction?region=us-west-1'`;
-`production` uses `alias/pulumi-production`, the only key Argo CD can decrypt. Only the shared
-`production` and `dev` files are committed, so their secrets change through a PR. A personal stack's
-file stays local; `pulumi config refresh --stack your-stack` restores it from its last deploy.
+`production` uses `alias/pulumi-production`. Only the shared `production` and `dev` files are
+committed, so their secrets change through a PR. A personal stack's file stays local;
+`pulumi config refresh --stack your-stack` restores it from its last deploy.
+
+The cluster's secrets are copied to `/kubernetes/<prod|dev>/<Name>`, and External Secrets Operator
+syncs them in ([k3s/README.md](./k3s/README.md#secrets)).
 
 ### Bootstrap
 
-`pnpm bootstrap` sets up the state bucket, KMS keys, R2 state tokens, this machine's profile and
-CI's AWS role. It's safe to rerun, and on a new machine it only logs in and adds the profile.
+`pnpm bootstrap` sets up the state bucket, KMS keys, R2 state token, this machine's profile and CI's
+AWS role. It's safe to rerun, and on a new machine it only logs in and adds the profile.

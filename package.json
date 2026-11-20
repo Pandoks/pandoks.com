@@ -29,7 +29,6 @@
     "@eslint/js": "10.0.1",
     "@pandoks.com/prettier": "workspace:*",
     "@types/node": "25.9.9",
-    "bcryptjs": "3.0.3",
     "esbuild": "0.28.2",
     "eslint": "10.14.0",
     "eslint-plugin-react-hooks": "7.1.1",

@@ -6,12 +6,6 @@ spec:
   version: v1.0
   discover:
     fileName: 'kustomization.yaml'
-  init:
-    command: [sh, -c]
-    args:
-      - |
-        cd "$(git rev-parse --show-toplevel)"
-        pnpm install --frozen-lockfile
   generate:
     command: [sh, -c]
     args:
