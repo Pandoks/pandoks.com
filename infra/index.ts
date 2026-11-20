@@ -1,4 +1,3 @@
-// NOTE: first, so its transforms give every later resource an explicit provider
 import './providers.ts';
 import { outputs as secretOutputs } from './secrets.ts';
 import { outputs as dnsOutputs } from './dns.ts';
