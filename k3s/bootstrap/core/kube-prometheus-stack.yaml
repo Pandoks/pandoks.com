@@ -23,7 +23,7 @@ metadata:
 spec:
   repo: https://prometheus-community.github.io/helm-charts
   chart: kube-prometheus-stack
-  version: 92.17.1
+  version: 92.18.0
   targetNamespace: monitoring
   createNamespace: true
   failurePolicy: abort
