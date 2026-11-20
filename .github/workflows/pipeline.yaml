@@ -14,6 +14,10 @@ on:
         description: 'Image · pgbackrest'
         type: boolean
         default: false
+      postgres-reconciler:
+        description: 'Image · postgres-reconciler'
+        type: boolean
+        default: false
       valkey:
         description: 'Image · valkey'
         type: boolean

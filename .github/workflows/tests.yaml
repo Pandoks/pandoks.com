@@ -135,6 +135,23 @@ jobs:
       - name: Run prettier package tests
         run: pnpm --filter @pandoks.com/prettier test
 
+  test-postgres-reconciler:
+    if: contains(fromJSON(inputs.jobs), 'postgres-reconciler')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: packages/postgres/reconciler/go.mod
+          cache-dependency-path: packages/postgres/reconciler/go.mod
+
+      - name: Run tests
+        run: pnpm --filter @pandoks.com/postgres test
+
   test-valkey-reconciler:
     if: contains(fromJSON(inputs.jobs), 'valkey-reconciler')
     runs-on: ubuntu-latest
