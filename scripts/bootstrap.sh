@@ -18,7 +18,7 @@ readonly KMS_NONPRODUCTION_ALIAS='pulumi-nonproduction'
 readonly SSM_READ_WRITE_NAME='/pulumi/r2-state-credentials'
 readonly SSM_READ_ONLY_NAME='/pulumi/r2-state-read-credentials'
 readonly GITHUB_OIDC_HOST='token.actions.githubusercontent.com'
-readonly CI_ROLE_NAME='PersonalGithubActions'
+readonly CI_ROLE_NAME='PandoksGithubActions'
 
 ensure_aws_login() {
   if aws sts get-caller-identity > /dev/null 2>&1; then

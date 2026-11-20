@@ -6,7 +6,7 @@ import { githubOrg, githubRepositoryName } from './github.ts';
 const NODE_VERSION = '24.22.2';
 
 if (isProduction) {
-  const personalStaticWebsite = new cloudflare.PagesProject('PersonalWebsite', {
+  const pandoksStaticWebsite = new cloudflare.PagesProject('PandoksWebsite', {
     accountId: cloudflareAccountId,
     name: 'pandoks',
     productionBranch: 'main',
@@ -45,17 +45,17 @@ if (isProduction) {
       }
     }
   });
-  new cloudflare.PagesDomain('PersonalWebsiteDomain', {
+  new cloudflare.PagesDomain('PandoksWebsiteDomain', {
     accountId: cloudflareAccountId,
-    projectName: personalStaticWebsite.name,
+    projectName: pandoksStaticWebsite.name,
     name: domain
   });
 
-  new cloudflare.DnsRecord('PersonalWebsiteDnsRecord', {
+  new cloudflare.DnsRecord('PandoksWebsiteDnsRecord', {
     zoneId: cloudflareZoneId,
     name: domain,
     type: 'CNAME',
-    content: pulumi.interpolate`${personalStaticWebsite.name}.pages.dev`,
+    content: pulumi.interpolate`${pandoksStaticWebsite.name}.pages.dev`,
     proxied: true,
     ttl: 1
   });
