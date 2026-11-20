@@ -102,7 +102,7 @@ pnpm local:build && pnpm local:push
 ./scripts/cluster/main.sh k3d deps destroy
 ```
 
-### Cloud Cluster (Hetzner via Tailscale)
+### Cloud Cluster (via Tailscale)
 
 ```sh
 # Switch to the prod cluster context in your tailnet
@@ -117,7 +117,8 @@ tailscale configure kubeconfig prod-cluster
 ```
 
 For dev, connect to `dev-cluster` and use `deploy dev --stage your-stage` in both steps, keeping
-`--bootstrap` on the first.
+`--bootstrap` on the first. `<stage>-cluster` is the first cluster in `CLUSTERS`
+(`infra/vps/vps.ts`).
 
 The first prod overlay deploy creates the `prod-cluster` ArgoCD Application, which then keeps prod
 in sync with `k3s/overlays/prod` on `main` (`deploy-infra.yaml` triggers a hard refresh when

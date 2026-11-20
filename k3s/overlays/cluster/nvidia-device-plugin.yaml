@@ -1,0 +1,12 @@
+# NOTE: its default affinity and tolerations match the label and taint GPU pools get in infra/vps
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: nvidia-device-plugin
+  namespace: kube-system
+spec:
+  repo: https://nvidia.github.io/k8s-device-plugin
+  chart: nvidia-device-plugin
+  version: 0.20.1
+  targetNamespace: nvidia-device-plugin
+  createNamespace: true

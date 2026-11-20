@@ -5,7 +5,8 @@ are not hosted in this cluster are hosted either in AWS or Cloudflare usually fo
 applications. For databases, it is better to use a managed database as it reduces the operational
 overhead.
 
-As it stands, the dev and prod clusters are hosted on Hetzner VPS's.
+`infra/vps` builds the dev and prod clusters on OVHcloud VMs and bare metal and Latitude.sh bare
+metal, across one or more locations each.
 
 ## Directory Structure
 
@@ -22,7 +23,7 @@ k3s/
     monitoring/              # HAProxy Grafana dashboards
   overlays/                  # deploy <env> (includes base + bootstrap/<env>)
     local/                   # k3d: MetalLB docker IPs, k3d etcd endpoints, apps/*/kube/dev-patch.yaml
-    cluster/                 # Shared by dev + prod: Tailscale operator, system upgrades, Hetzner etcd endpoints
+    cluster/                 # Shared by dev + prod: Tailscale operator, system upgrades, etcd endpoints, NVIDIA device plugin
     dev/                     # cluster + bootstrap/dev
     prod/                    # cluster + bootstrap/prod + ArgoCD credentials, SST plugin and Application
 ```
@@ -66,6 +67,83 @@ The dev and prod clusters are provisioned by SST (`infra/vps`) with cloud-config
 k3s + tailscale. The tailscale operator provides secure access to the cluster API without needing
 SSH tunnels.
 
+`CLUSTERS` at the top of `infra/vps/vps.ts` lists each stage's k3s clusters, one per region, since
+embedded etcd keeps a control plane in one location.
+
+- **Locations** are provider sites, an OVHcloud Public Cloud `region` or a Latitude `site`, each
+  with its own `10.N.0.0/16`. OVHcloud's account settings sit at the top of `infra/vps/ovh.ts`.
+- **Pools** pick a location, a role, a count, a server, and optional node labels and taints. A
+  server is `ovh.vm('d2-4')`, `ovh.metal(ovh.ADVANCE_1)`, or `latitude.metal('m4-metal-small')`
+  (Latitude has no VMs in `@sst-provider/latitudesh` 1.2.0). Bare metal's `privateInterface`
+  defaults to `eno2` on Latitude, so pass `{ privateInterface: 'bond0' }` for bonded plans, while
+  OVHcloud's `ADVANCE_*` ship with `''` and refuse to order until it's set. Read it from `ip link`
+  on a delivered server, for OVHcloud the hardware test's or one ordered by hand.
+  `{ gpu: 'nvidia' }` installs the NVIDIA driver and container toolkit before k3s and adds the
+  `nvidia.com/gpu.present=true` label and `nvidia.com/gpu=present:NoSchedule` taint that the device
+  plugin in `overlays/cluster` targets, so GPU pods request `nvidia.com/gpu` and tolerate the taint.
+- **Links** join a cluster's locations, `wireguard` (a tunnel between both locations' gateways) or
+  `interconnect` (a routed private circuit whose router sits at `10.N.1.2`; ordering it isn't
+  automated yet). Each location of a multi-location cluster needs a bare metal `gateway`, since
+  OVHcloud VM ports drop forwarded traffic. Every node routes `10.0.0.0/8` through its location's
+  gateway, so links can chain and change without touching nodes.
+
+The `database` pool joins with the `role=db` label and `role=db:NoSchedule` taint, so pin the
+database charts with `nodeSelector.role: db` and a matching toleration. Latitude reads its API token
+from `LATITUDESH_AUTH_TOKEN`.
+
+| Location address | Use                                                      |
+| ---------------- | -------------------------------------------------------- |
+| `10.N.0.x`       | Provider (OVHcloud DHCP)                                 |
+| `10.N.1.1`       | Gateway                                                  |
+| `10.N.1.2`       | Interconnect router                                      |
+| `10.N.1.10-19`   | Control plane (`overlays/cluster/prom-etcd-config.yaml`) |
+| `10.0.1.100-200` | MetalLB (`base/core/metallb.yaml`)                       |
+| `10.N.<hash>.x`  | A worker pool, from its name's hash, +1 for bare metal   |
+
+The MetalLB and etcd manifests pin `10.0.1.x`, so the first cluster's control plane must be in
+`10.0.0.0/16`.
+
+### Changing a Cluster
+
+Edit `CLUSTERS`; reverting an edit undoes it the same way. Invalid configs fail at evaluation, like
+two control-plane pools, overlapping CIDRs, an unlinked location, or `gpu` on a non-GPU machine.
+
+- **Pool:** raise `count` to add nodes. Lowering it removes the highest-index nodes, so drain and
+  delete them with `kubectl` first. Renaming a worker pool or switching it between VM and bare metal
+  or between providers creates new nodes before deleting the old ones, so add the new pool, then
+  drain and remove the old one; do the same to change an OVHcloud plan's `options`, which never
+  reach existing servers. Other server changes, or new labels, taints, or `gpu`, rebuild its nodes
+  under the same names, which k3s refuses until you `kubectl delete node` the old ones. OVHcloud VMs
+  keep their boot image, so after changing `VM_IMAGE`, lower and raise a pool's `count` to replace
+  them. Latitude servers keep their OS, so do the same after changing `OPERATING_SYSTEM`; gateways
+  take it at their next rebuild.
+- **Control plane:** to move or rename it, rename its cluster, or replace its bootstrap node (index
+  0), first deploy the cluster with zero nodes, which removes its proxy. For the first cluster, the
+  deploy removes it during evaluation, and a failed removal fails the deploy before it deletes any
+  nodes. For later clusters, deleting the bootstrap node removes it and a failure only warns, so
+  delete the device by hand, or the new proxy gets a suffixed hostname. Control-plane IPs come from
+  node indexes, so new nodes would otherwise take IPs the old ones still hold.
+- **Location:** add it with an unused `10.N.0.0/16`, a `gateway`, and a link, and give the existing
+  location a `gateway` too if it was alone. Existing nodes don't change.
+- **Link:** change `via`. Gateways whose routes change rebuild, and so does a gateway dialing one
+  whose public IP changes; traffic through them drops until they're back, while nodes keep running.
+- **Region:** add another cluster with its own name and CIDRs. `scripts/cluster`, ArgoCD, and
+  `deploy-infra.yaml` handle one cluster per stage until a follow-up.
+
+Production protects k3s nodes and ignores their user data, so deleting or rebuilding one fails there
+(after a renamed, VM↔bare metal, or OVHcloud↔Latitude pool's new nodes are created), and label,
+taint, or `gpu` changes reach only new nodes. Gateways hold no data and rebuild in every stage, but
+only when their links, locations, `gateway-config.yaml`, or OVHcloud's `SERVER_OS` change. Latitude,
+and OVHcloud on a plan or region change, rebuild a gateway by deleting and reordering it, which
+likely changes its public IP (rebuilding its dialing peer) and, if the plan is out of stock, cuts
+the location off.
+
+OVHcloud's provider waits 2 hours for a bare metal order, and once delivery takes longer, the next
+deploy records the server without installing it. Outside production, which ignores user data, run
+`pnpm sst state remove <Name>TailnetRegistrationAuthKey --stage <stage>` (like
+`UsWestWorkerServer0`) so the next deploy reinstalls it with a fresh Tailscale key, since keys
+expire after a day.
+
 ```sh
 # Connect via tailscale (cluster appears as <stage>-cluster in your tailnet)
 tailscale configure kubeconfig <stage>-cluster
@@ -107,8 +185,8 @@ with a remote k3s API forwarded to the default port 6443 (e.g. through SSH tunne
 You'll also see in `scripts/cluster/k3d.sh` that we forward port 30080 in _docker_ to port 8080 on
 the machine (`localhost`). This is because `k3d` runs k3s inside of docker and we need to expose the
 ports that we're exposing from `NodePort` to the host machine. This also mimics the behavior of
-production clusters because the cluster is inside a private networks and the only thing that is
-exposed is through a load balancer that points into the private network at the forwarded port.
+cloud clusters, whose nodes' firewall drops `NodePort`s on public interfaces, so public traffic
+needs a way in that OVHcloud and Latitude clusters don't have yet.
 
 ### Cloud Clusters
 
@@ -130,10 +208,9 @@ the VPS's.
 ### HAProxy Ingress Controller
 
 `bootstrap/core/haproxy-ingress.yaml` is a helm chart that installs the HAProxy ingress controller
-and also configures `NodePort` services to expose to the Hetzner load balancer. Ports `30000-32767`
-are reserved ports just for `nodePort` services. The cluster is entirely in a private network so we
-only expose services via the load balancer which is exposed to the public internet but is also
-connected to the private network.
+and also configures `NodePort` services for public traffic. Ports `30000-32767` are reserved ports
+just for `nodePort` services, and the nodes' firewall drops them on public interfaces, so public
+traffic needs a way in that OVHcloud and Latitude clusters don't have yet.
 
 Example `Ingress` resource:
 
@@ -191,7 +268,7 @@ patches in its etcd endpoints with a `HelmChartConfig` because they're environme
 ```
 k3s/bootstrap/core/kube-prometheus-stack.yaml  → monitoring namespace, Grafana secret, HelmChart
 k3s/overlays/local/prom-etcd-config.yaml       → HelmChartConfig with k3d control plane IPs (172.30.0.4-6)
-k3s/overlays/cluster/prom-etcd-config.yaml     → HelmChartConfig with Hetzner IPs (10.0.1.10+)
+k3s/overlays/cluster/prom-etcd-config.yaml     → HelmChartConfig with control plane IPs (10.0.1.10+)
 k3s/base/core/monitoring.yaml                  → Grafana service exposed via Tailscale (<stage>-grafana)
 k3s/base/monitoring/                           → HAProxy Grafana dashboards
 ```
@@ -201,7 +278,7 @@ k3s/base/monitoring/                           → HAProxy Grafana dashboards
 k3s embedded etcd requires `--etcd-expose-metrics` flag to expose metrics on port 2381:
 
 - **k3d**: Set via `--k3s-arg "--etcd-expose-metrics@server:*"` in `scripts/cluster/k3d.sh`
-- **Hetzner**: Set in `infra/vps/cloud-config.yaml`
+- **Cloud clusters**: Set in `infra/vps/cloud-config.yaml`
 
 The kube-prometheus-stack `kubeEtcd.endpoints` must list control plane IPs explicitly because k3s
 doesn't create pods with `component=etcd` labels (embedded etcd).

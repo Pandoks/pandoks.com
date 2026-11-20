@@ -84,7 +84,7 @@ pnpm local:destroy
 ```
 
 See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI commands,
-[k3s/README.md](./k3s/README.md) for cluster architecture details, and
+[k3s/README.md](./k3s/README.md) for cluster architecture and changing the cloud clusters, and
 [packages/e2e/README.md](./packages/e2e/README.md) for e2e suites.
 
 ## Development

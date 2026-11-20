@@ -39,12 +39,18 @@ export const secrets = {
     }
   },
   hetzner: {
-    ApiKey: new sst.Secret('HetznerApiKey'),
-    K3sToken: new sst.Secret('HetznerK3sToken')
+    ApiKey: new sst.Secret('HetznerApiKey')
+  },
+  k3s: {
+    // NOTE: the Hetzner-era name, so no stage's secret changes
+    Token: new sst.Secret('HetznerK3sToken')
   },
   ovh: {
     ApplicationSecret: new sst.Secret('OvhApplicationSecret'),
     ConsumerKey: new sst.Secret('OvhConsumerKey')
+  },
+  latitude: {
+    AuthToken: new sst.Secret('LatitudeAuthToken')
   },
   tailscale: {
     OauthClientId: new sst.Secret('TailscaleOauthClientId'),
