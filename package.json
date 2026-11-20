@@ -53,7 +53,7 @@
     "@pulumi/cloudflare": "6.15.0",
     "@pulumi/github": "6.15.1",
     "@pulumi/hcloud": "1.43.4",
-    "@pulumi/pulumi": "3.274.1",
+    "@pulumi/pulumi": "3.276.0",
     "@pulumi/tailscale": "0.29.4"
   }
 }

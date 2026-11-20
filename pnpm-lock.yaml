@@ -33,8 +33,8 @@ importers:
         specifier: 1.43.4
         version: 1.43.4(supports-color@7.2.0)(typescript@6.0.3)
       '@pulumi/pulumi':
-        specifier: 3.274.1
-        version: 3.274.1(supports-color@7.2.0)(typescript@6.0.3)
+        specifier: 3.276.0
+        version: 3.276.0(supports-color@7.2.0)(typescript@6.0.3)
       '@pulumi/tailscale':
         specifier: 0.29.4
         version: 0.29.4(supports-color@7.2.0)(typescript@6.0.3)
@@ -2516,8 +2516,8 @@ packages:
   '@pulumi/hcloud@1.43.4':
     resolution: {integrity: sha512-nZ3xUcjBe6tg65X3RNrxNRsgAy7gvz7ZV/cZhPKaG9Pbcv27rhPcucIOz7Lsxzj6n+jD+dK5pboKXWx2rQ3s1g==}
 
-  '@pulumi/pulumi@3.274.1':
-    resolution: {integrity: sha512-L9WHM4W7y9BmGwTZ0n5yUEVo7zhb6BXocNFPv3VtwEH3DZUzJ6N+VTiLvo1HbSMnZJJVS0jFL4zMmOm80Lbzeg==}
+  '@pulumi/pulumi@3.276.0':
+    resolution: {integrity: sha512-8ThwjehdLmmSpcoCtQG/9uxXx5duAsFm1OeMZOEzj9b/V3VdST6baKu51K4HnSTwqRHgH84NDhM2AwAKapTtXQ==}
     engines: {node: '>=22'}
     peerDependencies:
       ts-node: '>= 7.0.1 < 12'
@@ -10328,7 +10328,7 @@ snapshots:
 
   '@ovhcloud/pulumi-ovh@2.22.0(supports-color@7.2.0)(typescript@6.0.3)':
     dependencies:
-      '@pulumi/pulumi': 3.274.1(supports-color@7.2.0)(typescript@6.0.3)
+      '@pulumi/pulumi': 3.276.0(supports-color@7.2.0)(typescript@6.0.3)
     transitivePeerDependencies:
       - supports-color
       - ts-node
@@ -10439,7 +10439,7 @@ snapshots:
 
   '@pulumi/aws@7.20.0(supports-color@7.2.0)(typescript@6.0.3)':
     dependencies:
-      '@pulumi/pulumi': 3.274.1(supports-color@7.2.0)(typescript@6.0.3)
+      '@pulumi/pulumi': 3.276.0(supports-color@7.2.0)(typescript@6.0.3)
       mime: 2.6.0
     transitivePeerDependencies:
       - supports-color
@@ -10448,7 +10448,7 @@ snapshots:
 
   '@pulumi/cloudflare@6.15.0(supports-color@7.2.0)(typescript@6.0.3)':
     dependencies:
-      '@pulumi/pulumi': 3.274.1(supports-color@7.2.0)(typescript@6.0.3)
+      '@pulumi/pulumi': 3.276.0(supports-color@7.2.0)(typescript@6.0.3)
     transitivePeerDependencies:
       - supports-color
       - ts-node
@@ -10456,7 +10456,7 @@ snapshots:
 
   '@pulumi/github@6.15.1(supports-color@7.2.0)(typescript@6.0.3)':
     dependencies:
-      '@pulumi/pulumi': 3.274.1(supports-color@7.2.0)(typescript@6.0.3)
+      '@pulumi/pulumi': 3.276.0(supports-color@7.2.0)(typescript@6.0.3)
     transitivePeerDependencies:
       - supports-color
       - ts-node
@@ -10464,13 +10464,13 @@ snapshots:
 
   '@pulumi/hcloud@1.43.4(supports-color@7.2.0)(typescript@6.0.3)':
     dependencies:
-      '@pulumi/pulumi': 3.274.1(supports-color@7.2.0)(typescript@6.0.3)
+      '@pulumi/pulumi': 3.276.0(supports-color@7.2.0)(typescript@6.0.3)
     transitivePeerDependencies:
       - supports-color
       - ts-node
       - typescript
 
-  '@pulumi/pulumi@3.274.1(supports-color@7.2.0)(typescript@6.0.3)':
+  '@pulumi/pulumi@3.276.0(supports-color@7.2.0)(typescript@6.0.3)':
     dependencies:
       '@grpc/grpc-js': 1.14.7
       '@logdna/tail-file': 2.2.0
@@ -10503,7 +10503,7 @@ snapshots:
 
   '@pulumi/tailscale@0.29.4(supports-color@7.2.0)(typescript@6.0.3)':
     dependencies:
-      '@pulumi/pulumi': 3.274.1(supports-color@7.2.0)(typescript@6.0.3)
+      '@pulumi/pulumi': 3.276.0(supports-color@7.2.0)(typescript@6.0.3)
     transitivePeerDependencies:
       - supports-color
       - ts-node
