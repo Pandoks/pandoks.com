@@ -22,6 +22,7 @@ const providers: Record<string, pulumi.ProviderResource> = {
     oauthClientSecret: secrets.tailscale.OauthClientSecret
   })
 };
+
 pulumi.runtime.registerResourceTransform(({ type, props, opts }) => ({
   props,
   opts: { ...opts, provider: opts.provider ?? providers[type.split(':')[0]] }
