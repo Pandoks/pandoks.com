@@ -50,12 +50,12 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
    `pnpm cluster k3d up` does, so save `kubectl config current-context` first and switch back.
    Target k3d with `kubectl --context k3d-local-cluster` and
    `printf 'y\n' | mise exec -- pnpm cluster deploy local --stack <stack> --kubeconfig "$(mise exec -- k3d kubeconfig write local-cluster)"`.
-5. **Leaking secrets.** `--show-secrets` output, SSM `/pulumi/` values, and
-   `pnpm cluster deploy --dry-run` output are real credentials: never print, commit, or paste them,
-   and inspect manifests with `kustomize build`. New secrets go in `infra/secrets.ts`; one without a
-   value fails every preview and deploy of its stack, so set yours with
-   `aws ssm put-parameter --type SecureString --key-id alias/pulumi-nonproduction --name /pulumi/<stack>/<Name> --value file://<file>`
-   (never the default `aws/ssm` key, which runners can read) and ask me to set production's.
+5. **Leaking secrets.** `--show-secrets` output, `pulumi config get` of a secret, SSM `/pulumi/`
+   values, and `pnpm cluster deploy --dry-run` output are real credentials: never print, commit, or
+   paste them, and inspect manifests with `kustomize build`. New secrets go in `infra/secrets.ts`;
+   one without a value fails every preview and deploy of its stack, so set yours with
+   `pulumi config set --secret --raw --stack <stack> <Name> < <file>` and ask me to set
+   production's.
 
 ## How changes ship
 

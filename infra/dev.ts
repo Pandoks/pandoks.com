@@ -2,16 +2,8 @@ import * as ovh from '@ovhcloud/pulumi-ovh';
 import * as tailscale from '@pulumi/tailscale';
 import { isProduction } from './dns.ts';
 import { hubTailscaleServices, tailscaleAcl } from './tailscale.ts';
-import { secrets } from './secrets.ts';
 
 if (isProduction) {
-  const ovhProvider = new ovh.Provider('Ovh', {
-    endpoint: 'ovh-us',
-    applicationKey: 'edf9a4672d28e3c7',
-    applicationSecret: secrets.ovh.ApplicationSecret,
-    consumerKey: secrets.ovh.ConsumerKey
-  });
-
   new ovh.vps.Vps(
     'OvhDevVps',
     {
@@ -58,7 +50,6 @@ if (isProduction) {
       ]
     },
     {
-      provider: ovhProvider,
       protect: true,
       retainOnDelete: true,
       import: 'vps-54c42746.vps.ovh.us',

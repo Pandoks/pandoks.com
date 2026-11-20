@@ -1,21 +1,12 @@
 import * as pulumi from '@pulumi/pulumi';
-import * as aws from '@pulumi/aws';
-import * as cloudflare from '@pulumi/cloudflare';
-import * as github from '@pulumi/github';
-import * as hcloud from '@pulumi/hcloud';
-import * as tailscale from '@pulumi/tailscale';
 
 // NOTE: keyed by name, so `pnpm cluster deploy` and Argo substitute them as `${Name}`.
 export const outputs: Record<string, pulumi.Output<string>> = {};
 
+const config = new pulumi.Config();
+
 function requireSecret(name: string) {
-  // NOTE: invoke results aren't secret, so without this the values print and land in state as-is.
-  const value = pulumi.secret(
-    aws.ssm.getParameterOutput({
-      name: `/pulumi/${pulumi.getStack()}/${name}`,
-      withDecryption: true
-    }).value
-  );
+  const value = config.requireSecret(name);
   outputs[name] = value;
   return value;
 }
@@ -94,22 +85,3 @@ export const secrets = {
     }
   }
 };
-
-// NOTE: explicit providers so no ambient token is used; disabled defaults fail anything missed
-const providers: Record<string, pulumi.ProviderResource> = {
-  cloudflare: new cloudflare.Provider('Cloudflare', { apiToken: secrets.cloudflare.ApiKey }),
-  github: new github.Provider('Github', { token: secrets.github.PersonalAccessToken }),
-  hcloud: new hcloud.Provider('Hetzner', { token: secrets.hetzner.ApiKey }),
-  tailscale: new tailscale.Provider('Tailscale', {
-    oauthClientId: secrets.tailscale.OauthClientId,
-    oauthClientSecret: secrets.tailscale.OauthClientSecret
-  })
-};
-pulumi.runtime.registerResourceTransform(({ type, props, opts }) => ({
-  props,
-  opts: { ...opts, provider: opts.provider ?? providers[type.split(':')[0]] }
-}));
-pulumi.runtime.registerInvokeTransform(({ token, args, opts }) => ({
-  args,
-  opts: { ...opts, provider: opts.provider ?? providers[token.split(':')[0]] }
-}));
