@@ -1,0 +1,36 @@
+apiVersion: external-secrets.io/v1
+kind: ClusterSecretStore
+metadata:
+  name: cluster-secrets
+spec:
+  provider:
+    aws:
+      prefix: /kubernetes/prod/
+
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: tailscale
+  namespace: kube-system
+spec:
+  target:
+    template:
+      data:
+        operator-config: |
+          operatorConfig:
+            hostname: "prod-cluster"
+            defaultTags:
+              - tag:k8s-operator
+              - tag:k8s
+              - tag:prod
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-prometheus-stack-grafana
+  namespace: monitoring
+  annotations:
+    tailscale.com/hostname: prod-grafana
+    tailscale.com/tags: tag:k8s,tag:prod

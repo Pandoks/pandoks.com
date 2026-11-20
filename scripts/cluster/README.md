@@ -41,7 +41,7 @@ detailed options. Package scripts in `package.json` are wired directly to
 `deploy` applies environment-specific kustomize paths to the cluster:
 
 ```sh
-./scripts/cluster/main.sh deploy <local|dev|prod> [--bootstrap] [--stack <STACK>] [--dry-run] [--kubeconfig <PATH>] [--quiet]
+./scripts/cluster/main.sh deploy <local|dev|prod> [--bootstrap] [--dry-run] [--kubeconfig <PATH>] [--quiet]
 ```
 
 Without `--bootstrap`, deploys the **overlay** at `k3s/overlays/<env>`. With `--bootstrap`, deploys
@@ -49,41 +49,37 @@ the **bootstrap layer** at `k3s/bootstrap/<env>` instead (helm charts, CRDs, bas
 two are separate kustomize paths — to deploy a fresh cluster end-to-end, run
 `deploy <env> --bootstrap` first, then `deploy <env>` again without the flag.
 
-| Environment | Description                                                                                                          |
-| ----------- | -------------------------------------------------------------------------------------------------------------------- |
-| `local`     | Local k3d cluster. ImageRegistry: `local-registry:5000`, ImageTag: `latest`.                                         |
-| `dev`       | Dev cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: branch name (or `latest` on main/master).             |
-| `prod`      | Production cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: `latest`. Pulumi stack forced to `production`. |
+| Environment | Description                                                                                              |
+| ----------- | -------------------------------------------------------------------------------------------------------- |
+| `local`     | Local k3d cluster. ImageRegistry: `local-registry:5000`, ImageTag: `latest`.                             |
+| `dev`       | Dev cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: branch name (or `latest` on main/master). |
+| `prod`      | Production cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: `latest`.                          |
 
-| Option         | Description                                                                                           |
-| -------------- | ----------------------------------------------------------------------------------------------------- |
-| `--bootstrap`  | Apply `k3s/bootstrap/<env>` (helm charts + CRD providers) and wait for CRDs.                          |
-| `--stack`      | Pulumi stack to read outputs from (default: the selected stack; forced to `production` for prod env). |
-| `--dry-run`    | Render templates without applying.                                                                    |
-| `--kubeconfig` | Kubeconfig file for kubectl operations.                                                               |
-| `--quiet`/`-q` | Suppress status messages; with `--dry-run`, output only YAML.                                         |
+| Option         | Description                                                                  |
+| -------------- | ---------------------------------------------------------------------------- |
+| `--bootstrap`  | Apply `k3s/bootstrap/<env>` (helm charts + CRD providers) and wait for CRDs. |
+| `--dry-run`    | Render templates without applying.                                           |
+| `--kubeconfig` | Kubeconfig file for kubectl operations.                                      |
+| `--quiet`/`-q` | Suppress status messages; with `--dry-run`, output only YAML.                |
 
 You will be prompted to confirm the destination kubectl context before anything is applied (unless
 using `--dry-run`).
 
 ### Template Variables
 
-The `deploy` command renders templates with these substitutions before applying:
+The `deploy` command renders templates with these substitutions before applying; it reads no Pulumi
+stack or AWS, since External Secrets Operator syncs every secret
+([k3s/README.md](../../k3s/README.md#secrets)):
 
-| Variable                | Description                                  |
-| ----------------------- | -------------------------------------------- |
-| `${ImageRegistry}`      | Container registry (local-registry or GHCR). |
-| `${ImageTag}`           | Image tag (latest or branch name).           |
-| `${IsLocal}`            | `'true'` or `'false'` for conditional logic. |
-| `${<Output>}`           | Any Pulumi stack output by name.             |
-| `${<Secret> \| base64}` | Base64 encode a secret value.                |
+| Variable           | Description                                  |
+| ------------------ | -------------------------------------------- |
+| `${ImageRegistry}` | Container registry (local-registry or GHCR). |
+| `${ImageTag}`      | Image tag (latest or branch name).           |
+| `${IsLocal}`       | `'true'` or `'false'` for conditional logic. |
 
 ## Examples
 
 ### Local k3d Cluster
-
-Replace `your-stack` with your personal Pulumi stack (for example, `pandoks`); `local` and `dev`
-select the deployment environment, not the Pulumi stack.
 
 ```sh
 # Start dependencies and create the k3d cluster
@@ -94,8 +90,8 @@ select the deployment environment, not the Pulumi stack.
 pnpm local:build && pnpm local:push
 
 # Deploy in two steps: bootstrap (helm charts + CRDs), then overlay
-./scripts/cluster/main.sh deploy local --stack your-stack --bootstrap
-./scripts/cluster/main.sh deploy local --stack your-stack
+./scripts/cluster/main.sh deploy local --bootstrap
+./scripts/cluster/main.sh deploy local
 
 # Tear down everything, local S3 data included
 ./scripts/cluster/main.sh k3d down
@@ -116,8 +112,8 @@ tailscale configure kubeconfig prod-cluster
 ./scripts/cluster/main.sh deploy prod
 ```
 
-For dev, connect to `dev-cluster` and use `deploy dev --stack your-stack` in both steps, keeping
-`--bootstrap` on the first.
+For dev, connect to `dev-cluster` and use `deploy dev` in both steps, keeping `--bootstrap` on the
+first.
 
 The first prod overlay deploy creates the `prod-cluster` ArgoCD Application, which then keeps prod
 in sync with `k3s/overlays/prod` on `main` (`deploy-infra.yaml` triggers a hard refresh when

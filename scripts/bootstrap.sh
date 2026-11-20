@@ -16,7 +16,6 @@ readonly AWS_PROFILE_NAME='pandoks-pulumi-state'
 readonly KMS_PRODUCTION_ALIAS='pulumi-production'
 readonly KMS_NONPRODUCTION_ALIAS='pulumi-nonproduction'
 readonly SSM_READ_WRITE_NAME='/pulumi/r2-state-credentials'
-readonly SSM_READ_ONLY_NAME='/pulumi/r2-state-read-credentials'
 readonly GITHUB_OIDC_HOST='token.actions.githubusercontent.com'
 readonly CI_ROLE_NAME='PandoksGithubActions'
 
@@ -232,7 +231,6 @@ main() {
   ensure_kms_alias "${KMS_NONPRODUCTION_ALIAS}" "${main_region}" "Pulumi secrets for non-production stacks"
 
   ensure_r2_token_parameter "${SSM_READ_WRITE_NAME}" "Object Read & Write" "${main_region}" "${main_cloudflare_account_id}" "${main_bucket}"
-  ensure_r2_token_parameter "${SSM_READ_ONLY_NAME}" "Object Read only" "${main_region}" "${main_cloudflare_account_id}" "${main_bucket}"
 
   ensure_aws_profile "${main_region}"
 

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import * as cloudflare from '@pulumi/cloudflare';
 import { EXAMPLE_DOMAIN, STAGE_NAME, cloudflareZoneId, isProduction } from './dns.ts';
 import { controlPlaneLoadBalancers, workerLoadBalancers } from './vps/vps.ts';
+import { createClusterSecret } from './kubernetes.ts';
 
 const cloudflareIpRequest = await fetch('https://api.cloudflare.com/client/v4/ips');
 export const cloudflareIps = (await cloudflareIpRequest.json()) as {
@@ -49,4 +50,4 @@ const hetznerOriginCert = new cloudflare.OriginCaCertificate(
   }
 );
 
-export const outputs = { HetznerOriginTlsCrt: hetznerOriginCert.certificate };
+createClusterSecret({ name: 'HetznerOriginTlsCrt', value: hetznerOriginCert.certificate });

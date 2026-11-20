@@ -170,8 +170,3 @@ export function deleteTailscaleDevices(...deviceIds: string[]) {
       );
     });
 }
-
-export const outputs = {
-  KubernetesTailscaleOauthClientId: kubernetesOperatorOauthClient.id,
-  KubernetesTailscaleOauthClientSecret: kubernetesOperatorOauthClient.key
-};

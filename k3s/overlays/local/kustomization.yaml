@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - ../../bootstrap/local
   - ../../base
+  - cluster-secrets.yaml
   - prom-etcd-config.yaml
 patches:
   - path: dev-patch.yaml

@@ -33,27 +33,27 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
    hard-refreshes prod), and no `kubectl` write to prod, Argo refreshes, syncs, and restarts
    included. If production needs a manual fix, even when I say ship now, propose the exact command,
    target, and effect, then wait.
-2. **Deploying a stack by accident.** Pass `--stack <stack>` to every `pulumi` and
-   `pnpm cluster deploy` command; mine is `pandoks`. For the site, run `pnpm exec portless doctor`
-   before `pnpm --filter web dev`, which can start a missing proxy with `sudo`; if doctor prints a
-   `warn` or `fail` line (it exits 0 on a stopped proxy), give me its fix instead of starting the
-   proxy or working around it with `PORTLESS=0`, `--force`, or `sudo`. If portless says the host is
-   already registered, use `pnpm exec portless get web` only if that process runs from this
-   checkout; otherwise tell me. `pulumi preview` changes nothing, but `pulumi up` with zero nodes
-   deletes Tailscale devices tagged for that stack's cluster; personal stacks share the `dev` names.
-   Run `pulumi up`, `refresh`, `destroy`, or `stack init` only when I ask. If AWS credentials are
-   missing or expired, ask me to run `pnpm sso`.
+2. **Deploying a stack by accident.** Pass `--stack <stack>` to every `pulumi` command; mine is
+   `pandoks`. For the site, run `pnpm exec portless doctor` before `pnpm --filter web dev`, which
+   can start a missing proxy with `sudo`; if doctor prints a `warn` or `fail` line (it exits 0 on a
+   stopped proxy), give me its fix instead of starting the proxy or working around it with
+   `PORTLESS=0`, `--force`, or `sudo`. If portless says the host is already registered, use
+   `pnpm exec portless get web` only if that process runs from this checkout; otherwise tell me.
+   `pulumi preview` changes nothing, but `pulumi up` with zero nodes deletes Tailscale devices
+   tagged for that stack's cluster; personal stacks share the `dev` names. Run `pulumi up`,
+   `refresh`, `destroy`, or `stack init` only when I ask. If AWS credentials are missing or expired,
+   ask me to run `pnpm sso`.
 3. **Editing my checkout from an experiment.** Use absolute paths in experiment copies;
    `mise exec -C <dir>` runs inside `<dir>`, so never point it at my checkout. Leave my staged and
    unstaged changes alone.
 4. **Applying to the wrong cluster.** Don't switch the default current context;
    `pnpm cluster k3d up` does, so save `kubectl config current-context` first and switch back.
    Target k3d with `kubectl --context k3d-local-cluster` and
-   `printf 'y\n' | mise exec -- pnpm cluster deploy local --stack <stack> --kubeconfig "$(mise exec -- k3d kubeconfig write local-cluster)"`.
-5. **Leaking secrets.** `--show-secrets` output, SSM `/pulumi/` values, and
-   `pnpm cluster deploy --dry-run` output are real credentials: never print, commit, or paste them,
-   and inspect manifests with `kustomize build`. New secrets go in `infra/secrets.ts`; one without a
-   value fails every preview and deploy of its stack, so set yours with
+   `printf 'y\n' | mise exec -- pnpm cluster deploy local --kubeconfig "$(mise exec -- k3d kubeconfig write local-cluster)"`.
+5. **Leaking secrets.** `--show-secrets` output, SSM `/pulumi/` and `/kubernetes/` values, and
+   cluster `Secret`s are real credentials: never print, commit, or paste them, and inspect manifests
+   with `kustomize build`. New secrets go in `infra/secrets.ts`; one without a value fails every
+   preview and deploy of its stack, so set yours with
    `aws ssm put-parameter --type SecureString --key-id alias/pulumi-nonproduction --name /pulumi/<stack>/<Name> --value file://<file>`
    (never the default `aws/ssm` key, which runners can read) and ask me to set production's.
 
@@ -87,7 +87,7 @@ system-wide. Agent shells usually don't activate mise, so `pnpm` is missing and 
 are unpinned globals; run repo commands, `kubectl` included, as `mise exec -- <cmd>` from inside the
 checkout.
 
-- `pnpm bootstrap` (mine to run) sets up Pulumi's state, KMS keys, R2 tokens, profile, and CI role.
+- `pnpm bootstrap` (mine to run) sets up Pulumi's state, KMS keys, R2 token, profile, and CI role.
 - `pnpm format <js|go|shell|all>` writes; `pnpm format check <...>` checks.
 - Manage agent skills only with the skills CLI, for Claude Code, Codex, and opencode:
   `pnpm dlx skills add <source> -s <skill> -a claude-code codex opencode`, and
@@ -114,9 +114,9 @@ checkout.
 - Prove changes through their real entry point:
   - Cluster behavior (`k3s/`, `apps/*/kube`, charts, cluster images): render, deploy to local k3d,
     and exercise it, including the failure paths you touched. k3d has no ArgoCD and skips
-    `k3s/overlays/cluster` (Tailscale operator, upgrade controller); for those, render the `dev` and
-    `prod` overlays and build the image instead of forcing them onto k3d. Run a changed chart's e2e
-    suite if it has one.
+    `k3s/overlays/cluster` (AWS secret store, Tailscale operator, upgrade controller); for those,
+    render the `dev` and `prod` overlays and build the image instead of forcing them onto k3d. Run a
+    changed chart's e2e suite if it has one.
   - `scripts/`: run the real CLI for each result and failure path you touched, argument errors
     included.
   - `infra/` or `Pulumi.yaml`: full `pnpm check` plus scoped lint after the last edit and before
@@ -229,7 +229,8 @@ that can't happen, or for compatibility code for old data or deploy order during
 - An attacker-controlled `${{ }}` value, like a branch name or PR title, in `run:` instead of
   `env:`.
 - A real secret value in code, manifests, values, logs, or workflow output. References like
-  `infra/secrets.ts` names, `${...}` placeholders, and `${{ secrets.* }}` are fine.
+  `infra/secrets.ts` names, ExternalSecret keys, `${...}` placeholders, `${{ secrets.* }}`, and the
+  local fake store's placeholders are fine.
 - A swallowed failure in CI checks, scans, builds, or deploys, such as `|| true`, ignored exit
   codes, Trivy `exit-code: '0'`, or `continue-on-error`. Safe path: let the step fail. Intended
   exception: a known upstream bug with a `TODO:` linking the issue. Lint suppressions like
@@ -238,9 +239,11 @@ that can't happen, or for compatibility code for old data or deploy order during
   skipped path-filtered job still passes its required check:
   - a new `infra/` module outside `infra/index.ts`'s import graph;
   - a new app `kube/` directory missing from `k3s/base/apps`;
-  - a new `${...}` manifest placeholder with no matching stack output or computed variable in
-    `scripts/cluster/deploy.sh`, which `pnpm cluster deploy` and Argo apply as literal text (fine
-    for shell variables in embedded scripts);
+  - a new `${...}` manifest placeholder with no computed variable in `scripts/cluster/deploy.sh`,
+    which `pnpm cluster deploy` and Argo apply as literal text (fine for shell variables in embedded
+    scripts);
+  - a new ExternalSecret `remoteRef.key` with no `createClusterSecret` in `infra/` or no entry in
+    the local fake store `k3s/overlays/local/cluster-secrets.yaml`, so it never syncs;
   - a new first-party image or chart missing from `changes.yaml`'s path filters or matrix, or from
     the `branch-cleanup.yaml` and `maintenance.yaml` matrices, or a new first-party image missing
     from the `security-audit.yaml` scan;

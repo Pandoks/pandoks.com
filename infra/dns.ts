@@ -16,5 +16,3 @@ export const awsAccountId = awsAccountIdentityJson.accountId;
 const cloudflareZone = await cloudflare.getZone({ filter: { name: 'pandoks.com' } });
 export const cloudflareAccountId = cloudflareZone.account.id;
 export const cloudflareZoneId = cloudflareZone.id;
-
-export const outputs = { StageName: STAGE_NAME };

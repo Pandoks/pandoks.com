@@ -5,19 +5,14 @@ import * as github from '@pulumi/github';
 import * as hcloud from '@pulumi/hcloud';
 import * as tailscale from '@pulumi/tailscale';
 
-// NOTE: keyed by name, so `pnpm cluster deploy` and Argo substitute them as `${Name}`.
-export const outputs: Record<string, pulumi.Output<string>> = {};
-
 function requireSecret(name: string) {
   // NOTE: invoke results aren't secret, so without this the values print and land in state as-is.
-  const value = pulumi.secret(
+  return pulumi.secret(
     aws.ssm.getParameterOutput({
       name: `/pulumi/${pulumi.getStack()}/${name}`,
       withDecryption: true
     }).value
   );
-  outputs[name] = value;
-  return value;
 }
 
 export const secrets = {
@@ -94,6 +89,9 @@ export const secrets = {
     }
   }
 };
+
+// NOTE: sync-notion.yaml reads it from production's stack outputs.
+export const outputs = { NotionApiKey: secrets.notion.ApiKey };
 
 // NOTE: explicit providers so no ambient token is used; disabled defaults fail anything missed
 const providers: Record<string, pulumi.ProviderResource> = {
