@@ -58,11 +58,8 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
         '[URL] Open this in AWS Console:',
         parameterUrl,
         '',
-        '[ACTION] Copy it into the stack secret:',
-        `aws ssm put-parameter --overwrite --type SecureString --key-id alias/pulumi-production --name /pulumi/production/NotionWebhookVerificationToken --value "$(aws ssm get-parameter --name ${parameterName} --with-decryption --query Parameter.Value --output text)"`,
-        '',
-        '[ACTION] Redeploy:',
-        'gh workflow run deploy-infra.yaml -f deploy=pulumi',
+        '[ACTION] Set the stack secret, then merge Pulumi.production.yaml to main through a PR:',
+        `aws ssm get-parameter --name ${parameterName} --with-decryption --query Parameter.Value --output text | pulumi config set --secret --stack production NotionWebhookVerificationToken`,
         '',
         '[REMINDER] Delete the temporary SSM parameter after the secret is set.'
       ].join('\n')

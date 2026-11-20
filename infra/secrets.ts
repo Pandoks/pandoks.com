@@ -1,17 +1,12 @@
 import * as pulumi from '@pulumi/pulumi';
-import * as aws from '@pulumi/aws';
 
 // NOTE: keyed by name, so `pnpm cluster deploy` and Argo substitute them as `${Name}`.
 export const outputs: Record<string, pulumi.Output<string>> = {};
 
+const config = new pulumi.Config();
+
 function requireSecret(name: string) {
-  // NOTE: invoke results aren't secret, so without this the values print and land in state as-is.
-  const value = pulumi.secret(
-    aws.ssm.getParameterOutput({
-      name: `/pulumi/${pulumi.getStack()}/${name}`,
-      withDecryption: true
-    }).value
-  );
+  const value = config.requireSecret(name);
   outputs[name] = value;
   return value;
 }
