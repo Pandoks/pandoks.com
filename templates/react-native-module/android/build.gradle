@@ -1,0 +1,10 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+version = '0.0.1'
+
+android {
+  namespace 'com.pandoks.moduletemplate'
+}
