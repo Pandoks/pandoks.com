@@ -34,5 +34,5 @@ python.uv_venv_auto = "source" # auto-activate uv-created .venvs (uv.lock projec
 [env]
 # uv resolves interpreters from PATH (mise's python) instead of downloading its own
 UV_PYTHON_PREFERENCE = "system"
-# the profile `pnpm sso` logs in to; mise.ci.toml unsets it
+# the profile `pnpm sso` logs in to; setup-mise declares it empty in CI
 AWS_PROFILE = "pandoks"

@@ -1,5 +1,5 @@
 name: Setup mise tools
-description: Install declared tools from mise.toml via jdx/mise-action, with the trusted-config-path, mise version pin and ci environment applied once.
+description: Install declared tools from mise.toml via jdx/mise-action, with the trusted-config-path and mise version pin applied once.
 
 inputs:
   tools:
@@ -9,12 +9,13 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Load mise.ci.toml
-      shell: bash
-      run: echo "MISE_ENV=ci" >> "${GITHUB_ENV}"
     - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
       env:
         MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
       with:
         version: 2026.10.25
         install_args: ${{ inputs.tools }}
+    # NOTE: an empty profile lets the AWS CLI and Pulumi use the OIDC keys in env instead
+    - name: Declare the AWS profile mise.toml selects
+      shell: bash
+      run: mkdir -p ~/.aws && printf '[profile %s]\n' "${AWS_PROFILE}" >> ~/.aws/config
