@@ -50,7 +50,7 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
 
     const parameterUrl = `https://console.aws.amazon.com/systems-manager/parameters/${encodeURIComponent(
       encodeURIComponent(parameterName)
-    )}/description?region=${process.env.AWS_REGION!}`;
+    )}/description?region=${process.env.AWS_REGION}`;
     console.log(
       [
         '=== NOTION WEBHOOK VERIFICATION TOKEN CAPTURED ===',
@@ -76,7 +76,7 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
   if (!signature) return new Response('Unauthorized', { status: 401 });
 
   const provided = signature.replace('sha256=', '');
-  const expected = createHmac('sha256', process.env.NOTION_WEBHOOK_VERIFICATION_TOKEN!)
+  const expected = createHmac('sha256', process.env.NOTION_WEBHOOK_VERIFICATION_TOKEN)
     .update(event.body)
     .digest('hex');
   const providedBuffer = Buffer.from(provided, 'hex');

@@ -14,13 +14,13 @@ export const handleNotionBlogSync = async (event: NotionWebhookEvent) => {
     return;
   }
 
-  const githubResponse = await fetch(process.env.GITHUB_NOTION_SYNC_URL!, {
+  const githubResponse = await fetch(process.env.GITHUB_NOTION_SYNC_URL, {
     method: 'POST',
     headers: {
       Accept: 'application/vnd.github.v3+json',
-      Authorization: `token ${process.env.GITHUB_PERSONAL_ACCESS_TOKEN!}`,
+      Authorization: `token ${process.env.GITHUB_PERSONAL_ACCESS_TOKEN}`,
       'Content-Type': 'application/json',
-      'User-Agent': process.env.DOMAIN!
+      'User-Agent': process.env.DOMAIN
     },
     body: JSON.stringify({ ref: 'main' })
   });

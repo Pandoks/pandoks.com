@@ -37,11 +37,11 @@ async function upsertSchedule(
         FlexibleTimeWindow: { Mode: 'OFF' },
         ScheduleExpression: `at(${scheduleTime})`,
         State: 'ENABLED',
-        GroupName: process.env.SCHEDULER_GROUP_NAME!,
+        GroupName: process.env.SCHEDULER_GROUP_NAME,
         ActionAfterCompletion: 'DELETE',
         Target: {
-          Arn: process.env.TEXT_FUNCTION_ARN!,
-          RoleArn: process.env.SCHEDULER_INVOKE_ROLE_ARN!,
+          Arn: process.env.TEXT_FUNCTION_ARN,
+          RoleArn: process.env.SCHEDULER_INVOKE_ROLE_ARN,
           Input: input
         }
       })
@@ -55,11 +55,11 @@ async function upsertSchedule(
           FlexibleTimeWindow: { Mode: 'OFF' },
           ScheduleExpression: `at(${scheduleTime})`,
           State: 'ENABLED',
-          GroupName: process.env.SCHEDULER_GROUP_NAME!,
+          GroupName: process.env.SCHEDULER_GROUP_NAME,
           ActionAfterCompletion: 'DELETE',
           Target: {
-            Arn: process.env.TEXT_FUNCTION_ARN!,
-            RoleArn: process.env.SCHEDULER_INVOKE_ROLE_ARN!,
+            Arn: process.env.TEXT_FUNCTION_ARN,
+            RoleArn: process.env.SCHEDULER_INVOKE_ROLE_ARN,
             Input: input
           }
         })
@@ -162,7 +162,7 @@ const deleteSchedule = async (name: string) => {
     await schedulerClient.send(
       new DeleteScheduleCommand({
         Name: name,
-        GroupName: process.env.SCHEDULER_GROUP_NAME!
+        GroupName: process.env.SCHEDULER_GROUP_NAME
       })
     );
     console.log(`Deleted Notion reminder schedule: ${name}`);

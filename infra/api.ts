@@ -6,6 +6,7 @@ import { buildSync } from 'esbuild';
 import { secrets } from './secrets.ts';
 import { cloudflareZoneId, domain, isProduction, STAGE_NAME } from './dns.ts';
 import { githubOrg, githubRepositoryName } from './github.ts';
+import type { NotionWebhookEnvironment, TextSmsEnvironment } from '../apps/functions/src/env.d.ts';
 
 const apiDomain = `api.${domain}`;
 const NOTION_BLOG_DATABASE_ID = '20f1bb259e4b804ba24be1ceebf4c761';
@@ -75,7 +76,7 @@ export const textFunction = createFunction({
     TWILIO_ACCOUNT_SID: secrets.twilio.AccountSid,
     TWILIO_AUTH_TOKEN: secrets.twilio.AuthToken,
     TWILIO_NOTION_MESSAGING_SERVICE_SID: secrets.twilio.NotionMessagingServiceSid
-  }
+  } satisfies Record<keyof TextSmsEnvironment, pulumi.Input<string>>
 });
 
 const scheduleInvokeTextRole = new aws.iam.Role('ScheduleInvokeTextRole', {
@@ -143,7 +144,7 @@ const notionWebhookFunction = createFunction({
     NOTION_BLOG_DATABASE_ID,
     KWOK_PHONE_NUMBER: secrets.personal.KwokPhoneNumber,
     MICHELLE_PHONE_NUMBER: secrets.personal.MichellePhoneNumber
-  }
+  } satisfies Record<keyof NotionWebhookEnvironment, pulumi.Input<string>>
 });
 
 const api = new aws.apigatewayv2.Api('Api', { name: `${STAGE_NAME}-api`, protocolType: 'HTTP' });
