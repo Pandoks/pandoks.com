@@ -1,0 +1,9 @@
+{
+  "specversion": "1.0",
+  "id": "binary-1",
+  "source": "//pandoks.com/queue/test",
+  "type": "com.pandoks.queue.binary",
+  "time": "2026-11-09T18:00:00.000Z",
+  "datacontenttype": "application/octet-stream",
+  "data_base64": "AAEC//4="
+}

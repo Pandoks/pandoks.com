@@ -1,0 +1,8 @@
+{
+  "specversion": "1.0",
+  "id": "lone-surrogate-extension-1",
+  "source": "//pandoks.com/queue/test",
+  "type": "com.pandoks.queue.test",
+  "time": "2026-11-09T18:00:00.000Z",
+  "note": "\\\ude00 low half alone"
+}

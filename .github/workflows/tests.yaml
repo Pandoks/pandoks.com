@@ -10,6 +10,11 @@ on:
         description: JSON list of the unit test jobs to run, like ["web","valkey-reconciler"].
         type: string
         required: true
+    secrets:
+      CLOUDFLARE_DEFAULT_ACCOUNT_ID:
+        required: false
+      CLOUDFLARE_API_TOKEN:
+        required: false
 
 jobs:
   test-web:
@@ -134,6 +139,113 @@ jobs:
 
       - name: Run prettier package tests
         run: pnpm --filter @pandoks.com/prettier test
+
+  test-queue-pkg:
+    if: contains(fromJSON(inputs.jobs), 'queue')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: packages/queue/go.mod
+          cache-dependency-path: packages/queue/go.sum
+
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: uv python
+
+      - name: Start Moto and Valkey
+        run: docker compose -f packages/queue/compose.yaml up -d --wait
+
+      - name: Run tests
+        run: pnpm --filter @pandoks.com/queue test
+
+  # NOTE: Cloudflare Queues has no emulator, so this job creates this run's queues and deletes them
+  test-queue-cloudflare:
+    if: contains(fromJSON(inputs.jobs), 'queue')
+    runs-on: ubuntu-latest
+    # NOTE: the Cloudflare token is only on the steps that call Cloudflare, not install or setup
+    env:
+      QUEUE_PREFIX: ci-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: packages/queue/go.mod
+          cache-dependency-path: packages/queue/go.sum
+
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: uv python jq
+
+      - name: Create this run's queues
+        id: queues
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          : "${CLOUDFLARE_API_TOKEN:?The CLOUDFLARE_API_TOKEN repository secret from infra/github.ts is not set}"
+          api() {
+            curl --fail-with-body -sS -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H 'Content-Type: application/json' \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/queues$1" "${@:2}"
+          }
+          for name in dlq queue subscription; do
+            id=$(api '' -d "{\"queue_name\":\"${QUEUE_PREFIX}-${name}\"}" | jq -er .result.queue_id)
+            echo "${name}=${id}" >> "${GITHUB_OUTPUT}"
+            consumer='{"type":"http_pull"}'
+            if [ "${name}" = queue ]; then
+              consumer="{\"type\":\"http_pull\",\"dead_letter_queue\":\"${QUEUE_PREFIX}-dlq\",\"settings\":{\"max_retries\":2}}"
+            fi
+            api "/${id}/consumers" -d "${consumer}" > /dev/null
+          done
+
+      - name: Run Cloudflare tests
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          QUEUE_TEST_CLOUDFLARE_QUEUE: ${{ steps.queues.outputs.queue }}
+          QUEUE_TEST_CLOUDFLARE_DLQ: ${{ steps.queues.outputs.dlq }}
+          QUEUE_TEST_CLOUDFLARE_SUBSCRIPTION: ${{ steps.queues.outputs.subscription }}
+        working-directory: packages/queue
+        run: |
+          failed=0
+          GOWORK=off go test -race -count=1 -run Cloudflare ./... || failed=1
+          uv run --project ./python --frozen --all-extras python -m unittest discover -s ./python/tests -k Cloudflare || failed=1
+          pnpm exec vitest run src/cloudflare.test.ts src/contract.test.ts -t cloudflare || failed=1
+          exit "${failed}"
+
+      - name: Delete this run's queues
+        if: always() && steps.queues.outputs.dlq != ''
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # NOTE: the dead-letter queue goes last, since Cloudflare won't delete it while a consumer names it
+          QUEUE_IDS: ${{ steps.queues.outputs.queue }} ${{ steps.queues.outputs.subscription }} ${{ steps.queues.outputs.dlq }}
+        run: |
+          api() {
+            local response
+            response=$(curl --fail-with-body -sS -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/queues$1" "${@:2}") ||
+              { echo "${*:2} queues$1 failed: ${response}" >&2; return 1; }
+            echo "${response}"
+          }
+          failed=0
+          for id in ${QUEUE_IDS}; do
+            consumers=$(api "/${id}/consumers") || failed=1
+            for consumer in $(echo "${consumers}" | jq -r '.result[].consumer_id'); do
+              api "/${id}/consumers/${consumer}" -X DELETE > /dev/null || failed=1
+            done
+            api "/${id}" -X DELETE > /dev/null || failed=1
+          done
+          exit "${failed}"
 
   test-valkey-reconciler:
     if: contains(fromJSON(inputs.jobs), 'valkey-reconciler')
