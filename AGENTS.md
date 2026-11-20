@@ -242,8 +242,9 @@ that can't happen, or for compatibility code for old data or deploy order during
   - a new `${...}` manifest placeholder with no computed variable in `scripts/cluster/deploy.sh`,
     which `pnpm cluster deploy` and Argo apply as literal text (fine for shell variables in embedded
     scripts);
-  - a new ExternalSecret `remoteRef.key` with no `createClusterSecret` in `infra/` or no entry in
-    the local fake store `k3s/overlays/local/cluster-secrets.yaml`, so it never syncs;
+  - a new ExternalSecret `remoteRef.key` with no `createClusterSecret` in `infra/`, or, if the
+    `local` overlay renders it, no entry in the local fake store
+    `k3s/overlays/local/cluster-secrets.yaml`, so it never syncs;
   - a new first-party image or chart missing from `changes.yaml`'s path filters or matrix, or from
     the `branch-cleanup.yaml` and `maintenance.yaml` matrices, or a new first-party image missing
     from the `security-audit.yaml` scan;

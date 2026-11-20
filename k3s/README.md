@@ -55,8 +55,9 @@ flowchart LR
   placeholders, so k3d needs no AWS login or Pulumi stack.
 
 To add one, write an `ExternalSecret` whose `remoteRef.key` is the name, publish it with
-`createClusterSecret` in `infra/kubernetes.ts`, and add a placeholder to the local store. A missing
-key leaves the `ExternalSecret` not Ready and keeps the last synced `Secret`.
+`createClusterSecret` in `infra/kubernetes.ts`, and add a placeholder to the local store if the
+`local` overlay renders it. A missing key leaves the `ExternalSecret` not Ready and keeps the last
+synced `Secret`.
 
 ExternalSecrets refresh hourly; to sync a changed value now:
 
@@ -69,13 +70,15 @@ too.
 
 ### Rotating the External Secrets access key
 
-The bootstrap node's cloud-config writes `external-secrets/external-secrets-aws` once, and prod
-servers ignore later user-data changes, so rotate the key by hand:
+Every server's user data carries the key, and the bootstrap node's cloud-config writes
+`external-secrets/external-secrets-aws` once. In other stacks, replacing the key
+(`pulumi up --stack <stack> --target-replace <urn>`, URN from
+`pulumi stack --stack <stack> --show-urns`) changes the user data, so the next `pulumi up` replaces
+every server and rebuilds the cluster, wiping its data, with the new key. Production ignores
+user-data changes, so rotate its key by hand:
 
-1. Replace `ExternalSecretsAccessKey`: for production, rename it in `infra/kubernetes.ts` and merge;
-   for other stacks, `pulumi up --stack <stack> --target-replace <urn>` with its URN from
-   `pulumi stack --stack <stack> --show-urns`. Until step 2, syncs fail and Secrets keep their last
-   values.
+1. Rename `ExternalSecretsAccessKey` in `infra/kubernetes.ts` and merge. Until step 2, syncs fail
+   and Secrets keep their last values.
 2. Write the new key into the cluster:
 
 ```sh
