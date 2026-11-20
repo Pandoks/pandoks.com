@@ -74,8 +74,10 @@ Rename `ExternalSecretsAccessKey` in `infra/kubernetes.ts` and merge; this rotat
 key. The bootstrap node's cloud-config writes `external-secrets/external-secrets-aws` on first boot:
 
 - **prod** ignores user-data changes, so after every `pulumi up`, `deploy-infra.yaml` writes the
-  stack's key into that Secret. Pulumi creates the new key before deleting the old one, so syncs can
-  fail only in the seconds between, and Secrets keep their last values.
+  stack's key into that Secret. It joins the tailnet as `tag:ci-production`, whose OAuth client is a
+  `production` environment secret, so only `main` can write it. Pulumi creates the new key before
+  deleting the old one, so syncs can fail only in the seconds between, and Secrets keep their last
+  values.
 - **other stacks**: the user data changes, so the next `pulumi up --stack <stack>` replaces every
   server and rebuilds the cluster, wiping its data, with the new key. To rotate just one, run
   `pulumi up --stack <stack> --target-replace <urn>` (URN from

@@ -74,7 +74,8 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 
 ---
-# NOTE: deploy-infra.yaml writes the External Secrets access key after every production `pulumi up`.
+# NOTE: deploy-infra.yaml writes the External Secrets access key after every production `pulumi up`,
+# as tag:ci-production, which only main's production environment can join as.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -90,11 +91,11 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: argocd-deployer-external-secrets-aws
+  name: external-secrets-aws-writer
   namespace: external-secrets
 subjects:
   - kind: Group
-    name: argocd-deployer
+    name: external-secrets-aws-writer
     apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: Role

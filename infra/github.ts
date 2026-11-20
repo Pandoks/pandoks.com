@@ -93,6 +93,29 @@ if (isProduction) {
     value: githubActionsOauthClient.key
   });
 
+  // NOTE: environment secrets reach only main, unlike the repository-wide tag:ci client.
+  const githubProductionOauthClient = new tailscale.OauthClient(
+    `${STAGE_NAME}TailscaleGithubProductionOauthClient`,
+    {
+      description: `${STAGE_NAME} github production ci`,
+      scopes: ['devices:core', 'auth_keys'],
+      tags: ['tag:ci-production']
+    },
+    { dependsOn: tailscaleAcl }
+  );
+  new github.ActionsEnvironmentSecret('GithubProductionTailscaleOauthClientId', {
+    repository: githubRepositoryName,
+    environment: githubEnvironment.environment,
+    secretName: 'TS_PRODUCTION_OAUTH_CLIENT_ID',
+    value: githubProductionOauthClient.id
+  });
+  new github.ActionsEnvironmentSecret('GithubProductionTailscaleOauthSecret', {
+    repository: githubRepositoryName,
+    environment: githubEnvironment.environment,
+    secretName: 'TS_PRODUCTION_OAUTH_SECRET',
+    value: githubProductionOauthClient.key
+  });
+
   // NOTE: Renovate handles the security-PRs, and reads dependabot alerts.
   new github.RepositoryDependabotSecurityUpdates('GithubDependabotSecurityUpdates', {
     repository: githubRepositoryName,
