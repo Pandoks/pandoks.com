@@ -15,7 +15,3 @@ runs:
       with:
         version: 2026.10.25
         install_args: ${{ inputs.tools }}
-    # NOTE: an empty profile lets the AWS CLI and Pulumi use the OIDC keys in env instead
-    - name: Declare the AWS profile mise.toml selects
-      shell: bash
-      run: mkdir -p ~/.aws && printf '[profile %s]\n' "${AWS_PROFILE}" >> ~/.aws/config
