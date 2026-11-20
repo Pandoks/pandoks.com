@@ -100,9 +100,10 @@ aws ssm put-parameter --overwrite --type SecureString --key-id alias/pulumi-nonp
   --name /pulumi/your-stack/<Name> --value file://<file>
 ```
 
-A new stack needs every secret in `infra/secrets.ts` and a committed `Pulumi.<stack>.yaml` from
+A new stack needs every secret in `infra/secrets.ts` and a `Pulumi.<stack>.yaml` from
 `pulumi stack init your-stack --no-select --secrets-provider 'awskms://alias/pulumi-nonproduction?region=us-west-1'`;
-`production` uses `alias/pulumi-production`, the only key Argo CD can decrypt.
+`production` uses `alias/pulumi-production`, the only key Argo CD can decrypt. Only the shared
+`production` and `dev` files are committed; Pulumi restores a personal stack's file from its state.
 
 ### Bootstrap
 

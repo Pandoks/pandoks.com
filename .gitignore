@@ -12,6 +12,11 @@ build
 Thumbs.db
 *.pem
 
+# Pulumi restores personal stacks' settings from state; shared ones are committed
+Pulumi.*.yaml
+!Pulumi.production.yaml
+!Pulumi.dev.yaml
+
 # Env
 .env
 .env.*
