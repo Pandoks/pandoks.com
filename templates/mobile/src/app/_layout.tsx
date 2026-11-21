@@ -18,7 +18,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (token && BACKEND_URL) {
-      void registerDevice({ backendUrl: BACKEND_URL, token });
+      void registerDevice({ backendUrl: BACKEND_URL, token }).catch(() => {});
     }
   }, [token]);
 

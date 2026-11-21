@@ -26,15 +26,21 @@ export function useNotificationPermission() {
   const [permission, setPermission] = useState<Notifications.NotificationPermissionsStatus>();
 
   useEffect(() => {
+    let active = true;
     function readPermission() {
-      void Notifications.getPermissionsAsync().then(setPermission);
+      void Notifications.getPermissionsAsync().then((nextPermission) => {
+        if (active) setPermission(nextPermission);
+      });
     }
 
     readPermission();
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') readPermission();
     });
-    return () => subscription.remove();
+    return () => {
+      active = false;
+      subscription.remove();
+    };
   }, []);
 
   async function requestPermission() {
@@ -66,16 +72,28 @@ export function useDevicePushToken() {
   const [devicePushToken, setDevicePushToken] = useState<{ token?: string; error?: Error }>({});
 
   useEffect(() => {
+    let active = true;
+    let receivedFromListener = false;
+    const subscription = Notifications.addPushTokenListener((pushToken) => {
+      receivedFromListener = true;
+      if (active) setDevicePushToken({ token: pushToken.data as string });
+    });
     channelCreated
       .then(() => Notifications.getDevicePushTokenAsync())
       .then(
-        (pushToken) => setDevicePushToken({ token: pushToken.data as string }),
-        (error: Error) => setDevicePushToken({ error })
+        (pushToken) => {
+          if (active && !receivedFromListener) {
+            setDevicePushToken({ token: pushToken.data as string });
+          }
+        },
+        (error: Error) => {
+          if (active && !receivedFromListener) setDevicePushToken({ error });
+        }
       );
-    const subscription = Notifications.addPushTokenListener((pushToken) =>
-      setDevicePushToken({ token: pushToken.data as string })
-    );
-    return () => subscription.remove();
+    return () => {
+      active = false;
+      subscription.remove();
+    };
   }, []);
 
   return devicePushToken;
@@ -93,22 +111,27 @@ async function getApnsEnvironment() {
 export async function registerDevice({
   backendUrl,
   token,
+  kind = 'device',
   headers
 }: {
   backendUrl: string;
   token: string;
+  kind?: 'device' | 'liveactivity';
   headers?: Record<string, string>;
 }) {
-  const response = await fetch(`${backendUrl}/devices/${token}`, {
-    method: 'PUT',
-    headers: { 'content-type': 'application/json', ...headers },
-    body: JSON.stringify({
-      platform: Platform.OS,
-      app: Application.applicationId,
-      kind: 'device',
-      apns_environment: Platform.OS === 'ios' ? await getApnsEnvironment() : undefined
-    })
-  });
+  const response = await fetch(
+    `${backendUrl.replace(/\/$/, '')}/devices/${encodeURIComponent(token)}`,
+    {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', ...headers },
+      body: JSON.stringify({
+        platform: Platform.OS,
+        app: Application.applicationId,
+        kind,
+        apns_environment: Platform.OS === 'ios' ? await getApnsEnvironment() : undefined
+      })
+    }
+  );
   if (!response.ok) throw new Error(`Registering the device failed with ${response.status}`);
 }
 
@@ -121,7 +144,10 @@ export async function unregisterDevice({
   token: string;
   headers?: Record<string, string>;
 }) {
-  const response = await fetch(`${backendUrl}/devices/${token}`, { method: 'DELETE', headers });
+  const response = await fetch(
+    `${backendUrl.replace(/\/$/, '')}/devices/${encodeURIComponent(token)}`,
+    { method: 'DELETE', headers }
+  );
   if (!response.ok) throw new Error(`Unregistering the device failed with ${response.status}`);
 }
 

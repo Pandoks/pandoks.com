@@ -6,14 +6,14 @@ tokens for [our push service](/apps/push) instead of Expo's.
 
 Importing it shows notifications in the foreground and creates the Android `default` channel.
 
-| Export                                                | Description                                                            |
-| ----------------------------------------------------- | ---------------------------------------------------------------------- |
-| `useNotificationPermission()`                         | `[permission, requestPermission]`                                      |
-| `useNotificationRouting()`                            | Opens a tapped notification's `url`; call in the root layout           |
-| `useDevicePushToken()`                                | `{ token, error }`, updated when the token changes                     |
-| `registerDevice({ backendUrl, token, headers })`      | `PUT /devices/{token}`, with the APNs environment of the running build |
-| `unregisterDevice({ backendUrl, token, headers })`    | `DELETE /devices/{token}`                                              |
-| `scheduleNotification({ title, body, url, trigger })` | `trigger` is `{ date }`, `{ seconds }`, or daily `{ hour, minute }`    |
+| Export                                                 | Description                                                                                                     |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `useNotificationPermission()`                          | `[permission, requestPermission]`                                                                               |
+| `useNotificationRouting()`                             | Opens a tapped notification's `url`; call in the root layout                                                    |
+| `useDevicePushToken()`                                 | `{ token, error }`, updated when the token changes                                                              |
+| `registerDevice({ backendUrl, token, kind, headers })` | `PUT /devices/{token}` (`kind`: `'device'` or `'liveactivity'`), with the APNs environment of the running build |
+| `unregisterDevice({ backendUrl, token, headers })`     | `DELETE /devices/{token}`                                                                                       |
+| `scheduleNotification({ title, body, url, trigger })`  | `trigger` is `{ date }`, `{ seconds }`, or daily `{ hour, minute }`                                             |
 
 `backendUrl` is the app's authenticated backend, not the push service; it adds the signed-in user's
 `user_id` and forwards the request. Register again whenever the token changes:
