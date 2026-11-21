@@ -155,11 +155,12 @@ ensure_r2_token_parameter() {
   if [ "${ensure_r2_token_parameter_count}" -gt 0 ]; then
     print_ok "SSM ${ensure_r2_token_parameter_name}"
   else
-    printf "%b│%b  Create an R2 API token (%s) for %s:\n" "${DIM}" "${NORMAL}" "${ensure_r2_token_parameter_permission}" "${ensure_r2_token_parameter_bucket}" >&2
-    printf "%b│%b  %bhttps://dash.cloudflare.com/%s/r2/api-tokens%b\n" "${DIM}" "${NORMAL}" "${CYAN}" "${ensure_r2_token_parameter_account_id}" "${NORMAL}" >&2
     printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
-    ensure_r2_token_parameter_access_key_id=$(prompt_secret "$(printf "%b│%b  Access Key ID: " "${DIM}" "${NORMAL}")")
-    ensure_r2_token_parameter_secret=$(prompt_secret "$(printf "%b│%b  Secret Access Key: " "${DIM}" "${NORMAL}")")
+    printf "%b│%b  %bCreate an R2 API token (%s) for %s%b\n" "${DIM}" "${NORMAL}" "${BOLD}" "${ensure_r2_token_parameter_permission}" "${ensure_r2_token_parameter_bucket}" "${NORMAL}" >&2
+    printf "%b│%b    %bhttps://dash.cloudflare.com/%s/r2/api-tokens%b\n" "${DIM}" "${NORMAL}" "${CYAN}" "${ensure_r2_token_parameter_account_id}" "${NORMAL}" >&2
+    ensure_r2_token_parameter_access_key_id=$(prompt_secret "$(printf "%b│%b    Access Key ID: " "${DIM}" "${NORMAL}")")
+    ensure_r2_token_parameter_secret=$(prompt_secret "$(printf "%b│%b    Secret Access Key: " "${DIM}" "${NORMAL}")")
+    printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
     if [ -z "${ensure_r2_token_parameter_access_key_id}" ] || [ -z "${ensure_r2_token_parameter_secret}" ]; then
       die "Access Key ID and Secret Access Key can't be empty"
     fi
