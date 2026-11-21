@@ -59,7 +59,7 @@ run_device_login() {
     printf '%s\n' "${run_device_login_line}" >> "${run_device_login_log_file}"
     run_device_login_trimmed=$(printf '%s' "${run_device_login_line}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     if [ "${run_device_login_expect_code}" -eq 1 ] && [ -n "${run_device_login_trimmed}" ]; then
-      printf "%b│%b    Code: %b%s%b\n" "${DIM}" "${NORMAL}" "${BOLD}${YELLOW}" "${run_device_login_trimmed}" "${NORMAL}" >&2
+      printf "%b│%b  Code: %b%s%b\n" "${DIM}" "${NORMAL}" "${BOLD}${YELLOW}" "${run_device_login_trimmed}" "${NORMAL}" >&2
       printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
       run_device_login_expect_code=0
       continue
@@ -68,7 +68,7 @@ run_device_login() {
       https://*)
         printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
         printf "%b│%b  %bAuthorize %s%b\n" "${DIM}" "${NORMAL}" "${BOLD}" "${run_device_login_label}" "${NORMAL}" >&2
-        printf "%b│%b    %b%s%b\n" "${DIM}" "${NORMAL}" "${CYAN}" "${run_device_login_trimmed}" "${NORMAL}" >&2
+        printf "%b│%b  %b%s%b\n" "${DIM}" "${NORMAL}" "${CYAN}" "${run_device_login_trimmed}" "${NORMAL}" >&2
         ;;
       *"enter the code:"*)
         run_device_login_expect_code=1
@@ -157,9 +157,9 @@ ensure_r2_token_parameter() {
   else
     printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
     printf "%b│%b  %bCreate an R2 API token (%s) for %s%b\n" "${DIM}" "${NORMAL}" "${BOLD}" "${ensure_r2_token_parameter_permission}" "${ensure_r2_token_parameter_bucket}" "${NORMAL}" >&2
-    printf "%b│%b    %bhttps://dash.cloudflare.com/%s/r2/api-tokens%b\n" "${DIM}" "${NORMAL}" "${CYAN}" "${ensure_r2_token_parameter_account_id}" "${NORMAL}" >&2
-    ensure_r2_token_parameter_access_key_id=$(prompt_secret "$(printf "%b│%b    Access Key ID: " "${DIM}" "${NORMAL}")")
-    ensure_r2_token_parameter_secret=$(prompt_secret "$(printf "%b│%b    Secret Access Key: " "${DIM}" "${NORMAL}")")
+    printf "%b│%b  %bhttps://dash.cloudflare.com/%s/r2/api-tokens%b\n" "${DIM}" "${NORMAL}" "${CYAN}" "${ensure_r2_token_parameter_account_id}" "${NORMAL}" >&2
+    ensure_r2_token_parameter_access_key_id=$(prompt_secret "$(printf "%b│%b  Access Key ID: " "${DIM}" "${NORMAL}")")
+    ensure_r2_token_parameter_secret=$(prompt_secret "$(printf "%b│%b  Secret Access Key: " "${DIM}" "${NORMAL}")")
     printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
     if [ -z "${ensure_r2_token_parameter_access_key_id}" ] || [ -z "${ensure_r2_token_parameter_secret}" ]; then
       die "Access Key ID and Secret Access Key can't be empty"
