@@ -17,7 +17,14 @@ prompt_secret() {
   done
   if [ -t 0 ]; then
     stty echo
-    printf '\n' >&2
+    if [ "${#prompt_secret_value}" -ge 8 ]; then
+      prompt_secret_tail=$(printf '%s' "${prompt_secret_value}" | sed 's/.*\(....\)$/\1/')
+      printf '%b••••%s%b\n' "${DIM:-}" "${prompt_secret_tail}" "${NORMAL:-}" >&2
+    elif [ -n "${prompt_secret_value}" ]; then
+      printf '%b••••%b\n' "${DIM:-}" "${NORMAL:-}" >&2
+    else
+      printf '\n' >&2
+    fi
   fi
   printf '%s\n' "${prompt_secret_value}"
 }
