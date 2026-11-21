@@ -12,14 +12,14 @@ prompt_secret() {
       let value = "";
       const render = () => {
         const trimmed = value.trim();
-        const mask = trimmed.length >= 8 ? `••••${trimmed.slice(-4)}` : "•".repeat(trimmed.length);
-        process.stderr.write(`\r${label}${dim}${mask}${reset}\x1b[K`);
+        const mask = trimmed.length >= 8 ? "••••" + trimmed.slice(-4) : "•".repeat(trimmed.length);
+        process.stderr.write("\r" + label + dim + mask + reset + "\x1b[K");
       };
       const done = (code) => {
         process.stdin.setRawMode(false);
         process.stdin.pause();
         process.stderr.write("\n");
-        if (code === 0) process.stdout.write(`${value.trim()}\n`);
+        if (code === 0) process.stdout.write(value.trim() + "\n");
         process.exit(code);
       };
       process.stdin.setRawMode(true);
