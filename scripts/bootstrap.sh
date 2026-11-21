@@ -59,15 +59,16 @@ run_device_login() {
     printf '%s\n' "${run_device_login_line}" >> "${run_device_login_log_file}"
     run_device_login_trimmed=$(printf '%s' "${run_device_login_line}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     if [ "${run_device_login_expect_code}" -eq 1 ] && [ -n "${run_device_login_trimmed}" ]; then
-      printf "%b│%b  Code: %b%s%b\n" "${DIM}" "${NORMAL}" "${BOLD}${YELLOW}" "${run_device_login_trimmed}" "${NORMAL}" >&2
+      printf "%b│%b    Code: %b%s%b\n" "${DIM}" "${NORMAL}" "${BOLD}${YELLOW}" "${run_device_login_trimmed}" "${NORMAL}" >&2
       printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
       run_device_login_expect_code=0
       continue
     fi
     case "${run_device_login_trimmed}" in
       https://*)
-        printf "%b│%b  Authorize %s:\n" "${DIM}" "${NORMAL}" "${run_device_login_label}" >&2
-        printf "%b│%b  %b%s%b\n" "${DIM}" "${NORMAL}" "${CYAN}" "${run_device_login_trimmed}" "${NORMAL}" >&2
+        printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
+        printf "%b│%b  %bAuthorize %s%b\n" "${DIM}" "${NORMAL}" "${BOLD}" "${run_device_login_label}" "${NORMAL}" >&2
+        printf "%b│%b    %b%s%b\n" "${DIM}" "${NORMAL}" "${CYAN}" "${run_device_login_trimmed}" "${NORMAL}" >&2
         ;;
       *"enter the code:"*)
         run_device_login_expect_code=1
