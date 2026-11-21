@@ -15,3 +15,32 @@ pnpm android    # build and run on an Android emulator
 pnpm test:unit
 pnpm test:e2e   # Maestro flows in e2e/, against the running app
 ```
+
+## Updates
+
+Release builds check `mobile-updates.pandoks.com/mobile-template` with `expo-updates` on launch and
+whenever the app returns to the foreground, then offer a restart once an update has downloaded;
+ignored, it applies on the next launch. The runtime version is the native
+[fingerprint](https://docs.expo.dev/versions/latest/sdk/fingerprint/), so an update only reaches
+builds with the same native code, and `certificate.crt` verifies the `MobileUpdatesSigningKey`
+signature.
+
+Merging a change to the app on `main`, other than its README, e2e flows, or unit tests, publishes it
+from `deploy-infra.yaml` ([apps/mobile-updates](../../apps/mobile-updates/README.md)). To roll back,
+revert the change on `main`: phones keep the newest update they have, and the revert publishes a
+newer one.
+
+To try an update on a dev stage, build against `mobile-updates-dev.pandoks.com` from
+`templates/mobile`:
+
+```sh
+export MOBILE_UPDATES_ENVIRONMENT=dev
+rm -rf ios && pnpm ios --configuration Release
+rm -rf android && pnpm android --variant release
+```
+
+Then change some JS and publish it from the repo root:
+
+```sh
+pnpm sst shell --stage <stage> -- pnpm mobile-updates publish templates/mobile
+```

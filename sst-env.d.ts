@@ -200,6 +200,20 @@ declare module "sst" {
       "type": "sst.sst.Secret"
       "value": string
     }
+    "MobileUpdates": {
+      "type": "sst.cloudflare.Worker"
+      "url": string
+    }
+    "MobileUpdatesAssetsDomain": {
+      "type": "sst.sst.Linkable"
+      "value": string
+    }
+    "MobileUpdatesBucket": import("@cloudflare/workers-types").R2Bucket
+    "MobileUpdatesManifests": import("@cloudflare/workers-types").KVNamespace
+    "MobileUpdatesSigningKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
   }
 }
 
