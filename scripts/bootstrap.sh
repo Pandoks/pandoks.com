@@ -116,7 +116,7 @@ ensure_github_login() {
   if gh auth status > /dev/null 2>&1; then
     print_ok "GitHub login"
   else
-    run_device_login "GitHub" env BROWSER=true gh auth login --hostname github.com --git-protocol https --web --skip-ssh-key
+    run_device_login "GitHub" env BROWSER=true gh auth login --hostname github.com --git-protocol https --web --skip-ssh-key --scopes workflow
     print_added "GitHub login"
   fi
 }
