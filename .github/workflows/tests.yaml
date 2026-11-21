@@ -84,7 +84,9 @@ jobs:
 
   test-mobile-template-ios:
     if: contains(fromJSON(inputs.jobs), 'mobile-template')
-    runs-on: macos-26
+    # NOTE: compiles with the Xcode 27.1+ the template README requires
+    # TODO: move to the GA macos image with Xcode 27, which Renovate can bump https://github.com/actions/runner-images/issues/14404
+    runs-on: xcode-27
     env:
       EXPO_NO_TELEMETRY: 1
     steps:

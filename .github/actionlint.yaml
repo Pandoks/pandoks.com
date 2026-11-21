@@ -1,0 +1,5 @@
+self-hosted-runner:
+  labels:
+    # TODO: remove once both mise's actionlint and reviewdog/action-actionlint's bundled one know GitHub's
+    # xcode-27 image https://github.com/rhysd/actionlint/issues/739
+    - xcode-27
