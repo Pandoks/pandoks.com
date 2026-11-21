@@ -7,10 +7,11 @@ import { Screen } from '@/components/screen';
 export default function HomeScreen() {
   const { width: windowWidth } = useWindowDimensions();
   // NOTE: an iPad sidebar narrows the pane beside it, not the window
-  const [paneWidth, setPaneWidth] = useState(windowWidth);
+  const [paneWidth, setPaneWidth] = useState<number | null>(null);
+  const width = paneWidth ?? windowWidth;
   const { colors } = useTheme();
   // NOTE: Material window size class breakpoints (compact, medium, expanded)
-  const columns = paneWidth >= 840 ? 3 : paneWidth >= 600 ? 2 : 1;
+  const columns = width >= 840 ? 3 : width >= 600 ? 2 : 1;
 
   return (
     <View
