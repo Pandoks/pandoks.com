@@ -49,7 +49,7 @@ if (isProduction) {
     }
   });
 
-  // NOTE: scripts/bootstrap.sh owns AWS_ROLE_ARN and AWS_REGION, which CI needs to run this.
+  // WARNING: scripts/bootstrap.sh owns AWS_ROLE_ARN and AWS_REGION, which CI needs to run this.
   new github.ActionsSecret('GithubGithubAccessToken', {
     repository: githubRepositoryName,
     secretName: 'GH_TOKEN',
