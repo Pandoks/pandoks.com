@@ -172,10 +172,11 @@ ensure_kms_alias() {
 
 ensure_r2_token_parameter() {
   ensure_r2_token_parameter_name=$1
-  ensure_r2_token_parameter_permission=$2
-  ensure_r2_token_parameter_region=$3
-  ensure_r2_token_parameter_account_id=$4
-  ensure_r2_token_parameter_bucket=$5
+  ensure_r2_token_parameter_consumer=$2
+  ensure_r2_token_parameter_permission=$3
+  ensure_r2_token_parameter_region=$4
+  ensure_r2_token_parameter_account_id=$5
+  ensure_r2_token_parameter_bucket=$6
 
   # NOTE: describe instead of get-parameter --with-decryption, so checking never reads the token
   ensure_r2_token_parameter_count=$(aws ssm describe-parameters --region "${ensure_r2_token_parameter_region}" --parameter-filters "Key=Name,Option=Equals,Values=${ensure_r2_token_parameter_name}" --query 'length(Parameters)' --output json)
@@ -183,10 +184,10 @@ ensure_r2_token_parameter() {
     print_ok "SSM ${ensure_r2_token_parameter_name}"
   else
     printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
-    printf "%b│%b  %bCreate an R2 API token (%s) for %s%b\n" "${DIM}" "${NORMAL}" "${BOLD}" "${ensure_r2_token_parameter_permission}" "${ensure_r2_token_parameter_bucket}" "${NORMAL}" >&2
+    printf "%b│%b  %bCreate an R2 API token for %s (%s · %s)%b\n" "${DIM}" "${NORMAL}" "${BOLD}" "${ensure_r2_token_parameter_consumer}" "${ensure_r2_token_parameter_permission}" "${ensure_r2_token_parameter_bucket}" "${NORMAL}" >&2
     printf "%b│%b  %bhttps://dash.cloudflare.com/%s/r2/api-tokens%b\n" "${DIM}" "${NORMAL}" "${CYAN}" "${ensure_r2_token_parameter_account_id}" "${NORMAL}" >&2
-    ensure_r2_token_parameter_access_key_id=$(prompt_secret "$(printf "%b│%b  Access Key ID: " "${DIM}" "${NORMAL}")")
-    ensure_r2_token_parameter_secret=$(prompt_secret "$(printf "%b│%b  Secret Access Key: " "${DIM}" "${NORMAL}")")
+    ensure_r2_token_parameter_access_key_id=$(prompt_secret "$(printf "%b│%b  S3 Access Key ID: " "${DIM}" "${NORMAL}")")
+    ensure_r2_token_parameter_secret=$(prompt_secret "$(printf "%b│%b  S3 Secret Access Key: " "${DIM}" "${NORMAL}")")
     printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
     if [ -z "${ensure_r2_token_parameter_access_key_id}" ] || [ -z "${ensure_r2_token_parameter_secret}" ]; then
       die "Access Key ID and Secret Access Key can't be empty"
@@ -331,8 +332,8 @@ main() {
   ensure_kms_alias "${KMS_NONPRODUCTION_ALIAS}" "${main_region}" "Pulumi secrets for non-production stacks"
 
   print_section "R2 State Tokens"
-  ensure_r2_token_parameter "${SSM_READ_WRITE_NAME}" "Object Read & Write" "${main_region}" "${main_cloudflare_account_id}" "${main_bucket}"
-  ensure_r2_token_parameter "${SSM_READ_ONLY_NAME}" "Object Read only" "${main_region}" "${main_cloudflare_account_id}" "${main_bucket}"
+  ensure_r2_token_parameter "${SSM_READ_WRITE_NAME}" "Pulumi" "Object Read & Write" "${main_region}" "${main_cloudflare_account_id}" "${main_bucket}"
+  ensure_r2_token_parameter "${SSM_READ_ONLY_NAME}" "Argo CD" "Object Read only" "${main_region}" "${main_cloudflare_account_id}" "${main_bucket}"
 
   print_section "Local Profile & CI Role"
   ensure_aws_profile "${main_region}"
