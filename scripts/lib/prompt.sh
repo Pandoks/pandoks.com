@@ -12,7 +12,7 @@ prompt_secret() {
       let value = "";
       const render = () => {
         const trimmed = value.trim();
-        const mask = trimmed.length >= 8 ? "••••" + trimmed.slice(-4) : "•".repeat(trimmed.length);
+        const mask = trimmed.length >= 8 ? "•".repeat(Math.min(trimmed.length - 4, 24)) + trimmed.slice(-4) : "•".repeat(trimmed.length);
         process.stderr.write("\r" + label + dim + mask + reset + "\x1b[K");
       };
       const done = (code) => {
