@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { AppState, Pressable, StyleSheet, Text } from 'react-native';
+import { useEffect, useState } from 'react';
+import { AppState, Platform, Pressable, StyleSheet, Text } from 'react-native';
 import { useTheme } from 'expo-router';
 import * as Updates from 'expo-updates';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ export function UpdateBanner() {
   const { isUpdatePending } = Updates.useUpdates();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const [reloading, setReloading] = useState(false);
 
   useEffect(() => {
     // NOTE: expo-updates is off in development builds, where every check rejects
@@ -25,11 +26,23 @@ export function UpdateBanner() {
   }, []);
 
   if (!isUpdatePending) return null;
+  const edgeOffset =
+    Platform.OS === 'ios' && Platform.isPad
+      ? { bottom: insets.bottom + 16 }
+      : { top: insets.top + 8 };
   return (
     <Pressable
       accessibilityRole="button"
-      onPress={() => Updates.reloadAsync()}
-      style={[styles.banner, { top: insets.top + 8, backgroundColor: colors.primary }]}
+      disabled={reloading}
+      onPress={() => {
+        setReloading(true);
+        void Updates.reloadAsync().catch(() => setReloading(false));
+      }}
+      style={[
+        styles.banner,
+        edgeOffset,
+        { backgroundColor: colors.primary, opacity: reloading ? 0.5 : 1 }
+      ]}
     >
       <Text style={styles.text}>Update ready · Restart</Text>
     </Pressable>

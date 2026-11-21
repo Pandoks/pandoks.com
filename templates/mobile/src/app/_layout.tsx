@@ -3,7 +3,7 @@ import { NativeTabs } from 'expo-router/native-tabs';
 import { NavigationBar } from 'expo-navigation-bar';
 import { Platform, StatusBar, useColorScheme } from 'react-native';
 
-import { UpdateBanner } from '../components/update-banner';
+import { UpdateBanner } from '@/components/update-banner';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();

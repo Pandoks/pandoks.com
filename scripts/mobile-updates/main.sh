@@ -56,6 +56,14 @@ sign_file() {
   openssl base64 -A -in "${sign_file_path}.sig"
 }
 
+random_uuid() {
+  if [ -r /proc/sys/kernel/random/uuid ]; then
+    cat /proc/sys/kernel/random/uuid
+  else
+    uuidgen | tr '[:upper:]' '[:lower:]'
+  fi
+}
+
 add_manifest_asset() {
   add_manifest_asset_export_dir="$1"
   add_manifest_asset_work_dir="$2"
@@ -69,6 +77,8 @@ add_manifest_asset() {
   case "${add_manifest_asset_path}" in
     /* | *..* | *[!A-Za-z0-9_./-]*) die "Unexpected path '${add_manifest_asset_path}' in metadata.json" ;;
   esac
+  [ -f "${add_manifest_asset_file}" ] && [ ! -L "${add_manifest_asset_file}" ] \
+    || die "Expected regular file '${add_manifest_asset_path}'"
 
   add_manifest_asset_hash="$(openssl dgst -sha256 -binary "${add_manifest_asset_file}" | openssl base64 -A | tr '+/' '-_' | tr -d '=')"
   # NOTE: platforms share most assets, so each uploads once
@@ -124,7 +134,7 @@ cmd_upload() {
   trap 'rm -rf "${cmd_upload_work_dir}"' EXIT
 
   cmd_upload_slug="$(jq -er .slug "${cmd_upload_export_dir}/expo-config.json")"
-  printf '%s\n' "${MOBILE_UPDATES_SIGNING_KEY}" > "${cmd_upload_work_dir}/signing-key.pem"
+  (umask 077 && printf '%s\n' "${MOBILE_UPDATES_SIGNING_KEY}" > "${cmd_upload_work_dir}/signing-key.pem")
   printf '{"type":"noUpdateAvailable"}' > "${cmd_upload_work_dir}/no-update.json"
   cmd_upload_no_update_signature="$(sign_file "${cmd_upload_work_dir}/signing-key.pem" "${cmd_upload_work_dir}/no-update.json")"
   openssl x509 -in "${cmd_upload_export_dir}/certificate.crt" -pubkey -noout > "${cmd_upload_work_dir}/public-key.pem"
@@ -136,9 +146,9 @@ cmd_upload() {
     cmd_upload_runtime_version="$(cat "${cmd_upload_export_dir}/${cmd_upload_platform}-runtime-version.txt")"
     cmd_upload_bundle="$(jq -er --arg platform "${cmd_upload_platform}" '.fileMetadata[$platform].bundle' "${cmd_upload_export_dir}/metadata.json")"
     cmd_upload_launch_asset="$(add_manifest_asset "${cmd_upload_export_dir}" "${cmd_upload_work_dir}" "${cmd_upload_bucket}" "${cmd_upload_assets_domain}" "${cmd_upload_bundle}" application/javascript '')"
-    jq -r --arg platform "${cmd_upload_platform}" '.fileMetadata[$platform].assets[] | "\(.ext) \(.path)"' \
+    jq -r --arg platform "${cmd_upload_platform}" '.fileMetadata[$platform].assets[] | "\(.ext)\t\(.path)"' \
       "${cmd_upload_export_dir}/metadata.json" > "${cmd_upload_work_dir}/${cmd_upload_platform}-assets.txt"
-    while read -r cmd_upload_extension cmd_upload_path; do
+    while IFS="$(printf '\t')" read -r cmd_upload_extension cmd_upload_path; do
       cmd_upload_content_type="$(file --brief --mime-type "${cmd_upload_export_dir}/${cmd_upload_path}")"
       add_manifest_asset "${cmd_upload_export_dir}" "${cmd_upload_work_dir}" "${cmd_upload_bucket}" "${cmd_upload_assets_domain}" "${cmd_upload_path}" "${cmd_upload_content_type}" "${cmd_upload_extension}"
     done < "${cmd_upload_work_dir}/${cmd_upload_platform}-assets.txt" \
@@ -146,7 +156,7 @@ cmd_upload() {
 
     # NOTE: every publish is a newer update, so a revert on main reaches phones running the reverted one
     jq -ncj \
-      --arg id "$(node -p 'crypto.randomUUID()')" \
+      --arg id "$(random_uuid)" \
       --arg createdAt "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" \
       --arg runtimeVersion "${cmd_upload_runtime_version}" \
       --argjson launchAsset "${cmd_upload_launch_asset}" \

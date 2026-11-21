@@ -83,3 +83,22 @@ test('rejects a missing runtime version or an unknown platform', async () => {
     expect((await checkForUpdate('/app', headers)).status).toBe(400);
   }
 });
+
+test('rejects non-GET requests and invalid app slugs', async () => {
+  const methodResponse = await worker.fetch(
+    new Request('https://mobile-updates.test/app', {
+      method: 'POST',
+      headers: { 'expo-platform': 'ios', 'expo-runtime-version': 'fingerprint' }
+    })
+  );
+  expect(methodResponse.status).toBe(405);
+  expect(methodResponse.headers.get('allow')).toBe('GET');
+
+  for (const path of ['/', '/a/b']) {
+    const response = await checkForUpdate(path, {
+      'expo-platform': 'ios',
+      'expo-runtime-version': 'fingerprint'
+    });
+    expect(response.status).toBe(404);
+  }
+});

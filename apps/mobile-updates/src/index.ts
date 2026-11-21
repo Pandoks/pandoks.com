@@ -17,7 +17,13 @@ const PROTOCOL_HEADERS = {
 
 export default {
   async fetch(request) {
+    if (request.method !== 'GET') {
+      return new Response('Method Not Allowed', { status: 405, headers: { allow: 'GET' } });
+    }
     const slug = new URL(request.url).pathname.slice(1);
+    if (!/^[A-Za-z0-9._-]+$/.test(slug)) {
+      return new Response('Not Found', { status: 404 });
+    }
     const platform = request.headers.get('expo-platform');
     const runtimeVersion = request.headers.get('expo-runtime-version');
     if (!runtimeVersion || (platform !== 'ios' && platform !== 'android')) {
