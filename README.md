@@ -34,20 +34,18 @@
 
 - [Git](https://git-scm.com/downloads) and [mise](https://mise.jdx.dev/installing-mise.html)
 - [Docker](https://docs.docker.com/get-docker/)
-- [OpenSSL](https://www.openssl.org/)
 - [Tailscale](https://tailscale.com/download), only for cloud (dev/prod) cluster access
 
-2. Setup `.env.<stage>`. Take a look at [.env.example](/.env.example) as a reference.
-
-3. Setup the repository:
+2. Setup the repository:
 
 ```sh
 mise install
 pnpm install
 ```
 
-4. Configure AWS SSO session in `~/.aws/config`. `pnpm sso` logs in to sso session `pandoks` and SST
-   uses profile `pandoks`; to use other names, change both, in `package.json` and `sst.config.ts`.
+3. Configure an AWS SSO profile `pandoks` in `~/.aws/config`; `mise.toml` sets `AWS_PROFILE` to it.
+   `pnpm sso` logs in to sso session `pandoks`; change both to match yours. Then run
+   `pnpm bootstrap` ([Bootstrap](#bootstrap)).
 
 > [!NOTE]
 > AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while
@@ -62,19 +60,19 @@ the cloud. _Because we're using k3d, which puts an entire Kubernetes cluster ins
 containers, not everything is one to one with the production cluster. ie. networking, registries,
 etc_
 
-To setup the local cluster, run this from the root of the monorepo. Replace `your-stage` with your
-personal SST stage (for example, `pandoks`):
+To setup the local cluster, run this from the root of the monorepo. Replace `<stack>` with your
+personal Pulumi stack (for example, `pandoks`):
 
 ```sh
 # Quick setup (all-in-one)
-SST_STAGE=your-stage pnpm local:init
+pulumi stack select <stack> && pnpm local:init
 
 # Or step by step:
 pnpm cluster k3d deps up               # Start docker compose dependencies
 pnpm cluster k3d up                    # Create k3d cluster
 pnpm local:build && pnpm local:push    # Build and push images/charts to the local registry
-pnpm cluster deploy local --stage your-stage --bootstrap  # First-time: install helm charts + CRDs
-pnpm cluster deploy local --stage your-stage # Apply environment overlay
+pnpm cluster deploy local --stack <stack> --bootstrap  # First-time: install helm charts + CRDs
+pnpm cluster deploy local --stack <stack> # Apply environment overlay
 ```
 
 To tear down the cluster:
@@ -89,9 +87,25 @@ See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI comman
 
 ## Development
 
-For things that are not deployed to Kubernetes, they are managed by `sst`. To run the development
-server, run this from the root of the monorepo:
+Everything outside Kubernetes is a [Pulumi](https://www.pulumi.com/docs/) program in `infra/`, with
+one stack per stage (`production`, `dev`, and personal stacks like `pandoks`). State lives in the R2
+bucket in `Pulumi.yaml`, and each `Pulumi.<stack>.yaml` names the KMS key that encrypts its state
+and holds its secrets, encrypted with that key:
 
 ```sh
-pnpm dev --stage your-stage # assuming that you are still verified via SSO
+pulumi preview --stack <stack>
+pulumi up --stack <stack>
+# --raw keeps trailing newlines
+pulumi config set --secret --raw --stack <stack> <Name> < <file>
 ```
+
+A new stack needs every secret in `infra/secrets.ts` and a `Pulumi.<stack>.yaml` from
+`pulumi stack init <stack> --no-select --secrets-provider 'awskms://alias/pulumi-nonproduction?region=us-west-1'`;
+`production` uses `alias/pulumi-production`, the only key Argo CD can decrypt. Only the shared
+`production` and `dev` files are committed, so their secrets change through a PR. A personal stack's
+file stays local; `pulumi config refresh --stack <stack>` restores it from its last deploy.
+
+### Bootstrap
+
+`pnpm bootstrap` sets up the state bucket, KMS keys, R2 state tokens, this machine's profile and
+CI's AWS role. It's safe to rerun, and on a new machine it only logs in and adds the profile.

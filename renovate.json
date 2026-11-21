@@ -64,16 +64,6 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^sst\\.config\\.ts$/"],
-      "matchStrings": [
-        "\\n\\s+(?<depName>cloudflare|github|hcloud|tailscale): '(?<currentValue>[\\d.]+)'",
-        "package: '(?<packageName>@ovhcloud/pulumi-ovh)',[\\s\\S]*?version: '(?<currentValue>[\\d.]+)'"
-      ],
-      "depNameTemplate": "{{#if packageName}}{{{packageName}}}{{else}}@pulumi/{{{depName}}}{{/if}}",
-      "datasourceTemplate": "npm"
-    },
-    {
-      "customType": "regex",
       "managerFilePatterns": ["/^infra/website\\.ts$/"],
       "matchStrings": ["const NODE_VERSION = '(?<currentValue>[\\d.]+)'"],
       "depNameTemplate": "node",
@@ -200,14 +190,9 @@
       "versioning": "loose"
     },
     {
-      "matchFileNames": ["sst.config.ts"],
-      "groupName": "sst providers"
-    },
-    {
-      "description": "TODO: https://github.com/anomalyco/sst/issues/6885 SST's bundled Cloudflare components don't type-check against @pulumi/cloudflare 6.16+; approve once SST supports it.",
-      "matchPackageNames": ["@pulumi/cloudflare"],
-      "groupName": null,
-      "dependencyDashboardApproval": true
+      "description": "Every Pulumi CLI copy (mise, the Argo CD plugin image) moves in one PR.",
+      "matchPackageNames": ["pulumi/pulumi", "pulumi/pulumi-base"],
+      "groupName": "pulumi cli"
     },
     {
       "description": "Kubernetes can't skip minors, so each k3s minor is its own PR.",

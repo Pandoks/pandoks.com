@@ -1,7 +1,6 @@
 import { SSMClient, PutParameterCommand } from '@aws-sdk/client-ssm';
-import type { APIGatewayProxyEventV2 } from 'aws-lambda';
+import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from 'aws-lambda';
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { Resource } from 'sst';
 import { handleNotionBlogSync } from './gh-blog-sync';
 import { handleTextReminder } from './text-reminder';
 
@@ -23,18 +22,20 @@ export type NotionWebhookEvent = {
   verification_token?: string;
 };
 
-export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
+export const webhookHandler = async (
+  event: APIGatewayProxyEventV2
+): Promise<APIGatewayProxyStructuredResultV2> => {
   if (event.requestContext.http.method !== 'POST') {
-    return new Response('Method Not Allowed', { status: 405 });
+    return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
-  if (!event.body) return new Response('Bad Request', { status: 400 });
+  if (!event.body) return { statusCode: 400, body: 'Bad Request' };
 
   let body: NotionWebhookEvent;
   try {
     body = JSON.parse(event.body) as NotionWebhookEvent;
   } catch {
-    return new Response('Bad Request', { status: 400 });
+    return { statusCode: 400, body: 'Bad Request' };
   }
 
   /** INITIALIZE WEBHOOK WITH NOTION */
@@ -51,7 +52,7 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
 
     const parameterUrl = `https://console.aws.amazon.com/systems-manager/parameters/${encodeURIComponent(
       encodeURIComponent(parameterName)
-    )}/description?region=${Resource.AwsRegion.value}`;
+    )}/description?region=${process.env.AWS_REGION}`;
     console.log(
       [
         '=== NOTION WEBHOOK VERIFICATION TOKEN CAPTURED ===',
@@ -59,25 +60,22 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
         '[URL] Open this in AWS Console:',
         parameterUrl,
         '',
-        '[ACTION] Set the SST secret:',
-        'pnpm sst secret set NotionWebhookVerificationToken --stage production <paste-token-here>',
-        '',
-        '[ACTION] Redeploy:',
-        'pnpm sst deploy --stage production',
+        '[ACTION] Set the stack secret, then merge Pulumi.production.yaml to main through a PR:',
+        `aws ssm get-parameter --name ${parameterName} --with-decryption --query Parameter.Value --output text | pulumi config set --secret --stack production NotionWebhookVerificationToken`,
         '',
         '[REMINDER] Delete the temporary SSM parameter after the secret is set.'
       ].join('\n')
     );
 
-    return new Response('OK', { status: 200 });
+    return { statusCode: 200, body: 'OK' };
   }
 
   /** AUTHENTICATION */
   const signature = event.headers['x-notion-signature'] ?? event.headers['X-Notion-Signature'];
-  if (!signature) return new Response('Unauthorized', { status: 401 });
+  if (!signature) return { statusCode: 401, body: 'Unauthorized' };
 
   const provided = signature.replace('sha256=', '');
-  const expected = createHmac('sha256', Resource.NotionWebhookVerificationToken.value)
+  const expected = createHmac('sha256', process.env.NOTION_WEBHOOK_VERIFICATION_TOKEN)
     .update(event.body)
     .digest('hex');
   const providedBuffer = Buffer.from(provided, 'hex');
@@ -86,7 +84,7 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
     providedBuffer.length !== expectedBuffer.length ||
     !timingSafeEqual(providedBuffer, expectedBuffer)
   ) {
-    return new Response('Unauthorized', { status: 401 });
+    return { statusCode: 401, body: 'Unauthorized' };
   }
 
   /** ROUTE TO FEATURE HANDLERS */
@@ -112,8 +110,8 @@ export const webhookHandler = async (event: APIGatewayProxyEventV2) => {
   }
 
   if (failures.length) {
-    return new Response('Internal Server Error', { status: 500 });
+    return { statusCode: 500, body: 'Internal Server Error' };
   }
 
-  return new Response('OK', { status: 200 });
+  return { statusCode: 200, body: 'OK' };
 };
