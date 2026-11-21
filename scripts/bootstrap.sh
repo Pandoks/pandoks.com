@@ -43,11 +43,52 @@ print_footer() {
   printf "%b└%b  %b✓%b %b%s%b\n\n" "${DIM}" "${NORMAL}" "${GREEN}" "${NORMAL}" "${BOLD}" "$1" "${NORMAL}"
 }
 
+run_device_login() {
+  run_device_login_label=$1
+  shift
+
+  run_device_login_status_file=$(mktemp)
+  run_device_login_log_file=$(mktemp)
+  run_device_login_expect_code=0
+
+  (
+    run_device_login_rc=0
+    "$@" 2>&1 || run_device_login_rc=$?
+    printf '%s\n' "${run_device_login_rc}" > "${run_device_login_status_file}"
+  ) | while IFS= read -r run_device_login_line; do
+    printf '%s\n' "${run_device_login_line}" >> "${run_device_login_log_file}"
+    run_device_login_trimmed=$(printf '%s' "${run_device_login_line}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    if [ "${run_device_login_expect_code}" -eq 1 ] && [ -n "${run_device_login_trimmed}" ]; then
+      printf "%b│%b  Code: %b%s%b\n" "${DIM}" "${NORMAL}" "${BOLD}${YELLOW}" "${run_device_login_trimmed}" "${NORMAL}" >&2
+      printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
+      run_device_login_expect_code=0
+      continue
+    fi
+    case "${run_device_login_trimmed}" in
+      https://*)
+        printf "%b│%b  Authorize %s:\n" "${DIM}" "${NORMAL}" "${run_device_login_label}" >&2
+        printf "%b│%b  %b%s%b\n" "${DIM}" "${NORMAL}" "${CYAN}" "${run_device_login_trimmed}" "${NORMAL}" >&2
+        ;;
+      *"enter the code:"*)
+        run_device_login_expect_code=1
+        ;;
+    esac
+  done
+
+  run_device_login_status=$(cat "${run_device_login_status_file}")
+  if [ "${run_device_login_status}" -ne 0 ]; then
+    cat "${run_device_login_log_file}" >&2
+    rm -f "${run_device_login_status_file}" "${run_device_login_log_file}"
+    return "${run_device_login_status}"
+  fi
+  rm -f "${run_device_login_status_file}" "${run_device_login_log_file}"
+}
+
 ensure_aws_login() {
   if aws sts get-caller-identity > /dev/null 2>&1; then
     print_ok "AWS login"
   else
-    pnpm sso
+    run_device_login "AWS SSO" pnpm sso
     print_added "AWS login"
   fi
 }
@@ -58,7 +99,7 @@ ensure_cloudflare_login() {
   if ensure_cloudflare_login_whoami=$(wrangler whoami --json 2> /dev/null); then
     print_ok "Cloudflare login"
   else
-    wrangler login --device --browser=false
+    run_device_login "Cloudflare" wrangler login --device --browser=false
     ensure_cloudflare_login_whoami=$(wrangler whoami --json)
     print_added "Cloudflare login"
   fi
@@ -224,9 +265,9 @@ ensure_github_variable() {
 }
 
 cleanup_on_exit() {
-  if [ -n "${store_token_parameter_file:-}" ]; then
-    rm -f "${store_token_parameter_file}"
-  fi
+  for cleanup_on_exit_file in "${store_token_parameter_file:-}" "${run_device_login_status_file:-}" "${run_device_login_log_file:-}"; do
+    [ -n "${cleanup_on_exit_file}" ] && rm -f "${cleanup_on_exit_file}"
+  done
   if [ -t 0 ]; then
     stty echo
   fi
