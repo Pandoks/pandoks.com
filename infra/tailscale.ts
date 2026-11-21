@@ -15,6 +15,7 @@ export const hubTailscaleServices = [
   },
   { name: 'beszel', comment: 'Beszel monitoring hub', ports: ['tcp:443'] },
   { name: 'artex', comment: 'ARTEX on the homelab hub', ports: ['tcp:443'] },
+  { name: 'mcphub', comment: 'MCPHub on the homelab hub', ports: ['tcp:443'] },
   {
     name: 'protonmail-bridge',
     comment: 'Proton Mail Bridge IMAP and SMTP on the homelab hub',
