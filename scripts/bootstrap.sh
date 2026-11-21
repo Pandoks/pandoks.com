@@ -50,30 +50,48 @@ run_device_login() {
   run_device_login_status_file=$(mktemp)
   run_device_login_log_file=$(mktemp)
   run_device_login_expect_code=0
+  run_device_login_url=''
+  run_device_login_code=''
+  run_device_login_printed=0
 
   (
     run_device_login_rc=0
-    "$@" 2>&1 || run_device_login_rc=$?
+    "$@" < /dev/null 2>&1 || run_device_login_rc=$?
     printf '%s\n' "${run_device_login_rc}" > "${run_device_login_status_file}"
   ) | while IFS= read -r run_device_login_line; do
     printf '%s\n' "${run_device_login_line}" >> "${run_device_login_log_file}"
     run_device_login_trimmed=$(printf '%s' "${run_device_login_line}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
     if [ "${run_device_login_expect_code}" -eq 1 ] && [ -n "${run_device_login_trimmed}" ]; then
-      printf "%b│%b  Code: %b%s%b\n" "${DIM}" "${NORMAL}" "${BOLD}${YELLOW}" "${run_device_login_trimmed}" "${NORMAL}" >&2
-      printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
+      run_device_login_code="${run_device_login_trimmed}"
       run_device_login_expect_code=0
-      continue
+    else
+      case "${run_device_login_trimmed}" in
+        https://*)
+          run_device_login_url="${run_device_login_trimmed}"
+          ;;
+        *"enter the code:"*)
+          run_device_login_expect_code=1
+          ;;
+        *"One-time code ("*)
+          run_device_login_code=$(printf '%s' "${run_device_login_trimmed}" | sed -n 's/.*One-time code (\([^)]*\)).*/\1/p')
+          ;;
+        *"one-time code:"*)
+          run_device_login_code=$(printf '%s' "${run_device_login_trimmed}" | sed -n 's/.*one-time code:[[:space:]]*//p')
+          ;;
+        *"Open this URL"*https://*)
+          run_device_login_url=$(printf '%s' "${run_device_login_trimmed}" | sed -n 's|.*\(https://[^[:space:]]*\).*|\1|p')
+          ;;
+      esac
     fi
-    case "${run_device_login_trimmed}" in
-      https://*)
-        printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
-        printf "%b│%b  %bAuthorize %s%b\n" "${DIM}" "${NORMAL}" "${BOLD}" "${run_device_login_label}" "${NORMAL}" >&2
-        printf "%b│%b  %b%s%b\n" "${DIM}" "${NORMAL}" "${CYAN}" "${run_device_login_trimmed}" "${NORMAL}" >&2
-        ;;
-      *"enter the code:"*)
-        run_device_login_expect_code=1
-        ;;
-    esac
+
+    if [ "${run_device_login_printed}" -eq 0 ] && [ -n "${run_device_login_url}" ] && [ -n "${run_device_login_code}" ]; then
+      printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
+      printf "%b│%b  %bAuthorize %s%b\n" "${DIM}" "${NORMAL}" "${BOLD}" "${run_device_login_label}" "${NORMAL}" >&2
+      printf "%b│%b  %b%s%b\n" "${DIM}" "${NORMAL}" "${CYAN}" "${run_device_login_url}" "${NORMAL}" >&2
+      printf "%b│%b  Code: %b%s%b\n" "${DIM}" "${NORMAL}" "${BOLD}${YELLOW}" "${run_device_login_code}" "${NORMAL}" >&2
+      printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
+      run_device_login_printed=1
+    fi
   done
 
   run_device_login_status=$(cat "${run_device_login_status_file}")
@@ -91,6 +109,15 @@ ensure_aws_login() {
   else
     run_device_login "AWS SSO" pnpm sso
     print_added "AWS login"
+  fi
+}
+
+ensure_github_login() {
+  if gh auth status > /dev/null 2>&1; then
+    print_ok "GitHub login"
+  else
+    run_device_login "GitHub" env BROWSER=true gh auth login --hostname github.com --git-protocol https --web --skip-ssh-key
+    print_added "GitHub login"
   fi
 }
 
@@ -285,12 +312,13 @@ main() {
   main_region=$(sed -n '/^  aws:region:$/{n;s|^    value: ||p;}' Pulumi.yaml)
   [ -n "${main_bucket}" ] && [ -n "${main_cloudflare_account_id}" ] && [ -n "${main_region}" ] \
     || die "Could not read the bucket, Cloudflare account and AWS region from Pulumi.yaml"
-  main_repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
 
   print_banner "${main_region}" "${main_bucket}"
 
   print_section "Auth & GitHub"
   ensure_aws_login
+  ensure_github_login
+  main_repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
   main_aws_account_id=$(aws sts get-caller-identity --query Account --output text)
   # NOTE: first, so a wrong AWS_PROFILE dies here before writing to that account
   ensure_github_variable "${main_repo}" AWS_ROLE_ARN "arn:aws:iam::${main_aws_account_id}:role/${CI_ROLE_NAME}"
