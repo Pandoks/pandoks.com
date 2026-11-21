@@ -1,9 +1,11 @@
 import { SSMClient, PutParameterCommand } from '@aws-sdk/client-ssm';
 import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from 'aws-lambda';
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import type { LambdaRuntimeEnvironment, NotionWebhookEnvironment } from '../../env';
 import { handleNotionBlogSync } from './gh-blog-sync';
 import { handleTextReminder } from './text-reminder';
 
+const env = process.env as unknown as NotionWebhookEnvironment & LambdaRuntimeEnvironment;
 const ssmClient = new SSMClient({});
 
 export type NotionWebhookEvent = {
@@ -52,7 +54,7 @@ export const webhookHandler = async (
 
     const parameterUrl = `https://console.aws.amazon.com/systems-manager/parameters/${encodeURIComponent(
       encodeURIComponent(parameterName)
-    )}/description?region=${process.env.AWS_REGION}`;
+    )}/description?region=${env.AWS_REGION}`;
     console.log(
       [
         '=== NOTION WEBHOOK VERIFICATION TOKEN CAPTURED ===',
@@ -61,7 +63,7 @@ export const webhookHandler = async (
         parameterUrl,
         '',
         '[ACTION] Set the stack secret, then merge Pulumi.production.yaml to main through a PR:',
-        `aws ssm get-parameter --name ${parameterName} --with-decryption --query Parameter.Value --output text | pulumi config set --secret --stack production NotionWebhookVerificationToken`,
+        `aws ssm get-parameter --region ${env.AWS_REGION} --name ${parameterName} --with-decryption --query Parameter.Value --output text | pulumi config set --secret --stack production NotionWebhookVerificationToken`,
         '',
         '[REMINDER] Delete the temporary SSM parameter after the secret is set.'
       ].join('\n')
@@ -75,7 +77,7 @@ export const webhookHandler = async (
   if (!signature) return { statusCode: 401, body: 'Unauthorized' };
 
   const provided = signature.replace('sha256=', '');
-  const expected = createHmac('sha256', process.env.NOTION_WEBHOOK_VERIFICATION_TOKEN)
+  const expected = createHmac('sha256', env.NOTION_WEBHOOK_VERIFICATION_TOKEN)
     .update(event.body)
     .digest('hex');
   const providedBuffer = Buffer.from(provided, 'hex');

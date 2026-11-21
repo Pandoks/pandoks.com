@@ -21,13 +21,6 @@ export interface NotionWebhookEnvironment {
 }
 
 // NOTE: Lambda sets these itself and rejects them in a function's environment
-interface LambdaRuntimeEnvironment {
+export interface LambdaRuntimeEnvironment {
   AWS_REGION: string;
-}
-
-declare global {
-  namespace NodeJS {
-    interface ProcessEnv
-      extends TextSmsEnvironment, NotionWebhookEnvironment, LambdaRuntimeEnvironment {}
-  }
 }
