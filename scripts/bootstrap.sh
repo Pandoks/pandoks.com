@@ -58,7 +58,7 @@ ensure_cloudflare_login() {
   if ensure_cloudflare_login_whoami=$(wrangler whoami --json 2> /dev/null); then
     print_ok "Cloudflare login"
   else
-    wrangler login
+    wrangler login --device --browser=false
     ensure_cloudflare_login_whoami=$(wrangler whoami --json)
     print_added "Cloudflare login"
   fi
