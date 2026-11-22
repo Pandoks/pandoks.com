@@ -36,19 +36,18 @@
 - [Docker](https://docs.docker.com/get-docker/)
 - [Tailscale](https://tailscale.com/download), only for cloud (dev/prod) cluster access
 
-2. Configure an AWS SSO session and profile named `pandoks` for this AWS account with
-   `aws configure sso`
-   ([AWS CLI SSO guide](https://docs.aws.amazon.com/cli/latest/userguide/sso-configure-profile-token.html))
-   — each developer signs in with their own IAM Identity Center user, while `mise.toml`
-   (`AWS_PROFILE`) and `pnpm sso` (`package.json`) share the `pandoks` profile/session name (rename
-   both if forking this repo).
-
-3. Setup this machine (installs `mise` tools and `pnpm` dependencies, signs into AWS SSO, configures
-   the Pulumi state profile, and verifies state access — safe to rerun via `pnpm setup`):
+2. Setup this machine (installs `mise` tools and `pnpm` dependencies, runs `aws configure sso` if
+   the `pandoks` profile isn't configured yet, signs into AWS SSO, configures the Pulumi state
+   profile, and verifies state access — safe to rerun via `pnpm setup`):
 
 ```sh
 ./scripts/setup.sh
 ```
+
+Each developer signs in with their own IAM Identity Center user
+([AWS CLI SSO guide](https://docs.aws.amazon.com/cli/latest/userguide/sso-configure-profile-token.html)),
+while `mise.toml` (`AWS_PROFILE`) and `pnpm sso` (`package.json`) share the `pandoks`
+profile/session name (rename both if forking this repo).
 
 > [!NOTE]
 > AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while

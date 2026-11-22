@@ -16,7 +16,12 @@ ensure_aws_sso_profile() {
   if aws configure list-profiles 2> /dev/null | grep -qx "${ensure_aws_sso_profile_name}"; then
     print_ok "AWS profile ${ensure_aws_sso_profile_name}"
   else
-    die "AWS profile '${ensure_aws_sso_profile_name}' is not configured. Run 'aws configure sso' first (see README.md), then rerun."
+    [ -t 0 ] || die "AWS profile '${ensure_aws_sso_profile_name}' is not configured. Run 'aws configure sso --profile ${ensure_aws_sso_profile_name}' interactively, then rerun."
+    printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
+    printf "%b│%b  %bConfigure AWS SSO%b %b(use SSO session name '%s')%b\n" "${DIM}" "${NORMAL}" "${BOLD}" "${NORMAL}" "${DIM}" "${ensure_aws_sso_profile_name}" "${NORMAL}" >&2
+    printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
+    aws configure sso --profile "${ensure_aws_sso_profile_name}" --use-device-code --no-browser
+    print_added "AWS profile ${ensure_aws_sso_profile_name}"
   fi
 }
 
