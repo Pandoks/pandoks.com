@@ -5,7 +5,7 @@ import type { LambdaRuntimeEnvironment, NotionWebhookEnvironment } from '../../e
 import { handleNotionBlogSync } from './gh-blog-sync';
 import { handleTextReminder } from './text-reminder';
 
-const env = process.env as unknown as NotionWebhookEnvironment & LambdaRuntimeEnvironment;
+const env = process.env as NotionWebhookEnvironment & LambdaRuntimeEnvironment;
 const ssmClient = new SSMClient({});
 
 export type NotionWebhookEvent = {
