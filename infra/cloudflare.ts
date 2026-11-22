@@ -5,12 +5,6 @@ import { isProduction, STAGE_NAME } from '@pandoks.com/infra/stack';
 import { EXAMPLE_DOMAIN, cloudflareZoneId } from './dns.ts';
 import { controlPlaneLoadBalancers, workerLoadBalancers } from './vps/vps.ts';
 
-const cloudflareIpRequest = await fetch('https://api.cloudflare.com/client/v4/ips');
-export const cloudflareIps = (await cloudflareIpRequest.json()) as {
-  result: { ipv4_cidrs: string[]; ipv6_cidrs: string[]; etag: string };
-  success: boolean;
-};
-
 const publicLoadBalancers = [...workerLoadBalancers, ...controlPlaneLoadBalancers];
 
 if (publicLoadBalancers.length && !isProduction) {

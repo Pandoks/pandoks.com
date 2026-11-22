@@ -1,6 +1,90 @@
 import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
+import * as cloudflare from '@pulumi/cloudflare';
 import { buildSync } from 'esbuild';
+
+export function createBucket({
+  id,
+  name,
+  forceDestroy = false,
+  lifecycleRules,
+  options
+}: {
+  id: string;
+  name: string;
+  forceDestroy?: boolean;
+  lifecycleRules?: aws.types.input.s3.BucketLifecycleConfigurationRule[];
+  options?: pulumi.CustomResourceOptions;
+}) {
+  const providerOptions = options?.provider ? { provider: options.provider } : undefined;
+  const bucket = new aws.s3.Bucket(id, { bucket: name, forceDestroy }, options);
+  const publicAccessBlock = new aws.s3.BucketPublicAccessBlock(
+    `${id}PublicAccessBlock`,
+    {
+      bucket: bucket.bucket,
+      blockPublicAcls: true,
+      blockPublicPolicy: true,
+      ignorePublicAcls: true,
+      restrictPublicBuckets: true
+    },
+    providerOptions
+  );
+  const policy = new aws.s3.BucketPolicy(
+    `${id}Policy`,
+    {
+      bucket: bucket.bucket,
+      policy: pulumi.jsonStringify({
+        Version: '2012-10-17',
+        Statement: [
+          {
+            Effect: 'Deny',
+            Action: 's3:*',
+            Resource: [pulumi.interpolate`${bucket.arn}/*`, bucket.arn],
+            Principal: '*',
+            Condition: { Bool: { 'aws:SecureTransport': 'false' } }
+          }
+        ]
+      })
+    },
+    { ...providerOptions, dependsOn: publicAccessBlock }
+  );
+  if (lifecycleRules?.length) {
+    new aws.s3.BucketLifecycleConfiguration(
+      `${id}Lifecycle`,
+      { bucket: bucket.bucket, rules: lifecycleRules },
+      { ...providerOptions, dependsOn: policy }
+    );
+  }
+  return bucket;
+}
+
+export function createValidatedCertificate({
+  id,
+  domainName,
+  zoneId
+}: {
+  id: string;
+  domainName: pulumi.Input<string>;
+  zoneId: pulumi.Input<string>;
+}) {
+  const certificate = new aws.acm.Certificate(id, {
+    domainName,
+    validationMethod: 'DNS'
+  });
+  const validationOption = certificate.domainValidationOptions[0];
+  const validationRecord = new cloudflare.DnsRecord(`${id}ValidationRecord`, {
+    zoneId,
+    name: validationOption.resourceRecordName.apply((name) => name.replace(/\.$/, '')),
+    type: validationOption.resourceRecordType,
+    content: validationOption.resourceRecordValue.apply((value) => value.replace(/\.$/, '')),
+    proxied: false,
+    ttl: 60
+  });
+  return new aws.acm.CertificateValidation(`${id}Validation`, {
+    certificateArn: certificate.arn,
+    validationRecordFqdns: [validationRecord.name]
+  });
+}
 
 export function createFunction({
   id,

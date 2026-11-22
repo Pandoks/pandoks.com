@@ -1,5 +1,3 @@
-// WARNING: resources that hold data like servers, volumes, etc. should be protected by the
-// `protect` option in production. This is to prevent accidental deletion of resources.
 import * as pulumi from '@pulumi/pulumi';
 import * as hcloud from '@pulumi/hcloud';
 import * as tailscale from '@pulumi/tailscale';
@@ -96,25 +94,24 @@ const bootstrapServer: { ip: string | undefined; server: hcloud.Server | undefin
   server: undefined
 };
 
-const { tailscaleHostnames: _controlPlaneTailscaleHostnames, servers: _controlPlaneServers } =
-  createServers(
-    {
-      type: 'control-plane',
-      serverCount: CONTROL_PLANE_NODE_COUNT,
-      network: { network: privateNetwork, subnet },
-      startingOctet: CONTROL_PLANE_HOST_START_OCTET,
-      loadBalancersPerNode: LOAD_BALANCERS_PER_NODE,
-      loadBalancers: controlPlaneLoadBalancers
-    },
-    {
-      type: SERVER_TYPE,
-      image: SERVER_IMAGE,
-      location: LOCATION,
-      firewalls: [inboundFirewall]
-    },
-    bootstrapServer
-  );
-const { tailscaleHostnames: _workerTailscaleHostnames, servers: _workerServers } = createServers(
+createServers(
+  {
+    type: 'control-plane',
+    serverCount: CONTROL_PLANE_NODE_COUNT,
+    network: { network: privateNetwork, subnet },
+    startingOctet: CONTROL_PLANE_HOST_START_OCTET,
+    loadBalancersPerNode: LOAD_BALANCERS_PER_NODE,
+    loadBalancers: controlPlaneLoadBalancers
+  },
+  {
+    type: SERVER_TYPE,
+    image: SERVER_IMAGE,
+    location: LOCATION,
+    firewalls: [inboundFirewall]
+  },
+  bootstrapServer
+);
+createServers(
   {
     type: 'worker',
     serverCount: WORKER_NODE_COUNT,

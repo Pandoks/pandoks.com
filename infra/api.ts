@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
 import * as cloudflare from '@pulumi/cloudflare';
-import { createFunction } from '@pandoks.com/infra/aws';
+import { createFunction, createValidatedCertificate } from '@pandoks.com/infra/aws';
 import { isProduction, STAGE_NAME } from '@pandoks.com/infra/stack';
 import { secrets } from './secrets.ts';
 import { cloudflareZoneId, domain } from './dns.ts';
@@ -28,15 +28,7 @@ export const textFunction = createFunction({
 });
 
 const scheduleInvokeTextRole = new aws.iam.Role('ScheduleInvokeTextRole', {
-  assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
-    statements: [
-      {
-        effect: 'Allow',
-        principals: [{ type: 'Service', identifiers: ['scheduler.amazonaws.com'] }],
-        actions: ['sts:AssumeRole']
-      }
-    ]
-  }).json
+  assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({ Service: 'scheduler.amazonaws.com' })
 });
 const scheduleTextGroup = new aws.scheduler.ScheduleGroup('ScheduleTextGroup', {
   name: isProduction ? 'text-scheduler' : 'text-scheduler-dev'
@@ -119,24 +111,10 @@ new aws.lambda.Permission('NotionWebhookApiPermission', {
   sourceArn: pulumi.interpolate`${api.executionArn}/*/*/notion/webhook`
 });
 
-const apiCertificate = new aws.acm.Certificate('ApiCertificate', {
+const apiCertificateValidation = createValidatedCertificate({
+  id: 'ApiCertificate',
   domainName: apiDomain,
-  validationMethod: 'DNS'
-});
-const apiCertificateValidationOption = apiCertificate.domainValidationOptions[0];
-const apiCertificateValidationRecord = new cloudflare.DnsRecord('ApiCertificateValidationRecord', {
-  zoneId: cloudflareZoneId,
-  name: apiCertificateValidationOption.resourceRecordName.apply((name) => name.replace(/\.$/, '')),
-  type: apiCertificateValidationOption.resourceRecordType,
-  content: apiCertificateValidationOption.resourceRecordValue.apply((value) =>
-    value.replace(/\.$/, '')
-  ),
-  proxied: false,
-  ttl: 60
-});
-const apiCertificateValidation = new aws.acm.CertificateValidation('ApiCertificateValidation', {
-  certificateArn: apiCertificate.arn,
-  validationRecordFqdns: [apiCertificateValidationRecord.name]
+  zoneId: cloudflareZoneId
 });
 
 const apiDomainName = new aws.apigatewayv2.DomainName('ApiDomainName', {

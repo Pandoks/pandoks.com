@@ -10,15 +10,7 @@ import { runnerStateMachineDefinition } from './step.ts';
 const runnerInstanceRole = new aws.iam.Role(
   'RunnerInstanceRole',
   {
-    assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
-      statements: [
-        {
-          effect: 'Allow',
-          principals: [{ type: 'Service', identifiers: ['ec2.amazonaws.com'] }],
-          actions: ['sts:AssumeRole']
-        }
-      ]
-    }).json,
+    assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({ Service: 'ec2.amazonaws.com' }),
     managedPolicyArns: ['arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore']
   },
   { provider: usWest2Provider }
@@ -130,15 +122,7 @@ export const runnerGithubTokenParameter = new aws.ssm.Parameter(
 const runnerStateMachineRole = new aws.iam.Role(
   'RunnerStateMachineRole',
   {
-    assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
-      statements: [
-        {
-          effect: 'Allow',
-          principals: [{ type: 'Service', identifiers: ['states.amazonaws.com'] }],
-          actions: ['sts:AssumeRole']
-        }
-      ]
-    }).json
+    assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({ Service: 'states.amazonaws.com' })
   },
   { provider: usWest2Provider }
 );

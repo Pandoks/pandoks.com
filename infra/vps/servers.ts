@@ -52,16 +52,15 @@ export function createServers(
     firewalls: hcloud.Firewall[];
   },
   bootstrap: { ip: pulumi.Input<string> | undefined; server: hcloud.Server | undefined }
-): { tailscaleHostnames: string[]; servers: hcloud.Server[] } {
+): hcloud.Server[] {
   if (serverArgs.serverCount < 1) {
-    return { tailscaleHostnames: [], servers: [] };
+    return [];
   } else if (serverArgs.type === 'control-plane' && serverArgs.serverCount > 10) {
     throw new Error(
       `You can only have 10 control plane nodes. Please reduce the number of control plane nodes. Currently: ${serverArgs.serverCount}`
     );
   }
 
-  const tailscaleHostnames: string[] = [];
   const servers: hcloud.Server[] = [];
 
   const nodeResourceName = serverArgs.type === 'control-plane' ? 'ControlPlane' : 'Worker';
@@ -106,7 +105,6 @@ export function createServers(
     );
 
     const tailscaleHostname = `${STAGE_NAME}-hetzner-${serverArgs.type}-server-${i}`;
-    tailscaleHostnames.push(tailscaleHostname);
 
     const userData = pulumi
       .all([
@@ -210,5 +208,5 @@ export function createServers(
     }
   }
 
-  return { tailscaleHostnames, servers };
+  return servers;
 }
