@@ -1,8 +1,9 @@
 import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
 import * as cloudflare from '@pulumi/cloudflare';
+import { isProduction, STAGE_NAME } from '@pandoks.com/infra/stack';
 import { usWest2Provider } from './aws.ts';
-import { cloudflareAccountId, isProduction, STAGE_NAME } from './dns.ts';
+import { cloudflareAccountId } from './dns.ts';
 
 export const backupBucket = new cloudflare.R2Bucket(
   'BackupBucket',
@@ -13,7 +14,7 @@ export const backupBucket = new cloudflare.R2Bucket(
     location: 'wnam',
     storageClass: 'Standard'
   },
-  { protect: isProduction, retainOnDelete: isProduction }
+  { retainOnDelete: isProduction }
 );
 
 export const s3Endpoint = `${cloudflareAccountId}.r2.cloudflarestorage.com`;
@@ -30,7 +31,7 @@ function createRunnerBucket({
   const bucket = new aws.s3.Bucket(
     id,
     { bucket: `pandoks-${STAGE_NAME}-${name}`, forceDestroy: true },
-    { provider: usWest2Provider, protect: isProduction, retainOnDelete: isProduction }
+    { provider: usWest2Provider, retainOnDelete: isProduction }
   );
   const publicAccessBlock = new aws.s3.BucketPublicAccessBlock(
     `${id}PublicAccessBlock`,

@@ -1,6 +1,6 @@
 import * as tailscale from '@pulumi/tailscale';
 import stringify from 'json-stringify-pretty-compact';
-import { isProduction, STAGE_NAME } from './dns.ts';
+import { isProduction, STAGE_NAME } from '@pandoks.com/infra/stack';
 
 export const hubTailscaleServices = [
   { name: 'cliproxyapi', comment: 'CLIProxyAPI on the homelab hub', ports: ['tcp:443'] },

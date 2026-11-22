@@ -1,7 +1,8 @@
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
 import * as cloudflare from '@pulumi/cloudflare';
-import { EXAMPLE_DOMAIN, STAGE_NAME, cloudflareZoneId, isProduction } from './dns.ts';
+import { isProduction, STAGE_NAME } from '@pandoks.com/infra/stack';
+import { EXAMPLE_DOMAIN, cloudflareZoneId } from './dns.ts';
 import { controlPlaneLoadBalancers, workerLoadBalancers } from './vps/vps.ts';
 
 const cloudflareIpRequest = await fetch('https://api.cloudflare.com/client/v4/ips');

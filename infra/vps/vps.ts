@@ -3,8 +3,8 @@
 import * as pulumi from '@pulumi/pulumi';
 import * as hcloud from '@pulumi/hcloud';
 import * as tailscale from '@pulumi/tailscale';
+import { isProduction, STAGE_NAME } from '@pandoks.com/infra/stack';
 import { deleteTailscaleDevices } from '@pandoks.com/infra/tailscale';
-import { isProduction, STAGE_NAME } from '../dns.ts';
 import { secrets } from '../secrets.ts';
 import { createServers } from './servers.ts';
 import { createLoadBalancers } from './load-balancers.ts';

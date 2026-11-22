@@ -4,9 +4,9 @@ import * as pulumi from '@pulumi/pulumi';
 import * as hcloud from '@pulumi/hcloud';
 import * as tailscale from '@pulumi/tailscale';
 import { renderCloudInit } from '@pandoks.com/infra/cloud-init';
+import { isProduction, STAGE_NAME } from '@pandoks.com/infra/stack';
 import { deleteTailscaleDevices } from '@pandoks.com/infra/tailscale';
 import { kubernetesOperatorOauthClient, tailscaleAcl } from '../tailscale.ts';
-import { isProduction, STAGE_NAME } from '../dns.ts';
 import { secrets } from '../secrets.ts';
 import { backupBucket, s3Endpoint } from '../storage.ts';
 
@@ -183,7 +183,6 @@ export function createServers(
       {
         dependsOn: dependencies,
         ignoreChanges: isProduction ? ['userData'] : [],
-        protect: isProduction,
         hooks: {
           afterDelete: [deleteServerFromTailnet]
         }

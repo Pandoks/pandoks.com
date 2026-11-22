@@ -1,6 +1,6 @@
 import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
-import { STAGE_NAME } from '../dns.ts';
+import { STAGE_NAME } from '@pandoks.com/infra/stack';
 import { secrets } from '../secrets.ts';
 import { runnerArtifactsBucket, runnerCacheBucket } from '../storage.ts';
 import { usWest2Provider } from '../aws.ts';

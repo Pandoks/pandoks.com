@@ -3,8 +3,9 @@ import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
 import * as cloudflare from '@pulumi/cloudflare';
 import { createFunction } from '@pandoks.com/infra/aws';
+import { isProduction, STAGE_NAME } from '@pandoks.com/infra/stack';
 import { secrets } from './secrets.ts';
-import { cloudflareZoneId, domain, isProduction, STAGE_NAME } from './dns.ts';
+import { cloudflareZoneId, domain } from './dns.ts';
 import { githubOrg, githubRepositoryName } from './github.ts';
 import type { NotionWebhookEnvironment, TextSmsEnvironment } from '../apps/functions/src/env.d.ts';
 

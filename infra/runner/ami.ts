@@ -2,8 +2,8 @@ import { hash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as aws from '@pulumi/aws';
+import { STAGE_NAME } from '@pandoks.com/infra/stack';
 import { US_WEST_2_REGION, usWest2Provider } from '../aws.ts';
-import { STAGE_NAME } from '../dns.ts';
 
 // WARNING: reverting these files reuses an existing (immutable) version, so bump the minor.
 const sources = ['ami.ts', 'ami.yaml', 'ami-gpu.yaml'].map((file) =>

@@ -9,6 +9,7 @@
   "exports": {
     "./aws": "./src/aws.ts",
     "./cloud-init": "./src/cloud-init.ts",
+    "./stack": "./src/stack.ts",
     "./tailscale": "./src/tailscale.ts"
   }
 }

@@ -4,6 +4,7 @@ import * as github from '@pulumi/github';
 import * as hcloud from '@pulumi/hcloud';
 import * as ovh from '@ovhcloud/pulumi-ovh';
 import * as tailscale from '@pulumi/tailscale';
+import { isProduction } from '@pandoks.com/infra/stack';
 import { secrets } from './secrets.ts';
 
 // NOTE: explicit providers so no ambient token is used; disabled defaults fail anything missed
@@ -22,8 +23,6 @@ const providers: Record<string, pulumi.ProviderResource> = {
     oauthClientSecret: secrets.tailscale.OauthClientSecret
   })
 };
-
-const isProduction = pulumi.getStack() === 'production';
 
 pulumi.runtime.registerResourceTransform(({ type, props, opts }) => ({
   props,
