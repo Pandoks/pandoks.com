@@ -1,7 +1,7 @@
 import type { NotionWebhookEnvironment } from '../../env';
 import type { NotionWebhookEvent } from './webhook';
 
-const env = process.env as unknown as NotionWebhookEnvironment;
+const env = process.env as NotionWebhookEnvironment;
 
 // NOTE: notion UUIDs are inconsistent with the same resource. sometimes dashes and sometimes not
 const normalizeNotionId = (id: string) => id.replaceAll('-', '').toLowerCase();

@@ -1,7 +1,7 @@
 import twilio from 'twilio';
 import type { TextSmsEnvironment } from './env';
 
-const env = process.env as unknown as TextSmsEnvironment;
+const env = process.env as TextSmsEnvironment;
 const twilioClient = twilio(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN);
 
 export const sendTextHandler = async (event: { phoneNumber: string; message: string }) => {

@@ -12,7 +12,7 @@ import type { NotionWebhookEnvironment } from '../../env';
 import { PHONE_NUMBER_MAPPINGS, type Users } from '../../lib/pii';
 import type { NotionWebhookEvent } from './webhook';
 
-const env = process.env as unknown as NotionWebhookEnvironment;
+const env = process.env as NotionWebhookEnvironment;
 const notion = new Client({ auth: env.NOTION_API_KEY, notionVersion: '2026-03-11' });
 const schedulerClient = new SchedulerClient({});
 const ALL_PHONE_NUMBERS = [...new Set(Object.values(PHONE_NUMBER_MAPPINGS))];

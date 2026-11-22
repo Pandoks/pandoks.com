@@ -1,6 +1,6 @@
 import type { NotionWebhookEnvironment } from '../env';
 
-const env = process.env as unknown as NotionWebhookEnvironment;
+const env = process.env as NotionWebhookEnvironment;
 
 export const PHONE_NUMBER_MAPPINGS = {
   'Manda Wong': env.MICHELLE_PHONE_NUMBER,
