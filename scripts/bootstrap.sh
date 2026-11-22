@@ -20,6 +20,10 @@ readonly SSM_READ_ONLY_NAME='/pulumi/r2-state-read-credentials'
 readonly GITHUB_OIDC_HOST='token.actions.githubusercontent.com'
 readonly CI_ROLE_NAME='PandoksGithubActions'
 
+usage() {
+  printf "Usage: %s <prod|dev>\n\nAdmin-only one-time bootstrap for each AWS member account:\n  prod  pandoks-production: R2 state bucket, KMS key, SSM R2 tokens, CI OIDC role, GitHub vars\n  dev   pandoks-dev: nonproduction KMS key, SSM R2 token, local Pulumi state profile\n" "$0"
+}
+
 ensure_github_login() {
   if gh auth status > /dev/null 2>&1; then
     print_ok "GitHub login"
@@ -80,11 +84,12 @@ ensure_kms_alias() {
 
 ensure_r2_token_parameter() {
   ensure_r2_token_parameter_name=$1
-  ensure_r2_token_parameter_consumer=$2
-  ensure_r2_token_parameter_permission=$3
-  ensure_r2_token_parameter_region=$4
-  ensure_r2_token_parameter_account_id=$5
-  ensure_r2_token_parameter_bucket=$6
+  ensure_r2_token_parameter_kms_alias=$2
+  ensure_r2_token_parameter_consumer=$3
+  ensure_r2_token_parameter_permission=$4
+  ensure_r2_token_parameter_region=$5
+  ensure_r2_token_parameter_account_id=$6
+  ensure_r2_token_parameter_bucket=$7
 
   # NOTE: describe instead of get-parameter --with-decryption, so checking never reads the token
   ensure_r2_token_parameter_count=$(aws ssm describe-parameters --region "${ensure_r2_token_parameter_region}" --parameter-filters "Key=Name,Option=Equals,Values=${ensure_r2_token_parameter_name}" --query 'length(Parameters)' --output json)
@@ -101,20 +106,21 @@ ensure_r2_token_parameter() {
       die "Access Key ID and Secret Access Key can't be empty"
     fi
 
-    store_token_parameter "${ensure_r2_token_parameter_name}" "${ensure_r2_token_parameter_region}" "${ensure_r2_token_parameter_access_key_id}" "${ensure_r2_token_parameter_secret}"
+    store_token_parameter "${ensure_r2_token_parameter_name}" "${ensure_r2_token_parameter_kms_alias}" "${ensure_r2_token_parameter_region}" "${ensure_r2_token_parameter_access_key_id}" "${ensure_r2_token_parameter_secret}"
     print_added "SSM ${ensure_r2_token_parameter_name}"
   fi
 }
 
 store_token_parameter() {
   store_token_parameter_name=$1
-  store_token_parameter_region=$2
-  store_token_parameter_access_key_id=$3
-  store_token_parameter_secret=$4
+  store_token_parameter_kms_alias=$2
+  store_token_parameter_region=$3
+  store_token_parameter_access_key_id=$4
+  store_token_parameter_secret=$5
 
   store_token_parameter_file=$(umask 077 && mktemp)
   printf '{"Version":1,"AccessKeyId":"%s","SecretAccessKey":"%s"}\n' "${store_token_parameter_access_key_id}" "${store_token_parameter_secret}" > "${store_token_parameter_file}"
-  aws ssm put-parameter --region "${store_token_parameter_region}" --type SecureString --key-id "alias/${KMS_PRODUCTION_ALIAS}" --name "${store_token_parameter_name}" --value "file://${store_token_parameter_file}" > /dev/null
+  aws ssm put-parameter --region "${store_token_parameter_region}" --type SecureString --key-id "alias/${store_token_parameter_kms_alias}" --name "${store_token_parameter_name}" --value "file://${store_token_parameter_file}" > /dev/null
   rm -f "${store_token_parameter_file}"
 }
 
@@ -196,40 +202,90 @@ cleanup_on_exit() {
   fi
 }
 
-main() {
-  trap 'cleanup_on_exit' EXIT
-  trap 'exit 130' INT TERM
-  cd "${REPO_ROOT}"
+cmd_prod() {
+  AWS_PROFILE='pandoks-production'
+  export AWS_PROFILE
 
-  read_pulumi_config
-  print_banner "Pulumi Bootstrap" "${PULUMI_AWS_REGION} · ${PULUMI_BUCKET}"
+  print_banner "Pulumi Bootstrap (prod)" "${PULUMI_AWS_REGION} · ${PULUMI_BUCKET}"
 
   print_section "Auth & GitHub"
-  ensure_aws_sso_profile
+  ensure_aws_sso_profile "${AWS_PROFILE}"
   ensure_aws_login
+  verify_aws_account production
   ensure_github_login
-  main_repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
-  main_aws_account_id=$(aws sts get-caller-identity --query Account --output text)
-  # NOTE: first, so a wrong AWS_PROFILE dies here before writing to that account
-  ensure_github_variable "${main_repo}" AWS_ROLE_ARN "arn:aws:iam::${main_aws_account_id}:role/${CI_ROLE_NAME}"
-  ensure_github_variable "${main_repo}" AWS_REGION "${PULUMI_AWS_REGION}"
+  cmd_prod_repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+  cmd_prod_aws_account_id=$(aws sts get-caller-identity --query Account --output text)
+  ensure_github_variable "${cmd_prod_repo}" AWS_ROLE_ARN "arn:aws:iam::${cmd_prod_aws_account_id}:role/${CI_ROLE_NAME}"
+  ensure_github_variable "${cmd_prod_repo}" AWS_REGION "${PULUMI_AWS_REGION}"
   ensure_cloudflare_login "${PULUMI_CLOUDFLARE_ACCOUNT_ID}"
 
   print_section "State & Encryption"
   ensure_r2_bucket "${PULUMI_BUCKET}" "${PULUMI_CLOUDFLARE_ACCOUNT_ID}"
   ensure_kms_alias "${KMS_PRODUCTION_ALIAS}" "${PULUMI_AWS_REGION}" "Pulumi secrets for the production stack"
-  ensure_kms_alias "${KMS_NONPRODUCTION_ALIAS}" "${PULUMI_AWS_REGION}" "Pulumi secrets for non-production stacks"
 
   print_section "R2 State Tokens"
-  ensure_r2_token_parameter "${PULUMI_SSM_READ_WRITE_NAME}" "Pulumi" "Object Read & Write" "${PULUMI_AWS_REGION}" "${PULUMI_CLOUDFLARE_ACCOUNT_ID}" "${PULUMI_BUCKET}"
-  ensure_r2_token_parameter "${SSM_READ_ONLY_NAME}" "Argo CD" "Object Read only" "${PULUMI_AWS_REGION}" "${PULUMI_CLOUDFLARE_ACCOUNT_ID}" "${PULUMI_BUCKET}"
+  ensure_r2_token_parameter "${PULUMI_SSM_READ_WRITE_NAME}" "${KMS_PRODUCTION_ALIAS}" "Pulumi (prod)" "Object Read & Write" "${PULUMI_AWS_REGION}" "${PULUMI_CLOUDFLARE_ACCOUNT_ID}" "${PULUMI_BUCKET}"
+  ensure_r2_token_parameter "${SSM_READ_ONLY_NAME}" "${KMS_PRODUCTION_ALIAS}" "Argo CD" "Object Read only" "${PULUMI_AWS_REGION}" "${PULUMI_CLOUDFLARE_ACCOUNT_ID}" "${PULUMI_BUCKET}"
 
   print_section "Local Profile & CI Role"
   ensure_pulumi_state_profile "${PULUMI_AWS_REGION}"
   ensure_github_oidc_provider
-  ensure_github_role "${main_aws_account_id}" "${main_repo}"
+  ensure_github_role "${cmd_prod_aws_account_id}" "${cmd_prod_repo}"
 
-  print_footer "Bootstrap complete"
+  print_footer "Production bootstrap complete"
 }
 
-main
+cmd_dev() {
+  AWS_PROFILE='pandoks-dev'
+  export AWS_PROFILE
+
+  print_banner "Pulumi Bootstrap (dev)" "${PULUMI_AWS_REGION} · ${PULUMI_BUCKET}"
+
+  print_section "Auth"
+  ensure_aws_sso_profile "${AWS_PROFILE}"
+  ensure_aws_login
+  verify_aws_account dev
+
+  print_section "Encryption"
+  ensure_kms_alias "${KMS_NONPRODUCTION_ALIAS}" "${PULUMI_AWS_REGION}" "Pulumi secrets for non-production stacks"
+
+  print_section "R2 State Token"
+  ensure_r2_token_parameter "${PULUMI_SSM_READ_WRITE_NAME}" "${KMS_NONPRODUCTION_ALIAS}" "Pulumi (dev)" "Object Read & Write" "${PULUMI_AWS_REGION}" "${PULUMI_CLOUDFLARE_ACCOUNT_ID}" "${PULUMI_BUCKET}"
+
+  print_section "Local Profile"
+  ensure_pulumi_state_profile "${PULUMI_AWS_REGION}"
+
+  print_footer "Dev bootstrap complete"
+}
+
+main() {
+  trap 'cleanup_on_exit' EXIT
+  trap 'exit 130' INT TERM
+  cd "${REPO_ROOT}"
+
+  [ $# -eq 1 ] || {
+    usage >&2
+    exit 1
+  }
+
+  cmd="$1"
+  case "${cmd}" in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    prod)
+      read_pulumi_config
+      cmd_prod
+      ;;
+    dev)
+      read_pulumi_config
+      cmd_dev
+      ;;
+    *)
+      die "Unknown target '${cmd}'; use 'prod' or 'dev'"
+      ;;
+  esac
+}
+
+main "$@"

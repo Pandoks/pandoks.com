@@ -91,7 +91,7 @@ const scheduleInvokeTextRole = new aws.iam.Role('ScheduleInvokeTextRole', {
   }).json
 });
 const scheduleTextGroup = new aws.scheduler.ScheduleGroup('ScheduleTextGroup', {
-  name: isProduction ? 'text-scheduler' : 'text-scheduler-dev'
+  name: isProduction ? 'text-scheduler' : `text-scheduler-${STAGE_NAME}`
 });
 new aws.iam.RolePolicy('ScheduleInvokeTextPolicy', {
   role: scheduleInvokeTextRole.id,

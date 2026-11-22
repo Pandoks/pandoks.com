@@ -34,15 +34,16 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
    included. If production needs a manual fix, even when I say ship now, propose the exact command,
    target, and effect, then wait.
 2. **Deploying a stack by accident.** Pass `--stack <stack>` to every `pulumi` and
-   `pnpm cluster deploy` command; mine is `pandoks`. For the site, run `pnpm exec portless doctor`
-   before `pnpm --filter web dev`, which can start a missing proxy with `sudo`; if doctor prints a
-   `warn` or `fail` line (it exits 0 on a stopped proxy), give me its fix instead of starting the
-   proxy or working around it with `PORTLESS=0`, `--force`, or `sudo`. If portless says the host is
-   already registered, use `pnpm exec portless get web` only if that process runs from this
-   checkout; otherwise tell me. `pulumi preview` changes nothing, but `pulumi up` with zero nodes
-   deletes Tailscale devices tagged for that stack's cluster; personal stacks share the `dev` names.
-   Run `pulumi up`, `refresh`, `destroy`, or `stack init` only when I ask. If AWS credentials are
-   missing or expired, ask me to run `pnpm sso`.
+   `pnpm cluster deploy` command; mine is `pandoks`. `mise.toml` defaults `AWS_PROFILE=pandoks-dev`
+   and `Pulumi.{production,dev}.yaml` pin `aws:allowedAccountIds` to their AWS member accounts. For
+   the site, run `pnpm exec portless doctor` before `pnpm --filter web dev`, which can start a
+   missing proxy with `sudo`; if doctor prints a `warn` or `fail` line (it exits 0 on a stopped
+   proxy), give me its fix instead of starting the proxy or working around it with `PORTLESS=0`,
+   `--force`, or `sudo`. If portless says the host is already registered, use
+   `pnpm exec portless get web` only if that process runs from this checkout; otherwise tell me.
+   `pulumi preview` changes nothing, but `pulumi up` on `dev` with zero nodes deletes Tailscale
+   devices tagged for `dev`. Run `pulumi up`, `refresh`, `destroy`, or `stack init` only when I ask.
+   If AWS credentials are missing or expired, ask me to run `pnpm sso`.
 3. **Editing my checkout from an experiment.** Use absolute paths in experiment copies;
    `mise exec -C <dir>` runs inside `<dir>`, so never point it at my checkout. Leave my staged and
    unstaged changes alone.
@@ -71,8 +72,9 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
   for Synced and Healthy only for `k3s/`, `apps/*/kube/`, and `scripts/cluster/` changes. Pages
   builds `apps/web` when a change matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs
   everything `k3s/overlays/prod` renders but never prunes: deleted resources stay until pruned.
-- Every non-production stack gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
-  environment, so two non-production stacks collide.
+- `production` deploys to `pandoks-production`, `dev` and personal stacks deploy to `pandoks-dev`.
+  `production` and `dev` are shared stages (cluster, runners, backups, GitHub env); personal stacks
+  get `STAGE_NAME = <stack>` (`api.<stack>.pandoks.com`) and only provision per-stack app infra.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
   staging tier, promotion step, or per-PR cluster.
 - PRs get no infra diff: `pulumi preview` decrypts every secret, so never run it with production
@@ -85,9 +87,9 @@ system-wide. Agent shells usually don't activate mise, so `pnpm` is missing and 
 are unpinned globals; run repo commands, `kubectl` included, as `mise exec -- <cmd>` from inside the
 checkout.
 
-- `pnpm setup` (`./scripts/setup.sh`) installs tools/deps, signs into AWS SSO, and adds the Pulumi
-  state profile; `pnpm bootstrap` (mine to run) creates the state bucket, KMS keys, R2 tokens, and
-  CI role.
+- `pnpm setup` (`./scripts/setup.sh`) installs tools/deps, signs into `pandoks-dev` SSO, and adds
+  the Pulumi state profile; `pnpm bootstrap <prod|dev>` (mine to run) creates each account's KMS
+  key, SSM R2 tokens, and (for `prod`) R2 bucket and CI role.
 - `pnpm format <js|go|shell|all>` writes; `pnpm format check <...>` checks.
 - Manage agent skills only with the skills CLI, for Claude Code, Codex, and opencode:
   `pnpm dlx skills add <source> -s <skill> -a claude-code codex opencode`, and
