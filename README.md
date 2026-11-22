@@ -101,9 +101,9 @@ pulumi config set --secret --raw --stack <stack> <Name> < <file>
 
 A new stack needs every secret in `infra/secrets.ts` and a `Pulumi.<stack>.yaml` from
 `pulumi stack init <stack> --no-select --secrets-provider 'awskms://alias/pulumi-nonproduction?region=us-west-1'`;
-`production` uses `alias/pulumi-production`, the only key Argo CD can decrypt. Only the shared
-`production` and `dev` files are committed, so their secrets change through a PR. A personal stack's
-file stays local; `pulumi config refresh --stack <stack>` restores it from its last deploy.
+`production` exclusively uses `alias/pulumi-production`, the only key Argo CD can decrypt. Only the
+shared `production` and `dev` files are committed, so their secrets change through a PR. A personal
+stack's file stays local; `pulumi config refresh --stack <stack>` restores it from its last deploy.
 
 ### Bootstrap
 
