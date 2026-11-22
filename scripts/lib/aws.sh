@@ -1,5 +1,6 @@
 # shellcheck shell=sh
 
+readonly PULUMI_SSO_SESSION='pandoks'
 readonly PULUMI_STATE_PROFILE='pandoks-pulumi-state'
 readonly PULUMI_SSM_READ_WRITE_NAME='/pulumi/r2-state-credentials'
 
@@ -11,14 +12,20 @@ read_pulumi_config() {
     || die "Could not read the bucket, Cloudflare account and AWS region from Pulumi.yaml"
 }
 
+read_pulumi_allowed_account_id() {
+  read_pulumi_allowed_account_id_file="Pulumi.$1.yaml"
+  [ -f "${read_pulumi_allowed_account_id_file}" ] || die "Missing ${read_pulumi_allowed_account_id_file}"
+  sed -n "/^  aws:allowedAccountIds:$/{n;s/^    - ['\"]*\\([0-9]*\\)['\"]*$/\\1/p;}" "${read_pulumi_allowed_account_id_file}"
+}
+
 ensure_aws_sso_profile() {
-  ensure_aws_sso_profile_name="${AWS_PROFILE:-pandoks}"
+  ensure_aws_sso_profile_name="${1:-${AWS_PROFILE:-pandoks-dev}}"
   if aws configure list-profiles 2> /dev/null | grep -qx "${ensure_aws_sso_profile_name}"; then
     print_ok "AWS profile ${ensure_aws_sso_profile_name}"
   else
     [ -t 0 ] || die "AWS profile '${ensure_aws_sso_profile_name}' is not configured. Run 'aws configure sso --profile ${ensure_aws_sso_profile_name}' interactively, then rerun."
     printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
-    printf "%b│%b  %bConfigure AWS SSO%b %b(use SSO session name '%s')%b\n" "${DIM}" "${NORMAL}" "${BOLD}" "${NORMAL}" "${DIM}" "${ensure_aws_sso_profile_name}" "${NORMAL}" >&2
+    printf "%b│%b  %bConfigure AWS SSO%b %b(use SSO session name '%s')%b\n" "${DIM}" "${NORMAL}" "${BOLD}" "${NORMAL}" "${DIM}" "${PULUMI_SSO_SESSION}" "${NORMAL}" >&2
     printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
     aws configure sso --profile "${ensure_aws_sso_profile_name}" --use-device-code --no-browser
     print_added "AWS profile ${ensure_aws_sso_profile_name}"
@@ -32,6 +39,16 @@ ensure_aws_login() {
     run_device_login "AWS SSO" pnpm sso
     print_added "AWS login"
   fi
+}
+
+verify_aws_account() {
+  verify_aws_account_stack=$1
+  verify_aws_account_expected=$(read_pulumi_allowed_account_id "${verify_aws_account_stack}")
+  [ -n "${verify_aws_account_expected}" ] || die "Could not read aws:allowedAccountIds from Pulumi.${verify_aws_account_stack}.yaml"
+  verify_aws_account_actual=$(aws sts get-caller-identity --query Account --output text)
+  [ "${verify_aws_account_actual}" = "${verify_aws_account_expected}" ] \
+    || die "AWS profile '${AWS_PROFILE:-default}' is account ${verify_aws_account_actual}, expected ${verify_aws_account_expected} (${verify_aws_account_stack})"
+  print_ok "AWS account ${verify_aws_account_actual} (${verify_aws_account_stack})"
 }
 
 ensure_pulumi_state_profile() {

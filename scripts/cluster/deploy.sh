@@ -172,9 +172,7 @@ cmd_deploy() {
     esac
   done
   [ "${cmd_deploy_env}" = "prod" ] && cmd_deploy_stack="production"
-  if [ -z "${cmd_deploy_stack}" ]; then
-    cmd_deploy_stack=$(pulumi -C "${REPO_ROOT}" stack --show-name) || die "Pass --stack <stack> or run 'pulumi stack select <stack>'"
-  fi
+  [ -z "${cmd_deploy_stack}" ] && cmd_deploy_stack="dev"
   if [ "${cmd_deploy_env}" != "prod" ] && [ "${cmd_deploy_stack}" = "production" ]; then
     die "Refusing to use the 'production' stack for '${cmd_deploy_env}'; pass --stack <stack>"
   fi

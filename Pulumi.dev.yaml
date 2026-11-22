@@ -1,6 +1,8 @@
 secretsprovider: awskms://alias/pulumi-nonproduction?region=us-west-1
 encryptedkey: AQICAHj0auG7EUxhGH1wU06f5fsEDFTm5dOR5lWk+yah1+w2NwHXs4jADtwIEZUvRbK33KkuAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMfX3JkOEMPf9Khn6AAgEQgDuv2LSadSzJYoO/Bk5eWn7ait1eWx/quhRnnt5yzr9DvSoJlM7XTixaQCvmoynNtqQUAykuvfGE6Qv27g==
 config:
+  aws:allowedAccountIds:
+    - '325763068051'
   pandoks.com:KubernetesGrafanaAdminPassword:
     secure: v1:q873aE8fUXg+zXSZ:ACI4Av45TcdMBbude5+mx3ahlkGPWRc7
   pandoks.com:CloudflareBackupSecretKey:

@@ -2,7 +2,7 @@ import * as aws from '@pulumi/aws';
 import * as cloudflare from '@pulumi/cloudflare';
 import { isProduction, STAGE_NAME } from '@pandoks.com/infra/stack';
 
-export const domain = isProduction ? 'pandoks.com' : 'dev.pandoks.com';
+export const domain = isProduction ? 'pandoks.com' : `${STAGE_NAME}.pandoks.com`;
 
 export const EXAMPLE_DOMAIN = 'example.pandoks.com';
 

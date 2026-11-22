@@ -37,7 +37,7 @@
 - [Tailscale](https://tailscale.com/download), only for cloud (dev/prod) cluster access
 
 2. Setup this machine (installs `mise` tools and `pnpm` dependencies, runs `aws configure sso` if
-   the `pandoks` profile isn't configured yet, signs into AWS SSO, configures the Pulumi state
+   the `pandoks-dev` profile isn't configured yet, signs into AWS SSO, configures the Pulumi state
    profile, and verifies state access — safe to rerun via `pnpm setup`):
 
 ```sh
@@ -45,9 +45,11 @@
 ```
 
 Each developer signs in with their own IAM Identity Center user
-([AWS CLI SSO guide](https://docs.aws.amazon.com/cli/latest/userguide/sso-configure-profile-token.html)),
-while `mise.toml` (`AWS_PROFILE`) and `pnpm sso` (`package.json`) share the `pandoks`
-profile/session name (rename both if forking this repo).
+([AWS CLI SSO guide](https://docs.aws.amazon.com/cli/latest/userguide/sso-configure-profile-token.html))
+into the `pandoks-dev` AWS account, while `mise.toml` (`AWS_PROFILE=pandoks-dev`) and `pnpm sso`
+(`--sso-session=pandoks`) share the local profile/session names. Developers do **not** need a
+Cloudflare, Hetzner, or production AWS login — AWS SSO unlocks the R2 state credentials (via SSM)
+and decrypts non-production provider tokens (via KMS) automatically.
 
 > [!NOTE]
 > AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while
@@ -62,19 +64,19 @@ the cloud. _Because we're using k3d, which puts an entire Kubernetes cluster ins
 containers, not everything is one to one with the production cluster. ie. networking, registries,
 etc_
 
-To setup the local cluster, run this from the root of the monorepo. Replace `<stack>` with your
-personal Pulumi stack (for example, `pandoks`):
+To setup the local cluster, run this from the root of the monorepo (`local` defaults to the shared
+`dev` stack outputs):
 
 ```sh
 # Quick setup (all-in-one)
-pulumi stack select <stack> && pnpm local:init
+pnpm local:init
 
 # Or step by step:
 pnpm cluster k3d deps up               # Start docker compose dependencies
 pnpm cluster k3d up                    # Create k3d cluster
 pnpm local:build && pnpm local:push    # Build and push images/charts to the local registry
-pnpm cluster deploy local --stack <stack> --bootstrap  # First-time: install helm charts + CRDs
-pnpm cluster deploy local --stack <stack> # Apply environment overlay
+pnpm cluster deploy local --bootstrap  # First-time: install helm charts + CRDs
+pnpm cluster deploy local              # Apply environment overlay
 ```
 
 To tear down the cluster:
@@ -90,10 +92,21 @@ See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI comman
 ## Development
 
 Everything outside Kubernetes is a [Pulumi](https://www.pulumi.com/docs/) program in `infra/`
-(generic helpers in `packages/infra/`), with one stack per stage (`production`, `dev`, and personal
-stacks like `pandoks`). State lives in the R2 bucket in `Pulumi.yaml`, and each
-`Pulumi.<stack>.yaml` names the KMS key that encrypts its state and holds its secrets, encrypted
-with that key:
+(generic helpers in `packages/infra/`), split across two AWS member accounts and three stack tiers:
+
+- **`production`** (`Pulumi.production.yaml`, committed) — deploys into **`pandoks-production`**
+  only via GitHub Actions on `main`, encrypted with `alias/pulumi-production`.
+- **`dev`** (`Pulumi.dev.yaml`, committed) — deploys into **`pandoks-dev`**, encrypted with
+  `alias/pulumi-nonproduction`. Owns the single shared dev Kubernetes cluster, EC2 runner AMIs, R2
+  backup bucket, Tailscale k8s operator, and `dev` GitHub environment.
+- **Personal stacks** (`<name>`, local gitignored `Pulumi.<name>.yaml`) — deploy into
+  **`pandoks-dev`**, encrypted with `alias/pulumi-nonproduction`. Only provision cheap, isolated
+  per-stack app infra (`<name>-*`, `api.<name>.pandoks.com`) without colliding with `dev` or
+  duplicating the shared cluster/runners.
+
+State for every stack lives in the Cloudflare R2 bucket in `Pulumi.yaml`, and each
+`Pulumi.<stack>.yaml` pins `aws:allowedAccountIds` so Pulumi refuses to run against the wrong AWS
+account:
 
 ```sh
 pulumi preview --stack <stack>
@@ -102,14 +115,82 @@ pulumi up --stack <stack>
 pulumi config set --secret --raw --stack <stack> <Name> < <file>
 ```
 
-A new stack needs every secret in `infra/secrets.ts` and a `Pulumi.<stack>.yaml` from
-`pulumi stack init <stack> --no-select --secrets-provider 'awskms://alias/pulumi-nonproduction?region=us-west-1'`;
-`production` exclusively uses `alias/pulumi-production`, the only key Argo CD can decrypt. Only the
-shared `production` and `dev` files are committed, so their secrets change through a PR. A personal
-stack's file stays local; `pulumi config refresh --stack <stack>` restores it from its last deploy.
+To initialize a personal stack:
+
+```sh
+pulumi stack init <name> --no-select --secrets-provider 'awskms://alias/pulumi-nonproduction?region=us-west-1'
+pulumi config set --path 'aws:allowedAccountIds[0]' <pandoks-dev-account-id> --stack <name>
+```
+
+A personal stack needs every secret in `infra/secrets.ts`; its file stays local and
+`pulumi config refresh --stack <name>` restores it from its last deploy. Only the shared
+`production` and `dev` files are committed, so their secrets change through a PR.
 
 ### Bootstrap
 
-`pnpm bootstrap` (admin only, once per org) sets up the state bucket, KMS keys, R2 state tokens,
-this machine's profile, and CI's AWS role. For onboarding a new machine to an already-bootstrapped
-org, run `./scripts/setup.sh` (`pnpm setup`) instead.
+`pnpm bootstrap <prod|dev>` (admin only, once per AWS account) sets up the cloud primitives each
+account needs:
+
+- `pnpm bootstrap prod` (`pandoks-production`): R2 state bucket, `alias/pulumi-production`, SSM R2
+  tokens (`/pulumi/r2-state-credentials` and `/pulumi/r2-state-read-credentials`), GitHub OIDC
+  provider, `PandoksGithubActions` CI role, and GitHub repo variables (`AWS_ROLE_ARN`,
+  `AWS_REGION`).
+- `pnpm bootstrap dev` (`pandoks-dev`): `alias/pulumi-nonproduction`, SSM R2 token
+  (`/pulumi/r2-state-credentials`, encrypted with `alias/pulumi-nonproduction`), and the local
+  `pandoks-pulumi-state` AWS profile.
+
+For onboarding a new laptop to an already-bootstrapped org, run `./scripts/setup.sh` (`pnpm setup`)
+instead.
+
+<details>
+<summary>AWS accounts, IAM Identity Center (SSO) users, and team onboarding</summary>
+
+#### How AWS Organizations & IAM Identity Center fit together
+
+Think of AWS like GitHub:
+
+| Analogy           | AWS concept                                               | Purpose in this repo                                                                                                           |
+| ----------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **GitHub Org**    | **Management ("root") account**                           | Billing, AWS Organizations, and IAM Identity Center (`us-west-1`). Runs **zero** app or CI workloads.                          |
+| **GitHub Repos**  | **Member accounts** (`pandoks-production`, `pandoks-dev`) | Completely siloed 12-digit resource containers. Even `AdministratorAccess` in one cannot touch the other.                      |
+| **GitHub Logins** | **IAM Identity Center (SSO) users**                       | One personal username + password + MFA per human (never shared). One SSO login can be assigned to one or many member accounts. |
+
+CI/CD never uses SSO or the management account — GitHub Actions assumes `PandoksGithubActions`
+directly inside `pandoks-production` via OIDC.
+
+#### 1. Create the two AWS member accounts (once, from the management account)
+
+1. In the management account, open **AWS Organizations → AWS accounts**.
+2. Create two member accounts (each requires a unique root email address — e.g. separate email
+   aliases):
+   - **`pandoks-production`** — production stack only (CI + admin break-glass).
+   - **`pandoks-dev`** — shared `dev` stack + every developer's personal stack.
+3. Put each account's 12-digit ID in `aws:allowedAccountIds` inside `Pulumi.production.yaml` and
+   `Pulumi.dev.yaml`, then run `pnpm bootstrap prod` and `pnpm bootstrap dev`.
+
+#### 2. Onboard a developer (new IAM Identity Center SSO user)
+
+Never create a new AWS account per developer — add a new **SSO user** instead:
+
+1. In the management account, open **IAM Identity Center** (`us-west-1`) → **Users → Add user** (AWS
+   emails them an invite to set their own password and MFA).
+2. Go to **AWS accounts** and assign their user:
+   - **`pandoks-dev`:** **`AdministratorAccess`** (required because `pulumi up` creates IAM roles;
+     `PowerUserAccess` blocks IAM writes, and `pandoks-dev` is already siloed from production).
+   - **`pandoks-production`:** **no access** for non-admin devs (optional: **`ReadOnlyAccess`** if
+     they need to inspect production logs/resources). Admins get `AdministratorAccess` on both.
+3. Grant them collaborator access to the GitHub repo (and invite them to Tailscale only if they need
+   `kubectl`/SSH access to the cloud `dev` cluster).
+4. On their machine, they run `./scripts/setup.sh`, enter the SSO start URL and region when
+   prompted, name the SSO session `pandoks`, and pick `pandoks-dev` — no Cloudflare, Hetzner, or
+   production AWS credentials needed.
+
+#### 3. Cloudflare separation
+
+Because `pandoks.com` lives in one Cloudflare account, production and non-production are separated
+with **separate scoped API tokens** stored in `Pulumi.production.yaml` vs `Pulumi.dev.yaml`
+(Account: Pages, R2, Filter Lists, Rulesets; Zone `pandoks.com`: Zone Read, DNS Edit, SSL/Origin
+CA). Developers only need a Cloudflare account invite (**Manage Account → Members**) if they need
+dashboard access; Pulumi authenticates using the decrypted `CloudflareApiKey` from the stack.
+
+</details>

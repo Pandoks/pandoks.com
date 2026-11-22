@@ -1,6 +1,6 @@
 import * as github from '@pulumi/github';
 import * as tailscale from '@pulumi/tailscale';
-import { isProduction, STAGE_NAME } from '@pandoks.com/infra/stack';
+import { isProduction, isSharedStage, STAGE_NAME } from '@pandoks.com/infra/stack';
 import { cloudflareAccountId } from './dns.ts';
 import { secrets } from './secrets.ts';
 import { tailscaleAcl } from './tailscale.ts';
@@ -14,13 +14,16 @@ const DEPLOYMENT_BRANCH_POLICY = isProduction
   ? { protectedBranches: false, customBranchPolicies: true }
   : undefined;
 
-const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
-  repository: githubRepositoryName,
-  environment: isProduction ? 'production' : 'dev',
-  deploymentBranchPolicy: DEPLOYMENT_BRANCH_POLICY
-});
+let githubEnvironment: github.RepositoryEnvironment | undefined;
+if (isSharedStage) {
+  githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
+    repository: githubRepositoryName,
+    environment: isProduction ? 'production' : 'dev',
+    deploymentBranchPolicy: DEPLOYMENT_BRANCH_POLICY
+  });
+}
 
-if (isProduction) {
+if (isProduction && githubEnvironment) {
   new github.RepositoryEnvironmentDeploymentPolicy('GithubProductionDeploymentPolicy', {
     repository: githubRepositoryName,
     environment: githubEnvironment.environment,

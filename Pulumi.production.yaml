@@ -1,6 +1,8 @@
 secretsprovider: awskms://alias/pulumi-production?region=us-west-1
 encryptedkey: AQICAHgdQjpZwrxYoqZg8ayLeoErEkQDIhQacnvqoNpAY7DHswHFV2PcxmKDdU+h4Nuvwc73AAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMrTtiU/nZtINP5c3RAgEQgDulv6Zytg5YeilpI+DoPIGwMxNppC6L2tH6MIY9lubUD61A/j1+utabHFoASBQd426614ifVI5u0Z1w/w==
 config:
+  aws:allowedAccountIds:
+    - '343487555569'
   pandoks.com:MainMainClickhouseAdminPassword:
     secure: v1:NuW8y5X7zCbJ8yx1:UieJW3N5/Hn6XugZ3hDxEpyinSY7VG6AIBIPnwhYZxOefZAyTjX9WQ==
   pandoks.com:OvhConsumerKey:

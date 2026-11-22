@@ -1,5 +1,8 @@
 import * as pulumi from '@pulumi/pulumi';
 
-export const isProduction = pulumi.getStack() === 'production';
+const stack = pulumi.getStack();
+export const isProduction = stack === 'production';
+export const isDev = stack === 'dev';
+export const isSharedStage = isProduction || isDev;
 
-export const STAGE_NAME = isProduction ? 'prod' : 'dev';
+export const STAGE_NAME = isProduction ? 'prod' : stack;

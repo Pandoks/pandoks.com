@@ -1,6 +1,7 @@
+import type * as pulumi from '@pulumi/pulumi';
 import * as tailscale from '@pulumi/tailscale';
 import stringify from 'json-stringify-pretty-compact';
-import { isProduction, STAGE_NAME } from '@pandoks.com/infra/stack';
+import { isProduction, isSharedStage, STAGE_NAME } from '@pandoks.com/infra/stack';
 
 export const hubTailscaleServices = [
   { name: 'cliproxyapi', comment: 'CLIProxyAPI on the homelab hub', ports: ['tcp:443'] },
@@ -106,17 +107,23 @@ if (isProduction) {
   });
 }
 
-export const kubernetesOperatorOauthClient = new tailscale.OauthClient(
-  `${STAGE_NAME}TailscaleKubernetesOperatorOauthClient`.replace(/^./, (char) => char.toUpperCase()),
-  {
-    description: `${STAGE_NAME} k8s operator`,
-    scopes: ['devices:core', 'auth_keys', 'services'],
-    tags: ['tag:k8s-operator', `tag:${STAGE_NAME}`]
-  },
-  { dependsOn: tailscaleAcl }
-);
+export const kubernetesOperatorOauthClient = isSharedStage
+  ? new tailscale.OauthClient(
+      `${STAGE_NAME}TailscaleKubernetesOperatorOauthClient`.replace(/^./, (char) =>
+        char.toUpperCase()
+      ),
+      {
+        description: `${STAGE_NAME} k8s operator`,
+        scopes: ['devices:core', 'auth_keys', 'services'],
+        tags: ['tag:k8s-operator', `tag:${STAGE_NAME}`]
+      },
+      { dependsOn: tailscaleAcl }
+    )
+  : undefined;
 
-export const outputs = {
-  KubernetesTailscaleOauthClientId: kubernetesOperatorOauthClient.id,
-  KubernetesTailscaleOauthClientSecret: kubernetesOperatorOauthClient.key
-};
+export const outputs: Record<string, pulumi.Output<string>> = kubernetesOperatorOauthClient
+  ? {
+      KubernetesTailscaleOauthClientId: kubernetesOperatorOauthClient.id,
+      KubernetesTailscaleOauthClientSecret: kubernetesOperatorOauthClient.key
+    }
+  : {};
