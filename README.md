@@ -43,9 +43,12 @@ mise install
 pnpm install
 ```
 
-3. Configure an AWS SSO profile `pandoks` in `~/.aws/config`; `mise.toml` sets `AWS_PROFILE` to it.
-   `pnpm sso` logs in to sso session `pandoks`; change both to match yours. Then run
-   `pnpm bootstrap` ([Bootstrap](#bootstrap)).
+3. Configure an AWS SSO session and profile named `pandoks` for this AWS account with
+   `aws configure sso`
+   ([AWS CLI SSO guide](https://docs.aws.amazon.com/cli/latest/userguide/sso-configure-profile-token.html))
+   — each developer signs in with their own IAM Identity Center user, while `mise.toml`
+   (`AWS_PROFILE`) and `pnpm sso` (`package.json`) share the `pandoks` profile/session name (rename
+   both if forking this repo). Then run `pnpm bootstrap` ([Bootstrap](#bootstrap)).
 
 > [!NOTE]
 > AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while
