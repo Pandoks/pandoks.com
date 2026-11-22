@@ -36,19 +36,19 @@
 - [Docker](https://docs.docker.com/get-docker/)
 - [Tailscale](https://tailscale.com/download), only for cloud (dev/prod) cluster access
 
-2. Setup the repository:
-
-```sh
-mise install
-pnpm install
-```
-
-3. Configure an AWS SSO session and profile named `pandoks` for this AWS account with
+2. Configure an AWS SSO session and profile named `pandoks` for this AWS account with
    `aws configure sso`
    ([AWS CLI SSO guide](https://docs.aws.amazon.com/cli/latest/userguide/sso-configure-profile-token.html))
    — each developer signs in with their own IAM Identity Center user, while `mise.toml`
    (`AWS_PROFILE`) and `pnpm sso` (`package.json`) share the `pandoks` profile/session name (rename
-   both if forking this repo). Then run `pnpm bootstrap` ([Bootstrap](#bootstrap)).
+   both if forking this repo).
+
+3. Setup this machine (installs `mise` tools and `pnpm` dependencies, signs into AWS SSO, configures
+   the Pulumi state profile, and verifies state access — safe to rerun via `pnpm setup`):
+
+```sh
+./scripts/setup.sh
+```
 
 > [!NOTE]
 > AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while
@@ -111,5 +111,6 @@ stack's file stays local; `pulumi config refresh --stack <stack>` restores it fr
 
 ### Bootstrap
 
-`pnpm bootstrap` sets up the state bucket, KMS keys, R2 state tokens, this machine's profile and
-CI's AWS role. It's safe to rerun, and on a new machine it only logs in and adds the profile.
+`pnpm bootstrap` (admin only, once per org) sets up the state bucket, KMS keys, R2 state tokens,
+this machine's profile, and CI's AWS role. For onboarding a new machine to an already-bootstrapped
+org, run `./scripts/setup.sh` (`pnpm setup`) instead.

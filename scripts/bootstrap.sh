@@ -11,106 +11,14 @@ readonly REPO_ROOT
 . "${REPO_ROOT}/scripts/lib/font.sh"
 . "${REPO_ROOT}/scripts/lib/log.sh"
 . "${REPO_ROOT}/scripts/lib/prompt.sh"
+. "${REPO_ROOT}/scripts/lib/ui.sh"
+. "${REPO_ROOT}/scripts/lib/aws.sh"
 
-readonly AWS_PROFILE_NAME='pandoks-pulumi-state'
 readonly KMS_PRODUCTION_ALIAS='pulumi-production'
 readonly KMS_NONPRODUCTION_ALIAS='pulumi-nonproduction'
-readonly SSM_READ_WRITE_NAME='/pulumi/r2-state-credentials'
 readonly SSM_READ_ONLY_NAME='/pulumi/r2-state-read-credentials'
 readonly GITHUB_OIDC_HOST='token.actions.githubusercontent.com'
 readonly CI_ROLE_NAME='PandoksGithubActions'
-
-print_banner() {
-  printf "\n%b┌%b  %bpandoks.com%b %b· Pulumi Bootstrap%b\n" "${DIM}" "${NORMAL}" "${BOLD}" "${NORMAL}" "${DIM}" "${NORMAL}"
-  printf "%b│%b  %b%s · %s%b\n" "${DIM}" "${NORMAL}" "${DIM}" "$1" "$2" "${NORMAL}"
-}
-
-print_section() {
-  printf "%b│%b\n" "${DIM}" "${NORMAL}"
-  printf "%b◇%b  %b%s%b\n" "${CYAN}" "${NORMAL}" "${BOLD}" "$1" "${NORMAL}"
-}
-
-print_ok() {
-  printf "%b│%b  %b✓%b %s\n" "${DIM}" "${NORMAL}" "${GREEN}" "${NORMAL}" "$*"
-}
-
-print_added() {
-  printf "%b│%b  %b+%b %s\n" "${DIM}" "${NORMAL}" "${CYAN}" "${NORMAL}" "$*"
-}
-
-print_footer() {
-  printf "%b│%b\n" "${DIM}" "${NORMAL}"
-  printf "%b└%b  %b✓%b %b%s%b\n\n" "${DIM}" "${NORMAL}" "${GREEN}" "${NORMAL}" "${BOLD}" "$1" "${NORMAL}"
-}
-
-run_device_login() {
-  run_device_login_label=$1
-  shift
-
-  run_device_login_status_file=$(mktemp)
-  run_device_login_log_file=$(mktemp)
-  run_device_login_expect_code=0
-  run_device_login_url=''
-  run_device_login_code=''
-  run_device_login_printed=0
-
-  (
-    run_device_login_rc=0
-    "$@" < /dev/null 2>&1 || run_device_login_rc=$?
-    printf '%s\n' "${run_device_login_rc}" > "${run_device_login_status_file}"
-  ) | while IFS= read -r run_device_login_line; do
-    printf '%s\n' "${run_device_login_line}" >> "${run_device_login_log_file}"
-    run_device_login_trimmed=$(printf '%s' "${run_device_login_line}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-    if [ "${run_device_login_expect_code}" -eq 1 ] && [ -n "${run_device_login_trimmed}" ]; then
-      run_device_login_code="${run_device_login_trimmed}"
-      run_device_login_expect_code=0
-    else
-      case "${run_device_login_trimmed}" in
-        https://*)
-          run_device_login_url="${run_device_login_trimmed}"
-          ;;
-        *"enter the code:"*)
-          run_device_login_expect_code=1
-          ;;
-        *"One-time code ("*)
-          run_device_login_code=$(printf '%s' "${run_device_login_trimmed}" | sed -n 's/.*One-time code (\([^)]*\)).*/\1/p')
-          ;;
-        *"one-time code:"*)
-          run_device_login_code=$(printf '%s' "${run_device_login_trimmed}" | sed -n 's/.*one-time code:[[:space:]]*//p')
-          ;;
-        *"Open this URL"*https://*)
-          run_device_login_url=$(printf '%s' "${run_device_login_trimmed}" | sed -n 's|.*\(https://[^[:space:]]*\).*|\1|p')
-          ;;
-      esac
-    fi
-
-    if [ "${run_device_login_printed}" -eq 0 ] && [ -n "${run_device_login_url}" ] && [ -n "${run_device_login_code}" ]; then
-      printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
-      printf "%b│%b  %bAuthorize %s%b\n" "${DIM}" "${NORMAL}" "${BOLD}" "${run_device_login_label}" "${NORMAL}" >&2
-      printf "%b│%b  %b%s%b\n" "${DIM}" "${NORMAL}" "${CYAN}" "${run_device_login_url}" "${NORMAL}" >&2
-      printf "%b│%b  Code: %b%s%b\n" "${DIM}" "${NORMAL}" "${BOLD}${YELLOW}" "${run_device_login_code}" "${NORMAL}" >&2
-      printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
-      run_device_login_printed=1
-    fi
-  done
-
-  run_device_login_status=$(cat "${run_device_login_status_file}")
-  if [ "${run_device_login_status}" -ne 0 ]; then
-    cat "${run_device_login_log_file}" >&2
-    rm -f "${run_device_login_status_file}" "${run_device_login_log_file}"
-    return "${run_device_login_status}"
-  fi
-  rm -f "${run_device_login_status_file}" "${run_device_login_log_file}"
-}
-
-ensure_aws_login() {
-  if aws sts get-caller-identity > /dev/null 2>&1; then
-    print_ok "AWS login"
-  else
-    run_device_login "AWS SSO" pnpm sso
-    print_added "AWS login"
-  fi
-}
 
 ensure_github_login() {
   if gh auth status > /dev/null 2>&1; then
@@ -210,20 +118,6 @@ store_token_parameter() {
   rm -f "${store_token_parameter_file}"
 }
 
-ensure_aws_profile() {
-  ensure_aws_profile_region=$1
-  ensure_aws_profile_credential_process="aws ssm get-parameter --region ${ensure_aws_profile_region} --name ${SSM_READ_WRITE_NAME} --with-decryption --query Parameter.Value --output text"
-
-  if [ "$(aws configure get "profile.${AWS_PROFILE_NAME}.region" 2> /dev/null)" = auto ] \
-    && [ "$(aws configure get "profile.${AWS_PROFILE_NAME}.credential_process" 2> /dev/null)" = "${ensure_aws_profile_credential_process}" ]; then
-    print_ok "AWS profile ${AWS_PROFILE_NAME}"
-  else
-    aws configure set "profile.${AWS_PROFILE_NAME}.region" auto
-    aws configure set "profile.${AWS_PROFILE_NAME}.credential_process" "${ensure_aws_profile_credential_process}"
-    print_added "AWS profile ${AWS_PROFILE_NAME}"
-  fi
-}
-
 ensure_github_oidc_provider() {
   ensure_github_oidc_provider_count=$(aws iam list-open-id-connect-providers --query "length(OpenIDConnectProviderList[?ends_with(Arn, '${GITHUB_OIDC_HOST}')])" --output json)
   if [ "${ensure_github_oidc_provider_count}" -gt 0 ]; then
@@ -295,9 +189,8 @@ ensure_github_variable() {
 }
 
 cleanup_on_exit() {
-  for cleanup_on_exit_file in "${store_token_parameter_file:-}" "${run_device_login_status_file:-}" "${run_device_login_log_file:-}"; do
-    [ -n "${cleanup_on_exit_file}" ] && rm -f "${cleanup_on_exit_file}"
-  done
+  cleanup_device_login
+  [ -n "${store_token_parameter_file:-}" ] && rm -f "${store_token_parameter_file}"
   if [ -t 0 ]; then
     stty echo
   fi
@@ -308,35 +201,31 @@ main() {
   trap 'exit 130' INT TERM
   cd "${REPO_ROOT}"
 
-  main_bucket=$(sed -n 's|^  url: s3://\([^?]*\)?.*|\1|p' Pulumi.yaml)
-  main_cloudflare_account_id=$(sed -n 's|^  url: .*endpoint=\([0-9a-f]*\)\.r2\.cloudflarestorage\.com.*|\1|p' Pulumi.yaml)
-  main_region=$(sed -n '/^  aws:region:$/{n;s|^    value: ||p;}' Pulumi.yaml)
-  [ -n "${main_bucket}" ] && [ -n "${main_cloudflare_account_id}" ] && [ -n "${main_region}" ] \
-    || die "Could not read the bucket, Cloudflare account and AWS region from Pulumi.yaml"
-
-  print_banner "${main_region}" "${main_bucket}"
+  read_pulumi_config
+  print_banner "Pulumi Bootstrap" "${PULUMI_AWS_REGION} · ${PULUMI_BUCKET}"
 
   print_section "Auth & GitHub"
+  ensure_aws_sso_profile
   ensure_aws_login
   ensure_github_login
   main_repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
   main_aws_account_id=$(aws sts get-caller-identity --query Account --output text)
   # NOTE: first, so a wrong AWS_PROFILE dies here before writing to that account
   ensure_github_variable "${main_repo}" AWS_ROLE_ARN "arn:aws:iam::${main_aws_account_id}:role/${CI_ROLE_NAME}"
-  ensure_github_variable "${main_repo}" AWS_REGION "${main_region}"
-  ensure_cloudflare_login "${main_cloudflare_account_id}"
+  ensure_github_variable "${main_repo}" AWS_REGION "${PULUMI_AWS_REGION}"
+  ensure_cloudflare_login "${PULUMI_CLOUDFLARE_ACCOUNT_ID}"
 
   print_section "State & Encryption"
-  ensure_r2_bucket "${main_bucket}" "${main_cloudflare_account_id}"
-  ensure_kms_alias "${KMS_PRODUCTION_ALIAS}" "${main_region}" "Pulumi secrets for the production stack"
-  ensure_kms_alias "${KMS_NONPRODUCTION_ALIAS}" "${main_region}" "Pulumi secrets for non-production stacks"
+  ensure_r2_bucket "${PULUMI_BUCKET}" "${PULUMI_CLOUDFLARE_ACCOUNT_ID}"
+  ensure_kms_alias "${KMS_PRODUCTION_ALIAS}" "${PULUMI_AWS_REGION}" "Pulumi secrets for the production stack"
+  ensure_kms_alias "${KMS_NONPRODUCTION_ALIAS}" "${PULUMI_AWS_REGION}" "Pulumi secrets for non-production stacks"
 
   print_section "R2 State Tokens"
-  ensure_r2_token_parameter "${SSM_READ_WRITE_NAME}" "Pulumi" "Object Read & Write" "${main_region}" "${main_cloudflare_account_id}" "${main_bucket}"
-  ensure_r2_token_parameter "${SSM_READ_ONLY_NAME}" "Argo CD" "Object Read only" "${main_region}" "${main_cloudflare_account_id}" "${main_bucket}"
+  ensure_r2_token_parameter "${PULUMI_SSM_READ_WRITE_NAME}" "Pulumi" "Object Read & Write" "${PULUMI_AWS_REGION}" "${PULUMI_CLOUDFLARE_ACCOUNT_ID}" "${PULUMI_BUCKET}"
+  ensure_r2_token_parameter "${SSM_READ_ONLY_NAME}" "Argo CD" "Object Read only" "${PULUMI_AWS_REGION}" "${PULUMI_CLOUDFLARE_ACCOUNT_ID}" "${PULUMI_BUCKET}"
 
   print_section "Local Profile & CI Role"
-  ensure_aws_profile "${main_region}"
+  ensure_pulumi_state_profile "${PULUMI_AWS_REGION}"
   ensure_github_oidc_provider
   ensure_github_role "${main_aws_account_id}" "${main_repo}"
 

@@ -9,6 +9,7 @@
   },
   "scripts": {
     "sso": "aws sso login --sso-session=pandoks --use-device-code --no-browser",
+    "setup": "./scripts/setup.sh",
     "bootstrap": "./scripts/bootstrap.sh",
     "tools:install": "mise install --yes",
     "cluster": "./scripts/cluster/main.sh",
