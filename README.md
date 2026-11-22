@@ -111,8 +111,13 @@ account:
 ```sh
 pulumi preview --stack <stack>
 pulumi up --stack <stack>
-# --raw keeps trailing newlines
+
+# Set a secret on dev or a personal stack (prompts silently; use --raw < <file> for multiline keys)
+pulumi config set --secret --stack <stack> <Name>
 pulumi config set --secret --raw --stack <stack> <Name> < <file>
+
+# Set a secret on production (explicit AWS_PROFILE=pandoks-production; ship Pulumi.production.yaml via PR)
+AWS_PROFILE=pandoks-production pulumi config set --secret --stack production <Name>
 ```
 
 To initialize a personal stack:
