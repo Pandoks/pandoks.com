@@ -52,10 +52,9 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
    `printf 'y\n' | mise exec -- pnpm cluster deploy local --stack <stack> --kubeconfig "$(mise exec -- k3d kubeconfig write local-cluster)"`.
 5. **Leaking secrets.** `--show-secrets` output, `pulumi config get` of a secret, SSM `/pulumi/`
    values, and `pnpm cluster deploy --dry-run` output are real credentials: never print, commit, or
-   paste them, and inspect manifests with `kustomize build`. New secrets go in `infra/secrets.ts`;
-   one without a value fails every preview and deploy of its stack, so set yours with
-   `pulumi config set --secret --raw --stack <stack> <Name> < <file>` and ask me to set
-   production's.
+   paste them, and inspect manifests with `kustomize build`. New secrets go in `infra/secrets.ts`; a
+   missing value fails every preview and deploy of its stack, so set yours with
+   `pulumi config set --secret --raw --stack <stack> <Name> < <file>` and ask me for production's.
 
 ## How changes ship
 
@@ -67,12 +66,12 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
   deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `pulumi up --refresh --stack production` for
-  `Pulumi.yaml`, `Pulumi.production.yaml`, the root `package.json` and `pnpm-lock.yaml`, `infra/`,
-  `packages/infra/`, `apps/` (except `example`), and `packages/svelte/`, plus an Argo hard refresh
-  and a wait for Synced and Healthy only for `k3s/`, `apps/*/kube/`, and `scripts/cluster/` changes.
-  Pages builds `apps/web` when a change matches `pathIncludes` in `infra/website.ts`. Argo
-  auto-syncs everything `k3s/overlays/prod` renders but never prunes: a deleted resource stays in
-  prod until pruned by hand.
+  `Pulumi.yaml`, `Pulumi.production.yaml`, `mise.toml`, root `package.json`/`pnpm-lock.yaml`,
+  `infra/`, `packages/infra/`, `apps/` (except `example`), and `packages/svelte/`, plus an Argo hard
+  refresh and wait for Synced and Healthy only for `k3s/`, `apps/*/kube/`, and `scripts/cluster/`
+  changes. Pages builds `apps/web` when a change matches `pathIncludes` in `infra/website.ts`. Argo
+  auto-syncs everything `k3s/overlays/prod` renders but never prunes: deleted resources stay until
+  pruned.
 - Every non-production stack gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
   environment, so two non-production stacks collide.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no

@@ -20,12 +20,104 @@ readonly SSM_READ_ONLY_NAME='/pulumi/r2-state-read-credentials'
 readonly GITHUB_OIDC_HOST='token.actions.githubusercontent.com'
 readonly CI_ROLE_NAME='PandoksGithubActions'
 
+print_banner() {
+  printf "\n%b┌%b  %bpandoks.com%b %b· Pulumi Bootstrap%b\n" "${DIM}" "${NORMAL}" "${BOLD}" "${NORMAL}" "${DIM}" "${NORMAL}"
+  printf "%b│%b  %b%s · %s%b\n" "${DIM}" "${NORMAL}" "${DIM}" "$1" "$2" "${NORMAL}"
+}
+
+print_section() {
+  printf "%b│%b\n" "${DIM}" "${NORMAL}"
+  printf "%b◇%b  %b%s%b\n" "${CYAN}" "${NORMAL}" "${BOLD}" "$1" "${NORMAL}"
+}
+
+print_ok() {
+  printf "%b│%b  %b✓%b %s\n" "${DIM}" "${NORMAL}" "${GREEN}" "${NORMAL}" "$*"
+}
+
+print_added() {
+  printf "%b│%b  %b+%b %s\n" "${DIM}" "${NORMAL}" "${CYAN}" "${NORMAL}" "$*"
+}
+
+print_footer() {
+  printf "%b│%b\n" "${DIM}" "${NORMAL}"
+  printf "%b└%b  %b✓%b %b%s%b\n\n" "${DIM}" "${NORMAL}" "${GREEN}" "${NORMAL}" "${BOLD}" "$1" "${NORMAL}"
+}
+
+run_device_login() {
+  run_device_login_label=$1
+  shift
+
+  run_device_login_status_file=$(mktemp)
+  run_device_login_log_file=$(mktemp)
+  run_device_login_expect_code=0
+  run_device_login_url=''
+  run_device_login_code=''
+  run_device_login_printed=0
+
+  (
+    run_device_login_rc=0
+    "$@" < /dev/null 2>&1 || run_device_login_rc=$?
+    printf '%s\n' "${run_device_login_rc}" > "${run_device_login_status_file}"
+  ) | while IFS= read -r run_device_login_line; do
+    printf '%s\n' "${run_device_login_line}" >> "${run_device_login_log_file}"
+    run_device_login_trimmed=$(printf '%s' "${run_device_login_line}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    if [ "${run_device_login_expect_code}" -eq 1 ] && [ -n "${run_device_login_trimmed}" ]; then
+      run_device_login_code="${run_device_login_trimmed}"
+      run_device_login_expect_code=0
+    else
+      case "${run_device_login_trimmed}" in
+        https://*)
+          run_device_login_url="${run_device_login_trimmed}"
+          ;;
+        *"enter the code:"*)
+          run_device_login_expect_code=1
+          ;;
+        *"One-time code ("*)
+          run_device_login_code=$(printf '%s' "${run_device_login_trimmed}" | sed -n 's/.*One-time code (\([^)]*\)).*/\1/p')
+          ;;
+        *"one-time code:"*)
+          run_device_login_code=$(printf '%s' "${run_device_login_trimmed}" | sed -n 's/.*one-time code:[[:space:]]*//p')
+          ;;
+        *"Open this URL"*https://*)
+          run_device_login_url=$(printf '%s' "${run_device_login_trimmed}" | sed -n 's|.*\(https://[^[:space:]]*\).*|\1|p')
+          ;;
+      esac
+    fi
+
+    if [ "${run_device_login_printed}" -eq 0 ] && [ -n "${run_device_login_url}" ] && [ -n "${run_device_login_code}" ]; then
+      printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
+      printf "%b│%b  %bAuthorize %s%b\n" "${DIM}" "${NORMAL}" "${BOLD}" "${run_device_login_label}" "${NORMAL}" >&2
+      printf "%b│%b  %b%s%b\n" "${DIM}" "${NORMAL}" "${CYAN}" "${run_device_login_url}" "${NORMAL}" >&2
+      printf "%b│%b  Code: %b%s%b\n" "${DIM}" "${NORMAL}" "${BOLD}${YELLOW}" "${run_device_login_code}" "${NORMAL}" >&2
+      printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
+      run_device_login_printed=1
+    fi
+  done
+
+  run_device_login_status=$(cat "${run_device_login_status_file}")
+  if [ "${run_device_login_status}" -ne 0 ]; then
+    cat "${run_device_login_log_file}" >&2
+    rm -f "${run_device_login_status_file}" "${run_device_login_log_file}"
+    return "${run_device_login_status}"
+  fi
+  rm -f "${run_device_login_status_file}" "${run_device_login_log_file}"
+}
+
 ensure_aws_login() {
   if aws sts get-caller-identity > /dev/null 2>&1; then
-    log_ok "AWS login"
+    print_ok "AWS login"
   else
-    pnpm sso
-    log_added "AWS login"
+    run_device_login "AWS SSO" pnpm sso
+    print_added "AWS login"
+  fi
+}
+
+ensure_github_login() {
+  if gh auth status > /dev/null 2>&1; then
+    print_ok "GitHub login"
+  else
+    run_device_login "GitHub" env BROWSER=true gh auth login --hostname github.com --git-protocol https --web --skip-ssh-key --scopes workflow
+    print_added "GitHub login"
   fi
 }
 
@@ -33,11 +125,11 @@ ensure_cloudflare_login() {
   ensure_cloudflare_login_account_id=$1
 
   if ensure_cloudflare_login_whoami=$(wrangler whoami --json 2> /dev/null); then
-    log_ok "Cloudflare login"
+    print_ok "Cloudflare login"
   else
-    wrangler login
+    run_device_login "Cloudflare" wrangler login --device --browser=false
     ensure_cloudflare_login_whoami=$(wrangler whoami --json)
-    log_added "Cloudflare login"
+    print_added "Cloudflare login"
   fi
 
   printf '%s\n' "${ensure_cloudflare_login_whoami}" \
@@ -53,10 +145,10 @@ ensure_r2_bucket() {
   # TODO: lists only 20 buckets: https://github.com/cloudflare/workers-sdk/issues/15103
   ensure_r2_bucket_list=$(CLOUDFLARE_ACCOUNT_ID="${ensure_r2_bucket_account_id}" wrangler r2 bucket list)
   if printf '%s\n' "${ensure_r2_bucket_list}" | grep "^name: *${ensure_r2_bucket_name}\$" > /dev/null; then
-    log_ok "R2 bucket ${ensure_r2_bucket_name}"
+    print_ok "R2 bucket ${ensure_r2_bucket_name}"
   else
     CLOUDFLARE_ACCOUNT_ID="${ensure_r2_bucket_account_id}" wrangler r2 bucket create "${ensure_r2_bucket_name}"
-    log_added "R2 bucket ${ensure_r2_bucket_name}"
+    print_added "R2 bucket ${ensure_r2_bucket_name}"
   fi
 }
 
@@ -67,38 +159,42 @@ ensure_kms_alias() {
 
   ensure_kms_alias_count=$(aws kms list-aliases --region "${ensure_kms_alias_region}" --query "length(Aliases[?AliasName=='alias/${ensure_kms_alias_name}'])" --output json)
   if [ "${ensure_kms_alias_count}" -gt 0 ]; then
-    log_ok "KMS alias/${ensure_kms_alias_name}"
+    print_ok "KMS alias/${ensure_kms_alias_name}"
   else
     ensure_kms_alias_key_id=$(aws kms create-key --region "${ensure_kms_alias_region}" --description "${ensure_kms_alias_description}" --query KeyMetadata.KeyId --output text)
     if ! aws kms create-alias --region "${ensure_kms_alias_region}" --alias-name "alias/${ensure_kms_alias_name}" --target-key-id "${ensure_kms_alias_key_id}"; then
       aws kms schedule-key-deletion --region "${ensure_kms_alias_region}" --key-id "${ensure_kms_alias_key_id}" --pending-window-in-days 7 > /dev/null
       die "Could not create alias/${ensure_kms_alias_name}; scheduled deletion of its new key ${ensure_kms_alias_key_id}"
     fi
-    log_added "KMS alias/${ensure_kms_alias_name}"
+    print_added "KMS alias/${ensure_kms_alias_name}"
   fi
 }
 
 ensure_r2_token_parameter() {
   ensure_r2_token_parameter_name=$1
-  ensure_r2_token_parameter_permission=$2
-  ensure_r2_token_parameter_region=$3
-  ensure_r2_token_parameter_account_id=$4
-  ensure_r2_token_parameter_bucket=$5
+  ensure_r2_token_parameter_consumer=$2
+  ensure_r2_token_parameter_permission=$3
+  ensure_r2_token_parameter_region=$4
+  ensure_r2_token_parameter_account_id=$5
+  ensure_r2_token_parameter_bucket=$6
 
   # NOTE: describe instead of get-parameter --with-decryption, so checking never reads the token
   ensure_r2_token_parameter_count=$(aws ssm describe-parameters --region "${ensure_r2_token_parameter_region}" --parameter-filters "Key=Name,Option=Equals,Values=${ensure_r2_token_parameter_name}" --query 'length(Parameters)' --output json)
   if [ "${ensure_r2_token_parameter_count}" -gt 0 ]; then
-    log_ok "SSM ${ensure_r2_token_parameter_name}"
+    print_ok "SSM ${ensure_r2_token_parameter_name}"
   else
-    log_info "Create an R2 API token with ${ensure_r2_token_parameter_permission} limited to ${ensure_r2_token_parameter_bucket} at https://dash.cloudflare.com/${ensure_r2_token_parameter_account_id}/r2/api-tokens"
-    ensure_r2_token_parameter_access_key_id=$(prompt_secret "Access Key ID: ")
-    ensure_r2_token_parameter_secret=$(prompt_secret "Secret Access Key: ")
+    printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
+    printf "%b│%b  %bCreate an R2 API token for %s (%s · %s)%b\n" "${DIM}" "${NORMAL}" "${BOLD}" "${ensure_r2_token_parameter_consumer}" "${ensure_r2_token_parameter_permission}" "${ensure_r2_token_parameter_bucket}" "${NORMAL}" >&2
+    printf "%b│%b  %bhttps://dash.cloudflare.com/%s/r2/api-tokens%b\n" "${DIM}" "${NORMAL}" "${CYAN}" "${ensure_r2_token_parameter_account_id}" "${NORMAL}" >&2
+    ensure_r2_token_parameter_access_key_id=$(prompt_secret "$(printf "%b│%b  S3 Access Key ID: " "${DIM}" "${NORMAL}")")
+    ensure_r2_token_parameter_secret=$(prompt_secret "$(printf "%b│%b  S3 Secret Access Key: " "${DIM}" "${NORMAL}")")
+    printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
     if [ -z "${ensure_r2_token_parameter_access_key_id}" ] || [ -z "${ensure_r2_token_parameter_secret}" ]; then
       die "Access Key ID and Secret Access Key can't be empty"
     fi
 
     store_token_parameter "${ensure_r2_token_parameter_name}" "${ensure_r2_token_parameter_region}" "${ensure_r2_token_parameter_access_key_id}" "${ensure_r2_token_parameter_secret}"
-    log_added "SSM ${ensure_r2_token_parameter_name}"
+    print_added "SSM ${ensure_r2_token_parameter_name}"
   fi
 }
 
@@ -120,21 +216,21 @@ ensure_aws_profile() {
 
   if [ "$(aws configure get "profile.${AWS_PROFILE_NAME}.region" 2> /dev/null)" = auto ] \
     && [ "$(aws configure get "profile.${AWS_PROFILE_NAME}.credential_process" 2> /dev/null)" = "${ensure_aws_profile_credential_process}" ]; then
-    log_ok "AWS profile ${AWS_PROFILE_NAME}"
+    print_ok "AWS profile ${AWS_PROFILE_NAME}"
   else
     aws configure set "profile.${AWS_PROFILE_NAME}.region" auto
     aws configure set "profile.${AWS_PROFILE_NAME}.credential_process" "${ensure_aws_profile_credential_process}"
-    log_added "AWS profile ${AWS_PROFILE_NAME}"
+    print_added "AWS profile ${AWS_PROFILE_NAME}"
   fi
 }
 
 ensure_github_oidc_provider() {
   ensure_github_oidc_provider_count=$(aws iam list-open-id-connect-providers --query "length(OpenIDConnectProviderList[?ends_with(Arn, '${GITHUB_OIDC_HOST}')])" --output json)
   if [ "${ensure_github_oidc_provider_count}" -gt 0 ]; then
-    log_ok "GitHub OIDC provider"
+    print_ok "GitHub OIDC provider"
   else
     aws iam create-open-id-connect-provider --url "https://${GITHUB_OIDC_HOST}" --client-id-list sts.amazonaws.com > /dev/null
-    log_added "GitHub OIDC provider"
+    print_added "GitHub OIDC provider"
   fi
 }
 
@@ -144,7 +240,7 @@ ensure_github_role() {
 
   ensure_github_role_count=$(aws iam list-roles --query "length(Roles[?RoleName=='${CI_ROLE_NAME}'])" --output json)
   if [ "${ensure_github_role_count}" -gt 0 ]; then
-    log_ok "IAM role ${CI_ROLE_NAME}"
+    print_ok "IAM role ${CI_ROLE_NAME}"
   else
     ensure_github_role_trust_policy=$(
       cat << EOF
@@ -170,15 +266,15 @@ ensure_github_role() {
 EOF
     )
     aws iam create-role --role-name "${CI_ROLE_NAME}" --assume-role-policy-document "${ensure_github_role_trust_policy}" > /dev/null
-    log_added "IAM role ${CI_ROLE_NAME}"
+    print_added "IAM role ${CI_ROLE_NAME}"
   fi
 
   ensure_github_role_policy_count=$(aws iam list-attached-role-policies --role-name "${CI_ROLE_NAME}" --query "length(AttachedPolicies[?PolicyArn=='arn:aws:iam::aws:policy/AdministratorAccess'])" --output json)
   if [ "${ensure_github_role_policy_count}" -gt 0 ]; then
-    log_ok "AdministratorAccess on ${CI_ROLE_NAME}"
+    print_ok "AdministratorAccess on ${CI_ROLE_NAME}"
   else
     aws iam attach-role-policy --role-name "${CI_ROLE_NAME}" --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
-    log_added "AdministratorAccess on ${CI_ROLE_NAME}"
+    print_added "AdministratorAccess on ${CI_ROLE_NAME}"
   fi
 }
 
@@ -189,19 +285,19 @@ ensure_github_variable() {
 
   ensure_github_variable_current=$(gh variable list --repo "${ensure_github_variable_repo}" --json name,value --jq ".[] | select(.name == \"${ensure_github_variable_name}\") | .value")
   if [ "${ensure_github_variable_current}" = "${ensure_github_variable_value}" ]; then
-    log_ok "GitHub variable ${ensure_github_variable_name}"
+    print_ok "GitHub variable ${ensure_github_variable_name}"
   elif [ -n "${ensure_github_variable_current}" ]; then
     die "GitHub variable ${ensure_github_variable_name} is ${ensure_github_variable_current}, not ${ensure_github_variable_value}; check your AWS profile, or delete the variable to replace it"
   else
     gh variable set "${ensure_github_variable_name}" --repo "${ensure_github_variable_repo}" --body "${ensure_github_variable_value}"
-    log_added "GitHub variable ${ensure_github_variable_name}"
+    print_added "GitHub variable ${ensure_github_variable_name}"
   fi
 }
 
 cleanup_on_exit() {
-  if [ -n "${store_token_parameter_file:-}" ]; then
-    rm -f "${store_token_parameter_file}"
-  fi
+  for cleanup_on_exit_file in "${store_token_parameter_file:-}" "${run_device_login_status_file:-}" "${run_device_login_log_file:-}"; do
+    [ -n "${cleanup_on_exit_file}" ] && rm -f "${cleanup_on_exit_file}"
+  done
   if [ -t 0 ]; then
     stty echo
   fi
@@ -217,27 +313,34 @@ main() {
   main_region=$(sed -n '/^  aws:region:$/{n;s|^    value: ||p;}' Pulumi.yaml)
   [ -n "${main_bucket}" ] && [ -n "${main_cloudflare_account_id}" ] && [ -n "${main_region}" ] \
     || die "Could not read the bucket, Cloudflare account and AWS region from Pulumi.yaml"
-  main_repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
 
+  print_banner "${main_region}" "${main_bucket}"
+
+  print_section "Auth & GitHub"
   ensure_aws_login
+  ensure_github_login
+  main_repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
   main_aws_account_id=$(aws sts get-caller-identity --query Account --output text)
   # NOTE: first, so a wrong AWS_PROFILE dies here before writing to that account
   ensure_github_variable "${main_repo}" AWS_ROLE_ARN "arn:aws:iam::${main_aws_account_id}:role/${CI_ROLE_NAME}"
   ensure_github_variable "${main_repo}" AWS_REGION "${main_region}"
   ensure_cloudflare_login "${main_cloudflare_account_id}"
 
+  print_section "State & Encryption"
   ensure_r2_bucket "${main_bucket}" "${main_cloudflare_account_id}"
-
   ensure_kms_alias "${KMS_PRODUCTION_ALIAS}" "${main_region}" "Pulumi secrets for the production stack"
   ensure_kms_alias "${KMS_NONPRODUCTION_ALIAS}" "${main_region}" "Pulumi secrets for non-production stacks"
 
-  ensure_r2_token_parameter "${SSM_READ_WRITE_NAME}" "Object Read & Write" "${main_region}" "${main_cloudflare_account_id}" "${main_bucket}"
-  ensure_r2_token_parameter "${SSM_READ_ONLY_NAME}" "Object Read only" "${main_region}" "${main_cloudflare_account_id}" "${main_bucket}"
+  print_section "R2 State Tokens"
+  ensure_r2_token_parameter "${SSM_READ_WRITE_NAME}" "Pulumi" "Object Read & Write" "${main_region}" "${main_cloudflare_account_id}" "${main_bucket}"
+  ensure_r2_token_parameter "${SSM_READ_ONLY_NAME}" "Argo CD" "Object Read only" "${main_region}" "${main_cloudflare_account_id}" "${main_bucket}"
 
+  print_section "Local Profile & CI Role"
   ensure_aws_profile "${main_region}"
-
   ensure_github_oidc_provider
   ensure_github_role "${main_aws_account_id}" "${main_repo}"
+
+  print_footer "Bootstrap complete"
 }
 
 main

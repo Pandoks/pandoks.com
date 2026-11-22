@@ -125,9 +125,11 @@ const apiCertificate = new aws.acm.Certificate('ApiCertificate', {
 const apiCertificateValidationOption = apiCertificate.domainValidationOptions[0];
 const apiCertificateValidationRecord = new cloudflare.DnsRecord('ApiCertificateValidationRecord', {
   zoneId: cloudflareZoneId,
-  name: apiCertificateValidationOption.resourceRecordName,
+  name: apiCertificateValidationOption.resourceRecordName.apply((name) => name.replace(/\.$/, '')),
   type: apiCertificateValidationOption.resourceRecordType,
-  content: apiCertificateValidationOption.resourceRecordValue,
+  content: apiCertificateValidationOption.resourceRecordValue.apply((value) =>
+    value.replace(/\.$/, '')
+  ),
   proxied: false,
   ttl: 60
 });

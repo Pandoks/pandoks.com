@@ -43,9 +43,12 @@ mise install
 pnpm install
 ```
 
-3. Configure an AWS SSO profile `pandoks` in `~/.aws/config`; `mise.toml` sets `AWS_PROFILE` to it.
-   `pnpm sso` logs in to sso session `pandoks`; change both to match yours. Then run
-   `pnpm bootstrap` ([Bootstrap](#bootstrap)).
+3. Configure an AWS SSO session and profile named `pandoks` for this AWS account with
+   `aws configure sso`
+   ([AWS CLI SSO guide](https://docs.aws.amazon.com/cli/latest/userguide/sso-configure-profile-token.html))
+   — each developer signs in with their own IAM Identity Center user, while `mise.toml`
+   (`AWS_PROFILE`) and `pnpm sso` (`package.json`) share the `pandoks` profile/session name (rename
+   both if forking this repo). Then run `pnpm bootstrap` ([Bootstrap](#bootstrap)).
 
 > [!NOTE]
 > AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while
@@ -60,19 +63,19 @@ the cloud. _Because we're using k3d, which puts an entire Kubernetes cluster ins
 containers, not everything is one to one with the production cluster. ie. networking, registries,
 etc_
 
-To setup the local cluster, run this from the root of the monorepo. Replace `your-stack` with your
+To setup the local cluster, run this from the root of the monorepo. Replace `<stack>` with your
 personal Pulumi stack (for example, `pandoks`):
 
 ```sh
 # Quick setup (all-in-one)
-pulumi stack select your-stack && pnpm local:init
+pulumi stack select <stack> && pnpm local:init
 
 # Or step by step:
 pnpm cluster k3d deps up               # Start docker compose dependencies
 pnpm cluster k3d up                    # Create k3d cluster
 pnpm local:build && pnpm local:push    # Build and push images/charts to the local registry
-pnpm cluster deploy local --stack your-stack --bootstrap  # First-time: install helm charts + CRDs
-pnpm cluster deploy local --stack your-stack # Apply environment overlay
+pnpm cluster deploy local --stack <stack> --bootstrap  # First-time: install helm charts + CRDs
+pnpm cluster deploy local --stack <stack> # Apply environment overlay
 ```
 
 To tear down the cluster:
@@ -94,17 +97,17 @@ stacks like `pandoks`). State lives in the R2 bucket in `Pulumi.yaml`, and each
 with that key:
 
 ```sh
-pulumi preview --stack your-stack
-pulumi up --stack your-stack
+pulumi preview --stack <stack>
+pulumi up --stack <stack>
 # --raw keeps trailing newlines
-pulumi config set --secret --raw --stack your-stack <Name> < <file>
+pulumi config set --secret --raw --stack <stack> <Name> < <file>
 ```
 
 A new stack needs every secret in `infra/secrets.ts` and a `Pulumi.<stack>.yaml` from
-`pulumi stack init your-stack --no-select --secrets-provider 'awskms://alias/pulumi-nonproduction?region=us-west-1'`;
-`production` uses `alias/pulumi-production`, the only key Argo CD can decrypt. Only the shared
-`production` and `dev` files are committed, so their secrets change through a PR. A personal stack's
-file stays local; `pulumi config refresh --stack your-stack` restores it from its last deploy.
+`pulumi stack init <stack> --no-select --secrets-provider 'awskms://alias/pulumi-nonproduction?region=us-west-1'`;
+`production` exclusively uses `alias/pulumi-production`, the only key Argo CD can decrypt. Only the
+shared `production` and `dev` files are committed, so their secrets change through a PR. A personal
+stack's file stays local; `pulumi config refresh --stack <stack>` restores it from its last deploy.
 
 ### Bootstrap
 

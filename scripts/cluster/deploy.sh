@@ -43,7 +43,7 @@ deploy_get_template_vars() {
   deploy_get_template_vars_stack="$2"
 
   log_info --quiet="${QUIET}" "Fetching Pulumi outputs for stack '${deploy_get_template_vars_stack}'..."
-  deploy_get_template_vars_outputs=$(pulumi stack output --stack "${deploy_get_template_vars_stack}" --json --show-secrets) || {
+  deploy_get_template_vars_outputs=$(pulumi -C "${REPO_ROOT}" stack output --stack "${deploy_get_template_vars_stack}" --json --show-secrets) || {
     log_error "Failed to fetch Pulumi stack outputs. Make sure you're authenticated with AWS."
     printf "Try running: %bpnpm sso%b.\n" "${BOLD}" "${NORMAL}" >&2
     return 1
@@ -173,7 +173,10 @@ cmd_deploy() {
   done
   [ "${cmd_deploy_env}" = "prod" ] && cmd_deploy_stack="production"
   if [ -z "${cmd_deploy_stack}" ]; then
-    cmd_deploy_stack=$(pulumi stack --show-name) || die "Pass --stack <stack> or run 'pulumi stack select <stack>'"
+    cmd_deploy_stack=$(pulumi -C "${REPO_ROOT}" stack --show-name) || die "Pass --stack <stack> or run 'pulumi stack select <stack>'"
+  fi
+  if [ "${cmd_deploy_env}" != "prod" ] && [ "${cmd_deploy_stack}" = "production" ]; then
+    die "Refusing to use the 'production' stack for '${cmd_deploy_env}'; pass --stack <stack>"
   fi
 
   if [ -n "${cmd_deploy_kubeconfig}" ]; then

@@ -120,6 +120,8 @@ jobs:
             infra:
               - 'infra/**'
               - 'packages/infra/**'
+              - 'apps/functions/src/**'
+              - 'scripts/lib/**'
               - 'Pulumi*.yaml'
               - 'tsconfig.json'
               - *needs-node-setup
