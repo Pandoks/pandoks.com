@@ -120,16 +120,18 @@ pulumi config set --secret --raw --stack <stack> <Name> < <file>
 AWS_PROFILE=pandoks-production pulumi config set --secret --stack production <Name>
 ```
 
-To initialize a personal stack:
+To initialize a personal stack (copies `aws:allowedAccountIds` and non-production secrets from
+`dev`):
 
 ```sh
-pulumi stack init <name> --no-select --secrets-provider 'awskms://alias/pulumi-nonproduction?region=us-west-1'
-pulumi config set --path 'aws:allowedAccountIds[0]' <pandoks-dev-account-id> --stack <name>
+pulumi stack init <name> --no-select \
+  --secrets-provider 'awskms://alias/pulumi-nonproduction?region=us-west-1' \
+  --copy-config-from dev
 ```
 
-A personal stack needs every secret in `infra/secrets.ts`; its file stays local and
-`pulumi config refresh --stack <name>` restores it from its last deploy. Only the shared
-`production` and `dev` files are committed, so their secrets change through a PR.
+Its `Pulumi.<name>.yaml` stays local (gitignored) and `pulumi config refresh --stack <name>`
+restores it from its last deploy. Only the shared `production` and `dev` files are committed, so
+their secrets change through a PR.
 
 ### Bootstrap
 
