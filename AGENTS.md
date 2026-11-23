@@ -127,15 +127,15 @@ checkout.
     every commit or push; narrower checks don't replace it.
   - `apps/web`: `CI=1 pnpm --filter web test:e2e` (skips portless) for user-visible changes.
   - `templates/mobile`: `pnpm ios` and `pnpm android` from the app, then `pnpm test:e2e`.
-  - Workflows: the PR's CI once a PR exists.
+  - Workflows: the PR's CI once a PR exists; check that the intended jobs ran on its head.
 - Before calling work done, run format, lint, type, and test commands for every language and package
   you touched, even for a one-line change, and report a configured checker exclusion only when it
   skips something you touched.
 - Docs: when a change makes docs wrong or adds a command, package, CI check, or convention, tersely
   update whatever it affects: `README.md`, `k3s/README.md`, `scripts/cluster/README.md`, usage text,
   package READMEs, and this file.
-- Fixtures and rendered YAML alone don't make a change tested; for workflows, check that intended
-  jobs ran on the PR head. Fix fallout you cause; report `main` failures instead of fixing them.
+- Fixtures and rendered YAML alone don't make a change tested. Fix fallout you cause; report
+  failures that were already there separately instead of fixing them.
 - Run `test-audit` on every test you add or change; add one only when you can name the behavior it
   protects, the regression that breaks it, and why existing tests miss it. A bug fix in a package
   with tests gets one regression test that fails before the fix; elsewhere, add no test setup.
@@ -159,8 +159,9 @@ Before calling infra, cluster, or tooling work done, check:
   keep the existing ones.
 - Comments default to none. Add one only for a reason the code and names can't show (an upstream bug
   with `TODO: <issue link>`, or a constraint a reader would otherwise break), in one line; never a
-  file header, restatement, version, or history. Separate smaller blocks with blank lines; keep tool
-  annotations like `# renovate:`, `# shellcheck`, and `# options:`.
+  file header, restatement, or version history. Separate smaller blocks with blank lines; keep a
+  file's section labels (`# ─── Go ───`) and tool annotations like `# renovate:`, `# shellcheck`,
+  `# options:`, and the `# vX.Y.Z` after a pinned SHA.
 - No type errors, lint warnings, or `any` to silence a checker. Don't over-harden dev-only or
   maintainer-only paths.
 - **Shell:** POSIX `sh`, `set -eu` in entrypoints, and function variables prefixed with the function
@@ -191,16 +192,16 @@ Before calling infra, cluster, or tooling work done, check:
 - Commits and PR titles: Conventional Commits as `type(scope): short lowercase summary`, like
   `update(cluster): drop unused flag`. PRs are squash-merged, so the title is the commit that lands.
 - Descriptions match the current diff (not history), updated in the same push: what changes, how to
-  verify it, and a table of each change's why (what breaks without it) and where deletions or moves
-  went. Architecture changes get a `mermaid` diagram; UI changes get screenshots or video uploaded
-  to GitHub. Never commit PR-only assets, plans, or notes.
+  use or verify it, and a table of each change's why (what breaks without it) and where deletions or
+  moves went. Top-level architecture changes get a `mermaid` diagram; UI changes get screenshots or
+  video uploaded to GitHub. Never commit PR-only assets, plans, or notes.
 - One concern per PR, not split too fine; tell me unrelated findings instead of opening new PRs.
 - Before calling a PR ready, run `pr-ready` and a review/fix loop over correctness, least code,
   style match, tests, and docs until a full round finds nothing.
 - Babysitting: poll checks and comments newer than the last push, fix real bot findings, dismiss
-  false positives and hardening Principles exclude with a written reason, and resolve addressed
-  threads. Once CI passes and nothing is left unhandled, stop at the first of these and tell me
-  which bots didn't review:
+  false positives and hardening that the Principles exclude with a written reason, and resolve
+  addressed threads. Once CI passes and nothing is left unhandled, stop at the first of these and
+  tell me which bots didn't review:
   - every review bot reviewed the latest push (Claude reviews only on open and ready);
   - 30 minutes have passed since that push;
   - you have no timer, and no bot still missing shows activity on that push.

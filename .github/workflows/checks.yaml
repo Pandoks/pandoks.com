@@ -121,20 +121,12 @@ jobs:
         with:
           fail_level: info
 
-      - name: Check pipeline aggregate dependencies
-        shell: ruby {0}
-        run: |
-          require "yaml"
-          jobs = YAML.safe_load(File.read(".github/workflows/pipeline.yaml"), aliases: true).fetch("jobs")
-          aggregates = jobs.select { |name, _| name.end_with?("-pass") }
-          abort "No pipeline aggregates found" if aggregates.empty?
-          aggregates.each do |name, job|
-            abort "#{name} must directly need changes" unless Array(job["needs"]).include?("changes")
-            abort "#{name} must run always()" unless job["if"].to_s.strip.match?(/\A(?:always\(\)|\$\{\{\s*always\(\)\s*\}\})\z/i)
-          end
-          covered = aggregates.values.flat_map { |job| Array(job["needs"]) }
-          orphans = jobs.keys.reject { |name| name == "changes" || name.end_with?("-pass") || covered.include?(name) }
-          abort "Orphan pipeline jobs: #{orphans.join(', ')}" unless orphans.empty?
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: ruby
+
+      - name: Check pipeline aggregates
+        run: ruby scripts/lint/pipeline-aggregates.rb
 
   # ─── Renovate ─────────────────────────────────────────────────────────
   validate-renovate:
