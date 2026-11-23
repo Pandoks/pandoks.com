@@ -107,6 +107,7 @@ if (isProduction) {
   });
 }
 
+// NOTE: only core stacks (production, dev) run a k3s cluster and have a tag:<stage> in the ACL.
 export const kubernetesOperatorOauthClient = isCoreStack
   ? new tailscale.OauthClient(
       `${STAGE_NAME}TailscaleKubernetesOperatorOauthClient`.replace(/^./, (char) =>
