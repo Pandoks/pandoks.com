@@ -1,11 +1,19 @@
 {
-  "version": 1,
+  "version": 2,
   "skills": {
-    "test-audit": {
-      "source": "openclaw/openclaw",
+    "pr-ready": {
+      "source": "Pandoks/skills",
+      "commit": "d611a4632ffc4165d2f00b8e46cc921359643eac",
       "sourceType": "github",
-      "skillPath": ".agents/skills/test-audit/SKILL.md",
-      "computedHash": "2b203b479ebf0c524fe5a2a91461300c327b3179df2b92b48d0503663a6423c0"
+      "skillPath": "skills/pr-ready/SKILL.md",
+      "computedHash": "433ffbea654c94c7966d656bf1adb448fe039d073773c8c4505fbe49bc0ac708"
+    },
+    "test-audit": {
+      "source": "Pandoks/skills",
+      "commit": "d611a4632ffc4165d2f00b8e46cc921359643eac",
+      "sourceType": "github",
+      "skillPath": "skills/test-audit/SKILL.md",
+      "computedHash": "2da830eda8e608577bd806985de199dc41ee8a7ab4ce9b17fbcb986d79b2f32b"
     }
   }
 }

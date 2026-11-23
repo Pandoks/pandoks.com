@@ -1,57 +1,47 @@
 ---
 name: test-audit
-description: "Writing/changing/reviewing/sweeping tests: reject duplicate or implementation-coupled proof; remove test-only production seams."
+description: >-
+  Invoke whenever writing, changing, reviewing, or sweeping tests. Authoring gate for new tests and
+  audit workflow for low-value, implementation-coupled, or duplicative tests and test-only seams.
 ---
 
 # Test Audit
 
-- Authoring gates every new/changed test.
-- Audits: remove low-value proof in coherent owner batches; never chase deletion counts.
-- Whole-subsystem campaign: read [CAMPAIGN.md](CAMPAIGN.md) first.
+Adapted from `openclaw/openclaw` under the [MIT license](LICENSE.txt). Use authoring mode to gate
+every new or changed test at write time, and audit mode to clean up low-value tests in coherent
+follow-up batches.
 
 ## Authoring gate
 
-Before adding test, answer:
+Before adding or editing a test, answer all four questions; a missing answer means don't add it:
 
-1. Protected observable behavior, invariant, or independent contract?
-2. Credible regression that makes it fail?
-3. Why existing proof misses it? Each contract: one primary owner at strongest
-   boundary. Another layer needs distinct transport/lifecycle risk. Extend
-   tables/shared fixtures; consolidate repeated setup.
-4. Export, flag, wrapper, injection hook with no production caller needed?
-   Move proof to real boundary instead.
+1. What observable behavior, invariant, or independent contract does it protect?
+2. What credible regression makes it fail?
+3. Why doesn't existing coverage catch that failure at its primary owner boundary? Prefer extending
+   a table-driven test or shared fixture over adding a near-duplicate test.
+4. Does it require a production seam (export, flag, wrapper, injection hook) no production caller
+   needs? If yes, move the test to the real boundary instead.
 
-- Use [boundary and cost guide](../../../docs/help/testing/writing-tests.md).
-- Regressions must fail pre-fix for intended reason, pass after repair; report
-  unavailable baseline proof.
-- One owner regression covers bug; never replay at every crossed layer.
-- Behavior-preserving refactors should not break test.
+Bug regression tests must demonstrably fail on pre-fix code for the intended reason and pass after
+the owner-boundary fix. A test that never failed proves the mock, not the fix.
 
 ## Junk patterns
 
-- Reject self-comparisons, copied inventories, source greps,
-  implementation/call-shape assertions, duplicate contracts, test-only seams,
-  subject-generated expected values, mocks supplying asserted behavior.
-- Fixtures must not fabricate owner receipts/order or claim persistence path
-  never writes.
-- Negative controls must fail at intended guard; names must match exercised behavior.
-- Auditing candidates: use [full checklist](references/audit.md#junk-patterns).
+Reject new tests matching these patterns, and flag existing ones during audits (keep tests that
+independently guard a public API, protocol, config, migration, security, or storage contract):
 
-## Retention bar
+- assertion-free probes, self-comparisons, identity copiers, or copied static inventories;
+- exact source/import/string greps where an executable behavior check exists;
+- tests preserving test-only exports/wrappers or dead production code with no real callers;
+- expected values computed by the helper under test, or mocks implementing the asserted behavior;
+- fixtures supplying receipts/ordering the owner should produce, or checking unwritten stores;
+- negative controls that pass for an unrelated guard/path than the scenario named;
+- duplicate replays of the same contract across layers or trivial helper variations.
 
-- Keep independent API, SDK, protocol, config, migration, storage, security,
-  platform, default, prompt-byte, generated-language, package, release,
-  architecture, observable-ordering contracts. Static/slow ≠ disposable.
-- Source inspection must survive identifier-only refactors and guard independent
-  user-facing contract.
-- Baseline failures may be bugs to repair, not tests to delete.
+## Audit & validation
 
-## Audit and validation
-
-- Before audit edit: read [candidate evidence and workflow](references/audit.md#candidate-evidence);
-  inspect full owners/callers/history; record remaining proof before deletion.
-- Delete obsolete production seams with tests; never optimize for deletion counts.
-- Follow [proof policy](../openclaw-testing/SKILL.md#proof-policy); preserve active
-  Vitest checkouts; run owner/sibling proof + changed checks; then autoreview.
-- Report causes, retained contracts, proof/cost, production versus test LOC,
-  follow-ups. Commit/push/land only with task authority.
+1. Before deleting any existing test, read the production owner, callers, sibling tests, and CI
+   routing; record its exact location, what failure it detects, non-test callers of its seam, and
+   what stronger proof remains. Delete unlocked dead helpers/seams in the same change.
+2. Validate using the owning repo's `AGENTS.md` format, lint, type, and test commands — including
+   exercising the real changed entry point, not only mocked unit tests.
