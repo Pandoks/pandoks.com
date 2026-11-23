@@ -135,32 +135,29 @@ pnpm bootstrap
 <details>
 <summary>AWS Organizations, IAM Identity Center (SSO) & Cloudflare token setup</summary>
 
-#### AWS Account Model
+- **Management account:** billing, AWS Organizations, and IAM Identity Center (`us-west-1`) — runs
+  no workloads.
+- **Member accounts (`pandoks-production`, `pandoks-dev`):** hard-siloed 12-digit resource
+  containers; permissions never cross accounts.
+- **SSO users:** personal logins (with MFA) assigned to member accounts. Adding a new developer
+  always means adding an **SSO user**, never a new AWS account. CI uses OIDC, not SSO.
 
-| Analogy           | AWS Concept                                               | Role                                                                                     |
-| ----------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| **GitHub Org**    | **Management ("root") account**                           | Billing, Organizations, IAM Identity Center (`us-west-1`). Runs **zero** workloads.      |
-| **GitHub Repos**  | **Member accounts** (`pandoks-production`, `pandoks-dev`) | Hard-siloed 12-digit accounts — even `AdministratorAccess` cannot cross accounts.        |
-| **GitHub Logins** | **IAM Identity Center (SSO) users**                       | One personal login + MFA per person, assigned per member account. CI uses OIDC, not SSO. |
+#### 1. Initial AWS Setup (once)
 
-#### 1. Initial Org Setup (once)
-
-1. In **AWS Organizations → AWS accounts**, create `pandoks-production` and `pandoks-dev` (unique
-   root email alias each).
-2. Pin each 12-digit ID in `aws:allowedAccountIds` in `Pulumi.production.yaml` and
+1. Create an AWS **management account**, open **AWS Organizations → AWS accounts**, and create two
+   member accounts (`pandoks-production` and `pandoks-dev`, unique root email alias each).
+2. Enable **IAM Identity Center** in `us-west-1` and create the `AdministratorAccess` permission set
+   (plus `ReadOnlyAccess` if needed).
+3. Put each member account's 12-digit ID in `aws:allowedAccountIds` in `Pulumi.production.yaml` and
    `Pulumi.dev.yaml`, then run `pnpm bootstrap`.
 
-#### 2. Onboard a Developer
+#### 2. Add a Developer (SSO user)
 
-1. In **IAM Identity Center** (`us-west-1`) → **Users → Add user** (do not create per-dev AWS
-   accounts).
-2. Assign their SSO user:
-   - **`pandoks-dev`:** `AdministratorAccess` (Pulumi creates IAM roles; account is already isolated
-     from prod).
-   - **`pandoks-production`:** no access (or `ReadOnlyAccess` for logs; admins get
-     `AdministratorAccess` on both).
+1. In **IAM Identity Center** (`us-west-1`) → **Users → Add user**.
+2. Assign their user `AdministratorAccess` on **`pandoks-dev`** (no access on `pandoks-production`,
+   or `ReadOnlyAccess` for logs; admins get `AdministratorAccess` on both).
 3. Add them to the GitHub repo (and Tailscale if they need cloud `dev` cluster access).
-4. On their laptop, they run `./scripts/setup.sh` and pick `pandoks-dev` when configuring AWS SSO.
+4. On their laptop, they run `./scripts/setup.sh` and pick `pandoks-dev`.
 
 #### 3. Cloudflare Token Scoping
 
