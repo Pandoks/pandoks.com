@@ -94,12 +94,8 @@ const downloadSignedUrlImage = async ({
   });
 };
 
-const NOTION_API_KEY = process.env.SST_RESOURCE_NotionApiKey
-  ? (JSON.parse(process.env.SST_RESOURCE_NotionApiKey) as { value: string }).value
-  : process.env.NOTION_API_KEY;
-const BLOG_NOTION_DATABASE_ID = process.env.SST_RESOURCE_Notion
-  ? (JSON.parse(process.env.SST_RESOURCE_Notion) as { blogDatabaseId: string }).blogDatabaseId
-  : process.env.BLOG_NOTION_DATABASE_ID;
+const NOTION_API_KEY = process.env.NOTION_API_KEY;
+const BLOG_NOTION_DATABASE_ID = process.env.BLOG_NOTION_DATABASE_ID;
 if (!NOTION_API_KEY || !BLOG_NOTION_DATABASE_ID) {
   throw new Error('NOTION_API_KEY and BLOG_NOTION_DATABASE_ID required');
 }

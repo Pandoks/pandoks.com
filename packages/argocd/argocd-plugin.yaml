@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: ConfigManagementPlugin
 metadata:
-  name: kustomize-sst-render
+  name: kustomize-pulumi-render
 spec:
   version: v1.0
   discover:
@@ -12,7 +12,6 @@ spec:
       - |
         cd "$(git rev-parse --show-toplevel)"
         pnpm install --frozen-lockfile
-        pnpm sst install
   generate:
     command: [sh, -c]
     args:
