@@ -14,6 +14,7 @@ on:
       - 'pnpm-workspace.yaml'
       - 'tsconfig.json'
       - 'infra/**'
+      - 'packages/infra/**'
       - 'apps/**'
       - '!apps/example/**'
       - 'apps/*/kube/**'
@@ -58,6 +59,7 @@ jobs:
               - 'pnpm-workspace.yaml'
               - 'tsconfig.json'
               - 'infra/**'
+              - 'packages/infra/**'
               - 'apps/!(example)/**'
               - 'packages/svelte/**'
             kubernetes:
@@ -97,7 +99,7 @@ jobs:
             'aws ssm get-parameter --region us-west-1 --name /pulumi/r2-state-credentials --with-decryption --query Parameter.Value --output text'
 
       - name: Deploy Pulumi
-        run: pulumi up --yes --refresh --stack production
+        run: pulumi up --yes --refresh --run-program --stack production
 
   deploy-kubernetes:
     concurrency:

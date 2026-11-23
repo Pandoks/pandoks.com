@@ -92,8 +92,9 @@ More docs: [scripts/cluster/README.md](./scripts/cluster/README.md) ·
 
 ## Infrastructure
 
-`infra/` is a Pulumi program backed by Cloudflare R2 state (`Pulumi.yaml`), with each stack's
-secrets KMS-encrypted and pinned to its AWS account via `aws:allowedAccountIds`:
+`infra/` is a Pulumi program (generic helpers in `packages/infra/`) backed by Cloudflare R2 state
+(`Pulumi.yaml`), with each stack's secrets KMS-encrypted and pinned to its AWS account via
+`aws:allowedAccountIds`:
 
 - **`production`** (`pandoks-production`, committed) — full prod infra, deployed only by GitHub
   Actions on `main`.
