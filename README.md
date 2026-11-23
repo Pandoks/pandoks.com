@@ -178,3 +178,5 @@ pnpm bootstrap
 ---
 
 </details>
+
+Expo apps get over-the-air updates from [apps/mobile-updates](./apps/mobile-updates/README.md).

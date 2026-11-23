@@ -7,6 +7,11 @@
     "icon": "./assets/icon.png",
     "scheme": "mobiletemplate",
     "userInterfaceStyle": "automatic",
+    "runtimeVersion": { "policy": "fingerprint" },
+    "updates": {
+      "codeSigningCertificate": "./certificate.crt",
+      "codeSigningMetadata": { "keyid": "main", "alg": "rsa-v1_5-sha256" }
+    },
     "ios": {
       "bundleIdentifier": "com.pandoks.mobiletemplate",
       "icon": "./assets/expo.icon",

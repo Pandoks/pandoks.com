@@ -4,3 +4,6 @@
 
 expo-env.d.ts
 # @end expo-cli
+# NOTE: here, not only in the root .gitignore, so the native fingerprint skips generated native code
+/android
+/ios

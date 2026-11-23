@@ -3,14 +3,17 @@
 Personal monorepo. Pulumi (`Pulumi.yaml`, `infra/`) manages all infrastructure: AWS and Cloudflare
 for what needs high availability, rented machines (Hetzner in `infra/vps/`, moving to OVH) for raw
 compute; the cluster is K3s with Kustomize and ArgoCD. `templates/` holds starters that are never
-deployed; `apps/example` is an example app whose `kube/` is in every overlay, prod included. Apps
-import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it, use `#lib`.
+deployed, except `templates/mobile`'s OTA updates, which publish to production; `apps/example` is an
+example app whose `kube/` is in every overlay, prod included. Apps import `packages/svelte` by
+package name (`@pandoks.com/svelte/...`); inside it, use `#lib`.
 
 ## Principles
 
 - Stay close to the metal with few providers and managed services. Simplest architecture, fewest
   moving parts, least code a human can still read; new files, helpers, options, env vars, and
   dependencies need a reason the change can't work without them.
+- Choose where code runs by latency to its callers: keep it in the cluster when its callers are
+  there, move it to a provider's primitives when they're not.
 - Use the native or industry-standard mechanism first (Kustomize, ArgoCD, GitHub Actions, Renovate,
   Pulumi, mise, our formatters) and check how mature projects solve it. Work around only an unfixed
   upstream bug, with a `TODO:` linking the issue.
@@ -71,7 +74,8 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
   `Pulumi.yaml`, `Pulumi.production.yaml`, `.github/actions/setup-mise/`, `mise.toml`, root
   `package.json`/`pnpm-lock.yaml`/`pnpm-workspace.yaml`/`tsconfig.json`, `infra/`, `apps/` (except
   `example`), and `packages/svelte/`, plus an Argo hard refresh and wait for Synced and Healthy when
-  Pulumi deploys or `k3s/`, `apps/*/kube/`, or `scripts/cluster/` change. Pages builds `apps/web`
+  Pulumi deploys or `k3s/`, `apps/*/kube/`, or `scripts/cluster/` change, and a mobile updates
+  publish for mobile app changes other than docs, e2e flows, and unit tests. Pages builds `apps/web`
   when a change matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything
   `k3s/overlays/prod` renders but never prunes: deleted resources stay until pruned.
 - `production` deploys to `pandoks-production`, `dev` and personal stacks deploy to `pandoks-dev`.
@@ -99,9 +103,11 @@ checkout.
 - `pnpm lint <js|go|helm|docker|shell|actions|all>`.
 - `pnpm check` type-checks every package and `infra/`.
 - Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, `desktop`, and `mobile`;
-  `pnpm --filter <package> test` for `prettier` and `valkey`;
+  `pnpm --filter <package> test` for `prettier`, `valkey`, and `mobile-updates`;
   `go tool ginkgo -p ./packages/<pkg>/e2e` for a package's e2e suite on local k3d
   (`packages/e2e/README.md`).
+- Mobile updates: `pnpm mobile-updates publish apps/<app> <stack>`; production publishes only from
+  `deploy-infra.yaml` on `main`.
 - Scoped: `pnpm exec prettier --check <files>`, `pnpm exec eslint [--fix] <files>`, `shellcheck`,
   `shfmt -d`, `hadolint`, `actionlint`, `pnpm --filter "...[origin/main]" --if-present check`. That
   filter and the shell and Docker format and lint commands see only tracked files, so check new

@@ -1,6 +1,13 @@
 import * as github from '@pulumi/github';
 import * as tailscale from '@pulumi/tailscale';
-import { cloudflareAccountId, isCoreStack, isProduction, STAGE_NAME } from './dns.ts';
+import {
+  cloudflareAccountId,
+  isCoreStack,
+  isProduction,
+  MOBILE_UPDATES_ASSETS_DOMAIN,
+  STAGE_NAME
+} from './dns.ts';
+import { mobileUpdatesBucket, mobileUpdatesManifests } from './mobile-updates.ts';
 import { secrets } from './secrets.ts';
 import { tailscaleAcl } from './tailscale.ts';
 
@@ -75,6 +82,46 @@ if (isProduction && githubEnvironment) {
     repository: githubRepositoryName,
     secretName: 'CLOUDFLARE_DEFAULT_ACCOUNT_ID',
     value: cloudflareAccountId
+  });
+
+  // NOTE: isolated from production's environment, whose OIDC subject AWS trusts with AdministratorAccess
+  const githubMobileUpdatesEnvironment = new github.RepositoryEnvironment(
+    'GithubMobileUpdatesEnvironment',
+    {
+      repository: githubRepositoryName,
+      environment: 'mobile-updates',
+      deploymentBranchPolicy: { protectedBranches: false, customBranchPolicies: true }
+    }
+  );
+  new github.RepositoryEnvironmentDeploymentPolicy('GithubMobileUpdatesDeploymentPolicy', {
+    repository: githubRepositoryName,
+    environment: githubMobileUpdatesEnvironment.environment,
+    branchPattern: 'main'
+  });
+
+  new github.ActionsEnvironmentSecret('GithubMobileUpdatesSigningKey', {
+    repository: githubRepositoryName,
+    environment: githubMobileUpdatesEnvironment.environment,
+    secretName: 'MOBILE_UPDATES_SIGNING_KEY',
+    value: secrets.mobileUpdates.SigningKey
+  });
+  new github.ActionsEnvironmentVariable('GithubMobileUpdatesBucket', {
+    repository: githubRepositoryName,
+    environment: githubMobileUpdatesEnvironment.environment,
+    variableName: 'MOBILE_UPDATES_BUCKET',
+    value: mobileUpdatesBucket.name
+  });
+  new github.ActionsEnvironmentVariable('GithubMobileUpdatesManifestsNamespaceId', {
+    repository: githubRepositoryName,
+    environment: githubMobileUpdatesEnvironment.environment,
+    variableName: 'MOBILE_UPDATES_MANIFESTS_NAMESPACE_ID',
+    value: mobileUpdatesManifests.id
+  });
+  new github.ActionsEnvironmentVariable('GithubMobileUpdatesAssetsDomain', {
+    repository: githubRepositoryName,
+    environment: githubMobileUpdatesEnvironment.environment,
+    variableName: 'MOBILE_UPDATES_ASSETS_DOMAIN',
+    value: MOBILE_UPDATES_ASSETS_DOMAIN
   });
 
   const githubActionsOauthClient = new tailscale.OauthClient(

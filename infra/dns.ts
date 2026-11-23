@@ -13,6 +13,14 @@ export const domain = isProduction ? 'pandoks.com' : `${STAGE_NAME}.pandoks.com`
 
 export const EXAMPLE_DOMAIN = 'example.pandoks.com';
 
+// NOTE: not *.dev.pandoks.com, since Cloudflare's free edge certificate covers only one subdomain level
+export const MOBILE_UPDATES_DOMAIN = isProduction
+  ? 'mobile-updates.pandoks.com'
+  : `mobile-updates-${STAGE_NAME}.pandoks.com`;
+export const MOBILE_UPDATES_ASSETS_DOMAIN = isProduction
+  ? 'mobile-updates-assets.pandoks.com'
+  : `mobile-updates-assets-${STAGE_NAME}.pandoks.com`;
+
 const awsAccountIdentityJson = await aws.getCallerIdentity();
 export const awsAccountId = awsAccountIdentityJson.accountId;
 
@@ -20,4 +28,4 @@ const cloudflareZone = await cloudflare.getZone({ filter: { name: 'pandoks.com' 
 export const cloudflareAccountId = cloudflareZone.account.id;
 export const cloudflareZoneId = cloudflareZone.id;
 
-export const outputs = { StageName: STAGE_NAME };
+export const outputs = { StageName: STAGE_NAME, CloudflareAccountId: cloudflareAccountId };

@@ -57,6 +57,9 @@ export const secrets = {
     OauthClientId: requireSecret('TailscaleOauthClientId'),
     OauthClientSecret: requireSecret('TailscaleOauthClientSecret')
   },
+  mobileUpdates: {
+    SigningKey: requireSecret('MobileUpdatesSigningKey')
+  },
   k8s: {
     grafana: {
       AdminPassword: requireSecret('KubernetesGrafanaAdminPassword')

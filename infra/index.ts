@@ -5,6 +5,7 @@ import { outputs as awsOutputs } from './aws.ts';
 import { outputs as apiOutputs } from './api.ts';
 import './github.ts';
 import './website.ts';
+import { outputs as mobileUpdatesOutputs } from './mobile-updates.ts';
 import { outputs as tailscaleOutputs } from './tailscale.ts';
 import { outputs as kubernetesOutputs } from './kubernetes.ts';
 import './dev.ts';
@@ -29,6 +30,7 @@ export default {
   ...dnsOutputs,
   ...awsOutputs,
   ...apiOutputs,
+  ...mobileUpdatesOutputs,
   ...tailscaleOutputs,
   ...kubernetesOutputs,
   ...coreOutputs
