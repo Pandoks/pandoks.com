@@ -135,7 +135,6 @@ cmd_deploy() {
 
   cmd_deploy_dry_run=false
   cmd_deploy_is_bootstrap=false
-  cmd_deploy_stack=""
   cmd_deploy_kubeconfig=""
 
   while [ $# -gt 0 ]; do
@@ -147,12 +146,6 @@ cmd_deploy() {
       --bootstrap)
         cmd_deploy_is_bootstrap=true
         shift
-        ;;
-      --stack)
-        [ $# -ge 2 ] || die "Missing value for --stack"
-
-        cmd_deploy_stack="$2"
-        shift 2
         ;;
       --kubeconfig)
         [ $# -ge 2 ] || die "Missing value for --kubeconfig"
@@ -171,10 +164,10 @@ cmd_deploy() {
         ;;
     esac
   done
-  [ "${cmd_deploy_env}" = "prod" ] && cmd_deploy_stack="production"
-  [ -z "${cmd_deploy_stack}" ] && cmd_deploy_stack="dev"
-  if [ "${cmd_deploy_env}" != "prod" ] && [ "${cmd_deploy_stack}" = "production" ]; then
-    die "Refusing to use the 'production' stack for '${cmd_deploy_env}'; pass --stack <stack>"
+  if [ "${cmd_deploy_env}" = "prod" ]; then
+    cmd_deploy_stack="production"
+  else
+    cmd_deploy_stack="dev"
   fi
 
   if [ -n "${cmd_deploy_kubeconfig}" ]; then

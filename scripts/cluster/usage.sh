@@ -9,7 +9,7 @@ usage() {
   printf "      Subcommands: up, down, start, stop, restart, deps\n\n" >&2
 
   printf "  %bdeploy%b          Deploy environment overlay to cluster\n" "${GREEN}" "${NORMAL}" >&2
-  printf "      Usage: deploy <local|dev|prod> [--bootstrap] [--stack <STACK>] [--dry-run]\n\n" >&2
+  printf "      Usage: deploy <local|dev|prod> [--bootstrap] [--dry-run]\n\n" >&2
 
   printf "Run '%s <command> --help' for more information on a command.\n\n" "$0" >&2
 
@@ -79,18 +79,20 @@ usage_deploy() {
   printf "      Deploy to local k3d cluster with:\n" >&2
   printf "        - ImageRegistry: local-registry:5000\n" >&2
   printf "        - ImageTag: latest\n" >&2
-  printf "        - IsLocal: true\n\n" >&2
+  printf "        - IsLocal: true\n" >&2
+  printf "        - Pulumi stack: 'dev'\n\n" >&2
   printf "  %bdev%b\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Deploy to dev cloud cluster with:\n" >&2
   printf "        - ImageRegistry: ghcr.io/pandoks\n" >&2
   printf "        - ImageTag: <branch-name> (or 'latest' on main/master)\n" >&2
-  printf "        - IsLocal: false\n\n" >&2
+  printf "        - IsLocal: false\n" >&2
+  printf "        - Pulumi stack: 'dev'\n\n" >&2
   printf "  %bprod%b\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Deploy to production cloud cluster with:\n" >&2
   printf "        - ImageRegistry: ghcr.io/pandoks\n" >&2
   printf "        - ImageTag: latest\n" >&2
   printf "        - IsLocal: false\n" >&2
-  printf "        - Pulumi stack forced to 'production'\n\n" >&2
+  printf "        - Pulumi stack: 'production'\n\n" >&2
 
   printf "%bOptions:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %b--bootstrap%b\n" "${YELLOW}" "${NORMAL}" >&2
@@ -98,9 +100,6 @@ usage_deploy() {
   printf "      the overlay (k3s/overlays/<env>). Installs helm charts / CRD providers\n" >&2
   printf "      and waits for CRDs. Run this first on a fresh cluster, then run deploy\n" >&2
   printf "      again without --bootstrap to apply the overlay.\n\n" >&2
-  printf "  %b--stack%b <STACK>\n" "${YELLOW}" "${NORMAL}" >&2
-  printf "      Pulumi stack to read outputs from (default: the selected stack;\n" >&2
-  printf "      forced to 'production' for the prod environment)\n\n" >&2
   printf "  %b--dry-run%b\n" "${YELLOW}" "${NORMAL}" >&2
   printf "      Show rendered YAML without applying to cluster\n\n" >&2
   printf "  %b--kubeconfig%b <PATH>\n" "${YELLOW}" "${NORMAL}" >&2

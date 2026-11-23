@@ -34,11 +34,11 @@ Pulumi stack outputs are substituted inline (`${Secret}`) by `pnpm cluster deplo
 
 For local development, we use [k3d](https://k3d.io/) to create a local k3s cluster.
 
-To setup the cluster, run the following commands from the root of the project. Replace `your-stack`
-with your personal Pulumi stack (for example, `pandoks`):
+To setup the cluster, run the following command from the root of the project (`local` reads shared
+cluster outputs from the `dev` Pulumi stack):
 
 ```sh
-pulumi stack select your-stack && pnpm local:init
+pnpm local:init
 ```
 
 Or step by step:
@@ -54,10 +54,10 @@ Or step by step:
 pnpm local:build && pnpm local:push
 
 # Install base infrastructure (helm charts + CRDs)
-./scripts/cluster/main.sh deploy local --stack your-stack --bootstrap
+./scripts/cluster/main.sh deploy local --bootstrap
 
 # Deploy local overlay (MetalLB IP patch + app dev patches; stack outputs substituted inline)
-./scripts/cluster/main.sh deploy local --stack your-stack
+./scripts/cluster/main.sh deploy local
 ```
 
 ## Cloud Clusters
@@ -78,7 +78,7 @@ kubectl --context <tailscale-context> get pods
 ./scripts/cluster/main.sh deploy prod
 ```
 
-For dev, use `deploy dev --stack your-stack` in both commands, keeping `--bootstrap` on the first.
+For dev, use `deploy dev` in both commands, keeping `--bootstrap` on the first.
 
 ### ArgoCD (prod)
 

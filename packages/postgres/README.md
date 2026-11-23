@@ -454,10 +454,9 @@ spec:
     patroni.shards: 4 # Was 3, now 4
 ```
 
-For `local` or `dev`, redeploy with `pnpm cluster deploy <env> --stack your-stack`. Replace `<env>`
-with `local` or `dev` and `your-stack` with your personal Pulumi stack (for example, `pandoks`).
-Prod syncs from `main` through ArgoCD. This creates the new shard (`myapp-shard-3`) with its own
-StatefulSet, services, certificates, and backup cronjobs.
+For `local` or `dev`, redeploy with `pnpm cluster deploy <env>` (replace `<env>` with `local` or
+`dev`). Prod syncs from `main` through ArgoCD. This creates the new shard (`myapp-shard-3`) with its
+own StatefulSet, services, certificates, and backup cronjobs.
 
 **Step 2: Verify New Shard**
 
