@@ -30,6 +30,7 @@ pulumi.runtime.registerResourceTransform(({ type, props, opts }) => ({
   opts: {
     ...opts,
     protect: opts.protect ?? (isProduction ? true : undefined),
+    retainOnDelete: opts.retainOnDelete ?? (isProduction ? true : undefined),
     provider: opts.provider ?? providers[type.split(':')[0]]
   }
 }));

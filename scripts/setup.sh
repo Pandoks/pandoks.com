@@ -19,8 +19,10 @@ usage() {
 
 ensure_mise_tools() {
   command -v mise > /dev/null 2>&1 || die "mise is required: https://mise.jdx.dev/installing-mise.html"
+  mise trust --quiet "${REPO_ROOT}/mise.toml"
 
-  if [ -z "$(mise ls --missing --no-header)" ]; then
+  ensure_mise_tools_missing=$(mise ls --missing --no-header)
+  if [ -z "${ensure_mise_tools_missing}" ]; then
     print_ok "mise tools"
   else
     ensure_mise_tools_log=$(mktemp)
