@@ -53,8 +53,8 @@ and _(cloud clusters only)_ [Tailscale](https://tailscale.com/download).
 ```
 
 Installs `mise` tools and `pnpm` dependencies, configures/signs into `pandoks-dev` AWS SSO, sets up
-the Pulumi R2 state profile, and verifies access (rerun anytime via `pnpm setup`). Developers only
-need an IAM Identity Center login for `pandoks-dev` — no Cloudflare, Hetzner, or production AWS
+the Pulumi R2 state profile, and verifies access (idempotent — rerun anytime). Developers only need
+an IAM Identity Center login for `pandoks-dev` — no Cloudflare, Hetzner, or production AWS
 credentials.
 
 > [!NOTE]
