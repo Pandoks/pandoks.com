@@ -30,4 +30,11 @@
 
 ## Tests
 
-- When the PR adds, changes, or deletes tests, use the test-audit skill to review them.
+- When the PR adds, changes, or deletes tests, use the `test-audit` skill to review them.
+
+## Cuts
+
+- Under a `## Cuts` heading in the review summary (non-blocking, no inline threads, omit if none),
+  list every comment or doc line the PR adds that the `AGENTS.md` comment and docs rules would
+  delete, and every new file, helper, option, env var, or dependency whose need the PR description
+  does not state.
