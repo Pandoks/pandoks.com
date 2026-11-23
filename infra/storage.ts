@@ -13,12 +13,16 @@ export const backupBucket = new cloudflare.R2Bucket(
     location: 'wnam',
     storageClass: 'Standard'
   },
-  { retainOnDelete: isProduction }
+  { protect: isProduction, retainOnDelete: isProduction }
 );
 
 export const s3Endpoint = `${cloudflareAccountId}.r2.cloudflarestorage.com`;
 
-const runnerBucketOptions = { provider: usWest2Provider, retainOnDelete: isProduction };
+const runnerBucketOptions = {
+  provider: usWest2Provider,
+  protect: isProduction,
+  retainOnDelete: isProduction
+};
 
 export const runnerCacheBucket = createBucket({
   id: 'RunnerCacheStore',

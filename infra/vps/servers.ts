@@ -181,6 +181,7 @@ export function createServers(
       {
         dependsOn: dependencies,
         ignoreChanges: isProduction ? ['userData'] : [],
+        protect: isProduction,
         hooks: {
           afterDelete: [deleteServerFromTailnet]
         }
