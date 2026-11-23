@@ -99,7 +99,8 @@ jobs:
             'aws ssm get-parameter --region us-west-1 --name /pulumi/r2-state-credentials --with-decryption --query Parameter.Value --output text'
 
       - name: Deploy Pulumi
-        run: pulumi up --yes --refresh --stack production
+        # NOTE: --run-program refreshes with this commit's provider tokens, not the ones in state.
+        run: pulumi up --yes --refresh --run-program --stack production
 
   deploy-kubernetes:
     concurrency:
