@@ -1,6 +1,7 @@
 import * as pulumi from '@pulumi/pulumi';
 import * as cloudflare from '@pulumi/cloudflare';
-import { cloudflareAccountId, cloudflareZoneId, domain, isProduction } from './dns.ts';
+import { isProduction } from '@pandoks.com/infra/stack';
+import { cloudflareAccountId, cloudflareZoneId, domain } from './dns.ts';
 import { githubOrg, githubRepositoryName } from './github.ts';
 
 const NODE_VERSION = '24.22.2';
