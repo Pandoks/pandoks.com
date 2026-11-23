@@ -62,7 +62,8 @@ synced `Secret`.
 ExternalSecrets refresh hourly; to sync a changed value now:
 
 ```sh
-kubectl -n <namespace> annotate externalsecret <name> force-sync="$(date +%s)" --overwrite
+kubectl --context <context> -n <namespace> annotate externalsecret <name> \
+  force-sync="$(date +%s)" --overwrite
 ```
 
 Grafana reads its admin password only when it first creates its database, so change it in Grafana
