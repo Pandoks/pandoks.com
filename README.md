@@ -151,12 +151,12 @@ pnpm bootstrap
 
 > **AWS terms**
 >
-> - **Management account:** billing, AWS Organizations, and IAM Identity Center (`us-west-1`) — runs
->   no workloads.
-> - **Member accounts (`pandoks-production`, `pandoks-dev`):** hard-siloed 12-digit resource
->   containers; permissions never cross accounts.
-> - **SSO users:** personal logins (with MFA) assigned to member accounts. Adding a new developer
->   always means adding an **SSO user**, never a new AWS account. CI uses OIDC, not SSO.
+> - **Management account:** top-level account for billing, AWS Organizations, and IAM Identity
+>   Center (`us-west-1`) — runs no workloads.
+> - **Member accounts (`pandoks-production`, `pandoks-dev`):** hard-siloed child accounts under the
+>   management account; permissions never cross accounts.
+> - **SSO users:** personal logins (with MFA) used to access member accounts — always add an **SSO
+>   user** for new developers, never a new AWS account (CI uses OIDC, not SSO).
 
 #### 1. Initial AWS Setup (once)
 
