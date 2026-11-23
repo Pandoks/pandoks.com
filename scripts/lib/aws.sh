@@ -1,15 +1,14 @@
 # shellcheck shell=sh
 
-readonly PULUMI_SSO_SESSION='pandoks'
-readonly PULUMI_STATE_PROFILE='pandoks-pulumi-state'
 readonly PULUMI_SSM_READ_WRITE_NAME='/pulumi/r2-state-credentials'
 
 read_pulumi_config() {
   PULUMI_BUCKET=$(sed -n 's|^  url: s3://\([^?]*\)?.*|\1|p' Pulumi.yaml)
   PULUMI_CLOUDFLARE_ACCOUNT_ID=$(sed -n 's|^  url: .*endpoint=\([0-9a-f]*\)\.r2\.cloudflarestorage\.com.*|\1|p' Pulumi.yaml)
+  PULUMI_STATE_PROFILE=$(sed -n 's|^  url: .*[?&]profile=\([^&]*\).*|\1|p' Pulumi.yaml)
   PULUMI_AWS_REGION=$(sed -n '/^  aws:region:$/{n;s|^    value: ||p;}' Pulumi.yaml)
-  [ -n "${PULUMI_BUCKET}" ] && [ -n "${PULUMI_CLOUDFLARE_ACCOUNT_ID}" ] && [ -n "${PULUMI_AWS_REGION}" ] \
-    || die "Could not read the bucket, Cloudflare account and AWS region from Pulumi.yaml"
+  [ -n "${PULUMI_BUCKET}" ] && [ -n "${PULUMI_CLOUDFLARE_ACCOUNT_ID}" ] && [ -n "${PULUMI_STATE_PROFILE}" ] && [ -n "${PULUMI_AWS_REGION}" ] \
+    || die "Could not read the bucket, Cloudflare account, state profile and AWS region from Pulumi.yaml"
 }
 
 read_pulumi_allowed_account_id() {
@@ -25,7 +24,7 @@ ensure_aws_sso_profile() {
   else
     [ -t 0 ] || die "AWS profile '${ensure_aws_sso_profile_name}' is not configured. Run 'aws configure sso --profile ${ensure_aws_sso_profile_name}' interactively, then rerun."
     printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
-    printf "%b│%b  %bConfigure AWS SSO%b %b(use SSO session name '%s')%b\n" "${DIM}" "${NORMAL}" "${BOLD}" "${NORMAL}" "${DIM}" "${PULUMI_SSO_SESSION}" "${NORMAL}" >&2
+    printf "%b│%b  %bConfigure AWS SSO%b\n" "${DIM}" "${NORMAL}" "${BOLD}" "${NORMAL}" >&2
     printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
     aws configure sso --profile "${ensure_aws_sso_profile_name}" --use-device-code --no-browser
     print_added "AWS profile ${ensure_aws_sso_profile_name}"

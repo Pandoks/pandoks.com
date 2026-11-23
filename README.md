@@ -159,8 +159,7 @@ pnpm bootstrap
    - **`pandoks-production`:** no access (or `ReadOnlyAccess` for logs; admins get
      `AdministratorAccess` on both).
 3. Add them to the GitHub repo (and Tailscale if they need cloud `dev` cluster access).
-4. On their laptop, they run `./scripts/setup.sh`, name the SSO session `pandoks`, and pick
-   `pandoks-dev`.
+4. On their laptop, they run `./scripts/setup.sh` and pick `pandoks-dev` when configuring AWS SSO.
 
 #### 3. Cloudflare Token Scoping
 
