@@ -9,7 +9,7 @@ import (
 
 func ApplyParameters(env utils.Env) error {
 	for shard := range env.Shards {
-		configURL := patroni.GetShardConfigURL(env.DB, shard)
+		configURL := fmt.Sprintf("http://patroni-%s-api-shard-%d:8008/config", env.DB, shard)
 		for {
 			retry, err := patroni.PatchConfig(configURL, env.PatroniPassword, env.Parameters)
 			if err == nil {

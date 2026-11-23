@@ -290,19 +290,10 @@ kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
 
 ### Change Postgres Settings
 
-Set `patroni.parameters` in the HelmChart. New clusters start with them, restored ones included, and
-after every install, upgrade and rollback a [reconciler](./reconciler) Job (`apply-parameters`)
-applies them to each running shard; a shard that's still bootstrapping or restoring counts as done.
-A restore resumed after a container restart is the exception: Patroni doesn't start until the replay
-and full backup finish, so the Job gets no answer and holds the release until then, failing it after
-Helm's 300s timeout. With `failurePolicy: abort` the release then stays failed; once the shard's
-Patroni runs, roll back to the failed revision, which reruns the Job with the same values, and the
-HelmChart's next retry exits cleanly:
-
-```bash
-helm history -n myapp myapp-postgres-myapp-cluster # the failed revision, e.g. 4
-helm rollback -n myapp myapp-postgres-myapp-cluster 4
-```
+Set `patroni.parameters` in the HelmChart. New clusters start with them, and after every install,
+upgrade and rollback a [reconciler](./reconciler) Job (`apply-parameters`) applies them to each
+running shard; a shard that's still bootstrapping or restoring counts as done. A key removed from
+`patroni.parameters` keeps its last value in Patroni.
 
 A change made while a shard bootstraps reaches it only on the next release. Settings Postgres can
 reload, like `work_mem`, take effect within seconds. Ones that need a restart, like

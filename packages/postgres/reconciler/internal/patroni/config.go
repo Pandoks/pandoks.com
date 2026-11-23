@@ -10,10 +10,6 @@ import (
 
 var httpClient = &http.Client{Timeout: 10 * time.Second}
 
-func GetShardConfigURL(db string, shard int) string {
-	return fmt.Sprintf("http://patroni-%s-api-shard-%d:8008/config", db, shard)
-}
-
 func PatchConfig(configURL string, password string, parameters map[string]any) (retry bool, err error) {
 	body, err := json.Marshal(map[string]any{"postgresql": map[string]any{"parameters": parameters}})
 	if err != nil {
