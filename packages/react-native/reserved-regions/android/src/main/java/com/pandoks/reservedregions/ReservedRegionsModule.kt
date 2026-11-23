@@ -21,7 +21,8 @@ class ReservedRegionsModule : Module() {
     Name("ReservedRegions")
 
     Function("getRegions") {
-      reservedRegions(appContext.throwingActivity)
+      val activity = appContext.currentActivity ?: return@Function emptyList<Map<String, Any>>()
+      reservedRegions(activity)
     }
 
     View(ReservedRegionsView::class) {
@@ -37,7 +38,7 @@ class ReservedRegionsView(context: Context, appContext: AppContext) : ExpoView(c
 
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
-    val activity = appContext.throwingActivity
+    val activity = appContext.currentActivity ?: return
     layoutInfoJob = appContext.mainQueue.launch {
       WindowInfoTracker.getOrCreate(activity).windowLayoutInfo(activity).collect { layoutInfo ->
         collectedFolds = layoutInfo.displayFeatures.filterIsInstance<FoldingFeature>()
@@ -63,7 +64,8 @@ class ReservedRegionsView(context: Context, appContext: AppContext) : ExpoView(c
   }
 
   private fun emitIfChanged() {
-    val current = reservedRegions(appContext.throwingActivity)
+    val activity = appContext.currentActivity ?: return
+    val current = reservedRegions(activity)
     if (current != regions) {
       regions = current
       onRegionsChange(mapOf("regions" to current))

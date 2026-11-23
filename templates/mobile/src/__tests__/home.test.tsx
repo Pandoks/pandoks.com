@@ -78,3 +78,17 @@ test('measures the grid again when safe area insets move it', async () => {
 
   expect(screen.getAllByTestId('pane')[0]).toHaveStyle({ width: 388 });
 });
+
+test('lays out the pane beside an iPad sidebar by its own width', async () => {
+  Dimensions.set({ window: { width: 1133, height: 744, scale: 2, fontScale: 1 } });
+
+  await renderRouter({ index: HomeScreen });
+  await fireEvent(screen.getByTestId('home-pane'), 'layout', {
+    nativeEvent: { layout: { x: 0, y: 0, width: 810, height: 744 } }
+  });
+
+  const { width: cardWidth } = StyleSheet.flatten(
+    screen.getAllByTestId('card')[0].props.style as StyleProp<ViewStyle>
+  )!;
+  expect(100 / Number.parseFloat(String(cardWidth))).toBeCloseTo(2);
+});

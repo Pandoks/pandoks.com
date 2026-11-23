@@ -17,6 +17,7 @@ export default function HomeScreen() {
   const { width } = useWindowDimensions();
   const { colors } = useTheme();
   const gridRef = useRef<ComponentRef<typeof View>>(null);
+  const [paneWidth, setPaneWidth] = useState<number | null>(null);
   const [grid, setGrid] = useState({ x: 0, width: 0 });
   const fold = useReservedRegions({ includeInactive: true }).find(
     (region) => region.kind === 'division' && region.frame.height > region.frame.width
@@ -42,44 +43,56 @@ export default function HomeScreen() {
     : [{ flex: 1 }];
   const paneColumns = split
     ? columnsFor(Math.min(foldStart, grid.width - foldEnd))
-    : columnsFor(width);
+    : columnsFor(paneWidth ?? width);
 
   return (
-    <Screen title="Home">
-      <View ref={gridRef} style={styles.grid}>
-        {/* TODO: drop the pane count from the key once https://github.com/react/react-native/issues/59741
-            is fixed; Fabric keeps a pane's old width when it changes from a fixed width to flex */}
-        {panes.map((paneStyle, paneIndex) => (
-          <View key={`${panes.length}-${paneIndex}`} testID="pane" style={[styles.pane, paneStyle]}>
-            {cardTitles
-              .filter(
-                (_, cardIndex) =>
-                  Math.floor((cardIndex % (paneColumns * panes.length)) / paneColumns) === paneIndex
-              )
-              .map((cardTitle) => (
-                <View
-                  key={cardTitle}
-                  testID="card"
-                  style={[styles.cell, { width: `${100 / paneColumns}%` }]}
-                >
+    <View
+      testID="home-pane"
+      style={styles.homePane}
+      onLayout={(layoutEvent) => setPaneWidth(layoutEvent.nativeEvent.layout.width)}
+    >
+      <Screen title="Home">
+        <View ref={gridRef} style={styles.grid}>
+          {/* TODO: drop the pane count from the key once https://github.com/react/react-native/issues/59741
+              is fixed; Fabric keeps a pane's old width when it changes from a fixed width to flex */}
+          {panes.map((paneStyle, paneIndex) => (
+            <View
+              key={`${panes.length}-${paneIndex}`}
+              testID="pane"
+              style={[styles.pane, paneStyle]}
+            >
+              {cardTitles
+                .filter(
+                  (_, cardIndex) =>
+                    Math.floor((cardIndex % (paneColumns * panes.length)) / paneColumns) ===
+                    paneIndex
+                )
+                .map((cardTitle) => (
                   <View
-                    style={[
-                      styles.card,
-                      { backgroundColor: colors.card, borderColor: colors.border }
-                    ]}
+                    key={cardTitle}
+                    testID="card"
+                    style={[styles.cell, { width: `${100 / paneColumns}%` }]}
                   >
-                    <Text style={[styles.cardTitle, { color: colors.text }]}>{cardTitle}</Text>
+                    <View
+                      style={[
+                        styles.card,
+                        { backgroundColor: colors.card, borderColor: colors.border }
+                      ]}
+                    >
+                      <Text style={[styles.cardTitle, { color: colors.text }]}>{cardTitle}</Text>
+                    </View>
                   </View>
-                </View>
-              ))}
-          </View>
-        ))}
-      </View>
-    </Screen>
+                ))}
+            </View>
+          ))}
+        </View>
+      </Screen>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  homePane: { flex: 1 },
   grid: { flexDirection: 'row', margin: -8 },
   pane: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: { padding: 8 },
