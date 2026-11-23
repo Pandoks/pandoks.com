@@ -92,7 +92,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -110,9 +109,17 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
+      - name: Get pandoks-gemini[bot] token
+        id: gemini-app
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        with:
+          client-id: Iv23liO7LwTHugcrphjw
+          private-key: ${{ secrets.GEMINI_APP_PRIVATE_KEY }}
+          permission-pull-requests: write
+
       - name: Review with Gemini
         env:
           GOOGLE_GEMINI_BASE_URL: https://cliproxyapi-api.tailb2c81d.ts.net
           GEMINI_API_KEY: cliproxyapi
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.gemini-app.outputs.token }}
         run: uv run --project scripts/ai-review --locked scripts/ai-review/gemini.py
