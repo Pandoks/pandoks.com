@@ -7,9 +7,6 @@
     "check": "tsc --noEmit",
     "test": "vitest run"
   },
-  "dependencies": {
-    "sst": "4.17.2"
-  },
   "devDependencies": {
     "vitest": "5.1.0"
   }

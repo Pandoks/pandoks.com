@@ -1,3 +1,8 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import * as cloudflare from '@pulumi/cloudflare';
 import {
   MOBILE_UPDATES_ASSETS_DOMAIN,
   MOBILE_UPDATES_DOMAIN,
@@ -5,18 +10,33 @@ import {
   cloudflareAccountId,
   cloudflareZoneId,
   isProduction
-} from './dns';
+} from './dns.ts';
 
-export const mobileUpdatesBucket = new sst.cloudflare.Bucket('MobileUpdatesBucket', {
-  transform: {
-    bucket: {
-      name: `${STAGE_NAME}-mobile-updates`,
-      accountId: cloudflareAccountId,
-      jurisdiction: 'default',
-      location: 'wnam',
-      storageClass: 'Standard'
-    }
-  }
+const mobileUpdatesDirectory = join(import.meta.dirname, '../apps/mobile-updates');
+const wranglerConfig = JSON.parse(
+  readFileSync(join(mobileUpdatesDirectory, 'wrangler.json'), 'utf8')
+) as { compatibility_date: string };
+
+// NOTE: wrangler bundles the Worker the same way for `wrangler dev` and for this deploy
+const bundleDirectory = mkdtempSync(join(tmpdir(), 'mobile-updates-worker-'));
+let mobileUpdatesBundle: string;
+try {
+  execFileSync(
+    join(import.meta.dirname, '../node_modules/.bin/wrangler'),
+    ['deploy', '--dry-run', '--outdir', bundleDirectory],
+    { cwd: mobileUpdatesDirectory, stdio: ['ignore', 'ignore', 'inherit'] }
+  );
+  mobileUpdatesBundle = readFileSync(join(bundleDirectory, 'index.js'), 'utf8');
+} finally {
+  rmSync(bundleDirectory, { recursive: true, force: true });
+}
+
+export const mobileUpdatesBucket = new cloudflare.R2Bucket('MobileUpdatesBucket', {
+  name: `${STAGE_NAME}-mobile-updates`,
+  accountId: cloudflareAccountId,
+  jurisdiction: 'default',
+  location: 'wnam',
+  storageClass: 'Standard'
 });
 
 new cloudflare.R2CustomDomain('MobileUpdatesBucketDomain', {
@@ -27,12 +47,8 @@ new cloudflare.R2CustomDomain('MobileUpdatesBucketDomain', {
   enabled: true
 });
 
-new sst.Linkable('MobileUpdatesAssetsDomain', {
-  properties: { value: MOBILE_UPDATES_ASSETS_DOMAIN }
-});
-
 if (isProduction) {
-  // NOTE: a zone has one cache ruleset and every stage shares this zone, so production's caches dev's files too
+  // NOTE: a zone has one cache ruleset and every stack shares this zone, so production's caches non-prod files too
   new cloudflare.Ruleset('MobileUpdatesAssetsCacheRuleset', {
     zoneId: cloudflareZoneId,
     kind: 'zone',
@@ -53,18 +69,43 @@ if (isProduction) {
           }
         },
         expression:
-          'http.host in {"mobile-updates-assets.pandoks.com" "mobile-updates-assets-dev.pandoks.com"}',
+          'http.host eq "mobile-updates-assets.pandoks.com" or starts_with(http.host, "mobile-updates-assets-")',
         enabled: true
       }
     ]
   });
 }
 
-export const mobileUpdatesManifests = new sst.cloudflare.Kv('MobileUpdatesManifests');
-
-new sst.cloudflare.Worker('MobileUpdates', {
+export const mobileUpdatesManifests = new cloudflare.WorkersKvNamespace('MobileUpdatesManifests', {
   accountId: cloudflareAccountId,
-  handler: 'apps/mobile-updates/src/index.ts',
-  domain: MOBILE_UPDATES_DOMAIN,
-  link: [mobileUpdatesManifests]
+  title: `${STAGE_NAME}-mobile-updates-manifests`
 });
+
+const mobileUpdatesWorker = new cloudflare.WorkersScript('MobileUpdatesWorker', {
+  accountId: cloudflareAccountId,
+  scriptName: `${STAGE_NAME}-mobile-updates`,
+  content: mobileUpdatesBundle,
+  mainModule: 'index.js',
+  compatibilityDate: wranglerConfig.compatibility_date,
+  observability: { enabled: true },
+  bindings: [
+    {
+      type: 'kv_namespace',
+      name: 'MOBILE_UPDATES_MANIFESTS',
+      namespaceId: mobileUpdatesManifests.id
+    }
+  ]
+});
+
+new cloudflare.WorkersCustomDomain('MobileUpdatesDomain', {
+  accountId: cloudflareAccountId,
+  zoneId: cloudflareZoneId,
+  hostname: MOBILE_UPDATES_DOMAIN,
+  service: mobileUpdatesWorker.scriptName
+});
+
+export const outputs = {
+  MobileUpdatesBucket: mobileUpdatesBucket.name,
+  MobileUpdatesManifestsNamespaceId: mobileUpdatesManifests.id,
+  MobileUpdatesAssetsDomain: MOBILE_UPDATES_ASSETS_DOMAIN
+};

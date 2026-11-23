@@ -1,0 +1,6 @@
+{
+  "name": "mobile-updates",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-13",
+  "kv_namespaces": [{ "binding": "MOBILE_UPDATES_MANIFESTS" }]
+}

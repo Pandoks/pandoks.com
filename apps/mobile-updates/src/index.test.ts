@@ -1,5 +1,5 @@
-import { expect, test, vi } from 'vitest';
-import worker from './index';
+import { expect, test } from 'vitest';
+import worker, { type Env } from './index';
 
 const updates = new Map(
   ['ios', 'android'].map((platform) => [
@@ -12,14 +12,15 @@ const updates = new Map(
     }
   ])
 );
-vi.mock('sst/resource', () => ({
-  Resource: {
-    MobileUpdatesManifests: { get: (key: string) => Promise.resolve(updates.get(key) ?? null) }
-  }
-}));
+
+const env = {
+  MOBILE_UPDATES_MANIFESTS: {
+    get: (key: string) => Promise.resolve(updates.get(key) ?? null)
+  } as unknown as KVNamespace
+} satisfies Env;
 
 function checkForUpdate(path: string, headers: Record<string, string>) {
-  return worker.fetch(new Request(`https://mobile-updates.test${path}`, { headers }));
+  return worker.fetch(new Request(`https://mobile-updates.test${path}`, { headers }), env);
 }
 
 async function readPart(response: Response) {
@@ -89,7 +90,8 @@ test('rejects non-GET requests and invalid app slugs', async () => {
     new Request('https://mobile-updates.test/app', {
       method: 'POST',
       headers: { 'expo-platform': 'ios', 'expo-runtime-version': 'fingerprint' }
-    })
+    }),
+    env
   );
   expect(methodResponse.status).toBe(405);
   expect(methodResponse.headers.get('allow')).toBe('GET');

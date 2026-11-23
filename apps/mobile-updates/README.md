@@ -1,16 +1,16 @@
 # Mobile updates
 
 Self-hosted over-the-air updates for every Expo app here, over the
-[Expo Updates v1 protocol](https://docs.expo.dev/technical-specs/expo-updates-1/). SST deploys it
-from `infra/mobile-updates.ts`; production uses the hosts below, and every other stage the same
-hosts with `-dev` before `.pandoks.com`.
+[Expo Updates v1 protocol](https://docs.expo.dev/technical-specs/expo-updates-1/). Pulumi deploys it
+from `infra/mobile-updates.ts`; `production` uses the hosts below, and every other stack the same
+hosts with `-<stack>` before `.pandoks.com`.
 
 ```mermaid
 flowchart LR
   phone[Phone] -- "GET /&lt;slug&gt; + platform and runtime version headers" --> worker["Worker<br/>mobile-updates.pandoks.com"]
   worker -- "&lt;slug&gt;/&lt;platform&gt;/&lt;runtime version&gt;" --> kv[(KV<br/>MobileUpdatesManifests)]
   phone -- "GET /&lt;sha256&gt;" --> cache["Edge cache<br/>mobile-updates-assets.pandoks.com"]
-  cache -- miss --> r2[(R2<br/>&lt;prod|dev&gt;-mobile-updates)]
+  cache -- miss --> r2[(R2<br/>&lt;prod|stack&gt;-mobile-updates)]
 ```
 
 The Worker answers a check with the signed manifest for the phone's app, platform, and runtime
@@ -28,12 +28,14 @@ Generate the key and its certificate outside the repo with Expo's generator, fro
 pnpm --dir apps/<app> exec expo-updates codesigning:generate \
   --certificate-common-name 'Pandoks Mobile Updates' --certificate-validity-duration-years 10 \
   --key-output-directory ~/mobile-updates-keys --certificate-output-directory ~/mobile-updates-keys
-pnpm sst secret set MobileUpdatesSigningKey --stage <stage> < ~/mobile-updates-keys/private-key.pem
+pulumi config set --secret --raw --stack <stack> MobileUpdatesSigningKey < ~/mobile-updates-keys/private-key.pem
+AWS_PROFILE=pandoks-production pulumi config set --secret --raw --stack production MobileUpdatesSigningKey < ~/mobile-updates-keys/private-key.pem
 ```
 
 Keep `private-key.pem` out of git and backed up: installed apps only trust the certificate they
-shipped with. Every stage needs `MobileUpdatesSigningKey` set, production included, or its deploys
-fail. `publish` signs with the value from the stage's last deploy, so deploy after changing it.
+shipped with. Every stack needs `MobileUpdatesSigningKey` set, `dev` and `production` included
+(`Pulumi.{dev,production}.yaml`), or its previews and deploys fail. `publish` signs with the value
+from the stack's last deploy, so deploy after changing it.
 
 ## App config
 
@@ -42,19 +44,25 @@ and `/ios` in its own `.gitignore` so the fingerprint skips generated native cod
 `updates.url` at its slug:
 
 ```ts
+const environment = process.env.MOBILE_UPDATES_ENVIRONMENT;
+const updatesHost =
+  environment && environment !== 'production'
+    ? `mobile-updates-${environment}.pandoks.com`
+    : 'mobile-updates.pandoks.com';
+
 export default ({ config }: ConfigContext) => ({
   ...config,
   runtimeVersion: { policy: 'fingerprint' },
   updates: {
-    url: `https://${process.env.MOBILE_UPDATES_ENVIRONMENT === 'dev' ? 'mobile-updates-dev' : 'mobile-updates'}.pandoks.com/${config.slug}`,
+    url: `https://${updatesHost}/${config.slug}`,
     codeSigningCertificate: './certificate.crt',
     codeSigningMetadata: { keyid: 'main', alg: 'rsa-v1_5-sha256' }
   }
 });
 ```
 
-Build with `MOBILE_UPDATES_ENVIRONMENT=dev` for the dev stages; it changes the build's runtime
-version, so dev and production builds never get each other's updates.
+Build with `MOBILE_UPDATES_ENVIRONMENT=<stack>` for non-production stacks; it changes the build's
+runtime version, so non-production and production builds never get each other's updates.
 
 ## Publish
 
@@ -65,15 +73,15 @@ KV. Every publish is a new update, so to roll back, revert the change on `main`.
 
 Production publishes only from `deploy-infra.yaml` on `main`, split so the app's dependencies never
 run beside a secret: `build-mobile-template` exports with no secrets, AWS, or OIDC token, and
-`publish-mobile-template` uploads the artifact without installing anything, using only the
-Cloudflare token and the `MOBILE_UPDATES_*` secret and variables that `infra/github.ts` writes to
-the `production` environment. One build and one publish run at a time, and a newer pending run
-replaces an older pending one. Each run exports its own commit, and GitHub queues jobs by when they
-start waiting, not by merge order, so merges close together can publish an older commit last or
-cancel the newer merge's pending job; rerun the newer merge's jobs to publish it. Other stages:
+`publish-mobile-template` uploads the artifact without installing anything, using the Cloudflare
+token and the `MOBILE_UPDATES_*` secret and variables in the `main`-only `mobile-updates` GitHub
+environment. One build and one publish run at a time, and a newer pending run replaces an older
+pending one. Each run exports its own commit, and GitHub queues jobs by when they start waiting, not
+by merge order, so merges close together can publish an older commit last or cancel the newer
+merge's pending job; rerun the newer merge's jobs to publish it. Other stacks:
 
 ```sh
-pnpm sst shell --stage <stage> -- pnpm mobile-updates publish apps/<app>
+pnpm mobile-updates publish apps/<app> <stack>
 ```
 
 `pnpm --filter @pandoks.com/mobile-updates test` runs the Worker against an in-memory KV.

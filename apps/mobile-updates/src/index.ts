@@ -1,4 +1,6 @@
-import { Resource } from 'sst/resource';
+export interface Env {
+  MOBILE_UPDATES_MANIFESTS: KVNamespace;
+}
 
 // The signed parts scripts/mobile-updates publishes for one app, platform, and runtime version
 type Update = {
@@ -16,7 +18,7 @@ const PROTOCOL_HEADERS = {
 };
 
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     if (request.method !== 'GET') {
       return new Response('Method Not Allowed', { status: 405, headers: { allow: 'GET' } });
     }
@@ -30,7 +32,7 @@ export default {
       return new Response('Missing runtime version, or unknown platform', { status: 400 });
     }
 
-    const update = await Resource.MobileUpdatesManifests.get<Update>(
+    const update = await env.MOBILE_UPDATES_MANIFESTS.get<Update>(
       `${slug}/${platform}/${runtimeVersion}`,
       'json'
     );
@@ -48,7 +50,7 @@ export default {
       signature: update.manifestSignature
     });
   }
-} satisfies ExportedHandler;
+} satisfies ExportedHandler<Env>;
 
 function respondWithPart({
   name,

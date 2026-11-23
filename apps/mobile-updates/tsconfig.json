@@ -10,5 +10,5 @@
     "noEmit": true,
     "types": ["@cloudflare/workers-types", "node"]
   },
-  "include": ["src/**/*", "sst-env.d.ts"]
+  "include": ["src/**/*"]
 }

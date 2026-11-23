@@ -30,11 +30,11 @@ from `deploy-infra.yaml` ([apps/mobile-updates](../../apps/mobile-updates/README
 revert the change on `main`: phones keep the newest update they have, and the revert publishes a
 newer one.
 
-To try an update on a dev stage, build against `mobile-updates-dev.pandoks.com` from
+To try an update on a non-production stack, build against `mobile-updates-<stack>.pandoks.com` from
 `templates/mobile`:
 
 ```sh
-export MOBILE_UPDATES_ENVIRONMENT=dev
+export MOBILE_UPDATES_ENVIRONMENT=<stack>
 rm -rf ios && pnpm ios --configuration Release
 rm -rf android && pnpm android --variant release
 ```
@@ -42,5 +42,5 @@ rm -rf android && pnpm android --variant release
 Then change some JS and publish it from the repo root:
 
 ```sh
-pnpm sst shell --stage <stage> -- pnpm mobile-updates publish templates/mobile
+pnpm mobile-updates publish templates/mobile <stack>
 ```

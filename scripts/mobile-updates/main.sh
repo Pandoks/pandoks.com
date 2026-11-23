@@ -13,7 +13,7 @@ readonly REPO_ROOT
 
 usage() {
   printf "%bUsage:%b pnpm mobile-updates <command> [args]\n\n" "${BOLD}" "${NORMAL}" >&2
-  printf "Publish an Expo app's over-the-air update to a stage: its files to MobileUpdatesBucket and its\n" >&2
+  printf "Publish an Expo app's over-the-air update to a stack: its files to MobileUpdatesBucket and its\n" >&2
   printf "signed manifests to MobileUpdatesManifests. Production is published only by deploy-infra.yaml\n" >&2
   printf "on main, which exports with no secrets and uploads without running the app's dependencies.\n\n" >&2
 
@@ -23,12 +23,11 @@ usage() {
   printf "  %bupload%b <export-dir> <bucket> <kv-namespace-id> <assets-domain>\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Sign an exported update and serve it as the latest. Reads MOBILE_UPDATES_SIGNING_KEY,\n" >&2
   printf "      CLOUDFLARE_API_TOKEN, and CLOUDFLARE_DEFAULT_ACCOUNT_ID\n" >&2
-  printf "  %bpublish%b <app-dir>\n" "${GREEN}" "${NORMAL}" >&2
-  printf "      Export and upload to the stage of the sst shell it runs in, which links its resources and\n" >&2
-  printf "      loads CLOUDFLARE_API_TOKEN and CLOUDFLARE_DEFAULT_ACCOUNT_ID from .env.<stage>\n\n" >&2
+  printf "  %bpublish%b <app-dir> <stack>\n" "${GREEN}" "${NORMAL}" >&2
+  printf "      Export and upload to a non-production Pulumi stack using its outputs and secrets\n\n" >&2
 
   printf "%bExample:%b\n" "${BOLD}" "${NORMAL}" >&2
-  printf "  pnpm sst shell --stage pandoks -- pnpm mobile-updates publish templates/mobile\n\n" >&2
+  printf "  pnpm mobile-updates publish templates/mobile pandoks\n\n" >&2
 
   exit "${1:-0}"
 }
@@ -110,9 +109,9 @@ cmd_export() {
   cmd_export_stage="$2"
   mkdir -p -- "$3"
   cmd_export_dir="$(CDPATH='' cd -- "$3" && pwd)"
-  # NOTE: MOBILE_UPDATES_ENVIRONMENT=dev points builds at the dev host and changes their runtime version
+  # NOTE: MOBILE_UPDATES_ENVIRONMENT points non-production builds at the stack host and changes their runtime version
   if [ "${cmd_export_stage}" != production ]; then
-    export MOBILE_UPDATES_ENVIRONMENT=dev
+    export MOBILE_UPDATES_ENVIRONMENT="${cmd_export_stage}"
   fi
 
   pnpm --dir "${cmd_export_app_dir}" exec expo export --output-dir "${cmd_export_dir}" --platform ios --platform android
@@ -187,25 +186,28 @@ cmd_upload() {
 }
 
 cmd_publish() {
-  [ -n "${SST_RESOURCE_App:-}" ] && [ -n "${SST_RESOURCE_MobileUpdatesBucket:-}" ] \
-    && [ -n "${SST_RESOURCE_MobileUpdatesManifests:-}" ] && [ -n "${SST_RESOURCE_MobileUpdatesAssetsDomain:-}" ] \
-    && [ -n "${SST_RESOURCE_MobileUpdatesSigningKey:-}" ] \
-    || die "Missing the stage's linked resources. Run it under 'pnpm sst shell --stage <stage> --'"
-  cmd_publish_stage="$(printf '%s' "${SST_RESOURCE_App}" | jq -er .stage)"
-  if [ "${cmd_publish_stage}" = production ]; then
+  cmd_publish_app_dir="$1"
+  cmd_publish_stack="$2"
+  if [ "${cmd_publish_stack}" = production ]; then
     die "Production publishes only from deploy-infra.yaml on main"
   fi
+  cmd_publish_outputs="$(pulumi -C "${REPO_ROOT}" stack output --stack "${cmd_publish_stack}" --json --show-secrets)" \
+    || die "Failed to fetch Pulumi outputs for stack '${cmd_publish_stack}'. Make sure you're authenticated with AWS (pnpm sso)."
+
   cmd_publish_export_dir="$(mktemp -d)"
   trap 'rm -rf "${cmd_publish_export_dir}"' EXIT
 
-  cmd_export "$1" "${cmd_publish_stage}" "${cmd_publish_export_dir}"
-  MOBILE_UPDATES_SIGNING_KEY="$(printf '%s' "${SST_RESOURCE_MobileUpdatesSigningKey}" | jq -er .value)"
+  cmd_export "${cmd_publish_app_dir}" "${cmd_publish_stack}" "${cmd_publish_export_dir}"
   # NOTE: a subshell, so upload's cleanup trap doesn't replace this one
   (
+    MOBILE_UPDATES_SIGNING_KEY="$(printf '%s' "${cmd_publish_outputs}" | jq -er .MobileUpdatesSigningKey)"
+    CLOUDFLARE_API_TOKEN="$(printf '%s' "${cmd_publish_outputs}" | jq -er .CloudflareApiKey)"
+    CLOUDFLARE_DEFAULT_ACCOUNT_ID="$(printf '%s' "${cmd_publish_outputs}" | jq -er .CloudflareAccountId)"
+    export MOBILE_UPDATES_SIGNING_KEY CLOUDFLARE_API_TOKEN CLOUDFLARE_DEFAULT_ACCOUNT_ID
     cmd_upload "${cmd_publish_export_dir}" \
-      "$(printf '%s' "${SST_RESOURCE_MobileUpdatesBucket}" | jq -er .name)" \
-      "$(printf '%s' "${SST_RESOURCE_MobileUpdatesManifests}" | jq -er .namespaceId)" \
-      "$(printf '%s' "${SST_RESOURCE_MobileUpdatesAssetsDomain}" | jq -er .value)"
+      "$(printf '%s' "${cmd_publish_outputs}" | jq -er .MobileUpdatesBucket)" \
+      "$(printf '%s' "${cmd_publish_outputs}" | jq -er .MobileUpdatesManifestsNamespaceId)" \
+      "$(printf '%s' "${cmd_publish_outputs}" | jq -er .MobileUpdatesAssetsDomain)"
   )
 }
 
@@ -217,7 +219,7 @@ main() {
   case "${cmd}" in
     export) [ $# -eq 3 ] || usage 1 ;;
     upload) [ $# -eq 4 ] || usage 1 ;;
-    publish) [ $# -eq 1 ] || usage 1 ;;
+    publish) [ $# -eq 2 ] || usage 1 ;;
     help | --help | -h) usage ;;
     *)
       log_error "Unknown command '${cmd}'"
