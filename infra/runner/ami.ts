@@ -2,8 +2,8 @@ import { hash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as aws from '@pulumi/aws';
+import { STAGE_NAME } from '@pandoks.com/infra/stack';
 import { US_WEST_2_REGION, usWest2Provider } from '../aws.ts';
-import { STAGE_NAME } from '../dns.ts';
 
 // WARNING: reverting these files reuses an existing (immutable) version, so bump the minor.
 const sources = ['ami.ts', 'ami.yaml', 'ami-gpu.yaml'].map((file) =>
@@ -14,15 +14,7 @@ const VERSION = `1.1.${parseInt(hash('sha256', sources.join('\0')).slice(0, 7), 
 const bakeInstanceRole = new aws.iam.Role(
   'RunnerBakeInstanceRole',
   {
-    assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
-      statements: [
-        {
-          effect: 'Allow',
-          principals: [{ type: 'Service', identifiers: ['ec2.amazonaws.com'] }],
-          actions: ['sts:AssumeRole']
-        }
-      ]
-    }).json,
+    assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({ Service: 'ec2.amazonaws.com' }),
     managedPolicyArns: [
       'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore',
       'arn:aws:iam::aws:policy/EC2InstanceProfileForImageBuilder'
@@ -230,15 +222,9 @@ export const runnerImageGpuArm64 = new aws.imagebuilder.Image(
 const lifecycleRole = new aws.iam.Role(
   'RunnerLifecycleRole',
   {
-    assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
-      statements: [
-        {
-          effect: 'Allow',
-          principals: [{ type: 'Service', identifiers: ['imagebuilder.amazonaws.com'] }],
-          actions: ['sts:AssumeRole']
-        }
-      ]
-    }).json,
+    assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({
+      Service: 'imagebuilder.amazonaws.com'
+    }),
     managedPolicyArns: [
       'arn:aws:iam::aws:policy/service-role/EC2ImageBuilderLifecycleExecutionPolicy'
     ]

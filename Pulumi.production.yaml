@@ -48,9 +48,9 @@ config:
   pandoks.com:NotionWebhookVerificationToken:
     secure: v1:jQcK9dm2FASCYaT2:XQtiSwCvptQNASCYMFCGd1KGok+iHDXd2JszdL5Anco1f/d/IGnA7zjzbzbsZYO9l+N/2BoXrKLjO77Zs4t2JqNY
   pandoks.com:GithubPersonalAccessToken:
-    secure: v1:qXjHQXToqnwYonZT:rmq8XOG6Elbwp8Ql2kVkDKLlUm9KmkTzy2DM/GP32RENB/7fiH0ngC1P3NZeB/ZV+PpiGN2zvt6fzCdjCR8CikI0gkApJGXfVTJqCOn7exyGWSLI4Eq9hhpMjD5kf6TT6xUu6uXaMqIK9FLLQA==
+    secure: v1:GO61n+l5H4+uP/g+:y5TnyxRwDqC9qX8qncuvZXagigyqEZJN2yUL4GhyuSm2BuPn7J7eNV1A14q8KA/pc+6geFm7IMN+MmrRWr75fvHs9/6HerOVByrfKBeLyPyLtYQXnYsllCwrrX/jBEDCw4KrEub9lu0fzQxV4Q==
   pandoks.com:GithubPackageManagementToken:
-    secure: v1:IFhwN256ZyKrfFX0:jwh6s64gnR5UyXIq8sXixZD8e2Du3htDs8+yKNJVOh9NYst3pYkcqJcK7kbKysx/C090vAK97qw=
+    secure: v1:0riIdmzJya5ZRalZ:hueuw/Aza/3NLog0kbhLTbyrwbjAlIjpEGDdK4TgLDoSd9071AwNlP5KS+an0XugkNCRwWJgvME=
   pandoks.com:OvhApplicationSecret:
     secure: v1:OiBLtT7d/RcIwBJi:wIjpz/OEMTc8j/YizWEYH4TnVHPI2a5TgVzN5q4psPdDLFxMNL2UfPDMGVrejALU
   pandoks.com:KubernetesGrafanaAdminPassword:

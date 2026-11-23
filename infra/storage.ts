@@ -1,8 +1,8 @@
-import * as pulumi from '@pulumi/pulumi';
-import * as aws from '@pulumi/aws';
 import * as cloudflare from '@pulumi/cloudflare';
+import { createBucket } from '@pandoks.com/infra/aws';
+import { isProduction, STAGE_NAME } from '@pandoks.com/infra/stack';
 import { usWest2Provider } from './aws.ts';
-import { cloudflareAccountId, isProduction, STAGE_NAME } from './dns.ts';
+import { cloudflareAccountId } from './dns.ts';
 
 export const backupBucket = new cloudflare.R2Bucket(
   'BackupBucket',
@@ -18,61 +18,16 @@ export const backupBucket = new cloudflare.R2Bucket(
 
 export const s3Endpoint = `${cloudflareAccountId}.r2.cloudflarestorage.com`;
 
-function createRunnerBucket({
-  id,
-  name,
-  lifecycleRules
-}: {
-  id: string;
-  name: string;
-  lifecycleRules: aws.types.input.s3.BucketLifecycleConfigurationRule[];
-}) {
-  const bucket = new aws.s3.Bucket(
-    id,
-    { bucket: `pandoks-${STAGE_NAME}-${name}`, forceDestroy: true },
-    { provider: usWest2Provider, protect: isProduction, retainOnDelete: isProduction }
-  );
-  const publicAccessBlock = new aws.s3.BucketPublicAccessBlock(
-    `${id}PublicAccessBlock`,
-    {
-      bucket: bucket.bucket,
-      blockPublicAcls: true,
-      blockPublicPolicy: true,
-      ignorePublicAcls: true,
-      restrictPublicBuckets: true
-    },
-    { provider: usWest2Provider }
-  );
-  const policy = new aws.s3.BucketPolicy(
-    `${id}Policy`,
-    {
-      bucket: bucket.bucket,
-      policy: pulumi.jsonStringify({
-        Version: '2012-10-17',
-        Statement: [
-          {
-            Effect: 'Deny',
-            Action: 's3:*',
-            Resource: [pulumi.interpolate`${bucket.arn}/*`, bucket.arn],
-            Principal: '*',
-            Condition: { Bool: { 'aws:SecureTransport': 'false' } }
-          }
-        ]
-      })
-    },
-    { provider: usWest2Provider, dependsOn: publicAccessBlock }
-  );
-  new aws.s3.BucketLifecycleConfiguration(
-    `${id}Lifecycle`,
-    { bucket: bucket.bucket, rules: lifecycleRules },
-    { provider: usWest2Provider, dependsOn: policy }
-  );
-  return bucket;
-}
+const runnerBucketOptions = {
+  provider: usWest2Provider,
+  protect: isProduction,
+  retainOnDelete: isProduction
+};
 
-export const runnerCacheBucket = createRunnerBucket({
+export const runnerCacheBucket = createBucket({
   id: 'RunnerCacheStore',
-  name: 'runner-cache',
+  name: `pandoks-${STAGE_NAME}-runner-cache`,
+  forceDestroy: true,
   lifecycleRules: [
     {
       id: 'expire-stale-cache',
@@ -80,12 +35,14 @@ export const runnerCacheBucket = createRunnerBucket({
       filter: { prefix: 'cache/' },
       expiration: { days: 30 }
     }
-  ]
+  ],
+  options: runnerBucketOptions
 });
 
-export const runnerArtifactsBucket = createRunnerBucket({
+export const runnerArtifactsBucket = createBucket({
   id: 'RunnerArtifactsStore',
-  name: 'runner-artifacts',
+  name: `pandoks-${STAGE_NAME}-runner-artifacts`,
+  forceDestroy: true,
   lifecycleRules: [
     {
       id: 'tier-and-expire-builds',
@@ -103,7 +60,8 @@ export const runnerArtifactsBucket = createRunnerBucket({
       filter: {},
       abortIncompleteMultipartUpload: { daysAfterInitiation: 1 }
     }
-  ]
+  ],
+  options: runnerBucketOptions
 });
 
 export const outputs = { BackupBucket: backupBucket.name };
