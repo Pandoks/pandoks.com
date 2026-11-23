@@ -1,13 +1,14 @@
 import twilio from 'twilio';
-import { Resource } from 'sst';
+import type { TextSmsEnvironment } from './env';
 
-const twilioClient = twilio(Resource.TwilioAccountSid.value, Resource.TwilioAuthToken.value);
+const env = process.env as TextSmsEnvironment;
+const twilioClient = twilio(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN);
 
 export const sendTextHandler = async (event: { phoneNumber: string; message: string }) => {
   await twilioClient.messages.create({
     body: event.message,
-    from: Resource.TwilioPhoneNumber.value,
+    from: env.TWILIO_PHONE_NUMBER,
     to: event.phoneNumber,
-    messagingServiceSid: Resource.TwilioNotionMessagingServiceSid.value
+    messagingServiceSid: env.TWILIO_NOTION_MESSAGING_SERVICE_SID
   });
 };
