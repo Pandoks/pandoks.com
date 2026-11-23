@@ -8,7 +8,13 @@ import urllib.error
 import urllib.request
 
 from google.antigravity import Agent, CapabilitiesConfig, GeminiAPIEndpoint, LocalAgentConfig
-from google.antigravity.types import BuiltinTools, GeminiModelOptions, ModelTarget, ThinkingLevel
+from google.antigravity.types import (
+    BudgetConfig,
+    BuiltinTools,
+    GeminiModelOptions,
+    ModelTarget,
+    ThinkingLevel,
+)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", default="gemini-4-neon")
@@ -22,17 +28,9 @@ pull = event["pull_request"]
 
 # NOTE: Decoded by hand because text=True fails on a non-UTF-8 file and turns a bare carriage return
 # into a line break, and every line of a diff has to start where git started it.
-DIFF = subprocess.run(
-    [
-        "git",
-        "-c",
-        "core.quotepath=false",
-        "diff",
-        f"{pull['base']['sha']}...{pull['head']['sha']}",
-    ],
-    check=True,
-    capture_output=True,
-).stdout.decode(errors="replace")
+DIFF = subprocess.check_output(
+    ["git", "-c", "core.quotepath=false", "diff", f"{pull['base']['sha']}...{pull['head']['sha']}"]
+).decode(errors="replace")
 
 # NOTE: The new-file lines the diff shows. GitHub rejects the whole review when one comment is on
 # any other line.
@@ -107,6 +105,8 @@ async def review() -> None:
             ]
         ),
         tools=[create_inline_comment],
+        # NOTE: The SDK retries an empty or blocked model response without limit or delay.
+        budget_config=BudgetConfig(max_model_calls=200),
     )
     async with Agent(config) as agent:
         response = await agent.chat(PROMPT)
@@ -114,6 +114,8 @@ async def review() -> None:
         # NOTE: response.text() would also include what the model said between tool calls.
         summary = agent.conversation.last_response
         usage = agent.conversation.total_usage
+    if not summary:
+        raise RuntimeError(f"Gemini gave no review: {response.stop_reason}")
 
     body = f"{summary}\n\n---\n{args.model} {args.thinking_level}"
     with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as step_summary:
