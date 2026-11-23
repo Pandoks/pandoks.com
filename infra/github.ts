@@ -1,6 +1,6 @@
 import * as github from '@pulumi/github';
 import * as tailscale from '@pulumi/tailscale';
-import { cloudflareAccountId, isProduction, isSharedStage, STAGE_NAME } from './dns.ts';
+import { cloudflareAccountId, isCoreStack, isProduction, STAGE_NAME } from './dns.ts';
 import { secrets } from './secrets.ts';
 import { tailscaleAcl } from './tailscale.ts';
 
@@ -14,7 +14,7 @@ const DEPLOYMENT_BRANCH_POLICY = isProduction
   : undefined;
 
 let githubEnvironment: github.RepositoryEnvironment | undefined;
-if (isSharedStage) {
+if (isCoreStack) {
   githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
     repository: githubRepositoryName,
     environment: isProduction ? 'production' : 'dev',
