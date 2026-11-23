@@ -80,9 +80,7 @@ first boot:
   role can read. Pulumi creates the new key before deleting the old one, so syncs can fail only in
   the seconds between, and Secrets keep their last values.
 - **dev**: the user data changes, so the next `pulumi up --stack dev` replaces every server and
-  rebuilds the cluster, wiping its data, with the new key. To rotate just one, run
-  `pulumi up --stack <stack> --target-replace <urn>` (URN from
-  `pulumi stack --stack <stack> --show-urns`) instead of renaming.
+  rebuilds the cluster, wiping its data, with the new key.
 
 ## Local Development
 

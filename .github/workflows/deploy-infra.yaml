@@ -148,8 +148,7 @@ jobs:
       - deploy-pulumi
     if: |
       always() &&
-      (needs.detect-changes.outputs.kubernetes == 'true' ||
-        (github.event_name != 'workflow_dispatch' && needs.deploy-pulumi.result == 'success')) &&
+      needs.detect-changes.outputs.kubernetes == 'true' &&
       (needs.deploy-pulumi.result == 'success' || needs.deploy-pulumi.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
