@@ -313,7 +313,7 @@ importers:
 
   packages/valkey: {}
 
-  scripts/claude-review:
+  scripts/ai-review:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.318

@@ -62,9 +62,10 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
 
 - Every branch push runs `pipeline.yaml`: `changes.yaml` picks what runs from the changed paths,
   then `checks.yaml`, `security.yaml`, `tests.yaml`, `build.yaml`, `e2e.yaml`, and `publish.yaml`
-  (branch-tagged GHCR images and charts, only once everything else passes). `claude-review.yaml`
-  reviews each PR, `security-audit.yaml` rescans daily, and Cloudflare Pages previews `apps/web`.
-  Required checks are the `*-pass` aggregates, and a PR must be up to date with `main` to merge.
+  (branch-tagged GHCR images and charts, only once everything else passes). `ai-review.yaml` reviews
+  each PR with Claude and Gemini, `security-audit.yaml` rescans daily, and Cloudflare Pages previews
+  `apps/web`. Required checks are the `*-pass` aggregates, and a PR must be up to date with `main`
+  to merge.
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
   deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `pulumi up --refresh --stack production` for
