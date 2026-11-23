@@ -13,6 +13,7 @@ from google.antigravity.types import (
     BuiltinTools,
     GeminiModelOptions,
     ModelTarget,
+    StopReason,
     ThinkingLevel,
 )
 
@@ -114,8 +115,8 @@ async def review() -> None:
         # NOTE: response.text() would also include what the model said between tool calls.
         summary = agent.conversation.last_response
         usage = agent.conversation.total_usage
-    if not summary:
-        raise RuntimeError(f"Gemini gave no review: {response.stop_reason}")
+    if response.stop_reason != StopReason.UNSPECIFIED:
+        raise RuntimeError(f"Gemini stopped before finishing its review: {response.stop_reason}")
 
     body = f"{summary}\n\n---\n{args.model} {args.thinking_level}"
     with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as step_summary:
