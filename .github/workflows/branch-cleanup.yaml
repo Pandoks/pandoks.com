@@ -45,7 +45,7 @@ jobs:
           - postgres-reconciler
           - valkey
           - valkey-reconciler
-          - argocd-sst-plugin
+          - argocd-pulumi-plugin
           - clickhouse
           - clickhouse-keeper
           - clickhouse-backup

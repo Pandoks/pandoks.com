@@ -1,0 +1,75 @@
+secretsprovider: awskms://alias/pulumi-production?region=us-west-1
+encryptedkey: AQICAHgdQjpZwrxYoqZg8ayLeoErEkQDIhQacnvqoNpAY7DHswHFV2PcxmKDdU+h4Nuvwc73AAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMrTtiU/nZtINP5c3RAgEQgDulv6Zytg5YeilpI+DoPIGwMxNppC6L2tH6MIY9lubUD61A/j1+utabHFoASBQd426614ifVI5u0Z1w/w==
+config:
+  aws:allowedAccountIds:
+    - '343487555569'
+  pandoks.com:MainMainClickhouseAdminPassword:
+    secure: v1:NuW8y5X7zCbJ8yx1:UieJW3N5/Hn6XugZ3hDxEpyinSY7VG6AIBIPnwhYZxOefZAyTjX9WQ==
+  pandoks.com:OvhConsumerKey:
+    secure: v1:T6Et8eqguCFTynah:bKuXDywp+kC47XQvr934cSzMhEfWJXOEbqtcdwMx1Zin9xKhx+oSauAS/mTuGZa+
+  pandoks.com:MainMainPostgresPgdogAdminPassword:
+    secure: v1:QqWgqrmHzwrYHSeB:ODiFkNq0uWAc9Sa9+C4n6aHX1ql2nnO6j5gckX04U9KgitKvOBkh2w==
+  pandoks.com:TailscaleOauthClientId:
+    secure: v1:cGxOFQg46uj/7Ep+:xUfRFMq5/T5nDq5rFuKMu/DlqxEvhUI4JroZVkiIjs4G
+  pandoks.com:CloudflareBackupAccessKey:
+    secure: v1:9yw10UmdZ0NdIMJ8:dv5/13f1H2hu7e/uhzZ2l1KNqlc91+pgBd6UE2XoVYILpPFyzVmFDkhb99/9VZSQ
+  pandoks.com:MainMainClickhouseClientPassword:
+    secure: v1:ZiQgCOSwQVoNM3yG:166WrfyB3iaG2nIX0pyGwHDMPMHLebYub7+9jlFkM9MRrLXCBtbUTw==
+  pandoks.com:MainMainPostgresPatroniPassword:
+    secure: v1:P0elO0h6xH9lJaDi:bPMliuQreDM2Phkir8Wv5XwlzylkU6uvvk5Y7F/ipOhQmvPzmj+IFw==
+  pandoks.com:MainMainPostgresAdminPassword:
+    secure: v1:/GCuuFSer9LVhg3J:8Lw0s0B5XMA7QqnAbN4avPHI5keirWGt0ndy0ZgKCgQJlhSUwQhZ7w==
+  pandoks.com:MainMainPostgresReplicationPassword:
+    secure: v1:kHCSBTHYj9cVgOmn:8Lu+Q9VHbvBdI7hoIovyiBKUM14qRM7UCMuM5bbKhVehu3QZXDVcLQ==
+  pandoks.com:MainMainValkeyClientPassword:
+    secure: v1:oJu7SJR6Fe8o016u:pTb09k7Bm/Wh92X+V6RxWMiWBQ2MvtBwNZAQnKR7BybKQ5R7+bnpvQ==
+  pandoks.com:MainMainValkeyAdminPassword:
+    secure: v1:6+hacLkdhNGUbclz:Vqoh7hLzfav6MoI8vNzn0Uhha+PX5vCtkl31tXPAdsj0U+UTWjradw==
+  pandoks.com:OxylabsResidentialUsername:
+    secure: v1:4iPMKq+xfoKwV/z9:/qbwmOrsBaueLiEl1DvvjeLwOu5ZRbJ5dnU=
+  pandoks.com:KwokPhoneNumber:
+    secure: v1:yDrdk0c1xRoKdwl5:sTDgN6iiKhuUjl691R6Yy18sqRpg7EtHXEOGRQ==
+  pandoks.com:OxylabsWebUnblockerPassword:
+    secure: v1:PjsbcEj0JKTQCCVN:c00jrp8TDSnpoj4wPDkAYXpzyG9ivyqQn9BpczM=
+  pandoks.com:HetznerOriginTlsKey:
+    secure: v1:ix7ehmtYQmcZxINP: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
+  pandoks.com:TailscaleOauthClientSecret:
+    secure: v1:a/2iFJq2l9F6CCBH:NP6LhFDanf3xicryeQQ5OaZnD9PIOOM4yGvcRB6AvIGTm3MgkNxkuT3gST2s4YqXze0xdgxoTj+8wtsKTB+GqVBNobzQquFwHhgVZvfsFw==
+  pandoks.com:CloudflareApiKey:
+    secure: v1:ZcHRVBPYk1AeCRkf:IMlP1syBQaN3cfD3D9NAa/WCWqXifBMjj8Gr5GQPKjGftlrBQPOK3/GhE7lLaGeV1FvciR4+/LCB08QDa4Az0IgqMBm5
+  pandoks.com:CloudflareBackupSecretKey:
+    secure: v1:KIhSb4HO5ZjC81aj:UqOTr0ZDXUl5ViqUOc0ps4Fhit61hr2jq4xvfwKkAvWaB/opNQzKZsDn7Yp0tyXbTfrqkxmHrWuqxOxslTpF+GYK4xTYDLSFG0VN+Mva3iY=
+  pandoks.com:TwilioAccountSid:
+    secure: v1:Cc9ygBRhI4xDsXwu:zgbvMLz1rkM8NdWccl0vWSMiCoYsAh0JIxfvxcWbvLDxReXUwz1rXG5pXRCdK92cotY=
+  pandoks.com:MainMainPostgresSuperuserPassword:
+    secure: v1:aOB2sAlGftikPtN1:QlUORkiL4aRlz9cKj2hVTkEysK1/Cn892QQkxOsWKWuHO1q1P4S5Ig==
+  pandoks.com:TwilioAuthToken:
+    secure: v1:aFnWG41e0ActzdkM:PTtUgPqxUUaQ+kI0j2TsQXnm+Q7P+6S/0OpAzr/66TWJN4VMJ/TdDB+W3cbr7XQb
+  pandoks.com:NotionWebhookVerificationToken:
+    secure: v1:jQcK9dm2FASCYaT2:XQtiSwCvptQNASCYMFCGd1KGok+iHDXd2JszdL5Anco1f/d/IGnA7zjzbzbsZYO9l+N/2BoXrKLjO77Zs4t2JqNY
+  pandoks.com:GithubPersonalAccessToken:
+    secure: v1:qXjHQXToqnwYonZT:rmq8XOG6Elbwp8Ql2kVkDKLlUm9KmkTzy2DM/GP32RENB/7fiH0ngC1P3NZeB/ZV+PpiGN2zvt6fzCdjCR8CikI0gkApJGXfVTJqCOn7exyGWSLI4Eq9hhpMjD5kf6TT6xUu6uXaMqIK9FLLQA==
+  pandoks.com:GithubPackageManagementToken:
+    secure: v1:IFhwN256ZyKrfFX0:jwh6s64gnR5UyXIq8sXixZD8e2Du3htDs8+yKNJVOh9NYst3pYkcqJcK7kbKysx/C090vAK97qw=
+  pandoks.com:OvhApplicationSecret:
+    secure: v1:OiBLtT7d/RcIwBJi:wIjpz/OEMTc8j/YizWEYH4TnVHPI2a5TgVzN5q4psPdDLFxMNL2UfPDMGVrejALU
+  pandoks.com:KubernetesGrafanaAdminPassword:
+    secure: v1:SPCnrewWMUe8HALK:fodY8tbbo7GRdiXzk/1v3Z8x+cmSVGVNAA9JilEDgY3D6Q6IXA7scg==
+  pandoks.com:MainMainPostgresClientPassword:
+    secure: v1:UMf6TyiJlfxcpv31:l6gEz89nJvzAuQeM+j744ku1mhzxpM1/W7eB+6zcnsElTwo4AMcgbQ==
+  pandoks.com:OxylabsResidentialPassword:
+    secure: v1:wZqmr9EGMJYrSSVi:gKxgs4irPMCj8L/PoLbiV4Aur03fIPeqCQny1SYGXgGjPZ72p7+fSg==
+  pandoks.com:OxylabsWebUnblockerUsername:
+    secure: v1:Kxv59ehqX2Dt3tTp:jsQYv8noWRY6fmjpqGFZ1pU1d6xR1avqdW7G
+  pandoks.com:HetznerApiKey:
+    secure: v1:TTIpCDXZVWTLU8zZ:Ml7tZMpURz1O2sVpIo3UE9ovyFehrzn7fPUrUdxUTqPvXcHXa75KQ44wabH8ZsYaTfCIhllwqNAdlaqCy+2CiDdVnbkxVDFpjA+FxgDrDsw=
+  pandoks.com:TwilioPhoneNumber:
+    secure: v1:KaF1+Oav4cIueXat:/lPZrH/BsXZcCxobeugrDrTulBxPopYIuF2wcg==
+  pandoks.com:TwilioNotionMessagingServiceSid:
+    secure: v1:wqiRec5FWRXp0DUM:CNFgiz6tt2jhx2kWa8OZ0vDSTo3l2ZLJpDtoDhUag43hKpy1deSTynSDJ89a7SXCfPs=
+  pandoks.com:HetznerK3sToken:
+    secure: v1:C0QhfTTHh0dyqxDL:JmZ0EC1Ab/tpUnZXHSAvrbQgizuqDffstDgfXhlPgAIJLRPt0mVh46YuCFnnooX8
+  pandoks.com:NotionApiKey:
+    secure: v1:5+lbxfegwXR8eTc+:x9ZKtOswO/P51JmhxYzQ3j780rDT+tIf0orRMfwG0AaVoxujdg8bscfZ4M7W+JPStxftapgUhXjUDgk1uc4fyCro
+  pandoks.com:MichellePhoneNumber:
+    secure: v1:LYMfTH8XpmbhnLsJ:kgb44UhL42TNtuRM9kikkCQQkZ98b/pED+2n1w==
