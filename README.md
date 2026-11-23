@@ -97,10 +97,10 @@ secrets KMS-encrypted and pinned to its AWS account via `aws:allowedAccountIds`:
 
 - **`production`** (`pandoks-production`, committed) — full prod infra, deployed only by GitHub
   Actions on `main`.
-- **`dev`** (`pandoks-dev`, committed) — shared dev cluster, EC2 runner AMIs, R2 backups, and `dev`
-  GitHub environment.
-- **Personal stacks `<name>`** (`pandoks-dev`, gitignored) — share `dev`'s cluster/runners/backups
-  and deploy isolated per-dev app resources (`<name>-*`, `api.<name>.pandoks.com`).
+- **`dev`** (`pandoks-dev`, committed) — shared by personal stacks, PR previews, and local clusters
+  (dev K3s cluster, EC2 runner AMIs, R2 backups, `dev` GitHub environment).
+- **Personal stacks `<name>`** (`pandoks-dev`, gitignored) — isolated per-dev app resources
+  (`<name>-*`, `api.<name>.pandoks.com`) on top of `dev`'s shared infra.
 
 ```sh
 # Preview & deploy (defaults to AWS_PROFILE=pandoks-dev via mise.toml)
