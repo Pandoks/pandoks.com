@@ -50,7 +50,7 @@ config:
   pandoks.com:GithubPersonalAccessToken:
     secure: v1:GO61n+l5H4+uP/g+:y5TnyxRwDqC9qX8qncuvZXagigyqEZJN2yUL4GhyuSm2BuPn7J7eNV1A14q8KA/pc+6geFm7IMN+MmrRWr75fvHs9/6HerOVByrfKBeLyPyLtYQXnYsllCwrrX/jBEDCw4KrEub9lu0fzQxV4Q==
   pandoks.com:GithubPackageManagementToken:
-    secure: v1:IFhwN256ZyKrfFX0:jwh6s64gnR5UyXIq8sXixZD8e2Du3htDs8+yKNJVOh9NYst3pYkcqJcK7kbKysx/C090vAK97qw=
+    secure: v1:0riIdmzJya5ZRalZ:hueuw/Aza/3NLog0kbhLTbyrwbjAlIjpEGDdK4TgLDoSd9071AwNlP5KS+an0XugkNCRwWJgvME=
   pandoks.com:OvhApplicationSecret:
     secure: v1:OiBLtT7d/RcIwBJi:wIjpz/OEMTc8j/YizWEYH4TnVHPI2a5TgVzN5q4psPdDLFxMNL2UfPDMGVrejALU
   pandoks.com:KubernetesGrafanaAdminPassword:
