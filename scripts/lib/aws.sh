@@ -1,6 +1,9 @@
 # shellcheck shell=sh
 
 readonly PULUMI_SSM_READ_WRITE_NAME='/pulumi/r2-state-credentials'
+readonly PULUMI_SSO_SESSION='pandoks'
+readonly PULUMI_SSO_START_URL='https://pandoks.awsapps.com/start'
+readonly PULUMI_SSO_ROLE_NAME='AdministratorAccess'
 
 read_pulumi_config() {
   PULUMI_BUCKET=$(sed -n 's|^  url: s3://\([^?]*\)?.*|\1|p' Pulumi.yaml)
@@ -18,15 +21,26 @@ read_pulumi_allowed_account_id() {
 }
 
 ensure_aws_sso_profile() {
-  ensure_aws_sso_profile_name="${1:-${AWS_PROFILE:-pandoks-dev}}"
+  ensure_aws_sso_profile_name="$1"
+  ensure_aws_sso_profile_stack="$2"
+
   if aws configure list-profiles 2> /dev/null | grep -qx "${ensure_aws_sso_profile_name}"; then
     print_ok "AWS profile ${ensure_aws_sso_profile_name}"
   else
-    [ -t 0 ] || die "AWS profile '${ensure_aws_sso_profile_name}' is not configured. Run 'aws configure sso --profile ${ensure_aws_sso_profile_name}' interactively, then rerun."
-    printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
-    printf "%b│%b  %bConfigure AWS SSO%b\n" "${DIM}" "${NORMAL}" "${BOLD}" "${NORMAL}" >&2
-    printf "%b│%b\n" "${DIM}" "${NORMAL}" >&2
-    aws configure sso --profile "${ensure_aws_sso_profile_name}" --use-device-code --no-browser
+    ensure_aws_sso_profile_account_id=$(read_pulumi_allowed_account_id "${ensure_aws_sso_profile_stack}")
+    [ -n "${ensure_aws_sso_profile_account_id}" ] || die "Could not read aws:allowedAccountIds from Pulumi.${ensure_aws_sso_profile_stack}.yaml"
+
+    aws configure set "profile.${ensure_aws_sso_profile_name}.sso_session" "${PULUMI_SSO_SESSION}"
+    aws configure set "profile.${ensure_aws_sso_profile_name}.sso_account_id" "${ensure_aws_sso_profile_account_id}"
+    aws configure set "profile.${ensure_aws_sso_profile_name}.sso_role_name" "${PULUMI_SSO_ROLE_NAME}"
+    aws configure set "profile.${ensure_aws_sso_profile_name}.region" "${PULUMI_AWS_REGION}"
+
+    # NOTE: aws configure set only writes [profile ...], not [sso-session ...].
+    ensure_aws_sso_profile_config="${AWS_CONFIG_FILE:-${HOME}/.aws/config}"
+    if ! grep -qx "\[sso-session ${PULUMI_SSO_SESSION}\]" "${ensure_aws_sso_profile_config}" 2> /dev/null; then
+      printf '\n[sso-session %s]\nsso_start_url = %s\nsso_region = %s\nsso_registration_scopes = sso:account:access\n' \
+        "${PULUMI_SSO_SESSION}" "${PULUMI_SSO_START_URL}" "${PULUMI_AWS_REGION}" >> "${ensure_aws_sso_profile_config}"
+    fi
     print_added "AWS profile ${ensure_aws_sso_profile_name}"
   fi
 }

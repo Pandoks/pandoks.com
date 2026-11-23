@@ -144,7 +144,7 @@ pnpm bootstrap
   - `~/.aws/config` profile `pandoks-pulumi-state`
 
 <details>
-<summary><strong>AWS Organizations, IAM Identity Center (SSO) &amp; Cloudflare token setup</strong></summary>
+<summary><strong>AWS Organizations &amp; IAM Identity Center (SSO) setup</strong></summary>
 
 ---
 
@@ -172,19 +172,8 @@ pnpm bootstrap
 2. Assign their user `AdministratorAccess` on **`pandoks-dev`** (no access on `pandoks-production`,
    or `ReadOnlyAccess` for logs; admins get `AdministratorAccess` on both).
 3. Add them to the GitHub repo (and Tailscale if they need cloud `dev` cluster access).
-4. On their laptop, they run `./scripts/setup.sh` and pick `pandoks-dev`.
-
-#### 3. Cloudflare Token Scoping
-
-`pandoks.com` lives in one Cloudflare account, isolated via two scoped Account API tokens
-(`CloudflareApiKey` in `Pulumi.production.yaml` vs `Pulumi.dev.yaml`):
-
-- **Both tokens:** Zone policy locked strictly to `pandoks.com` (`Zone: Read`, `DNS: Edit`,
-  `SSL and Certificates: Edit`, `Workers Routes: Edit`) + Account Developer Platform
-  (`Workers: Admin`, R2, D1, KV, Queues, AI, Images, Stream). Neither gets `Account & Billing`,
-  `Registrar`, `Account API Tokens`, `Zero Trust`, `Zone Write`, or other domains.
-- **Prod only:** `Pages: Edit`, `Account Rulesets` / `Account Rule Lists` /
-  `Mass URL Redirects: Edit`, `Secrets Store: Edit`, and `pandoks.com` edge security/cache controls.
+4. On their laptop, they run `./scripts/setup.sh` — it writes the `pandoks-dev` AWS SSO profile
+   automatically and prompts only for the browser SSO sign-in.
 
 ---
 
