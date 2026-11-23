@@ -1,11 +1,14 @@
-import { US_WEST_2_REGION } from './aws';
-import { isProduction } from './dns';
-import { apexRepositoryName, githubOrg } from './github';
-import { runnerStateMachine } from './runner/runner';
-import { runnerArtifactsBucket } from './storage';
+import * as pulumi from '@pulumi/pulumi';
+import * as aws from '@pulumi/aws';
+import * as github from '@pulumi/github';
+import { US_WEST_2_REGION } from './aws.ts';
+import { isProduction } from './dns.ts';
+import { apexRepositoryName, githubOrg } from './github.ts';
+import { runnerStateMachine } from './runner/runner.ts';
+import { runnerArtifactsBucket } from './storage.ts';
 
 if (isProduction) {
-  // NOTE: looked up, not imported: infra/github.ts creates the provider inside its prod block
+  // NOTE: scripts/bootstrap.sh creates the provider
   const githubOidcProvider = aws.iam.getOpenIdConnectProviderOutput({
     url: 'https://token.actions.githubusercontent.com'
   });
@@ -14,7 +17,7 @@ if (isProduction) {
     name: 'ApexGithubActions',
     // NOTE: the build workflow waits on the runner for hours; 6h is the GitHub job ceiling
     maxSessionDuration: 6 * 60 * 60,
-    assumeRolePolicy: $jsonStringify({
+    assumeRolePolicy: pulumi.jsonStringify({
       Version: '2012-10-17',
       Statement: [
         {
@@ -58,7 +61,7 @@ if (isProduction) {
         {
           effect: 'Allow',
           actions: ['s3:GetObject'],
-          resources: [$interpolate`${runnerArtifactsBucket.arn}/*`]
+          resources: [pulumi.interpolate`${runnerArtifactsBucket.arn}/*`]
         }
       ]
     }).json
@@ -68,7 +71,7 @@ if (isProduction) {
     AWS_ROLE_ARN: apexGithubActionsRole.arn,
     AWS_REGION: US_WEST_2_REGION,
     RUNNER_STATE_MACHINE_ARN: runnerStateMachine.arn,
-    RUNNER_ARTIFACTS_BUCKET: runnerArtifactsBucket.name
+    RUNNER_ARTIFACTS_BUCKET: runnerArtifactsBucket.bucket
   };
   for (const [variableName, value] of Object.entries(apexVariables)) {
     new github.ActionsVariable(`ApexGithub${variableName}`, {

@@ -1,4 +1,5 @@
-import { STAGE_NAME } from '../dns';
+import * as hcloud from '@pulumi/hcloud';
+import { STAGE_NAME } from '../dns.ts';
 
 export function createLoadBalancers(
   loadBalancerArgs: {
@@ -45,7 +46,7 @@ export function createLoadBalancers(
       protocol: 'tcp',
       listenPort: 443,
       destinationPort: 30443,
-      // NOTE: needed to validate all requests are coming from Cloudflare (false will only show load balancer's private network ip)
+      // NOTE: shows requests come from Cloudflare; without it, only the LB's private IP shows.
       proxyprotocol: true,
       healthCheck: {
         protocol: 'tcp',
