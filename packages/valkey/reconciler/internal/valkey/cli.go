@@ -176,7 +176,7 @@ func AddNode(options AddNodeOptions) error {
 type DelNodeOptions struct {
 	CliBaseOptions
 
-	NodeID string
+	Node ClusterNode
 }
 
 func DelNode(options DelNodeOptions) error {
@@ -187,9 +187,26 @@ func DelNode(options DelNodeOptions) error {
 		return err
 	}
 
-	args := []string{"--cluster", "del-node", options.Address(), options.NodeID, "--cluster-yes"}
+	args := []string{"--cluster", "del-node", options.Address(), options.Node.ID, "--cluster-yes"}
+	if err := runCli(options.Auth, args...); err != nil {
+		return err
+	}
 
-	return runCli(options.Auth, args...)
+	nodeClient, err := NewClient(valkeygo.ClientOption{
+		InitAddress:       []string{fmt.Sprintf("%s:%d", options.Node.Hostname, options.Node.Port)},
+		Username:          options.Username,
+		Password:          options.Password,
+		ForceSingleClient: true,
+	})
+	if err != nil {
+		return err
+	}
+	defer nodeClient.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	// NOTE: peers gossip a forgotten ID for 60s, undoing any MEET of a pod that rejoins under it
+	return nodeClient.Do(ctx, nodeClient.B().ClusterReset().Hard().Build()).Error()
 }
 
 type DelShardOptions struct {
@@ -230,7 +247,7 @@ func DelShard(options DelShardOptions) (newClusterTopology Topology, err error) 
 		if !exists {
 			return Topology{}, fmt.Errorf("slave %s not found in topology", slaveId)
 		}
-		if err := DelNode(DelNodeOptions{CliBaseOptions: cliBaseOptions, NodeID: slaveNode.ID}); err != nil {
+		if err := DelNode(DelNodeOptions{CliBaseOptions: cliBaseOptions, Node: slaveNode}); err != nil {
 			return Topology{}, err
 		}
 		removedNodes[slaveNode.ID] = struct{}{}
@@ -258,7 +275,7 @@ func DelShard(options DelShardOptions) (newClusterTopology Topology, err error) 
 		return Topology{}, err
 	}
 
-	if err := DelNode(DelNodeOptions{CliBaseOptions: cliBaseOptions, NodeID: shardMasterNode.Node.ID}); err != nil {
+	if err := DelNode(DelNodeOptions{CliBaseOptions: cliBaseOptions, Node: shardMasterNode.Node}); err != nil {
 		return Topology{}, err
 	}
 	removedNodes[shardMasterNode.Node.ID] = struct{}{}
