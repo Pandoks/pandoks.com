@@ -1,0 +1,15 @@
+{
+  "name": "@pandoks.com/infra",
+  "version": "0.0.1",
+  "type": "module",
+  "sideEffects": false,
+  "scripts": {
+    "check": "tsc --noEmit"
+  },
+  "exports": {
+    "./aws": "./src/aws.ts",
+    "./cloud-init": "./src/cloud-init.ts",
+    "./stack": "./src/stack.ts",
+    "./tailscale": "./src/tailscale.ts"
+  }
+}

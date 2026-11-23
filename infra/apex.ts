@@ -1,8 +1,8 @@
 import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
 import * as github from '@pulumi/github';
+import { isProduction } from '@pandoks.com/infra/stack';
 import { US_WEST_2_REGION } from './aws.ts';
-import { isProduction } from './dns.ts';
 import { apexRepositoryName, githubOrg } from './github.ts';
 import { runnerStateMachine } from './runner/runner.ts';
 import { runnerArtifactsBucket } from './storage.ts';

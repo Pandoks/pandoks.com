@@ -1,6 +1,7 @@
 import './providers.ts';
+import { isCoreStack } from '@pandoks.com/infra/stack';
 import { outputs as secretOutputs } from './secrets.ts';
-import { isCoreStack, outputs as dnsOutputs } from './dns.ts';
+import { outputs as dnsOutputs } from './dns.ts';
 import { outputs as awsOutputs } from './aws.ts';
 import { outputs as apiOutputs } from './api.ts';
 import './github.ts';

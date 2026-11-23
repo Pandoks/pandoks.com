@@ -10,9 +10,9 @@ config:
   pandoks.com:CloudflareBackupSecretKey:
     secure: v1:y1wuwSw+uFhwFa5G:oVEf3ByBEatn/FvQn6Arq+l76NtXmfVJoi02w13QoE+cBReJwtPmzSuc2CdFkV8O5ssY5rOTmZXG8ST6djw1I5h/Ah/P7dPk15RqzftgrtE=
   pandoks.com:GithubPackageManagementToken:
-    secure: v1:b00DPTiRYzFq8jEG:9mCsbAslwqxPE7bhPU8d8s7o3WJOA5uWKweyHuD1kyOlm2kSGi08+G6sc3do4z9EwjwIBWBnXRc=
+    secure: v1:S0spRbDjPTEgU0ZR:CQBIpe/VOW8mNG7RLl2Y8gjewN7KY0JxpfUA+M8JX47jcrEFQpEEVvDlrmGkCuFibgzQj5/RWWo=
   pandoks.com:GithubPersonalAccessToken:
-    secure: v1:Pj3Kxk1aNs8Hpcvq:aZ5bwN/q3zz3vokYazhAuO/RyIz+Amz5rck3oPQ4w8V27AKo917VWc9CkjQyypC054IcM1fIl/9yC6bd4jqlZIcrPDG1gyjjq6tqBFwXH0hJfbkh7oa2mPz0Eg4JcO1a+tb8sRyyG+3FAzeFcw==
+    secure: v1:Kx/P9yqFjYIDEeXt:Kub6KU56PEBkkGv5tISzH/cXS9gkzdPNaBci/uJYM+DxWezDJjBAogTUt2bWRZJw9j6zTAYM8/evptsQa/2TycN1Nups0yYOGjBFuXoNkgWrQSPT678o6zYP50hmpJdCYJMZN3EVFanSc8QjSQ==
   pandoks.com:HetznerApiKey:
     secure: v1:r/NbVMnC4diN3I6x:AardRK01SH2fVpxTHNPd5tJdXEtcN6EqFmiL+9Lxeaxl9xBqBDvSF320fV8VRB5I+9bsfCqzeWj0xTRlaOZdJ+J/GgTvJ0tgnqh6VpGqt2I=
   pandoks.com:HetznerK3sToken:
