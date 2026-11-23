@@ -134,8 +134,9 @@ checkout.
 - Docs: when a change makes docs wrong or adds a command, package, CI check, or convention, tersely
   update whatever it affects: `README.md`, `k3s/README.md`, `scripts/cluster/README.md`, usage text,
   package READMEs, and this file.
-- Fixtures and rendered YAML alone don't make a change tested. Fix fallout you cause; report
-  failures that were already there separately instead of fixing them.
+- Fixtures and rendered YAML alone don't make a change tested. Fix scan and CI fallout your change
+  causes; report failures that were already there separately instead of fixing them in the same
+  change.
 - Run `test-audit` on every test you add or change; add one only when you can name the behavior it
   protects, the regression that breaks it, and why existing tests miss it. A bug fix in a package
   with tests gets one regression test that fails before the fix; elsewhere, add no test setup.
@@ -191,17 +192,17 @@ Before calling infra, cluster, or tooling work done, check:
   bring a PR that's behind `main` up to date by merging `main` into it. Leave merging to me.
 - Commits and PR titles: Conventional Commits as `type(scope): short lowercase summary`, like
   `update(cluster): drop unused flag`. PRs are squash-merged, so the title is the commit that lands.
-- Descriptions match the current diff (not history), updated in the same push: what changes, how to
-  use or verify it, and a table of each change's why (what breaks without it) and where deletions or
-  moves went. Top-level architecture changes get a `mermaid` diagram; UI changes get screenshots or
-  video uploaded to GitHub. Never commit PR-only assets, plans, or notes.
+- Descriptions are short and match the current diff (not history), updated in the same push: what
+  changes, how to use or verify it, and a table of each change's why (what breaks without it) and
+  where deletions or moves went. Top-level architecture changes get a `mermaid` diagram; UI changes
+  get screenshots or video uploaded to GitHub. Never commit PR-only assets, plans, or notes.
 - One concern per PR, not split too fine; tell me unrelated findings instead of opening new PRs.
 - Before calling a PR ready, run `pr-ready` and a review/fix loop over correctness, least code,
   style match, tests, and docs until a full round finds nothing.
 - Babysitting: poll checks and comments newer than the last push, fix real bot findings, dismiss
-  false positives and hardening that the Principles exclude with a written reason, and resolve
-  addressed threads. Once CI passes and nothing is left unhandled, stop at the first of these and
-  tell me which bots didn't review:
+  false positives and hardening this file excludes with a written reason, and resolve threads you
+  addressed. Once CI passes and nothing is left unhandled, stop at the first of these and tell me
+  which bots didn't review:
   - every review bot reviewed the latest push (Claude reviews only on open and ready);
   - 30 minutes have passed since that push;
   - you have no timer, and no bot still missing shows activity on that push.
