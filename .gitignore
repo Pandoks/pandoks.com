@@ -31,6 +31,7 @@ vite.config.ts.timestamp-*
 test-results
 playwright*/
 __pycache__/
+.venv/
 
 # Only pnpm
 package-lock.json

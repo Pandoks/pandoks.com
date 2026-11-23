@@ -100,7 +100,7 @@ jobs:
 
       - uses: ./.github/actions/setup-mise
         with:
-          tools: node aqua:google-antigravity/antigravity-cli
+          tools: python uv
 
       - *tailscale
 
@@ -109,4 +109,4 @@ jobs:
           GOOGLE_GEMINI_BASE_URL: https://cliproxyapi-api.tailb2c81d.ts.net
           GEMINI_API_KEY: cliproxyapi
           GH_TOKEN: ${{ github.token }}
-        run: node scripts/ai-review/gemini.ts
+        run: uv run --project scripts/ai-review --locked scripts/ai-review/gemini.py

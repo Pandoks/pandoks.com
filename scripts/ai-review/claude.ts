@@ -1,4 +1,4 @@
-import { appendFile } from 'node:fs/promises';
+import { appendFile, readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import {
   createSdkMcpServer,
@@ -7,7 +7,11 @@ import {
   type SDKResultMessage
 } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
-import { event, pullUrl, requestGithub } from './github.ts';
+
+type PullRequestEvent = {
+  pull_request: { number: number; head: { sha: string } };
+  repository: { url: string };
+};
 
 const { values } = parseArgs({
   options: {
@@ -17,6 +21,35 @@ const { values } = parseArgs({
 });
 const MODEL = values.model;
 const EFFORT = values.effort;
+
+const event = JSON.parse(
+  await readFile(process.env.GITHUB_EVENT_PATH!, 'utf8')
+) as PullRequestEvent;
+const pullUrl = `${event.repository.url}/pulls/${event.pull_request.number}`;
+
+async function requestGithub<ResponseBody>({
+  method,
+  url,
+  body
+}: {
+  method: string;
+  url: string;
+  body?: object;
+}) {
+  const response = await fetch(url, {
+    method,
+    headers: {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${process.env.GH_TOKEN!}`,
+      'X-GitHub-Api-Version': '2026-03-10'
+    },
+    body: body && JSON.stringify(body)
+  });
+  if (!response.ok) throw new Error(`GitHub returned ${response.status}: ${await response.text()}`);
+  const json = (await response.json()) as { errors?: unknown[] };
+  if (json.errors) throw new Error(`GitHub returned errors: ${JSON.stringify(json.errors)}`);
+  return json as ResponseBody;
+}
 
 function formatModelLabel({ model, effort }: { model: string; effort: string }) {
   const match = /^claude-(\w+)-(\d+)-(\d+)/.exec(model);
