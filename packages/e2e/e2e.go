@@ -32,7 +32,9 @@ func ApplyServiceMonitorCRD() {
 		_, currentFile, _, _ := runtime.Caller(0)
 		MustRun("", "kubectl", "apply", "--server-side", "-k", filepath.Dir(currentFile))
 	}
-	MustRun("", "kubectl", "wait", "--for=condition=Established", "crd/servicemonitors.monitoring.coreos.com")
+	// NOTE: a newly applied CRD serializes status.conditions as null until reconciled, which makes kubectl wait exit 1
+	gomega.Eventually(Run).WithArguments("", "kubectl", "wait", "--for=condition=Established",
+		"crd/servicemonitors.monitoring.coreos.com", "--timeout=10s").Should(gomega.ContainSubstring("condition met"))
 }
 
 func Run(stdin, executable string, arguments ...string) (string, error) {
