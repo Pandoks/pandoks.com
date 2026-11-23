@@ -35,6 +35,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Pandoks/skills
+          ref: cf80975dbd825ec70a6225d0c71d0699b02f1f9c
           path: .claude-skills
           sparse-checkout: skills/test-audit
           persist-credentials: false
