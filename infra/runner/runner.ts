@@ -126,6 +126,24 @@ export const runnerGithubTokenParameter = new aws.ssm.Parameter(
   },
   { provider: usWest2Provider }
 );
+// NOTE: AmazonSSMManagedInstanceCore allows reading every parameter, and jobs run arbitrary
+// commands as this role
+new aws.iam.RolePolicy(
+  'RunnerInstanceParameterPolicy',
+  {
+    role: runnerInstanceRole.id,
+    policy: aws.iam.getPolicyDocumentOutput({
+      statements: [
+        {
+          effect: 'Deny',
+          actions: ['ssm:GetParameter', 'ssm:GetParameters', 'ssm:GetParametersByPath'],
+          notResources: [runnerGithubTokenParameter.arn]
+        }
+      ]
+    }).json
+  },
+  { provider: usWest2Provider }
+);
 
 const runnerStateMachineRole = new aws.iam.Role(
   'RunnerStateMachineRole',
