@@ -254,6 +254,12 @@
       "matchDepTypes": ["engines"],
       "matchPackageNames": ["node"],
       "enabled": false
+    },
+    {
+      "description": "Keep requires-python a range.",
+      "matchDepTypes": ["requires-python"],
+      "matchPackageNames": ["python"],
+      "enabled": false
     }
   ],
   "vulnerabilityAlerts": {
