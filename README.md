@@ -71,7 +71,9 @@ pnpm local:destroy   # Tear down cluster and local dependencies
 ```
 
 <details>
-<summary>Step-by-step local cluster commands</summary>
+<summary><strong>Step-by-step local cluster commands</strong></summary>
+
+---
 
 ```sh
 pnpm cluster k3d deps up               # Start docker compose dependencies
@@ -81,6 +83,8 @@ pnpm cluster deploy local --bootstrap  # First-time: install helm charts + CRDs
 pnpm cluster deploy local              # Apply local overlay
 ```
 
+---
+
 </details>
 
 More docs: [scripts/cluster/README.md](./scripts/cluster/README.md) ·
@@ -88,14 +92,15 @@ More docs: [scripts/cluster/README.md](./scripts/cluster/README.md) ·
 
 ## Infrastructure
 
-`infra/` is a Pulumi program backed by Cloudflare R2 state (`Pulumi.yaml`), split across two AWS
-accounts and three stack tiers (each `Pulumi.<stack>.yaml` pins `aws:allowedAccountIds`):
+`infra/` is a Pulumi program backed by Cloudflare R2 state (`Pulumi.yaml`), with each stack's
+secrets KMS-encrypted and pinned to its AWS account via `aws:allowedAccountIds`:
 
-| Stack        | File                             | AWS Account          | KMS Key                      | Scope & Deploy                                                    |
-| ------------ | -------------------------------- | -------------------- | ---------------------------- | ----------------------------------------------------------------- |
-| `production` | `Pulumi.production.yaml` _(git)_ | `pandoks-production` | `alias/pulumi-production`    | Full prod infra; deployed **only** by GitHub Actions on `main`    |
-| `dev`        | `Pulumi.dev.yaml` _(git)_        | `pandoks-dev`        | `alias/pulumi-nonproduction` | Shared dev cluster, EC2 runner AMIs, R2 backups, `dev` GitHub env |
-| `<name>`     | `Pulumi.<name>.yaml` _(local)_   | `pandoks-dev`        | `alias/pulumi-nonproduction` | Isolated per-dev app infra (`<name>-*`, `api.<name>.pandoks.com`) |
+- **`production`** (`pandoks-production`, committed) — full prod infra, deployed only by GitHub
+  Actions on `main`.
+- **`dev`** (`pandoks-dev`, committed) — shared dev cluster, EC2 runner AMIs, R2 backups, and `dev`
+  GitHub environment.
+- **Personal stacks `<name>`** (`pandoks-dev`, gitignored) — share `dev`'s cluster/runners/backups
+  and deploy isolated per-dev app resources (`<name>-*`, `api.<name>.pandoks.com`).
 
 ```sh
 # Preview & deploy (defaults to AWS_PROFILE=pandoks-dev via mise.toml)
@@ -118,28 +123,39 @@ AWS_PROFILE=pandoks-production pulumi config set --secret --stack production <Na
 
 ## Bootstrap
 
-**Admin-only** one-time setup for both AWS accounts (idempotent — rerun anytime; developers use
-`./scripts/setup.sh` instead):
+**Admin-only** one-time setup for the production (`pandoks-production`) and non-production
+(`pandoks-dev`) AWS accounts (idempotent — rerun anytime; developers use `./scripts/setup.sh`
+instead):
 
 ```sh
 pnpm bootstrap
 ```
 
-- **`pandoks-production`:** R2 state bucket, `alias/pulumi-production`, SSM R2 tokens
-  (`/pulumi/r2-state-credentials`, `/pulumi/r2-state-read-credentials`), GitHub OIDC +
-  `PandoksGithubActions` role, and GitHub repo vars (`AWS_ROLE_ARN`, `AWS_REGION`).
-- **`pandoks-dev`:** `alias/pulumi-nonproduction`, SSM R2 token (`/pulumi/r2-state-credentials`),
-  and local `pandoks-pulumi-state` AWS profile.
+- **`pandoks-production`** (production)
+  - Cloudflare R2 state bucket (`pandoks-pulumi-state`)
+  - KMS key `alias/pulumi-production`
+  - SSM R2 tokens (`/pulumi/r2-state-credentials`, `/pulumi/r2-state-read-credentials`)
+  - GitHub OIDC provider, `PandoksGithubActions` CI role, and repo vars (`AWS_ROLE_ARN`,
+    `AWS_REGION`)
+- **`pandoks-dev`** (non-production)
+  - KMS key `alias/pulumi-nonproduction`
+  - SSM R2 token (`/pulumi/r2-state-credentials`)
+- **Local**
+  - `~/.aws/config` profile `pandoks-pulumi-state`
 
 <details>
-<summary>AWS Organizations, IAM Identity Center (SSO) & Cloudflare token setup</summary>
+<summary><strong>AWS Organizations, IAM Identity Center (SSO) &amp; Cloudflare token setup</strong></summary>
 
-- **Management account:** billing, AWS Organizations, and IAM Identity Center (`us-west-1`) — runs
-  no workloads.
-- **Member accounts (`pandoks-production`, `pandoks-dev`):** hard-siloed 12-digit resource
-  containers; permissions never cross accounts.
-- **SSO users:** personal logins (with MFA) assigned to member accounts. Adding a new developer
-  always means adding an **SSO user**, never a new AWS account. CI uses OIDC, not SSO.
+---
+
+> **AWS terms**
+>
+> - **Management account:** billing, AWS Organizations, and IAM Identity Center (`us-west-1`) — runs
+>   no workloads.
+> - **Member accounts (`pandoks-production`, `pandoks-dev`):** hard-siloed 12-digit resource
+>   containers; permissions never cross accounts.
+> - **SSO users:** personal logins (with MFA) assigned to member accounts. Adding a new developer
+>   always means adding an **SSO user**, never a new AWS account. CI uses OIDC, not SSO.
 
 #### 1. Initial AWS Setup (once)
 
@@ -169,5 +185,7 @@ pnpm bootstrap
   `Registrar`, `Account API Tokens`, `Zero Trust`, `Zone Write`, or other domains.
 - **Prod only:** `Pages: Edit`, `Account Rulesets` / `Account Rule Lists` /
   `Mass URL Redirects: Edit`, `Secrets Store: Edit`, and `pandoks.com` edge security/cache controls.
+
+---
 
 </details>
