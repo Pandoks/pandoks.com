@@ -8,8 +8,9 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true,
+    "noPropertyAccessFromIndexSignature": true,
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src/**/*", "sst-env.d.ts"]
+  "include": ["src/**/*"]
 }
