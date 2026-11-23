@@ -18,7 +18,7 @@ jobs:
 
       - uses: ./.github/actions/setup-node-pnpm
 
-      # NOTE: a Notion webhook starts this job, so it gets the Notion key alone, not sst shell or AWS
+      # NOTE: a Notion webhook starts this job, so it gets the Notion key alone, not Pulumi stack outputs or AWS
       - name: Sync all Notion content
         env:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}

@@ -1,8 +1,10 @@
-import { Resource } from 'sst';
+import type { NotionWebhookEnvironment } from '../env';
+
+const env = process.env as NotionWebhookEnvironment;
 
 export const PHONE_NUMBER_MAPPINGS = {
-  'Manda Wong': Resource.MichellePhoneNumber.value,
-  'BLAINE Manda Wong': Resource.MichellePhoneNumber.value,
-  Pandoks: Resource.KwokPhoneNumber.value
+  'Manda Wong': env.MICHELLE_PHONE_NUMBER,
+  'BLAINE Manda Wong': env.MICHELLE_PHONE_NUMBER,
+  Pandoks: env.KWOK_PHONE_NUMBER
 };
 export type Users = keyof typeof PHONE_NUMBER_MAPPINGS;
