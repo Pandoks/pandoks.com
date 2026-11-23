@@ -104,9 +104,9 @@ checkout.
   `go tool ginkgo -p ./packages/<pkg>/e2e` for a package's e2e suite on local k3d
   (`packages/e2e/README.md`).
 - Scoped: `pnpm exec prettier --check <files>`, `pnpm exec eslint [--fix] <files>`, `shellcheck`,
-  `shfmt -d`, `hadolint`, `actionlint`, `pnpm --filter "...[origin/main]" --if-present check`. That
-  filter and the shell and Docker format and lint commands see only tracked files, so check new
-  files with the file-level tools and `pnpm --filter <package> --if-present check`.
+  `shfmt -d`, `hadolint`, `pnpm lint actions`,
+  `pnpm --filter "...[origin/main]" --if-present check`. That filter and shell/Docker commands see
+  tracked files only; check new ones directly and with `pnpm --filter <pkg> --if-present check`.
 - Render without a cluster:
   `kustomize build k3s/overlays/<local|dev|prod> --load-restrictor LoadRestrictionsNone`.
 - Local cluster: `pnpm cluster k3d deps up`, `pnpm cluster k3d up` (hazard 4),

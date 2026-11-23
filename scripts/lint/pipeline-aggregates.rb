@@ -1,10 +1,11 @@
 require "yaml"
 
 pipeline = ".github/workflows/pipeline.yaml"
-jobs = YAML.safe_load_file(pipeline, aliases: true, permitted_classes: [Date, Time]).fetch("jobs")
+jobs = YAML.safe_load(File.read(pipeline)).fetch("jobs")
 aggregates = jobs.select { |name, _| name.end_with?("-pass") }
-github = File.read("infra/github.ts").gsub(%r{//[^\n]*|/\*.*?\*/}m, "")
-required = github[/requiredChecks: \[(.*?)\]/m, 1].scan(/'(.*?)'/).flatten
+block = File.read("infra/github.ts")[/requiredChecks:\s*\[(.*?)\]/m, 1] or
+  abort "requiredChecks array not found in infra/github.ts"
+required = block.scan(/['"]([^'"]+)['"]/).flatten
 failed = "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}"
 gate = {
   "if" => "${{ always() }}",
@@ -23,5 +24,9 @@ aggregates.each do |name, job|
 end
 
 covered = aggregates.values_at(*required).flat_map { |job| Array(job["needs"]) }
-orphans = jobs.keys - aggregates.keys - covered
+scheduled_only = jobs.select do |_, job|
+  cond = job["if"].to_s.strip.sub(/\A\$\{\{\s*(.*?)\s*\}\}\z/m, '\1')
+  cond.match?(/\Agithub\.event_name\s*==\s*['"]schedule['"]\z/)
+end.keys
+orphans = jobs.keys - aggregates.keys - covered - scheduled_only
 abort "Jobs no required aggregate needs: #{orphans.join(', ')}" unless orphans.empty?
