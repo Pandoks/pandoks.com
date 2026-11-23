@@ -1,6 +1,6 @@
 import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
-import { STAGE_NAME } from '../dns.ts';
+import { STAGE_NAME } from '@pandoks.com/infra/stack';
 import { secrets } from '../secrets.ts';
 import { runnerArtifactsBucket, runnerCacheBucket } from '../storage.ts';
 import { usWest2Provider } from '../aws.ts';
@@ -10,15 +10,7 @@ import { runnerStateMachineDefinition } from './step.ts';
 const runnerInstanceRole = new aws.iam.Role(
   'RunnerInstanceRole',
   {
-    assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
-      statements: [
-        {
-          effect: 'Allow',
-          principals: [{ type: 'Service', identifiers: ['ec2.amazonaws.com'] }],
-          actions: ['sts:AssumeRole']
-        }
-      ]
-    }).json,
+    assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({ Service: 'ec2.amazonaws.com' }),
     managedPolicyArns: ['arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore']
   },
   { provider: usWest2Provider }
@@ -130,15 +122,7 @@ export const runnerGithubTokenParameter = new aws.ssm.Parameter(
 const runnerStateMachineRole = new aws.iam.Role(
   'RunnerStateMachineRole',
   {
-    assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
-      statements: [
-        {
-          effect: 'Allow',
-          principals: [{ type: 'Service', identifiers: ['states.amazonaws.com'] }],
-          actions: ['sts:AssumeRole']
-        }
-      ]
-    }).json
+    assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({ Service: 'states.amazonaws.com' })
   },
   { provider: usWest2Provider }
 );
