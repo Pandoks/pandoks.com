@@ -159,10 +159,10 @@ Before calling infra, cluster, or tooling work done, check:
   one-off wrappers; generic helpers belong in `scripts/lib/` or `packages/` even with one caller, so
   keep the existing ones.
 - Comments default to none. Add one only for a reason the code and names can't show (an upstream bug
-  with `TODO: <issue link>`, or a constraint a reader would otherwise break), in one line; never a
-  file header, restatement, or version history. Separate smaller blocks with blank lines; keep a
-  file's section labels (`# ─── Go ───`) and tool annotations like `# renovate:`, `# shellcheck`,
-  `# options:`, and the `# vX.Y.Z` after a pinned SHA.
+  with `TODO: <issue link>`, or a `NOTE:` or `WARNING:` for a constraint a reader would otherwise
+  break), in one line; never a file header, restatement, or version history. Separate smaller blocks
+  with blank lines; keep a file's section labels (`# ─── Go ───`) and tool annotations like
+  `# renovate:`, `# shellcheck`, `# options:`, and the `# vX.Y.Z` after a pinned SHA.
 - No type errors, lint warnings, or `any` to silence a checker. Don't over-harden dev-only or
   maintainer-only paths.
 - **Shell:** POSIX `sh`, `set -eu` in entrypoints, and function variables prefixed with the function

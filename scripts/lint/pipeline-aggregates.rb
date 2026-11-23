@@ -1,8 +1,9 @@
 require "yaml"
 
-jobs = YAML.unsafe_load_file(".github/workflows/pipeline.yaml").fetch("jobs")
+pipeline = ".github/workflows/pipeline.yaml"
+jobs = YAML.safe_load_file(pipeline, aliases: true, permitted_classes: [Date, Time]).fetch("jobs")
 aggregates = jobs.select { |name, _| name.end_with?("-pass") }
-github = File.read("infra/github.ts").gsub(%r{//.*}, "")
+github = File.read("infra/github.ts").gsub(%r{//[^\n]*|/\*.*?\*/}m, "")
 required = github[/requiredChecks: \[(.*?)\]/m, 1].scan(/'(.*?)'/).flatten
 failed = "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}"
 gate = {
@@ -11,14 +12,16 @@ gate = {
   "steps" => [{ "if" => failed, "run" => "exit 1" }]
 }
 
-unless aggregates.keys.sort == required.sort
-  abort "Aggregates #{aggregates.keys} differ from requiredChecks #{required} in infra/github.ts"
-end
+abort "changes must run unconditionally" if jobs.fetch("changes").key?("if")
+
+missing = required - aggregates.keys
+abort "requiredChecks with no pipeline job: #{missing.join(', ')}" unless missing.empty?
 
 aggregates.each do |name, job|
   abort "#{name} must directly need changes" unless Array(job["needs"]).include?("changes")
   abort "#{name} must be `needs` plus exactly:\n#{gate.to_yaml}" unless job.except("needs") == gate
 end
 
-orphans = jobs.keys - aggregates.keys - aggregates.values.flat_map { |job| Array(job["needs"]) }
-abort "Orphan pipeline jobs: #{orphans.join(', ')}" unless orphans.empty?
+covered = aggregates.values_at(*required).flat_map { |job| Array(job["needs"]) }
+orphans = jobs.keys - aggregates.keys - covered
+abort "Jobs no required aggregate needs: #{orphans.join(', ')}" unless orphans.empty?
