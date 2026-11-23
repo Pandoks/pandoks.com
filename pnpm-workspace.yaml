@@ -23,8 +23,10 @@ allowBuilds:
   sharp: true
   fs-xattr: true # @electron-forge/maker-dmg (packaging)
   macos-alias: true # @electron-forge/maker-dmg (packaging)
+  protobufjs: false # @pulumi/pulumi; its postinstall only checks protobufjs CLI versions
   '@parcel/watcher': false # jest (prebuilt binary)
   unrs-resolver: false # jest (prebuilt binary)
+  workerd: false # wrangler (prebuilt binary)
 
 # TODO: remove override when upstream bumps its pinned dep (fix CVEs)
 overrides:

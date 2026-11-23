@@ -12,10 +12,15 @@ build
 Thumbs.db
 *.pem
 
+# Pulumi restores personal stacks' settings from state; shared ones are committed
+Pulumi.*.yaml
+!Pulumi.production.yaml
+!Pulumi.dev.yaml
+
 # Env
 .env
 .env.*
-!.env.example
+mise.local.toml
 
 # Vite
 vite.config.js.timestamp-*
@@ -26,9 +31,6 @@ vite.config.ts.timestamp-*
 test-results
 playwright*/
 __pycache__/
-
-# sst
-.sst
 
 # Only pnpm
 package-lock.json

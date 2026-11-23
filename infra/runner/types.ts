@@ -1,6 +1,6 @@
 /**
  * NOTE: this file is used by both the infra and the apps/functions. we do this to avoid functions
- * importing SST specifics and causing type errors. this also allows up to sync up the instances
+ * importing infra specifics and causing type errors. this also allows up to sync up the instances
  * to gate.
  */
 export const ARM_INSTANCE_TYPES = [
