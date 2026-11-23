@@ -73,7 +73,9 @@ verify_pulumi_state() {
 cleanup_on_exit() {
   cleanup_device_login
   for cleanup_on_exit_file in "${ensure_mise_tools_log:-}" "${ensure_pnpm_dependencies_log:-}" "${verify_pulumi_state_log:-}"; do
-    [ -n "${cleanup_on_exit_file}" ] && rm -f "${cleanup_on_exit_file}"
+    if [ -n "${cleanup_on_exit_file}" ]; then
+      rm -f "${cleanup_on_exit_file}"
+    fi
   done
 }
 

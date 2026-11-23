@@ -196,7 +196,9 @@ ensure_github_variable() {
 
 cleanup_on_exit() {
   cleanup_device_login
-  [ -n "${store_token_parameter_file:-}" ] && rm -f "${store_token_parameter_file}"
+  if [ -n "${store_token_parameter_file:-}" ]; then
+    rm -f "${store_token_parameter_file}"
+  fi
   if [ -t 0 ]; then
     stty echo
   fi
