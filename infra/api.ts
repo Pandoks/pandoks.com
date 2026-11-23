@@ -2,73 +2,21 @@ import { join } from 'node:path';
 import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
 import * as cloudflare from '@pulumi/cloudflare';
-import { buildSync } from 'esbuild';
+import { createFunction, createValidatedCertificate } from '@pandoks.com/infra/aws';
+import { isProduction, STAGE_NAME } from '@pandoks.com/infra/stack';
 import { secrets } from './secrets.ts';
-import { cloudflareZoneId, domain, isProduction, STAGE_NAME } from './dns.ts';
+import { cloudflareZoneId, domain } from './dns.ts';
 import { githubOrg, githubRepositoryName } from './github.ts';
 import type { NotionWebhookEnvironment, TextSmsEnvironment } from '../apps/functions/src/env.d.ts';
 
 const apiDomain = `api.${domain}`;
 const NOTION_BLOG_DATABASE_ID = '20f1bb259e4b804ba24be1ceebf4c761';
-
-function createFunction({
-  id,
-  name,
-  entryPoint,
-  handler,
-  timeout,
-  environment,
-  inlinePolicy
-}: {
-  id: string;
-  name: string;
-  entryPoint: string;
-  handler: string;
-  timeout: number;
-  environment: Record<string, pulumi.Input<string>>;
-  inlinePolicy?: pulumi.Input<string>;
-}) {
-  const functionName = `${STAGE_NAME}-${name}`;
-  const logGroup = new aws.cloudwatch.LogGroup(`${id}LogGroup`, {
-    name: `/aws/lambda/${functionName}`,
-    retentionInDays: 30
-  });
-  const role = new aws.iam.Role(`${id}Role`, {
-    name: functionName,
-    assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({ Service: 'lambda.amazonaws.com' }),
-    managedPolicyArns: [aws.iam.ManagedPolicy.AWSLambdaBasicExecutionRole],
-    inlinePolicies: inlinePolicy ? [{ name: 'inline', policy: inlinePolicy }] : []
-  });
-
-  const [bundle] = buildSync({
-    entryPoints: [join(import.meta.dirname, '../apps/functions/src', entryPoint)],
-    bundle: true,
-    minify: true,
-    platform: 'node',
-    target: 'node24',
-    format: 'cjs',
-    write: false
-  }).outputFiles;
-
-  return new aws.lambda.Function(`${id}Function`, {
-    name: functionName,
-    runtime: aws.lambda.Runtime.NodeJS24dX,
-    handler: `index.${handler}`,
-    role: role.arn,
-    timeout,
-    memorySize: 1024,
-    code: new pulumi.asset.AssetArchive({
-      'index.js': new pulumi.asset.StringAsset(bundle.text)
-    }),
-    environment: { variables: environment },
-    loggingConfig: { logFormat: 'Text', logGroup: logGroup.name }
-  });
-}
+const functionsDirectory = join(import.meta.dirname, '../apps/functions/src');
 
 export const textFunction = createFunction({
   id: 'TextSms',
-  name: 'text-sms',
-  entryPoint: 'text.ts',
+  name: `${STAGE_NAME}-text-sms`,
+  entryPoint: join(functionsDirectory, 'text.ts'),
   handler: 'sendTextHandler',
   timeout: 20,
   environment: {
@@ -80,15 +28,7 @@ export const textFunction = createFunction({
 });
 
 const scheduleInvokeTextRole = new aws.iam.Role('ScheduleInvokeTextRole', {
-  assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
-    statements: [
-      {
-        effect: 'Allow',
-        principals: [{ type: 'Service', identifiers: ['scheduler.amazonaws.com'] }],
-        actions: ['sts:AssumeRole']
-      }
-    ]
-  }).json
+  assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({ Service: 'scheduler.amazonaws.com' })
 });
 const scheduleTextGroup = new aws.scheduler.ScheduleGroup('ScheduleTextGroup', {
   name: isProduction ? 'text-scheduler' : `text-scheduler-${STAGE_NAME}`
@@ -108,8 +48,8 @@ new aws.iam.RolePolicy('ScheduleInvokeTextPolicy', {
 
 const notionWebhookFunction = createFunction({
   id: 'NotionWebhookHandler',
-  name: 'notion-webhook-handler',
-  entryPoint: 'api/notion/webhook.ts',
+  name: `${STAGE_NAME}-notion-webhook-handler`,
+  entryPoint: join(functionsDirectory, 'api/notion/webhook.ts'),
   handler: 'webhookHandler',
   timeout: 30,
   inlinePolicy: pulumi.jsonStringify({
@@ -172,24 +112,10 @@ new aws.lambda.Permission('NotionWebhookApiPermission', {
   sourceArn: pulumi.interpolate`${api.executionArn}/*/*/notion/webhook`
 });
 
-const apiCertificate = new aws.acm.Certificate('ApiCertificate', {
+const apiCertificateValidation = createValidatedCertificate({
+  id: 'ApiCertificate',
   domainName: apiDomain,
-  validationMethod: 'DNS'
-});
-const apiCertificateValidationOption = apiCertificate.domainValidationOptions[0];
-const apiCertificateValidationRecord = new cloudflare.DnsRecord('ApiCertificateValidationRecord', {
-  zoneId: cloudflareZoneId,
-  name: apiCertificateValidationOption.resourceRecordName.apply((name) => name.replace(/\.$/, '')),
-  type: apiCertificateValidationOption.resourceRecordType,
-  content: apiCertificateValidationOption.resourceRecordValue.apply((value) =>
-    value.replace(/\.$/, '')
-  ),
-  proxied: false,
-  ttl: 60
-});
-const apiCertificateValidation = new aws.acm.CertificateValidation('ApiCertificateValidation', {
-  certificateArn: apiCertificate.arn,
-  validationRecordFqdns: [apiCertificateValidationRecord.name]
+  zoneId: cloudflareZoneId
 });
 
 const apiDomainName = new aws.apigatewayv2.DomainName('ApiDomainName', {

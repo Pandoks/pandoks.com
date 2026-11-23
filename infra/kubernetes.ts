@@ -1,6 +1,7 @@
 import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
-import { awsAccountId, isProduction, STAGE_NAME } from './dns.ts';
+import { isProduction, STAGE_NAME } from '@pandoks.com/infra/stack';
+import { awsAccountId } from './dns.ts';
 import { defaultAwsRegion } from './aws.ts';
 import { secrets } from './secrets.ts';
 import { kubernetesOperatorOauthClient } from './tailscale.ts';

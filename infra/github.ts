@@ -1,7 +1,8 @@
 import type * as pulumi from '@pulumi/pulumi';
 import * as github from '@pulumi/github';
 import * as tailscale from '@pulumi/tailscale';
-import { cloudflareAccountId, isCoreStack, isProduction, STAGE_NAME } from './dns.ts';
+import { isProduction, isCoreStack, STAGE_NAME } from '@pandoks.com/infra/stack';
+import { cloudflareAccountId } from './dns.ts';
 import { secrets } from './secrets.ts';
 import { tailscaleAcl } from './tailscale.ts';
 

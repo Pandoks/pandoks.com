@@ -3,16 +3,13 @@ import { join } from 'node:path';
 import * as pulumi from '@pulumi/pulumi';
 import * as hcloud from '@pulumi/hcloud';
 import * as tailscale from '@pulumi/tailscale';
-import {
-  deleteTailscaleDevices,
-  kubernetesOperatorOauthClient,
-  tailscaleAcl
-} from '../tailscale.ts';
-import { isProduction, STAGE_NAME } from '../dns.ts';
+import { renderCloudInit } from '@pandoks.com/infra/cloud-init';
+import { isProduction, STAGE_NAME } from '@pandoks.com/infra/stack';
+import { deleteTailscaleDevices } from '@pandoks.com/infra/tailscale';
+import { kubernetesOperatorOauthClient, tailscaleAcl } from '../tailscale.ts';
 import { externalSecretsAccessKey } from '../kubernetes.ts';
 import { secrets } from '../secrets.ts';
 import { backupBucket, s3Endpoint } from '../storage.ts';
-import { renderCloudInit } from '../utils.ts';
 
 const cloudInitConfig = readFileSync(join(import.meta.dirname, 'cloud-config.yaml'), 'utf8');
 
@@ -31,32 +28,10 @@ export const deleteServerFromTailnet = new pulumi.ResourceHook(
       (device) => device.tags.includes('tag:hetzner') && device.tags.includes(`tag:${STAGE_NAME}`)
     );
     if (serverHetznerDevices.length > 0) {
-      const deletedDevices = deleteTailscaleDevices(
-        ...serverHetznerDevices.map((device) => device.nodeId)
-      );
-      deletedDevices.apply((deletedDevices) => {
-        const deletedDeviceIds = deletedDevices
-          .filter((device) => device.success)
-          .map((device) => device.deviceId);
-        const failedToDeleteDeviceIds = deletedDevices
-          .filter((device) => !device.success)
-          .map((device) => device.deviceId);
-        if (deletedDeviceIds.length) {
-          console.log(
-            `Deleted Tailscale devices:\n${serverHetznerDevices
-              .filter((device) => deletedDeviceIds.includes(device.nodeId))
-              .map((device) => device.name)
-              .join('\n')}`
-          );
-        }
-        if (failedToDeleteDeviceIds.length) {
-          console.log(
-            `Failed to delete Tailscale devices:\n${serverHetznerDevices
-              .filter((device) => failedToDeleteDeviceIds.includes(device.nodeId))
-              .map((device) => device.name)
-              .join('\n')}`
-          );
-        }
+      deleteTailscaleDevices({
+        clientId: secrets.tailscale.OauthClientId,
+        clientSecret: secrets.tailscale.OauthClientSecret,
+        devices: serverHetznerDevices
       });
     }
   }
@@ -78,16 +53,15 @@ export function createServers(
     firewalls: hcloud.Firewall[];
   },
   bootstrap: { ip: pulumi.Input<string> | undefined; server: hcloud.Server | undefined }
-): { tailscaleHostnames: string[]; servers: hcloud.Server[] } {
+): hcloud.Server[] {
   if (serverArgs.serverCount < 1) {
-    return { tailscaleHostnames: [], servers: [] };
+    return [];
   } else if (serverArgs.type === 'control-plane' && serverArgs.serverCount > 10) {
     throw new Error(
       `You can only have 10 control plane nodes. Please reduce the number of control plane nodes. Currently: ${serverArgs.serverCount}`
     );
   }
 
-  const tailscaleHostnames: string[] = [];
   const servers: hcloud.Server[] = [];
 
   const nodeResourceName = serverArgs.type === 'control-plane' ? 'ControlPlane' : 'Worker';
@@ -132,7 +106,6 @@ export function createServers(
     );
 
     const tailscaleHostname = `${STAGE_NAME}-hetzner-${serverArgs.type}-server-${i}`;
-    tailscaleHostnames.push(tailscaleHostname);
 
     const userData = pulumi
       .all([
@@ -185,7 +158,7 @@ export function createServers(
             EXTERNAL_SECRETS_AWS_ACCESS_KEY_ID,
             EXTERNAL_SECRETS_AWS_SECRET_ACCESS_KEY
           };
-          return renderCloudInit(cloudInitConfig, environments);
+          return renderCloudInit({ config: cloudInitConfig, environment: environments });
         }
       );
 
@@ -243,5 +216,5 @@ export function createServers(
     }
   }
 
-  return { tailscaleHostnames, servers };
+  return servers;
 }
