@@ -19,8 +19,10 @@ usage() {
 
 ensure_mise_tools() {
   command -v mise > /dev/null 2>&1 || die "mise is required: https://mise.jdx.dev/installing-mise.html"
+  mise trust --quiet "${REPO_ROOT}/mise.toml"
 
-  if [ -z "$(mise ls --missing --no-header)" ]; then
+  ensure_mise_tools_missing=$(mise ls --missing --no-header)
+  if [ -z "${ensure_mise_tools_missing}" ]; then
     print_ok "mise tools"
   else
     ensure_mise_tools_log=$(mktemp)
@@ -71,7 +73,9 @@ verify_pulumi_state() {
 cleanup_on_exit() {
   cleanup_device_login
   for cleanup_on_exit_file in "${ensure_mise_tools_log:-}" "${ensure_pnpm_dependencies_log:-}" "${verify_pulumi_state_log:-}"; do
-    [ -n "${cleanup_on_exit_file}" ] && rm -f "${cleanup_on_exit_file}"
+    if [ -n "${cleanup_on_exit_file}" ]; then
+      rm -f "${cleanup_on_exit_file}"
+    fi
   done
 }
 

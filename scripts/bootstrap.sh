@@ -21,7 +21,7 @@ readonly GITHUB_OIDC_HOST='token.actions.githubusercontent.com'
 readonly CI_ROLE_NAME='PandoksGithubActions'
 
 usage() {
-  printf "Usage: %s <prod|dev>\n\nAdmin-only one-time bootstrap for each AWS member account:\n  prod  pandoks-production: R2 state bucket, KMS key, SSM R2 tokens, CI OIDC role, GitHub vars\n  dev   pandoks-dev: nonproduction KMS key, SSM R2 token, local Pulumi state profile\n" "$0"
+  printf "Usage: %s\n\nAdmin-only one-time bootstrap for both AWS member accounts:\n  - pandoks-production: R2 state bucket, KMS key, SSM R2 tokens, CI OIDC role, GitHub vars\n  - pandoks-dev: nonproduction KMS key, SSM R2 token\n  - local ~/.aws/config profile for Pulumi state\n" "$0"
 }
 
 ensure_github_login() {
@@ -196,96 +196,74 @@ ensure_github_variable() {
 
 cleanup_on_exit() {
   cleanup_device_login
-  [ -n "${store_token_parameter_file:-}" ] && rm -f "${store_token_parameter_file}"
+  if [ -n "${store_token_parameter_file:-}" ]; then
+    rm -f "${store_token_parameter_file}"
+  fi
   if [ -t 0 ]; then
     stty echo
   fi
 }
 
-cmd_prod() {
+bootstrap_prod() {
   AWS_PROFILE='pandoks-production'
   export AWS_PROFILE
 
-  print_banner "Pulumi Bootstrap (prod)" "${PULUMI_AWS_REGION} · ${PULUMI_BUCKET}"
-
-  print_section "Auth & GitHub"
+  print_section "Production (pandoks-production)"
   ensure_aws_sso_profile "${AWS_PROFILE}"
   ensure_aws_login
   verify_aws_account production
   ensure_github_login
-  cmd_prod_repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
-  cmd_prod_aws_account_id=$(aws sts get-caller-identity --query Account --output text)
-  ensure_github_variable "${cmd_prod_repo}" AWS_ROLE_ARN "arn:aws:iam::${cmd_prod_aws_account_id}:role/${CI_ROLE_NAME}"
-  ensure_github_variable "${cmd_prod_repo}" AWS_REGION "${PULUMI_AWS_REGION}"
+  bootstrap_prod_repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+  bootstrap_prod_aws_account_id=$(aws sts get-caller-identity --query Account --output text)
+  ensure_github_variable "${bootstrap_prod_repo}" AWS_ROLE_ARN "arn:aws:iam::${bootstrap_prod_aws_account_id}:role/${CI_ROLE_NAME}"
+  ensure_github_variable "${bootstrap_prod_repo}" AWS_REGION "${PULUMI_AWS_REGION}"
   ensure_cloudflare_login "${PULUMI_CLOUDFLARE_ACCOUNT_ID}"
-
-  print_section "State & Encryption"
   ensure_r2_bucket "${PULUMI_BUCKET}" "${PULUMI_CLOUDFLARE_ACCOUNT_ID}"
   ensure_kms_alias "${KMS_PRODUCTION_ALIAS}" "${PULUMI_AWS_REGION}" "Pulumi secrets for the production stack"
-
-  print_section "R2 State Tokens"
   ensure_r2_token_parameter "${PULUMI_SSM_READ_WRITE_NAME}" "${KMS_PRODUCTION_ALIAS}" "Pulumi (prod)" "Object Read & Write" "${PULUMI_AWS_REGION}" "${PULUMI_CLOUDFLARE_ACCOUNT_ID}" "${PULUMI_BUCKET}"
   ensure_r2_token_parameter "${SSM_READ_ONLY_NAME}" "${KMS_PRODUCTION_ALIAS}" "Argo CD" "Object Read only" "${PULUMI_AWS_REGION}" "${PULUMI_CLOUDFLARE_ACCOUNT_ID}" "${PULUMI_BUCKET}"
-
-  print_section "Local Profile & CI Role"
-  ensure_pulumi_state_profile "${PULUMI_AWS_REGION}"
   ensure_github_oidc_provider
-  ensure_github_role "${cmd_prod_aws_account_id}" "${cmd_prod_repo}"
-
-  print_footer "Production bootstrap complete"
+  ensure_github_role "${bootstrap_prod_aws_account_id}" "${bootstrap_prod_repo}"
 }
 
-cmd_dev() {
+bootstrap_dev() {
   AWS_PROFILE='pandoks-dev'
   export AWS_PROFILE
 
-  print_banner "Pulumi Bootstrap (dev)" "${PULUMI_AWS_REGION} · ${PULUMI_BUCKET}"
-
-  print_section "Auth"
+  print_section "Non-production (pandoks-dev)"
   ensure_aws_sso_profile "${AWS_PROFILE}"
   ensure_aws_login
   verify_aws_account dev
-
-  print_section "Encryption"
   ensure_kms_alias "${KMS_NONPRODUCTION_ALIAS}" "${PULUMI_AWS_REGION}" "Pulumi secrets for non-production stacks"
-
-  print_section "R2 State Token"
   ensure_r2_token_parameter "${PULUMI_SSM_READ_WRITE_NAME}" "${KMS_NONPRODUCTION_ALIAS}" "Pulumi (dev)" "Object Read & Write" "${PULUMI_AWS_REGION}" "${PULUMI_CLOUDFLARE_ACCOUNT_ID}" "${PULUMI_BUCKET}"
-
-  print_section "Local Profile"
-  ensure_pulumi_state_profile "${PULUMI_AWS_REGION}"
-
-  print_footer "Dev bootstrap complete"
 }
 
 main() {
-  trap 'cleanup_on_exit' EXIT
-  trap 'exit 130' INT TERM
-  cd "${REPO_ROOT}"
-
-  [ $# -eq 1 ] || {
-    usage >&2
-    exit 1
-  }
-
-  cmd="$1"
-  case "${cmd}" in
+  case "${1:-}" in
+    '') ;;
     -h | --help)
       usage
       exit 0
       ;;
-    prod)
-      read_pulumi_config
-      cmd_prod
-      ;;
-    dev)
-      read_pulumi_config
-      cmd_dev
-      ;;
     *)
-      die "Unknown target '${cmd}'; use 'prod' or 'dev'"
+      die "Unknown argument: $1"
       ;;
   esac
+
+  trap 'cleanup_on_exit' EXIT
+  trap 'exit 130' INT TERM
+  cd "${REPO_ROOT}"
+
+  read_pulumi_config
+  print_banner "Pulumi Bootstrap" "${PULUMI_AWS_REGION} · ${PULUMI_BUCKET}"
+
+  bootstrap_prod
+  bootstrap_dev
+
+  print_section "Local Profile"
+  ensure_pulumi_state_profile "${PULUMI_AWS_REGION}"
+
+  print_footer "Bootstrap complete"
 }
 
 main "$@"

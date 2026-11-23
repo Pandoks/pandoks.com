@@ -195,6 +195,11 @@
       "groupName": "pulumi cli"
     },
     {
+      "description": "Every AWS CLI copy (mise, the Argo CD plugin image) moves in one PR.",
+      "matchPackageNames": ["aws-cli", "aws/aws-cli", "amazon/aws-cli"],
+      "groupName": "aws cli"
+    },
+    {
       "description": "Kubernetes can't skip minors, so each k3s minor is its own PR.",
       "matchPackageNames": ["k3s-io/k3s"],
       "groupName": "k3s",

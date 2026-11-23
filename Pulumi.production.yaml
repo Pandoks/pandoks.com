@@ -36,7 +36,7 @@ config:
   pandoks.com:TailscaleOauthClientSecret:
     secure: v1:a/2iFJq2l9F6CCBH:NP6LhFDanf3xicryeQQ5OaZnD9PIOOM4yGvcRB6AvIGTm3MgkNxkuT3gST2s4YqXze0xdgxoTj+8wtsKTB+GqVBNobzQquFwHhgVZvfsFw==
   pandoks.com:CloudflareApiKey:
-    secure: v1:FObEFS30VJYyQi96:n66tiFa261UahLTAc0lhcWrBGIVIEE5P0Lo2y3eWrfEl2fWXaqjTkSWiZClNxBwuvcyp/JFiyRE=
+    secure: v1:ZcHRVBPYk1AeCRkf:IMlP1syBQaN3cfD3D9NAa/WCWqXifBMjj8Gr5GQPKjGftlrBQPOK3/GhE7lLaGeV1FvciR4+/LCB08QDa4Az0IgqMBm5
   pandoks.com:CloudflareBackupSecretKey:
     secure: v1:KIhSb4HO5ZjC81aj:UqOTr0ZDXUl5ViqUOc0ps4Fhit61hr2jq4xvfwKkAvWaB/opNQzKZsDn7Yp0tyXbTfrqkxmHrWuqxOxslTpF+GYK4xTYDLSFG0VN+Mva3iY=
   pandoks.com:TwilioAccountSid:

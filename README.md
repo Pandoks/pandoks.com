@@ -120,29 +120,29 @@ pulumi config set --secret --raw --stack <stack> <Name> < <file>
 AWS_PROFILE=pandoks-production pulumi config set --secret --stack production <Name>
 ```
 
-To initialize a personal stack:
+To initialize a personal stack (copies `aws:allowedAccountIds` and non-production secrets from
+`dev`):
 
 ```sh
-pulumi stack init <name> --no-select --secrets-provider 'awskms://alias/pulumi-nonproduction?region=us-west-1'
-pulumi config set --path 'aws:allowedAccountIds[0]' <pandoks-dev-account-id> --stack <name>
+pulumi stack init <name> --no-select \
+  --secrets-provider 'awskms://alias/pulumi-nonproduction?region=us-west-1' \
+  --copy-config-from dev
 ```
 
-A personal stack needs every secret in `infra/secrets.ts`; its file stays local and
-`pulumi config refresh --stack <name>` restores it from its last deploy. Only the shared
-`production` and `dev` files are committed, so their secrets change through a PR.
+Its `Pulumi.<name>.yaml` stays local (gitignored) and `pulumi config refresh --stack <name>`
+restores it from its last deploy. Only the shared `production` and `dev` files are committed, so
+their secrets change through a PR.
 
 ### Bootstrap
 
-`pnpm bootstrap <prod|dev>` (admin only, once per AWS account) sets up the cloud primitives each
-account needs:
+`pnpm bootstrap` (admin only, idempotent) sets up the cloud primitives for both AWS accounts in one
+pass:
 
-- `pnpm bootstrap prod` (`pandoks-production`): R2 state bucket, `alias/pulumi-production`, SSM R2
-  tokens (`/pulumi/r2-state-credentials` and `/pulumi/r2-state-read-credentials`), GitHub OIDC
-  provider, `PandoksGithubActions` CI role, and GitHub repo variables (`AWS_ROLE_ARN`,
-  `AWS_REGION`).
-- `pnpm bootstrap dev` (`pandoks-dev`): `alias/pulumi-nonproduction`, SSM R2 token
-  (`/pulumi/r2-state-credentials`, encrypted with `alias/pulumi-nonproduction`), and the local
-  `pandoks-pulumi-state` AWS profile.
+- **`pandoks-production`:** R2 state bucket, `alias/pulumi-production`, SSM R2 tokens
+  (`/pulumi/r2-state-credentials` and `/pulumi/r2-state-read-credentials`), GitHub OIDC provider,
+  `PandoksGithubActions` CI role, and GitHub repo variables (`AWS_ROLE_ARN`, `AWS_REGION`).
+- **`pandoks-dev`:** `alias/pulumi-nonproduction`, SSM R2 token (`/pulumi/r2-state-credentials`,
+  encrypted with `alias/pulumi-nonproduction`), and the local `pandoks-pulumi-state` AWS profile.
 
 For onboarding a new laptop to an already-bootstrapped org, run `./scripts/setup.sh` (`pnpm setup`)
 instead.
@@ -171,7 +171,7 @@ directly inside `pandoks-production` via OIDC.
    - **`pandoks-production`** — production stack only (CI + admin break-glass).
    - **`pandoks-dev`** — shared `dev` stack + every developer's personal stack.
 3. Put each account's 12-digit ID in `aws:allowedAccountIds` inside `Pulumi.production.yaml` and
-   `Pulumi.dev.yaml`, then run `pnpm bootstrap prod` and `pnpm bootstrap dev`.
+   `Pulumi.dev.yaml`, then run `pnpm bootstrap`.
 
 #### 2. Onboard a developer (new IAM Identity Center SSO user)
 

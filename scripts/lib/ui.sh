@@ -85,6 +85,8 @@ run_device_login() {
 
 cleanup_device_login() {
   for cleanup_device_login_file in "${run_device_login_status_file:-}" "${run_device_login_log_file:-}"; do
-    [ -n "${cleanup_device_login_file}" ] && rm -f "${cleanup_device_login_file}"
+    if [ -n "${cleanup_device_login_file}" ]; then
+      rm -f "${cleanup_device_login_file}"
+    fi
   done
 }
