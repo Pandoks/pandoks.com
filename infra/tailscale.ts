@@ -1,7 +1,7 @@
 import type * as pulumi from '@pulumi/pulumi';
 import * as tailscale from '@pulumi/tailscale';
 import stringify from 'json-stringify-pretty-compact';
-import { isProduction, isSharedStage, STAGE_NAME } from '@pandoks.com/infra/stack';
+import { isProduction, isCoreStack, STAGE_NAME } from '@pandoks.com/infra/stack';
 
 export const hubTailscaleServices = [
   { name: 'cliproxyapi', comment: 'CLIProxyAPI on the homelab hub', ports: ['tcp:443'] },
@@ -107,7 +107,7 @@ if (isProduction) {
   });
 }
 
-export const kubernetesOperatorOauthClient = isSharedStage
+export const kubernetesOperatorOauthClient = isCoreStack
   ? new tailscale.OauthClient(
       `${STAGE_NAME}TailscaleKubernetesOperatorOauthClient`.replace(/^./, (char) =>
         char.toUpperCase()
