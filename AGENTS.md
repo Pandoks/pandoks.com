@@ -68,12 +68,13 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
   deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `pulumi up --refresh --stack production` for
-  `Pulumi.yaml`, `Pulumi.production.yaml`, `mise.toml`, root `package.json`/`pnpm-lock.yaml`/
-  `pnpm-workspace.yaml`/`tsconfig.json`, `infra/`, `packages/infra/`, `apps/` (except `example`),
-  and `packages/svelte/`, plus an Argo hard refresh and wait for Synced and Healthy when Pulumi
-  deploys or `k3s/`, `apps/*/kube/`, or `scripts/cluster/` change. Pages builds `apps/web` when a
-  change matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything
-  `k3s/overlays/prod` renders but never prunes: deleted resources stay until pruned.
+  `Pulumi.yaml`, `Pulumi.production.yaml`, `.github/actions/setup-mise/`, `mise.toml`, root
+  `package.json`/`pnpm-lock.yaml`/`pnpm-workspace.yaml`/`tsconfig.json`, `infra/`,
+  `packages/infra/`, `apps/` (except `example`), and `packages/svelte/`, plus an Argo hard refresh
+  and wait for Synced and Healthy when Pulumi deploys or `k3s/`, `apps/*/kube/`, or
+  `scripts/cluster/` change. Pages builds `apps/web` when a change matches `pathIncludes` in
+  `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod` renders but never prunes:
+  deleted resources stay until pruned.
 - `production` deploys to `pandoks-production`, `dev` and personal stacks deploy to `pandoks-dev`.
   `production` and `dev` are shared stages (cluster, runners, backups, GitHub env); personal stacks
   get `STAGE_NAME = <stack>` (`api.<stack>.pandoks.com`) and only provision per-stack app infra.
