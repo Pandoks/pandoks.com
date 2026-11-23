@@ -34,5 +34,5 @@ python.uv_venv_auto = "source" # auto-activate uv-created .venvs (uv.lock projec
 [env]
 # uv resolves interpreters from PATH (mise's python) instead of downloading its own
 UV_PYTHON_PREFERENCE = "system"
-# the profile `pnpm sso` logs in to; CI writes its OIDC credentials to the same one
-AWS_PROFILE = "pandoks"
+# default local profile (non-production); CI writes its OIDC credentials to the same profile name
+AWS_PROFILE = "pandoks-dev"

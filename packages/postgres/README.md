@@ -479,8 +479,8 @@ spec:
     patroni.shards: 4 # Was 3, now 4
 ```
 
-For `local` or `dev`, redeploy with `pnpm cluster deploy <env>`, replacing `<env>` with `local` or
-`dev`. Prod syncs from `main` through ArgoCD. This creates the new shard (`myapp-shard-3`) with its
+For `local` or `dev`, redeploy with `pnpm cluster deploy <env>` (replace `<env>` with `local` or
+`dev`). Prod syncs from `main` through ArgoCD. This creates the new shard (`myapp-shard-3`) with its
 own StatefulSet, services, certificates, and backup cronjobs.
 
 **Step 2: Verify New Shard**

@@ -23,9 +23,16 @@ const providers: Record<string, pulumi.ProviderResource> = {
   })
 };
 
+const isProduction = pulumi.getStack() === 'production';
+
 pulumi.runtime.registerResourceTransform(({ type, props, opts }) => ({
   props,
-  opts: { ...opts, provider: opts.provider ?? providers[type.split(':')[0]] }
+  opts: {
+    ...opts,
+    protect: opts.protect ?? (isProduction ? true : undefined),
+    retainOnDelete: opts.retainOnDelete ?? (isProduction ? true : undefined),
+    provider: opts.provider ?? providers[type.split(':')[0]]
+  }
 }));
 pulumi.runtime.registerInvokeTransform(({ token, args, opts }) => ({
   args,

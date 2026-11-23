@@ -2,7 +2,7 @@ import * as pulumi from '@pulumi/pulumi';
 import * as tailscale from '@pulumi/tailscale';
 import stringify from 'json-stringify-pretty-compact';
 import { secrets } from './secrets.ts';
-import { isProduction, STAGE_NAME } from './dns.ts';
+import { isCoreStack, isProduction, STAGE_NAME } from './dns.ts';
 
 export const hubTailscaleServices = [
   { name: 'cliproxyapi', comment: 'CLIProxyAPI on the homelab hub', ports: ['tcp:443'] },
@@ -120,15 +120,20 @@ if (isProduction) {
   });
 }
 
-export const kubernetesOperatorOauthClient = new tailscale.OauthClient(
-  `${STAGE_NAME}TailscaleKubernetesOperatorOauthClient`.replace(/^./, (char) => char.toUpperCase()),
-  {
-    description: `${STAGE_NAME} k8s operator`,
-    scopes: ['devices:core', 'auth_keys', 'services'],
-    tags: ['tag:k8s-operator', `tag:${STAGE_NAME}`]
-  },
-  { dependsOn: tailscaleAcl }
-);
+// NOTE: only core stacks (production, dev) run a k3s cluster and have a tag:<stage> in the ACL.
+export const kubernetesOperatorOauthClient = isCoreStack
+  ? new tailscale.OauthClient(
+      `${STAGE_NAME}TailscaleKubernetesOperatorOauthClient`.replace(/^./, (char) =>
+        char.toUpperCase()
+      ),
+      {
+        description: `${STAGE_NAME} k8s operator`,
+        scopes: ['devices:core', 'auth_keys', 'services'],
+        tags: ['tag:k8s-operator', `tag:${STAGE_NAME}`]
+      },
+      { dependsOn: tailscaleAcl }
+    )
+  : undefined;
 
 async function tailscaleApiToken({
   clientId,

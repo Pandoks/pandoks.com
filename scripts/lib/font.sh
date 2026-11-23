@@ -3,6 +3,7 @@
 
 # Font Weights
 readonly BOLD='\e[1m'
+readonly DIM='\e[2m'
 readonly NORMAL='\e[0m'
 
 # Colors

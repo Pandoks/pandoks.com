@@ -25,10 +25,11 @@ export function createClusterSecret({
   });
 }
 
+// NOTE: infra/index.ts loads this only for core stacks, which create the operator OAuth client.
 for (const [name, value] of Object.entries({
   KubernetesGrafanaAdminPassword: secrets.k8s.grafana.AdminPassword,
-  KubernetesTailscaleOauthClientId: kubernetesOperatorOauthClient.id,
-  KubernetesTailscaleOauthClientSecret: kubernetesOperatorOauthClient.key,
+  KubernetesTailscaleOauthClientId: kubernetesOperatorOauthClient!.id,
+  KubernetesTailscaleOauthClientSecret: kubernetesOperatorOauthClient!.key,
   HetznerOriginTlsKey: secrets.k8s.HetznerOriginTlsKey,
   CloudflareBackupAccessKey: secrets.cloudflare.BackupAccessKey,
   CloudflareBackupSecretKey: secrets.cloudflare.BackupSecretKey,

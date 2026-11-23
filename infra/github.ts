@@ -1,7 +1,7 @@
 import type * as pulumi from '@pulumi/pulumi';
 import * as github from '@pulumi/github';
 import * as tailscale from '@pulumi/tailscale';
-import { cloudflareAccountId, isProduction, STAGE_NAME } from './dns.ts';
+import { cloudflareAccountId, isCoreStack, isProduction, STAGE_NAME } from './dns.ts';
 import { secrets } from './secrets.ts';
 import { tailscaleAcl } from './tailscale.ts';
 
@@ -15,13 +15,16 @@ const DEPLOYMENT_BRANCH_POLICY = isProduction
   ? { protectedBranches: false, customBranchPolicies: true }
   : undefined;
 
-const githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
-  repository: githubRepositoryName,
-  environment: isProduction ? 'production' : 'dev',
-  deploymentBranchPolicy: DEPLOYMENT_BRANCH_POLICY
-});
+let githubEnvironment: github.RepositoryEnvironment | undefined;
+if (isCoreStack) {
+  githubEnvironment = new github.RepositoryEnvironment('GithubStageEnvironment', {
+    repository: githubRepositoryName,
+    environment: isProduction ? 'production' : 'dev',
+    deploymentBranchPolicy: DEPLOYMENT_BRANCH_POLICY
+  });
+}
 
-if (isProduction) {
+if (isProduction && githubEnvironment) {
   new github.RepositoryEnvironmentDeploymentPolicy('GithubProductionDeploymentPolicy', {
     repository: githubRepositoryName,
     environment: githubEnvironment.environment,
@@ -51,6 +54,7 @@ if (isProduction) {
     }
   });
 
+  // WARNING: scripts/bootstrap.sh owns AWS_ROLE_ARN and AWS_REGION, which CI needs to run this.
   new github.ActionsSecret('GithubGithubAccessToken', {
     repository: githubRepositoryName,
     secretName: 'GH_TOKEN',

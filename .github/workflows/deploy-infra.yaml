@@ -7,8 +7,12 @@ on:
     paths:
       - 'Pulumi.yaml'
       - 'Pulumi.production.yaml'
+      - '.github/actions/setup-mise/**'
+      - 'mise.toml'
       - 'package.json'
       - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig.json'
       - 'infra/**'
       - 'apps/**'
       - '!apps/example/**'
@@ -47,8 +51,12 @@ jobs:
             pulumi:
               - 'Pulumi.yaml'
               - 'Pulumi.production.yaml'
+              - '.github/actions/setup-mise/**'
+              - 'mise.toml'
               - 'package.json'
               - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'tsconfig.json'
               - 'infra/**'
               - 'apps/!(example)/**'
               - 'packages/svelte/**'
@@ -140,7 +148,8 @@ jobs:
       - deploy-pulumi
     if: |
       always() &&
-      needs.detect-changes.outputs.kubernetes == 'true' &&
+      (needs.detect-changes.outputs.kubernetes == 'true' ||
+        (github.event_name != 'workflow_dispatch' && needs.deploy-pulumi.result == 'success')) &&
       (needs.deploy-pulumi.result == 'success' || needs.deploy-pulumi.result == 'skipped')
     runs-on: ubuntu-latest
     steps:

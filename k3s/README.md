@@ -70,16 +70,17 @@ too.
 
 ### Rotating the External Secrets access key
 
-Rename `ExternalSecretsAccessKey` in `infra/kubernetes.ts` and merge; this rotates every stack's
-key. The bootstrap node's cloud-config writes `external-secrets/external-secrets-aws` on first boot:
+Rename `ExternalSecretsAccessKey` in `infra/kubernetes.ts` and merge; this rotates the `production`
+and `dev` keys. The bootstrap node's cloud-config writes `external-secrets/external-secrets-aws` on
+first boot:
 
 - **prod** ignores user-data changes, so after every `pulumi up`, `deploy-infra.yaml` writes the
   stack's key into that Secret. It joins the tailnet as `tag:ci-production`, the only CI tag allowed
   to write it, with an OAuth client whose secret is a production stack output that only `main`'s AWS
   role can read. Pulumi creates the new key before deleting the old one, so syncs can fail only in
   the seconds between, and Secrets keep their last values.
-- **other stacks**: the user data changes, so the next `pulumi up --stack <stack>` replaces every
-  server and rebuilds the cluster, wiping its data, with the new key. To rotate just one, run
+- **dev**: the user data changes, so the next `pulumi up --stack dev` replaces every server and
+  rebuilds the cluster, wiping its data, with the new key. To rotate just one, run
   `pulumi up --stack <stack> --target-replace <urn>` (URN from
   `pulumi stack --stack <stack> --show-urns`) instead of renaming.
 
@@ -87,7 +88,7 @@ key. The bootstrap node's cloud-config writes `external-secrets/external-secrets
 
 For local development, we use [k3d](https://k3d.io/) to create a local k3s cluster.
 
-To setup the cluster, run the following commands from the root of the project:
+To setup the cluster, run the following command from the root of the project:
 
 ```sh
 pnpm local:init

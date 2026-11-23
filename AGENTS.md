@@ -34,13 +34,14 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
    included. If production needs a manual fix, even when I say ship now, propose the exact command,
    target, and effect, then wait.
 2. **Deploying a stack by accident.** Pass `--stack <stack>` to every `pulumi` command; mine is
-   `pandoks`. For the site, run `pnpm exec portless doctor` before `pnpm --filter web dev`, which
-   can start a missing proxy with `sudo`; if doctor prints a `warn` or `fail` line (it exits 0 on a
-   stopped proxy), give me its fix instead of starting the proxy or working around it with
-   `PORTLESS=0`, `--force`, or `sudo`. If portless says the host is already registered, use
-   `pnpm exec portless get web` only if that process runs from this checkout; otherwise tell me.
-   `pulumi preview` changes nothing, but `pulumi up` with zero nodes deletes Tailscale devices
-   tagged for that stack's cluster; personal stacks share the `dev` names. Run `pulumi up`,
+   `pandoks`. `mise.toml` defaults `AWS_PROFILE=pandoks-dev` and `Pulumi.{production,dev}.yaml` pin
+   `aws:allowedAccountIds` to their AWS member accounts. For the site, run
+   `pnpm exec portless doctor` before `pnpm --filter web dev`, which can start a missing proxy with
+   `sudo`; if doctor prints a `warn` or `fail` line (it exits 0 on a stopped proxy), give me its fix
+   instead of starting the proxy or working around it with `PORTLESS=0`, `--force`, or `sudo`. If
+   portless says the host is already registered, use `pnpm exec portless get web` only if that
+   process runs from this checkout; otherwise tell me. `pulumi preview` changes nothing, but
+   `pulumi up` on `dev` with zero nodes deletes Tailscale devices tagged for `dev`. Run `pulumi up`,
    `refresh`, `destroy`, or `stack init` only when I ask. If AWS credentials are missing or expired,
    ask me to run `pnpm sso`.
 3. **Editing my checkout from an experiment.** Use absolute paths in experiment copies;
@@ -52,10 +53,9 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
    `printf 'y\n' | mise exec -- pnpm cluster deploy local --kubeconfig "$(mise exec -- k3d kubeconfig write local-cluster)"`.
 5. **Leaking secrets.** `--show-secrets` output, `pulumi config get` of a secret, SSM `/pulumi/` and
    `/kubernetes/` values, and cluster `Secret`s are real credentials: never print, commit, or paste
-   them, and inspect manifests with `kustomize build`. New secrets go in `infra/secrets.ts`; one
-   without a value fails every preview and deploy of its stack, so set yours with
-   `pulumi config set --secret --raw --stack <stack> <Name> < <file>` and ask me to set
-   production's.
+   them, and inspect manifests with `kustomize build`. New secrets go in `infra/secrets.ts`; a
+   missing value fails every preview and deploy of its stack, so set yours with
+   `pulumi config set --secret --raw --stack <stack> <Name> < <file>` and ask me for production's.
 
 ## How changes ship
 
@@ -67,14 +67,16 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
   deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `pulumi up --refresh --stack production` for
-  `Pulumi.yaml`, `Pulumi.production.yaml`, the root `package.json` and `pnpm-lock.yaml`, `infra/`,
-  `apps/` (except `example`), and `packages/svelte/`, which then writes the External Secrets access
-  key into prod, plus an Argo hard refresh and a wait for Synced and Healthy only for `k3s/`,
-  `apps/*/kube/`, and `scripts/cluster/` changes. Pages builds `apps/web` when a change matches
+  `Pulumi.yaml`, `Pulumi.production.yaml`, `.github/actions/setup-mise/`, `mise.toml`, root
+  `package.json`/`pnpm-lock.yaml`/`pnpm-workspace.yaml`/`tsconfig.json`, `infra/`, `apps/` (except
+  `example`), and `packages/svelte/`, which then writes the External Secrets access key into prod,
+  plus an Argo hard refresh and wait for Synced and Healthy when Pulumi deploys or `k3s/`,
+  `apps/*/kube/`, or `scripts/cluster/` change. Pages builds `apps/web` when a change matches
   `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod` renders but
-  never prunes: a deleted resource stays in prod until pruned by hand.
-- Every non-production stack gets `STAGE_NAME` `dev`, `dev.pandoks.com`, and the `dev` GitHub
-  environment, so two non-production stacks collide.
+  never prunes: deleted resources stay until pruned.
+- `production` deploys to `pandoks-production`, `dev` and personal stacks deploy to `pandoks-dev`.
+  `production` and `dev` are shared stages (cluster, runners, backups, GitHub env); personal stacks
+  get `STAGE_NAME = <stack>` (`api.<stack>.pandoks.com`) and only provision per-stack app infra.
 - Labeled PR previews are planned (#115), not built. Keep two cloud clusters, prod and dev: no
   staging tier, promotion step, or per-PR cluster.
 - PRs get no infra diff: `pulumi preview` decrypts every secret, so never run it with production
@@ -87,7 +89,9 @@ system-wide. Agent shells usually don't activate mise, so `pnpm` is missing and 
 are unpinned globals; run repo commands, `kubectl` included, as `mise exec -- <cmd>` from inside the
 checkout.
 
-- `pnpm bootstrap` (mine to run) sets up Pulumi's state, KMS keys, R2 token, profile, and CI role.
+- `./scripts/setup.sh` installs tools/deps, signs into `pandoks-dev` SSO, and adds the Pulumi state
+  profile; `pnpm bootstrap` (mine to run) creates both accounts' KMS keys, SSM R2 tokens, the R2
+  state bucket, and the prod CI role.
 - `pnpm format <js|go|shell|all>` writes; `pnpm format check <...>` checks.
 - Manage agent skills only with the skills CLI, for Claude Code, Codex, and opencode:
   `pnpm dlx skills add <source> -s <skill> -a claude-code codex opencode`, and

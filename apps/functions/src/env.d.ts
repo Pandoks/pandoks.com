@@ -1,12 +1,12 @@
 // NOTE: infra/api.ts checks each Lambda's environment against these with `satisfies`
-export interface TextSmsEnvironment {
+export type TextSmsEnvironment = {
   TWILIO_PHONE_NUMBER: string;
   TWILIO_ACCOUNT_SID: string;
   TWILIO_AUTH_TOKEN: string;
   TWILIO_NOTION_MESSAGING_SERVICE_SID: string;
-}
+};
 
-export interface NotionWebhookEnvironment {
+export type NotionWebhookEnvironment = {
   DOMAIN: string;
   SCHEDULER_INVOKE_ROLE_ARN: string;
   SCHEDULER_GROUP_NAME: string;
@@ -18,16 +18,9 @@ export interface NotionWebhookEnvironment {
   NOTION_BLOG_DATABASE_ID: string;
   KWOK_PHONE_NUMBER: string;
   MICHELLE_PHONE_NUMBER: string;
-}
+};
 
 // NOTE: Lambda sets these itself and rejects them in a function's environment
-interface LambdaRuntimeEnvironment {
+export type LambdaRuntimeEnvironment = {
   AWS_REGION: string;
-}
-
-declare global {
-  namespace NodeJS {
-    interface ProcessEnv
-      extends TextSmsEnvironment, NotionWebhookEnvironment, LambdaRuntimeEnvironment {}
-  }
-}
+};

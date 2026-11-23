@@ -36,9 +36,9 @@ jobs:
       - name: Sync all Notion content
         run: |
           outputs=$(pulumi stack output --stack production --json --show-secrets)
-          NOTION_API_KEY=$(jq -r .NotionApiKey <<<"${outputs}")
+          NOTION_API_KEY=$(jq -er .NotionApiKey <<<"${outputs}")
           echo "::add-mask::${NOTION_API_KEY}"
-          BLOG_NOTION_DATABASE_ID=$(jq -r .NotionBlogDatabaseId <<<"${outputs}")
+          BLOG_NOTION_DATABASE_ID=$(jq -er .NotionBlogDatabaseId <<<"${outputs}")
           export NOTION_API_KEY BLOG_NOTION_DATABASE_ID
           pnpm -r --if-present run sync:notion
 

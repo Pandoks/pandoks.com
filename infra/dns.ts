@@ -2,13 +2,16 @@ import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
 import * as cloudflare from '@pulumi/cloudflare';
 
-export const isProduction = pulumi.getStack() === 'production';
+const stack = pulumi.getStack();
+export const isProduction = stack === 'production';
+export const isDev = stack === 'dev';
+export const isCoreStack = isProduction || isDev;
 
-export const domain = isProduction ? 'pandoks.com' : 'dev.pandoks.com';
+export const STAGE_NAME = isProduction ? 'prod' : stack;
+
+export const domain = isProduction ? 'pandoks.com' : `${STAGE_NAME}.pandoks.com`;
 
 export const EXAMPLE_DOMAIN = 'example.pandoks.com';
-
-export const STAGE_NAME = isProduction ? 'prod' : 'dev';
 
 const awsAccountIdentityJson = await aws.getCallerIdentity();
 export const awsAccountId = awsAccountIdentityJson.accountId;

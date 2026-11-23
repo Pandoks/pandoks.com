@@ -91,7 +91,7 @@ const scheduleInvokeTextRole = new aws.iam.Role('ScheduleInvokeTextRole', {
   }).json
 });
 const scheduleTextGroup = new aws.scheduler.ScheduleGroup('ScheduleTextGroup', {
-  name: isProduction ? 'text-scheduler' : 'text-scheduler-dev'
+  name: isProduction ? 'text-scheduler' : `text-scheduler-${STAGE_NAME}`
 });
 new aws.iam.RolePolicy('ScheduleInvokeTextPolicy', {
   role: scheduleInvokeTextRole.id,
@@ -156,6 +156,7 @@ const apiStage = new aws.apigatewayv2.Stage('ApiStage', {
 const notionWebhookIntegration = new aws.apigatewayv2.Integration('NotionWebhookIntegration', {
   apiId: api.id,
   integrationType: 'AWS_PROXY',
+  integrationMethod: 'POST',
   integrationUri: notionWebhookFunction.arn,
   payloadFormatVersion: '2.0'
 });
@@ -178,9 +179,11 @@ const apiCertificate = new aws.acm.Certificate('ApiCertificate', {
 const apiCertificateValidationOption = apiCertificate.domainValidationOptions[0];
 const apiCertificateValidationRecord = new cloudflare.DnsRecord('ApiCertificateValidationRecord', {
   zoneId: cloudflareZoneId,
-  name: apiCertificateValidationOption.resourceRecordName,
+  name: apiCertificateValidationOption.resourceRecordName.apply((name) => name.replace(/\.$/, '')),
   type: apiCertificateValidationOption.resourceRecordType,
-  content: apiCertificateValidationOption.resourceRecordValue,
+  content: apiCertificateValidationOption.resourceRecordValue.apply((value) =>
+    value.replace(/\.$/, '')
+  ),
   proxied: false,
   ttl: 60
 });
