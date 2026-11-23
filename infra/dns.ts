@@ -1,18 +1,17 @@
-import { secrets, setSecret } from './secrets';
+import * as pulumi from '@pulumi/pulumi';
+import * as aws from '@pulumi/aws';
+import * as cloudflare from '@pulumi/cloudflare';
 
-export const isProduction = $app.stage === 'production';
+const stack = pulumi.getStack();
+export const isProduction = stack === 'production';
+export const isDev = stack === 'dev';
+export const isCoreStack = isProduction || isDev;
 
-export const domain = isProduction ? 'pandoks.com' : 'dev.pandoks.com';
+export const STAGE_NAME = isProduction ? 'prod' : stack;
+
+export const domain = isProduction ? 'pandoks.com' : `${STAGE_NAME}.pandoks.com`;
 
 export const EXAMPLE_DOMAIN = 'example.pandoks.com';
-
-export const STAGE_NAME = isProduction ? 'prod' : 'dev';
-
-secrets.Stage.value.apply((stageName) => {
-  if (stageName !== STAGE_NAME) {
-    setSecret(secrets.Stage.name, STAGE_NAME);
-  }
-});
 
 const awsAccountIdentityJson = await aws.getCallerIdentity();
 export const awsAccountId = awsAccountIdentityJson.accountId;
@@ -20,3 +19,5 @@ export const awsAccountId = awsAccountIdentityJson.accountId;
 const cloudflareZone = await cloudflare.getZone({ filter: { name: 'pandoks.com' } });
 export const cloudflareAccountId = cloudflareZone.account.id;
 export const cloudflareZoneId = cloudflareZone.id;
+
+export const outputs = { StageName: STAGE_NAME };
