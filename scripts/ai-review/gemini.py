@@ -38,7 +38,7 @@ with tempfile.NamedTemporaryFile("w", suffix=".diff", delete=False) as diff_file
     diff_file.write(DIFF.replace("\0", "\N{REPLACEMENT CHARACTER}"))
 
 # NOTE: The new-file lines the diff shows. GitHub rejects the whole review when one comment is on
-# any other line.
+# any other line, so those comments go into the review's body.
 diff_lines: dict[str, set[int]] = {}
 for file_diff in re.split(r"^diff --git ", DIFF, flags=re.MULTILINE)[1:]:
     # NOTE: git ends the header of a path with spaces in a tab, and quotes a path it has to escape.
@@ -53,19 +53,21 @@ for file_diff in re.split(r"^diff --git ", DIFF, flags=re.MULTILINE)[1:]:
         }
 
 comments = []
+off_diff_comments = []
 
 
 def create_inline_comment(path: str, line: int, body: str) -> str:
-    """Adds an inline comment to the review.
+    """Adds a comment on one line to the review.
 
     Args:
       path: The file to comment on, relative to the repository root.
-      line: A line of the new file that the diff adds or shows as context.
+      line: A line of the new file.
       body: The comment, in markdown.
     """
-    if line not in diff_lines.get(path, ()):
-        raise ValueError(f"{path}:{line} is not a line the diff shows")
-    comments.append({"path": path, "line": line, "side": "RIGHT", "body": body})
+    if line in diff_lines.get(path, ()):
+        comments.append({"path": path, "line": line, "side": "RIGHT", "body": body})
+    else:
+        off_diff_comments.append(f"`{path}:{line}`: {body}")
     return "Added the comment to the review"
 
 
@@ -121,7 +123,9 @@ async def review() -> None:
     if review is None:
         raise RuntimeError(f"Gemini stopped before finishing its review: {response.stop_reason}")
 
-    body = f"{review['summary']}\n\n---\n{args.model} {args.thinking_level}"
+    body = "\n\n".join(
+        [review["summary"], *off_diff_comments, f"---\n{args.model} {args.thinking_level}"]
+    )
     with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as step_summary:
         step_summary.write(f"## Gemini review\n\n{body}\n\n{usage.total_token_count} tokens\n")
 
