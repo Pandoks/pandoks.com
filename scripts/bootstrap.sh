@@ -209,7 +209,7 @@ bootstrap_prod() {
   export AWS_PROFILE
 
   print_section "Production (pandoks-production)"
-  ensure_aws_sso_profile "${AWS_PROFILE}"
+  ensure_aws_sso_profile "${AWS_PROFILE}" production
   ensure_aws_login
   verify_aws_account production
   ensure_github_login
@@ -231,7 +231,7 @@ bootstrap_dev() {
   export AWS_PROFILE
 
   print_section "Non-production (pandoks-dev)"
-  ensure_aws_sso_profile "${AWS_PROFILE}"
+  ensure_aws_sso_profile "${AWS_PROFILE}" dev
   ensure_aws_login
   verify_aws_account dev
   ensure_kms_alias "${KMS_NONPRODUCTION_ALIAS}" "${PULUMI_AWS_REGION}" "Pulumi secrets for non-production stacks"

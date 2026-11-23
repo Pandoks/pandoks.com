@@ -103,7 +103,7 @@ main() {
   ensure_pnpm_dependencies
 
   print_section "AWS & Pulumi"
-  ensure_aws_sso_profile "${AWS_PROFILE}"
+  ensure_aws_sso_profile "${AWS_PROFILE}" dev
   ensure_aws_login
   verify_aws_account dev
   ensure_pulumi_state_profile "${PULUMI_AWS_REGION}"
