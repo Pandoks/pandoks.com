@@ -18,90 +18,173 @@
   <p>
     <img src="https://img.shields.io/badge/Node.js-24-5FA04E?logo=nodedotjs&logoColor=white" alt="Node.js 24">
     <img src="https://img.shields.io/badge/pnpm-12-F69220?logo=pnpm&logoColor=white" alt="pnpm 12">
-    <img src="https://img.shields.io/badge/toolchain-mise-8B5CF6" alt="Managed with mise">
+    <img src="https://img.shields.io/badge/Pulumi-IaC-8A3391?logo=pulumi&logoColor=white" alt="Pulumi">
+    <img src="https://img.shields.io/badge/K3s-Kubernetes-FFC61C?logo=k3s&logoColor=black" alt="K3s">
+    <img src="https://img.shields.io/badge/mise-toolchain-8B5CF6" alt="Managed with mise">
   </p>
 
   <p>
     <a href="#getting-started">Getting Started</a> ·
-    <a href="#local-kubernetes-cluster">Local Kubernetes</a> ·
-    <a href="#development">Development</a>
+    <a href="#local-kubernetes">Local Kubernetes</a> ·
+    <a href="#infrastructure">Infrastructure</a> ·
+    <a href="#bootstrap">Bootstrap</a>
   </p>
 </div>
 
-# Getting Started
+---
 
-1. Install these dependencies before setting up the repository:
+| Directory    | Contents                                                                                                       |
+| ------------ | -------------------------------------------------------------------------------------------------------------- |
+| `apps/`      | Deployable apps (`web`, `functions`, `example`)                                                                |
+| `packages/`  | Shared libraries, Helm charts & images (`svelte`, `postgres`, `clickhouse`, `valkey`, `argocd`, `e2e`)         |
+| `templates/` | Starter apps (`desktop`, `mobile`, never deployed)                                                             |
+| `infra/`     | [Pulumi](https://www.pulumi.com/docs/) cloud infrastructure (AWS, Cloudflare, Hetzner, OVH, Tailscale, GitHub) |
+| `k3s/`       | Kustomize overlays & ArgoCD config ([k3s/README.md](./k3s/README.md))                                          |
+| `scripts/`   | Setup, bootstrap, lint/format & cluster CLI ([scripts/cluster/README.md](./scripts/cluster/README.md))         |
 
-- [Git](https://git-scm.com/downloads) and [mise](https://mise.jdx.dev/installing-mise.html)
-- [Docker](https://docs.docker.com/get-docker/)
-- [OpenSSL](https://www.openssl.org/)
-- [Tailscale](https://tailscale.com/download), only for cloud (dev/prod) cluster access
+## Getting Started
 
-2. Setup `.env.<stage>`. Take a look at [.env.example](/.env.example) as a reference.
-
-3. Setup the repository:
+**Prerequisites:** [Git](https://git-scm.com/downloads),
+[mise](https://mise.jdx.dev/installing-mise.html), [Docker](https://docs.docker.com/get-docker/),
+and _(cloud clusters only)_ [Tailscale](https://tailscale.com/download).
 
 ```sh
-mise install
-pnpm install
+./scripts/setup.sh
 ```
 
-4. Configure AWS SSO session in `~/.aws/config`. `pnpm sso` points to sso session `personal`, but
-   you can change it to whatever you want in `package.json`.
+Installs `mise` tools and `pnpm` dependencies, configures/signs into `pandoks-dev` AWS SSO, sets up
+the Pulumi R2 state profile, and verifies access (idempotent — rerun anytime). Developers only need
+an IAM Identity Center login for `pandoks-dev` — no Cloudflare, Hetzner, or production AWS
+credentials.
 
 > [!NOTE]
-> AWS SSO only verifies you for 12 hours, so you'll have to run `pnpm sso` again once in a while
+> AWS SSO sessions expire every 12 hours — run `pnpm sso` to refresh.
 
-## Local Kubernetes Cluster
+## Local Kubernetes
 
-Although not all of the apps are deployed to Kubernetes, majority of the services are running in a
-cluster. To make development easier, we can use a local Kubernetes cluster ([k3d](https://k3d.io/))
-to run a copy of the production cluster. This makes it so that majority of the times, we can work
-offline or test certain features without having to deploy to a full fledged Kubernetes cluster in
-the cloud. _Because we're using k3d, which puts an entire Kubernetes cluster inside of docker
-containers, not everything is one to one with the production cluster. ie. networking, registries,
-etc_
-
-To setup the local cluster, run this from the root of the monorepo. Replace `your-stage` with your
-personal SST stage (for example, `pandoks`):
+Run a local K3s mirror in Docker with [k3d](https://k3d.io/) (`local` reads shared outputs from the
+`dev` stack):
 
 ```sh
-# Quick setup (all-in-one)
-SST_STAGE=your-stage pnpm local:init
+pnpm local:init      # Start deps, create k3d cluster, build/push images, bootstrap & deploy
+pnpm local:destroy   # Tear down cluster and local dependencies
+```
 
-# Or step by step:
+<details>
+<summary><strong>Step-by-step local cluster commands</strong></summary>
+
+---
+
+```sh
 pnpm cluster k3d deps up               # Start docker compose dependencies
 pnpm cluster k3d up                    # Create k3d cluster
-pnpm local:build && pnpm local:push    # Build and push images/charts to the local registry
-pnpm cluster deploy local --stage your-stage --bootstrap  # First-time: install helm charts + CRDs
-pnpm cluster deploy local --stage your-stage # Apply environment overlay
+pnpm local:build && pnpm local:push    # Build and push images/charts to local registry
+pnpm cluster deploy local --bootstrap  # First-time: install helm charts + CRDs
+pnpm cluster deploy local              # Apply local overlay
 ```
 
-To tear down the cluster:
+---
+
+</details>
+
+More docs: [scripts/cluster/README.md](./scripts/cluster/README.md) ·
+[k3s/README.md](./k3s/README.md) · [packages/e2e/README.md](./packages/e2e/README.md)
+
+## Infrastructure
+
+`infra/` is a Pulumi program backed by Cloudflare R2 state (`Pulumi.yaml`), with each stack's
+secrets KMS-encrypted and pinned to its AWS account via `aws:allowedAccountIds`:
+
+- **`production`** (`pandoks-production`, committed) — full prod infra, deployed only by GitHub
+  Actions on `main`.
+- **`dev`** (`pandoks-dev`, committed) — shared by personal stacks, PR previews, and local clusters
+  (dev K3s cluster, EC2 runner AMIs, R2 backups, `dev` GitHub environment).
+- **Personal stacks `<name>`** (`pandoks-dev`, gitignored) — isolated per-dev app resources
+  (`<name>-*`, `api.<name>.pandoks.com`) on top of `dev`'s shared infra.
 
 ```sh
-pnpm local:destroy
+# Preview & deploy (defaults to AWS_PROFILE=pandoks-dev via mise.toml)
+pulumi preview --stack <stack>
+pulumi up --stack <stack>
+
+# Initialize a personal stack (copies aws:allowedAccountIds & non-prod secrets from dev)
+pulumi stack init <name> --no-select \
+  --secrets-provider 'awskms://alias/pulumi-nonproduction?region=us-west-1' \
+  --copy-config-from dev
+
+# Set secrets (--raw < <file> for multiline keys)
+pulumi config set --secret --stack <stack> <Name>
+AWS_PROFILE=pandoks-production pulumi config set --secret --stack production <Name>
 ```
 
-See [scripts/cluster/README.md](./scripts/cluster/README.md) for more CLI commands,
-[k3s/README.md](./k3s/README.md) for cluster architecture details, and
-[packages/e2e/README.md](./packages/e2e/README.md) for e2e suites.
+> [!TIP]
+> Personal stack files stay gitignored — `pulumi config refresh --stack <name>` restores them from
+> state. `production` and `dev` secrets ship via PR.
 
-## Development
+## Bootstrap
 
-For things that are not deployed to Kubernetes, they are managed by `sst`. To run the development
-server, run this from the root of the monorepo:
+**Admin-only** one-time setup for the production (`pandoks-production`) and non-production
+(`pandoks-dev`) AWS accounts (idempotent — rerun anytime; developers use `./scripts/setup.sh`
+instead):
 
 ```sh
-pnpm dev --stage your-stage # assuming that you are still verified via SSO
+pnpm bootstrap
 ```
+
+- **`pandoks-production`** (production)
+  - Cloudflare R2 state bucket (`pandoks-pulumi-state`)
+  - KMS key `alias/pulumi-production`
+  - SSM R2 tokens (`/pulumi/r2-state-credentials`, `/pulumi/r2-state-read-credentials`)
+  - GitHub OIDC provider, `PandoksGithubActions` CI role, and repo vars (`AWS_ROLE_ARN`,
+    `AWS_REGION`)
+- **`pandoks-dev`** (non-production)
+  - KMS key `alias/pulumi-nonproduction`
+  - SSM R2 token (`/pulumi/r2-state-credentials`)
+- **Local**
+  - `~/.aws/config` profile `pandoks-pulumi-state`
+
+<details>
+<summary><strong>AWS Organizations &amp; IAM Identity Center (SSO) setup</strong></summary>
+
+---
+
+> **AWS terms**
+>
+> - **Management account:** top-level account for billing, AWS Organizations, and IAM Identity
+>   Center (`us-west-1`) — runs no workloads.
+> - **Member accounts (`pandoks-production`, `pandoks-dev`):** hard-siloed child accounts under the
+>   management account; resources and permissions never cross accounts.
+> - **SSO users:** personal logins (with MFA) used to access member accounts — always add an **SSO
+>   user** for new developers, never a new AWS account (CI uses OIDC, not SSO).
+
+#### 1. Initial AWS Setup (once)
+
+1. Create an AWS **management account**, open **AWS Organizations → AWS accounts**, and create two
+   member accounts (`pandoks-production` and `pandoks-dev`, unique root email alias each).
+2. Enable **IAM Identity Center** in `us-west-1` and create the `AdministratorAccess` permission set
+   (plus `ReadOnlyAccess` if needed).
+3. Put each member account's 12-digit ID in `aws:allowedAccountIds` in `Pulumi.production.yaml` and
+   `Pulumi.dev.yaml`, then run `pnpm bootstrap`.
+
+#### 2. Add a Developer (SSO user)
+
+1. In **IAM Identity Center** (`us-west-1`) → **Users → Add user**.
+2. Assign their user `AdministratorAccess` on **`pandoks-dev`** (no access on `pandoks-production`,
+   or `ReadOnlyAccess` for logs; admins get `AdministratorAccess` on both).
+3. Add them to the GitHub repo (and Tailscale if they need cloud `dev` cluster access).
+4. On their laptop, they run `./scripts/setup.sh` — it writes the `pandoks-dev` AWS SSO profile
+   automatically and prompts only for the browser SSO sign-in.
+
+---
+
+</details>
 
 ## If a production secret leaks
 
-A leak exposes every production `sst.Secret`, so rotate every credential among them. Do these steps
-in order: GitHub accounts and keys come out with the PATs and other footholds after **Close the
-source**, all before **Rotate**, so the attacker can't watch or undo the rotation, and only what
-needs the new values waits for **Deploy**.
+A leak exposes every production Pulumi secret (`infra/secrets.ts`), so rotate every credential among
+them. Do these steps in order: GitHub accounts and keys come out with the PATs and other footholds
+after **Close the source**, all before **Rotate**, so the attacker can't watch or undo the rotation,
+and only what needs the new values waits for **Deploy**.
 
 1. **Delete the PATs.** Delete the tokens in `GithubPersonalAccessToken` and
    `GithubPackageManagementToken` (GitHub → Settings → Developer settings → Personal access tokens)
@@ -126,41 +209,45 @@ needs the new values waits for **Deploy**.
    - Review `main`'s merged commits and PRs since the leak, and its Activity view for force pushes.
      The `main` ruleset requires no approvals, so a PAT holder can merge.
    - Remove the leaking dependency or input from `main` by PR and merge it, dispatching nothing
-     before then: `deploy-sst` installs it beside every secret. Deploys fail until **Rotate**, since
-     the GitHub provider looks up `GH_TOKEN`'s user and gets 401 for the deleted PAT, so
+     before then: `deploy-pulumi` installs it beside every secret. Deploys fail until **Rotate**,
+     since the GitHub provider looks up `GH_TOKEN`'s user and gets 401 for the deleted PAT, so
      **Deploy**'s is the first that lands.
    - If this machine ever installed the bad version, it may have persisted outside `node_modules`
      (shell rc files, `~/.aws/config`, git hooks, mise config), so run every later step from a clean
      machine.
    - In a new terminal, which every later step uses, update to the fixed `main` and run
-     `pnpm install --frozen-lockfile`. A leftover dependency's `node` bin would otherwise replace
-     the `node` that `pnpm sst secret set` starts.
+     `pnpm install --frozen-lockfile`. A leftover dependency's `node` or `pulumi` binary on `PATH`
+     would otherwise intercept secrets during **Rotate**.
 
 3. **Remove access.** Remove what the attacker can still act through, back to the leak's start:
    - **AWS:** first rerun step 1's cancel, since a workflow scheduled on `main` before step 2's
-     merge can start a run, then close the two ways into production's SST state, which will hold
-     every value **Rotate** sets:
-     - IAM → Roles → `PersonalGithubActions` → Revoke sessions: undoing its trust policy leaves
+     merge can start a run, then close access to production's Pulumi stack and KMS key:
+     - IAM → Roles → `PandoksGithubActions` → Revoke sessions: undoing its trust policy leaves
        credentials it already issued valid.
-     - IAM → Users → `argo-cmp` → Security credentials: delete its access key, which reads that
-       state and its passphrase. **Deploy** makes a new one. Argo can't render prod until then.
+     - IAM → Users → `argo-cmp` → Security credentials: delete its access key, which reads
+       `/pulumi/r2-state-read-credentials` and decrypts stack outputs with
+       `alias/pulumi-production`. **Deploy** makes a new one. Argo can't render prod until then.
+     - SSM Parameter Store → replace `/pulumi/r2-state-credentials` and
+       `/pulumi/r2-state-read-credentials` with new R2 API tokens, then delete the old R2 tokens in
+       Cloudflare (note: if `pandoks-dev` was also exposed, rotate `/pulumi/r2-state-credentials`
+       there too).
 
      Then, in CloudTrail →
      [Event history](https://docs.aws.amazon.com/awscloudtrail/latest/userguide/view-cloudtrail-events.html)
      (90 days, per Region), check every enabled Region, not just those in use, since
-     `PersonalGithubActions` has `AdministratorAccess`. If the leak is older than 90 days and no
+     `PandoksGithubActions` has `AdministratorAccess`. If the leak is older than 90 days and no
      trail kept its events, treat every IAM principal and resource you can't account for as the
      attacker's. Undo every write you didn't make: IAM users, keys, roles, identity providers, that
      role's trust policy, bucket policies, instances, functions, and anything else, and revoke the
-     role's sessions again if its trust policy changed. Event history doesn't log S3 object writes,
-     so also list the versions of `app/personal/production.json` in the `sst-state-*` bucket: a
-     version no deploy wrote means the state can't be trusted, so restore the last one from before
-     the leak before setting anything.
+     role's sessions again if its trust policy changed. Because Pulumi state lives in Cloudflare R2
+     (`pandoks-pulumi-state`, object `.pulumi/stacks/pandoks.com/production.json`), also check
+     Cloudflare Audit Logs for unexpected R2 token or bucket activity and inspect state if
+     `PandoksGithubActions` or R2 tokens were abused.
 
    - **GitHub:** check the repo's Actions secrets and variables (a changed `AWS_ROLE_ARN` would send
-     **Deploy**'s new values to another account), the `main` ruleset, and GHCR package versions
+     **Deploy**'s credentials to another account), the `main` ruleset, and GHCR package versions
      pushed or deleted since the leak, above all the tags prod pulls on every start:
-     `argocd-sst-plugin:main`, beside the AWS key, and the example app's `:latest` images, beside
+     `argocd-pulumi-plugin:main`, beside the AWS key, and the example app's `:latest` images, beside
      the database and backup keys. Republish any that changed from trusted `main` and check their
      digests; **Deploy** restarts what runs them. Check `production`'s branch policy: the first
      command must print `{"custom_branch_policies":true,"protected_branches":false}`, and the second
@@ -202,7 +289,7 @@ needs the new values waits for **Deploy**.
      Revoking a key leaves its devices, so remove the ones you didn't add under
      [Machines](https://console.tailscale.com/admin/machines). Pulumi doesn't manage DNS
      nameservers, webhooks, or log streaming, so undo changes there.
-   - **Cloudflare:** delete API tokens you didn't make, found in the account's
+   - **Cloudflare:** delete API tokens and R2 tokens you didn't make, found in the account's
      [Audit Logs](https://developers.cloudflare.com/fundamentals/account/account-security/review-audit-logs/)
      (18 months).
    - **Twilio:** `TwilioAuthToken` can make API keys and subaccounts that keep working after
@@ -214,56 +301,48 @@ needs the new values waits for **Deploy**.
      ([API keys](https://www.twilio.com/docs/iam/api-keys/keys-in-console)). Check that the phone
      number's and the messaging service's webhook URLs are still yours.
 
-4. **Rotate.** First list `PersonalGithubActions`' `AssumeRoleWithWebIdentity` events since you
+4. **Rotate.** First list `PandoksGithubActions`'s `AssumeRoleWithWebIdentity` events since you
    revoked its sessions; the rest of **Remove access** gave CloudTrail time to deliver them. One
    from a run you didn't start used an OIDC token fetched before the cancel, which works until it
    expires, so revoke again, undo what that session wrote, and repeat this check. Then set a new PAT
-   as `GithubPersonalAccessToken` and one as `GithubPackageManagementToken`, then rotate every other
-   production `sst.Secret` that holds a credential, except those below, with
-   `pnpm sst secret set <Name> --stage production`, which prompts for the value. `deploy-sst` signs
-   in with GitHub secrets that only Pulumi writes, so right after setting one of the `sst.Secret`s
-   below, set its GitHub secret with `gh secret set <NAME>`, which also prompts. Then revoke the old
-   credential at its provider.
+   in `GithubPersonalAccessToken` and `GithubPackageManagementToken`, and rotate every other secret
+   in `infra/secrets.ts` (except the provider-generated items below) into `Pulumi.production.yaml`:
 
-   | `sst.Secret`                 | GitHub secret                       |
-   | ---------------------------- | ----------------------------------- |
-   | `GithubPersonalAccessToken`  | `GH_TOKEN`                          |
-   | `CloudflareApiKey`           | `CLOUDFLARE_API_TOKEN`              |
-   | `HetznerApiKey`              | `HCLOUD_TOKEN` (`--env production`) |
-   | `OvhApplicationSecret`       | `OVH_APPLICATION_SECRET`            |
-   | `OvhConsumerKey`             | `OVH_CONSUMER_KEY`                  |
-   | `TailscaleOauthClientId`     | `TAILSCALE_OAUTH_CLIENT_ID`         |
-   | `TailscaleOauthClientSecret` | `TAILSCALE_OAUTH_CLIENT_SECRET`     |
+   ```sh
+   AWS_PROFILE=pandoks-production pulumi config set --secret --raw --stack production <Name> < <secret-file>
+   ```
 
-   `sst secret set` can't rotate OVH's application, what Pulumi makes, or the copies marked
-   "Automatically set during deploy" in `infra/secrets.ts`, since a deploy writes the resource's
-   value back over a hand-set copy. Replace these in one PR, which **Deploy** merges. Every deploy
-   fails until it merges, since the OVH provider checks `applicationKey` in `sst.config.ts` against
-   the new OVH secrets.
+   Commit the updated `Pulumi.production.yaml` to the **Rotate** PR (do not run `pulumi up` locally;
+   **Deploy** merges it on `main`), then revoke each old credential at its provider. `deploy-pulumi`
+   authenticates to AWS via OIDC (`AWS_ROLE_ARN` / `AWS_REGION`), decrypts `Pulumi.production.yaml`
+   with KMS, and updates GitHub Actions secrets (`GH_TOKEN`, `GH_PACKAGE_MANAGEMENT_TOKEN`,
+   `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_DEFAULT_ACCOUNT_ID`, `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`)
+   automatically during the deploy.
+
    - **The OVH application:** OVH can't rotate one, so make a new one. In the API console, read the
      old consumer key's `rules` (`GET /me/api/credential?applicationId=<id>`, then
      `GET /me/api/credential/{credentialId}`). Create the new application and its consumer key
      together at [createToken](https://api.us.ovhcloud.com/createToken/), signed in, with the same
      or narrower **Rights** and the longest **Validity**. Set `OvhApplicationSecret` and
-     `OvhConsumerKey` from it, change `applicationKey` in the PR, and delete the old application
+     `OvhConsumerKey` in `Pulumi.production.yaml`, update `applicationKey` in `infra/providers.ts`
+     in the **Rotate** PR (every deploy fails until it merges, because the OVH provider checks that
+     key against the new secrets), and delete the old application
      (`DELETE /me/api/application/{applicationId}`), which revokes all its credentials.
    - **Made by Pulumi:** **Remove access** deleted `argo-cmp`'s key and the two Tailscale clients;
-     `deploy-sst`'s refresh drops them and the deploy makes new ones, which it copies into
-     `KubernetesArgocd*`, `KubernetesTailscaleOauthClient*`, and `TS_OAUTH_*`. That's untested, and
-     it needs the refresh to pass, which can fail without failing the job: before **Deploy**'s
-     second run, check the merge's **Refresh sst state** log shows the three removed from state.
+     `deploy-pulumi` runs `pulumi up --yes --refresh --stack production`, which refreshes them out
+     and creates replacements copied into `KubernetesArgocd*`, `KubernetesTailscaleOauthClient*`,
+     and `TS_OAUTH_*`.
    - **Notion:** regenerate the integration's secret in its settings and set it as `NotionApiKey`.
      For `NotionWebhookVerificationToken`, recreate the webhook subscription; the Lambda writes
      Notion's new token to SSM `/tmp/notion-verification-token`. Anyone can post one there, so set
      it only once Notion's Verify accepts it.
    - **Not covered yet:** these need a procedure that these steps don't have, so leave them out of
      the pass above.
-     - `HetznerOriginTlsKey` and its Cloudflare origin certificate. A deploy makes a new key and
-       CSR, and sets both secrets, only when `infra/vps/vps.origin.prod.csr` is missing. Deleting it
-       doesn't converge: CI never commits the new CSR, so every deploy makes another pair.
+     - `HetznerOriginTlsKey` and its Cloudflare origin certificate.
      - The `MainMain*Password`s and `KubernetesGrafanaAdminPassword`. Setting one changes only the
-       stored value: Postgres's `cluster-init.sh` skips roles that exist, and Valkey, ClickHouse,
-       and Grafana keep the password they started with, so each needs it changed in the service.
+       stored config value: Postgres's `cluster-init.sh` skips roles that exist, and Valkey,
+       ClickHouse, and Grafana keep the password they started with, so each needs it changed in the
+       service.
      - `HetznerK3sToken`: nodes keep accepting the old token until `k3s token rotate`, and
        production's `ignoreChanges: ['userData']` keeps a deploy from passing the new one.
      - The K3s servers' copy of the `CloudflareBackup*Key`s: `cloud-config.yaml` passes them as
@@ -272,37 +351,37 @@ needs the new values waits for **Deploy**.
      - Secrets the cluster made, which the backup keys could read in the unencrypted etcd snapshots,
        such as cert-manager's `internal-root-ca-secret` (10 years, `rotationPolicy: Never`).
 
-5. **Deploy.** Merge **Rotate**'s PR, which deploys SST, then run
-   `gh workflow run deploy-infra.yaml -f deploy=sst` once more: the deploy that replaces a copied
-   credential records the old value in state. Wait for each run to succeed
-   (`gh run watch <id> --exit-status`). Then, if production has cluster nodes (`infra/vps/vps.ts`),
-   do these; if `prod-cluster` is missing from `tailscale status`, stop and restore access or
-   rebuild the cluster first:
+5. **Deploy.** Merge **Rotate**'s PR, which runs `deploy-pulumi`, then run
+   `gh workflow run deploy-infra.yaml -f deploy=pulumi` once more if any copied output
+   (`KubernetesArgocd*`, `TS_OAUTH_*`) needs a second pass after refresh. Wait for each run to
+   succeed (`gh run watch <id> --exit-status`). Then, if production has cluster nodes
+   (`infra/vps/vps.ts`), do these; if `prod-cluster` is missing from `tailscale status`, stop and
+   restore access or rebuild the cluster first:
    1. Switch to it with `tailscale configure kubeconfig prod-cluster`.
    2. Before any new value reaches it, check that the `prod-cluster` Application's `spec.source` is
       `main`'s `k3s/overlays/prod` and it has no `spec.sources`, and delete workloads you didn't
       deploy and anything Argo marks as requiring pruning: `prune: false` keeps what a patched
       source or a reverted commit added. If you found either, its pods could write to the nodes, so
       stop and rebuild the cluster first.
-   3. Run `pnpm cluster deploy prod --stage production`. It reads values from the last deploy's
-      state, not the secret store, so earlier it would re-apply old values, including the revoked
-      PAT to the Secrets in **Delete the PATs**. Argo can't fix those itself: it fetches `main` with
-      that PAT.
+   3. Run `pnpm cluster deploy prod`. It reads outputs from the last deploy's state, so running it
+      earlier would re-apply old values, including the revoked PAT in `ghcr-auth` (`argocd`
+      namespace). Argo can't fix `ghcr-auth` itself because it fetches `main` with that PAT.
    4. Restart what reads rotated Secrets as env vars only at start, starting with
       `kubectl -n argocd rollout restart deployment argocd-repo-server`, whose renderer holds the
-      AWS key and Cloudflare token, and the Postgres pods, whose pgBackRest holds the backup keys.
-      Also restart every workload running an image **Remove access** republished, and check each new
-      pod's `imageID` is the trusted digest.
+      AWS key, and the Postgres pods, whose pgBackRest holds the backup keys. Also restart every
+      workload running an image **Remove access** republished, and check each new pod's `imageID` is
+      the trusted digest.
 
    Run these yourself: they're the intended recovery paths that AGENTS.md hazard 1 keeps agents from
    running.
 
 6. **After the deploy.** Fix what needed the new values:
-   - **Servers isolated in Remove access:** SST can't re-create `OvhDevVps`, which is imported with
-     `protect` and `ignoreChanges`. Rebuild or reinstall its OS in OVH and re-provision it by hand,
-     or order a new VPS and change its `import` by PR. While production has Hetzner nodes, re-create
-     them from SST; production's `protect` and `ignoreChanges: ['userData']` keep a plain deploy
-     from replacing one.
+   - **Servers isolated in Remove access:** Pulumi can't re-create `OvhDevVps`, which is imported
+     with `protect`, `retainOnDelete`, and `ignoreChanges` on plan fields. Rebuild or reinstall its
+     OS in OVH and re-provision it by hand, or order a new VPS and change its `import` in
+     `infra/dev.ts` by PR. While production has Hetzner nodes, re-create them from Pulumi;
+     production's `protect` and `ignoreChanges: ['userData']` keep a plain deploy from replacing
+     one.
    - **Tailscale:** remove Pulumi's old OAuth clients if any are left, and the auth keys and child
      credentials they made, as in **Remove access**.
 
