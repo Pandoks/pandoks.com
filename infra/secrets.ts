@@ -1,4 +1,5 @@
 import * as pulumi from '@pulumi/pulumi';
+import { isProduction } from '@pandoks.com/infra/stack';
 
 // NOTE: keyed by name, so `pnpm cluster deploy` and Argo substitute them as `${Name}`.
 export const outputs: Record<string, pulumi.Output<string>> = {};
@@ -10,6 +11,14 @@ function requireSecret(name: string) {
   outputs[name] = value;
   return value;
 }
+
+export const productionSecrets = isProduction
+  ? {
+      github: {
+        GeminiAppPrivateKey: config.requireSecret('GithubGeminiAppPrivateKey')
+      }
+    }
+  : undefined;
 
 export const secrets = {
   notion: {
@@ -23,8 +32,7 @@ export const secrets = {
   },
   github: {
     PersonalAccessToken: requireSecret('GithubPersonalAccessToken'),
-    PackageManagementToken: requireSecret('GithubPackageManagementToken'),
-    GeminiAppPrivateKey: requireSecret('GithubGeminiAppPrivateKey')
+    PackageManagementToken: requireSecret('GithubPackageManagementToken')
   },
   personal: {
     KwokPhoneNumber: requireSecret('KwokPhoneNumber'),
