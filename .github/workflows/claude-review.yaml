@@ -32,6 +32,20 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Pandoks/skills
+          path: .claude-skills
+          sparse-checkout: skills/test-audit
+          persist-credentials: false
+
+      - name: Install test-audit skill
+        shell: bash
+        run: |
+          mkdir -p "${HOME}/.claude/skills"
+          mv .claude-skills/skills/test-audit "${HOME}/.claude/skills/test-audit"
+          rm -rf .claude-skills
+
       - uses: ./.github/actions/setup-node-pnpm
 
       - uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c # v4.4.0

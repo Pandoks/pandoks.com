@@ -94,9 +94,6 @@ checkout.
   profile; `pnpm bootstrap` (mine to run) creates both accounts' KMS keys, SSM R2 tokens, the R2
   state bucket, and the prod CI role.
 - `pnpm format <js|go|shell|all>` writes; `pnpm format check <...>` checks.
-- Manage agent skills only with the skills CLI, for Claude Code, Codex, and opencode:
-  `pnpm dlx skills add <source> -s <skill> -a claude-code codex opencode`, and
-  `pnpm dlx skills update -p`.
 - `pnpm lint <js|go|helm|docker|shell|actions|all>`.
 - `pnpm check` type-checks every package and `infra/`.
 - Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, `desktop`, and `mobile`;
@@ -138,9 +135,10 @@ checkout.
 - Fixtures and rendered YAML alone don't make a change tested. Fix scan and CI fallout your change
   causes; report failures that were already there separately instead of fixing them in the same
   change.
-- Run `test-audit` on every test you add or change; add one only when you can name the behavior it
-  protects, the regression that breaks it, and why existing tests miss it. A bug fix in a package
-  with tests gets one regression test that fails before the fix; elsewhere, add no test setup.
+- Add a test only when you can name the behavior it protects, the regression that breaks it, and why
+  existing tests miss it. No tests that restate the source, use mocks that implement the asserted
+  behavior, or need a test-only export. A bug fix in a package with tests gets one regression test
+  that fails before the fix; elsewhere, add no test setup.
 
 ## Hit every environment
 
@@ -200,8 +198,8 @@ Before calling infra, cluster, or tooling work done, check:
   where deletions or moves went. Top-level architecture changes get a `mermaid` diagram; UI changes
   get screenshots or video uploaded to GitHub. Never commit PR-only assets, plans, or notes.
 - One concern per PR, not split too fine; tell me unrelated findings instead of opening new PRs.
-- Before calling a PR ready, run `pr-ready` and a review/fix loop over correctness, least code,
-  style match, tests, and docs until a full round finds nothing.
+- Before calling a PR ready, run a review/fix loop over correctness, least code, style match, tests,
+  and docs until a full round finds nothing.
 - Babysitting: poll checks and comments newer than the last push, fix real bot findings, dismiss
   false positives and hardening this file excludes with a written reason, and resolve threads you
   addressed. Once CI passes and nothing is left unhandled, stop at the first of these and tell me
