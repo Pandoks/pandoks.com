@@ -10,15 +10,14 @@ The Device tab demos
 [@pandoks.com/react-native-notifications](/packages/react-native/notifications). Set
 `EXPO_PUBLIC_BACKEND_URL` when building to register its push token with the app's backend.
 
-Android gets a push token only from builds run in `sst shell`: it links the stage's Firebase app
-from [infra/firebase.ts](/infra/firebase.ts), and `app.config.ts` writes its `google-services.json`
-to `.expo/`. Any non-production stage gets the shared `pandoks-dev` project. Production's config is
-never read locally, and no release build job exists yet. `expo run:android` prebuilds only when
-`android/` is missing, so delete it whenever you switch between `sst shell` and plain builds:
+Android gets a push token only when `GOOGLE_SERVICES_JSON` is set to the Firebase app's
+`google-services.json` contents; `app.config.ts` writes it to `.expo/`. `expo run:android` prebuilds
+only when `android/` is missing, so delete it whenever you switch between plain builds and
+`GOOGLE_SERVICES_JSON` builds:
 
 ```sh
 rm -rf android
-pnpm --dir ../.. sst shell --stage <stage> -- \
+GOOGLE_SERVICES_JSON="$(cat path/to/google-services.json)" \
   pnpm --filter @pandoks.com/mobile android --variant release
 ```
 
