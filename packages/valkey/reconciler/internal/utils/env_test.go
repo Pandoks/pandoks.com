@@ -1,8 +1,8 @@
 package utils
 
 import (
-	"os"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -11,9 +11,8 @@ func TestLoadConfig(t *testing.T) {
 		name           string
 		usersACL       string
 		clientPassword string
-		unset          bool
 		wantUsers      []ACLUser
-		wantErr        bool
+		wantErr        string
 	}{
 		{
 			name:           "password set",
@@ -22,39 +21,38 @@ func TestLoadConfig(t *testing.T) {
 		},
 		{
 			// ">" with nothing after it is a valid empty password
-			name:    "password unset",
-			unset:   true,
-			wantErr: true,
+			name:    "password empty",
+			wantErr: "unset environment variables",
 		},
 		{
 			// Valkey splits aclfile lines on spaces, so the node would get the rule "word"
 			name:           "password with a space",
 			clientPassword: "pass word",
-			wantErr:        true,
+			wantErr:        "with a space, tab, carriage return or newline",
 		},
 		{
 			// SetUsers would apply the line up to the newline before failing on the rest
 			name:           "password with a newline",
 			clientPassword: "pass\nword",
-			wantErr:        true,
+			wantErr:        "with a space, tab, carriage return or newline",
 		},
 		{
 			// A restarted pod's aclfile load trims it, so the node would accept only "password"
 			name:           "password ending in a carriage return",
 			clientPassword: "password\r",
-			wantErr:        true,
+			wantErr:        "with a space, tab, carriage return or newline",
 		},
 		{
 			name:           "password ending in a tab",
 			clientPassword: "password\t",
-			wantErr:        true,
+			wantErr:        "with a space, tab, carriage return or newline",
 		},
 		{
 			// apply-config retries every error that isn't Valkey's for its whole timeout
 			name:           "line without user",
 			usersACL:       "client on >${CLIENT_PASSWORD}\n",
 			clientPassword: "password",
-			wantErr:        true,
+			wantErr:        "doesn't start with user",
 		},
 	}
 
@@ -67,15 +65,14 @@ func TestLoadConfig(t *testing.T) {
 			t.Setenv("PARAMETERS", `{"maxmemory":"100mb"}`)
 			t.Setenv("USERS_ACL", usersACL)
 			t.Setenv("CLIENT_PASSWORD", test.clientPassword)
-			if test.unset {
-				if err := os.Unsetenv("CLIENT_PASSWORD"); err != nil {
-					t.Fatal(err)
-				}
-			}
 
 			config, err := LoadConfig()
-			if (err != nil) != test.wantErr {
-				t.Fatalf("LoadConfig() error = %v, wantErr %v", err, test.wantErr)
+			if test.wantErr == "" {
+				if err != nil {
+					t.Fatalf("LoadConfig() error = %v", err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+				t.Fatalf("LoadConfig() error = %v, want one containing %q", err, test.wantErr)
 			}
 			if !reflect.DeepEqual(config.Users, test.wantUsers) {
 				t.Errorf("LoadConfig() Users = %q, want %q", config.Users, test.wantUsers)

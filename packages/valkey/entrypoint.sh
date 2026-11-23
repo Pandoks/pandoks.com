@@ -12,20 +12,25 @@ for v in \
   eval ": \${$v:?Missing $v}"
 done
 
-case "${ADMIN_PASSWORD}" in
-  *'
+carriage_return=$(printf '\r')
+for v in ADMIN_PASSWORD CLIENT_PASSWORD METRICS_PASSWORD; do
+  value=""
+  eval "value=\${${v}}"
+  case "${value}" in
+    *[[:blank:]]* | *"${carriage_return}"* | *'
 '*)
-    echo "ADMIN_PASSWORD must not contain a newline" >&2
-    exit 1
-    ;;
-esac
+      echo "${v} must not contain a space, tab, carriage return or newline" >&2
+      exit 1
+      ;;
+  esac
+done
 
 primary_admin_password="${ADMIN_PASSWORD}"
 acl_admin_passwords="${ADMIN_PASSWORD}"
 # NOTE: until apply-config rotates a changed admin password, the other nodes accept only the last-applied one
-if [ -f /etc/valkey-admin/applied ]; then
+if [ -s /etc/valkey-admin/applied ]; then
   applied_admin_password=$(cat /etc/valkey-admin/applied)
-  if [ "${applied_admin_password}" != "${ADMIN_PASSWORD}" ]; then
+  if [ -n "${applied_admin_password}" ] && [ "${applied_admin_password}" != "${ADMIN_PASSWORD}" ]; then
     primary_admin_password="${applied_admin_password}"
     acl_admin_passwords="${ADMIN_PASSWORD} >${applied_admin_password}"
   fi

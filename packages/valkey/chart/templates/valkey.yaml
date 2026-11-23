@@ -56,19 +56,20 @@ data:
   users.acl: |
 {{ .Files.Get "files/users.acl" | indent 4 }}
 
+{{- if not (lookup "v1" "Secret" .Values.namespace (printf "valkey-%s-metrics" .Values.name)) }}
 ---
-# NOTE: a hook for the same reason as the applied Role, and lookup keeps the generated password on upgrades
+# NOTE: a hook for the same reason as the applied Role; no pre-rollback, which would overwrite a rotated password
 apiVersion: v1
 kind: Secret
 metadata:
   name: valkey-{{ .Values.name }}-metrics
   namespace: {{ .Values.namespace }}
   annotations:
-    "helm.sh/hook": pre-install,pre-upgrade,pre-rollback
+    "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-weight": "-1"
-    "helm.sh/hook-delete-policy": before-hook-creation
 data:
-  password: {{ dig "data" "password" (randAlphaNum 32 | b64enc) (lookup "v1" "Secret" .Values.namespace (printf "valkey-%s-metrics" .Values.name)) }}
+  password: {{ randAlphaNum 32 | b64enc }}
+{{- end }}
 
 {{- if not (lookup "v1" "Secret" .Values.namespace (printf "valkey-%s-applied" .Values.name)) }}
 ---
@@ -241,7 +242,8 @@ spec:
                 - -c
                 - >-
                   for password_file in /etc/valkey-admin/current /etc/valkey-admin/applied; do
-                  valkey-cli --user admin -a "$(cat "$password_file")" info replication | grep -qE '^(role:master|master_link_status:up)' && exit 0;
+                  [ -s "$password_file" ] || continue;
+                  REDISCLI_AUTH=$(cat "$password_file") valkey-cli --user admin info replication | grep -qE '^(role:master|master_link_status:up)' && exit 0;
                   done; exit 1
             initialDelaySeconds: 10
             periodSeconds: 5

@@ -149,12 +149,12 @@ topology:
 | `post-upgrade`                                                 | `scale-up`     | Adds new masters and replicas, then rebalances slots across shards                      |
 | `pre-upgrade`, `post-install`, `post-upgrade`, `post-rollback` | `apply-config` | Sets `parameters` and `users.acl` on every node, before `scale-down` and after the rest |
 
-The `valkey-<name>-applied` Role and RoleBinding and the `valkey-<name>-metrics` Secret that
-`apply-config` needs are [hooks](https://helm.sh/docs/topics/charts_hooks/) themselves, created
-before every install, upgrade and rollback, since Helm creates a release's resources only after its
-pre-upgrade hooks. So is the `valkey-<name>-applied` Secret, created only before an install or
-upgrade that doesn't find it. They stay after `helm uninstall`, but the `valkey-<name>-applied`
-Secret, which `apply-config` makes the StatefulSet own, is deleted with it.
+The `valkey-<name>-applied` Role and RoleBinding that `apply-config` needs are
+[hooks](https://helm.sh/docs/topics/charts_hooks/) themselves, created before every install, upgrade
+and rollback, since Helm creates a release's resources only after its pre-upgrade hooks. So are the
+`valkey-<name>-metrics` and `valkey-<name>-applied` Secrets, created only before an install or
+upgrade that doesn't find them. They stay after `helm uninstall`, except `valkey-<name>-applied`,
+which `apply-config` makes the StatefulSet own so it is deleted with it.
 
 ## Configuration
 

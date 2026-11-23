@@ -27,11 +27,11 @@ func runCli(auth Auth, args ...string) error {
 		args = append(args, "--user", auth.Username)
 	}
 	fmt.Printf("Command: valkey-cli %s\n", strings.Join(args, " "))
-	if auth.Password != "" {
-		args = append(args, "-a", auth.Password)
-	}
 
 	cmd := exec.Command("valkey-cli", args...) // #nosec G204 (cmd injection) -- args from validated structs, not user input
+	if auth.Password != "" {
+		cmd.Env = append(os.Environ(), "REDISCLI_AUTH="+auth.Password)
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

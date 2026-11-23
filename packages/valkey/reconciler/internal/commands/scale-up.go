@@ -230,7 +230,10 @@ func addReplicas(options *scaleUpOptions) error {
 				timeoutCtx,
 				env,
 				currentClusterHostnames,
-				[]string{fmt.Sprintf("%s slave %s", freeNodeHostname, masterNode.Node.ID)}); err != nil {
+				[]string{
+					fmt.Sprintf("%s slave %s", freeNodeHostname, masterNode.Node.ID),
+					fmt.Sprintf("%s slave,nofailover %s", freeNodeHostname, masterNode.Node.ID),
+				}); err != nil {
 				return err
 			}
 
@@ -299,9 +302,12 @@ func findFreeNodeHostnames(env utils.Env, clusterTopology valkey.Topology) ([]st
 func waitForEntireClusterForReplicas(env utils.Env, replicasAdded map[string]string) error {
 	replicaStringMatches := make([][]string, 0, len(replicasAdded))
 	for replicaHostname, masterId := range replicasAdded {
-		slaveMatchingString := fmt.Sprintf("%s slave %s", replicaHostname, masterId)
-		myselfSlaveMatchingString := fmt.Sprintf("%s myself,slave %s", replicaHostname, masterId)
-		replicaStringMatches = append(replicaStringMatches, []string{slaveMatchingString, myselfSlaveMatchingString})
+		replicaStringMatches = append(replicaStringMatches, []string{
+			fmt.Sprintf("%s slave %s", replicaHostname, masterId),
+			fmt.Sprintf("%s slave,nofailover %s", replicaHostname, masterId),
+			fmt.Sprintf("%s myself,slave %s", replicaHostname, masterId),
+			fmt.Sprintf("%s myself,slave,nofailover %s", replicaHostname, masterId),
+		})
 	}
 
 	totalNodes := env.Masters + env.Masters*env.ReplicasPerMaster

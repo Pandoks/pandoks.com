@@ -58,12 +58,7 @@ func ApplyConfig(env utils.Env, config utils.ConfigEnv) error {
 
 	if appliedAdminPassword != env.AdminPassword {
 		fmt.Println("Adding the admin password next to any last-applied one...")
-		err := forEachNode(timeoutCtx, hostnames, func(hostname string) error {
-			nodeClient, err := newAdminClient(hostname)
-			if err != nil {
-				return err
-			}
-			defer nodeClient.Close()
+		err := forEachNode(timeoutCtx, hostnames, newAdminClient, func(nodeClient *valkey.ValkeyClient) error {
 			return valkey.AddAdminPassword(timeoutCtx, nodeClient, env.AdminPassword)
 		})
 		if err != nil {
@@ -88,12 +83,7 @@ func ApplyConfig(env utils.Env, config utils.ConfigEnv) error {
 	// NOTE: primaryauth on every node before any node drops the old password, and on every run, since a pod restarted
 	// mid-rotation starts with the last-applied password
 	fmt.Println("Applying primaryauth...")
-	err = forEachNode(timeoutCtx, hostnames, func(hostname string) error {
-		nodeClient, err := newAdminClient(hostname)
-		if err != nil {
-			return err
-		}
-		defer nodeClient.Close()
+	err = forEachNode(timeoutCtx, hostnames, newAdminClient, func(nodeClient *valkey.ValkeyClient) error {
 		return valkey.SetPrimaryAuth(timeoutCtx, nodeClient, env.AdminPassword)
 	})
 	if err != nil {
@@ -101,12 +91,7 @@ func ApplyConfig(env utils.Env, config utils.ConfigEnv) error {
 	}
 
 	fmt.Println("Applying users.acl, which drops any other admin password...")
-	err = forEachNode(timeoutCtx, hostnames, func(hostname string) error {
-		nodeClient, err := newAdminClient(hostname)
-		if err != nil {
-			return err
-		}
-		defer nodeClient.Close()
+	err = forEachNode(timeoutCtx, hostnames, newAdminClient, func(nodeClient *valkey.ValkeyClient) error {
 		return valkey.SetUsers(timeoutCtx, nodeClient, config.Users)
 	})
 	if err != nil {
@@ -115,12 +100,7 @@ func ApplyConfig(env utils.Env, config utils.ConfigEnv) error {
 
 	// NOTE: last, so a rejected value can't leave a rotation half done
 	fmt.Println("Applying parameters...")
-	err = forEachNode(timeoutCtx, hostnames, func(hostname string) error {
-		nodeClient, err := newAdminClient(hostname)
-		if err != nil {
-			return err
-		}
-		defer nodeClient.Close()
+	err = forEachNode(timeoutCtx, hostnames, newAdminClient, func(nodeClient *valkey.ValkeyClient) error {
 		return valkey.SetParameters(timeoutCtx, nodeClient, config.Parameters)
 	})
 	if err != nil {
@@ -131,10 +111,14 @@ func ApplyConfig(env utils.Env, config utils.ConfigEnv) error {
 	return nil
 }
 
-func forEachNode(ctx context.Context, hostnames []string, applyNode func(hostname string) error) error {
+func forEachNode(ctx context.Context, hostnames []string, newClient func(string) (*valkey.ValkeyClient, error), applyNode func(*valkey.ValkeyClient) error) error {
 	for _, hostname := range hostnames {
 		for {
-			err := applyNode(hostname)
+			nodeClient, err := newClient(hostname)
+			if err == nil {
+				err = applyNode(nodeClient)
+				nodeClient.Close()
+			}
 			if err == nil {
 				break
 			}

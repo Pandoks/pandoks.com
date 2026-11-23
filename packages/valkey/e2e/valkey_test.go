@@ -655,23 +655,25 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 			namespace = installValkeyWithKeys(3, 1)
 		})
 
+		It("reapplies the parameters of the revision it rolls back to", func() {
+			revision := helmRevision(namespace)
+			upgradeValkey(namespace, map[string]string{"parameters.loglevel": "verbose"})
+			expectConfigOnEveryPod(namespace, "loglevel", "verbose")
+			metricsSecretUID := e2e.MustRun("", "kubectl", "-n", namespace, "get", "secret", "valkey-vk-metrics", "-o", "jsonpath={.metadata.uid}")
+			e2e.MustRun("", "helm", "-n", namespace, "rollback", "valkey", revision, "--timeout=5m")
+			expectConfigOnEveryPod(namespace, "loglevel", "notice")
+			Expect(e2e.MustRun("", "kubectl", "-n", namespace, "get", "secret", "valkey-vk-metrics", "-o", "jsonpath={.metadata.uid}")).
+				To(Equal(metricsSecretUID))
+		})
+
 		It("keeps a $ in a parameter, live and on a restarted pod", func() {
-			// NOTE: maxmemory sets up the rollback spec
-			upgradeValkey(namespace, map[string]string{"parameters.notify-keyspace-events": "$xKE", "parameters.maxmemory": "200mb"})
+			upgradeValkey(namespace, map[string]string{"parameters.notify-keyspace-events": "$xKE"})
 			expectConfigOnEveryPod(namespace, "notify-keyspace-events", "$xKE")
 
 			_, replicaPodName := shardOfKey(namespace, "key:0")
 			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", replicaPodName)
 			waitForHealthyCluster(namespace, 3, 1)
 			Expect(valkeyCli(namespace, replicaPodName, "", "config", "get", "notify-keyspace-events")).To(Equal("notify-keyspace-events\n$xKE\n"))
-		})
-
-		It("reapplies the parameters of the revision it rolls back to", func() {
-			revision := helmRevision(namespace)
-			upgradeValkey(namespace, map[string]string{"parameters.maxmemory": "150mb"})
-			expectConfigOnEveryPod(namespace, "maxmemory", "157286400")
-			e2e.MustRun("", "helm", "-n", namespace, "rollback", "valkey", revision, "--timeout=5m")
-			expectConfigOnEveryPod(namespace, "maxmemory", "209715200")
 		})
 
 		It("restarts every pod for a valkey.conf change and keeps every key", func() {
@@ -828,6 +830,14 @@ var _ = Describe("Valkey", Label("valkey"), func() {
 				Should(And(ContainSubstring("role:slave"), ContainSubstring("master_link_status:down")))
 			upgradeValkey(namespace, map[string]string{"cluster.replicasPerMaster": "0"})
 			expectScaledCluster(namespace, 3, 0)
+		})
+
+		It("adds replicas with cluster-replica-no-failover enabled", func() {
+			upgradeValkey(namespace, map[string]string{
+				"cluster.replicasPerMaster":           "1",
+				"parameters.repl-diskless-sync-delay": "0",
+			})
+			expectScaledCluster(namespace, 3, 1)
 		})
 
 		It("leaves a recreated applied Secret empty while the nodes reject the admin password", func() {
