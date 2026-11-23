@@ -6,10 +6,10 @@ import { buildSync } from 'esbuild';
 import { secrets } from './secrets.ts';
 import { cloudflareZoneId, domain, isProduction, STAGE_NAME } from './dns.ts';
 import { githubOrg, githubRepositoryName } from './github.ts';
+import { NOTION_BLOG_DATABASE_ID } from './notion.ts';
 import type { NotionWebhookEnvironment, TextSmsEnvironment } from '../apps/functions/src/env.d.ts';
 
 const apiDomain = `api.${domain}`;
-const NOTION_BLOG_DATABASE_ID = '20f1bb259e4b804ba24be1ceebf4c761';
 
 function createFunction({
   id,
