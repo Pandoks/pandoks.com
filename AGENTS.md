@@ -89,8 +89,8 @@ are unpinned globals; run repo commands, `kubectl` included, as `mise exec -- <c
 checkout.
 
 - `pnpm setup` (`./scripts/setup.sh`) installs tools/deps, signs into `pandoks-dev` SSO, and adds
-  the Pulumi state profile; `pnpm bootstrap <prod|dev>` (mine to run) creates each account's KMS
-  key, SSM R2 tokens, and (for `prod`) R2 bucket and CI role.
+  the Pulumi state profile; `pnpm bootstrap` (mine to run) creates both accounts' KMS keys, SSM R2
+  tokens, the R2 state bucket, and the prod CI role.
 - `pnpm format <js|go|shell|all>` writes; `pnpm format check <...>` checks.
 - Manage agent skills only with the skills CLI, for Claude Code, Codex, and opencode:
   `pnpm dlx skills add <source> -s <skill> -a claude-code codex opencode`, and
