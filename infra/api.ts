@@ -156,6 +156,7 @@ const apiStage = new aws.apigatewayv2.Stage('ApiStage', {
 const notionWebhookIntegration = new aws.apigatewayv2.Integration('NotionWebhookIntegration', {
   apiId: api.id,
   integrationType: 'AWS_PROXY',
+  integrationMethod: 'POST',
   integrationUri: notionWebhookFunction.arn,
   payloadFormatVersion: '2.0'
 });
