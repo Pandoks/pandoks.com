@@ -33,24 +33,25 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
    hard-refreshes prod), and no `kubectl` write to prod, Argo refreshes, syncs, and restarts
    included. If production needs a manual fix, even when I say ship now, propose the exact command,
    target, and effect, then wait.
-2. **Deploying a stack by accident.** Pass `--stack <stack>` to every `pulumi` and
-   `pnpm cluster deploy` command; mine is `pandoks`. `mise.toml` defaults `AWS_PROFILE=pandoks-dev`
-   and `Pulumi.{production,dev}.yaml` pin `aws:allowedAccountIds` to their AWS member accounts. For
-   the site, run `pnpm exec portless doctor` before `pnpm --filter web dev`, which can start a
-   missing proxy with `sudo`; if doctor prints a `warn` or `fail` line (it exits 0 on a stopped
-   proxy), give me its fix instead of starting the proxy or working around it with `PORTLESS=0`,
-   `--force`, or `sudo`. If portless says the host is already registered, use
-   `pnpm exec portless get web` only if that process runs from this checkout; otherwise tell me.
-   `pulumi preview` changes nothing, but `pulumi up` on `dev` with zero nodes deletes Tailscale
-   devices tagged for `dev`. Run `pulumi up`, `refresh`, `destroy`, or `stack init` only when I ask.
-   If AWS credentials are missing or expired, ask me to run `pnpm sso`.
+2. **Deploying a stack by accident.** Pass `--stack <stack>` to every `pulumi` command; mine is
+   `pandoks` (`pnpm cluster deploy` always uses `dev` for `local`/`dev` and `production` for
+   `prod`). `mise.toml` defaults `AWS_PROFILE=pandoks-dev` and `Pulumi.{production,dev}.yaml` pin
+   `aws:allowedAccountIds` to their AWS member accounts. For the site, run
+   `pnpm exec portless doctor` before `pnpm --filter web dev`, which can start a missing proxy with
+   `sudo`; if doctor prints a `warn` or `fail` line (it exits 0 on a stopped proxy), give me its fix
+   instead of starting the proxy or working around it with `PORTLESS=0`, `--force`, or `sudo`. If
+   portless says the host is already registered, use `pnpm exec portless get web` only if that
+   process runs from this checkout; otherwise tell me. `pulumi preview` changes nothing, but
+   `pulumi up` on `dev` with zero nodes deletes Tailscale devices tagged for `dev`. Run `pulumi up`,
+   `refresh`, `destroy`, or `stack init` only when I ask. If AWS credentials are missing or expired,
+   ask me to run `pnpm sso`.
 3. **Editing my checkout from an experiment.** Use absolute paths in experiment copies;
    `mise exec -C <dir>` runs inside `<dir>`, so never point it at my checkout. Leave my staged and
    unstaged changes alone.
 4. **Applying to the wrong cluster.** Don't switch the default current context;
    `pnpm cluster k3d up` does, so save `kubectl config current-context` first and switch back.
    Target k3d with `kubectl --context k3d-local-cluster` and
-   `printf 'y\n' | mise exec -- pnpm cluster deploy local --stack <stack> --kubeconfig "$(mise exec -- k3d kubeconfig write local-cluster)"`.
+   `printf 'y\n' | mise exec -- pnpm cluster deploy local --kubeconfig "$(mise exec -- k3d kubeconfig write local-cluster)"`.
 5. **Leaking secrets.** `--show-secrets` output, `pulumi config get` of a secret, SSM `/pulumi/`
    values, and `pnpm cluster deploy --dry-run` output are real credentials: never print, commit, or
    paste them, and inspect manifests with `kustomize build`. New secrets go in `infra/secrets.ts`; a
