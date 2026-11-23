@@ -20,26 +20,34 @@ with open(os.environ["GITHUB_EVENT_PATH"]) as event_file:
 pull = event["pull_request"]
 
 
-def run_git(*arguments: str) -> str:
-    return subprocess.run(["git", *arguments], check=True, capture_output=True, text=True).stdout
-
-
-DIFF = run_git(
-    "-c", "core.quotepath=false", "diff", f"{pull['base']['sha']}...{pull['head']['sha']}"
-)
+# NOTE: Decoded by hand because text=True fails on a non-UTF-8 file and turns a bare carriage return
+# into a line break, and every line of a diff has to start where git started it.
+DIFF = subprocess.run(
+    [
+        "git",
+        "-c",
+        "core.quotepath=false",
+        "diff",
+        f"{pull['base']['sha']}...{pull['head']['sha']}",
+    ],
+    check=True,
+    capture_output=True,
+).stdout.decode(errors="replace")
 
 # NOTE: The new-file lines the diff shows. GitHub rejects the whole review when one comment is on
 # any other line.
-diff_lines: dict[str | None, set[int]] = {}
-diff_path = None
-for diff_line in DIFF.splitlines():
-    if diff_line.startswith("diff --git "):
-        diff_path = None
-    elif diff_path is None and diff_line.startswith("+++ b/"):
-        diff_path = diff_line.removeprefix("+++ b/")
-    elif hunk := re.match(r"@@ -\S+ \+(\d+)(?:,(\d+))? @@", diff_line):
-        start = int(hunk[1])
-        diff_lines.setdefault(diff_path, set()).update(range(start, start + int(hunk[2] or 1)))
+diff_lines: dict[str, set[int]] = {}
+for file_diff in re.split(r"^diff --git ", DIFF, flags=re.MULTILINE)[1:]:
+    # NOTE: git ends the header of a path with spaces in a tab, and quotes a path it has to escape.
+    path_header = re.search(r"^\+\+\+ b/(.*?)\t?$", file_diff.split("\n@@ ", 1)[0], re.MULTILINE)
+    if path_header:
+        diff_lines[path_header[1]] = {
+            line
+            for start, count in re.findall(
+                r"^@@ -\S+ \+(\d+)(?:,(\d+))? @@", file_diff, re.MULTILINE
+            )
+            for line in range(int(start), int(start) + int(count or 1))
+        }
 
 comments = []
 
@@ -86,11 +94,9 @@ async def review() -> None:
         model=ModelTarget(
             name=args.model,
             endpoint=GeminiAPIEndpoint(
-                base_url=os.environ["GOOGLE_GEMINI_BASE_URL"],
                 options=GeminiModelOptions(thinking_level=ThinkingLevel(args.thinking_level)),
             ),
         ),
-        workspaces=[os.getcwd()],
         # WARNING: The reviewer reads untrusted PR text, so it gets no shell, web, or write tools.
         capabilities=CapabilitiesConfig(
             enabled_tools=[
