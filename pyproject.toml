@@ -1,2 +1,4 @@
 [tool.uv.workspace]
-members = ["scripts/ai-review"]
+members = [
+  "scripts/ai-review",
+]
