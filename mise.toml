@@ -21,6 +21,7 @@ shfmt = "3.14.1"
 hadolint = "2.15.1"
 actionlint = "1.7.12"
 golangci-lint = "2.15.0"
+ruff = "0.17.6"
 "go:golang.org/x/vuln/cmd/govulncheck" = "1.9.0"
 
 ruby = "4.0.9"
@@ -29,7 +30,7 @@ cocoapods = "1.17.0"
 maestro = { version = "2.11.0", version_prefix = "cli-" }
 
 [settings]
-python.uv_venv_auto = "source" # auto-activate uv-created .venvs (uv.lock projects)
+python.uv_venv_auto = "source"  # auto-activate uv-created .venvs (uv.lock projects)
 
 [env]
 # uv resolves interpreters from PATH (mise's python) instead of downloading its own

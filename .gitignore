@@ -32,6 +32,7 @@ test-results
 playwright*/
 __pycache__/
 .venv/
+.ruff_cache/
 
 # Only pnpm
 package-lock.json

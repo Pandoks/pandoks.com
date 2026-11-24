@@ -74,6 +74,7 @@ jobs:
               - '**/*.json'
               - '**/*.yaml'
               - '**/*.yml'
+              - '**/*.toml'
               - '**/*.css'
               - '.prettierrc'
               - '.prettierignore'
@@ -96,6 +97,13 @@ jobs:
               - 'go.work'
               - 'go.work.sum'
               - '.golangci.yaml'
+              - 'scripts/format/**'
+              - 'scripts/lint/**'
+              - *needs-mise-setup
+            python:
+              - '**/*.py'
+              - '**/pyproject.toml'
+              - 'uv.lock'
               - 'scripts/format/**'
               - 'scripts/lint/**'
               - *needs-mise-setup
@@ -234,7 +242,7 @@ jobs:
 
       - id: set-checks-matrix
         run: |
-          all='["prettier","eslint","go","shell","helm","actions","renovate","infra"]'
+          all='["prettier","eslint","go","python","shell","helm","actions","renovate","infra"]'
           selected='${{ steps.checks-changes.outputs.changes || '[]' }}'
           checks=$(jq -c --argjson sel "${selected}" 'map(select(. as $group | $sel | index($group)))' <<<"${all}")
           echo "checks=${checks}" >> "${GITHUB_OUTPUT}"
