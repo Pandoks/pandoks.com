@@ -11,7 +11,12 @@ members = [
 line-length = 100
 extend-exclude = ["*.md"]
 
-# NOTE: Cloudflare Pages runs `pip install .` whenever a root pyproject.toml exists.
 [tool.setuptools]
 packages = []
-py-modules = []
+
+# NOTE: Cloudflare Pages runs `pip install .` whenever a root pyproject.toml exists.
+[build-system]
+requires = [
+  "setuptools==84.2.1",
+]
+build-backend = "setuptools.build_meta"

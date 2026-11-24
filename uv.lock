@@ -424,7 +424,7 @@ wheels = [
 [[package]]
 name = "pandoks"
 version = "0.0.0"
-source = { virtual = "." }
+source = { editable = "." }
 
 [[package]]
 name = "protobuf"

@@ -96,6 +96,7 @@ checkout.
   state bucket, and the prod CI role.
 - `pnpm format <js|go|python|shell|all>` writes; `pnpm format check <...>` checks.
 - `pnpm lint <js|go|python|helm|docker|shell|actions|all>`.
+- `pnpm fix <js|go|python|all>`.
 - `pnpm check` type-checks every package and `infra/`.
 - Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, `desktop`, and `mobile`;
   `pnpm --filter <package> test` for `prettier` and `valkey`;

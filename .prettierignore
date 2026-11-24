@@ -6,9 +6,5 @@ bun.lock
 bun.lockb
 uv.lock
 
-# Python
-.venv/
-.ruff_cache/
-
 # Helm
 packages/*/chart/templates/*.yaml

@@ -132,6 +132,7 @@ Title: {pull["title"]}
             ]
         ),
         workspaces=[os.getcwd(), diff_dir],
+        env={"TMPDIR": diff_dir},
         skills_paths=[os.path.expanduser("~/.gemini/skills")],
         tools=[create_inline_comment],
         # NOTE: A truncated reply looks finished, so require the review through the finish tool.
