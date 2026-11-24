@@ -24,7 +24,7 @@ if (isProduction) {
           'packages/svelte/*',
           'pnpm-lock.yaml',
           'pnpm-workspace.yaml',
-          'pyproject.toml'
+          'pyproject.toml' // NOTE: Pages runs `pip install .` when present
         ]
       }
     },
