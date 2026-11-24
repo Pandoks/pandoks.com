@@ -74,10 +74,15 @@ def create_inline_comment(path: str, line: int, body: str) -> str:
 PROMPT = f"""Review pull request #{pull["number"]} of this repository, titled "{pull["title"]}".
 
 The working directory is the repository at the pull request's head, and {diff_file.name} holds the
-diff. Read all of the diff, the code around each hunk, and the Code Review Rules in AGENTS.md, which
-list what blocks a merge here. Report only defects this change adds: correctness bugs, security
-problems, and broken repository rules. Verify each one against the code before reporting it, and
-leave out praise, style nits, and descriptions of the diff.
+diff. Read all of the diff, the code around each hunk, and AGENTS.md (Code Review Rules, Code style
+comment rule, and Docs rule). Report only blocking defects this change adds: correctness bugs,
+security problems, broken repository rules, and (across the whole PR, grouping repeated instances
+per file if needed) comments the AGENTS.md Code style comment rule would delete, doc lines added
+beyond what the AGENTS.md Docs rule asks for, and new files, helpers, options, env vars, or
+dependencies whose PR description doesn't explain why the change can't work without them. When the
+PR adds, changes, or deletes tests, use the `test-audit` skill to review them. Verify each finding
+against the code before reporting it, and leave out praise, style nits, and descriptions of the
+diff.
 
 Report each finding that belongs to one line with create_inline_comment. Then finish with the
 review's top comment in markdown as `summary`: the verdict in a sentence or two, then any finding
@@ -105,6 +110,7 @@ async def review() -> None:
                 BuiltinTools.FIND_FILE,
             ]
         ),
+        skills_paths=[os.path.expanduser("~/.gemini/skills")],
         tools=[create_inline_comment],
         # NOTE: A reply cut off mid-stream looks like a finished one, so the review has to arrive
         # through the finish tool.
