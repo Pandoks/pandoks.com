@@ -4,19 +4,31 @@ import stringify from 'json-stringify-pretty-compact';
 import { isProduction, isCoreStack, STAGE_NAME } from '@pandoks.com/infra/stack';
 
 export const hubTailscaleServices = [
-  { name: 'cliproxyapi', comment: 'CLIProxyAPI on the homelab hub', ports: ['tcp:443'] },
+  {
+    name: 'cliproxyapi',
+    comment: 'CLIProxyAPI on the homelab hub',
+    ports: ['tcp:443'],
+    src: ['*']
+  },
   {
     name: 'cliproxyapi-api',
     comment: 'CLIProxyAPI with Console API keys only',
-    ports: ['tcp:443']
+    ports: ['tcp:443'],
+    src: ['*']
   },
-  { name: 'beszel', comment: 'Beszel monitoring hub', ports: ['tcp:443'] },
-  { name: 'artex', comment: 'ARTEX on the homelab hub', ports: ['tcp:443'] },
-  { name: 'mcphub', comment: 'MCPHub on the homelab hub', ports: ['tcp:443'] },
+  { name: 'beszel', comment: 'Beszel monitoring hub', ports: ['tcp:443'], src: ['*'] },
+  { name: 'artex', comment: 'ARTEX on the homelab hub', ports: ['tcp:443'], src: ['*'] },
+  {
+    name: 'mcphub',
+    comment: 'MCPHub on the homelab hub',
+    ports: ['tcp:443'],
+    src: ['autogroup:member', 'tag:ssh']
+  },
   {
     name: 'protonmail-bridge',
     comment: 'Proton Mail Bridge IMAP and SMTP on the homelab hub',
-    ports: ['tcp:1143', 'tcp:1025']
+    ports: ['tcp:1143', 'tcp:1025'],
+    src: ['*']
   }
 ];
 
@@ -44,8 +56,8 @@ if (isProduction) {
         },
         grants: [
           { src: ['*'], dst: ['*'], ip: ['*'] },
-          ...hubTailscaleServices.map(({ name, ports }) => ({
-            src: ['*'],
+          ...hubTailscaleServices.map(({ name, ports, src }) => ({
+            src,
             dst: [`svc:${name}`],
             ip: ports
           })),
