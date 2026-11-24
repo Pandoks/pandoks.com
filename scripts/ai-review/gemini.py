@@ -25,6 +25,9 @@ with open(os.environ["GITHUB_EVENT_PATH"]) as event_file:
     event = json.load(event_file)
 pull = event["pull_request"]
 
+with open(os.path.join(os.path.dirname(__file__), "AGENTS.md")) as instructions_file:
+    REVIEW_INSTRUCTIONS = instructions_file.read()
+
 
 # NOTE: Avoid text=True: it fails on non-UTF-8 and splits bare CRs, shifting diff line starts.
 DIFF = subprocess.check_output(
@@ -94,15 +97,8 @@ with tempfile.TemporaryDirectory() as diff_dir:
     prompt = f"""Review pull request #{pull["number"]} of this repository.
 
 The working directory is the repository at the pull request's head, and {diff_path} holds the
-diff. Read all of the diff, the code around each hunk, and AGENTS.md (Code Review Rules, Code style
-comment rule, and Docs rule). Report only blocking defects this change adds: correctness bugs,
-security problems, broken repository rules, and (across the whole PR, grouping repeated instances
-per file if needed) comments the AGENTS.md Code style comment rule would delete, doc lines added
-beyond what the AGENTS.md Docs rule asks for, and new files, helpers, options, env vars, or
-dependencies whose PR description doesn't explain why the change can't work without them. When the
-PR adds, changes, or deletes tests, use the `test-audit` skill to review them. Verify each finding
-against the code before reporting it, and leave out praise, style nits, and descriptions of the
-diff.
+diff. Read all of the diff and the code around each hunk, and follow the review instructions in your
+system instructions.
 
 Report each finding that belongs to one line with create_inline_comment. Then finish with the
 review's top comment in markdown as `summary`: the verdict in a sentence or two, then any finding
@@ -116,6 +112,7 @@ Title: {pull["title"]}
 {pull["body"] or ""}"""
 
     config = LocalAgentConfig(
+        system_instructions=REVIEW_INSTRUCTIONS,
         model=ModelTarget(
             name=MODEL,
             endpoint=GeminiAPIEndpoint(
