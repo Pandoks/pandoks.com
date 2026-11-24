@@ -67,8 +67,8 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
   Required checks are the `*-pass` aggregates, and a PR must be up to date with `main` to merge.
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
   deleted branch's versions and untagged orphans are deleted.
-- Merging to `main` runs `deploy-infra.yaml`: `pulumi up --refresh --stack production` for
-  `Pulumi.yaml`, `Pulumi.production.yaml`, `.github/actions/setup-mise/`, `mise.toml`, root
+- Merging to `main` runs `deploy-infra.yaml`: `pulumi up --refresh --run-program --stack production`
+  for `Pulumi.yaml`, `Pulumi.production.yaml`, `.github/actions/setup-mise/`, `mise.toml`, root
   `package.json`/`pnpm-lock.yaml`/`pnpm-workspace.yaml`/`tsconfig.json`, `infra/`,
   `packages/infra/`, `apps/` (except `example`), and `packages/svelte/`, plus an Argo hard refresh
   and wait for Synced and Healthy when Pulumi deploys or `k3s/`, `apps/*/kube/`, or
