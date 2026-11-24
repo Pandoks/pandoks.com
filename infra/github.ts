@@ -2,7 +2,7 @@ import * as github from '@pulumi/github';
 import * as tailscale from '@pulumi/tailscale';
 import { isProduction, isCoreStack, STAGE_NAME } from '@pandoks.com/infra/stack';
 import { cloudflareAccountId } from './dns.ts';
-import { productionSecrets, secrets } from './secrets.ts';
+import { secrets } from './secrets.ts';
 import { tailscaleAcl } from './tailscale.ts';
 
 export const githubOrg = 'Pandoks';
@@ -23,7 +23,7 @@ if (isCoreStack) {
   });
 }
 
-if (productionSecrets && githubEnvironment) {
+if (isProduction && githubEnvironment) {
   new github.RepositoryEnvironmentDeploymentPolicy('GithubProductionDeploymentPolicy', {
     repository: githubRepositoryName,
     environment: githubEnvironment.environment,
@@ -69,7 +69,7 @@ if (productionSecrets && githubEnvironment) {
   new github.ActionsSecret('GithubGeminiAppPrivateKey', {
     repository: githubRepositoryName,
     secretName: 'GEMINI_APP_PRIVATE_KEY',
-    value: productionSecrets.github.GeminiAppPrivateKey
+    value: secrets.github.GeminiAppPrivateKey
   });
 
   new github.ActionsSecret('GithubCloudflareApiToken', {
