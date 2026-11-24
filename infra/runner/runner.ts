@@ -1,22 +1,16 @@
-import { STAGE_NAME } from '../dns';
-import { secrets } from '../secrets';
-import { runnerArtifactsBucket, runnerCacheBucket } from '../storage';
-import { usWest2Provider } from '../aws';
-import { runnerImageArm64, runnerImageGpuArm64, runnerImageGpuX86, runnerImageX86 } from './ami';
-import { runnerStateMachineDefinition } from './step';
+import * as pulumi from '@pulumi/pulumi';
+import * as aws from '@pulumi/aws';
+import { STAGE_NAME } from '@pandoks.com/infra/stack';
+import { secrets } from '../secrets.ts';
+import { runnerArtifactsBucket, runnerCacheBucket } from '../storage.ts';
+import { usWest2Provider } from '../aws.ts';
+import { runnerImageArm64, runnerImageGpuArm64, runnerImageGpuX86, runnerImageX86 } from './ami.ts';
+import { runnerStateMachineDefinition } from './step.ts';
 
 const runnerInstanceRole = new aws.iam.Role(
   'RunnerInstanceRole',
   {
-    assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
-      statements: [
-        {
-          effect: 'Allow',
-          principals: [{ type: 'Service', identifiers: ['ec2.amazonaws.com'] }],
-          actions: ['sts:AssumeRole']
-        }
-      ]
-    }).json,
+    assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({ Service: 'ec2.amazonaws.com' }),
     managedPolicyArns: ['arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore']
   },
   { provider: usWest2Provider }
@@ -32,9 +26,9 @@ new aws.iam.RolePolicy(
           actions: ['s3:GetObject', 's3:PutObject', 's3:DeleteObject', 's3:ListBucket'],
           resources: [
             runnerCacheBucket.arn,
-            $interpolate`${runnerCacheBucket.arn}/*`,
+            pulumi.interpolate`${runnerCacheBucket.arn}/*`,
             runnerArtifactsBucket.arn,
-            $interpolate`${runnerArtifactsBucket.arn}/*`
+            pulumi.interpolate`${runnerArtifactsBucket.arn}/*`
           ]
         }
       ]
@@ -60,7 +54,7 @@ function makeLaunchTemplate({
 }: {
   id: string;
   name: string;
-  image: $util.Output<string>;
+  image: pulumi.Output<string>;
   arch: 'x86_64' | 'arm64';
   gpu: boolean;
 }) {
@@ -120,7 +114,7 @@ export const runnerGithubTokenParameter = new aws.ssm.Parameter(
   {
     name: `/runners/${STAGE_NAME}/github-cloning-pat`,
     type: 'SecureString',
-    value: secrets.github.PersonalAccessToken.value
+    value: secrets.github.PersonalAccessToken
   },
   { provider: usWest2Provider }
 );
@@ -128,15 +122,7 @@ export const runnerGithubTokenParameter = new aws.ssm.Parameter(
 const runnerStateMachineRole = new aws.iam.Role(
   'RunnerStateMachineRole',
   {
-    assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
-      statements: [
-        {
-          effect: 'Allow',
-          principals: [{ type: 'Service', identifiers: ['states.amazonaws.com'] }],
-          actions: ['sts:AssumeRole']
-        }
-      ]
-    }).json
+    assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({ Service: 'states.amazonaws.com' })
   },
   { provider: usWest2Provider }
 );
@@ -189,8 +175,8 @@ export const runnerStateMachine = new aws.sfn.StateMachine(
         gpuX86: runnerLaunchTemplateGpuX86.id,
         gpuArm64: runnerLaunchTemplateGpuArm64.id
       },
-      cacheBucket: runnerCacheBucket.name,
-      artifactsBucket: runnerArtifactsBucket.name,
+      cacheBucket: runnerCacheBucket.bucket,
+      artifactsBucket: runnerArtifactsBucket.bucket,
       githubCloningTokenSSMParameter: runnerGithubTokenParameter.name
     })
   },

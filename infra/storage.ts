@@ -1,51 +1,67 @@
-import { usWest2Provider } from './aws';
-import { cloudflareAccountId, STAGE_NAME } from './dns';
+import * as cloudflare from '@pulumi/cloudflare';
+import { createBucket } from '@pandoks.com/infra/aws';
+import { isProduction, STAGE_NAME } from '@pandoks.com/infra/stack';
+import { usWest2Provider } from './aws.ts';
+import { cloudflareAccountId } from './dns.ts';
 
-export const backupBucket = new sst.cloudflare.Bucket('BackupBucket', {
-  transform: {
-    bucket: {
-      name: `${STAGE_NAME}-backups`,
-      accountId: cloudflareAccountId,
-      jurisdiction: 'default',
-      location: 'wnam',
-      storageClass: 'Standard'
-    }
-  }
-});
+export const backupBucket = new cloudflare.R2Bucket(
+  'BackupBucket',
+  {
+    name: `${STAGE_NAME}-backups`,
+    accountId: cloudflareAccountId,
+    jurisdiction: 'default',
+    location: 'wnam',
+    storageClass: 'Standard'
+  },
+  { protect: isProduction, retainOnDelete: isProduction }
+);
 
 export const s3Endpoint = `${cloudflareAccountId}.r2.cloudflarestorage.com`;
 
-export const runnerCacheBucket = new sst.aws.Bucket(
-  'RunnerCacheStore',
-  {
-    lifecycle: [{ id: 'expire-stale-cache', enabled: true, prefix: 'cache/', expiresIn: '30 days' }]
-  },
-  { provider: usWest2Provider }
-);
+const runnerBucketOptions = {
+  provider: usWest2Provider,
+  protect: isProduction,
+  retainOnDelete: isProduction
+};
 
-export const runnerArtifactsBucket = new sst.aws.Bucket(
-  'RunnerArtifactsStore',
-  {
-    transform: {
-      lifecycle: {
-        rules: [
-          {
-            id: 'tier-and-expire-builds',
-            status: 'Enabled',
-            transitions: [
-              { days: 30, storageClass: 'STANDARD_IA' },
-              { days: 90, storageClass: 'GLACIER_IR' }
-            ],
-            expiration: { days: 365 }
-          },
-          {
-            id: 'abort-stuck-uploads',
-            status: 'Enabled',
-            abortIncompleteMultipartUpload: { daysAfterInitiation: 1 }
-          }
-        ]
-      }
+export const runnerCacheBucket = createBucket({
+  id: 'RunnerCacheStore',
+  name: `pandoks-${STAGE_NAME}-runner-cache`,
+  forceDestroy: true,
+  lifecycleRules: [
+    {
+      id: 'expire-stale-cache',
+      status: 'Enabled',
+      filter: { prefix: 'cache/' },
+      expiration: { days: 30 }
     }
-  },
-  { provider: usWest2Provider }
-);
+  ],
+  options: runnerBucketOptions
+});
+
+export const runnerArtifactsBucket = createBucket({
+  id: 'RunnerArtifactsStore',
+  name: `pandoks-${STAGE_NAME}-runner-artifacts`,
+  forceDestroy: true,
+  lifecycleRules: [
+    {
+      id: 'tier-and-expire-builds',
+      status: 'Enabled',
+      filter: {},
+      transitions: [
+        { days: 30, storageClass: 'STANDARD_IA' },
+        { days: 90, storageClass: 'GLACIER_IR' }
+      ],
+      expiration: { days: 365 }
+    },
+    {
+      id: 'abort-stuck-uploads',
+      status: 'Enabled',
+      filter: {},
+      abortIncompleteMultipartUpload: { daysAfterInitiation: 1 }
+    }
+  ],
+  options: runnerBucketOptions
+});
+
+export const outputs = { BackupBucket: backupBucket.name };

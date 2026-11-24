@@ -1,27 +1,20 @@
 import { hash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { US_WEST_2_REGION, usWest2Provider } from '../aws';
-import { STAGE_NAME } from '../dns';
+import * as aws from '@pulumi/aws';
+import { STAGE_NAME } from '@pandoks.com/infra/stack';
+import { US_WEST_2_REGION, usWest2Provider } from '../aws.ts';
 
 // WARNING: reverting these files reuses an existing (immutable) version, so bump the minor.
 const sources = ['ami.ts', 'ami.yaml', 'ami-gpu.yaml'].map((file) =>
-  readFileSync(join(process.cwd(), 'infra/runner', file), 'utf-8')
+  readFileSync(join(import.meta.dirname, file), 'utf-8')
 );
 const VERSION = `1.1.${parseInt(hash('sha256', sources.join('\0')).slice(0, 7), 16)}`;
 
 const bakeInstanceRole = new aws.iam.Role(
   'RunnerBakeInstanceRole',
   {
-    assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
-      statements: [
-        {
-          effect: 'Allow',
-          principals: [{ type: 'Service', identifiers: ['ec2.amazonaws.com'] }],
-          actions: ['sts:AssumeRole']
-        }
-      ]
-    }).json,
+    assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({ Service: 'ec2.amazonaws.com' }),
     managedPolicyArns: [
       'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore',
       'arn:aws:iam::aws:policy/EC2InstanceProfileForImageBuilder'
@@ -44,7 +37,7 @@ function renderAmiTemplateYaml({
   file: string;
   replacements?: Record<string, string>;
 }) {
-  let data = readFileSync(join(process.cwd(), 'infra/runner', file), 'utf-8');
+  let data = readFileSync(join(import.meta.dirname, file), 'utf-8');
   if (replacements) {
     for (const [token, value] of Object.entries(replacements)) {
       data = data.replaceAll(`{{${token}}}`, value);
@@ -229,15 +222,9 @@ export const runnerImageGpuArm64 = new aws.imagebuilder.Image(
 const lifecycleRole = new aws.iam.Role(
   'RunnerLifecycleRole',
   {
-    assumeRolePolicy: aws.iam.getPolicyDocumentOutput({
-      statements: [
-        {
-          effect: 'Allow',
-          principals: [{ type: 'Service', identifiers: ['imagebuilder.amazonaws.com'] }],
-          actions: ['sts:AssumeRole']
-        }
-      ]
-    }).json,
+    assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({
+      Service: 'imagebuilder.amazonaws.com'
+    }),
     managedPolicyArns: [
       'arn:aws:iam::aws:policy/service-role/EC2ImageBuilderLifecycleExecutionPolicy'
     ]

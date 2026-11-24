@@ -8,6 +8,10 @@ log_ok() {
   printf "%b✓%b %s\n" "${GREEN}" "${NORMAL}" "$*"
 }
 
+log_added() {
+  printf "%b+%b %s\n" "${GREEN}" "${NORMAL}" "$*"
+}
+
 log_warn() {
   printf "%b!%b %s\n" "${YELLOW}" "${NORMAL}" "$*" >&2
 }

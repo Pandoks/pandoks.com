@@ -1,5 +1,7 @@
-import { isProduction } from './dns';
-import { hubTailscaleServices, tailscaleAcl } from './tailscale';
+import * as ovh from '@ovhcloud/pulumi-ovh';
+import * as tailscale from '@pulumi/tailscale';
+import { isProduction } from '@pandoks.com/infra/stack';
+import { hubTailscaleServices, tailscaleAcl } from './tailscale.ts';
 
 if (isProduction) {
   new ovh.vps.Vps(
@@ -49,6 +51,7 @@ if (isProduction) {
     },
     {
       protect: true,
+      retainOnDelete: true,
       import: 'vps-54c42746.vps.ovh.us',
       ignoreChanges: ['plans', 'ovhSubsidiary', 'planOptions']
     }
@@ -61,7 +64,7 @@ if (isProduction) {
       deviceId: devTailscaleDevice.nodeId,
       tags: ['tag:funnel', 'tag:ovh', 'tag:ssh']
     },
-    { dependsOn: [tailscaleAcl] }
+    { dependsOn: tailscaleAcl }
   );
 
   const hubTailscaleDevice = tailscale.getDeviceOutput({ hostname: 'thinkpad-t470' });
@@ -71,48 +74,14 @@ if (isProduction) {
       deviceId: hubTailscaleDevice.nodeId,
       tags: ['tag:hub', 'tag:ssh']
     },
-    { dependsOn: [tailscaleAcl] }
+    { dependsOn: tailscaleAcl }
   );
 
   for (const { name, comment, ports } of hubTailscaleServices) {
     new tailscale.Service(
       `${name.replace(/(?:^|-)(.)/g, (_, char: string) => char.toUpperCase())}TailscaleService`,
       { name: `svc:${name}`, comment, ports, tags: ['tag:hub'] },
-      { dependsOn: [tailscaleAcl] }
+      { dependsOn: tailscaleAcl }
     );
   }
 }
-
-new sst.x.DevCommand('LocalInit', {
-  dev: {
-    title: 'InitLocal',
-    command: 'pnpm local:init',
-    autostart: false
-  }
-});
-
-new sst.x.DevCommand('LocalDestroy', {
-  dev: {
-    title: 'DestroyLocal',
-    command: 'pnpm local:destroy',
-    autostart: false
-  }
-});
-
-new sst.x.DevCommand('K3dRestart', {
-  dev: {
-    title: 'RestartK3d',
-    command: 'pnpm cluster k3d restart',
-    autostart: false
-  }
-});
-
-new sst.x.DevCommand('K3dDependencyRestart', {
-  dev: {
-    title: 'RestartK3dDeps',
-    command: 'pnpm cluster k3d deps restart',
-    autostart: false
-  }
-});
-
-export {};
