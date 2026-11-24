@@ -110,6 +110,21 @@ jobs:
           -configuration Release -destination 'generic/platform=iOS Simulator'
           ARCHS=arm64 CODE_SIGNING_ALLOWED=NO
 
+  test-native-desktop-template:
+    if: contains(fromJSON(inputs.jobs), 'native-desktop-template')
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: rust
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: Run Rust workspace tests
+        run: cargo test --workspace --locked
+
   test-svelte-pkg:
     if: contains(fromJSON(inputs.jobs), 'svelte')
     runs-on: ubuntu-latest

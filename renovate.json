@@ -250,6 +250,13 @@
       "dependencyDashboardApproval": true
     },
     {
+      "description": "GPUI and its companion crates come from Zed's release tags and must upgrade together.",
+      "matchManagers": ["cargo"],
+      "matchPackageNames": ["zed-industries/zed"],
+      "groupName": "gpui",
+      "dependencyDashboardApproval": true
+    },
+    {
       "description": "Keep engines.node a range.",
       "matchDepTypes": ["engines"],
       "matchPackageNames": ["node"],

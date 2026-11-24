@@ -93,16 +93,16 @@ checkout.
 - `./scripts/setup.sh` installs tools/deps, signs into `pandoks-dev` SSO, and adds the Pulumi state
   profile; `pnpm bootstrap` (mine to run) creates both accounts' KMS keys, SSM R2 tokens, the R2
   state bucket, and the prod CI role.
-- `pnpm format <js|go|shell|all>` writes; `pnpm format check <...>` checks.
+- `pnpm format <js|go|rust|shell|all>` writes; `pnpm format check <...>` checks.
 - Manage agent skills only with the skills CLI, for Claude Code, Codex, and opencode:
   `pnpm dlx skills add <source> -s <skill> -a claude-code codex opencode`, and
   `pnpm dlx skills update -p`.
-- `pnpm lint <js|go|helm|docker|shell|actions|all>`.
+- `pnpm lint <js|go|rust|helm|docker|shell|actions|all>`.
 - `pnpm check` type-checks every package and `infra/`.
 - Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, `desktop`, and `mobile`;
-  `pnpm --filter <package> test` for `prettier` and `valkey`;
-  `go tool ginkgo -p ./packages/<pkg>/e2e` for a package's e2e suite on local k3d
-  (`packages/e2e/README.md`).
+  `pnpm --filter <package> test` for `prettier` and `valkey`; `cargo test --workspace --locked` for
+  Rust (`packages/gpui`, `templates/native-desktop`); `go tool ginkgo -p ./packages/<pkg>/e2e` for a
+  package's e2e suite on local k3d (`packages/e2e/README.md`).
 - Scoped: `pnpm exec prettier --check <files>`, `pnpm exec eslint [--fix] <files>`, `shellcheck`,
   `shfmt -d`, `hadolint`, `actionlint`, `pnpm --filter "...[origin/main]" --if-present check`. That
   filter and the shell and Docker format and lint commands see only tracked files, so check new
@@ -128,6 +128,7 @@ checkout.
     edit and before every commit or push; narrower checks don't replace it.
   - `apps/web`: `CI=1 pnpm --filter web test:e2e` (skips portless) for user-visible changes.
   - `templates/mobile`: `pnpm ios` and `pnpm android` from the app, then `pnpm test:e2e`.
+  - `templates/native-desktop`: `cargo test --workspace --locked` and run the app for UI changes.
   - Workflows: the PR's CI once a PR exists.
 - Before calling work done, run format, lint, type, and test commands for every language and package
   you touched, even for a one-line change, and report a configured checker exclusion only when it
@@ -178,6 +179,7 @@ Before calling infra, cluster, or tooling work done, check:
   resources, SSM layout, state machine, or files) go in `packages/infra`, imported as
   `@pandoks.com/infra/<file>`. `Promise.all` instead of awaiting in loops.
 - **Go:** justify every `#nosec` or `//nolint` inline.
+- **Rust:** justify every `#[allow(...)]` and `unsafe` block inline.
 - **Containers and manifests:** pin Dockerfile bases, third-party images, and chart defaults as
   `image:tag@sha256:…` in files a Renovate manager matches; no image lock files. Images in raw
   manifests in `k3s/` aren't matched yet, so add a `kubernetes` `managerFilePatterns` entry to

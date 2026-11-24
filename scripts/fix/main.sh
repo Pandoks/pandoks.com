@@ -16,9 +16,10 @@ usage() {
   printf "Apply auto-fixes for lint findings.\n\n" >&2
 
   printf "%bLanguages:%b\n" "${BOLD}" "${NORMAL}" >&2
-  printf "  %bjs%b   ESLint --fix\n" "${GREEN}" "${NORMAL}" >&2
-  printf "  %bgo%b   golangci-lint run --fix\n" "${GREEN}" "${NORMAL}" >&2
-  printf "  %ball%b  Apply every fixer\n\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bjs%b    ESLint --fix\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bgo%b    golangci-lint run --fix\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %brust%b  cargo clippy --fix\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %ball%b   Apply every fixer\n\n" "${GREEN}" "${NORMAL}" >&2
 
   exit "${1:-0}"
 }
@@ -32,9 +33,14 @@ cmd_fix_go() {
   go list -m -f '{{.Dir}}/...' | xargs golangci-lint run --fix
 }
 
+cmd_fix_rust() {
+  cd "${REPO_ROOT}" && cargo clippy --workspace --all-targets --fix --allow-dirty --allow-staged
+}
+
 cmd_fix_all() {
   cmd_fix_js
   cmd_fix_go
+  cmd_fix_rust
 }
 
 main() {
@@ -45,6 +51,7 @@ main() {
   case "${cmd}" in
     js) cmd_fix_js ;;
     go) cmd_fix_go ;;
+    rust) cmd_fix_rust ;;
     all) cmd_fix_all ;;
     help | --help | -h) usage ;;
     *)

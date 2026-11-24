@@ -68,5 +68,8 @@ apps/web/static/blog-images
 # helm
 *.tgz
 
+# Rust
+/target/
+
 # Local development
 /k3dconfig.yaml

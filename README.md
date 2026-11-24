@@ -36,8 +36,8 @@
 | Directory    | Contents                                                                                                       |
 | ------------ | -------------------------------------------------------------------------------------------------------------- |
 | `apps/`      | Deployable apps (`web`, `functions`, `example`)                                                                |
-| `packages/`  | Shared libraries, Helm charts & images (`svelte`, `postgres`, `clickhouse`, `valkey`, `argocd`, `e2e`)         |
-| `templates/` | Starter apps (`desktop`, `mobile`, never deployed)                                                             |
+| `packages/`  | Shared libraries, Helm charts & images (`svelte`, `gpui`, `postgres`, `clickhouse`, `valkey`, `argocd`, `e2e`) |
+| `templates/` | Starter apps (`desktop`, `native-desktop`, `mobile`, never deployed)                                           |
 | `infra/`     | [Pulumi](https://www.pulumi.com/docs/) cloud infrastructure (AWS, Cloudflare, Hetzner, OVH, Tailscale, GitHub) |
 | `k3s/`       | Kustomize overlays & ArgoCD config ([k3s/README.md](./k3s/README.md))                                          |
 | `scripts/`   | Setup, bootstrap, lint/format & cluster CLI ([scripts/cluster/README.md](./scripts/cluster/README.md))         |

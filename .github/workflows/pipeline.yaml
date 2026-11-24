@@ -78,7 +78,8 @@ jobs:
       !cancelled() && needs.changes.result == 'success' &&
       (needs.build.result == 'success' || needs.build.result == 'skipped') &&
       (needs.changes.outputs.kubernetes-config == 'true' || needs.changes.outputs.go-dependencies == 'true' ||
-      needs.changes.outputs.images != '[]' || needs.changes.outputs.charts != '[]')
+      needs.changes.outputs.rust-dependencies == 'true' || needs.changes.outputs.images != '[]' ||
+      needs.changes.outputs.charts != '[]')
     permissions:
       contents: read
       security-events: write
@@ -89,6 +90,7 @@ jobs:
       images: ${{ needs.changes.outputs.images }}
       charts: ${{ needs.changes.outputs.charts }}
       go-dependencies: ${{ needs.changes.outputs.go-dependencies == 'true' }}
+      rust-dependencies: ${{ needs.changes.outputs.rust-dependencies == 'true' }}
 
   tests:
     needs: changes
