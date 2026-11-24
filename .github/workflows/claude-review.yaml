@@ -39,11 +39,11 @@ jobs:
           path: .claude-skills
           persist-credentials: false
 
-      - name: Install skills
+      - name: Install test-audit skill
         shell: bash
         run: |
           mkdir -p "${HOME}/.claude/skills"
-          mv .claude-skills/skills/* "${HOME}/.claude/skills/"
+          mv .claude-skills/skills/test-audit "${HOME}/.claude/skills/"
           rm -rf .claude-skills
 
       - uses: ./.github/actions/setup-node-pnpm

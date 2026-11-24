@@ -201,9 +201,9 @@ Before calling infra, cluster, or tooling work done, check:
 - Before calling a PR ready, run a review/fix loop over correctness, least code, style match, tests,
   and docs until a full round finds nothing.
 - Babysitting: poll checks and comments newer than the last push, fix real bot findings, dismiss
-  false positives and hardening this file excludes with a written reason, and resolve threads you
-  addressed. Once CI passes and nothing is left unhandled, stop at the first of these and tell me
-  which bots didn't review:
+  false positives, and hardening requests the Code Review Rules exclude, with a written reason, and
+  resolve threads you addressed. Once CI passes and nothing is left unhandled, stop at the first of
+  these and tell me which bots didn't review:
   - every review bot reviewed the latest push (Claude reviews only on open and ready);
   - 30 minutes have passed since that push;
   - you have no timer, and no bot still missing shows activity on that push.

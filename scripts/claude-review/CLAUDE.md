@@ -34,6 +34,6 @@
 
 ## Comments and unnecessary additions
 
-- Flag as blocking review findings every comment or doc line the PR adds that the `AGENTS.md`
-  comment and docs rules would delete, and every new file, helper, option, env var, or dependency
-  whose need the PR description does not state.
+- Flag as blocking review findings every comment the PR adds that the `AGENTS.md` Code style comment
+  rule would delete, every doc line added beyond what the `AGENTS.md` Docs rule asks for, and every
+  new file, helper, option, env var, or dependency whose need the PR description does not state.
