@@ -37,14 +37,13 @@ jobs:
           repository: Pandoks/skills
           ref: cf80975dbd825ec70a6225d0c71d0699b02f1f9c
           path: .claude-skills
-          sparse-checkout: skills/test-audit
           persist-credentials: false
 
-      - name: Install test-audit skill
+      - name: Install skills
         shell: bash
         run: |
           mkdir -p "${HOME}/.claude/skills"
-          mv .claude-skills/skills/test-audit "${HOME}/.claude/skills/test-audit"
+          mv .claude-skills/skills/* "${HOME}/.claude/skills/"
           rm -rf .claude-skills
 
       - uses: ./.github/actions/setup-node-pnpm
