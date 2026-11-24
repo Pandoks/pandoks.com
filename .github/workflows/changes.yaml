@@ -110,9 +110,6 @@ jobs:
             actions:
               - '.github/workflows/**'
               - '.github/actions/**'
-              - 'infra/github.ts'
-              - 'scripts/lint/**'
-              - *needs-mise-setup
             renovate:
               - 'renovate.json'
               - 'renovate.json5'

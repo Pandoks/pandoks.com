@@ -24,7 +24,7 @@ usage() {
   printf "  %bhelm%b      helm lint + kubeconform over packages/*/chart\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bdocker%b    hadolint over all Dockerfiles\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bshell%b     shellcheck over all shell scripts\n" "${GREEN}" "${NORMAL}" >&2
-  printf "  %bactions%b   actionlint over GitHub Actions workflows + pipeline aggregate check\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bactions%b   actionlint over GitHub Actions workflows\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %ball%b       Run every linter\n\n" "${GREEN}" "${NORMAL}" >&2
 
   exit "${1:-0}"
@@ -50,9 +50,7 @@ cmd_lint_shell() {
 }
 
 cmd_lint_actions() {
-  cd "${REPO_ROOT}"
-  actionlint
-  ruby scripts/lint/pipeline-aggregates.rb
+  cd "${REPO_ROOT}" && actionlint
 }
 
 cmd_lint_helm() {

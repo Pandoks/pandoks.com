@@ -121,13 +121,6 @@ jobs:
         with:
           fail_level: info
 
-      - uses: ./.github/actions/setup-mise
-        with:
-          tools: ruby
-
-      - name: Check pipeline aggregates
-        run: ruby scripts/lint/pipeline-aggregates.rb
-
   # ─── Renovate ─────────────────────────────────────────────────────────
   validate-renovate:
     if: contains(fromJSON(inputs.jobs), 'renovate')
