@@ -157,11 +157,12 @@ Before calling infra, cluster, or tooling work done, check:
 - Reuse or extend before writing: check `scripts/lib/`, `packages/`, and sibling apps. Inline
   one-off wrappers; generic helpers belong in `scripts/lib/` or `packages/` even with one caller, so
   keep the existing ones.
-- Comments default to none. Add one only for a reason the code and names can't show (an upstream bug
-  with `TODO: <issue link>`, or a `NOTE:` or `WARNING:` for a constraint a reader would otherwise
-  break), in one line; never a file header, restatement, or version history. Separate smaller blocks
-  with blank lines; keep a file's section labels (`# ─── Go ───`) and tool annotations like
-  `# renovate:`, `# shellcheck`, `# options:`, and the `# vX.Y.Z` after a pinned SHA.
+- Comments default to none. Add one only for a reason the code and names can't show (such as an
+  upstream bug with `TODO: <issue link>`, or a `NOTE:` or `WARNING:` for a workaround or constraint
+  a reader would otherwise break), in one line; never a file header, restatement, or version
+  history. Separate smaller blocks with blank lines; keep a file's section labels (`# ─── Go ───`)
+  and tool annotations like `# renovate:`, `# shellcheck`, `# options:`, and the `# vX.Y.Z` after a
+  pinned SHA.
 - No type errors, lint warnings, or `any` to silence a checker. Don't over-harden dev-only or
   maintainer-only paths.
 - **Shell:** POSIX `sh`, `set -eu` in entrypoints, and function variables prefixed with the function
@@ -204,7 +205,8 @@ Before calling infra, cluster, or tooling work done, check:
   false positives, and hardening requests the Code Review Rules exclude, with a written reason, and
   resolve threads you addressed. Once CI passes and nothing is left unhandled, stop at the first of
   these and tell me which bots didn't review:
-  - every review bot reviewed the latest push (Claude reviews only on open and ready);
+  - every review bot expected on this push reviewed it (Claude runs only on open and ready, not
+    follow-up pushes);
   - 30 minutes have passed since that push;
   - you have no timer, and no bot still missing shows activity on that push.
 

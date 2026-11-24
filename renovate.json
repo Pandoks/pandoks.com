@@ -99,7 +99,7 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^\\.github/workflows/claude-review\\.yaml$/"],
+      "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/"],
       "matchStrings": ["repository: (?<depName>\\S+)\\s+ref: (?<currentDigest>[a-f0-9]{40})"],
       "packageNameTemplate": "https://github.com/{{{depName}}}",
       "currentValueTemplate": "main",
