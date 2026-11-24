@@ -1,4 +1,3 @@
-import argparse
 import asyncio
 import json
 import os
@@ -17,10 +16,8 @@ from google.antigravity.types import (
     ThinkingLevel,
 )
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--model", default="gemini-4-neon")
-parser.add_argument("--thinking-level", default="xhigh")
-args = parser.parse_args()
+MODEL = "gemini-4-neon"
+THINKING_LEVEL = "xhigh"
 
 GH_TOKEN = os.environ.pop("GH_TOKEN")
 
@@ -29,14 +26,12 @@ with open(os.environ["GITHUB_EVENT_PATH"]) as event_file:
 pull = event["pull_request"]
 
 
-# NOTE: Decoded by hand because text=True fails on a non-UTF-8 file and turns a bare carriage return
-# into a line break, and every line of a diff has to start where git started it.
+# NOTE: Avoid text=True: it fails on non-UTF-8 and splits bare CRs, shifting diff line starts.
 DIFF = subprocess.check_output(
     ["git", "-c", "core.quotepath=false", "diff", f"{pull['base']['sha']}...{pull['head']['sha']}"]
 ).decode(errors="replace")
 
-# NOTE: The new-file lines the diff shows. GitHub rejects the whole review when one comment is on
-# any other line, so those comments go into the review's body.
+# NOTE: GitHub rejects the whole review on an off-diff inline comment, so those go in the body.
 diff_lines: dict[str, set[int]] = {}
 for file_diff in re.split(r"^diff --git ", DIFF, flags=re.MULTILINE)[1:]:
     # NOTE: git ends the header of a path with spaces in a tab, and quotes a path it has to escape.
@@ -48,7 +43,7 @@ for file_diff in re.split(r"^diff --git ", DIFF, flags=re.MULTILINE)[1:]:
             path_header[1]
             if path_header[1] is not None
             else path_header[2]
-            .encode("latin-1")
+            .encode()
             .decode("unicode_escape")
             .encode("latin-1")
             .decode("utf-8", errors="replace")
@@ -90,9 +85,7 @@ async def run_agent(config: LocalAgentConfig, prompt: str):
         )
 
 
-# NOTE: The SDK silently cuts a prompt off at about 190 KB, so the model reads the diff from a file
-# outside the checkout (preventing PR-controlled symlinks) added to workspaces; its file tool
-# refuses to open files containing a NUL byte.
+# NOTE: SDK truncates prompts >~190 KB and rejects NUL bytes in files; keep diff outside checkout.
 with tempfile.TemporaryDirectory() as diff_dir:
     diff_path = os.path.join(diff_dir, "pull-request.diff")
     with open(diff_path, "w") as diff_file:
@@ -124,9 +117,9 @@ Title: {pull["title"]}
 
     config = LocalAgentConfig(
         model=ModelTarget(
-            name=args.model,
+            name=MODEL,
             endpoint=GeminiAPIEndpoint(
-                options=GeminiModelOptions(thinking_level=ThinkingLevel(args.thinking_level)),
+                options=GeminiModelOptions(thinking_level=ThinkingLevel(THINKING_LEVEL)),
             ),
         ),
         # WARNING: The reviewer reads untrusted PR text, so it gets no shell, web, or write tools.
@@ -141,8 +134,7 @@ Title: {pull["title"]}
         workspaces=[os.getcwd(), diff_dir],
         skills_paths=[os.path.expanduser("~/.gemini/skills")],
         tools=[create_inline_comment],
-        # NOTE: A reply cut off mid-stream looks like a finished one, so the review has to arrive
-        # through the finish tool.
+        # NOTE: A truncated reply looks finished, so require the review through the finish tool.
         response_schema={
             "type": "object",
             "properties": {"summary": {"type": "string"}},
@@ -156,9 +148,7 @@ Title: {pull["title"]}
 if review_result is None:
     raise RuntimeError(f"Gemini stopped before finishing its review: {stop_reason}")
 
-body = "\n\n".join(
-    [review_result["summary"], *off_diff_comments, f"---\n{args.model} {args.thinking_level}"]
-)
+body = "\n\n".join([review_result["summary"], *off_diff_comments, f"---\n{MODEL} {THINKING_LEVEL}"])
 with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as step_summary:
     step_summary.write(f"## Gemini review\n\n{body}\n\n{usage.total_token_count} tokens\n")
 

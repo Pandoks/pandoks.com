@@ -29,9 +29,6 @@ java = "temurin-17.0.21+9"
 cocoapods = "1.17.0"
 maestro = { version = "2.11.0", version_prefix = "cli-" }
 
-[settings]
-python.uv_venv_auto = "source"  # auto-activate uv-created .venvs (uv.lock projects)
-
 [env]
 # uv resolves interpreters from PATH (mise's python) instead of downloading its own
 UV_PYTHON_PREFERENCE = "system"

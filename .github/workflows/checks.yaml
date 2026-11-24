@@ -90,7 +90,7 @@ jobs:
 
       - uses: ./.github/actions/setup-mise
         with:
-          tools: ruff uv
+          tools: python ruff uv
 
       - name: Run lint
         run: ./scripts/lint/main.sh python
