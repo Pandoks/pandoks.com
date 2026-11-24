@@ -75,8 +75,13 @@ jobs:
       # WARNING: The reviewer reads untrusted PR text, so its process must not see the OIDC request vars.
       - name: Review with Claude
         env:
-          ANTHROPIC_BASE_URL: https://cliproxyapi-api.tailb2c81d.ts.net
+          ANTHROPIC_BASE_URL: https://cliproxyapi.tailb2c81d.ts.net
           ANTHROPIC_API_KEY: cliproxyapi
+          # NOTE: Only api/ models use the API keys; an unprefixed model runs on the subscription accounts.
+          ANTHROPIC_DEFAULT_FABLE_MODEL: api/claude-fable-5-2
+          ANTHROPIC_DEFAULT_OPUS_MODEL: api/claude-opus-5-5
+          ANTHROPIC_DEFAULT_SONNET_MODEL: api/claude-sonnet-5-5
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: api/claude-haiku-5-5
           GH_TOKEN: ${{ steps.claude-app.outputs.token || github.token }}
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1'
           CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
