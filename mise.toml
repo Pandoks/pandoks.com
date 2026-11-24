@@ -28,7 +28,6 @@ ruby = "4.0.9"
 java = "temurin-17.0.21+9"
 cocoapods = "1.17.0"
 maestro = { version = "2.11.0", version_prefix = "cli-" }
-"cargo:cargo-packager" = "0.11.8"
 
 [settings]
 python.uv_venv_auto = "source" # auto-activate uv-created .venvs (uv.lock projects)

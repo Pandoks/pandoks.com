@@ -2,9 +2,7 @@ use std::{env, fs, path::PathBuf};
 
 const FONTS: &[(&str, &str)] = &[
     ("EBGaramond.woff2", "EBGaramond.ttf"),
-    ("EBGaramond-Italic.woff2", "EBGaramond-Italic.ttf"),
     ("Inter.woff2", "Inter.ttf"),
-    ("Inter-Italic.woff2", "Inter-Italic.ttf"),
 ];
 
 fn main() {

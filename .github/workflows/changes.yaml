@@ -108,6 +108,7 @@ jobs:
               - '**/Cargo.toml'
               - 'Cargo.lock'
               - 'packages/svelte/static/fonts/**'
+              - '.github/actions/setup-rust-gpui/**'
               - 'scripts/format/**'
               - 'scripts/lint/**'
               - *needs-mise-setup
@@ -181,6 +182,7 @@ jobs:
             native-desktop-template:
               - '.github/workflows/tests.yaml'
               - '.github/actions/setup-mise/**'
+              - '.github/actions/setup-rust-gpui/**'
               - 'mise.toml'
               - 'Cargo.toml'
               - 'Cargo.lock'

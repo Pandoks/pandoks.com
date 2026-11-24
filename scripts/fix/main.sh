@@ -34,7 +34,7 @@ cmd_fix_go() {
 }
 
 cmd_fix_rust() {
-  cd "${REPO_ROOT}" && cargo clippy --workspace --all-targets --fix --allow-dirty --allow-staged
+  cd "${REPO_ROOT}" && cargo clippy --workspace --all-targets --locked --fix --allow-dirty --allow-staged
 }
 
 cmd_fix_all() {

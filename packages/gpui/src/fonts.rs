@@ -6,37 +6,42 @@ pub const FONT_SANS: &str = "Inter";
 pub const FONT_SERIF: &str = "EB Garamond";
 
 const EB_GARAMOND_REGULAR: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/EBGaramond.ttf"));
-const EB_GARAMOND_ITALIC: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/EBGaramond-Italic.ttf"));
 const INTER_REGULAR: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/Inter.ttf"));
-const INTER_ITALIC: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/Inter-Italic.ttf"));
 
-pub fn register_fonts(cx: &App) -> Result<()> {
+// NOTE: GPUI does not apply variable-font weight axes, so these faces render as Regular.
+pub(crate) fn register_fonts(cx: &App) -> Result<()> {
     cx.text_system().add_fonts(vec![
         Cow::Borrowed(EB_GARAMOND_REGULAR),
-        Cow::Borrowed(EB_GARAMOND_ITALIC),
         Cow::Borrowed(INTER_REGULAR),
-        Cow::Borrowed(INTER_ITALIC),
     ])
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ttf_parser::{Face, name_id};
+
+    fn font_family_names(bytes: &[u8]) -> Vec<String> {
+        let face = Face::parse(bytes, 0).expect("failed to parse embedded font");
+        face.names()
+            .into_iter()
+            .filter(|name| {
+                name.name_id == name_id::FAMILY || name.name_id == name_id::TYPOGRAPHIC_FAMILY
+            })
+            .filter_map(|name| name.to_string())
+            .collect()
+    }
 
     #[test]
-    fn decompressed_fonts_have_sfnt_headers() {
-        for bytes in [
-            EB_GARAMOND_REGULAR,
-            EB_GARAMOND_ITALIC,
-            INTER_REGULAR,
-            INTER_ITALIC,
+    fn embedded_font_families_match_constants() {
+        for (bytes, expected_family) in [
+            (EB_GARAMOND_REGULAR, FONT_SERIF),
+            (INTER_REGULAR, FONT_SANS),
         ] {
-            assert!(bytes.len() > 1024);
-            let tag = &bytes[0..4];
+            let families = font_family_names(bytes);
             assert!(
-                tag == b"\x00\x01\x00\x00" || tag == b"OTTO" || tag == b"true",
-                "unexpected sfnt header: {tag:?}"
+                families.iter().any(|family| family == expected_family),
+                "expected font family {expected_family:?}, found {families:?}"
             );
         }
     }

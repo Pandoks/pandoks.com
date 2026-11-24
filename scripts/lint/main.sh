@@ -41,7 +41,7 @@ cmd_lint_go() {
 }
 
 cmd_lint_rust() {
-  cd "${REPO_ROOT}" && cargo clippy --workspace --all-targets -- -D warnings
+  cd "${REPO_ROOT}" && cargo clippy --workspace --all-targets --locked -- -D warnings
 }
 
 cmd_lint_docker() {

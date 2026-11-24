@@ -1,6 +1,6 @@
 use gpui::{
-    App, FontWeight, IntoElement, ParentElement, Refineable, RenderOnce, SharedString,
-    StyleRefinement, Styled, Window, div, px,
+    App, IntoElement, ParentElement, Refineable, RenderOnce, SharedString, StyleRefinement, Styled,
+    Window, div, px,
 };
 
 use crate::Theme;
@@ -43,8 +43,8 @@ impl Styled for Badge {
 }
 
 impl RenderOnce for Badge {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let theme = *Theme::global(cx);
+    fn render(self, window: &mut Window, _cx: &mut App) -> impl IntoElement {
+        let theme = Theme::of(window);
         let mut badge = div()
             .flex()
             .items_center()
@@ -54,7 +54,6 @@ impl RenderOnce for Badge {
             .px(px(8.0))
             .py(px(2.0))
             .text_xs()
-            .font_weight(FontWeight::MEDIUM)
             .whitespace_nowrap();
 
         badge = match self.variant {
@@ -67,7 +66,11 @@ impl RenderOnce for Badge {
                 .text_color(theme.secondary_foreground)
                 .border_color(gpui::transparent_black()),
             BadgeVariant::Destructive => badge
-                .bg(theme.destructive)
+                .bg(if theme.dark {
+                    theme.destructive.opacity(0.7)
+                } else {
+                    theme.destructive
+                })
                 .text_color(theme.destructive_foreground)
                 .border_color(gpui::transparent_black()),
             BadgeVariant::Outline => badge

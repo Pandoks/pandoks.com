@@ -1,14 +1,18 @@
 # Native Desktop Template
 
-Native macOS and Linux [GPUI](https://gpui.rs/) desktop app with system light and dark themes,
-shared design tokens and fonts from `packages/gpui`, and standard application menus.
+Native macOS and Linux [GPUI](https://gpui.rs/) desktop app with system light and dark themes, and
+shared design tokens and fonts from `packages/gpui`. Application menus are macOS-only; other
+platforms use the keyboard shortcuts (`Ctrl+N`, `Ctrl+Q`).
 
-Run from the repo root:
+Linux builds require `libfontconfig-dev`, `libfreetype-dev`, `libxkbcommon-dev`,
+`libxkbcommon-x11-dev`, `libwayland-dev`, `libx11-xcb-dev`, and `libxcb1-dev`.
+
+Run from this directory:
 
 ```sh
-mise install                                                   # installs Rust and cargo-packager
-cargo run -p native-desktop                                    # debug build and run
-cargo test --workspace --locked                                # headless GPUI window and font tests
-cargo build -p native-desktop --release                        # release binary
-cargo packager -p native-desktop --release                     # package .app into target/packager/
+mise install                      # installs cargo-packager (Rust comes from root mise.toml)
+cargo run                         # debug build and run
+cargo test --workspace --locked   # headless GPUI window and font tests
+cargo build --release             # release binary
+cargo packager --release          # native packages in target/packager/ (macOS: .app/.dmg; Linux: .deb/.AppImage/pacman)
 ```

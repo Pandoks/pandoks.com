@@ -9,3 +9,6 @@ gpui.workspace = true
 
 [build-dependencies]
 wuff.workspace = true
+
+[dev-dependencies]
+ttf-parser.workspace = true
