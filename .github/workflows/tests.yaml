@@ -110,15 +110,20 @@ jobs:
           -configuration Release -destination 'generic/platform=iOS Simulator'
           ARCHS=arm64 CODE_SIGNING_ALLOWED=NO
 
-  test-native-desktop-template:
+  test-native-desktop-template-linux:
     if: contains(fromJSON(inputs.jobs), 'native-desktop-template')
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-latest
-          - macos-26
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-rust-gpui
+
+      - name: Run Rust workspace tests
+        run: cargo test --workspace --locked
+
+  test-native-desktop-template-macos:
+    if: contains(fromJSON(inputs.jobs), 'native-desktop-template')
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

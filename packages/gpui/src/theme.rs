@@ -77,18 +77,10 @@ static DARK: LazyLock<Theme> = LazyLock::new(|| Theme {
 });
 
 impl Theme {
-    pub fn light() -> &'static Self {
-        &LIGHT
-    }
-
-    pub fn dark() -> &'static Self {
-        &DARK
-    }
-
     pub fn of(window: &Window) -> &'static Self {
         match window.appearance() {
-            WindowAppearance::Dark | WindowAppearance::VibrantDark => Self::dark(),
-            WindowAppearance::Light | WindowAppearance::VibrantLight => Self::light(),
+            WindowAppearance::Dark | WindowAppearance::VibrantDark => &DARK,
+            WindowAppearance::Light | WindowAppearance::VibrantLight => &LIGHT,
         }
     }
 }

@@ -6,8 +6,6 @@ const FONTS: &[(&str, &str)] = &[
 ];
 
 fn main() {
-    println!("cargo:rerun-if-changed=build.rs");
-
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
     let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
     let fonts_dir = manifest_dir.join("../svelte/static/fonts");

@@ -21,24 +21,21 @@ mod tests {
     use super::*;
     use ttf_parser::{Face, name_id};
 
-    fn font_family_names(bytes: &[u8]) -> Vec<String> {
-        let face = Face::parse(bytes, 0).expect("failed to parse embedded font");
-        face.names()
-            .into_iter()
-            .filter(|name| {
-                name.name_id == name_id::FAMILY || name.name_id == name_id::TYPOGRAPHIC_FAMILY
-            })
-            .filter_map(|name| name.to_string())
-            .collect()
-    }
-
     #[test]
     fn embedded_font_families_match_constants() {
         for (bytes, expected_family) in [
             (EB_GARAMOND_REGULAR, FONT_SERIF),
             (INTER_REGULAR, FONT_SANS),
         ] {
-            let families = font_family_names(bytes);
+            let face = Face::parse(bytes, 0).expect("failed to parse embedded font");
+            let families: Vec<String> = face
+                .names()
+                .into_iter()
+                .filter(|name| {
+                    name.name_id == name_id::FAMILY || name.name_id == name_id::TYPOGRAPHIC_FAMILY
+                })
+                .filter_map(|name| name.to_string())
+                .collect();
             assert!(
                 families.iter().any(|family| family == expected_family),
                 "expected font family {expected_family:?}, found {families:?}"
