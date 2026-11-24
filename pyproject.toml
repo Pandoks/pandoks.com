@@ -1,3 +1,7 @@
+[project]
+name = "pandoks"
+version = "0.0.0"
+
 [tool.uv.workspace]
 members = [
   "scripts/ai-review",
@@ -5,3 +9,8 @@ members = [
 
 [tool.ruff]
 line-length = 100
+
+# NOTE: Cloudflare Pages runs `pip install .` whenever a root pyproject.toml exists.
+[tool.setuptools]
+packages = []
+py-modules = []

@@ -5,6 +5,7 @@ requires-python = ">=3.15"
 [manifest]
 members = [
     "ai-review",
+    "pandoks",
 ]
 
 [[package]]
@@ -419,6 +420,11 @@ sdist = { url = "https://files.pythonhosted.org/packages/19/14/cf3a6b6448849656e
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a9/2d/610db864d7513158cebb8f36cc88e67e73bd6c7aa1905ef18d89e1281c81/opentelemetry_api-1.45.2-py3-none-any.whl", hash = "sha256:2cbd737377e710ee740d261c94e93fa0f08e6d037c18f17513cc0a2d94479a34", size = 60335, upload-time = "2026-10-29T17:29:06.955Z" },
 ]
+
+[[package]]
+name = "pandoks"
+version = "0.0.0"
+source = { virtual = "." }
 
 [[package]]
 name = "protobuf"
