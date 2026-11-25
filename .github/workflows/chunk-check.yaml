@@ -1,0 +1,15 @@
+name: Chunk check
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  chunk:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - run: python scripts/ai-review/chunk.py 2 a b c d e || true
