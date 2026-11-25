@@ -8,6 +8,7 @@ import urllib.error
 import urllib.request
 
 from google.antigravity import Agent, CapabilitiesConfig, GeminiAPIEndpoint, LocalAgentConfig
+from google.antigravity.hooks import policy
 from google.antigravity.types import (
     BudgetConfig,
     BuiltinTools,
@@ -136,6 +137,18 @@ Title: {pull["title"]}
                 BuiltinTools.INVOKE_SUBAGENT,
             ]
         ),
+        # NOTE: Other workspace modes run `git worktree add`, whose LFS filter fetches PR-chosen URLs.
+        policies=[
+            *policy.confirm_run_command(),
+            policy.deny(
+                BuiltinTools.INVOKE_SUBAGENT.value,
+                when=lambda arguments: any(
+                    subagent.get("Workspace", "inherit") != "inherit"
+                    for subagent in arguments.get("Subagents", [])
+                ),
+                reason="Subagents must inherit the workspace.",
+            ),
+        ],
         workspaces=[os.getcwd(), diff_dir],
         env={"TMPDIR": diff_dir},
         skills_paths=[os.path.expanduser("~/.gemini/skills")],
