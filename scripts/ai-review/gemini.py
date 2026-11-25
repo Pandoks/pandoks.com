@@ -85,6 +85,7 @@ async def run_agent(config: LocalAgentConfig, prompt: str):
             await response.structured_output(),
             response.stop_reason,
             agent.conversation.total_usage,
+            len(agent.conversation.trajectory_usages) - 1,
         )
 
 
@@ -99,6 +100,12 @@ with tempfile.TemporaryDirectory() as diff_dir:
 The working directory is the repository at the pull request's head, and {diff_path} holds the
 diff. Read all of the diff and the code around each hunk, and follow the review instructions in your
 system instructions.
+
+Orchestrate the review with subagents. Split it into independent angles, such as correctness,
+security, repository rules, and tests, and invoke a `self` subagent for each in one invoke_subagent
+call so they run in parallel. Have each report its findings to you with evidence instead of
+commenting. Verify every finding, yourself or with a fresh subagent, drop any that don't hold, and
+wait for every subagent before you finish.
 
 Report each finding that belongs to one line with create_inline_comment. Then finish with the
 review's top comment in markdown as `summary`: the verdict in a sentence or two, then any finding
@@ -126,6 +133,7 @@ Title: {pull["title"]}
                 BuiltinTools.LIST_DIR,
                 BuiltinTools.SEARCH_DIR,
                 BuiltinTools.FIND_FILE,
+                BuiltinTools.INVOKE_SUBAGENT,
             ]
         ),
         workspaces=[os.getcwd(), diff_dir],
@@ -139,14 +147,20 @@ Title: {pull["title"]}
             "required": ["summary"],
         },
         # NOTE: The SDK retries an empty or blocked model response without limit or delay.
-        budget_config=BudgetConfig(max_model_calls=200),
+        budget_config=BudgetConfig(max_model_calls=500),
     )
-    review_result, stop_reason, usage = asyncio.run(run_agent(config, prompt))
+    review_result, stop_reason, usage, subagents = asyncio.run(run_agent(config, prompt))
 
 if review_result is None:
     raise RuntimeError(f"Gemini stopped before finishing its review: {stop_reason}")
 
-body = "\n\n".join([review_result["summary"], *off_diff_comments, f"---\n{MODEL} {THINKING_LEVEL}"])
+body = "\n\n".join(
+    [
+        review_result["summary"],
+        *off_diff_comments,
+        f"---\n{MODEL} {THINKING_LEVEL} managing {subagents} subagents",
+    ]
+)
 with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as step_summary:
     step_summary.write(f"## Gemini review\n\n{body}\n\n{usage.total_token_count} tokens\n")
 
