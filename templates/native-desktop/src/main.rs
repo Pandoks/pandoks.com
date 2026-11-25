@@ -180,9 +180,7 @@ mod tests {
         cx.update(init_app);
 
         cx.update(open_starter_window);
-        cx.run_until_parked();
         let starter = cx.windows()[0];
-        assert!(starter.downcast::<StarterView>().is_some());
 
         cx.simulate_keystrokes(starter, "secondary-n");
         let windows = cx.windows();

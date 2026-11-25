@@ -51,7 +51,6 @@ impl RenderOnce for Badge {
             .justify_center()
             .rounded_full()
             .border_1()
-            .border_color(gpui::transparent_black())
             .px(px(8.0))
             .py(px(2.0))
             .text_xs()
