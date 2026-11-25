@@ -128,7 +128,7 @@ checkout.
     edit and before every commit or push; narrower checks don't replace it.
   - `apps/web`: `CI=1 pnpm --filter web test:e2e` (skips portless) for user-visible changes.
   - `templates/mobile`: `pnpm ios` and `pnpm android` from the app, then `pnpm test:e2e`.
-  - `templates/native-desktop`: `cargo test --workspace --locked` and run the app for UI changes.
+  - `packages/gpui`, `templates/native-desktop`: `cargo test --workspace --locked`; run app for UI.
   - Workflows: the PR's CI once a PR exists.
 - Before calling work done, run format, lint, type, and test commands for every language and package
   you touched, even for a one-line change, and report a configured checker exclusion only when it

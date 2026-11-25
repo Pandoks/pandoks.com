@@ -6,7 +6,7 @@ mod text_input;
 mod theme;
 
 pub use badge::{Badge, BadgeVariant};
-pub use button::{Button, ButtonSize, ButtonVariant};
+pub use button::{Button, ButtonVariant};
 pub use checkbox::Checkbox;
 pub use fonts::{FONT_MONO, FONT_SANS, FONT_SERIF};
 pub use text_input::{TextInput, TextInputEvent};
