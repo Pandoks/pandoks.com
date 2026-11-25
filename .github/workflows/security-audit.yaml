@@ -16,6 +16,11 @@ jobs:
     with:
       kubernetes-config: true
 
+  scan-rust-dependencies:
+    uses: ./.github/workflows/security.yaml
+    with:
+      rust-dependencies: true
+
   scan-published-images:
     # NOTE: we don't scan charts because the only issues are misconfigs, not CVEs.
     runs-on: ubuntu-latest
