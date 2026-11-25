@@ -65,7 +65,7 @@ jobs:
           if token=$(jq -er '.token // .app_token' <<<"${response}"); then
             echo "::add-mask::${token}"
             echo "token=${token}" >> "${GITHUB_OUTPUT}"
-          elif [[ $(jq -r .error.details.error_code <<<"${response}") == workflow_content_mismatch ]]; then
+          elif [[ $(jq -r .error.details.error_code <<<"${response}") =~ ^workflow_(content_mismatch|not_found_on_default_branch)$ ]]; then
             echo "::notice::ai-review.yaml differs from the default branch, so this review posts as github-actions[bot]"
           else
             echo "${response}"
