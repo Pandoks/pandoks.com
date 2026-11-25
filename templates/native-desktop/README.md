@@ -4,8 +4,7 @@ Native macOS and Linux [GPUI](https://gpui.rs/) desktop app with system light an
 shared design tokens and fonts from `packages/gpui`. Application menus are macOS-only; other
 platforms use the keyboard shortcuts (`Ctrl+N`, `Ctrl+Q`).
 
-Linux builds require `libfontconfig-dev`, `libxkbcommon-x11-dev`, `libwayland-dev`, and
-`libx11-xcb-dev`.
+Linux builds require `libfontconfig-dev` and `libxkbcommon-x11-dev`.
 
 Run from this directory:
 
