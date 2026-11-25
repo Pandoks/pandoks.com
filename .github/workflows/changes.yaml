@@ -187,6 +187,7 @@ jobs:
               - 'Cargo.lock'
               - 'packages/gpui/**'
               - 'packages/svelte/static/fonts/**'
+              - 'scripts/lint/**'
               - 'templates/native-desktop/**'
             svelte:
               - 'packages/svelte/**'

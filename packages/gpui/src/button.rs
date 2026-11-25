@@ -77,9 +77,10 @@ impl RenderOnce for Button {
             .whitespace_nowrap()
             .cursor_pointer()
             .focus_visible(move |style| {
-                style.border_color(theme.ring).shadow(vec![
-                    BoxShadow::new(px(0.0), px(0.0), theme.ring.opacity(0.5))
-                        .spread_radius(px(3.0)),
+                style.shadow(vec![
+                    BoxShadow::new(px(0.0), px(0.0), theme.ring)
+                        .spread_radius(px(2.0))
+                        .inset(),
                 ])
             });
 
@@ -146,7 +147,6 @@ mod tests {
         let (view, cx) = cx.add_window_view(|_, _| ClickCounter { clicks: 0 });
 
         cx.update(|window, cx| window.focus_next(cx));
-        cx.refresh().unwrap();
 
         let keystroke = Keystroke::parse("enter").unwrap();
         cx.simulate_event(KeyDownEvent {

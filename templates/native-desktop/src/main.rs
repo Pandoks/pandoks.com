@@ -156,11 +156,7 @@ fn main() {
 
     #[cfg(target_os = "macos")]
     app.on_reopen(|cx| {
-        if !cx
-            .windows()
-            .into_iter()
-            .any(|window| window.downcast::<StarterView>().is_some())
-        {
+        if cx.windows().is_empty() {
             open_starter_window(cx);
         }
     });
@@ -178,9 +174,8 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn starter_window_and_new_window_shortcut() {
-        let mut cx = TestAppContext::single();
+    #[gpui::test]
+    fn starter_window_and_new_window_shortcut(cx: &mut TestAppContext) {
         cx.update(init_app);
 
         cx.update(open_starter_window);
@@ -218,16 +213,15 @@ mod tests {
     }
 
     #[cfg(target_os = "macos")]
-    #[test]
-    fn about_window() {
-        let mut cx = TestAppContext::single();
+    #[gpui::test]
+    fn about_window(cx: &mut TestAppContext, windowless_cx: &mut TestAppContext) {
         cx.update(init_app);
 
         cx.update(open_starter_window);
         let starter = cx.windows()[0];
         cx.update_window(starter, |_, window, _| window.activate_window())
             .unwrap();
-        choose_about_menu_item(&cx);
+        choose_about_menu_item(cx);
 
         let windows = cx.windows();
         assert_eq!(windows.len(), 2);
@@ -239,18 +233,17 @@ mod tests {
 
         cx.update_window(starter, |_, window, _| window.activate_window())
             .unwrap();
-        choose_about_menu_item(&cx);
+        choose_about_menu_item(cx);
         assert_eq!(cx.windows().len(), 2);
         assert_eq!(cx.read(App::active_window), Some(about));
 
-        choose_about_menu_item(&cx);
+        choose_about_menu_item(cx);
         assert_eq!(cx.windows().len(), 2);
         assert_eq!(cx.read(App::active_window), Some(about));
 
-        let cx = TestAppContext::single();
-        cx.update(init_app);
-        choose_about_menu_item(&cx);
-        let windows = cx.windows();
+        windowless_cx.update(init_app);
+        choose_about_menu_item(windowless_cx);
+        let windows = windowless_cx.windows();
         assert_eq!(windows.len(), 1);
         assert!(windows[0].downcast::<AboutView>().is_some());
     }
