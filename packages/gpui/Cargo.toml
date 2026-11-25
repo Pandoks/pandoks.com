@@ -6,9 +6,11 @@ publish.workspace = true
 
 [dependencies]
 gpui.workspace = true
+unicode-segmentation.workspace = true
 
 [build-dependencies]
 wuff.workspace = true
 
 [dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
 ttf-parser.workspace = true

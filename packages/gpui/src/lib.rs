@@ -1,13 +1,21 @@
 mod badge;
+mod button;
+mod checkbox;
 mod fonts;
+mod text_input;
 mod theme;
 
 pub use badge::{Badge, BadgeVariant};
-pub use fonts::{FONT_SANS, FONT_SERIF};
+pub use button::{Button, ButtonSize, ButtonVariant};
+pub use checkbox::Checkbox;
+pub use fonts::{FONT_MONO, FONT_SANS, FONT_SERIF};
+pub use text_input::{TextInput, TextInputEvent};
 pub use theme::Theme;
 
 use gpui::{App, Result};
 
 pub fn init(cx: &mut App) -> Result<()> {
-    fonts::register_fonts(cx)
+    fonts::register_fonts(cx)?;
+    text_input::register_keybindings(cx);
+    Ok(())
 }

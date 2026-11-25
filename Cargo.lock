@@ -3709,6 +3709,7 @@ version = "0.1.0"
 dependencies = [
  "gpui",
  "ttf-parser",
+ "unicode-segmentation",
  "wuff",
 ]
 

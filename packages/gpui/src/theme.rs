@@ -26,6 +26,19 @@ pub struct Theme {
     pub border: Hsla,
     pub input: Hsla,
     pub ring: Hsla,
+    pub chart_1: Hsla,
+    pub chart_2: Hsla,
+    pub chart_3: Hsla,
+    pub chart_4: Hsla,
+    pub chart_5: Hsla,
+    pub sidebar: Hsla,
+    pub sidebar_foreground: Hsla,
+    pub sidebar_primary: Hsla,
+    pub sidebar_primary_foreground: Hsla,
+    pub sidebar_accent: Hsla,
+    pub sidebar_accent_foreground: Hsla,
+    pub sidebar_border: Hsla,
+    pub sidebar_ring: Hsla,
 }
 
 static LIGHT: LazyLock<Theme> = LazyLock::new(|| Theme {
@@ -50,6 +63,19 @@ static LIGHT: LazyLock<Theme> = LazyLock::new(|| Theme {
     border: rgb(0xe5e5e5).into(),
     input: rgb(0xe5e5e5).into(),
     ring: rgb(0xa1a1a1).into(),
+    chart_1: rgb(0xf54900).into(),
+    chart_2: rgb(0x009689).into(),
+    chart_3: rgb(0x104e64).into(),
+    chart_4: rgb(0xffb900).into(),
+    chart_5: rgb(0xfe9a00).into(),
+    sidebar: rgb(0xfafafa).into(),
+    sidebar_foreground: rgb(0x0a0a0a).into(),
+    sidebar_primary: rgb(0x171717).into(),
+    sidebar_primary_foreground: rgb(0xfafafa).into(),
+    sidebar_accent: rgb(0xf5f5f5).into(),
+    sidebar_accent_foreground: rgb(0x171717).into(),
+    sidebar_border: rgb(0xe5e5e5).into(),
+    sidebar_ring: rgb(0xa1a1a1).into(),
 });
 
 static DARK: LazyLock<Theme> = LazyLock::new(|| Theme {
@@ -74,6 +100,19 @@ static DARK: LazyLock<Theme> = LazyLock::new(|| Theme {
     border: rgba(0xffffff1a).into(),
     input: rgba(0xffffff26).into(),
     ring: rgb(0x737373).into(),
+    chart_1: rgb(0x1447e6).into(),
+    chart_2: rgb(0x00bc7d).into(),
+    chart_3: rgb(0xfe9a00).into(),
+    chart_4: rgb(0xad46ff).into(),
+    chart_5: rgb(0xff2056).into(),
+    sidebar: rgb(0x171717).into(),
+    sidebar_foreground: rgb(0xfafafa).into(),
+    sidebar_primary: rgb(0x1447e6).into(),
+    sidebar_primary_foreground: rgb(0xfafafa).into(),
+    sidebar_accent: rgb(0x262626).into(),
+    sidebar_accent_foreground: rgb(0xfafafa).into(),
+    sidebar_border: rgba(0xffffff1a).into(),
+    sidebar_ring: rgb(0x737373).into(),
 });
 
 impl Theme {
