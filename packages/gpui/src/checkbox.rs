@@ -34,15 +34,8 @@ impl RenderOnce for Checkbox {
         let checkbox = self
             .base
             .role(Role::CheckBox)
-            .aria_toggled(if self.checked {
-                Toggled::True
-            } else {
-                Toggled::False
-            })
-            .flex()
+            .aria_toggled(Toggled::from(self.checked))
             .flex_shrink_0()
-            .items_center()
-            .justify_center()
             .size(px(16.0))
             .rounded(px(4.0))
             .border_1()

@@ -13,4 +13,5 @@ wuff.workspace = true
 
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }
+rand.workspace = true
 ttf-parser.workspace = true

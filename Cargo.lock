@@ -3708,6 +3708,7 @@ name = "pandoks-gpui"
 version = "0.1.0"
 dependencies = [
  "gpui",
+ "rand 0.9.5",
  "ttf-parser",
  "unicode-segmentation",
  "wuff",
