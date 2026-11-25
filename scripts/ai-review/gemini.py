@@ -90,7 +90,7 @@ async def run_agent(config: LocalAgentConfig, prompt: str):
         )
 
 
-# NOTE: SDK truncates prompts >~190 KB and rejects NUL bytes in files; keep diff outside checkout.
+# NOTE: SDK truncates prompts >~190 KB and rejects NUL bytes in files.
 with tempfile.TemporaryDirectory() as diff_dir:
     diff_path = os.path.join(diff_dir, "pull-request.diff")
     with open(diff_path, "w") as diff_file:
