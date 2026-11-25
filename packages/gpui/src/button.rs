@@ -1,7 +1,7 @@
 use gpui::{
-    AnyElement, App, ClickEvent, Div, ElementId, InteractiveElement, IntoElement, ParentElement,
-    Refineable, RenderOnce, Role, Stateful, StatefulInteractiveElement, StyleRefinement, Styled,
-    Window, div, px,
+    AnyElement, App, BoxShadow, ClickEvent, Div, ElementId, InteractiveElement, IntoElement,
+    ParentElement, Refineable, RenderOnce, Role, Stateful, StatefulInteractiveElement,
+    StyleRefinement, Styled, Window, div, px,
 };
 
 use crate::Theme;
@@ -62,6 +62,8 @@ impl RenderOnce for Button {
 
         let mut button = self
             .base
+            .focusable()
+            .tab_stop(true)
             .role(Role::Button)
             .flex()
             .flex_shrink_0()
@@ -73,7 +75,13 @@ impl RenderOnce for Button {
             .rounded(theme.radius - px(2.0))
             .text_sm()
             .whitespace_nowrap()
-            .cursor_pointer();
+            .cursor_pointer()
+            .focus_visible(move |style| {
+                style.border_color(theme.ring).shadow(vec![
+                    BoxShadow::new(px(0.0), px(0.0), theme.ring.opacity(0.5))
+                        .spread_radius(px(3.0)),
+                ])
+            });
 
         button = match self.variant {
             ButtonVariant::Default => button
@@ -109,5 +117,45 @@ impl RenderOnce for Button {
 
         button.style().refine(&self.style);
         button
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gpui::{Context, KeyDownEvent, KeyUpEvent, Keystroke, Render, TestAppContext};
+
+    struct ClickCounter {
+        clicks: usize,
+    }
+
+    impl Render for ClickCounter {
+        fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            let entity = cx.entity();
+            Button::new("action")
+                .on_click(move |event, _window, cx| {
+                    assert!(event.is_keyboard());
+                    entity.update(cx, |this, _| this.clicks += 1);
+                })
+                .child("Save")
+        }
+    }
+
+    #[gpui::test]
+    fn keyboard_focus_and_enter_activates_button(cx: &mut TestAppContext) {
+        let (view, cx) = cx.add_window_view(|_, _| ClickCounter { clicks: 0 });
+
+        cx.update(|window, cx| window.focus_next(cx));
+        cx.refresh().unwrap();
+
+        let keystroke = Keystroke::parse("enter").unwrap();
+        cx.simulate_event(KeyDownEvent {
+            keystroke: keystroke.clone(),
+            is_held: false,
+            prefer_character_input: false,
+        });
+        cx.simulate_event(KeyUpEvent { keystroke });
+
+        assert_eq!(view.read_with(cx, |view, _| view.clicks), 1);
     }
 }

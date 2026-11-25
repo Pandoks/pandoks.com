@@ -125,7 +125,6 @@ checkout.
     edit and before every commit or push; narrower checks don't replace it.
   - `apps/web`: `CI=1 pnpm --filter web test:e2e` (skips portless) for user-visible changes.
   - `templates/mobile`: `pnpm ios` and `pnpm android` from the app, then `pnpm test:e2e`.
-  - `packages/gpui`, `templates/native-desktop`: `cargo test --workspace --locked`; run app for UI.
   - Workflows: the PR's CI once a PR exists; check that the intended jobs ran on its head.
 - Before calling work done, run format, lint, type, and test commands for every language and package
   you touched, even for a one-line change, and report a configured checker exclusion only when it
@@ -178,7 +177,6 @@ Before calling infra, cluster, or tooling work done, check:
   resources, SSM layout, state machine, or files) go in `packages/infra`, imported as
   `@pandoks.com/infra/<file>`. `Promise.all` instead of awaiting in loops.
 - **Go:** justify every `#nosec` or `//nolint` inline.
-- **Rust:** justify every `#[allow(...)]` and `unsafe` block inline.
 - **Containers and manifests:** pin Dockerfile bases, third-party images, and chart defaults as
   `image:tag@sha256:…` in files a Renovate manager matches; no image lock files. Images in raw
   manifests in `k3s/` aren't matched yet, so add a `kubernetes` `managerFilePatterns` entry to

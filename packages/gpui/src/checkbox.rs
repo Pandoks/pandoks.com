@@ -1,6 +1,7 @@
 use gpui::{
-    App, Div, ElementId, InteractiveElement, IntoElement, ParentElement, PathBuilder, RenderOnce,
-    Role, Stateful, StatefulInteractiveElement, Styled, Toggled, Window, canvas, div, point, px,
+    App, BoxShadow, Div, ElementId, InteractiveElement, IntoElement, ParentElement, PathBuilder,
+    RenderOnce, Role, Stateful, StatefulInteractiveElement, Styled, Toggled, Window, canvas, div,
+    point, px,
 };
 
 use crate::Theme;
@@ -33,13 +34,21 @@ impl RenderOnce for Checkbox {
         let theme = Theme::of(window);
         let checkbox = self
             .base
+            .focusable()
+            .tab_stop(true)
             .role(Role::CheckBox)
             .aria_toggled(Toggled::from(self.checked))
             .flex_shrink_0()
             .size(px(16.0))
             .rounded(px(4.0))
             .border_1()
-            .cursor_pointer();
+            .cursor_pointer()
+            .focus_visible(move |style| {
+                style.border_color(theme.ring).shadow(vec![
+                    BoxShadow::new(px(0.0), px(0.0), theme.ring.opacity(0.5))
+                        .spread_radius(px(3.0)),
+                ])
+            });
 
         if self.checked {
             let stroke_color = theme.primary_foreground;
@@ -66,9 +75,8 @@ impl RenderOnce for Checkbox {
                                 bounds.left() + bounds.size.width * 0.78,
                                 bounds.top() + bounds.size.height * 0.30,
                             ));
-                            if let Ok(path) = builder.build() {
-                                window.paint_path(path, stroke_color);
-                            }
+                            let path = builder.build().expect("failed to build checkmark path");
+                            window.paint_path(path, stroke_color);
                         },
                     )
                     .size_full(),
@@ -82,7 +90,7 @@ impl RenderOnce for Checkbox {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gpui::{Context, Modifiers, Render, TestAppContext};
+    use gpui::{Context, KeyDownEvent, KeyUpEvent, Keystroke, Modifiers, Render, TestAppContext};
 
     struct ControlledCheckbox {
         checked: bool,
@@ -111,6 +119,38 @@ mod tests {
 
         cx.simulate_click(point(px(8.0), px(8.0)), Modifiers::none());
         cx.simulate_click(point(px(8.0), px(8.0)), Modifiers::none());
+
+        assert_eq!(
+            view.read_with(cx, |view, _| view.changes.clone()),
+            vec![true, false]
+        );
+    }
+
+    #[gpui::test]
+    fn keyboard_focus_and_space_toggles_controlled_parent(cx: &mut TestAppContext) {
+        let (view, cx) = cx.add_window_view(|_, _| ControlledCheckbox {
+            checked: false,
+            changes: Vec::new(),
+        });
+
+        cx.update(|window, cx| window.focus_next(cx));
+        cx.refresh().unwrap();
+
+        let keystroke = Keystroke::parse("space").unwrap();
+        cx.simulate_event(KeyDownEvent {
+            keystroke: keystroke.clone(),
+            is_held: false,
+            prefer_character_input: false,
+        });
+        cx.simulate_event(KeyUpEvent {
+            keystroke: keystroke.clone(),
+        });
+        cx.simulate_event(KeyDownEvent {
+            keystroke: keystroke.clone(),
+            is_held: false,
+            prefer_character_input: false,
+        });
+        cx.simulate_event(KeyUpEvent { keystroke });
 
         assert_eq!(
             view.read_with(cx, |view, _| view.changes.clone()),

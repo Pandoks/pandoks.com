@@ -9,7 +9,7 @@ Linux builds require `libfontconfig-dev` and `libxkbcommon-x11-dev`.
 Run from this directory:
 
 ```sh
-mise install                             # installs cargo-packager (Rust comes from root mise.toml)
+mise install cargo:cargo-packager        # installs cargo-packager (Rust comes from root mise.toml)
 cargo run                                # debug build and run
 cargo test --workspace --locked          # headless GPUI window, font, and component tests
 cargo build --release                    # release binary

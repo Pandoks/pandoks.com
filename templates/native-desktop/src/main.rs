@@ -156,7 +156,11 @@ fn main() {
 
     #[cfg(target_os = "macos")]
     app.on_reopen(|cx| {
-        if cx.windows().is_empty() {
+        if !cx
+            .windows()
+            .into_iter()
+            .any(|window| window.downcast::<StarterView>().is_some())
+        {
             open_starter_window(cx);
         }
     });

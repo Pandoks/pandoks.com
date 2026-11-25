@@ -129,6 +129,9 @@ jobs:
 
       - uses: ./.github/actions/setup-rust-gpui
 
+      - name: Run Rust lint
+        run: ./scripts/lint/main.sh rust
+
       - name: Run Rust workspace tests
         run: cargo test --workspace --locked
 
