@@ -146,6 +146,9 @@ fn open_about_window(cx: &mut App) {
 fn init_app(cx: &mut App) {
     pandoks_gpui::init(cx).expect("failed to initialize shared GPUI package");
     menu::register(cx);
+
+    #[cfg(target_os = "macos")]
+    cx.set_menus(menu::app_menus());
 }
 
 fn main() {
@@ -162,9 +165,6 @@ fn main() {
         init_app(cx);
         open_starter_window(cx);
         cx.activate(true);
-
-        #[cfg(target_os = "macos")]
-        cx.set_menus(menu::app_menus());
     });
 }
 
@@ -193,6 +193,27 @@ mod tests {
     }
 
     #[cfg(target_os = "macos")]
+    fn choose_about_menu_item(cx: &TestAppContext) {
+        cx.update(|cx| {
+            let about = cx
+                .get_menus()
+                .expect("menus not set")
+                .iter()
+                .flat_map(|menu| &menu.items)
+                .find_map(|item| match item {
+                    gpui::OwnedMenuItem::Action { name, action, .. }
+                        if name.starts_with("About ") =>
+                    {
+                        Some(action.boxed_clone())
+                    }
+                    _ => None,
+                })
+                .expect("about menu item missing");
+            cx.dispatch_action(about.as_ref());
+        });
+    }
+
+    #[cfg(target_os = "macos")]
     #[test]
     fn about_window() {
         let mut cx = TestAppContext::single();
@@ -202,8 +223,7 @@ mod tests {
         let starter = cx.windows()[0];
         cx.update_window(starter, |_, window, _| window.activate_window())
             .unwrap();
-        cx.update(|cx| cx.dispatch_action(&menu::About));
-        cx.run_until_parked();
+        choose_about_menu_item(&cx);
 
         let windows = cx.windows();
         assert_eq!(windows.len(), 2);
@@ -215,20 +235,17 @@ mod tests {
 
         cx.update_window(starter, |_, window, _| window.activate_window())
             .unwrap();
-        cx.update(|cx| cx.dispatch_action(&menu::About));
-        cx.run_until_parked();
+        choose_about_menu_item(&cx);
         assert_eq!(cx.windows().len(), 2);
         assert_eq!(cx.read(App::active_window), Some(about));
 
-        cx.update(|cx| cx.dispatch_action(&menu::About));
-        cx.run_until_parked();
+        choose_about_menu_item(&cx);
         assert_eq!(cx.windows().len(), 2);
         assert_eq!(cx.read(App::active_window), Some(about));
 
         let cx = TestAppContext::single();
         cx.update(init_app);
-        cx.update(|cx| cx.dispatch_action(&menu::About));
-        cx.run_until_parked();
+        choose_about_menu_item(&cx);
         let windows = cx.windows();
         assert_eq!(windows.len(), 1);
         assert!(windows[0].downcast::<AboutView>().is_some());

@@ -16,3 +16,4 @@ gpui = { workspace = true, features = ["test-support"] }
 product-name = "Pandoks Native Desktop Template"
 identifier = "com.pandoks.native-desktop-template"
 out-dir = "../../target/packager"
+before-packaging-command = "cargo build --release --locked"

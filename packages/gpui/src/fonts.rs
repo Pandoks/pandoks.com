@@ -4,12 +4,6 @@ use gpui::{App, Result};
 
 pub const FONT_SANS: &str = "Inter";
 pub const FONT_SERIF: &str = "EB Garamond";
-// NOTE: macOS CoreText hides SF Mono behind a private family name not returned by
-// CTFontManagerCopyAvailableFontFamilyNames; Menlo is the system-guaranteed fallback.
-#[cfg(target_os = "macos")]
-pub const FONT_MONO: &str = "Menlo";
-#[cfg(not(target_os = "macos"))]
-pub const FONT_MONO: &str = "monospace";
 
 const EB_GARAMOND_REGULAR: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/EBGaramond.ttf"));
 const INTER_REGULAR: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/Inter.ttf"));

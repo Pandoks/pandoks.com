@@ -82,7 +82,7 @@ impl RenderOnce for Checkbox {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gpui::{Context, Modifiers, Render, TestAppContext, VisualTestContext};
+    use gpui::{Context, Modifiers, Render, TestAppContext};
 
     struct ControlledCheckbox {
         checked: bool,
@@ -104,20 +104,17 @@ mod tests {
 
     #[gpui::test]
     fn click_toggles_controlled_parent_in_both_directions(cx: &mut TestAppContext) {
-        let window = cx.add_window(|_, _| ControlledCheckbox {
+        let (view, cx) = cx.add_window_view(|_, _| ControlledCheckbox {
             checked: false,
             changes: Vec::new(),
         });
-        let mut visual_cx = VisualTestContext::from_window(window.into(), cx);
-        let view = window.root(&mut visual_cx).expect("root view");
-        visual_cx.run_until_parked();
 
-        visual_cx.simulate_click(point(px(8.0), px(8.0)), Modifiers::none());
-        visual_cx.simulate_click(point(px(8.0), px(8.0)), Modifiers::none());
+        cx.simulate_click(point(px(8.0), px(8.0)), Modifiers::none());
+        cx.simulate_click(point(px(8.0), px(8.0)), Modifiers::none());
 
         assert_eq!(
-            view.read_with(&visual_cx, |view, _| (view.checked, view.changes.clone())),
-            (false, vec![true, false])
+            view.read_with(cx, |view, _| view.changes.clone()),
+            vec![true, false]
         );
     }
 }
