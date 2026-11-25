@@ -20,6 +20,9 @@ importers:
       '@ovhcloud/pulumi-ovh':
         specifier: 2.22.0
         version: 2.22.0(supports-color@7.2.0)(typescript@6.0.3)
+      '@pandoks.com/infra':
+        specifier: workspace:*
+        version: link:packages/infra
       '@pulumi/aws':
         specifier: 7.20.0
         version: 7.20.0(supports-color@7.2.0)(typescript@6.0.3)
@@ -227,6 +230,8 @@ importers:
   packages/argocd: {}
 
   packages/clickhouse: {}
+
+  packages/infra: {}
 
   packages/postgres: {}
 

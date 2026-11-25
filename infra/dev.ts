@@ -1,6 +1,6 @@
 import * as ovh from '@ovhcloud/pulumi-ovh';
 import * as tailscale from '@pulumi/tailscale';
-import { isProduction } from './dns.ts';
+import { isProduction } from '@pandoks.com/infra/stack';
 import { hubTailscaleServices, tailscaleAcl } from './tailscale.ts';
 
 if (isProduction) {

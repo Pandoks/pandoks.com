@@ -1,22 +1,34 @@
-import * as pulumi from '@pulumi/pulumi';
+import type * as pulumi from '@pulumi/pulumi';
 import * as tailscale from '@pulumi/tailscale';
 import stringify from 'json-stringify-pretty-compact';
-import { secrets } from './secrets.ts';
-import { isCoreStack, isProduction, STAGE_NAME } from './dns.ts';
+import { isProduction, isCoreStack, STAGE_NAME } from '@pandoks.com/infra/stack';
 
 export const hubTailscaleServices = [
-  { name: 'cliproxyapi', comment: 'CLIProxyAPI on the homelab hub', ports: ['tcp:443'] },
+  {
+    name: 'cliproxyapi',
+    comment: 'CLIProxyAPI on the homelab hub',
+    ports: ['tcp:443'],
+    src: ['*']
+  },
   {
     name: 'cliproxyapi-api',
     comment: 'CLIProxyAPI with Console API keys only',
-    ports: ['tcp:443']
+    ports: ['tcp:443'],
+    src: ['*']
   },
-  { name: 'beszel', comment: 'Beszel monitoring hub', ports: ['tcp:443'] },
-  { name: 'artex', comment: 'ARTEX on the homelab hub', ports: ['tcp:443'] },
+  { name: 'beszel', comment: 'Beszel monitoring hub', ports: ['tcp:443'], src: ['*'] },
+  { name: 'artex', comment: 'ARTEX on the homelab hub', ports: ['tcp:443'], src: ['*'] },
+  {
+    name: 'mcphub',
+    comment: 'MCPHub on the homelab hub',
+    ports: ['tcp:443'],
+    src: ['autogroup:member', 'tag:ssh']
+  },
   {
     name: 'protonmail-bridge',
     comment: 'Proton Mail Bridge IMAP and SMTP on the homelab hub',
-    ports: ['tcp:1143', 'tcp:1025']
+    ports: ['tcp:1143', 'tcp:1025'],
+    src: ['*']
   }
 ];
 
@@ -44,8 +56,8 @@ if (isProduction) {
         },
         grants: [
           { src: ['*'], dst: ['*'], ip: ['*'] },
-          ...hubTailscaleServices.map(({ name, ports }) => ({
-            src: ['*'],
+          ...hubTailscaleServices.map(({ name, ports, src }) => ({
+            src,
             dst: [`svc:${name}`],
             ip: ports
           })),
@@ -122,59 +134,6 @@ export const kubernetesOperatorOauthClient = isCoreStack
       { dependsOn: tailscaleAcl }
     )
   : undefined;
-
-async function tailscaleApiToken({
-  clientId,
-  clientSecret
-}: {
-  clientId: string;
-  clientSecret: string;
-}): Promise<string> {
-  const response = await fetch('https://api.tailscale.com/api/v2/oauth/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'client_credentials',
-      client_id: clientId,
-      client_secret: clientSecret
-    })
-  });
-  if (!response.ok) {
-    throw new Error(
-      `Tailscale OAuth token exchange failed: ${response.status} ${response.statusText}`
-    );
-  }
-  const { access_token: accessToken } = (await response.json()) as { access_token: string };
-  return accessToken;
-}
-
-export function deleteTailscaleDevices(...deviceIds: string[]) {
-  return pulumi
-    .all([secrets.tailscale.OauthClientId, secrets.tailscale.OauthClientSecret])
-    .apply(async ([clientId, clientSecret]) => {
-      const accessToken = await tailscaleApiToken({ clientId, clientSecret });
-      return await Promise.all(
-        deviceIds.map(async (deviceId) => {
-          try {
-            const response = await fetch(`https://api.tailscale.com/api/v2/device/${deviceId}`, {
-              method: 'DELETE',
-              headers: { Authorization: `Bearer ${accessToken}` }
-            });
-            if (!response.ok) {
-              throw new Error(`${response.status} ${response.statusText}`);
-            }
-            return { deviceId, success: true };
-          } catch (error) {
-            return {
-              deviceId,
-              success: false,
-              error: error instanceof Error ? error.message : String(error)
-            };
-          }
-        })
-      );
-    });
-}
 
 export const outputs: Record<string, pulumi.Output<string>> = kubernetesOperatorOauthClient
   ? {

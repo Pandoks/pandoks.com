@@ -119,6 +119,7 @@ jobs:
               - '.github/workflows/checks.yaml'
             infra:
               - 'infra/**'
+              - 'packages/infra/**'
               - 'apps/functions/src/**'
               - 'scripts/lib/**'
               - 'Pulumi*.yaml'

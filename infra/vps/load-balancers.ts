@@ -1,5 +1,5 @@
 import * as hcloud from '@pulumi/hcloud';
-import { STAGE_NAME } from '../dns.ts';
+import { STAGE_NAME } from '@pandoks.com/infra/stack';
 
 export function createLoadBalancers(
   loadBalancerArgs: {

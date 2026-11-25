@@ -67,13 +67,14 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
   Required checks are the `*-pass` aggregates, and a PR must be up to date with `main` to merge.
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
   deleted branch's versions and untagged orphans are deleted.
-- Merging to `main` runs `deploy-infra.yaml`: `pulumi up --refresh --stack production` for
-  `Pulumi.yaml`, `Pulumi.production.yaml`, `.github/actions/setup-mise/`, `mise.toml`, root
-  `package.json`/`pnpm-lock.yaml`/`pnpm-workspace.yaml`/`tsconfig.json`, `infra/`, `apps/` (except
-  `example`), and `packages/svelte/`, plus an Argo hard refresh and wait for Synced and Healthy when
-  Pulumi deploys or `k3s/`, `apps/*/kube/`, or `scripts/cluster/` change. Pages builds `apps/web`
-  when a change matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything
-  `k3s/overlays/prod` renders but never prunes: deleted resources stay until pruned.
+- Merging to `main` runs `deploy-infra.yaml`: `pulumi up --refresh --run-program --stack production`
+  for `Pulumi.yaml`, `Pulumi.production.yaml`, `.github/actions/setup-mise/`, `mise.toml`, root
+  `package.json`/`pnpm-lock.yaml`/`pnpm-workspace.yaml`/`tsconfig.json`, `infra/`,
+  `packages/infra/`, `apps/` (except `example`), and `packages/svelte/`, plus an Argo hard refresh
+  and wait for Synced and Healthy when Pulumi deploys or `k3s/`, `apps/*/kube/`, or
+  `scripts/cluster/` change. Pages builds `apps/web` when a change matches `pathIncludes` in
+  `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod` renders but never prunes:
+  deleted resources stay until pruned.
 - `production` deploys to `pandoks-production`, `dev` and personal stacks deploy to `pandoks-dev`.
   `production` and `dev` are shared stages (cluster, runners, backups, GitHub env); personal stacks
   get `STAGE_NAME = <stack>` (`api.<stack>.pandoks.com`) and only provision per-stack app infra.
@@ -93,9 +94,6 @@ checkout.
   profile; `pnpm bootstrap` (mine to run) creates both accounts' KMS keys, SSM R2 tokens, the R2
   state bucket, and the prod CI role.
 - `pnpm format <js|go|shell|all>` writes; `pnpm format check <...>` checks.
-- Manage agent skills only with the skills CLI, for Claude Code, Codex, and opencode:
-  `pnpm dlx skills add <source> -s <skill> -a claude-code codex opencode`, and
-  `pnpm dlx skills update -p`.
 - `pnpm lint <js|go|helm|docker|shell|actions|all>`.
 - `pnpm check` type-checks every package and `infra/`.
 - Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, `desktop`, and `mobile`;
@@ -123,11 +121,11 @@ checkout.
     suite if it has one.
   - `scripts/`: run the real CLI for each result and failure path you touched, argument errors
     included.
-  - `infra/` or `Pulumi.yaml`: full `pnpm check` plus scoped lint after the last edit and before
-    every commit or push; narrower checks don't replace it.
+  - `infra/`, `packages/infra/`, or `Pulumi.yaml`: full `pnpm check` plus scoped lint after the last
+    edit and before every commit or push; narrower checks don't replace it.
   - `apps/web`: `CI=1 pnpm --filter web test:e2e` (skips portless) for user-visible changes.
   - `templates/mobile`: `pnpm ios` and `pnpm android` from the app, then `pnpm test:e2e`.
-  - Workflows: the PR's CI once a PR exists.
+  - Workflows: the PR's CI once a PR exists; check that the intended jobs ran on its head.
 - Before calling work done, run format, lint, type, and test commands for every language and package
   you touched, even for a one-line change, and report a configured checker exclusion only when it
   skips something you touched.
@@ -159,10 +157,12 @@ Before calling infra, cluster, or tooling work done, check:
 - Reuse or extend before writing: check `scripts/lib/`, `packages/`, and sibling apps. Inline
   one-off wrappers; generic helpers belong in `scripts/lib/` or `packages/` even with one caller, so
   keep the existing ones.
-- Comments are rare and never restate code: a short label above a block in a large function, a short
-  comment for hard-to-follow code (upstream bug, workaround, invariant), usually `NOTE:`,
-  `WARNING:`, or `TODO:`, or a doc comment on a function with hard-to-track inputs. Separate smaller
-  blocks with blank lines; keep tool annotations like `# renovate:` and `# shellcheck`.
+- Comments default to none. Add one only for a reason the code and names can't show (such as an
+  upstream bug with `TODO: <issue link>`, or a `NOTE:` or `WARNING:` for a workaround or constraint
+  a reader would otherwise break), in one line; never a file header, restatement, or version
+  history. Separate smaller blocks with blank lines; keep a file's section labels (`# ─── Go ───`)
+  and tool annotations like `# renovate:`, `# shellcheck`, `# options:`, and the `# vX.Y.Z` after a
+  pinned SHA.
 - No type errors, lint warnings, or `any` to silence a checker. Don't over-harden dev-only or
   maintainer-only paths.
 - **Shell:** POSIX `sh`, `set -eu` in entrypoints, and function variables prefixed with the function
@@ -173,7 +173,9 @@ Before calling infra, cluster, or tooling work done, check:
 - **TypeScript/Pulumi:** one `infra/` file per provider or responsibility, a directory once it
   outgrows one. Stack differences are `SCREAMING_SNAKE` constants from `isProduction ? a : b` at the
   top, plus `if (isProduction)` around production-only resources. Helpers are verb-named `function`
-  declarations with destructured parameters. `Promise.all` instead of awaiting in loops.
+  declarations with destructured parameters; ones reusable outside this program (no knowledge of its
+  resources, SSM layout, state machine, or files) go in `packages/infra`, imported as
+  `@pandoks.com/infra/<file>`. `Promise.all` instead of awaiting in loops.
 - **Go:** justify every `#nosec` or `//nolint` inline.
 - **Containers and manifests:** pin Dockerfile bases, third-party images, and chart defaults as
   `image:tag@sha256:…` in files a Renovate manager matches; no image lock files. Images in raw
@@ -192,18 +194,19 @@ Before calling infra, cluster, or tooling work done, check:
   bring a PR that's behind `main` up to date by merging `main` into it. Leave merging to me.
 - Commits and PR titles: Conventional Commits as `type(scope): short lowercase summary`, like
   `update(cluster): drop unused flag`. PRs are squash-merged, so the title is the commit that lands.
-- Descriptions are short: what changes and how to use or verify it, describing the current diff, not
-  its history, and updated in the same push as the code. Top-level architecture changes get a
-  `mermaid` diagram; UI changes get screenshots or video uploaded to GitHub. Never commit PR-only
-  assets, plans, or notes.
-- One concern per PR, not split into the smallest pieces; unrelated findings go in a separate PR or
-  a note.
-- Review and fix loops cover correctness, least code, style match, tests, and docs, and stop when a
-  full round finds nothing.
+- Descriptions are short and match the current diff (not history), updated in the same push: what
+  changes, how to use or verify it, and a table of each change's why (what breaks without it) and
+  where deletions or moves went. Top-level architecture changes get a `mermaid` diagram; UI changes
+  get screenshots or video uploaded to GitHub. Never commit PR-only assets, plans, or notes.
+- One concern per PR, not split too fine; tell me unrelated findings instead of opening new PRs.
+- Before calling a PR ready, run a review/fix loop over correctness, least code, style match, tests,
+  and docs until a full round finds nothing.
 - Babysitting: poll checks and comments newer than the last push, fix real bot findings, dismiss
-  false positives with a written reason, and resolve threads you addressed. Once CI passes and
-  nothing is left unhandled, stop at the first of these and tell me which bots didn't review:
-  - every review bot has reviewed the latest push;
+  false positives, and hardening requests the Code Review Rules exclude, with a written reason, and
+  resolve threads you addressed. Once CI passes and nothing is left unhandled, stop at the first of
+  these and tell me which bots didn't review:
+  - every review bot expected on this push reviewed it (Claude runs only on open and ready, not
+    follow-up pushes);
   - 30 minutes have passed since that push;
   - you have no timer, and no bot still missing shows activity on that push.
 
