@@ -15,7 +15,7 @@ type PullRequestEvent = {
 
 const { values } = parseArgs({
   options: {
-    model: { type: 'string', default: 'claude-opus-5-5' },
+    model: { type: 'string', default: 'api/claude-opus-5-5' },
     effort: { type: 'string', default: 'xhigh' }
   }
 });
@@ -52,7 +52,7 @@ async function requestGithub<ResponseBody>({
 }
 
 function formatModelLabel({ model, effort }: { model: string; effort: string }) {
-  const match = /^claude-(\w+)-(\d+)-(\d+)/.exec(model);
+  const match = /claude-(\w+)-(\d+)-(\d+)/.exec(model);
   if (!match) return `${model} ${effort}`;
   const [, family, major, minor] = match;
   return `${family[0].toUpperCase()}${family.slice(1)} ${major}.${minor} ${effort}`;
