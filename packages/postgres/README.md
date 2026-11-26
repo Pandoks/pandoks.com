@@ -4,8 +4,9 @@ High-availability PostgreSQL 18 Helm chart with Patroni failover, PgDog connecti
 sharding, pgBackRest S3 backups, and Prometheus/Grafana monitoring.
 
 [Architecture](#architecture) · [Quick Start](#quick-start) · [Connecting](#connecting) ·
-[Operations](#operations) · [Troubleshooting](#troubleshooting) ·
-[Local Development](#local-development) · [Configuration](#configuration)
+[Operations](#operations) · [Upgrading to 0.1.7](#upgrading-to-017) ·
+[Troubleshooting](#troubleshooting) · [Local Development](#local-development) ·
+[Configuration](#configuration)
 
 ## Architecture
 
@@ -37,16 +38,21 @@ flowchart TB
 ```
 
 - **Patroni** — PostgreSQL 18 across `patroni.shards` shards (`patroni.replicasPerShard` pods each)
-  with async streaming replication, Kubernetes Endpoints leader election, and hard per-shard node
-  anti-affinity. Bundles `pg_cron`, `pgvector`, `PostGIS`, and `pg_stat_statements`. Fresh bootstrap
-  creates only `pg_stat_statements` in the app database; create the others as superuser when needed.
+  with async streaming replication, Kubernetes Endpoints leader election (routing primary service
+  `<db>-shard-<N>` directly to the leader), `Parallel` pod management, a 600s termination grace
+  period, and hard per-shard node anti-affinity. Bundles `pg_cron`, `pgvector`, `PostGIS`, and
+  `pg_stat_statements`. Fresh bootstrap creates only `pg_stat_statements` in the app database;
+  create the others as superuser when needed.
 - **PgDog** — Deployed as k3s `HelmChart` `<namespace>-<db>-pgdog` in `kube-system` behind service
   `<db>-pgdog`. Handles transaction pooling, primary/replica detection via `pg_is_in_recovery()`,
   read/write splitting, `least_active_connections` balancing, and hash sharding via
   `pgdog.shardedTables`.
 - **pgBackRest** — Per-shard stanzas (`<db>-shard-<N>`) with scheduled `full`/`diff`/`incr` mTLS
   backups preferring replicas, `aes-256-cbc` + `zstd` S3-compatible storage, continuous WAL
-  archiving, and restore-on-bootstrap when a stanza already has a full backup.
+  archiving, and restore-on-bootstrap when a stanza already has a full backup (applying the chart's
+  settings, surviving transient repo errors and container restarts, taking a fresh full backup
+  before replicas clone, and failing bootstrap rather than starting empty if the repo is
+  unreadable).
 - **Monitoring** — `postgres-exporter` sidecar on each Patroni pod, `ServiceMonitor`s for Patroni,
   PostgreSQL, and PgDog, and Grafana dashboard ConfigMap
   `grafana-dashboard-postgres-<namespace>-<db>` (label `grafana_dashboard: "1"`).
@@ -99,7 +105,7 @@ metadata:
   namespace: kube-system
 spec:
   chart: oci://${ImageRegistry}/charts/postgres
-  version: 0.1.5
+  version: 0.1.7
   targetNamespace: &namespace myapp
   createNamespace: true
   failurePolicy: abort
@@ -175,8 +181,8 @@ kubectl -n myapp exec -it deploy/myapp -- \
   psql -h myapp-pgdog -p 6432 -U client -d myapp
 ```
 
-**Admin (direct to the shard's primary — check [`patronictl list`](#check-cluster-status) for the
-current leader):**
+**Admin (direct to a shard's primary — service `myapp-shard-0:5432`, or inside the current leader
+pod from [`patronictl list`](#check-cluster-status)):**
 
 ```sh
 kubectl -n myapp exec -it patroni-myapp-shard-0-0 -c patroni -- \
@@ -251,7 +257,7 @@ No data migration required (each pod in a shard needs its own node due to `podAn
 2. Wait for the `myapp-pgdog` ConfigMap (`pgdog.toml`) to list the new pods, then restart PgDog as
    in [Adding Shards (Scale Up)](#adding-shards-scale-up), Step 3 so it routes reads to them.
 
-**Scale down** (Kubernetes terminates the highest-ordinal pods first):
+**Scale down** (Kubernetes terminates the highest-ordinal pods first, in parallel):
 
 1. In every shard, check the leader (`patronictl list`) and run
    [Manual Switchover](#manual-switchover) if a pod being removed leads it.
@@ -329,11 +335,12 @@ Export every shard with traffic stopped first — removing shards remaps keys on
    [Adding Shards (Scale Up)](#adding-shards-scale-up), Step 4 before resuming traffic.
 
 3. **Clean up leftover resources.** Helm removes the shard's StatefulSet, services, certificates,
-   and backup CronJobs, leaving Patroni's Kubernetes Endpoints, cert-manager TLS secrets, and PVCs
-   behind. Delete the leftover endpoints and TLS secrets:
+   and backup CronJobs, leaving Patroni's `-config` service and endpoints (and possibly the leader
+   endpoints if Patroni rewrote them during shutdown), cert-manager TLS secrets, and PVCs behind.
+   Delete the leftover services, endpoints, and TLS secrets:
 
    ```sh
-   kubectl delete endpoints myapp-shard-3 myapp-shard-3-config -n myapp
+   kubectl delete service,endpoints myapp-shard-3 myapp-shard-3-config -n myapp --ignore-not-found
    kubectl delete secret patroni-myapp-shard-3-tls myapp-shard-3-pgbackrest-backup-tls -n myapp
    ```
 
@@ -391,13 +398,15 @@ kubectl -n myapp exec -it pitr-restore -- bash
 #### Step 4: Run pgBackRest Restore
 
 Inside `pitr-restore`, run `pgbackrest restore` (`delta=y` in `pgbackrest.conf` overwrites the data
-directory in place):
+directory in place; the `restore_command` retries while the repo is unreachable, ending replay only
+on a missing segment):
 
 ```sh
 pgbackrest --stanza=myapp-shard-0 \
   --type=time \
   --target="2024-01-15 14:30:00+00" \
   --target-action=promote \
+  --recovery-option="restore_command=until pgbackrest --stanza=myapp-shard-0 archive-get %f \"%p\"; do [ \$? -eq 1 ] && exit 1; sleep 10; done" \
   restore
 ```
 
@@ -417,16 +426,68 @@ and `--target-action` for `--type=default`):
 
 </details>
 
-#### Step 5: Restart the Shard
-
-Exit the `pitr-restore` shell, then run on your host to delete the recovery pod and Patroni's
-Kubernetes Endpoints (required so the restored primary starts on a new timeline) and scale back up
-to `patroni.replicasPerShard`; replicas rebuild automatically via pgBackRest or `pg_basebackup` and
-follow it (`recovery_target_timeline: latest`):
+Delete the backup's cached Patroni config (`patroni.dynamic.json`) so Patroni does not load stale
+settings into the DCS once Step 5 deletes `-config`, then start PostgreSQL inside `pitr-restore` to
+replay to the target and promote before Patroni starts (Patroni drops pgBackRest's recovery target
+from `postgresql.auto.conf`; `-o` clears any replica apply delay and disables `hot_standby` so a
+higher `max_connections` from the backup does not halt replay; `-W` avoids `pg_ctl`'s 60s wait
+timeout):
 
 ```sh
-kubectl -n myapp delete pod pitr-restore
+rm -f /var/lib/postgresql/pgdata/patroni.dynamic.json
+pg_ctl start -W -D /var/lib/postgresql/pgdata -l /tmp/pitr-restore.log -o '-c recovery_min_apply_delay=0 -c hot_standby=off'
+```
+
+Wait for PostgreSQL to reach the target and promote — the loop returns once promotion completes
+(check `/tmp/pitr-restore.log` if it never does):
+
+```sh
+until [ "$(psql -Atq -d postgres -c 'SELECT pg_is_in_recovery()' 2> /dev/null)" = f ]; do sleep 5; done
+```
+
+Stop PostgreSQL cleanly:
+
+```sh
+pg_ctl stop -w -D /var/lib/postgresql/pgdata
+```
+
+#### Step 5: Restart the Shard
+
+Exit the `pitr-restore` shell, then run the commands below on your host. Delete the recovery pod
+(`--grace-period=1` skips the 600s grace period since PostgreSQL is already stopped) and Patroni's
+Kubernetes Endpoints (`myapp-shard-0` and `myapp-shard-0-config`, required so the restored primary
+starts on a new timeline):
+
+```sh
+kubectl -n myapp delete pod pitr-restore --grace-period=1
 kubectl -n myapp delete endpoints myapp-shard-0 myapp-shard-0-config
+```
+
+Destructive — delete every replica's PVCs (`1` through `patroni.replicasPerShard - 1`), since their
+data runs past the restore point and Patroni will not notice:
+
+```sh
+for pod in 1 2; do
+  kubectl delete pvc -n myapp \
+    "patroni-data-patroni-myapp-shard-0-${pod}" \
+    "patroni-wal-archives-patroni-myapp-shard-0-${pod}"
+done
+```
+
+Start the restored primary alone and take a full backup on its new timeline so replicas clone from
+the restored state instead of a pre-restore backup:
+
+```sh
+kubectl -n myapp scale statefulset patroni-myapp-shard-0 --replicas=1
+kubectl -n myapp rollout status statefulset/patroni-myapp-shard-0 --timeout=5m
+kubectl -n myapp create job pitr-full --from=cronjob/myapp-shard-0-pgbackrest-backup-full
+kubectl -n myapp wait --for=condition=Complete job/pitr-full --timeout=30m
+```
+
+Scale the shard back up to `patroni.replicasPerShard`; replicas clone from the new backup (falling
+back to `pg_basebackup`) and follow the new timeline (`recovery_target_timeline: latest`):
+
+```sh
 kubectl -n myapp scale statefulset patroni-myapp-shard-0 --replicas=3
 kubectl -n myapp get pods -l cluster-name=myapp-shard-0 -w
 ```
@@ -447,33 +508,49 @@ kubectl -n myapp exec patroni-myapp-shard-0-0 -c patroni -- \
   psql -U postgres -d myapp -c "SELECT MAX(created_at) FROM your_table;"
 ```
 
+### Upgrading to 0.1.7
+
+> [!WARNING]
+> Applies to any existing cluster running a chart version before `0.1.7` (such as `0.1.5` or
+> `0.1.6`):
+>
+> - `0.1.7` sets the StatefulSets' immutable `podManagementPolicy: Parallel`, so upgrading fails
+>   unless each shard's StatefulSet is orphan-deleted first.
+> - The primary Service `patroni-<db>-primary-shard-<N>` is replaced by `<db>-shard-<N>`. Move any
+>   direct connections over to `<db>-shard-<N>` (PgDog already connects directly to pod DNS).
+
+Orphan-delete each shard's StatefulSet (pods keep running and are adopted by the recreated
+StatefulSet, then rolled):
+
+```sh
+kubectl delete statefulset -n myapp patroni-myapp-shard-0 --cascade=orphan
+```
+
+Repeat for each shard (`0` through `patroni.shards - 1`), then deploy `0.1.7`.
+
 ## Troubleshooting
 
 ### Cluster Won't Start After Deletion
 
 Stale Patroni Kubernetes Endpoints left from a previous release can block bootstrap with
-`waiting for leader to bootstrap` in pod logs. For each affected shard (replace `myapp-shard-0` as
-needed):
+`waiting for leader to bootstrap` in pod logs. Delete them for each affected shard (replace
+`myapp-shard-0` as needed; `--ignore-not-found` handles leader endpoints already removed by
+kube-controller-manager when the shard's service was deleted):
 
-1. Delete the stale endpoints:
+```sh
+kubectl delete endpoints myapp-shard-0 myapp-shard-0-config -n myapp --ignore-not-found
+```
 
-   ```sh
-   kubectl delete endpoints myapp-shard-0 myapp-shard-0-config -n myapp
-   ```
-
-2. Restart the shard's pods:
-
-   ```sh
-   kubectl delete pods -n myapp -l cluster-name=myapp-shard-0
-   ```
-
-If the stanza still has a full backup in S3, the new primary restores it during bootstrap.
+The waiting pods bootstrap on their own once the endpoints are gone — do not restart them, as a pod
+killed mid-bootstrap can come back leading an unrestored data directory. If the stanza still has a
+full backup in S3, the new primary restores it during bootstrap.
 
 ### Backup Job Fails with TLS Error
 
 Check that both per-shard certificates are `Ready`: `patroni-myapp-shard-<N>` and
 `myapp-shard-<N>-pgbackrest-backup`. They are issued by `internal-ca-issuer` with the shard's
-primary and replicas service hostnames as `dnsNames`.
+primary (`myapp-shard-<N>`) and replicas (`patroni-myapp-replicas-shard-<N>`) service hostnames as
+`dnsNames`.
 
 ```sh
 kubectl -n myapp get certificate

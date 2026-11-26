@@ -10,7 +10,7 @@ spec:
   commonName: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}
   secretName: patroni-{{ $.Values.db }}-shard-{{ $shardIndex }}-tls
   dnsNames:
-    - patroni-{{ $.Values.db }}-primary-shard-{{ $shardIndex }}.{{ $.Values.namespace }}.svc.cluster.local
+    - {{ $.Values.db }}-shard-{{ $shardIndex }}.{{ $.Values.namespace }}.svc.cluster.local
     - patroni-{{ $.Values.db }}-replicas-shard-{{ $shardIndex }}.{{ $.Values.namespace }}.svc.cluster.local
   usages:
     - client auth
@@ -30,7 +30,7 @@ spec:
   commonName: {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup
   secretName: {{ $.Values.db }}-shard-{{ $shardIndex }}-pgbackrest-backup-tls
   dnsNames:
-    - patroni-{{ $.Values.db }}-primary-shard-{{ $shardIndex }}.{{ $.Values.namespace }}.svc.cluster.local
+    - {{ $.Values.db }}-shard-{{ $shardIndex }}.{{ $.Values.namespace }}.svc.cluster.local
     - patroni-{{ $.Values.db }}-replicas-shard-{{ $shardIndex }}.{{ $.Values.namespace }}.svc.cluster.local
   usages:
     - client auth

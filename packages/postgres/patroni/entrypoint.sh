@@ -40,4 +40,12 @@ envsubst < /tmp/conf_templates/pgbackrest.conf > /etc/pgbackrest/pgbackrest.conf
 mkdir -p /var/lib/postgresql/pgdata
 chmod 700 /var/lib/postgresql/pgdata
 
+# NOTE: finish an interrupted restore and its full backup before Patroni starts or replicas clone
+if [ -d /var/lib/postgresql/restore ]; then
+  # NOTE: SIGINT is the image's stop signal
+  trap 'if pg_ctl status -D /var/lib/postgresql/pgdata > /dev/null 2>&1; then pg_ctl stop -w -D /var/lib/postgresql/pgdata -m fast; fi; exit 130' INT
+  # shellcheck source=packages/postgres/patroni/cluster-init.sh
+  . /usr/local/bin/cluster-init.sh
+fi
+
 exec "$@"
