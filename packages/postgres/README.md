@@ -290,23 +290,36 @@ kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
 
 ### Change Postgres Settings
 
-Set `patroni.parameters` in the HelmChart. New clusters start with them, and after every install,
-upgrade and rollback a [reconciler](./reconciler) Job (`apply-parameters`) applies them to each
-running shard; a shard that's still bootstrapping or restoring counts as done. A key removed from
-`patroni.parameters` keeps its last value in Patroni.
+Set values under `patroni.parameters` in the app's HelmChart. New clusters start with them; after
+every install, upgrade, and rollback, a [reconciler](./reconciler) Job (`apply-parameters`) applies
+them to each running shard.
 
-A change made while a shard bootstraps reaches it only on the next release. Settings Postgres can
-reload, like `work_mem`, take effect within seconds. Ones that need a restart, like
-`shared_buffers`, show under `Pending restart` until you restart the shard in place:
+```yaml
+spec:
+  set:
+    patroni.parameters.shared_buffers: 256MB
+    patroni.parameters.work_mem: 16MB
+```
+
+| Case                                         | Result                                                           |
+| -------------------------------------------- | ---------------------------------------------------------------- |
+| Reloadable (like `work_mem`)                 | Takes effect within seconds                                      |
+| Needs restart (like `shared_buffers`)        | Shows under `Pending restart` until restarted in place           |
+| Changed while a shard bootstraps or restores | The Job skips that shard; it gets the change on the next release |
+| Key removed from `patroni.parameters`        | Keeps its last value in Patroni                                  |
+
+**Restart a shard in place:**
 
 ```bash
 kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
   patronictl -c /etc/patroni/patroni.yaml restart myapp-shard-0 --pending --force
 ```
 
-The Job also succeeds on a misspelled name or invalid value: Patroni skips it and only logs that in
-the `patroni` container, so check the result with `SHOW <setting>`. Helm deletes a failed Job along
-with its logs, so follow them during the release:
+> [!WARNING]
+> The Job succeeds even on a misspelled name or invalid value: Patroni skips it and only logs that
+> in the `patroni` container. Check the result with `SHOW <setting>`.
+
+**Follow Job logs during the release** (Helm deletes a failed Job along with its logs):
 
 ```bash
 kubectl logs -n myapp job/patroni-myapp-parameters -f
