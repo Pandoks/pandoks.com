@@ -37,7 +37,7 @@ Run from the repo root (Valkey example; for Postgres, see
 > [!WARNING]
 > Ginkgo's `-p` scales concurrency to the host CPU count. On an 8 GiB Docker VM, `-p` caused etcd
 > timeouts and crashed the k3d server containers, while `--procs=3` ran clean; pass `--procs=3`
-> locally instead. CI runs `-p`.
+> instead of `-p` there. CI runs `-p`.
 
 | Suite                     | Image flags                                                                                        | Installed by suite                                                              |
 | ------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |

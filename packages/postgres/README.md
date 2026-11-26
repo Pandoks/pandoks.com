@@ -38,8 +38,8 @@ flowchart TB
 
 - **Patroni** — PostgreSQL 18 across `patroni.shards` shards (`patroni.replicasPerShard` pods each)
   with async streaming replication, Kubernetes Endpoints leader election, and hard per-shard node
-  anti-affinity. Bundles `pg_cron`, `pgvector`, `PostGIS`, and `pg_stat_statements`; fresh bootstrap
-  creates `pg_stat_statements` in the app database, while the others are created as superuser.
+  anti-affinity. Bundles `pg_cron`, `pgvector`, `PostGIS`, and `pg_stat_statements`. Fresh bootstrap
+  creates only `pg_stat_statements` in the app database; create the others as superuser when needed.
 - **PgDog** — Deployed as k3s `HelmChart` `<namespace>-<db>-pgdog` in `kube-system` behind service
   `<db>-pgdog`. Handles transaction pooling, primary/replica detection via `pg_is_in_recovery()`,
   read/write splitting, `least_active_connections` balancing, and hash sharding via
@@ -253,8 +253,8 @@ No data migration required (each pod in a shard needs its own node due to `podAn
 
 **Scale down** (Kubernetes terminates the highest-ordinal pods first):
 
-1. Check the leader (`patronictl list`) and run [Manual Switchover](#manual-switchover) if a pod
-   being removed leads the shard.
+1. In every shard, check the leader (`patronictl list`) and run
+   [Manual Switchover](#manual-switchover) if a pod being removed leads it.
 2. Lower `patroni.replicasPerShard` and redeploy.
 3. Wait for the `myapp-pgdog` ConfigMap (`pgdog.toml`) to drop the removed pods, then restart PgDog
    as in [Adding Shards (Scale Up)](#adding-shards-scale-up), Step 3 so it does not ban the removed
@@ -302,6 +302,9 @@ need downtime.
    kubectl rollout status deploy/myapp-pgdog -n myapp
    ```
 
+   Wait for the old PgDog pods to terminate before reloading data, so every serving instance uses
+   the new shard set (`kubectl -n myapp get pods -l app.kubernetes.io/name=pgdog`).
+
 4. **Reload and validate data** (keep traffic stopped and retain the export until validated):
    - Match the schema on every destination shard.
    - Clear existing application table rows on all destination shards (new shards restore old backups
@@ -318,8 +321,8 @@ Export every shard with traffic stopped first — removing shards remaps keys on
 1. **Update Helm values, verify remaining shards, and restart PgDog:**
    - Lower `patroni.shards` (for example, `4` to `3`) and redeploy.
    - Verify the remaining shards are healthy (`patronictl list`).
-   - Restart PgDog as in [Adding Shards (Scale Up)](#adding-shards-scale-up), Step 3 so `pgdog.toml`
-     drops the removed shard.
+   - Wait for the `myapp-pgdog` ConfigMap (`pgdog.toml`) to drop the removed shard, then restart
+     PgDog as in [Adding Shards (Scale Up)](#adding-shards-scale-up), Step 3.
 
 2. **Reload and validate data.** Clear old table data on the remaining shards, re-insert the export
    through PgDog, restore sequences, and validate as in
