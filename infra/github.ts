@@ -7,6 +7,7 @@ import { tailscaleAcl } from './tailscale.ts';
 
 export const githubOrg = 'Pandoks';
 export const githubRepositoryName = 'pandoks.com';
+export const apexRepositoryName = 'apex';
 
 const GITHUB_ACTIONS_APP_ID = 15368;
 // NOTE: AWS trusts every job in the production environment, so only main gets it.

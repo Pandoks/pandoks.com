@@ -23,7 +23,8 @@ export const secrets = {
   },
   github: {
     PersonalAccessToken: requireSecret('GithubPersonalAccessToken'),
-    PackageManagementToken: requireSecret('GithubPackageManagementToken')
+    PackageManagementToken: requireSecret('GithubPackageManagementToken'),
+    RunnerCloningToken: requireSecret('GithubRunnerCloningToken')
   },
   personal: {
     KwokPhoneNumber: requireSecret('KwokPhoneNumber'),

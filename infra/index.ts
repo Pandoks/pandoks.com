@@ -16,7 +16,8 @@ if (isCoreStack) {
     import('./cloudflare.ts'),
     import('./storage.ts'),
     import('./vps/vps.ts'),
-    import('./runner/runner.ts')
+    import('./runner/runner.ts'),
+    import('./apex.ts')
   ]);
   coreOutputs = {
     ...cloudflare.outputs,
