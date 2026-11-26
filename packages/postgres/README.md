@@ -1,172 +1,91 @@
-# PostgreSQL High-Availability Cluster
+# PostgreSQL Cluster
 
-Production-ready PostgreSQL cluster with automatic failover, connection pooling, sharding, and
-continuous backups.
+High-availability PostgreSQL 18 Helm chart with Patroni failover, PgDog connection pooling and
+sharding, pgBackRest S3 backups, and Prometheus/Grafana monitoring.
+
+[Architecture](#architecture) · [Quick Start](#quick-start) · [Connecting](#connecting) ·
+[Operations](#operations) · [Troubleshooting](#troubleshooting) ·
+[Local Development](#local-development) · [Configuration](#configuration)
 
 ## Architecture
 
 ```mermaid
-graph TB
-    subgraph "Client Applications"
-        App[Application]
+flowchart TB
+    App["Application"]
+    PgDog["PgDog Pooler (:6432)"]
+    Cron["pgBackRest CronJobs"]
+
+    subgraph Shard["Shard N (0..patroni.shards - 1)"]
+        Primary["Patroni Primary"]
+        Replica1["Patroni Replica 1"]
+        Replica2["Patroni Replica 2"]
     end
 
-    subgraph "Connection Layer - Port 6432"
-        PgDog[PgDog Connection Pooler<br/>2+ replicas]
-    end
+    S3["S3 / R2 (AES-256-CBC + zstd)"]
 
-    subgraph "Shard 0"
-        S0P[Patroni Pod 0-0<br/>Primary]
-        S0R1[Patroni Pod 0-1<br/>Replica]
-        S0R2[Patroni Pod 0-2<br/>Replica]
-    end
+    App -->|"client :6432"| PgDog
+    PgDog -->|"writes :5432"| Primary
+    PgDog -->|"reads :5432"| Replica1
+    PgDog -->|"reads :5432"| Replica2
 
-    subgraph "Shard 1"
-        S1P[Patroni Pod 1-0<br/>Primary]
-        S1R1[Patroni Pod 1-1<br/>Replica]
-        S1R2[Patroni Pod 1-2<br/>Replica]
-    end
+    Primary -.->|"streaming replication"| Replica1
+    Primary -.->|"streaming replication"| Replica2
 
-    subgraph "Shard N..."
-        SNP[Patroni Pod N-0<br/>Primary]
-    end
-
-    subgraph "Backup System"
-        BackupJobs[Backup CronJobs<br/>Per Shard]
-        S3[S3 Storage<br/>Encrypted]
-    end
-
-    App -->|client user| PgDog
-    PgDog -->|Writes| S0P
-    PgDog -->|Writes| S1P
-    PgDog -->|Reads| S0R1
-    PgDog -->|Reads| S1R1
-
-    S0P -.->|Streaming Replication| S0R1
-    S0P -.->|Streaming Replication| S0R2
-    S1P -.->|Streaming Replication| S1R1
-    S1P -.->|Streaming Replication| S1R2
-
-    BackupJobs -->|TLS| S0P
-    BackupJobs -->|TLS| S1P
-    BackupJobs --> S3
-
-    style S0P fill:#90EE90
-    style S1P fill:#90EE90
-    style SNP fill:#90EE90
-    style S0R1 fill:#87CEEB
-    style S0R2 fill:#87CEEB
-    style S1R1 fill:#87CEEB
-    style S1R2 fill:#87CEEB
-    style PgDog fill:#FFD700
+    Cron -->|"mTLS :8432 (prefer replica)"| Shard
+    Primary -->|"WAL archive"| S3
+    Cron -->|"backups"| S3
 ```
 
-## Components
-
-### Patroni (High Availability)
-
-- **PostgreSQL 18** with automatic failover
-- **Sharding support** - multiple independent shards
-- **3 pods per shard** (1 primary + 2 replicas, configurable) with streaming replication
-- **Leader election** via Kubernetes endpoints
-- **Automatic recovery** from node failures
-- **Extensions** - pg_cron, pgvector, PostGIS, and pg_stat_statements are available in the image.
-  Fresh bootstrap attempts to create `pg_stat_statements` in the application database; create the
-  other extensions in the target database as needed.
-
-### PgDog (Connection Pooling & Sharding)
-
-- **Connection pooling** - transaction-level pooling
-- **Automatic sharding** - routes queries to correct shard based on sharding key
-- **Read/write splitting** - writes to primary, reads to replicas
-- **Auto role detection** - detects primary/replica via `pg_is_in_recovery()`
-- **Load balancing** - least active connections strategy
-
-### pgBackRest (Backup & Recovery)
-
-- **Per-shard backups** - each shard has its own stanza
-- **Automated schedules** - full, differential, and incremental backups
-- **Point-in-time recovery** - restore to any moment
-- **Encryption** - AES-256-CBC for all backups
-- **S3-compatible storage** - works with AWS S3, MinIO, S3Mock
-- **Restore on bootstrap** - a new shard whose stanza already has a full backup restores it instead
-  of starting empty
-
-### Monitoring
-
-- **postgres-exporter** sidecar on every Patroni pod
-- **ServiceMonitors** for Patroni and PostgreSQL metrics
-- **Grafana dashboard** shipped as a ConfigMap
-
-## Users & Permissions
-
-| User         | Purpose               | Intended access                                  |
-| ------------ | --------------------- | ------------------------------------------------ |
-| `postgres`   | Superuser             | Full access, remote logins only to `postgres` db |
-| `admin`      | Schema management     | CREATE/ALTER/DROP in `public`, remote access     |
-| `client`     | Application queries   | SELECT/INSERT/UPDATE/DELETE                      |
-| `replicator` | Streaming replication | Replication only                                 |
-| `patroni`    | Patroni REST API      | Health checks, failover                          |
-
-The initializer applies these privileges in the application database, and `client` automatically
-gets its access to tables, sequences, and functions that `admin` creates in `public`.
-
-**Security Note:** Remote logins (pod network only) to the application database are limited to
-`admin` and `client` (see `pg_hba` in [patroni.yaml](./chart/files/patroni.yaml)). Use `admin` for
-schema changes and `client` for applications.
-
-## Requirements
-
-The chart expects these to already be in the cluster (all provided by [k3s](/k3s/README.md)):
-
-- `patroni` ClusterRole from [k3s/base/core/postgres.yaml](/k3s/base/core/postgres.yaml)
-- `internal-ca-issuer` ClusterIssuer from
-  [k3s/base/core/cert-manager.yaml](/k3s/base/core/cert-manager.yaml)
-- Prometheus Operator CRDs for the `ServiceMonitor`s
+- **Patroni** — PostgreSQL 18 across `patroni.shards` shards (`patroni.replicasPerShard` pods each)
+  with async streaming replication, Kubernetes Endpoints leader election, and hard per-shard node
+  anti-affinity. Bundles `pg_cron`, `pgvector`, `PostGIS`, and `pg_stat_statements`. Fresh bootstrap
+  creates only `pg_stat_statements` in the app database; create the others as superuser when needed.
+- **PgDog** — Deployed as k3s `HelmChart` `<namespace>-<db>-pgdog` in `kube-system` behind service
+  `<db>-pgdog`. Handles transaction pooling, primary/replica detection via `pg_is_in_recovery()`,
+  read/write splitting, `least_active_connections` balancing, and hash sharding via
+  `pgdog.shardedTables`.
+- **pgBackRest** — Per-shard stanzas (`<db>-shard-<N>`) with scheduled `full`/`diff`/`incr` mTLS
+  backups preferring replicas, `aes-256-cbc` + `zstd` S3-compatible storage, continuous WAL
+  archiving, and restore-on-bootstrap when a stanza already has a full backup.
+- **Monitoring** — `postgres-exporter` sidecar on each Patroni pod, `ServiceMonitor`s for Patroni,
+  PostgreSQL, and PgDog, and Grafana dashboard ConfigMap
+  `grafana-dashboard-postgres-<namespace>-<db>` (label `grafana_dashboard: "1"`).
 
 ## Quick Start
 
+Examples below use `myapp` as both the Kubernetes namespace and `db` name. The cluster needs these
+prerequisites, all pre-installed by [k3s](../../k3s/README.md):
+
+- `patroni` ClusterRole ([k3s/base/core/postgres.yaml](../../k3s/base/core/postgres.yaml))
+- Prometheus Operator CRDs for `ServiceMonitor`s
+- `internal-ca-issuer` ClusterIssuer
+  ([k3s/base/core/cert-manager.yaml](../../k3s/base/core/cert-manager.yaml)), required when
+  `backup.enabled: true`
+
 ### 1. Create Secrets
 
-The database secret is also mounted by PgDog, so it needs a `users.toml` key. Declare the `myapp`
-Namespace in the app's `namespaces.yaml` and add both secrets to its `credentials.yaml`, each listed
-in the app's `kustomization.yaml` (see [apps/example/kube](/apps/example/kube)). The `${...}` values
-are Pulumi secrets defined in [infra/secrets.ts](/infra/secrets.ts).
+In `apps/myapp/kube/`, declare the `myapp` Namespace in `namespaces.yaml` so Kustomize creates it
+before applying `credentials.yaml` (`HelmChart`'s `createNamespace: true` runs asynchronously in
+helm-controller), and list both files in `kustomization.yaml`. Populate `${...}` placeholders from
+[infra/secrets.ts](../../infra/secrets.ts) (full example:
+[apps/example/kube/credentials.yaml](../../apps/example/kube/credentials.yaml)):
 
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: postgres-myapp-creds
-  namespace: myapp
-type: Opaque
-stringData:
-  SUPERUSER_PASSWORD: ${MyappMyappPostgresSuperuserPassword | quote}
-  ADMIN_PASSWORD: ${MyappMyappPostgresAdminPassword | quote}
-  CLIENT_PASSWORD: ${MyappMyappPostgresClientPassword | quote}
-  REPLICATION_PASSWORD: ${MyappMyappPostgresReplicationPassword | quote}
-  PATRONI_PASSWORD: ${MyappMyappPostgresPatroniPassword | quote}
-  users.toml: |
-    [[users]]
-    name = "admin"
-    database = "myapp"
-    password = "${MyappMyappPostgresAdminPassword}"
+- **`postgres-myapp-creds`** (`credentials.secret`) — `SUPERUSER_PASSWORD`, `ADMIN_PASSWORD`,
+  `CLIENT_PASSWORD`, `REPLICATION_PASSWORD`, `PATRONI_PASSWORD`, plus the `users.toml` key below
+  (mounted directly by PgDog)
+- **`backup-bucket-creds`** (`backup.credentials.secret`, required when `backup.enabled: true`) —
+  `S3_ACCESS_KEY`, `S3_SECRET_KEY`
 
-    [[users]]
-    name = "client"
-    database = "myapp"
-    password = "${MyappMyappPostgresClientPassword}"
+```toml
+[[users]]
+name = "admin"
+database = "myapp"
+password = "<ADMIN_PASSWORD>"
 
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: backup-bucket-creds
-  namespace: myapp
-type: Opaque
-stringData:
-  S3_ACCESS_KEY: ${CloudflareBackupAccessKey | quote}
-  S3_SECRET_KEY: ${CloudflareBackupSecretKey | quote}
+[[users]]
+name = "client"
+database = "myapp"
+password = "<CLIENT_PASSWORD>"
 ```
 
 ### 2. Deploy with HelmChart
@@ -192,19 +111,25 @@ spec:
     backup.path: /kubernetes/myapp/postgres
     backup.image: ${ImageRegistry}/pgbackrest:${ImageTag}
     patroni.image: ${ImageRegistry}/patroni:${ImageTag}
-    patroni.shards: 1
-    patroni.replicasPerShard: 3
 ```
 
-Add the file to `apps/myapp/kube/kustomization.yaml` and `apps/myapp/kube` to
-[k3s/base/apps/kustomization.yaml](/k3s/base/apps/kustomization.yaml). See
-[apps/example/kube/postgres.yaml](/apps/example/kube/postgres.yaml) for a full example.
+Add the manifest to `apps/myapp/kube/kustomization.yaml` and `apps/myapp/kube` to
+[k3s/base/apps/kustomization.yaml](../../k3s/base/apps/kustomization.yaml) (full example:
+[apps/example/kube/postgres.yaml](../../apps/example/kube/postgres.yaml)). Deploy `local` or `dev`
+with `pnpm cluster deploy` (see [scripts/cluster/README.md](../../scripts/cluster/README.md#deploy)
+for commands and [Template Variables](../../scripts/cluster/README.md#template-variables) for
+`${ImageRegistry}`, `${ImageTag}`, `${IsLocal}`, and Pulumi outputs), or merge to `main` for ArgoCD
+to sync `prod` ([k3s/README.md](../../k3s/README.md#argocd-prod)).
 
-To pin Patroni to the dedicated database nodes (label and taint `role=db`), patch the HelmChart in
-the cloud overlay, since local k3d has no such nodes. Put the patch in the app's
-`cluster-patch.yaml` and add it to the `patches` in
-[k3s/overlays/cluster/kustomization.yaml](/k3s/overlays/cluster/kustomization.yaml), which `dev` and
-`prod` share:
+> [!WARNING]
+>
+> - Set `backup.enabled` before first deploy — Patroni ignores later `archive_mode` changes.
+> - Chart defaults target local k3d S3Mock with a placeholder encryption key; for cloud clusters,
+>   override `backup.bucket`, `backup.encryptionKey`, and `s3.*` (see [Values](#values)).
+
+To pin Patroni to dedicated `role=db` nodes in `dev` and `prod` (local k3d has no `role=db` nodes),
+add `apps/myapp/kube/cluster-patch.yaml` and list it under `patches` in
+[k3s/overlays/cluster/kustomization.yaml](../../k3s/overlays/cluster/kustomization.yaml):
 
 ```yaml
 # apps/myapp/kube/cluster-patch.yaml
@@ -224,7 +149,7 @@ spec:
 
 ### 3. Configure Sharding (Optional)
 
-To enable sharding, add sharded tables configuration:
+Add `patroni.shards` and `pgdog.shardedTables` to `apps/myapp/kube/postgres.yaml`:
 
 ```yaml
 spec:
@@ -239,48 +164,60 @@ spec:
           dataType: bigint
 ```
 
-**Supported data types for sharding:** `bigint`, `uuid`, `varchar`, `vector`
+Supported `dataType` values: `bigint`, `uuid`, `varchar`, `vector`.
 
-## Connecting to PostgreSQL
+## Connecting
 
-### Application Connection (via PgDog)
+**Application (via PgDog)** — URI: `postgresql://client:<CLIENT_PASSWORD>@myapp-pgdog:6432/myapp`
 
-```bash
-# Connection string
-postgresql://client:CLIENT_PASSWORD@myapp-pgdog:6432/myapp
-
-# Using psql from a pod
-kubectl exec -it -n myapp deployment/myapp -- \
+```sh
+kubectl -n myapp exec -it deploy/myapp -- \
   psql -h myapp-pgdog -p 6432 -U client -d myapp
 ```
 
-### Admin Connection (Direct)
+**Admin (direct to the shard's primary — check [`patronictl list`](#check-cluster-status) for the
+current leader):**
 
-```bash
-# Connect to the shard's primary for schema changes (check `patronictl list` for the current leader)
-kubectl exec -it -n myapp patroni-myapp-shard-0-0 -c patroni -- \
+```sh
+kubectl -n myapp exec -it patroni-myapp-shard-0-0 -c patroni -- \
   psql -U admin -d myapp
 ```
 
-## Common Operations
+### Users & Permissions
+
+Remote PostgreSQL logins are restricted to the pod CIDR (`10.42.0.0/16`) with `scram-sha-256` (see
+`pg_hba` in [patroni.yaml](./chart/files/patroni.yaml)):
+
+| User         | Purpose               | Access                                                                                                              |
+| ------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `postgres`   | Superuser             | Local socket and loopback (all DBs); remote `postgres` DB only                                                      |
+| `admin`      | Schema migrations     | Remote app DB; `CONNECT` on app DB, `CREATE` on `public` (owns objects it creates)                                  |
+| `client`     | Application queries   | Remote app DB; `CONNECT`, `TEMPORARY`, `USAGE` on `public`, default DML/sequence/function grants on `admin` objects |
+| `replicator` | Streaming replication | Remote replication and `postgres` DB                                                                                |
+| `patroni`    | Patroni REST API      | HTTP Basic auth on `:8008` (not a PostgreSQL role)                                                                  |
+
+## Operations
 
 ### Check Cluster Status
 
-```bash
-# Check shard 0 (repeat for each shard)
-kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
-  patronictl -c /etc/patroni/patroni.yaml list
+Patroni cluster state for shard 0 (repeat per shard):
 
-# Check PgDog role detection
-kubectl exec -n myapp deploy/myapp-pgdog -- \
+```sh
+kubectl -n myapp exec patroni-myapp-shard-0-0 -c patroni -- \
+  patronictl -c /etc/patroni/patroni.yaml list
+```
+
+PgDog detected roles:
+
+```sh
+kubectl -n myapp exec deploy/myapp-pgdog -- \
   curl -s http://127.0.0.1:9090/metrics | grep "role="
 ```
 
-### Manual Failover
+### Manual Switchover
 
-```bash
-# Switchover to specific replica
-kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
+```sh
+kubectl -n myapp exec patroni-myapp-shard-0-0 -c patroni -- \
   patronictl -c /etc/patroni/patroni.yaml switchover \
   --leader patroni-myapp-shard-0-0 \
   --candidate patroni-myapp-shard-0-1 \
@@ -289,62 +226,155 @@ kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
 
 ### Backup Operations
 
-```bash
-# Trigger manual backup
-kubectl create job --from=cronjob/myapp-shard-0-pgbackrest-backup-full manual-backup -n myapp
+Trigger a manual backup (swap `-full` for `-diff` or `-incr`):
 
-# Check backup status
-kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
-  pgbackrest --stanza=myapp-shard-0 info
-
-# List all backups
-kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
-  pgbackrest --stanza=myapp-shard-0 info --output=json
+```sh
+kubectl -n myapp create job --from=cronjob/myapp-shard-0-pgbackrest-backup-full manual-backup
 ```
+
+Check backup status (add `--output=json` for machine-readable output):
+
+```sh
+kubectl -n myapp exec patroni-myapp-shard-0-0 -c patroni -- \
+  pgbackrest --stanza=myapp-shard-0 info
+```
+
+### Scaling Replicas
+
+No data migration required (each pod in a shard needs its own node due to `podAntiAffinity`).
+
+**Scale up:**
+
+1. Increase `patroni.replicasPerShard` (for example, `3` to `5`), redeploy, and wait for new
+   replicas to clone (via pgBackRest, falling back to `pg_basebackup`) and become `Ready`
+   (`kubectl -n myapp get pods -w`).
+2. Wait for the `myapp-pgdog` ConfigMap (`pgdog.toml`) to list the new pods, then restart PgDog as
+   in [Adding Shards (Scale Up)](#adding-shards-scale-up), Step 3 so it routes reads to them.
+
+**Scale down** (Kubernetes terminates the highest-ordinal pods first):
+
+1. In every shard, check the leader (`patronictl list`) and run
+   [Manual Switchover](#manual-switchover) if a pod being removed leads it.
+2. Lower `patroni.replicasPerShard` and redeploy.
+3. Wait for the `myapp-pgdog` ConfigMap (`pgdog.toml`) to drop the removed pods, then restart PgDog
+   as in [Adding Shards (Scale Up)](#adding-shards-scale-up), Step 3 so it does not ban the removed
+   hosts and shift reads to the primary.
+4. Delete the kept PVCs (`patroni-data-<pod>` and `patroni-wal-archives-<pod>`) if you will not
+   scale back up.
+
+### Scaling Shards
+
+> [!CAUTION]
+> PgDog hashes keys across `patroni.shards`, so changing the shard count remaps existing keys.
+> **Before adding or removing shards**, stop all app reads, writes, and background jobs, export
+> schema, data, and sequences from every shard to external storage, and verify the export. Keep
+> traffic stopped until reload and validation succeed.
+
+This chart does not provision the prerequisites for PgDog's
+[online resharding](https://docs.pgdog.dev/features/sharding/resharding/), so both procedures below
+need downtime.
+
+#### Adding Shards (Scale Up)
+
+1. **Update Helm values and redeploy.** Increase `patroni.shards` (for example, `3` to `4`) and
+   redeploy (see [scripts/cluster/README.md](../../scripts/cluster/README.md#deploy), or merge to
+   `main` for prod ArgoCD sync) to create `myapp-shard-3`'s StatefulSet, services, certificates, and
+   backup CronJobs.
+
+2. **Verify the new shard.** Wait for its pods to become `Ready`:
+
+   ```sh
+   kubectl -n myapp get pods -l cluster-name=myapp-shard-3 -w
+   ```
+
+   Then check Patroni cluster health:
+
+   ```sh
+   kubectl -n myapp exec patroni-myapp-shard-3-0 -c patroni -- \
+     patronictl -c /etc/patroni/patroni.yaml list
+   ```
+
+3. **Restart PgDog.** Wait for the `myapp-pgdog` ConfigMap (`pgdog.toml`) to list the new shard set
+   — PgDog pods do not reload on config changes:
+
+   ```sh
+   kubectl rollout restart deploy/myapp-pgdog -n myapp
+   kubectl rollout status deploy/myapp-pgdog -n myapp
+   ```
+
+   Wait for the old PgDog pods to terminate before reloading data, so every serving instance uses
+   the new shard set (`kubectl -n myapp get pods -l app.kubernetes.io/name=pgdog`).
+
+4. **Reload and validate data** (keep traffic stopped and retain the export until validated):
+   - Match the schema on every destination shard.
+   - Clear existing application table rows on all destination shards (new shards restore old backups
+     if their stanza has one).
+   - Re-insert the full export through PgDog with the new shard count.
+   - Preserve unsharded/replicated tables and restore sequence state.
+   - Verify row counts, key-based reads/writes through PgDog, and replica catch-up before resuming
+     traffic.
+
+#### Removing Shards (Scale Down)
+
+Export every shard with traffic stopped first — removing shards remaps keys on retained shards too.
+
+1. **Update Helm values, verify remaining shards, and restart PgDog:**
+   - Lower `patroni.shards` (for example, `4` to `3`) and redeploy.
+   - Verify the remaining shards are healthy (`patronictl list`).
+   - Wait for the `myapp-pgdog` ConfigMap (`pgdog.toml`) to drop the removed shard, then restart
+     PgDog as in [Adding Shards (Scale Up)](#adding-shards-scale-up), Step 3.
+
+2. **Reload and validate data.** Clear old table data on the remaining shards, re-insert the export
+   through PgDog, restore sequences, and validate as in
+   [Adding Shards (Scale Up)](#adding-shards-scale-up), Step 4 before resuming traffic.
+
+3. **Clean up leftover resources.** Helm removes the shard's StatefulSet, services, certificates,
+   and backup CronJobs, leaving Patroni's Kubernetes Endpoints, cert-manager TLS secrets, and PVCs
+   behind. Delete the leftover endpoints and TLS secrets:
+
+   ```sh
+   kubectl delete endpoints myapp-shard-3 myapp-shard-3-config -n myapp
+   kubectl delete secret patroni-myapp-shard-3-tls myapp-shard-3-pgbackrest-backup-tls -n myapp
+   ```
+
+   Destructive — delete the shard's PVCs (removes all shard data on disk):
+
+   ```sh
+   kubectl delete pvc -n myapp -l cluster-name=myapp-shard-3
+   ```
+
+   The shard's backups remain in S3 under stanza `myapp-shard-3`.
 
 ### Point-in-Time Recovery (PITR)
 
-PITR allows you to restore a shard to any specific moment in time. This is useful for recovering
-from accidental data deletion or corruption.
+> [!WARNING]
+> Each shard has its own stanza (`<db>-shard-<N>`) and can be restored independently, but restoring
+> one shard to a different point in time skews sharded tables across shards.
 
 #### Step 1: Identify Target Time
 
-First, determine the exact timestamp you want to recover to:
-
-```bash
-# List available backups and their time ranges
-kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
+```sh
+kubectl -n myapp exec patroni-myapp-shard-0-0 -c patroni -- \
   pgbackrest --stanza=myapp-shard-0 info
-
-# Output shows backup timestamps and WAL archive range
-# Example: archive start/stop: 000000010000000000000001/00000001000000000000000A
 ```
 
-The recovery point must be:
-
-- After the oldest backup's completion time
-- Before the latest WAL archive timestamp
-- In ISO 8601 format: `YYYY-MM-DD HH:MM:SS+TZ`
+Pick a timestamp between the oldest backup's completion time and the latest archived WAL in
+`YYYY-MM-DD HH:MM:SS+TZ` format.
 
 #### Step 2: Stop the Shard
 
-Before restoring, you must stop all pods in the target shard to prevent data conflicts:
-
-```bash
-# Scale down the shard's StatefulSet to 0
-kubectl scale statefulset patroni-myapp-shard-0 -n myapp --replicas=0
-
-# Wait for all pods to terminate
-kubectl wait --for=delete pod -l cluster-name=myapp-shard-0 -n myapp --timeout=120s
+```sh
+kubectl -n myapp scale statefulset patroni-myapp-shard-0 --replicas=0
+kubectl -n myapp wait --for=delete pod -l cluster-name=myapp-shard-0 --timeout=120s
 ```
 
 #### Step 3: Prepare a Recovery Pod
 
-Create a temporary pod from the StatefulSet's `patroni` container so it has the same env, config,
-and volumes, with pod 0's PVCs mounted:
+Start a temporary recovery pod from the StatefulSet's `patroni` container spec with pod 0's PVCs
+mounted (inheriting the same env, config, and volumes) and open a shell in it:
 
-```bash
-kubectl get statefulset patroni-myapp-shard-0 -n myapp -o json | jq '. as $sts | {
+```sh
+kubectl -n myapp get statefulset patroni-myapp-shard-0 -o json | jq '. as $sts | {
   apiVersion: "v1",
   kind: "Pod",
   metadata: { name: "pitr-restore", namespace: .metadata.namespace },
@@ -354,368 +384,201 @@ kubectl get statefulset patroni-myapp-shard-0 -n myapp -o json | jq '. as $sts |
         | { name: ., persistentVolumeClaim: { claimName: "\(.)-\($sts.metadata.name)-0" } }])
 }' | kubectl apply -f -
 
-kubectl wait --for=condition=Ready pod/pitr-restore -n myapp --timeout=120s
-kubectl exec -it pitr-restore -n myapp -- bash
+kubectl -n myapp wait --for=condition=Ready pod/pitr-restore --timeout=120s
+kubectl -n myapp exec -it pitr-restore -- bash
 ```
 
-#### Step 4: Perform PITR Restore
+#### Step 4: Run pgBackRest Restore
 
-Inside the recovery pod, run pgbackrest restore with the target time. `delta=y` is set in
-`pgbackrest.conf`, so the restore overwrites the existing data directory in place:
+Inside `pitr-restore`, run `pgbackrest restore` (`delta=y` in `pgbackrest.conf` overwrites the data
+directory in place):
 
-```bash
-# Restore to specific point in time
+```sh
 pgbackrest --stanza=myapp-shard-0 \
   --type=time \
   --target="2024-01-15 14:30:00+00" \
   --target-action=promote \
   restore
-
-# Alternative: Restore to the end of the archived WAL (latest state)
-pgbackrest --stanza=myapp-shard-0 \
-  --type=default \
-  restore
 ```
 
-**Recovery type options:**
+<details>
+<summary>Other recovery targets</summary>
 
-- `--type=time --target="TIMESTAMP"` - Restore to specific time
-- `--type=xid --target="TRANSACTION_ID"` - Restore to specific transaction
-- `--type=lsn --target="WAL_LSN"` - Restore to specific WAL position
-- `--type=immediate` - Stop as soon as the backup is consistent (no further WAL replay)
-- `--type=default` - Restore and replay all available WAL
+Swap `--type` and `--target` above (omit `--target` for `--type=immediate`, and omit both `--target`
+and `--target-action` for `--type=default`):
+
+| Recovery option                        | Behavior                                                         |
+| -------------------------------------- | ---------------------------------------------------------------- |
+| `--type=time --target="TIMESTAMP"`     | Restore to a specific timestamp                                  |
+| `--type=xid --target="TRANSACTION_ID"` | Restore to a specific transaction                                |
+| `--type=lsn --target="WAL_LSN"`        | Restore to a specific WAL position                               |
+| `--type=immediate`                     | Stop as soon as the backup is consistent (no further WAL replay) |
+| `--type=default`                       | Restore and replay all available archived WAL                    |
+
+</details>
 
 #### Step 5: Restart the Shard
 
-After restore completes, delete the recovery pod and scale back up:
+Exit the `pitr-restore` shell, then run on your host to delete the recovery pod and Patroni's
+Kubernetes Endpoints (required so the restored primary starts on a new timeline) and scale back up
+to `patroni.replicasPerShard`; replicas rebuild automatically via pgBackRest or `pg_basebackup` and
+follow it (`recovery_target_timeline: latest`):
 
-```bash
-# Exit and delete the recovery pod
-exit
-kubectl delete pod pitr-restore -n myapp
-
-# Delete stale Patroni endpoints (required after restore)
-kubectl delete endpoints myapp-shard-0 myapp-shard-0-config -n myapp
-
-# Scale the shard back up (to patroni.replicasPerShard)
-kubectl scale statefulset patroni-myapp-shard-0 -n myapp --replicas=3
-
-# Watch pods come up
-kubectl get pods -n myapp -l cluster-name=myapp-shard-0 -w
+```sh
+kubectl -n myapp delete pod pitr-restore
+kubectl -n myapp delete endpoints myapp-shard-0 myapp-shard-0-config
+kubectl -n myapp scale statefulset patroni-myapp-shard-0 --replicas=3
+kubectl -n myapp get pods -l cluster-name=myapp-shard-0 -w
 ```
 
 #### Step 6: Verify Recovery
 
-```bash
-# Check cluster health
-kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
-  patronictl -c /etc/patroni/patroni.yaml list
+Check shard health:
 
-# Verify data is at expected state
-kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
+```sh
+kubectl -n myapp exec patroni-myapp-shard-0-0 -c patroni -- \
+  patronictl -c /etc/patroni/patroni.yaml list
+```
+
+Confirm your data is at the expected point in time (replace `your_table` and column as needed):
+
+```sh
+kubectl -n myapp exec patroni-myapp-shard-0-0 -c patroni -- \
   psql -U postgres -d myapp -c "SELECT MAX(created_at) FROM your_table;"
-```
-
-#### PITR Notes
-
-- **Per-shard recovery**: Each shard has independent backups. You can recover one shard without
-  affecting others.
-- **Replica rebuilding**: After PITR, replicas will automatically rebuild from the restored primary
-  via pgbackrest or basebackup.
-- **Timeline changes**: PITR creates a new timeline. The `recovery_target_timeline: latest` setting
-  in Patroni ensures replicas follow the new timeline.
-- **Data consistency**: For sharded tables, recovering one shard to a different point in time may
-  cause cross-shard inconsistencies. Plan accordingly.
-
-### Scaling Shards
-
-PgDog uses PostgreSQL's hash partition functions, so changing `patroni.shards` changes routing for
-existing keys. Adding empty shards or moving only a removed shard's rows is not enough.
-
-**Before either procedure**, stop application reads and writes, including background jobs, and
-export the schema, data, and sequence state from every existing shard to storage outside the
-cluster. Verify the export is complete and restorable before changing `patroni.shards`; keep traffic
-stopped through reloading and validation below.
-
-PgDog's [online resharding](https://docs.pgdog.dev/features/sharding/resharding/) is a separate
-process requiring a new destination cluster and `schema_admin` users with replication permissions.
-This chart does not provision those, and its default two PgDog replicas do not support the
-documented single-instance automatic cutover. The procedures below use downtime.
-
-#### Adding Shards (Scale Up)
-
-**Step 1: Update Helm Values**
-
-Increase the shard count in your HelmChart:
-
-```yaml
-spec:
-  set:
-    patroni.shards: 4 # Was 3, now 4
-```
-
-For `local` or `dev`, redeploy with `pnpm cluster deploy <env>` (replace `<env>` with `local` or
-`dev`). Prod syncs from `main` through ArgoCD. This creates the new shard (`myapp-shard-3`) with its
-own StatefulSet, services, certificates, and backup cronjobs.
-
-**Step 2: Verify New Shard**
-
-```bash
-# Wait for new shard pods
-kubectl get pods -n myapp -l cluster-name=myapp-shard-3 -w
-
-# Check cluster health
-kubectl exec -n myapp patroni-myapp-shard-3-0 -c patroni -- \
-  patronictl -c /etc/patroni/patroni.yaml list
-```
-
-**Step 3: Restart PgDog**
-
-The chart regenerates PgDog's `databases` from `patroni.shards`, but PgDog pods don't restart on
-config changes. Wait for the PgDog HelmChart update to finish and confirm the generated
-configuration lists the new shard set before restarting:
-
-```bash
-kubectl rollout restart deploy/myapp-pgdog -n myapp
-kubectl rollout status deploy/myapp-pgdog -n myapp
-```
-
-Confirm every serving PgDog instance uses the new shard set before reloading data.
-
-**Step 4: Reload and Validate Data**
-
-Ensure the schema matches the export on every destination shard. Added shards may restore old
-backups, so clear old application table data on all destination shards before reloading to avoid
-duplicate or stale rows. Re-insert the complete exported data through PgDog with the new shard count
-and the configured sharding keys. Preserve unsharded and replicated tables and restore sequence
-state as appropriate for the schema.
-
-Before resuming application traffic, verify row counts against the export, key-based reads and
-writes through PgDog, and that replicas have caught up. Keep the export until validation succeeds.
-
-#### Removing Shards (Scale Down)
-
-Export every shard with application traffic stopped as described above before lowering the shard
-count. Removing shards changes routing for keys on the retained shards too.
-
-**Step 1: Update Helm Values**
-
-```yaml
-spec:
-  set:
-    patroni.shards: 3 # Was 4, now 3
-```
-
-Redeploy, verify the remaining shards are healthy, and follow Step 3 above to restart PgDog and
-verify its new routing before reloading. Keep application traffic stopped.
-
-**Step 2: Reload and Validate Data**
-
-Clear old table data on the remaining shards, re-insert the complete export through PgDog, and
-restore sequence state and validate as in [Adding Shards](#adding-shards-scale-up), Step 4. Resume
-application traffic only after validation succeeds.
-
-**Step 3: Clean Up Leftover Resources**
-
-Helm deletes the removed shard's StatefulSet, services, certificates, and backup cronjobs on
-upgrade. Patroni's endpoints, cert-manager's TLS secrets, and the PVCs are left behind:
-
-```bash
-# Delete Patroni endpoints
-kubectl delete endpoints myapp-shard-3 myapp-shard-3-config -n myapp
-
-# Delete TLS secrets
-kubectl delete secret patroni-myapp-shard-3-tls myapp-shard-3-pgbackrest-backup-tls -n myapp
-
-# Delete PVCs (WARNING: This deletes all data!)
-kubectl delete pvc -n myapp -l cluster-name=myapp-shard-3
-```
-
-The shard's backups stay in the bucket under its stanza (`myapp-shard-3`).
-
-#### Scaling Replicas Per Shard
-
-Scaling replicas within a shard is simpler and doesn't require data migration:
-
-```yaml
-spec:
-  set:
-    patroni.replicasPerShard: 5 # Was 3, now 5 pods per shard
-```
-
-Redeploy, then watch the new replicas clone from pgBackRest (falling back to `pg_basebackup`):
-
-```bash
-kubectl get pods -n myapp -w
-```
-
-To scale down replicas, lower `patroni.replicasPerShard`. Kubernetes terminates the highest-ordinal
-pods, so switch over first if one of them is the leader. Their PVCs are kept, so delete them if you
-don't plan to scale back up.
-
-### Test Sharding
-
-```bash
-# Insert data (will be distributed across shards)
-kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- bash -c '
-  export PGPASSWORD=$CLIENT_PASSWORD
-  for i in $(seq 1 100); do
-    psql -h myapp-pgdog -p 6432 -U client -d myapp \
-      -c "INSERT INTO users (id, name) VALUES ($i, '"'"'user-$i'"'"');"
-  done
-'
-
-# Check distribution
-for shard in 0 1 2; do
-  kubectl exec -n myapp patroni-myapp-shard-${shard}-0 -c patroni -- \
-    psql -U postgres -d myapp -c "SELECT COUNT(*) FROM users;"
-done
 ```
 
 ## Troubleshooting
 
 ### Cluster Won't Start After Deletion
 
-When you delete and recreate the cluster, stale DCS endpoints may prevent Patroni from
-bootstrapping:
+Stale Patroni Kubernetes Endpoints left from a previous release can block bootstrap with
+`waiting for leader to bootstrap` in pod logs. For each affected shard (replace `myapp-shard-0` as
+needed):
 
-```
-waiting for leader to bootstrap
-```
+1. Delete the stale endpoints:
 
-**Fix:** Delete the stale endpoints:
+   ```sh
+   kubectl delete endpoints myapp-shard-0 myapp-shard-0-config -n myapp
+   ```
 
-```bash
-kubectl delete endpoints myapp-shard-0 myapp-shard-0-config \
-  myapp-shard-1 myapp-shard-1-config \
-  myapp-shard-2 myapp-shard-2-config \
-  -n myapp
-```
+2. Restart the shard's pods:
 
-Then restart the pods:
+   ```sh
+   kubectl delete pods -n myapp -l cluster-name=myapp-shard-0
+   ```
 
-```bash
-kubectl delete pods -n myapp -l 'cluster-name in (myapp-shard-0,myapp-shard-1,myapp-shard-2)'
-```
-
-If the stanza still has a full backup, the new primary restores it during bootstrap (see
-[pgBackRest](#pgbackrest-backup--recovery)).
+If the stanza still has a full backup in S3, the new primary restores it during bootstrap.
 
 ### Backup Job Fails with TLS Error
 
-The chart issues per-shard certificates (`patroni-myapp-shard-N` and
-`myapp-shard-N-pgbackrest-backup`) from `internal-ca-issuer`, with the shard's primary and replicas
-service hostnames as `dnsNames`. If backup jobs fail with certificate errors, check that they're
-ready:
+Check that both per-shard certificates are `Ready`: `patroni-myapp-shard-<N>` and
+`myapp-shard-<N>-pgbackrest-backup`. They are issued by `internal-ca-issuer` with the shard's
+primary and replicas service hostnames as `dnsNames`.
 
-```bash
-kubectl get certificate -n myapp
+```sh
+kubectl -n myapp get certificate
 ```
 
 ### Replication Lag
 
-```bash
-# Check replication status
-kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
-  psql -U postgres -c "SELECT * FROM pg_stat_replication;"
+Run on the shard's current primary (returns no rows on replicas); for a shard-wide lag view from any
+pod, use `patronictl list` in [Check Cluster Status](#check-cluster-status):
 
-# Check Patroni cluster view
-kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
-  patronictl -c /etc/patroni/patroni.yaml list
+```sh
+kubectl -n myapp exec patroni-myapp-shard-0-0 -c patroni -- \
+  psql -U postgres -c "SELECT * FROM pg_stat_replication;"
 ```
 
 ### PgDog Not Routing to Replicas
 
-These are the chart defaults, so make sure they aren't overridden:
-
-```yaml
-pgdog:
-  lsnCheckDelay: 0 # Enable role detection immediately
-  lsnCheckInterval: 1000 # Check every 1 second
-  readWriteSplit: include_primary_if_replica_banned
-```
+Check live role detection with the PgDog metrics command in
+[Check Cluster Status](#check-cluster-status), and confirm these chart defaults are not overridden:
+`pgdog.lsnCheckDelay: 0`, `pgdog.lsnCheckInterval: 1000`, and
+`pgdog.readWriteSplit: include_primary_if_replica_banned`.
 
 ## Local Development
 
-Local k3d clusters pull the images and chart from the local registry (`localhost:12345` on your
-machine, `local-registry:5000` inside the cluster). Build and push them at least once, and again
-after changing them:
+Your host pushes images and charts to `localhost:12345`, and local k3d pulls them from
+`local-registry:5000`. Run the scripts below inside `packages/postgres/`, or from the repo root via
+`pnpm --filter @pandoks.com/postgres <script>` (`pnpm local:build && pnpm local:push` from the repo
+root builds and pushes every package).
 
-| Command                       | Description                                                     |
-| ----------------------------- | --------------------------------------------------------------- |
-| `pnpm local:build:patroni`    | Builds the patroni docker image locally                         |
-| `pnpm local:build:pgbackrest` | Builds the pgbackrest docker image locally                      |
-| `pnpm local:build:helm`       | Packages the helm chart into a `.tgz` locally                   |
-| `pnpm local:build`            | All of the build commands above                                 |
-| `pnpm local:push:patroni`     | Pushes the patroni image to the local k3d registry              |
-| `pnpm local:push:pgbackrest`  | Pushes the pgbackrest image to the local k3d registry           |
-| `pnpm local:push:helm`        | Pushes the helm chart package to the local k3d registry via oci |
-| `pnpm local:push`             | All of the push commands above                                  |
+| Target                          | Build                         | Push                         |
+| ------------------------------- | ----------------------------- | ---------------------------- |
+| All                             | `pnpm local:build`            | `pnpm local:push`            |
+| Patroni image                   | `pnpm local:build:patroni`    | `pnpm local:push:patroni`    |
+| pgBackRest image                | `pnpm local:build:pgbackrest` | `pnpm local:push:pgbackrest` |
+| Helm chart (`./postgres-*.tgz`) | `pnpm local:build:helm`       | `pnpm local:push:helm`       |
 
-`pnpm local:build && pnpm local:push` from the repo root does this for every package.
+### End-to-End Tests
 
-## Configuration Reference
+Run the Ginkgo suite in [e2e](./e2e) from the repo root with k3d up (see
+[packages/e2e](../e2e/README.md#running-a-suite) for cluster setup and suite options):
+
+1. Build and push this checkout's images (re-run after editing them):
+
+   ```sh
+   pnpm --filter @pandoks.com/postgres local:build && pnpm --filter @pandoks.com/postgres local:push
+   ```
+
+2. _(Apple Silicon only — run once, or when `main` changes)_ Build and push `main`'s images for the
+   GHCR upgrade and revert specs (skip on `linux/amd64`):
+
+   ```sh
+   for image in patroni pgbackrest; do
+     docker build -f "packages/postgres/${image}/Dockerfile" -t "localhost:12345/${image}:main" \
+       https://github.com/Pandoks/pandoks.com.git#main
+     docker push "localhost:12345/${image}:main"
+   done
+   ```
+
+3. Run the suite (on `linux/amd64`, omit the `--previous-*` flags to use GHCR defaults; on an 8 GiB
+   Docker VM, pass `--procs=3` instead of `-p`):
+
+   ```sh
+   go tool ginkgo -p ./packages/postgres/e2e -- \
+     --patroni-image=local-registry:5000/patroni:latest \
+     --pgbackrest-image=local-registry:5000/pgbackrest:latest \
+     --previous-patroni-image=local-registry:5000/patroni:main \
+     --previous-pgbackrest-image=local-registry:5000/pgbackrest:main
+   ```
+
+## Configuration
 
 ### Values
 
-| Key                             | Description                                        | Default                                                     |
-| ------------------------------- | -------------------------------------------------- | ----------------------------------------------------------- |
-| `db`                            | Database name                                      | `example`                                                   |
-| `namespace`                     | Kubernetes namespace                               | `example`                                                   |
-| `credentials.secret`            | Database credentials secret                        | `postgres-example-creds`                                    |
-| `credentials.dataKeys.*`        | Password keys in that secret                       | `SUPERUSER_PASSWORD`, `ADMIN_PASSWORD`, etc.                |
-| `backup.enabled`                | Backups and WAL archiving; set before first create | `true`                                                      |
-| `backup.credentials.secret`     | S3 credentials secret                              | `backup-bucket-creds`                                       |
-| `backup.credentials.dataKeys.*` | Access/secret keys in that secret                  | `S3_ACCESS_KEY`, `S3_SECRET_KEY`                            |
-| `backup.bucket`                 | S3 bucket                                          | `backups`                                                   |
-| `backup.path`                   | Path in the bucket                                 | `/kubernetes/examples/postgres`                             |
-| `backup.encryptionKey`          | pgBackRest cipher passphrase                       | `openssl-rand-hex-32` (placeholder, override it)            |
-| `backup.image`                  | pgBackRest image                                   | `ghcr.io/pandoks/pgbackrest:latest`                         |
-| `backup.schedules.full`         | Full backup cron                                   | `0 2 * * 0` (Sunday 2 AM)                                   |
-| `backup.schedules.diff`         | Diff backup cron                                   | `0 2 * * 3,6` (Wed/Sat)                                     |
-| `backup.schedules.incr`         | Incr backup cron                                   | `0 2 * * 1,2,4,5`                                           |
-| `backup.retention.full`         | Full backups to keep                               | `4`                                                         |
-| `backup.retention.diff`         | Diff backups to keep                               | `2`                                                         |
-| `s3.region`                     | S3 region                                          | `us-west-1`                                                 |
-| `s3.host`                       | S3 endpoint                                        | `host.k3d.internal:9191` (S3Mock HTTPS from docker-compose) |
-| `s3.tls`                        | Verify S3 TLS (`y`/`n`)                            | `n`                                                         |
-| `s3.uriStyle`                   | S3 URI style                                       | `path`                                                      |
-| `patroni.shards`                | Number of shards                                   | `1`                                                         |
-| `patroni.replicasPerShard`      | Pods per shard (1 primary + n - 1 replicas)        | `3`                                                         |
-| `patroni.image`                 | Patroni image                                      | `ghcr.io/pandoks/patroni:latest`                            |
-| `patroni.resources.*`           | `patroni`, `pgbackrest`, `postgresExporter`        | `{}`                                                        |
-| `pgdog.*`                       | Passed through to the [PgDog chart][pgdog]         | See below                                                   |
-| `pgdog.replicas`                | PgDog replicas                                     | `2`                                                         |
-| `pgdog.workers`                 | PgDog worker threads                               | `2`                                                         |
-| `pgdog.defaultPoolSize`         | Server connections per pool                        | `15`                                                        |
-| `pgdog.loadBalancingStrategy`   | Load balancing                                     | `least_active_connections`                                  |
-| `pgdog.readWriteSplit`          | Read/write routing                                 | `include_primary_if_replica_banned`                         |
+Full defaults live in [values.yaml](./chart/values.yaml). Keys that must be overridden or have
+non-obvious behavior:
 
-[pgdog]: https://github.com/pgdogdev/helm/blob/main/values.yaml
+| Key                            | Default                            | Notes                                                                            |
+| ------------------------------ | ---------------------------------- | -------------------------------------------------------------------------------- |
+| `credentials.secret`           | `postgres-example-creds`           | Must hold the 5 password keys and PgDog's `users.toml`                           |
+| `backup.enabled`               | `true`                             | Set before first deploy; Patroni ignores later `archive_mode` changes            |
+| `backup.bucket`                | `backups`                          | Override in cloud clusters (for example, `${BackupBucket}`)                      |
+| `backup.path`                  | `/kubernetes/examples/postgres`    | Must be unique per cluster within the bucket                                     |
+| `backup.encryptionKey`         | `openssl-rand-hex-32`              | Placeholder — override in cloud clusters                                         |
+| `backup.schedules.*`           | `full` / `diff` / `incr` crons     | Set a schedule to `""` to disable that CronJob                                   |
+| `s3.*`                         | Local S3Mock (`:9191`, `tls: 'n'`) | Override `host`, `region`, `tls` (`'y'`/`'n'`), and `uriStyle` for cloud S3/R2   |
+| `patroni.shards`               | `1`                                | Changing shard count remaps PgDog hashes; see [Scaling Shards](#scaling-shards)  |
+| `patroni.replicasPerShard`     | `3`                                | Includes the primary (`1 primary + n - 1 replicas`); each pod needs its own node |
+| `nodeSelector` / `tolerations` | `~`                                | Applied only to Patroni pods; PgDog stays with application nodes                 |
+
+All `pgdog.*` keys pass through to the upstream
+[PgDog chart](https://github.com/pgdogdev/helm/blob/main/values.yaml), except `fullnameOverride`,
+`serviceMonitor`, `externalSecrets`, and `databases`, which this chart manages.
 
 ### Ports
 
-| Port   | Service           | Purpose                 |
-| ------ | ----------------- | ----------------------- |
-| `5432` | PostgreSQL        | Database connections    |
-| `6432` | PgDog             | Connection pooler       |
-| `8008` | Patroni REST API  | Health checks, failover |
-| `8432` | pgBackRest        | Backup TLS server       |
-| `9187` | postgres-exporter | PostgreSQL metrics      |
-| `9090` | PgDog             | OpenMetrics             |
+| Port   | Service           | Purpose                          |
+| ------ | ----------------- | -------------------------------- |
+| `5432` | PostgreSQL        | Database connections             |
+| `6432` | PgDog             | Connection pooler                |
+| `8008` | Patroni REST API  | Health checks, failover, metrics |
+| `8432` | pgBackRest        | Backup mTLS server               |
+| `9090` | PgDog             | OpenMetrics                      |
+| `9187` | postgres-exporter | PostgreSQL metrics               |
 
-## Security
+---
 
-1. **Superuser stays off app databases** - `postgres` can only log in remotely to the `postgres`
-   database
-2. **TLS for backups** - All backup traffic is encrypted
-3. **Encrypted backups** - AES-256-CBC encryption at rest
-4. **Least privilege** - Applications use `client` user with limited permissions
-5. **Network isolation** - pg_hba.conf restricts access by user and database
-
-## References
-
-- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
-- [Patroni Documentation](https://patroni.readthedocs.io/)
-- [PgDog Documentation](https://docs.pgdog.dev/)
-- [pgBackRest Documentation](https://pgbackrest.org/user-guide.html)
+Docs: [PostgreSQL](https://www.postgresql.org/docs/) · [Patroni](https://patroni.readthedocs.io/) ·
+[PgDog](https://docs.pgdog.dev/) · [pgBackRest](https://pgbackrest.org/user-guide.html)

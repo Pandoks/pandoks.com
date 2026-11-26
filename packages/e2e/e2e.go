@@ -15,7 +15,6 @@ import (
 	"github.com/onsi/gomega"
 )
 
-// NOTE: every command is pinned to this context, so a suite can't write to another cluster
 const KubeContext = "k3d-local-cluster"
 
 func RunSuite(t *testing.T, suiteDescription string) {
@@ -27,12 +26,14 @@ func RunSuite(t *testing.T, suiteDescription string) {
 
 func ApplyServiceMonitorCRD() {
 	ginkgo.GinkgoHelper()
-	// NOTE: kube-prometheus-stack already installs them on a `pnpm local:init` cluster
+	// NOTE: kube-prometheus-stack owns the CRDs on a `pnpm local:init` cluster
 	if _, err := Run("", "kubectl", "get", "crd", "servicemonitors.monitoring.coreos.com"); err != nil {
 		_, currentFile, _, _ := runtime.Caller(0)
 		MustRun("", "kubectl", "apply", "--server-side", "-k", filepath.Dir(currentFile))
 	}
-	MustRun("", "kubectl", "wait", "--for=condition=Established", "crd/servicemonitors.monitoring.coreos.com")
+	// NOTE: a new CRD has null status.conditions until reconciled, making kubectl wait exit 1
+	gomega.Eventually(Run).WithArguments("", "kubectl", "wait", "--for=condition=Established",
+		"crd/servicemonitors.monitoring.coreos.com", "--timeout=10s").Should(gomega.ContainSubstring("condition met"))
 }
 
 func Run(stdin, executable string, arguments ...string) (string, error) {
@@ -59,7 +60,7 @@ func MustRun(stdin, executable string, arguments ...string) string {
 	return output
 }
 
-func InstallChart(releaseName, chartDirectory string, secretData, chartValues map[string]string) string {
+func InstallChart(releaseName, chart string, secretData, chartValues map[string]string) string {
 	ginkgo.GinkgoHelper()
 	namespace := fmt.Sprintf("e2e-%s-%s", releaseName, strings.ToLower(rand.Text()[:4]))
 	MustRun("", "kubectl", "create", "namespace", namespace)
@@ -67,6 +68,8 @@ func InstallChart(releaseName, chartDirectory string, secretData, chartValues ma
 		if ginkgo.CurrentSpecReport().Failed() {
 			dumpDiagnostics(namespace)
 		}
+		// NOTE: a chart can own resources outside its namespace, like Postgres's PgDog HelmChart
+		MustRun("", "helm", "-n", namespace, "uninstall", releaseName, "--wait", "--ignore-not-found")
 		MustRun("", "kubectl", "delete", "namespace", namespace, "--timeout=3m")
 	})
 
@@ -77,14 +80,14 @@ func InstallChart(releaseName, chartDirectory string, secretData, chartValues ma
 	MustRun("", "kubectl", secretArguments...)
 
 	chartValues["namespace"] = namespace
-	UpgradeChart(namespace, releaseName, chartDirectory, chartValues)
+	UpgradeChart(namespace, releaseName, chart, chartValues)
 	return namespace
 }
 
-func UpgradeChart(namespace, releaseName, chartDirectory string, chartValues map[string]string) {
+func UpgradeChart(namespace, releaseName, chart string, chartValues map[string]string) {
 	ginkgo.GinkgoHelper()
 	helmArguments := []string{
-		"-n", namespace, "upgrade", releaseName, chartDirectory,
+		"-n", namespace, "upgrade", releaseName, chart,
 		"--install", "--reset-then-reuse-values", "--timeout=5m",
 	}
 	for valueKey, value := range chartValues {
