@@ -13,6 +13,9 @@ permissions:
   pull-requests: write
   id-token: write
 
+# NOTE: any job on main can write the Actions cache, so jobs with production access never read it
+cache-mode: none
+
 concurrency:
   group: claude-review-${{ github.ref }}
 
