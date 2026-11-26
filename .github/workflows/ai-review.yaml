@@ -155,7 +155,7 @@ jobs:
 
       - name: Review with Gemini
         env:
-          GOOGLE_GEMINI_BASE_URL: https://cliproxyapi-api.tailb2c81d.ts.net
+          GOOGLE_GEMINI_BASE_URL: https://cliproxyapi.tailb2c81d.ts.net
           GEMINI_API_KEY: cliproxyapi
           GH_TOKEN: ${{ steps.gemini-app.outputs.token }}
         run: uv run --package ai-review --locked scripts/ai-review/gemini.py

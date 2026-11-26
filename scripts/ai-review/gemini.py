@@ -17,7 +17,7 @@ from google.antigravity.types import (
     ThinkingLevel,
 )
 
-MODEL = "gemini-4-neon"
+MODEL = "api/gemini-4-neon"
 THINKING_LEVEL = "xhigh"
 
 GH_TOKEN = os.environ.pop("GH_TOKEN")
@@ -171,7 +171,7 @@ body = "\n\n".join(
     [
         review_result["summary"],
         *off_diff_comments,
-        f"---\n{MODEL} {THINKING_LEVEL} managing {subagents} subagents",
+        f"---\n{MODEL.removeprefix('api/')} {THINKING_LEVEL} managing {subagents} subagents",
     ]
 )
 with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as step_summary:
