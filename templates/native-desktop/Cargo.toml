@@ -1,0 +1,19 @@
+[package]
+name = "native-desktop"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+gpui.workspace = true
+gpui_platform.workspace = true
+pandoks-gpui.workspace = true
+
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
+
+[package.metadata.packager]
+product-name = "Pandoks Native Desktop Template"
+identifier = "com.pandoks.native-desktop-template"
+out-dir = "../../target/packager"
+before-packaging-command = "cargo build --release --locked"

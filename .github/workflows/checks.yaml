@@ -68,6 +68,31 @@ jobs:
       - name: Run lint
         run: ./scripts/lint/main.sh go
 
+  # ─── Rust ─────────────────────────────────────────────────────────────
+  format-rust:
+    if: contains(fromJSON(inputs.jobs), 'rust')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: rust
+
+      - name: Run format check
+        run: ./scripts/format/main.sh check rust
+
+  lint-rust:
+    if: contains(fromJSON(inputs.jobs), 'rust')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-rust-gpui
+
+      - name: Run lint
+        run: ./scripts/lint/main.sh rust
+
   # ─── Shell ────────────────────────────────────────────────────────────
   format-shell:
     if: contains(fromJSON(inputs.jobs), 'shell')

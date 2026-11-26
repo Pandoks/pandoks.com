@@ -93,13 +93,13 @@ checkout.
 - `./scripts/setup.sh` installs tools/deps, signs into `pandoks-dev` SSO, and adds the Pulumi state
   profile; `pnpm bootstrap` (mine to run) creates both accounts' KMS keys, SSM R2 tokens, the R2
   state bucket, and the prod CI role.
-- `pnpm format <js|go|shell|all>` writes; `pnpm format check <...>` checks.
-- `pnpm lint <js|go|helm|docker|shell|actions|all>`.
+- `pnpm format <js|go|rust|shell|all>` writes; `pnpm format check <...>` checks.
+- `pnpm lint <js|go|rust|helm|docker|shell|actions|all>`.
 - `pnpm check` type-checks every package and `infra/`.
 - Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, `desktop`, and `mobile`;
-  `pnpm --filter <package> test` for `prettier` and `valkey`;
-  `go tool ginkgo -p ./packages/<pkg>/e2e` for a package's e2e suite on local k3d
-  (`packages/e2e/README.md`).
+  `pnpm --filter <package> test` for `prettier` and `valkey`; `cargo test --workspace --locked` for
+  Rust (`packages/gpui`, `templates/native-desktop`); `go tool ginkgo -p ./packages/<pkg>/e2e` for a
+  package's e2e suite on local k3d (`packages/e2e/README.md`).
 - Scoped: `pnpm exec prettier --check <files>`, `pnpm exec eslint [--fix] <files>`, `shellcheck`,
   `shfmt -d`, `hadolint`, `actionlint`, `pnpm --filter "...[origin/main]" --if-present check`. That
   filter and the shell and Docker format and lint commands see only tracked files, so check new

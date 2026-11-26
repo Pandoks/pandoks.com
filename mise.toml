@@ -2,6 +2,7 @@
 pnpm = "12.16.1"
 node = "24.22.2"
 go = "1.27.4"
+rust = { version = "1.100.0", profile = "minimal", components = ["rustfmt", "clippy"] }
 uv = "0.13.6"
 python = "3.15.2"
 aws-cli = "2.39.3"

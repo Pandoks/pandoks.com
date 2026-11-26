@@ -24,6 +24,10 @@ on:
         description: Run govulncheck on every Go module, test code included.
         type: boolean
         default: false
+      rust-dependencies:
+        description: Scan Cargo.lock vulnerabilities with Trivy.
+        type: boolean
+        default: false
 
 jobs:
   scan-kubernetes-config:
@@ -121,3 +125,27 @@ jobs:
           for d in $(go list -m -f '{{.Dir}}'); do
             (cd "$d" && govulncheck -test ./...)
           done
+
+  scan-rust-dependencies:
+    if: inputs.rust-dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Scan Cargo.lock with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: Cargo.lock
+          scanners: vuln
+          trivy-config: trivy.yaml
+          trivyignores: .trivyignore.yaml
+          format: sarif
+          output: trivy-rust.sarif
+
+      - name: Upload SARIF to GitHub Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          sarif_file: trivy-rust.sarif
+          category: trivy-rust

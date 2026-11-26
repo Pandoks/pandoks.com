@@ -20,6 +20,9 @@ on:
       go-dependencies:
         description: Whether to run govulncheck, 'true' or 'false'.
         value: ${{ jobs.detect.outputs.go-dependencies }}
+      rust-dependencies:
+        description: Whether to scan Cargo.lock vulnerabilities, 'true' or 'false'.
+        value: ${{ jobs.detect.outputs.rust-dependencies }}
       unit-tests:
         description: JSON list of the unit test jobs to run.
         value: ${{ jobs.detect.outputs.unit-tests }}
@@ -40,6 +43,7 @@ jobs:
       checks: ${{ steps.set-checks-matrix.outputs.checks }}
       kubernetes-config: ${{ steps.security-changes.outputs.kubernetes == 'true' }}
       go-dependencies: ${{ steps.checks-changes.outputs.go == 'true' }}
+      rust-dependencies: ${{ steps.security-changes.outputs.rust == 'true' }}
       unit-tests: ${{ steps.set-unit-test-matrix.outputs.unit-tests }}
       images: ${{ steps.set-image-matrix.outputs.images }}
       charts: ${{ steps.set-chart-matrix.outputs.charts }}
@@ -99,6 +103,15 @@ jobs:
               - 'scripts/format/**'
               - 'scripts/lint/**'
               - *needs-mise-setup
+            rust:
+              - '**/*.rs'
+              - '**/Cargo.toml'
+              - 'Cargo.lock'
+              - 'packages/svelte/static/fonts/**'
+              - '.github/actions/setup-rust-gpui/**'
+              - 'scripts/format/**'
+              - 'scripts/lint/**'
+              - *needs-mise-setup
             shell:
               - '**/*.sh'
               - '.shellcheckrc'
@@ -135,6 +148,11 @@ jobs:
               - 'k3s/**'
               - 'apps/*/kube/**'
               - '.github/workflows/security.yaml'
+            rust:
+              - 'Cargo.lock'
+              - 'trivy.yaml'
+              - '.trivyignore.yaml'
+              - '.github/workflows/security.yaml'
 
       - id: unit-test-changes
         if: github.event_name != 'workflow_dispatch'
@@ -160,6 +178,17 @@ jobs:
               - '.github/actions/setup-mise/**'
               - 'templates/mobile/**'
               - *needs-node-setup
+            native-desktop-template:
+              - '.github/workflows/tests.yaml'
+              - '.github/actions/setup-mise/**'
+              - '.github/actions/setup-rust-gpui/**'
+              - 'mise.toml'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'packages/gpui/**'
+              - 'packages/svelte/static/fonts/**'
+              - 'scripts/lint/**'
+              - 'templates/native-desktop/**'
             svelte:
               - 'packages/svelte/**'
               - *needs-node-setup
@@ -234,14 +263,14 @@ jobs:
 
       - id: set-checks-matrix
         run: |
-          all='["prettier","eslint","go","shell","helm","actions","renovate","infra"]'
+          all='["prettier","eslint","go","rust","shell","helm","actions","renovate","infra"]'
           selected='${{ steps.checks-changes.outputs.changes || '[]' }}'
           checks=$(jq -c --argjson sel "${selected}" 'map(select(. as $group | $sel | index($group)))' <<<"${all}")
           echo "checks=${checks}" >> "${GITHUB_OUTPUT}"
 
       - id: set-unit-test-matrix
         run: |
-          all='["web","desktop-template","mobile-template","svelte","prettier","valkey-reconciler"]'
+          all='["web","desktop-template","mobile-template","native-desktop-template","svelte","prettier","valkey-reconciler"]'
           selected='${{ steps.unit-test-changes.outputs.changes || '[]' }}'
           unit_tests=$(jq -c --argjson sel "${selected}" 'map(select(. as $job | $sel | index($job)))' <<<"${all}")
           echo "unit-tests=${unit_tests}" >> "${GITHUB_OUTPUT}"

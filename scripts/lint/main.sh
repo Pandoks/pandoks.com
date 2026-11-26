@@ -21,6 +21,7 @@ usage() {
   printf "%bLanguages:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %bjs%b        ESLint over JS/TS/Svelte\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bgo%b        golangci-lint over Go modules\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %brust%b      cargo clippy over the Rust workspace\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bhelm%b      helm lint + kubeconform over packages/*/chart\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bdocker%b    hadolint over all Dockerfiles\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bshell%b     shellcheck over all shell scripts\n" "${GREEN}" "${NORMAL}" >&2
@@ -37,6 +38,10 @@ cmd_lint_js() {
 cmd_lint_go() {
   cd "${REPO_ROOT}"
   go list -m -f '{{.Dir}}/...' | xargs golangci-lint run
+}
+
+cmd_lint_rust() {
+  cd "${REPO_ROOT}" && cargo clippy --workspace --all-targets --locked -- -D warnings
 }
 
 cmd_lint_docker() {
@@ -71,6 +76,7 @@ cmd_lint_helm() {
 cmd_lint_all() {
   cmd_lint_js
   cmd_lint_go
+  cmd_lint_rust
   cmd_lint_helm
   cmd_lint_docker
   cmd_lint_shell
@@ -85,6 +91,7 @@ main() {
   case "${cmd}" in
     js) cmd_lint_js ;;
     go) cmd_lint_go ;;
+    rust) cmd_lint_rust ;;
     helm) cmd_lint_helm ;;
     docker) cmd_lint_docker ;;
     shell) cmd_lint_shell ;;
