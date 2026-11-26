@@ -26,7 +26,6 @@ func TestPostgres(t *testing.T) {
 var _ = SynchronizedBeforeSuite(func() {
 	e2e.ApplyServiceMonitorCRD()
 	e2e.MustRun("", "kubectl", "apply", "-f", "../../../k3s/base/core/postgres.yaml")
-	// NOTE: the chart's certificates need cert-manager and the internal CA, which a bare k3d cluster lacks
 	e2e.MustRun("", "kubectl", "apply", "-f", "../../../k3s/bootstrap/core/cert-manager.yaml")
 	Eventually(e2e.Run).WithArguments("", "kubectl", "-n", "cert-manager", "rollout", "status", "deployment/cert-manager-webhook", "--timeout=1m").
 		WithTimeout(5 * time.Minute).Should(ContainSubstring("successfully rolled out"))

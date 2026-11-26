@@ -15,7 +15,6 @@ import (
 	"github.com/onsi/gomega"
 )
 
-// NOTE: every command is pinned to this context, so a suite can't write to another cluster
 const KubeContext = "k3d-local-cluster"
 
 func RunSuite(t *testing.T, suiteDescription string) {
@@ -27,12 +26,12 @@ func RunSuite(t *testing.T, suiteDescription string) {
 
 func ApplyServiceMonitorCRD() {
 	ginkgo.GinkgoHelper()
-	// NOTE: kube-prometheus-stack already installs them on a `pnpm local:init` cluster
+	// NOTE: kube-prometheus-stack owns the CRDs on a `pnpm local:init` cluster
 	if _, err := Run("", "kubectl", "get", "crd", "servicemonitors.monitoring.coreos.com"); err != nil {
 		_, currentFile, _, _ := runtime.Caller(0)
 		MustRun("", "kubectl", "apply", "--server-side", "-k", filepath.Dir(currentFile))
 	}
-	// NOTE: a newly applied CRD serializes status.conditions as null until reconciled, which makes kubectl wait exit 1
+	// NOTE: a new CRD has null status.conditions until reconciled, making kubectl wait exit 1
 	gomega.Eventually(Run).WithArguments("", "kubectl", "wait", "--for=condition=Established",
 		"crd/servicemonitors.monitoring.coreos.com", "--timeout=10s").Should(gomega.ContainSubstring("condition met"))
 }

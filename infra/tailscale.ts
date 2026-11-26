@@ -10,12 +10,6 @@ export const hubTailscaleServices = [
     ports: ['tcp:443'],
     src: ['*']
   },
-  {
-    name: 'cliproxyapi-api',
-    comment: 'CLIProxyAPI with Console API keys only',
-    ports: ['tcp:443'],
-    src: ['*']
-  },
   { name: 'beszel', comment: 'Beszel monitoring hub', ports: ['tcp:443'], src: ['*'] },
   { name: 'artex', comment: 'ARTEX on the homelab hub', ports: ['tcp:443'], src: ['*'] },
   {

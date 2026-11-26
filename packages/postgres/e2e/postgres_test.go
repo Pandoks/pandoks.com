@@ -30,8 +30,7 @@ const (
 	clientPassword         = "client-test-password"
 	patroniConfig          = "/etc/patroni/patroni.yaml"
 	pgdogName              = database + "-pgdog"
-	// NOTE: the chart's default replicasPerShard
-	defaultPodCount = 3
+	defaultPodCount        = 3
 	// NOTE: the chart's backup.bucket on docker-compose's S3Mock, over HTTP without signing
 	backupBucketURL = "http://localhost:9090/backups"
 )
@@ -59,7 +58,6 @@ func imageValues(patroni, pgbackrest string) map[string]string {
 	return images
 }
 
-// NOTE: each install gets its own backup.path; a second install given the first's path bootstraps from its backups
 func installPostgres(chart string, shardCount int, valueOverrides map[string]string) string {
 	GinkgoHelper()
 	chartValues := map[string]string{
@@ -73,7 +71,7 @@ func installPostgres(chart string, shardCount int, valueOverrides map[string]str
 		"backup.schedules.full": "* * 30 2 *",
 		"backup.schedules.diff": "* * 30 2 *",
 		"backup.schedules.incr": "* * 30 2 *",
-		// NOTE: only the PgDog specs go through PgDog, so the rest don't pull its image
+		// NOTE: non-PgDog specs don't run PgDog, and startPgDog scales it up once Patroni pods are Ready
 		"pgdog.replicas": "0",
 	}
 	images := imageValues(patroniImage, pgbackrestImage)
@@ -88,10 +86,9 @@ func installPostgres(chart string, shardCount int, valueOverrides map[string]str
 		"CLIENT_PASSWORD":      clientPassword,
 		"REPLICATION_PASSWORD": "replication-test-password",
 		"PATRONI_PASSWORD":     "patroni-test-password",
-		// NOTE: S3Mock accepts any keys
-		"S3_ACCESS_KEY": "e2e",
-		"S3_SECRET_KEY": "e2e",
-		"users.toml":    fmt.Sprintf("[[users]]\nname = \"client\"\ndatabase = %q\npassword = %q\n", database, clientPassword),
+		"S3_ACCESS_KEY":        "e2e",
+		"S3_SECRET_KEY":        "e2e",
+		"users.toml":           fmt.Sprintf("[[users]]\nname = \"client\"\ndatabase = %q\npassword = %q\n", database, clientPassword),
 	}, chartValues)
 }
 
@@ -128,7 +125,6 @@ func psqlThroughPgDogPod(namespace, clientPodName, pgdogAddress, sql string) (st
 	return execInPod(namespace, clientPodName, "patroni", "psql", connection, "-v", "ON_ERROR_STOP=1", "-Atq", "-c", sql)
 }
 
-// NOTE: PgDog's HelmChart and helm-controller Jobs live in kube-system, outside the namespace e2e.InstallChart dumps
 func dumpPgDogDiagnostics(namespace string) {
 	helmChartName := namespace + "-" + pgdogName
 	for _, kubectlArguments := range [][]string{
@@ -148,7 +144,6 @@ func dumpPgDogDiagnostics(namespace string) {
 // NOTE: PgDog starts only once every pod is Ready, as it bans a replica it can't resolve
 func startPgDog(namespace string, shardCount int) {
 	GinkgoHelper()
-	// NOTE: registered after e2e.InstallChart's cleanup so LIFO runs this before helm uninstall removes the HelmChart
 	DeferCleanup(func() {
 		if CurrentSpecReport().Failed() {
 			dumpPgDogDiagnostics(namespace)
@@ -501,7 +496,6 @@ func startWriter(psqlAsClient func(sql string) (string, error)) (func() []acknow
 	stopWriting := make(chan struct{})
 	writerDone := make(chan struct{})
 	stopOnce := sync.OnceFunc(func() { close(stopWriting) })
-	// NOTE: a failed spec skips the stop call below
 	DeferCleanup(stopOnce)
 	go func() {
 		defer GinkgoRecover()
@@ -584,7 +578,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 		var namespace, clientPod, pgdogPodIP string
 
 		BeforeAll(func() {
-			// NOTE: so the banned replica's reads come back in seconds, not PgDog's default 5 minutes
+			// NOTE: PgDog defaults banTimeout to 5m, past the ban spec's 1m timeout
 			namespace = installPostgres(postgresChartDirectory, 1, map[string]string{"pgdog.banTimeout": "10000"})
 			waitForHealthyShard(namespace, 0, defaultPodCount)
 			// NOTE: PgDog breaks least-active ties in config order, so the read specs need pod 0 to lead
@@ -603,7 +597,6 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 
 		It("sends writes to the primary", func() {
 			primaryIP := podIP(namespace, mustPrimaryPodName(namespace, 0))
-			// NOTE: waits only for PgDog's first connections; a write misrouted after that fails the spec
 			Eventually(psqlThroughPgDog).WithArguments(namespace, clientPod, upsertServerIP).Should(Equal(primaryIP))
 			for range 20 {
 				Expect(psqlThroughPgDog(namespace, clientPod, upsertServerIP)).To(Equal(primaryIP))
@@ -638,7 +631,6 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 
 		It("sends reads to both replicas", func() {
 			replicaIPs := []string{podIP(namespace, podName(0, 1)), podIP(namespace, podName(0, 2))}
-			// NOTE: a running read keeps its replica's connection busy, so the next read goes to the other
 			var heldReadServerIP string
 			heldReadDone := make(chan error, 1)
 			go func() {
@@ -674,7 +666,6 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			primaryIP := podIP(namespace, podName(0, 0))
 			bannedPod := podName(0, 1)
 			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", bannedPod)
-			// NOTE: include_primary_if_replica_banned adds the primary to the reads only during a ban
 			Eventually(psqlThroughPgDogPod).WithArguments(namespace, clientPod, pgdogPodIP, selectServerIP).Should(Equal(primaryIP))
 			waitForHealthyShard(namespace, 0, defaultPodCount)
 			Eventually(psqlThroughPgDogPod).WithArguments(namespace, clientPod, pgdogPodIP, selectServerIP).Should(Equal(podIP(namespace, bannedPod)))
@@ -691,7 +682,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			pgdogPodIPs := strings.Fields(e2e.MustRun("", "kubectl", "-n", namespace, "get", "pods", "-l", "app.kubernetes.io/name=pgdog",
 				"-o", "jsonpath={.items[*].status.podIP}"))
 			Expect(pgdogPodIPs).To(HaveLen(2))
-			// NOTE: each PgDog pod runs its own role-detection loop, so the other pod can detect the promotion shortly after the first
+			// NOTE: each PgDog pod detects the promotion on its own loop
 			for _, pgdogAddress := range pgdogPodIPs {
 				Eventually(psqlThroughPgDogPod).WithArguments(namespace, clientPod, pgdogAddress, upsertServerIP).
 					WithTimeout(30 * time.Second).Should(Equal(newPrimaryIP))
@@ -768,7 +759,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			replicaPod := replicaPodName(namespace, 0, defaultPodCount)
 			_, err := psqlOverNetwork(namespace, replicaPod, "client", clientPassword, database, "CREATE TABLE client_owned (id int)")
 			Expect(err).To(MatchError(ContainSubstring("permission denied for schema public")))
-			// NOTE: PUBLIC can run functions until revoked, so only client's own grant lets it run this one
+			// NOTE: revoke PUBLIC's default EXECUTE so only client's grant lets it run
 			Expect(psqlOverNetwork(namespace, replicaPod, "admin", adminPassword, database, `CREATE TABLE admin_owned (id serial PRIMARY KEY);
 				CREATE FUNCTION admin_doubled(n int) RETURNS int LANGUAGE sql RETURN n * 2;
 				REVOKE EXECUTE ON FUNCTION admin_doubled FROM PUBLIC`)).Error().NotTo(HaveOccurred())
@@ -920,8 +911,8 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 
 		It("switches over to the candidate with the README's patronictl command", func() {
 			oldPrimaryPod := mustPrimaryPodName(namespace, 0)
-			switchover(namespace, 0, replicaPodName(namespace, 0, 3))
-			waitForHealthyShard(namespace, 0, 3)
+			switchover(namespace, 0, replicaPodName(namespace, 0, defaultPodCount))
+			waitForHealthyShard(namespace, 0, defaultPodCount)
 			insertRows(namespace, 0, 1001, 2000)
 			Eventually(expectRows).WithArguments(namespace, oldPrimaryPod, 1, 2000).Should(Succeed())
 		})
@@ -929,7 +920,6 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 		It("adds a replica cloned by pgBackRest that catches up when replicasPerShard goes up", func() {
 			e2e.UpgradeChart(namespace, "postgres", postgresChartDirectory, map[string]string{"patroni.replicasPerShard": "4"})
 			waitForHealthyShard(namespace, 0, 4)
-			// NOTE: Patroni falls back to pg_basebackup from the primary when the pgBackRest restore fails
 			Expect(e2e.MustRun("", "kubectl", "-n", namespace, "logs", podName(0, 3), "-c", "patroni")).
 				To(ContainSubstring("replica has been created using pgbackrest"))
 			Eventually(expectReplicationSlots).WithArguments(namespace, 0, 4).Should(Succeed())
@@ -943,7 +933,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			switchover(namespace, 0, podName(0, 0))
 			e2e.UpgradeChart(namespace, "postgres", postgresChartDirectory, map[string]string{"patroni.replicasPerShard": "3"})
 			waitForHealthyShard(namespace, 0, 3)
-			// NOTE: Patroni keeps a removed member's slot, inactive, for member_slots_ttl (30 minutes)
+			// NOTE: Patroni retains a removed member's inactive slot for member_slots_ttl (30m)
 			Eventually(expectReplicationSlots).WithArguments(namespace, 0, 3).Should(Succeed())
 			insertRows(namespace, 0, 2001, 3000)
 			expectRowsOnEveryPod(namespace, 0, 3, 1, 3000)
@@ -1027,7 +1017,6 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			insertRows(namespace, 0, targetRowID+1, targetRowID+1000)
 			walSegment := switchWAL(namespace, 0)
 			Eventually(expectArchived).WithArguments(namespace, 0, walSegment).Should(Succeed())
-
 			stopShard(namespace, 0)
 			statefulSetJSON := e2e.MustRun("", "kubectl", "-n", namespace, "get", "statefulset", statefulSetName(0), "-o", "json")
 			// NOTE: Step 3's jq program, verbatim
@@ -1050,7 +1039,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 				"--recovery-option=restore_command=until pgbackrest --stanza="+clusterName(0)+` archive-get %f "%p"; do [ $? -eq 1 ] && exit 1; sleep 10; done`, "restore")
 			e2e.MustRun("", "kubectl", "-n", namespace, "exec", "pitr-restore", "--", "rm", "-f", "/var/lib/postgresql/pgdata/patroni.dynamic.json")
 			e2e.MustRun("", "kubectl", "-n", namespace, "exec", "pitr-restore", "--",
-				"pg_ctl", "start", "-D", "/var/lib/postgresql/pgdata", "-l", "/tmp/pitr-restore.log", "-o", "-c recovery_min_apply_delay=0 -c hot_standby=off")
+				"pg_ctl", "start", "-W", "-D", "/var/lib/postgresql/pgdata", "-l", "/tmp/pitr-restore.log", "-o", "-c recovery_min_apply_delay=0 -c hot_standby=off")
 			Eventually(psql).WithArguments(namespace, "pitr-restore", "SELECT pg_is_in_recovery()").Should(Equal("f"))
 			e2e.MustRun("", "kubectl", "-n", namespace, "exec", "pitr-restore", "--", "pg_ctl", "stop", "-w", "-D", "/var/lib/postgresql/pgdata")
 			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", "pitr-restore", "--grace-period=1")
@@ -1104,6 +1093,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			lastRowID += restoredSegmentCount
 			walSegment := switchWAL(namespace, 0)
 			Eventually(expectArchived).WithArguments(namespace, 0, walSegment).WithTimeout(5 * time.Minute).Should(Succeed())
+			// NOTE: two live shards can't share a stanza, so stop the source first
 			stopShard(namespace, 0)
 
 			restoredNamespace := installPostgres(postgresChartDirectory, 1, map[string]string{"backup.path": backupPath})
@@ -1245,7 +1235,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			Expect(exporterMemoryRequests()).To(Equal(slices.Repeat([]string{changedMemoryRequest}, defaultPodCount)))
 			changedPodUIDs := podUIDs(namespace, 0)
 
-			// NOTE: a revert on main restores its chart and values, which helm-controller upgrades to
+			// NOTE: helm-controller applies a git revert via helm upgrade, not helm rollback
 			mainValues := e2e.MustRun("", "helm", "-n", namespace, "get", "values", "postgres", "--revision=1", "-o", "yaml")
 			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "statefulset", statefulSetName(0), "--cascade=orphan")
 			e2e.MustRun(mainValues, "helm", "-n", namespace, "upgrade", "postgres", publishedPostgresChart, "--reset-values", "-f", "-", "--timeout=5m")
