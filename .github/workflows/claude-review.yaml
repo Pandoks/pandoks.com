@@ -77,7 +77,7 @@ jobs:
         env:
           ANTHROPIC_BASE_URL: https://cliproxyapi.tailb2c81d.ts.net
           ANTHROPIC_API_KEY: cliproxyapi
-          # NOTE: Only api/ models use the API keys; an unprefixed model runs on the subscription accounts.
+          # WARNING: Models without api/ run on subscription accounts, which must not be used for API usage.
           ANTHROPIC_DEFAULT_FABLE_MODEL: api/claude-fable-5-1
           ANTHROPIC_DEFAULT_OPUS_MODEL: api/claude-opus-5-5
           ANTHROPIC_DEFAULT_SONNET_MODEL: api/claude-sonnet-5-5
