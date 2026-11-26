@@ -1,3 +1,5 @@
+@./AGENTS.md
+
 ## Agents
 
 - For each agent you start, choose its model and effort from the work it will do. Split jobs whose
@@ -18,23 +20,3 @@
     refactoring across many modules, or weighing designs.
   - `xhigh`: results that will be trusted rather than checked, such as code review, security audits,
     research conclusions, or plans others will carry out.
-
-## Investigation and evidence
-
-- Separate verified from inferred; never state a guess, estimate, ranking, or unmeasured number as
-  fact.
-- Verify claims that matter against primary sources. Before judging a change, read the repo's docs
-  and conventions.
-- On failure, find the root cause, and report pre-existing failures separately from ones the change
-  introduced.
-
-## Tests
-
-- When the PR adds, changes, or deletes tests, use the `test-audit` skill to review them.
-
-## Comments and unnecessary additions
-
-- Across the whole PR, flag as blocking review findings (grouping repeated instances per file if
-  needed) comments the `AGENTS.md` Code style comment rule would delete, doc lines added beyond what
-  the `AGENTS.md` Docs rule asks for, and new files, helpers, options, env vars, or dependencies
-  whose PR description doesn't explain why the change can't work without them.

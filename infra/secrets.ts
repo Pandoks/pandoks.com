@@ -23,7 +23,8 @@ export const secrets = {
   },
   github: {
     PersonalAccessToken: requireSecret('GithubPersonalAccessToken'),
-    PackageManagementToken: requireSecret('GithubPackageManagementToken')
+    PackageManagementToken: requireSecret('GithubPackageManagementToken'),
+    GeminiAppPrivateKey: requireSecret('GithubGeminiAppPrivateKey')
   },
   personal: {
     KwokPhoneNumber: requireSecret('KwokPhoneNumber'),

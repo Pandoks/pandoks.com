@@ -68,6 +68,33 @@ jobs:
       - name: Run lint
         run: ./scripts/lint/main.sh go
 
+  # ─── Python ───────────────────────────────────────────────────────────
+  format-python:
+    if: contains(fromJSON(inputs.jobs), 'python')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: ruff
+
+      - name: Run format check
+        run: ./scripts/format/main.sh check python
+
+  lint-python:
+    if: contains(fromJSON(inputs.jobs), 'python')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: python ruff uv
+
+      - name: Run lint
+        run: ./scripts/lint/main.sh python
+
   # ─── Shell ────────────────────────────────────────────────────────────
   format-shell:
     if: contains(fromJSON(inputs.jobs), 'shell')

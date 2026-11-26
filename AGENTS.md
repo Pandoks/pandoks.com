@@ -62,9 +62,10 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
 
 - Every branch push runs `pipeline.yaml`: `changes.yaml` picks what runs from the changed paths,
   then `checks.yaml`, `security.yaml`, `tests.yaml`, `build.yaml`, `e2e.yaml`, and `publish.yaml`
-  (branch-tagged GHCR images and charts, only once everything else passes). `claude-review.yaml`
-  reviews each PR, `security-audit.yaml` rescans daily, and Cloudflare Pages previews `apps/web`.
-  Required checks are the `*-pass` aggregates, and a PR must be up to date with `main` to merge.
+  (branch-tagged GHCR images and charts, only once everything else passes). `ai-review.yaml` reviews
+  each PR with Claude and Gemini, `security-audit.yaml` rescans daily, and Cloudflare Pages previews
+  `apps/web`. Required checks are the `*-pass` aggregates, and a PR must be up to date with `main`
+  to merge.
 - GHCR keeps every `main` image and chart version, since chart defaults pin their digests. Only a
   deleted branch's versions and untagged orphans are deleted.
 - Merging to `main` runs `deploy-infra.yaml`: `pulumi up --refresh --run-program --stack production`
@@ -93,17 +94,19 @@ checkout.
 - `./scripts/setup.sh` installs tools/deps, signs into `pandoks-dev` SSO, and adds the Pulumi state
   profile; `pnpm bootstrap` (mine to run) creates both accounts' KMS keys, SSM R2 tokens, the R2
   state bucket, and the prod CI role.
-- `pnpm format <js|go|shell|all>` writes; `pnpm format check <...>` checks.
-- `pnpm lint <js|go|helm|docker|shell|actions|all>`.
+- `pnpm format <js|go|python|shell|all>` writes; `pnpm format check <...>` checks.
+- `pnpm lint <js|go|python|helm|docker|shell|actions|all>`.
+- `pnpm fix <js|go|python|all>`.
 - `pnpm check` type-checks every package and `infra/`.
 - Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, `desktop`, and `mobile`;
   `pnpm --filter <package> test` for `prettier` and `valkey`;
   `go tool ginkgo -p ./packages/<pkg>/e2e` for a package's e2e suite on local k3d
   (`packages/e2e/README.md`).
-- Scoped: `pnpm exec prettier --check <files>`, `pnpm exec eslint [--fix] <files>`, `shellcheck`,
-  `shfmt -d`, `hadolint`, `actionlint`, `pnpm --filter "...[origin/main]" --if-present check`. That
-  filter and the shell and Docker format and lint commands see only tracked files, so check new
-  files with the file-level tools and `pnpm --filter <package> --if-present check`.
+- Scoped: `pnpm exec prettier --check <files>`, `pnpm exec eslint [--fix] <files>`, `ruff check`,
+  `ruff format --check`, `shellcheck`, `shfmt -d`, `hadolint`, `actionlint`,
+  `pnpm --filter "...[origin/main]" --if-present check`. That filter and the shell and Docker format
+  and lint commands see only tracked files, so check new files with the file-level tools and
+  `pnpm --filter <package> --if-present check`.
 - Render without a cluster:
   `kustomize build k3s/overlays/<local|dev|prod> --load-restrictor LoadRestrictionsNone`.
 - Local cluster: `pnpm cluster k3d deps up`, `pnpm cluster k3d up` (hazard 4),
@@ -205,8 +208,8 @@ Before calling infra, cluster, or tooling work done, check:
   false positives, and hardening requests the Code Review Rules exclude, with a written reason, and
   resolve threads you addressed. Once CI passes and nothing is left unhandled, stop at the first of
   these and tell me which bots didn't review:
-  - every review bot expected on this push reviewed it (Claude runs only on open and ready, not
-    follow-up pushes);
+  - every review bot expected on this push reviewed it (Claude and Gemini run only on open and
+    ready, not follow-up pushes);
   - 30 minutes have passed since that push;
   - you have no timer, and no bot still missing shows activity on that push.
 

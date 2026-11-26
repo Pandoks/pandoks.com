@@ -139,7 +139,7 @@ try {
     prompt: `/code-review ${EFFORT} --comment ${event.pull_request.number}`,
     options: {
       model: MODEL,
-      additionalDirectories: ['scripts/claude-review'],
+      additionalDirectories: ['scripts/ai-review'],
       permissionMode: 'dontAsk',
       allowedTools: [
         'mcp__github_inline_comment__create_inline_comment',

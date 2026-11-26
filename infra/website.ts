@@ -23,7 +23,8 @@ if (isProduction) {
           'package.json',
           'packages/svelte/*',
           'pnpm-lock.yaml',
-          'pnpm-workspace.yaml'
+          'pnpm-workspace.yaml',
+          'pyproject.toml' // NOTE: Pages automatically runs `pip install .` when present
         ]
       }
     },

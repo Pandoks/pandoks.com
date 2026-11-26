@@ -1,0 +1,22 @@
+[project]
+name = "pandoks"
+version = "0.0.0"
+
+[tool.uv.workspace]
+members = [
+  "scripts/ai-review",
+]
+
+[tool.ruff]
+line-length = 100
+extend-exclude = ["*.md"]
+
+[tool.setuptools]
+packages = []
+
+# NOTE: Cloudflare Pages runs `pip install .` whenever a root pyproject.toml exists.
+[build-system]
+requires = [
+  "setuptools==84.2.1",
+]
+build-backend = "setuptools.build_meta"

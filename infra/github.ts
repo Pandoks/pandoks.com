@@ -66,6 +66,12 @@ if (isProduction && githubEnvironment) {
     value: secrets.github.PackageManagementToken
   });
 
+  new github.ActionsSecret('GithubGeminiAppPrivateKey', {
+    repository: githubRepositoryName,
+    secretName: 'GEMINI_APP_PRIVATE_KEY',
+    value: secrets.github.GeminiAppPrivateKey
+  });
+
   new github.ActionsSecret('GithubCloudflareApiToken', {
     repository: githubRepositoryName,
     secretName: 'CLOUDFLARE_API_TOKEN',

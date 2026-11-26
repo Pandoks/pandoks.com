@@ -1,4 +1,4 @@
-name: Claude Review
+name: AI Review
 
 on:
   pull_request:
@@ -8,23 +8,23 @@ on:
     branches:
       - main
 
-permissions:
-  contents: read
-  pull-requests: write
-  id-token: write
-
 concurrency:
-  group: claude-review-${{ github.ref }}
+  group: ai-review-${{ github.ref }}
 
 jobs:
-  review:
-    if: >-
+  claude:
+    if: &reviewable >-
       ${{
         !github.event.pull_request.draft &&
         (github.event.pull_request.user.type != 'Bot' ||
           github.event.pull_request.user.login == 'pandoks-grok[bot]')
       }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -66,7 +66,7 @@ jobs:
             echo "::add-mask::${token}"
             echo "token=${token}" >> "${GITHUB_OUTPUT}"
           elif [[ $(jq -r .error.details.error_code <<<"${response}") == workflow_content_mismatch ]]; then
-            echo "::notice::claude-review.yaml differs from the default branch, so this review posts as github-actions[bot]"
+            echo "::notice::ai-review.yaml differs from the default branch, so this review posts as github-actions[bot]"
           else
             echo "${response}"
             exit 1
@@ -86,7 +86,7 @@ jobs:
           GH_TOKEN: ${{ steps.claude-app.outputs.token || github.token }}
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1'
           CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
-        run: exec env -u ACTIONS_ID_TOKEN_REQUEST_URL -u ACTIONS_ID_TOKEN_REQUEST_TOKEN node scripts/claude-review/review.ts
+        run: exec env -u ACTIONS_ID_TOKEN_REQUEST_URL -u ACTIONS_ID_TOKEN_REQUEST_TOKEN node scripts/ai-review/claude.ts
 
       - name: Delete pending review
         if: ${{ cancelled() || failure() }}
@@ -107,3 +107,55 @@ jobs:
         env:
           TOKEN: ${{ steps.claude-app.outputs.token }}
         run: 'curl -sSf -X DELETE -H "Authorization: Bearer ${TOKEN}" -H "X-GitHub-Api-Version: 2026-03-10" https://api.github.com/installation/token'
+
+  gemini:
+    if: *reviewable
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Pandoks/skills
+          ref: cf80975dbd825ec70a6225d0c71d0699b02f1f9c
+          path: .gemini-skills
+          persist-credentials: false
+
+      - name: Install test-audit skill
+        shell: bash
+        run: |
+          mkdir -p "${HOME}/.gemini/skills"
+          mv .gemini-skills/skills/test-audit "${HOME}/.gemini/skills/"
+          rm -rf .gemini-skills
+
+      - uses: ./.github/actions/setup-mise
+        with:
+          tools: python uv
+
+      - uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c # v4.4.0
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Get pandoks-gemini[bot] token
+        id: gemini-app
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        with:
+          client-id: Iv23liO7LwTHugcrphjw
+          private-key: ${{ secrets.GEMINI_APP_PRIVATE_KEY }}
+          permission-pull-requests: write
+
+      - name: Review with Gemini
+        env:
+          GOOGLE_GEMINI_BASE_URL: https://cliproxyapi.tailb2c81d.ts.net
+          GEMINI_API_KEY: cliproxyapi
+          GH_TOKEN: ${{ steps.gemini-app.outputs.token }}
+        run: uv run --package ai-review --locked scripts/ai-review/gemini.py

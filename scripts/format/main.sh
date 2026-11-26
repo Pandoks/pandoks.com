@@ -16,14 +16,16 @@ usage() {
   printf "Format files across the monorepo.\n\n" >&2
 
   printf "%bWrite mode:%b\n" "${BOLD}" "${NORMAL}" >&2
-  printf "  %bjs%b           Prettier over JS/TS/Svelte/MD/YAML/JSON\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bjs%b           Prettier over JS/TS/Svelte/MD/YAML/JSON/TOML\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bgo%b           golangci-lint fmt over Go modules\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bpython%b       ruff format over Python files\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bshell%b        shfmt over shell scripts\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %ball%b          Format all\n\n" "${GREEN}" "${NORMAL}" >&2
 
   printf "%bCheck mode (no writes):%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %bcheck js%b     Prettier --check\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bcheck go%b     golangci-lint fmt --diff\n" "${GREEN}" "${NORMAL}" >&2
+  printf "  %bcheck python%b ruff format --check\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bcheck shell%b  shfmt -d\n" "${GREEN}" "${NORMAL}" >&2
   printf "  %bcheck all%b    Check all\n\n" "${GREEN}" "${NORMAL}" >&2
 
@@ -38,6 +40,10 @@ cmd_format_go() {
   cd "${REPO_ROOT}" && golangci-lint fmt
 }
 
+cmd_format_python() {
+  cd "${REPO_ROOT}" && ruff format .
+}
+
 cmd_format_shell() {
   cd "${REPO_ROOT}"
   git ls-files -z '*.sh' | xargs -0 shfmt -w
@@ -46,6 +52,7 @@ cmd_format_shell() {
 cmd_format_all() {
   cmd_format_js
   cmd_format_go
+  cmd_format_python
   cmd_format_shell
 }
 
@@ -57,6 +64,10 @@ cmd_format_check_go() {
   cd "${REPO_ROOT}" && golangci-lint fmt --diff
 }
 
+cmd_format_check_python() {
+  cd "${REPO_ROOT}" && ruff format --check .
+}
+
 cmd_format_check_shell() {
   cd "${REPO_ROOT}"
   git ls-files -z '*.sh' | xargs -0 shfmt -d
@@ -65,6 +76,7 @@ cmd_format_check_shell() {
 cmd_format_check_all() {
   cmd_format_check_js
   cmd_format_check_go
+  cmd_format_check_python
   cmd_format_check_shell
 }
 
@@ -76,6 +88,7 @@ cmd_format_check() {
   case "${cmd}" in
     js) cmd_format_check_js ;;
     go) cmd_format_check_go ;;
+    python) cmd_format_check_python ;;
     shell) cmd_format_check_shell ;;
     all) cmd_format_check_all ;;
     help | --help | -h) usage ;;
@@ -94,6 +107,7 @@ main() {
   case "${cmd}" in
     js) cmd_format_js ;;
     go) cmd_format_go ;;
+    python) cmd_format_python ;;
     shell) cmd_format_shell ;;
     all) cmd_format_all ;;
     check) cmd_format_check "$@" ;;
