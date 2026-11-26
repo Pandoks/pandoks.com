@@ -5,7 +5,7 @@ metadata:
   namespace: kube-system
 spec:
   chart: oci://${ImageRegistry}/charts/postgres
-  version: 0.1.5
+  version: 0.1.8
   targetNamespace: &namespace main
   createNamespace: true
   failurePolicy: abort
@@ -17,3 +17,4 @@ spec:
     backup.path: /kubernetes/main/postgres
     backup.image: ${ImageRegistry}/pgbackrest:${ImageTag}
     patroni.image: ${ImageRegistry}/patroni:${ImageTag}
+    patroni.reconcilerImage: ${ImageRegistry}/postgres-reconciler:${ImageTag}

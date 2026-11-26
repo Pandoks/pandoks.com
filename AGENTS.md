@@ -97,7 +97,7 @@ checkout.
 - `pnpm lint <js|go|helm|docker|shell|actions|all>`.
 - `pnpm check` type-checks every package and `infra/`.
 - Tests: `pnpm --filter "...<package>" test:unit` for `web`, `svelte`, `desktop`, and `mobile`;
-  `pnpm --filter <package> test` for `prettier` and `valkey`;
+  `pnpm --filter <package> test` for `prettier`, `postgres`, and `valkey`;
   `go tool ginkgo -p ./packages/<pkg>/e2e` for a package's e2e suite on local k3d
   (`packages/e2e/README.md`).
 - Scoped: `pnpm exec prettier --check <files>`, `pnpm exec eslint [--fix] <files>`, `shellcheck`,

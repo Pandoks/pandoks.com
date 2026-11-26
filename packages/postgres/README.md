@@ -180,7 +180,7 @@ metadata:
   namespace: kube-system
 spec:
   chart: oci://${ImageRegistry}/charts/postgres
-  version: 0.1.5
+  version: 0.1.8
   targetNamespace: &namespace myapp
   createNamespace: true
   failurePolicy: abort
@@ -192,6 +192,7 @@ spec:
     backup.path: /kubernetes/myapp/postgres
     backup.image: ${ImageRegistry}/pgbackrest:${ImageTag}
     patroni.image: ${ImageRegistry}/patroni:${ImageTag}
+    patroni.reconcilerImage: ${ImageRegistry}/postgres-reconciler:${ImageTag}
     patroni.shards: 1
     patroni.replicasPerShard: 3
 ```
@@ -285,6 +286,43 @@ kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
   --leader patroni-myapp-shard-0-0 \
   --candidate patroni-myapp-shard-0-1 \
   --force
+```
+
+### Change Postgres Settings
+
+Set values under `patroni.parameters` in the app's HelmChart. New clusters start with them; after
+every install, upgrade, and rollback, a [reconciler](./reconciler) Job (`apply-parameters`) applies
+them to each running shard.
+
+```yaml
+spec:
+  set:
+    patroni.parameters.shared_buffers: 256MB
+    patroni.parameters.work_mem: 16MB
+```
+
+| Case                                         | Result                                                           |
+| -------------------------------------------- | ---------------------------------------------------------------- |
+| Reloadable (like `work_mem`)                 | Takes effect within seconds                                      |
+| Needs restart (like `shared_buffers`)        | Shows under `Pending restart` until restarted in place           |
+| Changed while a shard bootstraps or restores | The Job skips that shard; it gets the change on the next release |
+| Key removed from `patroni.parameters`        | Keeps its last value in Patroni                                  |
+
+**Restart a shard in place:**
+
+```bash
+kubectl exec -n myapp patroni-myapp-shard-0-0 -c patroni -- \
+  patronictl -c /etc/patroni/patroni.yaml restart myapp-shard-0 --pending --force
+```
+
+> [!WARNING]
+> The Job succeeds even on a misspelled name or invalid value: Patroni skips it and only logs that
+> in the `patroni` container. Check the result with `SHOW <setting>`.
+
+**Follow Job logs during the release** (Helm deletes a failed Job along with its logs):
+
+```bash
+kubectl logs -n myapp job/patroni-myapp-parameters -f
 ```
 
 ### Backup Operations
@@ -645,12 +683,15 @@ after changing them:
 | ----------------------------- | --------------------------------------------------------------- |
 | `pnpm local:build:patroni`    | Builds the patroni docker image locally                         |
 | `pnpm local:build:pgbackrest` | Builds the pgbackrest docker image locally                      |
+| `pnpm local:build:reconciler` | Builds the postgres-reconciler docker image locally             |
 | `pnpm local:build:helm`       | Packages the helm chart into a `.tgz` locally                   |
 | `pnpm local:build`            | All of the build commands above                                 |
 | `pnpm local:push:patroni`     | Pushes the patroni image to the local k3d registry              |
 | `pnpm local:push:pgbackrest`  | Pushes the pgbackrest image to the local k3d registry           |
+| `pnpm local:push:reconciler`  | Pushes the postgres-reconciler image to the local k3d registry  |
 | `pnpm local:push:helm`        | Pushes the helm chart package to the local k3d registry via oci |
 | `pnpm local:push`             | All of the push commands above                                  |
+| `pnpm test`                   | Runs the reconciler Go tests                                    |
 
 `pnpm local:build && pnpm local:push` from the repo root does this for every package.
 
@@ -683,6 +724,8 @@ after changing them:
 | `patroni.shards`                | Number of shards                                   | `1`                                                         |
 | `patroni.replicasPerShard`      | Pods per shard (1 primary + n - 1 replicas)        | `3`                                                         |
 | `patroni.image`                 | Patroni image                                      | `ghcr.io/pandoks/patroni:latest`                            |
+| `patroni.reconcilerImage`       | Image of the Job that applies `patroni.parameters` | `ghcr.io/pandoks/postgres-reconciler:latest`                |
+| `patroni.parameters.*`          | Postgres settings, applied to running clusters     | `max_connections: 100`, `shared_buffers: 128MB`, etc.       |
 | `patroni.resources.*`           | `patroni`, `pgbackrest`, `postgresExporter`        | `{}`                                                        |
 | `pgdog.*`                       | Passed through to the [PgDog chart][pgdog]         | See below                                                   |
 | `pgdog.replicas`                | PgDog replicas                                     | `2`                                                         |
