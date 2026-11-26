@@ -55,6 +55,7 @@ export default defineConfig([
           './tsconfig.eslint.json',
           './apps/*/tsconfig.json',
           './packages/*/tsconfig.json',
+          './packages/react-native/*/tsconfig.json',
           './templates/*/tsconfig.json'
         ],
         // TODO: https://github.com/typescript-eslint/typescript-eslint/issues/9504
@@ -193,7 +194,10 @@ export default defineConfig([
   },
 
   // REACT RULES
-  { files: ['**/*.tsx', 'templates/mobile/**/*.ts'], ...reactHooks.configs.flat.recommended },
+  {
+    files: ['**/*.tsx', 'templates/mobile/**/*.ts', 'packages/react-native/**/*.ts'],
+    ...reactHooks.configs.flat.recommended
+  },
   {
     files: ['**/*.tsx'],
     rules: {

@@ -1,0 +1,29 @@
+{
+  "name": "@pandoks.com/react-native-notifications",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "expo-application": "58.1.2",
+    "expo-notifications": "58.1.7",
+    "expo-router": "58.0.28",
+    "react": "19.3.0",
+    "react-native": "0.88.1"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "expo": "58.0.21",
+    "expo-application": "58.1.2",
+    "expo-notifications": "58.1.7",
+    "expo-router": "58.0.28",
+    "react": "19.3.0",
+    "react-native": "0.88.1",
+    "typescript": "6.0.3"
+  }
+}
