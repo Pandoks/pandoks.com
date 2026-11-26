@@ -55,6 +55,7 @@ export default defineConfig([
           './tsconfig.eslint.json',
           './apps/*/tsconfig.json',
           './packages/*/tsconfig.json',
+          './packages/react-native/*/tsconfig.json',
           './templates/*/tsconfig.json'
         ],
         // TODO: https://github.com/typescript-eslint/typescript-eslint/issues/9504
