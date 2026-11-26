@@ -16,12 +16,11 @@ readonly REPO_ROOT
 
 readonly KMS_PRODUCTION_ALIAS='pulumi-production'
 readonly KMS_NONPRODUCTION_ALIAS='pulumi-nonproduction'
-readonly SSM_READ_ONLY_NAME='/pulumi/r2-state-read-credentials'
 readonly GITHUB_OIDC_HOST='token.actions.githubusercontent.com'
 readonly CI_ROLE_NAME='PandoksGithubActions'
 
 usage() {
-  printf "Usage: %s\n\nAdmin-only one-time bootstrap for both AWS member accounts:\n  - pandoks-production: R2 state bucket, KMS key, SSM R2 tokens, CI OIDC role, GitHub vars\n  - pandoks-dev: nonproduction KMS key, SSM R2 token\n  - local ~/.aws/config profile for Pulumi state\n" "$0"
+  printf "Usage: %s\n\nAdmin-only one-time bootstrap for both AWS member accounts:\n  - pandoks-production: R2 state bucket, KMS key, SSM R2 token, CI OIDC role, GitHub vars\n  - pandoks-dev: nonproduction KMS key, SSM R2 token\n  - local ~/.aws/config profile for Pulumi state\n" "$0"
 }
 
 ensure_github_login() {
@@ -221,7 +220,6 @@ bootstrap_prod() {
   ensure_r2_bucket "${PULUMI_BUCKET}" "${PULUMI_CLOUDFLARE_ACCOUNT_ID}"
   ensure_kms_alias "${KMS_PRODUCTION_ALIAS}" "${PULUMI_AWS_REGION}" "Pulumi secrets for the production stack"
   ensure_r2_token_parameter "${PULUMI_SSM_READ_WRITE_NAME}" "${KMS_PRODUCTION_ALIAS}" "Pulumi (prod)" "Object Read & Write" "${PULUMI_AWS_REGION}" "${PULUMI_CLOUDFLARE_ACCOUNT_ID}" "${PULUMI_BUCKET}"
-  ensure_r2_token_parameter "${SSM_READ_ONLY_NAME}" "${KMS_PRODUCTION_ALIAS}" "Argo CD" "Object Read only" "${PULUMI_AWS_REGION}" "${PULUMI_CLOUDFLARE_ACCOUNT_ID}" "${PULUMI_BUCKET}"
   ensure_github_oidc_provider
   ensure_github_role "${bootstrap_prod_aws_account_id}" "${bootstrap_prod_repo}"
 }

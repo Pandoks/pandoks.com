@@ -198,16 +198,6 @@
       "versioning": "loose"
     },
     {
-      "description": "Every Pulumi CLI copy (mise, the Argo CD plugin image) moves in one PR.",
-      "matchPackageNames": ["pulumi/pulumi", "pulumi/pulumi-base"],
-      "groupName": "pulumi cli"
-    },
-    {
-      "description": "Every AWS CLI copy (mise, the Argo CD plugin image) moves in one PR.",
-      "matchPackageNames": ["aws-cli", "aws/aws-cli", "amazon/aws-cli"],
-      "groupName": "aws cli"
-    },
-    {
       "description": "Kubernetes can't skip minors, so each k3s minor is its own PR.",
       "matchPackageNames": ["k3s-io/k3s"],
       "groupName": "k3s",
@@ -222,10 +212,9 @@
       ]
     },
     {
-      "description": "Every pnpm copy, the runner AMI's included, moves in one PR. ghcr.io tags have no release timestamp, so they skip minimumReleaseAge; approve once the npm copies are in the PR too.",
-      "matchPackageNames": ["pnpm", "ghcr.io/pnpm/pnpm"],
-      "groupName": "pnpm",
-      "dependencyDashboardApproval": true
+      "description": "Every pnpm copy, the runner AMI's included, moves in one PR.",
+      "matchPackageNames": ["pnpm"],
+      "groupName": "pnpm"
     },
     {
       "description": "The Expo SDK pins these, react and react-native exactly; upgrade them together with `pnpm expo install expo@<sdk> --fix`, then remove the `~` Expo writes, match the `react` override in pnpm-workspace.yaml, and run `pnpm install`.",

@@ -12,30 +12,82 @@ As it stands, the dev and prod clusters are hosted on Hetzner VPS's.
 ```
 k3s/
   bootstrap/                 # Helm charts + CRD providers (deploy <env> --bootstrap)
-    core/                    # MetalLB, cert-manager, kube-prometheus-stack, HAProxy ingress
+    core/                    # MetalLB, cert-manager, External Secrets Operator, kube-prometheus-stack, HAProxy ingress
     local/                   # core
     dev/                     # core + system-upgrade-controller CRDs
     prod/                    # core + ArgoCD + system-upgrade-controller CRDs
   base/                      # Shared resources for every environment
-    core/                    # MetalLB pool, cert-manager issuers, shared ClusterRoles, Tailscale credentials
+    core/                    # MetalLB pool, cert-manager issuers, shared ClusterRoles, Grafana ExternalSecret
     apps/                    # References to apps/*/kube
     monitoring/              # HAProxy Grafana dashboards
   overlays/                  # deploy <env> (includes base + bootstrap/<env>)
-    local/                   # k3d: MetalLB docker IPs, k3d etcd endpoints, apps/*/kube/dev-patch.yaml
-    cluster/                 # Shared by dev + prod: Tailscale operator, system upgrades, Hetzner etcd endpoints
+    local/                   # k3d: placeholder secret store, MetalLB docker IPs, k3d etcd endpoints, apps/*/kube/dev-patch.yaml
+    cluster/                 # Shared by dev + prod: AWS secret store, Tailscale operator, system upgrades, Hetzner etcd endpoints
     dev/                     # cluster + bootstrap/dev
-    prod/                    # cluster + bootstrap/prod + ArgoCD credentials, Pulumi plugin and Application
+    prod/                    # cluster + bootstrap/prod + prod patches, ArgoCD plugin and Application
 ```
 
-Pulumi stack outputs are substituted inline (`${Secret}`) by `pnpm cluster deploy`. See
-[scripts/cluster/README.md](../scripts/cluster/README.md) for the template variables.
+`pnpm cluster deploy` substitutes only the image variables (see
+[scripts/cluster/README.md](../scripts/cluster/README.md)); manifests hold `dev` names and buckets,
+and `overlays/prod` patches them to `prod`.
+
+## Secrets
+
+Every credential in the cluster is an `ExternalSecret` that
+[External Secrets Operator](https://external-secrets.io) syncs from the `cluster-secrets`
+`ClusterSecretStore`, keeping the `Secret` names and keys the apps read:
+
+```mermaid
+flowchart LR
+  human["Pulumi.{stack}.yaml secrets<br/>(human inputs)"] --> pulumi[Pulumi]
+  generated["Tailscale OAuth client,<br/>origin certificate"] --> pulumi
+  pulumi -->|createClusterSecret| ssm["SSM /kubernetes/{prod or dev}/{Name}"]
+  pulumi -->|"access key: bootstrap cloud-config,<br/>then deploy-infra.yaml in prod"| aws["Secret external-secrets/external-secrets-aws"]
+  ssm --> store[ClusterSecretStore cluster-secrets]
+  aws --> store
+  store --> eso[ExternalSecret] --> secret[Secret]
+```
+
+- **dev and prod** (`overlays/cluster/cluster-secrets.yaml`): the AWS Parameter Store provider reads
+  `/kubernetes/dev/<Name>` (`/kubernetes/prod/` in prod) as the stack's `external-secrets-<stack>`
+  IAM user, which can only read and decrypt that path.
+- **local** (`overlays/local/cluster-secrets.yaml`): the `fake` provider serves committed
+  placeholders, so k3d needs no AWS login or Pulumi stack.
+
+To add one, write an `ExternalSecret` whose `remoteRef.key` is the name, publish it with
+`createClusterSecret` in `infra/kubernetes.ts`, and add a placeholder to the local store if the
+`local` overlay renders it. A missing key leaves the `ExternalSecret` not Ready and keeps the last
+synced `Secret`.
+
+ExternalSecrets refresh hourly; to sync a changed value now:
+
+```sh
+kubectl --context <context> -n <namespace> annotate externalsecret <name> \
+  force-sync="$(date +%s)" --overwrite
+```
+
+Grafana reads its admin password only when it first creates its database, so change it in Grafana
+too.
+
+### Rotating the External Secrets access key
+
+Rename `ExternalSecretsAccessKey` in `infra/kubernetes.ts` and merge; this rotates the `production`
+and `dev` keys. The bootstrap node's cloud-config writes `external-secrets/external-secrets-aws` on
+first boot:
+
+- **prod** ignores user-data changes, so after every `pulumi up`, `deploy-infra.yaml` writes the
+  stack's key into that Secret. It joins the tailnet as `tag:ci-production`, the only CI tag allowed
+  to write it, with an OAuth client whose secret is a production stack output that only `main`'s AWS
+  role can read. Pulumi creates the new key before deleting the old one, so syncs can fail only in
+  the seconds between, and Secrets keep their last values.
+- **dev**: the user data changes, so the next `pulumi up --stack dev` replaces every server and
+  rebuilds the cluster, wiping its data, with the new key.
 
 ## Local Development
 
 For local development, we use [k3d](https://k3d.io/) to create a local k3s cluster.
 
-To setup the cluster, run the following command from the root of the project (`local` reads shared
-cluster outputs from the `dev` Pulumi stack):
+To setup the cluster, run the following command from the root of the project:
 
 ```sh
 pnpm local:init
@@ -56,7 +108,7 @@ pnpm local:build && pnpm local:push
 # Install base infrastructure (helm charts + CRDs)
 ./scripts/cluster/main.sh deploy local --bootstrap
 
-# Deploy local overlay (MetalLB IP patch + app dev patches; stack outputs substituted inline)
+# Deploy local overlay (placeholder secret store, MetalLB IP patch, app dev patches)
 ./scripts/cluster/main.sh deploy local
 ```
 
@@ -74,7 +126,7 @@ kubectl --context <tailscale-context> get pods
 # Install base infrastructure (helm charts + CRDs)
 ./scripts/cluster/main.sh deploy prod --bootstrap
 
-# Deploy overlay (tailscale operator + system-upgrade controller; stack outputs substituted inline)
+# Deploy overlay (AWS secret store, tailscale operator, system-upgrade controller)
 ./scripts/cluster/main.sh deploy prod
 ```
 
@@ -83,11 +135,11 @@ For dev, use `deploy dev` in both commands, keeping `--bootstrap` on the first.
 ### ArgoCD (prod)
 
 `bootstrap/prod` installs ArgoCD, and `overlays/prod/argocd.yaml` adds the `prod-cluster`
-Application, its credentials, and a repo-server sidecar (`packages/argocd`) that renders kustomize
-with Pulumi stack outputs. Once the first `deploy prod` creates it, ArgoCD syncs `k3s/overlays/prod`
-from `main`. The `deploy-infra.yaml` workflow triggers a hard refresh when `k3s/**`,
-`apps/*/kube/**`, or `scripts/cluster/**` changes, and fails unless prod becomes Synced and Healthy
-at `main` within 10 minutes.
+Application and a repo-server sidecar (`packages/argocd`) that renders kustomize with the image
+variables. ArgoCD reads the public repo anonymously and never sees a secret. Once the first
+`deploy prod` creates it, ArgoCD syncs `k3s/overlays/prod` from `main`. The `deploy-infra.yaml`
+workflow triggers a hard refresh when `k3s/**`, `apps/*/kube/**`, or `scripts/cluster/**` changes,
+and fails unless prod becomes Synced and Healthy at `main` within 10 minutes.
 
 ## k9s
 
@@ -189,10 +241,10 @@ patches in its etcd endpoints with a `HelmChartConfig` because they're environme
 ### Structure
 
 ```
-k3s/bootstrap/core/kube-prometheus-stack.yaml  → monitoring namespace, Grafana secret, HelmChart
+k3s/bootstrap/core/kube-prometheus-stack.yaml  → monitoring namespace, HelmChart
 k3s/overlays/local/prom-etcd-config.yaml       → HelmChartConfig with k3d control plane IPs (172.30.0.4-6)
 k3s/overlays/cluster/prom-etcd-config.yaml     → HelmChartConfig with Hetzner IPs (10.0.1.10+)
-k3s/base/core/monitoring.yaml                  → Grafana service exposed via Tailscale (<stage>-grafana)
+k3s/base/core/monitoring.yaml                  → Grafana service exposed via Tailscale (<stage>-grafana), Grafana ExternalSecret
 k3s/base/monitoring/                           → HAProxy Grafana dashboards
 ```
 

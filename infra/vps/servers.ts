@@ -7,6 +7,7 @@ import { renderCloudInit } from '@pandoks.com/infra/cloud-init';
 import { isProduction, STAGE_NAME } from '@pandoks.com/infra/stack';
 import { deleteTailscaleDevices } from '@pandoks.com/infra/tailscale';
 import { kubernetesOperatorOauthClient, tailscaleAcl } from '../tailscale.ts';
+import { externalSecretsAccessKey } from '../kubernetes.ts';
 import { secrets } from '../secrets.ts';
 import { backupBucket, s3Endpoint } from '../storage.ts';
 
@@ -118,7 +119,9 @@ export function createServers(
         s3Endpoint,
         backupBucket.name,
         secrets.cloudflare.BackupAccessKey,
-        secrets.cloudflare.BackupSecretKey
+        secrets.cloudflare.BackupSecretKey,
+        externalSecretsAccessKey.id,
+        externalSecretsAccessKey.secret
       ])
       .apply(
         ([
@@ -132,7 +135,9 @@ export function createServers(
           S3_HOST,
           BACKUP_BUCKET,
           S3_ACCESS_KEY,
-          S3_SECRET_KEY
+          S3_SECRET_KEY,
+          EXTERNAL_SECRETS_AWS_ACCESS_KEY_ID,
+          EXTERNAL_SECRETS_AWS_SECRET_ACCESS_KEY
         ]) => {
           const environments = {
             STAGE_NAME,
@@ -149,7 +154,9 @@ export function createServers(
             S3_HOST,
             BACKUP_BUCKET,
             S3_ACCESS_KEY,
-            S3_SECRET_KEY
+            S3_SECRET_KEY,
+            EXTERNAL_SECRETS_AWS_ACCESS_KEY_ID,
+            EXTERNAL_SECRETS_AWS_SECRET_ACCESS_KEY
           };
           return renderCloudInit({ config: cloudInitConfig, environment: environments });
         }

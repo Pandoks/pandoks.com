@@ -34,8 +34,7 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
    included. If production needs a manual fix, even when I say ship now, propose the exact command,
    target, and effect, then wait.
 2. **Deploying a stack by accident.** Pass `--stack <stack>` to every `pulumi` command; mine is
-   `pandoks` (`pnpm cluster deploy` always uses `dev` for `local`/`dev` and `production` for
-   `prod`). `mise.toml` defaults `AWS_PROFILE=pandoks-dev` and `Pulumi.{production,dev}.yaml` pin
+   `pandoks`. `mise.toml` defaults `AWS_PROFILE=pandoks-dev` and `Pulumi.{production,dev}.yaml` pin
    `aws:allowedAccountIds` to their AWS member accounts. For the site, run
    `pnpm exec portless doctor` before `pnpm --filter web dev`, which can start a missing proxy with
    `sudo`; if doctor prints a `warn` or `fail` line (it exits 0 on a stopped proxy), give me its fix
@@ -52,9 +51,9 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
    `pnpm cluster k3d up` does, so save `kubectl config current-context` first and switch back.
    Target k3d with `kubectl --context k3d-local-cluster` and
    `printf 'y\n' | mise exec -- pnpm cluster deploy local --kubeconfig "$(mise exec -- k3d kubeconfig write local-cluster)"`.
-5. **Leaking secrets.** `--show-secrets` output, `pulumi config get` of a secret, SSM `/pulumi/`
-   values, and `pnpm cluster deploy --dry-run` output are real credentials: never print, commit, or
-   paste them, and inspect manifests with `kustomize build`. New secrets go in `infra/secrets.ts`; a
+5. **Leaking secrets.** `--show-secrets` output, `pulumi config get` of a secret, SSM `/pulumi/` and
+   `/kubernetes/` values, and cluster `Secret`s are real credentials: never print, commit, or paste
+   them, and inspect manifests with `kustomize build`. New secrets go in `infra/secrets.ts`; a
    missing value fails every preview and deploy of its stack, so set yours with
    `pulumi config set --secret --raw --stack <stack> <Name> < <file>` and ask me for production's.
 
@@ -70,11 +69,11 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
 - Merging to `main` runs `deploy-infra.yaml`: `pulumi up --refresh --run-program --stack production`
   for `Pulumi.yaml`, `Pulumi.production.yaml`, `.github/actions/setup-mise/`, `mise.toml`, root
   `package.json`/`pnpm-lock.yaml`/`pnpm-workspace.yaml`/`tsconfig.json`, `infra/`,
-  `packages/infra/`, `apps/` (except `example`), and `packages/svelte/`, plus an Argo hard refresh
-  and wait for Synced and Healthy when Pulumi deploys or `k3s/`, `apps/*/kube/`, or
-  `scripts/cluster/` change. Pages builds `apps/web` when a change matches `pathIncludes` in
-  `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod` renders but never prunes:
-  deleted resources stay until pruned.
+  `packages/infra/`, `apps/` (except `example`), and `packages/svelte/`, which then writes the
+  External Secrets access key into prod, plus an Argo hard refresh and wait for Synced and Healthy
+  when `k3s/`, `apps/*/kube/`, or `scripts/cluster/` change. Pages builds `apps/web` when a change
+  matches `pathIncludes` in `infra/website.ts`. Argo auto-syncs everything `k3s/overlays/prod`
+  renders but never prunes: deleted resources stay until pruned.
 - `production` deploys to `pandoks-production`, `dev` and personal stacks deploy to `pandoks-dev`.
   `production` and `dev` are shared stages (cluster, runners, backups, GitHub env); personal stacks
   get `STAGE_NAME = <stack>` (`api.<stack>.pandoks.com`) and only provision per-stack app infra.
@@ -116,9 +115,9 @@ checkout.
 - Prove changes through their real entry point:
   - Cluster behavior (`k3s/`, `apps/*/kube`, charts, cluster images): render, deploy to local k3d,
     and exercise it, including the failure paths you touched. k3d has no ArgoCD and skips
-    `k3s/overlays/cluster` (Tailscale operator, upgrade controller); for those, render the `dev` and
-    `prod` overlays and build the image instead of forcing them onto k3d. Run a changed chart's e2e
-    suite if it has one.
+    `k3s/overlays/cluster` (AWS secret store, Tailscale operator, upgrade controller); for those,
+    render the `dev` and `prod` overlays and build the image instead of forcing them onto k3d. Run a
+    changed chart's e2e suite if it has one.
   - `scripts/`: run the real CLI for each result and failure path you touched, argument errors
     included.
   - `infra/`, `packages/infra/`, or `Pulumi.yaml`: full `pnpm check` plus scoped lint after the last
@@ -236,7 +235,8 @@ that can't happen, or for compatibility code for old data or deploy order during
 - An attacker-controlled `${{ }}` value, like a branch name or PR title, in `run:` instead of
   `env:`.
 - A real secret value in code, manifests, values, logs, or workflow output. References like
-  `infra/secrets.ts` names, `${...}` placeholders, and `${{ secrets.* }}` are fine.
+  `infra/secrets.ts` names, ExternalSecret keys, `${...}` placeholders, `${{ secrets.* }}`, and the
+  local fake store's placeholders are fine.
 - A swallowed failure in CI checks, scans, builds, or deploys, such as `|| true`, ignored exit
   codes, Trivy `exit-code: '0'`, or `continue-on-error`. Safe path: let the step fail. Intended
   exception: a known upstream bug with a `TODO:` linking the issue. Lint suppressions like
@@ -245,9 +245,12 @@ that can't happen, or for compatibility code for old data or deploy order during
   skipped path-filtered job still passes its required check:
   - a new `infra/` module outside `infra/index.ts`'s import graph;
   - a new app `kube/` directory missing from `k3s/base/apps`;
-  - a new `${...}` manifest placeholder with no matching stack output or computed variable in
-    `scripts/cluster/deploy.sh`, which `pnpm cluster deploy` and Argo apply as literal text (fine
-    for shell variables in embedded scripts);
+  - a new `${...}` manifest placeholder with no computed variable in `scripts/cluster/deploy.sh`,
+    which `pnpm cluster deploy` and Argo apply as literal text (fine for shell variables in embedded
+    scripts);
+  - a new ExternalSecret `remoteRef.key` with no `createClusterSecret` in `infra/`, or, if the
+    `local` overlay renders it, no entry in the local fake store
+    `k3s/overlays/local/cluster-secrets.yaml`, so it never syncs;
   - a new first-party image or chart missing from `changes.yaml`'s path filters or matrix, or from
     the `branch-cleanup.yaml` and `maintenance.yaml` matrices, or a new first-party image missing
     from the `security-audit.yaml` scan;

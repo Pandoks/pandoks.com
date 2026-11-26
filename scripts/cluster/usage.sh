@@ -70,7 +70,7 @@ usage_deploy() {
   printf "Deploy environment overlay to cluster.\n\n" >&2
   printf "This command:\n" >&2
   printf "  1. Runs kustomize build on the specified target\n" >&2
-  printf "  2. Substitutes Pulumi stack outputs and computed variables\n" >&2
+  printf "  2. Substitutes the image variables below\n" >&2
   printf "  3. Applies to the cluster with server-side apply\n" >&2
   printf "  4. Waits for CRDs to be established (bootstrap only)\n\n" >&2
 
@@ -79,20 +79,17 @@ usage_deploy() {
   printf "      Deploy to local k3d cluster with:\n" >&2
   printf "        - ImageRegistry: local-registry:5000\n" >&2
   printf "        - ImageTag: latest\n" >&2
-  printf "        - IsLocal: true\n" >&2
-  printf "        - Pulumi stack: 'dev'\n\n" >&2
+  printf "        - IsLocal: true\n\n" >&2
   printf "  %bdev%b\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Deploy to dev cloud cluster with:\n" >&2
   printf "        - ImageRegistry: ghcr.io/pandoks\n" >&2
   printf "        - ImageTag: <branch-name> (or 'latest' on main/master)\n" >&2
-  printf "        - IsLocal: false\n" >&2
-  printf "        - Pulumi stack: 'dev'\n\n" >&2
+  printf "        - IsLocal: false\n\n" >&2
   printf "  %bprod%b\n" "${GREEN}" "${NORMAL}" >&2
   printf "      Deploy to production cloud cluster with:\n" >&2
   printf "        - ImageRegistry: ghcr.io/pandoks\n" >&2
   printf "        - ImageTag: latest\n" >&2
-  printf "        - IsLocal: false\n" >&2
-  printf "        - Pulumi stack: 'production'\n\n" >&2
+  printf "        - IsLocal: false\n\n" >&2
 
   printf "%bOptions:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  %b--bootstrap%b\n" "${YELLOW}" "${NORMAL}" >&2
@@ -110,9 +107,7 @@ usage_deploy() {
   printf "%bTemplate Variables:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  \${ImageRegistry}     - Container registry (local or GHCR)\n" >&2
   printf "  \${ImageTag}          - Image tag (latest or branch name)\n" >&2
-  printf "  \${IsLocal}           - 'true' or 'false' for conditional logic\n" >&2
-  printf "  \${<Output>}          - Any Pulumi stack output by name\n" >&2
-  printf "  \${<Secret> | base64} - Base64 encode a secret value\n\n" >&2
+  printf "  \${IsLocal}           - 'true' or 'false' for conditional logic\n\n" >&2
 
   printf "%bExamples:%b\n" "${BOLD}" "${NORMAL}" >&2
   printf "  # First-time cluster setup (bootstrap, then overlay):\n" >&2

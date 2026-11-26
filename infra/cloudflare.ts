@@ -4,6 +4,7 @@ import * as cloudflare from '@pulumi/cloudflare';
 import { isProduction, STAGE_NAME } from '@pandoks.com/infra/stack';
 import { EXAMPLE_DOMAIN, cloudflareZoneId } from './dns.ts';
 import { controlPlaneLoadBalancers, workerLoadBalancers } from './vps/vps.ts';
+import { createClusterSecret } from './kubernetes.ts';
 
 const publicLoadBalancers = [...workerLoadBalancers, ...controlPlaneLoadBalancers];
 
@@ -47,4 +48,4 @@ const hetznerOriginCert = new cloudflare.OriginCaCertificate(
   }
 );
 
-export const outputs = { HetznerOriginTlsCrt: hetznerOriginCert.certificate };
+createClusterSecret({ name: 'HetznerOriginTlsCrt', value: hetznerOriginCert.certificate });

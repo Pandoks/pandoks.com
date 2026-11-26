@@ -62,8 +62,8 @@ credentials.
 
 ## Local Kubernetes
 
-Run a local K3s mirror in Docker with [k3d](https://k3d.io/) (`local` reads shared outputs from the
-`dev` stack):
+Run a local K3s mirror in Docker with [k3d](https://k3d.io/). It needs no AWS login or Pulumi stack:
+its secrets are placeholders in `k3s/overlays/local/cluster-secrets.yaml`.
 
 ```sh
 pnpm local:init      # Start deps, create k3d cluster, build/push images, bootstrap & deploy
@@ -98,8 +98,8 @@ More docs: [scripts/cluster/README.md](./scripts/cluster/README.md) ·
 
 - **`production`** (`pandoks-production`, committed) — full prod infra, deployed only by GitHub
   Actions on `main`.
-- **`dev`** (`pandoks-dev`, committed) — shared by personal stacks, PR previews, and local clusters
-  (dev K3s cluster, EC2 runner AMIs, R2 backups, `dev` GitHub environment).
+- **`dev`** (`pandoks-dev`, committed) — shared by personal stacks and PR previews (dev K3s cluster,
+  EC2 runner AMIs, R2 backups, `dev` GitHub environment).
 - **Personal stacks `<name>`** (`pandoks-dev`, gitignored) — isolated per-dev app resources
   (`<name>-*`, `api.<name>.pandoks.com`) on top of `dev`'s shared infra.
 
@@ -122,6 +122,9 @@ AWS_PROFILE=pandoks-production pulumi config set --secret --stack production <Na
 > Personal stack files stay gitignored — `pulumi config refresh --stack <name>` restores them from
 > state. `production` and `dev` secrets ship via PR.
 
+The cluster's secrets are copied to `/kubernetes/<prod|dev>/<Name>`, and External Secrets Operator
+syncs them in ([k3s/README.md](./k3s/README.md#secrets)).
+
 ## Bootstrap
 
 **Admin-only** one-time setup for the production (`pandoks-production`) and non-production
@@ -135,7 +138,7 @@ pnpm bootstrap
 - **`pandoks-production`** (production)
   - Cloudflare R2 state bucket (`pandoks-pulumi-state`)
   - KMS key `alias/pulumi-production`
-  - SSM R2 tokens (`/pulumi/r2-state-credentials`, `/pulumi/r2-state-read-credentials`)
+  - SSM R2 token (`/pulumi/r2-state-credentials`)
   - GitHub OIDC provider, `PandoksGithubActions` CI role, and repo vars (`AWS_ROLE_ARN`,
     `AWS_REGION`)
 - **`pandoks-dev`** (non-production)

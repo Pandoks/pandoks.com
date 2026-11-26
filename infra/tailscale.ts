@@ -1,4 +1,3 @@
-import type * as pulumi from '@pulumi/pulumi';
 import * as tailscale from '@pulumi/tailscale';
 import stringify from 'json-stringify-pretty-compact';
 import { isProduction, isCoreStack, STAGE_NAME } from '@pandoks.com/infra/stack';
@@ -65,6 +64,17 @@ if (isProduction) {
                 }
               ]
             }
+          },
+          {
+            src: ['tag:ci-production'],
+            dst: ['tag:k8s-operator'],
+            app: {
+              'tailscale.com/cap/kubernetes': [
+                {
+                  impersonate: { groups: ['external-secrets-aws-writer'] }
+                }
+              ]
+            }
           }
         ],
         ssh: [
@@ -105,6 +115,7 @@ if (isProduction) {
           'tag:dev': ['pandoks@github', 'tag:k8s-operator'],
           'tag:prod': ['pandoks@github', 'tag:k8s-operator'],
           'tag:ci': ['pandoks@github'],
+          'tag:ci-production': ['pandoks@github'],
           'tag:hub': ['pandoks@github'],
           'tag:ssh': ['pandoks@github']
         }
@@ -128,10 +139,3 @@ export const kubernetesOperatorOauthClient = isCoreStack
       { dependsOn: tailscaleAcl }
     )
   : undefined;
-
-export const outputs: Record<string, pulumi.Output<string>> = kubernetesOperatorOauthClient
-  ? {
-      KubernetesTailscaleOauthClientId: kubernetesOperatorOauthClient.id,
-      KubernetesTailscaleOauthClientSecret: kubernetesOperatorOauthClient.key
-    }
-  : {};

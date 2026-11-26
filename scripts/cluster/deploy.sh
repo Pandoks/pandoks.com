@@ -38,24 +38,6 @@ deploy_compute_vars() {
     }'
 }
 
-deploy_get_template_vars() {
-  deploy_get_template_vars_env="$1" # local|dev|prod
-  deploy_get_template_vars_stack="$2"
-
-  log_info --quiet="${QUIET}" "Fetching Pulumi outputs for stack '${deploy_get_template_vars_stack}'..."
-  deploy_get_template_vars_outputs=$(pulumi -C "${REPO_ROOT}" stack output --stack "${deploy_get_template_vars_stack}" --json --show-secrets) || {
-    log_error "Failed to fetch Pulumi stack outputs. Make sure you're authenticated with AWS."
-    printf "Try running: %bpnpm sso%b.\n" "${BOLD}" "${NORMAL}" >&2
-    return 1
-  }
-  log_info --quiet="${QUIET}" "Pulumi outputs fetched"
-
-  deploy_get_template_vars_computed=$(deploy_compute_vars "${deploy_get_template_vars_env}")
-
-  printf '%s' "${deploy_get_template_vars_outputs}" \
-    | jq --argjson computed "${deploy_get_template_vars_computed}" '. + $computed'
-}
-
 deploy_render_templated_yaml() {
   deploy_render_templated_yaml_kustomize_path="$1"
   deploy_render_templated_yaml_template_vars="$2"
@@ -93,6 +75,14 @@ deploy_wait_for_crds() {
   wait_for_rollout cert-manager cert-manager-webhook 300
   wait_for_rollout cert-manager cert-manager-cainjector 300
   printf "%b  cert-manager deployments established%b\n" "${GREEN}" "${NORMAL}"
+
+  echo "Waiting for External Secrets Operator..."
+  wait_for_crd "externalsecrets.external-secrets.io" 180
+  wait_for_crd "clustersecretstores.external-secrets.io" 180
+  wait_for_rollout external-secrets external-secrets 300
+  wait_for_rollout external-secrets external-secrets-webhook 300
+  wait_for_rollout external-secrets external-secrets-cert-controller 300
+  printf "%b  External Secrets Operator established%b\n" "${GREEN}" "${NORMAL}"
 
   echo "Waiting for MetalLB CRDs..."
   wait_for_crd "ipaddresspools.metallb.io" 120
@@ -164,12 +154,6 @@ cmd_deploy() {
         ;;
     esac
   done
-  if [ "${cmd_deploy_env}" = "prod" ]; then
-    cmd_deploy_stack="production"
-  else
-    cmd_deploy_stack="dev"
-  fi
-
   if [ -n "${cmd_deploy_kubeconfig}" ]; then
     KUBECONFIG="$(validate_and_get_absolute_kubeconfig_path "${cmd_deploy_kubeconfig}")"
     export KUBECONFIG
@@ -203,7 +187,7 @@ cmd_deploy() {
     fi
   fi
 
-  cmd_deploy_template_vars=$(deploy_get_template_vars "${cmd_deploy_env}" "${cmd_deploy_stack}") || return 1
+  cmd_deploy_template_vars=$(deploy_compute_vars "${cmd_deploy_env}")
 
   cmd_deploy_rendered=$(deploy_render_templated_yaml "${cmd_deploy_kustomize_path}" "${cmd_deploy_template_vars}" "${cmd_deploy_is_bootstrap}")
 

@@ -101,6 +101,46 @@ jobs:
       - name: Deploy Pulumi
         run: pulumi up --yes --refresh --run-program --stack production
 
+      # NOTE: after `pulumi up`, which manages this OAuth client, so a new one works in the same run.
+      - name: Read the Tailscale OAuth secret
+        id: tailscale-oauth
+        run: |
+          oauth_secret=$(pulumi stack output --stack production --show-secrets TailscaleProductionOauthSecret)
+          echo "::add-mask::${oauth_secret}"
+          echo "secret=${oauth_secret}" >> "${GITHUB_OUTPUT}"
+
+      # NOTE: with an OAuth client, the action reads only the secret, not the client ID.
+      - name: Setup Tailscale
+        uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c # v4.4.0
+        with:
+          oauth-secret: ${{ steps.tailscale-oauth.outputs.secret }}
+          tags: tag:ci-production
+
+      # NOTE: production servers ignore user-data changes, so a replaced key reaches the cluster here.
+      - name: Sync the External Secrets access key
+        run: |
+          PEERS=$(sudo tailscale status --peers) || { echo "tailscale status failed"; exit 1; }
+          if ! echo "$PEERS" | grep -q prod-cluster; then
+            echo "No cluster found — skipping key sync"
+            exit 0
+          fi
+          sudo tailscale configure kubeconfig prod-cluster
+
+          outputs=$(pulumi stack output --stack production --json --show-secrets)
+          secret_access_key=$(jq -er .ExternalSecretsSecretAccessKey <<<"${outputs}")
+          echo "::add-mask::${secret_access_key}"
+          secret=$(jq '{
+            apiVersion: "v1",
+            kind: "Secret",
+            metadata: {name: "external-secrets-aws", namespace: "external-secrets"},
+            type: "Opaque",
+            data: {
+              "access-key-id": (.ExternalSecretsAccessKeyId | @base64),
+              "secret-access-key": (.ExternalSecretsSecretAccessKey | @base64)
+            }
+          }' <<<"${outputs}")
+          sudo kubectl apply --server-side -f - <<<"${secret}"
+
   deploy-kubernetes:
     concurrency:
       group: deploy-kubernetes
@@ -110,8 +150,7 @@ jobs:
       - deploy-pulumi
     if: |
       always() &&
-      (needs.detect-changes.outputs.kubernetes == 'true' ||
-        (github.event_name != 'workflow_dispatch' && needs.deploy-pulumi.result == 'success')) &&
+      needs.detect-changes.outputs.kubernetes == 'true' &&
       (needs.deploy-pulumi.result == 'success' || needs.deploy-pulumi.result == 'skipped')
     runs-on: ubuntu-latest
     steps:

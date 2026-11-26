@@ -4,3 +4,6 @@ resources:
   - ../cluster
   - ../../bootstrap/prod
   - argocd.yaml
+patches:
+  - path: prod-patch.yaml
+  - path: ../../../apps/example/kube/prod-patch.yaml

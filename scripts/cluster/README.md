@@ -49,11 +49,11 @@ the **bootstrap layer** at `k3s/bootstrap/<env>` instead (helm charts, CRDs, bas
 two are separate kustomize paths — to deploy a fresh cluster end-to-end, run
 `deploy <env> --bootstrap` first, then `deploy <env>` again without the flag.
 
-| Environment | Description                                                                                                           |
-| ----------- | --------------------------------------------------------------------------------------------------------------------- |
-| `local`     | Local k3d cluster. ImageRegistry: `local-registry:5000`, ImageTag: `latest`. Reads the `dev` stack.                   |
-| `dev`       | Dev cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: branch name (or `latest` on main/master). Reads `dev`. |
-| `prod`      | Production cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: `latest`. Reads `production`.                   |
+| Environment | Description                                                                                              |
+| ----------- | -------------------------------------------------------------------------------------------------------- |
+| `local`     | Local k3d cluster. ImageRegistry: `local-registry:5000`, ImageTag: `latest`.                             |
+| `dev`       | Dev cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: branch name (or `latest` on main/master). |
+| `prod`      | Production cloud cluster. ImageRegistry: `ghcr.io/pandoks`, ImageTag: `latest`.                          |
 
 | Option         | Description                                                                  |
 | -------------- | ---------------------------------------------------------------------------- |
@@ -67,21 +67,19 @@ using `--dry-run`).
 
 ### Template Variables
 
-The `deploy` command renders templates with these substitutions before applying:
+The `deploy` command renders templates with these substitutions before applying; it reads no Pulumi
+stack or AWS, since External Secrets Operator syncs every secret
+([k3s/README.md](../../k3s/README.md#secrets)):
 
-| Variable                | Description                                  |
-| ----------------------- | -------------------------------------------- |
-| `${ImageRegistry}`      | Container registry (local-registry or GHCR). |
-| `${ImageTag}`           | Image tag (latest or branch name).           |
-| `${IsLocal}`            | `'true'` or `'false'` for conditional logic. |
-| `${<Output>}`           | Any Pulumi stack output by name.             |
-| `${<Secret> \| base64}` | Base64 encode a secret value.                |
+| Variable           | Description                                  |
+| ------------------ | -------------------------------------------- |
+| `${ImageRegistry}` | Container registry (local-registry or GHCR). |
+| `${ImageTag}`      | Image tag (latest or branch name).           |
+| `${IsLocal}`       | `'true'` or `'false'` for conditional logic. |
 
 ## Examples
 
 ### Local k3d Cluster
-
-`local` and `dev` read shared cluster outputs from the `dev` Pulumi stack.
 
 ```sh
 # Start dependencies and create the k3d cluster

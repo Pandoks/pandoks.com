@@ -129,44 +129,69 @@ The chart expects these to already be in the cluster (all provided by [k3s](/k3s
 ### 1. Create Secrets
 
 The database secret is also mounted by PgDog, so it needs a `users.toml` key. Declare the `myapp`
-Namespace in the app's `namespaces.yaml` and add both secrets to its `credentials.yaml`, each listed
-in the app's `kustomization.yaml` (see [apps/example/kube](/apps/example/kube)). The `${...}` values
-are Pulumi secrets defined in [infra/secrets.ts](/infra/secrets.ts).
+Namespace in the app's `namespaces.yaml` and add both ExternalSecrets to its `credentials.yaml`,
+each listed in the app's `kustomization.yaml` (see [apps/example/kube](/apps/example/kube)). Each
+`remoteRef.key` needs a `createClusterSecret` in [infra/kubernetes.ts](/infra/kubernetes.ts) and a
+placeholder in [k3s/overlays/local/cluster-secrets.yaml](/k3s/overlays/local/cluster-secrets.yaml).
 
 ```yaml
-apiVersion: v1
-kind: Secret
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
 metadata:
   name: postgres-myapp-creds
   namespace: myapp
-type: Opaque
-stringData:
-  SUPERUSER_PASSWORD: ${MyappMyappPostgresSuperuserPassword | quote}
-  ADMIN_PASSWORD: ${MyappMyappPostgresAdminPassword | quote}
-  CLIENT_PASSWORD: ${MyappMyappPostgresClientPassword | quote}
-  REPLICATION_PASSWORD: ${MyappMyappPostgresReplicationPassword | quote}
-  PATRONI_PASSWORD: ${MyappMyappPostgresPatroniPassword | quote}
-  users.toml: |
-    [[users]]
-    name = "admin"
-    database = "myapp"
-    password = "${MyappMyappPostgresAdminPassword}"
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: cluster-secrets
+  target:
+    template:
+      mergePolicy: Merge
+      data:
+        users.toml: |
+          [[users]]
+          name = "admin"
+          database = "myapp"
+          password = "{{ .ADMIN_PASSWORD }}"
 
-    [[users]]
-    name = "client"
-    database = "myapp"
-    password = "${MyappMyappPostgresClientPassword}"
+          [[users]]
+          name = "client"
+          database = "myapp"
+          password = "{{ .CLIENT_PASSWORD }}"
+  data:
+    - secretKey: SUPERUSER_PASSWORD
+      remoteRef:
+        key: MyappMyappPostgresSuperuserPassword
+    - secretKey: ADMIN_PASSWORD
+      remoteRef:
+        key: MyappMyappPostgresAdminPassword
+    - secretKey: CLIENT_PASSWORD
+      remoteRef:
+        key: MyappMyappPostgresClientPassword
+    - secretKey: REPLICATION_PASSWORD
+      remoteRef:
+        key: MyappMyappPostgresReplicationPassword
+    - secretKey: PATRONI_PASSWORD
+      remoteRef:
+        key: MyappMyappPostgresPatroniPassword
 
 ---
-apiVersion: v1
-kind: Secret
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
 metadata:
   name: backup-bucket-creds
   namespace: myapp
-type: Opaque
-stringData:
-  S3_ACCESS_KEY: ${CloudflareBackupAccessKey | quote}
-  S3_SECRET_KEY: ${CloudflareBackupSecretKey | quote}
+spec:
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: cluster-secrets
+  data:
+    - secretKey: S3_ACCESS_KEY
+      remoteRef:
+        key: CloudflareBackupAccessKey
+    - secretKey: S3_SECRET_KEY
+      remoteRef:
+        key: CloudflareBackupSecretKey
 ```
 
 ### 2. Deploy with HelmChart

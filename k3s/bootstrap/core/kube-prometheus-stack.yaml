@@ -4,17 +4,6 @@ metadata:
   name: monitoring
 
 ---
-apiVersion: v1
-kind: Secret
-metadata:
-  name: grafana
-  namespace: monitoring
-type: Opaque
-stringData:
-  username: admin
-  password: ${KubernetesGrafanaAdminPassword | quote}
-
----
 apiVersion: helm.cattle.io/v1
 kind: HelmChart
 metadata:

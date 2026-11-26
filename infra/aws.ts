@@ -8,5 +8,3 @@ export const usWest2Provider = new aws.Provider('UsWest2', {
 
 const defaultAwsRegionJson = await aws.getRegion();
 export const defaultAwsRegion = defaultAwsRegionJson.region;
-
-export const outputs = { AwsRegion: defaultAwsRegion };

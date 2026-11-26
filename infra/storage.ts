@@ -63,5 +63,3 @@ export const runnerArtifactsBucket = createBucket({
   ],
   options: runnerBucketOptions
 });
-
-export const outputs = { BackupBucket: backupBucket.name };

@@ -1,3 +1,4 @@
+import type * as pulumi from '@pulumi/pulumi';
 import * as github from '@pulumi/github';
 import * as tailscale from '@pulumi/tailscale';
 import { isProduction, isCoreStack, STAGE_NAME } from '@pandoks.com/infra/stack';
@@ -7,6 +8,7 @@ import { tailscaleAcl } from './tailscale.ts';
 
 export const githubOrg = 'Pandoks';
 export const githubRepositoryName = 'pandoks.com';
+export const outputs: Record<string, pulumi.Output<string>> = {};
 
 const GITHUB_ACTIONS_APP_ID = 15368;
 // NOTE: AWS trusts every job in the production environment, so only main gets it.
@@ -97,6 +99,18 @@ if (isProduction && githubEnvironment) {
     secretName: 'TS_OAUTH_SECRET',
     value: githubActionsOauthClient.key
   });
+
+  const githubProductionOauthClient = new tailscale.OauthClient(
+    `${STAGE_NAME}TailscaleGithubProductionOauthClient`,
+    {
+      description: `${STAGE_NAME} github production ci`,
+      scopes: ['auth_keys'],
+      tags: ['tag:ci-production']
+    },
+    { dependsOn: tailscaleAcl }
+  );
+  // NOTE: deploy-infra.yaml joins with it after `pulumi up`, so a new client works in the same run.
+  outputs.TailscaleProductionOauthSecret = githubProductionOauthClient.key;
 
   // NOTE: Renovate handles the security-PRs, and reads dependabot alerts.
   new github.RepositoryDependabotSecurityUpdates('GithubDependabotSecurityUpdates', {
