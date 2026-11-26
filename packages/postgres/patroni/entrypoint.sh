@@ -46,8 +46,6 @@ if [ -d /var/lib/postgresql/restore ]; then
   trap 'if pg_ctl status -D /var/lib/postgresql/pgdata > /dev/null 2>&1; then pg_ctl stop -w -D /var/lib/postgresql/pgdata -m fast; fi; exit 130' INT
   # shellcheck source=packages/postgres/patroni/cluster-init.sh
   . /usr/local/bin/cluster-init.sh
-  pg_ctl stop -w -D /var/lib/postgresql/pgdata -m fast
-  trap - INT
 fi
 
 exec "$@"

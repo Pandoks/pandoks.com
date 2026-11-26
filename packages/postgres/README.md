@@ -519,8 +519,8 @@ kubectl -n myapp exec patroni-myapp-shard-0-0 -c patroni -- \
 > - The primary Service `patroni-<db>-primary-shard-<N>` is replaced by `<db>-shard-<N>`. Move any
 >   direct connections over to `<db>-shard-<N>` (PgDog already connects directly to pod DNS).
 
-Before upgrading from a chart version earlier than `0.1.7`, orphan-delete each shard's StatefulSet
-(pods keep running and are adopted by the recreated StatefulSet, then rolled):
+Orphan-delete each shard's StatefulSet (pods keep running and are adopted by the recreated
+StatefulSet, then rolled):
 
 ```sh
 kubectl delete statefulset -n myapp patroni-myapp-shard-0 --cascade=orphan
