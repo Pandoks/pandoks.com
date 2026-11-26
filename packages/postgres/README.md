@@ -49,11 +49,10 @@ flowchart TB
   `pgdog.shardedTables`.
 - **pgBackRest** — Per-shard stanzas (`<db>-shard-<N>`) with scheduled `full`/`diff`/`incr` mTLS
   backups preferring replicas, `aes-256-cbc` + `zstd` S3-compatible storage, continuous WAL
-  archiving, and restore-on-bootstrap when a stanza already has a full backup (keeping the chart's
-  `postgresql.conf` and `pg_hba.conf`, dropping the backup's `ALTER SYSTEM` settings, retrying repo
-  errors every 10s until WAL replay finishes, taking a retrying full backup for replicas, resuming
-  both across container restarts before Patroni starts, and failing bootstrap instead of starting
-  empty if the repo cannot be read).
+  archiving, and restore-on-bootstrap when a stanza already has a full backup (applying the chart's
+  settings, surviving transient repo errors and container restarts, taking a fresh full backup
+  before replicas clone, and failing bootstrap rather than starting empty if the repo is
+  unreadable).
 - **Monitoring** — `postgres-exporter` sidecar on each Patroni pod, `ServiceMonitor`s for Patroni,
   PostgreSQL, and PgDog, and Grafana dashboard ConfigMap
   `grafana-dashboard-postgres-<namespace>-<db>` (label `grafana_dashboard: "1"`).

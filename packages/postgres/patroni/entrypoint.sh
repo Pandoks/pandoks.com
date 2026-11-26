@@ -41,22 +41,13 @@ mkdir -p /var/lib/postgresql/pgdata
 chmod 700 /var/lib/postgresql/pgdata
 
 # NOTE: finish an interrupted restore and its full backup before Patroni starts or replicas clone
-if [ -f /var/lib/postgresql/pgdata/restore.pending ]; then
+if [ -d /var/lib/postgresql/restore ]; then
   # NOTE: SIGINT is the image's stop signal
-  trap 'pg_ctl stop -w -D /var/lib/postgresql/pgdata -m fast; exit 130' INT
-  pg_ctl start -W -D /var/lib/postgresql/pgdata -o "-c hot_standby=off"
-  echo "Waiting for the interrupted restore's recovery to finish..."
-  until pg_isready -q; do
-    sleep 10
-    pg_ctl status -D /var/lib/postgresql/pgdata > /dev/null
-  done
-  until pgbackrest --stanza="${STANZA}" backup --type=full; do
-    echo "Failed to create the restored cluster's full backup. Retrying in 10s..."
-    sleep 10
-  done
-  rm /var/lib/postgresql/pgdata/restore.pending
-  echo "✓ Full backup created successfully. Replicas can now bootstrap."
+  trap 'if pg_ctl status -D /var/lib/postgresql/pgdata > /dev/null 2>&1; then pg_ctl stop -w -D /var/lib/postgresql/pgdata -m fast; fi; exit 130' INT
+  # shellcheck source=packages/postgres/patroni/cluster-init.sh
+  . /usr/local/bin/cluster-init.sh
   pg_ctl stop -w -D /var/lib/postgresql/pgdata -m fast
+  trap - INT
 fi
 
 exec "$@"

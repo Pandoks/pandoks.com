@@ -1,3 +1,10 @@
+{{- $patroniConfig := .Files.Get "files/patroni.yaml" }}
+{{- if not .Values.backup.enabled }}
+{{- $patroniConfig = $patroniConfig
+  | replace "archive_mode: on" "archive_mode: off"
+  | replace "\n        restore_command: 'pgbackrest --stanza=${STANZA} archive-get %f %p'" ""
+  | replace "\n    - pgbackrest" "" }}
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -5,7 +12,7 @@ metadata:
   namespace: {{ .Values.namespace }}
 data:
   patroni.yaml: |
-{{ .Files.Get "files/patroni.yaml" | replace "archive_mode: on" (ternary "archive_mode: on" "archive_mode: off" .Values.backup.enabled) | indent 4 }}
+{{ $patroniConfig | indent 4 }}
 
 ---
 apiVersion: v1
