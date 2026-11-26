@@ -945,13 +945,9 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 		previousLeaseRenewTime := e2e.MustRun("", "kubectl", "-n", "kube-node-lease", "get", "lease", frozenNode, "-o", "jsonpath={.spec.renewTime}")
 		Eventually(e2e.Run).WithArguments("", "kubectl", "-n", "kube-node-lease", "get", "lease", frozenNode,
 			"-o", "jsonpath={.spec.renewTime}").WithPolling(250 * time.Millisecond).Should(And(Not(BeEmpty()), Not(Equal(previousLeaseRenewTime))))
-		unfreezeNode := sync.OnceFunc(func() {
-			if output, err := exec.Command("docker", "unpause", frozenNode).CombinedOutput(); err != nil && !strings.Contains(string(output), "is not paused") {
-				Fail(fmt.Sprintf("docker unpause %s: %v\n%s", frozenNode, err, output))
-			}
-		})
-		DeferCleanup(unfreezeNode)
 		Expect(exec.Command("docker", "pause", frozenNode).Run()).To(Succeed())
+		unfreezeNode := sync.OnceFunc(func() { Expect(exec.Command("docker", "unpause", frozenNode).Run()).To(Succeed()) })
+		DeferCleanup(unfreezeNode)
 
 		var newPrimaryPod string
 		Eventually(func() string {
