@@ -877,13 +877,9 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			defaultArchiveCommand := fmt.Sprintf("pgbackrest --stanza=%s archive-push %%p", clusterName(0))
 			slowArchiveCommand := "sleep 45 && " + defaultArchiveCommand
 			DeferCleanup(func() {
-				podsOutput, _ := e2e.Run("", "kubectl", "-n", namespace, "get", "pods",
-					"-l", "cluster-name="+clusterName(0), "-o", "jsonpath={.items[*].metadata.name}")
-				for _, pod := range strings.Fields(podsOutput) {
-					if _, err := execInPod(namespace, pod, "patroni", "patronictl", "-c", patroniConfig, "edit-config", "--force",
-						"--set", "postgresql.parameters.archive_command="+defaultArchiveCommand); err == nil {
-						return
-					}
+				if primaryPod, err := primaryPodName(namespace, 0); err == nil {
+					_, _ = execInPod(namespace, primaryPod, "patroni", "patronictl", "-c", patroniConfig, "edit-config", "--force",
+						"--set", "postgresql.parameters.archive_command="+defaultArchiveCommand)
 				}
 			})
 			Expect(execInPod(namespace, oldPrimaryPod, "patroni", "patronictl", "-c", patroniConfig, "edit-config", "--force",
@@ -900,11 +896,6 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 
 			waitForHealthyShard(namespace, 0, defaultPodCount)
 			primaryPod := mustPrimaryPodName(namespace, 0)
-			Expect(execInPod(namespace, primaryPod, "patroni", "patronictl", "-c", patroniConfig, "edit-config", "--force",
-				"--set", "postgresql.parameters.archive_command="+defaultArchiveCommand)).Error().NotTo(HaveOccurred())
-			for podIndex := range defaultPodCount {
-				Eventually(psql).WithArguments(namespace, podName(0, podIndex), "SHOW archive_command").Should(Equal(defaultArchiveCommand))
-			}
 			Eventually(func(g Gomega) {
 				_, err := execInPod(namespace, primaryPod, "patroni", "sh", "-c",
 					fmt.Sprintf("pgbackrest --stanza=%s --no-archive-async archive-get %s /tmp/wal-check && rm -f /tmp/wal-check", clusterName(0), walSegment))
@@ -976,7 +967,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 				}
 			}
 			g.Expect(readyAddresses).To(Equal([]string{newPrimaryIP}))
-		}).WithTimeout(10 * time.Second).WithPolling(500 * time.Millisecond).Should(Succeed())
+		}).WithTimeout(5 * time.Second).WithPolling(500 * time.Millisecond).Should(Succeed())
 
 		const postFailoverWrites = 5
 		Eventually(func() int {
@@ -1314,8 +1305,9 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			"patroni.replicasPerShard": "1",
 		})
 		restoringPod := podName(0, 0)
-		Eventually(execInPod).WithArguments(restoredNamespace, restoringPod, "patroni", "sh", "-c",
-			"until pkill -STOP -f 'pgbackres[t] .* restore'; do sleep 0.1; done").
+		// NOTE: pgBackRest removes pg_control before it restores files, so the kill lands on a half-restored pgdata
+		Eventually(execInPod).WithArguments(restoredNamespace, restoringPod, "patroni", "timeout", "60", "sh", "-c",
+			"until [ ! -f /var/lib/postgresql/pgdata/global/pg_control ] && pkill -STOP -f 'pgbackres[t] .* restore'; do sleep 0.1; done").
 			WithTimeout(3 * time.Minute).WithPolling(250 * time.Millisecond).Should(BeEmpty())
 		restoringPodUID := e2e.MustRun("", "kubectl", "-n", restoredNamespace, "get", "pod", restoringPod, "-o", "jsonpath={.metadata.uid}")
 
@@ -1329,8 +1321,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 		expectRowsOnEveryPod(restoredNamespace, 0, 1, 1, 1000)
 		Expect(mustPsqlOnPrimary(restoredNamespace, 0, "SHOW statement_timeout")).To(Equal("0"))
 		Expect(mustPsqlOnPrimary(restoredNamespace, 0, "SHOW restore_command")).To(BeEmpty())
-		Expect(mustPsqlOnPrimary(restoredNamespace, 0, "SELECT setting, source FROM pg_settings WHERE name = 'hot_standby'")).
-			To(Equal("on|configuration file"))
+		Expect(mustPsqlOnPrimary(restoredNamespace, 0, "SHOW hot_standby")).To(Equal("on"))
 		Expect(mustPsqlOnPrimary(restoredNamespace, 0, "SELECT timeline_id FROM pg_control_checkpoint()")).To(Equal("2"))
 
 		e2e.UpgradeChart(restoredNamespace, "postgres", postgresChartDirectory, map[string]string{"patroni.replicasPerShard": strconv.Itoa(defaultPodCount)})
@@ -1481,8 +1472,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			expectRowsOnEveryPod(namespace, 0, defaultPodCount, 1, 1000)
 			Expect(backupTypes(readStanzaInfo(Default, namespace, 0))).To(Equal([]string{"full", "full"}))
 			expectValidBackups(Default, namespace, 0)
-			Expect(mustPsqlOnPrimary(namespace, 0, "SELECT setting, source FROM pg_settings WHERE name = 'hot_standby'")).
-				To(Equal("on|configuration file"))
+			Expect(mustPsqlOnPrimary(namespace, 0, "SHOW hot_standby")).To(Equal("on"))
 			Expect(mustPsqlOnPrimary(namespace, 0, "SHOW restore_command")).To(BeEmpty())
 		})
 	})

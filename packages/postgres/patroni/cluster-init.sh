@@ -99,7 +99,8 @@ if [ -d "${restore_directory}" ]; then
   fi
   # NOTE: entrypoint.sh skips Patroni's post_bootstrap role step, so sync replicator before the backup
   printf "%s ROLE replicator WITH LOGIN REPLICATION PASSWORD :'password';\n" "${replicator_action}" \
-    | psql -d postgres -v ON_ERROR_STOP=1 -v password="${REPLICATION_PASSWORD}"
+    | PGOPTIONS="${PGOPTIONS:-} -c pg_stat_statements.track_utility=off" \
+      psql -d postgres -v ON_ERROR_STOP=1 -v password="${REPLICATION_PASSWORD}"
 fi
 
 if psql -Atq -d postgres -c "SELECT 1 FROM pg_database WHERE datname='${POSTGRES_DB}'" | grep -q 1; then
