@@ -1,11 +1,15 @@
 package postgres_test
 
 import (
+	"bytes"
 	"crypto/rand"
 	"e2e"
 	"encoding/json"
 	"fmt"
+	"io"
 	"maps"
+	"net/http"
+	"os/exec"
 	"slices"
 	"strconv"
 	"strings"
@@ -28,6 +32,8 @@ const (
 	pgdogName              = database + "-pgdog"
 	// NOTE: the chart's default replicasPerShard
 	defaultPodCount = 3
+	// NOTE: the chart's backup.bucket on docker-compose's S3Mock, over HTTP without signing
+	backupBucketURL = "http://localhost:9090/backups"
 )
 
 func clusterName(shard int) string     { return fmt.Sprintf("%s-shard-%d", database, shard) }
@@ -36,9 +42,7 @@ func podName(shard, podIndex int) string {
 	return fmt.Sprintf("%s-%d", statefulSetName(shard), podIndex)
 }
 
-func primaryServiceHost(shard int) string {
-	return fmt.Sprintf("patroni-%s-primary-shard-%d", database, shard)
-}
+func primaryServiceHost(shard int) string { return clusterName(shard) }
 
 func newBackupPath() string {
 	return "/e2e/" + strings.ToLower(rand.Text()[:8])
@@ -65,10 +69,10 @@ func installPostgres(chart string, shardCount int, valueOverrides map[string]str
 		"backup.credentials.secret": "postgres-creds",
 		"backup.path":               newBackupPath(),
 		"backup.encryptionKey":      "e2e-encryption-key",
-		// NOTE: February 30th never comes, so no scheduled backup lands among the specs' own
-		"backup.schedules.full": "0 0 30 2 *",
-		"backup.schedules.diff": "0 0 30 2 *",
-		"backup.schedules.incr": "0 0 30 2 *",
+		// NOTE: Feb 30 never fires, and the leading * checks the chart quotes schedules (YAML alias marker)
+		"backup.schedules.full": "* * 30 2 *",
+		"backup.schedules.diff": "* * 30 2 *",
+		"backup.schedules.incr": "* * 30 2 *",
 		// NOTE: only the PgDog specs go through PgDog, so the rest don't pull its image
 		"pgdog.replicas": "0",
 	}
@@ -387,6 +391,42 @@ func runBackupJob(namespace string, shard int, backupType, jobName string) {
 	e2e.MustRun("", "kubectl", "-n", namespace, "wait", "--for=condition=Complete", "job/"+jobName, "--timeout=5m")
 }
 
+func hideRepoInfo(backupPath string, shard int, repoDirectory string) func() {
+	GinkgoHelper()
+	repoInfos := map[string][]byte{}
+	for _, fileName := range []string{repoDirectory + ".info", repoDirectory + ".info.copy"} {
+		fileURL := fmt.Sprintf("%s%s/%s/%s/%s", backupBucketURL, backupPath, repoDirectory, clusterName(shard), fileName)
+		response, err := http.Get(fileURL)
+		Expect(err).NotTo(HaveOccurred())
+		repoInfos[fileURL], err = io.ReadAll(response.Body)
+		Expect(response.Body.Close()).To(Succeed())
+		Expect(err).NotTo(HaveOccurred())
+		Expect(response.StatusCode).To(Equal(http.StatusOK), fileURL)
+		sendS3Request(http.MethodDelete, fileURL, nil)
+	}
+	return sync.OnceFunc(func() {
+		for fileURL, content := range repoInfos {
+			sendS3Request(http.MethodPut, fileURL, content)
+		}
+	})
+}
+
+func sendS3Request(method, fileURL string, body []byte) {
+	GinkgoHelper()
+	request, err := http.NewRequest(method, fileURL, bytes.NewReader(body))
+	Expect(err).NotTo(HaveOccurred())
+	response, err := http.DefaultClient.Do(request)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(response.Body.Close()).To(Succeed())
+	Expect(response.StatusCode).To(BeNumerically("<", 300), "%s %s", method, fileURL)
+}
+
+func stopShard(namespace string, shard int) {
+	GinkgoHelper()
+	e2e.MustRun("", "kubectl", "-n", namespace, "scale", "statefulset", statefulSetName(shard), "--replicas=0")
+	e2e.MustRun("", "kubectl", "-n", namespace, "wait", "--for=delete", "pod", "-l", "cluster-name="+clusterName(shard), "--timeout=120s")
+}
+
 type serviceMonitor struct {
 	Spec struct {
 		Selector struct {
@@ -449,9 +489,8 @@ type acknowledgedWrite struct {
 	returnedAt time.Time
 }
 
-func writeThroughPrimaryDeletion(namespace string, psqlAsClient func(sql string) (string, error)) []acknowledgedWrite {
+func startWriter(psqlAsClient func(sql string) (string, error)) (func() []acknowledgedWrite, func() []acknowledgedWrite) {
 	GinkgoHelper()
-	oldPrimaryPod := mustPrimaryPodName(namespace, 0)
 	var writesMutex sync.Mutex
 	var writes []acknowledgedWrite
 	snapshot := func() []acknowledgedWrite {
@@ -461,9 +500,9 @@ func writeThroughPrimaryDeletion(namespace string, psqlAsClient func(sql string)
 	}
 	stopWriting := make(chan struct{})
 	writerDone := make(chan struct{})
-	stopWriter := sync.OnceFunc(func() { close(stopWriting) })
-	// NOTE: a failed spec skips the stopWriter call below
-	DeferCleanup(stopWriter)
+	stopOnce := sync.OnceFunc(func() { close(stopWriting) })
+	// NOTE: a failed spec skips the stop call below
+	DeferCleanup(stopOnce)
 	go func() {
 		defer GinkgoRecover()
 		defer close(writerDone)
@@ -480,6 +519,17 @@ func writeThroughPrimaryDeletion(namespace string, psqlAsClient func(sql string)
 			}
 		}
 	}()
+	return snapshot, func() []acknowledgedWrite {
+		stopOnce()
+		<-writerDone
+		return snapshot()
+	}
+}
+
+func writeThroughPrimaryDeletion(namespace string, psqlAsClient func(sql string) (string, error)) []acknowledgedWrite {
+	GinkgoHelper()
+	oldPrimaryPod := mustPrimaryPodName(namespace, 0)
+	snapshot, stopWriter := startWriter(psqlAsClient)
 
 	Eventually(snapshot).ShouldNot(BeEmpty(), "no write succeeded before deleting the primary")
 	e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", oldPrimaryPod)
@@ -490,20 +540,23 @@ func writeThroughPrimaryDeletion(namespace string, psqlAsClient func(sql string)
 		current := snapshot()
 		return current[len(current)-1].returnedAt
 	}).WithTimeout(35*time.Second).Should(BeTemporally(">", promotedAt), "writes didn't resume after failover")
-	stopWriter()
-	<-writerDone
-	return snapshot()
+	return stopWriter()
 }
 
-func expectBriefWriteUnavailability(writes []acknowledgedWrite, reportName string) {
+func expectBriefWriteUnavailability(writes []acknowledgedWrite, reportName string, maxUnavailability time.Duration) int {
 	GinkgoHelper()
 	Expect(len(writes)).To(BeNumerically(">=", 2))
 	var writeUnavailability time.Duration
+	resumedWriteIndex := 0
 	for writeIndex := 1; writeIndex < len(writes); writeIndex++ {
-		writeUnavailability = max(writeUnavailability, writes[writeIndex].returnedAt.Sub(writes[writeIndex-1].returnedAt))
+		if gap := writes[writeIndex].returnedAt.Sub(writes[writeIndex-1].returnedAt); gap > writeUnavailability {
+			writeUnavailability, resumedWriteIndex = gap, writeIndex
+		}
 	}
 	AddReportEntry(reportName, writeUnavailability.String())
-	Expect(writeUnavailability).To(BeNumerically("<", 30*time.Second))
+	Expect(writeUnavailability).To(BeNumerically("<", maxUnavailability))
+	Expect(writes[len(writes)-1].returnedAt).To(BeTemporally(">", time.Now().Add(-5*time.Second)), "writes didn't resume")
+	return resumedWriteIndex
 }
 
 func expectAcknowledgedWritesKept(namespace string, writes []acknowledgedWrite) {
@@ -631,7 +684,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			writes := writeThroughPrimaryDeletion(namespace, func(sql string) (string, error) {
 				return psqlThroughPgDog(namespace, clientPod, sql)
 			})
-			expectBriefWriteUnavailability(writes, "PgDog write unavailability on primary deletion")
+			expectBriefWriteUnavailability(writes, "PgDog write unavailability on primary deletion", 30*time.Second)
 			expectAcknowledgedWritesKept(namespace, writes)
 
 			newPrimaryIP := podIP(namespace, mustPrimaryPodName(namespace, 0))
@@ -734,6 +787,13 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			// NOTE: check warns with the server's AccessError, then fails as it found no database
 			Expect(output).To(MatchRegexp(`\[AccessError\].*access denied`))
 		})
+
+		It("keeps the backup job's TLS key out of the Patroni pods", func() {
+			mountedSecrets := strings.Fields(e2e.MustRun("", "kubectl", "-n", namespace, "get", "pods", "-l", "cluster-name="+clusterName(0), "-o",
+				"jsonpath={.items[*].spec.volumes[*].secret.secretName} {.items[*].spec.volumes[*].projected.sources[*].secret.name}"))
+			Expect(mountedSecrets).To(ContainElement(statefulSetName(0) + "-tls"))
+			Expect(mountedSecrets).NotTo(ContainElement(clusterName(0) + "-pgbackrest-backup-tls"))
+		})
 	})
 
 	Context("failures", Ordered, func() {
@@ -749,7 +809,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			writes := writeThroughPrimaryDeletion(namespace, func(sql string) (string, error) {
 				return psqlOverNetwork(namespace, clientPod, "client", clientPassword, database, sql)
 			})
-			expectBriefWriteUnavailability(writes, "write unavailability on primary deletion")
+			expectBriefWriteUnavailability(writes, "write unavailability on primary deletion", 30*time.Second)
 			expectAcknowledgedWritesKept(namespace, writes)
 		})
 
@@ -766,14 +826,24 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			Eventually(expectRows).WithArguments(namespace, replicaPod, 1, 1000).Should(Succeed())
 		})
 
-		It("keeps the data when every pod is deleted at once while pod 0 leads", func() {
-			// TODO: OrderedReady deadlocks when the primary isn't pod 0; #320 removes this switchover
-			if mustPrimaryPodName(namespace, 0) != podName(0, 0) {
-				switchover(namespace, 0, podName(0, 0))
-				waitForHealthyShard(namespace, 0, defaultPodCount)
+		It("keeps the data when every pod is deleted after pod 0 left Patroni's failsafe topology", func() {
+			if mustPrimaryPodName(namespace, 0) == podName(0, 0) {
+				switchover(namespace, 0, podName(0, 1))
 			}
+			primaryPod := mustPrimaryPodName(namespace, 0)
 			writeCount := mustPsqlOnPrimary(namespace, 0, "SELECT count(*) FROM e2e_writes")
+			// NOTE: keeps the StatefulSet from recreating the deleted pods
+			e2e.MustRun("", "kubectl", "-n", namespace, "create", "quota", "no-pods", "--hard=pods=0")
+			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", podName(0, 0))
+			// NOTE: the leader rewrites the topology from the running members every loop_wait
+			Eventually(e2e.Run).WithArguments("", "kubectl", "-n", namespace, "get", "endpoints", clusterName(0),
+				"-o", "jsonpath={.metadata.annotations.failsafe}").
+				Should(And(ContainSubstring(`"`+primaryPod+`"`), Not(ContainSubstring(`"`+podName(0, 0)+`"`))))
 			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", "-l", "cluster-name="+clusterName(0))
+			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "quota", "no-pods")
+			// NOTE: the rejected creates backed off the StatefulSet's sync, and only its own update requeues it now
+			e2e.MustRun("", "kubectl", "-n", namespace, "annotate", "statefulset", statefulSetName(0), "--overwrite",
+				fmt.Sprintf("e2e/requeued-at=%d", time.Now().UnixNano()))
 			waitForHealthyShard(namespace, 0, defaultPodCount)
 			expectRowsOnEveryPod(namespace, 0, defaultPodCount, 1, 1000)
 			Expect(psqlOnPrimary(namespace, 0, "SELECT count(*) FROM e2e_writes")).To(Equal(writeCount))
@@ -796,6 +866,48 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			Eventually(expectRows).WithArguments(namespace, replicaPod, 1, 2000).Should(Succeed())
 			Expect(podState()).To(Equal(podStateBeforeKill), "Postgres came back with a new pod or container, not from Patroni")
 		})
+	})
+
+	It("fails over to one routed primary within ttl + 2 loop_wait of the primary's node freezing", Serial, func() {
+		// NOTE: pin pods to agents; freezing a server node hangs API requests through k3d's load balancer
+		agentNodes := strings.Fields(e2e.MustRun("", "kubectl", "get", "nodes", "-l", "!node-role.kubernetes.io/control-plane",
+			"-o", "jsonpath={.items[*].metadata.name}"))
+		Expect(agentNodes).To(HaveLen(defaultPodCount))
+		for _, agentNode := range agentNodes {
+			e2e.MustRun("", "kubectl", "label", "node", agentNode, "e2e-postgres-node=agent")
+			DeferCleanup(e2e.MustRun, "", "kubectl", "label", "node", agentNode, "e2e-postgres-node-")
+		}
+		namespace := installPostgres(postgresChartDirectory, 1, map[string]string{"nodeSelector.e2e-postgres-node": "agent"})
+		waitForHealthyShard(namespace, 0, defaultPodCount)
+		clientPod := replicaPodName(namespace, 0, defaultPodCount)
+		Expect(psqlOverNetwork(namespace, clientPod, "admin", adminPassword, database, "CREATE TABLE e2e_writes (id int PRIMARY KEY)")).Error().NotTo(HaveOccurred())
+		// NOTE: resolved once, as CoreDNS may run on the frozen node
+		primaryServiceAddress := strings.Fields(e2e.MustRun("", "kubectl", "-n", namespace, "exec", clientPod, "-c", "patroni", "--",
+			"getent", "hosts", primaryServiceHost(0)))[0]
+		connection := fmt.Sprintf("host=%s user=client password=%s dbname=%s connect_timeout=2", primaryServiceAddress, clientPassword, database)
+
+		// NOTE: the frozen node's kernel still acks TCP, so a query in flight when it froze never returns
+		snapshot, stopWriter := startWriter(func(sql string) (string, error) {
+			return execInPod(namespace, clientPod, "patroni", "timeout", "5", "psql", connection, "-v", "ON_ERROR_STOP=1", "-Atq", "-c", sql)
+		})
+		Eventually(snapshot).ShouldNot(BeEmpty(), "no write succeeded before freezing the primary's node")
+
+		// NOTE: k3d nodes are Docker containers named after their Kubernetes node
+		frozenNode := e2e.MustRun("", "kubectl", "-n", namespace, "get", "pod", mustPrimaryPodName(namespace, 0), "-o", "jsonpath={.spec.nodeName}")
+		Expect(exec.Command("docker", "pause", frozenNode).Run()).To(Succeed())
+		unfreezeNode := sync.OnceFunc(func() { Expect(exec.Command("docker", "unpause", frozenNode).Run()).To(Succeed()) })
+		DeferCleanup(unfreezeNode)
+		// NOTE: keep writing past Kubernetes's 40s node-monitor-grace-period so split routing shows up
+		time.Sleep(90 * time.Second)
+		writes := stopWriter()
+
+		// NOTE: files/patroni.yaml ttl (30s) + 2*loop_wait (20s): lock expiry, detection, promotion and routing
+		resumedWriteIndex := expectBriefWriteUnavailability(writes, "write unavailability on a primary node freeze", 50*time.Second)
+		// NOTE: startWriter numbers every attempt, so an ID gap is a failed write
+		Expect(writes[len(writes)-1].id-writes[resumedWriteIndex].id).To(Equal(len(writes)-1-resumedWriteIndex),
+			"a write failed after the failover, so the primary Service still routed to the frozen pod")
+		unfreezeNode()
+		waitForHealthyShard(namespace, 0, defaultPodCount)
 	})
 
 	Context("planned operations", Ordered, func() {
@@ -906,18 +1018,138 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			Expect(verifyOutput).To(MatchRegexp(`(?m)^status: ok$`))
 		})
 
-		It("bootstraps a new cluster from the stanza's backups and WAL", func() {
-			insertRows(namespace, 0, lastRowID+1, lastRowID+1000)
-			lastRowID += 1000
+		It("restores a shard to a point in time with the README's runbook", func() {
+			targetRowID := lastRowID + 1000
+			insertRows(namespace, 0, lastRowID+1, targetRowID)
+			targetTime := mustPsqlOnPrimary(namespace, 0, "SELECT clock_timestamp()")
+			// NOTE: puts the newest backup past the target so PITR picks the delayed replica's backup and must re-backup
+			runBackupJob(namespace, 0, "full", "past-target-full")
+			insertRows(namespace, 0, targetRowID+1, targetRowID+1000)
 			walSegment := switchWAL(namespace, 0)
 			Eventually(expectArchived).WithArguments(namespace, 0, walSegment).Should(Succeed())
-			// NOTE: a restore replaces a lost cluster, so the source shard stops first
-			e2e.MustRun("", "kubectl", "-n", namespace, "scale", "statefulset", statefulSetName(0), "--replicas=0")
-			e2e.MustRun("", "kubectl", "-n", namespace, "wait", "--for=delete", "pod", "-l", "cluster-name="+clusterName(0), "--timeout=120s")
+
+			stopShard(namespace, 0)
+			statefulSetJSON := e2e.MustRun("", "kubectl", "-n", namespace, "get", "statefulset", statefulSetName(0), "-o", "json")
+			// NOTE: Step 3's jq program, verbatim
+			recoveryPodCommand := exec.Command("jq", `. as $sts | {
+  apiVersion: "v1",
+  kind: "Pod",
+  metadata: { name: "pitr-restore", namespace: .metadata.namespace },
+  spec: (.spec.template.spec
+    | .containers |= map(select(.name == "patroni") | .args = ["sleep", "infinity"] | del(.readinessProbe))
+    | .volumes += [$sts.spec.volumeClaimTemplates[].metadata.name
+        | { name: ., persistentVolumeClaim: { claimName: "\(.)-\($sts.metadata.name)-0" } }])
+}`)
+			recoveryPodCommand.Stdin = strings.NewReader(statefulSetJSON)
+			recoveryPod, err := recoveryPodCommand.Output()
+			Expect(err).NotTo(HaveOccurred())
+			e2e.MustRun(string(recoveryPod), "kubectl", "apply", "-f", "-")
+			e2e.MustRun("", "kubectl", "-n", namespace, "wait", "--for=condition=Ready", "pod/pitr-restore", "--timeout=120s")
+			e2e.MustRun("", "kubectl", "-n", namespace, "exec", "pitr-restore", "--",
+				"pgbackrest", "--stanza="+clusterName(0), "--type=time", "--target="+targetTime, "--target-action=promote",
+				"--recovery-option=restore_command=until pgbackrest --stanza="+clusterName(0)+` archive-get %f "%p"; do [ $? -eq 1 ] && exit 1; sleep 10; done`, "restore")
+			e2e.MustRun("", "kubectl", "-n", namespace, "exec", "pitr-restore", "--", "rm", "-f", "/var/lib/postgresql/pgdata/patroni.dynamic.json")
+			e2e.MustRun("", "kubectl", "-n", namespace, "exec", "pitr-restore", "--",
+				"pg_ctl", "start", "-D", "/var/lib/postgresql/pgdata", "-l", "/tmp/pitr-restore.log", "-o", "-c recovery_min_apply_delay=0 -c hot_standby=off")
+			Eventually(psql).WithArguments(namespace, "pitr-restore", "SELECT pg_is_in_recovery()").Should(Equal("f"))
+			e2e.MustRun("", "kubectl", "-n", namespace, "exec", "pitr-restore", "--", "pg_ctl", "stop", "-w", "-D", "/var/lib/postgresql/pgdata")
+			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "pod", "pitr-restore", "--grace-period=1")
+			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "endpoints", clusterName(0), clusterName(0)+"-config")
+			for podIndex := 1; podIndex < defaultPodCount; podIndex++ {
+				e2e.MustRun("", "kubectl", "delete", "pvc", "-n", namespace, "patroni-data-"+podName(0, podIndex), "patroni-wal-archives-"+podName(0, podIndex))
+			}
+			e2e.MustRun("", "kubectl", "-n", namespace, "scale", "statefulset", statefulSetName(0), "--replicas=1")
+			e2e.MustRun("", "kubectl", "-n", namespace, "rollout", "status", "statefulset/"+statefulSetName(0), "--timeout=5m")
+			runBackupJob(namespace, 0, "full", "pitr-full")
+			e2e.MustRun("", "kubectl", "-n", namespace, "scale", "statefulset", statefulSetName(0), fmt.Sprintf("--replicas=%d", defaultPodCount))
+
+			waitForHealthyShard(namespace, 0, defaultPodCount)
+			expectRowsOnEveryPod(namespace, 0, defaultPodCount, 1, targetRowID)
+			// NOTE: replicates without the restored backup's apply delay
+			lastRowID = targetRowID + 1
+			insertRows(namespace, 0, lastRowID, lastRowID)
+			expectRowsOnEveryPod(namespace, 0, defaultPodCount, 1, lastRowID)
+		})
+
+		It("bootstraps a new cluster from the stanza with the chart's settings through repo errors and a restart", func() {
+			const restoredSegmentCount = 200
+			// NOTE: the restore must drop ALTER SYSTEM settings and a DCS max_connections above the chart's
+			mustPsqlOnPrimary(namespace, 0, "ALTER SYSTEM SET statement_timeout = '123s'")
+			primaryPod := mustPrimaryPodName(namespace, 0)
+			Expect(execInPod(namespace, primaryPod, "patroni", "patronictl", "-c", patroniConfig, "edit-config", "--force",
+				"--set", "postgresql.parameters.max_connections=200")).Error().NotTo(HaveOccurred())
+			Eventually(func(g Gomega) {
+				membersJSON, err := execInPod(namespace, primaryPod, "patroni", "patronictl", "-c", patroniConfig, "list", "-f", "json")
+				g.Expect(err).NotTo(HaveOccurred())
+				var members []map[string]any
+				g.Expect(json.Unmarshal([]byte(membersJSON), &members)).To(Succeed())
+				g.Expect(members).To(HaveEach(HaveKeyWithValue("Pending restart", "*")))
+			}).Should(Succeed())
+			Expect(execInPod(namespace, primaryPod, "patroni", "patronictl", "-c", patroniConfig, "restart", clusterName(0), "--pending", "--force")).
+				Error().NotTo(HaveOccurred())
+			for podIndex := range defaultPodCount {
+				Eventually(psql).WithArguments(namespace, podName(0, podIndex), "SHOW max_connections").WithTimeout(3 * time.Minute).Should(Equal("200"))
+			}
+			waitForHealthyShard(namespace, 0, defaultPodCount)
+			runBackupJob(namespace, 0, "full", "settings-full")
+			var backupLabels []string
+			for _, backup := range readStanzaInfo(Default, namespace, 0).Backup {
+				backupLabels = append(backupLabels, backup.Label)
+			}
+
+			// NOTE: a commit per WAL segment, so replay takes long enough to break the repo partway through
+			mustPsqlOnPrimary(namespace, 0, fmt.Sprintf(
+				"DO $$ BEGIN FOR id IN %d..%d LOOP PERFORM pg_switch_wal(); INSERT INTO e2e_rows VALUES (id); COMMIT; END LOOP; END $$",
+				lastRowID+1, lastRowID+restoredSegmentCount))
+			lastRowID += restoredSegmentCount
+			walSegment := switchWAL(namespace, 0)
+			Eventually(expectArchived).WithArguments(namespace, 0, walSegment).WithTimeout(5 * time.Minute).Should(Succeed())
+			stopShard(namespace, 0)
 
 			restoredNamespace := installPostgres(postgresChartDirectory, 1, map[string]string{"backup.path": backupPath})
+			// NOTE: under Parallel pod management, whichever pod wins Patroni's initialize race restores
+			var restoringPod string
+			Eventually(func() string {
+				for podIndex := range defaultPodCount {
+					logs, _ := e2e.Run("", "kubectl", "-n", restoredNamespace, "logs", podName(0, podIndex), "-c", "patroni")
+					if strings.Contains(logs, "Full backup already exists. Restoring...") {
+						restoringPod = podName(0, podIndex)
+					}
+				}
+				return restoringPod
+			}).WithTimeout(5 * time.Minute).ShouldNot(BeEmpty())
+			restoringPodLogs := func() (string, error) {
+				return e2e.Run("", "kubectl", "-n", restoredNamespace, "logs", restoringPod, "-c", "patroni")
+			}
+			Eventually(restoringPodLogs).WithTimeout(5 * time.Minute).Should(ContainSubstring(`LOG:  restored log file "`))
+			restoreArchiveInfo := hideRepoInfo(backupPath, 0, "archive")
+			DeferCleanup(restoreArchiveInfo)
+			// NOTE: fails the full backup after replay, which replicas must not clone around
+			restoreBackupInfo := hideRepoInfo(backupPath, 0, "backup")
+			DeferCleanup(restoreBackupInfo)
+			// NOTE: archive-get's error for the hidden archive.info
+			Eventually(restoringPodLogs).Should(ContainSubstring("ERROR: [103]"))
+			restoringPodUID := e2e.MustRun("", "kubectl", "-n", restoredNamespace, "get", "pod", restoringPod, "-o", "jsonpath={.metadata.uid}")
+			e2e.MustRun("", "kubectl", "-n", restoredNamespace, "delete", "pod", restoringPod, "--grace-period=1")
+			Eventually(e2e.Run).WithArguments("", "kubectl", "-n", restoredNamespace, "get", "pod", restoringPod,
+				"-o", "jsonpath={.metadata.uid}").WithTimeout(2 * time.Minute).Should(And(Not(BeEmpty()), Not(Equal(restoringPodUID))))
+			Eventually(restoringPodLogs).WithTimeout(2 * time.Minute).Should(ContainSubstring("ERROR: [103]"))
+			// NOTE: long enough for Patroni to promote a half-restored pod, as it would without the entrypoint
+			time.Sleep(time.Minute)
+			restoreArchiveInfo()
+			Eventually(restoringPodLogs).WithTimeout(5 * time.Minute).
+				Should(ContainSubstring(fmt.Sprintf("%s/backup/%s/backup.info", backupPath, clusterName(0))))
+			restoreBackupInfo()
+
 			waitForHealthyShard(restoredNamespace, 0, defaultPodCount)
 			expectRowsOnEveryPod(restoredNamespace, 0, defaultPodCount, 1, lastRowID)
+			for podIndex := range defaultPodCount {
+				Expect(psql(restoredNamespace, podName(0, podIndex), "SELECT current_setting('max_connections') || ' ' || current_setting('statement_timeout')")).
+					To(Equal("100 0"), podName(0, podIndex))
+			}
+			restoredBackups := readStanzaInfo(Default, restoredNamespace, 0).Backup
+			Expect(restoredBackups[len(restoredBackups)-1]).To(And(HaveField("Type", "full"), HaveField("Label", Not(BeElementOf(backupLabels)))),
+				"the restored shard didn't take a full backup for its replicas")
 			walSegment = switchWAL(restoredNamespace, 0)
 			Eventually(expectArchived).WithArguments(restoredNamespace, 0, walSegment).Should(Succeed())
 		})
@@ -961,6 +1193,14 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 		})
 	})
 
+	It("installs and replicates with no backup CronJobs or WAL archiving when backup.enabled is false", func() {
+		namespace := installPostgresWithRowsTable(postgresChartDirectory, 1, map[string]string{"backup.enabled": "false"})
+		Expect(e2e.MustRun("", "kubectl", "-n", namespace, "get", "cronjobs", "-o", "name")).To(BeEmpty())
+		Expect(mustPsqlOnPrimary(namespace, 0, "SHOW archive_mode")).To(Equal("off"))
+		insertRows(namespace, 0, 1, 1000)
+		expectRowsOnEveryPod(namespace, 0, defaultPodCount, 1, 1000)
+	})
+
 	Context("from main's published chart", Ordered, func() {
 		var namespace string
 		var mainExporterMemoryRequests []string
@@ -971,12 +1211,19 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 		}
 
 		BeforeAll(func() {
-			namespace = installPostgresWithRowsTable(publishedPostgresChart, 1, nil)
+			// NOTE: main's published chart doesn't quote the schedules
+			namespace = installPostgresWithRowsTable(publishedPostgresChart, 1, map[string]string{
+				"backup.schedules.full": "0 0 30 2 *",
+				"backup.schedules.diff": "0 0 30 2 *",
+				"backup.schedules.incr": "0 0 30 2 *",
+			})
 			mainExporterMemoryRequests = exporterMemoryRequests()
 			insertRows(namespace, 0, 1, 1000)
 		})
 
 		It("keeps the data, writes and backups when upgraded to this chart and its images", func() {
+			// NOTE: podManagementPolicy is immutable, so moving to Parallel needs the StatefulSet recreated
+			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "statefulset", statefulSetName(0), "--cascade=orphan")
 			e2e.UpgradeChart(namespace, "postgres", postgresChartDirectory, imageValues(patroniImage, pgbackrestImage))
 			e2e.MustRun("", "kubectl", "-n", namespace, "rollout", "status", "statefulset/"+statefulSetName(0), "--timeout=10m")
 			waitForHealthyShard(namespace, 0, defaultPodCount)
@@ -1000,6 +1247,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 
 			// NOTE: a revert on main restores its chart and values, which helm-controller upgrades to
 			mainValues := e2e.MustRun("", "helm", "-n", namespace, "get", "values", "postgres", "--revision=1", "-o", "yaml")
+			e2e.MustRun("", "kubectl", "-n", namespace, "delete", "statefulset", statefulSetName(0), "--cascade=orphan")
 			e2e.MustRun(mainValues, "helm", "-n", namespace, "upgrade", "postgres", publishedPostgresChart, "--reset-values", "-f", "-", "--timeout=5m")
 			e2e.MustRun("", "kubectl", "-n", namespace, "rollout", "status", "statefulset/"+statefulSetName(0), "--timeout=10m")
 			Expect(podUIDs(namespace, 0)).NotTo(ContainElement(BeElementOf(changedPodUIDs)))
@@ -1039,9 +1287,8 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			Eventually(e2e.Run).WithArguments("", "kubectl", "-n", namespace, "logs", podName(0, 0), "-c", "patroni").
 				WithTimeout(3*time.Minute).Should(ContainSubstring("waiting for leader to bootstrap"), "the stale endpoints didn't block the bootstrap")
 
-			// TODO: a starting kube-controller-manager deletes Service-less endpoints; the README's fix lacks --ignore-not-found until #320
+			// NOTE: the README's fix, verbatim but for the names
 			e2e.MustRun("", "kubectl", "delete", "endpoints", clusterName(0), clusterName(0)+"-config", "-n", namespace, "--ignore-not-found")
-			e2e.MustRun("", "kubectl", "delete", "pods", "-n", namespace, "-l", fmt.Sprintf("cluster-name in (%s)", clusterName(0)))
 			waitForHealthyShard(namespace, 0, defaultPodCount)
 			expectRowsOnEveryPod(namespace, 0, defaultPodCount, 1, 1000)
 		})
@@ -1110,7 +1357,7 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 			}
 		})
 
-		It("removes a shard with the README's steps and keeps its backups in the bucket", func() {
+		It("removes a shard with the README's steps, leaving only its backups in the bucket", func() {
 			e2e.UpgradeChart(namespace, "postgres", postgresChartDirectory, map[string]string{"patroni.shards": "1"})
 			e2e.MustRun("", "kubectl", "-n", namespace, "wait", "--for=delete", "pod", "-l", "cluster-name="+clusterName(1), "--timeout=2m")
 			waitForHealthyShard(namespace, 0, defaultPodCount)
@@ -1128,10 +1375,14 @@ var _ = Describe("Postgres", Label("postgres"), func() {
 				Expect(psqlThroughPgDog(namespace, clientPod, fmt.Sprintf("SELECT id FROM e2e_users WHERE id = %d", id))).To(Equal(strconv.Itoa(id)))
 			}
 
-			// TODO: kube-controller-manager races Removing Shards' Step 3, which lacks --ignore-not-found until #320
-			e2e.MustRun("", "kubectl", "delete", "endpoints", clusterName(1), clusterName(1)+"-config", "-n", namespace, "--ignore-not-found")
+			// NOTE: Step 3, verbatim but for the names
+			e2e.MustRun("", "kubectl", "delete", "service,endpoints", clusterName(1), clusterName(1)+"-config", "-n", namespace, "--ignore-not-found")
 			e2e.MustRun("", "kubectl", "delete", "secret", statefulSetName(1)+"-tls", clusterName(1)+"-pgbackrest-backup-tls", "-n", namespace)
 			e2e.MustRun("", "kubectl", "delete", "pvc", "-n", namespace, "-l", "cluster-name="+clusterName(1))
+
+			leftovers := e2e.MustRun("", "kubectl", "-n", namespace, "get", "-o", "name",
+				"all,endpoints,endpointslices,configmaps,secrets,pvc,serviceaccounts,rolebindings,certificates,certificaterequests,servicemonitors")
+			Expect(strings.Fields(leftovers)).NotTo(ContainElement(ContainSubstring(clusterName(1))))
 
 			removedStanzaJSON, err := execInPod(namespace, mustPrimaryPodName(namespace, 0), "patroni", "pgbackrest", "--stanza="+clusterName(1), "info", "--output=json")
 			Expect(err).NotTo(HaveOccurred())
