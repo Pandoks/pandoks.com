@@ -56,7 +56,9 @@ import `packages/svelte` by package name (`@pandoks.com/svelte/...`); inside it,
    values, and `pnpm cluster deploy --dry-run` output are real credentials: never print, commit, or
    paste them, and inspect manifests with `kustomize build`. New secrets go in `infra/secrets.ts`; a
    missing value fails every preview and deploy of its stack, so set yours with
-   `pulumi config set --secret --raw --stack <stack> <Name> < <file>` and ask me for production's.
+   `pulumi config set --secret --raw --stack <stack> <Name> < <file>` and ask me for production's. A
+   production leak follows `README.md`'s `## If a production secret leaks`; propose each of its
+   steps that changes production and wait, per hazard 1.
 
 ## How changes ship
 
