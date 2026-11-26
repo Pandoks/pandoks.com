@@ -16,7 +16,9 @@
   },
   "dependencies": {
     "@expo/metro-runtime": "58.0.15",
+    "@pandoks.com/react-native-reserved-regions": "workspace:*",
     "expo": "58.0.21",
+    "expo-hinge": "58.0.2",
     "expo-linking": "58.0.15",
     "expo-navigation-bar": "58.0.4",
     "expo-router": "58.0.28",
