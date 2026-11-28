@@ -221,7 +221,7 @@ describe('routing and auth', () => {
 });
 
 describe('transcription', () => {
-  it('forwards exact audio bytes and content type, returns raw and duration, and rejects empty body', async () => {
+  it('forwards exact audio bytes and content type, returns raw and duration, and rejects a missing body or content type', async () => {
     await aiStub.configure({
       output: {
         results: {
@@ -247,6 +247,9 @@ describe('transcription', () => {
 
     const emptyBody = await postAudio(new Uint8Array(0), 'audio/mp4');
     expect(emptyBody.status).toBe(400);
+
+    const missingContentType = await postAudio(SAMPLE_AUDIO, '');
+    expect(missingContentType.status).toBe(400);
     expect(await aiStub.getCalls()).toHaveLength(0);
 
     const m4aResponse = await postAudio(SAMPLE_AUDIO, 'audio/mp4');
@@ -448,5 +451,22 @@ describe('key terms', () => {
     expect(cappedTerms.at(-1)).toBe('Term55');
     expect(cappedTerms).not.toContain('Ghostty');
     expect(cappedTerms).not.toContain('Term05');
+  });
+
+  it('keeps number-like and __proto__ heard phrases as the newest terms', async () => {
+    const batch: Record<string, string> = {};
+    for (let index = 1; index <= 50; index += 1) {
+      batch[`heard-${index}`] = `Term${index}`;
+    }
+    await postCorrections(batch);
+
+    const response = await postCorrections(
+      JSON.parse('{"404":"FourOhFour","__proto__":"Proto"}') as Record<string, unknown>
+    );
+    expect(Object.keys(await response.json<object>())).toEqual(['404', '__proto__']);
+
+    await postAudio(SAMPLE_AUDIO, 'audio/mp4');
+    const [call] = await aiStub.getCalls();
+    expect(call.keyterm!.split(', ').slice(-2)).toEqual(['FourOhFour', 'Proto']);
   });
 });

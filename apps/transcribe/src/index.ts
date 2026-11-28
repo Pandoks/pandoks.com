@@ -12,17 +12,20 @@ function normalizePhrase(phrase: string): string {
   return phrase.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
-function applyCorrections(raw: string, corrections: Record<string, string>): string {
-  const phrases = Object.keys(corrections);
-  if (!raw || phrases.length === 0) return raw;
+async function loadCorrections(env: Env): Promise<Map<string, string>> {
+  return new Map(await env.CORRECTIONS.get<[string, string][]>(CORRECTIONS_KEY, 'json'));
+}
 
-  phrases.sort((left, right) => right.length - left.length);
-  const alternation = phrases
+function applyCorrections(raw: string, corrections: Map<string, string>): string {
+  if (!raw || corrections.size === 0) return raw;
+
+  const alternation = [...corrections.keys()]
+    .sort((left, right) => right.length - left.length)
     .map((phrase) => phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '\\s+'))
     .join('|');
   const pattern = new RegExp(`(?<![\\p{L}\\p{N}_])(?:${alternation})(?![\\p{L}\\p{N}_])`, 'giu');
 
-  return raw.replace(pattern, (matched) => corrections[normalizePhrase(matched)] ?? matched);
+  return raw.replace(pattern, (matched) => corrections.get(normalizePhrase(matched)) ?? matched);
 }
 
 async function handleCorrections(request: Request, env: Env): Promise<Response> {
@@ -42,7 +45,7 @@ async function handleCorrections(request: Request, env: Env): Promise<Response> 
     return Response.json({ error: 'corrections are required' }, { status: 400 });
   }
 
-  const updates: Record<string, string> = {};
+  const updates = new Map<string, string>();
   for (const [rawHeard, rawCorrect] of entries) {
     if (typeof rawCorrect !== 'string') {
       return Response.json({ error: 'invalid correction' }, { status: 400 });
@@ -52,27 +55,27 @@ async function handleCorrections(request: Request, env: Env): Promise<Response> 
     if (!heard || !correct) {
       return Response.json({ error: 'invalid correction' }, { status: 400 });
     }
-    updates[heard] = correct;
+    updates.set(heard, correct);
   }
 
-  const stored = (await env.CORRECTIONS.get<Record<string, string>>(CORRECTIONS_KEY, 'json')) ?? {};
-  for (const [heard, correct] of Object.entries(updates)) {
-    delete stored[heard];
-    stored[heard] = correct;
+  const stored = await loadCorrections(env);
+  for (const [heard, correct] of updates) {
+    stored.delete(heard);
+    stored.set(heard, correct);
   }
 
-  await env.CORRECTIONS.put(CORRECTIONS_KEY, JSON.stringify(stored));
-  return Response.json(updates);
+  await env.CORRECTIONS.put(CORRECTIONS_KEY, JSON.stringify([...stored]));
+  return Response.json(Object.fromEntries(updates));
 }
 
 async function handleTranscribe(request: Request, env: Env): Promise<Response> {
-  if (!request.body || request.headers.get('content-length') === '0') {
-    return Response.json({ error: 'missing audio body' }, { status: 400 });
+  const contentType = request.headers.get('content-type');
+  if (!request.body || !contentType || request.headers.get('content-length') === '0') {
+    return Response.json({ error: 'missing audio body or content type' }, { status: 400 });
   }
 
-  const corrections =
-    (await env.CORRECTIONS.get<Record<string, string>>(CORRECTIONS_KEY, 'json')) ?? {};
-  const keyterms = [...new Set(Object.values(corrections).reverse())]
+  const corrections = await loadCorrections(env);
+  const keyterms = [...new Set([...corrections.values()].reverse())]
     .slice(0, MAX_KEYTERMS)
     .reverse();
   const keyterm = keyterms.length > 0 ? keyterms.join(', ') : undefined;
@@ -80,10 +83,7 @@ async function handleTranscribe(request: Request, env: Env): Promise<Response> {
   let output: Ai_Cf_Deepgram_Nova_3_Output;
   try {
     output = await env.AI.run(SPEECH_MODEL, {
-      audio: {
-        body: request.body,
-        contentType: request.headers.get('content-type') ?? ''
-      },
+      audio: { body: request.body, contentType },
       smart_format: true,
       ...(keyterm ? { keyterm } : {})
     });
