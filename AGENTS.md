@@ -200,7 +200,7 @@ Before calling infra, cluster, or tooling work done, check:
   get screenshots or video uploaded to GitHub. Never commit PR-only assets, plans, or notes.
 - One concern per PR, not split too fine; tell me unrelated findings instead of opening new PRs.
 - Before calling a PR ready, run a review/fix loop over correctness, least code, style match, tests,
-  and docs until a full round finds nothing.
+  and docs until a full round finds nothing; dismiss stale bot reviews whose findings you handled.
 - Babysitting: poll checks and comments newer than the last push, fix real bot findings, dismiss
   false positives, and hardening requests the Code Review Rules exclude, with a written reason, and
   resolve threads you addressed. Once CI passes and nothing is left unhandled, stop at the first of
