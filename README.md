@@ -35,7 +35,7 @@
 
 | Directory    | Contents                                                                                                       |
 | ------------ | -------------------------------------------------------------------------------------------------------------- |
-| `apps/`      | Deployable apps (`web`, `functions`, `example`)                                                                |
+| `apps/`      | Deployable apps (`web`, `functions`, `transcribe`, `example`)                                                  |
 | `packages/`  | Shared libraries, Helm charts & images (`svelte`, `postgres`, `clickhouse`, `valkey`, `argocd`, `e2e`)         |
 | `templates/` | Starter apps (`desktop`, `mobile`, never deployed)                                                             |
 | `infra/`     | [Pulumi](https://www.pulumi.com/docs/) cloud infrastructure (AWS, Cloudflare, Hetzner, OVH, Tailscale, GitHub) |

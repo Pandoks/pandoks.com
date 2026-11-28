@@ -35,6 +35,9 @@ export const secrets = {
     AuthToken: requireSecret('TwilioAuthToken'),
     NotionMessagingServiceSid: requireSecret('TwilioNotionMessagingServiceSid')
   },
+  transcribe: {
+    AuthToken: requireSecret('TranscribeAuthToken')
+  },
   oxylabs: {
     residential: {
       Username: requireSecret('OxylabsResidentialUsername'),
