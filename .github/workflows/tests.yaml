@@ -135,6 +135,17 @@ jobs:
       - name: Run prettier package tests
         run: pnpm --filter @pandoks.com/prettier test
 
+  test-transcribe:
+    if: contains(fromJSON(inputs.jobs), 'transcribe')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-node-pnpm
+
+      - name: Run transcribe tests
+        run: pnpm --filter @pandoks.com/transcribe test
+
   test-valkey-reconciler:
     if: contains(fromJSON(inputs.jobs), 'valkey-reconciler')
     runs-on: ubuntu-latest
